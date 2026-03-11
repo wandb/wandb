@@ -1,6 +1,7 @@
 package validator
 
 import (
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -48,7 +49,13 @@ func ValidateSchemaDocument(sd *SchemaDocument) (*Schema, error) {
 		}
 
 		if def.Kind != ext.Kind {
-			return nil, gqlerror.ErrorPosf(ext.Position, "Cannot extend type %s because the base type is a %s, not %s.", ext.Name, def.Kind, ext.Kind)
+			return nil, gqlerror.ErrorPosf(
+				ext.Position,
+				"Cannot extend type %s because the base type is a %s, not %s.",
+				ext.Name,
+				def.Kind,
+				ext.Kind,
+			)
 		}
 
 		def.Directives = append(def.Directives, ext.Directives...)
@@ -95,14 +102,21 @@ func ValidateSchemaDocument(sd *SchemaDocument) (*Schema, error) {
 				// version of gqlparser, in which case they're in trouble
 				// anyway.
 			default:
-				return nil, gqlerror.ErrorPosf(dir.Position, "Cannot redeclare directive %s.", dir.Name)
+				return nil, gqlerror.ErrorPosf(
+					dir.Position,
+					"Cannot redeclare directive %s.",
+					dir.Name,
+				)
 			}
 		}
 		schema.Directives[dir.Name] = sd.Directives[i]
 	}
 
 	if len(sd.Schema) > 1 {
-		return nil, gqlerror.ErrorPosf(sd.Schema[1].Position, "Cannot have multiple schema entry points, consider schema extensions instead.")
+		return nil, gqlerror.ErrorPosf(
+			sd.Schema[1].Position,
+			"Cannot have multiple schema entry points, consider schema extensions instead.",
+		)
 	}
 
 	if len(sd.Schema) == 1 {
@@ -110,7 +124,12 @@ func ValidateSchemaDocument(sd *SchemaDocument) (*Schema, error) {
 		for _, entrypoint := range sd.Schema[0].OperationTypes {
 			def := schema.Types[entrypoint.Type]
 			if def == nil {
-				return nil, gqlerror.ErrorPosf(entrypoint.Position, "Schema root %s refers to a type %s that does not exist.", entrypoint.Operation, entrypoint.Type)
+				return nil, gqlerror.ErrorPosf(
+					entrypoint.Position,
+					"Schema root %s refers to a type %s that does not exist.",
+					entrypoint.Operation,
+					entrypoint.Type,
+				)
 			}
 			switch entrypoint.Operation {
 			case Query:
@@ -121,7 +140,12 @@ func ValidateSchemaDocument(sd *SchemaDocument) (*Schema, error) {
 				schema.Subscription = def
 			}
 		}
-		if err := validateDirectives(&schema, sd.Schema[0].Directives, LocationSchema, nil); err != nil {
+		if err := validateDirectives(
+			&schema,
+			sd.Schema[0].Directives,
+			LocationSchema,
+			nil,
+		); err != nil {
 			return nil, err
 		}
 		schema.SchemaDirectives = append(schema.SchemaDirectives, sd.Schema[0].Directives...)
@@ -131,7 +155,12 @@ func ValidateSchemaDocument(sd *SchemaDocument) (*Schema, error) {
 		for _, entrypoint := range ext.OperationTypes {
 			def := schema.Types[entrypoint.Type]
 			if def == nil {
-				return nil, gqlerror.ErrorPosf(entrypoint.Position, "Schema root %s refers to a type %s that does not exist.", entrypoint.Operation, entrypoint.Type)
+				return nil, gqlerror.ErrorPosf(
+					entrypoint.Position,
+					"Schema root %s refers to a type %s that does not exist.",
+					entrypoint.Operation,
+					entrypoint.Type,
+				)
 			}
 			switch entrypoint.Operation {
 			case Query:
@@ -259,7 +288,13 @@ func validateDefinition(schema *Schema, def *Definition) *gqlerror.Error {
 			return gqlerror.ErrorPosf(def.Position, "Undefined type %s.", strconv.Quote(typ))
 		}
 		if !isValidKind(typDef.Kind, Object) {
-			return gqlerror.ErrorPosf(def.Position, "%s type %s must be %s.", def.Kind, strconv.Quote(typ), kindList(Object))
+			return gqlerror.ErrorPosf(
+				def.Position,
+				"%s type %s must be %s.",
+				def.Kind,
+				strconv.Quote(typ),
+				kindList(Object),
+			)
 		}
 	}
 
@@ -272,37 +307,75 @@ func validateDefinition(schema *Schema, def *Definition) *gqlerror.Error {
 	switch def.Kind {
 	case Object, Interface:
 		if len(def.Fields) == 0 {
-			return gqlerror.ErrorPosf(def.Position, "%s %s: must define one or more fields.", def.Kind, def.Name)
+			return gqlerror.ErrorPosf(
+				def.Position,
+				"%s %s: must define one or more fields.",
+				def.Kind,
+				def.Name,
+			)
 		}
 		for _, field := range def.Fields {
 			if typ, ok := schema.Types[field.Type.Name()]; ok {
 				if !isValidKind(typ.Kind, Scalar, Object, Interface, Union, Enum) {
-					return gqlerror.ErrorPosf(field.Position, "%s %s: field must be one of %s.", def.Kind, def.Name, kindList(Scalar, Object, Interface, Union, Enum))
+					return gqlerror.ErrorPosf(
+						field.Position,
+						"%s %s: field must be one of %s.",
+						def.Kind,
+						def.Name,
+						kindList(Scalar, Object, Interface, Union, Enum),
+					)
 				}
 			}
 		}
 	case Enum:
 		if len(def.EnumValues) == 0 {
-			return gqlerror.ErrorPosf(def.Position, "%s %s: must define one or more unique enum values.", def.Kind, def.Name)
+			return gqlerror.ErrorPosf(
+				def.Position,
+				"%s %s: must define one or more unique enum values.",
+				def.Kind,
+				def.Name,
+			)
 		}
 		for _, value := range def.EnumValues {
 			for _, nonEnum := range [3]string{"true", "false", "null"} {
 				if value.Name == nonEnum {
-					return gqlerror.ErrorPosf(def.Position, "%s %s: non-enum value %s.", def.Kind, def.Name, value.Name)
+					return gqlerror.ErrorPosf(
+						def.Position,
+						"%s %s: non-enum value %s.",
+						def.Kind,
+						def.Name,
+						value.Name,
+					)
 				}
 			}
-			if err := validateDirectives(schema, value.Directives, LocationEnumValue, nil); err != nil {
+			if err := validateDirectives(
+				schema,
+				value.Directives,
+				LocationEnumValue,
+				nil,
+			); err != nil {
 				return err
 			}
 		}
 	case InputObject:
 		if len(def.Fields) == 0 {
-			return gqlerror.ErrorPosf(def.Position, "%s %s: must define one or more input fields.", def.Kind, def.Name)
+			return gqlerror.ErrorPosf(
+				def.Position,
+				"%s %s: must define one or more input fields.",
+				def.Kind,
+				def.Name,
+			)
 		}
 		for _, field := range def.Fields {
 			if typ, ok := schema.Types[field.Type.Name()]; ok {
 				if !isValidKind(typ.Kind, Scalar, Enum, InputObject) {
-					return gqlerror.ErrorPosf(field.Position, "%s %s: field must be one of %s.", typ.Kind, field.Name, kindList(Scalar, Enum, InputObject))
+					return gqlerror.ErrorPosf(
+						field.Position,
+						"%s %s: field must be one of %s.",
+						typ.Kind,
+						field.Name,
+						kindList(Scalar, Enum, InputObject),
+					)
 				}
 			}
 		}
@@ -311,7 +384,12 @@ func validateDefinition(schema *Schema, def *Definition) *gqlerror.Error {
 	for idx, field1 := range def.Fields {
 		for _, field2 := range def.Fields[idx+1:] {
 			if field1.Name == field2.Name {
-				return gqlerror.ErrorPosf(field2.Position, "Field %s.%s can only be defined once.", def.Name, field2.Name)
+				return gqlerror.ErrorPosf(
+					field2.Position,
+					"Field %s.%s can only be defined once.",
+					def.Name,
+					field2.Name,
+				)
 			}
 		}
 	}
@@ -334,7 +412,11 @@ func validateTypeRef(schema *Schema, typ *Type) *gqlerror.Error {
 	return nil
 }
 
-func validateArgs(schema *Schema, args ArgumentDefinitionList, currentDirective *DirectiveDefinition) *gqlerror.Error {
+func validateArgs(
+	schema *Schema,
+	args ArgumentDefinitionList,
+	currentDirective *DirectiveDefinition,
+) *gqlerror.Error {
 	for _, arg := range args {
 		if err := validateName(arg.Position, arg.Name); err != nil {
 			// now, GraphQL spec doesn't have reserved argument name
@@ -353,45 +435,71 @@ func validateArgs(schema *Schema, args ArgumentDefinitionList, currentDirective 
 				def.Kind,
 			)
 		}
-		if err := validateDirectives(schema, arg.Directives, LocationArgumentDefinition, currentDirective); err != nil {
+		if err := validateDirectives(
+			schema,
+			arg.Directives,
+			LocationArgumentDefinition,
+			currentDirective,
+		); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func validateDirectives(schema *Schema, dirs DirectiveList, location DirectiveLocation, currentDirective *DirectiveDefinition) *gqlerror.Error {
+func validateDirectives(
+	schema *Schema,
+	dirs DirectiveList,
+	location DirectiveLocation,
+	currentDirective *DirectiveDefinition,
+) *gqlerror.Error {
 	for _, dir := range dirs {
 		if err := validateName(dir.Position, dir.Name); err != nil {
 			// now, GraphQL spec doesn't have reserved directive name
 			return err
 		}
 		if currentDirective != nil && dir.Name == currentDirective.Name {
-			return gqlerror.ErrorPosf(dir.Position, "Directive %s cannot refer to itself.", currentDirective.Name)
+			return gqlerror.ErrorPosf(
+				dir.Position,
+				"Directive %s cannot refer to itself.",
+				currentDirective.Name,
+			)
 		}
 		dirDefinition := schema.Directives[dir.Name]
 		if dirDefinition == nil {
 			return gqlerror.ErrorPosf(dir.Position, "Undefined directive %s.", dir.Name)
 		}
-		validKind := false
-		for _, dirLocation := range dirDefinition.Locations {
-			if dirLocation == location {
-				validKind = true
-				break
-			}
-		}
+		validKind := slices.Contains(dirDefinition.Locations, location)
 		if !validKind {
-			return gqlerror.ErrorPosf(dir.Position, "Directive %s is not applicable on %s.", dir.Name, location)
+			return gqlerror.ErrorPosf(
+				dir.Position,
+				"Directive %s is not applicable on %s.",
+				dir.Name,
+				location,
+			)
 		}
 		for _, arg := range dir.Arguments {
 			if dirDefinition.Arguments.ForName(arg.Name) == nil {
-				return gqlerror.ErrorPosf(arg.Position, "Undefined argument %s for directive %s.", arg.Name, dir.Name)
+				return gqlerror.ErrorPosf(
+					arg.Position,
+					"Undefined argument %s for directive %s.",
+					arg.Name,
+					dir.Name,
+				)
 			}
 		}
 		for _, schemaArg := range dirDefinition.Arguments {
 			if schemaArg.Type.NonNull && schemaArg.DefaultValue == nil {
-				if arg := dir.Arguments.ForName(schemaArg.Name); arg == nil || arg.Value.Kind == NullValue {
-					return gqlerror.ErrorPosf(dir.Position, "Argument %s for directive %s cannot be null.", schemaArg.Name, dir.Name)
+				if arg := dir.Arguments.ForName(
+					schemaArg.Name,
+				); arg == nil ||
+					arg.Value.Kind == NullValue {
+					return gqlerror.ErrorPosf(
+						dir.Position,
+						"Argument %s for directive %s cannot be null.",
+						schemaArg.Name,
+						dir.Name,
+					)
 				}
 			}
 		}
@@ -408,7 +516,12 @@ func validateImplements(schema *Schema, def *Definition, intfName string) *gqler
 		return gqlerror.ErrorPosf(def.Position, "Undefined type %s.", strconv.Quote(intfName))
 	}
 	if intf.Kind != Interface {
-		return gqlerror.ErrorPosf(def.Position, "%s is a non interface type %s.", strconv.Quote(intfName), intf.Kind)
+		return gqlerror.ErrorPosf(
+			def.Position,
+			"%s is a non interface type %s.",
+			strconv.Quote(intfName),
+			intf.Kind,
+		)
 	}
 	for _, requiredField := range intf.Fields {
 		foundField := def.Fields.ForName(requiredField.Name)
@@ -429,24 +542,37 @@ func validateImplements(schema *Schema, def *Definition, intfName string) *gqler
 		for _, requiredArg := range requiredField.Arguments {
 			foundArg := foundField.Arguments.ForName(requiredArg.Name)
 			if foundArg == nil {
-				return gqlerror.ErrorPosf(foundField.Position,
+				return gqlerror.ErrorPosf(
+					foundField.Position,
 					`For %s to implement %s the field %s must have the same arguments but it is missing %s.`,
-					def.Name, intf.Name, requiredField.Name, requiredArg.Name,
+					def.Name,
+					intf.Name,
+					requiredField.Name,
+					requiredArg.Name,
 				)
 			}
 
 			if !requiredArg.Type.IsCompatible(foundArg.Type) {
-				return gqlerror.ErrorPosf(foundArg.Position,
+				return gqlerror.ErrorPosf(
+					foundArg.Position,
 					`For %s to implement %s the field %s must have the same arguments but %s has the wrong type.`,
-					def.Name, intf.Name, requiredField.Name, requiredArg.Name,
+					def.Name,
+					intf.Name,
+					requiredField.Name,
+					requiredArg.Name,
 				)
 			}
 		}
 		for _, foundArgs := range foundField.Arguments {
-			if requiredField.Arguments.ForName(foundArgs.Name) == nil && foundArgs.Type.NonNull && foundArgs.DefaultValue == nil {
-				return gqlerror.ErrorPosf(foundArgs.Position,
+			if requiredField.Arguments.ForName(foundArgs.Name) == nil && foundArgs.Type.NonNull &&
+				foundArgs.DefaultValue == nil {
+				return gqlerror.ErrorPosf(
+					foundArgs.Position,
 					`For %s to implement %s any additional arguments on %s must be optional or have a default value but %s is required.`,
-					def.Name, intf.Name, foundField.Name, foundArgs.Name,
+					def.Name,
+					intf.Name,
+					foundField.Name,
+					foundArgs.Name,
 				)
 			}
 		}
@@ -456,7 +582,11 @@ func validateImplements(schema *Schema, def *Definition, intfName string) *gqler
 
 // validateTypeImplementsAncestors
 // https://github.com/graphql/graphql-js/blob/47bd8c8897c72d3efc17ecb1599a95cee6bac5e8/src/type/validate.ts#L428
-func validateTypeImplementsAncestors(schema *Schema, def *Definition, intfName string) *gqlerror.Error {
+func validateTypeImplementsAncestors(
+	schema *Schema,
+	def *Definition,
+	intfName string,
+) *gqlerror.Error {
 	intf := schema.Types[intfName]
 	if intf == nil {
 		return gqlerror.ErrorPosf(def.Position, "Undefined type %s.", strconv.Quote(intfName))
@@ -479,15 +609,10 @@ func validateTypeImplementsAncestors(schema *Schema, def *Definition, intfName s
 }
 
 func containsString(slice []string, want string) bool {
-	for _, str := range slice {
-		if want == str {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(slice, want)
 }
 
-func isCovariant(schema *Schema, required *Type, actual *Type) bool {
+func isCovariant(schema *Schema, required, actual *Type) bool {
 	if required.NonNull && !actual.NonNull {
 		return false
 	}
@@ -513,18 +638,17 @@ func isCovariant(schema *Schema, required *Type, actual *Type) bool {
 
 func validateName(pos *Position, name string) *gqlerror.Error {
 	if strings.HasPrefix(name, "__") {
-		return gqlerror.ErrorPosf(pos, `Name "%s" must not begin with "__", which is reserved by GraphQL introspection.`, name)
+		return gqlerror.ErrorPosf(
+			pos,
+			`Name "%s" must not begin with "__", which is reserved by GraphQL introspection.`,
+			name,
+		)
 	}
 	return nil
 }
 
 func isValidKind(kind DefinitionKind, valid ...DefinitionKind) bool {
-	for _, k := range valid {
-		if kind == k {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(valid, kind)
 }
 
 func kindList(kinds ...DefinitionKind) string {

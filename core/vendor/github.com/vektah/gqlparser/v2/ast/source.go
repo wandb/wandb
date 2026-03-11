@@ -1,6 +1,6 @@
 package ast
 
-// Source covers a single *.graphql file
+// Source covers a single *.graphql file.
 type Source struct {
 	// Name is the filename of the source
 	Name string

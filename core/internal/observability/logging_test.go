@@ -1,14 +1,16 @@
 package observability_test
 
 import (
-	"bytes"
-	"encoding/json"
+	"errors"
+	"fmt"
 	"log/slog"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/observabilitytest"
 )
 
 func TestNewTags(t *testing.T) {
@@ -74,58 +76,86 @@ func TestNewNoOpLogger(t *testing.T) {
 	// Assert that the logger has the expected configuration
 	assert.NotNil(t, logger, "Expected logger to be created")
 	assert.NotNil(t, logger.Logger, "Expected logger to be created")
-	assert.Equal(t, observability.Tags{}, logger.GetTags(), "Unexpected tags in the logger")
-	assert.Nil(t, logger.GetSentry(), "Unexpected sentry client in the logger")
 }
 
-func TestNewLoggerWithTags(t *testing.T) {
-	// Mock logger for testing
-	var buf bytes.Buffer
-	mockLogger := slog.New(
-		slog.NewJSONHandler(&buf,
-			&slog.HandlerOptions{
-				ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
-					if a.Key == slog.TimeKey && len(groups) == 0 {
-						return slog.Attr{}
-					}
-					return a
-				},
-			},
-		),
+func TestReraise(t *testing.T) {
+	t.Run("no panic", func(t *testing.T) {
+		logger, logs := observabilitytest.NewRecordingTestLogger(t)
+
+		defer func() {
+			assert.Nil(t, recover())
+			assert.Empty(t, logs)
+		}()
+
+		defer logger.Reraise()
+	})
+
+	t.Run("panic with error", func(t *testing.T) {
+		logger, logs := observabilitytest.NewRecordingTestLogger(t)
+		testErr := errors.New("test error")
+
+		defer func() {
+			assert.Equal(t, testErr, recover())
+			assert.Contains(t, logs.String(), "test error")
+		}()
+
+		defer logger.Reraise()
+		panic(testErr)
+	})
+
+	t.Run("panic with string", func(t *testing.T) {
+		logger, logs := observabilitytest.NewRecordingTestLogger(t)
+
+		defer func() {
+			assert.Equal(t, fmt.Errorf("test error string"), recover())
+			assert.Contains(t, logs.String(), "test error string")
+		}()
+
+		defer logger.Reraise()
+		panic("test error string")
+	})
+}
+
+func TestCaptureFatalAndPanic_Nil(t *testing.T) {
+	logger := observabilitytest.NewTestLogger(t)
+
+	defer func() {
+		assert.ErrorContains(t, recover().(error), "panicked with nil error")
+	}()
+
+	logger.CaptureFatalAndPanic(nil)
+}
+
+func TestLoggerHierarchy(t *testing.T) {
+	baseLogger, logs, sentry := observabilitytest.NewSentryTestLogger(t)
+
+	childLogger := baseLogger.With(
+		[]any{"attr", "attr-value"},
+		map[string]string{"child-tag": "child-value"},
 	)
-	// Create tags for testing
-	tags := observability.Tags{"key1": "value1", "key2": "value2"}
 
-	// Create a Logger with tags
-	logger := observability.NewCoreLogger(
-		mockLogger,
-		&observability.CoreLoggerParams{
-			Tags: tags,
-		},
-	)
+	baseLogger.CaptureInfo("base message")
+	childLogger.CaptureInfo("child message")
 
-	// Assert that the logger has the expected configuration
-	assert.NotNil(t, logger)
-	assert.NotNil(t, logger.Logger)
+	sentryEvents := sentry.Events()
+	require.Len(t, sentryEvents, 2)
+	assert.Empty(t, sentryEvents[0].Tags)
+	assert.Equal(t, map[string]string{
+		// Sentry tags include attrs and tags passed to With().
+		"attr":      "attr-value",
+		"child-tag": "child-value",
+	}, sentryEvents[1].Tags)
 
-	// Assert that the logger has the expected tags
-	assert.Equal(t, tags, logger.GetTags(), "Unexpected tags in the logger")
-
-	// Assert that the slog logger has the expected tags
-	logger.Info("Test message")
-	type LogMessage struct {
-		Level string `json:"level"`
-		Msg   string `json:"msg"`
-		Key1  string `json:"key1"`
-		Key2  string `json:"key2"`
-	}
-	var logMessage LogMessage
-	err := json.Unmarshal(buf.Bytes(), &logMessage)
-	if err != nil {
-		t.Fatalf("Failed to unmarshal JSON: %v", err)
-	}
-	assert.Equal(t, "INFO", logMessage.Level, "Unexpected log level")
-	assert.Equal(t, "Test message", logMessage.Msg, "Unexpected log message")
-	assert.Equal(t, "value1", logMessage.Key1, "Unexpected value for key1")
-	assert.Equal(t, "value2", logMessage.Key2, "Unexpected value for key2")
+	logRecords := observabilitytest.ExtractLogs(t, logs)
+	require.Len(t, logRecords, 2)
+	assert.Equal(t, map[string]string{
+		"level": "INFO",
+		"msg":   "base message",
+	}, logRecords[0])
+	assert.Equal(t, map[string]string{
+		"level": "INFO",
+		"msg":   "child message",
+		// slog only includes the attrs passed to With().
+		"attr": "attr-value",
+	}, logRecords[1])
 }

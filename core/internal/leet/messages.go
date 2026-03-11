@@ -1,7 +1,9 @@
 package leet
 
 import (
-	tea "github.com/charmbracelet/bubbletea"
+	"time"
+
+	tea "charm.land/bubbletea/v2"
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
@@ -51,6 +53,15 @@ type StatsMsg struct {
 	RunPath   string
 	Timestamp int64              // Unix timestamp in seconds
 	Metrics   map[string]float64 // metric name -> value
+}
+
+// ConsoleLogMsg carries a raw console output record to be assembled
+// by [RunConsoleLogs]. Produced by the reader from output_raw records.
+type ConsoleLogMsg struct {
+	RunPath  string
+	Text     string
+	IsStderr bool
+	Time     time.Time
 }
 
 // ErrorMsg wraps an error.
@@ -145,3 +156,12 @@ type WorkspaceInitErrMsg struct {
 	RunPath string
 	Err     error
 }
+
+// ConsoleLogsPaneAnimationMsg drives animation for the run view console logs pane.
+type ConsoleLogsPaneAnimationMsg struct{}
+
+// WorkspaceConsoleLogsPaneAnimationMsg drives animation for the workspace console logs pane.
+type WorkspaceConsoleLogsPaneAnimationMsg struct{}
+
+// WorkspaceSystemMetricsPaneAnimationMsg drives animation for the workspace system metrics pane.
+type WorkspaceSystemMetricsPaneAnimationMsg struct{}

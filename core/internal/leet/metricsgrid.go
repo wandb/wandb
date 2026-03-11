@@ -6,8 +6,9 @@ import (
 	"strconv"
 	"sync"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
+	"charm.land/lipgloss/v2/compat"
 
 	"github.com/wandb/wandb/core/internal/observability"
 )
@@ -23,8 +24,9 @@ type MetricsGrid struct {
 	mu sync.RWMutex
 
 	// Configuration and logging.
-	config *ConfigManager
-	logger *observability.CoreLogger
+	config     *ConfigManager
+	gridConfig func() (int, int)
+	logger     *observability.CoreLogger
 
 	// Viewport dimensions.
 	width, height int
@@ -50,14 +52,14 @@ type MetricsGrid struct {
 	filter *Filter
 
 	// Stable color assignment.
-	colorOfTitle map[string]lipgloss.AdaptiveColor
+	colorOfTitle map[string]compat.AdaptiveColor
 	nextColorIdx int
 
 	// Palette for main metrics charts (derived from config.ColorScheme()).
-	palette []lipgloss.AdaptiveColor
+	palette []compat.AdaptiveColor
 
 	// Palette for per-plot mode in single-run view (derived from config.PerPlotColorScheme()).
-	perPlotPalette []lipgloss.AdaptiveColor
+	perPlotPalette []compat.AdaptiveColor
 
 	// When set to ColorModePerPlot, single-series charts are colored per chart title.
 	// Default is ColorModePerSeries (stable run-id color).
@@ -69,15 +71,17 @@ type MetricsGrid struct {
 
 func NewMetricsGrid(
 	config *ConfigManager,
+	gridConfig func() (int, int),
 	focus *Focus,
 	logger *observability.CoreLogger,
 ) *MetricsGrid {
-	gridRows, gridCols := config.MetricsGrid()
+	gridRows, gridCols := gridConfig()
 	palette := GraphColors(config.ColorScheme())
 	perPlotPalette := GraphColors(config.PerPlotColorScheme())
 
 	mg := &MetricsGrid{
 		config:                config,
+		gridConfig:            gridConfig,
 		all:                   make([]*EpochLineChart, 0),
 		byTitle:               make(map[string]*EpochLineChart),
 		filtered:              make([]*EpochLineChart, 0),
@@ -85,7 +89,7 @@ func NewMetricsGrid(
 		focus:                 focus,
 		filter:                NewFilter(),
 		logger:                logger,
-		colorOfTitle:          make(map[string]lipgloss.AdaptiveColor),
+		colorOfTitle:          make(map[string]compat.AdaptiveColor),
 		palette:               palette,
 		perPlotPalette:        perPlotPalette,
 		singleSeriesColorMode: ColorModePerSeries,
@@ -117,7 +121,7 @@ func (mg *MetricsGrid) ChartCount() int {
 
 // CalculateChartDimensions computes chart dimensions.
 func (mg *MetricsGrid) CalculateChartDimensions(windowWidth, windowHeight int) GridDims {
-	gridRows, gridCols := mg.config.MetricsGrid()
+	gridRows, gridCols := mg.gridConfig()
 	return ComputeGridDims(windowWidth, windowHeight, GridSpec{
 		Rows:        gridRows,
 		Cols:        gridCols,
@@ -177,7 +181,7 @@ func (mg *MetricsGrid) ProcessHistory(msg HistoryMsg) bool {
 
 // effectiveGridSize returns the grid size that can fit in the current viewport.
 func (mg *MetricsGrid) effectiveGridSize() GridSize {
-	gridRows, gridCols := mg.config.MetricsGrid()
+	gridRows, gridCols := mg.gridConfig()
 	return EffectiveGridSize(mg.width, mg.height, GridSpec{
 		Rows:        gridRows,
 		Cols:        gridCols,
@@ -208,7 +212,7 @@ func (mg *MetricsGrid) effectiveChartCountNoLock() int {
 }
 
 // colorForNoLock returns a stable color for a given metric title.
-func (mg *MetricsGrid) colorForNoLock(title string) lipgloss.AdaptiveColor {
+func (mg *MetricsGrid) colorForNoLock(title string) compat.AdaptiveColor {
 	if c, ok := mg.colorOfTitle[title]; ok {
 		return c
 	}
@@ -343,6 +347,21 @@ func (mg *MetricsGrid) renderHeader(size GridSize) string {
 }
 
 func (mg *MetricsGrid) renderGrid(dims GridDims, size GridSize) string {
+	mg.mu.RLock()
+	noData := len(mg.all) == 0
+	mg.mu.RUnlock()
+
+	if noData {
+		availableHeight := max(mg.height-ChartHeaderHeight, 0)
+		return lipgloss.Place(
+			mg.width+1,
+			availableHeight,
+			lipgloss.Center,
+			lipgloss.Center,
+			navInfoStyle.Render("No metric data for selected runs."),
+		)
+	}
+
 	var rows []string
 	for row := range size.Rows {
 		var cols []string
@@ -424,11 +443,12 @@ func (mg *MetricsGrid) Navigate(direction int) {
 // drawVisible draws charts that are currently visible.
 //
 // Charts no longer visible are parked to reduce memory usage.
-// Do not hold mg.mu while drawing.
 func (mg *MetricsGrid) drawVisible() {
 	dims := mg.CalculateChartDimensions(mg.width, mg.height)
 
 	mg.mu.Lock()
+	defer mg.mu.Unlock()
+
 	currentCharts := make(map[*EpochLineChart]struct{})
 	for row := range mg.currentPage {
 		for col := range mg.currentPage[row] {
@@ -439,7 +459,6 @@ func (mg *MetricsGrid) drawVisible() {
 	}
 	lastDrawnCharts := mg.lastDrawnCharts
 	mg.lastDrawnCharts = currentCharts
-	mg.mu.Unlock()
 
 	for ch := range lastDrawnCharts {
 		if ch != nil {
@@ -449,7 +468,8 @@ func (mg *MetricsGrid) drawVisible() {
 		}
 	}
 
-	// Resize and draw visible charts.
+	// Resize and draw visible charts under lock to serialize with
+	// ProcessHistory's AddData calls on the same chart internals.
 	for ch := range currentCharts {
 		ch.Resize(dims.CellW, dims.CellH)
 		ch.Draw()
@@ -535,10 +555,7 @@ func (mg *MetricsGrid) setFocus(row, col int) {
 	if row < len(mg.currentPage) && col < len(mg.currentPage[row]) &&
 		mg.currentPage[row][col] != nil {
 		chart := mg.currentPage[row][col]
-		mg.focus.Type = FocusMainChart
-		mg.focus.Row = row
-		mg.focus.Col = col
-		mg.focus.Title = chart.Title()
+		mg.focus.Set(FocusMainChart, row, col, chart.Title())
 		chart.SetFocused(true)
 	}
 }
@@ -555,10 +572,7 @@ func (mg *MetricsGrid) clearFocus() {
 			mg.currentPage[mg.focus.Row][mg.focus.Col] != nil {
 			mg.currentPage[mg.focus.Row][mg.focus.Col].SetFocused(false)
 		}
-		mg.focus.Type = FocusNone
-		mg.focus.Row = -1
-		mg.focus.Col = -1
-		mg.focus.Title = ""
+		mg.focus.Reset()
 	}
 }
 
@@ -747,23 +761,20 @@ func (mg *MetricsGrid) broadcastEndInspection() {
 	}
 }
 
-func (mg *MetricsGrid) handleMetricsFilterKey(msg tea.KeyMsg) {
-	switch msg.Type {
-	case tea.KeyEsc:
-		mg.ExitFilterMode(false)
-	case tea.KeyEnter:
-		mg.ExitFilterMode(true)
-	case tea.KeyTab:
-		mg.ToggleFilterMatchMode()
-	case tea.KeyBackspace, tea.KeySpace, tea.KeyRunes:
-		mg.UpdateFilterDraft(msg)
+// handleFilterKey processes a key event while the metrics filter is active.
+func (mg *MetricsGrid) handleFilterKey(msg tea.KeyPressMsg) {
+	mg.mu.Lock()
+	changed := mg.filter.HandleKey(msg)
+	mg.mu.Unlock()
+
+	if changed {
 		mg.ApplyFilter()
 		mg.drawVisible()
 	}
 }
 
 // Grid-layout config handler.
-func (mg *MetricsGrid) handleGridConfigNumberKey(msg tea.KeyMsg, layout Layout) {
+func (mg *MetricsGrid) handleGridConfigNumberKey(msg tea.KeyPressMsg, layout Layout) {
 	defer mg.config.SetPendingGridConfig(gridConfigNone)
 
 	if msg.String() == "esc" {

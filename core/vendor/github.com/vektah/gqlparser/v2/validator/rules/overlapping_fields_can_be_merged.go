@@ -6,7 +6,6 @@ import (
 	"reflect"
 
 	"github.com/vektah/gqlparser/v2/ast"
-
 	//nolint:staticcheck // Validator rules each use dot imports for convenience.
 	. "github.com/vektah/gqlparser/v2/validator/core"
 )
@@ -82,7 +81,8 @@ var OverlappingFieldsCanBeMergedRule = Rule{
 		})
 		observers.OnField(func(walker *Walker, field *ast.Field) {
 			if walker.CurrentOperation == nil {
-				// When checking both Operation and Fragment, errors are duplicated when processing FragmentDefinition referenced from Operation
+				// When checking both Operation and Fragment, errors are duplicated when processing
+				// FragmentDefinition referenced from Operation
 				return
 			}
 			m.walker = walker
@@ -112,7 +112,11 @@ type pairSet struct {
 	data map[string]map[string]bool
 }
 
-func (pairSet *pairSet) Add(a *ast.FragmentSpread, b *ast.FragmentSpread, areMutuallyExclusive bool) {
+func (pairSet *pairSet) Add(
+	a *ast.FragmentSpread,
+	b *ast.FragmentSpread,
+	areMutuallyExclusive bool,
+) {
 	add := func(a *ast.FragmentSpread, b *ast.FragmentSpread) {
 		m := pairSet.data[a.Name]
 		if m == nil {
@@ -125,7 +129,11 @@ func (pairSet *pairSet) Add(a *ast.FragmentSpread, b *ast.FragmentSpread, areMut
 	add(b, a)
 }
 
-func (pairSet *pairSet) Has(a *ast.FragmentSpread, b *ast.FragmentSpread, areMutuallyExclusive bool) bool {
+func (pairSet *pairSet) Has(
+	a *ast.FragmentSpread,
+	b *ast.FragmentSpread,
+	areMutuallyExclusive bool,
+) bool {
 	am, ok := pairSet.data[a.Name]
 	if !ok {
 		return false
@@ -224,7 +232,11 @@ func (m *ConflictMessage) addFieldsConflictMessage(addError AddErrFunc) {
 	var buf bytes.Buffer
 	m.String(&buf)
 	addError(
-		Message(`Fields "%s" conflict because %s. Use different aliases on the fields to fetch both if this was intentional.`, m.ResponseName, buf.String()),
+		Message(
+			`Fields "%s" conflict because %s. Use different aliases on the fields to fetch both if this was intentional.`,
+			m.ResponseName,
+			buf.String(),
+		),
 		At(m.Position),
 	)
 }
@@ -240,7 +252,9 @@ type overlappingFieldsCanBeMergedManager struct {
 	comparedFragments map[string]bool
 }
 
-func (m *overlappingFieldsCanBeMergedManager) findConflictsWithinSelectionSet(selectionSet ast.SelectionSet) []*ConflictMessage {
+func (m *overlappingFieldsCanBeMergedManager) findConflictsWithinSelectionSet(
+	selectionSet ast.SelectionSet,
+) []*ConflictMessage {
 	if len(selectionSet) == 0 {
 		return nil
 	}
@@ -271,7 +285,12 @@ func (m *overlappingFieldsCanBeMergedManager) findConflictsWithinSelectionSet(se
 	return conflicts.Conflicts
 }
 
-func (m *overlappingFieldsCanBeMergedManager) collectConflictsBetweenFieldsAndFragment(conflicts *conflictMessageContainer, areMutuallyExclusive bool, fieldsMap *sequentialFieldsMap, fragmentSpread *ast.FragmentSpread) {
+func (m *overlappingFieldsCanBeMergedManager) collectConflictsBetweenFieldsAndFragment(
+	conflicts *conflictMessageContainer,
+	areMutuallyExclusive bool,
+	fieldsMap *sequentialFieldsMap,
+	fragmentSpread *ast.FragmentSpread,
+) {
 	if m.comparedFragments[fragmentSpread.Name] {
 		return
 	}
@@ -299,11 +318,21 @@ func (m *overlappingFieldsCanBeMergedManager) collectConflictsBetweenFieldsAndFr
 		if fragmentSpread.Name == baseFragmentSpread.Name {
 			continue
 		}
-		m.collectConflictsBetweenFieldsAndFragment(conflicts, areMutuallyExclusive, fieldsMap, fragmentSpread)
+		m.collectConflictsBetweenFieldsAndFragment(
+			conflicts,
+			areMutuallyExclusive,
+			fieldsMap,
+			fragmentSpread,
+		)
 	}
 }
 
-func (m *overlappingFieldsCanBeMergedManager) collectConflictsBetweenFragments(conflicts *conflictMessageContainer, areMutuallyExclusive bool, fragmentSpreadA *ast.FragmentSpread, fragmentSpreadB *ast.FragmentSpread) {
+func (m *overlappingFieldsCanBeMergedManager) collectConflictsBetweenFragments(
+	conflicts *conflictMessageContainer,
+	areMutuallyExclusive bool,
+	fragmentSpreadA *ast.FragmentSpread,
+	fragmentSpreadB *ast.FragmentSpread,
+) {
 	var check func(fragmentSpreadA *ast.FragmentSpread, fragmentSpreadB *ast.FragmentSpread)
 	check = func(fragmentSpreadA *ast.FragmentSpread, fragmentSpreadB *ast.FragmentSpread) {
 		if fragmentSpreadA.Name == fragmentSpreadB.Name {
@@ -322,8 +351,12 @@ func (m *overlappingFieldsCanBeMergedManager) collectConflictsBetweenFragments(c
 			return
 		}
 
-		fieldsMapA, fragmentSpreadsA := getFieldsAndFragmentNames(fragmentSpreadA.Definition.SelectionSet)
-		fieldsMapB, fragmentSpreadsB := getFieldsAndFragmentNames(fragmentSpreadB.Definition.SelectionSet)
+		fieldsMapA, fragmentSpreadsA := getFieldsAndFragmentNames(
+			fragmentSpreadA.Definition.SelectionSet,
+		)
+		fieldsMapB, fragmentSpreadsB := getFieldsAndFragmentNames(
+			fragmentSpreadB.Definition.SelectionSet,
+		)
 
 		// (F) First, collect all conflicts between these two collections of fields
 		// (not including any nested fragments).
@@ -344,7 +377,11 @@ func (m *overlappingFieldsCanBeMergedManager) collectConflictsBetweenFragments(c
 	check(fragmentSpreadA, fragmentSpreadB)
 }
 
-func (m *overlappingFieldsCanBeMergedManager) findConflictsBetweenSubSelectionSets(areMutuallyExclusive bool, selectionSetA ast.SelectionSet, selectionSetB ast.SelectionSet) *conflictMessageContainer {
+func (m *overlappingFieldsCanBeMergedManager) findConflictsBetweenSubSelectionSets(
+	areMutuallyExclusive bool,
+	selectionSetA ast.SelectionSet,
+	selectionSetB ast.SelectionSet,
+) *conflictMessageContainer {
 	var conflicts conflictMessageContainer
 
 	fieldsMapA, fragmentSpreadsA := getFieldsAndFragmentNames(selectionSetA)
@@ -357,14 +394,24 @@ func (m *overlappingFieldsCanBeMergedManager) findConflictsBetweenSubSelectionSe
 	// those referenced by each fragment name associated with the second.
 	for _, fragmentSpread := range fragmentSpreadsB {
 		m.comparedFragments = make(map[string]bool)
-		m.collectConflictsBetweenFieldsAndFragment(&conflicts, areMutuallyExclusive, fieldsMapA, fragmentSpread)
+		m.collectConflictsBetweenFieldsAndFragment(
+			&conflicts,
+			areMutuallyExclusive,
+			fieldsMapA,
+			fragmentSpread,
+		)
 	}
 
 	// (I) Then collect conflicts between the second collection of fields and
 	// those referenced by each fragment name associated with the first.
 	for _, fragmentSpread := range fragmentSpreadsA {
 		m.comparedFragments = make(map[string]bool)
-		m.collectConflictsBetweenFieldsAndFragment(&conflicts, areMutuallyExclusive, fieldsMapB, fragmentSpread)
+		m.collectConflictsBetweenFieldsAndFragment(
+			&conflicts,
+			areMutuallyExclusive,
+			fieldsMapB,
+			fragmentSpread,
+		)
 	}
 
 	// (J) Also collect conflicts between any fragment names by the first and
@@ -372,7 +419,12 @@ func (m *overlappingFieldsCanBeMergedManager) findConflictsBetweenSubSelectionSe
 	// names to each item in the second set of names.
 	for _, fragmentSpreadA := range fragmentSpreadsA {
 		for _, fragmentSpreadB := range fragmentSpreadsB {
-			m.collectConflictsBetweenFragments(&conflicts, areMutuallyExclusive, fragmentSpreadA, fragmentSpreadB)
+			m.collectConflictsBetweenFragments(
+				&conflicts,
+				areMutuallyExclusive,
+				fragmentSpreadA,
+				fragmentSpreadB,
+			)
 		}
 	}
 
@@ -383,7 +435,10 @@ func (m *overlappingFieldsCanBeMergedManager) findConflictsBetweenSubSelectionSe
 	return &conflicts
 }
 
-func (m *overlappingFieldsCanBeMergedManager) collectConflictsWithin(conflicts *conflictMessageContainer, fieldsMap *sequentialFieldsMap) {
+func (m *overlappingFieldsCanBeMergedManager) collectConflictsWithin(
+	conflicts *conflictMessageContainer,
+	fieldsMap *sequentialFieldsMap,
+) {
 	for _, fields := range fieldsMap.Iterator() {
 		for idx, fieldA := range fields {
 			for _, fieldB := range fields[idx+1:] {
@@ -396,7 +451,12 @@ func (m *overlappingFieldsCanBeMergedManager) collectConflictsWithin(conflicts *
 	}
 }
 
-func (m *overlappingFieldsCanBeMergedManager) collectConflictsBetween(conflicts *conflictMessageContainer, parentFieldsAreMutuallyExclusive bool, fieldsMapA *sequentialFieldsMap, fieldsMapB *sequentialFieldsMap) {
+func (m *overlappingFieldsCanBeMergedManager) collectConflictsBetween(
+	conflicts *conflictMessageContainer,
+	parentFieldsAreMutuallyExclusive bool,
+	fieldsMapA *sequentialFieldsMap,
+	fieldsMapB *sequentialFieldsMap,
+) {
 	for _, fieldsEntryA := range fieldsMapA.KeyValueIterator() {
 		fieldsB, ok := fieldsMapB.Get(fieldsEntryA.ResponseName)
 		if !ok {
@@ -413,7 +473,11 @@ func (m *overlappingFieldsCanBeMergedManager) collectConflictsBetween(conflicts 
 	}
 }
 
-func (m *overlappingFieldsCanBeMergedManager) findConflict(parentFieldsAreMutuallyExclusive bool, fieldA *ast.Field, fieldB *ast.Field) *ConflictMessage {
+func (m *overlappingFieldsCanBeMergedManager) findConflict(
+	parentFieldsAreMutuallyExclusive bool,
+	fieldA *ast.Field,
+	fieldB *ast.Field,
+) *ConflictMessage {
 	if fieldA.ObjectDefinition == nil || fieldB.ObjectDefinition == nil {
 		return nil
 	}
@@ -437,8 +501,12 @@ func (m *overlappingFieldsCanBeMergedManager) findConflict(parentFieldsAreMutual
 		if fieldA.Name != fieldB.Name {
 			return &ConflictMessage{
 				ResponseName: fieldNameA,
-				Message:      fmt.Sprintf(`"%s" and "%s" are different fields`, fieldA.Name, fieldB.Name),
-				Position:     fieldB.Position,
+				Message: fmt.Sprintf(
+					`"%s" and "%s" are different fields`,
+					fieldA.Name,
+					fieldB.Name,
+				),
+				Position: fieldB.Position,
 			}
 		}
 
@@ -452,18 +520,27 @@ func (m *overlappingFieldsCanBeMergedManager) findConflict(parentFieldsAreMutual
 		}
 	}
 
-	if fieldA.Definition != nil && fieldB.Definition != nil && doTypesConflict(m.walker, fieldA.Definition.Type, fieldB.Definition.Type) {
+	if fieldA.Definition != nil && fieldB.Definition != nil &&
+		doTypesConflict(m.walker, fieldA.Definition.Type, fieldB.Definition.Type) {
 		return &ConflictMessage{
 			ResponseName: fieldNameA,
-			Message:      fmt.Sprintf(`they return conflicting types "%s" and "%s"`, fieldA.Definition.Type.String(), fieldB.Definition.Type.String()),
-			Position:     fieldB.Position,
+			Message: fmt.Sprintf(
+				`they return conflicting types "%s" and "%s"`,
+				fieldA.Definition.Type.String(),
+				fieldB.Definition.Type.String(),
+			),
+			Position: fieldB.Position,
 		}
 	}
 
 	// Collect and compare sub-fields. Use the same "visited fragment names" list
 	// for both collections so fields in a fragment reference are never
 	// compared to themselves.
-	conflicts := m.findConflictsBetweenSubSelectionSets(areMutuallyExclusive, fieldA.SelectionSet, fieldB.SelectionSet)
+	conflicts := m.findConflictsBetweenSubSelectionSets(
+		areMutuallyExclusive,
+		fieldA.SelectionSet,
+		fieldB.SelectionSet,
+	)
 	if conflicts == nil {
 		return nil
 	}
@@ -474,7 +551,7 @@ func (m *overlappingFieldsCanBeMergedManager) findConflict(parentFieldsAreMutual
 	}
 }
 
-func sameArguments(args1 []*ast.Argument, args2 []*ast.Argument) bool {
+func sameArguments(args1, args2 []*ast.Argument) bool {
 	if len(args1) != len(args2) {
 		return false
 	}
@@ -493,7 +570,7 @@ func sameArguments(args1 []*ast.Argument, args2 []*ast.Argument) bool {
 	return true
 }
 
-func sameValue(value1 *ast.Value, value2 *ast.Value) bool {
+func sameValue(value1, value2 *ast.Value) bool {
 	if value1.Kind != value2.Kind {
 		return false
 	}
@@ -503,7 +580,7 @@ func sameValue(value1 *ast.Value, value2 *ast.Value) bool {
 	return true
 }
 
-func doTypesConflict(walker *Walker, type1 *ast.Type, type2 *ast.Type) bool {
+func doTypesConflict(walker *Walker, type1, type2 *ast.Type) bool {
 	if type1.Elem != nil {
 		if type2.Elem != nil {
 			return doTypesConflict(walker, type1.Elem, type2.Elem)
@@ -522,14 +599,17 @@ func doTypesConflict(walker *Walker, type1 *ast.Type, type2 *ast.Type) bool {
 
 	t1 := walker.Schema.Types[type1.NamedType]
 	t2 := walker.Schema.Types[type2.NamedType]
-	if (t1.Kind == ast.Scalar || t1.Kind == ast.Enum) && (t2.Kind == ast.Scalar || t2.Kind == ast.Enum) {
+	if (t1.Kind == ast.Scalar || t1.Kind == ast.Enum) &&
+		(t2.Kind == ast.Scalar || t2.Kind == ast.Enum) {
 		return t1.Name != t2.Name
 	}
 
 	return false
 }
 
-func getFieldsAndFragmentNames(selectionSet ast.SelectionSet) (*sequentialFieldsMap, []*ast.FragmentSpread) {
+func getFieldsAndFragmentNames(
+	selectionSet ast.SelectionSet,
+) (*sequentialFieldsMap, []*ast.FragmentSpread) {
 	fieldsMap := sequentialFieldsMap{
 		data: make(map[string][]*ast.Field),
 	}

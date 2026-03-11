@@ -1,7 +1,7 @@
 package leet
 
 import (
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 )
 
 // KeyBinding defines a key binding for a particular target type.
@@ -12,7 +12,7 @@ import (
 type KeyBinding[T any] struct {
 	Keys        []string
 	Description string
-	Handler     func(*T, tea.KeyMsg) tea.Cmd
+	Handler     func(*T, tea.KeyPressMsg) tea.Cmd
 }
 
 // BindingCategory groups related key bindings (primarily for help display).
@@ -59,6 +59,11 @@ func RunKeyBindings() []BindingCategory[Run] {
 					Description: "Toggle right sidebar with system metrics",
 					Handler:     (*Run).handleToggleRightSidebar,
 				},
+				{
+					Keys:        []string{"l"},
+					Description: "Toggle console logs panel",
+					Handler:     (*Run).handleToggleConsoleLogsPane,
+				},
 			},
 		},
 		{
@@ -95,9 +100,19 @@ func RunKeyBindings() []BindingCategory[Run] {
 					Handler:     (*Run).handleEnterMetricsFilter,
 				},
 				{
+					Keys:        []string{"\\"},
+					Description: "Filter system metrics by pattern",
+					Handler:     (*Run).handleEnterSystemMetricsFilter,
+				},
+				{
 					Keys:        []string{"ctrl+l"},
-					Description: "Clear active filter",
+					Description: "Clear metrics filter",
 					Handler:     (*Run).handleClearMetricsFilter,
+				},
+				{
+					Keys:        []string{"ctrl+\\"},
+					Description: "Clear system metrics filter",
+					Handler:     (*Run).handleClearSystemMetricsFilter,
 				},
 			},
 		},
@@ -110,7 +125,7 @@ func RunKeyBindings() []BindingCategory[Run] {
 					Handler:     (*Run).handleEnterOverviewFilter,
 				},
 				{
-					Keys:        []string{"ctrl+k"},
+					Keys:        []string{"ctrl+o"},
 					Description: "Clear overview filter",
 					Handler:     (*Run).handleClearOverviewFilter,
 				},
@@ -142,21 +157,23 @@ func RunKeyBindings() []BindingCategory[Run] {
 			},
 		},
 
-		// Documentation-only bindings (handled by subcomponents, not via Run.keyMap).
 		{
-			Name: "Run Overview Navigation (when sidebar open)",
+			Name: "Sidebars (when open)",
 			Bindings: []KeyBinding[Run]{
 				{
-					Keys:        []string{"up", "down"},
-					Description: "Navigate items in section",
+					Keys:        []string{"tab", "shift+tab"},
+					Description: "Cycle focus: overview ↔ logs (overview cycles sections)",
+					Handler:     (*Run).handleSidebarTabNav,
 				},
 				{
-					Keys:        []string{"tab", "shift+tab"},
-					Description: "Switch between sections",
+					Keys:        []string{"up", "down"},
+					Description: "Navigate focused sidebar/list",
+					Handler:     (*Run).handleSidebarVerticalNav,
 				},
 				{
 					Keys:        []string{"left", "right"},
-					Description: "Navigate pages in section",
+					Description: "Page in focused sidebar/list",
+					Handler:     (*Run).handleSidebarPageNav,
 				},
 			},
 		},
@@ -199,9 +216,19 @@ func WorkspaceKeyBindings() []BindingCategory[Workspace] {
 					Handler:     (*Workspace).handleToggleRunsSidebar,
 				},
 				{
+					Keys:        []string{"s"},
+					Description: "Toggle system metrics panel",
+					Handler:     (*Workspace).handleToggleSystemMetricsPane,
+				},
+				{
 					Keys:        []string{"]"},
 					Description: "Toggle run overview sidebar",
 					Handler:     (*Workspace).handleToggleOverviewSidebar,
+				},
+				{
+					Keys:        []string{"l"},
+					Description: "Toggle console logs panel",
+					Handler:     (*Workspace).handleToggleConsoleLogsPane,
 				},
 			},
 		},
@@ -218,6 +245,16 @@ func WorkspaceKeyBindings() []BindingCategory[Workspace] {
 					Description: "Next chart page",
 					Handler:     (*Workspace).handleNextPage,
 				},
+				{
+					Keys:        []string{"M"},
+					Description: "Previous system metrics page",
+					Handler:     (*Workspace).handlePrevSystemMetricsPage,
+				},
+				{
+					Keys:        []string{"m"},
+					Description: "Next system metrics page",
+					Handler:     (*Workspace).handleNextSystemMetricsPage,
+				},
 			},
 		},
 		{
@@ -229,9 +266,35 @@ func WorkspaceKeyBindings() []BindingCategory[Workspace] {
 					Handler:     (*Workspace).handleEnterMetricsFilter,
 				},
 				{
-					Keys:        []string{"ctrl+l"},
-					Description: "Clear active filter",
+					Keys:        []string{"\\"},
+					Description: "Filter system metrics by pattern",
+					Handler:     (*Workspace).handleEnterSystemMetricsFilter,
+				},
+				{
+					// TODO: remove ctrl+l.
+					Keys:        []string{"ctrl+/", "ctrl+l"},
+					Description: "Clear metrics filter",
 					Handler:     (*Workspace).handleClearMetricsFilter,
+				},
+				{
+					Keys:        []string{"ctrl+\\"},
+					Description: "Clear system metrics filter",
+					Handler:     (*Workspace).handleClearSystemMetricsFilter,
+				},
+			},
+		},
+		{
+			Name: "Run Overview",
+			Bindings: []KeyBinding[Workspace]{
+				{
+					Keys:        []string{"o"},
+					Description: "Filter overview items",
+					Handler:     (*Workspace).handleEnterOverviewFilter,
+				},
+				{
+					Keys:        []string{"ctrl+o"},
+					Description: "Clear overview filter",
+					Handler:     (*Workspace).handleClearOverviewFilter,
 				},
 			},
 		},
@@ -248,6 +311,16 @@ func WorkspaceKeyBindings() []BindingCategory[Workspace] {
 					Description: "Set metrics grid rows",
 					Handler:     (*Workspace).handleConfigMetricsRows,
 				},
+				{
+					Keys:        []string{"C"},
+					Description: "Set system grid columns (Shift+c)",
+					Handler:     (*Workspace).handleConfigSystemCols,
+				},
+				{
+					Keys:        []string{"R"},
+					Description: "Set system grid rows (Shift+r)",
+					Handler:     (*Workspace).handleConfigSystemRows,
+				},
 			},
 		},
 		{
@@ -255,7 +328,7 @@ func WorkspaceKeyBindings() []BindingCategory[Workspace] {
 			Bindings: []KeyBinding[Workspace]{
 				{
 					Keys:        []string{"tab", "shift+tab"},
-					Description: "Cycle focus between runs and overview sections",
+					Description: "Cycle focus between runs, overview, and console logs",
 					Handler:     (*Workspace).handleSidebarTabNav,
 				},
 				{
@@ -291,8 +364,9 @@ func WorkspaceKeyBindings() []BindingCategory[Workspace] {
 }
 
 // buildKeyMap builds a fast lookup map from key string to handler.
-func buildKeyMap[T any](categories []BindingCategory[T]) map[string]func(*T, tea.KeyMsg) tea.Cmd {
-	keyMap := make(map[string]func(*T, tea.KeyMsg) tea.Cmd)
+func buildKeyMap[T any](
+	categories []BindingCategory[T]) map[string]func(*T, tea.KeyPressMsg) tea.Cmd {
+	keyMap := make(map[string]func(*T, tea.KeyPressMsg) tea.Cmd)
 	for _, category := range categories {
 		for _, binding := range category.Bindings {
 			if binding.Handler == nil {
@@ -306,7 +380,7 @@ func buildKeyMap[T any](categories []BindingCategory[T]) map[string]func(*T, tea
 	return keyMap
 }
 
-// normalizeKey normalizes Bubble Tea's KeyMsg.String() into a stable key used by our maps.
+// normalizeKey normalizes Bubble Tea's KeyPressMsg into a stable key used by our maps.
 //
 // Bubble Tea has historically reported space as " " in some situations; we want a
 // help-friendly, explicit key name.

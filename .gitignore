@@ -44,3 +44,10 @@ gpu_stats/target/
 # Outputs of tools/local_wandb_server.py
 tools/local_wandb_server.state.lock
 tools/local_wandb_server.state
+
+# Ignore orjson build artifacts
+wandb/vendor/wandb_orjson/__init__.py
+wandb/vendor/wandb_orjson/__init__.pyi
+wandb/vendor/wandb_orjson/py.typed
+wandb/vendor/wandb_orjson/orjson.so
+wandb/vendor/wandb_orjson/orjson.pyd

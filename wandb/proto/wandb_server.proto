@@ -85,6 +85,17 @@ message ServerCancelRequest {
   string request_id = 1;
 }
 
+// A generic error response for server requests.
+//
+// Some older response messages already embed error information.
+// Those messages rely on the client to process the error and not ignore it.
+// In contrast, this message is automatically translated into an exception,
+// making error handling opt-out rather than opt-in.
+message ServerErrorResponse {
+  // An error message describing the problem.
+  string message = 1;
+}
+
 /*
  * ServerRequest, ServerResponse: used in sock server
  */
@@ -118,6 +129,7 @@ message ServerRequest {
     ServerSyncStatusRequest sync_status = 13;
 
     ServerApiInitRequest api_init_request = 14;
+    ServerApiCleanupRequest api_cleanup_request = 17;
     ApiRequest api_request = 15;
   }
 }
@@ -145,6 +157,8 @@ message ServerResponse {
     ServerSyncStatusResponse sync_status_response = 13;
 
     ServerApiInitResponse api_init_response = 14;
-    ApiResponse api_response = 15;
+    ApiResponse api_response = 16;
+
+    ServerErrorResponse error_response = 200;
   }
 }

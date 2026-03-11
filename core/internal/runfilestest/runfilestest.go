@@ -2,6 +2,7 @@ package runfilestest
 
 import (
 	"testing"
+	"time"
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/stretchr/testify/require"
@@ -18,7 +19,6 @@ import (
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/runworktest"
 	"github.com/wandb/wandb/core/internal/settings"
-	"github.com/wandb/wandb/core/internal/waiting"
 	"github.com/wandb/wandb/core/internal/watcher"
 	"github.com/wandb/wandb/core/internal/watchertest"
 	"github.com/wandb/wandb/core/internal/wboperation"
@@ -35,7 +35,7 @@ type Params struct {
 	RunHandle    *runhandle.RunHandle
 	Settings     *settings.Settings
 
-	BatchDelay waiting.Delay
+	BatchDelay time.Duration
 	ExtraWork  runwork.ExtraWork
 	FileStream filestream.FileStream
 }

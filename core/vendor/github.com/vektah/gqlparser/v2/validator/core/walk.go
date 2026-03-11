@@ -142,7 +142,11 @@ func (w *Walker) walkFragment(it *ast.FragmentDefinition) {
 	}
 }
 
-func (w *Walker) walkDirectives(parentDef *ast.Definition, directives []*ast.Directive, location ast.DirectiveLocation) {
+func (w *Walker) walkDirectives(
+	parentDef *ast.Definition,
+	directives []*ast.Directive,
+	location ast.DirectiveLocation,
+) {
 	for _, dir := range directives {
 		def := w.Schema.Directives[dir.Name]
 		dir.Definition = def
@@ -182,7 +186,8 @@ func (w *Walker) walkValue(value *ast.Value) {
 				fieldDef := value.Definition.Fields.ForName(child.Name)
 				if fieldDef != nil {
 					child.Value.ExpectedType = fieldDef.Type
-					child.Value.ExpectedTypeHasDefault = fieldDef.DefaultValue != nil && fieldDef.DefaultValue.Kind != ast.NullValue
+					child.Value.ExpectedTypeHasDefault = fieldDef.DefaultValue != nil &&
+						fieldDef.DefaultValue.Kind != ast.NullValue
 					child.Value.Definition = w.Schema.Types[fieldDef.Type.Name()]
 				}
 			}
@@ -209,7 +214,8 @@ func (w *Walker) walkValue(value *ast.Value) {
 func (w *Walker) walkArgument(argDef *ast.ArgumentDefinition, arg *ast.Argument) {
 	if argDef != nil {
 		arg.Value.ExpectedType = argDef.Type
-		arg.Value.ExpectedTypeHasDefault = argDef.DefaultValue != nil && argDef.DefaultValue.Kind != ast.NullValue
+		arg.Value.ExpectedTypeHasDefault = argDef.DefaultValue != nil &&
+			argDef.DefaultValue.Kind != ast.NullValue
 		arg.Value.Definition = w.Schema.Types[argDef.Type.Name()]
 	}
 

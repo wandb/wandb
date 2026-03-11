@@ -5,22 +5,24 @@ import (
 	"testing"
 	"time"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
+	"charm.land/lipgloss/v2/compat"
 	"github.com/stretchr/testify/require"
 
 	"github.com/wandb/wandb/core/internal/leet"
 )
 
 // stubColorProvider returns deterministic colors for series creation order.
-func stubColorProvider(colors ...string) func() lipgloss.AdaptiveColor {
+func stubColorProvider(colors ...string) func() compat.AdaptiveColor {
 	i := 0
-	return func() lipgloss.AdaptiveColor {
+	return func() compat.AdaptiveColor {
 		if len(colors) == 0 {
-			return lipgloss.AdaptiveColor{}
+			return compat.AdaptiveColor{}
 		}
 		c := colors[i%len(colors)]
 		i++
-		return lipgloss.AdaptiveColor{Light: c, Dark: c}
+		return compat.AdaptiveColor{
+			Light: lipgloss.Color(c), Dark: lipgloss.Color(c)}
 	}
 }
 
@@ -38,8 +40,9 @@ func TestNewTimeSeriesLineChart_ConstructsAndInitializes(t *testing.T) {
 	ch := leet.NewTimeSeriesLineChart(&leet.TimeSeriesLineChartParams{
 		80, 20,
 		def,
-		lipgloss.AdaptiveColor{Light: "#FF00FF", Dark: "#FF00FF"}, // base color
-		stubColorProvider("#00FF00"),                              // provider for subsequent series
+		compat.AdaptiveColor{
+			Light: lipgloss.Color("#FF00FF"), Dark: lipgloss.Color("#FF00FF")}, // base color
+		stubColorProvider("#00FF00"), // provider for subsequent series
 		now,
 	})
 
@@ -62,7 +65,8 @@ func TestAddDataPoint_DefaultSeries_BookKeeping(t *testing.T) {
 	}
 	now := time.Unix(1_700_000_000, 0)
 	ch := leet.NewTimeSeriesLineChart(&leet.TimeSeriesLineChartParams{
-		80, 20, def, lipgloss.AdaptiveColor{Light: "#ABCDEF", Dark: "#ABCDEF"},
+		80, 20, def, compat.AdaptiveColor{
+			Light: lipgloss.Color("#ABCDEF"), Dark: lipgloss.Color("#ABCDEF")},
 		stubColorProvider(), now})
 
 	// First point
@@ -106,7 +110,9 @@ func TestAddDataPoint_NamedSeries_CreatesSeriesOnDemand(t *testing.T) {
 	}
 	now := time.Unix(1_700_000_000, 0)
 	ch := leet.NewTimeSeriesLineChart(&leet.TimeSeriesLineChartParams{
-		80, 20, def, lipgloss.AdaptiveColor{Light: "#FF00FF", Dark: "#FF00FF"},
+		80, 20, def,
+		compat.AdaptiveColor{
+			Light: lipgloss.Color("#FF00FF"), Dark: lipgloss.Color("#FF00FF")},
 		stubColorProvider("#00FF00", "#0000FF"), now})
 
 	ts := now.Unix()

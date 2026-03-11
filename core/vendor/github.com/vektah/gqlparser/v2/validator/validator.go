@@ -2,6 +2,7 @@ package validator
 
 import (
 	"sort"
+
 	//nolint:staticcheck // bad, yeah
 	. "github.com/vektah/gqlparser/v2/ast"
 	"github.com/vektah/gqlparser/v2/gqlerror"
@@ -24,7 +25,7 @@ var (
 	OrList       = core.OrList
 )
 
-// Walk is an alias for core.Walk
+// Walk is an alias for core.Walk.
 func Walk(schema *Schema, document *QueryDocument, observers *Events) {
 	core.Walk(schema, document, observers)
 }
@@ -49,9 +50,9 @@ func AddRule(name string, ruleFunc RuleFunc) {
 
 // RemoveRule removes an existing rule from the rule set
 // if one of the same name exists.
-// The rule set is global, so it is not safe for concurrent changes
+// The rule set is global, so it is not safe for concurrent changes.
 func RemoveRule(name string) {
-	var result []Rule // nolint:prealloc // using initialized with len(rules) produces a race condition
+	var result []Rule //nolint:prealloc // using initialized with len(rules) produces a race condition
 	for _, r := range specifiedRules {
 		if r.Name == name {
 			continue
@@ -64,10 +65,10 @@ func RemoveRule(name string) {
 // ReplaceRule replaces an existing rule from the rule set
 // if one of the same name exists.
 // If no match is found, it will add a new rule to the rule set.
-// The rule set is global, so it is not safe for concurrent changes
+// The rule set is global, so it is not safe for concurrent changes.
 func ReplaceRule(name string, ruleFunc RuleFunc) {
 	var found bool
-	var result []Rule // nolint:prealloc // using initialized with len(rules) produces a race condition
+	var result []Rule //nolint:prealloc // using initialized with len(rules) produces a race condition
 	for _, r := range specifiedRules {
 		if r.Name == name {
 			found = true
@@ -117,7 +118,11 @@ func Validate(schema *Schema, doc *QueryDocument, rules ...Rule) gqlerror.List {
 	return errs
 }
 
-func ValidateWithRules(schema *Schema, doc *QueryDocument, rules *validatorrules.Rules) gqlerror.List {
+func ValidateWithRules(
+	schema *Schema,
+	doc *QueryDocument,
+	rules *validatorrules.Rules,
+) gqlerror.List {
 	if rules == nil {
 		rules = validatorrules.NewDefaultRules()
 	}
@@ -134,7 +139,7 @@ func ValidateWithRules(schema *Schema, doc *QueryDocument, rules *validatorrules
 	}
 	observers := &core.Events{}
 
-	var currentRules []Rule // nolint:prealloc // would require extra local refs for len
+	var currentRules []Rule //nolint:prealloc // would require extra local refs for len
 	for name, ruleFunc := range rules.GetInner() {
 		currentRules = append(currentRules, Rule{Name: name, RuleFunc: ruleFunc})
 		// ensure deterministic order evaluation

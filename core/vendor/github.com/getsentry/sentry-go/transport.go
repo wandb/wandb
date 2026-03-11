@@ -17,23 +17,13 @@ import (
 	httpinternal "github.com/getsentry/sentry-go/internal/http"
 	"github.com/getsentry/sentry-go/internal/protocol"
 	"github.com/getsentry/sentry-go/internal/ratelimit"
+	"github.com/getsentry/sentry-go/internal/util"
 )
 
 const (
 	defaultBufferSize = 1000
 	defaultTimeout    = time.Second * 30
 )
-
-// maxDrainResponseBytes is the maximum number of bytes that transport
-// implementations will read from response bodies when draining them.
-//
-// Sentry's ingestion API responses are typically short and the SDK doesn't need
-// the contents of the response body. However, the net/http HTTP client requires
-// response bodies to be fully drained (and closed) for TCP keep-alive to work.
-//
-// maxDrainResponseBytes strikes a balance between reading too much data (if the
-// server is misbehaving) and reusing TCP connections.
-const maxDrainResponseBytes = 16 << 10
 
 // Transport is used by the Client to deliver events to remote server.
 type Transport interface {
@@ -296,8 +286,9 @@ type batch struct {
 }
 
 type batchItem struct {
-	request  *http.Request
-	category ratelimit.Category
+	request         *http.Request
+	category        ratelimit.Category
+	eventIdentifier string
 }
 
 // HTTPTransport is the default, non-blocking, implementation of Transport.
@@ -416,21 +407,17 @@ func (t *HTTPTransport) SendEventWithContext(ctx context.Context, event *Event) 
 	// channel (used as a queue).
 	b := <-t.buffer
 
+	identifier := eventIdentifier(event)
+
 	select {
 	case b.items <- batchItem{
-		request:  request,
-		category: category,
+		request:         request,
+		category:        category,
+		eventIdentifier: identifier,
 	}:
-		var eventType string
-		if event.Type == transactionType {
-			eventType = "transaction"
-		} else {
-			eventType = fmt.Sprintf("%s event", event.Type)
-		}
 		debuglog.Printf(
-			"Sending %s [%s] to %s project: %s",
-			eventType,
-			event.EventID,
+			"Sending %s to %s project: %s",
+			identifier,
 			t.dsn.GetHost(),
 			t.dsn.GetProjectID(),
 		)
@@ -549,13 +536,7 @@ func (t *HTTPTransport) worker() {
 					debuglog.Printf("There was an issue with sending an event: %v", err)
 					continue
 				}
-				if response.StatusCode >= 400 && response.StatusCode <= 599 {
-					b, err := io.ReadAll(response.Body)
-					if err != nil {
-						debuglog.Printf("Error while reading response code: %v", err)
-					}
-					debuglog.Printf("Sending %s failed with the following error: %s", eventType, string(b))
-				}
+				util.HandleHTTPResponse(response, item.eventIdentifier)
 
 				t.mu.Lock()
 				if t.limits == nil {
@@ -566,7 +547,7 @@ func (t *HTTPTransport) worker() {
 
 				// Drain body up to a limit and close it, allowing the
 				// transport to reuse TCP connections.
-				_, _ = io.CopyN(io.Discard, response.Body, maxDrainResponseBytes)
+				_, _ = io.CopyN(io.Discard, response.Body, util.MaxDrainResponseBytes)
 				response.Body.Close()
 			}
 		}
@@ -673,23 +654,10 @@ func (t *HTTPSyncTransport) SendEventWithContext(ctx context.Context, event *Eve
 		return
 	}
 
-	var eventIdentifier string
-	switch event.Type {
-	case errorType:
-		eventIdentifier = "error"
-	case transactionType:
-		eventIdentifier = "transaction"
-	case logEvent.Type:
-		eventIdentifier = fmt.Sprintf("%d log events", len(event.Logs))
-	case traceMetricEvent.Type:
-		eventIdentifier = fmt.Sprintf("%d metric events", len(event.Metrics))
-	default:
-		eventIdentifier = fmt.Sprintf("%s event", event.Type)
-	}
+	identifier := eventIdentifier(event)
 	debuglog.Printf(
-		"Sending %s [%s] to %s project: %s",
-		eventIdentifier,
-		event.EventID,
+		"Sending %s to %s project: %s",
+		identifier,
 		t.dsn.GetHost(),
 		t.dsn.GetProjectID(),
 	)
@@ -699,13 +667,7 @@ func (t *HTTPSyncTransport) SendEventWithContext(ctx context.Context, event *Eve
 		debuglog.Printf("There was an issue with sending an event: %v", err)
 		return
 	}
-	if response.StatusCode >= 400 && response.StatusCode <= 599 {
-		b, err := io.ReadAll(response.Body)
-		if err != nil {
-			debuglog.Printf("Error while reading response code: %v", err)
-		}
-		debuglog.Printf("Sending %s failed with the following error: %s", eventIdentifier, string(b))
-	}
+	util.HandleHTTPResponse(response, identifier)
 
 	t.mu.Lock()
 	if t.limits == nil {
@@ -717,7 +679,7 @@ func (t *HTTPSyncTransport) SendEventWithContext(ctx context.Context, event *Eve
 
 	// Drain body up to a limit and close it, allowing the
 	// transport to reuse TCP connections.
-	_, _ = io.CopyN(io.Discard, response.Body, maxDrainResponseBytes)
+	_, _ = io.CopyN(io.Discard, response.Body, util.MaxDrainResponseBytes)
 	response.Body.Close()
 }
 

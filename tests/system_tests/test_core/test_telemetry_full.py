@@ -1,7 +1,7 @@
 from unittest import mock
 
 import wandb
-from wandb.proto.v3.wandb_telemetry_pb2 import Feature
+from wandb.proto.wandb_telemetry_pb2 import Feature
 
 # TODO: implement the telemetry context resolver
 

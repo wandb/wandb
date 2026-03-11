@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.11.0]
+
+[Compare](https://github.com/clipperhouse/displaywidth/compare/v0.10.0...v0.11.0)
+
+### Added
+- New `ControlSequences8Bit` option to treat 8-bit ECMA-48 (C1) escape sequences as zero-width. (#22)
+
+### Changed
+- Upgraded uax29 dependency to v2.7.0 for 8-bit escape sequence support in the grapheme iterator.
+- Truncation now validates that preserved trailing escape sequences are zero-width, preventing edge cases where non-zero-width sequences could leak into output.
+
+### Note
+- `ControlSequences8Bit` is deliberately ignored by `TruncateString` and `TruncateBytes`, because C1 byte values (0x80–0x9F) overlap with UTF-8 multi-byte encoding.
+
 ## [0.10.0]
 
 [Compare](https://github.com/clipperhouse/displaywidth/compare/v0.9.0...v0.10.0)

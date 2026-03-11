@@ -1,5 +1,41 @@
 # Changelog
 
+## 0.43.0
+
+### Breaking Changes 🛠
+
+- Add support for go 1.26 by @giortzisg in [#1193](https://github.com/getsentry/sentry-go/pull/1193)
+  - bump minimum supported go version to 1.24
+- change type signature of attributes for Logs and Metrics. by @giortzisg in [#1205](https://github.com/getsentry/sentry-go/pull/1205)
+  - users are not supposed to modify Attributes directly on the Log/Metric itself, but this is still is a breaking change on the type.
+- Send uint64 overflowing attributes as numbers. by @giortzisg in [#1198](https://github.com/getsentry/sentry-go/pull/1198)
+  - The SDK was converting overflowing uint64 attributes to strings for slog and logrus integrations. To eliminate double types for these attributes, the SDK now sends the overflowing attribute as is, and lets the server handle the overflow appropriately.
+  - It is expected that overflowing unsigned integers would now get dropped, instead of converted to strings.
+
+### New Features ✨
+
+- Add zap logging integration by @giortzisg in [#1184](https://github.com/getsentry/sentry-go/pull/1184)
+- Log specific message for RequestEntityTooLarge by @giortzisg in [#1185](https://github.com/getsentry/sentry-go/pull/1185)
+
+### Bug Fixes 🐛
+
+- Improve otel span map cleanup performance by @giortzisg in [#1200](https://github.com/getsentry/sentry-go/pull/1200)
+- Ensure correct signal delivery on multi-client setups by @giortzisg in [#1190](https://github.com/getsentry/sentry-go/pull/1190)
+
+### Internal Changes 🔧
+
+#### Deps
+
+- Bump golang.org/x/crypto to 0.48.0 by @giortzisg in [#1196](https://github.com/getsentry/sentry-go/pull/1196)
+- Use go1.24.0 by @giortzisg in [#1195](https://github.com/getsentry/sentry-go/pull/1195)
+- Bump github.com/gofiber/fiber/v2 from 2.52.9 to 2.52.11 in /fiber by @dependabot in [#1191](https://github.com/getsentry/sentry-go/pull/1191)
+- Bump getsentry/craft from 2.19.0 to 2.20.1 by @dependabot in [#1187](https://github.com/getsentry/sentry-go/pull/1187)
+
+#### Other
+
+- Add omitzero and remove custom serialization by @giortzisg in [#1197](https://github.com/getsentry/sentry-go/pull/1197)
+- Rename Telemetry Processor components by @giortzisg in [#1186](https://github.com/getsentry/sentry-go/pull/1186)
+
 ## 0.42.0
 
 ### Breaking Changes 🛠

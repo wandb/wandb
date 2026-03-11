@@ -29,7 +29,7 @@ jobs:
           branch: regenerate-requirements
           delete-branch: true
           title: "chore: update Python requirements"
-          body: |
+          body: >
             Applies updates from `requirements/generate.sh`.
 
             Please approve and merge if tests pass. If tests fail due to

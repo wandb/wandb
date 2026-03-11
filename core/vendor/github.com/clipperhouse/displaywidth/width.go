@@ -1,34 +1,10 @@
 package displaywidth
 
 import (
-	"strings"
 	"unicode/utf8"
 
 	"github.com/clipperhouse/uax29/v2/graphemes"
 )
-
-// Options allows you to specify the treatment of ambiguous East Asian
-// characters and ANSI escape sequences.
-type Options struct {
-	// EastAsianWidth specifies whether to treat ambiguous East Asian characters
-	// as width 1 or 2. When false (default), ambiguous East Asian characters
-	// are treated as width 1. When true, they are width 2.
-	EastAsianWidth bool
-
-	// ControlSequences specifies whether to ignore ECMA-48 escape sequences
-	// when calculating the display width. When false (default), ANSI escape
-	// sequences are treated as just a series of characters. When true, they are
-	// treated as a single zero-width unit.
-	//
-	// Note that this option is about *sequences*. Individual control characters
-	// are already treated as zero-width. With this option, ANSI sequences such as
-	// "\x1b[31m" and "\x1b[0m" do not count towards the width of a string.
-	ControlSequences bool
-}
-
-// DefaultOptions is the default options for the display width
-// calculation, which is EastAsianWidth false and ControlSequences false.
-var DefaultOptions = Options{EastAsianWidth: false, ControlSequences: false}
 
 // String calculates the display width of a string,
 // by iterating over grapheme clusters in the string
@@ -55,6 +31,7 @@ func (options Options) String(s string) int {
 		// Not ASCII, use grapheme parsing
 		g := graphemes.FromString(s[pos:])
 		g.AnsiEscapeSequences = options.ControlSequences
+		g.AnsiEscapeSequences8Bit = options.ControlSequences8Bit
 
 		start := pos
 
@@ -105,6 +82,7 @@ func (options Options) Bytes(s []byte) int {
 		// Not ASCII, use grapheme parsing
 		g := graphemes.FromBytes(s[pos:])
 		g.AnsiEscapeSequences = options.ControlSequences
+		g.AnsiEscapeSequences8Bit = options.ControlSequences8Bit
 
 		start := pos
 
@@ -166,128 +144,22 @@ func (options Options) Rune(r rune) int {
 
 const _Default property = 0
 
-// TruncateString truncates a string to the given maxWidth, and appends the
-// given tail if the string is truncated.
-//
-// It ensures the visible width, including the width of the tail, is less than or
-// equal to maxWidth.
-//
-// When [Options.ControlSequences] is true, ANSI escape sequences that appear
-// after the truncation point are preserved in the output. This ensures that
-// escape sequences such as SGR resets are not lost, preventing color bleed
-// in terminal output.
-func (options Options) TruncateString(s string, maxWidth int, tail string) string {
-	maxWidthWithoutTail := maxWidth - options.String(tail)
-
-	var pos, total int
-	g := graphemes.FromString(s)
-	g.AnsiEscapeSequences = options.ControlSequences
-
-	for g.Next() {
-		gw := graphemeWidth(g.Value(), options)
-		if total+gw <= maxWidthWithoutTail {
-			pos = g.End()
-		}
-		total += gw
-		if total > maxWidth {
-			if options.ControlSequences {
-				// Build result with trailing ANSI escape sequences preserved
-				var b strings.Builder
-				b.Grow(len(s) + len(tail)) // at most original + tail
-				b.WriteString(s[:pos])
-				b.WriteString(tail)
-				rem := graphemes.FromString(s[pos:])
-				rem.AnsiEscapeSequences = true
-				for rem.Next() {
-					v := rem.Value()
-					if len(v) > 0 && v[0] == 0x1B {
-						b.WriteString(v)
-					}
-				}
-				return b.String()
-			}
-			return s[:pos] + tail
-		}
-	}
-	// No truncation
-	return s
-}
-
-// TruncateString truncates a string to the given maxWidth, and appends the
-// given tail if the string is truncated.
-//
-// It ensures the total width, including the width of the tail, is less than or
-// equal to maxWidth.
-func TruncateString(s string, maxWidth int, tail string) string {
-	return DefaultOptions.TruncateString(s, maxWidth, tail)
-}
-
-// TruncateBytes truncates a []byte to the given maxWidth, and appends the
-// given tail if the []byte is truncated.
-//
-// It ensures the visible width, including the width of the tail, is less than or
-// equal to maxWidth.
-//
-// When [Options.ControlSequences] is true, ANSI escape sequences that appear
-// after the truncation point are preserved in the output. This ensures that
-// escape sequences such as SGR resets are not lost, preventing color bleed
-// in terminal output.
-func (options Options) TruncateBytes(s []byte, maxWidth int, tail []byte) []byte {
-	maxWidthWithoutTail := maxWidth - options.Bytes(tail)
-
-	var pos, total int
-	g := graphemes.FromBytes(s)
-	g.AnsiEscapeSequences = options.ControlSequences
-
-	for g.Next() {
-		gw := graphemeWidth(g.Value(), options)
-		if total+gw <= maxWidthWithoutTail {
-			pos = g.End()
-		}
-		total += gw
-		if total > maxWidth {
-			if options.ControlSequences {
-				// Build result with trailing ANSI escape sequences preserved
-				result := make([]byte, 0, len(s)+len(tail)) // at most original + tail
-				result = append(result, s[:pos]...)
-				result = append(result, tail...)
-				rem := graphemes.FromBytes(s[pos:])
-				rem.AnsiEscapeSequences = true
-				for rem.Next() {
-					v := rem.Value()
-					if len(v) > 0 && v[0] == 0x1B {
-						result = append(result, v...)
-					}
-				}
-				return result
-			}
-			result := make([]byte, 0, pos+len(tail))
-			result = append(result, s[:pos]...)
-			result = append(result, tail...)
-			return result
-		}
-	}
-	// No truncation
-	return s
-}
-
-// TruncateBytes truncates a []byte to the given maxWidth, and appends the
-// given tail if the []byte is truncated.
-//
-// It ensures the total width, including the width of the tail, is less than or
-// equal to maxWidth.
-func TruncateBytes(s []byte, maxWidth int, tail []byte) []byte {
-	return DefaultOptions.TruncateBytes(s, maxWidth, tail)
-}
-
 // graphemeWidth returns the display width of a grapheme cluster.
 // The passed string must be a single grapheme cluster.
 func graphemeWidth[T ~string | []byte](s T, options Options) int {
-	// Optimization: no need to look up properties
-	switch len(s) {
-	case 0:
+	if len(s) == 0 {
 		return 0
-	case 1:
+	}
+
+	// C1 controls (0x80-0x9F) are zero-width when 8-bit control sequences
+	// are enabled. This must be checked before the single-byte optimization
+	// below, which would otherwise return width 1 for these bytes.
+	if options.ControlSequences8Bit && s[0] >= 0x80 && s[0] <= 0x9F {
+		return 0
+	}
+
+	// Optimization: single-byte graphemes need no property lookup
+	if len(s) == 1 {
 		return asciiWidth(s[0])
 	}
 

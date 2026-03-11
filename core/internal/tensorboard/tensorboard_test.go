@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"syscall"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -14,7 +15,6 @@ import (
 	"github.com/wandb/wandb/core/internal/runworktest"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/tensorboard"
-	"github.com/wandb/wandb/core/internal/waitingtest"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
@@ -40,7 +40,7 @@ func setupTest(t *testing.T, opts testOptions) testContext {
 	t.Helper()
 
 	runWork := runworktest.New()
-	fileReadDelay := waitingtest.NewFakeDelay()
+	fileReadDelay := time.Hour
 
 	tmpdir := t.TempDir()
 	toPath := func(slashPath string) string {

@@ -42,7 +42,7 @@ type Schema struct {
 	Comment *CommentGroup
 }
 
-// AddTypes is the helper to add types definition to the schema
+// AddTypes is the helper to add types definition to the schema.
 func (s *Schema) AddTypes(defs ...*Definition) {
 	if s.Types == nil {
 		s.Types = make(map[string]*Definition)
@@ -56,7 +56,7 @@ func (s *Schema) AddPossibleType(name string, def *Definition) {
 	s.PossibleTypes[name] = append(s.PossibleTypes[name], def)
 }
 
-// GetPossibleTypes will enumerate all the definitions for a given interface or union
+// GetPossibleTypes will enumerate all the definitions for a given interface or union.
 func (s *Schema) GetPossibleTypes(def *Definition) []*Definition {
 	return s.PossibleTypes[def.Name]
 }
@@ -65,7 +65,8 @@ func (s *Schema) AddImplements(name string, iface *Definition) {
 	s.Implements[name] = append(s.Implements[name], iface)
 }
 
-// GetImplements returns all the interface and union definitions that the given definition satisfies
+// GetImplements returns all the interface and union definitions that the given definition
+// satisfies.
 func (s *Schema) GetImplements(def *Definition) []*Definition {
 	return s.Implements[def.Name]
 }

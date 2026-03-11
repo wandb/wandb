@@ -17,29 +17,22 @@ class ProjectArtifactCollections(GQLResult):
 
 
 class ProjectArtifactCollectionsProject(GQLResult):
-    artifact_type: Optional[ProjectArtifactCollectionsProjectArtifactType] = Field(
-        alias="artifactType"
-    )
-
-
-class ProjectArtifactCollectionsProjectArtifactType(GQLResult):
     artifact_collections: Optional[
-        ProjectArtifactCollectionsProjectArtifactTypeArtifactCollections
+        ProjectArtifactCollectionsProjectArtifactCollections
     ] = Field(alias="artifactCollections")
 
 
-class ProjectArtifactCollectionsProjectArtifactTypeArtifactCollections(GQLResult):
-    total_count: int = Field(alias="totalCount")
+class ProjectArtifactCollectionsProjectArtifactCollections(GQLResult):
+    total_count: Optional[int] = Field(alias="totalCount", default=None)
     page_info: PageInfoFragment = Field(alias="pageInfo")
-    edges: List[ProjectArtifactCollectionsProjectArtifactTypeArtifactCollectionsEdges]
+    edges: List[ProjectArtifactCollectionsProjectArtifactCollectionsEdges]
 
 
-class ProjectArtifactCollectionsProjectArtifactTypeArtifactCollectionsEdges(GQLResult):
+class ProjectArtifactCollectionsProjectArtifactCollectionsEdges(GQLResult):
     node: Optional[ArtifactCollectionFragment]
 
 
 ProjectArtifactCollections.model_rebuild()
 ProjectArtifactCollectionsProject.model_rebuild()
-ProjectArtifactCollectionsProjectArtifactType.model_rebuild()
-ProjectArtifactCollectionsProjectArtifactTypeArtifactCollections.model_rebuild()
-ProjectArtifactCollectionsProjectArtifactTypeArtifactCollectionsEdges.model_rebuild()
+ProjectArtifactCollectionsProjectArtifactCollections.model_rebuild()
+ProjectArtifactCollectionsProjectArtifactCollectionsEdges.model_rebuild()

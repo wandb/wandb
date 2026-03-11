@@ -1,143 +1,225 @@
 package leet
 
 import (
+	"math"
 	"sync"
 	"time"
 )
 
-// AnimationState manages a sidebar's animated width.
-type AnimationState struct {
+// AnimatedValue manages a scalar (width, height, etc.) that animates
+// smoothly between a collapsed state (0) and an expanded state.
+type AnimatedValue struct {
 	mu sync.RWMutex
 
-	// currentWidth is the current rendered width (px/cols).
-	currentWidth int
+	// current is the current rendered size (px/cols/rows).
+	current int
 
-	// targetWidth is the desired width we're animating toward.
-	targetWidth int
+	// target is the desired size we're animating toward.
+	target int
 
-	// expandedWidth is the desired width when expanded.
-	expandedWidth int
+	// expanded is the fully-expanded size.
+	expanded int
 
-	// animationStartTime indicates when the current animation started.
-	animationStartTime time.Time
+	// startValue is the rendered size at the beginning of the current animation.
+	startValue int
+
+	// startTime indicates when the current animation started.
+	startTime time.Time
 }
 
-func NewAnimationState(expanded bool, expandedWidth int) *AnimationState {
-	a := &AnimationState{expandedWidth: expandedWidth}
-	if expanded {
-		a.currentWidth = expandedWidth
-		a.targetWidth = expandedWidth
+func NewAnimatedValue(isExpanded bool, expandedSize int) *AnimatedValue {
+	a := &AnimatedValue{expanded: expandedSize}
+	if isExpanded {
+		a.current = expandedSize
+		a.target = expandedSize
+		a.startValue = expandedSize
 	}
 	return a
 }
 
 // Toggle toggles between expanded and collapsed targets.
 //
-// No-op while animating to match current model gating semantics.
-func (a *AnimationState) Toggle() {
+// If the value is already animating, Toggle reverses direction from the current
+// interpolated value rather than jumping back to 0 or expanded.
+func (a *AnimatedValue) Toggle() {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	a.animationStartTime = time.Now()
+	now := time.Now()
+	a.advanceLocked(now)
 
-	if a.targetWidth == 0 {
-		a.targetWidth = a.expandedWidth
+	if a.target == 0 {
+		a.target = a.expanded
 	} else {
-		a.targetWidth = 0
+		a.target = 0
 	}
+	if a.current == a.target {
+		a.startValue = a.current
+		a.startTime = time.Time{}
+		return
+	}
+
+	a.startValue = a.current
+	a.startTime = now
 }
 
 // Update advances the animation given a wall-clock time and returns
 // whether the animation is complete.
-func (a *AnimationState) Update(now time.Time) bool {
+func (a *AnimatedValue) Update(now time.Time) bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
+	return a.advanceLocked(now)
+}
 
-	if a.currentWidth == a.targetWidth {
+// advanceLocked updates current to match now.
+//
+// The caller must hold a.mu.
+func (a *AnimatedValue) advanceLocked(now time.Time) bool {
+	if a.current == a.target {
+		a.startValue = a.current
+		a.startTime = time.Time{}
 		return true
 	}
-	elapsed := now.Sub(a.animationStartTime)
+	if a.startTime.IsZero() {
+		a.startValue = a.current
+		a.startTime = now
+		return a.current == a.target
+	}
+
+	elapsed := now.Sub(a.startTime)
+	if elapsed <= 0 {
+		return false
+	}
+
 	progress := float64(elapsed) / float64(AnimationDuration)
 	if progress >= 1 {
-		a.currentWidth = a.targetWidth
-		a.animationStartTime = time.Time{}
+		a.current = a.target
+		a.startValue = a.target
+		a.startTime = time.Time{}
 		return true
 	}
 
-	if a.currentWidth < a.targetWidth {
-		a.currentWidth = int(easeOutCubic(progress) * float64(a.expandedWidth))
-	} else {
-		a.currentWidth = int((1 - easeOutCubic(progress)) * float64(a.expandedWidth))
-	}
-
+	eased := easeOutCubic(progress)
+	next := float64(a.startValue) + eased*float64(a.target-a.startValue)
+	a.current = int(math.Round(next))
 	return false
 }
 
-// SetExpandedWidth updates the desired expanded width.
-func (a *AnimationState) SetExpandedWidth(width int) {
+// SetExpanded updates the desired expanded size.
+func (a *AnimatedValue) SetExpanded(size int) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	wasExpanded := a.targetWidth > 0 && a.currentWidth == a.targetWidth
+	now := time.Now()
+	wasExpanded := a.target > 0 && a.current == a.target
 
-	a.expandedWidth = width
-	if a.targetWidth > 0 {
-		a.targetWidth = width
+	a.advanceLocked(now)
+	a.expanded = size
+
+	if a.target == 0 {
+		return
 	}
 	if wasExpanded {
-		// We were stably expanded; snap immediately to the new width.
-		a.currentWidth = width
+		// We were stably expanded; snap immediately to the new size.
+		a.current = size
+		a.startValue = size
+		a.target = size
+		a.startTime = time.Time{}
+		return
 	}
+
+	// Preserve the current rendered value and animate smoothly toward the new
+	// expanded size.
+	a.target = size
+	a.startValue = a.current
+	if a.current == a.target {
+		a.startTime = time.Time{}
+		return
+	}
+	a.startTime = now
 }
 
-// Width returns the current width.
-func (a *AnimationState) Width() int {
+// Value returns the current animated value.
+func (a *AnimatedValue) Value() int {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
-	return a.currentWidth
+	return a.current
 }
 
-// IsAnimating reports whether currentWidth != targetWidth.
-func (a *AnimationState) IsAnimating() bool {
+// IsAnimating reports whether the value is in motion.
+func (a *AnimatedValue) IsAnimating() bool {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
-	return a.currentWidth != a.targetWidth
+	return a.current != a.target
 }
 
-// IsVisible returns true if any width is visible on screen.
-func (a *AnimationState) IsVisible() bool {
+// IsVisible returns true if the value is greater than zero.
+func (a *AnimatedValue) IsVisible() bool {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
-	return a.currentWidth > 0
+	return a.current > 0
 }
 
-// IsExpanded returns true if we're stably at expanded width.
-func (a *AnimationState) IsExpanded() bool {
+// IsExpanded returns true if we're stably at the expanded value.
+func (a *AnimatedValue) IsExpanded() bool {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
-	return a.targetWidth > 0 && (a.currentWidth == a.targetWidth)
+	return a.target > 0 && (a.current == a.target)
 }
 
-// IsCollapsed returns true if we're stably collapsed.
-func (a *AnimationState) IsCollapsed() bool {
+// IsCollapsed returns true if we're stably at zero.
+func (a *AnimatedValue) IsCollapsed() bool {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
-	return a.targetWidth == 0 && a.currentWidth == 0
+	return a.target == 0 && a.current == 0
 }
 
-// IsExpanding/IsCollapsing are derived from the direction to the target.
-func (a *AnimationState) IsExpanding() bool {
+// IsExpanding reports whether we're animating toward the expanded value.
+func (a *AnimatedValue) IsExpanding() bool {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
-	return a.currentWidth < a.targetWidth
-}
-func (a *AnimationState) IsCollapsing() bool {
-	a.mu.RLock()
-	defer a.mu.RUnlock()
-	return a.currentWidth > a.targetWidth
+	return a.current < a.target
 }
 
-// easeOutCubic maps t c [0, 1] -> [0, 1] with deceleration near the end.
+// IsCollapsing reports whether we're animating toward zero.
+func (a *AnimatedValue) IsCollapsing() bool {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	return a.current > a.target
+}
+
+// ForceCollapse immediately snaps to zero without animation.
+func (a *AnimatedValue) ForceCollapse() {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.current = 0
+	a.startValue = 0
+	a.target = 0
+	a.startTime = time.Time{}
+}
+
+// ForceExpand immediately snaps to the expanded value without animation.
+//
+// Intended for tests that need to skip animation.
+func (a *AnimatedValue) ForceExpand() {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.current = a.expanded
+	a.startValue = a.expanded
+	a.target = a.expanded
+	a.startTime = time.Time{}
+}
+
+// TargetVisible reports whether the animation's target is expanded.
+// Unlike IsVisible (current > 0) and IsExpanded (current == target),
+// this reflects the intended logical visibility.
+func (a *AnimatedValue) TargetVisible() bool {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	return a.target > 0
+}
+
+// easeOutCubic maps t ∈ [0, 1] -> [0, 1] with deceleration near the end.
 //
 // Values outside [0,1] are acceptable; callers clamp at 1.
 func easeOutCubic(t float64) float64 {
