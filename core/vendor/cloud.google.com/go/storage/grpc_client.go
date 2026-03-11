@@ -428,7 +428,16 @@ func (c *grpcStorageClient) UpdateBucket(ctx context.Context, bucket string, uat
 		fieldMask.Paths = append(fieldMask.Paths, "iam_config")
 	}
 	if uattrs.Encryption != nil {
-		fieldMask.Paths = append(fieldMask.Paths, "encryption")
+		fieldMask.Paths = append(fieldMask.Paths, "encryption.default_kms_key")
+	}
+	if uattrs.GoogleManagedEncryptionEnforcementConfig != nil {
+		fieldMask.Paths = append(fieldMask.Paths, "encryption.google_managed_encryption_enforcement_config")
+	}
+	if uattrs.CustomerManagedEncryptionEnforcementConfig != nil {
+		fieldMask.Paths = append(fieldMask.Paths, "encryption.customer_managed_encryption_enforcement_config")
+	}
+	if uattrs.CustomerSuppliedEncryptionEnforcementConfig != nil {
+		fieldMask.Paths = append(fieldMask.Paths, "encryption.customer_supplied_encryption_enforcement_config")
 	}
 	if uattrs.Lifecycle != nil {
 		fieldMask.Paths = append(fieldMask.Paths, "lifecycle")
