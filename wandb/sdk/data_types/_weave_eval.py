@@ -92,7 +92,9 @@ def _cell_to_weave(
             return str(cell)
         buf = io.BytesIO()
         pil_img.save(buf, format="PNG")
-        digest = _upload_bytes(project_id, "image.png", buf.getvalue(), "image/png", auth)
+        digest = _upload_bytes(
+            project_id, "image.png", buf.getvalue(), "image/png", auth
+        )
         return {
             "_type": "CustomWeaveType",
             "weave_type": {"type": "PIL.Image.Image"},
@@ -177,7 +179,7 @@ def _wrap_scores(scores: dict) -> dict:
     return result
 
 
-def log_eval_table_to_weave(table: "EvalTable", run: "LocalRun") -> None:
+def log_eval_table_to_weave(table: EvalTable, run: LocalRun) -> None:
     """Upload an EvalTable to the Weave trace server as an Evaluation.
 
     Called automatically from EvalTable.to_json() when the table is logged via
@@ -190,8 +192,9 @@ def log_eval_table_to_weave(table: "EvalTable", run: "LocalRun") -> None:
         log.warning("EvalTable: failed to log to Weave trace server: %s", exc)
 
 
-def _log_eval_table_to_weave(table: "EvalTable", run: "LocalRun") -> None:
+def _log_eval_table_to_weave(table: EvalTable, run: LocalRun) -> None:
     import requests
+
     import wandb
 
     project_id = f"{run.entity}/{run.project}"
@@ -209,7 +212,9 @@ def _log_eval_table_to_weave(table: "EvalTable", run: "LocalRun") -> None:
     output_cols = set(table.output_columns)
     score_cols = set(table.score_columns)
     # Columns not assigned to any category default to outputs
-    extra_output_cols = {c for c in table.columns if c not in input_cols | output_cols | score_cols}
+    extra_output_cols = {
+        c for c in table.columns if c not in input_cols | output_cols | score_cols
+    }
     all_output_cols = output_cols | extra_output_cols
 
     # table_inputs: merge step + any user-supplied eval-level inputs
@@ -247,17 +252,23 @@ def _log_eval_table_to_weave(table: "EvalTable", run: "LocalRun") -> None:
         inputs: dict[str, Any] = {}
         for col in input_cols:
             if col in col_index:
-                inputs[col] = _cell_to_weave(row[col_index[col]], project_id, entity, project, auth)
+                inputs[col] = _cell_to_weave(
+                    row[col_index[col]], project_id, entity, project, auth
+                )
 
         outputs: dict[str, Any] = {}
         for col in all_output_cols:
             if col in col_index:
-                outputs[col] = _cell_to_weave(row[col_index[col]], project_id, entity, project, auth)
+                outputs[col] = _cell_to_weave(
+                    row[col_index[col]], project_id, entity, project, auth
+                )
 
         scores: dict[str, Any] = {}
         for col in score_cols:
             if col in col_index:
-                scores[col] = _cell_to_weave(row[col_index[col]], project_id, entity, project, auth)
+                scores[col] = _cell_to_weave(
+                    row[col_index[col]], project_id, entity, project, auth
+                )
 
         batch.append(
             {
