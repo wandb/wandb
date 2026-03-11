@@ -1,6 +1,7 @@
 package gitops
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -59,12 +60,18 @@ func (g *Git) IsAvailable() bool {
 	return true
 }
 
-func (g *Git) GetLatestUpstreamCommit(findForkPoint bool) (string, error) {
-	if findForkPoint {
+// GetLatestUpstreamCommit returns a commit hash representing the upstream
+// reference point for the current branch.
+//
+// If disableGitForkPoint is false,
+// it returns the commit where the current branch diverged from upstream.
+// Otherwise, it returns the latest commit on the current branch's upstream tracking branch.
+func (g *Git) GetLatestUpstreamCommit(disableGitForkPoint bool) (string, error) {
+	if !disableGitForkPoint {
 		return g.GetUpstreamForkPoint()
 	}
 
-	return g.LatestCommit("@{u}")
+	return g.LatestCommit("@{upstream}")
 }
 
 func (g *Git) LatestCommit(ref string) (string, error) {
@@ -93,23 +100,35 @@ func (g *Git) SavePatch(ref, output string) error {
 	return nil
 }
 
+// GetUpstreamForkPoint returns the commit hash where the current branch
+// diverged from its upstream tracking branch.
+//
+// If the current branch has a configured tracking branch,
+// it returns the merge base with that branch.
+// Otherwise, it falls back to finding the most recent common ancestor of HEAD
+// across all tracking branches of every local branch.
+//
+// Returns an empty string if the repository is in a detached
+// HEAD state or if no tracking branches are found.
 func (g *Git) GetUpstreamForkPoint() (string, error) {
-	// Check if we're in a detached head state
-	if isDetached, err := g.isDetachedHead(); err != nil {
+	// check if we're in a detached head state
+	isDetached, err := g.isDetachedHead()
+	if err != nil {
 		return "", err
-	} else if isDetached {
-		g.logger.Debug("git is in a detached head state cannot get fork point")
+	}
+	if isDetached {
+		g.logger.Debug("git is in a detached head state, cannot get fork point")
 		return "", nil
 	}
 
-	// if there is a tracking branch, then use that as the fork point.
+	// if there is a tracking branch, then use that as the fork point
 	trackingBranch, err := g.getCurrentBranchTrackingBranch()
 	if err == nil && trackingBranch != "" {
 		return g.findMostRecentAncestor([]string{trackingBranch})
 	}
 
 	// if there is no tracking branch,
-	// then find the most recent ancestor of HEAD that occurs on an upstream branch.
+	// then find the most recent ancestor of HEAD that occurs on an upstream branch
 	trackingBranches, err := g.getAllTrackingBranches()
 	if err != nil {
 		return "", err
@@ -117,12 +136,15 @@ func (g *Git) GetUpstreamForkPoint() (string, error) {
 	return g.findMostRecentAncestor(trackingBranches)
 }
 
-// isDetachedHead checks if the repository is in a detached head state
+// isDetachedHead checks if the repository is in a detached head state.
 func (g *Git) isDetachedHead() (bool, error) {
 	_, err := runCommandWithOutput([]string{"git", "symbolic-ref", "HEAD"}, g.path)
 	if err != nil {
-		// symbolic-ref fails in detached head state
-		return true, nil
+		if _, ok := errors.AsType[*exec.ExitError](err); ok {
+			return true, nil
+		}
+
+		return false, err
 	}
 	return false, nil
 }
@@ -141,34 +163,31 @@ func (g *Git) getCurrentBranchTrackingBranch() (string, error) {
 
 // getAllTrackingBranches returns tracking branches for all local branches
 func (g *Git) getAllTrackingBranches() ([]string, error) {
-	branchesOutput, err := runCommandWithOutput(
-		[]string{"git", "branch", "--format=%(refname:short)"},
+	output, err := runCommandWithOutput(
+		[]string{
+			"git",
+			"for-each-ref",
+			"--format=%(upstream:short)",
+			"refs/heads/",
+		},
 		g.path,
 	)
 	if err != nil {
 		return nil, err
 	}
 
-	var trackingBranches []string
-	branches := strings.Split(strings.TrimSpace(string(branchesOutput)), "\n")
-	for _, branch := range branches {
-		branch = strings.TrimSpace(branch)
-		if branch == "" {
-			continue
-		}
-
-		trackingOutput, err := runCommandWithOutput(
-			[]string{"git", "rev-parse", "--abbrev-ref", branch + "@{upstream}"},
-			g.path,
-		)
-		if err == nil {
-			if trackingBranch := strings.TrimSpace(string(trackingOutput)); trackingBranch != "" {
-				trackingBranches = append(trackingBranches, trackingBranch)
-			}
+	trackingBranches := make(map[string]struct{})
+	for branch := range strings.SplitSeq(string(output), "\n") {
+		if branch != "" {
+			trackingBranches[branch] = struct{}{}
 		}
 	}
 
-	return trackingBranches, nil
+	trackingBranchesList := make([]string, 0, len(trackingBranches))
+	for branch := range trackingBranches {
+		trackingBranchesList = append(trackingBranchesList, branch)
+	}
+	return trackingBranchesList, nil
 }
 
 // findMostRecentAncestor finds the most recent common ancestor among provided branches
@@ -177,41 +196,11 @@ func (g *Git) findMostRecentAncestor(branches []string) (string, error) {
 		return "", nil
 	}
 
-	var mostRecentAncestor string
-
-	for _, branch := range branches {
-		ancestor, err := g.getMergeBase("HEAD", branch)
-		if err != nil || ancestor == "" {
-			continue
-		}
-
-		if mostRecentAncestor == "" {
-			mostRecentAncestor = ancestor
-		} else if isAncestor, err := g.isAncestor(mostRecentAncestor, ancestor); err == nil && isAncestor {
-			mostRecentAncestor = ancestor
-		}
-	}
-
-	return mostRecentAncestor, nil
-}
-
-// getMergeBase returns the merge base between two commits
-func (g *Git) getMergeBase(commit1, commit2 string) (string, error) {
-	output, err := runCommandWithOutput(
-		[]string{"git", "merge-base", commit1, commit2},
-		g.path,
-	)
+	args := append([]string{"git", "merge-base", "HEAD"}, branches...)
+	output, err := runCommandWithOutput(args, g.path)
 	if err != nil {
 		return "", err
 	}
-	return strings.TrimSpace(string(output)), nil
-}
 
-// isAncestor checks if commit1 is an ancestor of commit2
-func (g *Git) isAncestor(commit1, commit2 string) (bool, error) {
-	_, err := runCommandWithOutput(
-		[]string{"git", "merge-base", "--is-ancestor", commit1, commit2},
-		g.path,
-	)
-	return err == nil, nil
+	return strings.TrimSpace(string(output)), nil
 }

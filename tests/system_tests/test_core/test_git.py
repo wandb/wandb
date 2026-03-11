@@ -78,13 +78,13 @@ def test_create_git_diff_from_upstream(
         assert f"diff_{remote_head}.patch" in snapshot.uploaded_files(run_id=run.id)
 
 
-def test_creat_git_diff__finds_most_recent_ancestor(
+def test_create_git_diff__finds_most_recent_ancestor(
     user,
     wandb_backend_spy,
     setup_repo_with_remote,
 ):
     """
-    Tests that the git diff files is created from
+    Tests that the git diff file is created from
     the most recent ancestor of the all upstream branches.
     """
     base_repo, _ = setup_repo_with_remote
@@ -93,13 +93,13 @@ def test_creat_git_diff__finds_most_recent_ancestor(
     # create 3 branches with different commits
     for i in range(3):
         base_repo.git.checkout("-b", f"feature{i}")
-        (base_repo_path / f"feature{i}.txt").write_text(f"feature contest {i}")
+        (base_repo_path / f"feature{i}.txt").write_text(f"feature content {i}")
         base_repo.git.add(f"feature{i}.txt")
         base_repo.git.commit(m=f"Adding feature {i}")
         base_repo.git.push("origin", f"feature{i}")
         base_repo.git.branch("-u", f"origin/feature{i}")
 
-    # create a new branch which base if off of feature 1 branch
+    # create a new branch which based off of feature 1 branch
     # and make a commit to this branch
     base_repo.git.checkout("-b", "feature4", "feature1")
     (base_repo_path / "feature4.txt").write_text("feature4 content")
@@ -109,6 +109,7 @@ def test_creat_git_diff__finds_most_recent_ancestor(
     with wandb.init(
         settings=wandb.Settings(
             root_dir=base_repo.working_dir,
+            disable_git_fork_point=False,
         ),
     ) as run:
         pass

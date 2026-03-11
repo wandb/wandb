@@ -20,5 +20,5 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ### Fixed
 
-- git diff patch files are now generated for the closest ancestor commit when no upstream branch is set. (@jacobromero in https://github.com/wandb/wandb/pull/10132)
+- git diff patch files are now generated for the closest ancestor commit when no upstream branch is set (@jacobromero in https://github.com/wandb/wandb/pull/10132)
     - bug introduced in v0.18.0

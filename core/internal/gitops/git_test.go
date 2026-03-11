@@ -284,10 +284,8 @@ func TestGetUpstreamForkPoint_NoTrackingBranchFindsMostRecentAncestor(t *testing
 	})
 
 	// Add a commit on the feature branch
-	commit, _ := addAndCommitWithContent(baseRepo, "feature.txt", "feature branch content")
-	if err != nil {
-		t.Fatal(err)
-	}
+	commit, err := addAndCommitWithContent(baseRepo, "feature.txt", "feature branch content")
+	require.NoError(t, err)
 
 	logger := observability.NewNoOpLogger()
 	gitOps := gitops.New(repoPath, logger)
@@ -377,10 +375,8 @@ func TestGetUpstreamForkPoint_MultipleTrackingBranches(t *testing.T) {
 	require.NoError(t, err)
 
 	// Add a commit on the new branch
-	commit, _ := addAndCommitWithContent(baseRepo, "newbranch.txt", "new branch content")
-	if err != nil {
-		t.Fatal(err)
-	}
+	commit, err := addAndCommitWithContent(baseRepo, "newbranch.txt", "new branch content")
+	require.NoError(t, err)
 
 	logger := observability.NewNoOpLogger()
 	gitOps := gitops.New(repoPath, logger)
