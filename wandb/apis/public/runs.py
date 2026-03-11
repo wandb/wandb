@@ -526,9 +526,7 @@ class Runs(SizedPaginator["Run"]):
                     continue
                 configs.append({**config_data, "run_id": run.id})
             except Exception as e:
-                wandb.termwarn(
-                    f"Failed to collect config for run {run.id}: {e}"
-                )
+                wandb.termwarn(f"Failed to collect config for run {run.id}: {e}")
                 continue
 
         # Format conversion
