@@ -41,6 +41,8 @@ const (
 	exitCodeErrorInternal = 1 // some error occurred
 	exitCodeErrorArgs     = 2 // incorrect command-line flags
 
+	defaultDetachedIdleTimeout = 10 * time.Minute
+
 	// exitCodeSignal is used when the program shuts down due to a signal.
 	//
 	// A common convention is to use 128 plus the signal number, but Go's
@@ -74,10 +76,10 @@ func serviceMain() int {
 		"Run the service detached from its parent process. In detached mode, "+
 			"the service does not automatically exit when the parent process exits.",
 	)
-	idleTimeoutSeconds := flag.Int(
-		"idle-timeout-seconds",
-		0,
-		"If > 0 and --detached is set, shut down the service after this many seconds "+
+	idleTimeout := flag.Duration(
+		"idle-timeout",
+		defaultDetachedIdleTimeout,
+		"If --detached is set, shut down the service after this much idle time "+
 			"with no connected clients. 0 disables the idle shutdown.",
 	)
 	logLevel := flag.Int("log-level", 0,
@@ -112,6 +114,11 @@ func serviceMain() int {
 	}
 
 	flag.Parse()
+
+	if *idleTimeout < 0 {
+		fmt.Fprintln(os.Stderr, "Error: --idle-timeout must be >= 0")
+		return exitCodeErrorArgs
+	}
 
 	var shutdownOnParentExitEnabled bool
 	if *pid != 0 && *enableOsPidShutdown && !*detached {
@@ -156,7 +163,7 @@ func serviceMain() int {
 			"port-filename", *portFilename,
 			"pid", *pid,
 			"detached", *detached,
-			"idle-timeout-seconds", *idleTimeoutSeconds,
+			"idle-timeout", *idleTimeout,
 			"log-level", *logLevel,
 			"disable-analytics", *disableAnalytics,
 			"shutdown-on-parent-exit", shutdownOnParentExitEnabled,
@@ -179,7 +186,7 @@ func serviceMain() int {
 			LogLevel:            slog.Level(*logLevel),
 			ParentPID:           *pid,
 			Detached:            *detached,
-			IdleTimeout:         time.Duration(*idleTimeoutSeconds) * time.Second,
+			IdleTimeout:         *idleTimeout,
 		},
 	)
 	srvCh := make(chan error, 1)

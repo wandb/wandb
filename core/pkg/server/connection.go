@@ -57,6 +57,9 @@ type Connection struct {
 	// connLifetimeCtx is cancelled when the connection should be closed.
 	connLifetimeCtx context.Context
 
+	// stopConnection cancels connLifetimeCtx.
+	stopConnection context.CancelFunc
+
 	// requestCanceller manages cancellable requests.
 	requestCanceller *RequestCanceller
 
@@ -111,8 +114,11 @@ func NewConnection(
 	stopServer context.CancelFunc,
 	params ConnectionParams,
 ) *Connection {
+	connLifetimeCtx, stopConnection := context.WithCancel(serverLifetimeCtx)
+
 	return &Connection{
-		connLifetimeCtx:    serverLifetimeCtx,
+		connLifetimeCtx:    connLifetimeCtx,
+		stopConnection:     stopConnection,
 		requestCanceller:   NewRequestCanceller(),
 		stopServer:         stopServer,
 		streamMux:          params.StreamMux,
@@ -138,34 +144,22 @@ func NewConnection(
 func (nc *Connection) ManageConnectionData() {
 	slog.Info("connection: ManageConnectionData: new connection created", "id", nc.id)
 
-	wg := sync.WaitGroup{}
-	incomingDone := make(chan struct{})
+	var wg sync.WaitGroup
 
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
+		defer nc.stopConnection()
 		nc.processIncomingData()
-		close(incomingDone)
-	}()
+	})
 
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		nc.handleIncomingRequests()
-	}()
+	})
 
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		nc.processOutgoingData()
-	}()
+	})
 
-	select {
-	case <-nc.connLifetimeCtx.Done():
-		// Server is shutting down.
-	case <-incomingDone:
-		// Peer closed the connection.
-	}
+	<-nc.connLifetimeCtx.Done()
 
 	// Close the underlying connection, which allows the above goroutines
 	// to eventually exit if the connection was not already closed.

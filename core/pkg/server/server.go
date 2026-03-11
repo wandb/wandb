@@ -68,6 +68,10 @@ type Server struct {
 	idleTimerMu sync.Mutex
 	idleTimer   *time.Timer
 
+	// idleShutdownStarted reports whether the idle timer callback has started
+	// shutting the server down.
+	idleShutdownStarted bool
+
 	// commit is the W&B Git commit hash.
 	commit string
 
@@ -151,11 +155,9 @@ func (s *Server) Serve(portFile string) error {
 	}
 
 	for _, listener := range listenerList {
-		s.wg.Add(1)
-		go func() {
-			defer s.wg.Done()
+		s.wg.Go(func() {
 			s.acceptConnections(listener)
-		}()
+		})
 	}
 
 	// Wait for the signal to shut down.
@@ -220,13 +222,11 @@ func (s *Server) acceptConnections(listener net.Listener) {
 			return
 		}
 
-		s.wg.Add(1)
-		go func() {
-			defer s.wg.Done()
+		s.wg.Go(func() {
 			s.onConnectionStart()
 			defer s.onConnectionEnd()
 			s.handleConnection(conn)
-		}()
+		})
 	}
 }
 
@@ -264,7 +264,7 @@ func (s *Server) onConnectionStart() {
 
 	// Stop the idle timer when the first client connects.
 	if s.activeConnections.Add(1) == 1 {
-		s.stopIdleTimer()
+		_ = s.stopIdleTimer()
 	}
 }
 
@@ -283,31 +283,47 @@ func (s *Server) startIdleTimer() {
 	s.idleTimerMu.Lock()
 	defer s.idleTimerMu.Unlock()
 
+	if s.idleShutdownStarted {
+		return
+	}
+
 	if s.idleTimer != nil {
-		s.idleTimer.Stop()
+		if !s.idleTimer.Stop() {
+			return
+		}
 	}
 
 	s.idleTimer = time.AfterFunc(s.idleTimeout, func() {
-		// Race-safe check: only shut down if we're still idle.
-		if s.activeConnections.Load() != 0 {
-			return
-		}
+		s.idleTimerMu.Lock()
+		s.idleShutdownStarted = true
+		s.idleTimer = nil
+		s.idleTimerMu.Unlock()
 
-		slog.Info("server: idle timeout reached, shutting down", "idleTimeout", s.idleTimeout)
+		slog.Info("server: idle timeout reached, shutting down", "idle-timeout", s.idleTimeout)
 		s.stopServer()
 		// Gracefully finish and close all streams.
 		s.streamMux.FinishAndCloseAllStreams(0)
 	})
 }
 
-func (s *Server) stopIdleTimer() {
+func (s *Server) stopIdleTimer() bool {
 	s.idleTimerMu.Lock()
 	defer s.idleTimerMu.Unlock()
 
-	if s.idleTimer == nil {
-		return
+	if s.idleShutdownStarted {
+		return false
 	}
 
-	s.idleTimer.Stop()
+	if s.idleTimer == nil {
+		return true
+	}
+
+	if !s.idleTimer.Stop() {
+		s.idleShutdownStarted = true
+		s.idleTimer = nil
+		return false
+	}
+
 	s.idleTimer = nil
+	return true
 }

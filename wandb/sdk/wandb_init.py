@@ -898,14 +898,15 @@ class _WandbInit:
         service = self._wl.ensure_service()
 
         global _shared_service_notice_shown
-        if not service.owns_service and not _shared_service_notice_shown:
-            run_printer.display(
-                "Using an existing wandb-core service via WANDB_SERVICE."
-            )
+        if not service.owns_service:
             self._logger.info(
                 "Connected to an existing wandb-core service via WANDB_SERVICE"
             )
-            _shared_service_notice_shown = True
+            if not _shared_service_notice_shown:
+                run_printer.display(
+                    "Using an existing wandb-core service via WANDB_SERVICE."
+                )
+                _shared_service_notice_shown = True
 
         self._logger.info("sending inform_init request")
         service.inform_init(

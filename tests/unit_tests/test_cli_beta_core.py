@@ -2,17 +2,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-import pytest
 from click.testing import CliRunner
 from wandb import env as wandb_env
 from wandb.cli import beta_core, cli
 from wandb.proto import wandb_server_pb2 as spb
 from wandb.sdk.lib.service import service_token
-
-
-@pytest.fixture
-def runner() -> CliRunner:
-    return CliRunner()
 
 
 @dataclass
@@ -41,29 +35,54 @@ class _FakeToken:
         return self._client
 
 
-def test_core_start_print_posix(monkeypatch: pytest.MonkeyPatch, runner: CliRunner):
+def test_core_start_prints_service_value(monkeypatch) -> None:
     token = service_token.UnixServiceToken(parent_pid=123, path="/tmp/wandb.sock")
+    captured: dict[str, str] = {}
 
-    def fake_start_detached(settings, *, idle_timeout_seconds: int):
-        _ = settings, idle_timeout_seconds
+    def fake_start_detached(settings, *, idle_timeout: str):
+        _ = settings
+        captured["idle_timeout"] = idle_timeout
         return _FakeProc(token=token)
 
     monkeypatch.setattr(
-        beta_core.service_process, "start_detached", fake_start_detached
+        beta_core.service_process,
+        "start_detached",
+        fake_start_detached,
     )
 
-    result = runner.invoke(cli.beta, "core start --print")
+    result = CliRunner(mix_stderr=False).invoke(
+        cli.beta,
+        ["core", "start", "--print"],
+    )
 
     assert result.exit_code == 0
-    assert result.output.strip() == (
-        f"export {wandb_env.SERVICE}={token._as_env_string()}"
+    assert result.stdout.strip() == token.env_value
+    assert result.stderr == ""
+    assert captured["idle_timeout"] == beta_core.DEFAULT_IDLE_TIMEOUT
+
+
+def test_core_start_human_output_uses_stderr(monkeypatch) -> None:
+    token = service_token.UnixServiceToken(parent_pid=123, path="/tmp/wandb.sock")
+
+    def fake_start_detached(settings, *, idle_timeout: str):
+        _ = settings, idle_timeout
+        return _FakeProc(token=token)
+
+    monkeypatch.setattr(
+        beta_core.service_process,
+        "start_detached",
+        fake_start_detached,
     )
 
+    result = CliRunner(mix_stderr=False).invoke(cli.beta, ["core", "start"])
 
-def test_core_stop_print_unsets_and_sends_teardown(
-    monkeypatch: pytest.MonkeyPatch,
-    runner: CliRunner,
-):
+    assert result.exit_code == 0
+    assert result.stdout == ""
+    assert "Started detached wandb-core service." in result.stderr
+    assert token.env_value in result.stderr
+
+
+def test_core_stop_sends_teardown_and_clears_env(monkeypatch) -> None:
     client = _FakeClient()
     token = _FakeToken(client)
 
@@ -76,11 +95,10 @@ def test_core_stop_print_unsets_and_sends_teardown(
 
     monkeypatch.setattr(beta_core.service_token, "clear_service_in_env", fake_clear)
 
-    result = runner.invoke(cli.beta, "core stop --print")
+    result = CliRunner().invoke(cli.beta, ["core", "stop"])
 
     assert result.exit_code == 0
-    assert result.output.strip() == f"unset {wandb_env.SERVICE}"
-
+    assert f"Clear {wandb_env.SERVICE}" in result.output
     assert cleared["called"] is True
     assert client.closed is True
 

@@ -231,60 +231,29 @@ def core() -> None:
 
 @core.command()
 @click.option(
-    "--idle-timeout-seconds",
-    type=int,
-    default=0,
+    "--idle-timeout",
+    default="10m",
     show_default=True,
+    metavar="DURATION",
     help=(
-        "If > 0, shut down wandb-core after this many seconds with no connected "
-        "clients. 0 disables the idle shutdown."
+        "Shut down wandb-core after this much idle time with no connected "
+        "clients. Uses Go duration syntax, for example 30s, 10m, or 0 to "
+        "disable idle shutdown."
     ),
 )
-@click.option(
-    "--print",
-    "print_only",
-    is_flag=True,
-    default=False,
-    help="Print only a shell command to set WANDB_SERVICE (for eval/source).",
-)
-@click.option(
-    "--shell",
-    type=click.Choice(["posix", "fish", "powershell", "cmd"]),
-    default="posix",
-    show_default=True,
-    help="Shell syntax to use with --print.",
-)
-def start(idle_timeout_seconds: int, print_only: bool, shell: str) -> None:
+def start(idle_timeout: str) -> None:
     """Start a detached wandb-core service."""
     from . import beta_core
 
-    beta_core.start(
-        idle_timeout_seconds=idle_timeout_seconds,
-        print_only=print_only,
-        shell=shell,
-    )
+    beta_core.start(idle_timeout=idle_timeout)
 
 
 @core.command()
-@click.option(
-    "--print",
-    "print_only",
-    is_flag=True,
-    default=False,
-    help="Print only a shell command to unset WANDB_SERVICE (for eval/source).",
-)
-@click.option(
-    "--shell",
-    type=click.Choice(["posix", "fish", "powershell", "cmd"]),
-    default="posix",
-    show_default=True,
-    help="Shell syntax to use with --print.",
-)
-def stop(print_only: bool, shell: str) -> None:
+def stop() -> None:
     """Stop a detached wandb-core service.
 
     The service address is taken from the WANDB_SERVICE environment variable.
     """
     from . import beta_core
 
-    beta_core.stop(print_only=print_only, shell=shell)
+    beta_core.stop()

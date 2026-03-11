@@ -9,8 +9,6 @@ Discovery is explicit via the WANDB_SERVICE environment variable.
 from __future__ import annotations
 
 import logging
-import os
-from typing import Final, Literal, cast, get_args
 
 import click
 
@@ -22,128 +20,60 @@ from wandb.sdk.lib.service import service_process, service_token
 from wandb.sdk.wandb_settings import Settings
 
 _logger = logging.getLogger(__name__)
-
-Shell = Literal["posix", "fish", "powershell", "cmd"]
-SHELL_CHOICES: Final[tuple[str, ...]] = cast(tuple[str, ...], get_args(Shell))
+DEFAULT_IDLE_TIMEOUT = service_process.DEFAULT_DETACHED_IDLE_TIMEOUT
 
 
-def _format_env_assignment(*, shell: Shell, token_value: str) -> str:
-    """Format a shell snippet that sets WANDB_SERVICE.
-
-    Note: WANDB_SERVICE tokens are restricted to alphanumerics, dashes, and a
-    system path, so POSIX/fish output does not require quoting/escaping.
-    PowerShell requires quoting because '-' would otherwise be parsed as an
-    operator.
-    """
-    if shell == "posix":
-        return f"export {wandb_env.SERVICE}={token_value}"
-    if shell == "fish":
-        return f"set -gx {wandb_env.SERVICE} {token_value};"
-    if shell == "powershell":
-        return f"$env:{wandb_env.SERVICE} = '{token_value}'"
-    if shell == "cmd":
-        return f'set "{wandb_env.SERVICE}={token_value}"'
-
-    raise AssertionError(f"Unhandled shell: {shell!r}")
-
-
-def _format_env_unset(*, shell: Shell) -> str:
-    if shell == "posix":
-        return f"unset {wandb_env.SERVICE}"
-    if shell == "fish":
-        return f"set -e {wandb_env.SERVICE};"
-    if shell == "powershell":
-        return f"Remove-Item Env:{wandb_env.SERVICE} -ErrorAction SilentlyContinue"
-    if shell == "cmd":
-        # cmd.exe has no true 'unset'; setting to empty is the usual approach.
-        return f'set "{wandb_env.SERVICE}="'
-    raise AssertionError(f"unhandled shell: {shell!r}")
-
-
-def start(
-    *,
-    idle_timeout_seconds: int,
-    print_only: bool,
-    shell: Shell,
-) -> None:
+def start(*, idle_timeout: str) -> None:
     """Start a detached wandb-core service.
 
     Args:
-        idle_timeout_seconds: If > 0, the service will shut down after this many
-            seconds with no connected clients. 0 disables the idle shutdown.
-        print_only: If True, print only a shell snippet to set WANDB_SERVICE.
-        shell: Which shell syntax to use for the printed snippet.
+        idle_timeout: How long the service should stay alive with no connected
+            clients before shutting down. This uses Go duration syntax, for
+            example ``30s`` or ``10m``. Use ``0`` to disable idle shutdown.
+        print_only: If True, print only the WANDB_SERVICE value.
     """
-    get_sentry().configure_scope(process_context="beta-core-start")
-
-    if idle_timeout_seconds < 0:
-        raise click.UsageError("--idle-timeout-seconds must be >= 0")
-
     try:
         token = service_token.from_env()
     except ValueError as e:
-        raise click.UsageError(str(e)) from e
+        raise click.UsageError(str(e)) from None
 
     if token:
         raise click.UsageError(
-            f"{wandb_env.SERVICE} is already set.\n\n"
-            "Run `wandb beta core stop` and/or unset the printed env var.\n"
-            "For example (POSIX):\n"
-            f'  eval "$(wandb beta core stop --print)"\n'
+            f"{wandb_env.SERVICE} is already set. Clear it or run "
+            "`wandb beta core stop` before starting another detached service."
         )
 
-    proc = service_process.start_detached(
-        Settings(),
-        idle_timeout_seconds=idle_timeout_seconds,
-    )
-    proc.token.save_to_env()
-    token_value = os.environ[wandb_env.SERVICE]
+    proc = service_process.start_detached(Settings(), idle_timeout=idle_timeout)
+    token_value = proc.token.env_value
 
-    assignment = _format_env_assignment(shell=shell, token_value=token_value)
-
-    if print_only:
-        click.echo(assignment)
-        return
-
-    click.secho("Started detached wandb-core service.", fg="green")
-
-    if idle_timeout_seconds > 0:
-        click.echo(f"Idle shutdown: {idle_timeout_seconds}s (service exits when idle).")
-    else:
-        click.echo("Idle shutdown: disabled (service runs until stopped).")
-
-    click.echo("\nTo use this service in your current shell:")
-    click.echo(f"  {assignment}")
-
+    click.secho("Started detached wandb-core service.", fg="green", err=True)
+    click.echo(f"Idle shutdown: {idle_timeout}.", err=True)
     click.echo(
-        "\nAny Python process started from that environment will connect to the "
-        "existing service instead of spawning its own."
+        f"Set {wandb_env.SERVICE} to this value before starting worker processes:",
+        err=True,
+    )
+    click.echo(token_value)  # Print the token to stdout for programmatic use.
+    click.echo(
+        "Any Python process launched with that environment variable will "
+        "connect to the existing service instead of spawning its own.",
+        err=True,
     )
 
 
-def stop(
-    *,
-    exit_code: int = 0,
-    print_only: bool = False,
-    shell: Shell = "posix",
-) -> None:
+def stop(*, exit_code: int = 0) -> None:
     """Stop a detached wandb-core service addressed by WANDB_SERVICE."""
     get_sentry().configure_scope(process_context="beta-core-stop")
 
     try:
         token = service_token.from_env()
     except ValueError as e:
-        raise click.UsageError(str(e)) from e
+        raise click.UsageError(str(e)) from None
 
     if not token:
         raise click.UsageError(
-            f"{wandb_env.SERVICE} is not set.\n\n"
-            "Run `wandb beta core start` and set the printed env var.\n"
-            "For example (POSIX):\n"
-            f'  eval "$(wandb beta core start --print)"\n'
+            f"{wandb_env.SERVICE} is not set. Set it to the detached service "
+            "you want to stop and rerun the command."
         )
-
-    unset_cmd = _format_env_unset(shell=shell)
 
     asyncer = asyncio_manager.AsyncioManager()
     asyncer.start()
@@ -164,8 +94,6 @@ def stop(
         _logger.exception("Failed to connect to wandb-core for stop")
         raise click.ClickException(
             f"Failed to connect to wandb-core using {wandb_env.SERVICE}: {e}"
-            "\nTo remove WANDB_SERVICE from your current shell:"
-            f"\n  {unset_cmd}"
         ) from e
 
     except Exception as e:
@@ -174,13 +102,11 @@ def stop(
     finally:
         asyncer.join()
 
-    # Clear in this process for programmatic use.
     service_token.clear_service_in_env()
 
-    if print_only:
-        click.echo(unset_cmd)
-        return
-
-    click.secho("Sent shutdown request to wandb-core.", fg="green")
-    click.echo("\nTo remove WANDB_SERVICE from your current shell:")
-    click.echo(f"  {unset_cmd}")
+    click.secho("Sent shutdown request to wandb-core.", fg="green", err=True)
+    click.echo(
+        f"Clear {wandb_env.SERVICE} from any shells or process environments "
+        "that still set it.",
+        err=True,
+    )
