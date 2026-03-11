@@ -1515,6 +1515,9 @@ enum ServerFeature {
 
   // Indicates that the server supports filtering artifact collections when querying on a project
   ARTIFACT_COLLECTIONS_FILTERING_SORTING = 16;
+
+  // Indicates that the server supports both the artifact id and the birth artifact id in the artifact file download url.
+  ARTIFACT_V2_DOWNLOAD_HANDLER_SUPPORTS_ARTIFACT_ID = 17;
 }
 
 /**

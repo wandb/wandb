@@ -3,30 +3,30 @@
 isort:skip_file
 """
 
-import builtins
-import collections.abc
-import google.protobuf.descriptor
-import google.protobuf.internal.containers
-import google.protobuf.internal.enum_type_wrapper
-import google.protobuf.message
+from collections import abc as _abc
+from google.protobuf import descriptor as _descriptor
+from google.protobuf import message as _message
+from google.protobuf.internal import containers as _containers
+from google.protobuf.internal import enum_type_wrapper as _enum_type_wrapper
+from wandb.proto import wandb_internal_pb2 as _wandb_internal_pb2
+from wandb.proto import wandb_settings_pb2 as _wandb_settings_pb2
+import builtins as _builtins
 import sys
-import typing
-import wandb.proto.wandb_internal_pb2
-import wandb.proto.wandb_settings_pb2
+import typing as _typing
 
 if sys.version_info >= (3, 10):
-    import typing as typing_extensions
+    from typing import TypeAlias as _TypeAlias
 else:
-    import typing_extensions
+    from typing_extensions import TypeAlias as _TypeAlias
 
-DESCRIPTOR: google.protobuf.descriptor.FileDescriptor
+DESCRIPTOR: _descriptor.FileDescriptor
 
 class _ErrorType:
-    ValueType = typing.NewType("ValueType", builtins.int)
-    V: typing_extensions.TypeAlias = ValueType
+    ValueType = _typing.NewType("ValueType", _builtins.int)
+    V: _TypeAlias = ValueType  # noqa: Y015
 
-class _ErrorTypeEnumTypeWrapper(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[_ErrorType.ValueType], builtins.type):
-    DESCRIPTOR: google.protobuf.descriptor.EnumDescriptor
+class _ErrorTypeEnumTypeWrapper(_enum_type_wrapper._EnumTypeWrapper[_ErrorType.ValueType], _builtins.type):
+    DESCRIPTOR: _descriptor.EnumDescriptor
     UNKNOWN_ERROR: _ErrorType.ValueType  # 0
     INCOMPLETE_RUN_HISTORY_ERROR: _ErrorType.ValueType  # 1
 
@@ -34,217 +34,241 @@ class ErrorType(_ErrorType, metaclass=_ErrorTypeEnumTypeWrapper): ...
 
 UNKNOWN_ERROR: ErrorType.ValueType  # 0
 INCOMPLETE_RUN_HISTORY_ERROR: ErrorType.ValueType  # 1
-global___ErrorType = ErrorType
+Global___ErrorType: _TypeAlias = ErrorType  # noqa: Y015
 
-@typing.final
-class ServerApiInitRequest(google.protobuf.message.Message):
+@_typing.final
+class ServerApiInitRequest(_message.Message):
     """ServerApiInitRequest instructs the backend process
     to initialize resources to handle ApiRequests.
 
     This should be sent once prior to sending any ApiRequests.
     """
 
-    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+    DESCRIPTOR: _descriptor.Descriptor
 
-    SETTINGS_FIELD_NUMBER: builtins.int
-    @property
-    def settings(self) -> wandb.proto.wandb_settings_pb2.Settings: ...
+    SETTINGS_FIELD_NUMBER: _builtins.int
+    @_builtins.property
+    def settings(self) -> _wandb_settings_pb2.Settings: ...
     def __init__(
         self,
         *,
-        settings: wandb.proto.wandb_settings_pb2.Settings | None = ...,
+        settings: _wandb_settings_pb2.Settings | None = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing.Literal["settings", b"settings"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing.Literal["settings", b"settings"]) -> None: ...
+    _HasFieldArgType: _TypeAlias = _typing.Literal["settings", b"settings"]  # noqa: Y015
+    def HasField(self, field_name: _HasFieldArgType) -> _builtins.bool: ...
+    _ClearFieldArgType: _TypeAlias = _typing.Literal["settings", b"settings"]  # noqa: Y015
+    def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
 
-global___ServerApiInitRequest = ServerApiInitRequest
+Global___ServerApiInitRequest: _TypeAlias = ServerApiInitRequest  # noqa: Y015
 
-@typing.final
-class ApiRequest(google.protobuf.message.Message):
+@_typing.final
+class ApiRequest(_message.Message):
     """ApiRequest is a request to the backend process
     to perform an action related to an API call.
     """
 
-    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+    DESCRIPTOR: _descriptor.Descriptor
 
-    ID_FIELD_NUMBER: builtins.int
-    READ_RUN_HISTORY_REQUEST_FIELD_NUMBER: builtins.int
-    id: builtins.str
-    @property
-    def read_run_history_request(self) -> global___ReadRunHistoryRequest: ...
+    ID_FIELD_NUMBER: _builtins.int
+    READ_RUN_HISTORY_REQUEST_FIELD_NUMBER: _builtins.int
+    id: _builtins.str
+    @_builtins.property
+    def read_run_history_request(self) -> Global___ReadRunHistoryRequest: ...
     def __init__(
         self,
         *,
-        id: builtins.str = ...,
-        read_run_history_request: global___ReadRunHistoryRequest | None = ...,
+        id: _builtins.str = ...,
+        read_run_history_request: Global___ReadRunHistoryRequest | None = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing.Literal["read_run_history_request", b"read_run_history_request", "request", b"request"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing.Literal["id", b"id", "read_run_history_request", b"read_run_history_request", "request", b"request"]) -> None: ...
-    def WhichOneof(self, oneof_group: typing.Literal["request", b"request"]) -> typing.Literal["read_run_history_request"] | None: ...
+    _HasFieldArgType: _TypeAlias = _typing.Literal["read_run_history_request", b"read_run_history_request", "request", b"request"]  # noqa: Y015
+    def HasField(self, field_name: _HasFieldArgType) -> _builtins.bool: ...
+    _ClearFieldArgType: _TypeAlias = _typing.Literal["id", b"id", "read_run_history_request", b"read_run_history_request", "request", b"request"]  # noqa: Y015
+    def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
+    _WhichOneofReturnType_request: _TypeAlias = _typing.Literal["read_run_history_request"]  # noqa: Y015
+    _WhichOneofArgType_request: _TypeAlias = _typing.Literal["request", b"request"]  # noqa: Y015
+    def WhichOneof(self, oneof_group: _WhichOneofArgType_request) -> _WhichOneofReturnType_request | None: ...
 
-global___ApiRequest = ApiRequest
+Global___ApiRequest: _TypeAlias = ApiRequest  # noqa: Y015
 
-@typing.final
-class ServerApiInitResponse(google.protobuf.message.Message):
-    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+@_typing.final
+class ServerApiInitResponse(_message.Message):
+    DESCRIPTOR: _descriptor.Descriptor
 
-    ERROR_MESSAGE_FIELD_NUMBER: builtins.int
-    ID_FIELD_NUMBER: builtins.int
-    error_message: builtins.str
-    id: builtins.str
+    ERROR_MESSAGE_FIELD_NUMBER: _builtins.int
+    ID_FIELD_NUMBER: _builtins.int
+    error_message: _builtins.str
+    id: _builtins.str
     def __init__(
         self,
         *,
-        error_message: builtins.str = ...,
-        id: builtins.str = ...,
+        error_message: _builtins.str = ...,
+        id: _builtins.str = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing.Literal["error_message", b"error_message", "id", b"id"]) -> None: ...
+    _ClearFieldArgType: _TypeAlias = _typing.Literal["error_message", b"error_message", "id", b"id"]  # noqa: Y015
+    def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
 
-global___ServerApiInitResponse = ServerApiInitResponse
+Global___ServerApiInitResponse: _TypeAlias = ServerApiInitResponse  # noqa: Y015
 
-@typing.final
-class ServerApiCleanupRequest(google.protobuf.message.Message):
+@_typing.final
+class ServerApiCleanupRequest(_message.Message):
     """ServerApiCleanupRequest instructs the backend process
     to cleanup API resources associated with an id.
     """
 
-    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+    DESCRIPTOR: _descriptor.Descriptor
 
-    ID_FIELD_NUMBER: builtins.int
-    id: builtins.str
+    ID_FIELD_NUMBER: _builtins.int
+    id: _builtins.str
     def __init__(
         self,
         *,
-        id: builtins.str = ...,
+        id: _builtins.str = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing.Literal["id", b"id"]) -> None: ...
+    _ClearFieldArgType: _TypeAlias = _typing.Literal["id", b"id"]  # noqa: Y015
+    def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
 
-global___ServerApiCleanupRequest = ServerApiCleanupRequest
+Global___ServerApiCleanupRequest: _TypeAlias = ServerApiCleanupRequest  # noqa: Y015
 
-@typing.final
-class ApiResponse(google.protobuf.message.Message):
+@_typing.final
+class ApiResponse(_message.Message):
     """ApiResponse is a response from the backend process for an ApiRequest."""
 
-    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+    DESCRIPTOR: _descriptor.Descriptor
 
-    READ_RUN_HISTORY_RESPONSE_FIELD_NUMBER: builtins.int
-    API_ERROR_RESPONSE_FIELD_NUMBER: builtins.int
-    @property
-    def read_run_history_response(self) -> global___ReadRunHistoryResponse: ...
-    @property
-    def api_error_response(self) -> global___ApiErrorResponse: ...
+    READ_RUN_HISTORY_RESPONSE_FIELD_NUMBER: _builtins.int
+    API_ERROR_RESPONSE_FIELD_NUMBER: _builtins.int
+    @_builtins.property
+    def read_run_history_response(self) -> Global___ReadRunHistoryResponse: ...
+    @_builtins.property
+    def api_error_response(self) -> Global___ApiErrorResponse: ...
     def __init__(
         self,
         *,
-        read_run_history_response: global___ReadRunHistoryResponse | None = ...,
-        api_error_response: global___ApiErrorResponse | None = ...,
+        read_run_history_response: Global___ReadRunHistoryResponse | None = ...,
+        api_error_response: Global___ApiErrorResponse | None = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing.Literal["api_error_response", b"api_error_response", "read_run_history_response", b"read_run_history_response", "response", b"response"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing.Literal["api_error_response", b"api_error_response", "read_run_history_response", b"read_run_history_response", "response", b"response"]) -> None: ...
-    def WhichOneof(self, oneof_group: typing.Literal["response", b"response"]) -> typing.Literal["read_run_history_response", "api_error_response"] | None: ...
+    _HasFieldArgType: _TypeAlias = _typing.Literal["api_error_response", b"api_error_response", "read_run_history_response", b"read_run_history_response", "response", b"response"]  # noqa: Y015
+    def HasField(self, field_name: _HasFieldArgType) -> _builtins.bool: ...
+    _ClearFieldArgType: _TypeAlias = _typing.Literal["api_error_response", b"api_error_response", "read_run_history_response", b"read_run_history_response", "response", b"response"]  # noqa: Y015
+    def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
+    _WhichOneofReturnType_response: _TypeAlias = _typing.Literal["read_run_history_response", "api_error_response"]  # noqa: Y015
+    _WhichOneofArgType_response: _TypeAlias = _typing.Literal["response", b"response"]  # noqa: Y015
+    def WhichOneof(self, oneof_group: _WhichOneofArgType_response) -> _WhichOneofReturnType_response | None: ...
 
-global___ApiResponse = ApiResponse
+Global___ApiResponse: _TypeAlias = ApiResponse  # noqa: Y015
 
-@typing.final
-class ApiErrorResponse(google.protobuf.message.Message):
-    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+@_typing.final
+class ApiErrorResponse(_message.Message):
+    DESCRIPTOR: _descriptor.Descriptor
 
-    MESSAGE_FIELD_NUMBER: builtins.int
-    ERROR_TYPE_FIELD_NUMBER: builtins.int
-    message: builtins.str
-    error_type: global___ErrorType.ValueType
+    MESSAGE_FIELD_NUMBER: _builtins.int
+    ERROR_TYPE_FIELD_NUMBER: _builtins.int
+    message: _builtins.str
+    error_type: Global___ErrorType.ValueType
     def __init__(
         self,
         *,
-        message: builtins.str = ...,
-        error_type: global___ErrorType.ValueType | None = ...,
+        message: _builtins.str = ...,
+        error_type: Global___ErrorType.ValueType | None = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing.Literal["_error_type", b"_error_type", "error_type", b"error_type"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing.Literal["_error_type", b"_error_type", "error_type", b"error_type", "message", b"message"]) -> None: ...
-    def WhichOneof(self, oneof_group: typing.Literal["_error_type", b"_error_type"]) -> typing.Literal["error_type"] | None: ...
+    _HasFieldArgType: _TypeAlias = _typing.Literal["_error_type", b"_error_type", "error_type", b"error_type"]  # noqa: Y015
+    def HasField(self, field_name: _HasFieldArgType) -> _builtins.bool: ...
+    _ClearFieldArgType: _TypeAlias = _typing.Literal["_error_type", b"_error_type", "error_type", b"error_type", "message", b"message"]  # noqa: Y015
+    def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
+    _WhichOneofReturnType__error_type: _TypeAlias = _typing.Literal["error_type"]  # noqa: Y015
+    _WhichOneofArgType__error_type: _TypeAlias = _typing.Literal["_error_type", b"_error_type"]  # noqa: Y015
+    def WhichOneof(self, oneof_group: _WhichOneofArgType__error_type) -> _WhichOneofReturnType__error_type | None: ...
 
-global___ApiErrorResponse = ApiErrorResponse
+Global___ApiErrorResponse: _TypeAlias = ApiErrorResponse  # noqa: Y015
 
-@typing.final
-class ReadRunHistoryRequest(google.protobuf.message.Message):
+@_typing.final
+class ReadRunHistoryRequest(_message.Message):
     """Start of Scan run history"""
 
-    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+    DESCRIPTOR: _descriptor.Descriptor
 
-    SCAN_RUN_HISTORY_INIT_FIELD_NUMBER: builtins.int
-    SCAN_RUN_HISTORY_FIELD_NUMBER: builtins.int
-    SCAN_RUN_HISTORY_CLEANUP_FIELD_NUMBER: builtins.int
-    DOWNLOAD_RUN_HISTORY_INIT_FIELD_NUMBER: builtins.int
-    DOWNLOAD_RUN_HISTORY_FIELD_NUMBER: builtins.int
-    DOWNLOAD_RUN_HISTORY_STATUS_FIELD_NUMBER: builtins.int
-    @property
-    def scan_run_history_init(self) -> global___ScanRunHistoryInit: ...
-    @property
-    def scan_run_history(self) -> global___ScanRunHistory: ...
-    @property
-    def scan_run_history_cleanup(self) -> global___ScanRunHistoryCleanup: ...
-    @property
-    def download_run_history_init(self) -> global___DownloadRunHistoryInit: ...
-    @property
-    def download_run_history(self) -> global___DownloadRunHistory: ...
-    @property
-    def download_run_history_status(self) -> global___DownloadRunHistoryStatus: ...
+    SCAN_RUN_HISTORY_INIT_FIELD_NUMBER: _builtins.int
+    SCAN_RUN_HISTORY_FIELD_NUMBER: _builtins.int
+    SCAN_RUN_HISTORY_CLEANUP_FIELD_NUMBER: _builtins.int
+    DOWNLOAD_RUN_HISTORY_INIT_FIELD_NUMBER: _builtins.int
+    DOWNLOAD_RUN_HISTORY_FIELD_NUMBER: _builtins.int
+    DOWNLOAD_RUN_HISTORY_STATUS_FIELD_NUMBER: _builtins.int
+    @_builtins.property
+    def scan_run_history_init(self) -> Global___ScanRunHistoryInit: ...
+    @_builtins.property
+    def scan_run_history(self) -> Global___ScanRunHistory: ...
+    @_builtins.property
+    def scan_run_history_cleanup(self) -> Global___ScanRunHistoryCleanup: ...
+    @_builtins.property
+    def download_run_history_init(self) -> Global___DownloadRunHistoryInit: ...
+    @_builtins.property
+    def download_run_history(self) -> Global___DownloadRunHistory: ...
+    @_builtins.property
+    def download_run_history_status(self) -> Global___DownloadRunHistoryStatus: ...
     def __init__(
         self,
         *,
-        scan_run_history_init: global___ScanRunHistoryInit | None = ...,
-        scan_run_history: global___ScanRunHistory | None = ...,
-        scan_run_history_cleanup: global___ScanRunHistoryCleanup | None = ...,
-        download_run_history_init: global___DownloadRunHistoryInit | None = ...,
-        download_run_history: global___DownloadRunHistory | None = ...,
-        download_run_history_status: global___DownloadRunHistoryStatus | None = ...,
+        scan_run_history_init: Global___ScanRunHistoryInit | None = ...,
+        scan_run_history: Global___ScanRunHistory | None = ...,
+        scan_run_history_cleanup: Global___ScanRunHistoryCleanup | None = ...,
+        download_run_history_init: Global___DownloadRunHistoryInit | None = ...,
+        download_run_history: Global___DownloadRunHistory | None = ...,
+        download_run_history_status: Global___DownloadRunHistoryStatus | None = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing.Literal["download_run_history", b"download_run_history", "download_run_history_init", b"download_run_history_init", "download_run_history_status", b"download_run_history_status", "request", b"request", "scan_run_history", b"scan_run_history", "scan_run_history_cleanup", b"scan_run_history_cleanup", "scan_run_history_init", b"scan_run_history_init"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing.Literal["download_run_history", b"download_run_history", "download_run_history_init", b"download_run_history_init", "download_run_history_status", b"download_run_history_status", "request", b"request", "scan_run_history", b"scan_run_history", "scan_run_history_cleanup", b"scan_run_history_cleanup", "scan_run_history_init", b"scan_run_history_init"]) -> None: ...
-    def WhichOneof(self, oneof_group: typing.Literal["request", b"request"]) -> typing.Literal["scan_run_history_init", "scan_run_history", "scan_run_history_cleanup", "download_run_history_init", "download_run_history", "download_run_history_status"] | None: ...
+    _HasFieldArgType: _TypeAlias = _typing.Literal["download_run_history", b"download_run_history", "download_run_history_init", b"download_run_history_init", "download_run_history_status", b"download_run_history_status", "request", b"request", "scan_run_history", b"scan_run_history", "scan_run_history_cleanup", b"scan_run_history_cleanup", "scan_run_history_init", b"scan_run_history_init"]  # noqa: Y015
+    def HasField(self, field_name: _HasFieldArgType) -> _builtins.bool: ...
+    _ClearFieldArgType: _TypeAlias = _typing.Literal["download_run_history", b"download_run_history", "download_run_history_init", b"download_run_history_init", "download_run_history_status", b"download_run_history_status", "request", b"request", "scan_run_history", b"scan_run_history", "scan_run_history_cleanup", b"scan_run_history_cleanup", "scan_run_history_init", b"scan_run_history_init"]  # noqa: Y015
+    def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
+    _WhichOneofReturnType_request: _TypeAlias = _typing.Literal["scan_run_history_init", "scan_run_history", "scan_run_history_cleanup", "download_run_history_init", "download_run_history", "download_run_history_status"]  # noqa: Y015
+    _WhichOneofArgType_request: _TypeAlias = _typing.Literal["request", b"request"]  # noqa: Y015
+    def WhichOneof(self, oneof_group: _WhichOneofArgType_request) -> _WhichOneofReturnType_request | None: ...
 
-global___ReadRunHistoryRequest = ReadRunHistoryRequest
+Global___ReadRunHistoryRequest: _TypeAlias = ReadRunHistoryRequest  # noqa: Y015
 
-@typing.final
-class ReadRunHistoryResponse(google.protobuf.message.Message):
-    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+@_typing.final
+class ReadRunHistoryResponse(_message.Message):
+    DESCRIPTOR: _descriptor.Descriptor
 
-    SCAN_RUN_HISTORY_INIT_FIELD_NUMBER: builtins.int
-    RUN_HISTORY_FIELD_NUMBER: builtins.int
-    SCAN_RUN_HISTORY_CLEANUP_FIELD_NUMBER: builtins.int
-    DOWNLOAD_RUN_HISTORY_INIT_FIELD_NUMBER: builtins.int
-    DOWNLOAD_RUN_HISTORY_FIELD_NUMBER: builtins.int
-    DOWNLOAD_RUN_HISTORY_STATUS_FIELD_NUMBER: builtins.int
-    @property
-    def scan_run_history_init(self) -> global___ScanRunHistoryInitResponse: ...
-    @property
-    def run_history(self) -> global___RunHistoryResponse: ...
-    @property
-    def scan_run_history_cleanup(self) -> global___ScanRunHistoryCleanupResponse: ...
-    @property
-    def download_run_history_init(self) -> global___DownloadRunHistoryInitResponse: ...
-    @property
-    def download_run_history(self) -> global___DownloadRunHistoryResponse: ...
-    @property
-    def download_run_history_status(self) -> global___DownloadRunHistoryStatusResponse: ...
+    SCAN_RUN_HISTORY_INIT_FIELD_NUMBER: _builtins.int
+    RUN_HISTORY_FIELD_NUMBER: _builtins.int
+    SCAN_RUN_HISTORY_CLEANUP_FIELD_NUMBER: _builtins.int
+    DOWNLOAD_RUN_HISTORY_INIT_FIELD_NUMBER: _builtins.int
+    DOWNLOAD_RUN_HISTORY_FIELD_NUMBER: _builtins.int
+    DOWNLOAD_RUN_HISTORY_STATUS_FIELD_NUMBER: _builtins.int
+    @_builtins.property
+    def scan_run_history_init(self) -> Global___ScanRunHistoryInitResponse: ...
+    @_builtins.property
+    def run_history(self) -> Global___RunHistoryResponse: ...
+    @_builtins.property
+    def scan_run_history_cleanup(self) -> Global___ScanRunHistoryCleanupResponse: ...
+    @_builtins.property
+    def download_run_history_init(self) -> Global___DownloadRunHistoryInitResponse: ...
+    @_builtins.property
+    def download_run_history(self) -> Global___DownloadRunHistoryResponse: ...
+    @_builtins.property
+    def download_run_history_status(self) -> Global___DownloadRunHistoryStatusResponse: ...
     def __init__(
         self,
         *,
-        scan_run_history_init: global___ScanRunHistoryInitResponse | None = ...,
-        run_history: global___RunHistoryResponse | None = ...,
-        scan_run_history_cleanup: global___ScanRunHistoryCleanupResponse | None = ...,
-        download_run_history_init: global___DownloadRunHistoryInitResponse | None = ...,
-        download_run_history: global___DownloadRunHistoryResponse | None = ...,
-        download_run_history_status: global___DownloadRunHistoryStatusResponse | None = ...,
+        scan_run_history_init: Global___ScanRunHistoryInitResponse | None = ...,
+        run_history: Global___RunHistoryResponse | None = ...,
+        scan_run_history_cleanup: Global___ScanRunHistoryCleanupResponse | None = ...,
+        download_run_history_init: Global___DownloadRunHistoryInitResponse | None = ...,
+        download_run_history: Global___DownloadRunHistoryResponse | None = ...,
+        download_run_history_status: Global___DownloadRunHistoryStatusResponse | None = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing.Literal["download_run_history", b"download_run_history", "download_run_history_init", b"download_run_history_init", "download_run_history_status", b"download_run_history_status", "response", b"response", "run_history", b"run_history", "scan_run_history_cleanup", b"scan_run_history_cleanup", "scan_run_history_init", b"scan_run_history_init"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing.Literal["download_run_history", b"download_run_history", "download_run_history_init", b"download_run_history_init", "download_run_history_status", b"download_run_history_status", "response", b"response", "run_history", b"run_history", "scan_run_history_cleanup", b"scan_run_history_cleanup", "scan_run_history_init", b"scan_run_history_init"]) -> None: ...
-    def WhichOneof(self, oneof_group: typing.Literal["response", b"response"]) -> typing.Literal["scan_run_history_init", "run_history", "scan_run_history_cleanup", "download_run_history_init", "download_run_history", "download_run_history_status"] | None: ...
+    _HasFieldArgType: _TypeAlias = _typing.Literal["download_run_history", b"download_run_history", "download_run_history_init", b"download_run_history_init", "download_run_history_status", b"download_run_history_status", "response", b"response", "run_history", b"run_history", "scan_run_history_cleanup", b"scan_run_history_cleanup", "scan_run_history_init", b"scan_run_history_init"]  # noqa: Y015
+    def HasField(self, field_name: _HasFieldArgType) -> _builtins.bool: ...
+    _ClearFieldArgType: _TypeAlias = _typing.Literal["download_run_history", b"download_run_history", "download_run_history_init", b"download_run_history_init", "download_run_history_status", b"download_run_history_status", "response", b"response", "run_history", b"run_history", "scan_run_history_cleanup", b"scan_run_history_cleanup", "scan_run_history_init", b"scan_run_history_init"]  # noqa: Y015
+    def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
+    _WhichOneofReturnType_response: _TypeAlias = _typing.Literal["scan_run_history_init", "run_history", "scan_run_history_cleanup", "download_run_history_init", "download_run_history", "download_run_history_status"]  # noqa: Y015
+    _WhichOneofArgType_response: _TypeAlias = _typing.Literal["response", b"response"]  # noqa: Y015
+    def WhichOneof(self, oneof_group: _WhichOneofArgType_response) -> _WhichOneofReturnType_response | None: ...
 
-global___ReadRunHistoryResponse = ReadRunHistoryResponse
+Global___ReadRunHistoryResponse: _TypeAlias = ReadRunHistoryResponse  # noqa: Y015
 
-@typing.final
-class ScanRunHistoryInit(google.protobuf.message.Message):
+@_typing.final
+class ScanRunHistoryInit(_message.Message):
     """ScanRunHistoryInit is a request to initialize
     a scan over a run's history.
 
@@ -253,171 +277,178 @@ class ScanRunHistoryInit(google.protobuf.message.Message):
     associated with the scan request.
     """
 
-    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+    DESCRIPTOR: _descriptor.Descriptor
 
-    ENTITY_FIELD_NUMBER: builtins.int
-    PROJECT_FIELD_NUMBER: builtins.int
-    RUN_ID_FIELD_NUMBER: builtins.int
-    KEYS_FIELD_NUMBER: builtins.int
-    USE_CACHE_FIELD_NUMBER: builtins.int
-    entity: builtins.str
-    project: builtins.str
-    run_id: builtins.str
-    use_cache: builtins.bool
-    @property
-    def keys(self) -> google.protobuf.internal.containers.RepeatedScalarFieldContainer[builtins.str]: ...
+    ENTITY_FIELD_NUMBER: _builtins.int
+    PROJECT_FIELD_NUMBER: _builtins.int
+    RUN_ID_FIELD_NUMBER: _builtins.int
+    KEYS_FIELD_NUMBER: _builtins.int
+    USE_CACHE_FIELD_NUMBER: _builtins.int
+    entity: _builtins.str
+    project: _builtins.str
+    run_id: _builtins.str
+    use_cache: _builtins.bool
+    @_builtins.property
+    def keys(self) -> _containers.RepeatedScalarFieldContainer[_builtins.str]: ...
     def __init__(
         self,
         *,
-        entity: builtins.str = ...,
-        project: builtins.str = ...,
-        run_id: builtins.str = ...,
-        keys: collections.abc.Iterable[builtins.str] | None = ...,
-        use_cache: builtins.bool = ...,
+        entity: _builtins.str = ...,
+        project: _builtins.str = ...,
+        run_id: _builtins.str = ...,
+        keys: _abc.Iterable[_builtins.str] | None = ...,
+        use_cache: _builtins.bool = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing.Literal["entity", b"entity", "keys", b"keys", "project", b"project", "run_id", b"run_id", "use_cache", b"use_cache"]) -> None: ...
+    _ClearFieldArgType: _TypeAlias = _typing.Literal["entity", b"entity", "keys", b"keys", "project", b"project", "run_id", b"run_id", "use_cache", b"use_cache"]  # noqa: Y015
+    def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
 
-global___ScanRunHistoryInit = ScanRunHistoryInit
+Global___ScanRunHistoryInit: _TypeAlias = ScanRunHistoryInit  # noqa: Y015
 
-@typing.final
-class ScanRunHistoryInitResponse(google.protobuf.message.Message):
-    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+@_typing.final
+class ScanRunHistoryInitResponse(_message.Message):
+    DESCRIPTOR: _descriptor.Descriptor
 
-    REQUEST_ID_FIELD_NUMBER: builtins.int
-    request_id: builtins.int
+    REQUEST_ID_FIELD_NUMBER: _builtins.int
+    request_id: _builtins.int
     def __init__(
         self,
         *,
-        request_id: builtins.int = ...,
+        request_id: _builtins.int = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing.Literal["request_id", b"request_id"]) -> None: ...
+    _ClearFieldArgType: _TypeAlias = _typing.Literal["request_id", b"request_id"]  # noqa: Y015
+    def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
 
-global___ScanRunHistoryInitResponse = ScanRunHistoryInitResponse
+Global___ScanRunHistoryInitResponse: _TypeAlias = ScanRunHistoryInitResponse  # noqa: Y015
 
-@typing.final
-class ScanRunHistory(google.protobuf.message.Message):
+@_typing.final
+class ScanRunHistory(_message.Message):
     """ScanRunHistory is a request to scan
     over a portion of a run's history.
     """
 
-    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+    DESCRIPTOR: _descriptor.Descriptor
 
-    MIN_STEP_FIELD_NUMBER: builtins.int
-    MAX_STEP_FIELD_NUMBER: builtins.int
-    REQUEST_ID_FIELD_NUMBER: builtins.int
-    min_step: builtins.int
-    max_step: builtins.int
-    request_id: builtins.int
+    MIN_STEP_FIELD_NUMBER: _builtins.int
+    MAX_STEP_FIELD_NUMBER: _builtins.int
+    REQUEST_ID_FIELD_NUMBER: _builtins.int
+    min_step: _builtins.int
+    max_step: _builtins.int
+    request_id: _builtins.int
     def __init__(
         self,
         *,
-        min_step: builtins.int = ...,
-        max_step: builtins.int = ...,
-        request_id: builtins.int = ...,
+        min_step: _builtins.int = ...,
+        max_step: _builtins.int = ...,
+        request_id: _builtins.int = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing.Literal["max_step", b"max_step", "min_step", b"min_step", "request_id", b"request_id"]) -> None: ...
+    _ClearFieldArgType: _TypeAlias = _typing.Literal["max_step", b"max_step", "min_step", b"min_step", "request_id", b"request_id"]  # noqa: Y015
+    def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
 
-global___ScanRunHistory = ScanRunHistory
+Global___ScanRunHistory: _TypeAlias = ScanRunHistory  # noqa: Y015
 
-@typing.final
-class RunHistoryResponse(google.protobuf.message.Message):
-    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+@_typing.final
+class RunHistoryResponse(_message.Message):
+    DESCRIPTOR: _descriptor.Descriptor
 
-    HISTORY_ROWS_FIELD_NUMBER: builtins.int
-    @property
-    def history_rows(self) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[global___HistoryRow]: ...
+    HISTORY_ROWS_FIELD_NUMBER: _builtins.int
+    @_builtins.property
+    def history_rows(self) -> _containers.RepeatedCompositeFieldContainer[Global___HistoryRow]: ...
     def __init__(
         self,
         *,
-        history_rows: collections.abc.Iterable[global___HistoryRow] | None = ...,
+        history_rows: _abc.Iterable[Global___HistoryRow] | None = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing.Literal["history_rows", b"history_rows"]) -> None: ...
+    _ClearFieldArgType: _TypeAlias = _typing.Literal["history_rows", b"history_rows"]  # noqa: Y015
+    def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
 
-global___RunHistoryResponse = RunHistoryResponse
+Global___RunHistoryResponse: _TypeAlias = RunHistoryResponse  # noqa: Y015
 
-@typing.final
-class HistoryRow(google.protobuf.message.Message):
-    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+@_typing.final
+class HistoryRow(_message.Message):
+    DESCRIPTOR: _descriptor.Descriptor
 
-    HISTORY_ITEMS_FIELD_NUMBER: builtins.int
-    @property
-    def history_items(self) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[global___ParquetHistoryItem]: ...
+    HISTORY_ITEMS_FIELD_NUMBER: _builtins.int
+    @_builtins.property
+    def history_items(self) -> _containers.RepeatedCompositeFieldContainer[Global___ParquetHistoryItem]: ...
     def __init__(
         self,
         *,
-        history_items: collections.abc.Iterable[global___ParquetHistoryItem] | None = ...,
+        history_items: _abc.Iterable[Global___ParquetHistoryItem] | None = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing.Literal["history_items", b"history_items"]) -> None: ...
+    _ClearFieldArgType: _TypeAlias = _typing.Literal["history_items", b"history_items"]  # noqa: Y015
+    def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
 
-global___HistoryRow = HistoryRow
+Global___HistoryRow: _TypeAlias = HistoryRow  # noqa: Y015
 
-@typing.final
-class ParquetHistoryItem(google.protobuf.message.Message):
-    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+@_typing.final
+class ParquetHistoryItem(_message.Message):
+    DESCRIPTOR: _descriptor.Descriptor
 
-    KEY_FIELD_NUMBER: builtins.int
-    VALUE_JSON_FIELD_NUMBER: builtins.int
-    key: builtins.str
-    value_json: builtins.str
+    KEY_FIELD_NUMBER: _builtins.int
+    VALUE_JSON_FIELD_NUMBER: _builtins.int
+    key: _builtins.str
+    value_json: _builtins.str
     def __init__(
         self,
         *,
-        key: builtins.str = ...,
-        value_json: builtins.str = ...,
+        key: _builtins.str = ...,
+        value_json: _builtins.str = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing.Literal["key", b"key", "value_json", b"value_json"]) -> None: ...
+    _ClearFieldArgType: _TypeAlias = _typing.Literal["key", b"key", "value_json", b"value_json"]  # noqa: Y015
+    def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
 
-global___ParquetHistoryItem = ParquetHistoryItem
+Global___ParquetHistoryItem: _TypeAlias = ParquetHistoryItem  # noqa: Y015
 
-@typing.final
-class ScanRunHistoryCleanup(google.protobuf.message.Message):
+@_typing.final
+class ScanRunHistoryCleanup(_message.Message):
     """ScanRunHistoryCleanup is a request to cleanup
     any resources associated with a scan request.
     """
 
-    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+    DESCRIPTOR: _descriptor.Descriptor
 
-    REQUEST_ID_FIELD_NUMBER: builtins.int
-    request_id: builtins.int
+    REQUEST_ID_FIELD_NUMBER: _builtins.int
+    request_id: _builtins.int
     def __init__(
         self,
         *,
-        request_id: builtins.int = ...,
+        request_id: _builtins.int = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing.Literal["request_id", b"request_id"]) -> None: ...
+    _ClearFieldArgType: _TypeAlias = _typing.Literal["request_id", b"request_id"]  # noqa: Y015
+    def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
 
-global___ScanRunHistoryCleanup = ScanRunHistoryCleanup
+Global___ScanRunHistoryCleanup: _TypeAlias = ScanRunHistoryCleanup  # noqa: Y015
 
-@typing.final
-class ScanRunHistoryCleanupResponse(google.protobuf.message.Message):
-    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+@_typing.final
+class ScanRunHistoryCleanupResponse(_message.Message):
+    DESCRIPTOR: _descriptor.Descriptor
 
     def __init__(
         self,
     ) -> None: ...
 
-global___ScanRunHistoryCleanupResponse = ScanRunHistoryCleanupResponse
+Global___ScanRunHistoryCleanupResponse: _TypeAlias = ScanRunHistoryCleanupResponse  # noqa: Y015
 
-@typing.final
-class DownloadRunHistoryInit(google.protobuf.message.Message):
+@_typing.final
+class DownloadRunHistoryInit(_message.Message):
     """Download run history"""
 
-    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+    DESCRIPTOR: _descriptor.Descriptor
 
-    ENTITY_FIELD_NUMBER: builtins.int
-    PROJECT_FIELD_NUMBER: builtins.int
-    RUN_ID_FIELD_NUMBER: builtins.int
-    DOWNLOAD_DIR_FIELD_NUMBER: builtins.int
-    REQUIRE_COMPLETE_HISTORY_FIELD_NUMBER: builtins.int
-    entity: builtins.str
+    ENTITY_FIELD_NUMBER: _builtins.int
+    PROJECT_FIELD_NUMBER: _builtins.int
+    RUN_ID_FIELD_NUMBER: _builtins.int
+    DOWNLOAD_DIR_FIELD_NUMBER: _builtins.int
+    REQUIRE_COMPLETE_HISTORY_FIELD_NUMBER: _builtins.int
+    entity: _builtins.str
     """The entity who owns the run."""
-    project: builtins.str
+    project: _builtins.str
     """The project that the run belongs to."""
-    run_id: builtins.str
+    run_id: _builtins.str
     """The ID of the run."""
-    download_dir: builtins.str
+    download_dir: _builtins.str
     """The directory to store the downloaded history files within."""
-    require_complete_history: builtins.bool
+    require_complete_history: _builtins.bool
     """Whether to require the complete history to be downloaded.
     If the run contains data that has not been exported to parquet files yet,
     the run history will be considered incomplete.
@@ -425,147 +456,155 @@ class DownloadRunHistoryInit(google.protobuf.message.Message):
     def __init__(
         self,
         *,
-        entity: builtins.str = ...,
-        project: builtins.str = ...,
-        run_id: builtins.str = ...,
-        download_dir: builtins.str = ...,
-        require_complete_history: builtins.bool = ...,
+        entity: _builtins.str = ...,
+        project: _builtins.str = ...,
+        run_id: _builtins.str = ...,
+        download_dir: _builtins.str = ...,
+        require_complete_history: _builtins.bool = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing.Literal["download_dir", b"download_dir", "entity", b"entity", "project", b"project", "require_complete_history", b"require_complete_history", "run_id", b"run_id"]) -> None: ...
+    _ClearFieldArgType: _TypeAlias = _typing.Literal["download_dir", b"download_dir", "entity", b"entity", "project", b"project", "require_complete_history", b"require_complete_history", "run_id", b"run_id"]  # noqa: Y015
+    def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
 
-global___DownloadRunHistoryInit = DownloadRunHistoryInit
+Global___DownloadRunHistoryInit: _TypeAlias = DownloadRunHistoryInit  # noqa: Y015
 
-@typing.final
-class DownloadRunHistoryInitResponse(google.protobuf.message.Message):
-    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+@_typing.final
+class DownloadRunHistoryInitResponse(_message.Message):
+    DESCRIPTOR: _descriptor.Descriptor
 
-    REQUEST_ID_FIELD_NUMBER: builtins.int
-    CONTAINS_LIVE_DATA_FIELD_NUMBER: builtins.int
-    request_id: builtins.int
+    REQUEST_ID_FIELD_NUMBER: _builtins.int
+    CONTAINS_LIVE_DATA_FIELD_NUMBER: _builtins.int
+    request_id: _builtins.int
     """The request id of the download operation.
 
     This is used to identify the download operation,
     and request status updates of the download operation.
     """
-    contains_live_data: builtins.bool
+    contains_live_data: _builtins.bool
     """Whether the run contains live data not yet exported to parquet."""
     def __init__(
         self,
         *,
-        request_id: builtins.int = ...,
-        contains_live_data: builtins.bool = ...,
+        request_id: _builtins.int = ...,
+        contains_live_data: _builtins.bool = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing.Literal["contains_live_data", b"contains_live_data", "request_id", b"request_id"]) -> None: ...
+    _ClearFieldArgType: _TypeAlias = _typing.Literal["contains_live_data", b"contains_live_data", "request_id", b"request_id"]  # noqa: Y015
+    def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
 
-global___DownloadRunHistoryInitResponse = DownloadRunHistoryInitResponse
+Global___DownloadRunHistoryInitResponse: _TypeAlias = DownloadRunHistoryInitResponse  # noqa: Y015
 
-@typing.final
-class DownloadRunHistory(google.protobuf.message.Message):
+@_typing.final
+class DownloadRunHistory(_message.Message):
     """A request to start a download operation for a run's history exports."""
 
-    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+    DESCRIPTOR: _descriptor.Descriptor
 
-    REQUEST_ID_FIELD_NUMBER: builtins.int
-    request_id: builtins.int
+    REQUEST_ID_FIELD_NUMBER: _builtins.int
+    request_id: _builtins.int
     """The request id of the download operation."""
     def __init__(
         self,
         *,
-        request_id: builtins.int = ...,
+        request_id: _builtins.int = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing.Literal["request_id", b"request_id"]) -> None: ...
+    _ClearFieldArgType: _TypeAlias = _typing.Literal["request_id", b"request_id"]  # noqa: Y015
+    def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
 
-global___DownloadRunHistory = DownloadRunHistory
+Global___DownloadRunHistory: _TypeAlias = DownloadRunHistory  # noqa: Y015
 
-@typing.final
-class DownloadRunHistoryResponse(google.protobuf.message.Message):
+@_typing.final
+class DownloadRunHistoryResponse(_message.Message):
     """A response to a DownloadRunHistoryStart request."""
 
-    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+    DESCRIPTOR: _descriptor.Descriptor
 
-    @typing.final
-    class ErrorsEntry(google.protobuf.message.Message):
-        DESCRIPTOR: google.protobuf.descriptor.Descriptor
+    @_typing.final
+    class ErrorsEntry(_message.Message):
+        DESCRIPTOR: _descriptor.Descriptor
 
-        KEY_FIELD_NUMBER: builtins.int
-        VALUE_FIELD_NUMBER: builtins.int
-        key: builtins.str
-        value: builtins.str
+        KEY_FIELD_NUMBER: _builtins.int
+        VALUE_FIELD_NUMBER: _builtins.int
+        key: _builtins.str
+        value: _builtins.str
         def __init__(
             self,
             *,
-            key: builtins.str = ...,
-            value: builtins.str = ...,
+            key: _builtins.str = ...,
+            value: _builtins.str = ...,
         ) -> None: ...
-        def ClearField(self, field_name: typing.Literal["key", b"key", "value", b"value"]) -> None: ...
+        _ClearFieldArgType: _TypeAlias = _typing.Literal["key", b"key", "value", b"value"]  # noqa: Y015
+        def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
 
-    DOWNLOADED_FILES_FIELD_NUMBER: builtins.int
-    ERRORS_FIELD_NUMBER: builtins.int
-    @property
-    def downloaded_files(self) -> google.protobuf.internal.containers.RepeatedScalarFieldContainer[builtins.str]:
+    DOWNLOADED_FILES_FIELD_NUMBER: _builtins.int
+    ERRORS_FIELD_NUMBER: _builtins.int
+    @_builtins.property
+    def downloaded_files(self) -> _containers.RepeatedScalarFieldContainer[_builtins.str]:
         """Files that have been successfully downloaded."""
 
-    @property
-    def errors(self) -> google.protobuf.internal.containers.ScalarMap[builtins.str, builtins.str]:
+    @_builtins.property
+    def errors(self) -> _containers.ScalarMap[_builtins.str, _builtins.str]:
         """Map of file paths to error messages for failed downloads."""
 
     def __init__(
         self,
         *,
-        downloaded_files: collections.abc.Iterable[builtins.str] | None = ...,
-        errors: collections.abc.Mapping[builtins.str, builtins.str] | None = ...,
+        downloaded_files: _abc.Iterable[_builtins.str] | None = ...,
+        errors: _abc.Mapping[_builtins.str, _builtins.str] | None = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing.Literal["downloaded_files", b"downloaded_files", "errors", b"errors"]) -> None: ...
+    _ClearFieldArgType: _TypeAlias = _typing.Literal["downloaded_files", b"downloaded_files", "errors", b"errors"]  # noqa: Y015
+    def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
 
-global___DownloadRunHistoryResponse = DownloadRunHistoryResponse
+Global___DownloadRunHistoryResponse: _TypeAlias = DownloadRunHistoryResponse  # noqa: Y015
 
-@typing.final
-class IncompleteRunHistoryError(google.protobuf.message.Message):
+@_typing.final
+class IncompleteRunHistoryError(_message.Message):
     """IncompleteRunHistoryError is an error that is returned when the run history
     has live data that has not been exported to parquet files yet.
     """
 
-    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+    DESCRIPTOR: _descriptor.Descriptor
 
     def __init__(
         self,
     ) -> None: ...
 
-global___IncompleteRunHistoryError = IncompleteRunHistoryError
+Global___IncompleteRunHistoryError: _TypeAlias = IncompleteRunHistoryError  # noqa: Y015
 
-@typing.final
-class DownloadRunHistoryStatus(google.protobuf.message.Message):
+@_typing.final
+class DownloadRunHistoryStatus(_message.Message):
     """DownloadRunHistoryStatus requests the status of an ongoing download operation."""
 
-    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+    DESCRIPTOR: _descriptor.Descriptor
 
-    REQUEST_ID_FIELD_NUMBER: builtins.int
-    request_id: builtins.int
+    REQUEST_ID_FIELD_NUMBER: _builtins.int
+    request_id: _builtins.int
     """The request id of an ongoing download operation."""
     def __init__(
         self,
         *,
-        request_id: builtins.int = ...,
+        request_id: _builtins.int = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing.Literal["request_id", b"request_id"]) -> None: ...
+    _ClearFieldArgType: _TypeAlias = _typing.Literal["request_id", b"request_id"]  # noqa: Y015
+    def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
 
-global___DownloadRunHistoryStatus = DownloadRunHistoryStatus
+Global___DownloadRunHistoryStatus: _TypeAlias = DownloadRunHistoryStatus  # noqa: Y015
 
-@typing.final
-class DownloadRunHistoryStatusResponse(google.protobuf.message.Message):
-    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+@_typing.final
+class DownloadRunHistoryStatusResponse(_message.Message):
+    DESCRIPTOR: _descriptor.Descriptor
 
-    OPERATION_STATS_FIELD_NUMBER: builtins.int
-    @property
-    def operation_stats(self) -> wandb.proto.wandb_internal_pb2.OperationStats:
+    OPERATION_STATS_FIELD_NUMBER: _builtins.int
+    @_builtins.property
+    def operation_stats(self) -> _wandb_internal_pb2.OperationStats:
         """Operation stats for progress display."""
 
     def __init__(
         self,
         *,
-        operation_stats: wandb.proto.wandb_internal_pb2.OperationStats | None = ...,
+        operation_stats: _wandb_internal_pb2.OperationStats | None = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing.Literal["operation_stats", b"operation_stats"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing.Literal["operation_stats", b"operation_stats"]) -> None: ...
+    _HasFieldArgType: _TypeAlias = _typing.Literal["operation_stats", b"operation_stats"]  # noqa: Y015
+    def HasField(self, field_name: _HasFieldArgType) -> _builtins.bool: ...
+    _ClearFieldArgType: _TypeAlias = _typing.Literal["operation_stats", b"operation_stats"]  # noqa: Y015
+    def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
 
-global___DownloadRunHistoryStatusResponse = DownloadRunHistoryStatusResponse
+Global___DownloadRunHistoryStatusResponse: _TypeAlias = DownloadRunHistoryStatusResponse  # noqa: Y015

@@ -3,20 +3,26 @@
 isort:skip_file
 """
 
-import builtins
-import google.protobuf.descriptor
-import google.protobuf.message
-import typing
-import wandb.proto.wandb_api_pb2
-import wandb.proto.wandb_base_pb2
-import wandb.proto.wandb_internal_pb2
-import wandb.proto.wandb_settings_pb2
-import wandb.proto.wandb_sync_pb2
+from google.protobuf import descriptor as _descriptor
+from google.protobuf import message as _message
+from wandb.proto import wandb_api_pb2 as _wandb_api_pb2
+from wandb.proto import wandb_base_pb2 as _wandb_base_pb2
+from wandb.proto import wandb_internal_pb2 as _wandb_internal_pb2
+from wandb.proto import wandb_settings_pb2 as _wandb_settings_pb2
+from wandb.proto import wandb_sync_pb2 as _wandb_sync_pb2
+import builtins as _builtins
+import sys
+import typing as _typing
 
-DESCRIPTOR: google.protobuf.descriptor.FileDescriptor
+if sys.version_info >= (3, 10):
+    from typing import TypeAlias as _TypeAlias
+else:
+    from typing_extensions import TypeAlias as _TypeAlias
 
-@typing.final
-class ServerAuthenticateRequest(google.protobuf.message.Message):
+DESCRIPTOR: _descriptor.FileDescriptor
+
+@_typing.final
+class ServerAuthenticateRequest(_message.Message):
     """Authentication messages.
 
     These messages are used to authenticate the client with the W&B server.
@@ -26,281 +32,302 @@ class ServerAuthenticateRequest(google.protobuf.message.Message):
     error status.
     """
 
-    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+    DESCRIPTOR: _descriptor.Descriptor
 
-    API_KEY_FIELD_NUMBER: builtins.int
-    BASE_URL_FIELD_NUMBER: builtins.int
-    _INFO_FIELD_NUMBER: builtins.int
-    api_key: builtins.str
-    base_url: builtins.str
-    @property
-    def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
+    API_KEY_FIELD_NUMBER: _builtins.int
+    BASE_URL_FIELD_NUMBER: _builtins.int
+    _INFO_FIELD_NUMBER: _builtins.int
+    api_key: _builtins.str
+    base_url: _builtins.str
+    @_builtins.property
+    def _info(self) -> _wandb_base_pb2._RecordInfo: ...
     def __init__(
         self,
         *,
-        api_key: builtins.str = ...,
-        base_url: builtins.str = ...,
-        _info: wandb.proto.wandb_base_pb2._RecordInfo | None = ...,
+        api_key: _builtins.str = ...,
+        base_url: _builtins.str = ...,
+        _info: _wandb_base_pb2._RecordInfo | None = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing.Literal["_info", b"_info"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing.Literal["_info", b"_info", "api_key", b"api_key", "base_url", b"base_url"]) -> None: ...
+    _HasFieldArgType: _TypeAlias = _typing.Literal["_info", b"_info"]  # noqa: Y015
+    def HasField(self, field_name: _HasFieldArgType) -> _builtins.bool: ...
+    _ClearFieldArgType: _TypeAlias = _typing.Literal["_info", b"_info", "api_key", b"api_key", "base_url", b"base_url"]  # noqa: Y015
+    def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
 
-global___ServerAuthenticateRequest = ServerAuthenticateRequest
+Global___ServerAuthenticateRequest: _TypeAlias = ServerAuthenticateRequest  # noqa: Y015
 
-@typing.final
-class ServerAuthenticateResponse(google.protobuf.message.Message):
-    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+@_typing.final
+class ServerAuthenticateResponse(_message.Message):
+    DESCRIPTOR: _descriptor.Descriptor
 
-    DEFAULT_ENTITY_FIELD_NUMBER: builtins.int
-    ERROR_STATUS_FIELD_NUMBER: builtins.int
-    _INFO_FIELD_NUMBER: builtins.int
-    default_entity: builtins.str
-    error_status: builtins.str
-    @property
-    def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
+    DEFAULT_ENTITY_FIELD_NUMBER: _builtins.int
+    ERROR_STATUS_FIELD_NUMBER: _builtins.int
+    _INFO_FIELD_NUMBER: _builtins.int
+    default_entity: _builtins.str
+    error_status: _builtins.str
+    @_builtins.property
+    def _info(self) -> _wandb_base_pb2._RecordInfo: ...
     def __init__(
         self,
         *,
-        default_entity: builtins.str = ...,
-        error_status: builtins.str = ...,
-        _info: wandb.proto.wandb_base_pb2._RecordInfo | None = ...,
+        default_entity: _builtins.str = ...,
+        error_status: _builtins.str = ...,
+        _info: _wandb_base_pb2._RecordInfo | None = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing.Literal["_info", b"_info"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing.Literal["_info", b"_info", "default_entity", b"default_entity", "error_status", b"error_status"]) -> None: ...
+    _HasFieldArgType: _TypeAlias = _typing.Literal["_info", b"_info"]  # noqa: Y015
+    def HasField(self, field_name: _HasFieldArgType) -> _builtins.bool: ...
+    _ClearFieldArgType: _TypeAlias = _typing.Literal["_info", b"_info", "default_entity", b"default_entity", "error_status", b"error_status"]  # noqa: Y015
+    def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
 
-global___ServerAuthenticateResponse = ServerAuthenticateResponse
+Global___ServerAuthenticateResponse: _TypeAlias = ServerAuthenticateResponse  # noqa: Y015
 
-@typing.final
-class ServerShutdownRequest(google.protobuf.message.Message):
-    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+@_typing.final
+class ServerShutdownRequest(_message.Message):
+    DESCRIPTOR: _descriptor.Descriptor
 
-    _INFO_FIELD_NUMBER: builtins.int
-    @property
-    def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
+    _INFO_FIELD_NUMBER: _builtins.int
+    @_builtins.property
+    def _info(self) -> _wandb_base_pb2._RecordInfo: ...
     def __init__(
         self,
         *,
-        _info: wandb.proto.wandb_base_pb2._RecordInfo | None = ...,
+        _info: _wandb_base_pb2._RecordInfo | None = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing.Literal["_info", b"_info"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing.Literal["_info", b"_info"]) -> None: ...
+    _HasFieldArgType: _TypeAlias = _typing.Literal["_info", b"_info"]  # noqa: Y015
+    def HasField(self, field_name: _HasFieldArgType) -> _builtins.bool: ...
+    _ClearFieldArgType: _TypeAlias = _typing.Literal["_info", b"_info"]  # noqa: Y015
+    def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
 
-global___ServerShutdownRequest = ServerShutdownRequest
+Global___ServerShutdownRequest: _TypeAlias = ServerShutdownRequest  # noqa: Y015
 
-@typing.final
-class ServerShutdownResponse(google.protobuf.message.Message):
-    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+@_typing.final
+class ServerShutdownResponse(_message.Message):
+    DESCRIPTOR: _descriptor.Descriptor
 
     def __init__(
         self,
     ) -> None: ...
 
-global___ServerShutdownResponse = ServerShutdownResponse
+Global___ServerShutdownResponse: _TypeAlias = ServerShutdownResponse  # noqa: Y015
 
-@typing.final
-class ServerStatusRequest(google.protobuf.message.Message):
-    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+@_typing.final
+class ServerStatusRequest(_message.Message):
+    DESCRIPTOR: _descriptor.Descriptor
 
-    _INFO_FIELD_NUMBER: builtins.int
-    @property
-    def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
-    def __init__(
-        self,
-        *,
-        _info: wandb.proto.wandb_base_pb2._RecordInfo | None = ...,
-    ) -> None: ...
-    def HasField(self, field_name: typing.Literal["_info", b"_info"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing.Literal["_info", b"_info"]) -> None: ...
-
-global___ServerStatusRequest = ServerStatusRequest
-
-@typing.final
-class ServerStatusResponse(google.protobuf.message.Message):
-    DESCRIPTOR: google.protobuf.descriptor.Descriptor
-
-    def __init__(
-        self,
-    ) -> None: ...
-
-global___ServerStatusResponse = ServerStatusResponse
-
-@typing.final
-class ServerInformInitRequest(google.protobuf.message.Message):
-    DESCRIPTOR: google.protobuf.descriptor.Descriptor
-
-    SETTINGS_FIELD_NUMBER: builtins.int
-    _INFO_FIELD_NUMBER: builtins.int
-    @property
-    def settings(self) -> wandb.proto.wandb_settings_pb2.Settings: ...
-    @property
-    def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
+    _INFO_FIELD_NUMBER: _builtins.int
+    @_builtins.property
+    def _info(self) -> _wandb_base_pb2._RecordInfo: ...
     def __init__(
         self,
         *,
-        settings: wandb.proto.wandb_settings_pb2.Settings | None = ...,
-        _info: wandb.proto.wandb_base_pb2._RecordInfo | None = ...,
+        _info: _wandb_base_pb2._RecordInfo | None = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing.Literal["_info", b"_info", "settings", b"settings"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing.Literal["_info", b"_info", "settings", b"settings"]) -> None: ...
+    _HasFieldArgType: _TypeAlias = _typing.Literal["_info", b"_info"]  # noqa: Y015
+    def HasField(self, field_name: _HasFieldArgType) -> _builtins.bool: ...
+    _ClearFieldArgType: _TypeAlias = _typing.Literal["_info", b"_info"]  # noqa: Y015
+    def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
 
-global___ServerInformInitRequest = ServerInformInitRequest
+Global___ServerStatusRequest: _TypeAlias = ServerStatusRequest  # noqa: Y015
 
-@typing.final
-class ServerInformInitResponse(google.protobuf.message.Message):
-    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+@_typing.final
+class ServerStatusResponse(_message.Message):
+    DESCRIPTOR: _descriptor.Descriptor
 
     def __init__(
         self,
     ) -> None: ...
 
-global___ServerInformInitResponse = ServerInformInitResponse
+Global___ServerStatusResponse: _TypeAlias = ServerStatusResponse  # noqa: Y015
 
-@typing.final
-class ServerInformFinishRequest(google.protobuf.message.Message):
-    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+@_typing.final
+class ServerInformInitRequest(_message.Message):
+    DESCRIPTOR: _descriptor.Descriptor
 
-    _INFO_FIELD_NUMBER: builtins.int
-    @property
-    def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
-    def __init__(
-        self,
-        *,
-        _info: wandb.proto.wandb_base_pb2._RecordInfo | None = ...,
-    ) -> None: ...
-    def HasField(self, field_name: typing.Literal["_info", b"_info"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing.Literal["_info", b"_info"]) -> None: ...
-
-global___ServerInformFinishRequest = ServerInformFinishRequest
-
-@typing.final
-class ServerInformFinishResponse(google.protobuf.message.Message):
-    DESCRIPTOR: google.protobuf.descriptor.Descriptor
-
-    def __init__(
-        self,
-    ) -> None: ...
-
-global___ServerInformFinishResponse = ServerInformFinishResponse
-
-@typing.final
-class ServerInformAttachRequest(google.protobuf.message.Message):
-    DESCRIPTOR: google.protobuf.descriptor.Descriptor
-
-    _INFO_FIELD_NUMBER: builtins.int
-    @property
-    def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
+    SETTINGS_FIELD_NUMBER: _builtins.int
+    _INFO_FIELD_NUMBER: _builtins.int
+    @_builtins.property
+    def settings(self) -> _wandb_settings_pb2.Settings: ...
+    @_builtins.property
+    def _info(self) -> _wandb_base_pb2._RecordInfo: ...
     def __init__(
         self,
         *,
-        _info: wandb.proto.wandb_base_pb2._RecordInfo | None = ...,
+        settings: _wandb_settings_pb2.Settings | None = ...,
+        _info: _wandb_base_pb2._RecordInfo | None = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing.Literal["_info", b"_info"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing.Literal["_info", b"_info"]) -> None: ...
+    _HasFieldArgType: _TypeAlias = _typing.Literal["_info", b"_info", "settings", b"settings"]  # noqa: Y015
+    def HasField(self, field_name: _HasFieldArgType) -> _builtins.bool: ...
+    _ClearFieldArgType: _TypeAlias = _typing.Literal["_info", b"_info", "settings", b"settings"]  # noqa: Y015
+    def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
 
-global___ServerInformAttachRequest = ServerInformAttachRequest
+Global___ServerInformInitRequest: _TypeAlias = ServerInformInitRequest  # noqa: Y015
 
-@typing.final
-class ServerInformAttachResponse(google.protobuf.message.Message):
-    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+@_typing.final
+class ServerInformInitResponse(_message.Message):
+    DESCRIPTOR: _descriptor.Descriptor
 
-    SETTINGS_FIELD_NUMBER: builtins.int
-    _INFO_FIELD_NUMBER: builtins.int
-    @property
-    def settings(self) -> wandb.proto.wandb_settings_pb2.Settings: ...
-    @property
-    def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
+    def __init__(
+        self,
+    ) -> None: ...
+
+Global___ServerInformInitResponse: _TypeAlias = ServerInformInitResponse  # noqa: Y015
+
+@_typing.final
+class ServerInformFinishRequest(_message.Message):
+    DESCRIPTOR: _descriptor.Descriptor
+
+    _INFO_FIELD_NUMBER: _builtins.int
+    @_builtins.property
+    def _info(self) -> _wandb_base_pb2._RecordInfo: ...
     def __init__(
         self,
         *,
-        settings: wandb.proto.wandb_settings_pb2.Settings | None = ...,
-        _info: wandb.proto.wandb_base_pb2._RecordInfo | None = ...,
+        _info: _wandb_base_pb2._RecordInfo | None = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing.Literal["_info", b"_info", "settings", b"settings"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing.Literal["_info", b"_info", "settings", b"settings"]) -> None: ...
+    _HasFieldArgType: _TypeAlias = _typing.Literal["_info", b"_info"]  # noqa: Y015
+    def HasField(self, field_name: _HasFieldArgType) -> _builtins.bool: ...
+    _ClearFieldArgType: _TypeAlias = _typing.Literal["_info", b"_info"]  # noqa: Y015
+    def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
 
-global___ServerInformAttachResponse = ServerInformAttachResponse
+Global___ServerInformFinishRequest: _TypeAlias = ServerInformFinishRequest  # noqa: Y015
 
-@typing.final
-class ServerInformDetachRequest(google.protobuf.message.Message):
-    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+@_typing.final
+class ServerInformFinishResponse(_message.Message):
+    DESCRIPTOR: _descriptor.Descriptor
 
-    _INFO_FIELD_NUMBER: builtins.int
-    @property
-    def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
+    def __init__(
+        self,
+    ) -> None: ...
+
+Global___ServerInformFinishResponse: _TypeAlias = ServerInformFinishResponse  # noqa: Y015
+
+@_typing.final
+class ServerInformAttachRequest(_message.Message):
+    DESCRIPTOR: _descriptor.Descriptor
+
+    _INFO_FIELD_NUMBER: _builtins.int
+    @_builtins.property
+    def _info(self) -> _wandb_base_pb2._RecordInfo: ...
     def __init__(
         self,
         *,
-        _info: wandb.proto.wandb_base_pb2._RecordInfo | None = ...,
+        _info: _wandb_base_pb2._RecordInfo | None = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing.Literal["_info", b"_info"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing.Literal["_info", b"_info"]) -> None: ...
+    _HasFieldArgType: _TypeAlias = _typing.Literal["_info", b"_info"]  # noqa: Y015
+    def HasField(self, field_name: _HasFieldArgType) -> _builtins.bool: ...
+    _ClearFieldArgType: _TypeAlias = _typing.Literal["_info", b"_info"]  # noqa: Y015
+    def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
 
-global___ServerInformDetachRequest = ServerInformDetachRequest
+Global___ServerInformAttachRequest: _TypeAlias = ServerInformAttachRequest  # noqa: Y015
 
-@typing.final
-class ServerInformDetachResponse(google.protobuf.message.Message):
-    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+@_typing.final
+class ServerInformAttachResponse(_message.Message):
+    DESCRIPTOR: _descriptor.Descriptor
 
-    def __init__(
-        self,
-    ) -> None: ...
-
-global___ServerInformDetachResponse = ServerInformDetachResponse
-
-@typing.final
-class ServerInformTeardownRequest(google.protobuf.message.Message):
-    DESCRIPTOR: google.protobuf.descriptor.Descriptor
-
-    EXIT_CODE_FIELD_NUMBER: builtins.int
-    _INFO_FIELD_NUMBER: builtins.int
-    exit_code: builtins.int
-    @property
-    def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
+    SETTINGS_FIELD_NUMBER: _builtins.int
+    _INFO_FIELD_NUMBER: _builtins.int
+    @_builtins.property
+    def settings(self) -> _wandb_settings_pb2.Settings: ...
+    @_builtins.property
+    def _info(self) -> _wandb_base_pb2._RecordInfo: ...
     def __init__(
         self,
         *,
-        exit_code: builtins.int = ...,
-        _info: wandb.proto.wandb_base_pb2._RecordInfo | None = ...,
+        settings: _wandb_settings_pb2.Settings | None = ...,
+        _info: _wandb_base_pb2._RecordInfo | None = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing.Literal["_info", b"_info"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing.Literal["_info", b"_info", "exit_code", b"exit_code"]) -> None: ...
+    _HasFieldArgType: _TypeAlias = _typing.Literal["_info", b"_info", "settings", b"settings"]  # noqa: Y015
+    def HasField(self, field_name: _HasFieldArgType) -> _builtins.bool: ...
+    _ClearFieldArgType: _TypeAlias = _typing.Literal["_info", b"_info", "settings", b"settings"]  # noqa: Y015
+    def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
 
-global___ServerInformTeardownRequest = ServerInformTeardownRequest
+Global___ServerInformAttachResponse: _TypeAlias = ServerInformAttachResponse  # noqa: Y015
 
-@typing.final
-class ServerInformTeardownResponse(google.protobuf.message.Message):
-    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+@_typing.final
+class ServerInformDetachRequest(_message.Message):
+    DESCRIPTOR: _descriptor.Descriptor
+
+    _INFO_FIELD_NUMBER: _builtins.int
+    @_builtins.property
+    def _info(self) -> _wandb_base_pb2._RecordInfo: ...
+    def __init__(
+        self,
+        *,
+        _info: _wandb_base_pb2._RecordInfo | None = ...,
+    ) -> None: ...
+    _HasFieldArgType: _TypeAlias = _typing.Literal["_info", b"_info"]  # noqa: Y015
+    def HasField(self, field_name: _HasFieldArgType) -> _builtins.bool: ...
+    _ClearFieldArgType: _TypeAlias = _typing.Literal["_info", b"_info"]  # noqa: Y015
+    def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
+
+Global___ServerInformDetachRequest: _TypeAlias = ServerInformDetachRequest  # noqa: Y015
+
+@_typing.final
+class ServerInformDetachResponse(_message.Message):
+    DESCRIPTOR: _descriptor.Descriptor
 
     def __init__(
         self,
     ) -> None: ...
 
-global___ServerInformTeardownResponse = ServerInformTeardownResponse
+Global___ServerInformDetachResponse: _TypeAlias = ServerInformDetachResponse  # noqa: Y015
 
-@typing.final
-class ServerCancelRequest(google.protobuf.message.Message):
+@_typing.final
+class ServerInformTeardownRequest(_message.Message):
+    DESCRIPTOR: _descriptor.Descriptor
+
+    EXIT_CODE_FIELD_NUMBER: _builtins.int
+    _INFO_FIELD_NUMBER: _builtins.int
+    exit_code: _builtins.int
+    @_builtins.property
+    def _info(self) -> _wandb_base_pb2._RecordInfo: ...
+    def __init__(
+        self,
+        *,
+        exit_code: _builtins.int = ...,
+        _info: _wandb_base_pb2._RecordInfo | None = ...,
+    ) -> None: ...
+    _HasFieldArgType: _TypeAlias = _typing.Literal["_info", b"_info"]  # noqa: Y015
+    def HasField(self, field_name: _HasFieldArgType) -> _builtins.bool: ...
+    _ClearFieldArgType: _TypeAlias = _typing.Literal["_info", b"_info", "exit_code", b"exit_code"]  # noqa: Y015
+    def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
+
+Global___ServerInformTeardownRequest: _TypeAlias = ServerInformTeardownRequest  # noqa: Y015
+
+@_typing.final
+class ServerInformTeardownResponse(_message.Message):
+    DESCRIPTOR: _descriptor.Descriptor
+
+    def __init__(
+        self,
+    ) -> None: ...
+
+Global___ServerInformTeardownResponse: _TypeAlias = ServerInformTeardownResponse  # noqa: Y015
+
+@_typing.final
+class ServerCancelRequest(_message.Message):
     """Cancels a previously sent ServerRequest.
 
     This indicates that a response is no longer needed and that the associated
     work can be cancelled. This request receives no response.
     """
 
-    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+    DESCRIPTOR: _descriptor.Descriptor
 
-    REQUEST_ID_FIELD_NUMBER: builtins.int
-    request_id: builtins.str
+    REQUEST_ID_FIELD_NUMBER: _builtins.int
+    request_id: _builtins.str
     """The ID of a previously-sent request to cancel."""
     def __init__(
         self,
         *,
-        request_id: builtins.str = ...,
+        request_id: _builtins.str = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing.Literal["request_id", b"request_id"]) -> None: ...
+    _ClearFieldArgType: _TypeAlias = _typing.Literal["request_id", b"request_id"]  # noqa: Y015
+    def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
 
-global___ServerCancelRequest = ServerCancelRequest
+Global___ServerCancelRequest: _TypeAlias = ServerCancelRequest  # noqa: Y015
 
-@typing.final
-class ServerErrorResponse(google.protobuf.message.Message):
+@_typing.final
+class ServerErrorResponse(_message.Message):
     """A generic error response for server requests.
 
     Some older response messages already embed error information.
@@ -309,45 +336,46 @@ class ServerErrorResponse(google.protobuf.message.Message):
     making error handling opt-out rather than opt-in.
     """
 
-    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+    DESCRIPTOR: _descriptor.Descriptor
 
-    MESSAGE_FIELD_NUMBER: builtins.int
-    message: builtins.str
+    MESSAGE_FIELD_NUMBER: _builtins.int
+    message: _builtins.str
     """An error message describing the problem."""
     def __init__(
         self,
         *,
-        message: builtins.str = ...,
+        message: _builtins.str = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing.Literal["message", b"message"]) -> None: ...
+    _ClearFieldArgType: _TypeAlias = _typing.Literal["message", b"message"]  # noqa: Y015
+    def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
 
-global___ServerErrorResponse = ServerErrorResponse
+Global___ServerErrorResponse: _TypeAlias = ServerErrorResponse  # noqa: Y015
 
-@typing.final
-class ServerRequest(google.protobuf.message.Message):
+@_typing.final
+class ServerRequest(_message.Message):
     """
     ServerRequest, ServerResponse: used in sock server
     """
 
-    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+    DESCRIPTOR: _descriptor.Descriptor
 
-    REQUEST_ID_FIELD_NUMBER: builtins.int
-    CANCEL_FIELD_NUMBER: builtins.int
-    RECORD_PUBLISH_FIELD_NUMBER: builtins.int
-    RECORD_COMMUNICATE_FIELD_NUMBER: builtins.int
-    INFORM_INIT_FIELD_NUMBER: builtins.int
-    INFORM_FINISH_FIELD_NUMBER: builtins.int
-    INFORM_ATTACH_FIELD_NUMBER: builtins.int
-    INFORM_DETACH_FIELD_NUMBER: builtins.int
-    INFORM_TEARDOWN_FIELD_NUMBER: builtins.int
-    AUTHENTICATE_FIELD_NUMBER: builtins.int
-    INIT_SYNC_FIELD_NUMBER: builtins.int
-    SYNC_FIELD_NUMBER: builtins.int
-    SYNC_STATUS_FIELD_NUMBER: builtins.int
-    API_INIT_REQUEST_FIELD_NUMBER: builtins.int
-    API_CLEANUP_REQUEST_FIELD_NUMBER: builtins.int
-    API_REQUEST_FIELD_NUMBER: builtins.int
-    request_id: builtins.str
+    REQUEST_ID_FIELD_NUMBER: _builtins.int
+    CANCEL_FIELD_NUMBER: _builtins.int
+    RECORD_PUBLISH_FIELD_NUMBER: _builtins.int
+    RECORD_COMMUNICATE_FIELD_NUMBER: _builtins.int
+    INFORM_INIT_FIELD_NUMBER: _builtins.int
+    INFORM_FINISH_FIELD_NUMBER: _builtins.int
+    INFORM_ATTACH_FIELD_NUMBER: _builtins.int
+    INFORM_DETACH_FIELD_NUMBER: _builtins.int
+    INFORM_TEARDOWN_FIELD_NUMBER: _builtins.int
+    AUTHENTICATE_FIELD_NUMBER: _builtins.int
+    INIT_SYNC_FIELD_NUMBER: _builtins.int
+    SYNC_FIELD_NUMBER: _builtins.int
+    SYNC_STATUS_FIELD_NUMBER: _builtins.int
+    API_INIT_REQUEST_FIELD_NUMBER: _builtins.int
+    API_CLEANUP_REQUEST_FIELD_NUMBER: _builtins.int
+    API_REQUEST_FIELD_NUMBER: _builtins.int
+    request_id: _builtins.str
     """An ID for the request, if a response is expected.
 
     If record_publish or record_communicate is used, this must be equal to
@@ -356,132 +384,140 @@ class ServerRequest(google.protobuf.message.Message):
     IDs for requests on a single connection must be unique, but requests
     from different connections could have conflicting IDs.
     """
-    @property
-    def cancel(self) -> global___ServerCancelRequest: ...
-    @property
-    def record_publish(self) -> wandb.proto.wandb_internal_pb2.Record: ...
-    @property
-    def record_communicate(self) -> wandb.proto.wandb_internal_pb2.Record: ...
-    @property
-    def inform_init(self) -> global___ServerInformInitRequest: ...
-    @property
-    def inform_finish(self) -> global___ServerInformFinishRequest: ...
-    @property
-    def inform_attach(self) -> global___ServerInformAttachRequest: ...
-    @property
-    def inform_detach(self) -> global___ServerInformDetachRequest: ...
-    @property
-    def inform_teardown(self) -> global___ServerInformTeardownRequest: ...
-    @property
-    def authenticate(self) -> global___ServerAuthenticateRequest: ...
-    @property
-    def init_sync(self) -> wandb.proto.wandb_sync_pb2.ServerInitSyncRequest: ...
-    @property
-    def sync(self) -> wandb.proto.wandb_sync_pb2.ServerSyncRequest: ...
-    @property
-    def sync_status(self) -> wandb.proto.wandb_sync_pb2.ServerSyncStatusRequest: ...
-    @property
-    def api_init_request(self) -> wandb.proto.wandb_api_pb2.ServerApiInitRequest: ...
-    @property
-    def api_cleanup_request(self) -> wandb.proto.wandb_api_pb2.ServerApiCleanupRequest: ...
-    @property
-    def api_request(self) -> wandb.proto.wandb_api_pb2.ApiRequest: ...
+    @_builtins.property
+    def cancel(self) -> Global___ServerCancelRequest: ...
+    @_builtins.property
+    def record_publish(self) -> _wandb_internal_pb2.Record: ...
+    @_builtins.property
+    def record_communicate(self) -> _wandb_internal_pb2.Record: ...
+    @_builtins.property
+    def inform_init(self) -> Global___ServerInformInitRequest: ...
+    @_builtins.property
+    def inform_finish(self) -> Global___ServerInformFinishRequest: ...
+    @_builtins.property
+    def inform_attach(self) -> Global___ServerInformAttachRequest: ...
+    @_builtins.property
+    def inform_detach(self) -> Global___ServerInformDetachRequest: ...
+    @_builtins.property
+    def inform_teardown(self) -> Global___ServerInformTeardownRequest: ...
+    @_builtins.property
+    def authenticate(self) -> Global___ServerAuthenticateRequest: ...
+    @_builtins.property
+    def init_sync(self) -> _wandb_sync_pb2.ServerInitSyncRequest: ...
+    @_builtins.property
+    def sync(self) -> _wandb_sync_pb2.ServerSyncRequest: ...
+    @_builtins.property
+    def sync_status(self) -> _wandb_sync_pb2.ServerSyncStatusRequest: ...
+    @_builtins.property
+    def api_init_request(self) -> _wandb_api_pb2.ServerApiInitRequest: ...
+    @_builtins.property
+    def api_cleanup_request(self) -> _wandb_api_pb2.ServerApiCleanupRequest: ...
+    @_builtins.property
+    def api_request(self) -> _wandb_api_pb2.ApiRequest: ...
     def __init__(
         self,
         *,
-        request_id: builtins.str = ...,
-        cancel: global___ServerCancelRequest | None = ...,
-        record_publish: wandb.proto.wandb_internal_pb2.Record | None = ...,
-        record_communicate: wandb.proto.wandb_internal_pb2.Record | None = ...,
-        inform_init: global___ServerInformInitRequest | None = ...,
-        inform_finish: global___ServerInformFinishRequest | None = ...,
-        inform_attach: global___ServerInformAttachRequest | None = ...,
-        inform_detach: global___ServerInformDetachRequest | None = ...,
-        inform_teardown: global___ServerInformTeardownRequest | None = ...,
-        authenticate: global___ServerAuthenticateRequest | None = ...,
-        init_sync: wandb.proto.wandb_sync_pb2.ServerInitSyncRequest | None = ...,
-        sync: wandb.proto.wandb_sync_pb2.ServerSyncRequest | None = ...,
-        sync_status: wandb.proto.wandb_sync_pb2.ServerSyncStatusRequest | None = ...,
-        api_init_request: wandb.proto.wandb_api_pb2.ServerApiInitRequest | None = ...,
-        api_cleanup_request: wandb.proto.wandb_api_pb2.ServerApiCleanupRequest | None = ...,
-        api_request: wandb.proto.wandb_api_pb2.ApiRequest | None = ...,
+        request_id: _builtins.str = ...,
+        cancel: Global___ServerCancelRequest | None = ...,
+        record_publish: _wandb_internal_pb2.Record | None = ...,
+        record_communicate: _wandb_internal_pb2.Record | None = ...,
+        inform_init: Global___ServerInformInitRequest | None = ...,
+        inform_finish: Global___ServerInformFinishRequest | None = ...,
+        inform_attach: Global___ServerInformAttachRequest | None = ...,
+        inform_detach: Global___ServerInformDetachRequest | None = ...,
+        inform_teardown: Global___ServerInformTeardownRequest | None = ...,
+        authenticate: Global___ServerAuthenticateRequest | None = ...,
+        init_sync: _wandb_sync_pb2.ServerInitSyncRequest | None = ...,
+        sync: _wandb_sync_pb2.ServerSyncRequest | None = ...,
+        sync_status: _wandb_sync_pb2.ServerSyncStatusRequest | None = ...,
+        api_init_request: _wandb_api_pb2.ServerApiInitRequest | None = ...,
+        api_cleanup_request: _wandb_api_pb2.ServerApiCleanupRequest | None = ...,
+        api_request: _wandb_api_pb2.ApiRequest | None = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing.Literal["api_cleanup_request", b"api_cleanup_request", "api_init_request", b"api_init_request", "api_request", b"api_request", "authenticate", b"authenticate", "cancel", b"cancel", "inform_attach", b"inform_attach", "inform_detach", b"inform_detach", "inform_finish", b"inform_finish", "inform_init", b"inform_init", "inform_teardown", b"inform_teardown", "init_sync", b"init_sync", "record_communicate", b"record_communicate", "record_publish", b"record_publish", "server_request_type", b"server_request_type", "sync", b"sync", "sync_status", b"sync_status"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing.Literal["api_cleanup_request", b"api_cleanup_request", "api_init_request", b"api_init_request", "api_request", b"api_request", "authenticate", b"authenticate", "cancel", b"cancel", "inform_attach", b"inform_attach", "inform_detach", b"inform_detach", "inform_finish", b"inform_finish", "inform_init", b"inform_init", "inform_teardown", b"inform_teardown", "init_sync", b"init_sync", "record_communicate", b"record_communicate", "record_publish", b"record_publish", "request_id", b"request_id", "server_request_type", b"server_request_type", "sync", b"sync", "sync_status", b"sync_status"]) -> None: ...
-    def WhichOneof(self, oneof_group: typing.Literal["server_request_type", b"server_request_type"]) -> typing.Literal["cancel", "record_publish", "record_communicate", "inform_init", "inform_finish", "inform_attach", "inform_detach", "inform_teardown", "authenticate", "init_sync", "sync", "sync_status", "api_init_request", "api_cleanup_request", "api_request"] | None: ...
+    _HasFieldArgType: _TypeAlias = _typing.Literal["api_cleanup_request", b"api_cleanup_request", "api_init_request", b"api_init_request", "api_request", b"api_request", "authenticate", b"authenticate", "cancel", b"cancel", "inform_attach", b"inform_attach", "inform_detach", b"inform_detach", "inform_finish", b"inform_finish", "inform_init", b"inform_init", "inform_teardown", b"inform_teardown", "init_sync", b"init_sync", "record_communicate", b"record_communicate", "record_publish", b"record_publish", "server_request_type", b"server_request_type", "sync", b"sync", "sync_status", b"sync_status"]  # noqa: Y015
+    def HasField(self, field_name: _HasFieldArgType) -> _builtins.bool: ...
+    _ClearFieldArgType: _TypeAlias = _typing.Literal["api_cleanup_request", b"api_cleanup_request", "api_init_request", b"api_init_request", "api_request", b"api_request", "authenticate", b"authenticate", "cancel", b"cancel", "inform_attach", b"inform_attach", "inform_detach", b"inform_detach", "inform_finish", b"inform_finish", "inform_init", b"inform_init", "inform_teardown", b"inform_teardown", "init_sync", b"init_sync", "record_communicate", b"record_communicate", "record_publish", b"record_publish", "request_id", b"request_id", "server_request_type", b"server_request_type", "sync", b"sync", "sync_status", b"sync_status"]  # noqa: Y015
+    def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
+    _WhichOneofReturnType_server_request_type: _TypeAlias = _typing.Literal["cancel", "record_publish", "record_communicate", "inform_init", "inform_finish", "inform_attach", "inform_detach", "inform_teardown", "authenticate", "init_sync", "sync", "sync_status", "api_init_request", "api_cleanup_request", "api_request"]  # noqa: Y015
+    _WhichOneofArgType_server_request_type: _TypeAlias = _typing.Literal["server_request_type", b"server_request_type"]  # noqa: Y015
+    def WhichOneof(self, oneof_group: _WhichOneofArgType_server_request_type) -> _WhichOneofReturnType_server_request_type | None: ...
 
-global___ServerRequest = ServerRequest
+Global___ServerRequest: _TypeAlias = ServerRequest  # noqa: Y015
 
-@typing.final
-class ServerResponse(google.protobuf.message.Message):
-    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+@_typing.final
+class ServerResponse(_message.Message):
+    DESCRIPTOR: _descriptor.Descriptor
 
-    REQUEST_ID_FIELD_NUMBER: builtins.int
-    RESULT_COMMUNICATE_FIELD_NUMBER: builtins.int
-    INFORM_INIT_RESPONSE_FIELD_NUMBER: builtins.int
-    INFORM_FINISH_RESPONSE_FIELD_NUMBER: builtins.int
-    INFORM_ATTACH_RESPONSE_FIELD_NUMBER: builtins.int
-    INFORM_DETACH_RESPONSE_FIELD_NUMBER: builtins.int
-    INFORM_TEARDOWN_RESPONSE_FIELD_NUMBER: builtins.int
-    AUTHENTICATE_RESPONSE_FIELD_NUMBER: builtins.int
-    INIT_SYNC_RESPONSE_FIELD_NUMBER: builtins.int
-    SYNC_RESPONSE_FIELD_NUMBER: builtins.int
-    SYNC_STATUS_RESPONSE_FIELD_NUMBER: builtins.int
-    API_INIT_RESPONSE_FIELD_NUMBER: builtins.int
-    API_RESPONSE_FIELD_NUMBER: builtins.int
-    ERROR_RESPONSE_FIELD_NUMBER: builtins.int
-    request_id: builtins.str
+    REQUEST_ID_FIELD_NUMBER: _builtins.int
+    RESULT_COMMUNICATE_FIELD_NUMBER: _builtins.int
+    INFORM_INIT_RESPONSE_FIELD_NUMBER: _builtins.int
+    INFORM_FINISH_RESPONSE_FIELD_NUMBER: _builtins.int
+    INFORM_ATTACH_RESPONSE_FIELD_NUMBER: _builtins.int
+    INFORM_DETACH_RESPONSE_FIELD_NUMBER: _builtins.int
+    INFORM_TEARDOWN_RESPONSE_FIELD_NUMBER: _builtins.int
+    AUTHENTICATE_RESPONSE_FIELD_NUMBER: _builtins.int
+    INIT_SYNC_RESPONSE_FIELD_NUMBER: _builtins.int
+    SYNC_RESPONSE_FIELD_NUMBER: _builtins.int
+    SYNC_STATUS_RESPONSE_FIELD_NUMBER: _builtins.int
+    API_INIT_RESPONSE_FIELD_NUMBER: _builtins.int
+    API_RESPONSE_FIELD_NUMBER: _builtins.int
+    ERROR_RESPONSE_FIELD_NUMBER: _builtins.int
+    request_id: _builtins.str
     """The ID of the request this is a response to.
 
     If result_communicate is used, this must be equal to
     `control.mailbox_slot`.
     """
-    @property
-    def result_communicate(self) -> wandb.proto.wandb_internal_pb2.Result: ...
-    @property
-    def inform_init_response(self) -> global___ServerInformInitResponse: ...
-    @property
-    def inform_finish_response(self) -> global___ServerInformFinishResponse: ...
-    @property
-    def inform_attach_response(self) -> global___ServerInformAttachResponse: ...
-    @property
-    def inform_detach_response(self) -> global___ServerInformDetachResponse: ...
-    @property
-    def inform_teardown_response(self) -> global___ServerInformTeardownResponse: ...
-    @property
-    def authenticate_response(self) -> global___ServerAuthenticateResponse: ...
-    @property
-    def init_sync_response(self) -> wandb.proto.wandb_sync_pb2.ServerInitSyncResponse: ...
-    @property
-    def sync_response(self) -> wandb.proto.wandb_sync_pb2.ServerSyncResponse: ...
-    @property
-    def sync_status_response(self) -> wandb.proto.wandb_sync_pb2.ServerSyncStatusResponse: ...
-    @property
-    def api_init_response(self) -> wandb.proto.wandb_api_pb2.ServerApiInitResponse: ...
-    @property
-    def api_response(self) -> wandb.proto.wandb_api_pb2.ApiResponse: ...
-    @property
-    def error_response(self) -> global___ServerErrorResponse: ...
+    @_builtins.property
+    def result_communicate(self) -> _wandb_internal_pb2.Result: ...
+    @_builtins.property
+    def inform_init_response(self) -> Global___ServerInformInitResponse: ...
+    @_builtins.property
+    def inform_finish_response(self) -> Global___ServerInformFinishResponse: ...
+    @_builtins.property
+    def inform_attach_response(self) -> Global___ServerInformAttachResponse: ...
+    @_builtins.property
+    def inform_detach_response(self) -> Global___ServerInformDetachResponse: ...
+    @_builtins.property
+    def inform_teardown_response(self) -> Global___ServerInformTeardownResponse: ...
+    @_builtins.property
+    def authenticate_response(self) -> Global___ServerAuthenticateResponse: ...
+    @_builtins.property
+    def init_sync_response(self) -> _wandb_sync_pb2.ServerInitSyncResponse: ...
+    @_builtins.property
+    def sync_response(self) -> _wandb_sync_pb2.ServerSyncResponse: ...
+    @_builtins.property
+    def sync_status_response(self) -> _wandb_sync_pb2.ServerSyncStatusResponse: ...
+    @_builtins.property
+    def api_init_response(self) -> _wandb_api_pb2.ServerApiInitResponse: ...
+    @_builtins.property
+    def api_response(self) -> _wandb_api_pb2.ApiResponse: ...
+    @_builtins.property
+    def error_response(self) -> Global___ServerErrorResponse: ...
     def __init__(
         self,
         *,
-        request_id: builtins.str = ...,
-        result_communicate: wandb.proto.wandb_internal_pb2.Result | None = ...,
-        inform_init_response: global___ServerInformInitResponse | None = ...,
-        inform_finish_response: global___ServerInformFinishResponse | None = ...,
-        inform_attach_response: global___ServerInformAttachResponse | None = ...,
-        inform_detach_response: global___ServerInformDetachResponse | None = ...,
-        inform_teardown_response: global___ServerInformTeardownResponse | None = ...,
-        authenticate_response: global___ServerAuthenticateResponse | None = ...,
-        init_sync_response: wandb.proto.wandb_sync_pb2.ServerInitSyncResponse | None = ...,
-        sync_response: wandb.proto.wandb_sync_pb2.ServerSyncResponse | None = ...,
-        sync_status_response: wandb.proto.wandb_sync_pb2.ServerSyncStatusResponse | None = ...,
-        api_init_response: wandb.proto.wandb_api_pb2.ServerApiInitResponse | None = ...,
-        api_response: wandb.proto.wandb_api_pb2.ApiResponse | None = ...,
-        error_response: global___ServerErrorResponse | None = ...,
+        request_id: _builtins.str = ...,
+        result_communicate: _wandb_internal_pb2.Result | None = ...,
+        inform_init_response: Global___ServerInformInitResponse | None = ...,
+        inform_finish_response: Global___ServerInformFinishResponse | None = ...,
+        inform_attach_response: Global___ServerInformAttachResponse | None = ...,
+        inform_detach_response: Global___ServerInformDetachResponse | None = ...,
+        inform_teardown_response: Global___ServerInformTeardownResponse | None = ...,
+        authenticate_response: Global___ServerAuthenticateResponse | None = ...,
+        init_sync_response: _wandb_sync_pb2.ServerInitSyncResponse | None = ...,
+        sync_response: _wandb_sync_pb2.ServerSyncResponse | None = ...,
+        sync_status_response: _wandb_sync_pb2.ServerSyncStatusResponse | None = ...,
+        api_init_response: _wandb_api_pb2.ServerApiInitResponse | None = ...,
+        api_response: _wandb_api_pb2.ApiResponse | None = ...,
+        error_response: Global___ServerErrorResponse | None = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing.Literal["api_init_response", b"api_init_response", "api_response", b"api_response", "authenticate_response", b"authenticate_response", "error_response", b"error_response", "inform_attach_response", b"inform_attach_response", "inform_detach_response", b"inform_detach_response", "inform_finish_response", b"inform_finish_response", "inform_init_response", b"inform_init_response", "inform_teardown_response", b"inform_teardown_response", "init_sync_response", b"init_sync_response", "result_communicate", b"result_communicate", "server_response_type", b"server_response_type", "sync_response", b"sync_response", "sync_status_response", b"sync_status_response"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing.Literal["api_init_response", b"api_init_response", "api_response", b"api_response", "authenticate_response", b"authenticate_response", "error_response", b"error_response", "inform_attach_response", b"inform_attach_response", "inform_detach_response", b"inform_detach_response", "inform_finish_response", b"inform_finish_response", "inform_init_response", b"inform_init_response", "inform_teardown_response", b"inform_teardown_response", "init_sync_response", b"init_sync_response", "request_id", b"request_id", "result_communicate", b"result_communicate", "server_response_type", b"server_response_type", "sync_response", b"sync_response", "sync_status_response", b"sync_status_response"]) -> None: ...
-    def WhichOneof(self, oneof_group: typing.Literal["server_response_type", b"server_response_type"]) -> typing.Literal["result_communicate", "inform_init_response", "inform_finish_response", "inform_attach_response", "inform_detach_response", "inform_teardown_response", "authenticate_response", "init_sync_response", "sync_response", "sync_status_response", "api_init_response", "api_response", "error_response"] | None: ...
+    _HasFieldArgType: _TypeAlias = _typing.Literal["api_init_response", b"api_init_response", "api_response", b"api_response", "authenticate_response", b"authenticate_response", "error_response", b"error_response", "inform_attach_response", b"inform_attach_response", "inform_detach_response", b"inform_detach_response", "inform_finish_response", b"inform_finish_response", "inform_init_response", b"inform_init_response", "inform_teardown_response", b"inform_teardown_response", "init_sync_response", b"init_sync_response", "result_communicate", b"result_communicate", "server_response_type", b"server_response_type", "sync_response", b"sync_response", "sync_status_response", b"sync_status_response"]  # noqa: Y015
+    def HasField(self, field_name: _HasFieldArgType) -> _builtins.bool: ...
+    _ClearFieldArgType: _TypeAlias = _typing.Literal["api_init_response", b"api_init_response", "api_response", b"api_response", "authenticate_response", b"authenticate_response", "error_response", b"error_response", "inform_attach_response", b"inform_attach_response", "inform_detach_response", b"inform_detach_response", "inform_finish_response", b"inform_finish_response", "inform_init_response", b"inform_init_response", "inform_teardown_response", b"inform_teardown_response", "init_sync_response", b"init_sync_response", "request_id", b"request_id", "result_communicate", b"result_communicate", "server_response_type", b"server_response_type", "sync_response", b"sync_response", "sync_status_response", b"sync_status_response"]  # noqa: Y015
+    def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
+    _WhichOneofReturnType_server_response_type: _TypeAlias = _typing.Literal["result_communicate", "inform_init_response", "inform_finish_response", "inform_attach_response", "inform_detach_response", "inform_teardown_response", "authenticate_response", "init_sync_response", "sync_response", "sync_status_response", "api_init_response", "api_response", "error_response"]  # noqa: Y015
+    _WhichOneofArgType_server_response_type: _TypeAlias = _typing.Literal["server_response_type", b"server_response_type"]  # noqa: Y015
+    def WhichOneof(self, oneof_group: _WhichOneofArgType_server_response_type) -> _WhichOneofReturnType_server_response_type | None: ...
 
-global___ServerResponse = ServerResponse
+Global___ServerResponse: _TypeAlias = ServerResponse  # noqa: Y015
