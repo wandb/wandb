@@ -253,7 +253,7 @@ class WandbStoragePolicy(StoragePolicy):
             ):
                 return f"{base_url}/artifactsV2/{region}/{quote(entity)}/{quote(project)}/{quote(collection)}/{quote(birth_artifact_id)}/{hexhash}/{entry.path.name}"
 
-            return f"{base_url}/artifactsV2/{region}/{quote(entity)}/{quote(project)}/{quote(collection)}/{quote(artifact_id)}/{hexhash}/{entry.path.name}"
+            return f"{base_url}/artifactsV2/{region}/{quote(entity)}/{quote(birth_artifact_id)}/{hexhash}"
 
         assert_never(layout)
 

@@ -29,7 +29,10 @@ from wandb.sdk.artifacts.storage_policies._multipart import (
     multipart_download,
     should_multipart_download,
 )
+from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.artifacts.storage_policies.wandb_storage_policy import WandbStoragePolicy
+from wandb.sdk.artifacts.storage_layout import StorageLayout
+from wandb.sdk.artifacts._models.storage import StoragePolicyConfig
 
 if TYPE_CHECKING:
     from typing import Protocol
@@ -383,6 +386,130 @@ class TestStoreFile:
             assert len(etags) == len(hex_digests)
             for etag in etags:
                 assert etag["hexMD5"] == hex_digests[etag["partNumber"]]
+
+
+class TestFileUrl:
+    """Tests for WandbStoragePolicy._file_url (download URL construction)."""
+
+    def test_file_url_v2_layout_with_artifact_id_support(self):
+        """V2 layout with ARTIFACT_V2_DOWNLOAD_HANDLER_SUPPORTS_ARTIFACT_ID includes artifact_id and birth_artifact_id."""
+        artifact = Artifact("my-artifact:v0", type="dataset")
+        artifact._id = "artifact-123"
+        artifact._state = ArtifactState.COMMITTED
+        artifact._entity = "my-entity"
+        artifact._project = "my-project"
+        artifact._name = "my-artifact:v0"
+
+        entry = ArtifactManifestEntry(
+            path="subdir/model.pt",
+            digest="NWQ0MTQwMmFiYzRiMmE3NmI5NzE5ZDkxMTAxN2M1OTI=",
+            birth_artifact_id="birth-456",
+        )
+
+        api = Mock()
+        api.settings = Mock(return_value="https://api.wandb.test")
+        api.client = Mock()
+
+        policy = WandbStoragePolicy(
+            api=api,
+            config=StoragePolicyConfig(
+                storage_layout=StorageLayout.V2,
+                storage_region="us-east-1",
+            ),
+        )
+
+        with mock.patch(
+            "wandb.sdk.artifacts.storage_policies.wandb_storage_policy.server_supports",
+            side_effect=lambda client, feature: (
+                feature == pb.ARTIFACT_V2_DOWNLOAD_HANDLER_SUPPORTS_ARTIFACT_ID
+            ),
+        ):
+            url = policy._file_url(artifact, entry)
+
+        assert url == (
+            "https://api.wandb.test/artifactsV2/us-east-1/my-entity/my-project/"
+            "my-artifact%3Av0/artifact-123/birth-456/"
+            "35643431343032616263346232613736623937313939313130313763353932/model.pt"
+        )
+
+    def test_file_url_v2_layout_with_collection_membership_handler(self):
+        """V2 layout with ARTIFACT_COLLECTION_MEMBERSHIP_FILE_DOWNLOAD_HANDLER uses birth_artifact_id and entry.path.name (no artifact_id)."""
+        artifact = Artifact("my-artifact:v0", type="dataset")
+        artifact._id = "artifact-123"
+        artifact._state = ArtifactState.COMMITTED
+        artifact._entity = "my-entity"
+        artifact._project = "my-project"
+        artifact._name = "my-artifact:v0"
+
+        entry = ArtifactManifestEntry(
+            path="subdir/model.pt",
+            digest="NWQ0MTQwMmFiYzRiMmE3NmI5NzE5ZDkxMTAxN2M1OTI=",
+            birth_artifact_id="birth-456",
+        )
+
+        api = Mock()
+        api.settings = Mock(return_value="https://api.wandb.test")
+        api.client = Mock()
+
+        policy = WandbStoragePolicy(
+            api=api,
+            config=StoragePolicyConfig(
+                storage_layout=StorageLayout.V2,
+                storage_region="us-west-2",
+            ),
+        )
+
+        with mock.patch(
+            "wandb.sdk.artifacts.storage_policies.wandb_storage_policy.server_supports",
+            side_effect=lambda client, feature: (
+                feature == pb.ARTIFACT_COLLECTION_MEMBERSHIP_FILE_DOWNLOAD_HANDLER
+            ),
+        ):
+            url = policy._file_url(artifact, entry)
+
+        assert url == (
+            "https://api.wandb.test/artifactsV2/us-west-2/my-entity/my-project/"
+            "my-artifact/birth-456/"
+            "35643431343032616263346232613736623937313939313130313763353932/model.pt"
+        )
+
+    def test_file_url_v2_layout_fallback(self):
+        """V2 fallback URL is {base_url}/artifactsV2/{region}/{entity}/{birth_artifact_id}/{hexhash}."""
+        artifact = Artifact("my-artifact:v0", type="dataset")
+        artifact._id = "artifact-123"
+        artifact._state = ArtifactState.COMMITTED
+        artifact._entity = "my-entity"
+        artifact._project = "my-project"
+        artifact._name = "my-artifact:v0"
+
+        entry = ArtifactManifestEntry(
+            path="subdir/model.pt",
+            digest="NWQ0MTQwMmFiYzRiMmE3NmI5NzE5ZDkxMTAxN2M1OTI=",
+            birth_artifact_id="birth-456",
+        )
+
+        api = Mock()
+        api.settings = Mock(return_value="https://api.wandb.test")
+        api.client = Mock()
+
+        policy = WandbStoragePolicy(
+            api=api,
+            config=StoragePolicyConfig(
+                storage_layout=StorageLayout.V2,
+                storage_region="default",
+            ),
+        )
+
+        with mock.patch(
+            "wandb.sdk.artifacts.storage_policies.wandb_storage_policy.server_supports",
+            return_value=False,
+        ):
+            url = policy._file_url(artifact, entry)
+
+        assert url == (
+            "https://api.wandb.test/artifactsV2/default/my-entity/birth-456/"
+            "35643431343032616263346232613736623937313939313130313763353932"
+        )
 
 
 @pytest.mark.parametrize("invalid_type", ["job", "wandb-history", "wandb-foo"])
