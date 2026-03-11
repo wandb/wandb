@@ -100,10 +100,8 @@ type Connection struct {
 	// logLevel is the log level
 	logLevel slog.Level
 
-	// apiManager is a map of ids to active wandbAPI instances.
-	// It allows for multiple wandbAPI instances to be active at the same time,
-	// which might have different W&B backends, accounts, or settings.
-	apiManager *wbapi.WbApiManager
+	// apiManager processes API requests.
+	apiManager *wbapi.WandbAPIManager
 }
 
 func NewConnection(
@@ -126,7 +124,7 @@ func NewConnection(
 		closed:             &atomic.Bool{},
 		loggerPath:         params.LoggerPath,
 		logLevel:           params.LogLevel,
-		apiManager:         wbapi.NewWbApiManager(),
+		apiManager:         wbapi.NewManager(),
 	}
 }
 
@@ -647,7 +645,7 @@ func (nc *Connection) handleSyncStatus(
 // handleApiInit sets up a new wandbAPI instance.
 func (nc *Connection) handleApiInit(id string, request *spb.ServerApiInitRequest) {
 	s := settings.From(request.GetSettings())
-	wbapiInstance := wbapi.NewWandbAPI(s)
+	wbapiInstance := wbapi.New(s)
 	wbApiId := nc.apiManager.AddWandbAPI(wbapiInstance)
 
 	nc.Respond(&spb.ServerResponse{
