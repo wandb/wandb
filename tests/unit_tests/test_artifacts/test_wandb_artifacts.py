@@ -391,10 +391,13 @@ class TestStoreFile:
 class TestFileUrl:
     """Tests for WandbStoragePolicy._file_url (download URL construction)."""
 
-    def test_file_url_v2_layout_with_artifact_id_support(self):
+    def test_file_url_v2_layout_with_artifact_id_support(self, monkeypatch):
         """V2 layout with ARTIFACT_V2_DOWNLOAD_HANDLER_SUPPORTS_ARTIFACT_ID includes artifact_id and birth_artifact_id."""
-        artifact = Artifact("my-entity/my-project/my-artifact:v0", type="dataset")
-        artifact._id = "artifact-123"
+        artifact = Artifact("my-artifact", type="dataset")
+        monkeypatch.setattr(artifact, "entity", "my-entity")
+        monkeypatch.setattr(artifact, "project", "my-project")
+        monkeypatch.setattr(artifact, "name", "my-artifact:v0")
+        monkeypatch.setattr(artifact, "id", "artifact-123")
 
         entry = ArtifactManifestEntry(
             path="subdir/model.pt",
@@ -424,14 +427,17 @@ class TestFileUrl:
 
         assert url == (
             "https://api.wandb.test/artifactsV2/us-east-1/my-entity/my-project/"
-            "my-artifact%3Av0/artifact-123/birth-456/"
+            "my-artifact/artifact-123/birth-456/"
             "35643431343032616263346232613736623937313939313130313763353932/model.pt"
         )
 
-    def test_file_url_v2_layout_with_collection_membership_handler(self):
+    def test_file_url_v2_layout_with_collection_membership_handler(self, monkeypatch):
         """V2 layout with ARTIFACT_COLLECTION_MEMBERSHIP_FILE_DOWNLOAD_HANDLER uses birth_artifact_id and entry.path.name (no artifact_id)."""
-        artifact = Artifact("my-entity/my-project/my-artifact:v0", type="dataset")
-        artifact._id = "artifact-123"
+        artifact = Artifact("my-artifact", type="dataset")
+        monkeypatch.setattr(artifact, "entity", "my-entity")
+        monkeypatch.setattr(artifact, "project", "my-project")
+        monkeypatch.setattr(artifact, "name", "my-artifact:v0")
+        monkeypatch.setattr(artifact, "id", "artifact-123")
 
         entry = ArtifactManifestEntry(
             path="subdir/model.pt",
@@ -465,10 +471,13 @@ class TestFileUrl:
             "35643431343032616263346232613736623937313939313130313763353932/model.pt"
         )
 
-    def test_file_url_v2_layout_fallback(self):
+    def test_file_url_v2_layout_fallback(self, monkeypatch):
         """V2 fallback URL is {base_url}/artifactsV2/{region}/{entity}/{birth_artifact_id}/{hexhash}."""
-        artifact = Artifact("my-entity/my-project/my-artifact:v0", type="dataset")
-        artifact._id = "artifact-123"
+        artifact = Artifact("my-artifact", type="dataset")
+        monkeypatch.setattr(artifact, "entity", "my-entity")
+        monkeypatch.setattr(artifact, "project", "my-project")
+        monkeypatch.setattr(artifact, "name", "my-artifact:v0")
+        monkeypatch.setattr(artifact, "id", "artifact-123")
 
         entry = ArtifactManifestEntry(
             path="subdir/model.pt",
