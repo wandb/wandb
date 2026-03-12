@@ -798,6 +798,9 @@ def test_artifact_entry_download_url_matches_server_features(
     tmp_path: Path,
 ):
     """Verify direct entry download uses URL format expected by backend features."""
+    from unittest import mock
+
+    import requests
     from wandb.proto import wandb_internal_pb2 as pb
     from wandb.sdk.artifacts._gqlutils import server_supports
     from wandb.sdk.artifacts.storage_layout import StorageLayout
@@ -811,8 +814,10 @@ def test_artifact_entry_download_url_matches_server_features(
     file_path.write_text(content)
     project = "test-download-url-features"
     artifact_name = "test-download-url-entry"
-    download_root = tmp_path / "downloaded"
-    download_root.mkdir()
+    download_root = tmp_path / "downloaded" / artifact_name / "fresh"
+    download_root.mkdir(parents=True)
+    target_path = download_root / "source.txt"
+    assert not target_path.exists()
 
     with wandb.init(entity=user, project=project) as run:
         art = Artifact(artifact_name, type="dataset")
@@ -825,14 +830,21 @@ def test_artifact_entry_download_url_matches_server_features(
 
     # Downloading an entry directly does not set directUrl on manifest entries,
     # so this must go through storage policy _file_url().
-    downloaded_path = Path(entry.download(root=str(download_root), skip_cache=True))
+    seen_urls = []
+    original_get = requests.Session.get
+
+    def recording_get(self, url, *args, **kwargs):
+        seen_urls.append(str(url))
+        return original_get(self, url, *args, **kwargs)
+
+    with mock.patch.object(requests.Session, "get", recording_get):
+        downloaded_path = Path(entry.download(root=str(download_root), skip_cache=True))
+
     assert downloaded_path.exists()
     assert downloaded_path.read_text() == content
 
     artifact_urls = [
-        call.request.url
-        for call in responses.calls
-        if "/artifactsV2/" in call.request.url or "/artifacts/" in call.request.url
+        url for url in seen_urls if "/artifactsV2/" in url or "/artifacts/" in url
     ]
     assert artifact_urls, "Expected at least one artifact download request URL"
     used_url = artifact_urls[-1]
