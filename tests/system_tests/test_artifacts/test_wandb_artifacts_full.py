@@ -791,6 +791,81 @@ def test_storage_policy_storage_region(user: str, api: Api, tmp_path: Path):
     assert manifest["storagePolicyConfig"]["storageRegion"] == "minio-local"
 
 
+@responses.activate()
+def test_artifact_entry_download_url_matches_server_features(
+    user: str,
+    api: Api,
+    tmp_path: Path,
+):
+    """Verify direct entry download uses URL format expected by backend features."""
+    from wandb.proto import wandb_internal_pb2 as pb
+    from wandb.sdk.artifacts._gqlutils import server_supports
+    from wandb.sdk.artifacts.storage_layout import StorageLayout
+    from wandb.sdk.lib.hashutil import b64_to_hex_id
+
+    # Let requests hit the real backend while still recording called URLs.
+    responses.add_passthru(re.compile(r".*"))
+
+    content = "content via entry download"
+    file_path = tmp_path / "source.txt"
+    file_path.write_text(content)
+    project = "test-download-url-features"
+    artifact_name = "test-download-url-entry"
+    download_root = tmp_path / "downloaded"
+    download_root.mkdir()
+
+    with wandb.init(entity=user, project=project) as run:
+        art = Artifact(artifact_name, type="dataset")
+        art.add_file(file_path, name="source.txt")
+        run.log_artifact(art)
+        art.wait()
+
+    art = api.artifact(f"{user}/{project}/{artifact_name}:latest")
+    entry = art.get_entry("source.txt")
+
+    # Downloading an entry directly does not set directUrl on manifest entries,
+    # so this must go through storage policy _file_url().
+    downloaded_path = Path(entry.download(root=str(download_root), skip_cache=True))
+    assert downloaded_path.exists()
+    assert downloaded_path.read_text() == content
+
+    artifact_urls = [
+        call.request.url
+        for call in responses.calls
+        if "/artifactsV2/" in call.request.url or "/artifacts/" in call.request.url
+    ]
+    assert artifact_urls, "Expected at least one artifact download request URL"
+    used_url = artifact_urls[-1]
+
+    policy = art.manifest.storage_policy
+    layout = getattr(getattr(policy, "_config", None), "storage_layout", None)
+    supports_artifact_id = server_supports(
+        api.client, pb.ARTIFACT_V2_DOWNLOAD_HANDLER_SUPPORTS_ARTIFACT_ID
+    )
+    supports_membership = server_supports(
+        api.client, pb.ARTIFACT_COLLECTION_MEMBERSHIP_FILE_DOWNLOAD_HANDLER
+    )
+
+    if layout is StorageLayout.V2 and supports_artifact_id:
+        assert "/artifactsV2/" in used_url
+        assert art.id is not None
+        assert f"/{art.id}/" in used_url
+        assert used_url.endswith("/source.txt")
+    elif layout is StorageLayout.V2 and supports_membership:
+        assert "/artifactsV2/" in used_url
+        assert art.id is None or f"/{art.id}/" not in used_url
+        assert used_url.endswith("/source.txt")
+    elif layout is StorageLayout.V2:
+        # Legacy V2 fallback: no artifact_id and no filename suffix.
+        hexhash = b64_to_hex_id(entry.digest)
+        assert used_url.rstrip("/").endswith(hexhash)
+    else:
+        # V1 fallback format.
+        hexhash = b64_to_hex_id(entry.digest)
+        assert "/artifacts/" in used_url
+        assert used_url.rstrip("/").endswith(hexhash)
+
+
 def test_storage_policy_storage_region_not_available():
     with wandb.init() as run:
         # NOTE: We match on the region name instead of exact API error because different versions of server fails at different APIs.
