@@ -509,9 +509,7 @@ class TestFileUrl:
 
         hexhash = b64_to_hex_id(entry.digest)
         assert url == (
-            "https://api.wandb.test/artifactsV2/default/my-entity/birth-456/"
-            + hexhash
-            + "/model.pt"
+            "https://api.wandb.test/artifactsV2/default/my-entity/birth-456/" + hexhash
         )
 
 
