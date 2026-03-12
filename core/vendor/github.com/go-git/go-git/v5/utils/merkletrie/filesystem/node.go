@@ -4,11 +4,9 @@ import (
 	"io"
 	"os"
 	"path"
-	"time"
 
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/filemode"
-	"github.com/go-git/go-git/v5/plumbing/format/index"
 	"github.com/go-git/go-git/v5/utils/merkletrie/noder"
 
 	"github.com/go-git/go-billy/v5"
@@ -16,14 +14,6 @@ import (
 
 var ignore = map[string]bool{
 	".git": true,
-}
-
-// Options contains configuration for the filesystem node.
-type Options struct {
-	// Index is used to enable the metadata-first comparison optimization while
-	// correctly handling the "racy git" condition. If no index is provided,
-	// the function works without the optimization.
-	Index *index.Index
 }
 
 // The node represents a file or a directory in a billy.Filesystem. It
@@ -34,8 +24,6 @@ type Options struct {
 type node struct {
 	fs         billy.Filesystem
 	submodules map[string]plumbing.Hash
-	idx        *index.Index
-	idxMap     map[string]*index.Entry
 
 	path     string
 	hash     []byte
@@ -43,7 +31,6 @@ type node struct {
 	isDir    bool
 	mode     os.FileMode
 	size     int64
-	modTime  time.Time
 }
 
 // NewRootNode returns the root node based on a given billy.Filesystem.
@@ -55,41 +42,7 @@ func NewRootNode(
 	fs billy.Filesystem,
 	submodules map[string]plumbing.Hash,
 ) noder.Noder {
-	return NewRootNodeWithOptions(fs, submodules, Options{})
-}
-
-// NewRootNodeWithOptions returns the root node based on a given billy.Filesystem
-// with options to set an index. Providing an index enables the metadata-first
-// comparison optimization while correctly handling the "racy git" condition. If
-// no index is provided, the function works without the optimization.
-//
-// The index's ModTime field is used to detect the racy git condition. When a file's
-// mtime equals or is newer than the index ModTime, we must hash the file content
-// even if other metadata matches, because the file may have been modified in the
-// same second that the index was written.
-//
-// Reference: https://git-scm.com/docs/racy-git
-func NewRootNodeWithOptions(
-	fs billy.Filesystem,
-	submodules map[string]plumbing.Hash,
-	options Options,
-) noder.Noder {
-	var idxMap map[string]*index.Entry
-
-	if options.Index != nil {
-		idxMap = make(map[string]*index.Entry, len(options.Index.Entries))
-		for _, entry := range options.Index.Entries {
-			idxMap[entry.Name] = entry
-		}
-	}
-
-	return &node{
-		fs:         fs,
-		submodules: submodules,
-		idx:        options.Index,
-		idxMap:     idxMap,
-		isDir:      true,
-	}
+	return &node{fs: fs, submodules: submodules, isDir: true}
 }
 
 // Hash the hash of a filesystem is the result of concatenating the computed
@@ -180,14 +133,11 @@ func (n *node) newChildNode(file os.FileInfo) (*node, error) {
 	node := &node{
 		fs:         n.fs,
 		submodules: n.submodules,
-		idx:        n.idx,
-		idxMap:     n.idxMap,
 
-		path:    path,
-		isDir:   file.IsDir(),
-		size:    file.Size(),
-		mode:    file.Mode(),
-		modTime: file.ModTime(),
+		path:  path,
+		isDir: file.IsDir(),
+		size:  file.Size(),
+		mode:  file.Mode(),
 	}
 
 	if _, isSubmodule := n.submodules[path]; isSubmodule {
@@ -211,16 +161,6 @@ func (n *node) calculateHash() {
 		n.hash = append(submoduleHash[:], filemode.Submodule.Bytes()...)
 		return
 	}
-
-	if n.idxMap != nil {
-		if entry, ok := n.idxMap[n.path]; ok {
-			if n.metadataMatches(entry) {
-				n.hash = append(entry.Hash[:], mode.Bytes()...)
-				return
-			}
-		}
-	}
-
 	var hash plumbing.Hash
 	if n.mode&os.ModeSymlink != 0 {
 		hash = n.doCalculateHashForSymlink()
@@ -228,44 +168,6 @@ func (n *node) calculateHash() {
 		hash = n.doCalculateHashForRegular()
 	}
 	n.hash = append(hash[:], mode.Bytes()...)
-}
-
-func (n *node) metadataMatches(entry *index.Entry) bool {
-	if entry == nil {
-		return false
-	}
-
-	if uint32(n.size) != entry.Size {
-		return false
-	}
-
-	if !n.modTime.IsZero() && !n.modTime.Equal(entry.ModifiedAt) {
-		return false
-	}
-
-	mode, err := filemode.NewFromOSFileMode(n.mode)
-	if err != nil {
-		return false
-	}
-
-	if mode != entry.Mode {
-		return false
-	}
-
-	if n.idx != nil && !n.idx.ModTime.IsZero() && !n.modTime.IsZero() {
-		if !n.modTime.Before(n.idx.ModTime) {
-			return false
-		}
-	}
-
-	// If we couldn't perform the racy git check (idx is nil or idx.ModTime is zero),
-	// we cannot safely rely on metadata alone — force content hashing.
-	// This can occur with in-memory storage where the index file timestamp is unavailable.
-	if n.idx == nil || n.idx.ModTime.IsZero() {
-		return false
-	}
-
-	return true
 }
 
 func (n *node) doCalculateHashForRegular() plumbing.Hash {

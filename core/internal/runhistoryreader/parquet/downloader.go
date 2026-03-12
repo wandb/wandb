@@ -13,7 +13,11 @@ import (
 	"github.com/hashicorp/go-retryablehttp"
 
 	"github.com/wandb/wandb/core/internal/api"
+	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/gql"
+	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/wboperation"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 // GetSignedUrlsWithLiveSteps retrieves signed URLs for downloading a run's

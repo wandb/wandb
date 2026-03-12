@@ -1141,15 +1141,13 @@ func writeFBBuilder(b *flatbuffers.Builder, mem memory.Allocator) *memory.Buffer
 	return buf
 }
 
-func writeMessageFB(b *flatbuffers.Builder, mem memory.Allocator, hdrType flatbuf.MessageHeader, hdr flatbuffers.UOffsetT, bodyLen int64, customMetadata arrow.Metadata) *memory.Buffer {
-	metaFB := metadataToFB(b, customMetadata, flatbuf.MessageStartCustomMetadataVector)
+func writeMessageFB(b *flatbuffers.Builder, mem memory.Allocator, hdrType flatbuf.MessageHeader, hdr flatbuffers.UOffsetT, bodyLen int64) *memory.Buffer {
 
 	flatbuf.MessageStart(b)
 	flatbuf.MessageAddVersion(b, flatbuf.MetadataVersion(currentMetadataVersion))
 	flatbuf.MessageAddHeaderType(b, hdrType)
 	flatbuf.MessageAddHeader(b, hdr)
 	flatbuf.MessageAddBodyLength(b, bodyLen)
-	flatbuf.MessageAddCustomMetadata(b, metaFB)
 	msg := flatbuf.MessageEnd(b)
 	b.Finish(msg)
 
@@ -1159,7 +1157,7 @@ func writeMessageFB(b *flatbuffers.Builder, mem memory.Allocator, hdrType flatbu
 func writeSchemaMessage(schema *arrow.Schema, mem memory.Allocator, dict *dictutils.Mapper) *memory.Buffer {
 	b := flatbuffers.NewBuilder(1024)
 	schemaFB := schemaToFB(b, schema, dict)
-	return writeMessageFB(b, mem, flatbuf.MessageHeaderSchema, schemaFB, 0, arrow.Metadata{})
+	return writeMessageFB(b, mem, flatbuf.MessageHeaderSchema, schemaFB, 0)
 }
 
 func writeFileFooter(schema *arrow.Schema, dicts, recs []dataBlock, w io.Writer) error {
@@ -1186,10 +1184,10 @@ func writeFileFooter(schema *arrow.Schema, dicts, recs []dataBlock, w io.Writer)
 	return err
 }
 
-func writeRecordMessage(mem memory.Allocator, size, bodyLength int64, fields []fieldMetadata, meta []bufferMetadata, codec flatbuf.CompressionType, variadicCounts []int64, customMetadata arrow.Metadata) *memory.Buffer {
+func writeRecordMessage(mem memory.Allocator, size, bodyLength int64, fields []fieldMetadata, meta []bufferMetadata, codec flatbuf.CompressionType, variadicCounts []int64) *memory.Buffer {
 	b := flatbuffers.NewBuilder(0)
 	recFB := recordToFB(b, size, bodyLength, fields, meta, codec, variadicCounts)
-	return writeMessageFB(b, mem, flatbuf.MessageHeaderRecordBatch, recFB, bodyLength, customMetadata)
+	return writeMessageFB(b, mem, flatbuf.MessageHeaderRecordBatch, recFB, bodyLength)
 }
 
 func writeDictionaryMessage(mem memory.Allocator, id int64, isDelta bool, size, bodyLength int64, fields []fieldMetadata, meta []bufferMetadata, codec flatbuf.CompressionType, variadicCounts []int64) *memory.Buffer {
@@ -1201,7 +1199,7 @@ func writeDictionaryMessage(mem memory.Allocator, id int64, isDelta bool, size, 
 	flatbuf.DictionaryBatchAddData(b, recFB)
 	flatbuf.DictionaryBatchAddIsDelta(b, isDelta)
 	dictFB := flatbuf.DictionaryBatchEnd(b)
-	return writeMessageFB(b, mem, flatbuf.MessageHeaderDictionaryBatch, dictFB, bodyLength, arrow.Metadata{})
+	return writeMessageFB(b, mem, flatbuf.MessageHeaderDictionaryBatch, dictFB, bodyLength)
 }
 
 func recordToFB(b *flatbuffers.Builder, size, bodyLength int64, fields []fieldMetadata, meta []bufferMetadata, codec flatbuf.CompressionType, variadicCounts []int64) flatbuffers.UOffsetT {

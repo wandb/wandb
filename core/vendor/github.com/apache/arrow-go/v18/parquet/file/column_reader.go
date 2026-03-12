@@ -38,36 +38,6 @@ const (
 	defaultPageHeaderSize = 16 * 1024
 )
 
-// dictionaryState tracks the lifecycle of dictionary handling for a column chunk
-type dictionaryState int
-
-const (
-	// dictNotRead: Dictionary page has not been read yet
-	dictNotRead dictionaryState = iota
-	// dictReadNotInserted: Dictionary page has been read and decoder configured,
-	// but not yet inserted into Arrow builder (for Arrow Dictionary types only)
-	dictReadNotInserted
-	// dictFullyProcessed: Dictionary has been read, configured, and inserted into builder
-	dictFullyProcessed
-)
-
-// cloneByteArray is a helper function to clone a slice of byte slices
-func cloneByteArray[T ~[]byte](src []T) {
-	totalLength := 0
-	for i := range src {
-		totalLength += len(src[i])
-	}
-
-	buf := make([]byte, totalLength)
-	pos := 0
-	for i := range src {
-		srcLen := len(src[i])
-		copy(buf[pos:pos+srcLen], src[i])
-		src[i] = T(buf[pos : pos+srcLen])
-		pos += srcLen
-	}
-}
-
 //go:generate go run ../../arrow/_tools/tmpl/main.go -i -data=../internal/encoding/physical_types.tmpldata column_reader_types.gen.go.tmpl
 
 func isDictIndexEncoding(e format.Encoding) bool {
@@ -143,8 +113,6 @@ type ColumnChunkReader interface {
 	// automatically read the first page of the page reader passed in until
 	// HasNext which will read in the next page.
 	setPageReader(PageReader)
-	// Close releases the resources held by the column reader.
-	Close() error
 }
 
 type columnChunkReader struct {
@@ -173,7 +141,7 @@ type columnChunkReader struct {
 	defLvlBuffer []int16
 	repLvlBuffer []int16
 
-	dictState dictionaryState
+	newDictionary bool
 }
 
 func newTypedColumnChunkReader(base columnChunkReader) ColumnChunkReader {
@@ -253,22 +221,10 @@ func (c *columnChunkReader) consumeBufferedValues(n int64) { c.numDecoded += n }
 func (c *columnChunkReader) numAvailValues() int64         { return c.numBuffered - c.numDecoded }
 func (c *columnChunkReader) pager() PageReader             { return c.rdr }
 func (c *columnChunkReader) setPageReader(rdr PageReader) {
-	c.Close()
 	c.rdr, c.err = rdr, nil
 	c.decoders = make(map[format.Encoding]encoding.TypedDecoder)
-	c.dictState = dictNotRead
+	c.newDictionary = false
 	c.numBuffered, c.numDecoded = 0, 0
-}
-
-// Close closes the page raeder and the page if set.
-func (c *columnChunkReader) Close() error {
-	if c.curPage != nil {
-		c.curPage.Release()
-	}
-	if c.rdr != nil {
-		return c.rdr.Close()
-	}
-	return nil
 }
 
 func (c *columnChunkReader) getDefLvlBuffer(sz int64) []int16 {
@@ -299,8 +255,7 @@ func (c *columnChunkReader) HasNext() bool {
 }
 
 func (c *columnChunkReader) readDictionary() error {
-	// If dictionary has been read (in any state beyond dictNotRead), skip reading
-	if c.dictState != dictNotRead {
+	if c.newDictionary {
 		return nil
 	}
 
@@ -338,10 +293,7 @@ func (c *columnChunkReader) configureDict(page *DictionaryPage) error {
 		return xerrors.New("parquet: dictionary index must be plain encoding")
 	}
 
-	// Dictionary page has been read and decoder configured
-	// For non-Arrow Dictionary types, this is the final state
-	// For Arrow Dictionary types, record reader will advance to dictFullyProcessed
-	c.dictState = dictReadNotInserted
+	c.newDictionary = true
 	c.curDecoder = c.decoders[enc]
 	return nil
 }
@@ -388,10 +340,6 @@ func (c *columnChunkReader) readNewPage() bool {
 			return true
 		}
 	}
-
-	// If we get here, we're at the end of the column, and the page must
-	// have already been released. So set it to nil to avoid releasing twice.
-	c.curPage = nil
 	c.err = c.rdr.Err()
 	return false
 }
@@ -684,18 +632,19 @@ func (c *columnChunkReader) skipRows(nrows int64) error {
 
 type readerFunc func(int64, int64) (int, error)
 
-// readBatch is base function for reading a batch of values, this will read until it either reads
-// in batchSize values or it hits the end of the column chunk, including reading multiple pages.
+// base function for reading a batch of values, this will read until it either reads in batchSize values or
+// it hits the end of the column chunk, including reading multiple pages.
 //
-// totalLvls is the total number of values which were read in, and thus would be the total number
+// totalValues is the total number of values which were read in, and thus would be the total number
 // of definition levels and repetition levels which were populated (if they were non-nil). totalRead
 // is the number of physical values that were read in (ie: the number of non-null values)
 func (c *columnChunkReader) readBatch(batchSize int64, defLvls, repLvls []int16, readFn readerFunc) (totalLvls int64, totalRead int, err error) {
 	var (
-		defs []int16
-		reps []int16
-		lvls int64
-		read int
+		read   int
+		defs   []int16
+		reps   []int16
+		ndefs  int
+		toRead int64
 	)
 
 	for totalLvls < batchSize && c.HasNext() && err == nil {
@@ -705,35 +654,22 @@ func (c *columnChunkReader) readBatch(batchSize int64, defLvls, repLvls []int16,
 		if repLvls != nil {
 			reps = repLvls[totalLvls:]
 		}
-		lvls, read, err = c.readBatchInPage(batchSize-totalLvls, int64(totalRead), defs, reps, readFn)
-		totalLvls += lvls
+		ndefs, toRead, err = c.determineNumToRead(batchSize-totalLvls, defs, reps)
+		if err != nil {
+			return totalLvls, totalRead, err
+		}
+
+		read, err = readFn(int64(totalRead), toRead)
+		// the total number of values processed here is the maximum of
+		// the number of definition levels or the number of physical values read.
+		// if this is a required field, ndefs will be 0 since there is no definition
+		// levels stored with it and `read` will be the number of values, otherwise
+		// we use ndefs since it will be equal to or greater than read.
+		totalVals := int64(utils.Max(ndefs, read))
+		c.consumeBufferedValues(totalVals)
+
+		totalLvls += totalVals
 		totalRead += read
 	}
 	return totalLvls, totalRead, err
-}
-
-// readBatchInPage is a helper function for reading a batch of values. This function ensures
-// the read values are from the same page.
-//
-// TotalRead is the start index to pass to readFn.
-func (c *columnChunkReader) readBatchInPage(batchSize int64, totalRead int64, defLvls, repLvls []int16, readFn readerFunc) (lvls int64, read int, err error) {
-	if !c.HasNext() {
-		return 0, 0, c.err
-	}
-
-	ndefs, toRead, err := c.determineNumToRead(batchSize, defLvls, repLvls)
-	if err != nil {
-		return 0, 0, err
-	}
-
-	read, err = readFn(totalRead, toRead)
-	// the total number of values processed here is the maximum of
-	// the number of definition levels or the number of physical values read.
-	// if this is a required field, ndefs will be 0 since there is no definition
-	// levels stored with it and `read` will be the number of values, otherwise
-	// we use ndefs since it will be equal to or greater than read.
-	lvls = int64(utils.Max(ndefs, read))
-	c.consumeBufferedValues(lvls)
-
-	return lvls, read, err
 }

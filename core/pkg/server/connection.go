@@ -649,7 +649,7 @@ func (nc *Connection) handleApiInit(id string, request *spb.ServerApiInitRequest
 	wbapiInstance := wbapi.New(s)
 	wbApiId := nc.apiManager.AddWandbAPI(wbapiInstance)
 
-	nc.wbapi = wb
+	wbApiId := nc.apiManager.AddWandbAPI(wb)
 	nc.Respond(&spb.ServerResponse{
 		RequestId: id,
 		ServerResponseType: &spb.ServerResponse_ApiInitResponse{
