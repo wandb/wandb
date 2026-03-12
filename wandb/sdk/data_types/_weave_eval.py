@@ -27,6 +27,51 @@ _TRACE_URL = os.environ.get("WEAVE_TRACE_SERVER_URL", "https://trace.wandb.ai")
 # across all projects and weave SDK versions (as long as the source is unchanged).
 _PIL_LOAD_OP_DIGEST = "e1nS8rg9KiOooLOkLsYf4NAIYGwv7xxeBZ7tZE9wmL0"
 
+# Per-run model ref cache.  Cleared whenever the run ID changes (i.e. wandb.init
+# was called again).  The model object is published lazily on the first EvalTable
+# log of each run, derived from wandb.run.config.
+_model_cache_run_id: str | None = None
+_model_cache_ref: str | None = None
+
+
+def _ensure_model_ref(
+    run: LocalRun,
+    auth: tuple[str, str],
+    entity: str,
+    project: str,
+    project_id: str,
+) -> str:
+    """Lazily publish a Model object from the current run config and cache its ref.
+
+    The object is named after the run ID so each run gets its own versioned
+    model.  Because the trace server is content-addressed, identical configs
+    produce the same digest and are deduplicated automatically.
+    """
+    import requests
+
+    global _model_cache_run_id, _model_cache_ref
+
+    if _model_cache_run_id == run.id and _model_cache_ref is not None:
+        return _model_cache_ref
+
+    val = {"_type": "Model", **dict(run.config)}
+    resp = requests.post(
+        f"{_TRACE_URL}/obj/create",
+        json={
+            "obj": {
+                "project_id": project_id,
+                "object_id": f"run-{run.id}-model",
+                "val": val,
+            }
+        },
+        auth=auth,
+    )
+    resp.raise_for_status()
+    digest = resp.json()["digest"]
+    _model_cache_run_id = run.id
+    _model_cache_ref = f"weave:///{entity}/{project}/object/run-{run.id}-model:{digest}"
+    return _model_cache_ref
+
 
 def _upload_bytes(
     project_id: str,
@@ -189,7 +234,13 @@ def log_eval_table_to_weave(table: EvalTable, run: LocalRun) -> None:
     try:
         _log_eval_table_to_weave(table, run)
     except Exception as exc:
-        log.warning("EvalTable: failed to log to Weave trace server: %s", exc)
+        import traceback
+
+        log.warning(
+            "EvalTable: failed to log to Weave trace server: %s\n%s",
+            exc,
+            traceback.format_exc(),
+        )
 
 
 def _log_eval_table_to_weave(table: EvalTable, run: LocalRun) -> None:
@@ -217,8 +268,10 @@ def _log_eval_table_to_weave(table: EvalTable, run: LocalRun) -> None:
     }
     all_output_cols = output_cols | extra_output_cols
 
+    model_ref = _ensure_model_ref(run, auth, entity, project, project_id)
+
     # table_inputs: merge step + any user-supplied eval-level inputs
-    root_inputs: dict[str, Any] = {"step": step}
+    root_inputs: dict[str, Any] = {"model": model_ref, "step": step}
     root_inputs.update(table.table_inputs)
 
     # ── 1. Start root Evaluation.evaluate call ─────────────────────────────
@@ -229,10 +282,14 @@ def _log_eval_table_to_weave(table: EvalTable, run: LocalRun) -> None:
                 "project_id": project_id,
                 "id": root_call_id,
                 "trace_id": trace_id,
-                "op_name": "Evaluation.evaluate",
+                # Full URI format required so the compare selector's op_name
+                # LIKE filter matches.  The "imperative" sentinel stands in for
+                # a real content-hash since we never publish this as an op object.
+                # parseSpanName() in the UI strips the prefix back to
+                # "Evaluation.evaluate" for display.
+                "op_name": f"weave:///{entity}/{project}/op/Evaluation.evaluate:imperative",
                 # display_name overrides the "Trace" column in the UI while
-                # op_name stays "Evaluation.evaluate" so the UI recognises it
-                # as an evaluation.
+                # op_name carries the correct URI so the compare selector finds it.
                 "display_name": table._log_key,
                 "started_at": now,
                 # imperative=True: UI walks the output freely, no scorer-ref gating
@@ -270,18 +327,45 @@ def _log_eval_table_to_weave(table: EvalTable, run: LocalRun) -> None:
                     row[col_index[col]], project_id, entity, project, auth
                 )
 
+        pas_id = str(uuid.uuid4())
+        predict_id = str(uuid.uuid4())
+
+        # predict_and_score must come before its predict child in the batch
+        # so the parent exists when the server processes the child.
         batch.append(
             {
                 "project_id": project_id,
-                "id": str(uuid.uuid4()),
+                "id": pas_id,
                 "trace_id": trace_id,
                 "parent_id": root_call_id,
                 "op_name": "Evaluation.predict_and_score",
                 "started_at": now,
                 "ended_at": now,
                 "attributes": {},
-                "inputs": {"model": "model", "example": inputs},
+                "inputs": {"model": model_ref, "example": inputs},
                 "output": {"output": outputs, "scores": scores, "model_latency": 0.0},
+                "summary": {},
+                "wb_run_id": f"{entity}/{project}/{run_id}",
+                "wb_run_step": step,
+                "wb_run_step_end": step,
+            }
+        )
+
+        # predict child — the compare page searches subcalls for one whose
+        # artifactName contains "predict".  Using an op URI with "predict" in
+        # the name satisfies that check without using an object ref as op_name.
+        batch.append(
+            {
+                "project_id": project_id,
+                "id": predict_id,
+                "trace_id": trace_id,
+                "parent_id": pas_id,
+                "op_name": f"weave:///{entity}/{project}/op/predict:imperative",
+                "started_at": now,
+                "ended_at": now,
+                "attributes": {},
+                "inputs": inputs,
+                "output": outputs,
                 "summary": {},
                 "wb_run_id": f"{entity}/{project}/{run_id}",
                 "wb_run_step": step,
