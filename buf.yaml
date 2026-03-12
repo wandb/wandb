@@ -1,0 +1,8 @@
+# We don't use the buf CLI yet, but this file allows buf-lsp to
+# correctly resolve import paths, improving the IDE experience.
+version: v2
+
+lint:
+  except:
+    - PACKAGE_DIRECTORY_MATCH # wandb/proto/ package is "wandb_internal"
+    - PACKAGE_VERSION_SUFFIX # we don't use version suffixes
