@@ -33,6 +33,7 @@ from wandb.sdk.artifacts.storage_policies._multipart import (
     should_multipart_download,
 )
 from wandb.sdk.artifacts.storage_policies.wandb_storage_policy import WandbStoragePolicy
+from wandb.sdk.lib.hashutil import b64_to_hex_id
 
 if TYPE_CHECKING:
     from typing import Protocol
@@ -426,10 +427,10 @@ class TestFileUrl:
         ):
             url = policy._file_url(artifact, entry)
 
+        hexhash = b64_to_hex_id(entry.digest)
         assert url == (
             "https://api.wandb.test/artifactsV2/us-east-1/my-entity/my-project/"
-            "my-artifact/artifact-123/birth-456/"
-            "35643431343032616263346232613736623937313939313130313763353932/model.pt"
+            "my-artifact/artifact-123/birth-456/" + hexhash + "/model.pt"
         )
 
     def test_file_url_v2_layout_with_collection_membership_handler(self, monkeypatch):
@@ -467,10 +468,10 @@ class TestFileUrl:
         ):
             url = policy._file_url(artifact, entry)
 
+        hexhash = b64_to_hex_id(entry.digest)
         assert url == (
             "https://api.wandb.test/artifactsV2/us-west-2/my-entity/my-project/"
-            "my-artifact/birth-456/"
-            "35643431343032616263346232613736623937313939313130313763353932/model.pt"
+            "my-artifact/birth-456/" + hexhash + "/model.pt"
         )
 
     def test_file_url_v2_layout_fallback(self, monkeypatch):
@@ -506,9 +507,11 @@ class TestFileUrl:
         ):
             url = policy._file_url(artifact, entry)
 
+        hexhash = b64_to_hex_id(entry.digest)
         assert url == (
             "https://api.wandb.test/artifactsV2/default/my-entity/birth-456/"
-            "35643431343032616263346232613736623937313939313130313763353932"
+            + hexhash
+            + "/model.pt"
         )
 
 
