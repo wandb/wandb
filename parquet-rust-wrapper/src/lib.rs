@@ -1,11 +1,14 @@
-use arrow::ipc::writer::StreamWriter;
 use std::ffi::{CStr, CString};
 use std::fs::File;
-use parquet::arrow::arrow_reader::{ParquetRecordBatchReader, ParquetRecordBatchReaderBuilder};
+use parquet::arrow::arrow_reader::{
+    ParquetRecordBatchReader,
+    ParquetRecordBatchReaderBuilder,
+};
 use parquet::arrow::ProjectionMask;
 use arrow::array::{Array, Float64Array, Int64Array, RecordBatch};
 
 mod httpfile;
+pub mod serialize;
 pub use httpfile::HttpFileReader;  // Export for testing
 
 const STEP_COLUMN_NAME: &str = "_step";
@@ -182,13 +185,13 @@ impl ReaderHandle {
     }
 }
 
-/// FFI-compatible struct for returning scan results
-/// This struct is passed by pointer from Go, and Rust fills it in
+/// FFI-compatible struct for returning scan results.
+/// This struct is passed by pointer from Go, and Rust fills it in.
 #[repr(C)]
 pub struct StepScanResult {
     pub vec_ptr: usize,           // Pointer to Vec<u8> for cleanup
-    pub data_ptr: usize,          // Pointer to IPC stream buffer data
-    pub data_len: u64,            // Length of IPC stream buffer (in bytes)
+    pub data_ptr: usize,          // Pointer to serialized buffer data
+    pub data_len: u64,            // Length of serialized buffer (in bytes)
     pub num_rows_returned: u64,   // Total rows in result
 }
 
@@ -211,7 +214,7 @@ pub struct StepScanResult {
 /// This function is unsafe because it:
 /// - Dereferences raw pointers
 /// - out_result must point to valid memory
-/// - Returns a buffer (in out_result) that must be freed by caller using free_ipc_stream
+/// - Returns a buffer that must be freed by caller using free_buffer
 #[no_mangle]
 pub unsafe extern "C" fn reader_scan_step_range(
     reader_ptr: *mut ReaderHandle,
@@ -239,8 +242,8 @@ pub unsafe extern "C" fn reader_scan_step_range(
         }
     }
 
-    // Create a buffer to hold the IPC stream
-    let mut buffer = Vec::new();
+    // Create a buffer to hold the resulting data
+    let mut buffer: Vec<u8> = Vec::new();
 
     let mut total_rows_returned = 0;
     let mut actual_max_step_returned: Option<i64> = None;
@@ -359,26 +362,12 @@ pub unsafe extern "C" fn reader_scan_step_range(
         }
     }
 
-    // Now write all matching rows to IPC stream
+    // Serialize the matching data into the buffer
     if !matching_rows.is_empty() {
-        let schema = matching_rows[0].schema();
-        let mut writer = match StreamWriter::try_new(&mut buffer, &schema) {
-            Ok(w) => w,
-            Err(e) => {
-                return error_to_c_string(&format!("Failed to create IPC writer: {}", e));
-            }
-        };
-
         for batch in &matching_rows {
-            if let Err(e) = writer.write(batch) {
-                return error_to_c_string(&format!("Failed to write batch: {}", e));
-            }
             total_rows_returned += batch.num_rows();
         }
-
-        if let Err(e) = writer.finish() {
-            return error_to_c_string(&format!("Failed to finish IPC stream: {}", e));
-        }
+        buffer = serialize::serialize_batches_to_kv_binary(&matching_rows);
     }
 
     // If no rows were found, return empty result
@@ -418,7 +407,7 @@ pub unsafe extern "C" fn reader_scan_step_range(
     std::ptr::null()
 }
 
-/// Free an IPC stream buffer allocated by Rust
+/// Free a buffer allocated by Rust.
 ///
 /// # Safety
 ///
@@ -427,11 +416,12 @@ pub unsafe extern "C" fn reader_scan_step_range(
 /// - Must only be called with pointers returned from reader_scan_step_range
 /// - Must only be called once per pointer
 #[no_mangle]
-pub unsafe extern "C" fn free_ipc_stream(buffer_ptr: *mut Vec<u8>) {
+pub unsafe extern "C" fn free_buffer(buffer_ptr: *mut Vec<u8>) {
     if !buffer_ptr.is_null() {
         let _ = Box::from_raw(buffer_ptr);
     }
 }
+
 
 /// Free a string allocated by Rust
 ///

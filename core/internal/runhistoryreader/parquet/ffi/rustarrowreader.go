@@ -1,22 +1,22 @@
 package ffi
 
 import (
-	"bytes"
 	"context"
+	"encoding/binary"
+	"errors"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"runtime"
 	"unsafe"
 
-	"github.com/apache/arrow-go/v18/arrow"
-	"github.com/apache/arrow-go/v18/arrow/array"
-	"github.com/apache/arrow-go/v18/arrow/ipc"
-	"github.com/apache/arrow-go/v18/arrow/memory"
 	"github.com/ebitengine/purego"
 
 	"github.com/wandb/wandb/core/internal/runhistoryreader/parquet"
 )
+
+var ErrOffsetOutOfBounds = errors.New("offset out of bounds")
 
 // RustArrowReader is struct used to read parquet files using a wrapper library around arrow-rs.
 //
@@ -54,23 +54,23 @@ type RustArrowWrapper struct {
 
 	// freeString is a Rust FFI to free a string allocated by Rust.
 	freeString func(s *byte)
-	// freeIpcStream is a Rust FFI to free an Arrow IPC stream allocated by Rust.
-	freeIpcStream func(bufferPtr unsafe.Pointer)
+	// freeBuffer is a Rust FFI to free a byte buffer allocated by Rust.
+	freeBuffer func(bufferPtr unsafe.Pointer)
 	// freeReader is a Rust FFI to free a ReaderHandle allocated by Rust.
 	freeReader func(readerPtr unsafe.Pointer)
 }
 
-// StepScanResult matches the Rust struct StepScanResult
+// StepScanResult matches the Rust struct StepScanResult.
 // It is used as a output parameter for the scanStepRange function.
 type StepScanResult struct {
-	// VecPtr is the pointer to the Rust Vec<u8> that contains the IPC stream
-	// This should be freed using freeIpcStream when the result is no longer needed
+	// VecPtr is the pointer to the Rust Vec<u8> that contains the serialized scanned data.
+	// This should be freed using freeBuffer when the result is no longer needed.
 	VecPtr uintptr
-	// DataPtr is the pointer to the actual data in the VecPtr
+	// DataPtr is the pointer to the actual data in the VecPtr.
 	DataPtr uintptr
-	// DataLen is the length of the data in the DataPtr (in bytes)
+	// DataLen is the length of the data in the DataPtr (in bytes).
 	DataLen uint64
-	// NumRowsReturned is the number of rows returned in the IPC stream
+	// NumRowsReturned is the number of rows returned.
 	NumRowsReturned uint64
 }
 
@@ -97,8 +97,8 @@ func NewRustArrowWrapper() (*RustArrowWrapper, error) {
 	purego.RegisterLibFunc(&createReader, rustLib, "create_reader")
 	var freeString func(s *byte)
 	purego.RegisterLibFunc(&freeString, rustLib, "free_string")
-	var freeIpcStream func(bufferPtr unsafe.Pointer)
-	purego.RegisterLibFunc(&freeIpcStream, rustLib, "free_ipc_stream")
+	var freeBuffer func(bufferPtr unsafe.Pointer)
+	purego.RegisterLibFunc(&freeBuffer, rustLib, "free_buffer")
 	var scanStepRange func(
 		readerPtr unsafe.Pointer,
 		minStep int64,
@@ -112,7 +112,7 @@ func NewRustArrowWrapper() (*RustArrowWrapper, error) {
 	return &RustArrowWrapper{
 		createReader:  createReader,
 		freeString:    freeString,
-		freeIpcStream: freeIpcStream,
+		freeBuffer:    freeBuffer,
 		freeReader:    freeReader,
 		scanStepRange: scanStepRange,
 	}, nil
@@ -135,20 +135,19 @@ func RustArrowWrapperTester(
 		createReader:  createReader,
 		scanStepRange: scanStepRange,
 		freeString:    func(s *byte) {},
-		freeIpcStream: func(bufferPtr unsafe.Pointer) {},
+		freeBuffer:    func(bufferPtr unsafe.Pointer) {},
 		freeReader:    func(readerPtr unsafe.Pointer) {},
 	}
 }
 
-// CreateRustReaders creates a new RustReader for a given list of file paths.
+// CreateRustArrowReader creates a new RustArrowReader for a given list of file paths.
 // Only the columns names provided will be read from the parquet files.
 func CreateRustArrowReader(
 	rustArrowWrapper *RustArrowWrapper,
 	filePath string,
 	columnNames []string,
 ) (*RustArrowReader, error) {
-	// Convert column names to C strings and keep them alive
-	// We need to store the byte slices to prevent them from being GC'd
+	// convert column names to C strings
 	columnNameBytes := make([][]byte, len(columnNames))
 	columnNameBytesPtrs := make([]*byte, len(columnNames))
 	for i, columnName := range columnNames {
@@ -197,15 +196,17 @@ func (r *RustArrowReader) ScanStepRange(
 		r.rustArrowWrapper.freeString(errCStr)
 		return nil, fmt.Errorf("error scanning step range: %s", errMsg)
 	}
+	if scanResult.NumRowsReturned == 0 || scanResult.DataLen == 0 {
+		return []parquet.KeyValueList{}, nil
+	}
 
-	// Create an Arrow IPC reader from the buffer
-	// Note: The pointers come from Rust FFI
-	// the lifetime of which is managed by us, via freeIpcStream
+	// The data pointers come from Rust FFI,
+	// but we must manage the lifetime of the data ourselves via freeBuffer.
 	//
 	// We need to convert uintptr to unsafe.Pointer here for FFI interop.
 	// This is safe because:
-	// 1. The pointer is owned by Rust and kept alive until freeIpcStream is called
-	// 2. We call freeIpcStream in the defer to ensure cleanup
+	// 1. The pointer is owned by Rust and kept alive until freeBuffer is called
+	// 2. We call freeBuffer in the defer to ensure cleanup
 	// 3. The data is not moved by Go's GC (it's Rust-owned memory)
 	dataPtr := scanResult.DataPtr
 	vecPtr := scanResult.VecPtr
@@ -214,23 +215,17 @@ func (r *RustArrowReader) ScanStepRange(
 		(*byte)(unsafe.Pointer(dataPtr)),
 		scanResult.DataLen,
 	)
-	bufferReader := bytes.NewReader(bufferBytes)
-	ipcReader, err := ipc.NewReader(bufferReader, ipc.WithAllocator(memory.DefaultAllocator))
-	if err != nil {
-		return nil, fmt.Errorf("failed to create IPC reader: %w", err)
-	}
 	defer func() {
-		ipcReader.Release()
 		//nolint:govet // pointer memory is managed in the rust wrapper library
-		r.rustArrowWrapper.freeIpcStream(unsafe.Pointer(vecPtr))
+		r.rustArrowWrapper.freeBuffer(unsafe.Pointer(vecPtr))
 	}()
 
-	resultsForReader, err := readIPCReaderRecords(ipcReader)
+	results, err := parseScanResultData(bufferBytes)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read IPC reader records: %w", err)
+		return nil, fmt.Errorf("failed to decode binary data: %w", err)
 	}
 
-	return resultsForReader, nil
+	return results, nil
 }
 
 // Release frees the resources allocated by the RustReader.
@@ -241,99 +236,225 @@ func (r *RustArrowReader) Release() {
 	}
 }
 
-func readIPCReaderRecords(
-	ipcReader *ipc.Reader,
-) ([]parquet.KeyValueList, error) {
-	results := []parquet.KeyValueList{}
-	for ipcReader.Next() {
-		record := ipcReader.RecordBatch()
+// Type tags matching the Rust serialize module.
+const (
+	typeNull    = 0
+	typeInt64   = 1
+	typeUint64  = 2
+	typeFloat64 = 3
+	typeString  = 4
+	typeBool    = 5
+	typeBinary  = 6
+	typeList    = 7
+	typeMap     = 8
+)
 
-		// Convert each row in the record to a KeyValueList
-		for rowIdx := 0; rowIdx < int(record.NumRows()); rowIdx++ {
-			kvList := make(parquet.KeyValueList, 0, int(record.NumCols()))
+// parseScanResultData decodes the scan data returned by the Rust scanStepRange function
+// into a []parquet.KeyValueList.
+func parseScanResultData(data []byte) ([]parquet.KeyValueList, error) {
+	if len(data) == 0 {
+		return []parquet.KeyValueList{}, nil
+	}
 
-			// Iterate through each column
-			for colIdx := 0; colIdx < int(record.NumCols()); colIdx++ {
-				column := record.Column(colIdx)
-				field := record.Schema().Field(colIdx)
+	// offset tracks the current position in the data byte slice
+	offset := 0
 
-				// Extract the value at this row
-				value, err := extractArrowValue(column, rowIdx)
-				if err != nil {
-					return nil, fmt.Errorf(
-						"failed to extract value at row %d, col %d: %w",
-						rowIdx,
-						colIdx,
-						err,
-					)
-				}
+	numColumns, err := readU32(data, &offset)
+	if err != nil {
+		return nil, fmt.Errorf("reading num_columns: %w", err)
+	}
 
-				kvList = append(kvList, parquet.KeyValuePair{
-					Key:   field.Name,
-					Value: value,
-				})
-			}
-
-			results = append(results, kvList)
+	columnNames := make([]string, numColumns)
+	for i := 0; i < int(numColumns); i++ {
+		nameLen, err := readU32(data, &offset)
+		if err != nil {
+			return nil, fmt.Errorf("reading column name length: %w", err)
 		}
+		if offset+int(nameLen) > len(data) {
+			return nil, fmt.Errorf("column name extends past buffer")
+		}
+
+		columnNames[i] = string(data[offset : offset+int(nameLen)])
+		offset += int(nameLen)
+	}
+
+	numRows, err := readU32(data, &offset)
+	if err != nil {
+		return nil, fmt.Errorf("reading num_rows: %w", err)
+	}
+
+	results := make([]parquet.KeyValueList, 0, numRows)
+	for row := 0; row < int(numRows); row++ {
+		kvList := make(parquet.KeyValueList, 0, numColumns)
+		for col := 0; col < int(numColumns); col++ {
+			value, err := readValue(data, &offset)
+			if err != nil {
+				return nil, fmt.Errorf("row %d col %d: %w", row, col, err)
+			}
+			kvList = append(kvList, parquet.KeyValuePair{
+				Key:   columnNames[col],
+				Value: value,
+			})
+		}
+		results = append(results, kvList)
 	}
 
 	return results, nil
 }
 
-func extractListValueAtIndex(arr *array.List, idx int) (any, error) {
-	start, end := arr.ValueOffsets(idx)
-	values := make([]any, 0, end-start)
-	for i := start; i < end; i++ {
-		value, err := extractArrowValue(arr.ListValues(), int(i))
+// readU32 reads a 32-bit unsigned integer from the data at the given offset,:wincmd j
+// and updates the offset to the next byte after the read value.
+func readU32(data []byte, offset *int) (uint32, error) {
+	if *offset+4 > len(data) {
+		return 0, fmt.Errorf("buffer underflow reading u32 at offset %d", *offset)
+	}
+	v := binary.LittleEndian.Uint32(data[*offset : *offset+4])
+	*offset += 4
+	return v, nil
+}
+
+// readValue reads a value from the data at the given offset.
+//
+// The offset is updated to the next byte after the read value.
+// If the offset is out of bounds, an error is returned.
+func readValue(data []byte, offset *int) (any, error) {
+	if *offset >= len(data) {
+		return nil, fmt.Errorf("buffer underflow reading type tag at offset %d", *offset)
+	}
+	typeTag := data[*offset]
+	*offset++
+
+	switch typeTag {
+	case typeNull:
+		return nil, nil
+	case typeInt64:
+		return readInt64(data, offset)
+	case typeUint64:
+		return readUint64(data, offset)
+	case typeFloat64:
+		return readFloat64(data, offset)
+	case typeString:
+		return readString(data, offset)
+	case typeBool:
+		return readBool(data, offset)
+	case typeBinary:
+		return readBinary(data, offset)
+	case typeList:
+		return readList(data, offset)
+	case typeMap:
+		return parseMapValue(data, offset)
+	default:
+		return nil, fmt.Errorf("unknown type: %d", typeTag)
+	}
+}
+
+func readInt64(data []byte, offset *int) (int64, error) {
+	const size = 8
+	if *offset+size > len(data) {
+		return 0, ErrOffsetOutOfBounds
+	}
+	v := int64(binary.LittleEndian.Uint64(data[*offset : *offset+size]))
+	*offset += size
+	return v, nil
+}
+
+func readUint64(data []byte, offset *int) (uint64, error) {
+	const size = 8
+	if *offset+size > len(data) {
+		return 0, ErrOffsetOutOfBounds
+	}
+	v := binary.LittleEndian.Uint64(data[*offset : *offset+size])
+	*offset += size
+	return v, nil
+}
+
+func readFloat64(data []byte, offset *int) (float64, error) {
+	const size = 8
+	if *offset+size > len(data) {
+		return 0, ErrOffsetOutOfBounds
+	}
+	bits := binary.LittleEndian.Uint64(data[*offset : *offset+size])
+	*offset += size
+	return math.Float64frombits(bits), nil
+}
+
+func readString(data []byte, offset *int) (string, error) {
+	strLen, err := readU32(data, offset)
+	if err != nil {
+		return "", fmt.Errorf("reading string length: %w", err)
+	}
+	if *offset+int(strLen) > len(data) {
+		return "", ErrOffsetOutOfBounds
+	}
+	s := string(data[*offset : *offset+int(strLen)])
+	*offset += int(strLen)
+	return s, nil
+}
+
+func readBool(data []byte, offset *int) (bool, error) {
+	if *offset >= len(data) {
+		return false, ErrOffsetOutOfBounds
+	}
+	v := data[*offset] != 0
+	*offset++
+	return v, nil
+}
+
+func readBinary(data []byte, offset *int) ([]byte, error) {
+	binLen, err := readU32(data, offset)
+	if err != nil {
+		return nil, fmt.Errorf("reading binary length: %w", err)
+	}
+	if *offset+int(binLen) > len(data) {
+		return nil, ErrOffsetOutOfBounds
+	}
+	b := make([]byte, binLen)
+	copy(b, data[*offset:*offset+int(binLen)])
+	*offset += int(binLen)
+	return b, nil
+}
+
+func readList(data []byte, offset *int) ([]any, error) {
+	listLen, err := readU32(data, offset)
+	if err != nil {
+		return nil, fmt.Errorf("reading list length: %w", err)
+	}
+	values := make([]any, 0, listLen)
+	for i := 0; i < int(listLen); i++ {
+		v, err := readValue(data, offset)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("list element %d: %w", i, err)
 		}
-		values = append(values, value)
+		values = append(values, v)
 	}
 	return values, nil
 }
 
-// extractArrowValue extracts a value from an Arrow array at a specific index
-func extractArrowValue(arr arrow.Array, idx int) (any, error) {
-	if arr.IsNull(idx) {
-		return nil, nil
+// parseMapValue reads a map/struct value from the data at the given offset.
+func parseMapValue(data []byte, offset *int) (map[string]any, error) {
+	numEntries, err := readU32(data, offset)
+	if err != nil {
+		return nil, fmt.Errorf("reading map entry count: %w", err)
 	}
+	m := make(map[string]any, numEntries)
+	for i := 0; i < int(numEntries); i++ {
+		keyLen, err := readU32(data, offset)
+		if err != nil {
+			return nil, fmt.Errorf("map entry %d key length: %w", i, err)
+		}
+		if *offset+int(keyLen) > len(data) {
+			return nil, ErrOffsetOutOfBounds
+		}
+		key := string(data[*offset : *offset+int(keyLen)])
+		*offset += int(keyLen)
 
-	switch arr := arr.(type) {
-	case *array.Int64:
-		return arr.Value(idx), nil
-	case *array.Int32:
-		return int64(arr.Value(idx)), nil
-	case *array.Int16:
-		return int64(arr.Value(idx)), nil
-	case *array.Int8:
-		return int64(arr.Value(idx)), nil
-	case *array.Uint64:
-		return arr.Value(idx), nil
-	case *array.Uint32:
-		return int64(arr.Value(idx)), nil
-	case *array.Uint16:
-		return int64(arr.Value(idx)), nil
-	case *array.Uint8:
-		return int64(arr.Value(idx)), nil
-	case *array.Float64:
-		return arr.Value(idx), nil
-	case *array.Float32:
-		return float64(arr.Value(idx)), nil
-	case *array.String:
-		return arr.Value(idx), nil
-	case *array.Binary:
-		return []byte(arr.Value(idx)), nil
-	case *array.Boolean:
-		return arr.Value(idx), nil
-	case *array.Struct:
-		return nil, fmt.Errorf("structs are not supported")
-	case *array.List:
-		return extractListValueAtIndex(arr, idx)
-	default:
-		return nil, fmt.Errorf("unsupported arrow type: %s", arr.DataType())
+		val, err := readValue(data, offset)
+		if err != nil {
+			return nil, fmt.Errorf("map entry %d value: %w", i, err)
+		}
+		m[key] = val
 	}
+	return m, nil
 }
 
 // cByteToGoString converts a null-terminated C string to a Go string

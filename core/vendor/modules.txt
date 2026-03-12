@@ -616,29 +616,12 @@ github.com/go-logr/stdr
 ## explicit; go 1.12
 github.com/go-ole/go-ole
 github.com/go-ole/go-ole/oleutil
-# github.com/goccy/go-json v0.10.5
-## explicit; go 1.19
-github.com/goccy/go-json
-github.com/goccy/go-json/internal/decoder
-github.com/goccy/go-json/internal/encoder
-github.com/goccy/go-json/internal/encoder/vm
-github.com/goccy/go-json/internal/encoder/vm_color
-github.com/goccy/go-json/internal/encoder/vm_color_indent
-github.com/goccy/go-json/internal/encoder/vm_indent
-github.com/goccy/go-json/internal/errors
-github.com/goccy/go-json/internal/runtime
 # github.com/golang-jwt/jwt/v5 v5.3.1
 ## explicit; go 1.21
 github.com/golang-jwt/jwt/v5
 # github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8
 ## explicit; go 1.20
 github.com/golang/groupcache/lru
-# github.com/golang/snappy v1.0.0
-## explicit
-github.com/golang/snappy
-# github.com/google/flatbuffers v25.12.19+incompatible
-## explicit
-github.com/google/flatbuffers/go
 # github.com/google/s2a-go v0.1.9
 ## explicit; go 1.20
 github.com/google/s2a-go
@@ -710,22 +693,6 @@ github.com/json-iterator/go
 # github.com/kevinburke/ssh_config v1.6.0
 ## explicit; go 1.18
 github.com/kevinburke/ssh_config
-# github.com/klauspost/asmfmt v1.3.2
-## explicit; go 1.16
-github.com/klauspost/asmfmt
-github.com/klauspost/asmfmt/cmd/asmfmt
-# github.com/klauspost/compress v1.18.4
-## explicit; go 1.23
-github.com/klauspost/compress
-github.com/klauspost/compress/flate
-github.com/klauspost/compress/fse
-github.com/klauspost/compress/gzip
-github.com/klauspost/compress/huff0
-github.com/klauspost/compress/internal/cpuinfo
-github.com/klauspost/compress/internal/le
-github.com/klauspost/compress/internal/snapref
-github.com/klauspost/compress/zstd
-github.com/klauspost/compress/zstd/internal/xxhash
 # github.com/klauspost/cpuid/v2 v2.3.0
 ## explicit; go 1.22
 github.com/klauspost/cpuid/v2
@@ -750,12 +717,6 @@ github.com/mattn/go-isatty
 # github.com/mattn/go-runewidth v0.0.21
 ## explicit; go 1.20
 github.com/mattn/go-runewidth
-# github.com/minio/asm2plan9s v0.0.0-20200509001527-cdd76441f9d8
-## explicit
-github.com/minio/asm2plan9s
-# github.com/minio/c2goasm v0.0.0-20190812172519-36a3d3bbc4f3
-## explicit
-github.com/minio/c2goasm
 # github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd
 ## explicit
 github.com/modern-go/concurrent
@@ -776,13 +737,6 @@ github.com/munnerz/goautoneg
 github.com/mwitkow/go-conntrack
 # github.com/onsi/gomega v1.39.1
 ## explicit; go 1.24.0
-# github.com/pierrec/lz4/v4 v4.1.26
-## explicit; go 1.17
-github.com/pierrec/lz4/v4
-github.com/pierrec/lz4/v4/internal/lz4block
-github.com/pierrec/lz4/v4/internal/lz4errors
-github.com/pierrec/lz4/v4/internal/lz4stream
-github.com/pierrec/lz4/v4/internal/xxh32
 # github.com/pjbgf/sha1cd v0.5.0
 ## explicit; go 1.22
 github.com/pjbgf/sha1cd
@@ -894,9 +848,6 @@ github.com/xo/terminfo
 # github.com/yusufpapurcu/wmi v1.2.4
 ## explicit; go 1.16
 github.com/yusufpapurcu/wmi
-# github.com/zeebo/xxh3 v1.1.0
-## explicit; go 1.22
-github.com/zeebo/xxh3
 # go.opentelemetry.io/auto/sdk v1.2.1
 ## explicit; go 1.24.0
 go.opentelemetry.io/auto/sdk
@@ -1002,8 +953,6 @@ golang.org/x/crypto/ssh/internal/bcrypt_pbkdf
 golang.org/x/crypto/ssh/knownhosts
 # golang.org/x/exp v0.0.0-20260218203240-3dfff04db8fa
 ## explicit; go 1.25.0
-golang.org/x/exp/constraints
-golang.org/x/exp/mmap
 # golang.org/x/mod v0.33.0
 ## explicit; go 1.24.0
 golang.org/x/mod/internal/lazyregexp
@@ -1071,8 +1020,6 @@ golang.org/x/text/unicode/norm
 golang.org/x/time/rate
 # golang.org/x/tools v0.42.0
 ## explicit; go 1.24.0
-golang.org/x/tools/cmd/goimports
-golang.org/x/tools/cmd/stringer
 golang.org/x/tools/go/ast/astutil
 golang.org/x/tools/go/ast/edge
 golang.org/x/tools/go/ast/inspector
