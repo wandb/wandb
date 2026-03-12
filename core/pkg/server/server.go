@@ -65,8 +65,10 @@ type Server struct {
 	activeConnections atomic.Int64
 
 	// idleTimer is started when the server has zero connected clients.
+	idleTimer *time.Timer
+
+	// idleTimerMu protects idleTimer.
 	idleTimerMu sync.Mutex
-	idleTimer   *time.Timer
 
 	// idleShutdownStarted reports whether the idle timer callback has started
 	// shutting the server down.
@@ -264,7 +266,7 @@ func (s *Server) onConnectionStart() {
 
 	// Stop the idle timer when the first client connects.
 	if s.activeConnections.Add(1) == 1 {
-		_ = s.stopIdleTimer()
+		s.stopIdleTimer()
 	}
 }
 
@@ -283,14 +285,9 @@ func (s *Server) startIdleTimer() {
 	s.idleTimerMu.Lock()
 	defer s.idleTimerMu.Unlock()
 
-	if s.idleShutdownStarted {
+	if s.idleShutdownStarted ||
+		(s.idleTimer != nil && !s.idleTimer.Stop()) {
 		return
-	}
-
-	if s.idleTimer != nil {
-		if !s.idleTimer.Stop() {
-			return
-		}
 	}
 
 	s.idleTimer = time.AfterFunc(s.idleTimeout, func() {
@@ -306,24 +303,19 @@ func (s *Server) startIdleTimer() {
 	})
 }
 
-func (s *Server) stopIdleTimer() bool {
+func (s *Server) stopIdleTimer() {
 	s.idleTimerMu.Lock()
 	defer s.idleTimerMu.Unlock()
 
-	if s.idleShutdownStarted {
-		return false
-	}
-
-	if s.idleTimer == nil {
-		return true
+	if s.idleShutdownStarted || s.idleTimer == nil {
+		return
 	}
 
 	if !s.idleTimer.Stop() {
 		s.idleShutdownStarted = true
 		s.idleTimer = nil
-		return false
+		return
 	}
 
 	s.idleTimer = nil
-	return true
 }

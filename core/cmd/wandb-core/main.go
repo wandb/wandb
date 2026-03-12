@@ -66,21 +66,21 @@ func run(args []string) int {
 // serviceMain runs the default W&B SDK core service.
 func serviceMain() int {
 	portFilename := flag.String("port-filename", "port_file.txt",
-		"Specifies the filename where the server will write the port number it uses to "+
-			"communicate with clients.")
+		"Specifies the filename where the server will write the port number it uses to"+
+			" communicate with clients.")
 	pid := flag.Int("pid", 0,
 		"Specifies the process ID (PID) of the external process that spins up this service.")
 	detached := flag.Bool(
 		"detached",
 		false,
-		"Run the service detached from its parent process. In detached mode, "+
-			"the service does not automatically exit when the parent process exits.",
+		"Run the service detached from its parent process. In detached mode,"+
+			" the service does not automatically exit when the parent process exits.",
 	)
 	idleTimeout := flag.Duration(
 		"idle-timeout",
 		defaultDetachedIdleTimeout,
-		"If --detached is set, shut down the service after this much idle time "+
-			"with no connected clients. 0 disables the idle shutdown.",
+		"If --detached is set, shut down the service after this much idle time"+
+			" with no connected clients. 0 disables the idle shutdown.",
 	)
 	logLevel := flag.Int("log-level", 0,
 		"Specifies the log level to use for logging. -4: debug, 0: info, 4: warn, 8: error.")

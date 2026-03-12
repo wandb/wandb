@@ -226,7 +226,12 @@ def sync(
 
 @beta.group()
 def core() -> None:
-    """Manage a detached local wandb-core service."""
+    """Manage a detached local wandb-core service for multi-process reuse.
+
+    Use this when multiple independent Python processes on the same machine
+    should share one local wandb-core process via WANDB_SERVICE instead of
+    each spawning their own service.
+    """
 
 
 @core.command()

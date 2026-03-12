@@ -139,7 +139,8 @@ def _launch_server(
         if dcgm_profiling_enabled():
             service_args.append("--enable-dcgm-profiling")
 
-        service_args.extend(["--port-filename", str(port_file), "--pid", pid])
+        service_args.extend(["--port-filename", str(port_file)])
+        service_args.extend(["--pid", pid])
 
         if detached:
             service_args.extend(["--detached", "--idle-timeout", idle_timeout or "0"])

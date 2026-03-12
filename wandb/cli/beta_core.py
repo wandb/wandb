@@ -30,7 +30,6 @@ def start(*, idle_timeout: str) -> None:
         idle_timeout: How long the service should stay alive with no connected
             clients before shutting down. This uses Go duration syntax, for
             example ``30s`` or ``10m``. Use ``0`` to disable idle shutdown.
-        print_only: If True, print only the WANDB_SERVICE value.
     """
     try:
         token = service_token.from_env()
