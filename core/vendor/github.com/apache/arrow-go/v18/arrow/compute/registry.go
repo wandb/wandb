@@ -19,7 +19,6 @@
 package compute
 
 import (
-	"fmt"
 	"maps"
 	"slices"
 	"sync"
@@ -170,7 +169,7 @@ func (reg *funcRegistry) canAddFuncName(name string, allowOverwrite bool) bool {
 }
 
 func (reg *funcRegistry) doAddFunction(fn Function, allowOverwrite bool, add bool) bool {
-	debug.Assert(fn.Validate() == nil, fmt.Sprintf("invalid function: %v", fn.Validate()))
+	debug.Assert(fn.Validate() == nil, "invalid function")
 
 	lk := reg.getLocker(add)
 	lk.Lock()

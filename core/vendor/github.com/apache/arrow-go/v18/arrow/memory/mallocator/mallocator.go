@@ -88,14 +88,7 @@ func (alloc *Mallocator) Allocate(size int) []byte {
 
 	buf := unsafe.Slice((*byte)(ptr), paddedSize)
 	aligned := roundToPowerOf2(uintptr(ptr), uintptr(alloc.alignment))
-	if size == 0 {
-		// if we return a zero-sized slice, we need to store the actual ptr
-		// as the key in the map, since the returned slice will have the actual
-		// pointer value instead of the aligned pointer.
-		alloc.realAllocations.Store(uintptr(ptr), uintptr(ptr))
-	} else {
-		alloc.realAllocations.Store(aligned, uintptr(ptr))
-	}
+	alloc.realAllocations.Store(aligned, uintptr(ptr))
 	atomic.AddUint64(&alloc.allocatedBytes, uint64(size))
 
 	if uintptr(ptr) != aligned {

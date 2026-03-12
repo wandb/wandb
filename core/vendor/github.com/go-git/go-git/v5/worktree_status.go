@@ -141,7 +141,7 @@ func (w *Worktree) diffStagingWithWorktree(reverse, excludeIgnoredChanges bool) 
 		return nil, err
 	}
 
-	to := filesystem.NewRootNodeWithOptions(w.Filesystem, submodules, filesystem.Options{Index: idx})
+	to := filesystem.NewRootNode(w.Filesystem, submodules)
 
 	var c merkletrie.Changes
 	if reverse {

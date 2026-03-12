@@ -51,10 +51,10 @@ _WANDB_ENABLE_CGO = "WANDB_ENABLE_CGO"
 class CustomBuildHook(BuildHookInterface):
     @override
     def initialize(self, version: str, build_data: dict[str, Any]) -> None:
-        if self.target_name == "wheel":
-            self._prepare_wheel(build_data)
-        elif self.target_name == "editable":
+        if version == "editable":
             self._prepare_editable(build_data)
+        elif self.target_name == "wheel":
+            self._prepare_wheel(build_data)
 
     def _prepare_wheel(self, build_data: dict[str, Any]) -> None:
         build_data["tag"] = f"py3-none-{self._get_platform_tag()}"

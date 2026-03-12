@@ -39,7 +39,7 @@ type RecordReader interface {
 	Next() bool
 	RecordBatch() arrow.RecordBatch
 	// Deprecated: Use [RecordBatch] instead.
-	Record() arrow.RecordBatch
+	Record() arrow.Record
 	Err() error
 }
 
@@ -102,7 +102,7 @@ func (rs *simpleRecords) Schema() *arrow.Schema          { return rs.schema }
 func (rs *simpleRecords) RecordBatch() arrow.RecordBatch { return rs.cur }
 
 // Deprecated: Use [RecordBatch] instead.
-func (rs *simpleRecords) Record() arrow.RecordBatch { return rs.RecordBatch() }
+func (rs *simpleRecords) Record() arrow.Record { return rs.RecordBatch() }
 func (rs *simpleRecords) Next() bool {
 	if len(rs.recs) == 0 {
 		return false
@@ -121,7 +121,6 @@ type simpleRecord struct {
 	refCount atomic.Int64
 
 	schema *arrow.Schema
-	meta   arrow.Metadata
 
 	rows int64
 	arrs []arrow.Array
@@ -132,19 +131,8 @@ type simpleRecord struct {
 // NewRecordBatch panics if the columns and schema are inconsistent.
 // NewRecordBatch panics if rows is larger than the height of the columns.
 func NewRecordBatch(schema *arrow.Schema, cols []arrow.Array, nrows int64) arrow.RecordBatch {
-	return NewRecordBatchWithMetadata(schema, cols, nrows, arrow.Metadata{})
-}
-
-// NewRecordBatchWithMetadata returns a basic, non-lazy in-memory record batch
-// with custom metadata. The metadata is preserved during IPC serialization
-// at the Message level.
-//
-// NewRecordBatchWithMetadata panics if the columns and schema are inconsistent.
-// NewRecordBatchWithMetadata panics if rows is larger than the height of the columns.
-func NewRecordBatchWithMetadata(schema *arrow.Schema, cols []arrow.Array, nrows int64, meta arrow.Metadata) arrow.RecordBatch {
 	rec := &simpleRecord{
 		schema: schema,
-		meta:   meta,
 		rows:   nrows,
 		arrs:   make([]arrow.Array, len(cols)),
 	}
@@ -201,7 +189,7 @@ func (rec *simpleRecord) SetColumn(i int, arr arrow.Array) (arrow.RecordBatch, e
 	copy(arrs, rec.arrs)
 	arrs[i] = arr
 
-	return NewRecordBatchWithMetadata(rec.schema, arrs, rec.rows, rec.meta), nil
+	return NewRecordBatch(rec.schema, arrs, rec.rows), nil
 }
 
 func (rec *simpleRecord) validate() error {
@@ -252,7 +240,6 @@ func (rec *simpleRecord) Release() {
 }
 
 func (rec *simpleRecord) Schema() *arrow.Schema    { return rec.schema }
-func (rec *simpleRecord) Metadata() arrow.Metadata { return rec.meta }
 func (rec *simpleRecord) NumRows() int64           { return rec.rows }
 func (rec *simpleRecord) NumCols() int64           { return int64(len(rec.arrs)) }
 func (rec *simpleRecord) Columns() []arrow.Array   { return rec.arrs }
@@ -275,7 +262,7 @@ func (rec *simpleRecord) NewSlice(i, j int64) arrow.RecordBatch {
 			arr.Release()
 		}
 	}()
-	return NewRecordBatchWithMetadata(rec.schema, arrs, j-i, rec.meta)
+	return NewRecordBatch(rec.schema, arrs, j-i)
 }
 
 func (rec *simpleRecord) String() string {
@@ -517,6 +504,6 @@ func IterFromReader(rdr RecordReader) iter.Seq2[arrow.RecordBatch, error] {
 }
 
 var (
-	_ arrow.RecordBatchWithMetadata = (*simpleRecord)(nil)
-	_ RecordReader                  = (*simpleRecords)(nil)
+	_ arrow.RecordBatch = (*simpleRecord)(nil)
+	_ RecordReader      = (*simpleRecords)(nil)
 )

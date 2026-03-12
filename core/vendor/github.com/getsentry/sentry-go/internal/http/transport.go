@@ -17,7 +17,6 @@ import (
 	"github.com/getsentry/sentry-go/internal/debuglog"
 	"github.com/getsentry/sentry-go/internal/protocol"
 	"github.com/getsentry/sentry-go/internal/ratelimit"
-	"github.com/getsentry/sentry-go/internal/util"
 )
 
 const (
@@ -25,6 +24,10 @@ const (
 
 	defaultTimeout   = time.Second * 30
 	defaultQueueSize = 1000
+
+	// maxDrainResponseBytes is the maximum number of bytes that transport
+	// implementations will read from response bodies when draining them.
+	maxDrainResponseBytes = 16 << 10
 )
 
 var (
@@ -215,10 +218,10 @@ func (t *SyncTransport) SendEnvelopeWithContext(ctx context.Context, envelope *p
 		debuglog.Printf("There was an issue creating the request: %v", err)
 		return err
 	}
-	identifier := util.EnvelopeIdentifier(envelope)
 	debuglog.Printf(
-		"Sending %s to %s project: %s",
-		identifier,
+		"Sending %s [%s] to %s project: %s",
+		envelope.Items[0].Header.Type,
+		envelope.Header.EventID,
 		t.dsn.GetHost(),
 		t.dsn.GetProjectID(),
 	)
@@ -228,16 +231,23 @@ func (t *SyncTransport) SendEnvelopeWithContext(ctx context.Context, envelope *p
 		debuglog.Printf("There was an issue with sending an event: %v", err)
 		return err
 	}
-	util.HandleHTTPResponse(response, identifier)
+	if response.StatusCode >= 400 && response.StatusCode <= 599 {
+		b, err := io.ReadAll(response.Body)
+		if err != nil {
+			debuglog.Printf("Error while reading response body: %v", err)
+		}
+		debuglog.Printf("Sending %s failed with the following error: %s", envelope.Header.EventID, string(b))
+	}
 
 	t.mu.Lock()
 	if t.limits == nil {
 		t.limits = make(ratelimit.Map)
 	}
+
 	t.limits.Merge(ratelimit.FromResponse(response))
 	t.mu.Unlock()
 
-	_, _ = io.CopyN(io.Discard, response.Body, util.MaxDrainResponseBytes)
+	_, _ = io.CopyN(io.Discard, response.Body, maxDrainResponseBytes)
 	return response.Body.Close()
 }
 
@@ -368,10 +378,10 @@ func (t *AsyncTransport) SendEnvelope(envelope *protocol.Envelope) error {
 
 	select {
 	case t.queue <- envelope:
-		identifier := util.EnvelopeIdentifier(envelope)
 		debuglog.Printf(
-			"Sending %s to %s project: %s",
-			identifier,
+			"Sending %s [%s] to %s project: %s",
+			envelope.Items[0].Header.Type,
+			envelope.Header.EventID,
 			t.dsn.GetHost(),
 			t.dsn.GetProjectID(),
 		)
@@ -485,8 +495,7 @@ func (t *AsyncTransport) sendEnvelopeHTTP(envelope *protocol.Envelope) bool {
 	}
 	defer response.Body.Close()
 
-	identifier := util.EnvelopeIdentifier(envelope)
-	success := util.HandleHTTPResponse(response, identifier)
+	success := t.handleResponse(response)
 
 	t.mu.Lock()
 	if t.limits == nil {
@@ -495,8 +504,29 @@ func (t *AsyncTransport) sendEnvelopeHTTP(envelope *protocol.Envelope) bool {
 	t.limits.Merge(ratelimit.FromResponse(response))
 	t.mu.Unlock()
 
-	_, _ = io.CopyN(io.Discard, response.Body, util.MaxDrainResponseBytes)
+	_, _ = io.CopyN(io.Discard, response.Body, maxDrainResponseBytes)
 	return success
+}
+
+func (t *AsyncTransport) handleResponse(response *http.Response) bool {
+	if response.StatusCode >= 200 && response.StatusCode < 300 {
+		return true
+	}
+
+	if response.StatusCode >= 400 && response.StatusCode < 500 {
+		if body, err := io.ReadAll(io.LimitReader(response.Body, maxDrainResponseBytes)); err == nil {
+			debuglog.Printf("Client error %d: %s", response.StatusCode, string(body))
+		}
+		return false
+	}
+
+	if response.StatusCode >= 500 {
+		debuglog.Printf("Server error %d", response.StatusCode)
+		return false
+	}
+
+	debuglog.Printf("Unexpected status code %d", response.StatusCode)
+	return false
 }
 
 func (t *AsyncTransport) isRateLimited(category ratelimit.Category) bool {

@@ -30,7 +30,6 @@ import (
 	"github.com/apache/arrow-go/v18/arrow/memory"
 	"github.com/apache/arrow-go/v18/internal/bitutils"
 	"github.com/apache/arrow-go/v18/internal/utils"
-	"golang.org/x/exp/constraints"
 )
 
 // Concatenate creates a new arrow.Array which is the concatenation of the
@@ -818,26 +817,19 @@ func concatBitmaps(bitmaps []bitmap, mem memory.Allocator) (*memory.Buffer, erro
 func updateRunEnds(byteWidth int, inputData []arrow.ArrayData, inputBuffers []*memory.Buffer, outputBuffer *memory.Buffer) error {
 	switch byteWidth {
 	case 2:
-		return updateRuns[int16](inputData, inputBuffers, outputBuffer)
+		out := arrow.Int16Traits.CastFromBytes(outputBuffer.Bytes())
+		return updateRunsInt16(inputData, inputBuffers, out)
 	case 4:
-		return updateRuns[int32](inputData, inputBuffers, outputBuffer)
+		out := arrow.Int32Traits.CastFromBytes(outputBuffer.Bytes())
+		return updateRunsInt32(inputData, inputBuffers, out)
 	case 8:
-		return updateRuns[int64](inputData, inputBuffers, outputBuffer)
+		out := arrow.Int64Traits.CastFromBytes(outputBuffer.Bytes())
+		return updateRunsInt64(inputData, inputBuffers, out)
 	}
 	return fmt.Errorf("%w: invalid dataType for RLE runEnds", arrow.ErrInvalid)
 }
 
-func maxOf[T constraints.Integer]() T {
-	ones := ^T(0)
-	if ones < 0 {
-		return ones ^ (ones << (8*unsafe.Sizeof(ones) - 1))
-	}
-	return ones
-}
-
-func updateRuns[T int16 | int32 | int64](inputData []arrow.ArrayData, inputBuffers []*memory.Buffer, outBuffer *memory.Buffer) error {
-	output := arrow.GetData[T](outBuffer.Bytes())
-
+func updateRunsInt16(inputData []arrow.ArrayData, inputBuffers []*memory.Buffer, output []int16) error {
 	// for now we will not attempt to optimize by checking if we
 	// can fold the end and beginning of each array we're concatenating
 	// into a single run
@@ -846,14 +838,9 @@ func updateRuns[T int16 | int32 | int64](inputData []arrow.ArrayData, inputBuffe
 		if buf.Len() == 0 {
 			continue
 		}
-		src := arrow.GetData[T](buf.Bytes())
+		src := arrow.Int16Traits.CastFromBytes(buf.Bytes())
 		if pos == 0 {
 			pos += copy(output, src)
-			// normalize the first run ends by subtracting the offset
-			for j := 0; j < pos; j++ {
-				output[j] -= T(inputData[i].Offset())
-			}
-
 			continue
 		}
 
@@ -861,7 +848,7 @@ func updateRuns[T int16 | int32 | int64](inputData []arrow.ArrayData, inputBuffe
 		// we can check the last runEnd in the src and add it to the
 		// last value that we're adjusting them all by to see if we
 		// are going to overflow
-		if uint64(lastEnd)+uint64(int(src[len(src)-1])-inputData[i].Offset()) > uint64(maxOf[T]()) {
+		if int64(lastEnd)+int64(int(src[len(src)-1])-inputData[i].Offset()) > math.MaxInt16 {
 			return fmt.Errorf("%w: overflow in run-length-encoded run ends concat", arrow.ErrInvalid)
 		}
 
@@ -870,7 +857,77 @@ func updateRuns[T int16 | int32 | int64](inputData []arrow.ArrayData, inputBuffe
 		// is a logical length offset it should be accurate to just subtract
 		// it from each value.
 		for j, e := range src {
-			output[pos+j] = lastEnd + T(int(e)-inputData[i].Offset())
+			output[pos+j] = lastEnd + int16(int(e)-inputData[i].Offset())
+		}
+		pos += len(src)
+	}
+	return nil
+}
+
+func updateRunsInt32(inputData []arrow.ArrayData, inputBuffers []*memory.Buffer, output []int32) error {
+	// for now we will not attempt to optimize by checking if we
+	// can fold the end and beginning of each array we're concatenating
+	// into a single run
+	pos := 0
+	for i, buf := range inputBuffers {
+		if buf.Len() == 0 {
+			continue
+		}
+		src := arrow.Int32Traits.CastFromBytes(buf.Bytes())
+		if pos == 0 {
+			pos += copy(output, src)
+			continue
+		}
+
+		lastEnd := output[pos-1]
+		// we can check the last runEnd in the src and add it to the
+		// last value that we're adjusting them all by to see if we
+		// are going to overflow
+		if int64(lastEnd)+int64(int(src[len(src)-1])-inputData[i].Offset()) > math.MaxInt32 {
+			return fmt.Errorf("%w: overflow in run-length-encoded run ends concat", arrow.ErrInvalid)
+		}
+
+		// adjust all of the run ends by first normalizing them (e - data[i].offset)
+		// then adding the previous value we ended on. Since the offset
+		// is a logical length offset it should be accurate to just subtract
+		// it from each value.
+		for j, e := range src {
+			output[pos+j] = lastEnd + int32(int(e)-inputData[i].Offset())
+		}
+		pos += len(src)
+	}
+	return nil
+}
+
+func updateRunsInt64(inputData []arrow.ArrayData, inputBuffers []*memory.Buffer, output []int64) error {
+	// for now we will not attempt to optimize by checking if we
+	// can fold the end and beginning of each array we're concatenating
+	// into a single run
+	pos := 0
+	for i, buf := range inputBuffers {
+		if buf.Len() == 0 {
+			continue
+		}
+		src := arrow.Int64Traits.CastFromBytes(buf.Bytes())
+		if pos == 0 {
+			pos += copy(output, src)
+			continue
+		}
+
+		lastEnd := output[pos-1]
+		// we can check the last runEnd in the src and add it to the
+		// last value that we're adjusting them all by to see if we
+		// are going to overflow
+		if uint64(lastEnd)+uint64(int(src[len(src)-1])-inputData[i].Offset()) > math.MaxInt64 {
+			return fmt.Errorf("%w: overflow in run-length-encoded run ends concat", arrow.ErrInvalid)
+		}
+
+		// adjust all of the run ends by first normalizing them (e - data[i].offset)
+		// then adding the previous value we ended on. Since the offset
+		// is a logical length offset it should be accurate to just subtract
+		// it from each value.
+		for j, e := range src {
+			output[pos+j] = lastEnd + e - int64(inputData[i].Offset())
 		}
 		pos += len(src)
 	}

@@ -32,7 +32,6 @@ func New(s *settings.Settings) *WandbAPI {
 		semaphore:            make(chan struct{}, maxConcurrency),
 		settings:             s,
 		runHistoryApiHandler: runHistoryApiHandler,
-		sentryClient:         sentryClient,
 	}, nil
 }
 

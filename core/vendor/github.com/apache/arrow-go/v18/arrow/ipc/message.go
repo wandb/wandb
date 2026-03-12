@@ -149,8 +149,7 @@ type messageReader struct {
 	refCount atomic.Int64
 	msg      *Message
 
-	mem    memory.Allocator
-	header [4]byte
+	mem memory.Allocator
 }
 
 // NewMessageReader returns a reader that reads messages from an input stream.
@@ -189,7 +188,7 @@ func (r *messageReader) Release() {
 // underlying stream.
 // It is valid until the next call to Message.
 func (r *messageReader) Message() (*Message, error) {
-	buf := r.header[:]
+	buf := make([]byte, 4)
 	_, err := io.ReadFull(r.r, buf)
 	if err != nil {
 		return nil, fmt.Errorf("arrow/ipc: could not read continuation indicator: %w", err)

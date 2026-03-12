@@ -17,7 +17,6 @@ import (
 	"github.com/wandb/wandb/core/internal/runhistoryreader"
 	"github.com/wandb/wandb/core/internal/runhistoryreader/parquet"
 	"github.com/wandb/wandb/core/internal/runhistoryreader/parquet/ffi"
-	"github.com/wandb/wandb/core/internal/sentry_ext"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/stream"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
@@ -53,7 +52,6 @@ type RunHistoryAPIHandler struct {
 
 func NewRunHistoryAPIHandler(
 	s *settings.Settings,
-	sentryClient *sentry_ext.Client,
 ) (*RunHistoryAPIHandler, error) {
 	logger := observability.NewNoOpLogger()
 	baseURL := stream.BaseURLFromSettings(logger, s)
@@ -88,7 +86,6 @@ func NewRunHistoryAPIHandler(
 		httpClient:         httpClient,
 		currentRequestId:   atomic.Int32{},
 		scanHistoryReaders: make(map[int32]*runhistoryreader.HistoryReader),
-		sentryClient:       sentryClient,
 		rustArrowWrapper:   rustArrowWrapper,
 	}, nil
 }

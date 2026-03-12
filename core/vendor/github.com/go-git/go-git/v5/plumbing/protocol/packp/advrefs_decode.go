@@ -262,8 +262,9 @@ func decodeShallow(p *advRefsDecoder) decoderStateFn {
 	p.line = bytes.TrimPrefix(p.line, shallow)
 
 	if len(p.line) != hashSize {
-		p.error("malformed shallow hash: wrong length, expected 40 bytes, read %d bytes",
-			len(p.line))
+		p.error(fmt.Sprintf(
+			"malformed shallow hash: wrong length, expected 40 bytes, read %d bytes",
+			len(p.line)))
 		return nil
 	}
 

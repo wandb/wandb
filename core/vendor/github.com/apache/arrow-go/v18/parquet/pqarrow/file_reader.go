@@ -527,7 +527,6 @@ func (fr *FileReader) GetRecordReader(ctx context.Context, colIndices, rowGroups
 		parallel:     fr.Props.Parallel,
 		sc:           sc,
 		fieldReaders: readers,
-		mem:          fr.mem,
 	}
 	rr.refCount.Add(1)
 	return rr, nil
@@ -594,8 +593,6 @@ func (fr *FileReader) getReader(ctx context.Context, field *SchemaField, arrowFi
 		// because we performed getReader concurrently, we need to prune out any empty readers
 		childReaders = slices.DeleteFunc(childReaders,
 			func(r *ColumnReader) bool { return r == nil })
-		childFields = slices.DeleteFunc(childFields,
-			func(f arrow.Field) bool { return f.Type == nil })
 		if len(childFields) == 0 {
 			return nil, nil
 		}
@@ -606,22 +603,7 @@ func (fr *FileReader) getReader(ctx context.Context, field *SchemaField, arrowFi
 		out = newStructReader(&rctx, &filtered, field.LevelInfo, childReaders, fr.Props)
 	case arrow.LIST, arrow.FIXED_SIZE_LIST, arrow.MAP:
 		child := field.Children[0]
-
-		// For maps, we must read BOTH key and value columns, regardless of column selection.
-		// Map arrays require a complete key-value struct with exactly 2 fields.
-		// Disable leaf filtering when reading a map's key-value struct.
-		childCtx := ctx
-		if _, isMap := arrowField.Type.(*arrow.MapType); isMap {
-			childCtx = context.WithValue(ctx, rdrCtxKey{}, readerCtx{
-				rdr:            rctx.rdr,
-				mem:            rctx.mem,
-				colFactory:     rctx.colFactory,
-				filterLeaves:   false, // Don't filter leaves for map key-value struct
-				includedLeaves: rctx.includedLeaves,
-			})
-		}
-
-		childReader, err := fr.getReader(childCtx, &child, *child.Field)
+		childReader, err := fr.getReader(ctx, &child, *child.Field)
 		if err != nil {
 			return nil, err
 		}
@@ -737,9 +719,8 @@ type recordReader struct {
 	parallel     bool
 	sc           *arrow.Schema
 	fieldReaders []*ColumnReader
-	cur          arrow.RecordBatch
+	cur          arrow.Record
 	err          error
-	mem          memory.Allocator
 
 	refCount atomic.Int64
 }
@@ -808,7 +789,7 @@ func (r *recordReader) next() bool {
 			return io.EOF
 		}
 
-		arrdata, err := chunksToSingle(data, r.mem)
+		arrdata, err := chunksToSingle(data)
 		if err != nil {
 			return err
 		}
@@ -826,7 +807,7 @@ func (r *recordReader) next() bool {
 			}
 		}
 
-		r.cur = array.NewRecordBatch(r.sc, cols, -1)
+		r.cur = array.NewRecord(r.sc, cols, -1)
 		return true
 	}
 
@@ -881,7 +862,7 @@ func (r *recordReader) next() bool {
 		return false
 	}
 
-	r.cur = array.NewRecordBatch(r.sc, cols, -1)
+	r.cur = array.NewRecord(r.sc, cols, -1)
 	return true
 }
 
@@ -910,7 +891,7 @@ func (r *recordReader) Err() error {
 	return r.err
 }
 
-func (r *recordReader) Read() (arrow.RecordBatch, error) {
+func (r *recordReader) Read() (arrow.Record, error) {
 	if r.cur != nil {
 		r.cur.Release()
 		r.cur = nil
