@@ -398,6 +398,7 @@ class TestFileUrl:
         monkeypatch.setattr(artifact, "_project", "my-project")
         monkeypatch.setattr(artifact, "_name", "my-artifact:v0")
         monkeypatch.setattr(artifact, "_id", "artifact-123")
+        monkeypatch.setattr(artifact, "is_draft", lambda: False)
 
         entry = ArtifactManifestEntry(
             path="subdir/model.pt",
@@ -438,6 +439,7 @@ class TestFileUrl:
         monkeypatch.setattr(artifact, "_project", "my-project")
         monkeypatch.setattr(artifact, "_name", "my-artifact:v0")
         monkeypatch.setattr(artifact, "_id", "artifact-123")
+        monkeypatch.setattr(artifact, "is_draft", lambda: False)
 
         entry = ArtifactManifestEntry(
             path="subdir/model.pt",
@@ -478,6 +480,7 @@ class TestFileUrl:
         monkeypatch.setattr(artifact, "_project", "my-project")
         monkeypatch.setattr(artifact, "_name", "my-artifact:v0")
         monkeypatch.setattr(artifact, "_id", "artifact-123")
+        monkeypatch.setattr(artifact, "is_draft", lambda: False)
 
         entry = ArtifactManifestEntry(
             path="subdir/model.pt",
