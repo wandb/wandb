@@ -100,10 +100,8 @@ type Connection struct {
 	// logLevel is the log level
 	logLevel slog.Level
 
-	// apiManager is a map of ids to active wandbAPI instances.
-	// It allows for multiple wandbAPI instances to be active at the same time,
-	// which might have different W&B backends, accounts, or settings.
-	apiManager *wbapi.WbApiManager
+	// apiManager processes API requests.
+	apiManager *wbapi.WandbAPIManager
 }
 
 func NewConnection(
@@ -126,7 +124,7 @@ func NewConnection(
 		closed:             &atomic.Bool{},
 		loggerPath:         params.LoggerPath,
 		logLevel:           params.LogLevel,
-		apiManager:         wbapi.NewWbApiManager(),
+		apiManager:         wbapi.NewManager(),
 	}
 }
 
@@ -647,14 +645,14 @@ func (nc *Connection) handleSyncStatus(
 // handleApiInit sets up a new wandbAPI instance.
 func (nc *Connection) handleApiInit(id string, request *spb.ServerApiInitRequest) {
 	s := settings.From(request.GetSettings())
-	wbapiInstance := wbapi.NewWandbAPI(s)
+	wbapiInstance := wbapi.New(s)
 	wbApiId := nc.apiManager.AddWandbAPI(wbapiInstance)
 
 	nc.Respond(&spb.ServerResponse{
 		RequestId: id,
 		ServerResponseType: &spb.ServerResponse_ApiInitResponse{
 			ApiInitResponse: &spb.ServerApiInitResponse{
-				Id: wbApiId,
+				ApiId: wbApiId,
 			},
 		},
 	})
@@ -662,7 +660,7 @@ func (nc *Connection) handleApiInit(id string, request *spb.ServerApiInitRequest
 
 // handleApiCleanup cleans up a wandbAPI instance related to the provided id.
 func (nc *Connection) handleApiCleanup(id string, request *spb.ServerApiCleanupRequest) {
-	nc.apiManager.RemoveWandbAPI(request.GetId())
+	nc.apiManager.RemoveWandbAPI(request.GetApiId())
 }
 
 func (nc *Connection) handleApi(
@@ -670,7 +668,7 @@ func (nc *Connection) handleApi(
 	id string,
 	request *spb.ApiRequest,
 ) {
-	wbapiInstance, err := nc.apiManager.GetWandbAPI(request.GetId())
+	wbapiInstance, err := nc.apiManager.GetWandbAPI(request.GetApiId())
 	if err != nil {
 		nc.Respond(&spb.ServerResponse{
 			RequestId: id,
