@@ -5,17 +5,16 @@ import logging
 import os
 from typing import Any
 
+from wandb import env
+
 logger = logging.getLogger(__name__)
 
 
 try:
-    import orjson  # type: ignore
+    import wandb.vendor.wandb_orjson as orjson
 
-    # todo: orjson complies with the json standard and does not support
-    #  NaN, Infinity, and -Infinity. Should be fixed in the future.
-
-    # additional safeguard for now
-    if os.environ.get("_WANDB_ORJSON"):
+    # Allow disabling orjson for compatibility and safety.
+    if not os.environ.get(env.DISABLE_ORJSON):
 
         def dumps(obj: Any, **kwargs: Any) -> str:
             """Wrapper for <json|orjson>.dumps."""
@@ -25,7 +24,9 @@ try:
                 if cls:
                     _kwargs["default"] = cls.default
                 encoded = orjson.dumps(
-                    obj, option=orjson.OPT_NON_STR_KEYS, **_kwargs
+                    obj,
+                    option=orjson.OPT_NON_STR_KEYS | orjson.OPT_FAIL_ON_INVALID_FLOAT,  # type: ignore[attr-defined]
+                    **_kwargs,
                 ).decode()
             except Exception:
                 logger.exception("Error using orjson.dumps")
@@ -44,7 +45,7 @@ try:
                     _kwargs["default"] = cls.default
                 encoded = orjson.dumps(
                     obj,
-                    option=orjson.OPT_NON_STR_KEYS,
+                    option=orjson.OPT_NON_STR_KEYS | orjson.OPT_FAIL_ON_INVALID_FLOAT,  # type: ignore[attr-defined]
                     **_kwargs,
                 )
                 fp.write(encoded.decode())

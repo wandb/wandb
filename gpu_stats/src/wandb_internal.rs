@@ -1614,7 +1614,7 @@ pub struct AlertResult {}
 pub struct Request {
     #[prost(
         oneof = "request::RequestType",
-        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 17, 18, 20, 21, 23, 24, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 77, 78, 79, 81, 82, 83, 1000"
+        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 17, 20, 21, 23, 24, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 77, 78, 79, 81, 82, 83, 1000"
     )]
     pub request_type: ::core::option::Option<request::RequestType>,
 }
@@ -1652,8 +1652,6 @@ pub mod request {
         DownloadArtifact(super::DownloadArtifactRequest),
         #[prost(message, tag = "17")]
         Keepalive(super::KeepaliveRequest),
-        #[prost(message, tag = "18")]
-        ServerFeature(super::ServerFeatureRequest),
         #[prost(message, tag = "20")]
         RunStatus(super::RunStatusRequest),
         #[prost(message, tag = "21")]
@@ -1708,7 +1706,7 @@ pub mod request {
 pub struct Response {
     #[prost(
         oneof = "response::ResponseType",
-        tags = "18, 19, 20, 24, 25, 26, 27, 28, 29, 30, 31, 32, 35, 36, 37, 64, 65, 66, 67, 68, 69, 71, 70, 72, 74, 1000"
+        tags = "18, 19, 20, 24, 25, 26, 27, 28, 29, 30, 31, 35, 36, 37, 64, 65, 66, 67, 68, 69, 71, 70, 72, 74, 1000"
     )]
     pub response_type: ::core::option::Option<response::ResponseType>,
 }
@@ -1738,8 +1736,6 @@ pub mod response {
         LogArtifactResponse(super::LogArtifactResponse),
         #[prost(message, tag = "31")]
         DownloadArtifactResponse(super::DownloadArtifactResponse),
-        #[prost(message, tag = "32")]
-        ServerFeatureResponse(super::ServerFeatureResponse),
         #[prost(message, tag = "35")]
         RunStatusResponse(super::RunStatusResponse),
         #[prost(message, tag = "36")]
@@ -2882,34 +2878,9 @@ pub struct JobInputRequest {
     #[prost(string, tag = "4")]
     pub input_schema: ::prost::alloc::string::String,
 }
-/// *
-/// A request to the backend process for the features supported by the server.
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct ServerFeatureRequest {
-    #[prost(enumeration = "ServerFeature", tag = "1")]
-    pub feature: i32,
-    #[prost(message, optional, tag = "200")]
-    pub info: ::core::option::Option<RequestInfo>,
-}
-/// *
-/// A response to a ServerFeatureRequest with the status of each requested feature.
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct ServerFeatureResponse {
-    #[prost(message, optional, tag = "1")]
-    pub feature: ::core::option::Option<ServerFeatureItem>,
-}
-/// *
-/// The feature details to be requested in a ServerFeatureRequest.
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct ServerFeatureItem {
-    #[prost(string, tag = "1")]
-    pub name: ::prost::alloc::string::String,
-    #[prost(bool, tag = "2")]
-    pub enabled: bool,
-}
-/// *
-/// Server features are features that the server supports.
-/// This name should match the name of the feature defined in the backend server.
+/// A feature supported by the W&B backend.
+///
+/// Each enum's name matches the name used in the backend server.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
 pub enum ServerFeature {

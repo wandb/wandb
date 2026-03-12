@@ -1,6 +1,8 @@
-// Package wbapi implements logic for handling
-// requests from Wandb API clients
-// which communicate with the W&B backend server.
+// Package wbapi implements logic for handling "API requests" from clients.
+//
+// API requests generally query a W&B backend. In practice, these are usually
+// GraphQL operations, but some requests can involve more complex combinations
+// of GraphQL and other network operations (like file downloads).
 package wbapi
 
 import (
@@ -14,8 +16,7 @@ const (
 	maxConcurrency = 10
 )
 
-// WandbAPI handles processing API requests
-// from the SDK API clients, and returning API responses to those requests.
+// WandbAPI processes API requests for a specific account on a W&B deployment.
 type WandbAPI struct {
 	// semaphore is a buffered channel limiting concurrent request handling
 	semaphore chan struct{}
@@ -25,7 +26,8 @@ type WandbAPI struct {
 	runHistoryApiHandler *RunHistoryAPIHandler
 }
 
-func NewWandbAPI(s *settings.Settings) *WandbAPI {
+// New returns a new WandbAPI.
+func New(s *settings.Settings) *WandbAPI {
 	return &WandbAPI{
 		semaphore:            make(chan struct{}, maxConcurrency),
 		settings:             s,
