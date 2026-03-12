@@ -35,7 +35,7 @@ class ServiceApi:
             response = self._service_connection.api_init_request(
                 self._settings.to_proto(),
             )
-            self._api_id = response.id
+            self._api_id = response.api_id
 
             weakref.finalize(
                 self,
@@ -56,7 +56,7 @@ class ServiceApi:
         Creates the backend service connection if it has not been created yet.
         """
         conn = self._get_service_connection()
-        request.id = self._api_id
+        request.api_id = self._api_id
         return conn.api_request(request, timeout=timeout)
 
     async def send_api_request_async(
@@ -70,5 +70,5 @@ class ServiceApi:
             timeout: The timeout for the request.
         """
         conn = self._get_service_connection()
-        request.id = self._api_id
+        request.api_id = self._api_id
         return await conn.api_request_async(request)
