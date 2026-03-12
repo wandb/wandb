@@ -64,7 +64,8 @@ const (
 	ServerFeature_TOTAL_COUNT_IN_FILE_CONNECTION ServerFeature = 15
 	// Indicates that the server supports filtering artifact collections when querying on a project
 	ServerFeature_ARTIFACT_COLLECTIONS_FILTERING_SORTING ServerFeature = 16
-	// Indicates that the server supports both the artifact id and the birth artifact id in the artifact file download url.
+	// Indicates that the server supports both the artifact id and the birth artifact id in the artifact file download
+	// url.
 	ServerFeature_ARTIFACT_V2_DOWNLOAD_HANDLER_SUPPORTS_ARTIFACT_ID ServerFeature = 17
 )
 
