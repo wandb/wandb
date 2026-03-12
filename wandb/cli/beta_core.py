@@ -46,12 +46,12 @@ def start(*, idle_timeout: str) -> None:
     token_value = proc.token.env_value
 
     click.secho("Started detached wandb-core service.", fg="green", err=True)
+    click.echo(token_value)  # Print the token to stdout for programmatic use.
     click.echo(f"Idle shutdown: {idle_timeout}.", err=True)
     click.echo(
-        f"Set {wandb_env.SERVICE} to this value before starting worker processes:",
+        f"Set {wandb_env.SERVICE} to this value before starting worker processes: {token_value}",
         err=True,
     )
-    click.echo(token_value)  # Print the token to stdout for programmatic use.
     click.echo(
         "Any Python process launched with that environment variable will "
         "connect to the existing service instead of spawning its own.",

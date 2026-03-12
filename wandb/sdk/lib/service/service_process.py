@@ -154,6 +154,9 @@ def _launch_server(
             close_fds=True,
             creationflags=creationflags,
             start_new_session=start_new_session,
+            stdin=subprocess.DEVNULL if detached else None,
+            stdout=subprocess.DEVNULL if detached else None,
+            stderr=subprocess.DEVNULL if detached else None,
         )
 
         token = service_port_file.poll_for_token(

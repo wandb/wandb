@@ -226,11 +226,31 @@ def sync(
 
 @beta.group()
 def core() -> None:
-    """Manage a detached local wandb-core service for multi-process reuse.
+    """Manage a shared local wandb-core service for multi-process workloads.
 
-    Use this when multiple independent Python processes on the same machine
-    should share one local wandb-core process via WANDB_SERVICE instead of
-    each spawning their own service.
+    wandb-core is the local backend process that handles run data,
+    file uploads, and system metrics collection. By default, each
+    process that calls wandb.init() starts its own backend. On a
+    machine running many independent workers, that duplicates work
+    and wastes CPU and memory.
+
+    Use these commands to start one detached wandb-core instance and
+    point multiple workers on the same machine at it with the
+    WANDB_SERVICE environment variable.
+
+    Typical workflow:
+
+        $ wandb beta core start
+        $ export WANDB_SERVICE=<printed value>
+        $ python -m your_launcher
+        $ wandb beta core stop
+
+    For shell scripts, capture the raw WANDB_SERVICE value from stdout:
+
+        $ export WANDB_SERVICE="$(wandb beta core start)"
+
+    The shared service exits after 10 minutes of idleness by default.
+    Override this with --idle-timeout on the start command.
     """
 
 
