@@ -1,5 +1,7 @@
 """Build script for arrow-rs-wrapper."""
 
+from __future__ import annotations
+
 import json
 import pathlib
 import subprocess
@@ -13,8 +15,8 @@ class ArrowRsWrapperBuildError(Exception):
 def build_arrow_rs_wrapper(
     cargo_binary: pathlib.Path,
     output_path: pathlib.Path,
-    target_system: Optional[str] = None,
-    target_arch: Optional[str] = None,
+    target_system: str | None = None,
+    target_arch: str | None = None,
 ) -> None:
     """Build the arrow-rs-wrapper Rust library.
 
@@ -105,7 +107,7 @@ def _get_library_path(cargo_output: bytes, lib_name: str) -> pathlib.Path:
     )
 
 
-def _get_rust_target_triple(target_system: str, target_arch: str) -> Optional[str]:
+def _get_rust_target_triple(target_system: str, target_arch: str) -> str | None:
     """Convert Go-style OS/arch to Rust target triple."""
     # Map of (goos, goarch) -> Rust target triple
     target_map = {
