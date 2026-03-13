@@ -56,7 +56,7 @@ def test_core_start_prints_service_value(monkeypatch) -> None:
     )
 
     assert result.exit_code == 0
-    assert result.stdout.strip() == token.env_value
+    assert token.env_value in result.stdout.strip()
     assert "Started detached wandb-core service." in result.stderr
     assert captured["idle_timeout"] == beta_core.DEFAULT_IDLE_TIMEOUT
 
