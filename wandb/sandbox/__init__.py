@@ -1,10 +1,43 @@
+import importlib
+
 try:
-    import cwsandbox
-except ImportError:
+    importlib.import_module("cwsandbox")
+except ImportError as exc:
     raise ImportError(
         "cwsandbox is not installed. Please install it with: pip install wandb[sandbox]"
-    )
+    ) from exc
 
-# if TYPE_CHECKING
+from cwsandbox import (
+    NetworkOptions,
+    OperationRef,
+    Process,
+    ProcessResult,
+    SandboxDefaults,
+    SandboxStatus,
+    Serialization,
+    StreamReader,
+    StreamWriter,
+    Waitable,
+    results,
+    wait,
+)
 
-from cwsandbox import Sandbox
+from ._sandbox import Sandbox
+from ._session import Session
+
+__all__ = (
+    "NetworkOptions",
+    "OperationRef",
+    "Process",
+    "ProcessResult",
+    "Sandbox",
+    "SandboxDefaults",
+    "SandboxStatus",
+    "Serialization",
+    "Session",
+    "StreamReader",
+    "StreamWriter",
+    "Waitable",
+    "results",
+    "wait",
+)
