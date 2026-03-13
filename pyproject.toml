@@ -55,6 +55,8 @@ wb = "wandb.cli.cli:cli"
 "Documentation" = "https://docs.wandb.ai/"
 
 [project.optional-dependencies]
+# https://docs.coreweave.com/products/coreweave-sandbox/client
+sandbox = ["cwsandbox"]
 kubeflow = ["kubernetes", "minio", "google-cloud-storage", "sh"]
 gcp = ["google-cloud-storage"]
 aws = [
