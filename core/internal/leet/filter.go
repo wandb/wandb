@@ -131,33 +131,43 @@ func (f *Filter) IsActive() bool {
 // In regex mode falls back to substring if there are no regex metachars
 // or if compile fails.
 func (f *Filter) Matcher() func(string) bool {
-	if f.Query() == "" {
+	return compileTextMatcher(f.Query(), f.mode)
+}
+
+// compileTextMatcher returns a case-insensitive matcher according to mode.
+//
+// It is shared by the generic [Filter] type and higher-level query parsers
+// (for example the workspace runs filter) so all text filtering in LEET uses
+// the same glob/regex semantics.
+func compileTextMatcher(query string, mode FilterMatchMode) func(string) bool {
+	if query == "" {
 		return func(string) bool { return true }
 	}
-	switch f.mode {
+
+	switch mode {
 	case FilterModeGlob:
-		return func(title string) bool {
-			return globMatchUnanchoredCaseInsensitive(f.Query(), title)
+		return func(s string) bool {
+			return globMatchUnanchoredCaseInsensitive(query, s)
 		}
 	case FilterModeRegex:
-		if !hasRegexMeta(f.Query()) {
-			lp := strings.ToLower(f.Query())
-			return func(title string) bool {
-				return strings.Contains(strings.ToLower(title), lp)
+		if !hasRegexMeta(query) {
+			lq := strings.ToLower(query)
+			return func(s string) bool {
+				return strings.Contains(strings.ToLower(s), lq)
 			}
 		}
 		// Compile once; if it fails, fall back to substring.
-		re, err := regexp.Compile("(?i)" + f.Query())
+		re, err := regexp.Compile("(?i)" + query)
 		if err != nil {
-			lp := strings.ToLower(f.Query())
-			return func(title string) bool {
-				return strings.Contains(strings.ToLower(title), lp)
+			lq := strings.ToLower(query)
+			return func(s string) bool {
+				return strings.Contains(strings.ToLower(s), lq)
 			}
 		}
-		return func(title string) bool { return re.FindStringIndex(title) != nil }
+		return func(s string) bool { return re.FindStringIndex(s) != nil }
+	default:
+		return func(string) bool { return true }
 	}
-
-	return func(string) bool { return true }
 }
 
 // globMatchUnanchoredCaseInsensitive reports whether s matches pattern using
