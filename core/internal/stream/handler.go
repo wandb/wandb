@@ -280,7 +280,6 @@ func (h *Handler) handleRequest(record *spb.Record) {
 	case *spb.Request_ServerInfo:
 	case *spb.Request_CheckVersion:
 	case *spb.Request_Defer:
-	case *spb.Request_ServerFeature:
 		// The above been removed from the client but are kept here for now.
 		// Should be removed in the future.
 

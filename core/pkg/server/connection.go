@@ -57,6 +57,9 @@ type Connection struct {
 	// connLifetimeCtx is cancelled when the connection should be closed.
 	connLifetimeCtx context.Context
 
+	// stopConnection cancels connLifetimeCtx.
+	stopConnection context.CancelFunc
+
 	// requestCanceller manages cancellable requests.
 	requestCanceller *RequestCanceller
 
@@ -109,8 +112,11 @@ func NewConnection(
 	stopServer context.CancelFunc,
 	params ConnectionParams,
 ) *Connection {
+	connLifetimeCtx, stopConnection := context.WithCancel(serverLifetimeCtx)
+
 	return &Connection{
-		connLifetimeCtx:    serverLifetimeCtx,
+		connLifetimeCtx:    connLifetimeCtx,
+		stopConnection:     stopConnection,
 		requestCanceller:   NewRequestCanceller(),
 		stopServer:         stopServer,
 		streamMux:          params.StreamMux,
@@ -136,25 +142,20 @@ func NewConnection(
 func (nc *Connection) ManageConnectionData() {
 	slog.Info("connection: ManageConnectionData: new connection created", "id", nc.id)
 
-	wg := sync.WaitGroup{}
+	var wg sync.WaitGroup
 
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
+		defer nc.stopConnection()
 		nc.processIncomingData()
-	}()
+	})
 
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		nc.handleIncomingRequests()
-	}()
+	})
 
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		nc.processOutgoingData()
-	}()
+	})
 
 	<-nc.connLifetimeCtx.Done()
 
@@ -652,7 +653,7 @@ func (nc *Connection) handleApiInit(id string, request *spb.ServerApiInitRequest
 		RequestId: id,
 		ServerResponseType: &spb.ServerResponse_ApiInitResponse{
 			ApiInitResponse: &spb.ServerApiInitResponse{
-				Id: wbApiId,
+				ApiId: wbApiId,
 			},
 		},
 	})
@@ -660,7 +661,7 @@ func (nc *Connection) handleApiInit(id string, request *spb.ServerApiInitRequest
 
 // handleApiCleanup cleans up a wandbAPI instance related to the provided id.
 func (nc *Connection) handleApiCleanup(id string, request *spb.ServerApiCleanupRequest) {
-	nc.apiManager.RemoveWandbAPI(request.GetId())
+	nc.apiManager.RemoveWandbAPI(request.GetApiId())
 }
 
 func (nc *Connection) handleApi(
@@ -668,7 +669,7 @@ func (nc *Connection) handleApi(
 	id string,
 	request *spb.ApiRequest,
 ) {
-	wbapiInstance, err := nc.apiManager.GetWandbAPI(request.GetId())
+	wbapiInstance, err := nc.apiManager.GetWandbAPI(request.GetApiId())
 	if err != nil {
 		nc.Respond(&spb.ServerResponse{
 			RequestId: id,
