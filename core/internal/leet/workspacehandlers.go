@@ -31,6 +31,10 @@ func batchCmds(cmds ...tea.Cmd) tea.Cmd {
 
 func (w *Workspace) handleKeyPressMsg(msg tea.KeyPressMsg) tea.Cmd {
 	// Filter mode takes priority.
+	if w.filter.IsActive() {
+		w.handleRunFilterKey(msg)
+		return nil
+	}
 	if w.runOverviewSidebar.IsFilterMode() {
 		w.runOverviewSidebar.HandleFilterKey(msg)
 		return nil
@@ -540,6 +544,8 @@ func (w *Workspace) handleWorkspaceRecord(run *workspaceRun, msg tea.Msg) {
 	switch m := msg.(type) {
 	case RunMsg:
 		w.getOrCreateRunOverview(run.key).ProcessRunMsg(m)
+		w.indexRunFilterData(run.key, m)
+		w.applyRunFilter()
 		run.state = RunStateRunning
 		w.syncLiveRunState()
 
