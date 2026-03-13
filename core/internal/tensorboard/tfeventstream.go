@@ -8,7 +8,6 @@ import (
 
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/tensorboard/tbproto"
-	"github.com/wandb/wandb/core/internal/waiting"
 )
 
 // tfEventStream creates a stream of TFEvent protos from a TensorBoard
@@ -17,7 +16,7 @@ import (
 // It has two output channels that must be consumed: `Events` and `Files`.
 type tfEventStream struct {
 	// readDelay is how long to wait before checking for a new event.
-	readDelay waiting.Delay
+	readDelay time.Duration
 	logger    *observability.CoreLogger
 	ctx       context.Context
 
@@ -32,7 +31,7 @@ type tfEventStream struct {
 func NewTFEventStream(
 	ctx context.Context,
 	logDir *LocalOrCloudPath,
-	readDelay waiting.Delay,
+	readDelay time.Duration,
 	fileFilter TFEventsFileFilter,
 	logger *observability.CoreLogger,
 ) *tfEventStream {
@@ -112,12 +111,10 @@ func (s *tfEventStream) loop() {
 				return
 			}
 
-			delayCh, delayCancel := s.readDelay.Wait()
 			select {
-			case <-delayCh:
+			case <-time.After(s.readDelay):
 				continue
 			case <-s.done:
-				delayCancel()
 				isFinishing = true
 				continue
 			}

@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/stretchr/testify/require"
 
 	leet "github.com/wandb/wandb/core/internal/leet"
@@ -14,7 +14,7 @@ import (
 )
 
 func TestSidebarFilter_AppliesAndClears(t *testing.T) {
-	as := leet.NewAnimationState(true, 120)
+	as := leet.NewAnimatedValue(true, 120)
 	ro := leet.NewRunOverview()
 	s := leet.NewRunOverviewSidebar(as, ro, leet.SidebarSideLeft)
 
@@ -42,7 +42,7 @@ func TestSidebarFilter_AppliesAndClears(t *testing.T) {
 }
 
 func TestSidebar_SelectsFirstNonEmptySection(t *testing.T) {
-	as := leet.NewAnimationState(true, 120)
+	as := leet.NewAnimatedValue(true, 120)
 	ro := leet.NewRunOverview()
 	s := leet.NewRunOverviewSidebar(as, ro, leet.SidebarSideLeft)
 
@@ -62,7 +62,7 @@ func TestSidebar_SelectsFirstNonEmptySection(t *testing.T) {
 }
 
 func TestSidebar_ConfirmSummaryFilterSelectsSummary(t *testing.T) {
-	as := leet.NewAnimationState(true, 120)
+	as := leet.NewAnimatedValue(true, 120)
 	ro := leet.NewRunOverview()
 	s := leet.NewRunOverviewSidebar(as, ro, leet.SidebarSideLeft)
 
@@ -102,7 +102,7 @@ func expandSidebar(t *testing.T, s *leet.RunOverviewSidebar, termWidth int, righ
 }
 
 func TestSidebar_CalculateSectionHeights_PaginationAndAllItems(t *testing.T) {
-	as := leet.NewAnimationState(false, 120)
+	as := leet.NewAnimatedValue(false, 120)
 	ro := leet.NewRunOverview()
 	s := leet.NewRunOverviewSidebar(as, ro, leet.SidebarSideLeft)
 	expandSidebar(t, s, 120, false)
@@ -135,13 +135,13 @@ func TestSidebar_CalculateSectionHeights_PaginationAndAllItems(t *testing.T) {
 	s.Sync()
 
 	// Small height -> ItemsPerPage=1 -> expect "[1-1 of N]" pagination per section.
-	view := s.View(15)
+	view := stripANSI(s.View(15).Content)
 	require.Contains(t, view, "Config [1-2 of 5]")
 	require.Contains(t, view, "Summary [1-1 of 2]")
 	require.Contains(t, view, "Environment")
 
 	// Larger height -> enough space -> expect "[N items]" (non-paginated).
-	view = s.View(40)
+	view = stripANSI(s.View(40).Content)
 	require.Contains(t, view, "Config [5 items]")
 	require.Contains(t, view, "Summary [2 items]")
 
@@ -149,7 +149,7 @@ func TestSidebar_CalculateSectionHeights_PaginationAndAllItems(t *testing.T) {
 }
 
 func TestSidebar_Navigation_SectionPageUpDown(t *testing.T) {
-	as := leet.NewAnimationState(false, 120)
+	as := leet.NewAnimatedValue(false, 120)
 	ro := leet.NewRunOverview()
 	s := leet.NewRunOverviewSidebar(as, ro, leet.SidebarSideLeft)
 	expandSidebar(t, s, 120, false)
@@ -180,31 +180,31 @@ func TestSidebar_Navigation_SectionPageUpDown(t *testing.T) {
 	s.Sync()
 
 	// Start in Environment; Tab to Config (navigateSection).
-	s.Update(tea.KeyMsg{Type: tea.KeyTab})
+	s.Update(tea.KeyPressMsg{Code: tea.KeyTab})
 	key, _ := s.SelectedItem()
 	require.True(t, strings.HasPrefix(key, "alpha.") || strings.HasPrefix(key, "beta."))
 
 	// Height=15 -> 1 item/page; Down moves to next page/next item (navigateDown + navigatePage).
 	_ = s.View(15)
-	s.Update(tea.KeyMsg{Type: tea.KeyDown})
+	s.Update(tea.KeyPressMsg{Code: tea.KeyDown})
 	key2, _ := s.SelectedItem()
 	require.NotEqual(t, key2, key)
 
 	// Page right, then left, then Up; remain in Config.
-	s.Update(tea.KeyMsg{Type: tea.KeyRight})
-	s.Update(tea.KeyMsg{Type: tea.KeyLeft})
-	s.Update(tea.KeyMsg{Type: tea.KeyUp})
+	s.Update(tea.KeyPressMsg{Code: tea.KeyRight})
+	s.Update(tea.KeyPressMsg{Code: tea.KeyLeft})
+	s.Update(tea.KeyPressMsg{Code: tea.KeyUp})
 	key3, _ := s.SelectedItem()
 	require.True(t, strings.HasPrefix(key3, "alpha.") || strings.HasPrefix(key3, "beta."))
 
 	// Shift-Tab back to previous section (Environment).
-	s.Update(tea.KeyMsg{Type: tea.KeyShiftTab})
+	s.Update(tea.KeyPressMsg{Code: tea.KeyTab, Mod: tea.ModShift})
 	key4, _ := s.SelectedItem()
 	require.False(t, strings.HasPrefix(key4, "alpha.") || strings.HasPrefix(key4, "beta."))
 }
 
 func TestSidebar_ClearFilter_PublicPath(t *testing.T) {
-	as := leet.NewAnimationState(false, 120)
+	as := leet.NewAnimatedValue(false, 120)
 	ro := leet.NewRunOverview()
 	s := leet.NewRunOverviewSidebar(as, ro, leet.SidebarSideLeft)
 	expandSidebar(t, s, 120, false)
@@ -240,12 +240,12 @@ func TestSidebar_ClearFilter_PublicPath(t *testing.T) {
 
 	s.ClearFilter()
 	require.Empty(t, s.FilterInfo())
-	view := s.View(40)
+	view := stripANSI(s.View(40).Content)
 	require.Contains(t, view, "Config [2 items]")
 }
 
 func TestSidebar_TruncateValue(t *testing.T) {
-	as := leet.NewAnimationState(false, 120)
+	as := leet.NewAnimatedValue(false, 120)
 	ro := leet.NewRunOverview()
 	s := leet.NewRunOverviewSidebar(as, ro, leet.SidebarSideLeft)
 	expandSidebar(t, s, 40, false) // clamps to SidebarMinWidth
@@ -267,13 +267,13 @@ func TestSidebar_TruncateValue(t *testing.T) {
 
 	s.Sync()
 
-	view := s.View(12)
+	view := stripANSI(s.View(12).Content)
 	require.Contains(t, view, "a.k")
 	require.Contains(t, view, "...")
 }
 
 func TestSidebar_Filter_RegexAndGlob(t *testing.T) {
-	as := leet.NewAnimationState(true, 120)
+	as := leet.NewAnimatedValue(true, 120)
 	ro := leet.NewRunOverview()
 	s := leet.NewRunOverviewSidebar(as, ro, leet.SidebarSideLeft)
 
@@ -318,7 +318,7 @@ func TestSidebar_Filter_RegexAndGlob(t *testing.T) {
 }
 
 func TestSidebar_Pagination_ResizeFromLaterPage(t *testing.T) {
-	as := leet.NewAnimationState(false, 40)
+	as := leet.NewAnimatedValue(false, 40)
 	ro := leet.NewRunOverview()
 	s := leet.NewRunOverviewSidebar(as, ro, leet.SidebarSideLeft)
 	expandSidebar(t, s, 120, false)
@@ -342,12 +342,12 @@ func TestSidebar_Pagination_ResizeFromLaterPage(t *testing.T) {
 
 	// Navigate down a few items to force CurrentPage > 0.
 	for range 5 {
-		s.Update(tea.KeyMsg{Type: tea.KeyDown})
+		s.Update(tea.KeyPressMsg{Code: tea.KeyDown})
 	}
 
 	// Larger height -> ItemsPerPage increases. This used to panic.
 	require.NotPanics(t, func() {
-		view := s.View(40)
+		view := stripANSI(s.View(40).Content)
 		require.NotEmpty(t, view)
 	})
 }

@@ -13,7 +13,6 @@ import (
 	"github.com/wandb/wandb/core/internal/observabilitytest"
 	"github.com/wandb/wandb/core/internal/runupserter"
 	"github.com/wandb/wandb/core/internal/settings"
-	"github.com/wandb/wandb/core/internal/waiting"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
@@ -36,9 +35,6 @@ func NewTestUpserter(
 ) *runupserter.RunUpserter {
 	t.Helper()
 
-	if params.DebounceDelay == nil {
-		params.DebounceDelay = waiting.NoDelay()
-	}
 	if params.ClientID == "" {
 		params.ClientID = "test-client-id"
 	}

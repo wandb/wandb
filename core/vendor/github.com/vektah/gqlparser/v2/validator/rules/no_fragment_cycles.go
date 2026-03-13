@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/vektah/gqlparser/v2/ast"
-
 	//nolint:staticcheck // Validator rules each use dot imports for convenience.
 	. "github.com/vektah/gqlparser/v2/validator/core"
 )
@@ -55,7 +54,11 @@ var NoFragmentCyclesRule = Rule{
 							via = fmt.Sprintf(" via %s", strings.Join(fragmentNames, ", "))
 						}
 						addError(
-							Message(`Cannot spread fragment "%s" within itself%s.`, spreadName, via),
+							Message(
+								`Cannot spread fragment "%s" within itself%s.`,
+								spreadName,
+								via,
+							),
 							At(spreadNode.Position),
 						)
 					}

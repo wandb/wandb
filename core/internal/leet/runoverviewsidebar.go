@@ -5,8 +5,8 @@ import (
 	"slices"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 )
 
 type SidebarSide int
@@ -28,7 +28,7 @@ const (
 // It handles presentation concerns: sections, filtering, navigation, layout, and rendering.
 // All data processing is delegated to the RunOverview model.
 type RunOverviewSidebar struct {
-	animState   *AnimationState
+	animState   *AnimatedValue
 	runOverview *RunOverview
 
 	// UI state: sections, filtering, navigation.
@@ -45,7 +45,7 @@ type RunOverviewSidebar struct {
 }
 
 func NewRunOverviewSidebar(
-	animState *AnimationState,
+	animState *AnimatedValue,
 	runOverview *RunOverview,
 	side SidebarSide,
 ) *RunOverviewSidebar {
@@ -69,10 +69,6 @@ func NewRunOverviewSidebar(
 // Toggle toggles the sidebar between expanded and collapsed states.
 func (s *RunOverviewSidebar) Toggle() {
 	s.animState.Toggle()
-
-	if s.animState.IsExpanding() {
-		s.selectFirstAvailableItem()
-	}
 }
 
 // Update handles animation and input updates for the sidebar.
@@ -80,16 +76,18 @@ func (s *RunOverviewSidebar) Update(msg tea.Msg) (*RunOverviewSidebar, tea.Cmd) 
 	// Handle key input only when expanded.
 	// TODO: hook up with keybindings.
 	if s.animState.IsExpanded() {
-		if keyMsg, ok := msg.(tea.KeyMsg); ok {
-			switch keyMsg.Type {
+		if keyMsg, ok := msg.(tea.KeyPressMsg); ok {
+			switch keyMsg.Code {
 			case tea.KeyUp:
 				s.navigateUp()
 			case tea.KeyDown:
 				s.navigateDown()
 			case tea.KeyTab:
-				s.navigateSection(1)
-			case tea.KeyShiftTab:
-				s.navigateSection(-1)
+				if keyMsg.Mod == tea.ModShift {
+					s.navigateSection(-1)
+				} else {
+					s.navigateSection(1)
+				}
 			case tea.KeyLeft:
 				s.navigatePageUp()
 			case tea.KeyRight:
@@ -150,9 +148,11 @@ func (s *RunOverviewSidebar) headerStyle() lipgloss.Style {
 }
 
 // View renders the sidebar.
-func (s *RunOverviewSidebar) View(height int) string {
-	if s.animState.Width() <= 0 {
-		return ""
+func (s *RunOverviewSidebar) View(height int) tea.View {
+	width := s.animState.Value()
+	// Avoid negative/degenerate widths during animation.
+	if width <= s.contentPadding() {
+		return tea.NewView("")
 	}
 
 	s.height = height
@@ -163,30 +163,32 @@ func (s *RunOverviewSidebar) View(height int) string {
 
 	if s.runOverview != nil {
 		headerLines := s.buildHeaderLines()
-		contentWidth := s.animState.Width() - s.contentPadding()
+		contentWidth := width - s.contentPadding()
 		s.updateSectionHeights()
 		sectionLines := s.buildSectionLines(contentWidth)
 
 		lines = slices.Concat(lines, headerLines, sectionLines)
 	} else {
-		lines = append(lines, "No data.")
+		lines = append(lines, navInfoStyle.Render("No data."))
 	}
 
 	content := lipgloss.JoinVertical(lipgloss.Top, lines...)
 
 	styledContent := s.style().
-		Width(s.animState.Width()).
+		Width(width).
 		Height(height).
-		MaxWidth(s.animState.Width()).
+		MaxWidth(width).
 		MaxHeight(height).
 		Render(content)
 
-	return s.borderStyle().
-		Width(s.animState.Width() - 2).
+	styledContentBordered := s.borderStyle().
+		Width(width - sidebarVerticalBorderCols*2).
 		Height(height + 1).
-		MaxWidth(s.animState.Width()).
+		MaxWidth(width).
 		MaxHeight(height + 1).
 		Render(styledContent)
+
+	return tea.NewView(styledContentBordered)
 }
 
 func (s *RunOverviewSidebar) SetRunOverview(ro *RunOverview) {
@@ -239,12 +241,12 @@ func (s *RunOverviewSidebar) UpdateDimensions(terminalWidth int, oppositeSidebar
 	}
 
 	expandedWidth := clamp(calculatedWidth, SidebarMinWidth, SidebarMaxWidth)
-	s.animState.SetExpandedWidth(expandedWidth)
+	s.animState.SetExpanded(expandedWidth)
 }
 
 // Width returns the current width of the sidebar.
 func (s *RunOverviewSidebar) Width() int {
-	return s.animState.Width()
+	return s.animState.Value()
 }
 
 // IsVisible returns true if the sidebar is visible.
@@ -255,6 +257,11 @@ func (s *RunOverviewSidebar) IsVisible() bool {
 // IsAnimating returns true if the sidebar is currently animating.
 func (s *RunOverviewSidebar) IsAnimating() bool {
 	return s.animState.IsAnimating()
+}
+
+// IsExpanded returns true if the sidebar is currently expanded.
+func (s *RunOverviewSidebar) IsExpanded() bool {
+	return s.animState.IsExpanded()
 }
 
 // SelectedItem returns the currently selected key-value pair.
@@ -300,7 +307,17 @@ func truncateValue(value string, maxWidth int) string {
 	if maxWidth <= 3 {
 		return "..."
 	}
-	return value[:maxWidth-3] + "..."
+
+	available := maxWidth - 4
+	w := 0
+	for i, r := range value {
+		rw := lipgloss.Width(string(r))
+		if w+rw > available {
+			return value[:i] + "..."
+		}
+		w += rw
+	}
+	return value + "..."
 }
 
 // buildHeaderLines builds the header section from the data model.
@@ -418,7 +435,7 @@ func (s *RunOverviewSidebar) buildSectionInfo(
 // renderSectionItems renders the items for a section.
 func (s *RunOverviewSidebar) renderSectionItems(section *PagedList, width int) []string {
 	maxKeyWidth := int(float64(width) * sidebarKeyWidthRatio)
-	maxValueWidth := width - maxKeyWidth - 1
+	maxValueWidth := width - maxKeyWidth - 3
 
 	itemCount := len(section.FilteredItems)
 	if itemCount == 0 {
@@ -466,11 +483,13 @@ func (s *RunOverviewSidebar) renderItem(
 
 	renderedKey := keyStyle.Width(maxKeyWidth).Render(key)
 
+	gap := " "
 	if isHighlighted {
-		gap := runOverviewSidebarHighlightedItem.Render(" ")
-		return renderedKey + gap + valueStyle.Width(maxValueWidth).Render(value)
+		gap = runOverviewSidebarHighlightedItem.Render(" ")
+		renderedValue := valueStyle.Width(maxValueWidth).Render(value)
+		return renderedKey + gap + renderedValue
 	}
-	return renderedKey + " " + valueStyle.Render(value)
+	return renderedKey + gap + valueStyle.MaxWidth(maxValueWidth).Render(value)
 }
 
 // hasNextVisibleSection returns true if there's another visible section after idx.
@@ -481,4 +500,43 @@ func (s *RunOverviewSidebar) hasNextVisibleSection(idx int) bool {
 		}
 	}
 	return false
+}
+
+// activateSelection ensures that exactly one section is marked active (if possible).
+// It is used when the sidebar gains focus after being deactivated.
+func (s *RunOverviewSidebar) activateSelection() {
+	if len(s.sections) == 0 {
+		return
+	}
+	if s.hasActiveSection() {
+		return
+	}
+
+	// Prefer the current activeSection if it is still usable.
+	if s.isValidActiveSection() {
+		sec := &s.sections[s.activeSection]
+		if sec.ItemsPerPage() > 0 && len(sec.FilteredItems) > 0 {
+			s.setActiveSection(s.activeSection)
+			return
+		}
+	}
+
+	s.selectFirstAvailableItem()
+}
+
+// focusableSectionBounds returns the first and last sections that currently have
+// visible items and can accept navigation. If none exist, it returns (-1, -1).
+func (s *RunOverviewSidebar) focusableSectionBounds() (first, last int) {
+	first, last = -1, -1
+	for i := range s.sections {
+		sec := &s.sections[i]
+		if sec.ItemsPerPage() == 0 || len(sec.FilteredItems) == 0 {
+			continue
+		}
+		if first == -1 {
+			first = i
+		}
+		last = i
+	}
+	return first, last
 }

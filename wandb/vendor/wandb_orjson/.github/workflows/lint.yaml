@@ -1,0 +1,25 @@
+# SPDX-License-Identifier: MPL-2.0
+# Copyright ijl (2023-2025)
+
+name: lint
+on: push
+env:
+  FORCE_COLOR: "1"
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+jobs:
+  lint:
+    runs-on: ubuntu-24.04
+    steps:
+    - uses: actions/setup-python@v6
+      with:
+        python-version: "3.14"
+
+    - uses: actions/checkout@v6
+
+    - run: curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain=stable --profile=default -y
+    - run: pip install -r requirements-lint.txt
+
+    - run: cargo fmt
+    - run: ./script/lint
+
+    - run: git diff --exit-code

@@ -22,13 +22,13 @@ import (
 	"syscall"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
+	"github.com/getsentry/sentry-go"
 
 	"github.com/wandb/wandb/core/internal/leet"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/pprof"
 	"github.com/wandb/wandb/core/internal/processlib"
-	"github.com/wandb/wandb/core/internal/sentry_ext"
 	"github.com/wandb/wandb/core/internal/version"
 	"github.com/wandb/wandb/core/pkg/server"
 )
@@ -40,6 +40,8 @@ const (
 	exitCodeSuccess       = 0 // normal exit
 	exitCodeErrorInternal = 1 // some error occurred
 	exitCodeErrorArgs     = 2 // incorrect command-line flags
+
+	defaultDetachedIdleTimeout = 10 * time.Minute
 
 	// exitCodeSignal is used when the program shuts down due to a signal.
 	//
@@ -64,10 +66,22 @@ func run(args []string) int {
 // serviceMain runs the default W&B SDK core service.
 func serviceMain() int {
 	portFilename := flag.String("port-filename", "port_file.txt",
-		"Specifies the filename where the server will write the port number it uses to "+
-			"communicate with clients.")
+		"Specifies the filename where the server will write the port number it uses to"+
+			" communicate with clients.")
 	pid := flag.Int("pid", 0,
 		"Specifies the process ID (PID) of the external process that spins up this service.")
+	detached := flag.Bool(
+		"detached",
+		false,
+		"Run the service detached from its parent process. In detached mode,"+
+			" the service does not automatically exit when the parent process exits.",
+	)
+	idleTimeout := flag.Duration(
+		"idle-timeout",
+		defaultDetachedIdleTimeout,
+		"If --detached is set, shut down the service after this much idle time"+
+			" with no connected clients. 0 disables the idle shutdown.",
+	)
 	logLevel := flag.Int("log-level", 0,
 		"Specifies the log level to use for logging. -4: debug, 0: info, 4: warn, 8: error.")
 	disableAnalytics := flag.Bool("no-observability", false,
@@ -101,20 +115,33 @@ func serviceMain() int {
 
 	flag.Parse()
 
+	if *idleTimeout < 0 {
+		fmt.Fprintln(os.Stderr, "Error: --idle-timeout must be >= 0")
+		return exitCodeErrorArgs
+	}
+
 	var shutdownOnParentExitEnabled bool
-	if *pid != 0 && *enableOsPidShutdown {
+	if *pid != 0 && *enableOsPidShutdown && !*detached {
 		shutdownOnParentExitEnabled = processlib.ShutdownOnParentExit(*pid)
 	}
 
 	// Sentry (disabled if --no-observability)
-	sentryClient := sentry_ext.New(sentry_ext.Params{
-		Disabled:         *disableAnalytics,
+	var sentryDSN string
+	if !*disableAnalytics {
+		sentryDSN = observability.WandbCoreDSN
+	}
+	err := sentry.Init(sentry.ClientOptions{
+		Dsn:              sentryDSN,
 		AttachStacktrace: true,
 		Release:          version.Version,
-		Commit:           commit,
+		Dist:             commit,
 		Environment:      version.Environment,
 	})
-	defer sentryClient.Flush(2)
+	if err != nil {
+		slog.Error("main: failed to init Sentry", "error", err)
+	} else {
+		defer sentry.Flush(2 * time.Second)
+	}
 
 	// Structured logging to file selected by observability package.
 	var loggerPath string
@@ -135,6 +162,8 @@ func serviceMain() int {
 			"main: starting server",
 			"port-filename", *portFilename,
 			"pid", *pid,
+			"detached", *detached,
+			"idle-timeout", *idleTimeout,
 			"log-level", *logLevel,
 			"disable-analytics", *disableAnalytics,
 			"shutdown-on-parent-exit", shutdownOnParentExitEnabled,
@@ -156,7 +185,8 @@ func serviceMain() int {
 			LoggerPath:          loggerPath,
 			LogLevel:            slog.Level(*logLevel),
 			ParentPID:           *pid,
-			SentryClient:        sentryClient,
+			Detached:            *detached,
+			IdleTimeout:         *idleTimeout,
 		},
 	)
 	srvCh := make(chan error, 1)
@@ -188,9 +218,9 @@ func leetMain(args []string) int {
 		"Disables observability features such as metrics and logging analytics.")
 	runFile := fs.String("run-file", "",
 		"Path to a .wandb file to open directly in single-run view.")
-
 	pprofAddr := fs.String("pprof", "",
 		"If set, serves /debug/pprof/* on this address (e.g. 127.0.0.1:6060).")
+	editConfig := fs.Bool("config", false, "Open config editor.")
 
 	fs.Usage = func() {
 		fmt.Fprintf(os.Stderr, `wandb-core leet - Lightweight Experiment Exploration Tool
@@ -231,15 +261,23 @@ Flags:
 	}
 
 	// Configure Sentry reporting.
-	sentryClient := sentry_ext.New(sentry_ext.Params{
-		DSN:              sentry_ext.LeetSentryDSN,
-		Disabled:         *disableAnalytics,
+	var sentryDSN string
+	if !*disableAnalytics {
+		sentryDSN = observability.LeetSentryDSN
+	}
+	err = sentry.Init(sentry.ClientOptions{
+		Dsn:              sentryDSN,
 		AttachStacktrace: true,
 		Release:          version.Version,
+		Dist:             commit,
 		Environment:      version.Environment,
 	})
-	sentryClient.CaptureMessage("wandb-leet", nil)
-	defer sentryClient.Flush(2)
+	if err != nil {
+		slog.Error("main: failed to init Sentry", "error", err)
+	} else {
+		sentry.CaptureMessage("wandb-leet")
+		defer sentry.Flush(2 * time.Second)
+	}
 
 	// Configure debug logging.
 	logWriter := io.Discard
@@ -263,11 +301,18 @@ Flags:
 			logWriter,
 			&slog.HandlerOptions{Level: slog.Level(*logLevel)},
 		)),
-		&observability.CoreLoggerParams{
-			Tags:   observability.Tags{},
-			Sentry: sentryClient,
-		},
+		observability.NewSentryContext(sentry.CurrentHub()),
 	)
+
+	if *editConfig {
+		editor := leet.NewConfigEditor(leet.ConfigEditorParams{Logger: logger})
+		p := tea.NewProgram(editor)
+		if _, err := p.Run(); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			return exitCodeErrorInternal
+		}
+		return exitCodeSuccess
+	}
 
 	wandbDir := fs.Arg(0)
 	if wandbDir == "" {
@@ -282,7 +327,7 @@ Flags:
 			RunFile:  *runFile,
 			Logger:   logger,
 		})
-		program := tea.NewProgram(m, tea.WithAltScreen(), tea.WithMouseCellMotion())
+		program := tea.NewProgram(m)
 
 		finalModel, err := program.Run()
 		if err != nil {

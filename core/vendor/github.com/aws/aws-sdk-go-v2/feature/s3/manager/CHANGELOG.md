@@ -1,3 +1,61 @@
+# v1.22.6 (2026-03-05)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.22.5 (2026-03-03)
+
+* **Bug Fix**: Modernize non codegen files with go fix
+* **Dependency Update**: Bump minimum Go version to 1.24
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.22.4 (2026-02-26)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.22.3 (2026-02-23)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.22.2 (2026-02-18)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.22.1 (2026-02-17)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.22.0 (2026-02-05)
+
+* **Feature**: Deprecate feature/s3/manager, superceded by feature/s3/transfermanager. See https://github.com/aws/aws-sdk-go-v2/discussions/3306
+
+# v1.21.1 (2026-01-28)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.21.0 (2026-01-20)
+
+* **Feature**: Optimize allocation for transfer manager v1 uploader so no extra memory is used in buffer pool for single upload.
+
+# v1.20.19 (2026-01-09)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.20.18 (2025-12-23)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.20.17 (2025-12-16)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.20.16 (2025-12-15)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.20.15 (2025-12-09)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+
 # v1.20.14 (2025-12-08)
 
 * **Dependency Update**: Updated to the latest SDK module versions

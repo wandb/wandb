@@ -91,7 +91,7 @@ func (p *parser) peek() lexer.Token {
 	return p.peekToken
 }
 
-func (p *parser) error(tok lexer.Token, format string, args ...interface{}) {
+func (p *parser) error(tok lexer.Token, format string, args ...any) {
 	if p.err != nil {
 		return
 	}
@@ -165,7 +165,7 @@ func (p *parser) unexpectedToken(tok lexer.Token) {
 	p.error(tok, "Unexpected %s", tok.String())
 }
 
-func (p *parser) many(start lexer.Type, end lexer.Type, cb func()) {
+func (p *parser) many(start, end lexer.Type, cb func()) {
 	hasDef := p.skip(start)
 	if !hasDef {
 		return
@@ -177,7 +177,7 @@ func (p *parser) many(start lexer.Type, end lexer.Type, cb func()) {
 	p.next()
 }
 
-func (p *parser) some(start lexer.Type, end lexer.Type, cb func()) *ast.CommentGroup {
+func (p *parser) some(start, end lexer.Type, cb func()) *ast.CommentGroup {
 	hasDef := p.skip(start)
 	if !hasDef {
 		return nil

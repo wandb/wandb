@@ -225,7 +225,7 @@ func NewFileStream(
 	return factory.New(
 		fileStreamRetryClient,
 		extraWork.BeforeEndCtx(),
-		/*heartbeatStopwatch=*/ nil,
+		/*heartbeatPeriod=*/ 0, // use default
 		transmitRateLimit,
 	)
 }

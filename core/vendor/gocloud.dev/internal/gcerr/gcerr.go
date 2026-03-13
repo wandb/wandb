@@ -195,7 +195,7 @@ func ErrorAs(err error, target any, errorAs func(error, any) bool) bool {
 		panic("ErrorAs target cannot be nil")
 	}
 	val := reflect.ValueOf(target)
-	if val.Type().Kind() != reflect.Ptr || val.IsNil() {
+	if val.Type().Kind() != reflect.Pointer || val.IsNil() {
 		panic("ErrorAs target must be a non-nil pointer")
 	}
 	if e, ok := err.(*Error); ok {

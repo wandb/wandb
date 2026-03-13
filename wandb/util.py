@@ -1978,3 +1978,64 @@ def get_core_path() -> str:
         )
 
     return str(bin_path)
+
+
+def time_string_to_seconds(time_str: str) -> int:
+    """Parse a time period string and return seconds.
+
+    Args:
+        time_str: Time period string like "10s", "5m", "8h", "8d", "6M", "1y"
+            Accepted values are:
+            - s (seconds)
+            - m (minutes)
+            - h (hours)
+            - d (days)
+            - M (months)
+            - y (years)
+
+    Returns:
+        Number of seconds in the time period
+
+    Raises:
+        ValueError: If the format is invalid
+
+    Examples:
+        >>> parse_time_period("10s")
+        10
+        >>> parse_time_period("5m")
+        300
+        >>> parse_time_period("8d")
+        691200
+        >>> parse_time_period("6M")
+        15552000
+        >>> parse_time_period("1y")
+        31536000
+    """
+    import re
+
+    if not time_str:
+        return 0
+
+    # Extract number and unit
+    match = re.match(r"^(\d+)([smhdMy])$", time_str)
+    if not match:
+        raise ValueError(
+            f"Invalid time period format: {time_str}. "
+            "Expected format: <number><unit> where unit is s (seconds), "
+            "m (minutes), h (hours), d (days), M (months), or y (years)"
+        )
+
+    amount = int(match.group(1))
+    unit = match.group(2)
+
+    # Convert to seconds
+    conversions = {
+        "s": 1,  # seconds
+        "m": 60,  # minutes
+        "h": 3600,  # hours
+        "d": 86400,  # days
+        "M": 2592000,  # months (30 days)
+        "y": 31536000,  # years (365 days)
+    }
+
+    return amount * conversions[unit]

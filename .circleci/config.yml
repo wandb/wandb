@@ -8,7 +8,7 @@ orbs:
 parameters:
   go_version:
     type: string
-    default: "1.25.6"
+    default: "1.26.1"
   server_image:
     type: string
     default: "us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer"
@@ -108,7 +108,7 @@ commands:
     steps:
       - run:
           name: Install Python dependencies
-          command: python -m pip install -U nox pip uv
+          command: python -m pip install -U nox pip uv!=0.10.5
           no_output_timeout: 5m
 
       - run:
@@ -128,7 +128,7 @@ commands:
     steps:
       - run:
           name: Upgrade pip and uv
-          command: python -m pip install -U pip uv
+          command: python -m pip install -U pip uv!=0.10.5
       - run:
           name: Install tool dependencies
           command: |
@@ -407,7 +407,7 @@ jobs:
       - install_rust
       - run:
           name: Install Python dependencies
-          command: python -m pip install -U nox pip uv
+          command: python -m pip install -U nox pip uv!=0.10.5
           no_output_timeout: 5m
       - run:
           name: Ensure proto files were generated

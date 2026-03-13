@@ -104,17 +104,18 @@ def connect(name: str) -> None:
 
     if not server:
         _echo_bad(
-            f"Server {name} is not running. To start it, run:\n"
-            f"\tpython tools/local_wandb_server.py start --name={name}"
+            f"Server {name!r} is not running. To start it, run:"
+            + f"\n\tpython tools/local_wandb_server.py start --name={name!r}"
         )
         sys.exit(1)
 
-    health_url = f"http://{server.hostname}:{server.base_port}/healthz"
-    if not _check_health(health_url):
-        _echo_bad(f"{health_url} did not respond HTTP 200.")
+    try:
+        server.wait_until_healthy(timeout=1)
+    except TimeoutError:
+        _echo_bad(f"Server {name!r} is not healthy.")
         sys.exit(1)
 
-    _echo_good(f"Server {name} is healthy.")
+    _echo_good(f"Server {name!r} is healthy.")
 
     click.echo(
         json.dumps(
@@ -129,14 +130,16 @@ def connect(name: str) -> None:
 def _start_interactively(name: str) -> None:
     with _info_file() as info:
         if prev := info.servers.get(name):
-            app_health_url = f"http://{prev.hostname}:{prev.base_port}/healthz"
-            fixture_health_url = f"http://{prev.hostname}:{prev.fixture_port}/health"
-
-            if _check_health(app_health_url) and _check_health(fixture_health_url):
-                _echo_bad(f"Server {name!r} is already running and healthy.")
-                sys.exit(1)
-
-            _echo_info(f"Server {name!r} is no longer running or healthy.  Restarting.")
+            try:
+                prev.wait_until_healthy(timeout=1)
+            except TimeoutError:
+                _echo_info(
+                    f"Server {name!r} is not healthy or no longer running."
+                    + " Restarting."
+                )
+            else:
+                _echo_info(f"Server {name!r} is already running.")
+                sys.exit(0)
 
         server = _ServerInfo(
             managed=True,
@@ -148,18 +151,10 @@ def _start_interactively(name: str) -> None:
 
         _start_container(name=name).apply_ports(server)
 
-        if not _check_health(
-            f"http://{server.hostname}:{server.base_port}/healthz",
-            timeout=30,
-        ):
-            _echo_bad(f"Server {name!r} did not become healthy in time (base).")
-            sys.exit(1)
-
-        if not _check_health(
-            f"http://{server.hostname}:{server.fixture_port}/health",
-            timeout=30,
-        ):
-            _echo_bad(f"Server {name!r} did not become healthy in time (fixtures).")
+        try:
+            server.wait_until_healthy(timeout=30)
+        except TimeoutError:
+            _echo_bad(f"Server {name!r} did not become healthy in time.")
             sys.exit(1)
 
         _echo_good(f"Server {name!r} is up and healthy!")
@@ -176,22 +171,18 @@ def _start_external(
             _echo_bad(f"Server {name} is already running.")
             sys.exit(1)
 
-        info.servers[name] = _ServerInfo(
+        server = _ServerInfo(
             managed=False,
             hostname=hostname,
             base_port=base_port,
             fixture_port=fixture_port,
         )
+        info.servers[name] = server
 
-        app_health_url = f"http://{hostname}:{base_port}/healthz"
-        fixture_health_url = f"http://{hostname}:{fixture_port}/health"  # no z
-
-        if not _check_health(app_health_url, timeout=30):
-            _echo_bad(f"{app_health_url} did not respond HTTP 200.")
-            sys.exit(1)
-
-        if not _check_health(fixture_health_url, timeout=30):
-            _echo_bad(f"{fixture_health_url} did not respond HTTP 200.")
+        try:
+            server.wait_until_healthy(timeout=30)
+        except TimeoutError:
+            _echo_bad(f"Server {name!r} did not become healthy in time.")
             sys.exit(1)
 
         _echo_good("Server is healthy!")
@@ -220,24 +211,30 @@ def stop(names: list[str]) -> None:
         for name in names:
             server = info.servers.pop(name, None)
             if not server:
-                _echo_bad(f"No server called {name}.")
+                _echo_bad(f"No server called {name!r}.")
                 all_good = False
                 continue
 
             if not server.managed:
                 _echo_info(
-                    f"Forgetting {name}, but not stopping it because"
-                    " it wasn't started by this script."
+                    f"Forgetting {name!r}, but not stopping it because"
+                    + " it wasn't started by this script."
                 )
                 continue
 
             try:
                 _stop_container(name)
-                _echo_info(f"Shut down {name}.")
             except Exception as e:
-                traceback.print_exception(e, file=sys.stderr)
-                _echo_bad(f"Failed to stop {name}; forgetting it anyway.")
+                traceback.print_exception(
+                    type(e),
+                    e,
+                    e.__traceback__,
+                    file=sys.stderr,
+                )
+                _echo_bad(f"Failed to stop {name!r}; forgetting it anyway.")
                 all_good = False
+            else:
+                _echo_info(f"Shut down {name!r}.")
 
     if not all_good:
         sys.exit(1)
@@ -259,9 +256,8 @@ def _info_file() -> Iterator[_InfoFile]:
     with filelock.FileLock(_resources(".state.lock")):
         with open(_resources(".state"), "a+") as f:
             f.seek(0)
-            content = f.read()
 
-            if content:
+            if content := f.read():
                 try:
                     state = _InfoFile.model_validate_json(content)
                 except Exception as e:
@@ -294,31 +290,59 @@ class _ServerInfo(pydantic.BaseModel):
     fixture_port: int
     """The exposed 'fixture' port, used for test-related functionalities."""
 
+    def wait_until_healthy(self, *, timeout: int) -> None:
+        """Block until the server is deemed healthy and ready for use.
 
-def _check_health(health_url: str, timeout: int = 1) -> bool:
-    """Returns True if the URL responds with HTTP 200 within a timeout.
+        Args:
+            timeout: A timeout in seconds for checking each health URL.
+
+        Raises:
+            TimeoutError: If any health URL doesn't respond with HTTP 200
+                within the timeout.
+        """
+        app_health_url = f"http://{self.hostname}:{self.base_port}/ready"
+        fixtures_health_url = f"http://{self.hostname}:{self.fixture_port}/health"
+        _wait_for_http_200(app_health_url, timeout=timeout)
+        _wait_for_http_200(fixtures_health_url, timeout=timeout)
+
+
+def _wait_for_http_200(health_url: str, *, timeout: int = 1) -> None:
+    """Block until the URL responds with HTTP 200.
 
     Args:
         health_url: The URL to which to make GET requests.
         timeout: The timeout in seconds after which to give up.
+
+    Raises:
+        TimeoutError: if the timeout expires.
     """
     start_time = time.monotonic()
 
+    def time_remaining() -> float:
+        time_passed = time.monotonic() - start_time
+        return timeout - time_passed
+
     _echo_info(
-        f"Waiting up to {timeout} second(s) until {health_url} responds with HTTP 200."
+        f"Waiting up to {timeout} second(s) until"
+        + f" {health_url} responds with HTTP 200."
     )
 
     while True:
         try:
-            response = requests.get(health_url)
+            response = requests.get(
+                health_url,
+                # Try for at least one second regardless of remaining time.
+                timeout=max(1, time_remaining()),
+            )
             if response.status_code == 200:
-                return True
-        except requests.exceptions.ConnectionError:
+                return
+        except requests.ConnectionError:
             pass
+        except requests.Timeout:
+            raise TimeoutError from None
 
-        if time.monotonic() - start_time >= timeout:
-            return False
-
+        if time_remaining() <= 0:
+            raise TimeoutError
         time.sleep(1)
 
 

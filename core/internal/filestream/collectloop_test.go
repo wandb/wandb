@@ -9,7 +9,6 @@ import (
 
 	. "github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/observability"
-	"github.com/wandb/wandb/core/internal/waiting"
 )
 
 func TestCollectLoop_BatchesWhileWaiting(t *testing.T) {
@@ -31,7 +30,7 @@ func TestCollectLoop_BatchesWhileWaiting(t *testing.T) {
 	requests <- &FileStreamRequest{UploadedFiles: set("two")}
 	requests <- &FileStreamRequest{UploadedFiles: set("three")}
 
-	req, _ := transmissions.NextRequest(waiting.NewStopwatch(time.Second))
+	req, _ := transmissions.NextRequest(make(<-chan time.Time))
 	transmissions.IgnoreFutureRequests()
 
 	assert.Len(t, req.Uploaded, 3)
@@ -52,8 +51,8 @@ func TestCollectLoop_SendsLastRequestImmediately(t *testing.T) {
 
 	transmissions := loop.Start(state, requests)
 	close(requests)
-	request1, ok1 := transmissions.NextRequest(waiting.NewStopwatch(time.Second))
-	request2, ok2 := transmissions.NextRequest(waiting.NewStopwatch(time.Second))
+	request1, ok1 := transmissions.NextRequest(make(<-chan time.Time))
+	request2, ok2 := transmissions.NextRequest(make(<-chan time.Time))
 
 	assert.True(t, ok1)
 	assert.NotNil(t, request1)

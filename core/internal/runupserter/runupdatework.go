@@ -13,7 +13,6 @@ import (
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
-	"github.com/wandb/wandb/core/internal/waiting"
 	"github.com/wandb/wandb/core/internal/wboperation"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
@@ -88,7 +87,7 @@ func (w *RunUpdateWork) initRun(results chan<- *spb.Result) {
 	upserter, err := InitRun(w.Record, RunUpserterParams{
 		Settings: w.Settings,
 
-		DebounceDelay: waiting.NewDelay(runUpsertDebounceSeconds * time.Second),
+		DebounceDelay: runUpsertDebounceSeconds * time.Second,
 
 		ClientID:           w.ClientID,
 		BeforeRunEndCtx:    w.BeforeRunEndCtx,

@@ -43,6 +43,10 @@ const (
 	FLOAT64
 	// STRING is a string Type Value.
 	STRING
+	// UINT64 is a 64-bit unsigned integral Type Value.
+	//
+	// This type is intentionally not exposed through the Builder API.
+	UINT64
 )
 
 // BoolValue creates a BOOL Value.
@@ -82,6 +86,16 @@ func StringValue(v string) Value {
 	}
 }
 
+// Uint64Value creates a UINT64 Value.
+//
+// This constructor is intentionally not exposed through the Builder API.
+func Uint64Value(v uint64) Value {
+	return Value{
+		vtype:   UINT64,
+		numeric: v,
+	}
+}
+
 // Type returns a type of the Value.
 func (v Value) Type() Type {
 	return v.vtype
@@ -111,6 +125,12 @@ func (v Value) AsString() string {
 	return v.stringly
 }
 
+// AsUint64 returns the uint64 value. Make sure that the Value's type is
+// UINT64.
+func (v Value) AsUint64() uint64 {
+	return v.numeric
+}
+
 type unknownValueType struct{}
 
 // AsInterface returns Value's data as interface{}.
@@ -124,6 +144,8 @@ func (v Value) AsInterface() interface{} {
 		return v.AsFloat64()
 	case STRING:
 		return v.stringly
+	case UINT64:
+		return v.numeric
 	}
 	return unknownValueType{}
 }
@@ -139,6 +161,8 @@ func (v Value) String() string {
 		return fmt.Sprint(v.AsFloat64())
 	case STRING:
 		return v.stringly
+	case UINT64:
+		return strconv.FormatUint(v.numeric, 10)
 	default:
 		return "unknown"
 	}
@@ -147,10 +171,10 @@ func (v Value) String() string {
 // MarshalJSON returns the JSON encoding of the Value.
 func (v Value) MarshalJSON() ([]byte, error) {
 	var jsonVal struct {
-		Type  string
-		Value interface{}
+		Value any    `json:"value"`
+		Type  string `json:"type"`
 	}
-	jsonVal.Type = v.Type().String()
+	jsonVal.Type = mapTypesToStr[v.Type()]
 	jsonVal.Value = v.AsInterface()
 	return json.Marshal(jsonVal)
 }
@@ -165,6 +189,19 @@ func (t Type) String() string {
 		return "float64"
 	case STRING:
 		return "string"
+	case UINT64:
+		return "uint64"
 	}
 	return "invalid"
+}
+
+// mapTypesToStr is a map from attribute.Type to the primitive types the server understands.
+// https://develop.sentry.dev/sdk/foundations/data-model/attributes/#primitive-types
+var mapTypesToStr = map[Type]string{
+	INVALID: "",
+	BOOL:    "boolean",
+	INT64:   "integer",
+	FLOAT64: "double",
+	STRING:  "string",
+	UINT64:  "integer", // wire format: same "integer" type
 }

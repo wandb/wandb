@@ -1,5 +1,7 @@
 package ast
 
+import "slices"
+
 type DefinitionKind string
 
 const (
@@ -54,12 +56,7 @@ func (d *Definition) IsInputType() bool {
 }
 
 func (d *Definition) OneOf(types ...string) bool {
-	for _, t := range types {
-		if d.Name == t {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(types, d.Name)
 }
 
 type FieldDefinition struct {

@@ -2,32 +2,35 @@ syntax = "proto3";
 
 package wandb_internal;
 
-import "wandb/proto/wandb_settings.proto";
 import "wandb/proto/wandb_internal.proto";
+import "wandb/proto/wandb_settings.proto";
 
 option go_package = "core/pkg/service_go_proto";
 
-// ServerApiInitRequest instructs the backend process
-// to initialize resources to handle ApiRequests.
+// Initialize an API instance for the given settings.
 //
-// This should be sent once prior to sending any ApiRequests.
+// ServerApiCleanupRequest should be used once the instance is no longer needed.
 message ServerApiInitRequest {
   Settings settings = 1;
 }
 
-// ApiRequest is a request to the backend process
-// to perform an action related to an API call.
+message ServerApiInitResponse {
+  string error_message = 1;
+
+  // An ID to use in ApiRequests to this API instance.
+  string api_id = 2;
+}
+
+// Make a request to an initialized API instance.
 message ApiRequest {
+  // The ID of the API instance from the init response.
+  string api_id = 1;
+
   oneof request {
-    ReadRunHistoryRequest read_run_history_request = 1;
+    ReadRunHistoryRequest read_run_history_request = 2;
   }
 }
 
-message ServerApiInitResponse {
-  string error_message = 1;
-}
-
-// ApiResponse is a response from the backend process for an ApiRequest.
 message ApiResponse {
   oneof response {
     ReadRunHistoryResponse read_run_history_response = 1;
@@ -44,6 +47,13 @@ message ApiErrorResponse {
 enum ErrorType {
   UNKNOWN_ERROR = 0;
   INCOMPLETE_RUN_HISTORY_ERROR = 1;
+}
+
+// Remove the API instance identified by an ID.
+//
+// This requests receives no response.
+message ServerApiCleanupRequest {
+  string api_id = 1;
 }
 
 // Start of Scan run history
