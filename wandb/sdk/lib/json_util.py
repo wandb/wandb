@@ -11,7 +11,6 @@ logger = logging.getLogger(__name__)
 
 
 try:
-    raise ImportError
     import wandb.vendor.wandb_orjson as orjson
 
     # Allow disabling orjson for compatibility and safety.
