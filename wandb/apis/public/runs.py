@@ -553,6 +553,74 @@ class Runs(SizedPaginator["Run"]):
             combined_df = combined_df.select(sorted(combined_df.columns))
             return combined_df
 
+    @normalize_exceptions
+    def summary_metrics(
+        self,
+        format: Literal["default", "pandas", "polars"] = "default",
+    ) -> list[dict[str, Any]] | pd.DataFrame | pl.DataFrame:
+        """Return summary metrics for all runs that fit the filters conditions.
+
+        Args:
+            format: Format to return data in, options are "default", "pandas",
+                "polars"
+        Returns:
+            pandas.DataFrame: If `format="pandas"`, returns a `pandas.DataFrame`
+                of run summary metrics.
+            polars.DataFrame: If `format="polars"`, returns a `polars.DataFrame`
+                of run summary metrics.
+            list of dicts: If `format="default"`, returns a list of dicts
+                containing run summary metrics with a `run_id` key.
+
+        Note:
+            Returned dicts are shallow copies. Nested values share references
+            with the underlying run objects. Mutating nested values will not
+            affect the server unless ``Run.update()`` is called.
+        """
+        if format not in ("default", "pandas", "polars"):
+            raise ValueError(
+                f"Invalid format: {format}. Must be one of 'default', 'pandas', 'polars'"
+            )
+
+        # Ensure all runs have full data loaded
+        self.upgrade_to_full()
+
+        summaries = []
+        for run in self:
+            try:
+                metrics = run.summary_metrics
+                if not metrics:
+                    continue
+                summaries.append({**metrics, "run_id": run.id})
+            except Exception as e:
+                wandb.termwarn(
+                    f"Failed to collect summary metrics for run {run.id}: {e}"
+                )
+                continue
+
+        # Format conversion
+        if format == "default":
+            return summaries
+
+        if format == "pandas":
+            pd = util.get_module(
+                "pandas", required="Exporting pandas DataFrame requires pandas"
+            )
+            if not summaries:
+                return pd.DataFrame()
+            combined_df = pd.DataFrame.from_records(summaries)
+            combined_df = combined_df[sorted(combined_df.columns)]
+            return combined_df
+
+        if format == "polars":
+            pl = util.get_module(
+                "polars", required="Exporting polars DataFrame requires polars"
+            )
+            if not summaries:
+                return pl.DataFrame()
+            combined_df = pl.from_dicts(summaries)
+            combined_df = combined_df.select(sorted(combined_df.columns))
+            return combined_df
+
     def __repr__(self) -> str:
         return f"<{nameof(type(self))} {self.entity}/{self.project}>"
 
