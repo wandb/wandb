@@ -56,18 +56,18 @@ attrs==25.4.0
     #   referencing
 autoflake==2.3.1
     # via ariadne-codegen
-awscli==1.44.54
+awscli==1.44.57
     # via
     #   -r requirements/requirements_dev.txt
     #   wandb
 azure-containerregistry==1.2.0
     # via wandb
-azure-core==1.38.2
+azure-core==1.38.3
     # via
     #   azure-containerregistry
     #   azure-identity
     #   azure-storage-blob
-azure-identity==1.25.2
+azure-identity==1.25.3
     # via wandb
 azure-storage-blob==12.28.0
     # via wandb
@@ -87,12 +87,12 @@ blinker==1.9.0
     # via flask
 bokeh==3.4.3
     # via -r requirements/requirements_dev.txt
-boto3==1.42.64
+boto3==1.42.67
     # via
     #   -r requirements/requirements_dev.txt
     #   metaflow
     #   wandb
-botocore==1.42.64
+botocore==1.42.67
     # via
     #   -r requirements/requirements_dev.txt
     #   awscli
@@ -171,7 +171,7 @@ cryptography==46.0.5
     #   pyjwt
 cycler==0.12.1
     # via matplotlib
-databricks-sdk==0.97.0
+databricks-sdk==0.99.0
     # via mlflow-skinny
 datasets==4.0.0
     # via dspy
@@ -271,7 +271,7 @@ google-api-core==2.30.0
     #   google-cloud-core
     #   google-cloud-resource-manager
     #   google-cloud-storage
-google-auth==2.49.0
+google-auth==2.49.1
     # via
     #   databricks-sdk
     #   google-api-core
@@ -292,7 +292,7 @@ google-cloud-artifact-registry==1.20.0
     # via wandb
 google-cloud-bigquery==3.40.1
     # via google-cloud-aiplatform
-google-cloud-compute==1.45.0
+google-cloud-compute==1.46.0
     # via wandb
 google-cloud-core==2.5.0
     # via
@@ -363,7 +363,7 @@ h5py==3.14.0
     # via
     #   keras
     #   tensorflow
-hf-xet==1.3.2
+hf-xet==1.4.2
     # via huggingface-hub
 httpcore==1.0.9
     # via httpx
@@ -375,7 +375,7 @@ httpx==0.27.2
     #   jupyterlab
     #   litellm
     #   openai
-huggingface-hub==1.6.0
+huggingface-hub==1.7.1
     # via
     #   datasets
     #   tokenizers
@@ -522,7 +522,7 @@ jupyter-server==2.17.0
     #   notebook-shim
 jupyter-server-terminals==0.5.4
     # via jupyter-server
-jupyterlab==4.5.5
+jupyterlab==4.5.6
     # via
     #   jupyter
     #   notebook
@@ -555,7 +555,7 @@ lightning-utilities==0.15.2
     #   lightning
     #   pytorch-lightning
     #   torchmetrics
-litellm==1.82.0
+litellm==1.82.1
     # via dspy
 magicattr==0.1.6
     # via dspy
@@ -583,7 +583,7 @@ matplotlib-inline==0.2.1
     #   ipython
 mdurl==0.1.2
     # via markdown-it-py
-metaflow==2.19.20
+metaflow==2.19.21
     # via -r requirements/requirements_dev.txt
 mistune==3.2.0
     # via nbconvert
@@ -617,7 +617,7 @@ mypy-extensions==1.1.0
     # via black
 namex==0.1.0
     # via keras
-narwhals==2.17.0
+narwhals==2.18.0
     # via plotly
 nbclient==0.10.2
     # via
@@ -638,7 +638,7 @@ nest-asyncio==1.6.0
     # via ipykernel
 networkx==3.2.1
     # via torch
-notebook==7.5.4
+notebook==7.5.5
     # via jupyter
 notebook-shim==0.2.4
     # via
@@ -703,8 +703,6 @@ optuna==4.7.0
     # via
     #   dspy
     #   wandb
-orjson==3.11.5
-    # via wandb
 overrides==7.7.0
     # via jupyter-server
 packaging==25.0
@@ -860,7 +858,7 @@ pygments==2.19.2
     #   nbconvert
     #   pytest
     #   rich
-pyjwt==2.11.0
+pyjwt==2.12.0
     # via msal
 pyparsing==3.3.2
     # via matplotlib
@@ -1001,9 +999,7 @@ rpds-py==0.27.1
     #   jsonschema
     #   referencing
 rsa==4.7.2
-    # via
-    #   awscli
-    #   google-auth
+    # via awscli
 s3transfer==0.16.0
     # via
     #   awscli
@@ -1127,7 +1123,7 @@ torchmetrics==1.8.2
     #   pytorch-lightning
 torchvision==0.23.0
     # via -r requirements/requirements_dev.txt
-tornado==6.5.4
+tornado==6.5.5
     # via
     #   bokeh
     #   ipykernel
