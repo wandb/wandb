@@ -17,8 +17,6 @@ import responses
 from hypothesis import given
 from hypothesis.strategies import from_regex, text
 from wandb.filesync.step_prepare import ResponsePrepare, StepPrepare
-from wandb.proto import wandb_internal_pb2 as pb
-from wandb.sdk.artifacts._models.storage import StoragePolicyConfig
 from wandb.sdk.artifacts._validators import NAME_MAXLEN
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.artifacts.artifact_file_cache import ArtifactFileCache
@@ -26,14 +24,12 @@ from wandb.sdk.artifacts.artifact_instance_cache import artifact_instance_cache
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts.artifact_state import ArtifactState
 from wandb.sdk.artifacts.exceptions import ArtifactNotLoggedError
-from wandb.sdk.artifacts.storage_layout import StorageLayout
 from wandb.sdk.artifacts.storage_policies._factories import make_http_session
 from wandb.sdk.artifacts.storage_policies._multipart import (
     multipart_download,
     should_multipart_download,
 )
 from wandb.sdk.artifacts.storage_policies.wandb_storage_policy import WandbStoragePolicy
-from wandb.sdk.lib.hashutil import b64_to_hex_id
 
 if TYPE_CHECKING:
     from typing import Protocol
