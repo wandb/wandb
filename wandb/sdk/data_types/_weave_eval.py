@@ -33,6 +33,189 @@ _PIL_LOAD_OP_DIGEST = "e1nS8rg9KiOooLOkLsYf4NAIYGwv7xxeBZ7tZE9wmL0"
 _model_cache_run_id: str | None = None
 _model_cache_ref: str | None = None
 
+# Dataset cache: maps a SHA-256 of the raw input rows to (dataset_ref, [row_refs]).
+# Cleared on new run so we don't accumulate entries across a long-running process.
+_dataset_cache: dict[str, tuple[str, list[str]]] = {}
+_dataset_cache_run_id: str | None = None
+
+# Evaluation object cache: maps input_rows_hash to the published Evaluation object ref.
+# Keyed on dataset hash so sweep runs on the same dataset share one Evaluation object,
+# enabling the Weave Compare tab to group them.  Cleared on new run like other caches.
+_eval_ref_cache: dict[str, str] = {}
+_eval_ref_cache_run_id: str | None = None
+
+
+def _hash_input_rows(
+    table: EvalTable,
+    col_index: dict[str, int],
+    input_cols: set[str],
+) -> str:
+    """Stable SHA-256 of the raw input column data across all rows."""
+    import hashlib
+
+    from wandb.sdk.data_types.image import Image as WandbImage
+
+    hasher = hashlib.sha256()
+    for row in table.data:
+        row_hash: dict[str, str] = {}
+        for col in sorted(input_cols):
+            if col not in col_index:
+                continue
+            cell = row[col_index[col]]
+            if isinstance(cell, WandbImage):
+                pil = cell._image
+                if pil is not None:
+                    row_hash[col] = hashlib.sha256(pil.tobytes()).hexdigest()
+                elif getattr(cell, "_path", None):
+                    with open(cell._path, "rb") as f:
+                        row_hash[col] = hashlib.sha256(f.read()).hexdigest()
+                else:
+                    row_hash[col] = repr(cell)
+            else:
+                row_hash[col] = repr(cell)
+        hasher.update(repr(row_hash).encode())
+    return hasher.hexdigest()
+
+
+def _ensure_dataset(
+    input_rows_hash: str,
+    table: EvalTable,
+    col_index: dict[str, int],
+    input_cols: set[str],
+    run: LocalRun,
+    auth: tuple[str, str],
+    entity: str,
+    project: str,
+    project_id: str,
+) -> tuple[str, list[dict], list[str]]:
+    """Return (cache_status, converted_input_rows, row_refs).
+
+    converted_input_rows is always populated (never empty) so the caller can
+    safely use inline dicts for call inputs regardless of cache status.
+    Weave ref strings are intentionally not used as call inputs because the
+    Weave UI requires example to be an inline dict for results rendering.
+
+    cache_status is one of:
+      "client"  — in-memory hit, no upload
+      "server"  — /obj/read hit, no upload
+      "miss"    — uploaded images + table + dataset object to server
+    """
+    import concurrent.futures
+
+    import requests
+
+    global _dataset_cache, _dataset_cache_run_id
+
+    if _dataset_cache_run_id != run.id:
+        _dataset_cache.clear()
+        _dataset_cache_run_id = run.id
+
+    dataset_object_id = f"eval-inputs-{input_rows_hash[:12]}"
+
+    # ── 1. Always convert input cells in parallel ─────────────────────────────
+    # This must happen unconditionally so converted_rows is always a list of
+    # dicts (never empty), which is required for inline call inputs.
+    # For text cells this is a no-op (no HTTP); for images the server deduplicates
+    # identical uploads, so re-conversion on cache hits incurs only network overhead.
+    work = [
+        (i, col, row[col_index[col]])
+        for i, row in enumerate(table.data)
+        for col in input_cols
+        if col in col_index
+    ]
+    converted_rows: list[dict] = [{} for _ in table.data]
+    with concurrent.futures.ThreadPoolExecutor(
+        max_workers=max(1, min(32, (os.cpu_count() or 1) + 4) // 2)
+    ) as executor:
+        future_to_pos = {
+            executor.submit(_cell_to_weave, cell, project_id, entity, project, auth): (
+                i,
+                col,
+            )
+            for i, col, cell in work
+        }
+        for future in concurrent.futures.as_completed(future_to_pos):
+            i, col = future_to_pos[future]
+            converted_rows[i][col] = future.result()
+
+    # ── 2. Client cache hit: skip upload ──────────────────────────────────────
+    if input_rows_hash in _dataset_cache:
+        _dataset_ref, row_refs = _dataset_cache[input_rows_hash]
+        return "client", converted_rows, row_refs
+
+    # ── 3. Server cache hit: skip upload ──────────────────────────────────────
+    try:
+        read_resp = requests.post(
+            f"{_TRACE_URL}/obj/read",
+            json={
+                "project_id": project_id,
+                "object_id": dataset_object_id,
+                "digest": "latest",
+            },
+            auth=auth,
+        )
+        if read_resp.status_code == 200:
+            obj_val = read_resp.json().get("obj", {}).get("val", {})
+            stored_row_digests = obj_val.get("_row_digests")
+            object_digest = read_resp.json()["obj"]["digest"]
+            if stored_row_digests:
+                row_refs = [
+                    f"weave:///{entity}/{project}/object/{dataset_object_id}:{object_digest}/attr/rows/id/{rd}"
+                    for rd in stored_row_digests
+                ]
+                _dataset_cache[input_rows_hash] = (
+                    f"weave:///{entity}/{project}/object/{dataset_object_id}:{object_digest}",
+                    row_refs,
+                )
+                return "server", converted_rows, row_refs
+        else:
+            log.debug(
+                "EvalTable: /obj/read returned %d for %s: %s",
+                read_resp.status_code,
+                dataset_object_id,
+                read_resp.text[:200],
+            )
+    except Exception as e:
+        log.debug("EvalTable: /obj/read failed: %s", e)
+
+    # ── 4. Cache miss: upload table + dataset object ───────────────────────────
+    resp = requests.post(
+        f"{_TRACE_URL}/table/create",
+        json={"table": {"project_id": project_id, "rows": converted_rows}},
+        auth=auth,
+    )
+    resp.raise_for_status()
+    table_digest = resp.json()["digest"]
+    row_digests = resp.json()["row_digests"]
+
+    resp = requests.post(
+        f"{_TRACE_URL}/obj/create",
+        json={
+            "obj": {
+                "project_id": project_id,
+                "object_id": dataset_object_id,
+                "val": {
+                    "_type": "Dataset",
+                    "rows": f"weave:///{entity}/{project}/table/{table_digest}",
+                    "_row_digests": row_digests,
+                },
+            }
+        },
+        auth=auth,
+    )
+    resp.raise_for_status()
+    object_digest = resp.json()["digest"]
+
+    row_refs = [
+        f"weave:///{entity}/{project}/object/{dataset_object_id}:{object_digest}/attr/rows/id/{rd}"
+        for rd in row_digests
+    ]
+    _dataset_cache[input_rows_hash] = (
+        f"weave:///{entity}/{project}/object/{dataset_object_id}:{object_digest}",
+        row_refs,
+    )
+    return "miss", converted_rows, row_refs
+
 
 def _ensure_model_ref(
     run: LocalRun,
@@ -71,6 +254,59 @@ def _ensure_model_ref(
     _model_cache_run_id = run.id
     _model_cache_ref = f"weave:///{entity}/{project}/object/run-{run.id}-model:{digest}"
     return _model_cache_ref
+
+
+def _ensure_eval_ref(
+    input_rows_hash: str,
+    dataset_ref: str,
+    run: LocalRun,
+    auth: tuple[str, str],
+    entity: str,
+    project: str,
+    project_id: str,
+) -> str:
+    """Publish an Evaluation object keyed on the dataset content-hash and cache its ref.
+
+    Keying on the dataset hash (not the run ID) means multiple sweep runs that evaluate
+    the same dataset share one Evaluation object, enabling the Weave Compare tab.
+    """
+    import requests
+
+    global _eval_ref_cache, _eval_ref_cache_run_id
+
+    if _eval_ref_cache_run_id != run.id:
+        _eval_ref_cache.clear()
+        _eval_ref_cache_run_id = run.id
+
+    if input_rows_hash in _eval_ref_cache:
+        return _eval_ref_cache[input_rows_hash]
+
+    eval_object_id = f"eval-{input_rows_hash[:12]}"
+    resp = requests.post(
+        f"{_TRACE_URL}/obj/create",
+        json={
+            "obj": {
+                "project_id": project_id,
+                "object_id": eval_object_id,
+                "val": {
+                    "_type": "Evaluation",
+                    "_bases": ["Object", "BaseModel"],
+                    "dataset": dataset_ref,
+                    "scorers": [],
+                    "trials": 1,
+                    "metadata": {"_weave_eval_meta": {"imperative": True}},
+                    "name": None,
+                    "description": None,
+                },
+            }
+        },
+        auth=auth,
+    )
+    resp.raise_for_status()
+    digest = resp.json()["digest"]
+    ref = f"weave:///{entity}/{project}/object/{eval_object_id}:{digest}"
+    _eval_ref_cache[input_rows_hash] = ref
+    return ref
 
 
 def _upload_bytes(
@@ -303,29 +539,67 @@ def _log_eval_table_to_weave(table: EvalTable, run: LocalRun) -> None:
     )
     resp.raise_for_status()
 
-    # ── 2. Convert and batch all rows as Evaluation.predict_and_score calls ─
+    # ── 2. Build batch: dataset publish (cache-backed) + per-row calls ────────
+    import concurrent.futures
+
+    input_rows_hash = _hash_input_rows(table, col_index, input_cols)
+    _dataset_status, converted_input_rows, _row_refs = _ensure_dataset(
+        input_rows_hash,
+        table,
+        col_index,
+        input_cols,
+        run,
+        auth,
+        entity,
+        project,
+        project_id,
+    )
+    dataset_ref = _dataset_cache[input_rows_hash][0]
+    try:
+        _ensure_eval_ref(
+            input_rows_hash, dataset_ref, run, auth, entity, project, project_id
+        )
+    except Exception as e:
+        log.debug("EvalTable: failed to publish Evaluation object: %s", e)
+
+    # Fan out all output + score cell conversions in parallel.
+    output_work = [
+        (i, "output", col, row[col_index[col]])
+        for i, row in enumerate(table.data)
+        for col in all_output_cols
+        if col in col_index
+    ]
+    score_work = [
+        (i, "score", col, row[col_index[col]])
+        for i, row in enumerate(table.data)
+        for col in score_cols
+        if col in col_index
+    ]
+    all_cell_work = output_work + score_work
+
+    # results[i] = {"output": {col: val, ...}, "score": {col: val, ...}}
+    results: list[dict[str, dict]] = [{"output": {}, "score": {}} for _ in table.data]
+    _max_workers = max(1, min(32, (os.cpu_count() or 1) + 4) // 2)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=_max_workers) as executor:
+        future_to_pos = {
+            executor.submit(_cell_to_weave, cell, project_id, entity, project, auth): (
+                i,
+                kind,
+                col,
+            )
+            for i, kind, col, cell in all_cell_work
+        }
+        for future in concurrent.futures.as_completed(future_to_pos):
+            i, kind, col = future_to_pos[future]
+            results[i][kind][col] = future.result()
+
     batch = []
-    for row in table.data:
-        inputs: dict[str, Any] = {}
-        for col in input_cols:
-            if col in col_index:
-                inputs[col] = _cell_to_weave(
-                    row[col_index[col]], project_id, entity, project, auth
-                )
-
-        outputs: dict[str, Any] = {}
-        for col in all_output_cols:
-            if col in col_index:
-                outputs[col] = _cell_to_weave(
-                    row[col_index[col]], project_id, entity, project, auth
-                )
-
-        scores: dict[str, Any] = {}
-        for col in score_cols:
-            if col in col_index:
-                scores[col] = _cell_to_weave(
-                    row[col_index[col]], project_id, entity, project, auth
-                )
+    for i, _ in enumerate(table.data):
+        # Always use the inline dict for call inputs — Weave ref strings must not
+        # be used here because `inputs` must be a JSON object, not a URI string.
+        example = converted_input_rows[i]
+        outputs = results[i]["output"]
+        scores = results[i]["score"]
 
         pas_id = str(uuid.uuid4())
         predict_id = str(uuid.uuid4())
@@ -342,7 +616,7 @@ def _log_eval_table_to_weave(table: EvalTable, run: LocalRun) -> None:
                 "started_at": now,
                 "ended_at": now,
                 "attributes": {},
-                "inputs": {"model": model_ref, "example": inputs},
+                "inputs": {"model": model_ref, "example": example},
                 "output": {"output": outputs, "scores": scores, "model_latency": 0.0},
                 "summary": {},
                 "wb_run_id": f"{entity}/{project}/{run_id}",
@@ -364,7 +638,7 @@ def _log_eval_table_to_weave(table: EvalTable, run: LocalRun) -> None:
                 "started_at": now,
                 "ended_at": now,
                 "attributes": {},
-                "inputs": inputs,
+                "inputs": example,
                 "output": outputs,
                 "summary": {},
                 "wb_run_id": f"{entity}/{project}/{run_id}",
