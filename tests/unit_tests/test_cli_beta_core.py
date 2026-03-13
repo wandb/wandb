@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import inspect
 from dataclasses import dataclass
 
 from click.testing import CliRunner
@@ -7,6 +8,17 @@ from wandb import env as wandb_env
 from wandb.cli import beta_core, cli
 from wandb.proto import wandb_server_pb2 as spb
 from wandb.sdk.lib.service import service_token
+
+
+def make_cli_runner() -> CliRunner:
+    """Makes a CliRunner instance that captures stderr separately in click<8.2.
+
+    TODO: remove once python 3.9 support is dropped.
+    """
+    runner_kwargs = {}
+    if "mix_stderr" in inspect.signature(CliRunner.__init__).parameters:
+        runner_kwargs["mix_stderr"] = False
+    return CliRunner(**runner_kwargs)
 
 
 @dataclass
@@ -50,13 +62,10 @@ def test_core_start_prints_service_value(monkeypatch) -> None:
         fake_start_detached,
     )
 
-    result = CliRunner().invoke(
-        cli.beta,
-        ["core", "start"],
-    )
+    result = make_cli_runner().invoke(cli.beta, ["core", "start"])
 
-    assert result.exit_code == 0
-    assert token.env_value in result.stdout.strip()
+    assert result.exit_code == 0, result.output
+    assert result.stdout.strip() == token.env_value
     assert "Started detached wandb-core service." in result.stderr
     assert captured["idle_timeout"] == beta_core.DEFAULT_IDLE_TIMEOUT
 
@@ -74,7 +83,7 @@ def test_core_stop_sends_teardown_and_clears_env(monkeypatch) -> None:
 
     monkeypatch.setattr(beta_core.service_token, "clear_service_in_env", fake_clear)
 
-    result = CliRunner().invoke(cli.beta, ["core", "stop"])
+    result = make_cli_runner().invoke(cli.beta, ["core", "stop"])
 
     assert result.exit_code == 0
     assert f"Clear {wandb_env.SERVICE}" in result.output
