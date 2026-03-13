@@ -50,36 +50,15 @@ def test_core_start_prints_service_value(monkeypatch) -> None:
         fake_start_detached,
     )
 
-    result = CliRunner(mix_stderr=False).invoke(
+    result = CliRunner().invoke(
         cli.beta,
-        ["core", "start", "--print"],
+        ["core", "start"],
     )
 
     assert result.exit_code == 0
     assert result.stdout.strip() == token.env_value
-    assert result.stderr == ""
-    assert captured["idle_timeout"] == beta_core.DEFAULT_IDLE_TIMEOUT
-
-
-def test_core_start_human_output_uses_stderr(monkeypatch) -> None:
-    token = service_token.UnixServiceToken(parent_pid=123, path="/tmp/wandb.sock")
-
-    def fake_start_detached(settings, *, idle_timeout: str):
-        _ = settings, idle_timeout
-        return _FakeProc(token=token)
-
-    monkeypatch.setattr(
-        beta_core.service_process,
-        "start_detached",
-        fake_start_detached,
-    )
-
-    result = CliRunner(mix_stderr=False).invoke(cli.beta, ["core", "start"])
-
-    assert result.exit_code == 0
-    assert result.stdout == ""
     assert "Started detached wandb-core service." in result.stderr
-    assert token.env_value in result.stderr
+    assert captured["idle_timeout"] == beta_core.DEFAULT_IDLE_TIMEOUT
 
 
 def test_core_stop_sends_teardown_and_clears_env(monkeypatch) -> None:
