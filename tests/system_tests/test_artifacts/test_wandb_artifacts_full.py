@@ -800,7 +800,6 @@ def test_artifact_entry_download_url_matches_server_features(
     """Verify direct entry download uses URL format expected by backend features."""
     from unittest import mock
 
-    import requests
     from wandb.proto import wandb_internal_pb2 as pb
     from wandb.sdk.artifacts._gqlutils import server_supports
     from wandb.sdk.artifacts.storage_layout import StorageLayout
@@ -827,17 +826,18 @@ def test_artifact_entry_download_url_matches_server_features(
 
     art = api.artifact(f"{user}/{project}/{artifact_name}:latest")
     entry = art.get_entry("source.txt")
+    policy = art.manifest.storage_policy
 
     # Downloading an entry directly does not set directUrl on manifest entries,
     # so this must go through storage policy _file_url().
     seen_urls = []
-    original_get = requests.Session.get
+    original_get = policy._session.get
 
-    def recording_get(self, url, *args, **kwargs):
+    def recording_get(url, *args, **kwargs):
         seen_urls.append(str(url))
-        return original_get(self, url, *args, **kwargs)
+        return original_get(url, *args, **kwargs)
 
-    with mock.patch.object(requests.Session, "get", recording_get):
+    with mock.patch.object(policy._session, "get", recording_get):
         downloaded_path = Path(entry.download(root=str(download_root), skip_cache=True))
 
     assert downloaded_path.exists()
@@ -849,7 +849,6 @@ def test_artifact_entry_download_url_matches_server_features(
     assert artifact_urls, "Expected at least one artifact download request URL"
     used_url = artifact_urls[-1]
 
-    policy = art.manifest.storage_policy
     layout = policy.config().get("storageLayout")
     supports_artifact_id = server_supports(
         api.client, pb.ARTIFACT_V2_DOWNLOAD_HANDLER_SUPPORTS_ARTIFACT_ID
