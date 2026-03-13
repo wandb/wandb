@@ -850,7 +850,7 @@ def test_artifact_entry_download_url_matches_server_features(
     used_url = artifact_urls[-1]
 
     policy = art.manifest.storage_policy
-    layout = getattr(getattr(policy, "_config", None), "storage_layout", None)
+    layout = policy.config().get("storageLayout")
     supports_artifact_id = server_supports(
         api.client, pb.ARTIFACT_V2_DOWNLOAD_HANDLER_SUPPORTS_ARTIFACT_ID
     )
