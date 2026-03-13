@@ -1155,21 +1155,6 @@ class EvalTable(Table):
         self.log_to_artifact: bool = log_to_artifact
         self._log_key: str | None = None  # set by val_to_json with the wandb.log key
 
-        col_set = set(self.columns)
-        if not self.input_columns:
-            raise ValueError("EvalTable requires at least one input_column.")
-        if not self.output_columns:
-            raise ValueError("EvalTable requires at least one output_column.")
-        missing_inputs = [c for c in self.input_columns if c not in col_set]
-        if missing_inputs:
-            raise ValueError(f"EvalTable input_columns not found in table: {missing_inputs}")
-        missing_outputs = [c for c in self.output_columns if c not in col_set]
-        if missing_outputs:
-            raise ValueError(f"EvalTable output_columns not found in table: {missing_outputs}")
-        missing_scores = [c for c in self.score_columns if c not in col_set]
-        if missing_scores:
-            raise ValueError(f"EvalTable score_columns not found in table: {missing_scores}")
-
     def to_json(self, run_or_artifact):
         if isinstance(run_or_artifact, wandb.Run):
             from wandb.sdk.data_types._weave_eval import log_eval_table_to_weave
