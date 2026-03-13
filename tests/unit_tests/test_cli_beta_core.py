@@ -86,7 +86,7 @@ def test_core_stop_sends_teardown_and_clears_env(monkeypatch) -> None:
     result = make_cli_runner().invoke(cli.beta, ["core", "stop"])
 
     assert result.exit_code == 0
-    assert f"Clear {wandb_env.SERVICE}" in result.output
+    assert f"Clear {wandb_env.SERVICE}" in result.stderr
     assert cleared["called"] is True
     assert client.closed is True
 
