@@ -420,6 +420,40 @@ def test_registries_collections(
         assert collection.type == "test-type"
 
 
+def test_registries_collections_next_page(
+    org: str, api: Api, source_artifacts: list[Artifact], target_registry: Registry
+):
+    # 3 artifacts -> 3 distinct collections; per_page=2 -> pages of [2, 1]
+    for i, artifact in enumerate(source_artifacts):
+        artifact.link(f"{org}/{target_registry.full_name}/reg-collection-{i}")
+
+    expected = {f"reg-collection-{i}" for i in range(len(source_artifacts))}
+
+    # Sequential next_page() with multi-item pages
+    it = api.registries(organization=org).collections(per_page=2)
+    page1 = it.next_page()
+    assert len(page1) == 2
+    page2 = it.next_page()
+    assert len(page2) == 1
+    assert {c.name for c in page1 + page2} == expected
+    assert it.next_page() == []
+
+    # next_page() after partial consumption (mid-page)
+    it = api.registries(organization=org).collections(per_page=2)
+    first = next(it)
+    page = it.next_page()
+    assert len(page) == 1
+    assert first.name not in {c.name for c in page}
+
+    # next() after next_page() advances to the following page
+    it = api.registries(organization=org).collections(per_page=2)
+    page = it.next_page()
+    assert len(page) == 2
+    following = next(it)
+    assert following.name not in {c.name for c in page}
+    assert {c.name for c in [*page, following]} == expected
+
+
 def test_registries_versions(
     org: str,
     org_entity: str,
@@ -458,3 +492,41 @@ def test_registries_versions(
             assert registry_version.aliases == ["latest"]
         else:
             assert registry_version.aliases == []
+
+
+def test_registries_versions_next_page(
+    org: str,
+    org_entity: str,
+    api: Api,
+    source_artifacts: list[Artifact],
+    target_registry: Registry,
+):
+    # 3 artifacts -> same collection -> 3 versions; per_page=2 -> pages of [2, 1]
+    for artifact in source_artifacts:
+        artifact.link(f"{org}/{target_registry.full_name}/reg-collection")
+
+    expected = {f"reg-collection:v{i}" for i in range(len(source_artifacts))}
+
+    # Sequential next_page() with multi-item pages
+    it = api.registries(organization=org).versions(per_page=2)
+    page1 = it.next_page()
+    assert len(page1) == 2
+    page2 = it.next_page()
+    assert len(page2) == 1
+    assert {v.name for v in page1 + page2} == expected
+    assert it.next_page() == []
+
+    # next_page() after partial consumption (mid-page)
+    it = api.registries(organization=org).versions(per_page=2)
+    first = next(it)
+    page = it.next_page()
+    assert len(page) == 1
+    assert first.name not in {v.name for v in page}
+
+    # next() after next_page() advances to the following page
+    it = api.registries(organization=org).versions(per_page=2)
+    page = it.next_page()
+    assert len(page) == 2
+    following = next(it)
+    assert following.name not in {v.name for v in page}
+    assert {v.name for v in [*page, following]} == expected
