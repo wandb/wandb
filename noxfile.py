@@ -82,7 +82,7 @@ def _requirements_file(python_version: str) -> str:
     Uses the current platform as the platform tag.
 
     Args:
-        python_version: Python version string, like "3.8", "3.9", "3.13".
+        python_version: Python version string, like "3.9", "3.13".
     """
     platform_tag = platform.system().lower()
 
