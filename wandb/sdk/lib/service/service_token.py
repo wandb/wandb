@@ -74,7 +74,12 @@ class ServiceToken(abc.ABC):
 
     def save_to_env(self) -> None:
         """Save the token in this process's environment variables."""
-        os.environ[env.SERVICE] = self._as_env_string()
+        os.environ[env.SERVICE] = self.env_value
+
+    @property
+    def env_value(self) -> str:
+        """Value to assign to the WANDB_SERVICE environment variable."""
+        return self._as_env_string()
 
     @abc.abstractmethod
     def _as_env_string(self) -> str:
@@ -111,7 +116,7 @@ class UnixServiceToken(ServiceToken):
         return ServiceClient(asyncer, reader, writer)
 
     @override
-    def _as_env_string(self):
+    def _as_env_string(self) -> str:
         return "-".join(
             (
                 _CURRENT_VERSION,
@@ -159,7 +164,7 @@ class TCPServiceToken(ServiceToken):
         return ServiceClient(asyncer, reader, writer)
 
     @override
-    def _as_env_string(self):
+    def _as_env_string(self) -> str:
         return "-".join(
             (
                 _CURRENT_VERSION,

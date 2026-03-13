@@ -8,7 +8,7 @@ charm.land/bubbles/v2/viewport
 # charm.land/bubbletea/v2 v2.0.2
 ## explicit; go 1.24.2
 charm.land/bubbletea/v2
-# charm.land/lipgloss/v2 v2.0.1
+# charm.land/lipgloss/v2 v2.0.2
 ## explicit; go 1.25.0
 charm.land/lipgloss/v2
 charm.land/lipgloss/v2/compat

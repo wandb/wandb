@@ -222,3 +222,63 @@ def sync(
         verbose=verbose,
         parallelism=n,
     )
+
+
+@beta.group()
+def core() -> None:
+    """Manage a shared local wandb-core service for multi-process workloads.
+
+    wandb-core is the local backend process that handles run data,
+    file uploads, and system metrics collection. By default, each
+    process that calls wandb.init() starts its own backend. On a
+    machine running many independent workers, that duplicates work
+    and wastes CPU and memory.
+
+    Use these commands to start one detached wandb-core instance and
+    point multiple workers on the same machine at it with the
+    WANDB_SERVICE environment variable.
+
+    Typical workflow:
+
+        $ wandb beta core start
+        $ export WANDB_SERVICE=<printed value>
+        $ python -m your_launcher
+        $ wandb beta core stop
+
+    For shell scripts, capture the raw WANDB_SERVICE value from stdout:
+
+        $ export WANDB_SERVICE="$(wandb beta core start)"
+
+    The shared service exits after 10 minutes of idleness by default.
+    Override this with --idle-timeout on the start command.
+    """
+
+
+@core.command()
+@click.option(
+    "--idle-timeout",
+    default="10m",
+    show_default=True,
+    metavar="DURATION",
+    help=(
+        "Shut down wandb-core after this much idle time with no connected "
+        "clients. Uses Go duration syntax, for example 30s, 10m, or 0 to "
+        "disable idle shutdown."
+    ),
+)
+def start(idle_timeout: str) -> None:
+    """Start a detached wandb-core service."""
+    from . import beta_core
+
+    beta_core.start(idle_timeout=idle_timeout)
+
+
+@core.command()
+def stop() -> None:
+    """Stop a detached wandb-core service.
+
+    The service address is taken from the WANDB_SERVICE environment variable.
+    """
+    from . import beta_core
+
+    beta_core.stop()
