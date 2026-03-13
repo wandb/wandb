@@ -11,12 +11,16 @@ import (
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
+// handleRunFilterKey updates the runs filter draft and reapplies it for live
+// preview while the editor is active.
 func (w *Workspace) handleRunFilterKey(msg tea.KeyPressMsg) {
 	if w.filter.HandleKey(msg) {
 		w.applyRunFilter()
 	}
 }
 
+// handleEnterRunsFilter focuses the runs sidebar and enters runs filter input
+// mode. If the sidebar is currently collapsed, it is expanded first.
 func (w *Workspace) handleEnterRunsFilter(msg tea.KeyPressMsg) tea.Cmd {
 	var cmd tea.Cmd
 	if !w.runsAnimState.IsExpanded() && !w.runsAnimState.IsAnimating() {
@@ -32,6 +36,7 @@ func (w *Workspace) handleEnterRunsFilter(msg tea.KeyPressMsg) tea.Cmd {
 	return cmd
 }
 
+// handleClearRunsFilter clears the applied runs filter and exits filter mode.
 func (w *Workspace) handleClearRunsFilter(tea.KeyPressMsg) tea.Cmd {
 	if w.filter.Query() == "" && !w.filter.IsActive() {
 		return nil
@@ -41,6 +46,7 @@ func (w *Workspace) handleClearRunsFilter(tea.KeyPressMsg) tea.Cmd {
 	return nil
 }
 
+// buildRunsFilterStatus returns the status bar prompt for the runs filter.
 func (w *Workspace) buildRunsFilterStatus() string {
 	return fmt.Sprintf(
 		"Runs filter (%s): %s%s [%d/%d] (Enter to apply • Tab to toggle mode)",
@@ -52,6 +58,8 @@ func (w *Workspace) buildRunsFilterStatus() string {
 	)
 }
 
+// applyRunFilter reevaluates the runs sidebar against the current filter query.
+// It preserves the cursor when the previously focused run remains visible.
 func (w *Workspace) applyRunFilter() {
 	prevCursorKey := ""
 	if cur, ok := w.runs.CurrentItem(); ok {
@@ -78,6 +86,10 @@ func (w *Workspace) applyRunFilter() {
 	w.syncRunsPage()
 }
 
+// runFilterData returns indexed filter metadata for runKey.
+//
+// If the run has not been preloaded yet, it falls back to the run key so
+// name-based filtering still works before richer metadata arrives.
 func (w *Workspace) runFilterData(runKey string) workspaceRunFilterData {
 	data, ok := w.runsFilterIndex[runKey]
 	if ok {
@@ -86,6 +98,10 @@ func (w *Workspace) runFilterData(runKey string) workspaceRunFilterData {
 	return workspaceRunFilterData{RunKey: runKey}
 }
 
+// indexRunFilterData caches searchable metadata derived from a RunMsg.
+//
+// Run preload and streaming can deliver partial records, so missing fields keep
+// the previously indexed value instead of clobbering it.
 func (w *Workspace) indexRunFilterData(runKey string, msg RunMsg) {
 	data := buildWorkspaceRunFilterData(runKey, msg)
 	if existing, ok := w.runsFilterIndex[runKey]; ok {
@@ -106,6 +122,8 @@ func (w *Workspace) indexRunFilterData(runKey string, msg RunMsg) {
 	w.runsFilterIndex[runKey] = data
 }
 
+// buildWorkspaceRunFilterData converts a RunMsg into the indexed metadata used
+// by the runs filter.
 func buildWorkspaceRunFilterData(runKey string, msg RunMsg) workspaceRunFilterData {
 	configByPath, configEntries := flattenRunFilterConfig(msg.Config)
 	if configByPath == nil {
@@ -121,6 +139,8 @@ func buildWorkspaceRunFilterData(runKey string, msg RunMsg) workspaceRunFilterDa
 	}
 }
 
+// flattenRunFilterConfig flattens a ConfigRecord into canonicalized path/value
+// pairs plus a sorted entry list for broad config searches.
 func flattenRunFilterConfig(cfg *spb.ConfigRecord) (map[string]string, []runFilterConfigEntry) {
 	if cfg == nil {
 		return nil, nil
@@ -171,6 +191,8 @@ func flattenRunFilterConfig(cfg *spb.ConfigRecord) (map[string]string, []runFilt
 	return flat, entries
 }
 
+// flattenRunFilterValue recursively expands JSON-like config values into
+// canonical path/value pairs.
 func flattenRunFilterValue(prefix string, value any, out map[string]string) {
 	switch v := value.(type) {
 	case map[string]any:
@@ -193,6 +215,8 @@ func flattenRunFilterValue(prefix string, value any, out map[string]string) {
 	}
 }
 
+// trimRunFilterRawJSONValue removes surrounding JSON string quotes from a raw
+// config value when structured decoding is unavailable.
 func trimRunFilterRawJSONValue(raw string) string {
 	raw = strings.TrimSpace(raw)
 	if len(raw) >= 2 && raw[0] == '"' && raw[len(raw)-1] == '"' {

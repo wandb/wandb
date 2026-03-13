@@ -21,24 +21,31 @@ type workspaceRunFilterData struct {
 	ConfigEntries []runFilterConfigEntry
 }
 
+// runFilterConfigEntry stores one flattened config path/value pair.
 type runFilterConfigEntry struct {
 	Path  string
 	Value string
 }
 
+// runFilterQuery is a disjunction of AND-connected clause groups.
+//
+// A query matches when any group matches all of its clauses.
 type runFilterQuery struct {
 	groups []runFilterGroup
 }
 
+// runFilterGroup is one AND-connected group inside a runs filter query.
 type runFilterGroup struct {
 	clauses []runFilterClause
 }
 
+// runFilterClause is one atomic predicate with optional negation.
 type runFilterClause struct {
 	negated bool
 	match   func(workspaceRunFilterData) bool
 }
 
+// Match evaluates the clause against one run's indexed metadata.
 func (c runFilterClause) Match(data workspaceRunFilterData) bool {
 	if c.match == nil {
 		return true
@@ -50,6 +57,13 @@ func (c runFilterClause) Match(data workspaceRunFilterData) bool {
 	return matched
 }
 
+// compileRunFilterQuery parses the runs filter language into an executable
+// query.
+//
+// Bare terms search the default text fields. Whitespace and AND join clauses,
+// OR or | starts a new group, NOT negates the next clause, and field operators
+// support pattern matching (:), exact matching (=, !=), numeric comparisons,
+// and existence checks (has:field).
 func compileRunFilterQuery(raw string, mode FilterMatchMode) runFilterQuery {
 	tokens := splitRunFilterTerms(raw)
 	if len(tokens) == 0 {
@@ -95,6 +109,7 @@ func compileRunFilterQuery(raw string, mode FilterMatchMode) runFilterQuery {
 	return runFilterQuery{groups: groups}
 }
 
+// Match reports whether the query matches the indexed metadata for a run.
 func (q runFilterQuery) Match(data workspaceRunFilterData) bool {
 	if len(q.groups) == 0 {
 		return true
@@ -116,6 +131,8 @@ func (q runFilterQuery) Match(data workspaceRunFilterData) bool {
 	return false
 }
 
+// splitRunFilterTerms tokenizes a raw query while preserving quoted phrases and
+// backslash escapes inside quotes.
 func splitRunFilterTerms(raw string) []string {
 	var tokens []string
 	var b strings.Builder
@@ -157,6 +174,8 @@ func splitRunFilterTerms(raw string) []string {
 	return tokens
 }
 
+// parseRunFilterClause parses one token into either a fielded predicate or a
+// bare-text clause.
 func parseRunFilterClause(token string, mode FilterMatchMode) (runFilterClause, bool) {
 	token = strings.TrimSpace(token)
 	if token == "" {
@@ -164,17 +183,11 @@ func parseRunFilterClause(token string, mode FilterMatchMode) (runFilterClause, 
 	}
 
 	negated := false
-	for token != "" {
-		switch token[0] {
-		case '-', '!':
-			negated = !negated
-			token = token[1:]
-		default:
-			goto doneNegation
-		}
+	for token != "" && (token[0] == '-' || token[0] == '!') {
+		negated = !negated
+		token = token[1:]
 	}
 
-doneNegation:
 	if token == "" {
 		return runFilterClause{}, false
 	}
@@ -210,6 +223,8 @@ doneNegation:
 	return runFilterClause{negated: negated, match: predicate}, true
 }
 
+// newBareRunFilterClause searches the default text fields without requiring an
+// explicit field qualifier.
 func newBareRunFilterClause(term string, mode FilterMatchMode, negated bool) runFilterClause {
 	matcher := compileTextMatcher(term, mode)
 	return runFilterClause{
@@ -225,23 +240,40 @@ func newBareRunFilterClause(term string, mode FilterMatchMode, negated bool) run
 	}
 }
 
+// splitRunFilterOperation splits a token at its leftmost supported operator.
+//
+// Preferring the earliest operator keeps queries like name:^(foo=bar)$ working,
+// because the field separator is chosen before operator-like characters that
+// appear later in the pattern.
 func splitRunFilterOperation(token string) (lhs, rhs, op string, ok bool) {
 	operators := []string{">=", "<=", "!=", "=", ">", "<", ":"}
+	bestIdx := -1
+	bestOp := ""
+
 	for _, candidate := range operators {
 		idx := strings.Index(token, candidate)
 		if idx <= 0 {
 			continue
 		}
-		lhs = strings.TrimSpace(token[:idx])
-		rhs = strings.TrimSpace(token[idx+len(candidate):])
-		if lhs == "" {
-			continue
+		if bestIdx == -1 || idx < bestIdx || idx == bestIdx && len(candidate) > len(bestOp) {
+			bestIdx = idx
+			bestOp = candidate
 		}
-		return lhs, rhs, candidate, true
 	}
-	return "", "", "", false
+	if bestIdx == -1 {
+		return "", "", "", false
+	}
+
+	lhs = strings.TrimSpace(token[:bestIdx])
+	rhs = strings.TrimSpace(token[bestIdx+len(bestOp):])
+	if lhs == "" {
+		return "", "", "", false
+	}
+	return lhs, rhs, bestOp, true
 }
 
+// isRunFilterExistsOperator reports whether lhs:rhs is an existence query such
+// as has:project or exists:cfg.dataset.
 func isRunFilterExistsOperator(lhs, op string) bool {
 	if op != ":" {
 		return false
@@ -250,6 +282,8 @@ func isRunFilterExistsOperator(lhs, op string) bool {
 	return lhs == "has" || lhs == "exists"
 }
 
+// runFilterFieldKind identifies the searchable fields supported by the runs
+// filter language.
 type runFilterFieldKind int
 
 const (
@@ -263,11 +297,13 @@ const (
 	runFilterFieldConfigPath
 )
 
+// runFilterField names a supported field or a specific flattened config path.
 type runFilterField struct {
 	kind runFilterFieldKind
 	path string
 }
 
+// parseRunFilterField resolves field aliases and cfg./config. path selectors.
 func parseRunFilterField(raw string) (runFilterField, bool) {
 	field := strings.ToLower(strings.TrimSpace(raw))
 	if field == "" {
@@ -305,6 +341,7 @@ func parseRunFilterField(raw string) (runFilterField, bool) {
 	return runFilterField{}, false
 }
 
+// buildRunFilterPredicate builds a field-specific predicate for op and rhs.
 func buildRunFilterPredicate(
 	field runFilterField,
 	op string,
@@ -338,6 +375,7 @@ func buildRunFilterPredicate(
 	}
 }
 
+// runFilterPatternMatch applies a mode-aware text matcher to the selected field.
 func runFilterPatternMatch(
 	data workspaceRunFilterData,
 	field runFilterField,
@@ -372,6 +410,7 @@ func runFilterPatternMatch(
 	}
 }
 
+// runFilterExactMatch reports whether any candidate value equals rhs.
 func runFilterExactMatch(data workspaceRunFilterData, field runFilterField, rhs string) bool {
 	candidates := runFilterExactCandidates(data, field)
 	for _, candidate := range candidates {
@@ -382,6 +421,7 @@ func runFilterExactMatch(data workspaceRunFilterData, field runFilterField, rhs 
 	return false
 }
 
+// runFilterExactMismatch reports whether all candidate values differ from rhs.
 func runFilterExactMismatch(data workspaceRunFilterData, field runFilterField, rhs string) bool {
 	candidates := runFilterExactCandidates(data, field)
 	if len(candidates) == 0 {
@@ -395,6 +435,8 @@ func runFilterExactMismatch(data workspaceRunFilterData, field runFilterField, r
 	return true
 }
 
+// runFilterExactCandidates returns the values inspected by exact and inequality
+// operations for a field.
 func runFilterExactCandidates(data workspaceRunFilterData, field runFilterField) []string {
 	switch field.kind {
 	case runFilterFieldName:
@@ -421,6 +463,8 @@ func runFilterExactCandidates(data workspaceRunFilterData, field runFilterField)
 	return nil
 }
 
+// runFilterExactValueEqual compares values case-insensitively and numerically
+// when both sides parse as numbers.
 func runFilterExactValueEqual(got, want string) bool {
 	if gotNum, ok := parseRunFilterNumber(got); ok {
 		if wantNum, ok := parseRunFilterNumber(want); ok {
@@ -430,6 +474,8 @@ func runFilterExactValueEqual(got, want string) bool {
 	return strings.EqualFold(strings.TrimSpace(got), strings.TrimSpace(want))
 }
 
+// runFilterNumericCompare applies a numeric comparison to fields that resolve
+// to a single numeric value.
 func runFilterNumericCompare(
 	data workspaceRunFilterData,
 	field runFilterField,
@@ -459,6 +505,8 @@ func runFilterNumericCompare(
 	}
 }
 
+// runFilterSingleValue returns the single value addressable by numeric
+// comparison operators.
 func runFilterSingleValue(data workspaceRunFilterData, field runFilterField) (string, bool) {
 	switch field.kind {
 	case runFilterFieldDisplay:
@@ -477,6 +525,8 @@ func runFilterSingleValue(data workspaceRunFilterData, field runFilterField) (st
 	}
 }
 
+// runFilterFieldExists reports whether a field is present in indexed run
+// metadata.
 func runFilterFieldExists(data workspaceRunFilterData, field runFilterField) bool {
 	switch field.kind {
 	case runFilterFieldName:
@@ -519,10 +569,13 @@ func runFilterNonEmptyStrings(values ...string) []string {
 	return out
 }
 
+// canonicalRunFilterPath normalizes config paths for case-insensitive lookup.
 func canonicalRunFilterPath(path string) string {
 	return strings.ToLower(strings.TrimSpace(path))
 }
 
+// parseRunFilterNumber parses a numeric literal used by exact and comparison
+// operators.
 func parseRunFilterNumber(raw string) (float64, bool) {
 	value, err := strconv.ParseFloat(strings.TrimSpace(raw), 64)
 	if err != nil {
