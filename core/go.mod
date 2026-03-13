@@ -5,7 +5,7 @@ go 1.26.1
 require (
 	charm.land/bubbles/v2 v2.0.0
 	charm.land/bubbletea/v2 v2.0.2
-	charm.land/lipgloss/v2 v2.0.1
+	charm.land/lipgloss/v2 v2.0.2
 	cloud.google.com/go/storage v1.60.0
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.21.0
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.13.1
