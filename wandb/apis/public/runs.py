@@ -554,7 +554,7 @@ class Runs(SizedPaginator["Run"]):
             return combined_df
 
     @normalize_exceptions
-    def summary_metrics(
+    def summaries(
         self,
         format: Literal["default", "pandas", "polars"] = "default",
     ) -> list[dict[str, Any]] | pd.DataFrame | pl.DataFrame:

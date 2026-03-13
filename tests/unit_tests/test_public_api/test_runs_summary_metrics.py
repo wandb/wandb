@@ -1,4 +1,4 @@
-"""Tests for Runs.summary_metrics() method."""
+"""Tests for Runs.summaries() method."""
 
 from __future__ import annotations
 
@@ -39,7 +39,7 @@ class TestSummaryMetricsDefaultFormat:
                 ("run2", {"loss": 0.3, "accuracy": 0.95}),
             ]
         )
-        result = Runs.summary_metrics(runs, format="default")
+        result = Runs.summaries(runs, format="default")
         assert isinstance(result, list)
         assert len(result) == 2
 
@@ -49,7 +49,7 @@ class TestSummaryMetricsDefaultFormat:
                 ("run1", {"loss": 0.5}),
             ]
         )
-        result = Runs.summary_metrics(runs, format="default")
+        result = Runs.summaries(runs, format="default")
         assert result[0]["run_id"] == "run1"
         assert result[0]["loss"] == 0.5
 
@@ -62,14 +62,14 @@ class TestSummaryMetricsDefaultFormat:
                 ("run4", {"loss": 0.1}),
             ]
         )
-        result = Runs.summary_metrics(runs, format="default")
+        result = Runs.summaries(runs, format="default")
         assert len(result) == 2
         assert result[0]["run_id"] == "run1"
         assert result[1]["run_id"] == "run4"
 
     def test_empty_runs(self):
         runs = _make_mock_runs([])
-        result = Runs.summary_metrics(runs, format="default")
+        result = Runs.summaries(runs, format="default")
         assert result == []
 
     def test_all_empty_summaries(self):
@@ -79,7 +79,7 @@ class TestSummaryMetricsDefaultFormat:
                 ("run2", {}),
             ]
         )
-        result = Runs.summary_metrics(runs, format="default")
+        result = Runs.summaries(runs, format="default")
         assert result == []
 
 
@@ -91,7 +91,7 @@ class TestSummaryMetricsPolarsFormat:
                 ("run2", {"loss": 0.3, "accuracy": 0.95}),
             ]
         )
-        result = Runs.summary_metrics(runs, format="polars")
+        result = Runs.summaries(runs, format="polars")
         assert isinstance(result, pl.DataFrame)
         assert len(result) == 2
 
@@ -101,7 +101,7 @@ class TestSummaryMetricsPolarsFormat:
                 ("run1", {"z_metric": 1.0, "a_metric": 2.0, "m_metric": 3.0}),
             ]
         )
-        result = Runs.summary_metrics(runs, format="polars")
+        result = Runs.summaries(runs, format="polars")
         assert result.columns == ["a_metric", "m_metric", "run_id", "z_metric"]
 
     def test_includes_run_id_column(self):
@@ -110,13 +110,13 @@ class TestSummaryMetricsPolarsFormat:
                 ("abc123", {"loss": 0.5}),
             ]
         )
-        result = Runs.summary_metrics(runs, format="polars")
+        result = Runs.summaries(runs, format="polars")
         assert "run_id" in result.columns
         assert result["run_id"].to_list() == ["abc123"]
 
     def test_empty_returns_empty_dataframe(self):
         runs = _make_mock_runs([])
-        result = Runs.summary_metrics(runs, format="polars")
+        result = Runs.summaries(runs, format="polars")
         assert isinstance(result, pl.DataFrame)
         assert len(result) == 0
 
@@ -128,7 +128,7 @@ class TestSummaryMetricsPolarsFormat:
                 ("run2", {"accuracy": 0.9}),
             ]
         )
-        result = Runs.summary_metrics(runs, format="polars")
+        result = Runs.summaries(runs, format="polars")
         assert len(result) == 2
         assert set(result.columns) == {"loss", "accuracy", "run_id"}
 
@@ -140,7 +140,7 @@ class TestSummaryMetricsPandasFormat:
                 ("run1", {"loss": 0.5, "accuracy": 0.9}),
             ]
         )
-        result = Runs.summary_metrics(runs, format="pandas")
+        result = Runs.summaries(runs, format="pandas")
         assert isinstance(result, pd.DataFrame)
         assert len(result) == 1
 
@@ -150,12 +150,12 @@ class TestSummaryMetricsPandasFormat:
                 ("run1", {"z_metric": 1.0, "a_metric": 2.0}),
             ]
         )
-        result = Runs.summary_metrics(runs, format="pandas")
+        result = Runs.summaries(runs, format="pandas")
         assert list(result.columns) == ["a_metric", "run_id", "z_metric"]
 
     def test_empty_returns_empty_dataframe(self):
         runs = _make_mock_runs([])
-        result = Runs.summary_metrics(runs, format="pandas")
+        result = Runs.summaries(runs, format="pandas")
         assert isinstance(result, pd.DataFrame)
         assert len(result) == 0
 
@@ -164,12 +164,12 @@ class TestSummaryMetricsValidation:
     def test_invalid_format_raises_error(self):
         runs = _make_mock_runs([("run1", {"loss": 0.5})])
         with pytest.raises(ValueError, match="Invalid format"):
-            Runs.summary_metrics(runs, format="invalid")
+            Runs.summaries(runs, format="invalid")
 
     def test_invalid_format_csv(self):
         runs = _make_mock_runs([("run1", {"loss": 0.5})])
         with pytest.raises(ValueError, match="Invalid format"):
-            Runs.summary_metrics(runs, format="csv")
+            Runs.summaries(runs, format="csv")
 
 
 class TestSummaryMetricsDoesNotMutate:
@@ -178,7 +178,7 @@ class TestSummaryMetricsDoesNotMutate:
     def test_original_summary_unchanged(self):
         original_summary = {"loss": 0.5, "accuracy": 0.9}
         runs = _make_mock_runs([("run1", original_summary)])
-        Runs.summary_metrics(runs, format="default")
+        Runs.summaries(runs, format="default")
         assert "run_id" not in original_summary
 
 
@@ -190,7 +190,7 @@ class TestSummaryMetricsUpgradeToFull:
         run1 = _make_mock_run("run1", {"loss": 0.5})
         mock_runs.__iter__ = mock.MagicMock(return_value=iter([run1]))
 
-        Runs.summary_metrics(mock_runs, format="default")
+        Runs.summaries(mock_runs, format="default")
 
         mock_runs.upgrade_to_full.assert_called_once()
 
@@ -210,7 +210,7 @@ class TestSummaryMetricsErrorHandling:
         mock_runs.__iter__ = mock.MagicMock(return_value=iter([run1, run2, run3]))
 
         with mock.patch("wandb.termwarn") as mock_warn:
-            result = Runs.summary_metrics(mock_runs, format="default")
+            result = Runs.summaries(mock_runs, format="default")
 
         assert len(result) == 2
         assert result[0]["run_id"] == "run1"
