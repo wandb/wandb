@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import re
 
+# Matches a JWT: three non-empty base64url segments separated by dots.
+_JWT_RE = re.compile(r"^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$")
+
 
 def check_api_key(key: str) -> str | None:
     """Returns text describing problems with the API key, or None.
@@ -17,6 +20,12 @@ def check_api_key(key: str) -> str | None:
     """
     if not key:
         return "API key is empty."
+
+    # Internal client JWTs have 3 dot-separated base64url segments
+    # (header.payload.signature). They bypass legacy API key validation
+    # and are sent via BasicAuth so the server can detect the JWT format.
+    if _JWT_RE.match(key):
+        return None
 
     # On-prem API keys have a variable-length prefix followed by a dash.
     #
