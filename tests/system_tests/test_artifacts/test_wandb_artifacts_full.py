@@ -856,24 +856,19 @@ def test_artifact_entry_download_url_matches_server_features(
     supports_membership = server_supports(
         api.client, pb.ARTIFACT_COLLECTION_MEMBERSHIP_FILE_DOWNLOAD_HANDLER
     )
-
-    if layout == StorageLayout.V2 and supports_artifact_id:
+    assert StorageLayout(layout) == StorageLayout.V2, f"layout is {layout}"
+    if supports_artifact_id:
         assert "/artifactsV2/" in used_url
         assert art.id is not None
         assert f"/{art.id}/" in used_url
         assert used_url.endswith("/source.txt")
-    elif layout == StorageLayout.V2 and supports_membership:
+    elif supports_membership:
         assert "/artifactsV2/" in used_url
         assert art.id is None or f"/{art.id}/" not in used_url
         assert used_url.endswith("/source.txt")
-    elif layout == StorageLayout.V2:
+    else:
         # Legacy V2 fallback: no artifact_id and no filename suffix.
         hexhash = b64_to_hex_id(entry.digest)
-        assert used_url.rstrip("/").endswith(hexhash)
-    else:
-        # V1 fallback format.
-        hexhash = b64_to_hex_id(entry.digest)
-        assert "/artifacts/" in used_url
         assert used_url.rstrip("/").endswith(hexhash)
 
 
