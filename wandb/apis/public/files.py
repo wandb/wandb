@@ -34,8 +34,8 @@ Note:
 
 from __future__ import annotations
 
-import io
 import os
+import pathlib
 from typing import TYPE_CHECKING, Any, Callable
 
 from wandb_gql import gql
@@ -304,7 +304,7 @@ class File(Attrs):
             wandb.termwarn("path_uri is only available for files stored in S3")
             return ""
 
-    def _build_download_wrapper(self) -> Callable[..., io.TextIOWrapper]:
+    def _build_download_wrapper(self) -> Callable[..., pathlib.Path]:
         import requests
 
         @retry.retriable(
@@ -317,21 +317,21 @@ class File(Attrs):
             replace: bool = False,
             exist_ok: bool = False,
             api: Api | None = None,
-        ) -> io.TextIOWrapper:
+        ) -> pathlib.Path:
             if api is None:
                 api = wandb.Api()
 
             path = os.path.join(root, self.name)
             if os.path.exists(path) and not replace:
                 if exist_ok:
-                    return open(path)
+                    return pathlib.Path(path)
                 raise ValueError(
                     "File already exists, pass replace=True to overwrite "
                     "or exist_ok=True to leave it as is and don't error."
                 )
 
             download_file_from_url(path, self.url, api.api_key)
-            return open(path)
+            return pathlib.Path(path)
 
         return _impl
 
@@ -342,7 +342,7 @@ class File(Attrs):
         replace: bool = False,
         exist_ok: bool = False,
         api: Api | None = None,
-    ) -> io.TextIOWrapper:
+    ) -> pathlib.Path:
         """Downloads a file previously saved by a run from the wandb server.
 
         Args:
