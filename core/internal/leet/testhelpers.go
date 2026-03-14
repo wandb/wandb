@@ -79,14 +79,48 @@ func (s *RunOverviewSidebar) TestForceExpand() {
 	s.animState.startTime = time.Now().Add(-AnimationDuration)
 }
 
-// TestSeriesCount returns the number of series in the chart
+// TestSeriesCount returns the number of named (non-default) series in the chart.
 func (c *TimeSeriesLineChart) TestSeriesCount() int {
 	return len(c.series)
+}
+
+// TestViewRange returns the current X view range.
+func (c *TimeSeriesLineChart) TestViewRange() (minX, maxX float64) {
+	return c.ViewMinX(), c.ViewMaxX()
+}
+
+// TestAutoTrail reports whether the chart is currently auto-trailing live updates.
+func (c *TimeSeriesLineChart) TestAutoTrail() bool {
+	return c.autoTrail
+}
+
+// TestShowAll reports whether the chart is currently showing the full history.
+func (c *TimeSeriesLineChart) TestShowAll() bool {
+	return c.showAll
 }
 
 // TestCurrentPage returns the current grid of charts.
 func (g *SystemMetricsGrid) TestCurrentPage() [][]*TimeSeriesLineChart {
 	return g.currentPage
+}
+
+// TestChartAt returns the chart at (row, col) on the current page (or nil).
+func (g *SystemMetricsGrid) TestChartAt(row, col int) *TimeSeriesLineChart {
+	if row < 0 || row >= len(g.currentPage) ||
+		col < 0 || col >= len(g.currentPage[row]) {
+		return nil
+	}
+	return g.currentPage[row][col]
+}
+
+// TestGridDims returns the current grid dimensions.
+func (g *SystemMetricsGrid) TestGridDims() GridDims {
+	return g.calculateChartDimensions()
+}
+
+// TestSyncInspectActive exposes the synchronized inspection flag for tests.
+func (g *SystemMetricsGrid) TestSyncInspectActive() bool {
+	return g.syncInspectActive
 }
 
 // TestInspectionMouseX exposes the current overlay pixel X for tests.

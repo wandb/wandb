@@ -152,12 +152,7 @@ func (w *Workspace) handleMetricsMouse(msg tea.MouseMsg, metricsHeight int) tea.
 
 func (w *Workspace) handleSystemMetricsMouse(msg tea.MouseMsg, metricsHeight int) tea.Cmd {
 	mouse := msg.Mouse()
-	if _, ok := msg.(tea.MouseClickMsg); !ok {
-		return nil
-	}
-	if mouse.Button != tea.MouseLeft {
-		return nil
-	}
+	alt := mouse.Mod == tea.ModAlt
 
 	cur, ok := w.runs.CurrentItem()
 	if !ok {
@@ -179,8 +174,33 @@ func (w *Workspace) handleSystemMetricsMouse(msg tea.MouseMsg, metricsHeight int
 	row := adjustedY / dims.CellHWithPadding
 	col := adjustedX / dims.CellWWithPadding
 
-	w.metricsGrid.clearFocus()
-	grid.HandleMouseClick(row, col)
+	switch m := msg.(type) {
+	case tea.MouseClickMsg:
+		switch m.Button {
+		case tea.MouseLeft:
+			w.metricsGrid.clearFocus()
+			grid.HandleMouseClick(row, col)
+		case tea.MouseRight:
+			w.metricsGrid.clearFocus()
+			grid.StartInspection(adjustedX, row, col, dims, alt)
+		}
+	case tea.MouseMotionMsg:
+		if m.Button == tea.MouseRight {
+			grid.UpdateInspection(adjustedX, row, col, dims)
+		}
+	case tea.MouseReleaseMsg:
+		if m.Button == tea.MouseRight {
+			grid.EndInspection()
+		}
+	case tea.MouseWheelMsg:
+		w.metricsGrid.clearFocus()
+		switch m.Button {
+		case tea.MouseWheelUp:
+			grid.HandleWheel(adjustedX, row, col, dims, true)
+		case tea.MouseWheelDown:
+			grid.HandleWheel(adjustedX, row, col, dims, false)
+		}
+	}
 
 	return nil
 }

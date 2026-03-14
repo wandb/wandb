@@ -41,8 +41,9 @@ const (
 	DefaultPerPlotColorScheme = "sunset-glow"
 	DefaultSingleRunColorMode = ColorModePerSeries
 
-	DefaultSystemColorScheme = "wandb-vibe-10"
-	DefaultSystemColorMode   = ColorModePerSeries
+	DefaultSystemColorScheme    = "wandb-vibe-10"
+	DefaultSystemColorMode      = ColorModePerSeries
+	DefaultSystemTailWindowMins = 10
 
 	DefaultHeartbeatInterval = 15 // seconds
 
@@ -85,6 +86,10 @@ type Config struct {
 	// "per_plot": each chart gets next color from palette
 	// "per_series": all single-series charts use base color, multi-series differentiate
 	SystemColorMode string `json:"system_color_mode" leet:"desc=Color system charts per plot or per series.,options=colorModes"`
+
+	// SystemTailWindowMinutes controls the default live tail window for system charts.
+	// Users can still zoom out to show the full history.
+	SystemTailWindowMinutes int `json:"system_tail_window_minutes" leet:"label=System tail window (min),desc=Default live tail window for system charts. Zooming out can show full history.,min=1"`
 
 	// SingleRunColorMode controls how charts are colored in single-run view:
 	//  - per_series: stably-mapped run-id color for all charts
@@ -153,6 +158,7 @@ func NewConfigManager(path string, logger *observability.CoreLogger) *ConfigMana
 			SingleRunColorMode:            DefaultSingleRunColorMode,
 			SystemColorScheme:             DefaultSystemColorScheme,
 			SystemColorMode:               DefaultSystemColorMode,
+			SystemTailWindowMinutes:       DefaultSystemTailWindowMins,
 			HeartbeatInterval:             DefaultHeartbeatInterval,
 			LeftSidebarVisible:            true,
 			RightSidebarVisible:           true,
@@ -235,6 +241,10 @@ func (cm *ConfigManager) normalizeConfig() {
 
 	if cm.config.HeartbeatInterval <= 0 {
 		cm.config.HeartbeatInterval = DefaultHeartbeatInterval
+	}
+
+	if cm.config.SystemTailWindowMinutes <= 0 {
+		cm.config.SystemTailWindowMinutes = DefaultSystemTailWindowMins
 	}
 
 	if cm.config.StartupMode != StartupModeWorkspaceLatest &&
@@ -519,6 +529,26 @@ func (cm *ConfigManager) SetSystemColorMode(mode string) error {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
 	cm.config.SystemColorMode = mode
+	return cm.save()
+}
+
+// SystemTailWindow returns the default live tail window for system charts.
+func (cm *ConfigManager) SystemTailWindow() time.Duration {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+
+	return time.Duration(cm.config.SystemTailWindowMinutes) * time.Minute
+}
+
+// SetSystemTailWindowMinutes sets the default live tail window for system charts.
+func (cm *ConfigManager) SetSystemTailWindowMinutes(minutes int) error {
+	if minutes <= 0 {
+		return fmt.Errorf("system tail window must be a positive integer")
+	}
+
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	cm.config.SystemTailWindowMinutes = minutes
 	return cm.save()
 }
 

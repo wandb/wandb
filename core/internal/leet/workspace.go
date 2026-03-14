@@ -807,6 +807,13 @@ func (w *Workspace) buildActiveStatus() string {
 
 	if w.focus.Type != FocusNone {
 		parts = append(parts, w.focus.Title)
+		if w.focus.Type == FocusSystemChart {
+			if g := w.activeSystemMetricsGrid(); g != nil {
+				if viewMode := g.FocusedChartViewModeLabel(); viewMode != "" {
+					parts = append(parts, viewMode)
+				}
+			}
+		}
 	}
 
 	if len(parts) == 0 {
