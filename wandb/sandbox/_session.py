@@ -36,6 +36,9 @@ class Session(CWSandboxSession):
         network=None,
         max_timeout_seconds: int | None = None,
         environment_variables: dict[str, str] | None = None,
+        capture_logs: bool = True,
+        capture_logs_to: str = "artifact",
+        capture_artifact_name: str | None = None,
     ) -> Sandbox:
         # Upstream instantiates the base `cwsandbox.Sandbox` here, so we need
         # a local factory override to keep returning the W&B-aware subclass.
@@ -59,6 +62,9 @@ class Session(CWSandboxSession):
             network=network,
             max_timeout_seconds=max_timeout_seconds,
             environment_variables=environment_variables,
+            capture_logs=capture_logs,
+            capture_logs_to=capture_logs_to,
+            capture_artifact_name=capture_artifact_name,
             defaults=self._defaults,
             _session=self,
         )
