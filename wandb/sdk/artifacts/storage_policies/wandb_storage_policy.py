@@ -243,6 +243,11 @@ class WandbStoragePolicy(StoragePolicy):
 
         if layout is StorageLayout.V2:
             birth_artifact_id = entry.birth_artifact_id or ""
+            artifact_id = artifact.id or ""
+            if server_supports(
+                api.client, pb.ARTIFACT_V2_DOWNLOAD_HANDLER_SUPPORTS_ARTIFACT_ID
+            ):
+                return f"{base_url}/artifactsV2/{region}/{quote(entity)}/{quote(project)}/{quote(collection)}/{quote(artifact_id)}/{quote(birth_artifact_id)}/{hexhash}/{entry.path.name}"
             if server_supports(
                 api.client, pb.ARTIFACT_COLLECTION_MEMBERSHIP_FILE_DOWNLOAD_HANDLER
             ):
