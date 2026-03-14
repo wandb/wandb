@@ -1288,7 +1288,7 @@ class Api:
                 for file_edge in run_obj["files"]["edges"]:
                     name = file_edge["node"]["name"]
                     url = file_edge["node"]["directUrl"]
-                    res = requests.get(url)
+                    res = requests.get(url, timeout=10.0)
                     res.raise_for_status()
                     if name == METADATA_FNAME:
                         metadata = res.json()
@@ -2876,6 +2876,7 @@ class Api:
             auth=auth,
             headers=http_headers,
             stream=True,
+            timeout=10.0,
         )
         response.raise_for_status()
         return int(response.headers.get("content-length", 0)), response
