@@ -17,7 +17,7 @@ from typing import Any, Callable
 
 import wandb
 from wandb import util
-from wandb.sdk import wandb_login
+from wandb.sdk import wandb_login, wandb_setup
 from wandb.sdk.lib import config_util, ipython
 
 logger = logging.getLogger(__name__)
@@ -623,6 +623,12 @@ def run_agent(
     finally:
         # make sure we remove the logging handler (important for jupyter notebooks)
         logger.removeHandler(ch)
+        if entity:
+            os.environ.pop(wandb.env.ENTITY)
+        if project:
+            os.environ.pop(wandb.env.PROJECT)
+        if sweep_id:
+            os.environ.pop(wandb.env.SWEEP_ID)
 
 
 def agent(
@@ -677,6 +683,7 @@ def agent(
         )
     finally:
         _INSTANCES -= 1
+        wandb_setup.singleton().settings.sweep_id = None
 
 
 _INSTANCES = 0
