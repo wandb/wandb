@@ -82,7 +82,7 @@ def leet(ctx: click.Context) -> None:
 def run(path: str | None = None, pprof: str = "") -> None:
     """Launch the LEET TUI.
 
-    PATH can be a .wandb file, a run directory, or a wandb directory.
+    `PATH` can be a `.wandb` file, a run directory, or a wandb directory.
     If omitted, searches for the latest run.
     """
     from . import beta_leet
@@ -186,26 +186,26 @@ def sync(
     verbose: bool,
     n: int,
 ) -> None:
-    """Upload .wandb files specified by PATHS.
+    """Upload `.wandb` files specified by `PATHS`.
 
     This is a beta re-implementation of `wandb sync`.
     It is not feature complete, not guaranteed to work, and may change
     in backward-incompatible ways in any release of wandb.
 
-    PATHS can include .wandb files, run directories containing .wandb files,
+    `PATHS` can include `.wandb` files, run directories containing `.wandb` files,
     and "wandb" directories containing run directories.
 
     For example, to sync all runs in a directory:
 
-        wandb beta sync ./wandb
+        $ wandb beta sync ./wandb
 
     To sync a specific run:
 
-        wandb beta sync ./wandb/run-20250813_124246-n67z9ude
+        $ wandb beta sync ./wandb/run-20250813_124246-n67z9ude
 
     Or equivalently:
 
-        wandb beta sync ./wandb/run-20250813_124246-n67z9ude/run-n67z9ude.wandb
+        $ wandb beta sync ./wandb/run-20250813_124246-n67z9ude/run-n67z9ude.wandb
     """
     from . import beta_sync
 
