@@ -3,8 +3,9 @@ package leet
 import (
 	"regexp"
 	"strings"
+	"unicode/utf8"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 )
 
 // FilterMatchMode selects the string-matching engine for metric titles.
@@ -74,36 +75,63 @@ func (f *Filter) ToggleMode() {
 }
 
 // UpdateDraft updates the in-progress filter text based on provided input.
-func (f *Filter) UpdateDraft(msg tea.KeyMsg) {
-	switch msg.Type {
+func (f *Filter) UpdateDraft(msg tea.KeyPressMsg) {
+	switch msg.Code {
 	case tea.KeyBackspace:
-		if f.draft != "" {
-			f.draft = f.draft[:len(f.draft)-1]
-		}
+		f.draft = trimLastRune(f.draft)
 	case tea.KeySpace:
 		f.draft += " "
-	case tea.KeyRunes:
-		f.draft += string(msg.Runes)
+	default:
+		if msg.Text != "" {
+			f.draft += msg.Text
+		}
 	}
+}
+
+func trimLastRune(s string) string {
+	if s == "" {
+		return s
+	}
+	_, size := utf8.DecodeLastRuneInString(s)
+	if size <= 0 {
+		return s[:len(s)-1]
+	}
+	return s[:len(s)-size]
 }
 
 // HandleKey processes a filter-mode key event, mutating filter state accordingly.
 //
 // Returns true if the filter state changed (i.e. the caller should reapply).
-func (f *Filter) HandleKey(msg tea.KeyMsg) bool {
-	switch msg.Type {
+func (f *Filter) HandleKey(msg tea.KeyPressMsg) bool {
+	switch msg.Code {
 	case tea.KeyEsc:
+		if !f.inputActive {
+			return false
+		}
 		f.Cancel()
+		return true
 	case tea.KeyEnter:
+		if !f.inputActive {
+			return false
+		}
 		f.Commit()
+		return true
 	case tea.KeyTab:
 		f.ToggleMode()
-	case tea.KeyBackspace, tea.KeySpace, tea.KeyRunes:
+		return true
+	case tea.KeyBackspace, tea.KeySpace:
+		if msg.Code == tea.KeyBackspace && f.draft == "" {
+			return false
+		}
 		f.UpdateDraft(msg)
+		return true
 	default:
-		return false
+		if msg.Text == "" {
+			return false
+		}
+		f.UpdateDraft(msg)
+		return true
 	}
-	return true
 }
 
 // Query returns the current filter pattern (draft if active, applied otherwise).
@@ -129,33 +157,43 @@ func (f *Filter) IsActive() bool {
 // In regex mode falls back to substring if there are no regex metachars
 // or if compile fails.
 func (f *Filter) Matcher() func(string) bool {
-	if f.Query() == "" {
+	return compileTextMatcher(f.Query(), f.mode)
+}
+
+// compileTextMatcher returns a case-insensitive matcher according to mode.
+//
+// It is shared by the generic [Filter] type and higher-level query parsers
+// (for example the workspace runs filter) so all text filtering in LEET uses
+// the same glob/regex semantics.
+func compileTextMatcher(query string, mode FilterMatchMode) func(string) bool {
+	if query == "" {
 		return func(string) bool { return true }
 	}
-	switch f.mode {
+
+	switch mode {
 	case FilterModeGlob:
-		return func(title string) bool {
-			return globMatchUnanchoredCaseInsensitive(f.Query(), title)
+		return func(s string) bool {
+			return globMatchUnanchoredCaseInsensitive(query, s)
 		}
 	case FilterModeRegex:
-		if !hasRegexMeta(f.Query()) {
-			lp := strings.ToLower(f.Query())
-			return func(title string) bool {
-				return strings.Contains(strings.ToLower(title), lp)
+		if !hasRegexMeta(query) {
+			lq := strings.ToLower(query)
+			return func(s string) bool {
+				return strings.Contains(strings.ToLower(s), lq)
 			}
 		}
 		// Compile once; if it fails, fall back to substring.
-		re, err := regexp.Compile("(?i)" + f.Query())
+		re, err := regexp.Compile("(?i)" + query)
 		if err != nil {
-			lp := strings.ToLower(f.Query())
-			return func(title string) bool {
-				return strings.Contains(strings.ToLower(title), lp)
+			lq := strings.ToLower(query)
+			return func(s string) bool {
+				return strings.Contains(strings.ToLower(s), lq)
 			}
 		}
-		return func(title string) bool { return re.FindStringIndex(title) != nil }
+		return func(s string) bool { return re.FindStringIndex(s) != nil }
+	default:
+		return func(string) bool { return true }
 	}
-
-	return func(string) bool { return true }
 }
 
 // globMatchUnanchoredCaseInsensitive reports whether s matches pattern using

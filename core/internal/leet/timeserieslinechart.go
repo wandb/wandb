@@ -4,8 +4,10 @@ import (
 	"math"
 	"time"
 
-	"github.com/NimbleMarkets/ntcharts/linechart/timeserieslinechart"
-	"github.com/charmbracelet/lipgloss"
+	"github.com/NimbleMarkets/ntcharts/v2/linechart/timeserieslinechart"
+
+	"charm.land/lipgloss/v2"
+	"charm.land/lipgloss/v2/compat"
 )
 
 // TimeSeriesLineChart is a custom line chart for time-based data.
@@ -20,7 +22,7 @@ type TimeSeriesLineChart struct {
 
 	// colorProvider yields the next color for additional series on this chart.
 	// It is anchored to the chart's base color so multi-series colors are stable per chart.
-	colorProvider func() lipgloss.AdaptiveColor
+	colorProvider func() compat.AdaptiveColor
 
 	lastUpdate         time.Time
 	minValue, maxValue float64
@@ -29,8 +31,8 @@ type TimeSeriesLineChart struct {
 type TimeSeriesLineChartParams struct {
 	Width, Height int
 	Def           *MetricDef
-	BaseColor     lipgloss.AdaptiveColor
-	ColorProvider func() lipgloss.AdaptiveColor
+	BaseColor     compat.AdaptiveColor
+	ColorProvider func() compat.AdaptiveColor
 	Now           time.Time
 }
 

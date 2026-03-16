@@ -18,6 +18,16 @@ if TYPE_CHECKING:
     from bokeh import document, model
 
 
+def _doc_to_json(doc):
+    # Bokeh 3.9 returns Serialized[DocJson] from to_json() by default.
+    # Ask for plain JSON when supported; older Bokeh versions already
+    # return plain JSON and do not accept the 'deferred' kwarg.
+    try:
+        return doc.to_json(deferred=False)
+    except TypeError:
+        return doc.to_json()
+
+
 class Bokeh(Media):
     """Wandb class for Bokeh plots.
 
@@ -50,10 +60,11 @@ class Bokeh(Media):
             _data.add_root(data_or_path)
             # serialize/deserialize pairing followed by sorting attributes ensures
             # that the file's sha's are equivalent in subsequent calls
-            self.b_obj = bokeh.document.Document.from_json(_data.to_json())
-            b_json = self.b_obj.to_json()
-            if "references" in b_json["roots"]:
-                b_json["roots"]["references"].sort(key=lambda x: x["id"])
+            self.b_obj = bokeh.document.Document.from_json(_doc_to_json(_data))
+            b_json = _doc_to_json(self.b_obj)
+            roots = b_json.get("roots")
+            if isinstance(roots, dict) and "references" in roots:
+                roots["references"].sort(key=lambda x: x["id"])
 
             tmp_path = os.path.join(MEDIA_TMP.name, runid.generate_id() + ".bokeh.json")
             with codecs.open(tmp_path, "w", encoding="utf-8") as fp:

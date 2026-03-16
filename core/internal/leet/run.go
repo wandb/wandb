@@ -8,8 +8,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/wandb/wandb/core/internal/observability"
 )
@@ -24,7 +24,7 @@ type Run struct {
 
 	// Configuration and key bindings.
 	config *ConfigManager
-	keyMap map[string]func(*Run, tea.KeyMsg) tea.Cmd
+	keyMap map[string]func(*Run, tea.KeyPressMsg) tea.Cmd
 
 	// Terminal dimensions.
 	width, height int
@@ -99,6 +99,9 @@ func NewRun(
 	ro := NewRunOverview()
 	runOverviewAnimState := NewAnimatedValue(cfg.LeftSidebarVisible(), SidebarMinWidth)
 
+	consoleLogsPaneAnimState := NewAnimatedValue(
+		cfg.ConsoleLogsVisible(), ConsoleLogsPaneMinHeight)
+
 	metricsGrid := NewMetricsGrid(cfg, cfg.MetricsGrid, focus, logger)
 	metricsGrid.SetSingleSeriesColorMode(cfg.SingleRunColorMode())
 
@@ -113,7 +116,7 @@ func NewRun(
 		leftSidebar:     NewRunOverviewSidebar(runOverviewAnimState, ro, SidebarSideLeft),
 		rightSidebar:    NewRightSidebar(cfg, focus, logger),
 		consoleLogs:     NewRunConsoleLogs(),
-		consoleLogsPane: NewConsoleLogsPane(),
+		consoleLogsPane: NewConsoleLogsPane(consoleLogsPaneAnimState),
 		watcherMgr:      NewWatcherManager(ch, logger),
 		heartbeatMgr:    NewHeartbeatManager(heartbeatInterval, ch, logger),
 		logger:          logger,
@@ -126,7 +129,6 @@ func NewRun(
 func (r *Run) Init() tea.Cmd {
 	r.logger.Debug("run: Init called")
 	return tea.Batch(
-		windowTitleCmd(),
 		InitializeReader(r.runPath, r.logger),
 		r.watcherMgr.WaitForMsg,
 	)
@@ -145,7 +147,7 @@ func (r *Run) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	// Forward UI messages to children if not in filter mode.
 	if isUIMsg(msg) && !r.metricsGrid.IsFilterMode() && !r.leftSidebar.IsFilterMode() {
-		if _, ok := msg.(tea.KeyMsg); !ok {
+		if _, ok := msg.(tea.KeyPressMsg); !ok {
 			if _, cmd := r.leftSidebar.Update(msg); cmd != nil {
 				cmds = append(cmds, cmd)
 			}
@@ -157,8 +159,8 @@ func (r *Run) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	// Route message to appropriate handler.
 	switch t := msg.(type) {
-	case tea.KeyMsg:
-		if c := r.handleKeyMsg(t); c != nil {
+	case tea.KeyPressMsg:
+		if c := r.handleKeyPressMsg(t); c != nil {
 			cmds = append(cmds, c)
 		}
 		return r, tea.Batch(cmds...)
@@ -195,7 +197,7 @@ func (r *Run) handleWindowResize(msg tea.WindowSizeMsg) {
 // isUIMsg returns true for messages that should flow to child view models.
 func isUIMsg(msg tea.Msg) bool {
 	switch msg.(type) {
-	case tea.KeyMsg, tea.MouseMsg, tea.WindowSizeMsg,
+	case tea.KeyPressMsg, tea.MouseMsg, tea.WindowSizeMsg,
 		LeftSidebarAnimationMsg, RightSidebarAnimationMsg,
 		ConsoleLogsPaneAnimationMsg:
 		return true
@@ -243,21 +245,21 @@ func (r *Run) FocusedTitle() string {
 // View renders the UI based on the data in the model.
 //
 // Implements tea.Model.View.
-func (r *Run) View() string {
+func (r *Run) View() tea.View {
 	defer r.logPanic("View")
 
 	r.stateMu.RLock()
 	defer r.stateMu.RUnlock()
 
 	if r.width == 0 || r.height == 0 {
-		return "Loading..."
+		return tea.NewView("Loading...")
 	}
 
 	if r.isLoading {
-		return r.renderLoadingScreen()
+		return tea.NewView(r.renderLoadingScreen())
 	}
 
-	return r.renderMainView()
+	return tea.NewView(r.renderMainView())
 }
 
 // renderMainView renders the main application view.
@@ -274,25 +276,11 @@ func (r *Run) renderMainView() string {
 		centralColumn = lipgloss.JoinVertical(lipgloss.Left, gridView, bbView)
 	}
 
-	leftWidth := r.leftSidebar.Width()
-	rightWidth := r.rightSidebar.Width()
-
-	const minMainContentWidth = 10
-
-	// Ensure sidebars don't take up too much space.
-	totalSidebarWidth := leftWidth + rightWidth
-	if totalSidebarWidth >= r.width-minMainContentWidth {
-		if rightWidth > 0 {
-			r.rightSidebar.animState.current = 0
-			rightWidth = 0
-		}
-		if leftWidth+minMainContentWidth >= r.width {
-			r.leftSidebar.animState.current = 0
-			leftWidth = 0
-		}
-	}
-
-	mainView := r.buildMainViewWithSidebars(centralColumn, leftWidth, rightWidth)
+	mainView := r.buildMainViewWithSidebars(
+		centralColumn,
+		layout.leftSidebarWidth,
+		layout.rightSidebarWidth,
+	)
 	statusBar := r.renderStatusBar()
 
 	fullView := lipgloss.JoinVertical(lipgloss.Left, mainView, statusBar)
@@ -308,7 +296,7 @@ func (r *Run) buildMainViewWithSidebars(gridView string, leftWidth, rightWidth i
 	var parts []string
 
 	if leftWidth > 0 {
-		leftView := r.leftSidebar.View(r.height - StatusBarHeight - 1)
+		leftView := r.leftSidebar.View(r.height - StatusBarHeight - 1).Content
 		parts = append(parts, leftView)
 	}
 
@@ -534,10 +522,35 @@ type Layout struct {
 	height               int
 }
 
+// effectiveSidebarWidths returns the widths that can actually be rendered
+// without starving the main content area.
+//
+// The visibility preferences remain unchanged: this method only clamps the
+// current render/layout pass and does not mutate animation state.
+func (r *Run) effectiveSidebarWidths() (leftW, rightW int) {
+	const minRunMainContentWidth = 10
+
+	leftW = r.leftSidebar.Width()
+	rightW = r.rightSidebar.Width()
+
+	if leftW+rightW < r.width-minRunMainContentWidth {
+		return leftW, rightW
+	}
+	if rightW > 0 {
+		rightW = 0
+	}
+	if leftW+rightW < r.width-minRunMainContentWidth {
+		return leftW, rightW
+	}
+	if leftW > 0 {
+		leftW = 0
+	}
+	return leftW, rightW
+}
+
 // computeViewports returns (leftW, contentW, rightW, contentH).
 func (r *Run) computeViewports() Layout {
-	leftW := r.leftSidebar.Width()
-	rightW := r.rightSidebar.Width()
+	leftW, rightW := r.effectiveSidebarWidths()
 
 	contentW := max(r.width-leftW-rightW-2, 1)
 	contentH := max(r.height-StatusBarHeight-r.consoleLogsPane.Height(), 1)

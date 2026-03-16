@@ -1,7 +1,7 @@
 package leet
 
 import (
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 )
 
 // KeyBinding defines a key binding for a particular target type.
@@ -12,7 +12,7 @@ import (
 type KeyBinding[T any] struct {
 	Keys        []string
 	Description string
-	Handler     func(*T, tea.KeyMsg) tea.Cmd
+	Handler     func(*T, tea.KeyPressMsg) tea.Cmd
 }
 
 // BindingCategory groups related key bindings (primarily for help display).
@@ -80,12 +80,12 @@ func RunKeyBindings() []BindingCategory[Run] {
 					Handler:     (*Run).handleNextPage,
 				},
 				{
-					Keys:        []string{"alt+N", "alt+pgup"},
+					Keys:        []string{"M", "alt+N", "alt+pgup"},
 					Description: "Previous system metrics page",
 					Handler:     (*Run).handlePrevSystemPage,
 				},
 				{
-					Keys:        []string{"alt+n", "alt+pgdown"},
+					Keys:        []string{"m", "alt+n", "alt+pgdown"},
 					Description: "Next system metrics page",
 					Handler:     (*Run).handleNextSystemPage,
 				},
@@ -105,7 +105,7 @@ func RunKeyBindings() []BindingCategory[Run] {
 					Handler:     (*Run).handleEnterSystemMetricsFilter,
 				},
 				{
-					Keys:        []string{"ctrl+l"},
+					Keys:        []string{"ctrl+/", "ctrl+l"},
 					Description: "Clear metrics filter",
 					Handler:     (*Run).handleClearMetricsFilter,
 				},
@@ -202,6 +202,11 @@ func WorkspaceKeyBindings() []BindingCategory[Workspace] {
 					Description: "Restart LEET",
 				},
 				{
+					Keys:        []string{"esc"},
+					Description: "Focus runs list",
+					Handler:     (*Workspace).handleFocusRuns,
+				},
+				{
 					Keys:        []string{"enter"},
 					Description: "View selected run (when not filtering/configuring)",
 				},
@@ -258,6 +263,21 @@ func WorkspaceKeyBindings() []BindingCategory[Workspace] {
 			},
 		},
 		{
+			Name: "Runs",
+			Bindings: []KeyBinding[Workspace]{
+				{
+					Keys:        []string{"f"},
+					Description: "Filter runs by name / metadata",
+					Handler:     (*Workspace).handleEnterRunsFilter,
+				},
+				{
+					Keys:        []string{"ctrl+f"},
+					Description: "Clear runs filter",
+					Handler:     (*Workspace).handleClearRunsFilter,
+				},
+			},
+		},
+		{
 			Name: "Charts",
 			Bindings: []KeyBinding[Workspace]{
 				{
@@ -271,11 +291,8 @@ func WorkspaceKeyBindings() []BindingCategory[Workspace] {
 					Handler:     (*Workspace).handleEnterSystemMetricsFilter,
 				},
 				{
-					// TODO: "ctrl+/", which would be preferable,
-					// is usually sent as 0x1F (Unit Separator) and is not
-					// cleanly handled by BubbleTea v1.
-					// Try after the upgrade to v2.
-					Keys:        []string{"ctrl+l"},
+					// TODO: remove ctrl+l.
+					Keys:        []string{"ctrl+/", "ctrl+l"},
 					Description: "Clear metrics filter",
 					Handler:     (*Workspace).handleClearMetricsFilter,
 				},
@@ -367,8 +384,9 @@ func WorkspaceKeyBindings() []BindingCategory[Workspace] {
 }
 
 // buildKeyMap builds a fast lookup map from key string to handler.
-func buildKeyMap[T any](categories []BindingCategory[T]) map[string]func(*T, tea.KeyMsg) tea.Cmd {
-	keyMap := make(map[string]func(*T, tea.KeyMsg) tea.Cmd)
+func buildKeyMap[T any](
+	categories []BindingCategory[T]) map[string]func(*T, tea.KeyPressMsg) tea.Cmd {
+	keyMap := make(map[string]func(*T, tea.KeyPressMsg) tea.Cmd)
 	for _, category := range categories {
 		for _, binding := range category.Bindings {
 			if binding.Handler == nil {
@@ -382,7 +400,7 @@ func buildKeyMap[T any](categories []BindingCategory[T]) map[string]func(*T, tea
 	return keyMap
 }
 
-// normalizeKey normalizes Bubble Tea's KeyMsg.String() into a stable key used by our maps.
+// normalizeKey normalizes Bubble Tea's KeyPressMsg into a stable key used by our maps.
 //
 // Bubble Tea has historically reported space as " " in some situations; we want a
 // help-friendly, explicit key name.

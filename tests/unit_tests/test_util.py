@@ -1,5 +1,6 @@
 import datetime
 import enum
+import json
 import os
 import platform
 import random
@@ -236,10 +237,10 @@ def test_make_json_if_not_number():
     assert util.make_json_if_not_number(1.0) == 1.0
     assert util.make_json_if_not_number("1") == '"1"'
     assert util.make_json_if_not_number("1.0") == '"1.0"'
-    assert util.make_json_if_not_number({"a": 1}) == '{"a": 1}'
-    assert util.make_json_if_not_number({"a": 1.0}) == '{"a": 1.0}'
-    assert util.make_json_if_not_number({"a": "1"}) == '{"a": "1"}'
-    assert util.make_json_if_not_number({"a": "1.0"}) == '{"a": "1.0"}'
+    for obj in ({"a": 1}, {"a": 1.0}, {"a": "1"}, {"a": "1.0"}):
+        result = util.make_json_if_not_number(obj)
+        assert isinstance(result, str)
+        assert json.loads(result) == obj
 
 
 ###############################################################################

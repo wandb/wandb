@@ -16,15 +16,13 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ### Added
 
-- Run console logs pane in W&B LEET TUI (`wandb beta leet` command, toggle with `l`). (@dmitryduev in https://github.com/wandb/wandb/pull/11345)
-- System metrics pane in multi-run workspace mode in W&B LEET TUI (`wandb beta leet` command, toggle with `s`). (@dmitryduev in https://github.com/wandb/wandb/pull/11391)
-- System metrics filtering in W&B LEET TUI (`wandb beta leet` command, toggle with `\`). (@dmitryduev in https://github.com/wandb/wandb/pull/11391)
-- `ArtifactType.collections()` now supports filtering and ordering of collections. (@amusipatla-wandb in https://github.com/wandb/wandb/pull/11268)
-- Warning message when `run.log_artifact` does not create a new version because the artifact content is identical to an existing version. (@pingleiwandb in https://github.com/wandb/wandb/pull/11340)
-- `Project.collections()` to fetch filtered and ordered artifact collections in a project. (@amusipatla-wandb in https://github.com/wandb/wandb/pull/11319)
-- `wandb purge-cache` command to clean up cached files (@jacobromero in https://github.com/wandb/wandb/pull/10996)
+- `wandb beta core start|stop` commands to run a detached `wandb-core` service and reuse it across multiple processes via the `WANDB_SERVICE` env var (@dmitryduev in https://github.com/wandb/wandb/pull/11418)
+- Run filtering by metadata in multi-run workspace mode in W&B LEET TUI (`wandb beta leet` command, activate with `f`). (@dmitryduev in https://github.com/wandb/wandb/pull/11497)
+
+### Changed
+
+- JSON serialization and deserialization now use `orjson` for improved performance (@jacobromero in https://github.com/wandb/wandb/pull/11163)
 
 ### Fixed
 
-- Fixed a rare deadlock caused when GC triggers at an unlucky time and runs a `__del__` method that prints (@timoffex in https://github.com/wandb/wandb/pull/11402)
-- `api.Run.user` raising `AttributeError` when accessing runs from an `api.Runs` iteration (@jacobromero in https://github.com/wandb/wandb/pull/11439)
+- Fixed artifact client ID collisions in forked child processes by reseeding the fast ID generator after `fork()` (@tonyyli-wandb in https://github.com/wandb/wandb/pull/11491)

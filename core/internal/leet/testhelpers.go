@@ -5,7 +5,7 @@ package leet
 import (
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
@@ -345,4 +345,28 @@ func (w *Workspace) TestOverviewFilterQuery() string {
 // TestOverviewFilterInfo returns the compact match summary for the overview filter.
 func (w *Workspace) TestOverviewFilterInfo() string {
 	return w.runOverviewSidebar.FilterInfo()
+}
+
+// TestRunsFilterMode reports whether the runs sidebar filter is in input mode.
+func (w *Workspace) TestRunsFilterMode() bool {
+	return w.filter.IsActive()
+}
+
+// TestRunsFiltering reports whether an applied runs filter exists.
+func (w *Workspace) TestRunsFiltering() bool {
+	return !w.filter.IsActive() && w.filter.Query() != ""
+}
+
+// TestRunsFilterQuery returns the current runs filter query.
+func (w *Workspace) TestRunsFilterQuery() string {
+	return w.filter.Query()
+}
+
+// TestFilteredRunKeys returns the currently visible run keys in sidebar order.
+func (w *Workspace) TestFilteredRunKeys() []string {
+	keys := make([]string, len(w.runs.FilteredItems))
+	for i, item := range w.runs.FilteredItems {
+		keys[i] = item.Key
+	}
+	return keys
 }

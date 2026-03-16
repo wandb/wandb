@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 )
 
 const (
@@ -257,6 +257,10 @@ func (w *Workspace) handleWorkspaceRunOverviewPreloaded(
 	if msg.Err == nil && msg.Run.ID != "" {
 		ro := w.getOrCreateRunOverview(msg.RunKey)
 		ro.ProcessRunMsg(msg.Run)
+		w.indexRunFilterData(msg.RunKey, msg.Run)
+		if w.filter.Query() != "" {
+			w.applyRunFilter()
+		}
 		// We don't know the final state of this run after a pre-load.
 		ro.SetRunState(RunStateUnknown)
 	} else if msg.Err != nil && !errors.Is(msg.Err, errRunRecordNotFound) && !os.IsNotExist(msg.Err) {
@@ -320,6 +324,14 @@ func (w *Workspace) applyRunKeys(runKeys []string) {
 		w.dropRun(key)
 	}
 
+	for key := range w.runOverview {
+		if _, ok := present[key]; ok {
+			continue
+		}
+		delete(w.runOverview, key)
+		delete(w.runsFilterIndex, key)
+	}
+
 	w.setRunItems(runKeys)
 
 	if prevCursorKey != "" {
@@ -335,20 +347,7 @@ func (w *Workspace) setRunItems(runKeys []string) {
 	}
 	w.runs.Items = items
 
-	// TODO: wire up filter for the run selector.
-	if w.filter.Query() == "" && !w.filter.IsActive() {
-		w.runs.FilteredItems = items
-		return
-	}
-
-	matcher := w.filter.Matcher()
-	filtered := make([]KeyValuePair, 0, len(items))
-	for _, it := range items {
-		if matcher(it.Key) {
-			filtered = append(filtered, it)
-		}
-	}
-	w.runs.FilteredItems = filtered
+	w.applyRunFilter()
 }
 
 func (w *Workspace) restoreRunCursor(runKey string) {

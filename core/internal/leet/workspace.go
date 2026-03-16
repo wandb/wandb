@@ -8,8 +8,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/wandb/wandb/core/internal/observability"
 )
@@ -28,7 +28,7 @@ type Workspace struct {
 
 	// Configuration and key bindings.
 	config *ConfigManager
-	keyMap map[string]func(*Workspace, tea.KeyMsg) tea.Cmd
+	keyMap map[string]func(*Workspace, tea.KeyPressMsg) tea.Cmd
 
 	// Runs sidebar animation state.
 	runsAnimState *AnimatedValue
@@ -54,9 +54,11 @@ type Workspace struct {
 
 	// TODO: mark live runs upon selection.
 
-	// TODO: filter for the run selector.
-	// TODO: allow filtering by run properties, e.g. projects or tags.
+	// filter drives the runs sidebar search box.
 	filter *Filter
+	// runsFilterIndex caches searchable per-run metadata (name, project, config)
+	// for the runs sidebar so metadata filtering stays fast during live preview.
+	runsFilterIndex map[string]workspaceRunFilterData
 
 	// Multi‑run metrics state.
 	focus       *Focus
@@ -120,9 +122,13 @@ func NewWorkspace(
 	hbInterval := cfg.HeartbeatInterval()
 	logger.Info(fmt.Sprintf("workspace: heartbeat interval set to %v", hbInterval))
 
-	runOverviewAnimState := NewAnimatedValue(true, SidebarMinWidth)
+	runOverviewAnimState := NewAnimatedValue(
+		cfg.WorkspaceOverviewVisible(), SidebarMinWidth)
+	systemMetricsPaneAnimState := NewAnimatedValue(
+		cfg.WorkspaceSystemMetricsVisible(), systemMetricsPaneMinHeight)
+	consoleLogsPaneAnimState := NewAnimatedValue(
+		cfg.WorkspaceConsoleLogsVisible(), ConsoleLogsPaneMinHeight)
 
-	// TODO: make sidebar visibility configurable.
 	return &Workspace{
 		runsAnimState: NewAnimatedValue(true, SidebarMinWidth),
 		wandbDir:      wandbDir,
@@ -138,15 +144,16 @@ func NewWorkspace(
 		focus:               focus,
 		metricsGrid:         NewMetricsGrid(cfg, cfg.WorkspaceMetricsGrid, focus, logger),
 		systemMetrics:       make(map[string]*SystemMetricsGrid),
-		systemMetricsPane:   NewSystemMetricsPane(),
+		systemMetricsPane:   NewSystemMetricsPane(systemMetricsPaneAnimState),
 		systemMetricsFocus:  focus,
 		systemMetricsFilter: smf,
 		consoleLogs:         make(map[string]*RunConsoleLogs),
-		consoleLogsPane:     NewConsoleLogsPane(),
+		consoleLogsPane:     NewConsoleLogsPane(consoleLogsPaneAnimState),
 		runsByKey:           make(map[string]*workspaceRun),
 		liveChan:            ch,
 		heartbeatMgr:        NewHeartbeatManager(hbInterval, ch, logger),
 		filter:              NewFilter(),
+		runsFilterIndex:     make(map[string]workspaceRunFilterData),
 	}
 }
 
@@ -181,8 +188,8 @@ func (w *Workspace) Update(msg tea.Msg) tea.Cmd {
 	case tea.WindowSizeMsg:
 		w.handleWindowResize(t.Width, t.Height)
 
-	case tea.KeyMsg:
-		return w.handleKeyMsg(t)
+	case tea.KeyPressMsg:
+		return w.handleKeyPressMsg(t)
 
 	case tea.MouseMsg:
 		return w.handleMouse(t)
@@ -228,7 +235,7 @@ func (w *Workspace) Update(msg tea.Msg) tea.Cmd {
 }
 
 // View renders the runs section: header + paginated list with zebra rows.
-func (w *Workspace) View() string {
+func (w *Workspace) View() tea.View {
 	var cols []string
 
 	if w.runsAnimState.IsVisible() {
@@ -281,7 +288,13 @@ func (w *Workspace) View() string {
 	statusBar := w.renderStatusBar()
 
 	fullView := lipgloss.JoinVertical(lipgloss.Left, mainView, statusBar)
-	return lipgloss.Place(w.width, w.height, lipgloss.Left, lipgloss.Top, fullView)
+	return tea.NewView(
+		lipgloss.Place(
+			w.width, w.height,
+			lipgloss.Left, lipgloss.Top,
+			fullView,
+		),
+	)
 }
 
 // IsFiltering reports whether any workspace-level filter UI is active.
@@ -374,22 +387,36 @@ func (w *Workspace) updateMiddlePaneHeights(sysVisible, logsVisible bool) {
 // If the currently focused region will remain available, focus is left
 // unchanged. Otherwise it advances to the next available region.
 func (w *Workspace) resolveFocusAfterVisibilityChange(
-	leftVisible, rightVisible, bottomVisible bool) {
+	leftVisible, rightVisible, bottomVisible bool,
+) {
 	cur := w.currentFocusRegion()
 
-	// Build the future availability map from the post-toggle state.
 	firstSec, _ := w.runOverviewSidebar.focusableSectionBounds()
-	avail := map[focusRegion]bool{
-		focusRuns:     leftVisible,
-		focusLogs:     bottomVisible,
-		focusOverview: rightVisible && firstSec != -1,
+
+	runsAvail := leftVisible
+	logsAvail := bottomVisible
+	overviewAvail := rightVisible && firstSec != -1
+
+	regionAvailable := func(r focusRegion) bool {
+		switch r {
+		case focusRuns:
+			return runsAvail
+		case focusLogs:
+			return logsAvail
+		case focusOverview:
+			return overviewAvail
+		default:
+			return false
+		}
 	}
 
-	if avail[cur] {
+	if regionAvailable(cur) {
 		return
 	}
 
-	// Current region is being collapsed — find the next available one.
+	focusOrder := []focusRegion{focusRuns, focusLogs, focusOverview}
+	n := len(focusOrder)
+
 	curIdx := 0
 	for i, v := range focusOrder {
 		if v == cur {
@@ -398,18 +425,13 @@ func (w *Workspace) resolveFocusAfterVisibilityChange(
 		}
 	}
 
-	n := len(focusOrder)
 	for step := 1; step <= n; step++ {
-		nextIdx := ((curIdx + step) % n)
-		next := focusOrder[nextIdx]
-		if avail[next] {
-			w.setFocusRegion(next, 1)
+		nextIdx := (curIdx + step) % n
+		if regionAvailable(focusOrder[nextIdx]) {
+			w.setFocusRegion(focusOrder[nextIdx], 1)
 			return
 		}
 	}
-
-	// Nothing available — default to runs (it will show inactive styling).
-	w.setFocusRegion(focusRuns, 1)
 }
 
 // handleWindowResize handles window resize messages.
@@ -526,7 +548,7 @@ func (w *Workspace) getOrCreateSystemMetricsGrid(runKey string) *SystemMetricsGr
 		return g
 	}
 
-	rows, cols := w.config.SystemGrid()
+	rows, cols := w.config.WorkspaceSystemGrid()
 	initW := MinMetricChartWidth * cols
 	initH := MinMetricChartHeight * rows
 
@@ -579,7 +601,7 @@ func (w *Workspace) renderRunsList() string {
 
 	sidebarW := w.runsAnimState.Value()
 	sidebarH := max(w.height-StatusBarHeight, 0)
-	if sidebarW <= 1 || sidebarH <= 1 {
+	if sidebarW <= 2 || sidebarH <= 2 {
 		return ""
 	}
 	contentWidth := max(sidebarW-leftSidebarContentPadding, 1)
@@ -587,7 +609,7 @@ func (w *Workspace) renderRunsList() string {
 	lines := w.renderRunLines(contentWidth)
 
 	if len(lines) == 0 {
-		lines = []string{"No runs found."}
+		lines = []string{navInfoStyle.Render("No runs found.")}
 	}
 
 	contentLines := make([]string, 0, 1+len(lines))
@@ -629,11 +651,11 @@ func (w *Workspace) renderRunOverview() string {
 	sidebarH := max(w.height-StatusBarHeight, 0)
 	innerH := max(sidebarH-workspaceTopMarginLines, 0)
 
-	return w.runOverviewSidebar.View(innerH)
+	return w.runOverviewSidebar.View(innerH).Content
 }
 
 func (w *Workspace) renderMetrics() string {
-	contentWidth := max(w.width-w.runsAnimState.Value()-w.runOverviewSidebar.Width(), 0)
+	contentWidth := max(w.width-w.runsAnimState.Value()-w.runOverviewSidebar.Width()+1, 0)
 	reserved := w.consoleLogsPane.Height() + w.systemMetricsPane.Height()
 	contentHeight := max(w.height-StatusBarHeight-reserved, 1)
 
@@ -684,7 +706,10 @@ func (w *Workspace) renderStatusBar() string {
 }
 
 func (w *Workspace) buildStatusText() string {
-	// Metrics filter input mode has top priority.
+	// Filter input mode has top priority.
+	if w.filter.IsActive() {
+		return w.buildRunsFilterStatus()
+	}
 	if w.metricsGrid.IsFilterMode() {
 		return w.buildMetricsFilterStatus()
 	}
@@ -700,7 +725,6 @@ func (w *Workspace) buildStatusText() string {
 		return w.config.GridConfigStatus()
 	}
 
-	// When we add a run-filter input, it can be handled here similarly.
 	return w.buildActiveStatus()
 }
 
@@ -748,9 +772,19 @@ func (w *Workspace) buildOverviewFilterStatus() string {
 func (w *Workspace) buildActiveStatus() string {
 	var parts []string
 
+	if w.filter.Query() != "" && !w.filter.IsActive() {
+		parts = append(parts, fmt.Sprintf(
+			"Runs (%s): %q [%d/%d] (f to change, ctrl+f to clear)",
+			w.filter.Mode().String(),
+			w.filter.Query(),
+			len(w.runs.FilteredItems),
+			len(w.runs.Items),
+		))
+	}
+
 	if w.metricsGrid.IsFiltering() {
 		parts = append(parts, fmt.Sprintf(
-			"Filter (%s): %q [%d/%d] (/ to change, ctrl+l to clear)",
+			"Filter (%s): %q [%d/%d] (/ to change, ctrl+/ to clear)",
 			w.metricsGrid.FilterMode().String(),
 			w.metricsGrid.FilterQuery(),
 			w.metricsGrid.FilteredChartCount(),
@@ -772,10 +806,18 @@ func (w *Workspace) buildActiveStatus() string {
 
 	if w.runOverviewSidebar.IsVisible() && w.runOverviewSidebar.IsFiltering() {
 		parts = append(parts, fmt.Sprintf(
-			"Overview: %q [%s] (o to change, ctrl+k to clear)",
+			"Overview: %q [%s] (o to change, ctrl+o to clear)",
 			w.runOverviewSidebar.FilterQuery(),
 			w.runOverviewSidebar.FilterInfo(),
 		))
+	}
+
+	// Show the highlighted overview key/value when the sidebar is visible.
+	if w.runOverviewActive() {
+		key, value := w.runOverviewSidebar.SelectedItem()
+		if key != "" {
+			parts = append(parts, fmt.Sprintf("%s: %s", key, value))
+		}
 	}
 
 	if w.focus.Type != FocusNone {
@@ -827,20 +869,37 @@ func (w *Workspace) syncRunsPage() (startIdx, endIdx int) {
 	return startIdx, endIdx
 }
 
-// renderRunsListHeader renders "Runs [X‑Y of N]" (or "[N items]" for single‑page).
+// renderRunsListHeader renders the runs list title and counts.
 func (w *Workspace) renderRunsListHeader(startIdx, endIdx int) string {
 	title := runOverviewSidebarSectionHeaderStyle.Render("Runs")
 
-	total := len(w.runs.FilteredItems)
+	filteredCount := len(w.runs.FilteredItems)
+	totalCount := len(w.runs.Items)
 	info := ""
 
-	if total > 0 {
+	switch {
+	case w.filter.Query() != "" && totalCount > 0:
 		ipp := w.runs.ItemsPerPage()
-		if ipp > 0 && total > ipp {
-			// X‑Y are 1‑based indices for the current page.
-			info = fmt.Sprintf(" [%d-%d of %d]", startIdx+1, endIdx, total)
+		switch {
+		case filteredCount == 0:
+			info = fmt.Sprintf(" [0 of %d filtered]", totalCount)
+		case ipp > 0 && filteredCount > ipp:
+			info = fmt.Sprintf(
+				" [%d-%d of %d filtered from %d total]",
+				startIdx+1,
+				endIdx,
+				filteredCount,
+				totalCount,
+			)
+		default:
+			info = fmt.Sprintf(" [%d filtered from %d total]", filteredCount, totalCount)
+		}
+	case filteredCount > 0:
+		ipp := w.runs.ItemsPerPage()
+		if ipp > 0 && filteredCount > ipp {
+			info = fmt.Sprintf(" [%d-%d of %d]", startIdx+1, endIdx, filteredCount)
 		} else {
-			info = fmt.Sprintf(" [%d items]", total)
+			info = fmt.Sprintf(" [%d items]", filteredCount)
 		}
 	}
 

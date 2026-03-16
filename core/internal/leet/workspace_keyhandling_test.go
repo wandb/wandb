@@ -5,15 +5,28 @@ import (
 	"path/filepath"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
+
 	"github.com/stretchr/testify/require"
 
 	"github.com/wandb/wandb/core/internal/leet"
 	"github.com/wandb/wandb/core/internal/observability"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
-func keyRune(r rune) tea.KeyMsg {
-	return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}}
+func keyRune(r rune) tea.KeyPressMsg {
+	return tea.KeyPressMsg{Code: r, Text: string(r)}
+}
+
+func typeWorkspaceFilter(t *testing.T, w *leet.Workspace, query string) {
+	t.Helper()
+	for _, r := range query {
+		msg := tea.KeyPressMsg{Code: r, Text: string(r)}
+		if r == ' ' {
+			msg = tea.KeyPressMsg{Code: tea.KeySpace}
+		}
+		require.Nil(t, w.Update(msg))
+	}
 }
 
 func TestWorkspace_KeyHandling_FilterModeConsumesQuit(t *testing.T) {
@@ -32,7 +45,7 @@ func TestWorkspace_KeyHandling_FilterModeConsumesQuit(t *testing.T) {
 	require.Nil(t, w.Update(keyRune('q')))
 
 	// Exit filter input mode.
-	require.Nil(t, w.Update(tea.KeyMsg{Type: tea.KeyEsc}))
+	require.Nil(t, w.Update(tea.KeyPressMsg{Code: tea.KeyEsc}))
 	require.False(t, w.IsFiltering(), "expected filter mode to be inactive after Esc")
 
 	// Now 'q' should quit.
@@ -144,7 +157,7 @@ func TestWorkspace_ToggleConsoleLogsPane_FocusReturnsToRuns(t *testing.T) {
 
 	// Focus logs via Tab until bottom bar is active.
 	for !w.TestConsoleLogsPaneActive() {
-		_ = w.Update(tea.KeyMsg{Type: tea.KeyTab})
+		_ = w.Update(tea.KeyPressMsg{Code: tea.KeyTab})
 	}
 	require.Equal(t, testFocusLogs, w.TestCurrentFocusRegion())
 
@@ -177,7 +190,7 @@ func TestWorkspace_CollapseOverview_FocusStaysOnLogs(t *testing.T) {
 
 	// Focus logs.
 	for w.TestCurrentFocusRegion() != testFocusLogs {
-		_ = w.Update(tea.KeyMsg{Type: tea.KeyTab})
+		_ = w.Update(tea.KeyPressMsg{Code: tea.KeyTab})
 	}
 	require.True(t, w.TestConsoleLogsPaneActive())
 
@@ -195,7 +208,7 @@ func TestWorkspace_CollapseRuns_FocusStaysOnLogs(t *testing.T) {
 
 	// Focus logs.
 	for w.TestCurrentFocusRegion() != testFocusLogs {
-		_ = w.Update(tea.KeyMsg{Type: tea.KeyTab})
+		_ = w.Update(tea.KeyPressMsg{Code: tea.KeyTab})
 	}
 
 	// Collapse runs sidebar — focus should stay on logs.
@@ -212,13 +225,13 @@ func TestWorkspace_RunsVerticalNav_ConsoleLogsPaneConsoleLogsPaneActive(t *testi
 
 	// Focus logs.
 	for w.TestCurrentFocusRegion() != testFocusLogs {
-		_ = w.Update(tea.KeyMsg{Type: tea.KeyTab})
+		_ = w.Update(tea.KeyPressMsg{Code: tea.KeyTab})
 	}
 	require.True(t, w.TestConsoleLogsPaneActive())
 
 	// Up/Down should route to bottom bar, not runs list.
-	_ = w.Update(tea.KeyMsg{Type: tea.KeyUp})
-	_ = w.Update(tea.KeyMsg{Type: tea.KeyDown})
+	_ = w.Update(tea.KeyPressMsg{Code: tea.KeyUp})
+	_ = w.Update(tea.KeyPressMsg{Code: tea.KeyDown})
 	require.True(t, w.TestConsoleLogsPaneActive(),
 		"bottom bar should still be active after vertical nav")
 }
@@ -228,14 +241,14 @@ func TestWorkspace_RunsVerticalNav_OverviewActive(t *testing.T) {
 
 	// Focus overview.
 	for w.TestCurrentFocusRegion() != testFocusOverview {
-		_ = w.Update(tea.KeyMsg{Type: tea.KeyTab})
+		_ = w.Update(tea.KeyPressMsg{Code: tea.KeyTab})
 	}
 	require.False(t, w.TestRunsActive())
 	require.False(t, w.TestConsoleLogsPaneActive())
 
 	// Up/Down should route to overview sidebar, not runs list.
-	_ = w.Update(tea.KeyMsg{Type: tea.KeyUp})
-	_ = w.Update(tea.KeyMsg{Type: tea.KeyDown})
+	_ = w.Update(tea.KeyPressMsg{Code: tea.KeyUp})
+	_ = w.Update(tea.KeyPressMsg{Code: tea.KeyDown})
 	require.False(t, w.TestRunsActive(),
 		"runs should not become active from overview vertical nav")
 }
@@ -276,12 +289,12 @@ func TestWorkspace_CycleOverviewSection_StaysInOverview(t *testing.T) {
 
 	// Focus overview.
 	for w.TestCurrentFocusRegion() != testFocusOverview {
-		_ = w.Update(tea.KeyMsg{Type: tea.KeyTab})
+		_ = w.Update(tea.KeyPressMsg{Code: tea.KeyTab})
 	}
 	require.Equal(t, testFocusOverview, w.TestCurrentFocusRegion())
 
 	// Tab while in overview should cycle sections before leaving.
-	_ = w.Update(tea.KeyMsg{Type: tea.KeyTab})
+	_ = w.Update(tea.KeyPressMsg{Code: tea.KeyTab})
 	// We may still be in overview (cycling sections) or have moved on.
 	// The key guarantee: the state is consistent.
 	region := w.TestCurrentFocusRegion()
@@ -303,7 +316,7 @@ func TestWorkspace_SetFocusRegion_ClearsOtherRegions(t *testing.T) {
 
 	// Tab to logs.
 	for w.TestCurrentFocusRegion() != testFocusLogs {
-		_ = w.Update(tea.KeyMsg{Type: tea.KeyTab})
+		_ = w.Update(tea.KeyPressMsg{Code: tea.KeyTab})
 	}
 
 	// Exactly one region should have focus.
@@ -351,7 +364,7 @@ func TestWorkspace_Enter_RequiresRunSelectorActive(t *testing.T) {
 	// Focus logs by expanding bottom bar and tabbing.
 	w.TestForceExpandConsoleLogsPane(10)
 	for !w.TestConsoleLogsPaneActive() {
-		_ = w.Update(tea.KeyMsg{Type: tea.KeyTab})
+		_ = w.Update(tea.KeyPressMsg{Code: tea.KeyTab})
 	}
 
 	// RunSelectorActive should be false when logs are focused.
@@ -377,13 +390,13 @@ func TestWorkspace_Enter_NoOpWhenLogsFocused(t *testing.T) {
 
 	// The model starts in workspace mode. Pressing Enter without a run
 	// selector being active should be a no-op (should not panic or switch mode).
-	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	_, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 
 	// We expect nil or a benign command, not a mode switch.
 	// If enterRunView were called with no selected file, it returns nil anyway.
 	// The key assertion: the model should still be in workspace mode.
 	// We can verify by checking the view output still renders workspace content.
-	view := m.View()
+	view := m.View().Content
 	require.NotContains(t, view, "Loading data...",
 		"should NOT have switched to run view")
 	_ = cmd
@@ -416,7 +429,7 @@ func TestWorkspace_Enter_WorksWhenRunsFocused(t *testing.T) {
 	m.Update(leet.WorkspaceRunDirsMsg{RunKeys: []string{runKey}})
 
 	// Now Enter should trigger mode switch (returns a non-nil batch cmd).
-	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	_, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	require.NotNil(t, cmd,
 		"Enter with run selector active should trigger enterRunView")
 }
@@ -439,7 +452,7 @@ func TestWorkspace_OverviewFilterMode_ConsumesQuit(t *testing.T) {
 		"overview filter should still be active after 'q'")
 
 	// Escape cancels filter mode.
-	require.Nil(t, w.Update(tea.KeyMsg{Type: tea.KeyEsc}))
+	require.Nil(t, w.Update(tea.KeyPressMsg{Code: tea.KeyEsc}))
 	require.False(t, w.TestOverviewFilterMode(),
 		"overview filter should be inactive after Esc")
 	require.False(t, w.IsFiltering(),
@@ -452,9 +465,9 @@ func TestWorkspace_OverviewFilter_ApplyAndClear(t *testing.T) {
 	// Enter filter, type "lr", and apply.
 	require.Nil(t, w.Update(keyRune('o')))
 	for _, r := range "lr" {
-		require.Nil(t, w.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}}))
+		require.Nil(t, w.Update(tea.KeyPressMsg{Code: r, Text: string(r)}))
 	}
-	require.Nil(t, w.Update(tea.KeyMsg{Type: tea.KeyEnter}))
+	require.Nil(t, w.Update(tea.KeyPressMsg{Code: tea.KeyEnter}))
 
 	require.False(t, w.TestOverviewFilterMode(),
 		"filter input mode should end after Enter")
@@ -465,7 +478,7 @@ func TestWorkspace_OverviewFilter_ApplyAndClear(t *testing.T) {
 		"filter info should show match summary")
 
 	// Clear the filter with ctrl+k.
-	require.Nil(t, w.Update(tea.KeyMsg{Type: tea.KeyCtrlO}))
+	require.Nil(t, w.Update(tea.KeyPressMsg{Code: 'o', Mod: tea.ModCtrl}))
 	require.False(t, w.TestOverviewFiltering(),
 		"filter should be cleared after ctrl+o")
 	require.Empty(t, w.TestOverviewFilterInfo())
@@ -477,9 +490,9 @@ func TestWorkspace_OverviewFilter_EscCancelsDraft(t *testing.T) {
 	// Enter filter, type something, then Esc to cancel.
 	require.Nil(t, w.Update(keyRune('o')))
 	for _, r := range "xyz" {
-		require.Nil(t, w.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}}))
+		require.Nil(t, w.Update(tea.KeyPressMsg{Code: r, Text: string(r)}))
 	}
-	require.Nil(t, w.Update(tea.KeyMsg{Type: tea.KeyEsc}))
+	require.Nil(t, w.Update(tea.KeyPressMsg{Code: tea.KeyEsc}))
 
 	require.False(t, w.TestOverviewFilterMode())
 	require.False(t, w.TestOverviewFiltering(),
@@ -494,10 +507,10 @@ func TestWorkspace_OverviewFilter_ToggleMode(t *testing.T) {
 	require.True(t, w.TestOverviewFilterMode())
 
 	// Tab toggles match mode (regex -> glob).
-	require.Nil(t, w.Update(tea.KeyMsg{Type: tea.KeyTab}))
+	require.Nil(t, w.Update(tea.KeyPressMsg{Code: tea.KeyTab}))
 
 	// Apply and verify it took effect (mode persists after apply).
-	require.Nil(t, w.Update(tea.KeyMsg{Type: tea.KeyEnter}))
+	require.Nil(t, w.Update(tea.KeyPressMsg{Code: tea.KeyEnter}))
 	require.False(t, w.TestOverviewFilterMode())
 }
 
@@ -507,13 +520,13 @@ func TestWorkspace_OverviewFilter_StatusBarShowsFilter(t *testing.T) {
 	// Apply a filter so it shows in the idle status bar.
 	require.Nil(t, w.Update(keyRune('o')))
 	for _, r := range "loss" {
-		require.Nil(t, w.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}}))
+		require.Nil(t, w.Update(tea.KeyPressMsg{Code: r, Text: string(r)}))
 	}
-	require.Nil(t, w.Update(tea.KeyMsg{Type: tea.KeyEnter}))
+	require.Nil(t, w.Update(tea.KeyPressMsg{Code: tea.KeyEnter}))
 
 	// The full View includes the status bar at the bottom.
 	_ = w.Update(tea.WindowSizeMsg{Width: 200, Height: 60})
-	view := w.View()
+	view := w.View().Content
 	require.Contains(t, view, "Overview:")
 	require.Contains(t, view, "loss")
 }
@@ -524,17 +537,17 @@ func TestWorkspace_OverviewFilter_LivePreviewDuringInput(t *testing.T) {
 	// During filter input, the status bar should show the live prompt.
 	require.Nil(t, w.Update(keyRune('o')))
 	for _, r := range "ep" {
-		require.Nil(t, w.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}}))
+		require.Nil(t, w.Update(tea.KeyPressMsg{Code: r, Text: string(r)}))
 	}
 
 	// While still in filter mode, check the view.
 	_ = w.Update(tea.WindowSizeMsg{Width: 200, Height: 60})
-	view := w.View()
+	view := w.View().Content
 	require.Contains(t, view, "Overview filter")
 	require.Contains(t, view, "ep")
 
 	// Cancel to clean up.
-	require.Nil(t, w.Update(tea.KeyMsg{Type: tea.KeyEsc}))
+	require.Nil(t, w.Update(tea.KeyPressMsg{Code: tea.KeyEsc}))
 }
 
 func TestWorkspace_OverviewFilter_PriorityOverMetricsFilter(t *testing.T) {
@@ -553,5 +566,141 @@ func TestWorkspace_OverviewFilter_PriorityOverMetricsFilter(t *testing.T) {
 		"'/' should appear as typed text in the overview filter draft")
 
 	// Escape out.
-	require.Nil(t, w.Update(tea.KeyMsg{Type: tea.KeyEsc}))
+	require.Nil(t, w.Update(tea.KeyPressMsg{Code: tea.KeyEsc}))
+}
+
+func TestWorkspace_RunsFilterMode_ConsumesQuit(t *testing.T) {
+	w := newWorkspaceWithPanels(t)
+
+	require.Nil(t, w.Update(keyRune('f')))
+	require.True(t, w.TestRunsFilterMode(),
+		"expected runs filter mode active after 'f'")
+	require.True(t, w.IsFiltering(),
+		"expected IsFiltering true during runs filter input")
+
+	// While runs filter is active, 'q' should be consumed as filter text.
+	require.Nil(t, w.Update(keyRune('q')))
+	require.True(t, w.TestRunsFilterMode(),
+		"runs filter should still be active after 'q'")
+	require.Equal(t, "q", w.TestRunsFilterQuery())
+
+	require.Nil(t, w.Update(tea.KeyPressMsg{Code: tea.KeyEsc}))
+	require.False(t, w.TestRunsFilterMode(),
+		"runs filter should be inactive after Esc")
+}
+
+func TestWorkspace_RunsFilter_ProjectAndConfig(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+
+	wandbDir := t.TempDir()
+	w := leet.NewWorkspace(wandbDir, cfg, logger)
+	_ = w.Update(tea.WindowSizeMsg{Width: 200, Height: 60})
+
+	run1 := "run-20260209_010101-vision01"
+	run2 := "run-20260209_010102-nlp0002"
+	_ = w.Update(leet.WorkspaceRunDirsMsg{RunKeys: []string{run1, run2}})
+
+	_ = w.Update(leet.WorkspaceRunOverviewPreloadedMsg{
+		RunKey: run1,
+		Run: leet.RunMsg{
+			ID:          "vision01",
+			DisplayName: "resnet50",
+			Project:     "vision",
+			Config: &spb.ConfigRecord{Update: []*spb.ConfigItem{
+				{NestedKey: []string{"lr"}, ValueJson: "0.001"},
+				{NestedKey: []string{"optimizer"}, ValueJson: `"adamw"`},
+			}},
+		},
+	})
+	_ = w.Update(leet.WorkspaceRunOverviewPreloadedMsg{
+		RunKey: run2,
+		Run: leet.RunMsg{
+			ID:          "nlp0002",
+			DisplayName: "bert-debug",
+			Project:     "nlp",
+			Config: &spb.ConfigRecord{Update: []*spb.ConfigItem{
+				{NestedKey: []string{"lr"}, ValueJson: "0.01"},
+				{NestedKey: []string{"optimizer"}, ValueJson: `"sgd"`},
+			}},
+		},
+	})
+
+	require.Nil(t, w.Update(keyRune('f')))
+	typeWorkspaceFilter(t, w, "project:vision cfg.lr>=1e-3 cfg.optimizer=adamw")
+	require.Nil(t, w.Update(tea.KeyPressMsg{Code: tea.KeyEnter}))
+
+	require.True(t, w.TestRunsFiltering())
+	require.Equal(t, "project:vision cfg.lr>=1e-3 cfg.optimizer=adamw", w.TestRunsFilterQuery())
+	require.Equal(t, []string{run1}, w.TestFilteredRunKeys())
+
+	view := w.View().Content
+	require.Contains(t, view, "filtered from 2 total")
+	require.Contains(t, view, "Runs (")
+}
+
+func TestWorkspace_RunsFilter_UpdatesWhenMetadataPreloadsArrive(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+
+	w := leet.NewWorkspace(t.TempDir(), cfg, logger)
+	_ = w.Update(tea.WindowSizeMsg{Width: 160, Height: 50})
+
+	runKey := "run-20260209_010101-vision01"
+	_ = w.Update(leet.WorkspaceRunDirsMsg{RunKeys: []string{runKey}})
+
+	require.Nil(t, w.Update(keyRune('f')))
+	typeWorkspaceFilter(t, w, "project:vision")
+	require.Empty(t, w.TestFilteredRunKeys(),
+		"project filter should not match before metadata is preloaded")
+
+	_ = w.Update(leet.WorkspaceRunOverviewPreloadedMsg{
+		RunKey: runKey,
+		Run:    leet.RunMsg{ID: "vision01", Project: "vision", DisplayName: "baseline"},
+	})
+
+	require.Equal(t, []string{runKey}, w.TestFilteredRunKeys(),
+		"preloaded metadata should immediately update the visible runs")
+}
+
+func TestWorkspace_RunsFilter_PriorityOverMetricsFilter(t *testing.T) {
+	w := newWorkspaceWithPanels(t)
+
+	require.Nil(t, w.Update(keyRune('f')))
+	require.True(t, w.TestRunsFilterMode())
+
+	// '/' should be consumed as typed text, not enter metrics filter mode.
+	require.Nil(t, w.Update(keyRune('/')))
+	require.True(t, w.TestRunsFilterMode())
+	require.Equal(t, "/", w.TestRunsFilterQuery())
+
+	require.Nil(t, w.Update(tea.KeyPressMsg{Code: tea.KeyEsc}))
+}
+
+func TestWorkspace_RunsFilter_Clear(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+	w := leet.NewWorkspace(t.TempDir(), cfg, logger)
+	_ = w.Update(tea.WindowSizeMsg{Width: 160, Height: 50})
+
+	run1 := "run-20260209_010101-vision01"
+	run2 := "run-20260209_010102-nlp0002"
+	_ = w.Update(leet.WorkspaceRunDirsMsg{RunKeys: []string{run1, run2}})
+	_ = w.Update(leet.WorkspaceRunOverviewPreloadedMsg{
+		RunKey: run1,
+		Run:    leet.RunMsg{ID: "vision01", Project: "vision"},
+	})
+	_ = w.Update(leet.WorkspaceRunOverviewPreloadedMsg{
+		RunKey: run2,
+		Run:    leet.RunMsg{ID: "nlp0002", Project: "nlp"},
+	})
+
+	require.Nil(t, w.Update(keyRune('f')))
+	typeWorkspaceFilter(t, w, "project:vision")
+	require.Nil(t, w.Update(tea.KeyPressMsg{Code: tea.KeyEnter}))
+	require.Equal(t, []string{run1}, w.TestFilteredRunKeys())
+
+	require.Nil(t, w.Update(tea.KeyPressMsg{Code: 'f', Mod: tea.ModCtrl}))
+	require.False(t, w.TestRunsFiltering())
+	require.Equal(t, []string{run1, run2}, w.TestFilteredRunKeys())
 }

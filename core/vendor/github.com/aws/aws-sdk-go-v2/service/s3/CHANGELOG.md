@@ -1,3 +1,7 @@
+# v1.96.4 (2026-03-05)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+
 # v1.96.3 (2026-03-03)
 
 * **Bug Fix**: Modernize non codegen files with go fix
