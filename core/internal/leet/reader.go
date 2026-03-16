@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/wandb/wandb/core/internal/observability"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
@@ -45,7 +45,7 @@ func NewWandbReader(runPath string, logger *observability.CoreLogger) (*WandbRea
 func (r *WandbReader) ReadAllRecordsChunked() tea.Msg {
 	if r == nil {
 		// No reader available; no-op to keep Bubble Tea flow consistent.
-		return func() tea.Msg { return nil }
+		return nil
 	}
 	const chunkSize = 1000
 	const maxTimePerChunk = 100 * time.Millisecond
@@ -155,7 +155,7 @@ func (r *WandbReader) ConcatenateSummary(messages []SummaryMsg) SummaryMsg {
 func (reader *WandbReader) ReadAvailableRecords() tea.Msg {
 	// No reader? Nothing to do.
 	if reader == nil {
-		return func() tea.Msg { return nil }
+		return nil
 	}
 
 	var msgs []tea.Msg

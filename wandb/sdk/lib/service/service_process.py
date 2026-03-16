@@ -21,16 +21,62 @@ if TYPE_CHECKING:
     from wandb.sdk.wandb_settings import Settings
 
 
+DEFAULT_DETACHED_IDLE_TIMEOUT = "10m"
+
+
 def start(settings: Settings) -> ServiceProcess:
     """Start the internal service process.
 
     Returns:
         A handle to the process.
     """
+    return _start(
+        settings,
+        detached=False,
+        idle_timeout=None,
+    )
+
+
+def start_detached(
+    settings: Settings,
+    *,
+    idle_timeout: str = DEFAULT_DETACHED_IDLE_TIMEOUT,
+) -> ServiceProcess:
+    """Start the internal service process in detached mode.
+
+    In detached mode, the service process does not automatically exit when the
+    starting process exits.
+
+    Args:
+        settings: SDK settings.
+        idle_timeout: How long the service should stay alive with no connected
+            clients before shutting down. This uses Go duration syntax, for
+            example ``30s`` or ``10m``. Use ``0`` to disable idle shutdown.
+
+    Returns:
+        A handle to the process.
+    """
+    return _start(
+        settings,
+        detached=True,
+        idle_timeout=idle_timeout,
+    )
+
+
+def _start(
+    settings: Settings,
+    *,
+    detached: bool,
+    idle_timeout: str | None,
+) -> ServiceProcess:
     get_sentry().configure_scope(tags=dict(settings), process_context="service")
 
     try:
-        return _launch_server(settings)
+        return _launch_server(
+            settings,
+            detached=detached,
+            idle_timeout=idle_timeout,
+        )
     except Exception as e:
         get_sentry().reraise(e)
 
@@ -57,7 +103,12 @@ class ServiceProcess:
         return self._process.wait()
 
 
-def _launch_server(settings: Settings) -> ServiceProcess:
+def _launch_server(
+    settings: Settings,
+    *,
+    detached: bool,
+    idle_timeout: str | None,
+) -> ServiceProcess:
     """Launch server and set ports."""
     if platform.system() == "Windows":
         creationflags: int = subprocess.CREATE_NEW_PROCESS_GROUP  # type: ignore[attr-defined]
@@ -77,7 +128,7 @@ def _launch_server(settings: Settings) -> ServiceProcess:
         except WandbCoreNotAvailableError as e:
             get_sentry().reraise(e)
 
-        service_args.extend([core_path])
+        service_args.append(core_path)
 
         if not error_reporting_enabled():
             service_args.append("--no-observability")
@@ -91,6 +142,9 @@ def _launch_server(settings: Settings) -> ServiceProcess:
         service_args.extend(["--port-filename", str(port_file)])
         service_args.extend(["--pid", pid])
 
+        if detached:
+            service_args.extend(["--detached", "--idle-timeout", idle_timeout or "0"])
+
         if not ipc_support.SUPPORTS_UNIX:
             service_args.append("--listen-on-localhost")
 
@@ -100,6 +154,9 @@ def _launch_server(settings: Settings) -> ServiceProcess:
             close_fds=True,
             creationflags=creationflags,
             start_new_session=start_new_session,
+            stdin=subprocess.DEVNULL if detached else None,
+            stdout=subprocess.DEVNULL if detached else None,
+            stderr=subprocess.DEVNULL if detached else None,
         )
 
         token = service_port_file.poll_for_token(

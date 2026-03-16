@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"strings"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 )
 
 // HandleFilterKey processes a key event while the overview filter is active.
-func (s *RunOverviewSidebar) HandleFilterKey(msg tea.KeyMsg) {
+func (s *RunOverviewSidebar) HandleFilterKey(msg tea.KeyPressMsg) {
 	if s.filter.HandleKey(msg) {
 		s.ApplyFilter()
 		s.updateSectionHeights()
@@ -21,7 +21,7 @@ func (s *RunOverviewSidebar) EnterFilterMode() {
 }
 
 // UpdateFilterDraft updates the in‑progress filter text (for live preview).
-func (s *RunOverviewSidebar) UpdateFilterDraft(msg tea.KeyMsg) {
+func (s *RunOverviewSidebar) UpdateFilterDraft(msg tea.KeyPressMsg) {
 	s.filter.UpdateDraft(msg)
 }
 

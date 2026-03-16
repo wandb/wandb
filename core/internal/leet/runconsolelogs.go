@@ -53,6 +53,11 @@ type RunConsoleLogs struct {
 	// lines is the assembled, ordered log output. Lines from both
 	// streams are interleaved in arrival order.
 	lines []ConsoleLogLine
+
+	// items mirrors lines in the KeyValuePair shape expected by ConsoleLogsPane.
+	// It is updated incrementally so View does not need to reformat every line on
+	// every render.
+	items []KeyValuePair
 }
 
 // NewRunConsoleLogs creates an empty console log store with terminal
@@ -88,10 +93,16 @@ func (cl *RunConsoleLogs) ProcessRaw(text string, isStderr bool, ts time.Time) {
 	}
 }
 
-// Items converts the assembled lines into [KeyValuePair] items suitable
-// for display in a [PagedList]. Keys are compact timestamps (HH:MM:SS),
-// values are the line content.
+// Items returns the assembled lines in [KeyValuePair] form.
+//
+// Callers must treat the returned slice as read-only.
 func (cl *RunConsoleLogs) Items() []KeyValuePair {
+	if len(cl.items) == len(cl.lines) {
+		return cl.items
+	}
+
+	// Defensive rebuild for any future code path that
+	// mutates lines without going through appendLine/onLineChanged.
 	items := make([]KeyValuePair, len(cl.lines))
 	for i, line := range cl.lines {
 		items[i] = KeyValuePair{
@@ -99,7 +110,8 @@ func (cl *RunConsoleLogs) Items() []KeyValuePair {
 			Value: line.Content,
 		}
 	}
-	return items
+	cl.items = items
+	return cl.items
 }
 
 // appendLine is called by the line supplier when a new terminal line is
@@ -110,6 +122,9 @@ func (cl *RunConsoleLogs) appendLine(isStderr bool) int {
 		Timestamp: cl.currentTimestamp,
 		IsStderr:  isStderr,
 	})
+	cl.items = append(cl.items, KeyValuePair{
+		Key: cl.currentTimestamp.Format(consoleTimestampFormat),
+	})
 	return idx
 }
 
@@ -119,7 +134,11 @@ func (cl *RunConsoleLogs) onLineChanged(idx int, content []rune) {
 	if idx < 0 || idx >= len(cl.lines) {
 		return
 	}
-	cl.lines[idx].Content = strings.TrimRight(string(content), " \t")
+	value := strings.TrimRight(string(content), " \t")
+	cl.lines[idx].Content = value
+	if idx < len(cl.items) {
+		cl.items[idx].Value = value
+	}
 }
 
 // ---- Terminal emulator integration ----

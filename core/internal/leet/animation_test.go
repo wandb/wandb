@@ -99,3 +99,23 @@ func TestAnimatedValue_SetExpanded_DoesNotSnapWhenCollapsed(t *testing.T) {
 	require.False(t, anim.IsVisible())
 	require.Equal(t, 0, anim.Value())
 }
+
+func TestAnimatedValue_SetExpanded_DuringAnimation_RebasesSmoothly(t *testing.T) {
+	anim := leet.NewAnimatedValue(false, 40)
+	now := time.Now()
+
+	anim.Toggle()
+	anim.Update(now.Add(40 * time.Millisecond))
+	partial := anim.Value()
+	require.Greater(t, partial, 0)
+	require.Less(t, partial, 40)
+
+	anim.SetExpanded(80)
+	anim.Update(now.Add(60 * time.Millisecond))
+	require.GreaterOrEqual(t, anim.Value(), partial)
+	require.LessOrEqual(t, anim.Value(), 80)
+
+	anim.Update(now.Add(2 * leet.AnimationDuration))
+	require.Equal(t, 80, anim.Value())
+	require.True(t, anim.IsExpanded())
+}

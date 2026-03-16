@@ -38,10 +38,9 @@ global___ErrorType = ErrorType
 
 @typing.final
 class ServerApiInitRequest(google.protobuf.message.Message):
-    """ServerApiInitRequest instructs the backend process
-    to initialize resources to handle ApiRequests.
+    """Initialize an API instance for the given settings.
 
-    This should be sent once prior to sending any ApiRequests.
+    ServerApiCleanupRequest should be used once the instance is no longer needed.
     """
 
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
@@ -60,71 +59,50 @@ class ServerApiInitRequest(google.protobuf.message.Message):
 global___ServerApiInitRequest = ServerApiInitRequest
 
 @typing.final
+class ServerApiInitResponse(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    ERROR_MESSAGE_FIELD_NUMBER: builtins.int
+    API_ID_FIELD_NUMBER: builtins.int
+    error_message: builtins.str
+    api_id: builtins.str
+    """An ID to use in ApiRequests to this API instance."""
+    def __init__(
+        self,
+        *,
+        error_message: builtins.str = ...,
+        api_id: builtins.str = ...,
+    ) -> None: ...
+    def ClearField(self, field_name: typing.Literal["api_id", b"api_id", "error_message", b"error_message"]) -> None: ...
+
+global___ServerApiInitResponse = ServerApiInitResponse
+
+@typing.final
 class ApiRequest(google.protobuf.message.Message):
-    """ApiRequest is a request to the backend process
-    to perform an action related to an API call.
-    """
+    """Make a request to an initialized API instance."""
 
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
-    ID_FIELD_NUMBER: builtins.int
+    API_ID_FIELD_NUMBER: builtins.int
     READ_RUN_HISTORY_REQUEST_FIELD_NUMBER: builtins.int
-    id: builtins.str
+    api_id: builtins.str
+    """The ID of the API instance from the init response."""
     @property
     def read_run_history_request(self) -> global___ReadRunHistoryRequest: ...
     def __init__(
         self,
         *,
-        id: builtins.str = ...,
+        api_id: builtins.str = ...,
         read_run_history_request: global___ReadRunHistoryRequest | None = ...,
     ) -> None: ...
     def HasField(self, field_name: typing.Literal["read_run_history_request", b"read_run_history_request", "request", b"request"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing.Literal["id", b"id", "read_run_history_request", b"read_run_history_request", "request", b"request"]) -> None: ...
+    def ClearField(self, field_name: typing.Literal["api_id", b"api_id", "read_run_history_request", b"read_run_history_request", "request", b"request"]) -> None: ...
     def WhichOneof(self, oneof_group: typing.Literal["request", b"request"]) -> typing.Literal["read_run_history_request"] | None: ...
 
 global___ApiRequest = ApiRequest
 
 @typing.final
-class ServerApiInitResponse(google.protobuf.message.Message):
-    DESCRIPTOR: google.protobuf.descriptor.Descriptor
-
-    ERROR_MESSAGE_FIELD_NUMBER: builtins.int
-    ID_FIELD_NUMBER: builtins.int
-    error_message: builtins.str
-    id: builtins.str
-    def __init__(
-        self,
-        *,
-        error_message: builtins.str = ...,
-        id: builtins.str = ...,
-    ) -> None: ...
-    def ClearField(self, field_name: typing.Literal["error_message", b"error_message", "id", b"id"]) -> None: ...
-
-global___ServerApiInitResponse = ServerApiInitResponse
-
-@typing.final
-class ServerApiCleanupRequest(google.protobuf.message.Message):
-    """ServerApiCleanupRequest instructs the backend process
-    to cleanup API resources associated with an id.
-    """
-
-    DESCRIPTOR: google.protobuf.descriptor.Descriptor
-
-    ID_FIELD_NUMBER: builtins.int
-    id: builtins.str
-    def __init__(
-        self,
-        *,
-        id: builtins.str = ...,
-    ) -> None: ...
-    def ClearField(self, field_name: typing.Literal["id", b"id"]) -> None: ...
-
-global___ServerApiCleanupRequest = ServerApiCleanupRequest
-
-@typing.final
 class ApiResponse(google.protobuf.message.Message):
-    """ApiResponse is a response from the backend process for an ApiRequest."""
-
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
     READ_RUN_HISTORY_RESPONSE_FIELD_NUMBER: builtins.int
@@ -164,6 +142,26 @@ class ApiErrorResponse(google.protobuf.message.Message):
     def WhichOneof(self, oneof_group: typing.Literal["_error_type", b"_error_type"]) -> typing.Literal["error_type"] | None: ...
 
 global___ApiErrorResponse = ApiErrorResponse
+
+@typing.final
+class ServerApiCleanupRequest(google.protobuf.message.Message):
+    """Remove the API instance identified by an ID.
+
+    This requests receives no response.
+    """
+
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    API_ID_FIELD_NUMBER: builtins.int
+    api_id: builtins.str
+    def __init__(
+        self,
+        *,
+        api_id: builtins.str = ...,
+    ) -> None: ...
+    def ClearField(self, field_name: typing.Literal["api_id", b"api_id"]) -> None: ...
+
+global___ServerApiCleanupRequest = ServerApiCleanupRequest
 
 @typing.final
 class ReadRunHistoryRequest(google.protobuf.message.Message):

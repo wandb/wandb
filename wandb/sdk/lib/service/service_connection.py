@@ -111,6 +111,15 @@ class ServiceConnection:
         self._torn_down = False
         self._cleanup = cleanup
 
+    @property
+    def owns_service(self) -> bool:
+        """Whether this connection owns the wandb-core service process.
+
+        If True, teardown() will shut down the service process. If False, the
+        service process is externally managed (e.g. via WANDB_SERVICE).
+        """
+        return self._proc is not None
+
     def make_interface(self, stream_id: str) -> InterfaceBase:
         """Returns an interface for communicating with the service."""
         return InterfaceSock(
@@ -194,7 +203,7 @@ class ServiceConnection:
     def api_cleanup_request(self, api_id: str) -> None:
         """Tells wandb-core to cleanup API resources."""
         api_cleanup_request = wandb_api_pb2.ServerApiCleanupRequest(
-            id=api_id,
+            api_id=api_id,
         )
         request = spb.ServerRequest(api_cleanup_request=api_cleanup_request)
         self._asyncer.run(lambda: self._client.publish(request))

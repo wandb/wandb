@@ -31,7 +31,9 @@ func writeLE[T fixedLenTypes](enc *encoder, in []T) {
 	case parquet.Int96:
 		enc.append(getBytes(in))
 	default:
-		binary.Write(enc.sink, binary.LittleEndian, in)
+		if err := binary.Write(enc.sink, binary.LittleEndian, in); err != nil {
+			panic(err)
+		}
 	}
 }
 
@@ -42,6 +44,8 @@ func copyFrom[T fixedLenTypes](dst []T, src []byte) {
 		copy(dst, fromBytes[T](src))
 	default:
 		r := bytes.NewReader(src)
-		binary.Read(r, binary.LittleEndian, dst)
+		if err := binary.Read(r, binary.LittleEndian, dst); err != nil {
+			panic(err)
+		}
 	}
 }
