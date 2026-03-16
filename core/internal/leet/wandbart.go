@@ -21,6 +21,7 @@ const (
 	brandArtGradientSolid brandArtGradient = iota
 	brandArtGradientHorizontal
 	brandArtGradientDiagonal
+	brandArtGradientVertical
 )
 
 type brandArtPreset string
@@ -30,16 +31,26 @@ const (
 	brandArtSoftShadow   brandArtPreset = "soft-shadow"
 	brandArtSplitBrand   brandArtPreset = "split-brand"
 	brandArtAurora       brandArtPreset = "aurora"
+	brandArtEmbossed     brandArtPreset = "embossed"
 )
 
 // Change this single line to try the different looks.
-const defaultBrandArtPreset = brandArtSplitBrand
+const defaultBrandArtPreset = brandArtEmbossed
 
 type brandArtStyle struct {
 	Palette     []compat.AdaptiveColor
 	Gradient    brandArtGradient
 	Shadow      bool
 	ShadowColor compat.AdaptiveColor
+
+	// ShadowGlyph overrides the character used for shadow cells.
+	// Zero means reuse the source glyph (legacy behavior).
+	ShadowGlyph rune
+
+	// Highlight marks top-edge glyph cells (those with no glyph above)
+	// and renders them in HighlightColor for a top-lit shine effect.
+	Highlight      bool
+	HighlightColor compat.AdaptiveColor
 }
 
 type brandArtPresetConfig struct {
@@ -55,6 +66,7 @@ const (
 	brandArtCellEmpty brandArtCellKind = iota
 	brandArtCellGlyph
 	brandArtCellShadow
+	brandArtCellHighlight
 )
 
 type brandArtCell struct {
@@ -105,7 +117,25 @@ var (
 		ac("#10BFCC", "#D8FAFF"),
 	}
 
-	brandArtShadowColor = ac("#D2D2D2", "#20242B")
+	// Richer gold gradient for the embossed look (warm → hot).
+	brandArtEmberPalette = []compat.AdaptiveColor{
+		ac("#C47500", "#FFD06A"),
+		ac("#D18600", "#FFB84D"),
+		ac("#DC9500", "#FFA533"),
+		ac("#E8A020", "#FF9518"),
+	}
+
+	// Vivid teal-to-cyan gradient for LEET in the embossed look.
+	brandArtElectricTealPalette = []compat.AdaptiveColor{
+		ac("#087878", "#5CE0D6"),
+		ac("#0A9090", "#6EEAE2"),
+		ac("#0CACAC", "#88F4EE"),
+		ac("#10C8C8", "#AAFAF6"),
+	}
+
+	brandArtShadowColor   = ac("#D2D2D2", "#20242B")
+	brandArtHighlightGold = ac("#FFF5D6", "#FFF0B8")
+	brandArtHighlightCyan = ac("#D6FFFE", "#D8FAFF")
 )
 
 var brandArtPresets = map[brandArtPreset]brandArtPresetConfig{
@@ -168,6 +198,31 @@ var brandArtPresets = map[brandArtPreset]brandArtPresetConfig{
 		InlineGap:  3,
 		StackedGap: 1,
 	},
+
+	// Embossed: top-edge highlights, soft ░ shadows, vivid split-brand colors.
+	// Creates a raised, lit-from-above dimensional look.
+	brandArtEmbossed: {
+		Wandb: brandArtStyle{
+			Palette:        brandArtEmberPalette,
+			Gradient:       brandArtGradientHorizontal,
+			Shadow:         true,
+			ShadowColor:    brandArtShadowColor,
+			ShadowGlyph:    '░',
+			Highlight:      true,
+			HighlightColor: brandArtHighlightGold,
+		},
+		Leet: brandArtStyle{
+			Palette:        brandArtElectricTealPalette,
+			Gradient:       brandArtGradientHorizontal,
+			Shadow:         true,
+			ShadowColor:    brandArtShadowColor,
+			ShadowGlyph:    '░',
+			Highlight:      true,
+			HighlightColor: brandArtHighlightCyan,
+		},
+		InlineGap:  3,
+		StackedGap: 1,
+	},
 }
 
 var (
@@ -211,7 +266,7 @@ func renderBrandArtBlock(raw string, style brandArtStyle) string {
 		}
 	}
 
-	grid := buildBrandArtGrid(splitArtLines(raw), style.Shadow)
+	grid := buildBrandArtGrid(splitArtLines(raw), style.Shadow, style.Highlight)
 	return styleBrandArtGrid(grid, style)
 }
 
@@ -219,7 +274,7 @@ func splitArtLines(raw string) []string {
 	return strings.Split(strings.Trim(raw, "\n"), "\n")
 }
 
-func buildBrandArtGrid(lines []string, withShadow bool) brandArtGrid {
+func buildBrandArtGrid(lines []string, withShadow, withHighlight bool) brandArtGrid {
 	artWidth := 1
 	for _, line := range lines {
 		artWidth = max(artWidth, lipgloss.Width(line))
@@ -269,6 +324,26 @@ func buildBrandArtGrid(lines []string, withShadow bool) brandArtGrid {
 		}
 	}
 
+	// Highlight pass: mark glyph cells on the top edge of each letter shape.
+	// A glyph is a "top edge" if the cell directly above is empty or a shadow.
+	// We check both glyph and highlight kinds because earlier iterations of this
+	// loop may have already promoted cells above to highlights.
+	if withHighlight {
+		for y := 0; y < artHeight; y++ {
+			for x := 0; x < artWidth; x++ {
+				if cells[y][x].kind != brandArtCellGlyph {
+					continue
+				}
+				aboveFilled := y > 0 &&
+					(cells[y-1][x].kind == brandArtCellGlyph ||
+						cells[y-1][x].kind == brandArtCellHighlight)
+				if !aboveFilled {
+					cells[y][x].kind = brandArtCellHighlight
+				}
+			}
+		}
+	}
+
 	return brandArtGrid{
 		cells:     cells,
 		artWidth:  artWidth,
@@ -285,29 +360,36 @@ func styleBrandArtGrid(grid brandArtGrid, style brandArtStyle) string {
 	}
 
 	shadowStyle := lipgloss.NewStyle().Foreground(style.ShadowColor)
+	highlightStyle := lipgloss.NewStyle().
+		Foreground(style.HighlightColor).
+		Bold(true)
+
+	gridWidth := len(grid.cells[0])
 
 	var out strings.Builder
 	for y, row := range grid.cells {
-		last := lastNonEmptyCell(row)
-		if last >= 0 {
-			for x := 0; x <= last; x++ {
-				cell := row[x]
-				switch cell.kind {
-				case brandArtCellGlyph:
-					idx := brandArtPaletteIndex(
-						style.Gradient,
-						x,
-						y,
-						grid.artWidth,
-						grid.artHeight,
-						len(paletteStyles),
-					)
-					out.WriteString(paletteStyles[idx].Render(string(cell.glyph)))
-				case brandArtCellShadow:
-					out.WriteString(shadowStyle.Render(string(cell.glyph)))
-				default:
-					out.WriteByte(' ')
+		// Render every cell up to the grid width for uniform line widths.
+		// This prevents misalignment when lipgloss.Place centers the block.
+		for x := range gridWidth {
+			cell := row[x]
+			switch cell.kind {
+			case brandArtCellHighlight:
+				out.WriteString(highlightStyle.Render(string(cell.glyph)))
+			case brandArtCellGlyph:
+				idx := brandArtPaletteIndex(
+					style.Gradient, x, y,
+					grid.artWidth, grid.artHeight,
+					len(paletteStyles),
+				)
+				out.WriteString(paletteStyles[idx].Render(string(cell.glyph)))
+			case brandArtCellShadow:
+				g := cell.glyph
+				if style.ShadowGlyph != 0 {
+					g = style.ShadowGlyph
 				}
+				out.WriteString(shadowStyle.Render(string(g)))
+			default:
+				out.WriteByte(' ')
 			}
 		}
 		if y < len(grid.cells)-1 {
@@ -316,15 +398,6 @@ func styleBrandArtGrid(grid brandArtGrid, style brandArtStyle) string {
 	}
 
 	return out.String()
-}
-
-func lastNonEmptyCell(row []brandArtCell) int {
-	for i := len(row) - 1; i >= 0; i-- {
-		if row[i].kind != brandArtCellEmpty {
-			return i
-		}
-	}
-	return -1
 }
 
 func brandArtPaletteIndex(
@@ -345,6 +418,9 @@ func brandArtPaletteIndex(
 	case brandArtGradientDiagonal:
 		span := max(width+height-2, 1)
 		return (x + y) * (paletteSize - 1) / span
+	case brandArtGradientVertical:
+		span := max(height-1, 1)
+		return y * (paletteSize - 1) / span
 	default:
 		span := max(width-1, 1)
 		return x * (paletteSize - 1) / span
