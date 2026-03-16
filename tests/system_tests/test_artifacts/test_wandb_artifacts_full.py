@@ -16,7 +16,6 @@ from pytest import MonkeyPatch, mark, raises
 from pytest_mock import MockerFixture
 from wandb import Api, Artifact
 from wandb.errors import CommError
-from wandb.sdk.artifacts._gqlutils import server_features
 from wandb.sdk.artifacts._internal_artifact import InternalArtifact
 from wandb.sdk.artifacts._validators import NAME_MAXLEN, RESERVED_ARTIFACT_TYPE_PREFIX
 from wandb.sdk.artifacts.artifact_file_cache import get_artifact_file_cache
