@@ -99,6 +99,11 @@ func (c *TimeSeriesLineChart) TestShowAll() bool {
 	return c.showAll
 }
 
+// TestFormatXAxisTick exposes system-metric X tick formatting for focused tests.
+func (c *TimeSeriesLineChart) TestFormatXAxisTick(v float64, maxWidth int) string {
+	return c.formatXAxisTick(v, maxWidth)
+}
+
 // TestCurrentPage returns the current grid of charts.
 func (g *SystemMetricsGrid) TestCurrentPage() [][]*TimeSeriesLineChart {
 	return g.currentPage

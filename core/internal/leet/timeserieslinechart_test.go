@@ -131,3 +131,74 @@ func TestAddDataPoint_NamedSeries_CreatesSeriesOnDemand(t *testing.T) {
 	require.Equal(t, 15.0, minimum)
 	require.Equal(t, 70.0, maximum)
 }
+
+func TestFormatXAxisTick_NarrowSystemChartsKeepEndpointLabels(t *testing.T) {
+	def := &leet.MetricDef{
+		Name:       "Apple E-cores Freq",
+		Unit:       leet.UnitMHz,
+		MinY:       0,
+		MaxY:       3000,
+		AutoRange:  true,
+		Percentage: false,
+	}
+	now := time.Unix(1_700_000_000, 0)
+	ch := leet.NewTimeSeriesLineChart(&leet.TimeSeriesLineChartParams{
+		Width:  leet.MinMetricChartWidth,
+		Height: 8,
+		Def:    def,
+		BaseColor: compat.AdaptiveColor{
+			Light: lipgloss.Color("#FF00FF"), Dark: lipgloss.Color("#FF00FF")},
+		ColorProvider: stubColorProvider("#00FF00"),
+		Now:           now,
+	})
+
+	ch.AddDataPoint(leet.DefaultSystemMetricSeriesName, now.Add(-10*time.Minute).Unix(), 990)
+	ch.AddDataPoint(leet.DefaultSystemMetricSeriesName, now.Unix(), 1100)
+
+	viewMin, viewMax := ch.TestViewRange()
+	mid := (viewMin + viewMax) / 2
+
+	require.Empty(t, ch.TestFormatXAxisTick(mid, 3),
+		"narrow charts should suppress interior labels")
+
+	left := ch.TestFormatXAxisTick(viewMin, 3)
+	right := ch.TestFormatXAxisTick(viewMax, 3)
+	require.NotEmpty(t, left)
+	require.NotEmpty(t, right)
+	require.NotEqual(t, "...", left)
+	require.NotEqual(t, "...", right)
+	require.Regexp(t, `^\d{2}:?\d{2}$`, left)
+	require.Regexp(t, `^\d{2}:?\d{2}$`, right)
+}
+
+func TestFormatXAxisTick_WideSystemChartsKeepInteriorLabels(t *testing.T) {
+	def := &leet.MetricDef{
+		Name:       "CPU",
+		Unit:       leet.UnitPercent,
+		MinY:       0,
+		MaxY:       100,
+		AutoRange:  true,
+		Percentage: false,
+	}
+	now := time.Unix(1_700_000_000, 0)
+	ch := leet.NewTimeSeriesLineChart(&leet.TimeSeriesLineChartParams{
+		Width:  80,
+		Height: 12,
+		Def:    def,
+		BaseColor: compat.AdaptiveColor{
+			Light: lipgloss.Color("#FF00FF"), Dark: lipgloss.Color("#FF00FF")},
+		ColorProvider: stubColorProvider("#00FF00"),
+		Now:           now,
+	})
+
+	ch.AddDataPoint(leet.DefaultSystemMetricSeriesName, now.Add(-10*time.Minute).Unix(), 10)
+	ch.AddDataPoint(leet.DefaultSystemMetricSeriesName, now.Unix(), 20)
+
+	viewMin, viewMax := ch.TestViewRange()
+	mid := (viewMin + viewMax) / 2
+
+	label := ch.TestFormatXAxisTick(mid, 6)
+	require.NotEmpty(t, label)
+	require.NotEqual(t, "...", label)
+	require.Regexp(t, `^\d{2}:?\d{2}$`, label)
+}

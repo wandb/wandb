@@ -10,8 +10,9 @@ import (
 )
 
 const (
-	minSystemMetricsRightPad = 2 * time.Second
-	maxSystemMetricsRightPad = 10 * time.Second
+	minSystemMetricsRightPad      = 2 * time.Second
+	maxSystemMetricsRightPad      = 10 * time.Second
+	preferredSystemTimeLabelWidth = len("15:04")
 )
 
 // TimeSeriesLineChart is a time-based system metrics chart.
@@ -356,21 +357,56 @@ func (c *TimeSeriesLineChart) formatXAxisTick(v float64, maxWidth int) string {
 	if !isFinite(v) {
 		return ""
 	}
-	if maxWidth <= 0 {
-		maxWidth = 8
-	}
 
 	ts := time.Unix(int64(math.Round(v)), 0).Local()
 	span := time.Duration(math.Round(c.ViewMaxX()-c.ViewMinX())) * time.Second
+	layouts := systemTimeLayouts(span)
 
-	layouts := []string{"15:04:05", "15:04"}
+	if c.shouldUseEndpointLabels(maxWidth) {
+		if !c.isEndpointTick(v) {
+			return ""
+		}
+		maxWidth = c.endpointXLabelWidth()
+	}
+	if maxWidth <= 0 {
+		maxWidth = preferredSystemTimeLabelWidth
+	}
+
+	return fitTimeLayouts(ts, maxWidth, layouts)
+}
+
+func systemTimeLayouts(span time.Duration) []string {
 	switch {
 	case span >= 48*time.Hour:
-		layouts = []string{"Jan 2 15:04", "Jan 2", "01/02"}
+		return []string{"Jan 2 15:04", "Jan 2", "01/02", "0102"}
 	case span >= time.Hour:
-		layouts = []string{"15:04", "15:04"}
+		return []string{"15:04", "1504"}
+	default:
+		return []string{"15:04:05", "15:04", "1504"}
 	}
-	return fitTimeLayouts(ts, maxWidth, layouts)
+}
+
+func (c *TimeSeriesLineChart) shouldUseEndpointLabels(maxWidth int) bool {
+	return maxWidth > 0 && maxWidth < preferredSystemTimeLabelWidth && c.endpointXLabelWidth() > 0
+}
+
+func (c *TimeSeriesLineChart) endpointXLabelWidth() int {
+	if c.GraphWidth() <= 0 {
+		return 0
+	}
+	return max(c.GraphWidth()/2, 1)
+}
+
+func (c *TimeSeriesLineChart) isEndpointTick(v float64) bool {
+	viewMin := c.ViewMinX()
+	viewMax := c.ViewMaxX()
+	viewRange := viewMax - viewMin
+	if viewRange <= 0 {
+		return true
+	}
+
+	eps := max(c.pixelEpsX(viewRange)*2, viewRange/float64(max(c.XStep(), 1))*0.25)
+	return math.Abs(v-viewMin) <= eps || math.Abs(v-viewMax) <= eps
 }
 
 func (c *TimeSeriesLineChart) formatInspectionLabel(seriesKey string, x, y float64) string {
