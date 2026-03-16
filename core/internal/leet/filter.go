@@ -3,6 +3,7 @@ package leet
 import (
 	"regexp"
 	"strings"
+	"unicode/utf8"
 
 	tea "charm.land/bubbletea/v2"
 )
@@ -77,14 +78,25 @@ func (f *Filter) ToggleMode() {
 func (f *Filter) UpdateDraft(msg tea.KeyPressMsg) {
 	switch msg.Code {
 	case tea.KeyBackspace:
-		if f.draft != "" {
-			f.draft = f.draft[:len(f.draft)-1]
-		}
+		f.draft = trimLastRune(f.draft)
 	case tea.KeySpace:
 		f.draft += " "
 	default:
-		f.draft += msg.Text
+		if msg.Text != "" {
+			f.draft += msg.Text
+		}
 	}
+}
+
+func trimLastRune(s string) string {
+	if s == "" {
+		return s
+	}
+	_, size := utf8.DecodeLastRuneInString(s)
+	if size <= 0 {
+		return s[:len(s)-1]
+	}
+	return s[:len(s)-size]
 }
 
 // HandleKey processes a filter-mode key event, mutating filter state accordingly.
@@ -93,19 +105,33 @@ func (f *Filter) UpdateDraft(msg tea.KeyPressMsg) {
 func (f *Filter) HandleKey(msg tea.KeyPressMsg) bool {
 	switch msg.Code {
 	case tea.KeyEsc:
+		if !f.inputActive {
+			return false
+		}
 		f.Cancel()
+		return true
 	case tea.KeyEnter:
+		if !f.inputActive {
+			return false
+		}
 		f.Commit()
+		return true
 	case tea.KeyTab:
 		f.ToggleMode()
+		return true
 	case tea.KeyBackspace, tea.KeySpace:
-		f.UpdateDraft(msg)
-	default:
-		if msg.Text != "" {
-			f.UpdateDraft(msg)
+		if msg.Code == tea.KeyBackspace && f.draft == "" {
+			return false
 		}
+		f.UpdateDraft(msg)
+		return true
+	default:
+		if msg.Text == "" {
+			return false
+		}
+		f.UpdateDraft(msg)
+		return true
 	}
-	return true
 }
 
 // Query returns the current filter pattern (draft if active, applied otherwise).

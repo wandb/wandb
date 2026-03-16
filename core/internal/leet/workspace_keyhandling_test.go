@@ -676,3 +676,31 @@ func TestWorkspace_RunsFilter_PriorityOverMetricsFilter(t *testing.T) {
 
 	require.Nil(t, w.Update(tea.KeyPressMsg{Code: tea.KeyEsc}))
 }
+
+func TestWorkspace_RunsFilter_Clear(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+	w := leet.NewWorkspace(t.TempDir(), cfg, logger)
+	_ = w.Update(tea.WindowSizeMsg{Width: 160, Height: 50})
+
+	run1 := "run-20260209_010101-vision01"
+	run2 := "run-20260209_010102-nlp0002"
+	_ = w.Update(leet.WorkspaceRunDirsMsg{RunKeys: []string{run1, run2}})
+	_ = w.Update(leet.WorkspaceRunOverviewPreloadedMsg{
+		RunKey: run1,
+		Run:    leet.RunMsg{ID: "vision01", Project: "vision"},
+	})
+	_ = w.Update(leet.WorkspaceRunOverviewPreloadedMsg{
+		RunKey: run2,
+		Run:    leet.RunMsg{ID: "nlp0002", Project: "nlp"},
+	})
+
+	require.Nil(t, w.Update(keyRune('f')))
+	typeWorkspaceFilter(t, w, "project:vision")
+	require.Nil(t, w.Update(tea.KeyPressMsg{Code: tea.KeyEnter}))
+	require.Equal(t, []string{run1}, w.TestFilteredRunKeys())
+
+	require.Nil(t, w.Update(tea.KeyPressMsg{Code: 'f', Mod: tea.ModCtrl}))
+	require.False(t, w.TestRunsFiltering())
+	require.Equal(t, []string{run1, run2}, w.TestFilteredRunKeys())
+}

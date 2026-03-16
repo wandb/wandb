@@ -545,7 +545,9 @@ func (w *Workspace) handleWorkspaceRecord(run *workspaceRun, msg tea.Msg) {
 	case RunMsg:
 		w.getOrCreateRunOverview(run.key).ProcessRunMsg(m)
 		w.indexRunFilterData(run.key, m)
-		w.applyRunFilter()
+		if w.filter.Query() != "" {
+			w.applyRunFilter()
+		}
 		run.state = RunStateRunning
 		w.syncLiveRunState()
 

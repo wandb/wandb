@@ -80,3 +80,25 @@ func TestCompileRunFilterQuery_TextualBooleanAliases(t *testing.T) {
 	data.DisplayName = "debug-run"
 	require.False(t, query.Match(data), "NOT alias should negate the following clause")
 }
+
+func TestCompileRunFilterQuery_ExactMatchDoesNotCoerceNumericLookingIDs(t *testing.T) {
+	data := testRunFilterData()
+	data.ID = "00123"
+	data.Project = "010"
+
+	require.True(t, compileRunFilterQuery("id=00123", FilterModeRegex).Match(data))
+	require.False(t, compileRunFilterQuery("id=123", FilterModeRegex).Match(data))
+
+	require.True(t, compileRunFilterQuery("project=010", FilterModeRegex).Match(data))
+	require.False(t, compileRunFilterQuery("project=10", FilterModeRegex).Match(data))
+}
+
+func TestCompileRunFilterQuery_QuotedTermsAndEscapes(t *testing.T) {
+	data := testRunFilterData()
+	data.DisplayName = `exp "alpha" baseline`
+
+	require.True(t,
+		compileRunFilterQuery(`name:"exp \"alpha\""`, FilterModeRegex).Match(data))
+	require.False(t,
+		compileRunFilterQuery(`name:"exp \"beta\""`, FilterModeRegex).Match(data))
+}

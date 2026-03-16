@@ -311,9 +311,9 @@ func parseRunFilterField(raw string) (runFilterField, bool) {
 	}
 
 	switch field {
-	case "name", "run":
+	case "run":
 		return runFilterField{kind: runFilterFieldName}, true
-	case "display", "display_name":
+	case "name", "display", "display_name":
 		return runFilterField{kind: runFilterFieldDisplay}, true
 	case "key", "run_key", "path":
 		return runFilterField{kind: runFilterFieldKey}, true
@@ -383,8 +383,6 @@ func runFilterPatternMatch(
 ) bool {
 	switch field.kind {
 	case runFilterFieldName:
-		return runFilterMatchAny(matcher, data.RunKey, data.DisplayName)
-	case runFilterFieldDisplay:
 		return runFilterMatchAny(matcher, data.DisplayName)
 	case runFilterFieldKey:
 		return runFilterMatchAny(matcher, data.RunKey)
@@ -440,8 +438,6 @@ func runFilterExactMismatch(data workspaceRunFilterData, field runFilterField, r
 func runFilterExactCandidates(data workspaceRunFilterData, field runFilterField) []string {
 	switch field.kind {
 	case runFilterFieldName:
-		return runFilterNonEmptyStrings(data.RunKey, data.DisplayName)
-	case runFilterFieldDisplay:
 		return runFilterNonEmptyStrings(data.DisplayName)
 	case runFilterFieldKey:
 		return runFilterNonEmptyStrings(data.RunKey)
@@ -463,14 +459,12 @@ func runFilterExactCandidates(data workspaceRunFilterData, field runFilterField)
 	return nil
 }
 
-// runFilterExactValueEqual compares values case-insensitively and numerically
-// when both sides parse as numbers.
+// runFilterExactValueEqual compares values case-insensitively after trimming
+// surrounding whitespace.
+//
+// Exact operators are intentionally string-based. Numeric semantics belong to
+// >, >=, <, and <= so identifiers like "00123" do not accidentally match "123".
 func runFilterExactValueEqual(got, want string) bool {
-	if gotNum, ok := parseRunFilterNumber(got); ok {
-		if wantNum, ok := parseRunFilterNumber(want); ok {
-			return gotNum == wantNum
-		}
-	}
 	return strings.EqualFold(strings.TrimSpace(got), strings.TrimSpace(want))
 }
 
@@ -530,8 +524,6 @@ func runFilterSingleValue(data workspaceRunFilterData, field runFilterField) (st
 func runFilterFieldExists(data workspaceRunFilterData, field runFilterField) bool {
 	switch field.kind {
 	case runFilterFieldName:
-		return data.RunKey != "" || data.DisplayName != ""
-	case runFilterFieldDisplay:
 		return data.DisplayName != ""
 	case runFilterFieldKey:
 		return data.RunKey != ""
@@ -574,7 +566,7 @@ func canonicalRunFilterPath(path string) string {
 	return strings.ToLower(strings.TrimSpace(path))
 }
 
-// parseRunFilterNumber parses a numeric literal used by exact and comparison
+// parseRunFilterNumber parses a numeric literal used by numeric comparison
 // operators.
 func parseRunFilterNumber(raw string) (float64, bool) {
 	value, err := strconv.ParseFloat(strings.TrimSpace(raw), 64)

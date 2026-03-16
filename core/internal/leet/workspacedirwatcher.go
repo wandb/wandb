@@ -258,7 +258,9 @@ func (w *Workspace) handleWorkspaceRunOverviewPreloaded(
 		ro := w.getOrCreateRunOverview(msg.RunKey)
 		ro.ProcessRunMsg(msg.Run)
 		w.indexRunFilterData(msg.RunKey, msg.Run)
-		w.applyRunFilter()
+		if w.filter.Query() != "" {
+			w.applyRunFilter()
+		}
 		// We don't know the final state of this run after a pre-load.
 		ro.SetRunState(RunStateUnknown)
 	} else if msg.Err != nil && !errors.Is(msg.Err, errRunRecordNotFound) && !os.IsNotExist(msg.Err) {
