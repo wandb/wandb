@@ -41,6 +41,8 @@ const (
 	exitCodeErrorInternal = 1 // some error occurred
 	exitCodeErrorArgs     = 2 // incorrect command-line flags
 
+	defaultDetachedIdleTimeout = 10 * time.Minute
+
 	// exitCodeSignal is used when the program shuts down due to a signal.
 	//
 	// A common convention is to use 128 plus the signal number, but Go's
@@ -64,10 +66,22 @@ func run(args []string) int {
 // serviceMain runs the default W&B SDK core service.
 func serviceMain() int {
 	portFilename := flag.String("port-filename", "port_file.txt",
-		"Specifies the filename where the server will write the port number it uses to "+
-			"communicate with clients.")
+		"Specifies the filename where the server will write the port number it uses to"+
+			" communicate with clients.")
 	pid := flag.Int("pid", 0,
 		"Specifies the process ID (PID) of the external process that spins up this service.")
+	detached := flag.Bool(
+		"detached",
+		false,
+		"Run the service detached from its parent process. In detached mode,"+
+			" the service does not automatically exit when the parent process exits.",
+	)
+	idleTimeout := flag.Duration(
+		"idle-timeout",
+		defaultDetachedIdleTimeout,
+		"If --detached is set, shut down the service after this much idle time"+
+			" with no connected clients. 0 disables the idle shutdown.",
+	)
 	logLevel := flag.Int("log-level", 0,
 		"Specifies the log level to use for logging. -4: debug, 0: info, 4: warn, 8: error.")
 	disableAnalytics := flag.Bool("no-observability", false,
@@ -101,8 +115,13 @@ func serviceMain() int {
 
 	flag.Parse()
 
+	if *idleTimeout < 0 {
+		fmt.Fprintln(os.Stderr, "Error: --idle-timeout must be >= 0")
+		return exitCodeErrorArgs
+	}
+
 	var shutdownOnParentExitEnabled bool
-	if *pid != 0 && *enableOsPidShutdown {
+	if *pid != 0 && *enableOsPidShutdown && !*detached {
 		shutdownOnParentExitEnabled = processlib.ShutdownOnParentExit(*pid)
 	}
 
@@ -143,6 +162,8 @@ func serviceMain() int {
 			"main: starting server",
 			"port-filename", *portFilename,
 			"pid", *pid,
+			"detached", *detached,
+			"idle-timeout", *idleTimeout,
 			"log-level", *logLevel,
 			"disable-analytics", *disableAnalytics,
 			"shutdown-on-parent-exit", shutdownOnParentExitEnabled,
@@ -164,6 +185,8 @@ func serviceMain() int {
 			LoggerPath:          loggerPath,
 			LogLevel:            slog.Level(*logLevel),
 			ParentPID:           *pid,
+			Detached:            *detached,
+			IdleTimeout:         *idleTimeout,
 		},
 	)
 	srvCh := make(chan error, 1)
