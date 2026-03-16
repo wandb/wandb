@@ -94,6 +94,11 @@ func tipsEntries() []HelpEntry {
 	return []HelpEntry{
 		{Key: "Tips", Description: ""},
 		{Key: "wandb beta leet config", Description: "Open the interactive config editor"},
+		{Key: "Runs filter", Description: "Bare terms search run key/name/id/project. " +
+			"Qualifiers: project:, name:, id:, config:, cfg.<path>:, has:. " +
+			"Boolean: space/AND, OR or |, -/!/NOT."},
+		{Key: "Runs filter example",
+			Description: "project:vision cfg.lr>=1e-3 -name:debug | project:nlp"},
 		blankLine,
 	}
 }

@@ -485,10 +485,15 @@ func (r *Run) buildActiveStatus() string {
 		}
 	}
 
-	// Add focused metric name if a chart is focused.
+	// Add focused chart name if a chart is focused.
 	focusedTitle := r.FocusedTitle()
 	if focusedTitle != "" {
 		parts = append(parts, focusedTitle)
+		if r.focus.Type == FocusSystemChart {
+			if viewMode := r.rightSidebar.FocusedChartViewModeLabel(); viewMode != "" {
+				parts = append(parts, viewMode)
+			}
+		}
 	}
 
 	if len(parts) == 0 {
