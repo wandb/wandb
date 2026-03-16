@@ -2378,18 +2378,18 @@ def docker_run(ctx, docker_run_args):
 
     Pass all arguments through to `docker run` while injecting:
 
-    - `WANDB_API_KEY` — Use the current API key so the container can
-    authenticate with W&B without manual configuration.
-    - `WANDB_DOCKER` — Record the resolved image ID so W&B can track
-    which Docker image produced the run.
+    - `WANDB_API_KEY` — Inject the current API key if logged in so
+      the container can authenticate with W&B.
+    - `WANDB_DOCKER` — Inject the resolved image ID if the image can
+      be detected from the arguments so W&B can track which Docker
+      image produced the run.
 
-    If `nvidia-docker` is detected on the host and `--runtime` is not
-    already set, add `--runtime nvidia` to the command to enable GPU support
-    by default.
+    Add `--runtime nvidia` automatically if `nvidia-docker` is detected
+    on the host and `--runtime` is not already set.
 
     Examples:
-    Run `python train.py` inside the "my-image" container. W&B automatically
-    injects your API key and the resolved image ID.
+
+    Run `python train.py` inside the "my-image" container:
 
         $ wandb docker-run my-image python train.py
     """
@@ -2466,10 +2466,10 @@ def docker(
 ):
     """Run code in a Docker container with W&B configured.
 
-    Start a Docker container, inject `WANDB_DOCKER` and `WANDB_API_KEY`
-    environment variables, and mount the current working directory at
-    `/app` by default. Override the container entrypoint to ensure
-    `wandb` is installed.
+    Start a Docker container, inject the `WANDB_DOCKER` environment
+    variable, and mount the current working directory at `/app` by
+    default. Inject `WANDB_API_KEY` if logged in. Override the
+    container entrypoint to ensure `wandb` is installed.
 
     Pass additional arguments to insert them into `docker run` before
     the image name. Use a default image if none is specified.
@@ -3171,6 +3171,10 @@ def pull(run, project, entity):
     Restore run "abcd1234" in detached HEAD mode instead of creating a branch:
 
         $ wandb restore --no-branch abcd1234
+
+    Restore run "abcd1234" from another team's project:
+
+        $ wandb restore other-team/their-project:abcd1234
     """,
 )
 @click.pass_context
