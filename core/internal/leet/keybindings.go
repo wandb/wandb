@@ -80,12 +80,12 @@ func RunKeyBindings() []BindingCategory[Run] {
 					Handler:     (*Run).handleNextPage,
 				},
 				{
-					Keys:        []string{"alt+N", "alt+pgup"},
+					Keys:        []string{"M", "alt+N", "alt+pgup"},
 					Description: "Previous system metrics page",
 					Handler:     (*Run).handlePrevSystemPage,
 				},
 				{
-					Keys:        []string{"alt+n", "alt+pgdown"},
+					Keys:        []string{"m", "alt+n", "alt+pgdown"},
 					Description: "Next system metrics page",
 					Handler:     (*Run).handleNextSystemPage,
 				},
@@ -105,7 +105,7 @@ func RunKeyBindings() []BindingCategory[Run] {
 					Handler:     (*Run).handleEnterSystemMetricsFilter,
 				},
 				{
-					Keys:        []string{"ctrl+l"},
+					Keys:        []string{"ctrl+/", "ctrl+l"},
 					Description: "Clear metrics filter",
 					Handler:     (*Run).handleClearMetricsFilter,
 				},
@@ -259,6 +259,21 @@ func WorkspaceKeyBindings() []BindingCategory[Workspace] {
 					Keys:        []string{"m"},
 					Description: "Next system metrics page",
 					Handler:     (*Workspace).handleNextSystemMetricsPage,
+				},
+			},
+		},
+		{
+			Name: "Runs",
+			Bindings: []KeyBinding[Workspace]{
+				{
+					Keys:        []string{"f"},
+					Description: "Filter runs by name / metadata",
+					Handler:     (*Workspace).handleEnterRunsFilter,
+				},
+				{
+					Keys:        []string{"ctrl+f"},
+					Description: "Clear runs filter",
+					Handler:     (*Workspace).handleClearRunsFilter,
 				},
 			},
 		},
