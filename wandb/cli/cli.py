@@ -2388,7 +2388,6 @@ def docker_run(ctx, docker_run_args):
     on the host and `--runtime` is not already set.
 
     Examples:
-
     Run `python train.py` inside the "my-image" container:
 
         $ wandb docker-run my-image python train.py
