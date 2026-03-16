@@ -22,6 +22,7 @@ func (g *SystemMetricsGrid) ApplyFilter() {
 	size := g.effectiveGridSize()
 	g.nav.UpdateTotalPages(len(g.filtered), ItemsPerPage(size))
 	g.LoadCurrentPage()
+	g.drawVisible()
 }
 
 // FilteredChartCount returns the number of charts matching the current filter.
