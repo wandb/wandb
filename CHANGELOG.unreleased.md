@@ -17,10 +17,12 @@ Section headings should be at level 3 (e.g. `### Added`).
 ### Added
 
 - `wandb beta core start|stop` commands to run a detached `wandb-core` service and reuse it across multiple processes via the `WANDB_SERVICE` env var (@dmitryduev in https://github.com/wandb/wandb/pull/11418)
+- Run filtering by metadata in multi-run workspace mode in W&B LEET TUI (`wandb beta leet` command, activate with `f`). (@dmitryduev in https://github.com/wandb/wandb/pull/11497)
 
 ### Changed
 
 - JSON serialization and deserialization now use `orjson` for improved performance (@jacobromero in https://github.com/wandb/wandb/pull/11163)
+- Improved system metrics UX with multi-series overlays, inspection, and live/history zoom in W&B LEET TUI (`wandb beta leet` command) (@dmitryduev in https://github.com/wandb/wandb/pull/11512)
 
 ### Fixed
 
