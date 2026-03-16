@@ -41,6 +41,13 @@ type Workspace struct {
 	// hasLiveRuns caches whether any selected run is in RunStateRunning.
 	hasLiveRuns atomic.Bool
 
+	// selectedLiveRunCount tracks how many selected runs are currently live.
+	//
+	// It is mutated only on the Bubble Tea update goroutine. hasLiveRuns
+	// mirrors whether this count is non-zero for consumers that may read from
+	// other goroutines.
+	selectedLiveRunCount int
+
 	// Run overview for each run keyed by run path.
 	runOverview        map[string]*RunOverview
 	runOverviewSidebar *RunOverviewSidebar
@@ -470,28 +477,37 @@ func (w *Workspace) systemMetricsPaneAnimationCmd() tea.Cmd {
 
 // ---- Run State Helpers ----
 
-// anyRunRunning reports whether any selected run is currently live.
-func (w *Workspace) anyRunRunning() bool {
-	for key, run := range w.runsByKey {
-		if run != nil && run.state == RunStateRunning && w.selectedRuns[key] {
-			return true
-		}
-	}
-	return false
+func (w *Workspace) hasSelectedLiveRuns() bool {
+	return w.selectedLiveRunCount > 0
 }
 
-// syncLiveRunState updates the atomic liveness flag from the authoritative map state.
-//
-// Must be called on the main (Update) goroutine after any change to:
-//   - runsByKey entries (add/remove/state change)
-//   - selectedRuns entries (add/remove)
-//
-// The stored value is read by the HeartbeatManager's timer goroutine.
-func (w *Workspace) syncLiveRunState() {
-	w.hasLiveRuns.Store(w.anyRunRunning())
+// setRunState updates a run's state and keeps the live-run caches in sync.
+func (w *Workspace) setRunState(run *workspaceRun, next RunState) {
+	if run == nil || run.state == next {
+		return
+	}
+
+	wasLive := run.state == RunStateRunning
+	isLive := next == RunStateRunning
+	if wasLive != isLive && w.selectedRuns[run.key] {
+		if isLive {
+			w.selectedLiveRunCount++
+		} else if w.selectedLiveRunCount > 0 {
+			w.selectedLiveRunCount--
+		}
+	}
+
+	run.state = next
+	w.hasLiveRuns.Store(w.hasSelectedLiveRuns())
 }
 
 func (w *Workspace) dropRun(runKey string) {
+	run, ok := w.runsByKey[runKey]
+	if w.selectedRuns[runKey] && ok && run != nil &&
+		run.state == RunStateRunning && w.selectedLiveRunCount > 0 {
+		w.selectedLiveRunCount--
+	}
+
 	delete(w.selectedRuns, runKey)
 
 	// If we removed the pinned run, unpin it.
@@ -499,7 +515,6 @@ func (w *Workspace) dropRun(runKey string) {
 		w.pinnedRun = ""
 	}
 
-	run, ok := w.runsByKey[runKey]
 	if ok && run != nil {
 		if run.wandbPath != "" {
 			w.metricsGrid.RemoveSeries(run.wandbPath)
@@ -513,9 +528,9 @@ func (w *Workspace) dropRun(runKey string) {
 		delete(w.systemMetrics, runKey)
 	}
 
-	w.syncLiveRunState()
+	w.hasLiveRuns.Store(w.hasSelectedLiveRuns())
 
-	if w.heartbeatMgr != nil && !w.anyRunRunning() {
+	if w.heartbeatMgr != nil && !w.hasSelectedLiveRuns() {
 		w.heartbeatMgr.Stop()
 	}
 }

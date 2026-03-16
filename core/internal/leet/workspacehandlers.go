@@ -278,8 +278,8 @@ func (w *Workspace) handleSystemMetricsPaneAnimation(now time.Time) tea.Cmd {
 // ---- UI components Toggle Handlers ----
 
 func (w *Workspace) handleToggleRunsSidebar(msg tea.KeyPressMsg) tea.Cmd {
-	leftWillBeVisible := !w.runsAnimState.IsVisible()
-	rightIsVisible := w.runOverviewSidebar.IsVisible()
+	leftWillBeVisible := !w.runsAnimState.TargetVisible()
+	rightIsVisible := w.runOverviewSidebar.animState.TargetVisible()
 
 	w.resolveFocusAfterVisibilityChange(
 		leftWillBeVisible, rightIsVisible, w.consoleLogsPane.animState.TargetVisible())
@@ -291,8 +291,8 @@ func (w *Workspace) handleToggleRunsSidebar(msg tea.KeyPressMsg) tea.Cmd {
 }
 
 func (w *Workspace) handleToggleOverviewSidebar(msg tea.KeyPressMsg) tea.Cmd {
-	rightWillBeVisible := !w.runOverviewSidebar.IsVisible()
-	leftIsVisible := w.runsAnimState.IsVisible()
+	rightWillBeVisible := !w.runOverviewSidebar.animState.TargetVisible()
+	leftIsVisible := w.runsAnimState.TargetVisible()
 
 	if err := w.config.SetWorkspaceOverviewVisible(rightWillBeVisible); err != nil {
 		w.logger.Error(fmt.Sprintf("workspace: failed to save overview state: %v", err))
@@ -309,14 +309,16 @@ func (w *Workspace) handleToggleOverviewSidebar(msg tea.KeyPressMsg) tea.Cmd {
 
 func (w *Workspace) handleToggleConsoleLogsPane(msg tea.KeyPressMsg) tea.Cmd {
 	bottomWillBeVisible := !w.consoleLogsPane.animState.TargetVisible()
+	leftVisible := w.runsAnimState.TargetVisible()
+	rightVisible := w.runOverviewSidebar.animState.TargetVisible()
+	systemVisible := w.systemMetricsPane.animState.TargetVisible()
 
 	if err := w.config.SetWorkspaceConsoleLogsVisible(bottomWillBeVisible); err != nil {
 		w.logger.Error(fmt.Sprintf("workspace: failed to save console logs state: %v", err))
 	}
 
-	w.resolveFocusAfterVisibilityChange(
-		w.runsAnimState.IsExpanded(), w.runOverviewSidebar.IsExpanded(), bottomWillBeVisible)
-	w.updateMiddlePaneHeights(w.systemMetricsPane.IsExpanded(), bottomWillBeVisible)
+	w.resolveFocusAfterVisibilityChange(leftVisible, rightVisible, bottomWillBeVisible)
+	w.updateMiddlePaneHeights(systemVisible, bottomWillBeVisible)
 	w.consoleLogsPane.Toggle()
 	w.recalculateLayout()
 
@@ -324,8 +326,8 @@ func (w *Workspace) handleToggleConsoleLogsPane(msg tea.KeyPressMsg) tea.Cmd {
 }
 
 func (w *Workspace) handleToggleSystemMetricsPane(tea.KeyPressMsg) tea.Cmd {
-	sysWillBeVisible := !w.systemMetricsPane.IsExpanded()
-	logsVisible := w.consoleLogsPane.IsExpanded()
+	sysWillBeVisible := !w.systemMetricsPane.animState.TargetVisible()
+	logsVisible := w.consoleLogsPane.animState.TargetVisible()
 
 	if err := w.config.SetWorkspaceSystemMetricsVisible(sysWillBeVisible); err != nil {
 		w.logger.Error(fmt.Sprintf("workspace: failed to save system metrics state: %v", err))
@@ -434,8 +436,7 @@ func (w *Workspace) ensureLiveStreaming(run *workspaceRun) tea.Cmd {
 		}
 	}
 
-	w.syncLiveRunState()
-	if w.heartbeatMgr != nil && w.hasLiveRuns.Load() {
+	if w.heartbeatMgr != nil && w.hasSelectedLiveRuns() {
 		w.heartbeatMgr.Start(w.hasLiveRuns.Load)
 	}
 
@@ -552,7 +553,7 @@ func (w *Workspace) handleWorkspaceBatchedRecords(msg WorkspaceBatchedRecordsMsg
 		return w.readAvailableCmd(run)
 	}
 
-	if !w.anyRunRunning() {
+	if w.heartbeatMgr != nil && !w.hasSelectedLiveRuns() {
 		w.heartbeatMgr.Stop()
 	}
 
@@ -568,15 +569,14 @@ func (w *Workspace) handleWorkspaceRecord(run *workspaceRun, msg tea.Msg) {
 		if w.filter.Query() != "" {
 			w.applyRunFilter()
 		}
-		run.state = RunStateRunning
-		w.syncLiveRunState()
+		w.setRunState(run, RunStateRunning)
 
 	case HistoryMsg:
 		w.metricsGrid.ProcessHistory(m)
 		if w.pinnedRun != "" {
 			w.refreshPinnedRun()
 		}
-		if w.hasLiveRuns.Load() {
+		if w.heartbeatMgr != nil && w.hasLiveRuns.Load() {
 			w.heartbeatMgr.Reset(w.hasLiveRuns.Load)
 		}
 
@@ -596,18 +596,16 @@ func (w *Workspace) handleWorkspaceRecord(run *workspaceRun, msg tea.Msg) {
 		w.getOrCreateConsoleLogs(run.key).ProcessRaw(m.Text, m.IsStderr, m.Time)
 
 	case FileCompleteMsg:
-		switch m.ExitCode {
-		case 0:
-			run.state = RunStateFinished
-		default:
-			run.state = RunStateFailed
+		finalState := RunStateFailed
+		if m.ExitCode == 0 {
+			finalState = RunStateFinished
 		}
-		w.getOrCreateRunOverview(run.key).SetRunState(run.state)
-		w.syncLiveRunState()
+		w.setRunState(run, finalState)
+		w.getOrCreateRunOverview(run.key).SetRunState(finalState)
 
 		// No more updates expected for this run; stop its watcher.
 		w.stopWatcher(run)
-		if !w.anyRunRunning() {
+		if w.heartbeatMgr != nil && !w.hasSelectedLiveRuns() {
 			w.heartbeatMgr.Stop()
 		}
 	}
@@ -615,12 +613,13 @@ func (w *Workspace) handleWorkspaceRecord(run *workspaceRun, msg tea.Msg) {
 
 // handleHeartbeat is invoked when the workspace heartbeat timer fires.
 func (w *Workspace) handleHeartbeat() tea.Cmd {
-	if !w.anyRunRunning() {
-		w.heartbeatMgr.Stop()
+	if !w.hasSelectedLiveRuns() {
+		if w.heartbeatMgr != nil {
+			w.heartbeatMgr.Stop()
+		}
 		return w.waitForLiveMsg
 	}
 
-	w.syncLiveRunState()
 	w.heartbeatMgr.Reset(w.hasLiveRuns.Load)
 
 	cmds := []tea.Cmd{w.waitForLiveMsg}
@@ -647,8 +646,7 @@ func (w *Workspace) handleWorkspaceFileChanged(msg WorkspaceFileChangedMsg) tea.
 	}
 
 	// Keep the heartbeat as a safety net when we still have live runs.
-	if w.heartbeatMgr != nil && w.anyRunRunning() {
-		w.syncLiveRunState()
+	if w.heartbeatMgr != nil && w.hasSelectedLiveRuns() {
 		w.heartbeatMgr.Reset(w.hasLiveRuns.Load)
 	}
 

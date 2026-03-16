@@ -113,6 +113,42 @@ func TestWorkspace_HandleWorkspaceInitErr_DropsSelectionAndPinned(t *testing.T) 
 	require.False(t, w.TestPinnedRun() == runKey, "expected pin cleared on init error")
 }
 
+func TestWorkspace_RunDirs_AutoSelectStillRunsWhenNoPreloadsStart(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+	w := leet.NewWorkspace(t.TempDir(), cfg, logger)
+
+	runKey := "run-20260209_010101-abcdefg"
+	_ = w.Update(leet.WorkspaceRunOverviewPreloadedMsg{
+		RunKey: runKey,
+		Run: leet.RunMsg{
+			ID:          "abcdefg",
+			DisplayName: "demo",
+		},
+	})
+
+	_ = w.Update(leet.WorkspaceRunDirsMsg{RunKeys: []string{runKey}})
+
+	require.Equal(t, 1, w.TestSelectedRunCount(),
+		"autoselect should still happen when no overview preload command starts")
+	require.Equal(t, runKey, w.TestPinnedRun())
+}
+
+func TestWorkspace_RunDirs_EmptyFirstScanDoesNotPanic(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+	w := leet.NewWorkspace(t.TempDir(), cfg, logger)
+
+	require.NotPanics(t, func() {
+		_ = w.Update(leet.WorkspaceRunDirsMsg{})
+	})
+
+	runKey := "run-20260209_010101-abcdefg"
+	_ = w.Update(leet.WorkspaceRunDirsMsg{RunKeys: []string{runKey}})
+	require.Equal(t, 1, w.TestSelectedRunCount())
+	require.Equal(t, runKey, w.TestPinnedRun())
+}
+
 // ---- Focus region constants (mirrors focusRegion enum) ----
 
 const (
