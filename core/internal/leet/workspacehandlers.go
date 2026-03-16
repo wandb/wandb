@@ -1050,3 +1050,14 @@ func (w *Workspace) handleConfigSystemRows(tea.KeyPressMsg) tea.Cmd {
 	w.config.SetPendingGridConfig(gridConfigWorkspaceSystemRows)
 	return nil
 }
+
+// handleFocusRuns moves focus to the runs list if it's visible.
+//
+// This gives Esc a natural "return home" feel in workspace mode:
+// wherever focus currently is, Esc snaps it back to the run selector.
+func (w *Workspace) handleFocusRuns(tea.KeyPressMsg) tea.Cmd {
+	if w.runsAnimState.TargetVisible() {
+		w.setFocusRegion(focusRuns, 1)
+	}
+	return nil
+}
