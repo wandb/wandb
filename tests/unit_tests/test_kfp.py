@@ -12,34 +12,28 @@ from kfp import dsl
 from kfp.compiler import Compiler
 from kfp.dsl import Artifact, Dataset, Input, Output
 from wandb.integration.kfp import wandb_log
+from wandb.integration.kfp._patch_utils import full_path_exists
+from wandb.integration.kfp._patch_utils import patch as kfp_patch_fn
+from wandb.integration.kfp._patch_utils import unpatch
 from wandb.integration.kfp.helpers import add_wandb_visualization
-from wandb.integration.kfp.kfp_patch import (
-    _KFP_V2,
-    full_path_exists,
-    patch_kfp,
-    unpatch,
-    unpatch_kfp,
-)
-from wandb.integration.kfp.kfp_patch import patch as kfp_patch_fn
-from wandb.integration.kfp.wandb_logging import wandb_log_v2
-
-# ---------------------------------------------------------------------------
-# Version detection
-# ---------------------------------------------------------------------------
+from wandb.integration.kfp.kfp_patch import _KFP_V2, patch_kfp, unpatch_kfp
+from wandb.integration.kfp.wandb_log_v2 import wandb_log as wandb_log_v2_impl
 
 
 class TestVersionDetection:
     def test_kfp_v2_detected(self):
         assert _KFP_V2 is True
 
-    def test_wandb_log_is_v2(self):
-        """wandb_log should be aliased to wandb_log_v2 when kfp>=2."""
-        assert wandb_log is wandb_log_v2
+    def test_wandb_log_delegates_to_v2(self):
+        """wandb_log should delegate to wandb_log_v2 when kfp>=2."""
 
+        @wandb_log
+        def add(a: float, b: float) -> float:
+            return a + b
 
-# ---------------------------------------------------------------------------
-# Decorator basics (signature, naming, attributes)
-# ---------------------------------------------------------------------------
+        assert hasattr(add, "_wandb_logged")
+        assert add._wandb_logged is True
+
 
 
 class TestWandbLogV2Decorator:
@@ -98,10 +92,6 @@ class TestWandbLogV2Decorator:
         assert "a" in spec.annotations
         assert "b" in spec.annotations
 
-
-# ---------------------------------------------------------------------------
-# Decorator runtime behavior (scalar I/O)
-# ---------------------------------------------------------------------------
 
 
 class TestWandbLogV2ScalarIO:
@@ -212,10 +202,6 @@ class TestWandbLogV2ScalarIO:
         assert mock_run.config["b"] == 10.0
 
 
-# ---------------------------------------------------------------------------
-# Decorator runtime behavior (env vars, grouping)
-# ---------------------------------------------------------------------------
-
 
 class TestWandbLogV2EnvVars:
     @patch("wandb.init")
@@ -319,10 +305,6 @@ class TestWandbLogV2EnvVars:
         assert "LINK_TO_KUBEFLOW" not in mock_run.config
 
 
-# ---------------------------------------------------------------------------
-# Decorator with KFP v2 artifact annotations
-# ---------------------------------------------------------------------------
-
 
 class TestWandbLogV2Artifacts:
     def test_classify_input_artifact(self):
@@ -372,11 +354,12 @@ class TestWandbLogV2Artifacts:
 
         artifact_file = tmp_path / "data.csv"
         artifact_file.write_text("a,b\n1,2\n")
-        mock_artifact_value = MagicMock()
-        mock_artifact_value.path = str(artifact_file)
-        mock_artifact_value.uri = f"gs://bucket/{artifact_file.name}"
+        artifact_value = Dataset(
+            name="data", uri=f"gs://bucket/{artifact_file.name}"
+        )
+        artifact_value.path = str(artifact_file)
 
-        process(data=mock_artifact_value, x=42.0)
+        process(data=artifact_value, x=42.0)
 
         mock_run.use_artifact.assert_called_once()
         mock_run.log.assert_called_once_with({"process": 42.0})
@@ -396,11 +379,12 @@ class TestWandbLogV2Artifacts:
 
         artifact_file = tmp_path / "model.pkl"
         artifact_file.write_text("model-data")
-        mock_artifact_value = MagicMock()
-        mock_artifact_value.path = str(artifact_file)
-        mock_artifact_value.uri = f"gs://bucket/{artifact_file.name}"
+        artifact_value = Artifact(
+            name="model", uri=f"gs://bucket/{artifact_file.name}"
+        )
+        artifact_value.path = str(artifact_file)
 
-        produce(x=1.0, model=mock_artifact_value)
+        produce(x=1.0, model=artifact_value)
 
         mock_run.log_artifact.assert_called_once()
 
@@ -417,11 +401,10 @@ class TestWandbLogV2Artifacts:
         def process(data: Input[Dataset], x: float) -> float:
             return x
 
-        mock_artifact_value = MagicMock()
-        mock_artifact_value.path = "/nonexistent/path/data.csv"
-        mock_artifact_value.uri = "gs://bucket/data.csv"
+        artifact_value = Dataset(name="data", uri="gs://bucket/data.csv")
+        artifact_value.path = "/nonexistent/path/data.csv"
 
-        result = process(data=mock_artifact_value, x=5.0)
+        result = process(data=artifact_value, x=5.0)
 
         assert result == 5.0
         mock_run.use_artifact.assert_not_called()
@@ -462,14 +445,13 @@ class TestWandbLogV2Artifacts:
 
         artifact_file = tmp_path / "data.csv"
         artifact_file.write_text("a,b\n1,2\n")
-        mock_artifact_value = MagicMock()
-        mock_artifact_value.path = str(artifact_file)
-        mock_artifact_value.uri = "gs://bucket/data.csv"
+        artifact_value = Dataset(name="data", uri="gs://bucket/data.csv")
+        artifact_value.path = str(artifact_file)
 
         mock_run.use_artifact.side_effect = RuntimeError("network error")
 
         with patch("wandb.termwarn") as mock_warn:
-            result = process(data=mock_artifact_value, x=7.0)
+            result = process(data=artifact_value, x=7.0)
 
         assert result == 7.0
         mock_warn.assert_called_once()
@@ -490,14 +472,13 @@ class TestWandbLogV2Artifacts:
 
         artifact_file = tmp_path / "model.pkl"
         artifact_file.write_text("model-data")
-        mock_artifact_value = MagicMock()
-        mock_artifact_value.path = str(artifact_file)
-        mock_artifact_value.uri = "gs://bucket/model.pkl"
+        artifact_value = Artifact(name="model", uri="gs://bucket/model.pkl")
+        artifact_value.path = str(artifact_file)
 
         mock_run.log_artifact.side_effect = RuntimeError("upload failed")
 
         with patch("wandb.termwarn") as mock_warn:
-            produce(x=1.0, model=mock_artifact_value)
+            produce(x=1.0, model=artifact_value)
 
         mock_warn.assert_called_once()
         assert "Failed to log output artifact" in mock_warn.call_args[0][0]
@@ -519,10 +500,6 @@ class TestWandbLogV2Artifacts:
         assert result == 3.0
         mock_run.use_artifact.assert_not_called()
 
-
-# ---------------------------------------------------------------------------
-# KFP v2 patching tests
-# ---------------------------------------------------------------------------
 
 
 class TestKfpV2Patching:
@@ -602,10 +579,6 @@ class TestKfpV2Patching:
         assert cmd.count("'wandb'") <= 1
 
 
-# ---------------------------------------------------------------------------
-# Pipeline compilation tests
-# ---------------------------------------------------------------------------
-
 
 class TestPipelineCompilation:
     def test_compile_pipeline_with_wandb_log(self, tmp_path):
@@ -676,10 +649,6 @@ class TestPipelineCompilation:
         assert output.exists()
 
 
-# ---------------------------------------------------------------------------
-# helpers.py
-# ---------------------------------------------------------------------------
-
 
 class TestHelpers:
     def test_add_wandb_visualization(self, tmp_path):
@@ -701,10 +670,6 @@ class TestHelpers:
         assert mock_run.url in output["source"]
         assert "kfp=true" in output["source"]
 
-
-# ---------------------------------------------------------------------------
-# kfp_patch utility functions
-# ---------------------------------------------------------------------------
 
 
 class TestKfpPatchUtilities:

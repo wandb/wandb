@@ -8,6 +8,8 @@ from typing import Callable
 
 import wandb
 
+from ._patch_utils import patch, unpatch
+
 try:
     from kfp import __version__ as kfp_version
     from packaging.version import parse
@@ -16,25 +18,26 @@ try:
 except Exception:
     _KFP_V2 = False
 
+# KFP serializes component code via inspect.getsource and runs it inside a
+# container.  We prepend the wandb decorator source so it is available at
+# container runtime.  The pattern is the same for v1 and v2; only the
+# decorator module differs.
+
 if _KFP_V2:
     try:
         from kfp.dsl import component_factory as _component_factory
 
-        from .wandb_logging import wandb_log_v2
+        from . import wandb_log_v2 as _log_module
 
-        _decorator_code_v2 = inspect.getsource(wandb_log_v2)
-        _decorator_code_v2 = _decorator_code_v2.replace(
-            "def wandb_log_v2(", "def wandb_log(", 1
-        )
-
-        _wandb_logging_extras_v2 = f"""
+        _decorator_code = inspect.getsource(_log_module.wandb_log)
+        _wandb_logging_extras = f"""\
 import os
 import typing
-from typing import NamedTuple
+from typing import Any, NamedTuple
 
 import wandb
 
-{_decorator_code_v2}
+{_decorator_code}
 """
     except Exception:
         wandb.termerror(
@@ -59,10 +62,11 @@ else:
     except ImportError:
         wandb.termerror("kfp not found!  Please `pip install kfp`")
 
-    from .wandb_logging import wandb_log
+    try:
+        from . import wandb_log_v1 as _log_module
 
-    decorator_code = inspect.getsource(wandb_log)
-    wandb_logging_extras = f"""
+        _decorator_code = inspect.getsource(_log_module.wandb_log)
+        _wandb_logging_extras = f"""\
 import typing
 from typing import NamedTuple
 
@@ -75,81 +79,23 @@ from kfp.components import InputPath, OutputPath
 
 import wandb
 
-{decorator_code}
+{_decorator_code}
 """
+    except Exception:
+        _wandb_logging_extras = ""
 
 
-def full_path_exists(full_func):
-    def get_parent_child_pairs(full_func):
-        components = full_func.split(".")
-        parents, children = [], []
-        for i, _ in enumerate(components[:-1], 1):
-            parent = ".".join(components[:i])
-            child = components[i]
-            parents.append(parent)
-            children.append(child)
-        return zip(parents, children)
-
-    for parent, child in get_parent_child_pairs(full_func):
-        module = wandb.util.get_module(parent)
-        if not module or not hasattr(module, child) or getattr(module, child) is None:
-            return False
-    return True
-
-
-def patch(module_name, func):
-    module = wandb.util.get_module(module_name)
-    success = False
-
-    full_func = f"{module_name}.{func.__name__}"
-    if not full_path_exists(full_func):
-        wandb.termerror(
-            f"Failed to patch {module_name}.{func.__name__}!  "
-            "Please check if this package/module is installed!"
-        )
-    else:
-        wandb.patched.setdefault(module.__name__, [])
-        if [module, func.__name__] not in wandb.patched[module.__name__]:
-            setattr(module, f"orig_{func.__name__}", getattr(module, func.__name__))
-            setattr(module, func.__name__, func)
-            wandb.patched[module.__name__].append([module, func.__name__])
-        success = True
-
-    return success
-
-
-def unpatch(module_name):
-    if module_name in wandb.patched:
-        for module, func in wandb.patched[module_name]:
-            setattr(module, func, getattr(module, f"orig_{func}"))
-        wandb.patched[module_name] = []
-
-
-# ---------------------------------------------------------------------------
-# kfp v1 patching
-# ---------------------------------------------------------------------------
-
-
-def _unpatch_kfp_v1():
+def _unpatch_kfp_v1() -> None:
     unpatch("kfp.components")
     unpatch("kfp.components._python_op")
     unpatch("wandb.integration.kfp")
 
 
-def _patch_kfp_v1():
+def _patch_kfp_v1() -> None:
     to_patch = [
-        (
-            "kfp.components",
-            _v1_create_component_from_func,
-        ),
-        (
-            "kfp.components._python_op",
-            _v1_create_component_from_func,
-        ),
-        (
-            "kfp.components._python_op",
-            _v1_get_function_source_definition,
-        ),
+        ("kfp.components", _v1_create_component_from_func),
+        ("kfp.components._python_op", _v1_create_component_from_func),
+        ("kfp.components._python_op", _v1_get_function_source_definition),
         ("kfp.components._python_op", _v1_strip_type_hints),
     ]
 
@@ -166,17 +112,14 @@ def _patch_kfp_v1():
 
 
 def _v1_wandb_log_noop(
-    func=None,
+    func: Callable | None = None,
     # /,  # py38 only
-    log_component_file=True,
-):
-    """Wrap a standard python function and log to W&B.
-
-    NOTE: Because patching failed, this decorator is a no-op.
-    """
+    log_component_file: bool = True,
+) -> Callable:
+    """No-op fallback decorator used when v1 patching fails."""
     from functools import wraps
 
-    def decorator(func):
+    def decorator(func: Callable) -> Callable:
         @wraps(func)
         def wrapper(*args, **kwargs):
             return func(*args, **kwargs)
@@ -220,24 +163,26 @@ def _v1_create_component_from_func(
     base_image: str | None = None,
     packages_to_install: list[str] | None = None,
     annotations: Mapping[str, str] | None = None,
-):
+) -> Callable:
     """Convert a Python function to a component and returns a task factory.
-
-    The returned task factory accepts arguments and returns a task object.
 
     This function is modified from KFP.  The original source is below:
     https://github.com/kubeflow/pipelines/blob/b6406b02f45cdb195c7b99e2f6d22bf85b12268b/sdk/python/kfp/components/_python_op.py#L998-L1110.
 
     Args:
         func: The python function to convert
-        base_image: Optional. Specify a custom Docker container image to use in the component. For lightweight components, the image needs to have python 3.5+. Default is the python image corresponding to the current python environment.
-        output_component_file: Optional. Write a component definition to a local file. The produced component file can be loaded back by calling :code:`load_component_from_file` or :code:`load_component_from_uri`.
-        packages_to_install: Optional. List of [versioned] python packages to pip install before executing the user function.
-        annotations: Optional. Allows adding arbitrary key-value data to the component specification.
+        base_image: Optional. Specify a custom Docker container image to use
+            in the component.
+        output_component_file: Optional. Write a component definition to a
+            local file.
+        packages_to_install: Optional. List of [versioned] python packages to
+            pip install before executing the user function.
+        annotations: Optional. Allows adding arbitrary key-value data to the
+            component specification.
 
     Returns:
-        A factory function with a strongly-typed signature taken from the python function.
-        Once called with the required arguments, the factory constructs a task instance that can run the original function in a container.
+        A factory function with a strongly-typed signature taken from the
+        python function.
     """
     core_packages = ["wandb", "kfp"]
 
@@ -248,7 +193,7 @@ def _v1_create_component_from_func(
 
     component_spec = _func_to_component_spec(
         func=func,
-        extra_code=wandb_logging_extras,
+        extra_code=_wandb_logging_extras,
         base_image=base_image,
         packages_to_install=packages_to_install,
     )
@@ -272,27 +217,21 @@ def _v1_strip_type_hints(source_code: str) -> str:
     return source_code
 
 
-# Alias for the patch() helper which matches by func.__name__
 _v1_get_function_source_definition.__name__ = "_get_function_source_definition"
 _v1_create_component_from_func.__name__ = "create_component_from_func"
 _v1_strip_type_hints.__name__ = "strip_type_hints"
 
 
-# ---------------------------------------------------------------------------
-# kfp v2 patching
-# ---------------------------------------------------------------------------
-
-
-def _unpatch_kfp_v2():
+def _unpatch_kfp_v2() -> None:
     unpatch("kfp.dsl.component_factory")
 
 
-def _patch_kfp_v2():
+def _patch_kfp_v2() -> None:
     _orig_create = _component_factory.create_component_from_func
     _orig_get_cmd = _component_factory._get_command_and_args_for_lightweight_component
 
     def _get_function_source_definition(func: Callable) -> str:
-        """Kfp v2 patched: preserve @wandb_log decorator in serialized source."""
+        """Preserve ``@wandb_log`` decorator in serialized component source."""
         func_code = inspect.getsource(func)
         func_code = textwrap.dedent(func_code)
         func_code_lines = func_code.split("\n")
@@ -310,21 +249,28 @@ def _patch_kfp_v2():
 
         return "\n".join(func_code_lines)
 
-    def create_component_from_func(func, packages_to_install=None, **kwargs):
-        """Kfp v2 patched: auto-add wandb to packages_to_install."""
+    def create_component_from_func(
+        func: Callable,
+        packages_to_install: list[str] | None = None,
+        **kwargs,
+    ) -> Callable:
+        """Auto-add ``wandb`` to *packages_to_install* for logged components."""
         if getattr(func, "_wandb_logged", False):
             packages_to_install = list(packages_to_install or [])
             if not any(p.startswith("wandb") for p in packages_to_install):
                 packages_to_install.append("wandb")
         return _orig_create(func, packages_to_install=packages_to_install, **kwargs)
 
-    def _get_command_and_args_for_lightweight_component(func, **kwargs):
-        """Kfp v2 patched: inject wandb decorator source into component."""
+    def _get_command_and_args_for_lightweight_component(
+        func: Callable,
+        **kwargs,
+    ) -> tuple:
+        """Inject wandb decorator source into the component command."""
         command, args = _orig_get_cmd(func, **kwargs)
 
         if getattr(func, "_wandb_logged", False) and len(command) > 3:
             source = command[3]
-            source = _wandb_logging_extras_v2 + "\n\n" + source
+            source = _wandb_logging_extras + "\n\n" + source
             command = list(command)
             command[3] = source
 
@@ -350,19 +296,16 @@ def _patch_kfp_v2():
         )
 
 
-# ---------------------------------------------------------------------------
-# Public API
-# ---------------------------------------------------------------------------
-
-
-def unpatch_kfp():
+def unpatch_kfp() -> None:
+    """Undo all KFP monkey-patches applied by ``patch_kfp``."""
     if _KFP_V2:
         _unpatch_kfp_v2()
     else:
         _unpatch_kfp_v1()
 
 
-def patch_kfp():
+def patch_kfp() -> None:
+    """Apply KFP monkey-patches for the detected KFP version."""
     if _KFP_V2:
         _patch_kfp_v2()
     else:

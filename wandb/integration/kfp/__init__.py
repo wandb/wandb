@@ -1,3 +1,11 @@
+from __future__ import annotations
+
+__all__ = ["wandb_log", "unpatch_kfp"]
+
+from typing import Callable
+
+from .kfp_patch import patch_kfp, unpatch_kfp
+
 try:
     from kfp import __version__ as _kfp_version
     from packaging.version import parse as _parse_version
@@ -6,25 +14,37 @@ try:
 except Exception:
     _KFP_V2 = False
 
-if _KFP_V2:
-    from .wandb_logging import wandb_log_v2 as wandb_log
-else:
-    from wandb.proto.wandb_telemetry_pb2 import Deprecated
-    from wandb.sdk.lib.deprecation import warn_and_record_deprecation
 
-    from .wandb_logging import wandb_log
+def wandb_log(
+    func: Callable | None = None,
+    **kwargs,
+) -> Callable:
+    """Decorator that wraps a KFP component function and logs to W&B.
 
-    warn_and_record_deprecation(
-        feature=Deprecated(kfp_v1_wandb_log=True),
-        message=(
-            "KFP v1 (kfp<2.0.0) support for @wandb_log is deprecated "
-            "and will be removed in a future release. "
-            "Please upgrade to kfp>=2.0.0."
-        ),
-    )
+    Automatically detects the installed KFP version and delegates to the
+    appropriate implementation:
 
-from .kfp_patch import patch_kfp, unpatch_kfp
+    * **kfp >= 2.0.0** -- logs input parameters to ``wandb.config``, output
+      scalars via ``wandb.log``, and ``Input`` / ``Output`` artifacts as W&B
+      Artifacts.
+    * **kfp < 2.0.0** *(deprecated)* -- legacy v1 logging behaviour.
 
-__all__ = ["wandb_log", "unpatch_kfp"]
+    Usage::
+
+        from kfp import dsl
+        from wandb.integration.kfp import wandb_log
+
+        @dsl.component
+        @wandb_log
+        def add(a: float, b: float) -> float:
+            return a + b
+    """
+    if _KFP_V2:
+        from .wandb_log_v2 import wandb_log as _impl
+    else:
+        from .wandb_log_v1 import wandb_log as _impl
+
+    return _impl(func, **kwargs)
+
 
 patch_kfp()

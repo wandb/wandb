@@ -5,7 +5,7 @@ def wandb_log(  # noqa: C901
 ):
     """Wrap a kfp v1 python functional component and log to W&B.
 
-    Requires kfp<2.0.0. For kfp>=2.0.0, use wandb_log_v2.
+    Requires kfp<2.0.0. Deprecated -- please upgrade to kfp>=2.0.0.
     """
     import json
     import os
@@ -25,7 +25,9 @@ def wandb_log(  # noqa: C901
     )
 
     import wandb
+    from wandb.proto.wandb_telemetry_pb2 import Deprecated
     from wandb.sdk.lib import telemetry as wb_telemetry
+    from wandb.sdk.lib.deprecation import warn_and_record_deprecation
 
     output_types = (OutputArtifact, OutputBinaryFile, OutputPath, OutputTextFile)
     input_types = (InputArtifact, InputBinaryFile, InputPath, InputTextFile)
@@ -134,7 +136,16 @@ def wandb_log(  # noqa: C901
                 job_type=func.__name__,
                 group="{{workflow.annotations.pipelines.kubeflow.org/run_name}}",
             ) as run:
-                # Link back to the kfp UI
+                warn_and_record_deprecation(
+                    feature=Deprecated(kfp_v1_wandb_log=True),
+                    message=(
+                        "KFP v1 (kfp<2.0.0) support for @wandb_log is deprecated "
+                        "and will be removed in a future release. "
+                        "Please upgrade to kfp>=2.0.0."
+                    ),
+                    run=run,
+                )
+
                 kubeflow_url = get_link_back_to_kubeflow()
                 run.notes = kubeflow_url
                 run.config["LINK_TO_KUBEFLOW_RUN"] = kubeflow_url
@@ -177,181 +188,6 @@ def wandb_log(  # noqa: C901
 
         wrapper.__signature__ = new_sig
         wrapper.__annotations__ = new_anns
-        return wrapper
-
-    if func is None:
-        return decorator
-    else:
-        return decorator(func)
-
-
-def wandb_log_v2(  # noqa: C901
-    func=None,
-):
-    """Wrap a kfp v2 component function and log to W&B.
-
-    Compatible with kfp>=2.0.0. Automatically logs input parameters to
-    wandb.config and output scalars via wandb.log. Artifacts annotated
-    with kfp's Input/Output types are logged as W&B Artifacts.
-
-    Usage::
-
-        from kfp import dsl
-        from wandb.integration.kfp import wandb_log
-
-
-        @dsl.component
-        @wandb_log
-        def add(a: float, b: float) -> float:
-            return a + b
-    """
-    import os
-    from functools import wraps
-    from inspect import signature
-
-    import wandb
-    from wandb.sdk.lib import telemetry as wb_telemetry
-
-    def isinstance_namedtuple(x):
-        t = type(x)
-        b = t.__bases__
-        if len(b) != 1 or b[0] is not tuple:
-            return False
-        f = getattr(t, "_fields", None)
-        if not isinstance(f, tuple):
-            return False
-        return all(isinstance(n, str) for n in f)
-
-    def _is_kfp_artifact_value(value):
-        """Check if a runtime value is a kfp v2 artifact object."""
-        return hasattr(value, "path") and hasattr(value, "uri")
-
-    def _is_output_annotation(ann):
-        try:
-            from kfp.dsl.types.type_annotations import (
-                OutputPath,
-                is_artifact_wrapped_in_Output,
-            )
-
-            return is_artifact_wrapped_in_Output(ann) or isinstance(ann, OutputPath)
-        except Exception:
-            ann_str = str(ann)
-            return "Output" in ann_str
-
-    def _is_input_annotation(ann):
-        try:
-            from kfp.dsl.types.type_annotations import (
-                InputPath,
-                is_artifact_wrapped_in_Input,
-            )
-
-            return is_artifact_wrapped_in_Input(ann) or isinstance(ann, InputPath)
-        except Exception:
-            ann_str = str(ann)
-            return "Input" in ann_str and "Output" not in ann_str
-
-    def _get_artifact_path(value):
-        """Return the file path for a KFP artifact value, or None."""
-        if _is_kfp_artifact_value(value):
-            return value.path if os.path.exists(value.path) else None
-        if isinstance(value, str) and os.path.exists(value):
-            return value
-        return None
-
-    def _log_artifact(run, name, value, *, use=False):
-        """Log or use a single artifact, returns True on success."""
-        path = _get_artifact_path(value)
-        if path is None:
-            return False
-        artifact = wandb.Artifact(name, type="kfp_artifact")
-        artifact.add_file(path)
-        if use:
-            run.use_artifact(artifact)
-            wandb.termlog(f"Using artifact: {name}")
-        else:
-            run.log_artifact(artifact)
-            wandb.termlog(f"Logging artifact: {name}")
-        return True
-
-    def _classify_annotations(func):
-        """Split function annotations into scalars and artifacts."""
-        scalars_in, artifacts_in = {}, {}
-        scalars_out, artifacts_out = {}, {}
-        for name, ann in func.__annotations__.items():
-            if name == "return":
-                scalars_out[name] = ann
-            elif _is_output_annotation(ann):
-                artifacts_out[name] = ann
-            elif _is_input_annotation(ann):
-                artifacts_in[name] = ann
-            else:
-                scalars_in[name] = ann
-        return scalars_in, artifacts_in, scalars_out, artifacts_out
-
-    def decorator(func):
-        input_scalars, input_artifacts, _, output_artifacts = _classify_annotations(
-            func
-        )
-        func_sig = signature(func)
-
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            bound = func_sig.bind(*args, **kwargs)
-            bound.apply_defaults()
-
-            wandb_group = (
-                os.getenv("WANDB_RUN_GROUP")
-                or os.getenv("KFP_RUN_NAME")
-                or os.getenv("ARGO_WORKFLOW_NAME")
-            )
-            with wandb.init(
-                job_type=func.__name__,
-                group=wandb_group,
-            ) as run:
-                kubeflow_url = os.getenv("WANDB_KUBEFLOW_URL")
-                if kubeflow_url:
-                    run.config["LINK_TO_KUBEFLOW"] = kubeflow_url
-
-                for name in input_scalars:
-                    if name in bound.arguments:
-                        value = bound.arguments[name]
-                        run.config[name] = value
-                        wandb.termlog(f"Setting config: {name} to {value}")
-
-                for name in input_artifacts:
-                    if name in bound.arguments:
-                        try:
-                            _log_artifact(run, name, bound.arguments[name], use=True)
-                        except Exception as e:
-                            wandb.termwarn(
-                                f"Failed to log input artifact '{name}': {e}"
-                            )
-
-                with wb_telemetry.context(run=run) as tel:
-                    tel.feature.kfp_wandb_log = True
-
-                result = func(*bound.args, **bound.kwargs)
-
-                if result is not None and not run._is_finished:
-                    if isinstance_namedtuple(result):
-                        for k, v in zip(result._fields, result):
-                            run.log({f"{func.__name__}.{k}": v})
-                    else:
-                        run.log({func.__name__: result})
-
-                for name in output_artifacts:
-                    if name in bound.arguments:
-                        try:
-                            _log_artifact(run, name, bound.arguments[name], use=False)
-                        except Exception as e:
-                            wandb.termwarn(
-                                f"Failed to log output artifact '{name}': {e}"
-                            )
-
-            return result
-
-        wrapper._wandb_logged = True
-        wrapper.__signature__ = func_sig
         return wrapper
 
     if func is None:
