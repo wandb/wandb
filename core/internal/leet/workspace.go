@@ -667,7 +667,7 @@ func (w *Workspace) renderMetrics() string {
 			contentHeight,
 			lipgloss.Center,
 			lipgloss.Center,
-			renderWorkspaceBrandArt(),
+			renderBrandArtForWidth(contentWidth),
 		)
 	}
 

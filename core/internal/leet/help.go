@@ -46,7 +46,7 @@ func (h *HelpModel) SetMode(mode viewMode) {
 
 // generateHelpContent generates the help screen content.
 func (h *HelpModel) generateHelpContent() string {
-	artSection := renderHelpBrandArt() + "\n\n"
+	artSection := renderBrandArtForWidth(h.width) + "\n\n"
 
 	entries := h.entriesForMode()
 
