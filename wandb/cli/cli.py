@@ -3523,22 +3523,6 @@ def enabled(service):
     and operating correctly. Do not run this command against the public W&B
     cloud at `api.wandb.ai`.
 
-    The following checks are run in order:
-    1. Host check - Verify the host is not `api.wandb.ai`.
-    2. Login check - Verify the API key authenticates successfully.
-    3. Secure requests check - Verify requests use HTTPS.
-    4. Large payload check - Verify the instance handles large payloads (~10MB).
-    5. Secure requests check - Verify signed URL requests use HTTPS.
-    6. CORS configuration - Verify the object store allows GET and PUT requests
-        from the W&B instance.
-    7. W&B version - Verify the installed W&B package is compatible with the instance.
-    8. Run check - Log metrics, save files, and download files to verify runs
-        are recorded and accessible.
-    9. Artifact check - Save and download artifacts to verify artifact storage
-        and retrieval work correctly.
-    10. Sweeps check - Create and execute a random sweep to verify the sweep
-        system functions correctly.
-
     Exits with `code 1` if any critical check fails.
 
     Examples:
