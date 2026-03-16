@@ -436,7 +436,7 @@ jobs:
           python -m pip install wandb==${{ github.event.inputs.version }}
       - name: Post to Slack
         id: slack
-        uses: slackapi/slack-github-action@v2.1.1
+        uses: slackapi/slack-github-action@v3.0.1
         with:
           method: chat.postMessage
           token: ${{ secrets.SLACK_BOT_TOKEN }}
