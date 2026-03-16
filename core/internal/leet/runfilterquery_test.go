@@ -102,3 +102,39 @@ func TestCompileRunFilterQuery_QuotedTermsAndEscapes(t *testing.T) {
 	require.False(t,
 		compileRunFilterQuery(`name:"exp \"beta\""`, FilterModeRegex).Match(data))
 }
+
+func TestCompileRunFilterQuery_DisplayAliasesAreConsistentAcrossOperators(t *testing.T) {
+	data := workspaceRunFilterData{
+		RunKey:      "run-20260209_010101-vision01",
+		DisplayName: "baseline",
+	}
+
+	for _, query := range []string{
+		"run_name:base",
+		"name:base",
+		"display:base",
+		"display_name:base",
+
+		"run_name=baseline",
+		"name=baseline",
+		"display=baseline",
+		"display_name=baseline",
+
+		"run_name!=other",
+		"name!=other",
+		"display!=other",
+		"display_name!=other",
+
+		"has:run_name",
+		"has:name",
+		"has:display",
+		"has:display_name",
+	} {
+		require.Truef(
+			t,
+			compileRunFilterQuery(query, FilterModeRegex).Match(data),
+			"query=%q",
+			query,
+		)
+	}
+}

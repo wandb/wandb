@@ -288,7 +288,6 @@ type runFilterFieldKind int
 
 const (
 	runFilterFieldInvalid runFilterFieldKind = iota
-	runFilterFieldName
 	runFilterFieldDisplay
 	runFilterFieldKey
 	runFilterFieldID
@@ -311,9 +310,7 @@ func parseRunFilterField(raw string) (runFilterField, bool) {
 	}
 
 	switch field {
-	case "run":
-		return runFilterField{kind: runFilterFieldName}, true
-	case "name", "display", "display_name":
+	case "name", "run_name", "display", "display_name":
 		return runFilterField{kind: runFilterFieldDisplay}, true
 	case "key", "run_key", "path":
 		return runFilterField{kind: runFilterFieldKey}, true
@@ -382,7 +379,7 @@ func runFilterPatternMatch(
 	matcher func(string) bool,
 ) bool {
 	switch field.kind {
-	case runFilterFieldName:
+	case runFilterFieldDisplay:
 		return runFilterMatchAny(matcher, data.DisplayName)
 	case runFilterFieldKey:
 		return runFilterMatchAny(matcher, data.RunKey)
@@ -437,7 +434,7 @@ func runFilterExactMismatch(data workspaceRunFilterData, field runFilterField, r
 // operations for a field.
 func runFilterExactCandidates(data workspaceRunFilterData, field runFilterField) []string {
 	switch field.kind {
-	case runFilterFieldName:
+	case runFilterFieldDisplay:
 		return runFilterNonEmptyStrings(data.DisplayName)
 	case runFilterFieldKey:
 		return runFilterNonEmptyStrings(data.RunKey)
@@ -523,7 +520,7 @@ func runFilterSingleValue(data workspaceRunFilterData, field runFilterField) (st
 // metadata.
 func runFilterFieldExists(data workspaceRunFilterData, field runFilterField) bool {
 	switch field.kind {
-	case runFilterFieldName:
+	case runFilterFieldDisplay:
 		return data.DisplayName != ""
 	case runFilterFieldKey:
 		return data.RunKey != ""
