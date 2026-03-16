@@ -12,12 +12,10 @@ from kfp import dsl
 from kfp.compiler import Compiler
 from kfp.dsl import Artifact, Dataset, Input, Output
 from wandb.integration.kfp import wandb_log
-from wandb.integration.kfp._patch_utils import full_path_exists
+from wandb.integration.kfp._patch_utils import full_path_exists, unpatch
 from wandb.integration.kfp._patch_utils import patch as kfp_patch_fn
-from wandb.integration.kfp._patch_utils import unpatch
 from wandb.integration.kfp.helpers import add_wandb_visualization
 from wandb.integration.kfp.kfp_patch import _KFP_V2, patch_kfp, unpatch_kfp
-from wandb.integration.kfp.wandb_log_v2 import wandb_log as wandb_log_v2_impl
 
 
 class TestVersionDetection:
@@ -33,7 +31,6 @@ class TestVersionDetection:
 
         assert hasattr(add, "_wandb_logged")
         assert add._wandb_logged is True
-
 
 
 class TestWandbLogV2Decorator:
@@ -91,7 +88,6 @@ class TestWandbLogV2Decorator:
         spec = inspect.getfullargspec(add)
         assert "a" in spec.annotations
         assert "b" in spec.annotations
-
 
 
 class TestWandbLogV2ScalarIO:
@@ -202,7 +198,6 @@ class TestWandbLogV2ScalarIO:
         assert mock_run.config["b"] == 10.0
 
 
-
 class TestWandbLogV2EnvVars:
     @patch("wandb.init")
     def test_wandb_group_from_kfp_run_name(self, mock_init):
@@ -305,7 +300,6 @@ class TestWandbLogV2EnvVars:
         assert "LINK_TO_KUBEFLOW" not in mock_run.config
 
 
-
 class TestWandbLogV2Artifacts:
     def test_classify_input_artifact(self):
         """Functions with Input[Artifact] should classify as input_artifacts."""
@@ -354,9 +348,7 @@ class TestWandbLogV2Artifacts:
 
         artifact_file = tmp_path / "data.csv"
         artifact_file.write_text("a,b\n1,2\n")
-        artifact_value = Dataset(
-            name="data", uri=f"gs://bucket/{artifact_file.name}"
-        )
+        artifact_value = Dataset(name="data", uri=f"gs://bucket/{artifact_file.name}")
         artifact_value.path = str(artifact_file)
 
         process(data=artifact_value, x=42.0)
@@ -379,9 +371,7 @@ class TestWandbLogV2Artifacts:
 
         artifact_file = tmp_path / "model.pkl"
         artifact_file.write_text("model-data")
-        artifact_value = Artifact(
-            name="model", uri=f"gs://bucket/{artifact_file.name}"
-        )
+        artifact_value = Artifact(name="model", uri=f"gs://bucket/{artifact_file.name}")
         artifact_value.path = str(artifact_file)
 
         produce(x=1.0, model=artifact_value)
@@ -501,7 +491,6 @@ class TestWandbLogV2Artifacts:
         mock_run.use_artifact.assert_not_called()
 
 
-
 class TestKfpV2Patching:
     def test_patch_unpatch_cycle(self):
         unpatch_kfp()
@@ -579,7 +568,6 @@ class TestKfpV2Patching:
         assert cmd.count("'wandb'") <= 1
 
 
-
 class TestPipelineCompilation:
     def test_compile_pipeline_with_wandb_log(self, tmp_path):
         @dsl.component(base_image="python:3.11-slim")
@@ -649,7 +637,6 @@ class TestPipelineCompilation:
         assert output.exists()
 
 
-
 class TestHelpers:
     def test_add_wandb_visualization(self, tmp_path):
         mock_run = MagicMock()
@@ -669,7 +656,6 @@ class TestHelpers:
         assert "iframe" in output["source"]
         assert mock_run.url in output["source"]
         assert "kfp=true" in output["source"]
-
 
 
 class TestKfpPatchUtilities:

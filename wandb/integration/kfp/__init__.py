@@ -34,6 +34,7 @@ def wandb_log(
         from kfp import dsl
         from wandb.integration.kfp import wandb_log
 
+
         @dsl.component
         @wandb_log
         def add(a: float, b: float) -> float:

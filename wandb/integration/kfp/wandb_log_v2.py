@@ -168,6 +168,7 @@ def wandb_log(
         from kfp import dsl
         from wandb.integration.kfp import wandb_log
 
+
         @dsl.component
         @wandb_log
         def add(a: float, b: float) -> float:
@@ -175,8 +176,8 @@ def wandb_log(
     """
 
     def decorator(func: Callable) -> Callable:
-        input_scalars, input_artifacts, _, output_artifacts = (
-            _classify_annotations(func)
+        input_scalars, input_artifacts, _, output_artifacts = _classify_annotations(
+            func
         )
         func_sig = signature(func)
 
