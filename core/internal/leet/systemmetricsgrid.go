@@ -2,6 +2,7 @@ package leet
 
 import (
 	"fmt"
+	"slices"
 	"sort"
 	"time"
 
@@ -46,6 +47,9 @@ type SystemMetricsGrid struct {
 
 	// Coloring state for per-plot mode.
 	nextColor int // next palette index
+
+	// synchronized inspection session state (active only between press/release)
+	syncInspectActive bool
 }
 
 func NewSystemMetricsGrid(
@@ -116,7 +120,7 @@ func (g *SystemMetricsGrid) nextColorHex() compat.AdaptiveColor {
 // anchoredSeriesColorProvider returns a provider that yields colors relative
 // to a given base index in the current palette.
 //
-// The first call returns the color *after* the base color,
+// The first call returns the color after the base color,
 // so the base can be used for the first series.
 func (g *SystemMetricsGrid) anchoredSeriesColorProvider(baseIdx int) func() compat.AdaptiveColor {
 	colors := colorSchemes[g.config.SystemColorScheme()]
@@ -152,13 +156,16 @@ func (g *SystemMetricsGrid) createMetricChart(def *MetricDef) *TimeSeriesLineCha
 		baseIdx = (g.nextColor - 1) % len(colors)
 	}
 
-	return NewTimeSeriesLineChart(&TimeSeriesLineChartParams{
-		chartWidth, chartHeight,
-		def,
-		baseColor,
-		g.anchoredSeriesColorProvider(baseIdx),
-		time.Now(),
+	chart := NewTimeSeriesLineChart(&TimeSeriesLineChartParams{
+		Width:         chartWidth,
+		Height:        chartHeight,
+		Def:           def,
+		BaseColor:     baseColor,
+		ColorProvider: g.anchoredSeriesColorProvider(baseIdx),
+		Now:           time.Now(),
 	})
+	chart.SetTailWindow(g.config.SystemTailWindow())
+	return chart
 }
 
 // AddDataPoint adds a new data point to the appropriate metric chart.
@@ -179,6 +186,9 @@ func (g *SystemMetricsGrid) AddDataPoint(metricName string, timestamp int64, val
 
 	chart := g.getOrCreateChart(baseKey, def)
 	chart.AddDataPoint(seriesName, timestamp, value)
+	if g.isChartVisible(chart) {
+		chart.DrawIfNeeded()
+	}
 }
 
 // getOrCreateChart returns a TimeSeriesLineChart for the given baseKey.
@@ -201,6 +211,7 @@ func (g *SystemMetricsGrid) addChart(chart *TimeSeriesLineChart) {
 	})
 
 	g.ApplyFilter()
+	g.drawVisible()
 
 	g.logger.Debug(fmt.Sprintf(
 		"SystemMetricsGrid.addChart: chart added, total=%d, pages=%d",
@@ -247,6 +258,7 @@ func (g *SystemMetricsGrid) Navigate(direction int) {
 
 	g.ClearFocus()
 	g.LoadCurrentPage()
+	g.drawVisible()
 }
 
 // HandleMouseClick handles mouse clicks for chart selection.
@@ -263,34 +275,32 @@ func (g *SystemMetricsGrid) HandleMouseClick(row, col int) bool {
 		return false
 	}
 
+	if !g.setFocus(row, col) {
+		return false
+	}
+	return true
+}
+
+func (g *SystemMetricsGrid) setFocus(row, col int) bool {
 	g.ClearFocus()
 	size := g.effectiveGridSize()
-
-	if row >= 0 && row < size.Rows && col >= 0 && col < size.Cols &&
-		row < len(g.currentPage) && col < len(g.currentPage[row]) &&
-		g.currentPage[row][col] != nil {
-		chart := g.currentPage[row][col]
-		g.logger.Debug(fmt.Sprintf(
-			"systemmetricsgrid: HandleMouseClick: focusing chart at row=%d, col=%d", row, col))
-
-		g.focus.Type = FocusSystemChart
-		g.focus.Row = row
-		g.focus.Col = col
-		g.focus.Title = chart.Title()
-
-		return true
+	if row < 0 || row >= size.Rows || col < 0 || col >= size.Cols ||
+		row >= len(g.currentPage) || col >= len(g.currentPage[row]) {
+		return false
+	}
+	chart := g.currentPage[row][col]
+	if chart == nil {
+		return false
 	}
 
-	return false
+	g.focus.Set(FocusSystemChart, row, col, chart.Title())
+	return true
 }
 
 // ClearFocus removes focus from all charts.
 func (g *SystemMetricsGrid) ClearFocus() {
 	if g.focus.Type == FocusSystemChart {
-		g.focus.Type = FocusNone
-		g.focus.Row = -1
-		g.focus.Col = -1
-		g.focus.Title = ""
+		g.focus.Reset()
 	}
 }
 
@@ -302,7 +312,26 @@ func (g *SystemMetricsGrid) FocusedChartTitle() string {
 	return ""
 }
 
-// Resize updates viewport dimensions and resizes/redraws all charts.
+// FocusedChartViewModeLabel returns a short description of the focused chart's X-axis mode.
+func (g *SystemMetricsGrid) FocusedChartViewModeLabel() string {
+	chart := g.focusedChart()
+	if chart == nil {
+		return ""
+	}
+	return chart.ViewModeLabel()
+}
+
+func (g *SystemMetricsGrid) focusedChart() *TimeSeriesLineChart {
+	if g.focus.Type != FocusSystemChart || g.focus.Row < 0 || g.focus.Col < 0 {
+		return nil
+	}
+	if g.focus.Row >= len(g.currentPage) || g.focus.Col >= len(g.currentPage[g.focus.Row]) {
+		return nil
+	}
+	return g.currentPage[g.focus.Row][g.focus.Col]
+}
+
+// Resize updates viewport dimensions and resizes/redraws visible charts.
 func (g *SystemMetricsGrid) Resize(width, height int) {
 	if width <= 0 || height <= 0 {
 		g.logger.Debug(fmt.Sprintf(
@@ -325,27 +354,31 @@ func (g *SystemMetricsGrid) Resize(width, height int) {
 
 	size := g.effectiveGridSize()
 	g.nav.UpdateTotalPages(len(g.filtered), ItemsPerPage(size))
+	g.LoadCurrentPage()
+	g.drawVisible()
+}
 
-	for _, metricChart := range g.byBaseKey {
-		if metricChart == nil || metricChart.chart == nil {
-			continue
-		}
-
-		metricChart.chart.Resize(dims.CellW, dims.CellH)
-		actualWidth := metricChart.chart.Width()
-		actualHeight := metricChart.chart.Height()
-		if actualWidth > 0 && actualHeight > 0 &&
-			actualWidth >= MinMetricChartWidth &&
-			actualHeight >= MinMetricChartHeight {
-			if len(metricChart.series) > 0 {
-				metricChart.chart.DrawBrailleAll()
-			} else {
-				metricChart.chart.DrawBraille()
+func (g *SystemMetricsGrid) drawVisible() {
+	dims := g.calculateChartDimensions()
+	for row := range g.currentPage {
+		for col := range g.currentPage[row] {
+			chart := g.currentPage[row][col]
+			if chart == nil {
+				continue
 			}
+			chart.Resize(dims.CellW, dims.CellH)
+			chart.DrawIfNeeded()
 		}
 	}
+}
 
-	g.LoadCurrentPage()
+func (g *SystemMetricsGrid) isChartVisible(target *TimeSeriesLineChart) bool {
+	for row := range g.currentPage {
+		if slices.Contains(g.currentPage[row], target) {
+			return true
+		}
+	}
+	return false
 }
 
 func (g *SystemMetricsGrid) syncFocusToCurrentPage() {
@@ -387,7 +420,7 @@ func (g *SystemMetricsGrid) View() string {
 			}
 
 			metricChart := g.currentPage[row][col]
-			chartView := metricChart.chart.View()
+			chartView := metricChart.View()
 
 			titleText := metricChart.Title()
 			if len(metricChart.series) > 1 {
@@ -436,4 +469,153 @@ func (g *SystemMetricsGrid) View() string {
 // ChartCount returns the number of charts on the grid.
 func (g *SystemMetricsGrid) ChartCount() int {
 	return len(g.ordered)
+}
+
+// hitChartAndRelX returns the chart under (row, col) on the grid
+// with relative graph-local X.
+//
+// needFocus is true if this chart differs from current focus.
+// ok is false if row/col doesn't map to a visible chart.
+func (g *SystemMetricsGrid) hitChartAndRelX(
+	adjustedX, row, col int,
+	dims GridDims,
+) (chart *TimeSeriesLineChart, relX int, needFocus, ok bool) {
+	size := g.effectiveGridSize()
+	if row < 0 || row >= size.Rows || col < 0 || col >= size.Cols ||
+		row >= len(g.currentPage) || col >= len(g.currentPage[row]) {
+		return nil, 0, false, false
+	}
+	chart = g.currentPage[row][col]
+	if chart == nil {
+		return nil, 0, false, false
+	}
+
+	chartStartX := col * dims.CellWWithPadding
+	graphStartX := chartStartX + 1
+	if chart.YStep() > 0 {
+		graphStartX += chart.Origin().X + 1
+	}
+	relX = adjustedX - graphStartX
+
+	needFocus = g.focus.Type != FocusSystemChart || g.focus.Row != row || g.focus.Col != col
+	return chart, relX, needFocus, true
+}
+
+// HandleWheel performs zoom handling on a system chart at (row, col).
+func (g *SystemMetricsGrid) HandleWheel(
+	adjustedX, row, col int,
+	dims GridDims,
+	wheelUp bool,
+) {
+	chart, relX, needFocus, ok := g.hitChartAndRelX(adjustedX, row, col, dims)
+	if !ok || chart == nil {
+		return
+	}
+	if relX < 0 || relX >= chart.GraphWidth() {
+		return
+	}
+	if needFocus {
+		g.setFocus(row, col)
+	}
+
+	direction := "out"
+	if wheelUp {
+		direction = "in"
+	}
+	chart.HandleZoom(direction, relX)
+	chart.DrawIfNeeded()
+}
+
+// StartInspection focuses the chart and begins inspection if inside the graph.
+//
+// If synced is true (Alt+right-press), a synchronized inspection session starts:
+// the anchor X from the focused chart is broadcast to all visible charts.
+func (g *SystemMetricsGrid) StartInspection(
+	adjustedX, row, col int,
+	dims GridDims,
+	synced bool,
+) {
+	chart, relX, needFocus, ok := g.hitChartAndRelX(adjustedX, row, col, dims)
+	if !ok || chart == nil {
+		return
+	}
+	if relX < -2 || relX > chart.GraphWidth()+1 {
+		return
+	}
+	if needFocus {
+		g.setFocus(row, col)
+	}
+
+	chart.StartInspection(relX)
+	chart.DrawIfNeeded()
+
+	if synced {
+		g.syncInspectActive = true
+		if x, _, active := chart.InspectionData(); active {
+			g.broadcastInspectAtDataX(x)
+		}
+	}
+}
+
+// UpdateInspection updates the crosshair position on the focused chart.
+//
+// If a synchronized inspection session is active, broadcasts the position
+// to all visible charts on the current page.
+func (g *SystemMetricsGrid) UpdateInspection(adjustedX, row, col int, dims GridDims) {
+	chart, relX, _, ok := g.hitChartAndRelX(adjustedX, row, col, dims)
+	if !ok || chart == nil || !chart.IsInspecting() {
+		return
+	}
+
+	chart.UpdateInspection(relX)
+	chart.DrawIfNeeded()
+
+	if g.syncInspectActive {
+		if x, _, active := chart.InspectionData(); active {
+			g.broadcastInspectAtDataX(x)
+		}
+	}
+}
+
+// EndInspection clears inspection mode.
+//
+// If a synchronized session is active, clears inspection on all visible charts;
+// otherwise clears only the focused chart.
+func (g *SystemMetricsGrid) EndInspection() {
+	if g.syncInspectActive {
+		g.broadcastEndInspection()
+		g.syncInspectActive = false
+		return
+	}
+
+	chart := g.focusedChart()
+	if chart == nil {
+		return
+	}
+	chart.EndInspection()
+	chart.DrawIfNeeded()
+}
+
+// broadcastInspectAtDataX applies InspectAtDataX to all visible charts on the current page.
+func (g *SystemMetricsGrid) broadcastInspectAtDataX(anchorX float64) {
+	for row := range g.currentPage {
+		for col := range g.currentPage[row] {
+			if chart := g.currentPage[row][col]; chart != nil {
+				chart.InspectAtDataX(anchorX)
+				chart.DrawIfNeeded()
+			}
+		}
+	}
+}
+
+// broadcastEndInspection clears inspection on all visible charts on the current page.
+func (g *SystemMetricsGrid) broadcastEndInspection() {
+	for row := range g.currentPage {
+		for col := range g.currentPage[row] {
+			if chart := g.currentPage[row][col]; chart != nil && chart.IsInspecting() {
+				chart.EndInspection()
+				chart.DrawIfNeeded()
+			}
+		}
+	}
 }
