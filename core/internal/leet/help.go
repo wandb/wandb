@@ -46,14 +46,6 @@ func (h *HelpModel) SetMode(mode viewMode) {
 
 // generateHelpContent generates the help screen content.
 func (h *HelpModel) generateHelpContent() string {
-	// artStyle := lipgloss.NewStyle().
-	// 	Foreground(colorHeading).
-	// 	Bold(true)
-
-	// artSection := artStyle.Render(
-	// 	lipgloss.JoinHorizontal(lipgloss.Top, wandbArt, "    ", leetArt),
-	// ) + "\n\n"
-
 	artSection := renderHelpBrandArt() + "\n\n"
 
 	entries := h.entriesForMode()
