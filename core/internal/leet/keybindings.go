@@ -202,6 +202,11 @@ func WorkspaceKeyBindings() []BindingCategory[Workspace] {
 					Description: "Restart LEET",
 				},
 				{
+					Keys:        []string{"esc"},
+					Description: "Focus runs list",
+					Handler:     (*Workspace).handleFocusRuns,
+				},
+				{
 					Keys:        []string{"enter"},
 					Description: "View selected run (when not filtering/configuring)",
 				},
