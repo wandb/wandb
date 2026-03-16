@@ -7,6 +7,7 @@ import shutil
 import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from urllib.parse import quote
 
 import numpy as np
 import responses
@@ -15,6 +16,7 @@ from pytest import MonkeyPatch, mark, raises
 from pytest_mock import MockerFixture
 from wandb import Api, Artifact
 from wandb.errors import CommError
+from wandb.sdk.artifacts._gqlutils import server_features
 from wandb.sdk.artifacts._internal_artifact import InternalArtifact
 from wandb.sdk.artifacts._validators import NAME_MAXLEN, RESERVED_ARTIFACT_TYPE_PREFIX
 from wandb.sdk.artifacts.artifact_file_cache import get_artifact_file_cache
@@ -860,14 +862,15 @@ def test_artifact_entry_download_url_matches_server_features(
     if supports_artifact_id:
         assert "/artifactsV2/" in used_url
         assert art.id is not None
-        assert f"/{art.id}/" in used_url
+        assert f"/{quote(art.id)}/{quote(art.id)}/" in used_url
         assert used_url.endswith("/source.txt")
     elif supports_membership:
         assert "/artifactsV2/" in used_url
-        assert art.id is None or f"/{art.id}/" not in used_url
+        assert art.id is not None
+        assert f"/{quote(art.id)}/{quote(art.id)}/" not in used_url
         assert used_url.endswith("/source.txt")
     else:
-        # Legacy V2 fallback: no artifact_id and no filename suffix.
+        # Legacy V2 fallback: no filename suffix.
         hexhash = b64_to_hex_id(entry.digest)
         assert used_url.rstrip("/").endswith(hexhash)
 
