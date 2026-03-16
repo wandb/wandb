@@ -288,7 +288,7 @@ type runFilterFieldKind int
 
 const (
 	runFilterFieldInvalid runFilterFieldKind = iota
-	runFilterFieldDisplay
+	runFilterFieldDisplayName
 	runFilterFieldKey
 	runFilterFieldID
 	runFilterFieldProject
@@ -311,7 +311,7 @@ func parseRunFilterField(raw string) (runFilterField, bool) {
 
 	switch field {
 	case "name", "run_name", "display", "display_name":
-		return runFilterField{kind: runFilterFieldDisplay}, true
+		return runFilterField{kind: runFilterFieldDisplayName}, true
 	case "key", "run_key", "path":
 		return runFilterField{kind: runFilterFieldKey}, true
 	case "id", "run_id":
@@ -379,7 +379,7 @@ func runFilterPatternMatch(
 	matcher func(string) bool,
 ) bool {
 	switch field.kind {
-	case runFilterFieldDisplay:
+	case runFilterFieldDisplayName:
 		return runFilterMatchAny(matcher, data.DisplayName)
 	case runFilterFieldKey:
 		return runFilterMatchAny(matcher, data.RunKey)
@@ -434,7 +434,7 @@ func runFilterExactMismatch(data workspaceRunFilterData, field runFilterField, r
 // operations for a field.
 func runFilterExactCandidates(data workspaceRunFilterData, field runFilterField) []string {
 	switch field.kind {
-	case runFilterFieldDisplay:
+	case runFilterFieldDisplayName:
 		return runFilterNonEmptyStrings(data.DisplayName)
 	case runFilterFieldKey:
 		return runFilterNonEmptyStrings(data.RunKey)
@@ -500,7 +500,7 @@ func runFilterNumericCompare(
 // comparison operators.
 func runFilterSingleValue(data workspaceRunFilterData, field runFilterField) (string, bool) {
 	switch field.kind {
-	case runFilterFieldDisplay:
+	case runFilterFieldDisplayName:
 		return data.DisplayName, data.DisplayName != ""
 	case runFilterFieldKey:
 		return data.RunKey, data.RunKey != ""
@@ -520,7 +520,7 @@ func runFilterSingleValue(data workspaceRunFilterData, field runFilterField) (st
 // metadata.
 func runFilterFieldExists(data workspaceRunFilterData, field runFilterField) bool {
 	switch field.kind {
-	case runFilterFieldDisplay:
+	case runFilterFieldDisplayName:
 		return data.DisplayName != ""
 	case runFilterFieldKey:
 		return data.RunKey != ""
