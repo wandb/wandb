@@ -2464,39 +2464,35 @@ def docker(
     cmd,
     no_tty,
 ):
-    """Run your code in a docker container.
+    """Run code in a Docker container with W&B configured.
 
-    Run your program inside a Docker image with W&B configured. Set the
-    `WANDB_DOCKER` and `WANDB_API_KEY` environment variables in the
-    container and mount the current working directory at `/app` by
-    default.
+    Start a Docker container, inject `WANDB_DOCKER` and `WANDB_API_KEY`
+    environment variables, and mount the current working directory at
+    `/app` by default. Override the container entrypoint to ensure
+    `wandb` is installed.
 
-    Pass additional arguments to insert them into `docker run` before the
-    image name. If you do not specify an image, select a default image
-    automatically.
+    Pass additional arguments to insert them into `docker run` before
+    the image name. Use a default image if none is specified.
 
-    Override the container entrypoint by default to ensure `wandb` is
-    installed. If you pass `--jupyter`, ensure Jupyter is installed and
-    start JupyterLab on port 8888.
+    Use `--jupyter` to install and start JupyterLab on port 8888.
+    Enable the NVIDIA runtime automatically if NVIDIA Docker is
+    available on the host.
 
-    If NVIDIA Docker is available, use the NVIDIA runtime automatically.
+    Requires Docker to be installed and running on the host machine.
 
-    To set W&B environment variables for an existing `docker run`
+    To inject W&B environment variables into an existing `docker run`
     command without modifying the entrypoint, use `wandb docker-run`.
 
     Examples:
-    Run the default W&B Docker image and mount `/mnt/dataset` into the container
-    at `/app/data`.
+    Run the default image and mount a dataset into the container:
 
         $ wandb docker -v /mnt/dataset:/app/data
 
-    Run the specified TensorFlow notebook image and start JupyterLab in the
-    container (port 8888 by default).
+    Run a TensorFlow image and start JupyterLab:
 
         $ wandb docker gcr.io/kubeflow-images-public/tensorflow-1.12.0-notebook-cpu:v0.4.0 --jupyter
 
-    Run the specified GPU-enabled image, disable TTY allocation, and execute the
-    given training command.
+    Run a GPU-enabled image with a training command:
 
         $ wandb docker wandb/deepo:keras-gpu --no-tty --cmd "python train.py --epochs=5"
     """
@@ -2610,34 +2606,27 @@ def server():
     context_settings=RUN_CONTEXT,
     help="""Start a local W&B server in a Docker container.
 
-    Pull and run the `wandb/local` Docker image (local instance
-    of the W&B server).
+    Pull and run the `wandb/local` Docker image. Map the specified host
+    port to port `8080` in the container and mount a persistent Docker
+    volume named `wandb` to store data.
 
-    Map the specified port on the host to port `8080` in the container and
-    mount a persistent Docker volume named `wandb` to store data.
-
-    If a newer image is available, notify the user to upgrade to the latest
-    version (`wandb server start --upgrade`).
-
-    If a container named `wandb-local` is already running, notify the user
-    to stop it before starting a new one.
-
-    Set the `base_url` setting to the local server URL so that W&B client
-    calls use the local server. If no API key is found, prompt the user to log in.
+    Configure the `base_url` setting to point to the local server so
+    that subsequent W&B client calls use it. Prompt for login if no
+    API key is found.
 
     Requires Docker to be installed and running on the host machine.
 
     Examples:
 
-    Launch a local W&B server on port 8080 in the background.
+    Start a local W&B server on the default port (8080):
 
         $ wandb server start
 
-    Run the server on port 9090 instead of the default 8080.
+    Start the server on port 9090:
 
         $ wandb server start -p 9090
 
-    Run the server in the foreground so logs stream directly to the terminal
+    Start the server in the foreground:
 
         $ wandb server start --no-daemon
 
@@ -3038,9 +3027,9 @@ def cache():
     context_settings=CONTEXT,
     help="""Reduce the local artifact cache size.
 
-    Remove less frequently used files until the cache is at or below
-    the `TARGET_SIZE`. `TARGET_SIZE` accepts human-readable formats (for example,
-    10GB or 500MB).
+    Remove the least recently accessed files first until the cache is
+    at or below the `TARGET_SIZE`. `TARGET_SIZE` accepts human-readable
+    formats (for example, 10GB or 500MB).
 
     Examples:
 
@@ -3080,10 +3069,6 @@ def cleanup(target_size, remove_temp):
     and entity if not included in the run argument.
 
     Examples:
-
-    Download files from a run with a run ID "abcd1234" in the default project and entity
-
-        $ wandb pull abcd1234
 
     Download files from a run with run ID "abcd1234" in the "foobar" project and "team-awesome" entity
 
@@ -3137,22 +3122,28 @@ def pull(run, project, entity):
 
 @cli.command(
     context_settings=CONTEXT,
-    help="""Restore the code, config, and Docker state from a previous run.
+    help="""Restore the code, config, or Docker environement from a previous W&B run.
 
-    Recreate the environment of a previous W&B run so you can
-    reproduce it. Run this command from the same git repository
-    as the original run, unless you pass the `--no-git` flag.
+    Recreate the environment of a previous run so you can reproduce it. Requires
+    authentication with W&B.
 
-    Restore in three steps:
+    Restore up to three pieces of state, depending on what the original
+    run recorded:
 
-    1. Git — Check out the original commit on a new branch (`wandb/run_id`),
-       fetch and apply any saved diff patch, and fall back to an upstream
-       commit if the original commit cannot be found.
-    2. Config — Write the run config to `wandb/config.yaml`.
-    3. Docker — If the run used Docker, start the same image with the
-       original command.
+    1. Config (always) — Write the run config to `wandb/config.yaml`.
+    2. Git (if available) — Check out the original commit on a new
+       `wandb/run_id` branch. Fetch and apply any saved diff patch.
+       If the original commit cannot be found,
+       fall back to an upstream commit if the original cannot be found.
+       Run this command from the same git repository as the original run. Skip
+       this step with `--no-git`.
+    3. Docker (if available) — If the run was executed inside a Docker
+       container, start the same image with the original command.
 
-    Accept run in any of these formats:
+    If the run has no git history and no Docker image,
+    restore only the config.
+
+    Accept the run identifier in any of the following formats:
 
     - `run_id`
     - `project:run_id`
@@ -3161,21 +3152,23 @@ def pull(run, project, entity):
 
     Examples:
 
-    Restore a run with run ID "abcd1234" in the default project and entity
+    Restore a run with run ID "abcd1234" in the default project
+    (stored as the `WANDB_PROJECT` environment variable) and entity
+    (set from `WANDB_ENTITY` or the authenticated user's default entity):
 
         $ wandb restore abcd1234
 
     Restore a run from the "foobar" project and "team-awesome" entity with
-    run ID "abcd1234"
+    run ID "abcd1234":
 
-        $ wandb restore team-awesome/foobar-project:abcd1234
+        $ wandb restore team-awesome/foobar-project/abcd1234
 
     Restore run "abcd1234" without restoring git state. Only restore config
-    and Docker state.
+    and Docker state:
 
         $ wandb restore --no-git abcd1234
 
-    Restore run "abcd1234" in detached HEAD mode instead of creating a branch
+    Restore run "abcd1234" in detached HEAD mode instead of creating a branch:
 
         $ wandb restore --no-branch abcd1234
     """,
@@ -3348,6 +3341,15 @@ def online():
     sync data to the W&B cloud.
 
     Undo a previous call to `wandb offline`.
+
+    Examples:
+    Re-enable cloud syncing after working offline:
+
+        $ wandb online
+
+    Re-enable cloud syncing, then run a training script:
+
+        $ wandb online && python train.py
     """
     system_settings = wandb_setup.singleton().settings.read_system_settings()
     system_settings.clear("mode")
@@ -3488,6 +3490,8 @@ def disabled(service):
 
     To switch between online and offline modes without fully deactivating W&B,
     use `wandb online` or `wandb offline` instead.
+
+
 
     Examples:
 
