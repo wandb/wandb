@@ -41,7 +41,11 @@ def create_bokeh(temp_dir) -> Path:
     doc = Document()
     doc.add_root(figure(title="test", x_axis_label="x", y_axis_label="y"))
     with open(bokeh_path, "w") as f:
-        json.dump(doc.to_json(), f, indent=4)
+        try:
+            b_json = doc.to_json(deferred=False)
+        except TypeError:
+            b_json = doc.to_json()
+        json.dump(b_json, f, indent=4)
     return bokeh_path
 
 

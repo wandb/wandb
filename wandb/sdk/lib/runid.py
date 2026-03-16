@@ -1,5 +1,6 @@
 """runid util."""
 
+import os
 import random
 import secrets
 from string import ascii_lowercase, digits
@@ -9,6 +10,13 @@ _ID_CHARS = f"{ascii_lowercase}{digits}"
 # Create a dedicated Random instance with its own state so it
 # is not affected by global random.seed() calls
 _random = random.Random()
+
+
+# Reset the random number generator on forking a new process to avoid multiple processes using the same seed.
+# The `random` module basically does this internally for python's global random state.
+# This is only necessary on platforms that support the `fork` multiprocessing start method (e.g. POSIX).
+if hasattr(os, "fork"):
+    os.register_at_fork(after_in_child=_random.seed)
 
 
 def generate_id(length: int = 8) -> str:
