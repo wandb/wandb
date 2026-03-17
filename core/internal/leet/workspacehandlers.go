@@ -146,9 +146,9 @@ func (w *Workspace) handleMetricsMouse(msg tea.MouseMsg, metricsHeight int) tea.
 	case tea.MouseWheelMsg:
 		switch m.Button {
 		case tea.MouseWheelUp:
-			w.metricsGrid.HandleWheel(adjustedX, row, col, dims, true, verticalZoom)
+			w.metricsGrid.HandleWheel(adjustedX, adjustedY, row, col, dims, true, verticalZoom)
 		case tea.MouseWheelDown:
-			w.metricsGrid.HandleWheel(adjustedX, row, col, dims, false, verticalZoom)
+			w.metricsGrid.HandleWheel(adjustedX, adjustedY, row, col, dims, false, verticalZoom)
 		}
 	}
 
@@ -202,9 +202,9 @@ func (w *Workspace) handleSystemMetricsMouse(msg tea.MouseMsg, metricsHeight int
 		w.metricsGrid.clearFocus()
 		switch m.Button {
 		case tea.MouseWheelUp:
-			grid.HandleWheel(adjustedX, row, col, dims, true, verticalZoom)
+			grid.HandleWheel(adjustedX, adjustedY, row, col, dims, true, verticalZoom)
 		case tea.MouseWheelDown:
-			grid.HandleWheel(adjustedX, row, col, dims, false, verticalZoom)
+			grid.HandleWheel(adjustedX, adjustedY, row, col, dims, false, verticalZoom)
 		}
 	}
 

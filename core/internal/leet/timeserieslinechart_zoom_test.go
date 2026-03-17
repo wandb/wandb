@@ -125,11 +125,17 @@ func computeSystemAdjustedX(
 ) int {
 	t.Helper()
 	chartStartX := col * cellWWithPad
-	graphStartX := chartStartX + 1
+	graphStartX := chartStartX + leet.ChartBorderSize/2
 	if chart.YStep() > 0 {
 		graphStartX += chart.Origin().X + 1
 	}
 	return graphStartX + wantRelX
+}
+
+func computeSystemAdjustedY(row, cellHWithPad, wantRelY int) int {
+	chartStartY := row * cellHWithPad
+	graphStartY := chartStartY + leet.ChartBorderSize/2 + leet.ChartTitleHeight
+	return graphStartY + wantRelY
 }
 
 func TestSystemMetricsGrid_Inspection_Synchronized(t *testing.T) {
@@ -226,7 +232,7 @@ func TestTimeSeriesLineChart_VerticalZoomPersistsAcrossLiveUpdates(t *testing.T)
 	}
 
 	fullRange := chart.ViewMaxY() - chart.ViewMinY()
-	chart.HandleVerticalZoom("in")
+	chart.HandleVerticalZoom("in", chart.GraphHeight()/2)
 	zoomMin, zoomMax := chart.ViewMinY(), chart.ViewMaxY()
 	zoomRange := zoomMax - zoomMin
 	require.Less(t, zoomRange, fullRange)
@@ -263,7 +269,9 @@ func TestMetricsGrid_HandleWheel_VerticalZoomOnlyChangesYRange(t *testing.T) {
 	yRange := chart.ViewMaxY() - chart.ViewMinY()
 	adjustedX := computeAdjustedX(t, chart, dims.CellWWithPadding, 0, chart.GraphWidth()/2)
 
-	grid.HandleWheel(adjustedX, 0, 0, dims, true, true)
+	adjustedY := computeAdjustedY(0, dims.CellHWithPadding, chart.GraphHeight()/2)
+
+	grid.HandleWheel(adjustedX, adjustedY, 0, 0, dims, true, true)
 
 	require.InDelta(t, xRange, chart.ViewMaxX()-chart.ViewMinX(), 1e-9)
 	require.Less(t, chart.ViewMaxY()-chart.ViewMinY(), yRange)
@@ -303,8 +311,74 @@ func TestSystemMetricsGrid_HandleWheel_VerticalZoomOnlyChangesYRange(t *testing.
 	yRange := chart.ViewMaxY() - chart.ViewMinY()
 	adjustedX := computeSystemAdjustedX(t, chart, dims.CellWWithPadding, 0, chart.GraphWidth()/2)
 
-	grid.HandleWheel(adjustedX, 0, 0, dims, true, true)
+	adjustedY := computeAdjustedY(0, dims.CellHWithPadding, chart.GraphHeight()/2)
+
+	grid.HandleWheel(adjustedX, adjustedY, 0, 0, dims, true, true)
 
 	require.InDelta(t, xRange, chart.ViewMaxX()-chart.ViewMinX(), 1e-9)
 	require.Less(t, chart.ViewMaxY()-chart.ViewMinY(), yRange)
+}
+
+func TestMetricsGrid_HandleWheel_VerticalZoomIgnoresXAxisArea(t *testing.T) {
+	grid := newMetricsGrid(t, 1, 1, 160, 40, nil)
+	require.True(t, grid.ProcessHistory(leet.HistoryMsg{Metrics: map[string]leet.MetricData{
+		"loss": {
+			X: []float64{0, 1, 2, 3},
+			Y: []float64{5, 10, 20, 30},
+		},
+	}}))
+	grid.UpdateDimensions(160, 40)
+
+	dims := grid.CalculateChartDimensions(160, 40)
+	chart := grid.TestChartAt(0, 0)
+	require.NotNil(t, chart)
+
+	yRange := chart.ViewMaxY() - chart.ViewMinY()
+	adjustedX := computeAdjustedX(t, chart, dims.CellWWithPadding, 0, chart.GraphWidth()/2)
+	adjustedY := computeAdjustedY(0, dims.CellHWithPadding, chart.GraphHeight())
+
+	grid.HandleWheel(adjustedX, adjustedY, 0, 0, dims, true, true)
+
+	require.InDelta(t, yRange, chart.ViewMaxY()-chart.ViewMinY(), 1e-9,
+		"wheel events over the x-axis/ticks should not trigger vertical zoom")
+}
+
+func TestSystemMetricsGrid_HandleWheel_VerticalZoomIgnoresXAxisArea(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+	_ = cfg.SetSystemRows(1)
+	_ = cfg.SetSystemCols(1)
+
+	grid := leet.NewSystemMetricsGrid(
+		160,
+		40,
+		cfg,
+		cfg.SystemGrid,
+		leet.NewFocus(),
+		leet.NewFilter(),
+		logger,
+	)
+
+	base := time.Unix(1_700_000_000, 0)
+	for i, value := range []float64{10, 20, 30, 40} {
+		grid.AddDataPoint(
+			"cpu.0.cpu_percent",
+			base.Add(time.Duration(i)*time.Minute).Unix(),
+			value,
+		)
+	}
+	grid.Resize(160, 40)
+
+	dims := grid.TestGridDims()
+	chart := grid.TestChartAt(0, 0)
+	require.NotNil(t, chart)
+
+	yRange := chart.ViewMaxY() - chart.ViewMinY()
+	adjustedX := computeSystemAdjustedX(t, chart, dims.CellWWithPadding, 0, chart.GraphWidth()/2)
+	adjustedY := computeSystemAdjustedY(0, dims.CellHWithPadding, chart.GraphHeight())
+
+	grid.HandleWheel(adjustedX, adjustedY, 0, 0, dims, true, true)
+
+	require.InDelta(t, yRange, chart.ViewMaxY()-chart.ViewMinY(), 1e-9,
+		"wheel events over the x-axis/ticks should not trigger vertical zoom")
 }

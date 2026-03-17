@@ -234,7 +234,7 @@ func TestEpochLineChart_VerticalZoomPersistsAcrossUpdates(t *testing.T) {
 	})
 
 	fullRange := c.ViewMaxY() - c.ViewMinY()
-	c.HandleVerticalZoom("in")
+	c.HandleVerticalZoom("in", c.GraphHeight()/2)
 
 	zoomMin, zoomMax := c.ViewMinY(), c.ViewMaxY()
 	zoomRange := zoomMax - zoomMin
@@ -257,12 +257,12 @@ func TestEpochLineChart_VerticalZoomOutRestoresAutoFit(t *testing.T) {
 		Y: []float64{5, 10, 20, 30},
 	})
 
-	c.HandleVerticalZoom("in")
+	c.HandleVerticalZoom("in", c.GraphHeight()/2)
 	for range 32 {
 		if c.ViewMinY() == c.MinY() && c.ViewMaxY() == c.MaxY() {
 			break
 		}
-		c.HandleVerticalZoom("out")
+		c.HandleVerticalZoom("out", c.GraphHeight()/2)
 	}
 
 	require.InDelta(t, c.MinY(), c.ViewMinY(), 1e-9)
@@ -272,4 +272,48 @@ func TestEpochLineChart_VerticalZoomOutRestoresAutoFit(t *testing.T) {
 	require.InDelta(t, c.MinY(), c.ViewMinY(), 1e-9)
 	require.InDelta(t, c.MaxY(), c.ViewMaxY(), 1e-9,
 		"full-range Y view should resume auto-fit after zooming back out")
+}
+
+func TestEpochLineChart_VerticalZoomAnchorsToMouseY(t *testing.T) {
+	newChart := func() *leet.EpochLineChart {
+		c := leet.NewEpochLineChart("loss")
+		c.Resize(120, 16)
+		c.AddData("run", leet.MetricData{
+			X: []float64{0, 1, 2, 3},
+			Y: []float64{0, 10, 20, 30},
+		})
+		return c
+	}
+
+	top := newChart()
+	fullMin, fullMax := top.ViewMinY(), top.ViewMaxY()
+	top.HandleVerticalZoom("in", 0)
+	require.InDelta(t, fullMax, top.ViewMaxY(), 1e-9)
+	require.Greater(t, top.ViewMinY(), fullMin)
+
+	bottom := newChart()
+	bottom.HandleVerticalZoom("in", bottom.GraphHeight()-1)
+	require.InDelta(t, fullMin, bottom.ViewMinY(), 0.5)
+	require.Less(t, bottom.ViewMaxY(), fullMax)
+	require.Greater(t, top.ViewMinY(), bottom.ViewMinY(),
+		"zoom anchor should move with the mouse Y position")
+}
+
+func TestEpochLineChart_DrawSkipsFalseBridgeAcrossOutOfBoundsPoint(t *testing.T) {
+	c := leet.NewEpochLineChart("loss")
+	c.Resize(120, 18)
+	c.AddData("run", leet.MetricData{
+		X: []float64{0, 5, 10},
+		Y: []float64{5, 100, 5},
+	})
+
+	c.SetXRange(0, 10)
+	c.SetViewXRange(0, 10)
+	c.SetYRange(0, 10)
+	c.SetViewYRange(0, 10)
+	c.SetXYRange(0, 10, 0, 10)
+	c.Draw()
+
+	require.False(t, c.TestHasGlyphAtData(5, 5),
+		"renderer should not connect visible endpoints across a clipped point")
 }

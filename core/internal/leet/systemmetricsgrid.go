@@ -491,7 +491,7 @@ func (g *SystemMetricsGrid) hitChartAndRelX(
 	}
 
 	chartStartX := col * dims.CellWWithPadding
-	graphStartX := chartStartX + 1
+	graphStartX := chartStartX + ChartBorderSize/2
 	if chart.YStep() > 0 {
 		graphStartX += chart.Origin().X + 1
 	}
@@ -501,17 +501,34 @@ func (g *SystemMetricsGrid) hitChartAndRelX(
 	return chart, relX, needFocus, true
 }
 
+// hitChartAndRelPoint returns the chart under (row, col) together with
+// graph-local X/Y coordinates.
+func (g *SystemMetricsGrid) hitChartAndRelPoint(
+	adjustedX, adjustedY, row, col int,
+	dims GridDims,
+) (chart *TimeSeriesLineChart, relX, relY int, needFocus, ok bool) {
+	chart, relX, needFocus, ok = g.hitChartAndRelX(adjustedX, row, col, dims)
+	if !ok || chart == nil {
+		return nil, 0, 0, false, false
+	}
+
+	chartStartY := row * dims.CellHWithPadding
+	graphStartY := chartStartY + ChartBorderSize/2 + ChartTitleHeight
+	relY = adjustedY - graphStartY
+	return chart, relX, relY, needFocus, true
+}
+
 // HandleWheel performs zoom handling on a system chart at (row, col).
 func (g *SystemMetricsGrid) HandleWheel(
-	adjustedX, row, col int,
+	adjustedX, adjustedY, row, col int,
 	dims GridDims,
 	wheelUp, vertical bool,
 ) {
-	chart, relX, needFocus, ok := g.hitChartAndRelX(adjustedX, row, col, dims)
+	chart, relX, relY, needFocus, ok := g.hitChartAndRelPoint(adjustedX, adjustedY, row, col, dims)
 	if !ok || chart == nil {
 		return
 	}
-	if relX < 0 || relX >= chart.GraphWidth() {
+	if relX < 0 || relX >= chart.GraphWidth() || relY < 0 || relY >= chart.GraphHeight() {
 		return
 	}
 	if needFocus {
@@ -523,7 +540,7 @@ func (g *SystemMetricsGrid) HandleWheel(
 		direction = "in"
 	}
 	if vertical {
-		chart.HandleVerticalZoom(direction)
+		chart.HandleVerticalZoom(direction, relY)
 	} else {
 		chart.HandleZoom(direction, relX)
 	}

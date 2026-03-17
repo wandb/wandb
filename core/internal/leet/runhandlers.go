@@ -221,9 +221,9 @@ func (r *Run) handleMainContentMouse(msg tea.MouseMsg, layout Layout) (*Run, tea
 	case tea.MouseWheelMsg:
 		switch m.Button {
 		case tea.MouseWheelUp:
-			r.metricsGrid.HandleWheel(adjustedX, row, col, dims, true, verticalZoom)
+			r.metricsGrid.HandleWheel(adjustedX, adjustedY, row, col, dims, true, verticalZoom)
 		case tea.MouseWheelDown:
-			r.metricsGrid.HandleWheel(adjustedX, row, col, dims, false, verticalZoom)
+			r.metricsGrid.HandleWheel(adjustedX, adjustedY, row, col, dims, false, verticalZoom)
 		}
 	}
 

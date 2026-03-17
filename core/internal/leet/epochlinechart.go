@@ -429,19 +429,43 @@ func (c *EpochLineChart) clampYView(domainMin, domainMax float64) {
 	c.SetViewYRange(viewMin, viewMax)
 }
 
-// HandleZoom processes horizontal zoom events with the mouse X position in pixels.
-func (c *EpochLineChart) HandleZoom(direction string, mouseX int) {
+func (c *EpochLineChart) dataXAtGraphX(mouseX int) (value, proportion float64, ok bool) {
 	viewMin := c.ViewMinX()
 	viewMax := c.ViewMaxX()
 	viewRange := viewMax - viewMin
-	if viewRange <= 0 {
+
+	if c.GraphWidth() <= 0 || viewRange <= 0 {
+		return 0, 0, false
+	}
+
+	proportion = float64(mouseX) / float64(c.GraphWidth())
+	proportion = max(0, min(1, proportion))
+	return viewMin + proportion*viewRange, proportion, true
+}
+
+func (c *EpochLineChart) dataYAtGraphY(mouseY int) (value, proportion float64, ok bool) {
+	viewMin := c.ViewMinY()
+	viewMax := c.ViewMaxY()
+	viewRange := viewMax - viewMin
+	if c.GraphHeight() <= 0 || viewRange <= 0 {
+		return 0, 0, false
+	}
+
+	proportion = 1 - float64(mouseY)/float64(c.GraphHeight())
+	proportion = max(0, min(1, proportion))
+	return viewMin + proportion*viewRange, proportion, true
+}
+
+// HandleZoom processes horizontal zoom events with the mouse X position in pixels.
+func (c *EpochLineChart) HandleZoom(direction string, mouseX int) {
+	stepUnderMouse, mouseProportion, ok := c.dataXAtGraphX(mouseX)
+	if !ok {
 		return
 	}
 
-	mouseProportion := float64(mouseX) / float64(c.GraphWidth())
-	mouseProportion = max(0, min(1, mouseProportion))
-	stepUnderMouse := viewMin + mouseProportion*viewRange
-
+	viewMin := c.ViewMinX()
+	viewMax := c.ViewMaxX()
+	viewRange := viewMax - viewMin
 	newRange := nextZoomRange(viewRange, c.MaxX()-c.MinX(), minZoomRange, direction)
 	if newRange <= 0 {
 		return
@@ -478,14 +502,16 @@ func (c *EpochLineChart) HandleZoom(direction string, mouseX int) {
 	c.dirty = true
 }
 
-// HandleVerticalZoom processes vertical zoom events around the current Y-view center.
-func (c *EpochLineChart) HandleVerticalZoom(direction string) {
+// HandleVerticalZoom processes vertical zoom events with the mouse Y position in graph-local pixels.
+func (c *EpochLineChart) HandleVerticalZoom(direction string, mouseY int) {
+	valueUnderMouse, mouseProportion, ok := c.dataYAtGraphY(mouseY)
+	if !ok {
+		return
+	}
+
 	viewMin := c.ViewMinY()
 	viewMax := c.ViewMaxY()
 	viewRange := viewMax - viewMin
-	if viewRange <= 0 {
-		return
-	}
 
 	domainMin, domainMax := c.MinY(), c.MaxY()
 	domainRange := domainMax - domainMin
@@ -508,10 +534,8 @@ func (c *EpochLineChart) HandleVerticalZoom(direction string) {
 		return
 	}
 
-	center := (viewMin + viewMax) / 2
-	newMin := center - newRange/2
-	newMax := center + newRange/2
-
+	newMin := valueUnderMouse - newRange*mouseProportion
+	newMax := valueUnderMouse + newRange*(1-mouseProportion)
 	if newMin < domainMin {
 		newMin = domainMin
 		newMax = min(newMin+newRange, domainMax)
@@ -557,12 +581,16 @@ func (c *EpochLineChart) drawSeries(s *Series, startX int) {
 		return
 	}
 
-	// Binary search for visible window.
+	// Binary search for the visible X window plus one neighbor on each side.
+	// The extra points are needed so line clipping can draw segments that enter
+	// or leave the viewport without spuriously bridging across hidden points.
 	lb := sort.Search(len(s.X), func(i int) bool { return s.X[i] >= c.ViewMinX() })
 	eps := c.pixelEpsX(c.ViewMaxX() - c.ViewMinX())
 	ub := sort.Search(len(s.X), func(i int) bool { return s.X[i] > c.ViewMaxX()+eps })
 
-	if ub <= lb {
+	start := max(lb-1, 0)
+	end := min(ub+1, len(s.X))
+	if start >= end {
 		return
 	}
 
@@ -573,28 +601,31 @@ func (c *EpochLineChart) drawSeries(s *Series, startX int) {
 		0, float64(c.GraphHeight()),
 	)
 
-	xScale := float64(c.GraphWidth()) / (c.ViewMaxX() - c.ViewMinX())
-	yScale := float64(c.GraphHeight()) / (c.ViewMaxY() - c.ViewMinY())
+	clip := c.graphClipRect()
 
-	// Convert visible data points to canvas coordinates.
-	points := make([]canvas.Float64Point, 0, ub-lb)
-	for i := lb; i < ub; i++ {
-		x := (s.X[i] - c.ViewMinX()) * xScale
-		y := (s.Y[i] - c.ViewMinY()) * yScale
-
-		if x >= 0 && x <= float64(c.GraphWidth()) && y >= 0 && y <= float64(c.GraphHeight()) {
-			points = append(points, canvas.Float64Point{X: x, Y: y})
+	for i := start; i < end; i++ {
+		p := c.graphPointForLine(s.X[i], s.Y[i])
+		if pointInGraphRect(p, clip) {
+			bGrid.Set(bGrid.GridPoint(p))
 		}
 	}
 
-	if len(points) == 1 {
-		bGrid.Set(bGrid.GridPoint(points[0]))
-	} else {
-		for i := range len(points) - 1 {
-			gp1 := bGrid.GridPoint(points[i])
-			gp2 := bGrid.GridPoint(points[i+1])
-			drawLine(bGrid, gp1, gp2)
+	for i := start; i+1 < end; i++ {
+		p1 := c.graphPointForLine(s.X[i], s.Y[i])
+		p2 := c.graphPointForLine(s.X[i+1], s.Y[i+1])
+
+		cp1, cp2, ok := clipLineToGraphRect(p1, p2, clip)
+		if !ok {
+			continue
 		}
+
+		gp1 := bGrid.GridPoint(cp1)
+		gp2 := bGrid.GridPoint(cp2)
+		if gp1 == gp2 {
+			bGrid.Set(gp1)
+			continue
+		}
+		drawLine(bGrid, gp1, gp2)
 	}
 
 	patterns := bGrid.BraillePatterns()
@@ -783,6 +814,72 @@ func (c *EpochLineChart) pixelEpsX(xRange float64) float64 {
 		return 0
 	}
 	return xRange / float64(c.GraphWidth())
+}
+
+type graphRect struct {
+	minX, maxX float64
+	minY, maxY float64
+}
+
+func (c *EpochLineChart) graphClipRect() graphRect {
+	return graphRect{
+		minX: 0,
+		maxX: float64(c.GraphWidth()),
+		minY: 0,
+		maxY: float64(c.GraphHeight()),
+	}
+}
+
+func (c *EpochLineChart) graphPointForLine(x, y float64) canvas.Float64Point {
+	return c.ScaleFloat64PointForLine(canvas.Float64Point{X: x, Y: y})
+}
+
+func pointInGraphRect(p canvas.Float64Point, r graphRect) bool {
+	return p.X >= r.minX && p.X <= r.maxX && p.Y >= r.minY && p.Y <= r.maxY
+}
+
+func clipLineToGraphRect(
+	p1, p2 canvas.Float64Point,
+	r graphRect,
+) (canvas.Float64Point, canvas.Float64Point, bool) {
+	dx := p2.X - p1.X
+	dy := p2.Y - p1.Y
+	u1, u2 := 0.0, 1.0
+
+	if !clipGraphEdge(-dx, p1.X-r.minX, &u1, &u2) ||
+		!clipGraphEdge(dx, r.maxX-p1.X, &u1, &u2) ||
+		!clipGraphEdge(-dy, p1.Y-r.minY, &u1, &u2) ||
+		!clipGraphEdge(dy, r.maxY-p1.Y, &u1, &u2) {
+		return canvas.Float64Point{}, canvas.Float64Point{}, false
+	}
+
+	return canvas.Float64Point{X: p1.X + u1*dx, Y: p1.Y + u1*dy},
+		canvas.Float64Point{X: p1.X + u2*dx, Y: p1.Y + u2*dy}, true
+}
+
+func clipGraphEdge(p, q float64, u1, u2 *float64) bool {
+	if p == 0 {
+		return q >= 0
+	}
+
+	t := q / p
+	if p < 0 {
+		if t > *u2 {
+			return false
+		}
+		if t > *u1 {
+			*u1 = t
+		}
+		return true
+	}
+
+	if t < *u1 {
+		return false
+	}
+	if t < *u2 {
+		*u2 = t
+	}
+	return true
 }
 
 // drawLine draws a line using Bresenham's algorithm.
