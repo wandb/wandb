@@ -107,6 +107,16 @@ func (s *Series) Bounds() (xMin, xMax, yMin, yMax float64) {
 	return s.xMin, s.xMax, s.yMin, s.yMax
 }
 
+// AddPoint appends a single sample and incrementally updates bounds.
+func (s *Series) AddPoint(x, y float64) {
+	s.X = append(s.X, x)
+	s.Y = append(s.Y, y)
+	s.xMin = min(s.xMin, x)
+	s.xMax = max(s.xMax, x)
+	s.yMin = min(s.yMin, y)
+	s.yMax = max(s.yMax, y)
+}
+
 // EpochLineChart is a line chart for epoch/step-based ML training data.
 //
 // It supports multiple series rendered with opaque compositing (painter's

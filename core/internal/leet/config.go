@@ -39,6 +39,7 @@ const (
 
 	DefaultColorScheme        = "wandb-vibe-10"
 	DefaultPerPlotColorScheme = "sunset-glow"
+	DefaultTagColorScheme     = DefaultColorScheme
 	DefaultSingleRunColorMode = ColorModePerSeries
 
 	DefaultSystemColorScheme    = "wandb-vibe-10"
@@ -73,6 +74,9 @@ type Config struct {
 
 	// ColorScheme is the color scheme to display the main metrics.
 	ColorScheme string `json:"color_scheme" leet:"desc=Palette for main run metrics charts (and run list colors).,options=colorSchemes"`
+
+	// TagColorScheme is the color scheme for run tag badges in the overview sidebar.
+	TagColorScheme string `json:"tag_color_scheme" leet:"label=Tag color scheme,desc=Palette for run tags in the overview sidebar.,options=colorSchemes"`
 
 	// PerPlotColorScheme is the color scheme to use for main metrics
 	// in single-run view when SingleRunColorMode is per_plot.
@@ -155,6 +159,7 @@ func NewConfigManager(path string, logger *observability.CoreLogger) *ConfigMana
 			StartupMode:                   DefaultStartupMode,
 			ColorScheme:                   DefaultColorScheme,
 			PerPlotColorScheme:            DefaultPerPlotColorScheme,
+			TagColorScheme:                DefaultTagColorScheme,
 			SingleRunColorMode:            DefaultSingleRunColorMode,
 			SystemColorScheme:             DefaultSystemColorScheme,
 			SystemColorMode:               DefaultSystemColorMode,
@@ -227,6 +232,10 @@ func (cm *ConfigManager) normalizeConfig() {
 
 	if _, ok := colorSchemes[cm.config.SystemColorScheme]; !ok {
 		cm.config.SystemColorScheme = DefaultSystemColorScheme
+	}
+
+	if _, ok := colorSchemes[cm.config.TagColorScheme]; !ok {
+		cm.config.TagColorScheme = DefaultTagColorScheme
 	}
 
 	if cm.config.SystemColorMode != ColorModePerPlot &&
@@ -471,6 +480,22 @@ func (cm *ConfigManager) SetPerPlotColorScheme(scheme string) error {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
 	cm.config.PerPlotColorScheme = scheme
+	return cm.save()
+}
+
+func (cm *ConfigManager) TagColorScheme() string {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	return cm.config.TagColorScheme
+}
+
+func (cm *ConfigManager) SetTagColorScheme(scheme string) error {
+	if _, ok := colorSchemes[scheme]; !ok {
+		return fmt.Errorf("unknown color scheme: %q", scheme)
+	}
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	cm.config.TagColorScheme = scheme
 	return cm.save()
 }
 

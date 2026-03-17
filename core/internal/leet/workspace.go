@@ -138,7 +138,7 @@ func NewWorkspace(
 		runs:          runs,
 		runOverview:   make(map[string]*RunOverview),
 		runOverviewSidebar: NewRunOverviewSidebar(
-			runOverviewAnimState, NewRunOverview(), SidebarSideRight),
+			cfg, runOverviewAnimState, NewRunOverview(), SidebarSideRight),
 		overviewPreloader:   newRunOverviewPreloader(maxConcurrentPreloads),
 		selectedRuns:        make(map[string]bool),
 		focus:               focus,

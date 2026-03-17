@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -226,6 +227,8 @@ func (r *WandbReader) recordToMsg(record *spb.Record) tea.Msg {
 			ID:          rec.Run.GetRunId(),
 			DisplayName: rec.Run.GetDisplayName(),
 			Project:     rec.Run.GetProject(),
+			Notes:       rec.Run.GetNotes(),
+			Tags:        slices.Clone(rec.Run.GetTags()),
 			Config:      rec.Run.GetConfig(),
 		}
 	case *spb.Record_History:

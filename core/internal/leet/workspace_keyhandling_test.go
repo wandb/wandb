@@ -603,7 +603,7 @@ func TestWorkspace_RunsFilter_ProjectAndConfig(t *testing.T) {
 
 	_ = w.Update(leet.WorkspaceRunOverviewPreloadedMsg{
 		RunKey: run1,
-		Run: leet.RunMsg{
+		Run: &leet.RunMsg{
 			ID:          "vision01",
 			DisplayName: "resnet50",
 			Project:     "vision",
@@ -615,7 +615,7 @@ func TestWorkspace_RunsFilter_ProjectAndConfig(t *testing.T) {
 	})
 	_ = w.Update(leet.WorkspaceRunOverviewPreloadedMsg{
 		RunKey: run2,
-		Run: leet.RunMsg{
+		Run: &leet.RunMsg{
 			ID:          "nlp0002",
 			DisplayName: "bert-debug",
 			Project:     "nlp",
@@ -656,7 +656,7 @@ func TestWorkspace_RunsFilter_UpdatesWhenMetadataPreloadsArrive(t *testing.T) {
 
 	_ = w.Update(leet.WorkspaceRunOverviewPreloadedMsg{
 		RunKey: runKey,
-		Run:    leet.RunMsg{ID: "vision01", Project: "vision", DisplayName: "baseline"},
+		Run:    &leet.RunMsg{ID: "vision01", Project: "vision", DisplayName: "baseline"},
 	})
 
 	require.Equal(t, []string{runKey}, w.TestFilteredRunKeys(),
@@ -688,11 +688,11 @@ func TestWorkspace_RunsFilter_Clear(t *testing.T) {
 	_ = w.Update(leet.WorkspaceRunDirsMsg{RunKeys: []string{run1, run2}})
 	_ = w.Update(leet.WorkspaceRunOverviewPreloadedMsg{
 		RunKey: run1,
-		Run:    leet.RunMsg{ID: "vision01", Project: "vision"},
+		Run:    &leet.RunMsg{ID: "vision01", Project: "vision"},
 	})
 	_ = w.Update(leet.WorkspaceRunOverviewPreloadedMsg{
 		RunKey: run2,
-		Run:    leet.RunMsg{ID: "nlp0002", Project: "nlp"},
+		Run:    &leet.RunMsg{ID: "nlp0002", Project: "nlp"},
 	})
 
 	require.Nil(t, w.Update(keyRune('f')))

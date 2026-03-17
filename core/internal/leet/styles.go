@@ -3,6 +3,7 @@ package leet
 import (
 	"fmt"
 	"image/color"
+	"math"
 	"os"
 	"sync"
 	"time"
@@ -274,6 +275,16 @@ var colorSchemes = map[string][]compat.AdaptiveColor{
 		compat.AdaptiveColor{
 			Light: lipgloss.Color("#10BFCC"), Dark: lipgloss.Color("#E1F7FA")}, // == teal450
 	},
+	"bootstrap-vibe": { // Badge-friendly palette with familiar utility tones
+		compat.AdaptiveColor{Light: lipgloss.Color("#6c757d"), Dark: lipgloss.Color("#a7b0b8")},
+		compat.AdaptiveColor{Light: lipgloss.Color("#0d6efd"), Dark: lipgloss.Color("#78aefc")},
+		compat.AdaptiveColor{Light: lipgloss.Color("#198754"), Dark: lipgloss.Color("#72cf9d")},
+		compat.AdaptiveColor{Light: lipgloss.Color("#0dcaf0"), Dark: lipgloss.Color("#7be3fa")},
+		compat.AdaptiveColor{Light: lipgloss.Color("#fd7e14"), Dark: lipgloss.Color("#ffb574")},
+		compat.AdaptiveColor{Light: lipgloss.Color("#dc3545"), Dark: lipgloss.Color("#f28a93")},
+		compat.AdaptiveColor{Light: lipgloss.Color("#6f42c1"), Dark: lipgloss.Color("#b99aff")},
+		compat.AdaptiveColor{Light: lipgloss.Color("#20c997"), Dark: lipgloss.Color("#83e6ca")},
+	},
 	"wandb-vibe-10": {
 		compat.AdaptiveColor{Light: lipgloss.Color("#8A8D91"), Dark: lipgloss.Color("#B1B4B9")},
 		compat.AdaptiveColor{Light: lipgloss.Color("#3DBAC4"), Dark: lipgloss.Color("#58D3DB")},
@@ -369,6 +380,96 @@ var (
 )
 
 var errorStyle = lipgloss.NewStyle()
+
+// runOverviewTagLightText is the default (white) foreground for tag badges
+// when the background is too dark for dark text to be legible.
+var runOverviewTagLightText = lipgloss.Color("#ffffff")
+
+// runOverviewTagBackgroundColor returns the background color for a tag badge.
+// It deterministically maps tag to a color in the given scheme so that the
+// same tag always gets the same color.
+func runOverviewTagBackgroundColor(scheme, tag string) compat.AdaptiveColor {
+	colors := GraphColors(scheme)
+	return colors[colorIndex(tag, len(colors))]
+}
+
+// runOverviewTagForegroundColor picks a foreground color (light or dark) for
+// each adaptive variant of bg that satisfies WCAG contrast requirements.
+func runOverviewTagForegroundColor(bg compat.AdaptiveColor) compat.AdaptiveColor {
+	return compat.AdaptiveColor{
+		Light: runOverviewTagTextColor(bg.Light),
+		Dark:  runOverviewTagTextColor(bg.Dark),
+	}
+}
+
+// runOverviewTagTextColor returns white or dark text for a single background
+// color, choosing whichever yields the higher WCAG contrast ratio.
+func runOverviewTagTextColor(bg any) color.Color {
+	r, g, b, ok := parseHexColor(fmt.Sprint(bg))
+	if !ok {
+		return runOverviewTagLightText
+	}
+
+	lightContrast := contrastRatioRGB(r, g, b, 0xff, 0xff, 0xff)
+	darkContrast := contrastRatioRGB(r, g, b, 0x17, 0x17, 0x17)
+	if darkContrast >= lightContrast {
+		return colorDark
+	}
+
+	return runOverviewTagLightText
+}
+
+// parseHexColor extracts 8-bit RGB components from a "#RRGGBB" hex string.
+// It returns false if hex is not in the expected format.
+func parseHexColor(hex string) (uint8, uint8, uint8, bool) {
+	var r, g, b uint8
+	if _, err := fmt.Sscanf(hex, "#%02x%02x%02x", &r, &g, &b); err != nil {
+		return 0, 0, 0, false
+	}
+	return r, g, b, true
+}
+
+// contrastRatioRGB computes the WCAG 2.x contrast ratio between two RGB colors.
+// The returned value ranges from 1 (identical) to 21 (black vs white).
+func contrastRatioRGB(r1, g1, b1, r2, g2, b2 uint8) float64 {
+	l1 := relativeLuminance(r1, g1, b1)
+	l2 := relativeLuminance(r2, g2, b2)
+	if l1 < l2 {
+		l1, l2 = l2, l1
+	}
+	return (l1 + 0.05) / (l2 + 0.05)
+}
+
+// relativeLuminance returns the WCAG relative luminance of an sRGB color.
+// See https://www.w3.org/TR/WCAG21/#dfn-relative-luminance.
+//
+// Note: WCAG = Web Content Accessibility Guidelines.
+func relativeLuminance(r, g, b uint8) float64 {
+	return 0.2126*srgbToLinear(r) + 0.7152*srgbToLinear(g) + 0.0722*srgbToLinear(b)
+}
+
+// srgbToLinear converts a single 8-bit sRGB channel value to linear-light
+// using the IEC 61966-2-1 transfer function.
+func srgbToLinear(c uint8) float64 {
+	v := float64(c) / 255.0
+	if v <= 0.04045 {
+		return v / 12.92
+	}
+	return math.Pow((v+0.055)/1.055, 2.4)
+}
+
+// runOverviewTagStyle returns the complete lipgloss badge style for a tag.
+// The background is derived from the color scheme and the foreground is
+// automatically chosen (light or dark) to ensure readable contrast.
+func runOverviewTagStyle(scheme, tag string) lipgloss.Style {
+	bg := runOverviewTagBackgroundColor(scheme, tag)
+	fg := runOverviewTagForegroundColor(bg)
+	return lipgloss.NewStyle().
+		Foreground(fg).
+		Background(bg).
+		Padding(0, 1).
+		Bold(true)
+}
 
 // Run overview styles.
 var (

@@ -91,6 +91,9 @@ func TestReadNext_MultipleRecordTypes(t *testing.T) {
 					run_id: "test-run-123"
 					display_name: "Test Run"
 					project: "test-project"
+					notes: "Primary baseline run"
+					tags: "baseline"
+					tags: "vision"
 				}
 			`,
 		},
@@ -159,6 +162,8 @@ func TestReadNext_MultipleRecordTypes(t *testing.T) {
 				require.Equal(t, "test-run-123", runMsg.ID)
 				require.Equal(t, "Test Run", runMsg.DisplayName)
 				require.Equal(t, "test-project", runMsg.Project)
+				require.Equal(t, "Primary baseline run", runMsg.Notes)
+				require.Equal(t, []string{"baseline", "vision"}, runMsg.Tags)
 			},
 		},
 		{
