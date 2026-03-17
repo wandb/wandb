@@ -64,35 +64,81 @@ func (rs *RightSidebar) Toggle() {
 	rs.animState.Toggle()
 }
 
+func (rs *RightSidebar) gridMouseTarget(x, y int) (
+	adjustedX, row, col int,
+	dims GridDims,
+	ok bool,
+) {
+	if !rs.animState.IsVisible() {
+		return 0, 0, 0, GridDims{}, false
+	}
+
+	adjustedX = x - rightSidebarMouseClickPaddingOffset
+	adjustedY := y - rightSidebarMouseClickPaddingOffset
+	if adjustedX < 0 || adjustedY < 0 {
+		return 0, 0, 0, GridDims{}, false
+	}
+
+	dims = rs.metricsGrid.calculateChartDimensions()
+	row = adjustedY / dims.CellHWithPadding
+	col = adjustedX / dims.CellWWithPadding
+	return adjustedX, row, col, dims, true
+}
+
 // HandleMouseClick handles mouse clicks in the sidebar and returns true if focus changed.
 func (rs *RightSidebar) HandleMouseClick(x, y int) bool {
 	rs.logger.Debug(fmt.Sprintf(
 		"rightsidebar: HandleMouseClick: x=%d, y=%d, state=%v",
 		x, y, rs.animState))
 
-	if !rs.animState.IsVisible() {
+	_, row, col, _, ok := rs.gridMouseTarget(x, y)
+	if !ok {
 		return false
 	}
-
-	// Adjust coordinates for border/padding.
-	adjustedX := x - rightSidebarMouseClickPaddingOffset
-	adjustedY := y - rightSidebarMouseClickPaddingOffset
-
-	if adjustedX < 0 || adjustedY < 0 {
-		return false
-	}
-
-	dims := rs.metricsGrid.calculateChartDimensions()
-
-	row := adjustedY / dims.CellHWithPadding
-	col := adjustedX / dims.CellWWithPadding
 
 	return rs.metricsGrid.HandleMouseClick(row, col)
+}
+
+// HandleWheel zooms the chart under the mouse cursor.
+func (rs *RightSidebar) HandleWheel(x, y int, wheelUp bool) {
+	adjustedX, row, col, dims, ok := rs.gridMouseTarget(x, y)
+	if !ok {
+		return
+	}
+	rs.metricsGrid.HandleWheel(adjustedX, row, col, dims, wheelUp)
+}
+
+// StartInspection begins chart inspection under the mouse cursor.
+func (rs *RightSidebar) StartInspection(x, y int, synced bool) {
+	adjustedX, row, col, dims, ok := rs.gridMouseTarget(x, y)
+	if !ok {
+		return
+	}
+	rs.metricsGrid.StartInspection(adjustedX, row, col, dims, synced)
+}
+
+// UpdateInspection moves the inspection cursor.
+func (rs *RightSidebar) UpdateInspection(x, y int) {
+	adjustedX, row, col, dims, ok := rs.gridMouseTarget(x, y)
+	if !ok {
+		return
+	}
+	rs.metricsGrid.UpdateInspection(adjustedX, row, col, dims)
+}
+
+// EndInspection clears inspection mode.
+func (rs *RightSidebar) EndInspection() {
+	rs.metricsGrid.EndInspection()
 }
 
 // FocusedChartTitle returns the title of the focused chart, or empty string if none.
 func (rs *RightSidebar) FocusedChartTitle() string {
 	return rs.metricsGrid.FocusedChartTitle()
+}
+
+// FocusedChartViewModeLabel returns a short description of the focused chart view mode.
+func (rs *RightSidebar) FocusedChartViewModeLabel() string {
+	return rs.metricsGrid.FocusedChartViewModeLabel()
 }
 
 // ClearFocus clears focus from the currently focused system chart.

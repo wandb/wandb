@@ -141,20 +141,39 @@ func (r *Run) handleLeftSidebarMouse() (*Run, tea.Cmd) {
 // handleRightSidebarMouse handles mouse events in the right sidebar.
 func (r *Run) handleRightSidebarMouse(msg tea.MouseMsg, layout Layout) (*Run, tea.Cmd) {
 	mouse := msg.Mouse()
-
-	if _, ok := msg.(tea.MouseClickMsg); !ok {
-		return r, nil
-	}
-	if mouse.Button != tea.MouseLeft {
-		return r, nil
-	}
+	alt := mouse.Mod == tea.ModAlt
 
 	rightStart := r.width - layout.rightSidebarWidth
 	adjustedX := mouse.X - rightStart
 
-	if r.rightSidebar.HandleMouseClick(adjustedX, mouse.Y) {
+	switch m := msg.(type) {
+	case tea.MouseClickMsg:
+		switch m.Button {
+		case tea.MouseLeft:
+			r.metricsGrid.clearFocus()
+			r.rightSidebar.HandleMouseClick(adjustedX, mouse.Y)
+		case tea.MouseRight:
+			r.metricsGrid.clearFocus()
+			r.rightSidebar.StartInspection(adjustedX, mouse.Y, alt)
+		}
+	case tea.MouseMotionMsg:
+		if m.Button == tea.MouseRight {
+			r.rightSidebar.UpdateInspection(adjustedX, mouse.Y)
+		}
+	case tea.MouseReleaseMsg:
+		if m.Button == tea.MouseRight {
+			r.rightSidebar.EndInspection()
+		}
+	case tea.MouseWheelMsg:
 		r.metricsGrid.clearFocus()
+		switch m.Button {
+		case tea.MouseWheelUp:
+			r.rightSidebar.HandleWheel(adjustedX, mouse.Y, true)
+		case tea.MouseWheelDown:
+			r.rightSidebar.HandleWheel(adjustedX, mouse.Y, false)
+		}
 	}
+
 	return r, nil
 }
 
