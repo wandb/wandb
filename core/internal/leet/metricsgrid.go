@@ -580,7 +580,7 @@ func (mg *MetricsGrid) clearFocus() {
 func (mg *MetricsGrid) HandleWheel(
 	adjustedX, row, col int,
 	dims GridDims,
-	wheelUp bool,
+	wheelUp, vertical bool,
 ) {
 	chart, relX, needFocus, ok := mg.hitChartAndRelX(adjustedX, row, col, dims)
 	if !ok || chart == nil {
@@ -598,7 +598,11 @@ func (mg *MetricsGrid) HandleWheel(
 	if wheelUp {
 		dir = "in"
 	}
-	chart.HandleZoom(dir, relX)
+	if vertical {
+		chart.HandleVerticalZoom(dir)
+	} else {
+		chart.HandleZoom(dir, relX)
+	}
 	chart.DrawIfNeeded()
 }
 

@@ -104,6 +104,7 @@ func (w *Workspace) handleMouse(msg tea.MouseMsg) tea.Cmd {
 func (w *Workspace) handleMetricsMouse(msg tea.MouseMsg, metricsHeight int) tea.Cmd {
 	mouse := msg.Mouse()
 	alt := mouse.Mod == tea.ModAlt // Alt pressed at the time of the mouse event?
+	verticalZoom := mouse.Mod == tea.ModCtrl
 
 	const (
 		gridPaddingX = 1
@@ -145,9 +146,9 @@ func (w *Workspace) handleMetricsMouse(msg tea.MouseMsg, metricsHeight int) tea.
 	case tea.MouseWheelMsg:
 		switch m.Button {
 		case tea.MouseWheelUp:
-			w.metricsGrid.HandleWheel(adjustedX, row, col, dims, true)
+			w.metricsGrid.HandleWheel(adjustedX, row, col, dims, true, verticalZoom)
 		case tea.MouseWheelDown:
-			w.metricsGrid.HandleWheel(adjustedX, row, col, dims, false)
+			w.metricsGrid.HandleWheel(adjustedX, row, col, dims, false, verticalZoom)
 		}
 	}
 
@@ -157,6 +158,7 @@ func (w *Workspace) handleMetricsMouse(msg tea.MouseMsg, metricsHeight int) tea.
 func (w *Workspace) handleSystemMetricsMouse(msg tea.MouseMsg, metricsHeight int) tea.Cmd {
 	mouse := msg.Mouse()
 	alt := mouse.Mod == tea.ModAlt
+	verticalZoom := mouse.Mod == tea.ModCtrl
 
 	cur, ok := w.runs.CurrentItem()
 	if !ok {
@@ -200,9 +202,9 @@ func (w *Workspace) handleSystemMetricsMouse(msg tea.MouseMsg, metricsHeight int
 		w.metricsGrid.clearFocus()
 		switch m.Button {
 		case tea.MouseWheelUp:
-			grid.HandleWheel(adjustedX, row, col, dims, true)
+			grid.HandleWheel(adjustedX, row, col, dims, true, verticalZoom)
 		case tea.MouseWheelDown:
-			grid.HandleWheel(adjustedX, row, col, dims, false)
+			grid.HandleWheel(adjustedX, row, col, dims, false, verticalZoom)
 		}
 	}
 

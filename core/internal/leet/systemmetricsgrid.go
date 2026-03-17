@@ -505,7 +505,7 @@ func (g *SystemMetricsGrid) hitChartAndRelX(
 func (g *SystemMetricsGrid) HandleWheel(
 	adjustedX, row, col int,
 	dims GridDims,
-	wheelUp bool,
+	wheelUp, vertical bool,
 ) {
 	chart, relX, needFocus, ok := g.hitChartAndRelX(adjustedX, row, col, dims)
 	if !ok || chart == nil {
@@ -522,7 +522,11 @@ func (g *SystemMetricsGrid) HandleWheel(
 	if wheelUp {
 		direction = "in"
 	}
-	chart.HandleZoom(direction, relX)
+	if vertical {
+		chart.HandleVerticalZoom(direction)
+	} else {
+		chart.HandleZoom(direction, relX)
+	}
 	chart.DrawIfNeeded()
 }
 

@@ -18,11 +18,13 @@ import (
 )
 
 const (
-	defaultZoomFactor        = 0.10
-	minZoomRange             = 5.0
-	tailAnchorMouseThreshold = 0.95
-	defaultMaxX              = 20
-	defaultMaxY              = 1
+	defaultZoomFactor         = 0.10
+	minZoomRange              = 5.0
+	minVerticalZoomRangeRatio = 0.01
+	minVerticalZoomRangeAbs   = 1e-9
+	tailAnchorMouseThreshold  = 0.95
+	defaultMaxX               = 20
+	defaultMaxY               = 1
 
 	// Minimal canvas size for parked charts.
 	parkedCanvasSize = 1
@@ -144,9 +146,17 @@ type EpochLineChart struct {
 	// When true, updateRanges preserves the user's X view instead of auto-fitting.
 	isZoomed bool
 
-	// userViewMinX/userViewMaxX preserve the user's zoom selection across
+	// isYZoomed is set after user adjusts the Y view via HandleVerticalZoom.
+	// When true, updateRanges preserves the user's Y view instead of auto-fitting.
+	isYZoomed bool
+
+	// userViewMinX/userViewMaxX preserve the user's X zoom selection across
 	// data updates when isZoomed is true.
 	userViewMinX, userViewMaxX float64
+
+	// userViewMinY/userViewMaxY preserve the user's Y zoom selection across
+	// data updates when isYZoomed is true.
+	userViewMinY, userViewMaxY float64
 
 	// xMin/xMax are the observed X bounds across all series.
 	// Used for axis domain and zoom clamping.
@@ -270,17 +280,7 @@ func (c *EpochLineChart) updateRanges() {
 		return
 	}
 
-	// Y range with padding.
-	valueRange := c.yMax - c.yMin
-	padding := c.calculatePadding(valueRange)
-
-	newYMin := c.yMin - padding
-	newYMax := c.yMax + padding
-
-	// Don't go negative for non-negative data.
-	if c.yMin >= 0 && newYMin < 0 {
-		newYMin = 0
-	}
+	newYMin, newYMax := c.paddedYRange()
 
 	// X domain: round up to a "nice" value for axis display.
 	dataXMin := c.xMin
@@ -298,7 +298,11 @@ func (c *EpochLineChart) updateRanges() {
 	}
 
 	c.SetYRange(newYMin, newYMax)
-	c.SetViewYRange(newYMin, newYMax)
+	if c.isYZoomed {
+		c.clampYView(newYMin, newYMax)
+	} else {
+		c.SetViewYRange(newYMin, newYMax)
+	}
 
 	// Always ensure X range covers the nice domain; only alter view if not zoomed.
 	c.SetXRange(dataXMin, niceMax)
@@ -339,7 +343,83 @@ func (c *EpochLineChart) calculatePadding(valueRange float64) float64 {
 	return padding
 }
 
-// HandleZoom processes zoom events with the mouse X position in pixels.
+func (c *EpochLineChart) paddedYRange() (float64, float64) {
+	valueRange := c.yMax - c.yMin
+	padding := c.calculatePadding(valueRange)
+
+	newYMin := c.yMin - padding
+	newYMax := c.yMax + padding
+
+	// Don't go negative for non-negative data.
+	if c.yMin >= 0 && newYMin < 0 {
+		newYMin = 0
+	}
+
+	return newYMin, newYMax
+}
+
+func nextZoomRange(currentRange, domainRange, minRange float64, direction string) float64 {
+	if currentRange <= 0 || domainRange <= 0 {
+		return 0
+	}
+
+	newRange := currentRange
+	if direction == "in" {
+		newRange *= 1 - defaultZoomFactor
+	} else {
+		newRange *= 1 + defaultZoomFactor
+	}
+
+	return max(minRange, min(newRange, domainRange))
+}
+
+func minVerticalZoomRange(domainRange float64) float64 {
+	if domainRange <= 0 {
+		return 0
+	}
+	return min(
+		max(domainRange*minVerticalZoomRangeRatio, minVerticalZoomRangeAbs),
+		domainRange,
+	)
+}
+
+func (c *EpochLineChart) clampYView(domainMin, domainMax float64) {
+	viewMin := c.userViewMinY
+	viewMax := c.userViewMaxY
+	viewRange := viewMax - viewMin
+	if viewRange <= 0 {
+		c.isYZoomed = false
+		c.SetViewYRange(domainMin, domainMax)
+		return
+	}
+
+	domainRange := domainMax - domainMin
+	if domainRange <= 0 || viewRange >= domainRange {
+		c.isYZoomed = false
+		c.userViewMinY = domainMin
+		c.userViewMaxY = domainMax
+		c.SetViewYRange(domainMin, domainMax)
+		return
+	}
+
+	if viewMin < domainMin {
+		viewMax += domainMin - viewMin
+		viewMin = domainMin
+	}
+	if viewMax > domainMax {
+		viewMin -= viewMax - domainMax
+		viewMax = domainMax
+		if viewMin < domainMin {
+			viewMin = domainMin
+		}
+	}
+
+	c.userViewMinY = viewMin
+	c.userViewMaxY = viewMax
+	c.SetViewYRange(viewMin, viewMax)
+}
+
+// HandleZoom processes horizontal zoom events with the mouse X position in pixels.
 func (c *EpochLineChart) HandleZoom(direction string, mouseX int) {
 	viewMin := c.ViewMinX()
 	viewMax := c.ViewMaxX()
@@ -352,14 +432,10 @@ func (c *EpochLineChart) HandleZoom(direction string, mouseX int) {
 	mouseProportion = max(0, min(1, mouseProportion))
 	stepUnderMouse := viewMin + mouseProportion*viewRange
 
-	var newRange float64
-	if direction == "in" {
-		newRange = viewRange * (1 - defaultZoomFactor)
-	} else {
-		newRange = viewRange * (1 + defaultZoomFactor)
+	newRange := nextZoomRange(viewRange, c.MaxX()-c.MinX(), minZoomRange, direction)
+	if newRange <= 0 {
+		return
 	}
-
-	newRange = max(minZoomRange, min(newRange, c.MaxX()-c.MinX()))
 
 	newMin := stepUnderMouse - newRange*mouseProportion
 	newMax := stepUnderMouse + newRange*(1-mouseProportion)
@@ -389,6 +465,56 @@ func (c *EpochLineChart) HandleZoom(direction string, mouseX int) {
 	c.userViewMinX = newMin
 	c.userViewMaxX = newMax
 	c.isZoomed = true
+	c.dirty = true
+}
+
+// HandleVerticalZoom processes vertical zoom events around the current Y-view center.
+func (c *EpochLineChart) HandleVerticalZoom(direction string) {
+	viewMin := c.ViewMinY()
+	viewMax := c.ViewMaxY()
+	viewRange := viewMax - viewMin
+	if viewRange <= 0 {
+		return
+	}
+
+	domainMin, domainMax := c.MinY(), c.MaxY()
+	domainRange := domainMax - domainMin
+	if domainRange <= 0 {
+		return
+	}
+
+	newRange := nextZoomRange(
+		viewRange, domainRange, minVerticalZoomRange(domainRange), direction)
+	if newRange <= 0 {
+		return
+	}
+
+	if newRange >= domainRange {
+		c.isYZoomed = false
+		c.userViewMinY = domainMin
+		c.userViewMaxY = domainMax
+		c.SetViewYRange(domainMin, domainMax)
+		c.dirty = true
+		return
+	}
+
+	center := (viewMin + viewMax) / 2
+	newMin := center - newRange/2
+	newMax := center + newRange/2
+
+	if newMin < domainMin {
+		newMin = domainMin
+		newMax = min(newMin+newRange, domainMax)
+	}
+	if newMax > domainMax {
+		newMax = domainMax
+		newMin = max(newMax-newRange, domainMin)
+	}
+
+	c.userViewMinY = newMin
+	c.userViewMaxY = newMax
+	c.SetViewYRange(newMin, newMax)
+	c.isYZoomed = true
 	c.dirty = true
 }
 

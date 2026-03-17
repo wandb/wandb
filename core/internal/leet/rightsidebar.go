@@ -100,12 +100,12 @@ func (rs *RightSidebar) HandleMouseClick(x, y int) bool {
 }
 
 // HandleWheel zooms the chart under the mouse cursor.
-func (rs *RightSidebar) HandleWheel(x, y int, wheelUp bool) {
+func (rs *RightSidebar) HandleWheel(x, y int, wheelUp, vertical bool) {
 	adjustedX, row, col, dims, ok := rs.gridMouseTarget(x, y)
 	if !ok {
 		return
 	}
-	rs.metricsGrid.HandleWheel(adjustedX, row, col, dims, wheelUp)
+	rs.metricsGrid.HandleWheel(adjustedX, row, col, dims, wheelUp, vertical)
 }
 
 // StartInspection begins chart inspection under the mouse cursor.

@@ -224,3 +224,52 @@ func TestFormatXAxisTick(t *testing.T) {
 		})
 	}
 }
+
+func TestEpochLineChart_VerticalZoomPersistsAcrossUpdates(t *testing.T) {
+	c := leet.NewEpochLineChart("loss")
+	c.Resize(120, 12)
+	c.AddData("run", leet.MetricData{
+		X: []float64{0, 1, 2, 3},
+		Y: []float64{0, 10, 20, 30},
+	})
+
+	fullRange := c.ViewMaxY() - c.ViewMinY()
+	c.HandleVerticalZoom("in")
+
+	zoomMin, zoomMax := c.ViewMinY(), c.ViewMaxY()
+	zoomRange := zoomMax - zoomMin
+	require.Less(t, zoomRange, fullRange)
+
+	c.AddData("run", leet.MetricData{X: []float64{4}, Y: []float64{100}})
+
+	afterMin, afterMax := c.ViewMinY(), c.ViewMaxY()
+	require.InDelta(t, zoomRange, afterMax-afterMin, 1e-9)
+	require.InDelta(t, zoomMin, afterMin, 1e-9)
+	require.InDelta(t, zoomMax, afterMax, 1e-9)
+	require.Less(t, afterMax, c.MaxY(), "zoomed Y view should not auto-reset on new data")
+}
+
+func TestEpochLineChart_VerticalZoomOutRestoresAutoFit(t *testing.T) {
+	c := leet.NewEpochLineChart("loss")
+	c.Resize(120, 12)
+	c.AddData("run", leet.MetricData{
+		X: []float64{0, 1, 2, 3},
+		Y: []float64{5, 10, 20, 30},
+	})
+
+	c.HandleVerticalZoom("in")
+	for range 32 {
+		if c.ViewMinY() == c.MinY() && c.ViewMaxY() == c.MaxY() {
+			break
+		}
+		c.HandleVerticalZoom("out")
+	}
+
+	require.InDelta(t, c.MinY(), c.ViewMinY(), 1e-9)
+	require.InDelta(t, c.MaxY(), c.ViewMaxY(), 1e-9)
+
+	c.AddData("run", leet.MetricData{X: []float64{4}, Y: []float64{120}})
+	require.InDelta(t, c.MinY(), c.ViewMinY(), 1e-9)
+	require.InDelta(t, c.MaxY(), c.ViewMaxY(), 1e-9,
+		"full-range Y view should resume auto-fit after zooming back out")
+}
