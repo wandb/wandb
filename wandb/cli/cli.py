@@ -269,13 +269,13 @@ def projects(entity, display=True):
     If no API key is provided as an argument, the command looks for
     credentials in the following order:
 
-    1. The `WANDB_API_KEY` environment variable
-    2. The `api_key` setting in a system or workspace settings file
-    3. The `.netrc` file (`~/.netrc`, `~/_netrc`, or the `NETRC` env var path)
+    1. The WANDB_API_KEY environment variable
+    2. The api_key setting in a system or workspace settings file (use `wandb status` to see which settings file is used)
+    3. The .netrc file (~/.netrc, ~/_netrc, or the NETRC env var path)
     4. An interactive prompt (if a TTY is available)
 
     For self-hosted or dedicated cloud deployments, specify the server
-    URL with `--host`, or set the `WANDB_BASE_URL` environment variable.
+    URL with `--host`, or set the WANDB_BASE_URL environment variable.
 
     Examples:
 
@@ -283,7 +283,7 @@ def projects(entity, display=True):
 
         $ wandb login
 
-    Log in with an explicit API key ("WANDB_API_KEY_EXAMPLE")
+    Log in with an explicit API key (WANDB_API_KEY_EXAMPLE)
 
         $ wandb login WANDB_API_KEY_EXAMPLE
 
@@ -538,8 +538,8 @@ def init(ctx, project, entity, reset, mode):
     help="""Upload existing local W&B run data to the cloud.
 
     Sync offline or incomplete runs from the local `wandb` directory to
-    the W&B server. If `PATH` is provided, sync runs at that path. If no
-    path is given, search for a `./wandb` directory, then a `wandb/`
+    the W&B server. If PATH is provided, sync runs at that path. If no
+    path is given, search for a ./wandb directory, then a wandb/
     subdirectory.
 
     Run without arguments to print a summary of synced and unsynced
@@ -549,12 +549,14 @@ def init(ctx, project, entity, reset, mode):
     by default. When using `--sync-all`, disable TensorBoard by
     default (use `--sync-tensorboard` to enable it).
 
-    `PATH` is a `.wandb` file or a run directory that contains a `.wandb` file.
-    A typical path looks like
-    `./wandb/run-YYYYMMDD_HHMMSS-RUN_ID/run-RUN_ID.wandb`,
-    where `run-YYYYMMDD_HHMMSS-RUN_ID` is the run directory and
-    `run-RUN_ID.wandb` is the `.wandb` file. `YYYYMMDD_HHMMSS` is the
-    timestamp of when the run was created and `RUN_ID` is the unique ID
+    PATH is a .wandb file or a run directory that contains a .wandb file.
+    A typical path looks like:
+
+    ./wandb/run-YYYYMMDD_HHMMSS-RUN_ID/run-RUN_ID.wandb
+
+    where run-YYYYMMDD_HHMMSS-RUN_ID is the run directory and
+    run-RUN_ID.wandb is the .wandb file. YYYYMMDD_HHMMSS is the
+    timestamp of when the run was created and RUN_ID is the unique ID
     of the run.
 
     Examples:
@@ -563,11 +565,11 @@ def init(ctx, project, entity, reset, mode):
 
         $ wandb sync
 
-    Sync a run that is locally saved at `./wandb/run-20170617_000000-abcd1234`
+    Sync run ID abcd1234 that is locally saved locally in the ./wandb/run-20170617_000000-abcd1234 directory
 
         $ wandb sync ./wandb/run-20170617_000000-abcd1234
 
-    Sync a specific run by its `.wandb` filepath
+    Sync run abcd1234 by its local .wandb filepath (./wandb/run-20170617_000000-abcd1234/run-abcd1234.wandb)
 
         $ wandb sync ./wandb/run-20170617_000000-abcd1234/run-abcd1234.wandb
 
@@ -575,7 +577,7 @@ def init(ctx, project, entity, reset, mode):
 
         $ wandb sync --sync-all
 
-    Sync a run in the "foobar-project" project and "team-awesome" entity by its `.wandb` filepath
+    Sync a run in the "foobar-project" project and "team-awesome" entity by its .wandb filepath
 
         $ wandb sync --project foobar-project --entity team-awesome ./wandb/run-20170617_000000-abcd1234/run-abcd1234.wandb
 
@@ -903,7 +905,7 @@ def _parse_sync_replace_tags(replace_tags: str) -> dict[str, str] | None:
     Register the sweep with the W&B server and print the sweep ID
     and a command to start an agent.
 
-    Provide a sweep ID (or full path `entity/project/sweep_id`) with a
+    Provide a sweep ID (or full path entity/project/sweep_id) with a
     state flag (`--stop`, `--cancel`, `--pause`, or `--resume`) to manage
     an existing sweep.
 
@@ -913,7 +915,7 @@ def _parse_sync_replace_tags(replace_tags: str) -> dict[str, str] | None:
 
     Examples:
 
-    Create a sweep using the configuration defined in `sweep_config.yaml`. Use
+    Create a sweep using the configuration defined in sweep_config.yaml. Use
     the current user's default entity and project.
 
         $ wandb sweep sweep_config.yaml
@@ -923,33 +925,33 @@ def _parse_sync_replace_tags(replace_tags: str) -> dict[str, str] | None:
 
         $ wandb sweep -p foobar-project -e team-awesome sweep_config.yaml
 
-    Update sweep `abcd1234` with a new configuration from `sweep_config.yaml`.
+    Update sweep abcd1234 with a new configuration from sweep_config.yaml.
     This is useful for changing the parameters or search strategy of an
     active sweep.
 
         $ wandb sweep --update abcd1234 sweep_config.yaml
 
-    Stop sweep `abcd1234` under the "team-awesome" entity and "foobar-project" project.
+    Stop sweep abcd1234 under the "team-awesome" entity and "foobar-project" project.
 
         $ wandb sweep --stop team-awesome/foobar-project/abcd1234
 
-    Cancel sweep `abcd1234` in the current user's default entity and project.
+    Cancel sweep abcd1234 in the current user's default entity and project.
 
         $ wandb sweep --cancel abcd1234
 
-    Pause sweep `abcd1234` in the current user's default entity and
+    Pause sweep abcd1234 in the current user's default entity and
     project. Later, resume the sweep.
 
         $ wandb sweep --pause abcd1234
         $ wandb sweep --resume abcd1234
 
     Create a sweep with a local controller that uses the configuration
-    in `sweep_config.yaml`.
+    in sweep_config.yaml.
 
         $ wandb sweep --controller sweep_config.yaml
 
     Create a new sweep and include two previously completed runs
-    (run ID `abcd1234` and run ID `efgh5678`) so their results are incorporated
+    (run ID abcd1234 and run ID efgh5678) so their results are incorporated
     into the sweep's hyperparameter search.
 
         $ wandb sweep -R abcd1234 -R efgh5678 sweep_config.yaml
@@ -1951,16 +1953,16 @@ def launch_agent(
     is stopped, cancelled, or the `--count` limit is reached.
 
     Find the sweep ID in:
-      * The W&B App at `https://wandb.ai/entity/project/sweeps`. Replace
-        `entity` and `project` with your entity and project names.
-      * The output of the `wandb sweep` command when you create a new sweep.
+      - The W&B App at https://wandb.ai/entity/project/sweeps. Replace
+        entity and project with your entity and project names.
+      - The output of the `wandb sweep` command when you create a new sweep.
 
     The sweep ID can include the entity and project path
-    (`entity/project/sweep_id`) or the eight character sweep ID alone.
+    (entity/project/sweep_id) or the eight character sweep ID alone.
 
     Examples:
 
-    Start an agent for a sweep with a sweep ID of "wbyz9876"
+    Start an agent for a sweep with a sweep ID of wbyz9876
 
         $ wandb agent wbyz9876
 
@@ -2343,13 +2345,13 @@ def create(
     can use this command to debug behavior or operate in environments with
     limited connectivity.
 
-    `sweep_id` is printed by `wandb sweep` when you create a sweep. It
+    sweep_id is printed by `wandb sweep` when you create a sweep. It
     consists of a unique identifier for the sweep and may include the
-    entity and project path (`entity/project/sweep_id`).
+    entity and project path (entity/project/sweep_id).
 
     Examples:
 
-    Start a local sweep controller for a sweep with sweep ID "wbyz9876"
+    Start a local sweep controller for a sweep with sweep ID wbyz9876
 
         $ wandb controller wbyz9876
     """,
@@ -2378,7 +2380,7 @@ def docker_run(ctx, docker_run_args):
 
     Pass all arguments through to `docker run` while injecting:
 
-    - `WANDB_API_KEY` — Inject the current API key if logged in so
+    - WANDB_API_KEY — Inject the current API key if logged in so
       the container can authenticate with W&B.
     - `WANDB_DOCKER` — Inject the resolved image ID if the image can
       be detected from the arguments so W&B can track which Docker
@@ -2388,7 +2390,7 @@ def docker_run(ctx, docker_run_args):
     on the host and `--runtime` is not already set.
 
     Examples:
-    Run `python train.py` inside the "my-image" container:
+    Run the Python script train.py inside the "my-image" container:
 
         $ wandb docker-run my-image python train.py
     """
@@ -2465,9 +2467,9 @@ def docker(
 ):
     """Run code in a Docker container with W&B configured.
 
-    Start a Docker container, inject the `WANDB_DOCKER` environment
+    Start a Docker container, inject the WANDB_DOCKERs environment
     variable, and mount the current working directory at `/app` by
-    default. Inject `WANDB_API_KEY` if logged in. Override the
+    default. Inject WANDB_API_KEY if logged in. Override the
     container entrypoint to ensure `wandb` is installed.
 
     Pass additional arguments to insert them into `docker run` before
@@ -2605,11 +2607,11 @@ def server():
     context_settings=RUN_CONTEXT,
     help="""Start a local W&B server in a Docker container.
 
-    Pull and run the `wandb/local` Docker image. Map the specified host
-    port to port `8080` in the container and mount a persistent Docker
-    volume named `wandb` to store data.
+    Pull and run the wandb/local Docker image. Map the specified host
+    port to port 8080 in the container and mount a persistent Docker
+    volume named "wandb" to store data.
 
-    Configure the `base_url` setting to point to the local server so
+    Configure the "base_url" setting to point to the local server so
     that subsequent W&B client calls use it. Prompt for login if no
     API key is found.
 
@@ -2770,7 +2772,7 @@ def artifact():
 
     Upload a file, directory, or URL reference as a versioned artifact.
 
-    The `PATH` can be a local file, a local directory, or a URL
+    The PATH can be a local file, a local directory, or a URL
     (containing `://`) to log as a reference artifact.
 
     If `--name` is not specified, the artifact name defaults to the
@@ -2783,7 +2785,7 @@ def artifact():
 
         $ wandb artifact put --type dataset ./data/training
 
-    Upload "model.pt" to the "foobar" project and assign "trained-model" as the artifact name.
+    Upload model.pt to the "foobar" project and assign "trained-model" as the artifact name.
 
         $ wandb artifact put --name foobar/trained-model --type model ./model.pt
 
@@ -2899,8 +2901,8 @@ def put(
     context_settings=CONTEXT,
     help="""Download an artifact from W&B by its path.
 
-    The `PATH` format is `entity/project/artifact_name:version`. If
-    the version is omitted, use the `latest` alias.
+    The PATH format is entity/project/artifact_name:version. If
+    the version is omitted, use the "latest" alias.
 
     Examples:
 
@@ -2966,7 +2968,7 @@ def get(path, root, type):
     Display the latest version of each artifact collection in a
     project. Show the type, last updated time, size, and name.
 
-    The `PATH` consists of the entity and project (`entity/project`) to
+    The PATH consists of the entity and project (entity/project) to
     list artifacts from.
 
     Examples:
@@ -3027,7 +3029,7 @@ def cache():
     help="""Reduce the local artifact cache size.
 
     Remove the least recently accessed files first until the cache is
-    at or below the `TARGET_SIZE`. `TARGET_SIZE` accepts human-readable
+    at or below the TARGET_SIZE. TARGET_SIZE accepts human-readable
     formats (for example, 10GB or 500MB).
 
     Examples:
@@ -3129,9 +3131,9 @@ def pull(run, project, entity):
     Restore up to three pieces of state, depending on what the original
     run recorded:
 
-    1. Config (always) — Write the run config to `wandb/config.yaml`.
+    1. Config (always) — Write the run config to wandb/config.yaml.
     2. Git (if available) — Check out the original commit on a new
-       `wandb/run_id` branch. Fetch and apply any saved diff patch.
+       wandb/run_id branch. Fetch and apply any saved diff patch.
        If the original commit cannot be found,
        fall back to an upstream commit if the original cannot be found.
        Run this command from the same git repository as the original run. Skip
@@ -3144,34 +3146,34 @@ def pull(run, project, entity):
 
     Accept the run identifier in any of the following formats:
 
-    - `run_id`
-    - `project:run_id`
-    - `entity/project:run_id`
-    - `entity/project/run_id`
+    - run_id
+    - project:run_id
+    - entity/project:run_id
+    - entity/project/run_id
 
     Examples:
 
-    Restore a run with run ID "abcd1234" in the default project
-    (stored as the `WANDB_PROJECT` environment variable) and entity
-    (set from `WANDB_ENTITY` or the authenticated user's default entity):
+    Restore a run with run ID  in the default project
+    (stored as the WANDB_PROJECT environment variable) and entity
+    (set from WANDB_ENTITY or the authenticated user's default entity):
 
         $ wandb restore abcd1234
 
     Restore a run from the "foobar" project and "team-awesome" entity with
-    run ID "abcd1234":
+    run ID abcd1234:
 
         $ wandb restore team-awesome/foobar-project/abcd1234
 
-    Restore run "abcd1234" without restoring git state. Only restore config
+    Restore run abcd1234 without restoring git state. Only restore config
     and Docker state:
 
         $ wandb restore --no-git abcd1234
 
-    Restore run "abcd1234" in detached HEAD mode instead of creating a branch:
+    Restore run abcd1234 in detached HEAD mode instead of creating a branch:
 
         $ wandb restore --no-branch abcd1234
 
-    Restore run "abcd1234" from another team's project:
+    Restore run abcd1234 from another team's project:
 
         $ wandb restore other-team/their-project:abcd1234
     """,
@@ -3441,7 +3443,7 @@ def status(settings):
     "disabled",
     help="""Completely disable W&B.
 
-    Set the mode to `disable` to prevent all W&B functionality. Do not log
+    Set the mode to `disabled` to prevent all W&B functionality. Do not log
     or sync data while disabled.
 
     Use `wandb enable` to restore W&B functionality.
@@ -3494,8 +3496,6 @@ def disabled(service):
     To switch between online and offline modes without fully deactivating W&B,
     use `wandb online` or `wandb offline` instead.
 
-
-
     Examples:
 
     Restore W&B functionality after deactivating it with `wandb disabled`:
@@ -3528,7 +3528,7 @@ def enabled(service):
 
     Validate that a self-hosted or dedicated cloud W&B deployment is configured
     and operating correctly. Do not run this command against the public W&B
-    cloud at `api.wandb.ai`.
+    cloud at api.wandb.ai.
 
     Exits with `code 1` if any critical check fails.
 
