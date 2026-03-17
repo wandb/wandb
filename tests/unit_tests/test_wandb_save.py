@@ -240,6 +240,29 @@ def test_save_hardlink_fallback_when_symlink_fails(
     assert paths == {"a.hl", "b.hl"}
 
 
+
+def test_save_path_with_brackets(
+    monkeypatch,
+    tmp_path: pathlib.Path,
+    mock_run,
+    parse_records,
+    record_q,
+):
+    """Test that save works when path contains brackets (fixes #11510)."""
+    monkeypatch.chdir(tmp_path)
+    path_with_bracket = pathlib.Path("dir", "test_[whatever]", "checkpoint_0.pt")
+    path_with_bracket.parent.mkdir(parents=True, exist_ok=True)
+    path_with_bracket.touch()
+
+    run = mock_run()
+    run.save(str(path_with_bracket), base_path="dir", policy="now")
+
+    assert pathlib.Path(run.dir, "test_[whatever]", "checkpoint_0.pt").exists()
+    parsed = parse_records(record_q)
+    file_record = parsed.files[0].files[0]
+    assert file_record.path == str(pathlib.Path("test_[whatever]", "checkpoint_0.pt"))
+
+
 def test_save_copy_fallback_when_links_unavailable(
     monkeypatch,
     mock_run,
