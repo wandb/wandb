@@ -132,6 +132,42 @@ func TestAddDataPoint_NamedSeries_CreatesSeriesOnDemand(t *testing.T) {
 	require.Equal(t, 70.0, maximum)
 }
 
+func TestDefaultAndNamedSeries_GetDistinctColors(t *testing.T) {
+	def := &leet.MetricDef{
+		Name:       "CPU",
+		Unit:       leet.UnitPercent,
+		MinY:       0,
+		MaxY:       100,
+		AutoRange:  true,
+		Percentage: false,
+	}
+	now := time.Unix(1_700_000_000, 0)
+	baseColor := compat.AdaptiveColor{
+		Light: lipgloss.Color("#FF00FF"),
+		Dark:  lipgloss.Color("#FF00FF"),
+	}
+	nextColor := compat.AdaptiveColor{
+		Light: lipgloss.Color("#00FF00"),
+		Dark:  lipgloss.Color("#00FF00"),
+	}
+	ch := leet.NewTimeSeriesLineChart(&leet.TimeSeriesLineChartParams{
+		Width:         80,
+		Height:        20,
+		Def:           def,
+		BaseColor:     baseColor,
+		ColorProvider: stubColorProvider("#00FF00"),
+		Now:           now,
+	})
+
+	ch.AddDataPoint(leet.DefaultSystemMetricSeriesName, now.Unix(), 30)
+	ch.AddDataPoint("cpu0", now.Unix()+1, 70)
+
+	require.Equal(t, 2, ch.SeriesCount())
+	require.Equal(t, 1, ch.TestSeriesCount(), "only named series should count here")
+	require.Equal(t, baseColor, ch.TestSeriesColor(leet.DefaultSystemMetricSeriesName))
+	require.Equal(t, nextColor, ch.TestSeriesColor("cpu0"))
+}
+
 func TestFormatXAxisTick_NarrowSystemChartsKeepEndpointLabels(t *testing.T) {
 	def := &leet.MetricDef{
 		Name:       "Apple E-cores Freq",
