@@ -14,9 +14,11 @@ const (
 	brandArtPresetClassic    brandArtPreset = "classic" // This is also good.
 	brandArtPresetLagoon     brandArtPreset = "lagoon"
 	brandArtPresetSplitBrand brandArtPreset = "split-brand" // I like this the most?
+	brandArtPresetGoldBrand  brandArtPreset = "gold"
+	brandArtPresetTealBrand  brandArtPreset = "teal"
 	brandArtPresetAurora     brandArtPreset = "aurora"
 
-	defaultBrandArtPreset = brandArtPresetSplitBrand
+	defaultBrandArtPreset = brandArtPresetGoldBrand
 
 	brandArtInlineGap  = 3
 	brandArtStackedGap = 1
@@ -107,7 +109,15 @@ var (
 		},
 		brandArtPresetSplitBrand: {
 			Wandb: brandArtGoldPalette,
-			Leet:  brandArtGoldPalette, // Or brandArtTealPalette
+			Leet:  brandArtTealPalette,
+		},
+		brandArtPresetGoldBrand: {
+			Wandb: brandArtGoldPalette,
+			Leet:  brandArtGoldPalette,
+		},
+		brandArtPresetTealBrand: {
+			Wandb: brandArtTealPalette,
+			Leet:  brandArtTealPalette,
 		},
 		brandArtPresetAurora: {
 			Wandb: brandArtAuroraPalette,
@@ -185,7 +195,7 @@ func renderBrandArtLayout(preset brandArtPreset, inline bool) string {
 	}
 
 	parts := []string{wandb}
-	for i := 0; i < brandArtStackedGap; i++ {
+	for range brandArtStackedGap {
 		parts = append(parts, "")
 	}
 	parts = append(parts, leet)
