@@ -20,13 +20,14 @@ from enum import IntEnum
 from types import TracebackType
 from typing import TYPE_CHECKING, Callable, TextIO, TypeVar
 
-from typing_extensions import Any, Concatenate, Literal, NamedTuple, ParamSpec
+from typing_extensions import Any, Concatenate, Literal, NamedTuple, ParamSpec, override
 
 import wandb
 import wandb.env
 import wandb.util
 from wandb import trigger
 from wandb.analytics import get_sentry
+from wandb.apis._displayable import DisplayableMixin
 from wandb.errors import CommError, UsageError
 from wandb.errors.links import url_registry
 from wandb.integration.torch import wandb_torch
@@ -474,7 +475,7 @@ class RunStatus:
     sync_time: datetime | None = field(default=None)
 
 
-class Run:
+class Run(DisplayableMixin):
     """A unit of computation logged by W&B. Typically, this is an ML experiment.
 
     Call [`wandb.init()`](https://docs.wandb.ai/ref/python/init/) to create a
@@ -1347,6 +1348,7 @@ class Run:
 
     @_log_to_run
     @_attach
+    @override
     def display(self, height: int = 420, hidden: bool = False) -> bool:
         """Display this run in Jupyter."""
         if self._settings.silent:
