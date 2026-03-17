@@ -936,7 +936,6 @@ yyjson_api yyjson_doc *yyjson_read_fp(FILE *fp,
 yyjson_api_inline yyjson_doc *yyjson_read(const char *dat,
                                           size_t len,
                                           yyjson_read_flag flg) {
-    flg &= ~YYJSON_READ_INSITU; /* const string cannot be modified */
     return yyjson_read_opts((char *)(void *)(size_t)(const void *)dat,
                             len, NULL, NULL);
 }
