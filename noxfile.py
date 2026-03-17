@@ -16,6 +16,9 @@ import nox
 nox.options.default_venv_backend = "uv"
 
 _SUPPORTED_PYTHONS = ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
+_CWSANDBOX_PYTHON_MIN = (3, 11)
+_CWSANDBOX_PYTHON_MAX = (3, 14)
+_CWSANDBOX_REQUIREMENT = "cwsandbox>=0.9.0"
 
 # Directories in which to create temporary per-session directories
 # containing test results and pytest/Go coverage.
@@ -54,6 +57,16 @@ def install_wandb(session: nox.Session, dev: bool = True):
         install_timed(session, "--reinstall", "--refresh-package", "wandb", ".")
     else:
         install_timed(session, "--force-reinstall", ".")
+
+
+def _supports_cwsandbox(python_version: str) -> bool:
+    version = tuple(int(part) for part in python_version.split("."))
+    return _CWSANDBOX_PYTHON_MIN <= version < _CWSANDBOX_PYTHON_MAX
+
+
+def install_cwsandbox(session: nox.Session) -> None:
+    if _supports_cwsandbox(session.python):
+        install_timed(session, _CWSANDBOX_REQUIREMENT)
 
 
 def get_session_file_name(session: nox.Session) -> str:
@@ -194,6 +207,7 @@ def unit_tests(session: nox.Session) -> None:
         # For test_reports:
         "polyfactory",
     )
+    install_cwsandbox(session)
 
     paths = session.posargs or ["tests/unit_tests"]
 
@@ -560,7 +574,7 @@ def proto_check_go(session: nox.Session) -> None:
     )
 
 
-@nox.session(name="mypy-report")
+@nox.session(name="mypy-report", python="3.13")
 def mypy_report(session: nox.Session) -> None:
     """Type-check the code with mypy.
 
@@ -569,6 +583,7 @@ def mypy_report(session: nox.Session) -> None:
     """
     session.install(
         "bokeh",
+        _CWSANDBOX_REQUIREMENT,
         "ipython",
         "lxml",
         # https://github.com/python/mypy/issues/17166
