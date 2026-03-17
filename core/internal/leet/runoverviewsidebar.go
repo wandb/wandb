@@ -28,6 +28,8 @@ const minSidebarHeaderLines = 6
 // It handles presentation concerns: sections, filtering, navigation, layout, and rendering.
 // All data processing is delegated to the RunOverview model.
 type RunOverviewSidebar struct {
+	config *ConfigManager
+
 	animState   *AnimatedValue
 	runOverview *RunOverview
 
@@ -45,6 +47,7 @@ type RunOverviewSidebar struct {
 }
 
 func NewRunOverviewSidebar(
+	config *ConfigManager,
 	animState *AnimatedValue,
 	runOverview *RunOverview,
 	side SidebarSide,
@@ -57,6 +60,7 @@ func NewRunOverviewSidebar(
 	ss.SetItemsPerPage(20)
 
 	return &RunOverviewSidebar{
+		config:        config,
 		animState:     animState,
 		runOverview:   runOverview,
 		sections:      []PagedList{es, cs, ss},
@@ -393,7 +397,7 @@ func (s *RunOverviewSidebar) renderWrappedHeaderValue(
 	return lines
 }
 
-// renderTagHeaderValue renders tags using stable, colored labels
+// renderTagHeaderValue renders tags using stable, palette-based colored badges
 // that wrap across lines as needed.
 func (s *RunOverviewSidebar) renderTagHeaderValue(
 	prefix string, tags []string, width int) []string {
@@ -418,7 +422,7 @@ func (s *RunOverviewSidebar) renderTagHeaderValue(
 
 		renderedAny = true
 		chipText := truncateValue(tag, maxChipTextWidth)
-		chip := runOverviewTagStyle(tag).Render(chipText)
+		chip := runOverviewTagStyle(s.tagColorScheme(), tag).Render(chipText)
 		chipWidth := lipgloss.Width(chip)
 
 		separator := ""
@@ -654,6 +658,15 @@ func (s *RunOverviewSidebar) sidebarInnerWidth(width int) int {
 	default:
 		return max(width, 0)
 	}
+}
+
+func (s *RunOverviewSidebar) tagColorScheme() string {
+	scheme := s.config.TagColorScheme()
+	if _, ok := colorSchemes[scheme]; ok {
+		return scheme
+	}
+
+	return DefaultTagColorScheme
 }
 
 func wrapHeaderText(text string, maxWidth int) []string {
