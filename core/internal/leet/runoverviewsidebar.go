@@ -107,6 +107,7 @@ func (s *RunOverviewSidebar) Update(msg tea.Msg) (*RunOverviewSidebar, tea.Cmd) 
 	return s, nil
 }
 
+// contentPadding accounts for borders and internal spacing depending on the sidebar placement.
 func (s *RunOverviewSidebar) contentPadding() int {
 	switch s.side {
 	case SidebarSideLeft:
@@ -117,6 +118,7 @@ func (s *RunOverviewSidebar) contentPadding() int {
 	return 0
 }
 
+// style returns sidebar style depending on the its placement.
 func (s *RunOverviewSidebar) style() lipgloss.Style {
 	switch s.side {
 	case SidebarSideLeft:
@@ -150,18 +152,14 @@ func (s *RunOverviewSidebar) headerStyle() lipgloss.Style {
 // View renders the sidebar.
 func (s *RunOverviewSidebar) View(height int) tea.View {
 	width := s.animState.Value()
-	// Avoid negative/degenerate widths during animation.
-	if width <= s.contentPadding() {
+	if height <= 0 || width <= s.contentPadding() {
 		return tea.NewView("")
 	}
 
 	s.height = height
 
-	lines := make([]string, 0)
-
-	lines = append(lines, s.headerStyle().Render(runOverviewHeader))
-
-	contentWidth := max(width-s.contentPadding(), 1)
+	contentWidth := s.sidebarContentWidth(width)
+	lines := []string{s.headerStyle().Render(runOverviewHeader)}
 
 	if s.runOverview != nil {
 		headerLines := s.buildHeaderLines(contentWidth)
@@ -174,22 +172,26 @@ func (s *RunOverviewSidebar) View(height int) tea.View {
 	}
 
 	content := lipgloss.JoinVertical(lipgloss.Top, lines...)
+	innerWidth := s.sidebarInnerWidth(width)
+	if innerWidth <= 0 {
+		return tea.NewView("")
+	}
 
 	styledContent := s.style().
-		Width(width).
+		Width(innerWidth).
 		Height(height).
-		MaxWidth(width).
+		MaxWidth(innerWidth).
 		MaxHeight(height).
 		Render(content)
 
-	styledContentBordered := s.borderStyle().
-		Width(width - sidebarVerticalBorderCols*2).
+	bordered := s.borderStyle().
 		Height(height + 1).
-		MaxWidth(width).
 		MaxHeight(height + 1).
 		Render(styledContent)
 
-	return tea.NewView(styledContentBordered)
+	return tea.NewView(
+		lipgloss.Place(width, height+1, lipgloss.Left, lipgloss.Top, bordered),
+	)
 }
 
 func (s *RunOverviewSidebar) SetRunOverview(ro *RunOverview) {
@@ -300,7 +302,7 @@ func (s *RunOverviewSidebar) animationCmd() tea.Cmd {
 	})
 }
 
-// truncateValue truncates long values for display.
+// truncateValue truncates string values that do not fit into available width.
 func truncateValue(value string, maxWidth int) string {
 	if lipgloss.Width(value) <= maxWidth {
 		return value
@@ -328,7 +330,7 @@ func (s *RunOverviewSidebar) headerLineCount() int {
 		return 1
 	}
 
-	contentWidth := max(s.animState.Value()-s.contentPadding(), 1)
+	contentWidth := s.sidebarContentWidth(s.animState.Value())
 	return max(minSidebarHeaderLines, 1+len(s.buildHeaderLines(contentWidth)))
 }
 
@@ -375,7 +377,7 @@ func (s *RunOverviewSidebar) renderWrappedHeaderValue(
 	prefixText := runOverviewSidebarKeyStyle.Render(prefix)
 	prefixWidth := lipgloss.Width(prefixText)
 	available := max(width-prefixWidth, 1)
-	wrapped := WrapText(value, available)
+	wrapped := wrapHeaderText(value, available)
 	indent := strings.Repeat(" ", prefixWidth)
 
 	lines := make([]string, 0, len(wrapped))
@@ -391,9 +393,10 @@ func (s *RunOverviewSidebar) renderWrappedHeaderValue(
 	return lines
 }
 
-// renderTagHeaderValue renders tags using stable, bootstrap-like colored labels
+// renderTagHeaderValue renders tags using stable, colored labels
 // that wrap across lines as needed.
-func (s *RunOverviewSidebar) renderTagHeaderValue(prefix string, tags []string, width int) []string {
+func (s *RunOverviewSidebar) renderTagHeaderValue(
+	prefix string, tags []string, width int) []string {
 	if len(tags) == 0 {
 		return nil
 	}
@@ -634,4 +637,77 @@ func (s *RunOverviewSidebar) focusableSectionBounds() (first, last int) {
 		last = i
 	}
 	return first, last
+}
+
+// sidebarContentWidth computes width available for content taking
+// borders and internal spacing into account.
+func (s *RunOverviewSidebar) sidebarContentWidth(width int) int {
+	return max(width-s.contentPadding(), 1)
+}
+
+func (s *RunOverviewSidebar) sidebarInnerWidth(width int) int {
+	switch s.side {
+	case SidebarSideLeft:
+		return max(width-runsSidebarBorderCols, 0)
+	case SidebarSideRight:
+		return max(width-sidebarVerticalBorderCols, 0)
+	default:
+		return max(width, 0)
+	}
+}
+
+func wrapHeaderText(text string, maxWidth int) []string {
+	if maxWidth <= 0 {
+		return []string{text}
+	}
+
+	parts := strings.Split(text, "\n")
+	lines := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if strings.TrimSpace(part) == "" {
+			lines = append(lines, "")
+			continue
+		}
+		lines = append(lines, wrapHeaderParagraph(part, maxWidth)...)
+	}
+	if len(lines) == 0 {
+		return []string{""}
+	}
+	return lines
+}
+
+func wrapHeaderParagraph(text string, maxWidth int) []string {
+	words := strings.Fields(text)
+	if len(words) == 0 {
+		return []string{""}
+	}
+
+	lines := make([]string, 0, 1)
+	current := words[0]
+	if lipgloss.Width(current) > maxWidth {
+		forced := wrapSingleLine(current, maxWidth)
+		lines = append(lines, forced[:len(forced)-1]...)
+		current = forced[len(forced)-1]
+	}
+
+	for _, word := range words[1:] {
+		candidate := current + " " + word
+		if lipgloss.Width(candidate) <= maxWidth {
+			current = candidate
+			continue
+		}
+
+		lines = append(lines, current)
+		if lipgloss.Width(word) <= maxWidth {
+			current = word
+			continue
+		}
+
+		forced := wrapSingleLine(word, maxWidth)
+		lines = append(lines, forced[:len(forced)-1]...)
+		current = forced[len(forced)-1]
+	}
+
+	lines = append(lines, current)
+	return lines
 }

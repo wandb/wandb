@@ -7,6 +7,7 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/stretchr/testify/require"
 
 	leet "github.com/wandb/wandb/core/internal/leet"
@@ -301,6 +302,46 @@ func TestSidebar_View_RendersTagsAndNotesBeforeSections(t *testing.T) {
 	require.Contains(t, view, "Notes:")
 	require.Contains(t, view, "Baseline note")
 	require.Contains(t, view, "Config")
+}
+
+func TestSidebar_View_StaysWithinRequestedBounds(t *testing.T) {
+	as := leet.NewAnimatedValue(false, 120)
+	ro := leet.NewRunOverview()
+	s := leet.NewRunOverviewSidebar(as, ro, leet.SidebarSideLeft)
+	expandSidebar(t, s, 120, false)
+
+	ro.ProcessRunMsg(leet.RunMsg{
+		ID:          "0bi7c9tc",
+		DisplayName: "sim-L64-1773703065",
+		Project:     "transformer-pretraining",
+		Tags:        []string{"wandb", "leet"},
+		Notes: "Hominibus levibus ea quae non sunt facilius " +
+			"neglegentiusque verbis exprimi possunt quam ea quae sunt.",
+		Config: &spb.ConfigRecord{
+			Update: []*spb.ConfigItem{
+				{NestedKey: []string{"simulation"}, ValueJson: "true"},
+			},
+		},
+	})
+
+	for i := range 40 {
+		ro.ProcessSummaryMsg([]*spb.SummaryRecord{{
+			Update: []*spb.SummaryItem{{
+				NestedKey: []string{"custom", fmt.Sprintf("metric_%d", i)},
+				ValueJson: fmt.Sprintf("%d", i),
+			}},
+		}})
+	}
+
+	s.Sync()
+
+	const innerHeight = 24
+	view := stripANSI(s.View(innerHeight).Content)
+	require.Equal(t, innerHeight+1, lipgloss.Height(view))
+
+	for line := range strings.SplitSeq(view, "\n") {
+		require.LessOrEqual(t, lipgloss.Width(line), s.Width())
+	}
 }
 
 func TestSidebar_Filter_RegexAndGlob(t *testing.T) {

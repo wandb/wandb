@@ -147,7 +147,7 @@ type WorkspaceRunDirsMsg struct {
 // for runs that haven't been selected/streamed yet).
 type WorkspaceRunOverviewPreloadedMsg struct {
 	RunKey string
-	Run    RunMsg
+	Run    *RunMsg
 	Err    error
 }
 
