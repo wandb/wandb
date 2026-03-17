@@ -19,6 +19,8 @@ func TestRunOverview_ProcessRunMsg_StoresMetadataAndFlattensConfigSorted(t *test
 		ID:          "run-42",
 		DisplayName: "cool-run",
 		Project:     "proj",
+		Notes:       "Primary baseline",
+		Tags:        []string{"vision", "baseline"},
 		Config: &spb.ConfigRecord{
 			Update: []*spb.ConfigItem{
 				{NestedKey: []string{"trainer", "lr"}, ValueJson: "0.01"},
@@ -31,6 +33,8 @@ func TestRunOverview_ProcessRunMsg_StoresMetadataAndFlattensConfigSorted(t *test
 	require.Equal(t, "run-42", ro.ID())
 	require.Equal(t, "cool-run", ro.DisplayName())
 	require.Equal(t, "proj", ro.Project())
+	require.Equal(t, "Primary baseline", ro.Notes())
+	require.Equal(t, []string{"vision", "baseline"}, ro.Tags())
 
 	items := ro.ConfigItems()
 	require.Len(t, items, 3)

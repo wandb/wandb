@@ -3,6 +3,7 @@ package leet
 import (
 	"fmt"
 	"slices"
+	"strings"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -17,11 +18,10 @@ const (
 	SidebarSideRight
 )
 
-const (
-	// Sidebar header lines (title + state + ID + name + project + blank line).
-	// TODO: replace with len(LeftSidebar.buildHeaderLines())
-	sidebarHeaderLines = 6
-)
+// minSidebarHeaderLines preserves the existing baseline layout when only the
+// original metadata fields are present, while still allowing the header to grow
+// for wrapped tags and notes.
+const minSidebarHeaderLines = 6
 
 // RunOverviewSidebar stores and displays run metadata.
 //
@@ -161,9 +161,10 @@ func (s *RunOverviewSidebar) View(height int) tea.View {
 
 	lines = append(lines, s.headerStyle().Render(runOverviewHeader))
 
+	contentWidth := max(width-s.contentPadding(), 1)
+
 	if s.runOverview != nil {
-		headerLines := s.buildHeaderLines()
-		contentWidth := width - s.contentPadding()
+		headerLines := s.buildHeaderLines(contentWidth)
 		s.updateSectionHeights()
 		sectionLines := s.buildSectionLines(contentWidth)
 
@@ -320,32 +321,126 @@ func truncateValue(value string, maxWidth int) string {
 	return value + "..."
 }
 
-// buildHeaderLines builds the header section from the data model.
-func (s *RunOverviewSidebar) buildHeaderLines() []string {
-	lines := make([]string, 0, 5)
+// headerLineCount returns the number of lines occupied by the fixed header area,
+// including the top-level section title.
+func (s *RunOverviewSidebar) headerLineCount() int {
+	if s.runOverview == nil {
+		return 1
+	}
+
+	contentWidth := max(s.animState.Value()-s.contentPadding(), 1)
+	return max(minSidebarHeaderLines, 1+len(s.buildHeaderLines(contentWidth)))
+}
+
+// buildHeaderLines builds the width-aware header metadata section.
+func (s *RunOverviewSidebar) buildHeaderLines(contentWidth int) []string {
+	if s.runOverview == nil {
+		return nil
+	}
+
+	lines := make([]string, 0, 8)
 
 	if s.runOverview.State() != RunStateUnknown {
-		lines = append(lines,
-			runOverviewSidebarKeyStyle.Render("State: ")+
-				runOverviewSidebarValueStyle.Render(s.runOverview.StateString()))
-	}
-	if id := s.runOverview.ID(); id != "" {
-		lines = append(lines,
-			runOverviewSidebarKeyStyle.Render("ID: ")+runOverviewSidebarValueStyle.Render(id))
-	}
-	if name := s.runOverview.DisplayName(); name != "" {
-		lines = append(lines,
-			runOverviewSidebarKeyStyle.Render("Name: ")+runOverviewSidebarValueStyle.Render(name))
-	}
-	if project := s.runOverview.Project(); project != "" {
-		lines = append(lines,
-			runOverviewSidebarKeyStyle.Render("Project: ")+
-				runOverviewSidebarValueStyle.Render(project))
+		lines = slices.Concat(
+			lines,
+			s.renderWrappedHeaderValue("State: ", s.runOverview.StateString(), contentWidth),
+		)
 	}
 
-	// Blank separator line.
-	lines = append(lines, "")
+	lines = slices.Concat(
+		lines,
+		s.renderWrappedHeaderValue("ID: ", s.runOverview.ID(), contentWidth),
+		s.renderWrappedHeaderValue("Name: ", s.runOverview.DisplayName(), contentWidth),
+		s.renderWrappedHeaderValue("Project: ", s.runOverview.Project(), contentWidth),
+		s.renderTagHeaderValue("Tags: ", s.runOverview.Tags(), contentWidth),
+		s.renderWrappedHeaderValue("Notes: ", s.runOverview.Notes(), contentWidth),
+	)
 
+	if len(lines) > 0 {
+		lines = append(lines, "")
+	}
+
+	return lines
+}
+
+// renderWrappedHeaderValue renders a single metadata field, wrapping the value
+// onto continuation lines when needed.
+func (s *RunOverviewSidebar) renderWrappedHeaderValue(
+	prefix, value string, width int,
+) []string {
+	if strings.TrimSpace(value) == "" {
+		return nil
+	}
+
+	prefixText := runOverviewSidebarKeyStyle.Render(prefix)
+	prefixWidth := lipgloss.Width(prefixText)
+	available := max(width-prefixWidth, 1)
+	wrapped := WrapText(value, available)
+	indent := strings.Repeat(" ", prefixWidth)
+
+	lines := make([]string, 0, len(wrapped))
+	for i, line := range wrapped {
+		renderedValue := runOverviewSidebarValueStyle.Render(line)
+		if i == 0 {
+			lines = append(lines, prefixText+renderedValue)
+			continue
+		}
+		lines = append(lines, indent+renderedValue)
+	}
+
+	return lines
+}
+
+// renderTagHeaderValue renders tags using stable, bootstrap-like colored labels
+// that wrap across lines as needed.
+func (s *RunOverviewSidebar) renderTagHeaderValue(prefix string, tags []string, width int) []string {
+	if len(tags) == 0 {
+		return nil
+	}
+
+	prefixText := runOverviewSidebarKeyStyle.Render(prefix)
+	prefixWidth := lipgloss.Width(prefixText)
+	indent := strings.Repeat(" ", prefixWidth)
+	maxChipTextWidth := max(width-prefixWidth-2, 1)
+
+	currentLine := prefixText
+	currentWidth := prefixWidth
+	lines := make([]string, 0, 2)
+	renderedAny := false
+
+	for _, tag := range tags {
+		if strings.TrimSpace(tag) == "" {
+			continue
+		}
+
+		renderedAny = true
+		chipText := truncateValue(tag, maxChipTextWidth)
+		chip := runOverviewTagStyle(tag).Render(chipText)
+		chipWidth := lipgloss.Width(chip)
+
+		separator := ""
+		separatorWidth := 0
+		if currentWidth > prefixWidth {
+			separator = " "
+			separatorWidth = 1
+		}
+
+		if currentWidth+separatorWidth+chipWidth > width && currentWidth > prefixWidth {
+			lines = append(lines, currentLine)
+			currentLine = indent + chip
+			currentWidth = prefixWidth + chipWidth
+			continue
+		}
+
+		currentLine += separator + chip
+		currentWidth += separatorWidth + chipWidth
+	}
+
+	if !renderedAny {
+		return nil
+	}
+
+	lines = append(lines, currentLine)
 	return lines
 }
 

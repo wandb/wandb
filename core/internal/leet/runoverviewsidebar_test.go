@@ -272,6 +272,37 @@ func TestSidebar_TruncateValue(t *testing.T) {
 	require.Contains(t, view, "...")
 }
 
+func TestSidebar_View_RendersTagsAndNotesBeforeSections(t *testing.T) {
+	as := leet.NewAnimatedValue(false, 120)
+	ro := leet.NewRunOverview()
+	s := leet.NewRunOverviewSidebar(as, ro, leet.SidebarSideLeft)
+	expandSidebar(t, s, 120, false)
+
+	ro.ProcessRunMsg(leet.RunMsg{
+		ID:          "run-42",
+		DisplayName: "sim-run",
+		Project:     "vision",
+		Tags:        []string{"wandb", "leet", "transformer"},
+		Notes:       "Baseline note for the run overview sidebar renderer.",
+		Config: &spb.ConfigRecord{
+			Update: []*spb.ConfigItem{
+				{NestedKey: []string{"trainer", "epochs"}, ValueJson: "10"},
+			},
+		},
+	})
+
+	s.Sync()
+
+	view := stripANSI(s.View(18).Content)
+	require.Contains(t, view, "Tags:")
+	require.Contains(t, view, "wandb")
+	require.Contains(t, view, "leet")
+	require.Contains(t, view, "transformer")
+	require.Contains(t, view, "Notes:")
+	require.Contains(t, view, "Baseline note")
+	require.Contains(t, view, "Config")
+}
+
 func TestSidebar_Filter_RegexAndGlob(t *testing.T) {
 	as := leet.NewAnimatedValue(true, 120)
 	ro := leet.NewRunOverview()

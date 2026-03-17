@@ -25,6 +25,8 @@ type RunMsg struct {
 	ID          string
 	Project     string
 	DisplayName string
+	Notes       string
+	Tags        []string
 	Config      *spb.ConfigRecord
 }
 

@@ -370,6 +370,59 @@ var (
 
 var errorStyle = lipgloss.NewStyle()
 
+type runOverviewTagPaletteEntry struct {
+	fg compat.AdaptiveColor
+	bg compat.AdaptiveColor
+}
+
+var runOverviewTagPalette = []runOverviewTagPaletteEntry{
+	{
+		fg: compat.AdaptiveColor{Light: lipgloss.Color("#ffffff"), Dark: lipgloss.Color("#111111")},
+		bg: compat.AdaptiveColor{Light: lipgloss.Color("#6c757d"), Dark: lipgloss.Color("#a7b0b8")},
+	},
+	{
+		fg: compat.AdaptiveColor{Light: lipgloss.Color("#ffffff"), Dark: lipgloss.Color("#111111")},
+		bg: compat.AdaptiveColor{Light: lipgloss.Color("#0d6efd"), Dark: lipgloss.Color("#78aefc")},
+	},
+	{
+		fg: compat.AdaptiveColor{Light: lipgloss.Color("#ffffff"), Dark: lipgloss.Color("#111111")},
+		bg: compat.AdaptiveColor{Light: lipgloss.Color("#198754"), Dark: lipgloss.Color("#72cf9d")},
+	},
+	{
+		fg: compat.AdaptiveColor{Light: lipgloss.Color("#171717"), Dark: lipgloss.Color("#171717")},
+		bg: compat.AdaptiveColor{Light: lipgloss.Color("#0dcaf0"), Dark: lipgloss.Color("#7be3fa")},
+	},
+	{
+		fg: compat.AdaptiveColor{Light: lipgloss.Color("#ffffff"), Dark: lipgloss.Color("#171717")},
+		bg: compat.AdaptiveColor{Light: lipgloss.Color("#fd7e14"), Dark: lipgloss.Color("#ffb574")},
+	},
+	{
+		fg: compat.AdaptiveColor{Light: lipgloss.Color("#ffffff"), Dark: lipgloss.Color("#111111")},
+		bg: compat.AdaptiveColor{Light: lipgloss.Color("#dc3545"), Dark: lipgloss.Color("#f28a93")},
+	},
+	{
+		fg: compat.AdaptiveColor{Light: lipgloss.Color("#ffffff"), Dark: lipgloss.Color("#111111")},
+		bg: compat.AdaptiveColor{Light: lipgloss.Color("#6f42c1"), Dark: lipgloss.Color("#b99aff")},
+	},
+	{
+		fg: compat.AdaptiveColor{Light: lipgloss.Color("#ffffff"), Dark: lipgloss.Color("#171717")},
+		bg: compat.AdaptiveColor{Light: lipgloss.Color("#20c997"), Dark: lipgloss.Color("#83e6ca")},
+	},
+}
+
+func runOverviewTagStyle(tag string) lipgloss.Style {
+	if len(runOverviewTagPalette) == 0 {
+		return lipgloss.NewStyle().Padding(0, 1).Bold(true)
+	}
+
+	entry := runOverviewTagPalette[colorIndex(tag, len(runOverviewTagPalette))]
+	return lipgloss.NewStyle().
+		Foreground(entry.fg).
+		Background(entry.bg).
+		Padding(0, 1).
+		Bold(true)
+}
+
 // Run overview styles.
 var (
 	runOverviewSidebarSectionHeaderStyle = lipgloss.
