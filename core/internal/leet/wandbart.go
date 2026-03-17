@@ -11,17 +11,33 @@ import (
 type brandArtPreset string
 
 const (
-	brandArtPresetClassic    brandArtPreset = "classic"
+	brandArtPresetClassic    brandArtPreset = "classic" // This is also good.
 	brandArtPresetLagoon     brandArtPreset = "lagoon"
-	brandArtPresetSplitBrand brandArtPreset = "split-brand"
+	brandArtPresetSplitBrand brandArtPreset = "split-brand" // I like this the most?
 	brandArtPresetAurora     brandArtPreset = "aurora"
 
-	// My recommendation.
 	defaultBrandArtPreset = brandArtPresetSplitBrand
 
 	brandArtInlineGap  = 3
 	brandArtStackedGap = 1
 )
+
+const (
+	brandArtShadowOffset = 1
+)
+
+type brandArtCellKind uint8
+
+const (
+	brandArtCellEmpty brandArtCellKind = iota
+	brandArtCellGlyph
+	brandArtCellShadow
+)
+
+type brandArtCell struct {
+	glyph rune
+	kind  brandArtCellKind
+}
 
 type brandArtPalette []compat.AdaptiveColor
 
@@ -120,9 +136,14 @@ func renderBrandArtForWidth(width int) string {
 }
 
 func brandArtInlineWidth() int {
-	return brandArtWandbBlock.width + brandArtInlineGap + brandArtLeetBlock.width
+	return brandArtRenderedWidth(brandArtWandbBlock) +
+		brandArtInlineGap +
+		brandArtRenderedWidth(brandArtLeetBlock)
 }
 
+func brandArtRenderedWidth(block brandArtBlock) int {
+	return block.width + brandArtShadowOffset
+}
 func newBrandArtBlock(raw string) brandArtBlock {
 	lines := strings.Split(strings.Trim(raw, "\n"), "\n")
 
@@ -156,15 +177,15 @@ func renderBrandArtLayout(preset brandArtPreset, inline bool) string {
 	if inline {
 		return joinBrandArtHorizontal(
 			wandb,
-			brandArtWandbBlock.width,
+			brandArtRenderedWidth(brandArtWandbBlock),
 			leet,
-			brandArtLeetBlock.width,
+			brandArtRenderedWidth(brandArtLeetBlock),
 			brandArtInlineGap,
 		)
 	}
 
 	parts := []string{wandb}
-	for range brandArtStackedGap {
+	for i := 0; i < brandArtStackedGap; i++ {
 		parts = append(parts, "")
 	}
 	parts = append(parts, leet)
@@ -184,20 +205,60 @@ func renderBrandArtBlock(block brandArtBlock, palette brandArtPalette) string {
 			Bold(true)
 	}
 
-	var out strings.Builder
+	shadowStyle := lipgloss.NewStyle().Foreground(getShadowStyleColor())
+
+	width := block.width + brandArtShadowOffset
+	height := block.height + brandArtShadowOffset
+
+	cells := make([][]brandArtCell, height)
+	for y := range cells {
+		cells[y] = make([]brandArtCell, width)
+	}
+
 	for y, line := range block.lines {
 		x := 0
 		for _, r := range line {
-			if r == ' ' {
-				out.WriteByte(' ')
-			} else {
-				idx := brandArtPaletteIndex(x, block.width, len(styles))
-				out.WriteString(styles[idx].Render(string(r)))
+			if r != ' ' {
+				cells[y][x] = brandArtCell{
+					glyph: r,
+					kind:  brandArtCellGlyph,
+				}
 			}
 			x++
 		}
+	}
 
-		if y < len(block.lines)-1 {
+	for y := 0; y < block.height; y++ {
+		for x := 0; x < block.width; x++ {
+			if cells[y][x].kind != brandArtCellGlyph {
+				continue
+			}
+			sx, sy := x+brandArtShadowOffset, y+brandArtShadowOffset
+			if cells[sy][sx].kind != brandArtCellEmpty {
+				continue
+			}
+			cells[sy][sx] = brandArtCell{
+				glyph: cells[y][x].glyph,
+				kind:  brandArtCellShadow,
+			}
+		}
+	}
+
+	var out strings.Builder
+	for y, row := range cells {
+		for x, cell := range row {
+			switch cell.kind {
+			case brandArtCellGlyph:
+				idx := brandArtPaletteIndex(x, block.width, len(styles))
+				out.WriteString(styles[idx].Render(string(cell.glyph)))
+			case brandArtCellShadow:
+				out.WriteString(shadowStyle.Render(string(cell.glyph)))
+			default:
+				out.WriteByte(' ')
+			}
+		}
+
+		if y < len(cells)-1 {
 			out.WriteByte('\n')
 		}
 	}
