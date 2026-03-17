@@ -72,3 +72,18 @@ func TestConfig_SetLeftSidebarVisible_AffectsModelOnStartup(t *testing.T) {
 	model := tm.(*leet.Run)
 	require.True(t, model.TestLeftSidebarVisible())
 }
+
+func TestConfig_SetTagColorScheme_Persists(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	path := filepath.Join(t.TempDir(), "config.json")
+	cfg := leet.NewConfigManager(path, logger)
+
+	require.Equal(t, leet.DefaultTagColorScheme, cfg.Snapshot().TagColorScheme)
+
+	err := cfg.SetTagColorScheme("bootstrap-vibe")
+	require.NoError(t, err)
+	require.Equal(t, "bootstrap-vibe", cfg.TagColorScheme())
+
+	cfg2 := leet.NewConfigManager(path, logger)
+	require.Equal(t, "bootstrap-vibe", cfg2.Snapshot().TagColorScheme)
+}

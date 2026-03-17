@@ -94,7 +94,7 @@ func TestWorkspace_RunOverviewPreloads_BoundedConcurrency(t *testing.T) {
 	for i, runKey := range runKeys {
 		w.Update(leet.WorkspaceRunOverviewPreloadedMsg{
 			RunKey: runKey,
-			Run:    leet.RunMsg{ID: "ok"}, // non-empty => treated as success
+			Run:    &leet.RunMsg{ID: "ok"}, // non-empty => treated as success
 		})
 
 		remaining := len(runKeys) - (i + 1)

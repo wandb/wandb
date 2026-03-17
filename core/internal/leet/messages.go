@@ -25,6 +25,8 @@ type RunMsg struct {
 	ID          string
 	Project     string
 	DisplayName string
+	Notes       string
+	Tags        []string
 	Config      *spb.ConfigRecord
 }
 
@@ -145,7 +147,7 @@ type WorkspaceRunDirsMsg struct {
 // for runs that haven't been selected/streamed yet).
 type WorkspaceRunOverviewPreloadedMsg struct {
 	RunKey string
-	Run    RunMsg
+	Run    *RunMsg
 	Err    error
 }
 

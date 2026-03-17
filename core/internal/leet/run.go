@@ -113,7 +113,7 @@ func NewRun(
 		runPath:         runPath,
 		metricsGrid:     metricsGrid,
 		runOverview:     ro,
-		leftSidebar:     NewRunOverviewSidebar(runOverviewAnimState, ro, SidebarSideLeft),
+		leftSidebar:     NewRunOverviewSidebar(cfg, runOverviewAnimState, ro, SidebarSideLeft),
 		rightSidebar:    NewRightSidebar(cfg, focus, logger),
 		consoleLogs:     NewRunConsoleLogs(),
 		consoleLogsPane: NewConsoleLogsPane(consoleLogsPaneAnimState),
