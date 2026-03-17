@@ -63,7 +63,7 @@ def build_orjson(
     # Since pip's build isolation prepends a temp directory to PATH,
     # this causes cargo's build cache to be invalidated every run.
     env = os.environ.copy()
-    env["PYO3_PYTHON"] = sys.executable
+    env["PYO3_PYTHON"] = str(pathlib.Path(sys.executable).resolve())
 
     try:
         cargo_output = subprocess.check_output(cmd, cwd=rust_pkg_root, env=env)
