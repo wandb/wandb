@@ -107,7 +107,7 @@ var (
 		},
 		brandArtPresetSplitBrand: {
 			Wandb: brandArtGoldPalette,
-			Leet:  brandArtTealPalette,
+			Leet:  brandArtGoldPalette, // Or brandArtTealPalette
 		},
 		brandArtPresetAurora: {
 			Wandb: brandArtAuroraPalette,
