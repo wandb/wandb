@@ -724,8 +724,28 @@ class LaunchAgent:
             or project.job_base_image
             or isinstance(backend, LocalProcessRunner)
         ):
-            assert entrypoint is not None
-            image_uri = await builder.build_image(project, entrypoint, job_tracker)
+            # If no builder is configured and the job has source code,
+            # use a default base image with the emptyDir init container
+            # approach instead of failing.
+            from wandb.sdk.launch.builder.noop import NoOpBuilder
+
+            if isinstance(builder, NoOpBuilder) and project.job_source_type in (
+                "artifact",
+                "repo",
+            ):
+                default_base_image = "pytorch/pytorch:2.5.1-cuda12.4-cudnn9-runtime"
+                wandb.termlog(
+                    f"{LOG_PREFIX}No builder configured. Using default base image: "
+                    f"{default_base_image}"
+                )
+                project.set_job_base_image(default_base_image)
+                project._auto_default_base_image = True
+                image_uri = default_base_image
+            else:
+                assert entrypoint is not None
+                image_uri = await builder.build_image(
+                    project, entrypoint, job_tracker
+                )
 
         self._internal_logger.info("Backend loaded...")
         if isinstance(backend, LocalProcessRunner):

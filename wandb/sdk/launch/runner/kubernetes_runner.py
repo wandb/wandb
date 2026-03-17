@@ -543,10 +543,17 @@ class KubernetesRunner(AbstractRunner):
         )
 
         if launch_project.job_base_image:
-            apply_code_mount_configuration(
-                job,
-                launch_project,
-            )
+            if SOURCE_CODE_PVC_NAME:
+                apply_code_mount_configuration(
+                    job,
+                    launch_project,
+                )
+            else:
+                apply_code_mount_configuration_emptydir(
+                    job,
+                    launch_project,
+                    self._api,
+                )
 
         # Add wandb.ai/agent: current agent label on all pods
         if LaunchAgent.initialized():
@@ -809,20 +816,15 @@ class KubernetesRunner(AbstractRunner):
         )
 
         # If using pvc for code mount, move code there.
+        use_emptydir_code_mount = False
         if launch_project.job_base_image is not None:
-            if SOURCE_CODE_PVC_NAME is None or SOURCE_CODE_PVC_MOUNT_PATH is None:
-                raise LaunchError(
-                    "WANDB_LAUNCH_SOURCE_CODE_PVC_ environment variables not set. "
-                    "Unable to mount source code PVC into base image. "
-                    "Use the `codeMountPvcName` variable in the agent helm chart "
-                    "to enable base image jobs for this agent. See "
-                    "https://github.com/wandb/helm-charts/tree/main/charts/launch-agent "
-                    "for more information."
+            if SOURCE_CODE_PVC_NAME and SOURCE_CODE_PVC_MOUNT_PATH:
+                code_subdir = launch_project.get_image_source_string()
+                launch_project.change_project_dir(
+                    os.path.join(SOURCE_CODE_PVC_MOUNT_PATH, code_subdir)
                 )
-            code_subdir = launch_project.get_image_source_string()
-            launch_project.change_project_dir(
-                os.path.join(SOURCE_CODE_PVC_MOUNT_PATH, code_subdir)
-            )
+            else:
+                use_emptydir_code_mount = True
 
         # If the user specified an alternate api, we need will execute this
         # run by creating a custom object.
@@ -863,7 +865,12 @@ class KubernetesRunner(AbstractRunner):
                 )
 
             if launch_project.job_base_image:
-                apply_code_mount_configuration(resource_args, launch_project)
+                if use_emptydir_code_mount:
+                    apply_code_mount_configuration_emptydir(
+                        resource_args, launch_project, self._api
+                    )
+                else:
+                    apply_code_mount_configuration(resource_args, launch_project)
 
             overrides = {}
             if launch_project.override_args:
@@ -1284,3 +1291,132 @@ def apply_code_mount_configuration(
                 },
             }
         )
+
+
+def apply_code_mount_configuration_emptydir(
+    manifest: dict | list, project: LaunchProject, api: Api
+) -> None:
+    """Apply emptyDir code mount configuration when no PVC is available.
+
+    Uses an init container to fetch code into an emptyDir volume, which is
+    then mounted into all main containers.
+
+    Arguments:
+        manifest: The manifest to modify.
+        project: The launch project.
+        api: The internal API instance (for base_url).
+    """
+    base_url = api.settings("base_url")
+    source_type = project.job_source_type
+    source_info = project.job_source_info
+
+    for pod in yield_pods(manifest):
+        # Add emptyDir volume
+        spec = pod["spec"]
+        if "volumes" not in spec:
+            spec["volumes"] = []
+        spec["volumes"].append(
+            {
+                "name": "wandb-source-code-volume",
+                "emptyDir": {},
+            }
+        )
+
+        job_artifact = source_info.get("job_artifact", "")
+        job_dir = f"{CODE_MOUNT_DIR}/.job"
+        requirements_path = f"{job_dir}/requirements.frozen.txt"
+
+        # Mount volume on all main containers and set workingDir
+        install_deps = project._auto_default_base_image
+        for container in yield_containers(pod):
+            if "volumeMounts" not in container:
+                container["volumeMounts"] = []
+            container["volumeMounts"].append(
+                {
+                    "name": "wandb-source-code-volume",
+                    "mountPath": CODE_MOUNT_DIR,
+                }
+            )
+            container["workingDir"] = CODE_MOUNT_DIR
+            # Only install deps when using the auto-assigned default base
+            # image. User-provided base images are expected to have deps.
+            if install_deps:
+                original_command = container.get("command", [])
+                original_args = container.get("args", [])
+                original_cmd_str = " ".join(original_command + original_args)
+                if original_cmd_str:
+                    user_requirements = f"{CODE_MOUNT_DIR}/requirements.txt"
+                    install_prefix = (
+                        f"if [ -f {user_requirements} ]; then"
+                        f" pip install -r {user_requirements};"
+                        f" elif [ -f {requirements_path} ]; then"
+                        f" pip install -r {requirements_path}; fi"
+                    )
+                    container["command"] = ["/bin/sh", "-c"]
+                    container["args"] = [
+                        f"{install_prefix} && exec {original_cmd_str}"
+                    ]
+
+        # Find the API key env var from an existing container to reuse
+        api_key_env = None
+        for container in yield_containers(pod):
+            for env in container.get("env", []):
+                if env["name"] == "WANDB_API_KEY":
+                    api_key_env = env
+                    break
+            if api_key_env:
+                break
+
+        # Build init container based on source type
+        init_env = [
+            {"name": "WANDB_BASE_URL", "value": base_url},
+        ]
+        if api_key_env:
+            init_env.append(api_key_env)
+
+        # Init container: fetch code (and job artifact if installing deps)
+        fetch_job_artifact = ""
+        if install_deps and job_artifact:
+            fetch_job_artifact = (
+                f" && python -c \"import wandb; "
+                f"wandb.Api().artifact('{job_artifact}').download('{job_dir}')\""
+            )
+
+        if source_type == "artifact":
+            artifact_string = source_info.get("artifact_string", "")
+            fetch_script = (
+                f"python -c \"import wandb; "
+                f"wandb.Api().artifact('{artifact_string}').download('{CODE_MOUNT_DIR}')\""
+                + fetch_job_artifact
+            )
+        elif source_type == "repo":
+            git_remote = source_info.get("git_remote", "")
+            git_commit = source_info.get("git_commit", "")
+            fetch_script = (
+                f"git clone {git_remote} {CODE_MOUNT_DIR}"
+                f" && cd {CODE_MOUNT_DIR} && git checkout {git_commit}"
+                + fetch_job_artifact
+            )
+        else:
+            _logger.warning(
+                "Unknown job source type %s, skipping emptyDir init container",
+                source_type,
+            )
+            return
+
+        fetch_container = {
+            "name": "wandb-source-code-init",
+            "image": "wandb/launch-agent:latest",
+            "volumeMounts": [
+                {
+                    "name": "wandb-source-code-volume",
+                    "mountPath": CODE_MOUNT_DIR,
+                }
+            ],
+            "env": init_env,
+            "command": ["/bin/sh", "-c", fetch_script],
+        }
+
+        if "initContainers" not in spec:
+            spec["initContainers"] = []
+        spec["initContainers"].append(fetch_container)
