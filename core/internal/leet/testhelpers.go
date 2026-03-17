@@ -6,6 +6,7 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2/compat"
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
@@ -82,6 +83,11 @@ func (s *RunOverviewSidebar) TestForceExpand() {
 // TestSeriesCount returns the number of named (non-default) series in the chart.
 func (c *TimeSeriesLineChart) TestSeriesCount() int {
 	return len(c.series)
+}
+
+// TestSeriesColor returns the configured color for a series key.
+func (c *TimeSeriesLineChart) TestSeriesColor(key string) compat.AdaptiveColor {
+	return c.seriesColors[key]
 }
 
 // TestViewRange returns the current X view range.

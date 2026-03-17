@@ -101,7 +101,7 @@ func (c *TimeSeriesLineChart) SetTailWindow(window time.Duration) {
 
 // AddDataPoint adds a data point to this chart, creating series as needed.
 func (c *TimeSeriesLineChart) AddDataPoint(seriesName string, timestamp int64, value float64) {
-	seriesKey := c.ensureSeries(seriesName)
+	seriesKey, created := c.ensureSeries(seriesName)
 	pointTime := time.Unix(timestamp, 0)
 	c.lastUpdate = pointTime
 
@@ -112,13 +112,12 @@ func (c *TimeSeriesLineChart) AddDataPoint(seriesName string, timestamp int64, v
 		c.maxValue = value
 	}
 
-	c.AddData(seriesKey, MetricData{
-		X: []float64{float64(timestamp)},
-		Y: []float64{value},
-	})
+	c.addPoint(seriesKey, float64(timestamp), value)
 
-	style := lipgloss.NewStyle().Foreground(c.seriesColors[seriesKey])
-	c.SetSeriesStyle(seriesKey, &style)
+	if created {
+		style := lipgloss.NewStyle().Foreground(c.seriesColors[seriesKey])
+		c.SetSeriesStyle(seriesKey, &style)
+	}
 	c.applyRanges()
 }
 
@@ -164,24 +163,40 @@ func (c *TimeSeriesLineChart) ValueBounds() (minValue, maxValue float64) {
 	return c.minValue, c.maxValue
 }
 
-func (c *TimeSeriesLineChart) ensureSeries(seriesName string) string {
-	seriesKey := seriesName
+func (c *TimeSeriesLineChart) ensureSeries(seriesName string) (seriesKey string, created bool) {
+	seriesKey = seriesName
 	if seriesKey == "" {
 		seriesKey = DefaultSystemMetricSeriesName
 	}
 	if _, ok := c.seriesColors[seriesKey]; ok {
-		return seriesKey
+		return seriesKey, false
 	}
 
 	color := c.baseColor
+	if len(c.seriesColors) > 0 {
+		color = c.nextSeriesColor()
+	}
 	if seriesKey != DefaultSystemMetricSeriesName {
-		if len(c.series) > 0 {
-			color = c.nextSeriesColor()
-		}
 		c.series[seriesKey] = struct{}{}
 	}
 	c.seriesColors[seriesKey] = color
-	return seriesKey
+	return seriesKey, true
+}
+
+func (c *TimeSeriesLineChart) addPoint(seriesKey string, x, y float64) {
+	s, ok := c.data[seriesKey]
+	if !ok {
+		s = NewSeries(seriesKey, c.palette)
+		c.data[seriesKey] = s
+		c.order = append(c.order, seriesKey)
+	}
+
+	s.AddPoint(x, y)
+	c.xMin = min(c.xMin, x)
+	c.xMax = max(c.xMax, x)
+	c.yMin = min(c.yMin, y)
+	c.yMax = max(c.yMax, y)
+	c.dirty = true
 }
 
 func (c *TimeSeriesLineChart) nextSeriesColor() compat.AdaptiveColor {
