@@ -241,7 +241,7 @@ func (w *Workspace) preloadRunOverviewCmd(runKey string) tea.Cmd {
 				return WorkspaceRunOverviewPreloadedMsg{RunKey: runKey, Err: err}
 			}
 			if rm, ok := msg.(RunMsg); ok && rm.ID != "" {
-				return WorkspaceRunOverviewPreloadedMsg{RunKey: runKey, Run: rm}
+				return WorkspaceRunOverviewPreloadedMsg{RunKey: runKey, Run: &rm}
 			}
 		}
 
@@ -256,8 +256,10 @@ func (w *Workspace) handleWorkspaceRunOverviewPreloaded(
 
 	if msg.Err == nil && msg.Run.ID != "" {
 		ro := w.getOrCreateRunOverview(msg.RunKey)
-		ro.ProcessRunMsg(msg.Run)
-		w.indexRunFilterData(msg.RunKey, msg.Run)
+		if msg.Run != nil {
+			ro.ProcessRunMsg(*msg.Run)
+			w.indexRunFilterData(msg.RunKey, *msg.Run)
+		}
 		if w.filter.Query() != "" {
 			w.applyRunFilter()
 		}
