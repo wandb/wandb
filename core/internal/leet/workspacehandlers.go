@@ -31,6 +31,10 @@ func batchCmds(cmds ...tea.Cmd) tea.Cmd {
 
 func (w *Workspace) handleKeyPressMsg(msg tea.KeyPressMsg) tea.Cmd {
 	// Filter mode takes priority.
+	if w.filter.IsActive() {
+		w.handleRunFilterKey(msg)
+		return nil
+	}
 	if w.runOverviewSidebar.IsFilterMode() {
 		w.runOverviewSidebar.HandleFilterKey(msg)
 		return nil
@@ -152,12 +156,7 @@ func (w *Workspace) handleMetricsMouse(msg tea.MouseMsg, metricsHeight int) tea.
 
 func (w *Workspace) handleSystemMetricsMouse(msg tea.MouseMsg, metricsHeight int) tea.Cmd {
 	mouse := msg.Mouse()
-	if _, ok := msg.(tea.MouseClickMsg); !ok {
-		return nil
-	}
-	if mouse.Button != tea.MouseLeft {
-		return nil
-	}
+	alt := mouse.Mod == tea.ModAlt
 
 	cur, ok := w.runs.CurrentItem()
 	if !ok {
@@ -179,8 +178,33 @@ func (w *Workspace) handleSystemMetricsMouse(msg tea.MouseMsg, metricsHeight int
 	row := adjustedY / dims.CellHWithPadding
 	col := adjustedX / dims.CellWWithPadding
 
-	w.metricsGrid.clearFocus()
-	grid.HandleMouseClick(row, col)
+	switch m := msg.(type) {
+	case tea.MouseClickMsg:
+		switch m.Button {
+		case tea.MouseLeft:
+			w.metricsGrid.clearFocus()
+			grid.HandleMouseClick(row, col)
+		case tea.MouseRight:
+			w.metricsGrid.clearFocus()
+			grid.StartInspection(adjustedX, row, col, dims, alt)
+		}
+	case tea.MouseMotionMsg:
+		if m.Button == tea.MouseRight {
+			grid.UpdateInspection(adjustedX, row, col, dims)
+		}
+	case tea.MouseReleaseMsg:
+		if m.Button == tea.MouseRight {
+			grid.EndInspection()
+		}
+	case tea.MouseWheelMsg:
+		w.metricsGrid.clearFocus()
+		switch m.Button {
+		case tea.MouseWheelUp:
+			grid.HandleWheel(adjustedX, row, col, dims, true)
+		case tea.MouseWheelDown:
+			grid.HandleWheel(adjustedX, row, col, dims, false)
+		}
+	}
 
 	return nil
 }
@@ -540,6 +564,10 @@ func (w *Workspace) handleWorkspaceRecord(run *workspaceRun, msg tea.Msg) {
 	switch m := msg.(type) {
 	case RunMsg:
 		w.getOrCreateRunOverview(run.key).ProcessRunMsg(m)
+		w.indexRunFilterData(run.key, m)
+		if w.filter.Query() != "" {
+			w.applyRunFilter()
+		}
 		run.state = RunStateRunning
 		w.syncLiveRunState()
 
@@ -1028,5 +1056,16 @@ func (w *Workspace) handleConfigSystemCols(tea.KeyPressMsg) tea.Cmd {
 
 func (w *Workspace) handleConfigSystemRows(tea.KeyPressMsg) tea.Cmd {
 	w.config.SetPendingGridConfig(gridConfigWorkspaceSystemRows)
+	return nil
+}
+
+// handleFocusRuns moves focus to the runs list if it's visible.
+//
+// This gives Esc a natural "return home" feel in workspace mode:
+// wherever focus currently is, Esc snaps it back to the run selector.
+func (w *Workspace) handleFocusRuns(tea.KeyPressMsg) tea.Cmd {
+	if w.runsAnimState.TargetVisible() {
+		w.setFocusRegion(focusRuns, 1)
+	}
 	return nil
 }

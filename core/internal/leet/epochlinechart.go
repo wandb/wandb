@@ -107,6 +107,16 @@ func (s *Series) Bounds() (xMin, xMax, yMin, yMax float64) {
 	return s.xMin, s.xMax, s.yMin, s.yMax
 }
 
+// AddPoint appends a single sample and incrementally updates bounds.
+func (s *Series) AddPoint(x, y float64) {
+	s.X = append(s.X, x)
+	s.Y = append(s.Y, y)
+	s.xMin = min(s.xMin, x)
+	s.xMax = max(s.xMax, x)
+	s.yMin = min(s.yMin, y)
+	s.yMax = max(s.yMax, y)
+}
+
 // EpochLineChart is a line chart for epoch/step-based ML training data.
 //
 // It supports multiple series rendered with opaque compositing (painter's
@@ -158,6 +168,10 @@ type EpochLineChart struct {
 
 	// inspection holds crosshair overlay state for data inspection mode.
 	inspection ChartInspection
+
+	// inspectionLabelFormatter customizes legend labels for inspection mode.
+	// When nil, a default numeric formatter is used.
+	inspectionLabelFormatter func(seriesKey string, x, y float64) string
 }
 
 func NewEpochLineChart(title string) *EpochLineChart {
@@ -533,7 +547,7 @@ func (c *EpochLineChart) drawInspectionOverlay(graphStartX int) {
 		}
 
 		yVal := s.Y[idx]
-		label := fmt.Sprintf("%v: %v", s.X[idx], formatSigFigs(yVal, 4))
+		label := c.formatInspectionLabel(key, s.X[idx], yVal)
 		labelRunes := []rune(label)
 		if lw := len(labelRunes); lw > maxLabelWidth {
 			maxLabelWidth = lw
@@ -606,6 +620,14 @@ func (c *EpochLineChart) drawInspectionOverlay(graphStartX int) {
 			x++
 		}
 	}
+}
+
+// formatInspectionLabel returns the label shown in the inspection legend.
+func (c *EpochLineChart) formatInspectionLabel(seriesKey string, x, y float64) string {
+	if c.inspectionLabelFormatter != nil {
+		return c.inspectionLabelFormatter(seriesKey, x, y)
+	}
+	return fmt.Sprintf("%v: %v", x, formatSigFigs(y, 4))
 }
 
 // findNearestDataPoint returns the data point nearest to mouseX in the topmost series.
@@ -757,6 +779,25 @@ func (c *EpochLineChart) SetGraphStyle(s *lipgloss.Style) {
 	if top := c.topSeries(); top != nil {
 		top.style.Store(*s)
 	}
+}
+
+// SetSeriesStyle sets the style for the named series, if present.
+func (c *EpochLineChart) SetSeriesStyle(key string, style *lipgloss.Style) {
+	if style == nil {
+		return
+	}
+	if series, ok := c.data[key]; ok && series != nil {
+		series.style.Store(*style)
+		c.dirty = true
+	}
+}
+
+// SetInspectionLabelFormatter customizes inspection legend labels.
+func (c *EpochLineChart) SetInspectionLabelFormatter(
+	formatter func(seriesKey string, x, y float64) string,
+) {
+	c.inspectionLabelFormatter = formatter
+	c.dirty = true
 }
 
 // SeriesCount returns the number of series in the chart.
