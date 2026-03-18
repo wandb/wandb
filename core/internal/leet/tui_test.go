@@ -575,6 +575,9 @@ func TestConsoleLogsPanel_ToggleAppendAndNavigate(t *testing.T) {
 	}
 	require.NoError(t, writer.Flush())
 
+	modelParams, err := leet.CreateModelParams(startupArgs, observability.NewNoOpLogger())
+	require.NoError(t, err)
+
 	// Trigger live read + redraw.
 	tm.Send(leet.FileChangedMsg{})
 
@@ -807,7 +810,8 @@ func TestCreateModelParams_RemoteWorkspace_StartsInWorkspaceMode(t *testing.T) {
 		Project: &project,
 	}
 
-	modelParams := leet.CreateModelParams(startupArgs, observability.NewNoOpLogger())
+	modelParams, err := leet.CreateModelParams(startupArgs, observability.NewNoOpLogger())
+	require.NoError(t, err)
 
 	require.NotNil(t, modelParams.Backend)
 	require.Nil(t, modelParams.RunParams)
@@ -824,11 +828,6 @@ func TestCreateModelParams_RemoteWorkspace_NoApiKey(t *testing.T) {
 		Project: &project,
 	}
 
-	modelParams := leet.CreateModelParams(startupArgs, observability.NewNoOpLogger())
-
-	require.Nil(
-		t,
-		modelParams.Backend,
-		"backend should be nil when WANDB_API_KEY is not set",
-	)
+	_, err := leet.CreateModelParams(startupArgs, observability.NewNoOpLogger())
+	require.Error(t, err)
 }
