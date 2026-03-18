@@ -100,17 +100,21 @@ func ParseStartupArgs(args []string) (*StartupArgs, error) {
 func CreateModelParams(
 	startupArgs *StartupArgs,
 	logger *observability.CoreLogger,
-) *ModelParams {
+) (*ModelParams, error) {
 	hasBaseURL := startupArgs.BaseURL != nil && *startupArgs.BaseURL != ""
 	hasRunId := startupArgs.RunId != nil && *startupArgs.RunId != ""
 
 	if hasBaseURL {
-		backend := NewRemoteWorkspaceBackend(
+		backend, err := NewRemoteWorkspaceBackend(
 			*startupArgs.BaseURL,
 			*startupArgs.Entity,
 			*startupArgs.Project,
 			logger,
 		)
+		if err != nil {
+			logger.Error(fmt.Sprintf("startup: failed to create remote workspace backend: %v", err))
+			return nil, err
+		}
 
 		var runParams *RunParams
 		if hasRunId {
@@ -131,14 +135,14 @@ func CreateModelParams(
 			Backend:   backend,
 			RunParams: runParams,
 			Logger:    logger,
-		}
+		}, nil
 	}
 
-	// Local mode: always create a local backend when we have a wandb dir.
-	var backend WorkspaceBackend
-	if startupArgs.WandbDir != "" {
-		backend = NewLocalWorkspaceBackend(startupArgs.WandbDir, logger)
+	// For local mode, always create a local backend.
+	if startupArgs.WandbDir == "" {
+		return nil, fmt.Errorf("wandb directory path is required for local mode")
 	}
+	backend := NewLocalWorkspaceBackend(startupArgs.WandbDir, logger)
 
 	var runParams *RunParams
 	if startupArgs.RunFile != nil && *startupArgs.RunFile != "" {
@@ -173,5 +177,5 @@ func CreateModelParams(
 		Backend:   backend,
 		RunParams: runParams,
 		Logger:    logger,
-	}
+	}, nil
 }
