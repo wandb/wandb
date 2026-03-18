@@ -3,7 +3,7 @@ package leet
 import (
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 )
 
 // WorkspaceBackend encapsulates operations that differ between
