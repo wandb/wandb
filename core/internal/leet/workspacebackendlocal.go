@@ -5,7 +5,7 @@ import (
 	"io"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/wandb/wandb/core/internal/observability"
 )
@@ -21,7 +21,7 @@ type LocalWorkspaceBackend struct {
 func NewLocalWorkspaceBackend(
 	wandbDir string,
 	logger *observability.CoreLogger,
-) *LocalWorkspaceBackend {
+) WorkspaceBackend {
 	return &LocalWorkspaceBackend{
 		wandbDir: wandbDir,
 		logger:   logger,
@@ -91,7 +91,7 @@ func (b *LocalWorkspaceBackend) PreloadOverviewCmd(runKey string) tea.Cmd {
 			}
 		}
 		if rm, ok := msg.(RunMsg); ok && rm.ID != "" {
-			return WorkspaceRunOverviewPreloadedMsg{RunKey: runKey, Run: rm}
+			return WorkspaceRunOverviewPreloadedMsg{RunKey: runKey, Run: &rm}
 		}
 
 		return WorkspaceRunOverviewPreloadedMsg{RunKey: runKey, Err: errRunRecordNotFound}
