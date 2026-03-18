@@ -191,12 +191,34 @@ func (w *Workspace) TestRunOverviewPreloadQueueLen() int {
 	return len(w.overviewPreloader.queue)
 }
 
+// TestExtractRunID exposes extractRunID for external tests.
+func TestExtractRunID(runKey string) string {
+	return extractRunID(runKey)
+}
+
 func (w *Workspace) TestRunOverviewID(runKey string) string {
 	ro := w.runOverview[runKey]
 	if ro == nil {
 		return ""
 	}
 	return ro.runID
+}
+
+// TestRunOverviewProject returns the project for a given run key
+func (w *Workspace) TestGetRunOverviewByRunKey(runKey string) *RunOverview {
+	ro := w.runOverview[runKey]
+	if ro == nil {
+		return nil
+	}
+	return ro
+}
+
+// TestExecutePreloadCmd calls the preload command for a given run key
+// and returns the resulting message.
+func (w *Workspace) TestExecutePreloadCmd(runKey string) WorkspaceRunOverviewPreloadedMsg {
+	cmd := w.preloadRunOverviewCmd(runKey)
+	msg := cmd()
+	return msg.(WorkspaceRunOverviewPreloadedMsg)
 }
 
 // ---- Run bottom bar / sidebar test helpers ----
