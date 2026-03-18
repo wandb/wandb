@@ -284,9 +284,9 @@ func leetMain(args []string) int {
 		return exitCodeSuccess
 	}
 
-	modelParams := leet.CreateModelParams(startupArgs, logger)
-	if modelParams.Backend == nil && modelParams.RunParams == nil {
-		fmt.Fprintln(os.Stderr, "Error: wandb directory path or base URL required")
+	modelParams, err := leet.CreateModelParams(startupArgs, logger)
+	if err != nil {
+		logger.Error("main: failed to create model params", "error", err)
 		startupArgs.Usage()
 		return exitCodeErrorArgs
 	}

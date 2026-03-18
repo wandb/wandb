@@ -37,9 +37,10 @@ type RemoteWorkspaceBackend struct {
 	graphqlClient graphql.Client
 	httpClient    api.RetryableClient
 
-	// runInfos stores metadata fetched from the discovery query,
-	// keyed by run ID (the GraphQL "name" field).
+	// runInfos stores metadata fetched from the discovery query, keyed by run ID.
 	runInfos map[string]*RunInfo
+	// runIds stores the run IDs in the order they were returned from the backend.
+	runIds   []string
 
 	logger *observability.CoreLogger
 
@@ -54,10 +55,10 @@ func NewRemoteWorkspaceBackend(
 	entity string,
 	project string,
 	logger *observability.CoreLogger,
-) *RemoteWorkspaceBackend {
+) (*RemoteWorkspaceBackend, error) {
 	apiKey := os.Getenv("WANDB_API_KEY")
 	if apiKey == "" {
-		return nil
+		return nil, fmt.Errorf("API key not found")
 	}
 
 	settingsProto := &spb.Settings{
@@ -82,11 +83,12 @@ func NewRemoteWorkspaceBackend(
 		entity:        entity,
 		project:       project,
 		runInfos:      make(map[string]*RunInfo),
+		runIds:        []string{},
 		logger:        logger,
 		hasMore:       false,
 		graphqlClient: graphqlClient,
 		httpClient:    httpClient,
-	}
+	}, nil
 }
 
 func (b *RemoteWorkspaceBackend) DiscoverRunsCmd(delay time.Duration) tea.Cmd {
@@ -144,6 +146,7 @@ func (b *RemoteWorkspaceBackend) DiscoverRunsCmd(delay time.Duration) tea.Cmd {
 				}
 			}
 
+			b.runIds = append(b.runIds, runKey)
 			b.runInfos[runKey] = NewRunInfo(
 				entity,
 				project,
@@ -153,12 +156,7 @@ func (b *RemoteWorkspaceBackend) DiscoverRunsCmd(delay time.Duration) tea.Cmd {
 			)
 		}
 
-		runKeys := make([]string, 0, len(b.runInfos))
-		for runKey := range b.runInfos {
-			runKeys = append(runKeys, runKey)
-		}
-
-		return WorkspaceRunDiscoveryMsg{RunKeys: runKeys}
+		return WorkspaceRunDiscoveryMsg{RunKeys: b.runIds}
 	})
 }
 
