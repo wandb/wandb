@@ -506,18 +506,32 @@ func runLeetWorkspace(opts *leetOptions, logger *observability.CoreLogger) int {
 				RunId:   opts.runId,
 			},
 		}
-	} else if opts.runFile != "" {
-		runParams = &leet.RunParams{
-			LocalRunParams: &leet.LocalRunParams{
-				RunFile: opts.runFile,
-			},
+		return exitCodeErrorArgs
+	}
+
+	wandbDir := opts.wandbDir
+
+	for {
+		m := leet.NewModel(leet.ModelParams{
+			WandbDir:  wandbDir,
+			RunParams: modelParams.RunParams,
+			Logger:    logger,
+		})
+		program := tea.NewProgram(m)
+
+		finalModel, err := program.Run()
+		if err != nil {
+			logger.CaptureError(fmt.Errorf("wandb-leet: %v", err))
+			return exitCodeErrorInternal
 		}
 
-		if wandbDir == "" {
-			fmt.Fprintln(os.Stderr, "Error: wandb directory path required")
-			return exitCodeErrorArgs
+		if fm, ok := finalModel.(*leet.Model); ok && fm.ShouldRestart() {
+			continue
 		}
+		return exitCodeSuccess
 	}
+}
+
 
 	for {
 		m := leet.NewModel(leet.ModelParams{
