@@ -219,7 +219,11 @@ func (c *TimeSeriesLineChart) applyRanges() {
 
 	yMin, yMax := c.computeYRange()
 	c.SetYRange(yMin, yMax)
-	c.SetViewYRange(yMin, yMax)
+	if c.isYZoomed {
+		c.clampYView(yMin, yMax)
+	} else {
+		c.SetViewYRange(yMin, yMax)
+	}
 
 	domainMax := dataMax + c.rightPad().Seconds()
 	if domainMax-dataMin < minZoomRange {

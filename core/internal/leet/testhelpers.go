@@ -8,6 +8,10 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2/compat"
 
+	"github.com/NimbleMarkets/ntcharts/v2/canvas"
+	"github.com/NimbleMarkets/ntcharts/v2/canvas/graph"
+	"github.com/NimbleMarkets/ntcharts/v2/canvas/runes"
+
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
@@ -143,6 +147,28 @@ func (c *EpochLineChart) TestInspectionMouseX() (int, bool) {
 // TestBounds exposes the chart's current bounds for testing.
 func (c *EpochLineChart) TestBounds() (xMin, xMax, yMin, yMax float64) {
 	return c.xMin, c.xMax, c.yMin, c.yMax
+}
+
+// TestHasGlyphAtData reports whether the rendered canvas contains a plotted
+// glyph at the given data coordinate.
+func (c *EpochLineChart) TestHasGlyphAtData(x, y float64) bool {
+	if c.GraphWidth() <= 0 || c.GraphHeight() <= 0 {
+		return false
+	}
+
+	bGrid := graph.NewBrailleGrid(
+		c.GraphWidth(),
+		c.GraphHeight(),
+		0, float64(c.GraphWidth()),
+		0, float64(c.GraphHeight()),
+	)
+	point := bGrid.GridPoint(c.ScaleFloat64PointForLine(canvas.Float64Point{X: x, Y: y}))
+	graphStartX := 0
+	if c.YStep() > 0 {
+		graphStartX = c.Origin().X + 1
+	}
+	cell := c.Canvas.Cell(canvas.Point{X: graphStartX + point.X, Y: point.Y})
+	return cell.Rune != runes.Null && cell.Rune != ' '
 }
 
 // TestChartAt returns the chart at (row, col) on the current page (or nil).

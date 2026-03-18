@@ -578,15 +578,15 @@ func (mg *MetricsGrid) clearFocus() {
 
 // HandleWheel performs zoom handling on a main-grid chart at (row, col).
 func (mg *MetricsGrid) HandleWheel(
-	adjustedX, row, col int,
+	adjustedX, adjustedY, row, col int,
 	dims GridDims,
-	wheelUp bool,
+	wheelUp, vertical bool,
 ) {
-	chart, relX, needFocus, ok := mg.hitChartAndRelX(adjustedX, row, col, dims)
+	chart, relX, relY, needFocus, ok := mg.hitChartAndRelPoint(adjustedX, adjustedY, row, col, dims)
 	if !ok || chart == nil {
 		return
 	}
-	if relX < 0 || relX >= chart.GraphWidth() {
+	if relX < 0 || relX >= chart.GraphWidth() || relY < 0 || relY >= chart.GraphHeight() {
 		return
 	}
 	if needFocus {
@@ -598,7 +598,11 @@ func (mg *MetricsGrid) HandleWheel(
 	if wheelUp {
 		dir = "in"
 	}
-	chart.HandleZoom(dir, relX)
+	if vertical {
+		chart.HandleVerticalZoom(dir, relY)
+	} else {
+		chart.HandleZoom(dir, relX)
+	}
 	chart.DrawIfNeeded()
 }
 
@@ -641,7 +645,7 @@ func (mg *MetricsGrid) hitChartAndRelX(
 	}
 
 	chartStartX := col * dims.CellWWithPadding
-	graphStartX := chartStartX + 1
+	graphStartX := chartStartX + ChartBorderSize/2
 	if chart.YStep() > 0 {
 		graphStartX += chart.Origin().X + 1
 	}
@@ -649,6 +653,23 @@ func (mg *MetricsGrid) hitChartAndRelX(
 
 	needFocus = mg.focus.Type != FocusMainChart || mg.focus.Row != row || mg.focus.Col != col
 	return chart, relX, needFocus, true
+}
+
+// hitChartAndRelPoint returns the chart under (row, col) together with
+// graph-local X/Y coordinates.
+func (mg *MetricsGrid) hitChartAndRelPoint(
+	adjustedX, adjustedY, row, col int,
+	dims GridDims,
+) (chart *EpochLineChart, relX, relY int, needFocus, ok bool) {
+	chart, relX, needFocus, ok = mg.hitChartAndRelX(adjustedX, row, col, dims)
+	if !ok || chart == nil {
+		return nil, 0, 0, false, false
+	}
+
+	chartStartY := row * dims.CellHWithPadding
+	graphStartY := chartStartY + ChartBorderSize/2 + ChartTitleHeight
+	relY = adjustedY - graphStartY
+	return chart, relX, relY, needFocus, true
 }
 
 // StartInspection focuses the chart and begins inspection if inside the graph.
