@@ -217,8 +217,11 @@ func (w *Workspace) startRunOverviewPreloadsCmd() tea.Cmd {
 	return tea.Batch(cmds...)
 }
 
-// preloadRunOverviewCmd reads up to maxRecordsToScan records looking for the Run record.
-// It returns a completion msg (success or failure) so the queue can make progress.
+// preloadRunOverviewCmd reads up to maxRecordsToScan records looking for the
+// first RunMsg with a populated run ID.
+//
+// HistorySource.Read batches records into ChunkedBatchMsg, so the preloader
+// must search inside the batch rather than expecting a direct RunMsg.
 func (w *Workspace) preloadRunOverviewCmd(runKey string) tea.Cmd {
 	wandbFile := runWandbFile(w.wandbDir, runKey)
 	logger := w.logger
@@ -226,7 +229,9 @@ func (w *Workspace) preloadRunOverviewCmd(runKey string) tea.Cmd {
 	return func() tea.Msg {
 		if runKey == "" || wandbFile == "" {
 			return WorkspaceRunOverviewPreloadedMsg{
-				RunKey: runKey, Err: errRunRecordNotFound}
+				RunKey: runKey,
+				Err:    errRunRecordNotFound,
+			}
 		}
 
 		reader, err := NewLevelDBHistorySource(wandbFile, logger)
@@ -236,17 +241,37 @@ func (w *Workspace) preloadRunOverviewCmd(runKey string) tea.Cmd {
 		defer reader.Close()
 
 		msg, err := reader.Read(maxRecordsToScan, maxRecordsToScanTimeout)
-		if err != nil {
-			if !errors.Is(err, io.EOF) {
-				return WorkspaceRunOverviewPreloadedMsg{RunKey: runKey, Err: err}
-			}
-			if rm, ok := msg.(RunMsg); ok && rm.ID != "" {
-				return WorkspaceRunOverviewPreloadedMsg{RunKey: runKey, Run: &rm}
-			}
+		if err != nil && !errors.Is(err, io.EOF) {
+			return WorkspaceRunOverviewPreloadedMsg{RunKey: runKey, Err: err}
+		}
+
+		if rm, ok := FindRunMsg(msg); ok {
+			return WorkspaceRunOverviewPreloadedMsg{RunKey: runKey, Run: &rm}
 		}
 
 		return WorkspaceRunOverviewPreloadedMsg{RunKey: runKey, Err: errRunRecordNotFound}
 	}
+}
+
+func FindRunMsg(msg tea.Msg) (RunMsg, bool) {
+	switch m := msg.(type) {
+	case RunMsg:
+		return m, m.ID != ""
+	case ChunkedBatchMsg:
+		for _, sub := range m.Msgs {
+			if rm, ok := FindRunMsg(sub); ok {
+				return rm, true
+			}
+		}
+	case BatchedRecordsMsg:
+		for _, sub := range m.Msgs {
+			if rm, ok := FindRunMsg(sub); ok {
+				return rm, true
+			}
+		}
+	}
+
+	return RunMsg{}, false
 }
 
 func (w *Workspace) handleWorkspaceRunOverviewPreloaded(
@@ -254,7 +279,7 @@ func (w *Workspace) handleWorkspaceRunOverviewPreloaded(
 ) tea.Cmd {
 	w.overviewPreloader.MarkDone(msg.RunKey)
 
-	if msg.Err == nil && msg.Run.ID != "" {
+	if msg.Err == nil && msg.Run != nil && msg.Run.ID != "" {
 		ro := w.getOrCreateRunOverview(msg.RunKey)
 		if msg.Run != nil {
 			ro.ProcessRunMsg(*msg.Run)
