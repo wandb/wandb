@@ -35,7 +35,7 @@ executors:
       server_image_tag: { type: string }
     docker:
       - image: python:<<parameters.python>>
-    resource_class: xlarge
+    resource_class: wandb/docker-builder
 
   local-testcontainer:
     parameters:
@@ -51,7 +51,7 @@ executors:
         environment:
           CI: 1
           WANDB_ENABLE_TEST_CONTAINER: true
-    resource_class: xlarge
+    resource_class: wandb/docker-builder
 
   local-testcontainer-importers:
     parameters:
@@ -82,7 +82,7 @@ executors:
         name: << parameters.dst_server_name >>
     environment:
       WANDB_TEST_SERVER_URL2: http://<< parameters.dst_server_name >>
-    resource_class: xlarge
+    resource_class: wandb/docker-builder
 
 commands:
   save-test-results:
