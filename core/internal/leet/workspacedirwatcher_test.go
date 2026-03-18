@@ -153,7 +153,7 @@ func TestWorkspace_RemoteBackend_DiscoveryAndPreload(t *testing.T) {
 	// Complete the preload for run2.
 	w.Update(leet.WorkspaceRunOverviewPreloadedMsg{
 		RunKey: run2,
-		Run: leet.RunMsg{
+		Run: &leet.RunMsg{
 			ID:          run2,
 			Project:     "test-project",
 			DisplayName: "Second Run",
