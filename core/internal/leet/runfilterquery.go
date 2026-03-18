@@ -6,23 +6,25 @@ import (
 	"unicode"
 )
 
-// workspaceRunFilterData is the precomputed searchable metadata for one run in
+// WorkspaceRunFilterData is the precomputed searchable metadata for one run in
 // the workspace runs sidebar.
-type workspaceRunFilterData struct {
+type WorkspaceRunFilterData struct {
 	RunKey      string
 	DisplayName string
 	ID          string
 	Project     string
+	Notes       string
+	Tags        []string
 
 	// ConfigByPath stores flattened config values keyed by canonicalized path.
 	ConfigByPath map[string]string
 	// ConfigEntries preserves the flattened config for broader "config:<term>"
 	// searches that should match either a key or a value.
-	ConfigEntries []runFilterConfigEntry
+	ConfigEntries []RunFilterConfigEntry
 }
 
-// runFilterConfigEntry stores one flattened config path/value pair.
-type runFilterConfigEntry struct {
+// RunFilterConfigEntry stores one flattened config path/value pair.
+type RunFilterConfigEntry struct {
 	Path  string
 	Value string
 }
@@ -42,11 +44,11 @@ type runFilterGroup struct {
 // runFilterClause is one atomic predicate with optional negation.
 type runFilterClause struct {
 	negated bool
-	match   func(workspaceRunFilterData) bool
+	match   func(WorkspaceRunFilterData) bool
 }
 
 // Match evaluates the clause against one run's indexed metadata.
-func (c runFilterClause) Match(data workspaceRunFilterData) bool {
+func (c runFilterClause) Match(data WorkspaceRunFilterData) bool {
 	if c.match == nil {
 		return true
 	}
@@ -57,14 +59,15 @@ func (c runFilterClause) Match(data workspaceRunFilterData) bool {
 	return matched
 }
 
-// compileRunFilterQuery parses the runs filter language into an executable
+// CompileRunFilterQuery parses the runs filter language into an executable
 // query.
 //
-// Bare terms search the default text fields. Whitespace and AND join clauses,
-// OR or | starts a new group, NOT negates the next clause, and field operators
-// support pattern matching (:), exact matching (=, !=), numeric comparisons,
-// and existence checks (has:field).
-func compileRunFilterQuery(raw string, mode FilterMatchMode) runFilterQuery {
+// Bare terms search the default text fields (run key, name, id, project,
+// notes, and tags). Whitespace and AND join clauses, OR or | starts a new
+// group, NOT negates the next clause, and field operators support pattern
+// matching (:), exact matching (=, !=), numeric comparisons, and existence
+// checks (has:field).
+func CompileRunFilterQuery(raw string, mode FilterMatchMode) runFilterQuery {
 	tokens := splitRunFilterTerms(raw)
 	if len(tokens) == 0 {
 		return runFilterQuery{}
@@ -110,7 +113,7 @@ func compileRunFilterQuery(raw string, mode FilterMatchMode) runFilterQuery {
 }
 
 // Match reports whether the query matches the indexed metadata for a run.
-func (q runFilterQuery) Match(data workspaceRunFilterData) bool {
+func (q runFilterQuery) Match(data WorkspaceRunFilterData) bool {
 	if len(q.groups) == 0 {
 		return true
 	}
@@ -204,7 +207,7 @@ func parseRunFilterClause(token string, mode FilterMatchMode) (runFilterClause, 
 		}
 		return runFilterClause{
 			negated: negated,
-			match: func(data workspaceRunFilterData) bool {
+			match: func(data WorkspaceRunFilterData) bool {
 				return runFilterFieldExists(data, field)
 			},
 		}, true
@@ -229,13 +232,16 @@ func newBareRunFilterClause(term string, mode FilterMatchMode, negated bool) run
 	matcher := compileTextMatcher(term, mode)
 	return runFilterClause{
 		negated: negated,
-		match: func(data workspaceRunFilterData) bool {
-			return runFilterMatchAny(matcher,
+		match: func(data WorkspaceRunFilterData) bool {
+			values := []string{
 				data.RunKey,
 				data.DisplayName,
 				data.ID,
 				data.Project,
-			)
+				data.Notes,
+			}
+			values = append(values, data.Tags...)
+			return runFilterMatchAny(matcher, values...)
 		},
 	}
 }
@@ -292,6 +298,8 @@ const (
 	runFilterFieldKey
 	runFilterFieldID
 	runFilterFieldProject
+	runFilterFieldNotes
+	runFilterFieldTags
 	runFilterFieldConfigAny
 	runFilterFieldConfigPath
 )
@@ -318,6 +326,10 @@ func parseRunFilterField(raw string) (runFilterField, bool) {
 		return runFilterField{kind: runFilterFieldID}, true
 	case "project":
 		return runFilterField{kind: runFilterFieldProject}, true
+	case "note", "notes":
+		return runFilterField{kind: runFilterFieldNotes}, true
+	case "tag", "tags":
+		return runFilterField{kind: runFilterFieldTags}, true
 	case "config", "cfg":
 		return runFilterField{kind: runFilterFieldConfigAny}, true
 	}
@@ -344,27 +356,27 @@ func buildRunFilterPredicate(
 	op string,
 	rhs string,
 	mode FilterMatchMode,
-) func(workspaceRunFilterData) bool {
+) func(WorkspaceRunFilterData) bool {
 	switch op {
 	case ":":
 		matcher := compileTextMatcher(rhs, mode)
-		return func(data workspaceRunFilterData) bool {
+		return func(data WorkspaceRunFilterData) bool {
 			return runFilterPatternMatch(data, field, matcher)
 		}
 	case "=":
-		return func(data workspaceRunFilterData) bool {
+		return func(data WorkspaceRunFilterData) bool {
 			return runFilterExactMatch(data, field, rhs)
 		}
 	case "!=":
-		return func(data workspaceRunFilterData) bool {
+		return func(data WorkspaceRunFilterData) bool {
 			return runFilterExactMismatch(data, field, rhs)
 		}
 	case ">", ">=", "<", "<=":
 		want, ok := parseRunFilterNumber(rhs)
 		if !ok {
-			return func(workspaceRunFilterData) bool { return false }
+			return func(WorkspaceRunFilterData) bool { return false }
 		}
-		return func(data workspaceRunFilterData) bool {
+		return func(data WorkspaceRunFilterData) bool {
 			return runFilterNumericCompare(data, field, op, want)
 		}
 	default:
@@ -374,7 +386,7 @@ func buildRunFilterPredicate(
 
 // runFilterPatternMatch applies a mode-aware text matcher to the selected field.
 func runFilterPatternMatch(
-	data workspaceRunFilterData,
+	data WorkspaceRunFilterData,
 	field runFilterField,
 	matcher func(string) bool,
 ) bool {
@@ -387,6 +399,10 @@ func runFilterPatternMatch(
 		return runFilterMatchAny(matcher, data.ID)
 	case runFilterFieldProject:
 		return runFilterMatchAny(matcher, data.Project)
+	case runFilterFieldNotes:
+		return runFilterMatchAny(matcher, data.Notes)
+	case runFilterFieldTags:
+		return runFilterMatchAny(matcher, data.Tags...)
 	case runFilterFieldConfigAny:
 		for _, entry := range data.ConfigEntries {
 			if matcher(entry.Path) || matcher(entry.Value) || matcher(entry.Path+"="+entry.Value) {
@@ -406,7 +422,7 @@ func runFilterPatternMatch(
 }
 
 // runFilterExactMatch reports whether any candidate value equals rhs.
-func runFilterExactMatch(data workspaceRunFilterData, field runFilterField, rhs string) bool {
+func runFilterExactMatch(data WorkspaceRunFilterData, field runFilterField, rhs string) bool {
 	candidates := runFilterExactCandidates(data, field)
 	for _, candidate := range candidates {
 		if runFilterExactValueEqual(candidate, rhs) {
@@ -417,7 +433,7 @@ func runFilterExactMatch(data workspaceRunFilterData, field runFilterField, rhs 
 }
 
 // runFilterExactMismatch reports whether all candidate values differ from rhs.
-func runFilterExactMismatch(data workspaceRunFilterData, field runFilterField, rhs string) bool {
+func runFilterExactMismatch(data WorkspaceRunFilterData, field runFilterField, rhs string) bool {
 	candidates := runFilterExactCandidates(data, field)
 	if len(candidates) == 0 {
 		return false
@@ -432,7 +448,7 @@ func runFilterExactMismatch(data workspaceRunFilterData, field runFilterField, r
 
 // runFilterExactCandidates returns the values inspected by exact and inequality
 // operations for a field.
-func runFilterExactCandidates(data workspaceRunFilterData, field runFilterField) []string {
+func runFilterExactCandidates(data WorkspaceRunFilterData, field runFilterField) []string {
 	switch field.kind {
 	case runFilterFieldDisplayName:
 		return runFilterNonEmptyStrings(data.DisplayName)
@@ -442,6 +458,10 @@ func runFilterExactCandidates(data workspaceRunFilterData, field runFilterField)
 		return runFilterNonEmptyStrings(data.ID)
 	case runFilterFieldProject:
 		return runFilterNonEmptyStrings(data.Project)
+	case runFilterFieldNotes:
+		return runFilterNonEmptyStrings(data.Notes)
+	case runFilterFieldTags:
+		return runFilterNonEmptyStrings(data.Tags...)
 	case runFilterFieldConfigAny:
 		out := make([]string, 0, len(data.ConfigEntries)*3)
 		for _, entry := range data.ConfigEntries {
@@ -468,7 +488,7 @@ func runFilterExactValueEqual(got, want string) bool {
 // runFilterNumericCompare applies a numeric comparison to fields that resolve
 // to a single numeric value.
 func runFilterNumericCompare(
-	data workspaceRunFilterData,
+	data WorkspaceRunFilterData,
 	field runFilterField,
 	op string,
 	want float64,
@@ -498,7 +518,7 @@ func runFilterNumericCompare(
 
 // runFilterSingleValue returns the single value addressable by numeric
 // comparison operators.
-func runFilterSingleValue(data workspaceRunFilterData, field runFilterField) (string, bool) {
+func runFilterSingleValue(data WorkspaceRunFilterData, field runFilterField) (string, bool) {
 	switch field.kind {
 	case runFilterFieldDisplayName:
 		return data.DisplayName, data.DisplayName != ""
@@ -508,6 +528,8 @@ func runFilterSingleValue(data workspaceRunFilterData, field runFilterField) (st
 		return data.ID, data.ID != ""
 	case runFilterFieldProject:
 		return data.Project, data.Project != ""
+	case runFilterFieldNotes:
+		return data.Notes, data.Notes != ""
 	case runFilterFieldConfigPath:
 		value, ok := data.ConfigByPath[field.path]
 		return value, ok
@@ -518,7 +540,7 @@ func runFilterSingleValue(data workspaceRunFilterData, field runFilterField) (st
 
 // runFilterFieldExists reports whether a field is present in indexed run
 // metadata.
-func runFilterFieldExists(data workspaceRunFilterData, field runFilterField) bool {
+func runFilterFieldExists(data WorkspaceRunFilterData, field runFilterField) bool {
 	switch field.kind {
 	case runFilterFieldDisplayName:
 		return data.DisplayName != ""
@@ -528,6 +550,10 @@ func runFilterFieldExists(data workspaceRunFilterData, field runFilterField) boo
 		return data.ID != ""
 	case runFilterFieldProject:
 		return data.Project != ""
+	case runFilterFieldNotes:
+		return data.Notes != ""
+	case runFilterFieldTags:
+		return len(data.Tags) > 0
 	case runFilterFieldConfigAny:
 		return len(data.ConfigEntries) > 0
 	case runFilterFieldConfigPath:

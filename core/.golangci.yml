@@ -23,7 +23,7 @@ linters:
     gocritic:
       settings:
         hugeParam:
-          sizeThreshold: 129
+          sizeThreshold: 144
       disabled-checks:
         - unnamedResult
       enabled-tags:

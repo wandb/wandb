@@ -58,7 +58,7 @@ type Workspace struct {
 	filter *Filter
 	// runsFilterIndex caches searchable per-run metadata (name, project, config)
 	// for the runs sidebar so metadata filtering stays fast during live preview.
-	runsFilterIndex map[string]workspaceRunFilterData
+	runsFilterIndex map[string]WorkspaceRunFilterData
 
 	// Multi‑run metrics state.
 	focus       *Focus
@@ -90,7 +90,7 @@ type Workspace struct {
 type workspaceRun struct {
 	key       string
 	wandbPath string
-	reader    *WandbReader
+	reader    HistorySource
 	watcher   *WatcherManager
 	state     RunState
 }
@@ -153,7 +153,7 @@ func NewWorkspace(
 		liveChan:            ch,
 		heartbeatMgr:        NewHeartbeatManager(hbInterval, ch, logger),
 		filter:              NewFilter(),
-		runsFilterIndex:     make(map[string]workspaceRunFilterData),
+		runsFilterIndex:     make(map[string]WorkspaceRunFilterData),
 	}
 }
 
