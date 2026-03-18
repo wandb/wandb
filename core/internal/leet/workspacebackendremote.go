@@ -7,8 +7,8 @@ import (
 	"os"
 	"time"
 
+	tea "charm.land/bubbletea/v2"
 	"github.com/Khan/genqlient/graphql"
-	tea "github.com/charmbracelet/bubbletea"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	"github.com/wandb/simplejsonext"
@@ -213,7 +213,7 @@ func (b *RemoteWorkspaceBackend) PreloadOverviewCmd(runKey string) tea.Cmd {
 		}
 		return WorkspaceRunOverviewPreloadedMsg{
 			RunKey: runKey,
-			Run: RunMsg{
+			Run: &RunMsg{
 				ID:          info.runId,
 				Project:     info.project,
 				DisplayName: info.displayName,
