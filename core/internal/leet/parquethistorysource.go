@@ -9,8 +9,8 @@ import (
 	"slices"
 	"time"
 
+	tea "charm.land/bubbletea/v2"
 	"github.com/Khan/genqlient/graphql"
-	tea "github.com/charmbracelet/bubbletea"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	"github.com/wandb/simplejsonext"
