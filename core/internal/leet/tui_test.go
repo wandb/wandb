@@ -838,7 +838,8 @@ func TestCreateModelParams_LocalRun(t *testing.T) {
 		WandbDir: wandbDir,
 	}
 
-	modelParams := leet.CreateModelParams(startupArgs, observability.NewNoOpLogger())
+	modelParams, err := leet.CreateModelParams(startupArgs, observability.NewNoOpLogger())
+	require.NoError(t, err)
 
 	require.NotNil(t, modelParams.Backend)
 	require.Equal(t, &leet.RunParams{
@@ -861,7 +862,8 @@ func TestCreateModelParams_RemoteRun(t *testing.T) {
 		RunId:   &runId,
 	}
 
-	modelParams := leet.CreateModelParams(startupArgs, observability.NewNoOpLogger())
+	modelParams, err := leet.CreateModelParams(startupArgs, observability.NewNoOpLogger())
+	require.NoError(t, err)
 
 	require.NotNil(t, modelParams.Backend)
 	require.Equal(t, &leet.RunParams{
@@ -885,7 +887,8 @@ func TestCreateModelParams_RemoteWorkspace_StartsInWorkspaceMode(t *testing.T) {
 		Project: &project,
 	}
 
-	modelParams := leet.CreateModelParams(startupArgs, observability.NewNoOpLogger())
+	modelParams, err := leet.CreateModelParams(startupArgs, observability.NewNoOpLogger())
+	require.NoError(t, err)
 
 	require.NotNil(t, modelParams.Backend)
 	require.Nil(t, modelParams.RunParams)
@@ -902,11 +905,6 @@ func TestCreateModelParams_RemoteWorkspace_NoApiKey(t *testing.T) {
 		Project: &project,
 	}
 
-	modelParams := leet.CreateModelParams(startupArgs, observability.NewNoOpLogger())
-
-	require.Nil(
-		t,
-		modelParams.Backend,
-		"backend should be nil when WANDB_API_KEY is not set",
-	)
+	_, err := leet.CreateModelParams(startupArgs, observability.NewNoOpLogger())
+	require.Error(t, err)
 }
