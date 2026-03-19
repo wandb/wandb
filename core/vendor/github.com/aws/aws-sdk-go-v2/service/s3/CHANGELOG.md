@@ -1,3 +1,12 @@
+# v1.97.1 (2026-03-13)
+
+* **Bug Fix**: Replace usages of the old ioutil/ package throughout the SDK.
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.97.0 (2026-03-12)
+
+* **Feature**: Adds support for account regional namespaces for general purpose buckets. The account regional namespace is a reserved subdivision of the global bucket namespace where only your account can create general purpose buckets.
+
 # v1.96.4 (2026-03-05)
 
 * **Dependency Update**: Updated to the latest SDK module versions
