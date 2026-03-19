@@ -342,7 +342,7 @@ func (w *Workspace) handleToggleSystemMetricsPane(tea.KeyPressMsg) tea.Cmd {
 // initReaderCmd initializes a WandbReader for the given run asynchronously.
 func (w *Workspace) initReaderCmd(runKey, runPath string) tea.Cmd {
 	return func() tea.Msg {
-		reader, err := NewWandbReader(runPath, w.logger)
+		reader, err := NewLevelDBHistorySource(runPath, w.logger)
 		if err != nil {
 			return WorkspaceInitErrMsg{
 				RunKey:  runKey,
@@ -365,7 +365,10 @@ func (w *Workspace) readAllChunkCmd(run *workspaceRun) tea.Cmd {
 	}
 
 	return func() tea.Msg {
-		msg := run.reader.ReadAllRecordsChunked()
+		msg, err := run.reader.Read(BootLoadChunkSize, BootLoadMaxTime)
+		if err != nil {
+			return ErrorMsg{Err: err}
+		}
 		if msg == nil {
 			return nil
 		}
@@ -386,7 +389,10 @@ func (w *Workspace) readAvailableCmd(run *workspaceRun) tea.Cmd {
 	}
 
 	return func() tea.Msg {
-		msg := run.reader.ReadAvailableRecords()
+		msg, err := run.reader.Read(LiveMonitorChunkSize, LiveMonitorMaxTime)
+		if err != nil {
+			return ErrorMsg{Err: err}
+		}
 		if msg == nil {
 			return nil
 		}
@@ -683,6 +689,18 @@ func (w *Workspace) handlePrevPage(msg tea.KeyPressMsg) tea.Cmd {
 
 func (w *Workspace) handleNextPage(msg tea.KeyPressMsg) tea.Cmd {
 	w.metricsGrid.Navigate(1)
+	return nil
+}
+
+func (w *Workspace) handleToggleFocusedChartLogY(tea.KeyPressMsg) tea.Cmd {
+	switch w.focus.Type {
+	case FocusMainChart:
+		w.metricsGrid.toggleFocusedChartLogY()
+	case FocusSystemChart:
+		if g := w.activeSystemMetricsGrid(); g != nil {
+			g.toggleFocusedChartLogY()
+		}
+	}
 	return nil
 }
 

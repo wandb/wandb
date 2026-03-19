@@ -134,6 +134,11 @@ func (g *SystemMetricsGrid) TestSyncInspectActive() bool {
 	return g.syncInspectActive
 }
 
+// TestToggleFocusedChartLogY toggles log Y on the focused system chart.
+func (g *SystemMetricsGrid) TestToggleFocusedChartLogY() bool {
+	return g.toggleFocusedChartLogY()
+}
+
 // TestInspectionMouseX exposes the current overlay pixel X for tests.
 // This keeps production APIs clean while allowing focused assertions.
 func (c *EpochLineChart) TestInspectionMouseX() (int, bool) {
@@ -143,6 +148,16 @@ func (c *EpochLineChart) TestInspectionMouseX() (int, bool) {
 // TestBounds exposes the chart's current bounds for testing.
 func (c *EpochLineChart) TestBounds() (xMin, xMax, yMin, yMax float64) {
 	return c.xMin, c.xMax, c.yMin, c.yMax
+}
+
+// TestIsLogY reports whether the chart is using logarithmic Y scaling.
+func (c *EpochLineChart) TestIsLogY() bool {
+	return c.IsLogY()
+}
+
+// TestFormatYTick exposes Y-axis label formatting for focused tests.
+func (c *EpochLineChart) TestFormatYTick(v float64) string {
+	return c.formatYTick(v)
 }
 
 // TestChartAt returns the chart at (row, col) on the current page (or nil).
@@ -159,6 +174,11 @@ func (mg *MetricsGrid) TestChartAt(row, col int) *EpochLineChart {
 // TestSyncInspectActive exposes the synchronized inspection flag for tests.
 func (mg *MetricsGrid) TestSyncInspectActive() bool {
 	return mg.syncInspectActive
+}
+
+// TestToggleFocusedChartLogY toggles log Y on the focused main chart.
+func (mg *MetricsGrid) TestToggleFocusedChartLogY() bool {
+	return mg.toggleFocusedChartLogY()
 }
 
 // ---- Workspace test helpers ----
@@ -191,12 +211,34 @@ func (w *Workspace) TestRunOverviewPreloadQueueLen() int {
 	return len(w.overviewPreloader.queue)
 }
 
+// TestExtractRunID exposes extractRunID for external tests.
+func TestExtractRunID(runKey string) string {
+	return extractRunID(runKey)
+}
+
 func (w *Workspace) TestRunOverviewID(runKey string) string {
 	ro := w.runOverview[runKey]
 	if ro == nil {
 		return ""
 	}
 	return ro.runID
+}
+
+// TestRunOverviewProject returns the project for a given run key
+func (w *Workspace) TestGetRunOverviewByRunKey(runKey string) *RunOverview {
+	ro := w.runOverview[runKey]
+	if ro == nil {
+		return nil
+	}
+	return ro
+}
+
+// TestExecutePreloadCmd calls the preload command for a given run key
+// and returns the resulting message.
+func (w *Workspace) TestExecutePreloadCmd(runKey string) WorkspaceRunOverviewPreloadedMsg {
+	cmd := w.preloadRunOverviewCmd(runKey)
+	msg := cmd()
+	return msg.(WorkspaceRunOverviewPreloadedMsg)
 }
 
 // ---- Run bottom bar / sidebar test helpers ----

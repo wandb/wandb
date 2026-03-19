@@ -58,7 +58,7 @@ type Workspace struct {
 	filter *Filter
 	// runsFilterIndex caches searchable per-run metadata (name, project, config)
 	// for the runs sidebar so metadata filtering stays fast during live preview.
-	runsFilterIndex map[string]workspaceRunFilterData
+	runsFilterIndex map[string]WorkspaceRunFilterData
 
 	// Multi‑run metrics state.
 	focus       *Focus
@@ -90,7 +90,7 @@ type Workspace struct {
 type workspaceRun struct {
 	key       string
 	wandbPath string
-	reader    *WandbReader
+	reader    HistorySource
 	watcher   *WatcherManager
 	state     RunState
 }
@@ -153,7 +153,7 @@ func NewWorkspace(
 		liveChan:            ch,
 		heartbeatMgr:        NewHeartbeatManager(hbInterval, ch, logger),
 		filter:              NewFilter(),
-		runsFilterIndex:     make(map[string]workspaceRunFilterData),
+		runsFilterIndex:     make(map[string]WorkspaceRunFilterData),
 	}
 }
 
@@ -822,10 +822,18 @@ func (w *Workspace) buildActiveStatus() string {
 
 	if w.focus.Type != FocusNone {
 		parts = append(parts, w.focus.Title)
-		if w.focus.Type == FocusSystemChart {
+		switch w.focus.Type {
+		case FocusMainChart:
+			if scaleLabel := w.metricsGrid.focusedChartScaleLabel(); scaleLabel != "" {
+				parts = append(parts, scaleLabel)
+			}
+		case FocusSystemChart:
 			if g := w.activeSystemMetricsGrid(); g != nil {
 				if viewMode := g.FocusedChartViewModeLabel(); viewMode != "" {
 					parts = append(parts, viewMode)
+				}
+				if scaleLabel := g.FocusedChartScaleLabel(); scaleLabel != "" {
+					parts = append(parts, scaleLabel)
 				}
 			}
 		}

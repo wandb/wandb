@@ -1,4 +1,4 @@
-From 608de4a18717d11f87919f28d2e6e77d79d00ca1 Mon Sep 17 00:00:00 2001
+From 9b9e9ef3630cef1cd467c9b3cae68188b7787159 Mon Sep 17 00:00:00 2001
 From: Jacob Romero <jacob.romero@wanbd.com>
 Date: Thu, 26 Feb 2026 16:25:24 -0800
 Subject: [PATCH] add wandb changes
@@ -7,6 +7,8 @@ Subject: [PATCH] add wandb changes
  wandb/vendor/wandb_orjson/.gitignore          |   7 +
  wandb/vendor/wandb_orjson/WANDB_VENDOR.md     |  18 +++
  wandb/vendor/wandb_orjson/hatch.py            | 131 ++++++++++++++++++
+ .../wandb_orjson/include/yyjson/yyjson.c      |   1 -
+ .../wandb_orjson/include/yyjson/yyjson.h      |   1 -
  .../wandb_orjson/pysrc/orjson/__init__.py     |   6 +
  wandb/vendor/wandb_orjson/src/lib.rs          |   6 +
  wandb/vendor/wandb_orjson/src/opt.rs          |   7 +
@@ -18,14 +20,14 @@ Subject: [PATCH] add wandb changes
  wandb/vendor/wandb_orjson/test/test_api.py    |   7 +-
  .../vendor_scripts/update_changes_patch.sh    |   7 +
  .../vendor_scripts/update_orjson.sh           |  29 ++++
- 14 files changed, 270 insertions(+), 13 deletions(-)
+ 16 files changed, 270 insertions(+), 15 deletions(-)
  create mode 100644 wandb/vendor/wandb_orjson/WANDB_VENDOR.md
  create mode 100644 wandb/vendor/wandb_orjson/hatch.py
  create mode 100755 wandb/vendor/wandb_orjson/vendor_scripts/update_changes_patch.sh
  create mode 100755 wandb/vendor/wandb_orjson/vendor_scripts/update_orjson.sh
 
 diff --git a/wandb/vendor/wandb_orjson/.gitignore b/wandb/vendor/wandb_orjson/.gitignore
-index fdf3c2def..1eeb5173d 100644
+index fdf3c2def8..1eeb5173da 100644
 --- a/wandb/vendor/wandb_orjson/.gitignore
 +++ b/wandb/vendor/wandb_orjson/.gitignore
 @@ -10,3 +10,10 @@
@@ -42,7 +44,7 @@ index fdf3c2def..1eeb5173d 100644
 \ No newline at end of file
 diff --git a/wandb/vendor/wandb_orjson/WANDB_VENDOR.md b/wandb/vendor/wandb_orjson/WANDB_VENDOR.md
 new file mode 100644
-index 000000000..135f03454
+index 0000000000..135f034545
 --- /dev/null
 +++ b/wandb/vendor/wandb_orjson/WANDB_VENDOR.md
 @@ -0,0 +1,18 @@
@@ -66,7 +68,7 @@ index 000000000..135f03454
 +However if the changes cannot be cleanly applied (i.e. conflicts exist after updating orjson), the patch will need to be recreated after resolving any issues. This can be created with `vendor_scripts/update_changes_patch.sh`
 diff --git a/wandb/vendor/wandb_orjson/hatch.py b/wandb/vendor/wandb_orjson/hatch.py
 new file mode 100644
-index 000000000..ddf657bdc
+index 0000000000..ddf657bdc2
 --- /dev/null
 +++ b/wandb/vendor/wandb_orjson/hatch.py
 @@ -0,0 +1,131 @@
@@ -201,8 +203,32 @@ index 000000000..ddf657bdc
 +        "Failed to find the `orjson` library. `cargo build` output:\n"
 +        + cargo_output.decode("utf-8", errors="replace"),
 +    )
+diff --git a/wandb/vendor/wandb_orjson/include/yyjson/yyjson.c b/wandb/vendor/wandb_orjson/include/yyjson/yyjson.c
+index 1031182d0b..f6994a49e4 100644
+--- a/wandb/vendor/wandb_orjson/include/yyjson/yyjson.c
++++ b/wandb/vendor/wandb_orjson/include/yyjson/yyjson.c
+@@ -6660,7 +6660,6 @@ yyjson_doc *yyjson_read_fp(FILE *file,
+     
+     /* read JSON */
+     memset((u8 *)buf + file_size, 0, YYJSON_PADDING_SIZE);
+-    flg |= YYJSON_READ_INSITU;
+     doc = yyjson_read_opts((char *)buf, (usize)file_size, &alc, err);
+     if (doc) {
+         doc->str_pool = (char *)buf;
+diff --git a/wandb/vendor/wandb_orjson/include/yyjson/yyjson.h b/wandb/vendor/wandb_orjson/include/yyjson/yyjson.h
+index 210449d342..840de31f11 100644
+--- a/wandb/vendor/wandb_orjson/include/yyjson/yyjson.h
++++ b/wandb/vendor/wandb_orjson/include/yyjson/yyjson.h
+@@ -936,7 +936,6 @@ yyjson_api yyjson_doc *yyjson_read_fp(FILE *fp,
+ yyjson_api_inline yyjson_doc *yyjson_read(const char *dat,
+                                           size_t len,
+                                           yyjson_read_flag flg) {
+-    flg &= ~YYJSON_READ_INSITU; /* const string cannot be modified */
+     return yyjson_read_opts((char *)(void *)(size_t)(const void *)dat,
+                             len, NULL, NULL);
+ }
 diff --git a/wandb/vendor/wandb_orjson/pysrc/orjson/__init__.py b/wandb/vendor/wandb_orjson/pysrc/orjson/__init__.py
-index 96b24c035..183298b07 100644
+index 96b24c035e..183298b07c 100644
 --- a/wandb/vendor/wandb_orjson/pysrc/orjson/__init__.py
 +++ b/wandb/vendor/wandb_orjson/pysrc/orjson/__init__.py
 @@ -1,6 +1,11 @@
@@ -226,7 +252,7 @@ index 96b24c035..183298b07 100644
      "OPT_NAIVE_UTC",
      "OPT_NON_STR_KEYS",
 diff --git a/wandb/vendor/wandb_orjson/src/lib.rs b/wandb/vendor/wandb_orjson/src/lib.rs
-index 03ab886bb..33e20a9f5 100644
+index 03ab886bb0..33e20a9f53 100644
 --- a/wandb/vendor/wandb_orjson/src/lib.rs
 +++ b/wandb/vendor/wandb_orjson/src/lib.rs
 @@ -1,6 +1,11 @@
@@ -250,7 +276,7 @@ index 03ab886bb..33e20a9f5 100644
          opt!(mptr, c"OPT_NAIVE_UTC", opt::NAIVE_UTC);
          opt!(mptr, c"OPT_NON_STR_KEYS", opt::NON_STR_KEYS);
 diff --git a/wandb/vendor/wandb_orjson/src/opt.rs b/wandb/vendor/wandb_orjson/src/opt.rs
-index 7a36fa975..a0b49b51b 100644
+index 7a36fa9754..a0b49b51b0 100644
 --- a/wandb/vendor/wandb_orjson/src/opt.rs
 +++ b/wandb/vendor/wandb_orjson/src/opt.rs
 @@ -1,6 +1,11 @@
@@ -282,7 +308,7 @@ index 7a36fa975..a0b49b51b 100644
      | NAIVE_UTC
      | NON_STR_KEYS
 diff --git a/wandb/vendor/wandb_orjson/src/serialize/error.rs b/wandb/vendor/wandb_orjson/src/serialize/error.rs
-index 0113ae8ce..c3290bc9c 100644
+index 0113ae8cec..c3290bc9cd 100644
 --- a/wandb/vendor/wandb_orjson/src/serialize/error.rs
 +++ b/wandb/vendor/wandb_orjson/src/serialize/error.rs
 @@ -1,6 +1,11 @@
@@ -314,7 +340,7 @@ index 0113ae8ce..c3290bc9c 100644
              SerializeError::InvalidFragment => {
                  write!(f, "orjson.Fragment's content is not of type bytes or str")
 diff --git a/wandb/vendor/wandb_orjson/src/serialize/per_type/dict.rs b/wandb/vendor/wandb_orjson/src/serialize/per_type/dict.rs
-index fbfdf635f..c49b49633 100644
+index d6be5aa033..0d796557e2 100644
 --- a/wandb/vendor/wandb_orjson/src/serialize/per_type/dict.rs
 +++ b/wandb/vendor/wandb_orjson/src/serialize/per_type/dict.rs
 @@ -1,6 +1,11 @@
@@ -344,7 +370,7 @@ index fbfdf635f..c49b49633 100644
              ObType::Bool => {
                  $map.serialize_key($key).unwrap();
 diff --git a/wandb/vendor/wandb_orjson/src/serialize/per_type/float.rs b/wandb/vendor/wandb_orjson/src/serialize/per_type/float.rs
-index 89eb48497..54b2db1a0 100644
+index 89eb484979..54b2db1a05 100644
 --- a/wandb/vendor/wandb_orjson/src/serialize/per_type/float.rs
 +++ b/wandb/vendor/wandb_orjson/src/serialize/per_type/float.rs
 @@ -1,17 +1,24 @@
@@ -390,7 +416,7 @@ index 89eb48497..54b2db1a0 100644
      }
  }
 diff --git a/wandb/vendor/wandb_orjson/src/serialize/per_type/list.rs b/wandb/vendor/wandb_orjson/src/serialize/per_type/list.rs
-index 88046f23c..bb5c07684 100644
+index 88046f23c4..bb5c076842 100644
 --- a/wandb/vendor/wandb_orjson/src/serialize/per_type/list.rs
 +++ b/wandb/vendor/wandb_orjson/src/serialize/per_type/list.rs
 @@ -1,6 +1,11 @@
@@ -420,7 +446,7 @@ index 88046f23c..bb5c07684 100644
                  ObType::Bool => {
                      seq.serialize_element(&BoolSerializer::new(unsafe {
 diff --git a/wandb/vendor/wandb_orjson/src/serialize/serializer.rs b/wandb/vendor/wandb_orjson/src/serialize/serializer.rs
-index 0c41d1b54..9fdd28e67 100644
+index 0c41d1b549..9fdd28e67d 100644
 --- a/wandb/vendor/wandb_orjson/src/serialize/serializer.rs
 +++ b/wandb/vendor/wandb_orjson/src/serialize/serializer.rs
 @@ -1,6 +1,11 @@
@@ -451,7 +477,7 @@ index 0c41d1b54..9fdd28e67 100644
                      BoolSerializer::new(unsafe { PyBoolRef::from_ptr_unchecked(self.ptr) })
                          .serialize(serializer)
 diff --git a/wandb/vendor/wandb_orjson/test/test_api.py b/wandb/vendor/wandb_orjson/test/test_api.py
-index d455c3d2d..3e6cc75d5 100644
+index d455c3d2d0..3e6cc75d59 100644
 --- a/wandb/vendor/wandb_orjson/test/test_api.py
 +++ b/wandb/vendor/wandb_orjson/test/test_api.py
 @@ -1,6 +1,11 @@
@@ -477,7 +503,7 @@ index d455c3d2d..3e6cc75d5 100644
          """
 diff --git a/wandb/vendor/wandb_orjson/vendor_scripts/update_changes_patch.sh b/wandb/vendor/wandb_orjson/vendor_scripts/update_changes_patch.sh
 new file mode 100755
-index 000000000..e625b495b
+index 0000000000..e625b495b1
 --- /dev/null
 +++ b/wandb/vendor/wandb_orjson/vendor_scripts/update_changes_patch.sh
 @@ -0,0 +1,7 @@
@@ -490,7 +516,7 @@ index 000000000..e625b495b
 +git format-patch -1 HEAD --stdout > wandb/vendor/wandb_orjson/vendor_scripts/wandb_changes.patch
 diff --git a/wandb/vendor/wandb_orjson/vendor_scripts/update_orjson.sh b/wandb/vendor/wandb_orjson/vendor_scripts/update_orjson.sh
 new file mode 100755
-index 000000000..aa1919338
+index 0000000000..aa19193383
 --- /dev/null
 +++ b/wandb/vendor/wandb_orjson/vendor_scripts/update_orjson.sh
 @@ -0,0 +1,29 @@
