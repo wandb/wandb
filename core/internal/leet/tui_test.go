@@ -9,6 +9,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/wandb/wandb/core/internal/leet"
+	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/pkg/leveldb"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
@@ -794,3 +796,115 @@ func writeWorkspaceRunWandbFile(
 // 	tm.Type("q")
 // 	tm.WaitFinished(t, teatest.WithFinalTimeout(shortWait))
 // }
+
+func TestParseStartupArgs(t *testing.T) {
+	args := []string{
+		"-base-url",
+		"https://api.wandb.ai",
+		"-entity",
+		"test-entity",
+		"-project",
+		"test-project",
+		"-run-id",
+		"test-run-id",
+	}
+	startupArgs, err := leet.ParseStartupArgs(args)
+
+	require.NoError(t, err)
+	require.Equal(t, "https://api.wandb.ai", *startupArgs.BaseURL)
+	require.Equal(t, "test-entity", *startupArgs.Entity)
+	require.Equal(t, "test-project", *startupArgs.Project)
+	require.Equal(t, "test-run-id", *startupArgs.RunId)
+}
+
+func TestParseStartupArgs_InvalidArgs(t *testing.T) {
+	args := []string{
+		"-invalid-arg",
+		"invalid",
+		"-entity",
+		"test-entity",
+		"-project",
+		"test-project",
+	}
+	_, err := leet.ParseStartupArgs(args)
+	require.Error(t, err)
+}
+
+func TestCreateModelParams_LocalRun(t *testing.T) {
+	wandbDir := "testdata/wandb"
+	runFile := "testdata/wandb/run-1234567890.wandb"
+	startupArgs := &leet.StartupArgs{
+		RunFile:  &runFile,
+		WandbDir: wandbDir,
+	}
+
+	modelParams, err := leet.CreateModelParams(startupArgs, observability.NewNoOpLogger())
+	require.NoError(t, err)
+
+	require.NotNil(t, modelParams.Backend)
+	require.Equal(t, &leet.RunParams{
+		LocalRunParams: &leet.LocalRunParams{
+			RunFile: runFile,
+		},
+	}, modelParams.RunParams)
+}
+
+func TestCreateModelParams_RemoteRun(t *testing.T) {
+	t.Setenv("WANDB_API_KEY", "test-api-key")
+	baseURL := "https://api.wandb.ai"
+	entity := "test-entity"
+	project := "test-project"
+	runId := "test-run-id"
+	startupArgs := &leet.StartupArgs{
+		BaseURL: &baseURL,
+		Entity:  &entity,
+		Project: &project,
+		RunId:   &runId,
+	}
+
+	modelParams, err := leet.CreateModelParams(startupArgs, observability.NewNoOpLogger())
+	require.NoError(t, err)
+
+	require.NotNil(t, modelParams.Backend)
+	require.Equal(t, &leet.RunParams{
+		RemoteRunParams: &leet.RemoteRunParams{
+			BaseURL: baseURL,
+			Entity:  entity,
+			Project: project,
+			RunId:   runId,
+		},
+	}, modelParams.RunParams)
+}
+
+func TestCreateModelParams_RemoteWorkspace_StartsInWorkspaceMode(t *testing.T) {
+	t.Setenv("WANDB_API_KEY", "test-api-key")
+	baseURL := "https://api.wandb.ai"
+	entity := "test-entity"
+	project := "test-project"
+	startupArgs := &leet.StartupArgs{
+		BaseURL: &baseURL,
+		Entity:  &entity,
+		Project: &project,
+	}
+
+	modelParams, err := leet.CreateModelParams(startupArgs, observability.NewNoOpLogger())
+	require.NoError(t, err)
+
+	require.NotNil(t, modelParams.Backend)
+	require.Nil(t, modelParams.RunParams)
+}
+
+func TestCreateModelParams_RemoteWorkspace_NoApiKey(t *testing.T) {
+	t.Setenv("WANDB_API_KEY", "")
+	baseURL := "https://api.wandb.ai"
+	entity := "test-entity"
+	project := "test-project"
+	startupArgs := &leet.StartupArgs{
+		BaseURL: &baseURL,
+		Entity:  &entity,
+		Project: &project,
+	}
+
+	_, err := leet.CreateModelParams(startupArgs, observability.NewNoOpLogger())
+	require.Error(t, err)
+}

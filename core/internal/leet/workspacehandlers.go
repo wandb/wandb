@@ -339,25 +339,6 @@ func (w *Workspace) handleToggleSystemMetricsPane(tea.KeyPressMsg) tea.Cmd {
 
 // ---- Reader / Watcher Commands ----
 
-// initReaderCmd initializes a WandbReader for the given run asynchronously.
-func (w *Workspace) initReaderCmd(runKey, runPath string) tea.Cmd {
-	return func() tea.Msg {
-		reader, err := NewLevelDBHistorySource(runPath, w.logger)
-		if err != nil {
-			return WorkspaceInitErrMsg{
-				RunKey:  runKey,
-				RunPath: runPath,
-				Err:     err,
-			}
-		}
-		return WorkspaceRunInitMsg{
-			RunKey:  runKey,
-			RunPath: runPath,
-			Reader:  reader,
-		}
-	}
-}
-
 // readAllChunkCmd reads a bounded chunk of records for the given workspace run.
 func (w *Workspace) readAllChunkCmd(run *workspaceRun) tea.Cmd {
 	if run == nil || run.reader == nil {
@@ -416,12 +397,16 @@ func (w *Workspace) waitForLiveMsg() tea.Msg {
 
 // ensureLiveStreaming wires up watcher + heartbeat for a selected, running run.
 //
-// It is a no-op if the run is nil, not live, or its reader is not initialized.
+// It is a no-op if the run is nil, not live, its reader is not initialized,
+// or the backend does not support live streaming (e.g. remote runs).
 // When a watcher is started it also returns a command that waits for the first
 // change notification so that subsequent updates are driven primarily by
 // filesystem events, with the heartbeat as a safety net.
 func (w *Workspace) ensureLiveStreaming(run *workspaceRun) tea.Cmd {
 	if run == nil || run.reader == nil || run.state != RunStateRunning {
+		return nil
+	}
+	if !w.backend.SupportsLiveStreaming() {
 		return nil
 	}
 
@@ -431,7 +416,7 @@ func (w *Workspace) ensureLiveStreaming(run *workspaceRun) tea.Cmd {
 		ch := make(chan tea.Msg, 1) // coalesce notifications for this run
 		run.watcher = NewWatcherManager(ch, w.logger)
 
-		if err := run.watcher.Start(run.wandbPath); err != nil {
+		if err := run.watcher.Start(run.watchPath); err != nil {
 			w.logger.CaptureError(fmt.Errorf(
 				"workspace: failed to start watcher for %s: %v", run.key, err))
 			run.watcher = nil
@@ -513,7 +498,8 @@ func (w *Workspace) handleWorkspaceRunInit(msg WorkspaceRunInitMsg) tea.Cmd {
 
 	run := &workspaceRun{
 		key:       msg.RunKey,
-		wandbPath: msg.RunPath,
+		seriesKey: w.backend.SeriesKey(msg.RunKey),
+		watchPath: msg.RunPath,
 		reader:    msg.Reader,
 	}
 	w.runsByKey[msg.RunKey] = run
@@ -771,12 +757,10 @@ func (w *Workspace) toggleRunSelected(runKey string) tea.Cmd {
 		return nil
 	}
 
-	// Resolve the run file before mutating selection state so we don't end up
-	// "selected but unloadable" if the key can't be mapped to a .wandb file.
-	wandbFile := runWandbFile(w.wandbDir, runKey)
-	if wandbFile == "" {
-		err := fmt.Errorf("workspace: unable to resolve .wandb file for run key %q", runKey)
-		w.logger.CaptureError(err)
+	cmd := w.backend.InitReaderCmd(runKey)
+	if cmd == nil {
+		w.logger.CaptureError(fmt.Errorf(
+			"workspace: unable to initialize reader for run key %q", runKey))
 		return nil
 	}
 
@@ -785,7 +769,7 @@ func (w *Workspace) toggleRunSelected(runKey string) tea.Cmd {
 		w.pinnedRun = runKey
 	}
 
-	return w.initReaderCmd(runKey, wandbFile)
+	return cmd
 }
 
 func (w *Workspace) handleToggleRunSelectedKey(msg tea.KeyPressMsg) tea.Cmd {
