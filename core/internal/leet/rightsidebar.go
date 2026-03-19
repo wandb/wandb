@@ -64,32 +64,32 @@ func (rs *RightSidebar) Toggle() {
 	rs.animState.Toggle()
 }
 
-type GridMouseTarget struct {
-	AdjustedX int
-	AdjustedY int
-	Row       int
-	Col       int
-	Dims      GridDims
+type gridMouseTarget struct {
+	adjustedX int
+	adjustedY int
+	row       int
+	col       int
+	dims      GridDims
 }
 
-func (rs *RightSidebar) gridMouseTarget(x, y int) (GridMouseTarget, bool) {
+func (rs *RightSidebar) gridMouseTarget(x, y int) (gridMouseTarget, bool) {
 	if !rs.animState.IsVisible() {
-		return GridMouseTarget{}, false
+		return gridMouseTarget{}, false
 	}
 
 	adjustedX := x - rightSidebarMouseClickPaddingOffset
 	adjustedY := y - rightSidebarMouseClickPaddingOffset
 	if adjustedX < 0 || adjustedY < 0 {
-		return GridMouseTarget{}, false
+		return gridMouseTarget{}, false
 	}
 
 	dims := rs.metricsGrid.calculateChartDimensions()
-	return GridMouseTarget{
-		AdjustedX: adjustedX,
-		AdjustedY: adjustedY,
-		Row:       adjustedY / dims.CellHWithPadding,
-		Col:       adjustedX / dims.CellWWithPadding,
-		Dims:      dims,
+	return gridMouseTarget{
+		adjustedX: adjustedX,
+		adjustedY: adjustedY,
+		row:       adjustedY / dims.CellHWithPadding,
+		col:       adjustedX / dims.CellWWithPadding,
+		dims:      dims,
 	}, true
 }
 
@@ -104,7 +104,7 @@ func (rs *RightSidebar) HandleMouseClick(x, y int) bool {
 		return false
 	}
 
-	return rs.metricsGrid.HandleMouseClick(gmt.Row, gmt.Col)
+	return rs.metricsGrid.HandleMouseClick(gmt.row, gmt.col)
 }
 
 // HandleWheel zooms the chart under the mouse cursor.
@@ -114,7 +114,7 @@ func (rs *RightSidebar) HandleWheel(x, y int, wheelUp, vertical bool) {
 		return
 	}
 	rs.metricsGrid.HandleWheel(
-		gmt.AdjustedX, gmt.AdjustedY, gmt.Row, gmt.Col, gmt.Dims, wheelUp, vertical)
+		gmt.adjustedX, gmt.adjustedY, gmt.row, gmt.col, gmt.dims, wheelUp, vertical)
 }
 
 // StartInspection begins chart inspection under the mouse cursor.
@@ -123,7 +123,7 @@ func (rs *RightSidebar) StartInspection(x, y int, synced bool) {
 	if !ok {
 		return
 	}
-	rs.metricsGrid.StartInspection(gmt.AdjustedX, gmt.Row, gmt.Col, gmt.Dims, synced)
+	rs.metricsGrid.StartInspection(gmt.adjustedX, gmt.row, gmt.col, gmt.dims, synced)
 }
 
 // UpdateInspection moves the inspection cursor.
@@ -132,7 +132,7 @@ func (rs *RightSidebar) UpdateInspection(x, y int) {
 	if !ok {
 		return
 	}
-	rs.metricsGrid.UpdateInspection(gmt.AdjustedX, gmt.Row, gmt.Col, gmt.Dims)
+	rs.metricsGrid.UpdateInspection(gmt.adjustedX, gmt.row, gmt.col, gmt.dims)
 }
 
 // EndInspection clears inspection mode.

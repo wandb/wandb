@@ -420,7 +420,7 @@ func mouseCategory[T any]() BindingCategory[T] {
 				Description: "Zoom horizontally on chart under cursor",
 			},
 			{
-				Keys:        []string{"ctrl+wheel"}, // TODO: Alt? Or Alt for sync zoom?
+				Keys:        []string{"ctrl+wheel"},
 				Description: "Zoom vertically on chart under cursor",
 			},
 			{

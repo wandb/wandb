@@ -528,7 +528,10 @@ func (g *SystemMetricsGrid) HandleWheel(
 	if !ok || chart == nil {
 		return
 	}
-	if relX < 0 || relX >= chart.GraphWidth() || relY < 0 || relY >= chart.GraphHeight() {
+	if relX < 0 || relX >= chart.GraphWidth() {
+		return
+	}
+	if vertical && (relY < 0 || relY >= chart.GraphHeight()) {
 		return
 	}
 	if needFocus {
