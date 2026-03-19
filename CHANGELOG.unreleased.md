@@ -20,6 +20,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 - Run filtering by metadata in multi-run workspace mode in W&B LEET TUI (`wandb beta leet` command, activate with `f`) (@dmitryduev in https://github.com/wandb/wandb/pull/11497 and https://github.com/wandb/wandb/pull/11534)
 - Run overview displays tags and notes in W&B LEET TUI (`wandb beta leet` command) (@dmitryduev in https://github.com/wandb/wandb/pull/11523)
 - Per-chart log-scale (Y-axis) support in W&B LEET TUI (`wandb beta leet` command, toggle on a selected chart with `y`) (@dmitryduev in https://github.com/wandb/wandb/pull/11523)
+- `allow_media_symlink` setting to symlink or hardlink media files to the run directory instead of copying, improving logging performance and reducing disk usage (@jacobromero in https://github.com/wandb/wandb/pull/11544)
 
 ### Changed
 
