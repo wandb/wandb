@@ -3,7 +3,10 @@ package leet_test
 import (
 	"math"
 	"testing"
+	"time"
 
+	"charm.land/lipgloss/v2"
+	"charm.land/lipgloss/v2/compat"
 	"github.com/stretchr/testify/require"
 
 	leet "github.com/wandb/wandb/core/internal/leet"
@@ -316,4 +319,62 @@ func TestEpochLineChart_DrawSkipsFalseBridgeAcrossOutOfBoundsPoint(t *testing.T)
 
 	require.False(t, c.TestHasGlyphAtData(5, 5),
 		"renderer should not connect visible endpoints across a clipped point")
+}
+
+func TestEpochLineChart_ToggleYScale_RejectsNonPositiveOnlyData(t *testing.T) {
+	c := leet.NewEpochLineChart("loss")
+	c.Resize(80, 12)
+	c.AddData("run", leet.MetricData{
+		X: []float64{0, 1, 2},
+		Y: []float64{-3, 0, -1},
+	})
+
+	require.False(t, c.TestIsLogY())
+	require.False(t, c.ToggleYScale())
+	require.False(t, c.TestIsLogY())
+}
+
+func TestEpochLineChart_LogY_FormatsTicksInRawUnits(t *testing.T) {
+	c := leet.NewEpochLineChart("loss")
+	c.Resize(80, 12)
+	c.AddData("run", leet.MetricData{
+		X: []float64{0, 1, 2},
+		Y: []float64{0.1, 1, 10},
+	})
+
+	require.True(t, c.ToggleYScale())
+	require.True(t, c.TestIsLogY())
+	require.Equal(t, "0.1", c.TestFormatYTick(-1))
+	require.Equal(t, "1", c.TestFormatYTick(0))
+	require.Equal(t, "10", c.TestFormatYTick(1))
+}
+
+func TestTimeSeriesLineChart_LogY_FormatsTicksWithMetricUnits(t *testing.T) {
+	def := &leet.MetricDef{
+		Name:       "CPU",
+		Unit:       leet.UnitPercent,
+		MinY:       0,
+		MaxY:       100,
+		AutoRange:  true,
+		Percentage: true,
+	}
+
+	ch := leet.NewTimeSeriesLineChart(&leet.TimeSeriesLineChartParams{
+		Width:  80,
+		Height: 20,
+		Def:    def,
+		BaseColor: compat.AdaptiveColor{
+			Light: lipgloss.Color("#FF00FF"),
+			Dark:  lipgloss.Color("#FF00FF"),
+		},
+		ColorProvider: stubColorProvider("#00FF00"),
+		Now:           time.Unix(1_700_000_000, 0),
+	})
+
+	ch.AddDataPoint("", 1, 0.1)
+	ch.AddDataPoint("", 2, 10)
+
+	require.True(t, ch.ToggleYScale())
+	require.True(t, ch.TestIsLogY())
+	require.Equal(t, "10%", ch.TestFormatYTick(1))
 }

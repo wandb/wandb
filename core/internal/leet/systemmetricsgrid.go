@@ -321,6 +321,14 @@ func (g *SystemMetricsGrid) FocusedChartViewModeLabel() string {
 	return chart.ViewModeLabel()
 }
 
+func (g *SystemMetricsGrid) FocusedChartScaleLabel() string {
+	chart := g.focusedChart()
+	if chart == nil {
+		return ""
+	}
+	return chart.ScaleLabel()
+}
+
 func (g *SystemMetricsGrid) focusedChart() *TimeSeriesLineChart {
 	if g.focus.Type != FocusSystemChart || g.focus.Row < 0 || g.focus.Col < 0 {
 		return nil
@@ -329,6 +337,15 @@ func (g *SystemMetricsGrid) focusedChart() *TimeSeriesLineChart {
 		return nil
 	}
 	return g.currentPage[g.focus.Row][g.focus.Col]
+}
+
+func (g *SystemMetricsGrid) toggleFocusedChartLogY() bool {
+	chart := g.focusedChart()
+	if chart == nil || !chart.ToggleYScale() {
+		return false
+	}
+	chart.DrawIfNeeded()
+	return true
 }
 
 // Resize updates viewport dimensions and resizes/redraws visible charts.
@@ -423,18 +440,27 @@ func (g *SystemMetricsGrid) View() string {
 			chartView := metricChart.View()
 
 			titleText := metricChart.Title()
+			titleSuffix := ""
 			if len(metricChart.series) > 1 {
-				count := fmt.Sprintf(" [%d]", len(metricChart.series))
-				availableWidth := max(
-					dims.CellWWithPadding-chartTitlePadding-lipgloss.Width(count), minTitleWidth)
-				displayTitle := TruncateTitle(titleText, availableWidth)
-				titleText = titleStyle.Render(displayTitle) + seriesCountStyle.Render(count)
-			} else {
-				availableWidth := max(dims.CellWWithPadding-chartTitlePadding, minTitleWidth)
-				titleText = titleStyle.Render(TruncateTitle(titleText, availableWidth))
+				titleSuffix += fmt.Sprintf(" [%d]", len(metricChart.series))
+			}
+			if metricChart.IsLogY() {
+				titleSuffix += " [log]"
 			}
 
-			boxContent := lipgloss.JoinVertical(lipgloss.Left, titleText, chartView)
+			availableWidth := max(
+				dims.CellWWithPadding-chartTitlePadding-lipgloss.Width(titleSuffix), minTitleWidth)
+			displayTitle := TruncateTitle(titleText, availableWidth)
+			renderedTitle := titleStyle.Render(displayTitle)
+			if len(metricChart.series) > 1 {
+				renderedTitle += seriesCountStyle.Render(
+					fmt.Sprintf(" [%d]", len(metricChart.series)))
+			}
+			if metricChart.IsLogY() {
+				renderedTitle += navInfoStyle.Render(" [log]")
+			}
+
+			boxContent := lipgloss.JoinVertical(lipgloss.Left, renderedTitle, chartView)
 			boxStyle := borderStyle
 			if g.focus.Type == FocusSystemChart &&
 				row == g.focus.Row && col == g.focus.Col {

@@ -95,6 +95,11 @@ func RunKeyBindings() []BindingCategory[Run] {
 			Name: "Charts",
 			Bindings: []KeyBinding[Run]{
 				{
+					Keys:        []string{"y"},
+					Description: "Toggle log Y on focused chart",
+					Handler:     (*Run).handleToggleFocusedChartLogY,
+				},
+				{
 					Keys:        []string{"/"},
 					Description: "Filter metrics by pattern",
 					Handler:     (*Run).handleEnterMetricsFilter,
@@ -280,6 +285,11 @@ func WorkspaceKeyBindings() []BindingCategory[Workspace] {
 		{
 			Name: "Charts",
 			Bindings: []KeyBinding[Workspace]{
+				{
+					Keys:        []string{"y"},
+					Description: "Toggle log Y on focused chart",
+					Handler:     (*Workspace).handleToggleFocusedChartLogY,
+				},
 				{
 					Keys:        []string{"/"},
 					Description: "Filter metrics by pattern",

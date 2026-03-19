@@ -138,6 +138,11 @@ func (g *SystemMetricsGrid) TestSyncInspectActive() bool {
 	return g.syncInspectActive
 }
 
+// TestToggleFocusedChartLogY toggles log Y on the focused system chart.
+func (g *SystemMetricsGrid) TestToggleFocusedChartLogY() bool {
+	return g.toggleFocusedChartLogY()
+}
+
 // TestInspectionMouseX exposes the current overlay pixel X for tests.
 // This keeps production APIs clean while allowing focused assertions.
 func (c *EpochLineChart) TestInspectionMouseX() (int, bool) {
@@ -171,6 +176,16 @@ func (c *EpochLineChart) TestHasGlyphAtData(x, y float64) bool {
 	return cell.Rune != runes.Null && cell.Rune != ' '
 }
 
+// TestIsLogY reports whether the chart is using logarithmic Y scaling.
+func (c *EpochLineChart) TestIsLogY() bool {
+	return c.IsLogY()
+}
+
+// TestFormatYTick exposes Y-axis label formatting for focused tests.
+func (c *EpochLineChart) TestFormatYTick(v float64) string {
+	return c.formatYTick(v)
+}
+
 // TestChartAt returns the chart at (row, col) on the current page (or nil).
 func (mg *MetricsGrid) TestChartAt(row, col int) *EpochLineChart {
 	mg.mu.RLock()
@@ -185,6 +200,11 @@ func (mg *MetricsGrid) TestChartAt(row, col int) *EpochLineChart {
 // TestSyncInspectActive exposes the synchronized inspection flag for tests.
 func (mg *MetricsGrid) TestSyncInspectActive() bool {
 	return mg.syncInspectActive
+}
+
+// TestToggleFocusedChartLogY toggles log Y on the focused main chart.
+func (mg *MetricsGrid) TestToggleFocusedChartLogY() bool {
+	return mg.toggleFocusedChartLogY()
 }
 
 // ---- Workspace test helpers ----

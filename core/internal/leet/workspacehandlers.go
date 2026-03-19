@@ -694,6 +694,18 @@ func (w *Workspace) handleNextPage(msg tea.KeyPressMsg) tea.Cmd {
 	return nil
 }
 
+func (w *Workspace) handleToggleFocusedChartLogY(tea.KeyPressMsg) tea.Cmd {
+	switch w.focus.Type {
+	case FocusMainChart:
+		w.metricsGrid.toggleFocusedChartLogY()
+	case FocusSystemChart:
+		if g := w.activeSystemMetricsGrid(); g != nil {
+			g.toggleFocusedChartLogY()
+		}
+	}
+	return nil
+}
+
 func (w *Workspace) handleEnterMetricsFilter(msg tea.KeyPressMsg) tea.Cmd {
 	w.metricsGrid.EnterFilterMode()
 	return nil
