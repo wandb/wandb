@@ -3,7 +3,10 @@ def wandb_log(  # noqa: C901
     # /,  # py38 only
     log_component_file=True,
 ):
-    """Wrap a standard python function and log to W&B."""
+    """Wrap a kfp v1 python functional component and log to W&B.
+
+    Requires kfp<2.0.0. Deprecated -- please upgrade to kfp>=2.0.0.
+    """
     import json
     import os
     from functools import wraps
@@ -22,7 +25,9 @@ def wandb_log(  # noqa: C901
     )
 
     import wandb
+    from wandb.proto.wandb_telemetry_pb2 import Deprecated
     from wandb.sdk.lib import telemetry as wb_telemetry
+    from wandb.sdk.lib.deprecation import warn_and_record_deprecation
 
     output_types = (OutputArtifact, OutputBinaryFile, OutputPath, OutputTextFile)
     input_types = (InputArtifact, InputBinaryFile, InputPath, InputTextFile)
@@ -131,7 +136,16 @@ def wandb_log(  # noqa: C901
                 job_type=func.__name__,
                 group="{{workflow.annotations.pipelines.kubeflow.org/run_name}}",
             ) as run:
-                # Link back to the kfp UI
+                warn_and_record_deprecation(
+                    feature=Deprecated(kfp_v1_wandb_log=True),
+                    message=(
+                        "KFP v1 (kfp<2.0.0) support for @wandb_log is deprecated "
+                        "and will be removed in a future release. "
+                        "Please upgrade to kfp>=2.0.0."
+                    ),
+                    run=run,
+                )
+
                 kubeflow_url = get_link_back_to_kubeflow()
                 run.notes = kubeflow_url
                 run.config["LINK_TO_KUBEFLOW_RUN"] = kubeflow_url
