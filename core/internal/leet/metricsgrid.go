@@ -119,6 +119,70 @@ func (mg *MetricsGrid) ChartCount() int {
 	return len(mg.all)
 }
 
+func (mg *MetricsGrid) focusedChart() *EpochLineChart {
+	mg.mu.RLock()
+	defer mg.mu.RUnlock()
+
+	if mg.focus.Type != FocusMainChart || mg.focus.Row < 0 || mg.focus.Col < 0 {
+		return nil
+	}
+	if mg.focus.Row >= len(mg.currentPage) || mg.focus.Col >= len(mg.currentPage[mg.focus.Row]) {
+		return nil
+	}
+	return mg.currentPage[mg.focus.Row][mg.focus.Col]
+}
+
+func (mg *MetricsGrid) focusedChartScaleLabel() string {
+	chart := mg.focusedChart()
+	if chart == nil {
+		return ""
+	}
+	return chart.ScaleLabel()
+}
+
+func (mg *MetricsGrid) toggleFocusedChartLogY() bool {
+	chart := mg.focusedChart()
+	if chart == nil || !chart.ToggleYScale() {
+		return false
+	}
+	chart.DrawIfNeeded()
+	return true
+}
+
+func (mg *MetricsGrid) toggleVisibleChartsLogY() bool {
+	chart := mg.focusedChart()
+	if chart == nil {
+		return false
+	}
+
+	target := AxisScaleLog
+	if chart.IsLogY() {
+		target = AxisScaleLinear
+	}
+	return mg.setVisibleChartsYScale(target)
+}
+
+func (mg *MetricsGrid) setVisibleChartsYScale(mode AxisScaleMode) bool {
+	mg.mu.RLock()
+	page := mg.currentPage
+	mg.mu.RUnlock()
+
+	changed := false
+	for row := range page {
+		for col := range page[row] {
+			chart := page[row][col]
+			if chart == nil {
+				continue
+			}
+			if chart.SetYScale(mode) {
+				chart.DrawIfNeeded()
+				changed = true
+			}
+		}
+	}
+	return changed
+}
+
 // CalculateChartDimensions computes chart dimensions.
 func (mg *MetricsGrid) CalculateChartDimensions(windowWidth, windowHeight int) GridDims {
 	gridRows, gridCols := mg.gridConfig()
@@ -403,12 +467,18 @@ func (mg *MetricsGrid) renderGridCell(row, col int, dims GridDims) string {
 			boxStyle = focusedBorderStyle
 		}
 
-		availableTitleWidth := max(dims.CellWWithPadding-4, 10)
+		titleSuffix := ""
+		if chart.IsLogY() {
+			titleSuffix = " [log]"
+		}
+
+		availableTitleWidth := max(dims.CellWWithPadding-4-lipgloss.Width(titleSuffix), 10)
 		displayTitle := TruncateTitle(chart.Title(), availableTitleWidth)
+		titleText := titleStyle.Render(displayTitle) + navInfoStyle.Render(titleSuffix)
 
 		boxContent := lipgloss.JoinVertical(
 			lipgloss.Left,
-			titleStyle.Render(displayTitle),
+			titleText,
 			chartView,
 		)
 

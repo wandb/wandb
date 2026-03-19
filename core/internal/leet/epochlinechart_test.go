@@ -3,7 +3,10 @@ package leet_test
 import (
 	"math"
 	"testing"
+	"time"
 
+	"charm.land/lipgloss/v2"
+	"charm.land/lipgloss/v2/compat"
 	"github.com/stretchr/testify/require"
 
 	leet "github.com/wandb/wandb/core/internal/leet"
@@ -223,4 +226,93 @@ func TestFormatXAxisTick(t *testing.T) {
 			require.Equal(t, tt.want, got)
 		})
 	}
+}
+
+func TestEpochLineChart_ToggleYScale_RejectsNonPositiveOnlyData(t *testing.T) {
+	c := leet.NewEpochLineChart("loss")
+	c.Resize(80, 12)
+	c.AddData("run", leet.MetricData{
+		X: []float64{0, 1, 2},
+		Y: []float64{-3, 0, -1},
+	})
+
+	require.False(t, c.TestIsLogY())
+	require.False(t, c.ToggleYScale())
+	require.False(t, c.TestIsLogY())
+}
+
+func TestEpochLineChart_LogY_FormatsTicksInRawUnits(t *testing.T) {
+	c := leet.NewEpochLineChart("loss")
+	c.Resize(80, 12)
+	c.AddData("run", leet.MetricData{
+		X: []float64{0, 1, 2},
+		Y: []float64{0.1, 1, 10},
+	})
+
+	require.True(t, c.ToggleYScale())
+	require.True(t, c.TestIsLogY())
+	require.Equal(t, "0.1", c.TestFormatYTick(-1))
+	require.Equal(t, "1", c.TestFormatYTick(0))
+	require.Equal(t, "10", c.TestFormatYTick(1))
+}
+
+func TestTimeSeriesLineChart_LogY_FormatsTicksWithMetricUnits(t *testing.T) {
+	def := &leet.MetricDef{
+		Name:       "CPU",
+		Unit:       leet.UnitPercent,
+		MinY:       0,
+		MaxY:       100,
+		AutoRange:  true,
+		Percentage: true,
+	}
+
+	ch := leet.NewTimeSeriesLineChart(&leet.TimeSeriesLineChartParams{
+		Width:  80,
+		Height: 20,
+		Def:    def,
+		BaseColor: compat.AdaptiveColor{
+			Light: lipgloss.Color("#FF00FF"),
+			Dark:  lipgloss.Color("#FF00FF"),
+		},
+		ColorProvider: stubColorProvider("#00FF00"),
+		Now:           time.Unix(1_700_000_000, 0),
+	})
+
+	ch.AddDataPoint("", 1, 0.1)
+	ch.AddDataPoint("", 2, 10)
+
+	require.True(t, ch.ToggleYScale())
+	require.True(t, ch.TestIsLogY())
+	require.Equal(t, "10%", ch.TestFormatYTick(1))
+}
+
+func TestMetricsGrid_ToggleVisibleChartsLogY_UsesFocusedState(t *testing.T) {
+	grid := newMetricsGrid(t, 1, 2, 200, 20, nil)
+	require.True(t, grid.ProcessHistory(leet.HistoryMsg{Metrics: map[string]leet.MetricData{
+		"accuracy": {
+			X: []float64{0, 1},
+			Y: []float64{0.5, 0.9},
+		},
+		"loss": {
+			X: []float64{0, 1},
+			Y: []float64{0.1, 1.0},
+		},
+	}}))
+	grid.UpdateDimensions(200, 20)
+	grid.HandleClick(0, 0)
+
+	ch0 := grid.TestChartAt(0, 0)
+	ch1 := grid.TestChartAt(0, 1)
+	require.NotNil(t, ch0)
+	require.NotNil(t, ch1)
+	require.False(t, ch0.TestIsLogY())
+	require.False(t, ch1.TestIsLogY())
+
+	require.True(t, grid.TestToggleVisibleChartsLogY())
+	require.True(t, ch0.TestIsLogY())
+	require.True(t, ch1.TestIsLogY())
+
+	require.True(t, grid.TestToggleVisibleChartsLogY())
+	require.False(t, ch0.TestIsLogY())
+	require.False(t, ch1.TestIsLogY())
 }
