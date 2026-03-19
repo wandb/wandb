@@ -27,11 +27,16 @@ type WandbAPI struct {
 }
 
 // New returns a new WandbAPI.
-func New(s *settings.Settings) *WandbAPI {
+func New(s *settings.Settings) (*WandbAPI, error) {
+	handler, err := NewRunHistoryAPIHandler(s)
+	if err != nil {
+		return nil, err
+	}
+
 	return &WandbAPI{
 		semaphore:            make(chan struct{}, maxConcurrency),
 		settings:             s,
-		runHistoryApiHandler: runHistoryApiHandler,
+		runHistoryApiHandler: handler,
 	}, nil
 }
 

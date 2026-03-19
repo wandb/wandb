@@ -21,7 +21,7 @@ type EnvelopeHeader struct {
 
 	// SentAt is the timestamp when the event was sent from the SDK as string in RFC 3339 format.
 	// Used for clock drift correction of the event timestamp. The time zone must be UTC.
-	SentAt time.Time `json:"sent_at,omitempty"`
+	SentAt time.Time `json:"sent_at,omitzero"`
 
 	// Dsn can be used for self-authenticated envelopes.
 	// This means that the envelope has all the information necessary to be sent to sentry.
@@ -70,7 +70,7 @@ type EnvelopeItemHeader struct {
 	ItemCount *int `json:"item_count,omitempty"`
 }
 
-// EnvelopeItem represents a single item within an envelope.
+// EnvelopeItem represents a single item or batch within an envelope.
 type EnvelopeItem struct {
 	Header  *EnvelopeItemHeader `json:"-"`
 	Payload []byte              `json:"-"`
@@ -167,12 +167,6 @@ func (e *Envelope) Size() (int, error) {
 		return 0, err
 	}
 	return len(data), nil
-}
-
-// MarshalJSON converts the EnvelopeHeader to JSON.
-func (h *EnvelopeHeader) MarshalJSON() ([]byte, error) {
-	type header EnvelopeHeader
-	return json.Marshal((*header)(h))
 }
 
 // NewEnvelopeItem creates a new envelope item with the specified type and payload.

@@ -205,58 +205,6 @@ github.com/alexflint/go-arg
 # github.com/alexflint/go-scalar v1.2.0
 ## explicit; go 1.15
 github.com/alexflint/go-scalar
-# github.com/andybalholm/brotli v1.2.0
-## explicit; go 1.22
-github.com/andybalholm/brotli
-github.com/andybalholm/brotli/matchfinder
-# github.com/apache/arrow-go/v18 v18.4.1
-## explicit; go 1.23.0
-github.com/apache/arrow-go/v18/arrow
-github.com/apache/arrow-go/v18/arrow/array
-github.com/apache/arrow-go/v18/arrow/arrio
-github.com/apache/arrow-go/v18/arrow/bitutil
-github.com/apache/arrow-go/v18/arrow/compute
-github.com/apache/arrow-go/v18/arrow/compute/exec
-github.com/apache/arrow-go/v18/arrow/compute/internal/kernels
-github.com/apache/arrow-go/v18/arrow/decimal
-github.com/apache/arrow-go/v18/arrow/decimal128
-github.com/apache/arrow-go/v18/arrow/decimal256
-github.com/apache/arrow-go/v18/arrow/encoded
-github.com/apache/arrow-go/v18/arrow/endian
-github.com/apache/arrow-go/v18/arrow/extensions
-github.com/apache/arrow-go/v18/arrow/flight
-github.com/apache/arrow-go/v18/arrow/flight/gen/flight
-github.com/apache/arrow-go/v18/arrow/float16
-github.com/apache/arrow-go/v18/arrow/internal
-github.com/apache/arrow-go/v18/arrow/internal/debug
-github.com/apache/arrow-go/v18/arrow/internal/dictutils
-github.com/apache/arrow-go/v18/arrow/internal/flatbuf
-github.com/apache/arrow-go/v18/arrow/ipc
-github.com/apache/arrow-go/v18/arrow/memory
-github.com/apache/arrow-go/v18/arrow/memory/internal/cgoalloc
-github.com/apache/arrow-go/v18/arrow/memory/mallocator
-github.com/apache/arrow-go/v18/arrow/scalar
-github.com/apache/arrow-go/v18/internal/bitutils
-github.com/apache/arrow-go/v18/internal/hashing
-github.com/apache/arrow-go/v18/internal/json
-github.com/apache/arrow-go/v18/internal/utils
-github.com/apache/arrow-go/v18/parquet
-github.com/apache/arrow-go/v18/parquet/compress
-github.com/apache/arrow-go/v18/parquet/file
-github.com/apache/arrow-go/v18/parquet/internal/bmi
-github.com/apache/arrow-go/v18/parquet/internal/debug
-github.com/apache/arrow-go/v18/parquet/internal/encoding
-github.com/apache/arrow-go/v18/parquet/internal/encryption
-github.com/apache/arrow-go/v18/parquet/internal/gen-go/parquet
-github.com/apache/arrow-go/v18/parquet/internal/thrift
-github.com/apache/arrow-go/v18/parquet/internal/utils
-github.com/apache/arrow-go/v18/parquet/metadata
-github.com/apache/arrow-go/v18/parquet/pqarrow
-github.com/apache/arrow-go/v18/parquet/schema
-github.com/apache/arrow-go/v18/parquet/variant
-# github.com/apache/thrift v0.22.0
-## explicit; go 1.23
-github.com/apache/thrift/lib/go/thrift
 # github.com/aws/aws-sdk-go-v2 v1.41.4
 ## explicit; go 1.24
 github.com/aws/aws-sdk-go-v2/aws
@@ -526,8 +474,8 @@ github.com/envoyproxy/protoc-gen-validate/validate
 # github.com/felixge/httpsnoop v1.0.4
 ## explicit; go 1.13
 github.com/felixge/httpsnoop
-# github.com/getsentry/sentry-go v0.42.0
-## explicit; go 1.23.0
+# github.com/getsentry/sentry-go v0.43.0
+## explicit; go 1.24.0
 github.com/getsentry/sentry-go
 github.com/getsentry/sentry-go/attribute
 github.com/getsentry/sentry-go/internal/debug
@@ -538,6 +486,7 @@ github.com/getsentry/sentry-go/internal/otel/baggage/internal/baggage
 github.com/getsentry/sentry-go/internal/protocol
 github.com/getsentry/sentry-go/internal/ratelimit
 github.com/getsentry/sentry-go/internal/telemetry
+github.com/getsentry/sentry-go/internal/util
 # github.com/go-git/gcfg v1.5.1-0.20230307220236-3a3c6141e376
 ## explicit; go 1.13
 github.com/go-git/gcfg
@@ -552,8 +501,8 @@ github.com/go-git/go-billy/v5/helper/polyfill
 github.com/go-git/go-billy/v5/memfs
 github.com/go-git/go-billy/v5/osfs
 github.com/go-git/go-billy/v5/util
-# github.com/go-git/go-git/v5 v5.16.4
-## explicit; go 1.23.0
+# github.com/go-git/go-git/v5 v5.17.0
+## explicit; go 1.24.0
 github.com/go-git/go-git/v5
 github.com/go-git/go-git/v5/config
 github.com/go-git/go-git/v5/internal/path_util
@@ -996,12 +945,6 @@ golang.org/x/sys/execabs
 golang.org/x/sys/unix
 golang.org/x/sys/windows
 golang.org/x/sys/windows/registry
-# golang.org/x/telemetry v0.0.0-20260213145524-e0ab670178e1
-## explicit; go 1.25.0
-golang.org/x/telemetry/counter
-golang.org/x/telemetry/internal/counter
-golang.org/x/telemetry/internal/mmap
-golang.org/x/telemetry/internal/telemetry
 # golang.org/x/text v0.35.0
 ## explicit; go 1.25.0
 golang.org/x/text/cases
@@ -1048,6 +991,8 @@ golang.org/x/tools/internal/versions
 ## explicit; go 1.18
 golang.org/x/xerrors
 golang.org/x/xerrors/internal
+# gonum.org/v1/gonum v0.17.0
+## explicit; go 1.24.0
 # google.golang.org/api v0.272.0
 ## explicit; go 1.25.0
 google.golang.org/api/googleapi

@@ -70,17 +70,17 @@ func NewMeter(ctx context.Context) Meter {
 			"sentry.sdk.version":    client.sdkVersion,
 		}
 
-		defaultAttrs := make(map[string]Attribute)
+		defaultAttrs := make(map[string]attribute.Value)
 		for k, v := range defaults {
 			if v != "" {
-				defaultAttrs[k] = Attribute{Value: v, Type: AttributeString}
+				defaultAttrs[k] = attribute.StringValue(v)
 			}
 		}
 
 		return &sentryMeter{
 			ctx:               ctx,
-			client:            client,
-			attributes:        make(map[string]Attribute),
+			hub:               hub,
+			attributes:        make(map[string]attribute.Value),
 			defaultAttributes: defaultAttrs,
 			mu:                sync.RWMutex{},
 		}
@@ -92,26 +92,37 @@ func NewMeter(ctx context.Context) Meter {
 
 type sentryMeter struct {
 	ctx               context.Context
-	client            *Client
-	attributes        map[string]Attribute
-	defaultAttributes map[string]Attribute
+	hub               *Hub
+	attributes        map[string]attribute.Value
+	defaultAttributes map[string]attribute.Value
 	mu                sync.RWMutex
 }
 
-func (m *sentryMeter) emit(ctx context.Context, metricType MetricType, name string, value MetricValue, unit string, attributes map[string]Attribute, customScope *Scope) {
+func (m *sentryMeter) emit(ctx context.Context, metricType MetricType, name string, value MetricValue, unit string, attributes map[string]attribute.Value, customScope *Scope) {
 	if name == "" {
 		debuglog.Println("empty name provided, dropping metric")
 		return
 	}
 
-	scope, traceID, spanID := resolveScopeAndTrace(ctx, m.ctx)
+	hub := hubFromContexts(ctx, m.ctx)
+	if hub == nil {
+		hub = m.hub
+	}
+
+	client := hub.Client()
+	if client == nil {
+		return
+	}
+
+	scope := hub.Scope()
 	if customScope != nil {
 		scope = customScope
 	}
+	traceID, spanID := resolveTrace(scope, ctx, m.ctx)
 
 	// Pre-allocate with capacity hint to avoid map growth reallocations
 	estimatedCap := len(m.defaultAttributes) + len(attributes) + 8 // scope ~3 + call-specific ~5
-	attrs := make(map[string]Attribute, estimatedCap)
+	attrs := make(map[string]attribute.Value, estimatedCap)
 
 	// attribute precedence: default -> scope -> instance (from SetAttrs) -> entry-specific
 	for k, v := range m.defaultAttributes {
@@ -140,7 +151,7 @@ func (m *sentryMeter) emit(ctx context.Context, metricType MetricType, name stri
 		Attributes: attrs,
 	}
 
-	if m.client.captureMetric(metric, scope) && m.client.options.Debug {
+	if client.captureMetric(metric, scope) && client.options.Debug {
 		debuglog.Printf("Metric %s [%s]: %v %s", metricType, name, value.AsInterface(), unit)
 	}
 }
@@ -153,7 +164,7 @@ func (m *sentryMeter) WithCtx(ctx context.Context) Meter {
 
 	return &sentryMeter{
 		ctx:               ctx,
-		client:            m.client,
+		hub:               m.hub,
 		attributes:        attrsCopy,
 		defaultAttributes: m.defaultAttributes,
 		mu:                sync.RWMutex{},
@@ -191,17 +202,12 @@ func (m *sentryMeter) SetAttributes(attrs ...attribute.Builder) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	for _, v := range attrs {
-		t, ok := mapTypesToStr[v.Value.Type()]
-		if !ok || t == "" {
-			debuglog.Printf("invalid attribute type set: %v", t)
+	for _, a := range attrs {
+		if a.Value.Type() == attribute.INVALID {
+			debuglog.Printf("invalid attribute: %v", a)
 			continue
 		}
-
-		m.attributes[v.Key] = Attribute{
-			Value: v.Value.AsInterface(),
-			Type:  t,
-		}
+		m.attributes[a.Key] = a.Value
 	}
 }
 
