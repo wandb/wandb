@@ -2,8 +2,10 @@ import math
 import os
 import pickle
 import sys
+from pathlib import Path
 
 import numpy as np
+import PIL.Image
 import pytest
 import wandb
 from wandb.errors import UsageError
@@ -90,6 +92,35 @@ def test_media_in_config(user, test_settings):
     with wandb.init(settings=test_settings()) as run:
         with pytest.raises(ValueError):
             run.config["image"] = wandb.Image(np.random.randint(0, 255, (100, 100, 3)))
+
+
+@pytest.mark.parametrize("allow_media_symlink", [True, False])
+def test_media_symlink(user, tmp_path, wandb_backend_spy, allow_media_symlink):
+    image_path = tmp_path / "source_image.png"
+    PIL.Image.fromarray(np.random.randint(0, 255, (10, 10, 3), dtype=np.uint8)).save(
+        image_path
+    )
+
+    run_dir: Path = Path()
+    with wandb.init(
+        settings=wandb.Settings(allow_media_symlink=allow_media_symlink),
+    ) as run:
+        run.log({"image": wandb.Image(str(image_path))})
+        run_dir = Path(run.dir)
+
+    media_files = list(run_dir.glob("media/images/**/*.png"))
+    assert len(media_files) == 1
+    logged_file = media_files[0]
+
+    if allow_media_symlink:
+        assert logged_file.is_symlink() or os.path.samefile(logged_file, image_path)
+    else:
+        assert not logged_file.is_symlink()
+        assert not os.path.samefile(logged_file, image_path)
+
+    with wandb_backend_spy.freeze() as snapshot:
+        uploaded = snapshot.uploaded_files(run_id=run.id)
+        assert any(f.endswith(".png") for f in uploaded)
 
 
 def test_init_with_settings(user, test_settings):

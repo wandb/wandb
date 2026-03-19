@@ -151,6 +151,7 @@ class Media(WBValue):
                 "now",
                 filesystem.LinkStats(),
             )
+            self._is_tmp = False
             self._path = new_path
             run._publish_file(media_path)
             return
