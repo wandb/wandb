@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 import pathlib
 import subprocess
-from typing import Optional
 
 
 class ArrowRsWrapperBuildError(Exception):
