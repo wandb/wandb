@@ -39,8 +39,9 @@ type RemoteWorkspaceBackend struct {
 
 	// runInfos stores metadata fetched from the discovery query, keyed by run ID.
 	runInfos map[string]*RunInfo
+
 	// runIds stores the run IDs in the order they were returned from the backend.
-	runIds   []string
+	runIds []string
 
 	logger *observability.CoreLogger
 
