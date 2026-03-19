@@ -483,7 +483,8 @@ func (g *SystemMetricsGrid) View() string {
 			displayTitle := TruncateTitle(titleText, availableWidth)
 			renderedTitle := titleStyle.Render(displayTitle)
 			if len(metricChart.series) > 1 {
-				renderedTitle += seriesCountStyle.Render(fmt.Sprintf(" [%d]", len(metricChart.series)))
+				renderedTitle += seriesCountStyle.Render(
+					fmt.Sprintf(" [%d]", len(metricChart.series)))
 			}
 			if metricChart.IsLogY() {
 				renderedTitle += navInfoStyle.Render(" [log]")
