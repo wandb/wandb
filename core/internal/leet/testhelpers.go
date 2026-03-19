@@ -139,11 +139,6 @@ func (g *SystemMetricsGrid) TestToggleFocusedChartLogY() bool {
 	return g.toggleFocusedChartLogY()
 }
 
-// TestToggleVisibleChartsLogY toggles log Y on all visible system charts.
-func (g *SystemMetricsGrid) TestToggleVisibleChartsLogY() bool {
-	return g.toggleVisibleChartsLogY()
-}
-
 // TestInspectionMouseX exposes the current overlay pixel X for tests.
 // This keeps production APIs clean while allowing focused assertions.
 func (c *EpochLineChart) TestInspectionMouseX() (int, bool) {
@@ -184,11 +179,6 @@ func (mg *MetricsGrid) TestSyncInspectActive() bool {
 // TestToggleFocusedChartLogY toggles log Y on the focused main chart.
 func (mg *MetricsGrid) TestToggleFocusedChartLogY() bool {
 	return mg.toggleFocusedChartLogY()
-}
-
-// TestToggleVisibleChartsLogY toggles log Y on all visible main charts.
-func (mg *MetricsGrid) TestToggleVisibleChartsLogY() bool {
-	return mg.toggleVisibleChartsLogY()
 }
 
 // ---- Workspace test helpers ----

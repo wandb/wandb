@@ -348,36 +348,6 @@ func (g *SystemMetricsGrid) toggleFocusedChartLogY() bool {
 	return true
 }
 
-func (g *SystemMetricsGrid) toggleVisibleChartsLogY() bool {
-	chart := g.focusedChart()
-	if chart == nil {
-		return false
-	}
-
-	target := AxisScaleLog
-	if chart.IsLogY() {
-		target = AxisScaleLinear
-	}
-	return g.setVisibleChartsYScale(target)
-}
-
-func (g *SystemMetricsGrid) setVisibleChartsYScale(mode AxisScaleMode) bool {
-	changed := false
-	for row := range g.currentPage {
-		for col := range g.currentPage[row] {
-			chart := g.currentPage[row][col]
-			if chart == nil {
-				continue
-			}
-			if chart.SetYScale(mode) {
-				chart.DrawIfNeeded()
-				changed = true
-			}
-		}
-	}
-	return changed
-}
-
 // Resize updates viewport dimensions and resizes/redraws visible charts.
 func (g *SystemMetricsGrid) Resize(width, height int) {
 	if width <= 0 || height <= 0 {

@@ -149,40 +149,6 @@ func (mg *MetricsGrid) toggleFocusedChartLogY() bool {
 	return true
 }
 
-func (mg *MetricsGrid) toggleVisibleChartsLogY() bool {
-	chart := mg.focusedChart()
-	if chart == nil {
-		return false
-	}
-
-	target := AxisScaleLog
-	if chart.IsLogY() {
-		target = AxisScaleLinear
-	}
-	return mg.setVisibleChartsYScale(target)
-}
-
-func (mg *MetricsGrid) setVisibleChartsYScale(mode AxisScaleMode) bool {
-	mg.mu.RLock()
-	page := mg.currentPage
-	mg.mu.RUnlock()
-
-	changed := false
-	for row := range page {
-		for col := range page[row] {
-			chart := page[row][col]
-			if chart == nil {
-				continue
-			}
-			if chart.SetYScale(mode) {
-				chart.DrawIfNeeded()
-				changed = true
-			}
-		}
-	}
-	return changed
-}
-
 // CalculateChartDimensions computes chart dimensions.
 func (mg *MetricsGrid) CalculateChartDimensions(windowWidth, windowHeight int) GridDims {
 	gridRows, gridCols := mg.gridConfig()

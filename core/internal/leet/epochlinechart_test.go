@@ -285,34 +285,3 @@ func TestTimeSeriesLineChart_LogY_FormatsTicksWithMetricUnits(t *testing.T) {
 	require.True(t, ch.TestIsLogY())
 	require.Equal(t, "10%", ch.TestFormatYTick(1))
 }
-
-func TestMetricsGrid_ToggleVisibleChartsLogY_UsesFocusedState(t *testing.T) {
-	grid := newMetricsGrid(t, 1, 2, 200, 20, nil)
-	require.True(t, grid.ProcessHistory(leet.HistoryMsg{Metrics: map[string]leet.MetricData{
-		"accuracy": {
-			X: []float64{0, 1},
-			Y: []float64{0.5, 0.9},
-		},
-		"loss": {
-			X: []float64{0, 1},
-			Y: []float64{0.1, 1.0},
-		},
-	}}))
-	grid.UpdateDimensions(200, 20)
-	grid.HandleClick(0, 0)
-
-	ch0 := grid.TestChartAt(0, 0)
-	ch1 := grid.TestChartAt(0, 1)
-	require.NotNil(t, ch0)
-	require.NotNil(t, ch1)
-	require.False(t, ch0.TestIsLogY())
-	require.False(t, ch1.TestIsLogY())
-
-	require.True(t, grid.TestToggleVisibleChartsLogY())
-	require.True(t, ch0.TestIsLogY())
-	require.True(t, ch1.TestIsLogY())
-
-	require.True(t, grid.TestToggleVisibleChartsLogY())
-	require.False(t, ch0.TestIsLogY())
-	require.False(t, ch1.TestIsLogY())
-}
