@@ -38,6 +38,9 @@ targets:
   - name: github
     tagPrefix: zerolog/v
     tagOnly: true
+  - name: github
+    tagPrefix: zap/v
+    tagOnly: true
   - name: registry
     sdks:
       github:getsentry/sentry-go:

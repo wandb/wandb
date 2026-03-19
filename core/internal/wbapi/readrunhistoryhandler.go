@@ -62,6 +62,7 @@ func NewRunHistoryAPIHandler(
 		httpClient:         httpClient,
 		currentRequestId:   atomic.Int32{},
 		scanHistoryReaders: make(map[int32]*runhistoryreader.HistoryReader),
+		downloadOperations: make(map[int32]*parquet.RunHistoryDownloadOperation),
 		rustArrowWrapper:   rustArrowWrapper,
 	}, nil
 }
