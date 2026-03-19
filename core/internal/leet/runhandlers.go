@@ -367,6 +367,18 @@ func (r *Run) handleNextSystemPage(msg tea.KeyPressMsg) tea.Cmd {
 	return nil
 }
 
+func (r *Run) handleToggleFocusedChartLogY(tea.KeyPressMsg) tea.Cmd {
+	switch r.focus.Type {
+	case FocusMainChart:
+		r.metricsGrid.toggleFocusedChartLogY()
+	case FocusSystemChart:
+		if r.rightSidebar != nil && r.rightSidebar.metricsGrid != nil {
+			r.rightSidebar.metricsGrid.toggleFocusedChartLogY()
+		}
+	}
+	return nil
+}
+
 func (r *Run) handleEnterMetricsFilter(msg tea.KeyPressMsg) tea.Cmd {
 	r.metricsGrid.EnterFilterMode()
 	return nil

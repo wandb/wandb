@@ -491,9 +491,17 @@ func (r *Run) buildActiveStatus() string {
 	focusedTitle := r.FocusedTitle()
 	if focusedTitle != "" {
 		parts = append(parts, focusedTitle)
-		if r.focus.Type == FocusSystemChart {
+		switch r.focus.Type {
+		case FocusMainChart:
+			if scaleLabel := r.metricsGrid.focusedChartScaleLabel(); scaleLabel != "" {
+				parts = append(parts, scaleLabel)
+			}
+		case FocusSystemChart:
 			if viewMode := r.rightSidebar.FocusedChartViewModeLabel(); viewMode != "" {
 				parts = append(parts, viewMode)
+			}
+			if scaleLabel := r.rightSidebar.metricsGrid.FocusedChartScaleLabel(); scaleLabel != "" {
+				parts = append(parts, scaleLabel)
 			}
 		}
 	}
