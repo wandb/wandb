@@ -34,7 +34,7 @@ type RecordParser interface {
 
 // RecordParserFactory constructs the real RecordParser.
 type RecordParserFactory struct {
-	FeatureProvider    *featurechecker.ServerFeaturesCache
+	FeatureProvider    *featurechecker.FeatureProvider
 	GraphqlClientOrNil graphql.Client
 	Logger             *observability.CoreLogger
 	Operations         *wboperation.WandbOperations

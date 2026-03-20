@@ -2,7 +2,6 @@ package featurechecker
 
 import (
 	"context"
-	"sync"
 
 	"github.com/Khan/genqlient/graphql"
 
@@ -11,107 +10,122 @@ import (
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
-// ServerFeaturesCache loads optional server capabilities.
+// FeatureProvider fetches the values of server features.
 //
-// Server features are loaded only once per run and then cached.
-type ServerFeaturesCache struct {
-	features      map[spb.ServerFeature]Feature
+// It is not guaranteed that current feature values are returned.
+// Features may change at runtime, like if a server update happens,
+// but callers may assume that these changes are backward compatible
+// and that acting according to old feature values is okay.
+//
+// See the documentation on the FeaturesRequest proto for more detail.
+type FeatureProvider struct {
+	// semaphoreMu is a 1-buffered channel used as a mutex for loading and
+	// reading features.
+	//
+	// A channel is used instead of an actual mutex for compatibility with
+	// context cancellation. Specifically, it is necessary for this:
+	//
+	// 	go fp.Enabled(ctx1, feat1) // makes query with ctx1
+	// 	go fp.Enabled(ctx2, feat2) // blocks while query is running
+	// 	cancelCtx1() // first call fails; second call queries with ctx2
+	//
+	// This is not perfect (ideally the request would not be cancelled),
+	// but it is an edge case and this approach is sufficient for correctness.
+	semaphoreMu chan struct{}
+
+	// boolFeatures is the state of feature flags.
+	//
+	// It is nil until loaded.
+	boolFeatures map[spb.ServerFeature]bool
+
 	graphqlClient graphql.Client
 	logger        *observability.CoreLogger
-
-	initOnce sync.Once     // used to trigger loading features in a goroutine
-	initDone chan struct{} // closed after features have been loaded
 }
 
-// Feature represents a server capability that is either enabled or disabled.
-//
-// This is used to determine if certain functionality is available on the server,
-// and gate code paths within the SDK.
-type Feature struct {
-	Enabled bool
-	Name    string
-}
+func New(
+	graphqlClient graphql.Client,
+	logger *observability.CoreLogger,
+) *FeatureProvider {
+	return &FeatureProvider{
+		semaphoreMu: make(chan struct{}, 1),
 
-func NewServerFeaturesCachePreloaded(
-	features map[spb.ServerFeature]Feature,
-) *ServerFeaturesCache {
-	sf := &ServerFeaturesCache{
-		graphqlClient: nil,
-		logger:        observability.NewNoOpLogger(),
-		initDone:      make(chan struct{}),
+		graphqlClient: graphqlClient,
+		logger:        logger,
 	}
+}
 
-	sf.initOnce.Do(func() {
-		defer close(sf.initDone)
-		sf.features = features
-	})
+// NewPreloaded returns a feature checker with preloaded values.
+//
+// Used for testing.
+func NewPreloaded(features map[spb.ServerFeature]bool) *FeatureProvider {
+	sf := New(nil, observability.NewNoOpLogger())
+
+	if features != nil {
+		sf.boolFeatures = features
+	} else {
+		sf.boolFeatures = make(map[spb.ServerFeature]bool)
+	}
 
 	return sf
 }
 
-func NewServerFeaturesCache(
-	graphqlClient graphql.Client,
-	logger *observability.CoreLogger,
-) *ServerFeaturesCache {
-	return &ServerFeaturesCache{
-		graphqlClient: graphqlClient,
-		logger:        logger,
-		initDone:      make(chan struct{}),
-	}
-}
-
-// loadFeatures populates features and closes initDone at the end.
-func (sf *ServerFeaturesCache) loadFeatures(ctx context.Context) {
-	defer close(sf.initDone)
-	sf.features = make(map[spb.ServerFeature]Feature)
-
-	if sf.graphqlClient == nil {
-		sf.logger.Warn(
+// lockedLoadFeatures queries and returns features.
+func (fp *FeatureProvider) lockedLoadFeatures(ctx context.Context) {
+	if fp.graphqlClient == nil {
+		fp.logger.Warn(
 			"featurechecker: GraphQL client is nil, skipping feature loading",
 		)
 		return
 	}
 
-	// Query the server for the features provided by the server
-	resp, err := gql.ServerFeaturesQuery(ctx, sf.graphqlClient)
+	resp, err := gql.ServerFeaturesQuery(ctx, fp.graphqlClient)
 	if err != nil {
-		sf.logger.Error(
+		fp.logger.Error(
 			"featurechecker: failed to load features, all will be disabled",
 			"error", err)
 		return
 	}
 
+	if resp.ServerInfo == nil {
+		fp.logger.Error("featurechecker: response serverInfo nil")
+		return
+	}
+
+	fp.boolFeatures = make(map[spb.ServerFeature]bool)
 	for _, f := range resp.ServerInfo.Features {
-		featureName := spb.ServerFeature(spb.ServerFeature_value[f.Name])
-		sf.features[featureName] = Feature{
-			Name:    f.Name,
-			Enabled: f.IsEnabled,
+		if f == nil {
+			fp.logger.Error("featurechecker: nil feature in response")
+			return
 		}
+
+		featureName := spb.ServerFeature(spb.ServerFeature_value[f.Name])
+		fp.boolFeatures[featureName] = f.IsEnabled
 	}
 }
 
-func (sf *ServerFeaturesCache) GetFeature(
+// Enabled returns whether a named feature is enabled.
+//
+// Returns false if the feature is not a boolean feature or if there is
+// an error loading the feature.
+func (fp *FeatureProvider) Enabled(
 	ctx context.Context,
 	feature spb.ServerFeature,
-) *Feature {
-	sf.initOnce.Do(func() { go sf.loadFeatures(ctx) })
-
+) bool {
 	select {
 	case <-ctx.Done():
-		sf.logger.Warn(
+		fp.logger.Warn(
 			"featurechecker: failed to get feature",
 			"name", feature.String(),
 			"error", ctx.Err())
-	case <-sf.initDone:
+		return false
+
+	case fp.semaphoreMu <- struct{}{}:
+		defer func() { <-fp.semaphoreMu }()
 	}
 
-	cachedFeature, ok := sf.features[feature]
-	if !ok {
-		return &Feature{
-			Name:    feature.String(),
-			Enabled: false,
-		}
+	if fp.boolFeatures == nil {
+		fp.lockedLoadFeatures(ctx)
 	}
 
-	return &cachedFeature
+	return fp.boolFeatures[feature]
 }
