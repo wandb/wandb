@@ -306,9 +306,8 @@ googleapis-common-protos==1.73.0
     #   grpcio-status
 graphene==3.4.3
     # via mlflow
-graphql-core==3.2.6
+graphql-core==3.2.8
     # via
-    #   -r requirements/requirements_dev.txt
     #   ariadne-codegen
     #   graphene
     #   graphql-relay
