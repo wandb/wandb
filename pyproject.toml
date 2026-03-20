@@ -76,6 +76,9 @@ media = [
     "plotly>=5.18.0",
     "rdkit",
 ]
+# https://docs.coreweave.com/products/coreweave-sandbox/client
+# TODO: We should bump the version after the secret PR is merged upstream
+sandbox = ["cwsandbox>=0.9.0; python_version >= '3.11' and python_version < '3.14'"]
 sweeps = ["sweeps>=0.2.0"]
 launch = [
     "wandb[aws]",

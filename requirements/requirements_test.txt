@@ -30,3 +30,5 @@ pyte~=0.8.1  # Terminal emulator for testing interactions with the terminal.
 hypothesis>=6.131.7
 
 hypothesis-fspaths
+
+cwsandbox>=0.9.0; python_version >= '3.11' and python_version < '3.14'
