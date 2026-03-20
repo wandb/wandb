@@ -136,6 +136,9 @@ class LaunchProject:
         self._queue_name: str | None = None
         self._queue_entity: str | None = None
         self._run_queue_item_id: str | None = None
+        self._job_source_type: str | None = None
+        self._job_source_info: dict[str, Any] = {}
+        self._auto_default_base_image: bool = False
 
     def init_source(self) -> None:
         if self.docker_image is not None:
@@ -282,6 +285,20 @@ class LaunchProject:
     @run_queue_item_id.setter
     def run_queue_item_id(self, value: str) -> None:
         self._run_queue_item_id = value
+
+    @property
+    def job_source_type(self) -> str | None:
+        return self._job_source_type
+
+    def set_job_source_type(self, source_type: str) -> None:
+        self._job_source_type = source_type
+
+    @property
+    def job_source_info(self) -> dict[str, Any]:
+        return self._job_source_info
+
+    def set_job_source_info(self, source_info: dict[str, Any]) -> None:
+        self._job_source_info = source_info
 
     def fill_macros(self, image: str) -> dict[str, Any]:
         """Substitute values for macros in resource arguments.

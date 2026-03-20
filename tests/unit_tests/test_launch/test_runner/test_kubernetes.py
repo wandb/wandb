@@ -28,6 +28,7 @@ from wandb.sdk.launch.runner.kubernetes_runner import (
     add_entrypoint_args_overrides,
     add_label_to_pods,
     add_wandb_env,
+    apply_code_mount_configuration_emptydir,
     ensure_api_key_secret,
     maybe_create_imagepull_secret,
 )
@@ -1573,3 +1574,345 @@ async def test_launch_additional_services(
     assert (
         labels[WANDB_K8S_LABEL_AUXILIARY_RESOURCE] == expected_auxiliary_resource_label
     )
+
+
+def test_apply_code_mount_configuration_emptydir_artifact(test_api):
+    """Test emptyDir config for artifact source type."""
+    manifest = {
+        "kind": "Job",
+        "spec": {
+            "template": {
+                "spec": {
+                    "containers": [
+                        {
+                            "name": "main",
+                            "image": "test_base_image",
+                            "command": ["python", "model.py"],
+                            "env": [
+                                {
+                                    "name": "WANDB_API_KEY",
+                                    "valueFrom": {
+                                        "secretKeyRef": {
+                                            "name": "wandb-api-key",
+                                            "key": "password",
+                                        }
+                                    },
+                                },
+                            ],
+                        }
+                    ],
+                }
+            }
+        },
+    }
+    project = LaunchProject(
+        target_entity="test_entity",
+        target_project="test_project",
+        resource_args={},
+        launch_spec={},
+        overrides={},
+        resource="kubernetes",
+        api=test_api,
+        git_info={},
+        job="test_job:v0",
+        uri=None,
+        run_id="test_run_id",
+        name="test_run",
+        docker_config={},
+    )
+    project.set_job_base_image("test_base_image")
+    project.set_job_source_type("artifact")
+    project.set_job_source_info({
+        "artifact_string": "test_entity/test_project/code:v0",
+        "job_artifact": "test_entity/test_project/job-test:v0",
+    })
+
+    apply_code_mount_configuration_emptydir(manifest, project, test_api)
+
+    pod_spec = manifest["spec"]["template"]["spec"]
+    # Check emptyDir volume was added
+    assert {"name": "wandb-source-code-volume", "emptyDir": {}} in pod_spec["volumes"]
+    # Check volume mount on main container
+    container = pod_spec["containers"][0]
+    assert {
+        "name": "wandb-source-code-volume",
+        "mountPath": "/mnt/wandb",
+    } in container["volumeMounts"]
+    assert container["workingDir"] == "/mnt/wandb"
+    # User-provided base image: no pip install wrapping
+    assert container["command"] == ["python", "model.py"]
+    # Check init container fetches code only (no job artifact)
+    assert len(pod_spec["initContainers"]) == 1
+    init = pod_spec["initContainers"][0]
+    assert init["name"] == "wandb-source-code-init"
+    assert init["image"] == "wandb/launch-agent:latest"
+    assert "test_entity/test_project/code:v0" in init["command"][-1]
+    assert "job-test:v0" not in init["command"][-1]
+    # Check init container has API key env
+    api_key_env = next(e for e in init["env"] if e["name"] == "WANDB_API_KEY")
+    assert api_key_env["valueFrom"]["secretKeyRef"]["name"] == "wandb-api-key"
+
+
+def test_apply_code_mount_configuration_emptydir_repo(test_api):
+    """Test emptyDir config for git repo source type."""
+    manifest = {
+        "kind": "Job",
+        "spec": {
+            "template": {
+                "spec": {
+                    "containers": [
+                        {
+                            "name": "main",
+                            "image": "test_base_image",
+                            "env": [
+                                {"name": "WANDB_API_KEY", "value": "test_key"},
+                            ],
+                        }
+                    ],
+                }
+            }
+        },
+    }
+    project = LaunchProject(
+        target_entity="test_entity",
+        target_project="test_project",
+        resource_args={},
+        launch_spec={},
+        overrides={},
+        resource="kubernetes",
+        api=test_api,
+        git_info={},
+        job="test_job:v0",
+        uri=None,
+        run_id="test_run_id",
+        name="test_run",
+        docker_config={},
+    )
+    project.set_job_base_image("test_base_image")
+    project.set_job_source_type("repo")
+    project.set_job_source_info(
+        {
+            "git_remote": "https://github.com/test/repo.git",
+            "git_commit": "abc123",
+            "job_artifact": "test_entity/test_project/job-test:v0",
+        }
+    )
+
+    apply_code_mount_configuration_emptydir(manifest, project, test_api)
+
+    pod_spec = manifest["spec"]["template"]["spec"]
+    # Check emptyDir volume
+    assert {"name": "wandb-source-code-volume", "emptyDir": {}} in pod_spec["volumes"]
+    # Check init container uses wandb/launch-agent image (has git + python)
+    init = pod_spec["initContainers"][0]
+    assert init["image"] == "wandb/launch-agent:latest"
+    assert "git clone" in init["command"][-1]
+    assert "https://github.com/test/repo.git" in init["command"][-1]
+    assert "abc123" in init["command"][-1]
+    # User-provided base image: no job artifact download
+    assert "job-test:v0" not in init["command"][-1]
+
+
+def test_apply_code_mount_configuration_emptydir_auto_default_installs_deps(test_api):
+    """Test that auto-default base image installs deps and fetches job artifact."""
+    manifest = {
+        "kind": "Job",
+        "spec": {
+            "template": {
+                "spec": {
+                    "containers": [
+                        {
+                            "name": "main",
+                            "image": "pytorch/pytorch:2.5.1-cuda12.4-cudnn9-runtime",
+                            "command": ["python", "model.py"],
+                            "env": [
+                                {"name": "WANDB_API_KEY", "value": "test_key"},
+                            ],
+                        }
+                    ],
+                }
+            }
+        },
+    }
+    project = LaunchProject(
+        target_entity="test_entity",
+        target_project="test_project",
+        resource_args={},
+        launch_spec={},
+        overrides={},
+        resource="kubernetes",
+        api=test_api,
+        git_info={},
+        job="test_job:v0",
+        uri=None,
+        run_id="test_run_id",
+        name="test_run",
+        docker_config={},
+    )
+    project.set_job_base_image("pytorch/pytorch:2.5.1-cuda12.4-cudnn9-runtime")
+    project._auto_default_base_image = True
+    project.set_job_source_type("artifact")
+    project.set_job_source_info({
+        "artifact_string": "test_entity/test_project/code:v0",
+        "job_artifact": "test_entity/test_project/job-test:v0",
+    })
+
+    apply_code_mount_configuration_emptydir(manifest, project, test_api)
+
+    pod_spec = manifest["spec"]["template"]["spec"]
+    container = pod_spec["containers"][0]
+    # Auto-default base image: command wraps with pip install
+    assert container["command"] == ["/bin/sh", "-c"]
+    assert "pip install -r" in container["args"][0]
+    assert "exec python model.py" in container["args"][0]
+    # Init container fetches both code and job artifacts
+    init = pod_spec["initContainers"][0]
+    assert "test_entity/test_project/code:v0" in init["command"][-1]
+    assert "job-test:v0" in init["command"][-1]
+
+
+@pytest.mark.skipif(
+    platform.system() == "Windows",
+    reason="Launch does not support Windows and this test is failing on Windows.",
+)
+@pytest.mark.asyncio
+async def test_launch_kube_base_image_no_pvc_no_error(
+    monkeypatch,
+    mock_event_streams,
+    mock_batch_api,
+    mock_kube_context_and_api_client,
+    mock_maybe_create_image_pullsecret,
+    mock_create_from_dict,
+    test_api,
+    manifest,
+    clean_monitor,
+    clean_agent,
+):
+    """Test that no LaunchError is raised when PVC env vars are unset with job_base_image."""
+    monkeypatch.setattr(
+        wandb.sdk.launch.runner.kubernetes_runner,
+        "SOURCE_CODE_PVC_MOUNT_PATH",
+        None,
+    )
+    monkeypatch.setattr(
+        wandb.sdk.launch.runner.kubernetes_runner,
+        "SOURCE_CODE_PVC_NAME",
+        None,
+    )
+    mock_batch_api.jobs = {"test-job": MockDict(manifest)}
+    project = LaunchProject(
+        target_entity="test_entity",
+        target_project="test_project",
+        resource_args={"kubernetes": manifest},
+        launch_spec={},
+        overrides={
+            "args": ["--test_arg", "test_value"],
+            "command": ["test_entry"],
+        },
+        resource="kubernetes",
+        api=test_api,
+        git_info={},
+        job="",
+        uri="https://wandb.ai/test_entity/test_project/runs/test_run",
+        run_id="test_run_id",
+        name="test_run",
+        docker_config={},
+    )
+    project._job_artifact = MagicMock()
+    project.set_job_base_image("test_base_image")
+    project.set_job_source_type("artifact")
+    project.set_job_source_info({
+        "artifact_string": "test_entity/test_project/code:v0",
+        "job_artifact": "test_entity/test_project/job-test:v0",
+    })
+    runner = KubernetesRunner(
+        test_api, {"SYNCHRONOUS": False}, MagicMock(), MagicMock()
+    )
+
+    # Should NOT raise LaunchError
+    await runner.run(project, "test_base_image")
+    created_manifest = mock_create_from_dict.call_args_list[0][0][1]
+    pod_spec = created_manifest["spec"]["template"]["spec"]
+    # Should have emptyDir volume, not PVC
+    volumes = pod_spec.get("volumes", [])
+    assert any(
+        v.get("name") == "wandb-source-code-volume" and "emptyDir" in v
+        for v in volumes
+    )
+    assert not any(
+        v.get("name") == "wandb-source-code-volume" and "persistentVolumeClaim" in v
+        for v in volumes
+    )
+    # Should have init container
+    assert len(pod_spec.get("initContainers", [])) == 1
+
+
+@pytest.mark.skipif(
+    platform.system() == "Windows",
+    reason="Launch does not support Windows and this test is failing on Windows.",
+)
+@pytest.mark.asyncio
+async def test_launch_kube_base_image_pvc_still_works(
+    monkeypatch,
+    mock_event_streams,
+    mock_batch_api,
+    mock_kube_context_and_api_client,
+    mock_maybe_create_image_pullsecret,
+    mock_create_from_dict,
+    test_api,
+    manifest,
+    clean_monitor,
+    clean_agent,
+    tmpdir,
+):
+    """Regression: PVC path still works when env vars ARE set."""
+    monkeypatch.setattr(
+        wandb.sdk.launch.runner.kubernetes_runner,
+        "SOURCE_CODE_PVC_MOUNT_PATH",
+        str(tmpdir),
+    )
+    monkeypatch.setattr(
+        wandb.sdk.launch.runner.kubernetes_runner,
+        "SOURCE_CODE_PVC_NAME",
+        "wandb-source-code-pvc",
+    )
+    mock_batch_api.jobs = {"test-job": MockDict(manifest)}
+    project = LaunchProject(
+        target_entity="test_entity",
+        target_project="test_project",
+        resource_args={"kubernetes": manifest},
+        launch_spec={},
+        overrides={
+            "args": ["--test_arg", "test_value"],
+            "command": ["test_entry"],
+        },
+        resource="kubernetes",
+        api=test_api,
+        git_info={},
+        job="",
+        uri="https://wandb.ai/test_entity/test_project/runs/test_run",
+        run_id="test_run_id",
+        name="test_run",
+        docker_config={},
+    )
+    project._job_artifact = MagicMock()
+    project.set_job_base_image("test_base_image")
+    runner = KubernetesRunner(
+        test_api, {"SYNCHRONOUS": False}, MagicMock(), MagicMock()
+    )
+
+    await runner.run(project, "test_base_image")
+    created_manifest = mock_create_from_dict.call_args_list[0][0][1]
+    pod_spec = created_manifest["spec"]["template"]["spec"]
+    # Should have PVC volume, not emptyDir
+    volumes = pod_spec.get("volumes", [])
+    assert any(
+        v.get("name") == "wandb-source-code-volume" and "persistentVolumeClaim" in v
+        for v in volumes
+    )
+    assert not any(
+        v.get("name") == "wandb-source-code-volume" and "emptyDir" in v
+        for v in volumes
+    )
+    # Should NOT have init containers
+    assert len(pod_spec.get("initContainers", [])) == 0
