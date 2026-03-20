@@ -51,3 +51,6 @@ wandb/vendor/wandb_orjson/__init__.pyi
 wandb/vendor/wandb_orjson/py.typed
 wandb/vendor/wandb_orjson/orjson.so
 wandb/vendor/wandb_orjson/orjson.pyd
+
+# Ignore arrow-rs-wrapper build artifacts
+experimental/arrow-rs-wrapper/target/

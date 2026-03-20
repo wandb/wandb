@@ -16,6 +16,7 @@ import (
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runhistoryreader"
 	"github.com/wandb/wandb/core/internal/runhistoryreader/parquet"
+	"github.com/wandb/wandb/core/internal/runhistoryreader/parquet/ffi"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/stream"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
@@ -26,6 +27,10 @@ import (
 type RunHistoryAPIHandler struct {
 	graphqlClient graphql.Client
 	httpClient    *retryablehttp.Client
+
+	// rustArrowWrapper is the wrapper for the Rust Arrow library.
+	// It is used to provide FFI functions to the Go code for reading parquet files.
+	rustArrowWrapper *ffi.RustArrowWrapper
 
 	// currentRequestId is the id of the last scan init request made.
 	//
@@ -45,7 +50,9 @@ type RunHistoryAPIHandler struct {
 	downloadOperations map[int32]*parquet.RunHistoryDownloadOperation
 }
 
-func NewRunHistoryAPIHandler(s *settings.Settings) *RunHistoryAPIHandler {
+func NewRunHistoryAPIHandler(
+	s *settings.Settings,
+) (*RunHistoryAPIHandler, error) {
 	logger := observability.NewNoOpLogger()
 	baseURL := stream.BaseURLFromSettings(logger, s)
 	credentialProvider := stream.CredentialsFromSettings(logger, s)
@@ -68,13 +75,20 @@ func NewRunHistoryAPIHandler(s *settings.Settings) *RunHistoryAPIHandler {
 		nil,
 	)
 
+	rustArrowWrapper, err := ffi.NewRustArrowWrapper()
+	if err != nil {
+		logger.Error("failed to create RustArrowWrapper", "error", err)
+		return nil, err
+	}
+
 	return &RunHistoryAPIHandler{
 		graphqlClient:      graphqlClient,
 		httpClient:         httpClient,
 		currentRequestId:   atomic.Int32{},
 		scanHistoryReaders: make(map[int32]*runhistoryreader.HistoryReader),
 		downloadOperations: make(map[int32]*parquet.RunHistoryDownloadOperation),
-	}
+		rustArrowWrapper:   rustArrowWrapper,
+	}, nil
 }
 
 func (f *RunHistoryAPIHandler) HandleRequest(
@@ -130,6 +144,7 @@ func (f *RunHistoryAPIHandler) handleScanRunHistoryInit(
 		f.httpClient,
 		requestKeys,
 		request.UseCache,
+		f.rustArrowWrapper,
 	)
 	if err != nil {
 		return &spb.ApiResponse{
