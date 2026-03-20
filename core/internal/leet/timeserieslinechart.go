@@ -1,28 +1,51 @@
 package leet
 
 import (
+	"fmt"
 	"math"
 	"time"
-
-	"github.com/NimbleMarkets/ntcharts/v2/linechart/timeserieslinechart"
 
 	"charm.land/lipgloss/v2"
 	"charm.land/lipgloss/v2/compat"
 )
 
-// TimeSeriesLineChart is a custom line chart for time-based data.
+const (
+	minSystemMetricsRightPad      = 2 * time.Second
+	maxSystemMetricsRightPad      = 10 * time.Second
+	preferredSystemTimeLabelWidth = len("15:04")
+)
+
+// TimeSeriesLineChart is a time-based system metrics chart.
 //
-// Used to display the system metrics.
+// It reuses EpochLineChart's custom multi-series rendering and inspection
+// behavior while adding live-tail windowing semantics for timestamped data.
 //
-// A single TimeSeriesLineChart can contain and display multiple related series.
+// A single chart can contain multiple related series (for example GPU 0 / GPU 1).
+// By default the chart auto-trails the most recent data using tailWindow.
+// Users can zoom out to show the entire history; if the latest point remains
+// visible after a zoom operation, the view continues trailing live updates.
 type TimeSeriesLineChart struct {
-	chart  *timeserieslinechart.Model
-	def    *MetricDef
+	*EpochLineChart
+
+	def *MetricDef
+
+	// series tracks named (non-default) series for display purposes.
 	series map[string]struct{}
+
+	// seriesColors stores the assigned color for each underlying series key.
+	seriesColors map[string]compat.AdaptiveColor
+	baseColor    compat.AdaptiveColor
 
 	// colorProvider yields the next color for additional series on this chart.
 	// It is anchored to the chart's base color so multi-series colors are stable per chart.
 	colorProvider func() compat.AdaptiveColor
+
+	tailWindow time.Duration
+	viewWindow time.Duration
+
+	viewInitialized bool
+	autoTrail       bool
+	showAll         bool
 
 	lastUpdate         time.Time
 	minValue, maxValue float64
@@ -37,73 +60,50 @@ type TimeSeriesLineChartParams struct {
 }
 
 func NewTimeSeriesLineChart(params *TimeSeriesLineChartParams) *TimeSeriesLineChart {
-	graphStyle := lipgloss.NewStyle().Foreground(params.BaseColor)
+	tailWindow := time.Duration(DefaultSystemTailWindowMins) * time.Minute
 
-	// Show the most recent 10 minutes (slight look-back).
-	// TODO: make this configurable.
-	minTime := params.Now.Add(-10 * time.Minute)
+	baseChart := NewEpochLineChart(params.Def.Title())
+	baseChart.yTickFormatter = params.Def.Unit.Format
 
-	chart := timeserieslinechart.New(
-		params.Width, params.Height,
-		timeserieslinechart.WithTimeRange(minTime, params.Now),
-		timeserieslinechart.WithYRange(params.Def.MinY, params.Def.MaxY),
-		timeserieslinechart.WithAxesStyles(axisStyle, labelStyle),
-		timeserieslinechart.WithStyle(graphStyle),
-		timeserieslinechart.WithUpdateHandler(timeserieslinechart.SecondUpdateHandler(1)),
-		timeserieslinechart.WithXLabelFormatter(timeserieslinechart.HourTimeLabelFormatter()),
-		timeserieslinechart.WithYLabelFormatter(func(i int, v float64) string {
-			return params.Def.Unit.Format(v)
-		}),
-		timeserieslinechart.WithXYSteps(2, 3),
-	)
-
-	return &TimeSeriesLineChart{
-		chart:         &chart,
-		def:           params.Def,
-		series:        make(map[string]struct{}),
-		colorProvider: params.ColorProvider,
-		lastUpdate:    params.Now,
-		minValue:      math.Inf(1),
-		maxValue:      math.Inf(-1),
+	chart := &TimeSeriesLineChart{
+		EpochLineChart: baseChart,
+		def:            params.Def,
+		series:         make(map[string]struct{}),
+		seriesColors:   make(map[string]compat.AdaptiveColor),
+		baseColor:      params.BaseColor,
+		colorProvider:  params.ColorProvider,
+		tailWindow:     tailWindow,
+		viewWindow:     tailWindow,
+		autoTrail:      true,
+		lastUpdate:     params.Now,
+		minValue:       math.Inf(1),
+		maxValue:       math.Inf(-1),
 	}
+
+	chart.XLabelFormatter = func(_ int, v float64) string {
+		return chart.formatXAxisTick(v, chart.maxXLabelWidth())
+	}
+	chart.SetInspectionLabelFormatter(chart.formatInspectionLabel)
+	chart.Resize(params.Width, params.Height)
+
+	return chart
+}
+
+// SetTailWindow updates the default live tail window.
+func (c *TimeSeriesLineChart) SetTailWindow(window time.Duration) {
+	c.tailWindow = window
+	if !c.viewInitialized || c.autoTrail {
+		c.viewWindow = window
+	}
+	c.applyRanges()
 }
 
 // AddDataPoint adds a data point to this chart, creating series as needed.
-func (c *TimeSeriesLineChart) AddDataPoint(
-	seriesName string,
-	timestamp int64,
-	value float64,
-) {
-	c.ensureSeries(seriesName)
-	c.addDataPoint(seriesName, timestamp, value)
-	c.updateRanges(timestamp)
-	c.draw(seriesName)
-}
+func (c *TimeSeriesLineChart) AddDataPoint(seriesName string, timestamp int64, value float64) {
+	seriesKey, created := c.ensureSeries(seriesName)
+	pointTime := time.Unix(timestamp, 0)
+	c.lastUpdate = pointTime
 
-// ensureSeries creates a new series if it doesn't exist.
-func (c *TimeSeriesLineChart) ensureSeries(seriesName string) {
-	if seriesName == DefaultSystemMetricSeriesName {
-		return
-	}
-
-	if _, exists := c.series[seriesName]; exists {
-		return
-	}
-
-	// The first dataset uses the chart's base color set at chart creation.
-	// Additional datasets advance the palette via the chart-local provider,
-	// which is anchored to the base color.
-	if len(c.series) > 0 {
-		seriesStyle := lipgloss.NewStyle().Foreground(c.colorProvider())
-		c.chart.SetDataSetStyle(seriesName, seriesStyle)
-	}
-
-	c.series[seriesName] = struct{}{}
-}
-
-// addDataPoint adds a single data point to the appropriate series on the chart.
-func (c *TimeSeriesLineChart) addDataPoint(seriesName string, timestamp int64, value float64) {
-	// Track min/max for auto-ranging
 	if value < c.minValue {
 		c.minValue = value
 	}
@@ -111,40 +111,178 @@ func (c *TimeSeriesLineChart) addDataPoint(seriesName string, timestamp int64, v
 		c.maxValue = value
 	}
 
-	timePoint := timeserieslinechart.TimePoint{
-		Time:  time.Unix(timestamp, 0),
-		Value: value,
+	c.addPoint(seriesKey, float64(timestamp), value)
+
+	if created {
+		style := lipgloss.NewStyle().Foreground(c.seriesColors[seriesKey])
+		c.SetSeriesStyle(seriesKey, &style)
+	}
+	c.applyRanges()
+}
+
+// Resize updates the underlying chart size and reapplies the current view policy.
+func (c *TimeSeriesLineChart) Resize(width, height int) {
+	c.EpochLineChart.Resize(width, height)
+	c.applyRanges()
+}
+
+// HandleZoom updates the current time window and live-trailing state.
+func (c *TimeSeriesLineChart) HandleZoom(direction string, mouseX int) {
+	c.EpochLineChart.HandleZoom(direction, mouseX)
+	c.viewInitialized = true
+	c.reconcileViewState()
+}
+
+// SetYScale switches the Y-axis scaling mode while preserving the chart's
+// time-window policy (live tail, frozen window, or full history).
+func (c *TimeSeriesLineChart) SetYScale(mode AxisScaleMode) bool {
+	if mode == AxisScaleLog && !c.CanUseLogY() {
+		return false
+	}
+	if c.yScale == mode {
+		return false
 	}
 
-	if seriesName == DefaultSystemMetricSeriesName {
-		c.chart.Push(timePoint)
-	} else {
-		c.chart.PushDataSet(seriesName, timePoint)
+	c.yScale = mode
+	c.applyRanges()
+	c.dirty = true
+	return true
+}
+
+// ToggleYScale toggles between linear and logarithmic Y scaling.
+func (c *TimeSeriesLineChart) ToggleYScale() bool {
+	if c.IsLogY() {
+		return c.SetYScale(AxisScaleLinear)
+	}
+	return c.SetYScale(AxisScaleLog)
+}
+
+// ViewModeLabel returns a short description of the current X-axis mode.
+func (c *TimeSeriesLineChart) ViewModeLabel() string {
+	if c == nil {
+		return ""
+	}
+	if c.showAll {
+		return "all history"
 	}
 
-	c.lastUpdate = time.Unix(timestamp, 0)
+	window := c.viewWindow
+	if window <= 0 {
+		window = c.tailWindow
+	}
+	window = window.Round(time.Second)
+
+	if c.autoTrail {
+		return "live tail " + compactDuration(window)
+	}
+	return "frozen " + compactDuration(window)
 }
 
-// updateRanges updates the chart's time and Y ranges.
-func (c *TimeSeriesLineChart) updateRanges(timestamp int64) {
-	c.updateTimeRange(timestamp)
-	c.updateYRange()
+// LastUpdate returns the timestamp of the most recent sample seen.
+func (c *TimeSeriesLineChart) LastUpdate() time.Time { return c.lastUpdate }
+
+// ValueBounds returns the observed [min,max] values tracked for auto-ranging.
+func (c *TimeSeriesLineChart) ValueBounds() (minValue, maxValue float64) {
+	return c.minValue, c.maxValue
 }
 
-// updateTimeRange updates the chart's time range.
-//
-// TODO: make this configurable.
-func (c *TimeSeriesLineChart) updateTimeRange(timestamp int64) {
-	minTime := time.Unix(timestamp, 0).Add(-10 * time.Minute)
-	maxTime := time.Unix(timestamp, 0).Add(10 * time.Second)
-	c.chart.SetTimeRange(minTime, maxTime)
-	c.chart.SetViewTimeRange(minTime, maxTime)
+func (c *TimeSeriesLineChart) ensureSeries(seriesName string) (seriesKey string, created bool) {
+	seriesKey = seriesName
+	if seriesKey == "" {
+		seriesKey = DefaultSystemMetricSeriesName
+	}
+	if _, ok := c.seriesColors[seriesKey]; ok {
+		return seriesKey, false
+	}
+
+	color := c.baseColor
+	if len(c.seriesColors) > 0 {
+		color = c.nextSeriesColor()
+	}
+	if seriesKey != DefaultSystemMetricSeriesName {
+		c.series[seriesKey] = struct{}{}
+	}
+	c.seriesColors[seriesKey] = color
+	return seriesKey, true
 }
 
-// updateYRange updates the chart's Y range if auto-ranging is enabled.
-func (c *TimeSeriesLineChart) updateYRange() {
-	if !c.def.AutoRange || c.def.Percentage {
+func (c *TimeSeriesLineChart) addPoint(seriesKey string, x, y float64) {
+	s, ok := c.data[seriesKey]
+	if !ok {
+		s = NewSeries(seriesKey, c.palette)
+		c.data[seriesKey] = s
+		c.order = append(c.order, seriesKey)
+	}
+
+	s.AddPoint(x, y)
+	c.xMin = min(c.xMin, x)
+	c.xMax = max(c.xMax, x)
+	c.yMin = min(c.yMin, y)
+	c.yMax = max(c.yMax, y)
+	c.dirty = true
+}
+
+func (c *TimeSeriesLineChart) nextSeriesColor() compat.AdaptiveColor {
+	if c.colorProvider == nil {
+		return c.baseColor
+	}
+	return c.colorProvider()
+}
+
+func (c *TimeSeriesLineChart) applyRanges() {
+	if c.SeriesCount() == 0 {
 		return
+	}
+
+	dataMin := c.xMin
+	dataMax := c.xMax
+	if !isFinite(dataMin) || !isFinite(dataMax) {
+		return
+	}
+
+	yMin, yMax := c.computeYRange()
+	c.SetYRange(yMin, yMax)
+	c.SetViewYRange(yMin, yMax)
+
+	domainMax := dataMax + c.rightPad().Seconds()
+	if domainMax-dataMin < minZoomRange {
+		domainMax = dataMin + minZoomRange
+	}
+	c.SetXRange(dataMin, domainMax)
+
+	switch {
+	case c.showAll:
+		c.SetViewXRange(dataMin, domainMax)
+		c.userViewMinX = dataMin
+		c.userViewMaxX = domainMax
+	case !c.viewInitialized || c.autoTrail:
+		window := c.viewWindow.Seconds()
+		if !c.viewInitialized || window <= 0 {
+			window = c.tailWindow.Seconds()
+		}
+		if window < minZoomRange {
+			window = minZoomRange
+		}
+		c.snapViewToTail(window, dataMin, domainMax)
+		c.viewInitialized = true
+	default:
+		c.clampUserView(dataMin, domainMax)
+	}
+
+	c.SetXYRange(c.MinX(), c.MaxX(), yMin, yMax)
+	if c.inspection.Active {
+		c.refreshInspectionAfterViewChange()
+	}
+	c.dirty = true
+}
+
+func (c *TimeSeriesLineChart) computeYRange() (float64, float64) {
+	if c.IsLogY() {
+		return c.computeLogYRange()
+	}
+
+	if !c.def.AutoRange || c.def.Percentage || !isFinite(c.minValue) || !isFinite(c.maxValue) {
+		return c.def.MinY, c.def.MaxY
 	}
 
 	valueRange := c.maxValue - c.minValue
@@ -158,44 +296,230 @@ func (c *TimeSeriesLineChart) updateYRange() {
 
 	newMinY := c.minValue - padding
 	newMaxY := c.maxValue + padding
-
-	// Don't go negative for non-negative data.
 	if c.minValue >= 0 && newMinY < 0 {
 		newMinY = 0
 	}
-
-	c.chart.SetYRange(newMinY, newMaxY)
-	c.chart.SetViewYRange(newMinY, newMaxY)
+	return newMinY, newMaxY
 }
 
-// draw renders the chart if dimensions are valid.
-func (c *TimeSeriesLineChart) draw(seriesName string) {
-	if !c.isDrawable() {
+func (c *TimeSeriesLineChart) computeLogYRange() (float64, float64) {
+	if (!c.def.AutoRange || c.def.Percentage) && c.def.MinY > 0 && c.def.MaxY > c.def.MinY {
+		return c.calculateLogRange(c.def.MinY, c.def.MaxY)
+	}
+
+	minPositive, maxPositive, ok := c.positiveYBounds()
+	if !ok {
+		return c.def.MinY, c.def.MaxY
+	}
+	return c.calculateLogRange(minPositive, maxPositive)
+}
+
+func (c *TimeSeriesLineChart) rightPad() time.Duration {
+	pad := min(max(c.tailWindow/60, minSystemMetricsRightPad), maxSystemMetricsRightPad)
+	return pad
+}
+
+func (c *TimeSeriesLineChart) snapViewToTail(window, dataMin, domainMax float64) {
+	if window <= 0 {
+		window = max(c.tailWindow.Seconds(), minZoomRange)
+	}
+	viewMax := domainMax
+	viewMin := max(viewMax-window, dataMin)
+	c.SetViewXRange(viewMin, viewMax)
+	c.userViewMinX = viewMin
+	c.userViewMaxX = viewMax
+}
+
+func (c *TimeSeriesLineChart) clampUserView(dataMin, domainMax float64) {
+	viewMin := c.userViewMinX
+	viewMax := c.userViewMaxX
+	viewRange := viewMax - viewMin
+	if viewRange <= 0 {
+		c.autoTrail = true
+		window := c.viewWindow.Seconds()
+		if window <= 0 {
+			window = c.tailWindow.Seconds()
+		}
+		c.snapViewToTail(window, dataMin, domainMax)
 		return
 	}
 
-	if seriesName == DefaultSystemMetricSeriesName {
-		c.chart.DrawBraille()
-	} else {
-		c.chart.DrawBrailleAll()
+	if viewMin < dataMin {
+		viewMax += dataMin - viewMin
+		viewMin = dataMin
+	}
+	if viewMax > domainMax {
+		viewMin -= viewMax - domainMax
+		viewMax = domainMax
+		if viewMin < dataMin {
+			viewMin = dataMin
+		}
+	}
+
+	c.SetViewXRange(viewMin, viewMax)
+	c.userViewMinX = viewMin
+	c.userViewMaxX = viewMax
+}
+
+func (c *TimeSeriesLineChart) reconcileViewState() {
+	if c.SeriesCount() == 0 {
+		return
+	}
+
+	dataMin := c.xMin
+	dataMax := c.xMax
+	if !isFinite(dataMin) || !isFinite(dataMax) {
+		return
+	}
+
+	viewMin := c.ViewMinX()
+	viewMax := c.ViewMaxX()
+	viewRange := viewMax - viewMin
+	if viewRange <= 0 {
+		return
+	}
+
+	eps := max(c.pixelEpsX(viewRange)*2, 1)
+	fullRange := c.MaxX() - dataMin
+
+	c.showAll = fullRange > 0 && viewRange >= fullRange-eps
+	c.autoTrail = viewMax >= dataMax-eps
+	if c.showAll {
+		c.autoTrail = true
+	}
+
+	c.viewWindow = time.Duration(math.Round(viewRange)) * time.Second
+	if c.viewWindow < time.Duration(minZoomRange)*time.Second {
+		c.viewWindow = time.Duration(minZoomRange) * time.Second
+	}
+
+	if c.showAll {
+		c.userViewMinX = dataMin
+		c.userViewMaxX = c.MaxX()
+		return
+	}
+	if c.autoTrail {
+		c.snapViewToTail(viewRange, dataMin, c.MaxX())
+		return
+	}
+
+	c.userViewMinX = c.ViewMinX()
+	c.userViewMaxX = c.ViewMaxX()
+}
+
+func (c *TimeSeriesLineChart) formatXAxisTick(v float64, maxWidth int) string {
+	if !isFinite(v) {
+		return ""
+	}
+
+	ts := time.Unix(int64(math.Round(v)), 0).Local()
+	span := time.Duration(math.Round(c.ViewMaxX()-c.ViewMinX())) * time.Second
+	layouts := systemTimeLayouts(span)
+
+	if c.shouldUseEndpointLabels(maxWidth) {
+		if !c.isEndpointTick(v) {
+			return ""
+		}
+		maxWidth = c.endpointXLabelWidth()
+	}
+	if maxWidth <= 0 {
+		maxWidth = preferredSystemTimeLabelWidth
+	}
+
+	return fitTimeLayouts(ts, maxWidth, layouts)
+}
+
+func systemTimeLayouts(span time.Duration) []string {
+	switch {
+	case span >= 48*time.Hour:
+		return []string{"Jan 2 15:04", "Jan 2", "01/02", "0102"}
+	case span >= time.Hour:
+		return []string{"15:04", "1504"}
+	default:
+		return []string{"15:04:05", "15:04", "1504"}
 	}
 }
 
-// isDrawable checks if the chart has valid dimensions for drawing.
-func (c *TimeSeriesLineChart) isDrawable() bool {
-	return c.chart.Width() > 0 &&
-		c.chart.Height() > 0 &&
-		c.chart.GraphWidth() > 0 &&
-		c.chart.GraphHeight() > 0
+func (c *TimeSeriesLineChart) shouldUseEndpointLabels(maxWidth int) bool {
+	return maxWidth > 0 && maxWidth < preferredSystemTimeLabelWidth && c.endpointXLabelWidth() > 0
 }
 
-// Title returns the title including unit (e.g., "CPU (%)").
-func (c *TimeSeriesLineChart) Title() string { return c.def.Title() }
+func (c *TimeSeriesLineChart) endpointXLabelWidth() int {
+	if c.GraphWidth() <= 0 {
+		return 0
+	}
+	return max(c.GraphWidth()/2, 1)
+}
 
-// LastUpdate returns the timestamp of the most recent sample seen.
-func (c *TimeSeriesLineChart) LastUpdate() time.Time { return c.lastUpdate }
+func (c *TimeSeriesLineChart) isEndpointTick(v float64) bool {
+	viewMin := c.ViewMinX()
+	viewMax := c.ViewMaxX()
+	viewRange := viewMax - viewMin
+	if viewRange <= 0 {
+		return true
+	}
 
-// ValueBounds returns the observed [min,max] values tracked for auto-ranging.
-func (c *TimeSeriesLineChart) ValueBounds() (minValue, maxValue float64) {
-	return c.minValue, c.maxValue
+	eps := max(c.pixelEpsX(viewRange)*2, viewRange/float64(max(c.XStep(), 1))*0.25)
+	return math.Abs(v-viewMin) <= eps || math.Abs(v-viewMax) <= eps
+}
+
+func (c *TimeSeriesLineChart) formatInspectionLabel(seriesKey string, x, y float64) string {
+	ts := time.Unix(int64(math.Round(x)), 0).Local()
+	span := time.Duration(math.Round(c.ViewMaxX()-c.ViewMinX())) * time.Second
+	layout := "15:04:05"
+	if span >= 48*time.Hour {
+		layout = "Jan 2 15:04:05"
+	}
+
+	label := ts.Format(layout) + " " + c.def.Unit.Format(y)
+	if seriesKey == "" || seriesKey == DefaultSystemMetricSeriesName {
+		return label
+	}
+	return fmt.Sprintf("%s: %s", seriesKey, label)
+}
+
+func fitTimeLayouts(ts time.Time, maxWidth int, layouts []string) string {
+	for _, layout := range layouts {
+		formatted := ts.Format(layout)
+		if lipgloss.Width(formatted) <= maxWidth {
+			return formatted
+		}
+	}
+
+	formatted := ts.Format(layouts[len(layouts)-1])
+	if lipgloss.Width(formatted) <= maxWidth {
+		return formatted
+	}
+	return TruncateTitle(formatted, maxWidth)
+}
+
+func compactDuration(d time.Duration) string {
+	d = d.Round(time.Second)
+	if d <= 0 {
+		return "0s"
+	}
+
+	if d%time.Hour == 0 {
+		return fmt.Sprintf("%dh", int(d/time.Hour))
+	}
+	if d >= time.Hour {
+		hours := int(d / time.Hour)
+		minutes := int((d % time.Hour) / time.Minute)
+		if minutes == 0 {
+			return fmt.Sprintf("%dh", hours)
+		}
+		return fmt.Sprintf("%dh%dm", hours, minutes)
+	}
+	if d%time.Minute == 0 {
+		return fmt.Sprintf("%dm", int(d/time.Minute))
+	}
+	if d >= time.Minute {
+		minutes := int(d / time.Minute)
+		seconds := int((d % time.Minute) / time.Second)
+		if seconds == 0 {
+			return fmt.Sprintf("%dm", minutes)
+		}
+		return fmt.Sprintf("%dm%ds", minutes, seconds)
+	}
+	return fmt.Sprintf("%ds", int(d/time.Second))
 }

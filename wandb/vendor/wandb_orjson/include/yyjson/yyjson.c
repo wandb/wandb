@@ -6660,7 +6660,6 @@ yyjson_doc *yyjson_read_fp(FILE *file,
     
     /* read JSON */
     memset((u8 *)buf + file_size, 0, YYJSON_PADDING_SIZE);
-    flg |= YYJSON_READ_INSITU;
     doc = yyjson_read_opts((char *)buf, (usize)file_size, &alc, err);
     if (doc) {
         doc->str_pool = (char *)buf;

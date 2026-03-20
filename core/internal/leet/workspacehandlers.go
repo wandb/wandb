@@ -156,12 +156,7 @@ func (w *Workspace) handleMetricsMouse(msg tea.MouseMsg, metricsHeight int) tea.
 
 func (w *Workspace) handleSystemMetricsMouse(msg tea.MouseMsg, metricsHeight int) tea.Cmd {
 	mouse := msg.Mouse()
-	if _, ok := msg.(tea.MouseClickMsg); !ok {
-		return nil
-	}
-	if mouse.Button != tea.MouseLeft {
-		return nil
-	}
+	alt := mouse.Mod == tea.ModAlt
 
 	cur, ok := w.runs.CurrentItem()
 	if !ok {
@@ -183,8 +178,33 @@ func (w *Workspace) handleSystemMetricsMouse(msg tea.MouseMsg, metricsHeight int
 	row := adjustedY / dims.CellHWithPadding
 	col := adjustedX / dims.CellWWithPadding
 
-	w.metricsGrid.clearFocus()
-	grid.HandleMouseClick(row, col)
+	switch m := msg.(type) {
+	case tea.MouseClickMsg:
+		switch m.Button {
+		case tea.MouseLeft:
+			w.metricsGrid.clearFocus()
+			grid.HandleMouseClick(row, col)
+		case tea.MouseRight:
+			w.metricsGrid.clearFocus()
+			grid.StartInspection(adjustedX, row, col, dims, alt)
+		}
+	case tea.MouseMotionMsg:
+		if m.Button == tea.MouseRight {
+			grid.UpdateInspection(adjustedX, row, col, dims)
+		}
+	case tea.MouseReleaseMsg:
+		if m.Button == tea.MouseRight {
+			grid.EndInspection()
+		}
+	case tea.MouseWheelMsg:
+		w.metricsGrid.clearFocus()
+		switch m.Button {
+		case tea.MouseWheelUp:
+			grid.HandleWheel(adjustedX, row, col, dims, true)
+		case tea.MouseWheelDown:
+			grid.HandleWheel(adjustedX, row, col, dims, false)
+		}
+	}
 
 	return nil
 }
@@ -322,7 +342,7 @@ func (w *Workspace) handleToggleSystemMetricsPane(tea.KeyPressMsg) tea.Cmd {
 // initReaderCmd initializes a WandbReader for the given run asynchronously.
 func (w *Workspace) initReaderCmd(runKey, runPath string) tea.Cmd {
 	return func() tea.Msg {
-		reader, err := NewWandbReader(runPath, w.logger)
+		reader, err := NewLevelDBHistorySource(runPath, w.logger)
 		if err != nil {
 			return WorkspaceInitErrMsg{
 				RunKey:  runKey,
@@ -345,7 +365,10 @@ func (w *Workspace) readAllChunkCmd(run *workspaceRun) tea.Cmd {
 	}
 
 	return func() tea.Msg {
-		msg := run.reader.ReadAllRecordsChunked()
+		msg, err := run.reader.Read(BootLoadChunkSize, BootLoadMaxTime)
+		if err != nil {
+			return ErrorMsg{Err: err}
+		}
 		if msg == nil {
 			return nil
 		}
@@ -366,7 +389,10 @@ func (w *Workspace) readAvailableCmd(run *workspaceRun) tea.Cmd {
 	}
 
 	return func() tea.Msg {
-		msg := run.reader.ReadAvailableRecords()
+		msg, err := run.reader.Read(LiveMonitorChunkSize, LiveMonitorMaxTime)
+		if err != nil {
+			return ErrorMsg{Err: err}
+		}
 		if msg == nil {
 			return nil
 		}
@@ -663,6 +689,18 @@ func (w *Workspace) handlePrevPage(msg tea.KeyPressMsg) tea.Cmd {
 
 func (w *Workspace) handleNextPage(msg tea.KeyPressMsg) tea.Cmd {
 	w.metricsGrid.Navigate(1)
+	return nil
+}
+
+func (w *Workspace) handleToggleFocusedChartLogY(tea.KeyPressMsg) tea.Cmd {
+	switch w.focus.Type {
+	case FocusMainChart:
+		w.metricsGrid.toggleFocusedChartLogY()
+	case FocusSystemChart:
+		if g := w.activeSystemMetricsGrid(); g != nil {
+			g.toggleFocusedChartLogY()
+		}
+	}
 	return nil
 }
 

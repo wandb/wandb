@@ -70,7 +70,7 @@ func (w *Workspace) applyRunFilter() {
 	if query == "" {
 		w.runs.FilteredItems = w.runs.Items
 	} else {
-		compiled := compileRunFilterQuery(query, w.filter.Mode())
+		compiled := CompileRunFilterQuery(query, w.filter.Mode())
 		filtered := make([]KeyValuePair, 0, len(w.runs.Items))
 		for _, item := range w.runs.Items {
 			if compiled.Match(w.runFilterData(item.Key)) {
@@ -90,12 +90,12 @@ func (w *Workspace) applyRunFilter() {
 //
 // If the run has not been preloaded yet, it falls back to the run key so
 // name-based filtering still works before richer metadata arrives.
-func (w *Workspace) runFilterData(runKey string) workspaceRunFilterData {
+func (w *Workspace) runFilterData(runKey string) WorkspaceRunFilterData {
 	data, ok := w.runsFilterIndex[runKey]
 	if ok {
 		return data
 	}
-	return workspaceRunFilterData{RunKey: runKey}
+	return WorkspaceRunFilterData{RunKey: runKey}
 }
 
 // indexRunFilterData caches searchable metadata derived from a RunMsg.
@@ -114,6 +114,12 @@ func (w *Workspace) indexRunFilterData(runKey string, msg RunMsg) {
 		if data.Project == "" {
 			data.Project = existing.Project
 		}
+		if data.Notes == "" {
+			data.Notes = existing.Notes
+		}
+		if len(data.Tags) == 0 && len(existing.Tags) > 0 {
+			data.Tags = append([]string(nil), existing.Tags...)
+		}
 		if len(data.ConfigEntries) == 0 && len(existing.ConfigEntries) > 0 {
 			data.ConfigByPath = existing.ConfigByPath
 			data.ConfigEntries = existing.ConfigEntries
@@ -124,24 +130,46 @@ func (w *Workspace) indexRunFilterData(runKey string, msg RunMsg) {
 
 // buildWorkspaceRunFilterData converts a RunMsg into the indexed metadata used
 // by the runs filter.
-func buildWorkspaceRunFilterData(runKey string, msg RunMsg) workspaceRunFilterData {
+func buildWorkspaceRunFilterData(runKey string, msg RunMsg) WorkspaceRunFilterData {
 	configByPath, configEntries := flattenRunFilterConfig(msg.Config)
 	if configByPath == nil {
 		configByPath = make(map[string]string)
 	}
-	return workspaceRunFilterData{
+	return WorkspaceRunFilterData{
 		RunKey:        runKey,
 		DisplayName:   msg.DisplayName,
 		ID:            msg.ID,
 		Project:       msg.Project,
+		Notes:         strings.TrimSpace(msg.Notes),
+		Tags:          normalizeRunFilterTags(msg.Tags),
 		ConfigByPath:  configByPath,
 		ConfigEntries: configEntries,
 	}
 }
 
+func normalizeRunFilterTags(tags []string) []string {
+	if len(tags) == 0 {
+		return nil
+	}
+
+	out := make([]string, 0, len(tags))
+	for _, tag := range tags {
+		tag = strings.TrimSpace(tag)
+		if tag == "" {
+			continue
+		}
+		out = append(out, tag)
+	}
+
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
 // flattenRunFilterConfig flattens a ConfigRecord into canonicalized path/value
 // pairs plus a sorted entry list for broad config searches.
-func flattenRunFilterConfig(cfg *spb.ConfigRecord) (map[string]string, []runFilterConfigEntry) {
+func flattenRunFilterConfig(cfg *spb.ConfigRecord) (map[string]string, []RunFilterConfigEntry) {
 	if cfg == nil {
 		return nil, nil
 	}
@@ -180,9 +208,9 @@ func flattenRunFilterConfig(cfg *spb.ConfigRecord) (map[string]string, []runFilt
 	}
 	sort.Strings(keys)
 
-	entries := make([]runFilterConfigEntry, 0, len(keys))
+	entries := make([]RunFilterConfigEntry, 0, len(keys))
 	for _, path := range keys {
-		entries = append(entries, runFilterConfigEntry{
+		entries = append(entries, RunFilterConfigEntry{
 			Path:  path,
 			Value: flat[path],
 		})

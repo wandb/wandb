@@ -58,7 +58,7 @@ attrs==25.4.0
     #   referencing
 autoflake==2.3.1
     # via ariadne-codegen
-awscli==1.44.57
+awscli==1.44.58
     # via wandb
 azure-containerregistry==1.2.0
     # via wandb
@@ -87,12 +87,12 @@ blinker==1.9.0
     # via flask
 bokeh==3.4.3
     # via -r requirements/requirements_dev.txt
-boto3==1.42.67
+boto3==1.42.68
     # via
     #   -r requirements/requirements_dev.txt
     #   metaflow
     #   wandb
-botocore==1.42.67
+botocore==1.42.68
     # via
     #   -r requirements/requirements_dev.txt
     #   awscli
@@ -120,7 +120,7 @@ cffi==2.0.0
     #   soundfile
 chardet==5.2.0
     # via wandb
-charset-normalizer==3.4.5
+charset-normalizer==3.4.6
     # via requests
 click==8.1.8
     # via
@@ -168,7 +168,7 @@ cryptography==46.0.5
     #   pyjwt
 cycler==0.12.1
     # via matplotlib
-databricks-sdk==0.99.0
+databricks-sdk==0.100.0
     # via mlflow-skinny
 datasets==4.0.0
     # via dspy
@@ -546,7 +546,7 @@ lightning-utilities==0.15.2
     #   lightning
     #   pytorch-lightning
     #   torchmetrics
-litellm==1.82.1
+litellm==1.82.2
     # via dspy
 magicattr==0.1.6
     # via dspy
@@ -666,7 +666,7 @@ numpy==1.26.4
     #   xgboost
 oauthlib==3.3.1
     # via requests-oauthlib
-openai==2.26.0
+openai==2.28.0
     # via
     #   -r requirements/requirements_dev.txt
     #   dspy
@@ -694,7 +694,7 @@ opentelemetry-semantic-conventions==0.61b0
     # via opentelemetry-sdk
 opt-einsum==3.4.0
     # via jax
-optuna==4.7.0
+optuna==4.8.0
     # via
     #   dspy
     #   wandb
@@ -869,7 +869,7 @@ pygments==2.19.2
     #   nbconvert
     #   pytest
     #   rich
-pyjwt==2.12.0
+pyjwt==2.12.1
     # via msal
 pyparsing==3.3.2
     # via matplotlib
@@ -1199,6 +1199,7 @@ typing-extensions==4.15.0
     #   opentelemetry-semantic-conventions
     #   pydantic
     #   pydantic-core
+    #   pyjwt
     #   pytest-asyncio
     #   python-json-logger
     #   pytorch-lightning

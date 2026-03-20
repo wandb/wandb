@@ -27,8 +27,26 @@ const (
 	// Minimal canvas size for parked charts.
 	parkedCanvasSize = 1
 
-	initDataSliceCap = 256
+	initDataSliceCap  = 256
+	minLogScaleMargin = 0.1
 )
+
+// AxisScaleMode controls how Y values are projected for rendering.
+type AxisScaleMode int
+
+const (
+	AxisScaleLinear AxisScaleMode = iota
+	AxisScaleLog
+)
+
+func (m AxisScaleMode) String() string {
+	switch m {
+	case AxisScaleLog:
+		return "log"
+	default:
+		return "linear"
+	}
+}
 
 // colorIndex returns a deterministic palette index for the given name.
 func colorIndex(name string, paletteLen int) int {
@@ -58,8 +76,9 @@ type Series struct {
 
 	// Precomputed bounds for O(1) chart-level aggregation.
 	// Updated incrementally by updateBounds.
-	xMin, xMax float64
-	yMin, yMax float64
+	xMin, xMax   float64
+	yMin, yMax   float64
+	yMinPositive float64
 }
 
 func NewSeries(name string, palette []compat.AdaptiveColor) *Series {
@@ -69,11 +88,12 @@ func NewSeries(name string, palette []compat.AdaptiveColor) *Series {
 	}
 
 	s := Series{
-		MetricData: md,
-		xMin:       math.Inf(1),
-		xMax:       math.Inf(-1),
-		yMin:       math.Inf(1),
-		yMax:       math.Inf(-1),
+		MetricData:   md,
+		xMin:         math.Inf(1),
+		xMax:         math.Inf(-1),
+		yMin:         math.Inf(1),
+		yMax:         math.Inf(-1),
+		yMinPositive: math.Inf(1),
 	}
 
 	if len(palette) == 0 {
@@ -100,11 +120,30 @@ func (s *Series) updateBounds(xs, ys []float64) {
 	s.xMax = max(s.xMax, xMax)
 	s.yMin = min(s.yMin, yMin)
 	s.yMax = max(s.yMax, yMax)
+
+	for _, y := range ys {
+		if y > 0 {
+			s.yMinPositive = min(s.yMinPositive, y)
+		}
+	}
 }
 
 // Bounds returns the series' precomputed bounds.
 func (s *Series) Bounds() (xMin, xMax, yMin, yMax float64) {
 	return s.xMin, s.xMax, s.yMin, s.yMax
+}
+
+// AddPoint appends a single sample and incrementally updates bounds.
+func (s *Series) AddPoint(x, y float64) {
+	s.X = append(s.X, x)
+	s.Y = append(s.Y, y)
+	s.xMin = min(s.xMin, x)
+	s.xMax = max(s.xMax, x)
+	s.yMin = min(s.yMin, y)
+	s.yMax = max(s.yMax, y)
+	if y > 0 {
+		s.yMinPositive = min(s.yMinPositive, y)
+	}
 }
 
 // EpochLineChart is a line chart for epoch/step-based ML training data.
@@ -156,8 +195,18 @@ type EpochLineChart struct {
 	// Used to compute padded Y axis ranges.
 	yMin, yMax float64
 
+	// yScale controls how Y values are projected for rendering.
+	yScale AxisScaleMode
+
+	// yTickFormatter formats raw, unscaled Y values for axis labels.
+	yTickFormatter func(float64) string
+
 	// inspection holds crosshair overlay state for data inspection mode.
 	inspection ChartInspection
+
+	// inspectionLabelFormatter customizes legend labels for inspection mode.
+	// When nil, a default numeric formatter is used.
+	inspectionLabelFormatter func(seriesKey string, x, y float64) string
 }
 
 func NewEpochLineChart(title string) *EpochLineChart {
@@ -176,15 +225,81 @@ func NewEpochLineChart(title string) *EpochLineChart {
 	}
 	chart.AxisStyle = axisStyle
 	chart.LabelStyle = labelStyle
+	chart.yTickFormatter = UnitScalar.Format
 
 	chart.XLabelFormatter = func(_ int, v float64) string {
 		return FormatXAxisTick(v, chart.maxXLabelWidth())
 	}
 	chart.YLabelFormatter = func(_ int, v float64) string {
-		return UnitScalar.Format(v)
+		return chart.formatYTick(v)
 	}
 
 	return chart
+}
+
+func (c *EpochLineChart) formatYTick(v float64) string {
+	if !isFinite(v) {
+		return ""
+	}
+
+	rawValue := v
+	if c.IsLogY() {
+		rawValue = math.Pow(10, v)
+		if !isFinite(rawValue) {
+			return ""
+		}
+	}
+
+	if c.yTickFormatter != nil {
+		return c.yTickFormatter(rawValue)
+	}
+	return UnitScalar.Format(rawValue)
+}
+
+// YScale reports the active Y-axis scaling mode.
+func (c *EpochLineChart) YScale() AxisScaleMode { return c.yScale }
+
+// IsLogY reports whether the chart is using logarithmic Y scaling.
+func (c *EpochLineChart) IsLogY() bool { return c.yScale == AxisScaleLog }
+
+// ScaleLabel returns a compact label for the active Y-axis scale.
+func (c *EpochLineChart) ScaleLabel() string {
+	if c.IsLogY() {
+		return "log y"
+	}
+	return ""
+}
+
+// CanUseLogY reports whether the chart has at least one strictly positive sample.
+func (c *EpochLineChart) CanUseLogY() bool {
+	_, _, ok := c.positiveYBounds()
+	return ok
+}
+
+// SetYScale switches the Y-axis scaling mode.
+//
+// Log scaling requires at least one strictly positive value. When the requested
+// mode is already active, SetYScale is a no-op and reports false.
+func (c *EpochLineChart) SetYScale(mode AxisScaleMode) bool {
+	if mode == AxisScaleLog && !c.CanUseLogY() {
+		return false
+	}
+	if c.yScale == mode {
+		return false
+	}
+
+	c.yScale = mode
+	c.updateRanges()
+	c.dirty = true
+	return true
+}
+
+// ToggleYScale toggles between linear and logarithmic Y scaling.
+func (c *EpochLineChart) ToggleYScale() bool {
+	if c.IsLogY() {
+		return c.SetYScale(AxisScaleLinear)
+	}
+	return c.SetYScale(AxisScaleLog)
 }
 
 // topSeries returns the topmost series (last in draw order), or nil if empty.
@@ -266,16 +381,9 @@ func (c *EpochLineChart) updateRanges() {
 		return
 	}
 
-	// Y range with padding.
-	valueRange := c.yMax - c.yMin
-	padding := c.calculatePadding(valueRange)
-
-	newYMin := c.yMin - padding
-	newYMax := c.yMax + padding
-
-	// Don't go negative for non-negative data.
-	if c.yMin >= 0 && newYMin < 0 {
-		newYMin = 0
+	newYMin, newYMax, ok := c.computeYRange()
+	if !ok {
+		return
 	}
 
 	// X domain: round up to a "nice" value for axis display.
@@ -312,6 +420,68 @@ func (c *EpochLineChart) updateRanges() {
 	if c.inspection.Active {
 		c.refreshInspectionAfterViewChange()
 	}
+}
+
+func (c *EpochLineChart) computeYRange() (minY, maxY float64, ok bool) {
+	if c.IsLogY() {
+		minPositive, maxPositive, ok := c.positiveYBounds()
+		if !ok {
+			return 0, 0, false
+		}
+		minY, maxY = c.calculateLogRange(minPositive, maxPositive)
+		return minY, maxY, true
+	}
+
+	minY, maxY = c.calculateLinearRange()
+	return minY, maxY, true
+}
+
+func (c *EpochLineChart) calculateLinearRange() (float64, float64) {
+	valueRange := c.yMax - c.yMin
+	padding := c.calculatePadding(valueRange)
+
+	newYMin := c.yMin - padding
+	newYMax := c.yMax + padding
+
+	// Don't go negative for non-negative data.
+	if c.yMin >= 0 && newYMin < 0 {
+		newYMin = 0
+	}
+
+	return newYMin, newYMax
+}
+
+func (c *EpochLineChart) calculateLogRange(
+	minPositive, maxPositive float64) (float64, float64) {
+	minLog := math.Log10(minPositive)
+	maxLog := math.Log10(maxPositive)
+	padding := (maxLog - minLog) * 0.1
+	if padding < minLogScaleMargin {
+		padding = minLogScaleMargin
+	}
+	return minLog - padding, maxLog + padding
+}
+
+func (c *EpochLineChart) positiveYBounds() (
+	minPositive, maxPositive float64,
+	ok bool,
+) {
+	minPositive = math.Inf(1)
+	maxPositive = math.Inf(-1)
+
+	for _, series := range c.data {
+		if series == nil || len(series.Y) == 0 ||
+			series.yMax <= 0 || !isFinite(series.yMinPositive) {
+			continue
+		}
+		minPositive = min(minPositive, series.yMinPositive)
+		maxPositive = max(maxPositive, series.yMax)
+	}
+
+	if !isFinite(minPositive) || !isFinite(maxPositive) || maxPositive <= 0 {
+		return 0, 0, false
+	}
+	return minPositive, maxPositive, true
 }
 
 // calculatePadding determines appropriate padding for the Y axis.
@@ -436,20 +606,40 @@ func (c *EpochLineChart) drawSeries(s *Series, startX int) {
 	xScale := float64(c.GraphWidth()) / (c.ViewMaxX() - c.ViewMinX())
 	yScale := float64(c.GraphHeight()) / (c.ViewMaxY() - c.ViewMinY())
 
-	// Convert visible data points to canvas coordinates.
-	points := make([]canvas.Float64Point, 0, ub-lb)
-	for i := lb; i < ub; i++ {
-		x := (s.X[i] - c.ViewMinX()) * xScale
-		y := (s.Y[i] - c.ViewMinY()) * yScale
-
-		if x >= 0 && x <= float64(c.GraphWidth()) && y >= 0 && y <= float64(c.GraphHeight()) {
-			points = append(points, canvas.Float64Point{X: x, Y: y})
+	segments := make([][]canvas.Float64Point, 0, 1)
+	current := make([]canvas.Float64Point, 0, ub-lb)
+	flush := func() {
+		if len(current) == 0 {
+			return
 		}
+		segments = append(segments, current)
+		current = make([]canvas.Float64Point, 0, ub-lb)
 	}
 
-	if len(points) == 1 {
-		bGrid.Set(bGrid.GridPoint(points[0]))
-	} else {
+	for i := lb; i < ub; i++ {
+		yValue, ok := c.scaleYValue(s.Y[i])
+		if !ok {
+			flush()
+			continue
+		}
+
+		x := (s.X[i] - c.ViewMinX()) * xScale
+		y := (yValue - c.ViewMinY()) * yScale
+
+		if x < 0 || x > float64(c.GraphWidth()) || y < 0 || y > float64(c.GraphHeight()) {
+			flush()
+			continue
+		}
+
+		current = append(current, canvas.Float64Point{X: x, Y: y})
+	}
+	flush()
+
+	for _, points := range segments {
+		if len(points) == 1 {
+			bGrid.Set(bGrid.GridPoint(points[0]))
+			continue
+		}
 		for i := range len(points) - 1 {
 			gp1 := bGrid.GridPoint(points[i])
 			gp2 := bGrid.GridPoint(points[i+1])
@@ -533,7 +723,7 @@ func (c *EpochLineChart) drawInspectionOverlay(graphStartX int) {
 		}
 
 		yVal := s.Y[idx]
-		label := fmt.Sprintf("%v: %v", s.X[idx], formatSigFigs(yVal, 4))
+		label := c.formatInspectionLabel(key, s.X[idx], yVal)
 		labelRunes := []rune(label)
 		if lw := len(labelRunes); lw > maxLabelWidth {
 			maxLabelWidth = lw
@@ -608,6 +798,14 @@ func (c *EpochLineChart) drawInspectionOverlay(graphStartX int) {
 	}
 }
 
+// formatInspectionLabel returns the label shown in the inspection legend.
+func (c *EpochLineChart) formatInspectionLabel(seriesKey string, x, y float64) string {
+	if c.inspectionLabelFormatter != nil {
+		return c.inspectionLabelFormatter(seriesKey, x, y)
+	}
+	return fmt.Sprintf("%v: %v", x, formatSigFigs(y, 4))
+}
+
 // findNearestDataPoint returns the data point nearest to mouseX in the topmost series.
 func (c *EpochLineChart) findNearestDataPoint(mouseX int) (dataX, dataY float64, idx int, ok bool) {
 	s := c.topSeries()
@@ -671,6 +869,19 @@ func drawLine(bGrid *graph.BrailleGrid, p1, p2 canvas.Point) {
 			y += sy
 		}
 	}
+}
+
+func (c *EpochLineChart) scaleYValue(y float64) (float64, bool) {
+	if !isFinite(y) {
+		return 0, false
+	}
+	if !c.IsLogY() {
+		return y, true
+	}
+	if y <= 0 {
+		return 0, false
+	}
+	return math.Log10(y), true
 }
 
 // DrawIfNeeded draws only if the chart is marked dirty.
@@ -757,6 +968,25 @@ func (c *EpochLineChart) SetGraphStyle(s *lipgloss.Style) {
 	if top := c.topSeries(); top != nil {
 		top.style.Store(*s)
 	}
+}
+
+// SetSeriesStyle sets the style for the named series, if present.
+func (c *EpochLineChart) SetSeriesStyle(key string, style *lipgloss.Style) {
+	if style == nil {
+		return
+	}
+	if series, ok := c.data[key]; ok && series != nil {
+		series.style.Store(*style)
+		c.dirty = true
+	}
+}
+
+// SetInspectionLabelFormatter customizes inspection legend labels.
+func (c *EpochLineChart) SetInspectionLabelFormatter(
+	formatter func(seriesKey string, x, y float64) string,
+) {
+	c.inspectionLabelFormatter = formatter
+	c.dirty = true
 }
 
 // SeriesCount returns the number of series in the chart.
