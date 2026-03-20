@@ -376,15 +376,15 @@ func (sm *SystemMonitor) Probe() {
 
 			sm.extraWork.AddWorkOrCancel(
 				sm.ctx.Done(),
-				runwork.WorkFromRecord(
-					sm.probeExecutionContext(),
+				runwork.NoRequest(
+					runwork.WorkFromRecord(sm.probeExecutionContext()),
 				),
 			)
 
 			sm.extraWork.AddWorkOrCancel(
 				sm.ctx.Done(),
-				runwork.WorkFromRecord(
-					sm.probeResources(),
+				runwork.NoRequest(
+					runwork.WorkFromRecord(sm.probeResources()),
 				),
 			)
 		}()
@@ -474,7 +474,7 @@ func (sm *SystemMonitor) monitorResource(resource Resource) {
 			}
 			sm.extraWork.AddWorkOrCancel(
 				sm.ctx.Done(),
-				runwork.WorkFromRecord(record),
+				runwork.NoRequest(runwork.WorkFromRecord(record)),
 			)
 		}
 	}

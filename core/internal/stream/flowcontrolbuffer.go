@@ -134,7 +134,8 @@ func (buf *FlowControlBuffer) StopOffloading() {
 
 // Add inserts work into the buffer.
 func (buf *FlowControlBuffer) Add(work runwork.MaybeSavedWork) {
-	if !work.IsSaved ||
+	// Work including a Request cannot be reconstructed after serializing.
+	if !work.IsSaved || work.Work.Request != nil ||
 		buf.offloadingCancelled.Load() ||
 		(len(buf.data) < buf.inMemorySize && buf.backedUpCount.Load() == 0) {
 		buf.push(&FlowControlBufferWork{Work: work.Work})
