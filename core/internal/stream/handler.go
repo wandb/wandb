@@ -80,9 +80,6 @@ type Handler struct {
 	// operations tracks the status of the run's uploads
 	operations *wboperation.WandbOperations
 
-	// outChan is the channel for sending results to the client
-	outChan chan *spb.Result
-
 	// partialHistory is a set of run metrics accumulated for the current step.
 	partialHistory *runhistory.RunHistory
 
@@ -138,7 +135,6 @@ func (f *HandlerFactory) New(extraWork runwork.ExtraWork) *Handler {
 		mailbox:              f.Mailbox,
 		metricHandler:        runmetric.New(),
 		operations:           f.Operations,
-		outChan:              make(chan *spb.Result, BufferSize),
 		pollExitLogRateLimit: rate.NewLimiter(rate.Every(time.Minute), 1),
 		runHistorySampler:    runhistory.NewRunHistorySampler(),
 		runSummary:           runsummary.New(),
@@ -147,11 +143,6 @@ func (f *HandlerFactory) New(extraWork runwork.ExtraWork) *Handler {
 		systemMonitor:        systemMonitor,
 		terminalPrinter:      f.TerminalPrinter,
 	}
-}
-
-// ResponseChan contains responses for the client.
-func (h *Handler) ResponseChan() <-chan *spb.Result {
-	return h.outChan
 }
 
 // OutChan contains work to pass to the next stream component.
@@ -177,18 +168,20 @@ func (h *Handler) Do(allWork <-chan runwork.Work) {
 
 func (h *Handler) Close() {
 	h.logger.Info("handler: closed")
-	close(h.outChan)
 	close(h.fwdChan)
 }
 
-// respond sends a response to the client
-func (h *Handler) respond(record *spb.Record, response *spb.Response) {
-	result := &spb.Result{
-		ResultType: &spb.Result_Response{Response: response},
-		Control:    record.Control,
-		Uuid:       record.Uuid,
-	}
-	h.outChan <- result
+// respond sends a response to the client.
+func (h *Handler) respond(request *runwork.Request, response *spb.Response) {
+	request.Respond(&spb.ServerResponse{
+		ServerResponseType: &spb.ServerResponse_ResultCommunicate{
+			ResultCommunicate: &spb.Result{
+				ResultType: &spb.Result_Response{
+					Response: response,
+				},
+			},
+		},
+	})
 }
 
 // fwdWork passes work to the Writer and Sender.
@@ -197,32 +190,19 @@ func (h *Handler) fwdWork(work runwork.Work) {
 }
 
 // fwdRecord forwards a record to the next component
-func (h *Handler) fwdRecord(record *spb.Record) {
+func (h *Handler) fwdRecord(record *spb.Record, request *runwork.Request) {
 	if record == nil {
 		return
 	}
 
-	h.fwdWork(runwork.NoRequest(runwork.WorkFromRecord(record)))
-}
-
-// fwdRecordWithControl forwards a record to the next component with control options
-func (h *Handler) fwdRecordWithControl(record *spb.Record, controlOptions ...func(*spb.Control)) {
-	if record == nil {
-		return
-	}
-
-	if record.GetControl() == nil {
-		record.Control = &spb.Control{}
-	}
-
-	for _, opt := range controlOptions {
-		opt(record.Control)
-	}
-	h.fwdRecord(record)
+	h.fwdWork(runwork.Work{
+		WorkImpl: runwork.WorkFromRecord(record),
+		Request:  request,
+	})
 }
 
 //gocyclo:ignore
-func (h *Handler) handleRecord(record *spb.Record) {
+func (h *Handler) handleRecord(record *spb.Record, request *runwork.Request) {
 	switch x := record.RecordType.(type) {
 	case *spb.Record_Final:
 	case *spb.Record_Footer:
@@ -245,13 +225,13 @@ func (h *Handler) handleRecord(record *spb.Record) {
 	// The above are no-ops in the handler.
 
 	case *spb.Record_Exit:
-		h.handleExit(record, x.Exit)
+		h.handleExit(record, x.Exit, request)
 	case *spb.Record_Header:
 		h.handleHeader(record)
 	case *spb.Record_Metric:
 		h.handleMetric(record)
 	case *spb.Record_Request:
-		h.handleRequest(record)
+		h.handleRequest(record, request)
 	case *spb.Record_Summary:
 		h.handleSummary(x.Summary)
 	case nil:
@@ -264,9 +244,12 @@ func (h *Handler) handleRecord(record *spb.Record) {
 }
 
 //gocyclo:ignore
-func (h *Handler) handleRequest(record *spb.Record) {
-	request := record.GetRequest()
-	switch x := request.RequestType.(type) {
+func (h *Handler) handleRequest(
+	record *spb.Record,
+	request *runwork.Request,
+) {
+	requestRecord := record.GetRequest()
+	switch x := requestRecord.RequestType.(type) {
 
 	case *spb.Request_SummaryRecord:
 	case *spb.Request_TelemetryRecord:
@@ -284,39 +267,39 @@ func (h *Handler) handleRequest(record *spb.Record) {
 		// Should be removed in the future.
 
 	case *spb.Request_RunStatus:
-		h.handleRequestRunStatus(record)
+		h.handleRequestRunStatus(record, request)
 	case *spb.Request_Status:
-		h.handleRequestStatus(record)
+		h.handleRequestStatus(record, request)
 	case *spb.Request_SenderMark:
 		h.handleRequestSenderMark(record)
 	case *spb.Request_StatusReport:
 		h.handleRequestStatusReport(record)
 	case *spb.Request_Shutdown:
-		h.handleRequestShutdown(record)
+		h.handleRequestShutdown(record, request)
 	case *spb.Request_GetSummary:
-		h.handleRequestGetSummary(record)
+		h.handleRequestGetSummary(record, request)
 	case *spb.Request_NetworkStatus:
-		h.handleRequestNetworkStatus(record)
+		h.handleRequestNetworkStatus(record, request)
 	case *spb.Request_PartialHistory:
 		h.handleRequestPartialHistory(record, x.PartialHistory)
 	case *spb.Request_PollExit:
-		h.handleRequestPollExit(record)
+		h.handleRequestPollExit(record, request)
 	case *spb.Request_RunStart:
-		h.handleRequestRunStart(record, x.RunStart)
+		h.handleRequestRunStart(record, x.RunStart, request)
 	case *spb.Request_SampledHistory:
-		h.handleRequestSampledHistory(record)
+		h.handleRequestSampledHistory(record, request)
 	case *spb.Request_PythonPackages:
 		h.handleRequestPythonPackages(record, x.PythonPackages)
 	case *spb.Request_StopStatus:
-		h.handleRequestStopStatus(record)
+		h.handleRequestStopStatus(record, request)
 	case *spb.Request_LogArtifact:
-		h.handleRequestLogArtifact(record)
+		h.handleRequestLogArtifact(record, request)
 	case *spb.Request_LinkArtifact:
-		h.handleRequestLinkArtifact(record)
+		h.handleRequestLinkArtifact(record, request)
 	case *spb.Request_DownloadArtifact:
-		h.handleRequestDownloadArtifact(record)
+		h.handleRequestDownloadArtifact(record, request)
 	case *spb.Request_Attach:
-		h.handleRequestAttach(record)
+		h.handleRequestAttach(record, request)
 	case *spb.Request_Pause:
 		h.handleRequestPause()
 	case *spb.Request_Resume:
@@ -324,19 +307,19 @@ func (h *Handler) handleRequest(record *spb.Record) {
 	case *spb.Request_Cancel:
 		h.handleRequestCancel(x.Cancel)
 	case *spb.Request_GetSystemMetrics:
-		h.handleRequestGetSystemMetrics(record)
+		h.handleRequestGetSystemMetrics(record, request)
 	case *spb.Request_InternalMessages:
-		h.handleRequestInternalMessages(record)
+		h.handleRequestInternalMessages(record, request)
 	case *spb.Request_SyncFinish:
-		h.handleRequestSyncFinish(record)
+		h.handleRequestSyncFinish(record, request)
 	case *spb.Request_SenderRead:
 		// TODO: implement this
 	case *spb.Request_JobInput:
-		h.handleRequestJobInput(record)
+		h.handleRequestJobInput(record, request)
 	case *spb.Request_RunFinishWithoutExit:
-		h.handleRequestRunFinishWithoutExit(record)
+		h.handleRequestRunFinishWithoutExit(record, request)
 	case *spb.Request_Operations:
-		h.handleRequestOperations(record)
+		h.handleRequestOperations(record, request)
 	case *spb.Request_ProbeSystemInfo:
 		h.handleRequestProbeSystemInfo(record)
 	case nil:
@@ -348,25 +331,38 @@ func (h *Handler) handleRequest(record *spb.Record) {
 	}
 }
 
-func (h *Handler) handleRequestRunStatus(record *spb.Record) {
-	// TODO(flow-control): implement run status
-	h.respond(record, &spb.Response{})
+// TODO: remove
+func (h *Handler) handleRequestRunStatus(
+	record *spb.Record,
+	request *runwork.Request,
+) {
+	h.respond(request, &spb.Response{})
 }
 
-func (h *Handler) handleRequestStatus(record *spb.Record) {
-	h.respond(record, &spb.Response{})
+// TODO: remove
+func (h *Handler) handleRequestStatus(
+	record *spb.Record,
+	request *runwork.Request,
+) {
+	h.respond(request, &spb.Response{})
 }
 
+// TODO: remove
 func (h *Handler) handleRequestSenderMark(_ *spb.Record) {
 	// TODO(flow-control): implement sender mark
 }
 
+// TODO: remove
 func (h *Handler) handleRequestStatusReport(_ *spb.Record) {
 	// TODO(flow-control): implement status report
 }
 
-func (h *Handler) handleRequestShutdown(record *spb.Record) {
-	h.respond(record, &spb.Response{})
+// TODO: remove
+func (h *Handler) handleRequestShutdown(
+	record *spb.Record,
+	request *runwork.Request,
+) {
+	h.respond(request, &spb.Response{})
 }
 
 func (h *Handler) handleMetric(record *spb.Record) {
@@ -391,29 +387,44 @@ func (h *Handler) handleMetric(record *spb.Record) {
 	}
 }
 
-func (h *Handler) handleRequestStopStatus(record *spb.Record) {
+func (h *Handler) handleRequestStopStatus(
+	record *spb.Record,
+	request *runwork.Request,
+) {
 	if h.settings.IsOffline() {
 		// Send an empty response if we're offline.
-		h.respond(record, &spb.Response{})
+		h.respond(request, &spb.Response{})
 	} else {
-		h.fwdRecord(record)
+		h.fwdRecord(record, request)
 	}
 }
 
-func (h *Handler) handleRequestLogArtifact(record *spb.Record) {
-	h.fwdRecord(record)
+func (h *Handler) handleRequestLogArtifact(
+	record *spb.Record,
+	request *runwork.Request,
+) {
+	h.fwdRecord(record, request)
 }
 
-func (h *Handler) handleRequestDownloadArtifact(record *spb.Record) {
-	h.fwdRecord(record)
+func (h *Handler) handleRequestDownloadArtifact(
+	record *spb.Record,
+	request *runwork.Request,
+) {
+	h.fwdRecord(record, request)
 }
 
-func (h *Handler) handleRequestLinkArtifact(record *spb.Record) {
-	h.fwdRecord(record)
+func (h *Handler) handleRequestLinkArtifact(
+	record *spb.Record,
+	request *runwork.Request,
+) {
+	h.fwdRecord(record, request)
 }
 
-func (h *Handler) handleRequestOperations(record *spb.Record) {
-	h.respond(record, &spb.Response{
+func (h *Handler) handleRequestOperations(
+	record *spb.Record,
+	request *runwork.Request,
+) {
+	h.respond(request, &spb.Response{
 		ResponseType: &spb.Response_OperationsResponse{
 			OperationsResponse: &spb.OperationStatsResponse{
 				OperationStats: h.operations.ToProto(),
@@ -422,7 +433,10 @@ func (h *Handler) handleRequestOperations(record *spb.Record) {
 	})
 }
 
-func (h *Handler) handleRequestPollExit(record *spb.Record) {
+func (h *Handler) handleRequestPollExit(
+	record *spb.Record,
+	request *runwork.Request,
+) {
 	pollExitResponse := &spb.PollExitResponse{
 		OperationStats: h.operations.ToProto(),
 	}
@@ -443,7 +457,7 @@ func (h *Handler) handleRequestPollExit(record *spb.Record) {
 		pollExitResponse.Done = true
 	}
 
-	h.respond(record, &spb.Response{
+	h.respond(request, &spb.Response{
 		ResponseType: &spb.Response_PollExitResponse{
 			PollExitResponse: pollExitResponse,
 		},
@@ -457,12 +471,16 @@ func (h *Handler) handleHeader(record *spb.Record) {
 		Producer:    versionString,
 		MinConsumer: version.MinServerVersion,
 	}
-	h.fwdRecord(record)
+	h.fwdRecord(record, nil)
 }
 
-func (h *Handler) handleRequestRunStart(record *spb.Record, request *spb.RunStartRequest) {
+func (h *Handler) handleRequestRunStart(
+	record *spb.Record,
+	req *spb.RunStartRequest,
+	request *runwork.Request,
+) {
 	var ok bool
-	run := request.Run
+	run := req.Run
 
 	// Add on to the previous run time for branched runs.
 	offset := time.Duration(run.Runtime) * time.Second
@@ -475,7 +493,7 @@ func (h *Handler) handleRequestRunStart(record *spb.Record, request *spb.RunStar
 		h.logger.CaptureFatalAndPanic(
 			errors.New("handleRunStart: failed to clone run"))
 	}
-	h.fwdRecord(record)
+	h.fwdRecord(record, request)
 
 	// TODO: Move computation of git state to wandb-core.
 	var git *spb.GitRepoRecord
@@ -495,14 +513,17 @@ func (h *Handler) handleRequestRunStart(record *spb.Record, request *spb.RunStar
 		h.handlePatchSave()
 	}
 
-	h.respond(record, &spb.Response{})
+	h.respond(request, &spb.Response{})
 }
 
 func (h *Handler) handleRequestProbeSystemInfo(record *spb.Record) {
 	h.systemMonitor.Probe()
 }
 
-func (h *Handler) handleRequestPythonPackages(_ *spb.Record, request *spb.PythonPackagesRequest) {
+func (h *Handler) handleRequestPythonPackages(
+	_ *spb.Record,
+	request *spb.PythonPackagesRequest,
+) {
 	if !h.settings.IsPrimary() {
 		return
 	}
@@ -541,7 +562,7 @@ func (h *Handler) handleRequestPythonPackages(_ *spb.Record, request *spb.Python
 			},
 		},
 	}
-	h.fwdRecord(record)
+	h.fwdRecord(record, nil)
 }
 
 func (h *Handler) handleCodeSave() {
@@ -587,7 +608,7 @@ func (h *Handler) handleCodeSave() {
 			},
 		},
 	}
-	h.fwdRecord(record)
+	h.fwdRecord(record, nil)
 }
 
 func (h *Handler) handlePatchSave() {
@@ -634,18 +655,20 @@ func (h *Handler) handlePatchSave() {
 			},
 		},
 	}
-	h.fwdRecord(record)
+	h.fwdRecord(record, nil)
 }
 
-func (h *Handler) handleRequestAttach(record *spb.Record) {
-	response := &spb.Response{
+func (h *Handler) handleRequestAttach(
+	record *spb.Record,
+	request *runwork.Request,
+) {
+	h.respond(request, &spb.Response{
 		ResponseType: &spb.Response_AttachResponse{
 			AttachResponse: &spb.AttachResponse{
 				Run: h.runRecord,
 			},
 		},
-	}
-	h.respond(record, response)
+	})
 }
 
 func (h *Handler) handleRequestCancel(request *spb.CancelRequest) {
@@ -666,15 +689,22 @@ func (h *Handler) handleRequestResume() {
 	h.systemMonitor.Resume()
 }
 
-func (h *Handler) handleRequestRunFinishWithoutExit(record *spb.Record) {
+func (h *Handler) handleRequestRunFinishWithoutExit(
+	record *spb.Record,
+	request *runwork.Request,
+) {
 	h.runTimer.Stop()
 	h.updateRunTiming()
 	h.systemMonitor.Finish()
 	h.flushPartialHistory(true, h.partialHistoryStep+1)
-	h.fwdRecord(record)
+	h.fwdRecord(record, request)
 }
 
-func (h *Handler) handleExit(record *spb.Record, exit *spb.RunExitRecord) {
+func (h *Handler) handleExit(
+	record *spb.Record,
+	exit *spb.RunExitRecord,
+	request *runwork.Request,
+) {
 	// stop the run timer and set the runtime
 	h.runTimer.Stop()
 	exit.Runtime = int32(h.runTimer.Elapsed().Seconds())
@@ -694,15 +724,18 @@ func (h *Handler) handleExit(record *spb.Record, exit *spb.RunExitRecord) {
 		h.flushPartialHistory(true, h.partialHistoryStep+1)
 	}
 
-	// send the exit record
-	h.fwdRecordWithControl(record,
-		func(control *spb.Control) {
-			control.AlwaysSend = true
-		},
-	)
+	if record.Control == nil {
+		record.Control = &spb.Control{}
+	}
+	record.Control.AlwaysSend = true
+
+	h.fwdRecord(record, request)
 }
 
-func (h *Handler) handleRequestGetSummary(record *spb.Record) {
+func (h *Handler) handleRequestGetSummary(
+	record *spb.Record,
+	request *runwork.Request,
+) {
 	response := &spb.Response{}
 
 	items, err := h.runSummary.ToRecords()
@@ -719,10 +752,13 @@ func (h *Handler) handleRequestGetSummary(record *spb.Record) {
 			Item: items,
 		},
 	}
-	h.respond(record, response)
+	h.respond(request, response)
 }
 
-func (h *Handler) handleRequestGetSystemMetrics(record *spb.Record) {
+func (h *Handler) handleRequestGetSystemMetrics(
+	record *spb.Record,
+	request *runwork.Request,
+) {
 	sm := h.systemMonitor.GetBuffer()
 
 	response := &spb.Response{}
@@ -749,10 +785,13 @@ func (h *Handler) handleRequestGetSystemMetrics(record *spb.Record) {
 		}
 	}
 
-	h.respond(record, response)
+	h.respond(request, response)
 }
 
-func (h *Handler) handleRequestInternalMessages(record *spb.Record) {
+func (h *Handler) handleRequestInternalMessages(
+	record *spb.Record,
+	request *runwork.Request,
+) {
 	messages := h.terminalPrinter.Read()
 
 	// TODO: Respect message severity in the InternalMessages request.
@@ -770,15 +809,22 @@ func (h *Handler) handleRequestInternalMessages(record *spb.Record) {
 			},
 		},
 	}
-	h.respond(record, response)
+	h.respond(request, response)
 }
 
-func (h *Handler) handleRequestSyncFinish(record *spb.Record) {
-	h.fwdRecord(record)
+// TODO: remove
+func (h *Handler) handleRequestSyncFinish(
+	record *spb.Record,
+	request *runwork.Request,
+) {
+	h.fwdRecord(record, request)
 }
 
-func (h *Handler) handleRequestJobInput(record *spb.Record) {
-	h.fwdRecord(record)
+func (h *Handler) handleRequestJobInput(
+	record *spb.Record,
+	request *runwork.Request,
+) {
+	h.fwdRecord(record, request)
 }
 
 // handleSummary processes an update to the run summary.
@@ -818,11 +864,14 @@ func (h *Handler) updateRunTiming() {
 	}
 
 	h.handleSummary(record.GetSummary())
-	h.fwdRecord(record)
+	h.fwdRecord(record, nil)
 }
 
-func (h *Handler) handleRequestNetworkStatus(record *spb.Record) {
-	h.fwdRecord(record)
+func (h *Handler) handleRequestNetworkStatus(
+	record *spb.Record,
+	request *runwork.Request,
+) {
+	h.fwdRecord(record, request)
 }
 
 // handleRequestPartialHistory updates the run history, flushing data for
@@ -961,7 +1010,7 @@ func (h *Handler) flushPartialHistory(useStep bool, nextStep int64) {
 			RecordType: &spb.Record_Metric{Metric: newMetric},
 		}
 		h.handleMetric(rec)
-		h.fwdRecord(rec)
+		h.fwdRecord(rec, nil)
 	}
 	h.metricHandler.InsertStepMetrics(h.partialHistory)
 
@@ -1000,7 +1049,7 @@ func (h *Handler) flushPartialHistory(useStep bool, nextStep int64) {
 		RecordType: &spb.Record_History{
 			History: historyRecord,
 		},
-	})
+	}, nil)
 }
 
 // updateSummary updates the summary based on the current history step.
@@ -1027,7 +1076,7 @@ func (h *Handler) updateSummary() {
 				Update: updates,
 			},
 		},
-	})
+	}, nil)
 }
 
 // samples history items and updates the history record with the sampled values
@@ -1035,8 +1084,11 @@ func (h *Handler) updateSummary() {
 // This function samples history items and updates the history record with the
 // sampled values. It is used to display a subset of the history items in the
 // terminal. The sampling is done using a reservoir sampling algorithm.
-func (h *Handler) handleRequestSampledHistory(record *spb.Record) {
-	h.respond(record, &spb.Response{
+func (h *Handler) handleRequestSampledHistory(
+	record *spb.Record,
+	request *runwork.Request,
+) {
+	h.respond(request, &spb.Response{
 		ResponseType: &spb.Response_SampledHistoryResponse{
 			SampledHistoryResponse: &spb.SampledHistoryResponse{
 				Item: h.runHistorySampler.Get(),

@@ -18,6 +18,16 @@ type Work struct {
 	Request *Request
 }
 
+// Accept invokes WorkImpl.Accept with this Work's Request.
+func (w Work) Accept(fn func(*spb.Record, *Request)) bool {
+	return w.WorkImpl.Accept(w.Request, fn)
+}
+
+// Process invokes WorkImpl.Process with this Work's Request.
+func (w Work) Process(fn func(*spb.Record, *Request)) {
+	w.WorkImpl.Process(w.Request, fn)
+}
+
 // NoRequest creates Work without a Request.
 //
 // It is more explicit than just omitting the Request field, which can
@@ -51,7 +61,7 @@ type WorkImpl interface {
 	// `run.log()` can start to block.
 	//
 	// If this is a Record proto, the given function is called.
-	Accept(func(*spb.Record)) bool
+	Accept(*Request, func(*spb.Record, *Request)) bool
 
 	// ToRecord returns the serialized representation of this Work.
 	//
@@ -67,7 +77,7 @@ type WorkImpl interface {
 	//
 	// If this is a Record proto, the given function is called.
 	// Responses are pushed into the Result channel.
-	Process(func(*spb.Record), chan<- *spb.Result)
+	Process(*Request, func(*spb.Record, *Request))
 
 	// DebugInfo returns a short string describing the work
 	// that can be logged for debugging.
@@ -107,7 +117,12 @@ func (m SimpleScheduleMixin) Schedule(wg *sync.WaitGroup, proceed func()) {
 // AlwaysAcceptMixin implements WorkImpl.Accept by returning true.
 type AlwaysAcceptMixin struct{}
 
-func (m AlwaysAcceptMixin) Accept(func(*spb.Record)) bool { return true }
+func (m AlwaysAcceptMixin) Accept(
+	*Request,
+	func(*spb.Record, *Request),
+) bool {
+	return true
+}
 
 // NoopProcessMixin implements WorkImpl.Process by doing nothing.
 //
@@ -116,4 +131,8 @@ type NoopProcessMixin struct{}
 
 func (m NoopProcessMixin) BypassOfflineMode() bool { return false }
 
-func (m NoopProcessMixin) Process(func(*spb.Record), chan<- *spb.Result) {}
+func (m NoopProcessMixin) Process(
+	*Request,
+	func(*spb.Record, *Request),
+) {
+}
