@@ -6,22 +6,22 @@ import (
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
-// WorkRecord is Work constructed from a generic Record.
+// WorkRecord is a WorkImpl constructed from a generic Record.
 //
 // This is a remnant of our legacy code structure where all Record
 // implementations were contained directly in the Handler and Sender files.
 // Both files had large switch statements parsing out the specific Record type.
 //
-// The Work interface is designed to allow for a single parsing step,
+// The WorkImpl interface is designed to allow for a single parsing step,
 // after which each Record that flows through the pipeline also carries with
 // it its own implementation. Each Record type should have a corresponding
-// Work struct.
+// WorkImpl struct.
 type WorkRecord struct {
 	SimpleScheduleMixin
 	Record *spb.Record
 }
 
-func WorkFromRecord(record *spb.Record) Work {
+func WorkFromRecord(record *spb.Record) WorkImpl {
 	return WorkRecord{Record: record}
 }
 
@@ -56,7 +56,7 @@ func (wr WorkRecord) Accept(fn func(*spb.Record)) bool {
 	return true
 }
 
-// ToRecord implements Work.ToRecord.
+// ToRecord implements WorkImpl.ToRecord.
 func (wr WorkRecord) ToRecord() *spb.Record {
 	return wr.Record
 }

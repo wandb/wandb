@@ -254,7 +254,7 @@ func (r *RunReader) nextUpdatedRecord(
 
 // parseAndAddWork parses the record and pushes it to RunWork.
 func (r *RunReader) parseAndAddWork(record *spb.Record) {
-	work := r.recordParser.Parse(record)
+	work := runwork.NoRequest(r.recordParser.Parse(record))
 
 	wg := &sync.WaitGroup{}
 

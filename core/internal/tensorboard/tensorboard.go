@@ -312,15 +312,14 @@ func (tb *TBHandler) saveFile(
 	}
 
 	// Write a record indicating that the file should be uploaded.
-	tb.extraWork.AddWork(
-		runwork.WorkFromRecord(
-			&spb.Record{
-				RecordType: &spb.Record_Files{
-					Files: &spb.FilesRecord{
-						Files: []*spb.FilesItem{
-							{Policy: spb.FilesItem_END, Path: runPath},
-						},
-					},
+	record := &spb.Record{
+		RecordType: &spb.Record_Files{
+			Files: &spb.FilesRecord{
+				Files: []*spb.FilesItem{
+					{Policy: spb.FilesItem_END, Path: runPath},
 				},
-			}))
+			},
+		},
+	}
+	tb.extraWork.AddWork(runwork.NoRequest(runwork.WorkFromRecord(record)))
 }

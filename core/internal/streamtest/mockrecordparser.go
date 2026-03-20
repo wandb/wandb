@@ -42,10 +42,10 @@ func (m *MockRecordParser) EXPECT() *MockRecordParserMockRecorder {
 }
 
 // Parse mocks base method.
-func (m *MockRecordParser) Parse(record *service_go_proto.Record) runwork.Work {
+func (m *MockRecordParser) Parse(record *service_go_proto.Record) runwork.WorkImpl {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Parse", record)
-	ret0, _ := ret[0].(runwork.Work)
+	ret0, _ := ret[0].(runwork.WorkImpl)
 	return ret0
 }
 
