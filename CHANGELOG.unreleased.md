@@ -26,6 +26,10 @@ Section headings should be at level 3 (e.g. `### Added`).
 - JSON serialization and deserialization now use `orjson` for improved performance (@jacobromero in https://github.com/wandb/wandb/pull/11163)
 - Improved system metrics UX with multi-series overlays, inspection, and live/history zoom in W&B LEET TUI (`wandb beta leet` command) (@dmitryduev in https://github.com/wandb/wandb/pull/11512)
 
+### Changed
+
+- `wandb.api.File.download` returns a path to the file downloaded, rather than opening the file and returning a handle (@jacobromero in https://github.com/wandb/wandb/pull/11408)
+
 ### Fixed
 
 - Fixed artifact client ID collisions in forked child processes by reseeding the fast ID generator after `fork()` (@tonyyli-wandb in https://github.com/wandb/wandb/pull/11491)
