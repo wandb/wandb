@@ -157,3 +157,35 @@ def test_skip_transaction_log_offline(user):
     """Test that skip transaction log is not allowed in offline mode."""
     with pytest.raises(ValueError):
         wandb.init(settings={"mode": "offline", "x_skip_transaction_log": True})
+
+
+@pytest.mark.parametrize(
+    "show_info,show_warnings,show_errors",
+    [
+        (False, False, False),
+        (True, False, False),
+        (False, True, False),
+        (False, False, True),
+        (True, True, True),
+    ],
+)
+def test_wandb_init_sets_up_term_logging(
+    user, monkeypatch, show_info, show_warnings, show_errors
+):
+    with wandb.init(
+        settings=wandb.Settings(
+            show_info=show_info,
+            show_warnings=show_warnings,
+            show_errors=show_errors,
+        )
+    ):
+        mock_log = mock.MagicMock()
+        monkeypatch.setattr("wandb.errors.term._log", mock_log)
+
+        wandb.termlog("test info")
+        wandb.termwarn("test warn")
+        wandb.termerror("test error")
+
+        assert mock_log.call_args_list[0][-1]["silent"] == (not show_info)
+        assert mock_log.call_args_list[1][-1]["silent"] == (not show_warnings)
+        assert mock_log.call_args_list[2][-1]["silent"] == (not show_errors)
