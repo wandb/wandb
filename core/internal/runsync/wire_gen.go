@@ -34,10 +34,10 @@ func InjectRunSyncerFactory(settings2 *settings.Settings, logger *observability.
 	credentialProvider := stream.CredentialsFromSettings(logger, settings2)
 	peeker := &observability.Peeker{}
 	client := stream.NewGraphQLClient(wbBaseURL, clientID, credentialProvider, logger, peeker, settings2)
-	serverFeaturesCache := featurechecker.NewServerFeaturesCache(client, logger)
+	featureProvider := featurechecker.New(client, logger)
 	runHandle := runhandle.New()
 	recordParserFactory := &stream.RecordParserFactory{
-		FeatureProvider:    serverFeaturesCache,
+		FeatureProvider:    featureProvider,
 		GraphqlClientOrNil: client,
 		Logger:             logger,
 		Operations:         wandbOperations,
@@ -76,7 +76,7 @@ func InjectRunSyncerFactory(settings2 *settings.Settings, logger *observability.
 		Logger:                  logger,
 		Operations:              wandbOperations,
 		Settings:                settings2,
-		FeatureProvider:         serverFeaturesCache,
+		FeatureProvider:         featureProvider,
 		FileStreamFactory:       fileStreamFactory,
 		FileTransferManager:     fileTransferManager,
 		FileTransferStats:       fileTransferStats,
@@ -107,7 +107,7 @@ func InjectRunSyncerFactory(settings2 *settings.Settings, logger *observability.
 
 // wire.go:
 
-var runSyncerFactoryBindings = wire.NewSet(wire.Bind(new(api.Peeker), new(*observability.Peeker)), wire.Struct(new(observability.Peeker)), featurechecker.NewServerFeaturesCache, filestream.FileStreamProviders, filetransfer.NewFileTransferStats, mailbox.New, observability.NewPrinter, provideFileWatcher, runfiles.UploaderProviders, runhandle.New, runReaderProviders,
+var runSyncerFactoryBindings = wire.NewSet(wire.Bind(new(api.Peeker), new(*observability.Peeker)), wire.Struct(new(observability.Peeker)), featurechecker.New, filestream.FileStreamProviders, filetransfer.NewFileTransferStats, mailbox.New, observability.NewPrinter, provideFileWatcher, runfiles.UploaderProviders, runhandle.New, runReaderProviders,
 	runSyncerProviders, sharedmode.RandomClientID, stream.BaseURLFromSettings, stream.CredentialsFromSettings, stream.NewFileTransferManager, stream.NewGraphQLClient, stream.RecordParserProviders, stream.SenderProviders, tensorboard.TBHandlerProviders, wboperation.NewOperations,
 )
 

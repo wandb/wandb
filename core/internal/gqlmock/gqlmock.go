@@ -89,24 +89,53 @@ func (c *MockClient) StubMatchWithError(
 		})
 }
 
+// StubMatchHang hangs forever on the next matching request until the request
+// context is cancelled.
+//
+// Useful for testing cancellation.
+func (c *MockClient) StubMatchHang(requestMatcher gomock.Matcher) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.stubs = append(c.stubs,
+		&stubbedRequest{
+			requestMatcher,
+			handlerReturningNever(),
+		})
+}
+
 // StubAnyOnce registers a response for the next request.
 func (c *MockClient) StubAnyOnce(responseJSON string) {
 	c.StubMatchOnce(gomock.Any(), responseJSON)
 }
 
+// StubAnyHang is StubMatchHang that matches any request.
+func (c *MockClient) StubAnyHang() {
+	c.StubMatchHang(gomock.Any())
+}
+
 func handlerReturningJSON(
 	responseJSON string,
-) func(*graphql.Request, *graphql.Response) error {
-	return func(_ *graphql.Request, resp *graphql.Response) error {
+) func(context.Context, *graphql.Request, *graphql.Response) error {
+	return func(_ context.Context, _ *graphql.Request, resp *graphql.Response) error {
 		// Return the JSON error to make it easier to tell if a test's
 		// JSON is incorrect.
 		return json.Unmarshal([]byte(responseJSON), resp.Data)
 	}
 }
 
-func handlerReturningError(err error) func(*graphql.Request, *graphql.Response) error {
-	return func(_ *graphql.Request, resp *graphql.Response) error {
+func handlerReturningError(
+	err error,
+) func(context.Context, *graphql.Request, *graphql.Response) error {
+	return func(_ context.Context, _ *graphql.Request, resp *graphql.Response) error {
 		return err
+	}
+}
+
+func handlerReturningNever() func(context.Context, *graphql.Request, *graphql.Response) error {
+	return func(ctx context.Context, _ *graphql.Request, resp *graphql.Response) error {
+		<-ctx.Done()
+		return ctx.Err()
 	}
 }
 
@@ -132,12 +161,12 @@ func (c *MockClient) MakeRequest(
 	resp *graphql.Response,
 ) error {
 	c.mu.Lock()
-	defer c.mu.Unlock()
-
 	c.requests = append(c.requests, req)
+	stub := c.stubFor(req)
+	c.mu.Unlock()
 
-	if stub := c.stubFor(req); stub != nil {
-		return stub.Handle(req, resp)
+	if stub != nil {
+		return stub.Handle(ctx, req, resp)
 	}
 
 	return &notStubbedError{req}
@@ -146,7 +175,7 @@ func (c *MockClient) MakeRequest(
 // A stubbedRequest is a request matcher and a response function.
 type stubbedRequest struct {
 	gomock.Matcher
-	Handle func(*graphql.Request, *graphql.Response) error
+	Handle func(context.Context, *graphql.Request, *graphql.Response) error
 }
 
 // stubFor pops and returns the first stub that matches the request.
