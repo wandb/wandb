@@ -2039,3 +2039,97 @@ def time_string_to_seconds(time_str: str) -> int:
     }
 
     return amount * conversions[unit]
+
+
+def parse_project_path(
+    path,
+    default_entity: str | None,
+    default_project: str | None,
+):
+    """Return project and entity for project specified by path."""
+    project = default_project or "uncategorized"
+    entity = default_entity
+
+    if path is None:
+        return entity, project
+    parts = path.split("/", 1)
+    if len(parts) == 1:
+        return entity, path
+    return parts
+
+
+def parse_path(
+    path: str,
+    default_entity: str | None,
+    default_project: str | None,
+) -> tuple[str, str, str]:
+    """Parse url, filepath, or docker paths.
+
+    Allows paths in the following formats:
+    - entity/project/runs/id (URL)
+    - entity/project/id
+    - entity/project:id (Docker style)
+    - project/id
+    - project:id
+    - id (cannot contain colons)
+
+    The path may also start with /runs/ or /sweeps/.
+
+    Returns:
+        A tuple with the extracted (entity, project, id).
+
+    Raises:
+        ValueError: If the path is in an invalid format or is missing
+            an entity that is not otherwise provided.
+    """
+    entity: str | None = default_entity
+    project: str | None = default_project
+    id: str | None = None
+
+    input_path = path
+    path = path.replace("/runs/", "/")
+    path = path.replace("/sweeps/", "/")
+    path = path.strip("/ ")  # slashes and spaces
+
+    parts = path.split("/")
+
+    # "entity/project/runs/id"
+    if len(parts) == 4 and parts[2] == "runs":
+        entity, project, id = parts[0], parts[1], parts[3]
+
+    # "entity/project/id"
+    elif len(parts) == 3:
+        entity, project, id = parts[0], parts[1], parts[2]
+
+    elif len(parts) == 2:
+        # "entity/project:id"
+        if ":" in parts[1]:
+            entity = parts[0]
+            project, id = parts[1].split(":", maxsplit=1)
+
+        # "project/id"
+        else:
+            project, id = parts[0], parts[1]
+
+    elif len(parts) == 1 and parts[0]:  # Don't match the empty string.
+        # "project:id"
+        if ":" in parts[0]:
+            project, id = parts[0].split(":", maxsplit=1)
+
+        # "id"
+        else:
+            id = parts[0]
+
+    # Ignore whitespace.
+    entity = entity and entity.strip()
+    project = project and project.strip()
+    id = id and id.strip()
+
+    if not entity:
+        raise ValueError(f"Invalid path: {input_path!r} (missing entity)")
+    if not project:
+        raise ValueError(f"Invalid path: {input_path!r} (missing project)")
+    if not id:
+        raise ValueError(f"Invalid path: {input_path!r}")
+
+    return entity, project, id

@@ -66,6 +66,10 @@ def leet(ctx: click.Context) -> None:
     Examples:
         wandb beta leet                 View latest run
         wandb beta leet ./wandb         View runs in directory
+        wandb beta leet https://wandb.ai/wandbEntity/wandbProject/runId
+            View completed run stored on the W&B backend.
+            Run history is downloaded and stored locally,
+            and can be cleaned up with `wandb purge-cache`.
     """
     pass
 
@@ -82,7 +86,9 @@ def leet(ctx: click.Context) -> None:
 def run(path: str | None = None, pprof: str = "") -> None:
     """Launch the LEET TUI.
 
-    PATH can be a .wandb file, a run directory, or a wandb directory.
+    PATH can be a .wandb file, a run directory, a wandb directory,
+    or the URL of a run store on the W&B backend.
+
     If omitted, searches for the latest run.
     """
     from . import beta_leet

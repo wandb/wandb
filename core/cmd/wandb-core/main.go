@@ -209,45 +209,15 @@ func serviceMain() int {
 
 // leetMain runs the TUI subcommand.
 func leetMain(args []string) int {
-	fs := flag.NewFlagSet("leet", flag.ContinueOnError)
-	fs.SetOutput(os.Stderr)
-
-	logLevel := fs.Int("log-level", 0,
-		"Specifies the log level to use for logging. -4: debug, 0: info, 4: warn, 8: error.")
-	disableAnalytics := fs.Bool("no-observability", false,
-		"Disables observability features such as metrics and logging analytics.")
-	runFile := fs.String("run-file", "",
-		"Path to a .wandb file to open directly in single-run view.")
-	pprofAddr := fs.String("pprof", "",
-		"If set, serves /debug/pprof/* on this address (e.g. 127.0.0.1:6060).")
-	editConfig := fs.Bool("config", false, "Open config editor.")
-
-	fs.Usage = func() {
-		fmt.Fprintf(os.Stderr, `wandb-core leet - Lightweight Experiment Exploration Tool
-A terminal UI for viewing your W&B runs locally.
-
-Usage:
-  wandb-core leet [flags] <wandb-directory>
-
-Arguments:
-  <wandb-directory>  Path to the wandb directory containing run folders.
-
-Options:
-  -h, --help         Show this help message
-
-Flags:
-`)
-		fs.PrintDefaults()
-	}
-
-	if err := fs.Parse(args); err != nil {
+	startupArgs, err := leet.ParseStartupArgs(args)
+	if err != nil {
 		if err == flag.ErrHelp {
 			return exitCodeSuccess
 		}
 		return exitCodeErrorArgs
 	}
 
-	pprofStop, err := pprof.StartServer(*pprofAddr)
+	pprofStop, err := pprof.StartServer(*startupArgs.PprofAddr)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "pprof:", err)
 		return exitCodeErrorArgs
@@ -262,7 +232,7 @@ Flags:
 
 	// Configure Sentry reporting.
 	var sentryDSN string
-	if !*disableAnalytics {
+	if !*startupArgs.DisableAnalytics {
 		sentryDSN = observability.LeetSentryDSN
 	}
 	err = sentry.Init(sentry.ClientOptions{
@@ -282,7 +252,7 @@ Flags:
 	// Configure debug logging.
 	logWriter := io.Discard
 	// TODO: Create a log file not only if debug logging is requested.
-	if *logLevel == -4 {
+	if *startupArgs.LogLevel == -4 {
 		loggerFile, err := os.OpenFile(
 			"wandb-leet.debug.log",
 			os.O_WRONLY|os.O_CREATE|os.O_TRUNC,
@@ -299,12 +269,12 @@ Flags:
 	logger := observability.NewCoreLogger(
 		slog.New(slog.NewJSONHandler(
 			logWriter,
-			&slog.HandlerOptions{Level: slog.Level(*logLevel)},
+			&slog.HandlerOptions{Level: slog.Level(*startupArgs.LogLevel)},
 		)),
 		observability.NewSentryContext(sentry.CurrentHub()),
 	)
 
-	if *editConfig {
+	if *startupArgs.EditConfig {
 		editor := leet.NewConfigEditor(leet.ConfigEditorParams{Logger: logger})
 		p := tea.NewProgram(editor)
 		if _, err := p.Run(); err != nil {
@@ -314,19 +284,15 @@ Flags:
 		return exitCodeSuccess
 	}
 
-	wandbDir := fs.Arg(0)
-	if wandbDir == "" {
-		fmt.Fprintln(os.Stderr, "Error: wandb directory path required")
-		fs.Usage()
+	modelParams := leet.CreateModelParams(startupArgs, logger)
+	if modelParams.WandbDir == "" && modelParams.RunParams.LocalRunParams != nil {
+		fmt.Fprintln(os.Stderr, "Error: wandb directory path or base URL required")
+		startupArgs.Usage()
 		return exitCodeErrorArgs
 	}
 
 	for {
-		m := leet.NewModel(leet.ModelParams{
-			WandbDir: wandbDir,
-			RunFile:  *runFile,
-			Logger:   logger,
-		})
+		m := leet.NewModel(*modelParams)
 		program := tea.NewProgram(m)
 
 		finalModel, err := program.Run()
