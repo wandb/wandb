@@ -25,7 +25,6 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 - JSON serialization and deserialization now use `orjson` for improved performance (@jacobromero in https://github.com/wandb/wandb/pull/11163)
 - Improved system metrics UX with multi-series overlays, inspection, and live/history zoom in W&B LEET TUI (`wandb beta leet` command) (@dmitryduev in https://github.com/wandb/wandb/pull/11512)
-- Artifact file download now uses a new download URL format in the absensce of the directUrl from the file's manifest entry. (@ibindlish in https://github.com/wandb/wandb/pull/11407)
 
 ### Fixed
 
