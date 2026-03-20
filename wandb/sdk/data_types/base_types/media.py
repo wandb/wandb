@@ -143,6 +143,17 @@ class Media(WBValue):
         new_path = os.path.join(self._run.dir, media_path)
         filesystem.mkdir_exists_ok(os.path.dirname(new_path))
 
+        if run._settings.allow_media_symlink:
+            filesystem.link_or_copy(
+                run._settings,
+                pathlib.Path(self._path).resolve(),
+                pathlib.Path(new_path),
+            )
+            self._is_tmp = False
+            self._path = new_path
+            run._publish_file(media_path)
+            return
+
         if self._is_tmp:
             shutil.move(self._path, new_path)
             self._path = new_path
