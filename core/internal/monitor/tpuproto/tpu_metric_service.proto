@@ -22,7 +22,7 @@ option go_package = "github.com/wandb/wandb/core/internal/monitor/tpuproto";
 
 message Exemplar {
   double value = 1;
-  .google.protobuf.Timestamp timestamp = 2;
+  google.protobuf.Timestamp timestamp = 2;
   repeated Attribute attributes = 3;
 }
 
@@ -184,6 +184,12 @@ message Attribute {
 // A metric has a reporting time, attribute and a measure value.
 message Metric {
   Attribute attribute = 1;
+  // The start_timestamp is the timestamp of the start of the metric collection
+  // interval. The timestamp is the timestamp of the last time the metric value
+  // is updated. Cumulative counter metrics need to be exported to monarch in
+  // the form of intervals with the same start timestamp and increasing end
+  // timestamps. start_timestamp is only set for cumulative metrics.
+  .google.protobuf.Timestamp start_timestamp = 7;
   .google.protobuf.Timestamp timestamp = 2;
   oneof measure {
     Gauge gauge = 3;
@@ -192,6 +198,7 @@ message Metric {
     Summary summary = 6;
   }
 }
+
 
 // TPUMetric is a standalone metric object, exposed externally to a consumer.
 message TPUMetric {
@@ -216,8 +223,8 @@ message MetricRequest {
 }
 
 // MetricResponse is the response object for RuntimeService.GetRuntimeMetric.
-// The response contains the TPUMetric as response which holds the metric data
-// for the requested metric.
+// The response is for single metric request and contains either a TPUMetric or
+// metric.
 message MetricResponse {
   TPUMetric metric = 1;
 }
@@ -248,11 +255,31 @@ message ListSupportedMetricsResponse {
   repeated SupportedMetric supported_metric = 1;
 }
 
+message GetTpuRuntimeStatusRequest {
+  // If true, the response will include HLO information for each core.
+  bool include_hlo_info = 1;
+}
+
+message GetTpuRuntimeStatusResponse {
+  optional string host_name = 1;
+  // Map from a unique Global Core ID to the state of that core.
+  map<int32,
+      tpu_telemetry.CurrentCoreStateSummary>
+      core_states = 2;
+}
+
 service RuntimeMetricService {
   // GetRuntimeMetric returns the TPU metrics data for the MetricRequest.
   rpc GetRuntimeMetric(MetricRequest) returns (MetricResponse);
 
   // ListSupportedMetrics lists the supported metrics for
   // ListSupportedMetricsRequest.
-  rpc ListSupportedMetrics(ListSupportedMetricsRequest) returns (ListSupportedMetricsResponse);
+  rpc ListSupportedMetrics(ListSupportedMetricsRequest)
+      returns (ListSupportedMetricsResponse);
+
+  // GetTpuRuntimeStatus returns the TPU runtime status for the
+  // GetTpuRuntimeStatusRequest.
+  rpc GetTpuRuntimeStatus(GetTpuRuntimeStatusRequest)
+      returns (GetTpuRuntimeStatusResponse) {
+  }
 }

@@ -6,3 +6,4 @@ protoc -I"$proto_path" \
     --go-grpc_out="$proto_path" \
     --go-grpc_opt=paths=source_relative \
     "$PWD/tpu_metric_service.proto"
+    "$PWD/tpu_telemetry.proto"
