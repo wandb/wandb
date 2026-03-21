@@ -29,7 +29,8 @@ class _ServerFeature:
 
 class _ServerFeatureEnumTypeWrapper(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[_ServerFeature.ValueType], builtins.type):
     DESCRIPTOR: google.protobuf.descriptor.EnumDescriptor
-    LARGE_FILENAMES: _ServerFeature.ValueType  # 0
+    SERVER_FEATURE_UNSPECIFIED: _ServerFeature.ValueType  # 0
+    LARGE_FILENAMES: _ServerFeature.ValueType  # 17
     """Indicates that the server supports recieving an array of filenames as metadata."""
     ARTIFACT_TAGS: _ServerFeature.ValueType  # 1
     """Indicates that the server supports adding tags to artifacts."""
@@ -74,7 +75,8 @@ class ServerFeature(_ServerFeature, metaclass=_ServerFeatureEnumTypeWrapper):
     Each enum's name matches the name used in the backend server.
     """
 
-LARGE_FILENAMES: ServerFeature.ValueType  # 0
+SERVER_FEATURE_UNSPECIFIED: ServerFeature.ValueType  # 0
+LARGE_FILENAMES: ServerFeature.ValueType  # 17
 """Indicates that the server supports recieving an array of filenames as metadata."""
 ARTIFACT_TAGS: ServerFeature.ValueType  # 1
 """Indicates that the server supports adding tags to artifacts."""

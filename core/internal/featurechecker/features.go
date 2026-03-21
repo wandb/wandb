@@ -98,8 +98,11 @@ func (fp *FeatureProvider) lockedLoadFeatures(ctx context.Context) {
 			return
 		}
 
-		featureName := spb.ServerFeature(spb.ServerFeature_value[f.Name])
-		fp.boolFeatures[featureName] = f.IsEnabled
+		// Unrecognized names map to SERVER_FEATURE_UNSPECIFIED.
+		feature := spb.ServerFeature(spb.ServerFeature_value[f.Name])
+		if feature != spb.ServerFeature_SERVER_FEATURE_UNSPECIFIED {
+			fp.boolFeatures[feature] = f.IsEnabled
+		}
 	}
 }
 
