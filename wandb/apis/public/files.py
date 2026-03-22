@@ -58,7 +58,7 @@ if TYPE_CHECKING:
     from wandb.apis.public import Api, RetryingClient
 
 FILE_FRAGMENT = """fragment RunFilesFragment on Run {
-    files(names: $fileNames, after: $fileCursor, first: $fileLimit, pattern: $pattern) {
+    files(names: $fileNames, after: $cursor, first: $perPage, pattern: $pattern) {
         edges {
             node {
                 id
@@ -113,8 +113,8 @@ class Files(SizedPaginator["File"]):
         with_internal_id = _server_provides_internal_id_for_project(self.client)
         return gql(
             f"""
-            query RunFiles($project: String!, $entity: String!, $name: String!, $fileCursor: String,
-                $fileLimit: Int = 50, $fileNames: [String] = [], $upload: Boolean = false, $pattern: String) {{
+            query RunFiles($project: String!, $entity: String!, $name: String!, $cursor: String,
+                $perPage: Int = 50, $fileNames: [String] = [], $upload: Boolean = false, $pattern: String) {{
                 project(name: $project, entityName: $entity) {{
                     {"internalId" if with_internal_id else ""}
                     run(name: $name) {{
@@ -209,13 +209,6 @@ class Files(SizedPaginator["File"]):
             return self.last_response["project"]["run"]["files"]["edges"][-1]["cursor"]
         else:
             return None
-
-    def update_variables(self) -> None:
-        """Updates the GraphQL query variables for pagination.
-
-        <!-- lazydoc-ignore: internal -->
-        """
-        self.variables.update({"fileLimit": self.per_page, "fileCursor": self.cursor})
 
     def convert_objects(self) -> list[File]:
         """Converts GraphQL edges to File objects.

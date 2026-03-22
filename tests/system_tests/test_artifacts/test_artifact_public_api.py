@@ -65,6 +65,42 @@ def test_artifact_versions(api: Api):
 
 
 @mark.usefixtures("sample_data")
+def test_artifact_versions_next_page(api: Api):
+    # sample_data creates mnist:v0 and mnist:v1; add a third for multi-item pages
+    artifact = wandb.Artifact("mnist", type="dataset")
+    with artifact.new_file("digits.h5") as f:
+        f.write("v2")
+    artifact.save()
+    artifact.wait()
+
+    expected = {"mnist:v0", "mnist:v1", "mnist:v2"}
+
+    # Sequential next_page() with multi-item pages
+    it = api.artifacts("dataset", "mnist", per_page=2)
+    page1 = it.next_page()
+    assert len(page1) == 2
+    page2 = it.next_page()
+    assert len(page2) == 1
+    assert {v.name for v in page1 + page2} == expected
+    assert it.next_page() == []
+
+    # next_page() after partial consumption (mid-page)
+    it = api.artifacts("dataset", "mnist", per_page=2)
+    first = next(it)
+    page = it.next_page()
+    assert len(page) == 1
+    assert first.name not in {v.name for v in page}
+
+    # next() after next_page() advances to the following page
+    it = api.artifacts("dataset", "mnist", per_page=2)
+    page = it.next_page()
+    assert len(page) == 2
+    following = next(it)
+    assert following.name not in {v.name for v in page}
+    assert {v.name for v in [*page, following]} == expected
+
+
+@mark.usefixtures("sample_data")
 def test_artifact_type(api: Api):
     atype = api.artifact_type("dataset")
     assert atype.name == "dataset"
@@ -106,6 +142,44 @@ def test_artifact_type_collections(api: Api):
             match="Filtering and ordering of artifact collections is not supported on this wandb server version.",
         ):
             atype.collections(order="name")
+
+
+@mark.usefixtures("sample_data")
+def test_artifact_type_collections_next_page(api: Api):
+    # sample_data creates "mnist"; add two more for multi-item pages
+    for name in ("coll-a", "coll-b"):
+        artifact = wandb.Artifact(name=name, type="dataset")
+        with artifact.new_file("file.txt") as f:
+            f.write("test")
+        artifact.save()
+        artifact.wait()
+
+    expected = {"mnist", "coll-a", "coll-b"}
+    atype = api.artifact_type("dataset")
+
+    # Sequential next_page() with multi-item pages
+    it = atype.collections(per_page=2)
+    page1 = it.next_page()
+    assert len(page1) == 2
+    page2 = it.next_page()
+    assert len(page2) == 1
+    assert {c.name for c in page1 + page2} == expected
+    assert it.next_page() == []
+
+    # next_page() after partial consumption (mid-page)
+    it = atype.collections(per_page=2)
+    first = next(it)
+    page = it.next_page()
+    assert len(page) == 1
+    assert first.name not in {c.name for c in page}
+
+    # next() after next_page() advances to the following page
+    it = atype.collections(per_page=2)
+    page = it.next_page()
+    assert len(page) == 2
+    following = next(it)
+    assert following.name not in {c.name for c in page}
+    assert {c.name for c in [*page, following]} == expected
 
 
 @mark.usefixtures("sample_data")

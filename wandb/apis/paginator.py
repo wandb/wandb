@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from collections.abc import Iterable, Iterator, Mapping, Sized
-from typing import TYPE_CHECKING, Any, ClassVar, Generic, TypeVar, overload
+from typing import TYPE_CHECKING, Any, ClassVar, Generic, TypeVar, final, overload
 
 import wandb
 from wandb._strutils import nameof
@@ -62,15 +62,17 @@ class Paginator(Iterator[_WandbT], ABC):
         """Convert the last fetched response data into the iterated objects."""
         raise NotImplementedError
 
+    @final
     def update_variables(self) -> None:
-        """Update the query variables for the next page fetch."""
-        self.variables.update({"perPage": self.per_page, "cursor": self.cursor})
+        """Update the query variables for the next page fetch.
+
+        <!-- lazydoc-ignore: internal -->
+        """
+        self.variables |= {"perPage": self.per_page, "cursor": self.cursor}
 
     def _update_response(self) -> None:
         """Fetch and store the response data for the next page."""
-        self.last_response = self.client.execute(
-            self.QUERY, variable_values=self.variables
-        )
+        self.last_response = self.client.execute(self.QUERY, self.variables)
 
     def _load_page(self) -> bool:
         """Fetch the next page, if any, returning True and storing the response if there was one."""
@@ -80,6 +82,27 @@ class Paginator(Iterator[_WandbT], ABC):
         self._update_response()
         self.objects.extend(self.convert_objects())
         return True
+
+    def next_page(self) -> list[_WandbT]:
+        """Fetch and return the items from the next page.
+
+        Notes:
+            This consumes and skips past any unread items on the current page.
+            This method can have unexpected side effects if it is called while
+            already iterating through this paginator directly (e.g. in the middle
+            of a loop, while evaluating a list or generator comprehension, etc.).
+
+        Returns an empty list when there are no more pages.
+        """
+        next_page_start = len(self.objects)
+
+        self._load_page()  # Note: this currently mutates self.objects in-place
+
+        next_page = self.objects[next_page_start:]
+        # Keep the iterator state consistent: items returned by next_page()
+        # should not be re-yielded by __next__().
+        self.index = len(self.objects) - 1
+        return next_page
 
     @overload
     def __getitem__(self, index: int) -> _WandbT: ...
