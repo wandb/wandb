@@ -160,6 +160,9 @@ def val_to_json(
             ):
                 val.bind_to_run(run, key, namespace)
 
+        if hasattr(val, "_log_key"):
+            val._log_key = key
+
         res = val.to_json(run)
 
         if isinstance(val, wandb.Table) and val.log_mode == "INCREMENTAL":

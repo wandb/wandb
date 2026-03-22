@@ -62,6 +62,7 @@ from wandb.data_types import Plotly
 from wandb.data_types import Video
 from wandb.data_types import Audio
 from wandb.data_types import Table
+from wandb.data_types import EvalTable
 from wandb.data_types import Html
 from wandb.data_types import box3d
 from wandb.data_types import Object3D
@@ -190,6 +191,7 @@ __all__ = (
     "Video",
     "Audio",
     "Table",
+    "EvalTable",
     "Html",
     "box3d",
     "Object3D",
