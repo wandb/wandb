@@ -17,7 +17,7 @@ from typing import Any, Callable
 
 import wandb
 from wandb import util
-from wandb.sdk import wandb_login
+from wandb.sdk import wandb_login, wandb_setup
 from wandb.sdk.lib import config_util, ipython
 
 logger = logging.getLogger(__name__)
@@ -677,6 +677,11 @@ def agent(
         )
     finally:
         _INSTANCES -= 1
+
+        # clear the sweep id from the settings,
+        # else wandb.init() will not reinitialize in
+        # clear_run_path_if_sweep_or_launch()
+        wandb_setup.singleton().settings.sweep_id = None
 
 
 _INSTANCES = 0
