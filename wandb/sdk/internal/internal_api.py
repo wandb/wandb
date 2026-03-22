@@ -4541,10 +4541,26 @@ class Api:
     def get_sweep_state(
         self, sweep: str, entity: str | None = None, project: str | None = None
     ) -> SweepState:
-        state: SweepState = self.sweep(
-            sweep=sweep, entity=entity, project=project, specs="{}"
-        )["state"]
-        return state
+        query = gql(
+            """
+            query GetSweepState($entity: String, $project: String, $sweep: String!) {
+                project(name: $project, entityName: $entity) {
+                    sweep(sweepName: $sweep) {
+                        state
+                    }
+                }
+            }
+            """
+        )
+        response = self.gql(
+            query,
+            variable_values={
+                "sweep": sweep,
+                "entity": entity or self.settings("entity"),
+                "project": project or self.settings("project"),
+            },
+        )
+        return response["project"]["sweep"]["state"]
 
     def set_sweep_state(
         self,
