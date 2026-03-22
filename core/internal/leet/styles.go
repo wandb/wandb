@@ -67,6 +67,20 @@ func getOddRunStyleColor() color.Color {
 	}
 }
 
+// getShadowStyleColor returns a color 5% darker than the terminal background.
+// Unlike getOddRunStyleColor, this always darkens so it reads as a shadow on
+// both light and dark terminals.
+func getShadowStyleColor() color.Color {
+	initTerminalBg()
+	if termBgDetected {
+		return blendRGB(termBgR, termBgG, termBgB, 0, 0, 0, 0.05)
+	}
+	return compat.AdaptiveColor{
+		Light: lipgloss.Color("#ececec"),
+		Dark:  lipgloss.Color("#15181d"),
+	}
+}
+
 // Immutable UI constants.
 const (
 	StatusBarHeight = 1

@@ -665,22 +665,12 @@ func (w *Workspace) renderMetrics() string {
 
 	// No runs selected: show the logo + spherical cow without any header.
 	if len(w.selectedRuns) == 0 {
-		artStyle := lipgloss.NewStyle().
-			Foreground(colorHeading).
-			Bold(true)
-
-		logoContent := lipgloss.JoinVertical(
-			lipgloss.Center,
-			artStyle.Render(wandbArt),
-			artStyle.Render(leetArt),
-		)
-
 		return lipgloss.Place(
 			contentWidth,
 			contentHeight,
 			lipgloss.Center,
 			lipgloss.Center,
-			logoContent,
+			renderBrandArtForWidth(contentWidth),
 		)
 	}
 
