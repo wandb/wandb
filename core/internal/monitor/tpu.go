@@ -4,10 +4,14 @@ package monitor
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
+	"sync"
+	"time"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/local"
@@ -18,31 +22,31 @@ import (
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
-// TPUMetricName represents a TPU metric name for querying on the gRPC server exposed by the TPU runtime.
+// TPUMetricName represents a TPU runtime metric name exposed by the local
+// runtime gRPC server.
 type TPUMetricName string
 
 const (
 	// googleTPUVendorID is the PCI vendor ID assigned to Google TPUs.
 	googleTPUVendorID = "0x1ae0"
 
-	// grpcAddr is the gRPC server address for the TPU runtime.
-	//
-	// See https://github.com/google/cloud-accelerator-diagnostics/tree/main/tpu_info for more details.
+	// grpcAddr is the TPU runtime metric service endpoint.
 	grpcAddr = "localhost:8431"
 
-	// TPUTotalMemory is the total High Bandwidth Memory in bytes.
-	TPUTotalMemory TPUMetricName = "tpu.runtime.hbm.memory.total.bytes"
-	// TPUMemoryUsage is the current High Bandwidth Memory usage in bytes.
-	TPUMemoryUsage TPUMetricName = "tpu.runtime.hbm.memory.usage.bytes"
-	// TPUDutyCyclePct is the TensorCore duty cycle percentage.
+	defaultTPUSampleTimeout = 5 * time.Second
+
+	// Stable runtime metrics. Additional runtime metrics are discovered via
+	// ListSupportedMetrics and sampled opportunistically.
+	TPUTotalMemory  TPUMetricName = "tpu.runtime.hbm.memory.total.bytes"
+	TPUMemoryUsage  TPUMetricName = "tpu.runtime.hbm.memory.usage.bytes"
 	TPUDutyCyclePct TPUMetricName = "tpu.runtime.tensorcore.dutycycle.percent"
 )
 
 // TPUChip represents TPU chip specifications.
 type TPUChip struct {
-	Name           string // The name of the TPU chip (e.g., "v2", "v3").
-	HbmGiB         int    // High Bandwidth Memory in GiB
-	DevicesPerChip int    // Number of devices per chip
+	Name           string
+	HbmGiB         int
+	DevicesPerChip int
 }
 
 type RuntimeMetricServiceClient interface {
@@ -58,46 +62,69 @@ type RuntimeMetricServiceClient interface {
 	) (*tpuproto.ListSupportedMetricsResponse, error)
 }
 
-// TPU represents a TPU resource with gRPC connection and client.
+type runtimeMetricSelection struct {
+	Supported             []string
+	TotalMemory           string
+	MemoryUsage           string
+	DutyCycle             string
+	TensorcoreUtilization string
+	MemoryBandwidthUtil   string
+	HLOExecutionTiming    string
+	HLOQueueSize          string
+}
+
+// TPU collects TPU metrics from two backends:
+//   - the local runtime gRPC service on localhost:8431
+//   - libtpu.so, loaded directly with purego for metrics only available there
 //
-// This code is based on Google's Cloud Accelerator Diagnostics project:
-// https://github.com/google/cloud-accelerator-diagnostics.
+// Runtime metrics win on duplicate keys.
 type TPU struct {
-	// gRPC client connection and client for runtime metrics.
-	//
-	// TPU runtime metrics are exposed via a gRPC server running on a Google Cloud TPU VM.
 	conn   *grpc.ClientConn
 	client RuntimeMetricServiceClient
 
-	// TPU chip specifications.
-	chip TPUChip
-
-	// Total number of TPU devices detected.
+	chip  TPUChip
 	count int
 
-	// logger is the debug logger.
-	logger *observability.CoreLogger
+	logger        *observability.CoreLogger
+	sampleTimeout time.Duration
+
+	runtimeMu             sync.Mutex
+	runtimeMetricNames    runtimeMetricSelection
+	runtimeMetricNamesSet bool
+
+	libtpu libtpuCollector
 }
 
-// NewTPU creates a new TPU instance by detecting local TPU chips and initializing the gRPC connection.
+// NewTPU creates a TPU collector when a local TPU is present.
 func NewTPU(logger *observability.CoreLogger) *TPU {
-	t := &TPU{logger: logger}
-
 	chip, count := getLocalTPUChips()
 	if count == 0 {
 		return nil
 	}
-	t.chip = chip
-	t.count = count
 
-	conn, err := grpc.NewClient(grpcAddr, grpc.WithTransportCredentials(local.NewCredentials()))
-	if err != nil {
+	t := &TPU{
+		chip:          chip,
+		count:         count,
+		logger:        logger,
+		sampleTimeout: defaultTPUSampleTimeout,
+	}
+
+	if conn, err := grpc.NewClient(grpcAddr, grpc.WithTransportCredentials(local.NewCredentials())); err == nil {
+		t.conn = conn
+		t.client = tpuproto.NewRuntimeMetricServiceClient(conn)
+	} else if logger != nil {
+		logger.Debug("tpu: failed to initialize runtime gRPC client", "error", err)
+	}
+
+	if collector, err := newLibtpuCollector(logger); err == nil {
+		t.libtpu = collector
+	} else if logger != nil {
+		logger.Debug("tpu: failed to initialize direct libtpu collector", "error", err)
+	}
+
+	if t.client == nil && t.libtpu == nil {
 		return nil
 	}
-	client := tpuproto.NewRuntimeMetricServiceClient(conn)
-	t.conn = conn
-	t.client = client
-
 	return t
 }
 
@@ -110,97 +137,439 @@ func (t *TPU) SetClient(client RuntimeMetricServiceClient) {
 	t.client = client
 }
 
-// Sample returns TPU metrics such as memory usage in % and in bytes, and duty cycle.
+// Sample returns TPU metrics from the runtime gRPC service and libtpu.so.
 func (t *TPU) Sample() (*spb.StatsRecord, error) {
-	if t.client == nil {
-		return nil, fmt.Errorf("TPU client is not initialized")
+	if t.client == nil && t.libtpu == nil {
+		return nil, fmt.Errorf("TPU metrics backends are unavailable")
 	}
 
-	// Total memory per TPU core [bytes]
-	totals, err := t.getMetrics(TPUTotalMemory)
-	if err != nil {
-		return nil, err
-	}
-	// Memory usage per TPU core [bytes]
-	usages, err := t.getMetrics(TPUMemoryUsage)
-	if err != nil {
-		return nil, err
-	}
-	// Duty cycle per TPU device [%]
-	dutyCycles, err := t.getMetrics(TPUDutyCyclePct)
-	if err != nil {
-		return nil, err
-	}
+	ctx, cancel := context.WithTimeout(context.Background(), t.sampleTimeout)
+	defer cancel()
 
-	// Map to store all unique device IDs we encounter
-	deviceIDs := make(map[int64]bool)
+	var runtimeMetrics map[string]any
+	var runtimeErr error
+	var libtpuMetrics map[string]any
+	var libtpuErr error
 
-	// Collect all device IDs from memory usage metrics
-	memoryUsages := make(map[int64]int64)
-	for _, usage := range usages {
-		deviceID := usage.GetAttribute().GetValue().GetIntAttr()
-		memoryUsage := usage.GetGauge().GetAsInt()
-		memoryUsages[deviceID] = memoryUsage
-		deviceIDs[deviceID] = true
+	var wg sync.WaitGroup
+	if t.client != nil {
+		wg.Go(func() {
+			runtimeMetrics, runtimeErr = t.sampleRuntime(ctx)
+		})
 	}
+	if t.libtpu != nil {
+		wg.Go(func() {
+			libtpuMetrics, libtpuErr = t.libtpu.Sample(ctx)
+		})
+	}
+	wg.Wait()
 
-	totalMemories := make(map[int64]int64)
-	for _, total := range totals {
-		deviceID := total.GetAttribute().GetValue().GetIntAttr()
-		totalMemory := total.GetGauge().GetAsInt()
-		totalMemories[deviceID] = totalMemory
-		deviceIDs[deviceID] = true
+	merged := make(map[string]any)
+	for k, v := range libtpuMetrics {
+		merged[k] = v
+	}
+	for k, v := range runtimeMetrics {
+		merged[k] = v
 	}
 
-	dutyCyclesPerCore := make(map[int64]float64)
-	for _, duty := range dutyCycles {
-		deviceID := duty.GetAttribute().GetValue().GetIntAttr()
-		dutyCycle := duty.GetGauge().GetAsDouble()
-		if t.chip.DevicesPerChip == 2 {
-			// For v2/v3/v7x chips, distribute duty cycle to both devices
-			dutyCyclesPerCore[deviceID*2] = dutyCycle
-			dutyCyclesPerCore[deviceID*2+1] = dutyCycle
-		} else {
-			// For v4+ chips, 1:1 mapping between devices and duty cycles
-			dutyCyclesPerCore[deviceID] = dutyCycle
-		}
+	if len(merged) == 0 {
+		return nil, errors.Join(runtimeErr, libtpuErr)
 	}
-
-	metrics := make(map[string]any)
-
-	for deviceID := range deviceIDs {
-		// Memory usage [%]
-		memoryUsageKey := fmt.Sprintf("tpu.%d.memoryUsage", deviceID)
-		// Memory usage [bytes]
-		memoryUsageBytesKey := fmt.Sprintf("tpu.%d.memoryUsageBytes", deviceID)
-		// Duty cycle [%]
-		dutyCycleKey := fmt.Sprintf("tpu.%d.dutyCycle", deviceID)
-
-		if memoryUsage, ok := memoryUsages[deviceID]; ok {
-			metrics[memoryUsageBytesKey] = memoryUsage
-			if totalMemory, ok := totalMemories[deviceID]; ok {
-				metrics[memoryUsageKey] = float64(memoryUsage) / float64(totalMemory) * 100
-			}
-		}
-
-		if dutyCycle, ok := dutyCyclesPerCore[deviceID]; ok {
-			metrics[dutyCycleKey] = dutyCycle
-		}
-	}
-
-	if len(metrics) == 0 {
-		return nil, fmt.Errorf("no metrics available")
-	}
-
-	return marshal(metrics, timestamppb.Now()), nil
+	return marshal(merged, timestamppb.Now()), errors.Join(runtimeErr, libtpuErr)
 }
 
-// Close closes the gRPC connection and releases resources.
+func (t *TPU) sampleRuntime(ctx context.Context) (map[string]any, error) {
+	selection := t.ensureRuntimeMetricSelection(ctx)
+
+	requested := map[string]string{
+		"total_memory": selection.TotalMemory,
+		"memory_usage": selection.MemoryUsage,
+		"duty_cycle":   selection.DutyCycle,
+	}
+	if selection.TensorcoreUtilization != "" {
+		requested["tensorcore_utilization"] = selection.TensorcoreUtilization
+	}
+	if selection.MemoryBandwidthUtil != "" {
+		requested["memory_bandwidth_utilization"] = selection.MemoryBandwidthUtil
+	}
+	if selection.HLOExecutionTiming != "" {
+		requested["hlo_exec_timing"] = selection.HLOExecutionTiming
+	}
+	if selection.HLOQueueSize != "" {
+		requested["hlo_queue_size"] = selection.HLOQueueSize
+	}
+
+	metricSets, err := t.queryRuntimeMetricSets(ctx, requested)
+	metrics := t.runtimeMetricSetsToStats(metricSets)
+	if len(metrics) == 0 {
+		return nil, err
+	}
+	return metrics, err
+}
+
+func (t *TPU) ensureRuntimeMetricSelection(ctx context.Context) runtimeMetricSelection {
+	t.runtimeMu.Lock()
+	if t.runtimeMetricNamesSet {
+		selection := withRuntimeMetricDefaults(t.runtimeMetricNames)
+		t.runtimeMu.Unlock()
+		return selection
+	}
+	t.runtimeMu.Unlock()
+
+	selection := withRuntimeMetricDefaults(runtimeMetricSelection{})
+	if t.client == nil {
+		return selection
+	}
+
+	resp, err := t.client.ListSupportedMetrics(ctx, &tpuproto.ListSupportedMetricsRequest{})
+	if err != nil {
+		return selection
+	}
+
+	supported := make([]string, 0, len(resp.SupportedMetric))
+	for _, metric := range resp.SupportedMetric {
+		name := strings.TrimSpace(metric.GetMetricName())
+		if name != "" {
+			supported = append(supported, name)
+		}
+	}
+	sort.Strings(supported)
+	selection.Supported = supported
+
+	for _, name := range supported {
+		normalized := normalizeMetricName(name)
+		switch {
+		case hasAllTokens(normalized, "hbm", "memory", "total", "bytes"):
+			selection.TotalMemory = name
+		case hasAllTokens(normalized, "hbm", "memory", "usage", "bytes"):
+			selection.MemoryUsage = name
+		case hasAllTokens(normalized, "tensorcore") && hasAnyToken(normalized, "dutycycle", "duty", "duty cycle"):
+			selection.DutyCycle = name
+		case hasAllTokens(normalized, "tensorcore") && hasAnyToken(normalized, "util", "utilization") &&
+			!hasAnyToken(normalized, "dutycycle", "duty", "duty cycle"):
+			selection.TensorcoreUtilization = name
+		case hasAllTokens(normalized, "bandwidth") && hasAnyToken(normalized, "memory", "hbm") && hasAnyToken(normalized, "util", "utilization"):
+			selection.MemoryBandwidthUtil = name
+		case hasAllTokens(normalized, "hlo", "queue", "size"):
+			selection.HLOQueueSize = name
+		case hasAllTokens(normalized, "hlo") && hasAnyToken(normalized, "exec", "execution") && hasAnyToken(normalized, "timing", "duration", "time"):
+			selection.HLOExecutionTiming = name
+		}
+	}
+
+	t.runtimeMu.Lock()
+	if !t.runtimeMetricNamesSet {
+		t.runtimeMetricNames = selection
+		t.runtimeMetricNamesSet = true
+	}
+	selection = withRuntimeMetricDefaults(t.runtimeMetricNames)
+	t.runtimeMu.Unlock()
+	return selection
+}
+
+func withRuntimeMetricDefaults(selection runtimeMetricSelection) runtimeMetricSelection {
+	if selection.TotalMemory == "" {
+		selection.TotalMemory = string(TPUTotalMemory)
+	}
+	if selection.MemoryUsage == "" {
+		selection.MemoryUsage = string(TPUMemoryUsage)
+	}
+	if selection.DutyCycle == "" {
+		selection.DutyCycle = string(TPUDutyCyclePct)
+	}
+	return selection
+}
+
+func normalizeMetricName(name string) string {
+	var b strings.Builder
+	for _, r := range strings.ToLower(name) {
+		switch {
+		case r >= 'a' && r <= 'z':
+			b.WriteRune(r)
+		case r >= '0' && r <= '9':
+			b.WriteRune(r)
+		default:
+			b.WriteByte(' ')
+		}
+	}
+	return strings.Join(strings.Fields(b.String()), " ")
+}
+
+func hasAllTokens(name string, tokens ...string) bool {
+	for _, token := range tokens {
+		if !strings.Contains(name, token) {
+			return false
+		}
+	}
+	return true
+}
+
+func hasAnyToken(name string, tokens ...string) bool {
+	for _, token := range tokens {
+		if strings.Contains(name, token) {
+			return true
+		}
+	}
+	return false
+}
+
+func (t *TPU) queryRuntimeMetricSets(ctx context.Context, requested map[string]string) (map[string][]*tpuproto.Metric, error) {
+	results := make(map[string][]*tpuproto.Metric, len(requested))
+	var mu sync.Mutex
+	var errMu sync.Mutex
+	var errs []error
+
+	var wg sync.WaitGroup
+	for logicalName, runtimeMetricName := range requested {
+		logicalName := logicalName
+		runtimeMetricName := runtimeMetricName
+		if runtimeMetricName == "" {
+			continue
+		}
+
+		wg.Go(func() {
+			metrics, err := t.getMetrics(ctx, TPUMetricName(runtimeMetricName))
+			if err != nil {
+				errMu.Lock()
+				errs = append(errs, fmt.Errorf("%s: %w", logicalName, err))
+				errMu.Unlock()
+				return
+			}
+			mu.Lock()
+			results[logicalName] = metrics
+			mu.Unlock()
+		})
+	}
+	wg.Wait()
+	return results, errors.Join(errs...)
+}
+
+func (t *TPU) runtimeMetricSetsToStats(metricSets map[string][]*tpuproto.Metric) map[string]any {
+	metrics := make(map[string]any)
+
+	totalMemories := parseIntGaugeByDevice(metricSets["total_memory"])
+	memoryUsages := parseIntGaugeByDevice(metricSets["memory_usage"])
+	dutyCycles := t.parseRuntimeDutyCycles(metricSets["duty_cycle"])
+	tensorcoreUtils := parseFloatGaugeByDevice(metricSets["tensorcore_utilization"])
+	memoryBandwidthUtils := parseFloatGaugeByDevice(metricSets["memory_bandwidth_utilization"])
+
+	deviceIDs := make(map[int64]struct{})
+	for _, ids := range []map[int64]int64{totalMemories, memoryUsages} {
+		for id := range ids {
+			deviceIDs[id] = struct{}{}
+		}
+	}
+	for _, ids := range []map[int64]float64{dutyCycles, tensorcoreUtils, memoryBandwidthUtils} {
+		for id := range ids {
+			deviceIDs[id] = struct{}{}
+		}
+	}
+
+	for deviceID := range deviceIDs {
+		if memoryUsage, ok := memoryUsages[deviceID]; ok {
+			metrics[fmt.Sprintf("tpu.%d.memoryUsageBytes", deviceID)] = memoryUsage
+			if totalMemory, ok := totalMemories[deviceID]; ok && totalMemory > 0 {
+				metrics[fmt.Sprintf("tpu.%d.memoryUsage", deviceID)] = float64(memoryUsage) / float64(totalMemory) * 100
+			}
+		}
+		if dutyCycle, ok := dutyCycles[deviceID]; ok {
+			metrics[fmt.Sprintf("tpu.%d.dutyCycle", deviceID)] = dutyCycle
+		}
+		if utilization, ok := tensorcoreUtils[deviceID]; ok {
+			metrics[fmt.Sprintf("tpu.%d.tensorcoreUtilization", deviceID)] = utilization
+		}
+		if utilization, ok := memoryBandwidthUtils[deviceID]; ok {
+			metrics[fmt.Sprintf("tpu.%d.memoryBandwidthUtilization", deviceID)] = utilization
+		}
+	}
+
+	appendRuntimeHLOExecutionTiming(metrics, metricSets["hlo_exec_timing"])
+	appendRuntimeHLOQueueSize(metrics, metricSets["hlo_queue_size"])
+	return metrics
+}
+
+func parseIntGaugeByDevice(metricSet []*tpuproto.Metric) map[int64]int64 {
+	values := make(map[int64]int64, len(metricSet))
+	for _, metric := range metricSet {
+		deviceID, ok := metricDeviceID(metric)
+		if !ok || metric.GetGauge() == nil {
+			continue
+		}
+		values[deviceID] = metric.GetGauge().GetAsInt()
+	}
+	return values
+}
+
+func parseFloatGaugeByDevice(metricSet []*tpuproto.Metric) map[int64]float64 {
+	values := make(map[int64]float64, len(metricSet))
+	for _, metric := range metricSet {
+		deviceID, ok := metricDeviceID(metric)
+		if !ok || metric.GetGauge() == nil {
+			continue
+		}
+		value := metric.GetGauge().GetAsDouble()
+		if value == 0 && metric.GetGauge().GetAsInt() != 0 {
+			value = float64(metric.GetGauge().GetAsInt())
+		}
+		values[deviceID] = value
+	}
+	return values
+}
+
+func metricDeviceID(metric *tpuproto.Metric) (int64, bool) {
+	if metric == nil || metric.GetAttribute() == nil || metric.GetAttribute().GetValue() == nil {
+		return 0, false
+	}
+	return metric.GetAttribute().GetValue().GetIntAttr(), true
+}
+
+func (t *TPU) parseRuntimeDutyCycles(metricSet []*tpuproto.Metric) map[int64]float64 {
+	values := make(map[int64]float64, len(metricSet))
+	for _, metric := range metricSet {
+		deviceID, ok := metricDeviceID(metric)
+		if !ok || metric.GetGauge() == nil {
+			continue
+		}
+		dutyCycle := metric.GetGauge().GetAsDouble()
+		if t.chip.DevicesPerChip == 2 {
+			values[deviceID*2] = dutyCycle
+			values[deviceID*2+1] = dutyCycle
+		} else {
+			values[deviceID] = dutyCycle
+		}
+	}
+	return values
+}
+
+func appendRuntimeHLOExecutionTiming(out map[string]any, metricSet []*tpuproto.Metric) {
+	for idx, metric := range metricSet {
+		label := runtimeMetricLabel(metric, fmt.Sprintf("item_%d", idx))
+		if summary := metric.GetSummary(); summary != nil {
+			if count := summary.GetSampleCount(); count > 0 {
+				out[fmt.Sprintf("tpu.hloExecTiming.%s.meanUs", label)] = summary.GetSampleSum() / float64(count)
+			}
+			for _, q := range summary.GetQuantile() {
+				name := quantileName(q.GetQuantile())
+				if name == "" {
+					continue
+				}
+				out[fmt.Sprintf("tpu.hloExecTiming.%s.%sUs", label, name)] = q.GetValue()
+			}
+			continue
+		}
+		if distribution := metric.GetDistribution(); distribution != nil && distribution.GetCount() > 0 {
+			out[fmt.Sprintf("tpu.hloExecTiming.%s.meanUs", label)] = distribution.GetMean()
+			continue
+		}
+		if gauge := metric.GetGauge(); gauge != nil {
+			value := gauge.GetAsDouble()
+			if value == 0 && gauge.GetAsInt() != 0 {
+				value = float64(gauge.GetAsInt())
+			}
+			out[fmt.Sprintf("tpu.hloExecTiming.%s.meanUs", label)] = value
+		}
+	}
+}
+
+func appendRuntimeHLOQueueSize(out map[string]any, metricSet []*tpuproto.Metric) {
+	for idx, metric := range metricSet {
+		if metric.GetGauge() == nil {
+			continue
+		}
+		label := runtimeMetricLabel(metric, fmt.Sprintf("item_%d", idx))
+		value := metric.GetGauge().GetAsInt()
+		if value == 0 && metric.GetGauge().GetAsDouble() != 0 {
+			out[fmt.Sprintf("tpu.hloQueueSize.%s", label)] = metric.GetGauge().GetAsDouble()
+			continue
+		}
+		out[fmt.Sprintf("tpu.hloQueueSize.%s", label)] = value
+	}
+}
+
+func runtimeMetricLabel(metric *tpuproto.Metric, fallback string) string {
+	if metric == nil || metric.GetAttribute() == nil || metric.GetAttribute().GetValue() == nil {
+		return fallback
+	}
+	if value := strings.TrimSpace(metric.GetAttribute().GetValue().GetStringAttr()); value != "" {
+		return sanitizeMetricLabel(value)
+	}
+	return fallback
+}
+
+func quantileName(q float64) string {
+	switch {
+	case almostEqual(q, 0.50):
+		return "p50"
+	case almostEqual(q, 0.90):
+		return "p90"
+	case almostEqual(q, 0.95):
+		return "p95"
+	case almostEqual(q, 0.99):
+		return "p99"
+	case almostEqual(q, 0.999):
+		return "p999"
+	default:
+		return ""
+	}
+}
+
+func almostEqual(a, b float64) bool {
+	const epsilon = 1e-9
+	if a > b {
+		return a-b < epsilon
+	}
+	return b-a < epsilon
+}
+
+// Close closes the gRPC connection and the libtpu handle.
 func (t *TPU) Close() {
 	if t.conn != nil {
 		_ = t.conn.Close()
 		t.conn = nil
 		t.client = nil
+	}
+	if t.libtpu != nil {
+		_ = t.libtpu.Close()
+		t.libtpu = nil
+	}
+}
+
+// Probe returns TPU metadata and logs detected runtime/libtpu capabilities.
+func (t *TPU) Probe(ctx context.Context) *spb.EnvironmentRecord {
+	if t.count == 0 {
+		return nil
+	}
+
+	if t.client != nil {
+		if resp, err := t.client.ListSupportedMetrics(ctx, &tpuproto.ListSupportedMetricsRequest{}); err == nil {
+			supportedMetrics := make([]string, 0, len(resp.SupportedMetric))
+			for _, sm := range resp.SupportedMetric {
+				supportedMetrics = append(supportedMetrics, sm.MetricName)
+			}
+			sort.Strings(supportedMetrics)
+			t.logger.Debug("tpu: supported runtime metrics", "metrics", supportedMetrics)
+		}
+	}
+
+	if t.libtpu != nil {
+		if probe, err := t.libtpu.Probe(ctx); err == nil {
+			t.logger.Debug(
+				"tpu: direct libtpu monitoring ready",
+				"path", probe.LibraryPath,
+				"version", probe.Version,
+				"metrics", probe.SupportedMetrics,
+				"symbols", probe.Symbols,
+			)
+		}
+	}
+
+	return &spb.EnvironmentRecord{
+		Tpu: &spb.TPUInfo{
+			Name:           t.chip.Name,
+			Count:          uint32(t.count),
+			HbmGib:         uint32(t.chip.HbmGiB),
+			DevicesPerChip: uint32(t.chip.DevicesPerChip),
+		},
 	}
 }
 
@@ -286,42 +655,15 @@ func tpuChipFromPCIDeviceID(deviceID, subsystemID string) (TPUChip, error) {
 	return TPUChip{}, fmt.Errorf("unknown TPU chip")
 }
 
-// getMetrics retrieves metrics from the TPU runtime gRPC service for the given metric name.
-func (t *TPU) getMetrics(metricName TPUMetricName) ([]*tpuproto.Metric, error) {
+// getMetrics retrieves metrics from the TPU runtime gRPC service.
+func (t *TPU) getMetrics(
+	ctx context.Context,
+	metricName TPUMetricName,
+) ([]*tpuproto.Metric, error) {
 	req := &tpuproto.MetricRequest{MetricName: string(metricName)}
-
-	resp, err := t.client.GetRuntimeMetric(context.Background(), req)
+	resp, err := t.client.GetRuntimeMetric(ctx, req)
 	if err != nil {
 		return nil, err
 	}
-	metrics := resp.Metric.Metrics
-
-	return metrics, nil
-}
-
-// Probe returns the TPU metadata.
-func (t *TPU) Probe(ctx context.Context) *spb.EnvironmentRecord {
-	if t.count == 0 {
-		return nil
-	}
-
-	// Log available metric names.
-	req := &tpuproto.ListSupportedMetricsRequest{}
-	resp, err := t.client.ListSupportedMetrics(ctx, req)
-	if err == nil {
-		supportedMetrics := []string{}
-		for _, sm := range resp.SupportedMetric {
-			supportedMetrics = append(supportedMetrics, sm.MetricName)
-		}
-		t.logger.Debug("tpu: supported metrics", "metrics", supportedMetrics)
-	}
-
-	return &spb.EnvironmentRecord{
-		Tpu: &spb.TPUInfo{
-			Name:           t.chip.Name,
-			Count:          uint32(t.count),
-			HbmGib:         uint32(t.chip.HbmGiB),
-			DevicesPerChip: uint32(t.chip.DevicesPerChip),
-		},
-	}
+	return resp.Metric.Metrics, nil
 }

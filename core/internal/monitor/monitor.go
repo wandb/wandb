@@ -455,8 +455,10 @@ func (sm *SystemMonitor) monitorResource(resource Resource) {
 				continue // nothing to do
 			}
 
-			// Push metrics to the buffer
-			sm.buffer.Push(metrics)
+			// Push metrics to the buffer when in-memory buffering is enabled.
+			if sm.buffer != nil {
+				sm.buffer.Push(metrics)
+			}
 
 			// Label for custom grouping of stats, e.g. per node in a multi-node run.
 			if label := sm.settings.GetLabel(); label != "" {
