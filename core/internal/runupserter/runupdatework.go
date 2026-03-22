@@ -50,7 +50,7 @@ type RunUpdateWork struct {
 	Settings           *settings.Settings
 	BeforeRunEndCtx    context.Context
 	Operations         *wboperation.WandbOperations
-	FeatureProvider    *featurechecker.ServerFeaturesCache
+	FeatureProvider    *featurechecker.FeatureProvider
 	GraphqlClientOrNil graphql.Client
 	Logger             *observability.CoreLogger
 }
