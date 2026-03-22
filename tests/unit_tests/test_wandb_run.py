@@ -343,3 +343,9 @@ def test_public_api_is_cached(mock_run, mocker):
     assert api1 is api2
     assert api1 is run._cached_public_api
     mock_api_class.assert_called_once()
+
+
+def test_finish_before_set_library(test_settings):
+    run = wandb.Run(settings=test_settings({"run_id": "test-wl-guard"}))
+    run._finish()
+    assert run._is_finished is True

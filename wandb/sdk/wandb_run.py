@@ -2286,7 +2286,10 @@ class Run:
         if self._is_finished:
             return
 
-        assert self._wl
+        if self._wl is None:
+            self._is_finished = True
+            logger.warning("_finish called before library was initialized")
+            return
 
         logger.info(f"finishing run {self._get_path()}")
         with telemetry.context(run=self) as tel:
