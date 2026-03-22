@@ -475,6 +475,12 @@ def local_testcontainer_registry(session: nox.Session) -> None:
 @nox.session(name="gql-codegen", tags=["graphql"], python="3.10")
 def gql_codegen(session: nox.Session) -> None:
     """Generate client-side Python code from GraphQL query, mutation, and fragment definitions."""
+    install_timed(
+        session,
+        "-r",
+        _requirements_file(session.python),
+        "ruff",  # tools/graphql_codegen/plugin.py shells out to Ruff after generation
+    )
     session.run("tools/graphql_codegen/generate-graphql.sh", external=True)
 
 
