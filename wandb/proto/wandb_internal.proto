@@ -1272,6 +1272,7 @@ message AppleInfo {
   uint32 memory_gb = 5;
   uint64 swap_total_bytes = 6;
   uint64 ram_total_bytes = 7;
+  string mac_model = 8;
 }
 
 message GpuNvidiaInfo {
