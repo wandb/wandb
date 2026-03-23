@@ -35,11 +35,12 @@ func NewSymonSampler(logger *observability.CoreLogger) *SymonSampler {
 		logger:   logger,
 	}
 
-	sampler.resources = append(sampler.resources, monitor.NewSystem(monitor.SystemParams{
-		Pid:              0,
-		TrackProcessTree: false,
-		DiskPaths:        defaultSymonDiskPaths(),
-	}))
+	sampler.resources = append(sampler.resources,
+		monitor.NewSystem(monitor.SystemParams{
+			Pid:              0,
+			TrackProcessTree: false,
+			DiskPaths:        defaultSymonDiskPaths(),
+		}))
 
 	gpuManager := monitor.NewGPUResourceManager(false)
 	gpu, err := monitor.NewGPU(gpuManager, 0, nil)
@@ -47,6 +48,10 @@ func NewSymonSampler(logger *observability.CoreLogger) *SymonSampler {
 		logger.Debug(fmt.Sprintf("symon: gpu monitor unavailable: %v", err))
 	} else if gpu != nil {
 		sampler.resources = append(sampler.resources, gpu)
+	}
+
+	if tpu := monitor.NewTPU(sampler.logger); tpu != nil {
+		sampler.resources = append(sampler.resources, tpu)
 	}
 
 	return sampler
