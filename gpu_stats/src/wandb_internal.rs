@@ -2610,6 +2610,8 @@ pub struct AppleInfo {
     pub swap_total_bytes: u64,
     #[prost(uint64, tag = "7")]
     pub ram_total_bytes: u64,
+    #[prost(string, tag = "8")]
+    pub mac_model: ::prost::alloc::string::String,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GpuNvidiaInfo {

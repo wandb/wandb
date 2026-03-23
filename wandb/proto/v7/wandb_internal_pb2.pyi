@@ -4200,6 +4200,7 @@ class AppleInfo(_message.Message):
     MEMORY_GB_FIELD_NUMBER: _builtins.int
     SWAP_TOTAL_BYTES_FIELD_NUMBER: _builtins.int
     RAM_TOTAL_BYTES_FIELD_NUMBER: _builtins.int
+    MAC_MODEL_FIELD_NUMBER: _builtins.int
     name: _builtins.str
     ecpu_cores: _builtins.int
     pcpu_cores: _builtins.int
@@ -4207,6 +4208,7 @@ class AppleInfo(_message.Message):
     memory_gb: _builtins.int
     swap_total_bytes: _builtins.int
     ram_total_bytes: _builtins.int
+    mac_model: _builtins.str
     def __init__(
         self,
         *,
@@ -4217,8 +4219,9 @@ class AppleInfo(_message.Message):
         memory_gb: _builtins.int = ...,
         swap_total_bytes: _builtins.int = ...,
         ram_total_bytes: _builtins.int = ...,
+        mac_model: _builtins.str = ...,
     ) -> None: ...
-    _ClearFieldArgType: _TypeAlias = _typing.Literal["ecpu_cores", b"ecpu_cores", "gpu_cores", b"gpu_cores", "memory_gb", b"memory_gb", "name", b"name", "pcpu_cores", b"pcpu_cores", "ram_total_bytes", b"ram_total_bytes", "swap_total_bytes", b"swap_total_bytes"]  # noqa: Y015
+    _ClearFieldArgType: _TypeAlias = _typing.Literal["ecpu_cores", b"ecpu_cores", "gpu_cores", b"gpu_cores", "mac_model", b"mac_model", "memory_gb", b"memory_gb", "name", b"name", "pcpu_cores", b"pcpu_cores", "ram_total_bytes", b"ram_total_bytes", "swap_total_bytes", b"swap_total_bytes"]  # noqa: Y015
     def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
 
 Global___AppleInfo: _TypeAlias = AppleInfo  # noqa: Y015
