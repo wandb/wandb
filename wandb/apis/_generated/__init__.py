@@ -13,6 +13,8 @@ __all__ = [
     "GET_PROJECTS_GQL",
     "GET_PROJECT_GQL",
     "GET_SWEEPS_GQL",
+    "GET_SWEEP_AGENTS_GQL",
+    "GET_SWEEP_AGENT_GQL",
     "GET_SWEEP_GQL",
     "GET_SWEEP_LEGACY_GQL",
     "GET_TEAM_ENTITY_GQL",
@@ -24,6 +26,8 @@ __all__ = [
     "GetSweeps",
     "GetSweep",
     "GetSweepLegacy",
+    "GetSweepAgent",
+    "GetSweepAgents",
     "GetTeamEntity",
     "CreateTeam",
     "CreateInvite",
@@ -39,6 +43,7 @@ __all__ = [
     "ProjectIconInput",
     "RateLimitsInput",
     "UpsertModelInput",
+    "AgentFragment",
     "ApiKeyFragment",
     "CreatedProjectFragment",
     "LegacySweepFragment",
@@ -56,6 +61,7 @@ from .create_user_from_admin import CreateUserFromAdmin
 from .delete_api_key import DeleteApiKey
 from .delete_invite import DeleteInvite
 from .fragments import (
+    AgentFragment,
     ApiKeyFragment,
     CreatedProjectFragment,
     LegacySweepFragment,
@@ -70,6 +76,8 @@ from .get_default_entity import GetDefaultEntity
 from .get_project import GetProject
 from .get_projects import GetProjects
 from .get_sweep import GetSweep
+from .get_sweep_agent import GetSweepAgent
+from .get_sweep_agents import GetSweepAgents
 from .get_sweep_legacy import GetSweepLegacy
 from .get_sweeps import GetSweeps
 from .get_team_entity import GetTeamEntity
@@ -92,6 +100,8 @@ from .operations import (
     GET_DEFAULT_ENTITY_GQL,
     GET_PROJECT_GQL,
     GET_PROJECTS_GQL,
+    GET_SWEEP_AGENT_GQL,
+    GET_SWEEP_AGENTS_GQL,
     GET_SWEEP_GQL,
     GET_SWEEP_LEGACY_GQL,
     GET_SWEEPS_GQL,

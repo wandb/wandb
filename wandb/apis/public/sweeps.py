@@ -362,6 +362,35 @@ class Sweep(Attrs):
         )
         return sweep
 
+    def agent(self, agent_id: str) -> Agent:
+        from wandb.apis._generated import GET_SWEEP_AGENT_GQL
+
+        variables = {
+            "agentID": agent_id,
+            "sweep": self.id,
+            "entity": self.entity,
+            "project": self.project,
+        }
+        data = self.client.execute(gql(GET_SWEEP_AGENT_GQL), variable_values=variables)
+        return Agent(self.client, attrs=data["project"]["sweep"]["agent"])
+
+    def agents(self) -> list[Agent]:
+        from wandb.apis._generated import GET_SWEEP_AGENTS_GQL, GetSweepAgents
+
+        variables = {
+            "sweep": self.id,
+            "entity": self.entity,
+            "project": self.project,
+        }
+        data = self.client.execute(gql(GET_SWEEP_AGENTS_GQL), variable_values=variables)
+        parsed = GetSweepAgents.model_validate(data)
+        if not parsed.project or not parsed.project.sweep:
+            return []
+        return [
+            Agent(self.client, attrs=edge.node.model_dump(by_alias=True))
+            for edge in parsed.project.sweep.agents.edges
+        ]
+
     def to_html(self, height: int = 420, hidden: bool = False) -> str:
         """Generate HTML containing an iframe displaying this sweep."""
         url = self.url + "?jupyter=true"
@@ -379,3 +408,16 @@ class Sweep(Attrs):
         pathstr = "/".join(self.path)
         state = self._attrs.get("state", "Unknown State")
         return f"<Sweep {pathstr} ({state})>"
+
+
+class Agent(Attrs):
+    def __init__(self, client: RetryingClient, attrs: Mapping[str, Any] | None = None):
+        super().__init__(attrs)
+        self._client = client
+
+    # TODO: implement runs()
+
+    def __repr__(self) -> str:
+        state = self._attrs.get("state", "Unknown State")
+        name = self._attrs.get("id", "Unknown")
+        return f"<Agent {name} ({state})>"

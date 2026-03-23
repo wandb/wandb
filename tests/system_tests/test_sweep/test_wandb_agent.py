@@ -10,11 +10,22 @@ from pathlib import Path
 from unittest import mock
 
 import pytest
+from wandb.apis.public.sweeps import Agent as PublicAgent
 from wandb.sdk.launch.sweeps.utils import (
     create_sweep_command,
     create_sweep_command_args,
 )
 from wandb.wandb_agent import Agent
+
+
+def test_public_agent_repr():
+    """Public API Agent.__repr__ uses id and state from attrs."""
+    client = mock.Mock()
+    agent = PublicAgent(
+        client,
+        attrs={"id": "test-agent-id", "state": "RUNNING"},
+    )
+    assert repr(agent) == "<Agent test-agent-id (RUNNING)>"
 
 
 def test_agent_create_command_args():

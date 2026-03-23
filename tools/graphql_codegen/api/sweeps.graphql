@@ -14,6 +14,16 @@ fragment SweepFragment on Sweep {
   runCountExpected
 }
 
+fragment AgentFragment on Agent {
+  id
+  name
+  host
+  state
+  totalRuns
+  createdAt
+  heartbeatAt
+}
+
 # Legacy fragment for servers that don't support displayName/runCountExpected.
 fragment LegacySweepFragment on Sweep {
   __typename
@@ -56,6 +66,30 @@ query GetSweepLegacy($name: String!, $project: String, $entity: String) {
   project(name: $project, entityName: $entity) {
     sweep(sweepName: $name) {
       ...LegacySweepFragment
+    }
+  }
+}
+
+query GetSweepAgent($agentID: String!, $sweep: String!, $entity: String, $project: String) {
+  project(name: $project, entityName: $entity) {
+    sweep(sweepName: $sweep) {
+      agent(agentName: $agentID) {
+        ...AgentFragment
+      }
+    }
+  }
+}
+
+query GetSweepAgents($sweep: String!, $entity: String, $project: String) {
+  project(name: $project, entityName: $entity) {
+    sweep(sweepName: $sweep) {
+      agents {
+        edges {
+          node {
+            ...AgentFragment
+          }
+        }
+      }
     }
   }
 }
