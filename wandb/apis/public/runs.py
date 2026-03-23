@@ -50,6 +50,8 @@ import wandb.apis.public.runhistory as runhistory
 from wandb import env, util
 from wandb._strutils import nameof
 from wandb.apis import public
+from wandb.apis._generated import GET_AGENT_RUNS_GQL
+from wandb.apis._generated.get_agent_runs import GetAgentRuns
 from wandb.apis.attrs import Attrs
 from wandb.apis.internal import Api as InternalApi
 from wandb.apis.normalize import normalize_exceptions
@@ -498,6 +500,116 @@ class Runs(SizedPaginator["Run"]):
                 # Wait for all to complete
                 for future in futures:
                     future.result()
+
+
+class AgentRuns(SizedPaginator["Run"]):
+    """A lazy iterator of `Run` objects for a single sweep agent."""
+
+    def __init__(
+        self,
+        client: RetryingClient,
+        entity: str,
+        project: str,
+        sweep_id: str,
+        agent_key: str,
+        *,
+        total_runs: int,
+        order: str = "+created_at",
+        per_page: int = 50,
+        service_api: ServiceApi | None = None,
+    ) -> None:
+        if not order:
+            order = "+created_at"
+
+        self.QUERY = gql(GET_AGENT_RUNS_GQL)
+        self.entity = entity
+        self.project = project
+        self._sweep_id = sweep_id
+        self._agent_key = agent_key
+        self.order = order
+        self._sweeps: dict[str, public.Sweep] = {}
+        self._service_api = service_api
+        self._total_runs = total_runs
+        self.per_page = per_page
+
+        variables = {
+            "project": self.project,
+            "entity": self.entity,
+            "order": self.order,
+            "agentID": self._agent_key,
+            "sweep": self._sweep_id,
+            "after": None,
+            "before": None,
+            "first": self.per_page,
+            "last": None,
+        }
+        super().__init__(client, variables, per_page)
+
+    def update_variables(self) -> None:
+        """Map paginator state to GetAgentRuns variables (after/first, not cursor/perPage)."""
+        self.variables.update(
+            {
+                "first": self.per_page,
+                "after": self.cursor,
+                "before": None,
+                "last": None,
+            }
+        )
+
+    @property
+    def _length(self) -> int:
+        return self._total_runs
+
+    def _parsed(self) -> GetAgentRuns:
+        assert self.last_response is not None
+        return GetAgentRuns.model_validate(self.last_response)
+
+    def _agent_runs_connection(self):
+        parsed = self._parsed()
+        if not parsed.project:
+            raise ValueError(f"Could not find project {self.project!r} for agent runs.")
+        if not parsed.project.sweep:
+            raise ValueError(f"Could not find sweep {self._sweep_id!r} for agent runs.")
+        if not parsed.project.sweep.agent:
+            raise ValueError(
+                f"Could not find agent {self._agent_key!r} for agent runs."
+            )
+        return parsed.project.sweep.agent.runs
+
+    @property
+    def more(self) -> bool:
+        if self.last_response:
+            return bool(self._agent_runs_connection().page_info.has_next_page)
+        return True
+
+    @property
+    def cursor(self) -> str | None:
+        if self.last_response:
+            edges = self._agent_runs_connection().edges
+            if edges:
+                return edges[-1].cursor
+        return None
+
+    def convert_objects(self) -> list[Run]:
+        objs = []
+        for edge in self._agent_runs_connection().edges:
+            node = edge.node.model_dump(by_alias=True)
+            run = Run(
+                self.client,
+                self.entity,
+                self.project,
+                node["name"],
+                node,
+                include_sweeps=False,
+                lazy=True,
+                service_api=self._service_api,
+            )
+            objs.append(run)
+
+        return objs
+
+    def __repr__(self) -> str:
+        return f"<{nameof(type(self))} {self.entity}/{self.project} agent={self._agent_key!r}>"
 
 
 class Run(Attrs):

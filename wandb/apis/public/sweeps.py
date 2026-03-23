@@ -42,11 +42,13 @@ from wandb import util
 from wandb.apis import public
 from wandb.apis.attrs import Attrs
 from wandb.apis.paginator import SizedPaginator
+from wandb.errors import UsageError
 from wandb.sdk.lib import ipython
 
 if TYPE_CHECKING:
     from wandb.apis._generated import GetSweeps
     from wandb.apis.public.api import RetryingClient
+    from wandb.apis.public.runs import AgentRuns
 
 
 class Sweeps(SizedPaginator["Sweep"]):
@@ -372,7 +374,13 @@ class Sweep(Attrs):
             "project": self.project,
         }
         data = self.client.execute(gql(GET_SWEEP_AGENT_GQL), variable_values=variables)
-        return Agent(self.client, attrs=data["project"]["sweep"]["agent"])
+        return Agent(
+            self.client,
+            attrs=data["project"]["sweep"]["agent"],
+            entity=self.entity,
+            project=self.project,
+            sweep_id=self.id,
+        )
 
     def agents(self) -> list[Agent]:
         from wandb.apis._generated import GET_SWEEP_AGENTS_GQL, GetSweepAgents
@@ -387,7 +395,13 @@ class Sweep(Attrs):
         if not parsed.project or not parsed.project.sweep:
             return []
         return [
-            Agent(self.client, attrs=edge.node.model_dump(by_alias=True))
+            Agent(
+                self.client,
+                attrs=edge.node.model_dump(by_alias=True),
+                entity=self.entity,
+                project=self.project,
+                sweep_id=self.id,
+            )
             for edge in parsed.project.sweep.agents.edges
         ]
 
@@ -411,11 +425,50 @@ class Sweep(Attrs):
 
 
 class Agent(Attrs):
-    def __init__(self, client: RetryingClient, attrs: Mapping[str, Any] | None = None):
-        super().__init__(attrs)
+    def __init__(
+        self,
+        client: RetryingClient,
+        attrs: Mapping[str, Any] | None = None,
+        entity: str | None = None,
+        project: str | None = None,
+        sweep_id: str | None = None,
+    ) -> None:
+        super().__init__(dict(attrs or {}))
         self._client = client
+        self._entity = entity
+        self._project = project
+        self._sweep_id = sweep_id
 
-    # TODO: implement runs()
+    def runs(
+        self,
+        per_page: int = 50,
+    ) -> AgentRuns:
+        """Return a paginated collection of runs executed by this agent.
+
+        The total length uses ``totalRuns`` from the agent payload. Obtain agents
+        via :meth:`Sweep.agent` or :meth:`Sweep.agents` so sweep context is set.
+        """
+        from wandb.apis.public.runs import AgentRuns
+
+        if self._entity is None or self._project is None or self._sweep_id is None:
+            raise UsageError(
+                "Agent.runs() requires sweep context. "
+                "Use an Agent returned from sweep.agent(...) or sweep.agents()."
+            )
+        agent_key = self._attrs.get("name") or self._attrs.get("id")
+        if not agent_key:
+            raise UsageError("Agent is missing id and name; cannot list runs.")
+        total_runs = int(self._attrs.get("totalRuns") or 0)
+        return AgentRuns(
+            self._client,
+            entity=self._entity,
+            project=self._project,
+            sweep_id=self._sweep_id,
+            agent_key=agent_key,
+            total_runs=total_runs,
+            order="+created_at",
+            per_page=per_page,
+        )
 
     def __repr__(self) -> str:
         state = self._attrs.get("state", "Unknown State")

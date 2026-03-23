@@ -36,3 +36,26 @@ fragment UserFragment on User {
     }
   }
 }
+
+# TODO: migrate runs.py to use this fragment
+fragment LightweightRunFragment on Run {
+  id
+  tags
+  name
+  displayName
+  sweepName
+  state
+  group
+  jobType
+  commit
+  readOnly
+  createdAt
+  heartbeatAt
+  description
+  notes
+  historyLineCount
+  user {
+    name
+    username
+  }
+}
