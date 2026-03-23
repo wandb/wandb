@@ -317,3 +317,25 @@ def test_public_api_sweep_agent_retrieves_running_agent(user):
 
     assert not agent_thread.is_alive(), "agent thread did not finish after stop"
     assert not agent_errors, f"agent thread raised: {agent_errors!r}"
+
+
+def test_public_api_sweep_agent_runs_lists_finished_run(user):
+    """After three sweep runs finish, Agent.runs(per_page=2) returns all three (paginated)."""
+    project = "test"
+    sweep_id = wandb.sweep(SWEEP_CONFIG_GRID, entity=user, project=project)
+
+    def train():
+        run = wandb.init()
+        run.log({"loss": 0.25})
+        run.finish()
+
+    wandb.agent(sweep_id, function=train, count=3, project=project, entity=user)
+
+    api = Api()
+    sweep = api.sweep(f"{user}/{project}/sweeps/{sweep_id}")
+    agents = sweep.agents()
+    assert len(agents) >= 1
+    public_agent = agents[0]
+    runs_list = list(public_agent.runs(per_page=2))
+    assert len(runs_list) == 3
+    assert {r.state for r in runs_list} == {"finished"}

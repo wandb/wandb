@@ -9,6 +9,7 @@ __all__ = [
     "DELETE_API_KEY_GQL",
     "DELETE_INVITE_GQL",
     "GENERATE_API_KEY_GQL",
+    "GET_AGENT_RUNS_GQL",
     "GET_DEFAULT_ENTITY_GQL",
     "GET_PROJECTS_GQL",
     "GET_PROJECT_GQL",
@@ -28,6 +29,7 @@ __all__ = [
     "GetSweepLegacy",
     "GetSweepAgent",
     "GetSweepAgents",
+    "GetAgentRuns",
     "GetTeamEntity",
     "CreateTeam",
     "CreateInvite",
@@ -47,6 +49,7 @@ __all__ = [
     "ApiKeyFragment",
     "CreatedProjectFragment",
     "LegacySweepFragment",
+    "LightweightRunFragment",
     "PageInfoFragment",
     "ProjectFragment",
     "SweepFragment",
@@ -65,6 +68,7 @@ from .fragments import (
     ApiKeyFragment,
     CreatedProjectFragment,
     LegacySweepFragment,
+    LightweightRunFragment,
     PageInfoFragment,
     ProjectFragment,
     SweepFragment,
@@ -72,6 +76,7 @@ from .fragments import (
     UserInfoFragment,
 )
 from .generate_api_key import GenerateApiKey
+from .get_agent_runs import GetAgentRuns
 from .get_default_entity import GetDefaultEntity
 from .get_project import GetProject
 from .get_projects import GetProjects
@@ -97,6 +102,7 @@ from .operations import (
     DELETE_API_KEY_GQL,
     DELETE_INVITE_GQL,
     GENERATE_API_KEY_GQL,
+    GET_AGENT_RUNS_GQL,
     GET_DEFAULT_ENTITY_GQL,
     GET_PROJECT_GQL,
     GET_PROJECTS_GQL,

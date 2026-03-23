@@ -93,3 +93,33 @@ query GetSweepAgents($sweep: String!, $entity: String, $project: String) {
     }
   }
 }
+
+query GetAgentRuns(
+  $agentID: String!
+  $sweep: String!
+  $entity: String
+  $project: String
+  $after: String
+  $before: String
+  $first: Int
+  $last: Int
+  $order: String
+) {
+  project(name: $project, entityName: $entity) {
+    sweep(sweepName: $sweep) {
+      agent(agentName: $agentID) {
+        runs(after: $after, before: $before, first: $first, last: $last, order: $order) {
+          pageInfo {
+            ...PageInfoFragment
+          }
+          edges {
+            cursor
+            node {
+              ...LightweightRunFragment
+            }
+          }
+        }
+      }
+    }
+  }
+}
