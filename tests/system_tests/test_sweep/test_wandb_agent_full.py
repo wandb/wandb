@@ -1,14 +1,33 @@
 """Agent tests."""
 
 import contextlib
+import inspect
 import io
 import pathlib
+import queue
+import threading
 from unittest import mock
 
 import wandb
+import wandb.agents.pyagent as pyagent_mod
 from wandb.apis.public import Api
 from wandb.cli import cli
 from wandb.sdk.launch.sweeps import SweepNotFoundError
+
+from .test_wandb_sweep import SWEEP_CONFIG_GRID
+
+
+def _pyagent_agent_id_from_call_stack() -> str:
+    """Resolve the active sweep `wandb.agents.pyagent.Agent` id from the call stack.
+
+    `train()` runs inside `Agent._run_job`, so the stack contains that agent instance.
+    """
+    for frame_info in inspect.stack():
+        self_obj = frame_info.frame.f_locals.get("self")
+        if isinstance(self_obj, pyagent_mod.Agent) and self_obj._agent_id:
+            return self_obj._agent_id
+    msg = "could not find wandb.agents.pyagent.Agent with _agent_id on the call stack"
+    raise RuntimeError(msg)
 
 
 def test_agent_basic(user):
@@ -246,3 +265,55 @@ def test_agent_sweep_deleted(user):
 
     stderr_output = captured_stderr.getvalue()
     assert "Sweep was deleted or agent was not found" in stderr_output
+
+
+def test_public_api_sweep_agent_retrieves_running_agent(user):
+    """While a sweep agent is blocked in user code, Api().sweep().agent() returns it."""
+    project = "test"
+    sweep_id = wandb.sweep(SWEEP_CONFIG_GRID, entity=user, project=project)
+
+    stop = threading.Event()
+    agent_id_queue: queue.Queue[str] = queue.Queue(maxsize=1)
+    agent_errors: list[Exception] = []
+
+    def train():
+        wandb.init()
+        agent_id_queue.put(_pyagent_agent_id_from_call_stack())
+        stop.wait()
+        wandb.finish()
+
+    def run_agent():
+        try:
+            wandb.agent(
+                sweep_id,
+                function=train,
+                count=1,
+                project=project,
+                entity=user,
+            )
+        except Exception as e:
+            agent_errors.append(e)
+
+    agent_thread = threading.Thread(
+        target=run_agent, name="wandb-agent-test", daemon=True
+    )
+    agent_thread.start()
+
+    try:
+        api = Api()
+        agent_id = agent_id_queue.get(timeout=90)
+        sweep = api.sweep(f"{user}/{project}/sweeps/{sweep_id}")
+        assert len(sweep.agents()) > 0
+        retrieved = sweep.agents()[0]
+        assert retrieved.id == agent_id
+        assert retrieved.state
+
+        retrieved = sweep.agent(retrieved.name)
+        assert retrieved.id == agent_id
+        assert retrieved.state
+    finally:
+        stop.set()
+        agent_thread.join(timeout=120)
+
+    assert not agent_thread.is_alive(), "agent thread did not finish after stop"
+    assert not agent_errors, f"agent thread raised: {agent_errors!r}"

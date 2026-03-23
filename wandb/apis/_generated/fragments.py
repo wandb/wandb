@@ -10,6 +10,16 @@ from pydantic import Field
 from wandb._pydantic import GQLId, GQLResult, Typename
 
 
+class AgentFragment(GQLResult):
+    id: GQLId
+    name: str
+    host: str
+    state: Optional[str]
+    total_runs: int = Field(alias="totalRuns")
+    created_at: str = Field(alias="createdAt")
+    heartbeat_at: Optional[str] = Field(alias="heartbeatAt")
+
+
 class ApiKeyFragment(GQLResult):
     id: GQLId
     name: str
@@ -107,6 +117,7 @@ class UserInfoFragment(GQLResult):
     admin: Optional[bool]
 
 
+AgentFragment.model_rebuild()
 ApiKeyFragment.model_rebuild()
 CreatedProjectFragment.model_rebuild()
 LegacySweepFragment.model_rebuild()
