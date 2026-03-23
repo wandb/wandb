@@ -255,7 +255,7 @@ def core() -> None:
 
     wandb-core is the local backend process that handles run data,
     file uploads, and system metrics collection. By default, each
-    process that calls wandb.init() starts its own backend. On a
+    process that calls `wandb.init()` starts its own backend. On a
     machine running many independent workers, that duplicates work
     and wastes CPU and memory.
 
@@ -266,7 +266,7 @@ def core() -> None:
     Typical workflow:
 
         $ wandb beta core start
-        $ export WANDB_SERVICE=<printed value>
+        $ export WANDB_SERVICE=printed_value
         $ python -m your_launcher
         $ wandb beta core stop
 
