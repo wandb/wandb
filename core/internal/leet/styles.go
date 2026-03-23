@@ -95,6 +95,10 @@ const (
 	DefaultWorkspaceMetricsGridCols = 3
 	DefaultWorkspaceSystemGridRows  = 3
 	DefaultWorkspaceSystemGridCols  = 3
+
+	// Standalone system monitor mode.
+	DefaultSymonGridRows = 3
+	DefaultSymonGridCols = 3
 )
 
 // Sidebar constants.

@@ -66,6 +66,7 @@ def leet(ctx: click.Context) -> None:
     Examples:
         wandb beta leet                 View latest run
         wandb beta leet ./wandb         View runs in directory
+        wandb beta leet symon           View live local system metrics
     """
     pass
 
@@ -88,6 +89,21 @@ def run(path: str | None = None, pprof: str = "") -> None:
     from . import beta_leet
 
     beta_leet.launch(path, pprof)
+
+
+@leet.command()
+@click.option(
+    "--pprof",
+    default="",
+    hidden=True,
+    help="Serve /debug/pprof/* on this address (e.g. 127.0.0.1:6060).",
+)
+@click.help_option("-h", "--help")
+def symon(pprof: str = "") -> None:
+    """Launch the standalone system monitor."""
+    from . import beta_leet
+
+    beta_leet.launch_symon(pprof)
 
 
 @leet.command()

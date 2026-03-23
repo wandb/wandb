@@ -122,3 +122,16 @@ def launch_config() -> Never:
     args.append("--config")
 
     _run_core(args)
+
+
+def launch_symon(pprof: str = "") -> Never:
+    """Launch the standalone system monitor."""
+    get_sentry().configure_scope(process_context="leet-symon")
+
+    args = _base_args()
+    args.append("--symon")
+
+    if pprof:
+        args.extend(["--pprof", pprof])
+
+    _run_core(args)

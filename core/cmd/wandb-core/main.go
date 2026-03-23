@@ -208,6 +208,8 @@ func serviceMain() int {
 }
 
 // leetMain runs the TUI subcommand.
+//
+//gocyclo:ignore
 func leetMain(args []string) int {
 	fs := flag.NewFlagSet("leet", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
@@ -221,6 +223,7 @@ func leetMain(args []string) int {
 	pprofAddr := fs.String("pprof", "",
 		"If set, serves /debug/pprof/* on this address (e.g. 127.0.0.1:6060).")
 	editConfig := fs.Bool("config", false, "Open config editor.")
+	symonMode := fs.Bool("symon", false, "Launch standalone system metrics mode.")
 
 	fs.Usage = func() {
 		fmt.Fprintf(os.Stderr, `wandb-core leet - Lightweight Experiment Exploration Tool
@@ -228,6 +231,8 @@ A terminal UI for viewing your W&B runs locally.
 
 Usage:
   wandb-core leet [flags] <wandb-directory>
+  wandb-core leet --config
+  wandb-core leet --symon [flags]
 
 Arguments:
   <wandb-directory>  Path to the wandb directory containing run folders.
@@ -312,6 +317,32 @@ Flags:
 			return exitCodeErrorInternal
 		}
 		return exitCodeSuccess
+	}
+
+	if *symonMode {
+		if fs.NArg() != 0 {
+			fmt.Fprintln(os.Stderr, "Error: --symon does not take a wandb directory")
+			fs.Usage()
+			return exitCodeErrorArgs
+		}
+
+		for {
+			m := leet.NewSymon(nil, logger)
+			program := tea.NewProgram(m)
+
+			finalModel, err := program.Run()
+			m.Cleanup()
+			if err != nil {
+				logger.CaptureError(fmt.Errorf("wandb-symon: %v", err))
+				return exitCodeErrorInternal
+			}
+
+			if fm, ok := finalModel.(*leet.Symon); ok && fm.ShouldRestart() {
+				continue
+			}
+
+			return exitCodeSuccess
+		}
 	}
 
 	wandbDir := fs.Arg(0)

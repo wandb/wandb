@@ -1,8 +1,6 @@
 package leet
 
 import (
-	"fmt"
-	"strings"
 	"time"
 
 	"charm.land/lipgloss/v2"
@@ -65,13 +63,15 @@ func (p *SystemMetricsPane) View(
 	innerH := max(height-systemMetricsPaneBorderLines, 0)
 	gridH := max(innerH-systemMetricsPaneHeaderLines, 0)
 
-	header := p.renderHeader(innerW, runLabel, grid)
+	header := renderSystemMetricsHeader(
+		innerW, WorkspaceSystemMetricsPaneHeader, runLabel, grid)
 	body := header
 	if gridH > 0 {
 		body = lipgloss.JoinVertical(
 			lipgloss.Left,
 			header,
-			p.renderGrid(innerW, gridH, grid, hint),
+			renderSystemMetricsBody(
+				innerW, gridH, grid, hint, "No matching system metrics."),
 		)
 	}
 
@@ -81,85 +81,4 @@ func (p *SystemMetricsPane) View(
 	bordered := systemMetricsPaneBorderStyle.Render(padded)
 
 	return lipgloss.Place(width, height, lipgloss.Left, lipgloss.Top, bordered)
-}
-
-func (p *SystemMetricsPane) renderHeader(
-	contentWidth int, runLabel string, grid *SystemMetricsGrid) string {
-	title := headerStyle.Render(WorkspaceSystemMetricsPaneHeader)
-	navInfo := navInfoStyle.Render(p.buildNavigationInfo(grid))
-
-	left := title
-	if runLabel != "" {
-		sep := " • "
-		maxRunWidth := contentWidth - lipgloss.Width(title) - lipgloss.Width(navInfo) - len(sep)
-		if maxRunWidth > 0 {
-			left = lipgloss.JoinHorizontal(
-				lipgloss.Left,
-				title,
-				navInfoStyle.Render(sep+truncateValue(runLabel, maxRunWidth)),
-			)
-		}
-	}
-
-	fillerWidth := contentWidth - lipgloss.Width(left) - lipgloss.Width(navInfo)
-	filler := strings.Repeat(" ", max(fillerWidth, 0))
-	return lipgloss.JoinHorizontal(lipgloss.Left, left, filler, navInfo)
-}
-
-func (p *SystemMetricsPane) renderGrid(
-	contentWidth, gridHeight int, grid *SystemMetricsGrid, hint string) string {
-	if hint == "" {
-		hint = "No system metrics."
-	}
-
-	if grid == nil || grid.ChartCount() == 0 {
-		return lipgloss.Place(
-			contentWidth,
-			gridHeight,
-			lipgloss.Left,
-			lipgloss.Top,
-			navInfoStyle.Render(hint),
-		)
-	}
-
-	if grid.FilterQuery() != "" && grid.FilteredChartCount() == 0 {
-		return lipgloss.Place(
-			contentWidth,
-			gridHeight,
-			lipgloss.Left,
-			lipgloss.Top,
-			navInfoStyle.Render("No matching system metrics."),
-		)
-	}
-
-	grid.Resize(contentWidth, gridHeight)
-	return grid.View()
-}
-
-func (p *SystemMetricsPane) buildNavigationInfo(grid *SystemMetricsGrid) string {
-	if grid == nil {
-		return ""
-	}
-	totalCount := grid.ChartCount()
-	filteredCount := grid.FilteredChartCount()
-	if totalCount == 0 || filteredCount == 0 {
-		return ""
-	}
-
-	size := grid.effectiveGridSize()
-	itemsPerPage := ItemsPerPage(size)
-	start, end := grid.nav.PageBounds(filteredCount, itemsPerPage)
-	start++ // Convert to 1-indexed.
-
-	if filteredCount != totalCount {
-		return fmt.Sprintf(
-			" [%d-%d of %d filtered from %d total]",
-			start,
-			end,
-			filteredCount,
-			totalCount,
-		)
-	}
-
-	return fmt.Sprintf(" [%d-%d of %d]", start, end, filteredCount)
 }
