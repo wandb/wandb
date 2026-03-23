@@ -58,9 +58,6 @@ func NewSymonSampler(logger *observability.CoreLogger) *SymonSampler {
 }
 
 func (s *SymonSampler) Interval() time.Duration {
-	if s == nil || s.interval <= 0 {
-		return defaultSymonSamplingInterval
-	}
 	return s.interval
 }
 
@@ -106,9 +103,6 @@ func (s *SymonSampler) Sample() StatsMsg {
 }
 
 func (s *SymonSampler) Cleanup() {
-	if s == nil {
-		return
-	}
 	for _, resource := range s.resources {
 		if closer, ok := resource.(interface{ Close() }); ok {
 			closer.Close()
@@ -117,9 +111,6 @@ func (s *SymonSampler) Cleanup() {
 }
 
 func (s *SymonSampler) logSamplingError(err error) {
-	if err == nil {
-		return
-	}
 	if monitor.ShouldCaptureSamplingError(err) {
 		s.logger.CaptureError(fmt.Errorf("symon: sampling error: %v", err))
 		return
