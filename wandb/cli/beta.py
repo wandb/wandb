@@ -210,20 +210,21 @@ def sync(
     verbose: bool,
     n: int,
 ) -> None:
-    """Upload `.wandb` files specified by `PATHS`.
+    """Upload .wandb files specified by PATHS.
 
     This is a beta re-implementation of `wandb sync`.
     It is not feature complete, not guaranteed to work, and may change
     in backward-incompatible ways in any release of wandb.
 
-    `PATHS` can include `.wandb` files, run directories containing `.wandb` files,
+    PATHS can include .wandb files, run directories containing .wandb files,
     and "wandb" directories containing run directories.
 
-    For example, to sync all runs in a directory:
+    Examples:
+    Sync all runs in the current .wandb directory:
 
         $ wandb beta sync ./wandb
 
-    To sync a specific run:
+    Sync a specific run by specifying the run directory:
 
         $ wandb beta sync ./wandb/run-20250813_124246-n67z9ude
 
