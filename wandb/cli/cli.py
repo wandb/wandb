@@ -1780,6 +1780,118 @@ def agent(ctx, project, entity, count, forward_signals, sweep_id):
     #                'args': ['--max_epochs=10']})
 
 
+@cli.command("cw-agent", context_settings=CONTEXT)
+@click.pass_context
+@click.argument("sweep_id")
+@click.argument("artifact_id")
+@click.option(
+    "--resource-config",
+    "resource_config",
+    default=None,
+    type=click.Path(exists=True, dir_okay=False),
+    help=(
+        "Path to a SkyPilot-style YAML file with resource settings "
+        "(num_agents, container_image, resources, envs). "
+        "sweep_id and artifact_id from this file are ignored in favour "
+        "of the positional arguments."
+    ),
+)
+@click.option(
+    "--entity",
+    "-e",
+    default=None,
+    help="W&B entity (username or team). Inferred from sweep_id path if omitted.",
+)
+@click.option(
+    "--project",
+    "-p",
+    default=None,
+    help="W&B project name. Inferred from sweep_id path if omitted.",
+)
+@click.option(
+    "--num-agents",
+    "num_agents",
+    default=None,
+    type=int,
+    help="Number of parallel sandbox agents (overrides --resource-config).",
+)
+@display_error
+def cw_agent(ctx, sweep_id, artifact_id, resource_config, entity, project, num_agents):
+    """Run a pool of W&B sandbox agents for a sweep.
+
+    SWEEP_ID is the W&B sweep identifier.  It may be a short ID (e.g.
+    ``abc123``), ``project/id``, or ``entity/project/id``.  When using a
+    short ID you must supply --entity and --project.
+
+    ARTIFACT_ID is the fully-qualified artifact containing the training code,
+    e.g. ``entity/project/training-code:latest``.
+
+    Example — minimal::
+
+        wandb cw-agent abc123 acme/mnist/training-code:latest -e acme -p mnist
+
+    Example — with resource config::
+
+        wandb cw-agent abc123 acme/mnist/training-code:latest \\
+            --resource-config resources.yaml
+    """
+    from wandb.wandb_managed_agent import ManagedAgentSession, ManagedAgentSessionConfig
+
+    api = _get_cling_api()
+    if not api.is_authenticated:
+        wandb.termlog("Login to W&B to use the cw-agent feature")
+        ctx.invoke(login, no_offline=True)
+        api = _get_cling_api(reset=True)
+
+    # Parse sweep_id path to extract entity/project when not supplied explicitly.
+    parts = sweep_id.split("/")
+    if len(parts) == 3:
+        inferred_entity, inferred_project, short_sweep_id = parts
+    elif len(parts) == 2:
+        inferred_entity, inferred_project, short_sweep_id = None, parts[0], parts[1]
+    else:
+        inferred_entity, inferred_project, short_sweep_id = None, None, sweep_id
+
+    resolved_entity = entity or inferred_entity
+    resolved_project = project or inferred_project
+
+    if not resolved_entity or not resolved_project:
+        raise click.UsageError(
+            "Could not determine entity/project from sweep_id. "
+            "Pass --entity and --project explicitly, or use the "
+            "'entity/project/sweep_id' format."
+        )
+
+    # Build config: start from resource-config file, then apply CLI overrides.
+    if resource_config:
+        cfg = ManagedAgentSessionConfig.from_yaml(resource_config)
+        # Positional CLI args always win over file values.
+        cfg.sweep_id = short_sweep_id
+        cfg.entity = resolved_entity
+        cfg.project = resolved_project
+        cfg.artifact_id = artifact_id
+    else:
+        cfg = ManagedAgentSessionConfig(
+            sweep_id=short_sweep_id,
+            entity=resolved_entity,
+            project=resolved_project,
+            artifact_id=artifact_id,
+        )
+
+    if num_agents is not None:
+        cfg.num_agents = num_agents
+
+    wandb.termlog(
+        f"Starting {cfg.num_agents} sandbox agent(s) for sweep "
+        f"'{cfg.entity}/{cfg.project}/{cfg.sweep_id}' ✨"
+    )
+    try:
+        with ManagedAgentSession(cfg) as session:
+            session.run()
+    except KeyboardInterrupt:
+        wandb.termlog("Interrupted — shutting down sandbox agents.")
+
+
 @cli.command(
     context_settings=RUN_CONTEXT, help="Run a W&B launch sweep scheduler (Experimental)"
 )
