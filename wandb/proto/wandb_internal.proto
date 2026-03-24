@@ -1461,8 +1461,10 @@ message JobInputRequest {
 //
 // Each enum's name matches the name used in the backend server.
 enum ServerFeature {
+  SERVER_FEATURE_UNSPECIFIED = 0;
+
   // Indicates that the server supports recieving an array of filenames as metadata.
-  LARGE_FILENAMES = 0;
+  LARGE_FILENAMES = 17;
 
   // Indicates that the server supports adding tags to artifacts.
   ARTIFACT_TAGS = 1;
