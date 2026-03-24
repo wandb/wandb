@@ -112,7 +112,7 @@ class MailboxResponseHandle(MailboxHandle[spb.ServerResponse]):
                     f"Timed out waiting for response on {self._address}"
                 ) from e
 
-        except:
+        except BaseException:
             self.cancel()
             raise
 
