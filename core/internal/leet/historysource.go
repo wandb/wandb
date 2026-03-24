@@ -49,8 +49,8 @@ func ReadRecords(
 ) tea.Cmd {
 	return func() tea.Msg {
 		msgs, err := source.Read(
-			BootLoadChunkSize,
-			BootLoadMaxTime,
+			chunkSize,
+			maxTimePerChunk,
 		)
 		if err != nil && !errors.Is(err, io.EOF) {
 			return ErrorMsg{Err: err}
