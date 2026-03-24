@@ -16,22 +16,45 @@ import (
 	"github.com/wandb/wandb/core/internal/observability"
 )
 
-const defaultSymonSamplingInterval = 2 * time.Second
+// DefaultSymonSamplingInterval is the sampling cadence used by SYMON when the
+// caller does not provide an explicit interval.
+const DefaultSymonSamplingInterval = 2 * time.Second
 
-// SymonSampler produces live StatsMsg updates using the shared monitor resources.
+// SymonSamplerParams configures a SymonSampler.
+type SymonSamplerParams struct {
+	// Interval controls the delay between successive sampling passes. Values
+	// less than or equal to zero use DefaultSymonSamplingInterval.
+	Interval time.Duration
+
+	// Logger receives benign debug messages and noteworthy sampling errors.
+	Logger *observability.CoreLogger
+}
+
+// SymonSampler produces live StatsMsg updates using the shared monitor
+// resources.
+//
+// Each call to Sample collects one point-in-time snapshot across the available
+// system, GPU, and TPU resources. The resulting metrics are aligned to a single
+// wall-clock timestamp before they are merged into one StatsMsg for the UI.
 type SymonSampler struct {
 	interval  time.Duration
 	resources []monitor.Resource
 	logger    *observability.CoreLogger
 }
 
-func NewSymonSampler(logger *observability.CoreLogger) *SymonSampler {
+func NewSymonSampler(params SymonSamplerParams) *SymonSampler {
+	logger := params.Logger
 	if logger == nil {
 		logger = observability.NewNoOpLogger()
 	}
 
+	interval := params.Interval
+	if interval <= 0 {
+		interval = DefaultSymonSamplingInterval
+	}
+
 	sampler := &SymonSampler{
-		interval: defaultSymonSamplingInterval,
+		interval: interval,
 		logger:   logger,
 	}
 
@@ -57,6 +80,7 @@ func NewSymonSampler(logger *observability.CoreLogger) *SymonSampler {
 	return sampler
 }
 
+// Interval reports the configured delay between sampling passes.
 func (s *SymonSampler) Interval() time.Duration {
 	return s.interval
 }
@@ -102,6 +126,8 @@ func (s *SymonSampler) Sample() StatsMsg {
 	return out
 }
 
+// Cleanup releases any resources that need explicit shutdown, such as the GPU
+// sidecar process managed by the monitor package.
 func (s *SymonSampler) Cleanup() {
 	for _, resource := range s.resources {
 		if closer, ok := resource.(interface{ Close() }); ok {
@@ -110,6 +136,8 @@ func (s *SymonSampler) Cleanup() {
 	}
 }
 
+// logSamplingError routes sampling failures either to Sentry or debug logs,
+// depending on whether the monitor package considers them expected.
 func (s *SymonSampler) logSamplingError(err error) {
 	if monitor.ShouldCaptureSamplingError(err) {
 		s.logger.CaptureError(fmt.Errorf("symon: sampling error: %v", err))
@@ -118,6 +146,12 @@ func (s *SymonSampler) logSamplingError(err error) {
 	s.logger.Debug(fmt.Sprintf("symon: benign sampling error: %v", err))
 }
 
+// defaultSymonDiskPaths returns the filesystem roots that SYMON should monitor
+// for disk usage and I/O.
+//
+// On Unix-like systems, monitoring "/" provides a sensible host-wide default.
+// On Windows, disk usage APIs operate on volume roots, so we derive the current
+// working drive and monitor that volume root instead.
 func defaultSymonDiskPaths() []string {
 	if runtime.GOOS != "windows" {
 		return []string{"/"}

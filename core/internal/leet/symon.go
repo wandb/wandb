@@ -13,9 +13,29 @@ import (
 	"github.com/wandb/wandb/core/internal/observability"
 )
 
+// symonHeaderLines is the number of rows reserved above the chart grid for the
+// shared system metrics header.
 const symonHeaderLines = 1
 
+// SymonParams configures the standalone SYMON view.
+type SymonParams struct {
+	// Config provides grid dimensions and chart styling. Nil uses the default
+	// on-disk LEET configuration.
+	Config *ConfigManager
+
+	// SamplingInterval controls how frequently the sampler collects a new system
+	// metrics snapshot. Values less than or equal to zero use the default.
+	SamplingInterval time.Duration
+
+	// Logger receives debug logs and captured errors. Nil uses a no-op logger.
+	Logger *observability.CoreLogger
+}
+
 // Symon is a standalone full-screen system metrics monitor.
+//
+// Unlike the run view's system metrics pane, Symon is not tied to a specific
+// run. It owns its own chart grid, filter state, help overlay, and live sampler
+// while reusing the shared charting and monitor plumbing from the rest of LEET.
 type Symon struct {
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -35,10 +55,13 @@ type Symon struct {
 	shouldRestart bool
 }
 
-func NewSymon(cfg *ConfigManager, logger *observability.CoreLogger) *Symon {
+func NewSymon(params SymonParams) *Symon {
+	logger := params.Logger
 	if logger == nil {
 		logger = observability.NewNoOpLogger()
 	}
+
+	cfg := params.Config
 	if cfg == nil {
 		cfg = NewConfigManager(leetConfigPath(), logger)
 	}
@@ -64,16 +87,22 @@ func NewSymon(cfg *ConfigManager, logger *observability.CoreLogger) *Symon {
 			NewFilter(),
 			logger,
 		),
-		help:    help,
-		sampler: NewSymonSampler(logger),
-		logger:  logger,
+		help: help,
+		sampler: NewSymonSampler(SymonSamplerParams{
+			Interval: params.SamplingInterval,
+			Logger:   logger,
+		}),
+		logger: logger,
 	}
 }
 
+// Init starts the initial sampling pass.
 func (s *Symon) Init() tea.Cmd {
 	return s.sampleNowCmd()
 }
 
+// Update handles resize events, help/restart shortcuts, user input, and live
+// StatsMsg updates from the sampler.
 func (s *Symon) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if ws, ok := msg.(tea.WindowSizeMsg); ok {
 		s.width, s.height = ws.Width, ws.Height
@@ -120,6 +149,7 @@ func (s *Symon) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 }
 
+// View renders the standalone system monitor or its help overlay.
 func (s *Symon) View() tea.View {
 	if s.width == 0 || s.height == 0 {
 		return tea.NewView("Loading...")
@@ -139,6 +169,7 @@ func (s *Symon) View() tea.View {
 	return view
 }
 
+// Cleanup stops outstanding sampling work and releases sampler-owned resources.
 func (s *Symon) Cleanup() {
 	if s.cancel != nil {
 		s.cancel()
@@ -148,10 +179,16 @@ func (s *Symon) Cleanup() {
 	}
 }
 
+// ShouldRestart reports whether the user requested a full-process restart.
 func (s *Symon) ShouldRestart() bool {
 	return s.shouldRestart
 }
 
+// --------------------------------------------------------------------
+// Input helpers
+// --------------------------------------------------------------------
+
+// handleHelp toggles the help overlay and routes input to it while active.
 func (s *Symon) handleHelp(msg tea.Msg) (bool, tea.Cmd) {
 	if s.isAwaitingUserInput() {
 		return false, nil
@@ -177,6 +214,7 @@ func (s *Symon) handleHelp(msg tea.Msg) (bool, tea.Cmd) {
 	return false, nil
 }
 
+// handleRestart quits the program after marking the model for restart.
 func (s *Symon) handleRestart(msg tea.Msg) (bool, tea.Cmd) {
 	km, ok := msg.(tea.KeyPressMsg)
 	if !ok || km.String() != "alt+r" {
@@ -233,6 +271,8 @@ func (s *Symon) handleConfigSystemRows(tea.KeyPressMsg) tea.Cmd {
 	return nil
 }
 
+// handleConfigNumberKey applies a pending grid-size edit triggered by the
+// configuration hotkeys.
 func (s *Symon) handleConfigNumberKey(msg tea.KeyPressMsg) {
 	defer s.config.SetPendingGridConfig(gridConfigNone)
 
@@ -251,6 +291,8 @@ func (s *Symon) handleConfigNumberKey(msg tea.KeyPressMsg) {
 	s.resizeGrid()
 }
 
+// handleMouse maps mouse events in the terminal coordinate space onto the
+// system metrics grid.
 func (s *Symon) handleMouse(msg tea.MouseMsg) tea.Cmd {
 	mouse := msg.Mouse()
 	alt := mouse.Mod == tea.ModAlt
@@ -299,6 +341,11 @@ func (s *Symon) handleMouse(msg tea.MouseMsg) tea.Cmd {
 	return nil
 }
 
+// --------------------------------------------------------------------
+// Rendering helpers
+// --------------------------------------------------------------------
+
+// renderMainView renders the header, system metrics grid, and status bar.
 func (s *Symon) renderMainView() string {
 	header := renderSystemMetricsHeader(s.width, "System Metrics", "", s.grid)
 	bodyHeight := max(s.height-StatusBarHeight-symonHeaderLines, 0)
@@ -315,6 +362,8 @@ func (s *Symon) renderMainView() string {
 	return lipgloss.Place(s.width, s.height, lipgloss.Left, lipgloss.Top, fullView)
 }
 
+// renderStatusBar renders the left-aligned state summary and right-aligned help
+// hint shown at the bottom of the screen.
 func (s *Symon) renderStatusBar() string {
 	statusText := s.buildStatusText()
 	helpText := s.buildHelpText()
@@ -329,6 +378,7 @@ func (s *Symon) renderStatusBar() string {
 		Render(statusText + rightAligned)
 }
 
+// buildStatusText chooses the status-bar text for the current interaction mode.
 func (s *Symon) buildStatusText() string {
 	if s.grid.IsFilterMode() {
 		return fmt.Sprintf(
@@ -346,6 +396,8 @@ func (s *Symon) buildStatusText() string {
 	return s.buildActiveStatus()
 }
 
+// buildActiveStatus summarizes the current chart count, filter, and focused
+// chart details while the user is not editing text input.
 func (s *Symon) buildActiveStatus() string {
 	parts := make([]string, 0, 4)
 	if count := s.grid.ChartCount(); count > 0 {
@@ -382,6 +434,8 @@ func (s *Symon) buildHelpText() string {
 	return "h: help"
 }
 
+// renderHelpScreen renders the full-screen help overlay with the standard LEET
+// status bar treatment.
 func (s *Symon) renderHelpScreen() string {
 	helpView := s.help.View().Content
 
@@ -398,6 +452,8 @@ func (s *Symon) renderHelpScreen() string {
 	return lipgloss.Place(s.width, s.height, lipgloss.Left, lipgloss.Top, content)
 }
 
+// resizeGrid keeps the chart grid sized to the currently available content
+// area below the header and above the status bar.
 func (s *Symon) resizeGrid() {
 	if s.width <= 0 || s.height <= 0 {
 		return
@@ -405,10 +461,13 @@ func (s *Symon) resizeGrid() {
 	s.grid.Resize(s.width, max(s.height-StatusBarHeight-symonHeaderLines, 1))
 }
 
+// isAwaitingUserInput reports whether a child component currently owns free-form
+// keyboard input.
 func (s *Symon) isAwaitingUserInput() bool {
 	return s.grid.IsFilterMode() || s.config.IsAwaitingGridConfig()
 }
 
+// sampleNowCmd triggers an immediate sampling pass.
 func (s *Symon) sampleNowCmd() tea.Cmd {
 	ctx := s.ctx
 	return func() tea.Msg {
@@ -421,6 +480,10 @@ func (s *Symon) sampleNowCmd() tea.Cmd {
 	}
 }
 
+// sampleLaterCmd schedules the next sampling pass after the configured interval.
+//
+// The tick is started only after the current sample has been processed, which
+// avoids overlapping sampling work when a collector is slow.
 func (s *Symon) sampleLaterCmd() tea.Cmd {
 	ctx := s.ctx
 	interval := s.sampler.Interval()

@@ -124,7 +124,7 @@ def launch_config() -> Never:
     _run_core(args)
 
 
-def launch_symon(pprof: str = "") -> Never:
+def launch_symon(pprof: str = "", interval: str = "") -> Never:
     """Launch the standalone system monitor."""
     get_sentry().configure_scope(process_context="leet-symon")
 
@@ -133,5 +133,8 @@ def launch_symon(pprof: str = "") -> Never:
 
     if pprof:
         args.extend(["--pprof", pprof])
+
+    if interval:
+        args.extend(["--interval", interval])
 
     _run_core(args)

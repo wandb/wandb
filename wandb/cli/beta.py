@@ -98,12 +98,18 @@ def run(path: str | None = None, pprof: str = "") -> None:
     hidden=True,
     help="Serve /debug/pprof/* on this address (e.g. 127.0.0.1:6060).",
 )
+@click.option(
+    "--interval",
+    default="",
+    metavar="DURATION",
+    help="Sampling interval for system metrics (e.g. 500ms, 2s, 1m).",
+)
 @click.help_option("-h", "--help")
-def symon(pprof: str = "") -> None:
+def symon(pprof: str = "", interval: str = "") -> None:
     """Launch the standalone system monitor."""
     from . import beta_leet
 
-    beta_leet.launch_symon(pprof)
+    beta_leet.launch_symon(pprof=pprof, interval=interval)
 
 
 @leet.command()

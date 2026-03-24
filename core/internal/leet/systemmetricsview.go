@@ -7,6 +7,11 @@ import (
 	"charm.land/lipgloss/v2"
 )
 
+// renderSystemMetricsHeader renders the shared header used by both the
+// workspace system metrics pane and the standalone SYMON view.
+//
+// The left side shows the title and optional run label. The right side shows
+// the current chart pagination state.
 func renderSystemMetricsHeader(
 	contentWidth int,
 	titleText string,
@@ -34,6 +39,8 @@ func renderSystemMetricsHeader(
 	return lipgloss.JoinHorizontal(lipgloss.Left, left, filler, navInfo)
 }
 
+// renderSystemMetricsBody renders either an informative empty state or the
+// system metrics chart grid itself.
 func renderSystemMetricsBody(
 	contentWidth, gridHeight int,
 	grid *SystemMetricsGrid,
@@ -71,6 +78,8 @@ func renderSystemMetricsBody(
 	return grid.View()
 }
 
+// buildSystemMetricsNavigationInfo reports the visible chart range for the
+// current page.
 func buildSystemMetricsNavigationInfo(grid *SystemMetricsGrid) string {
 	if grid == nil {
 		return ""

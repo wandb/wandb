@@ -15,7 +15,7 @@ func TestSymon_ConfigHotkeys_UpdateGridDimensions(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 
-	var m tea.Model = leet.NewSymon(cfg, logger)
+	var m tea.Model = leet.NewSymon(leet.SymonParams{Config: cfg, Logger: logger})
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
 
 	m, _ = m.Update(tea.KeyPressMsg{Code: 'r'})
@@ -33,7 +33,7 @@ func TestSymon_FilterLifecycle(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 
-	var m tea.Model = leet.NewSymon(cfg, logger)
+	var m tea.Model = leet.NewSymon(leet.SymonParams{Config: cfg, Logger: logger})
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
 	m, _ = m.Update(leet.StatsMsg{
 		Timestamp: 100,
