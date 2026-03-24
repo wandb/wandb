@@ -221,7 +221,7 @@ def test_build_artifact_notebook_job_no_program(
 
         assert not artifact
         out = capfd.readouterr().err
-        _msg = "No program path found when generating artifact job source for a non-colab notebook run. See https://docs.wandb.ai/guides/launch/create-job"
+        _msg = "No program path found when generating artifact job source for a non-colab notebook run. See https://docs.wandb.ai/platform/launch/create-job"
         if verbose:
             assert _msg in out
         else:

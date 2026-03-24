@@ -6,7 +6,7 @@ For guides and examples, see https://docs.wandb.ai.
 
 For scripts and interactive notebooks, see https://github.com/wandb/examples.
 
-For reference documentation, see https://docs.wandb.com/ref/python.
+For reference documentation, see https://docs.wandb.ai/models/ref/python.
 """
 
 from __future__ import annotations

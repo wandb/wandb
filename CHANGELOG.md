@@ -3785,7 +3785,7 @@ wandb.Api().Artifact().file()
 
 #### :nail_care: Enhancement
 
-- Sweeps can now be run from within jupyter / directly from python! https://docs.wandb.com/sweeps/python
+- Sweeps can now be run from within jupyter / directly from python! https://docs.wandb.ai/models/sweeps
 - New openai gym integration will automatically log videos, enabled with the monitor_gym keyword argument to wandb.init
 - Ray Tune logging callback in wandb.ray.WandbLogger
 - New global config file in ~/.config/wandb for global settings

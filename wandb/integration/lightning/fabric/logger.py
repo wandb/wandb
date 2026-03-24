@@ -40,7 +40,7 @@ except ImportError as e:
 
 
 class WandbLogger(Logger):
-    r"""Log using `Weights and Biases <https://docs.wandb.ai/integrations/lightning>`_.
+    r"""Log using `Weights and Biases <https://docs.wandb.ai/models/integrations/lightning>`_.
 
     **Installation and set-up**
 
@@ -199,11 +199,11 @@ class WandbLogger(Logger):
         wandb_logger.log_image(key="samples", images=["img_1.jpg", "img_2.jpg"])
 
     More arguments can be passed for logging segmentation masks and bounding boxes. Refer to
-    `Image Overlays documentation <https://docs.wandb.ai/guides/track/log/media#image-overlays>`_.
+    `Image Overlays documentation <https://docs.wandb.ai/models/track/log/media#image-overlays>`_.
 
     **Log Tables**
 
-    `W&B Tables <https://docs.wandb.ai/guides/tables/visualize-tables>`_ can be used to log,
+    `W&B Tables <https://docs.wandb.ai/models/tables/visualize-tables>`_ can be used to log,
     query and analyze tabular data.
 
     They support any type of media (text, image, video, audio, molecule, html, etc) and are great for storing,
@@ -245,7 +245,7 @@ class WandbLogger(Logger):
 
     See Also:
         - `Demo in Google Colab <http://wandb.me/lightning>`__ with hyperparameter search and model logging
-        - `W&B Documentation <https://docs.wandb.ai/integrations/lightning>`__
+        - `W&B Documentation <https://docs.wandb.ai/models/integrations/lightning>`__
 
     Args:
         name: Display name for the run.

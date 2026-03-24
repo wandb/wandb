@@ -204,7 +204,7 @@ class Table(Media):
     directly in Tables, alongside other traditional scalar values.
 
     This class is the primary class used to generate W&B Tables
-    https://docs.wandb.ai/guides/models/tables/.
+    https://docs.wandb.ai/models/tables
     """
 
     MAX_ROWS = 10000

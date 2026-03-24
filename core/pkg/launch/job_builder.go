@@ -259,7 +259,7 @@ func (j *JobBuilder) getProgramRelpath(metadata RunMetadata, sourceType SourceTy
 	if j.isNotebookRun {
 		if metadata.Program == nil {
 			j.logIfVerbose(
-				"Notebook 'program' path not found in metadata. See https://docs.wandb.ai/guides/launch/create-job",
+				"Notebook 'program' path not found in metadata. See https://docs.wandb.ai/platform/launch/create-job",
 				Warn,
 			)
 		}
@@ -488,7 +488,7 @@ func (j *JobBuilder) createArtifactJobSource(
 			fullProgramRelPath = filepath.Base(programRelPath)
 			if _, err := os.Stat(filepath.Base(fullProgramRelPath)); os.IsNotExist(err) {
 				j.logIfVerbose(
-					"No program path found when generating artifact job source for a non-colab notebook run. See https://docs.wandb.ai/guides/launch/create-job",
+					"No program path found when generating artifact job source for a non-colab notebook run. See https://docs.wandb.ai/platform/launch/create-job",
 					Warn,
 				)
 				return nil, nil, err
@@ -587,7 +587,7 @@ func (j *JobBuilder) Build(
 	if os.IsNotExist(err) {
 		j.logger.Debug("jobBuilder: no requirements.txt found")
 		j.logIfVerbose(
-			"No requirements.txt found, not creating job artifact. See https://docs.wandb.ai/guides/launch/create-job",
+			"No requirements.txt found, not creating job artifact. See https://docs.wandb.ai/platform/launch/create-job",
 			Warn,
 		)
 		return nil, nil
@@ -602,7 +602,7 @@ func (j *JobBuilder) Build(
 	if metadata.Python == nil {
 		j.logger.Debug("jobBuilder: no python version found in metadata")
 		j.logIfVerbose(
-			"No python version found in metadata, not creating job artifact. See https://docs.wandb.ai/guides/launch/create-job",
+			"No python version found in metadata, not creating job artifact. See https://docs.wandb.ai/platform/launch/create-job",
 			Warn,
 		)
 		return nil, nil
@@ -626,7 +626,7 @@ func (j *JobBuilder) Build(
 	if *sourceType != ImageSourceType && programRelpath == nil {
 		j.logger.Debug("jobBuilder: no program path found")
 		j.logIfVerbose(
-			"No program path found, not creating job artifact. See https://docs.wandb.ai/guides/launch/create-job",
+			"No program path found, not creating job artifact. See https://docs.wandb.ai/platform/launch/create-job",
 			Warn,
 		)
 		return nil, nil

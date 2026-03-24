@@ -54,5 +54,5 @@ class NoOpBuilder(AbstractBuilder):
         raise LaunchError(
             "Attempted build with noop builder. Specify a builder in your launch config at ~/.config/wandb/launch-config.yaml.\n"
             "Note: Jobs sourced from git repos and code artifacts require a builder, while jobs sourced from Docker images do not.\n"
-            "See https://docs.wandb.ai/guides/launch/create-job."
+            "See https://docs.wandb.ai/platform/launch/create-job."
         )

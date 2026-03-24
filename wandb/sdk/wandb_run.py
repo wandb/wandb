@@ -478,31 +478,31 @@ class RunStatus:
 class Run:
     """A unit of computation logged by W&B. Typically, this is an ML experiment.
 
-    Call [`wandb.init()`](https://docs.wandb.ai/ref/python/init/) to create a
+    Call [`wandb.init()`](https://docs.wandb.ai/models/ref/python/functions/init) to create a
     new run. `wandb.init()` starts a new run and returns a `wandb.Run` object.
     Each run is associated with a unique ID (run ID). W&B recommends using
     a context (`with` statement) manager to automatically finish the run.
 
     For distributed training experiments, you can either track each process
     separately using one run per process or track all processes to a single run.
-    See [Log distributed training experiments](https://docs.wandb.ai/guides/track/log/distributed-training)
+    See [Log distributed training experiments](https://docs.wandb.ai/models/track/log/distributed-training)
     for more information.
 
     You can log data to a run with `wandb.Run.log()`. Anything you log using
     `wandb.Run.log()` is sent to that run. See
-    [Create an experiment](https://docs.wandb.ai/guides/track/create-an-experiment/) or
-    [`wandb.init`](https://docs.wandb.ai/ref/python/init/) API reference page
+    [Create an experiment](https://docs.wandb.ai/models/track/create-an-experiment) or
+    [`wandb.init`](https://docs.wandb.ai/models/ref/python/functions/init) API reference page
     or more information.
 
     There is a another `Run` object in the
-    [`wandb.apis.public`](https://docs.wandb.ai/ref/python/public-api/api/)
+    [`wandb.apis.public`](https://docs.wandb.ai/models/ref/python/public-api/api)
     namespace. Use this object is to interact with runs that have already been
     created.
 
     Attributes:
         summary: (Summary) A summary of the run, which is a dictionary-like
             object. For more information, see
-            [Log summary metrics](https://docs.wandb.ai/guides/track/log/log-summary/).
+            [Log summary metrics](https://docs.wandb.ai/models/track/log/log-summary).
 
     Examples:
     Create a run with `wandb.init()`:
@@ -1026,7 +1026,7 @@ class Run:
         "training", "evaluation", or "inference". This is useful for organizing
         and filtering runs in the W&B UI, especially when you have multiple
         runs with different job types in the same project. For more
-        information, see [Organize runs](https://docs.wandb.ai/guides/runs/#organize-runs).
+        information, see [Organize runs](https://docs.wandb.ai/models/runs#organize-runs).
         """
         return self._settings.run_job_type or ""
 
@@ -1788,7 +1788,7 @@ class Run:
         """Upload run data.
 
         Use `log` to log data from runs, such as scalars, images, video,
-        histograms, plots, and tables. See [Log objects and media](https://docs.wandb.ai/guides/track/log) for
+        histograms, plots, and tables. See [Log objects and media](https://docs.wandb.ai/models/track/log) for
         code snippets, best practices, and more.
 
         Basic usage:
@@ -1804,15 +1804,15 @@ class Run:
         history and updates the summary values for these metrics.
 
         Visualize logged data in a workspace at [wandb.ai](https://wandb.ai),
-        or locally on a [self-hosted instance](https://docs.wandb.ai/guides/hosting)
+        or locally on a [self-hosted instance](https://docs.wandb.ai/platform/hosting)
         of the W&B app, or export data to visualize and explore locally, such as in a
-        Jupyter notebook, with the [Public API](https://docs.wandb.ai/guides/track/public-api-guide).
+        Jupyter notebook, with the [Public API](https://docs.wandb.ai/models/track/public-api-guide).
 
         Logged values don't have to be scalars. You can log any
-        [W&B supported Data Type](https://docs.wandb.ai/ref/python/data-types/)
+        [W&B supported Data Type](https://docs.wandb.ai/models/ref/python/data-types)
         such as images, audio, video, and more. For example, you can use
         `wandb.Table` to log structured data. See
-        [Log tables, visualize and query data](https://docs.wandb.ai/guides/models/tables/tables-walkthrough)
+        [Log tables, visualize and query data](https://docs.wandb.ai/models/tables/tables-walkthrough)
         tutorial for more details.
 
         W&B organizes metrics with a forward slash (`/`) in their name
@@ -1842,7 +1842,7 @@ class Run:
         By default, each call to `log` creates a new "step".
         The step must always increase, and it is not possible to log
         to a previous step. You can use any metric as the X axis in charts.
-        See [Custom log axes](https://docs.wandb.ai/guides/track/log/customize-logging-axes/)
+        See [Custom log axes](https://docs.wandb.ai/models/track/log/customize-logging-axes)
         for more details.
 
         In many cases, it is better to treat the W&B step like
@@ -1894,7 +1894,7 @@ class Run:
 
         Examples:
         For more and more detailed examples, see
-        [our guides to logging](https://docs.wandb.com/guides/track/log).
+        [our guides to logging](https://docs.wandb.ai/models/track/log).
 
         Basic usage
 
