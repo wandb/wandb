@@ -65,6 +65,11 @@ type MetricsGrid struct {
 	// Default is ColorModePerSeries (stable run-id color).
 	singleSeriesColorMode string
 
+	// seriesColorForKey optionally overrides per-series colors keyed by series
+	// name (for example workspace run paths). Intended for workspace multi-run
+	// view.
+	seriesColorForKey func(string) compat.AdaptiveColor
+
 	// synchronized inspection session state (active only between press/release)
 	syncInspectActive bool
 }
@@ -110,6 +115,19 @@ func (mg *MetricsGrid) SetSingleSeriesColorMode(mode string) {
 	mg.mu.Lock()
 	defer mg.mu.Unlock()
 	mg.singleSeriesColorMode = mode
+}
+
+// SetSeriesColorProvider installs an optional stable color provider for series
+// keys (for example workspace run paths).
+//
+// Callers should set this before processing data so newly created series render
+// with the intended colors from their first frame.
+func (mg *MetricsGrid) SetSeriesColorProvider(
+	provider func(string) compat.AdaptiveColor,
+) {
+	mg.mu.Lock()
+	defer mg.mu.Unlock()
+	mg.seriesColorForKey = provider
 }
 
 // ChartCount returns the total number of metrics charts.
@@ -176,6 +194,12 @@ func (mg *MetricsGrid) ProcessHistory(msg HistoryMsg) bool {
 
 	needsSort := false
 
+	var seriesStyle *lipgloss.Style
+	if mg.seriesColorForKey != nil && msg.RunPath != "" {
+		style := lipgloss.NewStyle().Foreground(mg.seriesColorForKey(msg.RunPath))
+		seriesStyle = &style
+	}
+
 	mg.mu.Lock()
 
 	for name, data := range metrics {
@@ -192,6 +216,9 @@ func (mg *MetricsGrid) ProcessHistory(msg HistoryMsg) bool {
 			}
 		}
 		chart.AddData(msg.RunPath, data)
+		if seriesStyle != nil {
+			chart.SetSeriesStyle(msg.RunPath, seriesStyle)
+		}
 	}
 
 	// Keep ordering, colors, maps and filtered set in sync.

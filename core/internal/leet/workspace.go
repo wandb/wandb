@@ -2,7 +2,6 @@ package leet
 
 import (
 	"fmt"
-	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -10,6 +9,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"charm.land/lipgloss/v2/compat"
 
 	"github.com/wandb/wandb/core/internal/observability"
 )
@@ -63,6 +63,7 @@ type Workspace struct {
 	// Multi‑run metrics state.
 	focus       *Focus
 	metricsGrid *MetricsGrid
+	runColors   *workspaceRunColors
 
 	// System metrics
 	systemMetrics       map[string]*SystemMetricsGrid
@@ -114,6 +115,9 @@ func NewWorkspace(
 	runs.SetItemsPerPage(1)
 
 	focus := NewFocus()
+	metricsGrid := NewMetricsGrid(cfg, cfg.WorkspaceMetricsGrid, focus, logger)
+	runColors := newWorkspaceRunColors(GraphColors(cfg.ColorScheme()))
+	metricsGrid.SetSeriesColorProvider(runColors.Assign)
 
 	smf := NewFilter()
 
@@ -142,7 +146,8 @@ func NewWorkspace(
 		overviewPreloader:   newRunOverviewPreloader(maxConcurrentPreloads),
 		selectedRuns:        make(map[string]bool),
 		focus:               focus,
-		metricsGrid:         NewMetricsGrid(cfg, cfg.WorkspaceMetricsGrid, focus, logger),
+		metricsGrid:         metricsGrid,
+		runColors:           runColors,
 		systemMetrics:       make(map[string]*SystemMetricsGrid),
 		systemMetricsPane:   NewSystemMetricsPane(systemMetricsPaneAnimState),
 		systemMetricsFocus:  focus,
@@ -921,6 +926,25 @@ func (w *Workspace) renderRunsListHeader(startIdx, endIdx int) string {
 	return title + navInfoStyle.Render(info)
 }
 
+func (w *Workspace) runPathForKey(runKey string) string {
+	if runKey == "" {
+		return ""
+	}
+	return runWandbFile(w.wandbDir, runKey)
+}
+
+func (w *Workspace) runColorForKey(runKey string) compat.AdaptiveColor {
+	runPath := w.runPathForKey(runKey)
+	if w.runColors == nil {
+		colors := GraphColors(w.config.ColorScheme())
+		if len(colors) == 0 {
+			return compat.AdaptiveColor{}
+		}
+		return colors[colorIndex(runPath, len(colors))]
+	}
+	return w.runColors.Assign(runPath)
+}
+
 // renderRunLines renders the visible slice with zebra background and selection.
 func (w *Workspace) renderRunLines(contentWidth int) []string {
 	itemsPerPage := w.runs.ItemsPerPage()
@@ -947,13 +971,8 @@ func (w *Workspace) renderRunLines(contentWidth int) []string {
 			}
 		}
 
-		// TODO: Stable mapping for consistent colors: refactor and clean up.
 		runKey := item.Key
-		runID := extractRunID(runKey)
-		runPath := filepath.Join(w.wandbDir, runKey, "run-"+runID+".wandb")
-
-		graphColors := GraphColors(w.config.ColorScheme())
-		colorIdx := colorIndex(runPath, len(graphColors))
+		runColor := w.runColorForKey(runKey)
 
 		isSelected := w.selectedRuns[runKey]
 		isPinned := w.pinnedRun == runKey
@@ -966,8 +985,8 @@ func (w *Workspace) renderRunLines(contentWidth int) []string {
 			mark = PinnedRunMark
 		}
 
-		// Render prefix without background
-		prefix := lipgloss.NewStyle().Foreground(graphColors[colorIdx]).Render(mark + " ")
+		// Render prefix without background.
+		prefix := lipgloss.NewStyle().Foreground(runColor).Render(mark + " ")
 		prefixWidth := lipgloss.Width(prefix)
 
 		// Apply subtle muting to unselected/unpinned runs
