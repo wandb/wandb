@@ -47,7 +47,7 @@ type SenderFactory struct {
 	Logger                  *observability.CoreLogger
 	Operations              *wboperation.WandbOperations
 	Settings                *settings.Settings
-	FeatureProvider         *featurechecker.ServerFeaturesCache
+	FeatureProvider         *featurechecker.FeatureProvider
 	FileStreamFactory       *fs.FileStreamFactory
 	FileTransferManager     filetransfer.FileTransferManager
 	FileTransferStats       filetransfer.FileTransferStats
@@ -166,10 +166,10 @@ func (f *SenderFactory) New(runWork runwork.RunWork) *Sender {
 		Multipart:             f.Settings.IsConsoleMultipart(),
 		ChunkMaxBytes:         f.Settings.GetConsoleChunkMaxBytes(),
 		ChunkMaxSeconds:       f.Settings.GetConsoleChunkMaxSeconds(),
-		Structured: f.FeatureProvider.GetFeature(
+		Structured: f.FeatureProvider.Enabled(
 			context.Background(),
 			spb.ServerFeature_STRUCTURED_CONSOLE_LOGS,
-		).Enabled,
+		),
 	}
 
 	s := &Sender{
@@ -187,10 +187,10 @@ func (f *SenderFactory) New(runWork runwork.RunWork) *Sender {
 			f.FileStreamFactory.Printer,
 			f.GraphqlClient,
 			f.FileTransferManager,
-			f.FeatureProvider.GetFeature(
+			f.FeatureProvider.Enabled(
 				context.Background(),
 				spb.ServerFeature_USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION,
-			).Enabled,
+			),
 		),
 		networkPeeker:     f.Peeker,
 		graphqlClient:     f.GraphqlClient,

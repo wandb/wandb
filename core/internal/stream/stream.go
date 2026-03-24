@@ -42,7 +42,7 @@ type Stream struct {
 	operations *wboperation.WandbOperations
 
 	// featureProvider checks server capabilities.
-	featureProvider *featurechecker.ServerFeaturesCache
+	featureProvider *featurechecker.FeatureProvider
 
 	// graphqlClientOrNil is used for GraphQL operations to the W&B backend.
 	//
@@ -90,7 +90,7 @@ type DebugCorePath string
 func NewStream(
 	clientID sharedmode.ClientID,
 	debugCorePath DebugCorePath,
-	featureProvider *featurechecker.ServerFeaturesCache,
+	featureProvider *featurechecker.FeatureProvider,
 	flowControlFactory *FlowControlFactory,
 	graphqlClientOrNil graphql.Client,
 	handlerFactory *HandlerFactory,

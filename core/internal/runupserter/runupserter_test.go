@@ -36,12 +36,10 @@ func runRecord(run *spb.RunRecord) *spb.Record {
 func testParams(t *testing.T) runupserter.RunUpserterParams {
 	t.Helper()
 	return runupserter.RunUpserterParams{
-		Settings:        settings.New(),
-		BeforeRunEndCtx: context.Background(),
-		Operations:      nil,
-		FeatureProvider: featurechecker.NewServerFeaturesCachePreloaded(
-			map[spb.ServerFeature]featurechecker.Feature{},
-		),
+		Settings:           settings.New(),
+		BeforeRunEndCtx:    context.Background(),
+		Operations:         nil,
+		FeatureProvider:    featurechecker.NewPreloaded(nil),
 		GraphqlClientOrNil: nil,
 		Logger:             observabilitytest.NewTestLogger(t),
 		ClientID:           "test",
