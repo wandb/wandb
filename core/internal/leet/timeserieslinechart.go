@@ -178,6 +178,23 @@ func (c *TimeSeriesLineChart) ViewModeLabel() string {
 	return "frozen " + compactDuration(window)
 }
 
+// TitleDetail returns the compact suffix rendered next to the chart title.
+func (c *TimeSeriesLineChart) TitleDetail() string {
+	if len(c.series) <= 1 {
+		return ""
+	}
+	return fmt.Sprintf("[%d]", len(c.series))
+}
+
+// GraphStartX returns the first graph column inside the rendered chart view.
+func (c *TimeSeriesLineChart) GraphStartX() int {
+	startX := 1
+	if c.YStep() > 0 {
+		startX += c.Origin().X + 1
+	}
+	return startX
+}
+
 // LastUpdate returns the timestamp of the most recent sample seen.
 func (c *TimeSeriesLineChart) LastUpdate() time.Time { return c.lastUpdate }
 

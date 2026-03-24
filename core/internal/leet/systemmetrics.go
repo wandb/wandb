@@ -9,14 +9,22 @@ import (
 
 const DefaultSystemMetricSeriesName = "Default"
 
+type MetricChartKind int
+
+const (
+	MetricChartKindLine MetricChartKind = iota
+	MetricChartKindFrenchFries
+)
+
 // MetricDef represents a system metric definition needed for displaying it on a chart.
 type MetricDef struct {
 	Name       string
 	Unit       UnitFormatter
-	MinY       float64        // Default min Y value
-	MaxY       float64        // Default max Y value
-	Percentage bool           // Whether this is a percentage metric
-	AutoRange  bool           // Whether to auto-adjust Y range based on data
+	MinY       float64 // Default min Y value
+	MaxY       float64 // Default max Y value
+	Percentage bool    // Whether this is a percentage metric
+	AutoRange  bool    // Whether to auto-adjust Y range based on data
+	ChartKind  MetricChartKind
 	Regex      *regexp.Regexp // Pattern to match metric names (including suffixes)
 }
 
@@ -108,6 +116,9 @@ var metricDefs = []MetricDef{
 	// GPU metrics
 	{Name: "GPU Utilization", Unit: UnitPercent, MinY: 0, MaxY: 100, Percentage: true,
 		Regex: regexp.MustCompile(`^gpu\.\d+\.gpu(/l:.+)?$`)},
+	{Name: "GPU Utilization", Unit: UnitPercent, MinY: 0, MaxY: 100, Percentage: true,
+		ChartKind: MetricChartKindFrenchFries,
+		Regex:     regexp.MustCompile(`^gpu\.\d+\.gpu(/l:.+)?$`)},
 	{Name: "GPU Temp", Unit: UnitCelsius, MinY: 0, MaxY: 100, AutoRange: true,
 		Regex: regexp.MustCompile(`^gpu\.\d+\.temp(/l:.+)?$`)},
 	{Name: "GPU Freq", Unit: UnitMHz, MinY: 0, MaxY: 3000, AutoRange: true,

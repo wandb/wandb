@@ -110,18 +110,53 @@ func (c *TimeSeriesLineChart) TestFormatXAxisTick(v float64, maxWidth int) strin
 	return c.formatXAxisTick(v, maxWidth)
 }
 
-// TestCurrentPage returns the current grid of charts.
-func (g *SystemMetricsGrid) TestCurrentPage() [][]*TimeSeriesLineChart {
-	return g.currentPage
+// TestSampleCount exposes the buffered sample-column count for focused tests.
+func (c *FrenchFriesChart) TestSampleCount() int {
+	return len(c.samples)
 }
 
-// TestChartAt returns the chart at (row, col) on the current page (or nil).
+// TestVisibleSeries exposes the series currently rendered as rows.
+func (c *FrenchFriesChart) TestVisibleSeries() []string {
+	return append([]string(nil), c.visibleSeriesNames(c.height)...)
+}
+
+// TestTitleDetail exposes the rendered title suffix for focused tests.
+func (c *FrenchFriesChart) TestTitleDetail() string {
+	return c.TitleDetail()
+}
+
+// TestCurrentPage returns the current grid of charts.
+func (g *SystemMetricsGrid) TestCurrentPage() [][]*TimeSeriesLineChart {
+	out := make([][]*TimeSeriesLineChart, len(g.currentPage))
+	for row := range g.currentPage {
+		out[row] = make([]*TimeSeriesLineChart, len(g.currentPage[row]))
+		for col := range g.currentPage[row] {
+			if chart, ok := g.currentPage[row][col].(*TimeSeriesLineChart); ok {
+				out[row][col] = chart
+			}
+		}
+	}
+	return out
+}
+
+// TestChartAt returns the lien chart at (row, col) on the current page (or nil).
 func (g *SystemMetricsGrid) TestChartAt(row, col int) *TimeSeriesLineChart {
 	if row < 0 || row >= len(g.currentPage) ||
 		col < 0 || col >= len(g.currentPage[row]) {
 		return nil
 	}
-	return g.currentPage[row][col]
+	chart, _ := g.currentPage[row][col].(*TimeSeriesLineChart)
+	return chart
+}
+
+// TestFrenchFriesChartAt returns the French Fries chart at (row, col) on the current page (or nil).
+func (g *SystemMetricsGrid) TestFrenchFriesChartAt(row, col int) *FrenchFriesChart {
+	if row < 0 || row >= len(g.currentPage) ||
+		col < 0 || col >= len(g.currentPage[row]) {
+		return nil
+	}
+	chart, _ := g.currentPage[row][col].(*FrenchFriesChart)
+	return chart
 }
 
 // TestGridDims returns the current grid dimensions.
