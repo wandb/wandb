@@ -52,7 +52,7 @@ wb = "wandb.cli.cli:cli"
 [project.urls]
 "Source" = "https://github.com/wandb/wandb"
 "Bug Reports" = "https://github.com/wandb/wandb/issues"
-"Documentation" = "https://docs.wandb.ai/"
+"Documentation" = "https://docs.wandb.ai"
 
 [project.optional-dependencies]
 kubeflow = ["kubernetes", "minio", "google-cloud-storage", "sh"]

@@ -308,7 +308,7 @@ class JobBuilder:
                 if not os.path.exists(os.path.basename(program_relpath)):
                     _logger.info("target path does not exist, exiting")
                     self._log_if_verbose(
-                        "No program path found when generating artifact job source for a non-colab notebook run. See https://docs.wandb.ai/guides/launch/create-job",
+                        "No program path found when generating artifact job source for a non-colab notebook run. See https://docs.wandb.ai/platform/launch/create-job",
                         "warn",
                     )
                     return None, None
@@ -418,7 +418,7 @@ class JobBuilder:
                 self._log_if_verbose(
                     f"Source type is set to '{source_type}' but some required information is missing "
                     "from the environment. A job will not be created from this run. See "
-                    "https://docs.wandb.ai/guides/launch/create-job",
+                    "https://docs.wandb.ai/platform/launch/create-job",
                     "warn",
                 )
             return None, None
@@ -464,14 +464,14 @@ class JobBuilder:
 
         if not os.path.exists(os.path.join(self._files_dir, REQUIREMENTS_FNAME)):
             self._log_if_verbose(
-                "No requirements.txt found, not creating job artifact. See https://docs.wandb.ai/guides/launch/create-job",
+                "No requirements.txt found, not creating job artifact. See https://docs.wandb.ai/platform/launch/create-job",
                 "warn",
             )
             return None
         metadata = self._handle_metadata_file()
         if metadata is None:
             self._log_if_verbose(
-                f"Ensure read and write access to run files dir: {self._files_dir}, control this via the WANDB_DIR env var. See https://docs.wandb.ai/guides/track/environment-variables",
+                f"Ensure read and write access to run files dir: {self._files_dir}, control this via the WANDB_DIR env var. See https://docs.wandb.ai/models/track/environment-variables",
                 "warn",
             )
             return None
@@ -481,7 +481,7 @@ class JobBuilder:
         if runtime is None:
             self._log_if_verbose(
                 "No python version found in metadata, not creating job artifact. "
-                "See https://docs.wandb.ai/guides/launch/create-job",
+                "See https://docs.wandb.ai/platform/launch/create-job",
                 "warn",
             )
             return None
@@ -511,7 +511,7 @@ class JobBuilder:
         if not self._partial and source_type != "image" and not program_relpath:
             self._log_if_verbose(
                 "No program path found, not creating job artifact. "
-                "See https://docs.wandb.ai/guides/launch/create-job",
+                "See https://docs.wandb.ai/platform/launch/create-job",
                 "warn",
             )
             return None
@@ -603,7 +603,7 @@ class JobBuilder:
 
             if not program:
                 self._log_if_verbose(
-                    "Notebook 'program' path not found in metadata. See https://docs.wandb.ai/guides/launch/create-job",
+                    "Notebook 'program' path not found in metadata. See https://docs.wandb.ai/platform/launch/create-job",
                     "warn",
                 )
 

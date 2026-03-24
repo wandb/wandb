@@ -42,7 +42,7 @@ class Config:
     wandb.init(config="my_config.yaml")
     ```
 
-    See https://docs.wandb.com/guides/track/config#file-based-configs.
+    See https://docs.wandb.ai/models/track/config#file-based-configs.
 
     Examples:
         Basic usage
