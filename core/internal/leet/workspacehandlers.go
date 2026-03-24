@@ -359,13 +359,16 @@ func (w *Workspace) initReaderCmd(runKey, runPath string) tea.Cmd {
 }
 
 // readAllChunkCmd reads a bounded chunk of records for the given workspace run.
-func (w *Workspace) readAllChunkCmd(run *workspaceRun) tea.Cmd {
-	if run == nil || run.reader == nil {
+func (w *Workspace) readAllChunkCmd(run *WorkspaceRun) tea.Cmd {
+	if run == nil || run.Reader == nil {
 		return nil
 	}
 
+	reader := run.Reader
+	runKey := run.Key
+
 	return func() tea.Msg {
-		msg, err := run.reader.Read(BootLoadChunkSize, BootLoadMaxTime)
+		msg, err := reader.Read(BootLoadChunkSize, BootLoadMaxTime)
 		if err != nil {
 			return ErrorMsg{Err: err}
 		}
@@ -374,7 +377,7 @@ func (w *Workspace) readAllChunkCmd(run *workspaceRun) tea.Cmd {
 		}
 		if batch, ok := msg.(ChunkedBatchMsg); ok {
 			return WorkspaceChunkedBatchMsg{
-				RunKey: run.key,
+				RunKey: runKey,
 				Batch:  batch,
 			}
 		}
@@ -382,27 +385,37 @@ func (w *Workspace) readAllChunkCmd(run *workspaceRun) tea.Cmd {
 	}
 }
 
-// readAvailableCmd drains any new records for a live workspace run.
-func (w *Workspace) readAvailableCmd(run *workspaceRun) tea.Cmd {
-	if run == nil || run.reader == nil {
+// ReadAvailableCmd drains any new records for a live workspace run.
+func (w *Workspace) ReadAvailableCmd(run *WorkspaceRun) tea.Cmd {
+	if run == nil || run.Reader == nil {
 		return nil
 	}
 
+	reader := run.Reader
+	runKey := run.Key
+
 	return func() tea.Msg {
-		msg, err := run.reader.Read(LiveMonitorChunkSize, LiveMonitorMaxTime)
+		msg, err := reader.Read(LiveMonitorChunkSize, LiveMonitorMaxTime)
 		if err != nil {
 			return ErrorMsg{Err: err}
 		}
 		if msg == nil {
 			return nil
 		}
-		if batch, ok := msg.(BatchedRecordsMsg); ok {
-			return WorkspaceBatchedRecordsMsg{
-				RunKey: run.key,
-				Batch:  batch,
-			}
+		batch, ok := msg.(ChunkedBatchMsg)
+		if !ok {
+			return msg
 		}
-		return msg
+		if len(batch.Msgs) == 0 {
+			return nil
+		}
+
+		return WorkspaceBatchedRecordsMsg{
+			RunKey: runKey,
+			Batch: BatchedRecordsMsg{
+				Msgs: batch.Msgs,
+			},
+		}
 	}
 }
 
@@ -420,8 +433,8 @@ func (w *Workspace) waitForLiveMsg() tea.Msg {
 // When a watcher is started it also returns a command that waits for the first
 // change notification so that subsequent updates are driven primarily by
 // filesystem events, with the heartbeat as a safety net.
-func (w *Workspace) ensureLiveStreaming(run *workspaceRun) tea.Cmd {
-	if run == nil || run.reader == nil || run.state != RunStateRunning {
+func (w *Workspace) ensureLiveStreaming(run *WorkspaceRun) tea.Cmd {
+	if run == nil || run.Reader == nil || run.state != RunStateRunning {
 		return nil
 	}
 
@@ -433,10 +446,10 @@ func (w *Workspace) ensureLiveStreaming(run *workspaceRun) tea.Cmd {
 
 		if err := run.watcher.Start(run.wandbPath); err != nil {
 			w.logger.CaptureError(fmt.Errorf(
-				"workspace: failed to start watcher for %s: %v", run.key, err))
+				"workspace: failed to start watcher for %s: %v", run.Key, err))
 			run.watcher = nil
 		} else {
-			watcherCmd = w.waitForWatcher(run.key)
+			watcherCmd = w.waitForWatcher(run.Key)
 		}
 	}
 
@@ -474,7 +487,7 @@ func (w *Workspace) waitForWatcher(runKey string) tea.Cmd {
 }
 
 // stopWatcher stops and clears the watcher associated with a run, if any.
-func (w *Workspace) stopWatcher(run *workspaceRun) {
+func (w *Workspace) stopWatcher(run *WorkspaceRun) {
 	if run == nil || run.watcher == nil {
 		return
 	}
@@ -511,10 +524,10 @@ func (w *Workspace) handleWorkspaceRunInit(msg WorkspaceRunInitMsg) tea.Cmd {
 		return nil
 	}
 
-	run := &workspaceRun{
-		key:       msg.RunKey,
+	run := &WorkspaceRun{
+		Key:       msg.RunKey,
 		wandbPath: msg.RunPath,
-		reader:    msg.Reader,
+		Reader:    msg.Reader,
 	}
 	w.runsByKey[msg.RunKey] = run
 
@@ -555,7 +568,7 @@ func (w *Workspace) handleWorkspaceBatchedRecords(msg WorkspaceBatchedRecordsMsg
 
 	// Continue draining while the run is still live.
 	if run.state == RunStateRunning {
-		return w.readAvailableCmd(run)
+		return w.ReadAvailableCmd(run)
 	}
 
 	if !w.anyRunRunning() {
@@ -566,11 +579,11 @@ func (w *Workspace) handleWorkspaceBatchedRecords(msg WorkspaceBatchedRecordsMsg
 }
 
 // handleWorkspaceRecord updates per‑run and metrics state for an individual record.
-func (w *Workspace) handleWorkspaceRecord(run *workspaceRun, msg tea.Msg) {
+func (w *Workspace) handleWorkspaceRecord(run *WorkspaceRun, msg tea.Msg) {
 	switch m := msg.(type) {
 	case RunMsg:
-		w.getOrCreateRunOverview(run.key).ProcessRunMsg(m)
-		w.indexRunFilterData(run.key, m)
+		w.getOrCreateRunOverview(run.Key).ProcessRunMsg(m)
+		w.indexRunFilterData(run.Key, m)
 		if w.filter.Query() != "" {
 			w.applyRunFilter()
 		}
@@ -587,19 +600,19 @@ func (w *Workspace) handleWorkspaceRecord(run *workspaceRun, msg tea.Msg) {
 		}
 
 	case StatsMsg:
-		grid := w.getOrCreateSystemMetricsGrid(run.key)
+		grid := w.getOrCreateSystemMetricsGrid(run.Key)
 		for metricName, value := range m.Metrics {
 			grid.AddDataPoint(metricName, m.Timestamp, value)
 		}
 
 	case SystemInfoMsg:
-		w.getOrCreateRunOverview(run.key).ProcessSystemInfoMsg(m.Record)
+		w.getOrCreateRunOverview(run.Key).ProcessSystemInfoMsg(m.Record)
 
 	case SummaryMsg:
-		w.getOrCreateRunOverview(run.key).ProcessSummaryMsg(m.Summary)
+		w.getOrCreateRunOverview(run.Key).ProcessSummaryMsg(m.Summary)
 
 	case ConsoleLogMsg:
-		w.getOrCreateConsoleLogs(run.key).ProcessRaw(m.Text, m.IsStderr, m.Time)
+		w.getOrCreateConsoleLogs(run.Key).ProcessRaw(m.Text, m.IsStderr, m.Time)
 
 	case FileCompleteMsg:
 		switch m.ExitCode {
@@ -608,7 +621,7 @@ func (w *Workspace) handleWorkspaceRecord(run *workspaceRun, msg tea.Msg) {
 		default:
 			run.state = RunStateFailed
 		}
-		w.getOrCreateRunOverview(run.key).SetRunState(run.state)
+		w.getOrCreateRunOverview(run.Key).SetRunState(run.state)
 		w.syncLiveRunState()
 
 		// No more updates expected for this run; stop its watcher.
@@ -634,7 +647,7 @@ func (w *Workspace) handleHeartbeat() tea.Cmd {
 		if run == nil || run.state != RunStateRunning || !w.selectedRuns[key] {
 			continue
 		}
-		cmds = append(cmds, w.readAvailableCmd(run))
+		cmds = append(cmds, w.ReadAvailableCmd(run))
 	}
 	return tea.Batch(cmds...)
 }
@@ -658,7 +671,7 @@ func (w *Workspace) handleWorkspaceFileChanged(msg WorkspaceFileChangedMsg) tea.
 		w.heartbeatMgr.Reset(w.hasLiveRuns.Load)
 	}
 
-	return batchCmds(w.readAvailableCmd(run), watcherCmd)
+	return batchCmds(w.ReadAvailableCmd(run), watcherCmd)
 }
 
 func (w *Workspace) handleQuit(msg tea.KeyPressMsg) tea.Cmd {
@@ -672,8 +685,8 @@ func (w *Workspace) handleQuit(msg tea.KeyPressMsg) tea.Cmd {
 			continue
 		}
 		w.stopWatcher(run)
-		if run.reader != nil {
-			run.reader.Close()
+		if run.Reader != nil {
+			run.Reader.Close()
 		}
 	}
 
@@ -689,6 +702,18 @@ func (w *Workspace) handlePrevPage(msg tea.KeyPressMsg) tea.Cmd {
 
 func (w *Workspace) handleNextPage(msg tea.KeyPressMsg) tea.Cmd {
 	w.metricsGrid.Navigate(1)
+	return nil
+}
+
+func (w *Workspace) handleToggleFocusedChartLogY(tea.KeyPressMsg) tea.Cmd {
+	switch w.focus.Type {
+	case FocusMainChart:
+		w.metricsGrid.toggleFocusedChartLogY()
+	case FocusSystemChart:
+		if g := w.activeSystemMetricsGrid(); g != nil {
+			g.toggleFocusedChartLogY()
+		}
+	}
 	return nil
 }
 

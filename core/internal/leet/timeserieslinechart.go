@@ -63,6 +63,8 @@ func NewTimeSeriesLineChart(params *TimeSeriesLineChartParams) *TimeSeriesLineCh
 	tailWindow := time.Duration(DefaultSystemTailWindowMins) * time.Minute
 
 	baseChart := NewEpochLineChart(params.Def.Title())
+	baseChart.yTickFormatter = params.Def.Unit.Format
+
 	chart := &TimeSeriesLineChart{
 		EpochLineChart: baseChart,
 		def:            params.Def,
@@ -80,9 +82,6 @@ func NewTimeSeriesLineChart(params *TimeSeriesLineChartParams) *TimeSeriesLineCh
 
 	chart.XLabelFormatter = func(_ int, v float64) string {
 		return chart.formatXAxisTick(v, chart.maxXLabelWidth())
-	}
-	chart.YLabelFormatter = func(_ int, v float64) string {
-		return params.Def.Unit.Format(v)
 	}
 	chart.SetInspectionLabelFormatter(chart.formatInspectionLabel)
 	chart.Resize(params.Width, params.Height)
@@ -132,6 +131,30 @@ func (c *TimeSeriesLineChart) HandleZoom(direction string, mouseX int) {
 	c.EpochLineChart.HandleZoom(direction, mouseX)
 	c.viewInitialized = true
 	c.reconcileViewState()
+}
+
+// SetYScale switches the Y-axis scaling mode while preserving the chart's
+// time-window policy (live tail, frozen window, or full history).
+func (c *TimeSeriesLineChart) SetYScale(mode AxisScaleMode) bool {
+	if mode == AxisScaleLog && !c.CanUseLogY() {
+		return false
+	}
+	if c.yScale == mode {
+		return false
+	}
+
+	c.yScale = mode
+	c.applyRanges()
+	c.dirty = true
+	return true
+}
+
+// ToggleYScale toggles between linear and logarithmic Y scaling.
+func (c *TimeSeriesLineChart) ToggleYScale() bool {
+	if c.IsLogY() {
+		return c.SetYScale(AxisScaleLinear)
+	}
+	return c.SetYScale(AxisScaleLog)
 }
 
 // ViewModeLabel returns a short description of the current X-axis mode.
@@ -254,6 +277,10 @@ func (c *TimeSeriesLineChart) applyRanges() {
 }
 
 func (c *TimeSeriesLineChart) computeYRange() (float64, float64) {
+	if c.IsLogY() {
+		return c.computeLogYRange()
+	}
+
 	if !c.def.AutoRange || c.def.Percentage || !isFinite(c.minValue) || !isFinite(c.maxValue) {
 		return c.def.MinY, c.def.MaxY
 	}
@@ -273,6 +300,18 @@ func (c *TimeSeriesLineChart) computeYRange() (float64, float64) {
 		newMinY = 0
 	}
 	return newMinY, newMaxY
+}
+
+func (c *TimeSeriesLineChart) computeLogYRange() (float64, float64) {
+	if (!c.def.AutoRange || c.def.Percentage) && c.def.MinY > 0 && c.def.MaxY > c.def.MinY {
+		return c.calculateLogRange(c.def.MinY, c.def.MaxY)
+	}
+
+	minPositive, maxPositive, ok := c.positiveYBounds()
+	if !ok {
+		return c.def.MinY, c.def.MaxY
+	}
+	return c.calculateLogRange(minPositive, maxPositive)
 }
 
 func (c *TimeSeriesLineChart) rightPad() time.Duration {

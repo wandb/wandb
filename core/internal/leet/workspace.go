@@ -75,7 +75,7 @@ type Workspace struct {
 	consoleLogsPane *ConsoleLogsPane
 
 	// Per‑run streaming state keyed by runDirName.
-	runsByKey map[string]*workspaceRun
+	runsByKey map[string]*WorkspaceRun
 
 	// Heartbeat for live runs.
 	liveChan     chan tea.Msg
@@ -86,11 +86,11 @@ type Workspace struct {
 	width, height int
 }
 
-// workspaceRun holds per‑run state for the workspace multi‑run view.
-type workspaceRun struct {
-	key       string
+// WorkspaceRun holds per‑run state for the workspace multi‑run view.
+type WorkspaceRun struct {
+	Key       string
+	Reader    HistorySource
 	wandbPath string
-	reader    HistorySource
 	watcher   *WatcherManager
 	state     RunState
 }
@@ -149,7 +149,7 @@ func NewWorkspace(
 		systemMetricsFilter: smf,
 		consoleLogs:         make(map[string]*RunConsoleLogs),
 		consoleLogsPane:     NewConsoleLogsPane(consoleLogsPaneAnimState),
-		runsByKey:           make(map[string]*workspaceRun),
+		runsByKey:           make(map[string]*WorkspaceRun),
 		liveChan:            ch,
 		heartbeatMgr:        NewHeartbeatManager(hbInterval, ch, logger),
 		filter:              NewFilter(),
@@ -505,8 +505,8 @@ func (w *Workspace) dropRun(runKey string) {
 			w.metricsGrid.RemoveSeries(run.wandbPath)
 		}
 		w.stopWatcher(run)
-		if run.reader != nil {
-			run.reader.Close()
+		if run.Reader != nil {
+			run.Reader.Close()
 		}
 		delete(w.runsByKey, runKey)
 		delete(w.consoleLogs, runKey)
@@ -655,7 +655,7 @@ func (w *Workspace) renderRunOverview() string {
 }
 
 func (w *Workspace) renderMetrics() string {
-	contentWidth := max(w.width-w.runsAnimState.Value()-w.runOverviewSidebar.Width()+1, 0)
+	contentWidth := max(w.width-w.runsAnimState.Value()-w.runOverviewSidebar.Width(), 0)
 	reserved := w.consoleLogsPane.Height() + w.systemMetricsPane.Height()
 	contentHeight := max(w.height-StatusBarHeight-reserved, 1)
 
@@ -822,10 +822,18 @@ func (w *Workspace) buildActiveStatus() string {
 
 	if w.focus.Type != FocusNone {
 		parts = append(parts, w.focus.Title)
-		if w.focus.Type == FocusSystemChart {
+		switch w.focus.Type {
+		case FocusMainChart:
+			if scaleLabel := w.metricsGrid.focusedChartScaleLabel(); scaleLabel != "" {
+				parts = append(parts, scaleLabel)
+			}
+		case FocusSystemChart:
 			if g := w.activeSystemMetricsGrid(); g != nil {
 				if viewMode := g.FocusedChartViewModeLabel(); viewMode != "" {
 					parts = append(parts, viewMode)
+				}
+				if scaleLabel := g.FocusedChartScaleLabel(); scaleLabel != "" {
+					parts = append(parts, scaleLabel)
 				}
 			}
 		}

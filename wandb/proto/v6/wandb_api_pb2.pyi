@@ -85,19 +85,23 @@ class ApiRequest(google.protobuf.message.Message):
 
     API_ID_FIELD_NUMBER: builtins.int
     READ_RUN_HISTORY_REQUEST_FIELD_NUMBER: builtins.int
+    FEATURES_REQUEST_FIELD_NUMBER: builtins.int
     api_id: builtins.str
     """The ID of the API instance from the init response."""
     @property
     def read_run_history_request(self) -> global___ReadRunHistoryRequest: ...
+    @property
+    def features_request(self) -> global___FeaturesRequest: ...
     def __init__(
         self,
         *,
         api_id: builtins.str = ...,
         read_run_history_request: global___ReadRunHistoryRequest | None = ...,
+        features_request: global___FeaturesRequest | None = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing.Literal["read_run_history_request", b"read_run_history_request", "request", b"request"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing.Literal["api_id", b"api_id", "read_run_history_request", b"read_run_history_request", "request", b"request"]) -> None: ...
-    def WhichOneof(self, oneof_group: typing.Literal["request", b"request"]) -> typing.Literal["read_run_history_request"] | None: ...
+    def HasField(self, field_name: typing.Literal["features_request", b"features_request", "read_run_history_request", b"read_run_history_request", "request", b"request"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing.Literal["api_id", b"api_id", "features_request", b"features_request", "read_run_history_request", b"read_run_history_request", "request", b"request"]) -> None: ...
+    def WhichOneof(self, oneof_group: typing.Literal["request", b"request"]) -> typing.Literal["read_run_history_request", "features_request"] | None: ...
 
 global___ApiRequest = ApiRequest
 
@@ -106,20 +110,24 @@ class ApiResponse(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
     READ_RUN_HISTORY_RESPONSE_FIELD_NUMBER: builtins.int
+    FEATURES_RESPONSE_FIELD_NUMBER: builtins.int
     API_ERROR_RESPONSE_FIELD_NUMBER: builtins.int
     @property
     def read_run_history_response(self) -> global___ReadRunHistoryResponse: ...
+    @property
+    def features_response(self) -> global___FeaturesResponse: ...
     @property
     def api_error_response(self) -> global___ApiErrorResponse: ...
     def __init__(
         self,
         *,
         read_run_history_response: global___ReadRunHistoryResponse | None = ...,
+        features_response: global___FeaturesResponse | None = ...,
         api_error_response: global___ApiErrorResponse | None = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing.Literal["api_error_response", b"api_error_response", "read_run_history_response", b"read_run_history_response", "response", b"response"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing.Literal["api_error_response", b"api_error_response", "read_run_history_response", b"read_run_history_response", "response", b"response"]) -> None: ...
-    def WhichOneof(self, oneof_group: typing.Literal["response", b"response"]) -> typing.Literal["read_run_history_response", "api_error_response"] | None: ...
+    def HasField(self, field_name: typing.Literal["api_error_response", b"api_error_response", "features_response", b"features_response", "read_run_history_response", b"read_run_history_response", "response", b"response"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing.Literal["api_error_response", b"api_error_response", "features_response", b"features_response", "read_run_history_response", b"read_run_history_response", "response", b"response"]) -> None: ...
+    def WhichOneof(self, oneof_group: typing.Literal["response", b"response"]) -> typing.Literal["read_run_history_response", "features_response", "api_error_response"] | None: ...
 
 global___ApiResponse = ApiResponse
 
@@ -162,6 +170,72 @@ class ServerApiCleanupRequest(google.protobuf.message.Message):
     def ClearField(self, field_name: typing.Literal["api_id", b"api_id"]) -> None: ...
 
 global___ServerApiCleanupRequest = ServerApiCleanupRequest
+
+@typing.final
+class FeaturesRequest(google.protobuf.message.Message):
+    """Retrieves feature flags.
+
+    The response to this request contains the state of feature flags
+    at some point in the past. It is not guaranteed that the most current
+    values are returned because features can change at runtime (like after
+    a server update). However, the requester may assume that any feature
+    changes are backward compatible: for example, features that represent
+    the existence of a GraphQL field are never disabled after being enabled.
+    To be precise, backward incompatible changes are possible, but only
+    minimal effort should be spent handling them. Such changes should be rare
+    and can be expected to break running programs.
+
+    Concretely:
+
+    - DO query features before every network request that depends on them
+      (it's relatively fast)
+    - AVOID special handling for schema-related errors
+
+    Features may be specific to the API instance, for example if they depend
+    on the entity. Keep this in mind if caching the response.
+    """
+
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    FEATURES_FIELD_NUMBER: builtins.int
+    @property
+    def features(self) -> google.protobuf.internal.containers.RepeatedScalarFieldContainer[wandb.proto.wandb_internal_pb2.ServerFeature.ValueType]:
+        """Names of features to check.
+
+        Features not in this list are not included in the response
+        even if they are enabled.
+
+        Due to backward compatibility, it is difficult to remove features
+        on the server, and the list may grow large. Clients should request
+        just the features they know about.
+        """
+
+    def __init__(
+        self,
+        *,
+        features: collections.abc.Iterable[wandb.proto.wandb_internal_pb2.ServerFeature.ValueType] | None = ...,
+    ) -> None: ...
+    def ClearField(self, field_name: typing.Literal["features", b"features"]) -> None: ...
+
+global___FeaturesRequest = FeaturesRequest
+
+@typing.final
+class FeaturesResponse(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    ENABLED_FIELD_NUMBER: builtins.int
+    @property
+    def enabled(self) -> google.protobuf.internal.containers.RepeatedScalarFieldContainer[wandb.proto.wandb_internal_pb2.ServerFeature.ValueType]:
+        """Names of enabled boolean features."""
+
+    def __init__(
+        self,
+        *,
+        enabled: collections.abc.Iterable[wandb.proto.wandb_internal_pb2.ServerFeature.ValueType] | None = ...,
+    ) -> None: ...
+    def ClearField(self, field_name: typing.Literal["enabled", b"enabled"]) -> None: ...
+
+global___FeaturesResponse = FeaturesResponse
 
 @typing.final
 class ReadRunHistoryRequest(google.protobuf.message.Message):

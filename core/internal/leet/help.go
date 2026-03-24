@@ -84,13 +84,17 @@ func (h *HelpModel) entriesForMode() []HelpEntry {
 	switch h.mode {
 	case viewModeWorkspace:
 		entries = append(entries, helpEntriesFromCategories(WorkspaceKeyBindings())...)
+		entries = append(entries, tipsEntries()...)
 	case viewModeRun:
 		entries = append(entries, helpEntriesFromCategories(RunKeyBindings())...)
+		entries = append(entries, tipsEntries()...)
+	case viewModeSymon:
+		entries = append(entries, helpEntriesFromCategories(SymonKeyBindings())...)
+		entries = append(entries, symonTipsEntries()...)
 	default:
 		entries = append(entries, helpEntriesFromCategories(WorkspaceKeyBindings())...)
+		entries = append(entries, tipsEntries()...)
 	}
-
-	entries = append(entries, tipsEntries()...)
 
 	return entries
 }
@@ -109,12 +113,23 @@ func tipsEntries() []HelpEntry {
 	}
 }
 
+func symonTipsEntries() []HelpEntry {
+	return []HelpEntry{
+		{Key: "Tips", Description: ""},
+		{Key: "wandb beta leet config", Description: "Open the interactive config editor"},
+		{Key: "SYMON", Description: "Live system monitor"},
+		blankLine,
+	}
+}
+
 func (h *HelpModel) modeLabel() string {
 	switch h.mode {
 	case viewModeWorkspace:
 		return "workspace"
 	case viewModeRun:
 		return "single run"
+	case viewModeSymon:
+		return "symon"
 	default:
 		return "unknown"
 	}

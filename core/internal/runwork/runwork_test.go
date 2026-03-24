@@ -33,7 +33,9 @@ func TestAddWorkConcurrent(t *testing.T) {
 		go func() {
 			defer wgProducer.Done()
 			for range 100 {
-				rw.AddWork(runwork.WorkFromRecord(&spb.Record{}))
+				rw.AddWork(runwork.NoRequest(
+					runwork.WorkFromRecord(&spb.Record{}),
+				))
 			}
 		}()
 	}
@@ -52,7 +54,9 @@ func TestAddWorkAfterClose(t *testing.T) {
 
 	rw.SetDone()
 	rw.Close()
-	rw.AddWork(runwork.WorkFromRecord(&spb.Record{}))
+	rw.AddWork(runwork.NoRequest(
+		runwork.WorkFromRecord(&spb.Record{}),
+	))
 
 	assert.Contains(t, logs.String(), "runwork: ignoring record after close")
 }
@@ -69,7 +73,9 @@ func TestCloseDuringAddWork(t *testing.T) {
 		rw.SetDone()
 		rw.Close()
 	}()
-	rw.AddWork(runwork.WorkFromRecord(&spb.Record{}))
+	rw.AddWork(runwork.NoRequest(
+		runwork.WorkFromRecord(&spb.Record{}),
+	))
 	<-rw.Chan()
 
 	assert.Contains(t, logs.String(), "runwork: ignoring record after close")
@@ -96,7 +102,9 @@ func TestRaceAddWorkClose(t *testing.T) {
 			rw.SetDone()
 			rw.Close()
 		}()
-		go rw.AddWork(runwork.WorkFromRecord(&spb.Record{}))
+		go rw.AddWork(runwork.NoRequest(
+			runwork.WorkFromRecord(&spb.Record{}),
+		))
 		<-rw.Chan()
 	}
 }
@@ -131,7 +139,9 @@ func TestCloseBlocksUntilDone(t *testing.T) {
 	go rw.Close()
 	for range 10 {
 		<-time.After(time.Millisecond)
-		rw.AddWork(runwork.WorkFromRecord(&spb.Record{}))
+		rw.AddWork(runwork.NoRequest(
+			runwork.WorkFromRecord(&spb.Record{}),
+		))
 	}
 	rw.SetDone()
 	wg.Wait()

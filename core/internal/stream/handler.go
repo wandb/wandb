@@ -202,7 +202,7 @@ func (h *Handler) fwdRecord(record *spb.Record) {
 		return
 	}
 
-	h.fwdWork(runwork.WorkRecord{Record: record})
+	h.fwdWork(runwork.NoRequest(runwork.WorkFromRecord(record)))
 }
 
 // fwdRecordWithControl forwards a record to the next component with control options
