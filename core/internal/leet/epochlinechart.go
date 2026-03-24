@@ -530,10 +530,6 @@ func (c *EpochLineChart) calculatePadding(valueRange float64) float64 {
 	return padding
 }
 
-func (c *EpochLineChart) paddedYRange() (float64, float64) {
-	return c.calculateLinearRange()
-}
-
 func nextZoomRange(currentRange, domainRange, minRange float64, direction string) float64 {
 	if currentRange <= 0 || domainRange <= 0 {
 		return 0
@@ -997,14 +993,6 @@ func (c *EpochLineChart) graphClipRect() graphRect {
 		minY: 0,
 		maxY: float64(c.GraphHeight()),
 	}
-}
-
-func (c *EpochLineChart) graphPointForLine(x, y float64) canvas.Float64Point {
-	p, ok := c.graphPointForLineOK(x, y)
-	if ok {
-		return p
-	}
-	return canvas.Float64Point{X: math.NaN(), Y: math.NaN()}
 }
 
 func (c *EpochLineChart) graphPointForLineOK(x, y float64) (canvas.Float64Point, bool) {
