@@ -186,11 +186,11 @@ func (w *Workspace) handleSystemMetricsMouse(msg tea.MouseMsg, metricsHeight int
 			grid.HandleMouseClick(row, col)
 		case tea.MouseRight:
 			w.metricsGrid.clearFocus()
-			grid.StartInspection(adjustedX, row, col, dims, alt)
+			grid.StartInspection(adjustedX, adjustedY, row, col, dims, alt)
 		}
 	case tea.MouseMotionMsg:
 		if m.Button == tea.MouseRight {
-			grid.UpdateInspection(adjustedX, row, col, dims)
+			grid.UpdateInspection(adjustedX, adjustedY, row, col, dims)
 		}
 	case tea.MouseReleaseMsg:
 		if m.Button == tea.MouseRight {
@@ -206,6 +206,16 @@ func (w *Workspace) handleSystemMetricsMouse(msg tea.MouseMsg, metricsHeight int
 		}
 	}
 
+	return nil
+}
+
+func (w *Workspace) handleToggleFocusedSystemChartHeatmapMode(tea.KeyPressMsg) tea.Cmd {
+	if w.focus.Type != FocusSystemChart {
+		return nil
+	}
+	if g := w.activeSystemMetricsGrid(); g != nil {
+		g.toggleFocusedChartHeatmapMode()
+	}
 	return nil
 }
 

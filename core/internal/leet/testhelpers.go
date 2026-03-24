@@ -117,7 +117,8 @@ func (c *FrenchFriesChart) TestSampleCount() int {
 
 // TestVisibleSeries exposes the series currently rendered as rows.
 func (c *FrenchFriesChart) TestVisibleSeries() []string {
-	return append([]string(nil), c.visibleSeriesNames(c.height)...)
+	layout := c.layout()
+	return append([]string(nil), c.visibleSeriesNames(layout.maxVisibleRows)...)
 }
 
 // TestTitleDetail exposes the rendered title suffix for focused tests.
@@ -139,14 +140,20 @@ func (g *SystemMetricsGrid) TestCurrentPage() [][]*TimeSeriesLineChart {
 	return out
 }
 
-// TestChartAt returns the lien chart at (row, col) on the current page (or nil).
+// TestChartAt returns the underlying line chart at (row, col) on the current page (or nil).
 func (g *SystemMetricsGrid) TestChartAt(row, col int) *TimeSeriesLineChart {
 	if row < 0 || row >= len(g.currentPage) ||
 		col < 0 || col >= len(g.currentPage[row]) {
 		return nil
 	}
-	chart, _ := g.currentPage[row][col].(*TimeSeriesLineChart)
-	return chart
+	switch chart := g.currentPage[row][col].(type) {
+	case *TimeSeriesLineChart:
+		return chart
+	case *frenchFriesToggleChart:
+		return chart.line
+	default:
+		return nil
+	}
 }
 
 // TestFrenchFriesChartAt returns the French Fries chart at (row, col) on the current page (or nil).
@@ -155,8 +162,32 @@ func (g *SystemMetricsGrid) TestFrenchFriesChartAt(row, col int) *FrenchFriesCha
 		col < 0 || col >= len(g.currentPage[row]) {
 		return nil
 	}
-	chart, _ := g.currentPage[row][col].(*FrenchFriesChart)
-	return chart
+	switch chart := g.currentPage[row][col].(type) {
+	case *FrenchFriesChart:
+		return chart
+	case *frenchFriesToggleChart:
+		return chart.frenchFries
+	default:
+		return nil
+	}
+}
+
+// TestHeatmapModeAt reports whether the chart at (row, col) is in heatmap mode.
+func (g *SystemMetricsGrid) TestHeatmapModeAt(row, col int) bool {
+	if row < 0 || row >= len(g.currentPage) ||
+		col < 0 || col >= len(g.currentPage[row]) {
+		return false
+	}
+	chart := g.currentPage[row][col]
+	if chart == nil {
+		return false
+	}
+	return chart.IsHeatmapMode()
+}
+
+// TestToggleFocusedChartHeatmapMode toggles heatmap mode on the focused system chart.
+func (g *SystemMetricsGrid) TestToggleFocusedChartHeatmapMode() bool {
+	return g.toggleFocusedChartHeatmapMode()
 }
 
 // TestGridDims returns the current grid dimensions.

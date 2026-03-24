@@ -381,6 +381,16 @@ func (r *Run) handleToggleFocusedChartLogY(tea.KeyPressMsg) tea.Cmd {
 	return nil
 }
 
+func (r *Run) handleToggleFocusedSystemChartHeatmapMode(tea.KeyPressMsg) tea.Cmd {
+	if r.focus.Type != FocusSystemChart {
+		return nil
+	}
+	if r.rightSidebar != nil && r.rightSidebar.metricsGrid != nil {
+		r.rightSidebar.metricsGrid.toggleFocusedChartHeatmapMode()
+	}
+	return nil
+}
+
 func (r *Run) handleEnterMetricsFilter(msg tea.KeyPressMsg) tea.Cmd {
 	r.metricsGrid.EnterFilterMode()
 	return nil

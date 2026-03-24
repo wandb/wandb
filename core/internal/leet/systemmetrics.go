@@ -116,9 +116,6 @@ var metricDefs = []MetricDef{
 	// GPU metrics
 	{Name: "GPU Utilization", Unit: UnitPercent, MinY: 0, MaxY: 100, Percentage: true,
 		Regex: regexp.MustCompile(`^gpu\.\d+\.gpu(/l:.+)?$`)},
-	{Name: "GPU Utilization", Unit: UnitPercent, MinY: 0, MaxY: 100, Percentage: true,
-		ChartKind: MetricChartKindFrenchFries,
-		Regex:     regexp.MustCompile(`^gpu\.\d+\.gpu(/l:.+)?$`)},
 	{Name: "GPU Temp", Unit: UnitCelsius, MinY: 0, MaxY: 100, AutoRange: true,
 		Regex: regexp.MustCompile(`^gpu\.\d+\.temp(/l:.+)?$`)},
 	{Name: "GPU Freq", Unit: UnitMHz, MinY: 0, MaxY: 3000, AutoRange: true,

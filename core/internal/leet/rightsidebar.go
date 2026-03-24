@@ -65,24 +65,24 @@ func (rs *RightSidebar) Toggle() {
 }
 
 func (rs *RightSidebar) gridMouseTarget(x, y int) (
-	adjustedX, row, col int,
+	adjustedX, adjustedY, row, col int,
 	dims GridDims,
 	ok bool,
 ) {
 	if !rs.animState.IsVisible() {
-		return 0, 0, 0, GridDims{}, false
+		return 0, 0, 0, 0, GridDims{}, false
 	}
 
 	adjustedX = x - rightSidebarMouseClickPaddingOffset
-	adjustedY := y - rightSidebarMouseClickPaddingOffset
+	adjustedY = y - rightSidebarMouseClickPaddingOffset
 	if adjustedX < 0 || adjustedY < 0 {
-		return 0, 0, 0, GridDims{}, false
+		return 0, 0, 0, 0, GridDims{}, false
 	}
 
 	dims = rs.metricsGrid.calculateChartDimensions()
 	row = adjustedY / dims.CellHWithPadding
 	col = adjustedX / dims.CellWWithPadding
-	return adjustedX, row, col, dims, true
+	return adjustedX, adjustedY, row, col, dims, true
 }
 
 // HandleMouseClick handles mouse clicks in the sidebar and returns true if focus changed.
@@ -91,7 +91,7 @@ func (rs *RightSidebar) HandleMouseClick(x, y int) bool {
 		"rightsidebar: HandleMouseClick: x=%d, y=%d, state=%v",
 		x, y, rs.animState))
 
-	_, row, col, _, ok := rs.gridMouseTarget(x, y)
+	_, _, row, col, _, ok := rs.gridMouseTarget(x, y)
 	if !ok {
 		return false
 	}
@@ -101,7 +101,7 @@ func (rs *RightSidebar) HandleMouseClick(x, y int) bool {
 
 // HandleWheel zooms the chart under the mouse cursor.
 func (rs *RightSidebar) HandleWheel(x, y int, wheelUp bool) {
-	adjustedX, row, col, dims, ok := rs.gridMouseTarget(x, y)
+	adjustedX, _, row, col, dims, ok := rs.gridMouseTarget(x, y)
 	if !ok {
 		return
 	}
@@ -110,20 +110,20 @@ func (rs *RightSidebar) HandleWheel(x, y int, wheelUp bool) {
 
 // StartInspection begins chart inspection under the mouse cursor.
 func (rs *RightSidebar) StartInspection(x, y int, synced bool) {
-	adjustedX, row, col, dims, ok := rs.gridMouseTarget(x, y)
+	adjustedX, adjustedY, row, col, dims, ok := rs.gridMouseTarget(x, y)
 	if !ok {
 		return
 	}
-	rs.metricsGrid.StartInspection(adjustedX, row, col, dims, synced)
+	rs.metricsGrid.StartInspection(adjustedX, adjustedY, row, col, dims, synced)
 }
 
 // UpdateInspection moves the inspection cursor.
 func (rs *RightSidebar) UpdateInspection(x, y int) {
-	adjustedX, row, col, dims, ok := rs.gridMouseTarget(x, y)
+	adjustedX, adjustedY, row, col, dims, ok := rs.gridMouseTarget(x, y)
 	if !ok {
 		return
 	}
-	rs.metricsGrid.UpdateInspection(adjustedX, row, col, dims)
+	rs.metricsGrid.UpdateInspection(adjustedX, adjustedY, row, col, dims)
 }
 
 // EndInspection clears inspection mode.

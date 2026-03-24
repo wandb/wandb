@@ -142,15 +142,6 @@ func (g *SystemMetricsGrid) createMetricChart(def *MetricDef) systemMetricChart 
 		"systemmetricsgrid: creating chart %dx%d for %v",
 		chartWidth, chartHeight, def))
 
-	if def.ChartKind == MetricChartKindFrenchFries {
-		return NewFrenchFriesChart(&FrenchFriesChartParams{
-			Width:  chartWidth,
-			Height: chartHeight,
-			Def:    def,
-			Now:    time.Now(),
-		})
-	}
-
 	// Base color by color mode.
 	var (
 		baseColor compat.AdaptiveColor
@@ -165,16 +156,28 @@ func (g *SystemMetricsGrid) createMetricChart(def *MetricDef) systemMetricChart 
 		baseIdx = (g.nextColor - 1) % len(colors)
 	}
 
-	chart := NewTimeSeriesLineChart(&TimeSeriesLineChartParams{
+	now := time.Now()
+	lineChart := NewTimeSeriesLineChart(&TimeSeriesLineChartParams{
 		Width:         chartWidth,
 		Height:        chartHeight,
 		Def:           def,
 		BaseColor:     baseColor,
 		ColorProvider: g.anchoredSeriesColorProvider(baseIdx),
-		Now:           time.Now(),
+		Now:           now,
 	})
-	chart.SetTailWindow(g.config.SystemTailWindow())
-	return chart
+	lineChart.SetTailWindow(g.config.SystemTailWindow())
+
+	if !def.Percentage {
+		return lineChart
+	}
+
+	frenchFriesChart := NewFrenchFriesChart(&FrenchFriesChartParams{
+		Width:  chartWidth,
+		Height: chartHeight,
+		Def:    def,
+		Now:    now,
+	})
+	return newFrenchFriesToggleChart(lineChart, frenchFriesChart)
 }
 
 // AddDataPoint adds a new data point to the appropriate metric chart.
@@ -357,6 +360,15 @@ func (g *SystemMetricsGrid) toggleFocusedChartLogY() bool {
 	return true
 }
 
+func (g *SystemMetricsGrid) toggleFocusedChartHeatmapMode() bool {
+	chart := g.focusedChart()
+	if chart == nil || !chart.SupportsHeatmap() || !chart.ToggleHeatmapMode() {
+		return false
+	}
+	chart.DrawIfNeeded()
+	return true
+}
+
 // Resize updates viewport dimensions and resizes/redraws visible charts.
 func (g *SystemMetricsGrid) Resize(width, height int) {
 	if width <= 0 || height <= 0 {
@@ -454,7 +466,9 @@ func (g *SystemMetricsGrid) View() string {
 			if titleDetail != "" {
 				titleSuffix += " " + titleDetail
 			}
-			if metricChart.IsLogY() {
+			if metricChart.IsHeatmapMode() {
+				titleSuffix += " [heatmap]"
+			} else if metricChart.IsLogY() {
 				titleSuffix += " [log]"
 			}
 
@@ -465,7 +479,9 @@ func (g *SystemMetricsGrid) View() string {
 			if titleDetail != "" {
 				renderedTitle += seriesCountStyle.Render(" " + titleDetail)
 			}
-			if metricChart.IsLogY() {
+			if metricChart.IsHeatmapMode() {
+				renderedTitle += navInfoStyle.Render(" [heatmap]")
+			} else if metricChart.IsLogY() {
 				renderedTitle += navInfoStyle.Render(" [log]")
 			}
 
@@ -515,21 +531,33 @@ func (g *SystemMetricsGrid) hitChartAndRelX(
 	adjustedX, row, col int,
 	dims GridDims,
 ) (chart systemMetricChart, relX int, needFocus, ok bool) {
+	chart, relX, _, needFocus, ok = g.hitChartAndRelPos(adjustedX, 0, row, col, dims)
+	return chart, relX, needFocus, ok
+}
+
+// hitChartAndRelPos returns the chart under (row, col) on the grid
+// with relative graph-local coordinates.
+func (g *SystemMetricsGrid) hitChartAndRelPos(
+	adjustedX, adjustedY, row, col int,
+	dims GridDims,
+) (chart systemMetricChart, relX, relY int, needFocus, ok bool) {
 	size := g.effectiveGridSize()
 	if row < 0 || row >= size.Rows || col < 0 || col >= size.Cols ||
 		row >= len(g.currentPage) || col >= len(g.currentPage[row]) {
-		return nil, 0, false, false
+		return nil, 0, 0, false, false
 	}
 	chart = g.currentPage[row][col]
 	if chart == nil {
-		return nil, 0, false, false
+		return nil, 0, 0, false, false
 	}
 
 	chartStartX := col * dims.CellWWithPadding
+	chartStartY := row * dims.CellHWithPadding
 	relX = adjustedX - (chartStartX + chart.GraphStartX())
+	relY = adjustedY - (chartStartY + chart.GraphStartY())
 
 	needFocus = g.focus.Type != FocusSystemChart || g.focus.Row != row || g.focus.Col != col
-	return chart, relX, needFocus, true
+	return chart, relX, relY, needFocus, true
 }
 
 // HandleWheel performs zoom handling on a system chart at (row, col).
@@ -562,22 +590,22 @@ func (g *SystemMetricsGrid) HandleWheel(
 // If synced is true (Alt+right-press), a synchronized inspection session starts:
 // the anchor X from the focused chart is broadcast to all visible charts.
 func (g *SystemMetricsGrid) StartInspection(
-	adjustedX, row, col int,
+	adjustedX, adjustedY, row, col int,
 	dims GridDims,
 	synced bool,
 ) {
-	chart, relX, needFocus, ok := g.hitChartAndRelX(adjustedX, row, col, dims)
+	chart, relX, relY, needFocus, ok := g.hitChartAndRelPos(adjustedX, adjustedY, row, col, dims)
 	if !ok || chart == nil {
 		return
 	}
-	if relX < -2 || relX > chart.GraphWidth()+1 {
+	if relX < -2 || relX > chart.GraphWidth()+1 || relY < -2 || relY > chart.GraphHeight()+1 {
 		return
 	}
 	if needFocus {
 		g.setFocus(row, col)
 	}
 
-	chart.StartInspection(relX)
+	chart.StartInspectionAt(relX, relY)
 	chart.DrawIfNeeded()
 
 	if !synced {
@@ -594,13 +622,13 @@ func (g *SystemMetricsGrid) StartInspection(
 //
 // If a synchronized inspection session is active, broadcasts the position
 // to all visible charts on the current page.
-func (g *SystemMetricsGrid) UpdateInspection(adjustedX, row, col int, dims GridDims) {
-	chart, relX, _, ok := g.hitChartAndRelX(adjustedX, row, col, dims)
+func (g *SystemMetricsGrid) UpdateInspection(adjustedX, adjustedY, row, col int, dims GridDims) {
+	chart, relX, relY, _, ok := g.hitChartAndRelPos(adjustedX, adjustedY, row, col, dims)
 	if !ok || chart == nil || !chart.IsInspecting() {
 		return
 	}
 
-	chart.UpdateInspection(relX)
+	chart.UpdateInspectionAt(relX, relY)
 	chart.DrawIfNeeded()
 
 	if g.syncInspectActive {
