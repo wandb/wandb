@@ -140,6 +140,8 @@ lightgbm = _lazyloader.LazyLoader(
 )
 jupyter = _lazyloader.LazyLoader("wandb.jupyter", globals(), "wandb.jupyter")
 sacred = _lazyloader.LazyLoader("wandb.sacred", globals(), "wandb.integration.sacred")
+superagent = _lazyloader.LazyLoader("wandb.superagent", globals(), "wandb.superagent")
+sandbox = _lazyloader.LazyLoader("wandb.sandbox", globals(), "wandb.sandbox")
 
 
 def ensure_configured():
