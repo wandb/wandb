@@ -299,6 +299,9 @@ func (c *EpochLineChart) SetYScale(mode AxisScaleMode) bool {
 	}
 
 	c.yScale = mode
+	// Y zoom bounds live in the scaled coordinate space, so reset them when the
+	// scale mode changes.
+	c.isYZoomed = false
 	c.updateRanges()
 	c.dirty = true
 	return true
@@ -353,19 +356,16 @@ func (c *EpochLineChart) SetPalette(colors []compat.AdaptiveColor) {
 // X values should be appended in non-decreasing order for efficient rendering.
 // Empty data is a no-op.
 func (c *EpochLineChart) AddData(key string, data MetricData) {
+	// Safety checks.
+	if len(data.X) != len(data.Y) || len(data.X) == 0 {
+		return
+	}
+
 	s, ok := c.data[key]
 	if !ok {
 		s = NewSeries(key, c.palette)
 		c.data[key] = s
 		c.order = append(c.order, key)
-	}
-
-	// Safety checks.
-	if len(data.X) != len(data.Y) {
-		return
-	}
-	if len(data.X) == 0 || len(data.Y) == 0 {
-		return
 	}
 
 	// Amortized linear growth. Do not use slices.Concat as it causes
@@ -387,18 +387,24 @@ func (c *EpochLineChart) AddData(key string, data MetricData) {
 
 // updateRanges recomputes axis ranges from current bounds.
 func (c *EpochLineChart) updateRanges() {
-	if c.SeriesCount() == 0 {
+	if c.SeriesCount() == 0 ||
+		!isFinite(c.xMin) || !isFinite(c.xMax) ||
+		!isFinite(c.yMin) || !isFinite(c.yMax) {
 		return
 	}
 
-<<<<<<< HEAD
-	newYMin, newYMax := c.paddedYRange()
-=======
 	newYMin, newYMax, ok := c.computeYRange()
 	if !ok {
-		return
+		if !c.IsLogY() {
+			return
+		}
+		// The current scale is no longer representable (for example after removing
+		// the last positive series). Fall back to linear and clear Y zoom because
+		// the stored zoom bounds are in the old scaled coordinate space.
+		c.yScale = AxisScaleLinear
+		c.isYZoomed = false
+		newYMin, newYMax = c.calculateLinearRange()
 	}
->>>>>>> 42959d9cf8e367ccaca294f4049379e2c771ae5b
 
 	// X domain: round up to a "nice" value for axis display.
 	dataXMin := c.xMin
@@ -470,7 +476,8 @@ func (c *EpochLineChart) calculateLinearRange() (float64, float64) {
 }
 
 func (c *EpochLineChart) calculateLogRange(
-	minPositive, maxPositive float64) (float64, float64) {
+	minPositive, maxPositive float64,
+) (float64, float64) {
 	minLog := math.Log10(minPositive)
 	maxLog := math.Log10(maxPositive)
 	padding := (maxLog - minLog) * 0.1
@@ -524,18 +531,7 @@ func (c *EpochLineChart) calculatePadding(valueRange float64) float64 {
 }
 
 func (c *EpochLineChart) paddedYRange() (float64, float64) {
-	valueRange := c.yMax - c.yMin
-	padding := c.calculatePadding(valueRange)
-
-	newYMin := c.yMin - padding
-	newYMax := c.yMax + padding
-
-	// Don't go negative for non-negative data.
-	if c.yMin >= 0 && newYMin < 0 {
-		newYMin = 0
-	}
-
-	return newYMin, newYMax
+	return c.calculateLinearRange()
 }
 
 func nextZoomRange(currentRange, domainRange, minRange float64, direction string) float64 {
@@ -773,61 +769,23 @@ func (c *EpochLineChart) drawSeries(s *Series, startX int) {
 
 	clip := c.graphClipRect()
 
-<<<<<<< HEAD
 	for i := start; i < end; i++ {
-		p := c.graphPointForLine(s.X[i], s.Y[i])
-		if pointInGraphRect(p, clip) {
+		p, ok := c.graphPointForLineOK(s.X[i], s.Y[i])
+		if ok && pointInGraphRect(p, clip) {
 			bGrid.Set(bGrid.GridPoint(p))
-=======
-	segments := make([][]canvas.Float64Point, 0, 1)
-	current := make([]canvas.Float64Point, 0, ub-lb)
-	flush := func() {
-		if len(current) == 0 {
-			return
->>>>>>> 42959d9cf8e367ccaca294f4049379e2c771ae5b
 		}
-		segments = append(segments, current)
-		current = make([]canvas.Float64Point, 0, ub-lb)
 	}
 
-<<<<<<< HEAD
 	for i := start; i+1 < end; i++ {
-		p1 := c.graphPointForLine(s.X[i], s.Y[i])
-		p2 := c.graphPointForLine(s.X[i+1], s.Y[i+1])
+		p1, ok1 := c.graphPointForLineOK(s.X[i], s.Y[i])
+		p2, ok2 := c.graphPointForLineOK(s.X[i+1], s.Y[i+1])
+		if !ok1 || !ok2 {
+			continue
+		}
 
 		cp1, cp2, ok := clipLineToGraphRect(p1, p2, clip)
 		if !ok {
 			continue
-=======
-	for i := lb; i < ub; i++ {
-		yValue, ok := c.scaleYValue(s.Y[i])
-		if !ok {
-			flush()
-			continue
-		}
-
-		x := (s.X[i] - c.ViewMinX()) * xScale
-		y := (yValue - c.ViewMinY()) * yScale
-
-		if x < 0 || x > float64(c.GraphWidth()) || y < 0 || y > float64(c.GraphHeight()) {
-			flush()
-			continue
-		}
-
-		current = append(current, canvas.Float64Point{X: x, Y: y})
-	}
-	flush()
-
-	for _, points := range segments {
-		if len(points) == 1 {
-			bGrid.Set(bGrid.GridPoint(points[0]))
-			continue
-		}
-		for i := range len(points) - 1 {
-			gp1 := bGrid.GridPoint(points[i])
-			gp2 := bGrid.GridPoint(points[i+1])
-			drawLine(bGrid, gp1, gp2)
->>>>>>> 42959d9cf8e367ccaca294f4049379e2c771ae5b
 		}
 
 		gp1 := bGrid.GridPoint(cp1)
@@ -1042,17 +1000,34 @@ func (c *EpochLineChart) graphClipRect() graphRect {
 }
 
 func (c *EpochLineChart) graphPointForLine(x, y float64) canvas.Float64Point {
-	return c.ScaleFloat64PointForLine(canvas.Float64Point{X: x, Y: y})
+	p, ok := c.graphPointForLineOK(x, y)
+	if ok {
+		return p
+	}
+	return canvas.Float64Point{X: math.NaN(), Y: math.NaN()}
+}
+
+func (c *EpochLineChart) graphPointForLineOK(x, y float64) (canvas.Float64Point, bool) {
+	scaledY, ok := c.scaleYValue(y)
+	if !ok {
+		return canvas.Float64Point{}, false
+	}
+	return c.ScaleFloat64PointForLine(canvas.Float64Point{X: x, Y: scaledY}), true
 }
 
 func pointInGraphRect(p canvas.Float64Point, r graphRect) bool {
-	return p.X >= r.minX && p.X <= r.maxX && p.Y >= r.minY && p.Y <= r.maxY
+	return isFinite(p.X) && isFinite(p.Y) &&
+		p.X >= r.minX && p.X <= r.maxX && p.Y >= r.minY && p.Y <= r.maxY
 }
 
 func clipLineToGraphRect(
 	p1, p2 canvas.Float64Point,
 	r graphRect,
 ) (canvas.Float64Point, canvas.Float64Point, bool) {
+	if !isFinite(p1.X) || !isFinite(p1.Y) || !isFinite(p2.X) || !isFinite(p2.Y) {
+		return canvas.Float64Point{}, canvas.Float64Point{}, false
+	}
+
 	dx := p2.X - p1.X
 	dy := p2.Y - p1.Y
 	u1, u2 := 0.0, 1.0
