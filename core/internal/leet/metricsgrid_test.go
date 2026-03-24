@@ -167,11 +167,17 @@ func computeAdjustedX(
 ) int {
 	t.Helper()
 	chartStartX := col * cellWWithPad
-	graphStartX := chartStartX + 1
+	graphStartX := chartStartX + leet.ChartBorderSize/2
 	if chart.YStep() > 0 {
 		graphStartX += chart.Origin().X + 1
 	}
 	return graphStartX + wantRelX
+}
+
+func computeAdjustedY(row, cellHWithPad, wantRelY int) int {
+	chartStartY := row * cellHWithPad
+	graphStartY := chartStartY + leet.ChartBorderSize/2 + leet.ChartTitleHeight
+	return graphStartY + wantRelY
 }
 
 func TestMetricsGrid_Inspection_FocusedOnly(t *testing.T) {

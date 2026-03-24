@@ -296,6 +296,7 @@ func (s *Symon) handleConfigNumberKey(msg tea.KeyPressMsg) {
 func (s *Symon) handleMouse(msg tea.MouseMsg) tea.Cmd {
 	mouse := msg.Mouse()
 	alt := mouse.Mod == tea.ModAlt
+	verticalZoom := mouse.Mod == tea.ModCtrl
 
 	if mouse.Y < symonHeaderLines || mouse.Y >= s.height-StatusBarHeight {
 		if _, ok := msg.(tea.MouseClickMsg); ok {
@@ -333,9 +334,9 @@ func (s *Symon) handleMouse(msg tea.MouseMsg) tea.Cmd {
 	case tea.MouseWheelMsg:
 		switch m.Button {
 		case tea.MouseWheelUp:
-			s.grid.HandleWheel(adjustedX, row, col, dims, true)
+			s.grid.HandleWheel(adjustedX, adjustedY, row, col, dims, true, verticalZoom)
 		case tea.MouseWheelDown:
-			s.grid.HandleWheel(adjustedX, row, col, dims, false)
+			s.grid.HandleWheel(adjustedX, adjustedY, row, col, dims, false, verticalZoom)
 		}
 	}
 	return nil
