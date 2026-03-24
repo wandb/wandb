@@ -2,6 +2,7 @@ package leet
 
 import (
 	"fmt"
+	"image/color"
 	"path/filepath"
 	"testing"
 
@@ -72,4 +73,13 @@ func TestWorkspaceApplyRunKeysAssignsUniqueColors(t *testing.T) {
 		}
 		seen[key] = runKey
 	}
+}
+
+func TestWorkspaceRunColorComponentRGBAcceptsColorColor(t *testing.T) {
+	r, g, b, ok := workspaceRunColorComponentRGB(
+		color.RGBA{R: 0x3D, G: 0xBA, B: 0xC4, A: 0xFF})
+	require.True(t, ok)
+	require.Equal(t, uint8(0x3D), r)
+	require.Equal(t, uint8(0xBA), g)
+	require.Equal(t, uint8(0xC4), b)
 }

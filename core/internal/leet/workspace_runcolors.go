@@ -100,11 +100,25 @@ func workspaceRunColorKey(c compat.AdaptiveColor) string {
 }
 
 func normalizeWorkspaceRunColorComponent(component any) string {
-	componentText := fmt.Sprint(component)
-	if r, g, b, ok := parseHexColor(componentText); ok {
-		return fmt.Sprintf("#%02X%02X%02X", r, g, b)
+	r, g, b, ok := workspaceRunColorComponentRGB(component)
+	if !ok {
+		return strings.ToLower(strings.TrimSpace(fmt.Sprint(component)))
 	}
-	return strings.ToLower(componentText)
+	return fmt.Sprintf("#%02X%02X%02X", r, g, b)
+}
+
+func workspaceRunColorComponentRGB(component any) (uint8, uint8, uint8, bool) {
+	if c, ok := component.(color.Color); ok {
+		rgba := color.NRGBAModel.Convert(c).(color.NRGBA)
+		return rgba.R, rgba.G, rgba.B, true
+	}
+
+	componentText := strings.TrimSpace(fmt.Sprint(component))
+	if r, g, b, ok := parseHexColor(componentText); ok {
+		return r, g, b, true
+	}
+
+	return 0, 0, 0, false
 }
 
 func workspaceRunColorVariant(base compat.AdaptiveColor, step int) compat.AdaptiveColor {
@@ -151,9 +165,9 @@ func adjustWorkspaceRunColor(
 	base any,
 	hueShift, saturationDelta, lightnessDelta float64,
 ) color.Color {
-	r, g, b, ok := parseHexColor(fmt.Sprint(base))
+	r, g, b, ok := workspaceRunColorComponentRGB(base)
 	if !ok {
-		return lipgloss.Color(fmt.Sprint(base))
+		return lipgloss.Color(strings.TrimSpace(fmt.Sprint(base)))
 	}
 
 	h, s, l := rgbToHSL(r, g, b)
