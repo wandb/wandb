@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import os
 import platform
+import re
 import shutil
 import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import numpy as np
+import responses
 import wandb
 from pytest import MonkeyPatch, mark, raises
 from pytest_mock import MockerFixture
@@ -798,3 +800,58 @@ def test_storage_policy_storage_region_not_available():
             art = Artifact("test", type="dataset", storage_region="coreweave-us")
             run.log_artifact(art)
             art.wait()
+
+
+@responses.activate()
+def test_artifact_multipart_download_refresh_presigned_url(
+    user: str,
+    api: Api,
+    tmp_path: Path,
+):
+    # Let graphql and manifest json (also stored on S3) passthrough.
+    responses.add_passthru(re.compile(r".*graphql.*"))
+    responses.add_passthru(re.compile(r".*wandb_manifest\.json.*"))
+
+    all_s3_requests = []
+
+    def s3_request_callback(request):
+        all_s3_requests.append(request.url)
+
+        if len(all_s3_requests) == 1:
+            return (403, {}, b"AccessDenied: Request has expired")
+        if len(all_s3_requests) == 2:
+            return (500, {}, b"500 retry the same url without refresh")
+        else:
+            return (200, {}, b"test data for retry")
+
+    # manifest json is not stored under wandb_artifacts/, only the file blobs are.
+    responses.add_callback(
+        responses.GET,
+        re.compile(r".*wandb_artifacts/.*"),
+        callback=s3_request_callback,
+    )
+
+    file_path = tmp_path / "test.txt"
+    file_path.write_text("test data for retry")
+    project = "test"
+
+    with wandb.init(entity=user, project=project) as run:
+        art = Artifact("test-retry-expired-download-url", type="dataset")
+        art.add_file(file_path)
+        run.log_artifact(art)
+        art.wait()
+
+    art = api.artifact(f"{user}/{project}/test-retry-expired-download-url:latest")
+    # NOTE: We need to use multipart=True to avoid triggering non multipart's retry
+    # logic, which is using the `aritifactsV2` handler to redirect to presigned url
+    # instead of calling graphql to get the download url (directUrl).
+    download_path = art.download(skip_cache=True, multipart=True)
+
+    downloaded_file = Path(download_path) / "test.txt"
+    assert downloaded_file.exists(), f"File not found at {downloaded_file}"
+    assert downloaded_file.read_text() == "test data for retry"
+
+    assert len(all_s3_requests) == 3, (
+        f"Expected 3 calls (initial 403 + refresh URL then 500 + built-in retry 200), got {len(all_s3_requests)}. "
+        f"Requests: {all_s3_requests}"
+    )

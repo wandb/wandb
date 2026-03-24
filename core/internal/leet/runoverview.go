@@ -37,6 +37,8 @@ type RunOverview struct {
 	runID          string
 	displayName    string
 	project        string
+	notes          string
+	tags           []string
 	runConfig      *runconfig.RunConfig
 	runEnvironment *runenvironment.RunEnvironment
 	runSummary     *runsummary.RunSummary
@@ -71,6 +73,8 @@ func (ro *RunOverview) ProcessRunMsg(msg RunMsg) {
 	ro.runID = msg.ID
 	ro.displayName = msg.DisplayName
 	ro.project = msg.Project
+	ro.notes = msg.Notes
+	ro.tags = slices.Clone(msg.Tags)
 	ro.runState = RunStateRunning
 
 	if msg.Config != nil {
@@ -116,6 +120,16 @@ func (ro *RunOverview) DisplayName() string {
 // Project returns the project name.
 func (ro *RunOverview) Project() string {
 	return ro.project
+}
+
+// Notes returns the run notes.
+func (ro *RunOverview) Notes() string {
+	return ro.notes
+}
+
+// Tags returns a defensive copy of the run tags.
+func (ro *RunOverview) Tags() []string {
+	return slices.Clone(ro.tags)
 }
 
 // State returns the run state.

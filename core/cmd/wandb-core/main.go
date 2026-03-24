@@ -5,7 +5,7 @@
 // Usage:
 //
 //	wandb-core [service flags]
-//	wandb-core leet [<run-directory>] [leet flags]
+//	wandb-core leet [<wandb-directory>] [leet flags]
 //
 // Service flags: see `wandb-core -h`.
 // Leet flags:    see `wandb-core leet -h`.
@@ -22,13 +22,13 @@ import (
 	"syscall"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
+	"github.com/getsentry/sentry-go"
 
 	"github.com/wandb/wandb/core/internal/leet"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/pprof"
 	"github.com/wandb/wandb/core/internal/processlib"
-	"github.com/wandb/wandb/core/internal/sentry_ext"
 	"github.com/wandb/wandb/core/internal/version"
 	"github.com/wandb/wandb/core/pkg/server"
 )
@@ -40,6 +40,16 @@ const (
 	exitCodeSuccess       = 0 // normal exit
 	exitCodeErrorInternal = 1 // some error occurred
 	exitCodeErrorArgs     = 2 // incorrect command-line flags
+
+	defaultDetachedIdleTimeout = 10 * time.Minute
+
+	// exitCodeSignal is used when the program shuts down due to a signal.
+	//
+	// A common convention is to use 128 plus the signal number, but Go's
+	// signal package does not provide the standard integer numbers associated
+	// with the signal, so for simplicity, we return 128.
+	// See https://github.com/golang/go/issues/30328.
+	exitCodeSignal = 128
 )
 
 func main() {
@@ -56,10 +66,22 @@ func run(args []string) int {
 // serviceMain runs the default W&B SDK core service.
 func serviceMain() int {
 	portFilename := flag.String("port-filename", "port_file.txt",
-		"Specifies the filename where the server will write the port number it uses to "+
-			"communicate with clients.")
+		"Specifies the filename where the server will write the port number it uses to"+
+			" communicate with clients.")
 	pid := flag.Int("pid", 0,
 		"Specifies the process ID (PID) of the external process that spins up this service.")
+	detached := flag.Bool(
+		"detached",
+		false,
+		"Run the service detached from its parent process. In detached mode,"+
+			" the service does not automatically exit when the parent process exits.",
+	)
+	idleTimeout := flag.Duration(
+		"idle-timeout",
+		defaultDetachedIdleTimeout,
+		"If --detached is set, shut down the service after this much idle time"+
+			" with no connected clients. 0 disables the idle shutdown.",
+	)
 	logLevel := flag.Int("log-level", 0,
 		"Specifies the log level to use for logging. -4: debug, 0: info, 4: warn, 8: error.")
 	disableAnalytics := flag.Bool("no-observability", false,
@@ -93,20 +115,33 @@ func serviceMain() int {
 
 	flag.Parse()
 
+	if *idleTimeout < 0 {
+		fmt.Fprintln(os.Stderr, "Error: --idle-timeout must be >= 0")
+		return exitCodeErrorArgs
+	}
+
 	var shutdownOnParentExitEnabled bool
-	if *pid != 0 && *enableOsPidShutdown {
+	if *pid != 0 && *enableOsPidShutdown && !*detached {
 		shutdownOnParentExitEnabled = processlib.ShutdownOnParentExit(*pid)
 	}
 
 	// Sentry (disabled if --no-observability)
-	sentryClient := sentry_ext.New(sentry_ext.Params{
-		Disabled:         *disableAnalytics,
+	var sentryDSN string
+	if !*disableAnalytics {
+		sentryDSN = observability.WandbCoreDSN
+	}
+	err := sentry.Init(sentry.ClientOptions{
+		Dsn:              sentryDSN,
 		AttachStacktrace: true,
 		Release:          version.Version,
-		Commit:           commit,
+		Dist:             commit,
 		Environment:      version.Environment,
 	})
-	defer sentryClient.Flush(2)
+	if err != nil {
+		slog.Error("main: failed to init Sentry", "error", err)
+	} else {
+		defer sentry.Flush(2 * time.Second)
+	}
 
 	// Structured logging to file selected by observability package.
 	var loggerPath string
@@ -127,6 +162,8 @@ func serviceMain() int {
 			"main: starting server",
 			"port-filename", *portFilename,
 			"pid", *pid,
+			"detached", *detached,
+			"idle-timeout", *idleTimeout,
 			"log-level", *logLevel,
 			"disable-analytics", *disableAnalytics,
 			"shutdown-on-parent-exit", shutdownOnParentExitEnabled,
@@ -136,14 +173,9 @@ func serviceMain() int {
 		defer func() { _ = file.Close() }()
 	}
 
-	// Graceful shutdown on SIGINT/SIGTERM.
-	c := make(chan os.Signal, 1)
-	signal.Notify(c, syscall.SIGINT, syscall.SIGTERM)
-	go func() {
-		sig := <-c
-		slog.Info("main: received shutdown signal", "signal", sig)
-		os.Exit(0)
-	}()
+	// Record certain signals in the log file for debugging.
+	signalCh := make(chan os.Signal, 1)
+	signal.Notify(signalCh, syscall.SIGINT, syscall.SIGTERM)
 
 	srv := server.NewServer(
 		server.ServerParams{
@@ -153,126 +185,298 @@ func serviceMain() int {
 			LoggerPath:          loggerPath,
 			LogLevel:            slog.Level(*logLevel),
 			ParentPID:           *pid,
-			SentryClient:        sentryClient,
+			Detached:            *detached,
+			IdleTimeout:         *idleTimeout,
 		},
 	)
+	srvCh := make(chan error, 1)
+	go func() { srvCh <- srv.Serve(*portFilename) }()
 
-	if err := srv.Serve(*portFilename); err != nil {
-		slog.Error("main: Serve() returned error", "error", err)
-		return exitCodeErrorInternal
+	select {
+	case err := <-srvCh:
+		if err != nil {
+			slog.Error("main: Serve() returned error", "error", err)
+			return exitCodeErrorInternal
+		} else {
+			return exitCodeSuccess
+		}
+
+	case sig := <-signalCh:
+		slog.Info("main: received shutdown signal", "signal", sig)
+		return exitCodeSignal
 	}
-	return exitCodeSuccess
 }
 
 // leetMain runs the TUI subcommand.
 func leetMain(args []string) int {
-	fs := flag.NewFlagSet("leet", flag.ContinueOnError)
-	fs.SetOutput(os.Stderr)
-
-	logLevel := fs.Int("log-level", 0,
-		"Specifies the log level to use for logging. -4: debug, 0: info, 4: warn, 8: error.")
-	disableAnalytics := fs.Bool("no-observability", false,
-		"Disables observability features such as metrics and logging analytics.")
-
-	pprofAddr := fs.String("pprof", "",
-		"If set, serves /debug/pprof/* on this address (e.g. 127.0.0.1:6060).")
-
-	fs.Usage = func() {
-		fmt.Fprintf(os.Stderr, `wandb-core leet - Lightweight Experiment Exploration Tool
-A terminal UI for viewing your W&B runs locally.
-
-Usage:
-  wandb-core leet [flags] <wandb-file>
-Arguments:
-  <wandb-file>       Path to the .wandb file of a W&B run.
-                     Example:
-                       /path/to/.wandb/run-20250731_170606-iazb7i1k/run-iazb7i1k.wandb
-
-Options:
-  -h, --help         Show this help message
-
-Flags:
-`)
-		fs.PrintDefaults()
-	}
-
-	if err := fs.Parse(args); err != nil {
+	opts, err := parseLeetOptions(args)
+	if err != nil {
 		if err == flag.ErrHelp {
 			return exitCodeSuccess
 		}
 		return exitCodeErrorArgs
 	}
 
-	pprofStop, err := pprof.StartServer(*pprofAddr)
+	pprofStop, err := startLeetPprof(opts.pprofAddr)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "pprof:", err)
 		return exitCodeErrorArgs
 	}
-	if pprofStop != nil {
-		defer func() {
-			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-			defer cancel()
-			_ = pprofStop(ctx)
-		}()
+	defer stopLeetPprof(pprofStop)
+
+	flushSentry := configureLeetSentry(opts.disableAnalytics, leetSentryMessage(opts))
+	defer flushSentry()
+
+	logger, closeLogger, err := newLeetLogger(opts.logLevel)
+	if err != nil {
+		fmt.Println("fatal:", err)
+		return exitCodeErrorInternal
+	}
+	defer closeLogger()
+
+	return runLeetCommand(opts, logger)
+}
+
+type leetOptions struct {
+	logLevel         int
+	disableAnalytics bool
+	runFile          string
+	pprofAddr        string
+	editConfig       bool
+	symonMode        bool
+	symonInterval    time.Duration
+	wandbDir         string
+}
+
+func parseLeetOptions(args []string) (leetOptions, error) {
+	var opts leetOptions
+
+	fs := flag.NewFlagSet("leet", flag.ContinueOnError)
+	fs.SetOutput(os.Stderr)
+	bindLeetFlags(fs, &opts)
+	fs.Usage = func() { printLeetUsage(fs) }
+
+	if err := fs.Parse(args); err != nil {
+		return leetOptions{}, err
 	}
 
-	// Configure Sentry reporting.
-	sentryClient := sentry_ext.New(sentry_ext.Params{
-		DSN:              sentry_ext.LeetSentryDSN,
-		Disabled:         *disableAnalytics,
+	opts.wandbDir = fs.Arg(0)
+	if err := validateLeetOptions(fs, opts); err != nil {
+		return leetOptions{}, err
+	}
+
+	return opts, nil
+}
+
+func bindLeetFlags(fs *flag.FlagSet, opts *leetOptions) {
+	fs.IntVar(
+		&opts.logLevel,
+		"log-level",
+		0,
+		"Specifies the log level to use for logging. -4: debug, 0: info, 4: warn, 8: error.",
+	)
+	fs.BoolVar(
+		&opts.disableAnalytics,
+		"no-observability",
+		false,
+		"Disables observability features such as metrics and logging analytics.",
+	)
+	fs.StringVar(
+		&opts.runFile,
+		"run-file",
+		"",
+		"Path to a .wandb file to open directly in single-run view.",
+	)
+	fs.StringVar(
+		&opts.pprofAddr,
+		"pprof",
+		"",
+		"If set, serves /debug/pprof/* on this address (e.g. 127.0.0.1:6060).",
+	)
+	fs.BoolVar(&opts.editConfig, "config", false, "Open config editor.")
+	fs.BoolVar(&opts.symonMode, "symon", false, "Launch standalone system metrics mode.")
+	fs.DurationVar(
+		&opts.symonInterval,
+		"interval",
+		leet.DefaultSymonSamplingInterval,
+		"Sampling interval for standalone system metrics (e.g. 500ms, 2s, 1m).",
+	)
+}
+
+func printLeetUsage(fs *flag.FlagSet) {
+	fmt.Fprintf(os.Stderr, `wandb-core leet - Lightweight Experiment Exploration Tool
+A terminal UI for viewing your W&B runs locally.
+
+Usage:
+  wandb-core leet [flags] <wandb-directory>
+  wandb-core leet --config
+  wandb-core leet --symon [flags]
+
+Arguments:
+  <wandb-directory>  Path to the wandb directory containing run folders.
+
+Options:
+  -h, --help         Show this help message
+
+Flags:
+`)
+	fs.PrintDefaults()
+}
+
+func validateLeetOptions(fs *flag.FlagSet, opts leetOptions) error {
+	switch {
+	case opts.symonInterval <= 0:
+		fmt.Fprintln(os.Stderr, "Error: --interval must be > 0")
+		fs.Usage()
+		return fmt.Errorf("invalid interval %v", opts.symonInterval)
+	case opts.symonMode && fs.NArg() != 0:
+		fmt.Fprintln(os.Stderr, "Error: --symon does not take a wandb directory")
+		fs.Usage()
+		return fmt.Errorf("unexpected wandb directory %q in symon mode", fs.Arg(0))
+	case !opts.editConfig && !opts.symonMode && opts.wandbDir == "":
+		fmt.Fprintln(os.Stderr, "Error: wandb directory path required")
+		fs.Usage()
+		return fmt.Errorf("wandb directory path required")
+	default:
+		return nil
+	}
+}
+
+func startLeetPprof(addr string) (func(context.Context) error, error) {
+	return pprof.StartServer(addr)
+}
+
+func stopLeetPprof(pprofStop func(context.Context) error) {
+	if pprofStop == nil {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	_ = pprofStop(ctx)
+}
+
+func configureLeetSentry(disableAnalytics bool, message string) func() {
+	var sentryDSN string
+	if !disableAnalytics {
+		sentryDSN = observability.LeetSentryDSN
+	}
+
+	err := sentry.Init(sentry.ClientOptions{
+		Dsn:              sentryDSN,
 		AttachStacktrace: true,
 		Release:          version.Version,
+		Dist:             commit,
 		Environment:      version.Environment,
 	})
-	sentryClient.CaptureMessage("wandb-leet", nil)
-	defer sentryClient.Flush(2)
+	if err != nil {
+		slog.Error("main: failed to init Sentry", "error", err)
+		return func() {}
+	}
 
-	// Configure debug logging.
+	sentry.CaptureMessage(message)
+	return func() { sentry.Flush(2 * time.Second) }
+}
+
+func leetSentryMessage(opts leetOptions) string {
+	switch {
+	case opts.editConfig:
+		return "wandb-leet-config"
+	case opts.symonMode:
+		return "wandb-symon"
+	default:
+		return "wandb-leet"
+	}
+}
+
+func newLeetLogger(logLevel int) (*observability.CoreLogger, func(), error) {
 	logWriter := io.Discard
+	closeLogWriter := func() {}
+
 	// TODO: Create a log file not only if debug logging is requested.
-	if *logLevel == -4 {
+	if logLevel == -4 {
 		loggerFile, err := os.OpenFile(
 			"wandb-leet.debug.log",
 			os.O_WRONLY|os.O_CREATE|os.O_TRUNC,
 			0o644,
 		)
 		if err != nil {
-			fmt.Println("fatal:", err)
-			return exitCodeErrorInternal
+			return nil, nil, err
 		}
 		logWriter = loggerFile
-		defer func() { _ = loggerFile.Close() }()
+		closeLogWriter = func() { _ = loggerFile.Close() }
 	}
 
 	logger := observability.NewCoreLogger(
 		slog.New(slog.NewJSONHandler(
 			logWriter,
-			&slog.HandlerOptions{Level: slog.Level(*logLevel)},
+			&slog.HandlerOptions{Level: slog.Level(logLevel)},
 		)),
-		&observability.CoreLoggerParams{
-			Tags:   observability.Tags{},
-			Sentry: sentryClient,
-		},
+		observability.NewSentryContext(sentry.CurrentHub()),
 	)
+	return logger, closeLogWriter, nil
+}
 
-	wandbFile := fs.Arg(0)
+func runLeetCommand(opts leetOptions, logger *observability.CoreLogger) int {
+	if opts.editConfig {
+		return runLeetConfigEditor(logger)
+	}
+	if opts.symonMode {
+		return runSymon(opts, logger)
+	}
+	return runLeetWorkspace(opts, logger)
+}
 
-	// Run the TUI; allow in-process restarts (Alt+R) without re-parsing flags.
+func runLeetConfigEditor(logger *observability.CoreLogger) int {
+	editor := leet.NewConfigEditor(leet.ConfigEditorParams{Logger: logger})
+	program := tea.NewProgram(editor)
+	if _, err := program.Run(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return exitCodeErrorInternal
+	}
+	return exitCodeSuccess
+}
+
+func runSymon(opts leetOptions, logger *observability.CoreLogger) int {
 	for {
-		model := leet.NewModel(wandbFile, nil, logger)
-		p := tea.NewProgram(model, tea.WithAltScreen(), tea.WithMouseCellMotion())
+		m := leet.NewSymon(leet.SymonParams{
+			Logger:           logger,
+			SamplingInterval: opts.symonInterval,
+		})
+		program := tea.NewProgram(m)
 
-		finalModel, err := p.Run()
+		finalModel, err := program.Run()
+		m.Cleanup()
+		if err != nil {
+			logger.CaptureError(fmt.Errorf("wandb-symon: %v", err))
+			return exitCodeErrorInternal
+		}
+
+		if fm, ok := finalModel.(*leet.Symon); ok && fm.ShouldRestart() {
+			continue
+		}
+		return exitCodeSuccess
+	}
+}
+
+func runLeetWorkspace(opts leetOptions, logger *observability.CoreLogger) int {
+	for {
+		m := leet.NewModel(leet.ModelParams{
+			WandbDir: opts.wandbDir,
+			RunFile:  opts.runFile,
+			Logger:   logger,
+		})
+		program := tea.NewProgram(m)
+
+		finalModel, err := program.Run()
 		if err != nil {
 			logger.CaptureError(fmt.Errorf("wandb-leet: %v", err))
 			return exitCodeErrorInternal
 		}
 
-		// If the model requests a restart, loop again.
-		if m, ok := finalModel.(*leet.Model); ok && m.ShouldRestart() {
+		if fm, ok := finalModel.(*leet.Model); ok && fm.ShouldRestart() {
 			continue
 		}
-
 		return exitCodeSuccess
 	}
 }

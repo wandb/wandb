@@ -1,10 +1,10 @@
 import os
 from functools import wraps
-from typing import Any, Callable, Dict, TypeVar, cast
+from typing import Any, Callable, TypeVar, cast
 
 FuncT = TypeVar("FuncT", bound=Callable[..., Any])
 
-requirement_env_var_mapping: Dict[str, str] = {
+requirement_env_var_mapping: dict[str, str] = {
     "report-editing:v0": "WANDB_REQUIRE_REPORT_EDITING_V0"
 }
 

@@ -27,7 +27,7 @@ func newMetricsGrid(
 		focus = leet.NewFocus()
 	}
 
-	grid := leet.NewMetricsGrid(cfg, focus, logger)
+	grid := leet.NewMetricsGrid(cfg, cfg.MetricsGrid, focus, logger)
 	grid.UpdateDimensions(width, height)
 	return grid
 }
@@ -68,7 +68,8 @@ func TestMetricsGrid_Lifecycle(t *testing.T) {
 			Y: []float64{3.0},
 		},
 	}
-	created := grid.ProcessHistory(d)
+	m := leet.HistoryMsg{Metrics: d}
+	created := grid.ProcessHistory(m)
 	require.True(t, created, "ingestion should report that there is something to draw")
 	grid.UpdateDimensions(w, h)
 
@@ -110,7 +111,8 @@ func TestMetricsGrid_Navigate_ClearsMainChartFocus(t *testing.T) {
 			Y: []float64{2},
 		},
 	}
-	grid.ProcessHistory(d)
+	m := leet.HistoryMsg{Metrics: d}
+	grid.ProcessHistory(m)
 	grid.UpdateDimensions(w, h)
 
 	// Focus on the first metric chart.
@@ -136,7 +138,8 @@ func TestMetricsGrid_PreservesFocusAcrossHistoryUpdates(t *testing.T) {
 			Y: []float64{2},
 		},
 	}
-	grid.ProcessHistory(d)
+	m := leet.HistoryMsg{Metrics: d}
+	grid.ProcessHistory(m)
 	grid.UpdateDimensions(w, h)
 
 	// Focus on the first metric chart.
@@ -150,7 +153,8 @@ func TestMetricsGrid_PreservesFocusAcrossHistoryUpdates(t *testing.T) {
 			Y: []float64{3},
 		},
 	}
-	grid.ProcessHistory(d)
+	m = leet.HistoryMsg{Metrics: d}
+	grid.ProcessHistory(m)
 	require.Equal(t, "alpha", f.Title, "expected focus restored to previous title")
 }
 
@@ -179,7 +183,8 @@ func TestMetricsGrid_Inspection_FocusedOnly(t *testing.T) {
 		"alpha": {X: []float64{0, 1, 2, 3, 4, 5}, Y: []float64{10, 20, 30, 40, 50, 60}},
 		"beta":  {X: []float64{0, 1, 2, 3, 4, 5}, Y: []float64{100, 200, 300, 400, 500, 600}},
 	}
-	created := grid.ProcessHistory(hist)
+	m := leet.HistoryMsg{Metrics: hist}
+	created := grid.ProcessHistory(m)
 	require.True(t, created)
 	grid.UpdateDimensions(w, h)
 
@@ -233,7 +238,8 @@ func TestMetricsGrid_Inspection_Synchronized_BroadcastAndEnd(t *testing.T) {
 			Y: []float64{20, 40, 60, 80, 100},
 		},
 	}
-	require.True(t, grid.ProcessHistory(hist))
+	m := leet.HistoryMsg{Metrics: hist}
+	require.True(t, grid.ProcessHistory(m))
 	grid.UpdateDimensions(w, h)
 
 	dims := grid.CalculateChartDimensions(w, h)
@@ -281,4 +287,48 @@ func TestMetricsGrid_Inspection_Synchronized_BroadcastAndEnd(t *testing.T) {
 	require.False(t, grid.TestSyncInspectActive())
 	require.False(t, chA.IsInspecting())
 	require.False(t, chB.IsInspecting())
+}
+
+func TestMetricsGrid_MultiSeries_PromoteAndRemoveSeries_PrunesEmptyCharts(t *testing.T) {
+	w, h := 200, 24
+	grid := newMetricsGrid(t, 1, 1, w, h, nil)
+
+	// Two different series keys simulate two different runs.
+	const runA = "/wandb/runA.wandb"
+	const runB = "/wandb/runB.wandb"
+
+	created := grid.ProcessHistory(leet.HistoryMsg{
+		RunPath: runA,
+		Metrics: map[string]leet.MetricData{
+			"loss": {X: []float64{1}, Y: []float64{1.0}},
+		},
+	})
+	require.True(t, created)
+
+	created = grid.ProcessHistory(leet.HistoryMsg{
+		RunPath: runB,
+		Metrics: map[string]leet.MetricData{
+			"loss": {X: []float64{1}, Y: []float64{2.0}},
+		},
+	})
+	require.True(t, created)
+
+	ch := grid.TestChartAt(0, 0)
+	require.NotNil(t, ch)
+	require.Equal(t, 2, ch.SeriesCount())
+	require.Equal(t, []string{runA, runB}, ch.DrawOrder(), "expected insertion order by default")
+
+	// Promote runA to top; order should end with runA (topmost).
+	grid.PromoteSeriesToTop(runA)
+	require.Equal(t, []string{runB, runA}, ch.DrawOrder())
+
+	// Remove runB: chart remains but is now single-series.
+	grid.RemoveSeries(runB)
+	require.Equal(t, 1, ch.SeriesCount())
+	require.Equal(t, []string{runA}, ch.DrawOrder())
+
+	// Remove runA: chart should be pruned entirely from the grid.
+	grid.RemoveSeries(runA)
+	require.Equal(t, 0, grid.ChartCount())
+	require.Nil(t, grid.TestChartAt(0, 0), "expected chart removed after last series removed")
 }

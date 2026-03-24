@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/wandb/wandb/core/internal/observability"
 )
@@ -15,7 +15,7 @@ const rightSidebarHeader = "System Metrics"
 // RightSidebar represents a collapsible right sidebar displaying system metrics.
 type RightSidebar struct {
 	config      *ConfigManager
-	animState   *AnimationState
+	animState   *AnimatedValue
 	metricsGrid *SystemMetricsGrid
 	focusState  *Focus
 	logger      *observability.CoreLogger
@@ -31,11 +31,12 @@ func NewRightSidebar(
 	initH := MinMetricChartHeight * rows
 
 	return &RightSidebar{
-		config:      config,
-		animState:   NewAnimationState(config.RightSidebarVisible(), SidebarMinWidth),
-		metricsGrid: NewSystemMetricsGrid(initW, initH, config, focusState, logger),
-		logger:      logger,
-		focusState:  focusState,
+		config:    config,
+		animState: NewAnimatedValue(config.RightSidebarVisible(), SidebarMinWidth),
+		metricsGrid: NewSystemMetricsGrid(
+			initW, initH, config, config.SystemGrid, focusState, NewFilter(), logger),
+		logger:     logger,
+		focusState: focusState,
 	}
 }
 
@@ -51,7 +52,7 @@ func (rs *RightSidebar) UpdateDimensions(terminalWidth int, leftSidebarVisible b
 	}
 
 	expandedWidth := clamp(calculatedWidth, SidebarMinWidth, SidebarMaxWidth)
-	rs.animState.SetExpandedWidth(expandedWidth)
+	rs.animState.SetExpanded(expandedWidth)
 
 	if gridWidth := rs.calculateGridWidth(); gridWidth > 0 {
 		rs.metricsGrid.Resize(gridWidth, defaultSystemMetricsGridHeight)
@@ -63,35 +64,81 @@ func (rs *RightSidebar) Toggle() {
 	rs.animState.Toggle()
 }
 
+func (rs *RightSidebar) gridMouseTarget(x, y int) (
+	adjustedX, row, col int,
+	dims GridDims,
+	ok bool,
+) {
+	if !rs.animState.IsVisible() {
+		return 0, 0, 0, GridDims{}, false
+	}
+
+	adjustedX = x - rightSidebarMouseClickPaddingOffset
+	adjustedY := y - rightSidebarMouseClickPaddingOffset
+	if adjustedX < 0 || adjustedY < 0 {
+		return 0, 0, 0, GridDims{}, false
+	}
+
+	dims = rs.metricsGrid.calculateChartDimensions()
+	row = adjustedY / dims.CellHWithPadding
+	col = adjustedX / dims.CellWWithPadding
+	return adjustedX, row, col, dims, true
+}
+
 // HandleMouseClick handles mouse clicks in the sidebar and returns true if focus changed.
 func (rs *RightSidebar) HandleMouseClick(x, y int) bool {
 	rs.logger.Debug(fmt.Sprintf(
 		"rightsidebar: HandleMouseClick: x=%d, y=%d, state=%v",
 		x, y, rs.animState))
 
-	if !rs.animState.IsVisible() {
+	_, row, col, _, ok := rs.gridMouseTarget(x, y)
+	if !ok {
 		return false
 	}
-
-	// Adjust coordinates for border/padding.
-	adjustedX := x - rightSidebarMouseClickPaddingOffset
-	adjustedY := y - rightSidebarMouseClickPaddingOffset
-
-	if adjustedX < 0 || adjustedY < 0 {
-		return false
-	}
-
-	dims := rs.metricsGrid.calculateChartDimensions()
-
-	row := adjustedY / dims.CellHWithPadding
-	col := adjustedX / dims.CellWWithPadding
 
 	return rs.metricsGrid.HandleMouseClick(row, col)
+}
+
+// HandleWheel zooms the chart under the mouse cursor.
+func (rs *RightSidebar) HandleWheel(x, y int, wheelUp bool) {
+	adjustedX, row, col, dims, ok := rs.gridMouseTarget(x, y)
+	if !ok {
+		return
+	}
+	rs.metricsGrid.HandleWheel(adjustedX, row, col, dims, wheelUp)
+}
+
+// StartInspection begins chart inspection under the mouse cursor.
+func (rs *RightSidebar) StartInspection(x, y int, synced bool) {
+	adjustedX, row, col, dims, ok := rs.gridMouseTarget(x, y)
+	if !ok {
+		return
+	}
+	rs.metricsGrid.StartInspection(adjustedX, row, col, dims, synced)
+}
+
+// UpdateInspection moves the inspection cursor.
+func (rs *RightSidebar) UpdateInspection(x, y int) {
+	adjustedX, row, col, dims, ok := rs.gridMouseTarget(x, y)
+	if !ok {
+		return
+	}
+	rs.metricsGrid.UpdateInspection(adjustedX, row, col, dims)
+}
+
+// EndInspection clears inspection mode.
+func (rs *RightSidebar) EndInspection() {
+	rs.metricsGrid.EndInspection()
 }
 
 // FocusedChartTitle returns the title of the focused chart, or empty string if none.
 func (rs *RightSidebar) FocusedChartTitle() string {
 	return rs.metricsGrid.FocusedChartTitle()
+}
+
+// FocusedChartViewModeLabel returns a short description of the focused chart view mode.
+func (rs *RightSidebar) FocusedChartViewModeLabel() string {
+	return rs.metricsGrid.FocusedChartViewModeLabel()
 }
 
 // ClearFocus clears focus from the currently focused system chart.
@@ -115,7 +162,7 @@ func (rs *RightSidebar) Update(msg tea.Msg) (*RightSidebar, tea.Cmd) {
 
 // View renders the right sidebar.
 func (rs *RightSidebar) View(height int) string {
-	if rs.animState.Width() <= rightSidebarContentPadding {
+	if rs.animState.Value() <= rightSidebarContentPadding {
 		return ""
 	}
 
@@ -134,14 +181,14 @@ func (rs *RightSidebar) View(height int) string {
 	content := lipgloss.JoinVertical(lipgloss.Left, header, metricsView)
 
 	styledContent := rightSidebarStyle.
-		Width(rs.animState.Width() - 1).
+		Width(rs.animState.Value() - sidebarVerticalBorderCols).
 		Height(height).
-		MaxWidth(rs.animState.Width() - 1).
+		MaxWidth(rs.animState.Value() - sidebarVerticalBorderCols).
 		MaxHeight(height).
 		Render(content)
 
 	return rightSidebarBorderStyle.
-		Width(rs.animState.Width()).
+		Width(rs.animState.Value()).
 		Height(height).
 		MaxHeight(height).
 		Render(styledContent)
@@ -149,7 +196,7 @@ func (rs *RightSidebar) View(height int) string {
 
 // Width returns the current width of the sidebar.
 func (rs *RightSidebar) Width() int {
-	return rs.animState.Width()
+	return rs.animState.Value()
 }
 
 // IsVisible returns true if the sidebar is visible.
@@ -162,11 +209,26 @@ func (rs *RightSidebar) IsAnimating() bool {
 	return rs.animState.IsAnimating()
 }
 
+// HandleFilterKey delegates filter key handling to the inner metrics grid.
+func (rs *RightSidebar) HandleFilterKey(msg tea.KeyPressMsg) {
+	rs.metricsGrid.handleFilterKey(msg)
+}
+
+// IsFilterMode returns true if the metrics grid is currently in filter input mode.
+func (rs *RightSidebar) IsFilterMode() bool {
+	return rs.metricsGrid.filter.IsActive()
+}
+
+// IsFiltering returns true if the metrics grid has an applied filter.
+func (rs *RightSidebar) IsFiltering() bool {
+	return !rs.metricsGrid.filter.IsActive() && rs.metricsGrid.filter.Query() != ""
+}
+
 // ProcessStatsMsg processes a stats message and updates the metrics.
 func (rs *RightSidebar) ProcessStatsMsg(msg StatsMsg) {
 	rs.logger.Debug(fmt.Sprintf(
 		"rightsidebar: ProcessStatsMsg: processing %d metrics (state=%v, width=%d)",
-		len(msg.Metrics), rs.animState, rs.animState.Width()))
+		len(msg.Metrics), rs.animState, rs.animState.Value()))
 
 	// Add all data points to the grid.
 	for metricName, value := range msg.Metrics {
@@ -176,7 +238,7 @@ func (rs *RightSidebar) ProcessStatsMsg(msg StatsMsg) {
 
 // calculateGridWidth returns the available width for the metrics grid.
 func (rs *RightSidebar) calculateGridWidth() int {
-	return rs.animState.Width() - rightSidebarContentPadding
+	return rs.animState.Value() - rightSidebarContentPadding
 }
 
 // calculateGridHeight returns the available height for the metrics grid.
@@ -201,19 +263,30 @@ func (rs *RightSidebar) renderHeader() string {
 
 // buildNavigationInfo builds the navigation info string for the header.
 func (rs *RightSidebar) buildNavigationInfo() string {
-	chartCount := rs.metricsGrid.ChartCount()
+	totalCount := rs.metricsGrid.ChartCount()
+	filteredCount := rs.metricsGrid.FilteredChartCount()
 	size := rs.metricsGrid.effectiveGridSize()
 	itemsPerPage := ItemsPerPage(size)
 
 	// Only show navigation if we have charts and pagination.
-	if rs.metricsGrid.nav.TotalPages() == 0 || chartCount == 0 || itemsPerPage == 0 {
+	if rs.metricsGrid.nav.TotalPages() == 0 || filteredCount == 0 || itemsPerPage == 0 {
 		return ""
 	}
 
-	startIdx, endIdx := rs.metricsGrid.nav.PageBounds(chartCount, itemsPerPage)
+	startIdx, endIdx := rs.metricsGrid.nav.PageBounds(filteredCount, itemsPerPage)
 	startIdx++ // Display as 1-indexed
 
-	return navInfoStyle.Render(fmt.Sprintf(" [%d-%d of %d]", startIdx, endIdx, chartCount))
+	if filteredCount != totalCount {
+		return navInfoStyle.Render(fmt.Sprintf(
+			" [%d-%d of %d filtered from %d total]",
+			startIdx,
+			endIdx,
+			filteredCount,
+			totalCount,
+		))
+	}
+
+	return navInfoStyle.Render(fmt.Sprintf(" [%d-%d of %d]", startIdx, endIdx, filteredCount))
 }
 
 // animationCmd returns a command to continue the animation.

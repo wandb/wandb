@@ -339,6 +339,17 @@ type WandbProgress struct {
 	op *WandbOperation
 }
 
+func (p *WandbProgress) SetBytesDone(doneBytes int) {
+	if p == nil {
+		return
+	}
+
+	p.op.mu.Lock()
+	defer p.op.mu.Unlock()
+
+	p.op.progress = bytesToShortString(doneBytes)
+}
+
 func (p *WandbProgress) SetBytesOfTotal(doneBytes, totalBytes int) {
 	if p == nil {
 		return

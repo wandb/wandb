@@ -1,7 +1,10 @@
+import os
 import platform
 from unittest.mock import MagicMock
 
 import pytest
+from wandb.sdk.launch.errors import LaunchError
+from wandb.sdk.launch.runner import local_container
 from wandb.sdk.launch.runner.local_container import LocalContainerRunner
 
 
@@ -62,10 +65,11 @@ async def test_local_container_base_image_job(
 
     await runner.run(mock_launch_project, image_uri)
     command = mock_popen.call_args[0][0]
-    assert command[:2] == [
-        "bash",
-        "-c",
-    ]
+    if os.name == "nt":
+        assert command[:2] == ["cmd", "/C"]
+    else:
+        assert command[1] == "-c"
+        assert os.path.basename(command[0]) in ("bash", "sh")
     docker_command = command[2].split(" ")
     assert docker_command[:7] == [
         "docker",
@@ -81,3 +85,105 @@ async def test_local_container_base_image_job(
         mount_string = f"'{mount_string}'"
     assert docker_command[7:9] == ["--volume", mount_string]
     assert docker_command[9:11] == ["--workdir", "/mnt/wandb"]
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX shell selection test")
+def test_shell_command_prefers_bash(mocker):
+    mocker.patch(
+        "wandb.sdk.launch.runner.local_container.shutil.which",
+        side_effect=lambda cmd: "/usr/bin/bash" if cmd == "bash" else None,
+    )
+
+    assert local_container._shell_command("echo hello") == [
+        "/usr/bin/bash",
+        "-c",
+        "echo hello",
+    ]
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX shell selection test")
+def test_shell_command_falls_back_to_sh(mocker):
+    mocker.patch(
+        "wandb.sdk.launch.runner.local_container.shutil.which",
+        side_effect=lambda cmd: "/bin/sh" if cmd == "sh" else None,
+    )
+
+    assert local_container._shell_command("echo hello") == [
+        "/bin/sh",
+        "-c",
+        "echo hello",
+    ]
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX shell selection test")
+def test_shell_command_raises_when_no_shell(mocker):
+    mocker.patch(
+        "wandb.sdk.launch.runner.local_container.shutil.which",
+        return_value=None,
+    )
+
+    with pytest.raises(LaunchError, match="no compatible shell found"):
+        local_container._shell_command("echo hello")
+
+
+def test_shell_command_uses_cmd_on_windows(mocker):
+    mocker.patch("wandb.sdk.launch.runner.local_container.os.name", "nt")
+    mock_which = mocker.patch("wandb.sdk.launch.runner.local_container.shutil.which")
+
+    assert local_container._shell_command("echo hello") == ["cmd", "/C", "echo hello"]
+    mock_which.assert_not_called()
+
+
+@pytest.mark.asyncio
+@pytest.mark.skipif(os.name == "nt", reason="POSIX shell selection test")
+async def test_local_container_runner_uses_sh_when_bash_missing(
+    mock_launch_project,
+    test_settings,
+    mock_pull_docker_image,
+    test_api,
+    mock_popen,
+    mocker,
+):
+    """Verify runner interface works when bash is unavailable."""
+    mocker.patch(
+        "wandb.sdk.launch.runner.local_container.shutil.which",
+        side_effect=lambda cmd: "/bin/sh" if cmd == "sh" else None,
+    )
+    runner = LocalContainerRunner(
+        test_api, {"SYNCHRONOUS": True}, MagicMock(), MagicMock()
+    )
+    image_uri = "test-image-uri"
+    mock_launch_project.docker_image = image_uri
+
+    await runner.run(mock_launch_project, image_uri)
+
+    command = mock_popen.call_args[0][0]
+    assert len(command) == 3, "Expected [shell, '-c', command]"
+    assert os.path.basename(command[0]) == "sh"
+    assert command[1] == "-c"
+    assert "echo hello world" in command[2]
+
+
+@pytest.mark.asyncio
+@pytest.mark.skipif(os.name == "nt", reason="POSIX shell selection test")
+async def test_local_container_runner_raises_when_no_compatible_shell(
+    mock_launch_project,
+    test_settings,
+    mock_pull_docker_image,
+    test_api,
+    mock_popen,
+    mocker,
+):
+    """Verify runner interface provides a clear error without bash/sh."""
+    mocker.patch(
+        "wandb.sdk.launch.runner.local_container.shutil.which",
+        return_value=None,
+    )
+    runner = LocalContainerRunner(
+        test_api, {"SYNCHRONOUS": True}, MagicMock(), MagicMock()
+    )
+    image_uri = "test-image-uri"
+    mock_launch_project.docker_image = image_uri
+
+    with pytest.raises(LaunchError, match="no compatible shell found"):
+        await runner.run(mock_launch_project, image_uri)

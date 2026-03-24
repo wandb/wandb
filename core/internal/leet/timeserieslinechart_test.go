@@ -5,22 +5,24 @@ import (
 	"testing"
 	"time"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
+	"charm.land/lipgloss/v2/compat"
 	"github.com/stretchr/testify/require"
 
 	"github.com/wandb/wandb/core/internal/leet"
 )
 
 // stubColorProvider returns deterministic colors for series creation order.
-func stubColorProvider(colors ...string) func() lipgloss.AdaptiveColor {
+func stubColorProvider(colors ...string) func() compat.AdaptiveColor {
 	i := 0
-	return func() lipgloss.AdaptiveColor {
+	return func() compat.AdaptiveColor {
 		if len(colors) == 0 {
-			return lipgloss.AdaptiveColor{}
+			return compat.AdaptiveColor{}
 		}
 		c := colors[i%len(colors)]
 		i++
-		return lipgloss.AdaptiveColor{Light: c, Dark: c}
+		return compat.AdaptiveColor{
+			Light: lipgloss.Color(c), Dark: lipgloss.Color(c)}
 	}
 }
 
@@ -38,8 +40,9 @@ func TestNewTimeSeriesLineChart_ConstructsAndInitializes(t *testing.T) {
 	ch := leet.NewTimeSeriesLineChart(&leet.TimeSeriesLineChartParams{
 		80, 20,
 		def,
-		lipgloss.AdaptiveColor{Light: "#FF00FF", Dark: "#FF00FF"}, // base color
-		stubColorProvider("#00FF00"),                              // provider for subsequent series
+		compat.AdaptiveColor{
+			Light: lipgloss.Color("#FF00FF"), Dark: lipgloss.Color("#FF00FF")}, // base color
+		stubColorProvider("#00FF00"), // provider for subsequent series
 		now,
 	})
 
@@ -62,7 +65,8 @@ func TestAddDataPoint_DefaultSeries_BookKeeping(t *testing.T) {
 	}
 	now := time.Unix(1_700_000_000, 0)
 	ch := leet.NewTimeSeriesLineChart(&leet.TimeSeriesLineChartParams{
-		80, 20, def, lipgloss.AdaptiveColor{Light: "#ABCDEF", Dark: "#ABCDEF"},
+		80, 20, def, compat.AdaptiveColor{
+			Light: lipgloss.Color("#ABCDEF"), Dark: lipgloss.Color("#ABCDEF")},
 		stubColorProvider(), now})
 
 	// First point
@@ -106,7 +110,9 @@ func TestAddDataPoint_NamedSeries_CreatesSeriesOnDemand(t *testing.T) {
 	}
 	now := time.Unix(1_700_000_000, 0)
 	ch := leet.NewTimeSeriesLineChart(&leet.TimeSeriesLineChartParams{
-		80, 20, def, lipgloss.AdaptiveColor{Light: "#FF00FF", Dark: "#FF00FF"},
+		80, 20, def,
+		compat.AdaptiveColor{
+			Light: lipgloss.Color("#FF00FF"), Dark: lipgloss.Color("#FF00FF")},
 		stubColorProvider("#00FF00", "#0000FF"), now})
 
 	ts := now.Unix()
@@ -124,4 +130,111 @@ func TestAddDataPoint_NamedSeries_CreatesSeriesOnDemand(t *testing.T) {
 	minimum, maximum := ch.ValueBounds()
 	require.Equal(t, 15.0, minimum)
 	require.Equal(t, 70.0, maximum)
+}
+
+func TestDefaultAndNamedSeries_GetDistinctColors(t *testing.T) {
+	def := &leet.MetricDef{
+		Name:       "CPU",
+		Unit:       leet.UnitPercent,
+		MinY:       0,
+		MaxY:       100,
+		AutoRange:  true,
+		Percentage: false,
+	}
+	now := time.Unix(1_700_000_000, 0)
+	baseColor := compat.AdaptiveColor{
+		Light: lipgloss.Color("#FF00FF"),
+		Dark:  lipgloss.Color("#FF00FF"),
+	}
+	nextColor := compat.AdaptiveColor{
+		Light: lipgloss.Color("#00FF00"),
+		Dark:  lipgloss.Color("#00FF00"),
+	}
+	ch := leet.NewTimeSeriesLineChart(&leet.TimeSeriesLineChartParams{
+		Width:         80,
+		Height:        20,
+		Def:           def,
+		BaseColor:     baseColor,
+		ColorProvider: stubColorProvider("#00FF00"),
+		Now:           now,
+	})
+
+	ch.AddDataPoint(leet.DefaultSystemMetricSeriesName, now.Unix(), 30)
+	ch.AddDataPoint("cpu0", now.Unix()+1, 70)
+
+	require.Equal(t, 2, ch.SeriesCount())
+	require.Equal(t, 1, ch.TestSeriesCount(), "only named series should count here")
+	require.Equal(t, baseColor, ch.TestSeriesColor(leet.DefaultSystemMetricSeriesName))
+	require.Equal(t, nextColor, ch.TestSeriesColor("cpu0"))
+}
+
+func TestFormatXAxisTick_NarrowSystemChartsKeepEndpointLabels(t *testing.T) {
+	def := &leet.MetricDef{
+		Name:       "Apple E-cores Freq",
+		Unit:       leet.UnitMHz,
+		MinY:       0,
+		MaxY:       3000,
+		AutoRange:  true,
+		Percentage: false,
+	}
+	now := time.Unix(1_700_000_000, 0)
+	ch := leet.NewTimeSeriesLineChart(&leet.TimeSeriesLineChartParams{
+		Width:  leet.MinMetricChartWidth,
+		Height: 8,
+		Def:    def,
+		BaseColor: compat.AdaptiveColor{
+			Light: lipgloss.Color("#FF00FF"), Dark: lipgloss.Color("#FF00FF")},
+		ColorProvider: stubColorProvider("#00FF00"),
+		Now:           now,
+	})
+
+	ch.AddDataPoint(leet.DefaultSystemMetricSeriesName, now.Add(-10*time.Minute).Unix(), 990)
+	ch.AddDataPoint(leet.DefaultSystemMetricSeriesName, now.Unix(), 1100)
+
+	viewMin, viewMax := ch.TestViewRange()
+	mid := (viewMin + viewMax) / 2
+
+	require.Empty(t, ch.TestFormatXAxisTick(mid, 3),
+		"narrow charts should suppress interior labels")
+
+	left := ch.TestFormatXAxisTick(viewMin, 3)
+	right := ch.TestFormatXAxisTick(viewMax, 3)
+	require.NotEmpty(t, left)
+	require.NotEmpty(t, right)
+	require.NotEqual(t, "...", left)
+	require.NotEqual(t, "...", right)
+	require.Regexp(t, `^\d{2}:?\d{2}$`, left)
+	require.Regexp(t, `^\d{2}:?\d{2}$`, right)
+}
+
+func TestFormatXAxisTick_WideSystemChartsKeepInteriorLabels(t *testing.T) {
+	def := &leet.MetricDef{
+		Name:       "CPU",
+		Unit:       leet.UnitPercent,
+		MinY:       0,
+		MaxY:       100,
+		AutoRange:  true,
+		Percentage: false,
+	}
+	now := time.Unix(1_700_000_000, 0)
+	ch := leet.NewTimeSeriesLineChart(&leet.TimeSeriesLineChartParams{
+		Width:  80,
+		Height: 12,
+		Def:    def,
+		BaseColor: compat.AdaptiveColor{
+			Light: lipgloss.Color("#FF00FF"), Dark: lipgloss.Color("#FF00FF")},
+		ColorProvider: stubColorProvider("#00FF00"),
+		Now:           now,
+	})
+
+	ch.AddDataPoint(leet.DefaultSystemMetricSeriesName, now.Add(-10*time.Minute).Unix(), 10)
+	ch.AddDataPoint(leet.DefaultSystemMetricSeriesName, now.Unix(), 20)
+
+	viewMin, viewMax := ch.TestViewRange()
+	mid := (viewMin + viewMax) / 2
+
+	label := ch.TestFormatXAxisTick(mid, 6)
+	require.NotEmpty(t, label)
+	require.NotEqual(t, "...", label)
+	require.Regexp(t, `^\d{2}:?\d{2}$`, label)
 }

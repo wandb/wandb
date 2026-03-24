@@ -2,212 +2,288 @@ package leet
 
 import (
 	"fmt"
-	"runtime/debug"
-	"strings"
-	"sync"
-	"time"
+	"os"
+	"path/filepath"
+	"regexp"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/wandb/wandb/core/internal/observability"
 )
 
-// Model is the main application model implementing tea.Model.
+// viewMode represents which top-level view is active.
+type viewMode int
+
+const (
+	viewModeUndefined viewMode = iota
+	viewModeWorkspace
+	viewModeRun
+	viewModeSymon
+)
+
+// latestRunLinkName is the conventional symlink name that wandb creates to
+// point at the most recently started run directory.
+const latestRunLinkName = "latest-run"
+
+// Model is the top-level app model.
 //
-// It coordinates the main metrics grid, sidebars, help screen, and data loading.
+// It owns the workspace (always present) and optionally a single-run detail
+// view. The help overlay is shared across both modes.
+//
+// Implements tea.Model.
 type Model struct {
-	// Serialize access to Update / broad model state.
-	stateMu sync.RWMutex
+	// mode tracks which sub-model currently owns the screen and user input.
+	mode viewMode
 
-	// Configuration and key bindings.
-	config *ConfigManager
-	keyMap map[string]func(*Model, tea.KeyMsg) (*Model, tea.Cmd)
+	// workspace is the multi-run view. It is created at startup and kept
+	// alive for the entire session so its watchers and heartbeats continue
+	// streaming data in the background while the user is in single-run view.
+	workspace *Workspace
 
-	// Terminal dimensions.
+	// run is the single-run detail view. It is nil when the user is in
+	// workspace mode and created on-demand when they press Enter on a run.
+	run *Run
+
+	// width and height cache the latest terminal dimensions for layout.
 	width, height int
 
-	// Run file path.
-	runPath string
+	// help is the full-screen help overlay, shared across both modes.
+	help *HelpModel
 
-	// Run state tracking.
-	runState RunState
-
-	// isLoading controls whether the loading screen is displayed.
-	//
-	// Defaults to true and is set to false once a RunRecord is
-	// successfully loaded from the transaction log.
-	isLoading bool
-
-	// Data reader.
-	reader *WandbReader
-
-	// Transaction log (.wandb file) watch and heartbeat management.
-	watcherMgr   *WatcherManager
-	fileComplete bool
-	heartbeatMgr *HeartbeatManager
-	watcherChan  chan tea.Msg
-
-	// Chart focus state.
-	focus *Focus
-
-	// UI components.
-	metricsGrid  *MetricsGrid
-	leftSidebar  *LeftSidebar
-	rightSidebar *RightSidebar
-	help         *HelpModel
-
-	// Sidebar animation synchronization.
-	animationMu sync.Mutex
-	animating   bool
-
-	// Loading progress.
-	recordsLoaded int
-	loadStartTime time.Time
-
-	// Restart flag.
+	// shouldRestart is the restart flag.
 	shouldRestart bool
 
-	// Coalesce expensive redraws during batch processing.
-	suppressDraw bool
+	// config is the shared application configuration (grid sizes, color
+	// schemes, sidebar visibility, etc.).
+	config *ConfigManager
 
-	// Logger.
 	logger *observability.CoreLogger
 }
 
-func NewModel(runPath string, cfg *ConfigManager, logger *observability.CoreLogger) *Model {
-	logger.Info(fmt.Sprintf("model: creating new model for runPath: %s", runPath))
+type ModelParams struct {
+	// WandbDir is the path to the wandb directory (typically "./wandb")
+	// that contains run directories and the "latest-run" symlink.
+	WandbDir string
 
-	if cfg == nil {
-		cfg = NewConfigManager(leetConfigPath(), logger)
+	// RunFile, if non-empty, LEET launches directly into the single-run
+	// view for the specified .wandb file. When empty, LEET starts in
+	// Config.StartupMode.
+	RunFile string
+
+	Config *ConfigManager
+	Logger *observability.CoreLogger
+}
+
+// NewModel creates and returns the top-level Model.
+//
+// Startup behavior depends on the combination of RunFile and Config.StartupMode:
+//
+//   - RunFile is set → start in single-run view for that file.
+//   - RunFile is empty + StartupModeSingleRunLatest → resolve the "latest-run"
+//     symlink and start in single-run view.
+//   - RunFile is empty + StartupModeWorkspaceLatest (default) → start in
+//     workspace view; the workspace will auto-select the latest run once
+//     the directory poll completes.
+func NewModel(params ModelParams) *Model {
+	if params.Config == nil {
+		params.Config = NewConfigManager(leetConfigPath(), params.Logger)
 	}
 
-	heartbeatInterval := cfg.HeartbeatInterval()
-	logger.Info(fmt.Sprintf("model: heartbeat interval set to %v", heartbeatInterval))
-
-	focus := NewFocus()
-	watcherChan := make(chan tea.Msg, 4096)
+	if params.RunFile == "" && params.Config.StartupMode() == StartupModeSingleRunLatest {
+		latest, err := wandbFileFromLatestRunLink(params.WandbDir)
+		if err != nil {
+			params.Logger.Error(fmt.Sprintf("model: failed to find latest run: %v", err))
+		}
+		if latest != "" {
+			params.RunFile = latest
+		}
+	}
 
 	m := &Model{
-		config:       cfg,
-		keyMap:       buildKeyMap(),
-		help:         NewHelp(),
-		focus:        focus,
-		fileComplete: false,
-		isLoading:    true,
-		runPath:      runPath,
-		metricsGrid:  NewMetricsGrid(cfg, focus, logger),
-		leftSidebar:  NewLeftSidebar(cfg),
-		rightSidebar: NewRightSidebar(cfg, focus, logger),
-		watcherMgr:   NewWatcherManager(watcherChan, logger),
-		heartbeatMgr: NewHeartbeatManager(heartbeatInterval, watcherChan, logger),
-		watcherChan:  watcherChan,
-		logger:       logger,
+		mode:      viewModeWorkspace,
+		workspace: NewWorkspace(params.WandbDir, params.Config, params.Logger),
+		help:      NewHelp(),
+		config:    params.Config,
+		logger:    params.Logger,
+	}
+
+	if params.RunFile != "" {
+		m.run = NewRun(params.RunFile, params.Config, params.Logger)
+		m.mode = viewModeRun
 	}
 
 	return m
 }
 
-// Init initializes the model and returns the initial command.
+// Init returns the initial commands for the top-level model.
 //
-// Implements tea.Model.Init.
+// The workspace is always initialized (directory polling, heartbeat listener)
+// regardless of the starting mode. If starting in single-run mode, the run's
+// reader and watcher commands are also started.
 func (m *Model) Init() tea.Cmd {
-	m.logger.Debug("model: Init called")
-	return tea.Batch(
-		windowTitleCmd(),
-		InitializeReader(m.runPath, m.logger),
-		m.watcherMgr.WaitForMsg,
-	)
+	cmds := []tea.Cmd{}
+
+	// Workspace always exists; initialize its long‑running commands.
+	if m.workspace != nil {
+		if cmd := m.workspace.Init(); cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+	}
+
+	if m.mode == viewModeRun && m.run != nil {
+		cmds = append(cmds, m.run.Init())
+	}
+
+	return tea.Batch(cmds...)
 }
 
 // Update handles incoming events and updates the model accordingly.
 //
 // Implements tea.Model.Update.
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	defer m.logPanic("Update")
-	defer timeit(m.logger, "Model.Update")()
-	m.stateMu.Lock()
-	defer m.stateMu.Unlock()
+	if wsMsg, ok := msg.(tea.WindowSizeMsg); ok {
+		m.width, m.height = wsMsg.Width, wsMsg.Height
+		m.help.SetSize(wsMsg.Width, wsMsg.Height)
+	}
 
-	// Help screen takes priority.
 	if handled, cmd := m.handleHelp(msg); handled {
 		return m, cmd
 	}
 
+	if handled, cmd := m.handleRestart(msg); handled {
+		return m, cmd
+	}
+
+	// Snapshot input state before sub-models see this key.
+	awaitingUserInput := m.isAwaitingUserInput()
+
 	var cmds []tea.Cmd
 
-	// Forward UI messages to children if not in filter mode.
-	if isUIMsg(msg) && !m.metricsGrid.IsFilterMode() && !m.leftSidebar.IsFilterMode() {
-		if s, c := m.leftSidebar.Update(msg); c != nil {
-			m.leftSidebar = s
-			cmds = append(cmds, c)
+	// Handle sub-component updates.
+	switch m.mode {
+	case viewModeWorkspace:
+		if cmd := m.workspace.Update(msg); cmd != nil {
+			cmds = append(cmds, cmd)
 		}
-		if rs, c := m.rightSidebar.Update(msg); c != nil {
-			m.rightSidebar = rs
-			cmds = append(cmds, c)
+	case viewModeRun:
+		// Keep the workspace's background tasks (watchers/heartbeats) alive
+		// while we're in the single-run view while omitting user input.
+		if !isUserInputMsg(msg) {
+			if cmd := m.workspace.Update(msg); cmd != nil {
+				cmds = append(cmds, cmd)
+			}
+		}
+		if _, cmd := m.run.Update(msg); cmd != nil {
+			cmds = append(cmds, cmd)
 		}
 	}
 
-	// Route message to appropriate handler.
-	switch t := msg.(type) {
-	case tea.KeyMsg:
-		newM, c := m.handleKeyMsg(t)
-		if c != nil {
-			cmds = append(cmds, c)
+	// Handle mode switching.
+	if keyMsg, ok := msg.(tea.KeyPressMsg); ok {
+		switch m.mode {
+		case viewModeWorkspace:
+			if keyMsg.Code == tea.KeyEnter &&
+				!awaitingUserInput &&
+				m.workspace.RunSelectorActive() {
+				cmd := m.enterRunView()
+				return m, cmd
+			}
+		case viewModeRun:
+			if keyMsg.Code == tea.KeyEsc && !awaitingUserInput {
+				cmd := m.exitRunView()
+				return m, cmd
+			}
 		}
-		return newM, tea.Batch(cmds...)
+	}
 
-	case tea.MouseMsg:
-		newM, c := m.handleMouseMsg(t)
-		if c != nil {
-			cmds = append(cmds, c)
+	return m, tea.Batch(cmds...)
+}
+
+// View renders the UI based on the data in the model.
+//
+// Implements tea.Model.View.
+func (m *Model) View() tea.View {
+	var vs string
+
+	if m.help.IsActive() {
+		vs = m.renderHelpScreen()
+	} else {
+		switch m.mode {
+		case viewModeWorkspace:
+			vs = m.workspace.View().Content
+		case viewModeRun:
+			vs = m.run.View().Content
 		}
-		return newM, tea.Batch(cmds...)
+	}
 
-	case tea.WindowSizeMsg:
-		m.handleWindowResize(t)
-		return m, tea.Batch(cmds...)
+	v := tea.NewView(vs)
 
+	v.WindowTitle = "wandb leet"
+	v.AltScreen = true
+	v.MouseMode = tea.MouseModeCellMotion
+
+	return v
+}
+
+// ShouldRestart reports whether the application should perform a full restart.
+func (m *Model) ShouldRestart() bool {
+	return m.shouldRestart
+}
+
+// --------------------------------------------------------------------
+// Input state helpers
+// --------------------------------------------------------------------
+
+// isAwaitingUserInput reports whether any sub-component is capturing
+// free-form keyboard input (filter text, grid config digit, etc.).
+//
+// When true, global key bindings like Enter (mode switch) and h (help
+// toggle) must be suppressed so keystrokes reach the active input.
+func (m *Model) isAwaitingUserInput() bool {
+	if m.config != nil && m.config.IsAwaitingGridConfig() {
+		return true
+	}
+	switch m.mode {
+	case viewModeWorkspace:
+		return m.workspace.IsFiltering()
+	case viewModeRun:
+		return m.run.IsFiltering()
 	default:
-		cmds = append(cmds, m.dispatch(msg)...)
-		return m, tea.Batch(cmds...)
+		return false
 	}
 }
 
-// handleWindowResize handles window resize messages.
-func (m *Model) handleWindowResize(msg tea.WindowSizeMsg) {
-	m.width, m.height = msg.Width, msg.Height
-	m.help.SetSize(msg.Width, msg.Height)
-
-	m.leftSidebar.UpdateDimensions(msg.Width, m.rightSidebar.IsVisible())
-	m.rightSidebar.UpdateDimensions(msg.Width, m.leftSidebar.IsVisible())
-
-	layout := m.computeViewports()
-	m.metricsGrid.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
-}
-
-// isUIMsg returns true for messages that should flow to child view models.
-func isUIMsg(msg tea.Msg) bool {
+// isUserInputMsg reports whether msg originates from direct user interaction.
+//
+// Used to gate which messages reach the workspace while the user is in
+// single-run mode: user input goes exclusively to the run, while data
+// messages (file changes, heartbeats, batched records) are forwarded to
+// the workspace to keep its background state current.
+func isUserInputMsg(msg tea.Msg) bool {
 	switch msg.(type) {
-	case tea.KeyMsg, tea.MouseMsg, tea.WindowSizeMsg,
-		LeftSidebarAnimationMsg, RightSidebarAnimationMsg:
+	case tea.KeyPressMsg, tea.MouseMsg:
 		return true
 	default:
 		return false
 	}
 }
 
+// --------------------------------------------------------------------
+// Mode transitions
+// --------------------------------------------------------------------
+
 // handleHelp centralizes help toggle and routing while active.
 func (m *Model) handleHelp(msg tea.Msg) (bool, tea.Cmd) {
-	// Don't toggle help while any filter UI is active.
-	if m.metricsGrid.IsFilterMode() || m.leftSidebar.IsFilterMode() {
+	if m.isAwaitingUserInput() {
 		return false, nil
 	}
 
 	// Toggle on 'h' / '?'
-	if km, ok := msg.(tea.KeyMsg); ok {
-		switch km.String() {
-		case "h", "?":
+	if km, ok := msg.(tea.KeyPressMsg); ok {
+		switch km.Code {
+		case 'h', '?':
+			m.help.SetMode(m.mode)
 			m.help.Toggle()
 			return true, nil
 		}
@@ -216,7 +292,7 @@ func (m *Model) handleHelp(msg tea.Msg) (bool, tea.Cmd) {
 	// When help is visible, it owns key/mouse events.
 	if m.help.IsActive() {
 		switch msg.(type) {
-		case tea.KeyMsg, tea.MouseMsg:
+		case tea.KeyPressMsg, tea.MouseMsg:
 			updated, cmd := m.help.Update(msg)
 			m.help = updated
 			return true, cmd
@@ -225,318 +301,118 @@ func (m *Model) handleHelp(msg tea.Msg) (bool, tea.Cmd) {
 	return false, nil
 }
 
-// dispatch routes message types to appropriate handlers.
-func (m *Model) dispatch(msg tea.Msg) []tea.Cmd {
-	switch t := msg.(type) {
-	case InitMsg:
-		return m.handleInit(t)
-	case ChunkedBatchMsg:
-		return m.handleChunkedBatch(t)
-	case BatchedRecordsMsg:
-		return m.handleBatched(t)
-	case HeartbeatMsg:
-		return m.handleHeartbeat()
-	case FileChangedMsg:
-		return m.handleFileChange()
-	case tea.WindowSizeMsg:
-		m.handleWindowResize(t)
-	case LeftSidebarAnimationMsg, RightSidebarAnimationMsg:
-		return m.handleSidebarAnimation(msg)
-	default:
-		// History/Run/Summary/Stats/SystemInfo/FileComplete/Error
-		if _, cmd := m.handleRecordMsg(msg); cmd != nil {
-			return []tea.Cmd{cmd}
+func (m *Model) handleRestart(msg tea.Msg) (bool, tea.Cmd) {
+	// Toggle on 'h' / '?'
+	if km, ok := msg.(tea.KeyPressMsg); ok {
+		if km.String() == "alt+r" {
+			m.logger.Debug("model: restart requested")
+			m.shouldRestart = true
+
+			return true, tea.Quit
 		}
 	}
-	return nil
-}
-
-// FocusedTitle returns the title of the currently focused chart.
-func (m *Model) FocusedTitle() string {
-	if m.focus.Type != FocusNone {
-		return m.focus.Title
-	}
-	return ""
-}
-
-// View renders the UI based on the data in the model.
-//
-// Implements tea.Model.View.
-func (m *Model) View() string {
-	defer m.logPanic("View")
-
-	m.stateMu.RLock()
-	defer m.stateMu.RUnlock()
-
-	if m.width == 0 || m.height == 0 {
-		return "Loading..."
-	}
-
-	if m.isLoading {
-		return m.renderLoadingScreen()
-	}
-
-	if m.help.IsActive() {
-		return m.renderHelpScreen()
-	}
-
-	return m.renderMainView()
+	return false, nil
 }
 
 // renderHelpScreen renders the help screen.
 func (m *Model) renderHelpScreen() string {
-	helpView := m.help.View()
-	statusBar := m.renderStatusBar()
+	helpView := m.help.View().Content
+
+	helpText := "h: help"
+	spaceForHelp := max(m.width-2*StatusBarPadding, 0)
+	rightAligned := lipgloss.PlaceHorizontal(spaceForHelp, lipgloss.Right, helpText)
+
+	statusBar := statusBarStyle.
+		Width(m.width).
+		MaxWidth(m.width).
+		Render(rightAligned)
 
 	content := lipgloss.JoinVertical(lipgloss.Left, helpView, statusBar)
 	return lipgloss.Place(m.width, m.height, lipgloss.Left, lipgloss.Top, content)
 }
 
-// renderMainView renders the main application view.
-func (m *Model) renderMainView() string {
-	layout := m.computeViewports()
-	dims := m.metricsGrid.CalculateChartDimensions(layout.mainContentAreaWidth, layout.height)
-	gridView := m.metricsGrid.View(dims)
-
-	leftWidth := m.leftSidebar.Width()
-	rightWidth := m.rightSidebar.Width()
-
-	const minMainContentWidth = 10
-
-	// Ensure sidebars don't take up too much space.
-	totalSidebarWidth := leftWidth + rightWidth
-	if totalSidebarWidth >= m.width-minMainContentWidth {
-		if rightWidth > 0 {
-			m.rightSidebar.animState.currentWidth = 0
-			rightWidth = 0
-		}
-		if leftWidth+minMainContentWidth >= m.width {
-			m.leftSidebar.animState.currentWidth = 0
-			leftWidth = 0
-		}
+// enterRunView switches to single-run view for the selected run.
+func (m *Model) enterRunView() tea.Cmd {
+	wandbFile := m.workspace.SelectedRunWandbFile()
+	if wandbFile == "" {
+		return nil
 	}
 
-	mainView := m.buildMainViewWithSidebars(gridView, leftWidth, rightWidth)
-	statusBar := m.renderStatusBar()
+	m.run = NewRun(wandbFile, m.config, m.logger)
+	m.mode = viewModeRun
 
-	fullView := lipgloss.JoinVertical(lipgloss.Left, mainView, statusBar)
-	return lipgloss.Place(m.width, m.height, lipgloss.Left, lipgloss.Top, fullView)
-}
-
-// buildMainViewWithSidebars builds the main view with sidebars.
-func (m *Model) buildMainViewWithSidebars(gridView string, leftWidth, rightWidth int) string {
-	if leftWidth == 0 && rightWidth == 0 {
-		return gridView
-	}
-
-	var parts []string
-
-	if leftWidth > 0 {
-		leftView := m.leftSidebar.View(m.height - StatusBarHeight - 2)
-		parts = append(parts, leftView)
-	}
-
-	parts = append(parts, gridView)
-
-	if rightWidth > 0 {
-		rightView := m.rightSidebar.View(m.height - StatusBarHeight)
-		parts = append(parts, rightView)
-	}
-
-	return lipgloss.JoinHorizontal(lipgloss.Top, parts...)
-}
-
-// ShouldRestart reports whether the user requested a full restart.
-func (m *Model) ShouldRestart() bool {
-	return m.shouldRestart
-}
-
-// logPanic logs panics to the logger before re-panicking.
-func (m *Model) logPanic(context string) {
-	if r := recover(); r != nil {
-		stackTrace := string(debug.Stack())
-		m.logger.CaptureError(
-			fmt.Errorf("PANIC in %s: %v\nStack trace:\n%s", context, r, stackTrace),
-		)
-		panic(r)
-	}
-}
-
-// isRunning returns whether the run is currently active.
-func (m *Model) isRunning() bool {
-	return m.runState == RunStateRunning && !m.fileComplete
-}
-
-// renderLoadingScreen shows the wandb leet ASCII art centered on screen.
-func (m *Model) renderLoadingScreen() string {
-	artStyle := lipgloss.NewStyle().
-		Foreground(colorHeading).
-		Bold(true)
-
-	logoContent := lipgloss.JoinVertical(
-		lipgloss.Center,
-		artStyle.Render(wandbArt),
-		artStyle.Render(leetArt),
-	)
-
-	centeredLogo := lipgloss.Place(
-		m.width,
-		m.height-StatusBarHeight,
-		lipgloss.Center,
-		lipgloss.Center,
-		logoContent,
-	)
-
-	statusBar := m.renderStatusBar()
-	return lipgloss.JoinVertical(lipgloss.Left, centeredLogo, statusBar)
-}
-
-// renderStatusBar creates the status bar.
-func (m *Model) renderStatusBar() string {
-	statusText := m.buildStatusText()
-	helpText := m.buildHelpText()
-
-	innerWidth := max(m.width-2*StatusBarPadding, 0)
-	spaceForHelp := max(innerWidth-lipgloss.Width(statusText), 0)
-	rightAligned := lipgloss.PlaceHorizontal(spaceForHelp, lipgloss.Right, helpText)
-
-	fullStatus := statusText + rightAligned
-
-	return statusBarStyle.
-		Width(m.width).
-		MaxWidth(m.width).
-		Render(fullStatus)
-}
-
-// buildStatusText builds the main status text.
-func (m *Model) buildStatusText() string {
-	if m.help.IsActive() {
-		return ""
-	}
-	if m.leftSidebar.IsFilterMode() {
-		return m.buildOverviewFilterStatus()
-	}
-	if m.metricsGrid.IsFilterMode() {
-		return m.buildMetricsFilterStatus()
-	}
-	if m.config.IsAwaitingGridConfig() {
-		return m.config.GridConfigStatus()
-	}
-	if m.isLoading {
-		return m.buildLoadingStatus()
-	}
-	return m.buildActiveStatus()
-}
-
-// buildOverviewFilterStatus builds status for overview filter mode.
-func (m *Model) buildOverviewFilterStatus() string {
-	filterInfo := m.leftSidebar.FilterInfo()
-	if filterInfo == "" {
-		filterInfo = "no matches"
-	}
-	return fmt.Sprintf(
-		"Overview filter (%s): %s%s [%s] (Enter to apply • Tab to toggle mode)",
-		m.leftSidebar.FilterMode().String(),
-		m.leftSidebar.FilterQuery(),
-		string(mediumShadeBlock),
-		filterInfo,
+	// Initialize with current dimensions and start loading.
+	return tea.Batch(
+		m.run.Init(),
+		func() tea.Msg {
+			return tea.WindowSizeMsg{Width: m.width, Height: m.height}
+		},
 	)
 }
 
-// buildMetricsFilterStatus builds status for metrics filter mode.
+// exitRunView returns to the workspace view.
+func (m *Model) exitRunView() tea.Cmd {
+	// TODO: add caching?
+	if m.run != nil {
+		m.run.Cleanup()
+		m.run = nil
+	}
+
+	m.mode = viewModeWorkspace
+	return nil
+}
+
+// --------------------------------------------------------------------
+// Path resolution utilities
+// --------------------------------------------------------------------
+
+var runDirRe = regexp.MustCompile(`run-\d{8}_\d{6}-`)
+
+// extractRunID extracts the run ID from a run directory name.
 //
-// Should be guarded by the caller's check that filter input is active.
-func (m *Model) buildMetricsFilterStatus() string {
-	return fmt.Sprintf(
-		"Filter (%s): %s%s [%d/%d] (Enter to apply • Tab to toggle mode)",
-		m.metricsGrid.FilterMode().String(),
-		m.metricsGrid.FilterQuery(),
-		string(mediumShadeBlock),
-		m.metricsGrid.FilteredChartCount(), m.metricsGrid.ChartCount())
-}
-
-// buildLoadingStatus builds status for loading mode.
-func (m *Model) buildLoadingStatus() string {
-	if m.recordsLoaded > 0 {
-		return fmt.Sprintf("Loading data... [%d records, %d metrics]",
-			m.recordsLoaded, m.metricsGrid.ChartCount())
-	}
-	return "Loading data..."
-}
-
-// buildActiveStatus builds status for active (non-loading, non-filter) mode.
-func (m *Model) buildActiveStatus() string {
-	var parts []string
-
-	// Add filter info if active.
-	if m.metricsGrid.IsFiltering() {
-		parts = append(parts, fmt.Sprintf(
-			"Filter (%s): %q [%d/%d] (/ to change, Ctrl+L to clear)",
-			m.metricsGrid.FilterMode().String(),
-			m.metricsGrid.FilterQuery(),
-			m.metricsGrid.FilteredChartCount(), m.metricsGrid.ChartCount()))
-	}
-
-	// Add overview filter info if active.
-	if m.leftSidebar.IsFiltering() {
-		parts = append(parts, fmt.Sprintf("Overview: %q [%s] (o to change, Ctrl+K to clear)",
-			m.leftSidebar.FilterQuery(),
-			m.leftSidebar.FilterInfo(),
-		))
-	}
-
-	// Add selected overview item if sidebar is visible.
-	if m.leftSidebar.IsVisible() {
-		key, value := m.leftSidebar.SelectedItem()
-		if key != "" {
-			parts = append(parts, fmt.Sprintf("%s: %s", key, value))
-		}
-	}
-
-	// Add focused metric name if a chart is focused.
-	focusedTitle := m.FocusedTitle()
-	if focusedTitle != "" {
-		parts = append(parts, focusedTitle)
-	}
-
-	if len(parts) == 0 {
+// The expected formats are:
+//
+//	"run-YYYYMMDD_HHMMSS-<run_id>"
+//	"offline-run-YYYYMMDD_HHMMSS-<run_id>"
+//
+// Returns "" if the folder name doesn't match.
+func extractRunID(folderName string) string {
+	loc := runDirRe.FindStringIndex(folderName)
+	if len(loc) == 0 || loc[1] == len(folderName) {
 		return ""
 	}
-
-	return strings.Join(parts, " • ")
+	return folderName[loc[1]:]
 }
 
-// buildHelpText builds the help text for the status bar.
-func (m *Model) buildHelpText() string {
-	if m.metricsGrid.IsFilterMode() || m.leftSidebar.IsFilterMode() {
+// runWandbFile returns the full path to the .wandb file for the given run folder.
+func runWandbFile(wandbDir, runDir string) string {
+	runID := extractRunID(runDir)
+	if runID == "" {
 		return ""
 	}
-	return "h: help"
+	return filepath.Join(wandbDir, runDir, "run-"+runID+".wandb")
 }
 
-// Layout represents the computed layout dimensions for the main UI.
-type Layout struct {
-	leftSidebarWidth     int
-	mainContentAreaWidth int
-	rightSidebarWidth    int
-	height               int
-}
-
-// computeViewports returns (leftW, contentW, rightW, contentH).
-func (m *Model) computeViewports() Layout {
-	leftW := m.leftSidebar.Width()
-	rightW := m.rightSidebar.Width()
-
-	contentW := max(m.width-leftW-rightW-2, 1)
-	contentH := max(m.height-StatusBarHeight, 1)
-
-	return Layout{leftW, contentW, rightW, contentH}
-}
-
-// timeit logs a debug timing line on exit for the given scope.
-func timeit(logger *observability.CoreLogger, scope string) func() {
-	start := time.Now()
-	return func() {
-		logger.Debug(fmt.Sprintf("perf: %s took %s", scope, time.Since(start)))
+func wandbFileFromLatestRunLink(wandbDir string) (string, error) {
+	latestRunPath, err := filepath.Abs(filepath.Join(wandbDir, latestRunLinkName))
+	if err != nil {
+		return "", err
 	}
+
+	info, err := os.Stat(latestRunPath) // follows symlinks
+	if err != nil || !info.IsDir() {
+		return "", err
+	}
+
+	resolvedLatestRunPath, err := os.Readlink(latestRunPath)
+	if err != nil {
+		return "", err
+	}
+
+	latestWandbFile := runWandbFile(wandbDir, resolvedLatestRunPath)
+	if _, err = os.Stat(latestWandbFile); err != nil {
+		return "", err
+	}
+
+	return latestWandbFile, nil
 }

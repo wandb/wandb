@@ -1,7 +1,9 @@
+from __future__ import annotations
+
 import io
 import re
 import time
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Any
 
 import wandb
 import wandb.util
@@ -14,14 +16,14 @@ if TYPE_CHECKING:
 
 # We have at least the default namestep and a global step to track
 # TODO: reset this structure on wandb.finish
-STEPS: Dict[str, Dict[str, Any]] = {
+STEPS: dict[str, dict[str, Any]] = {
     "": {"step": 0},
     "global": {"step": 0, "last_log": None},
 }
 # TODO(cling): Set these when tensorboard behavior is configured.
 # We support rate limited logging by setting this to number of seconds,
 # can be a floating point.
-RATE_LIMIT_SECONDS: Optional[Union[float, int]] = None
+RATE_LIMIT_SECONDS: float | int | None = None
 IGNORE_KINDS = ["graphs"]
 tensor_util = wandb.util.get_module("tensorboard.util.tensor_util")
 
@@ -34,7 +36,7 @@ pb = wandb.util.get_module(
 Summary = pb.Summary if pb else None
 
 
-def make_ndarray(tensor: Any) -> Optional["np.ndarray"]:
+def make_ndarray(tensor: Any) -> np.ndarray | None:
     if tensor_util:
         res = tensor_util.make_ndarray(tensor)
         # Tensorboard can log generic objects, and we don't want to save them
@@ -70,7 +72,7 @@ def history_image_key(key: str, namespace: str = "") -> str:
 
 def tf_summary_to_dict(  # noqa: C901
     tf_summary_str_or_pb: Any, namespace: str = ""
-) -> Optional[Dict[str, Any]]:
+) -> dict[str, Any] | None:
     """Convert a Tensorboard Summary to a dictionary.
 
     Accepts a tensorflow.summary.Summary, one encoded as a string,
@@ -98,7 +100,7 @@ def tf_summary_to_dict(  # noqa: C901
         # Ignore these, caller is responsible for handling None
         return None
 
-    def encode_images(_img_strs: List[bytes], _value: Any) -> None:
+    def encode_images(_img_strs: list[bytes], _value: Any) -> None:
         try:
             from PIL import Image
         except ImportError:
@@ -112,7 +114,7 @@ def tf_summary_to_dict(  # noqa: C901
         if len(_img_strs) == 0:
             return None
 
-        images: List[Union[wandb.Video, wandb.Image]] = []
+        images: list[wandb.Video | wandb.Image] = []
         for _img_str in _img_strs:
             # Supports gifs from TensorboardX
             if _img_str.startswith(b"GIF"):
@@ -272,7 +274,7 @@ def reset_state() -> None:
 
 def _log(
     tf_summary_str_or_pb: Any,
-    history: Optional["TBHistory"] = None,
+    history: TBHistory | None = None,
     step: int = 0,
     namespace: str = "",
     **kwargs: Any,

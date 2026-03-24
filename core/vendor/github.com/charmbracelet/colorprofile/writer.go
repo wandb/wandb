@@ -36,12 +36,12 @@ type Writer struct {
 
 // Write writes the given text to the underlying writer.
 func (w *Writer) Write(p []byte) (int, error) {
-	switch w.Profile {
-	case TrueColor:
+	switch {
+	case w.Profile == TrueColor:
 		return w.Forward.Write(p) //nolint:wrapcheck
-	case NoTTY:
+	case w.Profile <= NoTTY:
 		return io.WriteString(w.Forward, ansi.Strip(string(p))) //nolint:wrapcheck
-	case Ascii, ANSI, ANSI256:
+	case w.Profile == ASCII, w.Profile == ANSI, w.Profile == ANSI256:
 		return w.downsample(p)
 	default:
 		return 0, fmt.Errorf("invalid profile: %v", w.Profile)
@@ -112,7 +112,7 @@ func handleSgr(w *Writer, p *ansi.Parser, buf *bytes.Buffer) {
 			if w.Profile < ANSI {
 				continue
 			}
-			style = style.DefaultForegroundColor()
+			style = style.ForegroundColor(nil)
 		case 40, 41, 42, 43, 44, 45, 46, 47: // 8-bit background color
 			if w.Profile < ANSI {
 				continue
@@ -132,7 +132,7 @@ func handleSgr(w *Writer, p *ansi.Parser, buf *bytes.Buffer) {
 			if w.Profile < ANSI {
 				continue
 			}
-			style = style.DefaultBackgroundColor()
+			style = style.BackgroundColor(nil)
 		case 58: // 16 or 24-bit underline color
 			var c color.Color
 			if n := ansi.ReadStyleColor(params[i:], &c); n > 0 {
@@ -146,7 +146,7 @@ func handleSgr(w *Writer, p *ansi.Parser, buf *bytes.Buffer) {
 			if w.Profile < ANSI {
 				continue
 			}
-			style = style.DefaultUnderlineColor()
+			style = style.UnderlineColor(nil)
 		case 90, 91, 92, 93, 94, 95, 96, 97: // 8-bit bright foreground color
 			if w.Profile < ANSI {
 				continue

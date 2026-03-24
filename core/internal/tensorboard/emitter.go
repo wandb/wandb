@@ -70,15 +70,15 @@ func NewTFEmitter(s *settings.Settings) *tfEmitter {
 // Emit sends accumulated data to the run.
 func (e *tfEmitter) Emit(extraWork runwork.ExtraWork) {
 	if rec := e.filesRecord(); rec != nil {
-		extraWork.AddWork(runwork.WorkFromRecord(rec))
+		extraWork.AddWork(runwork.NoRequest(runwork.WorkFromRecord(rec)))
 	}
 
 	if rec := e.configRecord(); rec != nil {
-		extraWork.AddWork(runwork.WorkFromRecord(rec))
+		extraWork.AddWork(runwork.NoRequest(runwork.WorkFromRecord(rec)))
 	}
 
 	if rec := e.historyRecord(); rec != nil {
-		extraWork.AddWork(runwork.WorkFromRecord(rec))
+		extraWork.AddWork(runwork.NoRequest(runwork.WorkFromRecord(rec)))
 	}
 }
 

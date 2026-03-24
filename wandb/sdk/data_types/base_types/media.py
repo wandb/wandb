@@ -1,9 +1,12 @@
+from __future__ import annotations
+
 import hashlib
 import os
 import pathlib
 import re
 import shutil
-from typing import TYPE_CHECKING, Any, Dict, Optional, Sequence, Type, Union, cast
+from collections.abc import Sequence
+from typing import TYPE_CHECKING, Any, cast
 
 import wandb
 from wandb import util
@@ -18,9 +21,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from wandb.sdk.artifacts.artifact import Artifact
 
 
-def _wb_filename(
-    key: Union[str, int], step: Union[str, int], id: Union[str, int], extension: str
-) -> str:
+def _wb_filename(key: str | int, step: str | int, id: str | int, extension: str) -> str:
     r"""Generates a safe filename/path for storing media files, using the provided key, step, and id.
 
     If the key contains slashes (e.g. 'images/cats/fluffy.jpg'), subdirectories will be created:
@@ -54,15 +55,15 @@ class Media(WBValue):
     gets uploaded.
     """
 
-    _path: Optional[str]
-    _run: Optional["wandb.Run"]
-    _caption: Optional[str]
-    _is_tmp: Optional[bool]
-    _extension: Optional[str]
-    _sha256: Optional[str]
-    _size: Optional[int]
+    _path: str | None
+    _run: wandb.Run | None
+    _caption: str | None
+    _is_tmp: bool | None
+    _extension: str | None
+    _sha256: str | None
+    _size: int | None
 
-    def __init__(self, caption: Optional[str] = None) -> None:
+    def __init__(self, caption: str | None = None) -> None:
         super().__init__()
         self._path = None
         # The run under which this object is bound, if any.
@@ -73,7 +74,7 @@ class Media(WBValue):
         self,
         path: str,
         is_tmp: bool = False,
-        extension: Optional[str] = None,
+        extension: str | None = None,
     ) -> None:
         self._path = path
         self._is_tmp = is_tmp
@@ -87,13 +88,13 @@ class Media(WBValue):
         self._size = os.path.getsize(self._path)
 
     @classmethod
-    def get_media_subdir(cls: Type["Media"]) -> str:
+    def get_media_subdir(cls: type[Media]) -> str:
         raise NotImplementedError
 
     @staticmethod
     def captions(
-        media_items: Sequence["Media"],
-    ) -> Union[bool, Sequence[Optional[str]]]:
+        media_items: Sequence[Media],
+    ) -> bool | Sequence[str | None]:
         if media_items[0]._caption is not None:
             return [m._caption for m in media_items]
         else:
@@ -107,11 +108,11 @@ class Media(WBValue):
 
     def bind_to_run(
         self,
-        run: "wandb.Run",
-        key: Union[int, str],
-        step: Union[int, str],
-        id_: Optional[Union[int, str]] = None,
-        ignore_copy_err: Optional[bool] = None,
+        run: wandb.Run,
+        key: int | str,
+        step: int | str,
+        id_: int | str | None = None,
+        ignore_copy_err: bool | None = None,
     ) -> None:
         """Bind this object to a particular Run.
 
@@ -156,7 +157,7 @@ class Media(WBValue):
             self._path = new_path
             run._publish_file(media_path)
 
-    def to_json(self, run: Union["wandb.Run", "Artifact"]) -> dict:
+    def to_json(self, run: wandb.Run | Artifact) -> dict:
         """Serialize the object into a JSON blob.
 
         Uses run or artifact to store additional data. If `run_or_artifact` is a
@@ -175,7 +176,7 @@ class Media(WBValue):
         from wandb import Image
         from wandb.data_types import Audio
 
-        json_obj: Dict[str, Any] = {}
+        json_obj: dict[str, Any] = {}
 
         if self._caption is not None:
             json_obj["caption"] = self._caption
@@ -251,9 +252,9 @@ class Media(WBValue):
                         # Add this image as a reference
                         path = self._artifact_source.artifact.get_entry(name)
                         artifact.add_reference(path.ref_url(), name=name)
-                    elif (
-                        isinstance(self, Audio) or isinstance(self, Image)
-                    ) and self.path_is_reference(self._path):
+                    elif (isinstance(self, (Audio, Image))) and self.path_is_reference(
+                        self._path
+                    ):
                         artifact.add_reference(self._path, name=name)
                     else:
                         entry = artifact.add_file(
@@ -267,9 +268,7 @@ class Media(WBValue):
         return json_obj
 
     @classmethod
-    def from_json(
-        cls: Type["Media"], json_obj: dict, source_artifact: "Artifact"
-    ) -> "Media":
+    def from_json(cls: type[Media], json_obj: dict, source_artifact: Artifact) -> Media:
         """Likely will need to override for any more complicated media objects."""
         return cls(source_artifact.get_entry(json_obj["path"]).download())
 
@@ -283,7 +282,7 @@ class Media(WBValue):
         )
 
     @staticmethod
-    def path_is_reference(path: Optional[Union[str, pathlib.Path]]) -> bool:
+    def path_is_reference(path: str | pathlib.Path | None) -> bool:
         if path is None or isinstance(path, pathlib.Path):
             return False
 
@@ -299,24 +298,24 @@ class BatchableMedia(Media):
 
     def __init__(
         self,
-        caption: Optional[str] = None,
+        caption: str | None = None,
     ) -> None:
         super().__init__(caption=caption)
 
     @classmethod
     def seq_to_json(
-        cls: Type["BatchableMedia"],
-        seq: Sequence["BatchableMedia"],
-        run: "wandb.Run",
+        cls: type[BatchableMedia],
+        seq: Sequence[BatchableMedia],
+        run: wandb.Run,
         key: str,
-        step: Union[int, str],
+        step: int | str,
     ) -> dict:
         raise NotImplementedError
 
 
 def _numpy_arrays_to_lists(
-    payload: Union[dict, Sequence, "np.ndarray"],
-) -> Union[Sequence, dict, str, int, float, bool]:
+    payload: dict | Sequence | np.ndarray,
+) -> Sequence | dict | str | int | float | bool:
     # Casts all numpy arrays to lists so we don't convert them to histograms, primarily for Plotly
 
     if isinstance(payload, dict):

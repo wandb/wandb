@@ -5,7 +5,7 @@ import os
 import pathlib
 import shlex
 import shutil
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
 import wandb
 import wandb.env
@@ -46,7 +46,7 @@ async def validate_docker_installation() -> None:
         )
 
 
-def join(split_command: List[str]) -> str:
+def join(split_command: list[str]) -> str:
     """Return a shell-escaped string from *split_command*.
 
     Also remove quotes from double quoted strings. Ex:
@@ -58,7 +58,7 @@ def join(split_command: List[str]) -> str:
 async def build_image_from_project(
     launch_project: LaunchProject,
     api: Api,
-    launch_config: Dict[str, Any],
+    launch_config: dict[str, Any],
 ) -> str:
     """Construct a docker image from a project and returns the URI of the image.
 
@@ -126,7 +126,7 @@ def image_tag_from_dockerfile_and_source(
     return image_tag
 
 
-def get_docker_user(launch_project: LaunchProject, runner_type: str) -> Tuple[str, int]:
+def get_docker_user(launch_project: LaunchProject, runner_type: str) -> tuple[str, int]:
     import getpass
 
     username = getpass.getuser()

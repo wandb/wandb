@@ -111,6 +111,15 @@ class ServiceConnection:
         self._torn_down = False
         self._cleanup = cleanup
 
+    @property
+    def owns_service(self) -> bool:
+        """Whether this connection owns the wandb-core service process.
+
+        If True, teardown() will shut down the service process. If False, the
+        service process is externally managed (e.g. via WANDB_SERVICE).
+        """
+        return self._proc is not None
+
     def make_interface(self, stream_id: str) -> InterfaceBase:
         """Returns an interface for communicating with the service."""
         return InterfaceSock(
@@ -165,9 +174,11 @@ class ServiceConnection:
     def api_init_request(
         self,
         settings: wandb_settings_pb2.Settings,
-    ) -> None:
+    ) -> wandb_api_pb2.ServerApiInitResponse:
         """Tells wandb-core to initialize resources for handling API requests."""
-        api_init_request = wandb_api_pb2.ServerApiInitRequest(settings=settings)
+        api_init_request = wandb_api_pb2.ServerApiInitRequest(
+            settings=settings,
+        )
         request = spb.ServerRequest(api_init_request=api_init_request)
         handle = self._asyncer.run(lambda: self._client.deliver(request))
 
@@ -184,9 +195,18 @@ class ServiceConnection:
                 + " the service process is busy and did not respond in time.",
             ) from None
 
-        api_init_response = response.api_init_response
-        if api_init_response.error_message:
-            raise WandbApiFailedError(api_init_response.error_message)
+        if response.api_init_response.error_message:
+            raise WandbApiFailedError(response.api_init_response.error_message)
+
+        return response.api_init_response
+
+    def api_cleanup_request(self, api_id: str) -> None:
+        """Tells wandb-core to cleanup API resources."""
+        api_cleanup_request = wandb_api_pb2.ServerApiCleanupRequest(
+            api_id=api_id,
+        )
+        request = spb.ServerRequest(api_cleanup_request=api_cleanup_request)
+        self._asyncer.run(lambda: self._client.publish(request))
 
     async def sync_status(
         self,
@@ -199,15 +219,24 @@ class ServiceConnection:
         handle = await self._client.deliver(request)
         return handle.map(lambda r: r.sync_status_response)
 
+    async def api_request_async(
+        self,
+        api_request: wandb_api_pb2.ApiRequest,
+    ) -> MailboxHandle[wandb_api_pb2.ApiResponse]:
+        """Send an ApiRequest and return a handle to the response."""
+        request = spb.ServerRequest()
+        request.api_request.CopyFrom(api_request)
+
+        handle = await self._client.deliver(request)
+        return handle.map(lambda r: r.api_response)
+
     def api_request(
         self,
         api_request: wandb_api_pb2.ApiRequest,
         timeout: float | None = None,
     ) -> wandb_api_pb2.ApiResponse:
         """Send an ApiRequest and wait for a response."""
-        request = spb.ServerRequest()
-        request.api_request.CopyFrom(api_request)
-        handle = self._asyncer.run(lambda: self._client.deliver(request))
+        handle = self._asyncer.run(lambda: self.api_request_async(api_request))
         try:
             response = handle.wait_or(timeout=timeout)
         except (MailboxClosedError, HandleAbandonedError):
@@ -221,13 +250,12 @@ class ServiceConnection:
                 + " the service process is busy and did not respond in time.",
             ) from None
 
-        api_response = response.api_response
-        if api_response.HasField("api_error_response"):
+        if response.HasField("api_error_response"):
             raise WandbApiFailedError(
-                api_response.api_error_response.message,
-                api_response.api_error_response,
+                response.api_error_response.message,
+                response.api_error_response,
             )
-        return api_response
+        return response
 
     def api_publish(self, api_request: wandb_api_pb2.ApiRequest) -> None:
         """Publish an ApiRequest without waiting for a response."""

@@ -14,20 +14,22 @@ from __future__ import annotations
 import contextlib
 import json
 import weakref
-from typing import TYPE_CHECKING, Any, Dict, Iterator
+from collections.abc import Iterator
+from typing import TYPE_CHECKING, Any
 
 from typing_extensions import Self, TypeAlias
 from wandb_gql import gql
 
 from wandb.apis.normalize import normalize_exceptions
+from wandb.apis.public.service_api import ServiceApi
 from wandb.proto import wandb_api_pb2 as pb
 from wandb.sdk.mailbox.mailbox import MailboxClosedError
 
 if TYPE_CHECKING:
     from . import runs
-    from .api import Api, RetryingClient
+    from .api import RetryingClient
 
-_RowDict: TypeAlias = Dict[str, Any]
+_RowDict: TypeAlias = dict[str, Any]
 """Type alias for a single history row as a dict."""
 
 
@@ -39,7 +41,7 @@ class BetaHistoryScan(Iterator[_RowDict]):
 
     def __init__(
         self,
-        api: Api,
+        service_api: ServiceApi,
         run: runs.Run,
         min_step: int,
         max_step: int,
@@ -49,10 +51,10 @@ class BetaHistoryScan(Iterator[_RowDict]):
     ):
         self.run = run
         self.min_step = min_step
-        self.max_step = max_step
+        self._stop_step = max_step
         self.keys = keys
         self.page_size = page_size
-        self._api = api
+        self._service_api = service_api
 
         # Tell wandb-core to initialize resources to scan the run's history.
         scan_run_history_init = pb.ScanRunHistoryInit(
@@ -68,7 +70,7 @@ class BetaHistoryScan(Iterator[_RowDict]):
         api_request = pb.ApiRequest(
             read_run_history_request=scan_run_history_init_request
         )
-        response: pb.ApiResponse = self._api._send_api_request(api_request)
+        response: pb.ApiResponse = self._service_api.send_api_request(api_request)
 
         self._scan_request_id = (
             response.read_run_history_response.scan_run_history_init.request_id
@@ -87,9 +89,14 @@ class BetaHistoryScan(Iterator[_RowDict]):
         weakref.finalize(
             self,
             self.cleanup,
-            self._api,
+            self._service_api,
             self._scan_request_id,
         )
+
+    @property
+    def max_step(self) -> int:
+        """The highest step that can be yielded by this scan."""
+        return self._stop_step - 1
 
     def __iter__(self) -> Self:
         self.scan_offset = 0
@@ -103,14 +110,14 @@ class BetaHistoryScan(Iterator[_RowDict]):
                 row = self.rows[self.scan_offset]
                 self.scan_offset += 1
                 return row
-            if self.page_offset >= self.max_step:
+            if self.page_offset >= self._stop_step:
                 raise StopIteration()
             self._load_next()
 
     def _load_next(self) -> None:
         from wandb.proto import wandb_api_pb2 as pb
 
-        max_step = min(self.page_offset + self.page_size, self.max_step)
+        max_step = min(self.page_offset + self.page_size, self._stop_step)
 
         read_run_history_request = pb.ReadRunHistoryRequest(
             scan_run_history=pb.ScanRunHistory(
@@ -121,7 +128,7 @@ class BetaHistoryScan(Iterator[_RowDict]):
         )
         api_request = pb.ApiRequest(read_run_history_request=read_run_history_request)
 
-        response: pb.ApiResponse = self._api._send_api_request(api_request)
+        response: pb.ApiResponse = self._service_api.send_api_request(api_request)
         run_history: pb.RunHistoryResponse = (
             response.read_run_history_response.run_history
         )
@@ -138,7 +145,7 @@ class BetaHistoryScan(Iterator[_RowDict]):
         }
 
     @staticmethod
-    def cleanup(api: Api, request_id: int) -> None:
+    def cleanup(service_api: ServiceApi, request_id: int) -> None:
         scan_run_history_cleanup = pb.ScanRunHistoryCleanup(
             request_id=request_id,
         )
@@ -147,7 +154,7 @@ class BetaHistoryScan(Iterator[_RowDict]):
         )
 
         with contextlib.suppress(ConnectionResetError, MailboxClosedError):
-            api._send_api_request(
+            service_api.send_api_request(
                 pb.ApiRequest(read_run_history_request=scan_run_history_cleanup_request)
             )
 
@@ -184,7 +191,7 @@ class HistoryScan(Iterator[_RowDict]):
             client: The client instance to use for making API calls to the W&B backend.
             run: The run object whose history is to be scanned.
             min_step: The minimum step to start scanning from.
-            max_step: The maximum step to scan up to.
+            max_step: The exclusive upper bound for scanned history rows.
             page_size: Number of history rows to fetch per page.
                 Default page_size is 1000.
         """
@@ -192,10 +199,15 @@ class HistoryScan(Iterator[_RowDict]):
         self.run = run
         self.page_size = page_size
         self.min_step = min_step
-        self.max_step = max_step
+        self._stop_step = max_step
         self.page_offset = min_step  # minStep for next page
         self.scan_offset = 0  # index within current page of rows
         self.rows: list[_RowDict] = []  # current page of rows
+
+    @property
+    def max_step(self) -> int:
+        """The highest step that can be yielded by this scan."""
+        return self._stop_step - 1
 
     def __iter__(self) -> Self:
         self.page_offset = self.min_step
@@ -213,7 +225,7 @@ class HistoryScan(Iterator[_RowDict]):
                 row = self.rows[self.scan_offset]
                 self.scan_offset += 1
                 return row
-            if self.page_offset >= self.max_step:
+            if self.page_offset >= self._stop_step:
                 raise StopIteration()
             self._load_next()
 
@@ -222,8 +234,8 @@ class HistoryScan(Iterator[_RowDict]):
     @normalize_exceptions
     def _load_next(self) -> None:
         max_step = self.page_offset + self.page_size
-        if max_step > self.max_step:
-            max_step = self.max_step
+        if max_step > self._stop_step:
+            max_step = self._stop_step
         variables = {
             "entity": self.run.entity,
             "project": self.run.project,
@@ -274,7 +286,7 @@ class SampledHistoryScan(Iterator[_RowDict]):
             run: The run object whose history is to be sampled.
             keys: List of keys to sample from the history.
             min_step: The minimum step to start sampling from.
-            max_step: The maximum step to sample up to.
+            max_step: The exclusive upper bound for sampled history rows.
             page_size: Number of sampled history rows to fetch per page.
                 Default page_size is 1000.
         """
@@ -283,10 +295,15 @@ class SampledHistoryScan(Iterator[_RowDict]):
         self.keys = keys
         self.page_size = page_size
         self.min_step = min_step
-        self.max_step = max_step
+        self._stop_step = max_step
         self.page_offset = min_step  # minStep for next page
         self.scan_offset = 0  # index within current page of rows
         self.rows: list[_RowDict] = []  # current page of rows
+
+    @property
+    def max_step(self) -> int:
+        """The highest step that can be yielded by this scan."""
+        return self._stop_step - 1
 
     def __iter__(self) -> Self:
         self.page_offset = self.min_step
@@ -304,7 +321,7 @@ class SampledHistoryScan(Iterator[_RowDict]):
                 row = self.rows[self.scan_offset]
                 self.scan_offset += 1
                 return row
-            if self.page_offset >= self.max_step:
+            if self.page_offset >= self._stop_step:
                 raise StopIteration()
             self._load_next()
 
@@ -313,8 +330,8 @@ class SampledHistoryScan(Iterator[_RowDict]):
     @normalize_exceptions
     def _load_next(self) -> None:
         max_step = self.page_offset + self.page_size
-        if max_step > self.max_step:
-            max_step = self.max_step
+        if max_step > self._stop_step:
+            max_step = self._stop_step
         variables = {
             "entity": self.run.entity,
             "project": self.run.project,

@@ -3,10 +3,9 @@
 
 from __future__ import annotations
 
-from typing import List, Optional
+from typing import List, Literal, Optional
 
 from pydantic import Field
-from typing_extensions import Literal
 
 from wandb._pydantic import GQLId, GQLResult, Typename
 
@@ -35,11 +34,12 @@ class TagFragment(GQLResult):
 
 
 class ArtifactCollectionFragment(GQLResult):
-    typename__: Typename[Literal["ArtifactSequence", "ArtifactPortfolio"]]
+    typename__: Typename[Literal["ArtifactPortfolio", "ArtifactSequence"]]
     id: GQLId
     name: str
     description: Optional[str]
     created_at: str = Field(alias="createdAt")
+    updated_at: Optional[str] = Field(alias="updatedAt")
     project: Optional[ProjectInfoFragment]
     type: ArtifactCollectionFragmentType
     tags: ArtifactCollectionFragmentTags
@@ -58,7 +58,7 @@ class ArtifactCollectionFragmentTagsEdges(GQLResult):
 
 
 class CollectionInfoFragment(GQLResult):
-    typename__: Typename[Literal["ArtifactSequence", "ArtifactPortfolio"]]
+    typename__: Typename[Literal["ArtifactPortfolio", "ArtifactSequence"]]
     name: str
     project: Optional[ProjectInfoFragment]
 
@@ -178,11 +178,12 @@ class PageInfoFragment(GQLResult):
 
 
 class RegistryCollectionFragment(GQLResult):
-    typename__: Typename[Literal["ArtifactSequence", "ArtifactPortfolio"]]
+    typename__: Typename[Literal["ArtifactPortfolio", "ArtifactSequence"]]
     id: GQLId
     name: str
     description: Optional[str]
     created_at: str = Field(alias="createdAt")
+    updated_at: Optional[str] = Field(alias="updatedAt")
     project: Optional[ProjectInfoFragment]
     type: RegistryCollectionFragmentType
     tags: RegistryCollectionFragmentTags

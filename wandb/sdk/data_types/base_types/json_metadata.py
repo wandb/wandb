@@ -1,6 +1,8 @@
+from __future__ import annotations
+
 import codecs
 import os
-from typing import TYPE_CHECKING, Type, Union
+from typing import TYPE_CHECKING
 
 from wandb import util
 from wandb.sdk.lib import runid
@@ -37,10 +39,10 @@ class JSONMetadata(Media):
         self._set_file(tmp_path, is_tmp=True, extension=ext)
 
     @classmethod
-    def get_media_subdir(cls: Type["JSONMetadata"]) -> str:
+    def get_media_subdir(cls: type[JSONMetadata]) -> str:
         return os.path.join("media", "metadata", cls.type_name())
 
-    def to_json(self, run_or_artifact: Union["LocalRun", "Artifact"]) -> dict:
+    def to_json(self, run_or_artifact: LocalRun | Artifact) -> dict:
         json_dict = super().to_json(run_or_artifact)
         json_dict["_type"] = self.type_name()
 

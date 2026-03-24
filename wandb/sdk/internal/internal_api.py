@@ -11,6 +11,7 @@ import re
 import socket
 import sys
 import threading
+from collections.abc import Iterable, Mapping, MutableMapping, Sequence
 from copy import deepcopy
 from pathlib import Path
 from typing import (
@@ -18,12 +19,8 @@ from typing import (
     TYPE_CHECKING,
     Any,
     Callable,
-    Iterable,
     Literal,
-    Mapping,
-    MutableMapping,
     NamedTuple,
-    Sequence,
     TextIO,
     Union,
     overload,
@@ -47,7 +44,7 @@ from wandb.sdk.internal._generated import SERVER_FEATURES_QUERY_GQL, ServerFeatu
 from wandb.sdk.lib.gql_request import GraphQLSession
 from wandb.sdk.lib.hashutil import B64MD5, md5_file_b64
 
-from ..lib import credentials, retry
+from ..lib import retry, wbauth
 from ..lib.filenames import DIFF_FNAME, METADATA_FNAME
 from . import context
 from .progress import Progress
@@ -246,13 +243,13 @@ class Api:
             "git_remote": default_overrides.get("git_remote", "origin"),
             "ignore_globs": default_overrides.get("ignore_globs", []),
             "base_url": default_overrides.get("base_url", "https://api.wandb.ai"),
-            "root_dir": default_overrides.get("root_dir", None),
-            "api_key": default_overrides.get("api_key", None),
-            "entity": default_overrides.get("entity", None),
-            "organization": default_overrides.get("organization", None),
-            "project": default_overrides.get("project", None),
-            "_extra_http_headers": default_overrides.get("_extra_http_headers", None),
-            "_proxies": default_overrides.get("_proxies", None),
+            "root_dir": default_overrides.get("root_dir"),
+            "api_key": default_overrides.get("api_key"),
+            "entity": default_overrides.get("entity"),
+            "organization": default_overrides.get("organization"),
+            "project": default_overrides.get("project"),
+            "_extra_http_headers": default_overrides.get("_extra_http_headers"),
+            "_proxies": default_overrides.get("_proxies"),
         }
 
         if load_settings:
@@ -459,11 +456,12 @@ class Api:
         if not token_file.exists():
             raise AuthenticationError(f"Identity token file not found: {token_file}")
 
-        base_url = self.settings("base_url")
-        credentials_file = env.get_credentials_file(
-            str(credentials.DEFAULT_WANDB_CREDENTIALS_FILE), self._environ
+        auth = wbauth.AuthIdentityTokenFile(
+            host=self.settings("base_url"),
+            path=str(token_file),
+            credentials_file=wandb_setup.singleton().settings.credentials_file,
         )
-        return credentials.access_token(base_url, token_file, credentials_file)
+        return auth.fetch_access_token()
 
     @property
     def api_url(self) -> str:
@@ -3132,9 +3130,18 @@ class Api:
             agent_id (str): agent_id
             metrics (dict): system metrics
             run_states (dict): run_id: state mapping
+
         Returns:
             list of commands to execute.
+
+        Raises:
+            SweepNotFoundError: If the server returns a 404, indicating the
+                sweep was likely deleted.
         """
+        import requests
+
+        from wandb.sdk.launch.sweeps import SweepNotFoundError
+
         mutation = gql(
             """
         mutation Heartbeat(
@@ -3169,6 +3176,13 @@ class Api:
                 },
                 timeout=60,
             )
+        except requests.exceptions.HTTPError as e:
+            if e.response is not None and e.response.status_code == 404:
+                raise SweepNotFoundError(
+                    "Sweep not found. The sweep may have been deleted."
+                ) from e
+            logger.exception("Error communicating with W&B.")
+            return []
         except Exception:
             logger.exception("Error communicating with W&B.")
             return []
@@ -3200,21 +3214,24 @@ class Api:
 
         for parameter_name in config["parameters"]:
             parameter = config["parameters"][parameter_name]
-            if "min" in parameter and "max" in parameter:
-                if "distribution" not in parameter:
-                    if isinstance(parameter["min"], int) and isinstance(
-                        parameter["max"], int
-                    ):
-                        parameter["distribution"] = "int_uniform"
-                    elif isinstance(parameter["min"], float) and isinstance(
-                        parameter["max"], float
-                    ):
-                        parameter["distribution"] = "uniform"
-                    else:
-                        raise ValueError(
-                            f"Parameter {parameter_name} is ambiguous, please specify bounds as both floats (for a float_"
-                            "uniform distribution) or ints (for an int_uniform distribution)."
-                        )
+            if (
+                "min" in parameter
+                and "max" in parameter
+                and "distribution" not in parameter
+            ):
+                if isinstance(parameter["min"], int) and isinstance(
+                    parameter["max"], int
+                ):
+                    parameter["distribution"] = "int_uniform"
+                elif isinstance(parameter["min"], float) and isinstance(
+                    parameter["max"], float
+                ):
+                    parameter["distribution"] = "uniform"
+                else:
+                    raise ValueError(
+                        f"Parameter {parameter_name} is ambiguous, please specify bounds as both floats (for a float_"
+                        "uniform distribution) or ints (for an int_uniform distribution)."
+                    )
         return config
 
     @normalize_exceptions
@@ -4524,10 +4541,26 @@ class Api:
     def get_sweep_state(
         self, sweep: str, entity: str | None = None, project: str | None = None
     ) -> SweepState:
-        state: SweepState = self.sweep(
-            sweep=sweep, entity=entity, project=project, specs="{}"
-        )["state"]
-        return state
+        query = gql(
+            """
+            query GetSweepState($entity: String, $project: String, $sweep: String!) {
+                project(name: $project, entityName: $entity) {
+                    sweep(sweepName: $sweep) {
+                        state
+                    }
+                }
+            }
+            """
+        )
+        response = self.gql(
+            query,
+            variable_values={
+                "sweep": sweep,
+                "entity": entity or self.settings("entity"),
+                "project": project or self.settings("project"),
+            },
+        )
+        return response["project"]["sweep"]["state"]
 
     def set_sweep_state(
         self,

@@ -4,10 +4,9 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import List, Optional, Union
+from typing import List, Literal, Optional, Union
 
 from pydantic import Field
-from typing_extensions import Literal
 
 from wandb._pydantic import GQLId, GQLResult, Typename
 
@@ -120,15 +119,20 @@ class TriggerFields(GQLResult):
     description: Optional[str]
     enabled: bool
     scope: Union[
-        ProjectScopeFields, ArtifactSequenceScopeFields, ArtifactPortfolioScopeFields
+        ArtifactPortfolioScopeFields, ArtifactSequenceScopeFields, ProjectScopeFields
     ] = Field(discriminator="typename__")
     event: FilterEventFields
     action: Union[
-        QueueJobActionFields,
-        NotificationActionFields,
         GenericWebhookActionFields,
         NoOpActionFields,
+        NotificationActionFields,
+        TriggerFieldsActionPushNotificationTriggeredAction,
+        QueueJobActionFields,
     ] = Field(discriminator="typename__")
+
+
+class TriggerFieldsActionPushNotificationTriggeredAction(GQLResult):
+    typename__: Typename[Literal["PushNotificationTriggeredAction"]]
 
 
 class ProjectTriggersFields(GQLResult):
@@ -153,13 +157,14 @@ ProjectScopeFields.model_rebuild()
 QueueJobActionFields.model_rebuild()
 QueueJobActionFieldsQueue.model_rebuild()
 TriggerFields.model_rebuild()
-ProjectScopeFields.model_rebuild()
-ArtifactSequenceScopeFields.model_rebuild()
 ArtifactPortfolioScopeFields.model_rebuild()
+ArtifactSequenceScopeFields.model_rebuild()
+ProjectScopeFields.model_rebuild()
 FilterEventFields.model_rebuild()
-QueueJobActionFields.model_rebuild()
-NotificationActionFields.model_rebuild()
 GenericWebhookActionFields.model_rebuild()
 NoOpActionFields.model_rebuild()
+NotificationActionFields.model_rebuild()
+TriggerFieldsActionPushNotificationTriggeredAction.model_rebuild()
+QueueJobActionFields.model_rebuild()
 ProjectTriggersFields.model_rebuild()
 TriggerFields.model_rebuild()

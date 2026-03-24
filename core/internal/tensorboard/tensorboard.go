@@ -26,7 +26,6 @@ import (
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/tensorboard/tbproto"
-	"github.com/wandb/wandb/core/internal/waiting"
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
@@ -53,7 +52,7 @@ type TBHandler struct {
 	extraWork      runwork.ExtraWork
 	logger         *observability.CoreLogger
 	settings       *settings.Settings
-	fileReadDelay  waiting.Delay
+	fileReadDelay  time.Duration
 
 	// streams is the list of event streams for all tracked directories.
 	streams []*tfEventStream
@@ -67,7 +66,7 @@ type TBHandlerFactory struct {
 
 func (f *TBHandlerFactory) New(
 	extraWork runwork.ExtraWork,
-	fileReadDelay waiting.Delay,
+	fileReadDelay time.Duration,
 ) *TBHandler {
 	tb := &TBHandler{
 		rootDirGuesser: NewRootDirGuesser(f.Logger),
@@ -313,15 +312,14 @@ func (tb *TBHandler) saveFile(
 	}
 
 	// Write a record indicating that the file should be uploaded.
-	tb.extraWork.AddWork(
-		runwork.WorkFromRecord(
-			&spb.Record{
-				RecordType: &spb.Record_Files{
-					Files: &spb.FilesRecord{
-						Files: []*spb.FilesItem{
-							{Policy: spb.FilesItem_END, Path: runPath},
-						},
-					},
+	record := &spb.Record{
+		RecordType: &spb.Record_Files{
+			Files: &spb.FilesRecord{
+				Files: []*spb.FilesItem{
+					{Policy: spb.FilesItem_END, Path: runPath},
 				},
-			}))
+			},
+		},
+	}
+	tb.extraWork.AddWork(runwork.NoRequest(runwork.WorkFromRecord(record)))
 }

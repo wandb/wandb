@@ -1,16 +1,19 @@
+from __future__ import annotations
+
 import functools
 import queue
 import shutil
 import unittest.mock as mock
+from collections.abc import Mapping
 from concurrent.futures import ThreadPoolExecutor
-from contextlib import contextmanager
 from pathlib import Path
 from string import ascii_letters, digits
-from typing import IO, TYPE_CHECKING, Any, AnyStr, ContextManager, Mapping, Optional
+from typing import TYPE_CHECKING, Any
 from unittest.mock import Mock
 
 import pytest
 import requests
+import responses
 from hypothesis import given
 from hypothesis.strategies import from_regex, text
 from wandb.filesync.step_prepare import ResponsePrepare, StepPrepare
@@ -21,6 +24,7 @@ from wandb.sdk.artifacts.artifact_instance_cache import artifact_instance_cache
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts.artifact_state import ArtifactState
 from wandb.sdk.artifacts.exceptions import ArtifactNotLoggedError
+from wandb.sdk.artifacts.storage_policies._factories import make_http_session
 from wandb.sdk.artifacts.storage_policies._multipart import (
     multipart_download,
     should_multipart_download,
@@ -40,8 +44,8 @@ if TYPE_CHECKING:
             artifact_manifest_id: str,
             entry_path: str,
             entry_digest: str,
-            entry_local_path: Optional[Path] = None,
-            preparer: Optional[StepPrepare] = None,
+            entry_local_path: Path | None = None,
+            preparer: StepPrepare | None = None,
         ) -> bool:
             pass
 
@@ -69,7 +73,7 @@ def dummy_response_prepare(spec):
     )
 
 
-def mock_prepare(spec: "CreateArtifactFileSpecInput") -> ResponsePrepare:
+def mock_prepare(spec: CreateArtifactFileSpecInput) -> ResponsePrepare:
     return singleton_queue(dummy_response_prepare(spec))
 
 
@@ -94,8 +98,8 @@ class TestStoreFile:
         artifact_manifest_id: str = "my-artifact-manifest-id",
         entry_path: str = "my-path",
         entry_digest: str = "my-digest",
-        entry_local_path: Optional[Path] = None,
-        preparer: Optional[StepPrepare] = None,
+        entry_local_path: Path | None = None,
+        preparer: StepPrepare | None = None,
     ) -> Mapping[str, Any]:
         if preparer is None:
             preparer = mock_preparer()
@@ -120,7 +124,7 @@ class TestStoreFile:
         return request.param
 
     @pytest.fixture
-    def store_file(self) -> "StoreFileFixture":
+    def store_file(self) -> StoreFileFixture:
         """Fixture to run prepare and return the result.
 
         Example usage:
@@ -144,12 +148,12 @@ class TestStoreFile:
             complete_multipart_upload_artifact=complete_multipart_upload_artifact,
         )
 
-    def test_smoke(self, store_file: "StoreFileFixture", api, example_file: Path):
+    def test_smoke(self, store_file: StoreFileFixture, api, example_file: Path):
         store_file(WandbStoragePolicy(api=api), entry_local_path=example_file)
         api.upload_file_retry.assert_called_once()
 
     def test_uploads_to_prepared_url(
-        self, store_file: "StoreFileFixture", api, example_file: Path
+        self, store_file: StoreFileFixture, api, example_file: Path
     ):
         preparer = mock_preparer(
             prepare=lambda spec: singleton_queue(
@@ -166,7 +170,7 @@ class TestStoreFile:
         assert api.upload_file_retry.call_args[0][0] == "https://wandb-test/dst"
 
     def test_passes_prepared_headers_to_upload(
-        self, store_file: "StoreFileFixture", api, example_file: Path
+        self, store_file: StoreFileFixture, api, example_file: Path
     ):
         preparer = mock_preparer(
             prepare=lambda spec: singleton_queue(
@@ -193,10 +197,10 @@ class TestStoreFile:
     )
     def test_skips_upload_if_no_prepared_url(
         self,
-        store_file: "StoreFileFixture",
+        store_file: StoreFileFixture,
         api,
         example_file: Path,
-        upload_url: Optional[str],
+        upload_url: str | None,
         expect_upload: bool,
         expect_deduped: bool,
     ):
@@ -224,7 +228,7 @@ class TestStoreFile:
     )
     def test_skips_upload_if_no_local_path(
         self,
-        store_file: "StoreFileFixture",
+        store_file: StoreFileFixture,
         api,
         example_file: Path,
         has_local_path: bool,
@@ -246,11 +250,11 @@ class TestStoreFile:
     @pytest.mark.parametrize("err", [None, Exception("some error")])
     def test_caches_result_on_success(
         self,
-        store_file: "StoreFileFixture",
+        store_file: StoreFileFixture,
         api,
         example_file: Path,
         artifact_file_cache: ArtifactFileCache,
-        err: Optional[Exception],
+        err: Exception | None,
     ):
         size = example_file.stat().st_size
 
@@ -313,8 +317,8 @@ class TestStoreFile:
         mock_s3_multipart_file_upload,
         api,
         example_file: Path,
-        upload_url: Optional[str],
-        multipart_upload_urls: Optional[dict],
+        upload_url: str | None,
+        multipart_upload_urls: dict | None,
         expect_multipart_upload: bool,
         expect_single_upload: bool,
         expect_deduped: bool,
@@ -522,20 +526,6 @@ def test_artifact_multipart_download_threshold():
     assert should_multipart_download(5070 * mb, override=False) is False
 
 
-class MockOpener:
-    """Wrap a file as a Opener."""
-
-    def __init__(self, file: IO):
-        self.file = file
-
-    def __call__(self, mode: str = "r") -> ContextManager[IO]:
-        @contextmanager
-        def _fake_context():
-            yield self.file
-
-        return _fake_context()
-
-
 def test_artifact_multipart_download_network_error():
     # Disable retries and backoff to avoid timeout in test
     session = requests.Session()
@@ -543,69 +533,125 @@ def test_artifact_multipart_download_network_error():
     session.mount("http://", adapter)
     session.mount("https://", adapter)
 
-    class CountOnlyFile(IO):
-        def __init__(self):
-            self.write_count = 0
-            self.seek_count = 0
-
-        def seek(self, offset: int, whence: int = 0) -> int:
-            self.seek_count += 1
-            return offset
-
-        def write(self, s: AnyStr) -> int:
-            self.write_count += 1
-            return len(s)
-
-    file = CountOnlyFile()
-    opener = MockOpener(file)
+    opener = mock.mock_open()
     with pytest.raises(requests.exceptions.ConnectionError):
-        with ThreadPoolExecutor(max_workers=2) as executor:
-            multipart_download(
-                executor, session, "https://invalid.com", 4 * 1024 * 1024 * 1024, opener
-            )
-    assert file.seek_count == 0
-    assert file.write_count == 0
-
-
-def test_artifact_multipart_download_disk_error():
-    class ThrowFile(IO):
-        def seek(self, offset: int, whence: int = 0) -> int:
-            raise ValueError("I/O operation on closed file")
-
-    class MockResponse:
-        def raise_for_status(self):
-            pass
-
-        def iter_content(self, chunk_size: int = 1024):
-            return [b"test"]
-
-        def __enter__(self):
-            return self
-
-        def __exit__(self, exc_type, exc_value, traceback):
-            pass
-
-    class MockSession:
-        def __init__(self):
-            self.get_count = 0
-
-        def get(self, url: str, stream: bool = False, headers: dict = None):
-            self.get_count += 1
-            return MockResponse()
-
-    session = MockSession()
-
-    file = ThrowFile()
-    opener = MockOpener(file)
-    with pytest.raises(ValueError):
         with ThreadPoolExecutor(max_workers=2) as executor:
             multipart_download(
                 executor,
                 session,
-                "https://mocked.com",
+                4 * 1024 * 1024 * 1024,
+                opener,
+                initial_url="https://invalid.com",
+                fetch_fn=lambda: "https://invalid.com",
+            )
+    opener.return_value.seek.assert_not_called()
+
+
+@responses.activate()
+def test_artifact_multipart_download_disk_error():
+    resp = responses.get(
+        "http://s3.com/file",
+        body=b"test",
+        status=200,
+    )
+
+    opener = mock.mock_open()
+    opener.return_value.write.side_effect = OSError("I/O operation on closed file")
+    with pytest.raises(OSError):
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            multipart_download(
+                executor,
+                requests.Session(),
                 500 * 1024 * 1024,  # 500MB should have 5 parts
                 opener,
+                initial_url="https://s3.com/file",
+                fetch_fn=lambda: "https://s3.com/file",
             )
-    # After first get call has errors, reamining get call should return without making the call.
-    # It can be 5 depends on underlying environment,e.g. it fails on winodws from time to time.
-    assert session.get_count <= 5
+    # After first get call has errors, remaining get calls should return without making the call.
+    # It can be 5 depending on underlying environment, e.g. it fails on windows from time to time.
+    assert resp.call_count <= 5
+
+
+@responses.activate()
+def test_artifact_multipart_download_refresh_presigned_url():
+    # S3 returns 403 when presigned url expires. Built-in retry (via make_http_session)
+    # handles transient errors like 408/500 by retrying the same url, but can't help with
+    # expired urls. The refresh layer handles 403 and fetches a new presigned url.
+    #
+    # Test flow:
+    #   Request t1 (expired)
+    #       │
+    #       v
+    #      403 ──> fetch_fn() gets new URL t2
+    #                   │
+    #                   v
+    #             Request t2
+    #                   │
+    #                   v
+    #                  500 ──> built-in retry
+    #                              │
+    #                              v
+    #                        Request t2
+    #                              │
+    #                              v
+    #                             200 ✓
+    rsp1 = responses.get(
+        "https://s3.com/file/t1",
+        body=b"should be some 403 related error message",
+        status=403,
+    )
+    rsp2 = responses.get(
+        "https://s3.com/file/t2",
+        body=b"500 retry the same url without refresh",
+        status=500,
+    )
+    rsp3 = responses.get(
+        "https://s3.com/file/t2",
+        body=b"test",
+        status=200,
+    )
+
+    fetch_fn = Mock(return_value="https://s3.com/file/t2")
+
+    opener = mock.mock_open()
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        multipart_download(
+            executor,
+            make_http_session(),
+            100,
+            opener,
+            initial_url="https://s3.com/file/t1",
+            fetch_fn=fetch_fn,
+            part_size=100,
+        )
+
+    assert fetch_fn.call_count == 1  # fetched new url once
+    assert rsp1.call_count == 1
+    assert rsp2.call_count == 1
+    assert rsp3.call_count == 1
+
+
+@responses.activate()
+def test_artifact_multipart_download_max_refresh_attempts_exceeded():
+    resp = responses.get(
+        "https://s3.com/file",
+        body=b"test",
+        status=403,
+    )
+
+    opener = mock.mock_open()
+
+    with pytest.raises(requests.HTTPError):
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            multipart_download(
+                executor,
+                make_http_session(),
+                100,
+                opener,
+                initial_url="https://s3.com/file",
+                fetch_fn=lambda: "https://s3.com/file",
+                part_size=100,
+            )
+
+    assert resp.call_count == 4  # 1 initial + 3 retries

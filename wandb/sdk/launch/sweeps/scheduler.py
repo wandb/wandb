@@ -1,5 +1,7 @@
 """Abstract Scheduler class."""
 
+from __future__ import annotations
+
 import asyncio
 import base64
 import copy
@@ -10,9 +12,10 @@ import threading
 import time
 import traceback
 from abc import ABC, abstractmethod
+from collections.abc import Iterator
 from dataclasses import dataclass
 from enum import Enum
-from typing import TYPE_CHECKING, Any, Dict, Iterator, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any
 
 import click
 
@@ -67,7 +70,7 @@ class RunState(Enum):
     # assumed alive, unless we get unknown 2x then move to failed (dead)
     UNKNOWN = "unknown", "alive"
 
-    def __new__(cls: Any, *args: List, **kwds: Any) -> "RunState":
+    def __new__(cls: Any, *args: list, **kwds: Any) -> RunState:
         obj: RunState = object.__new__(cls)
         obj._value_ = args[0]
         return obj
@@ -82,7 +85,7 @@ class RunState(Enum):
 
 @dataclass
 class _Worker:
-    agent_config: Dict[str, Any]
+    agent_config: dict[str, Any]
     agent_id: str
 
 
@@ -91,9 +94,9 @@ class SweepRun:
     id: str
     worker_id: int
     state: RunState = RunState.RUNNING
-    queued_run: Optional["public.QueuedRun"] = None
-    args: Optional[Dict[str, Any]] = None
-    logs: Optional[List[str]] = None
+    queued_run: public.QueuedRun | None = None
+    args: dict[str, Any] | None = None
+    logs: list[str] | None = None
 
 
 class Scheduler(ABC):
@@ -105,15 +108,15 @@ class Scheduler(ABC):
 
     def __init__(
         self,
-        api: "Api",
-        *args: Optional[Any],
-        polling_sleep: Optional[float] = None,
-        sweep_id: Optional[str] = None,
-        entity: Optional[str] = None,
-        project: Optional[str] = None,
-        project_queue: Optional[str] = None,
-        num_workers: Optional[Union[int, str]] = None,
-        **kwargs: Optional[Any],
+        api: Api,
+        *args: Any | None,
+        polling_sleep: float | None = None,
+        sweep_id: str | None = None,
+        entity: str | None = None,
+        project: str | None = None,
+        project_queue: str | None = None,
+        num_workers: int | str | None = None,
+        **kwargs: Any | None,
     ):
         import yaml
 
@@ -152,10 +155,10 @@ class Scheduler(ABC):
             )
 
         # Scheduler may receive additional kwargs which will be piped into the launch command
-        self._kwargs: Dict[str, Any] = kwargs
+        self._kwargs: dict[str, Any] = kwargs
 
         # Dictionary of the runs being managed by the scheduler
-        self._runs: Dict[str, SweepRun] = {}
+        self._runs: dict[str, SweepRun] = {}
         # Threading lock to ensure thread-safe access to the runs dictionary
         self._threading_lock: threading.Lock = threading.Lock()
         self._polling_sleep = (
@@ -166,7 +169,7 @@ class Scheduler(ABC):
         # actually run training workloads, they simply send heartbeat messages
         # (emulating a real agent) and add new runs to the launch queue. The
         # launch agent is the one that actually runs the training workloads.
-        self._workers: Dict[int, _Worker] = {}
+        self._workers: dict[int, _Worker] = {}
 
         # Init wandb scheduler run
         self._wandb_run = self._init_wandb_run()
@@ -176,12 +179,12 @@ class Scheduler(ABC):
             "num_workers"
         )
         self._num_workers = int(num_workers) if str(num_workers).isdigit() else 8
-        self._settings_config: Dict[str, Any] = self._wandb_run.config.get(
+        self._settings_config: dict[str, Any] = self._wandb_run.config.get(
             "settings", {}
         )
 
     @abstractmethod
-    def _get_next_sweep_run(self, worker_id: int) -> Optional[SweepRun]:
+    def _get_next_sweep_run(self, worker_id: int) -> SweepRun | None:
         """Called when worker available."""
 
     @abstractmethod
@@ -212,14 +215,12 @@ class Scheduler(ABC):
 
     @property
     def is_alive(self) -> bool:
-        if self.state in [
+        return self.state not in [
             SchedulerState.COMPLETED,
             SchedulerState.FAILED,
             SchedulerState.STOPPED,
             SchedulerState.CANCELLED,
-        ]:
-            return False
-        return True
+        ]
 
     @property
     def at_runcap(self) -> bool:
@@ -235,7 +236,7 @@ class Scheduler(ABC):
         return len(self._runs)
 
     @property
-    def busy_workers(self) -> Dict[int, _Worker]:
+    def busy_workers(self) -> dict[int, _Worker]:
         """Returns dict of id:worker already assigned to a launch run.
 
         runs should always have a worker_id, but are created before
@@ -247,7 +248,7 @@ class Scheduler(ABC):
         return busy_workers
 
     @property
-    def available_workers(self) -> Dict[int, _Worker]:
+    def available_workers(self) -> dict[int, _Worker]:
         """Returns dict of id:worker ready to launch another run."""
         if len(self._workers) == 0:
             return {}
@@ -255,7 +256,7 @@ class Scheduler(ABC):
             _id: w for _id, w in self._workers.items() if _id not in self.busy_workers
         }
 
-    def _init_wandb_run(self) -> "wandb.Run":
+    def _init_wandb_run(self) -> wandb.Run:
         """Controls resume or init logic for a scheduler wandb run."""
         settings = wandb.Settings(disable_job_creation=True)
         run: wandb.Run = wandb.init(  # type: ignore
@@ -270,7 +271,7 @@ class Scheduler(ABC):
         """Stop the sweep."""
         self._state = SchedulerState.STOPPED
 
-    def fail_sweep(self, err: Optional[str]) -> None:
+    def fail_sweep(self, err: str | None) -> None:
         """Fail the sweep w/ optional exception."""
         self._state = SchedulerState.FAILED
         if err:
@@ -329,7 +330,7 @@ class Scheduler(ABC):
                         break
 
                     try:
-                        run: Optional[SweepRun] = self._get_next_sweep_run(worker_id)
+                        run: SweepRun | None = self._get_next_sweep_run(worker_id)
                         if not run:
                             break
                     except SchedulerError as e:
@@ -391,7 +392,7 @@ class Scheduler(ABC):
         wandb.termlog(f"{LOG_PREFIX}Scheduler {status}")
         self._wandb_run.finish()
 
-    def _get_num_runs_launched(self, runs: List[Dict[str, Any]]) -> int:
+    def _get_num_runs_launched(self, runs: list[dict[str, Any]]) -> int:
         """Returns the number of valid runs in the sweep."""
         count = 0
         for run in runs:
@@ -422,11 +423,8 @@ class Scheduler(ABC):
                 wandb.termerror(f"{LOG_PREFIX}{traceback.format_exc()}")
                 return False
             return True
-        elif self._kwargs.get("image_uri"):
-            # TODO(gst): check docker existence? Use registry in launch config?
-            return True
-        else:
-            return False
+        # TODO(gst): check docker existence? Use registry in launch config?
+        return bool(self._kwargs.get("image_uri"))
 
     async def _register_agents(self) -> None:
         tasks = []
@@ -452,12 +450,12 @@ class Scheduler(ABC):
                 agent_id=agent_config["id"],
             )
 
-    def _yield_runs(self) -> Iterator[Tuple[str, SweepRun]]:
+    def _yield_runs(self) -> Iterator[tuple[str, SweepRun]]:
         """Thread-safe way to iterate over the runs."""
         with self._threading_lock:
             yield from self._runs.items()
 
-    def _cleanup_runs(self, runs_to_remove: List[str]) -> None:
+    def _cleanup_runs(self, runs_to_remove: list[str]) -> None:
         """Helper for removing runs from memory.
 
         Can be overloaded to prevent deletion of runs, which is useful
@@ -545,7 +543,7 @@ class Scheduler(ABC):
 
         Get state from backend and deletes runs if not in running state. Threadsafe.
         """
-        runs_to_remove: List[str] = []
+        runs_to_remove: list[str] = []
         for run_id, run in self._yield_runs():
             run.state = self._get_run_state(run_id, run.state)
 
@@ -560,14 +558,14 @@ class Scheduler(ABC):
                 runs_to_remove.append(run_id)
         self._cleanup_runs(runs_to_remove)
 
-    def _get_metrics_from_run(self, run_id: str) -> List[Any]:
+    def _get_metrics_from_run(self, run_id: str) -> list[Any]:
         """Use the public api to get metrics from a run.
 
         Uses the metric name found in the sweep config, any
         misspellings will result in an empty list.
         """
         try:
-            queued_run: Optional[QueuedRun] = self._runs[run_id].queued_run
+            queued_run: QueuedRun | None = self._runs[run_id].queued_run
             if not queued_run:
                 return []
 
@@ -583,10 +581,10 @@ class Scheduler(ABC):
             _logger.debug(f"[_get_metrics_from_run] {e}")
         return []
 
-    def _get_run_info(self, run_id: str) -> Dict[str, Any]:
+    def _get_run_info(self, run_id: str) -> dict[str, Any]:
         """Use the public api to get info about a run."""
         try:
-            info: Dict[str, Any] = self._api.get_run_info(
+            info: dict[str, Any] = self._api.get_run_info(
                 self._entity, self._project, run_id
             )
             if info:
@@ -620,10 +618,10 @@ class Scheduler(ABC):
             run_state = RunState.UNKNOWN
         return run_state
 
-    def _create_run(self) -> Dict[str, Any]:
+    def _create_run(self) -> dict[str, Any]:
         """Use the public api to create a blank run."""
         try:
-            run: List[Dict[str, Any]] = self._api.upsert_run(
+            run: list[dict[str, Any]] = self._api.upsert_run(
                 project=self._project,
                 entity=self._entity,
                 sweep_name=self._sweep_id,
@@ -651,7 +649,7 @@ class Scheduler(ABC):
 
     def _make_entry_and_launch_config(
         self, run: SweepRun
-    ) -> Tuple[Optional[List[str]], Dict[str, Dict[str, Any]]]:
+    ) -> tuple[list[str] | None, dict[str, dict[str, Any]]]:
         args = create_sweep_command_args({"args": run.args})
         entry_point, macro_args = make_launch_sweep_entrypoint(
             args, self._sweep_config.get("command")

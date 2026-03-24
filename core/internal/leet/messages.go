@@ -1,7 +1,9 @@
 package leet
 
 import (
-	tea "github.com/charmbracelet/bubbletea"
+	"time"
+
+	tea "charm.land/bubbletea/v2"
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
@@ -13,25 +15,31 @@ type MetricData struct {
 
 // HistoryMsg contains metrics data from a wandb history record.
 type HistoryMsg struct {
+	RunPath string
 	Metrics map[string]MetricData
 }
 
 // RunMsg contains data from the wandb run record.
 type RunMsg struct {
+	RunPath     string
 	ID          string
 	Project     string
 	DisplayName string
+	Notes       string
+	Tags        []string
 	Config      *spb.ConfigRecord
 }
 
 // SummaryMsg contains summary data from the wandb run.
 type SummaryMsg struct {
+	RunPath string
 	Summary []*spb.SummaryRecord
 }
 
 // SystemInfoMsg contains system/environment information.
 type SystemInfoMsg struct {
-	Record *spb.EnvironmentRecord
+	RunPath string
+	Record  *spb.EnvironmentRecord
 }
 
 // FileChangedMsg indicates that the watched file has changed.
@@ -44,8 +52,18 @@ type FileCompleteMsg struct {
 
 // StatsMsg contains system metrics data from a wandb stats record.
 type StatsMsg struct {
+	RunPath   string
 	Timestamp int64              // Unix timestamp in seconds
 	Metrics   map[string]float64 // metric name -> value
+}
+
+// ConsoleLogMsg carries a raw console output record to be assembled
+// by [RunConsoleLogs]. Produced by the reader from output_raw records.
+type ConsoleLogMsg struct {
+	RunPath  string
+	Text     string
+	IsStderr bool
+	Time     time.Time
 }
 
 // ErrorMsg wraps an error.
@@ -53,9 +71,9 @@ type ErrorMsg struct {
 	Err error
 }
 
-// InitMsg contains the initialized reader.
+// InitMsg contains the initialized history source.
 type InitMsg struct {
-	Reader *WandbReader
+	Source HistorySource
 }
 
 // BatchedRecordsMsg contains all messages read during a batch read.
@@ -80,3 +98,72 @@ type LeftSidebarAnimationMsg struct{}
 
 // RightSidebarAnimationMsg is sent during right sidebar animations.
 type RightSidebarAnimationMsg struct{}
+
+// WorkspaceRunsAnimationMsg drives animation for the workspace left sidebar.
+type WorkspaceRunsAnimationMsg struct{}
+
+// WorkspaceOverviewAnimationMsg drives animation for the workspace right sidebar.
+type WorkspaceRunOverviewAnimationMsg struct{}
+
+// WorkspaceRunInitMsg is emitted when a workspace run reader has been initialized.
+type WorkspaceRunInitMsg struct {
+	RunKey  string
+	RunPath string
+	Reader  HistorySource
+}
+
+// WorkspaceChunkedBatchMsg wraps a ChunkedBatchMsg with the originating run key.
+type WorkspaceChunkedBatchMsg struct {
+	RunKey string
+	Batch  ChunkedBatchMsg
+}
+
+// WorkspaceBatchedRecordsMsg wraps a BatchedRecordsMsg with the originating run key.
+type WorkspaceBatchedRecordsMsg struct {
+	RunKey string
+	Batch  BatchedRecordsMsg
+}
+
+// WorkspaceFileChangedMsg is emitted when a watched workspace run's .wandb
+// file changes on disk.
+//
+// It carries the run key so the workspace can refresh just that run.
+type WorkspaceFileChangedMsg struct {
+	RunKey string
+}
+
+// WorkspaceRunDirsMsg is emitted after polling the wandb directory.
+//
+// RunKeys contains the set of run directory names (e.g. "run-..." / "offline-run-...").
+// If Err is non-nil, RunKeys may be nil and callers should treat the snapshot
+// as unusable.
+type WorkspaceRunDirsMsg struct {
+	RunKeys []string
+	Err     error
+}
+
+// WorkspaceRunOverviewPreloadedMsg is emitted when the workspace finishes
+// preloading the Run record for a run (used to populate the overview sidebar
+// for runs that haven't been selected/streamed yet).
+type WorkspaceRunOverviewPreloadedMsg struct {
+	RunKey string
+	Run    *RunMsg
+	Err    error
+}
+
+// WorkspaceInitErrMsg is emitted when a workspace run reader failed to initialize.
+// This keeps errors keyed to the specific run so the workspace can recover cleanly.
+type WorkspaceInitErrMsg struct {
+	RunKey  string
+	RunPath string
+	Err     error
+}
+
+// ConsoleLogsPaneAnimationMsg drives animation for the run view console logs pane.
+type ConsoleLogsPaneAnimationMsg struct{}
+
+// WorkspaceConsoleLogsPaneAnimationMsg drives animation for the workspace console logs pane.
+type WorkspaceConsoleLogsPaneAnimationMsg struct{}
+
+// WorkspaceSystemMetricsPaneAnimationMsg drives animation for the workspace system metrics pane.
+type WorkspaceSystemMetricsPaneAnimationMsg struct{}

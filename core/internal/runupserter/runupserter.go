@@ -25,7 +25,6 @@ import (
 	"github.com/wandb/wandb/core/internal/runmetric"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/version"
-	"github.com/wandb/wandb/core/internal/waiting"
 	"github.com/wandb/wandb/core/internal/wboperation"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
@@ -39,7 +38,7 @@ type RunUpserter struct {
 	mu sync.Mutex
 	wg sync.WaitGroup
 
-	debounceDelay waiting.Delay
+	debounceDelay time.Duration
 
 	settings           *settings.Settings
 	beforeRunEndCtx    context.Context
@@ -64,21 +63,19 @@ type RunUpserter struct {
 }
 
 type RunUpserterParams struct {
-	DebounceDelay waiting.Delay
+	DebounceDelay time.Duration
 
 	ClientID           string
 	Settings           *settings.Settings
 	BeforeRunEndCtx    context.Context
 	Operations         *wboperation.WandbOperations
-	FeatureProvider    *featurechecker.ServerFeaturesCache
+	FeatureProvider    *featurechecker.FeatureProvider
 	GraphqlClientOrNil graphql.Client
 	Logger             *observability.CoreLogger
 }
 
 func (params *RunUpserterParams) panicIfNotFilled() {
 	switch {
-	case params.DebounceDelay == nil:
-		panic("runupserter: DebounceDelay is nil")
 	case params.Settings == nil:
 		panic("runupserter: Settings is nil")
 	case params.BeforeRunEndCtx == nil:
@@ -129,10 +126,10 @@ func InitRun(
 
 	// Initialize the run metrics.
 	enableServerExpandedMetrics := params.Settings.IsEnableServerSideExpandGlobMetrics()
-	if enableServerExpandedMetrics && !params.FeatureProvider.GetFeature(
+	if enableServerExpandedMetrics && !params.FeatureProvider.Enabled(
 		params.BeforeRunEndCtx,
 		spb.ServerFeature_EXPAND_DEFINED_METRIC_GLOBS,
-	).Enabled {
+	) {
 		params.Logger.Warn(
 			"runupserter: server does not expand metric globs" +
 				" but the x_server_side_expand_glob_metrics setting is set;" +
@@ -491,11 +488,8 @@ func (upserter *RunUpserter) syncPeriodically() {
 //
 // It is immediate if finishing.
 func (upserter *RunUpserter) debounce() {
-	delay, cancel := upserter.debounceDelay.Wait()
-	defer cancel()
-
 	select {
-	case <-delay:
+	case <-time.After(upserter.debounceDelay):
 	case <-upserter.done:
 	}
 }

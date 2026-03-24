@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import concurrent.futures
 import logging
 import os
@@ -5,7 +7,7 @@ import queue
 import tempfile
 import threading
 import time
-from typing import TYPE_CHECKING, Optional, Tuple
+from typing import TYPE_CHECKING
 
 import wandb
 import wandb.util
@@ -35,9 +37,9 @@ class FilePusher:
 
     def __init__(
         self,
-        api: "internal_api.Api",
-        file_stream: "file_stream.FileStreamApi",
-        settings: Optional["SettingsStatic"] = None,
+        api: internal_api.Api,
+        file_stream: file_stream.FileStreamApi,
+        settings: SettingsStatic | None = None,
     ) -> None:
         self._api = api
 
@@ -85,7 +87,7 @@ class FilePusher:
             logger.info(f"FilePusher stats: {self._stats._stats}")
             time.sleep(1)
 
-    def get_status(self) -> Tuple[bool, stats.Summary]:
+    def get_status(self) -> tuple[bool, stats.Summary]:
         running = self.is_alive()
         summary = self._stats.summary()
         return running, summary
@@ -141,9 +143,9 @@ class FilePusher:
 
     def store_manifest_files(
         self,
-        manifest: "ArtifactManifest",
+        manifest: ArtifactManifest,
         artifact_id: str,
-        save_fn: "SaveFn",
+        save_fn: SaveFn,
     ) -> None:
         event = step_checksum.RequestStoreManifestFiles(manifest, artifact_id, save_fn)
         self._incoming_queue.put(event)
@@ -154,14 +156,14 @@ class FilePusher:
         *,
         finalize: bool = True,
         before_commit: step_upload.PreCommitFn,
-        result_future: "concurrent.futures.Future[None]",
+        result_future: concurrent.futures.Future[None],
     ):
         event = step_checksum.RequestCommitArtifact(
             artifact_id, finalize, before_commit, result_future
         )
         self._incoming_queue.put(event)
 
-    def finish(self, callback: Optional[step_upload.OnRequestFinishFn] = None):
+    def finish(self, callback: step_upload.OnRequestFinishFn | None = None):
         logger.info("shutting down file pusher")
         self._incoming_queue.put(step_checksum.RequestFinish(callback))
         self._stats_thread_stop.set()

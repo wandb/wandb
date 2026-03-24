@@ -2,7 +2,6 @@ package rules
 
 import (
 	"github.com/vektah/gqlparser/v2/ast"
-
 	//nolint:staticcheck // Validator rules each use dot imports for convenience.
 	. "github.com/vektah/gqlparser/v2/validator/core"
 )
@@ -18,7 +17,11 @@ var NoUnusedVariablesRule = Rule{
 
 				if operation.Name != "" {
 					addError(
-						Message(`Variable "$%s" is never used in operation "%s".`, varDef.Variable, operation.Name),
+						Message(
+							`Variable "$%s" is never used in operation "%s".`,
+							varDef.Variable,
+							operation.Name,
+						),
 						At(varDef.Position),
 					)
 				} else {

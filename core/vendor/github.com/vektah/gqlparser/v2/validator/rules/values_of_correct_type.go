@@ -6,7 +6,6 @@ import (
 	"strconv"
 
 	"github.com/vektah/gqlparser/v2/ast"
-
 	//nolint:staticcheck // Validator rules each use dot imports for convenience.
 	. "github.com/vektah/gqlparser/v2/validator/core"
 )
@@ -19,7 +18,11 @@ func ruleFuncValuesOfCorrectType(observers *Events, addError AddErrFunc, disable
 
 		if value.Kind == ast.NullValue && value.ExpectedType.NonNull {
 			addError(
-				Message(`Expected value of type "%s", found %s.`, value.ExpectedType.String(), value.String()),
+				Message(
+					`Expected value of type "%s", found %s.`,
+					value.ExpectedType.String(),
+					value.String(),
+				),
 				At(value.Position),
 			)
 		}
@@ -66,13 +69,21 @@ func ruleFuncValuesOfCorrectType(observers *Events, addError AddErrFunc, disable
 			if value.Definition.Kind == ast.Enum {
 				if disableSuggestion {
 					addError(
-						Message(`Enum "%s" cannot represent non-enum value: %s.`, value.ExpectedType.String(), value.String()),
+						Message(
+							`Enum "%s" cannot represent non-enum value: %s.`,
+							value.ExpectedType.String(),
+							value.String(),
+						),
 						At(value.Position),
 					)
 				} else {
 					rawValStr := fmt.Sprint(rawVal)
 					addError(
-						Message(`Enum "%s" cannot represent non-enum value: %s.`, value.ExpectedType.String(), value.String()),
+						Message(
+							`Enum "%s" cannot represent non-enum value: %s.`,
+							value.ExpectedType.String(),
+							value.String(),
+						),
 						SuggestListQuoted("Did you mean the enum value", rawValStr, possibleEnums),
 						At(value.Position),
 					)
@@ -92,20 +103,32 @@ func ruleFuncValuesOfCorrectType(observers *Events, addError AddErrFunc, disable
 					rawValStr := fmt.Sprint(rawVal)
 					addError(
 						unexpectedTypeMessageOnly(value),
-						SuggestListUnquoted("Did you mean the enum value", rawValStr, possibleEnums),
+						SuggestListUnquoted(
+							"Did you mean the enum value",
+							rawValStr,
+							possibleEnums,
+						),
 						At(value.Position),
 					)
 				}
 			} else if value.Definition.EnumValues.ForName(value.Raw) == nil {
 				if disableSuggestion {
 					addError(
-						Message(`Value "%s" does not exist in "%s" enum.`, value.String(), value.ExpectedType.String()),
+						Message(
+							`Value "%s" does not exist in "%s" enum.`,
+							value.String(),
+							value.ExpectedType.String(),
+						),
 						At(value.Position),
 					)
 				} else {
 					rawValStr := fmt.Sprint(rawVal)
 					addError(
-						Message(`Value "%s" does not exist in "%s" enum.`, value.String(), value.ExpectedType.String()),
+						Message(
+							`Value "%s" does not exist in "%s" enum.`,
+							value.String(),
+							value.ExpectedType.String(),
+						),
 						SuggestListQuoted("Did you mean the enum value", rawValStr, possibleEnums),
 						At(value.Position),
 					)
@@ -124,7 +147,12 @@ func ruleFuncValuesOfCorrectType(observers *Events, addError AddErrFunc, disable
 					fieldValue := value.Children.ForName(field.Name)
 					if fieldValue == nil && field.DefaultValue == nil {
 						addError(
-							Message(`Field "%s.%s" of required type "%s" was not provided.`, value.Definition.Name, field.Name, field.Type.String()),
+							Message(
+								`Field "%s.%s" of required type "%s" was not provided.`,
+								value.Definition.Name,
+								field.Name,
+								field.Type.String(),
+							),
 							At(value.Position),
 						)
 						continue
@@ -137,7 +165,10 @@ func ruleFuncValuesOfCorrectType(observers *Events, addError AddErrFunc, disable
 					func() {
 						if len(value.Children) != 1 {
 							addError(
-								Message(`OneOf Input Object "%s" must specify exactly one key.`, value.Definition.Name),
+								Message(
+									`OneOf Input Object "%s" must specify exactly one key.`,
+									value.Definition.Name,
+								),
 								At(value.Position),
 							)
 							return
@@ -147,7 +178,11 @@ func ruleFuncValuesOfCorrectType(observers *Events, addError AddErrFunc, disable
 						isNullLiteral := fieldValue == nil || fieldValue.Kind == ast.NullValue
 						if isNullLiteral {
 							addError(
-								Message(`Field "%s.%s" must be non-null.`, value.Definition.Name, value.Definition.Fields[0].Name),
+								Message(
+									`Field "%s.%s" must be non-null.`,
+									value.Definition.Name,
+									value.Definition.Fields[0].Name,
+								),
 								At(fieldValue.Position),
 							)
 							return
@@ -159,7 +194,11 @@ func ruleFuncValuesOfCorrectType(observers *Events, addError AddErrFunc, disable
 							isNullableVariable := !fieldValue.VariableDefinition.Type.NonNull
 							if isNullableVariable {
 								addError(
-									Message(`Variable "%s" must be non-nullable to be used for OneOf Input Object "%s".`, variableName, value.Definition.Name),
+									Message(
+										`Variable "%s" must be non-nullable to be used for OneOf Input Object "%s".`,
+										variableName,
+										value.Definition.Name,
+									),
 									At(fieldValue.Position),
 								)
 							}
@@ -172,7 +211,11 @@ func ruleFuncValuesOfCorrectType(observers *Events, addError AddErrFunc, disable
 				if value.Definition.Fields.ForName(fieldValue.Name) == nil {
 					if disableSuggestion {
 						addError(
-							Message(`Field "%s" is not defined by type "%s".`, fieldValue.Name, value.Definition.Name),
+							Message(
+								`Field "%s" is not defined by type "%s".`,
+								fieldValue.Name,
+								value.Definition.Name,
+							),
 							At(fieldValue.Position),
 						)
 					} else {
@@ -182,7 +225,11 @@ func ruleFuncValuesOfCorrectType(observers *Events, addError AddErrFunc, disable
 						}
 
 						addError(
-							Message(`Field "%s" is not defined by type "%s".`, fieldValue.Name, value.Definition.Name),
+							Message(
+								`Field "%s" is not defined by type "%s".`,
+								fieldValue.Name,
+								value.Definition.Name,
+							),
 							SuggestListQuoted("Did you mean", fieldValue.Name, suggestions),
 							At(fieldValue.Position),
 						)
@@ -223,7 +270,12 @@ func unexpectedTypeMessage(addError AddErrFunc, v *ast.Value) {
 func unexpectedTypeMessageOnly(v *ast.Value) ErrorOption {
 	switch v.ExpectedType.String() {
 	case "Int", "Int!":
-		if _, err := strconv.ParseInt(v.Raw, 10, 32); err != nil && errors.Is(err, strconv.ErrRange) {
+		if _, err := strconv.ParseInt(
+			v.Raw,
+			10,
+			32,
+		); err != nil &&
+			errors.Is(err, strconv.ErrRange) {
 			return Message(`Int cannot represent non 32-bit signed integer value: %s`, v.String())
 		}
 		return Message(`Int cannot represent non-integer value: %s`, v.String())
@@ -236,11 +288,20 @@ func unexpectedTypeMessageOnly(v *ast.Value) ErrorOption {
 	case "ID", "ID!":
 		return Message(`ID cannot represent a non-string and non-integer value: %s`, v.String())
 	// case "Enum":
-	//		return Message(`Enum "%s" cannot represent non-enum value: %s`, v.ExpectedType.String(), v.String())
+	// 		return Message(`Enum "%s" cannot represent non-enum value: %s`, v.ExpectedType.String(),
+	// v.String())
 	default:
 		if v.Definition.Kind == ast.Enum {
-			return Message(`Enum "%s" cannot represent non-enum value: %s.`, v.ExpectedType.String(), v.String())
+			return Message(
+				`Enum "%s" cannot represent non-enum value: %s.`,
+				v.ExpectedType.String(),
+				v.String(),
+			)
 		}
-		return Message(`Expected value of type "%s", found %s.`, v.ExpectedType.String(), v.String())
+		return Message(
+			`Expected value of type "%s", found %s.`,
+			v.ExpectedType.String(),
+			v.String(),
+		)
 	}
 }

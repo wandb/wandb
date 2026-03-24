@@ -5,3 +5,34 @@ fragment PageInfoFragment on PageInfo {
   endCursor
   hasNextPage
 }
+
+fragment ApiKeyFragment on ApiKey {
+  id
+  name
+  description
+}
+
+fragment UserFragment on User {
+  id
+  name
+  username
+  email
+  admin
+  flags
+  entity
+  deletedAt
+  apiKeys {
+    edges {
+      node {
+        ...ApiKeyFragment
+      }
+    }
+  }
+  teams {
+    edges {
+      node {
+        name
+      }
+    }
+  }
+}

@@ -4,7 +4,8 @@ import logging
 import secrets
 import string
 import threading
-from typing import Awaitable, Callable
+from collections.abc import Awaitable
+from typing import Callable
 
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_server_pb2 as spb

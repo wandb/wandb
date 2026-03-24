@@ -19,7 +19,8 @@ import sys
 import threading
 import time
 from collections import defaultdict
-from typing import Callable, Iterable, Literal
+from collections.abc import Iterable
+from typing import Callable, Literal
 
 import wandb
 from wandb.sdk.lib import console_capture
@@ -164,10 +165,7 @@ class Char:
         return self.__class__(**attrs)
 
     def __eq__(self, other):
-        for k in self.__slots__:
-            if self[k] != other[k]:
-                return False
-        return True
+        return all(self[k] == other[k] for k in self.__slots__)
 
 
 _defchar = Char()

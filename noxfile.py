@@ -15,7 +15,7 @@ import nox
 
 nox.options.default_venv_backend = "uv"
 
-_SUPPORTED_PYTHONS = ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
+_SUPPORTED_PYTHONS = ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
 
 # Directories in which to create temporary per-session directories
 # containing test results and pytest/Go coverage.
@@ -75,6 +75,24 @@ def site_packages_dir(session: nox.Session) -> pathlib.Path:
         )
 
 
+def _requirements_file(python_version: str) -> str:
+    """The name of the requirements_dev file for the given Python version.
+
+    Falls back to `requirements_dev.txt` if no version-specific file exists.
+    Uses the current platform as the platform tag.
+
+    Args:
+        python_version: Python version string, like "3.9", "3.13".
+    """
+    platform_tag = platform.system().lower()
+
+    name = f"requirements/requirements_dev.{python_version}.{platform_tag}.txt"
+    if pathlib.Path(name).exists():
+        return name
+
+    return "requirements/requirements_dev.txt"
+
+
 def get_circleci_splits() -> tuple[int, int]:
     """Returns the test splitting arguments from our CircleCI config.
 
@@ -126,7 +144,7 @@ def run_pytest(
     session.notify("combine_test_results")
 
     # (pytest-timeout) Per-test timeout.
-    pytest_opts.append(f"--timeout={opts.get('timeout', 300)}")
+    pytest_opts.append(f"--timeout={opts.get('timeout', 60)}")
 
     # (pytest-xdist) Run tests in parallel.
     pytest_opts.append(f"-n={opts.get('n', 'auto')}")
@@ -172,16 +190,12 @@ def unit_tests(session: nox.Session) -> None:
     install_timed(
         session,
         "-r",
-        "requirements_dev.txt",
+        _requirements_file(session.python),
         # For test_reports:
         "polyfactory",
     )
 
     paths = session.posargs or ["tests/unit_tests"]
-
-    # Launch is not supported on 3.8
-    if session.python == "3.8":
-        paths.append("--ignore=tests/unit_tests/test_launch")
 
     run_pytest(
         session,
@@ -198,7 +212,7 @@ def unit_tests_pydantic_v1(session: nox.Session) -> None:
     install_timed(
         session,
         "-r",
-        "requirements_dev.txt",
+        _requirements_file(session.python),
     )
     # force-downgrade pydantic to v1
     install_timed(session, "pydantic<2")
@@ -222,7 +236,7 @@ def system_tests(session: nox.Session) -> None:
     install_timed(
         session,
         "-r",
-        "requirements_dev.txt",
+        _requirements_file(session.python),
         "annotated-types",  # for test_reports
     )
 
@@ -233,10 +247,6 @@ def system_tests(session: nox.Session) -> None:
         "--ignore=tests/system_tests/test_functional",
         "--ignore=tests/system_tests/test_experimental",
     ]
-
-    # Launch is not supported on 3.8
-    if session.python == "3.8":
-        paths.append("--ignore=tests/system_tests/test_launch")
 
     run_pytest(
         session,
@@ -252,7 +262,7 @@ def notebook_tests(session: nox.Session) -> None:
     install_timed(
         session,
         "-r",
-        "requirements_dev.txt",
+        _requirements_file(session.python),
         "nbclient",
         "nbconvert",
         "nbformat",
@@ -287,7 +297,7 @@ def functional_tests(session: nox.Session):
     install_timed(
         session,
         "-r",
-        "requirements_dev.txt",
+        _requirements_file(session.python),
     )
 
     run_pytest(
@@ -308,7 +318,7 @@ def experimental_tests(session: nox.Session):
     install_timed(
         session,
         "-r",
-        "requirements_dev.txt",
+        _requirements_file(session.python),
     )
 
     run_pytest(
@@ -451,6 +461,12 @@ def local_testcontainer_registry(session: nox.Session) -> None:
 @nox.session(name="gql-codegen", tags=["graphql"], python="3.10")
 def gql_codegen(session: nox.Session) -> None:
     """Generate client-side Python code from GraphQL query, mutation, and fragment definitions."""
+    install_timed(
+        session,
+        "-r",
+        _requirements_file(session.python),
+        "ruff",  # tools/graphql_codegen/plugin.py shells out to Ruff after generation
+    )
     session.run("tools/graphql_codegen/generate-graphql.sh", external=True)
 
 
@@ -472,7 +488,7 @@ def _generate_proto_go(session: nox.Session) -> None:
 
 
 @nox.session(name="proto-python", tags=["proto"], python="3.10")
-@nox.parametrize("pb", [3, 4, 5, 6])
+@nox.parametrize("pb", [4, 5, 6, 7])
 def proto_python(session: nox.Session, pb: int) -> None:
     """Generate Python bindings for protobufs.
 
@@ -484,30 +500,41 @@ def proto_python(session: nox.Session, pb: int) -> None:
 
 
 def _generate_proto_python(session: nox.Session, pb: int) -> None:
-    if pb == 3:
-        session.install("protobuf==3.20.3")
-        session.install("mypy-protobuf==3.4.0")
-        session.install("grpcio==1.47.5")
-        session.install("grpcio-tools==1.47.5")
-    elif pb == 4:
-        session.install("protobuf~=4.23.4")
-        session.install("mypy-protobuf~=3.5.0")
-        session.install("grpcio~=1.51.0")
-        session.install("grpcio-tools~=1.51.0")
+    if pb == 4:
+        session.install(
+            "protobuf~=4.23.4",
+            "mypy-protobuf~=3.5.0",
+            "grpcio~=1.51.0",
+            "grpcio-tools~=1.51.0",
+            "packaging",
+            "setuptools<70",  # provides pkg_resources for grpcio-tools
+        )
     elif pb == 5:
-        session.install("protobuf~=5.27.0")
-        session.install("mypy-protobuf~=3.6.0")
-        session.install("grpcio~=1.64.1")
-        session.install("grpcio-tools~=1.64.1")
+        session.install(
+            "protobuf~=5.27.0",
+            "mypy-protobuf~=3.6.0",
+            "grpcio~=1.64.1",
+            "grpcio-tools~=1.64.1",
+            "packaging",
+        )
     elif pb == 6:
-        session.install("protobuf~=6.32.1")
-        session.install("mypy-protobuf~=3.6.0")
-        session.install("grpcio~=1.75.0")
-        session.install("grpcio-tools~=1.75.0")
+        session.install(
+            "protobuf~=6.32.1",
+            "mypy-protobuf~=3.6.0",
+            "grpcio~=1.75.0",
+            "grpcio-tools~=1.75.0",
+            "packaging",
+        )
+    elif pb == 7:
+        session.install(
+            "protobuf~=7.34.0",
+            "mypy-protobuf~=5.0.0",
+            "grpcio==1.80.0rc1",
+            "grpcio-tools==1.80.0rc1",
+            "packaging",
+        )
     else:
-        session.error("Invalid protobuf version given. `pb` must be 3, 4, 5, or 6.")
-
-    session.install("packaging")
+        session.error("Invalid protobuf version given. `pb` must be 4, 5, 6, or 7.")
 
     with session.chdir("wandb/proto"):
         session.run("python", "wandb_generate_proto.py")
@@ -527,7 +554,7 @@ def _ensure_no_diff(
 
 
 @nox.session(name="proto-check-python", tags=["proto-check"])
-@nox.parametrize("pb", [3, 4])
+@nox.parametrize("pb", [5, 6])
 def proto_check_python(session: nox.Session, pb: int) -> None:
     """Regenerates Python protobuf files and ensures nothing changed."""
     _ensure_no_diff(
@@ -545,17 +572,6 @@ def proto_check_go(session: nox.Session) -> None:
         after=lambda: _generate_proto_go(session),
         in_directory="core/pkg/service_go_proto/.",
     )
-
-
-@nox.session(name="codegen")
-def codegen(session: nox.Session) -> None:
-    session.install("ruff")
-    session.install(".")
-
-    args = session.posargs
-    if not args:
-        args = ["--generate"]
-    session.run("python", "tools/generate-tool.py", *args)
 
 
 @nox.session(name="mypy-report")
@@ -739,7 +755,7 @@ def combine_test_results(session: nox.Session) -> None:
 def importer_tests(session: nox.Session, importer: str):
     """Run importer tests for wandb->wandb and mlflow->wandb."""
     install_wandb(session)
-    session.install("-r", "requirements_dev.txt")
+    session.install("-r", _requirements_file(session.python))
     if importer == "wandb":
         session.install(".[workspaces]", "pydantic>=2")
     elif importer == "mlflow":

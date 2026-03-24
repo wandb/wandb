@@ -10,7 +10,8 @@ import json
 import os
 import shutil
 import time
-from typing import TYPE_CHECKING, Any, Callable, Literal, Mapping
+from collections.abc import Mapping
+from typing import TYPE_CHECKING, Any, Callable, Literal
 
 from wandb_gql import gql
 
@@ -742,6 +743,8 @@ class RunQueue:
             template_variables: Optional dictionary for template variables
                 used in the resource configuration.
         """
+        from wandb.apis.public import Api
+
         public_api = Api()
         return public_api.create_run_queue(
             name, resource, entity, prioritization_mode, config, template_variables

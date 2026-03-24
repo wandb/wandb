@@ -3,9 +3,9 @@ package leet
 import (
 	"strings"
 
-	"github.com/charmbracelet/bubbles/viewport"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/viewport"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/wandb/wandb/core/internal/version"
 )
@@ -21,39 +21,27 @@ var blankLine = HelpEntry{}
 // HelpModel represents the help screen.
 type HelpModel struct {
 	viewport viewport.Model
-	entries  []HelpEntry
 	active   bool
 	width    int
 	height   int
+
+	mode viewMode
 }
 
 func NewHelp() *HelpModel {
-	entries := []HelpEntry{
-		{Key: "── W&B LEET: Lightweight Experiment Exploration Tool ──", Description: ""},
-		{Key: "version", Description: version.Version},
-		blankLine,
-	}
-
-	for _, category := range KeyBindings() {
-		entries = append(entries, HelpEntry{Key: category.Name, Description: ""})
-		for _, binding := range category.Bindings {
-			entries = append(entries, HelpEntry{
-				Key:         strings.Join(binding.Keys, ", "),
-				Description: binding.Description,
-			})
-		}
-		entries = append(entries, blankLine)
-	}
-
-	vp := viewport.New(80, 20)
-
-	h := &HelpModel{
+	vp := viewport.New(viewport.WithWidth(80), viewport.WithHeight(20))
+	return &HelpModel{
 		viewport: vp,
-		entries:  entries,
 		active:   false,
+		mode:     viewModeWorkspace,
 	}
+}
 
-	return h
+func (h *HelpModel) SetMode(mode viewMode) {
+	h.mode = mode
+	if h.active {
+		h.viewport.SetContent(h.generateHelpContent())
+	}
 }
 
 // generateHelpContent generates the help screen content.
@@ -62,21 +50,20 @@ func (h *HelpModel) generateHelpContent() string {
 		Foreground(colorHeading).
 		Bold(true)
 
-	// Build the ASCII art section separately
-	artSection := artStyle.Render(wandbArt) + "\n" + artStyle.Render(leetArt) + "\n\n"
+	artSection := artStyle.Render(
+		lipgloss.JoinHorizontal(lipgloss.Top, wandbArt, "    ", leetArt),
+	) + "\n\n"
 
-	// Build the help entries section
+	entries := h.entriesForMode()
+
 	helpSection := ""
-	for _, entry := range h.entries {
+	for _, entry := range entries {
 		switch {
 		case entry.Key == "":
-			// Empty line for spacing
 			helpSection += "\n"
 		case entry.Description == "":
-			// Section header
 			helpSection += helpSectionStyle.Render(entry.Key) + "\n"
 		default:
-			// Regular entry
 			key := helpKeyStyle.Render(entry.Key)
 			desc := helpDescStyle.Render(entry.Description)
 			helpSection += lipgloss.JoinHorizontal(lipgloss.Top, key, desc) + "\n"
@@ -86,13 +73,93 @@ func (h *HelpModel) generateHelpContent() string {
 	return artSection + helpSection
 }
 
+func (h *HelpModel) entriesForMode() []HelpEntry {
+	entries := []HelpEntry{
+		{Key: "── W&B LEET: Lightweight Experiment Exploration Tool ──", Description: ""},
+		{Key: "version", Description: version.Version},
+		{Key: "view", Description: h.modeLabel()},
+		blankLine,
+	}
+
+	switch h.mode {
+	case viewModeWorkspace:
+		entries = append(entries, helpEntriesFromCategories(WorkspaceKeyBindings())...)
+		entries = append(entries, tipsEntries()...)
+	case viewModeRun:
+		entries = append(entries, helpEntriesFromCategories(RunKeyBindings())...)
+		entries = append(entries, tipsEntries()...)
+	case viewModeSymon:
+		entries = append(entries, helpEntriesFromCategories(SymonKeyBindings())...)
+		entries = append(entries, symonTipsEntries()...)
+	default:
+		entries = append(entries, helpEntriesFromCategories(WorkspaceKeyBindings())...)
+		entries = append(entries, tipsEntries()...)
+	}
+
+	return entries
+}
+
+// tipsEntries returns informational entries shown after the key bindings.
+func tipsEntries() []HelpEntry {
+	return []HelpEntry{
+		{Key: "Tips", Description: ""},
+		{Key: "wandb beta leet config", Description: "Open the interactive config editor"},
+		{Key: "Runs filter", Description: "Bare terms search run key/name/id/project/tags/notes. " +
+			"Qualifiers: project:, name:, id:, tag:, note:, config:, cfg.<path>:, has:. " +
+			"Boolean: space/AND, OR or |, -/!/NOT."},
+		{Key: "Runs filter example",
+			Description: "project:vision tag:baseline cfg.lr>=1e-3 -note:debug | project:nlp"},
+		blankLine,
+	}
+}
+
+func symonTipsEntries() []HelpEntry {
+	return []HelpEntry{
+		{Key: "Tips", Description: ""},
+		{Key: "wandb beta leet config", Description: "Open the interactive config editor"},
+		{Key: "SYMON", Description: "Live system monitor"},
+		blankLine,
+	}
+}
+
+func (h *HelpModel) modeLabel() string {
+	switch h.mode {
+	case viewModeWorkspace:
+		return "workspace"
+	case viewModeRun:
+		return "single run"
+	case viewModeSymon:
+		return "symon"
+	default:
+		return "unknown"
+	}
+}
+
+func helpEntriesFromCategories[T any](categories []BindingCategory[T]) []HelpEntry {
+	var entries []HelpEntry
+	for _, category := range categories {
+		entries = append(entries, HelpEntry{Key: category.Name, Description: ""})
+		for _, binding := range category.Bindings {
+			entries = append(entries, HelpEntry{
+				Key:         strings.Join(binding.Keys, ", "),
+				Description: binding.Description,
+			})
+		}
+		entries = append(entries, blankLine)
+	}
+	return entries
+}
+
 // SetSize updates the size of the help screen.
 func (h *HelpModel) SetSize(width, height int) {
 	h.width = width
-	h.height = height - StatusBarHeight // Account for status bar
-	h.viewport.Width = width
-	h.viewport.Height = h.height
-	h.viewport.SetContent(h.generateHelpContent())
+	h.height = height - StatusBarHeight
+	h.viewport.SetWidth(width)
+	h.viewport.SetHeight(h.height)
+
+	if h.active {
+		h.viewport.SetContent(h.generateHelpContent())
+	}
 }
 
 // Toggle toggles the help screen visibility.
@@ -118,7 +185,7 @@ func (h *HelpModel) Update(msg tea.Msg) (*HelpModel, tea.Cmd) {
 	var cmd tea.Cmd
 
 	switch msg := msg.(type) {
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		switch msg.String() {
 		case "h", "?", "esc":
 			h.Toggle()
@@ -139,20 +206,18 @@ func (h *HelpModel) Update(msg tea.Msg) (*HelpModel, tea.Cmd) {
 }
 
 // View renders the help screen.
-func (h *HelpModel) View() string {
+func (h *HelpModel) View() tea.View {
 	if !h.active {
-		return ""
+		return tea.NewView("")
 	}
 
-	// Apply margins to the content
 	content := helpContentStyle.Render(h.viewport.View())
 
-	// Place with top alignment to respect top margin
-	return lipgloss.Place(
+	return tea.NewView(lipgloss.Place(
 		h.width,
 		h.height,
 		lipgloss.Left,
 		lipgloss.Top,
 		content,
-	)
+	))
 }

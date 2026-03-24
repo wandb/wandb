@@ -35,6 +35,12 @@ query GetProjects($entity: String, $cursor: String, $perPage: Int = 50) {
   }
 }
 
+fragment ApiKeyFragment on ApiKey {
+  id
+  name
+  description
+}
+
 fragment PageInfoFragment on PageInfo {
   __typename
   endCursor
@@ -48,6 +54,34 @@ fragment ProjectFragment on Project {
   entityName
   createdAt
   isBenchmark
+  user {
+    ...UserFragment
+  }
+}
+
+fragment UserFragment on User {
+  id
+  name
+  username
+  email
+  admin
+  flags
+  entity
+  deletedAt
+  apiKeys {
+    edges {
+      node {
+        ...ApiKeyFragment
+      }
+    }
+  }
+  teams {
+    edges {
+      node {
+        name
+      }
+    }
+  }
 }
 """
 
@@ -58,6 +92,12 @@ query GetProject($name: String!, $entity: String!) {
   }
 }
 
+fragment ApiKeyFragment on ApiKey {
+  id
+  name
+  description
+}
+
 fragment ProjectFragment on Project {
   __typename
   id
@@ -65,6 +105,34 @@ fragment ProjectFragment on Project {
   entityName
   createdAt
   isBenchmark
+  user {
+    ...UserFragment
+  }
+}
+
+fragment UserFragment on User {
+  id
+  name
+  username
+  email
+  admin
+  flags
+  entity
+  deletedAt
+  apiKeys {
+    edges {
+      node {
+        ...ApiKeyFragment
+      }
+    }
+  }
+  teams {
+    edges {
+      node {
+        name
+      }
+    }
+  }
 }
 """
 

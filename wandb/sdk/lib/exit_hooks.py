@@ -1,7 +1,9 @@
+from __future__ import annotations
+
 import sys
 import traceback
 from types import TracebackType
-from typing import TYPE_CHECKING, Optional, Type
+from typing import TYPE_CHECKING
 
 import wandb
 from wandb.errors import Error
@@ -11,7 +13,7 @@ if TYPE_CHECKING:
 
 
 class ExitHooks:
-    exception: Optional[BaseException] = None
+    exception: BaseException | None = None
 
     def __init__(self) -> None:
         self.exit_code = 0
@@ -28,7 +30,7 @@ class ExitHooks:
         )
         sys.excepthook = self.exc_handler  # type: ignore
 
-    def exit(self, code: object = 0) -> "NoReturn":
+    def exit(self, code: object = 0) -> NoReturn:
         orig_code = code
         code = code if code is not None else 0
         code = code if isinstance(code, int) else 1
@@ -39,7 +41,7 @@ class ExitHooks:
         return isinstance(self.exception, KeyboardInterrupt)
 
     def exc_handler(
-        self, exc_type: Type[BaseException], exc: BaseException, tb: TracebackType
+        self, exc_type: type[BaseException], exc: BaseException, tb: TracebackType
     ) -> None:
         self.exit_code = 1
         self.exception = exc

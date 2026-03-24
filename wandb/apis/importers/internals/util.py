@@ -1,9 +1,11 @@
+from __future__ import annotations
+
 import logging
 import sys
 import traceback
+from collections.abc import Iterable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
-from typing import Iterable, Optional
 
 
 @dataclass(frozen=True)
@@ -39,7 +41,7 @@ def parallelize(
     func,
     iterable: Iterable,
     *args,
-    max_workers: Optional[int] = None,
+    max_workers: int | None = None,
     raise_on_error: bool = False,
     **kwargs,
 ):
@@ -66,7 +68,7 @@ def parallelize(
 
 
 def for_each(
-    func, iterable: Iterable, parallel: bool = True, max_workers: Optional[int] = None
+    func, iterable: Iterable, parallel: bool = True, max_workers: int | None = None
 ):
     if parallel:
         return parallelize(

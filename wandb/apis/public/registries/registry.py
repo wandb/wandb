@@ -611,7 +611,7 @@ class Registry:
             ValueError: If unable to infer the user or team ID.
 
         Examples:
-        Make all users in the registry admins:
+        Make all users in the registry admins
         ```python
         import wandb
 

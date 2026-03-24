@@ -1,7 +1,8 @@
 """config."""
 
+from __future__ import annotations
+
 import logging
-from typing import Optional
 
 import wandb
 from wandb.util import (
@@ -117,7 +118,7 @@ class Config:
         return str(dict(self))
 
     def keys(self):
-        return [k for k in self._items.keys() if not k.startswith("_")]
+        return [k for k in self._items if not k.startswith("_")]
 
     def _as_dict(self):
         return self._items
@@ -257,7 +258,7 @@ class Config:
         self,
         config_dict,
         allow_val_change=None,
-        ignore_keys: Optional[set] = None,
+        ignore_keys: set | None = None,
     ):
         sanitized = {}
         self._raise_value_error_on_nested_artifact(config_dict)
@@ -283,14 +284,17 @@ class Config:
         # if the user inserts an artifact into the config
         if not isinstance(val, wandb.Artifact):
             val = json_friendly_val(val)
-        if not allow_val_change:
-            if key in self._items and val != self._items[key]:
-                raise config_util.ConfigError(
-                    f'Attempted to change value of key "{key}" '
-                    f"from {self._items[key]} to {val}\n"
-                    "If you really want to do this, pass"
-                    " allow_val_change=True to config.update()"
-                )
+        if (
+            (not allow_val_change)
+            and (key in self._items)
+            and (val != self._items[key])
+        ):
+            raise config_util.ConfigError(
+                f'Attempted to change value of key "{key}" '
+                f"from {self._items[key]} to {val}\n"
+                "If you really want to do this, pass"
+                " allow_val_change=True to config.update()"
+            )
         return key, val
 
     def _raise_value_error_on_nested_artifact(self, v, nested=False):

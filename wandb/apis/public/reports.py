@@ -383,16 +383,15 @@ class PythonMongoishQueryGenerator:
     def _replace_numeric_dots(self, s):
         numeric_dots = []
         for i, (left, mid, right) in enumerate(zip(s, s[1:], s[2:]), 1):
-            if mid == ".":
-                if (
-                    left.isdigit()
-                    and right.isdigit()  # 1.2
-                    or left.isdigit()
-                    and right == " "  # 1.
-                    or left == " "
-                    and right.isdigit()  # .2
-                ):
-                    numeric_dots.append(i)
+            if mid == "." and (
+                left.isdigit()
+                and right.isdigit()  # 1.2
+                or left.isdigit()
+                and right == " "  # 1.
+                or left == " "
+                and right.isdigit()  # .2
+            ):
+                numeric_dots.append(i)
         # Edge: Catch number ending in dot at end of string
         if s[-2].isdigit() and s[-1] == ".":
             numeric_dots.append(len(s) - 1)

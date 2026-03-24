@@ -40,12 +40,13 @@ import pathlib
 import tempfile
 import time
 import urllib
-from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Collection, Iterator, Literal, Mapping
+from collections.abc import Collection, Iterator, Mapping
+from typing import TYPE_CHECKING, Any, Literal
 
 from wandb_gql import gql
 
 import wandb
+import wandb.apis.public.runhistory as runhistory
 from wandb import env, util
 from wandb._strutils import nameof
 from wandb.apis import public
@@ -54,7 +55,9 @@ from wandb.apis.internal import Api as InternalApi
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.paginator import SizedPaginator
 from wandb.apis.public.const import RETRY_TIMEDELTA
+from wandb.apis.public.service_api import ServiceApi
 from wandb.proto import wandb_api_pb2 as apb
+from wandb.sdk import wandb_setup
 from wandb.sdk.lib import ipython, json_util, runid
 from wandb.sdk.lib.paths import LogicalPath
 from wandb.sdk.lib.service.service_connection import WandbApiFailedError
@@ -122,31 +125,6 @@ LIGHTWEIGHT_RUN_FRAGMENT = """fragment LightweightRunFragment on Run {
 # Fragment name constants to avoid string parsing
 RUN_FRAGMENT_NAME = "RunFragment"
 LIGHTWEIGHT_RUN_FRAGMENT_NAME = "LightweightRunFragment"
-
-
-class IncompleteRunHistoryError(Exception):
-    """Raised when run history has incomplete history.
-
-    Incomplete history occurs when there is some data
-    that has not been exported to parquet files yet.
-    Typically due to an on-going run.
-    """
-
-
-@dataclass(frozen=True)
-class DownloadHistoryResult:
-    """Result of downloading a run's history exports.
-
-    Attributes:
-        paths: The paths to the downloaded history files.
-        errors: A dictionary of errors that occurred while downloading the history files.
-        contains_live_data: Whether the run contains live data,
-            not yet exported to parquet files:w.
-    """
-
-    paths: list[pathlib.Path]
-    contains_live_data: bool
-    errors: dict[pathlib.Path, str] | None = None
 
 
 def _create_runs_query(
@@ -282,7 +260,7 @@ class Runs(SizedPaginator["Run"]):
         per_page: int = 50,
         include_sweeps: bool = True,
         lazy: bool = True,
-        api: public.Api | None = None,
+        service_api: ServiceApi | None = None,
     ):
         if not order:
             order = "+created_at"
@@ -301,7 +279,7 @@ class Runs(SizedPaginator["Run"]):
         self._sweeps: dict[str, public.Sweep] = {}
         self._include_sweeps = include_sweeps
         self._lazy = lazy
-        self._api = api
+        self._service_api = service_api
         variables = {
             "project": self.project,
             "entity": self.entity,
@@ -361,7 +339,7 @@ class Runs(SizedPaginator["Run"]):
                 run_response["node"],
                 include_sweeps=self._include_sweeps,
                 lazy=self._lazy,
-                api=self._api,
+                service_api=self._service_api,
             )
             objs.append(run)
 
@@ -564,7 +542,7 @@ class Run(Attrs):
         attrs: Mapping | None = None,
         include_sweeps: bool = True,
         lazy: bool = True,
-        api: public.Api | None = None,
+        service_api: ServiceApi | None = None,
     ):
         """Initialize a Run object.
 
@@ -594,7 +572,7 @@ class Run(Attrs):
         self.server_provides_internal_id_field: bool | None = None
         self._server_provides_project_id_field: bool | None = None
         self._is_loaded: bool = False
-        self._api: public.Api | None = api
+        self._service_api: ServiceApi | None = service_api
 
         self.load(force=not _attrs)
 
@@ -651,7 +629,49 @@ class Run(Attrs):
         entity: str | None = None,
         state: Literal["running", "pending"] = "running",
     ) -> Self:
-        """Create a run for the given project."""
+        """Create a run for the given project.
+
+        For most use cases, use `wandb.init()`. `wandb.init()` provides more robust
+        logic for creating and updating runs. `wandb.apis.public.Run.create`
+        is intended for specific scenarios such as creating runs in
+        a "pending" state for jobs that may be unschedulable
+        (for example, in a Kubernetes cluster with insufficient GPUs or high
+        contention). These pending runs can later be resumed and tracked by W&B.
+
+        Runs created with this method have limited functionality. Calling
+        `update()` on a run created this way may not work as expected.
+
+        Args:
+            api: The W&B API instance.
+            run_id: Optional run ID. If not provided, a random ID will be generated.
+            project: Optional project name. Defaults to the project in API settings
+                or "uncategorized".
+            entity: Optional entity (user or team) name.
+            state: Initial state of the run. Use "pending" for runs that will be
+                resumed later, or "running" for immediate execution.
+
+        Returns:
+            A Run object representing the created run.
+
+        Example:
+        Creating a pending run for later execution
+
+        ```python
+        import wandb
+
+        api = wandb.Api()
+
+        run_name = "my-pending-run"
+
+        run = Run.create(
+            api=api,
+            project="project",
+            entity="entity",
+            state="pending",
+            run_id=run_name,
+        )
+        ```
+        """
         api._sentry.message("Invoking Run.create", level="info")
         run_id = run_id or runid.generate_id()
         project = project or api.settings.get("project") or "uncategorized"
@@ -709,7 +729,7 @@ class Run(Attrs):
             )
 
         query = gql(
-            f"""
+            f"""#graphql
         query Run($project: String!, $entity: String!, $name: String!) {{
             project(name: $project, entityName: $entity) {{
                 run(name: $name) {{
@@ -812,10 +832,17 @@ class Run(Attrs):
         self._attrs["config"] = config_user
         self._attrs["rawconfig"] = config_raw
 
+        if "user" in self._attrs:
+            self.user = public.User(self.client, self._attrs["user"])
+
         return self._attrs
 
     def load(self, force: bool = False) -> dict[str, Any]:
         """Load run data using appropriate fragment based on lazy mode."""
+        # Load any provided attrs
+        if self._attrs:
+            self._load_from_attrs()
+
         if self._lazy:
             return self._load_with_fragment(
                 LIGHTWEIGHT_RUN_FRAGMENT, LIGHTWEIGHT_RUN_FRAGMENT_NAME, force
@@ -1526,7 +1553,7 @@ class Run(Attrs):
         ):
             return -1
         history_keys = response["project"]["run"]["historyKeys"]
-        return history_keys["lastStep"] if "lastStep" in history_keys else -1
+        return history_keys.get("lastStep", -1)
 
     def to_html(self, height: int = 420, hidden: bool = False) -> str:
         """Generate HTML containing an iframe displaying this run."""
@@ -1580,11 +1607,12 @@ class Run(Attrs):
             A BetaHistoryScan object,
             which can be iterator over to get history records.
         """
-        if self._api is None:
-            self._api = public.Api()
+        if self._service_api is None:
+            settings = wandb_setup.singleton().settings.model_copy()
+            self._service_api = ServiceApi(settings=settings)
 
         beta_history_scan = public.BetaHistoryScan(
-            api=self._api,
+            service_api=self._service_api,
             run=self,
             min_step=min_step,
             max_step=max_step or self.lastHistoryStep + 1,
@@ -1598,7 +1626,7 @@ class Run(Attrs):
         self,
         download_dir: pathlib.Path | str,
         require_complete_history: bool = True,
-    ) -> DownloadHistoryResult:
+    ) -> runhistory.DownloadHistoryResult:
         """Download any parquet history files for the run to the provided directory.
 
         Args:
@@ -1609,46 +1637,50 @@ class Run(Attrs):
 
         Returns:
             A DownloadHistoryResult.
-        """
-        if self._api is None:
-            self._api = public.Api()
 
+        Raises:
+            IncompleteRunHistoryError: If require_complete_history is True
+                and the run contains data not yet exported to parquet files.
+            WandbApiFailedError: If the API request fails for reasons other than
+                incomplete history.
+        """
+        init_download_request = apb.DownloadRunHistoryInit(
+            entity=self.entity,
+            project=self.project,
+            run_id=self.id,
+            download_dir=str(download_dir),
+            require_complete_history=require_complete_history,
+        )
         api_request = apb.ApiRequest(
             read_run_history_request=apb.ReadRunHistoryRequest(
-                download_run_history=apb.DownloadRunHistory(
-                    entity=self.entity,
-                    project=self.project,
-                    run_id=self.id,
-                    download_dir=str(download_dir),
-                    require_complete_history=require_complete_history,
-                )
+                download_run_history_init=init_download_request,
             )
         )
 
-        response: apb.ApiResponse | None = None
+        if self._service_api is None:
+            settings = wandb_setup.singleton().settings.model_copy()
+            self._service_api = ServiceApi(settings=settings)
+
+        response: apb.ApiResponse
         try:
-            response = self._api._send_api_request(api_request)
+            response = self._service_api.send_api_request(api_request)
         except WandbApiFailedError as e:
             if (
                 e.response is not None
-                and e.response.error_type is not None
                 and e.response.error_type == apb.ErrorType.INCOMPLETE_RUN_HISTORY_ERROR
             ):
-                raise IncompleteRunHistoryError() from None
+                raise runhistory.IncompleteRunHistoryError() from None
+            else:
+                raise WandbApiFailedError("Failed to download history") from e
 
-        if response is None:
-            raise wandb.Error(
-                "Failed to download run history exports, no response from server"
-            )
-
-        contains_live_data: bool = (
-            response.download_run_history_response.contains_live_data
+        contains_live_data = response.read_run_history_response.download_run_history_init.contains_live_data
+        request_id = (
+            response.read_run_history_response.download_run_history_init.request_id
         )
-        file_names: list[pathlib.Path] = []
-        for file_name in response.download_run_history_response.file_names:
-            file_names.append(pathlib.Path(download_dir, file_name))
-
-        return DownloadHistoryResult(
-            paths=file_names,
-            contains_live_data=contains_live_data,
+        return wandb_setup.singleton().asyncer.run(
+            lambda: runhistory.wait_for_download_with_progress(
+                self._service_api,
+                request_id,
+                contains_live_data,
+            )
         )

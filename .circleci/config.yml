@@ -8,7 +8,7 @@ orbs:
 parameters:
   go_version:
     type: string
-    default: "1.25.6"
+    default: "1.26.1"
   server_image:
     type: string
     default: "us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer"
@@ -108,7 +108,7 @@ commands:
     steps:
       - run:
           name: Install Python dependencies
-          command: python -m pip install -U nox pip uv
+          command: python -m pip install -U nox pip uv!=0.10.5
           no_output_timeout: 5m
 
       - run:
@@ -123,13 +123,17 @@ commands:
   local-wandb-server-deps:
     description: |
       Installs dependencies for the connect-to-local-testcontainer commands.
+    parameters:
+      python: { type: string }
     steps:
       - run:
           name: Upgrade pip and uv
-          command: python -m pip install -U pip uv
+          command: python -m pip install -U pip uv!=0.10.5
       - run:
           name: Install tool dependencies
-          command: uv pip install --system -r requirements_dev.txt
+          command: |
+            uv pip install --system \
+              -r requirements/requirements_dev.<<parameters.python>>.linux.txt
 
   connect-to-local-testcontainer:
     description: Make tests use a running local-testcontainer.
@@ -318,14 +322,14 @@ jobs:
           condition:
             equal: ["local-testcontainer", <<parameters.executor_name>>]
           steps:
-            - local-wandb-server-deps
+            - local-wandb-server-deps: { python: <<parameters.python>> }
             - connect-to-local-testcontainer
       - when:
           condition:
             equal:
               ["local-testcontainer-importers", <<parameters.executor_name>>]
           steps:
-            - local-wandb-server-deps
+            - local-wandb-server-deps: { python: <<parameters.python>> }
             - connect-to-local-testcontainer
             - connect-to-local-testcontainer-importers
 
@@ -403,7 +407,7 @@ jobs:
       - install_rust
       - run:
           name: Install Python dependencies
-          command: python -m pip install -U nox pip uv
+          command: python -m pip install -U nox pip uv!=0.10.5
           no_output_timeout: 5m
       - run:
           name: Ensure proto files were generated
@@ -411,8 +415,10 @@ jobs:
       - run:
           name: Automatically generate code and check for changes
           command: |
-            nox -vs codegen
-            nox -vs codegen -- --check
+            uv venv .venv-codegen
+            source .venv-codegen/bin/activate
+            uv pip install ruff .
+            python tools/generate-tool.py --generate --check
       - run:
           name: Run mypy and report results
           command: nox -vs mypy-report
@@ -506,7 +512,7 @@ workflows:
 
           matrix:
             parameters:
-              python: ["3.8", "3.13"]
+              python: ["3.9", "3.13"]
 
       - nox-tests-linux:
           name: unit-tests-pydantic-v1-linux-<<matrix.python>>
@@ -516,7 +522,7 @@ workflows:
 
           matrix:
             parameters:
-              python: ["3.8", "3.13"]
+              python: ["3.9", "3.13"]
 
       #
       # Unit tests with pytest on macOS
@@ -568,7 +574,7 @@ workflows:
 
           matrix:
             parameters:
-              python: ["3.8", "3.13"]
+              python: ["3.9", "3.13"]
 
       - nox-tests-linux:
           name: system-tests-min-server-version-linux-<<matrix.python>>
@@ -600,7 +606,7 @@ workflows:
 
           matrix:
             parameters:
-              python: ["3.8", "3.13"]
+              python: ["3.9", "3.13"]
 
       #
       # Functional tests with pytest on Linux

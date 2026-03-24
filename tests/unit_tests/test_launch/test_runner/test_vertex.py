@@ -1,4 +1,3 @@
-from typing import List
 from unittest.mock import MagicMock
 
 import pytest
@@ -15,7 +14,7 @@ class MockCustomJob:
     to poll on the status of the job.
     """
 
-    def __init__(self, statuses: List[str]):
+    def __init__(self, statuses: list[str]):
         self.statuses = statuses
         self.status_index = 0
 

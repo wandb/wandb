@@ -44,14 +44,14 @@ const (
 type Span struct { //nolint: maligned // prefer readability over optimal memory layout (see note below *)
 	TraceID      TraceID           `json:"trace_id"`
 	SpanID       SpanID            `json:"span_id"`
-	ParentSpanID SpanID            `json:"parent_span_id"`
+	ParentSpanID SpanID            `json:"parent_span_id,omitzero"`
 	Name         string            `json:"name,omitempty"`
 	Op           string            `json:"op,omitempty"`
 	Description  string            `json:"description,omitempty"`
 	Status       SpanStatus        `json:"status,omitempty"`
 	Tags         map[string]string `json:"tags,omitempty"`
-	StartTime    time.Time         `json:"start_timestamp"`
-	EndTime      time.Time         `json:"timestamp"`
+	StartTime    time.Time         `json:"start_timestamp,omitzero"`
+	EndTime      time.Time         `json:"timestamp,omitzero"`
 	// Deprecated: use Data instead. To be removed in 0.33.0
 	Extra   map[string]interface{} `json:"-"`
 	Data    map[string]interface{} `json:"data,omitempty"`
@@ -487,23 +487,6 @@ func (s *Span) updateFromBaggage(header []byte) {
 	}
 }
 
-func (s *Span) MarshalJSON() ([]byte, error) {
-	// span aliases Span to allow calling json.Marshal without an infinite loop.
-	// It preserves all fields while none of the attached methods.
-	type span Span
-	var parentSpanID string
-	if s.ParentSpanID != zeroSpanID {
-		parentSpanID = s.ParentSpanID.String()
-	}
-	return json.Marshal(struct {
-		*span
-		ParentSpanID string `json:"parent_span_id,omitempty"`
-	}{
-		span:         (*span)(s),
-		ParentSpanID: parentSpanID,
-	})
-}
-
 func (s *Span) clientOptions() *ClientOptions {
 	client := hubFromContext(s.ctx).Client()
 	if client != nil {
@@ -845,29 +828,11 @@ func (ss SpanStatus) MarshalJSON() ([]byte, error) {
 type TraceContext struct {
 	TraceID      TraceID                `json:"trace_id"`
 	SpanID       SpanID                 `json:"span_id"`
-	ParentSpanID SpanID                 `json:"parent_span_id"`
+	ParentSpanID SpanID                 `json:"parent_span_id,omitzero"`
 	Op           string                 `json:"op,omitempty"`
 	Description  string                 `json:"description,omitempty"`
 	Status       SpanStatus             `json:"status,omitempty"`
 	Data         map[string]interface{} `json:"data,omitempty"`
-}
-
-func (tc *TraceContext) MarshalJSON() ([]byte, error) {
-	// traceContext aliases TraceContext to allow calling json.Marshal without
-	// an infinite loop. It preserves all fields while none of the attached
-	// methods.
-	type traceContext TraceContext
-	var parentSpanID string
-	if tc.ParentSpanID != zeroSpanID {
-		parentSpanID = tc.ParentSpanID.String()
-	}
-	return json.Marshal(struct {
-		*traceContext
-		ParentSpanID string `json:"parent_span_id,omitempty"`
-	}{
-		traceContext: (*traceContext)(tc),
-		ParentSpanID: parentSpanID,
-	})
 }
 
 func (tc TraceContext) Map() map[string]interface{} {

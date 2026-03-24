@@ -1,6 +1,9 @@
+from __future__ import annotations
+
 import logging
+from collections.abc import Sequence
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any
 
 import wandb
 from wandb.sdk.integration_utils.auto_logging import Response
@@ -10,8 +13,8 @@ logger = logging.getLogger(__name__)
 
 
 def subset_dict(
-    original_dict: Dict[str, Any], keys_subset: Sequence[str]
-) -> Dict[str, Any]:
+    original_dict: dict[str, Any], keys_subset: Sequence[str]
+) -> dict[str, Any]:
     """Create a subset of a dictionary using a subset of keys.
 
     :param original_dict: The original dictionary.
@@ -22,8 +25,8 @@ def subset_dict(
 
 
 def reorder_and_convert_dict_list_to_table(
-    data: List[Dict[str, Any]], order: List[str]
-) -> Tuple[List[str], List[List[Any]]]:
+    data: list[dict[str, Any]], order: list[str]
+) -> tuple[list[str], list[list[Any]]]:
     """Convert a list of dictionaries to a pair of column names and corresponding values, with the option to order specific dictionaries.
 
     :param data: A list of dictionaries.
@@ -58,8 +61,8 @@ def reorder_and_convert_dict_list_to_table(
 
 
 def flatten_dict(
-    dictionary: Dict[str, Any], parent_key: str = "", sep: str = "-"
-) -> Dict[str, Any]:
+    dictionary: dict[str, Any], parent_key: str = "", sep: str = "-"
+) -> dict[str, Any]:
     """Flatten a nested dictionary, joining keys using a specified separator.
 
     :param dictionary: The dictionary to flatten.
@@ -77,7 +80,7 @@ def flatten_dict(
     return flattened_dict
 
 
-def collect_common_keys(list_of_dicts: List[Dict[str, Any]]) -> Dict[str, List[Any]]:
+def collect_common_keys(list_of_dicts: list[dict[str, Any]]) -> dict[str, list[Any]]:
     """Collect the common keys of a list of dictionaries. For each common key, put its values into a list in the order they appear in the original dictionaries.
 
     :param list_of_dicts: The list of dictionaries to inspect.
@@ -97,11 +100,11 @@ class CohereRequestResponseResolver:
     def __call__(
         self,
         args: Sequence[Any],
-        kwargs: Dict[str, Any],
+        kwargs: dict[str, Any],
         response: Response,
         start_time: float,
         time_elapsed: float,
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """Process the response from the Cohere API and convert it to a dictionary that can be logged.
 
         :param args: The arguments of the original function.
@@ -221,7 +224,7 @@ class CohereRequestResponseResolver:
     # Since the response objects for different endpoints have different structures,
     # we need different logic to process them.
 
-    def _resolve_generate_response(self, response: Response) -> List[Dict[str, Any]]:
+    def _resolve_generate_response(self, response: Response) -> list[dict[str, Any]]:
         return_list = []
         for _response in response:
             # Built in Cohere.*.Generations function to color token_likelihoods and return a dict of response data
@@ -236,7 +239,7 @@ class CohereRequestResponseResolver:
 
         return return_list
 
-    def _resolve_chat_response(self, response: Response) -> List[Dict[str, Any]]:
+    def _resolve_chat_response(self, response: Response) -> list[dict[str, Any]]:
         return [
             subset_dict(
                 response.__dict__,
@@ -253,12 +256,12 @@ class CohereRequestResponseResolver:
             )
         ]
 
-    def _resolve_classify_response(self, response: Response) -> List[Dict[str, Any]]:
+    def _resolve_classify_response(self, response: Response) -> list[dict[str, Any]]:
         # The labels key is a dict returning the scores for the classification probability for each label provided
         # We flatten this nested dict for ease of consumption in the wandb UI
         return [flatten_dict(_response.__dict__) for _response in response]
 
-    def _resolve_classify_kwargs(self, kwargs: Dict[str, Any]) -> Dict[str, Any]:
+    def _resolve_classify_kwargs(self, kwargs: dict[str, Any]) -> dict[str, Any]:
         # Example texts look strange when rendered in Wandb UI as it is a list of text and label
         # We extract each value into its own column
         example_texts = []
@@ -271,10 +274,10 @@ class CohereRequestResponseResolver:
         kwargs["example_labels"] = example_labels
         return kwargs
 
-    def _resolve_summarize_response(self, response: Response) -> List[Dict[str, Any]]:
+    def _resolve_summarize_response(self, response: Response) -> list[dict[str, Any]]:
         return [{"response_id": response.id, "summary": response.summary}]
 
-    def _resolve_rerank_response(self, response: Response) -> List[Dict[str, Any]]:
+    def _resolve_rerank_response(self, response: Response) -> list[dict[str, Any]]:
         # The documents key contains a dict containing the content of the document which is at least "text"
         # We flatten this nested dict for ease of consumption in the wandb UI
         flattened_response_dicts = [
@@ -289,14 +292,14 @@ class CohereRequestResponseResolver:
     def _resolve(
         self,
         args: Sequence[Any],
-        kwargs: Dict[str, Any],
-        parsed_response: List[Dict[str, Any]],
+        kwargs: dict[str, Any],
+        parsed_response: list[dict[str, Any]],
         start_time: float,
         time_elapsed: float,
         response_type: str,
-        table_column_order: List[str],
+        table_column_order: list[str],
         default_model: str,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Convert a list of dictionaries to a pair of column names and corresponding values, with the option to order specific dictionaries.
 
         :param args: The arguments passed to the API client.

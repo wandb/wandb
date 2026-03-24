@@ -1,11 +1,14 @@
+from __future__ import annotations
+
 import asyncio
 import logging
 import os
 import shlex
+import shutil
 import subprocess
 import sys
 import threading
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any
 
 import wandb
 from wandb.sdk.launch.environment.abstract import AbstractEnvironment
@@ -38,10 +41,10 @@ class LocalSubmittedRun(AbstractRun):
 
     def __init__(self) -> None:
         super().__init__()
-        self._command_proc: Optional[subprocess.Popen] = None
-        self._stdout: Optional[str] = None
+        self._command_proc: subprocess.Popen | None = None
+        self._stdout: str | None = None
         self._terminate_flag: bool = False
-        self._thread: Optional[threading.Thread] = None
+        self._thread: threading.Thread | None = None
 
     def set_command_proc(self, command_proc: subprocess.Popen) -> None:
         self._command_proc = command_proc
@@ -50,7 +53,7 @@ class LocalSubmittedRun(AbstractRun):
         self._thread = thread
 
     @property
-    def id(self) -> Optional[str]:
+    def id(self) -> str | None:
         if self._command_proc is None:
             return None
         return str(self._command_proc.pid)
@@ -70,7 +73,7 @@ class LocalSubmittedRun(AbstractRun):
         wait = event_loop_thread_exec(self._command_proc.wait)
         return int(await wait()) == 0
 
-    async def get_logs(self) -> Optional[str]:
+    async def get_logs(self) -> str | None:
         return self._stdout
 
     async def cancel(self) -> None:
@@ -100,8 +103,8 @@ class LocalContainerRunner(AbstractRunner):
 
     def __init__(
         self,
-        api: "Api",
-        backend_config: Dict[str, Any],
+        api: Api,
+        backend_config: dict[str, Any],
         environment: AbstractEnvironment,
         registry: AbstractRegistry,
     ) -> None:
@@ -111,8 +114,8 @@ class LocalContainerRunner(AbstractRunner):
 
     def _populate_docker_args(
         self, launch_project: LaunchProject, image_uri: str
-    ) -> Dict[str, Any]:
-        docker_args: Dict[str, Any] = launch_project.fill_macros(image_uri).get(
+    ) -> dict[str, Any]:
+        docker_args: dict[str, Any] = launch_project.fill_macros(image_uri).get(
             "local-container", {}
         )
         if _is_wandb_local_uri(self._api.settings("base_url")):
@@ -137,7 +140,7 @@ class LocalContainerRunner(AbstractRunner):
         self,
         launch_project: LaunchProject,
         image_uri: str,
-    ) -> Optional[AbstractRun]:
+    ) -> AbstractRun | None:
         docker_args = self._populate_docker_args(launch_project, image_uri)
         synchronous: bool = self.backend_config[PROJECT_SYNCHRONOUS]
 
@@ -185,7 +188,7 @@ class LocalContainerRunner(AbstractRunner):
         return run
 
 
-def _run_entry_point(command: str, work_dir: Optional[str]) -> AbstractRun:
+def _run_entry_point(command: str, work_dir: str | None) -> AbstractRun:
     """Run an entry point command in a subprocess.
 
     Arguments:
@@ -201,15 +204,28 @@ def _run_entry_point(command: str, work_dir: Optional[str]) -> AbstractRun:
     run = LocalSubmittedRun()
     thread = threading.Thread(
         target=_thread_process_runner,
-        args=(run, ["bash", "-c", command], work_dir, env),
+        args=(run, _shell_command(command), work_dir, env),
     )
     run.set_thread(thread)
     thread.start()
     return run
 
 
+def _shell_command(command: str) -> list[str]:
+    """Return a cross-platform shell invocation for command execution."""
+    if os.name == "nt":
+        return ["cmd", "/C", command]
+
+    shell = shutil.which("bash") or shutil.which("sh")
+    if shell is None:
+        raise LaunchError(
+            "Could not launch command: no compatible shell found (expected bash or sh)."
+        )
+    return [shell, "-c", command]
+
+
 def _thread_process_runner(
-    run: LocalSubmittedRun, args: List[str], work_dir: str, env: Dict[str, str]
+    run: LocalSubmittedRun, args: list[str], work_dir: str, env: dict[str, str]
 ) -> None:
     # cancel was called before we started the subprocess
     if run._terminate_flag:
@@ -252,11 +268,11 @@ def _thread_process_runner(
 
 def get_docker_command(
     image: str,
-    env_vars: Dict[str, str],
-    entry_cmd: Optional[List[str]] = None,
-    docker_args: Optional[Dict[str, Any]] = None,
-    additional_args: Optional[List[str]] = None,
-) -> List[str]:
+    env_vars: dict[str, str],
+    entry_cmd: list[str] | None = None,
+    docker_args: dict[str, Any] | None = None,
+    additional_args: list[str] | None = None,
+) -> list[str]:
     """Construct the docker command using the image and docker args.
 
     Arguments:
@@ -266,7 +282,7 @@ def get_docker_command(
     docker_args: a dictionary of additional docker args for the command
     """
     docker_path = "docker"
-    cmd: List[Any] = [docker_path, "run", "--rm"]
+    cmd: list[Any] = [docker_path, "run", "--rm"]
 
     # hacky handling of env vars, needs to be improved
     for env_key, env_value in env_vars.items():
@@ -296,6 +312,6 @@ def get_docker_command(
     return cmd
 
 
-def join(split_command: List[str]) -> str:
+def join(split_command: list[str]) -> str:
     """Return a shell-escaped string from *split_command*."""
     return " ".join(shlex.quote(arg) for arg in split_command)

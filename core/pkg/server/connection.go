@@ -20,7 +20,6 @@ import (
 	"github.com/wandb/wandb/core/internal/monitor"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runsync"
-	"github.com/wandb/wandb/core/internal/sentry_ext"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/stream"
 	"github.com/wandb/wandb/core/internal/wbapi"
@@ -42,11 +41,10 @@ type ConnectionParams struct {
 
 	ID string
 
-	Conn         net.Conn
-	SentryClient *sentry_ext.Client
-	Commit       string
-	LoggerPath   string
-	LogLevel     slog.Level
+	Conn       net.Conn
+	Commit     string
+	LoggerPath string
+	LogLevel   slog.Level
 }
 
 // Connection represents a client-server connection in the context of a streaming session.
@@ -58,6 +56,9 @@ type ConnectionParams struct {
 type Connection struct {
 	// connLifetimeCtx is cancelled when the connection should be closed.
 	connLifetimeCtx context.Context
+
+	// stopConnection cancels connLifetimeCtx.
+	stopConnection context.CancelFunc
 
 	// requestCanceller manages cancellable requests.
 	requestCanceller *RequestCanceller
@@ -96,17 +97,14 @@ type Connection struct {
 	// The current W&B Git commit hash, identifying the specific version of the binary.
 	commit string
 
-	// sentryClient is the sentry client
-	sentryClient *sentry_ext.Client
-
 	// loggerPath is the path to the logger
 	loggerPath string
 
 	// logLevel is the log level
 	logLevel slog.Level
 
-	// apiRequestHandler handles processing API related requests from clients.
-	wbapi *wbapi.WandbAPI
+	// apiManager processes API requests.
+	apiManager *wbapi.WandbAPIManager
 }
 
 func NewConnection(
@@ -114,8 +112,11 @@ func NewConnection(
 	stopServer context.CancelFunc,
 	params ConnectionParams,
 ) *Connection {
+	connLifetimeCtx, stopConnection := context.WithCancel(serverLifetimeCtx)
+
 	return &Connection{
-		connLifetimeCtx:    serverLifetimeCtx,
+		connLifetimeCtx:    connLifetimeCtx,
+		stopConnection:     stopConnection,
 		requestCanceller:   NewRequestCanceller(),
 		stopServer:         stopServer,
 		streamMux:          params.StreamMux,
@@ -127,9 +128,9 @@ func NewConnection(
 		inChan:             make(chan *spb.ServerRequest, BufferSize),
 		outChan:            make(chan *spb.ServerResponse, BufferSize),
 		closed:             &atomic.Bool{},
-		sentryClient:       params.SentryClient,
 		loggerPath:         params.LoggerPath,
 		logLevel:           params.LogLevel,
+		apiManager:         wbapi.NewManager(),
 	}
 }
 
@@ -141,25 +142,20 @@ func NewConnection(
 func (nc *Connection) ManageConnectionData() {
 	slog.Info("connection: ManageConnectionData: new connection created", "id", nc.id)
 
-	wg := sync.WaitGroup{}
+	var wg sync.WaitGroup
 
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
+		defer nc.stopConnection()
 		nc.processIncomingData()
-	}()
+	})
 
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		nc.handleIncomingRequests()
-	}()
+	})
 
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		nc.processOutgoingData()
-	}()
+	})
 
 	<-nc.connLifetimeCtx.Done()
 
@@ -344,6 +340,8 @@ func (nc *Connection) handleIncomingRequests() {
 			nc.handleSyncStatus(msg.RequestId, x.SyncStatus)
 		case *spb.ServerRequest_ApiInitRequest:
 			nc.handleApiInit(msg.RequestId, x.ApiInitRequest)
+		case *spb.ServerRequest_ApiCleanupRequest:
+			nc.handleApiCleanup(msg.RequestId, x.ApiCleanupRequest)
 		case *spb.ServerRequest_ApiRequest:
 			nc.handleApi(wg, msg.RequestId, x.ApiRequest)
 		case nil:
@@ -385,28 +383,16 @@ func (nc *Connection) handleInformInit(msg *spb.ServerInformInitRequest) {
 	streamId := msg.GetXInfo().GetStreamId()
 	slog.Info("handleInformInit: received", "streamId", streamId, "id", nc.id)
 
-	// if we are in offline mode, we don't want to send any data to sentry
-	var sentryClient *sentry_ext.Client
-	if s.IsOffline() {
-		sentryClient = sentry_ext.New(sentry_ext.Params{Disabled: true})
-	} else {
-		sentryClient = nc.sentryClient
-	}
-
 	strm := stream.InjectStream(
 		stream.GitCommitHash(nc.commit),
 		nc.gpuResourceManager,
 		stream.DebugCorePath(nc.loggerPath),
 		nc.logLevel,
-		nc.sentryClient,
 		s,
 	)
 	strm.AddResponders(stream.ResponderEntry{Responder: nc, ID: nc.id})
 	strm.Start()
 	slog.Info("handleInformInit: stream started", "streamId", streamId, "id", nc.id)
-
-	// TODO: remove this once we have a better observability setup
-	sentryClient.CaptureMessage("wandb-core", nil)
 
 	if err := nc.streamMux.AddStream(streamId, strm); err != nil {
 		slog.Error(
@@ -561,7 +547,7 @@ func (nc *Connection) handleInformRecord(msg *spb.Record) {
 	}
 
 	// Delegate the handling of the record to the stream
-	strm.HandleRecord(msg)
+	strm.HandleRecord(msg, nil) // TODO: Pass the Request.
 }
 
 // handleInformFinish processes a finish message from the client.
@@ -657,15 +643,25 @@ func (nc *Connection) handleSyncStatus(
 	})
 }
 
+// handleApiInit sets up a new wandbAPI instance.
 func (nc *Connection) handleApiInit(id string, request *spb.ServerApiInitRequest) {
 	s := settings.From(request.GetSettings())
-	nc.wbapi = wbapi.NewWandbAPI(s, nc.sentryClient)
+	wbapiInstance := wbapi.New(s)
+	wbApiId := nc.apiManager.AddWandbAPI(wbapiInstance)
+
 	nc.Respond(&spb.ServerResponse{
 		RequestId: id,
 		ServerResponseType: &spb.ServerResponse_ApiInitResponse{
-			ApiInitResponse: &spb.ServerApiInitResponse{},
+			ApiInitResponse: &spb.ServerApiInitResponse{
+				ApiId: wbApiId,
+			},
 		},
 	})
+}
+
+// handleApiCleanup cleans up a wandbAPI instance related to the provided id.
+func (nc *Connection) handleApiCleanup(id string, request *spb.ServerApiCleanupRequest) {
+	nc.apiManager.RemoveWandbAPI(request.GetApiId())
 }
 
 func (nc *Connection) handleApi(
@@ -673,7 +669,8 @@ func (nc *Connection) handleApi(
 	id string,
 	request *spb.ApiRequest,
 ) {
-	if nc.wbapi == nil {
+	wbapiInstance, err := nc.apiManager.GetWandbAPI(request.GetApiId())
+	if err != nil {
 		nc.Respond(&spb.ServerResponse{
 			RequestId: id,
 			ServerResponseType: &spb.ServerResponse_ApiResponse{
@@ -690,7 +687,7 @@ func (nc *Connection) handleApi(
 	}
 
 	wg.Go(func() {
-		response := nc.wbapi.HandleRequest(id, request)
+		response := wbapiInstance.HandleRequest(id, request)
 
 		if response != nil {
 			nc.Respond(&spb.ServerResponse{

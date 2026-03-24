@@ -5,6 +5,9 @@ fragment ProjectFragment on Project {
   entityName
   createdAt
   isBenchmark
+  user {
+    ...UserFragment
+  }
 }
 
 query GetProjects($entity: String, $cursor: String, $perPage: Int = 50) {

@@ -1,4 +1,6 @@
-from typing import Any, Callable, Dict, List, Optional
+from __future__ import annotations
+
+from typing import Any, Callable
 
 from ultralytics.yolo.engine.model import YOLO
 from ultralytics.yolo.engine.trainer import BaseTrainer
@@ -34,11 +36,11 @@ class WandbCallback:
     def __init__(
         self,
         yolo: YOLO,
-        run_name: Optional[str] = None,
-        project: Optional[str] = None,
-        tags: Optional[List[str]] = None,
-        resume: Optional[str] = None,
-        **kwargs: Optional[Any],
+        run_name: str | None = None,
+        project: str | None = None,
+        tags: list[str] | None = None,
+        resume: str | None = None,
+        **kwargs: Any | None,
     ) -> None:
         """A utility class to manage wandb run and various callbacks for the ultralytics YOLOv8 framework.
 
@@ -205,7 +207,7 @@ class WandbCallback:
     @property
     def callbacks(
         self,
-    ) -> Dict[str, Callable]:
+    ) -> dict[str, Callable]:
         """Property contains all the relevant callbacks to add to the YOLO model for the Weights & Biases logging."""
         return {
             "on_pretrain_routine_start": self.on_pretrain_routine_start,
@@ -221,11 +223,11 @@ class WandbCallback:
 
 def add_callbacks(
     yolo: YOLO,
-    run_name: Optional[str] = None,
-    project: Optional[str] = None,
-    tags: Optional[List[str]] = None,
-    resume: Optional[str] = None,
-    **kwargs: Optional[Any],
+    run_name: str | None = None,
+    project: str | None = None,
+    tags: list[str] | None = None,
+    resume: str | None = None,
+    **kwargs: Any | None,
 ) -> YOLO:
     """A YOLO model wrapper that tracks metrics, and logs models to Weights & Biases.
 

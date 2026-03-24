@@ -42,7 +42,7 @@ type ChildValue struct {
 	Comment  *CommentGroup
 }
 
-func (v *Value) Value(vars map[string]interface{}) (interface{}, error) {
+func (v *Value) Value(vars map[string]any) (any, error) {
 	if v == nil {
 		return nil, nil
 	}
@@ -66,7 +66,7 @@ func (v *Value) Value(vars map[string]interface{}) (interface{}, error) {
 	case NullValue:
 		return nil, nil
 	case ListValue:
-		var val []interface{}
+		var val []any
 		for _, elem := range v.Children {
 			elemVal, err := elem.Value.Value(vars)
 			if err != nil {
@@ -76,7 +76,7 @@ func (v *Value) Value(vars map[string]interface{}) (interface{}, error) {
 		}
 		return val, nil
 	case ObjectValue:
-		val := map[string]interface{}{}
+		val := map[string]any{}
 		for _, elem := range v.Children {
 			elemVal, err := elem.Value.Value(vars)
 			if err != nil {

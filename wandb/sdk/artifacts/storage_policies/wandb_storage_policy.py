@@ -12,6 +12,7 @@ from operator import itemgetter
 from typing import TYPE_CHECKING, Any
 from urllib.parse import quote
 
+import requests
 from typing_extensions import assert_never
 
 from wandb.errors.term import termwarn
@@ -129,6 +130,8 @@ class WandbStoragePolicy(StoragePolicy):
                 closed when the artifact download completes. If this is `None`,
                 download the file serially.
         """
+        from requests import HTTPError
+
         if dest_path is not None:
             self._cache._override_cache_path = dest_path
 
@@ -142,13 +145,36 @@ class WandbStoragePolicy(StoragePolicy):
         if url := manifest_entry._download_url:
             # Use multipart parallel download for large file
             if executor and (size := manifest_entry.size):
-                multipart_download(executor, self._session, url, size, cache_open)
+                # Create URL provider with GraphQL-based refresh callback
+                def fetch_fresh_url() -> str:
+                    files = artifact.files(
+                        names=[str(manifest_entry.path)],
+                        per_page=1,
+                    )
+
+                    try:
+                        file = next(iter(files))
+                    except StopIteration:
+                        raise ValueError(
+                            f"Failed to fetch URL for file: {manifest_entry.path}"
+                        )
+                    else:
+                        return file.direct_url
+
+                multipart_download(
+                    executor,
+                    self._session,
+                    size,
+                    cache_open,
+                    initial_url=url,
+                    fetch_fn=fetch_fresh_url,
+                )
                 return path
 
             # Serial download
             try:
                 response = self._session.get(url, stream=True)
-            except requests.HTTPError:
+            except HTTPError:
                 # Signed URL might have expired, fall back to fetching it one by one.
                 manifest_entry._download_url = None
 

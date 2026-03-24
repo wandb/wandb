@@ -33,10 +33,7 @@ def _can_compute_flops() -> bool:
     """FLOPS computation is restricted to TF 2.x as it requires tf.compat.v1."""
     from packaging.version import parse
 
-    if parse(tf.__version__) >= parse("2.0.0"):
-        return True
-
-    return False
+    return parse(tf.__version__) >= parse("2.0.0")
 
 
 if "keras" in sys.modules:
@@ -464,7 +461,7 @@ class WandbCallback(tf.keras.callbacks.Callback):
         self.generator = generator
         self._graph_rendered = False
 
-        data_type = kwargs.get("data_type", None)
+        data_type = kwargs.get("data_type")
         if data_type is not None:
             warn_and_record_deprecation(
                 feature=Deprecated(keras_callback__data_type=True),

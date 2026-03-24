@@ -2,7 +2,6 @@
 
 import argparse
 import multiprocessing
-from typing import List, Tuple
 
 import _load_profiles
 import _timing
@@ -11,7 +10,7 @@ import wandb
 
 VERSION: str = "v1-2024-04-11-0"
 BENCH_OUTFILE: str = "bench.csv"
-BENCH_FIELDS: Tuple[str] = (
+BENCH_FIELDS: tuple[str] = (
     "test_name",
     "test_profile",
     "test_variant",
@@ -20,7 +19,7 @@ BENCH_FIELDS: Tuple[str] = (
     "server_version",
     "server_type",
 )
-TIMING_DATA: List = []
+TIMING_DATA: list = []
 
 
 def run_one(args, n=0, m=0):

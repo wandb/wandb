@@ -33,7 +33,8 @@ Note:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, ClassVar, Mapping
+from collections.abc import Mapping
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from typing_extensions import override
 from wandb_gql import gql
@@ -180,6 +181,19 @@ class Project(Attrs):
         self._is_loaded = True
 
     @property
+    def owner(self) -> public.User:
+        """Returns the project owner as a User object.
+
+        Raises:
+            ValueError: when no user information is found for the project.
+        """
+        if not self._is_loaded:
+            self._load()
+        if "user" not in self._attrs:
+            raise ValueError(f"No user found for project {self.name}")
+        return public.User(self.client, self._attrs["user"])
+
+    @property
     def path(self) -> list[str]:
         """Returns the path of the project. The path is a list containing the
         entity and project name."""
@@ -213,6 +227,32 @@ class Project(Attrs):
     def artifacts_types(self, per_page: int = 50) -> public.ArtifactTypes:
         """Returns all artifact types associated with this project."""
         return public.ArtifactTypes(self.client, self.entity, self.name)
+
+    @normalize_exceptions
+    def collections(
+        self,
+        filters: Mapping[str, Any] | None = None,
+        order: str | None = None,
+        per_page: int = 50,
+    ) -> public.ProjectArtifactCollections:
+        """Returns all artifact collections associated with this project.
+
+        Args:
+            filters: Optional mapping of filters to apply to the query.
+            order: Optional string to specify the order of the results.
+                If you prepend order with a + order is ascending (default).
+                If you prepend order with a - order is descending.
+            per_page: The number of artifact collections to fetch per page.
+                Default is 50.
+        """
+        return public.ProjectArtifactCollections(
+            self.client,
+            self.entity,
+            self.name,
+            filters=filters,
+            order=order,
+            per_page=per_page,
+        )
 
     @normalize_exceptions
     def sweeps(self, per_page: int = 50) -> Sweeps:

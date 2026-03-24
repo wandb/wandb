@@ -3,10 +3,9 @@
 
 from __future__ import annotations
 
-from typing import List, Optional
+from typing import List, Literal, Optional
 
 from pydantic import Field
-from typing_extensions import Literal
 
 from wandb._pydantic import GQLId, GQLResult, Typename
 
@@ -39,31 +38,6 @@ class PageInfoFragment(GQLResult):
     typename__: Typename[Literal["PageInfo"]] = "PageInfo"
     end_cursor: Optional[str] = Field(alias="endCursor")
     has_next_page: bool = Field(alias="hasNextPage")
-
-
-class ProjectFragment(GQLResult):
-    typename__: Typename[Literal["Project"]] = "Project"
-    id: GQLId
-    name: str
-    entity_name: str = Field(alias="entityName")
-    created_at: str = Field(alias="createdAt")
-    is_benchmark: bool = Field(alias="isBenchmark")
-
-
-class SweepFragment(GQLResult):
-    typename__: Typename[Literal["Sweep"]] = "Sweep"
-    id: GQLId
-    name: str
-    display_name: Optional[str] = Field(alias="displayName")
-    method: str
-    state: str
-    description: Optional[str]
-    best_loss: Optional[float] = Field(alias="bestLoss")
-    config: str
-    created_at: str = Field(alias="createdAt")
-    updated_at: Optional[str] = Field(alias="updatedAt")
-    run_count: int = Field(alias="runCount")
-    run_count_expected: Optional[int] = Field(alias="runCountExpected")
 
 
 class UserFragment(GQLResult):
@@ -99,6 +73,32 @@ class UserFragmentTeamsEdgesNode(GQLResult):
     name: str
 
 
+class ProjectFragment(GQLResult):
+    typename__: Typename[Literal["Project"]] = "Project"
+    id: GQLId
+    name: str
+    entity_name: str = Field(alias="entityName")
+    created_at: str = Field(alias="createdAt")
+    is_benchmark: bool = Field(alias="isBenchmark")
+    user: Optional[UserFragment]
+
+
+class SweepFragment(GQLResult):
+    typename__: Typename[Literal["Sweep"]] = "Sweep"
+    id: GQLId
+    name: str
+    display_name: Optional[str] = Field(alias="displayName")
+    method: str
+    state: str
+    description: Optional[str]
+    best_loss: Optional[float] = Field(alias="bestLoss")
+    config: str
+    created_at: str = Field(alias="createdAt")
+    updated_at: Optional[str] = Field(alias="updatedAt")
+    run_count: int = Field(alias="runCount")
+    run_count_expected: Optional[int] = Field(alias="runCountExpected")
+
+
 class UserInfoFragment(GQLResult):
     id: GQLId
     name: str
@@ -111,8 +111,6 @@ ApiKeyFragment.model_rebuild()
 CreatedProjectFragment.model_rebuild()
 LegacySweepFragment.model_rebuild()
 PageInfoFragment.model_rebuild()
-ProjectFragment.model_rebuild()
-SweepFragment.model_rebuild()
 UserFragment.model_rebuild()
 UserFragmentApiKeys.model_rebuild()
 UserFragmentApiKeysEdges.model_rebuild()
@@ -120,4 +118,7 @@ ApiKeyFragment.model_rebuild()
 UserFragmentTeams.model_rebuild()
 UserFragmentTeamsEdges.model_rebuild()
 UserFragmentTeamsEdgesNode.model_rebuild()
+ProjectFragment.model_rebuild()
+UserFragment.model_rebuild()
+SweepFragment.model_rebuild()
 UserInfoFragment.model_rebuild()

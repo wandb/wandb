@@ -84,6 +84,20 @@ func DefaultCredentials(ctx context.Context) (*google.Credentials, error) {
 	return adc, nil
 }
 
+// DefaultCredentialsWithParams obtains the default GCP credentials with the
+// specified parameters. The Scopes field in params will be overridden with
+// Cloud Platform scope if not set.
+func DefaultCredentialsWithParams(ctx context.Context, params google.CredentialsParams) (*google.Credentials, error) {
+	if len(params.Scopes) == 0 {
+		params.Scopes = []string{"https://www.googleapis.com/auth/cloud-platform"}
+	}
+	adc, err := google.FindDefaultCredentialsWithParams(ctx, params)
+	if err != nil {
+		return nil, err
+	}
+	return adc, nil
+}
+
 // CredentialsTokenSource extracts the token source from GCP credentials.
 func CredentialsTokenSource(creds *google.Credentials) TokenSource {
 	if creds == nil {

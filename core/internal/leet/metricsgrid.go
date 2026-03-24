@@ -3,9 +3,12 @@ package leet
 import (
 	"fmt"
 	"sort"
+	"strconv"
 	"sync"
 
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
+	"charm.land/lipgloss/v2/compat"
 
 	"github.com/wandb/wandb/core/internal/observability"
 )
@@ -21,8 +24,9 @@ type MetricsGrid struct {
 	mu sync.RWMutex
 
 	// Configuration and logging.
-	config *ConfigManager
-	logger *observability.CoreLogger
+	config     *ConfigManager
+	gridConfig func() (int, int)
+	logger     *observability.CoreLogger
 
 	// Viewport dimensions.
 	width, height int
@@ -48,8 +52,18 @@ type MetricsGrid struct {
 	filter *Filter
 
 	// Stable color assignment.
-	colorOfTitle map[string]lipgloss.AdaptiveColor
+	colorOfTitle map[string]compat.AdaptiveColor
 	nextColorIdx int
+
+	// Palette for main metrics charts (derived from config.ColorScheme()).
+	palette []compat.AdaptiveColor
+
+	// Palette for per-plot mode in single-run view (derived from config.PerPlotColorScheme()).
+	perPlotPalette []compat.AdaptiveColor
+
+	// When set to ColorModePerPlot, single-series charts are colored per chart title.
+	// Default is ColorModePerSeries (stable run-id color).
+	singleSeriesColorMode string
 
 	// synchronized inspection session state (active only between press/release)
 	syncInspectActive bool
@@ -57,27 +71,45 @@ type MetricsGrid struct {
 
 func NewMetricsGrid(
 	config *ConfigManager,
+	gridConfig func() (int, int),
 	focus *Focus,
 	logger *observability.CoreLogger,
 ) *MetricsGrid {
-	gridRows, gridCols := config.MetricsGrid()
+	gridRows, gridCols := gridConfig()
+	palette := GraphColors(config.ColorScheme())
+	perPlotPalette := GraphColors(config.PerPlotColorScheme())
 
 	mg := &MetricsGrid{
-		config:       config,
-		all:          make([]*EpochLineChart, 0),
-		byTitle:      make(map[string]*EpochLineChart),
-		filtered:     make([]*EpochLineChart, 0),
-		currentPage:  make([][]*EpochLineChart, gridRows),
-		focus:        focus,
-		filter:       NewFilter(),
-		logger:       logger,
-		colorOfTitle: make(map[string]lipgloss.AdaptiveColor),
+		config:                config,
+		gridConfig:            gridConfig,
+		all:                   make([]*EpochLineChart, 0),
+		byTitle:               make(map[string]*EpochLineChart),
+		filtered:              make([]*EpochLineChart, 0),
+		currentPage:           make([][]*EpochLineChart, gridRows),
+		focus:                 focus,
+		filter:                NewFilter(),
+		logger:                logger,
+		colorOfTitle:          make(map[string]compat.AdaptiveColor),
+		palette:               palette,
+		perPlotPalette:        perPlotPalette,
+		singleSeriesColorMode: ColorModePerSeries,
 	}
 
 	for r := range gridRows {
 		mg.currentPage[r] = make([]*EpochLineChart, gridCols)
 	}
 	return mg
+}
+
+// SetSingleSeriesColorMode controls coloring for single-series charts in this grid.
+// Intended for single-run view (Run) only.
+func (mg *MetricsGrid) SetSingleSeriesColorMode(mode string) {
+	if mode != ColorModePerPlot && mode != ColorModePerSeries {
+		mode = ColorModePerSeries
+	}
+	mg.mu.Lock()
+	defer mg.mu.Unlock()
+	mg.singleSeriesColorMode = mode
 }
 
 // ChartCount returns the total number of metrics charts.
@@ -87,9 +119,39 @@ func (mg *MetricsGrid) ChartCount() int {
 	return len(mg.all)
 }
 
+func (mg *MetricsGrid) focusedChart() *EpochLineChart {
+	mg.mu.RLock()
+	defer mg.mu.RUnlock()
+
+	if mg.focus.Type != FocusMainChart || mg.focus.Row < 0 || mg.focus.Col < 0 {
+		return nil
+	}
+	if mg.focus.Row >= len(mg.currentPage) || mg.focus.Col >= len(mg.currentPage[mg.focus.Row]) {
+		return nil
+	}
+	return mg.currentPage[mg.focus.Row][mg.focus.Col]
+}
+
+func (mg *MetricsGrid) focusedChartScaleLabel() string {
+	chart := mg.focusedChart()
+	if chart == nil {
+		return ""
+	}
+	return chart.ScaleLabel()
+}
+
+func (mg *MetricsGrid) toggleFocusedChartLogY() bool {
+	chart := mg.focusedChart()
+	if chart == nil || !chart.ToggleYScale() {
+		return false
+	}
+	chart.DrawIfNeeded()
+	return true
+}
+
 // CalculateChartDimensions computes chart dimensions.
 func (mg *MetricsGrid) CalculateChartDimensions(windowWidth, windowHeight int) GridDims {
-	gridRows, gridCols := mg.config.MetricsGrid()
+	gridRows, gridCols := mg.gridConfig()
 	return ComputeGridDims(windowWidth, windowHeight, GridSpec{
 		Rows:        gridRows,
 		Cols:        gridCols,
@@ -103,7 +165,8 @@ func (mg *MetricsGrid) CalculateChartDimensions(windowWidth, windowHeight int) G
 // creating charts as needed, resorting, reapplying filters, and reloading the page.
 // It preserves focus on the previously focused chart when possible.
 // Returns true if there was anything to draw.
-func (mg *MetricsGrid) ProcessHistory(metrics map[string]MetricData) bool {
+func (mg *MetricsGrid) ProcessHistory(msg HistoryMsg) bool {
+	metrics := msg.Metrics
 	if len(metrics) == 0 {
 		return false
 	}
@@ -114,12 +177,12 @@ func (mg *MetricsGrid) ProcessHistory(metrics map[string]MetricData) bool {
 	needsSort := false
 
 	mg.mu.Lock()
-	var wg sync.WaitGroup
 
 	for name, data := range metrics {
 		chart, exists := mg.byTitle[name]
 		if !exists {
 			chart = NewEpochLineChart(name)
+			chart.SetPalette(mg.palette)
 			mg.all = append(mg.all, chart)
 			mg.byTitle[name] = chart
 			needsSort = true
@@ -128,12 +191,8 @@ func (mg *MetricsGrid) ProcessHistory(metrics map[string]MetricData) bool {
 				mg.logger.Debug(fmt.Sprintf("metricsgrid: created %d charts", len(mg.all)))
 			}
 		}
-		wg.Go(func() {
-			chart.AddData(data)
-		})
+		chart.AddData(msg.RunPath, data)
 	}
-
-	wg.Wait()
 
 	// Keep ordering, colors, maps and filtered set in sync.
 	if needsSort {
@@ -152,7 +211,7 @@ func (mg *MetricsGrid) ProcessHistory(metrics map[string]MetricData) bool {
 
 // effectiveGridSize returns the grid size that can fit in the current viewport.
 func (mg *MetricsGrid) effectiveGridSize() GridSize {
-	gridRows, gridCols := mg.config.MetricsGrid()
+	gridRows, gridCols := mg.gridConfig()
 	return EffectiveGridSize(mg.width, mg.height, GridSpec{
 		Rows:        gridRows,
 		Cols:        gridCols,
@@ -183,11 +242,18 @@ func (mg *MetricsGrid) effectiveChartCountNoLock() int {
 }
 
 // colorForNoLock returns a stable color for a given metric title.
-func (mg *MetricsGrid) colorForNoLock(title string) lipgloss.AdaptiveColor {
+func (mg *MetricsGrid) colorForNoLock(title string) compat.AdaptiveColor {
 	if c, ok := mg.colorOfTitle[title]; ok {
 		return c
 	}
-	palette := GraphColors()
+	// Select palette based on color mode.
+	palette := mg.palette
+	if mg.singleSeriesColorMode == ColorModePerPlot && len(mg.perPlotPalette) > 0 {
+		palette = mg.perPlotPalette
+	}
+	if len(palette) == 0 {
+		palette = GraphColors(DefaultColorScheme)
+	}
 	c := palette[mg.nextColorIdx%len(palette)]
 	mg.colorOfTitle[title] = c
 	mg.nextColorIdx++
@@ -208,8 +274,10 @@ func (mg *MetricsGrid) sortChartsNoLock() {
 
 		// Stable color per title (no reshuffling when new charts arrive).
 		col := mg.colorForNoLock(chart.Title())
-		style := lipgloss.NewStyle().Foreground(col)
-		chart.SetGraphStyle(&style)
+		if mg.singleSeriesColorMode == ColorModePerPlot {
+			s := lipgloss.NewStyle().Foreground(col)
+			chart.SetGraphStyle(&s)
+		}
 	}
 
 	// Ensure filtered mirrors all when filter is empty.
@@ -309,6 +377,21 @@ func (mg *MetricsGrid) renderHeader(size GridSize) string {
 }
 
 func (mg *MetricsGrid) renderGrid(dims GridDims, size GridSize) string {
+	mg.mu.RLock()
+	noData := len(mg.all) == 0
+	mg.mu.RUnlock()
+
+	if noData {
+		availableHeight := max(mg.height-ChartHeaderHeight, 0)
+		return lipgloss.Place(
+			mg.width+1,
+			availableHeight,
+			lipgloss.Center,
+			lipgloss.Center,
+			navInfoStyle.Render("No metric data for selected runs."),
+		)
+	}
+
 	var rows []string
 	for row := range size.Rows {
 		var cols []string
@@ -350,12 +433,18 @@ func (mg *MetricsGrid) renderGridCell(row, col int, dims GridDims) string {
 			boxStyle = focusedBorderStyle
 		}
 
-		availableTitleWidth := max(dims.CellWWithPadding-4, 10)
+		titleSuffix := ""
+		if chart.IsLogY() {
+			titleSuffix = " [log]"
+		}
+
+		availableTitleWidth := max(dims.CellWWithPadding-4-lipgloss.Width(titleSuffix), 10)
 		displayTitle := TruncateTitle(chart.Title(), availableTitleWidth)
+		titleText := titleStyle.Render(displayTitle) + navInfoStyle.Render(titleSuffix)
 
 		boxContent := lipgloss.JoinVertical(
 			lipgloss.Left,
-			titleStyle.Render(displayTitle),
+			titleText,
 			chartView,
 		)
 
@@ -390,11 +479,12 @@ func (mg *MetricsGrid) Navigate(direction int) {
 // drawVisible draws charts that are currently visible.
 //
 // Charts no longer visible are parked to reduce memory usage.
-// Do not hold mg.mu while drawing.
 func (mg *MetricsGrid) drawVisible() {
 	dims := mg.CalculateChartDimensions(mg.width, mg.height)
 
 	mg.mu.Lock()
+	defer mg.mu.Unlock()
+
 	currentCharts := make(map[*EpochLineChart]struct{})
 	for row := range mg.currentPage {
 		for col := range mg.currentPage[row] {
@@ -405,7 +495,6 @@ func (mg *MetricsGrid) drawVisible() {
 	}
 	lastDrawnCharts := mg.lastDrawnCharts
 	mg.lastDrawnCharts = currentCharts
-	mg.mu.Unlock()
 
 	for ch := range lastDrawnCharts {
 		if ch != nil {
@@ -415,7 +504,8 @@ func (mg *MetricsGrid) drawVisible() {
 		}
 	}
 
-	// Resize and draw visible charts.
+	// Resize and draw visible charts under lock to serialize with
+	// ProcessHistory's AddData calls on the same chart internals.
 	for ch := range currentCharts {
 		ch.Resize(dims.CellW, dims.CellH)
 		ch.Draw()
@@ -501,10 +591,7 @@ func (mg *MetricsGrid) setFocus(row, col int) {
 	if row < len(mg.currentPage) && col < len(mg.currentPage[row]) &&
 		mg.currentPage[row][col] != nil {
 		chart := mg.currentPage[row][col]
-		mg.focus.Type = FocusMainChart
-		mg.focus.Row = row
-		mg.focus.Col = col
-		mg.focus.Title = chart.Title()
+		mg.focus.Set(FocusMainChart, row, col, chart.Title())
 		chart.SetFocused(true)
 	}
 }
@@ -521,10 +608,7 @@ func (mg *MetricsGrid) clearFocus() {
 			mg.currentPage[mg.focus.Row][mg.focus.Col] != nil {
 			mg.currentPage[mg.focus.Row][mg.focus.Col].SetFocused(false)
 		}
-		mg.focus.Type = FocusNone
-		mg.focus.Row = -1
-		mg.focus.Col = -1
-		mg.focus.Title = ""
+		mg.focus.Reset()
 	}
 }
 
@@ -710,5 +794,95 @@ func (mg *MetricsGrid) broadcastEndInspection() {
 				ch.DrawIfNeeded()
 			}
 		}
+	}
+}
+
+// handleFilterKey processes a key event while the metrics filter is active.
+func (mg *MetricsGrid) handleFilterKey(msg tea.KeyPressMsg) {
+	mg.mu.Lock()
+	changed := mg.filter.HandleKey(msg)
+	mg.mu.Unlock()
+
+	if changed {
+		mg.ApplyFilter()
+		mg.drawVisible()
+	}
+}
+
+// Grid-layout config handler.
+func (mg *MetricsGrid) handleGridConfigNumberKey(msg tea.KeyPressMsg, layout Layout) {
+	defer mg.config.SetPendingGridConfig(gridConfigNone)
+
+	if msg.String() == "esc" {
+		return
+	}
+
+	num, err := strconv.Atoi(msg.String())
+	if err != nil {
+		return
+	}
+
+	statusMsg, err := mg.config.SetGridConfig(num)
+	if err != nil {
+		mg.logger.Error(fmt.Sprintf("model: failed to update config: %v", err))
+		return
+	}
+
+	mg.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
+	mg.logger.Info(statusMsg)
+}
+
+func (mg *MetricsGrid) RemoveSeries(key string) {
+	if mg == nil || key == "" {
+		return
+	}
+
+	mg.mu.Lock()
+	if len(mg.all) == 0 {
+		mg.mu.Unlock()
+		return
+	}
+
+	filtered := mg.all[:0]
+	for _, ch := range mg.all {
+		ch.RemoveSeries(key)
+		if ch.SeriesCount() > 0 {
+			filtered = append(filtered, ch)
+		}
+	}
+	mg.all = filtered
+
+	// Rebuild index by title to stay consistent.
+	mg.byTitle = make(map[string]*EpochLineChart, len(mg.all))
+	for _, ch := range mg.all {
+		mg.byTitle[ch.Title()] = ch
+	}
+
+	// Reapply filter + nav on the pruned chart set.
+	mg.applyFilterNoLock()
+	mg.mu.Unlock()
+
+	mg.drawVisible()
+}
+
+// PromoteSeriesToTop ensures the given series key is drawn last in all charts.
+// Used by the workspace to keep a pinned run visually on top.
+func (mg *MetricsGrid) PromoteSeriesToTop(seriesKey string) {
+	if mg == nil || seriesKey == "" {
+		return
+	}
+
+	mg.mu.Lock()
+	defer mg.mu.Unlock()
+
+	if len(mg.all) == 0 {
+		return
+	}
+
+	for _, ch := range mg.all {
+		if ch == nil {
+			continue
+		}
+		ch.PromoteSeriesToTop(seriesKey)
 	}
 }

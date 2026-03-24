@@ -16,6 +16,7 @@ import traceback
 
 import wandb
 from wandb.apis import InternalApi
+from wandb.sdk.launch.sweeps import SweepNotFoundError
 from wandb.sdk.launch.sweeps import utils as sweep_utils
 from wandb.sdk.lib import config_util
 
@@ -164,7 +165,14 @@ class Agent:
                 for run, status in self._run_status.items()
                 if status in (RunStatus.QUEUED, RunStatus.RUNNING)
             }
-            commands = self._api.agent_heartbeat(self._agent_id, {}, run_status)
+            try:
+                commands = self._api.agent_heartbeat(self._agent_id, {}, run_status)
+            except SweepNotFoundError:
+                wandb.termerror(
+                    "Sweep was deleted or agent was not found. Stopping sweep."
+                )
+                self._exit()
+                return
             if commands:
                 job = Job(commands[0])
                 logger.debug(f"Job received: {job}")

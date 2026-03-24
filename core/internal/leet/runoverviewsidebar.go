@@ -1,0 +1,726 @@
+package leet
+
+import (
+	"fmt"
+	"slices"
+	"strings"
+	"time"
+
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
+)
+
+type SidebarSide int
+
+const (
+	SidebarSideUndefined SidebarSide = iota
+	SidebarSideLeft
+	SidebarSideRight
+)
+
+// minSidebarHeaderLines preserves the existing baseline layout when only the
+// original metadata fields are present, while still allowing the header to grow
+// for wrapped tags and notes.
+const minSidebarHeaderLines = 6
+
+// RunOverviewSidebar stores and displays run metadata.
+//
+// It handles presentation concerns: sections, filtering, navigation, layout, and rendering.
+// All data processing is delegated to the RunOverview model.
+type RunOverviewSidebar struct {
+	config *ConfigManager
+
+	animState   *AnimatedValue
+	runOverview *RunOverview
+
+	// UI state: sections, filtering, navigation.
+	// TODO: encapsulate and refactor
+	sections      []PagedList
+	activeSection int
+
+	// Filter state.
+	filter *Filter
+
+	// Placement and dimensions.
+	side   SidebarSide
+	height int
+}
+
+func NewRunOverviewSidebar(
+	config *ConfigManager,
+	animState *AnimatedValue,
+	runOverview *RunOverview,
+	side SidebarSide,
+) *RunOverviewSidebar {
+	es := PagedList{Title: "Environment", Active: true}
+	es.SetItemsPerPage(10)
+	cs := PagedList{Title: "Config"}
+	cs.SetItemsPerPage(15)
+	ss := PagedList{Title: "Summary"}
+	ss.SetItemsPerPage(20)
+
+	return &RunOverviewSidebar{
+		config:        config,
+		animState:     animState,
+		runOverview:   runOverview,
+		sections:      []PagedList{es, cs, ss},
+		activeSection: 0,
+		filter:        NewFilter(),
+		side:          side,
+	}
+}
+
+// Toggle toggles the sidebar between expanded and collapsed states.
+func (s *RunOverviewSidebar) Toggle() {
+	s.animState.Toggle()
+}
+
+// Update handles animation and input updates for the sidebar.
+func (s *RunOverviewSidebar) Update(msg tea.Msg) (*RunOverviewSidebar, tea.Cmd) {
+	// Handle key input only when expanded.
+	// TODO: hook up with keybindings.
+	if s.animState.IsExpanded() {
+		if keyMsg, ok := msg.(tea.KeyPressMsg); ok {
+			switch keyMsg.Code {
+			case tea.KeyUp:
+				s.navigateUp()
+			case tea.KeyDown:
+				s.navigateDown()
+			case tea.KeyTab:
+				if keyMsg.Mod == tea.ModShift {
+					s.navigateSection(-1)
+				} else {
+					s.navigateSection(1)
+				}
+			case tea.KeyLeft:
+				s.navigatePageUp()
+			case tea.KeyRight:
+				s.navigatePageDown()
+			}
+		}
+	}
+
+	// Handle animation.
+	if s.animState.IsAnimating() {
+		if complete := s.animState.Update(time.Now()); !complete {
+			cmd := s.animationCmd()
+			return s, cmd
+		}
+	}
+
+	return s, nil
+}
+
+// contentPadding accounts for borders and internal spacing depending on the sidebar placement.
+func (s *RunOverviewSidebar) contentPadding() int {
+	switch s.side {
+	case SidebarSideLeft:
+		return leftSidebarContentPadding
+	case SidebarSideRight:
+		return rightSidebarContentPadding
+	}
+	return 0
+}
+
+// style returns sidebar style depending on the its placement.
+func (s *RunOverviewSidebar) style() lipgloss.Style {
+	switch s.side {
+	case SidebarSideLeft:
+		return leftSidebarStyle
+	case SidebarSideRight:
+		return rightSidebarStyle
+	}
+	return lipgloss.NewStyle()
+}
+
+func (s *RunOverviewSidebar) borderStyle() lipgloss.Style {
+	switch s.side {
+	case SidebarSideLeft:
+		return leftSidebarBorderStyle
+	case SidebarSideRight:
+		return rightSidebarBorderStyle
+	}
+	return lipgloss.NewStyle()
+}
+
+func (s *RunOverviewSidebar) headerStyle() lipgloss.Style {
+	switch s.side {
+	case SidebarSideLeft:
+		return leftSidebarHeaderStyle
+	case SidebarSideRight:
+		return rightSidebarHeaderStyle
+	}
+	return lipgloss.NewStyle()
+}
+
+// View renders the sidebar.
+func (s *RunOverviewSidebar) View(height int) tea.View {
+	width := s.animState.Value()
+	if height <= 0 || width <= s.contentPadding() {
+		return tea.NewView("")
+	}
+
+	s.height = height
+
+	contentWidth := s.sidebarContentWidth(width)
+	lines := []string{s.headerStyle().Render(runOverviewHeader)}
+
+	if s.runOverview != nil {
+		headerLines := s.buildHeaderLines(contentWidth)
+		s.updateSectionHeights()
+		sectionLines := s.buildSectionLines(contentWidth)
+
+		lines = slices.Concat(lines, headerLines, sectionLines)
+	} else {
+		lines = append(lines, navInfoStyle.Render("No data."))
+	}
+
+	content := lipgloss.JoinVertical(lipgloss.Top, lines...)
+	innerWidth := s.sidebarInnerWidth(width)
+	if innerWidth <= 0 {
+		return tea.NewView("")
+	}
+
+	styledContent := s.style().
+		Width(innerWidth).
+		Height(height).
+		MaxWidth(innerWidth).
+		MaxHeight(height).
+		Render(content)
+
+	bordered := s.borderStyle().
+		Height(height + 1).
+		MaxHeight(height + 1).
+		Render(styledContent)
+
+	return tea.NewView(
+		lipgloss.Place(width, height+1, lipgloss.Left, lipgloss.Top, bordered),
+	)
+}
+
+func (s *RunOverviewSidebar) SetRunOverview(ro *RunOverview) {
+	s.runOverview = ro
+}
+
+// Sync synchronizes section view with the s.runOverview.
+//
+// It pulls data from the model and updates UI sections.
+func (s *RunOverviewSidebar) Sync() {
+	if s.runOverview == nil {
+		return
+	}
+
+	var selectedKey string
+	if s.activeSection >= 0 && s.activeSection < len(s.sections) {
+		selectedKey, _ = s.SelectedItem()
+	}
+
+	s.sections[0].Items = s.runOverview.EnvironmentItems()
+	s.sections[1].Items = s.runOverview.ConfigItems()
+	s.sections[2].Items = s.runOverview.SummaryItems()
+
+	if s.IsFilterMode() || s.IsFiltering() {
+		s.ApplyFilter()
+	} else {
+		for i := range s.sections {
+			s.sections[i].FilteredItems = s.sections[i].Items
+		}
+	}
+
+	s.updateSectionHeights()
+
+	if selectedKey == "" {
+		s.selectFirstAvailableItem()
+	} else {
+		s.restoreSelection(selectedKey)
+	}
+}
+
+// UpdateDimensions updates the sidebar dimensions based on terminal width
+// and the visibility of the sidebar on the opposite side.
+func (s *RunOverviewSidebar) UpdateDimensions(terminalWidth int, oppositeSidebarVisible bool) {
+	var calculatedWidth int
+
+	if oppositeSidebarVisible {
+		calculatedWidth = int(float64(terminalWidth) * SidebarWidthRatioBoth)
+	} else {
+		calculatedWidth = int(float64(terminalWidth) * SidebarWidthRatio)
+	}
+
+	expandedWidth := clamp(calculatedWidth, SidebarMinWidth, SidebarMaxWidth)
+	s.animState.SetExpanded(expandedWidth)
+}
+
+// Width returns the current width of the sidebar.
+func (s *RunOverviewSidebar) Width() int {
+	return s.animState.Value()
+}
+
+// IsVisible returns true if the sidebar is visible.
+func (s *RunOverviewSidebar) IsVisible() bool {
+	return s.animState.IsVisible()
+}
+
+// IsAnimating returns true if the sidebar is currently animating.
+func (s *RunOverviewSidebar) IsAnimating() bool {
+	return s.animState.IsAnimating()
+}
+
+// IsExpanded returns true if the sidebar is currently expanded.
+func (s *RunOverviewSidebar) IsExpanded() bool {
+	return s.animState.IsExpanded()
+}
+
+// SelectedItem returns the currently selected key-value pair.
+func (s *RunOverviewSidebar) SelectedItem() (key, value string) {
+	if s.activeSection < 0 || s.activeSection >= len(s.sections) {
+		return "", ""
+	}
+
+	section := &s.sections[s.activeSection]
+	if len(section.FilteredItems) == 0 {
+		return "", ""
+	}
+
+	startIdx := section.CurrentPage() * section.ItemsPerPage()
+	itemIdx := startIdx + section.CurrentLine()
+
+	if itemIdx >= 0 && itemIdx < len(section.FilteredItems) {
+		item := section.FilteredItems[itemIdx]
+		return item.Key, item.Value
+	}
+
+	return "", ""
+}
+
+// animationCmd returns a command to continue the animation on section toggle.
+func (s *RunOverviewSidebar) animationCmd() tea.Cmd {
+	return tea.Tick(AnimationFrame, func(t time.Time) tea.Msg {
+		switch s.side {
+		case SidebarSideLeft:
+			return LeftSidebarAnimationMsg{}
+		case SidebarSideRight:
+			return RightSidebarAnimationMsg{}
+		}
+		return nil
+	})
+}
+
+// truncateValue truncates string values that do not fit into available width.
+func truncateValue(value string, maxWidth int) string {
+	if lipgloss.Width(value) <= maxWidth {
+		return value
+	}
+	if maxWidth <= 3 {
+		return "..."
+	}
+
+	available := maxWidth - 4
+	w := 0
+	for i, r := range value {
+		rw := lipgloss.Width(string(r))
+		if w+rw > available {
+			return value[:i] + "..."
+		}
+		w += rw
+	}
+	return value + "..."
+}
+
+// headerLineCount returns the number of lines occupied by the fixed header area,
+// including the top-level section title.
+func (s *RunOverviewSidebar) headerLineCount() int {
+	if s.runOverview == nil {
+		return 1
+	}
+
+	contentWidth := s.sidebarContentWidth(s.animState.Value())
+	return max(minSidebarHeaderLines, 1+len(s.buildHeaderLines(contentWidth)))
+}
+
+// buildHeaderLines builds the width-aware header metadata section.
+func (s *RunOverviewSidebar) buildHeaderLines(contentWidth int) []string {
+	if s.runOverview == nil {
+		return nil
+	}
+
+	lines := make([]string, 0, 8)
+
+	if s.runOverview.State() != RunStateUnknown {
+		lines = slices.Concat(
+			lines,
+			s.renderWrappedHeaderValue("State: ", s.runOverview.StateString(), contentWidth),
+		)
+	}
+
+	lines = slices.Concat(
+		lines,
+		s.renderWrappedHeaderValue("ID: ", s.runOverview.ID(), contentWidth),
+		s.renderWrappedHeaderValue("Name: ", s.runOverview.DisplayName(), contentWidth),
+		s.renderWrappedHeaderValue("Project: ", s.runOverview.Project(), contentWidth),
+		s.renderTagHeaderValue("Tags: ", s.runOverview.Tags(), contentWidth),
+		s.renderWrappedHeaderValue("Notes: ", s.runOverview.Notes(), contentWidth),
+	)
+
+	if len(lines) > 0 {
+		lines = append(lines, "")
+	}
+
+	return lines
+}
+
+// renderWrappedHeaderValue renders a single metadata field, wrapping the value
+// onto continuation lines when needed.
+func (s *RunOverviewSidebar) renderWrappedHeaderValue(
+	prefix, value string, width int,
+) []string {
+	if strings.TrimSpace(value) == "" {
+		return nil
+	}
+
+	prefixText := runOverviewSidebarKeyStyle.Render(prefix)
+	prefixWidth := lipgloss.Width(prefixText)
+	available := max(width-prefixWidth, 1)
+	wrapped := wrapHeaderText(value, available)
+	indent := strings.Repeat(" ", prefixWidth)
+
+	lines := make([]string, 0, len(wrapped))
+	for i, line := range wrapped {
+		renderedValue := runOverviewSidebarValueStyle.Render(line)
+		if i == 0 {
+			lines = append(lines, prefixText+renderedValue)
+			continue
+		}
+		lines = append(lines, indent+renderedValue)
+	}
+
+	return lines
+}
+
+// renderTagHeaderValue renders tags using stable, palette-based colored badges
+// that wrap across lines as needed.
+func (s *RunOverviewSidebar) renderTagHeaderValue(
+	prefix string, tags []string, width int) []string {
+	if len(tags) == 0 {
+		return nil
+	}
+
+	prefixText := runOverviewSidebarKeyStyle.Render(prefix)
+	prefixWidth := lipgloss.Width(prefixText)
+	indent := strings.Repeat(" ", prefixWidth)
+	maxChipTextWidth := max(width-prefixWidth-2, 1)
+
+	currentLine := prefixText
+	currentWidth := prefixWidth
+	lines := make([]string, 0, 2)
+	renderedAny := false
+
+	for _, tag := range tags {
+		if strings.TrimSpace(tag) == "" {
+			continue
+		}
+
+		renderedAny = true
+		chipText := truncateValue(tag, maxChipTextWidth)
+		chip := runOverviewTagStyle(s.tagColorScheme(), tag).Render(chipText)
+		chipWidth := lipgloss.Width(chip)
+
+		separator := ""
+		separatorWidth := 0
+		if currentWidth > prefixWidth {
+			separator = " "
+			separatorWidth = 1
+		}
+
+		if currentWidth+separatorWidth+chipWidth > width && currentWidth > prefixWidth {
+			lines = append(lines, currentLine)
+			currentLine = indent + chip
+			currentWidth = prefixWidth + chipWidth
+			continue
+		}
+
+		currentLine += separator + chip
+		currentWidth += separatorWidth + chipWidth
+	}
+
+	if !renderedAny {
+		return nil
+	}
+
+	lines = append(lines, currentLine)
+	return lines
+}
+
+// buildSectionLines builds all section content lines.
+func (s *RunOverviewSidebar) buildSectionLines(contentWidth int) []string {
+	var lines []string
+
+	for i := range s.sections {
+		if s.sections[i].Height == 0 {
+			continue
+		}
+
+		sectionContent := s.renderSection(i, contentWidth)
+		if sectionContent != "" {
+			lines = append(lines, sectionContent)
+
+			// Add spacing between sections if there's a next section.
+			if s.hasNextVisibleSection(i) {
+				lines = append(lines, "")
+			}
+		}
+	}
+
+	return lines
+}
+
+// renderSection renders a single section.
+func (s *RunOverviewSidebar) renderSection(idx, width int) string {
+	section := &s.sections[idx]
+
+	if len(section.FilteredItems) == 0 || section.Height == 0 {
+		return ""
+	}
+
+	var lines []string
+
+	// Render section header.
+	lines = append(lines, s.renderSectionHeader(section))
+
+	// Render section items.
+	itemLines := s.renderSectionItems(section, width)
+	lines = append(lines, itemLines...)
+
+	return lipgloss.JoinVertical(lipgloss.Top, lines...)
+}
+
+// renderSectionHeader renders the section title with pagination info.
+func (s *RunOverviewSidebar) renderSectionHeader(section *PagedList) string {
+	titleStyle := runOverviewSidebarSectionStyle
+	if section.Active {
+		titleStyle = runOverviewSidebarSectionHeaderStyle
+	}
+
+	totalItems := len(section.Items)
+	filteredItems := len(section.FilteredItems)
+
+	startIdx := section.CurrentPage() * section.ItemsPerPage()
+	endIdx := min(startIdx+section.ItemsPerPage(), filteredItems)
+
+	titleText := section.Title
+	infoText := s.buildSectionInfo(section, totalItems, filteredItems, startIdx, endIdx)
+
+	return titleStyle.Render(titleText) + navInfoStyle.Render(infoText)
+}
+
+// buildSectionInfo builds the pagination/count info string for a section.
+func (s *RunOverviewSidebar) buildSectionInfo(
+	section *PagedList,
+	totalItems, filteredItems, startIdx, endIdx int,
+) string {
+	switch {
+	case (s.IsFilterMode() || s.filter.Query() != "") && filteredItems != totalItems:
+		// Filtered view with pagination.
+		return fmt.Sprintf(" [%d-%d of %d filtered from %d]",
+			startIdx+1, endIdx, filteredItems, totalItems)
+	case filteredItems > section.ItemsPerPage():
+		// Paginated view.
+		return fmt.Sprintf(" [%d-%d of %d]", startIdx+1, endIdx, filteredItems)
+	case filteredItems > 0:
+		// All items fit on one page.
+		return fmt.Sprintf(" [%d items]", filteredItems)
+	default:
+		return ""
+	}
+}
+
+// renderSectionItems renders the items for a section.
+func (s *RunOverviewSidebar) renderSectionItems(section *PagedList, width int) []string {
+	maxKeyWidth := int(float64(width) * sidebarKeyWidthRatio)
+	maxValueWidth := width - maxKeyWidth - 3
+
+	itemCount := len(section.FilteredItems)
+	if itemCount == 0 {
+		return nil
+	}
+
+	startIdx := section.CurrentPage() * section.ItemsPerPage()
+	endIdx := min(startIdx+section.ItemsPerPage(), itemCount)
+
+	itemsToRender := min(endIdx-startIdx, section.ItemsPerPage())
+
+	lines := make([]string, 0, itemsToRender)
+	for i := range itemsToRender {
+		itemIdx := startIdx + i
+		if itemIdx >= itemCount {
+			break
+		}
+
+		item := section.FilteredItems[itemIdx]
+		line := s.renderItem(item, i, section, maxKeyWidth, maxValueWidth)
+		lines = append(lines, line)
+	}
+
+	return lines
+}
+
+// renderItem renders a single key-value item.
+func (s *RunOverviewSidebar) renderItem(
+	item KeyValuePair,
+	posInPage int,
+	section *PagedList,
+	maxKeyWidth, maxValueWidth int,
+) string {
+	keyStyle := runOverviewSidebarKeyStyle
+	valueStyle := runOverviewSidebarValueStyle
+
+	isHighlighted := section.Active && posInPage == section.CurrentLine()
+	if isHighlighted {
+		keyStyle = runOverviewSidebarHighlightedItem
+		valueStyle = runOverviewSidebarHighlightedItem
+	}
+
+	key := truncateValue(item.Key, maxKeyWidth)
+	value := truncateValue(item.Value, maxValueWidth)
+
+	renderedKey := keyStyle.Width(maxKeyWidth).Render(key)
+
+	gap := " "
+	if isHighlighted {
+		gap = runOverviewSidebarHighlightedItem.Render(" ")
+		renderedValue := valueStyle.Width(maxValueWidth).Render(value)
+		return renderedKey + gap + renderedValue
+	}
+	return renderedKey + gap + valueStyle.MaxWidth(maxValueWidth).Render(value)
+}
+
+// hasNextVisibleSection returns true if there's another visible section after idx.
+func (s *RunOverviewSidebar) hasNextVisibleSection(idx int) bool {
+	for j := idx + 1; j < len(s.sections); j++ {
+		if s.sections[j].Height > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+// activateSelection ensures that exactly one section is marked active (if possible).
+// It is used when the sidebar gains focus after being deactivated.
+func (s *RunOverviewSidebar) activateSelection() {
+	if len(s.sections) == 0 {
+		return
+	}
+	if s.hasActiveSection() {
+		return
+	}
+
+	// Prefer the current activeSection if it is still usable.
+	if s.isValidActiveSection() {
+		sec := &s.sections[s.activeSection]
+		if sec.ItemsPerPage() > 0 && len(sec.FilteredItems) > 0 {
+			s.setActiveSection(s.activeSection)
+			return
+		}
+	}
+
+	s.selectFirstAvailableItem()
+}
+
+// focusableSectionBounds returns the first and last sections that currently have
+// visible items and can accept navigation. If none exist, it returns (-1, -1).
+func (s *RunOverviewSidebar) focusableSectionBounds() (first, last int) {
+	first, last = -1, -1
+	for i := range s.sections {
+		sec := &s.sections[i]
+		if sec.ItemsPerPage() == 0 || len(sec.FilteredItems) == 0 {
+			continue
+		}
+		if first == -1 {
+			first = i
+		}
+		last = i
+	}
+	return first, last
+}
+
+// sidebarContentWidth computes width available for content taking
+// borders and internal spacing into account.
+func (s *RunOverviewSidebar) sidebarContentWidth(width int) int {
+	return max(width-s.contentPadding(), 1)
+}
+
+func (s *RunOverviewSidebar) sidebarInnerWidth(width int) int {
+	switch s.side {
+	case SidebarSideLeft:
+		return max(width-runsSidebarBorderCols, 0)
+	case SidebarSideRight:
+		return max(width-sidebarVerticalBorderCols, 0)
+	default:
+		return max(width, 0)
+	}
+}
+
+func (s *RunOverviewSidebar) tagColorScheme() string {
+	scheme := s.config.TagColorScheme()
+	if _, ok := colorSchemes[scheme]; ok {
+		return scheme
+	}
+
+	return DefaultTagColorScheme
+}
+
+func wrapHeaderText(text string, maxWidth int) []string {
+	if maxWidth <= 0 {
+		return []string{text}
+	}
+
+	parts := strings.Split(text, "\n")
+	lines := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if strings.TrimSpace(part) == "" {
+			lines = append(lines, "")
+			continue
+		}
+		lines = append(lines, wrapHeaderParagraph(part, maxWidth)...)
+	}
+	if len(lines) == 0 {
+		return []string{""}
+	}
+	return lines
+}
+
+func wrapHeaderParagraph(text string, maxWidth int) []string {
+	words := strings.Fields(text)
+	if len(words) == 0 {
+		return []string{""}
+	}
+
+	lines := make([]string, 0, 1)
+	current := words[0]
+	if lipgloss.Width(current) > maxWidth {
+		forced := wrapSingleLine(current, maxWidth)
+		lines = append(lines, forced[:len(forced)-1]...)
+		current = forced[len(forced)-1]
+	}
+
+	for _, word := range words[1:] {
+		candidate := current + " " + word
+		if lipgloss.Width(candidate) <= maxWidth {
+			current = candidate
+			continue
+		}
+
+		lines = append(lines, current)
+		if lipgloss.Width(word) <= maxWidth {
+			current = word
+			continue
+		}
+
+		forced := wrapSingleLine(word, maxWidth)
+		lines = append(lines, forced[:len(forced)-1]...)
+		current = forced[len(forced)-1]
+	}
+
+	lines = append(lines, current)
+	return lines
+}

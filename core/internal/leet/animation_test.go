@@ -9,8 +9,8 @@ import (
 	"github.com/wandb/wandb/core/internal/leet"
 )
 
-func TestAnimationState_ToggleStartsAnimation(t *testing.T) {
-	anim := leet.NewAnimationState(false, 40)
+func TestAnimatedValue_ToggleStartsAnimation(t *testing.T) {
+	anim := leet.NewAnimatedValue(false, 40)
 	anim.Toggle()
 	require.True(t, anim.IsAnimating())
 	for anim.IsAnimating() {
@@ -19,7 +19,7 @@ func TestAnimationState_ToggleStartsAnimation(t *testing.T) {
 	}
 	require.True(t, anim.IsVisible())
 	require.True(t, anim.IsExpanded())
-	require.Equal(t, 40, anim.Width())
+	require.Equal(t, 40, anim.Value())
 
 	anim.Toggle()
 	require.True(t, anim.IsAnimating())
@@ -29,13 +29,13 @@ func TestAnimationState_ToggleStartsAnimation(t *testing.T) {
 	}
 	require.True(t, anim.IsCollapsed())
 	require.False(t, anim.IsVisible())
-	require.Equal(t, 0, anim.Width())
+	require.Equal(t, 0, anim.Value())
 }
 
-func TestAnimationState_UpdateAnimatesToCompletion(t *testing.T) {
-	anim := leet.NewAnimationState(false, 50)
+func TestAnimatedValue_UpdateAnimatesToCompletion(t *testing.T) {
+	anim := leet.NewAnimatedValue(false, 50)
 
-	widthsSeen := make(map[int]struct{})
+	valuesSeen := make(map[int]struct{})
 	maxIterations := 100
 	iterations := 0
 
@@ -43,7 +43,7 @@ func TestAnimationState_UpdateAnimatesToCompletion(t *testing.T) {
 
 	for anim.IsAnimating() && iterations < maxIterations {
 		complete := anim.Update(time.Now())
-		widthsSeen[anim.Width()] = struct{}{}
+		valuesSeen[anim.Value()] = struct{}{}
 
 		if !complete {
 			time.Sleep(10 * time.Millisecond)
@@ -51,23 +51,23 @@ func TestAnimationState_UpdateAnimatesToCompletion(t *testing.T) {
 		iterations++
 	}
 
-	// Should have seen multiple intermediate widths.
-	require.Greater(t, len(widthsSeen), 2, "animation should progress through multiple widths")
-	require.Equal(t, 50, anim.Width(), "should end at target width")
+	// Should have seen multiple intermediate values.
+	require.Greater(t, len(valuesSeen), 2, "animation should progress through multiple values")
+	require.Equal(t, 50, anim.Value(), "should end at target value")
 	require.False(t, anim.IsAnimating(), "animation should be complete")
 }
 
-func TestAnimationState_ToggleDuringAnimation(t *testing.T) {
-	anim := leet.NewAnimationState(false, 50)
+func TestAnimatedValue_ToggleDuringAnimation(t *testing.T) {
+	anim := leet.NewAnimatedValue(false, 50)
 	anim.Toggle()
 
 	// Let it animate partway.
 	time.Sleep(50 * time.Millisecond)
 	anim.Update(time.Now())
 
-	partialWidth := anim.Width()
-	require.Greater(t, partialWidth, 0, "should have started expanding")
-	require.Less(t, partialWidth, 50, "should not be fully expanded")
+	partialValue := anim.Value()
+	require.Greater(t, partialValue, 0, "should have started expanding")
+	require.Less(t, partialValue, 50, "should not be fully expanded")
 
 	// Toggle during animation should revert back to the original state.
 	anim.Toggle()
@@ -75,27 +75,47 @@ func TestAnimationState_ToggleDuringAnimation(t *testing.T) {
 		time.Sleep(10 * time.Millisecond)
 		anim.Update(time.Now())
 	}
-	require.Equal(t, 0, anim.Width())
+	require.Equal(t, 0, anim.Value())
 }
 
-func TestAnimationState_SetExpandedWidth_SnapsWhenAlreadyExpanded(t *testing.T) {
-	anim := leet.NewAnimationState(true, 40) // expanded at 40
+func TestAnimatedValue_SetExpanded_SnapsWhenAlreadyExpanded(t *testing.T) {
+	anim := leet.NewAnimatedValue(true, 40) // expanded at 40
 	require.True(t, anim.IsExpanded())
-	require.Equal(t, 40, anim.Width())
+	require.Equal(t, 40, anim.Value())
 
-	anim.SetExpandedWidth(80) // first WindowSizeMsg computes larger target
+	anim.SetExpanded(80) // first WindowSizeMsg computes larger target
 
 	// Should snap immediately because we were stably expanded.
 	require.True(t, anim.IsExpanded())
-	require.Equal(t, 80, anim.Width())
+	require.Equal(t, 80, anim.Value())
 }
 
-func TestAnimationState_SetExpandedWidth_DoesNotSnapWhenCollapsed(t *testing.T) {
-	anim := leet.NewAnimationState(false, 40) // collapsed
+func TestAnimatedValue_SetExpanded_DoesNotSnapWhenCollapsed(t *testing.T) {
+	anim := leet.NewAnimatedValue(false, 40) // collapsed
 	require.False(t, anim.IsVisible())
 
-	anim.SetExpandedWidth(80)
+	anim.SetExpanded(80)
 	// Still collapsed; only the future target changed.
 	require.False(t, anim.IsVisible())
-	require.Equal(t, 0, anim.Width())
+	require.Equal(t, 0, anim.Value())
+}
+
+func TestAnimatedValue_SetExpanded_DuringAnimation_RebasesSmoothly(t *testing.T) {
+	anim := leet.NewAnimatedValue(false, 40)
+	now := time.Now()
+
+	anim.Toggle()
+	anim.Update(now.Add(40 * time.Millisecond))
+	partial := anim.Value()
+	require.Greater(t, partial, 0)
+	require.Less(t, partial, 40)
+
+	anim.SetExpanded(80)
+	anim.Update(now.Add(60 * time.Millisecond))
+	require.GreaterOrEqual(t, anim.Value(), partial)
+	require.LessOrEqual(t, anim.Value(), 80)
+
+	anim.Update(now.Add(2 * leet.AnimationDuration))
+	require.Equal(t, 80, anim.Value())
+	require.True(t, anim.IsExpanded())
 }

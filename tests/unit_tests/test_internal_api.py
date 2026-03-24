@@ -1,11 +1,14 @@
+from __future__ import annotations
+
 import base64
 import hashlib
 import os
 import pathlib
 import tempfile
+from collections.abc import Mapping, Sequence
 from itertools import chain
 from pathlib import Path
-from typing import Callable, Mapping, Optional, Sequence, Tuple, Type, TypeVar, Union
+from typing import Callable, TypeVar, Union
 from unittest.mock import Mock, call, patch
 
 import pytest
@@ -22,6 +25,7 @@ from wandb.sdk.internal.internal_api import (
     _match_org_with_fetched_org_entities,
     _OrgNames,
 )
+from wandb.sdk.launch.sweeps import SweepNotFoundError
 from wandb.sdk.lib import retry
 
 from .test_retry import MockTime, mock_time  # noqa: F401
@@ -39,6 +43,36 @@ def test_agent_heartbeat_with_no_agent_id_fails():
     a = internal.Api()
     with pytest.raises(ValueError):
         a.agent_heartbeat(None, {}, {})
+
+
+def test_agent_heartbeat_raises_sweep_not_found_on_404():
+    """Test that agent_heartbeat raises SweepNotFoundError on 404."""
+    a = internal.Api()
+
+    mock_response = Mock()
+    mock_response.status_code = 404
+
+    http_error = requests.exceptions.HTTPError()
+    http_error.response = mock_response
+
+    with patch.object(a.api, "gql", side_effect=http_error):
+        with pytest.raises(SweepNotFoundError):
+            a.agent_heartbeat("test-agent-id", {}, {})
+
+
+def test_agent_heartbeat_returns_empty_on_non_404_error():
+    """Test that non-404 HTTP errors return empty list instead of raising."""
+    a = internal.Api()
+
+    mock_response = Mock()
+    mock_response.status_code = 500
+
+    http_error = requests.exceptions.HTTPError()
+    http_error.response = mock_response
+
+    with patch.object(a.api, "gql", side_effect=http_error):
+        result = a.agent_heartbeat("test-agent-id", {}, {})
+        assert result == []
 
 
 def test_get_run_state_invalid_kwargs():
@@ -64,7 +98,7 @@ def test_get_run_state_invalid_kwargs():
 )
 def test_download_write_file_fetches_iff_file_checksum_mismatched(
     mock_responses: RequestsMock,
-    existing_contents: Optional[str],
+    existing_contents: str | None,
     expect_download: bool,
 ):
     url = "https://example.com/path/to/file.txt"
@@ -392,7 +426,7 @@ def test_resolve_org_entity_name_with_old_server():
     assert api._resolve_org_entity_name("entity", "org-name-input") == "org-name-input"
 
 
-MockResponseOrException = Union[Exception, Tuple[int, Mapping[int, int], str]]
+MockResponseOrException = Union[Exception, tuple[int, Mapping[int, int], str]]
 
 
 class TestUploadFile:
@@ -443,7 +477,7 @@ class TestUploadFile:
             mock_responses: RequestsMock,
             example_file: Path,
             response: MockResponseOrException,
-            expected_errtype: Type[Exception],
+            expected_errtype: type[Exception],
         ):
             mock_responses.add_callback(
                 "PUT",
@@ -580,7 +614,7 @@ class TestUploadFile:
         example_file: Path,
         request_headers: Mapping[str, str],
         response,
-        expected_errtype: Type[Exception],
+        expected_errtype: type[Exception],
     ):
         mock_responses.add_callback(
             "PUT", "http://example.com/upload-dst", Mock(return_value=response)
@@ -658,7 +692,7 @@ class TestUploadFile:
             mock_responses: RequestsMock,
             example_file: Path,
             response: MockResponseOrException,
-            expected_errtype: Type[Exception],
+            expected_errtype: type[Exception],
             check_err: Callable[[Exception], bool],
         ):
             mock_responses.add_callback(
@@ -983,3 +1017,55 @@ def test_construct_use_artifact_query_without_used_as():
     # Verify usedAs is still in variables but not in query
     assert "usedAs" in variables
     assert "usedAs:" not in query_str
+
+
+class TestJWTAuth:
+    def test_jwt_auth_sets_bearer_header(
+        self, tmp_path: pathlib.Path, mocker: MockerFixture
+    ):
+        token_file = tmp_path / "token.jwt"
+        token_file.write_text("test.jwt.token")
+
+        mocker.patch(
+            "wandb.sdk.lib.wbauth.AuthIdentityTokenFile.fetch_access_token",
+            return_value="test_access_token_12345",
+        )
+
+        environ = {"WANDB_IDENTITY_TOKEN_FILE": str(token_file)}
+        api = internal.InternalApi(environ=environ)
+
+        assert "Authorization" in api._extra_http_headers
+        assert (
+            api._extra_http_headers["Authorization"] == "Bearer test_access_token_12345"
+        )
+
+    def test_api_key_takes_precedence_over_jwt(
+        self, tmp_path: pathlib.Path, mocker: MockerFixture
+    ):
+        token_file = tmp_path / "token.jwt"
+        token_file.write_text("test.jwt.token")
+
+        fetch_mock = mocker.patch(
+            "wandb.sdk.lib.wbauth.AuthIdentityTokenFile.fetch_access_token",
+            return_value="test_access_token",
+        )
+
+        environ = {"WANDB_IDENTITY_TOKEN_FILE": str(token_file)}
+        api = internal.InternalApi(
+            default_settings={"api_key": "a" * 40},
+            environ=environ,
+        )
+
+        fetch_mock.assert_not_called()
+        assert api.client.transport.session.auth == ("api", "a" * 40)
+
+    def test_access_token_returns_none_without_token_file(self):
+        api = internal.InternalApi(environ={})
+        assert api.access_token is None
+
+    def test_access_token_raises_for_missing_file(self, tmp_path: pathlib.Path):
+        missing_file = tmp_path / "nonexistent.jwt"
+        environ = {"WANDB_IDENTITY_TOKEN_FILE": str(missing_file)}
+
+        with pytest.raises(wandb.errors.AuthenticationError, match="not found"):
+            internal.InternalApi(environ=environ)

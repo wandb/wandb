@@ -9,6 +9,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/wandb/wandb/core/internal/observabilitytest"
+	"github.com/wandb/wandb/core/internal/runhandle"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/runworktest"
 	"github.com/wandb/wandb/core/internal/settings"
@@ -45,7 +46,10 @@ func setup(
 	ctrl := gomock.NewController(t)
 	mockRecordParser := streamtest.NewMockRecordParser(ctrl)
 
-	flowControlFactory := &stream.FlowControlFactory{Logger: testLogger}
+	flowControlFactory := &stream.FlowControlFactory{
+		Logger:    testLogger,
+		RunHandle: runhandle.New(),
+	}
 	writerFactory := &stream.WriterFactory{
 		Logger:   testLogger,
 		Settings: settings.New(),
@@ -78,8 +82,12 @@ func TestDiscardsAndRereadsWork(t *testing.T) {
 		InMemorySize: 1,
 		Limit:        10,
 	})
-	expectedWork1 := &runworktest.NoopWork{Value: "1, never offloaded"}
-	expectedWork2to5 := &runworktest.NoopWork{Value: "2, 3, 4 or 5"}
+	expectedWork1 := runwork.NoRequest(
+		&runworktest.NoopWork{Value: "1, never offloaded"},
+	)
+	expectedWork2to5 := runwork.NoRequest(
+		&runworktest.NoopWork{Value: "2, 3, 4 or 5"},
+	)
 
 	// Even though InMemorySize is 1, we need to push 5 items to use up all
 	// additional buffer created by goroutines. The full buffer space in
@@ -97,7 +105,7 @@ func TestDiscardsAndRereadsWork(t *testing.T) {
 
 	// The record parser is only used when discarded data is reloaded.
 	x.MockRecordParser.EXPECT().Parse(gomock.Any()).
-		Return(expectedWork2to5).
+		Return(expectedWork2to5.WorkImpl).
 		MaxTimes(4).
 		MinTimes(1)
 
@@ -135,7 +143,7 @@ func TestStopsDiscardingOnStoreError(t *testing.T) {
 			}
 
 			select {
-			case x.Input <- &runworktest.NoopWork{}:
+			case x.Input <- runwork.NoRequest(&runworktest.NoopWork{}):
 			case <-x.Output:
 				nOutputs--
 			}

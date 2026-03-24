@@ -13,12 +13,12 @@ import sys
 import threading
 import time
 import traceback
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from enum import IntEnum
 from types import TracebackType
-from typing import TYPE_CHECKING, Callable, Sequence, TextIO, TypeVar
+from typing import TYPE_CHECKING, Callable, TextIO, TypeVar
 
 from typing_extensions import Any, Concatenate, Literal, NamedTuple, ParamSpec
 
@@ -96,16 +96,16 @@ if TYPE_CHECKING:
 
     import torch  # type: ignore [import-not-found]
 
-    import wandb.sdk.backend.backend
-    import wandb.sdk.interface.interface_queue
     from wandb.apis.public import Api as PublicApi
     from wandb.proto.wandb_internal_pb2 import (
         GetSummaryResponse,
         InternalMessagesResponse,
         SampledHistoryResponse,
     )
-    from wandb.sdk.artifacts.artifact import Artifact
 
+    from .artifacts.artifact import Artifact
+    from .backend.backend import Backend
+    from .interface.interface_queue import InterfaceQueue
     from .wandb_settings import Settings
 
     class GitSourceDict(TypedDict):
@@ -297,12 +297,11 @@ class RunStatusChecker:
             from wandb.agents import pyagent
 
             stop_status = result.response.stop_status_response
-            if stop_status.run_should_stop:
+            if stop_status.run_should_stop and not pyagent.is_running():  # type: ignore
                 # TODO(frz): This check is required
                 # until WB-3606 is resolved on server side.
-                if not pyagent.is_running():  # type: ignore
-                    interrupt.interrupt_main()
-                    return
+                interrupt.interrupt_main()
+                return
 
         with wb_logging.log_to_run(self._run_id):
             try:
@@ -526,8 +525,8 @@ class Run:
 
     _teardown_hooks: list[TeardownHook]
 
-    _backend: wandb.sdk.backend.backend.Backend | None
-    _internal_run_interface: wandb.sdk.interface.interface_queue.InterfaceQueue | None
+    _backend: Backend | None
+    _internal_run_interface: InterfaceQueue | None
     _wl: _WandbSetup | None
 
     _out_redir: redirect.RedirectBase | None
@@ -1619,13 +1618,10 @@ class Run:
     def _set_library(self, library: _WandbSetup) -> None:
         self._wl = library
 
-    def _set_backend(self, backend: wandb.sdk.backend.backend.Backend) -> None:
+    def _set_backend(self, backend: Backend) -> None:
         self._backend = backend
 
-    def _set_internal_run_interface(
-        self,
-        interface: wandb.sdk.interface.interface_queue.InterfaceQueue,
-    ) -> None:
+    def _set_internal_run_interface(self, interface: InterfaceQueue) -> None:
         self._internal_run_interface = interface
 
     def _set_teardown_hooks(self, hooks: list[TeardownHook]) -> None:
@@ -1747,7 +1743,7 @@ class Run:
         if not isinstance(data, Mapping):
             raise TypeError("wandb.log must be passed a dictionary")
 
-        if any(not isinstance(key, str) for key in data.keys()):
+        if any(not isinstance(key, str) for key in data):
             raise TypeError("Key values passed to `wandb.log` must be strings.")
 
         self._partial_history_callback(data, step, commit)
@@ -2498,9 +2494,8 @@ class Run:
         # This is used by the "auto" resume mode, which resumes from the last
         # failed (or unfinished/crashed) run. If we reach this line, then this
         # run shouldn't be a candidate for "auto" resume.
-        if exit_code == 0:
-            if os.path.exists(self._settings.resume_fname):
-                os.remove(self._settings.resume_fname)
+        if exit_code == 0 and os.path.exists(self._settings.resume_fname):
+            os.remove(self._settings.resume_fname)
 
         try:
             self._on_finish()
@@ -2543,14 +2538,17 @@ class Run:
         if self._settings.save_code and self._settings.code_dir is not None:
             self.log_code(self._settings.code_dir)
 
-        if self._settings.x_save_requirements:
-            if self._backend and self._backend.interface:
-                from wandb.util import working_set
+        if (
+            self._settings.x_save_requirements
+            and self._backend
+            and self._backend.interface
+        ):
+            from wandb.util import working_set
 
-                logger.debug(
-                    "Saving list of pip packages installed into the current environment"
-                )
-                self._backend.interface.publish_python_packages(working_set())
+            logger.debug(
+                "Saving list of pip packages installed into the current environment"
+            )
+            self._backend.interface.publish_python_packages(working_set())
 
         if self._backend and self._backend.interface and not self._settings._offline:
             assert self._settings.run_id
@@ -2617,9 +2615,8 @@ class Run:
         # object is about to be returned to the user, don't let them modify it
         self._freeze()
 
-        if not self._settings.resume:
-            if os.path.exists(self._settings.resume_fname):
-                os.remove(self._settings.resume_fname)
+        if (not self._settings.resume) and os.path.exists(self._settings.resume_fname):
+            os.remove(self._settings.resume_fname)
 
     def _detect_and_apply_job_inputs(self) -> None:
         """If the user has staged launch inputs, apply them to the run."""
@@ -3624,7 +3621,7 @@ class Run:
             raise ValueError("level must be one of 'INFO', 'WARN', or 'ERROR'")
 
         wait_duration = wait_duration or timedelta(minutes=1)
-        if isinstance(wait_duration, int) or isinstance(wait_duration, float):
+        if isinstance(wait_duration, (int, float)):
             wait_duration = timedelta(seconds=wait_duration)
         elif not callable(getattr(wait_duration, "total_seconds", None)):
             raise TypeError(
@@ -4054,9 +4051,8 @@ def restore(
             raise ValueError(
                 "run_path required when calling wandb.restore before wandb.init"
             )
-    if root is None:
-        if run is not None:
-            root = run.dir
+    if root is None and run is not None:
+        root = run.dir
     api = public.Api()
     api_run = api.run(run_path)
     if root is None:

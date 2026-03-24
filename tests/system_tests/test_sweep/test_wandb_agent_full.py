@@ -3,9 +3,12 @@
 import contextlib
 import io
 import pathlib
+from unittest import mock
 
 import wandb
 from wandb.apis.public import Api
+from wandb.cli import cli
+from wandb.sdk.launch.sweeps import SweepNotFoundError
 
 
 def test_agent_basic(user):
@@ -56,6 +59,61 @@ def test_agent_config_merge(user, monkeypatch):
 
     assert len(sweep_configs) == 1
     assert sweep_configs[0] == {"a": 1, "extra": 2}
+
+
+def test_agent_config_whitespace_py_agent(user, monkeypatch):
+    ran = False
+
+    def train():
+        nonlocal ran
+        run = wandb.init()
+        assert run.config["a"] == "one two"
+        assert run.config["b"] == "three four"
+        assert run.config["c"] == '"five six"'
+        run.finish()
+        ran = True
+
+    sweep_config = {
+        "name": "My Sweep",
+        "method": "grid",
+        "parameters": {
+            "a": {"values": ["one two"]},
+            "b": {"value": "three four"},
+            "c": {"value": '"five six"'},
+        },
+    }
+
+    monkeypatch.setenv("WANDB_CONSOLE", "off")
+    sweep_id = wandb.sweep(sweep_config)
+    wandb.agent(sweep_id, function=train, count=1)
+    assert ran
+
+
+def test_agent_config_whitespace_cli_agent(runner, user):
+    project = "test-whitespace-cli-agent"
+    with runner.isolated_filesystem():
+        pathlib.Path("test.py").write_text(
+            "import wandb\n"
+            "\n"
+            "run = wandb.init()\n"
+            "assert run.config['a'] == 'one two'\n"
+            "assert run.config['b'] == 'three four'\n"
+            "run.finish()\n"
+        )
+
+        sweep_config = {
+            "name": "My Sweep",
+            "program": "test.py",
+            "method": "grid",
+            "parameters": {"a": {"values": ["one two"]}, "b": {"value": "three four"}},
+        }
+
+        sweep_id = wandb.sweep(sweep_config, project=project)
+        runner.invoke(cli.agent, [sweep_id])
+
+    runs = Api().runs(project, {"sweep": sweep_id})
+    assert len(runs) == 1
+    assert runs[0].state == "finished"
 
 
 def test_agent_config_ignore(user):
@@ -166,3 +224,25 @@ def test_agent_subprocess_with_import_readline(user, monkeypatch):
     history = runs[0].history(pandas=False)
     assert history[0]["got_eof"]
     assert history[0]["test_param"] == 1
+
+
+def test_agent_sweep_deleted(user):
+    """Test that agent exits gracefully when sweep is deleted (404)."""
+    sweep_config = {
+        "name": "My Sweep",
+        "method": "grid",
+        "parameters": {"a": {"values": [1, 2, 3]}},
+    }
+
+    sweep_id = wandb.sweep(sweep_config)
+
+    captured_stderr = io.StringIO()
+    with contextlib.redirect_stderr(captured_stderr):
+        with mock.patch(
+            "wandb.sdk.internal.internal_api.Api.agent_heartbeat",
+            side_effect=SweepNotFoundError("Sweep not found"),
+        ):
+            wandb.agent(sweep_id, function=lambda: None, count=1)
+
+    stderr_output = captured_stderr.getvalue()
+    assert "Sweep was deleted or agent was not found" in stderr_output

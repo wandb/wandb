@@ -1,8 +1,9 @@
 """Support for parsing W&B URLs (which might be user provided) into constituent parts."""
 
+from __future__ import annotations
+
 from dataclasses import dataclass
 from enum import IntEnum
-from typing import Optional
 from urllib.parse import urlparse
 
 PREFIX_HTTP = "http://"
@@ -34,20 +35,20 @@ RESERVED_JOB_PATHS = ("_view",)
 @dataclass
 class WandbReference:
     # TODO: This will include port, should we separate that out?
-    host: Optional[str] = None
+    host: str | None = None
 
-    entity: Optional[str] = None
-    project: Optional[str] = None
+    entity: str | None = None
+    project: str | None = None
 
     # Set when we don't know how to parse yet
-    path: Optional[str] = None
+    path: str | None = None
 
     # Reference type will determine what other fields are set
-    ref_type: Optional[ReferenceType] = None
+    ref_type: ReferenceType | None = None
 
-    run_id: Optional[str] = None
+    run_id: str | None = None
 
-    job_name: Optional[str] = None
+    job_name: str | None = None
     job_alias: str = "latest"  # In addition to an alias can be a version specifier
 
     def is_bare(self) -> bool:
@@ -84,7 +85,7 @@ class WandbReference:
         return f"{self.url_entity()}/{self.project}"
 
     @staticmethod
-    def parse(uri: str) -> Optional["WandbReference"]:
+    def parse(uri: str) -> WandbReference | None:
         """Attempt to parse a string as a W&B URL."""
         # TODO: Error if HTTP and host is not localhost?
         if (
@@ -106,25 +107,19 @@ class WandbReference:
 
         ref.path = parsed.path[1:]
         parts = ref.path.split("/")
-        if len(parts) > 0:
-            if parts[0] not in RESERVED_NON_ENTITIES:
-                ref.path = None
-                ref.entity = parts[0]
-                if len(parts) > 1:
-                    if parts[1] not in RESERVED_NON_PROJECTS:
-                        ref.project = parts[1]
-                        if len(parts) > 3 and parts[2] == "runs":
-                            ref.ref_type = ReferenceType.RUN
-                            ref.run_id = parts[3]
-                        elif (
-                            len(parts) > 4
-                            and parts[2] == "artifacts"
-                            and parts[3] == "job"
-                        ):
-                            ref.ref_type = ReferenceType.JOB
-                            ref.job_name = parts[4]
-                            if len(parts) > 5 and parts[5] not in RESERVED_JOB_PATHS:
-                                ref.job_alias = parts[5]
+        if len(parts) > 0 and parts[0] not in RESERVED_NON_ENTITIES:
+            ref.path = None
+            ref.entity = parts[0]
+            if len(parts) > 1 and parts[1] not in RESERVED_NON_PROJECTS:
+                ref.project = parts[1]
+                if len(parts) > 3 and parts[2] == "runs":
+                    ref.ref_type = ReferenceType.RUN
+                    ref.run_id = parts[3]
+                elif len(parts) > 4 and parts[2] == "artifacts" and parts[3] == "job":
+                    ref.ref_type = ReferenceType.JOB
+                    ref.job_name = parts[4]
+                    if len(parts) > 5 and parts[5] not in RESERVED_JOB_PATHS:
+                        ref.job_alias = parts[5]
                         # TODO: Right now we are not tracking selection as part of URL state in the Jobs tab.
                         #       If that changes we'll want to update this.
 
@@ -133,6 +128,4 @@ class WandbReference:
     @staticmethod
     def is_uri_job_or_run(uri: str) -> bool:
         ref = WandbReference.parse(uri)
-        if ref and ref.is_job_or_run():
-            return True
-        return False
+        return bool(ref and ref.is_job_or_run())

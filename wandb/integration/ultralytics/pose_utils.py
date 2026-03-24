@@ -1,4 +1,6 @@
-from typing import Any, Optional
+from __future__ import annotations
+
+from typing import Any
 
 import numpy as np
 from PIL import Image
@@ -34,7 +36,7 @@ def plot_pose_predictions(
     result: Results,
     model_name: str,
     visualize_skeleton: bool,
-    table: Optional[wandb.Table] = None,
+    table: wandb.Table | None = None,
 ):
     result = result.to("cpu")
     boxes, mean_confidence_map = get_boxes(result)
@@ -61,7 +63,7 @@ def plot_pose_validation_results(
     visualize_skeleton: bool,
     table: wandb.Table,
     max_validation_batches: int,
-    epoch: Optional[int] = None,
+    epoch: int | None = None,
 ) -> wandb.Table:
     data_idx = 0
     num_dataloader_batches = len(dataloader.dataset) // dataloader.batch_size

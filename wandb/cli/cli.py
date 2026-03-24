@@ -1,9 +1,12 @@
+from __future__ import annotations
+
 import asyncio
 import datetime
 import getpass
 import json
 import logging
 import os
+import pathlib
 import shlex
 import shutil
 import subprocess
@@ -13,7 +16,7 @@ import textwrap
 import time
 import traceback
 from functools import wraps
-from typing import Any, Dict, Optional, Tuple
+from typing import Any
 
 import click
 import yaml
@@ -35,6 +38,7 @@ from wandb.sdk.internal.internal_api import Api as SDKInternalApi
 from wandb.sdk.launch import utils as launch_utils
 from wandb.sdk.launch._launch_add import _launch_add
 from wandb.sdk.launch.errors import ExecutionError, LaunchError
+from wandb.sdk.launch.sweeps import SweepNotFoundError
 from wandb.sdk.launch.sweeps import utils as sweep_utils
 from wandb.sdk.launch.sweeps.scheduler import Scheduler
 from wandb.sdk.lib import filesystem, settings_file
@@ -105,10 +109,10 @@ class ClickWandbException(ClickException):
 
 
 def parse_service_config(
-    ctx: Optional[click.Context],
-    param: Optional[click.Parameter],
-    value: Optional[Tuple[str, ...]],
-) -> Dict[str, str]:
+    ctx: click.Context | None,
+    param: click.Parameter | None,
+    value: tuple[str, ...] | None,
+) -> dict[str, str]:
     """Parse service configurations in format serviceName=policy."""
     if not value:
         return {}
@@ -724,7 +728,7 @@ def sync(
         _summary()
 
 
-def _parse_sync_replace_tags(replace_tags: str) -> Optional[Dict[str, str]]:
+def _parse_sync_replace_tags(replace_tags: str) -> dict[str, str] | None:
     """Parse replace_tags string into a dictionary.
 
     Args:
@@ -1080,16 +1084,16 @@ def launch_sweep(
 
     parsed_user_config = sweep_utils.load_launch_sweep_config(config)
     # Rip special keys out of config, store in scheduler run_config
-    launch_args: Dict[str, Any] = parsed_user_config.pop("launch", {})
-    scheduler_args: Dict[str, Any] = parsed_user_config.pop("scheduler", {})
-    settings: Dict[str, Any] = scheduler_args.pop("settings", {})
+    launch_args: dict[str, Any] = parsed_user_config.pop("launch", {})
+    scheduler_args: dict[str, Any] = parsed_user_config.pop("scheduler", {})
+    settings: dict[str, Any] = scheduler_args.pop("settings", {})
 
-    scheduler_job: Optional[str] = scheduler_args.get("job")
+    scheduler_job: str | None = scheduler_args.get("job")
     if scheduler_job:
         wandb.termwarn(
             "Using a scheduler job for launch sweeps is *experimental* and may change without warning"
         )
-    queue: Optional[str] = queue or launch_args.get("queue")
+    queue: str | None = queue or launch_args.get("queue")
 
     sweep_config, sweep_obj_id = None, None
     if not resume_id:
@@ -1237,7 +1241,7 @@ def launch_sweep(
         launch_scheduler=launch_scheduler_with_queue,
         state="PENDING",
         prior_runs=prior_runs,
-        template_variable_values=scheduler_args.get("template_variables", None),
+        template_variable_values=scheduler_args.get("template_variables"),
     )
     sweep_utils.handle_sweep_config_violations(warnings)
     # Log nicely formatted sweep information
@@ -1758,13 +1762,18 @@ def agent(ctx, project, entity, count, forward_signals, sweep_id):
         api = _get_cling_api(reset=True)
 
     wandb.termlog("Starting wandb agent 🕵️")
-    wandb_agent.agent(
-        sweep_id,
-        entity=entity,
-        project=project,
-        count=count,
-        forward_signals=forward_signals,
-    )
+    try:
+        wandb_agent.agent(
+            sweep_id,
+            entity=entity,
+            project=project,
+            count=count,
+            forward_signals=forward_signals,
+        )
+    # TODO: handle other errors with correct exit codes
+    except SweepNotFoundError:
+        wandb.termerror("Sweep was deleted or agent was not found. Stopping agent.")
+        sys.exit(1)
 
     # you can send local commands like so:
     # agent_api.command({'type': 'run', 'program': 'train.py',
@@ -2212,12 +2221,11 @@ def docker(
         exit(0)
 
     existing = wandb.docker.shell(["ps", "-f", f"ancestor={resolved_image}", "-q"])
-    if existing:
-        if click.confirm(
-            "Found running container with the same image, do you want to attach?"
-        ):
-            subprocess.call(["docker", "attach", existing.split("\n")[0]])
-            exit(0)
+    if existing and click.confirm(
+        "Found running container with the same image, do you want to attach?"
+    ):
+        subprocess.call(["docker", "attach", existing.split("\n")[0]])
+        exit(0)
     cwd = os.getcwd()
     command = [
         "docker",
@@ -2953,6 +2961,62 @@ def verify(host):
         and check_sweeps_success
     ):
         sys.exit(1)
+
+
+@cli.command(
+    "purge-cache",
+    help="Purges cached logs, run history, and artifacts from the local W&B cache.",
+)
+@click.option(
+    "--age",
+    default="0d",
+    help="Removes items older than the specified time period (e.g., '10s', '5m', '8h', '7d', '6M', '1y')",
+)
+@click.option(
+    "--force",
+    is_flag=True,
+    default=False,
+    help="Do not prompt for confirmation when deleting files.",
+)
+def purge_cache(
+    age: str,
+    force: bool,
+):
+    try:
+        age_seconds = util.time_string_to_seconds(age)
+    except ValueError as e:
+        wandb.termerror(str(e))
+        sys.exit(1)
+
+    cache_dir = pathlib.Path(env.get_cache_dir())
+    if not cache_dir.exists():
+        wandb.termlog(f"Cache directory does not exist: {cache_dir}")
+        return
+
+    cutoff_time = time.time() - age_seconds
+    purged_count = 0
+    data_deleted = 0
+
+    files = cache_dir.glob("**/*")
+    for file in files:
+        if file.stat().st_mtime > cutoff_time or file.is_dir():
+            continue
+
+        if not force:
+            confirm = click.confirm(
+                f"Are you sure you want to delete cache file {file}?",
+            )
+            if not confirm:
+                wandb.termlog(f"Skipping cache file: {file}")
+                continue
+
+        data_deleted += file.stat().st_size
+        file.unlink(missing_ok=True)
+        purged_count += 1
+
+    wandb.termlog(
+        f"Deleted {purged_count} file(s) ({util.to_human_size(data_deleted)})"
+    )
 
 
 cli.add_command(beta)

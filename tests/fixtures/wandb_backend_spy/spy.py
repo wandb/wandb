@@ -4,7 +4,8 @@ import contextlib
 import dataclasses
 import json
 import threading
-from typing import Any, Iterator
+from collections.abc import Iterator
+from typing import Any
 
 import fastapi
 from typing_extensions import NamedTuple

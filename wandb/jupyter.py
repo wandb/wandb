@@ -198,13 +198,17 @@ def notebook_metadata_from_jupyter_servers_and_kernel_id():
             urljoin(s["url"], "api/sessions"), params={"token": s.get("token", "")}
         ).json()
         for nn in res:
-            if isinstance(nn, dict) and nn.get("kernel") and "notebook" in nn:
-                if nn["kernel"]["id"] == kernel_id:
-                    return {
-                        "root": s.get("root_dir", s.get("notebook_dir", os.getcwd())),
-                        "path": nn["notebook"]["path"],
-                        "name": nn["notebook"]["name"],
-                    }
+            if (
+                isinstance(nn, dict)
+                and nn.get("kernel")
+                and "notebook" in nn
+                and nn["kernel"]["id"] == kernel_id
+            ):
+                return {
+                    "root": s.get("root_dir", s.get("notebook_dir", os.getcwd())),
+                    "path": nn["notebook"]["path"],
+                    "name": nn["notebook"]["name"],
+                }
 
     if not kernel_id:
         return None
@@ -338,11 +342,10 @@ class Notebook:
     def probe_ipynb(self):
         """Return notebook as dict or None."""
         relpath = self.settings.x_jupyter_path
-        if relpath:
-            if os.path.exists(relpath):
-                with open(relpath) as json_file:
-                    data = json.load(json_file)
-                    return data
+        if relpath and os.path.exists(relpath):
+            with open(relpath) as json_file:
+                data = json.load(json_file)
+                return data
 
         colab_ipynb = attempt_colab_load_ipynb()
         if colab_ipynb:
@@ -369,15 +372,12 @@ class Notebook:
     def _save_ipynb(self) -> bool:
         relpath = self.settings.x_jupyter_path
         logger.info("looking for notebook: %s", relpath)
-        if relpath:
-            if os.path.exists(relpath):
-                shutil.copy(
-                    relpath,
-                    os.path.join(
-                        self.settings._tmp_code_dir, os.path.basename(relpath)
-                    ),
-                )
-                return True
+        if relpath and os.path.exists(relpath):
+            shutil.copy(
+                relpath,
+                os.path.join(self.settings._tmp_code_dir, os.path.basename(relpath)),
+            )
+            return True
 
         # TODO: likely only save if the code has changed
         colab_ipynb = attempt_colab_load_ipynb()

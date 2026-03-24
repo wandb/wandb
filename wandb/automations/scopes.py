@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from typing import Literal, Union
+from typing import Annotated, Literal, Union
 
 from pydantic import BeforeValidator, Field
-from typing_extensions import Annotated, TypeAlias, get_args
+from typing_extensions import TypeAlias, get_args
 
 from wandb._pydantic import GQLBase
 

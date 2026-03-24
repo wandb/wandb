@@ -1,193 +1,522 @@
 package leet
 
 import (
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 )
 
-// KeyBinding represents a key binding with its handler and metadata.
-type KeyBinding struct {
+// KeyBinding defines a key binding for a particular target type.
+//
+// If Handler is nil, the binding is shown in the help screen but is not dispatched
+// through the key map (useful for documentation-only bindings handled by a child
+// component or a parent model).
+type KeyBinding[T any] struct {
 	Keys        []string
 	Description string
-	Handler     func(*Model, tea.KeyMsg) (*Model, tea.Cmd)
+	Handler     func(*T, tea.KeyPressMsg) tea.Cmd
 }
 
-// BindingCategory groups related key bindings.
-type BindingCategory struct {
+// BindingCategory groups related key bindings (primarily for help display).
+type BindingCategory[T any] struct {
 	Name     string
-	Bindings []KeyBinding
+	Bindings []KeyBinding[T]
 }
 
-// KeyBindings returns all model-level key bindings organized by category.
-// These are handled by the Model and dispatched via the keyMap.
-func KeyBindings() []BindingCategory {
-	return []BindingCategory{
+// RunKeyBindings returns key bindings relevant to the single-run view.
+func RunKeyBindings() []BindingCategory[Run] {
+	return []BindingCategory[Run]{
 		{
 			Name: "General",
-			Bindings: []KeyBinding{
+			Bindings: []KeyBinding[Run]{
 				{
 					Keys:        []string{"h", "?"},
 					Description: "Toggle this help screen",
-					Handler:     (*Model).handleToggleHelp,
 				},
 				{
 					Keys:        []string{"q", "ctrl+c"},
 					Description: "Quit",
-					Handler:     (*Model).handleQuit,
+					Handler:     (*Run).handleQuit,
 				},
 				{
 					Keys:        []string{"alt+r"},
-					Description: "Reload run data",
-					Handler:     (*Model).handleRestart,
+					Description: "Restart",
+				},
+				{
+					Keys:        []string{"esc"},
+					Description: "Back to workspace (when not filtering/configuring)",
 				},
 			},
 		},
 		{
 			Name: "Panels",
-			Bindings: []KeyBinding{
+			Bindings: []KeyBinding[Run]{
 				{
 					Keys:        []string{"["},
 					Description: "Toggle left sidebar with run overview",
-					Handler:     (*Model).handleToggleLeftSidebar,
+					Handler:     (*Run).handleToggleLeftSidebar,
 				},
 				{
 					Keys:        []string{"]"},
 					Description: "Toggle right sidebar with system metrics",
-					Handler:     (*Model).handleToggleRightSidebar,
+					Handler:     (*Run).handleToggleRightSidebar,
+				},
+				{
+					Keys:        []string{"l"},
+					Description: "Toggle console logs panel",
+					Handler:     (*Run).handleToggleConsoleLogsPane,
 				},
 			},
 		},
 		{
 			Name: "Navigation",
-			Bindings: []KeyBinding{
+			Bindings: []KeyBinding[Run]{
 				{
 					Keys:        []string{"N", "pgup"},
-					Description: "Navigate between chart pages",
-					Handler:     (*Model).handlePrevPage,
+					Description: "Previous chart page",
+					Handler:     (*Run).handlePrevPage,
 				},
 				{
 					Keys:        []string{"n", "pgdown"},
-					Description: "Navigate between chart pages",
-					Handler:     (*Model).handleNextPage,
+					Description: "Next chart page",
+					Handler:     (*Run).handleNextPage,
 				},
 				{
-					Keys:        []string{"alt+N", "alt+pgup"},
-					Description: "Navigate between system metrics pages",
-					Handler:     (*Model).handlePrevSystemPage,
+					Keys:        []string{"M", "alt+N", "alt+pgup"},
+					Description: "Previous system metrics page",
+					Handler:     (*Run).handlePrevSystemPage,
 				},
 				{
-					Keys:        []string{"alt+n", "alt+pgdown"},
-					Description: "Navigate between system metrics pages",
-					Handler:     (*Model).handleNextSystemPage,
+					Keys:        []string{"m", "alt+n", "alt+pgdown"},
+					Description: "Next system metrics page",
+					Handler:     (*Run).handleNextSystemPage,
 				},
 			},
 		},
 		{
 			Name: "Charts",
-			Bindings: []KeyBinding{
+			Bindings: []KeyBinding[Run]{
+				{
+					Keys:        []string{"y"},
+					Description: "Toggle log Y on focused chart",
+					Handler:     (*Run).handleToggleFocusedChartLogY,
+				},
 				{
 					Keys:        []string{"/"},
 					Description: "Filter metrics by pattern",
-					Handler:     (*Model).handleEnterMetricsFilter,
+					Handler:     (*Run).handleEnterMetricsFilter,
 				},
 				{
-					Keys:        []string{"ctrl+l"},
-					Description: "Clear active filter",
-					Handler:     (*Model).handleClearMetricsFilter,
+					Keys:        []string{"\\"},
+					Description: "Filter system metrics by pattern",
+					Handler:     (*Run).handleEnterSystemMetricsFilter,
+				},
+				{
+					Keys:        []string{"ctrl+/", "ctrl+l"},
+					Description: "Clear metrics filter",
+					Handler:     (*Run).handleClearMetricsFilter,
+				},
+				{
+					Keys:        []string{"ctrl+\\"},
+					Description: "Clear system metrics filter",
+					Handler:     (*Run).handleClearSystemMetricsFilter,
 				},
 			},
 		},
 		{
 			Name: "Run Overview",
-			Bindings: []KeyBinding{
+			Bindings: []KeyBinding[Run]{
 				{
 					Keys:        []string{"o"},
 					Description: "Filter overview items",
-					Handler:     (*Model).handleEnterOverviewFilter,
+					Handler:     (*Run).handleEnterOverviewFilter,
 				},
 				{
-					Keys:        []string{"ctrl+k"},
+					Keys:        []string{"ctrl+o"},
 					Description: "Clear overview filter",
-					Handler:     (*Model).handleClearOverviewFilter,
+					Handler:     (*Run).handleClearOverviewFilter,
 				},
 			},
 		},
 		{
 			Name: "Configuration",
-			Bindings: []KeyBinding{
+			Bindings: []KeyBinding[Run]{
 				{
 					Keys:        []string{"c"},
 					Description: "Set metrics grid columns",
-					Handler:     (*Model).handleConfigMetricsCols,
+					Handler:     (*Run).handleConfigMetricsCols,
 				},
 				{
 					Keys:        []string{"r"},
 					Description: "Set metrics grid rows",
-					Handler:     (*Model).handleConfigMetricsRows,
+					Handler:     (*Run).handleConfigMetricsRows,
 				},
 				{
 					Keys:        []string{"C"},
 					Description: "Set system grid columns (Shift+c)",
-					Handler:     (*Model).handleConfigSystemCols,
+					Handler:     (*Run).handleConfigSystemCols,
 				},
 				{
 					Keys:        []string{"R"},
 					Description: "Set system grid rows (Shift+r)",
-					Handler:     (*Model).handleConfigSystemRows,
+					Handler:     (*Run).handleConfigSystemRows,
 				},
 			},
 		},
-		// Key bindings below are handled by a component, not the Model.
-		// These are for documentation only and don't have handlers.
+
 		{
-			Name: "Run Overview Navigation (when sidebar open)",
-			Bindings: []KeyBinding{
-				{
-					Keys:        []string{"up", "down"},
-					Description: "Navigate items in section",
-				},
+			Name: "Sidebars (when open)",
+			Bindings: []KeyBinding[Run]{
 				{
 					Keys:        []string{"tab", "shift+tab"},
-					Description: "Switch between sections",
+					Description: "Cycle focus: overview ↔ logs (overview cycles sections)",
+					Handler:     (*Run).handleSidebarTabNav,
+				},
+				{
+					Keys:        []string{"up", "down"},
+					Description: "Navigate focused sidebar/list",
+					Handler:     (*Run).handleSidebarVerticalNav,
 				},
 				{
 					Keys:        []string{"left", "right"},
-					Description: "Navigate pages in section",
+					Description: "Page in focused sidebar/list",
+					Handler:     (*Run).handleSidebarPageNav,
+				},
+			},
+		},
+
+		mouseCategory[Run](),
+	}
+}
+
+// WorkspaceKeyBindings returns key bindings relevant to the workspace view.
+func WorkspaceKeyBindings() []BindingCategory[Workspace] {
+	return []BindingCategory[Workspace]{
+		{
+			Name: "General",
+			Bindings: []KeyBinding[Workspace]{
+				{
+					Keys:        []string{"h", "?"},
+					Description: "Toggle this help screen",
+				},
+				{
+					Keys:        []string{"q", "ctrl+c"},
+					Description: "Quit",
+					Handler:     (*Workspace).handleQuit,
+				},
+				{
+					Keys:        []string{"alt+r"},
+					Description: "Restart LEET",
+				},
+				{
+					Keys:        []string{"esc"},
+					Description: "Focus runs list",
+					Handler:     (*Workspace).handleFocusRuns,
+				},
+				{
+					Keys:        []string{"enter"},
+					Description: "View selected run (when not filtering/configuring)",
 				},
 			},
 		},
 		{
-			Name: "Mouse",
-			Bindings: []KeyBinding{
+			Name: "Panels",
+			Bindings: []KeyBinding[Workspace]{
 				{
-					Keys:        []string{"wheel"},
-					Description: "Zoom in/out on focused chart",
+					Keys:        []string{"["},
+					Description: "Toggle runs sidebar",
+					Handler:     (*Workspace).handleToggleRunsSidebar,
 				},
 				{
-					Keys:        []string{"right-click+drag"},
-					Description: "Inspect: show (x, y) at nearest point on a chart",
+					Keys:        []string{"s"},
+					Description: "Toggle system metrics panel",
+					Handler:     (*Workspace).handleToggleSystemMetricsPane,
 				},
 				{
-					Keys:        []string{"alt+right-click+drag"},
-					Description: "Inspect all visible charts in sync",
+					Keys:        []string{"]"},
+					Description: "Toggle run overview sidebar",
+					Handler:     (*Workspace).handleToggleOverviewSidebar,
 				},
 				{
-					Keys:        []string{"shift+drag"},
-					Description: "Select text",
+					Keys:        []string{"l"},
+					Description: "Toggle console logs panel",
+					Handler:     (*Workspace).handleToggleConsoleLogsPane,
 				},
 			},
 		},
+		{
+			Name: "Navigation",
+			Bindings: []KeyBinding[Workspace]{
+				{
+					Keys:        []string{"N", "pgup"},
+					Description: "Previous chart page",
+					Handler:     (*Workspace).handlePrevPage,
+				},
+				{
+					Keys:        []string{"n", "pgdown"},
+					Description: "Next chart page",
+					Handler:     (*Workspace).handleNextPage,
+				},
+				{
+					Keys:        []string{"M"},
+					Description: "Previous system metrics page",
+					Handler:     (*Workspace).handlePrevSystemMetricsPage,
+				},
+				{
+					Keys:        []string{"m"},
+					Description: "Next system metrics page",
+					Handler:     (*Workspace).handleNextSystemMetricsPage,
+				},
+			},
+		},
+		{
+			Name: "Runs",
+			Bindings: []KeyBinding[Workspace]{
+				{
+					Keys:        []string{"f"},
+					Description: "Filter runs by name / metadata",
+					Handler:     (*Workspace).handleEnterRunsFilter,
+				},
+				{
+					Keys:        []string{"ctrl+f"},
+					Description: "Clear runs filter",
+					Handler:     (*Workspace).handleClearRunsFilter,
+				},
+			},
+		},
+		{
+			Name: "Charts",
+			Bindings: []KeyBinding[Workspace]{
+				{
+					Keys:        []string{"y"},
+					Description: "Toggle log Y on focused chart",
+					Handler:     (*Workspace).handleToggleFocusedChartLogY,
+				},
+				{
+					Keys:        []string{"/"},
+					Description: "Filter metrics by pattern",
+					Handler:     (*Workspace).handleEnterMetricsFilter,
+				},
+				{
+					Keys:        []string{"\\"},
+					Description: "Filter system metrics by pattern",
+					Handler:     (*Workspace).handleEnterSystemMetricsFilter,
+				},
+				{
+					// TODO: remove ctrl+l.
+					Keys:        []string{"ctrl+/", "ctrl+l"},
+					Description: "Clear metrics filter",
+					Handler:     (*Workspace).handleClearMetricsFilter,
+				},
+				{
+					Keys:        []string{"ctrl+\\"},
+					Description: "Clear system metrics filter",
+					Handler:     (*Workspace).handleClearSystemMetricsFilter,
+				},
+			},
+		},
+		{
+			Name: "Run Overview",
+			Bindings: []KeyBinding[Workspace]{
+				{
+					Keys:        []string{"o"},
+					Description: "Filter overview items",
+					Handler:     (*Workspace).handleEnterOverviewFilter,
+				},
+				{
+					Keys:        []string{"ctrl+o"},
+					Description: "Clear overview filter",
+					Handler:     (*Workspace).handleClearOverviewFilter,
+				},
+			},
+		},
+		{
+			Name: "Configuration",
+			Bindings: []KeyBinding[Workspace]{
+				{
+					Keys:        []string{"c"},
+					Description: "Set metrics grid columns",
+					Handler:     (*Workspace).handleConfigMetricsCols,
+				},
+				{
+					Keys:        []string{"r"},
+					Description: "Set metrics grid rows",
+					Handler:     (*Workspace).handleConfigMetricsRows,
+				},
+				{
+					Keys:        []string{"C"},
+					Description: "Set system grid columns (Shift+c)",
+					Handler:     (*Workspace).handleConfigSystemCols,
+				},
+				{
+					Keys:        []string{"R"},
+					Description: "Set system grid rows (Shift+r)",
+					Handler:     (*Workspace).handleConfigSystemRows,
+				},
+			},
+		},
+		{
+			Name: "Sidebars (when open)",
+			Bindings: []KeyBinding[Workspace]{
+				{
+					Keys:        []string{"tab", "shift+tab"},
+					Description: "Cycle focus between runs, overview, and console logs",
+					Handler:     (*Workspace).handleSidebarTabNav,
+				},
+				{
+					Keys:        []string{"up", "down"},
+					Description: "Navigate focused sidebar list",
+					Handler:     (*Workspace).handleRunsVerticalNav,
+				},
+				{
+					Keys:        []string{"left", "right"},
+					Description: "Navigate pages in focused sidebar list",
+					Handler:     (*Workspace).handleRunsPageNav,
+				},
+				{
+					Keys:        []string{"home"},
+					Description: "Jump to first run",
+					Handler:     (*Workspace).handleRunsHome,
+				},
+				{
+					Keys:        []string{"space"},
+					Description: "Select/deselect run",
+					Handler:     (*Workspace).handleToggleRunSelectedKey,
+				},
+				{
+					Keys:        []string{"p"},
+					Description: "Pin/unpin selected run",
+					Handler:     (*Workspace).handlePinRunKey,
+				},
+			},
+		},
+
+		mouseCategory[Workspace](),
 	}
 }
 
-// buildKeyMap builds a lookup map from key string to handler.
-func buildKeyMap() map[string]func(*Model, tea.KeyMsg) (*Model, tea.Cmd) {
-	keyMap := make(map[string]func(*Model, tea.KeyMsg) (*Model, tea.Cmd))
-	for _, category := range KeyBindings() {
+// SymonKeyBindings returns key bindings for the standalone system monitor view.
+func SymonKeyBindings() []BindingCategory[Symon] {
+	return []BindingCategory[Symon]{
+		{
+			Name: "General",
+			Bindings: []KeyBinding[Symon]{
+				{
+					Keys:        []string{"h", "?"},
+					Description: "Toggle this help screen",
+				},
+				{
+					Keys:        []string{"q", "ctrl+c"},
+					Description: "Quit",
+					Handler:     (*Symon).handleQuit,
+				},
+				{
+					Keys:        []string{"alt+r"},
+					Description: "Restart",
+				},
+			},
+		},
+		{
+			Name: "Navigation",
+			Bindings: []KeyBinding[Symon]{
+				{
+					Keys:        []string{"N", "pgup"},
+					Description: "Previous chart page",
+					Handler:     (*Symon).handlePrevPage,
+				},
+				{
+					Keys:        []string{"n", "pgdown"},
+					Description: "Next chart page",
+					Handler:     (*Symon).handleNextPage,
+				},
+			},
+		},
+		{
+			Name: "Charts",
+			Bindings: []KeyBinding[Symon]{
+				{
+					Keys:        []string{"y"},
+					Description: "Toggle log Y on focused chart",
+					Handler:     (*Symon).handleToggleFocusedChartLogY,
+				},
+				{
+					Keys:        []string{"\\"},
+					Description: "Filter system metrics by pattern",
+					Handler:     (*Symon).handleEnterSystemMetricsFilter,
+				},
+				{
+					Keys:        []string{"ctrl+\\"},
+					Description: "Clear system metrics filter",
+					Handler:     (*Symon).handleClearSystemMetricsFilter,
+				},
+			},
+		},
+		{
+			Name: "Configuration",
+			Bindings: []KeyBinding[Symon]{
+				{
+					Keys:        []string{"c", "C"},
+					Description: "Set grid columns",
+					Handler:     (*Symon).handleConfigSystemCols,
+				},
+				{
+					Keys:        []string{"r", "R"},
+					Description: "Set grid rows",
+					Handler:     (*Symon).handleConfigSystemRows,
+				},
+			},
+		},
+
+		mouseCategory[Symon](),
+	}
+}
+
+// buildKeyMap builds a fast lookup map from key string to handler.
+func buildKeyMap[T any](
+	categories []BindingCategory[T]) map[string]func(*T, tea.KeyPressMsg) tea.Cmd {
+	keyMap := make(map[string]func(*T, tea.KeyPressMsg) tea.Cmd)
+	for _, category := range categories {
 		for _, binding := range category.Bindings {
+			if binding.Handler == nil {
+				continue
+			}
 			for _, key := range binding.Keys {
-				keyMap[key] = binding.Handler
+				keyMap[normalizeKey(key)] = binding.Handler
 			}
 		}
 	}
 	return keyMap
+}
+
+// normalizeKey normalizes Bubble Tea's KeyPressMsg into a stable key used by our maps.
+//
+// Bubble Tea has historically reported space as " " in some situations; we want a
+// help-friendly, explicit key name.
+func normalizeKey(key string) string {
+	if key == " " {
+		return "space"
+	}
+	return key
+}
+
+func mouseCategory[T any]() BindingCategory[T] {
+	return BindingCategory[T]{
+		Name: "Mouse",
+		Bindings: []KeyBinding[T]{
+			{
+				Keys:        []string{"wheel"},
+				Description: "Zoom in/out on focused chart",
+			},
+			{
+				Keys:        []string{"right-click+drag"},
+				Description: "Inspect: show (x, y) at nearest point on a chart",
+			},
+			{
+				Keys:        []string{"alt+right-click+drag"},
+				Description: "Inspect all visible charts in sync",
+			},
+			{
+				Keys:        []string{"shift+drag"},
+				Description: "Select text",
+			},
+		},
+	}
 }

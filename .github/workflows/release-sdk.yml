@@ -90,7 +90,7 @@ jobs:
           cache-dependency-path: core/go.sum
 
       - name: Build wheels
-        uses: pypa/cibuildwheel@v3.3.1
+        uses: pypa/cibuildwheel@v3.4.0
         with:
           package-dir: .
           output-dir: dist
@@ -103,7 +103,7 @@ jobs:
             curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
           CIBW_ENVIRONMENT_LINUX: PATH=$PATH:/usr/local/go/bin:/root/.cargo/bin
 
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         with:
           name: wandb-sdk-distribution-linux-arm64
           path: ./dist
@@ -140,7 +140,7 @@ jobs:
       # All platforms: create wheels
       ##################################################
       - name: Build wheels
-        uses: pypa/cibuildwheel@v3.3.1
+        uses: pypa/cibuildwheel@v3.4.0
         with:
           package-dir: .
           output-dir: dist
@@ -169,7 +169,7 @@ jobs:
             curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
           CIBW_ENVIRONMENT_LINUX: PATH=$PATH:/usr/local/go/bin:/root/.cargo/bin
 
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         with:
           name: wandb-sdk-distribution-${{ matrix.os }}
           path: ./dist
@@ -189,12 +189,12 @@ jobs:
           python-version: "3.10"
 
       - name: Install Hatch
-        run: pip install hatch==1.12
+        run: pip install hatch~=1.16
 
       - name: Create sdist
         run: hatch build -t sdist
 
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         with:
           name: wandb-sdk-distribution-sdist
           path: ./dist
@@ -216,7 +216,7 @@ jobs:
           python-version: "3.10"
 
       - name: Download distribution
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           path: artifacts/
           pattern: wandb-sdk-distribution-*
@@ -294,6 +294,13 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Checkout only go files for dependency installation
+        uses: actions/checkout@v6
+        with:
+          sparse-checkout: |
+            core/go.mod
+            core/go.sum
+
       - name: Set up latest Go
         uses: actions/setup-go@v6
         with:
@@ -324,7 +331,7 @@ jobs:
       url: https://pypi.org/p/wandb
     steps:
       - name: Download distribution
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           path: artifacts/
           pattern: wandb-sdk-distribution-*
@@ -429,7 +436,7 @@ jobs:
           python -m pip install wandb==${{ github.event.inputs.version }}
       - name: Post to Slack
         id: slack
-        uses: slackapi/slack-github-action@v2.1.1
+        uses: slackapi/slack-github-action@v3.0.1
         with:
           method: chat.postMessage
           token: ${{ secrets.SLACK_BOT_TOKEN }}
@@ -454,7 +461,7 @@ jobs:
     steps:
       - name: Create GitHub App Token
         id: app-token
-        uses: actions/create-github-app-token@v2
+        uses: actions/create-github-app-token@v3
         with:
           app-id: ${{ vars.WANDBOT_3000_APP_ID }}
           private-key: ${{ secrets.WANDBOT_3000_PRIVATE_KEY }}

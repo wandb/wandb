@@ -33,7 +33,8 @@
 // (e.g. `./example -d`), and any tag string that starts with two hyphens is the long
 // form for the argument (instead of the field name).
 //
-// Other valid tag strings are `positional` and `required`.
+// Other valid tag strings are `positional`, `required`, and `hidden`. Using `hidden` will
+// exclude the field from help text and usage messages.
 //
 // Fields can be excluded from processing with `arg:"-"`.
 package arg

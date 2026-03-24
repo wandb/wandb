@@ -26,11 +26,14 @@ from graphql import (
     FragmentDefinitionNode,
     GraphQLField,
     GraphQLInputField,
+    GraphQLInterfaceType,
+    GraphQLObjectType,
     GraphQLSchema,
     SchemaMetaFieldDef,
     SelectionSetNode,
     TypeInfo,
     TypeMetaFieldDef,
+    TypeNameMetaFieldDef,
     Visitor,
     get_directive_values,
     get_named_type,
@@ -236,14 +239,21 @@ class GraphQLCodegenPlugin(Plugin):
         return module
 
     def process_schema(self, schema: GraphQLSchema) -> GraphQLSchema:
-        # `ariadne-codegen` doesn't automatically recognize standard introspection fields
-        # like `__type`, `__schema`, etc., so inject them here on `Query`.
+        # `ariadne-codegen` 0.16 misses standard GraphQL meta fields in the schema model.
+        # Inject the canonical definitions up front so codegen doesn't try to synthesize
+        # `__typename` itself, which breaks on newer `graphql-core` releases.
         if schema.query_type:
             meta_fields = {
                 "__type": TypeMetaFieldDef,
                 "__schema": SchemaMetaFieldDef,
             }
             schema.query_type.fields.update(meta_fields)
+
+        for type_ in schema.type_map.values():
+            if isinstance(type_, (GraphQLObjectType, GraphQLInterfaceType)) and (
+                not type_.name.startswith("__")
+            ):
+                type_.fields.setdefault("__typename", TypeNameMetaFieldDef)
 
         return schema
 
@@ -484,12 +494,6 @@ class PydanticModuleRewriter(ast.NodeTransformer):
             *node.body,
         ]
         return self.generic_visit(node)
-
-    def visit_ImportFrom(self, node: ast.ImportFrom) -> Any:
-        if node.module == "typing":
-            # Import from `typing_extensions` instead, and let Ruff rewrite later.
-            node.module = "typing_extensions"
-        return node
 
     def visit_AnnAssign(self, node: ast.AnnAssign) -> Any:
         match node:

@@ -5,18 +5,17 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"path/filepath"
 	"sync/atomic"
 	"time"
 
 	"github.com/Khan/genqlient/graphql"
+	"github.com/getsentry/sentry-go"
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/wandb/simplejsonext"
 
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runhistoryreader"
 	"github.com/wandb/wandb/core/internal/runhistoryreader/parquet"
-	"github.com/wandb/wandb/core/internal/sentry_ext"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/stream"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
@@ -27,7 +26,6 @@ import (
 type RunHistoryAPIHandler struct {
 	graphqlClient graphql.Client
 	httpClient    *retryablehttp.Client
-	sentryClient  *sentry_ext.Client
 
 	// currentRequestId is the id of the last scan init request made.
 	//
@@ -40,12 +38,14 @@ type RunHistoryAPIHandler struct {
 	// It allows us to reuse existing
 	// history readers for subsequent scan requests.
 	scanHistoryReaders map[int32]*runhistoryreader.HistoryReader
+
+	// downloadOperations is a map of request ids to download operations.
+	//
+	// It allows tracking the status of downloads for run history files.
+	downloadOperations map[int32]*parquet.RunHistoryDownloadOperation
 }
 
-func NewRunHistoryAPIHandler(
-	s *settings.Settings,
-	sentryClient *sentry_ext.Client,
-) *RunHistoryAPIHandler {
+func NewRunHistoryAPIHandler(s *settings.Settings) *RunHistoryAPIHandler {
 	logger := observability.NewNoOpLogger()
 	baseURL := stream.BaseURLFromSettings(logger, s)
 	credentialProvider := stream.CredentialsFromSettings(logger, s)
@@ -73,7 +73,7 @@ func NewRunHistoryAPIHandler(
 		httpClient:         httpClient,
 		currentRequestId:   atomic.Int32{},
 		scanHistoryReaders: make(map[int32]*runhistoryreader.HistoryReader),
-		sentryClient:       sentryClient,
+		downloadOperations: make(map[int32]*parquet.RunHistoryDownloadOperation),
 	}
 }
 
@@ -87,8 +87,12 @@ func (f *RunHistoryAPIHandler) HandleRequest(
 		return f.handleScanRunHistoryRead(request.GetScanRunHistory())
 	case *spb.ReadRunHistoryRequest_ScanRunHistoryCleanup:
 		return f.handleScanRunHistoryCleanup(request.GetScanRunHistoryCleanup())
+	case *spb.ReadRunHistoryRequest_DownloadRunHistoryInit:
+		return f.handleDownloadRunHistoryInit(request.GetDownloadRunHistoryInit())
 	case *spb.ReadRunHistoryRequest_DownloadRunHistory:
 		return f.handleDownloadRunHistory(request.GetDownloadRunHistory())
+	case *spb.ReadRunHistoryRequest_DownloadRunHistoryStatus:
+		return f.handleDownloadRunHistoryStatus(request.GetDownloadRunHistoryStatus())
 	}
 
 	return nil
@@ -104,15 +108,15 @@ func (f *RunHistoryAPIHandler) HandleRequest(
 func (f *RunHistoryAPIHandler) handleScanRunHistoryInit(
 	request *spb.ScanRunHistoryInit,
 ) *spb.ApiResponse {
-	f.sentryClient.CaptureMessage(
-		"handleScanRunHistoryInit",
-		map[string]string{
+	localHub := sentry.CurrentHub().Clone()
+	localHub.WithScope(func(scope *sentry.Scope) {
+		scope.SetTags(map[string]string{
 			"entity":  request.Entity,
 			"project": request.Project,
 			"runId":   request.RunId,
-		},
-	)
-	defer f.sentryClient.Flush(2)
+		})
+		localHub.CaptureMessage("handleScanRunHistoryInit")
+	})
 
 	requestId := f.currentRequestId.Add(1)
 	requestKeys := request.GetKeys()
@@ -190,18 +194,21 @@ func (f *RunHistoryAPIHandler) handleScanRunHistoryRead(
 		}
 	}
 	getHistoryStepsEnd := time.Now()
-	f.sentryClient.CaptureMessage(
-		fmt.Sprintf(
-			"handleScanRunHistoryRead: getHistorySteps time: %dms",
-			getHistoryStepsEnd.Sub(getHistoryStepsStart).Milliseconds(),
-		),
-		map[string]string{
+
+	localHub := sentry.CurrentHub().Clone()
+	localHub.WithScope(func(scope *sentry.Scope) {
+		scope.SetTags(map[string]string{
 			"entity":  historyReader.GetEntity(),
 			"project": historyReader.GetProject(),
 			"runId":   historyReader.GetRunId(),
-		},
-	)
-	defer f.sentryClient.Flush(2)
+		})
+		localHub.CaptureMessage(
+			fmt.Sprintf(
+				"handleScanRunHistoryRead: getHistorySteps time: %dms",
+				getHistoryStepsEnd.Sub(getHistoryStepsStart).Milliseconds(),
+			),
+		)
+	})
 
 	historyRows := make([]*spb.HistoryRow, 0, len(historySteps))
 	for _, historyStep := range historySteps {
@@ -264,10 +271,8 @@ func (f *RunHistoryAPIHandler) handleScanRunHistoryCleanup(
 	}
 }
 
-// handleDownloadRunHistory handles a request to download
-// a run's history.
-func (f *RunHistoryAPIHandler) handleDownloadRunHistory(
-	request *spb.DownloadRunHistory,
+func (f *RunHistoryAPIHandler) handleDownloadRunHistoryInit(
+	request *spb.DownloadRunHistoryInit,
 ) *spb.ApiResponse {
 	signedUrls, liveData, err := parquet.GetSignedUrlsWithLiveSteps(
 		context.Background(),
@@ -308,40 +313,104 @@ func (f *RunHistoryAPIHandler) handleDownloadRunHistory(
 			},
 		}
 	}
-
-	fileNames := make([]string, 0, len(signedUrls))
-	for i, url := range signedUrls {
-		fileName := fmt.Sprintf(
-			"%s_%s_%s_%d.runhistory.parquet",
-			request.Entity,
-			request.Project,
-			request.RunId,
-			i,
-		)
-		filePath := filepath.Join(request.DownloadDir, fileName)
-		err = parquet.DownloadRunHistoryFile(
-			context.Background(),
-			f.httpClient,
-			url,
-			filePath,
-		)
-		if err != nil {
-			return &spb.ApiResponse{
-				Response: &spb.ApiResponse_ApiErrorResponse{
-					ApiErrorResponse: &spb.ApiErrorResponse{
-						Message: err.Error(),
-					},
+	downloadOperation, err := parquet.NewRunHistoryDownloadOperation(
+		context.Background(),
+		f.httpClient,
+		request.Entity,
+		request.Project,
+		request.RunId,
+		request.DownloadDir,
+		signedUrls,
+	)
+	if err != nil {
+		return &spb.ApiResponse{
+			Response: &spb.ApiResponse_ApiErrorResponse{
+				ApiErrorResponse: &spb.ApiErrorResponse{
+					Message: err.Error(),
 				},
-			}
+			},
 		}
-		fileNames = append(fileNames, fileName)
 	}
 
+	requestId := f.currentRequestId.Add(1)
+	f.downloadOperations[requestId] = downloadOperation
+
 	return &spb.ApiResponse{
-		Response: &spb.ApiResponse_DownloadRunHistoryResponse{
-			DownloadRunHistoryResponse: &spb.DownloadRunHistoryResponse{
-				FileNames:        fileNames,
-				ContainsLiveData: containsLiveData,
+		Response: &spb.ApiResponse_ReadRunHistoryResponse{
+			ReadRunHistoryResponse: &spb.ReadRunHistoryResponse{
+				Response: &spb.ReadRunHistoryResponse_DownloadRunHistoryInit{
+					DownloadRunHistoryInit: &spb.DownloadRunHistoryInitResponse{
+						RequestId:        requestId,
+						ContainsLiveData: containsLiveData,
+					},
+				},
+			},
+		},
+	}
+}
+
+// handleDownloadRunHistory handles a request to download a run's history.
+func (f *RunHistoryAPIHandler) handleDownloadRunHistory(
+	request *spb.DownloadRunHistory,
+) *spb.ApiResponse {
+	downloadOperation, ok := f.downloadOperations[request.GetRequestId()]
+	if !ok || downloadOperation == nil {
+		return &spb.ApiResponse{
+			Response: &spb.ApiResponse_ApiErrorResponse{
+				ApiErrorResponse: &spb.ApiErrorResponse{
+					Message: "Download operation not found.",
+				},
+			},
+		}
+	}
+
+	downloadedFiles, errors := downloadOperation.StartDownloads()
+	errorsMap := make(map[string]string, len(errors))
+	for file, err := range errors {
+		errorsMap[file] = err.Error()
+	}
+
+	delete(f.downloadOperations, request.GetRequestId())
+	return &spb.ApiResponse{
+		Response: &spb.ApiResponse_ReadRunHistoryResponse{
+			ReadRunHistoryResponse: &spb.ReadRunHistoryResponse{
+				Response: &spb.ReadRunHistoryResponse_DownloadRunHistory{
+					DownloadRunHistory: &spb.DownloadRunHistoryResponse{
+						DownloadedFiles: downloadedFiles,
+						Errors:          errorsMap,
+					},
+				},
+			},
+		},
+	}
+}
+
+// handleDownloadRunHistoryStatus handles a request
+// to get the status of a download operation.
+func (f *RunHistoryAPIHandler) handleDownloadRunHistoryStatus(
+	request *spb.DownloadRunHistoryStatus,
+) *spb.ApiResponse {
+	requestId := request.GetRequestId()
+
+	downloadOperation, ok := f.downloadOperations[requestId]
+	if !ok || downloadOperation == nil {
+		return &spb.ApiResponse{
+			Response: &spb.ApiResponse_ApiErrorResponse{
+				ApiErrorResponse: &spb.ApiErrorResponse{
+					Message: "Download operation not found.",
+				},
+			},
+		}
+	}
+
+	downloadStatus := downloadOperation.GetDownloadStatus()
+
+	return &spb.ApiResponse{
+		Response: &spb.ApiResponse_ReadRunHistoryResponse{
+			ReadRunHistoryResponse: &spb.ReadRunHistoryResponse{
+				Response: &spb.ReadRunHistoryResponse_DownloadRunHistoryStatus{
+					DownloadRunHistoryStatus: downloadStatus,
+				},
 			},
 		},
 	}

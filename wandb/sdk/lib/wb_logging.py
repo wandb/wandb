@@ -18,7 +18,7 @@ import contextlib
 import contextvars
 import logging
 import pathlib
-from typing import Iterator
+from collections.abc import Iterator
 
 
 class _NotRunSpecific:

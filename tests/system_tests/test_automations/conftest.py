@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import secrets
+from collections.abc import Iterator
 from functools import lru_cache
 from string import ascii_lowercase, digits
-from typing import Callable, Iterator, Union
+from typing import Callable, Union
 
 import wandb
 from pytest import FixtureRequest, MonkeyPatch, fixture, skip
@@ -146,7 +147,11 @@ def webhook(
     """A "registered" webhook integration for automation system tests."""
     name = make_name("test-webhook")
     entity = api.default_entity
-    yield make_webhook_integration(name=name, entity=entity, url="fake-url")
+    yield make_webhook_integration(
+        name=name,
+        entity=entity,
+        url="https://example.com/webhook",
+    )
 
 
 # ---------------------------------------------------------------------------

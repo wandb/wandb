@@ -1,5 +1,7 @@
+from __future__ import annotations
+
 import urllib.parse
-from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Callable
 
 import wandb
 from wandb import env
@@ -30,10 +32,10 @@ def _get_sweep_url(api, sweep_id):
 
 
 def sweep(
-    sweep: Union[dict, Callable],
-    entity: Optional[str] = None,
-    project: Optional[str] = None,
-    prior_runs: Optional[List[str]] = None,
+    sweep: dict | Callable,
+    entity: str | None = None,
+    project: str | None = None,
+    prior_runs: list[str] | None = None,
 ) -> str:
     """Initialize a hyperparameter sweep.
 
@@ -95,10 +97,10 @@ def sweep(
 
 
 def controller(
-    sweep_id_or_config: Optional[Union[str, Dict]] = None,
-    entity: Optional[str] = None,
-    project: Optional[str] = None,
-) -> "_WandbController":
+    sweep_id_or_config: str | dict | None = None,
+    entity: str | None = None,
+    project: str | None = None,
+) -> _WandbController:
     """Public sweep controller constructor.
 
     Examples:

@@ -11,6 +11,56 @@ Unreleased changes are in [CHANGELOG.unreleased.md](CHANGELOG.unreleased.md).
 
 <!-- tools/changelog.py: insert here -->
 
+## [0.25.1] - 2026-03-10
+
+### Added
+
+- Run console logs pane in W&B LEET TUI (`wandb beta leet` command, toggle with `l`). (@dmitryduev in https://github.com/wandb/wandb/pull/11345)
+- System metrics pane in multi-run workspace mode in W&B LEET TUI (`wandb beta leet` command, toggle with `s`). (@dmitryduev in https://github.com/wandb/wandb/pull/11391)
+- System metrics filtering in W&B LEET TUI (`wandb beta leet` command, toggle with `\`). (@dmitryduev in https://github.com/wandb/wandb/pull/11391)
+- `ArtifactType.collections()` now supports filtering and ordering of collections. (@amusipatla-wandb in https://github.com/wandb/wandb/pull/11268)
+- Warning message when `run.log_artifact` does not create a new version because the artifact content is identical to an existing version. (@pingleiwandb in https://github.com/wandb/wandb/pull/11340)
+- `Project.collections()` to fetch filtered and ordered artifact collections in a project. (@amusipatla-wandb in https://github.com/wandb/wandb/pull/11319)
+- `wandb purge-cache` command to clean up cached files (@jacobromero in https://github.com/wandb/wandb/pull/10996)
+
+### Fixed
+
+- Fixed a rare deadlock caused when GC triggers at an unlucky time and runs a `__del__` method that prints (@timoffex in https://github.com/wandb/wandb/pull/11402)
+- `api.Run.user` raising `AttributeError` when accessing runs from an `api.Runs` iteration (@jacobromero in https://github.com/wandb/wandb/pull/11439)
+
+## [0.25.0] - 2026-02-12
+
+### Notable Changes
+
+This version drops support for Python 3.8.
+
+### Added
+
+- Multi-run workspace experience in W&B LEET TUI (`wandb beta leet` command). (@dmitryduev in https://github.com/wandb/wandb/pull/11299)
+- Config editor for W&B LEET TUI (`wandb beta leet config` command). (@dmitryduev in https://github.com/wandb/wandb/pull/11327)
+- `owner` property on `wandb.apis.public.Project` to access the project owner's user information. (@jacobromero in https://github.com/wandb/wandb/pull/11278)
+
+### Changed
+
+- Python 3.8 is no longer supported (@tonyyli-wandb in https://github.com/wandb/wandb/pull/11198, https://github.com/wandb/wandb/pull/11290, https://github.com/wandb/wandb/pull/11164)
+
+### Fixed
+
+- Sweep agents now exit gracefully when the sweep is deleted, instead of running indefinitely with repeated 404 errors (@domphan-wandb in https://github.com/wandb/wandb/pull/11226)
+- `wandb-core` crashes no longer produce extremely long, repetitive tracebacks in older Python versions (@timoffex in https://github.com/wandb/wandb/pull/11284)
+- TensorBoard sync no longer stops after 1 MB of data (@timoffex in https://github.com/wandb/wandb/pull/11334)
+  - Regression introduced in 0.24.0
+
+## [0.24.2] - 2026-02-04
+
+### Added
+
+- wandb.Api() now supports Federated Auth (JWT based authentication). (@ryanbuccellato in https://github.com/wandb/wandb/pull/11243)
+
+### Fixed
+
+- Refresh presigned download url when it expires during artifact file downloads. (@pingleiwandb in https://github.com/wandb/wandb/pull/11242)
+
 ## [0.24.1] - 2026-01-29
 
 ### Notable Changes

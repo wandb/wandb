@@ -4,6 +4,7 @@ __all__ = (
     "requests",  # doc:exclude
     "ArtifactCollection",
     "ArtifactCollections",
+    "ProjectArtifactCollections",
     "ArtifactFiles",
     "Artifacts",
     "ArtifactType",
@@ -51,6 +52,7 @@ from wandb.apis.public.artifacts import (
     Artifacts,
     ArtifactType,
     ArtifactTypes,
+    ProjectArtifactCollections,
     RunArtifacts,
 )
 from wandb.apis.public.automations import Automations
@@ -74,13 +76,11 @@ from wandb.apis.public.reports import (
     PythonMongoishQueryGenerator,
     Reports,
 )
-from wandb.apis.public.runs import (
-    RUN_FRAGMENT,
+from wandb.apis.public.runhistory.downloads import (
     DownloadHistoryResult,
     IncompleteRunHistoryError,
-    Run,
-    Runs,
 )
+from wandb.apis.public.runs import RUN_FRAGMENT, Run, Runs
 from wandb.apis.public.sweeps import Sweep
 from wandb.apis.public.teams import Member, Team
 from wandb.apis.public.users import User

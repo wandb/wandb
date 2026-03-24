@@ -30,7 +30,8 @@ import contextvars
 import logging
 import sys
 import threading
-from typing import IO, AnyStr, Callable, Iterator, Protocol
+from collections.abc import Iterator
+from typing import IO, AnyStr, Callable, Protocol
 
 from . import wb_logging
 
@@ -77,7 +78,8 @@ class _WriteCallback(Protocol):
         """
 
 
-_module_lock = threading.Lock()
+# See _enter_callbacks() for why this is an RLock.
+_module_rlock = threading.RLock()
 
 # See _enter_callbacks().
 _is_writing = False
@@ -87,6 +89,17 @@ _is_caused_by_callback = contextvars.ContextVar(
 )
 
 _patch_exception: CannotCaptureConsoleError | None = None
+
+
+def _maybe_raise_patch_exception() -> None:
+    """Raise _patch_exception if it's set."""
+    if _patch_exception:
+        # Each `raise` call modifies the exception's __traceback__, so we must
+        # reset the traceback to reuse the exception.
+        #
+        # See https://bugs.python.org/issue45924 for an example of the problem.
+        raise _patch_exception.with_traceback(None)
+
 
 _next_callback_id: int = 1
 
@@ -106,10 +119,9 @@ def capture_stdout(callback: _WriteCallback) -> Callable[[], None]:
     Raises:
         CannotCaptureConsoleError: If patching failed on import.
     """
-    with _module_lock:
-        if _patch_exception:
-            raise _patch_exception
+    _maybe_raise_patch_exception()
 
+    with _module_rlock:
         return _insert_disposably(
             _stdout_callbacks,
             callback,
@@ -128,10 +140,9 @@ def capture_stderr(callback: _WriteCallback) -> Callable[[], None]:
     Raises:
         CannotCaptureConsoleError: If patching failed on import.
     """
-    with _module_lock:
-        if _patch_exception:
-            raise _patch_exception
+    _maybe_raise_patch_exception()
 
+    with _module_rlock:
         return _insert_disposably(
             _stderr_callbacks,
             callback,
@@ -151,7 +162,7 @@ def _insert_disposably(
     def dispose() -> None:
         nonlocal disposed
 
-        with _module_lock:
+        with _module_rlock:
             if disposed:
                 return
 
@@ -209,14 +220,37 @@ def _enter_callbacks(
     """
     global _is_writing
 
+    # NOTE 1: _is_writing
+    #
     # The global _is_writing variable is necessary despite the contextvar
     # because it's possible to create a thread without copying the context.
     # This is the default behavior for threading.Thread() before Python 3.14.
     #
     # A side effect of it is that when multiple threads print simultaneously,
     # some messages will not be captured.
+    #
+    # NOTE 2: _module_rlock
+    #
+    # We use a reentrant lock primarily because GC can trigger on the current
+    # thread at any time. Since GC can run arbitrary code via `__del__`, it may
+    # print and hit this lock while it's already held.
+    #
+    # Technically, even the simple methods called while holding the lock
+    # could be patched to print, but a reentrant lock just turns this
+    # deadlock into an infinite loop.
+    #
+    # Text printed during GC may or may not be captured.
+    # Assuming that the GC thread cannot itself be stolen, GC does not thwart
+    # the infinite loop protections:
+    #
+    #   * If _is_writing == True, GC will not print or touch _is_writing
+    #   * If _is_writing == False, GC will set it to True and reset it to
+    #       False before giving back the thread
+    #
+    # Specifically, there is no situation where _is_writing "spontaneously"
+    # changes from True to False.
 
-    with _module_lock:
+    with _module_rlock:
         if _is_writing or _is_caused_by_callback.get():
             callbacks_list = None
 
@@ -232,7 +266,7 @@ def _enter_callbacks(
     try:
         yield callbacks_list
     finally:
-        with _module_lock:
+        with _module_rlock:
             _is_writing = False
             _is_caused_by_callback.set(False)
 
@@ -253,7 +287,7 @@ def _reset_on_exception() -> Iterator[None]:
     try:
         yield
     except BaseException as e:
-        with _module_lock:
+        with _module_rlock:
             _stderr_callbacks.clear()
             _stdout_callbacks.clear()
 

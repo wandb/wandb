@@ -6,6 +6,7 @@ import (
 	"github.com/google/wire"
 
 	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/runhandle"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/transactionlog"
 )
@@ -15,7 +16,8 @@ var flowControlProviders = wire.NewSet(
 )
 
 type FlowControlFactory struct {
-	Logger *observability.CoreLogger
+	Logger    *observability.CoreLogger
+	RunHandle *runhandle.RunHandle
 }
 
 // FlowControl is an infinite-buffered channel for Work.
@@ -40,7 +42,7 @@ func (f *FlowControlFactory) New(
 ) *FlowControl {
 	return &FlowControl{
 		out:    make(chan runwork.Work),
-		buffer: NewFlowControlBuffer(params, f.Logger),
+		buffer: NewFlowControlBuffer(params, f.Logger, f.RunHandle),
 		reader: reader,
 
 		flushWriter:  flushWriter,
@@ -135,7 +137,8 @@ func (fc *FlowControl) readSavedChunk(
 				idx, record.Num, chunk.InitialNumber+idx)
 		}
 
-		fc.out <- fc.recordParser.Parse(record)
+		// NOTE: Work with an associated Request is not offloaded.
+		fc.out <- runwork.NoRequest(fc.recordParser.Parse(record))
 	}
 
 	return nil

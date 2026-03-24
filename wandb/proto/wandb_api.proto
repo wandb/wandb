@@ -2,35 +2,40 @@ syntax = "proto3";
 
 package wandb_internal;
 
+import "wandb/proto/wandb_internal.proto";
 import "wandb/proto/wandb_settings.proto";
 
 option go_package = "core/pkg/service_go_proto";
 
-// ServerApiInitRequest instructs the backend process
-// to initialize resources to handle ApiRequests.
+// Initialize an API instance for the given settings.
 //
-// This should be sent once prior to sending any ApiRequests.
+// ServerApiCleanupRequest should be used once the instance is no longer needed.
 message ServerApiInitRequest {
   Settings settings = 1;
 }
 
-// ApiRequest is a request to the backend process
-// to perform an action related to an API call.
+message ServerApiInitResponse {
+  string error_message = 1;
+
+  // An ID to use in ApiRequests to this API instance.
+  string api_id = 2;
+}
+
+// Make a request to an initialized API instance.
 message ApiRequest {
+  // The ID of the API instance from the init response.
+  string api_id = 1;
+
   oneof request {
-    ReadRunHistoryRequest read_run_history_request = 1;
+    ReadRunHistoryRequest read_run_history_request = 2;
+    FeaturesRequest features_request = 3;
   }
 }
 
-message ServerApiInitResponse {
-  string error_message = 1;
-}
-
-// ApiResponse is a response from the backend process for an ApiRequest.
 message ApiResponse {
   oneof response {
     ReadRunHistoryResponse read_run_history_response = 1;
-    DownloadRunHistoryResponse download_run_history_response = 3;
+    FeaturesResponse features_response = 3;
 
     ApiErrorResponse api_error_response = 2;
   }
@@ -46,6 +51,50 @@ enum ErrorType {
   INCOMPLETE_RUN_HISTORY_ERROR = 1;
 }
 
+// Remove the API instance identified by an ID.
+//
+// This requests receives no response.
+message ServerApiCleanupRequest {
+  string api_id = 1;
+}
+
+// Retrieves feature flags.
+//
+// The response to this request contains the state of feature flags
+// at some point in the past. It is not guaranteed that the most current
+// values are returned because features can change at runtime (like after
+// a server update). However, the requester may assume that any feature
+// changes are backward compatible: for example, features that represent
+// the existence of a GraphQL field are never disabled after being enabled.
+// To be precise, backward incompatible changes are possible, but only
+// minimal effort should be spent handling them. Such changes should be rare
+// and can be expected to break running programs.
+//
+// Concretely:
+//
+// - DO query features before every network request that depends on them
+//   (it's relatively fast)
+// - AVOID special handling for schema-related errors
+//
+// Features may be specific to the API instance, for example if they depend
+// on the entity. Keep this in mind if caching the response.
+message FeaturesRequest {
+  // Names of features to check.
+  //
+  // Features not in this list are not included in the response
+  // even if they are enabled.
+  //
+  // Due to backward compatibility, it is difficult to remove features
+  // on the server, and the list may grow large. Clients should request
+  // just the features they know about.
+  repeated ServerFeature features = 1;
+}
+
+message FeaturesResponse {
+  // Names of enabled boolean features.
+  repeated ServerFeature enabled = 1;
+}
+
 // Start of Scan run history
 
 message ReadRunHistoryRequest {
@@ -53,7 +102,10 @@ message ReadRunHistoryRequest {
     ScanRunHistoryInit scan_run_history_init = 1;
     ScanRunHistory scan_run_history = 2;
     ScanRunHistoryCleanup scan_run_history_cleanup = 3;
-    DownloadRunHistory download_run_history = 4;
+
+    DownloadRunHistoryInit download_run_history_init = 4;
+    DownloadRunHistory download_run_history = 5;
+    DownloadRunHistoryStatus download_run_history_status = 6;
   }
 }
 
@@ -62,7 +114,10 @@ message ReadRunHistoryResponse {
     ScanRunHistoryInitResponse scan_run_history_init = 1;
     RunHistoryResponse run_history = 2;
     ScanRunHistoryCleanupResponse scan_run_history_cleanup = 3;
-    DownloadRunHistoryResponse download_run_history = 4;
+
+    DownloadRunHistoryInitResponse download_run_history_init = 4;
+    DownloadRunHistoryResponse download_run_history = 5;
+    DownloadRunHistoryStatusResponse download_run_history_status = 6;
   }
 }
 
@@ -117,8 +172,7 @@ message ScanRunHistoryCleanupResponse {}
 
 // Download run history
 
-// A request to download a run's history exports.
-message DownloadRunHistory {
+message DownloadRunHistoryInit {
   // The entity who owns the run.
   string entity = 1;
   // The project that the run belongs to.
@@ -135,16 +189,43 @@ message DownloadRunHistory {
   bool require_complete_history = 5;
 }
 
-// A response to a DownloadRunHistory request.
-message DownloadRunHistoryResponse {
-  // The list of file names that were downloaded.
-  // Each value is the full path to the downloaded file.
-  repeated string file_names = 1;
+message DownloadRunHistoryInitResponse {
+  // The request id of the download operation.
+  //
+  // This is used to identify the download operation,
+  // and request status updates of the download operation.
+  int32 request_id = 1;
 
-  // Whether the run contains data that has not been exported to parquet files yet.
+  // Whether the run contains live data not yet exported to parquet.
   bool contains_live_data = 2;
+}
+
+// A request to start a download operation for a run's history exports.
+message DownloadRunHistory {
+  // The request id of the download operation.
+  int32 request_id = 1;
+}
+
+// A response to a DownloadRunHistoryStart request.
+message DownloadRunHistoryResponse {
+  // Files that have been successfully downloaded.
+  repeated string downloaded_files = 1;
+
+  // Map of file paths to error messages for failed downloads.
+  map<string, string> errors = 2;
 }
 
 // IncompleteRunHistoryError is an error that is returned when the run history
 // has live data that has not been exported to parquet files yet.
 message IncompleteRunHistoryError {}
+
+// DownloadRunHistoryStatus requests the status of an ongoing download operation.
+message DownloadRunHistoryStatus {
+  // The request id of an ongoing download operation.
+  int32 request_id = 1;
+}
+
+message DownloadRunHistoryStatusResponse {
+  // Operation stats for progress display.
+  wandb_internal.OperationStats operation_stats = 1;
+}

@@ -1,14 +1,13 @@
 """Sweep tests."""
 
 import asyncio
-from typing import Dict
 from unittest.mock import Mock, patch
 
 import pytest
 import wandb
 from wandb.apis import internal, public
 from wandb.errors import CommError
-from wandb.sdk.launch.sweeps import SchedulerError, load_scheduler
+from wandb.sdk.launch.sweeps import SchedulerError, SweepNotFoundError, load_scheduler
 from wandb.sdk.launch.sweeps.scheduler import (
     RunState,
     Scheduler,
@@ -319,7 +318,7 @@ def test_sweep_scheduler_base_run_states(user, monkeypatch):
     sweep_id = wandb.sweep(sweep_config, entity=_entity, project=_project)
 
     # Mock api.get_run_state() to return crashed and running runs
-    mock_run_states: Dict[str, RunState] = {
+    mock_run_states: dict[str, RunState] = {
         "run1": RunState.CRASHED,
         "run2": RunState.FAILED,
         "run3": RunState.KILLED,
@@ -353,7 +352,7 @@ def test_sweep_scheduler_base_run_states(user, monkeypatch):
             continue
         if not _state.is_alive:
             # Dead runs should be removed from the run dict
-            assert run_id not in _scheduler._runs.keys()
+            assert run_id not in _scheduler._runs
         else:
             assert _scheduler._runs[run_id].state == _state
 
@@ -484,6 +483,45 @@ def test_sweep_scheduler_sweeps_stop_agent_heartbeat(user, monkeypatch):
 
     def mock_agent_heartbeat(*args, **kwargs):
         return [{"type": "stop"}]
+
+    api.agent_heartbeat = mock_agent_heartbeat
+
+    def mock_get_run_state(*args, **kwargs):
+        if args[2] == "sweep-scheduler":
+            return "running"
+        return "finished"
+
+    api.get_run_state = mock_get_run_state
+
+    _project = "test-project"
+    _job = "test-job:latest"
+    sweep_id = wandb.sweep(sweep_config, entity=user, project=_project)
+    scheduler = SweepScheduler(
+        api,
+        sweep_id=sweep_id,
+        entity=user,
+        project=_project,
+        num_workers=1,
+        polling_sleep=0,
+        job=_job,
+    )
+    scheduler.start()
+    assert scheduler.state == SchedulerState.STOPPED
+
+
+def test_sweep_scheduler_sweep_deleted(user, monkeypatch):
+    """Test that scheduler stops gracefully when sweep is deleted (404)."""
+    sweep_config = SWEEP_CONFIG_RANDOM
+    _patch_wandb_run(monkeypatch)
+    monkeypatch.setattr(
+        "wandb.sdk.launch.sweeps.scheduler.Scheduler._try_load_executable",
+        lambda _: True,
+    )
+
+    api = internal.Api()
+
+    def mock_agent_heartbeat(*args, **kwargs):
+        raise SweepNotFoundError("Sweep not found")
 
     api.agent_heartbeat = mock_agent_heartbeat
 

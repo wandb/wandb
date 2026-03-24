@@ -3,6 +3,8 @@ from __future__ import annotations
 import asyncio
 import logging
 import struct
+import sys
+from types import TracebackType
 
 from wandb.proto import wandb_server_pb2 as spb
 from wandb.sdk.lib import asyncio_manager
@@ -24,6 +26,11 @@ class ServiceClient:
         reader: asyncio.StreamReader,
         writer: asyncio.StreamWriter,
     ) -> None:
+        self._broken_exc: Exception | None = None
+        self._broken_tb: TracebackType | None = None
+
+        self._drain_lock: asyncio.Lock | None = None
+
         self._reader = reader
         self._writer = writer
         self._mailbox = Mailbox(asyncer, self._cancel_request)
@@ -55,13 +62,46 @@ class ServiceClient:
         return handle
 
     async def _send_server_request(self, request: spb.ServerRequest) -> None:
+        if self._broken_exc:
+            # Use with_traceback() to reuse the original traceback.
+            # The exception's __traceback__ is modified by every `raise`
+            # statement, so we must reset it to the original value.
+            # The caller will receive an exception whose traceback has this
+            # `raise` statement, followed by the `await self._writer.drain()`
+            # statement, followed by the traceback there.
+            #
+            # We do this because `StreamWriter` stores an exception and doesn't
+            # correctly reset the traceback when reraising (at least in older
+            # Python versions).
+            #
+            # See https://bugs.python.org/issue45924.
+            raise self._broken_exc.with_traceback(self._broken_tb)
+
         header = struct.pack(_HEADER_BYTE_INT_FMT, ord("W"), request.ByteSize())
         self._writer.write(header)
 
         data = request.SerializeToString()
         self._writer.write(data)
 
-        await self._writer.drain()
+        try:
+            await self._drain_writer()
+        except Exception as e:
+            self._broken_exc = e
+            self._broken_tb = e.__traceback__
+            raise
+
+    async def _drain_writer(self) -> None:
+        """Wait for the socket's flow control."""
+        if sys.version_info >= (3, 10):
+            await self._writer.drain()
+            return
+
+        # Prior to 3.10, drain() incorrectly raised an AssertionError when the
+        # write buffer was maxed out if called from more than one async task.
+
+        self._drain_lock = self._drain_lock or asyncio.Lock()
+        async with self._drain_lock:
+            await self._writer.drain()
 
     async def _cancel_request(self, id: str, /) -> None:
         """Cancel a request by ID.
