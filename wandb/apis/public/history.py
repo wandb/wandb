@@ -51,7 +51,7 @@ class BetaHistoryScan(Iterator[_RowDict]):
     ):
         self.run = run
         self.min_step = min_step
-        self.max_step = max_step
+        self._stop_step = max_step
         self.keys = keys
         self.page_size = page_size
         self._service_api = service_api
@@ -93,6 +93,11 @@ class BetaHistoryScan(Iterator[_RowDict]):
             self._scan_request_id,
         )
 
+    @property
+    def max_step(self) -> int:
+        """The highest step that can be yielded by this scan."""
+        return self._stop_step - 1
+
     def __iter__(self) -> Self:
         self.scan_offset = 0
         self.page_offset = self.min_step
@@ -105,14 +110,14 @@ class BetaHistoryScan(Iterator[_RowDict]):
                 row = self.rows[self.scan_offset]
                 self.scan_offset += 1
                 return row
-            if self.page_offset >= self.max_step:
+            if self.page_offset >= self._stop_step:
                 raise StopIteration()
             self._load_next()
 
     def _load_next(self) -> None:
         from wandb.proto import wandb_api_pb2 as pb
 
-        max_step = min(self.page_offset + self.page_size, self.max_step)
+        max_step = min(self.page_offset + self.page_size, self._stop_step)
 
         read_run_history_request = pb.ReadRunHistoryRequest(
             scan_run_history=pb.ScanRunHistory(
@@ -186,7 +191,7 @@ class HistoryScan(Iterator[_RowDict]):
             client: The client instance to use for making API calls to the W&B backend.
             run: The run object whose history is to be scanned.
             min_step: The minimum step to start scanning from.
-            max_step: The maximum step to scan up to.
+            max_step: The exclusive upper bound for scanned history rows.
             page_size: Number of history rows to fetch per page.
                 Default page_size is 1000.
         """
@@ -194,10 +199,15 @@ class HistoryScan(Iterator[_RowDict]):
         self.run = run
         self.page_size = page_size
         self.min_step = min_step
-        self.max_step = max_step
+        self._stop_step = max_step
         self.page_offset = min_step  # minStep for next page
         self.scan_offset = 0  # index within current page of rows
         self.rows: list[_RowDict] = []  # current page of rows
+
+    @property
+    def max_step(self) -> int:
+        """The highest step that can be yielded by this scan."""
+        return self._stop_step - 1
 
     def __iter__(self) -> Self:
         self.page_offset = self.min_step
@@ -215,7 +225,7 @@ class HistoryScan(Iterator[_RowDict]):
                 row = self.rows[self.scan_offset]
                 self.scan_offset += 1
                 return row
-            if self.page_offset >= self.max_step:
+            if self.page_offset >= self._stop_step:
                 raise StopIteration()
             self._load_next()
 
@@ -224,8 +234,8 @@ class HistoryScan(Iterator[_RowDict]):
     @normalize_exceptions
     def _load_next(self) -> None:
         max_step = self.page_offset + self.page_size
-        if max_step > self.max_step:
-            max_step = self.max_step
+        if max_step > self._stop_step:
+            max_step = self._stop_step
         variables = {
             "entity": self.run.entity,
             "project": self.run.project,
@@ -276,7 +286,7 @@ class SampledHistoryScan(Iterator[_RowDict]):
             run: The run object whose history is to be sampled.
             keys: List of keys to sample from the history.
             min_step: The minimum step to start sampling from.
-            max_step: The maximum step to sample up to.
+            max_step: The exclusive upper bound for sampled history rows.
             page_size: Number of sampled history rows to fetch per page.
                 Default page_size is 1000.
         """
@@ -285,10 +295,15 @@ class SampledHistoryScan(Iterator[_RowDict]):
         self.keys = keys
         self.page_size = page_size
         self.min_step = min_step
-        self.max_step = max_step
+        self._stop_step = max_step
         self.page_offset = min_step  # minStep for next page
         self.scan_offset = 0  # index within current page of rows
         self.rows: list[_RowDict] = []  # current page of rows
+
+    @property
+    def max_step(self) -> int:
+        """The highest step that can be yielded by this scan."""
+        return self._stop_step - 1
 
     def __iter__(self) -> Self:
         self.page_offset = self.min_step
@@ -306,7 +321,7 @@ class SampledHistoryScan(Iterator[_RowDict]):
                 row = self.rows[self.scan_offset]
                 self.scan_offset += 1
                 return row
-            if self.page_offset >= self.max_step:
+            if self.page_offset >= self._stop_step:
                 raise StopIteration()
             self._load_next()
 
@@ -315,8 +330,8 @@ class SampledHistoryScan(Iterator[_RowDict]):
     @normalize_exceptions
     def _load_next(self) -> None:
         max_step = self.page_offset + self.page_size
-        if max_step > self.max_step:
-            max_step = self.max_step
+        if max_step > self._stop_step:
+            max_step = self._stop_step
         variables = {
             "entity": self.run.entity,
             "project": self.run.project,

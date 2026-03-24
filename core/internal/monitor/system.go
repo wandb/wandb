@@ -231,35 +231,36 @@ func (s *System) Sample() (*spb.StatsRecord, error) {
 	metrics := make(map[string]any)
 	var errs []error
 
-	proc, err := process.NewProcess(s.pid)
-	if err != nil {
-		return nil, err
-	}
-
-	// Collect network metrics
+	// Collect network metrics.
 	if err := s.collectNetworkMetrics(metrics); err != nil {
 		errs = append(errs, err)
 	}
 
-	// Collect memory metrics
+	// Collect disk usage metrics.
+	if err := s.collectDiskUsageMetrics(metrics); err != nil {
+		errs = append(errs, err)
+	}
+
+	// Collect disk I/O metrics.
+	if err := s.CollectDiskIOMetrics(metrics); err != nil {
+		errs = append(errs, err)
+	}
+
+	// Collect memory metrics.
 	virtualMem, err := s.collectSystemMemoryMetrics(metrics)
 	if err != nil {
 		errs = append(errs, err)
 	}
 
-	// Collect process-specific metrics
-	if err := s.collectProcessTreeMetrics(proc, virtualMem, metrics); err != nil {
-		errs = append(errs, err)
-	}
-
-	// Collect disk usage metrics
-	if err := s.collectDiskUsageMetrics(metrics); err != nil {
-		errs = append(errs, err)
-	}
-
-	// Collect disk I/O metrics
-	if err := s.CollectDiskIOMetrics(metrics); err != nil {
-		errs = append(errs, err)
+	// Collect process-specific metrics.
+	if s.pid > 0 {
+		proc, err := process.NewProcess(s.pid)
+		if err != nil {
+			return nil, err
+		}
+		if err := s.collectProcessTreeMetrics(proc, virtualMem, metrics); err != nil {
+			errs = append(errs, err)
+		}
 	}
 
 	if len(metrics) == 0 {

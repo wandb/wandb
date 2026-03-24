@@ -37,7 +37,7 @@ func InjectStream(commit GitCommitHash, gpuResourceManager *monitor.GPUResourceM
 	credentialProvider := CredentialsFromSettings(coreLogger, settings2)
 	peeker := &observability.Peeker{}
 	client := NewGraphQLClient(wbBaseURL, clientID, credentialProvider, coreLogger, peeker, settings2)
-	serverFeaturesCache := featurechecker.NewServerFeaturesCache(client, coreLogger)
+	featureProvider := featurechecker.New(client, coreLogger)
 	runHandle := runhandle.New()
 	flowControlFactory := &FlowControlFactory{
 		Logger:    coreLogger,
@@ -66,7 +66,7 @@ func InjectStream(commit GitCommitHash, gpuResourceManager *monitor.GPUResourceM
 		TerminalPrinter:      printer,
 	}
 	recordParserFactory := &RecordParserFactory{
-		FeatureProvider:    serverFeaturesCache,
+		FeatureProvider:    featureProvider,
 		GraphqlClientOrNil: client,
 		Logger:             coreLogger,
 		Operations:         wandbOperations,
@@ -99,7 +99,7 @@ func InjectStream(commit GitCommitHash, gpuResourceManager *monitor.GPUResourceM
 		Logger:                  coreLogger,
 		Operations:              wandbOperations,
 		Settings:                settings2,
-		FeatureProvider:         serverFeaturesCache,
+		FeatureProvider:         featureProvider,
 		FileStreamFactory:       fileStreamFactory,
 		FileTransferManager:     fileTransferManager,
 		FileTransferStats:       fileTransferStats,
@@ -118,7 +118,7 @@ func InjectStream(commit GitCommitHash, gpuResourceManager *monitor.GPUResourceM
 		Logger:   coreLogger,
 		Settings: settings2,
 	}
-	stream := NewStream(clientID, debugCorePath, serverFeaturesCache, flowControlFactory, client, handlerFactory, streamStreamLoggerFile, coreLogger, wandbOperations, recordParserFactory, senderFactory, settings2, runHandle, tbHandlerFactory, writerFactory)
+	stream := NewStream(clientID, debugCorePath, featureProvider, flowControlFactory, client, handlerFactory, streamStreamLoggerFile, coreLogger, wandbOperations, recordParserFactory, senderFactory, settings2, runHandle, tbHandlerFactory, writerFactory)
 	return stream
 }
 
@@ -126,7 +126,7 @@ func InjectStream(commit GitCommitHash, gpuResourceManager *monitor.GPUResourceM
 
 var streamProviders = wire.NewSet(
 	NewStream, wire.Bind(new(api.Peeker), new(*observability.Peeker)), wire.Struct(new(observability.Peeker)), BaseURLFromSettings,
-	CredentialsFromSettings, featurechecker.NewServerFeaturesCache, filestream.FileStreamProviders, filetransfer.NewFileTransferStats, flowControlProviders,
+	CredentialsFromSettings, featurechecker.New, filestream.FileStreamProviders, filetransfer.NewFileTransferStats, flowControlProviders,
 	handlerProviders, mailbox.New, monitor.SystemMonitorProviders, NewFileTransferManager,
 	NewGraphQLClient, observability.NewPrinter, provideFileWatcher,
 	RecordParserProviders, runfiles.UploaderProviders, runhandle.New, SenderProviders, sharedmode.RandomClientID, streamLoggerProviders, tensorboard.TBHandlerProviders, wboperation.NewOperations, WriterProviders,

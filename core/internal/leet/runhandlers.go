@@ -1,7 +1,9 @@
 package leet
 
 import (
+	"errors"
 	"fmt"
+	"io"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -529,6 +531,51 @@ func (r *Run) consoleLogsPaneAnimationCmd() tea.Cmd {
 	})
 }
 
+func (r *Run) readChunkCmd(
+	source HistorySource,
+	chunkSize int,
+	maxTimePerChunk time.Duration,
+) tea.Cmd {
+	return func() tea.Msg {
+		if source == nil {
+			return nil
+		}
+
+		msg, err := source.Read(chunkSize, maxTimePerChunk)
+		if err != nil && !errors.Is(err, io.EOF) {
+			return ErrorMsg{Err: err}
+		}
+
+		return msg
+	}
+}
+
+func (r *Run) ReadLiveBatchCmd(source HistorySource) tea.Cmd {
+	return func() tea.Msg {
+		if source == nil {
+			return nil
+		}
+
+		msg, err := source.Read(LiveMonitorChunkSize, LiveMonitorMaxTime)
+		if err != nil && !errors.Is(err, io.EOF) {
+			return ErrorMsg{Err: err}
+		}
+		if msg == nil {
+			return nil
+		}
+
+		batch, ok := msg.(ChunkedBatchMsg)
+		if !ok {
+			return msg
+		}
+		if len(batch.Msgs) == 0 {
+			return nil
+		}
+
+		return BatchedRecordsMsg{Msgs: batch.Msgs}
+	}
+}
+
 // handleRecordsBatch processes a batch of sub-messages and manages redraw + loading flags.
 func (r *Run) handleRecordsBatch(subMsgs []tea.Msg, suppressRedraw bool) []tea.Cmd {
 	defer timeit(r.logger, "Model.handleRecordsBatch")()
@@ -559,7 +606,7 @@ func (r *Run) handleInit(msg InitMsg) []tea.Cmd {
 	r.loadStartTime = time.Now()
 
 	return []tea.Cmd{
-		ReadRecords(r.historySource, BootLoadChunkSize, BootLoadMaxTime),
+		r.readChunkCmd(r.historySource, BootLoadChunkSize, BootLoadMaxTime),
 	}
 }
 
@@ -578,7 +625,7 @@ func (r *Run) handleChunkedBatch(msg ChunkedBatchMsg) []tea.Cmd {
 	if msg.HasMore {
 		cmds = append(
 			cmds,
-			ReadRecords(r.historySource, BootLoadChunkSize, BootLoadMaxTime),
+			r.readChunkCmd(r.historySource, BootLoadChunkSize, BootLoadMaxTime),
 		)
 		return cmds
 	}
@@ -601,7 +648,7 @@ func (r *Run) handleBatched(msg BatchedRecordsMsg) []tea.Cmd {
 	cmds := r.handleRecordsBatch(msg.Msgs, true)
 	cmds = append(
 		cmds,
-		ReadRecords(r.historySource, LiveMonitorChunkSize, LiveMonitorMaxTime),
+		r.ReadLiveBatchCmd(r.historySource),
 	)
 	return cmds
 }
@@ -611,7 +658,7 @@ func (r *Run) handleHeartbeat() []tea.Cmd {
 	r.logger.Debug("model: processing HeartbeatMsg")
 	r.heartbeatMgr.Reset(r.isRunning)
 	return []tea.Cmd{
-		ReadRecords(r.historySource, LiveMonitorChunkSize, LiveMonitorMaxTime),
+		r.ReadLiveBatchCmd(r.historySource),
 		r.watcherMgr.WaitForMsg,
 	}
 }
@@ -620,7 +667,7 @@ func (r *Run) handleHeartbeat() []tea.Cmd {
 func (r *Run) handleFileChange() []tea.Cmd {
 	r.heartbeatMgr.Reset(r.isRunning)
 	return []tea.Cmd{
-		ReadRecords(r.historySource, LiveMonitorChunkSize, LiveMonitorMaxTime),
+		r.ReadLiveBatchCmd(r.historySource),
 		r.watcherMgr.WaitForMsg,
 	}
 }
