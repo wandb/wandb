@@ -208,10 +208,7 @@ namespace Wandb.Internal
         /// <param name="message">The message to process.</param>
         private void ProcessReceivedMessage(ServerResponse message)
         {
-            // TODO: This must exist in the message, but need to gracefully handle it if it doesn't
-            var messageId = message.ResultCommunicate != null
-                ? message.ResultCommunicate.Control.MailboxSlot
-                : string.Empty;
+            var messageId = message.RequestId;
 
             // A special case/hack for login messages
             if (string.IsNullOrEmpty(messageId))

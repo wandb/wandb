@@ -142,8 +142,9 @@ impl GpuMonitor for AppleGpuMonitor {
         _pid: i32,
         _gpu_device_ids: Option<Vec<i32>>,
     ) -> Result<Vec<(String, metrics::MetricValue)>, Box<dyn std::error::Error>> {
-        let apple_stats = self.sampler.get_metrics().await?;
-        Ok(self.sampler.metrics_to_vec(apple_stats))
+        let stats = self.sampler.get_metrics().await?;
+        let soc_info = self.sampler.get_soc_info().await?;
+        Ok(self.sampler.metrics_to_vec(stats, soc_info))
     }
 
     async fn collect_metadata(

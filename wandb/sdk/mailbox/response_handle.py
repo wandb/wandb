@@ -11,7 +11,7 @@ from typing_extensions import override
 from wandb.proto import wandb_server_pb2 as spb
 from wandb.sdk.lib import asyncio_manager
 
-from .mailbox_handle import HandleAbandonedError, MailboxHandle
+from .mailbox_handle import HandleAbandonedError, MailboxHandle, ServerResponseError
 
 _logger = logging.getLogger(__name__)
 
@@ -102,8 +102,8 @@ class MailboxResponseHandle(MailboxHandle[spb.ServerResponse]):
             await asyncio.wait_for(self._done_event.wait(), timeout=timeout)
 
         except (asyncio.TimeoutError, TimeoutError) as e:
-            if self._response:
-                return self._response
+            if response := self._response_or_error():
+                return response
             elif self._abandoned:
                 raise HandleAbandonedError()
             else:
@@ -117,8 +117,18 @@ class MailboxResponseHandle(MailboxHandle[spb.ServerResponse]):
             raise
 
         else:
-            if self._response:
-                return self._response
+            if response := self._response_or_error():
+                return response
 
             assert self._abandoned
             raise HandleAbandonedError()
+
+    def _response_or_error(self) -> spb.ServerResponse | None:
+        """Returns self._response, raising on ServerErrorResponse."""
+        if not self._response:
+            return None
+
+        if self._response.HasField("error_response"):
+            raise ServerResponseError(self._response.error_response.message)
+
+        return self._response

@@ -3,10 +3,11 @@ package leet
 import (
 	"fmt"
 	"slices"
+	"strings"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 )
 
 type SidebarSide int
@@ -17,17 +18,18 @@ const (
 	SidebarSideRight
 )
 
-const (
-	// Sidebar header lines (title + state + ID + name + project + blank line).
-	// TODO: replace with len(LeftSidebar.buildHeaderLines())
-	sidebarHeaderLines = 6
-)
+// minSidebarHeaderLines preserves the existing baseline layout when only the
+// original metadata fields are present, while still allowing the header to grow
+// for wrapped tags and notes.
+const minSidebarHeaderLines = 6
 
 // RunOverviewSidebar stores and displays run metadata.
 //
 // It handles presentation concerns: sections, filtering, navigation, layout, and rendering.
 // All data processing is delegated to the RunOverview model.
 type RunOverviewSidebar struct {
+	config *ConfigManager
+
 	animState   *AnimatedValue
 	runOverview *RunOverview
 
@@ -45,6 +47,7 @@ type RunOverviewSidebar struct {
 }
 
 func NewRunOverviewSidebar(
+	config *ConfigManager,
 	animState *AnimatedValue,
 	runOverview *RunOverview,
 	side SidebarSide,
@@ -57,6 +60,7 @@ func NewRunOverviewSidebar(
 	ss.SetItemsPerPage(20)
 
 	return &RunOverviewSidebar{
+		config:        config,
 		animState:     animState,
 		runOverview:   runOverview,
 		sections:      []PagedList{es, cs, ss},
@@ -76,16 +80,18 @@ func (s *RunOverviewSidebar) Update(msg tea.Msg) (*RunOverviewSidebar, tea.Cmd) 
 	// Handle key input only when expanded.
 	// TODO: hook up with keybindings.
 	if s.animState.IsExpanded() {
-		if keyMsg, ok := msg.(tea.KeyMsg); ok {
-			switch keyMsg.Type {
+		if keyMsg, ok := msg.(tea.KeyPressMsg); ok {
+			switch keyMsg.Code {
 			case tea.KeyUp:
 				s.navigateUp()
 			case tea.KeyDown:
 				s.navigateDown()
 			case tea.KeyTab:
-				s.navigateSection(1)
-			case tea.KeyShiftTab:
-				s.navigateSection(-1)
+				if keyMsg.Mod == tea.ModShift {
+					s.navigateSection(-1)
+				} else {
+					s.navigateSection(1)
+				}
 			case tea.KeyLeft:
 				s.navigatePageUp()
 			case tea.KeyRight:
@@ -105,6 +111,7 @@ func (s *RunOverviewSidebar) Update(msg tea.Msg) (*RunOverviewSidebar, tea.Cmd) 
 	return s, nil
 }
 
+// contentPadding accounts for borders and internal spacing depending on the sidebar placement.
 func (s *RunOverviewSidebar) contentPadding() int {
 	switch s.side {
 	case SidebarSideLeft:
@@ -115,6 +122,7 @@ func (s *RunOverviewSidebar) contentPadding() int {
 	return 0
 }
 
+// style returns sidebar style depending on the its placement.
 func (s *RunOverviewSidebar) style() lipgloss.Style {
 	switch s.side {
 	case SidebarSideLeft:
@@ -146,45 +154,48 @@ func (s *RunOverviewSidebar) headerStyle() lipgloss.Style {
 }
 
 // View renders the sidebar.
-func (s *RunOverviewSidebar) View(height int) string {
+func (s *RunOverviewSidebar) View(height int) tea.View {
 	width := s.animState.Value()
-	// Avoid negative/degenerate widths during animation.
-	if width <= s.contentPadding() {
-		return ""
+	if height <= 0 || width <= s.contentPadding() {
+		return tea.NewView("")
 	}
 
 	s.height = height
 
-	lines := make([]string, 0)
-
-	lines = append(lines, s.headerStyle().Render(runOverviewHeader))
+	contentWidth := s.sidebarContentWidth(width)
+	lines := []string{s.headerStyle().Render(runOverviewHeader)}
 
 	if s.runOverview != nil {
-		headerLines := s.buildHeaderLines()
-		contentWidth := width - s.contentPadding()
+		headerLines := s.buildHeaderLines(contentWidth)
 		s.updateSectionHeights()
 		sectionLines := s.buildSectionLines(contentWidth)
 
 		lines = slices.Concat(lines, headerLines, sectionLines)
 	} else {
-		lines = append(lines, "No data.")
+		lines = append(lines, navInfoStyle.Render("No data."))
 	}
 
 	content := lipgloss.JoinVertical(lipgloss.Top, lines...)
+	innerWidth := s.sidebarInnerWidth(width)
+	if innerWidth <= 0 {
+		return tea.NewView("")
+	}
 
 	styledContent := s.style().
-		Width(width).
+		Width(innerWidth).
 		Height(height).
-		MaxWidth(width).
+		MaxWidth(innerWidth).
 		MaxHeight(height).
 		Render(content)
 
-	return s.borderStyle().
-		Width(width - sidebarVerticalBorderCols*2).
+	bordered := s.borderStyle().
 		Height(height + 1).
-		MaxWidth(width).
 		MaxHeight(height + 1).
 		Render(styledContent)
+
+	return tea.NewView(
+		lipgloss.Place(width, height+1, lipgloss.Left, lipgloss.Top, bordered),
+	)
 }
 
 func (s *RunOverviewSidebar) SetRunOverview(ro *RunOverview) {
@@ -295,7 +306,7 @@ func (s *RunOverviewSidebar) animationCmd() tea.Cmd {
 	})
 }
 
-// truncateValue truncates long values for display.
+// truncateValue truncates string values that do not fit into available width.
 func truncateValue(value string, maxWidth int) string {
 	if lipgloss.Width(value) <= maxWidth {
 		return value
@@ -303,35 +314,140 @@ func truncateValue(value string, maxWidth int) string {
 	if maxWidth <= 3 {
 		return "..."
 	}
-	return value[:maxWidth-3] + "..."
+
+	available := maxWidth - 4
+	w := 0
+	for i, r := range value {
+		rw := lipgloss.Width(string(r))
+		if w+rw > available {
+			return value[:i] + "..."
+		}
+		w += rw
+	}
+	return value + "..."
 }
 
-// buildHeaderLines builds the header section from the data model.
-func (s *RunOverviewSidebar) buildHeaderLines() []string {
-	lines := make([]string, 0, 5)
+// headerLineCount returns the number of lines occupied by the fixed header area,
+// including the top-level section title.
+func (s *RunOverviewSidebar) headerLineCount() int {
+	if s.runOverview == nil {
+		return 1
+	}
+
+	contentWidth := s.sidebarContentWidth(s.animState.Value())
+	return max(minSidebarHeaderLines, 1+len(s.buildHeaderLines(contentWidth)))
+}
+
+// buildHeaderLines builds the width-aware header metadata section.
+func (s *RunOverviewSidebar) buildHeaderLines(contentWidth int) []string {
+	if s.runOverview == nil {
+		return nil
+	}
+
+	lines := make([]string, 0, 8)
 
 	if s.runOverview.State() != RunStateUnknown {
-		lines = append(lines,
-			runOverviewSidebarKeyStyle.Render("State: ")+
-				runOverviewSidebarValueStyle.Render(s.runOverview.StateString()))
-	}
-	if id := s.runOverview.ID(); id != "" {
-		lines = append(lines,
-			runOverviewSidebarKeyStyle.Render("ID: ")+runOverviewSidebarValueStyle.Render(id))
-	}
-	if name := s.runOverview.DisplayName(); name != "" {
-		lines = append(lines,
-			runOverviewSidebarKeyStyle.Render("Name: ")+runOverviewSidebarValueStyle.Render(name))
-	}
-	if project := s.runOverview.Project(); project != "" {
-		lines = append(lines,
-			runOverviewSidebarKeyStyle.Render("Project: ")+
-				runOverviewSidebarValueStyle.Render(project))
+		lines = slices.Concat(
+			lines,
+			s.renderWrappedHeaderValue("State: ", s.runOverview.StateString(), contentWidth),
+		)
 	}
 
-	// Blank separator line.
-	lines = append(lines, "")
+	lines = slices.Concat(
+		lines,
+		s.renderWrappedHeaderValue("ID: ", s.runOverview.ID(), contentWidth),
+		s.renderWrappedHeaderValue("Name: ", s.runOverview.DisplayName(), contentWidth),
+		s.renderWrappedHeaderValue("Project: ", s.runOverview.Project(), contentWidth),
+		s.renderTagHeaderValue("Tags: ", s.runOverview.Tags(), contentWidth),
+		s.renderWrappedHeaderValue("Notes: ", s.runOverview.Notes(), contentWidth),
+	)
 
+	if len(lines) > 0 {
+		lines = append(lines, "")
+	}
+
+	return lines
+}
+
+// renderWrappedHeaderValue renders a single metadata field, wrapping the value
+// onto continuation lines when needed.
+func (s *RunOverviewSidebar) renderWrappedHeaderValue(
+	prefix, value string, width int,
+) []string {
+	if strings.TrimSpace(value) == "" {
+		return nil
+	}
+
+	prefixText := runOverviewSidebarKeyStyle.Render(prefix)
+	prefixWidth := lipgloss.Width(prefixText)
+	available := max(width-prefixWidth, 1)
+	wrapped := wrapHeaderText(value, available)
+	indent := strings.Repeat(" ", prefixWidth)
+
+	lines := make([]string, 0, len(wrapped))
+	for i, line := range wrapped {
+		renderedValue := runOverviewSidebarValueStyle.Render(line)
+		if i == 0 {
+			lines = append(lines, prefixText+renderedValue)
+			continue
+		}
+		lines = append(lines, indent+renderedValue)
+	}
+
+	return lines
+}
+
+// renderTagHeaderValue renders tags using stable, palette-based colored badges
+// that wrap across lines as needed.
+func (s *RunOverviewSidebar) renderTagHeaderValue(
+	prefix string, tags []string, width int) []string {
+	if len(tags) == 0 {
+		return nil
+	}
+
+	prefixText := runOverviewSidebarKeyStyle.Render(prefix)
+	prefixWidth := lipgloss.Width(prefixText)
+	indent := strings.Repeat(" ", prefixWidth)
+	maxChipTextWidth := max(width-prefixWidth-2, 1)
+
+	currentLine := prefixText
+	currentWidth := prefixWidth
+	lines := make([]string, 0, 2)
+	renderedAny := false
+
+	for _, tag := range tags {
+		if strings.TrimSpace(tag) == "" {
+			continue
+		}
+
+		renderedAny = true
+		chipText := truncateValue(tag, maxChipTextWidth)
+		chip := runOverviewTagStyle(s.tagColorScheme(), tag).Render(chipText)
+		chipWidth := lipgloss.Width(chip)
+
+		separator := ""
+		separatorWidth := 0
+		if currentWidth > prefixWidth {
+			separator = " "
+			separatorWidth = 1
+		}
+
+		if currentWidth+separatorWidth+chipWidth > width && currentWidth > prefixWidth {
+			lines = append(lines, currentLine)
+			currentLine = indent + chip
+			currentWidth = prefixWidth + chipWidth
+			continue
+		}
+
+		currentLine += separator + chip
+		currentWidth += separatorWidth + chipWidth
+	}
+
+	if !renderedAny {
+		return nil
+	}
+
+	lines = append(lines, currentLine)
 	return lines
 }
 
@@ -421,7 +537,7 @@ func (s *RunOverviewSidebar) buildSectionInfo(
 // renderSectionItems renders the items for a section.
 func (s *RunOverviewSidebar) renderSectionItems(section *PagedList, width int) []string {
 	maxKeyWidth := int(float64(width) * sidebarKeyWidthRatio)
-	maxValueWidth := width - maxKeyWidth - 1
+	maxValueWidth := width - maxKeyWidth - 3
 
 	itemCount := len(section.FilteredItems)
 	if itemCount == 0 {
@@ -469,11 +585,13 @@ func (s *RunOverviewSidebar) renderItem(
 
 	renderedKey := keyStyle.Width(maxKeyWidth).Render(key)
 
+	gap := " "
 	if isHighlighted {
-		gap := runOverviewSidebarHighlightedItem.Render(" ")
-		return renderedKey + gap + valueStyle.Width(maxValueWidth).Render(value)
+		gap = runOverviewSidebarHighlightedItem.Render(" ")
+		renderedValue := valueStyle.Width(maxValueWidth).Render(value)
+		return renderedKey + gap + renderedValue
 	}
-	return renderedKey + " " + valueStyle.Render(value)
+	return renderedKey + gap + valueStyle.MaxWidth(maxValueWidth).Render(value)
 }
 
 // hasNextVisibleSection returns true if there's another visible section after idx.
@@ -523,4 +641,86 @@ func (s *RunOverviewSidebar) focusableSectionBounds() (first, last int) {
 		last = i
 	}
 	return first, last
+}
+
+// sidebarContentWidth computes width available for content taking
+// borders and internal spacing into account.
+func (s *RunOverviewSidebar) sidebarContentWidth(width int) int {
+	return max(width-s.contentPadding(), 1)
+}
+
+func (s *RunOverviewSidebar) sidebarInnerWidth(width int) int {
+	switch s.side {
+	case SidebarSideLeft:
+		return max(width-runsSidebarBorderCols, 0)
+	case SidebarSideRight:
+		return max(width-sidebarVerticalBorderCols, 0)
+	default:
+		return max(width, 0)
+	}
+}
+
+func (s *RunOverviewSidebar) tagColorScheme() string {
+	scheme := s.config.TagColorScheme()
+	if _, ok := colorSchemes[scheme]; ok {
+		return scheme
+	}
+
+	return DefaultTagColorScheme
+}
+
+func wrapHeaderText(text string, maxWidth int) []string {
+	if maxWidth <= 0 {
+		return []string{text}
+	}
+
+	parts := strings.Split(text, "\n")
+	lines := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if strings.TrimSpace(part) == "" {
+			lines = append(lines, "")
+			continue
+		}
+		lines = append(lines, wrapHeaderParagraph(part, maxWidth)...)
+	}
+	if len(lines) == 0 {
+		return []string{""}
+	}
+	return lines
+}
+
+func wrapHeaderParagraph(text string, maxWidth int) []string {
+	words := strings.Fields(text)
+	if len(words) == 0 {
+		return []string{""}
+	}
+
+	lines := make([]string, 0, 1)
+	current := words[0]
+	if lipgloss.Width(current) > maxWidth {
+		forced := wrapSingleLine(current, maxWidth)
+		lines = append(lines, forced[:len(forced)-1]...)
+		current = forced[len(forced)-1]
+	}
+
+	for _, word := range words[1:] {
+		candidate := current + " " + word
+		if lipgloss.Width(candidate) <= maxWidth {
+			current = candidate
+			continue
+		}
+
+		lines = append(lines, current)
+		if lipgloss.Width(word) <= maxWidth {
+			current = word
+			continue
+		}
+
+		forced := wrapSingleLine(word, maxWidth)
+		lines = append(lines, forced[:len(forced)-1]...)
+		current = forced[len(forced)-1]
+	}
+
+	lines = append(lines, current)
+	return lines
 }

@@ -8,7 +8,8 @@ import (
 	"testing"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
+
 	"github.com/stretchr/testify/require"
 
 	"github.com/wandb/wandb/core/internal/leet"
@@ -16,6 +17,10 @@ import (
 	"github.com/wandb/wandb/core/internal/transactionlog"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
+
+func keyPressMsg(r rune) tea.KeyPressMsg {
+	return tea.KeyPressMsg{Code: r, Text: string(r)}
+}
 
 func TestProcessRecordMsg_Run_Summary_System_FileComplete(t *testing.T) {
 	logger := observability.NewNoOpLogger()
@@ -88,23 +93,26 @@ func TestHandleOverviewFilter_TypingSpaceBackspaceEnterEsc(t *testing.T) {
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 180, Height: 60})
 
 	// Enter overview filter mode
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'o'}})
+	m, _ = m.Update(keyPressMsg('o'))
 
 	// Type "acc", add space, backspace, then Enter
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("ac")})
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("c")})
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeySpace})
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyBackspace})
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m, _ = m.Update(keyPressMsg('a'))
+	m, _ = m.Update(keyPressMsg('c'))
+	m, _ = m.Update(keyPressMsg('c'))
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeySpace})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyBackspace})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 
 	model := m.(*leet.Run)
 	require.True(t, model.TestSidebarIsFiltering())
 	require.Equal(t, "acc", model.TestSidebarFilterQuery())
 
 	// Enter filter mode again, type something, then Esc
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'o'}})
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("tmp")})
-	_, _ = m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	m, _ = m.Update(keyPressMsg('o'))
+	m, _ = m.Update(keyPressMsg('t'))
+	m, _ = m.Update(keyPressMsg('m'))
+	m, _ = m.Update(keyPressMsg('p'))
+	_, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
 
 	// Should keep the previously applied "acc" state
 	require.True(t, model.TestSidebarIsFiltering())
@@ -118,7 +126,7 @@ func TestHandleKeyMsg_VariousPaths(t *testing.T) {
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 180, Height: 50})
 
 	// Toggle left sidebar
-	m, _ = m.Update(tea.KeyMsg{Runes: []rune{'['}, Type: tea.KeyRunes})
+	m, _ = m.Update(keyPressMsg('['))
 	model := m.(*leet.Run)
 
 	// Force complete the animation
@@ -128,23 +136,23 @@ func TestHandleKeyMsg_VariousPaths(t *testing.T) {
 	require.True(t, model.TestLeftSidebarVisible())
 
 	// Page navigation (shouldn't panic)
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyPgUp})
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyShiftUp})
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyPgDown})
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyShiftDown})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyPgUp})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyUp, Mod: tea.ModShift})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyPgDown})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyDown, Mod: tea.ModShift})
 
 	// Help toggle
-	m, _ = m.Update(tea.KeyMsg{Runes: []rune{'h'}, Type: tea.KeyRunes})
-	m, _ = m.Update(tea.KeyMsg{Runes: []rune{'?'}, Type: tea.KeyRunes})
+	m, _ = m.Update(keyPressMsg('h'))
+	m, _ = m.Update(keyPressMsg('?'))
 
 	// Overview filter
-	m, _ = m.Update(tea.KeyMsg{Runes: []rune{'['}, Type: tea.KeyRunes})
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeySpace})
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyBackspace})
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m, _ = m.Update(keyPressMsg('['))
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeySpace})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyBackspace})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 
 	// Clear overview filter
-	_, _ = m.Update(tea.KeyMsg{Type: tea.KeyCtrlK})
+	_, _ = m.Update(tea.KeyPressMsg{Code: 'k', Mod: tea.ModCtrl})
 }
 
 func TestHeartbeat_LiveRun(t *testing.T) {
@@ -205,9 +213,9 @@ func TestHeartbeat_LiveRun(t *testing.T) {
 
 	// Process initial reader
 	model, _ = model.Update(leet.InitMsg{
-		Reader: func() *leet.WandbReader {
-			r, _ := leet.NewWandbReader(path, logger)
-			return r
+		Source: func() *leet.LevelDBHistorySource {
+			s, _ := leet.NewLevelDBHistorySource(path, logger)
+			return s
 		}(),
 	})
 
@@ -324,9 +332,9 @@ func TestHeartbeat_ResetsOnDataReceived(t *testing.T) {
 
 	// Initialize
 	model, _ = model.Update(leet.InitMsg{
-		Reader: func() *leet.WandbReader {
-			r, _ := leet.NewWandbReader(path, logger)
-			return r
+		Source: func() *leet.LevelDBHistorySource {
+			s, _ := leet.NewLevelDBHistorySource(path, logger)
+			return s
 		}(),
 	})
 
@@ -428,7 +436,7 @@ func TestModel_HandleMouseMsg(t *testing.T) {
 	tests := []struct {
 		name   string
 		setup  func(*leet.Run)
-		events []tea.MouseMsg
+		events []tea.Msg
 		verify func(*testing.T, *leet.Run)
 	}{
 		{
@@ -436,8 +444,8 @@ func TestModel_HandleMouseMsg(t *testing.T) {
 			setup: func(m *leet.Run) {
 				m.TestSetMainChartFocus(0, 0)
 			},
-			events: []tea.MouseMsg{
-				{X: 10, Y: 10, Button: tea.MouseButtonLeft, Action: tea.MouseActionPress},
+			events: []tea.Msg{
+				tea.MouseClickMsg{X: 10, Y: 10, Button: tea.MouseLeft},
 			},
 			verify: func(t *testing.T, m *leet.Run) {
 				require.Equal(t, leet.FocusNone, m.TestFocusState().Type)
@@ -445,27 +453,23 @@ func TestModel_HandleMouseMsg(t *testing.T) {
 		},
 		{
 			name: "click_in_main_grid_focuses_and_unfocuses_chart",
-			events: []tea.MouseMsg{
-				{X: 60, Y: 15, Button: tea.MouseButtonLeft, Action: tea.MouseActionPress},
+			events: []tea.Msg{
+				tea.MouseClickMsg{X: 60, Y: 15, Button: tea.MouseLeft},
 			},
 			verify: func(t *testing.T, m *leet.Run) {
 				require.Equal(t, leet.FocusMainChart, m.TestFocusState().Type)
 
-				// Send second click to same position
+				// Send second click to same position to unfocus.
 				var model tea.Model = m
-				model.Update(tea.MouseMsg{
-					X: 60, Y: 15, Button: tea.MouseButtonLeft, Action: tea.MouseActionPress,
-				})
+				model.Update(tea.MouseClickMsg{X: 60, Y: 15, Button: tea.MouseLeft})
 
 				require.Equal(t, leet.FocusNone, m.TestFocusState().Type)
 			},
 		},
 		{
 			name: "click_in_right_sidebar_focuses_system_chart",
-			events: []tea.MouseMsg{
-				// Right sidebar starts at approximately 120 - 40 (sidebar width) = 80
-				// Click well inside the right sidebar area
-				{X: 110, Y: 10, Button: tea.MouseButtonLeft, Action: tea.MouseActionPress},
+			events: []tea.Msg{
+				tea.MouseClickMsg{X: 110, Y: 10, Button: tea.MouseLeft},
 			},
 			verify: func(t *testing.T, m *leet.Run) {
 				fs := m.TestFocusState()
@@ -475,10 +479,10 @@ func TestModel_HandleMouseMsg(t *testing.T) {
 		},
 		{
 			name: "wheel_events_focus_chart_and_zoom",
-			events: []tea.MouseMsg{
-				{X: 60, Y: 25, Button: tea.MouseButtonWheelUp},
-				{X: 60, Y: 25, Button: tea.MouseButtonWheelDown},
-				{X: 60, Y: 25, Button: tea.MouseButtonWheelUp},
+			events: []tea.Msg{
+				tea.MouseWheelMsg{X: 60, Y: 25, Button: tea.MouseWheelUp},
+				tea.MouseWheelMsg{X: 60, Y: 25, Button: tea.MouseWheelDown},
+				tea.MouseWheelMsg{X: 60, Y: 25, Button: tea.MouseWheelUp},
 			},
 			verify: func(t *testing.T, m *leet.Run) {
 				require.Equal(t, leet.FocusMainChart, m.TestFocusState().Type)
@@ -489,8 +493,8 @@ func TestModel_HandleMouseMsg(t *testing.T) {
 			setup: func(m *leet.Run) {
 				m.TestSetMainChartFocus(0, 0)
 			},
-			events: []tea.MouseMsg{
-				{X: 60, Y: 15, Button: tea.MouseButtonLeft, Action: tea.MouseActionRelease},
+			events: []tea.Msg{
+				tea.MouseReleaseMsg{X: 60, Y: 15, Button: tea.MouseLeft},
 			},
 			verify: func(t *testing.T, m *leet.Run) {
 				require.Equal(t, leet.FocusMainChart, m.TestFocusState().Type)
@@ -502,8 +506,8 @@ func TestModel_HandleMouseMsg(t *testing.T) {
 				// Ensure no initial focus
 				m.TestClearMainChartFocus()
 			},
-			events: []tea.MouseMsg{
-				{X: 60, Y: 25, Button: tea.MouseButtonWheelUp},
+			events: []tea.Msg{
+				tea.MouseWheelMsg{X: 60, Y: 25, Button: tea.MouseWheelUp},
 			},
 			verify: func(t *testing.T, m *leet.Run) {
 				require.Equal(t, leet.FocusMainChart, m.TestFocusState().Type)

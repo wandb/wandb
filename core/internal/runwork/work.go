@@ -7,7 +7,27 @@ import (
 )
 
 // Work is a task in the Handler->Sender pipeline.
-type Work interface {
+type Work struct {
+	WorkImpl
+
+	// Request is a possibly nil request that resulted in this work.
+	//
+	// A non-nil Request requires a response. If the Request is cancelled,
+	// any tasks that only existed to respond to the Request should be
+	// cancelled.
+	Request *Request
+}
+
+// NoRequest creates Work without a Request.
+//
+// It is more explicit than just omitting the Request field, which can
+// help readability.
+func NoRequest(impl WorkImpl) Work {
+	return Work{WorkImpl: impl}
+}
+
+// WorkImpl defines the business logic for processing some Work.
+type WorkImpl interface {
 	// Schedule inserts work into the pipeline.
 	//
 	// This is a step "outside" the pipeline, that happens upon receiving
@@ -64,6 +84,8 @@ type MaybeSavedWork struct {
 
 	// IsSaved is true if the work has been successfully written to the
 	// transaction log.
+	//
+	// Note that the associated Request is never serialized.
 	IsSaved bool
 
 	// SavedOffset is the byte offset in the transaction log where the record
@@ -74,7 +96,7 @@ type MaybeSavedWork struct {
 	RecordNumber int64
 }
 
-// SimpleScheduleMixin implements Work.Schedule by immediately invoking
+// SimpleScheduleMixin implements WorkImpl.Schedule by immediately invoking
 // the callback.
 type SimpleScheduleMixin struct{}
 
@@ -82,12 +104,12 @@ func (m SimpleScheduleMixin) Schedule(wg *sync.WaitGroup, proceed func()) {
 	proceed()
 }
 
-// AlwaysAcceptMixin implements Work.Accept by returning true.
+// AlwaysAcceptMixin implements WorkImpl.Accept by returning true.
 type AlwaysAcceptMixin struct{}
 
 func (m AlwaysAcceptMixin) Accept(func(*spb.Record)) bool { return true }
 
-// NoopProcessMixin implements Work.Process by doing nothing.
+// NoopProcessMixin implements WorkImpl.Process by doing nothing.
 //
 // Since Process is a no-op, BypassOfflineMode is implemented to return false
 type NoopProcessMixin struct{}

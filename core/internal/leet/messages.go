@@ -3,7 +3,7 @@ package leet
 import (
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
@@ -25,6 +25,8 @@ type RunMsg struct {
 	ID          string
 	Project     string
 	DisplayName string
+	Notes       string
+	Tags        []string
 	Config      *spb.ConfigRecord
 }
 
@@ -69,9 +71,9 @@ type ErrorMsg struct {
 	Err error
 }
 
-// InitMsg contains the initialized reader.
+// InitMsg contains the initialized history source.
 type InitMsg struct {
-	Reader *WandbReader
+	Source HistorySource
 }
 
 // BatchedRecordsMsg contains all messages read during a batch read.
@@ -107,7 +109,7 @@ type WorkspaceRunOverviewAnimationMsg struct{}
 type WorkspaceRunInitMsg struct {
 	RunKey  string
 	RunPath string
-	Reader  *WandbReader
+	Reader  HistorySource
 }
 
 // WorkspaceChunkedBatchMsg wraps a ChunkedBatchMsg with the originating run key.
@@ -145,7 +147,7 @@ type WorkspaceRunDirsMsg struct {
 // for runs that haven't been selected/streamed yet).
 type WorkspaceRunOverviewPreloadedMsg struct {
 	RunKey string
-	Run    RunMsg
+	Run    *RunMsg
 	Err    error
 }
 

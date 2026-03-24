@@ -50,22 +50,22 @@ type RunUpdateWork struct {
 	Settings           *settings.Settings
 	BeforeRunEndCtx    context.Context
 	Operations         *wboperation.WandbOperations
-	FeatureProvider    *featurechecker.ServerFeaturesCache
+	FeatureProvider    *featurechecker.FeatureProvider
 	GraphqlClientOrNil graphql.Client
 	Logger             *observability.CoreLogger
 }
 
-// Accept implements Work.Accept.
+// Accept implements WorkImpl.Accept.
 func (w *RunUpdateWork) Accept(_ func(*spb.Record)) bool {
 	return true
 }
 
-// ToRecord implements Work.ToRecord.
+// ToRecord implements WorkImpl.ToRecord.
 func (w *RunUpdateWork) ToRecord() *spb.Record {
 	return w.Record
 }
 
-// Process implements Work.Process.
+// Process implements WorkImpl.Process.
 func (w *RunUpdateWork) Process(
 	_ func(*spb.Record),
 	results chan<- *spb.Result,
@@ -161,12 +161,12 @@ func runInitErrorResult(err error) *spb.RunUpdateResult {
 	}
 }
 
-// BypassOfflineMode implements Work.BypassOfflineMode.
+// BypassOfflineMode implements WorkImpl.BypassOfflineMode.
 func (w *RunUpdateWork) BypassOfflineMode() bool {
 	return true
 }
 
-// DebugInfo implements Work.DebugInfo.
+// DebugInfo implements WorkImpl.DebugInfo.
 func (w *RunUpdateWork) DebugInfo() string {
 	return fmt.Sprintf("RunUpdateWork; Control(%v)", w.Record.GetControl())
 }

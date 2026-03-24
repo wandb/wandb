@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"testing/synctest"
 
 	"github.com/stretchr/testify/assert"
 
@@ -20,7 +21,7 @@ func stubServerFeaturesQuery(mockGQL *gqlmock.MockClient) {
 			"serverInfo": {
 				"features": [
 					{
-						"name": "LARGE_FILENAMES",
+						"name": "CLIENT_IDS",
 						"isEnabled": true
 					},
 					{
@@ -33,109 +34,101 @@ func stubServerFeaturesQuery(mockGQL *gqlmock.MockClient) {
 	)
 }
 
-func TestServerFeaturesInitialization(t *testing.T) {
-	// Arrange
+func TestEnabled(t *testing.T) {
 	mockGQL := gqlmock.NewMockClient()
 	stubServerFeaturesQuery(mockGQL)
-	serverFeaturesCache := featurechecker.NewServerFeaturesCache(
+	featureProvider := featurechecker.New(
 		mockGQL,
 		observabilitytest.NewTestLogger(t),
 	)
 
-	// Assert - features are not loaded until Get is called
-	assert.Equal(t, 0, len(mockGQL.AllRequests()))
+	clientIDs := featureProvider.Enabled(
+		t.Context(), spb.ServerFeature_CLIENT_IDS)
+	artifactTags := featureProvider.Enabled(
+		t.Context(), spb.ServerFeature_ARTIFACT_TAGS)
+	largeFilenames := featureProvider.Enabled(
+		t.Context(), spb.ServerFeature_LARGE_FILENAMES)
 
-	// Act
-	serverFeaturesCache.GetFeature(
-		context.Background(),
-		spb.ServerFeature_LARGE_FILENAMES,
-	)
-
-	// Assert - Features are loaded after Get is called
-	assert.Equal(t, 1, len(mockGQL.AllRequests()))
+	assert.True(t, clientIDs)       // explicitly enabled
+	assert.False(t, artifactTags)   // explicitly disabled
+	assert.False(t, largeFilenames) // not in response
 }
 
-func TestGetFeature(t *testing.T) {
-	// Arrange
-	mockGQL := gqlmock.NewMockClient()
-	stubServerFeaturesQuery(mockGQL)
-	serverFeaturesCache := featurechecker.NewServerFeaturesCache(
-		mockGQL,
-		observabilitytest.NewTestLogger(t),
-	)
+func TestCancellation(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ctx1, cancel1 := context.WithCancel(t.Context())
+		mockGQL := gqlmock.NewMockClient()
+		featureProvider := featurechecker.New(
+			mockGQL,
+			observabilitytest.NewTestLogger(t),
+		)
 
-	// Act
-	enabledFeatureValue := serverFeaturesCache.GetFeature(
-		context.Background(),
-		spb.ServerFeature_LARGE_FILENAMES,
-	)
-	disabledFeatureValue := serverFeaturesCache.GetFeature(
-		context.Background(),
-		spb.ServerFeature_ARTIFACT_TAGS,
-	)
+		// Hang on the first request.
+		mockGQL.StubAnyHang()
+		go featureProvider.Enabled(ctx1, spb.ServerFeature_CLIENT_IDS)
+		synctest.Wait()
 
-	// Assert
-	assert.True(t, enabledFeatureValue.Enabled)
-	assert.False(t, disabledFeatureValue.Enabled)
-	assert.Equal(t, 1, len(mockGQL.AllRequests()))
+		// Make the second request, which will block while the first is hanging.
+		stubServerFeaturesQuery(mockGQL) // succeed on second request
+		result2 := make(chan bool)
+		go func() {
+			result2 <- featureProvider.Enabled(t.Context(), spb.ServerFeature_CLIENT_IDS)
+		}()
+		synctest.Wait()
+
+		// Cancel the first request's context.
+		cancel1()
+
+		// Second request should make a GraphQL query with its own context.
+		assert.True(t, <-result2)
+	})
 }
 
-func TestGetFeature_MissingWithDefaultValue(t *testing.T) {
-	// Arrange
-	mockGQL := gqlmock.NewMockClient()
-	stubServerFeaturesQuery(mockGQL)
-	serverFeaturesCache := featurechecker.NewServerFeaturesCache(
-		mockGQL,
-		observabilitytest.NewTestLogger(t),
-	)
+func TestNilClient(t *testing.T) {
+	logger, logs := observabilitytest.NewRecordingTestLogger(t)
+	featureProvider := featurechecker.New(nil, logger)
 
-	// Act
-	missingFeatureValue := serverFeaturesCache.GetFeature(
-		context.Background(),
-		spb.ServerFeature_ARTIFACT_TAGS,
-	)
+	enabled := featureProvider.Enabled(t.Context(), spb.ServerFeature_CLIENT_IDS)
 
-	// Assert
-	assert.False(t, missingFeatureValue.Enabled)
-	assert.Equal(t, 1, len(mockGQL.AllRequests()))
+	assert.False(t, enabled)
+	assert.Contains(t, logs.String(), "GraphQL client is nil, skipping")
 }
 
-func TestCreateFeaturesCache_WithNullGraphQLClient(t *testing.T) {
-	// Arrange
-	serverFeaturesCache := featurechecker.NewServerFeaturesCache(
-		nil,
-		observabilitytest.NewTestLogger(t),
-	)
-
-	// Act
-	feature := serverFeaturesCache.GetFeature(
-		context.Background(),
-		spb.ServerFeature_LARGE_FILENAMES,
-	)
-
-	// Assert
-	assert.False(t, feature.Enabled)
-}
-
-func TestGetFeature_GraphQLError(t *testing.T) {
-	// Arrange
+func TestError(t *testing.T) {
 	mockGQL := gqlmock.NewMockClient()
 	mockGQL.StubMatchWithError(
 		gqlmock.WithOpName("ServerFeaturesQuery"),
 		fmt.Errorf("GraphQL Error: Internal Server Error"),
 	)
+	logger, logs := observabilitytest.NewRecordingTestLogger(t)
+	featureProvider := featurechecker.New(mockGQL, logger)
 
-	serverFeaturesCache := featurechecker.NewServerFeaturesCache(
-		mockGQL,
-		observabilitytest.NewTestLogger(t),
-	)
+	enabled := featureProvider.Enabled(t.Context(), spb.ServerFeature_CLIENT_IDS)
 
-	feature := serverFeaturesCache.GetFeature(
-		context.Background(),
-		spb.ServerFeature_LARGE_FILENAMES,
-	)
+	assert.False(t, enabled)
+	assert.Contains(t, logs.String(), "GraphQL Error: Internal Server Error")
+}
 
-	// Assert
-	assert.False(t, feature.Enabled)
-	assert.Equal(t, 1, len(mockGQL.AllRequests()))
+func TestInvalidResponse_NilServerInfo(t *testing.T) {
+	mockGQL := gqlmock.NewMockClient()
+	mockGQL.StubAnyOnce(`{}`)
+	logger, logs := observabilitytest.NewRecordingTestLogger(t)
+	featureProvider := featurechecker.New(mockGQL, logger)
+
+	enabled := featureProvider.Enabled(t.Context(), spb.ServerFeature_CLIENT_IDS)
+
+	assert.False(t, enabled)
+	assert.Contains(t, logs.String(), "response serverInfo nil")
+}
+
+func TestInvalidResponse_NilFeature(t *testing.T) {
+	mockGQL := gqlmock.NewMockClient()
+	mockGQL.StubAnyOnce(`{ "serverInfo": { "features": [ null ] } }`)
+	logger, logs := observabilitytest.NewRecordingTestLogger(t)
+	featureProvider := featurechecker.New(mockGQL, logger)
+
+	enabled := featureProvider.Enabled(t.Context(), spb.ServerFeature_CLIENT_IDS)
+
+	assert.False(t, enabled)
+	assert.Contains(t, logs.String(), "nil feature in response")
 }

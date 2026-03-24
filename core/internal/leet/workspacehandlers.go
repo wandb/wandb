@@ -5,7 +5,7 @@ import (
 	"os"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 )
 
 // batchCmds combines zero or more commands into one, filtering nils.
@@ -29,13 +29,22 @@ func batchCmds(cmds ...tea.Cmd) tea.Cmd {
 
 // ---- Key / Mouse Dispatch ----
 
-func (w *Workspace) handleKeyMsg(msg tea.KeyMsg) tea.Cmd {
+func (w *Workspace) handleKeyPressMsg(msg tea.KeyPressMsg) tea.Cmd {
 	// Filter mode takes priority.
+	if w.filter.IsActive() {
+		w.handleRunFilterKey(msg)
+		return nil
+	}
 	if w.runOverviewSidebar.IsFilterMode() {
-		return w.handleOverviewFilter(msg)
+		w.runOverviewSidebar.HandleFilterKey(msg)
+		return nil
 	}
 	if w.metricsGrid.IsFilterMode() {
-		w.metricsGrid.handleMetricsFilterKey(msg)
+		w.metricsGrid.handleFilterKey(msg)
+		return nil
+	}
+	if g := w.activeSystemMetricsGrid(); g != nil && g.IsFilterMode() {
+		g.handleFilterKey(msg)
 		return nil
 	}
 
@@ -53,15 +62,17 @@ func (w *Workspace) handleKeyMsg(msg tea.KeyMsg) tea.Cmd {
 }
 
 func (w *Workspace) handleMouse(msg tea.MouseMsg) tea.Cmd {
+	mouse := msg.Mouse()
+
 	// Clicks in the left sidebar clear all chart focus.
-	if w.runsAnimState.IsVisible() && msg.X < w.runsAnimState.Value() {
+	if w.runsAnimState.IsVisible() && mouse.X < w.runsAnimState.Value() {
 		w.clearChartFocus()
 		return nil
 	}
 
 	// Clicks in the right sidebar clear all chart focus.
 	if w.runOverviewSidebar.IsVisible() {
-		if msg.X >= w.width-w.runOverviewSidebar.Width() {
+		if mouse.X >= w.width-w.runOverviewSidebar.Width() {
 			w.clearChartFocus()
 			return nil
 		}
@@ -71,17 +82,17 @@ func (w *Workspace) handleMouse(msg tea.MouseMsg) tea.Cmd {
 	reserved := w.consoleLogsPane.Height() + w.systemMetricsPane.Height()
 	metricsHeight := max(w.height-StatusBarHeight-reserved, 1)
 
-	if msg.Y < metricsHeight {
+	if mouse.Y < metricsHeight {
 		return w.handleMetricsMouse(msg, metricsHeight)
 	}
 
 	if w.systemMetricsPane.IsVisible() &&
-		msg.Y < metricsHeight+w.systemMetricsPane.Height() {
+		mouse.Y < metricsHeight+w.systemMetricsPane.Height() {
 		return w.handleSystemMetricsMouse(msg, metricsHeight)
 	}
 
 	// Clicks in the logs pane clear all chart focus.
-	if w.consoleLogsPane.IsVisible() && msg.Y >= metricsHeight+w.systemMetricsPane.Height() {
+	if w.consoleLogsPane.IsVisible() && mouse.Y >= metricsHeight+w.systemMetricsPane.Height() {
 		w.clearChartFocus()
 		return nil
 	}
@@ -91,6 +102,9 @@ func (w *Workspace) handleMouse(msg tea.MouseMsg) tea.Cmd {
 }
 
 func (w *Workspace) handleMetricsMouse(msg tea.MouseMsg, metricsHeight int) tea.Cmd {
+	mouse := msg.Mouse()
+	alt := mouse.Mod == tea.ModAlt // Alt pressed at the time of the mouse event?
+
 	const (
 		gridPaddingX = 1
 		headerOffset = 1 // metrics header line
@@ -99,8 +113,8 @@ func (w *Workspace) handleMetricsMouse(msg tea.MouseMsg, metricsHeight int) tea.
 	leftOffset := w.runsAnimState.Value()
 	rightOffset := w.runOverviewSidebar.Width()
 
-	adjustedX := msg.X - leftOffset - gridPaddingX
-	adjustedY := msg.Y - headerOffset
+	adjustedX := mouse.X - leftOffset - gridPaddingX
+	adjustedY := mouse.Y - headerOffset
 	if adjustedX < 0 || adjustedY < 0 {
 		return nil
 	}
@@ -111,38 +125,38 @@ func (w *Workspace) handleMetricsMouse(msg tea.MouseMsg, metricsHeight int) tea.
 	row := adjustedY / dims.CellHWithPadding
 	col := adjustedX / dims.CellWWithPadding
 
-	me := tea.MouseEvent(msg)
-
-	switch me.Button {
-	case tea.MouseButtonLeft:
-		if me.Action == tea.MouseActionPress {
+	switch m := msg.(type) {
+	case tea.MouseClickMsg:
+		switch m.Button {
+		case tea.MouseLeft:
 			w.clearCurrentSystemMetricsFocus()
 			w.metricsGrid.HandleClick(row, col)
-		}
-	case tea.MouseButtonRight:
-		alt := me.Alt
-		switch me.Action {
-		case tea.MouseActionPress:
+		case tea.MouseRight:
 			w.metricsGrid.StartInspection(adjustedX, row, col, dims, alt)
-		case tea.MouseActionRelease:
-			w.metricsGrid.EndInspection()
-		case tea.MouseActionMotion:
+		}
+	case tea.MouseMotionMsg:
+		if m.Button == tea.MouseRight {
 			w.metricsGrid.UpdateInspection(adjustedX, row, col, dims)
 		}
-	case tea.MouseButtonWheelUp:
-		w.metricsGrid.HandleWheel(adjustedX, row, col, dims, true)
-	case tea.MouseButtonWheelDown:
-		w.metricsGrid.HandleWheel(adjustedX, row, col, dims, false)
+	case tea.MouseReleaseMsg:
+		if m.Button == tea.MouseRight {
+			w.metricsGrid.EndInspection()
+		}
+	case tea.MouseWheelMsg:
+		switch m.Button {
+		case tea.MouseWheelUp:
+			w.metricsGrid.HandleWheel(adjustedX, row, col, dims, true)
+		case tea.MouseWheelDown:
+			w.metricsGrid.HandleWheel(adjustedX, row, col, dims, false)
+		}
 	}
 
 	return nil
 }
 
 func (w *Workspace) handleSystemMetricsMouse(msg tea.MouseMsg, metricsHeight int) tea.Cmd {
-	me := tea.MouseEvent(msg)
-	if me.Button != tea.MouseButtonLeft || me.Action != tea.MouseActionPress {
-		return nil
-	}
+	mouse := msg.Mouse()
+	alt := mouse.Mod == tea.ModAlt
 
 	cur, ok := w.runs.CurrentItem()
 	if !ok {
@@ -154,8 +168,8 @@ func (w *Workspace) handleSystemMetricsMouse(msg tea.MouseMsg, metricsHeight int
 	}
 
 	leftOffset := w.runsAnimState.Value()
-	adjustedX := msg.X - leftOffset - systemMetricsPaneContentPadding
-	adjustedY := msg.Y - metricsHeight - systemMetricsPaneBorderLines - systemMetricsPaneHeaderLines
+	adjustedX := mouse.X - leftOffset - systemMetricsPaneContentPadding
+	adjustedY := mouse.Y - metricsHeight - systemMetricsPaneBorderLines - systemMetricsPaneHeaderLines
 	if adjustedX < 0 || adjustedY < 0 {
 		return nil
 	}
@@ -164,8 +178,33 @@ func (w *Workspace) handleSystemMetricsMouse(msg tea.MouseMsg, metricsHeight int
 	row := adjustedY / dims.CellHWithPadding
 	col := adjustedX / dims.CellWWithPadding
 
-	w.metricsGrid.clearFocus()
-	grid.HandleMouseClick(row, col)
+	switch m := msg.(type) {
+	case tea.MouseClickMsg:
+		switch m.Button {
+		case tea.MouseLeft:
+			w.metricsGrid.clearFocus()
+			grid.HandleMouseClick(row, col)
+		case tea.MouseRight:
+			w.metricsGrid.clearFocus()
+			grid.StartInspection(adjustedX, row, col, dims, alt)
+		}
+	case tea.MouseMotionMsg:
+		if m.Button == tea.MouseRight {
+			grid.UpdateInspection(adjustedX, row, col, dims)
+		}
+	case tea.MouseReleaseMsg:
+		if m.Button == tea.MouseRight {
+			grid.EndInspection()
+		}
+	case tea.MouseWheelMsg:
+		w.metricsGrid.clearFocus()
+		switch m.Button {
+		case tea.MouseWheelUp:
+			grid.HandleWheel(adjustedX, row, col, dims, true)
+		case tea.MouseWheelDown:
+			grid.HandleWheel(adjustedX, row, col, dims, false)
+		}
+	}
 
 	return nil
 }
@@ -238,12 +277,12 @@ func (w *Workspace) handleSystemMetricsPaneAnimation(now time.Time) tea.Cmd {
 
 // ---- UI components Toggle Handlers ----
 
-func (w *Workspace) handleToggleRunsSidebar(msg tea.KeyMsg) tea.Cmd {
+func (w *Workspace) handleToggleRunsSidebar(msg tea.KeyPressMsg) tea.Cmd {
 	leftWillBeVisible := !w.runsAnimState.IsVisible()
 	rightIsVisible := w.runOverviewSidebar.IsVisible()
 
 	w.resolveFocusAfterVisibilityChange(
-		leftWillBeVisible, rightIsVisible, w.consoleLogsPane.IsExpanded())
+		leftWillBeVisible, rightIsVisible, w.consoleLogsPane.animState.TargetVisible())
 	w.updateSidebarDimensions(leftWillBeVisible, rightIsVisible)
 	w.runsAnimState.Toggle()
 	w.recalculateLayout()
@@ -251,12 +290,16 @@ func (w *Workspace) handleToggleRunsSidebar(msg tea.KeyMsg) tea.Cmd {
 	return w.runsAnimationCmd()
 }
 
-func (w *Workspace) handleToggleOverviewSidebar(msg tea.KeyMsg) tea.Cmd {
+func (w *Workspace) handleToggleOverviewSidebar(msg tea.KeyPressMsg) tea.Cmd {
 	rightWillBeVisible := !w.runOverviewSidebar.IsVisible()
 	leftIsVisible := w.runsAnimState.IsVisible()
 
+	if err := w.config.SetWorkspaceOverviewVisible(rightWillBeVisible); err != nil {
+		w.logger.Error(fmt.Sprintf("workspace: failed to save overview state: %v", err))
+	}
+
 	w.resolveFocusAfterVisibilityChange(
-		leftIsVisible, rightWillBeVisible, w.consoleLogsPane.IsExpanded())
+		leftIsVisible, rightWillBeVisible, w.consoleLogsPane.animState.TargetVisible())
 	w.updateSidebarDimensions(leftIsVisible, rightWillBeVisible)
 	w.runOverviewSidebar.Toggle()
 	w.recalculateLayout()
@@ -264,8 +307,12 @@ func (w *Workspace) handleToggleOverviewSidebar(msg tea.KeyMsg) tea.Cmd {
 	return w.runOverviewAnimationCmd()
 }
 
-func (w *Workspace) handleToggleConsoleLogsPane(msg tea.KeyMsg) tea.Cmd {
-	bottomWillBeVisible := !w.consoleLogsPane.IsExpanded()
+func (w *Workspace) handleToggleConsoleLogsPane(msg tea.KeyPressMsg) tea.Cmd {
+	bottomWillBeVisible := !w.consoleLogsPane.animState.TargetVisible()
+
+	if err := w.config.SetWorkspaceConsoleLogsVisible(bottomWillBeVisible); err != nil {
+		w.logger.Error(fmt.Sprintf("workspace: failed to save console logs state: %v", err))
+	}
 
 	w.resolveFocusAfterVisibilityChange(
 		w.runsAnimState.IsExpanded(), w.runOverviewSidebar.IsExpanded(), bottomWillBeVisible)
@@ -276,12 +323,26 @@ func (w *Workspace) handleToggleConsoleLogsPane(msg tea.KeyMsg) tea.Cmd {
 	return w.consoleLogsPaneAnimationCmd()
 }
 
+func (w *Workspace) handleToggleSystemMetricsPane(tea.KeyPressMsg) tea.Cmd {
+	sysWillBeVisible := !w.systemMetricsPane.IsExpanded()
+	logsVisible := w.consoleLogsPane.IsExpanded()
+
+	if err := w.config.SetWorkspaceSystemMetricsVisible(sysWillBeVisible); err != nil {
+		w.logger.Error(fmt.Sprintf("workspace: failed to save system metrics state: %v", err))
+	}
+
+	w.updateMiddlePaneHeights(sysWillBeVisible, logsVisible)
+	w.systemMetricsPane.Toggle()
+	w.recalculateLayout()
+	return w.systemMetricsPaneAnimationCmd()
+}
+
 // ---- Reader / Watcher Commands ----
 
 // initReaderCmd initializes a WandbReader for the given run asynchronously.
 func (w *Workspace) initReaderCmd(runKey, runPath string) tea.Cmd {
 	return func() tea.Msg {
-		reader, err := NewWandbReader(runPath, w.logger)
+		reader, err := NewLevelDBHistorySource(runPath, w.logger)
 		if err != nil {
 			return WorkspaceInitErrMsg{
 				RunKey:  runKey,
@@ -298,19 +359,25 @@ func (w *Workspace) initReaderCmd(runKey, runPath string) tea.Cmd {
 }
 
 // readAllChunkCmd reads a bounded chunk of records for the given workspace run.
-func (w *Workspace) readAllChunkCmd(run *workspaceRun) tea.Cmd {
-	if run == nil || run.reader == nil {
+func (w *Workspace) readAllChunkCmd(run *WorkspaceRun) tea.Cmd {
+	if run == nil || run.Reader == nil {
 		return nil
 	}
 
+	reader := run.Reader
+	runKey := run.Key
+
 	return func() tea.Msg {
-		msg := run.reader.ReadAllRecordsChunked()
+		msg, err := reader.Read(BootLoadChunkSize, BootLoadMaxTime)
+		if err != nil {
+			return ErrorMsg{Err: err}
+		}
 		if msg == nil {
 			return nil
 		}
 		if batch, ok := msg.(ChunkedBatchMsg); ok {
 			return WorkspaceChunkedBatchMsg{
-				RunKey: run.key,
+				RunKey: runKey,
 				Batch:  batch,
 			}
 		}
@@ -318,24 +385,37 @@ func (w *Workspace) readAllChunkCmd(run *workspaceRun) tea.Cmd {
 	}
 }
 
-// readAvailableCmd drains any new records for a live workspace run.
-func (w *Workspace) readAvailableCmd(run *workspaceRun) tea.Cmd {
-	if run == nil || run.reader == nil {
+// ReadAvailableCmd drains any new records for a live workspace run.
+func (w *Workspace) ReadAvailableCmd(run *WorkspaceRun) tea.Cmd {
+	if run == nil || run.Reader == nil {
 		return nil
 	}
 
+	reader := run.Reader
+	runKey := run.Key
+
 	return func() tea.Msg {
-		msg := run.reader.ReadAvailableRecords()
+		msg, err := reader.Read(LiveMonitorChunkSize, LiveMonitorMaxTime)
+		if err != nil {
+			return ErrorMsg{Err: err}
+		}
 		if msg == nil {
 			return nil
 		}
-		if batch, ok := msg.(BatchedRecordsMsg); ok {
-			return WorkspaceBatchedRecordsMsg{
-				RunKey: run.key,
-				Batch:  batch,
-			}
+		batch, ok := msg.(ChunkedBatchMsg)
+		if !ok {
+			return msg
 		}
-		return msg
+		if len(batch.Msgs) == 0 {
+			return nil
+		}
+
+		return WorkspaceBatchedRecordsMsg{
+			RunKey: runKey,
+			Batch: BatchedRecordsMsg{
+				Msgs: batch.Msgs,
+			},
+		}
 	}
 }
 
@@ -353,8 +433,8 @@ func (w *Workspace) waitForLiveMsg() tea.Msg {
 // When a watcher is started it also returns a command that waits for the first
 // change notification so that subsequent updates are driven primarily by
 // filesystem events, with the heartbeat as a safety net.
-func (w *Workspace) ensureLiveStreaming(run *workspaceRun) tea.Cmd {
-	if run == nil || run.reader == nil || run.state != RunStateRunning {
+func (w *Workspace) ensureLiveStreaming(run *WorkspaceRun) tea.Cmd {
+	if run == nil || run.Reader == nil || run.state != RunStateRunning {
 		return nil
 	}
 
@@ -366,10 +446,10 @@ func (w *Workspace) ensureLiveStreaming(run *workspaceRun) tea.Cmd {
 
 		if err := run.watcher.Start(run.wandbPath); err != nil {
 			w.logger.CaptureError(fmt.Errorf(
-				"workspace: failed to start watcher for %s: %v", run.key, err))
+				"workspace: failed to start watcher for %s: %v", run.Key, err))
 			run.watcher = nil
 		} else {
-			watcherCmd = w.waitForWatcher(run.key)
+			watcherCmd = w.waitForWatcher(run.Key)
 		}
 	}
 
@@ -407,7 +487,7 @@ func (w *Workspace) waitForWatcher(runKey string) tea.Cmd {
 }
 
 // stopWatcher stops and clears the watcher associated with a run, if any.
-func (w *Workspace) stopWatcher(run *workspaceRun) {
+func (w *Workspace) stopWatcher(run *WorkspaceRun) {
 	if run == nil || run.watcher == nil {
 		return
 	}
@@ -444,10 +524,10 @@ func (w *Workspace) handleWorkspaceRunInit(msg WorkspaceRunInitMsg) tea.Cmd {
 		return nil
 	}
 
-	run := &workspaceRun{
-		key:       msg.RunKey,
+	run := &WorkspaceRun{
+		Key:       msg.RunKey,
 		wandbPath: msg.RunPath,
-		reader:    msg.Reader,
+		Reader:    msg.Reader,
 	}
 	w.runsByKey[msg.RunKey] = run
 
@@ -488,7 +568,7 @@ func (w *Workspace) handleWorkspaceBatchedRecords(msg WorkspaceBatchedRecordsMsg
 
 	// Continue draining while the run is still live.
 	if run.state == RunStateRunning {
-		return w.readAvailableCmd(run)
+		return w.ReadAvailableCmd(run)
 	}
 
 	if !w.anyRunRunning() {
@@ -499,10 +579,14 @@ func (w *Workspace) handleWorkspaceBatchedRecords(msg WorkspaceBatchedRecordsMsg
 }
 
 // handleWorkspaceRecord updates per‑run and metrics state for an individual record.
-func (w *Workspace) handleWorkspaceRecord(run *workspaceRun, msg tea.Msg) {
+func (w *Workspace) handleWorkspaceRecord(run *WorkspaceRun, msg tea.Msg) {
 	switch m := msg.(type) {
 	case RunMsg:
-		w.getOrCreateRunOverview(run.key).ProcessRunMsg(m)
+		w.getOrCreateRunOverview(run.Key).ProcessRunMsg(m)
+		w.indexRunFilterData(run.Key, m)
+		if w.filter.Query() != "" {
+			w.applyRunFilter()
+		}
 		run.state = RunStateRunning
 		w.syncLiveRunState()
 
@@ -516,19 +600,19 @@ func (w *Workspace) handleWorkspaceRecord(run *workspaceRun, msg tea.Msg) {
 		}
 
 	case StatsMsg:
-		grid := w.getOrCreateSystemMetricsGrid(run.key)
+		grid := w.getOrCreateSystemMetricsGrid(run.Key)
 		for metricName, value := range m.Metrics {
 			grid.AddDataPoint(metricName, m.Timestamp, value)
 		}
 
 	case SystemInfoMsg:
-		w.getOrCreateRunOverview(run.key).ProcessSystemInfoMsg(m.Record)
+		w.getOrCreateRunOverview(run.Key).ProcessSystemInfoMsg(m.Record)
 
 	case SummaryMsg:
-		w.getOrCreateRunOverview(run.key).ProcessSummaryMsg(m.Summary)
+		w.getOrCreateRunOverview(run.Key).ProcessSummaryMsg(m.Summary)
 
 	case ConsoleLogMsg:
-		w.getOrCreateConsoleLogs(run.key).ProcessRaw(m.Text, m.IsStderr, m.Time)
+		w.getOrCreateConsoleLogs(run.Key).ProcessRaw(m.Text, m.IsStderr, m.Time)
 
 	case FileCompleteMsg:
 		switch m.ExitCode {
@@ -537,7 +621,7 @@ func (w *Workspace) handleWorkspaceRecord(run *workspaceRun, msg tea.Msg) {
 		default:
 			run.state = RunStateFailed
 		}
-		w.getOrCreateRunOverview(run.key).SetRunState(run.state)
+		w.getOrCreateRunOverview(run.Key).SetRunState(run.state)
 		w.syncLiveRunState()
 
 		// No more updates expected for this run; stop its watcher.
@@ -563,7 +647,7 @@ func (w *Workspace) handleHeartbeat() tea.Cmd {
 		if run == nil || run.state != RunStateRunning || !w.selectedRuns[key] {
 			continue
 		}
-		cmds = append(cmds, w.readAvailableCmd(run))
+		cmds = append(cmds, w.ReadAvailableCmd(run))
 	}
 	return tea.Batch(cmds...)
 }
@@ -587,10 +671,10 @@ func (w *Workspace) handleWorkspaceFileChanged(msg WorkspaceFileChangedMsg) tea.
 		w.heartbeatMgr.Reset(w.hasLiveRuns.Load)
 	}
 
-	return batchCmds(w.readAvailableCmd(run), watcherCmd)
+	return batchCmds(w.ReadAvailableCmd(run), watcherCmd)
 }
 
-func (w *Workspace) handleQuit(msg tea.KeyMsg) tea.Cmd {
+func (w *Workspace) handleQuit(msg tea.KeyPressMsg) tea.Cmd {
 	w.logger.Debug("workspace: quit requested")
 
 	if w.heartbeatMgr != nil {
@@ -601,8 +685,8 @@ func (w *Workspace) handleQuit(msg tea.KeyMsg) tea.Cmd {
 			continue
 		}
 		w.stopWatcher(run)
-		if run.reader != nil {
-			run.reader.Close()
+		if run.Reader != nil {
+			run.Reader.Close()
 		}
 	}
 
@@ -611,22 +695,54 @@ func (w *Workspace) handleQuit(msg tea.KeyMsg) tea.Cmd {
 
 // ---- Navigation Handlers ----
 
-func (w *Workspace) handlePrevPage(msg tea.KeyMsg) tea.Cmd {
+func (w *Workspace) handlePrevPage(msg tea.KeyPressMsg) tea.Cmd {
 	w.metricsGrid.Navigate(-1)
 	return nil
 }
 
-func (w *Workspace) handleNextPage(msg tea.KeyMsg) tea.Cmd {
+func (w *Workspace) handleNextPage(msg tea.KeyPressMsg) tea.Cmd {
 	w.metricsGrid.Navigate(1)
 	return nil
 }
 
-func (w *Workspace) handleEnterMetricsFilter(msg tea.KeyMsg) tea.Cmd {
+func (w *Workspace) handleToggleFocusedChartLogY(tea.KeyPressMsg) tea.Cmd {
+	switch w.focus.Type {
+	case FocusMainChart:
+		w.metricsGrid.toggleFocusedChartLogY()
+	case FocusSystemChart:
+		if g := w.activeSystemMetricsGrid(); g != nil {
+			g.toggleFocusedChartLogY()
+		}
+	}
+	return nil
+}
+
+func (w *Workspace) handleEnterMetricsFilter(msg tea.KeyPressMsg) tea.Cmd {
 	w.metricsGrid.EnterFilterMode()
 	return nil
 }
 
-func (w *Workspace) handleClearMetricsFilter(msg tea.KeyMsg) tea.Cmd {
+func (w *Workspace) handleEnterSystemMetricsFilter(msg tea.KeyPressMsg) tea.Cmd {
+	var cmds []tea.Cmd
+	if !w.systemMetricsPane.IsExpanded() && !w.systemMetricsPane.IsAnimating() {
+		cmds = append(cmds, w.handleToggleSystemMetricsPane(msg))
+	}
+
+	cur, ok := w.runs.CurrentItem()
+	if !ok {
+		return batchCmds(cmds...)
+	}
+	if _, selected := w.selectedRuns[cur.Key]; !selected {
+		return batchCmds(cmds...)
+	}
+
+	grid := w.getOrCreateSystemMetricsGrid(cur.Key)
+	grid.EnterFilterMode()
+	grid.ApplyFilter()
+	return batchCmds(cmds...)
+}
+
+func (w *Workspace) handleClearMetricsFilter(msg tea.KeyPressMsg) tea.Cmd {
 	if w.metricsGrid.FilterQuery() != "" {
 		w.metricsGrid.ClearFilter()
 	}
@@ -636,41 +752,34 @@ func (w *Workspace) handleClearMetricsFilter(msg tea.KeyMsg) tea.Cmd {
 	return nil
 }
 
-func (w *Workspace) handleEnterOverviewFilter(tea.KeyMsg) tea.Cmd {
+func (w *Workspace) handleClearSystemMetricsFilter(tea.KeyPressMsg) tea.Cmd {
+	if g := w.activeSystemMetricsGrid(); g != nil && g.FilterQuery() != "" {
+		g.ClearFilter()
+	}
+	if w.focus != nil && w.focus.Type == FocusSystemChart {
+		w.focus.Reset()
+	}
+	return nil
+}
+
+func (w *Workspace) handleEnterOverviewFilter(tea.KeyPressMsg) tea.Cmd {
 	w.runOverviewSidebar.EnterFilterMode()
 	return nil
 }
 
-func (w *Workspace) handleClearOverviewFilter(tea.KeyMsg) tea.Cmd {
+func (w *Workspace) handleClearOverviewFilter(tea.KeyPressMsg) tea.Cmd {
 	if w.runOverviewSidebar.IsFiltering() {
 		w.runOverviewSidebar.ClearFilter()
 	}
 	return nil
 }
 
-// handleOverviewFilter handles overview filter keyboard input.
-func (w *Workspace) handleOverviewFilter(msg tea.KeyMsg) tea.Cmd {
-	switch msg.Type {
-	case tea.KeyEsc:
-		w.runOverviewSidebar.ExitFilterMode(false)
-	case tea.KeyEnter:
-		w.runOverviewSidebar.ExitFilterMode(true)
-	case tea.KeyTab:
-		w.runOverviewSidebar.ToggleFilterMatchMode()
-	case tea.KeyBackspace, tea.KeySpace, tea.KeyRunes:
-		w.runOverviewSidebar.UpdateFilterDraft(msg)
-		w.runOverviewSidebar.ApplyFilter()
-		w.runOverviewSidebar.updateSectionHeights()
-	}
-	return nil
-}
-
-func (w *Workspace) handleConfigMetricsCols(msg tea.KeyMsg) tea.Cmd {
+func (w *Workspace) handleConfigMetricsCols(msg tea.KeyPressMsg) tea.Cmd {
 	w.config.SetPendingGridConfig(gridConfigWorkspaceMetricsCols)
 	return nil
 }
 
-func (w *Workspace) handleConfigMetricsRows(msg tea.KeyMsg) tea.Cmd {
+func (w *Workspace) handleConfigMetricsRows(msg tea.KeyPressMsg) tea.Cmd {
 	w.config.SetPendingGridConfig(gridConfigWorkspaceMetricsRows)
 	return nil
 }
@@ -704,7 +813,7 @@ func (w *Workspace) toggleRunSelected(runKey string) tea.Cmd {
 	return w.initReaderCmd(runKey, wandbFile)
 }
 
-func (w *Workspace) handleToggleRunSelectedKey(msg tea.KeyMsg) tea.Cmd {
+func (w *Workspace) handleToggleRunSelectedKey(msg tea.KeyPressMsg) tea.Cmd {
 	if !w.runSelectorActive() {
 		return nil
 	}
@@ -732,7 +841,7 @@ func (w *Workspace) togglePin(runKey string) {
 	w.metricsGrid.drawVisible()
 }
 
-func (w *Workspace) handlePinRunKey(msg tea.KeyMsg) tea.Cmd {
+func (w *Workspace) handlePinRunKey(msg tea.KeyPressMsg) tea.Cmd {
 	if !w.runSelectorActive() {
 		return nil
 	}
@@ -764,7 +873,7 @@ func (w *Workspace) handlePinRunKey(msg tea.KeyMsg) tea.Cmd {
 
 // ---- Sidebar Navigation ----
 
-func (w *Workspace) handleRunsVerticalNav(msg tea.KeyMsg) tea.Cmd {
+func (w *Workspace) handleRunsVerticalNav(msg tea.KeyPressMsg) tea.Cmd {
 	switch {
 	case w.consoleLogsPane.Active():
 		switch msg.String() {
@@ -802,12 +911,9 @@ const (
 	focusOverview
 )
 
-// focusOrder defines the Tab-cycling order across workspace regions.
-var focusOrder = []focusRegion{focusRuns, focusLogs, focusOverview}
-
-func (w *Workspace) handleSidebarTabNav(msg tea.KeyMsg) tea.Cmd {
+func (w *Workspace) handleSidebarTabNav(msg tea.KeyPressMsg) tea.Cmd {
 	direction := 1
-	if msg.Type == tea.KeyShiftTab {
+	if msg.Code == tea.KeyTab && msg.Mod == tea.ModShift {
 		direction = -1
 	}
 
@@ -855,7 +961,14 @@ func (w *Workspace) cycleOverviewSection(direction int) bool {
 
 // cycleFocusRegion moves focus to the next available region in the given direction.
 func (w *Workspace) cycleFocusRegion(cur focusRegion, direction int) {
-	avail := w.regionAvailability()
+	firstSec, _ := w.runOverviewSidebar.focusableSectionBounds()
+
+	runsAvail := w.runsAnimState.TargetVisible()
+	logsAvail := w.consoleLogsPane.animState.TargetVisible()
+	overviewAvail := w.runOverviewSidebar.animState.TargetVisible() && firstSec != -1
+
+	focusOrder := []focusRegion{focusRuns, focusLogs, focusOverview}
+	n := len(focusOrder)
 
 	curIdx := 0
 	for i, v := range focusOrder {
@@ -865,24 +978,27 @@ func (w *Workspace) cycleFocusRegion(cur focusRegion, direction int) {
 		}
 	}
 
-	n := len(focusOrder)
 	for step := 1; step <= n; step++ {
 		nextIdx := ((curIdx+direction*step)%n + n) % n
-		next := focusOrder[nextIdx]
-		if avail[next] {
-			w.setFocusRegion(next, direction)
-			return
-		}
-	}
-}
+		candidate := focusOrder[nextIdx]
 
-// regionAvailability returns which focus regions are currently usable.
-func (w *Workspace) regionAvailability() map[focusRegion]bool {
-	firstSec, _ := w.runOverviewSidebar.focusableSectionBounds()
-	return map[focusRegion]bool{
-		focusRuns:     w.runsAnimState.IsExpanded(),
-		focusLogs:     w.consoleLogsPane.IsExpanded(),
-		focusOverview: w.runOverviewSidebar.animState.IsExpanded() && firstSec != -1,
+		switch candidate {
+		case focusRuns:
+			if runsAvail {
+				w.setFocusRegion(candidate, direction)
+				return
+			}
+		case focusLogs:
+			if logsAvail {
+				w.setFocusRegion(candidate, direction)
+				return
+			}
+		case focusOverview:
+			if overviewAvail {
+				w.setFocusRegion(candidate, direction)
+				return
+			}
+		}
 	}
 }
 
@@ -907,7 +1023,7 @@ func (w *Workspace) setFocusRegion(region focusRegion, direction int) {
 	}
 }
 
-func (w *Workspace) handleRunsPageNav(msg tea.KeyMsg) tea.Cmd {
+func (w *Workspace) handleRunsPageNav(msg tea.KeyPressMsg) tea.Cmd {
 	switch {
 	case w.consoleLogsPane.Active():
 		switch msg.String() {
@@ -934,22 +1050,12 @@ func (w *Workspace) handleRunsPageNav(msg tea.KeyMsg) tea.Cmd {
 	return nil
 }
 
-func (w *Workspace) handleRunsHome(msg tea.KeyMsg) tea.Cmd {
+func (w *Workspace) handleRunsHome(msg tea.KeyPressMsg) tea.Cmd {
 	if !w.runSelectorActive() {
 		return nil
 	}
 	w.runs.Home()
 	return nil
-}
-
-func (w *Workspace) handleToggleSystemMetricsPane(tea.KeyMsg) tea.Cmd {
-	sysWillBeVisible := !w.systemMetricsPane.IsExpanded()
-	logsVisible := w.consoleLogsPane.IsExpanded()
-
-	w.updateMiddlePaneHeights(sysWillBeVisible, logsVisible)
-	w.systemMetricsPane.Toggle()
-	w.recalculateLayout()
-	return w.systemMetricsPaneAnimationCmd()
 }
 
 func (w *Workspace) activeSystemMetricsGrid() *SystemMetricsGrid {
@@ -960,26 +1066,37 @@ func (w *Workspace) activeSystemMetricsGrid() *SystemMetricsGrid {
 	return w.systemMetrics[cur.Key]
 }
 
-func (w *Workspace) handlePrevSystemMetricsPage(tea.KeyMsg) tea.Cmd {
+func (w *Workspace) handlePrevSystemMetricsPage(tea.KeyPressMsg) tea.Cmd {
 	if g := w.activeSystemMetricsGrid(); g != nil {
 		g.Navigate(-1)
 	}
 	return nil
 }
 
-func (w *Workspace) handleNextSystemMetricsPage(tea.KeyMsg) tea.Cmd {
+func (w *Workspace) handleNextSystemMetricsPage(tea.KeyPressMsg) tea.Cmd {
 	if g := w.activeSystemMetricsGrid(); g != nil {
 		g.Navigate(1)
 	}
 	return nil
 }
 
-func (w *Workspace) handleConfigSystemCols(tea.KeyMsg) tea.Cmd {
+func (w *Workspace) handleConfigSystemCols(tea.KeyPressMsg) tea.Cmd {
 	w.config.SetPendingGridConfig(gridConfigWorkspaceSystemCols)
 	return nil
 }
 
-func (w *Workspace) handleConfigSystemRows(tea.KeyMsg) tea.Cmd {
+func (w *Workspace) handleConfigSystemRows(tea.KeyPressMsg) tea.Cmd {
 	w.config.SetPendingGridConfig(gridConfigWorkspaceSystemRows)
+	return nil
+}
+
+// handleFocusRuns moves focus to the runs list if it's visible.
+//
+// This gives Esc a natural "return home" feel in workspace mode:
+// wherever focus currently is, Esc snaps it back to the run selector.
+func (w *Workspace) handleFocusRuns(tea.KeyPressMsg) tea.Cmd {
+	if w.runsAnimState.TargetVisible() {
+		w.setFocusRegion(focusRuns, 1)
+	}
 	return nil
 }

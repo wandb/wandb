@@ -1,7 +1,7 @@
 package leet
 
 import (
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 )
 
 // KeyBinding defines a key binding for a particular target type.
@@ -12,7 +12,7 @@ import (
 type KeyBinding[T any] struct {
 	Keys        []string
 	Description string
-	Handler     func(*T, tea.KeyMsg) tea.Cmd
+	Handler     func(*T, tea.KeyPressMsg) tea.Cmd
 }
 
 // BindingCategory groups related key bindings (primarily for help display).
@@ -80,12 +80,12 @@ func RunKeyBindings() []BindingCategory[Run] {
 					Handler:     (*Run).handleNextPage,
 				},
 				{
-					Keys:        []string{"alt+N", "alt+pgup"},
+					Keys:        []string{"M", "alt+N", "alt+pgup"},
 					Description: "Previous system metrics page",
 					Handler:     (*Run).handlePrevSystemPage,
 				},
 				{
-					Keys:        []string{"alt+n", "alt+pgdown"},
+					Keys:        []string{"m", "alt+n", "alt+pgdown"},
 					Description: "Next system metrics page",
 					Handler:     (*Run).handleNextSystemPage,
 				},
@@ -95,14 +95,29 @@ func RunKeyBindings() []BindingCategory[Run] {
 			Name: "Charts",
 			Bindings: []KeyBinding[Run]{
 				{
+					Keys:        []string{"y"},
+					Description: "Toggle log Y on focused chart",
+					Handler:     (*Run).handleToggleFocusedChartLogY,
+				},
+				{
 					Keys:        []string{"/"},
 					Description: "Filter metrics by pattern",
 					Handler:     (*Run).handleEnterMetricsFilter,
 				},
 				{
-					Keys:        []string{"ctrl+l"},
-					Description: "Clear active filter",
+					Keys:        []string{"\\"},
+					Description: "Filter system metrics by pattern",
+					Handler:     (*Run).handleEnterSystemMetricsFilter,
+				},
+				{
+					Keys:        []string{"ctrl+/", "ctrl+l"},
+					Description: "Clear metrics filter",
 					Handler:     (*Run).handleClearMetricsFilter,
+				},
+				{
+					Keys:        []string{"ctrl+\\"},
+					Description: "Clear system metrics filter",
+					Handler:     (*Run).handleClearSystemMetricsFilter,
 				},
 			},
 		},
@@ -115,7 +130,7 @@ func RunKeyBindings() []BindingCategory[Run] {
 					Handler:     (*Run).handleEnterOverviewFilter,
 				},
 				{
-					Keys:        []string{"ctrl+k"},
+					Keys:        []string{"ctrl+o"},
 					Description: "Clear overview filter",
 					Handler:     (*Run).handleClearOverviewFilter,
 				},
@@ -192,6 +207,11 @@ func WorkspaceKeyBindings() []BindingCategory[Workspace] {
 					Description: "Restart LEET",
 				},
 				{
+					Keys:        []string{"esc"},
+					Description: "Focus runs list",
+					Handler:     (*Workspace).handleFocusRuns,
+				},
+				{
 					Keys:        []string{"enter"},
 					Description: "View selected run (when not filtering/configuring)",
 				},
@@ -248,17 +268,48 @@ func WorkspaceKeyBindings() []BindingCategory[Workspace] {
 			},
 		},
 		{
+			Name: "Runs",
+			Bindings: []KeyBinding[Workspace]{
+				{
+					Keys:        []string{"f"},
+					Description: "Filter runs by name / metadata",
+					Handler:     (*Workspace).handleEnterRunsFilter,
+				},
+				{
+					Keys:        []string{"ctrl+f"},
+					Description: "Clear runs filter",
+					Handler:     (*Workspace).handleClearRunsFilter,
+				},
+			},
+		},
+		{
 			Name: "Charts",
 			Bindings: []KeyBinding[Workspace]{
+				{
+					Keys:        []string{"y"},
+					Description: "Toggle log Y on focused chart",
+					Handler:     (*Workspace).handleToggleFocusedChartLogY,
+				},
 				{
 					Keys:        []string{"/"},
 					Description: "Filter metrics by pattern",
 					Handler:     (*Workspace).handleEnterMetricsFilter,
 				},
 				{
-					Keys:        []string{"ctrl+l"},
-					Description: "Clear active filter",
+					Keys:        []string{"\\"},
+					Description: "Filter system metrics by pattern",
+					Handler:     (*Workspace).handleEnterSystemMetricsFilter,
+				},
+				{
+					// TODO: remove ctrl+l.
+					Keys:        []string{"ctrl+/", "ctrl+l"},
+					Description: "Clear metrics filter",
 					Handler:     (*Workspace).handleClearMetricsFilter,
+				},
+				{
+					Keys:        []string{"ctrl+\\"},
+					Description: "Clear system metrics filter",
+					Handler:     (*Workspace).handleClearSystemMetricsFilter,
 				},
 			},
 		},
@@ -271,7 +322,7 @@ func WorkspaceKeyBindings() []BindingCategory[Workspace] {
 					Handler:     (*Workspace).handleEnterOverviewFilter,
 				},
 				{
-					Keys:        []string{"ctrl+k"},
+					Keys:        []string{"ctrl+o"},
 					Description: "Clear overview filter",
 					Handler:     (*Workspace).handleClearOverviewFilter,
 				},
@@ -342,9 +393,86 @@ func WorkspaceKeyBindings() []BindingCategory[Workspace] {
 	}
 }
 
+// SymonKeyBindings returns key bindings for the standalone system monitor view.
+func SymonKeyBindings() []BindingCategory[Symon] {
+	return []BindingCategory[Symon]{
+		{
+			Name: "General",
+			Bindings: []KeyBinding[Symon]{
+				{
+					Keys:        []string{"h", "?"},
+					Description: "Toggle this help screen",
+				},
+				{
+					Keys:        []string{"q", "ctrl+c"},
+					Description: "Quit",
+					Handler:     (*Symon).handleQuit,
+				},
+				{
+					Keys:        []string{"alt+r"},
+					Description: "Restart",
+				},
+			},
+		},
+		{
+			Name: "Navigation",
+			Bindings: []KeyBinding[Symon]{
+				{
+					Keys:        []string{"N", "pgup"},
+					Description: "Previous chart page",
+					Handler:     (*Symon).handlePrevPage,
+				},
+				{
+					Keys:        []string{"n", "pgdown"},
+					Description: "Next chart page",
+					Handler:     (*Symon).handleNextPage,
+				},
+			},
+		},
+		{
+			Name: "Charts",
+			Bindings: []KeyBinding[Symon]{
+				{
+					Keys:        []string{"y"},
+					Description: "Toggle log Y on focused chart",
+					Handler:     (*Symon).handleToggleFocusedChartLogY,
+				},
+				{
+					Keys:        []string{"\\"},
+					Description: "Filter system metrics by pattern",
+					Handler:     (*Symon).handleEnterSystemMetricsFilter,
+				},
+				{
+					Keys:        []string{"ctrl+\\"},
+					Description: "Clear system metrics filter",
+					Handler:     (*Symon).handleClearSystemMetricsFilter,
+				},
+			},
+		},
+		{
+			Name: "Configuration",
+			Bindings: []KeyBinding[Symon]{
+				{
+					Keys:        []string{"c", "C"},
+					Description: "Set grid columns",
+					Handler:     (*Symon).handleConfigSystemCols,
+				},
+				{
+					Keys:        []string{"r", "R"},
+					Description: "Set grid rows",
+					Handler:     (*Symon).handleConfigSystemRows,
+				},
+			},
+		},
+
+		mouseCategory[Symon](),
+	}
+}
+
 // buildKeyMap builds a fast lookup map from key string to handler.
-func buildKeyMap[T any](categories []BindingCategory[T]) map[string]func(*T, tea.KeyMsg) tea.Cmd {
-	keyMap := make(map[string]func(*T, tea.KeyMsg) tea.Cmd)
+func buildKeyMap[T any](
+	categories []BindingCategory[T]) map[string]func(*T, tea.KeyPressMsg) tea.Cmd {
+	keyMap := make(map[string]func(*T, tea.KeyPressMsg) tea.Cmd)
 	for _, category := range categories {
 		for _, binding := range category.Bindings {
 			if binding.Handler == nil {
@@ -358,7 +486,7 @@ func buildKeyMap[T any](categories []BindingCategory[T]) map[string]func(*T, tea
 	return keyMap
 }
 
-// normalizeKey normalizes Bubble Tea's KeyMsg.String() into a stable key used by our maps.
+// normalizeKey normalizes Bubble Tea's KeyPressMsg into a stable key used by our maps.
 //
 // Bubble Tea has historically reported space as " " in some situations; we want a
 // help-friendly, explicit key name.

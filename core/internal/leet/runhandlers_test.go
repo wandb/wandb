@@ -4,7 +4,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
+
 	"github.com/stretchr/testify/require"
 
 	"github.com/wandb/wandb/core/internal/leet"
@@ -75,19 +76,19 @@ func TestRun_SidebarTabNav_BothPanelsVisible_CyclesOverviewThenLogs(t *testing.T
 	// Tab one more should jump to logs.
 	_, lastSec := sidebar.TestFocusableSectionBounds()
 	for r.TestLeftSidebarActiveSectionIdx() < lastSec {
-		r.Update(tea.KeyMsg{Type: tea.KeyTab})
+		r.Update(tea.KeyPressMsg{Code: tea.KeyTab})
 	}
 	require.Equal(t, lastSec, r.TestLeftSidebarActiveSectionIdx(),
 		"should have reached last overview section")
 
 	// One more Tab → logs.
-	r.Update(tea.KeyMsg{Type: tea.KeyTab})
+	r.Update(tea.KeyPressMsg{Code: tea.KeyTab})
 	require.True(t, r.TestConsoleLogsPaneActive(), "Tab past last section should focus logs")
 	require.False(t, r.TestLeftSidebarHasActiveSection(),
 		"overview sections should be deactivated when logs focused")
 
 	// Tab from logs → overview first section.
-	r.Update(tea.KeyMsg{Type: tea.KeyTab})
+	r.Update(tea.KeyPressMsg{Code: tea.KeyTab})
 	require.False(t, r.TestConsoleLogsPaneActive(), "Tab from logs should leave logs")
 	require.True(t, r.TestLeftSidebarHasActiveSection(), "should re-enter overview")
 }
@@ -98,7 +99,7 @@ func TestRun_SidebarTabNav_OnlyLogsVisible(t *testing.T) {
 	r.TestForceCollapseLeftSidebar()
 
 	// With overview collapsed, Tab should activate logs.
-	r.Update(tea.KeyMsg{Type: tea.KeyTab})
+	r.Update(tea.KeyPressMsg{Code: tea.KeyTab})
 	require.True(t, r.TestConsoleLogsPaneActive(),
 		"Tab with collapsed overview should still reach logs")
 }
@@ -110,7 +111,7 @@ func TestRun_SidebarTabNav_OnlyOverviewVisible(t *testing.T) {
 
 	// Tab should cycle through overview sections without reaching logs.
 	initialSection := r.TestLeftSidebarActiveSectionIdx()
-	r.Update(tea.KeyMsg{Type: tea.KeyTab})
+	r.Update(tea.KeyPressMsg{Code: tea.KeyTab})
 	nextSection := r.TestLeftSidebarActiveSectionIdx()
 	require.NotEqual(t, initialSection, nextSection,
 		"Tab should cycle overview sections")
@@ -125,14 +126,14 @@ func TestRun_SidebarVerticalNav_LogsFocused(t *testing.T) {
 	r.TestForceExpandConsoleLogsPane(10)
 
 	// Focus logs and add some data.
-	r.Update(tea.KeyMsg{Type: tea.KeyTab})
+	r.Update(tea.KeyPressMsg{Code: tea.KeyTab})
 	for !r.TestConsoleLogsPaneActive() {
-		r.Update(tea.KeyMsg{Type: tea.KeyTab})
+		r.Update(tea.KeyPressMsg{Code: tea.KeyTab})
 	}
 
 	// Vertical nav should not panic even without log data.
-	r.Update(tea.KeyMsg{Type: tea.KeyUp})
-	r.Update(tea.KeyMsg{Type: tea.KeyDown})
+	r.Update(tea.KeyPressMsg{Code: tea.KeyUp})
+	r.Update(tea.KeyPressMsg{Code: tea.KeyDown})
 }
 
 func TestRun_SidebarVerticalNav_OverviewFocused(t *testing.T) {
@@ -145,7 +146,7 @@ func TestRun_SidebarVerticalNav_OverviewFocused(t *testing.T) {
 	k1, _ := sidebar.SelectedItem()
 	require.NotEmpty(t, k1, "should have a selected item")
 
-	r.Update(tea.KeyMsg{Type: tea.KeyDown})
+	r.Update(tea.KeyPressMsg{Code: tea.KeyDown})
 	k2, _ := sidebar.SelectedItem()
 	// The selected item may or may not change (depends on section content),
 	// but it should not panic and should remain valid.
@@ -157,8 +158,8 @@ func TestRun_SidebarVerticalNav_SidebarCollapsed(t *testing.T) {
 	r.TestForceCollapseLeftSidebar()
 
 	// With sidebar collapsed, vertical nav should be a no-op.
-	r.Update(tea.KeyMsg{Type: tea.KeyUp})
-	r.Update(tea.KeyMsg{Type: tea.KeyDown})
+	r.Update(tea.KeyPressMsg{Code: tea.KeyUp})
+	r.Update(tea.KeyPressMsg{Code: tea.KeyDown})
 }
 
 // ---- handleSidebarPageNav ----
@@ -168,14 +169,14 @@ func TestRun_SidebarPageNav_LogsFocused(t *testing.T) {
 	r.TestForceExpandConsoleLogsPane(10)
 
 	// Focus logs.
-	r.Update(tea.KeyMsg{Type: tea.KeyTab})
+	r.Update(tea.KeyPressMsg{Code: tea.KeyTab})
 	for !r.TestConsoleLogsPaneActive() {
-		r.Update(tea.KeyMsg{Type: tea.KeyTab})
+		r.Update(tea.KeyPressMsg{Code: tea.KeyTab})
 	}
 
 	// Left/Right should page through logs (no-op with empty logs, but shouldn't panic).
-	r.Update(tea.KeyMsg{Type: tea.KeyLeft})
-	r.Update(tea.KeyMsg{Type: tea.KeyRight})
+	r.Update(tea.KeyPressMsg{Code: tea.KeyLeft})
+	r.Update(tea.KeyPressMsg{Code: tea.KeyRight})
 }
 
 func TestRun_SidebarPageNav_OverviewFocused(t *testing.T) {
@@ -183,8 +184,8 @@ func TestRun_SidebarPageNav_OverviewFocused(t *testing.T) {
 	require.True(t, r.TestLeftSidebarHasActiveSection())
 
 	// Left/Right should page through overview sections.
-	r.Update(tea.KeyMsg{Type: tea.KeyLeft})
-	r.Update(tea.KeyMsg{Type: tea.KeyRight})
+	r.Update(tea.KeyPressMsg{Code: tea.KeyLeft})
+	r.Update(tea.KeyPressMsg{Code: tea.KeyRight})
 }
 
 func TestRun_SidebarPageNav_SidebarCollapsed(t *testing.T) {
@@ -192,6 +193,6 @@ func TestRun_SidebarPageNav_SidebarCollapsed(t *testing.T) {
 	r.TestForceCollapseLeftSidebar()
 
 	// With sidebar collapsed, page nav should be a no-op.
-	r.Update(tea.KeyMsg{Type: tea.KeyLeft})
-	r.Update(tea.KeyMsg{Type: tea.KeyRight})
+	r.Update(tea.KeyPressMsg{Code: tea.KeyLeft})
+	r.Update(tea.KeyPressMsg{Code: tea.KeyRight})
 }

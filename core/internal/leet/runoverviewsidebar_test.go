@@ -2,21 +2,33 @@ package leet_test
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/stretchr/testify/require"
 
 	leet "github.com/wandb/wandb/core/internal/leet"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
-func TestSidebarFilter_AppliesAndClears(t *testing.T) {
-	as := leet.NewAnimatedValue(true, 120)
+func testRunOverviewSidebar(t *testing.T, isExpanded bool) (
+	*leet.RunOverview,
+	*leet.RunOverviewSidebar,
+) {
+	t.Helper()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), nil)
+	as := leet.NewAnimatedValue(isExpanded, 120)
 	ro := leet.NewRunOverview()
-	s := leet.NewRunOverviewSidebar(as, ro, leet.SidebarSideLeft)
+	s := leet.NewRunOverviewSidebar(cfg, as, ro, leet.SidebarSideLeft)
+	return ro, s
+}
+
+func TestSidebarFilter_AppliesAndClears(t *testing.T) {
+	ro, s := testRunOverviewSidebar(t, true)
 
 	ro.ProcessRunMsg(leet.RunMsg{
 		Config: &spb.ConfigRecord{
@@ -42,9 +54,7 @@ func TestSidebarFilter_AppliesAndClears(t *testing.T) {
 }
 
 func TestSidebar_SelectsFirstNonEmptySection(t *testing.T) {
-	as := leet.NewAnimatedValue(true, 120)
-	ro := leet.NewRunOverview()
-	s := leet.NewRunOverviewSidebar(as, ro, leet.SidebarSideLeft)
+	ro, s := testRunOverviewSidebar(t, true)
 
 	ro.ProcessRunMsg(leet.RunMsg{
 		Config: &spb.ConfigRecord{
@@ -62,9 +72,7 @@ func TestSidebar_SelectsFirstNonEmptySection(t *testing.T) {
 }
 
 func TestSidebar_ConfirmSummaryFilterSelectsSummary(t *testing.T) {
-	as := leet.NewAnimatedValue(true, 120)
-	ro := leet.NewRunOverview()
-	s := leet.NewRunOverviewSidebar(as, ro, leet.SidebarSideLeft)
+	ro, s := testRunOverviewSidebar(t, true)
 
 	ro.ProcessRunMsg(leet.RunMsg{
 		Config: &spb.ConfigRecord{
@@ -102,9 +110,7 @@ func expandSidebar(t *testing.T, s *leet.RunOverviewSidebar, termWidth int, righ
 }
 
 func TestSidebar_CalculateSectionHeights_PaginationAndAllItems(t *testing.T) {
-	as := leet.NewAnimatedValue(false, 120)
-	ro := leet.NewRunOverview()
-	s := leet.NewRunOverviewSidebar(as, ro, leet.SidebarSideLeft)
+	ro, s := testRunOverviewSidebar(t, false)
 	expandSidebar(t, s, 120, false)
 
 	ro.ProcessRunMsg(leet.RunMsg{
@@ -135,13 +141,13 @@ func TestSidebar_CalculateSectionHeights_PaginationAndAllItems(t *testing.T) {
 	s.Sync()
 
 	// Small height -> ItemsPerPage=1 -> expect "[1-1 of N]" pagination per section.
-	view := s.View(15)
+	view := stripANSI(s.View(15).Content)
 	require.Contains(t, view, "Config [1-2 of 5]")
 	require.Contains(t, view, "Summary [1-1 of 2]")
 	require.Contains(t, view, "Environment")
 
 	// Larger height -> enough space -> expect "[N items]" (non-paginated).
-	view = s.View(40)
+	view = stripANSI(s.View(40).Content)
 	require.Contains(t, view, "Config [5 items]")
 	require.Contains(t, view, "Summary [2 items]")
 
@@ -149,9 +155,7 @@ func TestSidebar_CalculateSectionHeights_PaginationAndAllItems(t *testing.T) {
 }
 
 func TestSidebar_Navigation_SectionPageUpDown(t *testing.T) {
-	as := leet.NewAnimatedValue(false, 120)
-	ro := leet.NewRunOverview()
-	s := leet.NewRunOverviewSidebar(as, ro, leet.SidebarSideLeft)
+	ro, s := testRunOverviewSidebar(t, false)
 	expandSidebar(t, s, 120, false)
 
 	ro.ProcessSystemInfoMsg(&spb.EnvironmentRecord{
@@ -180,33 +184,31 @@ func TestSidebar_Navigation_SectionPageUpDown(t *testing.T) {
 	s.Sync()
 
 	// Start in Environment; Tab to Config (navigateSection).
-	s.Update(tea.KeyMsg{Type: tea.KeyTab})
+	s.Update(tea.KeyPressMsg{Code: tea.KeyTab})
 	key, _ := s.SelectedItem()
 	require.True(t, strings.HasPrefix(key, "alpha.") || strings.HasPrefix(key, "beta."))
 
 	// Height=15 -> 1 item/page; Down moves to next page/next item (navigateDown + navigatePage).
 	_ = s.View(15)
-	s.Update(tea.KeyMsg{Type: tea.KeyDown})
+	s.Update(tea.KeyPressMsg{Code: tea.KeyDown})
 	key2, _ := s.SelectedItem()
 	require.NotEqual(t, key2, key)
 
 	// Page right, then left, then Up; remain in Config.
-	s.Update(tea.KeyMsg{Type: tea.KeyRight})
-	s.Update(tea.KeyMsg{Type: tea.KeyLeft})
-	s.Update(tea.KeyMsg{Type: tea.KeyUp})
+	s.Update(tea.KeyPressMsg{Code: tea.KeyRight})
+	s.Update(tea.KeyPressMsg{Code: tea.KeyLeft})
+	s.Update(tea.KeyPressMsg{Code: tea.KeyUp})
 	key3, _ := s.SelectedItem()
 	require.True(t, strings.HasPrefix(key3, "alpha.") || strings.HasPrefix(key3, "beta."))
 
 	// Shift-Tab back to previous section (Environment).
-	s.Update(tea.KeyMsg{Type: tea.KeyShiftTab})
+	s.Update(tea.KeyPressMsg{Code: tea.KeyTab, Mod: tea.ModShift})
 	key4, _ := s.SelectedItem()
 	require.False(t, strings.HasPrefix(key4, "alpha.") || strings.HasPrefix(key4, "beta."))
 }
 
 func TestSidebar_ClearFilter_PublicPath(t *testing.T) {
-	as := leet.NewAnimatedValue(false, 120)
-	ro := leet.NewRunOverview()
-	s := leet.NewRunOverviewSidebar(as, ro, leet.SidebarSideLeft)
+	ro, s := testRunOverviewSidebar(t, false)
 	expandSidebar(t, s, 120, false)
 
 	ro.ProcessRunMsg(leet.RunMsg{
@@ -240,14 +242,12 @@ func TestSidebar_ClearFilter_PublicPath(t *testing.T) {
 
 	s.ClearFilter()
 	require.Empty(t, s.FilterInfo())
-	view := s.View(40)
+	view := stripANSI(s.View(40).Content)
 	require.Contains(t, view, "Config [2 items]")
 }
 
 func TestSidebar_TruncateValue(t *testing.T) {
-	as := leet.NewAnimatedValue(false, 120)
-	ro := leet.NewRunOverview()
-	s := leet.NewRunOverviewSidebar(as, ro, leet.SidebarSideLeft)
+	ro, s := testRunOverviewSidebar(t, false)
 	expandSidebar(t, s, 40, false) // clamps to SidebarMinWidth
 
 	long := strings.Repeat("x", 200)
@@ -267,15 +267,80 @@ func TestSidebar_TruncateValue(t *testing.T) {
 
 	s.Sync()
 
-	view := s.View(12)
+	view := stripANSI(s.View(12).Content)
 	require.Contains(t, view, "a.k")
 	require.Contains(t, view, "...")
 }
 
+func TestSidebar_View_RendersTagsAndNotesBeforeSections(t *testing.T) {
+	ro, s := testRunOverviewSidebar(t, false)
+	expandSidebar(t, s, 120, false)
+
+	ro.ProcessRunMsg(leet.RunMsg{
+		ID:          "run-42",
+		DisplayName: "sim-run",
+		Project:     "vision",
+		Tags:        []string{"wandb", "leet", "transformer"},
+		Notes:       "Baseline note for the run overview sidebar renderer.",
+		Config: &spb.ConfigRecord{
+			Update: []*spb.ConfigItem{
+				{NestedKey: []string{"trainer", "epochs"}, ValueJson: "10"},
+			},
+		},
+	})
+
+	s.Sync()
+
+	view := stripANSI(s.View(18).Content)
+	require.Contains(t, view, "Tags:")
+	require.Contains(t, view, "wandb")
+	require.Contains(t, view, "leet")
+	require.Contains(t, view, "transformer")
+	require.Contains(t, view, "Notes:")
+	require.Contains(t, view, "Baseline note")
+	require.Contains(t, view, "Config")
+}
+
+func TestSidebar_View_StaysWithinRequestedBounds(t *testing.T) {
+	ro, s := testRunOverviewSidebar(t, false)
+	expandSidebar(t, s, 120, false)
+
+	ro.ProcessRunMsg(leet.RunMsg{
+		ID:          "0bi7c9tc",
+		DisplayName: "sim-L64-1773703065",
+		Project:     "transformer-pretraining",
+		Tags:        []string{"wandb", "leet"},
+		Notes: "Hominibus levibus ea quae non sunt facilius " +
+			"neglegentiusque verbis exprimi possunt quam ea quae sunt.",
+		Config: &spb.ConfigRecord{
+			Update: []*spb.ConfigItem{
+				{NestedKey: []string{"simulation"}, ValueJson: "true"},
+			},
+		},
+	})
+
+	for i := range 40 {
+		ro.ProcessSummaryMsg([]*spb.SummaryRecord{{
+			Update: []*spb.SummaryItem{{
+				NestedKey: []string{"custom", fmt.Sprintf("metric_%d", i)},
+				ValueJson: fmt.Sprintf("%d", i),
+			}},
+		}})
+	}
+
+	s.Sync()
+
+	const innerHeight = 24
+	view := stripANSI(s.View(innerHeight).Content)
+	require.Equal(t, innerHeight+1, lipgloss.Height(view))
+
+	for line := range strings.SplitSeq(view, "\n") {
+		require.LessOrEqual(t, lipgloss.Width(line), s.Width())
+	}
+}
+
 func TestSidebar_Filter_RegexAndGlob(t *testing.T) {
-	as := leet.NewAnimatedValue(true, 120)
-	ro := leet.NewRunOverview()
-	s := leet.NewRunOverviewSidebar(as, ro, leet.SidebarSideLeft)
+	ro, s := testRunOverviewSidebar(t, true)
 
 	ro.ProcessRunMsg(leet.RunMsg{
 		Config: &spb.ConfigRecord{
@@ -318,9 +383,7 @@ func TestSidebar_Filter_RegexAndGlob(t *testing.T) {
 }
 
 func TestSidebar_Pagination_ResizeFromLaterPage(t *testing.T) {
-	as := leet.NewAnimatedValue(false, 40)
-	ro := leet.NewRunOverview()
-	s := leet.NewRunOverviewSidebar(as, ro, leet.SidebarSideLeft)
+	ro, s := testRunOverviewSidebar(t, false)
 	expandSidebar(t, s, 120, false)
 
 	// Make enough config items to have multiple pages at small height.
@@ -342,12 +405,12 @@ func TestSidebar_Pagination_ResizeFromLaterPage(t *testing.T) {
 
 	// Navigate down a few items to force CurrentPage > 0.
 	for range 5 {
-		s.Update(tea.KeyMsg{Type: tea.KeyDown})
+		s.Update(tea.KeyPressMsg{Code: tea.KeyDown})
 	}
 
 	// Larger height -> ItemsPerPage increases. This used to panic.
 	require.NotPanics(t, func() {
-		view := s.View(40)
+		view := stripANSI(s.View(40).Content)
 		require.NotEmpty(t, view)
 	})
 }

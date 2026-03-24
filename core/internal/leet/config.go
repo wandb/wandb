@@ -25,6 +25,8 @@ const (
 	gridConfigWorkspaceMetricsCols
 	gridConfigWorkspaceSystemRows
 	gridConfigWorkspaceSystemCols
+	gridConfigSymonRows
+	gridConfigSymonCols
 )
 
 const (
@@ -39,10 +41,12 @@ const (
 
 	DefaultColorScheme        = "wandb-vibe-10"
 	DefaultPerPlotColorScheme = "sunset-glow"
+	DefaultTagColorScheme     = DefaultColorScheme
 	DefaultSingleRunColorMode = ColorModePerSeries
 
-	DefaultSystemColorScheme = "wandb-vibe-10"
-	DefaultSystemColorMode   = ColorModePerSeries
+	DefaultSystemColorScheme    = "wandb-vibe-10"
+	DefaultSystemColorMode      = ColorModePerSeries
+	DefaultSystemTailWindowMins = 10
 
 	DefaultHeartbeatInterval = 15 // seconds
 
@@ -70,8 +74,14 @@ type Config struct {
 	WorkspaceMetricsGrid GridConfig `json:"workspace_metrics_grid" leet:"desc=workspace metrics grid"`
 	WorkspaceSystemGrid  GridConfig `json:"workspace_system_grid"  leet:"desc=workspace system metrics grid"`
 
+	// SymonGrid is the dimensions for the standalone system monitor chart grid.
+	SymonGrid GridConfig `json:"symon_grid" leet:"desc=standalone system metrics grid"`
+
 	// ColorScheme is the color scheme to display the main metrics.
 	ColorScheme string `json:"color_scheme" leet:"desc=Palette for main run metrics charts (and run list colors).,options=colorSchemes"`
+
+	// TagColorScheme is the color scheme for run tag badges in the overview sidebar.
+	TagColorScheme string `json:"tag_color_scheme" leet:"label=Tag color scheme,desc=Palette for run tags in the overview sidebar.,options=colorSchemes"`
 
 	// PerPlotColorScheme is the color scheme to use for main metrics
 	// in single-run view when SingleRunColorMode is per_plot.
@@ -85,6 +95,10 @@ type Config struct {
 	// "per_plot": each chart gets next color from palette
 	// "per_series": all single-series charts use base color, multi-series differentiate
 	SystemColorMode string `json:"system_color_mode" leet:"desc=Color system charts per plot or per series.,options=colorModes"`
+
+	// SystemTailWindowMinutes controls the default live tail window for system charts.
+	// Users can still zoom out to show the full history.
+	SystemTailWindowMinutes int `json:"system_tail_window_minutes" leet:"label=System tail window (min),desc=Default live tail window for system charts. Zooming out can show full history.,min=1"`
 
 	// SingleRunColorMode controls how charts are colored in single-run view:
 	//  - per_series: stably-mapped run-id color for all charts
@@ -100,6 +114,12 @@ type Config struct {
 	// Single-run view sidebar visibility states.
 	LeftSidebarVisible  bool `json:"left_sidebar_visible"  leet:"desc=Show left sidebar in single run view by default."`
 	RightSidebarVisible bool `json:"right_sidebar_visible" leet:"desc=Show right sidebar in single run view by default."`
+	ConsoleLogsVisible  bool `json:"console_logs_visible"  leet:"desc=Show console logs pane in single run mode by default."`
+
+	// Workspace view pane visibility states.
+	WorkspaceOverviewVisible      bool `json:"workspace_overview_visible"       leet:"desc=Show run overview sidebar in workspace mode by default."`
+	WorkspaceSystemMetricsVisible bool `json:"workspace_system_metrics_visible" leet:"desc=Show system metrics pane in workspace mode by default."`
+	WorkspaceConsoleLogsVisible   bool `json:"workspace_console_logs_visible"   leet:"desc=Show console logs pane in workspace mode by default."`
 }
 
 // GridConfig represents grid dimensions.
@@ -141,15 +161,25 @@ func NewConfigManager(path string, logger *observability.CoreLogger) *ConfigMana
 				Rows: DefaultWorkspaceSystemGridRows,
 				Cols: DefaultWorkspaceSystemGridCols,
 			},
-			StartupMode:         DefaultStartupMode,
-			ColorScheme:         DefaultColorScheme,
-			PerPlotColorScheme:  DefaultPerPlotColorScheme,
-			SingleRunColorMode:  DefaultSingleRunColorMode,
-			SystemColorScheme:   DefaultSystemColorScheme,
-			SystemColorMode:     DefaultSystemColorMode,
-			HeartbeatInterval:   DefaultHeartbeatInterval,
-			LeftSidebarVisible:  true,
-			RightSidebarVisible: true,
+			SymonGrid: GridConfig{
+				Rows: DefaultSymonGridRows,
+				Cols: DefaultSymonGridCols,
+			},
+			StartupMode:                   DefaultStartupMode,
+			ColorScheme:                   DefaultColorScheme,
+			PerPlotColorScheme:            DefaultPerPlotColorScheme,
+			TagColorScheme:                DefaultTagColorScheme,
+			SingleRunColorMode:            DefaultSingleRunColorMode,
+			SystemColorScheme:             DefaultSystemColorScheme,
+			SystemColorMode:               DefaultSystemColorMode,
+			SystemTailWindowMinutes:       DefaultSystemTailWindowMins,
+			HeartbeatInterval:             DefaultHeartbeatInterval,
+			LeftSidebarVisible:            true,
+			RightSidebarVisible:           true,
+			ConsoleLogsVisible:            false,
+			WorkspaceOverviewVisible:      true,
+			WorkspaceSystemMetricsVisible: false,
+			WorkspaceConsoleLogsVisible:   false,
 		},
 		logger: logger,
 	}
@@ -200,6 +230,10 @@ func (cm *ConfigManager) normalizeConfig() {
 		cm.config.WorkspaceSystemGrid.Rows, MinGridSize, MaxGridSize)
 	cm.config.WorkspaceSystemGrid.Cols = clamp(
 		cm.config.WorkspaceSystemGrid.Cols, MinGridSize, MaxGridSize)
+	cm.config.SymonGrid.Rows = clamp(
+		cm.config.SymonGrid.Rows, MinGridSize, MaxGridSize)
+	cm.config.SymonGrid.Cols = clamp(
+		cm.config.SymonGrid.Cols, MinGridSize, MaxGridSize)
 
 	if _, ok := colorSchemes[cm.config.ColorScheme]; !ok {
 		cm.config.ColorScheme = DefaultColorScheme
@@ -211,6 +245,10 @@ func (cm *ConfigManager) normalizeConfig() {
 
 	if _, ok := colorSchemes[cm.config.SystemColorScheme]; !ok {
 		cm.config.SystemColorScheme = DefaultSystemColorScheme
+	}
+
+	if _, ok := colorSchemes[cm.config.TagColorScheme]; !ok {
+		cm.config.TagColorScheme = DefaultTagColorScheme
 	}
 
 	if cm.config.SystemColorMode != ColorModePerPlot &&
@@ -225,6 +263,10 @@ func (cm *ConfigManager) normalizeConfig() {
 
 	if cm.config.HeartbeatInterval <= 0 {
 		cm.config.HeartbeatInterval = DefaultHeartbeatInterval
+	}
+
+	if cm.config.SystemTailWindowMinutes <= 0 {
+		cm.config.SystemTailWindowMinutes = DefaultSystemTailWindowMins
 	}
 
 	if cm.config.StartupMode != StartupModeWorkspaceLatest &&
@@ -364,6 +406,13 @@ func (cm *ConfigManager) WorkspaceSystemGrid() (rows, cols int) {
 	return cm.config.WorkspaceSystemGrid.Rows, cm.config.WorkspaceSystemGrid.Cols
 }
 
+// SymonGrid returns the standalone system monitor grid configuration.
+func (cm *ConfigManager) SymonGrid() (rows, cols int) {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	return cm.config.SymonGrid.Rows, cm.config.SymonGrid.Cols
+}
+
 func (cm *ConfigManager) SetWorkspaceSystemRows(rows int) error {
 	if rows < MinGridSize || rows > MaxGridSize {
 		return fmt.Errorf("rows must be between %d and %d, got %d", MinGridSize, MaxGridSize, rows)
@@ -383,6 +432,28 @@ func (cm *ConfigManager) SetWorkspaceSystemCols(cols int) error {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
 	cm.config.WorkspaceSystemGrid.Cols = cols
+	return cm.save()
+}
+
+func (cm *ConfigManager) SetSymonRows(rows int) error {
+	if rows < MinGridSize || rows > MaxGridSize {
+		return fmt.Errorf("rows must be between %d and %d, got %d", MinGridSize, MaxGridSize, rows)
+	}
+
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	cm.config.SymonGrid.Rows = rows
+	return cm.save()
+}
+
+func (cm *ConfigManager) SetSymonCols(cols int) error {
+	if cols < MinGridSize || cols > MaxGridSize {
+		return fmt.Errorf("cols must be between %d and %d, got %d", MinGridSize, MaxGridSize, cols)
+	}
+
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	cm.config.SymonGrid.Cols = cols
 	return cm.save()
 }
 
@@ -454,6 +525,22 @@ func (cm *ConfigManager) SetPerPlotColorScheme(scheme string) error {
 	return cm.save()
 }
 
+func (cm *ConfigManager) TagColorScheme() string {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	return cm.config.TagColorScheme
+}
+
+func (cm *ConfigManager) SetTagColorScheme(scheme string) error {
+	if _, ok := colorSchemes[scheme]; !ok {
+		return fmt.Errorf("unknown color scheme: %q", scheme)
+	}
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	cm.config.TagColorScheme = scheme
+	return cm.save()
+}
+
 func (cm *ConfigManager) SingleRunColorMode() string {
 	cm.mu.RLock()
 	defer cm.mu.RUnlock()
@@ -512,6 +599,26 @@ func (cm *ConfigManager) SetSystemColorMode(mode string) error {
 	return cm.save()
 }
 
+// SystemTailWindow returns the default live tail window for system charts.
+func (cm *ConfigManager) SystemTailWindow() time.Duration {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+
+	return time.Duration(cm.config.SystemTailWindowMinutes) * time.Minute
+}
+
+// SetSystemTailWindowMinutes sets the default live tail window for system charts.
+func (cm *ConfigManager) SetSystemTailWindowMinutes(minutes int) error {
+	if minutes <= 0 {
+		return fmt.Errorf("system tail window must be a positive integer")
+	}
+
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	cm.config.SystemTailWindowMinutes = minutes
+	return cm.save()
+}
+
 // HeartbeatInterval returns the heartbeat interval as a Duration.
 func (cm *ConfigManager) HeartbeatInterval() time.Duration {
 	cm.mu.RLock()
@@ -559,6 +666,22 @@ func (cm *ConfigManager) SetRightSidebarVisible(visible bool) error {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
 	cm.config.RightSidebarVisible = visible
+	return cm.save()
+}
+
+// ConsoleLogsVisible returns whether the console logs pane
+// should be visible in single-run mode.
+func (cm *ConfigManager) ConsoleLogsVisible() bool {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	return cm.config.ConsoleLogsVisible
+}
+
+// SetConsoleLogsVisible sets the single-run console logs pane visibility.
+func (cm *ConfigManager) SetConsoleLogsVisible(visible bool) error {
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	cm.config.ConsoleLogsVisible = visible
 	return cm.save()
 }
 
@@ -616,6 +739,14 @@ func (cm *ConfigManager) SetGridConfig(num int) (string, error) {
 		if err = cm.SetWorkspaceSystemRows(num); err == nil { // success
 			return fmt.Sprintf("Workspace system grid rows set to %d", num), nil
 		}
+	case gridConfigSymonCols:
+		if err = cm.SetSymonCols(num); err == nil { // success
+			return fmt.Sprintf("Symon grid columns set to %d", num), nil
+		}
+	case gridConfigSymonRows:
+		if err = cm.SetSymonRows(num); err == nil { // success
+			return fmt.Sprintf("Symon grid rows set to %d", num), nil
+		}
 	}
 
 	return "", err
@@ -636,17 +767,66 @@ func (cm *ConfigManager) GridConfigStatus() string {
 	defer cm.mu.RUnlock()
 
 	switch cm.pendingGridConfig {
-	case gridConfigMetricsCols:
+	case gridConfigMetricsCols, gridConfigWorkspaceMetricsCols:
 		return "Press 1-9 to set metrics grid columns (ESC to cancel)"
-	case gridConfigMetricsRows:
+	case gridConfigMetricsRows, gridConfigWorkspaceMetricsRows:
 		return "Press 1-9 to set metrics grid rows (ESC to cancel)"
-	case gridConfigSystemCols:
+	case gridConfigSystemCols, gridConfigWorkspaceSystemCols, gridConfigSymonCols:
 		return "Press 1-9 to set system grid columns (ESC to cancel)"
-	case gridConfigSystemRows:
+	case gridConfigSystemRows, gridConfigWorkspaceSystemRows, gridConfigSymonRows:
 		return "Press 1-9 to set system grid rows (ESC to cancel)"
+
 	default:
 		return ""
 	}
+}
+
+// WorkspaceOverviewVisible returns whether the overview sidebar should be
+// visible in workspace mode.
+func (cm *ConfigManager) WorkspaceOverviewVisible() bool {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	return cm.config.WorkspaceOverviewVisible
+}
+
+// SetWorkspaceOverviewVisible sets the workspace overview sidebar visibility.
+func (cm *ConfigManager) SetWorkspaceOverviewVisible(visible bool) error {
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	cm.config.WorkspaceOverviewVisible = visible
+	return cm.save()
+}
+
+// WorkspaceSystemMetricsVisible returns whether the system metrics pane
+// should be visible in workspace mode.
+func (cm *ConfigManager) WorkspaceSystemMetricsVisible() bool {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	return cm.config.WorkspaceSystemMetricsVisible
+}
+
+// SetWorkspaceSystemMetricsVisible sets the workspace system metrics pane visibility.
+func (cm *ConfigManager) SetWorkspaceSystemMetricsVisible(visible bool) error {
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	cm.config.WorkspaceSystemMetricsVisible = visible
+	return cm.save()
+}
+
+// WorkspaceConsoleLogsVisible returns whether the console logs pane
+// should be visible in workspace mode.
+func (cm *ConfigManager) WorkspaceConsoleLogsVisible() bool {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	return cm.config.WorkspaceConsoleLogsVisible
+}
+
+// SetWorkspaceConsoleLogsVisible sets the workspace console logs pane visibility.
+func (cm *ConfigManager) SetWorkspaceConsoleLogsVisible(visible bool) error {
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	cm.config.WorkspaceConsoleLogsVisible = visible
+	return cm.save()
 }
 
 // leetConfigPath returns the path where the config should be stored.

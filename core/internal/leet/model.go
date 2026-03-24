@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
+	"regexp"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/wandb/wandb/core/internal/observability"
 )
@@ -19,6 +19,7 @@ const (
 	viewModeUndefined viewMode = iota
 	viewModeWorkspace
 	viewModeRun
+	viewModeSymon
 )
 
 // latestRunLinkName is the conventional symlink name that wandb creates to
@@ -121,7 +122,7 @@ func NewModel(params ModelParams) *Model {
 // regardless of the starting mode. If starting in single-run mode, the run's
 // reader and watcher commands are also started.
 func (m *Model) Init() tea.Cmd {
-	cmds := []tea.Cmd{windowTitleCmd()}
+	cmds := []tea.Cmd{}
 
 	// Workspace always exists; initialize its long‑running commands.
 	if m.workspace != nil {
@@ -179,17 +180,17 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	// Handle mode switching.
-	if keyMsg, ok := msg.(tea.KeyMsg); ok {
+	if keyMsg, ok := msg.(tea.KeyPressMsg); ok {
 		switch m.mode {
 		case viewModeWorkspace:
-			if keyMsg.Type == tea.KeyEnter &&
+			if keyMsg.Code == tea.KeyEnter &&
 				!awaitingUserInput &&
 				m.workspace.RunSelectorActive() {
 				cmd := m.enterRunView()
 				return m, cmd
 			}
 		case viewModeRun:
-			if keyMsg.Type == tea.KeyEsc && !awaitingUserInput {
+			if keyMsg.Code == tea.KeyEsc && !awaitingUserInput {
 				cmd := m.exitRunView()
 				return m, cmd
 			}
@@ -202,19 +203,27 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // View renders the UI based on the data in the model.
 //
 // Implements tea.Model.View.
-func (m *Model) View() string {
+func (m *Model) View() tea.View {
+	var vs string
+
 	if m.help.IsActive() {
-		return m.renderHelpScreen()
+		vs = m.renderHelpScreen()
+	} else {
+		switch m.mode {
+		case viewModeWorkspace:
+			vs = m.workspace.View().Content
+		case viewModeRun:
+			vs = m.run.View().Content
+		}
 	}
 
-	switch m.mode {
-	case viewModeWorkspace:
-		return m.workspace.View()
-	case viewModeRun:
-		return m.run.View()
-	default:
-		return ""
-	}
+	v := tea.NewView(vs)
+
+	v.WindowTitle = "wandb leet"
+	v.AltScreen = true
+	v.MouseMode = tea.MouseModeCellMotion
+
+	return v
 }
 
 // ShouldRestart reports whether the application should perform a full restart.
@@ -253,7 +262,7 @@ func (m *Model) isAwaitingUserInput() bool {
 // the workspace to keep its background state current.
 func isUserInputMsg(msg tea.Msg) bool {
 	switch msg.(type) {
-	case tea.KeyMsg, tea.MouseMsg:
+	case tea.KeyPressMsg, tea.MouseMsg:
 		return true
 	default:
 		return false
@@ -271,9 +280,9 @@ func (m *Model) handleHelp(msg tea.Msg) (bool, tea.Cmd) {
 	}
 
 	// Toggle on 'h' / '?'
-	if km, ok := msg.(tea.KeyMsg); ok {
-		switch km.String() {
-		case "h", "?":
+	if km, ok := msg.(tea.KeyPressMsg); ok {
+		switch km.Code {
+		case 'h', '?':
 			m.help.SetMode(m.mode)
 			m.help.Toggle()
 			return true, nil
@@ -283,7 +292,7 @@ func (m *Model) handleHelp(msg tea.Msg) (bool, tea.Cmd) {
 	// When help is visible, it owns key/mouse events.
 	if m.help.IsActive() {
 		switch msg.(type) {
-		case tea.KeyMsg, tea.MouseMsg:
+		case tea.KeyPressMsg, tea.MouseMsg:
 			updated, cmd := m.help.Update(msg)
 			m.help = updated
 			return true, cmd
@@ -294,7 +303,7 @@ func (m *Model) handleHelp(msg tea.Msg) (bool, tea.Cmd) {
 
 func (m *Model) handleRestart(msg tea.Msg) (bool, tea.Cmd) {
 	// Toggle on 'h' / '?'
-	if km, ok := msg.(tea.KeyMsg); ok {
+	if km, ok := msg.(tea.KeyPressMsg); ok {
 		if km.String() == "alt+r" {
 			m.logger.Debug("model: restart requested")
 			m.shouldRestart = true
@@ -307,7 +316,7 @@ func (m *Model) handleRestart(msg tea.Msg) (bool, tea.Cmd) {
 
 // renderHelpScreen renders the help screen.
 func (m *Model) renderHelpScreen() string {
-	helpView := m.help.View()
+	helpView := m.help.View().Content
 
 	helpText := "h: help"
 	spaceForHelp := max(m.width-2*StatusBarPadding, 0)
@@ -357,16 +366,22 @@ func (m *Model) exitRunView() tea.Cmd {
 // Path resolution utilities
 // --------------------------------------------------------------------
 
-// extractRunID extracts the run ID from a folder name.
+var runDirRe = regexp.MustCompile(`run-\d{8}_\d{6}-`)
+
+// extractRunID extracts the run ID from a run directory name.
 //
-// "run-20250731_170606-iazb7i1k" -> "iazb7i1k"
-// "offline-run-20250731_170606-abc123" -> "abc123"
+// The expected formats are:
+//
+//	"run-YYYYMMDD_HHMMSS-<run_id>"
+//	"offline-run-YYYYMMDD_HHMMSS-<run_id>"
+//
+// Returns "" if the folder name doesn't match.
 func extractRunID(folderName string) string {
-	lastHyphen := strings.LastIndex(folderName, "-")
-	if lastHyphen == -1 || lastHyphen == len(folderName)-1 {
+	loc := runDirRe.FindStringIndex(folderName)
+	if len(loc) == 0 || loc[1] == len(folderName) {
 		return ""
 	}
-	return folderName[lastHyphen+1:]
+	return folderName[loc[1]:]
 }
 
 // runWandbFile returns the full path to the .wandb file for the given run folder.

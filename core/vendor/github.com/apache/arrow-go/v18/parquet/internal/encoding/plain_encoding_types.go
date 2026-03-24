@@ -89,7 +89,7 @@ func (dec *PlainDecoder[T]) Decode(out []T) (int, error) {
 			dec.Type(), max, nbytes, len(dec.data))
 	}
 
-	copyFrom(out, dec.data[:nbytes])
+	copyFrom(out[:max], dec.data[:nbytes])
 	dec.data = dec.data[nbytes:]
 	dec.nvals -= max
 	return max, nil
@@ -130,13 +130,15 @@ func (dec *PlainDecoder[T]) DecodeSpaced(out []T, nullCount int, validBits []byt
 	return nvalues, nil
 }
 
-type PlainInt32Encoder = PlainEncoder[int32]
-type PlainInt32Decoder = PlainDecoder[int32]
-type PlainInt64Encoder = PlainEncoder[int64]
-type PlainInt64Decoder = PlainDecoder[int64]
-type PlainFloat32Encoder = PlainEncoder[float32]
-type PlainFloat32Decoder = PlainDecoder[float32]
-type PlainFloat64Encoder = PlainEncoder[float64]
-type PlainFloat64Decoder = PlainDecoder[float64]
-type PlainInt96Encoder = PlainEncoder[parquet.Int96]
-type PlainInt96Decoder = PlainDecoder[parquet.Int96]
+type (
+	PlainInt32Encoder   = PlainEncoder[int32]
+	PlainInt32Decoder   = PlainDecoder[int32]
+	PlainInt64Encoder   = PlainEncoder[int64]
+	PlainInt64Decoder   = PlainDecoder[int64]
+	PlainFloat32Encoder = PlainEncoder[float32]
+	PlainFloat32Decoder = PlainDecoder[float32]
+	PlainFloat64Encoder = PlainEncoder[float64]
+	PlainFloat64Decoder = PlainDecoder[float64]
+	PlainInt96Encoder   = PlainEncoder[parquet.Int96]
+	PlainInt96Decoder   = PlainDecoder[parquet.Int96]
+)
