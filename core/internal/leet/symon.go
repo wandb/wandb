@@ -347,15 +347,16 @@ func (s *Symon) handleMouse(msg tea.MouseMsg) tea.Cmd {
 
 // renderMainView renders the header, system metrics grid, and status bar.
 func (s *Symon) renderMainView() string {
-	header := renderSystemMetricsHeader(s.width, "System Metrics", "", s.grid)
+	header := symonContainerStyle.Render(
+		renderSystemMetricsHeader(s.width-symonContainerLeftPadding, "System Metrics", "", s.grid))
 	bodyHeight := max(s.height-StatusBarHeight-symonHeaderLines, 0)
-	body := renderSystemMetricsBody(
-		s.width,
+	body := symonContainerStyle.Render(renderSystemMetricsBody(
+		s.width-symonContainerLeftPadding,
 		bodyHeight,
 		s.grid,
 		"Collecting system metrics...",
 		"No matching system metrics.",
-	)
+	))
 	statusBar := s.renderStatusBar()
 
 	fullView := lipgloss.JoinVertical(lipgloss.Left, header, body, statusBar)

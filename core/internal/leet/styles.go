@@ -613,3 +613,10 @@ var (
 	selectedRunStyle         = lipgloss.NewStyle().Background(colorSelected)
 	selectedRunInactiveStyle = lipgloss.NewStyle().Background(colorSelectedRunInactiveStyle)
 )
+
+// Symon mode styles.
+var (
+	symonContainerLeftPadding = 1
+	symonContainerStyle       = lipgloss.NewStyle().
+					PaddingLeft(symonContainerLeftPadding)
+)
