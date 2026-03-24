@@ -95,6 +95,10 @@ const (
 	DefaultWorkspaceMetricsGridCols = 3
 	DefaultWorkspaceSystemGridRows  = 3
 	DefaultWorkspaceSystemGridCols  = 3
+
+	// Standalone system monitor mode.
+	DefaultSymonGridRows = 3
+	DefaultSymonGridCols = 3
 )
 
 // Sidebar constants.
@@ -608,4 +612,11 @@ var (
 	oddRunStyle              = lipgloss.NewStyle().Background(getOddRunStyleColor())
 	selectedRunStyle         = lipgloss.NewStyle().Background(colorSelected)
 	selectedRunInactiveStyle = lipgloss.NewStyle().Background(colorSelectedRunInactiveStyle)
+)
+
+// Symon mode styles.
+var (
+	symonContainerLeftPadding = 1
+	symonContainerStyle       = lipgloss.NewStyle().
+					PaddingLeft(symonContainerLeftPadding)
 )

@@ -356,11 +356,9 @@ func (sm *SystemMonitor) Start(git *spb.GitRepoRecord) {
 	if !sm.settings.IsDisableStats() && !sm.settings.IsDisableMachineInfo() {
 		sm.logger.Debug("monitor: starting")
 		for _, resource := range sm.resources {
-			sm.wg.Add(1)
-			go func() {
+			sm.wg.Go(func() {
 				sm.monitorResource(resource)
-				sm.wg.Done()
-			}()
+			})
 		}
 	}
 }

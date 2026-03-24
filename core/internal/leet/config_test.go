@@ -87,3 +87,20 @@ func TestConfig_SetTagColorScheme_Persists(t *testing.T) {
 	cfg2 := leet.NewConfigManager(path, logger)
 	require.Equal(t, "bootstrap-vibe", cfg2.Snapshot().TagColorScheme)
 }
+
+func TestConfig_SetSymonGrid_Persists(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	path := filepath.Join(t.TempDir(), "config.json")
+	cfg := leet.NewConfigManager(path, logger)
+
+	require.Equal(t, leet.DefaultSymonGridRows, cfg.Snapshot().SymonGrid.Rows)
+	require.Equal(t, leet.DefaultSymonGridCols, cfg.Snapshot().SymonGrid.Cols)
+
+	require.NoError(t, cfg.SetSymonRows(4))
+	require.NoError(t, cfg.SetSymonCols(2))
+
+	cfg2 := leet.NewConfigManager(path, logger)
+	rows, cols := cfg2.SymonGrid()
+	require.Equal(t, 4, rows)
+	require.Equal(t, 2, cols)
+}

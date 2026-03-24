@@ -655,7 +655,7 @@ func (w *Workspace) renderRunOverview() string {
 }
 
 func (w *Workspace) renderMetrics() string {
-	contentWidth := max(w.width-w.runsAnimState.Value()-w.runOverviewSidebar.Width()+1, 0)
+	contentWidth := max(w.width-w.runsAnimState.Value()-w.runOverviewSidebar.Width(), 0)
 	reserved := w.consoleLogsPane.Height() + w.systemMetricsPane.Height()
 	contentHeight := max(w.height-StatusBarHeight-reserved, 1)
 
