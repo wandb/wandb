@@ -111,10 +111,50 @@ func TestFrenchFriesChart_InspectionShowsValuesForWholeColumn(t *testing.T) {
 	view := stripANSI(chart.View())
 	lines := strings.Split(view, "\n")
 	require.Len(t, lines, 4)
-	require.Contains(t, lines[0], "10%")
-	require.Contains(t, lines[1], "50%")
-	require.Contains(t, lines[2], "90%")
+	require.Contains(t, view, "│")
+	require.Contains(t, lines[0], "0: 10%")
+	require.Contains(t, lines[1], "1: 50%")
+	require.Contains(t, lines[2], "7: 90%")
 	require.Contains(t, lines[3], start.Local().Format("15:04"))
+}
+
+func TestSystemMetricsGrid_CycleFocusedChartMode(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+	_ = cfg.SetSystemRows(1)
+	_ = cfg.SetSystemCols(1)
+
+	grid := leet.NewSystemMetricsGrid(
+		2*leet.MinMetricChartWidth,
+		2*leet.MinMetricChartHeight,
+		cfg,
+		cfg.SystemGrid,
+		leet.NewFocus(),
+		leet.NewFilter(),
+		logger,
+	)
+
+	baseTS := time.Unix(1_700_000_000, 0).Unix()
+	for gpu := 0; gpu < 4; gpu++ {
+		metric := "gpu." + strconv.Itoa(gpu) + ".gpu"
+		grid.AddDataPoint(metric, baseTS, float64(25*(gpu+1)))
+	}
+
+	require.True(t, grid.HandleMouseClick(0, 0))
+	require.False(t, grid.TestHeatmapModeAt(0, 0))
+	require.False(t, grid.TestChartAt(0, 0).IsLogY())
+
+	require.True(t, grid.TestCycleFocusedChartMode())
+	require.False(t, grid.TestHeatmapModeAt(0, 0))
+	require.True(t, grid.TestChartAt(0, 0).IsLogY())
+
+	require.True(t, grid.TestCycleFocusedChartMode())
+	require.True(t, grid.TestHeatmapModeAt(0, 0))
+	require.True(t, grid.TestChartAt(0, 0).IsLogY())
+
+	require.True(t, grid.TestCycleFocusedChartMode())
+	require.False(t, grid.TestHeatmapModeAt(0, 0))
+	require.False(t, grid.TestChartAt(0, 0).IsLogY())
 }
 
 func TestSystemMetricsGrid_GPUUtilizationUsesFrenchFriesChart(t *testing.T) {

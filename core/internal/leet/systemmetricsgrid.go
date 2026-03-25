@@ -369,6 +369,50 @@ func (g *SystemMetricsGrid) toggleFocusedChartHeatmapMode() bool {
 	return true
 }
 
+func (g *SystemMetricsGrid) cycleFocusedChartMode() bool {
+	chart := g.focusedChart()
+	if chart == nil {
+		return false
+	}
+
+	if !chart.SupportsHeatmap() {
+		if !chart.ToggleYScale() {
+			return false
+		}
+		chart.DrawIfNeeded()
+		return true
+	}
+
+	if chart.IsHeatmapMode() {
+		if !chart.ToggleHeatmapMode() {
+			return false
+		}
+		if chart.IsLogY() {
+			chart.ToggleYScale()
+		}
+		chart.DrawIfNeeded()
+		return true
+	}
+
+	if chart.IsLogY() {
+		if !chart.ToggleHeatmapMode() {
+			return false
+		}
+		chart.DrawIfNeeded()
+		return true
+	}
+
+	if chart.ToggleYScale() {
+		chart.DrawIfNeeded()
+		return true
+	}
+	if chart.ToggleHeatmapMode() {
+		chart.DrawIfNeeded()
+		return true
+	}
+	return false
+}
+
 // Resize updates viewport dimensions and resizes/redraws visible charts.
 func (g *SystemMetricsGrid) Resize(width, height int) {
 	if width <= 0 || height <= 0 {

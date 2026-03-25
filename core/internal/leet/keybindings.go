@@ -96,13 +96,8 @@ func RunKeyBindings() []BindingCategory[Run] {
 			Bindings: []KeyBinding[Run]{
 				{
 					Keys:        []string{"y"},
-					Description: "Toggle log Y on focused chart",
-					Handler:     (*Run).handleToggleFocusedChartLogY,
-				},
-				{
-					Keys:        []string{"Y"},
-					Description: "Toggle heatmap mode on focused percentage system chart",
-					Handler:     (*Run).handleToggleFocusedSystemChartHeatmapMode,
+					Description: "Cycle focused chart mode (log Y / heatmap)",
+					Handler:     (*Run).handleCycleFocusedChartMode,
 				},
 				{
 					Keys:        []string{"/"},
@@ -292,13 +287,8 @@ func WorkspaceKeyBindings() []BindingCategory[Workspace] {
 			Bindings: []KeyBinding[Workspace]{
 				{
 					Keys:        []string{"y"},
-					Description: "Toggle log Y on focused chart",
-					Handler:     (*Workspace).handleToggleFocusedChartLogY,
-				},
-				{
-					Keys:        []string{"Y"},
-					Description: "Toggle heatmap mode on focused percentage system chart",
-					Handler:     (*Workspace).handleToggleFocusedSystemChartHeatmapMode,
+					Description: "Cycle focused chart mode (log Y / heatmap)",
+					Handler:     (*Workspace).handleCycleFocusedChartMode,
 				},
 				{
 					Keys:        []string{"/"},

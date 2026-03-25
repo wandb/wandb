@@ -323,13 +323,6 @@ func (c *FrenchFriesChart) draw() {
 				if bucket.ok {
 					cell = c.colorForValue(bucket.value)
 				}
-				if c.inspection.active && x == selectedBucket {
-					if bucket.ok {
-						cell = lipgloss.NewStyle().Reverse(true).Render(cell)
-					} else {
-						cell = string(boxLightVertical)
-					}
-				}
 				cells[y][layout.plotStartX+x] = cell
 			}
 		}
@@ -337,6 +330,7 @@ func (c *FrenchFriesChart) draw() {
 		c.renderBandLabel(cells, layout, band)
 	}
 
+	c.renderInspectionHairline(cells, layout, selectedBucket)
 	c.renderTimeLabels(cells, layout)
 	c.renderInspectionLabels(cells, layout, bucketed)
 	c.renderInspectionTimeLabel(cells, layout, bucketed)
@@ -371,6 +365,21 @@ func (c *FrenchFriesChart) renderBandLabel(
 	}
 }
 
+func (c *FrenchFriesChart) renderInspectionHairline(
+	cells [][]string,
+	layout frenchFriesLayout,
+	selectedBucket int,
+) {
+	if !c.inspection.active || selectedBucket < 0 || selectedBucket >= layout.plotWidth {
+		return
+	}
+
+	x := layout.plotStartX + selectedBucket
+	for y := 0; y < layout.plotHeight; y++ {
+		cells[y][x] = inspectionLineStyle.Render(string(boxLightVertical))
+	}
+}
+
 func (c *FrenchFriesChart) renderInspectionLabels(
 	cells [][]string,
 	layout frenchFriesLayout,
@@ -385,9 +394,7 @@ func (c *FrenchFriesChart) renderInspectionLabels(
 	for _, band := range layout.bands {
 		label := string(unicodeEmDash)
 		if cellsForSeries, ok := bucketed[band.seriesName]; ok {
-			if bucketCell := cellsForSeries[bucket]; bucketCell.ok {
-				label = c.def.Unit.Format(bucketCell.value)
-			}
+			label = c.inspectionValueLabel(band.seriesName, cellsForSeries[bucket])
 		}
 		labels[band.seriesName] = label
 		maxLabelWidth = max(maxLabelWidth, lipgloss.Width(label))
@@ -408,7 +415,7 @@ func (c *FrenchFriesChart) renderInspectionLabels(
 			if x < layout.plotStartX || x >= layout.plotStartX+layout.plotWidth {
 				continue
 			}
-			cells[row][x] = lipgloss.NewStyle().Bold(true).Render(string(r))
+			cells[row][x] = inspectionLegendStyle.Render(string(r))
 		}
 	}
 }
@@ -422,6 +429,22 @@ func selectedLabelStartX(mouseX, plotWidth, labelWidth int) int {
 		start = max(mouseX-labelWidth, 0)
 	}
 	return max(0, min(start, max(plotWidth-labelWidth, 0)))
+}
+
+func (c *FrenchFriesChart) inspectionValueLabel(
+	seriesName string,
+	bucket frenchFriesBucketCell,
+) string {
+	valueLabel := string(unicodeEmDash)
+	if bucket.ok {
+		valueLabel = c.def.Unit.Format(bucket.value)
+	}
+
+	seriesLabel := compactSystemMetricSeriesLabel(seriesName)
+	if seriesLabel == "" {
+		return valueLabel
+	}
+	return seriesLabel + ": " + valueLabel
 }
 
 func (c *FrenchFriesChart) renderTimeLabels(cells [][]string, layout frenchFriesLayout) {

@@ -209,6 +209,11 @@ func (g *SystemMetricsGrid) TestToggleFocusedChartLogY() bool {
 	return g.toggleFocusedChartLogY()
 }
 
+// TestCycleFocusedChartMode advances the focused system chart through its modes.
+func (g *SystemMetricsGrid) TestCycleFocusedChartMode() bool {
+	return g.cycleFocusedChartMode()
+}
+
 // TestInspectionMouseX exposes the current overlay pixel X for tests.
 // This keeps production APIs clean while allowing focused assertions.
 func (c *EpochLineChart) TestInspectionMouseX() (int, bool) {

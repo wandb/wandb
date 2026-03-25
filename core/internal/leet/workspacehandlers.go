@@ -209,16 +209,6 @@ func (w *Workspace) handleSystemMetricsMouse(msg tea.MouseMsg, metricsHeight int
 	return nil
 }
 
-func (w *Workspace) handleToggleFocusedSystemChartHeatmapMode(tea.KeyPressMsg) tea.Cmd {
-	if w.focus.Type != FocusSystemChart {
-		return nil
-	}
-	if g := w.activeSystemMetricsGrid(); g != nil {
-		g.toggleFocusedChartHeatmapMode()
-	}
-	return nil
-}
-
 // clearChartFocus clears focus from both the main metrics grid
 // and the current run's system metrics grid.
 func (w *Workspace) clearChartFocus() {
@@ -715,13 +705,13 @@ func (w *Workspace) handleNextPage(msg tea.KeyPressMsg) tea.Cmd {
 	return nil
 }
 
-func (w *Workspace) handleToggleFocusedChartLogY(tea.KeyPressMsg) tea.Cmd {
+func (w *Workspace) handleCycleFocusedChartMode(tea.KeyPressMsg) tea.Cmd {
 	switch w.focus.Type {
 	case FocusMainChart:
 		w.metricsGrid.toggleFocusedChartLogY()
 	case FocusSystemChart:
 		if g := w.activeSystemMetricsGrid(); g != nil {
-			g.toggleFocusedChartLogY()
+			g.cycleFocusedChartMode()
 		}
 	}
 	return nil

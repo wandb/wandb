@@ -369,24 +369,14 @@ func (r *Run) handleNextSystemPage(msg tea.KeyPressMsg) tea.Cmd {
 	return nil
 }
 
-func (r *Run) handleToggleFocusedChartLogY(tea.KeyPressMsg) tea.Cmd {
+func (r *Run) handleCycleFocusedChartMode(tea.KeyPressMsg) tea.Cmd {
 	switch r.focus.Type {
 	case FocusMainChart:
 		r.metricsGrid.toggleFocusedChartLogY()
 	case FocusSystemChart:
 		if r.rightSidebar != nil && r.rightSidebar.metricsGrid != nil {
-			r.rightSidebar.metricsGrid.toggleFocusedChartLogY()
+			r.rightSidebar.metricsGrid.cycleFocusedChartMode()
 		}
-	}
-	return nil
-}
-
-func (r *Run) handleToggleFocusedSystemChartHeatmapMode(tea.KeyPressMsg) tea.Cmd {
-	if r.focus.Type != FocusSystemChart {
-		return nil
-	}
-	if r.rightSidebar != nil && r.rightSidebar.metricsGrid != nil {
-		r.rightSidebar.metricsGrid.toggleFocusedChartHeatmapMode()
 	}
 	return nil
 }
