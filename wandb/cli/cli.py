@@ -1783,7 +1783,24 @@ def agent(ctx, project, entity, count, forward_signals, sweep_id):
 @cli.command("cw-agent", context_settings=CONTEXT)
 @click.pass_context
 @click.argument("sweep_id")
-@click.argument("artifact_id")
+@click.option(
+    "--artifact",
+    "artifact_id",
+    default=None,
+    help=(
+        "Code artifact to download inside the sandbox before running the agent "
+        "(Case 2). E.g. 'entity/project/training-code:latest'."
+    ),
+)
+@click.option(
+    "--job-artifact",
+    "job_artifact_id",
+    default=None,
+    help=(
+        "W&B job artifact whose wandb-job.json specifies a docker image "
+        "(Case 3). E.g. 'entity/project/my-job:latest'."
+    ),
+)
 @click.option(
     "--resource-config",
     "resource_config",
@@ -1792,8 +1809,8 @@ def agent(ctx, project, entity, count, forward_signals, sweep_id):
     help=(
         "Path to a SkyPilot-style YAML file with resource settings "
         "(num_agents, container_image, resources, envs). "
-        "sweep_id and artifact_id from this file are ignored in favour "
-        "of the positional arguments."
+        "sweep_id, artifact_id, and job_artifact_id from this file are ignored "
+        "in favour of CLI arguments."
     ),
 )
 @click.option(
@@ -1816,26 +1833,47 @@ def agent(ctx, project, entity, count, forward_signals, sweep_id):
     help="Number of parallel sandbox agents (overrides --resource-config).",
 )
 @display_error
-def cw_agent(ctx, sweep_id, artifact_id, resource_config, entity, project, num_agents):
+def cw_agent(ctx, sweep_id, artifact_id, job_artifact_id, resource_config, entity, project, num_agents):
     """Run a pool of W&B sandbox agents for a sweep.
 
     SWEEP_ID is the W&B sweep identifier.  It may be a short ID (e.g.
     ``abc123``), ``project/id``, or ``entity/project/id``.  When using a
     short ID you must supply --entity and --project.
 
-    ARTIFACT_ID is the fully-qualified artifact containing the training code,
-    e.g. ``entity/project/training-code:latest``.
+    Source mode (pick at most one):
 
-    Example — minimal::
+    \b
+      (none)           Image already has code + wandb installed (Case 1).
+      --artifact       Generic image; code downloaded from artifact (Case 2).
+      --job-artifact   Job artifact whose wandb-job.json specifies an image (Case 3).
 
-        wandb cw-agent abc123 acme/mnist/training-code:latest -e acme -p mnist
+    Example — Case 1 (image ready)::
+
+        wandb cw-agent entity/project/abc123
+
+    Example — Case 2 (code artifact)::
+
+        wandb cw-agent abc123 --artifact acme/mnist/training-code:latest -e acme -p mnist
+
+    Example — Case 3 (job artifact)::
+
+        wandb cw-agent abc123 --job-artifact acme/mnist/my-job:latest -e acme -p mnist
 
     Example — with resource config::
 
-        wandb cw-agent abc123 acme/mnist/training-code:latest \\
+        wandb cw-agent abc123 --artifact acme/mnist/training-code:latest \\
             --resource-config resources.yaml
     """
-    from wandb.wandb_managed_agent import ManagedAgentSession, ManagedAgentSessionConfig
+    from wandb.wandb_managed_agent import (
+        CodeArtifactSource,
+        EnvOnlySource,
+        JobArtifactSource,
+        ManagedAgentSession,
+        ManagedAgentSessionConfig,
+    )
+
+    if artifact_id and job_artifact_id:
+        raise click.UsageError("--artifact and --job-artifact are mutually exclusive.")
 
     api = _get_cling_api()
     if not api.is_authenticated:
@@ -1862,6 +1900,14 @@ def cw_agent(ctx, sweep_id, artifact_id, resource_config, entity, project, num_a
             "'entity/project/sweep_id' format."
         )
 
+    # Resolve source from CLI flags (override anything in resource-config).
+    def _cli_source():
+        if artifact_id:
+            return CodeArtifactSource(artifact_id)
+        if job_artifact_id:
+            return JobArtifactSource(job_artifact_id)
+        return None  # keep whatever the config file set, or default EnvOnlySource
+
     # Build config: start from resource-config file, then apply CLI overrides.
     if resource_config:
         cfg = ManagedAgentSessionConfig.from_yaml(resource_config)
@@ -1869,13 +1915,16 @@ def cw_agent(ctx, sweep_id, artifact_id, resource_config, entity, project, num_a
         cfg.sweep_id = short_sweep_id
         cfg.entity = resolved_entity
         cfg.project = resolved_project
-        cfg.artifact_id = artifact_id
+        cli_source = _cli_source()
+        if cli_source is not None:
+            cfg.source = cli_source
     else:
+        source = _cli_source() or EnvOnlySource()
         cfg = ManagedAgentSessionConfig(
             sweep_id=short_sweep_id,
             entity=resolved_entity,
             project=resolved_project,
-            artifact_id=artifact_id,
+            source=source,
         )
 
     if num_agents is not None:
