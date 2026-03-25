@@ -20,14 +20,9 @@ does not import ``wandb.superagent.*``. All other dependencies are the public SD
 Requires ``WANDB_API_KEY`` (and optionally ``WANDB_BASE_URL``) for code-artifact jobs;
 git credentials in the environment for private ``repo`` jobs. Image-based jobs no-op.
 
-For **artifact** and **repo** jobs, after source is in ``workspace``, runs
-``python -m pip install -r requirements.frozen.txt`` in that directory when the
-file exists (needs pip available for the same interpreter). Skip with
-``install_dependencies=False`` or ``--no-install``.
-
-Frozen files produced from editable / dev checkouts may pin ``wandb==0.x.y.devN``;
-those builds are not on PyPI. Before ``pip install -r``, such lines are rewritten
-to ``wandb==<this interpreter's wandb.__version__>`` (e.g. after ``pip install wandb``).
+Dependency installation is **not** done here: the host (e.g. ``wandb.superagent.main``)
+runs ``sandbox.exec`` for ``pip install -r …/requirements.frozen.txt`` after bootstrap
+when appropriate.
 """
 
 from __future__ import annotations
@@ -36,9 +31,7 @@ import argparse
 import enum
 import json
 import os
-import re
 import shutil
-import subprocess
 import sys
 from collections.abc import Mapping
 from typing import Any
@@ -82,9 +75,7 @@ def job_source_kind_from_spec(spec: Mapping[str, Any]) -> JobSourceKind:
     if raw is None:
         raise ValueError("wandb-job.json missing source_type")
     if not isinstance(raw, str):
-        raise TypeError(
-            f"source_type must be a string, got {type(raw).__name__}"
-        )
+        raise TypeError(f"source_type must be a string, got {type(raw).__name__}")
     try:
         return JobSourceKind(raw)
     except ValueError:
@@ -121,9 +112,7 @@ def download_job_source_artifact(
     if code_artifact is None:
         raise LaunchError("No artifact found for job source.artifact reference")
     if code_artifact.state == ArtifactState.DELETED:
-        raise LaunchError(
-            f"Job references deleted code artifact {code_artifact.name}"
-        )
+        raise LaunchError(f"Job references deleted code artifact {code_artifact.name}")
 
     return code_artifact.download(
         root=root,
@@ -134,64 +123,10 @@ def download_job_source_artifact(
     )
 
 
-_WANDB_PIN_RE = re.compile(
-    r"^(\s*)wandb==([^\s#]+)(\s*(#.*)?)?$",
-)
-
-
-def _rewrite_dev_wandb_pins(req_path: str) -> None:
-    """Replace ``wandb==…`` lines that use dev/local pins with the installed release."""
-    installed = wandb.__version__
-    out: list[str] = []
-    changed = False
-    with open(req_path, encoding="utf-8") as f:
-        for line in f:
-            raw = line.rstrip("\n")
-            m = _WANDB_PIN_RE.match(raw)
-            if m and ".dev" in m.group(2):
-                indent, suffix = m.group(1), m.group(3) or ""
-                out.append(f"{indent}wandb=={installed}{suffix}\n")
-                changed = True
-            else:
-                out.append(line)
-    if changed:
-        with open(req_path, "w", encoding="utf-8") as f:
-            f.writelines(out)
-
-
-def _install_workspace_requirements(workspace_dir: str) -> None:
-    """Run ``pip install -r requirements.frozen.txt`` in ``workspace_dir`` if present."""
-    req_path = os.path.join(workspace_dir, "requirements.frozen.txt")
-    if not os.path.isfile(req_path):
-        return
-    _rewrite_dev_wandb_pins(req_path)
-    try:
-        subprocess.run(
-            [
-                sys.executable,
-                "-m",
-                "pip",
-                "install",
-                "-r",
-                "requirements.frozen.txt",
-            ],
-            cwd=workspace_dir,
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-    except subprocess.CalledProcessError as e:
-        err = (e.stderr or e.stdout or "").strip()
-        raise LaunchError(
-            f"pip install failed (exit {e.returncode})" + (f": {err}" if err else "")
-        ) from e
-
-
 def bootstrap(
     workspace_dir: str,
     *,
     api: Api | None = None,
-    install_dependencies: bool = True,
 ) -> str:
     """Populate ``workspace_dir`` from the job artifact at ``JOB_ARTIFACT_DIR``.
 
@@ -205,16 +140,10 @@ def bootstrap(
 
     For :attr:`JobSourceKind.IMAGE`, does nothing (returns ``workspace_dir``).
 
-    For artifact and repo jobs, when ``install_dependencies`` is True and
-    ``requirements.frozen.txt`` exists under ``workspace_dir``, runs
-    ``python -m pip install -r requirements.frozen.txt`` in that directory.
-
     Args:
         workspace_dir: Directory where source code should be placed (created if
             needed for artifact/repo jobs).
         api: Optional :class:`~wandb.apis.public.Api` for artifact download.
-        install_dependencies: If True, pip-install from workspace
-            ``requirements.frozen.txt`` when present (artifact/repo only).
 
     Returns:
         ``workspace_dir``.
@@ -233,14 +162,14 @@ def bootstrap(
 
     if kind == JobSourceKind.ARTIFACT:
         if os.path.isfile(req_src):
-            shutil.copy2(req_src, os.path.join(workspace_dir, "requirements.frozen.txt"))
+            shutil.copy2(
+                req_src, os.path.join(workspace_dir, "requirements.frozen.txt")
+            )
         download_job_source_artifact(
             job_dir=job_root,
             root=workspace_dir,
             api=api,
         )
-        if install_dependencies:
-            _install_workspace_requirements(workspace_dir)
         return workspace_dir
 
     if kind == JobSourceKind.REPO:
@@ -255,9 +184,9 @@ def bootstrap(
             with open(diff_path, encoding="utf-8") as f:
                 apply_patch(f.read(), workspace_dir)
         if os.path.isfile(req_src):
-            shutil.copy2(req_src, os.path.join(workspace_dir, "requirements.frozen.txt"))
-        if install_dependencies:
-            _install_workspace_requirements(workspace_dir)
+            shutil.copy2(
+                req_src, os.path.join(workspace_dir, "requirements.frozen.txt")
+            )
         return workspace_dir
 
     raise AssertionError(f"unhandled JobSourceKind: {kind!r}")
@@ -272,18 +201,10 @@ def main(argv: list[str] | None = None) -> int:
         default="/workspace",
         help="Directory to populate with source (default: /workspace).",
     )
-    parser.add_argument(
-        "--no-install",
-        action="store_true",
-        help="Skip pip install -r requirements.frozen.txt in the workspace.",
-    )
     args = parser.parse_args(argv)
 
     try:
-        bootstrap(
-            args.workspace,
-            install_dependencies=not args.no_install,
-        )
+        bootstrap(args.workspace)
     except (CommError, LaunchError, OSError, TypeError, ValueError) as e:
         print(f"bootstrap failed: {e}", file=sys.stderr)
         return 1

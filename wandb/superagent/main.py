@@ -16,7 +16,8 @@ uses provider env (e.g. ``CWSANDBOX``).
 
 Inside the container the job is materialized under ``JOB_ARTIFACT_DIR`` (``/job``)
 by uploading and running ``scripts/download_job_artifact.py`` (PyPI ``wandb`` only),
-then uploading and running ``bootstrap.py``.
+then ``bootstrap.py``. Workspace dependencies are installed with a separate
+``sandbox.exec`` ``pip install -r …/requirements.frozen.txt`` when the file exists.
 """
 
 from __future__ import annotations
@@ -25,10 +26,9 @@ import json
 import os
 import sys
 from pathlib import Path
-from typing import Any
 
 from wandb.errors import CommError
-from wandb.sandbox import NetworkOptions, Sandbox
+from wandb.sandbox import NetworkOptions, Process, ProcessResult, Sandbox
 from wandb.superagent.bootstrap import JOB_ARTIFACT_DIR
 from wandb.superagent.job import (
     JobSourceKind,
@@ -43,8 +43,10 @@ from wandb.superagent.job import (
 
 # W&B job artifact path, e.g. ``entity/project/my-job:latest``.
 JOB_ARTIFACT: str | None = (
-    "dominic-phan-weights-and-biases/example-code-artifact-job-0/job-source-example-code-artifact-job-0-sweeps_job_main.py:latest"
+    "wandb/hackathon-sweep-jobs/job-source-hackathon-sweep-jobs-train.py:latest"
 )
+
+SWEEP_COMMAND = ["wandb", "agent", "wandb/hackathon-sweep-cwagent/dxwfk9z1"]
 
 # Host download root for ``download_job_artifact`` (default: artifact cache).
 DOWNLOAD_ROOT: str | None = None
@@ -69,24 +71,17 @@ SANDBOX_IDLE_ARGS: list[str] = ["infinity"]
 SANDBOX_PYPI_WANDB_SPEC = "wandb"
 
 
-def _print_exec_streams(
-    result: Any,
+def _stream_exec_stdout_and_wait(
+    proc: Process,
     *,
     sandbox_id: str | None = None,
-) -> None:
-    """Print stdout/stderr from a sandbox ``exec().result()`` (bytes or str)."""
+) -> ProcessResult:
+    """Stream ``proc.stdout`` line-by-line, then return ``proc.result()``."""
     label = sandbox_id[-6:] if sandbox_id else ""
     prefix = f"[{label}] " if label else "[sandbox] "
-
-    def _emit(raw: Any, file) -> None:
-        if not raw:
-            return
-        text = raw.decode(errors="replace") if isinstance(raw, bytes) else raw
-        for line in text.splitlines():
-            print(prefix + line, file=file)
-
-    _emit(result.stdout, sys.stdout)
-    _emit(result.stderr, sys.stderr)
+    for line in proc.stdout:
+        print(prefix + line, end="")
+    return proc.result()
 
 
 def _download_job_script_bytes() -> bytes:
@@ -129,18 +124,20 @@ def _sandbox_bootstrap(
 
         if spec := SANDBOX_PYPI_WANDB_SPEC.strip():
             print(f"pip install {spec!r} in sandbox …")
-            pip_pub = sandbox.exec(
-                [
-                    "python",
-                    "-m",
-                    "pip",
-                    "install",
-                    "--no-cache-dir",
-                    "--upgrade",
-                    spec,
-                ],
-            ).result()
-            _print_exec_streams(pip_pub, sandbox_id=sandbox.sandbox_id)
+            pip_pub = _stream_exec_stdout_and_wait(
+                sandbox.exec(
+                    [
+                        "python",
+                        "-m",
+                        "pip",
+                        "install",
+                        "--no-cache-dir",
+                        "--upgrade",
+                        spec,
+                    ],
+                ),
+                sandbox_id=sandbox.sandbox_id,
+            )
             if pip_pub.returncode != 0:
                 print(
                     f"pip install {spec!r} exit {pip_pub.returncode}",
@@ -152,17 +149,19 @@ def _sandbox_bootstrap(
             SANDBOX_REMOTE_DOWNLOAD_SCRIPT,
             _download_job_script_bytes(),
         ).result()
-        dl = sandbox.exec(
-            [
-                "python",
-                SANDBOX_REMOTE_DOWNLOAD_SCRIPT,
-                "--job-artifact",
-                job_artifact_ref,
-                "--root",
-                JOB_ARTIFACT_DIR,
-            ],
-        ).result()
-        _print_exec_streams(dl, sandbox_id=sandbox.sandbox_id)
+        dl = _stream_exec_stdout_and_wait(
+            sandbox.exec(
+                [
+                    "python",
+                    SANDBOX_REMOTE_DOWNLOAD_SCRIPT,
+                    "--job-artifact",
+                    job_artifact_ref,
+                    "--root",
+                    JOB_ARTIFACT_DIR,
+                ],
+            ),
+            sandbox_id=sandbox.sandbox_id,
+        )
         if dl.returncode != 0:
             print(
                 f"sandbox job download exit {dl.returncode}",
@@ -174,32 +173,63 @@ def _sandbox_bootstrap(
             SANDBOX_REMOTE_BOOTSTRAP_SCRIPT,
             _local_bootstrap_script_bytes(),
         ).result()
-        cmd = [
-            "python",
-            SANDBOX_REMOTE_BOOTSTRAP_SCRIPT,
-            "--workspace",
-            SANDBOX_REMOTE_WORKSPACE,
-        ]
-        if not install_dependencies:
-            cmd.append("--no-install")
-
-        result = sandbox.exec(cmd).result()
-        _print_exec_streams(result, sandbox_id=sandbox.sandbox_id)
+        result = _stream_exec_stdout_and_wait(
+            sandbox.exec(
+                [
+                    "python",
+                    SANDBOX_REMOTE_BOOTSTRAP_SCRIPT,
+                    "--workspace",
+                    SANDBOX_REMOTE_WORKSPACE,
+                ],
+            ),
+            sandbox_id=sandbox.sandbox_id,
+        )
         if result.returncode != 0:
             print(
                 f"sandbox bootstrap exit {result.returncode}",
                 file=sys.stderr,
             )
             return result.returncode
-        print("sandbox bootstrap finished")
+        print(
+            f"sandbox bootstrap finished, source code is in {SANDBOX_REMOTE_WORKSPACE}"
+        )
 
-        print("running script")
-        ls_result = sandbox.exec(["ls", "-la", SANDBOX_REMOTE_WORKSPACE]).result()
-        _print_exec_streams(ls_result, sandbox_id=sandbox.sandbox_id)
-        run_result = sandbox.exec(
-            ["python", f"{SANDBOX_REMOTE_WORKSPACE}/main.py"]
-        ).result()
-        _print_exec_streams(run_result, sandbox_id=sandbox.sandbox_id)
+        if install_dependencies:
+            req_remote = f"{SANDBOX_REMOTE_WORKSPACE}/requirements.txt"
+            probe = sandbox.exec(["test", "-f", req_remote]).result()
+            if probe.returncode == 0:
+                print("pip installing dependencies in sandbox …")
+                pip_ws = _stream_exec_stdout_and_wait(
+                    sandbox.exec(
+                        [
+                            "python",
+                            "-m",
+                            "pip",
+                            "install",
+                            "--no-cache-dir",
+                            "-r",
+                            req_remote,
+                        ],
+                    ),
+                    sandbox_id=sandbox.sandbox_id,
+                )
+                if pip_ws.returncode != 0:
+                    print(
+                        f"pip installing deps exit {pip_ws.returncode}",
+                        file=sys.stderr,
+                    )
+                    return pip_ws.returncode
+
+        sweep_result = _stream_exec_stdout_and_wait(
+            sandbox.exec(SWEEP_COMMAND, cwd=SANDBOX_REMOTE_WORKSPACE),
+            sandbox_id=sandbox.sandbox_id,
+        )
+        if sweep_result.returncode != 0:
+            print(
+                f"sweep command exit {sweep_result.returncode}",
+                file=sys.stderr,
+            )
+            return sweep_result.returncode
 
     return 0
 
