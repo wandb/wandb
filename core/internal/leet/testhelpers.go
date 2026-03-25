@@ -110,18 +110,88 @@ func (c *TimeSeriesLineChart) TestFormatXAxisTick(v float64, maxWidth int) strin
 	return c.formatXAxisTick(v, maxWidth)
 }
 
-// TestCurrentPage returns the current grid of charts.
-func (g *SystemMetricsGrid) TestCurrentPage() [][]*TimeSeriesLineChart {
-	return g.currentPage
+// TestSampleCount exposes the buffered sample-column count for focused tests.
+func (c *FrenchFriesChart) TestSampleCount() int {
+	return len(c.samples)
 }
 
-// TestChartAt returns the chart at (row, col) on the current page (or nil).
+// TestVisibleSeries exposes the series currently rendered as rows.
+func (c *FrenchFriesChart) TestVisibleSeries() []string {
+	layout := c.layout()
+	names := make([]string, 0, len(layout.bands))
+	for _, band := range layout.bands {
+		names = append(names, band.seriesName)
+	}
+	return names
+}
+
+// TestTitleDetail exposes the rendered title suffix for focused tests.
+func (c *FrenchFriesChart) TestTitleDetail() string {
+	return c.TitleDetail()
+}
+
+// TestCurrentPage returns the current grid of charts.
+func (g *SystemMetricsGrid) TestCurrentPage() [][]*TimeSeriesLineChart {
+	out := make([][]*TimeSeriesLineChart, len(g.currentPage))
+	for row := range g.currentPage {
+		out[row] = make([]*TimeSeriesLineChart, len(g.currentPage[row]))
+		for col := range g.currentPage[row] {
+			if chart, ok := g.currentPage[row][col].(*TimeSeriesLineChart); ok {
+				out[row][col] = chart
+			}
+		}
+	}
+	return out
+}
+
+// TestChartAt returns the underlying line chart at (row, col) on the current page (or nil).
 func (g *SystemMetricsGrid) TestChartAt(row, col int) *TimeSeriesLineChart {
 	if row < 0 || row >= len(g.currentPage) ||
 		col < 0 || col >= len(g.currentPage[row]) {
 		return nil
 	}
-	return g.currentPage[row][col]
+	switch chart := g.currentPage[row][col].(type) {
+	case *TimeSeriesLineChart:
+		return chart
+	case *frenchFriesToggleChart:
+		return chart.line
+	default:
+		return nil
+	}
+}
+
+// TestFrenchFriesChartAt returns the French Fries chart at (row, col) on the current page (or nil).
+func (g *SystemMetricsGrid) TestFrenchFriesChartAt(row, col int) *FrenchFriesChart {
+	if row < 0 || row >= len(g.currentPage) ||
+		col < 0 || col >= len(g.currentPage[row]) {
+		return nil
+	}
+	switch chart := g.currentPage[row][col].(type) {
+	case *FrenchFriesChart:
+		return chart
+	case *frenchFriesToggleChart:
+		return chart.frenchFries
+	default:
+		return nil
+	}
+}
+
+// TestHeatmapModeAt reports whether the chart at (row, col) is in heatmap mode.
+func (g *SystemMetricsGrid) TestHeatmapModeAt(row, col int) bool {
+	if row < 0 || row >= len(g.currentPage) ||
+		col < 0 || col >= len(g.currentPage[row]) {
+		return false
+	}
+	chart := g.currentPage[row][col]
+	if chart == nil {
+		return false
+	}
+	return chart.IsHeatmapMode()
+}
+
+// TestToggleFocusedChartHeatmapMode toggles heatmap mode on the focused system chart.
+func (g *SystemMetricsGrid) TestToggleFocusedChartHeatmapMode() bool {
+	return g.toggleFocusedChartHeatmapMode()
 }
 
 // TestGridDims returns the current grid dimensions.
@@ -137,6 +207,11 @@ func (g *SystemMetricsGrid) TestSyncInspectActive() bool {
 // TestToggleFocusedChartLogY toggles log Y on the focused system chart.
 func (g *SystemMetricsGrid) TestToggleFocusedChartLogY() bool {
 	return g.toggleFocusedChartLogY()
+}
+
+// TestCycleFocusedChartMode advances the focused system chart through its modes.
+func (g *SystemMetricsGrid) TestCycleFocusedChartMode() bool {
+	return g.cycleFocusedChartMode()
 }
 
 // TestInspectionMouseX exposes the current overlay pixel X for tests.

@@ -96,7 +96,7 @@ def registry_from_config(
         "The `registry` block of the launch agent config is being deprecated. "
         "Please specify an image repository URI under the `builder.destination` "
         "key of your launch agent config. See "
-        "https://docs.wandb.ai/guides/launch/setup-agent-advanced#agent-configuration "
+        "https://docs.wandb.ai/platform/launch/setup-agent-advanced#agent-configuration "
         "for more information."
     )
 

@@ -169,7 +169,7 @@ func TestSystemMetricsGrid_Inspection_Synchronized(t *testing.T) {
 	))
 	adjX := computeSystemAdjustedX(t, first, dims.CellWWithPadding, 0, relPX)
 
-	grid.StartInspection(adjX, 0, 0, dims, true)
+	grid.StartInspection(adjX, 0, 0, 0, dims, true)
 	require.True(t, grid.TestSyncInspectActive())
 
 	xA, _, aActive := first.InspectionData()
@@ -185,7 +185,7 @@ func TestSystemMetricsGrid_Inspection_Synchronized(t *testing.T) {
 			float64(first.GraphWidth()),
 	))
 	adjX = computeSystemAdjustedX(t, first, dims.CellWWithPadding, 0, relPX)
-	grid.UpdateInspection(adjX, 0, 0, dims)
+	grid.UpdateInspection(adjX, 0, 0, 0, dims)
 
 	xA, _, _ = first.InspectionData()
 	xB, _, _ = second.InspectionData()

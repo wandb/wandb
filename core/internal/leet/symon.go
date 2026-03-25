@@ -320,11 +320,11 @@ func (s *Symon) handleMouse(msg tea.MouseMsg) tea.Cmd {
 		case tea.MouseLeft:
 			s.grid.HandleMouseClick(row, col)
 		case tea.MouseRight:
-			s.grid.StartInspection(adjustedX, row, col, dims, alt)
+			s.grid.StartInspection(adjustedX, adjustedY, row, col, dims, alt)
 		}
 	case tea.MouseMotionMsg:
 		if m.Button == tea.MouseRight {
-			s.grid.UpdateInspection(adjustedX, row, col, dims)
+			s.grid.UpdateInspection(adjustedX, adjustedY, row, col, dims)
 		}
 	case tea.MouseReleaseMsg:
 		if m.Button == tea.MouseRight {

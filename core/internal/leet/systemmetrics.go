@@ -9,14 +9,22 @@ import (
 
 const DefaultSystemMetricSeriesName = "Default"
 
+type MetricChartKind int
+
+const (
+	MetricChartKindLine MetricChartKind = iota
+	MetricChartKindFrenchFries
+)
+
 // MetricDef represents a system metric definition needed for displaying it on a chart.
 type MetricDef struct {
 	Name       string
 	Unit       UnitFormatter
-	MinY       float64        // Default min Y value
-	MaxY       float64        // Default max Y value
-	Percentage bool           // Whether this is a percentage metric
-	AutoRange  bool           // Whether to auto-adjust Y range based on data
+	MinY       float64 // Default min Y value
+	MaxY       float64 // Default max Y value
+	Percentage bool    // Whether this is a percentage metric
+	AutoRange  bool    // Whether to auto-adjust Y range based on data
+	ChartKind  MetricChartKind
 	Regex      *regexp.Regexp // Pattern to match metric names (including suffixes)
 }
 
