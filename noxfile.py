@@ -473,7 +473,7 @@ def gql_codegen(session: nox.Session) -> None:
 @nox.session(python=False, name="proto-rust", tags=["proto"])
 def proto_rust(session: nox.Session) -> None:
     """Generate Rust bindings for protobufs."""
-    session.run("./core/api/proto/install-protoc.sh", "23.4", external=True)
+    session.run("./core/api/proto/install-protoc.sh", "34.1", external=True)
     session.run("./gpu_stats/tools/generate-proto.sh", external=True)
 
 
@@ -493,51 +493,66 @@ def proto_python(session: nox.Session, pb: int) -> None:
     """Generate Python bindings for protobufs.
 
     The pb argument is the major version of the protobuf package to use.
-
-    Tested with Python 3.10 on a Mac with an M1 chip.
+    Uses protoc directly (installed via install-protoc.sh) instead of
+    grpc_tools, which avoids version-lag issues with grpcio-tools.
     """
     _generate_proto_python(session, pb=pb)
 
 
 def _generate_proto_python(session: nox.Session, pb: int) -> None:
-    if pb == 4:
-        session.install(
-            "protobuf~=4.23.4",
-            "mypy-protobuf~=3.5.0",
-            "grpcio~=1.51.0",
-            "grpcio-tools~=1.51.0",
-            "packaging",
-            "setuptools<70",  # provides pkg_resources for grpcio-tools
+    # Protobuf version mapping
+    #
+    # The protoc compiler version is derived from the Python protobuf package's
+    # minor version: protobuf X.Y.Z → protoc Y.Z
+    # See https://protobuf.dev/support/version-support/
+    #
+    # Each entry maps a protobuf major version to:
+    #   - protoc:         the protoc binary version to install
+    #   - protobuf:       the pip version spec for the protobuf runtime
+    #   - mypy_protobuf:  the pip version spec for mypy-protobuf (protoc-gen-mypy)
+    proto_python_versions = {
+        4: {
+            "protoc": "23.4",
+            "protobuf": "protobuf~=4.23.4",
+            "mypy_protobuf": "mypy-protobuf~=3.5.0",
+        },
+        5: {
+            "protoc": "27.0",
+            "protobuf": "protobuf~=5.27.0",
+            "mypy_protobuf": "mypy-protobuf~=3.6.0",
+        },
+        6: {
+            "protoc": "32.1",
+            "protobuf": "protobuf~=6.32.1",
+            "mypy_protobuf": "mypy-protobuf~=3.6.0",
+        },
+        7: {
+            "protoc": "34.1",
+            "protobuf": "protobuf~=7.34.0",
+            "mypy_protobuf": "mypy-protobuf~=5.0.0",
+        },
+    }
+
+    if pb not in proto_python_versions:
+        session.error(
+            f"Invalid protobuf version {pb}. Supported: {sorted(proto_python_versions)}"
         )
-    elif pb == 5:
-        session.install(
-            "protobuf~=5.27.0",
-            "mypy-protobuf~=3.6.0",
-            "grpcio~=1.64.1",
-            "grpcio-tools~=1.64.1",
-            "packaging",
-        )
-    elif pb == 6:
-        session.install(
-            "protobuf~=6.32.1",
-            "mypy-protobuf~=3.6.0",
-            "grpcio~=1.75.0",
-            "grpcio-tools~=1.75.0",
-            "packaging",
-        )
-    elif pb == 7:
-        session.install(
-            "protobuf~=7.34.0",
-            "mypy-protobuf~=5.0.0",
-            "grpcio==1.80.0rc1",
-            "grpcio-tools==1.80.0rc1",
-            "packaging",
-        )
-    else:
-        session.error("Invalid protobuf version given. `pb` must be 4, 5, 6, or 7.")
+
+    versions = proto_python_versions[pb]
+
+    session.run(
+        "./core/api/proto/install-protoc.sh",
+        versions["protoc"],
+        external=True,
+    )
+    install_timed(
+        session,
+        versions["protobuf"],
+        versions["mypy_protobuf"],
+    )
 
     with session.chdir("wandb/proto"):
-        session.run("python", "wandb_generate_proto.py")
+        session.run("python", "wandb_generate_proto.py", "--pb-major", str(pb))
 
 
 def _ensure_no_diff(
