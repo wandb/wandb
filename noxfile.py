@@ -553,8 +553,8 @@ def _generate_proto_python(session: nox.Session, pb: int) -> None:
 
     # Ensure protoc, when installed by install-protoc.sh to ~/.local/bin,
     # is discoverable inside the nox venv.
-    local_bin = os.path.expanduser("~/.local/bin")
-    session.env["PATH"] = local_bin + os.pathsep + os.environ.get("PATH", "")
+    local_bin = pathlib.Path("~/.local/bin").expanduser()
+    session.env["PATH"] = str(local_bin) + os.pathsep + os.environ.get("PATH", "")
 
     with session.chdir("wandb/proto"):
         session.run("python", "wandb_generate_proto.py", "--pb-major", str(pb))
