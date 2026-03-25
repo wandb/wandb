@@ -49,3 +49,8 @@ for p in (tmp_out / "wandb" / "proto").glob("*pb2*"):
     p.rename(tmp_out / p.name)
 os.rmdir(tmp_out / "wandb" / "proto")
 os.rmdir(tmp_out / "wandb")
+
+# ensure the version subdir is a proper Python package
+init_file = tmp_out / "__init__.py"
+if not init_file.exists():
+    init_file.touch()
