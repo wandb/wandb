@@ -116,7 +116,7 @@ class GcpEnvironment(AbstractEnvironment):
                 "or set the environment variable {GCP_REGION_ENV_VAR}. "
                 "Alternatively, you may specify the region explicitly in your "
                 "wandb launch configuration at `$HOME/.config/wandb/launch-config.yaml`. "
-                "See https://docs.wandb.ai/guides/launch/run-agent#environments for more information."
+                "See https://docs.wandb.ai/platform/launch/run-agent#environments for more information."
             )
         return cls(region=region)
 

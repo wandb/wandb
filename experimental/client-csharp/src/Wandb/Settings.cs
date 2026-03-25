@@ -4,7 +4,7 @@ namespace Wandb
 {
     /// <summary>
     /// Specifies options for resuming a run.
-    /// See https://docs.wandb.ai/guides/runs/resuming for more information.
+    /// See https://docs.wandb.ai/models/runs/resuming for more information.
     /// </summary>
     public enum ResumeOption
     {
