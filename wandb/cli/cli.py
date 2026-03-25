@@ -1936,7 +1936,7 @@ def cw_agent(ctx, sweep_id, artifact_id, job_artifact_id, resource_config, entit
     )
     try:
         with ManagedAgentSession(cfg) as session:
-            session.run()
+            session.run(attach_logs=True)
     except KeyboardInterrupt:
         wandb.termlog("Interrupted — shutting down sandbox agents.")
 

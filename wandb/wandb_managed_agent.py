@@ -675,8 +675,9 @@ class ManagedAgentSession:
     2. Spawns new sandboxes up to ``config.num_agents``.
     3. Monitors all completion futures with ``concurrent.futures.wait()``
        (Python's ``select(2)`` for futures) — no per-sandbox monitor thread.
-    4. Log lines flow through a single ``queue.Queue`` to a dedicated printer
-       thread; lines are never interleaved (docker-compose style).
+    4. When ``attach_logs=True`` is passed to :meth:`run`, log lines flow
+       through a single ``queue.Queue`` to a dedicated printer thread
+       (docker-compose style).
     5. Any sandbox that exits non-zero or raises is transparently replaced.
     """
 
@@ -712,39 +713,48 @@ class ManagedAgentSession:
     # Public entry point
     # ------------------------------------------------------------------
 
-    def run(self) -> None:
-        """Adopt existing sandboxes, launch new agents, and block until done."""
+    def run(self, *, attach_logs: bool = False) -> None:
+        """Adopt existing sandboxes, launch new agents, and block until done.
+
+        Args:
+            attach_logs: When ``True``, stream sandbox logs to stdout in
+                docker-compose style (``agent-0  | log line``).
+        """
         if self._session is None:
             raise RuntimeError(
                 "Session not open. Use 'with ManagedAgentSession(cfg) as s:' "
                 "or call s.open() first."
             )
 
-        print(f"[DEBUG] run: starting pool for sweep '{self.config.sweep_id}' with {self.config.num_agents} agent(s)")
-        log_queue: queue.Queue[tuple[str, str] | object] = queue.Queue()
-        label_width = len(f"agent-{max(self.config.num_agents - 1, 0)}")
+        print(f"[DEBUG] run: starting pool for sweep '{self.config.sweep_id}' with {self.config.num_agents} agent(s) attach_logs={attach_logs}")
+        log_queue: queue.Queue[tuple[str, str] | object] | None = None
+        printer: threading.Thread | None = None
 
-        printer = threading.Thread(
-            target=_printer_thread,
-            args=(log_queue, label_width),
-            name="wandb-log-printer",
-            daemon=True,
-        )
-        printer.start()
-        print("[DEBUG] run: printer thread started")
+        if attach_logs:
+            label_width = len(f"agent-{max(self.config.num_agents - 1, 0)}")
+            log_queue = queue.Queue()
+            printer = threading.Thread(
+                target=_printer_thread,
+                args=(log_queue, label_width),
+                name="wandb-log-printer",
+                daemon=True,
+            )
+            printer.start()
+            print("[DEBUG] run: printer thread started")
 
         try:
             self._run_pool(log_queue)
         finally:
-            log_queue.put(_PRINTER_STOP)
-            printer.join()
-            print("[DEBUG] run: printer thread joined — done")
+            if log_queue is not None and printer is not None:
+                log_queue.put(_PRINTER_STOP)
+                printer.join()
+                print("[DEBUG] run: printer thread joined — done")
 
     # ------------------------------------------------------------------
     # Pool management
     # ------------------------------------------------------------------
 
-    def _run_pool(self, log_queue: queue.Queue) -> None:
+    def _run_pool(self, log_queue: queue.Queue | None) -> None:
         """Launch sandboxes and monitor them with concurrent.futures.wait()."""
         sweep_tag = f"wandb-sweep-{self.config.sweep_id}"
         print(f"[DEBUG] _run_pool: sweep_tag='{sweep_tag}'")
@@ -799,20 +809,23 @@ class ManagedAgentSession:
                 print(f"[DEBUG] _run_pool: agent-{slot.index} exc={exc!r}")
 
                 if exc is None:
-                    log_queue.put((f"agent-{slot.index}", "[wandb] completed"))
+                    if log_queue is not None:
+                        log_queue.put((f"agent-{slot.index}", "[wandb] completed"))
                     continue
 
                 if _should_restart(exc, self.config.auto_restart):
-                    log_queue.put(
-                        (f"agent-{slot.index}", f"[wandb] {exc!r} — restarting")
-                    )
+                    if log_queue is not None:
+                        log_queue.put(
+                            (f"agent-{slot.index}", f"[wandb] {exc!r} — restarting")
+                        )
                     print(f"[DEBUG] _run_pool: restarting agent-{slot.index}")
                     new_future, new_slot = self._make_and_start_sandbox(slot.index, log_queue)
                     active[new_future] = new_slot
                 else:
-                    log_queue.put(
-                        (f"agent-{slot.index}", f"[wandb] {exc!r} — exiting")
-                    )
+                    if log_queue is not None:
+                        log_queue.put(
+                            (f"agent-{slot.index}", f"[wandb] {exc!r} — exiting")
+                        )
 
         print("[DEBUG] _run_pool: all sandboxes done")
 
@@ -821,7 +834,7 @@ class ManagedAgentSession:
     # ------------------------------------------------------------------
 
     def _make_and_start_sandbox(
-        self, index: int, log_queue: queue.Queue
+        self, index: int, log_queue: queue.Queue | None
     ) -> tuple[concurrent.futures.Future, _SlotInfo]:
         """Create, configure, start, and attach a sandbox slot.
 
@@ -917,11 +930,8 @@ def _bootstrap_artifact_agent(
 
     def _drain(reader) -> None:
         for line in reader:
-            line = line.rstrip("\n")
             if log_queue is not None:
-                log_queue.put((label, line))
-            else:
-                print(f"{label}  | {line}")
+                log_queue.put((label, line.rstrip("\n")))
 
     def _exec_checked(cmd: list[str], *, step: str, cwd: str | None = None) -> None:
         print(f"[DEBUG] _bootstrap_artifact_agent: {label} exec {step}: {cmd} cwd={cwd!r}")
@@ -1012,10 +1022,17 @@ def _should_restart(exc: BaseException | None, policy: int) -> bool:
 
 
 def _attach_slot(
-    index: int, sandbox: Sandbox, log_queue: queue.Queue
+    index: int, sandbox: Sandbox, log_queue: queue.Queue | None
 ) -> _SlotInfo:
-    """Spawn a log-stream thread for *sandbox* and return a populated _SlotInfo."""
+    """Spawn a log-stream thread for *sandbox* and return a populated _SlotInfo.
+
+    When *log_queue* is ``None`` (log streaming disabled) no ``stream_logs``
+    call is made and no drain thread is started.
+    """
     label = f"agent-{index}"
+    if log_queue is None:
+        print(f"[DEBUG] _attach_slot: log streaming disabled for {label}")
+        return _SlotInfo(index=index, sandbox=sandbox, reader=None, log_thread=None)
     print(f"[DEBUG] _attach_slot: starting log-stream thread for {label}")
     reader = sandbox.stream_logs(follow=True)
     log_thread = threading.Thread(
