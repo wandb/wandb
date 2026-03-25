@@ -96,7 +96,7 @@ func RunKeyBindings() []BindingCategory[Run] {
 			Bindings: []KeyBinding[Run]{
 				{
 					Keys:        []string{"y"},
-					Description: "Cycle focused chart mode (log Y / heatmap)",
+					Description: "Cycle focused chart mode (log Y / heatmap).",
 					Handler:     (*Run).handleCycleFocusedChartMode,
 				},
 				{
