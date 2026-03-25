@@ -265,7 +265,8 @@ class Sentry:
             if tags.get(obj_url, None):
                 continue
             try:
-                app_url = wandb.util.app_url(tags["base_url"])  # type: ignore[index]
+                app_url = tags.get("app_url") or wandb.util.api_to_app_url(tags["base_url"])  # type: ignore[index]
+                app_url = app_url.rstrip("/")
                 entity, project = (quote(tags[k]) for k in ("entity", "project"))  # type: ignore[index]
                 self.scope.set_tag(
                     obj_url,
@@ -276,7 +277,7 @@ class Sentry:
 
         email = tags.get("email")
         if email:
-            self.scope.user = {"email": email}
+            self.scope.set_user({"email": email})
 
         self.start_session()
 
