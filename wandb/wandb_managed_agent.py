@@ -77,7 +77,7 @@ import queue
 import sys
 import threading
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, NamedTuple, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, Callable, Iterable, Iterator, NamedTuple, Protocol, runtime_checkable
 
 import yaml
 
@@ -87,7 +87,6 @@ from wandb.apis import InternalApi
 from cwsandbox import NetworkOptions
 
 if TYPE_CHECKING:
-    from cwsandbox import StreamReader
     from wandb.sandbox._sandbox import Sandbox
     from wandb.sandbox._session import Session
 
@@ -135,20 +134,51 @@ class RestartPolicy(enum.IntFlag):
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# _SlotInfo — active sandbox state  (defined early; used by AgentSource)
+# RunHandle — public return type of AgentSource.start()
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+class RunHandle:
+    """Returned by :meth:`AgentSource.start`.
+
+    Provides a select-able future and an optional log-line stream.  The
+    session owns all queue and thread infrastructure; the source only
+    provides raw material.
+
+    Attributes:
+        future: ``concurrent.futures.Future`` that resolves when the agent
+            (or bootstrap thread) completes.
+        log_lines: Iterable of log line strings, or ``None`` if the source
+            does not support streaming (e.g. log streaming is disabled).
+    """
+
+    def __init__(
+        self,
+        future: concurrent.futures.Future,
+        log_lines: Iterable[str] | None = None,
+        _closer: Callable[[], None] | None = None,
+    ) -> None:
+        self.future = future
+        self.log_lines = log_lines
+        self._closer = _closer
+
+    def close(self) -> None:
+        """Stop the log stream.  No-op if there is no closer."""
+        if self._closer is not None:
+            self._closer()
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# _SlotInfo — active sandbox state (internal)
 # ──────────────────────────────────────────────────────────────────────────────
 
 
 class _SlotInfo(NamedTuple):
-    """All state associated with one active sandbox slot.
-
-    ``reader`` and ``log_thread`` are ``None`` for Case 2 (exec bootstrap)
-    because ``_bootstrap_artifact_agent`` handles its own log streaming.
-    """
+    """All state associated with one active sandbox slot."""
 
     index: int
     sandbox: Sandbox
-    reader: StreamReader | None
+    handle: RunHandle
     log_thread: threading.Thread | None
 
 
@@ -184,19 +214,16 @@ class AgentSource(Protocol):
         """
         ...
 
-    def attach(
-        self,
-        sandbox: Sandbox,
-        index: int,
-        log_queue: queue.Queue,
-        sweep_path: str,
-    ) -> tuple[concurrent.futures.Future, _SlotInfo]:
-        """Post-start attachment: set up monitoring and return a select-able future.
+    def start(self, sandbox: Sandbox, sweep_path: str) -> RunHandle:
+        """Post-start attachment: return a :class:`RunHandle` for this sandbox.
 
-        * Cases 1 & 3: starts a log-drain thread; returns
-          ``sandbox.wait_until_complete()._future``.
-        * Case 2: submits bootstrap work to the thread executor; returns
-          that executor future.
+        Called after ``sandbox.start().result()``.  Returns a
+        :class:`RunHandle` whose ``future`` resolves when the agent (or
+        bootstrap thread) finishes, and whose ``log_lines`` is an iterable
+        of log-line strings (or ``None`` if not applicable).
+
+        The caller owns all queue and thread infrastructure; the source only
+        provides the raw future and log stream.
         """
         ...
 
@@ -221,23 +248,17 @@ class EnvOnlySource:
         sandbox._command = "wandb"
         sandbox._args = ["agent", sweep_path]
 
-    def attach(
-        self,
-        sandbox: Sandbox,
-        index: int,
-        log_queue: queue.Queue,
-        sweep_path: str,
-    ) -> tuple[concurrent.futures.Future, _SlotInfo]:
-        slot = _attach_slot(index, sandbox, log_queue)
+    def start(self, sandbox: Sandbox, sweep_path: str) -> RunHandle:
+        reader = sandbox.stream_logs(follow=True)
         future = sandbox.wait_until_complete(raise_on_termination=True)._future
-        return future, slot
+        return RunHandle(future=future, log_lines=reader, _closer=reader.close)
 
 
 class CodeArtifactSource:
     """Case 2: generic image; job artifact code source exec-bootstrapped after start.
 
     The sandbox starts with ``sleep infinity`` as its main command.  After
-    ``sandbox.start()``, :meth:`attach` submits a bootstrap thread that mirrors
+    ``sandbox.start()``, :meth:`start` submits a bootstrap thread that mirrors
     ``wandb.superagent.main._sandbox_bootstrap``:
 
     1. ``pip install wandb``
@@ -268,25 +289,27 @@ class CodeArtifactSource:
         sandbox._command = "sleep"
         sandbox._args = ["infinity"]
 
-    def attach(
-        self,
-        sandbox: Sandbox,
-        index: int,
-        log_queue: queue.Queue,
-        sweep_path: str,
-    ) -> tuple[concurrent.futures.Future, _SlotInfo]:
-        label = f"agent-{index}"
-        print(f"[DEBUG] CodeArtifactSource.attach: submitting bootstrap thread for {label}")
-        future = _bootstrap_executor.submit(
-            _bootstrap_artifact_agent,
-            sandbox,
-            self.job_artifact_id,
-            sweep_path,
-            log_queue,
-            label,
-        )
-        slot = _SlotInfo(index=index, sandbox=sandbox, reader=None, log_thread=None)
-        return future, slot
+    def start(self, sandbox: Sandbox, sweep_path: str) -> RunHandle:
+        _line_queue: queue.SimpleQueue[str | None] = queue.SimpleQueue()
+
+        def on_log(line: str) -> None:
+            _line_queue.put(line)
+
+        def bootstrap() -> None:
+            try:
+                _bootstrap_artifact_agent(sandbox, self.job_artifact_id, sweep_path, on_log)
+            finally:
+                _line_queue.put(None)  # sentinel — drain thread exits cleanly
+
+        def _log_gen() -> Iterator[str]:
+            while True:
+                line = _line_queue.get()
+                if line is None:
+                    return
+                yield line
+
+        future = _bootstrap_executor.submit(bootstrap)
+        return RunHandle(future=future, log_lines=_log_gen())
 
 
 class JobArtifactSource:
@@ -328,16 +351,10 @@ class JobArtifactSource:
         sandbox._command = "wandb"
         sandbox._args = ["agent", sweep_path]
 
-    def attach(
-        self,
-        sandbox: Sandbox,
-        index: int,
-        log_queue: queue.Queue,
-        sweep_path: str,
-    ) -> tuple[concurrent.futures.Future, _SlotInfo]:
-        slot = _attach_slot(index, sandbox, log_queue)
+    def start(self, sandbox: Sandbox, sweep_path: str) -> RunHandle:
+        reader = sandbox.stream_logs(follow=True)
         future = sandbox.wait_until_complete(raise_on_termination=True)._future
-        return future, slot
+        return RunHandle(future=future, log_lines=reader, _closer=reader.close)
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -513,7 +530,8 @@ class ManagedAgent:
             sandbox = session.sandbox(container_image=image)
             managed.consume_sandbox(sandbox)
             sandbox.start().result()
-            future, slot = source.attach(sandbox, 0, log_queue, managed._sweep_path)
+            handle = source.start(sandbox, managed._sweep_path)
+            handle.future.result()
     """
 
     def __init__(
@@ -777,8 +795,14 @@ class ManagedAgentSession:
         # Adopted sandboxes are always Cases 1/3 (exec bootstrap can't be adopted).
         for i, sandbox in enumerate(existing):
             print(f"[DEBUG] _run_pool: attaching adopted sandbox {i} id={sandbox.sandbox_id}")
-            slot = _attach_slot(i, sandbox, log_queue)
-            active[sandbox.wait_until_complete(raise_on_termination=True)._future] = slot
+            reader = sandbox.stream_logs(follow=True)
+            handle = RunHandle(
+                future=sandbox.wait_until_complete(raise_on_termination=True)._future,
+                log_lines=reader,
+                _closer=reader.close,
+            )
+            log_thread = _start_log_drain(handle, f"agent-{i}", log_queue)
+            active[handle.future] = _SlotInfo(index=i, sandbox=sandbox, handle=handle, log_thread=log_thread)
 
         new_count = max(0, self.config.num_agents - len(existing))
         print(f"[DEBUG] _run_pool: launching {new_count} new sandbox(es)")
@@ -800,8 +824,7 @@ class ManagedAgentSession:
             for future in done:
                 slot = active.pop(future)
                 print(f"[DEBUG] _run_pool: agent-{slot.index} future completed")
-                if slot.reader is not None:
-                    slot.reader.close()
+                slot.handle.close()
                 if slot.log_thread is not None:
                     slot.log_thread.join(timeout=10)
 
@@ -880,7 +903,10 @@ class ManagedAgentSession:
         # verify they match what was requested in resources.yaml.
         managed.log_device_resources(sandbox, log_queue, label=f"agent-{index}")
 
-        return self.config.source.attach(sandbox, index, log_queue, managed._sweep_path)
+        handle = self.config.source.start(sandbox, managed._sweep_path)
+        log_thread = _start_log_drain(handle, f"agent-{index}", log_queue)
+        slot = _SlotInfo(index=index, sandbox=sandbox, handle=handle, log_thread=log_thread)
+        return handle.future, slot
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -903,8 +929,7 @@ def _bootstrap_artifact_agent(
     sandbox: Sandbox,
     job_artifact_id: str,
     sweep_path: str,
-    log_queue: queue.Queue | None = None,
-    label: str = "agent",
+    on_log: Callable[[str], None] | None = None,
 ) -> None:
     """Bootstrap a job artifact inside *sandbox* and run ``wandb agent``.
 
@@ -930,11 +955,11 @@ def _bootstrap_artifact_agent(
 
     def _drain(reader) -> None:
         for line in reader:
-            if log_queue is not None:
-                log_queue.put((label, line.rstrip("\n")))
+            if on_log is not None:
+                on_log(line.rstrip("\n"))
 
     def _exec_checked(cmd: list[str], *, step: str, cwd: str | None = None) -> None:
-        print(f"[DEBUG] _bootstrap_artifact_agent: {label} exec {step}: {cmd} cwd={cwd!r}")
+        print(f"[DEBUG] _bootstrap_artifact_agent: exec {step}: {cmd} cwd={cwd!r}")
         proc = sandbox.exec(cmd, cwd=cwd)
         t_out = threading.Thread(target=_drain, args=(proc.stdout,), daemon=True)
         t_err = threading.Thread(target=_drain, args=(proc.stderr,), daemon=True)
@@ -943,14 +968,14 @@ def _bootstrap_artifact_agent(
         t_out.join()
         t_err.join()
         result = proc.result()
-        print(f"[DEBUG] _bootstrap_artifact_agent: {label} {step} exit={result.returncode}")
+        print(f"[DEBUG] _bootstrap_artifact_agent: {step} exit={result.returncode}")
         if result.returncode != 0:
             raise SandboxFailedError(
                 f"Sandbox {sandbox.sandbox_id} bootstrap step '{step}' "
                 f"exited {result.returncode}"
             )
 
-    print(f"[DEBUG] _bootstrap_artifact_agent: {label} starting bootstrap for job artifact '{job_artifact_id}'")
+    print(f"[DEBUG] _bootstrap_artifact_agent: starting bootstrap for job artifact '{job_artifact_id}'")
 
     # 1. Prepare directories
     sandbox.exec(["mkdir", "-p", _REMOTE_JOB_DIR]).result()
@@ -1021,48 +1046,43 @@ def _should_restart(exc: BaseException | None, policy: int) -> bool:
     return False
 
 
-def _attach_slot(
-    index: int, sandbox: Sandbox, log_queue: queue.Queue | None
-) -> _SlotInfo:
-    """Spawn a log-stream thread for *sandbox* and return a populated _SlotInfo.
+def _start_log_drain(
+    handle: RunHandle, label: str, log_queue: queue.Queue | None
+) -> threading.Thread | None:
+    """Spawn a drain thread for *handle.log_lines* if logging is enabled.
 
-    When *log_queue* is ``None`` (log streaming disabled) no ``stream_logs``
-    call is made and no drain thread is started.
+    Returns the thread (already started), or ``None`` if *log_queue* is
+    ``None`` or *handle.log_lines* is ``None``.
     """
-    label = f"agent-{index}"
-    if log_queue is None:
-        print(f"[DEBUG] _attach_slot: log streaming disabled for {label}")
-        return _SlotInfo(index=index, sandbox=sandbox, reader=None, log_thread=None)
-    print(f"[DEBUG] _attach_slot: starting log-stream thread for {label}")
-    reader = sandbox.stream_logs(follow=True)
-    log_thread = threading.Thread(
-        target=_drain_stream_to_queue,
-        args=(reader, label, log_queue),
+    if log_queue is None or handle.log_lines is None:
+        return None
+    thread = threading.Thread(
+        target=_drain_iterable_to_queue,
+        args=(handle.log_lines, label, log_queue),
         name=f"wandb-log-{label}",
         daemon=True,
     )
-    log_thread.start()
-    return _SlotInfo(index=index, sandbox=sandbox, reader=reader, log_thread=log_thread)
+    thread.start()
+    return thread
 
 
-def _drain_stream_to_queue(
-    reader: StreamReader,
+def _drain_iterable_to_queue(
+    lines: Iterable[str],
     label: str,
     log_queue: queue.Queue,
 ) -> None:
-    """Sync-iterate *reader* and push ``(label, line)`` tuples to *log_queue*.
+    """Iterate *lines* and push ``(label, line)`` tuples to *log_queue*.
 
-    Returns when *reader* is exhausted or ``reader.close()`` is called from
-    the main thread, which puts a ``None`` sentinel on the underlying queue
-    and causes ``__next__`` to raise ``StopIteration`` cleanly.
+    Works with any iterable: ``stream_logs()`` readers (Cases 1 & 3) and
+    the generator produced by ``CodeArtifactSource.start()`` (Case 2).
     """
-    print(f"[DEBUG] _drain_stream_to_queue: {label} drain thread starting")
+    print(f"[DEBUG] _drain_iterable_to_queue: {label} drain thread starting")
     try:
-        for line in reader:
+        for line in lines:
             log_queue.put((label, line))
     except Exception as e:
-        print(f"[DEBUG] _drain_stream_to_queue: {label} drain thread exiting with {e!r}")
-    print(f"[DEBUG] _drain_stream_to_queue: {label} drain thread done")
+        print(f"[DEBUG] _drain_iterable_to_queue: {label} drain thread exiting with {e!r}")
+    print(f"[DEBUG] _drain_iterable_to_queue: {label} drain thread done")
 
 
 def _printer_thread(log_queue: queue.Queue, label_width: int) -> None:
