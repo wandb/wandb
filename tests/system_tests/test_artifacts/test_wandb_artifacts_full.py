@@ -7,7 +7,6 @@ import shutil
 import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from urllib.parse import quote
 
 import numpy as np
 import responses
@@ -800,11 +799,6 @@ def test_artifact_entry_download_url_matches_server_features(
 ):
     """Verify direct entry download uses URL format expected by backend features."""
     from unittest import mock
-
-    from wandb.proto import wandb_internal_pb2 as pb
-    from wandb.sdk.artifacts._gqlutils import server_supports
-    from wandb.sdk.artifacts.storage_layout import StorageLayout
-    from wandb.sdk.lib.hashutil import b64_to_hex_id
 
     # Let requests hit the real backend while still recording called URLs.
     responses.add_passthru(re.compile(r".*"))
