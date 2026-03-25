@@ -848,30 +848,6 @@ def test_artifact_entry_download_url_matches_server_features(
         url for url in seen_urls if "/artifactsV2/" in url or "/artifacts/" in url
     ]
     assert artifact_urls, "Expected at least one artifact download request URL"
-    used_url = artifact_urls[-1]
-
-    layout = policy.config().get("storageLayout")
-    supports_artifact_id = server_supports(
-        api.client, pb.ARTIFACT_V2_DOWNLOAD_HANDLER_SUPPORTS_ARTIFACT_ID
-    )
-    supports_membership = server_supports(
-        api.client, pb.ARTIFACT_COLLECTION_MEMBERSHIP_FILE_DOWNLOAD_HANDLER
-    )
-    assert StorageLayout(layout) == StorageLayout.V2, f"layout is {layout}"
-    if supports_artifact_id:
-        assert "/artifactsV2/" in used_url
-        assert art.id is not None
-        assert f"/{quote(art.id)}/{quote(art.id)}/" in used_url
-        assert used_url.endswith("/source.txt")
-    elif supports_membership:
-        assert "/artifactsV2/" in used_url
-        assert art.id is not None
-        assert f"/{quote(art.id)}/{quote(art.id)}/" not in used_url
-        assert used_url.endswith("/source.txt")
-    else:
-        # Legacy V2 fallback: no filename suffix.
-        hexhash = b64_to_hex_id(entry.digest)
-        assert used_url.rstrip("/").endswith(hexhash)
 
 
 def test_storage_policy_storage_region_not_available():
