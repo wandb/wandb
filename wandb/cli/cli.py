@@ -311,7 +311,6 @@ def login(key, host, cloud, relogin, anonymously, verify, no_offline=False):
     URL with `--host`, or set the WANDB_BASE_URL environment variable.
 
     Examples:
-
     Log in interactively (prompts for API key)
 
         $ wandb login
@@ -392,7 +391,6 @@ def init(ctx, project, entity, reset, mode):
     prepare the directory for experiment tracking.
 
     Examples:
-
     Set up W&B for the current directory with guided prompts for team and
     project selection.
 
@@ -679,7 +677,6 @@ def sync(
     of the run.
 
     Examples:
-
     Show a summary of local runs and their sync status
 
         $ wandb sync
@@ -995,7 +992,6 @@ def sweep(
     or in the output of the `wandb sweep` command when you create a new sweep.
 
     Examples:
-
     Create a sweep using the configuration defined in sweep_config.yaml. Use
     the current user's default entity and project.
 
@@ -1982,7 +1978,6 @@ def agent(ctx, project, entity, count, forward_signals, sweep_id):
     (entity/project/sweep_id) or the eight character sweep ID alone.
 
     Examples:
-
     Start an agent for a sweep with a sweep ID of wbyz9876
 
         $ wandb agent wbyz9876
@@ -2348,11 +2343,10 @@ def controller(verbose, sweep_id):
     entity and project path (entity/project/sweep_id).
 
     Examples:
-
     Start a local sweep controller for a sweep with sweep ID wbyz9876
 
         $ wandb controller wbyz9876
-    """    
+    """
     click.echo("Starting wandb controller...")
     from wandb import controller as wandb_controller
 
@@ -2633,7 +2627,6 @@ def start(ctx, port, env, daemon, upgrade, edge):
     Requires Docker to be installed and running on the host machine.
 
     Examples:
-
     Start a local W&B server on the default port (8080):
 
         $ wandb server start
@@ -2815,7 +2808,6 @@ def put(
     name, you are prompted to enter one.
 
     Examples:
-
     Upload all files in a local directory ./data/training as a dataset artifact in W&B.
 
         $ wandb artifact put --type dataset ./data/training
@@ -2896,7 +2888,6 @@ def get(path, root, type):
     the version is omitted, use the "latest" alias.
 
     Examples:
-
     Download the latest version of an artifact called "processed-training-set"
     from the "foobar-project" project under the "team-awesome" entity.
 
@@ -2906,7 +2897,7 @@ def get(path, root, type):
     to a local directory (./data).
 
         $ wandb artifact get --root ./data team-awesome/foobar-project/processed-training-set:v2
-    """    
+    """
     public_api = PublicApi()
     entity, project, artifact_name = public_api._parse_artifact_path(path)
     if project is None:
@@ -2955,7 +2946,6 @@ def ls(path, type):
     list artifacts from.
 
     Examples:
-
     List all artifacts in a project called "foobar-project" under the "team-awesome" entity
 
         $ wandb artifact ls team-awesome/foobar-project
@@ -3018,7 +3008,6 @@ def cleanup(target_size, remove_temp):
     formats (for example, 10GB or 500MB).
 
     Examples:
-
     Reduce the artifact cache to 10 GB
 
         $ wandb artifact cache cleanup 10GB
@@ -3060,7 +3049,6 @@ def pull(run, project, entity):
     and entity if not included in the run argument.
 
     Examples:
-
     Download files from a run with run ID "abcd1234" in the "foobar" project and "team-awesome" entity
 
         $ wandb pull -p foobar -e team-awesome abcd1234
@@ -3150,7 +3138,6 @@ def restore(ctx, run, no_git, branch, project, entity):
     - entity/project/run_id
 
     Examples:
-
     Restore a run with run ID  in the default project
     (stored as the WANDB_PROJECT environment variable) and entity
     (set from WANDB_ENTITY or the authenticated user's default entity):
@@ -3393,7 +3380,6 @@ def status(settings):
     base URL, API key, project, entity, and other resolved values.
 
     Examples:
-
     Show current settings:
 
         $ wandb status
@@ -3426,7 +3412,6 @@ def disabled(service):
     locally.
 
     Examples:
-
     Turn off W&B so that the train.py script executes without logging or
     syncing data to W&B:
 
@@ -3439,7 +3424,7 @@ def disabled(service):
     Restore W&B functionality when ready to log and sync again:
 
         $ wandb enabled
-    """    
+    """
     system_settings = wandb_setup.singleton().settings.read_system_settings()
     system_settings.set("mode", "disabled")
     system_settings.save()
@@ -3468,7 +3453,6 @@ def enabled(service):
     use `wandb online` or `wandb offline` instead.
 
     Examples:
-
     Restore W&B functionality after deactivating it with `wandb disabled`:
 
         $ wandb enabled
@@ -3500,7 +3484,6 @@ def verify(host):
     Exits with `code 1` if any critical check fails.
 
     Examples:
-
     Verify the currently configured W&B instance:
 
         $ wandb verify --host https://my-wandb-instance.com
