@@ -3315,7 +3315,7 @@ def online():
     Clear the offline mode setting so subsequent runs in this directory
     sync data to the W&B cloud.
 
-    Undo a previous call to `wandb offline`.
+    Undoes a previous call to `wandb offline`.
 
     Examples:
     Re-enable cloud syncing after working offline:
@@ -3416,10 +3416,9 @@ def status(settings):
     help="No effect. Accepted for backwards compatibility.",
 )
 def disabled(service):
-    """Completely disable W&B.
+    """Disable W&B functionality.
 
-    Set the mode to `disabled` to prevent all W&B functionality. Do not log
-    or sync data while disabled.
+    While W&B is in `disabled` mode, it does not log or sync data.
 
     Use `wandb enable` to restore W&B functionality.
 
@@ -3457,13 +3456,12 @@ def disabled(service):
     help="No effect. Accepted for backwards compatibility.",
 )
 def enabled(service):
-    """Re-enable W&B after it was deactivated.
+    """Re-enable W&B after it was deactivated with `wandb disabled`.
 
     Set the mode to `online` to restore full W&B functionality,
     including cloud syncing and artifact storage.
 
-    Undos a previous call to `wandb disabled`. Do not
-    upload data logged while W&B was set to `disabled`, but allow
+    Does not upload data logged while W&B was set to `disabled`, but allows
     new data to be logged and synced.
 
     To switch between online and offline modes without fully deactivating W&B,
