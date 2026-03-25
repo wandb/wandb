@@ -460,8 +460,10 @@ func (c *FrenchFriesChart) renderTimeLabels(cells [][]string, layout frenchFries
 	span := time.Duration(math.Round(viewMaxX-viewMinX)) * time.Second
 	layouts := systemTimeLayouts(span)
 
-	minLabel := fitTimeLayouts(time.Unix(int64(math.Round(viewMinX)), 0).Local(), layout.plotWidth, layouts)
-	maxLabel := fitTimeLayouts(time.Unix(int64(math.Round(viewMaxX)), 0).Local(), layout.plotWidth, layouts)
+	minLabel := fitTimeLayouts(
+		time.Unix(int64(math.Round(viewMinX)), 0).Local(), layout.plotWidth, layouts)
+	maxLabel := fitTimeLayouts(
+		time.Unix(int64(math.Round(viewMaxX)), 0).Local(), layout.plotWidth, layouts)
 	labels := []struct {
 		text string
 		pos  int
@@ -471,7 +473,8 @@ func (c *FrenchFriesChart) renderTimeLabels(cells [][]string, layout frenchFries
 	}
 
 	midX := (viewMinX + viewMaxX) / 2
-	midText := fitTimeLayouts(time.Unix(int64(math.Round(midX)), 0).Local(), layout.plotWidth, layouts)
+	midText := fitTimeLayouts(
+		time.Unix(int64(math.Round(midX)), 0).Local(), layout.plotWidth, layouts)
 	midPos := max(layout.plotWidth/2-lipgloss.Width(midText)/2, 0)
 	if midText != "" && layout.plotWidth >= lipgloss.Width(midText)*3 {
 		labels = append(labels, struct {
@@ -607,7 +610,9 @@ func (c *FrenchFriesChart) layout() frenchFriesLayout {
 	return layout
 }
 
-func (c *FrenchFriesChart) bucketedSeries(layout frenchFriesLayout) map[string][]frenchFriesBucketCell {
+func (c *FrenchFriesChart) bucketedSeries(
+	layout frenchFriesLayout,
+) map[string][]frenchFriesBucketCell {
 	bucketed := make(map[string][]frenchFriesBucketCell, len(layout.bands))
 	for _, band := range layout.bands {
 		bucketed[band.seriesName] = make([]frenchFriesBucketCell, layout.plotWidth)
@@ -633,7 +638,11 @@ func (c *FrenchFriesChart) bucketedSeries(layout frenchFriesLayout) map[string][
 				continue
 			}
 			if !cells[bucket].ok || sample.timestamp >= cells[bucket].timestamp {
-				cells[bucket] = frenchFriesBucketCell{timestamp: sample.timestamp, value: value, ok: true}
+				cells[bucket] = frenchFriesBucketCell{
+					timestamp: sample.timestamp,
+					value:     value,
+					ok:        true,
+				}
 			}
 		}
 	}

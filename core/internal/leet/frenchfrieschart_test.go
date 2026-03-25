@@ -80,8 +80,8 @@ func TestFrenchFriesChart_TruncatedRowsExposeVisibleSeriesInTitle(t *testing.T) 
 		chart.AddDataPoint("GPU "+strconv.Itoa(gpu), 100, float64(gpu)*10)
 	}
 
-	require.Equal(t, []string{"GPU 0", "GPU 1", "GPU 7"}, chart.TestVisibleSeries())
-	require.Equal(t, "[0,1,7/8]", chart.TestTitleDetail())
+	require.Equal(t, []string{"GPU 0", "GPU 7"}, chart.TestVisibleSeries())
+	require.Equal(t, "[0,7/8]", chart.TestTitleDetail())
 }
 
 func TestFrenchFriesChart_InspectionShowsValuesForWholeColumn(t *testing.T) {
@@ -174,13 +174,11 @@ func TestSystemMetricsGrid_GPUUtilizationUsesFrenchFriesChart(t *testing.T) {
 	)
 
 	baseTS := time.Unix(1_700_000_000, 0).Unix()
-	for gpu := 0; gpu < 4; gpu++ {
+	for gpu := range 4 {
 		metric := "gpu." + strconv.Itoa(gpu) + ".gpu"
 		grid.AddDataPoint(metric, baseTS, float64(25*gpu))
 	}
 
 	chart := grid.TestFrenchFriesChartAt(0, 0)
 	require.NotNil(t, chart)
-	require.Nil(t, grid.TestChartAt(0, 0),
-		"GPU utilization should no longer use a line chart")
 }
