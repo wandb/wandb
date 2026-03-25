@@ -240,9 +240,13 @@ func (s *Symon) handleNextPage(tea.KeyPressMsg) tea.Cmd {
 	return nil
 }
 
-func (s *Symon) handleToggleFocusedChartLogY(tea.KeyPressMsg) tea.Cmd {
-	s.grid.toggleFocusedChartLogY()
+func (s *Symon) handleCycleFocusedChartMode(tea.KeyPressMsg) tea.Cmd {
+	s.grid.cycleFocusedChartMode()
 	return nil
+}
+
+func (s *Symon) handleToggleFocusedChartLogY(msg tea.KeyPressMsg) tea.Cmd {
+	return s.handleCycleFocusedChartMode(msg)
 }
 
 func (s *Symon) handleEnterSystemMetricsFilter(tea.KeyPressMsg) tea.Cmd {
