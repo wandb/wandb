@@ -323,6 +323,49 @@ var colorSchemes = map[string][]compat.AdaptiveColor{
 		compat.AdaptiveColor{Light: lipgloss.Color("#B8A8E8"), Dark: lipgloss.Color("#D6C9FF")},
 		compat.AdaptiveColor{Light: lipgloss.Color("#5538B0"), Dark: lipgloss.Color("#6645D1")},
 	},
+	// This palette has been tested with deuteranopia, protanopia, and tritanopia
+	// simulators. Those forms of color blindness are less common than deuteranomaly.
+	// This palette focuses on siennas/blues/grays only, which
+	// are commonly colorblind-friendly across most forms of color blindness.
+	// Gradient ordering: warm siennas → cool blues → neutral grays.
+	"dusk-shore": {
+		compat.AdaptiveColor{Light: lipgloss.Color("#823520"), Dark: lipgloss.Color("#994228")},
+		compat.AdaptiveColor{Light: lipgloss.Color("#A84728"), Dark: lipgloss.Color("#C2562F")},
+		compat.AdaptiveColor{Light: lipgloss.Color("#BA5028"), Dark: lipgloss.Color("#D96534")},
+		compat.AdaptiveColor{Light: lipgloss.Color("#D86030"), Dark: lipgloss.Color("#FC8F58")},
+		compat.AdaptiveColor{Light: lipgloss.Color("#E07040"), Dark: lipgloss.Color("#FCA36F")},
+		compat.AdaptiveColor{Light: lipgloss.Color("#E89865"), Dark: lipgloss.Color("#FFBA91")},
+		compat.AdaptiveColor{Light: lipgloss.Color("#EAB08A"), Dark: lipgloss.Color("#FFCFB2")},
+		compat.AdaptiveColor{Light: lipgloss.Color("#78A8E8"), Dark: lipgloss.Color("#A4C9FC")},
+		compat.AdaptiveColor{Light: lipgloss.Color("#5A96E0"), Dark: lipgloss.Color("#7DB1FA")},
+		compat.AdaptiveColor{Light: lipgloss.Color("#4880DA"), Dark: lipgloss.Color("#629DF5")},
+		compat.AdaptiveColor{Light: lipgloss.Color("#2E68CC"), Dark: lipgloss.Color("#397EED")},
+		compat.AdaptiveColor{Light: lipgloss.Color("#2258BE"), Dark: lipgloss.Color("#286CE0")},
+		compat.AdaptiveColor{Light: lipgloss.Color("#2850A8"), Dark: lipgloss.Color("#1F59C4")},
+		compat.AdaptiveColor{Light: lipgloss.Color("#8A8D91"), Dark: lipgloss.Color("#B1B4B9")},
+		compat.AdaptiveColor{Light: lipgloss.Color("#606872"), Dark: lipgloss.Color("#79808A")},
+		compat.AdaptiveColor{Light: lipgloss.Color("#454B54"), Dark: lipgloss.Color("#565C66")},
+	},
+	// Same colorblind-friendly sienna/blue/gray palette as "dusk-shore", but with
+	// colors interleaved for maximum visual differentiation between adjacent series.
+	"clear-signal": {
+		compat.AdaptiveColor{Light: lipgloss.Color("#BA5028"), Dark: lipgloss.Color("#D96534")},
+		compat.AdaptiveColor{Light: lipgloss.Color("#2258BE"), Dark: lipgloss.Color("#286CE0")},
+		compat.AdaptiveColor{Light: lipgloss.Color("#4880DA"), Dark: lipgloss.Color("#629DF5")},
+		compat.AdaptiveColor{Light: lipgloss.Color("#823520"), Dark: lipgloss.Color("#994228")},
+		compat.AdaptiveColor{Light: lipgloss.Color("#E07040"), Dark: lipgloss.Color("#FCA36F")},
+		compat.AdaptiveColor{Light: lipgloss.Color("#EAB08A"), Dark: lipgloss.Color("#FFCFB2")},
+		compat.AdaptiveColor{Light: lipgloss.Color("#8A8D91"), Dark: lipgloss.Color("#B1B4B9")},
+		compat.AdaptiveColor{Light: lipgloss.Color("#606872"), Dark: lipgloss.Color("#79808A")},
+		compat.AdaptiveColor{Light: lipgloss.Color("#5A96E0"), Dark: lipgloss.Color("#7DB1FA")},
+		compat.AdaptiveColor{Light: lipgloss.Color("#2850A8"), Dark: lipgloss.Color("#1F59C4")},
+		compat.AdaptiveColor{Light: lipgloss.Color("#A84728"), Dark: lipgloss.Color("#C2562F")},
+		compat.AdaptiveColor{Light: lipgloss.Color("#D86030"), Dark: lipgloss.Color("#FC8F58")},
+		compat.AdaptiveColor{Light: lipgloss.Color("#E89865"), Dark: lipgloss.Color("#FFBA91")},
+		compat.AdaptiveColor{Light: lipgloss.Color("#78A8E8"), Dark: lipgloss.Color("#A4C9FC")},
+		compat.AdaptiveColor{Light: lipgloss.Color("#2E68CC"), Dark: lipgloss.Color("#397EED")},
+		compat.AdaptiveColor{Light: lipgloss.Color("#454B54"), Dark: lipgloss.Color("#565C66")},
+	},
 }
 
 // GraphColors returns the palette for the requested scheme.
