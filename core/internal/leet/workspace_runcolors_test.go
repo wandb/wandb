@@ -13,16 +13,19 @@ import (
 	"github.com/wandb/wandb/core/internal/observability"
 )
 
-func TestWorkspaceRunColorsAssignUniqueWithinWorkspace(t *testing.T) {
-	palette := []compat.AdaptiveColor{{
+func testWorkspaceRunColorPalette() []compat.AdaptiveColor {
+	return []compat.AdaptiveColor{{
 		Light: lipgloss.Color("#3DBAC4"),
 		Dark:  lipgloss.Color("#58D3DB"),
 	}}
-	colors := newWorkspaceRunColors(palette)
+}
+
+func TestWorkspaceRunColorsAssignUniqueWithinWorkspace(t *testing.T) {
+	colors := newWorkspaceRunColors(testWorkspaceRunColorPalette())
 
 	seen := make(map[string]string)
-	for i := range 24 {
-		runPath := fmt.Sprintf("/tmp/run-%02d.wandb", i)
+	for i := range 256 {
+		runPath := fmt.Sprintf("/tmp/run-%03d.wandb", i)
 		key := workspaceRunColorKey(colors.Assign(runPath))
 		if previous, ok := seen[key]; ok {
 			t.Fatalf(
@@ -35,11 +38,7 @@ func TestWorkspaceRunColorsAssignUniqueWithinWorkspace(t *testing.T) {
 }
 
 func TestWorkspaceRunColorsReleaseAllowsReuse(t *testing.T) {
-	palette := []compat.AdaptiveColor{{
-		Light: lipgloss.Color("#3DBAC4"),
-		Dark:  lipgloss.Color("#58D3DB"),
-	}}
-	colors := newWorkspaceRunColors(palette)
+	colors := newWorkspaceRunColors(testWorkspaceRunColorPalette())
 
 	first := colors.Assign("/tmp/first.wandb")
 	second := colors.Assign("/tmp/second.wandb")
@@ -73,6 +72,29 @@ func TestWorkspaceApplyRunKeysAssignsUniqueColors(t *testing.T) {
 		}
 		seen[key] = runKey
 	}
+}
+
+func TestWorkspaceApplyRunKeysReusesReleasedColor(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	cfg := NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+	w := NewWorkspace(t.TempDir(), cfg, logger)
+	w.runColors = newWorkspaceRunColors(testWorkspaceRunColorPalette())
+
+	const (
+		runA = "run-20260209_010100-aaaabbbb"
+		runB = "run-20260209_010101-bbbbcccc"
+		runC = "run-20260209_010102-ccccdddd"
+	)
+
+	w.applyRunKeys([]string{runA, runB})
+	colorA := workspaceRunColorKey(w.runColorForKey(runA))
+	colorB := workspaceRunColorKey(w.runColorForKey(runB))
+	require.NotEqual(t, colorA, colorB)
+
+	w.applyRunKeys([]string{runB})
+	w.applyRunKeys([]string{runB, runC})
+	colorC := workspaceRunColorKey(w.runColorForKey(runC))
+	require.Equal(t, colorA, colorC)
 }
 
 func TestWorkspaceRunColorComponentRGBAcceptsColorColor(t *testing.T) {

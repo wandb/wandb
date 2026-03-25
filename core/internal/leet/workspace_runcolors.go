@@ -15,7 +15,11 @@ const (
 	workspaceRunColorHueStep        = 17.0
 	workspaceRunColorLightnessStep  = 0.035
 	workspaceRunColorSaturationStep = 0.05
-	maxWorkspaceRunColorVariants    = 256
+
+	// Keep allocation bounded even in large workspaces. The reflected
+	// saturation/lightness walk below preserves enough variation that this still
+	// provides ample headroom per base color before any fallback to reuse.
+	maxWorkspaceRunColorVariants = 1024
 )
 
 // workspaceRunColors assigns stable, non-colliding colors to workspace runs.
@@ -121,6 +125,12 @@ func workspaceRunColorComponentRGB(component any) (uint8, uint8, uint8, bool) {
 	return 0, 0, 0, false
 }
 
+// workspaceRunColorVariant returns the step-th nearby variant of base.
+//
+// The search expands in rings around the hashed base color. Hue always shifts
+// so adjacent collisions remain visually distinct. Saturation and lightness use
+// a reflected walk instead of simple clamping, which avoids collapsing repeated
+// attempts to identical black, white, or gray endpoints.
 func workspaceRunColorVariant(base compat.AdaptiveColor, step int) compat.AdaptiveColor {
 	if step <= 0 {
 		return base
@@ -172,8 +182,8 @@ func adjustWorkspaceRunColor(
 
 	h, s, l := rgbToHSL(r, g, b)
 	h = wrapHue(h + hueShift)
-	s = clamp01(s + saturationDelta)
-	l = clamp01(l + lightnessDelta)
+	s = reflect01(s + saturationDelta)
+	l = reflect01(l + lightnessDelta)
 
 	r2, g2, b2 := hslToRGB(h, s, l)
 	return lipgloss.Color(fmt.Sprintf("#%02X%02X%02X", r2, g2, b2))
@@ -267,6 +277,16 @@ func wrapHue(h float64) float64 {
 	return h
 }
 
-func clamp01(v float64) float64 {
-	return min(max(v, 0), 1)
+// reflect01 folds v into [0, 1] by reflecting at the interval boundaries.
+// Unlike clamping, reflection preserves variation for large offsets instead of
+// flattening multiple candidates to the same endpoint.
+func reflect01(v float64) float64 {
+	v = math.Mod(v, 2)
+	if v < 0 {
+		v += 2
+	}
+	if v > 1 {
+		return 2 - v
+	}
+	return v
 }
