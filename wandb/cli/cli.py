@@ -1941,6 +1941,32 @@ def cw_agent(ctx, sweep_id, artifact_id, job_artifact_id, resource_config, entit
         wandb.termlog("Interrupted — shutting down sandbox agents.")
 
 
+@cli.command("cw-agent-list", context_settings=CONTEXT)
+@click.argument("sweep_id")
+@display_error
+def cw_agent_list(sweep_id):
+    """List sandboxes running for a sweep.
+
+    SWEEP_ID is the W&B sweep identifier (e.g. entity/project/abc123).
+    """
+    from wandb.sandbox import Session
+
+    sweep_tag = f"wandb-sweep-{sweep_id.split('/')[-1]}"
+
+    with Session() as session:
+        sandboxes = session.list(tags=[sweep_tag]).result()
+
+    if not sandboxes:
+        wandb.termlog(f"No sandboxes found for sweep '{sweep_id}'")
+        return
+
+    wandb.termlog(f"Sandboxes for sweep '{sweep_id}':\n")
+    for sb in sandboxes:
+        status = sb.status.value if sb.status else "unknown"
+        started = sb.started_at.strftime("%Y-%m-%d %H:%M:%S") if sb.started_at else "-"
+        click.echo(f"  {sb.sandbox_id}  {status:<10}  {started}")
+
+
 @cli.command(
     context_settings=RUN_CONTEXT, help="Run a W&B launch sweep scheduler (Experimental)"
 )
