@@ -1783,6 +1783,7 @@ def agent(ctx, project, entity, count, forward_signals, sweep_id):
 @cli.command("cw-agent", context_settings=CONTEXT)
 @click.pass_context
 @click.argument("sweep_id")
+@click.argument("action", required=False, default="run", type=click.Choice(["run", "list"]))
 @click.option(
     "--artifact",
     "artifact_id",
@@ -1833,7 +1834,7 @@ def agent(ctx, project, entity, count, forward_signals, sweep_id):
     help="Number of parallel sandbox agents (overrides --resource-config).",
 )
 @display_error
-def cw_agent(ctx, sweep_id, artifact_id, job_artifact_id, resource_config, entity, project, num_agents):
+def cw_agent(ctx, sweep_id, action, artifact_id, job_artifact_id, resource_config, entity, project, num_agents):
     """Run a pool of W&B sandbox agents for a sweep.
 
     SWEEP_ID is the W&B sweep identifier.  It may be a short ID (e.g.
@@ -1864,6 +1865,30 @@ def cw_agent(ctx, sweep_id, artifact_id, job_artifact_id, resource_config, entit
         wandb cw-agent abc123 --artifact acme/mnist/training-code:latest \\
             --resource-config resources.yaml
     """
+    if action == "list":
+        # List sandboxes for the sweep
+        from wandb.sandbox import Session
+
+        sweep_tag = f"wandb-sweep-{sweep_id.split('/')[-1]}"
+
+        with Session() as session:
+            sandboxes = session.list(tags=[sweep_tag]).result()
+
+        if not sandboxes:
+            wandb.termlog(f"No sandboxes found for sweep '{sweep_id}'")
+            return
+
+        # Header
+        click.echo(f"{'SANDBOX ID':<36}  {'STATUS':<12}  {'STARTED':<20}  {'RUNWAY'}")
+        click.echo("-" * 90)
+        for sb in sandboxes:
+            status = sb.status.value if sb.status else "unknown"
+            started = sb.started_at.strftime("%Y-%m-%d %H:%M:%S") if sb.started_at else "N/A"
+            runway = sb.runway_id or "N/A"
+            click.echo(f"{sb.sandbox_id:<36}  {status:<12}  {started:<20}  {runway}")
+        return
+
+    # action == "run": Run sandbox agents
     from wandb.wandb_managed_agent import (
         CodeArtifactSource,
         EnvOnlySource,
