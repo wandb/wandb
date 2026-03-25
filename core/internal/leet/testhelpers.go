@@ -118,7 +118,11 @@ func (c *FrenchFriesChart) TestSampleCount() int {
 // TestVisibleSeries exposes the series currently rendered as rows.
 func (c *FrenchFriesChart) TestVisibleSeries() []string {
 	layout := c.layout()
-	return append([]string(nil), c.visibleSeriesNames(layout.maxVisibleRows)...)
+	names := make([]string, 0, len(layout.bands))
+	for _, band := range layout.bands {
+		names = append(names, band.seriesName)
+	}
+	return names
 }
 
 // TestTitleDetail exposes the rendered title suffix for focused tests.

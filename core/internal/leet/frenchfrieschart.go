@@ -33,12 +33,9 @@ type frenchFriesSample struct {
 }
 
 type frenchFriesInspection struct {
-	active     bool
-	mouseX     int
-	mouseY     int
-	dataX      float64
-	dataY      float64
-	seriesName string
+	active bool
+	mouseX int
+	dataX  float64
 }
 
 type frenchFriesRowBand struct {
@@ -66,24 +63,6 @@ type frenchFriesLayout struct {
 	bands          []frenchFriesRowBand
 }
 
-func (l frenchFriesLayout) bandAt(y int) (frenchFriesRowBand, bool) {
-	for _, band := range l.bands {
-		if y >= band.startY && y < band.startY+band.height {
-			return band, true
-		}
-	}
-	return frenchFriesRowBand{}, false
-}
-
-func (l frenchFriesLayout) bandForSeries(seriesName string) (frenchFriesRowBand, bool) {
-	for _, band := range l.bands {
-		if band.seriesName == seriesName {
-			return band, true
-		}
-	}
-	return frenchFriesRowBand{}, false
-}
-
 type frenchFriesBucketCell struct {
 	timestamp int64
 	value     float64
@@ -98,10 +77,9 @@ type FrenchFriesChart struct {
 	width  int
 	height int
 
-	// historyCap tracks the widest chart width observed so we can preserve enough
-	// recent history when the chart later expands again.
-	historyCap int
-	samples    []frenchFriesSample
+	// samples retain the full observed history so the chart can reuse the same
+	// windowing and zoom semantics as the underlying line chart.
+	samples []frenchFriesSample
 
 	series        map[string]struct{}
 	orderedSeries []string
@@ -176,10 +154,6 @@ func (c *FrenchFriesChart) Resize(width, height int) {
 
 	c.width = width
 	c.height = height
-	if c.width > c.historyCap {
-		c.historyCap = c.width
-	}
-	c.trimHistory()
 	c.dirty = true
 }
 
@@ -211,7 +185,6 @@ func (c *FrenchFriesChart) AddDataPoint(seriesName string, timestamp int64, valu
 		c.setDefaultViewWindow()
 	}
 
-	c.trimHistory()
 	c.dirty = true
 }
 
@@ -271,19 +244,19 @@ func (c *FrenchFriesChart) SetViewWindow(minX, maxX float64) {
 	c.viewReady = true
 	c.dirty = true
 	if c.inspection.active {
-		c.inspectSeriesAtDataX(c.inspection.seriesName, c.inspection.dataX)
+		c.InspectAtDataX(c.inspection.dataX)
 	}
 }
 
-func (c *FrenchFriesChart) StartInspectionAt(mouseX, mouseY int) {
+func (c *FrenchFriesChart) StartInspectionAt(mouseX, _ int) {
 	if c.GraphWidth() <= 0 || c.GraphHeight() <= 0 {
 		return
 	}
 	c.inspection.active = true
-	c.UpdateInspectionAt(mouseX, mouseY)
+	c.UpdateInspectionAt(mouseX, 0)
 }
 
-func (c *FrenchFriesChart) UpdateInspectionAt(mouseX, mouseY int) {
+func (c *FrenchFriesChart) UpdateInspectionAt(mouseX, _ int) {
 	if !c.inspection.active {
 		return
 	}
@@ -293,18 +266,9 @@ func (c *FrenchFriesChart) UpdateInspectionAt(mouseX, mouseY int) {
 		return
 	}
 
-	clampedX := max(0, min(layout.plotWidth-1, mouseX))
-	clampedY := max(0, min(layout.plotHeight-1, mouseY))
-	band, ok := layout.bandAt(clampedY)
-	if !ok {
-		return
-	}
-
-	targetX := c.dataXForMouse(clampedX, layout.plotWidth)
-	if !c.inspectSeriesAtDataX(band.seriesName, targetX) {
-		return
-	}
-	c.inspection.mouseY = clampedY
+	c.inspection.mouseX = max(0, min(layout.plotWidth-1, mouseX))
+	c.inspection.dataX = c.dataXForMouse(c.inspection.mouseX, layout.plotWidth)
+	c.dirty = true
 }
 
 func (c *FrenchFriesChart) EndInspection() {
@@ -315,20 +279,18 @@ func (c *FrenchFriesChart) EndInspection() {
 func (c *FrenchFriesChart) IsInspecting() bool { return c.inspection.active }
 
 func (c *FrenchFriesChart) InspectAtDataX(targetX float64) {
-	seriesName := c.inspection.seriesName
-	if seriesName == "" {
-		layout := c.layout()
-		if len(layout.bands) == 0 {
-			return
-		}
-		seriesName = layout.bands[0].seriesName
+	layout := c.layout()
+	if layout.plotWidth <= 0 || layout.plotHeight <= 0 || len(layout.bands) == 0 {
+		return
 	}
 	c.inspection.active = true
-	c.inspectSeriesAtDataX(seriesName, targetX)
+	c.inspection.mouseX = c.bucketForDataX(targetX, layout.plotWidth)
+	c.inspection.dataX = targetX
+	c.dirty = true
 }
 
 func (c *FrenchFriesChart) InspectionData() (float64, float64, bool) {
-	return c.inspection.dataX, c.inspection.dataY, c.inspection.active
+	return c.inspection.dataX, 0, c.inspection.active
 }
 
 func (c *FrenchFriesChart) draw() {
@@ -349,21 +311,23 @@ func (c *FrenchFriesChart) draw() {
 
 	bucketed := c.bucketedSeries(layout)
 	selectedBucket := -1
-	selectedSeries := ""
 	if c.inspection.active {
-		selectedBucket = c.bucketForDataX(c.inspection.dataX, layout.plotWidth)
-		selectedSeries = c.inspection.seriesName
+		selectedBucket = max(0, min(layout.plotWidth-1, c.inspection.mouseX))
 	}
 
 	for _, band := range layout.bands {
 		for y := band.startY; y < band.startY+band.height; y++ {
 			for x := 0; x < layout.plotWidth; x++ {
+				bucket := bucketed[band.seriesName][x]
 				cell := " "
-				if bucket := bucketed[band.seriesName][x]; bucket.ok {
+				if bucket.ok {
 					cell = c.colorForValue(bucket.value)
-					if c.inspection.active &&
-						band.seriesName == selectedSeries && x == selectedBucket {
+				}
+				if c.inspection.active && x == selectedBucket {
+					if bucket.ok {
 						cell = lipgloss.NewStyle().Reverse(true).Render(cell)
+					} else {
+						cell = string(boxLightVertical)
 					}
 				}
 				cells[y][layout.plotStartX+x] = cell
@@ -373,8 +337,9 @@ func (c *FrenchFriesChart) draw() {
 		c.renderBandLabel(cells, layout, band)
 	}
 
-	c.renderInspectionLabel(cells, layout)
 	c.renderTimeLabels(cells, layout)
+	c.renderInspectionLabels(cells, layout, bucketed)
+	c.renderInspectionTimeLabel(cells, layout, bucketed)
 
 	lines := make([]string, len(cells))
 	for y := range cells {
@@ -406,28 +371,45 @@ func (c *FrenchFriesChart) renderBandLabel(
 	}
 }
 
-func (c *FrenchFriesChart) renderInspectionLabel(cells [][]string, layout frenchFriesLayout) {
+func (c *FrenchFriesChart) renderInspectionLabels(
+	cells [][]string,
+	layout frenchFriesLayout,
+	bucketed map[string][]frenchFriesBucketCell,
+) {
 	if !c.inspection.active || layout.plotWidth <= 0 || layout.plotHeight <= 0 {
 		return
 	}
-	band, ok := layout.bandForSeries(c.inspection.seriesName)
-	if !ok {
-		return
-	}
-
-	row := band.centerY()
-	label := c.inspectionLabel(layout.plotWidth)
-	if label == "" {
-		return
-	}
-
-	startX := layout.plotStartX + selectedLabelStartX(c.inspection.mouseX, layout.plotWidth, lipgloss.Width(label))
-	for i, r := range label {
-		x := startX + i
-		if x < layout.plotStartX || x >= layout.plotStartX+layout.plotWidth {
-			continue
+	bucket := max(0, min(layout.plotWidth-1, c.inspection.mouseX))
+	labels := make(map[string]string, len(layout.bands))
+	maxLabelWidth := 0
+	for _, band := range layout.bands {
+		label := string(unicodeEmDash)
+		if cellsForSeries, ok := bucketed[band.seriesName]; ok {
+			if bucketCell := cellsForSeries[bucket]; bucketCell.ok {
+				label = c.def.Unit.Format(bucketCell.value)
+			}
 		}
-		cells[row][x] = lipgloss.NewStyle().Bold(true).Render(string(r))
+		labels[band.seriesName] = label
+		maxLabelWidth = max(maxLabelWidth, lipgloss.Width(label))
+	}
+	if maxLabelWidth <= 0 {
+		return
+	}
+
+	startX := selectedLabelStartX(bucket, layout.plotWidth, maxLabelWidth)
+	for _, band := range layout.bands {
+		row := band.centerY()
+		label := labels[band.seriesName]
+		if lipgloss.Width(label) > maxLabelWidth {
+			label = TruncateTitle(label, maxLabelWidth)
+		}
+		for i, r := range label {
+			x := layout.plotStartX + startX + i
+			if x < layout.plotStartX || x >= layout.plotStartX+layout.plotWidth {
+				continue
+			}
+			cells[row][x] = lipgloss.NewStyle().Bold(true).Render(string(r))
+		}
 	}
 }
 
@@ -455,12 +437,14 @@ func (c *FrenchFriesChart) renderTimeLabels(cells [][]string, layout frenchFries
 	span := time.Duration(math.Round(viewMaxX-viewMinX)) * time.Second
 	layouts := systemTimeLayouts(span)
 
+	minLabel := fitTimeLayouts(time.Unix(int64(math.Round(viewMinX)), 0).Local(), layout.plotWidth, layouts)
+	maxLabel := fitTimeLayouts(time.Unix(int64(math.Round(viewMaxX)), 0).Local(), layout.plotWidth, layouts)
 	labels := []struct {
 		text string
 		pos  int
 	}{
-		{text: fitTimeLayouts(time.Unix(int64(math.Round(viewMinX)), 0).Local(), layout.plotWidth, layouts), pos: 0},
-		{text: fitTimeLayouts(time.Unix(int64(math.Round(viewMaxX)), 0).Local(), layout.plotWidth, layouts), pos: max(layout.plotWidth-len([]rune(fitTimeLayouts(time.Unix(int64(math.Round(viewMaxX)), 0).Local(), layout.plotWidth, layouts))), 0)},
+		{text: minLabel, pos: 0},
+		{text: maxLabel, pos: max(layout.plotWidth-lipgloss.Width(maxLabel), 0)},
 	}
 
 	midX := (viewMinX + viewMaxX) / 2
@@ -484,32 +468,64 @@ func (c *FrenchFriesChart) renderTimeLabels(cells [][]string, layout frenchFries
 	}
 }
 
-func (c *FrenchFriesChart) inspectionLabel(maxWidth int) string {
-	if !c.inspection.active {
-		return ""
+func (c *FrenchFriesChart) renderInspectionTimeLabel(
+	cells [][]string,
+	layout frenchFriesLayout,
+	bucketed map[string][]frenchFriesBucketCell,
+) {
+	if !c.inspection.active || layout.timeAxisY < 0 || layout.plotWidth <= 0 {
+		return
 	}
-	span := time.Duration(math.Round(c.viewMaxX-c.viewMinX)) * time.Second
-	layouts := systemTimeLayouts(span)
-	timeLabel := fitTimeLayouts(
-		time.Unix(int64(math.Round(c.inspection.dataX)), 0).Local(),
-		maxWidth,
-		layouts,
+
+	bucket := max(0, min(layout.plotWidth-1, c.inspection.mouseX))
+	dataX := c.inspection.dataX
+	if ts, ok := bucketTimestamp(bucketed, bucket); ok {
+		dataX = float64(ts)
+	}
+
+	viewMinX, viewMaxX := c.effectiveViewWindow()
+	span := time.Duration(math.Round(viewMaxX-viewMinX)) * time.Second
+	label := fitTimeLayouts(
+		time.Unix(int64(math.Round(dataX)), 0).Local(),
+		layout.plotWidth,
+		systemTimeLayouts(span),
 	)
-	valueLabel := c.def.Unit.Format(c.inspection.dataY)
-	seriesLabel := compactSystemMetricSeriesLabel(c.inspection.seriesName)
-	parts := make([]string, 0, 3)
-	if seriesLabel != "" {
-		parts = append(parts, seriesLabel)
+
+	if label == "" {
+		return
 	}
-	if timeLabel != "" {
-		parts = append(parts, timeLabel)
+	startX := selectedLabelStartX(bucket, layout.plotWidth, lipgloss.Width(label))
+	for i, r := range label {
+		x := layout.plotStartX + startX + i
+		if x < layout.plotStartX || x >= layout.plotStartX+layout.plotWidth {
+			continue
+		}
+		cells[layout.timeAxisY][x] = lipgloss.NewStyle().Bold(true).Render(string(r))
 	}
-	parts = append(parts, valueLabel)
-	label := strings.Join(parts, " ")
-	if lipgloss.Width(label) > maxWidth {
-		return TruncateTitle(label, maxWidth)
+}
+
+func bucketTimestamp(
+	bucketed map[string][]frenchFriesBucketCell,
+	bucket int,
+) (int64, bool) {
+	var (
+		best int64
+		ok   bool
+	)
+	for _, cells := range bucketed {
+		if bucket < 0 || bucket >= len(cells) {
+			continue
+		}
+		cell := cells[bucket]
+		if !cell.ok {
+			continue
+		}
+		if !ok || cell.timestamp > best {
+			best = cell.timestamp
+			ok = true
+		}
 	}
-	return label
+	return best, ok
 }
 
 func (c *FrenchFriesChart) layout() frenchFriesLayout {
@@ -620,16 +636,6 @@ func (c *FrenchFriesChart) colorForValue(value float64) string {
 	return c.coloredCells[idx]
 }
 
-func (c *FrenchFriesChart) trimHistory() {
-	if c.historyCap <= 0 || len(c.samples) <= c.historyCap {
-		return
-	}
-
-	trimmed := make([]frenchFriesSample, c.historyCap)
-	copy(trimmed, c.samples[len(c.samples)-c.historyCap:])
-	c.samples = trimmed
-}
-
 func (c *FrenchFriesChart) setDefaultViewWindow() {
 	if len(c.samples) == 0 {
 		c.viewReady = false
@@ -676,51 +682,6 @@ func (c *FrenchFriesChart) bucketForDataX(dataX float64, plotWidth int) int {
 	frac := (dataX - viewMinX) / (viewMaxX - viewMinX)
 	bucket := int(math.Round(frac * float64(plotWidth-1)))
 	return max(0, min(plotWidth-1, bucket))
-}
-
-func (c *FrenchFriesChart) inspectSeriesAtDataX(seriesName string, targetX float64) bool {
-	dataX, dataY, ok := c.nearestSample(seriesName, targetX)
-	if !ok {
-		return false
-	}
-
-	layout := c.layout()
-	band, ok := layout.bandForSeries(seriesName)
-	if !ok {
-		return false
-	}
-
-	c.inspection.active = true
-	c.inspection.seriesName = seriesName
-	c.inspection.dataX = dataX
-	c.inspection.dataY = dataY
-	c.inspection.mouseX = c.bucketForDataX(dataX, layout.plotWidth)
-	c.inspection.mouseY = band.centerY()
-	c.dirty = true
-	return true
-}
-
-func (c *FrenchFriesChart) nearestSample(seriesName string, targetX float64) (dataX, dataY float64, ok bool) {
-	viewMinX, viewMaxX := c.effectiveViewWindow()
-	bestDist := math.Inf(1)
-	for _, sample := range c.samples {
-		value, exists := sample.values[seriesName]
-		if !exists {
-			continue
-		}
-		ts := float64(sample.timestamp)
-		if ts < viewMinX || ts > viewMaxX {
-			continue
-		}
-		dist := math.Abs(ts - targetX)
-		if dist < bestDist {
-			bestDist = dist
-			dataX = ts
-			dataY = value
-			ok = true
-		}
-	}
-	return dataX, dataY, ok
 }
 
 func (c *FrenchFriesChart) sortedSeriesNames() []string {
