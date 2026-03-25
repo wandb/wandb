@@ -923,9 +923,9 @@ def _bootstrap_artifact_agent(
             else:
                 print(f"{label}  | {line}")
 
-    def _exec_checked(cmd: list[str], *, step: str) -> None:
-        print(f"[DEBUG] _bootstrap_artifact_agent: {label} exec {step}: {cmd}")
-        proc = sandbox.exec(cmd)
+    def _exec_checked(cmd: list[str], *, step: str, cwd: str | None = None) -> None:
+        print(f"[DEBUG] _bootstrap_artifact_agent: {label} exec {step}: {cmd} cwd={cwd!r}")
+        proc = sandbox.exec(cmd, cwd=cwd)
         t_out = threading.Thread(target=_drain, args=(proc.stdout,), daemon=True)
         t_err = threading.Thread(target=_drain, args=(proc.stderr,), daemon=True)
         t_out.start()
@@ -975,10 +975,11 @@ def _bootstrap_artifact_agent(
             step="pip install requirements",
         )
 
-    # 6. Run the sweep agent (blocks until it exits)
+    # 6. Run the sweep agent from the workspace so train.py is on the path
     _exec_checked(
         ["wandb", "agent", sweep_path],
         step="wandb agent",
+        cwd=_REMOTE_WORKSPACE,
     )
 
 
