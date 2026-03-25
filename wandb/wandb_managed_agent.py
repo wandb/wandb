@@ -25,28 +25,28 @@ Quick start::
     from wandb.wandb_managed_agent import (
         ManagedAgentSession,
         ManagedAgentSessionConfig,
-        EnvOnlySource,
-        CodeArtifactSource,
-        JobArtifactSource,
+        UserImageSource,
+        WBCodeArtifactJobSource,
+        WBImageJobSource,
     )
 
     # Case 1 — image already has code + wandb installed
     cfg = ManagedAgentSessionConfig(
         sweep_id="abc123", entity="acme", project="mnist",
-        source=EnvOnlySource(),
+        source=UserImageSource(),
         container_image="my-registry/training:latest",
     )
 
     # Case 2 — generic image; code downloaded via artifact
     cfg = ManagedAgentSessionConfig(
         sweep_id="abc123", entity="acme", project="mnist",
-        source=CodeArtifactSource("acme/mnist/training-code:latest"),
+        source=WBCodeArtifactJobSource("acme/mnist/training-code:latest"),
     )
 
     # Case 3 — W&B job artifact whose wandb-job.json specifies a docker image
     cfg = ManagedAgentSessionConfig(
         sweep_id="abc123", entity="acme", project="mnist",
-        source=JobArtifactSource("acme/mnist/my-job:latest"),
+        source=WBImageJobSource("acme/mnist/my-job:latest"),
     )
 
     with ManagedAgentSession(cfg) as session:
@@ -57,7 +57,7 @@ YAML example (``sweep_session.yaml``)::
     sweep_id: abc123
     entity: acme
     project: mnist
-    artifact_id: acme/mnist/training-code:latest   # sets CodeArtifactSource
+    artifact_id: acme/mnist/training-code:latest   # sets WBCodeArtifactJobSource
     num_agents: 4
     container_image: pytorch/pytorch:2.0.0-cuda11.7-cudnn8-runtime
     resources:
@@ -193,9 +193,9 @@ class AgentSource(Protocol):
 
     Concrete implementations:
 
-    * :class:`EnvOnlySource`      — Case 1: image already has code + wandb.
-    * :class:`CodeArtifactSource` — Case 2: generic image; exec bootstrap.
-    * :class:`JobArtifactSource`  — Case 3: job artifact specifies docker image.
+    * :class:`UserImageSource`      — Case 1: image already has code + wandb.
+    * :class:`WBCodeArtifactJobSource` — Case 2: generic image; exec bootstrap.
+    * :class:`WBImageJobSource`  — Case 3: job artifact specifies docker image.
     """
 
     def get_image(self, default: str) -> str:
@@ -233,7 +233,7 @@ class AgentSource(Protocol):
 # ──────────────────────────────────────────────────────────────────────────────
 
 
-class EnvOnlySource:
+class UserImageSource:
     """Case 1: the container image already contains the code and ``wandb``.
 
     The sandbox starts with ``wandb agent`` as its main command; no exec-based
@@ -244,7 +244,7 @@ class EnvOnlySource:
         return default
 
     def apply_command(self, sandbox: Sandbox, sweep_path: str) -> None:
-        print(f"[DEBUG] EnvOnlySource.apply_command: wandb agent {sweep_path}")
+        print(f"[DEBUG] UserImageSource.apply_command: wandb agent {sweep_path}")
         sandbox._command = "wandb"
         sandbox._args = ["agent", sweep_path]
 
@@ -254,7 +254,7 @@ class EnvOnlySource:
         return RunHandle(future=future, log_lines=reader, _closer=reader.close)
 
 
-class CodeArtifactSource:
+class WBCodeArtifactJobSource:
     """Case 2: generic image; job artifact code source exec-bootstrapped after start.
 
     The sandbox starts with ``sleep infinity`` as its main command.  After
@@ -285,7 +285,7 @@ class CodeArtifactSource:
         return default
 
     def apply_command(self, sandbox: Sandbox, sweep_path: str) -> None:
-        print("[DEBUG] CodeArtifactSource.apply_command: sleep infinity (exec bootstrap)")
+        print("[DEBUG] WBCodeArtifactJobSource.apply_command: sleep infinity (exec bootstrap)")
         sandbox._command = "sleep"
         sandbox._args = ["infinity"]
 
@@ -312,7 +312,7 @@ class CodeArtifactSource:
         return RunHandle(future=future, log_lines=_log_gen())
 
 
-class JobArtifactSource:
+class WBImageJobSource:
     """Case 3: W&B job artifact whose ``wandb-job.json`` specifies a docker image.
 
     :meth:`get_image` downloads the job artifact on the host, reads
@@ -330,7 +330,7 @@ class JobArtifactSource:
 
         from wandb.apis.public import Api
 
-        print(f"[DEBUG] JobArtifactSource.get_image: fetching job artifact '{self.job_artifact_id}'")
+        print(f"[DEBUG] WBImageJobSource.get_image: fetching job artifact '{self.job_artifact_id}'")
         api = Api()
         artifact = api._artifact(self.job_artifact_id, type="job")
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -341,13 +341,13 @@ class JobArtifactSource:
         if spec.get("source_type") == "image":
             image = (spec.get("source") or {}).get("image", "").strip()
             if image:
-                print(f"[DEBUG] JobArtifactSource.get_image: image='{image}'")
+                print(f"[DEBUG] WBImageJobSource.get_image: image='{image}'")
                 return image
-        print(f"[DEBUG] JobArtifactSource.get_image: source_type={spec.get('source_type')!r}, falling back to default '{default}'")
+        print(f"[DEBUG] WBImageJobSource.get_image: source_type={spec.get('source_type')!r}, falling back to default '{default}'")
         return default
 
     def apply_command(self, sandbox: Sandbox, sweep_path: str) -> None:
-        print(f"[DEBUG] JobArtifactSource.apply_command: wandb agent {sweep_path}")
+        print(f"[DEBUG] WBImageJobSource.apply_command: wandb agent {sweep_path}")
         sandbox._command = "wandb"
         sandbox._args = ["agent", sweep_path]
 
@@ -421,22 +421,22 @@ class ManagedAgentSessionConfig:
     The ``source`` field is an :class:`AgentSource` that encapsulates which of
     the three sandbox source modes to use:
 
-    * :class:`EnvOnlySource`      — image already has code + wandb (default).
-    * :class:`CodeArtifactSource` — generic image; exec bootstrap via artifact.
-    * :class:`JobArtifactSource`  — job artifact whose spec specifies an image.
+    * :class:`UserImageSource`      — image already has code + wandb (default).
+    * :class:`WBCodeArtifactJobSource` — generic image; exec bootstrap via artifact.
+    * :class:`WBImageJobSource`  — job artifact whose spec specifies an image.
 
     Load from YAML::
 
         cfg = ManagedAgentSessionConfig.from_yaml("session.yaml")
 
     YAML keys ``artifact_id`` and ``job_artifact_id`` are auto-converted to
-    :class:`CodeArtifactSource` and :class:`JobArtifactSource` respectively.
+    :class:`WBCodeArtifactJobSource` and :class:`WBImageJobSource` respectively.
     """
 
     sweep_id: str
     entity: str
     project: str
-    source: AgentSource = field(default_factory=EnvOnlySource)
+    source: AgentSource = field(default_factory=UserImageSource)
     num_agents: int = 1
     container_image: str = "python:3.11-slim"
     resources: SandboxResources | None = None
@@ -450,7 +450,7 @@ class ManagedAgentSessionConfig:
         """Load config from a YAML file.
 
         YAML keys ``artifact_id`` and ``job_artifact_id`` are converted to
-        :class:`CodeArtifactSource` and :class:`JobArtifactSource`.
+        :class:`WBCodeArtifactJobSource` and :class:`WBImageJobSource`.
         """
         with open(path) as fh:
             raw = yaml.safe_load(fh)
@@ -462,11 +462,11 @@ class ManagedAgentSessionConfig:
         entity = raw.pop("entity", "")
         project = raw.pop("project", "")
         if artifact_id:
-            source: AgentSource = CodeArtifactSource(artifact_id)
+            source: AgentSource = WBCodeArtifactJobSource(artifact_id)
         elif job_artifact_id:
-            source = JobArtifactSource(job_artifact_id)
+            source = WBImageJobSource(job_artifact_id)
         else:
-            source = EnvOnlySource()
+            source = UserImageSource()
         return cls(
             sweep_id=sweep_id,
             entity=entity,
@@ -485,9 +485,9 @@ class ManagedAgentSessionConfig:
             "num_agents": self.num_agents,
             "container_image": self.container_image,
         }
-        if isinstance(self.source, CodeArtifactSource):
+        if isinstance(self.source, WBCodeArtifactJobSource):
             data["artifact_id"] = self.source.artifact_id
-        elif isinstance(self.source, JobArtifactSource):
+        elif isinstance(self.source, WBImageJobSource):
             data["job_artifact_id"] = self.source.job_artifact_id
         if self.resources is not None:
             res: dict[str, Any] = {}
@@ -522,7 +522,7 @@ class ManagedAgent:
 
     Typical usage::
 
-        source = CodeArtifactSource("acme/mnist/training-code:latest")
+        source = WBCodeArtifactJobSource("acme/mnist/training-code:latest")
         managed = ManagedAgent(sweep_id="abc123", entity="acme", project="mnist",
                                source=source)
         with Session() as session:
@@ -1074,7 +1074,7 @@ def _drain_iterable_to_queue(
     """Iterate *lines* and push ``(label, line)`` tuples to *log_queue*.
 
     Works with any iterable: ``stream_logs()`` readers (Cases 1 & 3) and
-    the generator produced by ``CodeArtifactSource.start()`` (Case 2).
+    the generator produced by ``WBCodeArtifactJobSource.start()`` (Case 2).
     """
     print(f"[DEBUG] _drain_iterable_to_queue: {label} drain thread starting")
     try:

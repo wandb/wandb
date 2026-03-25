@@ -1865,9 +1865,9 @@ def cw_agent(ctx, sweep_id, artifact_id, job_artifact_id, resource_config, entit
             --resource-config resources.yaml
     """
     from wandb.wandb_managed_agent import (
-        CodeArtifactSource,
-        EnvOnlySource,
-        JobArtifactSource,
+        WBCodeArtifactJobSource,
+        UserImageSource,
+        WBImageJobSource,
         ManagedAgentSession,
         ManagedAgentSessionConfig,
     )
@@ -1903,10 +1903,10 @@ def cw_agent(ctx, sweep_id, artifact_id, job_artifact_id, resource_config, entit
     # Resolve source from CLI flags (override anything in resource-config).
     def _cli_source():
         if artifact_id:
-            return CodeArtifactSource(artifact_id)
+            return WBCodeArtifactJobSource(artifact_id)
         if job_artifact_id:
-            return JobArtifactSource(job_artifact_id)
-        return None  # keep whatever the config file set, or default EnvOnlySource
+            return WBImageJobSource(job_artifact_id)
+        return None  # keep whatever the config file set, or default UserImageSource
 
     # Build config: start from resource-config file, then apply CLI overrides.
     if resource_config:
@@ -1919,7 +1919,7 @@ def cw_agent(ctx, sweep_id, artifact_id, job_artifact_id, resource_config, entit
         if cli_source is not None:
             cfg.source = cli_source
     else:
-        source = _cli_source() or EnvOnlySource()
+        source = _cli_source() or UserImageSource()
         cfg = ManagedAgentSessionConfig(
             sweep_id=short_sweep_id,
             entity=resolved_entity,
