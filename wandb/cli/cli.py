@@ -1896,7 +1896,7 @@ def launch(
     hidden=True,
     help="a wandb client registration URL, this is generated in the UI",
 )
-@click.option("--verbose", "-v", default=0, count=True, help="Display verbose output")
+@click.option("--verbose", "-v", count=True, help="Display verbose output")
 @display_error
 def launch_agent(
     ctx,
@@ -2380,9 +2380,9 @@ def docker_run(ctx, docker_run_args):
 
     Pass all arguments through to `docker run` while injecting:
 
-    - WANDB_API_KEY — Inject the current API key if logged in so
+    - WANDB_API_KEY: Inject the current API key if logged in so
       the container can authenticate with W&B.
-    - `WANDB_DOCKER` — Inject the resolved image ID if the image can
+    - WANDB_DOCKER: Inject the resolved image ID if the image can
       be detected from the arguments so W&B can track which Docker
       image produced the run.
 
@@ -3131,14 +3131,14 @@ def pull(run, project, entity):
     Restore up to three pieces of state, depending on what the original
     run recorded:
 
-    1. Config (always) — Write the run config to wandb/config.yaml.
-    2. Git (if available) — Check out the original commit on a new
+    1. Config (always): Write the run config to wandb/config.yaml.
+    2. Git (if available): Check out the original commit on a new
        wandb/run_id branch. Fetch and apply any saved diff patch.
        If the original commit cannot be found,
        fall back to an upstream commit if the original cannot be found.
        Run this command from the same git repository as the original run. Skip
        this step with `--no-git`.
-    3. Docker (if available) — If the run was executed inside a Docker
+    3. Docker (if available): If the run was executed inside a Docker
        container, start the same image with the original command.
 
     If the run has no git history and no Docker image,
@@ -3411,7 +3411,6 @@ def off(ctx):
 
 
 @cli.command(
-    "status",
     help="""Display the current W&B configuration settings.
 
     Print all active W&B settings as formatted JSON, including the

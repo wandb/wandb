@@ -220,6 +220,7 @@ def sync(
     and "wandb" directories containing run directories.
 
     Examples:
+
     Sync all runs in the current .wandb directory:
 
         $ wandb beta sync ./wandb
