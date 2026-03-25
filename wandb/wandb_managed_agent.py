@@ -84,6 +84,8 @@ import yaml
 import wandb
 from wandb.apis import InternalApi
 
+from cwsandbox import NetworkOptions
+
 if TYPE_CHECKING:
     from cwsandbox import StreamReader
     from wandb.sandbox._sandbox import Sandbox
@@ -362,17 +364,26 @@ class SandboxResources:
     memory: int | float | None = None
 
     def to_cwsandbox_dict(self) -> dict[str, Any] | None:
-        """Convert to the ``resources`` dict expected by cwsandbox."""
+        """Convert to the ``resources`` dict expected by cwsandbox.
+
+        cwsandbox expects::
+
+            {
+                "cpu": "2",
+                "memory": "8Gi",
+                "gpu": {"gpu_count": 1},   # nested GpuRequest
+            }
+        """
         result: dict[str, Any] = {}
         if self.accelerators is not None:
             if isinstance(self.accelerators, str):
                 if ":" in self.accelerators:
                     _, count = self.accelerators.rsplit(":", 1)
-                    result["nvidia.com/gpu"] = int(count)
+                    result["gpu"] = {"gpu_count": int(count)}
                 else:
-                    result["nvidia.com/gpu"] = 1
+                    result["gpu"] = {"gpu_count": 1}
             else:
-                result["nvidia.com/gpu"] = sum(self.accelerators.values())
+                result["gpu"] = {"gpu_count": sum(self.accelerators.values())}
         if self.cpus is not None:
             result["cpu"] = str(self.cpus)
         if self.memory is not None:
@@ -543,9 +554,81 @@ class ManagedAgent:
         print(f"[DEBUG] consume_sandbox: configuring sandbox for sweep '{self.sweep_id}' source={type(self.source).__name__}")
         self._apply_tag(sandbox)
         self._apply_env_vars(sandbox)
+        self._apply_network(sandbox)
         self.source.apply_command(sandbox, self._sweep_path)
         print(f"[DEBUG] consume_sandbox: done — command={sandbox._command!r} args={sandbox._args!r}")
         return sandbox
+
+    def log_device_resources(
+        self,
+        sandbox: Sandbox,
+        log_queue: queue.Queue | None = None,
+        label: str = "agent",
+    ) -> None:
+        """Exec resource-inspection commands in *sandbox* and log the results.
+
+        Runs three commands — CPU count, memory, and GPU info — immediately
+        after ``sandbox.start()`` so the output appears before any agent work
+        begins.  Failures (e.g. no ``nvidia-smi``) are logged as warnings
+        rather than raised.
+
+        Args:
+            sandbox: A running sandbox to inspect.
+            log_queue: If provided, lines are pushed as ``(label, line)``
+                tuples (docker-compose style).  Otherwise printed to stdout.
+            label: Log prefix, e.g. ``"agent-0"``.
+        """
+        def _emit(line: str) -> None:
+            if log_queue is not None:
+                log_queue.put((label, line))
+            else:
+                print(f"{label}  | {line}")
+
+        commands: list[tuple[list[str], str]] = [
+            (
+                ["sh", "-c", "awk -F': ' '/model name/{print $2; exit}' /proc/cpuinfo"],
+                "CPU model",
+            ),
+            (["nproc"], "CPU"),
+            (
+                ["sh", "-c", "awk '/MemTotal/{printf \"%.1f GiB\\n\", $2/1048576}' /proc/meminfo"],
+                "Memory",
+            ),
+            (
+                ["sh", "-c", "nvidia-smi --query-gpu=name,memory.total --format=csv,noheader 2>/dev/null || echo 'no GPU'"],
+                "GPU",
+            ),
+        ]
+        _emit("[wandb] --- device resources ---")
+        for cmd, resource_name in commands:
+            try:
+                proc = sandbox.exec(cmd)
+                lines: list[str] = []
+
+                def _drain_reader(reader, _lines: list = lines) -> None:
+                    for line in reader:
+                        _lines.append(line.rstrip())
+
+                t_out = threading.Thread(target=_drain_reader, args=(proc.stdout,), daemon=True)
+                t_err = threading.Thread(target=_drain_reader, args=(proc.stderr,), daemon=True)
+                t_out.start()
+                t_err.start()
+                t_out.join()
+                t_err.join()
+                result = proc.result()
+                if result.returncode != 0:
+                    _emit(f"[wandb] {resource_name}: (exit {result.returncode})")
+                else:
+                    for line in lines:
+                        _emit(f"[wandb] {resource_name}: {line}")
+            except Exception as exc:
+                _emit(f"[wandb] {resource_name}: WARNING — {exc}")
+        _emit("[wandb] --- end device resources ---")
+
+    def _apply_network(self, sandbox: Sandbox) -> None:
+        network = NetworkOptions(egress_mode="internet")
+        print(f"[DEBUG] _apply_network: egress_mode='internet'")
+        sandbox._start_kwargs["network"] = network
 
     def _apply_tag(self, sandbox: Sandbox) -> None:
         tag = self.sweep_tag
@@ -780,6 +863,10 @@ class ManagedAgentSession:
         sandbox.start().result()
         print(f"[DEBUG] _make_and_start_sandbox: sandbox running — id={sandbox.sandbox_id}")
 
+        # [DEBUG] Log on-device resources immediately after start so we can
+        # verify they match what was requested in resources.yaml.
+        managed.log_device_resources(sandbox, log_queue, label=f"agent-{index}")
+
         return self.config.source.attach(sandbox, index, log_queue, managed._sweep_path)
 
 
@@ -828,15 +915,23 @@ def _bootstrap_artifact_agent(
     download_script_bytes = (superagent_dir / "scripts" / "download_job_artifact.py").read_bytes()
     bootstrap_script_bytes = (superagent_dir / "bootstrap.py").read_bytes()
 
-    def _exec_checked(cmd: list[str], *, step: str) -> None:
-        print(f"[DEBUG] _bootstrap_artifact_agent: {label} exec {step}: {cmd}")
-        proc = sandbox.exec(cmd)
-        for line in proc.stdout:
+    def _drain(reader) -> None:
+        for line in reader:
             line = line.rstrip("\n")
             if log_queue is not None:
                 log_queue.put((label, line))
             else:
                 print(f"{label}  | {line}")
+
+    def _exec_checked(cmd: list[str], *, step: str) -> None:
+        print(f"[DEBUG] _bootstrap_artifact_agent: {label} exec {step}: {cmd}")
+        proc = sandbox.exec(cmd)
+        t_out = threading.Thread(target=_drain, args=(proc.stdout,), daemon=True)
+        t_err = threading.Thread(target=_drain, args=(proc.stderr,), daemon=True)
+        t_out.start()
+        t_err.start()
+        t_out.join()
+        t_err.join()
         result = proc.result()
         print(f"[DEBUG] _bootstrap_artifact_agent: {label} {step} exit={result.returncode}")
         if result.returncode != 0:
@@ -853,7 +948,7 @@ def _bootstrap_artifact_agent(
 
     # 2. Install wandb inside the sandbox
     _exec_checked(
-        ["python", "-m", "pip", "install", "--quiet", "--no-cache-dir", "wandb"],
+        ["python", "-m", "pip", "install", "--no-cache-dir", "wandb"],
         step="pip install wandb",
     )
 
@@ -876,7 +971,7 @@ def _bootstrap_artifact_agent(
     probe = sandbox.exec(["test", "-f", req_path]).result()
     if probe.returncode == 0:
         _exec_checked(
-            ["python", "-m", "pip", "install", "--quiet", "--no-cache-dir", "-r", req_path],
+            ["python", "-m", "pip", "install", "--no-cache-dir", "-r", req_path],
             step="pip install requirements",
         )
 
