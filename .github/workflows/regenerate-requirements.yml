@@ -21,7 +21,7 @@ jobs:
         run: curl -LsSf https://astral.sh/uv/install.sh | sh
 
       - name: Run requirements/generate.sh
-        run: bash requirements/generate.sh
+        run: bash requirements/generate.sh --upgrade
 
       - name: Create pull request
         uses: peter-evans/create-pull-request@v8
