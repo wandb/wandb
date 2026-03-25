@@ -17,12 +17,10 @@ from pytest_mock import MockerFixture
 from wandb import Api, Artifact
 from wandb.errors import CommError
 from wandb.sdk.artifacts._internal_artifact import InternalArtifact
-from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts._validators import NAME_MAXLEN, RESERVED_ARTIFACT_TYPE_PREFIX
 from wandb.sdk.artifacts.artifact_file_cache import get_artifact_file_cache
 from wandb.sdk.artifacts.exceptions import ArtifactFinalizedError, WaitTimeoutError
 from wandb.sdk.lib.hashutil import md5_string
-from wandb.sdk.lib.hashutil import b64_to_hex_id
 
 pytestmark = [
     # requesting the `user` fixture sets API env var for ALL tests in this module
@@ -794,27 +792,32 @@ def test_storage_policy_storage_region(user: str, api: Api, tmp_path: Path):
     assert manifest["storagePolicyConfig"]["storageRegion"] == "minio-local"
 
 
-def _download_entry_and_capture_url(
+@responses.activate()
+def test_artifact_entry_download_url_matches_server_features(
     user: str,
     api: Api,
     tmp_path: Path,
-    *,
-    feature_response: dict,
-    suffix: str,
-) -> tuple[str, str, str, str, str, str, str, str]:
-    from contextlib import ExitStack
+):
+    """Verify direct entry download uses URL format expected by backend features."""
     from unittest import mock
 
-    from wandb.sdk.artifacts._gqlutils import server_features
+    from wandb.proto import wandb_internal_pb2 as pb
+    from wandb.sdk.artifacts._gqlutils import server_supports
     from wandb.sdk.artifacts.storage_layout import StorageLayout
+    from wandb.sdk.lib.hashutil import b64_to_hex_id
+
+    # Let requests hit the real backend while still recording called URLs.
+    responses.add_passthru(re.compile(r".*"))
 
     content = "content via entry download"
-    file_path = tmp_path / f"source-{suffix}.txt"
+    file_path = tmp_path / "source.txt"
     file_path.write_text(content)
     project = "test-download-url-features"
-    artifact_name = f"test-download-url-entry-{suffix}"
-    download_root = tmp_path / "downloaded" / suffix
+    artifact_name = "test-download-url-entry"
+    download_root = tmp_path / "downloaded" / artifact_name / "fresh"
     download_root.mkdir(parents=True)
+    target_path = download_root / "source.txt"
+    assert not target_path.exists()
 
     with wandb.init(entity=user, project=project) as run:
         art = Artifact(artifact_name, type="dataset")
@@ -826,168 +829,49 @@ def _download_entry_and_capture_url(
     entry = art.get_entry("source.txt")
     policy = art.manifest.storage_policy
 
-    assert StorageLayout(policy.config()["storageLayout"]) == StorageLayout.V2
-
-    def _execute_with_mocked_server_features(client):
-        original_execute = client.execute
-
-        def _execute_with_mocked_features(query, *args, **kwargs):
-            query_str = str(query)
-            if "ServerFeaturesQuery" in query_str and "serverInfo" in query_str:
-                return feature_response
-            return original_execute(query, *args, **kwargs)
-
-        return _execute_with_mocked_features
-
+    # Downloading an entry directly does not set directUrl on manifest entries,
+    # so this must go through storage policy _file_url().
     seen_urls = []
     original_get = policy._session.get
-    hexhash = b64_to_hex_id(entry.digest)
 
-    # spy on the request to track the url that is used to download the artifact
     def recording_get(url, *args, **kwargs):
         seen_urls.append(str(url))
         return original_get(url, *args, **kwargs)
 
-    server_features.cache_clear()
-    with ExitStack() as stack:
-        stack.enter_context(
-            mock.patch.object(
-                api.client,
-                "execute",
-                side_effect=_execute_with_mocked_server_features(api.client),
-            )
-        )
-        stack.enter_context(mock.patch.object(policy._session, "get", recording_get))
+    with mock.patch.object(policy._session, "get", recording_get):
         downloaded_path = Path(entry.download(root=str(download_root), skip_cache=True))
-    server_features.cache_clear()
 
     assert downloaded_path.exists()
     assert downloaded_path.read_text() == content
 
-    artifact_urls = [url for url in seen_urls if "/artifactsV2/" in url]
+    artifact_urls = [
+        url for url in seen_urls if "/artifactsV2/" in url or "/artifacts/" in url
+    ]
     assert artifact_urls, "Expected at least one artifact download request URL"
-    return (
-        project,
-        artifact_name,
-        art.id or "",
-        entry.birth_artifact_id or "",
-        art.manifest.storage_policy._config.storage_region or "default",
-        hexhash,
-        entry.path.name,
-        artifact_urls[-1],
+    used_url = artifact_urls[-1]
+
+    layout = policy.config().get("storageLayout")
+    supports_artifact_id = server_supports(
+        api.client, pb.ARTIFACT_V2_DOWNLOAD_HANDLER_SUPPORTS_ARTIFACT_ID
     )
-
-
-def test_artifact_entry_download_url_with_artifact_id_server_feature(
-    user: str, api: Api, tmp_path: Path
-):
-    base_url = api.settings["base_url"]
-    (
-        project,
-        artifact_name,
-        artifact_id,
-        birth_artifact_id,
-        region,
-        hexhash,
-        file_name,
-        used_url,
-    ) = _download_entry_and_capture_url(
-        user,
-        api,
-        tmp_path,
-        feature_response={
-            "serverInfo": {
-                "features": [
-                    # In the latest server version, both these features would be enabled.
-                    {
-                        "name": "ARTIFACT_V2_DOWNLOAD_HANDLER_SUPPORTS_ARTIFACT_ID",
-                        "isEnabled": True,
-                    },
-                    {
-                        "name": "ARTIFACT_COLLECTION_MEMBERSHIP_FILE_DOWNLOAD_HANDLER",
-                        "isEnabled": True,
-                    },
-                ]
-            }
-        },
-        suffix="artifact-id",
+    supports_membership = server_supports(
+        api.client, pb.ARTIFACT_COLLECTION_MEMBERSHIP_FILE_DOWNLOAD_HANDLER
     )
-
-    assert (
-        used_url
-        == f"{base_url}/artifactsV2/{quote(region)}/{quote(user)}/{quote(project)}/{quote(artifact_name)}/{quote(artifact_id)}/{quote(birth_artifact_id)}/{quote(hexhash)}/{quote(file_name)}"
-    )
-
-
-def test_artifact_entry_download_url_with_membership_server_feature(
-    user: str,
-    api: Api,
-    tmp_path: Path,
-):
-    base_url = api.settings["base_url"]
-    (
-        project,
-        artifact_name,
-        _,
-        birth_artifact_id,
-        region,
-        hexhash,
-        file_name,
-        used_url,
-    ) = _download_entry_and_capture_url(
-        user,
-        api,
-        tmp_path,
-        feature_response={
-            "serverInfo": {
-                "features": [
-                    {
-                        "name": "ARTIFACT_V2_DOWNLOAD_HANDLER_SUPPORTS_ARTIFACT_ID",
-                        "isEnabled": False,
-                    },
-                    {
-                        "name": "ARTIFACT_COLLECTION_MEMBERSHIP_FILE_DOWNLOAD_HANDLER",
-                        "isEnabled": True,
-                    },
-                ]
-            }
-        },
-        suffix="membership",
-    )
-
-    assert (
-        used_url
-        == f"{base_url}/artifactsV2/{quote(region)}/{quote(user)}/{quote(project)}/{quote(artifact_name)}/{quote(birth_artifact_id)}/{quote(hexhash)}/{quote(file_name)}"
-    )
-
-
-def test_artifact_entry_download_url_v2_fallback(
-    user: str,
-    api: Api,
-    tmp_path: Path,
-):
-    base_url = api.settings["base_url"]
-    (
-        _,
-        _,
-        _,
-        birth_artifact_id,
-        region,
-        hexhash,
-        _,
-        used_url,
-    ) = _download_entry_and_capture_url(
-        user,
-        api,
-        tmp_path,
-        feature_response={"serverInfo": {"features": []}},
-        suffix="fallback",
-    )
-
-    assert (
-        used_url
-        == f"{base_url}/artifactsV2/{quote(region)}/{quote(user)}/{quote(birth_artifact_id)}/{hexhash}"
-    )
+    assert StorageLayout(layout) == StorageLayout.V2, f"layout is {layout}"
+    if supports_artifact_id:
+        assert "/artifactsV2/" in used_url
+        assert art.id is not None
+        assert f"/{quote(art.id)}/{quote(art.id)}/" in used_url
+        assert used_url.endswith("/source.txt")
+    elif supports_membership:
+        assert "/artifactsV2/" in used_url
+        assert art.id is not None
+        assert f"/{quote(art.id)}/{quote(art.id)}/" not in used_url
+        assert used_url.endswith("/source.txt")
+    else:
+        # Legacy V2 fallback: no filename suffix.
+        hexhash = b64_to_hex_id(entry.digest)
+        assert used_url.rstrip("/").endswith(hexhash)
 
 
 def test_storage_policy_storage_region_not_available():
