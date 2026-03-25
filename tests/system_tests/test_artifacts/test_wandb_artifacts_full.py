@@ -848,16 +848,13 @@ def _download_entry_and_capture_url(
         seen_urls.append(str(url))
         return original_get(url, *args, **kwargs)
 
-    policy_client = policy._api.client
-    assert policy_client is not None
-
     server_features.cache_clear()
     with ExitStack() as stack:
         stack.enter_context(
             mock.patch.object(
-                policy_client,
+                api.client,
                 "execute",
-                side_effect=_execute_with_mocked_server_features(policy_client),
+                side_effect=_execute_with_mocked_server_features(api.client),
             )
         )
         stack.enter_context(mock.patch.object(policy._session, "get", recording_get))
