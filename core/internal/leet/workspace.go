@@ -829,6 +829,9 @@ func (w *Workspace) buildActiveStatus() string {
 			}
 		case FocusSystemChart:
 			if g := w.activeSystemMetricsGrid(); g != nil {
+				if detail := g.FocusedChartTitleDetail(); detail != "" {
+					parts = append(parts, detail)
+				}
 				if viewMode := g.FocusedChartViewModeLabel(); viewMode != "" {
 					parts = append(parts, viewMode)
 				}

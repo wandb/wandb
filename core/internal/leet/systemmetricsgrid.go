@@ -12,14 +12,6 @@ import (
 	"github.com/wandb/wandb/core/internal/observability"
 )
 
-const (
-	// Horizontal padding for title within chart box.
-	chartTitlePadding = 4
-
-	// Minimum readable width for chart titles.
-	minTitleWidth = 10
-)
-
 // SystemMetricsGrid manages the grid of system metric charts.
 type SystemMetricsGrid struct {
 	// Configuration and logging.
@@ -341,6 +333,14 @@ func (g *SystemMetricsGrid) FocusedChartScaleLabel() string {
 	return chart.ScaleLabel()
 }
 
+func (g *SystemMetricsGrid) FocusedChartTitleDetail() string {
+	chart := g.focusedChart()
+	if chart == nil {
+		return ""
+	}
+	return chart.TitleDetail()
+}
+
 func (g *SystemMetricsGrid) focusedChart() systemMetricChart {
 	if g.focus.Type != FocusSystemChart || g.focus.Row < 0 || g.focus.Col < 0 {
 		return nil
@@ -504,30 +504,7 @@ func (g *SystemMetricsGrid) View() string {
 			metricChart := g.currentPage[row][col]
 			chartView := metricChart.View()
 
-			titleText := metricChart.Title()
-			titleDetail := metricChart.TitleDetail()
-			titleSuffix := ""
-			if titleDetail != "" {
-				titleSuffix += " " + titleDetail
-			}
-			if metricChart.IsHeatmapMode() {
-				titleSuffix += " [heatmap]"
-			} else if metricChart.IsLogY() {
-				titleSuffix += " [log]"
-			}
-
-			availableWidth := max(
-				dims.CellWWithPadding-chartTitlePadding-lipgloss.Width(titleSuffix), minTitleWidth)
-			displayTitle := TruncateTitle(titleText, availableWidth)
-			renderedTitle := titleStyle.Render(displayTitle)
-			if titleDetail != "" {
-				renderedTitle += seriesCountStyle.Render(" " + titleDetail)
-			}
-			if metricChart.IsHeatmapMode() {
-				renderedTitle += navInfoStyle.Render(" [heatmap]")
-			} else if metricChart.IsLogY() {
-				renderedTitle += navInfoStyle.Render(" [log]")
-			}
+			renderedTitle := renderSystemMetricChartTitle(metricChart, dims.CellW)
 
 			boxContent := lipgloss.JoinVertical(lipgloss.Left, renderedTitle, chartView)
 			boxStyle := borderStyle
@@ -559,6 +536,73 @@ func (g *SystemMetricsGrid) View() string {
 	}
 
 	return grid
+}
+
+type systemMetricHeaderExtras struct {
+	detail string
+	mode   string
+}
+
+func renderSystemMetricChartTitle(chart systemMetricChart, maxWidth int) string {
+	if chart == nil || maxWidth <= 0 {
+		return ""
+	}
+
+	extras := chartHeaderExtras(chart)
+	showDetail := extras.detail != ""
+	showMode := extras.mode != ""
+	for {
+		suffixWidth := 0
+		if showDetail {
+			suffixWidth += lipgloss.Width(extras.detail)
+		}
+		if showMode {
+			suffixWidth += lipgloss.Width(extras.mode)
+		}
+		if maxWidth-suffixWidth >= 1 {
+			break
+		}
+		if showMode {
+			showMode = false
+			continue
+		}
+		if showDetail {
+			showDetail = false
+			continue
+		}
+		break
+	}
+
+	suffixWidth := 0
+	if showDetail {
+		suffixWidth += lipgloss.Width(extras.detail)
+	}
+	if showMode {
+		suffixWidth += lipgloss.Width(extras.mode)
+	}
+	titleWidth := max(maxWidth-suffixWidth, 1)
+	label := titleStyle.Render(TruncateTitle(chart.Title(), titleWidth))
+	if showDetail {
+		label += seriesCountStyle.Render(extras.detail)
+	}
+	if showMode {
+		label += navInfoStyle.Render(extras.mode)
+	}
+	return label
+}
+
+func chartHeaderExtras(chart systemMetricChart) systemMetricHeaderExtras {
+	extras := systemMetricHeaderExtras{}
+	if detail := chart.TitleDetail(); detail != "" {
+		extras.detail = " " + detail
+	}
+	switch {
+	case chart.IsHeatmapMode():
+		extras.mode = " [heatmap]"
+	case chart.IsLogY():
+		extras.mode = " [log]"
+	}
+	return extras
 }
 
 // ChartCount returns the number of charts on the grid.
