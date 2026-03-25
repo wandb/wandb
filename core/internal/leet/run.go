@@ -497,6 +497,9 @@ func (r *Run) buildActiveStatus() string {
 				parts = append(parts, scaleLabel)
 			}
 		case FocusSystemChart:
+			if detail := r.rightSidebar.metricsGrid.FocusedChartTitleDetail(); detail != "" {
+				parts = append(parts, detail)
+			}
 			if viewMode := r.rightSidebar.FocusedChartViewModeLabel(); viewMode != "" {
 				parts = append(parts, viewMode)
 			}

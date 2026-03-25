@@ -178,6 +178,47 @@ func (c *TimeSeriesLineChart) ViewModeLabel() string {
 	return "frozen " + compactDuration(window)
 }
 
+// TitleDetail returns the compact suffix rendered next to the chart title.
+func (c *TimeSeriesLineChart) TitleDetail() string {
+	if len(c.series) <= 1 {
+		return ""
+	}
+	return fmt.Sprintf("[%d]", len(c.series))
+}
+
+// GraphStartX returns the first graph column inside the rendered chart view.
+func (c *TimeSeriesLineChart) GraphStartX() int {
+	startX := 1
+	if c.YStep() > 0 {
+		startX += c.Origin().X + 1
+	}
+	return startX
+}
+
+// GraphStartY returns the first graph row inside the rendered chart cell.
+func (c *TimeSeriesLineChart) GraphStartY() int {
+	return 1 + ChartTitleHeight
+}
+
+// StartInspectionAt begins inspection at the given graph-local mouse position.
+func (c *TimeSeriesLineChart) StartInspectionAt(mouseX, _ int) {
+	c.StartInspection(mouseX)
+}
+
+// UpdateInspectionAt moves the inspection cursor.
+func (c *TimeSeriesLineChart) UpdateInspectionAt(mouseX, _ int) {
+	c.UpdateInspection(mouseX)
+}
+
+// SupportsHeatmap reports whether this chart can toggle into heatmap mode.
+func (c *TimeSeriesLineChart) SupportsHeatmap() bool { return false }
+
+// ToggleHeatmapMode is unsupported for plain line charts.
+func (c *TimeSeriesLineChart) ToggleHeatmapMode() bool { return false }
+
+// IsHeatmapMode reports whether the chart is currently rendering as a heatmap.
+func (c *TimeSeriesLineChart) IsHeatmapMode() bool { return false }
+
 // LastUpdate returns the timestamp of the most recent sample seen.
 func (c *TimeSeriesLineChart) LastUpdate() time.Time { return c.lastUpdate }
 
