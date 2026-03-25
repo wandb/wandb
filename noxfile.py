@@ -551,6 +551,11 @@ def _generate_proto_python(session: nox.Session, pb: int) -> None:
         versions["mypy_protobuf"],
     )
 
+    # Ensure protoc, when installed by install-protoc.sh to ~/.local/bin,
+    # is discoverable inside the nox venv.
+    local_bin = os.path.expanduser("~/.local/bin")
+    session.env["PATH"] = local_bin + os.pathsep + os.environ.get("PATH", "")
+
     with session.chdir("wandb/proto"):
         session.run("python", "wandb_generate_proto.py", "--pb-major", str(pb))
 
@@ -569,7 +574,7 @@ def _ensure_no_diff(
 
 
 @nox.session(name="proto-check-python", tags=["proto-check"])
-@nox.parametrize("pb", [5, 6])
+@nox.parametrize("pb", [4, 5, 6, 7])
 def proto_check_python(session: nox.Session, pb: int) -> None:
     """Regenerates Python protobuf files and ensures nothing changed."""
     _ensure_no_diff(
