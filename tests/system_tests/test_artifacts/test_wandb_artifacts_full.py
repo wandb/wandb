@@ -17,10 +17,12 @@ from pytest_mock import MockerFixture
 from wandb import Api, Artifact
 from wandb.errors import CommError
 from wandb.sdk.artifacts._internal_artifact import InternalArtifact
+from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts._validators import NAME_MAXLEN, RESERVED_ARTIFACT_TYPE_PREFIX
 from wandb.sdk.artifacts.artifact_file_cache import get_artifact_file_cache
 from wandb.sdk.artifacts.exceptions import ArtifactFinalizedError, WaitTimeoutError
-from wandb.sdk.lib.hashutil import b64_to_hex_id, md5_string
+from wandb.sdk.lib.hashutil import md5_string
+from wandb.sdk.lib.hashutil import b64_to_hex_id
 
 pytestmark = [
     # requesting the `user` fixture sets API env var for ALL tests in this module
