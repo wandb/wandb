@@ -27,7 +27,7 @@
     "./gpu_stats/Cargo.toml",
     "./experimental/rust-sdk/Cargo.toml",
     "./experimental/rust-sdk/examples/basic/Cargo.toml",
-    "./experimental/arrow-rs-wrapper/Cargo.toml",
+    "./parquet-rust-wrapper/Cargo.toml",
     "./wandb/vendor/wandb_orjson/Cargo.toml"
   ],
   "python.analysis.autoImportCompletions": false,

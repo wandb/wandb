@@ -56,4 +56,4 @@ wandb/vendor/wandb_orjson/orjson.pyd
 .protoc/
 
 # Ignore arrow-rs-wrapper build artifacts
-experimental/arrow-rs-wrapper/target/
+parquet-rust-wrapper/target/
