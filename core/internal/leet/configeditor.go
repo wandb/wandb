@@ -16,6 +16,8 @@ import (
 const (
 	quitConfirmStatusBrowse = "Unsaved changes — press q/esc/ctrl+c again to discard, or s to save & quit."
 	quitConfirmStatusEdit   = "Unsaved changes — press q/ctrl+c again to discard, or Esc to keep editing."
+
+	configEditorPalettePreviewBlock = "█"
 )
 
 // ConfigEditorParams configures a [ConfigEditor].
@@ -166,9 +168,10 @@ type configField struct {
 	max    int // 0 => no max
 
 	// enum
-	options []string
-	getEnum func(Config) string
-	setEnum func(*Config, string)
+	options      []string
+	enumProvider string
+	getEnum      func(Config) string
+	setEnum      func(*Config, string)
 }
 
 // enumSelectState holds transient state while the user picks from an
@@ -565,7 +568,12 @@ func (m *ConfigEditor) renderEnumPicker(width int) string {
 		if i == m.enum.index {
 			prefix = "> "
 		}
-		lines = append(lines, prefix+opt)
+
+		line := prefix + opt
+		if f.showsColorSchemePreview() {
+			line += "  " + renderColorSchemePreview(opt)
+		}
+		lines = append(lines, line)
 	}
 
 	box := lipgloss.NewStyle().
@@ -575,6 +583,28 @@ func (m *ConfigEditor) renderEnumPicker(width int) string {
 		Render(strings.Join(lines, "\n"))
 
 	return box
+}
+
+func (f *configField) showsColorSchemePreview() bool {
+	return f != nil && f.Kind == fieldEnum && f.enumProvider == "colorSchemes"
+}
+
+// renderColorSchemePreview returns a compact swatch strip for a palette.
+//
+// Each block is rendered with the scheme's AdaptiveColor, so lipgloss resolves
+// the light or dark variant automatically for the current terminal theme.
+func renderColorSchemePreview(scheme string) string {
+	colors := GraphColors(scheme)
+	if len(colors) == 0 {
+		return ""
+	}
+
+	var b strings.Builder
+	for _, c := range colors {
+		b.WriteString(
+			lipgloss.NewStyle().Foreground(c).Render(configEditorPalettePreviewBlock))
+	}
+	return b.String()
 }
 
 func (m *ConfigEditor) renderIntEditor(width int) string {

@@ -285,11 +285,12 @@ func walkConfigFields(
 			idx := cloneIndex(fieldIndex)
 
 			*out = append(*out, configField{
-				Label:       label,
-				JSONKey:     key,
-				Description: desc,
-				Kind:        fieldEnum,
-				options:     opts,
+				Label:        label,
+				JSONKey:      key,
+				Description:  desc,
+				Kind:         fieldEnum,
+				options:      opts,
+				enumProvider: tag.options,
 				getEnum: func(c Config) string {
 					return reflect.ValueOf(c).FieldByIndex(idx).String()
 				},
