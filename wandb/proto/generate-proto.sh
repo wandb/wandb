@@ -30,12 +30,15 @@ PROTO_FILES=(
 # See https://protobuf.dev/support/version-support/
 # ---------------------------------------------------------------------------
 
-declare -A PROTOC_VERSIONS=(
-    [4]="23.4"
-    [5]="27.0"
-    [6]="32.1"
-    [7]="34.1"
-)
+protoc_version_for() {
+    case "$1" in
+        4) echo "23.4" ;;
+        5) echo "27.0" ;;
+        6) echo "32.1" ;;
+        7) echo "34.1" ;;
+        *) return 1 ;;
+    esac
+}
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -119,10 +122,10 @@ fi
 
 # Download all needed protoc versions first (fast if already cached).
 for pb in "${requested[@]}"; do
-    protoc_ver="${PROTOC_VERSIONS[$pb]:-}"
+    protoc_ver="$(protoc_version_for "$pb" || true)"
     if [ -z "$protoc_ver" ]; then
         echo "ERROR: Unknown protobuf major version: $pb" >&2
-        echo "  Supported: ${!PROTOC_VERSIONS[*]}" >&2
+        echo "  Supported: 4, 5, 6, 7" >&2
         exit 1
     fi
     ensure_protoc "$protoc_ver"
@@ -130,7 +133,7 @@ done
 
 # Generate.
 for pb in "${requested[@]}"; do
-    generate "$pb" "${PROTOC_VERSIONS[$pb]}"
+    generate "$pb" "$(protoc_version_for "$pb")"
 done
 
 echo "[INFO] Done."
