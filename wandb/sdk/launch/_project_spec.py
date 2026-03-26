@@ -22,7 +22,7 @@ from wandb.sdk.launch.utils import get_entrypoint_file
 from wandb.sdk.lib.runid import generate_id
 
 from .errors import LaunchError
-from .utils import LOG_PREFIX, recursive_macro_sub
+from .utils import CODE_MOUNT_DIR, LOG_PREFIX, recursive_macro_sub
 
 if TYPE_CHECKING:
     from wandb.sdk.artifacts.artifact import Artifact
@@ -108,7 +108,9 @@ class LaunchProject:
         # but these resource_args are then passed to the appropriate
         # runner, so we need to pop the builder key out
         resource_args_copy = deepcopy(resource_args)
-        resource_args_build = resource_args_copy.get(resource, {}).pop("builder", {})
+        self._resource_args_build = resource_args_copy.get(resource, {}).pop(
+            "builder", {}
+        )
         self.resource = resource
         self.resource_args = resource_args_copy
         self.sweep_id = sweep_id
@@ -117,9 +119,11 @@ class LaunchProject:
         self._job_dockerfile: str | None = None
         self._job_build_context: str | None = None
         self._job_base_image: str | None = None
-        self.accelerator_base_image: str | None = resource_args_build.get(
+        self.accelerator_base_image: str | None = self._resource_args_build.get(
             "accelerator", {}
-        ).get("base_image") or resource_args_build.get("cuda", {}).get("base_image")
+        ).get("base_image") or self._resource_args_build.get("cuda", {}).get(
+            "base_image"
+        )
         self.docker_image: str | None = docker_config.get(
             "docker_image"
         ) or launch_spec.get("image_uri")  # type: ignore [assignment]
@@ -187,6 +191,12 @@ class LaunchProject:
                 name=get_entrypoint_file(override_entrypoint),
                 command=override_entrypoint,
             )
+        override_working_dir = overrides.get("working_dir")
+        self.resolved_working_dir: str = (
+            f"{CODE_MOUNT_DIR}/{override_working_dir}"
+            if override_working_dir
+            else CODE_MOUNT_DIR
+        )
 
     def __repr__(self) -> str:
         """String representation of LaunchProject."""

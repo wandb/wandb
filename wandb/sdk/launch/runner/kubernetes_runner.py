@@ -8,6 +8,7 @@ import datetime
 import json
 import logging
 import os
+import shlex
 import time
 from collections.abc import Iterator
 from typing import Any
@@ -543,7 +544,7 @@ class KubernetesRunner(AbstractRunner):
         )
 
         if launch_project.job_base_image:
-            if SOURCE_CODE_PVC_NAME:
+            if SOURCE_CODE_PVC_NAME and SOURCE_CODE_PVC_MOUNT_PATH:
                 apply_code_mount_configuration(
                     job,
                     launch_project,
@@ -1251,6 +1252,43 @@ def add_entrypoint_args_overrides(manifest: dict | list, overrides: dict) -> Non
             add_entrypoint_args_overrides(value, overrides)
 
 
+def _wrap_container_command_with_dep_install(
+    container: dict,
+    working_dir: str,
+    requirements_path: str,
+) -> None:
+    """Wrap a container's command with a pip install step.
+
+    Prepends a shell conditional that installs dependencies, checking in order:
+      1. requirements.txt (user-provided)
+      2. pyproject.toml (user-provided, installed via pip install .)
+      3. requirements.frozen.txt (job artifact fallback)
+
+    Arguments:
+        container: The container spec to modify in place.
+        working_dir: The working directory where user dep files are expected.
+        requirements_path: Path to the frozen requirements fallback file.
+    """
+    original_command = container.get("command", [])
+    original_args = container.get("args", [])
+    original_cmd_str = " ".join(original_command + original_args)
+    if not original_cmd_str:
+        return
+    user_requirements = f"{working_dir}/requirements.txt"
+    pyproject = f"{working_dir}/pyproject.toml"
+    install_prefix = (
+        f"if [ -f {user_requirements} ]; then"
+        f" pip install -r {user_requirements};"
+        f" elif [ -f {pyproject} ]; then"
+        f" pip install {working_dir};"
+        f" elif [ -f {requirements_path} ]; then"
+        f" pip install -r {requirements_path};"
+        f" else echo 'No requirements file found'; fi"
+    )
+    container["command"] = ["/bin/sh", "-c"]
+    container["args"] = [f"{install_prefix} && exec {original_cmd_str}"]
+
+
 def apply_code_mount_configuration(
     manifest: dict | list, project: LaunchProject
 ) -> None:
@@ -1279,7 +1317,13 @@ def apply_code_mount_configuration(
                     "subPath": source_dir,
                 }
             )
-            container["workingDir"] = CODE_MOUNT_DIR
+            container["workingDir"] = project.resolved_working_dir
+            if project._auto_default_base_image:
+                _wrap_container_command_with_dep_install(
+                    container,
+                    project.resolved_working_dir,
+                    f"{CODE_MOUNT_DIR}/.job/requirements.frozen.txt",
+                )
         spec = pod["spec"]
         if "volumes" not in spec:
             spec["volumes"] = []
@@ -1310,6 +1354,12 @@ def apply_code_mount_configuration_emptydir(
     source_type = project.job_source_type
     source_info = project.job_source_info
 
+    # Validate before mutating the manifest.
+    if source_type not in ("artifact", "repo"):
+        raise LaunchError(
+            f"Cannot use emptyDir code mount for unknown source type: {source_type!r}"
+        )
+
     for pod in yield_pods(manifest):
         # Add emptyDir volume
         spec = pod["spec"]
@@ -1324,10 +1374,10 @@ def apply_code_mount_configuration_emptydir(
 
         job_artifact = source_info.get("job_artifact", "")
         job_dir = f"{CODE_MOUNT_DIR}/.job"
-        requirements_path = f"{job_dir}/requirements.frozen.txt"
 
-        # Mount volume on all main containers and set workingDir
+        # Mount volume on all main containers, set workingDir, and collect API key.
         install_deps = project._auto_default_base_image
+        api_key_env = None
         for container in yield_containers(pod):
             if "volumeMounts" not in container:
                 container["volumeMounts"] = []
@@ -1337,35 +1387,20 @@ def apply_code_mount_configuration_emptydir(
                     "mountPath": CODE_MOUNT_DIR,
                 }
             )
-            container["workingDir"] = CODE_MOUNT_DIR
+            container["workingDir"] = project.resolved_working_dir
             # Only install deps when using the auto-assigned default base
             # image. User-provided base images are expected to have deps.
             if install_deps:
-                original_command = container.get("command", [])
-                original_args = container.get("args", [])
-                original_cmd_str = " ".join(original_command + original_args)
-                if original_cmd_str:
-                    user_requirements = f"{CODE_MOUNT_DIR}/requirements.txt"
-                    install_prefix = (
-                        f"if [ -f {user_requirements} ]; then"
-                        f" pip install -r {user_requirements};"
-                        f" elif [ -f {requirements_path} ]; then"
-                        f" pip install -r {requirements_path}; fi"
-                    )
-                    container["command"] = ["/bin/sh", "-c"]
-                    container["args"] = [
-                        f"{install_prefix} && exec {original_cmd_str}"
-                    ]
-
-        # Find the API key env var from an existing container to reuse
-        api_key_env = None
-        for container in yield_containers(pod):
-            for env in container.get("env", []):
-                if env["name"] == "WANDB_API_KEY":
-                    api_key_env = env
-                    break
-            if api_key_env:
-                break
+                _wrap_container_command_with_dep_install(
+                    container,
+                    project.resolved_working_dir,
+                    f"{job_dir}/requirements.frozen.txt",
+                )
+            if api_key_env is None:
+                for env in container.get("env", []):
+                    if env["name"] == "WANDB_API_KEY":
+                        api_key_env = env
+                        break
 
         # Build init container based on source type
         init_env = [
@@ -1377,32 +1412,33 @@ def apply_code_mount_configuration_emptydir(
         # Init container: fetch code (and job artifact if installing deps)
         fetch_job_artifact = ""
         if install_deps and job_artifact:
-            fetch_job_artifact = (
-                f" && python -c \"import wandb; "
-                f"wandb.Api().artifact('{job_artifact}').download('{job_dir}')\""
+            py_cmd = (
+                f"import wandb; "
+                f"wandb.Api().artifact({repr(job_artifact)}).download({repr(job_dir)})"
             )
+            fetch_job_artifact = f" && python -c {shlex.quote(py_cmd)}"
 
         if source_type == "artifact":
             artifact_string = source_info.get("artifact_string", "")
-            fetch_script = (
-                f"python -c \"import wandb; "
-                f"wandb.Api().artifact('{artifact_string}').download('{CODE_MOUNT_DIR}')\""
-                + fetch_job_artifact
+            py_cmd = (
+                f"import wandb; "
+                f"wandb.Api().artifact({repr(artifact_string)}).download({repr(CODE_MOUNT_DIR)})"
             )
-        elif source_type == "repo":
+            fetch_script = (
+                f"python -c {shlex.quote(py_cmd)}"
+                + fetch_job_artifact
+                + f" && chmod -R a+w {CODE_MOUNT_DIR}/*"
+            )
+        else:  # repo
             git_remote = source_info.get("git_remote", "")
             git_commit = source_info.get("git_commit", "")
             fetch_script = (
-                f"git clone {git_remote} {CODE_MOUNT_DIR}"
-                f" && cd {CODE_MOUNT_DIR} && git checkout {git_commit}"
+                f"git clone {shlex.quote(git_remote)} {CODE_MOUNT_DIR}"
+                f" && git config --global --add safe.directory {CODE_MOUNT_DIR}"
+                f" && cd {CODE_MOUNT_DIR} && git checkout {shlex.quote(git_commit)}"
                 + fetch_job_artifact
+                + f" && chmod -R a+w {CODE_MOUNT_DIR}/*"
             )
-        else:
-            _logger.warning(
-                "Unknown job source type %s, skipping emptyDir init container",
-                source_type,
-            )
-            return
 
         fetch_container = {
             "name": "wandb-source-code-init",

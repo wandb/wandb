@@ -55,6 +55,8 @@ DEFAULT_STOPPED_RUN_TIMEOUT = 60
 DEFAULT_PRINT_INTERVAL = 5 * 60
 VERBOSE_PRINT_INTERVAL = 20
 
+DEFAULT_BASE_IMAGE = "python:3.14-slim"
+
 _env_timeout = os.environ.get("WANDB_LAUNCH_START_TIMEOUT")
 if _env_timeout:
     try:
@@ -733,19 +735,18 @@ class LaunchAgent:
                 "artifact",
                 "repo",
             ):
-                default_base_image = "pytorch/pytorch:2.5.1-cuda12.4-cudnn9-runtime"
-                wandb.termlog(
-                    f"{LOG_PREFIX}No builder configured. Using default base image: "
-                    f"{default_base_image}"
+                base_image = (
+                    project._resource_args_build.get("base_image") or DEFAULT_BASE_IMAGE
                 )
-                project.set_job_base_image(default_base_image)
+                wandb.termwarn(
+                    f"{LOG_PREFIX}No builder configured. Using base image: {base_image}"
+                )
+                project.set_job_base_image(base_image)
                 project._auto_default_base_image = True
-                image_uri = default_base_image
+                image_uri = base_image
             else:
                 assert entrypoint is not None
-                image_uri = await builder.build_image(
-                    project, entrypoint, job_tracker
-                )
+                image_uri = await builder.build_image(project, entrypoint, job_tracker)
 
         self._internal_logger.info("Backend loaded...")
         if isinstance(backend, LocalProcessRunner):
