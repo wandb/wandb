@@ -61,14 +61,14 @@ message Record {
 }
 
 message Control {
-  bool req_resp = 1;         // record is expecting a result
-  bool local = 2;            // should not be persisted or synchronized
-  string relay_id = 3;       // used by service transport to identify correct stream
-  string mailbox_slot = 4;   // mailbox slot
-  bool always_send = 5;      // message to sender
-  bool flow_control = 6;     // message should be passed to flow control
-  int64 end_offset = 7;      // end of message offset of this written message
-  string connection_id = 8;  // connection id
+  bool req_resp = 1; // record is expecting a result
+  bool local = 2; // should not be persisted or synchronized
+  string relay_id = 3; // used by service transport to identify correct stream
+  string mailbox_slot = 4; // mailbox slot
+  bool always_send = 5; // message to sender
+  bool flow_control = 6; // message should be passed to flow control
+  int64 end_offset = 7; // end of message offset of this written message
+  string connection_id = 8; // connection id
 }
 
 /*
@@ -294,7 +294,7 @@ message MetricRecord {
   // step metric index can be used instead of step_metric when
   // MetricRecord is encoded in a list of MetricRecords
   string step_metric = 4;
-  int32 step_metric_index = 5;  // one-based array index
+  int32 step_metric_index = 5; // one-based array index
 
   MetricOptions options = 6;
   MetricSummary summary = 7;
@@ -316,7 +316,7 @@ message MetricResult {}
 message MetricOptions {
   bool step_sync = 1;
   bool hidden = 2;
-  bool defined = 3;  // metric explicitly defined (not from glob match or step metric)
+  bool defined = 3; // metric explicitly defined (not from glob match or step metric)
 }
 
 message MetricControl {
@@ -1239,7 +1239,7 @@ message UseArtifactResult {}
  * Cancel:
  */
 message CancelRequest {
-  string cancel_slot = 1;  // mailbox slot
+  string cancel_slot = 1; // mailbox slot
   _RequestInfo _info = 200;
 }
 
@@ -1462,6 +1462,11 @@ message JobInputRequest {
 // Each enum's name matches the name used in the backend server.
 enum ServerFeature {
   SERVER_FEATURE_UNSPECIFIED = 0;
+
+  // Whether the GraphQL schema includes everything on master from 2026-03-01.
+  //
+  // Used to bypass old GraphQL introspection queries on new servers.
+  SCHEMA_20260301 = 18;
 
   // Indicates that the server supports recieving an array of filenames as metadata.
   LARGE_FILENAMES = 17;
