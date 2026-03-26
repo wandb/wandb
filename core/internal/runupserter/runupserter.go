@@ -69,7 +69,7 @@ type RunUpserterParams struct {
 	Settings           *settings.Settings
 	BeforeRunEndCtx    context.Context
 	Operations         *wboperation.WandbOperations
-	FeatureProvider    *featurechecker.ServerFeaturesCache
+	FeatureProvider    *featurechecker.FeatureProvider
 	GraphqlClientOrNil graphql.Client
 	Logger             *observability.CoreLogger
 }
@@ -126,10 +126,10 @@ func InitRun(
 
 	// Initialize the run metrics.
 	enableServerExpandedMetrics := params.Settings.IsEnableServerSideExpandGlobMetrics()
-	if enableServerExpandedMetrics && !params.FeatureProvider.GetFeature(
+	if enableServerExpandedMetrics && !params.FeatureProvider.Enabled(
 		params.BeforeRunEndCtx,
 		spb.ServerFeature_EXPAND_DEFINED_METRIC_GLOBS,
-	).Enabled {
+	) {
 		params.Logger.Warn(
 			"runupserter: server does not expand metric globs" +
 				" but the x_server_side_expand_glob_metrics setting is set;" +

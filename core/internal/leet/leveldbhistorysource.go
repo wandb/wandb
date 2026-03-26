@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -17,6 +18,8 @@ import (
 
 // LevelDBHistorySource handles reading records from a W&B LevelDB-style transaction log (.wandb file).
 type LevelDBHistorySource struct {
+	mu sync.Mutex
+
 	runPath string
 
 	// store is a W&B LevelDB-style transaction log that may be actively written.
@@ -67,9 +70,8 @@ func (hs *LevelDBHistorySource) Read(
 	chunkSize int,
 	maxTimePerChunk time.Duration,
 ) (tea.Msg, error) {
-	if hs == nil {
-		return func() tea.Msg { return nil }, nil
-	}
+	hs.mu.Lock()
+	defer hs.mu.Unlock()
 
 	if hs.store == nil {
 		return ChunkedBatchMsg{
@@ -211,8 +213,12 @@ func (hs *LevelDBHistorySource) recordToMsg(record *spb.Record) tea.Msg {
 }
 
 func (hs *LevelDBHistorySource) Close() {
+	hs.mu.Lock()
+	defer hs.mu.Unlock()
+
 	if hs.store != nil {
 		hs.store.Close()
+		hs.store = nil
 	}
 }
 
@@ -221,7 +227,8 @@ func ParseHistory(runPath string, history *spb.HistoryRecord) tea.Msg {
 	if history == nil {
 		return nil
 	}
-	var step int
+
+	step := int(history.GetStep().GetNum())
 	values := make(map[string]float64, len(history.GetItem()))
 
 	for _, item := range history.GetItem() {

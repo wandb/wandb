@@ -2610,6 +2610,8 @@ pub struct AppleInfo {
     pub swap_total_bytes: u64,
     #[prost(uint64, tag = "7")]
     pub ram_total_bytes: u64,
+    #[prost(string, tag = "8")]
+    pub mac_model: ::prost::alloc::string::String,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GpuNvidiaInfo {
@@ -2884,8 +2886,9 @@ pub struct JobInputRequest {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
 pub enum ServerFeature {
+    Unspecified = 0,
     /// Indicates that the server supports recieving an array of filenames as metadata.
-    LargeFilenames = 0,
+    LargeFilenames = 17,
     /// Indicates that the server supports adding tags to artifacts.
     ArtifactTags = 1,
     /// Indicates that the server supports client IDs for artifact reference urls.
@@ -2922,7 +2925,7 @@ pub enum ServerFeature {
     ArtifactCollectionsFilteringSorting = 16,
     /// Indicates that the server supports both the artifact id and the birth artifact id in the artifact file download
     /// url.
-    ArtifactV2DownloadHandlerSupportsArtifactId = 17,
+    ArtifactV2DownloadHandlerSupportsArtifactId = 18,
 }
 impl ServerFeature {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -2931,6 +2934,7 @@ impl ServerFeature {
     /// (if the ProtoBuf definition does not change) and safe for programmatic use.
     pub fn as_str_name(&self) -> &'static str {
         match self {
+            Self::Unspecified => "SERVER_FEATURE_UNSPECIFIED",
             Self::LargeFilenames => "LARGE_FILENAMES",
             Self::ArtifactTags => "ARTIFACT_TAGS",
             Self::ClientIds => "CLIENT_IDS",
@@ -2970,6 +2974,7 @@ impl ServerFeature {
     /// Creates an enum from field names used in the ProtoBuf definition.
     pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
         match value {
+            "SERVER_FEATURE_UNSPECIFIED" => Some(Self::Unspecified),
             "LARGE_FILENAMES" => Some(Self::LargeFilenames),
             "ARTIFACT_TAGS" => Some(Self::ArtifactTags),
             "CLIENT_IDS" => Some(Self::ClientIds),

@@ -28,7 +28,8 @@ class _ServerFeature:
 
 class _ServerFeatureEnumTypeWrapper(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[_ServerFeature.ValueType], builtins.type):
     DESCRIPTOR: google.protobuf.descriptor.EnumDescriptor
-    LARGE_FILENAMES: _ServerFeature.ValueType  # 0
+    SERVER_FEATURE_UNSPECIFIED: _ServerFeature.ValueType  # 0
+    LARGE_FILENAMES: _ServerFeature.ValueType  # 17
     """Indicates that the server supports recieving an array of filenames as metadata."""
     ARTIFACT_TAGS: _ServerFeature.ValueType  # 1
     """Indicates that the server supports adding tags to artifacts."""
@@ -66,7 +67,7 @@ class _ServerFeatureEnumTypeWrapper(google.protobuf.internal.enum_type_wrapper._
     """Indicates that the server supports returning the total file count in a file connection."""
     ARTIFACT_COLLECTIONS_FILTERING_SORTING: _ServerFeature.ValueType  # 16
     """Indicates that the server supports filtering artifact collections when querying on a project"""
-    ARTIFACT_V2_DOWNLOAD_HANDLER_SUPPORTS_ARTIFACT_ID: _ServerFeature.ValueType  # 17
+    ARTIFACT_V2_DOWNLOAD_HANDLER_SUPPORTS_ARTIFACT_ID: _ServerFeature.ValueType  # 18
     """Indicates that the server supports both the artifact id and the birth artifact id in the artifact file download
     url.
     """
@@ -77,7 +78,8 @@ class ServerFeature(_ServerFeature, metaclass=_ServerFeatureEnumTypeWrapper):
     Each enum's name matches the name used in the backend server.
     """
 
-LARGE_FILENAMES: ServerFeature.ValueType  # 0
+SERVER_FEATURE_UNSPECIFIED: ServerFeature.ValueType  # 0
+LARGE_FILENAMES: ServerFeature.ValueType  # 17
 """Indicates that the server supports recieving an array of filenames as metadata."""
 ARTIFACT_TAGS: ServerFeature.ValueType  # 1
 """Indicates that the server supports adding tags to artifacts."""
@@ -115,7 +117,7 @@ TOTAL_COUNT_IN_FILE_CONNECTION: ServerFeature.ValueType  # 15
 """Indicates that the server supports returning the total file count in a file connection."""
 ARTIFACT_COLLECTIONS_FILTERING_SORTING: ServerFeature.ValueType  # 16
 """Indicates that the server supports filtering artifact collections when querying on a project"""
-ARTIFACT_V2_DOWNLOAD_HANDLER_SUPPORTS_ARTIFACT_ID: ServerFeature.ValueType  # 17
+ARTIFACT_V2_DOWNLOAD_HANDLER_SUPPORTS_ARTIFACT_ID: ServerFeature.ValueType  # 18
 """Indicates that the server supports both the artifact id and the birth artifact id in the artifact file download
 url.
 """
@@ -3995,6 +3997,7 @@ class AppleInfo(google.protobuf.message.Message):
     MEMORY_GB_FIELD_NUMBER: builtins.int
     SWAP_TOTAL_BYTES_FIELD_NUMBER: builtins.int
     RAM_TOTAL_BYTES_FIELD_NUMBER: builtins.int
+    MAC_MODEL_FIELD_NUMBER: builtins.int
     name: builtins.str
     ecpu_cores: builtins.int
     pcpu_cores: builtins.int
@@ -4002,6 +4005,7 @@ class AppleInfo(google.protobuf.message.Message):
     memory_gb: builtins.int
     swap_total_bytes: builtins.int
     ram_total_bytes: builtins.int
+    mac_model: builtins.str
     def __init__(
         self,
         *,
@@ -4012,8 +4016,9 @@ class AppleInfo(google.protobuf.message.Message):
         memory_gb: builtins.int = ...,
         swap_total_bytes: builtins.int = ...,
         ram_total_bytes: builtins.int = ...,
+        mac_model: builtins.str = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal["ecpu_cores", b"ecpu_cores", "gpu_cores", b"gpu_cores", "memory_gb", b"memory_gb", "name", b"name", "pcpu_cores", b"pcpu_cores", "ram_total_bytes", b"ram_total_bytes", "swap_total_bytes", b"swap_total_bytes"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["ecpu_cores", b"ecpu_cores", "gpu_cores", b"gpu_cores", "mac_model", b"mac_model", "memory_gb", b"memory_gb", "name", b"name", "pcpu_cores", b"pcpu_cores", "ram_total_bytes", b"ram_total_bytes", "swap_total_bytes", b"swap_total_bytes"]) -> None: ...
 
 global___AppleInfo = AppleInfo
 

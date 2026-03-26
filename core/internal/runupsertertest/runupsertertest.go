@@ -48,7 +48,7 @@ func NewTestUpserter(
 		params.Logger = observabilitytest.NewTestLogger(t)
 	}
 	if params.FeatureProvider == nil {
-		params.FeatureProvider = featurechecker.NewServerFeaturesCache(nil, params.Logger)
+		params.FeatureProvider = featurechecker.NewPreloaded(nil)
 	}
 
 	record := &spb.Record{RecordType: &spb.Record_Run{

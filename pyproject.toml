@@ -15,7 +15,7 @@ dependencies = [
     "GitPython>=1.0.0,!=3.1.29",
     "requests>=2.0.0,<3",
     "sentry-sdk>=2.0.0",
-    "protobuf>4.21.0,!=5.28.0,!=5.29.0,<7",
+    "protobuf>4.21.0,!=5.28.0,!=5.29.0,<8",
     "PyYAML",
     "platformdirs",
     "typing_extensions>=4.8,<5",
@@ -52,7 +52,7 @@ wb = "wandb.cli.cli:cli"
 [project.urls]
 "Source" = "https://github.com/wandb/wandb"
 "Bug Reports" = "https://github.com/wandb/wandb/issues"
-"Documentation" = "https://docs.wandb.ai/"
+"Documentation" = "https://docs.wandb.ai"
 
 [project.optional-dependencies]
 kubeflow = ["kubernetes", "minio", "google-cloud-storage", "sh"]

@@ -28,12 +28,14 @@ message ApiRequest {
 
   oneof request {
     ReadRunHistoryRequest read_run_history_request = 2;
+    FeaturesRequest features_request = 3;
   }
 }
 
 message ApiResponse {
   oneof response {
     ReadRunHistoryResponse read_run_history_response = 1;
+    FeaturesResponse features_response = 3;
 
     ApiErrorResponse api_error_response = 2;
   }
@@ -54,6 +56,43 @@ enum ErrorType {
 // This requests receives no response.
 message ServerApiCleanupRequest {
   string api_id = 1;
+}
+
+// Retrieves feature flags.
+//
+// The response to this request contains the state of feature flags
+// at some point in the past. It is not guaranteed that the most current
+// values are returned because features can change at runtime (like after
+// a server update). However, the requester may assume that any feature
+// changes are backward compatible: for example, features that represent
+// the existence of a GraphQL field are never disabled after being enabled.
+// To be precise, backward incompatible changes are possible, but only
+// minimal effort should be spent handling them. Such changes should be rare
+// and can be expected to break running programs.
+//
+// Concretely:
+//
+// - DO query features before every network request that depends on them
+//   (it's relatively fast)
+// - AVOID special handling for schema-related errors
+//
+// Features may be specific to the API instance, for example if they depend
+// on the entity. Keep this in mind if caching the response.
+message FeaturesRequest {
+  // Names of features to check.
+  //
+  // Features not in this list are not included in the response
+  // even if they are enabled.
+  //
+  // Due to backward compatibility, it is difficult to remove features
+  // on the server, and the list may grow large. Clients should request
+  // just the features they know about.
+  repeated ServerFeature features = 1;
+}
+
+message FeaturesResponse {
+  // Names of enabled boolean features.
+  repeated ServerFeature enabled = 1;
 }
 
 // Start of Scan run history

@@ -96,8 +96,8 @@ func RunKeyBindings() []BindingCategory[Run] {
 			Bindings: []KeyBinding[Run]{
 				{
 					Keys:        []string{"y"},
-					Description: "Toggle log Y on focused chart",
-					Handler:     (*Run).handleToggleFocusedChartLogY,
+					Description: "Cycle focused chart mode (log Y / heatmap)",
+					Handler:     (*Run).handleCycleFocusedChartMode,
 				},
 				{
 					Keys:        []string{"/"},
@@ -287,8 +287,8 @@ func WorkspaceKeyBindings() []BindingCategory[Workspace] {
 			Bindings: []KeyBinding[Workspace]{
 				{
 					Keys:        []string{"y"},
-					Description: "Toggle log Y on focused chart",
-					Handler:     (*Workspace).handleToggleFocusedChartLogY,
+					Description: "Cycle focused chart mode (log Y / heatmap)",
+					Handler:     (*Workspace).handleCycleFocusedChartMode,
 				},
 				{
 					Keys:        []string{"/"},
@@ -390,6 +390,82 @@ func WorkspaceKeyBindings() []BindingCategory[Workspace] {
 		},
 
 		mouseCategory[Workspace](),
+	}
+}
+
+// SymonKeyBindings returns key bindings for the standalone system monitor view.
+func SymonKeyBindings() []BindingCategory[Symon] {
+	return []BindingCategory[Symon]{
+		{
+			Name: "General",
+			Bindings: []KeyBinding[Symon]{
+				{
+					Keys:        []string{"h", "?"},
+					Description: "Toggle this help screen",
+				},
+				{
+					Keys:        []string{"q", "ctrl+c"},
+					Description: "Quit",
+					Handler:     (*Symon).handleQuit,
+				},
+				{
+					Keys:        []string{"alt+r"},
+					Description: "Restart",
+				},
+			},
+		},
+		{
+			Name: "Navigation",
+			Bindings: []KeyBinding[Symon]{
+				{
+					Keys:        []string{"N", "pgup"},
+					Description: "Previous chart page",
+					Handler:     (*Symon).handlePrevPage,
+				},
+				{
+					Keys:        []string{"n", "pgdown"},
+					Description: "Next chart page",
+					Handler:     (*Symon).handleNextPage,
+				},
+			},
+		},
+		{
+			Name: "Charts",
+			Bindings: []KeyBinding[Symon]{
+				{
+					Keys:        []string{"y"},
+					Description: "Toggle log Y on focused chart",
+					Handler:     (*Symon).handleToggleFocusedChartLogY,
+				},
+				{
+					Keys:        []string{"\\"},
+					Description: "Filter system metrics by pattern",
+					Handler:     (*Symon).handleEnterSystemMetricsFilter,
+				},
+				{
+					Keys:        []string{"ctrl+\\"},
+					Description: "Clear system metrics filter",
+					Handler:     (*Symon).handleClearSystemMetricsFilter,
+				},
+			},
+		},
+		{
+			Name: "Configuration",
+			Bindings: []KeyBinding[Symon]{
+				{
+					Keys:        []string{"c", "C"},
+					Description: "Set grid columns",
+					Handler:     (*Symon).handleConfigSystemCols,
+				},
+				{
+					Keys:        []string{"r", "R"},
+					Description: "Set grid rows",
+					Handler:     (*Symon).handleConfigSystemRows,
+				},
+			},
+		},
+
+		mouseCategory[Symon](),
 	}
 }
 

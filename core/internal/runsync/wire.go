@@ -31,7 +31,7 @@ func InjectRunSyncerFactory(
 var runSyncerFactoryBindings = wire.NewSet(
 	wire.Bind(new(api.Peeker), new(*observability.Peeker)),
 	wire.Struct(new(observability.Peeker)),
-	featurechecker.NewServerFeaturesCache,
+	featurechecker.New,
 	filestream.FileStreamProviders,
 	filetransfer.NewFileTransferStats,
 	mailbox.New,
