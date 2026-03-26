@@ -68,16 +68,23 @@ func NewRemoteWorkspaceBackend(
 	}
 	s := settings.From(settingsProto)
 
-	graphqlClient := initGraphQLClient(s, logger)
-	httpClient := api.NewClient(api.ClientOptions{
-		BaseURL:            stream.BaseURLFromSettings(logger, s),
+	parsedBaseURL := stream.BaseURLFromSettings(logger, s)
+	creds := stream.CredentialsFromSettings(logger, s)
+
+	// Use a simple retryable client for the GraphQL endpoint.
+	gqlHTTPClient := api.NewClient(api.ClientOptions{
+		BaseURL:            parsedBaseURL,
 		RetryMax:           3,
 		RetryWaitMin:       1 * time.Second,
 		RetryWaitMax:       10 * time.Second,
-		NonRetryTimeout:    10 * time.Second,
-		CredentialProvider: stream.CredentialsFromSettings(logger, s),
+		NonRetryTimeout:    30 * time.Second,
+		CredentialProvider: creds,
 		Logger:             logger.Logger,
 	})
+	gqlEndpoint := fmt.Sprintf("%s/graphql", baseURL)
+	graphqlClient := graphql.NewClient(gqlEndpoint, api.AsStandardClient(gqlHTTPClient))
+
+	httpClient := gqlHTTPClient
 
 	return &RemoteWorkspaceBackend{
 		baseURL:       baseURL,
