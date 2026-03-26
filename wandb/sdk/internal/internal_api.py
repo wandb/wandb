@@ -344,7 +344,6 @@ class Api:
         self.query_types: list[str] | None = None
         self.mutation_types: list[str] | None = None
         self.server_info_types: list[str] | None = None
-        self.server_use_artifact_input_info: list[str] | None = None
         self.server_create_artifact_input_info: list[str] | None = None
         self.server_artifact_fields_info: list[str] | None = None
         self.server_organization_type_fields_info: list[str] | None = None
@@ -645,44 +644,6 @@ class Api:
                 if res
                 else []
             )
-
-    def server_use_artifact_input_introspection(self) -> list:
-        query_string = """
-           query ProbeServerUseArtifactInput {
-               UseArtifactInputInfoType: __type(name: "UseArtifactInput") {
-                   name
-                   inputFields {
-                       name
-                   }
-                }
-            }
-        """
-
-        if self.server_use_artifact_input_info is None:
-            query = gql(query_string)
-            res = self.gql(query)
-            self.server_use_artifact_input_info = [
-                field.get("name", "")
-                for field in res.get("UseArtifactInputInfoType", {}).get(
-                    "inputFields", [{}]
-                )
-            ]
-        return self.server_use_artifact_input_info
-
-    @normalize_exceptions
-    def launch_agent_introspection(self) -> str | None:
-        query = gql(
-            """
-            query LaunchAgentIntrospection {
-                LaunchAgentType: __type(name: "LaunchAgent") {
-                    name
-                }
-            }
-        """
-        )
-
-        res = self.gql(query)
-        return res.get("LaunchAgentType") or None
 
     @normalize_exceptions
     def create_run_queue_introspection(self) -> tuple[bool, bool, bool]:
@@ -2058,7 +2019,6 @@ class Api:
         queues: list[str],
         agent_config: dict[str, Any],
         version: str,
-        gorilla_agent_support: bool,
     ) -> dict:
         project_queues = self.get_project_run_queues(entity, project)
         if not project_queues:
@@ -2079,13 +2039,6 @@ class Api:
                 f"Could not start launch agent: Not all of requested queues ({', '.join(queues)}) found. "
                 f"Available queues for this project: {','.join([q['name'] for q in project_queues])}"
             )
-
-        if not gorilla_agent_support:
-            # if gorilla doesn't support launch agents, return a client-generated id
-            return {
-                "success": True,
-                "launchAgentId": None,
-            }
 
         hostname = socket.gethostname()
 
@@ -2142,14 +2095,7 @@ class Api:
         self,
         agent_id: str,
         status: str,
-        gorilla_agent_support: bool,
     ) -> dict:
-        if not gorilla_agent_support:
-            # if gorilla doesn't support launch agents, this is a no-op
-            return {
-                "success": True,
-            }
-
         mutation = gql(
             """
             mutation updateLaunchAgent($agentId: ID!, $agentStatus: String){
@@ -2172,13 +2118,7 @@ class Api:
         return result
 
     @normalize_exceptions
-    def get_launch_agent(self, agent_id: str, gorilla_agent_support: bool) -> dict:
-        if not gorilla_agent_support:
-            return {
-                "id": None,
-                "name": "",
-                "stopPolling": False,
-            }
+    def get_launch_agent(self, agent_id: str) -> dict:
         query = gql(
             """
             query LaunchAgent($agentId: ID!) {
@@ -3753,8 +3693,7 @@ class Api:
             "artifactID: $artifactID",
         ]
 
-        artifact_types = self.server_use_artifact_input_introspection()
-        if "usedAs" in artifact_types and use_as:
+        if use_as:
             query_vars.append("$usedAs: String")
             query_args.append("usedAs: $usedAs")
 

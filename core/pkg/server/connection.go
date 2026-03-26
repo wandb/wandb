@@ -687,7 +687,10 @@ func (nc *Connection) handleApi(
 	}
 
 	wg.Go(func() {
-		response := wbapiInstance.HandleRequest(id, request)
+		ctx, cancelCtx := nc.requestCanceller.Context(id)
+		defer cancelCtx()
+
+		response := wbapiInstance.HandleRequest(ctx, id, request)
 
 		if response != nil {
 			nc.Respond(&spb.ServerResponse{
