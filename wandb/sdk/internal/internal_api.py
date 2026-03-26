@@ -352,8 +352,6 @@ class Api:
         self._server_settings_type: list[str] | None = None
         self.fail_run_queue_item_input_info: list[str] | None = None
         self.create_launch_agent_input_info: list[str] | None = None
-        self.server_create_run_queue_supports_drc: bool | None = None
-        self.server_create_run_queue_supports_priority: bool | None = None
         self.server_supports_template_variables: bool | None = None
         self.server_push_to_run_queue_supports_priority: bool | None = None
 
@@ -644,45 +642,6 @@ class Api:
                 if res
                 else []
             )
-
-    @normalize_exceptions
-    def create_run_queue_introspection(self) -> tuple[bool, bool, bool]:
-        _, _, mutations = self.server_info_introspection()
-        query_string = """
-           query ProbeCreateRunQueueInput {
-               CreateRunQueueInputType: __type(name: "CreateRunQueueInput") {
-                   name
-                   inputFields {
-                       name
-                   }
-                }
-            }
-        """
-        if (
-            self.server_create_run_queue_supports_drc is None
-            or self.server_create_run_queue_supports_priority is None
-        ):
-            query = gql(query_string)
-            res = self.gql(query)
-            if res is None:
-                raise CommError("Could not get CreateRunQueue input from GQL.")
-            self.server_create_run_queue_supports_drc = "defaultResourceConfigID" in [
-                x["name"]
-                for x in (
-                    res.get("CreateRunQueueInputType", {}).get("inputFields", [{}])
-                )
-            ]
-            self.server_create_run_queue_supports_priority = "prioritizationMode" in [
-                x["name"]
-                for x in (
-                    res.get("CreateRunQueueInputType", {}).get("inputFields", [{}])
-                )
-            ]
-        return (
-            "createRunQueue" in mutations,
-            self.server_create_run_queue_supports_drc,
-            self.server_create_run_queue_supports_priority,
-        )
 
     @normalize_exceptions
     def upsert_run_queue_introspection(self) -> bool:
@@ -1532,94 +1491,40 @@ class Api:
         prioritization_mode: str | None = None,
         config_id: str | None = None,
     ) -> dict[str, Any] | None:
-        (
-            create_run_queue,
-            supports_drc,
-            supports_prioritization,
-        ) = self.create_run_queue_introspection()
-        if not create_run_queue:
-            raise UnsupportedError(
-                "run queue creation is not supported by this version of "
-                "wandb server. Consider updating to the latest version."
-            )
-        if not supports_drc and config_id is not None:
-            raise UnsupportedError(
-                "default resource configurations are not supported by this version "
-                "of wandb server. Consider updating to the latest version."
-            )
-        if not supports_prioritization and prioritization_mode is not None:
-            raise UnsupportedError(
-                "launch prioritization is not supported by this version of "
-                "wandb server. Consider updating to the latest version."
-            )
-
-        if supports_prioritization:
-            query = gql(
-                """
-            mutation createRunQueue(
-                $entity: String!,
-                $project: String!,
-                $queueName: String!,
-                $access: RunQueueAccessType!,
-                $prioritizationMode: RunQueuePrioritizationMode,
-                $defaultResourceConfigID: ID,
-            ) {
-                createRunQueue(
-                    input: {
-                        entityName: $entity,
-                        projectName: $project,
-                        queueName: $queueName,
-                        access: $access,
-                        prioritizationMode: $prioritizationMode
-                        defaultResourceConfigID: $defaultResourceConfigID
-                    }
-                ) {
-                    success
-                    queueID
-                }
-            }
+        query = gql(
             """
-            )
-            variable_values = {
-                "entity": entity,
-                "project": project,
-                "queueName": queue_name,
-                "access": access,
-                "prioritizationMode": prioritization_mode,
-                "defaultResourceConfigID": config_id,
-            }
-        else:
-            query = gql(
-                """
-            mutation createRunQueue(
-                $entity: String!,
-                $project: String!,
-                $queueName: String!,
-                $access: RunQueueAccessType!,
-                $defaultResourceConfigID: ID,
-            ) {
-                createRunQueue(
-                    input: {
-                        entityName: $entity,
-                        projectName: $project,
-                        queueName: $queueName,
-                        access: $access,
-                        defaultResourceConfigID: $defaultResourceConfigID
-                    }
-                ) {
-                    success
-                    queueID
+        mutation createRunQueue(
+            $entity: String!,
+            $project: String!,
+            $queueName: String!,
+            $access: RunQueueAccessType!,
+            $prioritizationMode: RunQueuePrioritizationMode,
+            $defaultResourceConfigID: ID,
+        ) {
+            createRunQueue(
+                input: {
+                    entityName: $entity,
+                    projectName: $project,
+                    queueName: $queueName,
+                    access: $access,
+                    prioritizationMode: $prioritizationMode
+                    defaultResourceConfigID: $defaultResourceConfigID
                 }
+            ) {
+                success
+                queueID
             }
-            """
-            )
-            variable_values = {
-                "entity": entity,
-                "project": project,
-                "queueName": queue_name,
-                "access": access,
-                "defaultResourceConfigID": config_id,
-            }
+        }
+        """
+        )
+        variable_values = {
+            "entity": entity,
+            "project": project,
+            "queueName": queue_name,
+            "access": access,
+            "prioritizationMode": prioritization_mode,
+            "defaultResourceConfigID": config_id,
+        }
 
         result: dict[str, Any] | None = self.gql(query, variable_values)[
             "createRunQueue"
