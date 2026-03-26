@@ -644,11 +644,6 @@ class Api:
             )
 
     @normalize_exceptions
-    def upsert_run_queue_introspection(self) -> bool:
-        _, _, mutations = self.server_info_introspection()
-        return "upsertRunQueue" in mutations
-
-    @normalize_exceptions
     def push_to_run_queue_introspection(self) -> tuple[bool, bool]:
         query_string = """
             query ProbePushToRunQueueInput {
@@ -1543,11 +1538,6 @@ class Api:
         template_variables: dict | None = None,
         external_links: dict | None = None,
     ) -> dict[str, Any] | None:
-        if not self.upsert_run_queue_introspection():
-            raise UnsupportedError(
-                "upserting run queues is not supported by this version of "
-                "wandb server. Consider updating to the latest version."
-            )
         query = gql(
             """
             mutation upsertRunQueue(
