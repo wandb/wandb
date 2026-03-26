@@ -487,77 +487,15 @@ def _generate_proto_go(session: nox.Session) -> None:
     session.run("./core/api/proto/generate-proto.sh", external=True)
 
 
-@nox.session(name="proto-python", tags=["proto"], python="3.10")
-@nox.parametrize("pb", [4, 5, 6, 7])
-def proto_python(session: nox.Session, pb: int) -> None:
+@nox.session(python=False, name="proto-python", tags=["proto"])
+def proto_python(session: nox.Session) -> None:
     """Generate Python bindings for protobufs.
 
-    The pb argument is the major version of the protobuf package to use.
-    Uses protoc directly (installed via install-protoc.sh) instead of
-    grpc_tools, which avoids version-lag issues with grpcio-tools.
+    Pass specific major versions as positional args, or omit to generate all:
+        nox -s proto-python -- 5 7
     """
-    _generate_proto_python(session, pb=pb)
-
-
-def _generate_proto_python(session: nox.Session, pb: int) -> None:
-    # Protobuf version mapping
-    #
-    # The protoc compiler version is derived from the Python protobuf package's
-    # minor version: protobuf X.Y.Z → protoc Y.Z
-    # See https://protobuf.dev/support/version-support/
-    #
-    # Each entry maps a protobuf major version to:
-    #   - protoc:         the protoc binary version to install
-    #   - protobuf:       the pip version spec for the protobuf runtime
-    #   - mypy_protobuf:  the pip version spec for mypy-protobuf (protoc-gen-mypy)
-    proto_python_versions = {
-        4: {
-            "protoc": "23.4",
-            "protobuf": "protobuf~=4.23.4",
-            "mypy_protobuf": "mypy-protobuf~=3.5.0",
-        },
-        5: {
-            "protoc": "27.0",
-            "protobuf": "protobuf~=5.27.0",
-            "mypy_protobuf": "mypy-protobuf~=3.6.0",
-        },
-        6: {
-            "protoc": "32.1",
-            "protobuf": "protobuf~=6.32.1",
-            "mypy_protobuf": "mypy-protobuf~=3.6.0",
-        },
-        7: {
-            "protoc": "34.1",
-            "protobuf": "protobuf~=7.34.0",
-            "mypy_protobuf": "mypy-protobuf~=5.0.0",
-        },
-    }
-
-    if pb not in proto_python_versions:
-        session.error(
-            f"Invalid protobuf version {pb}. Supported: {sorted(proto_python_versions)}"
-        )
-
-    versions = proto_python_versions[pb]
-
-    session.run(
-        "./core/api/proto/install-protoc.sh",
-        versions["protoc"],
-        external=True,
-    )
-    install_timed(
-        session,
-        versions["protobuf"],
-        versions["mypy_protobuf"],
-    )
-
-    # Ensure protoc, when installed by install-protoc.sh to ~/.local/bin,
-    # is discoverable inside the nox venv.
-    local_bin = pathlib.Path("~/.local/bin").expanduser()
-    session.env["PATH"] = str(local_bin) + os.pathsep + os.environ.get("PATH", "")
-
-    with session.chdir("wandb/proto"):
-        session.run("python", "wandb_generate_proto.py", "--pb-major", str(pb))
+    args = session.posargs or ["4", "5", "6", "7"]
+    session.run("./wandb/proto/generate-proto.sh", *args, external=True)
 
 
 def _ensure_no_diff(
@@ -573,13 +511,17 @@ def _ensure_no_diff(
     session.run("rm", "-rf", saved, external=True)
 
 
-@nox.session(name="proto-check-python", tags=["proto-check"])
+@nox.session(python=False, name="proto-check-python", tags=["proto-check"])
 @nox.parametrize("pb", [4, 5, 6, 7])
 def proto_check_python(session: nox.Session, pb: int) -> None:
     """Regenerates Python protobuf files and ensures nothing changed."""
     _ensure_no_diff(
         session,
-        after=lambda: _generate_proto_python(session, pb=pb),
+        after=lambda: session.run(
+            "./wandb/proto/generate-proto.sh",
+            str(pb),
+            external=True,
+        ),
         in_directory=f"wandb/proto/v{pb}/.",
     )
 
