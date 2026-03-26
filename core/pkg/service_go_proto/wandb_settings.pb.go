@@ -2070,7 +2070,7 @@ const file_wandb_proto_wandb_settings_proto_rawDesc = "" +
 	"\tRunMoment\x12\x10\n" +
 	"\x03run\x18\x01 \x01(\tR\x03run\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\x01R\x05value\x12\x16\n" +
-	"\x06metric\x18\x03 \x01(\tR\x06metric\"\xe5c\n" +
+	"\x06metric\x18\x03 \x01(\tR\x06metric\"\xb7d\n" +
 	"\bSettings\x125\n" +
 	"\aapi_key\x187 \x01(\v2\x1c.google.protobuf.StringValueR\x06apiKey\x12M\n" +
 	"\x13identity_token_file\x18\xaa\x01 \x01(\v2\x1c.google.protobuf.StringValueR\x11identityTokenFile\x12H\n" +
@@ -2139,6 +2139,7 @@ const file_wandb_proto_wandb_settings_proto_rawDesc = "" +
 	"\tsave_code\x18s \x01(\v2\x1a.google.protobuf.BoolValueR\bsaveCode\x12;\n" +
 	"\vdisable_git\x18? \x01(\v2\x1a.google.protobuf.BoolValueR\n" +
 	"disableGit\x12P\n" +
+	"\x16disable_git_fork_point\x18\xcb\x01 \x01(\v2\x1a.google.protobuf.BoolValueR\x13disableGitForkPoint\x12P\n" +
 	"\x16x_disable_machine_info\x18\x9e\x01 \x01(\v2\x1a.google.protobuf.BoolValueR\x13xDisableMachineInfo\x12B\n" +
 	"\x0fx_disable_stats\x18\n" +
 	" \x01(\v2\x1a.google.protobuf.BoolValueR\rxDisableStats\x12K\n" +

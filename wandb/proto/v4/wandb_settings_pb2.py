@@ -44,5 +44,5 @@ if _descriptor._USE_C_DESCRIPTORS == False:
   _globals['_RUNMOMENT']._serialized_start=653
   _globals['_RUNMOMENT']._serialized_end=708
   _globals['_SETTINGS']._serialized_start=711
-  _globals['_SETTINGS']._serialized_end=10766
+  _globals['_SETTINGS']._serialized_end=10827
 # @@protoc_insertion_point(module_scope)
