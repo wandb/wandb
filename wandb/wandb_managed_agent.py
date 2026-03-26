@@ -958,15 +958,16 @@ def _bootstrap_artifact_agent(
             if on_log is not None:
                 on_log(line.rstrip("\n"))
 
-    def _exec_checked(cmd: list[str], *, step: str, cwd: str | None = None) -> None:
+    def _exec_checked(cmd: list[str], *, step: str, cwd: str | None = None, timeout_seconds: float | None = None) -> None:
         print(f"[DEBUG] _bootstrap_artifact_agent: exec {step}: {cmd} cwd={cwd!r}")
-        proc = sandbox.exec(cmd, cwd=cwd)
+        proc = sandbox.exec(cmd, cwd=cwd, timeout_seconds=timeout_seconds)
         t_out = threading.Thread(target=_drain, args=(proc.stdout,), daemon=True)
         t_err = threading.Thread(target=_drain, args=(proc.stderr,), daemon=True)
         t_out.start()
         t_err.start()
-        t_out.join()
-        t_err.join()
+        join_timeout = (timeout_seconds + 30) if timeout_seconds is not None else 60
+        t_out.join(timeout=join_timeout)
+        t_err.join(timeout=join_timeout)
         result = proc.result()
         print(f"[DEBUG] _bootstrap_artifact_agent: {step} exit={result.returncode}")
         if result.returncode != 0:
@@ -985,6 +986,7 @@ def _bootstrap_artifact_agent(
     _exec_checked(
         ["python", "-m", "pip", "install", "--no-cache-dir", "wandb"],
         step="pip install wandb",
+        timeout_seconds=900,
     )
 
     # 3. Write and run download_job_artifact.py (from wandb.superagent.scripts)
@@ -992,6 +994,7 @@ def _bootstrap_artifact_agent(
     _exec_checked(
         ["python", _REMOTE_DOWNLOAD_SCRIPT, "--job-artifact", job_artifact_id, "--root", _REMOTE_JOB_DIR],
         step="download job artifact",
+        timeout_seconds=900,
     )
 
     # 4. Write and run bootstrap.py (from wandb.superagent.bootstrap)
@@ -999,6 +1002,7 @@ def _bootstrap_artifact_agent(
     _exec_checked(
         ["python", _REMOTE_BOOTSTRAP_SCRIPT, "--workspace", _REMOTE_WORKSPACE],
         step="bootstrap",
+        timeout_seconds=900,
     )
 
     # 5. Install workspace dependencies if present
@@ -1008,6 +1012,7 @@ def _bootstrap_artifact_agent(
         _exec_checked(
             ["python", "-m", "pip", "install", "--no-cache-dir", "-r", req_path],
             step="pip install requirements",
+            timeout_seconds=1800,
         )
 
     # 6. Run the sweep agent from the workspace so train.py is on the path
@@ -1015,6 +1020,7 @@ def _bootstrap_artifact_agent(
         ["wandb", "agent", sweep_path],
         step="wandb agent",
         cwd=_REMOTE_WORKSPACE,
+        timeout_seconds=1800,
     )
 
 
