@@ -18,7 +18,6 @@ from cwsandbox import (
     Sandbox,
     SandboxDefaults,
     SandboxStatus,
-    Secret,
     Serialization,
     Session,
     StreamReader,
@@ -31,6 +30,7 @@ from cwsandbox import (
 )
 
 from ._auth import register_wandb_auth_provider
+from ._secret import Secret
 
 register_wandb_auth_provider()
 
