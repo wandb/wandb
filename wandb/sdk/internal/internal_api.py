@@ -346,7 +346,6 @@ class Api:
         self.server_info_types: list[str] | None = None
         self.server_create_artifact_input_info: list[str] | None = None
         self.server_artifact_fields_info: list[str] | None = None
-        self.server_organization_type_fields_info: list[str] | None = None
         self.server_supports_enabling_artifact_usage_tracking: bool | None = None
         self._max_cli_version: str | None = None
         self._server_settings_type: list[str] | None = None
@@ -3292,19 +3291,6 @@ class Api:
         if not entity:
             raise ValueError("Entity name is required to resolve org entity name.")
 
-        org_fields = self.server_organization_type_introspection()
-        can_shorthand_org_entity = "orgEntity" in org_fields
-        if not organization and not can_shorthand_org_entity:
-            raise ValueError(
-                "Fetching Registry artifacts without inputting an organization "
-                "is unavailable for your server version. "
-                "Please upgrade your server to 0.50.0 or later."
-            )
-        if not can_shorthand_org_entity:
-            # Server doesn't support fetching org entity to validate,
-            # assume org entity is correctly inputted
-            return organization
-
         orgs_from_entity = self._fetch_orgs_and_org_entities_from_entity(entity)
         if organization:
             return _match_org_with_fetched_org_entities(organization, orgs_from_entity)
@@ -3498,28 +3484,6 @@ class Api:
             artifact: dict[str, Any] = response["useArtifact"]["artifact"]
             return artifact
         return None
-
-    # Fetch fields available in backend of Organization type
-    def server_organization_type_introspection(self) -> list[str]:
-        query_string = """
-            query ProbeServerOrganization {
-                OrganizationInfoType: __type(name:"Organization") {
-                    fields {
-                        name
-                    }
-                }
-            }
-        """
-
-        if self.server_organization_type_fields_info is None:
-            query = gql(query_string)
-            res = self.gql(query)
-            input_fields = res.get("OrganizationInfoType", {}).get("fields", [{}])
-            self.server_organization_type_fields_info = [
-                field["name"] for field in input_fields if "name" in field
-            ]
-
-        return self.server_organization_type_fields_info
 
     # Fetch input arguments for the "artifact" endpoint on the "Project" type
     def server_project_type_introspection(self) -> bool:
