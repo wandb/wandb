@@ -22,7 +22,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 - Per-chart log-scale (Y-axis) support in W&B LEET TUI (`wandb beta leet` command, toggle on a selected chart with `y`) (@dmitryduev in https://github.com/wandb/wandb/pull/11523)
 - Standalone system monitor mode in W&B LEET TUI (`wandb beta leet symon` command) (@dmitryduev in https://github.com/wandb/wandb/pull/11559)
 - Bucketed heatmap chart mode for system metrics expressed as percentages (e.g. GPU utilization) in W&B LEET TUI (`wandb beta leet` command, cycle chart mode on a selected chart with `y`) (@dmitryduev in https://github.com/wandb/wandb/pull/11568)
-- Colorblind-friendly `dusk-shore` (gradient) and `clear-signal` (cycle) color schemes in W&B LEET TUI (`wandb beta leet` command, configure with `wandb beta leet config`) (@dmitryduev in https://github.com/wandb/wandb/pull/XXXXX)
+- Colorblind-friendly `dusk-shore` (gradient) and `clear-signal` (cycle) color schemes in W&B LEET TUI (`wandb beta leet` command, configure with `wandb beta leet config`) (@dmitryduev in https://github.com/wandb/wandb/pull/11578)
 
 ### Changed
 
