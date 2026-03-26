@@ -469,6 +469,24 @@ def local_testcontainer_registry(session: nox.Session) -> None:
     session.log(f"Successfully copied image {target_image}")
 
 
+@nox.session(python="3.13", name="codegen-check")
+def codegen_check(session: nox.Session) -> None:
+    """Generate code and ensure nothing changed."""
+    install_timed(
+        session,
+        "-r",
+        _requirements_file(session.python),
+        "ruff",  # tools/graphql_codegen/plugin.py shells out to Ruff after generation
+    )
+    session.run(
+        "python",
+        "tools/generate-tool.py",
+        "--generate",
+        "--check",
+        env={"PYTHONPATH": "."},
+    )
+
+
 @nox.session(name="gql-codegen", tags=["graphql"], python="3.10")
 def gql_codegen(session: nox.Session) -> None:
     """Generate client-side Python code from GraphQL query, mutation, and fragment definitions."""
