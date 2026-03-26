@@ -205,5 +205,12 @@ func getUserRunHistoryCacheDir() (string, error) {
 	if dir == "" {
 		return "", fmt.Errorf("failed to get runhistory cache directory")
 	}
+
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return "", fmt.Errorf(
+			"failed to create runhistory cache directory: %s",
+			err,
+		)
+	}
 	return dir, nil
 }

@@ -28,7 +28,8 @@ pub struct ReaderHandle {
 /// Create a new parquet reader with optional column selection
 ///
 /// Returns a pointer to a ReaderHandle on success, or null on failure.
-/// Use `get_last_error()` to retrieve error message if null is returned.
+/// On failure, if `out_error` is non-null, it will be set to a JSON-encoded
+/// error string that must be freed with `free_string`.
 ///
 /// # Safety
 ///
@@ -38,12 +39,14 @@ pub unsafe extern "C" fn create_reader(
     file_path_or_url: *const libc::c_char,
     column_names: *const *const libc::c_char,
     num_columns: usize,
+    out_error: *mut *mut libc::c_char,
 ) -> *mut ReaderHandle {
     // Convert the file path from C string to Rust string
     let file_path_cstr = unsafe { CStr::from_ptr(file_path_or_url) };
     let file_path_str = match file_path_cstr.to_str() {
         Ok(s) => s,
-        Err(_) => {
+        Err(e) => {
+            *out_error = error_to_c_string(&e);
             return std::ptr::null_mut();
         }
     };
@@ -54,12 +57,14 @@ pub unsafe extern "C" fn create_reader(
         for i in 0..num_columns {
             let col_name_ptr = unsafe { *column_names.add(i) };
             if col_name_ptr.is_null() {
+                *out_error = error_to_c_string("Null column name pointer provided");
                 return std::ptr::null_mut();
             }
             let col_name_cstr = unsafe { CStr::from_ptr(col_name_ptr) };
             match col_name_cstr.to_str() {
                 Ok(s) => names.push(s.to_string()),
-                Err(_) => {
+                Err(e) => {
+                    *out_error = error_to_c_string(&e);
                     return std::ptr::null_mut();
                 }
             }
@@ -72,7 +77,8 @@ pub unsafe extern "C" fn create_reader(
     // Create the reader
     match create_reader_internal(file_path_str, col_names.as_deref()) {
         Ok(handle) => Box::into_raw(Box::new(handle)),
-        Err(_) => {
+        Err(e) => {
+            *out_error = error_to_c_string(&e);
             std::ptr::null_mut()
         }
     }

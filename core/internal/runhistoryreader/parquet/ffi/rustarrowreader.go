@@ -3,6 +3,7 @@ package ffi
 import (
 	"context"
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -40,6 +41,7 @@ type RustArrowWrapper struct {
 		filePathOrURL *byte,
 		columnNames **byte,
 		numColumns int,
+		outError **byte,
 	) unsafe.Pointer
 
 	// scanStepRange is a Rust FFI to scan the readerPtr for a given range of steps.
@@ -93,6 +95,7 @@ func NewRustArrowWrapper() (*RustArrowWrapper, error) {
 		filePathOrURL *byte,
 		columnNames **byte,
 		numColumns int,
+		outError **byte,
 	) unsafe.Pointer
 	purego.RegisterLibFunc(&createReader, rustLib, "create_reader")
 	var freeString func(s *byte)
@@ -123,6 +126,7 @@ func RustArrowWrapperTester(
 		filePath *byte,
 		columnNames **byte,
 		numColumns int,
+		outError **byte,
 	) unsafe.Pointer,
 	scanStepRange func(
 		readerPtr unsafe.Pointer,
@@ -162,13 +166,21 @@ func CreateRustArrowReader(
 		colNamesPtr = &columnNameBytesPtrs[0]
 	}
 
+	var outError *byte
 	readerPtr := rustArrowWrapper.createReader(
 		&filePathBytes[0],
 		colNamesPtr,
 		len(columnNames),
+		&outError,
 	)
 	if readerPtr == nil {
-		return nil, fmt.Errorf("failed to create reader for file: %s", filePath)
+		errMsg := decodeRustError(outError)
+		rustArrowWrapper.freeString(outError)
+		return nil, fmt.Errorf(
+			"failed to create reader for file: %s: %s",
+			filePath,
+			errMsg,
+		)
 	}
 
 	return &RustArrowReader{
@@ -182,6 +194,10 @@ func (r *RustArrowReader) ScanStepRange(
 	minStep int64,
 	maxStep int64,
 ) ([]parquet.KeyValueList, error) {
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
+	}
+
 	var scanResult StepScanResult
 	errCStr := r.rustArrowWrapper.scanStepRange(
 		r.reader,
@@ -192,7 +208,7 @@ func (r *RustArrowReader) ScanStepRange(
 
 	// Check for errors from Rust
 	if errCStr != nil {
-		errMsg := cByteToGoString(errCStr)
+		errMsg := decodeRustError(errCStr)
 		r.rustArrowWrapper.freeString(errCStr)
 		return nil, fmt.Errorf("error scanning step range: %s", errMsg)
 	}
@@ -473,6 +489,22 @@ func cByteToGoString(cStr *byte) string {
 	}
 
 	return string(unsafe.Slice(cStr, length))
+}
+
+func decodeRustError(errCStr *byte) string {
+	if errCStr == nil {
+		return "Error string is nil"
+	}
+
+	errMsg := cByteToGoString(errCStr)
+	var payload struct {
+		Error string `json:"error"`
+	}
+	if err := json.Unmarshal([]byte(errMsg), &payload); err != nil {
+		return errMsg
+	}
+
+	return payload.Error
 }
 
 // findLibrary searches for the Parquet rust reader wrapper library.

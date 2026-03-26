@@ -18,6 +18,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"path/filepath"
 	"testing"
 	"unsafe"
 
@@ -92,7 +93,12 @@ func createMockRustArrowWrapper(
 	}
 
 	return ffi.RustArrowWrapperTester(
-		func(filePath *byte, columnNames **byte, numColumns int) unsafe.Pointer {
+		func(
+			filePath *byte,
+			columnNames **byte,
+			numColumns int,
+			outError **byte,
+		) unsafe.Pointer {
 			if len(datasetMap) == 0 {
 				id := new(uintptr)
 				*id = 1
@@ -307,6 +313,40 @@ func mockGraphQLWithParquetUrls(urls []string) *gqlmock.MockClient {
 	)
 
 	return mockGQL
+}
+
+func TestHistoryReader_CreatesCacheDirIfNotExists(t *testing.T) {
+	ctx := t.Context()
+	nonExistentDir := filepath.Join(t.TempDir(), "deeply", "nested", "cache")
+	t.Setenv("WANDB_CACHE_DIR", nonExistentDir)
+
+	dummyContent := createDummyFileContent()
+	server := createHttpServer(t, respondWithContent(t, dummyContent))
+	mockGQL := mockGraphQLWithParquetUrls(
+		[]string{server.URL + "/test.parquet"},
+	)
+	rustArrowWrapper := createMockRustArrowWrapper(
+		t,
+		[]columnDef{{name: "_step", colType: "int64"}},
+		map[uintptr][]map[string]any{1: {{"_step": int64(0)}}},
+	)
+
+	_, err := New(
+		ctx,
+		"test-entity",
+		"test-project",
+		"test-run-id",
+		mockGQL,
+		retryablehttp.NewClient(),
+		[]string{},
+		false,
+		rustArrowWrapper,
+	)
+	require.NoError(t, err)
+
+	info, err := os.Stat(nonExistentDir)
+	require.NoError(t, err)
+	assert.True(t, info.IsDir())
 }
 
 func TestHistoryReader_GetHistorySteps_WithoutKeys(t *testing.T) {
