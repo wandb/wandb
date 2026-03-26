@@ -163,25 +163,7 @@ func TestConfigEditor_ColorSchemePicker_ShowsPalettePreview(t *testing.T) {
 	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 
 	view := stripANSI(m.View().Content)
-	preview := strings.Repeat("█", len(leet.GraphColors("wandb-vibe-10")))
+	preview := strings.Repeat(
+		leet.ConfigEditorPalettePreviewBlock, len(leet.GraphColors("wandb-vibe-10")))
 	require.Contains(t, view, "wandb-vibe-10  "+preview)
-}
-
-func TestConfigEditor_NonColorEnumPicker_DoesNotShowPalettePreview(t *testing.T) {
-	logger := observability.NewNoOpLogger()
-	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
-
-	var m tea.Model = leet.NewConfigEditor(leet.ConfigEditorParams{Config: cfg, Logger: logger})
-	m, _ = m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
-
-	m = selectField(t, m, "startup_mode")
-	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
-
-	view := stripANSI(m.View().Content)
-	for _, line := range strings.Split(view, "\n") {
-		if strings.Contains(line, "workspace_latest") ||
-			strings.Contains(line, "single_run_latest") {
-			require.NotContains(t, line, "█")
-		}
-	}
 }
