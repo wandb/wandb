@@ -69,13 +69,11 @@ echo "[INFO] $("$PROTOC" --version) → $OUT_DIR"
 
 mkdir -p "$OUT_DIR"
 
-for proto_file in "${PROTO_FILES[@]}"; do
-    "$PROTOC" \
-        -I "$REPO_ROOT" \
-        "--python_out=$OUT_DIR" \
-        "--pyi_out=$OUT_DIR" \
-        "$REPO_ROOT/wandb/proto/${proto_file}"
-done
+"$PROTOC" \
+    -I "$REPO_ROOT" \
+    "--python_out=$OUT_DIR" \
+    "--pyi_out=$OUT_DIR" \
+    "${PROTO_FILES[@]/#/$REPO_ROOT/wandb/proto/}"
 
 # protoc mirrors the import path inside OUT_DIR; move files up.
 if [ -d "$OUT_DIR/wandb/proto" ]; then
