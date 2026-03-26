@@ -1010,7 +1010,9 @@ class Settings(BaseModel, validate_assignment=True):
         """
         urls.validate_url(value)
         # wandb.ai-specific checks
-        if re.match(r".*wandb\.ai[^\.]*$", value) and "api." not in value:
+        if re.match(r".*wandb\.ai[^\.]*$", value) and not re.search(
+            r"//api[.\-]", value
+        ):
             # user might guess app.wandb.ai or wandb.ai is the default cloud server
             raise ValueError(
                 f"{value} is not a valid server address, did you mean https://api.wandb.ai?"

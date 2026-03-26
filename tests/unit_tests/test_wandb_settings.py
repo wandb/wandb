@@ -299,6 +299,8 @@ def test_validate_mode():
     "url",
     [
         "https://api.wandb.ai",
+        "https://api-forest.wandb.ai",
+        "https://api-shared.wandb.ai",
         "https://wandb.ai.other.crazy.domain.com",
         "https://127.0.0.1",
         "https://localhost",
