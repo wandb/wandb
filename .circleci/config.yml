@@ -399,6 +399,7 @@ jobs:
           session: <<parameters.session>>
 
   code-check:
+    resource_class: large
     docker:
       - image: "python:3.13"
     steps:
