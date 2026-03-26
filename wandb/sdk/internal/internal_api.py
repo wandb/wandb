@@ -642,11 +642,6 @@ class Api:
             )
 
     @normalize_exceptions
-    def create_default_resource_config_introspection(self) -> bool:
-        _, _, mutations = self.server_info_introspection()
-        return "createDefaultResourceConfig" in mutations
-
-    @normalize_exceptions
     def fail_run_queue_item_introspection(self) -> bool:
         _, _, mutations = self.server_info_introspection()
         return "failRunQueueItem" in mutations
@@ -1380,9 +1375,6 @@ class Api:
         config: str,
         template_variables: dict[str, float | int | str] | None,
     ) -> dict[str, Any] | None:
-        if not self.create_default_resource_config_introspection():
-            raise Exception()
-
         mutation_params = """
             $entityName: String!,
             $resource: String!,
