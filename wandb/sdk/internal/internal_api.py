@@ -855,6 +855,15 @@ class Api:
         return "updateRunQueueItemWarning" in mutations
 
     def _server_features(self) -> dict[str, bool]:
+        """Returns a dict of boolean server feature values.
+
+        Feature names match ServerFeature enum names in the client-side
+        protobuf code. Names are used rather than integers because the server
+        identifies features by name.
+
+        This is legacy code. It should be replaced by using a ServiceApi
+        instance in InternalApi (i.e. handling this in wandb-core).
+        """
         # NOTE: Avoid caching via `@cached_property`, due to undocumented
         # locking behavior before Python 3.12.
         # See: https://github.com/python/cpython/issues/87634
@@ -876,21 +885,19 @@ class Api:
                 self._server_features_cache = {}
         return self._server_features_cache
 
-    def _server_supports(self, feature: int | str) -> bool:
-        """Return whether the current server supports the given feature.
+    def _server_supports(self, feature: ServerFeature.ValueType | str) -> bool:
+        """Returns whether the server supports the given boolean feature.
 
-        This also caches the underlying lookup of server feature flags,
-        and it maps {feature_name (str) -> is_enabled (bool)}.
-
-        Good to use for features that have a fallback mechanism for older servers.
+        Args:
+            feature: The feature's protobuf constant (preferred)
+                or its string name.
         """
-        # If we're given the protobuf enum value, convert to a string name.
-        # NOTE: We deliberately use names (str) instead of enum values (int)
-        # as the keys here, since:
-        # - the server identifies features by their name, rather than (client-side) enum value
-        # - the defined list of client-side flags may be behind the server-side list of flags
-        key = ServerFeature.Name(feature) if isinstance(feature, int) else feature
-        return self._server_features().get(key) or False
+        if isinstance(feature, int):
+            key = ServerFeature.Name(feature)
+        else:
+            key = feature
+
+        return self._server_features().get(key, False)
 
     @normalize_exceptions
     def update_run_queue_item_warning(
