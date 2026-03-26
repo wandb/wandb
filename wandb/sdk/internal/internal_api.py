@@ -344,7 +344,6 @@ class Api:
         self.query_types: list[str] | None = None
         self.mutation_types: list[str] | None = None
         self.server_info_types: list[str] | None = None
-        self.server_create_artifact_input_info: list[str] | None = None
         self._max_cli_version: str | None = None
         self._server_settings_type: list[str] | None = None
 
@@ -3525,64 +3524,21 @@ class Api:
         _id: str | None = response["createArtifactType"]["artifactType"]["id"]
         return _id
 
-    def server_create_artifact_introspection(self) -> list[str]:
-        query_string = """
-            query ProbeServerCreateArtifactInput {
-                CreateArtifactInputInfoType: __type(name:"CreateArtifactInput") {
-                    inputFields{
-                        name
-                    }
-                }
-            }
-        """
-
-        if self.server_create_artifact_input_info is None:
-            query = gql(query_string)
-            res = self.gql(query)
-            input_fields = res.get("CreateArtifactInputInfoType", {}).get(
-                "inputFields", [{}]
-            )
-            self.server_create_artifact_input_info = [
-                field["name"] for field in input_fields if "name" in field
-            ]
-
-        return self.server_create_artifact_input_info
-
     def _get_create_artifact_mutation(
         self,
-        fields: list,
         history_step: int | None,
         distributed_id: str | None,
     ) -> str:
         types = ""
         values = ""
 
-        if "historyStep" in fields and history_step not in [0, None]:
+        if history_step not in [0, None]:
             types += "$historyStep: Int64!,"
             values += "historyStep: $historyStep,"
 
         if distributed_id:
             types += "$distributedID: String,"
             values += "distributedID: $distributedID,"
-
-        if "clientID" in fields:
-            types += "$clientID: ID,"
-            values += "clientID: $clientID,"
-
-        if "sequenceClientID" in fields:
-            types += "$sequenceClientID: ID,"
-            values += "sequenceClientID: $sequenceClientID,"
-
-        if "enableDigestDeduplication" in fields:
-            values += "enableDigestDeduplication: true,"
-
-        if "ttlDurationSeconds" in fields:
-            types += "$ttlDurationSeconds: Int64,"
-            values += "ttlDurationSeconds: $ttlDurationSeconds,"
-
-        if "tags" in fields:
-            types += "$tags: [TagInput!],"
-            values += "tags: $tags,"
 
         query_template = """
             mutation CreateArtifact(
@@ -3595,6 +3551,10 @@ class Api:
                 $digest: String!,
                 $aliases: [ArtifactAliasInput!],
                 $metadata: JSONString,
+                $clientID: ID,
+                $sequenceClientID: ID,
+                $ttlDurationSeconds: Int64,
+                $tags: [TagInput!],
                 _CREATE_ARTIFACT_ADDITIONAL_TYPE_
             ) {
                 createArtifact(input: {
@@ -3608,6 +3568,11 @@ class Api:
                     digestAlgorithm: MANIFEST_MD5,
                     aliases: $aliases,
                     metadata: $metadata,
+                    clientID: $clientID,
+                    sequenceClientID: $sequenceClientID,
+                    enableDigestDeduplication: true,
+                    ttlDurationSeconds: $ttlDurationSeconds,
+                    tags: $tags,
                     _CREATE_ARTIFACT_ADDITIONAL_VALUE_
                 }) {
                     artifact {
@@ -3648,10 +3613,9 @@ class Api:
         is_user_created: bool | None = False,
         history_step: int | None = None,
     ) -> tuple[dict, dict]:
-        fields = self.server_create_artifact_introspection()
-
         query_template = self._get_create_artifact_mutation(
-            fields, history_step, distributed_id
+            history_step,
+            distributed_id,
         )
 
         entity_name = entity_name or self.settings("entity")
