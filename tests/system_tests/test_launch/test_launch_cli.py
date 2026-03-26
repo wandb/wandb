@@ -20,7 +20,7 @@ def _setup_agent(monkeypatch, pop_func):
 
     monkeypatch.setattr(
         "wandb.sdk.internal.internal_api.Api.create_launch_agent",
-        lambda c, e, p, q, a, v, g: {"launchAgentId": "mock_agent_id"},
+        lambda c, e, p, q, a, v: {"launchAgentId": "mock_agent_id"},
     )
 
 
@@ -33,11 +33,11 @@ def test_agent_stop_polling(runner, monkeypatch, user, test_settings):
 
     monkeypatch.setattr(
         "wandb.sdk.internal.internal_api.Api.get_launch_agent",
-        lambda c, i, g: {"id": "mock_agent_id", "name": "blah", "stopPolling": True},
+        lambda c, i: {"id": "mock_agent_id", "name": "blah", "stopPolling": True},
     )
     monkeypatch.setattr(
         "wandb.sdk.internal.internal_api.Api.update_launch_agent_status",
-        lambda c, i, s, g: {"success": True},
+        lambda c, i, s: {"success": True},
     )
 
     args = ["--entity", user, "--queue", "default"]
@@ -62,11 +62,11 @@ def test_agent_update_failed(runner, monkeypatch, user, test_settings):
 
     monkeypatch.setattr(
         "wandb.sdk.internal.internal_api.Api.get_launch_agent",
-        lambda c, i, g: {"id": "mock_agent_id", "name": "blah", "stopPolling": False},
+        lambda c, i: {"id": "mock_agent_id", "name": "blah", "stopPolling": False},
     )
     monkeypatch.setattr(
         "wandb.sdk.internal.internal_api.Api.update_launch_agent_status",
-        lambda c, i, s, g: {"success": False},
+        lambda c, i, s: {"success": False},
     )
 
     with runner.isolated_filesystem():
@@ -99,12 +99,12 @@ def test_launch_agent_launch_error_continue(runner, monkeypatch, user, test_sett
 
     monkeypatch.setattr(
         "wandb.sdk.internal.internal_api.Api.get_launch_agent",
-        lambda c, i, g: {"id": "mock_agent_id", "name": "blah", "stopPolling": False},
+        lambda c, i: {"id": "mock_agent_id", "name": "blah", "stopPolling": False},
     )
 
     monkeypatch.setattr(
         "wandb.sdk.internal.internal_api.Api.update_launch_agent_status",
-        lambda c, i, s, g: {"success": True},
+        lambda c, i, s: {"success": True},
     )
 
     with runner.isolated_filesystem():
@@ -218,11 +218,11 @@ def test_launch_supplied_logfile(runner, monkeypatch, wandb_caplog, user):
 
     monkeypatch.setattr(
         "wandb.sdk.internal.internal_api.Api.get_launch_agent",
-        lambda c, i, g: {"id": "mock_agent_id", "name": "blah", "stopPolling": True},
+        lambda c, i: {"id": "mock_agent_id", "name": "blah", "stopPolling": True},
     )
     monkeypatch.setattr(
         "wandb.sdk.internal.internal_api.Api.update_launch_agent_status",
-        lambda c, i, s, g: {"success": True},
+        lambda c, i, s: {"success": True},
     )
 
     with runner.isolated_filesystem():
