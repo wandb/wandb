@@ -675,11 +675,6 @@ class Api:
         result: bool = response["failRunQueueItem"]["success"]
         return result
 
-    @normalize_exceptions
-    def update_run_queue_item_warning_introspection(self) -> bool:
-        _, _, mutations = self.server_info_introspection()
-        return "updateRunQueueItemWarning" in mutations
-
     def _server_features(self) -> dict[str, bool]:
         # NOTE: Avoid caching via `@cached_property`, due to undocumented
         # locking behavior before Python 3.12.
@@ -726,8 +721,6 @@ class Api:
         stage: str,
         file_paths: list[str] | None = None,
     ) -> bool:
-        if not self.update_run_queue_item_warning_introspection():
-            return False
         mutation = gql(
             """
         mutation updateRunQueueItemWarning($runQueueItemId: ID!, $message: String!, $stage: String!, $filePaths: [String!]) {
