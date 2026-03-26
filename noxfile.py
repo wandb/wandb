@@ -17,6 +17,17 @@ nox.options.default_venv_backend = "uv"
 
 _SUPPORTED_PYTHONS = ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
 
+# Protobuf Python bindings
+#
+# protobuf X.Y.Z uses protoc Y.Z
+# See https://protobuf.dev/support/version-support/
+_PROTOC_FOR_PB = {
+    4: "23.4",
+    5: "27.0",
+    6: "32.1",
+    7: "34.1",
+}
+
 # Directories in which to create temporary per-session directories
 # containing test results and pytest/Go coverage.
 #
@@ -494,8 +505,23 @@ def proto_python(session: nox.Session) -> None:
     Pass specific major versions as positional args, or omit to generate all:
         nox -s proto-python -- 5 7
     """
-    args = session.posargs or ["4", "5", "6", "7"]
-    session.run("./wandb/proto/generate-proto.sh", *args, external=True)
+    targets = (
+        [int(v) for v in session.posargs] if session.posargs else sorted(_PROTOC_FOR_PB)
+    )
+
+    for pb in targets:
+        protoc_ver = _PROTOC_FOR_PB.get(pb)
+        if not protoc_ver:
+            session.error(
+                f"Unknown protobuf major version: {pb}. Supported: {sorted(_PROTOC_FOR_PB)}"
+            )
+
+        session.run(
+            "./wandb/proto/generate-proto.sh",
+            protoc_ver,
+            f"wandb/proto/v{pb}",
+            external=True,
+        )
 
 
 def _ensure_no_diff(
@@ -519,7 +545,8 @@ def proto_check_python(session: nox.Session, pb: int) -> None:
         session,
         after=lambda: session.run(
             "./wandb/proto/generate-proto.sh",
-            str(pb),
+            _PROTOC_FOR_PB[pb],
+            f"wandb/proto/v{pb}",
             external=True,
         ),
         in_directory=f"wandb/proto/v{pb}/.",
