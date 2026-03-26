@@ -344,7 +344,6 @@ class Api:
         self.query_types: list[str] | None = None
         self.mutation_types: list[str] | None = None
         self.server_info_types: list[str] | None = None
-        self.server_use_artifact_input_info: list[str] | None = None
         self.server_create_artifact_input_info: list[str] | None = None
         self.server_artifact_fields_info: list[str] | None = None
         self.server_organization_type_fields_info: list[str] | None = None
@@ -645,29 +644,6 @@ class Api:
                 if res
                 else []
             )
-
-    def server_use_artifact_input_introspection(self) -> list:
-        query_string = """
-           query ProbeServerUseArtifactInput {
-               UseArtifactInputInfoType: __type(name: "UseArtifactInput") {
-                   name
-                   inputFields {
-                       name
-                   }
-                }
-            }
-        """
-
-        if self.server_use_artifact_input_info is None:
-            query = gql(query_string)
-            res = self.gql(query)
-            self.server_use_artifact_input_info = [
-                field.get("name", "")
-                for field in res.get("UseArtifactInputInfoType", {}).get(
-                    "inputFields", [{}]
-                )
-            ]
-        return self.server_use_artifact_input_info
 
     @normalize_exceptions
     def create_run_queue_introspection(self) -> tuple[bool, bool, bool]:
@@ -3717,8 +3693,7 @@ class Api:
             "artifactID: $artifactID",
         ]
 
-        artifact_types = self.server_use_artifact_input_introspection()
-        if "usedAs" in artifact_types and use_as:
+        if use_as:
             query_vars.append("$usedAs: String")
             query_args.append("usedAs: $usedAs")
 
