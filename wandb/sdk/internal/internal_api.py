@@ -350,7 +350,6 @@ class Api:
         self.server_supports_enabling_artifact_usage_tracking: bool | None = None
         self._max_cli_version: str | None = None
         self._server_settings_type: list[str] | None = None
-        self.fail_run_queue_item_input_info: list[str] | None = None
         self.create_launch_agent_input_info: list[str] | None = None
 
         self._server_features_cache: dict[str, bool] | None = None
@@ -642,31 +641,6 @@ class Api:
             )
 
     @normalize_exceptions
-    def fail_run_queue_item_fields_introspection(self) -> list:
-        if self.fail_run_queue_item_input_info:
-            return self.fail_run_queue_item_input_info
-        query_string = """
-           query ProbeServerFailRunQueueItemInput {
-                FailRunQueueItemInputInfoType: __type(name:"FailRunQueueItemInput") {
-                    inputFields{
-                        name
-                    }
-                }
-            }
-        """
-
-        query = gql(query_string)
-        res = self.gql(query)
-
-        self.fail_run_queue_item_input_info = [
-            field.get("name", "")
-            for field in res.get("FailRunQueueItemInputInfoType", {}).get(
-                "inputFields", [{}]
-            )
-        ]
-        return self.fail_run_queue_item_input_info
-
-    @normalize_exceptions
     def fail_run_queue_item(
         self,
         run_queue_item_id: str,
@@ -676,37 +650,25 @@ class Api:
     ) -> bool:
         variable_values: dict[str, str | (list[str] | None)] = {
             "runQueueItemId": run_queue_item_id,
+            "message": message,
+            "stage": stage,
         }
-        if "message" in self.fail_run_queue_item_fields_introspection():
-            variable_values.update({"message": message, "stage": stage})
-            if file_paths is not None:
-                variable_values["filePaths"] = file_paths
-            mutation_string = """
-            mutation failRunQueueItem($runQueueItemId: ID!, $message: String!, $stage: String!, $filePaths: [String!]) {
-                failRunQueueItem(
-                    input: {
-                        runQueueItemId: $runQueueItemId
-                        message: $message
-                        stage: $stage
-                        filePaths: $filePaths
-                    }
-                ) {
-                    success
+        if file_paths is not None:
+            variable_values["filePaths"] = file_paths
+        mutation_string = """
+        mutation failRunQueueItem($runQueueItemId: ID!, $message: String!, $stage: String!, $filePaths: [String!]) {
+            failRunQueueItem(
+                input: {
+                    runQueueItemId: $runQueueItemId
+                    message: $message
+                    stage: $stage
+                    filePaths: $filePaths
                 }
+            ) {
+                success
             }
-            """
-        else:
-            mutation_string = """
-            mutation failRunQueueItem($runQueueItemId: ID!) {
-                failRunQueueItem(
-                    input: {
-                        runQueueItemId: $runQueueItemId
-                    }
-                ) {
-                    success
-                }
-            }
-            """
+        }
+        """
 
         mutation = gql(mutation_string)
         response = self.gql(mutation, variable_values=variable_values)
