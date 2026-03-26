@@ -1997,7 +1997,6 @@ class Artifact:
 
             settings.sync_dir.value = str(tmp_dir)
             settings.sync_file.value = str(tmp_dir / f"{stream_id}.wandb")
-            settings.files_dir.value = str(tmp_dir / "files")
             settings.run_id.value = stream_id
 
             service = wl.ensure_service()
