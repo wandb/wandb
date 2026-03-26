@@ -35,7 +35,7 @@ import wandb
 from wandb import env, util
 from wandb.analytics import get_sentry
 from wandb.apis.normalize import normalize_exceptions, parse_backend_error_messages
-from wandb.errors import AuthenticationError, CommError, UnsupportedError, UsageError
+from wandb.errors import AuthenticationError, CommError, UsageError
 from wandb.integration.sagemaker import parse_sm_secrets
 from wandb.proto.wandb_internal_pb2 import ServerFeature
 from wandb.sdk import wandb_setup
@@ -352,8 +352,6 @@ class Api:
         self._server_settings_type: list[str] | None = None
         self.fail_run_queue_item_input_info: list[str] | None = None
         self.create_launch_agent_input_info: list[str] | None = None
-        self.server_supports_template_variables: bool | None = None
-        self.server_push_to_run_queue_supports_priority: bool | None = None
 
         self._server_features_cache: dict[str, bool] | None = None
 
@@ -642,43 +640,6 @@ class Api:
                 if res
                 else []
             )
-
-    @normalize_exceptions
-    def push_to_run_queue_introspection(self) -> tuple[bool, bool]:
-        query_string = """
-            query ProbePushToRunQueueInput {
-                PushToRunQueueInputType: __type(name: "PushToRunQueueInput") {
-                    name
-                    inputFields {
-                        name
-                    }
-                }
-            }
-        """
-
-        if (
-            self.server_supports_template_variables is None
-            or self.server_push_to_run_queue_supports_priority is None
-        ):
-            query = gql(query_string)
-            res = self.gql(query)
-            self.server_supports_template_variables = "templateVariableValues" in [
-                x["name"]
-                for x in (
-                    res.get("PushToRunQueueInputType", {}).get("inputFields", [{}])
-                )
-            ]
-            self.server_push_to_run_queue_supports_priority = "priority" in [
-                x["name"]
-                for x in (
-                    res.get("PushToRunQueueInputType", {}).get("inputFields", [{}])
-                )
-            ]
-
-        return (
-            self.server_supports_template_variables,
-            self.server_push_to_run_queue_supports_priority,
-        )
 
     @normalize_exceptions
     def create_default_resource_config_introspection(self) -> bool:
@@ -1421,38 +1382,30 @@ class Api:
     ) -> dict[str, Any] | None:
         if not self.create_default_resource_config_introspection():
             raise Exception()
-        supports_template_vars, _ = self.push_to_run_queue_introspection()
 
         mutation_params = """
             $entityName: String!,
             $resource: String!,
-            $config: JSONString!
+            $config: JSONString!,
+            $templateVariables: JSONString
         """
         mutation_inputs = """
             entityName: $entityName,
             resource: $resource,
-            config: $config
+            config: $config,
+            templateVariables: $templateVariables
         """
-
-        if supports_template_vars:
-            mutation_params += ", $templateVariables: JSONString"
-            mutation_inputs += ", templateVariables: $templateVariables"
-        else:
-            if template_variables is not None:
-                raise UnsupportedError(
-                    "server does not support template variables, please update server instance to >=0.46"
-                )
 
         variable_values = {
             "entityName": entity,
             "resource": resource,
             "config": config,
         }
-        if supports_template_vars:
-            if template_variables is not None:
-                variable_values["templateVariables"] = json.dumps(template_variables)
-            else:
-                variable_values["templateVariables"] = "{}"
+
+        if template_variables is not None:
+            variable_values["templateVariables"] = json.dumps(template_variables)
+        else:
+            variable_values["templateVariables"] = "{}"
 
         query = gql(
             f"""
@@ -1595,9 +1548,6 @@ class Api:
         template_variables: dict[str, int | float | str] | None,
         priority: int | None = None,
     ) -> dict[str, Any] | None:
-        self.push_to_run_queue_introspection()
-        """Queryless mutation, should be used before legacy fallback method."""
-
         mutation_params = """
             $entityName: String!,
             $projectName: String!,
@@ -1618,29 +1568,15 @@ class Api:
             "queueName": queue_name,
             "runSpec": run_spec,
         }
-        if self.server_push_to_run_queue_supports_priority:
-            if priority is not None:
-                variables["priority"] = priority
-                mutation_params += ", $priority: Int"
-                mutation_input += ", priority: $priority"
-        else:
-            if priority is not None:
-                raise UnsupportedError(
-                    "server does not support priority, please update server instance to >=0.46"
-                )
+        if priority is not None:
+            variables["priority"] = priority
+            mutation_params += ", $priority: Int"
+            mutation_input += ", priority: $priority"
 
-        if self.server_supports_template_variables:
-            if template_variables is not None:
-                variables.update(
-                    {"templateVariableValues": json.dumps(template_variables)}
-                )
-                mutation_params += ", $templateVariableValues: JSONString"
-                mutation_input += ", templateVariableValues: $templateVariableValues"
-        else:
-            if template_variables is not None:
-                raise UnsupportedError(
-                    "server does not support template variables, please update server instance to >=0.46"
-                )
+        if template_variables is not None:
+            variables.update({"templateVariableValues": json.dumps(template_variables)})
+            mutation_params += ", $templateVariableValues: JSONString"
+            mutation_input += ", templateVariableValues: $templateVariableValues"
 
         mutation = gql(
             f"""
@@ -1718,7 +1654,6 @@ class Api:
         project_queue: str,
         priority: int | None = None,
     ) -> dict[str, Any] | None:
-        self.push_to_run_queue_introspection()
         entity = launch_spec.get("queue_entity") or launch_spec["entity"]
         run_spec = json.dumps(launch_spec)
 
@@ -1791,18 +1726,10 @@ class Api:
             queueID: $queueID,
             runSpec: $runSpec
         """
-        if self.server_supports_template_variables:
-            if template_variables is not None:
-                mutation_params += ", $templateVariableValues: JSONString"
-                mutation_input += ", templateVariableValues: $templateVariableValues"
-                variables.update(
-                    {"templateVariableValues": json.dumps(template_variables)}
-                )
-        else:
-            if template_variables is not None:
-                raise UnsupportedError(
-                    "server does not support template variables, please update server instance to >=0.46"
-                )
+        if template_variables is not None:
+            mutation_params += ", $templateVariableValues: JSONString"
+            mutation_input += ", templateVariableValues: $templateVariableValues"
+            variables.update({"templateVariableValues": json.dumps(template_variables)})
 
         mutation = gql(
             f"""
