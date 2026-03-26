@@ -104,3 +104,19 @@ func TestConfig_SetSymonGrid_Persists(t *testing.T) {
 	require.Equal(t, 4, rows)
 	require.Equal(t, 2, cols)
 }
+
+func TestConfig_SetFrenchFriesColorScheme_Persists(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	path := filepath.Join(t.TempDir(), "config.json")
+	cfg := leet.NewConfigManager(path, logger)
+
+	require.Equal(
+		t, leet.DefaultFrenchFriesColorScheme, cfg.Snapshot().FrenchFriesColorScheme)
+
+	err := cfg.SetFrenchFriesColorScheme("cividis")
+	require.NoError(t, err)
+	require.Equal(t, "cividis", cfg.FrenchFriesColorScheme())
+
+	cfg2 := leet.NewConfigManager(path, logger)
+	require.Equal(t, "cividis", cfg2.Snapshot().FrenchFriesColorScheme)
+}
