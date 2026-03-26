@@ -101,10 +101,10 @@ func (g *SystemMetricsGrid) effectiveGridSize() GridSize {
 	})
 }
 
-// nextColorHex returns the next color from the palette.
-func (g *SystemMetricsGrid) nextColorHex() compat.AdaptiveColor {
-	colors := colorSchemes[g.config.SystemColorScheme()]
-	color := colors[g.nextColor%len(colors)]
+// nextPaletteColor returns the next color from the active system palette.
+func (g *SystemMetricsGrid) nextPaletteColor() compat.AdaptiveColor {
+	palette := GraphColors(g.config.SystemColorScheme())
+	color := palette[g.nextColor%len(palette)]
 	g.nextColor++
 	return color
 }
@@ -115,10 +115,10 @@ func (g *SystemMetricsGrid) nextColorHex() compat.AdaptiveColor {
 // The first call returns the color after the base color,
 // so the base can be used for the first series.
 func (g *SystemMetricsGrid) anchoredSeriesColorProvider(baseIdx int) func() compat.AdaptiveColor {
-	colors := colorSchemes[g.config.SystemColorScheme()]
+	palette := GraphColors(g.config.SystemColorScheme())
 	idx := baseIdx + 1
 	return func() compat.AdaptiveColor {
-		c := colors[idx%len(colors)]
+		c := palette[idx%len(palette)]
 		idx++
 		return c
 	}
@@ -140,12 +140,12 @@ func (g *SystemMetricsGrid) createMetricChart(def *MetricDef) systemMetricChart 
 		baseIdx   int
 	)
 	colorMode := g.config.SystemColorMode()
-	colors := colorSchemes[g.config.SystemColorScheme()]
+	palette := GraphColors(g.config.SystemColorScheme())
 	if colorMode == ColorModePerSeries {
-		baseColor = colors[0]
+		baseColor = palette[0]
 	} else {
-		baseColor = g.nextColorHex()
-		baseIdx = (g.nextColor - 1) % len(colors)
+		baseColor = g.nextPaletteColor()
+		baseIdx = (g.nextColor - 1) % len(palette)
 	}
 
 	now := time.Now()
@@ -167,6 +167,7 @@ func (g *SystemMetricsGrid) createMetricChart(def *MetricDef) systemMetricChart 
 		Width:  chartWidth,
 		Height: chartHeight,
 		Def:    def,
+		Colors: FrenchFriesColors(g.config.FrenchFriesColorScheme()),
 		Now:    now,
 	})
 	return newFrenchFriesToggleChart(lineChart, frenchFriesChart)

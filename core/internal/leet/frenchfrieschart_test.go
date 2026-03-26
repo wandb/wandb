@@ -7,11 +7,40 @@ import (
 	"testing"
 	"time"
 
+	"charm.land/lipgloss/v2"
+	"charm.land/lipgloss/v2/compat"
 	"github.com/stretchr/testify/require"
 
 	"github.com/wandb/wandb/core/internal/leet"
 	"github.com/wandb/wandb/core/internal/observability"
 )
+
+func TestFrenchFriesChart_UsesProvidedPalette(t *testing.T) {
+	palette := []compat.AdaptiveColor{
+		{Light: lipgloss.Color("#112233"), Dark: lipgloss.Color("#112233")},
+		{Light: lipgloss.Color("#445566"), Dark: lipgloss.Color("#445566")},
+		{Light: lipgloss.Color("#778899"), Dark: lipgloss.Color("#778899")},
+	}
+
+	chart := leet.NewFrenchFriesChart(&leet.FrenchFriesChartParams{
+		Width:  8,
+		Height: 2,
+		Def: &leet.MetricDef{
+			Name:       "GPU Utilization",
+			Unit:       leet.UnitPercent,
+			MinY:       0,
+			MaxY:       100,
+			Percentage: true,
+		},
+		Colors: palette,
+		Now:    time.Unix(1_700_000_000, 0),
+	})
+
+	low := lipgloss.NewStyle().Foreground(palette[0]).Render("█")
+	high := lipgloss.NewStyle().Foreground(palette[len(palette)-1]).Render("█")
+	require.Equal(t, low, chart.TestColorForValue(0))
+	require.Equal(t, high, chart.TestColorForValue(100))
+}
 
 func TestFrenchFriesChart_AlignsMetricsByTimestamp(t *testing.T) {
 	def := &leet.MetricDef{
@@ -181,4 +210,37 @@ func TestSystemMetricsGrid_GPUUtilizationUsesFrenchFriesChart(t *testing.T) {
 
 	chart := grid.TestFrenchFriesChartAt(0, 0)
 	require.NotNil(t, chart)
+}
+
+func TestSystemMetricsGrid_FrenchFriesUsesConfiguredPalette(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+	_ = cfg.SetSystemRows(1)
+	_ = cfg.SetSystemCols(1)
+	require.NoError(t, cfg.SetFrenchFriesColorScheme("plasma"))
+
+	grid := leet.NewSystemMetricsGrid(
+		2*leet.MinMetricChartWidth,
+		2*leet.MinMetricChartHeight,
+		cfg,
+		cfg.SystemGrid,
+		leet.NewFocus(),
+		leet.NewFilter(),
+		logger,
+	)
+
+	baseTS := time.Unix(1_700_000_000, 0).Unix()
+	for gpu := range 2 {
+		metric := "gpu." + strconv.Itoa(gpu) + ".gpu"
+		grid.AddDataPoint(metric, baseTS, float64(50*gpu))
+	}
+
+	chart := grid.TestFrenchFriesChartAt(0, 0)
+	require.NotNil(t, chart)
+
+	palette := leet.FrenchFriesColors("plasma")
+	low := lipgloss.NewStyle().Foreground(palette[0]).Render("█")
+	high := lipgloss.NewStyle().Foreground(palette[len(palette)-1]).Render("█")
+	require.Equal(t, low, chart.TestColorForValue(0))
+	require.Equal(t, high, chart.TestColorForValue(100))
 }
