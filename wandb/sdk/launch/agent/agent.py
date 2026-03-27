@@ -231,11 +231,6 @@ class LaunchAgent:
         if env_agent_version and env_agent_version != "wandb-launch-agent":
             self.version = env_agent_version
 
-        # serverside creation
-        self._gorilla_supports_fail_run_queue_items = (
-            self._api.fail_run_queue_item_introspection()
-        )
-
         self._queues: list[str] = config.get("queues", ["default"])
 
         # remove project field from agent config before sending to back end
@@ -295,9 +290,8 @@ class LaunchAgent:
         phase: str,
         files: list[str] | None = None,
     ) -> None:
-        if self._gorilla_supports_fail_run_queue_items:
-            fail_rqi = event_loop_thread_exec(self._api.fail_run_queue_item)
-            await fail_rqi(run_queue_item_id, message, phase, files)
+        fail_rqi = event_loop_thread_exec(self._api.fail_run_queue_item)
+        await fail_rqi(run_queue_item_id, message, phase, files)
 
     def _init_agent_run(self) -> None:
         settings = wandb.Settings(

@@ -17,10 +17,6 @@ import (
 func TestSaveGraphQLRequest(t *testing.T) {
 	mockGQL := gqlmock.NewMockClient()
 	mockGQL.StubMatchOnce(
-		gqlmock.WithOpName("InputFields"),
-		`{"TypeInfo": {"inputFields": [{"name": "tags"}]}}`,
-	)
-	mockGQL.StubMatchOnce(
 		gqlmock.WithOpName("CreateArtifact"),
 		`{
 			"createArtifact": {
@@ -71,8 +67,8 @@ func TestSaveGraphQLRequest(t *testing.T) {
 
 	assert.NoError(t, result.Err)
 	requests := mockGQL.AllRequests()
-	assert.Len(t, requests, 4)
-	createArtifactRequest := requests[1]
+	assert.Len(t, requests, 3)
+	createArtifactRequest := requests[0]
 	gqlmock.AssertVariables(t,
 		createArtifactRequest,
 		gqlmock.GQLVar("input.entityName", gomock.Eq("test-entity")))
