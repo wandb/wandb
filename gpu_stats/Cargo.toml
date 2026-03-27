@@ -24,13 +24,13 @@ sentry = { version = "0.47", default-features = false, features = [
 ] }
 prost = "0.14.3"
 prost-types = "0.14.3"
-tonic = "0.14.5"
+tonic = { version = "0.14.5", features = ["prost"] }
 tonic-reflection = "0.14.5"
 tokio = { version = "1.50", features = ["full"] }
 tokio-stream = "0.1.18"
 chrono = "0.4"
 
-tonic-build = "0.14.5"
+tonic-build = { version = "0.14.5", features = ["prost"] }
 tempfile = "3.27.0"
 
 libloading = "0.9"
