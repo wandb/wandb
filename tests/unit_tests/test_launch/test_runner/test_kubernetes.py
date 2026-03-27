@@ -1578,8 +1578,14 @@ async def test_launch_additional_services(
     )
 
 
-def _make_emptydir_manifest(command=None, api_key_env=None):
-    """Build a minimal pod manifest for emptyDir tests."""
+def _make_emptydir_manifest(
+    command=None, api_key_env=None, extra_containers=None, pre_existing=False
+):
+    """Build a minimal pod manifest for emptyDir tests.
+
+    If pre_existing=True, pre-populate the spec with existing volumes, volumeMounts,
+    and initContainers so that the "already exists" branches are exercised.
+    """
     container = {"name": "main", "image": "test_base_image"}
     if command:
         container["command"] = command
@@ -1587,9 +1593,15 @@ def _make_emptydir_manifest(command=None, api_key_env=None):
     if api_key_env:
         env.append(api_key_env)
     container["env"] = env
+    containers = [container] + (extra_containers or [])
+    spec: dict = {"containers": containers}
+    if pre_existing:
+        container["volumeMounts"] = [{"name": "existing-vol", "mountPath": "/existing"}]
+        spec["volumes"] = [{"name": "existing-vol", "emptyDir": {}}]
+        spec["initContainers"] = [{"name": "existing-init", "image": "busybox"}]
     return {
         "kind": "Job",
-        "spec": {"template": {"spec": {"containers": [container]}}},
+        "spec": {"template": {"spec": spec}},
     }
 
 
@@ -1649,7 +1661,7 @@ def test_wrap_container_command_with_dep_install(command, args, should_wrap):
 
 
 @pytest.mark.parametrize(
-    "source_type,source_info,expected_in_script,not_expected_in_script",
+    "source_type,source_info,expected_in_script,not_expected_in_script,pre_existing",
     [
         (
             "artifact",
@@ -1662,6 +1674,7 @@ def test_wrap_container_command_with_dep_install(command, args, should_wrap):
                 "git clone",
                 "entity/project/job:v0",
             ],  # job artifact not fetched without install_deps
+            False,
         ),
         (
             "repo",
@@ -1672,14 +1685,28 @@ def test_wrap_container_command_with_dep_install(command, args, should_wrap):
             },
             ["git clone", "https://github.com/test/repo.git", "abc123"],
             ["entity/project/job:v0"],  # job artifact not fetched without install_deps
+            False,
+        ),
+        # pre_existing=True exercises the False branches of "volumes/volumeMounts/initContainers not in spec"
+        (
+            "artifact",
+            {"artifact_string": "entity/project/code:v0", "job_artifact": ""},
+            ["entity/project/code:v0"],
+            ["git clone"],
+            True,
         ),
     ],
 )
 def test_emptydir_fetch_script(
-    source_type, source_info, expected_in_script, not_expected_in_script, test_api
+    source_type,
+    source_info,
+    expected_in_script,
+    not_expected_in_script,
+    pre_existing,
+    test_api,
 ):
     """Test that the init container fetch script is correct for each source type."""
-    manifest = _make_emptydir_manifest()
+    manifest = _make_emptydir_manifest(pre_existing=pre_existing)
     project = _make_emptydir_project(test_api, source_type, source_info)
 
     apply_code_mount_configuration_emptydir(manifest, project, test_api)
@@ -1691,7 +1718,9 @@ def test_emptydir_fetch_script(
         "volumeMounts"
     ]
     assert container["workingDir"] == "/mnt/wandb"
-    init = pod_spec["initContainers"][0]
+    init = next(
+        c for c in pod_spec["initContainers"] if c["name"] == "wandb-source-code-init"
+    )
     assert init["image"] == "wandb/launch-agent:latest"
     script = init["command"][-1]
     for expected in expected_in_script:
@@ -1744,13 +1773,43 @@ def test_emptydir_dep_install(
         assert job_artifact not in init_script
 
 
-def test_emptydir_api_key_propagated_to_init_container(test_api):
+@pytest.mark.parametrize(
+    "api_key_env,extra_containers,expect_forwarded",
+    [
+        # key in only container → forwarded
+        (
+            {
+                "name": "WANDB_API_KEY",
+                "valueFrom": {
+                    "secretKeyRef": {"name": "wandb-api-key", "key": "password"}
+                },
+            },
+            [],
+            True,
+        ),
+        # no key in any container → not forwarded
+        (None, [], False),
+        # key only in a second container → still forwarded (exercises api_key_env is None False branch on first pass)
+        (
+            None,
+            [
+                {
+                    "name": "sidecar",
+                    "image": "busybox",
+                    "env": [{"name": "WANDB_API_KEY", "value": "key-from-sidecar"}],
+                }
+            ],
+            True,
+        ),
+    ],
+)
+def test_emptydir_api_key_propagated_to_init_container(
+    api_key_env, extra_containers, expect_forwarded, test_api
+):
     """Test that the API key env var is forwarded to the init container."""
-    api_key_env = {
-        "name": "WANDB_API_KEY",
-        "valueFrom": {"secretKeyRef": {"name": "wandb-api-key", "key": "password"}},
-    }
-    manifest = _make_emptydir_manifest(api_key_env=api_key_env)
+    manifest = _make_emptydir_manifest(
+        api_key_env=api_key_env, extra_containers=extra_containers
+    )
     project = _make_emptydir_project(
         test_api,
         "artifact",
@@ -1760,7 +1819,11 @@ def test_emptydir_api_key_propagated_to_init_container(test_api):
     apply_code_mount_configuration_emptydir(manifest, project, test_api)
 
     init_env = manifest["spec"]["template"]["spec"]["initContainers"][0]["env"]
-    assert api_key_env in init_env
+    init_env_names = [e["name"] for e in init_env]
+    if expect_forwarded:
+        assert "WANDB_API_KEY" in init_env_names
+    else:
+        assert "WANDB_API_KEY" not in init_env_names
 
 
 def test_emptydir_unknown_source_type_raises(test_api):
@@ -1806,25 +1869,34 @@ def _make_pvc_project(test_api, auto_default=False):
     return project
 
 
-def _make_pvc_manifest(command=None):
-    """Build a minimal pod manifest for PVC tests."""
+def _make_pvc_manifest(command=None, pre_existing=False):
+    """Build a minimal pod manifest for PVC tests.
+
+    If pre_existing=True, pre-populate the spec with existing volumes and volumeMounts
+    so that the "already exists" branches are exercised.
+    """
     container = {"name": "main", "image": "test_base_image"}
     if command:
         container["command"] = command
+    spec: dict = {"containers": [container]}
+    if pre_existing:
+        container["volumeMounts"] = [{"name": "existing-vol", "mountPath": "/existing"}]
+        spec["volumes"] = [{"name": "existing-vol", "emptyDir": {}}]
     return {
         "kind": "Job",
-        "spec": {"template": {"spec": {"containers": [container]}}},
+        "spec": {"template": {"spec": spec}},
     }
 
 
-def test_pvc_volume_mount_and_working_dir(monkeypatch, test_api):
+@pytest.mark.parametrize("pre_existing", [False, True])
+def test_pvc_volume_mount_and_working_dir(pre_existing, monkeypatch, test_api):
     """Test that PVC path adds the correct volume mount and workingDir."""
     monkeypatch.setattr(
         wandb.sdk.launch.runner.kubernetes_runner,
         "SOURCE_CODE_PVC_NAME",
         "wandb-source-code-pvc",
     )
-    manifest = _make_pvc_manifest()
+    manifest = _make_pvc_manifest(pre_existing=pre_existing)
     project = _make_pvc_project(test_api)
 
     apply_code_mount_configuration(manifest, project)
