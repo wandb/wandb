@@ -260,7 +260,7 @@ async def test_create_kaniko_job_static(
         )
 
         assert job["metadata"]["name"] == "test_job_name"
-        assert job["metadata"]["namespace"] == "wandb"
+        assert job["metadata"]["namespace"] == "default"
         assert job["metadata"]["labels"] == {"wandb": "launch"}
         assert (
             job["spec"]["template"]["spec"]["containers"][0]["image"]
@@ -339,7 +339,7 @@ async def test_create_kaniko_job_instance(
         )
 
         assert job["metadata"]["name"] == "test_job_name"
-        assert job["metadata"]["namespace"] == "wandb"
+        assert job["metadata"]["namespace"] == "default"
         assert job["metadata"]["labels"] == {"wandb": "launch"}
         assert (
             job["spec"]["template"]["spec"]["containers"][0]["image"]
@@ -389,7 +389,7 @@ async def test_create_kaniko_job_pvc_dockerconfig(
         )
 
         assert job["metadata"]["name"] == "test_job_name"
-        assert job["metadata"]["namespace"] == "wandb"
+        assert job["metadata"]["namespace"] == "default"
         assert job["metadata"]["labels"] == {"wandb": "launch"}
         assert (
             job["spec"]["template"]["spec"]["containers"][0]["image"]
