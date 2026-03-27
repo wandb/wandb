@@ -559,12 +559,11 @@ def link_or_copy_with_policy(
     """
     mode = link_or_copy(settings, src, dst)
 
+    effective_policy = requested_policy
+    downgraded = False
     if mode == "copy" and requested_policy == "live":
         downgraded = True
         effective_policy = "now"
-    else:
-        downgraded = False
-        effective_policy = requested_policy
 
     stats.record(mode, downgraded=downgraded)
     return effective_policy
