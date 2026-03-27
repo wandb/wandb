@@ -41,10 +41,8 @@ def test_push_to_run_queue_by_name(monkeypatch):
     mock_run_spec = {"test-key": "test-value"}
     mock_gql_response = {"pushToRunQueueByName": {"runSpec": json.dumps(mock_run_spec)}}
     _api.api.gql = MagicMock(return_value=mock_gql_response)
-    _api.api.push_to_run_queue_introspection = MagicMock()
     monkeypatch.setattr(wandb.sdk.internal.internal_api, "gql", lambda x: x)
 
-    _api.api.server_push_to_run_queue_supports_priority = True
     push_kwargs = {
         "entity": "test-entity",
         "project": "test-project",
