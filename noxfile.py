@@ -318,7 +318,12 @@ def functional_tests(session: nox.Session):
         # based on the number of detected CPUs in the system, and doesn't
         # take into account the number of available CPUs in the container,
         # which results in OOM errors.
-        opts={"n": "4"},
+        opts={
+            "n": "4",
+            # Functional tests run heavy workloads (DDP training, metaflow
+            # pipelines, ray tune) that need more than the default 60s.
+            "timeout": "180",
+        },
     )
 
 
