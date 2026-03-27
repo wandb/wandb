@@ -28,7 +28,7 @@ pub struct GpuMonitors {
 }
 
 impl GpuMonitors {
-    pub fn new(enable_dcgm_profiling: bool) -> Self {
+    pub fn new(_enable_dcgm_profiling: bool) -> Self {
         let mut monitors: Vec<Box<dyn GpuMonitor>> = Vec::new();
 
         // Add platform-specific monitors
