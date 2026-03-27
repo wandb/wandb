@@ -780,9 +780,8 @@ class Run(Attrs):
 
     def load(self, force: bool = False) -> dict[str, Any]:
         """Load run data using appropriate fragment based on lazy mode."""
-        # Load any provided attrs
-        if self._attrs:
-            self._load_from_attrs()
+        if self._attrs.get("user") and not hasattr(self, "user"):
+            self.user = public.User(self.client, self._attrs["user"])
 
         if self._lazy:
             return self._load_with_fragment(
