@@ -8,6 +8,7 @@ import numpy as np
 import PIL.Image
 import pytest
 import wandb
+from tests.fixtures.wandb_backend_spy import WandbBackendSpy
 from wandb.errors import UsageError
 
 
@@ -95,13 +96,17 @@ def test_media_in_config(user, test_settings):
 
 
 @pytest.mark.parametrize("allow_media_symlink", [True, False])
-def test_media_symlink(user, tmp_path, wandb_backend_spy, allow_media_symlink):
+def test_media_symlink(
+    tmp_path: Path,
+    wandb_backend_spy: WandbBackendSpy,
+    allow_media_symlink: bool,
+) -> None:
     image_path = tmp_path / "source_image.png"
     PIL.Image.fromarray(np.random.randint(0, 255, (10, 10, 3), dtype=np.uint8)).save(
         image_path
     )
 
-    run_dir: Path = Path()
+    run_dir = Path()
     with wandb.init(
         settings=wandb.Settings(allow_media_symlink=allow_media_symlink),
     ) as run:

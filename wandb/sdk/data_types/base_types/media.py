@@ -149,16 +149,11 @@ class Media(WBValue):
                 pathlib.Path(self._path).resolve(),
                 pathlib.Path(new_path),
             )
-            self._is_tmp = False
             self._path = new_path
-            run._publish_file(media_path)
-            return
-
-        if self._is_tmp:
+        elif self._is_tmp:
             shutil.move(self._path, new_path)
             self._path = new_path
             self._is_tmp = False
-            run._publish_file(media_path)
         else:
             try:
                 shutil.copy(self._path, new_path)
@@ -166,7 +161,7 @@ class Media(WBValue):
                 if not ignore_copy_err:
                     raise
             self._path = new_path
-            run._publish_file(media_path)
+        run._publish_file(media_path)
 
     def to_json(self, run: wandb.Run | Artifact) -> dict:
         """Serialize the object into a JSON blob.
