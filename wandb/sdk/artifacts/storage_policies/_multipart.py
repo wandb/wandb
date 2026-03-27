@@ -8,7 +8,7 @@ import threading
 from collections.abc import Iterator
 from concurrent.futures import FIRST_EXCEPTION, Executor, wait
 from dataclasses import dataclass, field
-from queue import Queue
+from queue import Full, Queue
 from typing import IO, TYPE_CHECKING, Any, Callable, Final, Union
 
 import requests
@@ -104,6 +104,8 @@ class MultipartDownloadContext:
     q: Queue[QueuedChunk]
     cancel: threading.Event = field(default_factory=threading.Event)
 
+    _writer_error: BaseException | None = None
+
     # URL state management (thread-safe)
     _url_lock: threading.Lock = field(default_factory=threading.Lock)
     _url: str = ""
@@ -122,6 +124,14 @@ class MultipartDownloadContext:
         """Mark the cached URL as invalid, forcing next get_url() to fetch fresh."""
         with self._url_lock:
             self._url_invalidated = True
+
+    def signal_writer_stop(self) -> None:
+        """Signal the writer thread to stop without blocking."""
+        self.cancel.set()
+        try:
+            self.q.put_nowait(END_CHUNK)
+        except Full:
+            pass
 
 
 def _download_chunk_with_refresh(
@@ -204,8 +214,9 @@ def _write_chunks(ctx: MultipartDownloadContext, file: IO[bytes]) -> None:
         except Exception as e:
             if env.is_debug():
                 logger.debug(f"Error writing chunk to file: {e}")
+            ctx._writer_error = e
             ctx.cancel.set()
-            raise
+            return
 
 
 def multipart_download(
@@ -219,8 +230,10 @@ def multipart_download(
 ) -> None:
     """Download file as multiple parts in parallel.
 
-    Uses one thread for writing to file. Each part runs one HTTP request in one thread.
-    HTTP response chunks are sent to the writer thread via a queue.
+    Uses one thread for writing to file (so it never competes with
+    the caller's executor for thread slots). Each part runs one HTTP request
+    submitted to the caller's executor.  HTTP response chunks are sent to the
+    writer thread via a queue.
 
     Args:
         executor: Thread pool executor for parallel downloads.
@@ -240,8 +253,10 @@ def multipart_download(
 
     # Put cache_open at top so we remove the tmp file when there is network error.
     with cached_open("wb") as f:
-        # Start writer thread first
-        write_future = executor.submit(_write_chunks, ctx, f)
+        # Runs on a dedicated thread (not in the shared executor) so it is always
+        # available to drain the queue.
+        writer = threading.Thread(target=_write_chunks, args=(ctx, f), daemon=True)
+        writer.start()
 
         # Start download threads for each chunk
         download_futures = set()
@@ -277,6 +292,9 @@ def multipart_download(
                 fut.cancel()
             raise
         finally:
-            # Always signal the writer to stop
-            ctx.q.put(END_CHUNK)
-            write_future.result()
+            ctx.signal_writer_stop()
+            writer.join()
+
+        if ctx._writer_error is not None:
+            raise ctx._writer_error
+

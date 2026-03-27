@@ -526,19 +526,19 @@ def test_artifact_multipart_download_threshold():
     assert should_multipart_download(5070 * mb, override=False) is False
 
 
+@responses.activate()
 def test_artifact_multipart_download_network_error():
-    # Disable retries and backoff to avoid timeout in test
-    session = requests.Session()
-    adapter = requests.adapters.HTTPAdapter(max_retries=0)
-    session.mount("http://", adapter)
-    session.mount("https://", adapter)
+    responses.get(
+        "https://invalid.com",
+        body=requests.exceptions.ConnectionError("Connection refused"),
+    )
 
     opener = mock.mock_open()
     with pytest.raises(requests.exceptions.ConnectionError):
         with ThreadPoolExecutor(max_workers=2) as executor:
             multipart_download(
                 executor,
-                session,
+                requests.Session(),
                 4 * 1024 * 1024 * 1024,
                 opener,
                 initial_url="https://invalid.com",
