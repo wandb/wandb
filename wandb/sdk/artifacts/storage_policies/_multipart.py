@@ -297,4 +297,3 @@ def multipart_download(
 
         if ctx._writer_error is not None:
             raise ctx._writer_error
-

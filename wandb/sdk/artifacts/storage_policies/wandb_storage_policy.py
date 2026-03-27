@@ -125,9 +125,8 @@ class WandbStoragePolicy(StoragePolicy):
         """Use cache or download the file using signed url.
 
         Args:
-            executor: A thread pool provided by the caller for multi-file
-                downloads. Reuse the thread pool for multipart downloads; it is
-                closed when the artifact download completes. If this is `None`,
+            executor: A dedicated thread pool for multipart downloads,
+                separate from the file-level executor. If this is `None`,
                 download the file serially.
         """
         from requests import HTTPError
