@@ -2868,6 +2868,9 @@ pub enum ServerFeature {
     TotalCountInFileConnection = 15,
     /// Indicates that the server supports filtering artifact collections when querying on a project
     ArtifactCollectionsFilteringSorting = 16,
+    /// Indicates that the server supports both the artifact id and the birth artifact id in the artifact file download
+    /// url.
+    ArtifactV2DownloadHandlerSupportsArtifactId = 18,
 }
 impl ServerFeature {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -2908,6 +2911,9 @@ impl ServerFeature {
             Self::ArtifactCollectionsFilteringSorting => {
                 "ARTIFACT_COLLECTIONS_FILTERING_SORTING"
             }
+            Self::ArtifactV2DownloadHandlerSupportsArtifactId => {
+                "ARTIFACT_V2_DOWNLOAD_HANDLER_SUPPORTS_ARTIFACT_ID"
+            }
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -2946,6 +2952,9 @@ impl ServerFeature {
             "TOTAL_COUNT_IN_FILE_CONNECTION" => Some(Self::TotalCountInFileConnection),
             "ARTIFACT_COLLECTIONS_FILTERING_SORTING" => {
                 Some(Self::ArtifactCollectionsFilteringSorting)
+            }
+            "ARTIFACT_V2_DOWNLOAD_HANDLER_SUPPORTS_ARTIFACT_ID" => {
+                Some(Self::ArtifactV2DownloadHandlerSupportsArtifactId)
             }
             _ => None,
         }

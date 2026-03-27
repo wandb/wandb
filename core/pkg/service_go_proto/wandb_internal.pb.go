@@ -66,6 +66,9 @@ const (
 	ServerFeature_TOTAL_COUNT_IN_FILE_CONNECTION ServerFeature = 15
 	// Indicates that the server supports filtering artifact collections when querying on a project
 	ServerFeature_ARTIFACT_COLLECTIONS_FILTERING_SORTING ServerFeature = 16
+	// Indicates that the server supports both the artifact id and the birth artifact id in the artifact file download
+	// url.
+	ServerFeature_ARTIFACT_V2_DOWNLOAD_HANDLER_SUPPORTS_ARTIFACT_ID ServerFeature = 18
 )
 
 // Enum value maps for ServerFeature.
@@ -89,6 +92,7 @@ var (
 		14: "ARTIFACT_MEMBERSHIP_IN_LINK_ARTIFACT_RESPONSE",
 		15: "TOTAL_COUNT_IN_FILE_CONNECTION",
 		16: "ARTIFACT_COLLECTIONS_FILTERING_SORTING",
+		18: "ARTIFACT_V2_DOWNLOAD_HANDLER_SUPPORTS_ARTIFACT_ID",
 	}
 	ServerFeature_value = map[string]int32{
 		"SERVER_FEATURE_UNSPECIFIED":           0,
@@ -109,6 +113,7 @@ var (
 		"ARTIFACT_MEMBERSHIP_IN_LINK_ARTIFACT_RESPONSE":        14,
 		"TOTAL_COUNT_IN_FILE_CONNECTION":                       15,
 		"ARTIFACT_COLLECTIONS_FILTERING_SORTING":               16,
+		"ARTIFACT_V2_DOWNLOAD_HANDLER_SUPPORTS_ARTIFACT_ID":    18,
 	}
 )
 
@@ -12400,7 +12405,7 @@ const file_wandb_proto_wandb_internal_proto_rawDesc = "" +
 	"\finput_source\x18\x01 \x01(\v2\x1e.wandb_internal.JobInputSourceR\vinputSource\x12A\n" +
 	"\rinclude_paths\x18\x02 \x03(\v2\x1c.wandb_internal.JobInputPathR\fincludePaths\x12A\n" +
 	"\rexclude_paths\x18\x03 \x03(\v2\x1c.wandb_internal.JobInputPathR\fexcludePaths\x12!\n" +
-	"\finput_schema\x18\x04 \x01(\tR\vinputSchema*\xa3\x05\n" +
+	"\finput_schema\x18\x04 \x01(\tR\vinputSchema*\xda\x05\n" +
 	"\rServerFeature\x12\x1e\n" +
 	"\x1aSERVER_FEATURE_UNSPECIFIED\x10\x00\x12\x13\n" +
 	"\x0fLARGE_FILENAMES\x10\x11\x12\x11\n" +
@@ -12421,7 +12426,8 @@ const file_wandb_proto_wandb_internal_proto_rawDesc = "" +
 	"&PROJECT_ARTIFACT_COLLECTION_MEMBERSHIP\x10\r\x121\n" +
 	"-ARTIFACT_MEMBERSHIP_IN_LINK_ARTIFACT_RESPONSE\x10\x0e\x12\"\n" +
 	"\x1eTOTAL_COUNT_IN_FILE_CONNECTION\x10\x0f\x12*\n" +
-	"&ARTIFACT_COLLECTIONS_FILTERING_SORTING\x10\x10B\x1bZ\x19core/pkg/service_go_protob\x06proto3"
+	"&ARTIFACT_COLLECTIONS_FILTERING_SORTING\x10\x10\x125\n" +
+	"1ARTIFACT_V2_DOWNLOAD_HANDLER_SUPPORTS_ARTIFACT_ID\x10\x12B\x1bZ\x19core/pkg/service_go_protob\x06proto3"
 
 var (
 	file_wandb_proto_wandb_internal_proto_rawDescOnce sync.Once

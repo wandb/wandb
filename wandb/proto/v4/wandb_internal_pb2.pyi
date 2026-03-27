@@ -30,6 +30,7 @@ class ServerFeature(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     ARTIFACT_MEMBERSHIP_IN_LINK_ARTIFACT_RESPONSE: _ClassVar[ServerFeature]
     TOTAL_COUNT_IN_FILE_CONNECTION: _ClassVar[ServerFeature]
     ARTIFACT_COLLECTIONS_FILTERING_SORTING: _ClassVar[ServerFeature]
+    ARTIFACT_V2_DOWNLOAD_HANDLER_SUPPORTS_ARTIFACT_ID: _ClassVar[ServerFeature]
 SERVER_FEATURE_UNSPECIFIED: ServerFeature
 LARGE_FILENAMES: ServerFeature
 ARTIFACT_TAGS: ServerFeature
@@ -48,6 +49,7 @@ PROJECT_ARTIFACT_COLLECTION_MEMBERSHIP: ServerFeature
 ARTIFACT_MEMBERSHIP_IN_LINK_ARTIFACT_RESPONSE: ServerFeature
 TOTAL_COUNT_IN_FILE_CONNECTION: ServerFeature
 ARTIFACT_COLLECTIONS_FILTERING_SORTING: ServerFeature
+ARTIFACT_V2_DOWNLOAD_HANDLER_SUPPORTS_ARTIFACT_ID: ServerFeature
 
 class Record(_message.Message):
     __slots__ = ["num", "history", "summary", "output", "config", "files", "stats", "artifact", "tbrecord", "alert", "telemetry", "metric", "output_raw", "run", "exit", "final", "header", "footer", "preempting", "noop_link_artifact", "use_artifact", "environment", "request", "control", "uuid", "_info"]
