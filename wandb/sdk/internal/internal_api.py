@@ -3908,27 +3908,6 @@ class Api:
                     self._client_id_mapping[client_id] = server_id
         return server_id
 
-    def server_create_artifact_file_spec_input_introspection(self) -> list:
-        query_string = """
-           query ProbeServerCreateArtifactFileSpecInput {
-                CreateArtifactFileSpecInputInfoType: __type(name:"CreateArtifactFileSpecInput") {
-                    inputFields{
-                        name
-                    }
-                }
-            }
-        """
-
-        query = gql(query_string)
-        res = self.gql(query)
-        create_artifact_file_spec_input_info = [
-            field.get("name", "")
-            for field in res.get("CreateArtifactFileSpecInputInfoType", {}).get(
-                "inputFields", [{}]
-            )
-        ]
-        return create_artifact_file_spec_input_info
-
     @normalize_exceptions
     def create_artifact_files(
         self, artifact_files: Iterable[CreateArtifactFileSpecInput]
@@ -3950,7 +3929,14 @@ class Api:
                             displayName
                             uploadUrl
                             uploadHeaders
-                            _MULTIPART_UPLOAD_FIELDS_
+                            storagePath
+                            uploadMultipartUrls {
+                                uploadID
+                                uploadUrlParts {
+                                    partNumber
+                                    uploadUrl
+                                }
+                            }
                             artifact {
                                 id
                             }
@@ -3960,16 +3946,6 @@ class Api:
             }
         }
         """
-        multipart_upload_url_query = """
-            storagePath
-            uploadMultipartUrls {
-                uploadID
-                uploadUrlParts {
-                    partNumber
-                    uploadUrl
-                }
-            }
-        """
 
         # TODO: we should use constants here from interface/artifacts.py
         # but probably don't want the dependency. We're going to remove
@@ -3977,16 +3953,6 @@ class Api:
         storage_layout = "V2"
         if env.get_use_v1_artifacts():
             storage_layout = "V1"
-
-        create_artifact_file_spec_input_fields = (
-            self.server_create_artifact_file_spec_input_introspection()
-        )
-        if "uploadPartsInput" in create_artifact_file_spec_input_fields:
-            query_template = query_template.replace(
-                "_MULTIPART_UPLOAD_FIELDS_", multipart_upload_url_query
-            )
-        else:
-            query_template = query_template.replace("_MULTIPART_UPLOAD_FIELDS_", "")
 
         mutation = gql(query_template)
         response = self.gql(
