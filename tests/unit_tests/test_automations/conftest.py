@@ -402,24 +402,32 @@ def saved_run_event_type(request: FixtureRequest) -> EventType:
 def _make_saved_run_filter_json(event_type: EventType) -> str:
     """Build a realistic saved filter JSON string for a run event type."""
     if event_type == EventType.RUN_METRIC_THRESHOLD:
-        return json.dumps({
-            "run_filter": json.dumps({"$and": [{"display_name": {"$contains": "my-run"}}]}),
-            "run_metric_filter": {
-                "threshold_filter": {
-                    "name": "my-metric",
-                    "agg_op": "AVERAGE",
-                    "window_size": 5,
-                    "cmp_op": "$gt",
-                    "threshold": 0,
-                }
-            },
-            "metric_filter": None,
-        })
+        return json.dumps(
+            {
+                "run_filter": json.dumps(
+                    {"$and": [{"display_name": {"$contains": "my-run"}}]}
+                ),
+                "run_metric_filter": {
+                    "threshold_filter": {
+                        "name": "my-metric",
+                        "agg_op": "AVERAGE",
+                        "window_size": 5,
+                        "cmp_op": "$gt",
+                        "threshold": 0,
+                    }
+                },
+                "metric_filter": None,
+            }
+        )
     if event_type == EventType.RUN_STATE:
-        return json.dumps({
-            "run_filter": json.dumps({"$and": [{"display_name": {"$contains": "my-run"}}]}),
-            "run_state_filter": {"states": ["FAILED"]},
-        })
+        return json.dumps(
+            {
+                "run_filter": json.dumps(
+                    {"$and": [{"display_name": {"$contains": "my-run"}}]}
+                ),
+                "run_state_filter": {"states": ["FAILED"]},
+            }
+        )
     raise ValueError(f"Unsupported run event type: {event_type}")
 
 

@@ -25,7 +25,13 @@ from .actions import (
     SendWebhook,
 )
 from .automations import Automation, NewAutomation
-from .events import EventType, InputEvent, RunMetricFilter, SavedEvent, _WrappedSavedEventFilter
+from .events import (
+    EventType,
+    InputEvent,
+    RunMetricFilter,
+    SavedEvent,
+    _WrappedSavedEventFilter,
+)
 from .scopes import AutomationScope, ScopeType
 
 INVALID_INPUT_EVENTS: Final[Collection[EventType]] = (EventType.UPDATE_ARTIFACT_ALIAS,)
