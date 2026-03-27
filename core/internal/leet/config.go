@@ -44,9 +44,10 @@ const (
 	DefaultTagColorScheme     = DefaultColorScheme
 	DefaultSingleRunColorMode = ColorModePerSeries
 
-	DefaultSystemColorScheme    = "wandb-vibe-10"
-	DefaultSystemColorMode      = ColorModePerSeries
-	DefaultSystemTailWindowMins = 10
+	DefaultSystemColorScheme      = "wandb-vibe-10"
+	DefaultFrenchFriesColorScheme = "viridis"
+	DefaultSystemColorMode        = ColorModePerSeries
+	DefaultSystemTailWindowMins   = 10
 
 	DefaultHeartbeatInterval = 15 // seconds
 
@@ -90,6 +91,9 @@ type Config struct {
 
 	// SystemColorScheme is the color scheme for system metrics charts.
 	SystemColorScheme string `json:"system_color_scheme" leet:"desc=Palette for system charts.,options=colorSchemes"`
+
+	// FrenchFriesColorScheme is the color scheme for French Fries heatmaps.
+	FrenchFriesColorScheme string `json:"french_fries_color_scheme" leet:"label=Bucketed heatmap color scheme,desc=Palette for percentage heatmaps (French Fries plots). Sequential palettes work best.,options=colorSchemes"`
 
 	// SystemColorMode determines color assignment strategy.
 	// "per_plot": each chart gets next color from palette
@@ -171,6 +175,7 @@ func NewConfigManager(path string, logger *observability.CoreLogger) *ConfigMana
 			TagColorScheme:                DefaultTagColorScheme,
 			SingleRunColorMode:            DefaultSingleRunColorMode,
 			SystemColorScheme:             DefaultSystemColorScheme,
+			FrenchFriesColorScheme:        DefaultFrenchFriesColorScheme,
 			SystemColorMode:               DefaultSystemColorMode,
 			SystemTailWindowMinutes:       DefaultSystemTailWindowMins,
 			HeartbeatInterval:             DefaultHeartbeatInterval,
@@ -245,6 +250,10 @@ func (cm *ConfigManager) normalizeConfig() {
 
 	if _, ok := colorSchemes[cm.config.SystemColorScheme]; !ok {
 		cm.config.SystemColorScheme = DefaultSystemColorScheme
+	}
+
+	if _, ok := colorSchemes[cm.config.FrenchFriesColorScheme]; !ok {
+		cm.config.FrenchFriesColorScheme = DefaultFrenchFriesColorScheme
 	}
 
 	if _, ok := colorSchemes[cm.config.TagColorScheme]; !ok {
@@ -567,6 +576,13 @@ func (cm *ConfigManager) SystemColorScheme() string {
 	return cm.config.SystemColorScheme
 }
 
+// FrenchFriesColorScheme returns the color scheme for French Fries heatmaps.
+func (cm *ConfigManager) FrenchFriesColorScheme() string {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	return cm.config.FrenchFriesColorScheme
+}
+
 // SystemColorMode returns the color assignment mode for system metrics.
 func (cm *ConfigManager) SystemColorMode() string {
 	cm.mu.RLock()
@@ -577,12 +593,24 @@ func (cm *ConfigManager) SystemColorMode() string {
 // SetSystemColorScheme sets the system color scheme.
 func (cm *ConfigManager) SetSystemColorScheme(scheme string) error {
 	if _, ok := colorSchemes[scheme]; !ok {
-		return fmt.Errorf("unknown color scheme: %s", scheme)
+		return fmt.Errorf("unknown color scheme: %q", scheme)
 	}
 
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
 	cm.config.SystemColorScheme = scheme
+	return cm.save()
+}
+
+// SetFrenchFriesColorScheme sets the French Fries heatmap color scheme.
+func (cm *ConfigManager) SetFrenchFriesColorScheme(scheme string) error {
+	if _, ok := colorSchemes[scheme]; !ok {
+		return fmt.Errorf("unknown color scheme: %q", scheme)
+	}
+
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	cm.config.FrenchFriesColorScheme = scheme
 	return cm.save()
 }
 
