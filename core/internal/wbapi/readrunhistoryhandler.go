@@ -11,7 +11,6 @@ import (
 	"github.com/getsentry/sentry-go"
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/wandb/simplejsonext"
-	"gorm.io/gorm/logger"
 
 	"github.com/wandb/wandb/core/internal/runhistoryreader"
 	"github.com/wandb/wandb/core/internal/runhistoryreader/parquet"
@@ -51,11 +50,6 @@ func NewRunHistoryAPIHandler(
 	graphqlClient graphql.Client,
 	httpClient *retryablehttp.Client,
 ) *RunHistoryAPIHandler {
-	rustArrowWrapper, err := ffi.NewRustArrowWrapper()
-	if err != nil {
-		logger.Error("failed to create RustArrowWrapper", "error", err)
-		return nil, err
-	}
 
 	return &RunHistoryAPIHandler{
 		graphqlClient:      graphqlClient,
@@ -63,8 +57,7 @@ func NewRunHistoryAPIHandler(
 		currentRequestId:   atomic.Int32{},
 		scanHistoryReaders: make(map[int32]*runhistoryreader.HistoryReader),
 		downloadOperations: make(map[int32]*parquet.RunHistoryDownloadOperation),
-		rustArrowWrapper:   rustArrowWrapper,
-	}, nil
+	}
 }
 
 func (f *RunHistoryAPIHandler) HandleRequest(
@@ -98,6 +91,21 @@ func (f *RunHistoryAPIHandler) HandleRequest(
 func (f *RunHistoryAPIHandler) handleScanRunHistoryInit(
 	request *spb.ScanRunHistoryInit,
 ) *spb.ApiResponse {
+	if f.rustArrowWrapper == nil {
+		rustArrowWrapper, err := ffi.NewRustArrowWrapper()
+		if err != nil {
+			return &spb.ApiResponse{
+				Response: &spb.ApiResponse_ApiErrorResponse{
+					ApiErrorResponse: &spb.ApiErrorResponse{
+						Message: "RustArrowWrapper not initialized.",
+					},
+				},
+			}
+		}
+
+		f.rustArrowWrapper = rustArrowWrapper
+	}
+
 	localHub := sentry.CurrentHub().Clone()
 	localHub.WithScope(func(scope *sentry.Scope) {
 		scope.SetTags(map[string]string{

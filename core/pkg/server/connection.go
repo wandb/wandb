@@ -646,12 +646,9 @@ func (nc *Connection) handleSyncStatus(
 // handleApiInit sets up a new wandbAPI instance.
 func (nc *Connection) handleApiInit(id string, request *spb.ServerApiInitRequest) {
 	s := settings.From(request.GetSettings())
-	wbapiInstance, err := wbapi.New(s)
-	if err != nil {
-		slog.Error("failed to create WandbAPI", "error", err)
-		return
-	}
+	wbapiInstance := wbapi.New(s)
 	wbApiId := nc.apiManager.AddWandbAPI(wbapiInstance)
+
 	nc.Respond(&spb.ServerResponse{
 		RequestId: id,
 		ServerResponseType: &spb.ServerResponse_ApiInitResponse{
