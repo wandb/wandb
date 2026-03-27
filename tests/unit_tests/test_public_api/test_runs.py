@@ -2,22 +2,6 @@ from unittest import mock
 
 import pytest
 import wandb
-from wandb.apis.public import runs
-
-
-@pytest.fixture(autouse=True)
-def patch_server_features(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Prevent unit tests from attempting to contact the real server."""
-    monkeypatch.setattr(
-        runs,
-        "_server_provides_project_id_for_run",
-        lambda *args, **kwargs: False,
-    )
-    monkeypatch.setattr(
-        runs,
-        "_server_provides_internal_id_for_project",
-        lambda *args, **kwargs: False,
-    )
 
 
 @pytest.mark.parametrize(

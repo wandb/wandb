@@ -48,7 +48,7 @@ from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.paginator import SizedPaginator
 from wandb.apis.public import utils
 from wandb.apis.public.const import RETRY_TIMEDELTA
-from wandb.apis.public.runs import Run, _server_provides_internal_id_for_project
+from wandb.apis.public.runs import Run
 from wandb.sdk.lib import retry
 from wandb.util import POW_2_BYTES, download_file_from_url, no_retry_auth, to_human_size
 
@@ -110,13 +110,12 @@ class Files(SizedPaginator["File"]):
 
     def _get_query(self) -> Document:
         """Generate query dynamically based on server capabilities."""
-        with_internal_id = _server_provides_internal_id_for_project(self.client)
         return gql(
             f"""
             query RunFiles($project: String!, $entity: String!, $name: String!, $fileCursor: String,
                 $fileLimit: Int = 50, $fileNames: [String] = [], $upload: Boolean = false, $pattern: String) {{
                 project(name: $project, entityName: $entity) {{
-                    {"internalId" if with_internal_id else ""}
+                    internalId
                     run(name: $name) {{
                         fileCount
                         ...RunFilesFragment
