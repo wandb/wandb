@@ -318,7 +318,14 @@ def functional_tests(session: nox.Session):
         # based on the number of detected CPUs in the system, and doesn't
         # take into account the number of available CPUs in the container,
         # which results in OOM errors.
-        opts={"n": "4"},
+        opts={
+            "n": "4",
+            # Functional tests run heavy workloads (DDP training, metaflow
+            # pipelines, ray tune) that need more than the default 60s.
+            # Metaflow tests spawn multiple subprocesses with ~30s import
+            # overhead each, so they need a generous timeout.
+            "timeout": "300",
+        },
     )
 
 
@@ -428,7 +435,7 @@ def local_testcontainer_registry(session: nox.Session) -> None:
 
     local_release_tag, commit_hash = get_release_tag_and_commit_hash(tags)
 
-    release_tag = local_release_tag.removeprefix("local/v")
+    release_tag = local_release_tag.removeprefix("server/v")
     session.log(f"Release tag: {release_tag}")
     session.log(f"Commit hash: {commit_hash}")
 

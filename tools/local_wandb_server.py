@@ -152,7 +152,7 @@ def _start_interactively(name: str) -> None:
         _start_container(name=name).apply_ports(server)
 
         try:
-            server.wait_until_healthy(timeout=30)
+            server.wait_until_healthy(timeout=120)
         except TimeoutError:
             _echo_bad(f"Server {name!r} did not become healthy in time.")
             sys.exit(1)
@@ -180,7 +180,7 @@ def _start_external(
         info.servers[name] = server
 
         try:
-            server.wait_until_healthy(timeout=30)
+            server.wait_until_healthy(timeout=120)
         except TimeoutError:
             _echo_bad(f"Server {name!r} did not become healthy in time.")
             sys.exit(1)

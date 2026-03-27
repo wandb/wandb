@@ -148,6 +148,11 @@ const (
 	mediumShadeBlock rune = '\u2592' // ▒
 )
 
+func uniformAdaptiveColor(hex string) compat.AdaptiveColor {
+	c := lipgloss.Color(hex)
+	return compat.AdaptiveColor{Light: c, Dark: c}
+}
+
 // WANDB brand colors.
 var (
 	// Primary colors.
@@ -366,16 +371,106 @@ var colorSchemes = map[string][]compat.AdaptiveColor{
 		compat.AdaptiveColor{Light: lipgloss.Color("#2E68CC"), Dark: lipgloss.Color("#397EED")},
 		compat.AdaptiveColor{Light: lipgloss.Color("#454B54"), Dark: lipgloss.Color("#565C66")},
 	},
+	// Sequential palettes suitable for French Fries percentage heatmaps.
+	"traffic-light": {
+		uniformAdaptiveColor("#1A9850"),
+		uniformAdaptiveColor("#3EAE51"),
+		uniformAdaptiveColor("#67C35C"),
+		uniformAdaptiveColor("#97D168"),
+		uniformAdaptiveColor("#C8DE72"),
+		uniformAdaptiveColor("#F1DD6B"),
+		uniformAdaptiveColor("#FDB863"),
+		uniformAdaptiveColor("#F89C5A"),
+		uniformAdaptiveColor("#F67C4B"),
+		uniformAdaptiveColor("#E85D4F"),
+		uniformAdaptiveColor("#D73027"),
+	},
+	"viridis": {
+		uniformAdaptiveColor("#440154"),
+		uniformAdaptiveColor("#482475"),
+		uniformAdaptiveColor("#414487"),
+		uniformAdaptiveColor("#355F8D"),
+		uniformAdaptiveColor("#2A788E"),
+		uniformAdaptiveColor("#21918C"),
+		uniformAdaptiveColor("#22A884"),
+		uniformAdaptiveColor("#44BF70"),
+		uniformAdaptiveColor("#7AD151"),
+		uniformAdaptiveColor("#BDDF26"),
+		uniformAdaptiveColor("#FDE725"),
+	},
+	"plasma": {
+		uniformAdaptiveColor("#0D0887"),
+		uniformAdaptiveColor("#41049D"),
+		uniformAdaptiveColor("#6A00A8"),
+		uniformAdaptiveColor("#8F0DA4"),
+		uniformAdaptiveColor("#B12A90"),
+		uniformAdaptiveColor("#CC4778"),
+		uniformAdaptiveColor("#E16462"),
+		uniformAdaptiveColor("#F2844B"),
+		uniformAdaptiveColor("#FCA636"),
+		uniformAdaptiveColor("#FCCE25"),
+		uniformAdaptiveColor("#F0F921"),
+	},
+	"inferno": {
+		uniformAdaptiveColor("#000004"),
+		uniformAdaptiveColor("#160B39"),
+		uniformAdaptiveColor("#420A68"),
+		uniformAdaptiveColor("#6A176E"),
+		uniformAdaptiveColor("#932667"),
+		uniformAdaptiveColor("#BC3754"),
+		uniformAdaptiveColor("#DD513A"),
+		uniformAdaptiveColor("#F37819"),
+		uniformAdaptiveColor("#FCA50A"),
+		uniformAdaptiveColor("#F6D746"),
+		uniformAdaptiveColor("#FCFFA4"),
+	},
+	"magma": {
+		uniformAdaptiveColor("#000004"),
+		uniformAdaptiveColor("#140E36"),
+		uniformAdaptiveColor("#3B0F70"),
+		uniformAdaptiveColor("#641A80"),
+		uniformAdaptiveColor("#8C2981"),
+		uniformAdaptiveColor("#B73779"),
+		uniformAdaptiveColor("#DE4968"),
+		uniformAdaptiveColor("#F7705C"),
+		uniformAdaptiveColor("#FE9F6D"),
+		uniformAdaptiveColor("#FECF92"),
+		uniformAdaptiveColor("#FCFDBF"),
+	},
+	"cividis": {
+		uniformAdaptiveColor("#00224E"),
+		uniformAdaptiveColor("#083370"),
+		uniformAdaptiveColor("#35456C"),
+		uniformAdaptiveColor("#4F576C"),
+		uniformAdaptiveColor("#666970"),
+		uniformAdaptiveColor("#7D7C78"),
+		uniformAdaptiveColor("#948E77"),
+		uniformAdaptiveColor("#AEA371"),
+		uniformAdaptiveColor("#C8B866"),
+		uniformAdaptiveColor("#E5CF52"),
+		uniformAdaptiveColor("#FEE838"),
+	},
+}
+
+func colorSchemeOrDefault(scheme, fallback string) []compat.AdaptiveColor {
+	if colors, ok := colorSchemes[scheme]; ok && len(colors) > 0 {
+		return colors
+	}
+	return colorSchemes[fallback]
 }
 
 // GraphColors returns the palette for the requested scheme.
 //
 // If the scheme is unknown, it falls back to DefaultColorScheme.
 func GraphColors(scheme string) []compat.AdaptiveColor {
-	if colors, ok := colorSchemes[scheme]; ok {
-		return colors
-	}
-	return colorSchemes[DefaultColorScheme]
+	return colorSchemeOrDefault(scheme, DefaultColorScheme)
+}
+
+// FrenchFriesColors returns the palette for the requested French Fries heatmap scheme.
+//
+// If the scheme is unknown, it falls back to DefaultFrenchFriesColorScheme.
+func FrenchFriesColors(scheme string) []compat.AdaptiveColor {
+	return colorSchemeOrDefault(scheme, DefaultFrenchFriesColorScheme)
 }
 
 // Metrics grid styles.

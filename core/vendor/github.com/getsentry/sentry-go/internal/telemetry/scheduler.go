@@ -8,6 +8,7 @@ import (
 	"github.com/getsentry/sentry-go/internal/debuglog"
 	"github.com/getsentry/sentry-go/internal/protocol"
 	"github.com/getsentry/sentry-go/internal/ratelimit"
+	"github.com/getsentry/sentry-go/report"
 )
 
 // Scheduler implements a weighted round-robin scheduler for processing buffered events.
@@ -16,6 +17,7 @@ type Scheduler struct {
 	transport protocol.TelemetryTransport
 	dsn       *protocol.Dsn
 	sdkInfo   *protocol.SdkInfo
+	recorder  report.ClientReportRecorder
 
 	currentCycle []ratelimit.Priority
 	cyclePos     int
@@ -35,7 +37,12 @@ func NewScheduler(
 	transport protocol.TelemetryTransport,
 	dsn *protocol.Dsn,
 	sdkInfo *protocol.SdkInfo,
+	recorder report.ClientReportRecorder,
 ) *Scheduler {
+	if recorder == nil {
+		recorder = report.NoopRecorder()
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 
 	priorityWeights := map[ratelimit.Priority]int{
@@ -68,6 +75,7 @@ func NewScheduler(
 		transport:    transport,
 		dsn:          dsn,
 		sdkInfo:      sdkInfo,
+		recorder:     recorder,
 		currentCycle: currentCycle,
 		ctx:          ctx,
 		cancel:       cancel,
@@ -209,8 +217,20 @@ func (s *Scheduler) processItems(buffer Buffer[protocol.TelemetryItem], category
 		items = buffer.PollIfReady()
 	}
 
-	// drop the current batch if rate-limited or if transport is full
-	if len(items) == 0 || s.isRateLimited(category) || !s.transport.HasCapacity() {
+	if len(items) == 0 {
+		return
+	}
+
+	if s.isRateLimited(category) {
+		for _, item := range items {
+			s.recorder.RecordItem(report.ReasonRateLimitBackoff, item)
+		}
+		return
+	}
+	if !s.transport.HasCapacity() {
+		for _, item := range items {
+			s.recorder.RecordItem(report.ReasonQueueOverflow, item)
+		}
 		return
 	}
 

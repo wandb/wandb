@@ -6,7 +6,15 @@
 package wbapi
 
 import (
+	"context"
+	"log/slog"
+
+	"github.com/hashicorp/go-retryablehttp"
+
+	"github.com/wandb/wandb/core/internal/featurechecker"
+	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/settings"
+	"github.com/wandb/wandb/core/internal/stream"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
@@ -23,23 +31,52 @@ type WandbAPI struct {
 
 	settings *settings.Settings
 
+	featuresHandler      *FeaturesHandler
 	runHistoryApiHandler *RunHistoryAPIHandler
 }
 
 // New returns a new WandbAPI.
 func New(s *settings.Settings) *WandbAPI {
+	logger := observability.NewNoOpLogger()
+
+	baseURL := stream.BaseURLFromSettings(logger, s)
+	credentialProvider := stream.CredentialsFromSettings(logger, s)
+	graphqlClient := stream.NewGraphQLClient(
+		baseURL,
+		"", /*clientID*/
+		credentialProvider,
+		logger,
+		&observability.Peeker{},
+		s,
+	)
+
+	httpClient := retryablehttp.NewClient()
+	httpClient.RetryMax = int(s.GetFileTransferMaxRetries())
+	httpClient.RetryWaitMin = s.GetFileTransferRetryWaitMin()
+	httpClient.RetryWaitMax = s.GetFileTransferRetryWaitMax()
+	httpClient.HTTPClient.Timeout = s.GetFileTransferTimeout()
+	httpClient.Logger = observability.NewCoreLogger(
+		slog.Default(),
+		nil,
+	)
+
+	featureProvider := featurechecker.New(graphqlClient, logger)
+
 	return &WandbAPI{
-		semaphore:            make(chan struct{}, maxConcurrency),
-		settings:             s,
-		runHistoryApiHandler: NewRunHistoryAPIHandler(s),
+		semaphore: make(chan struct{}, maxConcurrency),
+		settings:  s,
+
+		featuresHandler:      NewFeaturesHandler(featureProvider),
+		runHistoryApiHandler: NewRunHistoryAPIHandler(graphqlClient, httpClient),
 	}
 }
 
 // HandleRequest handles an API request and returns an API response,
 // or nil if not response is needed.
 //
-// HandleRequest Blocks until the request is processed.
+// HandleRequest blocks until the request is processed.
 func (p *WandbAPI) HandleRequest(
+	ctx context.Context,
 	id string,
 	request *spb.ApiRequest,
 ) *spb.ApiResponse {
@@ -47,10 +84,12 @@ func (p *WandbAPI) HandleRequest(
 	p.semaphore <- struct{}{}
 	defer func() { <-p.semaphore }()
 
-	if _, ok := request.Request.(*spb.ApiRequest_ReadRunHistoryRequest); ok {
-		return p.runHistoryApiHandler.HandleRequest(
-			request.GetReadRunHistoryRequest(),
-		)
+	switch req := request.Request.(type) {
+	case *spb.ApiRequest_FeaturesRequest:
+		return p.featuresHandler.HandleRequest(ctx, req.FeaturesRequest)
+	case *spb.ApiRequest_ReadRunHistoryRequest:
+		// TODO: Propagate ctx here.
+		return p.runHistoryApiHandler.HandleRequest(req.ReadRunHistoryRequest)
 	}
 
 	return nil

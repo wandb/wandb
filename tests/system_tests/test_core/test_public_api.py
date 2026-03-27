@@ -14,7 +14,6 @@ import wandb.util
 from wandb import Api
 from wandb.apis._generated import ProjectFragment, UserFragment
 from wandb.apis._generated.generate_api_key import GenerateApiKey
-from wandb.apis.public import File
 from wandb.errors.errors import CommError
 from wandb.old.summary import Summary
 
@@ -978,16 +977,12 @@ def test_delete_files_for_multiple_runs(
         file = run.files()[0]
         file.delete()
 
-        expected_variables = {
+        assert "projectId" in delete_spy.requests[0].variables
+        assert "projectId" in delete_spy.requests[0].query
+        assert delete_spy.requests[0].variables == {
             "files": [file.id],
+            "projectId": runs[0]._project_internal_id,
         }
-        # For system tests on newer server version, the projectId is provided
-        if file._server_accepts_project_id_for_delete_file():
-            assert "projectId" in delete_spy.requests[0].variables
-            assert "projectId" in delete_spy.requests[0].query
-            expected_variables["projectId"] = runs[0]._project_internal_id
-
-        assert delete_spy.requests[0].variables == expected_variables
 
 
 def test_delete_file(
@@ -1030,28 +1025,17 @@ def test_delete_file(
     file = run.files()[0]
     file.delete()
 
-    # For system tests on newer server version, the projectId is provided
-    if file._server_accepts_project_id_for_delete_file():
-        assert "projectId" in delete_spy.requests[0].variables
-        assert "projectId" in delete_spy.requests[0].query
-        assert delete_spy.requests[0].variables == {
-            "files": [file.id],
-            "projectId": run._project_internal_id,
-        }
-    # For some older server versions, the projectId is not provided
-    else:
-        assert "projectId" not in delete_spy.requests[0].variables
-        assert "projectId" not in delete_spy.requests[0].query
-        assert delete_spy.requests[0].variables == {
-            "files": [file.id],
-        }
+    assert "projectId" in delete_spy.requests[0].variables
+    assert "projectId" in delete_spy.requests[0].query
+    assert delete_spy.requests[0].variables == {
+        "files": [file.id],
+        "projectId": run._project_internal_id,
+    }
 
 
 def test_run_parses_run_project_id(user, stub_run_gql_once):
     stub_run_gql_once(project_id="123")
     api = Api()
-    if not File(api.client, {})._server_accepts_project_id_for_delete_file():
-        pytest.skip("Server does not support project_id for deletion")
 
     with wandb.init(project="test") as run:
         run.log({"scalar": 1})
@@ -1065,8 +1049,6 @@ def test_run_parses_run_project_id(user, stub_run_gql_once):
 def test_run_fails_parse_run_project_id(user, stub_run_gql_once):
     stub_run_gql_once(project_id="Unparseable")
     api = Api()
-    if not File(api.client, {})._server_accepts_project_id_for_delete_file():
-        pytest.skip("Server does not support project_id for deletion")
 
     with wandb.init(project="test") as run:
         run.log({"scalar": 1})

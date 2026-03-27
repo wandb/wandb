@@ -9,22 +9,23 @@ import (
 	"time"
 
 	"charm.land/lipgloss/v2"
+	"charm.land/lipgloss/v2/compat"
 )
 
 const frenchFriesCell = "█"
 
-var frenchFriesPalette = []string{
-	"#1A9850",
-	"#3EAE51",
-	"#67C35C",
-	"#97D168",
-	"#C8DE72",
-	"#F1DD6B",
-	"#FDB863",
-	"#F89C5A",
-	"#F67C4B",
-	"#E85D4F",
-	"#D73027",
+func renderFrenchFriesCells(colors []compat.AdaptiveColor) []string {
+	if len(colors) == 0 {
+		colors = FrenchFriesColors(DefaultFrenchFriesColorScheme)
+	}
+
+	rendered := make([]string, len(colors))
+	for i, color := range colors {
+		rendered[i] = lipgloss.NewStyle().
+			Foreground(color).
+			Render(frenchFriesCell)
+	}
+	return rendered
 }
 
 type frenchFriesSample struct {
@@ -101,6 +102,7 @@ type FrenchFriesChart struct {
 type FrenchFriesChartParams struct {
 	Width, Height int
 	Def           *MetricDef
+	Colors        []compat.AdaptiveColor
 	Now           time.Time
 }
 
@@ -111,12 +113,7 @@ func NewFrenchFriesChart(params *FrenchFriesChartParams) *FrenchFriesChart {
 		seriesDirty:  true,
 		lastUpdate:   params.Now,
 		dirty:        true,
-		coloredCells: make([]string, len(frenchFriesPalette)),
-	}
-
-	for i, hex := range frenchFriesPalette {
-		chart.coloredCells[i] = lipgloss.NewStyle().
-			Foreground(lipgloss.Color(hex)).Render(frenchFriesCell)
+		coloredCells: renderFrenchFriesCells(params.Colors),
 	}
 
 	chart.Resize(params.Width, params.Height)
@@ -610,6 +607,16 @@ func (c *FrenchFriesChart) layout() frenchFriesLayout {
 	return layout
 }
 
+func (c *FrenchFriesChart) visibleSampleRange(viewMinX, viewMaxX float64) (start, end int) {
+	start = sort.Search(len(c.samples), func(i int) bool {
+		return float64(c.samples[i].timestamp) >= viewMinX
+	})
+	end = sort.Search(len(c.samples), func(i int) bool {
+		return float64(c.samples[i].timestamp) > viewMaxX
+	})
+	return start, end
+}
+
 func (c *FrenchFriesChart) bucketedSeries(
 	layout frenchFriesLayout,
 ) map[string][]frenchFriesBucketCell {
@@ -626,11 +633,9 @@ func (c *FrenchFriesChart) bucketedSeries(
 		return bucketed
 	}
 
-	for _, sample := range c.samples {
+	start, end := c.visibleSampleRange(viewMinX, viewMaxX)
+	for _, sample := range c.samples[start:end] {
 		ts := float64(sample.timestamp)
-		if ts < viewMinX || ts > viewMaxX {
-			continue
-		}
 		bucket := c.bucketForDataX(ts, layout.plotWidth)
 		for seriesName, value := range sample.values {
 			cells, ok := bucketed[seriesName]
@@ -651,7 +656,7 @@ func (c *FrenchFriesChart) bucketedSeries(
 }
 
 func (c *FrenchFriesChart) colorForValue(value float64) string {
-	if !isFinite(value) {
+	if !isFinite(value) || len(c.coloredCells) == 0 {
 		return " "
 	}
 

@@ -30,9 +30,9 @@ var (
 //   - `min=<int>`       Minimum value for int fields (default 0).
 //   - `max=<int>`       Maximum value for int fields (0 means no upper
 //     bound).
-//   - `options=<name>`  Marks a string field as an enum and names the
-//     options provider function. Only providers registered in
-//     [buildConfigEditorFieldsFromType] are recognized.
+//   - `options=<n>`  Marks a string field as an enum and names the
+//     options provider. The name must resolve to a known
+//     [enumProvider] constant via [parseEnumProvider].
 //
 // # Field resolution rules
 //
@@ -46,7 +46,7 @@ var (
 //   - Unknown `leet` tag keys are silently ignored for forward compatibility.
 func buildConfigEditorFields() []configField {
 	configEditorFieldsOnce.Do(func() {
-		configEditorFieldsCached = buildConfigEditorFieldsFromType(reflect.TypeOf(Config{}))
+		configEditorFieldsCached = buildConfigEditorFieldsFromType(reflect.TypeFor[Config]())
 	})
 
 	// Defensively copy so callers can't mutate the cached slice.
@@ -123,24 +123,29 @@ func parseLeetTag(raw string) leetTag {
 	return t
 }
 
+// parseEnumProvider maps a `leet:"options=..."` tag value to its typed
+// [enumProvider] constant.
+//
+// Unrecognized names resolve to [enumProviderUndefined], causing the
+// field to be skipped during schema construction.
+func parseEnumProvider(s string) enumProvider {
+	switch s {
+	case "colorSchemes":
+		return enumProviderColorSchemes
+	case "colorModes":
+		return enumProviderColorModes
+	case "startupModes":
+		return enumProviderStartupModes
+	default:
+		return enumProviderUndefined
+	}
+}
+
 // buildConfigEditorFieldsFromType reflects over a struct type and produces
 // a flat list of [configField] values for every editable leaf.
-//
-// Enum providers map provider names (from `leet:"options=<name>"`) to
-// functions that return the allowed values.
 func buildConfigEditorFieldsFromType(t reflect.Type) []configField {
-	enumProviders := map[string]func() []string{
-		"colorSchemes": availableColorSchemes,
-		"colorModes": func() []string {
-			return []string{ColorModePerSeries, ColorModePerPlot}
-		},
-		"startupModes": func() []string {
-			return []string{StartupModeWorkspaceLatest, StartupModeSingleRunLatest}
-		},
-	}
-
 	var out []configField
-	walkConfigFields(t, nil, nil, nil, "", enumProviders, &out)
+	walkConfigFields(t, nil, nil, nil, "", &out)
 	return out
 }
 
@@ -158,7 +163,6 @@ func walkConfigFields(
 	jsonPath []string,
 	labelSegments []string,
 	groupDesc string,
-	enumProviders map[string]func() []string,
 	out *[]configField,
 ) {
 	// Only structs can be walked.
@@ -166,8 +170,8 @@ func walkConfigFields(
 		return
 	}
 
-	for i := 0; i < t.NumField(); i++ {
-		sf := t.Field(i)
+	for sf := range t.Fields() {
+		sf := sf
 		if !sf.IsExported() {
 			continue
 		}
@@ -202,7 +206,6 @@ func walkConfigFields(
 				fieldJSONPath,
 				fieldLabelSegs,
 				childGroupDesc,
-				enumProviders,
 				out,
 			)
 			continue
@@ -264,17 +267,19 @@ func walkConfigFields(
 			})
 
 		case reflect.String:
-			// Only string fields with an options provider are treated as editable enums.
-			// (Keeps behavior explicit and avoids introducing free-text editing in the UI.)
+			// Only string fields with a recognized options provider are
+			// treated as editable enums. This keeps behavior explicit and
+			// avoids introducing free-text editing in the UI.
 			if tag.options == "" {
 				continue
 			}
-			provider := enumProviders[tag.options]
-			if provider == nil {
-				// Unknown options provider. Skip rather than silently producing a broken field.
+			provider := parseEnumProvider(tag.options)
+			if provider == enumProviderUndefined {
+				// Unrecognized provider name. Skip rather than
+				// silently producing a broken field.
 				continue
 			}
-			opts := provider()
+			opts := provider.options()
 			if len(opts) == 0 {
 				continue
 			}
@@ -290,6 +295,7 @@ func walkConfigFields(
 				Description: desc,
 				Kind:        fieldEnum,
 				options:     opts,
+				provider:    provider,
 				getEnum: func(c Config) string {
 					return reflect.ValueOf(c).FieldByIndex(idx).String()
 				},

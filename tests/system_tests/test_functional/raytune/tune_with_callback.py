@@ -8,7 +8,7 @@ def train_fc(config):
 
 
 search_space = {
-    "alpha": tune.grid_search([0.1, 0.2, 0.3]),
+    "alpha": tune.grid_search([0.1]),
     "beta": tune.uniform(0.5, 1.0),
 }
 

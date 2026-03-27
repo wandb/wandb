@@ -48,7 +48,7 @@ from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.paginator import SizedPaginator
 from wandb.apis.public import utils
 from wandb.apis.public.const import RETRY_TIMEDELTA
-from wandb.apis.public.runs import Run, _server_provides_internal_id_for_project
+from wandb.apis.public.runs import Run
 from wandb.sdk.lib import retry
 from wandb.util import POW_2_BYTES, download_file_from_url, no_retry_auth, to_human_size
 
@@ -110,13 +110,12 @@ class Files(SizedPaginator["File"]):
 
     def _get_query(self) -> Document:
         """Generate query dynamically based on server capabilities."""
-        with_internal_id = _server_provides_internal_id_for_project(self.client)
         return gql(
             f"""
             query RunFiles($project: String!, $entity: String!, $name: String!, $fileCursor: String,
                 $fileLimit: Int = 50, $fileNames: [String] = [], $upload: Boolean = false, $pattern: String) {{
                 project(name: $project, entityName: $entity) {{
-                    {"internalId" if with_internal_id else ""}
+                    internalId
                     run(name: $name) {{
                         fileCount
                         ...RunFilesFragment
@@ -270,7 +269,6 @@ class File(Attrs):
         self.client = client
         self._attrs = attrs
         self.run = run
-        self.server_supports_delete_file_with_project_id: bool | None = None
         self._download_decorated: Callable[..., Any] | None = None
         super().__init__(dict(attrs))
 
@@ -366,30 +364,21 @@ class File(Attrs):
     @normalize_exceptions
     def delete(self) -> None:
         """Delete the file from the W&B server."""
-        project_id_mutation_fragment = ""
-        project_id_variable_fragment = ""
         variable_values = {
             "files": [self.id],
+            "projectId": self.run._project_internal_id,
         }
 
-        # Add projectId to mutation and variables if the server supports it.
-        # Otherwise, do not include projectId in mutation for older server versions which do not support it.
-        if self._server_accepts_project_id_for_delete_file():
-            variable_values["projectId"] = self.run._project_internal_id
-            project_id_variable_fragment = ", $projectId: Int"
-            project_id_mutation_fragment = "projectId: $projectId"
-
-        mutation_string = """
-            mutation deleteFiles($files: [ID!]!{}) {{
-                deleteFiles(input: {{
+        mutation = gql("""
+            mutation deleteFiles($files: [ID!]!, $projectId: Int) {
+                deleteFiles(input: {
                     files: $files
-                    {}
-                }}) {{
+                    projectId: $projectId
+                }) {
                     success
-                }}
-            }}
-            """.format(project_id_variable_fragment, project_id_mutation_fragment)
-        mutation = gql(mutation_string)
+                }
+            }
+        """)
 
         self.client.execute(
             mutation,
@@ -400,36 +389,3 @@ class File(Attrs):
         classname = nameof(type(self))
         size = to_human_size(self.size, units=POW_2_BYTES)
         return f"<{classname} {self.name} ({self.mimetype}) {size}>"
-
-    @normalize_exceptions
-    def _server_accepts_project_id_for_delete_file(self) -> bool:
-        """Returns True if the server supports deleting files with a projectId.
-
-        This check is done by utilizing GraphQL introspection in the available fields on the DeleteFiles API.
-        """
-        query_string = """
-           query ProbeDeleteFilesProjectIdInput {
-                DeleteFilesProjectIdInputType: __type(name:"DeleteFilesInput") {
-                    inputFields{
-                        name
-                    }
-                }
-            }
-        """
-
-        # Only perform the query once to avoid extra network calls
-        if self.server_supports_delete_file_with_project_id is None:
-            query = gql(query_string)
-            res = self.client.execute(query)
-
-            # If projectId is in the inputFields, the server supports deleting files with a projectId
-            self.server_supports_delete_file_with_project_id = "projectId" in [
-                x["name"]
-                for x in (
-                    res.get("DeleteFilesProjectIdInputType", {}).get(
-                        "inputFields", [{}]
-                    )
-                )
-            ]
-
-        return self.server_supports_delete_file_with_project_id

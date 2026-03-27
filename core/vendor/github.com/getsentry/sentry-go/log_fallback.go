@@ -43,6 +43,22 @@ func (n *noopLogEntry) Bool(_ string, _ bool) LogEntry {
 	return n
 }
 
+func (n *noopLogEntry) StringSlice(_ string, _ []string) LogEntry {
+	return n
+}
+
+func (n *noopLogEntry) Int64Slice(_ string, _ []int64) LogEntry {
+	return n
+}
+
+func (n *noopLogEntry) Float64Slice(_ string, _ []float64) LogEntry {
+	return n
+}
+
+func (n *noopLogEntry) BoolSlice(_ string, _ []bool) LogEntry {
+	return n
+}
+
 func (n *noopLogEntry) Attributes(_ ...attribute.Builder) LogEntry {
 	return n
 }

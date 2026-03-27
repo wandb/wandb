@@ -20,7 +20,9 @@ const (
 	CategoryAll         Category = ""        // Special category for empty categories (applies to all)
 	CategoryError       Category = "error"
 	CategoryTransaction Category = "transaction"
+	CategorySpan        Category = "span"
 	CategoryLog         Category = "log_item"
+	CategoryLogByte     Category = "log_byte"
 	CategoryMonitor     Category = "monitor"
 	CategoryTraceMetric Category = "trace_metric"
 )
@@ -45,8 +47,12 @@ func (c Category) String() string {
 		return "CategoryError"
 	case CategoryTransaction:
 		return "CategoryTransaction"
+	case CategorySpan:
+		return "CategorySpan"
 	case CategoryLog:
 		return "CategoryLog"
+	case CategoryLogByte:
+		return "CategoryLogByte"
 	case CategoryMonitor:
 		return "CategoryMonitor"
 	case CategoryTraceMetric:
