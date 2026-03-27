@@ -2,7 +2,7 @@
 name = "gpu_stats"
 version = "0.6.1"
 edition = "2024"
-rust-version = "1.82"
+rust-version = "1.85"
 
 [[bin]]
 name = "build_proto"
