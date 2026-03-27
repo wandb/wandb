@@ -50,7 +50,7 @@ message RunMoment {
 //
 // Some fields such as `run_id` only make sense at the run level.
 //
-// Next ID: 204
+// Next ID: 205
 message Settings {
   reserved 3, 6, 8, 9, 12, 19, 36, 43, 44, 45, 50, 51, 54, 70, 91, 94, 100, 136, 137, 173, 176, 180;
 
@@ -461,7 +461,7 @@ message Settings {
   google.protobuf.StringValue _start_datetime = 40;
   google.protobuf.StringValue _tmp_code_dir = 49;
   google.protobuf.BoolValue _windows = 52;
-  google.protobuf.BoolValue allow_media_symlink = 203;
+  google.protobuf.BoolValue allow_media_symlink = 204;
   google.protobuf.BoolValue allow_val_change = 53;
   MapStringKeyStringValue azure_account_url_to_access_key = 56;
   google.protobuf.StringValue code_dir = 58;
