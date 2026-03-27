@@ -265,10 +265,11 @@ class Runs(SizedPaginator["Run"]):
         if not order:
             order = "+created_at"
 
+        self._server_provides_project_id = _server_provides_project_id_for_run(client)
         self.QUERY = _create_runs_query(
             lazy=lazy,
             with_internal_id=_server_provides_internal_id_for_project(client),
-            with_project_id=_server_provides_project_id_for_run(client),
+            with_project_id=self._server_provides_project_id,
         )
 
         self.entity = entity
@@ -340,6 +341,7 @@ class Runs(SizedPaginator["Run"]):
                 include_sweeps=self._include_sweeps,
                 lazy=self._lazy,
                 service_api=self._service_api,
+                server_provides_project_id=self._server_provides_project_id,
             )
             objs.append(run)
 
@@ -543,6 +545,7 @@ class Run(Attrs):
         include_sweeps: bool = True,
         lazy: bool = True,
         service_api: ServiceApi | None = None,
+        server_provides_project_id: bool | None = None,
     ):
         """Initialize a Run object.
 
@@ -570,7 +573,7 @@ class Run(Attrs):
         self._metadata: dict[str, Any] | None = None
         self._state = _attrs.get("state", "not found")
         self.server_provides_internal_id_field: bool | None = None
-        self._server_provides_project_id_field: bool | None = None
+        self._server_provides_project_id_field: bool | None = server_provides_project_id
         self._is_loaded: bool = False
         self._service_api: ServiceApi | None = service_api
 
