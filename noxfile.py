@@ -322,7 +322,9 @@ def functional_tests(session: nox.Session):
             "n": "4",
             # Functional tests run heavy workloads (DDP training, metaflow
             # pipelines, ray tune) that need more than the default 60s.
-            "timeout": "180",
+            # Metaflow tests spawn multiple subprocesses with ~30s import
+            # overhead each, so they need a generous timeout.
+            "timeout": "300",
         },
     )
 

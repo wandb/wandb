@@ -413,7 +413,7 @@ jobs:
           session: <<parameters.session>>
 
   code-check:
-    resource_class: large
+    resource_class: wandb/docker-builder
     docker:
       - image: "python:3.13"
     steps:
