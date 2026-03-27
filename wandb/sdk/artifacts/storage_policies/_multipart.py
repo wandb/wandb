@@ -300,7 +300,7 @@ def multipart_download(
             raise
         finally:
             ctx.signal_writer_stop()
-            writer.join()
+            writer.join(timeout=180)
 
         if ctx._writer_error is not None:
             raise ctx._writer_error
