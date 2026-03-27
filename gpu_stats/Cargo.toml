@@ -1,7 +1,8 @@
 [package]
 name = "gpu_stats"
-version = "0.6.0"
-edition = "2021"
+version = "0.6.1"
+edition = "2024"
+rust-version = "1.82"
 
 [[bin]]
 name = "build_proto"
@@ -10,35 +11,35 @@ path = "tools/build_proto.rs"
 [dependencies]
 log = "0.4"
 env_logger = { version = "0.11", features = ["auto-color"] }
-nvml-wrapper = "0.11.0"
+nvml-wrapper = "0.12.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-clap = { version = "4.5", features = ["derive"] }
-sentry = { version = "0.38", default-features = false, features = [
+clap = { version = "4.6", features = ["derive"] }
+sentry = { version = "0.47", default-features = false, features = [
     "backtrace",
     "contexts",
     "panic",
     "reqwest",
     "rustls",
 ] }
-prost = "0.13.4"
-prost-types = "0.13.4"
-tonic = "0.13.1"
-tonic-reflection = "0.13.1"
-tokio = { version = "1.45", features = ["full"] }
-tokio-stream = "0.1.16"
+prost = "0.14.3"
+prost-types = "0.14.3"
+tonic = "0.14.5"
+tonic-reflection = "0.14.5"
+tokio = { version = "1.50", features = ["full"] }
+tokio-stream = "0.1.18"
 chrono = "0.4"
 
-tonic-build = "0.13.1"
-tempfile = "3.20.0"
+tonic-build = "0.14.5"
+tempfile = "3.27.0"
 
-libloading = "0.8"
+libloading = "0.9"
 async-trait = "0.1"
 
 [target.'cfg(not(all(target_family = "wasm", target_os = "unknown")))'.dependencies]
-which = "7.0.3"
+which = "8.0.2"
 
 [target.'cfg(unix)'.dependencies]
-nix = { version = "0.30", features = ["process"] }
+nix = { version = "0.31", features = ["process"] }
 core-foundation = "0.10.1"
 libc = "0.2.172"

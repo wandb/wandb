@@ -466,6 +466,11 @@ jobs:
           command: |
             cd parquet-rust-wrapper
             cargo test --verbose
+      - run:
+          name: Run Rust tests for gpu_stats
+          command: |
+            cd gpu_stats
+            cargo test --verbose
 
   # Download the local-testcontainer image corresponding to the latest server release
   # and store it in wandb-client-cicd/images/local-testcontainer.
