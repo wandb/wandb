@@ -11,10 +11,22 @@ import (
 
 	"github.com/wandb/wandb/core/internal/leet"
 	"github.com/wandb/wandb/core/internal/observability"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 func keyRune(r rune) tea.KeyPressMsg {
 	return tea.KeyPressMsg{Code: r, Text: string(r)}
+}
+
+func typeWorkspaceFilter(t *testing.T, w *leet.Workspace, query string) {
+	t.Helper()
+	for _, r := range query {
+		msg := tea.KeyPressMsg{Code: r, Text: string(r)}
+		if r == ' ' {
+			msg = tea.KeyPressMsg{Code: tea.KeySpace}
+		}
+		require.Nil(t, w.Update(msg))
+	}
 }
 
 func TestWorkspace_KeyHandling_FilterModeConsumesQuit(t *testing.T) {
@@ -555,4 +567,192 @@ func TestWorkspace_OverviewFilter_PriorityOverMetricsFilter(t *testing.T) {
 
 	// Escape out.
 	require.Nil(t, w.Update(tea.KeyPressMsg{Code: tea.KeyEsc}))
+}
+
+func TestWorkspace_RunsFilterMode_ConsumesQuit(t *testing.T) {
+	w := newWorkspaceWithPanels(t)
+
+	require.Nil(t, w.Update(keyRune('f')))
+	require.True(t, w.TestRunsFilterMode(),
+		"expected runs filter mode active after 'f'")
+	require.True(t, w.IsFiltering(),
+		"expected IsFiltering true during runs filter input")
+
+	// While runs filter is active, 'q' should be consumed as filter text.
+	require.Nil(t, w.Update(keyRune('q')))
+	require.True(t, w.TestRunsFilterMode(),
+		"runs filter should still be active after 'q'")
+	require.Equal(t, "q", w.TestRunsFilterQuery())
+
+	require.Nil(t, w.Update(tea.KeyPressMsg{Code: tea.KeyEsc}))
+	require.False(t, w.TestRunsFilterMode(),
+		"runs filter should be inactive after Esc")
+}
+
+func TestWorkspace_RunsFilter_ProjectAndConfig(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+
+	wandbDir := t.TempDir()
+	w := leet.NewWorkspace(wandbDir, cfg, logger)
+	_ = w.Update(tea.WindowSizeMsg{Width: 200, Height: 60})
+
+	run1 := "run-20260209_010101-vision01"
+	run2 := "run-20260209_010102-nlp0002"
+	_ = w.Update(leet.WorkspaceRunDirsMsg{RunKeys: []string{run1, run2}})
+
+	_ = w.Update(leet.WorkspaceRunOverviewPreloadedMsg{
+		RunKey: run1,
+		Run: &leet.RunMsg{
+			ID:          "vision01",
+			DisplayName: "resnet50",
+			Project:     "vision",
+			Config: &spb.ConfigRecord{Update: []*spb.ConfigItem{
+				{NestedKey: []string{"lr"}, ValueJson: "0.001"},
+				{NestedKey: []string{"optimizer"}, ValueJson: `"adamw"`},
+			}},
+		},
+	})
+	_ = w.Update(leet.WorkspaceRunOverviewPreloadedMsg{
+		RunKey: run2,
+		Run: &leet.RunMsg{
+			ID:          "nlp0002",
+			DisplayName: "bert-debug",
+			Project:     "nlp",
+			Config: &spb.ConfigRecord{Update: []*spb.ConfigItem{
+				{NestedKey: []string{"lr"}, ValueJson: "0.01"},
+				{NestedKey: []string{"optimizer"}, ValueJson: `"sgd"`},
+			}},
+		},
+	})
+
+	require.Nil(t, w.Update(keyRune('f')))
+	typeWorkspaceFilter(t, w, "project:vision cfg.lr>=1e-3 cfg.optimizer=adamw")
+	require.Nil(t, w.Update(tea.KeyPressMsg{Code: tea.KeyEnter}))
+
+	require.True(t, w.TestRunsFiltering())
+	require.Equal(t, "project:vision cfg.lr>=1e-3 cfg.optimizer=adamw", w.TestRunsFilterQuery())
+	require.Equal(t, []string{run1}, w.TestFilteredRunKeys())
+
+	view := w.View().Content
+	require.Contains(t, view, "filtered from 2 total")
+	require.Contains(t, view, "Runs (")
+}
+
+func TestWorkspace_RunsFilter_UpdatesWhenMetadataPreloadsArrive(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+
+	w := leet.NewWorkspace(t.TempDir(), cfg, logger)
+	_ = w.Update(tea.WindowSizeMsg{Width: 160, Height: 50})
+
+	runKey := "run-20260209_010101-vision01"
+	_ = w.Update(leet.WorkspaceRunDirsMsg{RunKeys: []string{runKey}})
+
+	require.Nil(t, w.Update(keyRune('f')))
+	typeWorkspaceFilter(t, w, "project:vision")
+	require.Empty(t, w.TestFilteredRunKeys(),
+		"project filter should not match before metadata is preloaded")
+
+	_ = w.Update(leet.WorkspaceRunOverviewPreloadedMsg{
+		RunKey: runKey,
+		Run:    &leet.RunMsg{ID: "vision01", Project: "vision", DisplayName: "baseline"},
+	})
+
+	require.Equal(t, []string{runKey}, w.TestFilteredRunKeys(),
+		"preloaded metadata should immediately update the visible runs")
+}
+
+func TestWorkspace_RunsFilter_PriorityOverMetricsFilter(t *testing.T) {
+	w := newWorkspaceWithPanels(t)
+
+	require.Nil(t, w.Update(keyRune('f')))
+	require.True(t, w.TestRunsFilterMode())
+
+	// '/' should be consumed as typed text, not enter metrics filter mode.
+	require.Nil(t, w.Update(keyRune('/')))
+	require.True(t, w.TestRunsFilterMode())
+	require.Equal(t, "/", w.TestRunsFilterQuery())
+
+	require.Nil(t, w.Update(tea.KeyPressMsg{Code: tea.KeyEsc}))
+}
+
+func TestWorkspace_RunsFilter_Clear(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+	w := leet.NewWorkspace(t.TempDir(), cfg, logger)
+	_ = w.Update(tea.WindowSizeMsg{Width: 160, Height: 50})
+
+	run1 := "run-20260209_010101-vision01"
+	run2 := "run-20260209_010102-nlp0002"
+	_ = w.Update(leet.WorkspaceRunDirsMsg{RunKeys: []string{run1, run2}})
+	_ = w.Update(leet.WorkspaceRunOverviewPreloadedMsg{
+		RunKey: run1,
+		Run:    &leet.RunMsg{ID: "vision01", Project: "vision"},
+	})
+	_ = w.Update(leet.WorkspaceRunOverviewPreloadedMsg{
+		RunKey: run2,
+		Run:    &leet.RunMsg{ID: "nlp0002", Project: "nlp"},
+	})
+
+	require.Nil(t, w.Update(keyRune('f')))
+	typeWorkspaceFilter(t, w, "project:vision")
+	require.Nil(t, w.Update(tea.KeyPressMsg{Code: tea.KeyEnter}))
+	require.Equal(t, []string{run1}, w.TestFilteredRunKeys())
+
+	require.Nil(t, w.Update(tea.KeyPressMsg{Code: 'f', Mod: tea.ModCtrl}))
+	require.False(t, w.TestRunsFiltering())
+	require.Equal(t, []string{run1, run2}, w.TestFilteredRunKeys())
+}
+
+func TestWorkspace_RunsFilter_TagsAndNotes(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+
+	w := leet.NewWorkspace(t.TempDir(), cfg, logger)
+	_ = w.Update(tea.WindowSizeMsg{Width: 200, Height: 60})
+
+	run1 := "run-20260209_010101-vision01"
+	run2 := "run-20260209_010102-nlp0002"
+	_ = w.Update(leet.WorkspaceRunDirsMsg{RunKeys: []string{run1, run2}})
+
+	_ = w.Update(leet.WorkspaceRunOverviewPreloadedMsg{
+		RunKey: run1,
+		Run: &leet.RunMsg{
+			ID:          "vision01",
+			DisplayName: "resnet50",
+			Project:     "vision",
+			Tags:        []string{"baseline", "release"},
+			Notes:       "Warm start from ImageNet checkpoint",
+		},
+	})
+	// A later partial run record should not clobber notes/tags that were already indexed.
+	_ = w.Update(leet.WorkspaceRunOverviewPreloadedMsg{
+		RunKey: run1,
+		Run: &leet.RunMsg{
+			ID:      "vision01",
+			Project: "vision",
+		},
+	})
+	_ = w.Update(leet.WorkspaceRunOverviewPreloadedMsg{
+		RunKey: run2,
+		Run: &leet.RunMsg{
+			ID:          "nlp0002",
+			DisplayName: "bert-debug",
+			Project:     "nlp",
+			Tags:        []string{"debug"},
+			Notes:       "Tokenizer ablation run",
+		},
+	})
+
+	require.Nil(t, w.Update(keyRune('f')))
+	typeWorkspaceFilter(t, w, "tag:baseline note:imagenet")
+	require.Nil(t, w.Update(tea.KeyPressMsg{Code: tea.KeyEnter}))
+	require.Equal(t, []string{run1}, w.TestFilteredRunKeys())
+
+	require.Nil(t, w.Update(tea.KeyPressMsg{Code: 'f', Mod: tea.ModCtrl}))
+	require.Nil(t, w.Update(keyRune('f')))
+	typeWorkspaceFilter(t, w, "ablation")
+	require.Nil(t, w.Update(tea.KeyPressMsg{Code: tea.KeyEnter}))
+	require.Equal(t, []string{run2}, w.TestFilteredRunKeys())
 }

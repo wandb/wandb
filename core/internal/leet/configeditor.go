@@ -16,6 +16,8 @@ import (
 const (
 	quitConfirmStatusBrowse = "Unsaved changes — press q/esc/ctrl+c again to discard, or s to save & quit."
 	quitConfirmStatusEdit   = "Unsaved changes — press q/ctrl+c again to discard, or Esc to keep editing."
+
+	ConfigEditorPalettePreviewBlock = "█"
 )
 
 // ConfigEditorParams configures a [ConfigEditor].
@@ -72,29 +74,56 @@ type ConfigEditorParams struct {
 //
 // Implements [tea.Model].
 type ConfigEditor struct {
+	// cfg is the config manager used to read the initial snapshot and
+	// persist changes on save.
 	cfg    *ConfigManager
 	logger *observability.CoreLogger
 
 	// original holds the config snapshot taken at editor creation.
 	// Compared with draft to detect unsaved changes.
 	original Config
-	draft    Config
 
-	fields   []configField
+	// draft is the working copy that the user edits. On save it is
+	// written to disk via cfg; on quit it is discarded.
+	draft Config
+
+	// fields is the flat list of editable settings derived from [Config]
+	// struct tags. See [buildConfigEditorFields].
+	fields []configField
+
+	// selected is the index into fields of the currently highlighted row.
 	selected int
 
+	// width and height cache the latest terminal dimensions for layout.
 	width  int
 	height int
 
+	// mode is the current interaction state (browse, enum select, or int edit).
 	mode editorMode
 
+	// enum holds transient state for the enum picker modal (active when
+	// mode == modeEnumSelect).
 	enum enumSelectState
+
+	// intE holds transient state for the integer input modal (active when
+	// mode == modeIntEdit).
 	intE intEditState
 
+	// confirmQuit is set after the first quit attempt with unsaved changes.
+	// A second quit attempt while confirmQuit is true exits unconditionally.
 	confirmQuit bool
-	status      string
+
+	// status is an ephemeral message shown in the footer (e.g. unsaved
+	// changes warning, save-failure error). Cleared on the next key press.
+	status string
 }
 
+// NewConfigEditor creates a [ConfigEditor] from the given params.
+//
+// It snapshots the current config from disk and builds the editable field
+// schema via [buildConfigEditorFields]. If no editable fields are found
+// (indicating a schema bug), an error is logged but the editor is still
+// returned so the caller sees the empty-state UI.
 func NewConfigEditor(params ConfigEditorParams) *ConfigEditor {
 	logger := params.Logger
 	if logger == nil {
@@ -143,6 +172,39 @@ const (
 	fieldEnum
 )
 
+// enumProvider identifies a registered options source for enum fields.
+//
+// Provider names appear in struct tags as `leet:"options=<name>"`;
+// [parseEnumProvider] converts the tag string to a typed constant, and
+// [enumProvider.options] returns the allowed values. Adding a new enum
+// field requires a new constant here and a case in each of those two
+// functions.
+type enumProvider int
+
+const (
+	enumProviderUndefined    enumProvider = iota
+	enumProviderColorSchemes              // color palette names
+	enumProviderColorModes                // per_series | per_plot
+	enumProviderStartupModes              // workspace_latest | single_run_latest
+)
+
+// options returns the allowed values for this provider.
+//
+// Returns nil for [enumProviderUndefined], which causes the field to be
+// skipped during schema construction.
+func (p enumProvider) options() []string {
+	switch p {
+	case enumProviderColorSchemes:
+		return availableColorSchemes()
+	case enumProviderColorModes:
+		return []string{ColorModePerSeries, ColorModePerPlot}
+	case enumProviderStartupModes:
+		return []string{StartupModeWorkspaceLatest, StartupModeSingleRunLatest}
+	default:
+		return nil
+	}
+}
+
 // configField describes a single editable setting.
 //
 // Each field carries typed getter/setter closures that operate on
@@ -150,23 +212,46 @@ const (
 // description, JSON key) and type-specific constraints (min/max
 // for ints, allowed options for enums).
 type configField struct {
-	Label       string
-	JSONKey     string
-	Description string
-	Kind        configFieldKind
+	// Label is the human-readable name shown in the settings table
+	// (e.g. "Metrics grid rows").
+	Label string
 
-	// bool
+	// JSONKey is the dot-joined config path used in the footer and for
+	// identifying the field in tests (e.g. "metrics_grid.rows").
+	JSONKey string
+
+	// Description is the help text shown in the footer when this field
+	// is selected.
+	Description string
+
+	// Kind indicates the field type and determines which getter/setter
+	// pair and sub-editor are used.
+	Kind configFieldKind
+
+	// getBool and setBool are the typed accessors for bool fields.
 	getBool func(Config) bool
 	setBool func(*Config, bool)
 
-	// int
+	// getInt and setInt are the typed accessors for int fields.
 	getInt func(Config) int
 	setInt func(*Config, int)
-	min    int
-	max    int // 0 => no max
 
-	// enum
+	// min is the lower bound for int fields (default 0).
+	min int
+
+	// max is the upper bound for int fields. Zero means no upper bound.
+	max int
+
+	// options lists the allowed values for enum fields, populated at init
+	// time by calling [enumProvider.options] on the provider.
 	options []string
+
+	// provider identifies which [enumProvider] produced options. Used by
+	// [configField.showsColorSchemePreview] to decide whether to render
+	// palette swatches in the enum picker.
+	provider enumProvider
+
+	// getEnum and setEnum are the typed accessors for enum (string) fields.
 	getEnum func(Config) string
 	setEnum func(*Config, string)
 }
@@ -174,25 +259,45 @@ type configField struct {
 // enumSelectState holds transient state while the user picks from an
 // enum's allowed values.
 type enumSelectState struct {
+	// fieldIndex is the index into [ConfigEditor.fields] for the field
+	// being edited.
 	fieldIndex int
-	options    []string
-	index      int
+
+	// options is a copy of the field's allowed values, displayed in the
+	// picker list.
+	options []string
+
+	// index is the currently highlighted option within options.
+	index int
 }
 
 // intEditState holds transient state while the user types an integer value.
 type intEditState struct {
+	// fieldIndex is the index into [ConfigEditor.fields] for the field
+	// being edited.
 	fieldIndex int
-	input      string
-	err        string
+
+	// input is the raw digit string the user has typed so far.
+	input string
+
+	// err is a validation message shown below the input (e.g. "Must be >= 1").
+	// Empty when the input is valid or not yet submitted.
+	err string
 }
 
+// Init implements [tea.Model]. No initial commands are needed.
 func (m *ConfigEditor) Init() tea.Cmd { return nil }
 
+// dirty reports whether the draft diverges from the on-disk snapshot.
 func (m *ConfigEditor) dirty() bool {
 	return m.draft != m.original
 }
 
 // Update implements [tea.Model].
+//
+// It handles terminal resize events and dispatches key presses to the
+// active mode handler. Global quit keys (q, esc, ctrl+c) and save keys
+// (s, ctrl+s) are processed before mode-specific handlers.
 func (m *ConfigEditor) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
@@ -234,6 +339,11 @@ func (m *ConfigEditor) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 }
 
+// handleQuit processes a quit request.
+//
+// If the draft has unsaved changes and this is the first quit attempt, the
+// editor enters a confirmation state with a status-bar warning. A second
+// quit attempt proceeds unconditionally.
 func (m *ConfigEditor) handleQuit() (tea.Model, tea.Cmd) {
 	if m.dirty() && !m.confirmQuit {
 		m.confirmQuit = true
@@ -247,6 +357,10 @@ func (m *ConfigEditor) handleQuit() (tea.Model, tea.Cmd) {
 	return m, tea.Quit
 }
 
+// handleSave persists the draft to disk and exits.
+//
+// On write failure, the error is logged and displayed in the status bar
+// without quitting, giving the user a chance to retry or discard.
 func (m *ConfigEditor) handleSave() (tea.Model, tea.Cmd) {
 	if err := m.cfg.SetConfig(&m.draft); err != nil {
 		m.logger.Error(fmt.Sprintf("config editor: save failed: %v", err))
@@ -256,6 +370,8 @@ func (m *ConfigEditor) handleSave() (tea.Model, tea.Cmd) {
 	return m, tea.Quit
 }
 
+// updateBrowse handles key presses in browse mode: cursor movement,
+// quick-adjust via arrow keys, and field activation via Enter/Space.
 func (m *ConfigEditor) updateBrowse(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if len(m.fields) == 0 {
 		return m, nil
@@ -294,6 +410,10 @@ func (m *ConfigEditor) updateBrowse(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	}
 }
 
+// activateSelected opens the appropriate sub-editor for the selected field.
+//
+// Bool fields are toggled inline without entering a sub-editor. Enum fields
+// open the enum picker modal, and int fields open the numeric input modal.
 func (m *ConfigEditor) activateSelected() (tea.Model, tea.Cmd) {
 	f := &m.fields[m.selected]
 	switch f.Kind {
@@ -328,6 +448,10 @@ func (m *ConfigEditor) activateSelected() (tea.Model, tea.Cmd) {
 	}
 }
 
+// bumpSelected applies a quick in-place adjustment to the selected field.
+//
+// For enums the value cycles through options; for ints it increments or
+// decrements within [min, max]; for bools it toggles.
 func (m *ConfigEditor) bumpSelected(delta int) {
 	if len(m.fields) == 0 {
 		return
@@ -361,6 +485,10 @@ func (m *ConfigEditor) bumpSelected(delta int) {
 	}
 }
 
+// updateEnumSelect handles key presses in the enum picker modal.
+//
+// Up/Down navigate the option list, Enter applies the selection, and
+// Esc cancels back to browse mode without changing the value.
 func (m *ConfigEditor) updateEnumSelect(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc":
@@ -395,6 +523,11 @@ func (m *ConfigEditor) updateEnumSelect(msg tea.KeyPressMsg) (tea.Model, tea.Cmd
 	}
 }
 
+// updateIntEdit handles key presses in the integer input modal.
+//
+// Digit keys append to the input buffer, Backspace removes the last
+// character, Enter validates against [configField.min]/[configField.max]
+// and applies on success, and Esc cancels without applying.
 func (m *ConfigEditor) updateIntEdit(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc":
@@ -446,6 +579,11 @@ func (m *ConfigEditor) updateIntEdit(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	}
 }
 
+// View implements [tea.Model].
+//
+// The layout is a vertical stack: header (title + config path), settings
+// table, footer (status/description/key hints), and an optional sub-editor
+// overlay for enum or int fields. The view uses alt-screen mode.
 func (m *ConfigEditor) View() tea.View {
 	w := m.width
 	if w <= 0 {
@@ -480,6 +618,10 @@ func (m *ConfigEditor) View() tea.View {
 	return v
 }
 
+// renderTable renders the two-column settings table (Setting | Value).
+//
+// The selected row is highlighted with [colorSelected]. Column widths
+// adapt to the longest label and available terminal width.
 func (m *ConfigEditor) renderTable(width int) string {
 	// Column widths.
 	maxLabel := 0
@@ -531,6 +673,8 @@ func (m *ConfigEditor) renderTable(width int) string {
 	return strings.Join(lines, "\n")
 }
 
+// renderFooter renders the bottom section: an optional status bar, the
+// selected field's description and JSON key, and the key-binding hints.
 func (m *ConfigEditor) renderFooter(width int) string {
 	var parts []string
 
@@ -550,6 +694,9 @@ func (m *ConfigEditor) renderFooter(width int) string {
 	return strings.Join(parts, "\n")
 }
 
+// renderEnumPicker renders the bordered modal for choosing among an
+// enum field's allowed values. Color scheme fields additionally show
+// inline palette swatches via [renderColorSchemePreview].
 func (m *ConfigEditor) renderEnumPicker(width int) string {
 	f := m.fields[m.enum.fieldIndex]
 
@@ -565,7 +712,12 @@ func (m *ConfigEditor) renderEnumPicker(width int) string {
 		if i == m.enum.index {
 			prefix = "> "
 		}
-		lines = append(lines, prefix+opt)
+
+		line := prefix + opt
+		if f.showsColorSchemePreview() {
+			line += "  " + renderColorSchemePreview(opt)
+		}
+		lines = append(lines, line)
 	}
 
 	box := lipgloss.NewStyle().
@@ -577,6 +729,32 @@ func (m *ConfigEditor) renderEnumPicker(width int) string {
 	return box
 }
 
+// showsColorSchemePreview reports whether this field's enum picker should
+// display inline color swatches next to each option.
+func (f *configField) showsColorSchemePreview() bool {
+	return f != nil && f.Kind == fieldEnum && f.provider == enumProviderColorSchemes
+}
+
+// renderColorSchemePreview returns a compact swatch strip for a palette.
+//
+// Each block is rendered with the scheme's AdaptiveColor, so lipgloss resolves
+// the light or dark variant automatically for the current terminal theme.
+func renderColorSchemePreview(scheme string) string {
+	colors := GraphColors(scheme)
+	if len(colors) == 0 {
+		return ""
+	}
+
+	var b strings.Builder
+	for _, c := range colors {
+		b.WriteString(
+			lipgloss.NewStyle().Foreground(c).Render(ConfigEditorPalettePreviewBlock))
+	}
+	return b.String()
+}
+
+// renderIntEditor renders the bordered modal for typing an integer value,
+// including the allowed range hint and any validation error.
 func (m *ConfigEditor) renderIntEditor(width int) string {
 	f := m.fields[m.intE.fieldIndex]
 	hint := "Enter: apply • Esc: cancel"
@@ -617,6 +795,8 @@ func availableColorSchemes() []string {
 	return names
 }
 
+// fieldValue returns the human-readable string representation of a field's
+// current value in the given config.
 func fieldValue(f *configField, c *Config) string {
 	switch f.Kind {
 	case fieldBool:
@@ -630,6 +810,7 @@ func fieldValue(f *configField, c *Config) string {
 	}
 }
 
+// indexOf returns the position of v in opts, or -1 if not found.
 func indexOf(opts []string, v string) int {
 	for i := range opts {
 		if opts[i] == v {
@@ -639,6 +820,8 @@ func indexOf(opts []string, v string) int {
 	return -1
 }
 
+// truncateRight truncates s to fit within maxW display columns, appending
+// an ellipsis ("...") when truncation is necessary.
 func truncateRight(s string, maxW int) string {
 	if maxW <= 0 || lipgloss.Width(s) <= maxW {
 		return s

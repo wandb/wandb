@@ -35,7 +35,7 @@ namespace Wandb
 
     /// <summary>
     /// Represents a wandb run and provides methods to interact with it.
-    /// For more information on wandb runs, see https://docs.wandb.ai/guides/runs.
+    /// For more information on wandb runs, see https://docs.wandb.ai/models/runs.
     /// </summary>
     public class Run : IDisposable
     {

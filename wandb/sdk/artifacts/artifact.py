@@ -952,7 +952,7 @@ class Artifact:
 
         Aliases are mutable references that you can programmatically reference.
         Change an artifact's alias with the W&B App UI or programmatically.
-        See [Create new artifact versions](https://docs.wandb.ai/guides/artifacts/create-a-new-artifact-version)
+        See [Create new artifact versions](https://docs.wandb.ai/models/artifacts/create-a-new-artifact-version)
         for more information.
         """
         return self._aliases
@@ -1577,7 +1577,7 @@ class Artifact:
 
         Unlike files or directories that you add to an artifact, references are not
         uploaded to W&B. For more information,
-        see [Track external files](https://docs.wandb.ai/guides/artifacts/track-external-files).
+        see [Track external files](https://docs.wandb.ai/models/artifacts/track-external-files).
 
         By default, the following schemes are supported:
 
@@ -1997,7 +1997,6 @@ class Artifact:
 
             settings.sync_dir.value = str(tmp_dir)
             settings.sync_file.value = str(tmp_dir / f"{stream_id}.wandb")
-            settings.files_dir.value = str(tmp_dir / "files")
             settings.run_id.value = stream_id
 
             service = wl.ensure_service()

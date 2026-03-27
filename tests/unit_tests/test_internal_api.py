@@ -893,13 +893,6 @@ def test_construct_use_artifact_query_with_every_field(mocker: MockerFixture):
 
     mocker.patch.object(api, "settings", side_effect=lambda x: "default-" + x)
 
-    # Mock the server introspection methods
-    mocker.patch.object(
-        api,
-        "server_use_artifact_input_introspection",
-        return_value={"usedAs": "String"},
-    )
-
     # Simulate server support for ALL known features
     mock_server_features = dict.fromkeys(
         chain(ServerFeature.keys(), ServerFeature.values()),
@@ -966,9 +959,6 @@ def test_construct_use_artifact_query_without_entity_project():
     api.settings = Mock(side_effect=lambda x: "default-" + x)
 
     # Mock methods to return False for entity/project support
-    api.server_use_artifact_input_introspection = Mock(
-        return_value={"usedAs": "String"}
-    )
     api._server_features = Mock(return_value={})
 
     query, variables = api._construct_use_artifact_query(
@@ -994,8 +984,6 @@ def test_construct_use_artifact_query_without_used_as():
     api = internal.InternalApi()
     api.settings = Mock(side_effect=lambda x: "default-" + x)
 
-    # Mock methods to return empty dict for introspection
-    api.server_use_artifact_input_introspection = Mock(return_value={})
     # Simulate server support for ALL known features
     mock_server_features = dict.fromkeys(
         chain(ServerFeature.keys(), ServerFeature.values()),

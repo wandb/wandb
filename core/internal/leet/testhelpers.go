@@ -6,6 +6,7 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2/compat"
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
@@ -79,14 +80,143 @@ func (s *RunOverviewSidebar) TestForceExpand() {
 	s.animState.startTime = time.Now().Add(-AnimationDuration)
 }
 
-// TestSeriesCount returns the number of series in the chart
+// TestSeriesCount returns the number of named (non-default) series in the chart.
 func (c *TimeSeriesLineChart) TestSeriesCount() int {
 	return len(c.series)
 }
 
+// TestSeriesColor returns the configured color for a series key.
+func (c *TimeSeriesLineChart) TestSeriesColor(key string) compat.AdaptiveColor {
+	return c.seriesColors[key]
+}
+
+// TestViewRange returns the current X view range.
+func (c *TimeSeriesLineChart) TestViewRange() (minX, maxX float64) {
+	return c.ViewMinX(), c.ViewMaxX()
+}
+
+// TestAutoTrail reports whether the chart is currently auto-trailing live updates.
+func (c *TimeSeriesLineChart) TestAutoTrail() bool {
+	return c.autoTrail
+}
+
+// TestShowAll reports whether the chart is currently showing the full history.
+func (c *TimeSeriesLineChart) TestShowAll() bool {
+	return c.showAll
+}
+
+// TestFormatXAxisTick exposes system-metric X tick formatting for focused tests.
+func (c *TimeSeriesLineChart) TestFormatXAxisTick(v float64, maxWidth int) string {
+	return c.formatXAxisTick(v, maxWidth)
+}
+
+// TestSampleCount exposes the buffered sample-column count for focused tests.
+func (c *FrenchFriesChart) TestSampleCount() int {
+	return len(c.samples)
+}
+
+// TestVisibleSeries exposes the series currently rendered as rows.
+func (c *FrenchFriesChart) TestVisibleSeries() []string {
+	layout := c.layout()
+	names := make([]string, 0, len(layout.bands))
+	for _, band := range layout.bands {
+		names = append(names, band.seriesName)
+	}
+	return names
+}
+
+// TestTitleDetail exposes the rendered title suffix for focused tests.
+func (c *FrenchFriesChart) TestTitleDetail() string {
+	return c.TitleDetail()
+}
+
+// TestColorForValue exposes the rendered cell selected for a value.
+func (c *FrenchFriesChart) TestColorForValue(value float64) string {
+	return c.colorForValue(value)
+}
+
 // TestCurrentPage returns the current grid of charts.
 func (g *SystemMetricsGrid) TestCurrentPage() [][]*TimeSeriesLineChart {
-	return g.currentPage
+	out := make([][]*TimeSeriesLineChart, len(g.currentPage))
+	for row := range g.currentPage {
+		out[row] = make([]*TimeSeriesLineChart, len(g.currentPage[row]))
+		for col := range g.currentPage[row] {
+			if chart, ok := g.currentPage[row][col].(*TimeSeriesLineChart); ok {
+				out[row][col] = chart
+			}
+		}
+	}
+	return out
+}
+
+// TestChartAt returns the underlying line chart at (row, col) on the current page (or nil).
+func (g *SystemMetricsGrid) TestChartAt(row, col int) *TimeSeriesLineChart {
+	if row < 0 || row >= len(g.currentPage) ||
+		col < 0 || col >= len(g.currentPage[row]) {
+		return nil
+	}
+	switch chart := g.currentPage[row][col].(type) {
+	case *TimeSeriesLineChart:
+		return chart
+	case *frenchFriesToggleChart:
+		return chart.line
+	default:
+		return nil
+	}
+}
+
+// TestFrenchFriesChartAt returns the French Fries chart at (row, col) on the current page (or nil).
+func (g *SystemMetricsGrid) TestFrenchFriesChartAt(row, col int) *FrenchFriesChart {
+	if row < 0 || row >= len(g.currentPage) ||
+		col < 0 || col >= len(g.currentPage[row]) {
+		return nil
+	}
+	switch chart := g.currentPage[row][col].(type) {
+	case *FrenchFriesChart:
+		return chart
+	case *frenchFriesToggleChart:
+		return chart.frenchFries
+	default:
+		return nil
+	}
+}
+
+// TestHeatmapModeAt reports whether the chart at (row, col) is in heatmap mode.
+func (g *SystemMetricsGrid) TestHeatmapModeAt(row, col int) bool {
+	if row < 0 || row >= len(g.currentPage) ||
+		col < 0 || col >= len(g.currentPage[row]) {
+		return false
+	}
+	chart := g.currentPage[row][col]
+	if chart == nil {
+		return false
+	}
+	return chart.IsHeatmapMode()
+}
+
+// TestToggleFocusedChartHeatmapMode toggles heatmap mode on the focused system chart.
+func (g *SystemMetricsGrid) TestToggleFocusedChartHeatmapMode() bool {
+	return g.toggleFocusedChartHeatmapMode()
+}
+
+// TestGridDims returns the current grid dimensions.
+func (g *SystemMetricsGrid) TestGridDims() GridDims {
+	return g.calculateChartDimensions()
+}
+
+// TestSyncInspectActive exposes the synchronized inspection flag for tests.
+func (g *SystemMetricsGrid) TestSyncInspectActive() bool {
+	return g.syncInspectActive
+}
+
+// TestToggleFocusedChartLogY toggles log Y on the focused system chart.
+func (g *SystemMetricsGrid) TestToggleFocusedChartLogY() bool {
+	return g.toggleFocusedChartLogY()
+}
+
+// TestCycleFocusedChartMode advances the focused system chart through its modes.
+func (g *SystemMetricsGrid) TestCycleFocusedChartMode() bool {
+	return g.cycleFocusedChartMode()
 }
 
 // TestInspectionMouseX exposes the current overlay pixel X for tests.
@@ -98,6 +228,16 @@ func (c *EpochLineChart) TestInspectionMouseX() (int, bool) {
 // TestBounds exposes the chart's current bounds for testing.
 func (c *EpochLineChart) TestBounds() (xMin, xMax, yMin, yMax float64) {
 	return c.xMin, c.xMax, c.yMin, c.yMax
+}
+
+// TestIsLogY reports whether the chart is using logarithmic Y scaling.
+func (c *EpochLineChart) TestIsLogY() bool {
+	return c.IsLogY()
+}
+
+// TestFormatYTick exposes Y-axis label formatting for focused tests.
+func (c *EpochLineChart) TestFormatYTick(v float64) string {
+	return c.formatYTick(v)
 }
 
 // TestChartAt returns the chart at (row, col) on the current page (or nil).
@@ -114,6 +254,11 @@ func (mg *MetricsGrid) TestChartAt(row, col int) *EpochLineChart {
 // TestSyncInspectActive exposes the synchronized inspection flag for tests.
 func (mg *MetricsGrid) TestSyncInspectActive() bool {
 	return mg.syncInspectActive
+}
+
+// TestToggleFocusedChartLogY toggles log Y on the focused main chart.
+func (mg *MetricsGrid) TestToggleFocusedChartLogY() bool {
+	return mg.toggleFocusedChartLogY()
 }
 
 // ---- Workspace test helpers ----
@@ -146,12 +291,34 @@ func (w *Workspace) TestRunOverviewPreloadQueueLen() int {
 	return len(w.overviewPreloader.queue)
 }
 
+// TestExtractRunID exposes extractRunID for external tests.
+func TestExtractRunID(runKey string) string {
+	return extractRunID(runKey)
+}
+
 func (w *Workspace) TestRunOverviewID(runKey string) string {
 	ro := w.runOverview[runKey]
 	if ro == nil {
 		return ""
 	}
 	return ro.runID
+}
+
+// TestRunOverviewProject returns the project for a given run key
+func (w *Workspace) TestGetRunOverviewByRunKey(runKey string) *RunOverview {
+	ro := w.runOverview[runKey]
+	if ro == nil {
+		return nil
+	}
+	return ro
+}
+
+// TestExecutePreloadCmd calls the preload command for a given run key
+// and returns the resulting message.
+func (w *Workspace) TestExecutePreloadCmd(runKey string) WorkspaceRunOverviewPreloadedMsg {
+	cmd := w.preloadRunOverviewCmd(runKey)
+	msg := cmd()
+	return msg.(WorkspaceRunOverviewPreloadedMsg)
 }
 
 // ---- Run bottom bar / sidebar test helpers ----
@@ -345,4 +512,28 @@ func (w *Workspace) TestOverviewFilterQuery() string {
 // TestOverviewFilterInfo returns the compact match summary for the overview filter.
 func (w *Workspace) TestOverviewFilterInfo() string {
 	return w.runOverviewSidebar.FilterInfo()
+}
+
+// TestRunsFilterMode reports whether the runs sidebar filter is in input mode.
+func (w *Workspace) TestRunsFilterMode() bool {
+	return w.filter.IsActive()
+}
+
+// TestRunsFiltering reports whether an applied runs filter exists.
+func (w *Workspace) TestRunsFiltering() bool {
+	return !w.filter.IsActive() && w.filter.Query() != ""
+}
+
+// TestRunsFilterQuery returns the current runs filter query.
+func (w *Workspace) TestRunsFilterQuery() string {
+	return w.filter.Query()
+}
+
+// TestFilteredRunKeys returns the currently visible run keys in sidebar order.
+func (w *Workspace) TestFilteredRunKeys() []string {
+	keys := make([]string, len(w.runs.FilteredItems))
+	for i, item := range w.runs.FilteredItems {
+		keys[i] = item.Key
+	}
+	return keys
 }

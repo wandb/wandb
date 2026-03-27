@@ -3,7 +3,6 @@ package wbapi
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"os"
 	"sync/atomic"
 	"time"
@@ -13,11 +12,8 @@ import (
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/wandb/simplejsonext"
 
-	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runhistoryreader"
 	"github.com/wandb/wandb/core/internal/runhistoryreader/parquet"
-	"github.com/wandb/wandb/core/internal/settings"
-	"github.com/wandb/wandb/core/internal/stream"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
@@ -45,29 +41,10 @@ type RunHistoryAPIHandler struct {
 	downloadOperations map[int32]*parquet.RunHistoryDownloadOperation
 }
 
-func NewRunHistoryAPIHandler(s *settings.Settings) *RunHistoryAPIHandler {
-	logger := observability.NewNoOpLogger()
-	baseURL := stream.BaseURLFromSettings(logger, s)
-	credentialProvider := stream.CredentialsFromSettings(logger, s)
-	graphqlClient := stream.NewGraphQLClient(
-		baseURL,
-		"", /*clientID*/
-		credentialProvider,
-		logger,
-		&observability.Peeker{},
-		s,
-	)
-
-	httpClient := retryablehttp.NewClient()
-	httpClient.RetryMax = int(s.GetFileTransferMaxRetries())
-	httpClient.RetryWaitMin = s.GetFileTransferRetryWaitMin()
-	httpClient.RetryWaitMax = s.GetFileTransferRetryWaitMax()
-	httpClient.HTTPClient.Timeout = s.GetFileTransferTimeout()
-	httpClient.Logger = observability.NewCoreLogger(
-		slog.Default(),
-		nil,
-	)
-
+func NewRunHistoryAPIHandler(
+	graphqlClient graphql.Client,
+	httpClient *retryablehttp.Client,
+) *RunHistoryAPIHandler {
 	return &RunHistoryAPIHandler{
 		graphqlClient:      graphqlClient,
 		httpClient:         httpClient,

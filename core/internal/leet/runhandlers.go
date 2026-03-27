@@ -1,7 +1,9 @@
 package leet
 
 import (
+	"errors"
 	"fmt"
+	"io"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -141,20 +143,39 @@ func (r *Run) handleLeftSidebarMouse() (*Run, tea.Cmd) {
 // handleRightSidebarMouse handles mouse events in the right sidebar.
 func (r *Run) handleRightSidebarMouse(msg tea.MouseMsg, layout Layout) (*Run, tea.Cmd) {
 	mouse := msg.Mouse()
-
-	if _, ok := msg.(tea.MouseClickMsg); !ok {
-		return r, nil
-	}
-	if mouse.Button != tea.MouseLeft {
-		return r, nil
-	}
+	alt := mouse.Mod == tea.ModAlt
 
 	rightStart := r.width - layout.rightSidebarWidth
 	adjustedX := mouse.X - rightStart
 
-	if r.rightSidebar.HandleMouseClick(adjustedX, mouse.Y) {
+	switch m := msg.(type) {
+	case tea.MouseClickMsg:
+		switch m.Button {
+		case tea.MouseLeft:
+			r.metricsGrid.clearFocus()
+			r.rightSidebar.HandleMouseClick(adjustedX, mouse.Y)
+		case tea.MouseRight:
+			r.metricsGrid.clearFocus()
+			r.rightSidebar.StartInspection(adjustedX, mouse.Y, alt)
+		}
+	case tea.MouseMotionMsg:
+		if m.Button == tea.MouseRight {
+			r.rightSidebar.UpdateInspection(adjustedX, mouse.Y)
+		}
+	case tea.MouseReleaseMsg:
+		if m.Button == tea.MouseRight {
+			r.rightSidebar.EndInspection()
+		}
+	case tea.MouseWheelMsg:
 		r.metricsGrid.clearFocus()
+		switch m.Button {
+		case tea.MouseWheelUp:
+			r.rightSidebar.HandleWheel(adjustedX, mouse.Y, true)
+		case tea.MouseWheelDown:
+			r.rightSidebar.HandleWheel(adjustedX, mouse.Y, false)
+		}
 	}
+
 	return r, nil
 }
 
@@ -238,8 +259,8 @@ func (r *Run) handleKeyPressMsg(msg tea.KeyPressMsg) tea.Cmd {
 }
 
 func (r *Run) cleanup() {
-	if r.reader != nil {
-		r.reader.Close()
+	if r.historySource != nil {
+		r.historySource.Close()
 	}
 	if r.heartbeatMgr != nil {
 		r.heartbeatMgr.Stop()
@@ -344,6 +365,18 @@ func (r *Run) handlePrevSystemPage(msg tea.KeyPressMsg) tea.Cmd {
 func (r *Run) handleNextSystemPage(msg tea.KeyPressMsg) tea.Cmd {
 	if r.rightSidebar.IsVisible() && r.rightSidebar.metricsGrid != nil {
 		r.rightSidebar.metricsGrid.Navigate(1)
+	}
+	return nil
+}
+
+func (r *Run) handleCycleFocusedChartMode(tea.KeyPressMsg) tea.Cmd {
+	switch r.focus.Type {
+	case FocusMainChart:
+		r.metricsGrid.toggleFocusedChartLogY()
+	case FocusSystemChart:
+		if r.rightSidebar != nil && r.rightSidebar.metricsGrid != nil {
+			r.rightSidebar.metricsGrid.cycleFocusedChartMode()
+		}
 	}
 	return nil
 }
@@ -496,6 +529,51 @@ func (r *Run) consoleLogsPaneAnimationCmd() tea.Cmd {
 	})
 }
 
+func (r *Run) readChunkCmd(
+	source HistorySource,
+	chunkSize int,
+	maxTimePerChunk time.Duration,
+) tea.Cmd {
+	return func() tea.Msg {
+		if source == nil {
+			return nil
+		}
+
+		msg, err := source.Read(chunkSize, maxTimePerChunk)
+		if err != nil && !errors.Is(err, io.EOF) {
+			return ErrorMsg{Err: err}
+		}
+
+		return msg
+	}
+}
+
+func (r *Run) ReadLiveBatchCmd(source HistorySource) tea.Cmd {
+	return func() tea.Msg {
+		if source == nil {
+			return nil
+		}
+
+		msg, err := source.Read(LiveMonitorChunkSize, LiveMonitorMaxTime)
+		if err != nil && !errors.Is(err, io.EOF) {
+			return ErrorMsg{Err: err}
+		}
+		if msg == nil {
+			return nil
+		}
+
+		batch, ok := msg.(ChunkedBatchMsg)
+		if !ok {
+			return msg
+		}
+		if len(batch.Msgs) == 0 {
+			return nil
+		}
+
+		return BatchedRecordsMsg{Msgs: batch.Msgs}
+	}
+}
+
 // handleRecordsBatch processes a batch of sub-messages and manages redraw + loading flags.
 func (r *Run) handleRecordsBatch(subMsgs []tea.Msg, suppressRedraw bool) []tea.Cmd {
 	defer timeit(r.logger, "Model.handleRecordsBatch")()
@@ -522,10 +600,12 @@ func (r *Run) handleRecordsBatch(subMsgs []tea.Msg, suppressRedraw bool) []tea.C
 // handleInit handles InitMsg (reader ready).
 func (r *Run) handleInit(msg InitMsg) []tea.Cmd {
 	r.logger.Debug("model: InitMsg received, reader initialized")
-	r.reader = msg.Reader
+	r.historySource = msg.Source
 	r.loadStartTime = time.Now()
 
-	return []tea.Cmd{ReadAllRecordsChunked(r.reader)}
+	return []tea.Cmd{
+		r.readChunkCmd(r.historySource, BootLoadChunkSize, BootLoadMaxTime),
+	}
 }
 
 // handleChunkedBatch handles boot-load chunked batches.
@@ -541,7 +621,10 @@ func (r *Run) handleChunkedBatch(msg ChunkedBatchMsg) []tea.Cmd {
 	cmds := r.handleRecordsBatch(msg.Msgs, false)
 
 	if msg.HasMore {
-		cmds = append(cmds, ReadAllRecordsChunked(r.reader))
+		cmds = append(
+			cmds,
+			r.readChunkCmd(r.historySource, BootLoadChunkSize, BootLoadMaxTime),
+		)
 		return cmds
 	}
 
@@ -561,7 +644,10 @@ func (r *Run) handleChunkedBatch(msg ChunkedBatchMsg) []tea.Cmd {
 func (r *Run) handleBatched(msg BatchedRecordsMsg) []tea.Cmd {
 	r.logger.Debug(fmt.Sprintf("model: BatchedRecordsMsg received with %d messages", len(msg.Msgs)))
 	cmds := r.handleRecordsBatch(msg.Msgs, true)
-	cmds = append(cmds, ReadAvailableRecords(r.reader))
+	cmds = append(
+		cmds,
+		r.ReadLiveBatchCmd(r.historySource),
+	)
 	return cmds
 }
 
@@ -570,7 +656,7 @@ func (r *Run) handleHeartbeat() []tea.Cmd {
 	r.logger.Debug("model: processing HeartbeatMsg")
 	r.heartbeatMgr.Reset(r.isRunning)
 	return []tea.Cmd{
-		ReadAvailableRecords(r.reader),
+		r.ReadLiveBatchCmd(r.historySource),
 		r.watcherMgr.WaitForMsg,
 	}
 }
@@ -579,7 +665,7 @@ func (r *Run) handleHeartbeat() []tea.Cmd {
 func (r *Run) handleFileChange() []tea.Cmd {
 	r.heartbeatMgr.Reset(r.isRunning)
 	return []tea.Cmd{
-		ReadAvailableRecords(r.reader),
+		r.ReadLiveBatchCmd(r.historySource),
 		r.watcherMgr.WaitForMsg,
 	}
 }

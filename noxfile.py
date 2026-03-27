@@ -17,6 +17,17 @@ nox.options.default_venv_backend = "uv"
 
 _SUPPORTED_PYTHONS = ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
 
+# Protobuf Python bindings
+#
+# protobuf X.Y.Z uses protoc Y.Z
+# See https://protobuf.dev/support/version-support/
+_PROTOC_FOR_PB = {
+    4: "23.4",
+    5: "27.0",
+    6: "32.1",
+    7: "34.1",
+}
+
 # Directories in which to create temporary per-session directories
 # containing test results and pytest/Go coverage.
 #
@@ -458,16 +469,40 @@ def local_testcontainer_registry(session: nox.Session) -> None:
     session.log(f"Successfully copied image {target_image}")
 
 
+@nox.session(python="3.13", name="codegen-check")
+def codegen_check(session: nox.Session) -> None:
+    """Generate code and ensure nothing changed."""
+    install_timed(
+        session,
+        "-r",
+        _requirements_file(session.python),
+        "ruff",  # tools/graphql_codegen/plugin.py shells out to Ruff after generation
+    )
+    session.run(
+        "python",
+        "tools/generate-tool.py",
+        "--generate",
+        "--check",
+        env={"PYTHONPATH": "."},
+    )
+
+
 @nox.session(name="gql-codegen", tags=["graphql"], python="3.10")
 def gql_codegen(session: nox.Session) -> None:
     """Generate client-side Python code from GraphQL query, mutation, and fragment definitions."""
+    install_timed(
+        session,
+        "-r",
+        _requirements_file(session.python),
+        "ruff",  # tools/graphql_codegen/plugin.py shells out to Ruff after generation
+    )
     session.run("tools/graphql_codegen/generate-graphql.sh", external=True)
 
 
 @nox.session(python=False, name="proto-rust", tags=["proto"])
 def proto_rust(session: nox.Session) -> None:
     """Generate Rust bindings for protobufs."""
-    session.run("./core/api/proto/install-protoc.sh", "23.4", external=True)
+    session.run("./core/api/proto/install-protoc.sh", "34.1", external=True)
     session.run("./gpu_stats/tools/generate-proto.sh", external=True)
 
 
@@ -481,49 +516,30 @@ def _generate_proto_go(session: nox.Session) -> None:
     session.run("./core/api/proto/generate-proto.sh", external=True)
 
 
-@nox.session(name="proto-python", tags=["proto"], python="3.10")
-@nox.parametrize("pb", [4, 5, 6])
-def proto_python(session: nox.Session, pb: int) -> None:
+@nox.session(python=False, name="proto-python", tags=["proto"])
+def proto_python(session: nox.Session) -> None:
     """Generate Python bindings for protobufs.
 
-    The pb argument is the major version of the protobuf package to use.
-
-    Tested with Python 3.10 on a Mac with an M1 chip.
+    Pass specific major versions as positional args, or omit to generate all:
+        nox -s proto-python -- 5 7
     """
-    _generate_proto_python(session, pb=pb)
+    targets = (
+        [int(v) for v in session.posargs] if session.posargs else sorted(_PROTOC_FOR_PB)
+    )
 
+    for pb in targets:
+        protoc_ver = _PROTOC_FOR_PB.get(pb)
+        if not protoc_ver:
+            session.error(
+                f"Unknown protobuf major version: {pb}. Supported: {sorted(_PROTOC_FOR_PB)}"
+            )
 
-def _generate_proto_python(session: nox.Session, pb: int) -> None:
-    if pb == 4:
-        session.install(
-            "protobuf~=4.23.4",
-            "mypy-protobuf~=3.5.0",
-            "grpcio~=1.51.0",
-            "grpcio-tools~=1.51.0",
-            "packaging",
-            "setuptools<70",  # provides pkg_resources for grpcio-tools
+        session.run(
+            "./wandb/proto/generate-proto.sh",
+            protoc_ver,
+            f"wandb/proto/v{pb}",
+            external=True,
         )
-    elif pb == 5:
-        session.install(
-            "protobuf~=5.27.0",
-            "mypy-protobuf~=3.6.0",
-            "grpcio~=1.64.1",
-            "grpcio-tools~=1.64.1",
-            "packaging",
-        )
-    elif pb == 6:
-        session.install(
-            "protobuf~=6.32.1",
-            "mypy-protobuf~=3.6.0",
-            "grpcio~=1.75.0",
-            "grpcio-tools~=1.75.0",
-            "packaging",
-        )
-    else:
-        session.error("Invalid protobuf version given. `pb` must be 4, 5, or 6.")
-
-    with session.chdir("wandb/proto"):
-        session.run("python", "wandb_generate_proto.py")
 
 
 def _ensure_no_diff(
@@ -539,13 +555,18 @@ def _ensure_no_diff(
     session.run("rm", "-rf", saved, external=True)
 
 
-@nox.session(name="proto-check-python", tags=["proto-check"])
-@nox.parametrize("pb", [5, 6])
+@nox.session(python=False, name="proto-check-python", tags=["proto-check"])
+@nox.parametrize("pb", [4, 5, 6, 7])
 def proto_check_python(session: nox.Session, pb: int) -> None:
     """Regenerates Python protobuf files and ensures nothing changed."""
     _ensure_no_diff(
         session,
-        after=lambda: _generate_proto_python(session, pb=pb),
+        after=lambda: session.run(
+            "./wandb/proto/generate-proto.sh",
+            _PROTOC_FOR_PB[pb],
+            f"wandb/proto/v{pb}",
+            external=True,
+        ),
         in_directory=f"wandb/proto/v{pb}/.",
     )
 

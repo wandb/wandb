@@ -103,7 +103,7 @@ def _maybe_suggest_weave_installation() -> None:
     wandb.termlog(f"Detected [{', '.join(imported_libs)}] in use.", repeat=False)
     wandb.termlog(msg, repeat=False)
     wandb.termlog(
-        "For more information, check out the docs at: https://weave-docs.wandb.ai/",
+        "For more information, check out the docs at: https://weave-docs.wandb.ai",
         repeat=False,
     )
 

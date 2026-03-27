@@ -80,12 +80,12 @@ func RunKeyBindings() []BindingCategory[Run] {
 					Handler:     (*Run).handleNextPage,
 				},
 				{
-					Keys:        []string{"alt+N", "alt+pgup"},
+					Keys:        []string{"M", "alt+N", "alt+pgup"},
 					Description: "Previous system metrics page",
 					Handler:     (*Run).handlePrevSystemPage,
 				},
 				{
-					Keys:        []string{"alt+n", "alt+pgdown"},
+					Keys:        []string{"m", "alt+n", "alt+pgdown"},
 					Description: "Next system metrics page",
 					Handler:     (*Run).handleNextSystemPage,
 				},
@@ -94,6 +94,11 @@ func RunKeyBindings() []BindingCategory[Run] {
 		{
 			Name: "Charts",
 			Bindings: []KeyBinding[Run]{
+				{
+					Keys:        []string{"y"},
+					Description: "Cycle focused chart mode (log Y / heatmap)",
+					Handler:     (*Run).handleCycleFocusedChartMode,
+				},
 				{
 					Keys:        []string{"/"},
 					Description: "Filter metrics by pattern",
@@ -105,7 +110,7 @@ func RunKeyBindings() []BindingCategory[Run] {
 					Handler:     (*Run).handleEnterSystemMetricsFilter,
 				},
 				{
-					Keys:        []string{"ctrl+l"},
+					Keys:        []string{"ctrl+/", "ctrl+l"},
 					Description: "Clear metrics filter",
 					Handler:     (*Run).handleClearMetricsFilter,
 				},
@@ -263,8 +268,28 @@ func WorkspaceKeyBindings() []BindingCategory[Workspace] {
 			},
 		},
 		{
+			Name: "Runs",
+			Bindings: []KeyBinding[Workspace]{
+				{
+					Keys:        []string{"f"},
+					Description: "Filter runs by name / metadata",
+					Handler:     (*Workspace).handleEnterRunsFilter,
+				},
+				{
+					Keys:        []string{"ctrl+f"},
+					Description: "Clear runs filter",
+					Handler:     (*Workspace).handleClearRunsFilter,
+				},
+			},
+		},
+		{
 			Name: "Charts",
 			Bindings: []KeyBinding[Workspace]{
+				{
+					Keys:        []string{"y"},
+					Description: "Cycle focused chart mode (log Y / heatmap)",
+					Handler:     (*Workspace).handleCycleFocusedChartMode,
+				},
 				{
 					Keys:        []string{"/"},
 					Description: "Filter metrics by pattern",
@@ -365,6 +390,82 @@ func WorkspaceKeyBindings() []BindingCategory[Workspace] {
 		},
 
 		mouseCategory[Workspace](),
+	}
+}
+
+// SymonKeyBindings returns key bindings for the standalone system monitor view.
+func SymonKeyBindings() []BindingCategory[Symon] {
+	return []BindingCategory[Symon]{
+		{
+			Name: "General",
+			Bindings: []KeyBinding[Symon]{
+				{
+					Keys:        []string{"h", "?"},
+					Description: "Toggle this help screen",
+				},
+				{
+					Keys:        []string{"q", "ctrl+c"},
+					Description: "Quit",
+					Handler:     (*Symon).handleQuit,
+				},
+				{
+					Keys:        []string{"alt+r"},
+					Description: "Restart",
+				},
+			},
+		},
+		{
+			Name: "Navigation",
+			Bindings: []KeyBinding[Symon]{
+				{
+					Keys:        []string{"N", "pgup"},
+					Description: "Previous chart page",
+					Handler:     (*Symon).handlePrevPage,
+				},
+				{
+					Keys:        []string{"n", "pgdown"},
+					Description: "Next chart page",
+					Handler:     (*Symon).handleNextPage,
+				},
+			},
+		},
+		{
+			Name: "Charts",
+			Bindings: []KeyBinding[Symon]{
+				{
+					Keys:        []string{"y"},
+					Description: "Toggle log Y on focused chart",
+					Handler:     (*Symon).handleToggleFocusedChartLogY,
+				},
+				{
+					Keys:        []string{"\\"},
+					Description: "Filter system metrics by pattern",
+					Handler:     (*Symon).handleEnterSystemMetricsFilter,
+				},
+				{
+					Keys:        []string{"ctrl+\\"},
+					Description: "Clear system metrics filter",
+					Handler:     (*Symon).handleClearSystemMetricsFilter,
+				},
+			},
+		},
+		{
+			Name: "Configuration",
+			Bindings: []KeyBinding[Symon]{
+				{
+					Keys:        []string{"c", "C"},
+					Description: "Set grid columns",
+					Handler:     (*Symon).handleConfigSystemCols,
+				},
+				{
+					Keys:        []string{"r", "R"},
+					Description: "Set grid rows",
+					Handler:     (*Symon).handleConfigSystemRows,
+				},
+			},
+		},
+
+		mouseCategory[Symon](),
 	}
 }
 

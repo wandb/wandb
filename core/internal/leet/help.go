@@ -84,13 +84,17 @@ func (h *HelpModel) entriesForMode() []HelpEntry {
 	switch h.mode {
 	case viewModeWorkspace:
 		entries = append(entries, helpEntriesFromCategories(WorkspaceKeyBindings())...)
+		entries = append(entries, tipsEntries()...)
 	case viewModeRun:
 		entries = append(entries, helpEntriesFromCategories(RunKeyBindings())...)
+		entries = append(entries, tipsEntries()...)
+	case viewModeSymon:
+		entries = append(entries, helpEntriesFromCategories(SymonKeyBindings())...)
+		entries = append(entries, symonTipsEntries()...)
 	default:
 		entries = append(entries, helpEntriesFromCategories(WorkspaceKeyBindings())...)
+		entries = append(entries, tipsEntries()...)
 	}
-
-	entries = append(entries, tipsEntries()...)
 
 	return entries
 }
@@ -100,6 +104,20 @@ func tipsEntries() []HelpEntry {
 	return []HelpEntry{
 		{Key: "Tips", Description: ""},
 		{Key: "wandb beta leet config", Description: "Open the interactive config editor"},
+		{Key: "Runs filter", Description: "Bare terms search run key/name/id/project/tags/notes. " +
+			"Qualifiers: project:, name:, id:, tag:, note:, config:, cfg.<path>:, has:. " +
+			"Boolean: space/AND, OR or |, -/!/NOT."},
+		{Key: "Runs filter example",
+			Description: "project:vision tag:baseline cfg.lr>=1e-3 -note:debug | project:nlp"},
+		blankLine,
+	}
+}
+
+func symonTipsEntries() []HelpEntry {
+	return []HelpEntry{
+		{Key: "Tips", Description: ""},
+		{Key: "wandb beta leet config", Description: "Open the interactive config editor"},
+		{Key: "SYMON", Description: "Live system monitor"},
 		blankLine,
 	}
 }
@@ -110,6 +128,8 @@ func (h *HelpModel) modeLabel() string {
 		return "workspace"
 	case viewModeRun:
 		return "single run"
+	case viewModeSymon:
+		return "symon"
 	default:
 		return "unknown"
 	}

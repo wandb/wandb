@@ -80,7 +80,7 @@ func wandbFileWithRecords(
 	}
 }
 
-// testWork is a fake runwork.Work for tests.
+// testWork is a fake runwork.WorkImpl for tests.
 type testWork struct {
 	runwork.SimpleScheduleMixin
 	runwork.AlwaysAcceptMixin
@@ -89,12 +89,12 @@ type testWork struct {
 	ID int // for equality assertions in tests
 }
 
-var _ runwork.Work = &testWork{}
+var _ runwork.WorkImpl = &testWork{}
 
-// ToRecord implements Work.ToRecord.
+// ToRecord implements WorkImpl.ToRecord.
 func (w *testWork) ToRecord() *spb.Record { return nil }
 
-// DebugInfo implements Work.DebugInfo.
+// DebugInfo implements WorkImpl.DebugInfo.
 func (w *testWork) DebugInfo() string {
 	return "scheduleCountingWork"
 }
@@ -202,8 +202,8 @@ func Test_TurnsAllRecordsIntoWork(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t,
-		[]runwork.Work{work1, work2, exitWork},
-		x.FakeRunWork.AllWork())
+		[]runwork.WorkImpl{work1, work2, exitWork},
+		x.FakeRunWork.AllWorkImpls())
 }
 
 func Test_CreatesExitRecordIfNotSeen(t *testing.T) {
@@ -220,8 +220,8 @@ func Test_CreatesExitRecordIfNotSeen(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t,
-		[]runwork.Work{work1, exitWork},
-		x.FakeRunWork.AllWork())
+		[]runwork.WorkImpl{work1, exitWork},
+		x.FakeRunWork.AllWorkImpls())
 }
 
 func Test_CreatesRunStartRequest(t *testing.T) {
@@ -246,8 +246,8 @@ func Test_CreatesRunStartRequest(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t,
-		[]runwork.Work{runWork, runStartWork, exitWork},
-		x.FakeRunWork.AllWork())
+		[]runwork.WorkImpl{runWork, runStartWork, exitWork},
+		x.FakeRunWork.AllWorkImpls())
 }
 
 func Test_FileNotFoundError(t *testing.T) {

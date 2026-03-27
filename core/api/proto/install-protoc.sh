@@ -4,7 +4,7 @@ VER=$1
 COMMAND="protobuf"
 
 if [ "x$VER" == "x" ]; then
-    echo "ERROR: script requires desired protobuf version (for example \"23.4\")"
+    echo "ERROR: script requires desired protobuf version (for example \"25.9\")"
     exit 1
 fi
 

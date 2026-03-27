@@ -321,17 +321,6 @@ def test_launch_add_with_priority(
         patched_push_to_run_queue_introspection,
     )
 
-    def patched_create_run_queue_introspection(*args, **kwargs):
-        args[0].server_create_run_queue_supports_drc = True
-        args[0].server_create_run_queue_supports_priority = True
-        return (True, True, True)
-
-    monkeypatch.setattr(
-        wandb.sdk.internal.internal_api.Api,
-        "create_run_queue_introspection",
-        patched_create_run_queue_introspection,
-    )
-
     queue_name = "prio_queue"
     proj = "test1"
     queue_config = {}

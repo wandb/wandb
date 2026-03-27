@@ -42,6 +42,7 @@ func NewGPU(
 
 	g.resourceRef = ref
 	g.client = client
+	g.pid = pid
 
 	return g, nil
 }
