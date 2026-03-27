@@ -55,7 +55,7 @@ DEFAULT_STOPPED_RUN_TIMEOUT = 60
 DEFAULT_PRINT_INTERVAL = 5 * 60
 VERBOSE_PRINT_INTERVAL = 20
 
-DEFAULT_BASE_IMAGE = "python:3.14-slim"
+DEFAULT_BASE_IMAGE = "python:3.12-slim"
 
 _env_timeout = os.environ.get("WANDB_LAUNCH_START_TIMEOUT")
 if _env_timeout:

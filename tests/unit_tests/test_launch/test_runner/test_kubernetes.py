@@ -2,6 +2,7 @@ import asyncio
 import base64
 import json
 import platform
+import shlex
 from typing import Any
 from unittest.mock import MagicMock
 
@@ -1605,14 +1606,17 @@ def _make_emptydir_manifest(
     }
 
 
-def _make_emptydir_project(test_api, source_type, source_info, auto_default=False):
+def _make_emptydir_project(
+    test_api, source_type, source_info, auto_default=False, working_dir_override=None
+):
     """Build a LaunchProject for emptyDir tests."""
+    overrides = {"working_dir": working_dir_override} if working_dir_override else {}
     project = LaunchProject(
         target_entity="test_entity",
         target_project="test_project",
         resource_args={},
         launch_spec={},
-        overrides={},
+        overrides=overrides,
         resource="kubernetes",
         api=test_api,
         git_info={},
@@ -1636,6 +1640,9 @@ def _make_emptydir_project(test_api, source_type, source_info, auto_default=Fals
         (["python", "train.py"], [], True),  # command only
         ([], ["python", "train.py"], True),  # args only
         (["python"], ["train.py"], True),  # command + args
+        # shell metacharacters in args must be quoted so the semicolon isn't
+        # interpreted as a command separator by /bin/sh
+        (["python", "-c"], ["import sys; print(sys.argv)"], True),
     ],
 )
 def test_wrap_container_command_with_dep_install(command, args, should_wrap):
@@ -1658,6 +1665,10 @@ def test_wrap_container_command_with_dep_install(command, args, should_wrap):
             < script.index("pyproject.toml")
             < script.index("requirements.frozen.txt")
         )
+        # All original tokens must appear shell-quoted so metacharacters
+        # (semicolons, spaces, etc.) are not interpreted by /bin/sh
+        for token in command + args:
+            assert shlex.quote(token) in script
 
 
 @pytest.mark.parametrize(
@@ -1727,6 +1738,7 @@ def test_emptydir_fetch_script(
         assert expected in script
     for not_expected in not_expected_in_script:
         assert not_expected not in script
+    assert "chmod -R a+w" in script
 
 
 @pytest.mark.parametrize(
@@ -1844,14 +1856,63 @@ def test_emptydir_unknown_source_type_raises(test_api):
     )
 
 
-def _make_pvc_project(test_api, auto_default=False):
+@pytest.mark.parametrize("working_dir_override", [None, "jobs/hello_world"])
+def test_emptydir_working_dir_override(working_dir_override, test_api):
+    """Test that overrides.working_dir sets workingDir to CODE_MOUNT_DIR/subdir."""
+    from wandb.sdk.launch.runner.kubernetes_runner import CODE_MOUNT_DIR
+
+    manifest = _make_emptydir_manifest(command=["python", "train.py"])
+    project = _make_emptydir_project(
+        test_api,
+        "artifact",
+        {"artifact_string": "entity/project/code:v0", "job_artifact": ""},
+        working_dir_override=working_dir_override,
+    )
+
+    apply_code_mount_configuration_emptydir(manifest, project, test_api)
+
+    container = manifest["spec"]["template"]["spec"]["containers"][0]
+    expected = (
+        f"{CODE_MOUNT_DIR}/{working_dir_override}"
+        if working_dir_override
+        else CODE_MOUNT_DIR
+    )
+    assert container["workingDir"] == expected
+
+
+@pytest.mark.parametrize("working_dir_override", [None, "jobs/hello_world"])
+def test_pvc_working_dir_override(working_dir_override, monkeypatch, test_api):
+    """Test that overrides.working_dir sets workingDir to CODE_MOUNT_DIR/subdir."""
+    from wandb.sdk.launch.runner.kubernetes_runner import CODE_MOUNT_DIR
+
+    monkeypatch.setattr(
+        wandb.sdk.launch.runner.kubernetes_runner,
+        "SOURCE_CODE_PVC_NAME",
+        "wandb-source-code-pvc",
+    )
+    manifest = _make_pvc_manifest()
+    project = _make_pvc_project(test_api, working_dir_override=working_dir_override)
+
+    apply_code_mount_configuration(manifest, project)
+
+    container = manifest["spec"]["template"]["spec"]["containers"][0]
+    expected = (
+        f"{CODE_MOUNT_DIR}/{working_dir_override}"
+        if working_dir_override
+        else CODE_MOUNT_DIR
+    )
+    assert container["workingDir"] == expected
+
+
+def _make_pvc_project(test_api, auto_default=False, working_dir_override=None):
     """Build a LaunchProject for PVC tests."""
+    overrides = {"working_dir": working_dir_override} if working_dir_override else {}
     project = LaunchProject(
         target_entity="test_entity",
         target_project="test_project",
         resource_args={},
         launch_spec={},
-        overrides={},
+        overrides=overrides,
         resource="kubernetes",
         api=test_api,
         git_info={},

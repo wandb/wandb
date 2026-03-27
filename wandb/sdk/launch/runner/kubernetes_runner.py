@@ -1271,18 +1271,20 @@ def _wrap_container_command_with_dep_install(
     """
     original_command = container.get("command", [])
     original_args = container.get("args", [])
-    original_cmd_str = " ".join(original_command + original_args)
+    original_cmd_str = " ".join(
+        shlex.quote(c) for c in original_command + original_args
+    )
     if not original_cmd_str:
         return
     user_requirements = f"{working_dir}/requirements.txt"
     pyproject = f"{working_dir}/pyproject.toml"
     install_prefix = (
-        f"if [ -f {user_requirements} ]; then"
-        f" pip install -r {user_requirements};"
-        f" elif [ -f {pyproject} ]; then"
-        f" pip install {working_dir};"
-        f" elif [ -f {requirements_path} ]; then"
-        f" pip install -r {requirements_path};"
+        f"if [ -f {shlex.quote(user_requirements)} ]; then"
+        f" pip install -r {shlex.quote(user_requirements)};"
+        f" elif [ -f {shlex.quote(pyproject)} ]; then"
+        f" pip install {shlex.quote(working_dir)};"
+        f" elif [ -f {shlex.quote(requirements_path)} ]; then"
+        f" pip install -r {shlex.quote(requirements_path)};"
         f" else echo 'No requirements file found'; fi"
     )
     container["command"] = ["/bin/sh", "-c"]
@@ -1427,7 +1429,7 @@ def apply_code_mount_configuration_emptydir(
             fetch_script = (
                 f"python -c {shlex.quote(py_cmd)}"
                 + fetch_job_artifact
-                + f" && chmod -R a+w {CODE_MOUNT_DIR}/*"
+                + f" && chmod -R a+w {CODE_MOUNT_DIR}/* || true && chmod -R a+w {CODE_MOUNT_DIR}/.* || true"
             )
         else:  # repo
             git_remote = source_info.get("git_remote", "")
@@ -1437,7 +1439,7 @@ def apply_code_mount_configuration_emptydir(
                 f" && git config --global --add safe.directory {CODE_MOUNT_DIR}"
                 f" && cd {CODE_MOUNT_DIR} && git checkout {shlex.quote(git_commit)}"
                 + fetch_job_artifact
-                + f" && chmod -R a+w {CODE_MOUNT_DIR}/*"
+                + f" && chmod -R a+w {CODE_MOUNT_DIR}/* || true && chmod -R a+w {CODE_MOUNT_DIR}/.* || true"
             )
 
         fetch_container = {
