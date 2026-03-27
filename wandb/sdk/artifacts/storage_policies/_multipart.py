@@ -126,12 +126,19 @@ class MultipartDownloadContext:
             self._url_invalidated = True
 
     def signal_writer_stop(self) -> None:
-        """Signal the writer thread to stop without blocking."""
-        self.cancel.set()
-        try:
-            self.q.put_nowait(END_CHUNK)
-        except Full:
-            pass
+        """Signal the writer thread to stop.
+
+        On the error path (cancel already set), uses non-blocking put to avoid
+        hanging on a full queue. On the success path, uses blocking put so the
+        writer drains all remaining chunks before stopping.
+        """
+        if self.cancel.is_set():
+            try:
+                self.q.put_nowait(END_CHUNK)
+            except Full:
+                pass
+        else:
+            self.q.put(END_CHUNK)
 
 
 def _download_chunk_with_refresh(
