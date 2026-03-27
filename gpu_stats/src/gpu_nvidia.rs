@@ -199,7 +199,7 @@ impl NvidiaGpu {
         // Probe GPM (GPU Performance Monitoring) support per device and take
         // initial samples. GPM requires Hopper+ (H100 and newer).
         let mut gpm_previous_samples: Vec<Option<gpm::GpmSample<'_>>> =
-            vec![None; device_count as usize];
+            (0..device_count).map(|_| None).collect();
         for di in 0..device_count {
             if let Ok(device) = nvml.device_by_index(di) {
                 if device.gpm_support().unwrap_or(false) {
