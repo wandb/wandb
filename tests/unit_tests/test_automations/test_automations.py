@@ -276,7 +276,7 @@ class TestPrepareToUpdate:
     }
 
     @mark.parametrize(
-        "saved_event_type",
+        "mutation_event_type",
         MUTATION_EVENT_TYPES,
         indirect=True,
         ids=lambda x: f"event={x.value}",
@@ -284,11 +284,11 @@ class TestPrepareToUpdate:
     def test_update_event_preserves_mutation_filter(
         self,
         saved_automation: Automation,
-        saved_event_type: EventType,
+        mutation_event_type: EventType,
         artifact_collection,
     ):
         """Updating an automation with a new InputEvent must preserve the event filter."""
-        event_cls = self.MUTATION_EVENT_TYPE_TO_CLASS[saved_event_type]
+        event_cls = self.MUTATION_EVENT_TYPE_TO_CLASS[mutation_event_type]
         new_event = event_cls(
             scope=artifact_collection,
             filter=ArtifactEvent.alias == "prod",
@@ -301,7 +301,7 @@ class TestPrepareToUpdate:
         assert event_filter == {"$or": [{"$and": [{"alias": {"$eq": "prod"}}]}]}
 
     @mark.parametrize(
-        "saved_event_type",
+        "mutation_event_type",
         MUTATION_EVENT_TYPES,
         indirect=True,
         ids=lambda x: f"event={x.value}",
@@ -318,7 +318,7 @@ class TestPrepareToUpdate:
         assert event_filter == {"$or": [{"$and": [{"alias": {"$eq": "latest"}}]}]}
 
     @mark.parametrize(
-        "saved_event_type",
+        "mutation_event_type",
         MUTATION_EVENT_TYPES,
         indirect=True,
         ids=lambda x: f"event={x.value}",
@@ -350,7 +350,7 @@ class TestPrepareToUpdate:
     }
 
     @mark.parametrize(
-        "saved_run_event_type",
+        "run_event_type",
         sorted(RUN_EVENT_FACTORIES.keys()),
         indirect=True,
         ids=lambda x: f"event={x.value}",
@@ -358,11 +358,11 @@ class TestPrepareToUpdate:
     def test_update_run_event_preserves_filter(
         self,
         saved_run_automation: Automation,
-        saved_run_event_type: EventType,
+        run_event_type: EventType,
         project,
     ):
         """Updating an automation with a new run InputEvent must serialize correctly."""
-        factory = self.RUN_EVENT_FACTORIES[saved_run_event_type]
+        factory = self.RUN_EVENT_FACTORIES[run_event_type]
         new_event = factory(project)
 
         result = prepare_to_update(saved_run_automation, event=new_event)

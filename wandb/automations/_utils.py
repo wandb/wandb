@@ -282,6 +282,6 @@ def prepare_to_update(
     # Validate all input variables, and prepare as expected by the GraphQL request.
     # - if an object is provided, override its fields with any keyword args
     # - otherwise, instantiate from the keyword args
-    obj_dict = {**dict(obj or {}), **kwargs}
+    obj_dict = dict(obj or {}) | kwargs
     vobj = ValidatedUpdateInput(**obj_dict)
     return UpdateFilterTriggerInput.model_validate(vobj)

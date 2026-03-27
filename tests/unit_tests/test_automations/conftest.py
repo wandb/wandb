@@ -293,19 +293,19 @@ MUTATION_EVENT_TYPES = (
 
 @fixture(
     params=MUTATION_EVENT_TYPES,
-    ids=lambda x: f"saved_event={x.value}",
+    ids=lambda x: f"mutation_event={x.value}",
 )
-def saved_event_type(request: FixtureRequest) -> EventType:
-    """A mutation event type for saved-automation fixtures."""
+def mutation_event_type(request: FixtureRequest) -> EventType:
+    """A mutation-based event type."""
     return request.param
 
 
 @fixture
-def saved_event(saved_event_type: EventType) -> SavedEvent:
+def saved_event(mutation_event_type: EventType) -> SavedEvent:
     """A realistic SavedEvent with a non-empty wrapped filter."""
     wrapped_filter = {"filter": {"$or": [{"$and": [{"alias": {"$eq": "latest"}}]}]}}
     return SavedEvent(
-        event_type=saved_event_type,
+        event_type=mutation_event_type,
         filter=json.dumps(wrapped_filter),
     )
 
@@ -358,30 +358,17 @@ def saved_automation(
     artifact_collection: ArtifactCollection,
 ) -> Automation:
     """An Automation object mimicking what the server returns, for unit-testing prepare_to_update()."""
-    raw = {
-        "__typename": "Trigger",
-        "id": automation_id,
-        "createdAt": "2024-01-01T00:00:00Z",
-        "updatedAt": None,
-        "name": "test-automation",
-        "description": "test description",
-        "enabled": True,
-        "scope": {
-            "__typename": "ArtifactPortfolio",
-            "id": artifact_collection.id,
-            "name": artifact_collection.name,
-        },
-        "event": {
-            "__typename": "FilterEventTriggeringCondition",
-            "eventType": saved_event.event_type.value,
-            "filter": json.dumps(saved_event.filter.model_dump()),
-        },
-        "action": {
-            "__typename": saved_action.typename__,
-            "noOp": saved_action.no_op,
-        },
-    }
-    return Automation.model_validate(raw)
+    return Automation(
+        id=automation_id,
+        created_at="2024-01-01T00:00:00Z",
+        updated_at=None,
+        name="test-automation",
+        description="test description",
+        enabled=True,
+        scope=artifact_collection,
+        event=saved_event,
+        action=saved_action,
+    )
 
 
 RUN_EVENT_TYPES = (
@@ -392,16 +379,17 @@ RUN_EVENT_TYPES = (
 
 @fixture(
     params=RUN_EVENT_TYPES,
-    ids=lambda x: f"saved_run_event={x.value}",
+    ids=lambda x: f"run_event={x.value}",
 )
-def saved_run_event_type(request: FixtureRequest) -> EventType:
-    """A run event type for saved-automation fixtures."""
+def run_event_type(request: FixtureRequest) -> EventType:
+    """A run-based event type."""
     return request.param
 
 
-def _make_saved_run_filter_json(event_type: EventType) -> str:
-    """Build a realistic saved filter JSON string for a run event type."""
-    if event_type == EventType.RUN_METRIC_THRESHOLD:
+@fixture
+def run_event_filter_json(run_event_type: EventType) -> str:
+    """A realistic JSON-serialized filter string for a run event type."""
+    if run_event_type is EventType.RUN_METRIC_THRESHOLD:
         return json.dumps(
             {
                 "run_filter": json.dumps(
@@ -419,7 +407,7 @@ def _make_saved_run_filter_json(event_type: EventType) -> str:
                 "metric_filter": None,
             }
         )
-    if event_type == EventType.RUN_STATE:
+    if run_event_type is EventType.RUN_STATE:
         return json.dumps(
             {
                 "run_filter": json.dumps(
@@ -428,38 +416,26 @@ def _make_saved_run_filter_json(event_type: EventType) -> str:
                 "run_state_filter": {"states": ["FAILED"]},
             }
         )
-    raise ValueError(f"Unsupported run event type: {event_type}")
+    raise ValueError(f"Unsupported run event type: {run_event_type!r}")
 
 
 @fixture
 def saved_run_automation(
     automation_id: str,
-    saved_run_event_type: EventType,
+    run_event_type: EventType,
+    run_event_filter_json: str,
     saved_action: SavedAction,
     project: Project,
 ) -> Automation:
     """A run-event Automation mimicking what the server returns."""
-    raw = {
-        "__typename": "Trigger",
-        "id": automation_id,
-        "createdAt": "2024-01-01T00:00:00Z",
-        "updatedAt": None,
-        "name": "test-run-automation",
-        "description": "test run event description",
-        "enabled": True,
-        "scope": {
-            "__typename": "Project",
-            "id": project.id,
-            "name": project.name,
-        },
-        "event": {
-            "__typename": "FilterEventTriggeringCondition",
-            "eventType": saved_run_event_type.value,
-            "filter": _make_saved_run_filter_json(saved_run_event_type),
-        },
-        "action": {
-            "__typename": saved_action.typename__,
-            "noOp": saved_action.no_op,
-        },
-    }
-    return Automation.model_validate(raw)
+    return Automation(
+        id=automation_id,
+        created_at="2024-01-01T00:00:00Z",
+        updated_at=None,
+        name="test-run-automation",
+        description="test run event description",
+        enabled=True,
+        scope=project,
+        event=SavedEvent(event_type=run_event_type, filter=run_event_filter_json),
+        action=saved_action,
+    )
