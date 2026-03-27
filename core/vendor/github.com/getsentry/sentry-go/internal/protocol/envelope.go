@@ -41,12 +41,13 @@ type EnvelopeItemType string
 
 // Constants for envelope item types as defined in the Sentry documentation.
 const (
-	EnvelopeItemTypeEvent       EnvelopeItemType = "event"
-	EnvelopeItemTypeTransaction EnvelopeItemType = "transaction"
-	EnvelopeItemTypeCheckIn     EnvelopeItemType = "check_in"
-	EnvelopeItemTypeAttachment  EnvelopeItemType = "attachment"
-	EnvelopeItemTypeLog         EnvelopeItemType = "log"
-	EnvelopeItemTypeTraceMetric EnvelopeItemType = "trace_metric"
+	EnvelopeItemTypeEvent        EnvelopeItemType = "event"
+	EnvelopeItemTypeTransaction  EnvelopeItemType = "transaction"
+	EnvelopeItemTypeCheckIn      EnvelopeItemType = "check_in"
+	EnvelopeItemTypeAttachment   EnvelopeItemType = "attachment"
+	EnvelopeItemTypeLog          EnvelopeItemType = "log"
+	EnvelopeItemTypeTraceMetric  EnvelopeItemType = "trace_metric"
+	EnvelopeItemTypeClientReport EnvelopeItemType = "client_report"
 )
 
 // EnvelopeItemHeader represents the header of an envelope item.
@@ -68,6 +69,9 @@ type EnvelopeItemHeader struct {
 
 	// ItemCount is the number of items in a batch (used for logs)
 	ItemCount *int `json:"item_count,omitempty"`
+
+	// SpanCount is the number of spans in a transaction (used for client reports)
+	SpanCount int `json:"-"`
 }
 
 // EnvelopeItem represents a single item or batch within an envelope.
@@ -181,6 +185,19 @@ func NewEnvelopeItem(itemType EnvelopeItemType, payload []byte) *EnvelopeItem {
 	}
 }
 
+// NewTransactionItem creates a new envelope item including the span count of the transaction.
+func NewTransactionItem(spanCount int, payload []byte) *EnvelopeItem {
+	length := len(payload)
+	return &EnvelopeItem{
+		Header: &EnvelopeItemHeader{
+			Type:      EnvelopeItemTypeTransaction,
+			Length:    &length,
+			SpanCount: spanCount,
+		},
+		Payload: payload,
+	}
+}
+
 // NewAttachmentItem creates a new envelope item for an attachment.
 // Parameters: filename, contentType, payload.
 func NewAttachmentItem(filename, contentType string, payload []byte) *EnvelopeItem {
@@ -219,6 +236,18 @@ func NewTraceMetricItem(itemCount int, payload []byte) *EnvelopeItem {
 			Length:      &length,
 			ItemCount:   &itemCount,
 			ContentType: "application/vnd.sentry.items.trace-metric+json",
+		},
+		Payload: payload,
+	}
+}
+
+// NewClientReportItem creates a new envelope item for client reports.
+func NewClientReportItem(payload []byte) *EnvelopeItem {
+	length := len(payload)
+	return &EnvelopeItem{
+		Header: &EnvelopeItemHeader{
+			Type:   EnvelopeItemTypeClientReport,
+			Length: &length,
 		},
 		Payload: payload,
 	}

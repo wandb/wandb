@@ -14,6 +14,7 @@ import (
 
 	"github.com/wandb/wandb/core/internal/runhistoryreader"
 	"github.com/wandb/wandb/core/internal/runhistoryreader/parquet"
+	"github.com/wandb/wandb/core/internal/runhistoryreader/parquet/ffi"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
@@ -22,6 +23,10 @@ import (
 type RunHistoryAPIHandler struct {
 	graphqlClient graphql.Client
 	httpClient    *retryablehttp.Client
+
+	// rustArrowWrapper is the wrapper for the Rust Arrow library.
+	// It is used to provide FFI functions to the Go code for reading parquet files.
+	rustArrowWrapper *ffi.RustArrowWrapper
 
 	// currentRequestId is the id of the last scan init request made.
 	//
@@ -45,6 +50,7 @@ func NewRunHistoryAPIHandler(
 	graphqlClient graphql.Client,
 	httpClient *retryablehttp.Client,
 ) *RunHistoryAPIHandler {
+
 	return &RunHistoryAPIHandler{
 		graphqlClient:      graphqlClient,
 		httpClient:         httpClient,
@@ -85,6 +91,21 @@ func (f *RunHistoryAPIHandler) HandleRequest(
 func (f *RunHistoryAPIHandler) handleScanRunHistoryInit(
 	request *spb.ScanRunHistoryInit,
 ) *spb.ApiResponse {
+	if f.rustArrowWrapper == nil {
+		rustArrowWrapper, err := ffi.NewRustArrowWrapper()
+		if err != nil {
+			return &spb.ApiResponse{
+				Response: &spb.ApiResponse_ApiErrorResponse{
+					ApiErrorResponse: &spb.ApiErrorResponse{
+						Message: "RustArrowWrapper not initialized.",
+					},
+				},
+			}
+		}
+
+		f.rustArrowWrapper = rustArrowWrapper
+	}
+
 	localHub := sentry.CurrentHub().Clone()
 	localHub.WithScope(func(scope *sentry.Scope) {
 		scope.SetTags(map[string]string{
@@ -107,6 +128,7 @@ func (f *RunHistoryAPIHandler) handleScanRunHistoryInit(
 		f.httpClient,
 		requestKeys,
 		request.UseCache,
+		f.rustArrowWrapper,
 	)
 	if err != nil {
 		return &spb.ApiResponse{

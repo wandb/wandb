@@ -112,7 +112,11 @@ class BetaHistoryScan(Iterator[_RowDict]):
                 return row
             if self.page_offset >= self._stop_step:
                 raise StopIteration()
+            # Load the next page
             self._load_next()
+            # If no rows were returned, we've reached the end of the data
+            if len(self.rows) == 0:
+                raise StopIteration()
 
     def _load_next(self) -> None:
         from wandb.proto import wandb_api_pb2 as pb

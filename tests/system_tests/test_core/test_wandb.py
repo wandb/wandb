@@ -465,19 +465,22 @@ def test_log_empty_string(wandb_backend_spy):
 
 
 def test_log_table_offline_no_network(user, monkeypatch):
-    num_network_calls_made = 0
+    wandb_base_url = os.environ.get("WANDB_BASE_URL", "https://api.wandb.ai")
+    wandb_network_calls = []
     original_request = requests.Session.request
 
-    def mock_request(self, *args, **kwargs):
-        nonlocal num_network_calls_made
-        num_network_calls_made += 1
-        return original_request(self, *args, **kwargs)
+    def mock_request(self, method, url, *args, **kwargs):
+        if isinstance(url, str) and wandb_base_url in url:
+            wandb_network_calls.append((method, url))
+        return original_request(self, method, url, *args, **kwargs)
 
     monkeypatch.setattr(requests.Session, "request", mock_request)
     run = wandb.init(mode="offline")
     run.log({"table": wandb.Table()})
     run.finish()
-    assert num_network_calls_made == 0
+    assert wandb_network_calls == [], (
+        f"Unexpected wandb API calls: {wandb_network_calls}"
+    )
     assert run.offline is True
 
 

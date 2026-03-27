@@ -49,6 +49,7 @@ type Dsn struct {
 	port      int
 	path      string
 	projectID string
+	orgID     uint64
 }
 
 // NewDsn creates a Dsn by parsing rawURL. Most users will never call this
@@ -90,6 +91,17 @@ func NewDsn(rawURL string) (*Dsn, error) {
 		return nil, &DsnParseError{"empty host"}
 	}
 
+	// OrgID (optional)
+	var orgID uint64
+	parts := strings.Split(host, ".")
+	orgPart := parts[0]
+	if len(orgPart) >= 2 && orgPart[0] == 'o' {
+		parsedOrgID, err := strconv.ParseUint(orgPart[1:], 10, 64)
+		if err == nil {
+			orgID = parsedOrgID
+		}
+	}
+
 	// Port
 	var port int
 	if p := parsedURL.Port(); p != "" {
@@ -126,6 +138,7 @@ func NewDsn(rawURL string) (*Dsn, error) {
 		port:      port,
 		path:      path,
 		projectID: projectID,
+		orgID:     orgID,
 	}, nil
 }
 
@@ -180,6 +193,18 @@ func (dsn Dsn) GetPath() string {
 // Get the project ID of the DSN.
 func (dsn Dsn) GetProjectID() string {
 	return dsn.projectID
+}
+
+// GetOrgID returns the orgID that was parsed from the DSN.
+func (dsn Dsn) GetOrgID() uint64 {
+	return dsn.orgID
+}
+
+// SetOrgID sets the orgID used for trace continuation.
+//
+// This function is used for overriding the orgID parsed from the DSN.
+func (dsn *Dsn) SetOrgID(orgID uint64) {
+	dsn.orgID = orgID
 }
 
 // GetAPIURL returns the URL of the envelope endpoint of the project

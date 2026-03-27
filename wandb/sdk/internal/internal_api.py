@@ -341,9 +341,6 @@ class Api:
         # Large file uploads to azure can optionally use their SDK
         self._azure_blob_module = util.get_module("azure.storage.blob")
 
-        self.query_types: list[str] | None = None
-        self.mutation_types: list[str] | None = None
-        self.server_info_types: list[str] | None = None
         self._max_cli_version: str | None = None
         self._server_settings_type: list[str] | None = None
 
@@ -566,49 +563,6 @@ class Api:
         return project, run
 
     @normalize_exceptions
-    def server_info_introspection(self) -> tuple[list[str], list[str], list[str]]:
-        query_string = """
-           query ProbeServerCapabilities {
-               QueryType: __type(name: "Query") {
-                   ...fieldData
-                }
-                MutationType: __type(name: "Mutation") {
-                   ...fieldData
-                }
-               ServerInfoType: __type(name: "ServerInfo") {
-                   ...fieldData
-                }
-            }
-
-            fragment fieldData on __Type {
-                fields {
-                    name
-                }
-            }
-        """
-        if (
-            self.query_types is None
-            or self.mutation_types is None
-            or self.server_info_types is None
-        ):
-            query = gql(query_string)
-            res = self.gql(query)
-
-            self.query_types = [
-                field.get("name", "")
-                for field in res.get("QueryType", {}).get("fields", [{}])
-            ]
-            self.mutation_types = [
-                field.get("name", "")
-                for field in res.get("MutationType", {}).get("fields", [{}])
-            ]
-            self.server_info_types = [
-                field.get("name", "")
-                for field in res.get("ServerInfoType", {}).get("fields", [{}])
-            ]
-        return self.query_types, self.server_info_types, self.mutation_types
-
-    @normalize_exceptions
     def server_settings_introspection(self) -> None:
         query_string = """
            query ProbeServerSettings {
@@ -781,20 +735,8 @@ class Api:
 
     @normalize_exceptions
     def viewer_server_info(self) -> tuple[dict[str, Any], dict[str, Any]]:
-        local_query = """
-            latestLocalVersionInfo {
-                outOfDate
-                latestVersionString
-                versionOnThisInstanceString
-            }
-        """
-        cli_query = """
-            serverInfo {
-                cliVersionInfo
-                _LOCAL_QUERY_
-            }
-        """
-        query_template = """
+        query = gql(
+            """
         query Viewer{
             viewer {
                 id
@@ -810,27 +752,17 @@ class Api:
                     }
                 }
             }
-            _CLI_QUERY_
+            serverInfo {
+                cliVersionInfo
+                latestLocalVersionInfo {
+                    outOfDate
+                    latestVersionString
+                    versionOnThisInstanceString
+                }
+            }
         }
         """
-        query_types, server_info_types, _ = self.server_info_introspection()
-
-        cli_version_exists = (
-            "serverInfo" in query_types and "cliVersionInfo" in server_info_types
         )
-
-        local_version_exists = (
-            "serverInfo" in query_types
-            and "latestLocalVersionInfo" in server_info_types
-        )
-
-        cli_query_string = "" if not cli_version_exists else cli_query
-        local_query_string = "" if not local_version_exists else local_query
-
-        query_string = query_template.replace("_CLI_QUERY_", cli_query_string).replace(
-            "_LOCAL_QUERY_", local_query_string
-        )
-        query = gql(query_string)
         res = self.gql(query)
         return res.get("viewer") or {}, res.get("serverInfo") or {}
 

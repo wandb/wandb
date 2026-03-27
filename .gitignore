@@ -54,3 +54,6 @@ wandb/vendor/wandb_orjson/orjson.pyd
 
 # Cached protoc binaries downloaded by wandb/proto/generate-proto.sh.
 .protoc/
+
+# Ignore arrow-rs-wrapper build artifacts
+parquet-rust-wrapper/target/

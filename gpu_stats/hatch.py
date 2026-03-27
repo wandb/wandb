@@ -1,8 +1,8 @@
 """Builds the gpu_stats binary for monitoring NVIDIA and Apple ARM GPUs."""
 
-import json
 import pathlib
 import subprocess
+import sys
 
 
 class GpuStatsBuildError(Exception):
@@ -30,13 +30,12 @@ def build_gpu_stats(
         str(cargo_binary),
         "build",
         "--release",
-        "--message-format=json",
         "--bin",
         "gpu_stats",
     )
 
     try:
-        cargo_output = subprocess.check_output(cmd, cwd=rust_pkg_root)
+        subprocess.run(cmd, cwd=rust_pkg_root, check=True)
     except subprocess.CalledProcessError as e:
         raise GpuStatsBuildError(
             "Failed to build the `gpu_stats` Rust binary. If you didn't"
@@ -48,32 +47,9 @@ def build_gpu_stats(
             " package that doesn't collect NVIDIA and Apple ARM GPU stats."
         ) from e
 
-    built_binary_path = _get_executable_path(cargo_output)
+    binary_name = "gpu_stats.exe" if sys.platform == "win32" else "gpu_stats"
+    built_binary_path = rust_pkg_root / "target" / "release" / binary_name
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     built_binary_path.replace(output_path)
     output_path.chmod(0o755)
-
-
-def _get_executable_path(cargo_output: bytes) -> pathlib.Path:
-    """Returns the path to the gpu_stats binary.
-
-    Args:
-        cargo_output: The output from `cargo build` with
-            --message-format="json".
-
-    Returns:
-        The path to the binary.
-
-    Raises:
-        GpuStatsBuildError: if the path could not be determined.
-    """
-    for line in cargo_output.splitlines():
-        path = json.loads(line).get("executable")
-        if path:
-            return pathlib.Path(path)
-
-    raise GpuStatsBuildError(
-        "Failed to find the `gpu_stats` binary. `cargo build` output:\n"
-        + str(cargo_output),
-    )
