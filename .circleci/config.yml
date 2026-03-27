@@ -449,6 +449,7 @@ jobs:
       - save-test-results
 
   unit-tests-go:
+    resource_class: wandb/docker-builder
     docker:
       - image: cimg/base:current
     steps:
@@ -466,6 +467,7 @@ jobs:
       - codecov/upload: { flags: unit }
 
   unit-tests-rust:
+    resource_class: wandb/docker-builder
     docker:
       - image: cimg/base:current
     steps:
