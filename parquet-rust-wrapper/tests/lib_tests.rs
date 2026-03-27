@@ -225,11 +225,13 @@ fn test_create_reader() {
     create_test_parquet_file(file_path.to_str().unwrap(), 100).unwrap();
 
     let path_cstring = CString::new(file_path.to_str().unwrap()).unwrap();
+    let mut out_error: *mut libc::c_char = std::ptr::null_mut();
     let reader_ptr = unsafe {
         create_reader(
             path_cstring.as_ptr(),
             std::ptr::null(),
             0,
+            &mut out_error,
         )
     };
 
@@ -251,11 +253,13 @@ fn test_create_reader_with_columns() {
     let col2 = CString::new("value").unwrap();
     let col_ptrs = vec![col1.as_ptr(), col2.as_ptr()];
 
+    let mut out_error: *mut libc::c_char = std::ptr::null_mut();
     let reader_ptr = unsafe {
         create_reader(
             path_cstring.as_ptr(),
             col_ptrs.as_ptr(),
             2,
+            &mut out_error,
         )
     };
 
@@ -273,11 +277,13 @@ fn test_reader_scan_step_range() {
     create_test_parquet_file(file_path.to_str().unwrap(), 100).unwrap();
 
     let path_cstring = CString::new(file_path.to_str().unwrap()).unwrap();
+    let mut out_error: *mut libc::c_char = std::ptr::null_mut();
     let reader_ptr = unsafe {
         create_reader(
             path_cstring.as_ptr(),
             std::ptr::null(),
             0,
+            &mut out_error,
         )
     };
     assert!(!reader_ptr.is_null());
@@ -324,11 +330,13 @@ fn test_reader_scan_step_range_with_columns_subset() {
     let col2 = CString::new("value").unwrap();
     let col_ptrs = vec![col1.as_ptr(), col2.as_ptr()];
 
+    let mut out_error: *mut libc::c_char = std::ptr::null_mut();
     let reader_ptr = unsafe {
         create_reader(
             path_cstring.as_ptr(),
             col_ptrs.as_ptr(),
             2,
+            &mut out_error,
         )
     };
     assert!(!reader_ptr.is_null());
@@ -384,8 +392,9 @@ fn test_reader_scan_step_range_sequential_calls() {
     create_test_parquet_file(file_path.to_str().unwrap(), 100).unwrap();
 
     let path_cstring = CString::new(file_path.to_str().unwrap()).unwrap();
+    let mut out_error: *mut libc::c_char = std::ptr::null_mut();
     let reader_ptr = unsafe {
-        create_reader(path_cstring.as_ptr(), std::ptr::null(), 0)
+        create_reader(path_cstring.as_ptr(), std::ptr::null(), 0, &mut out_error)
     };
 
     let mut result1 = StepScanResult {
@@ -422,8 +431,9 @@ fn test_reader_scan_step_range_backwards() {
     create_test_parquet_file(file_path.to_str().unwrap(), 100).unwrap();
 
     let path_cstring = CString::new(file_path.to_str().unwrap()).unwrap();
+    let mut out_error: *mut libc::c_char = std::ptr::null_mut();
     let reader_ptr = unsafe {
-        create_reader(path_cstring.as_ptr(), std::ptr::null(), 0)
+        create_reader(path_cstring.as_ptr(), std::ptr::null(), 0, &mut out_error)
     };
 
     let mut result1 = StepScanResult {
@@ -459,8 +469,9 @@ fn test_reader_scan_step_range_empty_result() {
     create_test_parquet_file(file_path.to_str().unwrap(), 100).unwrap();
 
     let path_cstring = CString::new(file_path.to_str().unwrap()).unwrap();
+    let mut out_error: *mut libc::c_char = std::ptr::null_mut();
     let reader_ptr = unsafe {
-        create_reader(path_cstring.as_ptr(), std::ptr::null(), 0)
+        create_reader(path_cstring.as_ptr(), std::ptr::null(), 0, &mut out_error)
     };
 
     let mut result = StepScanResult {
@@ -500,8 +511,9 @@ fn test_reader_scan_step_range_http() {
     let (url, _counter) = common::start_http_server(file_path.to_str().unwrap());
 
     let url_cstring = CString::new(url.clone()).unwrap();
+    let mut out_error: *mut libc::c_char = std::ptr::null_mut();
     let reader_ptr = unsafe {
-        create_reader(url_cstring.as_ptr(), std::ptr::null(), 0)
+        create_reader(url_cstring.as_ptr(), std::ptr::null(), 0, &mut out_error)
     };
     if reader_ptr.is_null() {
         panic!(
@@ -557,8 +569,9 @@ fn test_reader_scan_step_range_http_with_columns_subset() {
     let col2 = CString::new("value").unwrap();
     let col_ptrs = vec![col1.as_ptr(), col2.as_ptr()];
 
+    let mut out_error: *mut libc::c_char = std::ptr::null_mut();
     let reader_ptr = unsafe {
-        create_reader(url_cstring.as_ptr(), col_ptrs.as_ptr(), 2)
+        create_reader(url_cstring.as_ptr(), col_ptrs.as_ptr(), 2, &mut out_error)
     };
     if reader_ptr.is_null() {
         panic!(
@@ -647,8 +660,9 @@ fn test_reader_scan_with_int64_step_column() {
     create_test_parquet_file_with_int64_step(file_path.to_str().unwrap(), 100).unwrap();
 
     let path_cstring = CString::new(file_path.to_str().unwrap()).unwrap();
+    let mut out_error: *mut libc::c_char = std::ptr::null_mut();
     let reader_ptr = unsafe {
-        create_reader(path_cstring.as_ptr(), std::ptr::null(), 0)
+        create_reader(path_cstring.as_ptr(), std::ptr::null(), 0, &mut out_error)
     };
     assert!(!reader_ptr.is_null());
 
