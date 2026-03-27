@@ -2284,11 +2284,6 @@ class Api:
         return run_state
 
     @normalize_exceptions
-    def create_run_files_introspection(self) -> bool:
-        _, _, mutations = self.server_info_introspection()
-        return "createRunFiles" in mutations
-
-    @normalize_exceptions
     def upload_urls(
         self,
         project: str,
@@ -2324,10 +2319,6 @@ class Api:
         assert run_name, "run must be specified"
         entity = entity or self.settings("entity")
         assert entity, "entity must be specified"
-
-        has_create_run_files_mutation = self.create_run_files_introspection()
-        if not has_create_run_files_mutation:
-            return self.legacy_upload_urls(project, files, run, entity, description)
 
         query = gql(
             """
