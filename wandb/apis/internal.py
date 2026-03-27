@@ -208,9 +208,6 @@ class Api:
     def update_launch_agent_status(self, *args, **kwargs):
         return self.api.update_launch_agent_status(*args, **kwargs)
 
-    def fail_run_queue_item_introspection(self, *args, **kwargs):
-        return self.api.fail_run_queue_item_introspection(*args, **kwargs)
-
     def fail_run_queue_item(self, *args, **kwargs):
         return self.api.fail_run_queue_item(*args, **kwargs)
 

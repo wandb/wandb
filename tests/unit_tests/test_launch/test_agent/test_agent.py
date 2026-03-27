@@ -387,38 +387,6 @@ async def test_thread_finish_run_fail_start(mocker, clean_agent):
 
 
 @pytest.mark.asyncio
-async def test_thread_finish_run_fail_start_old_server(mocker, clean_agent):
-    """Tests that if a run does not exist, the run queue item is not failed for old servers."""
-    _setup_thread_finish(mocker)
-    mock_config = {
-        "entity": "test-entity",
-        "project": "test-project",
-    }
-    mocker.api.get_run_state.side_effect = CommError("failed")
-    mocker.patch("wandb.sdk.launch.agent.agent.RUN_INFO_GRACE_PERIOD", 1)
-
-    agent = LaunchAgent(api=mocker.api, config=mock_config)
-    agent._gorilla_supports_fail_run_queue_items = False
-    mock_saver = MagicMock()
-    job = JobAndRunStatusTracker("run_queue_item_id", "test-queue", mock_saver)
-    job.run_id = "test_run_id"
-    job.run_queue_item_id = "asdasd"
-    job.project = "test-project"
-    run = MagicMock()
-
-    async def mock_get_logs():
-        return "logs"
-
-    run.get_logs = mock_get_logs
-    job.run = run
-    agent._jobs_lock = MagicMock()
-    agent._jobs = {"thread_1": job}
-    await agent.finish_thread_id("thread_1")
-    assert len(agent._jobs) == 0
-    mocker.api.fail_run_queue_item.assert_not_called()
-
-
-@pytest.mark.asyncio
 async def test_thread_finish_run_fail_different_entity(mocker, clean_agent):
     """Tests that no check is made if the agent entity does not match."""
     _setup_thread_finish(mocker)

@@ -642,11 +642,6 @@ class Api:
             )
 
     @normalize_exceptions
-    def fail_run_queue_item_introspection(self) -> bool:
-        _, _, mutations = self.server_info_introspection()
-        return "failRunQueueItem" in mutations
-
-    @normalize_exceptions
     def fail_run_queue_item_fields_introspection(self) -> list:
         if self.fail_run_queue_item_input_info:
             return self.fail_run_queue_item_input_info
@@ -679,8 +674,6 @@ class Api:
         stage: str,
         file_paths: list[str] | None = None,
     ) -> bool:
-        if not self.fail_run_queue_item_introspection():
-            return False
         variable_values: dict[str, str | (list[str] | None)] = {
             "runQueueItemId": run_queue_item_id,
         }
