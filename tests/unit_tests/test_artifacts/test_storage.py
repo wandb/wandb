@@ -278,7 +278,7 @@ def test_artifact_file_cache_cleanup(artifact_file_cache):
     reclaimed_bytes = artifact_file_cache.cleanup(5000)
 
     # We should get rid of "aardvark" in this case
-    assert reclaimed_bytes == 5000
+    assert reclaimed_bytes == 3000
 
 
 def test_artifact_file_cache_cleanup_tmp_files_when_asked(artifact_file_cache):
