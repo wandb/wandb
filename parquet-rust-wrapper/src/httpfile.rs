@@ -105,7 +105,14 @@ impl HttpFileReader {
             .map_err(|e| IoError::new(ErrorKind::Other, e))?;
 
         let status = response.status();
-        if !status.is_success() && status != reqwest::StatusCode::PARTIAL_CONTENT {
+        if status == reqwest::StatusCode::OK {
+            if start != 0 {
+                return Err(IoError::new(
+                    ErrorKind::Other,
+                    format!("server ignored range request for offset {}", start),
+                ));
+            }
+        } else if status != reqwest::StatusCode::PARTIAL_CONTENT {
             return Err(IoError::new(
                 ErrorKind::Other,
                 format!("HTTP error: {}", status),

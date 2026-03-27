@@ -359,3 +359,31 @@ fn test_http_file_reader_at_eof() {
 
     assert_eq!(n, 0);
 }
+
+#[test]
+fn test_http_file_reader_rejects_200_for_nonzero_offset() {
+    let temp_dir = TempDir::new().unwrap();
+    let file_path = temp_dir.path().join("test.bin");
+    let content: Vec<u8> = (0..100).collect();
+    create_test_file(file_path.to_str().unwrap(), content).unwrap();
+
+    let url = common::start_http_server_no_range_support(file_path.to_str().unwrap());
+
+    let reader = HttpFileReader::new(url).unwrap();
+
+    // Reading at offset 0 should succeed (200 OK is fine for offset 0).
+    let mut buf = vec![0u8; 10];
+    let n = reader.read_at(&mut buf, 0).unwrap();
+    assert_eq!(n, 10);
+
+    // Reading at a non-zero offset should fail because the server
+    // ignores the Range header and returns 200 OK with the full body.
+    let mut buf = vec![0u8; 10];
+    let result = reader.read_at(&mut buf, 50);
+    assert!(result.is_err());
+    let err_msg = result.unwrap_err().to_string();
+    assert!(
+        err_msg.contains("server ignored range request"),
+        "expected 'server ignored range request' in error, got: {err_msg}"
+    );
+}

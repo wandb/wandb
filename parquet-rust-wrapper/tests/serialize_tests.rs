@@ -1,7 +1,15 @@
 use arrow::array::{
-    BinaryArray, BooleanArray, Float32Array, Float64Array, Int8Array, Int16Array, Int32Array,
-    Int64Array, ListArray, RecordBatch, StringArray, StructArray, UInt8Array, UInt16Array,
-    UInt32Array, UInt64Array,
+    Array,
+    BinaryArray,
+    BooleanArray,
+    Float64Array,
+    Int64Array,
+    ListArray,
+    MapArray,
+    RecordBatch,
+    StringArray,
+    StructArray,
+    UInt64Array,
 };
 use arrow::buffer::OffsetBuffer;
 use arrow::datatypes::{DataType, Field, Fields, Schema};
@@ -16,7 +24,7 @@ fn serialize_single_column(
 ) -> (Vec<u8>, usize) {
     let schema = Arc::new(Schema::new(vec![field]));
     let batch = RecordBatch::try_new(schema, vec![column]).unwrap();
-    let buf = serialize_batches_to_kv_binary(&[batch]);
+    let buf = serialize_batches_to_kv_binary(&[batch]).unwrap();
 
     // Header: num_columns(4) + name_len(4) + name_bytes + num_rows(4)
     let mut offset = 4; // skip num_columns
@@ -35,7 +43,7 @@ fn read_u32(buf: &[u8], offset: &mut usize) -> u32 {
 
 #[test]
 fn test_serialize_empty() {
-    let result = serialize_batches_to_kv_binary(&[]);
+    let result = serialize_batches_to_kv_binary(&[]).unwrap();
     assert!(result.is_empty());
 }
 
@@ -273,4 +281,48 @@ fn test_serialize_nullable_int64() {
     off += 8;
 
     assert_eq!(off, buf.len());
+}
+
+#[test]
+fn test_serialize_map_with_non_string_keys_returns_error() {
+    // Build a Map<Int64, Utf8> — keys are integers, not strings.
+    let keys = Int64Array::from(vec![1, 2]);
+    let values = StringArray::from(vec!["a", "b"]);
+
+    let entry_fields = Fields::from(vec![
+        Field::new("keys", DataType::Int64, false),
+        Field::new("values", DataType::Utf8, true),
+    ]);
+    let entries_struct = StructArray::new(
+        entry_fields,
+        vec![Arc::new(keys) as _, Arc::new(values) as _],
+        None,
+    );
+
+    let offsets = OffsetBuffer::new(vec![0i32, 2].into());
+    let map_field = Field::new("entries", DataType::Struct(entries_struct.fields().clone()), false);
+    let map_arr = MapArray::new(
+        Arc::new(map_field),
+        offsets,
+        entries_struct,
+        None,
+        false,
+    );
+
+    let schema = Arc::new(Schema::new(vec![
+        Field::new(
+            "v",
+            map_arr.data_type().clone(),
+            false,
+        ),
+    ]));
+    let batch = RecordBatch::try_new(schema, vec![Arc::new(map_arr)]).unwrap();
+    let result = serialize_batches_to_kv_binary(&[batch]);
+
+    assert!(result.is_err());
+    let err_msg = result.unwrap_err().to_string();
+    assert!(
+        err_msg.contains("unsupported map key type"),
+        "expected 'unsupported map key type' in error, got: {err_msg}"
+    );
 }

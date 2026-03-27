@@ -5,7 +5,9 @@ use parquet::arrow::arrow_reader::{
     ParquetRecordBatchReaderBuilder,
 };
 use parquet::arrow::ProjectionMask;
-use arrow::array::{Array, Float64Array, Int64Array, RecordBatch};
+use arrow::array::{Array, Int64Array, RecordBatch};
+use arrow::compute::cast;
+use arrow::datatypes::DataType;
 
 mod httpfile;
 pub mod serialize;
@@ -46,7 +48,7 @@ pub unsafe extern "C" fn create_reader(
     let file_path_str = match file_path_cstr.to_str() {
         Ok(s) => s,
         Err(e) => {
-            *out_error = error_to_c_string(&e);
+            *out_error = error_to_c_string(&e.to_string());
             return std::ptr::null_mut();
         }
     };
@@ -64,7 +66,7 @@ pub unsafe extern "C" fn create_reader(
             match col_name_cstr.to_str() {
                 Ok(s) => names.push(s.to_string()),
                 Err(e) => {
-                    *out_error = error_to_c_string(&e);
+                    *out_error = error_to_c_string(&e.to_string());
                     return std::ptr::null_mut();
                 }
             }
@@ -293,25 +295,11 @@ pub unsafe extern "C" fn reader_scan_step_range(
         };
         let step_column = batch.column(step_col_idx);
 
-        // Get step values as i64, supporting multiple numeric types
-        // Steps can be stored as Float64, Int64, Int32, etc.
-        let step_values: Vec<Option<i64>> = if let Some(arr) = step_column.as_any().downcast_ref::<Float64Array>() {
-            (0..batch.num_rows())
-                .map(|i| if arr.is_null(i) { None } else { Some(arr.value(i) as i64) })
-                .collect()
-        } else if let Some(arr) = step_column.as_any().downcast_ref::<Int64Array>() {
-            (0..batch.num_rows())
-                .map(|i| if arr.is_null(i) { None } else { Some(arr.value(i)) })
-                .collect()
-        } else {
-            return error_to_c_string(&format!(
-                "Step column '{}' is not a supported numeric type (Float64 or Int64)",
-                STEP_COLUMN_NAME
-            ));
+        // Get step values as i64
+        let step_values: Vec<Option<i64>> = match step_values_as_i64(step_column, batch.num_rows()) {
+            Ok(v) => v,
+            Err(e) => return error_to_c_string(&e),
         };
-
-        // // Check if we need to cast the step column from Float64 to Int64 for consistent output
-        // let needs_step_cast = step_column.as_any().downcast_ref::<Float64Array>().is_some();
 
         // Filter rows that fall within the step range, using a filter mask.
         let mut filter_mask_vec = vec![false; batch.num_rows()];
@@ -373,7 +361,10 @@ pub unsafe extern "C" fn reader_scan_step_range(
         for batch in &matching_rows {
             total_rows_returned += batch.num_rows();
         }
-        buffer = serialize::serialize_batches_to_kv_binary(&matching_rows);
+        buffer = match serialize::serialize_batches_to_kv_binary(&matching_rows) {
+            Ok(b) => b,
+            Err(e) => return error_to_c_string(&format!("Failed to serialize data: {}", e)),
+        };
     }
 
     // If no rows were found, return empty result
@@ -469,4 +460,17 @@ fn error_to_c_string(error: &str) -> *mut libc::c_char {
             std::ptr::null_mut()
         }
     }
+}
+
+fn step_values_as_i64(step_column: &dyn Array, num_rows: usize) -> Result<Vec<Option<i64>>, String> {
+    let casted = cast(step_column, &DataType::Int64)
+        .map_err(|e| format!("failed to cast '{}' column to Int64: {}", STEP_COLUMN_NAME, e))?;
+    let arr = casted
+        .as_any()
+        .downcast_ref::<Int64Array>()
+        .ok_or_else(|| format!("failed to read '{}' as Int64 after cast", STEP_COLUMN_NAME))?;
+
+    Ok((0..num_rows)
+        .map(|i| if arr.is_null(i) { None } else { Some(arr.value(i)) })
+        .collect())
 }

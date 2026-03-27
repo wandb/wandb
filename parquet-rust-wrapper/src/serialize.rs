@@ -1,3 +1,5 @@
+use std::io;
+
 use arrow::array::{
     Array,
     AsArray,
@@ -39,9 +41,9 @@ pub const TYPE_MAP: u8 = 8;
 ///   for each column: name_len: u32, name_bytes: [u8]
 ///   num_rows: u32
 ///   for each row, for each column: type_tag: u8, payload (type-dependent)
-pub fn serialize_batches_to_kv_binary(batches: &[RecordBatch]) -> Vec<u8> {
+pub fn serialize_batches_to_kv_binary(batches: &[RecordBatch]) -> Result<Vec<u8>, io::Error> {
     if batches.is_empty() {
-        return Vec::new();
+        return Ok(Vec::new());
     }
 
     let schema = batches[0].schema();
@@ -68,18 +70,18 @@ pub fn serialize_batches_to_kv_binary(batches: &[RecordBatch]) -> Vec<u8> {
         for row_idx in 0..batch.num_rows() {
             for col_idx in 0..batch.num_columns() {
                 let col = batch.column(col_idx);
-                write_value(&mut buf, col.as_ref(), row_idx);
+                write_value(&mut buf, col.as_ref(), row_idx)?;
             }
         }
     }
 
-    buf
+    Ok(buf)
 }
 
-fn write_value(buf: &mut Vec<u8>, arr: &dyn Array, idx: usize) {
+fn write_value(buf: &mut Vec<u8>, arr: &dyn Array, idx: usize) -> Result<(), io::Error> {
     if arr.is_null(idx) {
         buf.push(TYPE_NULL);
-        return;
+        return Ok(());
     }
 
     match arr.data_type() {
@@ -157,23 +159,24 @@ fn write_value(buf: &mut Vec<u8>, arr: &dyn Array, idx: usize) {
             let len = values.len();
             buf.extend_from_slice(&(len as u32).to_le_bytes());
             for i in 0..len {
-                write_value(buf, values.as_ref(), i);
+                write_value(buf, values.as_ref(), i)?;
             }
         }
         DataType::Dictionary(_, value_type) => {
             let casted = cast(arr, value_type).expect("failed to cast dictionary array");
-            write_value(buf, casted.as_ref(), idx);
+            write_value(buf, casted.as_ref(), idx)?;
         }
         DataType::Struct(_) => {
-            write_struct_as_map(buf, arr, idx);
+            write_struct_as_map(buf, arr, idx)?;
         }
         DataType::Map(_, _) => {
-            write_map_value(buf, arr, idx);
+            write_map_value(buf, arr, idx)?;
         }
         _ => {
             buf.push(TYPE_NULL);
         }
     }
+    Ok(())
 }
 
 /// Writes a string key into the buffer: key_len:u32 + key_bytes.
@@ -184,19 +187,20 @@ fn write_key(buf: &mut Vec<u8>, key: &str) {
 
 /// Serializes an Arrow Struct as TYPE_MAP { num_entries, [key, value]... }.
 /// Struct field names become map keys; field values are recursively serialized.
-fn write_struct_as_map(buf: &mut Vec<u8>, arr: &dyn Array, idx: usize) {
+fn write_struct_as_map(buf: &mut Vec<u8>, arr: &dyn Array, idx: usize) -> Result<(), io::Error> {
     let struct_arr = arr.as_any().downcast_ref::<StructArray>().unwrap();
     buf.push(TYPE_MAP);
     buf.extend_from_slice(&(struct_arr.num_columns() as u32).to_le_bytes());
     for (field_idx, field) in struct_arr.fields().iter().enumerate() {
         write_key(buf, field.name());
-        write_value(buf, struct_arr.column(field_idx).as_ref(), idx);
+        write_value(buf, struct_arr.column(field_idx).as_ref(), idx)?;
     }
+    Ok(())
 }
 
 /// Serializes an Arrow Map as TYPE_MAP { num_entries, [key, value]... }.
 /// Map keys are converted to strings; values are recursively serialized.
-fn write_map_value(buf: &mut Vec<u8>, arr: &dyn Array, idx: usize) {
+fn write_map_value(buf: &mut Vec<u8>, arr: &dyn Array, idx: usize) -> Result<(), io::Error> {
     let map_arr = arr.as_any().downcast_ref::<MapArray>().unwrap();
     let entries = map_arr.value(idx);
     let entries_struct = entries.as_any().downcast_ref::<StructArray>().unwrap();
@@ -211,9 +215,13 @@ fn write_map_value(buf: &mut Vec<u8>, arr: &dyn Array, idx: usize) {
         } else if let DataType::Utf8 | DataType::LargeUtf8 = keys_arr.data_type() {
             keys_arr.as_string::<i32>().value(i).to_string()
         } else {
-            format!("{i}")
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("unsupported map key type: {:?}", keys_arr.data_type()),
+            ));
         };
         write_key(buf, &key);
-        write_value(buf, values_arr.as_ref(), i);
+        write_value(buf, values_arr.as_ref(), i)?;
     }
+    Ok(())
 }

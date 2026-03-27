@@ -148,3 +148,84 @@ pub fn start_http_server(file_path: &str) -> (String, Arc<Mutex<usize>>) {
 
     (url, counter)
 }
+
+/// Starts an HTTP server that ignores Range headers and always returns
+/// 200 OK with the full file body. Used to test that the client detects
+/// servers that don't support range requests.
+pub fn start_http_server_no_range_support(file_path: &str) -> String {
+    let file_contents = std::fs::read(file_path).unwrap();
+    let file_size = file_contents.len();
+
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let addr = listener.local_addr().unwrap();
+    let url = format!("http://127.0.0.1:{}/test.parquet", addr.port());
+
+    let contents_arc = Arc::new(file_contents);
+
+    thread::spawn(move || {
+        for stream in listener.incoming() {
+            let contents = Arc::clone(&contents_arc);
+            let size = file_size;
+
+            thread::spawn(move || {
+                let mut stream = match stream {
+                    Ok(s) => s,
+                    Err(_) => return,
+                };
+
+                stream.set_read_timeout(Some(std::time::Duration::from_secs(5))).ok();
+                stream.set_write_timeout(Some(std::time::Duration::from_secs(5))).ok();
+
+                let mut buffer = Vec::new();
+                let mut temp = [0u8; 1024];
+                loop {
+                    match stream.read(&mut temp) {
+                        Ok(0) => break,
+                        Ok(n) => {
+                            buffer.extend_from_slice(&temp[..n]);
+                            if buffer.windows(4).any(|w| w == b"\r\n\r\n") {
+                                break;
+                            }
+                            if buffer.len() > 8192 {
+                                break;
+                            }
+                        }
+                        Err(_) => break,
+                    }
+                }
+
+                let request = String::from_utf8_lossy(&buffer);
+
+                if request.starts_with("HEAD") {
+                    let response = format!(
+                        "HTTP/1.1 200 OK\r\n\
+                         Content-Length: {}\r\n\
+                         Content-Type: application/octet-stream\r\n\
+                         Connection: keep-alive\r\n\
+                         \r\n",
+                        size
+                    );
+                    let _ = stream.write_all(response.as_bytes());
+                    let _ = stream.flush();
+                    return;
+                }
+
+                let response = format!(
+                    "HTTP/1.1 200 OK\r\n\
+                     Content-Length: {}\r\n\
+                     Content-Type: application/octet-stream\r\n\
+                     Connection: keep-alive\r\n\
+                     \r\n",
+                    size
+                );
+                let _ = stream.write_all(response.as_bytes());
+                let _ = stream.write_all(&contents);
+                let _ = stream.flush();
+            });
+        }
+    });
+
+    thread::sleep(std::time::Duration::from_millis(200));
+
+    url
+}
