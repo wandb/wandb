@@ -82,7 +82,10 @@ executors:
         name: << parameters.dst_server_name >>
     environment:
       WANDB_TEST_SERVER_URL2: http://<< parameters.dst_server_name >>
-    resource_class: wandb/docker-builder
+    # Cannot use wandb/docker-builder (K8s container runner) here because
+    # all containers in a K8s pod share the same network namespace, and
+    # both testcontainer instances need to bind to port 8080.
+    resource_class: large
 
 commands:
   print-pod-stats-link:
