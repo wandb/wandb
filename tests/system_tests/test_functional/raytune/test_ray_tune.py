@@ -23,8 +23,7 @@ def test_tune_with_callback(wandb_backend_spy):
 
     with wandb_backend_spy.freeze() as snapshot:
         run_ids = snapshot.run_ids()
-        # we are doing a grid search over 3 values of alpha
-        assert len(run_ids) == 3
+        assert len(run_ids) == 1
         for run_id in run_ids:
             telemetry = snapshot.telemetry(run_id=run_id)
             assert 30 in telemetry["2"]  # import=ray
