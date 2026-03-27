@@ -7,6 +7,7 @@ import (
 
 	"github.com/getsentry/sentry-go/internal/debuglog"
 	"github.com/getsentry/sentry-go/internal/protocol"
+	"github.com/getsentry/sentry-go/internal/ratelimit"
 )
 
 // MaxDrainResponseBytes is the maximum number of bytes that transport
@@ -80,4 +81,39 @@ func EnvelopeIdentifier(envelope *protocol.Envelope) string {
 	}
 
 	return fmt.Sprintf("%s [%s]", description, envelope.Header.EventID)
+}
+
+// SendResult holds the outcome of an HTTP request sent to Sentry.
+type SendResult struct {
+	Success    bool
+	StatusCode int
+	Limits     ratelimit.Map
+}
+
+// IsSendError returns true if the response indicates a server/client error that should be recorded
+// as send_error for client report outcomes (non-429 failures).
+func (r *SendResult) IsSendError() bool {
+	return !r.Success && r.StatusCode != http.StatusTooManyRequests
+}
+
+// DoSendRequest executes an HTTP request, handles response logging, extracts rate limits, and
+// drains+closes the response body.
+func DoSendRequest(client *http.Client, request *http.Request, identifier string) (*SendResult, error) {
+	response, err := client.Do(request)
+	if err != nil {
+		return nil, err
+	}
+
+	success := HandleHTTPResponse(response, identifier)
+	limits := ratelimit.FromResponse(response)
+
+	// Drain body up to a limit and close it, allowing the transport to reuse TCP connections.
+	_, _ = io.CopyN(io.Discard, response.Body, MaxDrainResponseBytes)
+	response.Body.Close()
+
+	return &SendResult{
+		Success:    success,
+		StatusCode: response.StatusCode,
+		Limits:     limits,
+	}, nil
 }

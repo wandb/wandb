@@ -39,3 +39,4 @@ func (Metrics) GetCategory() ratelimit.Category              { return ratelimit.
 func (Metrics) GetEventID() string                           { return "" }
 func (Metrics) GetSdkInfo() *SdkInfo                         { return nil }
 func (Metrics) GetDynamicSamplingContext() map[string]string { return nil }
+func (Metrics) MakeSerializationSafe()                       {}

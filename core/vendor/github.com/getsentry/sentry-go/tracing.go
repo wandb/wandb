@@ -14,6 +14,8 @@ import (
 	"time"
 
 	"github.com/getsentry/sentry-go/internal/debuglog"
+	"github.com/getsentry/sentry-go/internal/ratelimit"
+	"github.com/getsentry/sentry-go/report"
 )
 
 const (
@@ -429,6 +431,17 @@ func (s *Span) doFinish() {
 	}
 
 	if !s.Sampled.Bool() {
+		c := hub.Client()
+		if c != nil {
+			if !s.IsTransaction() {
+				// we count the sampled spans from the transaction root. it is guaranteed that the whole transaction
+				// would be sampled
+				return
+			}
+			children := s.recorder.children()
+			c.reportRecorder.RecordOne(report.ReasonSampleRate, ratelimit.CategoryTransaction)
+			c.reportRecorder.Record(report.ReasonSampleRate, ratelimit.CategorySpan, int64(len(children)+1))
+		}
 		return
 	}
 	event := s.toEvent()
@@ -953,8 +966,15 @@ func WithSpanOrigin(origin SpanOrigin) SpanOption {
 func ContinueTrace(hub *Hub, traceparent, baggage string) SpanOption {
 	scope := hub.Scope()
 	propagationContext, _ := PropagationContextFromHeaders(traceparent, baggage)
-	scope.SetPropagationContext(propagationContext)
+	client := hub.Client()
 
+	if !shouldContinueTrace(client, propagationContext.DynamicSamplingContext) {
+		propagationContext = NewPropagationContext()
+		traceparent = ""
+		baggage = ""
+	}
+
+	scope.SetPropagationContext(propagationContext)
 	return ContinueFromHeaders(traceparent, baggage)
 }
 
@@ -973,19 +993,35 @@ func ContinueFromRequest(r *http.Request) SpanOption {
 // an existing TraceID and propagates the Dynamic Sampling context.
 func ContinueFromHeaders(trace, baggage string) SpanOption {
 	return func(s *Span) {
-		if trace != "" {
-			s.updateFromSentryTrace([]byte(trace))
+		if trace == "" {
+			return
+		}
 
-			if baggage != "" {
-				s.updateFromBaggage([]byte(baggage))
+		// Parse baggage first to get org_id for comparison
+		var dsc DynamicSamplingContext
+		if baggage != "" {
+			parsed, err := DynamicSamplingContextFromHeader([]byte(baggage))
+			if err == nil {
+				dsc = parsed
 			}
+		}
 
-			// In case a sentry-trace header is present but there are no sentry-related
-			// values in the baggage, create an empty, frozen DynamicSamplingContext.
-			if !s.dynamicSamplingContext.HasEntries() {
-				s.dynamicSamplingContext = DynamicSamplingContext{
-					Frozen: true,
-				}
+		client := hubFromContext(s.ctx).Client()
+		if !shouldContinueTrace(client, dsc) {
+			return // leave span unchanged → behaves as head of trace
+		}
+
+		s.updateFromSentryTrace([]byte(trace))
+
+		if baggage != "" {
+			s.updateFromBaggage([]byte(baggage))
+		}
+
+		// In case a sentry-trace header is present but there are no sentry-related
+		// values in the baggage, create an empty, frozen DynamicSamplingContext.
+		if !s.dynamicSamplingContext.HasEntries() {
+			s.dynamicSamplingContext = DynamicSamplingContext{
+				Frozen: true,
 			}
 		}
 	}
@@ -996,6 +1032,10 @@ func ContinueFromHeaders(trace, baggage string) SpanOption {
 func ContinueFromTrace(trace string) SpanOption {
 	return func(s *Span) {
 		if trace == "" {
+			return
+		}
+		client := hubFromContext(s.ctx).Client()
+		if !shouldContinueTrace(client, DynamicSamplingContext{}) {
 			return
 		}
 		s.updateFromSentryTrace([]byte(trace))
@@ -1076,4 +1116,36 @@ func HTTPtoSpanStatus(code int) SpanStatus {
 		}
 	}
 	return SpanStatusUnknown
+}
+
+func shouldContinueTrace(client *Client, dsc DynamicSamplingContext) bool {
+	if client == nil {
+		return true
+	}
+
+	var sdkOrgID uint64
+	if client.dsn != nil {
+		sdkOrgID = client.dsn.GetOrgID()
+	}
+
+	baggageOrgStr := dsc.Entries["org_id"]
+	baggageOrgID := uint64(0)
+	if baggageOrgStr != "" {
+		baggageOrgID, _ = strconv.ParseUint(baggageOrgStr, 10, 64)
+	}
+
+	// we reject non-matching orgs regardless of strict mode
+	if sdkOrgID != 0 && baggageOrgID != 0 && sdkOrgID != baggageOrgID {
+		return false
+	}
+
+	// If strict mode is on, both must be present and match
+	if client.options.StrictTraceContinuation {
+		if sdkOrgID == 0 && baggageOrgID == 0 {
+			return true
+		}
+		return sdkOrgID == baggageOrgID
+	}
+
+	return true
 }
