@@ -81,11 +81,16 @@ type ClientOptions struct {
 	// starts a new timeout.
 	NonRetryTimeout time.Duration
 
-	// Additional headers to pass in each request to the backend.
+	// Additional default headers to pass in each request made by this client.
 	//
-	// Note that these are only passed when communicating with the W&B backend.
-	// In particular, they are not sent if using this client to send
-	// arbitrary HTTP requests.
+	// These headers apply to W&B backend requests and to arbitrary URLs such as
+	// presigned object-store URLs.
+	//
+	// Headers already set on the request are preserved.
+	// For example, GraphQL requests still use the SDK-provided "Authorization"
+	// header even if ExtraHeaders["Authorization"] = "extra-authorization-value".
+	// If a request does not set "X-EXTRA-HEADER", the client adds
+	// "extra-header-value" from ExtraHeaders.
 	ExtraHeaders map[string]string
 
 	// Allows the client to peek at the network traffic, can perform any action
@@ -183,7 +188,6 @@ func NewClient(opts ClientOptions) RetryableClient {
 
 	wandbOnlyLayers := httplayers.LimitTo(opts.BaseURL, httplayers.Concat(
 		opts.CredentialProvider,
-		httplayers.ExtraHeaders(extraHeaders),
 		ResponseBasedRateLimiter(),
 	))
 
@@ -191,6 +195,7 @@ func NewClient(opts ClientOptions) RetryableClient {
 		httplayers.WrapRoundTripper(transport,
 			httplayers.Concat(
 				NetworkPeeker(opts.NetworkPeeker),
+				httplayers.ExtraHeaders(extraHeaders),
 				wandbOnlyLayers,
 			))
 
