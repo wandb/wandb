@@ -85,6 +85,16 @@ executors:
     resource_class: wandb/docker-builder
 
 commands:
+  print-pod-stats-link:
+    description: Print a Datadog link to this job's K8s pod resource stats.
+    steps:
+      - run:
+          name: Pod resource stats (Datadog)
+          command: |
+            POD_NAME="$HOSTNAME"
+            echo "Datadog pod stats:"
+            echo "https://us5.datadoghq.com/orchestration/explorer/pod?query=kube_cluster_name%3Aci-cluster%20pod_name%3A${POD_NAME}"
+
   save-test-results:
     description: "Save test results"
     steps:
@@ -310,6 +320,7 @@ jobs:
 
     steps:
       - checkout
+      - print-pod-stats-link
       - run:
           name: Install system deps
           command: apt-get update && apt-get install -y libsndfile1 ffmpeg git
