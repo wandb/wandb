@@ -137,7 +137,8 @@ func (fc *FlowControl) readSavedChunk(
 				idx, record.Num, chunk.InitialNumber+idx)
 		}
 
-		fc.out <- fc.recordParser.Parse(record)
+		// NOTE: Work with an associated Request is not offloaded.
+		fc.out <- runwork.NoRequest(fc.recordParser.Parse(record))
 	}
 
 	return nil

@@ -78,7 +78,7 @@ func makeSender(t *testing.T, client graphql.Client) testFixtures {
 		RunfilesUploaderFactory: runfilesUploaderFactory,
 		Mailbox:                 mailbox.New(),
 		GraphqlClient:           client,
-		FeatureProvider:         featurechecker.NewServerFeaturesCache(nil, logger),
+		FeatureProvider:         featurechecker.New(nil, logger),
 		RunHandle:               runHandle,
 	}
 	return testFixtures{

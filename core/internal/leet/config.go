@@ -25,6 +25,8 @@ const (
 	gridConfigWorkspaceMetricsCols
 	gridConfigWorkspaceSystemRows
 	gridConfigWorkspaceSystemCols
+	gridConfigSymonRows
+	gridConfigSymonCols
 )
 
 const (
@@ -39,10 +41,13 @@ const (
 
 	DefaultColorScheme        = "wandb-vibe-10"
 	DefaultPerPlotColorScheme = "sunset-glow"
+	DefaultTagColorScheme     = DefaultColorScheme
 	DefaultSingleRunColorMode = ColorModePerSeries
 
-	DefaultSystemColorScheme = "wandb-vibe-10"
-	DefaultSystemColorMode   = ColorModePerSeries
+	DefaultSystemColorScheme      = "wandb-vibe-10"
+	DefaultFrenchFriesColorScheme = "viridis"
+	DefaultSystemColorMode        = ColorModePerSeries
+	DefaultSystemTailWindowMins   = 10
 
 	DefaultHeartbeatInterval = 15 // seconds
 
@@ -70,8 +75,14 @@ type Config struct {
 	WorkspaceMetricsGrid GridConfig `json:"workspace_metrics_grid" leet:"desc=workspace metrics grid"`
 	WorkspaceSystemGrid  GridConfig `json:"workspace_system_grid"  leet:"desc=workspace system metrics grid"`
 
+	// SymonGrid is the dimensions for the standalone system monitor chart grid.
+	SymonGrid GridConfig `json:"symon_grid" leet:"desc=standalone system metrics grid"`
+
 	// ColorScheme is the color scheme to display the main metrics.
 	ColorScheme string `json:"color_scheme" leet:"desc=Palette for main run metrics charts (and run list colors).,options=colorSchemes"`
+
+	// TagColorScheme is the color scheme for run tag badges in the overview sidebar.
+	TagColorScheme string `json:"tag_color_scheme" leet:"label=Tag color scheme,desc=Palette for run tags in the overview sidebar.,options=colorSchemes"`
 
 	// PerPlotColorScheme is the color scheme to use for main metrics
 	// in single-run view when SingleRunColorMode is per_plot.
@@ -81,10 +92,17 @@ type Config struct {
 	// SystemColorScheme is the color scheme for system metrics charts.
 	SystemColorScheme string `json:"system_color_scheme" leet:"desc=Palette for system charts.,options=colorSchemes"`
 
+	// FrenchFriesColorScheme is the color scheme for French Fries heatmaps.
+	FrenchFriesColorScheme string `json:"french_fries_color_scheme" leet:"label=Bucketed heatmap color scheme,desc=Palette for percentage heatmaps (French Fries plots). Sequential palettes work best.,options=colorSchemes"`
+
 	// SystemColorMode determines color assignment strategy.
 	// "per_plot": each chart gets next color from palette
 	// "per_series": all single-series charts use base color, multi-series differentiate
 	SystemColorMode string `json:"system_color_mode" leet:"desc=Color system charts per plot or per series.,options=colorModes"`
+
+	// SystemTailWindowMinutes controls the default live tail window for system charts.
+	// Users can still zoom out to show the full history.
+	SystemTailWindowMinutes int `json:"system_tail_window_minutes" leet:"label=System tail window (min),desc=Default live tail window for system charts. Zooming out can show full history.,min=1"`
 
 	// SingleRunColorMode controls how charts are colored in single-run view:
 	//  - per_series: stably-mapped run-id color for all charts
@@ -147,12 +165,19 @@ func NewConfigManager(path string, logger *observability.CoreLogger) *ConfigMana
 				Rows: DefaultWorkspaceSystemGridRows,
 				Cols: DefaultWorkspaceSystemGridCols,
 			},
+			SymonGrid: GridConfig{
+				Rows: DefaultSymonGridRows,
+				Cols: DefaultSymonGridCols,
+			},
 			StartupMode:                   DefaultStartupMode,
 			ColorScheme:                   DefaultColorScheme,
 			PerPlotColorScheme:            DefaultPerPlotColorScheme,
+			TagColorScheme:                DefaultTagColorScheme,
 			SingleRunColorMode:            DefaultSingleRunColorMode,
 			SystemColorScheme:             DefaultSystemColorScheme,
+			FrenchFriesColorScheme:        DefaultFrenchFriesColorScheme,
 			SystemColorMode:               DefaultSystemColorMode,
+			SystemTailWindowMinutes:       DefaultSystemTailWindowMins,
 			HeartbeatInterval:             DefaultHeartbeatInterval,
 			LeftSidebarVisible:            true,
 			RightSidebarVisible:           true,
@@ -210,6 +235,10 @@ func (cm *ConfigManager) normalizeConfig() {
 		cm.config.WorkspaceSystemGrid.Rows, MinGridSize, MaxGridSize)
 	cm.config.WorkspaceSystemGrid.Cols = clamp(
 		cm.config.WorkspaceSystemGrid.Cols, MinGridSize, MaxGridSize)
+	cm.config.SymonGrid.Rows = clamp(
+		cm.config.SymonGrid.Rows, MinGridSize, MaxGridSize)
+	cm.config.SymonGrid.Cols = clamp(
+		cm.config.SymonGrid.Cols, MinGridSize, MaxGridSize)
 
 	if _, ok := colorSchemes[cm.config.ColorScheme]; !ok {
 		cm.config.ColorScheme = DefaultColorScheme
@@ -221,6 +250,14 @@ func (cm *ConfigManager) normalizeConfig() {
 
 	if _, ok := colorSchemes[cm.config.SystemColorScheme]; !ok {
 		cm.config.SystemColorScheme = DefaultSystemColorScheme
+	}
+
+	if _, ok := colorSchemes[cm.config.FrenchFriesColorScheme]; !ok {
+		cm.config.FrenchFriesColorScheme = DefaultFrenchFriesColorScheme
+	}
+
+	if _, ok := colorSchemes[cm.config.TagColorScheme]; !ok {
+		cm.config.TagColorScheme = DefaultTagColorScheme
 	}
 
 	if cm.config.SystemColorMode != ColorModePerPlot &&
@@ -235,6 +272,10 @@ func (cm *ConfigManager) normalizeConfig() {
 
 	if cm.config.HeartbeatInterval <= 0 {
 		cm.config.HeartbeatInterval = DefaultHeartbeatInterval
+	}
+
+	if cm.config.SystemTailWindowMinutes <= 0 {
+		cm.config.SystemTailWindowMinutes = DefaultSystemTailWindowMins
 	}
 
 	if cm.config.StartupMode != StartupModeWorkspaceLatest &&
@@ -374,6 +415,13 @@ func (cm *ConfigManager) WorkspaceSystemGrid() (rows, cols int) {
 	return cm.config.WorkspaceSystemGrid.Rows, cm.config.WorkspaceSystemGrid.Cols
 }
 
+// SymonGrid returns the standalone system monitor grid configuration.
+func (cm *ConfigManager) SymonGrid() (rows, cols int) {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	return cm.config.SymonGrid.Rows, cm.config.SymonGrid.Cols
+}
+
 func (cm *ConfigManager) SetWorkspaceSystemRows(rows int) error {
 	if rows < MinGridSize || rows > MaxGridSize {
 		return fmt.Errorf("rows must be between %d and %d, got %d", MinGridSize, MaxGridSize, rows)
@@ -393,6 +441,28 @@ func (cm *ConfigManager) SetWorkspaceSystemCols(cols int) error {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
 	cm.config.WorkspaceSystemGrid.Cols = cols
+	return cm.save()
+}
+
+func (cm *ConfigManager) SetSymonRows(rows int) error {
+	if rows < MinGridSize || rows > MaxGridSize {
+		return fmt.Errorf("rows must be between %d and %d, got %d", MinGridSize, MaxGridSize, rows)
+	}
+
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	cm.config.SymonGrid.Rows = rows
+	return cm.save()
+}
+
+func (cm *ConfigManager) SetSymonCols(cols int) error {
+	if cols < MinGridSize || cols > MaxGridSize {
+		return fmt.Errorf("cols must be between %d and %d, got %d", MinGridSize, MaxGridSize, cols)
+	}
+
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	cm.config.SymonGrid.Cols = cols
 	return cm.save()
 }
 
@@ -464,6 +534,22 @@ func (cm *ConfigManager) SetPerPlotColorScheme(scheme string) error {
 	return cm.save()
 }
 
+func (cm *ConfigManager) TagColorScheme() string {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	return cm.config.TagColorScheme
+}
+
+func (cm *ConfigManager) SetTagColorScheme(scheme string) error {
+	if _, ok := colorSchemes[scheme]; !ok {
+		return fmt.Errorf("unknown color scheme: %q", scheme)
+	}
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	cm.config.TagColorScheme = scheme
+	return cm.save()
+}
+
 func (cm *ConfigManager) SingleRunColorMode() string {
 	cm.mu.RLock()
 	defer cm.mu.RUnlock()
@@ -490,6 +576,13 @@ func (cm *ConfigManager) SystemColorScheme() string {
 	return cm.config.SystemColorScheme
 }
 
+// FrenchFriesColorScheme returns the color scheme for French Fries heatmaps.
+func (cm *ConfigManager) FrenchFriesColorScheme() string {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	return cm.config.FrenchFriesColorScheme
+}
+
 // SystemColorMode returns the color assignment mode for system metrics.
 func (cm *ConfigManager) SystemColorMode() string {
 	cm.mu.RLock()
@@ -500,12 +593,24 @@ func (cm *ConfigManager) SystemColorMode() string {
 // SetSystemColorScheme sets the system color scheme.
 func (cm *ConfigManager) SetSystemColorScheme(scheme string) error {
 	if _, ok := colorSchemes[scheme]; !ok {
-		return fmt.Errorf("unknown color scheme: %s", scheme)
+		return fmt.Errorf("unknown color scheme: %q", scheme)
 	}
 
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
 	cm.config.SystemColorScheme = scheme
+	return cm.save()
+}
+
+// SetFrenchFriesColorScheme sets the French Fries heatmap color scheme.
+func (cm *ConfigManager) SetFrenchFriesColorScheme(scheme string) error {
+	if _, ok := colorSchemes[scheme]; !ok {
+		return fmt.Errorf("unknown color scheme: %q", scheme)
+	}
+
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	cm.config.FrenchFriesColorScheme = scheme
 	return cm.save()
 }
 
@@ -519,6 +624,26 @@ func (cm *ConfigManager) SetSystemColorMode(mode string) error {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
 	cm.config.SystemColorMode = mode
+	return cm.save()
+}
+
+// SystemTailWindow returns the default live tail window for system charts.
+func (cm *ConfigManager) SystemTailWindow() time.Duration {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+
+	return time.Duration(cm.config.SystemTailWindowMinutes) * time.Minute
+}
+
+// SetSystemTailWindowMinutes sets the default live tail window for system charts.
+func (cm *ConfigManager) SetSystemTailWindowMinutes(minutes int) error {
+	if minutes <= 0 {
+		return fmt.Errorf("system tail window must be a positive integer")
+	}
+
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	cm.config.SystemTailWindowMinutes = minutes
 	return cm.save()
 }
 
@@ -642,6 +767,14 @@ func (cm *ConfigManager) SetGridConfig(num int) (string, error) {
 		if err = cm.SetWorkspaceSystemRows(num); err == nil { // success
 			return fmt.Sprintf("Workspace system grid rows set to %d", num), nil
 		}
+	case gridConfigSymonCols:
+		if err = cm.SetSymonCols(num); err == nil { // success
+			return fmt.Sprintf("Symon grid columns set to %d", num), nil
+		}
+	case gridConfigSymonRows:
+		if err = cm.SetSymonRows(num); err == nil { // success
+			return fmt.Sprintf("Symon grid rows set to %d", num), nil
+		}
 	}
 
 	return "", err
@@ -666,9 +799,9 @@ func (cm *ConfigManager) GridConfigStatus() string {
 		return "Press 1-9 to set metrics grid columns (ESC to cancel)"
 	case gridConfigMetricsRows, gridConfigWorkspaceMetricsRows:
 		return "Press 1-9 to set metrics grid rows (ESC to cancel)"
-	case gridConfigSystemCols, gridConfigWorkspaceSystemCols:
+	case gridConfigSystemCols, gridConfigWorkspaceSystemCols, gridConfigSymonCols:
 		return "Press 1-9 to set system grid columns (ESC to cancel)"
-	case gridConfigSystemRows, gridConfigWorkspaceSystemRows:
+	case gridConfigSystemRows, gridConfigWorkspaceSystemRows, gridConfigSymonRows:
 		return "Press 1-9 to set system grid rows (ESC to cancel)"
 
 	default:

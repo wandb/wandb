@@ -1,7 +1,7 @@
 """Basic ray-tune integration tests.
 
 Based on:
-    https://docs.wandb.ai/guides/integrations/ray-tune
+    https://docs.wandb.ai/models/integrations/ray-tune
     https://docs.ray.io/en/latest/tune/examples/tune-wandb.html
 """
 

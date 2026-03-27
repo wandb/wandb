@@ -436,7 +436,7 @@ jobs:
           python -m pip install wandb==${{ github.event.inputs.version }}
       - name: Post to Slack
         id: slack
-        uses: slackapi/slack-github-action@v2.1.1
+        uses: slackapi/slack-github-action@v3.0.1
         with:
           method: chat.postMessage
           token: ${{ secrets.SLACK_BOT_TOKEN }}
@@ -461,7 +461,7 @@ jobs:
     steps:
       - name: Create GitHub App Token
         id: app-token
-        uses: actions/create-github-app-token@v2
+        uses: actions/create-github-app-token@v3
         with:
           app-id: ${{ vars.WANDBOT_3000_APP_ID }}
           private-key: ${{ secrets.WANDBOT_3000_PRIVATE_KEY }}

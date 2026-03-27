@@ -344,7 +344,6 @@ class Api:
         self.query_types: list[str] | None = None
         self.mutation_types: list[str] | None = None
         self.server_info_types: list[str] | None = None
-        self.server_use_artifact_input_info: list[str] | None = None
         self.server_create_artifact_input_info: list[str] | None = None
         self.server_artifact_fields_info: list[str] | None = None
         self.server_organization_type_fields_info: list[str] | None = None
@@ -353,8 +352,6 @@ class Api:
         self._server_settings_type: list[str] | None = None
         self.fail_run_queue_item_input_info: list[str] | None = None
         self.create_launch_agent_input_info: list[str] | None = None
-        self.server_create_run_queue_supports_drc: bool | None = None
-        self.server_create_run_queue_supports_priority: bool | None = None
         self.server_supports_template_variables: bool | None = None
         self.server_push_to_run_queue_supports_priority: bool | None = None
 
@@ -646,88 +643,6 @@ class Api:
                 else []
             )
 
-    def server_use_artifact_input_introspection(self) -> list:
-        query_string = """
-           query ProbeServerUseArtifactInput {
-               UseArtifactInputInfoType: __type(name: "UseArtifactInput") {
-                   name
-                   inputFields {
-                       name
-                   }
-                }
-            }
-        """
-
-        if self.server_use_artifact_input_info is None:
-            query = gql(query_string)
-            res = self.gql(query)
-            self.server_use_artifact_input_info = [
-                field.get("name", "")
-                for field in res.get("UseArtifactInputInfoType", {}).get(
-                    "inputFields", [{}]
-                )
-            ]
-        return self.server_use_artifact_input_info
-
-    @normalize_exceptions
-    def launch_agent_introspection(self) -> str | None:
-        query = gql(
-            """
-            query LaunchAgentIntrospection {
-                LaunchAgentType: __type(name: "LaunchAgent") {
-                    name
-                }
-            }
-        """
-        )
-
-        res = self.gql(query)
-        return res.get("LaunchAgentType") or None
-
-    @normalize_exceptions
-    def create_run_queue_introspection(self) -> tuple[bool, bool, bool]:
-        _, _, mutations = self.server_info_introspection()
-        query_string = """
-           query ProbeCreateRunQueueInput {
-               CreateRunQueueInputType: __type(name: "CreateRunQueueInput") {
-                   name
-                   inputFields {
-                       name
-                   }
-                }
-            }
-        """
-        if (
-            self.server_create_run_queue_supports_drc is None
-            or self.server_create_run_queue_supports_priority is None
-        ):
-            query = gql(query_string)
-            res = self.gql(query)
-            if res is None:
-                raise CommError("Could not get CreateRunQueue input from GQL.")
-            self.server_create_run_queue_supports_drc = "defaultResourceConfigID" in [
-                x["name"]
-                for x in (
-                    res.get("CreateRunQueueInputType", {}).get("inputFields", [{}])
-                )
-            ]
-            self.server_create_run_queue_supports_priority = "prioritizationMode" in [
-                x["name"]
-                for x in (
-                    res.get("CreateRunQueueInputType", {}).get("inputFields", [{}])
-                )
-            ]
-        return (
-            "createRunQueue" in mutations,
-            self.server_create_run_queue_supports_drc,
-            self.server_create_run_queue_supports_priority,
-        )
-
-    @normalize_exceptions
-    def upsert_run_queue_introspection(self) -> bool:
-        _, _, mutations = self.server_info_introspection()
-        return "upsertRunQueue" in mutations
-
     @normalize_exceptions
     def push_to_run_queue_introspection(self) -> tuple[bool, bool]:
         query_string = """
@@ -958,13 +873,6 @@ class Api:
     def max_cli_version(self) -> str | None:
         if self._max_cli_version is not None:
             return self._max_cli_version
-
-        query_types, server_info_types, _ = self.server_info_introspection()
-        cli_version_exists = (
-            "serverInfo" in query_types and "cliVersionInfo" in server_info_types
-        )
-        if not cli_version_exists:
-            return None
 
         _, server_info = self.viewer_server_info()
         self._max_cli_version = server_info.get("cliVersionInfo", {}).get(
@@ -1578,94 +1486,40 @@ class Api:
         prioritization_mode: str | None = None,
         config_id: str | None = None,
     ) -> dict[str, Any] | None:
-        (
-            create_run_queue,
-            supports_drc,
-            supports_prioritization,
-        ) = self.create_run_queue_introspection()
-        if not create_run_queue:
-            raise UnsupportedError(
-                "run queue creation is not supported by this version of "
-                "wandb server. Consider updating to the latest version."
-            )
-        if not supports_drc and config_id is not None:
-            raise UnsupportedError(
-                "default resource configurations are not supported by this version "
-                "of wandb server. Consider updating to the latest version."
-            )
-        if not supports_prioritization and prioritization_mode is not None:
-            raise UnsupportedError(
-                "launch prioritization is not supported by this version of "
-                "wandb server. Consider updating to the latest version."
-            )
-
-        if supports_prioritization:
-            query = gql(
-                """
-            mutation createRunQueue(
-                $entity: String!,
-                $project: String!,
-                $queueName: String!,
-                $access: RunQueueAccessType!,
-                $prioritizationMode: RunQueuePrioritizationMode,
-                $defaultResourceConfigID: ID,
-            ) {
-                createRunQueue(
-                    input: {
-                        entityName: $entity,
-                        projectName: $project,
-                        queueName: $queueName,
-                        access: $access,
-                        prioritizationMode: $prioritizationMode
-                        defaultResourceConfigID: $defaultResourceConfigID
-                    }
-                ) {
-                    success
-                    queueID
-                }
-            }
+        query = gql(
             """
-            )
-            variable_values = {
-                "entity": entity,
-                "project": project,
-                "queueName": queue_name,
-                "access": access,
-                "prioritizationMode": prioritization_mode,
-                "defaultResourceConfigID": config_id,
-            }
-        else:
-            query = gql(
-                """
-            mutation createRunQueue(
-                $entity: String!,
-                $project: String!,
-                $queueName: String!,
-                $access: RunQueueAccessType!,
-                $defaultResourceConfigID: ID,
-            ) {
-                createRunQueue(
-                    input: {
-                        entityName: $entity,
-                        projectName: $project,
-                        queueName: $queueName,
-                        access: $access,
-                        defaultResourceConfigID: $defaultResourceConfigID
-                    }
-                ) {
-                    success
-                    queueID
+        mutation createRunQueue(
+            $entity: String!,
+            $project: String!,
+            $queueName: String!,
+            $access: RunQueueAccessType!,
+            $prioritizationMode: RunQueuePrioritizationMode,
+            $defaultResourceConfigID: ID,
+        ) {
+            createRunQueue(
+                input: {
+                    entityName: $entity,
+                    projectName: $project,
+                    queueName: $queueName,
+                    access: $access,
+                    prioritizationMode: $prioritizationMode
+                    defaultResourceConfigID: $defaultResourceConfigID
                 }
+            ) {
+                success
+                queueID
             }
-            """
-            )
-            variable_values = {
-                "entity": entity,
-                "project": project,
-                "queueName": queue_name,
-                "access": access,
-                "defaultResourceConfigID": config_id,
-            }
+        }
+        """
+        )
+        variable_values = {
+            "entity": entity,
+            "project": project,
+            "queueName": queue_name,
+            "access": access,
+            "prioritizationMode": prioritization_mode,
+            "defaultResourceConfigID": config_id,
+        }
 
         result: dict[str, Any] | None = self.gql(query, variable_values)[
             "createRunQueue"
@@ -1684,11 +1538,6 @@ class Api:
         template_variables: dict | None = None,
         external_links: dict | None = None,
     ) -> dict[str, Any] | None:
-        if not self.upsert_run_queue_introspection():
-            raise UnsupportedError(
-                "upserting run queues is not supported by this version of "
-                "wandb server. Consider updating to the latest version."
-            )
         query = gql(
             """
             mutation upsertRunQueue(
@@ -2065,7 +1914,6 @@ class Api:
         queues: list[str],
         agent_config: dict[str, Any],
         version: str,
-        gorilla_agent_support: bool,
     ) -> dict:
         project_queues = self.get_project_run_queues(entity, project)
         if not project_queues:
@@ -2086,13 +1934,6 @@ class Api:
                 f"Could not start launch agent: Not all of requested queues ({', '.join(queues)}) found. "
                 f"Available queues for this project: {','.join([q['name'] for q in project_queues])}"
             )
-
-        if not gorilla_agent_support:
-            # if gorilla doesn't support launch agents, return a client-generated id
-            return {
-                "success": True,
-                "launchAgentId": None,
-            }
 
         hostname = socket.gethostname()
 
@@ -2149,14 +1990,7 @@ class Api:
         self,
         agent_id: str,
         status: str,
-        gorilla_agent_support: bool,
     ) -> dict:
-        if not gorilla_agent_support:
-            # if gorilla doesn't support launch agents, this is a no-op
-            return {
-                "success": True,
-            }
-
         mutation = gql(
             """
             mutation updateLaunchAgent($agentId: ID!, $agentStatus: String){
@@ -2179,13 +2013,7 @@ class Api:
         return result
 
     @normalize_exceptions
-    def get_launch_agent(self, agent_id: str, gorilla_agent_support: bool) -> dict:
-        if not gorilla_agent_support:
-            return {
-                "id": None,
-                "name": "",
-                "stopPolling": False,
-            }
+    def get_launch_agent(self, agent_id: str) -> dict:
         query = gql(
             """
             query LaunchAgent($agentId: ID!) {
@@ -3760,8 +3588,7 @@ class Api:
             "artifactID: $artifactID",
         ]
 
-        artifact_types = self.server_use_artifact_input_introspection()
-        if "usedAs" in artifact_types and use_as:
+        if use_as:
             query_vars.append("$usedAs: String")
             query_args.append("usedAs: $usedAs")
 
@@ -4541,10 +4368,26 @@ class Api:
     def get_sweep_state(
         self, sweep: str, entity: str | None = None, project: str | None = None
     ) -> SweepState:
-        state: SweepState = self.sweep(
-            sweep=sweep, entity=entity, project=project, specs="{}"
-        )["state"]
-        return state
+        query = gql(
+            """
+            query GetSweepState($entity: String, $project: String, $sweep: String!) {
+                project(name: $project, entityName: $entity) {
+                    sweep(sweepName: $sweep) {
+                        state
+                    }
+                }
+            }
+            """
+        )
+        response = self.gql(
+            query,
+            variable_values={
+                "sweep": sweep,
+                "entity": entity or self.settings("entity"),
+                "project": project or self.settings("project"),
+            },
+        )
+        return response["project"]["sweep"]["state"]
 
     def set_sweep_state(
         self,

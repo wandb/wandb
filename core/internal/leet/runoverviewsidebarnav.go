@@ -37,7 +37,7 @@ func (s *RunOverviewSidebar) updateSectionHeights() {
 
 // availableHeight returns the height available for sections.
 func (s *RunOverviewSidebar) availableHeight() int {
-	availableHeight := s.height - sidebarHeaderLines
+	availableHeight := s.height - s.headerLineCount()
 
 	activeSections := s.countActiveSections()
 	if activeSections == 0 {

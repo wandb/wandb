@@ -1,14 +1,14 @@
 # NOTE: We use Hatch to build wandb, and it respects the *first* .gitignore
 # file it sees. It doesn't consider .gitignore files in subdirectories.
 
-# Mac file system metadata
+# Mac file system metadata.
 .DS_Store
 
-# Byte-compiled / optimized / DLL files
+# Byte-compiled / optimized / DLL files.
 __pycache__/
 *.py[cod]
 
-# Distribution / packaging
+# Distribution / packaging.
 dist/
 build/
 *.egg
@@ -16,16 +16,16 @@ build/
 # Conventional location for Python virtual environments.
 .venv/*
 
-# Configuration files
+# Configuration files.
 .python-version
 .idea/
 # .vscode/
 
-# nox cache
+# nox cache.
 .nox/
 .nox-wandb/
 
-# Unit test / coverage reports / Linting
+# Unit test / coverage reports / linting.
 test-results/
 .pytest_cache/
 .hypothesis/
@@ -38,16 +38,19 @@ cover-results/
 mypy-results/
 .mypy_cache/
 
-# Build output in gpu_stats
+# Build output in gpu_stats.
 gpu_stats/target/
 
-# Outputs of tools/local_wandb_server.py
+# Outputs of tools/local_wandb_server.py.
 tools/local_wandb_server.state.lock
 tools/local_wandb_server.state
 
-# Ignore orjson build artifacts
+# Ignore orjson build artifacts.
 wandb/vendor/wandb_orjson/__init__.py
 wandb/vendor/wandb_orjson/__init__.pyi
 wandb/vendor/wandb_orjson/py.typed
 wandb/vendor/wandb_orjson/orjson.so
 wandb/vendor/wandb_orjson/orjson.pyd
+
+# Cached protoc binaries downloaded by wandb/proto/generate-proto.sh.
+.protoc/

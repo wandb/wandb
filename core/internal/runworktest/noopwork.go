@@ -7,7 +7,7 @@ import (
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
-// NoopWork is Work helpful for testing.
+// NoopWork is a WorkImpl helpful for testing.
 //
 // It does nothing and is represented as an empty Record proto.
 type NoopWork struct {

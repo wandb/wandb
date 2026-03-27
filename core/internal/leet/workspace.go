@@ -2,7 +2,6 @@ package leet
 
 import (
 	"fmt"
-	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -10,6 +9,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"charm.land/lipgloss/v2/compat"
 
 	"github.com/wandb/wandb/core/internal/observability"
 )
@@ -54,13 +54,16 @@ type Workspace struct {
 
 	// TODO: mark live runs upon selection.
 
-	// TODO: filter for the run selector.
-	// TODO: allow filtering by run properties, e.g. projects or tags.
+	// filter drives the runs sidebar search box.
 	filter *Filter
+	// runsFilterIndex caches searchable per-run metadata (name, project, config)
+	// for the runs sidebar so metadata filtering stays fast during live preview.
+	runsFilterIndex map[string]WorkspaceRunFilterData
 
 	// Multi‑run metrics state.
 	focus       *Focus
 	metricsGrid *MetricsGrid
+	runColors   *workspaceRunColors
 
 	// System metrics
 	systemMetrics       map[string]*SystemMetricsGrid
@@ -73,7 +76,7 @@ type Workspace struct {
 	consoleLogsPane *ConsoleLogsPane
 
 	// Per‑run streaming state keyed by runDirName.
-	runsByKey map[string]*workspaceRun
+	runsByKey map[string]*WorkspaceRun
 
 	// Heartbeat for live runs.
 	liveChan     chan tea.Msg
@@ -84,11 +87,11 @@ type Workspace struct {
 	width, height int
 }
 
-// workspaceRun holds per‑run state for the workspace multi‑run view.
-type workspaceRun struct {
-	key       string
+// WorkspaceRun holds per‑run state for the workspace multi‑run view.
+type WorkspaceRun struct {
+	Key       string
+	Reader    HistorySource
 	wandbPath string
-	reader    *WandbReader
 	watcher   *WatcherManager
 	state     RunState
 }
@@ -112,6 +115,9 @@ func NewWorkspace(
 	runs.SetItemsPerPage(1)
 
 	focus := NewFocus()
+	metricsGrid := NewMetricsGrid(cfg, cfg.WorkspaceMetricsGrid, focus, logger)
+	runColors := newWorkspaceRunColors(GraphColors(cfg.ColorScheme()))
+	metricsGrid.SetSeriesColorProvider(runColors.Assign)
 
 	smf := NewFilter()
 
@@ -136,21 +142,23 @@ func NewWorkspace(
 		runs:          runs,
 		runOverview:   make(map[string]*RunOverview),
 		runOverviewSidebar: NewRunOverviewSidebar(
-			runOverviewAnimState, NewRunOverview(), SidebarSideRight),
+			cfg, runOverviewAnimState, NewRunOverview(), SidebarSideRight),
 		overviewPreloader:   newRunOverviewPreloader(maxConcurrentPreloads),
 		selectedRuns:        make(map[string]bool),
 		focus:               focus,
-		metricsGrid:         NewMetricsGrid(cfg, cfg.WorkspaceMetricsGrid, focus, logger),
+		metricsGrid:         metricsGrid,
+		runColors:           runColors,
 		systemMetrics:       make(map[string]*SystemMetricsGrid),
 		systemMetricsPane:   NewSystemMetricsPane(systemMetricsPaneAnimState),
 		systemMetricsFocus:  focus,
 		systemMetricsFilter: smf,
 		consoleLogs:         make(map[string]*RunConsoleLogs),
 		consoleLogsPane:     NewConsoleLogsPane(consoleLogsPaneAnimState),
-		runsByKey:           make(map[string]*workspaceRun),
+		runsByKey:           make(map[string]*WorkspaceRun),
 		liveChan:            ch,
 		heartbeatMgr:        NewHeartbeatManager(hbInterval, ch, logger),
 		filter:              NewFilter(),
+		runsFilterIndex:     make(map[string]WorkspaceRunFilterData),
 	}
 }
 
@@ -502,8 +510,8 @@ func (w *Workspace) dropRun(runKey string) {
 			w.metricsGrid.RemoveSeries(run.wandbPath)
 		}
 		w.stopWatcher(run)
-		if run.reader != nil {
-			run.reader.Close()
+		if run.Reader != nil {
+			run.Reader.Close()
 		}
 		delete(w.runsByKey, runKey)
 		delete(w.consoleLogs, runKey)
@@ -652,7 +660,7 @@ func (w *Workspace) renderRunOverview() string {
 }
 
 func (w *Workspace) renderMetrics() string {
-	contentWidth := max(w.width-w.runsAnimState.Value()-w.runOverviewSidebar.Width()+1, 0)
+	contentWidth := max(w.width-w.runsAnimState.Value()-w.runOverviewSidebar.Width(), 0)
 	reserved := w.consoleLogsPane.Height() + w.systemMetricsPane.Height()
 	contentHeight := max(w.height-StatusBarHeight-reserved, 1)
 
@@ -703,7 +711,10 @@ func (w *Workspace) renderStatusBar() string {
 }
 
 func (w *Workspace) buildStatusText() string {
-	// Metrics filter input mode has top priority.
+	// Filter input mode has top priority.
+	if w.filter.IsActive() {
+		return w.buildRunsFilterStatus()
+	}
 	if w.metricsGrid.IsFilterMode() {
 		return w.buildMetricsFilterStatus()
 	}
@@ -719,7 +730,6 @@ func (w *Workspace) buildStatusText() string {
 		return w.config.GridConfigStatus()
 	}
 
-	// When we add a run-filter input, it can be handled here similarly.
 	return w.buildActiveStatus()
 }
 
@@ -767,9 +777,19 @@ func (w *Workspace) buildOverviewFilterStatus() string {
 func (w *Workspace) buildActiveStatus() string {
 	var parts []string
 
+	if w.filter.Query() != "" && !w.filter.IsActive() {
+		parts = append(parts, fmt.Sprintf(
+			"Runs (%s): %q [%d/%d] (f to change, ctrl+f to clear)",
+			w.filter.Mode().String(),
+			w.filter.Query(),
+			len(w.runs.FilteredItems),
+			len(w.runs.Items),
+		))
+	}
+
 	if w.metricsGrid.IsFiltering() {
 		parts = append(parts, fmt.Sprintf(
-			"Filter (%s): %q [%d/%d] (/ to change, ctrl+l to clear)",
+			"Filter (%s): %q [%d/%d] (/ to change, ctrl+/ to clear)",
 			w.metricsGrid.FilterMode().String(),
 			w.metricsGrid.FilterQuery(),
 			w.metricsGrid.FilteredChartCount(),
@@ -791,7 +811,7 @@ func (w *Workspace) buildActiveStatus() string {
 
 	if w.runOverviewSidebar.IsVisible() && w.runOverviewSidebar.IsFiltering() {
 		parts = append(parts, fmt.Sprintf(
-			"Overview: %q [%s] (o to change, ctrl+k to clear)",
+			"Overview: %q [%s] (o to change, ctrl+o to clear)",
 			w.runOverviewSidebar.FilterQuery(),
 			w.runOverviewSidebar.FilterInfo(),
 		))
@@ -807,6 +827,24 @@ func (w *Workspace) buildActiveStatus() string {
 
 	if w.focus.Type != FocusNone {
 		parts = append(parts, w.focus.Title)
+		switch w.focus.Type {
+		case FocusMainChart:
+			if scaleLabel := w.metricsGrid.focusedChartScaleLabel(); scaleLabel != "" {
+				parts = append(parts, scaleLabel)
+			}
+		case FocusSystemChart:
+			if g := w.activeSystemMetricsGrid(); g != nil {
+				if detail := g.FocusedChartTitleDetail(); detail != "" {
+					parts = append(parts, detail)
+				}
+				if viewMode := g.FocusedChartViewModeLabel(); viewMode != "" {
+					parts = append(parts, viewMode)
+				}
+				if scaleLabel := g.FocusedChartScaleLabel(); scaleLabel != "" {
+					parts = append(parts, scaleLabel)
+				}
+			}
+		}
 	}
 
 	if len(parts) == 0 {
@@ -854,24 +892,60 @@ func (w *Workspace) syncRunsPage() (startIdx, endIdx int) {
 	return startIdx, endIdx
 }
 
-// renderRunsListHeader renders "Runs [X‑Y of N]" (or "[N items]" for single‑page).
+// renderRunsListHeader renders the runs list title and counts.
 func (w *Workspace) renderRunsListHeader(startIdx, endIdx int) string {
 	title := runOverviewSidebarSectionHeaderStyle.Render("Runs")
 
-	total := len(w.runs.FilteredItems)
+	filteredCount := len(w.runs.FilteredItems)
+	totalCount := len(w.runs.Items)
 	info := ""
 
-	if total > 0 {
+	switch {
+	case w.filter.Query() != "" && totalCount > 0:
 		ipp := w.runs.ItemsPerPage()
-		if ipp > 0 && total > ipp {
-			// X‑Y are 1‑based indices for the current page.
-			info = fmt.Sprintf(" [%d-%d of %d]", startIdx+1, endIdx, total)
+		switch {
+		case filteredCount == 0:
+			info = fmt.Sprintf(" [0 of %d filtered]", totalCount)
+		case ipp > 0 && filteredCount > ipp:
+			info = fmt.Sprintf(
+				" [%d-%d of %d filtered from %d total]",
+				startIdx+1,
+				endIdx,
+				filteredCount,
+				totalCount,
+			)
+		default:
+			info = fmt.Sprintf(" [%d filtered from %d total]", filteredCount, totalCount)
+		}
+	case filteredCount > 0:
+		ipp := w.runs.ItemsPerPage()
+		if ipp > 0 && filteredCount > ipp {
+			info = fmt.Sprintf(" [%d-%d of %d]", startIdx+1, endIdx, filteredCount)
 		} else {
-			info = fmt.Sprintf(" [%d items]", total)
+			info = fmt.Sprintf(" [%d items]", filteredCount)
 		}
 	}
 
 	return title + navInfoStyle.Render(info)
+}
+
+func (w *Workspace) runPathForKey(runKey string) string {
+	if runKey == "" {
+		return ""
+	}
+	return runWandbFile(w.wandbDir, runKey)
+}
+
+func (w *Workspace) runColorForKey(runKey string) compat.AdaptiveColor {
+	runPath := w.runPathForKey(runKey)
+	if w.runColors == nil {
+		colors := GraphColors(w.config.ColorScheme())
+		if len(colors) == 0 {
+			return compat.AdaptiveColor{}
+		}
+		return colors[colorIndex(runPath, len(colors))]
+	}
+	return w.runColors.Assign(runPath)
 }
 
 // renderRunLines renders the visible slice with zebra background and selection.
@@ -900,13 +974,8 @@ func (w *Workspace) renderRunLines(contentWidth int) []string {
 			}
 		}
 
-		// TODO: Stable mapping for consistent colors: refactor and clean up.
 		runKey := item.Key
-		runID := extractRunID(runKey)
-		runPath := filepath.Join(w.wandbDir, runKey, "run-"+runID+".wandb")
-
-		graphColors := GraphColors(w.config.ColorScheme())
-		colorIdx := colorIndex(runPath, len(graphColors))
+		runColor := w.runColorForKey(runKey)
 
 		isSelected := w.selectedRuns[runKey]
 		isPinned := w.pinnedRun == runKey
@@ -919,8 +988,8 @@ func (w *Workspace) renderRunLines(contentWidth int) []string {
 			mark = PinnedRunMark
 		}
 
-		// Render prefix without background
-		prefix := lipgloss.NewStyle().Foreground(graphColors[colorIdx]).Render(mark + " ")
+		// Render prefix without background.
+		prefix := lipgloss.NewStyle().Foreground(runColor).Render(mark + " ")
 		prefixWidth := lipgloss.Width(prefix)
 
 		// Apply subtle muting to unselected/unpinned runs
