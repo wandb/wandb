@@ -5,14 +5,26 @@ from typing import Any
 
 from pydantic import ValidationError
 from pytest import FixtureRequest, fixture, mark, raises
-from wandb.automations import ActionType, EventType, NewAutomation
+from wandb.automations import (
+    ActionType,
+    ArtifactEvent,
+    EventType,
+    NewAutomation,
+    OnAddArtifactAlias,
+    OnCreateArtifact,
+    OnLinkArtifact,
+    OnRunMetric,
+    RunEvent,
+)
 from wandb.automations._utils import (
     INVALID_INPUT_ACTIONS,
     INVALID_INPUT_EVENTS,
     prepare_to_create,
+    prepare_to_update,
 )
 from wandb.automations.actions import InputAction
-from wandb.automations.events import InputEvent
+from wandb.automations.automations import Automation
+from wandb.automations.events import InputEvent, OnRunState
 
 
 class TestPrepareToCreate:
@@ -246,3 +258,115 @@ class TestPrepareToCreate:
                 ),
             },
         }
+
+
+class TestPrepareToUpdate:
+    """Checks on the internal helper that prepares the GraphQL input for UpdateFilterTrigger mutations."""
+
+    MUTATION_EVENT_TYPES = [
+        EventType.ADD_ARTIFACT_ALIAS,
+        EventType.LINK_ARTIFACT,
+        EventType.CREATE_ARTIFACT,
+    ]
+
+    MUTATION_EVENT_TYPE_TO_CLASS = {
+        EventType.ADD_ARTIFACT_ALIAS: OnAddArtifactAlias,
+        EventType.LINK_ARTIFACT: OnLinkArtifact,
+        EventType.CREATE_ARTIFACT: OnCreateArtifact,
+    }
+
+    @mark.parametrize(
+        "saved_event_type",
+        MUTATION_EVENT_TYPES,
+        indirect=True,
+        ids=lambda x: f"event={x.value}",
+    )
+    def test_update_event_preserves_mutation_filter(
+        self,
+        saved_automation: Automation,
+        saved_event_type: EventType,
+        artifact_collection,
+    ):
+        """Updating an automation with a new InputEvent must preserve the event filter."""
+        event_cls = self.MUTATION_EVENT_TYPE_TO_CLASS[saved_event_type]
+        new_event = event_cls(
+            scope=artifact_collection,
+            filter=ArtifactEvent.alias == "prod",
+        )
+
+        result = prepare_to_update(saved_automation, event=new_event)
+        event_filter = json.loads(result.event_filter)
+
+        assert event_filter != {"$and": []}
+        assert event_filter == {"$or": [{"$and": [{"alias": {"$eq": "prod"}}]}]}
+
+    @mark.parametrize(
+        "saved_event_type",
+        MUTATION_EVENT_TYPES,
+        indirect=True,
+        ids=lambda x: f"event={x.value}",
+    )
+    def test_update_without_event_preserves_existing_filter(
+        self,
+        saved_automation: Automation,
+    ):
+        """Calling prepare_to_update with no event kwarg must preserve the original filter."""
+        result = prepare_to_update(saved_automation)
+        event_filter = json.loads(result.event_filter)
+
+        assert event_filter != {"$and": []}
+        assert event_filter == {"$or": [{"$and": [{"alias": {"$eq": "latest"}}]}]}
+
+    @mark.parametrize(
+        "saved_event_type",
+        MUTATION_EVENT_TYPES,
+        indirect=True,
+        ids=lambda x: f"event={x.value}",
+    )
+    def test_update_name_only_preserves_filter(
+        self,
+        saved_automation: Automation,
+    ):
+        """Updating only the name must not alter the event filter."""
+        result = prepare_to_update(saved_automation, name="new-name")
+        event_filter = json.loads(result.event_filter)
+
+        assert result.name == "new-name"
+        assert event_filter != {"$and": []}
+        assert event_filter == {"$or": [{"$and": [{"alias": {"$eq": "latest"}}]}]}
+
+    # --------------------------------------------------------------------------
+    # Run-event update coverage
+
+    RUN_EVENT_FACTORIES = {
+        EventType.RUN_METRIC_THRESHOLD: lambda scope: OnRunMetric(
+            scope=scope,
+            filter=RunEvent.metric("my-metric").avg(5).gt(0),
+        ),
+        EventType.RUN_STATE: lambda scope: OnRunState(
+            scope=scope,
+            filter=RunEvent.state == "failed",
+        ),
+    }
+
+    @mark.parametrize(
+        "saved_run_event_type",
+        sorted(RUN_EVENT_FACTORIES.keys()),
+        indirect=True,
+        ids=lambda x: f"event={x.value}",
+    )
+    def test_update_run_event_preserves_filter(
+        self,
+        saved_run_automation: Automation,
+        saved_run_event_type: EventType,
+        project,
+    ):
+        """Updating an automation with a new run InputEvent must serialize correctly."""
+        factory = self.RUN_EVENT_FACTORIES[saved_run_event_type]
+        new_event = factory(project)
+
+        result = prepare_to_update(saved_run_automation, event=new_event)
+        event_filter = json.loads(result.event_filter)
+
+        assert event_filter
+        assert result.triggering_event_type == new_event.event_type
