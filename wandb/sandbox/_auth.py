@@ -1,18 +1,18 @@
 from __future__ import annotations
 
-from cwsandbox._auth import AuthHeaders, register_auth_provider
+from cwsandbox._auth import AuthHeaders, register_auth_mode
 
 import wandb
 from wandb.errors import UsageError
 from wandb.sdk import wandb_login, wandb_setup
 from wandb.sdk.lib import wbauth
 
-_AUTH_PROVIDER_NAME = "wandb_sdk"
+_AUTH_MODE_NAME = "wandb_sdk"
 
 
-def register_wandb_auth_provider() -> None:
-    """Register W&B runtime auth with cwsandbox's auth resolver."""
-    register_auth_provider(_AUTH_PROVIDER_NAME, _try_wandb_sdk_auth)
+def register_wandb_auth_mode() -> None:
+    """Register W&B runtime auth mode with cwsandbox's auth resolver."""
+    register_auth_mode(_AUTH_MODE_NAME, _try_wandb_sdk_auth)
 
 
 def _resolve_effective_entity_project() -> tuple[str | None, str | None]:
