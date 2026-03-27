@@ -4,12 +4,15 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"maps"
 	"net/http"
 	"sync"
 	"time"
 
 	"github.com/getsentry/sentry-go/attribute"
 	"github.com/getsentry/sentry-go/internal/debuglog"
+	"github.com/getsentry/sentry-go/internal/ratelimit"
+	"github.com/getsentry/sentry-go/report"
 )
 
 // Scope holds contextual data for the current scope.
@@ -28,6 +31,7 @@ import (
 // scope into the event.
 type Scope struct {
 	mu          sync.RWMutex
+	attributes  map[string]attribute.Value
 	breadcrumbs []*Breadcrumb
 	attachments []*Attachment
 	user        User
@@ -55,6 +59,7 @@ type Scope struct {
 // NewScope creates a new Scope.
 func NewScope() *Scope {
 	return &Scope{
+		attributes:         make(map[string]attribute.Value),
 		breadcrumbs:        make([]*Breadcrumb, 0),
 		attachments:        make([]*Attachment, 0),
 		tags:               make(map[string]string),
@@ -204,6 +209,27 @@ type readCloser struct {
 	io.Closer
 }
 
+// SetAttributes adds attributes to the current scope.
+func (scope *Scope) SetAttributes(attrs ...attribute.Builder) {
+	scope.mu.Lock()
+	defer scope.mu.Unlock()
+
+	for _, a := range attrs {
+		if a.Value.Type() == attribute.INVALID {
+			debuglog.Printf("invalid attribute: %v", a)
+			continue
+		}
+		scope.attributes[a.Key] = a.Value
+	}
+}
+
+// RemoveAttribute removes an attribute from the current scope.
+func (scope *Scope) RemoveAttribute(key string) {
+	scope.mu.Lock()
+	defer scope.mu.Unlock()
+	delete(scope.attributes, key)
+}
+
 // SetTag adds a tag to the current scope.
 func (scope *Scope) SetTag(key, value string) {
 	scope.mu.Lock()
@@ -257,6 +283,10 @@ func (scope *Scope) RemoveContext(key string) {
 }
 
 // SetExtra adds an extra to the current scope.
+//
+// Deprecated: Use [Scope.SetAttributes] instead, which attaches typed key-value
+// pairs to logs and metrics. Note that attributes do not attach to error events;
+// if you only capture errors, use [Scope.SetTag] or [Scope.SetContext] to enrich them.
 func (scope *Scope) SetExtra(key string, value interface{}) {
 	scope.mu.Lock()
 	defer scope.mu.Unlock()
@@ -265,6 +295,10 @@ func (scope *Scope) SetExtra(key string, value interface{}) {
 }
 
 // SetExtras assigns multiple extras to the current scope.
+//
+// Deprecated: Use [Scope.SetAttributes] instead, which attaches typed key-value
+// pairs to logs and metrics. Note that attributes do not attach to error events;
+// if you only capture errors, use [Scope.SetTag] or [Scope.SetContext] to enrich them.
 func (scope *Scope) SetExtras(extra map[string]interface{}) {
 	scope.mu.Lock()
 	defer scope.mu.Unlock()
@@ -275,6 +309,10 @@ func (scope *Scope) SetExtras(extra map[string]interface{}) {
 }
 
 // RemoveExtra removes a extra from the current scope.
+//
+// Deprecated: Use [Scope.RemoveAttribute] instead. Note that attributes only
+// attach to logs and metrics, not error events. If you only capture errors,
+// use [Scope.RemoveTag] or [Scope.RemoveContext] instead.
 func (scope *Scope) RemoveExtra(key string) {
 	scope.mu.Lock()
 	defer scope.mu.Unlock()
@@ -333,15 +371,10 @@ func (scope *Scope) Clone() *Scope {
 	copy(clone.breadcrumbs, scope.breadcrumbs)
 	clone.attachments = make([]*Attachment, len(scope.attachments))
 	copy(clone.attachments, scope.attachments)
-	for key, value := range scope.tags {
-		clone.tags[key] = value
-	}
-	for key, value := range scope.contexts {
-		clone.contexts[key] = cloneContext(value)
-	}
-	for key, value := range scope.extra {
-		clone.extra[key] = value
-	}
+	clone.attributes = maps.Clone(scope.attributes)
+	clone.contexts = maps.Clone(scope.contexts)
+	clone.tags = maps.Clone(scope.tags)
+	clone.extra = maps.Clone(scope.extra)
 	clone.fingerprint = make([]string, len(scope.fingerprint))
 	copy(clone.fingerprint, scope.fingerprint)
 	clone.level = scope.level
@@ -367,7 +400,7 @@ func (scope *Scope) AddEventProcessor(processor EventProcessor) {
 }
 
 // ApplyToEvent takes the data from the current scope and attaches it to the event.
-func (scope *Scope) ApplyToEvent(event *Event, hint *EventHint, client *Client) *Event {
+func (scope *Scope) ApplyToEvent(event *Event, hint *EventHint, client *Client) *Event { //nolint:gocyclo
 	scope.mu.RLock()
 	defer scope.mu.RUnlock()
 
@@ -474,10 +507,23 @@ func (scope *Scope) ApplyToEvent(event *Event, hint *EventHint, client *Client) 
 
 	for _, processor := range scope.eventProcessors {
 		id := event.EventID
+		category := event.toCategory()
+		spanCountBefore := event.GetSpanCount()
 		event = processor(event, hint)
 		if event == nil {
 			debuglog.Printf("Event dropped by one of the Scope EventProcessors: %s\n", id)
+			if client != nil {
+				client.reportRecorder.RecordOne(report.ReasonEventProcessor, category)
+				if category == ratelimit.CategoryTransaction {
+					client.reportRecorder.Record(report.ReasonEventProcessor, ratelimit.CategorySpan, int64(spanCountBefore))
+				}
+			}
 			return nil
+		}
+		if droppedSpans := spanCountBefore - event.GetSpanCount(); droppedSpans > 0 {
+			if client != nil {
+				client.reportRecorder.Record(report.ReasonEventProcessor, ratelimit.CategorySpan, int64(droppedSpans))
+			}
 		}
 	}
 
@@ -518,10 +564,9 @@ func (scope *Scope) populateAttrs(attrs map[string]attribute.Value) {
 		}
 	}
 
-	// In the future, add scope.attributes here
-	// for k, v := range scope.attributes {
-	//     attrs[k] = v
-	// }
+	for k, v := range scope.attributes {
+		attrs[k] = v
+	}
 }
 
 // hubFromContexts is a helper to return the first hub found in the given contexts.
