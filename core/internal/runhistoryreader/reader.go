@@ -122,7 +122,25 @@ func (h *HistoryReader) GetHistorySteps(
 	}
 	results = append(results, livehistory...)
 
-	return results, nil
+	steps := make([]int64, len(results))
+	for i, row := range results {
+		steps[i] = row.StepValue()
+	}
+
+	indices := make([]int, len(results))
+	for i := range indices {
+		indices[i] = i
+	}
+	slices.SortFunc(indices, func(a, b int) int {
+		return int(steps[a] - steps[b])
+	})
+
+	sorted := make([]parquet.KeyValueList, len(results))
+	for i, idx := range indices {
+		sorted[i] = results[idx]
+	}
+
+	return sorted, nil
 }
 
 // Release calls the Release method on each partition's ParquetDataIterator
@@ -161,6 +179,12 @@ func (h *HistoryReader) getParquetFilePaths(
 	dir, err := getUserRunHistoryCacheDir()
 	if err != nil {
 		return nil, err
+	}
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return nil, fmt.Errorf(
+			"failed to create runhistory cache directory: %s",
+			err,
+		)
 	}
 
 	filePaths := make([]string, 0, len(signedUrls))
@@ -206,11 +230,5 @@ func getUserRunHistoryCacheDir() (string, error) {
 		return "", fmt.Errorf("failed to get runhistory cache directory")
 	}
 
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return "", fmt.Errorf(
-			"failed to create runhistory cache directory: %s",
-			err,
-		)
-	}
 	return dir, nil
 }

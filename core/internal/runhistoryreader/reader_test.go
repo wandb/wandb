@@ -763,6 +763,93 @@ func TestHistoryReader_GetHistorySteps_MixedParquetAndLiveData(t *testing.T) {
 	})
 }
 
+func TestHistoryReader_GetHistorySteps_ResultsSortedByStep(t *testing.T) {
+	ctx := t.Context()
+	tempDir := t.TempDir()
+
+	os.Setenv("WANDB_CACHE_DIR", tempDir)
+	defer os.Unsetenv("WANDB_CACHE_DIR")
+
+	columns := []columnDef{
+		{name: "_step", colType: "int64"},
+		{name: "metric1", colType: "float64"},
+	}
+	// Parquet contains steps 5 and 10 (higher than live data).
+	parquetData := []map[string]any{
+		{"_step": int64(5), "metric1": 50.0},
+		{"_step": int64(10), "metric1": 100.0},
+	}
+
+	dummyContent := createDummyFileContent()
+	server := createHttpServer(t, respondWithContent(t, dummyContent))
+
+	mockGQL := gqlmock.NewMockClient()
+
+	// Live data starts at step 0 — lower than parquet data.
+	mockGQL.StubMatchOnce(
+		gqlmock.WithOpName("RunParquetHistory"),
+		fmt.Sprintf(`{
+			"project": {
+				"run": {
+					"parquetHistory": {
+						"parquetUrls": ["%s/test.parquet"],
+						"liveData": [
+							{"_step": 0},
+							{"_step": 3},
+							{"_step": 7}
+						]
+					}
+				}
+			}
+		}`, server.URL),
+	)
+
+	mockGQL.StubMatchOnce(
+		gqlmock.WithOpName("HistoryPage"),
+		`{
+			"project": {
+				"run": {
+					"history": [
+						"{\"_step\":0,\"metric1\":0.0}",
+						"{\"_step\":3,\"metric1\":30.0}",
+						"{\"_step\":7,\"metric1\":70.0}"
+					]
+				}
+			}
+		}`,
+	)
+
+	rustWrapper := createMockRustArrowWrapper(
+		t,
+		columns,
+		map[uintptr][]map[string]any{1: parquetData},
+	)
+
+	reader, err := New(
+		ctx,
+		"test-entity",
+		"test-project",
+		"test-run-id",
+		mockGQL,
+		retryablehttp.NewClient(),
+		[]string{},
+		false,
+		rustWrapper,
+	)
+	require.NoError(t, err)
+
+	results, err := reader.GetHistorySteps(ctx, 0, 11)
+	require.NoError(t, err)
+	require.Len(t, results, 5)
+
+	// Verify results are sorted by _step regardless of source.
+	expectedSteps := []int64{0, 3, 5, 7, 10}
+	for i, row := range results {
+		assert.Equal(t, expectedSteps[i], row.StepValue(),
+			"row %d: expected step %d", i, expectedSteps[i])
+	}
+}
+
 func TestHistoryReader_GetHistorySteps_NoPanicOnInvalidLiveData(t *testing.T) {
 	ctx := t.Context()
 	mockGQL := gqlmock.NewMockClient()
