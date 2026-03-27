@@ -43,7 +43,7 @@ fn main() -> Result<()> {
     let includes = [temp_dir.path().to_str().unwrap()];
 
     // The generated code will be written to the src/wandb_internal.rs file.
-    tonic_build::configure()
+    tonic_prost_build::configure()
         .build_server(true) // Generate server code
         .out_dir(&src_dir) // Specify the output directory
         // .file_descriptor_set_path(&descriptor) // Save the descriptor

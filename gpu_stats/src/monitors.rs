@@ -28,6 +28,7 @@ pub struct GpuMonitors {
 }
 
 impl GpuMonitors {
+    #[allow(unused_variables)] // used only on linux
     pub fn new(enable_dcgm_profiling: bool) -> Self {
         let mut monitors: Vec<Box<dyn GpuMonitor>> = Vec::new();
 
