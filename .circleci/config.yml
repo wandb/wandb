@@ -449,6 +449,7 @@ jobs:
       - save-test-results
 
   unit-tests-go:
+    resource_class: wandb/docker-builder
     docker:
       - image: cimg/base:current
     steps:
@@ -466,6 +467,7 @@ jobs:
       - codecov/upload: { flags: unit }
 
   unit-tests-rust:
+    resource_class: wandb/docker-builder
     docker:
       - image: cimg/base:current
     steps:
@@ -479,6 +481,11 @@ jobs:
           name: Run Rust tests for parquet-rust-wrapper
           command: |
             cd parquet-rust-wrapper
+            cargo test --verbose
+      - run:
+          name: Run Rust tests for gpu_stats
+          command: |
+            cd gpu_stats
             cargo test --verbose
 
   # Download the local-testcontainer image corresponding to the latest server release

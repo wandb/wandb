@@ -10,6 +10,7 @@
 mod analytics;
 mod metrics;
 mod monitors;
+#[allow(dead_code)]
 mod wandb_internal;
 
 // Platform-specific modules
