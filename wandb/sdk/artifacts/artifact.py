@@ -69,7 +69,12 @@ from wandb.util import (
 
 from ._factories import make_storage_policy
 from ._gqlutils import org_info_from_entity, resolve_org_entity_name, server_supports
-from ._validators import ensure_logged, ensure_not_finalized
+from ._validators import (
+    ensure_logged,
+    ensure_not_finalized,
+    validate_artifact_path,
+    validate_fspath,
+)
 from .artifact_download_logger import ArtifactDownloadLogger
 from .artifact_instance_cache import (
     artifact_instance_cache,
@@ -1416,6 +1421,7 @@ class Artifact:
         """
         overwrite: bool = "x" not in mode
 
+        validate_artifact_path(name)
         if self._tmp_dir is None:
             self._tmp_dir = tempfile.TemporaryDirectory()
         path = os.path.join(self._tmp_dir.name, name.lstrip("/"))
@@ -2267,7 +2273,7 @@ class Artifact:
         ref_count = 0
         for entry in self.manifest.entries.values():
             if entry.ref is None:
-                if md5_file_b64(os.path.join(root, entry.path)) != entry.digest:
+                if md5_file_b64(validate_fspath(root, entry.path)) != entry.digest:
                     raise ValueError(f"Digest mismatch for file: {entry.path}")
             else:
                 ref_count += 1

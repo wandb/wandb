@@ -1,15 +1,19 @@
-import pytest
+from pathlib import Path, PurePosixPath, PureWindowsPath
+
+from pytest import mark, raises
 from wandb.sdk.artifacts._validators import (
     REGISTRY_PREFIX,
     RESERVED_ARTIFACT_TYPE_PREFIX,
     ArtifactPath,
+    validate_artifact_path,
     validate_artifact_type,
     validate_project_name,
 )
+from wandb.sdk.lib.paths import StrPath
 
 
-@pytest.mark.parametrize(
-    "project_name, expected_output",
+@mark.parametrize(
+    "project_name, expected",
     [
         ("my-project-?", "cannot contain characters: '?'"),
         ("my-project-\n", "cannot contain characters: '\\\\n'"),
@@ -20,12 +24,12 @@ from wandb.sdk.artifacts._validators import (
         (REGISTRY_PREFIX, "Registry name cannot be empty"),
     ],
 )
-def test_validate_project_name_invalid(project_name, expected_output):
-    with pytest.raises(ValueError, match=expected_output):
+def test_validate_project_name_invalid(project_name, expected):
+    with raises(ValueError, match=expected):
         validate_project_name(project_name)
 
 
-@pytest.mark.parametrize(
+@mark.parametrize(
     "project_name",
     [
         "my-project",
@@ -35,24 +39,24 @@ def test_validate_project_name_invalid(project_name, expected_output):
     ],
 )
 def test_validate_project_name_valid(project_name):
-    validate_project_name(project_name)
+    assert validate_project_name(project_name) == project_name
 
 
-@pytest.mark.parametrize(
+@mark.parametrize(
     "artifact_type, name",
     [
-        (RESERVED_ARTIFACT_TYPE_PREFIX + "invalid", "name"),
+        (f"{RESERVED_ARTIFACT_TYPE_PREFIX}invalid", "name"),
         ("job", "name"),
         ("run_table", "run-name"),
         ("code", "source-name"),
     ],
 )
 def test_validate_artifact_type_invalid(artifact_type, name):
-    with pytest.raises(ValueError, match="is reserved for internal use"):
+    with raises(ValueError, match="is reserved for internal use"):
         validate_artifact_type(artifact_type, name)
 
 
-@pytest.mark.parametrize(
+@mark.parametrize(
     "artifact_type, name",
     [
         ("dataset", "name"),
@@ -65,7 +69,51 @@ def test_validate_artifact_type_valid(artifact_type, name):
     assert validate_artifact_type(artifact_type, name) == artifact_type
 
 
-@pytest.mark.parametrize(
+@mark.parametrize(
+    ("path", "expected"),
+    [
+        ("file.txt", "file.txt"),
+        (Path("file.txt"), "file.txt"),
+        (PurePosixPath("file.txt"), "file.txt"),
+        (PureWindowsPath("file.txt"), "file.txt"),
+        ("nested/file.txt", "nested/file.txt"),
+        (Path("nested/file.txt"), "nested/file.txt"),
+        (PurePosixPath("nested/file.txt"), "nested/file.txt"),
+        (PureWindowsPath(r"nested\file.txt"), "nested/file.txt"),
+    ],
+)
+def test_validate_artifact_path_valid(path: StrPath, expected: str):
+    assert validate_artifact_path(path) == expected
+
+
+@mark.parametrize(
+    "path",
+    [
+        "",
+        ".",
+        "../file.txt",
+        "nested/../file.txt",
+        "//server/share/file.txt",
+        "/file.txt",
+        "//file.txt",
+        "///file.txt",
+        "////file.txt",
+        r"\file.txt",
+        r"C:\file.txt",
+        r"C:file.txt",
+        PurePosixPath("/file.txt"),
+        PureWindowsPath(r"..\file.txt"),
+        PureWindowsPath(r"\file.txt"),
+        PureWindowsPath(r"C:\file.txt"),
+        PureWindowsPath(r"C:file.txt"),
+    ],
+)
+def test_validate_artifact_path_invalid(path):
+    with raises(ValueError, match="Invalid artifact path"):
+        validate_artifact_path(path)
+
+
+@mark.parametrize(
     ("path", "expected"),
     [
         (
@@ -101,11 +149,11 @@ def test_artifact_path_from_valid_str(path: str, expected: ArtifactPath):
 
 def test_artifact_path_from_invalid_str():
     """Check that the ArtifactPath.from_str() method correctly raises an error for invalid artifact paths."""
-    with pytest.raises(ValueError):
+    with raises(ValueError):
         ArtifactPath.from_str("path/with/too/many/parts")
 
 
-@pytest.mark.parametrize(
+@mark.parametrize(
     "path_str",
     [
         "name",
@@ -121,7 +169,7 @@ def test_artifact_path_roundtrip_from_str(path_str: str):
     assert ArtifactPath.from_str(path_str).to_str() == path_str
 
 
-@pytest.mark.parametrize(
+@mark.parametrize(
     "path_obj",
     [
         ArtifactPath(prefix=None, project=None, name="name"),

@@ -498,6 +498,43 @@ def test_artifact_manifest_length():
     assert len(artifact.manifest) == 2
 
 
+def test_new_file_accepts_nested_relative_path():
+    artifact = Artifact("test-artifact", "test-type")
+
+    with artifact.new_file("nested/test.txt", "w") as f:
+        f.write("test")
+
+    assert list(artifact.manifest.entries) == ["nested/test.txt"]
+    assert artifact.manifest.entries["nested/test.txt"].size == 4
+
+
+@pytest.mark.parametrize("invalid_name", ["../test.txt", "/test.txt", r"C:\test.txt"])
+def test_add_file_rejects_invalid_artifact_path(tmp_path, invalid_name):
+    artifact = Artifact("test-artifact", "test-type")
+    local_file = tmp_path / "test.txt"
+    local_file.write_text("hello")
+
+    with pytest.raises(ValueError, match="Invalid artifact path"):
+        artifact.add_file(str(local_file), name=invalid_name)
+
+
+@pytest.mark.parametrize("invalid_name", ["../test.txt", "/test.txt", r"C:\test.txt"])
+def test_new_file_rejects_invalid_artifact_path(invalid_name):
+    artifact = Artifact("test-artifact", "test-type")
+
+    with pytest.raises(ValueError, match="Invalid artifact path"):
+        with artifact.new_file(invalid_name, "w") as f:
+            f.write("test")
+
+
+def test_manifest_add_entry_rejects_invalid_artifact_path():
+    artifact = Artifact("test-artifact", "test-type")
+    entry = ArtifactManifestEntry(path="../test.txt", digest="digest")
+
+    with pytest.raises(ValueError, match="Invalid artifact path"):
+        artifact.manifest.add_entry(entry)
+
+
 def test_download_with_pathlib_root(monkeypatch):
     artifact = Artifact("test-artifact", "test-type")
     artifact._state = ArtifactState.COMMITTED
@@ -509,6 +546,16 @@ def test_download_with_pathlib_root(monkeypatch):
     root = list(artifact._download_roots)[0]
     path_parts = custom_path.parts
     assert Path(root).parts[-len(path_parts) :] == path_parts
+
+
+def test_verify_rejects_invalid_artifact_path(tmp_path):
+    artifact = Artifact("test-artifact", "test-type")
+    artifact._state = ArtifactState.COMMITTED
+    bad_entry = ArtifactManifestEntry(path="../test.txt", digest="digest")
+    artifact.manifest.entries[bad_entry.path] = bad_entry
+
+    with pytest.raises(ValueError, match="Invalid artifact path"):
+        artifact.verify(root=str(tmp_path))
 
 
 def test_artifact_multipart_download_threshold():
