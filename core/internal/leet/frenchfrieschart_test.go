@@ -244,3 +244,77 @@ func TestSystemMetricsGrid_FrenchFriesUsesConfiguredPalette(t *testing.T) {
 	require.Equal(t, low, chart.TestColorForValue(0))
 	require.Equal(t, high, chart.TestColorForValue(100))
 }
+
+func TestFrenchFriesChart_StableBuckets_AddingDataDoesNotShiftExisting(t *testing.T) {
+	const series = leet.DefaultSystemMetricSeriesName // no label → plotWidth == width
+
+	def := &leet.MetricDef{
+		Name:       "GPU Utilization",
+		Unit:       leet.UnitPercent,
+		MinY:       0,
+		MaxY:       100,
+		Percentage: true,
+	}
+
+	chart := leet.NewFrenchFriesChart(&leet.FrenchFriesChartParams{
+		Width:  10,
+		Height: 2,
+		Def:    def,
+		Now:    time.Unix(1_700_000_000, 0),
+	})
+
+	// Fix the view window so it doesn't auto-adjust when we add data.
+	// 10 buckets over [0, 100): each bucket covers 10 seconds.
+	chart.SetViewWindow(0, 100)
+
+	// Seed 10 samples, one per bucket.
+	for i := range 10 {
+		chart.AddDataPoint(series, int64(i*10), float64(i*10))
+	}
+	before := chart.TestBucketValues(series)
+
+	// Add a new sample inside bucket 5 ([50, 60)).
+	chart.AddDataPoint(series, 55, 42)
+	after := chart.TestBucketValues(series)
+
+	require.Equal(t, len(before), len(after))
+	for i := range before {
+		if i == 5 {
+			// Bucket 5 now averages the original sample (50) with the
+			// new one (42), so its value is expected to change.
+			continue
+		}
+		require.InDelta(t, before[i], after[i], 0.001,
+			"bucket %d should not change when data is added to bucket 5", i)
+	}
+}
+
+func TestFrenchFriesChart_StableBuckets_AveragesWithinBucket(t *testing.T) {
+	const series = leet.DefaultSystemMetricSeriesName
+
+	def := &leet.MetricDef{
+		Name:       "GPU Utilization",
+		Unit:       leet.UnitPercent,
+		MinY:       0,
+		MaxY:       100,
+		Percentage: true,
+	}
+
+	chart := leet.NewFrenchFriesChart(&leet.FrenchFriesChartParams{
+		Width:  4,
+		Height: 2,
+		Def:    def,
+		Now:    time.Unix(1_700_000_000, 0),
+	})
+
+	// 4-column chart with view window [0, 40): each bucket covers 10 seconds.
+	chart.SetViewWindow(0, 40)
+
+	// Put three samples in bucket 0 ([0, 10)).
+	chart.AddDataPoint(series, 1, 20)
+	chart.AddDataPoint(series, 3, 40)
+	chart.AddDataPoint(series, 7, 60)
+
+	vals := chart.TestBucketValues(series)
+	require.InDelta(t, 40.0, vals[0], 0.001, "bucket 0 should be average of 20,40,60")
+}
