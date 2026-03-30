@@ -21,10 +21,14 @@ const (
 	gridConfigMetricsCols
 	gridConfigSystemRows
 	gridConfigSystemCols
+	gridConfigMediaRows
+	gridConfigMediaCols
 	gridConfigWorkspaceMetricsRows
 	gridConfigWorkspaceMetricsCols
 	gridConfigWorkspaceSystemRows
 	gridConfigWorkspaceSystemCols
+	gridConfigWorkspaceMediaRows
+	gridConfigWorkspaceMediaCols
 	gridConfigSymonRows
 	gridConfigSymonCols
 )
@@ -51,6 +55,11 @@ const (
 
 	DefaultHeartbeatInterval = 15 // seconds
 
+	DefaultMediaGridRows          = 1
+	DefaultMediaGridCols          = 2
+	DefaultWorkspaceMediaGridRows = 1
+	DefaultWorkspaceMediaGridCols = 2
+
 	// Startup modes control what LEET does when launched without a specified run path
 	// (i.e. `wandb beta leet` with no PATH).
 	StartupModeWorkspaceLatest = "workspace_latest"  // Load workspace view and select latest run
@@ -71,9 +80,13 @@ type Config struct {
 	// SystemGrid is the dimensions for the system metrics chart grid in single-run mode.
 	SystemGrid GridConfig `json:"system_grid" leet:"desc=system metrics grid"`
 
+	// MediaGrid is the dimensions for the media thumbnail grid in single-run mode.
+	MediaGrid GridConfig `json:"media_grid" leet:"desc=single-run media grid"`
+
 	// Grid dimensions in Workspace view.
 	WorkspaceMetricsGrid GridConfig `json:"workspace_metrics_grid" leet:"desc=workspace metrics grid"`
 	WorkspaceSystemGrid  GridConfig `json:"workspace_system_grid"  leet:"desc=workspace system metrics grid"`
+	WorkspaceMediaGrid   GridConfig `json:"workspace_media_grid"   leet:"desc=workspace media grid"`
 
 	// SymonGrid is the dimensions for the standalone system monitor chart grid.
 	SymonGrid GridConfig `json:"symon_grid" leet:"desc=standalone system metrics grid"`
@@ -118,12 +131,16 @@ type Config struct {
 	// Single-run view sidebar visibility states.
 	LeftSidebarVisible  bool `json:"left_sidebar_visible"  leet:"desc=Show left sidebar in single run view by default."`
 	RightSidebarVisible bool `json:"right_sidebar_visible" leet:"desc=Show right sidebar in single run view by default."`
+	MetricsGridVisible  bool `json:"metrics_grid_visible"  leet:"desc=Show metrics grid in single run mode by default."`
 	ConsoleLogsVisible  bool `json:"console_logs_visible"  leet:"desc=Show console logs pane in single run mode by default."`
+	MediaVisible        bool `json:"media_visible"         leet:"desc=Show media pane in single run mode by default."`
 
 	// Workspace view pane visibility states.
 	WorkspaceOverviewVisible      bool `json:"workspace_overview_visible"       leet:"desc=Show run overview sidebar in workspace mode by default."`
+	WorkspaceMetricsGridVisible   bool `json:"workspace_metrics_grid_visible"   leet:"desc=Show metrics grid in workspace mode by default."`
 	WorkspaceSystemMetricsVisible bool `json:"workspace_system_metrics_visible" leet:"desc=Show system metrics pane in workspace mode by default."`
 	WorkspaceConsoleLogsVisible   bool `json:"workspace_console_logs_visible"   leet:"desc=Show console logs pane in workspace mode by default."`
+	WorkspaceMediaVisible         bool `json:"workspace_media_visible"          leet:"desc=Show media pane in workspace mode by default."`
 }
 
 // GridConfig represents grid dimensions.
@@ -157,6 +174,10 @@ func NewConfigManager(path string, logger *observability.CoreLogger) *ConfigMana
 				Rows: DefaultSystemGridRows,
 				Cols: DefaultSystemGridCols,
 			},
+			MediaGrid: GridConfig{
+				Rows: DefaultMediaGridRows,
+				Cols: DefaultMediaGridCols,
+			},
 			WorkspaceMetricsGrid: GridConfig{
 				Rows: DefaultWorkspaceMetricsGridRows,
 				Cols: DefaultWorkspaceMetricsGridCols,
@@ -164,6 +185,10 @@ func NewConfigManager(path string, logger *observability.CoreLogger) *ConfigMana
 			WorkspaceSystemGrid: GridConfig{
 				Rows: DefaultWorkspaceSystemGridRows,
 				Cols: DefaultWorkspaceSystemGridCols,
+			},
+			WorkspaceMediaGrid: GridConfig{
+				Rows: DefaultWorkspaceMediaGridRows,
+				Cols: DefaultWorkspaceMediaGridCols,
 			},
 			SymonGrid: GridConfig{
 				Rows: DefaultSymonGridRows,
@@ -181,10 +206,14 @@ func NewConfigManager(path string, logger *observability.CoreLogger) *ConfigMana
 			HeartbeatInterval:             DefaultHeartbeatInterval,
 			LeftSidebarVisible:            true,
 			RightSidebarVisible:           true,
+			MetricsGridVisible:            true,
 			ConsoleLogsVisible:            false,
+			MediaVisible:                  false,
 			WorkspaceOverviewVisible:      true,
+			WorkspaceMetricsGridVisible:   true,
 			WorkspaceSystemMetricsVisible: false,
 			WorkspaceConsoleLogsVisible:   false,
+			WorkspaceMediaVisible:         false,
 		},
 		logger: logger,
 	}
@@ -226,6 +255,8 @@ func (cm *ConfigManager) normalizeConfig() {
 	cm.config.MetricsGrid.Cols = clamp(cm.config.MetricsGrid.Cols, MinGridSize, MaxGridSize)
 	cm.config.SystemGrid.Rows = clamp(cm.config.SystemGrid.Rows, MinGridSize, MaxGridSize)
 	cm.config.SystemGrid.Cols = clamp(cm.config.SystemGrid.Cols, MinGridSize, MaxGridSize)
+	cm.config.MediaGrid.Rows = clamp(cm.config.MediaGrid.Rows, MinGridSize, MaxGridSize)
+	cm.config.MediaGrid.Cols = clamp(cm.config.MediaGrid.Cols, MinGridSize, MaxGridSize)
 
 	cm.config.WorkspaceMetricsGrid.Cols = clamp(
 		cm.config.WorkspaceMetricsGrid.Cols, MinGridSize, MaxGridSize)
@@ -235,6 +266,10 @@ func (cm *ConfigManager) normalizeConfig() {
 		cm.config.WorkspaceSystemGrid.Rows, MinGridSize, MaxGridSize)
 	cm.config.WorkspaceSystemGrid.Cols = clamp(
 		cm.config.WorkspaceSystemGrid.Cols, MinGridSize, MaxGridSize)
+	cm.config.WorkspaceMediaGrid.Rows = clamp(
+		cm.config.WorkspaceMediaGrid.Rows, MinGridSize, MaxGridSize)
+	cm.config.WorkspaceMediaGrid.Cols = clamp(
+		cm.config.WorkspaceMediaGrid.Cols, MinGridSize, MaxGridSize)
 	cm.config.SymonGrid.Rows = clamp(
 		cm.config.SymonGrid.Rows, MinGridSize, MaxGridSize)
 	cm.config.SymonGrid.Cols = clamp(
@@ -379,6 +414,37 @@ func (cm *ConfigManager) SetSystemCols(cols int) error {
 	return cm.save()
 }
 
+// MediaGrid returns the media grid configuration.
+func (cm *ConfigManager) MediaGrid() (rows, cols int) {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	return cm.config.MediaGrid.Rows, cm.config.MediaGrid.Cols
+}
+
+// SetMediaRows sets the media grid rows.
+func (cm *ConfigManager) SetMediaRows(rows int) error {
+	if rows < MinGridSize || rows > MaxGridSize {
+		return fmt.Errorf("rows must be between %d and %d, got %d", MinGridSize, MaxGridSize, rows)
+	}
+
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	cm.config.MediaGrid.Rows = rows
+	return cm.save()
+}
+
+// SetMediaCols sets the media grid columns.
+func (cm *ConfigManager) SetMediaCols(cols int) error {
+	if cols < MinGridSize || cols > MaxGridSize {
+		return fmt.Errorf("cols must be between %d and %d, got %d", MinGridSize, MaxGridSize, cols)
+	}
+
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	cm.config.MediaGrid.Cols = cols
+	return cm.save()
+}
+
 // WorkspaceMetricsGrid returns the workspace metrics grid configuration.
 func (cm *ConfigManager) WorkspaceMetricsGrid() (rows, cols int) {
 	cm.mu.RLock()
@@ -415,6 +481,13 @@ func (cm *ConfigManager) WorkspaceSystemGrid() (rows, cols int) {
 	return cm.config.WorkspaceSystemGrid.Rows, cm.config.WorkspaceSystemGrid.Cols
 }
 
+// WorkspaceMediaGrid returns the workspace media grid configuration.
+func (cm *ConfigManager) WorkspaceMediaGrid() (rows, cols int) {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	return cm.config.WorkspaceMediaGrid.Rows, cm.config.WorkspaceMediaGrid.Cols
+}
+
 // SymonGrid returns the standalone system monitor grid configuration.
 func (cm *ConfigManager) SymonGrid() (rows, cols int) {
 	cm.mu.RLock()
@@ -441,6 +514,28 @@ func (cm *ConfigManager) SetWorkspaceSystemCols(cols int) error {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
 	cm.config.WorkspaceSystemGrid.Cols = cols
+	return cm.save()
+}
+
+func (cm *ConfigManager) SetWorkspaceMediaRows(rows int) error {
+	if rows < MinGridSize || rows > MaxGridSize {
+		return fmt.Errorf("rows must be between %d and %d, got %d", MinGridSize, MaxGridSize, rows)
+	}
+
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	cm.config.WorkspaceMediaGrid.Rows = rows
+	return cm.save()
+}
+
+func (cm *ConfigManager) SetWorkspaceMediaCols(cols int) error {
+	if cols < MinGridSize || cols > MaxGridSize {
+		return fmt.Errorf("cols must be between %d and %d, got %d", MinGridSize, MaxGridSize, cols)
+	}
+
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	cm.config.WorkspaceMediaGrid.Cols = cols
 	return cm.save()
 }
 
@@ -713,6 +808,36 @@ func (cm *ConfigManager) SetConsoleLogsVisible(visible bool) error {
 	return cm.save()
 }
 
+// MetricsGridVisible returns whether the metrics grid should be visible in single-run mode.
+func (cm *ConfigManager) MetricsGridVisible() bool {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	return cm.config.MetricsGridVisible
+}
+
+// SetMetricsGridVisible sets the single-run metrics grid visibility.
+func (cm *ConfigManager) SetMetricsGridVisible(visible bool) error {
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	cm.config.MetricsGridVisible = visible
+	return cm.save()
+}
+
+// MediaVisible returns whether the media pane should be visible in single-run mode.
+func (cm *ConfigManager) MediaVisible() bool {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	return cm.config.MediaVisible
+}
+
+// SetMediaVisible sets the single-run media pane visibility.
+func (cm *ConfigManager) SetMediaVisible(visible bool) error {
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	cm.config.MediaVisible = visible
+	return cm.save()
+}
+
 func (cm *ConfigManager) IsAwaitingGridConfig() bool {
 	cm.mu.RLock()
 	defer cm.mu.RUnlock()
@@ -751,6 +876,14 @@ func (cm *ConfigManager) SetGridConfig(num int) (string, error) {
 		if err = cm.SetSystemRows(num); err == nil { // success
 			return fmt.Sprintf("System grid rows set to %d", num), nil
 		}
+	case gridConfigMediaCols:
+		if err = cm.SetMediaCols(num); err == nil { // success
+			return fmt.Sprintf("Media grid columns set to %d", num), nil
+		}
+	case gridConfigMediaRows:
+		if err = cm.SetMediaRows(num); err == nil { // success
+			return fmt.Sprintf("Media grid rows set to %d", num), nil
+		}
 	case gridConfigWorkspaceMetricsCols:
 		if err = cm.SetWorkspaceMetricsCols(num); err == nil { // success
 			return fmt.Sprintf("Workspace metrics grid columns set to %d", num), nil
@@ -766,6 +899,14 @@ func (cm *ConfigManager) SetGridConfig(num int) (string, error) {
 	case gridConfigWorkspaceSystemRows:
 		if err = cm.SetWorkspaceSystemRows(num); err == nil { // success
 			return fmt.Sprintf("Workspace system grid rows set to %d", num), nil
+		}
+	case gridConfigWorkspaceMediaCols:
+		if err = cm.SetWorkspaceMediaCols(num); err == nil { // success
+			return fmt.Sprintf("Workspace media grid columns set to %d", num), nil
+		}
+	case gridConfigWorkspaceMediaRows:
+		if err = cm.SetWorkspaceMediaRows(num); err == nil { // success
+			return fmt.Sprintf("Workspace media grid rows set to %d", num), nil
 		}
 	case gridConfigSymonCols:
 		if err = cm.SetSymonCols(num); err == nil { // success
@@ -803,6 +944,10 @@ func (cm *ConfigManager) GridConfigStatus() string {
 		return "Press 1-9 to set system grid columns (ESC to cancel)"
 	case gridConfigSystemRows, gridConfigWorkspaceSystemRows, gridConfigSymonRows:
 		return "Press 1-9 to set system grid rows (ESC to cancel)"
+	case gridConfigMediaCols, gridConfigWorkspaceMediaCols:
+		return "Press 1-9 to set media grid columns (ESC to cancel)"
+	case gridConfigMediaRows, gridConfigWorkspaceMediaRows:
+		return "Press 1-9 to set media grid rows (ESC to cancel)"
 
 	default:
 		return ""
@@ -854,6 +999,36 @@ func (cm *ConfigManager) SetWorkspaceConsoleLogsVisible(visible bool) error {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
 	cm.config.WorkspaceConsoleLogsVisible = visible
+	return cm.save()
+}
+
+// WorkspaceMetricsGridVisible returns whether the metrics grid should be visible in workspace mode.
+func (cm *ConfigManager) WorkspaceMetricsGridVisible() bool {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	return cm.config.WorkspaceMetricsGridVisible
+}
+
+// SetWorkspaceMetricsGridVisible sets the workspace metrics grid visibility.
+func (cm *ConfigManager) SetWorkspaceMetricsGridVisible(visible bool) error {
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	cm.config.WorkspaceMetricsGridVisible = visible
+	return cm.save()
+}
+
+// WorkspaceMediaVisible returns whether the media pane should be visible in workspace mode.
+func (cm *ConfigManager) WorkspaceMediaVisible() bool {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	return cm.config.WorkspaceMediaVisible
+}
+
+// SetWorkspaceMediaVisible sets the workspace media pane visibility.
+func (cm *ConfigManager) SetWorkspaceMediaVisible(visible bool) error {
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	cm.config.WorkspaceMediaVisible = visible
 	return cm.save()
 }
 

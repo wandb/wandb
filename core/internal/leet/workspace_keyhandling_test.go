@@ -113,12 +113,15 @@ func TestWorkspace_HandleWorkspaceInitErr_DropsSelectionAndPinned(t *testing.T) 
 	require.False(t, w.TestPinnedRun() == runKey, "expected pin cleared on init error")
 }
 
-// ---- Focus region constants (mirrors focusRegion enum) ----
+// ---- Focus region constants (mirrors FocusTarget enum from focusmanager.go) ----
 
 const (
-	testFocusRuns     = 0
-	testFocusLogs     = 1
-	testFocusOverview = 2
+	testFocusRuns           = 1 // FocusTargetRunsList
+	testFocusOverview       = 2 // FocusTargetOverview
+	testFocusMetricsGrid    = 3 // FocusTargetMetricsGrid
+	testFocusSystemMetrics  = 4 // FocusTargetSystemMetrics
+	testFocusMedia          = 5 // FocusTargetMedia
+	testFocusLogs           = 6 // FocusTargetConsoleLogs
 )
 
 // newWorkspaceWithPanels creates a Workspace with all panels expanded and a
@@ -162,7 +165,7 @@ func TestWorkspace_ToggleConsoleLogsPane_FocusReturnsToRuns(t *testing.T) {
 	require.Equal(t, testFocusLogs, w.TestCurrentFocusRegion())
 
 	// Collapse bottom bar — focus should return to runs (the next available).
-	_ = w.Update(keyRune('l'))
+	_ = w.Update(keyRune('4'))
 	_ = w.Update(keyRune(']'))
 	require.False(t, w.TestConsoleLogsPaneActive(),
 		"bottom bar should not be active after collapse")
@@ -178,7 +181,7 @@ func TestWorkspace_ToggleConsoleLogsPane_FocusStaysOnRuns(t *testing.T) {
 	require.Equal(t, testFocusRuns, w.TestCurrentFocusRegion())
 
 	// Collapse bottom bar while runs are focused — runs should stay focused.
-	_ = w.Update(keyRune('l'))
+	_ = w.Update(keyRune('4'))
 	require.True(t, w.TestRunsActive(),
 		"runs focus should be preserved when collapsing bottom bar from runs")
 }

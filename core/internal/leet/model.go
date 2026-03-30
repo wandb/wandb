@@ -157,6 +157,13 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	// Snapshot input state before sub-models see this key.
 	awaitingUserInput := m.isAwaitingUserInput()
+	runCapturesEsc := false
+	if keyMsg, ok := msg.(tea.KeyPressMsg); ok &&
+		m.mode == viewModeRun &&
+		keyMsg.Code == tea.KeyEsc &&
+		m.run != nil {
+		runCapturesEsc = m.run.MediaFullscreen()
+	}
 
 	var cmds []tea.Cmd
 
@@ -190,7 +197,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, cmd
 			}
 		case viewModeRun:
-			if keyMsg.Code == tea.KeyEsc && !awaitingUserInput {
+			if keyMsg.Code == tea.KeyEsc && !awaitingUserInput && !runCapturesEsc {
 				cmd := m.exitRunView()
 				return m, cmd
 			}
@@ -341,6 +348,16 @@ func (m *Model) enterRunView() tea.Cmd {
 	m.run = NewRun(wandbFile, m.config, m.logger)
 	m.mode = viewModeRun
 
+	// Share the workspace's media store so data persists across transitions.
+	runKey := m.workspace.SelectedRunKey()
+	if store := m.workspace.MediaStoreForRun(runKey); store != nil {
+		m.run.SetMediaStore(store)
+	}
+	// Restore saved media pane view state (scroll position, selection).
+	if state := m.workspace.LoadMediaPaneState(runKey); state != nil {
+		m.run.mediaPane.RestoreViewState(*state)
+	}
+
 	// Initialize with current dimensions and start loading.
 	return tea.Batch(
 		m.run.Init(),
@@ -352,8 +369,12 @@ func (m *Model) enterRunView() tea.Cmd {
 
 // exitRunView returns to the workspace view.
 func (m *Model) exitRunView() tea.Cmd {
-	// TODO: add caching?
 	if m.run != nil {
+		// Save media pane view state for later restoration.
+		runKey := m.workspace.SelectedRunKey()
+		if runKey != "" {
+			m.workspace.SaveMediaPaneState(runKey, m.run.mediaPane.SaveViewState())
+		}
 		m.run.Cleanup()
 		m.run = nil
 	}

@@ -54,6 +54,18 @@ func (w *Workspace) handleKeyPressMsg(msg tea.KeyPressMsg) tea.Cmd {
 		return nil
 	}
 
+	// Focus-aware key dispatch.
+	switch w.focusMgr.Current() {
+	case FocusTargetMetricsGrid, FocusTargetSystemMetrics:
+		if cmd := w.handleGridWASD(msg); cmd != nil {
+			return cmd
+		}
+	case FocusTargetMedia:
+		if w.mediaPane.HandleKey(msg) {
+			return nil
+		}
+	}
+
 	// Dispatch via key map.
 	if handler, ok := w.keyMap[normalizeKey(msg.String())]; ok {
 		return handler(w, msg)
@@ -78,21 +90,32 @@ func (w *Workspace) handleMouse(msg tea.MouseMsg) tea.Cmd {
 		}
 	}
 
+	if w.mediaPane.IsFullscreen() {
+		return nil
+	}
+
 	// Determine vertical region within the central column.
-	reserved := w.consoleLogsPane.Height() + w.systemMetricsPane.Height()
+	reserved := w.consoleLogsPane.Height() + w.mediaPane.Height() + w.systemMetricsPane.Height()
 	metricsHeight := max(w.height-StatusBarHeight-reserved, 1)
 
 	if mouse.Y < metricsHeight {
 		return w.handleMetricsMouse(msg, metricsHeight)
 	}
 
-	if w.systemMetricsPane.IsVisible() &&
-		mouse.Y < metricsHeight+w.systemMetricsPane.Height() {
+	systemBottom := metricsHeight + w.systemMetricsPane.Height()
+	mediaBottom := systemBottom + w.mediaPane.Height()
+
+	if w.systemMetricsPane.IsVisible() && mouse.Y < systemBottom {
 		return w.handleSystemMetricsMouse(msg, metricsHeight)
 	}
 
+	if w.mediaPane.IsVisible() && mouse.Y < mediaBottom {
+		w.clearChartFocus()
+		return nil
+	}
+
 	// Clicks in the logs pane clear all chart focus.
-	if w.consoleLogsPane.IsVisible() && mouse.Y >= metricsHeight+w.systemMetricsPane.Height() {
+	if w.consoleLogsPane.IsVisible() && mouse.Y >= mediaBottom {
 		w.clearChartFocus()
 		return nil
 	}
@@ -266,6 +289,16 @@ func (w *Workspace) handleConsoleLogsPaneAnimation() tea.Cmd {
 	return nil
 }
 
+func (w *Workspace) handleMediaPaneAnimation() tea.Cmd {
+	w.mediaPane.Update(time.Now())
+	w.recalculateLayout()
+
+	if w.mediaPane.IsAnimating() {
+		return w.mediaPaneAnimationCmd()
+	}
+	return nil
+}
+
 func (w *Workspace) handleSystemMetricsPaneAnimation(now time.Time) tea.Cmd {
 	done := w.systemMetricsPane.Update(now)
 	w.recalculateLayout()
@@ -281,10 +314,9 @@ func (w *Workspace) handleToggleRunsSidebar(msg tea.KeyPressMsg) tea.Cmd {
 	leftWillBeVisible := !w.runsAnimState.IsVisible()
 	rightIsVisible := w.runOverviewSidebar.IsVisible()
 
-	w.resolveFocusAfterVisibilityChange(
-		leftWillBeVisible, rightIsVisible, w.consoleLogsPane.animState.TargetVisible())
 	w.updateSidebarDimensions(leftWillBeVisible, rightIsVisible)
 	w.runsAnimState.Toggle()
+	w.focusMgr.ResolveAfterVisibilityChange()
 	w.recalculateLayout()
 
 	return w.runsAnimationCmd()
@@ -298,13 +330,43 @@ func (w *Workspace) handleToggleOverviewSidebar(msg tea.KeyPressMsg) tea.Cmd {
 		w.logger.Error(fmt.Sprintf("workspace: failed to save overview state: %v", err))
 	}
 
-	w.resolveFocusAfterVisibilityChange(
-		leftIsVisible, rightWillBeVisible, w.consoleLogsPane.animState.TargetVisible())
 	w.updateSidebarDimensions(leftIsVisible, rightWillBeVisible)
 	w.runOverviewSidebar.Toggle()
+	w.focusMgr.ResolveAfterVisibilityChange()
 	w.recalculateLayout()
 
 	return w.runOverviewAnimationCmd()
+}
+
+func (w *Workspace) handleToggleMediaPane(msg tea.KeyPressMsg) tea.Cmd {
+	mediaWillBeVisible := !w.mediaPane.IsExpanded()
+
+	if err := w.config.SetWorkspaceMediaVisible(mediaWillBeVisible); err != nil {
+		w.logger.Error(fmt.Sprintf("workspace: failed to save media pane state: %v", err))
+	}
+
+	if mediaWillBeVisible {
+		w.updateBottomPaneHeights(
+			w.systemMetricsPane.IsExpanded(),
+			true,
+			w.consoleLogsPane.IsExpanded(),
+		)
+		w.focusMgr.SetTarget(FocusTargetMedia, 1)
+	} else {
+		w.mediaPane.ExitFullscreen()
+		w.updateBottomPaneHeights(
+			w.systemMetricsPane.IsExpanded(),
+			false,
+			w.consoleLogsPane.IsExpanded(),
+		)
+	}
+
+	w.mediaPane.Toggle()
+	if !mediaWillBeVisible {
+		w.focusMgr.ResolveAfterVisibilityChange()
+	}
+	w.recalculateLayout()
+	return w.mediaPaneAnimationCmd()
 }
 
 func (w *Workspace) handleToggleConsoleLogsPane(msg tea.KeyPressMsg) tea.Cmd {
@@ -314,10 +376,13 @@ func (w *Workspace) handleToggleConsoleLogsPane(msg tea.KeyPressMsg) tea.Cmd {
 		w.logger.Error(fmt.Sprintf("workspace: failed to save console logs state: %v", err))
 	}
 
-	w.resolveFocusAfterVisibilityChange(
-		w.runsAnimState.IsExpanded(), w.runOverviewSidebar.IsExpanded(), bottomWillBeVisible)
-	w.updateMiddlePaneHeights(w.systemMetricsPane.IsExpanded(), bottomWillBeVisible)
+	w.updateBottomPaneHeights(
+		w.systemMetricsPane.IsExpanded(),
+		w.mediaPane.IsExpanded(),
+		bottomWillBeVisible,
+	)
 	w.consoleLogsPane.Toggle()
+	w.focusMgr.ResolveAfterVisibilityChange()
 	w.recalculateLayout()
 
 	return w.consoleLogsPaneAnimationCmd()
@@ -325,13 +390,14 @@ func (w *Workspace) handleToggleConsoleLogsPane(msg tea.KeyPressMsg) tea.Cmd {
 
 func (w *Workspace) handleToggleSystemMetricsPane(tea.KeyPressMsg) tea.Cmd {
 	sysWillBeVisible := !w.systemMetricsPane.IsExpanded()
+	mediaVisible := w.mediaPane.IsExpanded()
 	logsVisible := w.consoleLogsPane.IsExpanded()
 
 	if err := w.config.SetWorkspaceSystemMetricsVisible(sysWillBeVisible); err != nil {
 		w.logger.Error(fmt.Sprintf("workspace: failed to save system metrics state: %v", err))
 	}
 
-	w.updateMiddlePaneHeights(sysWillBeVisible, logsVisible)
+	w.updateBottomPaneHeights(sysWillBeVisible, mediaVisible, logsVisible)
 	w.systemMetricsPane.Toggle()
 	w.recalculateLayout()
 	return w.systemMetricsPaneAnimationCmd()
@@ -592,6 +658,7 @@ func (w *Workspace) handleWorkspaceRecord(run *WorkspaceRun, msg tea.Msg) {
 
 	case HistoryMsg:
 		w.metricsGrid.ProcessHistory(m)
+		w.getOrCreateMediaStore(run.Key).ProcessHistory(m)
 		if w.pinnedRun != "" {
 			w.refreshPinnedRun()
 		}
@@ -696,12 +763,30 @@ func (w *Workspace) handleQuit(msg tea.KeyPressMsg) tea.Cmd {
 // ---- Navigation Handlers ----
 
 func (w *Workspace) handlePrevPage(msg tea.KeyPressMsg) tea.Cmd {
-	w.metricsGrid.Navigate(-1)
+	switch w.focusMgr.Current() {
+	case FocusTargetSystemMetrics:
+		if g := w.activeSystemMetricsGrid(); g != nil {
+			g.Navigate(-1)
+		}
+	case FocusTargetMedia:
+		w.mediaPane.NavigatePage(-1)
+	default:
+		w.metricsGrid.Navigate(-1)
+	}
 	return nil
 }
 
 func (w *Workspace) handleNextPage(msg tea.KeyPressMsg) tea.Cmd {
-	w.metricsGrid.Navigate(1)
+	switch w.focusMgr.Current() {
+	case FocusTargetSystemMetrics:
+		if g := w.activeSystemMetricsGrid(); g != nil {
+			g.Navigate(1)
+		}
+	case FocusTargetMedia:
+		w.mediaPane.NavigatePage(1)
+	default:
+		w.metricsGrid.Navigate(1)
+	}
 	return nil
 }
 
@@ -774,6 +859,65 @@ func (w *Workspace) handleClearOverviewFilter(tea.KeyPressMsg) tea.Cmd {
 	return nil
 }
 
+func (w *Workspace) handleToggleMetricsGrid(msg tea.KeyPressMsg) tea.Cmd {
+	metricsWillBeVisible := !w.metricsGridAnimState.IsExpanded()
+
+	if err := w.config.SetWorkspaceMetricsGridVisible(metricsWillBeVisible); err != nil {
+		w.logger.Error(fmt.Sprintf("workspace: failed to save metrics grid state: %v", err))
+	}
+
+	w.metricsGridAnimState.Toggle()
+	w.focusMgr.ResolveAfterVisibilityChange()
+
+	w.updateBottomPaneHeights(
+		w.systemMetricsPane.IsExpanded(),
+		w.mediaPane.IsExpanded(),
+		w.consoleLogsPane.IsExpanded(),
+	)
+	w.recalculateLayout()
+	return w.metricsGridAnimationCmd()
+}
+
+func (w *Workspace) handleMetricsGridAnimation() tea.Cmd {
+	w.metricsGridAnimState.Update(time.Now())
+	w.updateBottomPaneHeights(
+		w.systemMetricsPane.IsExpanded(),
+		w.mediaPane.IsExpanded(),
+		w.consoleLogsPane.IsExpanded(),
+	)
+	w.recalculateLayout()
+	if w.metricsGridAnimState.IsAnimating() {
+		return w.metricsGridAnimationCmd()
+	}
+	return nil
+}
+
+func (w *Workspace) handleGridWASD(msg tea.KeyPressMsg) tea.Cmd {
+	var dr, dc int
+	switch normalizeKey(msg.String()) {
+	case "w":
+		dr = -1
+	case "s":
+		dr = 1
+	case "a":
+		dc = -1
+	case "d":
+		dc = 1
+	default:
+		return nil
+	}
+
+	switch {
+	case w.focusMgr.IsTarget(FocusTargetMetricsGrid):
+		w.metricsGrid.NavigateFocus(dr, dc)
+	case w.focusMgr.IsTarget(FocusTargetSystemMetrics):
+		if g := w.activeSystemMetricsGrid(); g != nil {
+			g.NavigateFocus(dr, dc)
+		}
+	}
+	return func() tea.Msg { return nil }
+}
+
 func (w *Workspace) handleConfigMetricsCols(msg tea.KeyPressMsg) tea.Cmd {
 	w.config.SetPendingGridConfig(gridConfigWorkspaceMetricsCols)
 	return nil
@@ -781,6 +925,40 @@ func (w *Workspace) handleConfigMetricsCols(msg tea.KeyPressMsg) tea.Cmd {
 
 func (w *Workspace) handleConfigMetricsRows(msg tea.KeyPressMsg) tea.Cmd {
 	w.config.SetPendingGridConfig(gridConfigWorkspaceMetricsRows)
+	return nil
+}
+
+func (w *Workspace) handleConfigMediaCols(msg tea.KeyPressMsg) tea.Cmd {
+	w.config.SetPendingGridConfig(gridConfigWorkspaceMediaCols)
+	return nil
+}
+
+func (w *Workspace) handleConfigMediaRows(msg tea.KeyPressMsg) tea.Cmd {
+	w.config.SetPendingGridConfig(gridConfigWorkspaceMediaRows)
+	return nil
+}
+
+func (w *Workspace) handleConfigFocusedCols(msg tea.KeyPressMsg) tea.Cmd {
+	switch w.focusMgr.Current() {
+	case FocusTargetSystemMetrics:
+		w.config.SetPendingGridConfig(gridConfigWorkspaceSystemCols)
+	case FocusTargetMedia:
+		w.config.SetPendingGridConfig(gridConfigWorkspaceMediaCols)
+	default:
+		w.config.SetPendingGridConfig(gridConfigWorkspaceMetricsCols)
+	}
+	return nil
+}
+
+func (w *Workspace) handleConfigFocusedRows(msg tea.KeyPressMsg) tea.Cmd {
+	switch w.focusMgr.Current() {
+	case FocusTargetSystemMetrics:
+		w.config.SetPendingGridConfig(gridConfigWorkspaceSystemRows)
+	case FocusTargetMedia:
+		w.config.SetPendingGridConfig(gridConfigWorkspaceMediaRows)
+	default:
+		w.config.SetPendingGridConfig(gridConfigWorkspaceMetricsRows)
+	}
 	return nil
 }
 
@@ -875,21 +1053,21 @@ func (w *Workspace) handlePinRunKey(msg tea.KeyPressMsg) tea.Cmd {
 
 func (w *Workspace) handleRunsVerticalNav(msg tea.KeyPressMsg) tea.Cmd {
 	switch {
-	case w.consoleLogsPane.Active():
+	case w.focusMgr.IsTarget(FocusTargetConsoleLogs):
 		switch msg.String() {
 		case "up":
 			w.consoleLogsPane.Up()
 		case "down":
 			w.consoleLogsPane.Down()
 		}
-	case w.runSelectorActive():
+	case w.focusMgr.IsTarget(FocusTargetRunsList):
 		switch msg.String() {
 		case "up":
 			w.runs.Up()
 		case "down":
 			w.runs.Down()
 		}
-	case w.runOverviewActive():
+	case w.focusMgr.IsTarget(FocusTargetOverview):
 		switch msg.String() {
 		case "up":
 			w.runOverviewSidebar.navigateUp()
@@ -902,144 +1080,38 @@ func (w *Workspace) handleRunsVerticalNav(msg tea.KeyPressMsg) tea.Cmd {
 
 // ---- Focus Region Cycling ----
 
-// focusRegion identifies a focusable UI region in the workspace.
-type focusRegion int
-
-const (
-	focusRuns focusRegion = iota
-	focusLogs
-	focusOverview
-)
-
 func (w *Workspace) handleSidebarTabNav(msg tea.KeyPressMsg) tea.Cmd {
 	direction := 1
 	if msg.Code == tea.KeyTab && msg.Mod == tea.ModShift {
 		direction = -1
 	}
-
-	cur := w.currentFocusRegion()
-
-	// Try cycling within overview sections before leaving the region.
-	if cur == focusOverview && w.cycleOverviewSection(direction) {
-		return nil
+	withinFn := func(dir int) bool {
+		if w.focusMgr.IsTarget(FocusTargetOverview) {
+			return w.cycleOverviewSection(dir)
+		}
+		return false
 	}
-
-	w.cycleFocusRegion(cur, direction)
+	w.focusMgr.TabWithinOrAdvance(direction, withinFn)
 	return nil
-}
-
-// currentFocusRegion returns which focusable region currently holds focus.
-func (w *Workspace) currentFocusRegion() focusRegion {
-	switch {
-	case w.consoleLogsPane.Active():
-		return focusLogs
-	case w.runs.Active:
-		return focusRuns
-	default:
-		return focusOverview
-	}
-}
-
-// cycleOverviewSection tries to move within overview sections.
-//
-// Returns true if the navigation was handled (i.e. we're not at a boundary).
-func (w *Workspace) cycleOverviewSection(direction int) bool {
-	firstSec, lastSec := w.runOverviewSidebar.focusableSectionBounds()
-	if !w.runOverviewSidebar.animState.IsExpanded() || firstSec == -1 {
-		return false
-	}
-
-	atBoundary := (direction == 1 && w.runOverviewSidebar.activeSection == lastSec) ||
-		(direction == -1 && w.runOverviewSidebar.activeSection == firstSec)
-	if atBoundary {
-		return false
-	}
-
-	w.runOverviewSidebar.navigateSection(direction)
-	return true
-}
-
-// cycleFocusRegion moves focus to the next available region in the given direction.
-func (w *Workspace) cycleFocusRegion(cur focusRegion, direction int) {
-	firstSec, _ := w.runOverviewSidebar.focusableSectionBounds()
-
-	runsAvail := w.runsAnimState.TargetVisible()
-	logsAvail := w.consoleLogsPane.animState.TargetVisible()
-	overviewAvail := w.runOverviewSidebar.animState.TargetVisible() && firstSec != -1
-
-	focusOrder := []focusRegion{focusRuns, focusLogs, focusOverview}
-	n := len(focusOrder)
-
-	curIdx := 0
-	for i, v := range focusOrder {
-		if v == cur {
-			curIdx = i
-			break
-		}
-	}
-
-	for step := 1; step <= n; step++ {
-		nextIdx := ((curIdx+direction*step)%n + n) % n
-		candidate := focusOrder[nextIdx]
-
-		switch candidate {
-		case focusRuns:
-			if runsAvail {
-				w.setFocusRegion(candidate, direction)
-				return
-			}
-		case focusLogs:
-			if logsAvail {
-				w.setFocusRegion(candidate, direction)
-				return
-			}
-		case focusOverview:
-			if overviewAvail {
-				w.setFocusRegion(candidate, direction)
-				return
-			}
-		}
-	}
-}
-
-// setFocusRegion clears all focus and activates the given region.
-func (w *Workspace) setFocusRegion(region focusRegion, direction int) {
-	w.runs.Active = false
-	w.consoleLogsPane.SetActive(false)
-	w.runOverviewSidebar.deactivateAllSections()
-
-	switch region {
-	case focusRuns:
-		w.runs.Active = true
-	case focusLogs:
-		w.consoleLogsPane.SetActive(true)
-	case focusOverview:
-		firstSec, lastSec := w.runOverviewSidebar.focusableSectionBounds()
-		if direction == 1 {
-			w.runOverviewSidebar.setActiveSection(firstSec)
-		} else {
-			w.runOverviewSidebar.setActiveSection(lastSec)
-		}
-	}
 }
 
 func (w *Workspace) handleRunsPageNav(msg tea.KeyPressMsg) tea.Cmd {
 	switch {
-	case w.consoleLogsPane.Active():
+	case w.focusMgr.IsTarget(FocusTargetConsoleLogs):
 		switch msg.String() {
 		case "left":
 			w.consoleLogsPane.PageUp()
 		case "right":
 			w.consoleLogsPane.PageDown()
 		}
-	case w.runSelectorActive():
+	case w.focusMgr.IsTarget(FocusTargetRunsList):
 		switch msg.String() {
 		case "left":
 			w.runs.PageUp()
 		case "right":
 			w.runs.PageDown()
 		}
-	case w.runOverviewActive():
+	case w.focusMgr.IsTarget(FocusTargetOverview):
 		switch msg.String() {
 		case "left":
 			w.runOverviewSidebar.navigatePageUp()
@@ -1096,7 +1168,7 @@ func (w *Workspace) handleConfigSystemRows(tea.KeyPressMsg) tea.Cmd {
 // wherever focus currently is, Esc snaps it back to the run selector.
 func (w *Workspace) handleFocusRuns(tea.KeyPressMsg) tea.Cmd {
 	if w.runsAnimState.TargetVisible() {
-		w.setFocusRegion(focusRuns, 1)
+		w.focusMgr.SetTarget(FocusTargetRunsList, 1)
 	}
 	return nil
 }

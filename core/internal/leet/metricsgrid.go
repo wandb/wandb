@@ -623,6 +623,43 @@ func (mg *MetricsGrid) setFocus(row, col int) {
 	}
 }
 
+// NavigateFocus moves chart focus by (dr, dc) within the current page.
+// Returns true if navigation occurred.
+func (mg *MetricsGrid) NavigateFocus(dr, dc int) bool {
+	mg.mu.Lock()
+	defer mg.mu.Unlock()
+
+	size := mg.effectiveGridSize()
+	if size.Rows == 0 || size.Cols == 0 || len(mg.currentPage) == 0 {
+		return false
+	}
+
+	row, col := mg.focus.Row, mg.focus.Col
+	if row < 0 || col < 0 {
+		row, col = 0, 0
+	}
+
+	row = clamp(row+dr, 0, size.Rows-1)
+	col = clamp(col+dc, 0, size.Cols-1)
+
+	if row < len(mg.currentPage) && col < len(mg.currentPage[row]) &&
+		mg.currentPage[row][col] != nil {
+		// Unfocus old chart.
+		if mg.focus.Row >= 0 && mg.focus.Col >= 0 &&
+			mg.focus.Row < len(mg.currentPage) &&
+			mg.focus.Col < len(mg.currentPage[mg.focus.Row]) &&
+			mg.currentPage[mg.focus.Row][mg.focus.Col] != nil {
+			mg.currentPage[mg.focus.Row][mg.focus.Col].SetFocused(false)
+		}
+
+		chart := mg.currentPage[row][col]
+		mg.focus.Set(FocusMainChart, row, col, chart.Title())
+		chart.SetFocused(true)
+		return true
+	}
+	return false
+}
+
 // clearFocus clears focus only from main charts (locks internally).
 func (mg *MetricsGrid) clearFocus() {
 	mg.mu.Lock()

@@ -53,16 +53,20 @@ type Run struct {
 	watcherMgr   *WatcherManager
 	heartbeatMgr *HeartbeatManager
 
-	// Chart focus state.
-	focus *Focus
+	// Focus management.
+	focusMgr *FocusManager
+	focus    *Focus
 
 	// UI components.
-	metricsGrid     *MetricsGrid
+	metricsGridAnimState *AnimatedValue
+	metricsGrid          *MetricsGrid
 	runOverview     *RunOverview
 	leftSidebar     *RunOverviewSidebar
 	rightSidebar    *RightSidebar
 	consoleLogs     *RunConsoleLogs
 	consoleLogsPane *ConsoleLogsPane
+	mediaStore      *MediaStore
+	mediaPane       *MediaPane
 
 	// Sidebar animation synchronization.
 	animationMu sync.Mutex
@@ -99,28 +103,47 @@ func NewRun(
 	ro := NewRunOverview()
 	runOverviewAnimState := NewAnimatedValue(cfg.LeftSidebarVisible(), SidebarMinWidth)
 
+	// The metrics grid AnimatedValue tracks a "maximum height" that the grid is allowed.
+	// When collapsed (target=0), the grid renders nothing and bottom panes take all space.
+	metricsGridAnimState := NewAnimatedValue(cfg.MetricsGridVisible(), 1)
+
 	consoleLogsPaneAnimState := NewAnimatedValue(
 		cfg.ConsoleLogsVisible(), ConsoleLogsPaneMinHeight)
+	mediaPaneAnimState := NewAnimatedValue(
+		cfg.MediaVisible(), mediaPaneMinHeight)
 
 	metricsGrid := NewMetricsGrid(cfg, cfg.MetricsGrid, focus, logger)
 	metricsGrid.SetSingleSeriesColorMode(cfg.SingleRunColorMode())
 
-	return &Run{
-		config:          cfg,
-		keyMap:          buildKeyMap(RunKeyBindings()),
-		focus:           focus,
-		isLoading:       true,
-		runPath:         runPath,
-		metricsGrid:     metricsGrid,
+	mediaStore := NewMediaStore()
+
+	run := &Run{
+		config:               cfg,
+		keyMap:               buildKeyMap(RunKeyBindings()),
+		focus:                focus,
+		isLoading:            true,
+		runPath:              runPath,
+		metricsGridAnimState: metricsGridAnimState,
+		metricsGrid:          metricsGrid,
 		runOverview:     ro,
 		leftSidebar:     NewRunOverviewSidebar(cfg, runOverviewAnimState, ro, SidebarSideLeft),
 		rightSidebar:    NewRightSidebar(cfg, focus, logger),
 		consoleLogs:     NewRunConsoleLogs(),
 		consoleLogsPane: NewConsoleLogsPane(consoleLogsPaneAnimState),
+		mediaStore:      mediaStore,
+		mediaPane:       NewMediaPane(mediaPaneAnimState, cfg.MediaGrid),
 		watcherMgr:      NewWatcherManager(ch, logger),
 		heartbeatMgr:    NewHeartbeatManager(heartbeatInterval, ch, logger),
 		logger:          logger,
 	}
+	run.focusMgr = run.buildRunFocusManager()
+	return run
+}
+
+// SetMediaStore replaces the run's media store (e.g., to share with workspace).
+func (r *Run) SetMediaStore(store *MediaStore) {
+	r.mediaStore = store
+	r.mediaPane.SetStore(store)
 }
 
 // Init initializes the model and returns the initial command.
@@ -190,7 +213,7 @@ func (r *Run) handleWindowResize(msg tea.WindowSizeMsg) {
 
 	r.leftSidebar.UpdateDimensions(msg.Width, r.rightSidebar.IsVisible())
 	r.rightSidebar.UpdateDimensions(msg.Width, r.leftSidebar.IsVisible())
-	r.consoleLogsPane.UpdateExpandedHeight(max(r.height-StatusBarHeight, 0))
+	r.updateBottomPaneHeights(r.mediaPane.IsVisible(), r.consoleLogsPane.IsVisible())
 
 	layout := r.computeViewports()
 	r.metricsGrid.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
@@ -201,7 +224,8 @@ func isUIMsg(msg tea.Msg) bool {
 	switch msg.(type) {
 	case tea.KeyPressMsg, tea.MouseMsg, tea.WindowSizeMsg,
 		LeftSidebarAnimationMsg, RightSidebarAnimationMsg,
-		ConsoleLogsPaneAnimationMsg:
+		ConsoleLogsPaneAnimationMsg, MediaPaneAnimationMsg,
+		MetricsGridAnimationMsg:
 		return true
 	default:
 		return false
@@ -227,6 +251,10 @@ func (r *Run) dispatch(msg tea.Msg) []tea.Cmd {
 		return r.handleSidebarAnimation(msg)
 	case ConsoleLogsPaneAnimationMsg:
 		return r.handleConsoleLogsPaneAnimation()
+	case MediaPaneAnimationMsg:
+		return r.handleMediaPaneAnimation()
+	case MetricsGridAnimationMsg:
+		return r.handleMetricsGridAnimation()
 	default:
 		// History/Run/Summary/Stats/SystemInfo/FileComplete/Error
 		if _, cmd := r.handleRecordMsg(msg); cmd != nil {
@@ -267,15 +295,42 @@ func (r *Run) View() tea.View {
 // renderMainView renders the main application view.
 func (r *Run) renderMainView() string {
 	layout := r.computeViewports()
-	dims := r.metricsGrid.CalculateChartDimensions(layout.mainContentAreaWidth, layout.height)
-	gridView := r.metricsGrid.View(dims)
+	r.mediaPane.SetStore(r.mediaStore)
 
-	// If bottom bar is visible, join it below the grid to form the central column.
-	centralColumn := gridView
-	if r.consoleLogsPane.IsVisible() {
-		r.consoleLogsPane.SetConsoleLogs(r.consoleLogs.Items())
-		bbView := r.consoleLogsPane.View(layout.mainContentAreaWidth, "", "")
-		centralColumn = lipgloss.JoinVertical(lipgloss.Left, gridView, bbView)
+	centralColumn := ""
+	if r.mediaPane.IsFullscreen() {
+		fullHeight := max(r.height-StatusBarHeight, 1)
+		centralColumn = r.mediaPane.View(layout.mainContentAreaWidth, fullHeight, "", "")
+	} else {
+		if r.metricsGridAnimState.IsVisible() && layout.height > 0 {
+			if r.metricsGrid.ChartCount() == 0 {
+				centralColumn = renderMetricsEmptyState(layout.mainContentAreaWidth, layout.height, "No scalar metrics logged.")
+			} else {
+				dims := r.metricsGrid.CalculateChartDimensions(layout.mainContentAreaWidth, layout.height)
+				gridView := r.metricsGrid.View(dims)
+				centralColumn = gridView
+			}
+		}
+
+		if r.mediaPane.IsVisible() {
+			mv := r.mediaPane.View(layout.mainContentAreaWidth, r.mediaPane.Height(), "", "")
+			centralColumn = lipgloss.JoinVertical(lipgloss.Left, centralColumn, mv)
+		}
+		if r.consoleLogsPane.IsVisible() {
+			r.consoleLogsPane.SetConsoleLogs(r.consoleLogs.Items())
+			bbView := r.consoleLogsPane.View(layout.mainContentAreaWidth, "", "")
+			centralColumn = lipgloss.JoinVertical(lipgloss.Left, centralColumn, bbView)
+		}
+
+		// When all main panes are collapsed, show ASCII art.
+		allCollapsed := !r.metricsGridAnimState.IsVisible() &&
+			!r.mediaPane.IsVisible() &&
+			!r.consoleLogsPane.IsVisible()
+
+		if allCollapsed {
+			artHeight := max(r.height-StatusBarHeight, 1)
+			centralColumn = renderLogoArt(layout.mainContentAreaWidth, artHeight)
+		}
 	}
 
 	mainView := r.buildMainViewWithSidebars(
@@ -337,23 +392,7 @@ func (r *Run) syncLiveRunning() {
 
 // renderLoadingScreen shows the wandb leet ASCII art centered on screen.
 func (r *Run) renderLoadingScreen() string {
-	artStyle := lipgloss.NewStyle().
-		Foreground(colorHeading).
-		Bold(true)
-
-	logoContent := lipgloss.JoinVertical(
-		lipgloss.Center,
-		artStyle.Render(wandbArt),
-		artStyle.Render(leetArt),
-	)
-
-	centeredLogo := lipgloss.Place(
-		r.width,
-		r.height-StatusBarHeight,
-		lipgloss.Center,
-		lipgloss.Center,
-		logoContent,
-	)
+	centeredLogo := renderLogoArt(r.width, r.height-StatusBarHeight)
 
 	statusBar := r.renderStatusBar()
 	return lipgloss.JoinVertical(lipgloss.Left, centeredLogo, statusBar)
@@ -487,6 +526,12 @@ func (r *Run) buildActiveStatus() string {
 		}
 	}
 
+	if r.mediaPane.IsVisible() {
+		if label := r.mediaPane.StatusLabel(); label != "" {
+			parts = append(parts, label)
+		}
+	}
+
 	// Add focused chart name if a chart is focused.
 	focusedTitle := r.FocusedTitle()
 	if focusedTitle != "" {
@@ -532,6 +577,41 @@ func (r *Run) IsFiltering() bool {
 		r.rightSidebar.IsFilterMode()
 }
 
+func (r *Run) MediaFullscreen() bool {
+	r.stateMu.RLock()
+	defer r.stateMu.RUnlock()
+	return r.mediaPane != nil && r.mediaPane.IsFullscreen()
+}
+
+func (r *Run) updateBottomPaneHeights(mediaVisible, logsVisible bool) {
+	maxH := max(r.height-StatusBarHeight, 0)
+	lowerCount := 0
+	if mediaVisible {
+		lowerCount++
+	}
+	if logsVisible {
+		lowerCount++
+	}
+	if lowerCount == 0 {
+		return
+	}
+
+	var lowerTierH int
+	if r.metricsGridAnimState.IsExpanded() {
+		lowerTierH = int(float64(maxH) * LowerTierRatio)
+	} else {
+		lowerTierH = maxH
+	}
+
+	each := lowerTierH / lowerCount
+	if mediaVisible {
+		r.mediaPane.SetExpandedHeight(each)
+	}
+	if logsVisible {
+		r.consoleLogsPane.SetExpandedHeight(each)
+	}
+}
+
 // Layout represents the computed layout dimensions for the main UI.
 type Layout struct {
 	leftSidebarWidth     int
@@ -571,7 +651,11 @@ func (r *Run) computeViewports() Layout {
 	leftW, rightW := r.effectiveSidebarWidths()
 
 	contentW := max(r.width-leftW-rightW-2, 1)
-	contentH := max(r.height-StatusBarHeight-r.consoleLogsPane.Height(), 1)
+	reserved := r.consoleLogsPane.Height() + r.mediaPane.Height()
+	contentH := 0
+	if r.metricsGridAnimState.IsVisible() {
+		contentH = max(r.height-StatusBarHeight-reserved, 1)
+	}
 
 	return Layout{leftW, contentW, rightW, contentH}
 }
