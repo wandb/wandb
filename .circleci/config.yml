@@ -246,6 +246,12 @@ commands:
           command: |
             curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain <<parameters.version>>
             echo 'export PATH="$HOME/.cargo/bin:$PATH"' >> "$BASH_ENV"
+            # In MSYS2/Git Bash on Windows, rustup defaults to the GNU host
+            # toolchain. Add the MSVC target so builds targeting
+            # x86_64-pc-windows-msvc have the correct standard library.
+            case "$(uname -s)" in
+              MINGW*|MSYS*) $HOME/.cargo/bin/rustup target add x86_64-pc-windows-msvc ;;
+            esac
             $HOME/.cargo/bin/rustup --version
             $HOME/.cargo/bin/cargo --version
           no_output_timeout: 1m

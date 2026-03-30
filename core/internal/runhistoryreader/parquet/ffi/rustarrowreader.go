@@ -86,7 +86,7 @@ func NewRustArrowWrapper() (*RustArrowWrapper, error) {
 		return nil, err
 	}
 
-	rustLib, err := purego.Dlopen(libPath, purego.RTLD_NOW|purego.RTLD_GLOBAL)
+	rustLib, err := openLibrary(libPath)
 	if err != nil {
 		return nil, err
 	}
