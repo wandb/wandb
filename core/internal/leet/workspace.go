@@ -311,34 +311,29 @@ func (w *Workspace) View() tea.View {
 		fullHeight := max(w.height-StatusBarHeight, 1)
 		centralColumn = w.mediaPane.View(contentWidth, fullHeight, runLabel, mediaHint)
 	} else {
+		var sections []string
+
 		if w.metricsGridAnimState.IsVisible() {
-			centralColumn = w.renderMetrics()
+			sections = append(sections, w.renderMetrics())
 		}
 
 		if w.systemMetricsPane.IsVisible() {
-			smView := w.systemMetricsPane.View(contentWidth, runLabel, systemGrid, systemHint)
-			centralColumn = lipgloss.JoinVertical(lipgloss.Left, centralColumn, smView)
+			sections = append(sections, w.systemMetricsPane.View(contentWidth, runLabel, systemGrid, systemHint))
 		}
 
 		if w.mediaPane.IsVisible() {
-			mv := w.mediaPane.View(contentWidth, w.mediaPane.Height(), runLabel, mediaHint)
-			centralColumn = lipgloss.JoinVertical(lipgloss.Left, centralColumn, mv)
+			sections = append(sections, w.mediaPane.View(contentWidth, w.mediaPane.Height(), runLabel, mediaHint))
 		}
 
 		if w.consoleLogsPane.IsVisible() {
-			bbView := w.consoleLogsPane.View(contentWidth, runLabel, logsHint)
-			centralColumn = lipgloss.JoinVertical(lipgloss.Left, centralColumn, bbView)
+			sections = append(sections, w.consoleLogsPane.View(contentWidth, runLabel, logsHint))
 		}
 
-		// When all main panes are collapsed, show ASCII art.
-		allCollapsed := !w.metricsGridAnimState.IsVisible() &&
-			!w.systemMetricsPane.IsVisible() &&
-			!w.mediaPane.IsVisible() &&
-			!w.consoleLogsPane.IsVisible()
-
-		if allCollapsed {
+		if len(sections) == 0 {
 			artHeight := max(w.height-StatusBarHeight, 1)
 			centralColumn = renderLogoArt(contentWidth, artHeight)
+		} else {
+			centralColumn = joinWithSeparators(sections, contentWidth)
 		}
 	}
 	cols = append(cols, centralColumn)
@@ -437,11 +432,32 @@ func (w *Workspace) recalculateLayout() {
 }
 
 // computeViewports returns the computed layout dimensions.
+//
+// Separator lines between visible sections are subtracted from available height
+// to prevent the status bar from being pushed off screen.
 func (w *Workspace) computeViewports() Layout {
 	leftW, rightW := w.runsAnimState.Value(), w.runOverviewSidebar.Width()
 
 	contentW := max(w.width-leftW-rightW, 1)
-	reserved := w.consoleLogsPane.Height() + w.mediaPane.Height() + w.systemMetricsPane.Height()
+
+	// Count visible sections to determine separator overhead.
+	sectionCount := 0
+	if w.metricsGridAnimState.IsVisible() {
+		sectionCount++
+	}
+	if w.systemMetricsPane.IsVisible() {
+		sectionCount++
+	}
+	if w.mediaPane.IsVisible() {
+		sectionCount++
+	}
+	if w.consoleLogsPane.IsVisible() {
+		sectionCount++
+	}
+	sepLines := max(sectionCount-1, 0)
+
+	reserved := w.consoleLogsPane.Height() + w.mediaPane.Height() +
+		w.systemMetricsPane.Height() + sepLines
 	contentH := 0
 	if w.metricsGridAnimState.IsVisible() {
 		contentH = max(w.height-StatusBarHeight-reserved, 1)
@@ -464,7 +480,23 @@ func (w *Workspace) updateSidebarDimensions(leftVisible, rightVisible bool) {
 }
 
 func (w *Workspace) updateBottomPaneHeights(sysVisible, mediaVisible, logsVisible bool) {
-	maxH := max(w.height-StatusBarHeight, 0)
+	// Compute separator count from the visibility state we're configuring toward.
+	sectionCount := 0
+	if w.metricsGridAnimState.IsExpanded() {
+		sectionCount++
+	}
+	if sysVisible {
+		sectionCount++
+	}
+	if mediaVisible {
+		sectionCount++
+	}
+	if logsVisible {
+		sectionCount++
+	}
+	sepLines := max(sectionCount-1, 0)
+
+	maxH := max(w.height-StatusBarHeight-sepLines, 0)
 	lowerCount := 0
 	if sysVisible {
 		lowerCount++

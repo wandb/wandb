@@ -366,7 +366,12 @@ func (mg *MetricsGrid) View(dims GridDims) string {
 	header := mg.renderHeader(size)
 	grid := mg.renderGrid(dims, size)
 
-	return lipgloss.JoinVertical(lipgloss.Left, header, grid)
+	// Ensure exact height by placing in a box sized to the grid's actual
+	// allocated height (rows * cellH + header). This prevents phantom filler
+	// lines when mg.height drifts from the dims passed in by the caller.
+	totalH := ChartHeaderHeight + size.Rows*dims.CellHWithPadding
+	result := lipgloss.JoinVertical(lipgloss.Left, header, grid)
+	return lipgloss.Place(mg.width, totalH, lipgloss.Left, lipgloss.Top, result)
 }
 
 func (mg *MetricsGrid) renderHeader(size GridSize) string {
@@ -409,10 +414,10 @@ func (mg *MetricsGrid) renderGrid(dims GridDims, size GridSize) string {
 	mg.mu.RUnlock()
 
 	if noData {
-		availableHeight := max(mg.height-ChartHeaderHeight, 0)
+		gridH := max(size.Rows*dims.CellHWithPadding, 1)
 		return lipgloss.Place(
-			mg.width+1,
-			availableHeight,
+			mg.width,
+			gridH,
 			lipgloss.Center,
 			lipgloss.Center,
 			navInfoStyle.Render("No metric data for selected runs."),
@@ -430,18 +435,7 @@ func (mg *MetricsGrid) renderGrid(dims GridDims, size GridSize) string {
 		rows = append(rows, rowView)
 	}
 	gridContent := lipgloss.JoinVertical(lipgloss.Left, rows...)
-	gridContainer := gridContainerStyle.Render(gridContent)
-
-	// Add vertical filler to use all available height.
-	availableHeight := max(mg.height-ChartHeaderHeight, 0)
-	usedHeight := size.Rows * dims.CellHWithPadding
-	extra := availableHeight - usedHeight
-	if extra > 0 {
-		filler := lipgloss.NewStyle().Height(extra).Render("")
-		gridContainer = lipgloss.JoinVertical(lipgloss.Left, gridContainer, filler)
-	}
-
-	return gridContainer
+	return gridContainerStyle.Render(gridContent)
 }
 
 // renderGridCell renders a single grid cell.

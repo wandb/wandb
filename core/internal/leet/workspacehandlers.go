@@ -192,7 +192,7 @@ func (w *Workspace) handleSystemMetricsMouse(msg tea.MouseMsg, metricsHeight int
 
 	leftOffset := w.runsAnimState.Value()
 	adjustedX := mouse.X - leftOffset - systemMetricsPaneContentPadding
-	adjustedY := mouse.Y - metricsHeight - systemMetricsPaneBorderLines - systemMetricsPaneHeaderLines
+	adjustedY := mouse.Y - metricsHeight - systemMetricsPaneHeaderLines
 	if adjustedX < 0 || adjustedY < 0 {
 		return nil
 	}

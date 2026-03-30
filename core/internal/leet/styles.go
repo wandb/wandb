@@ -5,6 +5,7 @@ import (
 	"image/color"
 	"math"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -481,7 +482,7 @@ var (
 
 	headerContainerStyle = lipgloss.NewStyle().MarginLeft(1).MarginTop(0).MarginBottom(0)
 
-	gridContainerStyle = lipgloss.NewStyle().MarginLeft(1).MarginRight(1)
+	gridContainerStyle = lipgloss.NewStyle().MarginLeft(1)
 )
 
 // Chart styles.
@@ -714,6 +715,30 @@ var (
 		BottomRight: "",
 	}
 )
+
+// renderHorizontalSeparator draws a full-width em-dash separator line.
+// This is used between vertically stacked panes in the central column
+// instead of per-pane top borders.
+func renderHorizontalSeparator(width int) string {
+	if width <= 0 {
+		return ""
+	}
+	line := strings.Repeat(string(unicodeEmDash), width)
+	return lipgloss.NewStyle().Foreground(colorLayout).Render(line)
+}
+
+// joinWithSeparators joins rendered sections with horizontal separator lines.
+func joinWithSeparators(sections []string, width int) string {
+	if len(sections) == 0 {
+		return ""
+	}
+	sep := renderHorizontalSeparator(width)
+	result := sections[0]
+	for _, s := range sections[1:] {
+		result = lipgloss.JoinVertical(lipgloss.Left, result, sep, s)
+	}
+	return result
+}
 
 // AnimationDuration is the duration for sidebar animations.
 const AnimationDuration = 150 * time.Millisecond

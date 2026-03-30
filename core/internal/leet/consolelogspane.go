@@ -18,11 +18,9 @@ const (
 	ConsoleLogsPaneHeightRatio = SidebarWidthRatio
 
 	// ConsoleLogsPaneMinHeight is the minimum total height for the bottom bar.
-	ConsoleLogsPaneMinHeight = consoleLogsBorderLines +
-		consoleLogsPaddingLines + consoleLogsHeaderLines + 1
+	ConsoleLogsPaneMinHeight = consoleLogsPaddingLines + consoleLogsHeaderLines + 1
 
 	consoleLogsPaneHeader   = "Console Logs"
-	consoleLogsBorderLines  = 1
 	consoleLogsPaddingLines = 1
 	consoleLogsHeaderLines  = 1
 
@@ -163,7 +161,7 @@ func (c *ConsoleLogsPane) View(width int, runLabel, hint string) string {
 
 	// innerH is the content area inside border + padding.
 	// lipgloss renders: border(1) + Height(innerH) + padding(1) = h total.
-	innerH := h - consoleLogsBorderLines - consoleLogsPaddingLines
+	innerH := h - consoleLogsPaddingLines
 	contentLines := max(innerH-consoleLogsHeaderLines, 1)
 
 	maxKeyWidth := max(int(float64(width)*consoleLogsKeyWidthRatio), 1)
@@ -187,7 +185,7 @@ func (c *ConsoleLogsPane) View(width int, runLabel, hint string) string {
 	body := lipgloss.JoinVertical(lipgloss.Left, header, content)
 	placed := lipgloss.Place(width, innerH, lipgloss.Left, lipgloss.Top, body)
 
-	return consoleLogsPaneBorderStyle.Width(width).Height(innerH).Render(placed)
+	return lipgloss.Place(width, innerH, lipgloss.Left, lipgloss.Top, placed)
 }
 
 // HasData reports whether the pane has any log entries to display.

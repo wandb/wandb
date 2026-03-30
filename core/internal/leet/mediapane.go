@@ -1,6 +1,7 @@
 package leet
 
 import (
+	"maps"
 	"fmt"
 	"image"
 	_ "image/gif"
@@ -31,7 +32,6 @@ const (
 	BottomPaneHeightRatioThree = 0.146
 
 	mediaPaneHeader         = "Media"
-	mediaPaneBorderLines    = 1
 	mediaPaneHeaderLines    = 2
 	mediaPaneContentPadding = 1
 	mediaTileMinWidth       = 18
@@ -39,28 +39,12 @@ const (
 	mediaTileBorderLines    = 2
 	mediaTileTitleLines     = 1
 	mediaTileFooterLines    = 1
-	mediaPaneMinHeight      = mediaPaneBorderLines + mediaPaneHeaderLines + mediaTileMinHeight
+	mediaPaneMinHeight      = mediaPaneHeaderLines + mediaTileMinHeight
 )
 
 var (
 	mediaPaneStyle = lipgloss.NewStyle().
 			PaddingLeft(mediaPaneContentPadding)
-
-	mediaPaneBorderStyle = lipgloss.NewStyle().
-				Border(topOnlyBorder).
-				BorderForeground(colorLayout).
-				BorderTop(true).
-				BorderBottom(false).
-				BorderLeft(false).
-				BorderRight(false)
-
-	mediaPaneActiveBorderStyle = lipgloss.NewStyle().
-					Border(topOnlyBorder).
-					BorderForeground(colorLayoutHighlight).
-					BorderTop(true).
-					BorderBottom(false).
-					BorderLeft(false).
-					BorderRight(false)
 
 	mediaPaneHeaderStyle = lipgloss.NewStyle().
 				Foreground(colorSubheading).
@@ -95,21 +79,6 @@ var (
 	mediaTilePlaceholderStyle = lipgloss.NewStyle().
 					Foreground(colorSubtle)
 )
-
-// bottomPaneHeightRatio returns the per-pane height ratio for the given number
-// of simultaneously visible bottom panes.
-func bottomPaneHeightRatio(visibleCount int) float64 {
-	switch {
-	case visibleCount <= 0:
-		return 0
-	case visibleCount == 1:
-		return MediaPaneHeightRatio
-	case visibleCount == 2:
-		return SidebarWidthRatioBoth
-	default:
-		return BottomPaneHeightRatioThree
-	}
-}
 
 // MediaPane is a collapsible, animated pane that renders wandb.Image media as
 // ANSI thumbnails.
@@ -191,13 +160,9 @@ type MediaPaneViewState struct {
 
 func (p *MediaPane) SaveViewState() MediaPaneViewState {
 	xi := make(map[string]int, len(p.xIndices))
-	for k, v := range p.xIndices {
-		xi[k] = v
-	}
+	maps.Copy(xi, p.xIndices)
 	af := make(map[string]bool, len(p.autoFollows))
-	for k, v := range p.autoFollows {
-		af[k] = v
-	}
+	maps.Copy(af, p.autoFollows)
 	return MediaPaneViewState{
 		SelectedIndex: p.selectedIndex,
 		XIndices:      xi,
@@ -207,12 +172,8 @@ func (p *MediaPane) SaveViewState() MediaPaneViewState {
 
 func (p *MediaPane) RestoreViewState(s MediaPaneViewState) {
 	p.selectedIndex = s.SelectedIndex
-	for k, v := range s.XIndices {
-		p.xIndices[k] = v
-	}
-	for k, v := range s.AutoFollows {
-		p.autoFollows[k] = v
-	}
+	maps.Copy(p.xIndices, s.XIndices)
+	maps.Copy(p.autoFollows, s.AutoFollows)
 	p.syncState()
 }
 
@@ -489,7 +450,7 @@ func (p *MediaPane) View(width, height int, runLabel, hint string) string {
 	}
 
 	innerW := max(width-mediaPaneContentPadding, 0)
-	innerH := max(height-mediaPaneBorderLines, 0)
+	innerH := max(height, 0)
 	if innerW == 0 || innerH == 0 {
 		return ""
 	}
@@ -511,12 +472,7 @@ func (p *MediaPane) View(width, height int, runLabel, hint string) string {
 
 	body = lipgloss.Place(innerW, innerH, lipgloss.Left, lipgloss.Top, body)
 	padded := mediaPaneStyle.Render(body)
-	borderStyle := mediaPaneBorderStyle
-	if p.active || p.fullscreen {
-		borderStyle = mediaPaneActiveBorderStyle
-	}
-	bordered := borderStyle.Render(padded)
-	return lipgloss.Place(width, height, lipgloss.Left, lipgloss.Top, bordered)
+	return lipgloss.Place(width, height, lipgloss.Left, lipgloss.Top, padded)
 }
 
 func (p *MediaPane) renderGridBody(width, height int, runLabel, hint string) string {
@@ -649,7 +605,7 @@ func (p *MediaPane) renderGrid(width, height int, hint string) string {
 	}
 
 	var rowViews []string
-	for row := 0; row < rows; row++ {
+	for row := range rows {
 		start := row * cols
 		end := min(start+cols, len(cells))
 		if start >= end {

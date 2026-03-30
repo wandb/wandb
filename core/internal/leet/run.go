@@ -298,38 +298,35 @@ func (r *Run) renderMainView() string {
 	r.mediaPane.SetStore(r.mediaStore)
 
 	centralColumn := ""
+	w := layout.mainContentAreaWidth
 	if r.mediaPane.IsFullscreen() {
 		fullHeight := max(r.height-StatusBarHeight, 1)
-		centralColumn = r.mediaPane.View(layout.mainContentAreaWidth, fullHeight, "", "")
+		centralColumn = r.mediaPane.View(w, fullHeight, "", "")
 	} else {
+		var sections []string
+
 		if r.metricsGridAnimState.IsVisible() && layout.height > 0 {
 			if r.metricsGrid.ChartCount() == 0 {
-				centralColumn = renderMetricsEmptyState(layout.mainContentAreaWidth, layout.height, "No scalar metrics logged.")
+				sections = append(sections, renderMetricsEmptyState(w, layout.height, "No scalar metrics logged."))
 			} else {
-				dims := r.metricsGrid.CalculateChartDimensions(layout.mainContentAreaWidth, layout.height)
-				gridView := r.metricsGrid.View(dims)
-				centralColumn = gridView
+				dims := r.metricsGrid.CalculateChartDimensions(w, layout.height)
+				sections = append(sections, r.metricsGrid.View(dims))
 			}
 		}
 
 		if r.mediaPane.IsVisible() {
-			mv := r.mediaPane.View(layout.mainContentAreaWidth, r.mediaPane.Height(), "", "")
-			centralColumn = lipgloss.JoinVertical(lipgloss.Left, centralColumn, mv)
+			sections = append(sections, r.mediaPane.View(w, r.mediaPane.Height(), "", ""))
 		}
 		if r.consoleLogsPane.IsVisible() {
 			r.consoleLogsPane.SetConsoleLogs(r.consoleLogs.Items())
-			bbView := r.consoleLogsPane.View(layout.mainContentAreaWidth, "", "")
-			centralColumn = lipgloss.JoinVertical(lipgloss.Left, centralColumn, bbView)
+			sections = append(sections, r.consoleLogsPane.View(w, "", ""))
 		}
 
-		// When all main panes are collapsed, show ASCII art.
-		allCollapsed := !r.metricsGridAnimState.IsVisible() &&
-			!r.mediaPane.IsVisible() &&
-			!r.consoleLogsPane.IsVisible()
-
-		if allCollapsed {
+		if len(sections) == 0 {
 			artHeight := max(r.height-StatusBarHeight, 1)
-			centralColumn = renderLogoArt(layout.mainContentAreaWidth, artHeight)
+			centralColumn = renderLogoArt(w, artHeight)
+		} else {
+			centralColumn = joinWithSeparators(sections, w)
 		}
 	}
 
@@ -584,7 +581,20 @@ func (r *Run) MediaFullscreen() bool {
 }
 
 func (r *Run) updateBottomPaneHeights(mediaVisible, logsVisible bool) {
-	maxH := max(r.height-StatusBarHeight, 0)
+	// Compute separator count from the visibility state we're configuring toward.
+	sectionCount := 0
+	if r.metricsGridAnimState.IsExpanded() {
+		sectionCount++
+	}
+	if mediaVisible {
+		sectionCount++
+	}
+	if logsVisible {
+		sectionCount++
+	}
+	sepLines := max(sectionCount-1, 0)
+
+	maxH := max(r.height-StatusBarHeight-sepLines, 0)
 	lowerCount := 0
 	if mediaVisible {
 		lowerCount++
@@ -651,7 +661,20 @@ func (r *Run) computeViewports() Layout {
 	leftW, rightW := r.effectiveSidebarWidths()
 
 	contentW := max(r.width-leftW-rightW-2, 1)
-	reserved := r.consoleLogsPane.Height() + r.mediaPane.Height()
+
+	sectionCount := 0
+	if r.metricsGridAnimState.IsVisible() {
+		sectionCount++
+	}
+	if r.mediaPane.IsVisible() {
+		sectionCount++
+	}
+	if r.consoleLogsPane.IsVisible() {
+		sectionCount++
+	}
+	sepLines := max(sectionCount-1, 0)
+
+	reserved := r.consoleLogsPane.Height() + r.mediaPane.Height() + sepLines
 	contentH := 0
 	if r.metricsGridAnimState.IsVisible() {
 		contentH = max(r.height-StatusBarHeight-reserved, 1)
