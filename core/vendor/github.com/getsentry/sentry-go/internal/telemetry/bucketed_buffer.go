@@ -5,7 +5,9 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/getsentry/sentry-go/internal/protocol"
 	"github.com/getsentry/sentry-go/internal/ratelimit"
+	"github.com/getsentry/sentry-go/report"
 )
 
 const (
@@ -39,6 +41,7 @@ type BucketedBuffer[T any] struct {
 	category       ratelimit.Category
 	priority       ratelimit.Priority
 	overflowPolicy OverflowPolicy
+	recorder       report.ClientReportRecorder
 	batchSize      int
 	timeout        time.Duration
 	lastFlushTime  time.Time
@@ -54,6 +57,7 @@ func NewBucketedBuffer[T any](
 	overflowPolicy OverflowPolicy,
 	batchSize int,
 	timeout time.Duration,
+	recorder report.ClientReportRecorder,
 ) *BucketedBuffer[T] {
 	if capacity <= 0 {
 		capacity = defaultBucketedCapacity
@@ -63,6 +67,10 @@ func NewBucketedBuffer[T any](
 	}
 	if timeout < 0 {
 		timeout = 0
+	}
+
+	if recorder == nil {
+		recorder = report.NoopRecorder()
 	}
 
 	bucketCapacity := capacity / 10
@@ -78,6 +86,7 @@ func NewBucketedBuffer[T any](
 		category:       category,
 		priority:       category.GetPriority(),
 		overflowPolicy: overflowPolicy,
+		recorder:       recorder,
 		batchSize:      batchSize,
 		timeout:        timeout,
 		lastFlushTime:  time.Now(),
@@ -142,6 +151,7 @@ func (b *BucketedBuffer[T]) handleOverflow(item T, traceID string) bool {
 	case OverflowPolicyDropOldest:
 		oldestBucket := b.buckets[b.head]
 		if oldestBucket == nil {
+			b.recordDroppedItem(item)
 			atomic.AddInt64(&b.dropped, 1)
 			if b.onDropped != nil {
 				b.onDropped(item, "buffer_full_invalid_state")
@@ -153,8 +163,9 @@ func (b *BucketedBuffer[T]) handleOverflow(item T, traceID string) bool {
 		}
 		droppedCount := len(oldestBucket.items)
 		atomic.AddInt64(&b.dropped, int64(droppedCount))
-		if b.onDropped != nil {
-			for _, di := range oldestBucket.items {
+		for _, di := range oldestBucket.items {
+			b.recordDroppedItem(di)
+			if b.onDropped != nil {
 				b.onDropped(di, "buffer_full_drop_oldest_bucket")
 			}
 		}
@@ -173,12 +184,14 @@ func (b *BucketedBuffer[T]) handleOverflow(item T, traceID string) bool {
 		return true
 	case OverflowPolicyDropNewest:
 		atomic.AddInt64(&b.dropped, 1)
+		b.recordDroppedItem(item)
 		if b.onDropped != nil {
 			b.onDropped(item, "buffer_full_drop_newest")
 		}
 		return false
 	default:
 		atomic.AddInt64(&b.dropped, 1)
+		b.recordDroppedItem(item)
 		if b.onDropped != nil {
 			b.onDropped(item, "unknown_overflow_policy")
 		}
@@ -395,4 +408,12 @@ func (b *BucketedBuffer[T]) MarkFlushed() {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	b.lastFlushTime = time.Now()
+}
+
+func (b *BucketedBuffer[T]) recordDroppedItem(item T) {
+	if ti, ok := any(item).(protocol.TelemetryItem); ok {
+		b.recorder.RecordItem(report.ReasonBufferOverflow, ti)
+	} else {
+		b.recorder.RecordOne(report.ReasonBufferOverflow, b.category)
+	}
 }

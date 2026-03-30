@@ -1272,6 +1272,7 @@ message AppleInfo {
   uint32 memory_gb = 5;
   uint64 swap_total_bytes = 6;
   uint64 ram_total_bytes = 7;
+  string mac_model = 8;
 }
 
 message GpuNvidiaInfo {
@@ -1460,8 +1461,10 @@ message JobInputRequest {
 //
 // Each enum's name matches the name used in the backend server.
 enum ServerFeature {
+  SERVER_FEATURE_UNSPECIFIED = 0;
+
   // Indicates that the server supports recieving an array of filenames as metadata.
-  LARGE_FILENAMES = 0;
+  LARGE_FILENAMES = 17;
 
   // Indicates that the server supports adding tags to artifacts.
   ARTIFACT_TAGS = 1;
@@ -1512,4 +1515,8 @@ enum ServerFeature {
 
   // Indicates that the server supports filtering artifact collections when querying on a project
   ARTIFACT_COLLECTIONS_FILTERING_SORTING = 16;
+
+  // Indicates that the server supports both the artifact id and the birth artifact id in the artifact file download
+  // url.
+  ARTIFACT_V2_DOWNLOAD_HANDLER_SUPPORTS_ARTIFACT_ID = 18;
 }

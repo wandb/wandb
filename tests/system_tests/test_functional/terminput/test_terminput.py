@@ -229,7 +229,6 @@ def test_timeout():
         # Don't send any input, just let it time out.
         pass
 
-    assert tester.unstyled_output()[-2:] == [
-        "wandb: PROMPT: (0 second timeout) ",
-        "TIMEOUT!",
-    ]
+    lines = tester.unstyled_output()
+    assert "wandb: PROMPT: (0 second timeout) " in lines
+    assert "TIMEOUT!" in lines

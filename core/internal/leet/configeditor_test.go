@@ -151,3 +151,19 @@ func TestConfigEditor_DefaultDescriptionsForGridConfig(t *testing.T) {
 	require.Contains(t, view, "Rows in the main metrics grid.")
 	require.Contains(t, view, "(metrics_grid.rows)")
 }
+
+func TestConfigEditor_ColorSchemePicker_ShowsPalettePreview(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+
+	var m tea.Model = leet.NewConfigEditor(leet.ConfigEditorParams{Config: cfg, Logger: logger})
+	m, _ = m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
+
+	m = selectField(t, m, "color_scheme")
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+
+	view := stripANSI(m.View().Content)
+	preview := strings.Repeat(
+		leet.ConfigEditorPalettePreviewBlock, len(leet.GraphColors("wandb-vibe-10")))
+	require.Contains(t, view, "wandb-vibe-10  "+preview)
+}

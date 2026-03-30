@@ -10,26 +10,10 @@ from requests import HTTPError
 from wandb import Api
 from wandb.apis import internal
 from wandb.apis._generated import ProjectFragment, UserFragment
-from wandb.apis.public import runs
 from wandb.errors import UsageError
 from wandb.sdk import wandb_login
 from wandb.sdk.artifacts.artifact_download_logger import ArtifactDownloadLogger
 from wandb.sdk.lib import wbauth
-
-
-@pytest.fixture(autouse=True)
-def patch_server_features(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Prevent unit tests from attempting to contact the real server."""
-    monkeypatch.setattr(
-        runs,
-        "_server_provides_project_id_for_run",
-        lambda *args, **kwargs: False,
-    )
-    monkeypatch.setattr(
-        runs,
-        "_server_provides_internal_id_for_project",
-        lambda *args, **kwargs: False,
-    )
 
 
 def test_api_auto_login_no_tty():

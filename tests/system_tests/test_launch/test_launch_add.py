@@ -5,7 +5,6 @@ import pytest
 import wandb
 from wandb.apis.public import Api as PublicApi
 from wandb.sdk.internal.internal_api import Api as InternalApi
-from wandb.sdk.internal.internal_api import UnsupportedError
 from wandb.sdk.launch._launch_add import launch_add
 from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT, LaunchError
 
@@ -308,30 +307,7 @@ def test_launch_add_with_priority(
     push_to_run_queue_spy,
     runner,
     user,
-    monkeypatch,
 ):
-    def patched_push_to_run_queue_introspection(*args, **kwargs):
-        args[0].server_supports_template_variables = True
-        args[0].server_push_to_run_queue_supports_priority = True
-        return (True, True)
-
-    monkeypatch.setattr(
-        wandb.sdk.internal.internal_api.Api,
-        "push_to_run_queue_introspection",
-        patched_push_to_run_queue_introspection,
-    )
-
-    def patched_create_run_queue_introspection(*args, **kwargs):
-        args[0].server_create_run_queue_supports_drc = True
-        args[0].server_create_run_queue_supports_priority = True
-        return (True, True, True)
-
-    monkeypatch.setattr(
-        wandb.sdk.internal.internal_api.Api,
-        "create_run_queue_introspection",
-        patched_create_run_queue_introspection,
-    )
-
     queue_name = "prio_queue"
     proj = "test1"
     queue_config = {}
@@ -366,17 +342,6 @@ def test_launch_add_with_priority_to_no_prio_queue_raises(
     monkeypatch,
 ):
     _ = use_local_wandb_backend
-
-    def patched_push_to_run_queue_introspection(*args, **kwargs):
-        args[0].server_supports_template_variables = True
-        args[0].server_push_to_run_queue_supports_priority = True
-        return (True, True)
-
-    monkeypatch.setattr(
-        wandb.sdk.internal.internal_api.Api,
-        "push_to_run_queue_introspection",
-        patched_push_to_run_queue_introspection,
-    )
 
     # Backend returns 4xx if you attempt to push an item with
     # non-default priority to a queue that doesn't support priority
@@ -489,78 +454,6 @@ def test_launch_add_template_variables_legacy_push(
 
     assert push_to_run_queue_spy.total_calls == 1
     assert push_to_run_queue_by_name_spy.total_calls == 0
-
-
-def test_launch_add_template_variables_not_supported(user, monkeypatch):
-    queue_name = "tvqueue"
-    proj = "test1"
-    queue_config = {"e": ["{{var1}}"]}
-    template_variables = {"var1": "a"}
-
-    def patched_push_to_run_queue_introspection(*args, **kwargs):
-        args[0].server_supports_template_variables = False
-        return (False, False)
-
-    monkeypatch.setattr(
-        wandb.sdk.internal.internal_api.Api,
-        "push_to_run_queue_introspection",
-        patched_push_to_run_queue_introspection,
-    )
-    api = PublicApi(api_key=user)
-    api.create_run_queue(
-        entity=user,
-        name=queue_name,
-        type="local-container",
-        config=queue_config,
-    )
-    with pytest.raises(UnsupportedError):
-        _ = launch_add(
-            template_variables=template_variables,
-            project=proj,
-            entity=user,
-            queue_name=queue_name,
-            docker_image="abc:latest",
-        )
-
-
-def test_launch_add_template_variables_not_supported_legacy_push(
-    runner, user, monkeypatch
-):
-    queue_name = "tvqueue"
-    proj = "test1"
-    queue_config = {"e": ["{{var1}}"]}
-    template_variables = {"var1": "a"}
-
-    def patched_push_to_run_queue_introspection(*args, **kwargs):
-        args[0].server_supports_template_variables = False
-        return (False, False)
-
-    monkeypatch.setattr(
-        wandb.sdk.internal.internal_api.Api,
-        "push_to_run_queue_introspection",
-        patched_push_to_run_queue_introspection,
-    )
-    monkeypatch.setattr(
-        wandb.sdk.internal.internal_api.Api,
-        "push_to_run_queue_by_name",
-        lambda *args, **kwargs: None,
-    )
-    with runner.isolated_filesystem():
-        api = PublicApi(api_key=user)
-        api.create_run_queue(
-            entity=user,
-            name=queue_name,
-            type="local-container",
-            config=queue_config,
-        )
-        with pytest.raises(UnsupportedError):
-            _ = launch_add(
-                template_variables=template_variables,
-                project=proj,
-                entity=user,
-                queue_name=queue_name,
-                docker_image="abc:latest",
-            )
 
 
 def test_display_updated_runspec(

@@ -40,7 +40,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger("wandb")
 
 
-def file_policy_to_enum(policy: PolicyName) -> pb.FilesItem.PolicyType.V:
+def file_policy_to_enum(policy: PolicyName) -> pb.FilesItem.PolicyType:
     if policy == "now":
         enum = pb.FilesItem.PolicyType.NOW
     elif policy == "end":
@@ -50,7 +50,7 @@ def file_policy_to_enum(policy: PolicyName) -> pb.FilesItem.PolicyType.V:
     return enum
 
 
-def file_enum_to_policy(enum: pb.FilesItem.PolicyType.V) -> PolicyName:
+def file_enum_to_policy(enum: pb.FilesItem.PolicyType) -> PolicyName:
     if enum == pb.FilesItem.PolicyType.NOW:
         policy: PolicyName = "now"
     elif enum == pb.FilesItem.PolicyType.END:

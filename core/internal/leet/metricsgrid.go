@@ -65,6 +65,11 @@ type MetricsGrid struct {
 	// Default is ColorModePerSeries (stable run-id color).
 	singleSeriesColorMode string
 
+	// seriesColorForKey optionally overrides per-series colors keyed by series
+	// name (for example workspace run paths). Intended for workspace multi-run
+	// view.
+	seriesColorForKey func(string) compat.AdaptiveColor
+
 	// synchronized inspection session state (active only between press/release)
 	syncInspectActive bool
 }
@@ -112,11 +117,54 @@ func (mg *MetricsGrid) SetSingleSeriesColorMode(mode string) {
 	mg.singleSeriesColorMode = mode
 }
 
+// SetSeriesColorProvider installs an optional stable color provider for series
+// keys (for example workspace run paths).
+//
+// Callers should set this before processing data so newly created series render
+// with the intended colors from their first frame.
+func (mg *MetricsGrid) SetSeriesColorProvider(
+	provider func(string) compat.AdaptiveColor,
+) {
+	mg.mu.Lock()
+	defer mg.mu.Unlock()
+	mg.seriesColorForKey = provider
+}
+
 // ChartCount returns the total number of metrics charts.
 func (mg *MetricsGrid) ChartCount() int {
 	mg.mu.RLock()
 	defer mg.mu.RUnlock()
 	return len(mg.all)
+}
+
+func (mg *MetricsGrid) focusedChart() *EpochLineChart {
+	mg.mu.RLock()
+	defer mg.mu.RUnlock()
+
+	if mg.focus.Type != FocusMainChart || mg.focus.Row < 0 || mg.focus.Col < 0 {
+		return nil
+	}
+	if mg.focus.Row >= len(mg.currentPage) || mg.focus.Col >= len(mg.currentPage[mg.focus.Row]) {
+		return nil
+	}
+	return mg.currentPage[mg.focus.Row][mg.focus.Col]
+}
+
+func (mg *MetricsGrid) focusedChartScaleLabel() string {
+	chart := mg.focusedChart()
+	if chart == nil {
+		return ""
+	}
+	return chart.ScaleLabel()
+}
+
+func (mg *MetricsGrid) toggleFocusedChartLogY() bool {
+	chart := mg.focusedChart()
+	if chart == nil || !chart.ToggleYScale() {
+		return false
+	}
+	chart.DrawIfNeeded()
+	return true
 }
 
 // CalculateChartDimensions computes chart dimensions.
@@ -146,6 +194,12 @@ func (mg *MetricsGrid) ProcessHistory(msg HistoryMsg) bool {
 
 	needsSort := false
 
+	var seriesStyle *lipgloss.Style
+	if mg.seriesColorForKey != nil && msg.RunPath != "" {
+		style := lipgloss.NewStyle().Foreground(mg.seriesColorForKey(msg.RunPath))
+		seriesStyle = &style
+	}
+
 	mg.mu.Lock()
 
 	for name, data := range metrics {
@@ -162,6 +216,9 @@ func (mg *MetricsGrid) ProcessHistory(msg HistoryMsg) bool {
 			}
 		}
 		chart.AddData(msg.RunPath, data)
+		if seriesStyle != nil {
+			chart.SetSeriesStyle(msg.RunPath, seriesStyle)
+		}
 	}
 
 	// Keep ordering, colors, maps and filtered set in sync.
@@ -403,12 +460,18 @@ func (mg *MetricsGrid) renderGridCell(row, col int, dims GridDims) string {
 			boxStyle = focusedBorderStyle
 		}
 
-		availableTitleWidth := max(dims.CellWWithPadding-4, 10)
+		titleSuffix := ""
+		if chart.IsLogY() {
+			titleSuffix = " [log]"
+		}
+
+		availableTitleWidth := max(dims.CellWWithPadding-4-lipgloss.Width(titleSuffix), 10)
 		displayTitle := TruncateTitle(chart.Title(), availableTitleWidth)
+		titleText := titleStyle.Render(displayTitle) + navInfoStyle.Render(titleSuffix)
 
 		boxContent := lipgloss.JoinVertical(
 			lipgloss.Left,
-			titleStyle.Render(displayTitle),
+			titleText,
 			chartView,
 		)
 

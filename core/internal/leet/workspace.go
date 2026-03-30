@@ -2,7 +2,6 @@ package leet
 
 import (
 	"fmt"
-	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -10,6 +9,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"charm.land/lipgloss/v2/compat"
 
 	"github.com/wandb/wandb/core/internal/observability"
 )
@@ -58,11 +58,12 @@ type Workspace struct {
 	filter *Filter
 	// runsFilterIndex caches searchable per-run metadata (name, project, config)
 	// for the runs sidebar so metadata filtering stays fast during live preview.
-	runsFilterIndex map[string]workspaceRunFilterData
+	runsFilterIndex map[string]WorkspaceRunFilterData
 
 	// Multi‑run metrics state.
 	focus       *Focus
 	metricsGrid *MetricsGrid
+	runColors   *workspaceRunColors
 
 	// System metrics
 	systemMetrics       map[string]*SystemMetricsGrid
@@ -75,7 +76,7 @@ type Workspace struct {
 	consoleLogsPane *ConsoleLogsPane
 
 	// Per‑run streaming state keyed by runDirName.
-	runsByKey map[string]*workspaceRun
+	runsByKey map[string]*WorkspaceRun
 
 	// Heartbeat for live runs.
 	liveChan     chan tea.Msg
@@ -86,11 +87,11 @@ type Workspace struct {
 	width, height int
 }
 
-// workspaceRun holds per‑run state for the workspace multi‑run view.
-type workspaceRun struct {
-	key       string
+// WorkspaceRun holds per‑run state for the workspace multi‑run view.
+type WorkspaceRun struct {
+	Key       string
+	Reader    HistorySource
 	wandbPath string
-	reader    *WandbReader
 	watcher   *WatcherManager
 	state     RunState
 }
@@ -114,6 +115,9 @@ func NewWorkspace(
 	runs.SetItemsPerPage(1)
 
 	focus := NewFocus()
+	metricsGrid := NewMetricsGrid(cfg, cfg.WorkspaceMetricsGrid, focus, logger)
+	runColors := newWorkspaceRunColors(GraphColors(cfg.ColorScheme()))
+	metricsGrid.SetSeriesColorProvider(runColors.Assign)
 
 	smf := NewFilter()
 
@@ -142,18 +146,19 @@ func NewWorkspace(
 		overviewPreloader:   newRunOverviewPreloader(maxConcurrentPreloads),
 		selectedRuns:        make(map[string]bool),
 		focus:               focus,
-		metricsGrid:         NewMetricsGrid(cfg, cfg.WorkspaceMetricsGrid, focus, logger),
+		metricsGrid:         metricsGrid,
+		runColors:           runColors,
 		systemMetrics:       make(map[string]*SystemMetricsGrid),
 		systemMetricsPane:   NewSystemMetricsPane(systemMetricsPaneAnimState),
 		systemMetricsFocus:  focus,
 		systemMetricsFilter: smf,
 		consoleLogs:         make(map[string]*RunConsoleLogs),
 		consoleLogsPane:     NewConsoleLogsPane(consoleLogsPaneAnimState),
-		runsByKey:           make(map[string]*workspaceRun),
+		runsByKey:           make(map[string]*WorkspaceRun),
 		liveChan:            ch,
 		heartbeatMgr:        NewHeartbeatManager(hbInterval, ch, logger),
 		filter:              NewFilter(),
-		runsFilterIndex:     make(map[string]workspaceRunFilterData),
+		runsFilterIndex:     make(map[string]WorkspaceRunFilterData),
 	}
 }
 
@@ -505,8 +510,8 @@ func (w *Workspace) dropRun(runKey string) {
 			w.metricsGrid.RemoveSeries(run.wandbPath)
 		}
 		w.stopWatcher(run)
-		if run.reader != nil {
-			run.reader.Close()
+		if run.Reader != nil {
+			run.Reader.Close()
 		}
 		delete(w.runsByKey, runKey)
 		delete(w.consoleLogs, runKey)
@@ -655,7 +660,7 @@ func (w *Workspace) renderRunOverview() string {
 }
 
 func (w *Workspace) renderMetrics() string {
-	contentWidth := max(w.width-w.runsAnimState.Value()-w.runOverviewSidebar.Width()+1, 0)
+	contentWidth := max(w.width-w.runsAnimState.Value()-w.runOverviewSidebar.Width(), 0)
 	reserved := w.consoleLogsPane.Height() + w.systemMetricsPane.Height()
 	contentHeight := max(w.height-StatusBarHeight-reserved, 1)
 
@@ -822,10 +827,21 @@ func (w *Workspace) buildActiveStatus() string {
 
 	if w.focus.Type != FocusNone {
 		parts = append(parts, w.focus.Title)
-		if w.focus.Type == FocusSystemChart {
+		switch w.focus.Type {
+		case FocusMainChart:
+			if scaleLabel := w.metricsGrid.focusedChartScaleLabel(); scaleLabel != "" {
+				parts = append(parts, scaleLabel)
+			}
+		case FocusSystemChart:
 			if g := w.activeSystemMetricsGrid(); g != nil {
+				if detail := g.FocusedChartTitleDetail(); detail != "" {
+					parts = append(parts, detail)
+				}
 				if viewMode := g.FocusedChartViewModeLabel(); viewMode != "" {
 					parts = append(parts, viewMode)
+				}
+				if scaleLabel := g.FocusedChartScaleLabel(); scaleLabel != "" {
+					parts = append(parts, scaleLabel)
 				}
 			}
 		}
@@ -913,6 +929,25 @@ func (w *Workspace) renderRunsListHeader(startIdx, endIdx int) string {
 	return title + navInfoStyle.Render(info)
 }
 
+func (w *Workspace) runPathForKey(runKey string) string {
+	if runKey == "" {
+		return ""
+	}
+	return runWandbFile(w.wandbDir, runKey)
+}
+
+func (w *Workspace) runColorForKey(runKey string) compat.AdaptiveColor {
+	runPath := w.runPathForKey(runKey)
+	if w.runColors == nil {
+		colors := GraphColors(w.config.ColorScheme())
+		if len(colors) == 0 {
+			return compat.AdaptiveColor{}
+		}
+		return colors[colorIndex(runPath, len(colors))]
+	}
+	return w.runColors.Assign(runPath)
+}
+
 // renderRunLines renders the visible slice with zebra background and selection.
 func (w *Workspace) renderRunLines(contentWidth int) []string {
 	itemsPerPage := w.runs.ItemsPerPage()
@@ -939,13 +974,8 @@ func (w *Workspace) renderRunLines(contentWidth int) []string {
 			}
 		}
 
-		// TODO: Stable mapping for consistent colors: refactor and clean up.
 		runKey := item.Key
-		runID := extractRunID(runKey)
-		runPath := filepath.Join(w.wandbDir, runKey, "run-"+runID+".wandb")
-
-		graphColors := GraphColors(w.config.ColorScheme())
-		colorIdx := colorIndex(runPath, len(graphColors))
+		runColor := w.runColorForKey(runKey)
 
 		isSelected := w.selectedRuns[runKey]
 		isPinned := w.pinnedRun == runKey
@@ -958,8 +988,8 @@ func (w *Workspace) renderRunLines(contentWidth int) []string {
 			mark = PinnedRunMark
 		}
 
-		// Render prefix without background
-		prefix := lipgloss.NewStyle().Foreground(graphColors[colorIdx]).Render(mark + " ")
+		// Render prefix without background.
+		prefix := lipgloss.NewStyle().Foreground(runColor).Render(mark + " ")
 		prefixWidth := lipgloss.Width(prefix)
 
 		// Apply subtle muting to unselected/unpinned runs

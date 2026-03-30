@@ -19,6 +19,7 @@ const (
 	viewModeUndefined viewMode = iota
 	viewModeWorkspace
 	viewModeRun
+	viewModeSymon
 )
 
 // latestRunLinkName is the conventional symlink name that wandb creates to

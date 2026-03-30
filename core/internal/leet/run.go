@@ -47,7 +47,7 @@ type Run struct {
 	liveRunning atomic.Bool
 
 	// Data reader.
-	reader *WandbReader
+	historySource HistorySource
 
 	// Transaction log (.wandb file) watch and heartbeat management.
 	watcherMgr   *WatcherManager
@@ -128,8 +128,10 @@ func NewRun(
 // Implements tea.Model.Init.
 func (r *Run) Init() tea.Cmd {
 	r.logger.Debug("run: Init called")
+	source := InitializeLevelDBHistorySource(r.runPath, r.logger)
+
 	return tea.Batch(
-		InitializeReader(r.runPath, r.logger),
+		source,
 		r.watcherMgr.WaitForMsg,
 	)
 }
@@ -489,9 +491,20 @@ func (r *Run) buildActiveStatus() string {
 	focusedTitle := r.FocusedTitle()
 	if focusedTitle != "" {
 		parts = append(parts, focusedTitle)
-		if r.focus.Type == FocusSystemChart {
+		switch r.focus.Type {
+		case FocusMainChart:
+			if scaleLabel := r.metricsGrid.focusedChartScaleLabel(); scaleLabel != "" {
+				parts = append(parts, scaleLabel)
+			}
+		case FocusSystemChart:
+			if detail := r.rightSidebar.metricsGrid.FocusedChartTitleDetail(); detail != "" {
+				parts = append(parts, detail)
+			}
 			if viewMode := r.rightSidebar.FocusedChartViewModeLabel(); viewMode != "" {
 				parts = append(parts, viewMode)
+			}
+			if scaleLabel := r.rightSidebar.metricsGrid.FocusedChartScaleLabel(); scaleLabel != "" {
+				parts = append(parts, scaleLabel)
 			}
 		}
 	}
@@ -576,8 +589,8 @@ func (r *Run) Cleanup() {
 	if r.watcherMgr != nil {
 		r.watcherMgr.Finish()
 	}
-	if r.reader != nil {
-		r.reader.Close()
+	if r.historySource != nil {
+		r.historySource.Close()
 	}
 }
 
