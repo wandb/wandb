@@ -598,7 +598,8 @@ func (p *MediaPane) renderGrid(width, height int, hint string) string {
 		if hasX && p.store != nil {
 			point, ok = p.store.ResolveAt(key, x)
 		}
-		cells = append(cells, p.renderTile(key, point, ok, idx == p.selectedIndex, slotW, slotH))
+		selected := p.active && idx == p.selectedIndex
+		cells = append(cells, p.renderTile(key, point, ok, selected, slotW, slotH))
 	}
 	for len(cells) < itemsPerPage {
 		cells = append(cells, lipgloss.NewStyle().Width(slotW).Height(slotH).Render(""))
