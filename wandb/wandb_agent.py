@@ -678,9 +678,12 @@ def agent(
     finally:
         _INSTANCES -= 1
 
-        # clear the sweep id from the settings,
-        # else wandb.init() will not reinitialize in
-        # clear_run_path_if_sweep_or_launch()
+        # Clear sweep_id from the global settings singleton so that a subsequent
+        # wandb.init() call does not think it is still inside a sweep. Without
+        # this, clear_run_path_if_sweep_or_launch() in wandb_init.py will see a
+        # non-empty sweep_id and silently ignore the project/entity/run_id
+        # arguments passed to wandb.init(), preventing the user from
+        # reinitializing their run after the agent exits.
         wandb_setup.singleton().settings.sweep_id = None
 
 
