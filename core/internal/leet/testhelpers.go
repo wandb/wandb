@@ -130,6 +130,11 @@ func (c *FrenchFriesChart) TestTitleDetail() string {
 	return c.TitleDetail()
 }
 
+// TestColorForValue exposes the rendered cell selected for a value.
+func (c *FrenchFriesChart) TestColorForValue(value float64) string {
+	return c.colorForValue(value)
+}
+
 // TestCurrentPage returns the current grid of charts.
 func (g *SystemMetricsGrid) TestCurrentPage() [][]*TimeSeriesLineChart {
 	out := make([][]*TimeSeriesLineChart, len(g.currentPage))

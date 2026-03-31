@@ -41,7 +41,8 @@ func defaultRelease() (release string) {
 	// Return first non-empty environment variable known to hold release info, if any.
 	envs := []string{
 		"SENTRY_RELEASE",
-		"HEROKU_SLUG_COMMIT",
+		"HEROKU_BUILD_COMMIT",
+		"HEROKU_SLUG_COMMIT", // Deprecated, kept for backwards compatibility
 		"SOURCE_VERSION",
 		"CODEBUILD_RESOLVED_SOURCE_VERSION",
 		"CIRCLE_SHA1",

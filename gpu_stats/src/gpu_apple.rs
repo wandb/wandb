@@ -609,10 +609,10 @@ impl ThreadSafeSampler {
         let mut gpu_apple = AppleInfo {
             ..Default::default()
         };
-        if let Some(&MetricValue::String(ref s)) = samples.get("_apple.chip_name") {
+        if let Some(&MetricValue::String(s)) = samples.get("_apple.chip_name") {
             gpu_apple.name = s.clone();
         }
-        if let Some(&MetricValue::String(ref s)) = samples.get("_apple.mac_model") {
+        if let Some(&MetricValue::String(s)) = samples.get("_apple.mac_model") {
             gpu_apple.mac_model = s.clone();
         }
         if let Some(&value) = samples.get("_apple.ecpu_cores") {

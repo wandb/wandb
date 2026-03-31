@@ -256,24 +256,34 @@ def test_artifact_file_cache_cleanup(artifact_file_cache):
 
     path_1 = os.path.join(cache_root, "aa")
     os.makedirs(path_1)
-    with open(os.path.join(path_1, "aardvark"), "w") as f:
+    file_1 = os.path.join(path_1, "aardvark")
+    with open(file_1, "w") as f:
         f.truncate(5000)
         f.flush()
         os.fsync(f)
 
     path_2 = os.path.join(cache_root, "ab")
     os.makedirs(path_2)
-    with open(os.path.join(path_2, "absolute"), "w") as f:
+    file_2 = os.path.join(path_2, "absolute")
+    with open(file_2, "w") as f:
         f.truncate(2000)
         f.flush()
         os.fsync(f)
 
     path_3 = os.path.join(cache_root, "ac")
     os.makedirs(path_3)
-    with open(os.path.join(path_3, "accelerate"), "w") as f:
+    file_3 = os.path.join(path_3, "accelerate")
+    with open(file_3, "w") as f:
         f.truncate(1000)
         f.flush()
         os.fsync(f)
+
+    # Set explicit access times so cleanup order is deterministic.
+    # On filesystems mounted with noatime, all files would otherwise
+    # have the same atime, making the LRU sort order unpredictable.
+    os.utime(file_1, (1000, 1000))  # oldest access → deleted first
+    os.utime(file_2, (2000, 2000))
+    os.utime(file_3, (3000, 3000))  # newest access → kept
 
     reclaimed_bytes = artifact_file_cache.cleanup(5000)
 
