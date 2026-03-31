@@ -208,11 +208,6 @@ class _WandbInit:
     def warn_env_vars_change_after_setup(self) -> _PrinterCallback:
         """Warn if environment variables changed after `wandb.setup()`.
 
-        Note: Running an agent through pyagent() (pass function=...) will trigger this warning.
-        pyagent() uses a thread to call _run_job.
-        This causes WANDB_SWEEP_ID, WANDB_PROJECT, and WANDB_ENTITY to be cleared,
-        did_environment_change() returns True, which then triggers this warning.
-
         Returns:
             A callback to print any generated warnings.
         """
