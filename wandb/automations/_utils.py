@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Collection
-from typing import Annotated, Any, Final, Optional, Protocol, TypedDict
+from typing import Annotated, Any, Final, Optional, Protocol, TypedDict, Union
 
 from pydantic import Field
 from typing_extensions import Self, Unpack
@@ -25,7 +25,13 @@ from .actions import (
     SendWebhook,
 )
 from .automations import Automation, NewAutomation
-from .events import EventType, InputEvent, RunMetricFilter, _WrappedSavedEventFilter
+from .events import (
+    EventType,
+    InputEvent,
+    RunMetricFilter,
+    SavedEvent,
+    _WrappedSavedEventFilter,
+)
 from .scopes import AutomationScope, ScopeType
 
 INVALID_INPUT_EVENTS: Final[Collection[EventType]] = (EventType.UPDATE_ARTIFACT_ALIAS,)
@@ -189,6 +195,70 @@ class ValidatedCreateInput(GQLInput, extra="forbid", frozen=True):
         return self
 
 
+class ValidatedUpdateInput(GQLInput, extra="ignore", frozen=True):
+    """Validated automation parameters, prepared for updating an existing automation.
+
+    Accepts both InputEvent/InputAction (user-supplied for the update) and
+    SavedEvent/SavedAction (carried over from the existing saved automation).
+    This avoids the coercion bug where routing through Automation(event: SavedEvent)
+    silently drops InputEvent filters.
+
+    Uses extra="ignore" (rather than "forbid") because dict(Automation) includes
+    fields like typename__, created_at, updated_at that are not relevant for the
+    update payload.
+    """
+
+    id: GQLId
+
+    name: Optional[str] = None
+    description: Optional[str] = None
+    enabled: Optional[bool] = None
+
+    event: Annotated[Union[InputEvent, SavedEvent], Field(exclude=True)]
+    action: Annotated[Union[InputAction, SavedAction], Field(exclude=True)]
+    scope: Annotated[AutomationScope, Field(exclude=True)]
+
+    # --------------------------------------------------------------------------
+    # Derived fields to match the input schemas
+    @computed_field
+    def scope_type(self) -> ScopeType:
+        return self.scope.scope_type
+
+    @computed_field
+    def scope_id(self) -> GQLId:
+        return self.scope.id
+
+    @computed_field
+    def triggering_event_type(self) -> EventType:
+        return self.event.event_type
+
+    @computed_field
+    def event_filter(self) -> str:
+        return prepare_event_filter_input(self.event.filter)
+
+    @computed_field
+    def triggered_action_type(self) -> ActionType:
+        return self.action.action_type
+
+    @computed_field
+    def triggered_action_config(self) -> dict[str, Any]:
+        return prepare_action_config_input(self.action)
+
+    # --------------------------------------------------------------------------
+    # Custom validation
+    @model_validator(mode="after")
+    def _forbid_legacy_event_types(self) -> Self:
+        if (type_ := self.event.event_type) in INVALID_INPUT_EVENTS:
+            raise ValueError(f"{type_!r} events cannot be assigned to automations.")
+        return self
+
+    @model_validator(mode="after")
+    def _forbid_legacy_action_types(self) -> Self:
+        if (type_ := self.action.action_type) in INVALID_INPUT_ACTIONS:
+            raise ValueError(f"{type_!r} actions cannot be assigned to automations.")
+        return self
+
+
 def prepare_to_create(
     obj: NewAutomation | None = None,
     /,
@@ -209,19 +279,9 @@ def prepare_to_update(
     **kwargs: Unpack[WriteAutomationsKwargs],
 ) -> UpdateFilterTriggerInput:
     """Prepares the payload to update an automation in a GraphQL request."""
-    # Validate all values:
+    # Validate all input variables, and prepare as expected by the GraphQL request.
     # - if an object is provided, override its fields with any keyword args
     # - otherwise, instantiate from the keyword args
-    vobj = Automation(**{**dict(obj or {}), **kwargs})
-    return UpdateFilterTriggerInput(
-        id=vobj.id,
-        name=vobj.name,
-        description=vobj.description,
-        enabled=vobj.enabled,
-        scope_type=vobj.scope.scope_type,
-        scope_id=vobj.scope.id,
-        triggering_event_type=vobj.event.event_type,
-        event_filter=prepare_event_filter_input(vobj.event.filter),
-        triggered_action_type=vobj.action.action_type,
-        triggered_action_config=prepare_action_config_input(vobj.action),
-    )
+    obj_dict = dict(obj or {}) | kwargs
+    vobj = ValidatedUpdateInput(**obj_dict)
+    return UpdateFilterTriggerInput.model_validate(vobj)
