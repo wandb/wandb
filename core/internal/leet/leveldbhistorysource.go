@@ -33,7 +33,7 @@ type LevelDBHistorySource struct {
 func NewLevelDBHistorySource(
 	runPath string,
 	logger *observability.CoreLogger,
-) (*LevelDBHistorySource, error) {
+) (HistorySource, error) {
 	store, err := NewLiveStore(runPath, logger)
 	if err != nil {
 		return nil, err

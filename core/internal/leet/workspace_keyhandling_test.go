@@ -33,7 +33,11 @@ func TestWorkspace_KeyHandling_FilterModeConsumesQuit(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 
-	w := leet.NewWorkspace(t.TempDir(), cfg, logger)
+	w := leet.NewWorkspace(
+		leet.NewLocalWorkspaceBackend(t.TempDir(), logger),
+		cfg,
+		logger,
+	)
 	_ = w.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
 
 	// Enter metrics filter input mode ("/").
@@ -62,7 +66,7 @@ func TestWorkspace_KeyHandling_GridConfigCaptureHasPriority(t *testing.T) {
 	require.NoError(t, cfg.SetWorkspaceMetricsCols(1))
 	require.NoError(t, cfg.SetWorkspaceMetricsRows(1))
 
-	w := leet.NewWorkspace(t.TempDir(), cfg, logger)
+	w := leet.NewWorkspace(leet.NewLocalWorkspaceBackend(t.TempDir(), logger), cfg, logger)
 	_ = w.Update(tea.WindowSizeMsg{Width: 140, Height: 45})
 
 	// Begin grid config capture (metrics cols).
@@ -93,11 +97,11 @@ func TestWorkspace_HandleWorkspaceInitErr_DropsSelectionAndPinned(t *testing.T) 
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 
 	wandbDir := t.TempDir()
-	w := leet.NewWorkspace(wandbDir, cfg, logger)
+	w := leet.NewWorkspace(leet.NewLocalWorkspaceBackend(wandbDir, logger), cfg, logger)
 
 	// Seed a single run. Workspace auto-selects + pins latest on first load.
 	runKey := "run-20260209_010101-abcdefg"
-	_ = w.Update(leet.WorkspaceRunDirsMsg{RunKeys: []string{runKey}})
+	_ = w.Update(leet.WorkspaceRunDiscoveryMsg{RunKeys: []string{runKey}})
 
 	require.Equal(t, 1, w.TestSelectedRunCount(), "expected autoselect on initial run list")
 	require.True(t, w.TestPinnedRun() == runKey, "expected autopin of selected run")
@@ -133,12 +137,12 @@ func newWorkspaceWithPanels(t *testing.T) *leet.Workspace {
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 
 	wandbDir := t.TempDir()
-	w := leet.NewWorkspace(wandbDir, cfg, logger)
+	w := leet.NewWorkspace(leet.NewLocalWorkspaceBackend(wandbDir, logger), cfg, logger)
 	_ = w.Update(tea.WindowSizeMsg{Width: 200, Height: 60})
 
 	// Seed a run so overview sections become focusable.
 	runKey := "run-20260209_010101-abcdefg"
-	_ = w.Update(leet.WorkspaceRunDirsMsg{RunKeys: []string{runKey}})
+	_ = w.Update(leet.WorkspaceRunDiscoveryMsg{RunKeys: []string{runKey}})
 
 	// Force all panels expanded.
 	w.TestForceExpandRunsSidebar()
@@ -263,11 +267,11 @@ func TestWorkspace_ConsoleLogMsg_CreatesLogs(t *testing.T) {
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 
 	wandbDir := t.TempDir()
-	w := leet.NewWorkspace(wandbDir, cfg, logger)
+	w := leet.NewWorkspace(leet.NewLocalWorkspaceBackend(wandbDir, logger), cfg, logger)
 	_ = w.Update(tea.WindowSizeMsg{Width: 200, Height: 60})
 
 	runKey := "run-20260209_010101-abc123"
-	_ = w.Update(leet.WorkspaceRunDirsMsg{RunKeys: []string{runKey}})
+	_ = w.Update(leet.WorkspaceRunDiscoveryMsg{RunKeys: []string{runKey}})
 
 	// Before any console logs, the map should be empty for this key.
 	logs := w.TestConsoleLogs()
@@ -333,7 +337,7 @@ func TestWorkspace_SetFocusRegion_NoAvailableRegion_DefaultsToRuns(t *testing.T)
 	logger := observability.NewNoOpLogger()
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 
-	w := leet.NewWorkspace(t.TempDir(), cfg, logger)
+	w := leet.NewWorkspace(leet.NewLocalWorkspaceBackend(t.TempDir(), logger), cfg, logger)
 	_ = w.Update(tea.WindowSizeMsg{Width: 200, Height: 60})
 
 	// Collapse everything.
@@ -353,12 +357,12 @@ func TestWorkspace_Enter_RequiresRunSelectorActive(t *testing.T) {
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 
 	wandbDir := t.TempDir()
-	w := leet.NewWorkspace(wandbDir, cfg, logger)
+	w := leet.NewWorkspace(leet.NewLocalWorkspaceBackend(wandbDir, logger), cfg, logger)
 	_ = w.Update(tea.WindowSizeMsg{Width: 200, Height: 60})
 
 	// Seed a run.
 	runKey := "run-20260209_010101-abcdefg"
-	_ = w.Update(leet.WorkspaceRunDirsMsg{RunKeys: []string{runKey}})
+	_ = w.Update(leet.WorkspaceRunDiscoveryMsg{RunKeys: []string{runKey}})
 
 	// RunSelectorActive should be true when runs list is focused.
 	require.True(t, w.RunSelectorActive(),
@@ -383,9 +387,9 @@ func TestWorkspace_Enter_NoOpWhenLogsFocused(t *testing.T) {
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 
 	m := leet.NewModel(leet.ModelParams{
-		WandbDir: t.TempDir(),
-		Config:   cfg,
-		Logger:   logger,
+		Backend: leet.NewLocalWorkspaceBackend(t.TempDir(), logger),
+		Config:  cfg,
+		Logger:  logger,
 	})
 
 	// Prime the model with a window size.
@@ -418,18 +422,18 @@ func TestWorkspace_Enter_WorksWhenRunsFocused(t *testing.T) {
 	writeWorkspaceRunWandbFile(t, wandbDir, runKey, "abcdefg", 1.0)
 
 	m := leet.NewModel(leet.ModelParams{
-		WandbDir: wandbDir,
-		Config:   cfg,
-		Logger:   logger,
+		Backend: leet.NewLocalWorkspaceBackend(wandbDir, logger),
+		Config:  cfg,
+		Logger:  logger,
 	})
 
 	m.Update(tea.WindowSizeMsg{Width: 200, Height: 60})
 
 	// Wait for the workspace to discover runs (simulate the dir poll).
-	// We need to feed the model a WorkspaceRunDirsMsg through the workspace.
+	// We need to feed the model a WorkspaceRunDiscoveryMsg through the workspace.
 	// Since Model doesn't expose the workspace directly, we send the msg
 	// through Model.Update which forwards non-user-input to workspace.
-	m.Update(leet.WorkspaceRunDirsMsg{RunKeys: []string{runKey}})
+	m.Update(leet.WorkspaceRunDiscoveryMsg{RunKeys: []string{runKey}})
 
 	// Now Enter should trigger mode switch (returns a non-nil batch cmd).
 	_, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
@@ -597,12 +601,16 @@ func TestWorkspace_RunsFilter_ProjectAndConfig(t *testing.T) {
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 
 	wandbDir := t.TempDir()
-	w := leet.NewWorkspace(wandbDir, cfg, logger)
+	w := leet.NewWorkspace(
+		leet.NewLocalWorkspaceBackend(wandbDir, logger),
+		cfg,
+		logger,
+	)
 	_ = w.Update(tea.WindowSizeMsg{Width: 200, Height: 60})
 
 	run1 := "run-20260209_010101-vision01"
 	run2 := "run-20260209_010102-nlp0002"
-	_ = w.Update(leet.WorkspaceRunDirsMsg{RunKeys: []string{run1, run2}})
+	_ = w.Update(leet.WorkspaceRunDiscoveryMsg{RunKeys: []string{run1, run2}})
 
 	_ = w.Update(leet.WorkspaceRunOverviewPreloadedMsg{
 		RunKey: run1,
@@ -646,11 +654,14 @@ func TestWorkspace_RunsFilter_UpdatesWhenMetadataPreloadsArrive(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 
-	w := leet.NewWorkspace(t.TempDir(), cfg, logger)
+	w := leet.NewWorkspace(leet.NewLocalWorkspaceBackend(
+		t.TempDir(),
+		logger,
+	), cfg, logger)
 	_ = w.Update(tea.WindowSizeMsg{Width: 160, Height: 50})
 
 	runKey := "run-20260209_010101-vision01"
-	_ = w.Update(leet.WorkspaceRunDirsMsg{RunKeys: []string{runKey}})
+	_ = w.Update(leet.WorkspaceRunDiscoveryMsg{RunKeys: []string{runKey}})
 
 	require.Nil(t, w.Update(keyRune('f')))
 	typeWorkspaceFilter(t, w, "project:vision")
@@ -683,12 +694,15 @@ func TestWorkspace_RunsFilter_PriorityOverMetricsFilter(t *testing.T) {
 func TestWorkspace_RunsFilter_Clear(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
-	w := leet.NewWorkspace(t.TempDir(), cfg, logger)
+	w := leet.NewWorkspace(leet.NewLocalWorkspaceBackend(
+		t.TempDir(),
+		logger,
+	), cfg, logger)
 	_ = w.Update(tea.WindowSizeMsg{Width: 160, Height: 50})
 
 	run1 := "run-20260209_010101-vision01"
 	run2 := "run-20260209_010102-nlp0002"
-	_ = w.Update(leet.WorkspaceRunDirsMsg{RunKeys: []string{run1, run2}})
+	_ = w.Update(leet.WorkspaceRunDiscoveryMsg{RunKeys: []string{run1, run2}})
 	_ = w.Update(leet.WorkspaceRunOverviewPreloadedMsg{
 		RunKey: run1,
 		Run:    &leet.RunMsg{ID: "vision01", Project: "vision"},
@@ -712,12 +726,12 @@ func TestWorkspace_RunsFilter_TagsAndNotes(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 
-	w := leet.NewWorkspace(t.TempDir(), cfg, logger)
+	w := leet.NewWorkspace(leet.NewLocalWorkspaceBackend(t.TempDir(), logger), cfg, logger)
 	_ = w.Update(tea.WindowSizeMsg{Width: 200, Height: 60})
 
 	run1 := "run-20260209_010101-vision01"
 	run2 := "run-20260209_010102-nlp0002"
-	_ = w.Update(leet.WorkspaceRunDirsMsg{RunKeys: []string{run1, run2}})
+	_ = w.Update(leet.WorkspaceRunDiscoveryMsg{RunKeys: []string{run1, run2}})
 
 	_ = w.Update(leet.WorkspaceRunOverviewPreloadedMsg{
 		RunKey: run1,

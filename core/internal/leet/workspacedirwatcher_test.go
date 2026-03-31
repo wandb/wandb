@@ -6,8 +6,10 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/wandb/wandb/core/internal/gqlmock"
 	"github.com/wandb/wandb/core/internal/leet"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/transactionlog"
@@ -37,11 +39,15 @@ func TestWorkspace_PinSelectsAndPinsWhenNotSelected(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 
-	w := leet.NewWorkspace(t.TempDir(), cfg, logger)
+	w := leet.NewWorkspace(
+		leet.NewLocalWorkspaceBackend(t.TempDir(), logger),
+		cfg,
+		logger,
+	)
 	require.Equal(t, 0, w.TestSelectedRunCount())
 
 	run1 := "run-20250731_170606-iazb7i1k"
-	w.Update(leet.WorkspaceRunDirsMsg{RunKeys: []string{run1}})
+	w.Update(leet.WorkspaceRunDiscoveryMsg{RunKeys: []string{run1}})
 
 	require.Equal(t, 1, w.TestSelectedRunCount()) // autoselect and pin
 	require.Equal(t, run1, w.TestPinnedRun())
@@ -58,11 +64,15 @@ func TestWorkspace_SelectAndPinRuns_StateTransitions(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 
-	w := leet.NewWorkspace(t.TempDir(), cfg, logger)
+	w := leet.NewWorkspace(
+		leet.NewLocalWorkspaceBackend(t.TempDir(), logger),
+		cfg,
+		logger,
+	)
 
 	run1 := "run-20250731_170606-iazb7i1k"
 	run2 := "run-20250731_170607-zzzzzzzz"
-	w.Update(leet.WorkspaceRunDirsMsg{RunKeys: []string{run1, run2}})
+	w.Update(leet.WorkspaceRunDiscoveryMsg{RunKeys: []string{run1, run2}})
 
 	// First run is autoselected.
 	require.Equal(t, 1, w.TestSelectedRunCount())
@@ -94,7 +104,11 @@ func TestWorkspace_RunOverviewPreloads_BoundedConcurrency(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 
-	w := leet.NewWorkspace(t.TempDir(), cfg, logger)
+	w := leet.NewWorkspace(
+		leet.NewLocalWorkspaceBackend(t.TempDir(), logger),
+		cfg,
+		logger,
+	)
 
 	runKeys := []string{
 		"run-20250731_170606-a1aaaaaa",
@@ -107,7 +121,7 @@ func TestWorkspace_RunOverviewPreloads_BoundedConcurrency(t *testing.T) {
 	}
 
 	// Seeds queue and starts up to maxConcurrentPreloads immediately.
-	w.Update(leet.WorkspaceRunDirsMsg{RunKeys: runKeys})
+	w.Update(leet.WorkspaceRunDiscoveryMsg{RunKeys: runKeys})
 
 	require.Equal(t, 4, w.TestRunOverviewPreloadsInFlight())
 	require.Equal(t, 3, w.TestRunOverviewPreloadQueueLen())
@@ -143,7 +157,7 @@ func TestWorkspace_PreloadRunOverview_ExtractsRunRecord(t *testing.T) {
 		}}},
 	})
 
-	w := leet.NewWorkspace(wandbDir, cfg, logger)
+	w := leet.NewWorkspace(leet.NewLocalWorkspaceBackend(wandbDir, logger), cfg, logger)
 
 	// call preload command directly and verify the returned message
 	msg := w.TestExecutePreloadCmd(runKey)
@@ -189,7 +203,7 @@ func TestWorkspace_PreloadRunOverview_AllRunsPopulated(t *testing.T) {
 		})
 	}
 
-	w := leet.NewWorkspace(wandbDir, cfg, logger)
+	w := leet.NewWorkspace(leet.NewLocalWorkspaceBackend(wandbDir, logger), cfg, logger)
 
 	// preload and update the workspace to populate the overview
 	for _, r := range runs {
@@ -208,4 +222,53 @@ func TestWorkspace_PreloadRunOverview_AllRunsPopulated(t *testing.T) {
 		require.Equal(t, r.project, runOverview.Project(),
 			"overview project mismatch for %s", r.key)
 	}
+}
+
+func TestWorkspace_RemoteBackend_DiscoveryAndPreload(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+	mockGQL := gqlmock.NewMockClient()
+	backend := leet.TestRemoteWorkspaceBackend(
+		"https://api.wandb.ai",
+		"test-entity",
+		"test-project",
+		mockGQL,
+		nil,
+		logger,
+	)
+	w := leet.NewWorkspace(backend, cfg, logger)
+	_ = w.Update(tea.WindowSizeMsg{Width: 200, Height: 60})
+
+	run1 := "run-abc"
+	run2 := "run-def"
+
+	// Feed discovery message (simulating what DiscoverRunsCmd would produce).
+	w.Update(leet.WorkspaceRunDiscoveryMsg{RunKeys: []string{run1, run2}})
+
+	// First run should be autoselected and pinned.
+	require.Equal(t, 1, w.TestSelectedRunCount())
+	require.True(t, w.TestIsRunSelected(run1))
+	require.Equal(t, run1, w.TestPinnedRun())
+
+	// Preload overview should be in flight for the non-selected run.
+	require.True(t, w.TestRunOverviewPreloadsInFlight() > 0,
+		"expected at least one preload in flight")
+
+	// Complete the preload for run2.
+	w.Update(leet.WorkspaceRunOverviewPreloadedMsg{
+		RunKey: run2,
+		Run: &leet.RunMsg{
+			ID:          run2,
+			Project:     "test-project",
+			DisplayName: "Second Run",
+		},
+	})
+
+	assert.Equal(t, run2, w.TestRunOverviewID(run2))
+	params := backend.RunParams(run1)
+	require.NotNil(t, params)
+	require.NotNil(t, params.RemoteRunParams)
+	assert.Equal(t, "test-entity", params.Entity)
+	assert.Equal(t, "test-project", params.Project)
+	assert.Equal(t, run1, params.RunId)
 }

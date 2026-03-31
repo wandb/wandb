@@ -84,7 +84,7 @@ func TestRun_ReadLiveBatchCmd_DropsEmptyChunk(t *testing.T) {
 func TestWorkspace_ReadAvailableCmd_WrapsChunkedBatch(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
-	w := leet.NewWorkspace(t.TempDir(), cfg, logger)
+	w := leet.NewWorkspace(leet.NewLocalWorkspaceBackend(t.TempDir(), logger), cfg, logger)
 
 	src := &stubHistorySource{
 		msg: leet.ChunkedBatchMsg{
@@ -112,7 +112,7 @@ func TestWorkspace_ReadAvailableCmd_WrapsChunkedBatch(t *testing.T) {
 func TestWorkspace_ReadAvailableCmd_DropsEmptyChunk(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
-	w := leet.NewWorkspace(t.TempDir(), cfg, logger)
+	w := leet.NewWorkspace(leet.NewLocalWorkspaceBackend(t.TempDir(), logger), cfg, logger)
 
 	run := &leet.WorkspaceRun{Key: "run-1", Reader: &stubHistorySource{msg: leet.ChunkedBatchMsg{}}}
 	require.Nil(t, w.ReadAvailableCmd(run)())

@@ -492,7 +492,7 @@ func runSymon(opts *leetOptions, logger *observability.CoreLogger) int {
 }
 
 func runLeetWorkspace(opts *leetOptions, logger *observability.CoreLogger) int {
-	modelParams := leet.CreateModelParams(&leet.StartupArgs{
+	modelParams, err := leet.CreateModelParams(&leet.StartupArgs{
 		BaseURL:  &opts.baseUrl,
 		Entity:   &opts.entity,
 		Project:  &opts.project,
@@ -500,9 +500,9 @@ func runLeetWorkspace(opts *leetOptions, logger *observability.CoreLogger) int {
 		RunFile:  &opts.runFile,
 		WandbDir: opts.wandbDir,
 	}, logger)
-	if modelParams.WandbDir == "" && modelParams.RunParams.LocalRunParams != nil {
-		fmt.Fprintln(os.Stderr, "Error: wandb directory path or base URL required")
-		return exitCodeErrorArgs
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Error: failed to create model params", err)
+		return exitCodeErrorInternal
 	}
 
 	for {
