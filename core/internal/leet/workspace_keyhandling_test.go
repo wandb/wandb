@@ -726,12 +726,12 @@ func TestWorkspace_RunsFilter_TagsAndNotes(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 
-	w := leet.NewWorkspace(t.TempDir(), cfg, logger)
+	w := leet.NewWorkspace(leet.NewLocalWorkspaceBackend(t.TempDir(), logger), cfg, logger)
 	_ = w.Update(tea.WindowSizeMsg{Width: 200, Height: 60})
 
 	run1 := "run-20260209_010101-vision01"
 	run2 := "run-20260209_010102-nlp0002"
-	_ = w.Update(leet.WorkspaceRunDirsMsg{RunKeys: []string{run1, run2}})
+	_ = w.Update(leet.WorkspaceRunDiscoveryMsg{RunKeys: []string{run1, run2}})
 
 	_ = w.Update(leet.WorkspaceRunOverviewPreloadedMsg{
 		RunKey: run1,

@@ -157,7 +157,7 @@ func TestWorkspace_PreloadRunOverview_ExtractsRunRecord(t *testing.T) {
 		}}},
 	})
 
-	w := leet.NewWorkspace(wandbDir, cfg, logger)
+	w := leet.NewWorkspace(leet.NewLocalWorkspaceBackend(wandbDir, logger), cfg, logger)
 
 	// call preload command directly and verify the returned message
 	msg := w.TestExecutePreloadCmd(runKey)
@@ -203,7 +203,7 @@ func TestWorkspace_PreloadRunOverview_AllRunsPopulated(t *testing.T) {
 		})
 	}
 
-	w := leet.NewWorkspace(wandbDir, cfg, logger)
+	w := leet.NewWorkspace(leet.NewLocalWorkspaceBackend(wandbDir, logger), cfg, logger)
 
 	// preload and update the workspace to populate the overview
 	for _, r := range runs {
