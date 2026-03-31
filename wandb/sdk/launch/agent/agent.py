@@ -55,7 +55,7 @@ DEFAULT_STOPPED_RUN_TIMEOUT = 60
 DEFAULT_PRINT_INTERVAL = 5 * 60
 VERBOSE_PRINT_INTERVAL = 20
 
-DEFAULT_BASE_IMAGE = "python:3.12-slim"
+_DEFAULT_BASE_IMAGE = "python:3.12-slim"
 
 _env_timeout = os.environ.get("WANDB_LAUNCH_START_TIMEOUT")
 if _env_timeout:
@@ -736,7 +736,8 @@ class LaunchAgent:
                 "repo",
             ):
                 base_image = (
-                    project._resource_args_build.get("base_image") or DEFAULT_BASE_IMAGE
+                    project._resource_args_build.get("base_image")
+                    or _DEFAULT_BASE_IMAGE
                 )
                 wandb.termwarn(
                     f"{LOG_PREFIX}No builder configured. Using base image: {base_image}"

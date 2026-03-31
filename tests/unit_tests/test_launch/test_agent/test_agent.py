@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 import pytest
 from wandb.errors import CommError
 from wandb.sdk.launch.agent.agent import (
-    DEFAULT_BASE_IMAGE,
+    _DEFAULT_BASE_IMAGE,
     InternalAgentLogger,
     JobAndRunStatusTracker,
     LaunchAgent,
@@ -769,9 +769,9 @@ async def test_run_job_api_key_redaction(mocker):
     "job_source_type,resource_args_build,use_noop,expected_image,expect_auto_default",
     [
         # NoOpBuilder + artifact/repo source → assign default base image, set auto_default
-        ("artifact", {}, True, DEFAULT_BASE_IMAGE, True),
+        ("artifact", {}, True, _DEFAULT_BASE_IMAGE, True),
         ("artifact", {"base_image": "custom:latest"}, True, "custom:latest", True),
-        ("repo", {}, True, DEFAULT_BASE_IMAGE, True),
+        ("repo", {}, True, _DEFAULT_BASE_IMAGE, True),
         # NoOpBuilder + unknown source → falls through to builder.build_image
         ("other", {}, True, "built-image", False),
         # Real builder → always calls builder.build_image regardless of source type

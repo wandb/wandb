@@ -113,7 +113,7 @@ class KubernetesSubmittedRun(AbstractRun):
         KubernetesSubmittedRun object. When `get_status` is called, the
         `_status` attribute is returned.
 
-        Arguments:
+        Args:
             batch_api: Kubernetes BatchV1Api object.
             core_api: Kubernetes CoreV1Api object.
             network_api: Kubernetes NetworkV1Api object.
@@ -266,7 +266,7 @@ class CrdSubmittedRun(AbstractRun):
     ) -> None:
         """Create a run object for tracking the progress of a CRD.
 
-        Arguments:
+        Args:
             group: The API group of the CRD.
             version: The API version of the CRD.
             plural: The plural name of the CRD.
@@ -354,7 +354,7 @@ class KubernetesRunner(AbstractRunner):
     ) -> None:
         """Create a Kubernetes runner.
 
-        Arguments:
+        Args:
             api: The API client object.
             backend_config: The backend configuration.
             environment: The environment to launch runs into.
@@ -371,7 +371,7 @@ class KubernetesRunner(AbstractRunner):
     ) -> str:
         """Get the namespace to launch into.
 
-        Arguments:
+        Args:
             resource_args: The resource args to launch.
             context: The k8s config context.
 
@@ -400,7 +400,7 @@ class KubernetesRunner(AbstractRunner):
     ) -> tuple[dict[str, Any], V1Secret | None]:
         """Apply our default values, return job dict and api key secret.
 
-        Arguments:
+        Args:
             resource_args (Dict[str, Any]): The resource args to launch.
             launch_project (LaunchProject): The launch project.
             builder (Optional[AbstractBuilder]): The builder.
@@ -575,7 +575,7 @@ class KubernetesRunner(AbstractRunner):
     ) -> None:
         """Wait for a Kubernetes resource to be ready.
 
-        Arguments:
+        Args:
             api_client: The Kubernetes API client.
             config: The resource configuration.
             namespace: The namespace where the resource was created.
@@ -725,7 +725,7 @@ class KubernetesRunner(AbstractRunner):
     ) -> None:
         """Prepare a service for launch.
 
-        Arguments:
+        Args:
             api_client: The Kubernetes API client.
             config: The resource configuration to prepare.
             namespace: The namespace to create the resource in.
@@ -795,7 +795,7 @@ class KubernetesRunner(AbstractRunner):
     ) -> AbstractRun | None:
         """Execute a launch project on Kubernetes.
 
-        Arguments:
+        Args:
             launch_project: The launch project to execute.
             builder: The builder to use to build the image.
 
@@ -1027,7 +1027,7 @@ def inject_entrypoint_and_args(
 ) -> None:
     """Inject the entrypoint and args into the containers.
 
-    Arguments:
+    Args:
         containers: The containers to inject the entrypoint and args into.
         entry_point: The entrypoint to inject.
         override_args: The args to inject.
@@ -1053,7 +1053,7 @@ async def ensure_api_key_secret(
 ) -> V1Secret:
     """Create a secret containing a user's wandb API key.
 
-    Arguments:
+    Args:
         core_api: The Kubernetes CoreV1Api object.
         secret_name: The name to use for the secret.
         namespace: The namespace to create the secret in.
@@ -1114,7 +1114,7 @@ async def maybe_create_imagepull_secret(
 ) -> V1Secret | None:
     """Create a secret for pulling images from a private registry.
 
-    Arguments:
+    Args:
         core_api: The Kubernetes CoreV1Api object.
         registry: The registry to pull from.
         run_id: The run id.
@@ -1171,7 +1171,7 @@ def add_wandb_env(root: dict | list, env_vars: dict[str, str]) -> None:
     for WANDB_RUN_ID is provided in env_vars, then that environment variable will only be
     set in the first container modified by this function.
 
-    Arguments:
+    Args:
         root: The spec to modify.
         env_vars: The environment variables to inject.
 
@@ -1211,7 +1211,7 @@ def add_label_to_pods(manifest: dict | list, label_key: str, label_value: str) -
     Pod specs are identified by the presence of a "spec" key with a "containers"
     key in the value.
 
-    Arguments:
+    Args:
         manifest: The manifest to modify.
         label_key: The label key to add.
         label_value: The label value to add.
@@ -1231,7 +1231,7 @@ def add_entrypoint_args_overrides(manifest: dict | list, overrides: dict) -> Non
     to all containers. Containers are identified by the presence of a "spec" key
     with a "containers" key in the value.
 
-    Arguments:
+    Args:
         manifest: The manifest to modify.
         overrides: Dictionary with args and entrypoint keys.
 
@@ -1252,19 +1252,19 @@ def add_entrypoint_args_overrides(manifest: dict | list, overrides: dict) -> Non
             add_entrypoint_args_overrides(value, overrides)
 
 
-def _wrap_container_command_with_dep_install(
+def _set_container_command_with_dep_install(
     container: dict,
     working_dir: str,
     requirements_path: str,
 ) -> None:
-    """Wrap a container's command with a pip install step.
+    """Set a container's command to install dependencies then exec the original command.
 
-    Prepends a shell conditional that installs dependencies, checking in order:
+    Replaces command/args with a shell one-liner that installs dependencies, checking in order:
       1. requirements.txt (user-provided)
       2. pyproject.toml (user-provided, installed via pip install .)
       3. requirements.frozen.txt (job artifact fallback)
 
-    Arguments:
+    Args:
         container: The container spec to modify in place.
         working_dir: The working directory where user dep files are expected.
         requirements_path: Path to the frozen requirements fallback file.
@@ -1300,7 +1300,7 @@ def apply_code_mount_configuration(
     all containers. Containers are identified by the presence of a "spec" key
     with a "containers" key in the value.
 
-    Arguments:
+    Args:
         manifest: The manifest to modify.
         project: The launch project.
 
@@ -1321,7 +1321,7 @@ def apply_code_mount_configuration(
             )
             container["workingDir"] = project.resolved_working_dir
             if project._auto_default_base_image:
-                _wrap_container_command_with_dep_install(
+                _set_container_command_with_dep_install(
                     container,
                     project.resolved_working_dir,
                     f"{CODE_MOUNT_DIR}/.job/requirements.frozen.txt",
@@ -1339,6 +1339,106 @@ def apply_code_mount_configuration(
         )
 
 
+def _build_code_fetch_script(
+    source_type: str,
+    source_info: dict,
+    install_deps: bool,
+    job_dir: str,
+) -> str:
+    """Build the shell script for the init container to fetch source code.
+
+    Args:
+        source_type: Either "artifact" or "repo".
+        source_info: Source metadata from the launch project.
+        install_deps: Whether to also fetch the job artifact for frozen requirements.
+        job_dir: Path where the job artifact should be downloaded.
+    """
+    job_artifact = source_info.get("job_artifact", "")
+    chmod_suffix = f" && chmod -R a+w {CODE_MOUNT_DIR}/* || true && chmod -R a+w {CODE_MOUNT_DIR}/.* || true"
+
+    fetch_job_artifact = ""
+    if install_deps and job_artifact:
+        py_cmd = f"import wandb; wandb.Api().artifact({repr(job_artifact)}).download({repr(job_dir)})"
+        fetch_job_artifact = f" && python -c {shlex.quote(py_cmd)}"
+
+    if source_type == "artifact":
+        artifact_string = source_info.get("artifact_string", "")
+        py_cmd = f"import wandb; wandb.Api().artifact({repr(artifact_string)}).download({repr(CODE_MOUNT_DIR)})"
+        return f"python -c {shlex.quote(py_cmd)}" + fetch_job_artifact + chmod_suffix
+    else:  # repo
+        git_remote = source_info.get("git_remote", "")
+        git_commit = source_info.get("git_commit", "")
+        return (
+            f"git clone {shlex.quote(git_remote)} {CODE_MOUNT_DIR}"
+            f" && git config --global --add safe.directory {CODE_MOUNT_DIR}"
+            f" && cd {CODE_MOUNT_DIR} && git checkout {shlex.quote(git_commit)}"
+            + fetch_job_artifact
+            + chmod_suffix
+        )
+
+
+def _build_source_init_container(
+    fetch_script: str,
+    base_url: str,
+    api_key_env: dict | None,
+) -> dict:
+    """Build the init container spec that fetches source code into the emptyDir volume.
+
+    Args:
+        fetch_script: Shell script to run in the init container.
+        base_url: W&B base URL passed as an environment variable.
+        api_key_env: Optional WANDB_API_KEY env dict extracted from a main container.
+    """
+    init_env: list[dict] = [{"name": "WANDB_BASE_URL", "value": base_url}]
+    if api_key_env:
+        init_env.append(api_key_env)
+    return {
+        "name": "wandb-source-code-init",
+        "image": "wandb/launch-agent:latest",
+        "volumeMounts": [
+            {"name": "wandb-source-code-volume", "mountPath": CODE_MOUNT_DIR}
+        ],
+        "env": init_env,
+        "command": ["/bin/sh", "-c", fetch_script],
+    }
+
+
+def _configure_containers_for_code_mount(
+    pod: dict,
+    project: LaunchProject,
+    install_deps: bool,
+    job_dir: str,
+) -> dict | None:
+    """Mount the code volume on all main containers and return the first WANDB_API_KEY env entry.
+
+    Args:
+        pod: The pod spec dict to modify in place.
+        project: The launch project (for workingDir and dep-install config).
+        install_deps: Whether to wrap container commands with a dep-install step.
+        job_dir: Path to frozen requirements inside the mounted volume.
+    """
+    api_key_env = None
+    for container in yield_containers(pod):
+        container.setdefault("volumeMounts", []).append(
+            {"name": "wandb-source-code-volume", "mountPath": CODE_MOUNT_DIR}
+        )
+        container["workingDir"] = project.resolved_working_dir
+        # Only install deps when using the auto-assigned default base image.
+        # User-provided base images are expected to already have deps.
+        if install_deps:
+            _set_container_command_with_dep_install(
+                container,
+                project.resolved_working_dir,
+                f"{job_dir}/requirements.frozen.txt",
+            )
+        if api_key_env is None:
+            for env in container.get("env", []):
+                if env["name"] == "WANDB_API_KEY":
+                    api_key_env = env
+                    break
+    return api_key_env
+
+
 def apply_code_mount_configuration_emptydir(
     manifest: dict | list, project: LaunchProject, api: Api
 ) -> None:
@@ -1347,7 +1447,7 @@ def apply_code_mount_configuration_emptydir(
     Uses an init container to fetch code into an emptyDir volume, which is
     then mounted into all main containers.
 
-    Arguments:
+    Args:
         manifest: The manifest to modify.
         project: The launch project.
         api: The internal API instance (for base_url).
@@ -1355,6 +1455,7 @@ def apply_code_mount_configuration_emptydir(
     base_url = api.settings("base_url")
     source_type = project.job_source_type
     source_info = project.job_source_info
+    install_deps = project._auto_default_base_image
 
     # Validate before mutating the manifest.
     if source_type not in ("artifact", "repo"):
@@ -1362,99 +1463,19 @@ def apply_code_mount_configuration_emptydir(
             f"Cannot use emptyDir code mount for unknown source type: {source_type!r}"
         )
 
+    job_dir = f"{CODE_MOUNT_DIR}/.job"
     for pod in yield_pods(manifest):
-        # Add emptyDir volume
         spec = pod["spec"]
-        if "volumes" not in spec:
-            spec["volumes"] = []
-        spec["volumes"].append(
-            {
-                "name": "wandb-source-code-volume",
-                "emptyDir": {},
-            }
+        spec.setdefault("volumes", []).append(
+            {"name": "wandb-source-code-volume", "emptyDir": {}}
         )
-
-        job_artifact = source_info.get("job_artifact", "")
-        job_dir = f"{CODE_MOUNT_DIR}/.job"
-
-        # Mount volume on all main containers, set workingDir, and collect API key.
-        install_deps = project._auto_default_base_image
-        api_key_env = None
-        for container in yield_containers(pod):
-            if "volumeMounts" not in container:
-                container["volumeMounts"] = []
-            container["volumeMounts"].append(
-                {
-                    "name": "wandb-source-code-volume",
-                    "mountPath": CODE_MOUNT_DIR,
-                }
-            )
-            container["workingDir"] = project.resolved_working_dir
-            # Only install deps when using the auto-assigned default base
-            # image. User-provided base images are expected to have deps.
-            if install_deps:
-                _wrap_container_command_with_dep_install(
-                    container,
-                    project.resolved_working_dir,
-                    f"{job_dir}/requirements.frozen.txt",
-                )
-            if api_key_env is None:
-                for env in container.get("env", []):
-                    if env["name"] == "WANDB_API_KEY":
-                        api_key_env = env
-                        break
-
-        # Build init container based on source type
-        init_env = [
-            {"name": "WANDB_BASE_URL", "value": base_url},
-        ]
-        if api_key_env:
-            init_env.append(api_key_env)
-
-        # Init container: fetch code (and job artifact if installing deps)
-        fetch_job_artifact = ""
-        if install_deps and job_artifact:
-            py_cmd = (
-                f"import wandb; "
-                f"wandb.Api().artifact({repr(job_artifact)}).download({repr(job_dir)})"
-            )
-            fetch_job_artifact = f" && python -c {shlex.quote(py_cmd)}"
-
-        if source_type == "artifact":
-            artifact_string = source_info.get("artifact_string", "")
-            py_cmd = (
-                f"import wandb; "
-                f"wandb.Api().artifact({repr(artifact_string)}).download({repr(CODE_MOUNT_DIR)})"
-            )
-            fetch_script = (
-                f"python -c {shlex.quote(py_cmd)}"
-                + fetch_job_artifact
-                + f" && chmod -R a+w {CODE_MOUNT_DIR}/* || true && chmod -R a+w {CODE_MOUNT_DIR}/.* || true"
-            )
-        else:  # repo
-            git_remote = source_info.get("git_remote", "")
-            git_commit = source_info.get("git_commit", "")
-            fetch_script = (
-                f"git clone {shlex.quote(git_remote)} {CODE_MOUNT_DIR}"
-                f" && git config --global --add safe.directory {CODE_MOUNT_DIR}"
-                f" && cd {CODE_MOUNT_DIR} && git checkout {shlex.quote(git_commit)}"
-                + fetch_job_artifact
-                + f" && chmod -R a+w {CODE_MOUNT_DIR}/* || true && chmod -R a+w {CODE_MOUNT_DIR}/.* || true"
-            )
-
-        fetch_container = {
-            "name": "wandb-source-code-init",
-            "image": "wandb/launch-agent:latest",
-            "volumeMounts": [
-                {
-                    "name": "wandb-source-code-volume",
-                    "mountPath": CODE_MOUNT_DIR,
-                }
-            ],
-            "env": init_env,
-            "command": ["/bin/sh", "-c", fetch_script],
-        }
-
-        if "initContainers" not in spec:
-            spec["initContainers"] = []
-        spec["initContainers"].append(fetch_container)
+        api_key_env = _configure_containers_for_code_mount(
+            pod, project, install_deps, job_dir
+        )
+        fetch_script = _build_code_fetch_script(
+            source_type, source_info, install_deps, job_dir
+        )
+        init_container = _build_source_init_container(
+            fetch_script, base_url, api_key_env
+        )
+        spec.setdefault("initContainers", []).append(init_container)

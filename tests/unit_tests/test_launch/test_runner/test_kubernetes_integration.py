@@ -13,7 +13,7 @@ import wandb.sdk.launch.runner.kubernetes_runner
 from wandb.sdk.launch._project_spec import LaunchProject
 from wandb.sdk.launch.runner.kubernetes_runner import KubernetesRunner
 
-from .test_kubernetes import MockDict
+from .conftest import MockDict
 
 
 def _make_project(test_api, resource_args, job_base_image=None, auto_default=False):
