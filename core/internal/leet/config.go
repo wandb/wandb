@@ -857,68 +857,49 @@ func (cm *ConfigManager) SetGridConfig(num int) (string, error) {
 	pgc := cm.pendingGridConfig
 	cm.mu.RUnlock()
 
-	var err error
-
-	switch pgc {
-	case gridConfigMetricsCols:
-		if err = cm.SetMetricsCols(num); err == nil { // success
-			return fmt.Sprintf("Metrics grid columns set to %d", num), nil
-		}
-	case gridConfigMetricsRows:
-		if err = cm.SetMetricsRows(num); err == nil { // success
-			return fmt.Sprintf("Metrics grid rows set to %d", num), nil
-		}
-	case gridConfigSystemCols:
-		if err = cm.SetSystemCols(num); err == nil { // success
-			return fmt.Sprintf("System grid columns set to %d", num), nil
-		}
-	case gridConfigSystemRows:
-		if err = cm.SetSystemRows(num); err == nil { // success
-			return fmt.Sprintf("System grid rows set to %d", num), nil
-		}
-	case gridConfigMediaCols:
-		if err = cm.SetMediaCols(num); err == nil { // success
-			return fmt.Sprintf("Media grid columns set to %d", num), nil
-		}
-	case gridConfigMediaRows:
-		if err = cm.SetMediaRows(num); err == nil { // success
-			return fmt.Sprintf("Media grid rows set to %d", num), nil
-		}
-	case gridConfigWorkspaceMetricsCols:
-		if err = cm.SetWorkspaceMetricsCols(num); err == nil { // success
-			return fmt.Sprintf("Workspace metrics grid columns set to %d", num), nil
-		}
-	case gridConfigWorkspaceMetricsRows:
-		if err = cm.SetWorkspaceMetricsRows(num); err == nil { // success
-			return fmt.Sprintf("Workspace metrics grid rows set to %d", num), nil
-		}
-	case gridConfigWorkspaceSystemCols:
-		if err = cm.SetWorkspaceSystemCols(num); err == nil { // success
-			return fmt.Sprintf("Workspace system grid columns set to %d", num), nil
-		}
-	case gridConfigWorkspaceSystemRows:
-		if err = cm.SetWorkspaceSystemRows(num); err == nil { // success
-			return fmt.Sprintf("Workspace system grid rows set to %d", num), nil
-		}
-	case gridConfigWorkspaceMediaCols:
-		if err = cm.SetWorkspaceMediaCols(num); err == nil { // success
-			return fmt.Sprintf("Workspace media grid columns set to %d", num), nil
-		}
-	case gridConfigWorkspaceMediaRows:
-		if err = cm.SetWorkspaceMediaRows(num); err == nil { // success
-			return fmt.Sprintf("Workspace media grid rows set to %d", num), nil
-		}
-	case gridConfigSymonCols:
-		if err = cm.SetSymonCols(num); err == nil { // success
-			return fmt.Sprintf("Symon grid columns set to %d", num), nil
-		}
-	case gridConfigSymonRows:
-		if err = cm.SetSymonRows(num); err == nil { // success
-			return fmt.Sprintf("Symon grid rows set to %d", num), nil
-		}
+	type entry struct {
+		setter func(int) error
+		label  string
+	}
+	table := map[gridConfigTarget]entry{
+		gridConfigMetricsCols: {cm.SetMetricsCols,
+			"Metrics grid columns"},
+		gridConfigMetricsRows: {cm.SetMetricsRows,
+			"Metrics grid rows"},
+		gridConfigSystemCols: {cm.SetSystemCols,
+			"System grid columns"},
+		gridConfigSystemRows: {cm.SetSystemRows,
+			"System grid rows"},
+		gridConfigMediaCols: {cm.SetMediaCols,
+			"Media grid columns"},
+		gridConfigMediaRows: {cm.SetMediaRows,
+			"Media grid rows"},
+		gridConfigWorkspaceMetricsCols: {cm.SetWorkspaceMetricsCols,
+			"Workspace metrics grid columns"},
+		gridConfigWorkspaceMetricsRows: {cm.SetWorkspaceMetricsRows,
+			"Workspace metrics grid rows"},
+		gridConfigWorkspaceSystemCols: {cm.SetWorkspaceSystemCols,
+			"Workspace system grid columns"},
+		gridConfigWorkspaceSystemRows: {cm.SetWorkspaceSystemRows,
+			"Workspace system grid rows"},
+		gridConfigWorkspaceMediaCols: {cm.SetWorkspaceMediaCols,
+			"Workspace media grid columns"},
+		gridConfigWorkspaceMediaRows: {cm.SetWorkspaceMediaRows,
+			"Workspace media grid rows"},
+		gridConfigSymonCols: {cm.SetSymonCols,
+			"Symon grid columns"},
+		gridConfigSymonRows: {cm.SetSymonRows,
+			"Symon grid rows"},
 	}
 
-	return "", err
+	e, ok := table[pgc]
+	if !ok {
+		return "", nil
+	}
+	if err := e.setter(num); err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%s set to %d", e.label, num), nil
 }
 
 // SetConfig replaces the full config (validated) and persists it.

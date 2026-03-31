@@ -76,7 +76,7 @@ pub fn start_http_server(file_path: &str) -> (String, Arc<Mutex<usize>>) {
                          Content-Length: {}\r\n\
                          Content-Type: application/octet-stream\r\n\
                          Accept-Ranges: bytes\r\n\
-                         Connection: keep-alive\r\n\
+                         Connection: close\r\n\
                          \r\n",
                         size
                     );
@@ -109,7 +109,7 @@ pub fn start_http_server(file_path: &str) -> (String, Arc<Mutex<usize>>) {
                                          Content-Range: bytes {}-{}/{}\r\n\
                                          Content-Type: application/octet-stream\r\n\
                                          Accept-Ranges: bytes\r\n\
-                                         Connection: keep-alive\r\n\
+                                         Connection: close\r\n\
                                          \r\n",
                                         data.len(),
                                         start,
@@ -132,7 +132,7 @@ pub fn start_http_server(file_path: &str) -> (String, Arc<Mutex<usize>>) {
                      Content-Length: {}\r\n\
                      Content-Type: application/octet-stream\r\n\
                      Accept-Ranges: bytes\r\n\
-                     Connection: keep-alive\r\n\
+                     Connection: close\r\n\
                      \r\n",
                     size
                 );
@@ -152,6 +152,7 @@ pub fn start_http_server(file_path: &str) -> (String, Arc<Mutex<usize>>) {
 /// Starts an HTTP server that ignores Range headers and always returns
 /// 200 OK with the full file body. Used to test that the client detects
 /// servers that don't support range requests.
+#[allow(dead_code)]
 pub fn start_http_server_no_range_support(file_path: &str) -> String {
     let file_contents = std::fs::read(file_path).unwrap();
     let file_size = file_contents.len();
@@ -201,7 +202,7 @@ pub fn start_http_server_no_range_support(file_path: &str) -> String {
                         "HTTP/1.1 200 OK\r\n\
                          Content-Length: {}\r\n\
                          Content-Type: application/octet-stream\r\n\
-                         Connection: keep-alive\r\n\
+                         Connection: close\r\n\
                          \r\n",
                         size
                     );
@@ -214,7 +215,7 @@ pub fn start_http_server_no_range_support(file_path: &str) -> String {
                     "HTTP/1.1 200 OK\r\n\
                      Content-Length: {}\r\n\
                      Content-Type: application/octet-stream\r\n\
-                     Connection: keep-alive\r\n\
+                     Connection: close\r\n\
                      \r\n",
                     size
                 );

@@ -3,6 +3,7 @@
 package leet
 
 import (
+	"math"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -133,6 +134,23 @@ func (c *FrenchFriesChart) TestTitleDetail() string {
 // TestColorForValue exposes the rendered cell selected for a value.
 func (c *FrenchFriesChart) TestColorForValue(value float64) string {
 	return c.colorForValue(value)
+}
+
+// TestBucketValues returns the averaged bucket value per column for a series.
+// Missing buckets are returned as NaN.
+func (c *FrenchFriesChart) TestBucketValues(seriesName string) []float64 {
+	layout := c.layout()
+	bucketed := c.bucketedSeries(layout)
+	cells := bucketed[seriesName]
+	out := make([]float64, len(cells))
+	for i, cell := range cells {
+		if cell.ok {
+			out[i] = cell.value
+		} else {
+			out[i] = math.NaN()
+		}
+	}
+	return out
 }
 
 // TestCurrentPage returns the current grid of charts.

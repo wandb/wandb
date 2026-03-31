@@ -81,11 +81,12 @@ type ClientOptions struct {
 	// starts a new timeout.
 	NonRetryTimeout time.Duration
 
-	// Additional headers to pass in each request to the backend.
+	// Additional headers to set on every request.
 	//
-	// Note that these are only passed when communicating with the W&B backend.
-	// In particular, they are not sent if using this client to send
-	// arbitrary HTTP requests.
+	// This applies to every outgoing request from this client regardless
+	// of the request URL.
+	//
+	// Request headers take precedence.
 	ExtraHeaders map[string]string
 
 	// Allows the client to peek at the network traffic, can perform any action
@@ -183,7 +184,6 @@ func NewClient(opts ClientOptions) RetryableClient {
 
 	wandbOnlyLayers := httplayers.LimitTo(opts.BaseURL, httplayers.Concat(
 		opts.CredentialProvider,
-		httplayers.ExtraHeaders(extraHeaders),
 		ResponseBasedRateLimiter(),
 	))
 
@@ -191,6 +191,7 @@ func NewClient(opts ClientOptions) RetryableClient {
 		httplayers.WrapRoundTripper(transport,
 			httplayers.Concat(
 				NetworkPeeker(opts.NetworkPeeker),
+				httplayers.ExtraHeaders(extraHeaders),
 				wandbOnlyLayers,
 			))
 

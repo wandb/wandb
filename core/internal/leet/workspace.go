@@ -706,7 +706,10 @@ func (w *Workspace) cycleOverviewSection(direction int) bool {
 // handleWindowResize handles window resize messages.
 func (w *Workspace) handleWindowResize(width, height int) {
 	w.SetSize(width, height)
-	w.updateSidebarDimensions(w.runsAnimState.TargetVisible(), w.runOverviewSidebar.animState.TargetVisible())
+	w.updateSidebarDimensions(
+		w.runsAnimState.TargetVisible(),
+		w.runOverviewSidebar.animState.TargetVisible(),
+	)
 	w.updateBottomPaneHeights(
 		w.systemMetricsPane.animState.TargetVisible(),
 		w.mediaPane.animState.TargetVisible(),
@@ -1092,6 +1095,20 @@ func (w *Workspace) buildOverviewFilterStatus() string {
 func (w *Workspace) buildActiveStatus() string {
 	var parts []string
 
+	parts = append(parts, w.activeFilterStatus()...)
+	parts = append(parts, w.activeSelectionStatus()...)
+	parts = append(parts, w.activeFocusStatus()...)
+
+	if len(parts) == 0 {
+		return w.wandbDir
+	}
+	return w.wandbDir + " • " + strings.Join(parts, " • ")
+}
+
+// activeFilterStatus collects status fragments for all active filters.
+func (w *Workspace) activeFilterStatus() []string {
+	var parts []string
+
 	if w.filter.Query() != "" && !w.filter.IsActive() {
 		parts = append(parts, fmt.Sprintf(
 			"Runs (%s): %q [%d/%d] (f to change, ctrl+f to clear)",
@@ -1132,7 +1149,13 @@ func (w *Workspace) buildActiveStatus() string {
 		))
 	}
 
-	// Show the highlighted overview key/value when the sidebar is visible.
+	return parts
+}
+
+// activeSelectionStatus collects status fragments for sidebar selection and media.
+func (w *Workspace) activeSelectionStatus() []string {
+	var parts []string
+
 	if w.runOverviewActive() {
 		key, value := w.runOverviewSidebar.SelectedItem()
 		if key != "" {
@@ -1146,32 +1169,37 @@ func (w *Workspace) buildActiveStatus() string {
 		}
 	}
 
-	if w.focus.Type != FocusNone {
-		parts = append(parts, w.focus.Title)
-		switch w.focus.Type {
-		case FocusMainChart:
-			if scaleLabel := w.metricsGrid.focusedChartScaleLabel(); scaleLabel != "" {
-				parts = append(parts, scaleLabel)
+	return parts
+}
+
+// activeFocusStatus collects status fragments for the focused chart.
+func (w *Workspace) activeFocusStatus() []string {
+	if w.focus.Type == FocusNone {
+		return nil
+	}
+
+	parts := []string{w.focus.Title}
+
+	switch w.focus.Type {
+	case FocusMainChart:
+		if scaleLabel := w.metricsGrid.focusedChartScaleLabel(); scaleLabel != "" {
+			parts = append(parts, scaleLabel)
+		}
+	case FocusSystemChart:
+		if g := w.activeSystemMetricsGrid(); g != nil {
+			if detail := g.FocusedChartTitleDetail(); detail != "" {
+				parts = append(parts, detail)
 			}
-		case FocusSystemChart:
-			if g := w.activeSystemMetricsGrid(); g != nil {
-				if detail := g.FocusedChartTitleDetail(); detail != "" {
-					parts = append(parts, detail)
-				}
-				if viewMode := g.FocusedChartViewModeLabel(); viewMode != "" {
-					parts = append(parts, viewMode)
-				}
-				if scaleLabel := g.FocusedChartScaleLabel(); scaleLabel != "" {
-					parts = append(parts, scaleLabel)
-				}
+			if viewMode := g.FocusedChartViewModeLabel(); viewMode != "" {
+				parts = append(parts, viewMode)
+			}
+			if scaleLabel := g.FocusedChartScaleLabel(); scaleLabel != "" {
+				parts = append(parts, scaleLabel)
 			}
 		}
 	}
 
-	if len(parts) == 0 {
-		return w.wandbDir
-	}
-	return w.wandbDir + " • " + strings.Join(parts, " • ")
+	return parts
 }
 
 // buildHelpText builds the help text for the status bar.

@@ -155,19 +155,18 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 	}
 
-	// Snapshot input state before sub-models see this key.
-	awaitingUserInput := m.isAwaitingUserInput()
-	runCapturesEsc := false
-	if keyMsg, ok := msg.(tea.KeyPressMsg); ok &&
-		m.mode == viewModeRun &&
-		keyMsg.Code == tea.KeyEsc &&
-		m.run != nil {
-		runCapturesEsc = m.run.MediaFullscreen()
+	cmds := m.updateSubComponents(msg)
+
+	if cmd := m.handleModeSwitch(msg); cmd != nil {
+		return m, cmd
 	}
 
-	var cmds []tea.Cmd
+	return m, tea.Batch(cmds...)
+}
 
-	// Handle sub-component updates.
+// updateSubComponents forwards the message to the active sub-models.
+func (m *Model) updateSubComponents(msg tea.Msg) []tea.Cmd {
+	var cmds []tea.Cmd
 	switch m.mode {
 	case viewModeWorkspace:
 		if cmd := m.workspace.Update(msg); cmd != nil {
@@ -185,26 +184,33 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			cmds = append(cmds, cmd)
 		}
 	}
+	return cmds
+}
 
-	// Handle mode switching.
-	if keyMsg, ok := msg.(tea.KeyPressMsg); ok {
-		switch m.mode {
-		case viewModeWorkspace:
-			if keyMsg.Code == tea.KeyEnter &&
-				!awaitingUserInput &&
-				m.workspace.RunSelectorActive() {
-				cmd := m.enterRunView()
-				return m, cmd
-			}
-		case viewModeRun:
-			if keyMsg.Code == tea.KeyEsc && !awaitingUserInput && !runCapturesEsc {
-				cmd := m.exitRunView()
-				return m, cmd
-			}
-		}
+// handleModeSwitch checks for Enter/Esc and transitions between views.
+func (m *Model) handleModeSwitch(msg tea.Msg) tea.Cmd {
+	keyMsg, ok := msg.(tea.KeyPressMsg)
+	if !ok {
+		return nil
 	}
 
-	return m, tea.Batch(cmds...)
+	awaitingUserInput := m.isAwaitingUserInput()
+
+	switch m.mode {
+	case viewModeWorkspace:
+		if keyMsg.Code == tea.KeyEnter &&
+			!awaitingUserInput &&
+			m.workspace.RunSelectorActive() {
+			return m.enterRunView()
+		}
+	case viewModeRun:
+		runCapturesEsc := m.run != nil && m.run.MediaFullscreen()
+		if keyMsg.Code == tea.KeyEsc &&
+			!awaitingUserInput && !runCapturesEsc {
+			return m.exitRunView()
+		}
+	}
+	return nil
 }
 
 // View renders the UI based on the data in the model.
