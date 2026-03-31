@@ -75,7 +75,9 @@ func (b *LocalWorkspaceBackend) PreloadOverviewCmd(runKey string) tea.Cmd {
 	return func() tea.Msg {
 		if runKey == "" || wandbFile == "" {
 			return WorkspaceRunOverviewPreloadedMsg{
-				RunKey: runKey, Err: errRunRecordNotFound}
+				RunKey: runKey,
+				Err:    errRunRecordNotFound,
+			}
 		}
 
 		reader, err := NewLevelDBHistorySource(wandbFile, logger)
@@ -85,12 +87,11 @@ func (b *LocalWorkspaceBackend) PreloadOverviewCmd(runKey string) tea.Cmd {
 		defer reader.Close()
 
 		msg, err := reader.Read(maxRecordsToScan, maxRecordsToScanTimeout)
-		if err != nil {
-			if !errors.Is(err, io.EOF) {
-				return WorkspaceRunOverviewPreloadedMsg{RunKey: runKey, Err: err}
-			}
+		if err != nil && !errors.Is(err, io.EOF) {
+			return WorkspaceRunOverviewPreloadedMsg{RunKey: runKey, Err: err}
 		}
-		if rm, ok := msg.(RunMsg); ok && rm.ID != "" {
+
+		if rm, ok := FindRunMsg(msg); ok {
 			return WorkspaceRunOverviewPreloadedMsg{RunKey: runKey, Run: &rm}
 		}
 
@@ -120,4 +121,25 @@ func (b *LocalWorkspaceBackend) DisplayLabel() string {
 
 func (b *LocalWorkspaceBackend) SupportsLiveStreaming() bool {
 	return true
+}
+
+func FindRunMsg(msg tea.Msg) (RunMsg, bool) {
+	switch m := msg.(type) {
+	case RunMsg:
+		return m, m.ID != ""
+	case ChunkedBatchMsg:
+		for _, sub := range m.Msgs {
+			if rm, ok := FindRunMsg(sub); ok {
+				return rm, true
+			}
+		}
+	case BatchedRecordsMsg:
+		for _, sub := range m.Msgs {
+			if rm, ok := FindRunMsg(sub); ok {
+				return rm, true
+			}
+		}
+	}
+
+	return RunMsg{}, false
 }

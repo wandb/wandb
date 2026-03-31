@@ -337,7 +337,7 @@ func (w *Workspace) TestGetRunOverviewByRunKey(runKey string) *RunOverview {
 // TestExecutePreloadCmd calls the preload command for a given run key
 // and returns the resulting message.
 func (w *Workspace) TestExecutePreloadCmd(runKey string) WorkspaceRunOverviewPreloadedMsg {
-	cmd := w.preloadRunOverviewCmd(runKey)
+	cmd := w.backend.PreloadOverviewCmd(runKey)
 	msg := cmd()
 	return msg.(WorkspaceRunOverviewPreloadedMsg)
 }
