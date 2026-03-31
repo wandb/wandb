@@ -547,7 +547,7 @@ func (nc *Connection) handleInformRecord(msg *spb.Record) {
 	}
 
 	// Delegate the handling of the record to the stream
-	strm.HandleRecord(msg)
+	strm.HandleRecord(msg, nil) // TODO: Pass the Request.
 }
 
 // handleInformFinish processes a finish message from the client.
@@ -687,7 +687,10 @@ func (nc *Connection) handleApi(
 	}
 
 	wg.Go(func() {
-		response := wbapiInstance.HandleRequest(id, request)
+		ctx, cancelCtx := nc.requestCanceller.Context(id)
+		defer cancelCtx()
+
+		response := wbapiInstance.HandleRequest(ctx, id, request)
 
 		if response != nil {
 			nc.Respond(&spb.ServerResponse{

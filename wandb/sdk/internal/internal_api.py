@@ -35,7 +35,7 @@ import wandb
 from wandb import env, util
 from wandb.analytics import get_sentry
 from wandb.apis.normalize import normalize_exceptions, parse_backend_error_messages
-from wandb.errors import AuthenticationError, CommError, UnsupportedError, UsageError
+from wandb.errors import AuthenticationError, CommError, UsageError
 from wandb.integration.sagemaker import parse_sm_secrets
 from wandb.proto.wandb_internal_pb2 import ServerFeature
 from wandb.sdk import wandb_setup
@@ -341,22 +341,7 @@ class Api:
         # Large file uploads to azure can optionally use their SDK
         self._azure_blob_module = util.get_module("azure.storage.blob")
 
-        self.query_types: list[str] | None = None
-        self.mutation_types: list[str] | None = None
-        self.server_info_types: list[str] | None = None
-        self.server_use_artifact_input_info: list[str] | None = None
-        self.server_create_artifact_input_info: list[str] | None = None
-        self.server_artifact_fields_info: list[str] | None = None
-        self.server_organization_type_fields_info: list[str] | None = None
-        self.server_supports_enabling_artifact_usage_tracking: bool | None = None
         self._max_cli_version: str | None = None
-        self._server_settings_type: list[str] | None = None
-        self.fail_run_queue_item_input_info: list[str] | None = None
-        self.create_launch_agent_input_info: list[str] | None = None
-        self.server_create_run_queue_supports_drc: bool | None = None
-        self.server_create_run_queue_supports_priority: bool | None = None
-        self.server_supports_template_variables: bool | None = None
-        self.server_push_to_run_queue_supports_priority: bool | None = None
 
         self._server_features_cache: dict[str, bool] | None = None
 
@@ -577,230 +562,6 @@ class Api:
         return project, run
 
     @normalize_exceptions
-    def server_info_introspection(self) -> tuple[list[str], list[str], list[str]]:
-        query_string = """
-           query ProbeServerCapabilities {
-               QueryType: __type(name: "Query") {
-                   ...fieldData
-                }
-                MutationType: __type(name: "Mutation") {
-                   ...fieldData
-                }
-               ServerInfoType: __type(name: "ServerInfo") {
-                   ...fieldData
-                }
-            }
-
-            fragment fieldData on __Type {
-                fields {
-                    name
-                }
-            }
-        """
-        if (
-            self.query_types is None
-            or self.mutation_types is None
-            or self.server_info_types is None
-        ):
-            query = gql(query_string)
-            res = self.gql(query)
-
-            self.query_types = [
-                field.get("name", "")
-                for field in res.get("QueryType", {}).get("fields", [{}])
-            ]
-            self.mutation_types = [
-                field.get("name", "")
-                for field in res.get("MutationType", {}).get("fields", [{}])
-            ]
-            self.server_info_types = [
-                field.get("name", "")
-                for field in res.get("ServerInfoType", {}).get("fields", [{}])
-            ]
-        return self.query_types, self.server_info_types, self.mutation_types
-
-    @normalize_exceptions
-    def server_settings_introspection(self) -> None:
-        query_string = """
-           query ProbeServerSettings {
-               ServerSettingsType: __type(name: "ServerSettings") {
-                   ...fieldData
-                }
-            }
-
-            fragment fieldData on __Type {
-                fields {
-                    name
-                }
-            }
-        """
-        if self._server_settings_type is None:
-            query = gql(query_string)
-            res = self.gql(query)
-            self._server_settings_type = (
-                [
-                    field.get("name", "")
-                    for field in res.get("ServerSettingsType", {}).get("fields", [{}])
-                ]
-                if res
-                else []
-            )
-
-    def server_use_artifact_input_introspection(self) -> list:
-        query_string = """
-           query ProbeServerUseArtifactInput {
-               UseArtifactInputInfoType: __type(name: "UseArtifactInput") {
-                   name
-                   inputFields {
-                       name
-                   }
-                }
-            }
-        """
-
-        if self.server_use_artifact_input_info is None:
-            query = gql(query_string)
-            res = self.gql(query)
-            self.server_use_artifact_input_info = [
-                field.get("name", "")
-                for field in res.get("UseArtifactInputInfoType", {}).get(
-                    "inputFields", [{}]
-                )
-            ]
-        return self.server_use_artifact_input_info
-
-    @normalize_exceptions
-    def launch_agent_introspection(self) -> str | None:
-        query = gql(
-            """
-            query LaunchAgentIntrospection {
-                LaunchAgentType: __type(name: "LaunchAgent") {
-                    name
-                }
-            }
-        """
-        )
-
-        res = self.gql(query)
-        return res.get("LaunchAgentType") or None
-
-    @normalize_exceptions
-    def create_run_queue_introspection(self) -> tuple[bool, bool, bool]:
-        _, _, mutations = self.server_info_introspection()
-        query_string = """
-           query ProbeCreateRunQueueInput {
-               CreateRunQueueInputType: __type(name: "CreateRunQueueInput") {
-                   name
-                   inputFields {
-                       name
-                   }
-                }
-            }
-        """
-        if (
-            self.server_create_run_queue_supports_drc is None
-            or self.server_create_run_queue_supports_priority is None
-        ):
-            query = gql(query_string)
-            res = self.gql(query)
-            if res is None:
-                raise CommError("Could not get CreateRunQueue input from GQL.")
-            self.server_create_run_queue_supports_drc = "defaultResourceConfigID" in [
-                x["name"]
-                for x in (
-                    res.get("CreateRunQueueInputType", {}).get("inputFields", [{}])
-                )
-            ]
-            self.server_create_run_queue_supports_priority = "prioritizationMode" in [
-                x["name"]
-                for x in (
-                    res.get("CreateRunQueueInputType", {}).get("inputFields", [{}])
-                )
-            ]
-        return (
-            "createRunQueue" in mutations,
-            self.server_create_run_queue_supports_drc,
-            self.server_create_run_queue_supports_priority,
-        )
-
-    @normalize_exceptions
-    def upsert_run_queue_introspection(self) -> bool:
-        _, _, mutations = self.server_info_introspection()
-        return "upsertRunQueue" in mutations
-
-    @normalize_exceptions
-    def push_to_run_queue_introspection(self) -> tuple[bool, bool]:
-        query_string = """
-            query ProbePushToRunQueueInput {
-                PushToRunQueueInputType: __type(name: "PushToRunQueueInput") {
-                    name
-                    inputFields {
-                        name
-                    }
-                }
-            }
-        """
-
-        if (
-            self.server_supports_template_variables is None
-            or self.server_push_to_run_queue_supports_priority is None
-        ):
-            query = gql(query_string)
-            res = self.gql(query)
-            self.server_supports_template_variables = "templateVariableValues" in [
-                x["name"]
-                for x in (
-                    res.get("PushToRunQueueInputType", {}).get("inputFields", [{}])
-                )
-            ]
-            self.server_push_to_run_queue_supports_priority = "priority" in [
-                x["name"]
-                for x in (
-                    res.get("PushToRunQueueInputType", {}).get("inputFields", [{}])
-                )
-            ]
-
-        return (
-            self.server_supports_template_variables,
-            self.server_push_to_run_queue_supports_priority,
-        )
-
-    @normalize_exceptions
-    def create_default_resource_config_introspection(self) -> bool:
-        _, _, mutations = self.server_info_introspection()
-        return "createDefaultResourceConfig" in mutations
-
-    @normalize_exceptions
-    def fail_run_queue_item_introspection(self) -> bool:
-        _, _, mutations = self.server_info_introspection()
-        return "failRunQueueItem" in mutations
-
-    @normalize_exceptions
-    def fail_run_queue_item_fields_introspection(self) -> list:
-        if self.fail_run_queue_item_input_info:
-            return self.fail_run_queue_item_input_info
-        query_string = """
-           query ProbeServerFailRunQueueItemInput {
-                FailRunQueueItemInputInfoType: __type(name:"FailRunQueueItemInput") {
-                    inputFields{
-                        name
-                    }
-                }
-            }
-        """
-
-        query = gql(query_string)
-        res = self.gql(query)
-
-        self.fail_run_queue_item_input_info = [
-            field.get("name", "")
-            for field in res.get("FailRunQueueItemInputInfoType", {}).get(
-                "inputFields", [{}]
-            )
-        ]
-        return self.fail_run_queue_item_input_info
-
-    @normalize_exceptions
     def fail_run_queue_item(
         self,
         run_queue_item_id: str,
@@ -808,51 +569,32 @@ class Api:
         stage: str,
         file_paths: list[str] | None = None,
     ) -> bool:
-        if not self.fail_run_queue_item_introspection():
-            return False
         variable_values: dict[str, str | (list[str] | None)] = {
             "runQueueItemId": run_queue_item_id,
+            "message": message,
+            "stage": stage,
         }
-        if "message" in self.fail_run_queue_item_fields_introspection():
-            variable_values.update({"message": message, "stage": stage})
-            if file_paths is not None:
-                variable_values["filePaths"] = file_paths
-            mutation_string = """
-            mutation failRunQueueItem($runQueueItemId: ID!, $message: String!, $stage: String!, $filePaths: [String!]) {
-                failRunQueueItem(
-                    input: {
-                        runQueueItemId: $runQueueItemId
-                        message: $message
-                        stage: $stage
-                        filePaths: $filePaths
-                    }
-                ) {
-                    success
+        if file_paths is not None:
+            variable_values["filePaths"] = file_paths
+        mutation_string = """
+        mutation failRunQueueItem($runQueueItemId: ID!, $message: String!, $stage: String!, $filePaths: [String!]) {
+            failRunQueueItem(
+                input: {
+                    runQueueItemId: $runQueueItemId
+                    message: $message
+                    stage: $stage
+                    filePaths: $filePaths
                 }
+            ) {
+                success
             }
-            """
-        else:
-            mutation_string = """
-            mutation failRunQueueItem($runQueueItemId: ID!) {
-                failRunQueueItem(
-                    input: {
-                        runQueueItemId: $runQueueItemId
-                    }
-                ) {
-                    success
-                }
-            }
-            """
+        }
+        """
 
         mutation = gql(mutation_string)
         response = self.gql(mutation, variable_values=variable_values)
         result: bool = response["failRunQueueItem"]["success"]
         return result
-
-    @normalize_exceptions
-    def update_run_queue_item_warning_introspection(self) -> bool:
-        _, _, mutations = self.server_info_introspection()
-        return "updateRunQueueItemWarning" in mutations
 
     def _server_features(self) -> dict[str, bool]:
         # NOTE: Avoid caching via `@cached_property`, due to undocumented
@@ -900,8 +642,6 @@ class Api:
         stage: str,
         file_paths: list[str] | None = None,
     ) -> bool:
-        if not self.update_run_queue_item_warning_introspection():
-            return False
         mutation = gql(
             """
         mutation updateRunQueueItemWarning($runQueueItemId: ID!, $message: String!, $stage: String!, $filePaths: [String!]) {
@@ -959,13 +699,6 @@ class Api:
         if self._max_cli_version is not None:
             return self._max_cli_version
 
-        query_types, server_info_types, _ = self.server_info_introspection()
-        cli_version_exists = (
-            "serverInfo" in query_types and "cliVersionInfo" in server_info_types
-        )
-        if not cli_version_exists:
-            return None
-
         _, server_info = self.viewer_server_info()
         self._max_cli_version = server_info.get("cliVersionInfo", {}).get(
             "max_cli_version"
@@ -974,20 +707,8 @@ class Api:
 
     @normalize_exceptions
     def viewer_server_info(self) -> tuple[dict[str, Any], dict[str, Any]]:
-        local_query = """
-            latestLocalVersionInfo {
-                outOfDate
-                latestVersionString
-                versionOnThisInstanceString
-            }
-        """
-        cli_query = """
-            serverInfo {
-                cliVersionInfo
-                _LOCAL_QUERY_
-            }
-        """
-        query_template = """
+        query = gql(
+            """
         query Viewer{
             viewer {
                 id
@@ -1003,27 +724,17 @@ class Api:
                     }
                 }
             }
-            _CLI_QUERY_
+            serverInfo {
+                cliVersionInfo
+                latestLocalVersionInfo {
+                    outOfDate
+                    latestVersionString
+                    versionOnThisInstanceString
+                }
+            }
         }
         """
-        query_types, server_info_types, _ = self.server_info_introspection()
-
-        cli_version_exists = (
-            "serverInfo" in query_types and "cliVersionInfo" in server_info_types
         )
-
-        local_version_exists = (
-            "serverInfo" in query_types
-            and "latestLocalVersionInfo" in server_info_types
-        )
-
-        cli_query_string = "" if not cli_version_exists else cli_query
-        local_query_string = "" if not local_version_exists else local_query
-
-        query_string = query_template.replace("_CLI_QUERY_", cli_query_string).replace(
-            "_LOCAL_QUERY_", local_query_string
-        )
-        query = gql(query_string)
         res = self.gql(query)
         return res.get("viewer") or {}, res.get("serverInfo") or {}
 
@@ -1511,40 +1222,29 @@ class Api:
         config: str,
         template_variables: dict[str, float | int | str] | None,
     ) -> dict[str, Any] | None:
-        if not self.create_default_resource_config_introspection():
-            raise Exception()
-        supports_template_vars, _ = self.push_to_run_queue_introspection()
-
         mutation_params = """
             $entityName: String!,
             $resource: String!,
-            $config: JSONString!
+            $config: JSONString!,
+            $templateVariables: JSONString
         """
         mutation_inputs = """
             entityName: $entityName,
             resource: $resource,
-            config: $config
+            config: $config,
+            templateVariables: $templateVariables
         """
-
-        if supports_template_vars:
-            mutation_params += ", $templateVariables: JSONString"
-            mutation_inputs += ", templateVariables: $templateVariables"
-        else:
-            if template_variables is not None:
-                raise UnsupportedError(
-                    "server does not support template variables, please update server instance to >=0.46"
-                )
 
         variable_values = {
             "entityName": entity,
             "resource": resource,
             "config": config,
         }
-        if supports_template_vars:
-            if template_variables is not None:
-                variable_values["templateVariables"] = json.dumps(template_variables)
-            else:
-                variable_values["templateVariables"] = "{}"
+
+        if template_variables is not None:
+            variable_values["templateVariables"] = json.dumps(template_variables)
+        else:
+            variable_values["templateVariables"] = "{}"
 
         query = gql(
             f"""
@@ -1578,94 +1278,40 @@ class Api:
         prioritization_mode: str | None = None,
         config_id: str | None = None,
     ) -> dict[str, Any] | None:
-        (
-            create_run_queue,
-            supports_drc,
-            supports_prioritization,
-        ) = self.create_run_queue_introspection()
-        if not create_run_queue:
-            raise UnsupportedError(
-                "run queue creation is not supported by this version of "
-                "wandb server. Consider updating to the latest version."
-            )
-        if not supports_drc and config_id is not None:
-            raise UnsupportedError(
-                "default resource configurations are not supported by this version "
-                "of wandb server. Consider updating to the latest version."
-            )
-        if not supports_prioritization and prioritization_mode is not None:
-            raise UnsupportedError(
-                "launch prioritization is not supported by this version of "
-                "wandb server. Consider updating to the latest version."
-            )
-
-        if supports_prioritization:
-            query = gql(
-                """
-            mutation createRunQueue(
-                $entity: String!,
-                $project: String!,
-                $queueName: String!,
-                $access: RunQueueAccessType!,
-                $prioritizationMode: RunQueuePrioritizationMode,
-                $defaultResourceConfigID: ID,
-            ) {
-                createRunQueue(
-                    input: {
-                        entityName: $entity,
-                        projectName: $project,
-                        queueName: $queueName,
-                        access: $access,
-                        prioritizationMode: $prioritizationMode
-                        defaultResourceConfigID: $defaultResourceConfigID
-                    }
-                ) {
-                    success
-                    queueID
-                }
-            }
+        query = gql(
             """
-            )
-            variable_values = {
-                "entity": entity,
-                "project": project,
-                "queueName": queue_name,
-                "access": access,
-                "prioritizationMode": prioritization_mode,
-                "defaultResourceConfigID": config_id,
-            }
-        else:
-            query = gql(
-                """
-            mutation createRunQueue(
-                $entity: String!,
-                $project: String!,
-                $queueName: String!,
-                $access: RunQueueAccessType!,
-                $defaultResourceConfigID: ID,
-            ) {
-                createRunQueue(
-                    input: {
-                        entityName: $entity,
-                        projectName: $project,
-                        queueName: $queueName,
-                        access: $access,
-                        defaultResourceConfigID: $defaultResourceConfigID
-                    }
-                ) {
-                    success
-                    queueID
+        mutation createRunQueue(
+            $entity: String!,
+            $project: String!,
+            $queueName: String!,
+            $access: RunQueueAccessType!,
+            $prioritizationMode: RunQueuePrioritizationMode,
+            $defaultResourceConfigID: ID,
+        ) {
+            createRunQueue(
+                input: {
+                    entityName: $entity,
+                    projectName: $project,
+                    queueName: $queueName,
+                    access: $access,
+                    prioritizationMode: $prioritizationMode
+                    defaultResourceConfigID: $defaultResourceConfigID
                 }
+            ) {
+                success
+                queueID
             }
-            """
-            )
-            variable_values = {
-                "entity": entity,
-                "project": project,
-                "queueName": queue_name,
-                "access": access,
-                "defaultResourceConfigID": config_id,
-            }
+        }
+        """
+        )
+        variable_values = {
+            "entity": entity,
+            "project": project,
+            "queueName": queue_name,
+            "access": access,
+            "prioritizationMode": prioritization_mode,
+            "defaultResourceConfigID": config_id,
+        }
 
         result: dict[str, Any] | None = self.gql(query, variable_values)[
             "createRunQueue"
@@ -1684,11 +1330,6 @@ class Api:
         template_variables: dict | None = None,
         external_links: dict | None = None,
     ) -> dict[str, Any] | None:
-        if not self.upsert_run_queue_introspection():
-            raise UnsupportedError(
-                "upserting run queues is not supported by this version of "
-                "wandb server. Consider updating to the latest version."
-            )
         query = gql(
             """
             mutation upsertRunQueue(
@@ -1746,9 +1387,6 @@ class Api:
         template_variables: dict[str, int | float | str] | None,
         priority: int | None = None,
     ) -> dict[str, Any] | None:
-        self.push_to_run_queue_introspection()
-        """Queryless mutation, should be used before legacy fallback method."""
-
         mutation_params = """
             $entityName: String!,
             $projectName: String!,
@@ -1769,29 +1407,15 @@ class Api:
             "queueName": queue_name,
             "runSpec": run_spec,
         }
-        if self.server_push_to_run_queue_supports_priority:
-            if priority is not None:
-                variables["priority"] = priority
-                mutation_params += ", $priority: Int"
-                mutation_input += ", priority: $priority"
-        else:
-            if priority is not None:
-                raise UnsupportedError(
-                    "server does not support priority, please update server instance to >=0.46"
-                )
+        if priority is not None:
+            variables["priority"] = priority
+            mutation_params += ", $priority: Int"
+            mutation_input += ", priority: $priority"
 
-        if self.server_supports_template_variables:
-            if template_variables is not None:
-                variables.update(
-                    {"templateVariableValues": json.dumps(template_variables)}
-                )
-                mutation_params += ", $templateVariableValues: JSONString"
-                mutation_input += ", templateVariableValues: $templateVariableValues"
-        else:
-            if template_variables is not None:
-                raise UnsupportedError(
-                    "server does not support template variables, please update server instance to >=0.46"
-                )
+        if template_variables is not None:
+            variables.update({"templateVariableValues": json.dumps(template_variables)})
+            mutation_params += ", $templateVariableValues: JSONString"
+            mutation_input += ", templateVariableValues: $templateVariableValues"
 
         mutation = gql(
             f"""
@@ -1869,7 +1493,6 @@ class Api:
         project_queue: str,
         priority: int | None = None,
     ) -> dict[str, Any] | None:
-        self.push_to_run_queue_introspection()
         entity = launch_spec.get("queue_entity") or launch_spec["entity"]
         run_spec = json.dumps(launch_spec)
 
@@ -1942,18 +1565,10 @@ class Api:
             queueID: $queueID,
             runSpec: $runSpec
         """
-        if self.server_supports_template_variables:
-            if template_variables is not None:
-                mutation_params += ", $templateVariableValues: JSONString"
-                mutation_input += ", templateVariableValues: $templateVariableValues"
-                variables.update(
-                    {"templateVariableValues": json.dumps(template_variables)}
-                )
-        else:
-            if template_variables is not None:
-                raise UnsupportedError(
-                    "server does not support template variables, please update server instance to >=0.46"
-                )
+        if template_variables is not None:
+            mutation_params += ", $templateVariableValues: JSONString"
+            mutation_input += ", templateVariableValues: $templateVariableValues"
+            variables.update({"templateVariableValues": json.dumps(template_variables)})
 
         mutation = gql(
             f"""
@@ -2033,31 +1648,6 @@ class Api:
         return result
 
     @normalize_exceptions
-    def create_launch_agent_fields_introspection(self) -> list:
-        if self.create_launch_agent_input_info:
-            return self.create_launch_agent_input_info
-        query_string = """
-           query ProbeServerCreateLaunchAgentInput {
-                CreateLaunchAgentInputInfoType: __type(name:"CreateLaunchAgentInput") {
-                    inputFields{
-                        name
-                    }
-                }
-            }
-        """
-
-        query = gql(query_string)
-        res = self.gql(query)
-
-        self.create_launch_agent_input_info = [
-            field.get("name", "")
-            for field in res.get("CreateLaunchAgentInputInfoType", {}).get(
-                "inputFields", [{}]
-            )
-        ]
-        return self.create_launch_agent_input_info
-
-    @normalize_exceptions
     def create_launch_agent(
         self,
         entity: str,
@@ -2065,7 +1655,6 @@ class Api:
         queues: list[str],
         agent_config: dict[str, Any],
         version: str,
-        gorilla_agent_support: bool,
     ) -> dict:
         project_queues = self.get_project_run_queues(entity, project)
         if not project_queues:
@@ -2087,13 +1676,6 @@ class Api:
                 f"Available queues for this project: {','.join([q['name'] for q in project_queues])}"
             )
 
-        if not gorilla_agent_support:
-            # if gorilla doesn't support launch agents, return a client-generated id
-            return {
-                "success": True,
-                "launchAgentId": None,
-            }
-
         hostname = socket.gethostname()
 
         variable_values = {
@@ -2101,30 +1683,27 @@ class Api:
             "project": project,
             "queues": polling_queue_ids,
             "hostname": hostname,
+            "agentConfig": json.dumps(agent_config),
+            "version": version,
         }
 
         mutation_params = """
             $entity: String!,
             $project: String!,
             $queues: [ID!]!,
-            $hostname: String!
+            $hostname: String!,
+            $agentConfig: JSONString,
+            $version: String
         """
 
         mutation_input = """
             entityName: $entity,
             projectName: $project,
             runQueues: $queues,
-            hostname: $hostname
+            hostname: $hostname,
+            agentConfig: $agentConfig,
+            version: $version
         """
-
-        if "agentConfig" in self.create_launch_agent_fields_introspection():
-            variable_values["agentConfig"] = json.dumps(agent_config)
-            mutation_params += ", $agentConfig: JSONString"
-            mutation_input += ", agentConfig: $agentConfig"
-        if "version" in self.create_launch_agent_fields_introspection():
-            variable_values["version"] = version
-            mutation_params += ", $version: String"
-            mutation_input += ", version: $version"
 
         mutation = gql(
             f"""
@@ -2149,14 +1728,7 @@ class Api:
         self,
         agent_id: str,
         status: str,
-        gorilla_agent_support: bool,
     ) -> dict:
-        if not gorilla_agent_support:
-            # if gorilla doesn't support launch agents, this is a no-op
-            return {
-                "success": True,
-            }
-
         mutation = gql(
             """
             mutation updateLaunchAgent($agentId: ID!, $agentStatus: String){
@@ -2179,13 +1751,7 @@ class Api:
         return result
 
     @normalize_exceptions
-    def get_launch_agent(self, agent_id: str, gorilla_agent_support: bool) -> dict:
-        if not gorilla_agent_support:
-            return {
-                "id": None,
-                "name": "",
-                "stopPolling": False,
-            }
+    def get_launch_agent(self, agent_id: str) -> dict:
         query = gql(
             """
             query LaunchAgent($agentId: ID!) {
@@ -2229,7 +1795,7 @@ class Api:
         sweep_name: str | None = None,
         summary_metrics: str | None = None,
         num_retries: int | None = None,
-    ) -> tuple[dict, bool, list | None]:
+    ) -> tuple[dict, bool]:
         """Update a run.
 
         Args:
@@ -2314,29 +1880,10 @@ class Api:
                     historyLineCount
                 }
                 inserted
-                _Server_Settings_
             }
         }
         """
-        self.server_settings_introspection()
 
-        server_settings_string = (
-            """
-        serverSettings {
-                serverMessages{
-                    utfText
-                    plainText
-                    htmlText
-                    messageType
-                    messageLevel
-                }
-         }
-        """
-            if self._server_settings_type
-            else ""
-        )
-
-        query_string = query_string.replace("_Server_Settings_", server_settings_string)
         mutation = gql(query_string)
         config_str = json.dumps(config) if config else None
         if not description or description.isspace():
@@ -2394,18 +1941,9 @@ class Api:
             if entity_obj:
                 self.set_setting("entity", entity_obj["name"])
 
-        server_messages = None
-        if self._server_settings_type:
-            server_messages = (
-                response["upsertBucket"]
-                .get("serverSettings", {})
-                .get("serverMessages", [])
-            )
-
         return (
             response["upsertBucket"]["bucket"],
             response["upsertBucket"]["inserted"],
-            server_messages,
         )
 
     @normalize_exceptions
@@ -2589,11 +2127,6 @@ class Api:
         return run_state
 
     @normalize_exceptions
-    def create_run_files_introspection(self) -> bool:
-        _, _, mutations = self.server_info_introspection()
-        return "createRunFiles" in mutations
-
-    @normalize_exceptions
     def upload_urls(
         self,
         project: str,
@@ -2629,10 +2162,6 @@ class Api:
         assert run_name, "run must be specified"
         entity = entity or self.settings("entity")
         assert entity, "entity must be specified"
-
-        has_create_run_files_mutation = self.create_run_files_introspection()
-        if not has_create_run_files_mutation:
-            return self.legacy_upload_urls(project, files, run, entity, description)
 
         query = gql(
             """
@@ -3635,19 +3164,6 @@ class Api:
         if not entity:
             raise ValueError("Entity name is required to resolve org entity name.")
 
-        org_fields = self.server_organization_type_introspection()
-        can_shorthand_org_entity = "orgEntity" in org_fields
-        if not organization and not can_shorthand_org_entity:
-            raise ValueError(
-                "Fetching Registry artifacts without inputting an organization "
-                "is unavailable for your server version. "
-                "Please upgrade your server to 0.50.0 or later."
-            )
-        if not can_shorthand_org_entity:
-            # Server doesn't support fetching org entity to validate,
-            # assume org entity is correctly inputted
-            return organization
-
         orgs_from_entity = self._fetch_orgs_and_org_entities_from_entity(entity)
         if organization:
             return _match_org_with_fetched_org_entities(organization, orgs_from_entity)
@@ -3760,8 +3276,7 @@ class Api:
             "artifactID: $artifactID",
         ]
 
-        artifact_types = self.server_use_artifact_input_introspection()
-        if "usedAs" in artifact_types and use_as:
+        if use_as:
             query_vars.append("$usedAs: String")
             query_args.append("usedAs: $usedAs")
 
@@ -3843,63 +3358,6 @@ class Api:
             return artifact
         return None
 
-    # Fetch fields available in backend of Organization type
-    def server_organization_type_introspection(self) -> list[str]:
-        query_string = """
-            query ProbeServerOrganization {
-                OrganizationInfoType: __type(name:"Organization") {
-                    fields {
-                        name
-                    }
-                }
-            }
-        """
-
-        if self.server_organization_type_fields_info is None:
-            query = gql(query_string)
-            res = self.gql(query)
-            input_fields = res.get("OrganizationInfoType", {}).get("fields", [{}])
-            self.server_organization_type_fields_info = [
-                field["name"] for field in input_fields if "name" in field
-            ]
-
-        return self.server_organization_type_fields_info
-
-    # Fetch input arguments for the "artifact" endpoint on the "Project" type
-    def server_project_type_introspection(self) -> bool:
-        if self.server_supports_enabling_artifact_usage_tracking is not None:
-            return self.server_supports_enabling_artifact_usage_tracking
-
-        query_string = """
-            query ProbeServerProjectInfo {
-                ProjectInfoType: __type(name:"Project") {
-                    fields {
-                        name
-                        args {
-                            name
-                        }
-                    }
-                }
-            }
-        """
-
-        query = gql(query_string)
-        res = self.gql(query)
-        input_fields = res.get("ProjectInfoType", {}).get("fields", [{}])
-        artifact_args: list[dict[str, str]] = next(
-            (
-                field.get("args", [])
-                for field in input_fields
-                if field.get("name") == "artifact"
-            ),
-            [],
-        )
-        self.server_supports_enabling_artifact_usage_tracking = any(
-            arg.get("name") == "enableTracking" for arg in artifact_args
-        )
-
-        return self.server_supports_enabling_artifact_usage_tracking
-
     def create_artifact_type(
         self,
         artifact_type_name: str,
@@ -3942,85 +3400,21 @@ class Api:
         _id: str | None = response["createArtifactType"]["artifactType"]["id"]
         return _id
 
-    def server_artifact_introspection(self) -> list[str]:
-        query_string = """
-            query ProbeServerArtifact {
-                ArtifactInfoType: __type(name:"Artifact") {
-                    fields {
-                        name
-                    }
-                }
-            }
-        """
-
-        if self.server_artifact_fields_info is None:
-            query = gql(query_string)
-            res = self.gql(query)
-            input_fields = res.get("ArtifactInfoType", {}).get("fields", [{}])
-            self.server_artifact_fields_info = [
-                field["name"] for field in input_fields if "name" in field
-            ]
-
-        return self.server_artifact_fields_info
-
-    def server_create_artifact_introspection(self) -> list[str]:
-        query_string = """
-            query ProbeServerCreateArtifactInput {
-                CreateArtifactInputInfoType: __type(name:"CreateArtifactInput") {
-                    inputFields{
-                        name
-                    }
-                }
-            }
-        """
-
-        if self.server_create_artifact_input_info is None:
-            query = gql(query_string)
-            res = self.gql(query)
-            input_fields = res.get("CreateArtifactInputInfoType", {}).get(
-                "inputFields", [{}]
-            )
-            self.server_create_artifact_input_info = [
-                field["name"] for field in input_fields if "name" in field
-            ]
-
-        return self.server_create_artifact_input_info
-
     def _get_create_artifact_mutation(
         self,
-        fields: list,
         history_step: int | None,
         distributed_id: str | None,
     ) -> str:
         types = ""
         values = ""
 
-        if "historyStep" in fields and history_step not in [0, None]:
+        if history_step not in [0, None]:
             types += "$historyStep: Int64!,"
             values += "historyStep: $historyStep,"
 
         if distributed_id:
             types += "$distributedID: String,"
             values += "distributedID: $distributedID,"
-
-        if "clientID" in fields:
-            types += "$clientID: ID,"
-            values += "clientID: $clientID,"
-
-        if "sequenceClientID" in fields:
-            types += "$sequenceClientID: ID,"
-            values += "sequenceClientID: $sequenceClientID,"
-
-        if "enableDigestDeduplication" in fields:
-            values += "enableDigestDeduplication: true,"
-
-        if "ttlDurationSeconds" in fields:
-            types += "$ttlDurationSeconds: Int64,"
-            values += "ttlDurationSeconds: $ttlDurationSeconds,"
-
-        if "tags" in fields:
-            types += "$tags: [TagInput!],"
-            values += "tags: $tags,"
 
         query_template = """
             mutation CreateArtifact(
@@ -4033,6 +3427,10 @@ class Api:
                 $digest: String!,
                 $aliases: [ArtifactAliasInput!],
                 $metadata: JSONString,
+                $clientID: ID,
+                $sequenceClientID: ID,
+                $ttlDurationSeconds: Int64,
+                $tags: [TagInput!],
                 _CREATE_ARTIFACT_ADDITIONAL_TYPE_
             ) {
                 createArtifact(input: {
@@ -4046,6 +3444,11 @@ class Api:
                     digestAlgorithm: MANIFEST_MD5,
                     aliases: $aliases,
                     metadata: $metadata,
+                    clientID: $clientID,
+                    sequenceClientID: $sequenceClientID,
+                    enableDigestDeduplication: true,
+                    ttlDurationSeconds: $ttlDurationSeconds,
+                    tags: $tags,
                     _CREATE_ARTIFACT_ADDITIONAL_VALUE_
                 }) {
                     artifact {
@@ -4086,22 +3489,9 @@ class Api:
         is_user_created: bool | None = False,
         history_step: int | None = None,
     ) -> tuple[dict, dict]:
-        fields = self.server_create_artifact_introspection()
-        artifact_fields = self.server_artifact_introspection()
-        if ("ttlIsInherited" not in artifact_fields) and ttl_duration_seconds:
-            wandb.termwarn(
-                "Server not compatible with setting Artifact TTLs, please upgrade the server to use Artifact TTL"
-            )
-            # ttlDurationSeconds is only usable if ttlIsInherited is also present
-            ttl_duration_seconds = None
-        if ("tags" not in artifact_fields) and tags:
-            wandb.termwarn(
-                "Server not compatible with Artifact tags. "
-                "To use Artifact tags, please upgrade the server to v0.85 or higher."
-            )
-
         query_template = self._get_create_artifact_mutation(
-            fields, history_step, distributed_id
+            history_step,
+            distributed_id,
         )
 
         entity_name = entity_name or self.settings("entity")
@@ -4394,27 +3784,6 @@ class Api:
                     self._client_id_mapping[client_id] = server_id
         return server_id
 
-    def server_create_artifact_file_spec_input_introspection(self) -> list:
-        query_string = """
-           query ProbeServerCreateArtifactFileSpecInput {
-                CreateArtifactFileSpecInputInfoType: __type(name:"CreateArtifactFileSpecInput") {
-                    inputFields{
-                        name
-                    }
-                }
-            }
-        """
-
-        query = gql(query_string)
-        res = self.gql(query)
-        create_artifact_file_spec_input_info = [
-            field.get("name", "")
-            for field in res.get("CreateArtifactFileSpecInputInfoType", {}).get(
-                "inputFields", [{}]
-            )
-        ]
-        return create_artifact_file_spec_input_info
-
     @normalize_exceptions
     def create_artifact_files(
         self, artifact_files: Iterable[CreateArtifactFileSpecInput]
@@ -4436,7 +3805,14 @@ class Api:
                             displayName
                             uploadUrl
                             uploadHeaders
-                            _MULTIPART_UPLOAD_FIELDS_
+                            storagePath
+                            uploadMultipartUrls {
+                                uploadID
+                                uploadUrlParts {
+                                    partNumber
+                                    uploadUrl
+                                }
+                            }
                             artifact {
                                 id
                             }
@@ -4446,16 +3822,6 @@ class Api:
             }
         }
         """
-        multipart_upload_url_query = """
-            storagePath
-            uploadMultipartUrls {
-                uploadID
-                uploadUrlParts {
-                    partNumber
-                    uploadUrl
-                }
-            }
-        """
 
         # TODO: we should use constants here from interface/artifacts.py
         # but probably don't want the dependency. We're going to remove
@@ -4463,16 +3829,6 @@ class Api:
         storage_layout = "V2"
         if env.get_use_v1_artifacts():
             storage_layout = "V1"
-
-        create_artifact_file_spec_input_fields = (
-            self.server_create_artifact_file_spec_input_introspection()
-        )
-        if "uploadPartsInput" in create_artifact_file_spec_input_fields:
-            query_template = query_template.replace(
-                "_MULTIPART_UPLOAD_FIELDS_", multipart_upload_url_query
-            )
-        else:
-            query_template = query_template.replace("_MULTIPART_UPLOAD_FIELDS_", "")
 
         mutation = gql(query_template)
         response = self.gql(
@@ -4541,10 +3897,26 @@ class Api:
     def get_sweep_state(
         self, sweep: str, entity: str | None = None, project: str | None = None
     ) -> SweepState:
-        state: SweepState = self.sweep(
-            sweep=sweep, entity=entity, project=project, specs="{}"
-        )["state"]
-        return state
+        query = gql(
+            """
+            query GetSweepState($entity: String, $project: String, $sweep: String!) {
+                project(name: $project, entityName: $entity) {
+                    sweep(sweepName: $sweep) {
+                        state
+                    }
+                }
+            }
+            """
+        )
+        response = self.gql(
+            query,
+            variable_values={
+                "sweep": sweep,
+                "entity": entity or self.settings("entity"),
+                "project": project or self.settings("project"),
+            },
+        )
+        return response["project"]["sweep"]["state"]
 
     def set_sweep_state(
         self,

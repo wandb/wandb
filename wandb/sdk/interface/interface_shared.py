@@ -304,14 +304,14 @@ class InterfaceShared(InterfaceBase, abc.ABC):
             raise Exception("Invalid record")
         return record
 
-    def _publish_defer(self, state: pb.DeferRequest.DeferState.V) -> None:
+    def _publish_defer(self, state: pb.DeferRequest.DeferState) -> None:
         defer = pb.DeferRequest(state=state)
         rec = self._make_request(defer=defer)
         rec.control.local = True
         self._publish(rec)
 
     def publish_defer(self, state: int = 0) -> None:
-        self._publish_defer(cast("pb.DeferRequest.DeferState.V", state))
+        self._publish_defer(cast("pb.DeferRequest.DeferState", state))
 
     def _publish_header(self, header: pb.HeaderRecord) -> None:
         rec = self._make_record(header=header)

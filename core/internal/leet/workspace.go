@@ -2,7 +2,6 @@ package leet
 
 import (
 	"fmt"
-	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -10,6 +9,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"charm.land/lipgloss/v2/compat"
 
 	"github.com/wandb/wandb/core/internal/observability"
 )
@@ -25,6 +25,9 @@ const (
 // Implements tea.Model.
 type Workspace struct {
 	wandbDir string
+
+	// focusMgr is the single source of truth for UI focus state.
+	focusMgr *FocusManager
 
 	// Configuration and key bindings.
 	config *ConfigManager
@@ -61,8 +64,10 @@ type Workspace struct {
 	runsFilterIndex map[string]WorkspaceRunFilterData
 
 	// Multi‑run metrics state.
-	focus       *Focus
-	metricsGrid *MetricsGrid
+	metricsGridAnimState *AnimatedValue
+	focus                *Focus
+	metricsGrid          *MetricsGrid
+	runColors            *workspaceRunColors
 
 	// System metrics
 	systemMetrics       map[string]*SystemMetricsGrid
@@ -74,8 +79,14 @@ type Workspace struct {
 	consoleLogs     map[string]*RunConsoleLogs
 	consoleLogsPane *ConsoleLogsPane
 
+	// Run media keyed by run path.
+	media              map[string]*MediaStore
+	mediaPane          *MediaPane
+	mediaPaneStates    map[string]*MediaPaneViewState
+	currentMediaRunKey string
+
 	// Per‑run streaming state keyed by runDirName.
-	runsByKey map[string]*workspaceRun
+	runsByKey map[string]*WorkspaceRun
 
 	// Heartbeat for live runs.
 	liveChan     chan tea.Msg
@@ -86,11 +97,11 @@ type Workspace struct {
 	width, height int
 }
 
-// workspaceRun holds per‑run state for the workspace multi‑run view.
-type workspaceRun struct {
-	key       string
+// WorkspaceRun holds per‑run state for the workspace multi‑run view.
+type WorkspaceRun struct {
+	Key       string
+	Reader    HistorySource
 	wandbPath string
-	reader    HistorySource
 	watcher   *WatcherManager
 	state     RunState
 }
@@ -114,6 +125,9 @@ func NewWorkspace(
 	runs.SetItemsPerPage(1)
 
 	focus := NewFocus()
+	metricsGrid := NewMetricsGrid(cfg, cfg.WorkspaceMetricsGrid, focus, logger)
+	runColors := newWorkspaceRunColors(GraphColors(cfg.ColorScheme()))
+	metricsGrid.SetSeriesColorProvider(runColors.Assign)
 
 	smf := NewFilter()
 
@@ -124,37 +138,49 @@ func NewWorkspace(
 
 	runOverviewAnimState := NewAnimatedValue(
 		cfg.WorkspaceOverviewVisible(), SidebarMinWidth)
+	metricsGridAnimState := NewAnimatedValue(cfg.WorkspaceMetricsGridVisible(), 1)
+
 	systemMetricsPaneAnimState := NewAnimatedValue(
 		cfg.WorkspaceSystemMetricsVisible(), systemMetricsPaneMinHeight)
+	mediaPaneAnimState := NewAnimatedValue(
+		cfg.WorkspaceMediaVisible(), mediaPaneMinHeight)
 	consoleLogsPaneAnimState := NewAnimatedValue(
 		cfg.WorkspaceConsoleLogsVisible(), ConsoleLogsPaneMinHeight)
 
-	return &Workspace{
-		runsAnimState: NewAnimatedValue(true, SidebarMinWidth),
-		wandbDir:      wandbDir,
-		config:        cfg,
-		keyMap:        buildKeyMap(WorkspaceKeyBindings()),
-		logger:        logger,
-		runs:          runs,
-		runOverview:   make(map[string]*RunOverview),
+	w := &Workspace{
+		runsAnimState:        NewAnimatedValue(true, SidebarMinWidth),
+		metricsGridAnimState: metricsGridAnimState,
+		wandbDir:             wandbDir,
+		config:               cfg,
+		keyMap:               buildKeyMap(WorkspaceKeyBindings()),
+		logger:               logger,
+		runs:                 runs,
+		runOverview:          make(map[string]*RunOverview),
 		runOverviewSidebar: NewRunOverviewSidebar(
 			cfg, runOverviewAnimState, NewRunOverview(), SidebarSideRight),
 		overviewPreloader:   newRunOverviewPreloader(maxConcurrentPreloads),
 		selectedRuns:        make(map[string]bool),
 		focus:               focus,
-		metricsGrid:         NewMetricsGrid(cfg, cfg.WorkspaceMetricsGrid, focus, logger),
+		metricsGrid:         metricsGrid,
+		runColors:           runColors,
 		systemMetrics:       make(map[string]*SystemMetricsGrid),
 		systemMetricsPane:   NewSystemMetricsPane(systemMetricsPaneAnimState),
 		systemMetricsFocus:  focus,
 		systemMetricsFilter: smf,
 		consoleLogs:         make(map[string]*RunConsoleLogs),
 		consoleLogsPane:     NewConsoleLogsPane(consoleLogsPaneAnimState),
-		runsByKey:           make(map[string]*workspaceRun),
+		media:               make(map[string]*MediaStore),
+		mediaPane:           NewMediaPane(mediaPaneAnimState, cfg.WorkspaceMediaGrid),
+		runsByKey:           make(map[string]*WorkspaceRun),
 		liveChan:            ch,
 		heartbeatMgr:        NewHeartbeatManager(hbInterval, ch, logger),
 		filter:              NewFilter(),
 		runsFilterIndex:     make(map[string]WorkspaceRunFilterData),
 	}
+	w.focusMgr = w.buildWorkspaceFocusManager()
+	// The runs list starts focused by default.
+	w.focusMgr.SetTarget(FocusTargetRunsList, 1)
+	return w
 }
 
 // SetSize updates the workspace dimensions and recomputes pagination capacity.
@@ -163,7 +189,7 @@ func (w *Workspace) SetSize(width, height int) {
 
 	// The runs list lives in the main content area (above the status bar).
 	contentHeight := max(height-StatusBarHeight, 0)
-	available := max(contentHeight-workspaceTopMarginLines-workspaceHeaderLines, 1)
+	available := max(contentHeight-workspaceHeaderLines-SidebarBottomPadding, 1)
 
 	w.runs.SetItemsPerPage(available)
 }
@@ -203,6 +229,12 @@ func (w *Workspace) Update(msg tea.Msg) tea.Cmd {
 	case WorkspaceConsoleLogsPaneAnimationMsg:
 		return w.handleConsoleLogsPaneAnimation()
 
+	case WorkspaceMediaPaneAnimationMsg:
+		return w.handleMediaPaneAnimation()
+
+	case WorkspaceMetricsGridAnimationMsg:
+		return w.handleMetricsGridAnimation()
+
 	case WorkspaceSystemMetricsPaneAnimationMsg:
 		return w.handleSystemMetricsPaneAnimation(time.Now())
 
@@ -236,48 +268,49 @@ func (w *Workspace) Update(msg tea.Msg) tea.Cmd {
 
 // View renders the runs section: header + paginated list with zebra rows.
 func (w *Workspace) View() tea.View {
-	var cols []string
+	layout := w.computeViewports()
+	runLabel, systemGrid, systemHint, mediaHint, logsHint := w.syncCurrentRunContext()
 
+	var cols []string
 	if w.runsAnimState.IsVisible() {
 		cols = append(cols, w.renderRunsList())
 	}
 
-	centralColumn := w.renderMetrics()
+	contentWidth := layout.mainContentAreaWidth
+	centralColumn := ""
+	if w.mediaPane.IsFullscreen() {
+		centralColumn = w.mediaPane.View(
+			contentWidth, layout.totalContentAreaHeight, runLabel, mediaHint)
+	} else {
+		var sections []string
 
-	contentWidth := max(w.width-w.runsAnimState.Value()-w.runOverviewSidebar.Width(), 0)
-	var runLabel string
-	var hint string
-
-	if w.systemMetricsPane.IsVisible() {
-		var grid *SystemMetricsGrid
-
-		if cur, ok := w.runs.CurrentItem(); ok {
-			runLabel = cur.Key
-			grid = w.systemMetrics[cur.Key]
-			if _, selected := w.selectedRuns[cur.Key]; !selected {
-				hint = "Select this run (Space) to load system metrics."
-			}
+		if w.metricsGridAnimState.IsVisible() {
+			sections = append(sections, w.renderMetrics(layout))
 		}
 
-		smView := w.systemMetricsPane.View(contentWidth, runLabel, grid, hint)
-		centralColumn = lipgloss.JoinVertical(lipgloss.Left, centralColumn, smView)
-	}
-
-	if w.consoleLogsPane.IsVisible() {
-		if cur, ok := w.runs.CurrentItem(); ok {
-			runLabel = cur.Key
-			if cl := w.consoleLogs[cur.Key]; cl != nil {
-				w.consoleLogsPane.SetConsoleLogs(cl.Items())
-			} else {
-				w.consoleLogsPane.SetConsoleLogs(nil)
-			}
-			if _, selected := w.selectedRuns[cur.Key]; !selected {
-				hint = "Select this run (Space) to load console logs."
-			}
+		if layout.systemMetricsHeight > 0 {
+			sections = append(sections,
+				w.systemMetricsPane.View(contentWidth, runLabel, systemGrid, systemHint))
 		}
-		bbView := w.consoleLogsPane.View(contentWidth, runLabel, hint)
-		centralColumn = lipgloss.JoinVertical(lipgloss.Left, centralColumn, bbView)
+
+		if layout.mediaHeight > 0 {
+			sections = append(sections,
+				w.mediaPane.View(contentWidth, layout.mediaHeight, runLabel, mediaHint))
+		}
+
+		if layout.consoleLogsHeight > 0 {
+			sections = append(sections,
+				w.consoleLogsPane.View(contentWidth, runLabel, logsHint))
+		}
+
+		sections = filterNonEmptySections(sections)
+		if len(sections) == 0 {
+			centralColumn = renderLogoArt(contentWidth, layout.totalContentAreaHeight)
+		} else {
+			centralColumn = joinWithSeparators(sections, contentWidth)
+		}
 	}
+	centralColumn = placeMainColumn(contentWidth, layout.totalContentAreaHeight, centralColumn)
 	cols = append(cols, centralColumn)
 
 	if w.runOverviewSidebar.IsVisible() {
@@ -328,6 +361,103 @@ func (w *Workspace) SelectedRunWandbFile() string {
 	return runWandbFile(w.wandbDir, w.runs.FilteredItems[idx].Key)
 }
 
+// SelectedRunKey returns the run key (directory name) of the currently selected run.
+func (w *Workspace) SelectedRunKey() string {
+	total := len(w.runs.FilteredItems)
+	if total == 0 {
+		return ""
+	}
+	startIdx := w.runs.CurrentPage() * w.runs.ItemsPerPage()
+	idx := startIdx + w.runs.CurrentLine()
+	if idx < 0 || idx >= total {
+		return ""
+	}
+	return w.runs.FilteredItems[idx].Key
+}
+
+// MediaStoreForRun returns the workspace's MediaStore for a given run key.
+func (w *Workspace) MediaStoreForRun(runKey string) *MediaStore {
+	return w.media[runKey]
+}
+
+// SaveMediaPaneState stores the media pane's view state for a run.
+func (w *Workspace) SaveMediaPaneState(runKey string, state MediaPaneViewState) {
+	if w.mediaPaneStates == nil {
+		w.mediaPaneStates = make(map[string]*MediaPaneViewState)
+	}
+	w.mediaPaneStates[runKey] = &state
+}
+
+// LoadMediaPaneState returns saved media pane view state for a run.
+func (w *Workspace) LoadMediaPaneState(runKey string) *MediaPaneViewState {
+	if w.mediaPaneStates == nil {
+		return nil
+	}
+	return w.mediaPaneStates[runKey]
+}
+
+func (w *Workspace) syncCurrentRunContext() (
+	runLabel string,
+	systemGrid *SystemMetricsGrid,
+	systemHint string,
+	mediaHint string,
+	logsHint string,
+) {
+	cur, ok := w.runs.CurrentItem()
+	currentRunKey := ""
+	if ok {
+		currentRunKey = cur.Key
+		runLabel = cur.Key
+		systemGrid = w.systemMetrics[cur.Key]
+	}
+
+	currentStore := w.media[currentRunKey]
+	if currentRunKey != w.currentMediaRunKey {
+		if w.currentMediaRunKey != "" {
+			w.SaveMediaPaneState(w.currentMediaRunKey, w.mediaPane.SaveViewState())
+		}
+
+		w.currentMediaRunKey = currentRunKey
+		w.mediaPane.SetStore(currentStore)
+		if currentStore != nil {
+			if state := w.LoadMediaPaneState(currentRunKey); state != nil {
+				w.mediaPane.RestoreViewState(*state)
+			} else {
+				w.mediaPane.ResetViewState()
+			}
+		} else {
+			w.mediaPane.ResetViewState()
+		}
+	} else {
+		previousStore := w.mediaPane.store
+		w.mediaPane.SetStore(currentStore)
+		if previousStore == nil && currentStore != nil {
+			if state := w.LoadMediaPaneState(currentRunKey); state != nil {
+				w.mediaPane.RestoreViewState(*state)
+			}
+		}
+	}
+
+	if currentRunKey == "" {
+		w.consoleLogsPane.SetConsoleLogs(nil)
+		return runLabel, systemGrid, systemHint, mediaHint, logsHint
+	}
+
+	if cl := w.consoleLogs[currentRunKey]; cl != nil {
+		w.consoleLogsPane.SetConsoleLogs(cl.Items())
+	} else {
+		w.consoleLogsPane.SetConsoleLogs(nil)
+	}
+
+	if _, selected := w.selectedRuns[currentRunKey]; !selected {
+		systemHint = "Select this run (Space) to load system metrics."
+		mediaHint = "Select this run (Space) to load media."
+		logsHint = "Select this run (Space) to load console logs."
+	}
+
+	return runLabel, systemGrid, systemHint, mediaHint, logsHint
+}
+
 // ---- Layout & Sidebar Helpers ----
 
 // recalculateLayout recomputes viewports and pushes dimensions to the metrics
@@ -339,106 +469,300 @@ func (w *Workspace) recalculateLayout() {
 }
 
 // computeViewports returns the computed layout dimensions.
+//
+// Separator lines between visible sections are subtracted from available height
+// to prevent the status bar from being pushed off screen.
 func (w *Workspace) computeViewports() Layout {
 	leftW, rightW := w.runsAnimState.Value(), w.runOverviewSidebar.Width()
-
 	contentW := max(w.width-leftW-rightW, 1)
-	reserved := w.consoleLogsPane.Height() + w.systemMetricsPane.Height()
-	contentH := max(w.height-StatusBarHeight-reserved, 1)
+	totalH := max(w.height-StatusBarHeight, 0)
 
-	return Layout{leftW, contentW, rightW, contentH}
+	stack := computeVerticalStackLayout(
+		totalH,
+		stackSectionSpec{
+			ID:      stackSectionMetrics,
+			Visible: w.metricsGridAnimState.IsVisible(),
+			Flex:    true},
+		stackSectionSpec{
+			ID:      stackSectionSystemMetrics,
+			Visible: w.systemMetricsPane.IsVisible(),
+			Height:  w.systemMetricsPane.Height()},
+		stackSectionSpec{
+			ID:      stackSectionMedia,
+			Visible: w.mediaPane.IsVisible(),
+			Height:  w.mediaPane.Height()},
+		stackSectionSpec{
+			ID:      stackSectionConsoleLogs,
+			Visible: w.consoleLogsPane.IsVisible(),
+			Height:  w.consoleLogsPane.Height()},
+	)
+
+	return Layout{
+		leftSidebarWidth:       leftW,
+		mainContentAreaWidth:   contentW,
+		rightSidebarWidth:      rightW,
+		totalContentAreaHeight: totalH,
+		height:                 stack.Height(stackSectionMetrics),
+		systemMetricsY:         stack.Y(stackSectionSystemMetrics),
+		systemMetricsHeight:    stack.Height(stackSectionSystemMetrics),
+		mediaY:                 stack.Y(stackSectionMedia),
+		mediaHeight:            stack.Height(stackSectionMedia),
+		consoleLogsY:           stack.Y(stackSectionConsoleLogs),
+		consoleLogsHeight:      stack.Height(stackSectionConsoleLogs),
+	}
 }
 
 // updateSidebarDimensions tells both sidebars to recalculate their expanded
 // widths given the post-toggle visibility of each side.
 func (w *Workspace) updateSidebarDimensions(leftVisible, rightVisible bool) {
-	var leftWidth int
-	if rightVisible {
-		leftWidth = int(float64(w.width) * SidebarWidthRatioBoth)
-	} else {
-		leftWidth = int(float64(w.width) * SidebarWidthRatio)
-	}
-	w.runsAnimState.SetExpanded(clamp(leftWidth, SidebarMinWidth, SidebarMaxWidth))
+	w.runsAnimState.SetExpanded(expandedSidebarWidth(w.width, rightVisible))
 	w.runOverviewSidebar.UpdateDimensions(w.width, leftVisible)
 }
 
-func (w *Workspace) updateMiddlePaneHeights(sysVisible, logsVisible bool) {
-	maxH := max(w.height-StatusBarHeight, 0)
+func (w *Workspace) updateBottomPaneHeights(sysVisible, mediaVisible, logsVisible bool) {
+	metricsVisible := w.metricsGridAnimState.TargetVisible()
 
-	if sysVisible && logsVisible {
-		each := int(float64(maxH) * SidebarWidthRatioBoth) // 0.236
-		w.systemMetricsPane.SetExpandedHeight(each)
-		w.consoleLogsPane.SetExpandedHeight(each)
+	// Compute separator count from the visibility state we're configuring toward.
+	sectionCount := 0
+	if metricsVisible {
+		sectionCount++
+	}
+	if sysVisible {
+		sectionCount++
+	}
+	if mediaVisible {
+		sectionCount++
+	}
+	if logsVisible {
+		sectionCount++
+	}
+	sepLines := max(sectionCount-1, 0)
+
+	maxH := max(w.height-StatusBarHeight-sepLines, 0)
+	lowerCount := 0
+	if sysVisible {
+		lowerCount++
+	}
+	if mediaVisible {
+		lowerCount++
+	}
+	if logsVisible {
+		lowerCount++
+	}
+	if lowerCount == 0 {
 		return
 	}
 
-	h := int(float64(maxH) * ConsoleLogsPaneHeightRatio) // 0.382
+	var lowerTierH int
+	if metricsVisible {
+		lowerTierH = int(float64(maxH) * LowerTierRatio)
+	} else {
+		lowerTierH = maxH
+	}
+
+	each := lowerTierH / lowerCount
 	if sysVisible {
-		w.systemMetricsPane.SetExpandedHeight(h)
+		w.systemMetricsPane.SetExpandedHeight(each)
+	}
+	if mediaVisible {
+		w.mediaPane.SetExpandedHeight(each)
 	}
 	if logsVisible {
-		w.consoleLogsPane.SetExpandedHeight(h)
+		w.consoleLogsPane.SetExpandedHeight(each)
 	}
 }
 
-// resolveFocusAfterVisibilityChange ensures focus stays on a valid region
-// after a panel visibility change.
-//
-// If the currently focused region will remain available, focus is left
-// unchanged. Otherwise it advances to the next available region.
-func (w *Workspace) resolveFocusAfterVisibilityChange(
-	leftVisible, rightVisible, bottomVisible bool,
-) {
-	cur := w.currentFocusRegion()
+// ---- FocusManager wiring ----
 
+func (w *Workspace) buildWorkspaceFocusManager() *FocusManager {
+	return NewFocusManager([]FocusRegionDef{
+		{
+			Target:          FocusTargetRunsList,
+			Available:       w.runsFocusAvailable,
+			AvailableTarget: w.runsFocusTargetAvailable,
+			Activate:        w.activateRunsFocus,
+			Deactivate:      w.deactivateRunsFocus,
+		},
+		{
+			Target:          FocusTargetMetricsGrid,
+			Available:       w.metricsGridFocusAvailable,
+			AvailableTarget: w.metricsGridFocusTargetAvailable,
+			Activate:        w.activateMetricsGridFocus,
+			Deactivate:      w.deactivateMetricsGridFocus,
+		},
+		{
+			Target:          FocusTargetSystemMetrics,
+			Available:       w.sysMetricsFocusAvailable,
+			AvailableTarget: w.sysMetricsFocusTargetAvailable,
+			Activate:        w.activateSysMetricsFocus,
+			Deactivate:      w.deactivateSysMetricsFocus,
+		},
+		{
+			Target:          FocusTargetMedia,
+			Available:       w.mediaFocusAvailable,
+			AvailableTarget: w.mediaFocusTargetAvailable,
+			Activate:        w.activateMediaFocus,
+			Deactivate:      w.deactivateMediaFocus,
+		},
+		{
+			Target:          FocusTargetConsoleLogs,
+			Available:       w.logsFocusAvailable,
+			AvailableTarget: w.logsFocusTargetAvailable,
+			Activate:        w.activateLogsFocus,
+			Deactivate:      w.deactivateLogsFocus,
+		},
+		{
+			Target:          FocusTargetOverview,
+			Available:       w.overviewFocusAvailable,
+			AvailableTarget: w.overviewFocusTargetAvailable,
+			Activate:        w.activateOverviewFocus,
+			Deactivate:      w.deactivateOverviewFocus,
+		},
+	})
+}
+
+// ---- Focus availability ----
+
+func (w *Workspace) runsFocusAvailable() bool {
+	return w.runsAnimState.IsVisible() && len(w.runs.FilteredItems) > 0
+}
+
+func (w *Workspace) runsFocusTargetAvailable() bool {
+	return w.runsAnimState.TargetVisible() && len(w.runs.FilteredItems) > 0
+}
+
+func (w *Workspace) metricsGridFocusAvailable() bool {
+	return w.metricsGridAnimState.IsExpanded() && w.metricsGrid.ChartCount() > 0
+}
+
+func (w *Workspace) metricsGridFocusTargetAvailable() bool {
+	return w.metricsGridAnimState.TargetVisible() && w.metricsGrid.ChartCount() > 0
+}
+
+func (w *Workspace) sysMetricsFocusAvailable() bool {
+	if !w.systemMetricsPane.IsExpanded() {
+		return false
+	}
+	g := w.activeSystemMetricsGrid()
+	return g != nil && g.ChartCount() > 0
+}
+
+func (w *Workspace) sysMetricsFocusTargetAvailable() bool {
+	if !w.systemMetricsPane.animState.TargetVisible() {
+		return false
+	}
+	g := w.activeSystemMetricsGrid()
+	return g != nil && g.ChartCount() > 0
+}
+
+func (w *Workspace) mediaFocusAvailable() bool {
+	return w.mediaPane.IsExpanded() && w.mediaPane.HasData()
+}
+
+func (w *Workspace) mediaFocusTargetAvailable() bool {
+	return w.mediaPane.animState.TargetVisible() && w.mediaPane.HasData()
+}
+
+func (w *Workspace) logsFocusAvailable() bool {
+	return w.consoleLogsPane.IsExpanded()
+}
+
+func (w *Workspace) logsFocusTargetAvailable() bool {
+	return w.consoleLogsPane.animState.TargetVisible()
+}
+
+func (w *Workspace) overviewFocusAvailable() bool {
 	firstSec, _ := w.runOverviewSidebar.focusableSectionBounds()
+	return w.runOverviewSidebar.animState.IsExpanded() && firstSec != -1
+}
 
-	runsAvail := leftVisible
-	logsAvail := bottomVisible
-	overviewAvail := rightVisible && firstSec != -1
+func (w *Workspace) overviewFocusTargetAvailable() bool {
+	firstSec, _ := w.runOverviewSidebar.focusableSectionBounds()
+	return w.runOverviewSidebar.animState.TargetVisible() && firstSec != -1
+}
 
-	regionAvailable := func(r focusRegion) bool {
-		switch r {
-		case focusRuns:
-			return runsAvail
-		case focusLogs:
-			return logsAvail
-		case focusOverview:
-			return overviewAvail
-		default:
-			return false
+// ---- Focus activate ----
+
+func (w *Workspace) activateRunsFocus(_ int) { w.runs.Active = true }
+func (w *Workspace) activateMetricsGridFocus(_ int) {
+	w.focus.Type = FocusMainChart
+	if w.focus.Row < 0 {
+		w.focus.Row = 0
+		w.focus.Col = 0
+	}
+	w.metricsGrid.NavigateFocus(0, 0)
+}
+func (w *Workspace) activateSysMetricsFocus(_ int) {
+	if w.systemMetricsFocus != nil {
+		w.systemMetricsFocus.Type = FocusSystemChart
+		if w.systemMetricsFocus.Row < 0 {
+			w.systemMetricsFocus.Row = 0
+			w.systemMetricsFocus.Col = 0
 		}
 	}
+	if g := w.activeSystemMetricsGrid(); g != nil {
+		g.NavigateFocus(0, 0)
+	}
+}
+func (w *Workspace) activateMediaFocus(_ int) { w.mediaPane.SetActive(true) }
+func (w *Workspace) activateLogsFocus(_ int)  { w.consoleLogsPane.SetActive(true) }
+func (w *Workspace) activateOverviewFocus(direction int) {
+	firstSec, lastSec := w.runOverviewSidebar.focusableSectionBounds()
+	if direction >= 0 {
+		w.runOverviewSidebar.setActiveSection(firstSec)
+	} else {
+		w.runOverviewSidebar.setActiveSection(lastSec)
+	}
+}
 
-	if regionAvailable(cur) {
-		return
+// ---- Focus deactivate ----
+
+func (w *Workspace) deactivateRunsFocus() { w.runs.Active = false }
+func (w *Workspace) deactivateMetricsGridFocus() {
+	if w.focus.Type == FocusMainChart {
+		w.focus.Reset()
+	}
+}
+func (w *Workspace) deactivateSysMetricsFocus() {
+	if w.systemMetricsFocus != nil && w.systemMetricsFocus.Type == FocusSystemChart {
+		w.systemMetricsFocus.Reset()
+	}
+}
+func (w *Workspace) deactivateMediaFocus()    { w.mediaPane.SetActive(false) }
+func (w *Workspace) deactivateLogsFocus()     { w.consoleLogsPane.SetActive(false) }
+func (w *Workspace) deactivateOverviewFocus() { w.runOverviewSidebar.deactivateAllSections() }
+
+// cycleOverviewSection tries to move within overview sections.
+//
+// Returns true if the navigation was handled (i.e. we're not at a boundary).
+func (w *Workspace) cycleOverviewSection(direction int) bool {
+	firstSec, lastSec := w.runOverviewSidebar.focusableSectionBounds()
+	if !w.runOverviewSidebar.animState.IsExpanded() || firstSec == -1 {
+		return false
 	}
 
-	focusOrder := []focusRegion{focusRuns, focusLogs, focusOverview}
-	n := len(focusOrder)
-
-	curIdx := 0
-	for i, v := range focusOrder {
-		if v == cur {
-			curIdx = i
-			break
-		}
+	atBoundary := (direction == 1 && w.runOverviewSidebar.activeSection == lastSec) ||
+		(direction == -1 && w.runOverviewSidebar.activeSection == firstSec)
+	if atBoundary {
+		return false
 	}
 
-	for step := 1; step <= n; step++ {
-		nextIdx := (curIdx + step) % n
-		if regionAvailable(focusOrder[nextIdx]) {
-			w.setFocusRegion(focusOrder[nextIdx], 1)
-			return
-		}
-	}
+	w.runOverviewSidebar.navigateSection(direction)
+	return true
 }
 
 // handleWindowResize handles window resize messages.
 func (w *Workspace) handleWindowResize(width, height int) {
 	w.SetSize(width, height)
-	w.updateSidebarDimensions(w.runsAnimState.IsVisible(), w.runOverviewSidebar.IsVisible())
-	w.updateMiddlePaneHeights(w.systemMetricsPane.IsVisible(), w.consoleLogsPane.IsVisible())
+	w.updateSidebarDimensions(
+		w.runsAnimState.TargetVisible(),
+		w.runOverviewSidebar.animState.TargetVisible(),
+	)
+	w.updateBottomPaneHeights(
+		w.systemMetricsPane.animState.TargetVisible(),
+		w.mediaPane.animState.TargetVisible(),
+		w.consoleLogsPane.animState.TargetVisible(),
+	)
 	w.recalculateLayout()
 }
 
@@ -459,6 +783,18 @@ func (w *Workspace) runOverviewAnimationCmd() tea.Cmd {
 func (w *Workspace) consoleLogsPaneAnimationCmd() tea.Cmd {
 	return tea.Tick(AnimationFrame, func(time.Time) tea.Msg {
 		return WorkspaceConsoleLogsPaneAnimationMsg{}
+	})
+}
+
+func (w *Workspace) mediaPaneAnimationCmd() tea.Cmd {
+	return tea.Tick(AnimationFrame, func(time.Time) tea.Msg {
+		return WorkspaceMediaPaneAnimationMsg{}
+	})
+}
+
+func (w *Workspace) metricsGridAnimationCmd() tea.Cmd {
+	return tea.Tick(AnimationFrame, func(time.Time) tea.Msg {
+		return WorkspaceMetricsGridAnimationMsg{}
 	})
 }
 
@@ -505,12 +841,13 @@ func (w *Workspace) dropRun(runKey string) {
 			w.metricsGrid.RemoveSeries(run.wandbPath)
 		}
 		w.stopWatcher(run)
-		if run.reader != nil {
-			run.reader.Close()
+		if run.Reader != nil {
+			run.Reader.Close()
 		}
 		delete(w.runsByKey, runKey)
 		delete(w.consoleLogs, runKey)
 		delete(w.systemMetrics, runKey)
+		delete(w.media, runKey)
 	}
 
 	w.syncLiveRunState()
@@ -541,6 +878,16 @@ func (w *Workspace) getOrCreateConsoleLogs(runKey string) *RunConsoleLogs {
 	cl = NewRunConsoleLogs()
 	w.consoleLogs[runKey] = cl
 	return cl
+}
+
+func (w *Workspace) getOrCreateMediaStore(runKey string) *MediaStore {
+	store := w.media[runKey]
+	if store != nil {
+		return store
+	}
+	store = NewMediaStore()
+	w.media[runKey] = store
+	return store
 }
 
 func (w *Workspace) getOrCreateSystemMetricsGrid(runKey string) *SystemMetricsGrid {
@@ -577,8 +924,7 @@ func (w *Workspace) refreshPinnedRun() {
 // ---- Focus Query Helpers ----
 
 func (w *Workspace) runSelectorActive() bool {
-	return w.runs.Active &&
-		!w.consoleLogsPane.Active() &&
+	return w.focusMgr.IsTarget(FocusTargetRunsList) &&
 		w.runsAnimState.IsVisible() &&
 		len(w.runs.FilteredItems) > 0
 }
@@ -591,7 +937,7 @@ func (w *Workspace) RunSelectorActive() bool {
 }
 
 func (w *Workspace) runOverviewActive() bool {
-	return !w.runs.Active && !w.consoleLogsPane.Active() && w.runOverviewSidebar.IsVisible()
+	return w.focusMgr.IsTarget(FocusTargetOverview) && w.runOverviewSidebar.IsVisible()
 }
 
 // ---- Rendering ----
@@ -599,13 +945,13 @@ func (w *Workspace) runOverviewActive() bool {
 func (w *Workspace) renderRunsList() string {
 	startIdx, endIdx := w.syncRunsPage()
 
-	sidebarW := w.runsAnimState.Value()
-	sidebarH := max(w.height-StatusBarHeight, 0)
-	if sidebarW <= 2 || sidebarH <= 2 {
+	totalW := w.runsAnimState.Value()
+	totalH := max(w.height-StatusBarHeight, 0)
+	if totalW <= SidebarOverhead || totalH <= 0 {
 		return ""
 	}
-	contentWidth := max(sidebarW-leftSidebarContentPadding, 1)
 
+	contentWidth := sidebarContentWidth(totalW)
 	lines := w.renderRunLines(contentWidth)
 
 	if len(lines) == 0 {
@@ -617,19 +963,21 @@ func (w *Workspace) renderRunsList() string {
 	contentLines = append(contentLines, lines...)
 	content := strings.Join(contentLines, "\n")
 
-	// The runs sidebar border provides 1 blank line of padding at the top and bottom.
-	innerW := max(sidebarW-runsSidebarBorderCols, 0)
-	innerH := max(sidebarH-workspaceTopMarginLines, 0)
+	innerW := sidebarInnerWidth(totalW)
 
 	styledContent := leftSidebarStyle.
+		PaddingBottom(SidebarBottomPadding).
 		Width(innerW).
-		Height(innerH).
+		Height(totalH).
 		MaxWidth(innerW).
-		MaxHeight(innerH).
+		MaxHeight(totalH).
 		Render(content)
 
-	boxed := leftSidebarBorderStyle.Height(innerH + 1).MaxHeight(innerH + 1).Render(styledContent)
-	return lipgloss.Place(sidebarW, sidebarH, lipgloss.Left, lipgloss.Top, boxed)
+	boxed := leftSidebarBorderStyle.
+		Height(totalH).
+		MaxHeight(totalH).
+		Render(styledContent)
+	return lipgloss.Place(totalW, totalH, lipgloss.Left, lipgloss.Top, boxed)
 }
 
 func (w *Workspace) renderRunOverview() string {
@@ -648,45 +996,68 @@ func (w *Workspace) renderRunOverview() string {
 		w.runOverviewSidebar.deactivateAllSections()
 	}
 
-	sidebarH := max(w.height-StatusBarHeight, 0)
-	innerH := max(sidebarH-workspaceTopMarginLines, 0)
-
-	return w.runOverviewSidebar.View(innerH).Content
+	contentH := max(w.height-StatusBarHeight, 0)
+	return w.runOverviewSidebar.View(contentH).Content
 }
 
-func (w *Workspace) renderMetrics() string {
-	contentWidth := max(w.width-w.runsAnimState.Value()-w.runOverviewSidebar.Width()+1, 0)
-	reserved := w.consoleLogsPane.Height() + w.systemMetricsPane.Height()
-	contentHeight := max(w.height-StatusBarHeight-reserved, 1)
+func (w *Workspace) renderMetrics(layout Layout) string {
+	contentWidth := layout.mainContentAreaWidth
+	contentHeight := layout.height
 
 	if contentWidth <= 0 || contentHeight <= 0 {
 		return ""
 	}
 
-	// No runs selected: show the logo + spherical cow without any header.
+	// No runs selected: show empty state with hint.
 	if len(w.selectedRuns) == 0 {
-		artStyle := lipgloss.NewStyle().
-			Foreground(colorHeading).
-			Bold(true)
+		return renderMetricsEmptyState(contentWidth, contentHeight, "Select a run to view charts.")
+	}
 
-		logoContent := lipgloss.JoinVertical(
-			lipgloss.Center,
-			artStyle.Render(wandbArt),
-			artStyle.Render(leetArt),
-		)
-
-		return lipgloss.Place(
-			contentWidth,
-			contentHeight,
-			lipgloss.Center,
-			lipgloss.Center,
-			logoContent,
-		)
+	// Runs selected but no charts: show empty state.
+	if w.metricsGrid.ChartCount() == 0 {
+		return renderMetricsEmptyState(contentWidth, contentHeight, "No scalar metrics logged.")
 	}
 
 	// When we have selected runs, render the metrics grid.
 	dims := w.metricsGrid.CalculateChartDimensions(contentWidth, contentHeight)
 	return w.metricsGrid.View(dims)
+}
+
+// renderMetricsEmptyState renders a styled "Metrics" header with a hint message.
+func renderMetricsEmptyState(width, height int, hint string) string {
+	if width <= 0 || height <= 0 {
+		return ""
+	}
+	innerW := max(width-ContentPaddingCols, 0)
+	header := mediaPaneHeaderStyle.Render("Metrics")
+	hintText := mediaTilePlaceholderStyle.Render(hint)
+	content := lipgloss.JoinVertical(lipgloss.Left, header, "", hintText)
+	content = lipgloss.Place(innerW, height, lipgloss.Left, lipgloss.Top, content)
+	return lipgloss.NewStyle().Padding(0, ContentPadding).Render(content)
+}
+
+// renderLogoArt renders the wandb/leet ASCII art centered in the given area.
+func renderLogoArt(width, height int) string {
+	if width <= 0 || height <= 0 {
+		return ""
+	}
+	artStyle := lipgloss.NewStyle().
+		Foreground(colorHeading).
+		Bold(true)
+
+	logoContent := lipgloss.JoinVertical(
+		lipgloss.Center,
+		artStyle.Render(wandbArt),
+		artStyle.Render(leetArt),
+	)
+
+	return lipgloss.Place(
+		width,
+		height,
+		lipgloss.Center,
+		lipgloss.Center,
+		logoContent,
+	)
 }
 
 func (w *Workspace) renderStatusBar() string {
@@ -772,6 +1143,20 @@ func (w *Workspace) buildOverviewFilterStatus() string {
 func (w *Workspace) buildActiveStatus() string {
 	var parts []string
 
+	parts = append(parts, w.activeFilterStatus()...)
+	parts = append(parts, w.activeSelectionStatus()...)
+	parts = append(parts, w.activeFocusStatus()...)
+
+	if len(parts) == 0 {
+		return w.wandbDir
+	}
+	return w.wandbDir + " • " + strings.Join(parts, " • ")
+}
+
+// activeFilterStatus collects status fragments for all active filters.
+func (w *Workspace) activeFilterStatus() []string {
+	var parts []string
+
 	if w.filter.Query() != "" && !w.filter.IsActive() {
 		parts = append(parts, fmt.Sprintf(
 			"Runs (%s): %q [%d/%d] (f to change, ctrl+f to clear)",
@@ -812,7 +1197,13 @@ func (w *Workspace) buildActiveStatus() string {
 		))
 	}
 
-	// Show the highlighted overview key/value when the sidebar is visible.
+	return parts
+}
+
+// activeSelectionStatus collects status fragments for sidebar selection and media.
+func (w *Workspace) activeSelectionStatus() []string {
+	var parts []string
+
 	if w.runOverviewActive() {
 		key, value := w.runOverviewSidebar.SelectedItem()
 		if key != "" {
@@ -820,29 +1211,43 @@ func (w *Workspace) buildActiveStatus() string {
 		}
 	}
 
-	if w.focus.Type != FocusNone {
-		parts = append(parts, w.focus.Title)
-		switch w.focus.Type {
-		case FocusMainChart:
-			if scaleLabel := w.metricsGrid.focusedChartScaleLabel(); scaleLabel != "" {
-				parts = append(parts, scaleLabel)
+	if w.mediaPane.Active() {
+		if label := w.mediaPane.StatusLabel(); label != "" {
+			parts = append(parts, label)
+		}
+	}
+
+	return parts
+}
+
+// activeFocusStatus collects status fragments for the focused chart.
+func (w *Workspace) activeFocusStatus() []string {
+	if w.focus.Type == FocusNone {
+		return nil
+	}
+
+	parts := []string{w.focus.Title}
+
+	switch w.focus.Type {
+	case FocusMainChart:
+		if scaleLabel := w.metricsGrid.focusedChartScaleLabel(); scaleLabel != "" {
+			parts = append(parts, scaleLabel)
+		}
+	case FocusSystemChart:
+		if g := w.activeSystemMetricsGrid(); g != nil {
+			if detail := g.FocusedChartTitleDetail(); detail != "" {
+				parts = append(parts, detail)
 			}
-		case FocusSystemChart:
-			if g := w.activeSystemMetricsGrid(); g != nil {
-				if viewMode := g.FocusedChartViewModeLabel(); viewMode != "" {
-					parts = append(parts, viewMode)
-				}
-				if scaleLabel := g.FocusedChartScaleLabel(); scaleLabel != "" {
-					parts = append(parts, scaleLabel)
-				}
+			if viewMode := g.FocusedChartViewModeLabel(); viewMode != "" {
+				parts = append(parts, viewMode)
+			}
+			if scaleLabel := g.FocusedChartScaleLabel(); scaleLabel != "" {
+				parts = append(parts, scaleLabel)
 			}
 		}
 	}
 
-	if len(parts) == 0 {
-		return w.wandbDir
-	}
-	return w.wandbDir + " • " + strings.Join(parts, " • ")
+	return parts
 }
 
 // buildHelpText builds the help text for the status bar.
@@ -921,6 +1326,25 @@ func (w *Workspace) renderRunsListHeader(startIdx, endIdx int) string {
 	return title + navInfoStyle.Render(info)
 }
 
+func (w *Workspace) runPathForKey(runKey string) string {
+	if runKey == "" {
+		return ""
+	}
+	return runWandbFile(w.wandbDir, runKey)
+}
+
+func (w *Workspace) runColorForKey(runKey string) compat.AdaptiveColor {
+	runPath := w.runPathForKey(runKey)
+	if w.runColors == nil {
+		colors := GraphColors(w.config.ColorScheme())
+		if len(colors) == 0 {
+			return compat.AdaptiveColor{}
+		}
+		return colors[colorIndex(runPath, len(colors))]
+	}
+	return w.runColors.Assign(runPath)
+}
+
 // renderRunLines renders the visible slice with zebra background and selection.
 func (w *Workspace) renderRunLines(contentWidth int) []string {
 	itemsPerPage := w.runs.ItemsPerPage()
@@ -947,13 +1371,8 @@ func (w *Workspace) renderRunLines(contentWidth int) []string {
 			}
 		}
 
-		// TODO: Stable mapping for consistent colors: refactor and clean up.
 		runKey := item.Key
-		runID := extractRunID(runKey)
-		runPath := filepath.Join(w.wandbDir, runKey, "run-"+runID+".wandb")
-
-		graphColors := GraphColors(w.config.ColorScheme())
-		colorIdx := colorIndex(runPath, len(graphColors))
+		runColor := w.runColorForKey(runKey)
 
 		isSelected := w.selectedRuns[runKey]
 		isPinned := w.pinnedRun == runKey
@@ -966,8 +1385,8 @@ func (w *Workspace) renderRunLines(contentWidth int) []string {
 			mark = PinnedRunMark
 		}
 
-		// Render prefix without background
-		prefix := lipgloss.NewStyle().Foreground(graphColors[colorIdx]).Render(mark + " ")
+		// Render prefix without background.
+		prefix := lipgloss.NewStyle().Foreground(runColor).Render(mark + " ")
 		prefixWidth := lipgloss.Width(prefix)
 
 		// Apply subtle muting to unselected/unpinned runs

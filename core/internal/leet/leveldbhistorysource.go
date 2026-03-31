@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -17,6 +18,8 @@ import (
 
 // LevelDBHistorySource handles reading records from a W&B LevelDB-style transaction log (.wandb file).
 type LevelDBHistorySource struct {
+	mu sync.Mutex
+
 	runPath string
 
 	// store is a W&B LevelDB-style transaction log that may be actively written.
@@ -67,9 +70,8 @@ func (hs *LevelDBHistorySource) Read(
 	chunkSize int,
 	maxTimePerChunk time.Duration,
 ) (tea.Msg, error) {
-	if hs == nil {
-		return func() tea.Msg { return nil }, nil
-	}
+	hs.mu.Lock()
+	defer hs.mu.Unlock()
 
 	if hs.store == nil {
 		return ChunkedBatchMsg{
@@ -152,6 +154,7 @@ func (hs *LevelDBHistorySource) concatenateHistory(messages []HistoryMsg) Histor
 	h := HistoryMsg{
 		RunPath: hs.runPath,
 		Metrics: make(map[string]MetricData),
+		Media:   make(map[string][]MediaPoint),
 	}
 
 	for _, msg := range messages {
@@ -161,6 +164,16 @@ func (hs *LevelDBHistorySource) concatenateHistory(messages []HistoryMsg) Histor
 			existing.Y = append(existing.Y, data.Y...)
 			h.Metrics[metricName] = existing
 		}
+		for mediaKey, points := range msg.Media {
+			h.Media[mediaKey] = append(h.Media[mediaKey], points...)
+		}
+	}
+
+	if len(h.Metrics) == 0 {
+		h.Metrics = nil
+	}
+	if len(h.Media) == 0 {
+		h.Media = nil
 	}
 
 	return h
@@ -211,20 +224,40 @@ func (hs *LevelDBHistorySource) recordToMsg(record *spb.Record) tea.Msg {
 }
 
 func (hs *LevelDBHistorySource) Close() {
+	hs.mu.Lock()
+	defer hs.mu.Unlock()
+
 	if hs.store != nil {
 		hs.store.Close()
+		hs.store = nil
 	}
 }
 
-// ParseHistory extracts metrics from a history record.
+// ParseHistory extracts metrics and media from a history record.
 func ParseHistory(runPath string, history *spb.HistoryRecord) tea.Msg {
 	if history == nil {
 		return nil
 	}
-	var step int
+
+	step := int(history.GetStep().GetNum())
 	values := make(map[string]float64, len(history.GetItem()))
+	mediaFieldsByKey := make(map[string]map[string]string)
 
 	for _, item := range history.GetItem() {
+		if item == nil {
+			continue
+		}
+
+		if mediaKey, field, ok := historyMediaField(item); ok {
+			fields := mediaFieldsByKey[mediaKey]
+			if fields == nil {
+				fields = make(map[string]string)
+				mediaFieldsByKey[mediaKey] = fields
+			}
+			fields[field] = trimJSONString(item.ValueJson)
+			continue
+		}
+
 		key := strings.Join(item.GetNestedKey(), ".")
 		if key == "" {
 			key = item.GetKey()
@@ -233,11 +266,7 @@ func ParseHistory(runPath string, history *spb.HistoryRecord) tea.Msg {
 			continue
 		}
 
-		v := item.ValueJson
-		if n := len(v); n >= 2 && v[0] == '"' && v[n-1] == '"' {
-			v = v[1 : n-1]
-		}
-
+		v := trimJSONString(item.ValueJson)
 		if key == "_step" {
 			if s, err := strconv.Atoi(v); err == nil {
 				step = s
@@ -252,16 +281,83 @@ func ParseHistory(runPath string, history *spb.HistoryRecord) tea.Msg {
 		}
 	}
 
-	if len(values) == 0 {
+	metrics := make(map[string]MetricData, len(values))
+	if len(values) > 0 {
+		x := []float64{float64(step)}
+		for k, y := range values {
+			metrics[k] = MetricData{X: x, Y: []float64{y}}
+		}
+	}
+
+	media := make(map[string][]MediaPoint)
+	for mediaKey, fields := range mediaFieldsByKey {
+		if fields["_type"] != "image-file" {
+			continue
+		}
+		relPath := fields["path"]
+		if relPath == "" {
+			continue
+		}
+		media[mediaKey] = append(media[mediaKey], MediaPoint{
+			X:            float64(step),
+			FilePath:     resolveMediaPath(runPath, relPath),
+			RelativePath: relPath,
+			Caption:      fields["caption"],
+			Format:       fields["format"],
+			Width:        parseHistoryInt(fields["width"]),
+			Height:       parseHistoryInt(fields["height"]),
+			SHA256:       fields["sha256"],
+		})
+	}
+
+	if len(metrics) == 0 && len(media) == 0 {
 		return nil
 	}
 
-	x := []float64{float64(step)}
-	metrics := make(map[string]MetricData, len(values))
-	for k, y := range values {
-		metrics[k] = MetricData{X: x, Y: []float64{y}}
+	msg := HistoryMsg{RunPath: runPath}
+	if len(metrics) > 0 {
+		msg.Metrics = metrics
 	}
-	return HistoryMsg{RunPath: runPath, Metrics: metrics}
+	if len(media) > 0 {
+		msg.Media = media
+	}
+	return msg
+}
+
+func trimJSONString(v string) string {
+	if v == "" {
+		return ""
+	}
+	if unquoted, err := strconv.Unquote(v); err == nil {
+		return unquoted
+	}
+	return v
+}
+
+func parseHistoryInt(v string) int {
+	i, err := strconv.Atoi(v)
+	if err == nil {
+		return i
+	}
+	return 0
+}
+
+func historyMediaField(item *spb.HistoryItem) (mediaKey, field string, ok bool) {
+	parts := item.GetNestedKey()
+	if len(parts) < 2 {
+		return "", "", false
+	}
+	field = parts[len(parts)-1]
+	switch field {
+	case "_type", "path", "caption", "format", "width", "height", "sha256", "size":
+	default:
+		return "", "", false
+	}
+	mediaKey = strings.Join(parts[:len(parts)-1], ".")
+	if mediaKey == "" {
+		return "", "", false
+	}
+	return mediaKey, field, true
 }
 
 // ParseStats extracts metrics from a stats record.

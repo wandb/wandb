@@ -359,7 +359,22 @@ func (w *Workspace) applyRunKeys(runKeys []string) {
 		delete(w.runsFilterIndex, key)
 	}
 
+	if w.runColors != nil {
+		for _, item := range w.runs.Items {
+			if _, ok := present[item.Key]; ok {
+				continue
+			}
+			w.runColors.Release(w.runPathForKey(item.Key))
+		}
+	}
+
 	w.setRunItems(runKeys)
+
+	if w.runColors != nil {
+		for _, runKey := range runKeys {
+			w.runColors.Assign(w.runPathForKey(runKey))
+		}
+	}
 
 	if prevCursorKey != "" {
 		w.restoreRunCursor(prevCursorKey)

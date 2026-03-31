@@ -3,6 +3,7 @@
 package leet
 
 import (
+	"math"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -110,18 +111,110 @@ func (c *TimeSeriesLineChart) TestFormatXAxisTick(v float64, maxWidth int) strin
 	return c.formatXAxisTick(v, maxWidth)
 }
 
-// TestCurrentPage returns the current grid of charts.
-func (g *SystemMetricsGrid) TestCurrentPage() [][]*TimeSeriesLineChart {
-	return g.currentPage
+// TestSampleCount exposes the buffered sample-column count for focused tests.
+func (c *FrenchFriesChart) TestSampleCount() int {
+	return len(c.samples)
 }
 
-// TestChartAt returns the chart at (row, col) on the current page (or nil).
+// TestVisibleSeries exposes the series currently rendered as rows.
+func (c *FrenchFriesChart) TestVisibleSeries() []string {
+	layout := c.layout()
+	names := make([]string, 0, len(layout.bands))
+	for _, band := range layout.bands {
+		names = append(names, band.seriesName)
+	}
+	return names
+}
+
+// TestTitleDetail exposes the rendered title suffix for focused tests.
+func (c *FrenchFriesChart) TestTitleDetail() string {
+	return c.TitleDetail()
+}
+
+// TestColorForValue exposes the rendered cell selected for a value.
+func (c *FrenchFriesChart) TestColorForValue(value float64) string {
+	return c.colorForValue(value)
+}
+
+// TestBucketValues returns the averaged bucket value per column for a series.
+// Missing buckets are returned as NaN.
+func (c *FrenchFriesChart) TestBucketValues(seriesName string) []float64 {
+	layout := c.layout()
+	bucketed := c.bucketedSeries(layout)
+	cells := bucketed[seriesName]
+	out := make([]float64, len(cells))
+	for i, cell := range cells {
+		if cell.ok {
+			out[i] = cell.value
+		} else {
+			out[i] = math.NaN()
+		}
+	}
+	return out
+}
+
+// TestCurrentPage returns the current grid of charts.
+func (g *SystemMetricsGrid) TestCurrentPage() [][]*TimeSeriesLineChart {
+	out := make([][]*TimeSeriesLineChart, len(g.currentPage))
+	for row := range g.currentPage {
+		out[row] = make([]*TimeSeriesLineChart, len(g.currentPage[row]))
+		for col := range g.currentPage[row] {
+			if chart, ok := g.currentPage[row][col].(*TimeSeriesLineChart); ok {
+				out[row][col] = chart
+			}
+		}
+	}
+	return out
+}
+
+// TestChartAt returns the underlying line chart at (row, col) on the current page (or nil).
 func (g *SystemMetricsGrid) TestChartAt(row, col int) *TimeSeriesLineChart {
 	if row < 0 || row >= len(g.currentPage) ||
 		col < 0 || col >= len(g.currentPage[row]) {
 		return nil
 	}
-	return g.currentPage[row][col]
+	switch chart := g.currentPage[row][col].(type) {
+	case *TimeSeriesLineChart:
+		return chart
+	case *frenchFriesToggleChart:
+		return chart.line
+	default:
+		return nil
+	}
+}
+
+// TestFrenchFriesChartAt returns the French Fries chart at (row, col) on the current page (or nil).
+func (g *SystemMetricsGrid) TestFrenchFriesChartAt(row, col int) *FrenchFriesChart {
+	if row < 0 || row >= len(g.currentPage) ||
+		col < 0 || col >= len(g.currentPage[row]) {
+		return nil
+	}
+	switch chart := g.currentPage[row][col].(type) {
+	case *FrenchFriesChart:
+		return chart
+	case *frenchFriesToggleChart:
+		return chart.frenchFries
+	default:
+		return nil
+	}
+}
+
+// TestHeatmapModeAt reports whether the chart at (row, col) is in heatmap mode.
+func (g *SystemMetricsGrid) TestHeatmapModeAt(row, col int) bool {
+	if row < 0 || row >= len(g.currentPage) ||
+		col < 0 || col >= len(g.currentPage[row]) {
+		return false
+	}
+	chart := g.currentPage[row][col]
+	if chart == nil {
+		return false
+	}
+	return chart.IsHeatmapMode()
+}
+
+// TestToggleFocusedChartHeatmapMode toggles heatmap mode on the focused system chart.
+func (g *SystemMetricsGrid) TestToggleFocusedChartHeatmapMode() bool {
+	return g.toggleFocusedChartHeatmapMode()
 }
 
 // TestGridDims returns the current grid dimensions.
@@ -137,6 +230,11 @@ func (g *SystemMetricsGrid) TestSyncInspectActive() bool {
 // TestToggleFocusedChartLogY toggles log Y on the focused system chart.
 func (g *SystemMetricsGrid) TestToggleFocusedChartLogY() bool {
 	return g.toggleFocusedChartLogY()
+}
+
+// TestCycleFocusedChartMode advances the focused system chart through its modes.
+func (g *SystemMetricsGrid) TestCycleFocusedChartMode() bool {
+	return g.cycleFocusedChartMode()
 }
 
 // TestInspectionMouseX exposes the current overlay pixel X for tests.
@@ -279,6 +377,11 @@ func (r *Run) TestForceCollapseLeftSidebar() {
 	r.leftSidebar.animState.ForceCollapse()
 }
 
+// TestSetFocusTarget sets the focus manager's current target for testing.
+func (r *Run) TestSetFocusTarget(target int) {
+	r.focusMgr.SetTarget(FocusTarget(target), 1)
+}
+
 // ---- Workspace bottom bar / focus test helpers ----
 
 // TestConsoleLogsPaneActive reports whether the workspace bottom bar has focus.
@@ -297,9 +400,9 @@ func (w *Workspace) TestRunsActive() bool {
 }
 
 // TestCurrentFocusRegion returns the current focus region as an int.
-// Maps to the focusRegion enum: 0=focusRuns, 1=focusLogs, 2=focusOverview.
+// Maps to the FocusTarget enum values from focusmanager.go.
 func (w *Workspace) TestCurrentFocusRegion() int {
-	return int(w.currentFocusRegion())
+	return int(w.focusMgr.Current())
 }
 
 // TestForceExpandConsoleLogsPane instantly expands the workspace bottom bar.
@@ -378,9 +481,8 @@ func (w *Workspace) TestSeedRunOverview(runKey string) {
 	w.runOverviewSidebar.Sync()
 
 	// Trigger section height calculation so ItemsPerPage > 0.
-	sidebarH := max(w.height-StatusBarHeight, 0)
-	innerH := max(sidebarH-workspaceTopMarginLines, 0)
-	_ = w.runOverviewSidebar.View(innerH)
+	contentH := max(w.height-StatusBarHeight, 0)
+	_ = w.runOverviewSidebar.View(contentH)
 }
 
 // SystemMetricsPaneMinHeight returns the minimum pane height (for testing).

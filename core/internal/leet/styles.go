@@ -5,6 +5,7 @@ import (
 	"image/color"
 	"math"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -73,6 +74,27 @@ const (
 	// Horizontal padding for the status bar (left and right).
 	StatusBarPadding = 1
 
+	// ContentPadding is the number of blank columns on each side of every
+	// content area (sidebars, main-column panes, status bar). This is the
+	// single source of truth for horizontal content insets.
+	ContentPadding = 1
+
+	// ContentPaddingCols is the total horizontal columns consumed by
+	// ContentPadding (left + right).
+	ContentPaddingCols = 2 * ContentPadding
+
+	// SidebarBorderCols is the single terminal column occupied by a
+	// sidebar's vertical border rule (│).
+	SidebarBorderCols = 1
+
+	// SidebarOverhead is the total non-content columns inside a sidebar:
+	// one vertical border + ContentPadding on each side.
+	SidebarOverhead = SidebarBorderCols + ContentPaddingCols
+
+	// SidebarBottomPadding is the blank row at the bottom of a sidebar
+	// that separates content from the status bar.
+	SidebarBottomPadding = 1
+
 	MinChartWidth        = 20
 	MinChartHeight       = 5
 	MinMetricChartWidth  = 18
@@ -95,6 +117,10 @@ const (
 	DefaultWorkspaceMetricsGridCols = 3
 	DefaultWorkspaceSystemGridRows  = 3
 	DefaultWorkspaceSystemGridCols  = 3
+
+	// Standalone system monitor mode.
+	DefaultSymonGridRows = 3
+	DefaultSymonGridCols = 3
 )
 
 // Sidebar constants.
@@ -105,25 +131,11 @@ const (
 	SidebarMinWidth       = 40
 	SidebarMaxWidth       = 120
 
-	// Sidebar internal content padding (accounts for borders).
-	leftSidebarContentPadding = 4
-
 	// Key/value column width ratio.
 	sidebarKeyWidthRatio = 0.4 // 40% of available width for keys
 
-	// Sidebar content padding (accounts for borders and internal spacing).
-	rightSidebarContentPadding = 3
-
-	// sidebarVerticalBorderCols is the width (in terminal columns)
-	// consumed by a sidebar's vertical border.
-	// Both LeftBorder and RightBorder draw a single vertical rule.
-	sidebarVerticalBorderCols = 1
-
 	// Default grid height for system metrics when not calculated from terminal height.
 	defaultSystemMetricsGridHeight = 40
-
-	// Mouse click coordinate adjustments for border/padding.
-	rightSidebarMouseClickPaddingOffset = 1
 )
 
 // Rune constants for UI drawing.
@@ -143,6 +155,11 @@ const (
 	// mediumShadeBlock is a medium-shaded block.
 	mediumShadeBlock rune = '\u2592' // ▒
 )
+
+func uniformAdaptiveColor(hex string) compat.AdaptiveColor {
+	c := lipgloss.Color(hex)
+	return compat.AdaptiveColor{Light: c, Dark: c}
+}
 
 // WANDB brand colors.
 var (
@@ -319,27 +336,165 @@ var colorSchemes = map[string][]compat.AdaptiveColor{
 		compat.AdaptiveColor{Light: lipgloss.Color("#B8A8E8"), Dark: lipgloss.Color("#D6C9FF")},
 		compat.AdaptiveColor{Light: lipgloss.Color("#5538B0"), Dark: lipgloss.Color("#6645D1")},
 	},
+	// This palette has been tested with deuteranopia, protanopia, and tritanopia
+	// simulators. Those forms of color blindness are less common than deuteranomaly.
+	// This palette focuses on siennas/blues/grays only, which
+	// are commonly colorblind-friendly across most forms of color blindness.
+	// Gradient ordering: warm siennas → cool blues → neutral grays.
+	"dusk-shore": {
+		compat.AdaptiveColor{Light: lipgloss.Color("#823520"), Dark: lipgloss.Color("#994228")},
+		compat.AdaptiveColor{Light: lipgloss.Color("#A84728"), Dark: lipgloss.Color("#C2562F")},
+		compat.AdaptiveColor{Light: lipgloss.Color("#BA5028"), Dark: lipgloss.Color("#D96534")},
+		compat.AdaptiveColor{Light: lipgloss.Color("#D86030"), Dark: lipgloss.Color("#FC8F58")},
+		compat.AdaptiveColor{Light: lipgloss.Color("#E07040"), Dark: lipgloss.Color("#FCA36F")},
+		compat.AdaptiveColor{Light: lipgloss.Color("#E89865"), Dark: lipgloss.Color("#FFBA91")},
+		compat.AdaptiveColor{Light: lipgloss.Color("#EAB08A"), Dark: lipgloss.Color("#FFCFB2")},
+		compat.AdaptiveColor{Light: lipgloss.Color("#78A8E8"), Dark: lipgloss.Color("#A4C9FC")},
+		compat.AdaptiveColor{Light: lipgloss.Color("#5A96E0"), Dark: lipgloss.Color("#7DB1FA")},
+		compat.AdaptiveColor{Light: lipgloss.Color("#4880DA"), Dark: lipgloss.Color("#629DF5")},
+		compat.AdaptiveColor{Light: lipgloss.Color("#2E68CC"), Dark: lipgloss.Color("#397EED")},
+		compat.AdaptiveColor{Light: lipgloss.Color("#2258BE"), Dark: lipgloss.Color("#286CE0")},
+		compat.AdaptiveColor{Light: lipgloss.Color("#2850A8"), Dark: lipgloss.Color("#1F59C4")},
+		compat.AdaptiveColor{Light: lipgloss.Color("#8A8D91"), Dark: lipgloss.Color("#B1B4B9")},
+		compat.AdaptiveColor{Light: lipgloss.Color("#606872"), Dark: lipgloss.Color("#79808A")},
+		compat.AdaptiveColor{Light: lipgloss.Color("#454B54"), Dark: lipgloss.Color("#565C66")},
+	},
+	// Same colorblind-friendly sienna/blue/gray palette as "dusk-shore", but with
+	// colors interleaved for maximum visual differentiation between adjacent series.
+	"clear-signal": {
+		compat.AdaptiveColor{Light: lipgloss.Color("#BA5028"), Dark: lipgloss.Color("#D96534")},
+		compat.AdaptiveColor{Light: lipgloss.Color("#2258BE"), Dark: lipgloss.Color("#286CE0")},
+		compat.AdaptiveColor{Light: lipgloss.Color("#4880DA"), Dark: lipgloss.Color("#629DF5")},
+		compat.AdaptiveColor{Light: lipgloss.Color("#823520"), Dark: lipgloss.Color("#994228")},
+		compat.AdaptiveColor{Light: lipgloss.Color("#E07040"), Dark: lipgloss.Color("#FCA36F")},
+		compat.AdaptiveColor{Light: lipgloss.Color("#EAB08A"), Dark: lipgloss.Color("#FFCFB2")},
+		compat.AdaptiveColor{Light: lipgloss.Color("#8A8D91"), Dark: lipgloss.Color("#B1B4B9")},
+		compat.AdaptiveColor{Light: lipgloss.Color("#606872"), Dark: lipgloss.Color("#79808A")},
+		compat.AdaptiveColor{Light: lipgloss.Color("#5A96E0"), Dark: lipgloss.Color("#7DB1FA")},
+		compat.AdaptiveColor{Light: lipgloss.Color("#2850A8"), Dark: lipgloss.Color("#1F59C4")},
+		compat.AdaptiveColor{Light: lipgloss.Color("#A84728"), Dark: lipgloss.Color("#C2562F")},
+		compat.AdaptiveColor{Light: lipgloss.Color("#D86030"), Dark: lipgloss.Color("#FC8F58")},
+		compat.AdaptiveColor{Light: lipgloss.Color("#E89865"), Dark: lipgloss.Color("#FFBA91")},
+		compat.AdaptiveColor{Light: lipgloss.Color("#78A8E8"), Dark: lipgloss.Color("#A4C9FC")},
+		compat.AdaptiveColor{Light: lipgloss.Color("#2E68CC"), Dark: lipgloss.Color("#397EED")},
+		compat.AdaptiveColor{Light: lipgloss.Color("#454B54"), Dark: lipgloss.Color("#565C66")},
+	},
+	// Sequential palettes suitable for French Fries percentage heatmaps.
+	"traffic-light": {
+		uniformAdaptiveColor("#1A9850"),
+		uniformAdaptiveColor("#3EAE51"),
+		uniformAdaptiveColor("#67C35C"),
+		uniformAdaptiveColor("#97D168"),
+		uniformAdaptiveColor("#C8DE72"),
+		uniformAdaptiveColor("#F1DD6B"),
+		uniformAdaptiveColor("#FDB863"),
+		uniformAdaptiveColor("#F89C5A"),
+		uniformAdaptiveColor("#F67C4B"),
+		uniformAdaptiveColor("#E85D4F"),
+		uniformAdaptiveColor("#D73027"),
+	},
+	"viridis": {
+		uniformAdaptiveColor("#440154"),
+		uniformAdaptiveColor("#482475"),
+		uniformAdaptiveColor("#414487"),
+		uniformAdaptiveColor("#355F8D"),
+		uniformAdaptiveColor("#2A788E"),
+		uniformAdaptiveColor("#21918C"),
+		uniformAdaptiveColor("#22A884"),
+		uniformAdaptiveColor("#44BF70"),
+		uniformAdaptiveColor("#7AD151"),
+		uniformAdaptiveColor("#BDDF26"),
+		uniformAdaptiveColor("#FDE725"),
+	},
+	"plasma": {
+		uniformAdaptiveColor("#0D0887"),
+		uniformAdaptiveColor("#41049D"),
+		uniformAdaptiveColor("#6A00A8"),
+		uniformAdaptiveColor("#8F0DA4"),
+		uniformAdaptiveColor("#B12A90"),
+		uniformAdaptiveColor("#CC4778"),
+		uniformAdaptiveColor("#E16462"),
+		uniformAdaptiveColor("#F2844B"),
+		uniformAdaptiveColor("#FCA636"),
+		uniformAdaptiveColor("#FCCE25"),
+		uniformAdaptiveColor("#F0F921"),
+	},
+	"inferno": {
+		uniformAdaptiveColor("#000004"),
+		uniformAdaptiveColor("#160B39"),
+		uniformAdaptiveColor("#420A68"),
+		uniformAdaptiveColor("#6A176E"),
+		uniformAdaptiveColor("#932667"),
+		uniformAdaptiveColor("#BC3754"),
+		uniformAdaptiveColor("#DD513A"),
+		uniformAdaptiveColor("#F37819"),
+		uniformAdaptiveColor("#FCA50A"),
+		uniformAdaptiveColor("#F6D746"),
+		uniformAdaptiveColor("#FCFFA4"),
+	},
+	"magma": {
+		uniformAdaptiveColor("#000004"),
+		uniformAdaptiveColor("#140E36"),
+		uniformAdaptiveColor("#3B0F70"),
+		uniformAdaptiveColor("#641A80"),
+		uniformAdaptiveColor("#8C2981"),
+		uniformAdaptiveColor("#B73779"),
+		uniformAdaptiveColor("#DE4968"),
+		uniformAdaptiveColor("#F7705C"),
+		uniformAdaptiveColor("#FE9F6D"),
+		uniformAdaptiveColor("#FECF92"),
+		uniformAdaptiveColor("#FCFDBF"),
+	},
+	"cividis": {
+		uniformAdaptiveColor("#00224E"),
+		uniformAdaptiveColor("#083370"),
+		uniformAdaptiveColor("#35456C"),
+		uniformAdaptiveColor("#4F576C"),
+		uniformAdaptiveColor("#666970"),
+		uniformAdaptiveColor("#7D7C78"),
+		uniformAdaptiveColor("#948E77"),
+		uniformAdaptiveColor("#AEA371"),
+		uniformAdaptiveColor("#C8B866"),
+		uniformAdaptiveColor("#E5CF52"),
+		uniformAdaptiveColor("#FEE838"),
+	},
+}
+
+func colorSchemeOrDefault(scheme, fallback string) []compat.AdaptiveColor {
+	if colors, ok := colorSchemes[scheme]; ok && len(colors) > 0 {
+		return colors
+	}
+	return colorSchemes[fallback]
 }
 
 // GraphColors returns the palette for the requested scheme.
 //
 // If the scheme is unknown, it falls back to DefaultColorScheme.
 func GraphColors(scheme string) []compat.AdaptiveColor {
-	if colors, ok := colorSchemes[scheme]; ok {
-		return colors
-	}
-	return colorSchemes[DefaultColorScheme]
+	return colorSchemeOrDefault(scheme, DefaultColorScheme)
+}
+
+// FrenchFriesColors returns the palette for the requested French Fries heatmap scheme.
+//
+// If the scheme is unknown, it falls back to DefaultFrenchFriesColorScheme.
+func FrenchFriesColors(scheme string) []compat.AdaptiveColor {
+	return colorSchemeOrDefault(scheme, DefaultFrenchFriesColorScheme)
 }
 
 // Metrics grid styles.
+//
+// Main-column panes must render exactly the width assigned by the layout.
+// Do not add external margins here: even a 1-column margin makes the
+// composed row wider than its allocated box, which clips the rightmost column
+// and can force an extra terminal wrap line.
 var (
 	headerStyle = lipgloss.NewStyle().Bold(true).Foreground(colorSubheading)
 
 	navInfoStyle = lipgloss.NewStyle().Foreground(colorSubtle)
 
-	headerContainerStyle = lipgloss.NewStyle().MarginLeft(1).MarginTop(0).MarginBottom(0)
+	headerContainerStyle = lipgloss.NewStyle()
 
-	gridContainerStyle = lipgloss.NewStyle().MarginLeft(1).MarginRight(1)
+	gridContainerStyle = lipgloss.NewStyle()
 )
 
 // Chart styles.
@@ -484,11 +639,13 @@ var (
 
 // Left sidebar styles.
 var (
-	leftSidebarStyle       = lipgloss.NewStyle().Padding(0, 1)
+	leftSidebarStyle       = lipgloss.NewStyle().Padding(0, ContentPadding)
 	leftSidebarBorderStyle = lipgloss.NewStyle().
 				Border(RightBorder).
 				BorderForeground(colorLayout).
-				BorderTop(false)
+				BorderTop(false).
+				BorderBottom(false).
+				BorderLeft(false)
 	leftSidebarHeaderStyle = lipgloss.NewStyle().
 				Bold(true).
 				Foreground(colorSubheading).
@@ -507,11 +664,13 @@ var (
 
 // Right sidebar styles.
 var (
-	rightSidebarStyle       = lipgloss.NewStyle().PaddingLeft(1)
+	rightSidebarStyle       = lipgloss.NewStyle().Padding(0, ContentPadding)
 	rightSidebarBorderStyle = lipgloss.NewStyle().
 				Border(LeftBorder).
 				BorderForeground(colorLayout).
-				BorderTop(false)
+				BorderTop(false).
+				BorderBottom(false).
+				BorderRight(false)
 	rightSidebarHeaderStyle = lipgloss.NewStyle().
 				Bold(true).
 				Foreground(colorSubheading).
@@ -530,15 +689,6 @@ var (
 
 // Console logs pane styles.
 var (
-	consoleLogsPaneBorderStyle = lipgloss.NewStyle().
-					Border(topOnlyBorder).
-					BorderForeground(colorLayout).
-					BorderTop(true).
-					BorderBottom(false).
-					BorderLeft(false).
-					BorderRight(false).
-					PaddingBottom(1)
-
 	consoleLogsPaneHeaderStyle = lipgloss.NewStyle().
 					Bold(true).
 					Foreground(colorSubheading).
@@ -559,19 +709,31 @@ var (
 	consoleLogsPaneHighlightedValueStyle = lipgloss.NewStyle().
 						Background(colorSelected).
 						Foreground(colorDark)
-
-	// topOnlyBorder draws a single horizontal line at the top of the box.
-	topOnlyBorder = lipgloss.Border{
-		Top:         string(unicodeEmDash),
-		Bottom:      "",
-		Left:        "",
-		Right:       "",
-		TopLeft:     string(unicodeEmDash),
-		TopRight:    string(unicodeEmDash),
-		BottomLeft:  "",
-		BottomRight: "",
-	}
 )
+
+// renderHorizontalSeparator draws a full-width em-dash separator line.
+// This is used between vertically stacked panes in the central column
+// instead of per-pane top borders.
+func renderHorizontalSeparator(width int) string {
+	if width <= 0 {
+		return ""
+	}
+	line := strings.Repeat(string(unicodeEmDash), width)
+	return lipgloss.NewStyle().Foreground(colorLayout).Render(line)
+}
+
+// joinWithSeparators joins rendered sections with horizontal separator lines.
+func joinWithSeparators(sections []string, width int) string {
+	if len(sections) == 0 {
+		return ""
+	}
+	sep := renderHorizontalSeparator(width)
+	result := sections[0]
+	for _, s := range sections[1:] {
+		result = lipgloss.JoinVertical(lipgloss.Left, result, sep, s)
+	}
+	return result
+}
 
 // AnimationDuration is the duration for sidebar animations.
 const AnimationDuration = 150 * time.Millisecond
@@ -595,9 +757,7 @@ var (
 
 // Workspace view mode styles.
 var (
-	workspaceTopMarginLines = 1
-	workspaceHeaderLines    = 1
-	runsSidebarBorderCols   = 2
+	workspaceHeaderLines = 1
 
 	colorSelectedRunInactiveStyle = compat.AdaptiveColor{
 		Light: lipgloss.Color("#F5D28A"),
@@ -608,4 +768,10 @@ var (
 	oddRunStyle              = lipgloss.NewStyle().Background(getOddRunStyleColor())
 	selectedRunStyle         = lipgloss.NewStyle().Background(colorSelected)
 	selectedRunInactiveStyle = lipgloss.NewStyle().Background(colorSelectedRunInactiveStyle)
+)
+
+// Symon mode styles.
+var (
+	symonContainerStyle = lipgloss.NewStyle().
+		Padding(0, ContentPadding)
 )

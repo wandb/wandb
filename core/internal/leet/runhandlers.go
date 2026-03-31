@@ -1,7 +1,9 @@
 package leet
 
 import (
+	"errors"
 	"fmt"
+	"io"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -93,8 +95,11 @@ func (r *Run) handleRecordMsg(msg tea.Msg) (*Run, tea.Cmd) { // TODO: return jus
 // handleHistoryMsg processes new history data.
 func (r *Run) handleHistoryMsg(msg HistoryMsg) (*Run, tea.Cmd) {
 	defer timeit(r.logger, "Model.handleHistoryMsg")()
-	// Route to the grid; it handles sorting/filtering/pagination/focus itself.
+
 	shouldDraw := r.metricsGrid.ProcessHistory(msg)
+	if r.mediaStore.ProcessHistory(msg) {
+		r.mediaPane.SetStore(r.mediaStore)
+	}
 	if shouldDraw && !r.suppressDraw {
 		r.metricsGrid.drawVisible()
 	}
@@ -138,6 +143,34 @@ func (r *Run) handleLeftSidebarMouse() (*Run, tea.Cmd) {
 	return r, nil
 }
 
+func (r *Run) adoptChartMouseFocus() {
+	switch r.focus.Type {
+	case FocusMainChart:
+		r.focusMgr.AdoptTarget(FocusTargetMetricsGrid)
+	case FocusSystemChart:
+		r.focusMgr.AdoptTarget(FocusTargetSystemMetrics)
+	}
+}
+
+func (r *Run) handleMediaMouse(msg tea.MouseMsg, layout Layout) (*Run, tea.Cmd) {
+	mouse := msg.Mouse()
+	localX := mouse.X - layout.leftSidebarWidth
+	localY := mouse.Y - layout.mediaY
+
+	if m, ok := msg.(tea.MouseClickMsg); ok {
+		if m.Button == tea.MouseLeft &&
+			r.mediaPane.HandleMouseClick(
+				localX, localY,
+				layout.mainContentAreaWidth, layout.mediaHeight,
+			) {
+			r.mediaPane.SetActive(true)
+			r.focusMgr.AdoptTarget(FocusTargetMedia)
+		}
+	}
+
+	return r, nil
+}
+
 // handleRightSidebarMouse handles mouse events in the right sidebar.
 func (r *Run) handleRightSidebarMouse(msg tea.MouseMsg, layout Layout) (*Run, tea.Cmd) {
 	mouse := msg.Mouse()
@@ -151,10 +184,13 @@ func (r *Run) handleRightSidebarMouse(msg tea.MouseMsg, layout Layout) (*Run, te
 		switch m.Button {
 		case tea.MouseLeft:
 			r.metricsGrid.clearFocus()
-			r.rightSidebar.HandleMouseClick(adjustedX, mouse.Y)
+			if r.rightSidebar.HandleMouseClick(adjustedX, mouse.Y) {
+				r.adoptChartMouseFocus()
+			}
 		case tea.MouseRight:
 			r.metricsGrid.clearFocus()
 			r.rightSidebar.StartInspection(adjustedX, mouse.Y, alt)
+			r.adoptChartMouseFocus()
 		}
 	case tea.MouseMotionMsg:
 		if m.Button == tea.MouseRight {
@@ -172,6 +208,7 @@ func (r *Run) handleRightSidebarMouse(msg tea.MouseMsg, layout Layout) (*Run, te
 		case tea.MouseWheelDown:
 			r.rightSidebar.HandleWheel(adjustedX, mouse.Y, false)
 		}
+		r.adoptChartMouseFocus()
 	}
 
 	return r, nil
@@ -179,14 +216,28 @@ func (r *Run) handleRightSidebarMouse(msg tea.MouseMsg, layout Layout) (*Run, te
 
 // handleMainContentMouse handles mouse events in the main content area.
 func (r *Run) handleMainContentMouse(msg tea.MouseMsg, layout Layout) (*Run, tea.Cmd) {
+	if r.mediaPane.IsFullscreen() {
+		return r, nil
+	}
+
 	mouse := msg.Mouse()
+	if layout.mediaHeight > 0 &&
+		mouse.Y >= layout.mediaY &&
+		mouse.Y < layout.mediaY+layout.mediaHeight {
+		return r.handleMediaMouse(msg, layout)
+	}
+
 	alt := mouse.Mod == tea.ModAlt // Alt pressed at the time of the mouse event?
 
-	const gridPaddingX = 1
-	const gridPaddingY = 1
+	const headerOffset = 1
 
-	adjustedX := mouse.X - layout.leftSidebarWidth - gridPaddingX
-	adjustedY := mouse.Y - gridPaddingY
+	adjustedX := mouse.X - layout.leftSidebarWidth - ContentPadding
+	adjustedY := mouse.Y - headerOffset
+	if adjustedX < 0 || adjustedY < 0 || adjustedY >= layout.height {
+		r.metricsGrid.clearFocus()
+		r.rightSidebar.ClearFocus()
+		return r, nil
+	}
 
 	dims := r.metricsGrid.CalculateChartDimensions(
 		layout.mainContentAreaWidth,
@@ -203,10 +254,12 @@ func (r *Run) handleMainContentMouse(msg tea.MouseMsg, layout Layout) (*Run, tea
 		case tea.MouseLeft:
 			r.rightSidebar.ClearFocus()
 			r.metricsGrid.HandleClick(row, col)
+			r.adoptChartMouseFocus()
 		case tea.MouseRight:
 			// Holding Alt activates synchronised inspection across all charts
 			// visible on the current page.
 			r.metricsGrid.StartInspection(adjustedX, row, col, dims, alt)
+			r.adoptChartMouseFocus()
 		}
 	case tea.MouseMotionMsg:
 		if m.Button == tea.MouseRight {
@@ -223,6 +276,7 @@ func (r *Run) handleMainContentMouse(msg tea.MouseMsg, layout Layout) (*Run, tea
 		case tea.MouseWheelDown:
 			r.metricsGrid.HandleWheel(adjustedX, row, col, dims, false)
 		}
+		r.adoptChartMouseFocus()
 	}
 
 	return r, nil
@@ -247,6 +301,18 @@ func (r *Run) handleKeyPressMsg(msg tea.KeyPressMsg) tea.Cmd {
 	// Grid config capture takes priority.
 	if r.config.IsAwaitingGridConfig() {
 		return r.handleConfigNumberKey(msg)
+	}
+
+	// Focus-aware key dispatch: route to the currently focused component.
+	switch r.focusMgr.Current() {
+	case FocusTargetMetricsGrid, FocusTargetSystemMetrics:
+		if cmd := r.handleGridWASD(msg); cmd != nil {
+			return cmd
+		}
+	case FocusTargetMedia:
+		if r.mediaPane.HandleKey(msg) {
+			return nil
+		}
 	}
 
 	// Dispatch to key map.
@@ -304,17 +370,17 @@ func (r *Run) handleToggleLeftSidebar(msg tea.KeyPressMsg) tea.Cmd {
 		return nil
 	}
 
-	leftWillBeVisible := !r.leftSidebar.IsVisible()
-
-	r.resolveRunFocusAfterVisibilityChange(leftWillBeVisible, r.consoleLogsPane.IsExpanded())
+	leftWillBeVisible := !r.leftSidebar.animState.TargetVisible()
 
 	if err := r.config.SetLeftSidebarVisible(leftWillBeVisible); err != nil {
 		r.logger.Error(fmt.Sprintf("model: failed to save left sidebar state: %v", err))
 	}
 
-	r.leftSidebar.UpdateDimensions(r.width, r.rightSidebar.IsVisible())
+	r.leftSidebar.UpdateDimensions(r.width, r.rightSidebar.animState.TargetVisible())
 	r.rightSidebar.UpdateDimensions(r.width, leftWillBeVisible)
 	r.leftSidebar.Toggle()
+
+	r.focusMgr.ResolveAfterVisibilityChange()
 
 	layout := r.computeViewports()
 	r.metricsGrid.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
@@ -327,15 +393,16 @@ func (r *Run) handleToggleRightSidebar(msg tea.KeyPressMsg) tea.Cmd {
 		return nil
 	}
 
-	rightWillBeVisible := !r.rightSidebar.IsVisible()
+	rightWillBeVisible := !r.rightSidebar.animState.TargetVisible()
 
 	if err := r.config.SetRightSidebarVisible(rightWillBeVisible); err != nil {
 		r.logger.Error(fmt.Sprintf("model: failed to save right sidebar state: %v", err))
 	}
 
-	r.rightSidebar.UpdateDimensions(r.width, r.leftSidebar.IsVisible())
+	r.rightSidebar.UpdateDimensions(r.width, r.leftSidebar.animState.TargetVisible())
 	r.leftSidebar.UpdateDimensions(r.width, rightWillBeVisible)
 	r.rightSidebar.Toggle()
+	r.focusMgr.ResolveAfterVisibilityChange()
 
 	layout := r.computeViewports()
 	r.metricsGrid.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
@@ -344,36 +411,36 @@ func (r *Run) handleToggleRightSidebar(msg tea.KeyPressMsg) tea.Cmd {
 }
 
 func (r *Run) handlePrevPage(msg tea.KeyPressMsg) tea.Cmd {
-	r.metricsGrid.Navigate(-1)
+	switch r.focusMgr.Current() {
+	case FocusTargetSystemMetrics:
+		r.rightSidebar.metricsGrid.Navigate(-1)
+	case FocusTargetMedia:
+		r.mediaPane.NavigatePage(-1)
+	default:
+		r.metricsGrid.Navigate(-1)
+	}
 	return nil
 }
 
 func (r *Run) handleNextPage(msg tea.KeyPressMsg) tea.Cmd {
-	r.metricsGrid.Navigate(1)
-	return nil
-}
-
-func (r *Run) handlePrevSystemPage(msg tea.KeyPressMsg) tea.Cmd {
-	if r.rightSidebar.IsVisible() && r.rightSidebar.metricsGrid != nil {
-		r.rightSidebar.metricsGrid.Navigate(-1)
-	}
-	return nil
-}
-
-func (r *Run) handleNextSystemPage(msg tea.KeyPressMsg) tea.Cmd {
-	if r.rightSidebar.IsVisible() && r.rightSidebar.metricsGrid != nil {
+	switch r.focusMgr.Current() {
+	case FocusTargetSystemMetrics:
 		r.rightSidebar.metricsGrid.Navigate(1)
+	case FocusTargetMedia:
+		r.mediaPane.NavigatePage(1)
+	default:
+		r.metricsGrid.Navigate(1)
 	}
 	return nil
 }
 
-func (r *Run) handleToggleFocusedChartLogY(tea.KeyPressMsg) tea.Cmd {
+func (r *Run) handleCycleFocusedChartMode(tea.KeyPressMsg) tea.Cmd {
 	switch r.focus.Type {
 	case FocusMainChart:
 		r.metricsGrid.toggleFocusedChartLogY()
 	case FocusSystemChart:
 		if r.rightSidebar != nil && r.rightSidebar.metricsGrid != nil {
-			r.rightSidebar.metricsGrid.toggleFocusedChartLogY()
+			r.rightSidebar.metricsGrid.cycleFocusedChartMode()
 		}
 	}
 	return nil
@@ -404,23 +471,91 @@ func (r *Run) handleClearOverviewFilter(msg tea.KeyPressMsg) tea.Cmd {
 	return nil
 }
 
-func (r *Run) handleConfigMetricsCols(msg tea.KeyPressMsg) tea.Cmd {
-	r.config.SetPendingGridConfig(gridConfigMetricsCols)
+func (r *Run) handleToggleMetricsGrid(msg tea.KeyPressMsg) tea.Cmd {
+	metricsWillBeVisible := !r.metricsGridAnimState.TargetVisible()
+
+	if err := r.config.SetMetricsGridVisible(metricsWillBeVisible); err != nil {
+		r.logger.Error(fmt.Sprintf("runhandlers: failed to save metrics grid state: %v", err))
+	}
+
+	r.metricsGridAnimState.Toggle()
+	r.focusMgr.ResolveAfterVisibilityChange()
+
+	r.updateBottomPaneHeights(
+		r.mediaPane.animState.TargetVisible(), r.consoleLogsPane.animState.TargetVisible())
+
+	layout := r.computeViewports()
+	r.metricsGrid.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
+
+	return r.metricsGridAnimationCmd()
+}
+
+func (r *Run) handleMetricsGridAnimation() []tea.Cmd {
+	r.metricsGridAnimState.Update(time.Now())
+
+	r.updateBottomPaneHeights(
+		r.mediaPane.animState.TargetVisible(), r.consoleLogsPane.animState.TargetVisible())
+	layout := r.computeViewports()
+	r.metricsGrid.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
+
+	if r.metricsGridAnimState.IsAnimating() {
+		return []tea.Cmd{r.metricsGridAnimationCmd()}
+	}
 	return nil
 }
 
-func (r *Run) handleConfigMetricsRows(msg tea.KeyPressMsg) tea.Cmd {
-	r.config.SetPendingGridConfig(gridConfigMetricsRows)
+func (r *Run) metricsGridAnimationCmd() tea.Cmd {
+	return tea.Tick(AnimationFrame, func(time.Time) tea.Msg {
+		return MetricsGridAnimationMsg{}
+	})
+}
+
+func (r *Run) handleGridWASD(msg tea.KeyPressMsg) tea.Cmd {
+	var dr, dc int
+	switch normalizeKey(msg.String()) {
+	case "w":
+		dr = -1
+	case "s":
+		dr = 1
+	case "a":
+		dc = -1
+	case "d":
+		dc = 1
+	default:
+		return nil
+	}
+
+	switch r.focusMgr.Current() {
+	case FocusTargetMetricsGrid:
+		r.metricsGrid.NavigateFocus(dr, dc)
+	case FocusTargetSystemMetrics:
+		r.rightSidebar.metricsGrid.NavigateFocus(dr, dc)
+	}
+	// Return a no-op command to signal the key was consumed.
+	return func() tea.Msg { return nil }
+}
+
+func (r *Run) handleConfigFocusedCols(msg tea.KeyPressMsg) tea.Cmd {
+	switch r.focusMgr.Current() {
+	case FocusTargetSystemMetrics:
+		r.config.SetPendingGridConfig(gridConfigSystemCols)
+	case FocusTargetMedia:
+		r.config.SetPendingGridConfig(gridConfigMediaCols)
+	default:
+		r.config.SetPendingGridConfig(gridConfigMetricsCols)
+	}
 	return nil
 }
 
-func (r *Run) handleConfigSystemCols(msg tea.KeyPressMsg) tea.Cmd {
-	r.config.SetPendingGridConfig(gridConfigSystemCols)
-	return nil
-}
-
-func (r *Run) handleConfigSystemRows(msg tea.KeyPressMsg) tea.Cmd {
-	r.config.SetPendingGridConfig(gridConfigSystemRows)
+func (r *Run) handleConfigFocusedRows(msg tea.KeyPressMsg) tea.Cmd {
+	switch r.focusMgr.Current() {
+	case FocusTargetSystemMetrics:
+		r.config.SetPendingGridConfig(gridConfigSystemRows)
+	case FocusTargetMedia:
+		r.config.SetPendingGridConfig(gridConfigMediaRows)
+	default:
+		r.config.SetPendingGridConfig(gridConfigMetricsRows)
+	}
 	return nil
 }
 
@@ -464,7 +599,7 @@ func (r *Run) handleSidebarAnimation(msg tea.Msg) []tea.Cmd {
 		}
 
 		r.endAnimating()
-		r.rightSidebar.UpdateDimensions(r.width, r.leftSidebar.IsVisible())
+		r.rightSidebar.UpdateDimensions(r.width, r.leftSidebar.animState.TargetVisible())
 
 	case RightSidebarAnimationMsg:
 		layout := r.computeViewports()
@@ -475,10 +610,58 @@ func (r *Run) handleSidebarAnimation(msg tea.Msg) []tea.Cmd {
 		}
 
 		r.endAnimating()
-		r.leftSidebar.UpdateDimensions(r.width, r.rightSidebar.IsVisible())
+		r.leftSidebar.UpdateDimensions(r.width, r.rightSidebar.animState.TargetVisible())
 	}
 
 	return nil
+}
+
+func (r *Run) handleToggleMediaPane(msg tea.KeyPressMsg) tea.Cmd {
+	if !r.beginAnimating() {
+		return nil
+	}
+
+	mediaWillBeVisible := !r.mediaPane.animState.TargetVisible()
+
+	if err := r.config.SetMediaVisible(mediaWillBeVisible); err != nil {
+		r.logger.Error(fmt.Sprintf("runhandlers: failed to save media pane state: %v", err))
+	}
+
+	if !mediaWillBeVisible {
+		r.mediaPane.ExitFullscreen()
+	}
+
+	r.mediaPane.Toggle()
+	r.updateBottomPaneHeights(mediaWillBeVisible, r.consoleLogsPane.animState.TargetVisible())
+
+	if !mediaWillBeVisible {
+		r.focusMgr.ResolveAfterVisibilityChange()
+	}
+
+	layout := r.computeViewports()
+	r.metricsGrid.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
+
+	return r.mediaPaneAnimationCmd()
+}
+
+func (r *Run) handleMediaPaneAnimation() []tea.Cmd {
+	r.mediaPane.Update(time.Now())
+
+	layout := r.computeViewports()
+	r.metricsGrid.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
+
+	if r.mediaPane.IsAnimating() {
+		return []tea.Cmd{r.mediaPaneAnimationCmd()}
+	}
+
+	r.endAnimating()
+	return nil
+}
+
+func (r *Run) mediaPaneAnimationCmd() tea.Cmd {
+	return tea.Tick(AnimationFrame, func(time.Time) tea.Msg {
+		return MediaPaneAnimationMsg{}
+	})
 }
 
 // handleToggleConsoleLogsPane toggles the console logs bottom bar and resolves
@@ -489,17 +672,15 @@ func (r *Run) handleToggleConsoleLogsPane(msg tea.KeyPressMsg) tea.Cmd {
 		return nil
 	}
 
-	bottomWillBeVisible := !r.consoleLogsPane.IsExpanded()
+	bottomWillBeVisible := !r.consoleLogsPane.animState.TargetVisible()
 
 	if err := r.config.SetConsoleLogsVisible(bottomWillBeVisible); err != nil {
 		r.logger.Error(fmt.Sprintf("runhandlers: failed to save console logs state: %v", err))
 	}
 
-	r.resolveRunFocusAfterVisibilityChange(
-		r.leftSidebar.animState.IsExpanded(), bottomWillBeVisible)
-
-	r.consoleLogsPane.UpdateExpandedHeight(max(r.height-StatusBarHeight, 0))
 	r.consoleLogsPane.Toggle()
+	r.updateBottomPaneHeights(r.mediaPane.animState.TargetVisible(), bottomWillBeVisible)
+	r.focusMgr.ResolveAfterVisibilityChange()
 
 	layout := r.computeViewports()
 	r.metricsGrid.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
@@ -525,6 +706,51 @@ func (r *Run) consoleLogsPaneAnimationCmd() tea.Cmd {
 	return tea.Tick(AnimationFrame, func(time.Time) tea.Msg {
 		return ConsoleLogsPaneAnimationMsg{}
 	})
+}
+
+func (r *Run) readChunkCmd(
+	source HistorySource,
+	chunkSize int,
+	maxTimePerChunk time.Duration,
+) tea.Cmd {
+	return func() tea.Msg {
+		if source == nil {
+			return nil
+		}
+
+		msg, err := source.Read(chunkSize, maxTimePerChunk)
+		if err != nil && !errors.Is(err, io.EOF) {
+			return ErrorMsg{Err: err}
+		}
+
+		return msg
+	}
+}
+
+func (r *Run) ReadLiveBatchCmd(source HistorySource) tea.Cmd {
+	return func() tea.Msg {
+		if source == nil {
+			return nil
+		}
+
+		msg, err := source.Read(LiveMonitorChunkSize, LiveMonitorMaxTime)
+		if err != nil && !errors.Is(err, io.EOF) {
+			return ErrorMsg{Err: err}
+		}
+		if msg == nil {
+			return nil
+		}
+
+		batch, ok := msg.(ChunkedBatchMsg)
+		if !ok {
+			return msg
+		}
+		if len(batch.Msgs) == 0 {
+			return nil
+		}
+
+		return BatchedRecordsMsg{Msgs: batch.Msgs}
+	}
 }
 
 // handleRecordsBatch processes a batch of sub-messages and manages redraw + loading flags.
@@ -557,7 +783,7 @@ func (r *Run) handleInit(msg InitMsg) []tea.Cmd {
 	r.loadStartTime = time.Now()
 
 	return []tea.Cmd{
-		ReadRecords(r.historySource, BootLoadChunkSize, BootLoadMaxTime),
+		r.readChunkCmd(r.historySource, BootLoadChunkSize, BootLoadMaxTime),
 	}
 }
 
@@ -576,7 +802,7 @@ func (r *Run) handleChunkedBatch(msg ChunkedBatchMsg) []tea.Cmd {
 	if msg.HasMore {
 		cmds = append(
 			cmds,
-			ReadRecords(r.historySource, BootLoadChunkSize, BootLoadMaxTime),
+			r.readChunkCmd(r.historySource, BootLoadChunkSize, BootLoadMaxTime),
 		)
 		return cmds
 	}
@@ -599,7 +825,7 @@ func (r *Run) handleBatched(msg BatchedRecordsMsg) []tea.Cmd {
 	cmds := r.handleRecordsBatch(msg.Msgs, true)
 	cmds = append(
 		cmds,
-		ReadRecords(r.historySource, LiveMonitorChunkSize, LiveMonitorMaxTime),
+		r.ReadLiveBatchCmd(r.historySource),
 	)
 	return cmds
 }
@@ -609,7 +835,7 @@ func (r *Run) handleHeartbeat() []tea.Cmd {
 	r.logger.Debug("model: processing HeartbeatMsg")
 	r.heartbeatMgr.Reset(r.isRunning)
 	return []tea.Cmd{
-		ReadRecords(r.historySource, LiveMonitorChunkSize, LiveMonitorMaxTime),
+		r.ReadLiveBatchCmd(r.historySource),
 		r.watcherMgr.WaitForMsg,
 	}
 }
@@ -618,7 +844,7 @@ func (r *Run) handleHeartbeat() []tea.Cmd {
 func (r *Run) handleFileChange() []tea.Cmd {
 	r.heartbeatMgr.Reset(r.isRunning)
 	return []tea.Cmd{
-		ReadRecords(r.historySource, LiveMonitorChunkSize, LiveMonitorMaxTime),
+		r.ReadLiveBatchCmd(r.historySource),
 		r.watcherMgr.WaitForMsg,
 	}
 }
@@ -634,61 +860,71 @@ func (r *Run) handleSidebarTabNav(msg tea.KeyPressMsg) tea.Cmd {
 		direction = -1
 	}
 
-	cur := r.currentRunFocusRegion()
-
-	// Try cycling within overview sections before leaving the region.
-	if cur == runFocusOverview && r.cycleRunOverviewSection(direction) {
-		return nil
+	withinFn := func(dir int) bool {
+		if r.focusMgr.IsTarget(FocusTargetOverview) {
+			return r.cycleRunOverviewSection(dir)
+		}
+		return false
 	}
 
-	r.cycleRunFocusRegion(cur, direction)
+	r.focusMgr.TabWithinOrAdvance(direction, withinFn)
 	return nil
 }
 
 func (r *Run) handleSidebarVerticalNav(msg tea.KeyPressMsg) tea.Cmd {
-	if r.consoleLogsPane.Active() {
+	switch r.focusMgr.Current() {
+	case FocusTargetMedia:
+		switch msg.Code {
+		case tea.KeyUp:
+			r.mediaPane.Scrub(-10)
+		case tea.KeyDown:
+			r.mediaPane.Scrub(10)
+		}
+	case FocusTargetConsoleLogs:
 		switch msg.Code {
 		case tea.KeyUp:
 			r.consoleLogsPane.Up()
 		case tea.KeyDown:
 			r.consoleLogsPane.Down()
 		}
-		return nil
-	}
-
-	if !r.leftSidebar.IsVisible() {
-		return nil
-	}
-
-	switch msg.Code {
-	case tea.KeyUp:
-		r.leftSidebar.navigateUp()
-	case tea.KeyDown:
-		r.leftSidebar.navigateDown()
+	case FocusTargetOverview:
+		if r.leftSidebar.IsVisible() {
+			switch msg.Code {
+			case tea.KeyUp:
+				r.leftSidebar.navigateUp()
+			case tea.KeyDown:
+				r.leftSidebar.navigateDown()
+			}
+		}
 	}
 	return nil
 }
 
 func (r *Run) handleSidebarPageNav(msg tea.KeyPressMsg) tea.Cmd {
-	if r.consoleLogsPane.Active() {
+	switch r.focusMgr.Current() {
+	case FocusTargetMedia:
+		switch msg.Code {
+		case tea.KeyLeft:
+			r.mediaPane.Scrub(-1)
+		case tea.KeyRight:
+			r.mediaPane.Scrub(1)
+		}
+	case FocusTargetConsoleLogs:
 		switch msg.Code {
 		case tea.KeyLeft:
 			r.consoleLogsPane.PageUp()
 		case tea.KeyRight:
 			r.consoleLogsPane.PageDown()
 		}
-		return nil
-	}
-
-	if !r.leftSidebar.IsVisible() {
-		return nil
-	}
-
-	switch msg.Code {
-	case tea.KeyLeft:
-		r.leftSidebar.navigatePageUp()
-	case tea.KeyRight:
-		r.leftSidebar.navigatePageDown()
+	case FocusTargetOverview:
+		if r.leftSidebar.IsVisible() {
+			switch msg.Code {
+			case tea.KeyLeft:
+				r.leftSidebar.navigatePageUp()
+			case tea.KeyRight:
+				r.leftSidebar.navigatePageDown()
+			}
+		}
 	}
 	return nil
 }

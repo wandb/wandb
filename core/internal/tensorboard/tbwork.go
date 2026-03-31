@@ -20,7 +20,7 @@ type TBWork struct {
 	TBHandler *TBHandler
 }
 
-// Schedule implements Work.Schedule.
+// Schedule implements WorkImpl.Schedule.
 //
 // TensorBoard is special: we handle its records at Schedule time rather than
 // at Accept (in the Handler) or Process (in the Sender). This is because of
@@ -38,10 +38,10 @@ func (w *TBWork) Schedule(wg *sync.WaitGroup, proceed func()) {
 	proceed()
 }
 
-// ToRecord implements Work.ToRecord.
+// ToRecord implements WorkImpl.ToRecord.
 func (w *TBWork) ToRecord() *spb.Record { return w.Record }
 
-// DebugInfo implements Work.DebugInfo
+// DebugInfo implements WorkImpl.DebugInfo
 func (w *TBWork) DebugInfo() string {
 	return fmt.Sprintf(
 		"TBWork(log_dir=%q, root_dir=%q, save=%t)",

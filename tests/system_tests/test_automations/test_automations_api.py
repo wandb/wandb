@@ -9,12 +9,15 @@ from pytest import FixtureRequest, fixture, mark, raises, skip
 from wandb.apis.public import ArtifactCollection, Project
 from wandb.automations import (
     ActionType,
+    ArtifactEvent,
     Automation,
     DoNothing,
     EventType,
     MetricChangeFilter,
     MetricThresholdFilter,
     MetricZScoreFilter,
+    OnAddArtifactAlias,
+    OnCreateArtifact,
     OnLinkArtifact,
     OnRunMetric,
     OnRunState,
@@ -669,6 +672,91 @@ class TestUpdateAutomation:
         with raises(CommError):
             old_automation.scope = artifact_collection
             api.update_automation(old_automation)
+
+    MUTATION_EVENT_TYPE_TO_CLASS = {
+        EventType.ADD_ARTIFACT_ALIAS: OnAddArtifactAlias,
+        EventType.LINK_ARTIFACT: OnLinkArtifact,
+        EventType.CREATE_ARTIFACT: OnCreateArtifact,
+    }
+
+    @mark.parametrize(
+        "event_type",
+        sorted(MUTATION_EVENT_TYPE_TO_CLASS.keys()),
+        indirect=True,
+        ids=lambda x: f"event={x.value}",
+    )
+    def test_update_event_preserves_filter(
+        self,
+        api: wandb.Api,
+        old_automation: Automation,
+        event_type: EventType,
+        artifact_collection: ArtifactCollection,
+    ):
+        """Updating an automation with a new InputEvent must preserve the alias filter."""
+        event_cls = self.MUTATION_EVENT_TYPE_TO_CLASS[event_type]
+        new_event = event_cls(
+            scope=artifact_collection,
+            filter=ArtifactEvent.alias == "prod",
+        )
+        expected_filter = new_event.filter
+
+        updated = api.update_automation(old_automation, event=new_event)
+        refetched = api.automation(name=old_automation.name)
+
+        assert updated.event.event_type == event_type
+        assert updated.event.filter.filter == expected_filter
+        assert refetched.event.event_type == event_type
+        assert refetched.event.filter.filter == expected_filter
+
+    def test_update_non_event_fields_preserves_filter(
+        self,
+        api: wandb.Api,
+        old_automation: Automation,
+    ):
+        """Updating only the name must not alter the event filter."""
+        original_filter = old_automation.event.filter
+
+        updated = api.update_automation(old_automation, name="updated-name")
+
+        assert updated.name == "updated-name"
+        assert updated.event.filter == original_filter
+
+    RUN_EVENT_FACTORIES = {
+        EventType.RUN_METRIC_THRESHOLD: lambda scope: OnRunMetric(
+            scope=scope,
+            filter=RunEvent.metric("my-metric").avg(5).gt(0),
+        ),
+        EventType.RUN_STATE: lambda scope: OnRunState(
+            scope=scope,
+            filter=RunEvent.state == "failed",
+        ),
+    }
+
+    @mark.parametrize(
+        "event_type",
+        sorted(RUN_EVENT_FACTORIES.keys()),
+        indirect=True,
+        ids=lambda x: f"event={x.value}",
+    )
+    def test_update_run_event_preserves_filter(
+        self,
+        api: wandb.Api,
+        old_automation: Automation,
+        event_type: EventType,
+        project: Project,
+    ):
+        """Updating an automation with a new run InputEvent must preserve the filter."""
+        factory = self.RUN_EVENT_FACTORIES[event_type]
+        new_event = factory(project)
+        expected_filter = new_event.filter
+
+        updated = api.update_automation(old_automation, event=new_event)
+        refetched = api.automation(name=old_automation.name)
+
+        assert updated.event.event_type == new_event.event_type
+        assert updated.event.filter == expected_filter
+        assert refetched.event.event_type == new_event.event_type
+        assert refetched.event.filter == expected_filter
 
     @mark.parametrize(
         "updates",

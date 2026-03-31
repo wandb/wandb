@@ -10,7 +10,13 @@ import (
 	"github.com/wandb/wandb/core/internal/observability"
 )
 
-const rightSidebarHeader = "System Metrics"
+const (
+	rightSidebarHeader      = "System Metrics"
+	rightSidebarHeaderLines = 1
+	// rightSidebarGridXOffset is the X offset from the sidebar's left edge
+	// to the start of the grid content (border + left padding).
+	rightSidebarGridXOffset = SidebarBorderCols + ContentPadding
+)
 
 // RightSidebar represents a collapsible right sidebar displaying system metrics.
 type RightSidebar struct {
@@ -43,18 +49,9 @@ func NewRightSidebar(
 // UpdateDimensions updates the right sidebar dimensions based on terminal width
 // and the visibility of the left sidebar.
 func (rs *RightSidebar) UpdateDimensions(terminalWidth int, leftSidebarVisible bool) {
-	var calculatedWidth int
+	rs.animState.SetExpanded(expandedSidebarWidth(terminalWidth, leftSidebarVisible))
 
-	if leftSidebarVisible {
-		calculatedWidth = int(float64(terminalWidth) * SidebarWidthRatioBoth)
-	} else {
-		calculatedWidth = int(float64(terminalWidth) * SidebarWidthRatio)
-	}
-
-	expandedWidth := clamp(calculatedWidth, SidebarMinWidth, SidebarMaxWidth)
-	rs.animState.SetExpanded(expandedWidth)
-
-	if gridWidth := rs.calculateGridWidth(); gridWidth > 0 {
+	if gridWidth := sidebarContentWidth(rs.animState.Value()); gridWidth > 0 {
 		rs.metricsGrid.Resize(gridWidth, defaultSystemMetricsGridHeight)
 	}
 }
@@ -64,25 +61,31 @@ func (rs *RightSidebar) Toggle() {
 	rs.animState.Toggle()
 }
 
-func (rs *RightSidebar) gridMouseTarget(x, y int) (
-	adjustedX, row, col int,
-	dims GridDims,
-	ok bool,
-) {
+type systemGridMouseTarget struct {
+	adjustedX int
+	adjustedY int
+	row       int
+	col       int
+	dims      GridDims
+}
+
+func (rs *RightSidebar) gridMouseTarget(x, y int) (systemGridMouseTarget, bool) {
 	if !rs.animState.IsVisible() {
-		return 0, 0, 0, GridDims{}, false
+		return systemGridMouseTarget{}, false
 	}
 
-	adjustedX = x - rightSidebarMouseClickPaddingOffset
-	adjustedY := y - rightSidebarMouseClickPaddingOffset
-	if adjustedX < 0 || adjustedY < 0 {
-		return 0, 0, 0, GridDims{}, false
+	target := systemGridMouseTarget{
+		adjustedX: x - rightSidebarGridXOffset,
+		adjustedY: y - rightSidebarHeaderLines,
+	}
+	if target.adjustedX < 0 || target.adjustedY < 0 {
+		return systemGridMouseTarget{}, false
 	}
 
-	dims = rs.metricsGrid.calculateChartDimensions()
-	row = adjustedY / dims.CellHWithPadding
-	col = adjustedX / dims.CellWWithPadding
-	return adjustedX, row, col, dims, true
+	target.dims = rs.metricsGrid.calculateChartDimensions()
+	target.row = target.adjustedY / target.dims.CellHWithPadding
+	target.col = target.adjustedX / target.dims.CellWWithPadding
+	return target, true
 }
 
 // HandleMouseClick handles mouse clicks in the sidebar and returns true if focus changed.
@@ -91,39 +94,53 @@ func (rs *RightSidebar) HandleMouseClick(x, y int) bool {
 		"rightsidebar: HandleMouseClick: x=%d, y=%d, state=%v",
 		x, y, rs.animState))
 
-	_, row, col, _, ok := rs.gridMouseTarget(x, y)
+	target, ok := rs.gridMouseTarget(x, y)
 	if !ok {
 		return false
 	}
 
-	return rs.metricsGrid.HandleMouseClick(row, col)
+	return rs.metricsGrid.HandleMouseClick(target.row, target.col)
 }
 
 // HandleWheel zooms the chart under the mouse cursor.
 func (rs *RightSidebar) HandleWheel(x, y int, wheelUp bool) {
-	adjustedX, row, col, dims, ok := rs.gridMouseTarget(x, y)
+	target, ok := rs.gridMouseTarget(x, y)
 	if !ok {
 		return
 	}
-	rs.metricsGrid.HandleWheel(adjustedX, row, col, dims, wheelUp)
+	rs.metricsGrid.HandleWheel(
+		target.adjustedX, target.row, target.col, target.dims, wheelUp)
 }
 
 // StartInspection begins chart inspection under the mouse cursor.
 func (rs *RightSidebar) StartInspection(x, y int, synced bool) {
-	adjustedX, row, col, dims, ok := rs.gridMouseTarget(x, y)
+	target, ok := rs.gridMouseTarget(x, y)
 	if !ok {
 		return
 	}
-	rs.metricsGrid.StartInspection(adjustedX, row, col, dims, synced)
+	rs.metricsGrid.StartInspection(
+		target.adjustedX,
+		target.adjustedY,
+		target.row,
+		target.col,
+		target.dims,
+		synced,
+	)
 }
 
 // UpdateInspection moves the inspection cursor.
 func (rs *RightSidebar) UpdateInspection(x, y int) {
-	adjustedX, row, col, dims, ok := rs.gridMouseTarget(x, y)
+	target, ok := rs.gridMouseTarget(x, y)
 	if !ok {
 		return
 	}
-	rs.metricsGrid.UpdateInspection(adjustedX, row, col, dims)
+	rs.metricsGrid.UpdateInspection(
+		target.adjustedX,
+		target.adjustedY,
+		target.row,
+		target.col,
+		target.dims,
+	)
 }
 
 // EndInspection clears inspection mode.
@@ -162,36 +179,39 @@ func (rs *RightSidebar) Update(msg tea.Msg) (*RightSidebar, tea.Cmd) {
 
 // View renders the right sidebar.
 func (rs *RightSidebar) View(height int) string {
-	if rs.animState.Value() <= rightSidebarContentPadding {
+	width := rs.animState.Value()
+	if height <= 0 || width <= SidebarOverhead {
 		return ""
 	}
 
-	gridWidth := rs.calculateGridWidth()
+	contentW := sidebarContentWidth(width)
+	innerW := sidebarInnerWidth(width)
 	gridHeight := rs.calculateGridHeight(height)
-
-	if gridWidth <= 0 || gridHeight <= 0 {
+	if contentW <= 0 || innerW <= 0 || gridHeight <= 0 {
 		return ""
 	}
 
-	rs.metricsGrid.Resize(gridWidth, gridHeight)
+	rs.metricsGrid.Resize(contentW, gridHeight)
 
-	header := rs.renderHeader()
-	metricsView := rs.metricsGrid.View()
-
-	content := lipgloss.JoinVertical(lipgloss.Left, header, metricsView)
-
-	styledContent := rightSidebarStyle.
-		Width(rs.animState.Value() - sidebarVerticalBorderCols).
-		Height(height).
-		MaxWidth(rs.animState.Value() - sidebarVerticalBorderCols).
-		MaxHeight(height).
-		Render(content)
-
-	return rightSidebarBorderStyle.
-		Width(rs.animState.Value()).
+	head := lipgloss.Place(
+		contentW,
+		rightSidebarHeaderLines,
+		lipgloss.Left,
+		lipgloss.Top,
+		rs.renderHeader(),
+	)
+	body := lipgloss.JoinVertical(lipgloss.Left, head, rs.metricsGrid.View())
+	styled := rightSidebarStyle.
+		Width(innerW).
+		MaxWidth(innerW).
 		Height(height).
 		MaxHeight(height).
-		Render(styledContent)
+		Render(body)
+	bordered := rightSidebarBorderStyle.
+		Height(height).
+		MaxHeight(height).
+		Render(styled)
+	return lipgloss.Place(width, height, lipgloss.Left, lipgloss.Top, bordered)
 }
 
 // Width returns the current width of the sidebar.
@@ -236,16 +256,9 @@ func (rs *RightSidebar) ProcessStatsMsg(msg StatsMsg) {
 	}
 }
 
-// calculateGridWidth returns the available width for the metrics grid.
-func (rs *RightSidebar) calculateGridWidth() int {
-	return rs.animState.Value() - rightSidebarContentPadding
-}
-
 // calculateGridHeight returns the available height for the metrics grid.
 func (rs *RightSidebar) calculateGridHeight(sidebarHeight int) int {
-	// Reserve one line for the header.
-	const headerLines = 1
-	return sidebarHeight - headerLines
+	return sidebarHeight - rightSidebarHeaderLines
 }
 
 // renderHeader renders the header line with title and navigation info.

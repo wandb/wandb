@@ -46,3 +46,4 @@ func (Logs) GetCategory() ratelimit.Category              { return ratelimit.Cat
 func (Logs) GetEventID() string                           { return "" }
 func (Logs) GetSdkInfo() *SdkInfo                         { return nil }
 func (Logs) GetDynamicSamplingContext() map[string]string { return nil }
+func (Logs) MakeSerializationSafe()                       {}

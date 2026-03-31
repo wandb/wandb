@@ -48,6 +48,7 @@ use core_foundation::{
         kCFStringEncodingUTF8, CFStringCreateWithBytesNoCopy, CFStringGetCString, CFStringRef,
     },
 };
+use serde::Serialize;
 
 pub type WithError<T> = Result<T, Box<dyn std::error::Error>>;
 pub type CVoidRef = *const std::ffi::c_void;
@@ -123,7 +124,7 @@ pub fn cfdict_get_val(dict: CFDictionaryRef, key: &str) -> Option<CFTypeRef> {
 
 #[link(name = "IOKit", kind = "framework")]
 #[rustfmt::skip]
-extern "C" {
+unsafe extern "C" {
   fn IOServiceMatching(name: *const i8) -> CFMutableDictionaryRef;
   fn IOServiceGetMatchingServices(mainPort: u32, matching: CFDictionaryRef, existing: *mut u32) -> i32;
   fn IOIteratorNext(iterator: u32) -> u32;
@@ -142,7 +143,7 @@ type IOReportSubscriptionRef = *const IOReportSubscription;
 
 #[link(name = "IOReport", kind = "dylib")]
 #[rustfmt::skip]
-extern "C" {
+unsafe extern "C" {
   fn IOReportCopyAllChannels(a: u64, b: u64) -> CFDictionaryRef;
   fn IOReportCopyChannelsInGroup(a: CFStringRef, b: CFStringRef, c: u64, d: u64, e: u64) -> CFDictionaryRef;
   fn IOReportMergeChannels(a: CFDictionaryRef, b: CFDictionaryRef, nil: CFTypeRef);
@@ -292,9 +293,7 @@ impl IOReportIterator {
 
 impl Drop for IOReportIterator {
     fn drop(&mut self) {
-        unsafe {
-            CFRelease(self.sample as _);
-        }
+        unsafe { CFRelease(self.sample as _) };
     }
 }
 
@@ -338,7 +337,8 @@ impl Iterator for IOReportIterator {
 // MARK: RAM
 
 pub fn libc_ram() -> WithError<(u64, u64)> {
-    let (mut usage, mut total) = (0u64, 0u64);
+    let mut total = 0u64;
+    let usage: u64;
 
     unsafe {
         let mut name = [libc::CTL_HW, libc::HW_MEMSIZE];
@@ -361,6 +361,8 @@ pub fn libc_ram() -> WithError<(u64, u64)> {
         let mut count: u32 = libc::HOST_VM_INFO64_COUNT as _;
         let mut stats = std::mem::zeroed::<libc::vm_statistics64>();
 
+        // todo: https://github.com/JohnTitor/mach2/issues/34
+        #[allow(deprecated)]
         let ret_code = libc::host_statistics64(
             libc::mach_host_self(),
             libc::HOST_VM_INFO64,
@@ -374,15 +376,13 @@ pub fn libc_ram() -> WithError<(u64, u64)> {
 
         let page_size_kb = libc::sysconf(libc::_SC_PAGESIZE) as u64;
 
-        usage = (0
-            + stats.active_count as u64
+        usage = (stats.active_count as u64
             + stats.inactive_count as u64
             + stats.wire_count as u64
             + stats.speculative_count as u64
             + stats.compressor_page_count as u64
             - stats.purgeable_count as u64
-            - stats.external_page_count as u64
-            + 0)
+            - stats.external_page_count as u64)
             * page_size_kb;
     }
 
@@ -390,7 +390,8 @@ pub fn libc_ram() -> WithError<(u64, u64)> {
 }
 
 pub fn libc_swap() -> WithError<(u64, u64)> {
-    let (mut usage, mut total) = (0u64, 0u64);
+    let usage: u64;
+    let total: u64;
 
     unsafe {
         let mut name = [libc::CTL_VM, libc::VM_SWAPUSAGE];
@@ -419,7 +420,7 @@ pub fn libc_swap() -> WithError<(u64, u64)> {
 
 // MARK: SockInfo
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, Serialize)]
 pub struct SocInfo {
     pub mac_model: String,
     pub chip_name: String,
@@ -452,7 +453,6 @@ pub fn get_dvfs_mhz(dict: CFDictionaryRef, key: &str) -> (Vec<u32>, Vec<u32>) {
         for (i, x) in obj_val.chunks_exact(8).enumerate() {
             volts[i] = u32::from_le_bytes([x[4], x[5], x[6], x[7]]);
             freqs[i] = u32::from_le_bytes([x[0], x[1], x[2], x[3]]);
-            freqs[i] = freqs[i] / 1000 / 1000; // as MHz
         }
 
         (volts, freqs)
@@ -462,7 +462,7 @@ pub fn get_dvfs_mhz(dict: CFDictionaryRef, key: &str) -> (Vec<u32>, Vec<u32>) {
 pub fn run_system_profiler() -> WithError<serde_json::Value> {
     // system_profiler -listDataTypes
     let out = std::process::Command::new("system_profiler")
-        .args(&[
+        .args([
             "SPHardwareDataType",
             "SPDisplaysDataType",
             "SPSoftwareDataType",
@@ -475,6 +475,10 @@ pub fn run_system_profiler() -> WithError<serde_json::Value> {
     Ok(out)
 }
 
+fn to_mhz(vals: Vec<u32>, scale: u32) -> Vec<u32> {
+    vals.iter().map(|x| *x / scale).collect()
+}
+
 pub fn get_soc_info() -> WithError<SocInfo> {
     let out = run_system_profiler()?;
     let mut info = SocInfo::default();
@@ -482,41 +486,51 @@ pub fn get_soc_info() -> WithError<SocInfo> {
     // SPHardwareDataType.0.chip_type
     let chip_name = out["SPHardwareDataType"][0]["chip_type"]
         .as_str()
-        .unwrap()
+        .unwrap_or("Unknown chip")
         .to_string();
 
     // SPHardwareDataType.0.machine_model
     let mac_model = out["SPHardwareDataType"][0]["machine_model"]
         .as_str()
-        .unwrap()
+        .unwrap_or("Unknown model")
         .to_string();
 
     // SPHardwareDataType.0.physical_memory -> "x GB"
-    let mem_gb = out["SPHardwareDataType"][0]["physical_memory"].as_str();
-    let mem_gb = mem_gb
-        .expect("No memory found")
-        .strip_suffix(" GB")
-        .unwrap();
-    let mem_gb = mem_gb.parse::<u64>().unwrap();
+    let mem_gb = out["SPHardwareDataType"][0]["physical_memory"]
+        .as_str()
+        .and_then(|mem| mem.strip_suffix(" GB"))
+        .unwrap_or("0")
+        .parse::<u64>()
+        .unwrap_or(0);
 
     // SPHardwareDataType.0.number_processors -> "proc x:y:z"
-    let cpu_cores = out["SPHardwareDataType"][0]["number_processors"].as_str();
-    let cpu_cores = cpu_cores
-        .expect("No CPU cores found")
-        .strip_prefix("proc ")
-        .unwrap();
-    let cpu_cores = cpu_cores
+    let cpu_cores = out["SPHardwareDataType"][0]["number_processors"]
+        .as_str()
+        .and_then(|cores| cores.strip_prefix("proc "))
+        .unwrap_or("")
         .split(':')
-        .map(|x| x.parse::<u64>().unwrap())
+        .map(|x| x.parse::<u64>().unwrap_or(0))
         .collect::<Vec<_>>();
-    assert_eq!(cpu_cores.len(), 3, "Invalid number of CPU cores");
-    let (ecpu_cores, pcpu_cores, _) = (cpu_cores[2], cpu_cores[1], cpu_cores[0]);
-
-    let gpu_cores = match out["SPDisplaysDataType"][0]["sppci_cores"].as_str() {
-        Some(x) => x.parse::<u64>().unwrap(),
-        None => 0,
+    let (ecpu_cores, pcpu_cores) = if cpu_cores.len() >= 3 {
+        (cpu_cores[2], cpu_cores[1])
+    } else {
+        (0, 0) // Fallback in case of invalid data
     };
 
+    // SPDisplaysDataType.0.sppci_cores
+    let gpu_cores = out["SPDisplaysDataType"][0]["sppci_cores"]
+        .as_str()
+        .unwrap_or("0")
+        .parse::<u64>()
+        .unwrap_or(0);
+
+    // Determine scaling based on chip type
+    let before_m4 =
+        chip_name.contains("M1") || chip_name.contains("M2") || chip_name.contains("M3");
+    let cpu_scale: u32 = if before_m4 { 1000 * 1000 } else { 1000 }; // MHz before M4, KHz after
+    let gpu_scale: u32 = 1000 * 1000; // MHz
+
+    // Assign parsed values to info
     info.chip_name = chip_name;
     info.mac_model = mac_model;
     info.memory_gb = mem_gb as u8;
@@ -524,21 +538,22 @@ pub fn get_soc_info() -> WithError<SocInfo> {
     info.ecpu_cores = ecpu_cores as u8;
     info.pcpu_cores = pcpu_cores as u8;
 
-    // cpu frequencies
+    // CPU frequencies
     for (entry, name) in IOServiceIterator::new("AppleARMIODevice")? {
         if name == "pmgr" {
             let item = cfio_get_props(entry, name)?;
-            // `strings /usr/bin/powermetrics | grep voltage-states` uses non sram keys
-            // but their values are zero, so sram used here, its looks valid
-            info.ecpu_freqs = get_dvfs_mhz(item, "voltage-states1-sram").1;
-            info.pcpu_freqs = get_dvfs_mhz(item, "voltage-states5-sram").1;
-            info.gpu_freqs = get_dvfs_mhz(item, "voltage-states9").1;
+            // 1) `strings /usr/bin/powermetrics | grep voltage-states` uses non-sram keys
+            //    but their values are zero, so sram used here; it looks valid.
+            // 2) sudo powermetrics --samplers cpu_power -i 1000 -n 1 | grep "active residency" | grep "Cluster"
+            info.ecpu_freqs = to_mhz(get_dvfs_mhz(item, "voltage-states1-sram").1, cpu_scale);
+            info.pcpu_freqs = to_mhz(get_dvfs_mhz(item, "voltage-states5-sram").1, cpu_scale);
+            info.gpu_freqs = to_mhz(get_dvfs_mhz(item, "voltage-states9").1, gpu_scale);
             unsafe { CFRelease(item as _) }
         }
     }
 
-    if info.ecpu_freqs.len() == 0 || info.pcpu_freqs.len() == 0 {
-        return Err("No CPU cores found".into());
+    if info.ecpu_freqs.is_empty() || info.pcpu_freqs.is_empty() {
+        return Err("No CPU frequencies found".into());
     }
 
     Ok(info)
@@ -546,38 +561,40 @@ pub fn get_soc_info() -> WithError<SocInfo> {
 
 // MARK: IOReport
 
-unsafe fn cfio_get_chan(items: Vec<(&str, Option<&str>)>) -> WithError<CFMutableDictionaryRef> {
+fn cfio_get_chan(items: Vec<(&str, Option<&str>)>) -> WithError<CFMutableDictionaryRef> {
     // if no items are provided, return all channels
-    if items.len() == 0 {
-        let c = IOReportCopyAllChannels(0, 0);
-        let r = CFDictionaryCreateMutableCopy(kCFAllocatorDefault, CFDictionaryGetCount(c), c);
-        CFRelease(c as _);
-        return Ok(r);
+    if items.is_empty() {
+        unsafe {
+            let c = IOReportCopyAllChannels(0, 0);
+            let r = CFDictionaryCreateMutableCopy(kCFAllocatorDefault, CFDictionaryGetCount(c), c);
+            CFRelease(c as _);
+            return Ok(r);
+        }
     }
 
     let mut channels = vec![];
     for (group, subgroup) in items {
         let gname = cfstr(group);
-        let sname = subgroup.map_or(null(), |x| cfstr(x));
-        let chan = IOReportCopyChannelsInGroup(gname, sname, 0, 0, 0);
+        let sname = subgroup.map_or(null(), cfstr);
+        let chan = unsafe { IOReportCopyChannelsInGroup(gname, sname, 0, 0, 0) };
         channels.push(chan);
 
-        CFRelease(gname as _);
+        unsafe { CFRelease(gname as _) };
         if subgroup.is_some() {
-            CFRelease(sname as _);
+            unsafe { CFRelease(sname as _) };
         }
     }
 
     let chan = channels[0];
     for i in 1..channels.len() {
-        IOReportMergeChannels(chan, channels[i], null());
+        unsafe { IOReportMergeChannels(chan, channels[i], null()) };
     }
 
-    let size = CFDictionaryGetCount(chan);
-    let chan = CFDictionaryCreateMutableCopy(kCFAllocatorDefault, size, chan);
+    let size = unsafe { CFDictionaryGetCount(chan) };
+    let chan = unsafe { CFDictionaryCreateMutableCopy(kCFAllocatorDefault, size, chan) };
 
     for i in 0..channels.len() {
-        CFRelease(channels[i] as _);
+        unsafe { CFRelease(channels[i] as _) };
     }
 
     if cfdict_get_val(chan, "IOReportChannels").is_none() {
@@ -587,29 +604,32 @@ unsafe fn cfio_get_chan(items: Vec<(&str, Option<&str>)>) -> WithError<CFMutable
     Ok(chan)
 }
 
-unsafe fn cfio_get_subs(chan: CFMutableDictionaryRef) -> WithError<IOReportSubscriptionRef> {
+fn cfio_get_subs(chan: CFMutableDictionaryRef) -> WithError<IOReportSubscriptionRef> {
     let mut s: MaybeUninit<CFMutableDictionaryRef> = MaybeUninit::uninit();
-    let rs =
-        IOReportCreateSubscription(std::ptr::null(), chan, s.as_mut_ptr(), 0, std::ptr::null());
-    if rs == std::ptr::null() {
+    let rs = unsafe { IOReportCreateSubscription(null(), chan, s.as_mut_ptr(), 0, null()) };
+    if rs.is_null() {
         return Err("Failed to create subscription".into());
     }
 
-    s.assume_init();
+    unsafe { s.assume_init() };
     Ok(rs)
 }
 
 pub struct IOReport {
     subs: IOReportSubscriptionRef,
     chan: CFMutableDictionaryRef,
+    prev: Option<(CFDictionaryRef, std::time::Instant)>,
 }
 
 impl IOReport {
     pub fn new(channels: Vec<(&str, Option<&str>)>) -> WithError<Self> {
-        let chan = unsafe { cfio_get_chan(channels)? };
-        let subs = unsafe { cfio_get_subs(chan)? };
-
-        Ok(Self { subs, chan })
+        let chan = cfio_get_chan(channels)?;
+        let subs = cfio_get_subs(chan)?;
+        Ok(Self {
+            subs,
+            chan,
+            prev: None,
+        })
     }
 
     pub fn get_sample(&self, duration: u64) -> IOReportIterator {
@@ -624,6 +644,40 @@ impl IOReport {
             IOReportIterator::new(sample3)
         }
     }
+
+    fn raw_sample(&self) -> (CFDictionaryRef, std::time::Instant) {
+        (
+            unsafe { IOReportCreateSamples(self.subs, self.chan, null()) },
+            std::time::Instant::now(),
+        )
+    }
+
+    pub fn get_samples(&mut self, duration: u64, count: usize) -> Vec<(IOReportIterator, u64)> {
+        let count = count.clamp(1, 32);
+        let mut samples: Vec<(IOReportIterator, u64)> = Vec::with_capacity(count);
+        let step_msec = duration / count as u64;
+
+        let mut prev = match self.prev {
+            Some(x) => x,
+            None => self.raw_sample(),
+        };
+
+        for _ in 0..count {
+            std::thread::sleep(std::time::Duration::from_millis(step_msec));
+
+            let next = self.raw_sample();
+            let diff = unsafe { IOReportCreateSamplesDelta(prev.0, next.0, null()) };
+            unsafe { CFRelease(prev.0 as _) };
+
+            let elapsed = next.1.duration_since(prev.1).as_millis() as u64;
+            prev = next;
+
+            samples.push((IOReportIterator::new(diff), elapsed.max(1)));
+        }
+
+        self.prev = Some(prev);
+        samples
+    }
 }
 
 impl Drop for IOReport {
@@ -631,6 +685,9 @@ impl Drop for IOReport {
         unsafe {
             CFRelease(self.chan as _);
             CFRelease(self.subs as _);
+            if self.prev.is_some() {
+                CFRelease(self.prev.unwrap().0 as _);
+            }
         }
     }
 }
@@ -659,7 +716,7 @@ const kIOHIDEventTypePower: i64 = 25;
 
 #[link(name = "IOKit", kind = "framework")]
 #[rustfmt::skip]
-extern "C" {
+unsafe extern "C" {
   fn IOHIDEventSystemClientCreate(allocator: CFAllocatorRef) -> IOHIDEventSystemClientRef;
   fn IOHIDEventSystemClientSetMatching(a: IOHIDEventSystemClientRef, b: CFDictionaryRef) -> i32;
   fn IOHIDEventSystemClientCopyServices(a: IOHIDEventSystemClientRef) -> CFArrayRef;
@@ -676,8 +733,8 @@ pub struct IOHIDSensors {
 
 impl IOHIDSensors {
     pub fn new() -> WithError<Self> {
-        let keys = vec![cfstr("PrimaryUsagePage"), cfstr("PrimaryUsage")];
-        let nums = vec![
+        let keys = [cfstr("PrimaryUsagePage"), cfstr("PrimaryUsage")];
+        let nums = [
             cfnum(kHIDPage_AppleVendor),
             cfnum(kHIDUsage_AppleVendor_TemperatureSensor),
         ];
@@ -744,16 +801,14 @@ impl IOHIDSensors {
 
 impl Drop for IOHIDSensors {
     fn drop(&mut self) {
-        unsafe {
-            CFRelease(self.sensors as _);
-        }
+        unsafe { CFRelease(self.sensors as _) };
     }
 }
 
 // MARK: SMC Bindings
 
 #[link(name = "IOKit", kind = "framework")]
-extern "C" {
+unsafe extern "C" {
     fn mach_task_self() -> u32;
     fn IOServiceOpen(device: u32, a: u32, b: u32, c: *mut u32) -> i32;
     fn IOServiceClose(conn: u32) -> i32;
@@ -818,6 +873,7 @@ pub struct SensorVal {
 
 // MARK: SMC
 
+#[allow(clippy::upper_case_acronyms)]
 pub struct SMC {
     conn: u32,
     keys: HashMap<u32, KeyInfo>,
@@ -896,7 +952,7 @@ impl SMC {
         let key = key.bytes().fold(0, |acc, x| (acc << 8) + x as u32);
         if let Some(ki) = self.keys.get(&key) {
             // println!("cache hit for {}", key);
-            return Ok(ki.clone());
+            return Ok(*ki);
         }
 
         let ival = KeyData {
