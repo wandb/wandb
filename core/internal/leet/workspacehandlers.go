@@ -151,11 +151,11 @@ func (w *Workspace) handleMetricsMouse(msg tea.MouseMsg, layout Layout) tea.Cmd 
 	alt := mouse.Mod == tea.ModAlt // Alt pressed at the time of the mouse event?
 
 	const (
-		gridPaddingX = 1
+		gridInsetX   = 0
 		headerOffset = 1 // metrics header line
 	)
 
-	adjustedX := mouse.X - layout.leftSidebarWidth - gridPaddingX
+	adjustedX := mouse.X - layout.leftSidebarWidth - gridInsetX
 	adjustedY := mouse.Y - headerOffset
 	if adjustedX < 0 || adjustedY < 0 {
 		return nil

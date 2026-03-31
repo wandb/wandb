@@ -470,7 +470,7 @@ func (w *Workspace) recalculateLayout() {
 // to prevent the status bar from being pushed off screen.
 func (w *Workspace) computeViewports() Layout {
 	leftW, rightW := w.runsAnimState.Value(), w.runOverviewSidebar.Width()
-	contentW := max(w.width-leftW-rightW, 1)
+	contentW := max(w.width-leftW-rightW-2*sidebarVerticalBorderCols, 1)
 	totalH := max(w.height-StatusBarHeight, 0)
 
 	stack := computeVerticalStackLayout(
@@ -844,12 +844,13 @@ func (w *Workspace) runOverviewActive() bool {
 func (w *Workspace) renderRunsList() string {
 	startIdx, endIdx := w.syncRunsPage()
 
-	sidebarW := w.runsAnimState.Value()
+	sidebarW := w.runsAnimState.Value() - leftSidebarContentPadding
 	sidebarH := max(w.height-StatusBarHeight, 0)
-	if sidebarW <= 2 || sidebarH <= 2 {
+	if sidebarW <= leftSidebarContentPadding || sidebarH <= leftSidebarContentPadding {
 		return ""
 	}
-	contentWidth := max(sidebarW-leftSidebarContentPadding, 1)
+	contentWidth := max(
+		sidebarW-leftSidebarContentPadding-sidebarVerticalBorderCols, 1)
 
 	lines := w.renderRunLines(contentWidth)
 

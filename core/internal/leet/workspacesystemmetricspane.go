@@ -45,16 +45,19 @@ func (p *SystemMetricsPane) SetExpandedHeight(height int) {
 func (p *SystemMetricsPane) View(
 	width int, runLabel string, grid *SystemMetricsGrid, hint string) string {
 	height := p.Height()
-	if width <= 0 || height < systemMetricsPaneMinHeight {
+	if width <= systemMetricsPaneContentPadding ||
+		height < systemMetricsPaneMinHeight {
 		return ""
 	}
 
-	innerW := max(width-systemMetricsPaneContentPadding, 0)
+	innerW := max(
+		width-systemMetricsPaneContentPadding-sidebarVerticalBorderCols, 0)
 	innerH := max(height, 0)
 	gridH := max(innerH-systemMetricsPaneHeaderLines, 0)
 
 	header := renderSystemMetricsHeader(
-		innerW, WorkspaceSystemMetricsPaneHeader, runLabel, grid)
+		innerW, WorkspaceSystemMetricsPaneHeader,
+		runLabel, grid)
 	body := header
 	if gridH > 0 {
 		body = lipgloss.JoinVertical(

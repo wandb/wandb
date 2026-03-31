@@ -110,8 +110,8 @@ const (
 	SidebarMinWidth       = 40
 	SidebarMaxWidth       = 120
 
-	// Sidebar internal content padding (accounts for borders).
-	leftSidebarContentPadding = 3
+	// Sidebar internal content padding.
+	leftSidebarContentPadding = 2
 
 	// Key/value column width ratio.
 	sidebarKeyWidthRatio = 0.4 // 40% of available width for keys
@@ -472,14 +472,19 @@ func FrenchFriesColors(scheme string) []compat.AdaptiveColor {
 }
 
 // Metrics grid styles.
+//
+// Main-column panes must render exactly the width assigned by the layout.
+// Do not add external margins here: even a 1-column margin makes the
+// composed row wider than its allocated box, which clips the rightmost column
+// and can force an extra terminal wrap line.
 var (
 	headerStyle = lipgloss.NewStyle().Bold(true).Foreground(colorSubheading)
 
 	navInfoStyle = lipgloss.NewStyle().Foreground(colorSubtle)
 
-	headerContainerStyle = lipgloss.NewStyle().MarginLeft(1).MarginTop(0).MarginBottom(0)
+	headerContainerStyle = lipgloss.NewStyle().MarginLeft(1).MarginRight(1)
 
-	gridContainerStyle = lipgloss.NewStyle().MarginLeft(1)
+	gridContainerStyle = lipgloss.NewStyle().MarginLeft(1).MarginRight(1)
 )
 
 // Chart styles.

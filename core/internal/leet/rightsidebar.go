@@ -183,7 +183,7 @@ func (rs *RightSidebar) View(height int) string {
 	}
 
 	contentW := rs.sidebarContentWidth(width)
-	innerW := rs.sidebarInnerWidth(width)
+	innerW := rs.sidebarInnerWidth(contentW)
 	gridHeight := rs.calculateGridHeight(height)
 	if contentW <= 0 || innerW <= 0 || gridHeight <= 0 {
 		return ""

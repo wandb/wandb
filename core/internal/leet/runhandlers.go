@@ -225,11 +225,13 @@ func (r *Run) handleMainContentMouse(msg tea.MouseMsg, layout Layout) (*Run, tea
 
 	alt := mouse.Mod == tea.ModAlt // Alt pressed at the time of the mouse event?
 
-	const gridPaddingX = 1
-	const gridPaddingY = 1
+	const (
+		gridInsetX   = 0
+		headerOffset = 1
+	)
 
-	adjustedX := mouse.X - layout.leftSidebarWidth - gridPaddingX
-	adjustedY := mouse.Y - gridPaddingY
+	adjustedX := mouse.X - layout.leftSidebarWidth - gridInsetX
+	adjustedY := mouse.Y - headerOffset
 	if adjustedX < 0 || adjustedY < 0 || adjustedY >= layout.height {
 		r.metricsGrid.clearFocus()
 		r.rightSidebar.ClearFocus()
