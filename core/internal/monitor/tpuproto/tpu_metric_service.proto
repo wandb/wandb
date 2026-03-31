@@ -199,7 +199,6 @@ message Metric {
   }
 }
 
-
 // TPUMetric is a standalone metric object, exposed externally to a consumer.
 message TPUMetric {
   string name = 1;
@@ -263,9 +262,7 @@ message GetTpuRuntimeStatusRequest {
 message GetTpuRuntimeStatusResponse {
   optional string host_name = 1;
   // Map from a unique Global Core ID to the state of that core.
-  map<int32,
-      tpu_telemetry.CurrentCoreStateSummary>
-      core_states = 2;
+  map<int32, tpu_telemetry.CurrentCoreStateSummary> core_states = 2;
 }
 
 service RuntimeMetricService {
@@ -274,12 +271,9 @@ service RuntimeMetricService {
 
   // ListSupportedMetrics lists the supported metrics for
   // ListSupportedMetricsRequest.
-  rpc ListSupportedMetrics(ListSupportedMetricsRequest)
-      returns (ListSupportedMetricsResponse);
+  rpc ListSupportedMetrics(ListSupportedMetricsRequest) returns (ListSupportedMetricsResponse);
 
   // GetTpuRuntimeStatus returns the TPU runtime status for the
   // GetTpuRuntimeStatusRequest.
-  rpc GetTpuRuntimeStatus(GetTpuRuntimeStatusRequest)
-      returns (GetTpuRuntimeStatusResponse) {
-  }
+  rpc GetTpuRuntimeStatus(GetTpuRuntimeStatusRequest) returns (GetTpuRuntimeStatusResponse) {}
 }
