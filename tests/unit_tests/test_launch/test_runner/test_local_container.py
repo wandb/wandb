@@ -62,6 +62,7 @@ async def test_local_container_base_image_job(
     )
     image_uri = "test-image-uri"
     mock_launch_project.job_base_image = image_uri
+    mock_launch_project.resolved_working_dir = "/mnt/wandb"
 
     await runner.run(mock_launch_project, image_uri)
     command = mock_popen.call_args[0][0]
