@@ -482,7 +482,7 @@ def should_save_code() -> bool:
 def disable_git(env: MutableMapping | None = None) -> bool:
     if env is None:
         env = os.environ
-    val = env.get(DISABLE_GIT, default="False")
+    val = env.get(DISABLE_GIT, "False")
     if isinstance(val, str):
         val = val.lower() != "false"
     return val
