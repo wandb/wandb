@@ -391,6 +391,7 @@ def init(ctx, project, entity, reset, mode):
     prepare the directory for experiment tracking.
 
     Examples:
+
     Set up W&B for the current directory with guided prompts for team and
     project selection.
 
