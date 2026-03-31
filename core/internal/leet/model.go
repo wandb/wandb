@@ -374,6 +374,8 @@ func (m *Model) exitRunView() tea.Cmd {
 		runKey := m.workspace.SelectedRunKey()
 		if runKey != "" {
 			m.workspace.SaveMediaPaneState(runKey, m.run.mediaPane.SaveViewState())
+			// Force the workspace pane to re-sync from the saved per-run state on return.
+			m.workspace.currentMediaRunKey = ""
 		}
 		m.run.Cleanup()
 		m.run = nil

@@ -46,6 +46,34 @@ func (fm *FocusManager) Current() FocusTarget { return fm.current }
 // IsTarget returns true if t is the currently focused target.
 func (fm *FocusManager) IsTarget(t FocusTarget) bool { return fm.current == t }
 
+// AdoptTarget updates the global focus target after a region has already
+// applied its own local mouse-driven focus state.
+//
+// Unlike SetTarget, it deactivates only the other regions so the target
+// region's freshly chosen local focus (for example a clicked chart cell) is
+// preserved.
+func (fm *FocusManager) AdoptTarget(t FocusTarget) {
+	if t == FocusTargetNone {
+		fm.ClearAll()
+		return
+	}
+
+	found := false
+	for i := range fm.regions {
+		if fm.regions[i].Target == t {
+			found = true
+			continue
+		}
+		fm.regions[i].Deactivate()
+	}
+	if !found {
+		fm.current = FocusTargetNone
+		return
+	}
+
+	fm.current = t
+}
+
 // SetTarget deactivates all regions and activates the given target.
 // direction is +1 (forward/Tab) or -1 (backward/Shift+Tab) and is passed
 // to the Activate callback so components like overview sidebar can focus

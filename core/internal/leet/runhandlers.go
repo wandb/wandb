@@ -143,6 +143,32 @@ func (r *Run) handleLeftSidebarMouse() (*Run, tea.Cmd) {
 	return r, nil
 }
 
+func (r *Run) adoptChartMouseFocus() {
+	switch r.focus.Type {
+	case FocusMainChart:
+		r.focusMgr.AdoptTarget(FocusTargetMetricsGrid)
+	case FocusSystemChart:
+		r.focusMgr.AdoptTarget(FocusTargetSystemMetrics)
+	}
+}
+
+func (r *Run) handleMediaMouse(msg tea.MouseMsg, layout Layout) (*Run, tea.Cmd) {
+	mouse := msg.Mouse()
+	localX := mouse.X - layout.leftSidebarWidth
+	localY := mouse.Y - layout.mediaY
+
+	switch m := msg.(type) {
+	case tea.MouseClickMsg:
+		if m.Button == tea.MouseLeft &&
+			r.mediaPane.HandleMouseClick(localX, localY, layout.mainContentAreaWidth, layout.mediaHeight) {
+			r.mediaPane.SetActive(true)
+			r.focusMgr.AdoptTarget(FocusTargetMedia)
+		}
+	}
+
+	return r, nil
+}
+
 // handleRightSidebarMouse handles mouse events in the right sidebar.
 func (r *Run) handleRightSidebarMouse(msg tea.MouseMsg, layout Layout) (*Run, tea.Cmd) {
 	mouse := msg.Mouse()
@@ -156,10 +182,13 @@ func (r *Run) handleRightSidebarMouse(msg tea.MouseMsg, layout Layout) (*Run, te
 		switch m.Button {
 		case tea.MouseLeft:
 			r.metricsGrid.clearFocus()
-			r.rightSidebar.HandleMouseClick(adjustedX, mouse.Y)
+			if r.rightSidebar.HandleMouseClick(adjustedX, mouse.Y) {
+				r.adoptChartMouseFocus()
+			}
 		case tea.MouseRight:
 			r.metricsGrid.clearFocus()
 			r.rightSidebar.StartInspection(adjustedX, mouse.Y, alt)
+			r.adoptChartMouseFocus()
 		}
 	case tea.MouseMotionMsg:
 		if m.Button == tea.MouseRight {
@@ -177,6 +206,7 @@ func (r *Run) handleRightSidebarMouse(msg tea.MouseMsg, layout Layout) (*Run, te
 		case tea.MouseWheelDown:
 			r.rightSidebar.HandleWheel(adjustedX, mouse.Y, false)
 		}
+		r.adoptChartMouseFocus()
 	}
 
 	return r, nil
@@ -189,6 +219,10 @@ func (r *Run) handleMainContentMouse(msg tea.MouseMsg, layout Layout) (*Run, tea
 	}
 
 	mouse := msg.Mouse()
+	if layout.mediaHeight > 0 && mouse.Y >= layout.mediaY && mouse.Y < layout.mediaY+layout.mediaHeight {
+		return r.handleMediaMouse(msg, layout)
+	}
+
 	alt := mouse.Mod == tea.ModAlt // Alt pressed at the time of the mouse event?
 
 	const gridPaddingX = 1
@@ -217,10 +251,12 @@ func (r *Run) handleMainContentMouse(msg tea.MouseMsg, layout Layout) (*Run, tea
 		case tea.MouseLeft:
 			r.rightSidebar.ClearFocus()
 			r.metricsGrid.HandleClick(row, col)
+			r.adoptChartMouseFocus()
 		case tea.MouseRight:
 			// Holding Alt activates synchronised inspection across all charts
 			// visible on the current page.
 			r.metricsGrid.StartInspection(adjustedX, row, col, dims, alt)
+			r.adoptChartMouseFocus()
 		}
 	case tea.MouseMotionMsg:
 		if m.Button == tea.MouseRight {
@@ -237,6 +273,7 @@ func (r *Run) handleMainContentMouse(msg tea.MouseMsg, layout Layout) (*Run, tea
 		case tea.MouseWheelDown:
 			r.metricsGrid.HandleWheel(adjustedX, row, col, dims, false)
 		}
+		r.adoptChartMouseFocus()
 	}
 
 	return r, nil
@@ -330,13 +367,13 @@ func (r *Run) handleToggleLeftSidebar(msg tea.KeyPressMsg) tea.Cmd {
 		return nil
 	}
 
-	leftWillBeVisible := !r.leftSidebar.IsVisible()
+	leftWillBeVisible := !r.leftSidebar.animState.TargetVisible()
 
 	if err := r.config.SetLeftSidebarVisible(leftWillBeVisible); err != nil {
 		r.logger.Error(fmt.Sprintf("model: failed to save left sidebar state: %v", err))
 	}
 
-	r.leftSidebar.UpdateDimensions(r.width, r.rightSidebar.IsVisible())
+	r.leftSidebar.UpdateDimensions(r.width, r.rightSidebar.animState.TargetVisible())
 	r.rightSidebar.UpdateDimensions(r.width, leftWillBeVisible)
 	r.leftSidebar.Toggle()
 
@@ -353,13 +390,13 @@ func (r *Run) handleToggleRightSidebar(msg tea.KeyPressMsg) tea.Cmd {
 		return nil
 	}
 
-	rightWillBeVisible := !r.rightSidebar.IsVisible()
+	rightWillBeVisible := !r.rightSidebar.animState.TargetVisible()
 
 	if err := r.config.SetRightSidebarVisible(rightWillBeVisible); err != nil {
 		r.logger.Error(fmt.Sprintf("model: failed to save right sidebar state: %v", err))
 	}
 
-	r.rightSidebar.UpdateDimensions(r.width, r.leftSidebar.IsVisible())
+	r.rightSidebar.UpdateDimensions(r.width, r.leftSidebar.animState.TargetVisible())
 	r.leftSidebar.UpdateDimensions(r.width, rightWillBeVisible)
 	r.rightSidebar.Toggle()
 
@@ -431,7 +468,7 @@ func (r *Run) handleClearOverviewFilter(msg tea.KeyPressMsg) tea.Cmd {
 }
 
 func (r *Run) handleToggleMetricsGrid(msg tea.KeyPressMsg) tea.Cmd {
-	metricsWillBeVisible := !r.metricsGridAnimState.IsExpanded()
+	metricsWillBeVisible := !r.metricsGridAnimState.TargetVisible()
 
 	if err := r.config.SetMetricsGridVisible(metricsWillBeVisible); err != nil {
 		r.logger.Error(fmt.Sprintf("runhandlers: failed to save metrics grid state: %v", err))
@@ -440,7 +477,7 @@ func (r *Run) handleToggleMetricsGrid(msg tea.KeyPressMsg) tea.Cmd {
 	r.metricsGridAnimState.Toggle()
 	r.focusMgr.ResolveAfterVisibilityChange()
 
-	r.updateBottomPaneHeights(r.mediaPane.IsExpanded(), r.consoleLogsPane.IsExpanded())
+	r.updateBottomPaneHeights(r.mediaPane.animState.TargetVisible(), r.consoleLogsPane.animState.TargetVisible())
 
 	layout := r.computeViewports()
 	r.metricsGrid.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
@@ -451,7 +488,7 @@ func (r *Run) handleToggleMetricsGrid(msg tea.KeyPressMsg) tea.Cmd {
 func (r *Run) handleMetricsGridAnimation() []tea.Cmd {
 	r.metricsGridAnimState.Update(time.Now())
 
-	r.updateBottomPaneHeights(r.mediaPane.IsExpanded(), r.consoleLogsPane.IsExpanded())
+	r.updateBottomPaneHeights(r.mediaPane.animState.TargetVisible(), r.consoleLogsPane.animState.TargetVisible())
 	layout := r.computeViewports()
 	r.metricsGrid.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
 
@@ -586,7 +623,7 @@ func (r *Run) handleSidebarAnimation(msg tea.Msg) []tea.Cmd {
 		}
 
 		r.endAnimating()
-		r.rightSidebar.UpdateDimensions(r.width, r.leftSidebar.IsVisible())
+		r.rightSidebar.UpdateDimensions(r.width, r.leftSidebar.animState.TargetVisible())
 
 	case RightSidebarAnimationMsg:
 		layout := r.computeViewports()
@@ -597,7 +634,7 @@ func (r *Run) handleSidebarAnimation(msg tea.Msg) []tea.Cmd {
 		}
 
 		r.endAnimating()
-		r.leftSidebar.UpdateDimensions(r.width, r.rightSidebar.IsVisible())
+		r.leftSidebar.UpdateDimensions(r.width, r.rightSidebar.animState.TargetVisible())
 	}
 
 	return nil
@@ -608,7 +645,7 @@ func (r *Run) handleToggleMediaPane(msg tea.KeyPressMsg) tea.Cmd {
 		return nil
 	}
 
-	mediaWillBeVisible := !r.mediaPane.IsExpanded()
+	mediaWillBeVisible := !r.mediaPane.animState.TargetVisible()
 
 	if err := r.config.SetMediaVisible(mediaWillBeVisible); err != nil {
 		r.logger.Error(fmt.Sprintf("runhandlers: failed to save media pane state: %v", err))
@@ -619,11 +656,9 @@ func (r *Run) handleToggleMediaPane(msg tea.KeyPressMsg) tea.Cmd {
 	}
 
 	r.mediaPane.Toggle()
-	r.updateBottomPaneHeights(mediaWillBeVisible, r.consoleLogsPane.IsExpanded())
+	r.updateBottomPaneHeights(mediaWillBeVisible, r.consoleLogsPane.animState.TargetVisible())
 
-	if mediaWillBeVisible {
-		r.focusMgr.SetTarget(FocusTargetMedia, 1)
-	} else {
+	if !mediaWillBeVisible {
 		r.focusMgr.ResolveAfterVisibilityChange()
 	}
 
@@ -661,14 +696,14 @@ func (r *Run) handleToggleConsoleLogsPane(msg tea.KeyPressMsg) tea.Cmd {
 		return nil
 	}
 
-	bottomWillBeVisible := !r.consoleLogsPane.IsExpanded()
+	bottomWillBeVisible := !r.consoleLogsPane.animState.TargetVisible()
 
 	if err := r.config.SetConsoleLogsVisible(bottomWillBeVisible); err != nil {
 		r.logger.Error(fmt.Sprintf("runhandlers: failed to save console logs state: %v", err))
 	}
 
 	r.consoleLogsPane.Toggle()
-	r.updateBottomPaneHeights(r.mediaPane.IsExpanded(), bottomWillBeVisible)
+	r.updateBottomPaneHeights(r.mediaPane.animState.TargetVisible(), bottomWillBeVisible)
 	r.focusMgr.ResolveAfterVisibilityChange()
 
 	layout := r.computeViewports()

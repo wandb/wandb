@@ -60,13 +60,13 @@ type Run struct {
 	// UI components.
 	metricsGridAnimState *AnimatedValue
 	metricsGrid          *MetricsGrid
-	runOverview     *RunOverview
-	leftSidebar     *RunOverviewSidebar
-	rightSidebar    *RightSidebar
-	consoleLogs     *RunConsoleLogs
-	consoleLogsPane *ConsoleLogsPane
-	mediaStore      *MediaStore
-	mediaPane       *MediaPane
+	runOverview          *RunOverview
+	leftSidebar          *RunOverviewSidebar
+	rightSidebar         *RightSidebar
+	consoleLogs          *RunConsoleLogs
+	consoleLogsPane      *ConsoleLogsPane
+	mediaStore           *MediaStore
+	mediaPane            *MediaPane
 
 	// Sidebar animation synchronization.
 	animationMu sync.Mutex
@@ -125,16 +125,16 @@ func NewRun(
 		runPath:              runPath,
 		metricsGridAnimState: metricsGridAnimState,
 		metricsGrid:          metricsGrid,
-		runOverview:     ro,
-		leftSidebar:     NewRunOverviewSidebar(cfg, runOverviewAnimState, ro, SidebarSideLeft),
-		rightSidebar:    NewRightSidebar(cfg, focus, logger),
-		consoleLogs:     NewRunConsoleLogs(),
-		consoleLogsPane: NewConsoleLogsPane(consoleLogsPaneAnimState),
-		mediaStore:      mediaStore,
-		mediaPane:       NewMediaPane(mediaPaneAnimState, cfg.MediaGrid),
-		watcherMgr:      NewWatcherManager(ch, logger),
-		heartbeatMgr:    NewHeartbeatManager(heartbeatInterval, ch, logger),
-		logger:          logger,
+		runOverview:          ro,
+		leftSidebar:          NewRunOverviewSidebar(cfg, runOverviewAnimState, ro, SidebarSideLeft),
+		rightSidebar:         NewRightSidebar(cfg, focus, logger),
+		consoleLogs:          NewRunConsoleLogs(),
+		consoleLogsPane:      NewConsoleLogsPane(consoleLogsPaneAnimState),
+		mediaStore:           mediaStore,
+		mediaPane:            NewMediaPane(mediaPaneAnimState, cfg.MediaGrid),
+		watcherMgr:           NewWatcherManager(ch, logger),
+		heartbeatMgr:         NewHeartbeatManager(heartbeatInterval, ch, logger),
+		logger:               logger,
 	}
 	run.focusMgr = run.buildRunFocusManager()
 	return run
@@ -211,9 +211,9 @@ func (r *Run) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (r *Run) handleWindowResize(msg tea.WindowSizeMsg) {
 	r.width, r.height = msg.Width, msg.Height
 
-	r.leftSidebar.UpdateDimensions(msg.Width, r.rightSidebar.IsVisible())
-	r.rightSidebar.UpdateDimensions(msg.Width, r.leftSidebar.IsVisible())
-	r.updateBottomPaneHeights(r.mediaPane.IsVisible(), r.consoleLogsPane.IsVisible())
+	r.leftSidebar.UpdateDimensions(msg.Width, r.rightSidebar.animState.TargetVisible())
+	r.rightSidebar.UpdateDimensions(msg.Width, r.leftSidebar.animState.TargetVisible())
+	r.updateBottomPaneHeights(r.mediaPane.animState.TargetVisible(), r.consoleLogsPane.animState.TargetVisible())
 
 	layout := r.computeViewports()
 	r.metricsGrid.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
@@ -297,11 +297,10 @@ func (r *Run) renderMainView() string {
 	layout := r.computeViewports()
 	r.mediaPane.SetStore(r.mediaStore)
 
-	centralColumn := ""
 	w := layout.mainContentAreaWidth
+	centralColumn := ""
 	if r.mediaPane.IsFullscreen() {
-		fullHeight := max(r.height-StatusBarHeight, 1)
-		centralColumn = r.mediaPane.View(w, fullHeight, "", "")
+		centralColumn = r.mediaPane.View(w, layout.totalContentAreaHeight, "", "")
 	} else {
 		var sections []string
 
@@ -314,24 +313,26 @@ func (r *Run) renderMainView() string {
 			}
 		}
 
-		if r.mediaPane.IsVisible() {
-			sections = append(sections, r.mediaPane.View(w, r.mediaPane.Height(), "", ""))
+		if layout.mediaHeight > 0 {
+			sections = append(sections, r.mediaPane.View(w, layout.mediaHeight, "", ""))
 		}
-		if r.consoleLogsPane.IsVisible() {
+		if layout.consoleLogsHeight > 0 {
 			r.consoleLogsPane.SetConsoleLogs(r.consoleLogs.Items())
 			sections = append(sections, r.consoleLogsPane.View(w, "", ""))
 		}
 
+		sections = filterNonEmptySections(sections)
 		if len(sections) == 0 {
-			artHeight := max(r.height-StatusBarHeight, 1)
-			centralColumn = renderLogoArt(w, artHeight)
+			centralColumn = renderLogoArt(w, layout.totalContentAreaHeight)
 		} else {
 			centralColumn = joinWithSeparators(sections, w)
 		}
 	}
+	centralColumn = placeMainColumn(w, layout.totalContentAreaHeight, centralColumn)
 
 	mainView := r.buildMainViewWithSidebars(
 		centralColumn,
+		layout.totalContentAreaHeight,
 		layout.leftSidebarWidth,
 		layout.rightSidebarWidth,
 	)
@@ -342,22 +343,27 @@ func (r *Run) renderMainView() string {
 }
 
 // buildMainViewWithSidebars builds the main view with sidebars.
-func (r *Run) buildMainViewWithSidebars(gridView string, leftWidth, rightWidth int) string {
+func (r *Run) buildMainViewWithSidebars(
+	gridView string,
+	contentHeight int,
+	leftWidth, rightWidth int,
+) string {
 	if leftWidth == 0 && rightWidth == 0 {
 		return gridView
 	}
 
 	var parts []string
+	sidebarHeight := max(contentHeight-1, 0)
 
 	if leftWidth > 0 {
-		leftView := r.leftSidebar.View(r.height - StatusBarHeight - 1).Content
+		leftView := r.leftSidebar.View(sidebarHeight).Content
 		parts = append(parts, leftView)
 	}
 
 	parts = append(parts, gridView)
 
 	if rightWidth > 0 {
-		rightView := r.rightSidebar.View(r.height - StatusBarHeight)
+		rightView := r.rightSidebar.View(sidebarHeight)
 		parts = append(parts, rightView)
 	}
 
@@ -581,9 +587,11 @@ func (r *Run) MediaFullscreen() bool {
 }
 
 func (r *Run) updateBottomPaneHeights(mediaVisible, logsVisible bool) {
+	metricsVisible := r.metricsGridAnimState.TargetVisible()
+
 	// Compute separator count from the visibility state we're configuring toward.
 	sectionCount := 0
-	if r.metricsGridAnimState.IsExpanded() {
+	if metricsVisible {
 		sectionCount++
 	}
 	if mediaVisible {
@@ -607,7 +615,7 @@ func (r *Run) updateBottomPaneHeights(mediaVisible, logsVisible bool) {
 	}
 
 	var lowerTierH int
-	if r.metricsGridAnimState.IsExpanded() {
+	if metricsVisible {
 		lowerTierH = int(float64(maxH) * LowerTierRatio)
 	} else {
 		lowerTierH = maxH
@@ -624,10 +632,17 @@ func (r *Run) updateBottomPaneHeights(mediaVisible, logsVisible bool) {
 
 // Layout represents the computed layout dimensions for the main UI.
 type Layout struct {
-	leftSidebarWidth     int
-	mainContentAreaWidth int
-	rightSidebarWidth    int
-	height               int
+	leftSidebarWidth       int
+	mainContentAreaWidth   int
+	rightSidebarWidth      int
+	totalContentAreaHeight int
+	height                 int
+	systemMetricsY         int
+	systemMetricsHeight    int
+	mediaY                 int
+	mediaHeight            int
+	consoleLogsY           int
+	consoleLogsHeight      int
 }
 
 // effectiveSidebarWidths returns the widths that can actually be rendered
@@ -659,28 +674,27 @@ func (r *Run) effectiveSidebarWidths() (leftW, rightW int) {
 // computeViewports returns (leftW, contentW, rightW, contentH).
 func (r *Run) computeViewports() Layout {
 	leftW, rightW := r.effectiveSidebarWidths()
+	contentW := max(r.width-leftW-rightW, 1)
+	totalH := max(r.height-StatusBarHeight, 0)
 
-	contentW := max(r.width-leftW-rightW-2, 1)
+	stack := computeVerticalStackLayout(
+		totalH,
+		stackSectionSpec{ID: stackSectionMetrics, Visible: r.metricsGridAnimState.IsVisible(), Flex: true},
+		stackSectionSpec{ID: stackSectionMedia, Visible: r.mediaPane.IsVisible(), Height: r.mediaPane.Height()},
+		stackSectionSpec{ID: stackSectionConsoleLogs, Visible: r.consoleLogsPane.IsVisible(), Height: r.consoleLogsPane.Height()},
+	)
 
-	sectionCount := 0
-	if r.metricsGridAnimState.IsVisible() {
-		sectionCount++
+	return Layout{
+		leftSidebarWidth:       leftW,
+		mainContentAreaWidth:   contentW,
+		rightSidebarWidth:      rightW,
+		totalContentAreaHeight: totalH,
+		height:                 stack.Height(stackSectionMetrics),
+		mediaY:                 stack.Y(stackSectionMedia),
+		mediaHeight:            stack.Height(stackSectionMedia),
+		consoleLogsY:           stack.Y(stackSectionConsoleLogs),
+		consoleLogsHeight:      stack.Height(stackSectionConsoleLogs),
 	}
-	if r.mediaPane.IsVisible() {
-		sectionCount++
-	}
-	if r.consoleLogsPane.IsVisible() {
-		sectionCount++
-	}
-	sepLines := max(sectionCount-1, 0)
-
-	reserved := r.consoleLogsPane.Height() + r.mediaPane.Height() + sepLines
-	contentH := 0
-	if r.metricsGridAnimState.IsVisible() {
-		contentH = max(r.height-StatusBarHeight-reserved, 1)
-	}
-
-	return Layout{leftW, contentW, rightW, contentH}
 }
 
 // Cleanup releases resources held by the RunModel.

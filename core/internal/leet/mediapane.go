@@ -1,12 +1,12 @@
 package leet
 
 import (
-	"maps"
 	"fmt"
 	"image"
 	_ "image/gif"
 	_ "image/jpeg"
 	_ "image/png"
+	"maps"
 	"math"
 	"os"
 	"strings"
@@ -172,8 +172,20 @@ func (p *MediaPane) SaveViewState() MediaPaneViewState {
 
 func (p *MediaPane) RestoreViewState(s MediaPaneViewState) {
 	p.selectedIndex = s.SelectedIndex
+	clear(p.xIndices)
 	maps.Copy(p.xIndices, s.XIndices)
+	clear(p.autoFollows)
 	maps.Copy(p.autoFollows, s.AutoFollows)
+	p.fullscreen = false
+	p.syncState()
+}
+
+func (p *MediaPane) ResetViewState() {
+	p.selectedIndex = 0
+	clear(p.xIndices)
+	clear(p.autoFollows)
+	p.nav.currentPage = 0
+	p.fullscreen = false
 	p.syncState()
 }
 
@@ -444,6 +456,72 @@ func (p *MediaPane) ScrubToEnd() {
 	p.autoFollows[key] = true
 }
 
+func (p *MediaPane) syncGridLayoutForViewport(width, height int) {
+	if p.fullscreen {
+		return
+	}
+
+	innerW := max(width-mediaPaneContentPadding, 0)
+	innerH := max(height, 0)
+	if innerW == 0 || innerH == 0 {
+		return
+	}
+
+	rows, cols, _, _ := p.effectiveGrid(innerW, max(innerH-mediaPaneHeaderLines, 1))
+	if rows != p.pageRows || cols != p.pageCols {
+		p.pageRows = rows
+		p.pageCols = cols
+		p.syncState()
+	}
+}
+
+func (p *MediaPane) tileIndexAt(x, y, width, height int) (int, bool) {
+	if width <= 0 || height < mediaPaneMinHeight || p.fullscreen {
+		return 0, false
+	}
+
+	p.syncGridLayoutForViewport(width, height)
+	keys := p.seriesKeys()
+	if len(keys) == 0 {
+		return 0, false
+	}
+
+	innerW := max(width-mediaPaneContentPadding, 0)
+	gridH := max(height-mediaPaneHeaderLines, 0)
+	gridX := x - mediaPaneContentPadding
+	gridY := y - mediaPaneHeaderLines
+	if gridX < 0 || gridY < 0 || gridX >= innerW || gridY >= gridH {
+		return 0, false
+	}
+
+	rows, cols, slotW, slotH := p.effectiveGrid(innerW, max(gridH, 1))
+	row := gridY / slotH
+	col := gridX / slotW
+	if row < 0 || row >= rows || col < 0 || col >= cols {
+		return 0, false
+	}
+
+	itemsPerPage := max(rows*cols, 1)
+	p.nav.UpdateTotalPages(len(keys), itemsPerPage)
+	startIdx, endIdx := p.nav.PageBounds(len(keys), itemsPerPage)
+	idx := startIdx + row*cols + col
+	if idx < startIdx || idx >= endIdx || idx >= len(keys) {
+		return 0, false
+	}
+
+	return idx, true
+}
+
+// HandleMouseClick selects the clicked media tile.
+func (p *MediaPane) HandleMouseClick(x, y, width, height int) bool {
+	idx, ok := p.tileIndexAt(x, y, width, height)
+	if !ok {
+		return false
+	}
+	p.selectedIndex = idx
+	return true
+}
+
 func (p *MediaPane) View(width, height int, runLabel, hint string) string {
 	if width <= 0 || height < mediaPaneMinHeight {
 		return ""
@@ -454,14 +532,7 @@ func (p *MediaPane) View(width, height int, runLabel, hint string) string {
 	if innerW == 0 || innerH == 0 {
 		return ""
 	}
-	if !p.fullscreen {
-		rows, cols, _, _ := p.effectiveGrid(innerW, max(innerH-mediaPaneHeaderLines, 1))
-		if rows != p.pageRows || cols != p.pageCols {
-			p.pageRows = rows
-			p.pageCols = cols
-			p.syncState()
-		}
-	}
+	p.syncGridLayoutForViewport(width, height)
 
 	var body string
 	if p.fullscreen {
@@ -590,6 +661,7 @@ func (p *MediaPane) renderGrid(width, height int, hint string) string {
 		p.selectedIndex = startIdx
 	}
 
+	showSelection := p.active || p.fullscreen
 	cells := make([]string, 0, itemsPerPage)
 	for idx := startIdx; idx < endIdx; idx++ {
 		key := keys[idx]
@@ -598,8 +670,10 @@ func (p *MediaPane) renderGrid(width, height int, hint string) string {
 		if hasX && p.store != nil {
 			point, ok = p.store.ResolveAt(key, x)
 		}
-		selected := p.active && idx == p.selectedIndex
-		cells = append(cells, p.renderTile(key, point, ok, selected, slotW, slotH))
+		cells = append(
+			cells,
+			p.renderTile(key, point, ok, showSelection && idx == p.selectedIndex, slotW, slotH))
+
 	}
 	for len(cells) < itemsPerPage {
 		cells = append(cells, lipgloss.NewStyle().Width(slotW).Height(slotH).Render(""))

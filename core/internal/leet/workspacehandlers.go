@@ -29,6 +29,32 @@ func batchCmds(cmds ...tea.Cmd) tea.Cmd {
 
 // ---- Key / Mouse Dispatch ----
 
+func (w *Workspace) adoptChartMouseFocus() {
+	switch {
+	case w.focus.Type == FocusMainChart:
+		w.focusMgr.AdoptTarget(FocusTargetMetricsGrid)
+	case w.systemMetricsFocus != nil && w.systemMetricsFocus.Type == FocusSystemChart:
+		w.focusMgr.AdoptTarget(FocusTargetSystemMetrics)
+	}
+}
+
+func (w *Workspace) handleMediaMouse(msg tea.MouseMsg, layout Layout) tea.Cmd {
+	mouse := msg.Mouse()
+	localX := mouse.X - layout.leftSidebarWidth
+	localY := mouse.Y - layout.mediaY
+
+	switch m := msg.(type) {
+	case tea.MouseClickMsg:
+		if m.Button == tea.MouseLeft &&
+			w.mediaPane.HandleMouseClick(localX, localY, layout.mainContentAreaWidth, layout.mediaHeight) {
+			w.mediaPane.SetActive(true)
+			w.focusMgr.AdoptTarget(FocusTargetMedia)
+		}
+	}
+
+	return nil
+}
+
 func (w *Workspace) handleKeyPressMsg(msg tea.KeyPressMsg) tea.Cmd {
 	// Filter mode takes priority.
 	if w.filter.IsActive() {
@@ -75,56 +101,52 @@ func (w *Workspace) handleKeyPressMsg(msg tea.KeyPressMsg) tea.Cmd {
 
 func (w *Workspace) handleMouse(msg tea.MouseMsg) tea.Cmd {
 	mouse := msg.Mouse()
+	layout := w.computeViewports()
 
 	// Clicks in the left sidebar clear all chart focus.
-	if w.runsAnimState.IsVisible() && mouse.X < w.runsAnimState.Value() {
+	if w.runsAnimState.IsVisible() && mouse.X < layout.leftSidebarWidth {
 		w.clearChartFocus()
 		return nil
 	}
 
 	// Clicks in the right sidebar clear all chart focus.
-	if w.runOverviewSidebar.IsVisible() {
-		if mouse.X >= w.width-w.runOverviewSidebar.Width() {
-			w.clearChartFocus()
-			return nil
-		}
+	if w.runOverviewSidebar.IsVisible() && mouse.X >= w.width-layout.rightSidebarWidth {
+		w.clearChartFocus()
+		return nil
 	}
 
 	if w.mediaPane.IsFullscreen() {
 		return nil
 	}
 
-	// Determine vertical region within the central column.
-	reserved := w.consoleLogsPane.Height() + w.mediaPane.Height() + w.systemMetricsPane.Height()
-	metricsHeight := max(w.height-StatusBarHeight-reserved, 1)
-
-	if mouse.Y < metricsHeight {
-		return w.handleMetricsMouse(msg, metricsHeight)
+	if layout.height > 0 && mouse.Y < layout.height {
+		return w.handleMetricsMouse(msg, layout)
 	}
 
-	systemBottom := metricsHeight + w.systemMetricsPane.Height()
-	mediaBottom := systemBottom + w.mediaPane.Height()
-
-	if w.systemMetricsPane.IsVisible() && mouse.Y < systemBottom {
-		return w.handleSystemMetricsMouse(msg, metricsHeight)
+	if layout.systemMetricsHeight > 0 &&
+		mouse.Y >= layout.systemMetricsY &&
+		mouse.Y < layout.systemMetricsY+layout.systemMetricsHeight {
+		return w.handleSystemMetricsMouse(msg, layout)
 	}
 
-	if w.mediaPane.IsVisible() && mouse.Y < mediaBottom {
+	if layout.mediaHeight > 0 &&
+		mouse.Y >= layout.mediaY &&
+		mouse.Y < layout.mediaY+layout.mediaHeight {
+		return w.handleMediaMouse(msg, layout)
+	}
+
+	if layout.consoleLogsHeight > 0 &&
+		mouse.Y >= layout.consoleLogsY &&
+		mouse.Y < layout.consoleLogsY+layout.consoleLogsHeight {
 		w.clearChartFocus()
 		return nil
 	}
 
-	// Clicks in the logs pane clear all chart focus.
-	if w.consoleLogsPane.IsVisible() && mouse.Y >= mediaBottom {
-		w.clearChartFocus()
-		return nil
-	}
-
-	// Bottom bar area — no chart interaction.
+	// Separator or status bar area — no chart interaction.
 	return nil
 }
 
-func (w *Workspace) handleMetricsMouse(msg tea.MouseMsg, metricsHeight int) tea.Cmd {
+func (w *Workspace) handleMetricsMouse(msg tea.MouseMsg, layout Layout) tea.Cmd {
 	mouse := msg.Mouse()
 	alt := mouse.Mod == tea.ModAlt // Alt pressed at the time of the mouse event?
 
@@ -133,17 +155,13 @@ func (w *Workspace) handleMetricsMouse(msg tea.MouseMsg, metricsHeight int) tea.
 		headerOffset = 1 // metrics header line
 	)
 
-	leftOffset := w.runsAnimState.Value()
-	rightOffset := w.runOverviewSidebar.Width()
-
-	adjustedX := mouse.X - leftOffset - gridPaddingX
+	adjustedX := mouse.X - layout.leftSidebarWidth - gridPaddingX
 	adjustedY := mouse.Y - headerOffset
 	if adjustedX < 0 || adjustedY < 0 {
 		return nil
 	}
 
-	contentWidth := max(w.width-leftOffset-rightOffset, 0)
-	dims := w.metricsGrid.CalculateChartDimensions(contentWidth, metricsHeight)
+	dims := w.metricsGrid.CalculateChartDimensions(layout.mainContentAreaWidth, layout.height)
 
 	row := adjustedY / dims.CellHWithPadding
 	col := adjustedX / dims.CellWWithPadding
@@ -154,8 +172,10 @@ func (w *Workspace) handleMetricsMouse(msg tea.MouseMsg, metricsHeight int) tea.
 		case tea.MouseLeft:
 			w.clearCurrentSystemMetricsFocus()
 			w.metricsGrid.HandleClick(row, col)
+			w.adoptChartMouseFocus()
 		case tea.MouseRight:
 			w.metricsGrid.StartInspection(adjustedX, row, col, dims, alt)
+			w.adoptChartMouseFocus()
 		}
 	case tea.MouseMotionMsg:
 		if m.Button == tea.MouseRight {
@@ -172,12 +192,13 @@ func (w *Workspace) handleMetricsMouse(msg tea.MouseMsg, metricsHeight int) tea.
 		case tea.MouseWheelDown:
 			w.metricsGrid.HandleWheel(adjustedX, row, col, dims, false)
 		}
+		w.adoptChartMouseFocus()
 	}
 
 	return nil
 }
 
-func (w *Workspace) handleSystemMetricsMouse(msg tea.MouseMsg, metricsHeight int) tea.Cmd {
+func (w *Workspace) handleSystemMetricsMouse(msg tea.MouseMsg, layout Layout) tea.Cmd {
 	mouse := msg.Mouse()
 	alt := mouse.Mod == tea.ModAlt
 
@@ -190,9 +211,8 @@ func (w *Workspace) handleSystemMetricsMouse(msg tea.MouseMsg, metricsHeight int
 		return nil
 	}
 
-	leftOffset := w.runsAnimState.Value()
-	adjustedX := mouse.X - leftOffset - systemMetricsPaneContentPadding
-	adjustedY := mouse.Y - metricsHeight - systemMetricsPaneHeaderLines
+	adjustedX := mouse.X - layout.leftSidebarWidth - systemMetricsPaneContentPadding
+	adjustedY := mouse.Y - layout.systemMetricsY - systemMetricsPaneHeaderLines
 	if adjustedX < 0 || adjustedY < 0 {
 		return nil
 	}
@@ -206,10 +226,13 @@ func (w *Workspace) handleSystemMetricsMouse(msg tea.MouseMsg, metricsHeight int
 		switch m.Button {
 		case tea.MouseLeft:
 			w.metricsGrid.clearFocus()
-			grid.HandleMouseClick(row, col)
+			if grid.HandleMouseClick(row, col) {
+				w.adoptChartMouseFocus()
+			}
 		case tea.MouseRight:
 			w.metricsGrid.clearFocus()
 			grid.StartInspection(adjustedX, adjustedY, row, col, dims, alt)
+			w.adoptChartMouseFocus()
 		}
 	case tea.MouseMotionMsg:
 		if m.Button == tea.MouseRight {
@@ -227,6 +250,7 @@ func (w *Workspace) handleSystemMetricsMouse(msg tea.MouseMsg, metricsHeight int
 		case tea.MouseWheelDown:
 			grid.HandleWheel(adjustedX, row, col, dims, false)
 		}
+		w.adoptChartMouseFocus()
 	}
 
 	return nil
@@ -311,8 +335,8 @@ func (w *Workspace) handleSystemMetricsPaneAnimation(now time.Time) tea.Cmd {
 // ---- UI components Toggle Handlers ----
 
 func (w *Workspace) handleToggleRunsSidebar(msg tea.KeyPressMsg) tea.Cmd {
-	leftWillBeVisible := !w.runsAnimState.IsVisible()
-	rightIsVisible := w.runOverviewSidebar.IsVisible()
+	leftWillBeVisible := !w.runsAnimState.TargetVisible()
+	rightIsVisible := w.runOverviewSidebar.animState.TargetVisible()
 
 	w.updateSidebarDimensions(leftWillBeVisible, rightIsVisible)
 	w.runsAnimState.Toggle()
@@ -323,8 +347,8 @@ func (w *Workspace) handleToggleRunsSidebar(msg tea.KeyPressMsg) tea.Cmd {
 }
 
 func (w *Workspace) handleToggleOverviewSidebar(msg tea.KeyPressMsg) tea.Cmd {
-	rightWillBeVisible := !w.runOverviewSidebar.IsVisible()
-	leftIsVisible := w.runsAnimState.IsVisible()
+	rightWillBeVisible := !w.runOverviewSidebar.animState.TargetVisible()
+	leftIsVisible := w.runsAnimState.TargetVisible()
 
 	if err := w.config.SetWorkspaceOverviewVisible(rightWillBeVisible); err != nil {
 		w.logger.Error(fmt.Sprintf("workspace: failed to save overview state: %v", err))
@@ -339,7 +363,7 @@ func (w *Workspace) handleToggleOverviewSidebar(msg tea.KeyPressMsg) tea.Cmd {
 }
 
 func (w *Workspace) handleToggleMediaPane(msg tea.KeyPressMsg) tea.Cmd {
-	mediaWillBeVisible := !w.mediaPane.IsExpanded()
+	mediaWillBeVisible := !w.mediaPane.animState.TargetVisible()
 
 	if err := w.config.SetWorkspaceMediaVisible(mediaWillBeVisible); err != nil {
 		w.logger.Error(fmt.Sprintf("workspace: failed to save media pane state: %v", err))
@@ -347,17 +371,16 @@ func (w *Workspace) handleToggleMediaPane(msg tea.KeyPressMsg) tea.Cmd {
 
 	if mediaWillBeVisible {
 		w.updateBottomPaneHeights(
-			w.systemMetricsPane.IsExpanded(),
+			w.systemMetricsPane.animState.TargetVisible(),
 			true,
-			w.consoleLogsPane.IsExpanded(),
+			w.consoleLogsPane.animState.TargetVisible(),
 		)
-		w.focusMgr.SetTarget(FocusTargetMedia, 1)
 	} else {
 		w.mediaPane.ExitFullscreen()
 		w.updateBottomPaneHeights(
-			w.systemMetricsPane.IsExpanded(),
+			w.systemMetricsPane.animState.TargetVisible(),
 			false,
-			w.consoleLogsPane.IsExpanded(),
+			w.consoleLogsPane.animState.TargetVisible(),
 		)
 	}
 
@@ -377,8 +400,8 @@ func (w *Workspace) handleToggleConsoleLogsPane(msg tea.KeyPressMsg) tea.Cmd {
 	}
 
 	w.updateBottomPaneHeights(
-		w.systemMetricsPane.IsExpanded(),
-		w.mediaPane.IsExpanded(),
+		w.systemMetricsPane.animState.TargetVisible(),
+		w.mediaPane.animState.TargetVisible(),
 		bottomWillBeVisible,
 	)
 	w.consoleLogsPane.Toggle()
@@ -389,9 +412,9 @@ func (w *Workspace) handleToggleConsoleLogsPane(msg tea.KeyPressMsg) tea.Cmd {
 }
 
 func (w *Workspace) handleToggleSystemMetricsPane(tea.KeyPressMsg) tea.Cmd {
-	sysWillBeVisible := !w.systemMetricsPane.IsExpanded()
-	mediaVisible := w.mediaPane.IsExpanded()
-	logsVisible := w.consoleLogsPane.IsExpanded()
+	sysWillBeVisible := !w.systemMetricsPane.animState.TargetVisible()
+	mediaVisible := w.mediaPane.animState.TargetVisible()
+	logsVisible := w.consoleLogsPane.animState.TargetVisible()
 
 	if err := w.config.SetWorkspaceSystemMetricsVisible(sysWillBeVisible); err != nil {
 		w.logger.Error(fmt.Sprintf("workspace: failed to save system metrics state: %v", err))
@@ -860,7 +883,7 @@ func (w *Workspace) handleClearOverviewFilter(tea.KeyPressMsg) tea.Cmd {
 }
 
 func (w *Workspace) handleToggleMetricsGrid(msg tea.KeyPressMsg) tea.Cmd {
-	metricsWillBeVisible := !w.metricsGridAnimState.IsExpanded()
+	metricsWillBeVisible := !w.metricsGridAnimState.TargetVisible()
 
 	if err := w.config.SetWorkspaceMetricsGridVisible(metricsWillBeVisible); err != nil {
 		w.logger.Error(fmt.Sprintf("workspace: failed to save metrics grid state: %v", err))
@@ -870,9 +893,9 @@ func (w *Workspace) handleToggleMetricsGrid(msg tea.KeyPressMsg) tea.Cmd {
 	w.focusMgr.ResolveAfterVisibilityChange()
 
 	w.updateBottomPaneHeights(
-		w.systemMetricsPane.IsExpanded(),
-		w.mediaPane.IsExpanded(),
-		w.consoleLogsPane.IsExpanded(),
+		w.systemMetricsPane.animState.TargetVisible(),
+		w.mediaPane.animState.TargetVisible(),
+		w.consoleLogsPane.animState.TargetVisible(),
 	)
 	w.recalculateLayout()
 	return w.metricsGridAnimationCmd()
@@ -881,9 +904,9 @@ func (w *Workspace) handleToggleMetricsGrid(msg tea.KeyPressMsg) tea.Cmd {
 func (w *Workspace) handleMetricsGridAnimation() tea.Cmd {
 	w.metricsGridAnimState.Update(time.Now())
 	w.updateBottomPaneHeights(
-		w.systemMetricsPane.IsExpanded(),
-		w.mediaPane.IsExpanded(),
-		w.consoleLogsPane.IsExpanded(),
+		w.systemMetricsPane.animState.TargetVisible(),
+		w.mediaPane.animState.TargetVisible(),
+		w.consoleLogsPane.animState.TargetVisible(),
 	)
 	w.recalculateLayout()
 	if w.metricsGridAnimState.IsAnimating() {

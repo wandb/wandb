@@ -239,16 +239,7 @@ func (s *RunOverviewSidebar) Sync() {
 // UpdateDimensions updates the sidebar dimensions based on terminal width
 // and the visibility of the sidebar on the opposite side.
 func (s *RunOverviewSidebar) UpdateDimensions(terminalWidth int, oppositeSidebarVisible bool) {
-	var calculatedWidth int
-
-	if oppositeSidebarVisible {
-		calculatedWidth = int(float64(terminalWidth) * SidebarWidthRatioBoth)
-	} else {
-		calculatedWidth = int(float64(terminalWidth) * SidebarWidthRatio)
-	}
-
-	expandedWidth := clamp(calculatedWidth, SidebarMinWidth, SidebarMaxWidth)
-	s.animState.SetExpanded(expandedWidth)
+	s.animState.SetExpanded(expandedSidebarWidth(terminalWidth, oppositeSidebarVisible))
 }
 
 // Width returns the current width of the sidebar.
@@ -650,14 +641,7 @@ func (s *RunOverviewSidebar) sidebarContentWidth(width int) int {
 }
 
 func (s *RunOverviewSidebar) sidebarInnerWidth(width int) int {
-	switch s.side {
-	case SidebarSideLeft:
-		return max(width-runsSidebarBorderCols, 0)
-	case SidebarSideRight:
-		return max(width-sidebarVerticalBorderCols, 0)
-	default:
-		return max(width, 0)
-	}
+	return max(width-sidebarVerticalBorderCols, 0)
 }
 
 func (s *RunOverviewSidebar) tagColorScheme() string {

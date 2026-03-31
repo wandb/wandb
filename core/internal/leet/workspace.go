@@ -67,7 +67,7 @@ type Workspace struct {
 	metricsGridAnimState *AnimatedValue
 	focus                *Focus
 	metricsGrid          *MetricsGrid
-	runColors   *workspaceRunColors
+	runColors            *workspaceRunColors
 
 	// System metrics
 	systemMetrics       map[string]*SystemMetricsGrid
@@ -80,9 +80,10 @@ type Workspace struct {
 	consoleLogsPane *ConsoleLogsPane
 
 	// Run media keyed by run path.
-	media           map[string]*MediaStore
-	mediaPane       *MediaPane
-	mediaPaneStates map[string]*MediaPaneViewState
+	media              map[string]*MediaStore
+	mediaPane          *MediaPane
+	mediaPaneStates    map[string]*MediaPaneViewState
+	currentMediaRunKey string
 
 	// Per‑run streaming state keyed by runDirName.
 	runsByKey map[string]*WorkspaceRun
@@ -147,14 +148,14 @@ func NewWorkspace(
 		cfg.WorkspaceConsoleLogsVisible(), ConsoleLogsPaneMinHeight)
 
 	w := &Workspace{
-		runsAnimState:       NewAnimatedValue(true, SidebarMinWidth),
+		runsAnimState:        NewAnimatedValue(true, SidebarMinWidth),
 		metricsGridAnimState: metricsGridAnimState,
 		wandbDir:             wandbDir,
 		config:               cfg,
-		keyMap:        buildKeyMap(WorkspaceKeyBindings()),
-		logger:        logger,
-		runs:          runs,
-		runOverview:   make(map[string]*RunOverview),
+		keyMap:               buildKeyMap(WorkspaceKeyBindings()),
+		logger:               logger,
+		runs:                 runs,
+		runOverview:          make(map[string]*RunOverview),
 		runOverviewSidebar: NewRunOverviewSidebar(
 			cfg, runOverviewAnimState, NewRunOverview(), SidebarSideRight),
 		overviewPreloader:   newRunOverviewPreloader(maxConcurrentPreloads),
@@ -267,75 +268,45 @@ func (w *Workspace) Update(msg tea.Msg) tea.Cmd {
 
 // View renders the runs section: header + paginated list with zebra rows.
 func (w *Workspace) View() tea.View {
-	var cols []string
+	layout := w.computeViewports()
+	runLabel, systemGrid, systemHint, mediaHint, logsHint := w.syncCurrentRunContext()
 
+	var cols []string
 	if w.runsAnimState.IsVisible() {
 		cols = append(cols, w.renderRunsList())
 	}
 
-	contentWidth := max(w.width-w.runsAnimState.Value()-w.runOverviewSidebar.Width(), 0)
-	var runLabel string
-	var systemHint string
-	var mediaHint string
-	var logsHint string
-	var systemGrid *SystemMetricsGrid
-
-	if cur, ok := w.runs.CurrentItem(); ok {
-		runLabel = cur.Key
-		systemGrid = w.systemMetrics[cur.Key]
-
-		if store := w.media[cur.Key]; store != nil {
-			w.mediaPane.SetStore(store)
-		} else {
-			w.mediaPane.SetStore(nil)
-		}
-
-		if cl := w.consoleLogs[cur.Key]; cl != nil {
-			w.consoleLogsPane.SetConsoleLogs(cl.Items())
-		} else {
-			w.consoleLogsPane.SetConsoleLogs(nil)
-		}
-
-		if _, selected := w.selectedRuns[cur.Key]; !selected {
-			systemHint = "Select this run (Space) to load system metrics."
-			mediaHint = "Select this run (Space) to load media."
-			logsHint = "Select this run (Space) to load console logs."
-		}
-	} else {
-		w.mediaPane.SetStore(nil)
-		w.consoleLogsPane.SetConsoleLogs(nil)
-	}
-
+	contentWidth := layout.mainContentAreaWidth
 	centralColumn := ""
 	if w.mediaPane.IsFullscreen() {
-		fullHeight := max(w.height-StatusBarHeight, 1)
-		centralColumn = w.mediaPane.View(contentWidth, fullHeight, runLabel, mediaHint)
+		centralColumn = w.mediaPane.View(contentWidth, layout.totalContentAreaHeight, runLabel, mediaHint)
 	} else {
 		var sections []string
 
 		if w.metricsGridAnimState.IsVisible() {
-			sections = append(sections, w.renderMetrics())
+			sections = append(sections, w.renderMetrics(layout))
 		}
 
-		if w.systemMetricsPane.IsVisible() {
+		if layout.systemMetricsHeight > 0 {
 			sections = append(sections, w.systemMetricsPane.View(contentWidth, runLabel, systemGrid, systemHint))
 		}
 
-		if w.mediaPane.IsVisible() {
-			sections = append(sections, w.mediaPane.View(contentWidth, w.mediaPane.Height(), runLabel, mediaHint))
+		if layout.mediaHeight > 0 {
+			sections = append(sections, w.mediaPane.View(contentWidth, layout.mediaHeight, runLabel, mediaHint))
 		}
 
-		if w.consoleLogsPane.IsVisible() {
+		if layout.consoleLogsHeight > 0 {
 			sections = append(sections, w.consoleLogsPane.View(contentWidth, runLabel, logsHint))
 		}
 
+		sections = filterNonEmptySections(sections)
 		if len(sections) == 0 {
-			artHeight := max(w.height-StatusBarHeight, 1)
-			centralColumn = renderLogoArt(contentWidth, artHeight)
+			centralColumn = renderLogoArt(contentWidth, layout.totalContentAreaHeight)
 		} else {
 			centralColumn = joinWithSeparators(sections, contentWidth)
 		}
 	}
+	centralColumn = placeMainColumn(contentWidth, layout.totalContentAreaHeight, centralColumn)
 	cols = append(cols, centralColumn)
 
 	if w.runOverviewSidebar.IsVisible() {
@@ -421,6 +392,68 @@ func (w *Workspace) LoadMediaPaneState(runKey string) *MediaPaneViewState {
 	return w.mediaPaneStates[runKey]
 }
 
+func (w *Workspace) syncCurrentRunContext() (
+	runLabel string,
+	systemGrid *SystemMetricsGrid,
+	systemHint string,
+	mediaHint string,
+	logsHint string,
+) {
+	cur, ok := w.runs.CurrentItem()
+	currentRunKey := ""
+	if ok {
+		currentRunKey = cur.Key
+		runLabel = cur.Key
+		systemGrid = w.systemMetrics[cur.Key]
+	}
+
+	currentStore := w.media[currentRunKey]
+	if currentRunKey != w.currentMediaRunKey {
+		if w.currentMediaRunKey != "" {
+			w.SaveMediaPaneState(w.currentMediaRunKey, w.mediaPane.SaveViewState())
+		}
+
+		w.currentMediaRunKey = currentRunKey
+		w.mediaPane.SetStore(currentStore)
+		if currentStore != nil {
+			if state := w.LoadMediaPaneState(currentRunKey); state != nil {
+				w.mediaPane.RestoreViewState(*state)
+			} else {
+				w.mediaPane.ResetViewState()
+			}
+		} else {
+			w.mediaPane.ResetViewState()
+		}
+	} else {
+		previousStore := w.mediaPane.store
+		w.mediaPane.SetStore(currentStore)
+		if previousStore == nil && currentStore != nil {
+			if state := w.LoadMediaPaneState(currentRunKey); state != nil {
+				w.mediaPane.RestoreViewState(*state)
+			}
+		}
+	}
+
+	if currentRunKey == "" {
+		w.consoleLogsPane.SetConsoleLogs(nil)
+		return runLabel, systemGrid, systemHint, mediaHint, logsHint
+	}
+
+	if cl := w.consoleLogs[currentRunKey]; cl != nil {
+		w.consoleLogsPane.SetConsoleLogs(cl.Items())
+	} else {
+		w.consoleLogsPane.SetConsoleLogs(nil)
+	}
+
+	if _, selected := w.selectedRuns[currentRunKey]; !selected {
+		systemHint = "Select this run (Space) to load system metrics."
+		mediaHint = "Select this run (Space) to load media."
+		logsHint = "Select this run (Space) to load console logs."
+	}
+
+	return runLabel, systemGrid, systemHint, mediaHint, logsHint
+}
+
 // ---- Layout & Sidebar Helpers ----
 
 // recalculateLayout recomputes viewports and pushes dimensions to the metrics
@@ -437,52 +470,45 @@ func (w *Workspace) recalculateLayout() {
 // to prevent the status bar from being pushed off screen.
 func (w *Workspace) computeViewports() Layout {
 	leftW, rightW := w.runsAnimState.Value(), w.runOverviewSidebar.Width()
-
 	contentW := max(w.width-leftW-rightW, 1)
+	totalH := max(w.height-StatusBarHeight, 0)
 
-	// Count visible sections to determine separator overhead.
-	sectionCount := 0
-	if w.metricsGridAnimState.IsVisible() {
-		sectionCount++
-	}
-	if w.systemMetricsPane.IsVisible() {
-		sectionCount++
-	}
-	if w.mediaPane.IsVisible() {
-		sectionCount++
-	}
-	if w.consoleLogsPane.IsVisible() {
-		sectionCount++
-	}
-	sepLines := max(sectionCount-1, 0)
+	stack := computeVerticalStackLayout(
+		totalH,
+		stackSectionSpec{ID: stackSectionMetrics, Visible: w.metricsGridAnimState.IsVisible(), Flex: true},
+		stackSectionSpec{ID: stackSectionSystemMetrics, Visible: w.systemMetricsPane.IsVisible(), Height: w.systemMetricsPane.Height()},
+		stackSectionSpec{ID: stackSectionMedia, Visible: w.mediaPane.IsVisible(), Height: w.mediaPane.Height()},
+		stackSectionSpec{ID: stackSectionConsoleLogs, Visible: w.consoleLogsPane.IsVisible(), Height: w.consoleLogsPane.Height()},
+	)
 
-	reserved := w.consoleLogsPane.Height() + w.mediaPane.Height() +
-		w.systemMetricsPane.Height() + sepLines
-	contentH := 0
-	if w.metricsGridAnimState.IsVisible() {
-		contentH = max(w.height-StatusBarHeight-reserved, 1)
+	return Layout{
+		leftSidebarWidth:       leftW,
+		mainContentAreaWidth:   contentW,
+		rightSidebarWidth:      rightW,
+		totalContentAreaHeight: totalH,
+		height:                 stack.Height(stackSectionMetrics),
+		systemMetricsY:         stack.Y(stackSectionSystemMetrics),
+		systemMetricsHeight:    stack.Height(stackSectionSystemMetrics),
+		mediaY:                 stack.Y(stackSectionMedia),
+		mediaHeight:            stack.Height(stackSectionMedia),
+		consoleLogsY:           stack.Y(stackSectionConsoleLogs),
+		consoleLogsHeight:      stack.Height(stackSectionConsoleLogs),
 	}
-
-	return Layout{leftW, contentW, rightW, contentH}
 }
 
 // updateSidebarDimensions tells both sidebars to recalculate their expanded
 // widths given the post-toggle visibility of each side.
 func (w *Workspace) updateSidebarDimensions(leftVisible, rightVisible bool) {
-	var leftWidth int
-	if rightVisible {
-		leftWidth = int(float64(w.width) * SidebarWidthRatioBoth)
-	} else {
-		leftWidth = int(float64(w.width) * SidebarWidthRatio)
-	}
-	w.runsAnimState.SetExpanded(clamp(leftWidth, SidebarMinWidth, SidebarMaxWidth))
+	w.runsAnimState.SetExpanded(expandedSidebarWidth(w.width, rightVisible))
 	w.runOverviewSidebar.UpdateDimensions(w.width, leftVisible)
 }
 
 func (w *Workspace) updateBottomPaneHeights(sysVisible, mediaVisible, logsVisible bool) {
+	metricsVisible := w.metricsGridAnimState.TargetVisible()
+
 	// Compute separator count from the visibility state we're configuring toward.
 	sectionCount := 0
-	if w.metricsGridAnimState.IsExpanded() {
+	if metricsVisible {
 		sectionCount++
 	}
 	if sysVisible {
@@ -512,7 +538,7 @@ func (w *Workspace) updateBottomPaneHeights(sysVisible, mediaVisible, logsVisibl
 	}
 
 	var lowerTierH int
-	if w.metricsGridAnimState.IsExpanded() {
+	if metricsVisible {
 		lowerTierH = int(float64(maxH) * LowerTierRatio)
 	} else {
 		lowerTierH = maxH
@@ -563,8 +589,14 @@ func (w *Workspace) overviewFocusAvailable() bool {
 
 // ---- Focus activate ----
 
-func (w *Workspace) activateRunsFocus(_ int)       { w.runs.Active = true }
-func (w *Workspace) activateMetricsGridFocus(_ int) { w.focus.Type = FocusMainChart; if w.focus.Row < 0 { w.focus.Row = 0; w.focus.Col = 0 } }
+func (w *Workspace) activateRunsFocus(_ int) { w.runs.Active = true }
+func (w *Workspace) activateMetricsGridFocus(_ int) {
+	w.focus.Type = FocusMainChart
+	if w.focus.Row < 0 {
+		w.focus.Row = 0
+		w.focus.Col = 0
+	}
+}
 func (w *Workspace) activateSysMetricsFocus(_ int) {
 	if w.systemMetricsFocus != nil {
 		w.systemMetricsFocus.Type = FocusSystemChart
@@ -624,11 +656,11 @@ func (w *Workspace) cycleOverviewSection(direction int) bool {
 // handleWindowResize handles window resize messages.
 func (w *Workspace) handleWindowResize(width, height int) {
 	w.SetSize(width, height)
-	w.updateSidebarDimensions(w.runsAnimState.IsVisible(), w.runOverviewSidebar.IsVisible())
+	w.updateSidebarDimensions(w.runsAnimState.TargetVisible(), w.runOverviewSidebar.animState.TargetVisible())
 	w.updateBottomPaneHeights(
-		w.systemMetricsPane.IsVisible(),
-		w.mediaPane.IsVisible(),
-		w.consoleLogsPane.IsVisible(),
+		w.systemMetricsPane.animState.TargetVisible(),
+		w.mediaPane.animState.TargetVisible(),
+		w.consoleLogsPane.animState.TargetVisible(),
 	)
 	w.recalculateLayout()
 }
@@ -867,10 +899,9 @@ func (w *Workspace) renderRunOverview() string {
 	return w.runOverviewSidebar.View(innerH).Content
 }
 
-func (w *Workspace) renderMetrics() string {
-	contentWidth := max(w.width-w.runsAnimState.Value()-w.runOverviewSidebar.Width(), 0)
-	reserved := w.consoleLogsPane.Height() + w.mediaPane.Height() + w.systemMetricsPane.Height()
-	contentHeight := max(w.height-StatusBarHeight-reserved, 1)
+func (w *Workspace) renderMetrics(layout Layout) string {
+	contentWidth := layout.mainContentAreaWidth
+	contentHeight := layout.height
 
 	if contentWidth <= 0 || contentHeight <= 0 {
 		return ""

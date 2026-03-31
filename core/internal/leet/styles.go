@@ -111,13 +111,13 @@ const (
 	SidebarMaxWidth       = 120
 
 	// Sidebar internal content padding (accounts for borders).
-	leftSidebarContentPadding = 4
+	leftSidebarContentPadding = 3
 
 	// Key/value column width ratio.
 	sidebarKeyWidthRatio = 0.4 // 40% of available width for keys
 
 	// Sidebar content padding (accounts for borders and internal spacing).
-	rightSidebarContentPadding = 3
+	rightSidebarContentPadding = 2
 
 	// sidebarVerticalBorderCols is the width (in terminal columns)
 	// consumed by a sidebar's vertical border.
@@ -126,9 +126,6 @@ const (
 
 	// Default grid height for system metrics when not calculated from terminal height.
 	defaultSystemMetricsGridHeight = 40
-
-	// Mouse click coordinate adjustments for border/padding.
-	rightSidebarMouseClickPaddingOffset = 1
 )
 
 // Rune constants for UI drawing.
@@ -764,7 +761,7 @@ var (
 var (
 	workspaceTopMarginLines = 1
 	workspaceHeaderLines    = 1
-	runsSidebarBorderCols   = 2
+	runsSidebarBorderCols   = 1
 
 	colorSelectedRunInactiveStyle = compat.AdaptiveColor{
 		Light: lipgloss.Color("#F5D28A"),

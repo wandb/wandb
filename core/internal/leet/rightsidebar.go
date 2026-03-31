@@ -10,7 +10,11 @@ import (
 	"github.com/wandb/wandb/core/internal/observability"
 )
 
-const rightSidebarHeader = "System Metrics"
+const (
+	rightSidebarHeader      = "System Metrics"
+	rightSidebarHeaderLines = 1
+	rightSidebarGridXOffset = rightSidebarContentPadding
+)
 
 // RightSidebar represents a collapsible right sidebar displaying system metrics.
 type RightSidebar struct {
@@ -43,18 +47,9 @@ func NewRightSidebar(
 // UpdateDimensions updates the right sidebar dimensions based on terminal width
 // and the visibility of the left sidebar.
 func (rs *RightSidebar) UpdateDimensions(terminalWidth int, leftSidebarVisible bool) {
-	var calculatedWidth int
+	rs.animState.SetExpanded(expandedSidebarWidth(terminalWidth, leftSidebarVisible))
 
-	if leftSidebarVisible {
-		calculatedWidth = int(float64(terminalWidth) * SidebarWidthRatioBoth)
-	} else {
-		calculatedWidth = int(float64(terminalWidth) * SidebarWidthRatio)
-	}
-
-	expandedWidth := clamp(calculatedWidth, SidebarMinWidth, SidebarMaxWidth)
-	rs.animState.SetExpanded(expandedWidth)
-
-	if gridWidth := rs.calculateGridWidth(); gridWidth > 0 {
+	if gridWidth := rs.sidebarContentWidth(rs.animState.Value()); gridWidth > 0 {
 		rs.metricsGrid.Resize(gridWidth, defaultSystemMetricsGridHeight)
 	}
 }
@@ -78,8 +73,8 @@ func (rs *RightSidebar) gridMouseTarget(x, y int) (systemGridMouseTarget, bool) 
 	}
 
 	target := systemGridMouseTarget{
-		adjustedX: x - rightSidebarMouseClickPaddingOffset,
-		adjustedY: y - rightSidebarMouseClickPaddingOffset,
+		adjustedX: x - rightSidebarGridXOffset,
+		adjustedY: y - rightSidebarHeaderLines,
 	}
 	if target.adjustedX < 0 || target.adjustedY < 0 {
 		return systemGridMouseTarget{}, false
@@ -182,36 +177,39 @@ func (rs *RightSidebar) Update(msg tea.Msg) (*RightSidebar, tea.Cmd) {
 
 // View renders the right sidebar.
 func (rs *RightSidebar) View(height int) string {
-	if rs.animState.Value() <= rightSidebarContentPadding {
+	width := rs.animState.Value()
+	if height <= 0 || width <= rightSidebarContentPadding {
 		return ""
 	}
 
-	gridWidth := rs.calculateGridWidth()
+	contentW := rs.sidebarContentWidth(width)
+	innerW := rs.sidebarInnerWidth(width)
 	gridHeight := rs.calculateGridHeight(height)
-
-	if gridWidth <= 0 || gridHeight <= 0 {
+	if contentW <= 0 || innerW <= 0 || gridHeight <= 0 {
 		return ""
 	}
 
-	rs.metricsGrid.Resize(gridWidth, gridHeight)
+	rs.metricsGrid.Resize(contentW, gridHeight)
 
-	header := rs.renderHeader()
-	metricsView := rs.metricsGrid.View()
-
-	content := lipgloss.JoinVertical(lipgloss.Left, header, metricsView)
-
-	styledContent := rightSidebarStyle.
-		Width(rs.animState.Value() - sidebarVerticalBorderCols).
-		Height(height).
-		MaxWidth(rs.animState.Value() - sidebarVerticalBorderCols).
-		MaxHeight(height).
-		Render(content)
-
-	return rightSidebarBorderStyle.
-		Width(rs.animState.Value()).
+	head := lipgloss.Place(
+		contentW,
+		rightSidebarHeaderLines,
+		lipgloss.Left,
+		lipgloss.Top,
+		rs.renderHeader(),
+	)
+	body := lipgloss.JoinVertical(lipgloss.Left, head, rs.metricsGrid.View())
+	styled := rightSidebarStyle.
+		Width(innerW).
+		MaxWidth(innerW).
 		Height(height).
 		MaxHeight(height).
-		Render(styledContent)
+		Render(body)
+	bordered := rightSidebarBorderStyle.
+		Height(height + 1).
+		MaxHeight(height + 1).
+		Render(styled)
+	return lipgloss.Place(width, height+1, lipgloss.Left, lipgloss.Top, bordered)
 }
 
 // Width returns the current width of the sidebar.
@@ -256,16 +254,17 @@ func (rs *RightSidebar) ProcessStatsMsg(msg StatsMsg) {
 	}
 }
 
-// calculateGridWidth returns the available width for the metrics grid.
-func (rs *RightSidebar) calculateGridWidth() int {
-	return rs.animState.Value() - rightSidebarContentPadding
+func (rs *RightSidebar) sidebarContentWidth(width int) int {
+	return max(width-rightSidebarContentPadding, 0)
+}
+
+func (rs *RightSidebar) sidebarInnerWidth(width int) int {
+	return max(width-sidebarVerticalBorderCols, 0)
 }
 
 // calculateGridHeight returns the available height for the metrics grid.
 func (rs *RightSidebar) calculateGridHeight(sidebarHeight int) int {
-	// Reserve one line for the header.
-	const headerLines = 1
-	return sidebarHeight - headerLines
+	return sidebarHeight - rightSidebarHeaderLines
 }
 
 // renderHeader renders the header line with title and navigation info.
