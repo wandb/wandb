@@ -19,7 +19,8 @@ import (
 	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runhistoryreader"
-	"github.com/wandb/wandb/core/internal/runhistoryreader/parquet/iterator"
+	"github.com/wandb/wandb/core/internal/runhistoryreader/parquet"
+	"github.com/wandb/wandb/core/internal/runhistoryreader/parquet/ffi"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/stream"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
@@ -93,6 +94,11 @@ func NewParquetHistorySource(
 	runInfo *RunInfo,
 	logger *observability.CoreLogger,
 ) (*ParquetHistorySource, error) {
+	rustArrowWrapper, err := ffi.NewRustArrowWrapper()
+	if err != nil {
+		return nil, err
+	}
+
 	historyReader, err := runhistoryreader.New(
 		context.Background(),
 		entity,
@@ -102,6 +108,7 @@ func NewParquetHistorySource(
 		httpClient,
 		[]string{}, // keys
 		false,      // useCache
+		rustArrowWrapper,
 	)
 	if err != nil {
 		return nil, err
@@ -251,7 +258,7 @@ func (s *ParquetHistorySource) Close() {
 
 // ParseParquetHistorySteps converts a list of iterator.KeyValueList to a HistoryMsg.
 func ParseParquetHistorySteps(
-	historySteps []iterator.KeyValueList,
+	historySteps []parquet.KeyValueList,
 	logger *observability.CoreLogger,
 ) HistoryMsg {
 	h := HistoryMsg{
@@ -270,7 +277,7 @@ func ParseParquetHistorySteps(
 		}
 
 		for _, keyValue := range historyStep {
-			if keyValue.Key == iterator.StepKey {
+			if keyValue.Key == parquet.StepKey {
 				continue
 			}
 
@@ -299,9 +306,9 @@ func ParseParquetHistorySteps(
 	return h
 }
 
-func getStepFromMetricsList(historySteps iterator.KeyValueList) (float64, error) {
+func getStepFromMetricsList(historySteps parquet.KeyValueList) (float64, error) {
 	for _, historyStep := range historySteps {
-		if historyStep.Key == iterator.StepKey {
+		if historyStep.Key == parquet.StepKey {
 			switch v := historyStep.Value.(type) {
 			case float64:
 				return v, nil
