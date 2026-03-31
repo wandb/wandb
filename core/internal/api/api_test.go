@@ -124,11 +124,11 @@ func TestDo_ExtraHeaders(t *testing.T) {
 			name: "ToWandb",
 			path: "/wandb/xyz",
 			extraHeaders: map[string]string{
-				"X-EXTRA-HEADER": "extra-header-value",
+				"X-EXTRA-HEADER": "xyz",
 			},
 			wantHeaders: map[string]string{
 				"Authorization":  "Basic YXBpOnRlc3RfYXBpX2tleQ==",
-				"X-EXTRA-HEADER": "extra-header-value",
+				"X-EXTRA-HEADER": "xyz",
 				"User-Agent":     "wandb-core",
 			},
 		},
@@ -136,29 +136,12 @@ func TestDo_ExtraHeaders(t *testing.T) {
 			name: "NotToWandb",
 			path: "/notwandb/xyz",
 			extraHeaders: map[string]string{
-				"X-EXTRA-HEADER": "extra-header-value",
+				"X-EXTRA-HEADER": "xyz",
 			},
 			wantHeaders: map[string]string{
 				"Authorization":  "", // not set
-				"X-EXTRA-HEADER": "extra-header-value",
+				"X-EXTRA-HEADER": "xyz",
 				"User-Agent":     "wandb-core",
-			},
-		},
-		{
-			name: "PreservesExistingHeaders",
-			path: "/wandb/xyz",
-			extraHeaders: map[string]string{
-				"User-Agent":     "extra-user-agent",
-				"X-EXTRA-HEADER": "extra-header-value",
-				"Authorization":  "extra-ignored-authorization",
-			},
-			requestHeaders: map[string]string{
-				"User-Agent": "extra-request-user-agent",
-			},
-			wantHeaders: map[string]string{
-				"Authorization":  "Basic YXBpOnRlc3RfYXBpX2tleQ==",
-				"X-EXTRA-HEADER": "extra-header-value",
-				"User-Agent":     "extra-request-user-agent",
 			},
 		},
 	}

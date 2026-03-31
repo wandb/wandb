@@ -81,16 +81,12 @@ type ClientOptions struct {
 	// starts a new timeout.
 	NonRetryTimeout time.Duration
 
-	// Additional default headers to pass in each request made by this client.
+	// Additional headers to set on every request.
 	//
-	// These headers apply to W&B backend requests and to arbitrary URLs such as
-	// presigned object-store URLs.
+	// This applies to every outgoing request from this client regardless
+	// of the request URL.
 	//
-	// Headers already set on the request are preserved.
-	// For example, GraphQL requests still use the SDK-provided "Authorization"
-	// header even if ExtraHeaders["Authorization"] = "extra-authorization-value".
-	// If a request does not set "X-EXTRA-HEADER", the client adds
-	// "extra-header-value" from ExtraHeaders.
+	// Request headers take precedence.
 	ExtraHeaders map[string]string
 
 	// Allows the client to peek at the network traffic, can perform any action
