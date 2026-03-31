@@ -2178,7 +2178,9 @@ def _list(project, entity):
 @click.argument("job")
 def describe(job):
     """Describe a launch job. Provide the launch job in the form
-    of: entity/project/job-name:alias-or-version."""
+    of: entity/project/job-name:alias-or-version.
+    """
+
     public_api = PublicApi()
     try:
         job = public_api.job(name=job)
