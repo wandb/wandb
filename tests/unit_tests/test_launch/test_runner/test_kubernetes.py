@@ -616,6 +616,7 @@ async def test_launch_kube_base_image_works(
 async def test_launch_crd_base_image_works(
     monkeypatch,
     mock_event_streams,
+    mock_batch_api,
     mock_custom_api,
     mock_kube_context_and_api_client,
     test_api,

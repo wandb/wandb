@@ -721,6 +721,7 @@ class LaunchAgent:
             resource, api, backend_config, environment, registry
         )
 
+        # TODO (nicholaspun-wandb): Refactor Builder/Runner to remove isinstance checks.
         if not (
             project.docker_image
             or project.job_base_image
