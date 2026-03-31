@@ -889,40 +889,6 @@ type HistoryPageResponse struct {
 // GetProject returns HistoryPageResponse.Project, and is useful for accessing the field via an interface.
 func (v *HistoryPageResponse) GetProject() *HistoryPageProject { return v.Project }
 
-// InputFieldsResponse is returned by InputFields on success.
-type InputFieldsResponse struct {
-	TypeInfo *InputFieldsTypeInfoType `json:"TypeInfo"`
-}
-
-// GetTypeInfo returns InputFieldsResponse.TypeInfo, and is useful for accessing the field via an interface.
-func (v *InputFieldsResponse) GetTypeInfo() *InputFieldsTypeInfoType { return v.TypeInfo }
-
-// InputFieldsTypeInfoType includes the requested fields of the GraphQL type __Type.
-// The GraphQL type's documentation follows.
-//
-// The fundamental unit of any GraphQL Schema is the type. There are many kinds of types in GraphQL as represented by the `__TypeKind` enum.
-//
-// Depending on the kind of a type, certain fields describe information about that type. Scalar types provide no information beyond a name, description and optional `specifiedByURL`, while Enum types provide their values. Object and Interface types provide the fields they describe. Abstract types, Union and Interface, provide the Object types possible at runtime. List and NonNull types compose other types.
-type InputFieldsTypeInfoType struct {
-	InputFields []InputFieldsTypeInfoTypeInputFieldsInputValue `json:"inputFields"`
-}
-
-// GetInputFields returns InputFieldsTypeInfoType.InputFields, and is useful for accessing the field via an interface.
-func (v *InputFieldsTypeInfoType) GetInputFields() []InputFieldsTypeInfoTypeInputFieldsInputValue {
-	return v.InputFields
-}
-
-// InputFieldsTypeInfoTypeInputFieldsInputValue includes the requested fields of the GraphQL type __InputValue.
-// The GraphQL type's documentation follows.
-//
-// Arguments provided to Fields or Directives and the input fields of an InputObject are represented as Input Values which describe their type and optionally a default value.
-type InputFieldsTypeInfoTypeInputFieldsInputValue struct {
-	Name string `json:"name"`
-}
-
-// GetName returns InputFieldsTypeInfoTypeInputFieldsInputValue.Name, and is useful for accessing the field via an interface.
-func (v *InputFieldsTypeInfoTypeInputFieldsInputValue) GetName() string { return v.Name }
-
 // LinkArtifactLinkArtifactLinkArtifactPayload includes the requested fields of the GraphQL type LinkArtifactPayload.
 type LinkArtifactLinkArtifactLinkArtifactPayload struct {
 	VersionIndex *int `json:"versionIndex"`
@@ -1351,38 +1317,6 @@ func (v *TagInput) GetTagCategoryName() *string { return v.TagCategoryName }
 
 // GetTagName returns TagInput.TagName, and is useful for accessing the field via an interface.
 func (v *TagInput) GetTagName() string { return v.TagName }
-
-// TypeFieldsResponse is returned by TypeFields on success.
-type TypeFieldsResponse struct {
-	TypeInfo *TypeFieldsTypeInfoType `json:"TypeInfo"`
-}
-
-// GetTypeInfo returns TypeFieldsResponse.TypeInfo, and is useful for accessing the field via an interface.
-func (v *TypeFieldsResponse) GetTypeInfo() *TypeFieldsTypeInfoType { return v.TypeInfo }
-
-// TypeFieldsTypeInfoType includes the requested fields of the GraphQL type __Type.
-// The GraphQL type's documentation follows.
-//
-// The fundamental unit of any GraphQL Schema is the type. There are many kinds of types in GraphQL as represented by the `__TypeKind` enum.
-//
-// Depending on the kind of a type, certain fields describe information about that type. Scalar types provide no information beyond a name, description and optional `specifiedByURL`, while Enum types provide their values. Object and Interface types provide the fields they describe. Abstract types, Union and Interface, provide the Object types possible at runtime. List and NonNull types compose other types.
-type TypeFieldsTypeInfoType struct {
-	Fields []TypeFieldsTypeInfoTypeFieldsField `json:"fields"`
-}
-
-// GetFields returns TypeFieldsTypeInfoType.Fields, and is useful for accessing the field via an interface.
-func (v *TypeFieldsTypeInfoType) GetFields() []TypeFieldsTypeInfoTypeFieldsField { return v.Fields }
-
-// TypeFieldsTypeInfoTypeFieldsField includes the requested fields of the GraphQL type __Field.
-// The GraphQL type's documentation follows.
-//
-// Object and Interface types are described by a list of Fields, each of which has a name, potentially a list of arguments, and a return type.
-type TypeFieldsTypeInfoTypeFieldsField struct {
-	Name string `json:"name"`
-}
-
-// GetName returns TypeFieldsTypeInfoTypeFieldsField.Name, and is useful for accessing the field via an interface.
-func (v *TypeFieldsTypeInfoTypeFieldsField) GetName() string { return v.Name }
 
 // UpdateArtifactManifestResponse is returned by UpdateArtifactManifest on success.
 type UpdateArtifactManifestResponse struct {
@@ -1920,14 +1854,6 @@ func (v *__HistoryPageInput) GetMaxStep() int64 { return v.MaxStep }
 // GetPageSize returns __HistoryPageInput.PageSize, and is useful for accessing the field via an interface.
 func (v *__HistoryPageInput) GetPageSize() int { return v.PageSize }
 
-// __InputFieldsInput is used internally by genqlient
-type __InputFieldsInput struct {
-	TypeName string `json:"typeName"`
-}
-
-// GetTypeName returns __InputFieldsInput.TypeName, and is useful for accessing the field via an interface.
-func (v *__InputFieldsInput) GetTypeName() string { return v.TypeName }
-
 // __LinkArtifactInput is used internally by genqlient
 type __LinkArtifactInput struct {
 	ArtifactPortfolioName string               `json:"artifactPortfolioName"`
@@ -2091,14 +2017,6 @@ func (v *__SampledHistoryPageInput) GetRun() string { return v.Run }
 
 // GetSpec returns __SampledHistoryPageInput.Spec, and is useful for accessing the field via an interface.
 func (v *__SampledHistoryPageInput) GetSpec() string { return v.Spec }
-
-// __TypeFieldsInput is used internally by genqlient
-type __TypeFieldsInput struct {
-	TypeName string `json:"typeName"`
-}
-
-// GetTypeName returns __TypeFieldsInput.TypeName, and is useful for accessing the field via an interface.
-func (v *__TypeFieldsInput) GetTypeName() string { return v.TypeName }
 
 // __UpdateArtifactInput is used internally by genqlient
 type __UpdateArtifactInput struct {
@@ -2762,42 +2680,6 @@ func HistoryPage(
 	return data_, err_
 }
 
-// The query executed by InputFields.
-const InputFields_Operation = `
-query InputFields ($typeName: String!) {
-	TypeInfo: __type(name: $typeName) {
-		inputFields {
-			name
-		}
-	}
-}
-`
-
-func InputFields(
-	ctx_ context.Context,
-	client_ graphql.Client,
-	typeName string,
-) (data_ *InputFieldsResponse, err_ error) {
-	req_ := &graphql.Request{
-		OpName: "InputFields",
-		Query:  InputFields_Operation,
-		Variables: &__InputFieldsInput{
-			TypeName: typeName,
-		},
-	}
-
-	data_ = &InputFieldsResponse{}
-	resp_ := &graphql.Response{Data: data_}
-
-	err_ = client_.MakeRequest(
-		ctx_,
-		req_,
-		resp_,
-	)
-
-	return data_, err_
-}
-
 // The mutation executed by LinkArtifact.
 const LinkArtifact_Operation = `
 mutation LinkArtifact ($artifactPortfolioName: String!, $entityName: String!, $projectName: String!, $aliases: [ArtifactAliasInput!], $clientId: ID, $artifactId: ID) {
@@ -3226,43 +3108,6 @@ func ServerInfo(
 	}
 
 	data_ = &ServerInfoResponse{}
-	resp_ := &graphql.Response{Data: data_}
-
-	err_ = client_.MakeRequest(
-		ctx_,
-		req_,
-		resp_,
-	)
-
-	return data_, err_
-}
-
-// The query executed by TypeFields.
-const TypeFields_Operation = `
-query TypeFields ($typeName: String!) {
-	TypeInfo: __type(name: $typeName) {
-		fields {
-			name
-		}
-	}
-}
-`
-
-// Query is used to fetch the fields of a given type to check server compatibility
-func TypeFields(
-	ctx_ context.Context,
-	client_ graphql.Client,
-	typeName string,
-) (data_ *TypeFieldsResponse, err_ error) {
-	req_ := &graphql.Request{
-		OpName: "TypeFields",
-		Query:  TypeFields_Operation,
-		Variables: &__TypeFieldsInput{
-			TypeName: typeName,
-		},
-	}
-
-	data_ = &TypeFieldsResponse{}
 	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(

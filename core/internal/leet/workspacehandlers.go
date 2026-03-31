@@ -186,11 +186,11 @@ func (w *Workspace) handleSystemMetricsMouse(msg tea.MouseMsg, metricsHeight int
 			grid.HandleMouseClick(row, col)
 		case tea.MouseRight:
 			w.metricsGrid.clearFocus()
-			grid.StartInspection(adjustedX, row, col, dims, alt)
+			grid.StartInspection(adjustedX, adjustedY, row, col, dims, alt)
 		}
 	case tea.MouseMotionMsg:
 		if m.Button == tea.MouseRight {
-			grid.UpdateInspection(adjustedX, row, col, dims)
+			grid.UpdateInspection(adjustedX, adjustedY, row, col, dims)
 		}
 	case tea.MouseReleaseMsg:
 		if m.Button == tea.MouseRight {
@@ -705,13 +705,13 @@ func (w *Workspace) handleNextPage(msg tea.KeyPressMsg) tea.Cmd {
 	return nil
 }
 
-func (w *Workspace) handleToggleFocusedChartLogY(tea.KeyPressMsg) tea.Cmd {
+func (w *Workspace) handleCycleFocusedChartMode(tea.KeyPressMsg) tea.Cmd {
 	switch w.focus.Type {
 	case FocusMainChart:
 		w.metricsGrid.toggleFocusedChartLogY()
 	case FocusSystemChart:
 		if g := w.activeSystemMetricsGrid(); g != nil {
-			g.toggleFocusedChartLogY()
+			g.cycleFocusedChartMode()
 		}
 	}
 	return nil

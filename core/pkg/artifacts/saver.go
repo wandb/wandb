@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/url"
 	"os"
-	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -185,20 +184,13 @@ func (as *ArtifactSaver) createArtifact(manifest *Manifest) (
 		runId = &as.artifact.RunId
 	}
 
-	// Check which fields are actually supported on the input
-	inputFieldNames, err := GetGraphQLInputFields(as.ctx, as.graphqlClient, "CreateArtifactInput")
-	if err != nil {
-		return gql.CreatedArtifactArtifact{}, err
-	}
-
 	// Note: if tags are empty, `omitempty` ensures they're nulled out
 	// (effectively omitted) in the prepare GraphQL request
 	var tags []gql.TagInput
-	if slices.Contains(inputFieldNames, "tags") {
-		for _, tag := range as.artifact.Tags {
-			tags = append(tags, gql.TagInput{TagName: tag})
-		}
+	for _, tag := range as.artifact.Tags {
+		tags = append(tags, gql.TagInput{TagName: tag})
 	}
+
 	as.logger.Debug("createArtifact: manifest", "storagePolicyConfig", manifest.StoragePolicyConfig)
 	input := gql.CreateArtifactInput{
 		EntityName:                as.artifact.Entity,

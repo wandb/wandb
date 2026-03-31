@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import secrets
 from functools import cache
 from typing import Union
@@ -27,6 +28,7 @@ from wandb.automations import (
 )
 from wandb.automations._utils import INVALID_INPUT_ACTIONS, INVALID_INPUT_EVENTS
 from wandb.automations.actions import InputAction, SavedAction, SavedNoOpAction
+from wandb.automations.automations import Automation
 from wandb.automations.events import InputEvent, OnRunState, SavedEvent
 from wandb.sdk.artifacts._generated import ArtifactCollectionFragment
 
@@ -282,12 +284,29 @@ def input_event(request: FixtureRequest, event_type: EventType) -> InputEvent:
     return request.getfixturevalue(event2fixture[event_type])
 
 
+_MUTATION_EVENT_TYPES = (
+    EventType.ADD_ARTIFACT_ALIAS,
+    EventType.LINK_ARTIFACT,
+    EventType.CREATE_ARTIFACT,
+)
+
+
+@fixture(
+    params=_MUTATION_EVENT_TYPES,
+    ids=lambda x: f"mutation_event={x.value}",
+)
+def mutation_event_type(request: FixtureRequest) -> EventType:
+    """A mutation-based event type."""
+    return request.param
+
+
 @fixture
-def saved_event() -> SavedEvent:
-    # PLACEHOLDER
+def saved_event(mutation_event_type: EventType) -> SavedEvent:
+    """A realistic SavedEvent with a non-empty wrapped filter."""
+    wrapped_filter = {"filter": {"$or": [{"$and": [{"alias": {"$eq": "latest"}}]}]}}
     return SavedEvent(
-        event_type=EventType.LINK_ARTIFACT,
-        filter={"filter": {"$or": [{"$and": []}]}},
+        event_type=mutation_event_type,
+        filter=json.dumps(wrapped_filter),
     )
 
 
@@ -328,5 +347,95 @@ def input_action(request: FixtureRequest, action_type: ActionType) -> InputActio
 
 @fixture
 def saved_action() -> SavedAction:
-    # PLACEHOLDER
     return SavedNoOpAction()
+
+
+@fixture
+def saved_automation(
+    automation_id: str,
+    saved_event: SavedEvent,
+    saved_action: SavedAction,
+    artifact_collection: ArtifactCollection,
+) -> Automation:
+    """An Automation object mimicking what the server returns, for unit-testing prepare_to_update()."""
+    return Automation(
+        id=automation_id,
+        created_at="2024-01-01T00:00:00Z",
+        updated_at=None,
+        name="test-automation",
+        description="test description",
+        enabled=True,
+        scope=artifact_collection,
+        event=saved_event,
+        action=saved_action,
+    )
+
+
+RUN_EVENT_TYPES = (
+    EventType.RUN_METRIC_THRESHOLD,
+    EventType.RUN_STATE,
+)
+
+
+@fixture(
+    params=RUN_EVENT_TYPES,
+    ids=lambda x: f"run_event={x.value}",
+)
+def run_event_type(request: FixtureRequest) -> EventType:
+    """A run-based event type."""
+    return request.param
+
+
+@fixture
+def run_event_filter_json(run_event_type: EventType) -> str:
+    """A realistic JSON-serialized filter string for a run event type."""
+    if run_event_type is EventType.RUN_METRIC_THRESHOLD:
+        return json.dumps(
+            {
+                "run_filter": json.dumps(
+                    {"$and": [{"display_name": {"$contains": "my-run"}}]}
+                ),
+                "run_metric_filter": {
+                    "threshold_filter": {
+                        "name": "my-metric",
+                        "agg_op": "AVERAGE",
+                        "window_size": 5,
+                        "cmp_op": "$gt",
+                        "threshold": 0,
+                    }
+                },
+                "metric_filter": None,
+            }
+        )
+    if run_event_type is EventType.RUN_STATE:
+        return json.dumps(
+            {
+                "run_filter": json.dumps(
+                    {"$and": [{"display_name": {"$contains": "my-run"}}]}
+                ),
+                "run_state_filter": {"states": ["FAILED"]},
+            }
+        )
+    raise ValueError(f"Unsupported run event type: {run_event_type!r}")
+
+
+@fixture
+def saved_run_automation(
+    automation_id: str,
+    run_event_type: EventType,
+    run_event_filter_json: str,
+    saved_action: SavedAction,
+    project: Project,
+) -> Automation:
+    """A run-event Automation mimicking what the server returns."""
+    return Automation(
+        id=automation_id,
+        created_at="2024-01-01T00:00:00Z",
+        updated_at=None,
+        name="test-run-automation",
+        description="test run event description",
+        enabled=True,
+        scope=project,
+        event=SavedEvent(event_type=run_event_type, filter=run_event_filter_json),
+        action=saved_action,
+    )

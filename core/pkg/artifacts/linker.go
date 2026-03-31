@@ -3,7 +3,6 @@ package artifacts
 import (
 	"context"
 	"fmt"
-	"slices"
 
 	"github.com/Khan/genqlient/graphql"
 
@@ -83,30 +82,15 @@ func (al *ArtifactLinker) Link() (response *gql.LinkArtifactResponse, err error)
 
 // resolveOrgEntityName fetches the portfolio's org entity's name.
 //
-// The organization parameter may be empty, an org's display name, or an org entity name.
+// The organization parameter may be empty, an org's display name, or an org
+// entity name.
 //
-// If the server doesn't support fetching the org name of a portfolio, then this returns
-// the organization parameter, or an error if it is empty. Otherwise, this returns the
-// fetched value after validating that the given organization, if not empty, matches
-// either the org's display or entity name.
+// This returns the fetched value after validating that the given organization,
+// if not empty, matches either the org's display or entity name.
 func (al *ArtifactLinker) resolveOrgEntityName(
 	portfolioEntity string,
 	organization string,
 ) (string, error) {
-	orgFieldNames, err := GetGraphQLFields(al.Ctx, al.GraphqlClient, "Organization")
-	if err != nil {
-		return "", err
-	}
-	canFetchOrgEntity := slices.Contains(orgFieldNames, "orgEntity")
-	if organization == "" && !canFetchOrgEntity {
-		// Support is added in version 0.50.0 of the wandb server.
-		return "", fmt.Errorf("fetching Registry artifacts unsupported and no organization given")
-	}
-	if !canFetchOrgEntity {
-		// Use traditional registry path with org entity if server doesn't support it
-		return organization, nil
-	}
-
 	response, err := gql.FetchOrgEntityFromEntity(
 		al.Ctx,
 		al.GraphqlClient,

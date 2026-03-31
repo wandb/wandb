@@ -6,7 +6,7 @@ For guides and examples, see https://docs.wandb.ai.
 
 For scripts and interactive notebooks, see https://github.com/wandb/examples.
 
-For reference documentation, see https://docs.wandb.com/ref/python.
+For reference documentation, see https://docs.wandb.ai/models/ref/python.
 """
 
 from __future__ import annotations
@@ -490,7 +490,7 @@ def log(
     """Upload run data.
 
     Use `log` to log data from runs, such as scalars, images, video,
-    histograms, plots, and tables. See [Log objects and media](https://docs.wandb.ai/guides/track/log) for
+    histograms, plots, and tables. See [Log objects and media](https://docs.wandb.ai/models/track/log) for
     code snippets, best practices, and more.
 
     Basic usage:
@@ -506,15 +506,15 @@ def log(
     history and updates the summary values for these metrics.
 
     Visualize logged data in a workspace at [wandb.ai](https://wandb.ai),
-    or locally on a [self-hosted instance](https://docs.wandb.ai/guides/hosting)
+    or locally on a [self-hosted instance](https://docs.wandb.ai/platform/hosting)
     of the W&B app, or export data to visualize and explore locally, such as in a
-    Jupyter notebook, with the [Public API](https://docs.wandb.ai/guides/track/public-api-guide).
+    Jupyter notebook, with the [Public API](https://docs.wandb.ai/models/track/public-api-guide).
 
     Logged values don't have to be scalars. You can log any
-    [W&B supported Data Type](https://docs.wandb.ai/ref/python/data-types/)
+    [W&B supported Data Type](https://docs.wandb.ai/models/ref/python/data-types)
     such as images, audio, video, and more. For example, you can use
     `wandb.Table` to log structured data. See
-    [Log tables, visualize and query data](https://docs.wandb.ai/guides/models/tables/tables-walkthrough)
+    [Log tables, visualize and query data](https://docs.wandb.ai/models/tables/tables-walkthrough)
     tutorial for more details.
 
     W&B organizes metrics with a forward slash (`/`) in their name
@@ -544,7 +544,7 @@ def log(
     By default, each call to `log` creates a new "step".
     The step must always increase, and it is not possible to log
     to a previous step. You can use any metric as the X axis in charts.
-    See [Custom log axes](https://docs.wandb.ai/guides/track/log/customize-logging-axes/)
+    See [Custom log axes](https://docs.wandb.ai/models/track/log/customize-logging-axes)
     for more details.
 
     In many cases, it is better to treat the W&B step like
@@ -596,7 +596,7 @@ def log(
 
     Examples:
     For more and more detailed examples, see
-    [our guides to logging](https://docs.wandb.com/guides/track/log).
+    [our guides to logging](https://docs.wandb.ai/models/track/log).
 
     Basic usage
 
@@ -808,7 +808,7 @@ def sweep(
     Make note the unique identifier, `sweep_id`, that is returned.
     At a later step provide the `sweep_id` to a sweep agent.
 
-    See [Sweep configuration structure](https://docs.wandb.ai/guides/sweeps/define-sweep-configuration)
+    See [Sweep configuration structure](https://docs.wandb.ai/models/sweeps/define-sweep-configuration)
     for information on how to define your sweep.
 
     Args:

@@ -337,7 +337,8 @@ impl Iterator for IOReportIterator {
 // MARK: RAM
 
 pub fn libc_ram() -> WithError<(u64, u64)> {
-    let (mut usage, mut total) = (0u64, 0u64);
+    let mut total = 0u64;
+    let usage: u64;
 
     unsafe {
         let mut name = [libc::CTL_HW, libc::HW_MEMSIZE];
@@ -389,7 +390,8 @@ pub fn libc_ram() -> WithError<(u64, u64)> {
 }
 
 pub fn libc_swap() -> WithError<(u64, u64)> {
-    let (mut usage, mut total) = (0u64, 0u64);
+    let usage: u64;
+    let total: u64;
 
     unsafe {
         let mut name = [libc::CTL_VM, libc::VM_SWAPUSAGE];

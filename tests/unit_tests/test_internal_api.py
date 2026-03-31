@@ -323,7 +323,6 @@ def test_match_org_multiple_orgs_no_match():
 @pytest.fixture
 def api_with_single_org():
     api = internal.InternalApi()
-    api.server_organization_type_introspection = Mock(return_value=["orgEntity"])
     api._fetch_orgs_and_org_entities_from_entity = Mock(
         return_value=[_OrgNames(entity_name="org-entity", display_name="org-display")]
     )
@@ -369,7 +368,6 @@ def test_resolve_org_entity_name_with_single_org_errors(
 @pytest.fixture
 def api_with_multiple_orgs():
     api = internal.InternalApi()
-    api.server_organization_type_introspection = Mock(return_value=["orgEntity"])
     api._fetch_orgs_and_org_entities_from_entity = Mock(
         return_value=[
             _OrgNames(entity_name="org1-entity", display_name="org1-display"),
@@ -412,18 +410,6 @@ def test_resolve_org_entity_name_with_multiple_orgs_invalid_org(api_with_multipl
         ValueError, match="Personal entity belongs to multiple organizations"
     ):
         api_with_multiple_orgs._resolve_org_entity_name("entity", "potato-org")
-
-
-def test_resolve_org_entity_name_with_old_server():
-    api = internal.InternalApi()
-    api.server_organization_type_introspection = Mock(return_value=[])
-
-    # Should error without organization
-    with pytest.raises(ValueError, match="unavailable for your server version"):
-        api._resolve_org_entity_name("entity")
-
-    # Should return organization as-is when specified
-    assert api._resolve_org_entity_name("entity", "org-name-input") == "org-name-input"
 
 
 MockResponseOrException = Union[Exception, tuple[int, Mapping[int, int], str]]
@@ -893,13 +879,6 @@ def test_construct_use_artifact_query_with_every_field(mocker: MockerFixture):
 
     mocker.patch.object(api, "settings", side_effect=lambda x: "default-" + x)
 
-    # Mock the server introspection methods
-    mocker.patch.object(
-        api,
-        "server_use_artifact_input_introspection",
-        return_value={"usedAs": "String"},
-    )
-
     # Simulate server support for ALL known features
     mock_server_features = dict.fromkeys(
         chain(ServerFeature.keys(), ServerFeature.values()),
@@ -966,9 +945,6 @@ def test_construct_use_artifact_query_without_entity_project():
     api.settings = Mock(side_effect=lambda x: "default-" + x)
 
     # Mock methods to return False for entity/project support
-    api.server_use_artifact_input_introspection = Mock(
-        return_value={"usedAs": "String"}
-    )
     api._server_features = Mock(return_value={})
 
     query, variables = api._construct_use_artifact_query(
@@ -994,8 +970,6 @@ def test_construct_use_artifact_query_without_used_as():
     api = internal.InternalApi()
     api.settings = Mock(side_effect=lambda x: "default-" + x)
 
-    # Mock methods to return empty dict for introspection
-    api.server_use_artifact_input_introspection = Mock(return_value={})
     # Simulate server support for ALL known features
     mock_server_features = dict.fromkeys(
         chain(ServerFeature.keys(), ServerFeature.values()),

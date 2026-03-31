@@ -231,14 +231,6 @@ class LaunchAgent:
         if env_agent_version and env_agent_version != "wandb-launch-agent":
             self.version = env_agent_version
 
-        # serverside creation
-        self.gorilla_supports_agents = (
-            self._api.launch_agent_introspection() is not None
-        )
-        self._gorilla_supports_fail_run_queue_items = (
-            self._api.fail_run_queue_item_introspection()
-        )
-
         self._queues: list[str] = config.get("queues", ["default"])
 
         # remove project field from agent config before sending to back end
@@ -253,7 +245,6 @@ class LaunchAgent:
             self._queues,
             sent_config,
             self.version,
-            self.gorilla_supports_agents,
         )
         self._id = create_response["launchAgentId"]
         if self._api.entity_is_team(self._entity):
@@ -261,9 +252,7 @@ class LaunchAgent:
                 f"{LOG_PREFIX}Agent is running on team entity ({self._entity}). Members of this team will be able to run code on this device."
             )
 
-        agent_response = self._api.get_launch_agent(
-            self._id, self.gorilla_supports_agents
-        )
+        agent_response = self._api.get_launch_agent(self._id)
         self._name = agent_response["name"]
         self._init_agent_run()
 
@@ -301,25 +290,22 @@ class LaunchAgent:
         phase: str,
         files: list[str] | None = None,
     ) -> None:
-        if self._gorilla_supports_fail_run_queue_items:
-            fail_rqi = event_loop_thread_exec(self._api.fail_run_queue_item)
-            await fail_rqi(run_queue_item_id, message, phase, files)
+        fail_rqi = event_loop_thread_exec(self._api.fail_run_queue_item)
+        await fail_rqi(run_queue_item_id, message, phase, files)
 
     def _init_agent_run(self) -> None:
-        # TODO: has it been long enough that all backends support agents?
-        self._wandb_run = None
-
-        if self.gorilla_supports_agents:
-            settings = wandb.Settings(
-                silent=True, disable_git=True, disable_job_creation=True
-            )
-            self._wandb_run = wandb.init(
-                project=self._project,
-                entity=self._entity,
-                settings=settings,
-                id=self._name,
-                job_type=HIDDEN_AGENT_RUN_TYPE,
-            )
+        settings = wandb.Settings(
+            silent=True,
+            disable_git=True,
+            disable_job_creation=True,
+        )
+        self._wandb_run = wandb.init(
+            project=self._project,
+            entity=self._entity,
+            settings=settings,
+            id=self._name,
+            job_type=HIDDEN_AGENT_RUN_TYPE,
+        )
 
     @property
     def thread_ids(self) -> list[int]:
@@ -389,9 +375,7 @@ class LaunchAgent:
             status: Status to update the agent to.
         """
         _update_status = event_loop_thread_exec(self._api.update_launch_agent_status)
-        update_ret = await _update_status(
-            self._id, status, self.gorilla_supports_agents
-        )
+        update_ret = await _update_status(self._id, status)
         if not update_ret["success"]:
             wandb.termerror(f"{LOG_PREFIX}Failed to update agent status to {status}")
 
@@ -591,9 +575,7 @@ class LaunchAgent:
             while True:
                 job = None
                 self._ticks += 1
-                agent_response = self._api.get_launch_agent(
-                    self._id, self.gorilla_supports_agents
-                )
+                agent_response = self._api.get_launch_agent(self._id)
                 if agent_response["stopPolling"]:
                     # shutdown process and all jobs if requested from ui
                     raise KeyboardInterrupt  # noqa: TRY301

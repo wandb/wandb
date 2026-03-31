@@ -23,7 +23,7 @@ Building an LLM app? Track, debug, evaluate, and monitor LLM apps with [Weave](h
 
 # Documentation
 
-See the [W&B Developer Guide](https://docs.wandb.ai/?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=documentation) and [API Reference Guide](https://docs.wandb.ai/training/api-reference#api-overview?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=documentation) for a full technical description of the W&B platform.
+See the [W&B Developer Guide](https://docs.wandb.ai?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=documentation) and [API Reference Guide](https://docs.wandb.ai/training/api-reference#api-overview?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=documentation) for a full technical description of the W&B platform.
 
 &nbsp;
 
@@ -89,7 +89,7 @@ Weights & Biases is available in the cloud or installed on your private infrastr
 2. [Dedicated Cloud](https://docs.wandb.ai/platform/hosting/hosting-options/dedicated_cloud?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=hosting): Single-tenant, fully managed platform deployed in W&B’s AWS, GCP, or Azure cloud accounts. Each Dedicated Cloud instance has its own isolated network, compute and storage from other W&B Dedicated Cloud instances.
 3. [Self-Managed](https://docs.wandb.ai/platform/hosting/hosting-options/self-managed?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=hosting): Deploy W&B Server on your AWS, GCP, or Azure cloud account or within your on-premises infrastructure.
 
-See the [Hosting documentation](https://docs.wandb.ai/guides/hosting?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=hosting) in the W&B Developer Guide for more information.
+See the [Hosting documentation](https://docs.wandb.ai/platform/hosting?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=hosting) in the W&B Developer Guide for more information.
 
 &nbsp;
 
