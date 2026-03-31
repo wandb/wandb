@@ -224,7 +224,7 @@ func leetMain(args []string) int {
 	}
 	defer stopLeetPprof(pprofStop)
 
-	flushSentry := configureLeetSentry(opts.disableAnalytics, leetSentryMessage(opts))
+	flushSentry := configureLeetSentry(opts.disableAnalytics, leetSentryMessage(&opts))
 	defer flushSentry()
 
 	logger, closeLogger, err := newLeetLogger(opts.logLevel)
@@ -234,7 +234,7 @@ func leetMain(args []string) int {
 	}
 	defer closeLogger()
 
-	return runLeetCommand(opts, logger)
+	return runLeetCommand(&opts, logger)
 }
 
 type leetOptions struct {
@@ -266,7 +266,7 @@ func parseLeetOptions(args []string) (leetOptions, error) {
 	}
 
 	opts.wandbDir = fs.Arg(0)
-	if err := validateLeetOptions(fs, opts); err != nil {
+	if err := validateLeetOptions(fs, &opts); err != nil {
 		return leetOptions{}, err
 	}
 
@@ -355,7 +355,7 @@ Flags:
 	fs.PrintDefaults()
 }
 
-func validateLeetOptions(fs *flag.FlagSet, opts leetOptions) error {
+func validateLeetOptions(fs *flag.FlagSet, opts *leetOptions) error {
 	switch {
 	case opts.symonInterval <= 0:
 		fmt.Fprintln(os.Stderr, "Error: --interval must be > 0")
@@ -410,7 +410,7 @@ func configureLeetSentry(disableAnalytics bool, message string) func() {
 	return func() { sentry.Flush(2 * time.Second) }
 }
 
-func leetSentryMessage(opts leetOptions) string {
+func leetSentryMessage(opts *leetOptions) string {
 	switch {
 	case opts.editConfig:
 		return "wandb-leet-config"
@@ -449,7 +449,7 @@ func newLeetLogger(logLevel int) (*observability.CoreLogger, func(), error) {
 	return logger, closeLogWriter, nil
 }
 
-func runLeetCommand(opts leetOptions, logger *observability.CoreLogger) int {
+func runLeetCommand(opts *leetOptions, logger *observability.CoreLogger) int {
 	if opts.editConfig {
 		return runLeetConfigEditor(logger)
 	}
@@ -469,7 +469,7 @@ func runLeetConfigEditor(logger *observability.CoreLogger) int {
 	return exitCodeSuccess
 }
 
-func runSymon(opts leetOptions, logger *observability.CoreLogger) int {
+func runSymon(opts *leetOptions, logger *observability.CoreLogger) int {
 	for {
 		m := leet.NewSymon(leet.SymonParams{
 			Logger:           logger,
@@ -491,13 +491,13 @@ func runSymon(opts leetOptions, logger *observability.CoreLogger) int {
 	}
 }
 
-func runLeetWorkspace(opts leetOptions, logger *observability.CoreLogger) int {
+func runLeetWorkspace(opts *leetOptions, logger *observability.CoreLogger) int {
 	modelParams := leet.CreateModelParams(&leet.StartupArgs{
-		BaseURL: &opts.baseUrl,
-		Entity:  &opts.entity,
-		Project: &opts.project,
-		RunId:   &opts.runId,
-		RunFile: &opts.runFile,
+		BaseURL:  &opts.baseUrl,
+		Entity:   &opts.entity,
+		Project:  &opts.project,
+		RunId:    &opts.runId,
+		RunFile:  &opts.runFile,
 		WandbDir: opts.wandbDir,
 	}, logger)
 	if modelParams.WandbDir == "" && modelParams.RunParams.LocalRunParams != nil {
