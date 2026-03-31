@@ -7,9 +7,8 @@ import (
 )
 
 const (
-	systemMetricsPaneContentPadding = 1
-	systemMetricsPaneHeaderLines    = 1
-	systemMetricsPaneMinHeight      = systemMetricsPaneHeaderLines +
+	systemMetricsPaneHeaderLines = 1
+	systemMetricsPaneMinHeight   = systemMetricsPaneHeaderLines +
 		MinMetricChartHeight + ChartBorderSize + ChartTitleHeight
 
 	WorkspaceSystemMetricsPaneHeader = "System Metrics"
@@ -17,7 +16,7 @@ const (
 
 var (
 	systemMetricsPaneStyle = lipgloss.NewStyle().
-		PaddingLeft(systemMetricsPaneContentPadding)
+		Padding(0, ContentPadding)
 )
 
 // SystemMetricsPane is a collapsible, animated pane intended for rendering
@@ -45,13 +44,11 @@ func (p *SystemMetricsPane) SetExpandedHeight(height int) {
 func (p *SystemMetricsPane) View(
 	width int, runLabel string, grid *SystemMetricsGrid, hint string) string {
 	height := p.Height()
-	if width <= systemMetricsPaneContentPadding ||
-		height < systemMetricsPaneMinHeight {
+	if width <= ContentPaddingCols || height < systemMetricsPaneMinHeight {
 		return ""
 	}
 
-	innerW := max(
-		width-systemMetricsPaneContentPadding-sidebarVerticalBorderCols, 0)
+	innerW := max(width-ContentPaddingCols, 0)
 	innerH := max(height, 0)
 	gridH := max(innerH-systemMetricsPaneHeaderLines, 0)
 
@@ -68,7 +65,6 @@ func (p *SystemMetricsPane) View(
 		)
 	}
 
-	// Render into the unpadded content area first, then apply padding and border.
 	body = lipgloss.Place(innerW, innerH, lipgloss.Left, lipgloss.Top, body)
 	padded := systemMetricsPaneStyle.Render(body)
 

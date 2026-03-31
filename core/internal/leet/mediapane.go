@@ -31,20 +31,19 @@ const (
 	// stacked bottom panes are visible at once.
 	BottomPaneHeightRatioThree = 0.146
 
-	mediaPaneHeader         = "Media"
-	mediaPaneHeaderLines    = 2
-	mediaPaneContentPadding = 1
-	mediaTileMinWidth       = 18
-	mediaTileMinHeight      = 8
-	mediaTileBorderLines    = 2
-	mediaTileTitleLines     = 1
-	mediaTileFooterLines    = 1
-	mediaPaneMinHeight      = mediaPaneHeaderLines + mediaTileMinHeight
+	mediaPaneHeader      = "Media"
+	mediaPaneHeaderLines = 2
+	mediaTileMinWidth    = 18
+	mediaTileMinHeight   = 8
+	mediaTileBorderLines = 2
+	mediaTileTitleLines  = 1
+	mediaTileFooterLines = 1
+	mediaPaneMinHeight   = mediaPaneHeaderLines + mediaTileMinHeight
 )
 
 var (
 	mediaPaneStyle = lipgloss.NewStyle().
-			PaddingLeft(mediaPaneContentPadding)
+			Padding(0, ContentPadding)
 
 	mediaPaneHeaderStyle = lipgloss.NewStyle().
 				Foreground(colorSubheading).
@@ -211,11 +210,12 @@ func (p *MediaPane) syncState() {
 		if _, ok := p.autoFollows[key]; !ok {
 			p.autoFollows[key] = true
 		}
-		if len(xs) == 0 {
+		switch {
+		case len(xs) == 0:
 			p.xIndices[key] = 0
-		} else if p.autoFollows[key] {
+		case p.autoFollows[key]:
 			p.xIndices[key] = len(xs) - 1
-		} else {
+		default:
 			p.xIndices[key] = clamp(p.xIndices[key], 0, len(xs)-1)
 		}
 	}
@@ -461,7 +461,7 @@ func (p *MediaPane) syncGridLayoutForViewport(width, height int) {
 		return
 	}
 
-	innerW := max(width-mediaPaneContentPadding, 0)
+	innerW := max(width-ContentPaddingCols, 0)
 	innerH := max(height, 0)
 	if innerW == 0 || innerH == 0 {
 		return
@@ -486,9 +486,9 @@ func (p *MediaPane) tileIndexAt(x, y, width, height int) (int, bool) {
 		return 0, false
 	}
 
-	innerW := max(width-mediaPaneContentPadding, 0)
+	innerW := max(width-ContentPaddingCols, 0)
 	gridH := max(height-mediaPaneHeaderLines, 0)
-	gridX := x - mediaPaneContentPadding
+	gridX := x - ContentPadding
 	gridY := y - mediaPaneHeaderLines
 	if gridX < 0 || gridY < 0 || gridX >= innerW || gridY >= gridH {
 		return 0, false
@@ -527,7 +527,7 @@ func (p *MediaPane) View(width, height int, runLabel, hint string) string {
 		return ""
 	}
 
-	innerW := max(width-mediaPaneContentPadding, 0)
+	innerW := max(width-ContentPaddingCols, 0)
 	innerH := max(height, 0)
 	if innerW == 0 || innerH == 0 {
 		return ""
@@ -728,7 +728,8 @@ func (p *MediaPane) renderTile(
 
 	parts := []string{title, imageView}
 	if footerLines > 0 {
-		parts = append(parts, mediaTileFooterStyle.Width(innerW).Render(p.tileFooter(key, point, ok, innerW)))
+		parts = append(parts,
+			mediaTileFooterStyle.Width(innerW).Render(p.tileFooter(key, point, ok, innerW)))
 	}
 
 	content := lipgloss.JoinVertical(lipgloss.Left, parts...)
@@ -753,7 +754,10 @@ func (p *MediaPane) tileFooter(key string, point MediaPoint, ok bool, width int)
 		parts = append(parts, stepLabel)
 	}
 	if len(parts) == 0 {
-		return truncateValue(fmt.Sprintf("%dx%d %s", point.Width, point.Height, strings.ToUpper(point.Format)), width)
+		return truncateValue(
+			fmt.Sprintf("%dx%d %s", point.Width, point.Height, strings.ToUpper(point.Format)),
+			width,
+		)
 	}
 	return truncateValue(strings.Join(parts, " • "), width)
 }

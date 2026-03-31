@@ -213,7 +213,8 @@ func (r *Run) handleWindowResize(msg tea.WindowSizeMsg) {
 
 	r.leftSidebar.UpdateDimensions(msg.Width, r.rightSidebar.animState.TargetVisible())
 	r.rightSidebar.UpdateDimensions(msg.Width, r.leftSidebar.animState.TargetVisible())
-	r.updateBottomPaneHeights(r.mediaPane.animState.TargetVisible(), r.consoleLogsPane.animState.TargetVisible())
+	r.updateBottomPaneHeights(
+		r.mediaPane.animState.TargetVisible(), r.consoleLogsPane.animState.TargetVisible())
 
 	layout := r.computeViewports()
 	r.metricsGrid.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
@@ -306,7 +307,8 @@ func (r *Run) renderMainView() string {
 
 		if r.metricsGridAnimState.IsVisible() && layout.height > 0 {
 			if r.metricsGrid.ChartCount() == 0 {
-				sections = append(sections, renderMetricsEmptyState(w, layout.height, "No scalar metrics logged."))
+				sections = append(sections,
+					renderMetricsEmptyState(w, layout.height, "No scalar metrics logged."))
 			} else {
 				dims := r.metricsGrid.CalculateChartDimensions(w, layout.height)
 				sections = append(sections, r.metricsGrid.View(dims))
@@ -353,17 +355,16 @@ func (r *Run) buildMainViewWithSidebars(
 	}
 
 	var parts []string
-	sidebarHeight := max(contentHeight-1, 0)
 
 	if leftWidth > 0 {
-		leftView := r.leftSidebar.View(sidebarHeight).Content
+		leftView := r.leftSidebar.View(contentHeight).Content
 		parts = append(parts, leftView)
 	}
 
 	parts = append(parts, gridView)
 
 	if rightWidth > 0 {
-		rightView := r.rightSidebar.View(sidebarHeight)
+		rightView := r.rightSidebar.View(contentHeight)
 		parts = append(parts, rightView)
 	}
 
@@ -529,7 +530,7 @@ func (r *Run) buildActiveStatus() string {
 		}
 	}
 
-	if r.mediaPane.IsVisible() {
+	if r.mediaPane.Active() {
 		if label := r.mediaPane.StatusLabel(); label != "" {
 			parts = append(parts, label)
 		}
@@ -679,9 +680,18 @@ func (r *Run) computeViewports() Layout {
 
 	stack := computeVerticalStackLayout(
 		totalH,
-		stackSectionSpec{ID: stackSectionMetrics, Visible: r.metricsGridAnimState.IsVisible(), Flex: true},
-		stackSectionSpec{ID: stackSectionMedia, Visible: r.mediaPane.IsVisible(), Height: r.mediaPane.Height()},
-		stackSectionSpec{ID: stackSectionConsoleLogs, Visible: r.consoleLogsPane.IsVisible(), Height: r.consoleLogsPane.Height()},
+		stackSectionSpec{
+			ID:      stackSectionMetrics,
+			Visible: r.metricsGridAnimState.IsVisible(),
+			Flex:    true},
+		stackSectionSpec{
+			ID:      stackSectionMedia,
+			Visible: r.mediaPane.IsVisible(),
+			Height:  r.mediaPane.Height()},
+		stackSectionSpec{
+			ID:      stackSectionConsoleLogs,
+			Visible: r.consoleLogsPane.IsVisible(),
+			Height:  r.consoleLogsPane.Height()},
 	)
 
 	return Layout{

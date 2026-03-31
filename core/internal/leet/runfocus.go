@@ -79,6 +79,7 @@ func (r *Run) activateMetricsGridFocus(_ int) {
 		r.focus.Row = 0
 		r.focus.Col = 0
 	}
+	r.metricsGrid.NavigateFocus(0, 0)
 }
 
 func (r *Run) activateSystemMetricsFocus(_ int) {
@@ -87,6 +88,7 @@ func (r *Run) activateSystemMetricsFocus(_ int) {
 		r.focus.Row = 0
 		r.focus.Col = 0
 	}
+	r.rightSidebar.metricsGrid.NavigateFocus(0, 0)
 }
 
 func (r *Run) activateMediaFocus(_ int) {

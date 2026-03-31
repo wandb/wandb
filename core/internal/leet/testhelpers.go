@@ -463,9 +463,8 @@ func (w *Workspace) TestSeedRunOverview(runKey string) {
 	w.runOverviewSidebar.Sync()
 
 	// Trigger section height calculation so ItemsPerPage > 0.
-	sidebarH := max(w.height-StatusBarHeight, 0)
-	innerH := max(sidebarH-workspaceTopMarginLines, 0)
-	_ = w.runOverviewSidebar.View(innerH)
+	contentH := max(w.height-StatusBarHeight, 0)
+	_ = w.runOverviewSidebar.View(contentH)
 }
 
 // SystemMetricsPaneMinHeight returns the minimum pane height (for testing).

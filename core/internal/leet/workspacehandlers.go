@@ -43,10 +43,12 @@ func (w *Workspace) handleMediaMouse(msg tea.MouseMsg, layout Layout) tea.Cmd {
 	localX := mouse.X - layout.leftSidebarWidth
 	localY := mouse.Y - layout.mediaY
 
-	switch m := msg.(type) {
-	case tea.MouseClickMsg:
+	if m, ok := msg.(tea.MouseClickMsg); ok {
 		if m.Button == tea.MouseLeft &&
-			w.mediaPane.HandleMouseClick(localX, localY, layout.mainContentAreaWidth, layout.mediaHeight) {
+			w.mediaPane.HandleMouseClick(
+				localX, localY,
+				layout.mainContentAreaWidth, layout.mediaHeight,
+			) {
 			w.mediaPane.SetActive(true)
 			w.focusMgr.AdoptTarget(FocusTargetMedia)
 		}
@@ -150,12 +152,9 @@ func (w *Workspace) handleMetricsMouse(msg tea.MouseMsg, layout Layout) tea.Cmd 
 	mouse := msg.Mouse()
 	alt := mouse.Mod == tea.ModAlt // Alt pressed at the time of the mouse event?
 
-	const (
-		gridInsetX   = 0
-		headerOffset = 1 // metrics header line
-	)
+	const headerOffset = 1 // metrics header line
 
-	adjustedX := mouse.X - layout.leftSidebarWidth - gridInsetX
+	adjustedX := mouse.X - layout.leftSidebarWidth - ContentPadding
 	adjustedY := mouse.Y - headerOffset
 	if adjustedX < 0 || adjustedY < 0 {
 		return nil
@@ -211,7 +210,7 @@ func (w *Workspace) handleSystemMetricsMouse(msg tea.MouseMsg, layout Layout) te
 		return nil
 	}
 
-	adjustedX := mouse.X - layout.leftSidebarWidth - systemMetricsPaneContentPadding
+	adjustedX := mouse.X - layout.leftSidebarWidth - ContentPadding
 	adjustedY := mouse.Y - layout.systemMetricsY - systemMetricsPaneHeaderLines
 	if adjustedX < 0 || adjustedY < 0 {
 		return nil
@@ -941,26 +940,6 @@ func (w *Workspace) handleGridWASD(msg tea.KeyPressMsg) tea.Cmd {
 	return func() tea.Msg { return nil }
 }
 
-func (w *Workspace) handleConfigMetricsCols(msg tea.KeyPressMsg) tea.Cmd {
-	w.config.SetPendingGridConfig(gridConfigWorkspaceMetricsCols)
-	return nil
-}
-
-func (w *Workspace) handleConfigMetricsRows(msg tea.KeyPressMsg) tea.Cmd {
-	w.config.SetPendingGridConfig(gridConfigWorkspaceMetricsRows)
-	return nil
-}
-
-func (w *Workspace) handleConfigMediaCols(msg tea.KeyPressMsg) tea.Cmd {
-	w.config.SetPendingGridConfig(gridConfigWorkspaceMediaCols)
-	return nil
-}
-
-func (w *Workspace) handleConfigMediaRows(msg tea.KeyPressMsg) tea.Cmd {
-	w.config.SetPendingGridConfig(gridConfigWorkspaceMediaRows)
-	return nil
-}
-
 func (w *Workspace) handleConfigFocusedCols(msg tea.KeyPressMsg) tea.Cmd {
 	switch w.focusMgr.Current() {
 	case FocusTargetSystemMetrics:
@@ -1159,30 +1138,6 @@ func (w *Workspace) activeSystemMetricsGrid() *SystemMetricsGrid {
 		return nil
 	}
 	return w.systemMetrics[cur.Key]
-}
-
-func (w *Workspace) handlePrevSystemMetricsPage(tea.KeyPressMsg) tea.Cmd {
-	if g := w.activeSystemMetricsGrid(); g != nil {
-		g.Navigate(-1)
-	}
-	return nil
-}
-
-func (w *Workspace) handleNextSystemMetricsPage(tea.KeyPressMsg) tea.Cmd {
-	if g := w.activeSystemMetricsGrid(); g != nil {
-		g.Navigate(1)
-	}
-	return nil
-}
-
-func (w *Workspace) handleConfigSystemCols(tea.KeyPressMsg) tea.Cmd {
-	w.config.SetPendingGridConfig(gridConfigWorkspaceSystemCols)
-	return nil
-}
-
-func (w *Workspace) handleConfigSystemRows(tea.KeyPressMsg) tea.Cmd {
-	w.config.SetPendingGridConfig(gridConfigWorkspaceSystemRows)
-	return nil
 }
 
 // handleFocusRuns moves focus to the runs list if it's visible.

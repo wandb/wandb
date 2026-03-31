@@ -13,7 +13,9 @@ import (
 const (
 	rightSidebarHeader      = "System Metrics"
 	rightSidebarHeaderLines = 1
-	rightSidebarGridXOffset = rightSidebarContentPadding
+	// rightSidebarGridXOffset is the X offset from the sidebar's left edge
+	// to the start of the grid content (border + left padding).
+	rightSidebarGridXOffset = SidebarBorderCols + ContentPadding
 )
 
 // RightSidebar represents a collapsible right sidebar displaying system metrics.
@@ -49,7 +51,7 @@ func NewRightSidebar(
 func (rs *RightSidebar) UpdateDimensions(terminalWidth int, leftSidebarVisible bool) {
 	rs.animState.SetExpanded(expandedSidebarWidth(terminalWidth, leftSidebarVisible))
 
-	if gridWidth := rs.sidebarContentWidth(rs.animState.Value()); gridWidth > 0 {
+	if gridWidth := sidebarContentWidth(rs.animState.Value()); gridWidth > 0 {
 		rs.metricsGrid.Resize(gridWidth, defaultSystemMetricsGridHeight)
 	}
 }
@@ -178,12 +180,12 @@ func (rs *RightSidebar) Update(msg tea.Msg) (*RightSidebar, tea.Cmd) {
 // View renders the right sidebar.
 func (rs *RightSidebar) View(height int) string {
 	width := rs.animState.Value()
-	if height <= 0 || width <= rightSidebarContentPadding {
+	if height <= 0 || width <= SidebarOverhead {
 		return ""
 	}
 
-	contentW := rs.sidebarContentWidth(width)
-	innerW := rs.sidebarInnerWidth(contentW)
+	contentW := sidebarContentWidth(width)
+	innerW := sidebarInnerWidth(width)
 	gridHeight := rs.calculateGridHeight(height)
 	if contentW <= 0 || innerW <= 0 || gridHeight <= 0 {
 		return ""
@@ -206,10 +208,10 @@ func (rs *RightSidebar) View(height int) string {
 		MaxHeight(height).
 		Render(body)
 	bordered := rightSidebarBorderStyle.
-		Height(height + 1).
-		MaxHeight(height + 1).
+		Height(height).
+		MaxHeight(height).
 		Render(styled)
-	return lipgloss.Place(width, height+1, lipgloss.Left, lipgloss.Top, bordered)
+	return lipgloss.Place(width, height, lipgloss.Left, lipgloss.Top, bordered)
 }
 
 // Width returns the current width of the sidebar.
@@ -252,14 +254,6 @@ func (rs *RightSidebar) ProcessStatsMsg(msg StatsMsg) {
 	for metricName, value := range msg.Metrics {
 		rs.metricsGrid.AddDataPoint(metricName, msg.Timestamp, value)
 	}
-}
-
-func (rs *RightSidebar) sidebarContentWidth(width int) int {
-	return max(width-rightSidebarContentPadding, 0)
-}
-
-func (rs *RightSidebar) sidebarInnerWidth(width int) int {
-	return max(width-sidebarVerticalBorderCols, 0)
 }
 
 // calculateGridHeight returns the available height for the metrics grid.

@@ -116,12 +116,12 @@ func TestWorkspace_HandleWorkspaceInitErr_DropsSelectionAndPinned(t *testing.T) 
 // ---- Focus region constants (mirrors FocusTarget enum from focusmanager.go) ----
 
 const (
-	testFocusRuns           = 1 // FocusTargetRunsList
-	testFocusOverview       = 2 // FocusTargetOverview
-	testFocusMetricsGrid    = 3 // FocusTargetMetricsGrid
-	testFocusSystemMetrics  = 4 // FocusTargetSystemMetrics
-	testFocusMedia          = 5 // FocusTargetMedia
-	testFocusLogs           = 6 // FocusTargetConsoleLogs
+	testFocusRuns     = 1 // FocusTargetRunsList
+	testFocusOverview = 2 // FocusTargetOverview
+	// testFocusMetricsGrid   = 3 // FocusTargetMetricsGrid
+	// testFocusSystemMetrics = 4 // FocusTargetSystemMetrics
+	// testFocusMedia         = 5 // FocusTargetMedia
+	testFocusLogs = 6 // FocusTargetConsoleLogs
 )
 
 // newWorkspaceWithPanels creates a Workspace with all panels expanded and a

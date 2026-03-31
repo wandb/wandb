@@ -62,13 +62,14 @@ func TestRightSidebar_HandleMouseClick_FocusToggleAndClear(t *testing.T) {
 		},
 	})
 
-	// Click near the top-left accounting for border/padding (1,1 maps to row/col 0).
-	ok := rs.HandleMouseClick(1, 1)
+	// Click inside the grid content area (border + padding = SidebarOverhead cols from left).
+	clickX := leet.SidebarBorderCols + leet.ContentPadding
+	ok := rs.HandleMouseClick(clickX, 1)
 	require.True(t, ok, "expected focus to be set")
 	require.NotEmpty(t, rs.FocusedChartTitle())
 
 	// Clicking the same location toggles focus off through the grid.
-	ok2 := rs.HandleMouseClick(1, 1)
+	ok2 := rs.HandleMouseClick(clickX, 1)
 	require.False(t, ok2, "expected focus to be cleared")
 	require.Empty(t, rs.FocusedChartTitle())
 

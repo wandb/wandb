@@ -106,6 +106,18 @@ func expandedSidebarWidth(terminalWidth int, oppositeVisible bool) int {
 	return clamp(int(float64(terminalWidth)*ratio), SidebarMinWidth, SidebarMaxWidth)
 }
 
+// sidebarContentWidth returns the width available for text content inside a
+// sidebar after subtracting the vertical border and both padding columns.
+func sidebarContentWidth(totalWidth int) int {
+	return max(totalWidth-SidebarOverhead, 0)
+}
+
+// sidebarInnerWidth returns the width to pass to the sidebar's lipgloss Style
+// (includes content + padding, excludes the border column).
+func sidebarInnerWidth(totalWidth int) int {
+	return max(totalWidth-SidebarBorderCols, 0)
+}
+
 func filterNonEmptySections(sections []string) []string {
 	filtered := make([]string, 0, len(sections))
 	for _, section := range sections {

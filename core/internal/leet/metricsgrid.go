@@ -170,7 +170,9 @@ func (mg *MetricsGrid) toggleFocusedChartLogY() bool {
 // CalculateChartDimensions computes chart dimensions.
 func (mg *MetricsGrid) CalculateChartDimensions(windowWidth, windowHeight int) GridDims {
 	gridRows, gridCols := mg.gridConfig()
-	return ComputeGridDims(windowWidth, windowHeight, GridSpec{
+	// Subtract the content padding that View will add around the grid.
+	innerW := max(windowWidth-ContentPaddingCols, 0)
+	return ComputeGridDims(innerW, windowHeight, GridSpec{
 		Rows:        gridRows,
 		Cols:        gridCols,
 		MinCellW:    MinChartWidth,
@@ -369,9 +371,11 @@ func (mg *MetricsGrid) View(dims GridDims) string {
 	// Ensure exact height by placing in a box sized to the grid's actual
 	// allocated height (rows * cellH + header). This prevents phantom filler
 	// lines when mg.height drifts from the dims passed in by the caller.
+	innerW := max(mg.width-ContentPaddingCols, 0)
 	totalH := ChartHeaderHeight + size.Rows*dims.CellHWithPadding
 	result := lipgloss.JoinVertical(lipgloss.Left, header, grid)
-	return lipgloss.Place(mg.width, totalH, lipgloss.Left, lipgloss.Top, result)
+	result = lipgloss.Place(innerW, totalH, lipgloss.Left, lipgloss.Top, result)
+	return lipgloss.NewStyle().Padding(0, ContentPadding).Render(result)
 }
 
 func (mg *MetricsGrid) renderHeader(size GridSize) string {
@@ -414,9 +418,10 @@ func (mg *MetricsGrid) renderGrid(dims GridDims, size GridSize) string {
 	mg.mu.RUnlock()
 
 	if noData {
+		innerW := max(mg.width-ContentPaddingCols, 0)
 		gridH := max(size.Rows*dims.CellHWithPadding, 1)
 		return lipgloss.Place(
-			mg.width,
+			innerW,
 			gridH,
 			lipgloss.Center,
 			lipgloss.Center,

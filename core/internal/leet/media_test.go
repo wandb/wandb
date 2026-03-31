@@ -11,7 +11,7 @@ import (
 )
 
 func TestParseHistory_ImageFile(t *testing.T) {
-	runPath := filepath.Join("/tmp", "offline-run-123", "run-123.wandb")
+	runPath := filepath.Join("tmp", "offline-run-123", "run-123.wandb")
 	relPath := filepath.Join("media", "images", "media", "generated_sample_7.png")
 
 	history := &spb.HistoryRecord{

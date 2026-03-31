@@ -189,7 +189,7 @@ func (w *Workspace) SetSize(width, height int) {
 
 	// The runs list lives in the main content area (above the status bar).
 	contentHeight := max(height-StatusBarHeight, 0)
-	available := max(contentHeight-workspaceTopMarginLines-workspaceHeaderLines, 1)
+	available := max(contentHeight-workspaceHeaderLines-SidebarBottomPadding, 1)
 
 	w.runs.SetItemsPerPage(available)
 }
@@ -279,7 +279,8 @@ func (w *Workspace) View() tea.View {
 	contentWidth := layout.mainContentAreaWidth
 	centralColumn := ""
 	if w.mediaPane.IsFullscreen() {
-		centralColumn = w.mediaPane.View(contentWidth, layout.totalContentAreaHeight, runLabel, mediaHint)
+		centralColumn = w.mediaPane.View(
+			contentWidth, layout.totalContentAreaHeight, runLabel, mediaHint)
 	} else {
 		var sections []string
 
@@ -288,15 +289,18 @@ func (w *Workspace) View() tea.View {
 		}
 
 		if layout.systemMetricsHeight > 0 {
-			sections = append(sections, w.systemMetricsPane.View(contentWidth, runLabel, systemGrid, systemHint))
+			sections = append(sections,
+				w.systemMetricsPane.View(contentWidth, runLabel, systemGrid, systemHint))
 		}
 
 		if layout.mediaHeight > 0 {
-			sections = append(sections, w.mediaPane.View(contentWidth, layout.mediaHeight, runLabel, mediaHint))
+			sections = append(sections,
+				w.mediaPane.View(contentWidth, layout.mediaHeight, runLabel, mediaHint))
 		}
 
 		if layout.consoleLogsHeight > 0 {
-			sections = append(sections, w.consoleLogsPane.View(contentWidth, runLabel, logsHint))
+			sections = append(sections,
+				w.consoleLogsPane.View(contentWidth, runLabel, logsHint))
 		}
 
 		sections = filterNonEmptySections(sections)
@@ -470,15 +474,27 @@ func (w *Workspace) recalculateLayout() {
 // to prevent the status bar from being pushed off screen.
 func (w *Workspace) computeViewports() Layout {
 	leftW, rightW := w.runsAnimState.Value(), w.runOverviewSidebar.Width()
-	contentW := max(w.width-leftW-rightW-2*sidebarVerticalBorderCols, 1)
+	contentW := max(w.width-leftW-rightW, 1)
 	totalH := max(w.height-StatusBarHeight, 0)
 
 	stack := computeVerticalStackLayout(
 		totalH,
-		stackSectionSpec{ID: stackSectionMetrics, Visible: w.metricsGridAnimState.IsVisible(), Flex: true},
-		stackSectionSpec{ID: stackSectionSystemMetrics, Visible: w.systemMetricsPane.IsVisible(), Height: w.systemMetricsPane.Height()},
-		stackSectionSpec{ID: stackSectionMedia, Visible: w.mediaPane.IsVisible(), Height: w.mediaPane.Height()},
-		stackSectionSpec{ID: stackSectionConsoleLogs, Visible: w.consoleLogsPane.IsVisible(), Height: w.consoleLogsPane.Height()},
+		stackSectionSpec{
+			ID:      stackSectionMetrics,
+			Visible: w.metricsGridAnimState.IsVisible(),
+			Flex:    true},
+		stackSectionSpec{
+			ID:      stackSectionSystemMetrics,
+			Visible: w.systemMetricsPane.IsVisible(),
+			Height:  w.systemMetricsPane.Height()},
+		stackSectionSpec{
+			ID:      stackSectionMedia,
+			Visible: w.mediaPane.IsVisible(),
+			Height:  w.mediaPane.Height()},
+		stackSectionSpec{
+			ID:      stackSectionConsoleLogs,
+			Visible: w.consoleLogsPane.IsVisible(),
+			Height:  w.consoleLogsPane.Height()},
 	)
 
 	return Layout{
@@ -560,12 +576,42 @@ func (w *Workspace) updateBottomPaneHeights(sysVisible, mediaVisible, logsVisibl
 
 func (w *Workspace) buildWorkspaceFocusManager() *FocusManager {
 	return NewFocusManager([]FocusRegionDef{
-		{FocusTargetRunsList, w.runsFocusAvailable, w.activateRunsFocus, w.deactivateRunsFocus},
-		{FocusTargetMetricsGrid, w.metricsGridFocusAvailable, w.activateMetricsGridFocus, w.deactivateMetricsGridFocus},
-		{FocusTargetSystemMetrics, w.sysMetricsFocusAvailable, w.activateSysMetricsFocus, w.deactivateSysMetricsFocus},
-		{FocusTargetMedia, w.mediaFocusAvailable, w.activateMediaFocus, w.deactivateMediaFocus},
-		{FocusTargetConsoleLogs, w.logsFocusAvailable, w.activateLogsFocus, w.deactivateLogsFocus},
-		{FocusTargetOverview, w.overviewFocusAvailable, w.activateOverviewFocus, w.deactivateOverviewFocus},
+		{
+			FocusTargetRunsList,
+			w.runsFocusAvailable,
+			w.activateRunsFocus,
+			w.deactivateRunsFocus,
+		},
+		{
+			FocusTargetMetricsGrid,
+			w.metricsGridFocusAvailable,
+			w.activateMetricsGridFocus,
+			w.deactivateMetricsGridFocus,
+		},
+		{
+			FocusTargetSystemMetrics,
+			w.sysMetricsFocusAvailable,
+			w.activateSysMetricsFocus,
+			w.deactivateSysMetricsFocus,
+		},
+		{
+			FocusTargetMedia,
+			w.mediaFocusAvailable,
+			w.activateMediaFocus,
+			w.deactivateMediaFocus,
+		},
+		{
+			FocusTargetConsoleLogs,
+			w.logsFocusAvailable,
+			w.activateLogsFocus,
+			w.deactivateLogsFocus,
+		},
+		{
+			FocusTargetOverview,
+			w.overviewFocusAvailable,
+			w.activateOverviewFocus,
+			w.deactivateOverviewFocus,
+		},
 	})
 }
 
@@ -596,6 +642,7 @@ func (w *Workspace) activateMetricsGridFocus(_ int) {
 		w.focus.Row = 0
 		w.focus.Col = 0
 	}
+	w.metricsGrid.NavigateFocus(0, 0)
 }
 func (w *Workspace) activateSysMetricsFocus(_ int) {
 	if w.systemMetricsFocus != nil {
@@ -604,6 +651,9 @@ func (w *Workspace) activateSysMetricsFocus(_ int) {
 			w.systemMetricsFocus.Row = 0
 			w.systemMetricsFocus.Col = 0
 		}
+	}
+	if g := w.activeSystemMetricsGrid(); g != nil {
+		g.NavigateFocus(0, 0)
 	}
 }
 func (w *Workspace) activateMediaFocus(_ int) { w.mediaPane.SetActive(true) }
@@ -844,14 +894,13 @@ func (w *Workspace) runOverviewActive() bool {
 func (w *Workspace) renderRunsList() string {
 	startIdx, endIdx := w.syncRunsPage()
 
-	sidebarW := w.runsAnimState.Value() - leftSidebarContentPadding
-	sidebarH := max(w.height-StatusBarHeight, 0)
-	if sidebarW <= leftSidebarContentPadding || sidebarH <= leftSidebarContentPadding {
+	totalW := w.runsAnimState.Value()
+	totalH := max(w.height-StatusBarHeight, 0)
+	if totalW <= SidebarOverhead || totalH <= 0 {
 		return ""
 	}
-	contentWidth := max(
-		sidebarW-leftSidebarContentPadding-sidebarVerticalBorderCols, 1)
 
+	contentWidth := sidebarContentWidth(totalW)
 	lines := w.renderRunLines(contentWidth)
 
 	if len(lines) == 0 {
@@ -863,19 +912,21 @@ func (w *Workspace) renderRunsList() string {
 	contentLines = append(contentLines, lines...)
 	content := strings.Join(contentLines, "\n")
 
-	// The runs sidebar border provides 1 blank line of padding at the top and bottom.
-	innerW := max(sidebarW-runsSidebarBorderCols, 0)
-	innerH := max(sidebarH-workspaceTopMarginLines, 0)
+	innerW := sidebarInnerWidth(totalW)
 
 	styledContent := leftSidebarStyle.
+		PaddingBottom(SidebarBottomPadding).
 		Width(innerW).
-		Height(innerH).
+		Height(totalH).
 		MaxWidth(innerW).
-		MaxHeight(innerH).
+		MaxHeight(totalH).
 		Render(content)
 
-	boxed := leftSidebarBorderStyle.Height(innerH + 1).MaxHeight(innerH + 1).Render(styledContent)
-	return lipgloss.Place(sidebarW, sidebarH, lipgloss.Left, lipgloss.Top, boxed)
+	boxed := leftSidebarBorderStyle.
+		Height(totalH).
+		MaxHeight(totalH).
+		Render(styledContent)
+	return lipgloss.Place(totalW, totalH, lipgloss.Left, lipgloss.Top, boxed)
 }
 
 func (w *Workspace) renderRunOverview() string {
@@ -894,10 +945,8 @@ func (w *Workspace) renderRunOverview() string {
 		w.runOverviewSidebar.deactivateAllSections()
 	}
 
-	sidebarH := max(w.height-StatusBarHeight, 0)
-	innerH := max(sidebarH-workspaceTopMarginLines, 0)
-
-	return w.runOverviewSidebar.View(innerH).Content
+	contentH := max(w.height-StatusBarHeight, 0)
+	return w.runOverviewSidebar.View(contentH).Content
 }
 
 func (w *Workspace) renderMetrics(layout Layout) string {
@@ -928,10 +977,12 @@ func renderMetricsEmptyState(width, height int, hint string) string {
 	if width <= 0 || height <= 0 {
 		return ""
 	}
+	innerW := max(width-ContentPaddingCols, 0)
 	header := mediaPaneHeaderStyle.Render("Metrics")
 	hintText := mediaTilePlaceholderStyle.Render(hint)
 	content := lipgloss.JoinVertical(lipgloss.Left, header, "", hintText)
-	return lipgloss.Place(width, height, lipgloss.Left, lipgloss.Top, content)
+	content = lipgloss.Place(innerW, height, lipgloss.Left, lipgloss.Top, content)
+	return lipgloss.NewStyle().Padding(0, ContentPadding).Render(content)
 }
 
 // renderLogoArt renders the wandb/leet ASCII art centered in the given area.
@@ -1089,7 +1140,7 @@ func (w *Workspace) buildActiveStatus() string {
 		}
 	}
 
-	if w.mediaPane.IsVisible() {
+	if w.mediaPane.Active() {
 		if label := w.mediaPane.StatusLabel(); label != "" {
 			parts = append(parts, label)
 		}

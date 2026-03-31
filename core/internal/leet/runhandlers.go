@@ -157,10 +157,12 @@ func (r *Run) handleMediaMouse(msg tea.MouseMsg, layout Layout) (*Run, tea.Cmd) 
 	localX := mouse.X - layout.leftSidebarWidth
 	localY := mouse.Y - layout.mediaY
 
-	switch m := msg.(type) {
-	case tea.MouseClickMsg:
+	if m, ok := msg.(tea.MouseClickMsg); ok {
 		if m.Button == tea.MouseLeft &&
-			r.mediaPane.HandleMouseClick(localX, localY, layout.mainContentAreaWidth, layout.mediaHeight) {
+			r.mediaPane.HandleMouseClick(
+				localX, localY,
+				layout.mainContentAreaWidth, layout.mediaHeight,
+			) {
 			r.mediaPane.SetActive(true)
 			r.focusMgr.AdoptTarget(FocusTargetMedia)
 		}
@@ -219,18 +221,17 @@ func (r *Run) handleMainContentMouse(msg tea.MouseMsg, layout Layout) (*Run, tea
 	}
 
 	mouse := msg.Mouse()
-	if layout.mediaHeight > 0 && mouse.Y >= layout.mediaY && mouse.Y < layout.mediaY+layout.mediaHeight {
+	if layout.mediaHeight > 0 &&
+		mouse.Y >= layout.mediaY &&
+		mouse.Y < layout.mediaY+layout.mediaHeight {
 		return r.handleMediaMouse(msg, layout)
 	}
 
 	alt := mouse.Mod == tea.ModAlt // Alt pressed at the time of the mouse event?
 
-	const (
-		gridInsetX   = 0
-		headerOffset = 1
-	)
+	const headerOffset = 1
 
-	adjustedX := mouse.X - layout.leftSidebarWidth - gridInsetX
+	adjustedX := mouse.X - layout.leftSidebarWidth - ContentPadding
 	adjustedY := mouse.Y - headerOffset
 	if adjustedX < 0 || adjustedY < 0 || adjustedY >= layout.height {
 		r.metricsGrid.clearFocus()
@@ -479,7 +480,8 @@ func (r *Run) handleToggleMetricsGrid(msg tea.KeyPressMsg) tea.Cmd {
 	r.metricsGridAnimState.Toggle()
 	r.focusMgr.ResolveAfterVisibilityChange()
 
-	r.updateBottomPaneHeights(r.mediaPane.animState.TargetVisible(), r.consoleLogsPane.animState.TargetVisible())
+	r.updateBottomPaneHeights(
+		r.mediaPane.animState.TargetVisible(), r.consoleLogsPane.animState.TargetVisible())
 
 	layout := r.computeViewports()
 	r.metricsGrid.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
@@ -490,7 +492,8 @@ func (r *Run) handleToggleMetricsGrid(msg tea.KeyPressMsg) tea.Cmd {
 func (r *Run) handleMetricsGridAnimation() []tea.Cmd {
 	r.metricsGridAnimState.Update(time.Now())
 
-	r.updateBottomPaneHeights(r.mediaPane.animState.TargetVisible(), r.consoleLogsPane.animState.TargetVisible())
+	r.updateBottomPaneHeights(
+		r.mediaPane.animState.TargetVisible(), r.consoleLogsPane.animState.TargetVisible())
 	layout := r.computeViewports()
 	r.metricsGrid.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
 
@@ -529,36 +532,6 @@ func (r *Run) handleGridWASD(msg tea.KeyPressMsg) tea.Cmd {
 	}
 	// Return a no-op command to signal the key was consumed.
 	return func() tea.Msg { return nil }
-}
-
-func (r *Run) handleConfigMetricsCols(msg tea.KeyPressMsg) tea.Cmd {
-	r.config.SetPendingGridConfig(gridConfigMetricsCols)
-	return nil
-}
-
-func (r *Run) handleConfigMetricsRows(msg tea.KeyPressMsg) tea.Cmd {
-	r.config.SetPendingGridConfig(gridConfigMetricsRows)
-	return nil
-}
-
-func (r *Run) handleConfigSystemCols(msg tea.KeyPressMsg) tea.Cmd {
-	r.config.SetPendingGridConfig(gridConfigSystemCols)
-	return nil
-}
-
-func (r *Run) handleConfigSystemRows(msg tea.KeyPressMsg) tea.Cmd {
-	r.config.SetPendingGridConfig(gridConfigSystemRows)
-	return nil
-}
-
-func (r *Run) handleConfigMediaCols(msg tea.KeyPressMsg) tea.Cmd {
-	r.config.SetPendingGridConfig(gridConfigMediaCols)
-	return nil
-}
-
-func (r *Run) handleConfigMediaRows(msg tea.KeyPressMsg) tea.Cmd {
-	r.config.SetPendingGridConfig(gridConfigMediaRows)
-	return nil
 }
 
 func (r *Run) handleConfigFocusedCols(msg tea.KeyPressMsg) tea.Cmd {
