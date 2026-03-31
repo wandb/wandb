@@ -91,14 +91,10 @@ func NewParquetHistorySource(
 	runId string,
 	graphqlClient graphql.Client,
 	httpClient api.RetryableClient,
+	rustArrowWrapper *ffi.RustArrowWrapper,
 	runInfo *RunInfo,
 	logger *observability.CoreLogger,
 ) (*ParquetHistorySource, error) {
-	rustArrowWrapper, err := ffi.NewRustArrowWrapper()
-	if err != nil {
-		return nil, err
-	}
-
 	historyReader, err := runhistoryreader.New(
 		context.Background(),
 		entity,
@@ -167,12 +163,18 @@ func InitializeParquetHistorySource(
 			return ErrorMsg{Err: err}
 		}
 
+		rustArrowWrapper, err := ffi.NewRustArrowWrapper()
+		if err != nil {
+			return ErrorMsg{Err: err}
+		}
+
 		source, err := NewParquetHistorySource(
 			entity,
 			project,
 			runId,
 			graphqlClient,
 			httpClient,
+			rustArrowWrapper,
 			runInfo,
 			logger,
 		)

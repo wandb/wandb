@@ -1,100 +1,38 @@
+// The parquettest package uses unsafe pointer manipulation to mock the Rust
+// FFI layer and is excluded from race-detector builds. This file imports it,
+// so it must carry the same constraint.
+
+//go:build !race
+
 package leet_test
 
 import (
-	"encoding/json"
-	"fmt"
-	"net/http"
-	"net/http/httptest"
-	"os"
-	"path/filepath"
 	"testing"
 	"time"
 
-	"github.com/apache/arrow-go/v18/arrow"
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/wandb/wandb/core/internal/gqlmock"
 	"github.com/wandb/wandb/core/internal/leet"
 	"github.com/wandb/wandb/core/internal/observability"
-	"github.com/wandb/wandb/core/internal/runhistoryreader/parquet/iterator"
-	"github.com/wandb/wandb/core/internal/runhistoryreader/parquet/iterator/iteratortest"
+	"github.com/wandb/wandb/core/internal/runhistoryreader/parquet"
+	"github.com/wandb/wandb/core/internal/runhistoryreader/parquettest"
 )
-
-func mockGraphQLWithParquetUrls(urls []string) *gqlmock.MockClient {
-	mockGQL := gqlmock.NewMockClient()
-	urlsJsonBytes, _ := json.Marshal(urls)
-	urlsJsonString := string(urlsJsonBytes)
-
-	mockGQL.StubMatchOnce(
-		gqlmock.WithOpName("RunParquetHistory"),
-		`{
-			"project": {
-				"run": {
-					"parquetHistory": {
-						"parquetUrls": `+urlsJsonString+`
-					}
-				}
-			}
-		}`,
-	)
-
-	return mockGQL
-}
-
-func serveParquetFile(t *testing.T, path string) *httptest.Server {
-	t.Helper()
-
-	parquetContent, err := os.ReadFile(path)
-	require.NoError(t, err)
-
-	handler := func(responseWriter http.ResponseWriter, request *http.Request) {
-		responseWriter.Header().Set("Accept-Ranges", "bytes")
-
-		// Handle range requests for remote reading
-		rangeHeader := request.Header.Get("Range")
-		if rangeHeader == "" {
-			// Serve the entire file if no range request
-			_, err := responseWriter.Write(parquetContent)
-			require.NoError(t, err)
-			return
-		}
-
-		var start, end int64
-		_, err := fmt.Sscanf(rangeHeader, "bytes=%d-%d", &start, &end)
-		require.NoError(t, err)
-
-		responseWriter.Header().Set(
-			"Content-Range",
-			fmt.Sprintf("bytes %d-%d/%d", start, end, len(parquetContent)),
-		)
-		responseWriter.WriteHeader(http.StatusPartialContent)
-
-		minLength := min(end+1, int64(len(parquetContent)))
-		_, err = responseWriter.Write(parquetContent[start:minLength])
-		require.NoError(t, err)
-	}
-
-	server := httptest.NewServer(http.HandlerFunc(handler))
-	t.Cleanup(server.Close)
-
-	return server
-}
 
 func TestParseParquetHistorySteps(t *testing.T) {
 	logger := observability.NewNoOpLogger()
-	historySteps := []iterator.KeyValueList{
+	historySteps := []parquet.KeyValueList{
 		{
-			{Key: iterator.StepKey, Value: float64(0)},
+			{Key: parquet.StepKey, Value: float64(0)},
 			{Key: "loss", Value: float64(1.0)},
 		},
 		{
-			{Key: iterator.StepKey, Value: float64(1)},
+			{Key: parquet.StepKey, Value: float64(1)},
 			{Key: "loss", Value: float64(0.8)},
 		},
 		{
-			{Key: iterator.StepKey, Value: float64(2)},
+			{Key: parquet.StepKey, Value: float64(2)},
 			{Key: "loss", Value: float64(0.6)},
 		},
 	}
@@ -111,22 +49,29 @@ func TestParseParquetHistorySteps(t *testing.T) {
 
 func TestReadRecords_ThenExit(t *testing.T) {
 	logger := observability.NewNoOpLogger()
-	path := filepath.Join(t.TempDir(), "test.parquet")
-	schema := arrow.NewSchema(
-		[]arrow.Field{
-			{Name: "_step", Type: arrow.PrimitiveTypes.Int64},
-			{Name: "loss", Type: arrow.PrimitiveTypes.Float64},
-		},
-		nil,
-	)
+	t.Setenv("WANDB_CACHE_DIR", t.TempDir())
+
+	columns := []parquettest.ColumnDef{
+		{Name: "_step", ColType: "int64"},
+		{Name: "loss", ColType: "float64"},
+	}
 	data := []map[string]any{
 		{"_step": int64(0), "loss": 1.0},
 		{"_step": int64(1), "loss": 0.8},
 		{"_step": int64(2), "loss": 0.6},
 	}
-	iteratortest.CreateTestParquetFileFromData(t, path, schema, data)
-	server := serveParquetFile(t, path)
-	mockGQL := mockGraphQLWithParquetUrls([]string{server.URL + "/test.parquet"})
+	mockWrapper := parquettest.CreateMockRustArrowWrapper(
+		t, columns, map[uintptr][]map[string]any{1: data},
+	)
+
+	dummyContent := parquettest.DummyFileContent()
+	server := parquettest.CreateHTTPServer(
+		t, parquettest.RespondWithContent(t, dummyContent),
+	)
+	mockGQL := parquettest.MockGraphQLWithParquetUrls(
+		[]string{server.URL + "/test.parquet"},
+	)
+
 	runInfo := leet.NewRunInfo(
 		"entity",
 		"project",
@@ -142,6 +87,7 @@ func TestReadRecords_ThenExit(t *testing.T) {
 		"test-run-id",
 		mockGQL,
 		retryablehttp.NewClient(),
+		mockWrapper,
 		runInfo,
 		logger,
 	)
