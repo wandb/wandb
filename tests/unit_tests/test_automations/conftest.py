@@ -284,7 +284,7 @@ def input_event(request: FixtureRequest, event_type: EventType) -> InputEvent:
     return request.getfixturevalue(event2fixture[event_type])
 
 
-MUTATION_EVENT_TYPES = (
+_MUTATION_EVENT_TYPES = (
     EventType.ADD_ARTIFACT_ALIAS,
     EventType.LINK_ARTIFACT,
     EventType.CREATE_ARTIFACT,
@@ -292,7 +292,7 @@ MUTATION_EVENT_TYPES = (
 
 
 @fixture(
-    params=MUTATION_EVENT_TYPES,
+    params=_MUTATION_EVENT_TYPES,
     ids=lambda x: f"mutation_event={x.value}",
 )
 def mutation_event_type(request: FixtureRequest) -> EventType:
