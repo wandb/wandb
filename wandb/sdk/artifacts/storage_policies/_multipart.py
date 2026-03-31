@@ -6,7 +6,7 @@ import logging
 import math
 import threading
 from collections.abc import Iterator
-from concurrent.futures import FIRST_EXCEPTION, Executor, wait
+from concurrent.futures import FIRST_EXCEPTION, Executor, ThreadPoolExecutor, wait
 from dataclasses import dataclass, field
 from queue import Full, Queue
 from typing import IO, TYPE_CHECKING, Any, Callable, Final, Union
@@ -103,8 +103,6 @@ class MultipartDownloadContext:
     session: Session
     q: Queue[QueuedChunk]
     cancel: threading.Event = field(default_factory=threading.Event)
-
-    _writer_error: BaseException | None = None
 
     # URL state management (thread-safe)
     _url_lock: threading.Lock = field(default_factory=threading.Lock)
@@ -221,9 +219,8 @@ def _write_chunks(ctx: MultipartDownloadContext, file: IO[bytes]) -> None:
         except Exception as e:
             if env.is_debug():
                 logger.debug(f"Error writing chunk to file: {e}")
-            ctx._writer_error = e
             ctx.cancel.set()
-            return
+            raise
 
 
 def multipart_download(
@@ -260,10 +257,10 @@ def multipart_download(
 
     # Put cache_open at top so we remove the tmp file when there is network error.
     with cached_open("wb") as f:
-        # Runs on a dedicated thread (not in the shared executor) so it is always
-        # available to drain the queue.
-        writer = threading.Thread(target=_write_chunks, args=(ctx, f), daemon=True)
-        writer.start()
+        # Writer runs on its own single-thread executor (not in the shared
+        # download executor) so it never competes for thread slots.
+        writer_executor = ThreadPoolExecutor(max_workers=1)
+        write_future = writer_executor.submit(_write_chunks, ctx, f)
 
         # Start download threads for each chunk
         download_futures = set()
@@ -300,7 +297,4 @@ def multipart_download(
             raise
         finally:
             ctx.signal_writer_stop()
-            writer.join(timeout=180)
-
-        if ctx._writer_error is not None:
-            raise ctx._writer_error
+            write_future.result()
