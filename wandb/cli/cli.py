@@ -402,23 +402,21 @@ def init(ctx, project, entity, reset, mode):
     Set a project and entity, create local W&B settings, and
     prepare the directory for experiment tracking.
 
-    Examples:
+    For example, set up W&B for the current directory with guided prompts for team and project selection:
 
-        Set up W&B for the current directory with guided prompts for team and project selection.
+        $ wandb init
 
-            $ wandb init
+    To set the default project to "foobar" and the default entity to "team-awesome" without prompts:
 
-        Set the default project to "foobar" and the default entity to "team-awesome" without prompts.
+        $ wandb init --project foobar --entity team-awesome
 
-            $ wandb init --project foobar --entity team-awesome
+    To set the W&B mode to offline:
 
-        Set the W&B mode to offline
+        $ wandb init --mode offline
 
-            $ wandb init --mode offline
+    To reset existing W&B configuration for the current directory:
 
-        Reset existing W&B configuration for the current directory
-
-            $ wandb init --reset
+        $ wandb init --reset
     """
     # Load settings from environment variables and other normal sources.
     global_settings = wandb_setup.singleton().settings
