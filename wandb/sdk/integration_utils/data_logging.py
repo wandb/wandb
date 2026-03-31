@@ -291,8 +291,8 @@ def _infer_single_example_keyed_processor(
     ):
         # assume this is a class
         if class_labels_table is not None:
-            processors["class"] = (
-                lambda n, d, p: class_labels_table.index_ref(d[0])
+            processors["class"] = lambda n, d, p: (
+                class_labels_table.index_ref(d[0])
                 if d[0] < len(class_labels_table.data)
                 else d[0]
             )  # type: ignore

@@ -14,6 +14,8 @@ from wandb.analytics import get_sentry
 from wandb.errors import WandbCoreNotAvailableError
 from wandb.util import get_core_path
 
+from .beta_sandbox import SandboxGroup
+
 
 class DefaultCommandGroup(click.Group):
     """A click Group that falls through to a default command.
@@ -45,6 +47,8 @@ def beta() -> None:
     """
     get_sentry().configure_scope(process_context="wandb_beta")
 
+
+def _require_core_path() -> None:
     try:
         get_core_path()
     except WandbCoreNotAvailableError as e:
@@ -68,7 +72,7 @@ def leet(ctx: click.Context) -> None:
         wandb beta leet ./wandb         View runs in directory
         wandb beta leet symon           View live local system metrics
     """
-    pass
+    _require_core_path()
 
 
 @leet.command()
@@ -276,6 +280,12 @@ def core() -> None:
     The shared service exits after 10 minutes of idleness by default.
     Override this with --idle-timeout on the start command.
     """
+    _require_core_path()
+
+
+@beta.group(cls=SandboxGroup)
+def sandbox() -> None:
+    """Manage CoreWeave sandboxes through the W&B CLI."""
 
 
 @core.command()

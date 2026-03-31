@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+from collections.abc import Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
+
 from cwsandbox._auth import AuthHeaders, register_auth_mode
 
 import wandb
@@ -8,6 +12,15 @@ from wandb.sdk import wandb_login, wandb_setup
 from wandb.sdk.lib import wbauth
 
 _AUTH_MODE_NAME = "wandb_sdk"
+_OVERRIDE_UNSET = object()
+_entity_override: ContextVar[object | str | None] = ContextVar(
+    "wandb_sandbox_entity_override",
+    default=_OVERRIDE_UNSET,
+)
+_project_override: ContextVar[object | str | None] = ContextVar(
+    "wandb_sandbox_project_override",
+    default=_OVERRIDE_UNSET,
+)
 
 
 def register_wandb_auth_mode() -> None:
@@ -15,8 +28,32 @@ def register_wandb_auth_mode() -> None:
     register_auth_mode(_AUTH_MODE_NAME, _try_wandb_sdk_auth)
 
 
+@contextmanager
+def override_auth_context(
+    *,
+    entity: object | str | None = _OVERRIDE_UNSET,
+    project: object | str | None = _OVERRIDE_UNSET,
+) -> Iterator[None]:
+    """Temporarily override entity/project propagation for sandbox auth.
+
+    Any field left unset is suppressed while the override is active so CLI
+    overrides do not accidentally inherit the current run or global defaults.
+    """
+    entity_token = _entity_override.set(entity)
+    project_token = _project_override.set(project)
+    try:
+        yield
+    finally:
+        _entity_override.reset(entity_token)
+        _project_override.reset(project_token)
+
+
 def _resolve_effective_entity_project() -> tuple[str | None, str | None]:
-    """Resolve entity/project from the active W&B run or global settings."""
+    """Resolve entity/project from overrides, the active run, or global settings."""
+    override = _current_override()
+    if override is not None:
+        return override
+
     run = _current_run()
     if run is not None:
         entity = run.entity or None
@@ -27,6 +64,17 @@ def _resolve_effective_entity_project() -> tuple[str | None, str | None]:
     entity = settings.entity or None
     project = settings.project or None
     return entity, project
+
+
+def _current_override() -> tuple[str | None, str | None] | None:
+    entity = _entity_override.get()
+    project = _project_override.get()
+    if entity is _OVERRIDE_UNSET and project is _OVERRIDE_UNSET:
+        return None
+
+    resolved_entity = None if entity is _OVERRIDE_UNSET else entity
+    resolved_project = None if project is _OVERRIDE_UNSET else project
+    return resolved_entity, resolved_project
 
 
 def _try_wandb_sdk_auth() -> AuthHeaders | None:
