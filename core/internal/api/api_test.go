@@ -112,6 +112,75 @@ func TestDo_NotToWandb_NoAuth(t *testing.T) {
 	assert.Empty(t, server.Requests()[0].Header.Get("Authorization"))
 }
 
+func TestDo_ExtraHeaders(t *testing.T) {
+	testCases := []struct {
+		name           string
+		path           string
+		extraHeaders   map[string]string
+		requestHeaders map[string]string
+		wantHeaders    map[string]string
+	}{
+		{
+			name: "ToWandb",
+			path: "/wandb/xyz",
+			extraHeaders: map[string]string{
+				"X-EXTRA-HEADER": "xyz",
+			},
+			wantHeaders: map[string]string{
+				"Authorization":  "Basic YXBpOnRlc3RfYXBpX2tleQ==",
+				"X-EXTRA-HEADER": "xyz",
+				"User-Agent":     "wandb-core",
+			},
+		},
+		{
+			name: "NotToWandb",
+			path: "/notwandb/xyz",
+			extraHeaders: map[string]string{
+				"X-EXTRA-HEADER": "xyz",
+			},
+			wantHeaders: map[string]string{
+				"Authorization":  "", // not set
+				"X-EXTRA-HEADER": "xyz",
+				"User-Agent":     "wandb-core",
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			server := apitest.NewRecordingServer()
+			defer server.Close()
+
+			settings := wbsettings.From(&spb.Settings{
+				BaseUrl: &wrapperspb.StringValue{Value: server.URL + "/wandb"},
+				ApiKey:  &wrapperspb.StringValue{Value: "test_api_key"},
+			})
+			client := newClient(t, settings, api.ClientOptions{
+				ExtraHeaders: tc.extraHeaders,
+			})
+
+			req, err := retryablehttp.NewRequest(
+				http.MethodGet,
+				server.URL+tc.path,
+				bytes.NewBufferString("test body"),
+			)
+			require.NoError(t, err)
+			for key, value := range tc.requestHeaders {
+				req.Header.Set(key, value)
+			}
+
+			_, err = client.Do(req)
+			require.NoError(t, err)
+
+			require.Len(t, server.Requests(), 1)
+			recorded := server.Requests()[0]
+			for key, value := range tc.wantHeaders {
+				assert.Equalf(t, value, recorded.Header.Get(key), "header %s", key)
+			}
+		})
+	}
+}
+
 func newClient(
 	t *testing.T,
 	settings *wbsettings.Settings,
