@@ -319,29 +319,30 @@ def login(key, host, cloud, relogin, anonymously, verify, no_offline=False):
     URL with `--host`, or set the WANDB_BASE_URL environment variable.
 
     Examples:
-    Log in interactively (prompts for API key)
 
-        $ wandb login
+        Log in interactively (prompts for API key)
 
-    Log in with an explicit API key (WANDB_API_KEY_EXAMPLE)
+            $ wandb login
 
-        $ wandb login WANDB_API_KEY_EXAMPLE
+        Log in with an explicit API key (WANDB_API_KEY_EXAMPLE)
 
-    Log in and verify the API key is valid
+            $ wandb login WANDB_API_KEY_EXAMPLE
 
-        $ wandb login --verify
+        Log in and verify the API key is valid
 
-    Log in to the W&B public cloud instead of a configured self-hosted instance
+            $ wandb login --verify
 
-        $ wandb login --cloud
+        Log in to the W&B public cloud instead of a configured self-hosted instance
 
-    Log in to a self-hosted W&B instance
+            $ wandb login --cloud
 
-        $ wandb login --host https://my-wandb-server.example.com
+        Log in to a self-hosted W&B instance
 
-    Force a new login prompt even if already authenticated
+            $ wandb login --host https://my-wandb-server.example.com
 
-        $ wandb login --relogin
+        Force a new login prompt even if already authenticated
+
+            $ wandb login --relogin
     """
     # TODO: handle no_offline
     if anonymously:
@@ -402,23 +403,22 @@ def init(ctx, project, entity, reset, mode):
     prepare the directory for experiment tracking.
 
     Examples:
-    Set up W&B for the current directory with guided prompts for team and
-    project selection.
 
-        $ wandb init
+        Set up W&B for the current directory with guided prompts for team and project selection.
 
-    Set the default project to "foobar" and the default entity to
-    "team-awesome" without prompts.
+            $ wandb init
 
-        $ wandb init --project foobar --entity team-awesome
+        Set the default project to "foobar" and the default entity to "team-awesome" without prompts.
 
-    Set the W&B mode to offline
+            $ wandb init --project foobar --entity team-awesome
 
-        $ wandb init --mode offline
+        Set the W&B mode to offline
 
-    Reset existing W&B configuration for the current directory
+            $ wandb init --mode offline
 
-        $ wandb init --reset
+        Reset existing W&B configuration for the current directory
+
+            $ wandb init --reset
     """
     # Load settings from environment variables and other normal sources.
     global_settings = wandb_setup.singleton().settings
@@ -701,31 +701,31 @@ def sync(
     of the run.
 
     Examples:
-    Show a summary of local runs and their sync status
+        Show a summary of local runs and their sync status
 
-        $ wandb sync
+            $ wandb sync
 
-    Sync run ID abcd1234 that is locally saved locally in
-    the ./wandb/run-20170617_000000-abcd1234 directory
+        Sync run ID abcd1234 that is locally saved locally in
+        the ./wandb/run-20170617_000000-abcd1234 directory
 
-        $ wandb sync ./wandb/run-20170617_000000-abcd1234
+            $ wandb sync ./wandb/run-20170617_000000-abcd1234
 
-    Sync run abcd1234 by its local .wandb
-    filepath (./wandb/run-20170617_000000-abcd1234/run-abcd1234.wandb)
+        Sync run abcd1234 by its local .wandb
+        filepath (./wandb/run-20170617_000000-abcd1234/run-abcd1234.wandb)
 
-        $ wandb sync ./wandb/run-20170617_000000-abcd1234/run-abcd1234.wandb
+            $ wandb sync ./wandb/run-20170617_000000-abcd1234/run-abcd1234.wandb
 
-    Sync all unsynced runs in the local wandb directory
+        Sync all unsynced runs in the local wandb directory
 
-        $ wandb sync --sync-all
+            $ wandb sync --sync-all
 
-    Delete local data for runs that have already been synced
+        Delete local data for runs that have already been synced
 
-        $ wandb sync --clean
+            $ wandb sync --clean
 
-    Delete synced runs older than 48 hours without a confirmation prompt
+        Delete synced runs older than 48 hours without a confirmation prompt
 
-        $ wandb sync --clean --clean-old-hours 48 --clean-force
+            $ wandb sync --clean --clean-old-hours 48 --clean-force
     """
     api = _get_cling_api()
     if not api.is_authenticated:
