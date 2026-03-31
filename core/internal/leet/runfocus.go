@@ -7,34 +7,39 @@ package leet
 func (r *Run) buildRunFocusManager() *FocusManager {
 	return NewFocusManager([]FocusRegionDef{
 		{
-			Target:     FocusTargetOverview,
-			Available:  r.overviewFocusAvailable,
-			Activate:   r.activateOverviewFocus,
-			Deactivate: r.deactivateOverviewFocus,
+			Target:          FocusTargetOverview,
+			Available:       r.overviewFocusAvailable,
+			AvailableTarget: r.overviewFocusTargetAvailable,
+			Activate:        r.activateOverviewFocus,
+			Deactivate:      r.deactivateOverviewFocus,
 		},
 		{
-			Target:     FocusTargetMetricsGrid,
-			Available:  r.metricsGridFocusAvailable,
-			Activate:   r.activateMetricsGridFocus,
-			Deactivate: r.deactivateMetricsGridFocus,
+			Target:          FocusTargetMetricsGrid,
+			Available:       r.metricsGridFocusAvailable,
+			AvailableTarget: r.metricsGridFocusTargetAvailable,
+			Activate:        r.activateMetricsGridFocus,
+			Deactivate:      r.deactivateMetricsGridFocus,
 		},
 		{
-			Target:     FocusTargetSystemMetrics,
-			Available:  r.systemMetricsFocusAvailable,
-			Activate:   r.activateSystemMetricsFocus,
-			Deactivate: r.deactivateSystemMetricsFocus,
+			Target:          FocusTargetSystemMetrics,
+			Available:       r.systemMetricsFocusAvailable,
+			AvailableTarget: r.systemMetricsFocusTargetAvailable,
+			Activate:        r.activateSystemMetricsFocus,
+			Deactivate:      r.deactivateSystemMetricsFocus,
 		},
 		{
-			Target:     FocusTargetMedia,
-			Available:  r.mediaFocusAvailable,
-			Activate:   r.activateMediaFocus,
-			Deactivate: r.deactivateMediaFocus,
+			Target:          FocusTargetMedia,
+			Available:       r.mediaFocusAvailable,
+			AvailableTarget: r.mediaFocusTargetAvailable,
+			Activate:        r.activateMediaFocus,
+			Deactivate:      r.deactivateMediaFocus,
 		},
 		{
-			Target:     FocusTargetConsoleLogs,
-			Available:  r.logsFocusAvailable,
-			Activate:   r.activateLogsFocus,
-			Deactivate: r.deactivateLogsFocus,
+			Target:          FocusTargetConsoleLogs,
+			Available:       r.logsFocusAvailable,
+			AvailableTarget: r.logsFocusTargetAvailable,
+			Activate:        r.activateLogsFocus,
+			Deactivate:      r.deactivateLogsFocus,
 		},
 	})
 }
@@ -46,20 +51,42 @@ func (r *Run) overviewFocusAvailable() bool {
 	return r.leftSidebar.animState.IsExpanded() && firstSec != -1
 }
 
+func (r *Run) overviewFocusTargetAvailable() bool {
+	firstSec, _ := r.leftSidebar.focusableSectionBounds()
+	return r.leftSidebar.animState.TargetVisible() && firstSec != -1
+}
+
 func (r *Run) metricsGridFocusAvailable() bool {
 	return r.metricsGridAnimState.IsExpanded() && r.metricsGrid.ChartCount() > 0
+}
+
+func (r *Run) metricsGridFocusTargetAvailable() bool {
+	return r.metricsGridAnimState.TargetVisible() && r.metricsGrid.ChartCount() > 0
 }
 
 func (r *Run) systemMetricsFocusAvailable() bool {
 	return r.rightSidebar.IsVisible() && r.rightSidebar.metricsGrid.ChartCount() > 0
 }
 
+func (r *Run) systemMetricsFocusTargetAvailable() bool {
+	return r.rightSidebar.animState.TargetVisible() &&
+		r.rightSidebar.metricsGrid.ChartCount() > 0
+}
+
 func (r *Run) mediaFocusAvailable() bool {
 	return r.mediaPane.IsExpanded() && r.mediaPane.HasData()
 }
 
+func (r *Run) mediaFocusTargetAvailable() bool {
+	return r.mediaPane.animState.TargetVisible() && r.mediaPane.HasData()
+}
+
 func (r *Run) logsFocusAvailable() bool {
 	return r.consoleLogsPane.IsExpanded()
+}
+
+func (r *Run) logsFocusTargetAvailable() bool {
+	return r.consoleLogsPane.animState.TargetVisible()
 }
 
 // ---- Activate ----

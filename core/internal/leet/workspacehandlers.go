@@ -421,6 +421,7 @@ func (w *Workspace) handleToggleSystemMetricsPane(tea.KeyPressMsg) tea.Cmd {
 
 	w.updateBottomPaneHeights(sysWillBeVisible, mediaVisible, logsVisible)
 	w.systemMetricsPane.Toggle()
+	w.focusMgr.ResolveAfterVisibilityChange()
 	w.recalculateLayout()
 	return w.systemMetricsPaneAnimationCmd()
 }

@@ -4,6 +4,7 @@ import (
 	"path/filepath"
 	"slices"
 	"sort"
+	"strings"
 	"sync"
 )
 
@@ -64,21 +65,38 @@ func (s *MediaStore) ProcessHistory(msg HistoryMsg) bool {
 
 		series := s.series[key]
 		for _, point := range points {
-			if len(series) > 0 {
-				last := series[len(series)-1]
-				if last.X == point.X && last.FilePath == point.FilePath {
-					continue
-				}
+			var pointChanged bool
+			series, pointChanged = upsertMediaPoint(series, point)
+			if pointChanged {
+				s.appendXValueLocked(point.X)
+				changed = true
 			}
-
-			series = append(series, point)
-			s.appendXValueLocked(point.X)
-			changed = true
 		}
 		s.series[key] = series
 	}
 
 	return changed
+}
+
+func upsertMediaPoint(series []MediaPoint, point MediaPoint) ([]MediaPoint, bool) {
+	// First index whose X is strictly greater than point.X.
+	idx := sort.Search(len(series), func(i int) bool {
+		return series[i].X > point.X
+	})
+
+	// Last writer wins at a given X.
+	if idx > 0 && series[idx-1].X == point.X {
+		if series[idx-1] == point {
+			return series, false
+		}
+		series[idx-1] = point
+		return series, true
+	}
+
+	series = append(series, MediaPoint{})
+	copy(series[idx+1:], series[idx:])
+	series[idx] = point
+	return series, true
 }
 
 func (s *MediaStore) appendXValueLocked(x float64) {
@@ -137,19 +155,9 @@ func (s *MediaStore) ResolveAt(key string, x float64) (MediaPoint, bool) {
 		return MediaPoint{}, false
 	}
 
-	idx, found := slices.BinarySearchFunc(series, x, func(point MediaPoint, target float64) int {
-		switch {
-		case point.X < target:
-			return -1
-		case point.X > target:
-			return 1
-		default:
-			return 0
-		}
+	idx := sort.Search(len(series), func(i int) bool {
+		return series[i].X > x
 	})
-	if found {
-		return series[idx], true
-	}
 	if idx == 0 {
 		return MediaPoint{}, false
 	}
@@ -172,5 +180,9 @@ func resolveMediaPath(runPath, relativePath string) string {
 	if filepath.IsAbs(relativePath) {
 		return filepath.Clean(relativePath)
 	}
-	return filepath.Join(filepath.Dir(runPath), "files", filepath.Clean(relativePath))
+
+	clean := filepath.Clean(string(filepath.Separator) + relativePath)
+	clean = strings.TrimPrefix(clean, string(filepath.Separator))
+
+	return filepath.Join(filepath.Dir(runPath), "files", clean)
 }

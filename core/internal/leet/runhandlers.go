@@ -402,6 +402,7 @@ func (r *Run) handleToggleRightSidebar(msg tea.KeyPressMsg) tea.Cmd {
 	r.rightSidebar.UpdateDimensions(r.width, r.leftSidebar.animState.TargetVisible())
 	r.leftSidebar.UpdateDimensions(r.width, rightWillBeVisible)
 	r.rightSidebar.Toggle()
+	r.focusMgr.ResolveAfterVisibilityChange()
 
 	layout := r.computeViewports()
 	r.metricsGrid.UpdateDimensions(layout.mainContentAreaWidth, layout.height)

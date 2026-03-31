@@ -15,8 +15,16 @@ const (
 
 // FocusRegionDef defines a focusable region with availability and activation hooks.
 type FocusRegionDef struct {
-	Target     FocusTarget
-	Available  func() bool
+	Target FocusTarget
+
+	// Available reports whether the region is currently focusable for normal
+	// navigation.
+	Available func() bool
+
+	// AvailableTarget reports whether the region should be considered focusable
+	// immediately after a visibility toggle. When nil, Available is used.
+	AvailableTarget func() bool
+
 	Activate   func(direction int)
 	Deactivate func()
 }
@@ -116,7 +124,7 @@ func (fm *FocusManager) Tab(direction int) {
 	for step := 1; step <= n; step++ {
 		nextIdx := ((curIdx+direction*step)%n + n) % n
 		r := &fm.regions[nextIdx]
-		if r.Available() {
+		if fm.regionAvailable(r) {
 			fm.deactivateAll()
 			fm.current = r.Target
 			r.Activate(direction)
@@ -135,27 +143,27 @@ func (fm *FocusManager) TabWithinOrAdvance(direction int, withinFn func(int) boo
 	fm.Tab(direction)
 }
 
-// ResolveAfterVisibilityChange checks if the current target is still available.
-// If not, it advances to the first available region. If none are available,
-// it clears all focus.
+// ResolveAfterVisibilityChange checks whether the current target is still
+// available under the target visibility state after a toggle. If not, it
+// advances to the first available region. If none are available, it clears
+// focus.
 func (fm *FocusManager) ResolveAfterVisibilityChange() {
 	if fm.current == FocusTargetNone {
 		return
 	}
 
-	// Check if current is still available.
 	for i := range fm.regions {
-		if fm.regions[i].Target == fm.current {
-			if fm.regions[i].Available() {
-				return
-			}
-			break
+		if fm.regions[i].Target != fm.current {
+			continue
 		}
+		if fm.regionAvailableForResolve(&fm.regions[i]) {
+			return
+		}
+		break
 	}
 
-	// Current is no longer available. Find the first available region.
 	for i := range fm.regions {
-		if fm.regions[i].Available() {
+		if fm.regionAvailableForResolve(&fm.regions[i]) {
 			fm.deactivateAll()
 			fm.current = fm.regions[i].Target
 			fm.regions[i].Activate(1)
@@ -164,6 +172,17 @@ func (fm *FocusManager) ResolveAfterVisibilityChange() {
 	}
 
 	fm.ClearAll()
+}
+
+func (fm *FocusManager) regionAvailable(r *FocusRegionDef) bool {
+	return r.Available != nil && r.Available()
+}
+
+func (fm *FocusManager) regionAvailableForResolve(r *FocusRegionDef) bool {
+	if r.AvailableTarget != nil {
+		return r.AvailableTarget()
+	}
+	return fm.regionAvailable(r)
 }
 
 func (fm *FocusManager) deactivateAll() {
