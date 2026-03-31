@@ -319,7 +319,6 @@ def login(key, host, cloud, relogin, anonymously, verify, no_offline=False):
     URL with `--host`, or set the WANDB_BASE_URL environment variable.
 
     Examples:
-
         Log in interactively (prompts for API key)
 
             $ wandb login
