@@ -219,7 +219,6 @@ class SendManager:
     _rewind_response: dict[str, Any] | None
     _cached_server_info: dict[str, Any]
     _cached_viewer: dict[str, Any]
-    _server_messages: list[dict[str, Any]]
     _ds: datastore.DataStore | None
     _output_raw_streams: dict[StreamLiterals, _OutputRawStream]
     _output_raw_file: filesystem.CRDedupedFile | None
@@ -273,7 +272,6 @@ class SendManager:
 
         self._cached_server_info = dict()
         self._cached_viewer = dict()
-        self._server_messages = []
 
         # State updated by resuming
         self._resume_state = ResumeState()
@@ -1010,10 +1008,9 @@ class SendManager:
         if is_rewinding:
             assert self._rewind_response
             server_run = self._rewind_response
-            server_messages = None
             inserted = True
         else:
-            server_run, inserted, server_messages = self._api.upsert_run(
+            server_run, inserted = self._api.upsert_run(
                 name=run.run_id,
                 entity=run.entity or None,
                 project=run.project or None,
@@ -1035,7 +1032,6 @@ class SendManager:
         if run.sweep_id:
             self._job_builder.disable = True
 
-        self._server_messages = server_messages or []
         self._run = run
 
         if self._resume_state.resumed and is_rewinding:

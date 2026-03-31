@@ -633,19 +633,43 @@ func (c *FrenchFriesChart) bucketedSeries(
 		return bucketed
 	}
 
+	// Accumulate sum and count per bucket so the final value is an average.
+	// Averaging makes the display stable when a single sample shifts between
+	// neighbouring buckets due to a small view-window change.
+	type accum struct {
+		sum       float64
+		count     int
+		timestamp int64
+	}
+	accums := make(map[string][]accum, len(layout.bands))
+	for _, band := range layout.bands {
+		accums[band.seriesName] = make([]accum, layout.plotWidth)
+	}
+
 	start, end := c.visibleSampleRange(viewMinX, viewMaxX)
 	for _, sample := range c.samples[start:end] {
 		ts := float64(sample.timestamp)
 		bucket := c.bucketForDataX(ts, layout.plotWidth)
 		for seriesName, value := range sample.values {
-			cells, ok := bucketed[seriesName]
+			a, ok := accums[seriesName]
 			if !ok {
 				continue
 			}
-			if !cells[bucket].ok || sample.timestamp >= cells[bucket].timestamp {
-				cells[bucket] = frenchFriesBucketCell{
-					timestamp: sample.timestamp,
-					value:     value,
+			a[bucket].sum += value
+			a[bucket].count++
+			if sample.timestamp > a[bucket].timestamp {
+				a[bucket].timestamp = sample.timestamp
+			}
+		}
+	}
+
+	for seriesName, cells := range bucketed {
+		a := accums[seriesName]
+		for i := range cells {
+			if a[i].count > 0 {
+				cells[i] = frenchFriesBucketCell{
+					timestamp: a[i].timestamp,
+					value:     a[i].sum / float64(a[i].count),
 					ok:        true,
 				}
 			}
@@ -701,8 +725,9 @@ func (c *FrenchFriesChart) dataXForMouse(mouseX, plotWidth int) float64 {
 	if plotWidth <= 1 || viewMaxX <= viewMinX {
 		return viewMinX
 	}
-	frac := float64(max(0, min(plotWidth-1, mouseX))) / float64(max(plotWidth-1, 1))
-	return viewMinX + frac*(viewMaxX-viewMinX)
+	// Map mouse position to the center of the corresponding bucket.
+	bucketWidth := (viewMaxX - viewMinX) / float64(plotWidth)
+	return viewMinX + (float64(max(0, min(plotWidth-1, mouseX)))+0.5)*bucketWidth
 }
 
 func (c *FrenchFriesChart) bucketForDataX(dataX float64, plotWidth int) int {
@@ -716,8 +741,10 @@ func (c *FrenchFriesChart) bucketForDataX(dataX float64, plotWidth int) int {
 	if dataX >= viewMaxX {
 		return plotWidth - 1
 	}
-	frac := (dataX - viewMinX) / (viewMaxX - viewMinX)
-	bucket := int(math.Round(frac * float64(plotWidth-1)))
+	// Stable interval-based bucketing: each bucket covers a fixed time
+	// width so that small view-window changes don't redistribute samples.
+	bucketWidth := (viewMaxX - viewMinX) / float64(plotWidth)
+	bucket := int(math.Floor((dataX - viewMinX) / bucketWidth))
 	return max(0, min(plotWidth-1, bucket))
 }
 

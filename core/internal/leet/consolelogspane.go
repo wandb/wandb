@@ -18,11 +18,9 @@ const (
 	ConsoleLogsPaneHeightRatio = SidebarWidthRatio
 
 	// ConsoleLogsPaneMinHeight is the minimum total height for the bottom bar.
-	ConsoleLogsPaneMinHeight = consoleLogsBorderLines +
-		consoleLogsPaddingLines + consoleLogsHeaderLines + 1
+	ConsoleLogsPaneMinHeight = consoleLogsPaddingLines + consoleLogsHeaderLines + 1
 
 	consoleLogsPaneHeader   = "Console Logs"
-	consoleLogsBorderLines  = 1
 	consoleLogsPaddingLines = 1
 	consoleLogsHeaderLines  = 1
 
@@ -161,14 +159,15 @@ func (c *ConsoleLogsPane) View(width int, runLabel, hint string) string {
 		return ""
 	}
 
-	// innerH is the content area inside border + padding.
-	// lipgloss renders: border(1) + Height(innerH) + padding(1) = h total.
-	innerH := h - consoleLogsBorderLines - consoleLogsPaddingLines
+	innerH := h - consoleLogsPaddingLines
 	contentLines := max(innerH-consoleLogsHeaderLines, 1)
 
-	maxKeyWidth := max(int(float64(width)*consoleLogsKeyWidthRatio), 1)
-	maxKeyWidth = min(maxKeyWidth, max(width-2, 1))
-	maxValueWidth := max(width-maxKeyWidth-1, 1)
+	// Reserve ContentPadding on each side: PaddingLeft on line styles
+	// handles the left inset; we leave the right column free.
+	contentW := max(width-ContentPadding, 0)
+	maxKeyWidth := max(int(float64(contentW)*consoleLogsKeyWidthRatio), 1)
+	maxKeyWidth = min(maxKeyWidth, max(contentW-2, 1))
+	maxValueWidth := max(contentW-maxKeyWidth-1, 1)
 
 	c.lastValueWidth = maxValueWidth
 	c.lastContentLines = contentLines
@@ -181,13 +180,11 @@ func (c *ConsoleLogsPane) View(width int, runLabel, hint string) string {
 
 	end := c.visibleEnd(c.top, maxValueWidth, contentLines)
 
-	header := c.renderHeader(width, runLabel, c.top, end, len(c.logs))
+	header := c.renderHeader(contentW, runLabel, c.top, end, len(c.logs))
 	content := c.renderContent(maxKeyWidth, maxValueWidth, contentLines, c.top, end, hint)
 
 	body := lipgloss.JoinVertical(lipgloss.Left, header, content)
-	placed := lipgloss.Place(width, innerH, lipgloss.Left, lipgloss.Top, body)
-
-	return consoleLogsPaneBorderStyle.Width(width).Height(innerH).Render(placed)
+	return lipgloss.Place(width, innerH, lipgloss.Left, lipgloss.Top, body)
 }
 
 // HasData reports whether the pane has any log entries to display.

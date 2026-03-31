@@ -3,6 +3,7 @@
 package leet
 
 import (
+	"math"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -133,6 +134,23 @@ func (c *FrenchFriesChart) TestTitleDetail() string {
 // TestColorForValue exposes the rendered cell selected for a value.
 func (c *FrenchFriesChart) TestColorForValue(value float64) string {
 	return c.colorForValue(value)
+}
+
+// TestBucketValues returns the averaged bucket value per column for a series.
+// Missing buckets are returned as NaN.
+func (c *FrenchFriesChart) TestBucketValues(seriesName string) []float64 {
+	layout := c.layout()
+	bucketed := c.bucketedSeries(layout)
+	cells := bucketed[seriesName]
+	out := make([]float64, len(cells))
+	for i, cell := range cells {
+		if cell.ok {
+			out[i] = cell.value
+		} else {
+			out[i] = math.NaN()
+		}
+	}
+	return out
 }
 
 // TestCurrentPage returns the current grid of charts.
@@ -359,6 +377,11 @@ func (r *Run) TestForceCollapseLeftSidebar() {
 	r.leftSidebar.animState.ForceCollapse()
 }
 
+// TestSetFocusTarget sets the focus manager's current target for testing.
+func (r *Run) TestSetFocusTarget(target int) {
+	r.focusMgr.SetTarget(FocusTarget(target), 1)
+}
+
 // ---- Workspace bottom bar / focus test helpers ----
 
 // TestConsoleLogsPaneActive reports whether the workspace bottom bar has focus.
@@ -377,9 +400,9 @@ func (w *Workspace) TestRunsActive() bool {
 }
 
 // TestCurrentFocusRegion returns the current focus region as an int.
-// Maps to the focusRegion enum: 0=focusRuns, 1=focusLogs, 2=focusOverview.
+// Maps to the FocusTarget enum values from focusmanager.go.
 func (w *Workspace) TestCurrentFocusRegion() int {
-	return int(w.currentFocusRegion())
+	return int(w.focusMgr.Current())
 }
 
 // TestForceExpandConsoleLogsPane instantly expands the workspace bottom bar.
@@ -458,9 +481,8 @@ func (w *Workspace) TestSeedRunOverview(runKey string) {
 	w.runOverviewSidebar.Sync()
 
 	// Trigger section height calculation so ItemsPerPage > 0.
-	sidebarH := max(w.height-StatusBarHeight, 0)
-	innerH := max(sidebarH-workspaceTopMarginLines, 0)
-	_ = w.runOverviewSidebar.View(innerH)
+	contentH := max(w.height-StatusBarHeight, 0)
+	_ = w.runOverviewSidebar.View(contentH)
 }
 
 // SystemMetricsPaneMinHeight returns the minimum pane height (for testing).
