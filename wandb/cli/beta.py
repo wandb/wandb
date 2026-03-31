@@ -64,7 +64,6 @@ def leet(ctx: click.Context) -> None:
     A terminal UI for viewing your W&B runs locally.
 
     Examples:
-
         wandb beta leet                 View latest run
         wandb beta leet ./wandb         View runs in directory
         wandb beta leet symon           View live local system metrics
@@ -221,7 +220,6 @@ def sync(
     and "wandb" directories containing run directories.
 
     Examples:
-
     Sync all runs in the current .wandb directory:
 
         $ wandb beta sync ./wandb

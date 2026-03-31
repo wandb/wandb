@@ -402,7 +402,6 @@ def init(ctx, project, entity, reset, mode):
     prepare the directory for experiment tracking.
 
     Examples:
-
     Set up W&B for the current directory with guided prompts for team and
     project selection.
 
@@ -632,9 +631,7 @@ def init(ctx, project, entity, reset, mode):
 )
 @click.option("--ignore", hidden=True)
 @click.option(
-    "--show",
-    default=5,
-    help="Set the number of runs to show in the summary."
+    "--show", default=5, help="Set the number of runs to show in the summary."
 )
 @click.option(
     "--append",
@@ -1034,7 +1031,7 @@ def sweep(
     the current user's default entity and project.
 
         $ wandb sweep sweep_config.yaml
-ß
+    ß
     Create a sweep and store the results under the "team-awesome" entity
     and "foobar" project.
 
@@ -1939,10 +1936,7 @@ def launch(
     Defaults to 1. Set to -1 for no upper limit.""",
 )
 @click.option(
-    "--config",
-    "-c",
-    default=None,
-    help="path to the agent config yaml to use."
+    "--config", "-c", default=None, help="path to the agent config yaml to use."
 )
 @click.option(
     "--url",
@@ -2090,7 +2084,7 @@ def agent(ctx, project, entity, count, forward_signals, sweep_id):
 
 @cli.command(
     context_settings=RUN_CONTEXT,
-    help="Run a W&B launch sweep scheduler (Experimental)."
+    help="Run a W&B launch sweep scheduler (Experimental).",
 )
 @click.pass_context
 @click.argument("sweep_id")
@@ -2184,7 +2178,7 @@ def _list(project, entity):
 @click.argument("job")
 def describe(job):
     """Describe a launch job. Provide the launch job in the form
-    of: entity/project/job-name:alias-or-version"""
+    of: entity/project/job-name:alias-or-version."""
     public_api = PublicApi()
     try:
         job = public_api.job(name=job)
@@ -2415,7 +2409,6 @@ def controller(verbose, sweep_id):
     entity and project path (entity/project/sweep_id).
 
     Examples:
-
     Start a local sweep controller for a sweep with sweep ID wbyz9876
 
         $ wandb controller wbyz9876
@@ -2445,7 +2438,6 @@ def docker_run(ctx, docker_run_args):
     on the host and `--runtime` is not already set.
 
     Examples:
-
     Run the Python script train.py inside the "my-image" container:
 
         $ wandb docker-run my-image python train.py
@@ -2490,45 +2482,22 @@ def docker_run(ctx, docker_run_args):
     if nvidia-docker is present.""",
 )
 @click.option(
-    "--digest",
-    is_flag=True,
-    default=False,
-    help="Output the image digest and exit."
+    "--digest", is_flag=True, default=False, help="Output the image digest and exit."
 )
 @click.option(
-    "--jupyter/--no-jupyter",
-    default=False,
-    help="Run jupyter lab in the container."
+    "--jupyter/--no-jupyter", default=False, help="Run jupyter lab in the container."
 )
 @click.option(
-    "--dir",
-    default="/app",
-    help="Which directory to mount the code in the container."
+    "--dir", default="/app", help="Which directory to mount the code in the container."
 )
+@click.option("--no-dir", is_flag=True, help="Don't mount the current directory.")
 @click.option(
-    "--no-dir",
-    is_flag=True,
-    help="Don't mount the current directory."
+    "--shell", default="/bin/bash", help="The shell to start the container with."
 )
+@click.option("--port", default="8888", help="The host port to bind jupyter on.")
+@click.option("--cmd", help="The command to run in the container.")
 @click.option(
-    "--shell",
-    default="/bin/bash",
-    help="The shell to start the container with."
-)
-@click.option(
-    "--port",
-    default="8888",
-    help="The host port to bind jupyter on."
-)
-@click.option(
-    "--cmd",
-    help="The command to run in the container."
-)
-@click.option(
-    "--no-tty",
-    is_flag=True,
-    default=False,
-    help="Run the command without a tty."
+    "--no-tty", is_flag=True, default=False, help="Run the command without a tty."
 )
 @display_error
 def docker(
@@ -2660,35 +2629,19 @@ def docker(
 )
 @click.pass_context
 @click.option(
-    "--port",
-    "-p",
-    default="8080",
-    help="The host port to bind W&B local on."
+    "--port", "-p", default="8080", help="The host port to bind W&B local on."
 )
 @click.option(
-    "--env",
-    "-e",
-    default=[],
-    multiple=True,
-    help="Env vars to pass to wandb/local."
+    "--env", "-e", default=[], multiple=True, help="Env vars to pass to wandb/local."
 )
 @click.option(
-    "--daemon/--no-daemon",
-    default=True,
-    help="Run or don't run in daemon mode."
+    "--daemon/--no-daemon", default=True, help="Run or don't run in daemon mode."
 )
 @click.option(
-    "--upgrade",
-    is_flag=True,
-    default=False,
-    help="Upgrade to the most recent version."
+    "--upgrade", is_flag=True, default=False, help="Upgrade to the most recent version."
 )
 @click.option(
-    "--edge",
-    is_flag=True,
-    default=False,
-    help="Run the bleeding edge",
-    hidden=True
+    "--edge", is_flag=True, default=False, help="Run the bleeding edge", hidden=True
 )
 @display_error
 def local(ctx, *args, **kwargs):
@@ -2704,10 +2657,7 @@ def server():
 @server.command(context_settings=RUN_CONTEXT)
 @click.pass_context
 @click.option(
-    "--port",
-    "-p",
-    default="8080",
-    help="The host port to bind W&B server on."
+    "--port", "-p", default="8080", help="The host port to bind W&B server on."
 )
 @click.option(
     "--env",
@@ -2731,11 +2681,7 @@ def server():
     hidden=True,
 )
 @click.option(
-    "--edge",
-    is_flag=True,
-    default=False,
-    help="Use the bleeding edge",
-    hidden=True
+    "--edge", is_flag=True, default=False, help="Use the bleeding edge", hidden=True
 )
 @display_error
 def start(ctx, port, env, daemon, upgrade, edge):
@@ -2854,9 +2800,8 @@ def stop():
     by `wandb server start`. Requires Docker to be installed.
 
     Examples:
-
         $ wandb server stop
-    """    
+    """
     if not _HAS_DOCKER:
         raise ClickException("Docker not installed, install it from https://docker.com")
     subprocess.call(["docker", "stop", "wandb-local"])
@@ -2890,11 +2835,7 @@ def artifact():
     help="""An alias to apply to this artifact. Can be specified multiple
     times. Defaults to 'latest'.""",
 )
-@click.option(
-    "--id",
-    "run_id",
-    help="Upload to an existing run with this ID."
-)
+@click.option("--id", "run_id", help="Upload to an existing run with this ID.")
 @click.option(
     "--resume",
     is_flag=True,
@@ -3146,7 +3087,6 @@ def cleanup(target_size, remove_temp):
     formats (for example, 10GB or 500MB).
 
     Examples:
-
     Reduce the artifact cache to 10 GB
 
         $ wandb artifact cache cleanup 10GB
@@ -3189,7 +3129,6 @@ def pull(run, project, entity):
     and entity if not included in the run argument.
 
     Examples:
-
     Download files from a run with run ID "abcd1234" in the "foobar" project
     and "team-awesome" entity
 
@@ -3472,7 +3411,6 @@ def offline():
     Use `wandb online` or `wandb sync` to upload offline runs.
 
     Examples:
-
     Run a script in offline mode to log data locally without syncing
     to the cloud:
 
@@ -3524,7 +3462,6 @@ def status(settings):
     base URL, API key, project, entity, and other resolved values.
 
     Examples:
-
     Show current settings:
 
         $ wandb status
@@ -3557,7 +3494,6 @@ def disabled(service):
     locally.
 
     Examples:
-
     Turn off W&B so that the train.py script executes without logging or
     syncing data to W&B:
 
@@ -3599,7 +3535,6 @@ def enabled(service):
     use `wandb online` or `wandb offline` instead.
 
     Examples:
-
     Restore W&B functionality after deactivating it with `wandb disabled`:
 
         $ wandb enabled
@@ -3631,7 +3566,6 @@ def verify(host):
     Exits with `code 1` if any critical check fails.
 
     Examples:
-
     Verify the currently configured W&B instance:
 
         $ wandb verify --host https://my-wandb-instance.com
