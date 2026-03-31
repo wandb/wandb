@@ -152,7 +152,6 @@ func NewWorkspace(
 		runsAnimState:        NewAnimatedValue(true, SidebarMinWidth),
 		backend:              backend,
 		metricsGridAnimState: metricsGridAnimState,
-		wandbDir:             wandbDir,
 		config:               cfg,
 		keyMap:               buildKeyMap(WorkspaceKeyBindings()),
 		logger:               logger,
@@ -370,20 +369,6 @@ func (w *Workspace) SelectedRunParams() *RunParams {
 		return nil
 	}
 	return w.backend.RunParams(runKey)
-}
-
-// SelectedRunKey returns the run key (directory name) of the currently selected run.
-func (w *Workspace) SelectedRunKey() string {
-	total := len(w.runs.FilteredItems)
-	if total == 0 {
-		return ""
-	}
-	startIdx := w.runs.CurrentPage() * w.runs.ItemsPerPage()
-	idx := startIdx + w.runs.CurrentLine()
-	if idx < 0 || idx >= total {
-		return ""
-	}
-	return w.runs.FilteredItems[idx].Key
 }
 
 // MediaStoreForRun returns the workspace's MediaStore for a given run key.
@@ -848,8 +833,8 @@ func (w *Workspace) dropRun(runKey string) {
 
 	run, ok := w.runsByKey[runKey]
 	if ok && run != nil {
-		if run.seriesKey != "" {
-			w.metricsGrid.RemoveSeries(run.seriesKey)
+		if w.backend.SeriesKey(runKey) != "" {
+			w.metricsGrid.RemoveSeries(w.backend.SeriesKey(runKey))
 		}
 		w.stopWatcher(run)
 		if run.Reader != nil {
@@ -926,10 +911,10 @@ func (w *Workspace) refreshPinnedRun() {
 		return
 	}
 	run, ok := w.runsByKey[w.pinnedRun]
-	if !ok || run == nil || run.seriesKey == "" {
+	if !ok || run == nil || w.backend.SeriesKey(w.pinnedRun) == "" {
 		return
 	}
-	w.metricsGrid.PromoteSeriesToTop(run.seriesKey)
+	w.metricsGrid.PromoteSeriesToTop(w.backend.SeriesKey(w.pinnedRun))
 }
 
 // ---- Focus Query Helpers ----
@@ -1159,9 +1144,9 @@ func (w *Workspace) buildActiveStatus() string {
 	parts = append(parts, w.activeFocusStatus()...)
 
 	if len(parts) == 0 {
-		return w.wandbDir
+		return w.backend.DisplayLabel()
 	}
-	return w.wandbDir + " • " + strings.Join(parts, " • ")
+	return w.backend.DisplayLabel() + " • " + strings.Join(parts, " • ")
 }
 
 // activeFilterStatus collects status fragments for all active filters.
@@ -1341,7 +1326,7 @@ func (w *Workspace) runPathForKey(runKey string) string {
 	if runKey == "" {
 		return ""
 	}
-	return runWandbFile(w.wandbDir, runKey)
+	return runWandbFile(w.backend.DisplayLabel(), runKey)
 }
 
 func (w *Workspace) runColorForKey(runKey string) compat.AdaptiveColor {

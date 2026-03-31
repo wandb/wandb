@@ -52,7 +52,7 @@ func TestWorkspaceRunColorsReleaseAllowsReuse(t *testing.T) {
 func TestWorkspaceApplyRunKeysAssignsUniqueColors(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	cfg := NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
-	w := NewWorkspace(t.TempDir(), cfg, logger)
+	w := NewWorkspace(NewLocalWorkspaceBackend(t.TempDir(), logger), cfg, logger)
 
 	runKeys := make([]string, 0, 24)
 	for i := 0; i < 24; i++ {
@@ -77,7 +77,7 @@ func TestWorkspaceApplyRunKeysAssignsUniqueColors(t *testing.T) {
 func TestWorkspaceApplyRunKeysReusesReleasedColor(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	cfg := NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
-	w := NewWorkspace(t.TempDir(), cfg, logger)
+	w := NewWorkspace(NewLocalWorkspaceBackend(t.TempDir(), logger), cfg, logger)
 	w.runColors = newWorkspaceRunColors(testWorkspaceRunColorPalette())
 
 	const (
