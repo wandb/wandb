@@ -155,9 +155,13 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 	}
 
+	// Snapshot before sub-models consume the key — a filter's Enter
+	// exits filter mode, so checking after would miss it.
+	awaitingInput := m.isAwaitingUserInput()
+
 	cmds := m.updateSubComponents(msg)
 
-	if cmd := m.handleModeSwitch(msg); cmd != nil {
+	if cmd := m.handleModeSwitch(msg, awaitingInput); cmd != nil {
 		return m, cmd
 	}
 
@@ -188,25 +192,27 @@ func (m *Model) updateSubComponents(msg tea.Msg) []tea.Cmd {
 }
 
 // handleModeSwitch checks for Enter/Esc and transitions between views.
-func (m *Model) handleModeSwitch(msg tea.Msg) tea.Cmd {
+//
+// awaitingInput must be snapshotted before sub-components process the
+// message, because an Enter in filter mode exits the filter and would
+// otherwise fall through to a view switch.
+func (m *Model) handleModeSwitch(msg tea.Msg, awaitingInput bool) tea.Cmd {
 	keyMsg, ok := msg.(tea.KeyPressMsg)
 	if !ok {
 		return nil
 	}
 
-	awaitingUserInput := m.isAwaitingUserInput()
-
 	switch m.mode {
 	case viewModeWorkspace:
 		if keyMsg.Code == tea.KeyEnter &&
-			!awaitingUserInput &&
+			!awaitingInput &&
 			m.workspace.RunSelectorActive() {
 			return m.enterRunView()
 		}
 	case viewModeRun:
 		runCapturesEsc := m.run != nil && m.run.MediaFullscreen()
 		if keyMsg.Code == tea.KeyEsc &&
-			!awaitingUserInput && !runCapturesEsc {
+			!awaitingInput && !runCapturesEsc {
 			return m.exitRunView()
 		}
 	}
