@@ -23,14 +23,10 @@ func (h extraHeaders) WrapHTTP(send HTTPDoFunc) HTTPDoFunc {
 		if req.Header == nil {
 			req.Header = make(http.Header)
 		}
-		for key, values := range h.headers {
-			// Preserve request-specific headers over extra headers from user settings.
-			if req.Header.Values(key) != nil {
-				continue
-			}
 
-			for _, value := range values {
-				req.Header.Add(key, value)
+		for key, values := range h.headers {
+			if _, isSet := req.Header[key]; !isSet {
+				req.Header[key] = values
 			}
 		}
 

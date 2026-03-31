@@ -10,14 +10,23 @@ import (
 	"github.com/wandb/wandb/core/internal/httplayers"
 )
 
+// newHeader normalzie header like caller (api client) does.
+func newHeader(m map[string]string) http.Header {
+	h := make(http.Header)
+	for k, v := range m {
+		h.Set(k, v)
+	}
+	return h
+}
+
 func TestExtraHeaders_AddsMissingHeaders(t *testing.T) {
 	req, err := http.NewRequest(http.MethodGet, "https://example.com", http.NoBody)
 	require.NoError(t, err)
 	req.Header = nil
 
-	wrapped := httplayers.ExtraHeaders(http.Header{
-		"X-EXTRA-HEADER": []string{"extra-header-value"},
-	}).WrapHTTP(func(req *http.Request) (*http.Response, error) {
+	wrapped := httplayers.ExtraHeaders(newHeader(map[string]string{
+		"X-EXTRA-HEADER": "extra-header-value",
+	})).WrapHTTP(func(req *http.Request) (*http.Response, error) {
 		assert.Equal(t, "extra-header-value", req.Header.Get("X-EXTRA-HEADER"))
 		return &http.Response{StatusCode: http.StatusOK}, nil
 	})
@@ -32,11 +41,11 @@ func TestExtraHeaders_PreservesExistingHeaders(t *testing.T) {
 	req.Header.Set("Authorization", "request-authorization")
 	req.Header.Set("NOT-CASE-SENSITIVE", "request-value")
 
-	wrapped := httplayers.ExtraHeaders(http.Header{
-		"Authorization":      []string{"extra-authorization-value"},
-		"X-EXTRA-HEADER":     []string{"extra-header-value"},
-		"not-case-sensitive": []string{"extra-value"},
-	}).WrapHTTP(func(req *http.Request) (*http.Response, error) {
+	wrapped := httplayers.ExtraHeaders(newHeader(map[string]string{
+		"Authorization":      "extra-authorization-value",
+		"X-EXTRA-HEADER":     "extra-header-value",
+		"not-case-sensitive": "extra-value",
+	})).WrapHTTP(func(req *http.Request) (*http.Response, error) {
 		assert.Equal(t, "request-authorization", req.Header.Get("Authorization"))
 		assert.Equal(t, "extra-header-value", req.Header.Get("X-EXTRA-HEADER"))
 		assert.Equal(t, "request-value", req.Header.Get("NOT-CASE-SENSITIVE"))
