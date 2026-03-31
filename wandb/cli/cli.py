@@ -3592,6 +3592,7 @@ def verify(host):
         Verify a specific self-hosted instance:
 
             $ wandb verify --host https://my-wandb-server.example.com
+
     """
     # TODO: (kdg) Build this all into a WandbVerify object, and clean this up.
     os.environ["WANDB_SILENT"] = "true"
