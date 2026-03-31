@@ -318,31 +318,29 @@ def login(key, host, cloud, relogin, anonymously, verify, no_offline=False):
     For self-hosted or dedicated cloud deployments, specify the server
     URL with `--host`, or set the WANDB_BASE_URL environment variable.
 
-    \b
-    Examples:
-        Log in interactively (prompts for API key)
+    For example, to log in interactively (prompts for API key):
 
-            $ wandb login
+        $ wandb login
 
-        Log in with an explicit API key (WANDB_API_KEY_EXAMPLE)
+    To log in with an explicit API key (WANDB_API_KEY_EXAMPLE):
 
-            $ wandb login WANDB_API_KEY_EXAMPLE
+        $ wandb login WANDB_API_KEY_EXAMPLE
 
-        Log in and verify the API key is valid
+    To log in and verify the API key is valid:
 
-            $ wandb login --verify
+        $ wandb login --verify
 
-        Log in to the W&B public cloud instead of a configured self-hosted instance
+    To log in to the W&B public cloud instead of a configured self-hosted instance:
 
-            $ wandb login --cloud
+        $ wandb login --cloud
 
-        Log in to a self-hosted W&B instance
+    To log in to a self-hosted W&B instance:
 
-            $ wandb login --host https://my-wandb-server.example.com
+        $ wandb login --host https://my-wandb-server.example.com
 
-        Force a new login prompt even if already authenticated
+    To force a new login prompt even if already authenticated:
 
-            $ wandb login --relogin
+        $ wandb login --relogin
     """
     # TODO: handle no_offline
     if anonymously:
@@ -402,24 +400,22 @@ def init(ctx, project, entity, reset, mode):
     Set a project and entity, create local W&B settings, and
     prepare the directory for experiment tracking.
 
-    \b
-    Examples:
-        For example, set up W&B for the current directory with guided prompts
-        for team and project selection:
+    For example, set up W&B for the current directory with guided prompts
+    for team and project selection:
 
-            $ wandb init
+        $ wandb init
 
-        To set the default project to "foobar" and the default entity to "team-awesome" without prompts:
+    To set the default project to "foobar" and the default entity to "team-awesome" without prompts:
 
-            $ wandb init --project foobar --entity team-awesome
+        $ wandb init --project foobar --entity team-awesome
 
-        To set the W&B mode to offline:
+    To set the W&B mode to offline:
 
-            $ wandb init --mode offline
+        $ wandb init --mode offline
 
-        To reset existing W&B configuration for the current directory:
+    To reset existing W&B configuration for the current directory:
 
-            $ wandb init --reset
+        $ wandb init --reset
     """
     # Load settings from environment variables and other normal sources.
     global_settings = wandb_setup.singleton().settings
@@ -701,33 +697,31 @@ def sync(
     timestamp of when the run was created and RUN_ID is the unique ID
     of the run.
 
-    \b
-    Examples:
-        For example, to show a summary of local runs and their sync status:
+    For example, to show a summary of local runs and their sync status:
 
-            $ wandb sync
+        $ wandb sync
 
-        To sync run ID abcd1234 that is locally saved locally in
-        the ./wandb/run-20170617_000000-abcd1234 directory:
+    To sync run ID abcd1234 that is locally saved locally in
+    the ./wandb/run-20170617_000000-abcd1234 directory:
 
-            $ wandb sync ./wandb/run-20170617_000000-abcd1234
+        $ wandb sync ./wandb/run-20170617_000000-abcd1234
 
-        To sync run abcd1234 by its local .wandb
-        filepath (./wandb/run-20170617_000000-abcd1234/run-abcd1234.wandb):
+    To sync run abcd1234 by its local .wandb
+    filepath (./wandb/run-20170617_000000-abcd1234/run-abcd1234.wandb):
 
-            $ wandb sync ./wandb/run-20170617_000000-abcd1234/run-abcd1234.wandb
+        $ wandb sync ./wandb/run-20170617_000000-abcd1234/run-abcd1234.wandb
 
-        To sync all unsynced runs in the local wandb directory:
+    To sync all unsynced runs in the local wandb directory:
 
-            $ wandb sync --sync-all
+        $ wandb sync --sync-all
 
-        To delete local data for runs that have already been synced:
+    To delete local data for runs that have already been synced:
 
-            $ wandb sync --clean
+        $ wandb sync --clean
 
-        To delete synced runs older than 48 hours without a confirmation prompt:
+    To delete synced runs older than 48 hours without a confirmation prompt:
 
-            $ wandb sync --clean --clean-old-hours 48 --clean-force
+        $ wandb sync --clean --clean-old-hours 48 --clean-force
     """
     api = _get_cling_api()
     if not api.is_authenticated:
@@ -1028,50 +1022,48 @@ def sweep(
     W&B when the sweep is created. You can find the sweep ID in the W&B App
     or in the output of the `wandb sweep` command when you create a new sweep.
 
-    \b
-    Examples:
-        For example, to create a sweep using the configuration defined in
-        sweep_config.yaml. Use the current user's default entity and project:
+    For example, to create a sweep using the configuration defined in
+    sweep_config.yaml. Use the current user's default entity and project:
 
-            $ wandb sweep sweep_config.yaml
+        $ wandb sweep sweep_config.yaml
 
-        To create a sweep and store the results under the "team-awesome" entity
-        and "foobar" project:
+    To create a sweep and store the results under the "team-awesome" entity
+    and "foobar" project:
 
-            $ wandb sweep -p foobar -e team-awesome sweep_config.yaml
+        $ wandb sweep -p foobar -e team-awesome sweep_config.yaml
 
-        To update sweep abcd1234 with a new configuration from sweep_config.yaml.
-        This is useful for changing the parameters or search strategy of an
-        active sweep:
+    To update sweep abcd1234 with a new configuration from sweep_config.yaml.
+    This is useful for changing the parameters or search strategy of an
+    active sweep:
 
-            $ wandb sweep --update abcd1234 sweep_config.yaml
+        $ wandb sweep --update abcd1234 sweep_config.yaml
 
-        To stop sweep abcd1234 under the "team-awesome" entity
-        and "foobar" project:
+    To stop sweep abcd1234 under the "team-awesome" entity
+    and "foobar" project:
 
-            $ wandb sweep --stop team-awesome/foobar/abcd1234
+        $ wandb sweep --stop team-awesome/foobar/abcd1234
 
-        To cancel sweep abcd1234 in the current user's default entity and project:
+    To cancel sweep abcd1234 in the current user's default entity and project:
 
-            $ wandb sweep --cancel abcd1234
+        $ wandb sweep --cancel abcd1234
 
-        To pause sweep abcd1234 in the current user's default entity and
-        project. Later, resume the sweep:
+    To pause sweep abcd1234 in the current user's default entity and
+    project. Later, resume the sweep:
 
-            $ wandb sweep --pause abcd1234
+        $ wandb sweep --pause abcd1234
 
-            $ wandb sweep --resume abcd1234
+        $ wandb sweep --resume abcd1234
 
-        To create a sweep with a local controller that uses the configuration
-        in sweep_config.yaml:
+    To create a sweep with a local controller that uses the configuration
+    in sweep_config.yaml:
 
-            $ wandb sweep --controller sweep_config.yaml
+        $ wandb sweep --controller sweep_config.yaml
 
-        To create a new sweep and include two previously completed runs
-        (run ID abcd1234 and run ID efgh5678) so their results are incorporated
-        into the sweep's hyperparameter search:
+    To create a new sweep and include two previously completed runs
+    (run ID abcd1234 and run ID efgh5678) so their results are incorporated
+    into the sweep's hyperparameter search:
 
-            $ wandb sweep -R abcd1234 -R efgh5678 sweep_config.yaml
+        $ wandb sweep -R abcd1234 -R efgh5678 sweep_config.yaml
     """
     state_args = "stop", "cancel", "pause", "resume"
     lcls = locals()
@@ -2042,24 +2034,22 @@ def agent(ctx, project, entity, count, forward_signals, sweep_id):
     The sweep ID can include the entity and project path
     (entity/project/sweep_id) or the eight character sweep ID alone.
 
-    \b
-    Examples:
-        For example, to start an agent for a sweep with a sweep ID of wbyz9876:
+    For example, to start an agent for a sweep with a sweep ID of wbyz9876:
 
-            $ wandb agent wbyz9876
+        $ wandb agent wbyz9876
 
-        To start an agent with a run limit of 10 runs for the sweep:
+    To start an agent with a run limit of 10 runs for the sweep:
 
-            $ wandb agent --count 10 wbyz9876
+        $ wandb agent --count 10 wbyz9876
 
-        To start an agent for a sweep and save it to a project
-        called "sweeps-project" that belongs to the "team-awesome" entity:
+    To start an agent for a sweep and save it to a project
+    called "sweeps-project" that belongs to the "team-awesome" entity:
 
-            $ wandb agent -p sweeps-project -e team-awesome wbyz9876
+        $ wandb agent -p sweeps-project -e team-awesome wbyz9876
 
-        To forward signals to child runs for clean shutdown:
+    To forward signals to child runs for clean shutdown:
 
-            $ wandb agent --forward-signals wbyz9876
+        $ wandb agent --forward-signals wbyz9876
     """
     api = _get_cling_api()
     if not api.is_authenticated:
@@ -2413,11 +2403,9 @@ def controller(verbose, sweep_id):
     consists of a unique identifier for the sweep and may include the
     entity and project path (entity/project/sweep_id).
 
-    \b
-    Examples:
-        Start a local sweep controller for a sweep with sweep ID wbyz9876
+    For example, to start a local sweep controller for a sweep with sweep ID wbyz9876:
 
-            $ wandb controller wbyz9876
+        $ wandb controller wbyz9876
     """
     click.echo("Starting wandb controller...")
     from wandb import controller as wandb_controller
@@ -2443,11 +2431,9 @@ def docker_run(ctx, docker_run_args):
     Add `--runtime nvidia` automatically if `nvidia-docker` is detected
     on the host and `--runtime` is not already set.
 
-    \b
-    Examples:
-        Run the Python script train.py inside the "my-image" container:
+    For example, to run the Python script train.py inside the "my-image" container:
 
-            $ wandb docker-run my-image python train.py
+        $ wandb docker-run my-image python train.py
     """
     import wandb.docker
 
@@ -2540,19 +2526,17 @@ def docker(
     To inject W&B environment variables into an existing `docker run`
     command without modifying the entrypoint, use `wandb docker-run`.
 
-    \b
-    Examples:
-        Run the default image and mount a dataset into the container:
+    For example, to run the default image and mount a dataset into the container:
 
-            $ wandb docker -v /mnt/dataset:/app/data
+        $ wandb docker -v /mnt/dataset:/app/data
 
-        Run a default image and start JupyterLab:
+    To run a default image and start JupyterLab:
 
-            $ wandb docker -v /mnt/dataset:/app/data --jupyter
+        $ wandb docker -v /mnt/dataset:/app/data --jupyter
 
-        Run a GPU-enabled image with a training command:
+    To run a GPU-enabled image with a training command:
 
-            $ wandb docker wandb/deepo:keras-gpu --no-tty --cmd "python train.py"
+        $ wandb docker wandb/deepo:keras-gpu --no-tty --cmd "python train.py"
     """
     api = InternalApi()
     if not _HAS_DOCKER:
@@ -2705,19 +2689,17 @@ def start(ctx, port, env, daemon, upgrade, edge):
 
     Requires Docker to be installed and running on the host machine.
 
-    \b
-    Examples:
-        Start a local W&B server on the default port (8080):
+    For example, to start a local W&B server on the default port (8080):
 
-            $ wandb server start
+        $ wandb server start
 
-        Start the server on port 9090:
+    To start the server on port 9090:
 
-            $ wandb server start -p 9090
+        $ wandb server start -p 9090
 
-        Start the server in the foreground:
+    To start the server in the foreground:
 
-            $ wandb server start --no-daemon
+        $ wandb server start --no-daemon
     """
     api = InternalApi()
     if not _HAS_DOCKER:
@@ -2808,8 +2790,7 @@ def stop():
     Stops the Docker container named `wandb-local` that was started
     by `wandb server start`. Requires Docker to be installed.
 
-    \b
-    Examples:
+    For example, to stop the local W&B server:
         $ wandb server stop
     """
     if not _HAS_DOCKER:
@@ -2888,30 +2869,28 @@ def put(
     basename of the path. If the project cannot be parsed from the
     name, you are prompted to enter one.
 
-    \b
-    Examples:
-        Upload all files in a local directory ./data/training as a
-        dataset artifact in W&B.
+    For example, to upload all files in a local directory ./data/training as a
+    dataset artifact in W&B:
 
-            $ wandb artifact put --type dataset ./data/training
+        $ wandb artifact put --type dataset ./data/training
 
-        Upload model.pt to the "foobar" project and assign "trained-model" as
-        the artifact name.
+    To upload model.pt to the "foobar" project and assign "trained-model" as
+    the artifact name:
 
-            $ wandb artifact put --name foobar/trained-model --type model ./model.pt
+        $ wandb artifact put --name foobar/trained-model --type model ./model.pt
 
-        Tag the artifact with both "latest" and "v2.0" so it can be
-        referenced by either alias.
+    To tag the artifact with both "latest" and "v2.0" so it can be
+    referenced by either alias:
 
-            $ wandb artifact put --alias latest --alias v2.0 --type model ./model.pt
+        $ wandb artifact put --alias latest --alias v2.0 --type model ./model.pt
 
-        Record an Amazon S3 path as a reference without downloading or re-uploading the data.
+    To record an Amazon S3 path as a reference without downloading or re-uploading the data:
 
-            $ wandb artifact put --type dataset s3://my-bucket/datasets/training
+        $ wandb artifact put --type dataset s3://my-bucket/datasets/training
 
-        Attach a human-readable description to a dataset artifact for documentation.
+    To attach a human-readable description to a dataset artifact for documentation:
 
-            $ wandb artifact put --type dataset --description "Training data, Jan 2025" ./data/training
+        $ wandb artifact put --type dataset --description "Training data, Jan 2025" ./data/training
     """
     if name is None:
         name = os.path.basename(path)
@@ -2974,17 +2953,15 @@ def get(path, root, type):
     The PATH format is entity/project/artifact_name:version. If
     the version is omitted, use the "latest" alias.
 
-    \b
-    Examples:
-        Download the latest version of an artifact called "processed-training-set"
-        from the "foobar" project under the "team-awesome" entity.
+    For example, to download the latest version of an artifact called "processed-training-set"
+    from the "foobar" project under the "team-awesome" entity:
 
-            $ wandb artifact get team-awesome/foobar/processed-training-set:latest
+        $ wandb artifact get team-awesome/foobar/processed-training-set:latest
 
-        Download a specific version (v2) of the "processed-training-set" artifact
-        to a local directory (./data).
+    To download a specific version (v2) of the "processed-training-set" artifact
+    to a local directory (./data):
 
-            $ wandb artifact get --root ./data team-awesome/foobar/processed-training-set:v2
+        $ wandb artifact get --root ./data team-awesome/foobar/processed-training-set:v2
     """
     public_api = PublicApi()
     entity, project, artifact_name = public_api._parse_artifact_path(path)
@@ -3033,16 +3010,14 @@ def ls(path, type):
     The PATH consists of the entity and project (entity/project) to
     list artifacts from.
 
-    \b
-    Examples:
-        List all artifacts in a project called "foobar" under
-        the "team-awesome" entity
+    For example, to list all artifacts in a project called "foobar" under
+    the "team-awesome" entity:
 
-            $ wandb artifact ls team-awesome/foobar
+        $ wandb artifact ls team-awesome/foobar
 
-        List only artifacts of type "model" in the same project
+    To list only artifacts of type "model" in the same project:
 
-            $ wandb artifact ls --type model team-awesome/foobar
+        $ wandb artifact ls --type model team-awesome/foobar
     """
     public_api = PublicApi()
     if type is not None:
@@ -3097,15 +3072,13 @@ def cleanup(target_size, remove_temp):
     at or below the TARGET_SIZE. TARGET_SIZE accepts human-readable
     formats (for example, 10GB or 500MB).
 
-    \b
-    Examples:
-        Reduce the artifact cache to 10 GB
+    For example, to reduce the artifact cache to 10 GB:
 
-            $ wandb artifact cache cleanup 10GB
+        $ wandb artifact cache cleanup 10GB
 
-        Remove temporary files and reduce the artifact cache to 5 GB
+    To remove temporary files and reduce the artifact cache to 5 GB:
 
-            $ wandb artifact cache cleanup --remove-temp 5GB
+        $ wandb artifact cache cleanup --remove-temp 5GB
     """
     target_size = util.from_human_size(target_size)
     cache = get_artifact_file_cache()
@@ -3140,12 +3113,10 @@ def pull(run, project, entity):
     Use the run ID to reference the run, and optionally specify the project
     and entity if not included in the run argument.
 
-    \b
-    Examples:
-        Download files from a run with run ID "abcd1234" in the "foobar" project
-        and "team-awesome" entity
+    For example, to download files from a run with run ID "abcd1234" in the "foobar" project
+    and "team-awesome" entity:
 
-            $ wandb pull -p foobar -e team-awesome abcd1234
+        $ wandb pull -p foobar -e team-awesome abcd1234
     """
     api = InternalApi()
     project, run = api.parse_slug(run, project=project)
@@ -3231,31 +3202,29 @@ def restore(ctx, run, no_git, branch, project, entity):
     - entity/project:run_id
     - entity/project/run_id
 
-    \b
-    Examples:
-        Restore a run with run ID  in the default project
-        (stored as the WANDB_PROJECT environment variable) and entity
-        (set from WANDB_ENTITY or the authenticated user's default entity):
+    For example, to restore a run with run ID  in the default project
+    (stored as the WANDB_PROJECT environment variable) and entity
+    (set from WANDB_ENTITY or the authenticated user's default entity):
 
-            $ wandb restore abcd1234
+        $ wandb restore abcd1234
 
-        Restore a run from the "foobar" project and "team-awesome" entity with
-        run ID abcd1234:
+    To restore a run from the "foobar" project and "team-awesome" entity with
+    run ID abcd1234:
 
-            $ wandb restore team-awesome/foobar/abcd1234
+        $ wandb restore team-awesome/foobar/abcd1234
 
-        Restore run abcd1234 without restoring git state. Only restore config
-        and Docker state:
+    To restore run abcd1234 without restoring git state. Only restore config
+    and Docker state:
 
-            $ wandb restore --no-git abcd1234
+        $ wandb restore --no-git abcd1234
 
-        Restore run abcd1234 in detached HEAD mode instead of creating a branch:
+    To restore run abcd1234 in detached HEAD mode instead of creating a branch:
 
-            $ wandb restore --no-branch abcd1234
+        $ wandb restore --no-branch abcd1234
 
-        Restore run abcd1234 from another team's project:
+    To restore run abcd1234 from another team's project:
 
-            $ wandb restore other-team/their-project:abcd1234
+        $ wandb restore other-team/their-project:abcd1234
     """
     from wandb.old.core import wandb_dir
     from wandb.sdk.lib.gitlib import GitRepo
@@ -3399,15 +3368,13 @@ def online():
 
     Undoes a previous call to `wandb offline`.
 
-    \b
-    Examples:
-        Re-enable cloud syncing after working offline:
+    For example, to re-enable cloud syncing after working offline:
 
-            $ wandb online
+        $ wandb online
 
-        Re-enable cloud syncing, then run a training script:
+    To re-enable cloud syncing, then run a training script:
 
-            $ wandb online && python train.py
+        $ wandb online && python train.py
     """
     system_settings = wandb_setup.singleton().settings.read_system_settings()
     system_settings.clear("mode")
@@ -3425,20 +3392,18 @@ def offline():
 
     Use `wandb online` or `wandb sync` to upload offline runs.
 
-    Examples:
-    Run a script in offline mode to log data locally without syncing
+    For example, to run a script in offline mode to log data locally without syncing
     to the cloud:
 
         $ wandb offline && python train.py
 
-    Run a script in offline mode:
+    To run a script in offline mode:
 
         $ wandb offline && python train.py
 
     At a later time, sync all offline runs to the cloud:
 
         $ wandb sync --sync-all
-
     """
     system_settings = wandb_setup.singleton().settings.read_system_settings()
     system_settings.set("mode", "offline")
@@ -3476,11 +3441,9 @@ def status(settings):
     Print all active W&B settings as formatted JSON, including the
     base URL, API key, project, entity, and other resolved values.
 
-    \b
-    Examples:
-        Show current settings:
+    For example, to show current settings:
 
-            $ wandb status
+        $ wandb status
     """
     api = _get_cling_api()
     if settings:
@@ -3509,20 +3472,18 @@ def disabled(service):
     Use `wandb offline` to stop cloud syncing while continuning to log data
     locally.
 
-    \b
-    Examples:
-        Turn off W&B so that the train.py script executes without logging or
-        syncing data to W&B:
+    For example, to turn off W&B so that the train.py script executes without logging or
+    syncing data to W&B:
 
-            $ wandb disabled
+        $ wandb disabled
 
-        Next, train the model without logging or syncing to W&B:
+    Next, train the model without logging or syncing to W&B:
 
-            $ python train.py  # Does not log or sync data to W&B
+        $ python train.py  # Does not log or sync data to W&B
 
-        Restore W&B functionality when ready to log and sync again:
+    Restore W&B functionality when ready to log and sync again:
 
-            $ wandb enabled
+        $ wandb enabled
     """
     system_settings = wandb_setup.singleton().settings.read_system_settings()
     system_settings.set("mode", "disabled")
@@ -3551,15 +3512,13 @@ def enabled(service):
     To switch between online and offline modes without fully deactivating W&B,
     use `wandb online` or `wandb offline` instead.
 
-    \b
-    Examples:
-        Restore W&B functionality after deactivating it with `wandb disabled`:
+    For example, to restore W&B functionality after deactivating it with `wandb disabled`:
 
-            $ wandb enabled
+        $ wandb enabled
 
-        Run training script with W&B logging and syncing restored:
+    To run a training script with W&B logging and syncing restored:
 
-            $ python train.py # Log and sync data to W&B
+        $ python train.py # Log and sync data to W&B
     """
     system_settings = wandb_setup.singleton().settings.read_system_settings()
     system_settings.set("mode", "online")
@@ -3583,16 +3542,13 @@ def verify(host):
 
     Exits with `code 1` if any critical check fails.
 
-    \b
-    Examples:
-        Verify the currently configured W&B instance:
+    For example, to verify the currently configured W&B instance:
 
-            $ wandb verify --host https://my-wandb-instance.com
+        $ wandb verify --host https://my-wandb-instance.com
 
-        Verify a specific self-hosted instance:
+    To verify a specific self-hosted instance:
 
-            $ wandb verify --host https://my-wandb-server.example.com
-
+        $ wandb verify --host https://my-wandb-server.example.com
     """
     # TODO: (kdg) Build this all into a WandbVerify object, and clean this up.
     os.environ["WANDB_SILENT"] = "true"
