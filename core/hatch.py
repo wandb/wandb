@@ -80,42 +80,54 @@ def build_wandb_core(
         ),
     )
 
-    _strip_malformed_elf_sections(output_path, target_system)
+    _strip_dynamic_elf_metadata(output_path, target_system)
 
 
-def _strip_malformed_elf_sections(
+def _strip_dynamic_elf_metadata(
     binary_path: pathlib.PurePath,
     target_system: str,
 ) -> None:
-    """Remove .gnu.version_r/.gnu.version sections from Go ELF binaries.
+    """Fix Go ELF metadata that breaks auditwheel.
 
-    Go's internal linker writes these sections with sh_type=PROGBITS
-    instead of the correct SHT_GNU_verneed/SHT_GNU_versym. pyelftools
-    then returns a generic Section object (missing iter_versions()),
-    which crashes auditwheel during wheel repair. Since wandb-core is
-    statically linked (CGO_ENABLED=0), these sections are unused and
-    can be safely removed.
+    Go's internal linker produces binaries with two problems even
+    when CGO_ENABLED=0 (fully static, no libc calls at runtime):
+
+    1. .gnu.version_r has sh_type=PROGBITS instead of SHT_GNU_verneed,
+       crashing pyelftools' iter_versions() during auditwheel repair.
+    2. .dynamic lists libc.so.6 as DT_NEEDED, which conflicts with
+       musl libc on musllinux containers.
+
+    Fix 1 uses objcopy to remove the malformed version sections.
+    Fix 2 uses patchelf to remove the vestigial libc.so.6 dependency.
     """
     if target_system != "linux":
         return
 
-    objcopy = shutil.which("objcopy")
-    if objcopy is None:
-        return
+    patchelf = shutil.which("patchelf")
+    if patchelf is not None:
+        for lib in ("libc.so.6", "libdl.so.2", "libpthread.so.0"):
+            try:
+                subprocess.check_call(
+                    [patchelf, "--remove-needed", lib, str(binary_path)],
+                )
+            except subprocess.CalledProcessError:
+                pass
 
-    try:
-        subprocess.check_call(
-            [
-                objcopy,
-                "--remove-section",
-                ".gnu.version_r",
-                "--remove-section",
-                ".gnu.version",
-                str(binary_path),
-            ],
-        )
-    except subprocess.CalledProcessError:
-        pass
+    objcopy = shutil.which("objcopy")
+    if objcopy is not None:
+        try:
+            subprocess.check_call(
+                [
+                    objcopy,
+                    "--remove-section",
+                    ".gnu.version_r",
+                    "--remove-section",
+                    ".gnu.version",
+                    str(binary_path),
+                ],
+            )
+        except subprocess.CalledProcessError:
+            pass
 
 
 def _go_linker_flags(wandb_commit_sha: str | None) -> str:
