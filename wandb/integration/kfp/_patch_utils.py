@@ -1,10 +1,19 @@
 from __future__ import annotations
 
+from typing import Callable
+
 import wandb
 
 
 def full_path_exists(full_func: str) -> bool:
-    """Return True if every component in a dotted path exists as a module attribute."""
+    """Return True if every component in a dotted path exists as a module attribute.
+
+    Args:
+        full_func: A dotted path such as ``kfp.dsl.component_factory.create_component_from_func``.
+
+    Returns:
+        True if all intermediate modules and the final attribute exist.
+    """
     components = full_func.split(".")
     for i in range(1, len(components)):
         parent = ".".join(components[:i])
@@ -15,8 +24,17 @@ def full_path_exists(full_func: str) -> bool:
     return True
 
 
-def patch(module_name: str, func: object) -> bool:
-    """Monkey-patch *func* onto *module_name*, keeping a backup for ``unpatch``."""
+def patch(module_name: str, func: Callable) -> bool:
+    """Monkey-patch ``func`` onto ``module_name``, keeping a backup for ``unpatch``.
+
+    Args:
+        module_name: Dotted module path (e.g. ``kfp.dsl.component_factory``).
+        func: Replacement function. Its ``__name__`` must match the target
+            attribute on the module.
+
+    Returns:
+        True if the patch was applied successfully.
+    """
     module = wandb.util.get_module(module_name)
     success = False
 
@@ -38,7 +56,11 @@ def patch(module_name: str, func: object) -> bool:
 
 
 def unpatch(module_name: str) -> None:
-    """Restore original functions previously replaced by ``patch``."""
+    """Restore original functions previously replaced by ``patch``.
+
+    Args:
+        module_name: Dotted module path that was previously patched.
+    """
     if module_name in wandb.patched:
         for module, func in wandb.patched[module_name]:
             setattr(module, func, getattr(module, f"orig_{func}"))

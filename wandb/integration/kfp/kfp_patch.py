@@ -15,35 +15,37 @@ try:
     from packaging.version import parse
 
     _KFP_V2 = parse(kfp_version) >= parse("2.0.0")
-except Exception:
+except (ImportError, ValueError):
     _KFP_V2 = False
 
-# KFP serializes component code via inspect.getsource and runs it inside a
-# container.  We prepend the wandb decorator source so it is available at
-# container runtime.  The pattern is the same for v1 and v2; only the
-# decorator module differs.
+# ---------------------------------------------------------------------------
+# Build _wandb_logging_extras: the decorator source injected into KFP
+# container scripts at compile time.  Both v1 and v2 follow the same
+# pattern: an import preamble + the serialized decorator code.
+# ---------------------------------------------------------------------------
+
+_import_preamble = ""
+_decorator_code = ""
+_component_factory = None
 
 if _KFP_V2:
     try:
         from kfp.dsl import component_factory as _component_factory
-
-        from . import wandb_log_v2 as _log_module
-
-        _decorator_code = inspect.getsource(_log_module.wandb_log)
-        _wandb_logging_extras = f"""\
-import os
-import typing
-from typing import Any, NamedTuple
-
-import wandb
-
-{_decorator_code}
-"""
-    except Exception:
+    except ImportError:
         wandb.termerror(
             "kfp>=2.0.0 detected but failed to import kfp internals. "
             "Please ensure kfp is installed correctly."
         )
+    else:
+        from . import wandb_log_v2 as _log_module
+
+        _decorator_code = inspect.getsource(_log_module.wandb_log)
+        _import_preamble = """\
+import os
+import typing
+from typing import Any, NamedTuple
+
+import wandb"""
 else:
     try:
         from kfp import __version__ as kfp_version
@@ -66,7 +68,7 @@ else:
         from . import wandb_log_v1 as _log_module
 
         _decorator_code = inspect.getsource(_log_module.wandb_log)
-        _wandb_logging_extras = f"""\
+        _import_preamble = """\
 import typing
 from typing import NamedTuple
 
@@ -77,21 +79,29 @@ import kfp
 from kfp import components
 from kfp.components import InputPath, OutputPath
 
-import wandb
+import wandb"""
+    except ImportError:
+        pass
 
-{_decorator_code}
-"""
-    except Exception:
-        _wandb_logging_extras = ""
+_wandb_logging_extras = (
+    f"{_import_preamble}\n\n{_decorator_code}\n" if _decorator_code else ""
+)
+
+
+# ---------------------------------------------------------------------------
+# v1 patch functions
+# ---------------------------------------------------------------------------
 
 
 def _unpatch_kfp_v1() -> None:
+    """Remove v1 monkey-patches from kfp.components."""
     unpatch("kfp.components")
     unpatch("kfp.components._python_op")
     unpatch("wandb.integration.kfp")
 
 
 def _patch_kfp_v1() -> None:
+    """Apply v1 monkey-patches to kfp.components."""
     to_patch = [
         ("kfp.components", _v1_create_component_from_func),
         ("kfp.components._python_op", _v1_create_component_from_func),
@@ -113,7 +123,6 @@ def _patch_kfp_v1() -> None:
 
 def _v1_wandb_log_noop(
     func: Callable | None = None,
-    # /,  # py38 only
     log_component_file: bool = True,
 ) -> Callable:
     """No-op fallback decorator used when v1 patching fails."""
@@ -133,10 +142,19 @@ def _v1_wandb_log_noop(
 
 
 def _v1_get_function_source_definition(func: Callable) -> str:
-    """Get the source code of a function.
+    """Get the source code of a function, preserving ``@wandb_log``.
 
-    This function is modified from KFP.  The original source is below:
-    https://github.com/kubeflow/pipelines/blob/b6406b02f45cdb195c7b99e2f6d22bf85b12268b/sdk/python/kfp/components/_python_op.py#L300-L319.
+    Modified from KFP v1. Original source:
+    https://github.com/kubeflow/pipelines/blob/b6406b02f45cdb195c7b99e2f6d22bf85b12268b/sdk/python/kfp/components/_python_op.py#L300-L319
+
+    Args:
+        func: The function whose source to extract.
+
+    Returns:
+        The dedented source code starting from ``@wandb_log`` or ``def``.
+
+    Raises:
+        ValueError: If the source cannot be cleaned up.
     """
     func_code = inspect.getsource(func)
 
@@ -164,21 +182,17 @@ def _v1_create_component_from_func(
     packages_to_install: list[str] | None = None,
     annotations: Mapping[str, str] | None = None,
 ) -> Callable:
-    """Convert a Python function to a component and returns a task factory.
+    """Convert a Python function to a KFP v1 component task factory.
 
-    This function is modified from KFP.  The original source is below:
-    https://github.com/kubeflow/pipelines/blob/b6406b02f45cdb195c7b99e2f6d22bf85b12268b/sdk/python/kfp/components/_python_op.py#L998-L1110.
+    Modified from KFP v1. Original source:
+    https://github.com/kubeflow/pipelines/blob/b6406b02f45cdb195c7b99e2f6d22bf85b12268b/sdk/python/kfp/components/_python_op.py#L998-L1110
 
     Args:
-        func: The python function to convert
-        base_image: Optional. Specify a custom Docker container image to use
-            in the component.
-        output_component_file: Optional. Write a component definition to a
-            local file.
-        packages_to_install: Optional. List of [versioned] python packages to
-            pip install before executing the user function.
-        annotations: Optional. Allows adding arbitrary key-value data to the
-            component specification.
+        func: The python function to convert.
+        output_component_file: Write a component definition to a local file.
+        base_image: Custom Docker container image for the component.
+        packages_to_install: Python packages to pip install before execution.
+        annotations: Arbitrary key-value data for the component specification.
 
     Returns:
         A factory function with a strongly-typed signature taken from the
@@ -209,10 +223,16 @@ def _v1_create_component_from_func(
 
 
 def _v1_strip_type_hints(source_code: str) -> str:
-    """Strip type hints from source code.
+    """No-op replacement that preserves type hints in component source.
 
-    This function is modified from KFP.  The original source is below:
-    https://github.com/kubeflow/pipelines/blob/b6406b02f45cdb195c7b99e2f6d22bf85b12268b/sdk/python/kfp/components/_python_op.py#L237-L248.
+    Modified from KFP v1. Original source:
+    https://github.com/kubeflow/pipelines/blob/b6406b02f45cdb195c7b99e2f6d22bf85b12268b/sdk/python/kfp/components/_python_op.py#L237-L248
+
+    Args:
+        source_code: The source code string.
+
+    Returns:
+        The source code unchanged.
     """
     return source_code
 
@@ -222,66 +242,35 @@ _v1_create_component_from_func.__name__ = "create_component_from_func"
 _v1_strip_type_hints.__name__ = "strip_type_hints"
 
 
+# ---------------------------------------------------------------------------
+# v2 patch functions (delegated to _kfp_v2_patch module)
+# ---------------------------------------------------------------------------
+
+
 def _unpatch_kfp_v2() -> None:
+    """Remove v2 monkey-patches from kfp.dsl.component_factory."""
     unpatch("kfp.dsl.component_factory")
 
 
 def _patch_kfp_v2() -> None:
-    _orig_create = _component_factory.create_component_from_func
-    _orig_get_cmd = _component_factory._get_command_and_args_for_lightweight_component
+    """Apply v2 monkey-patches to kfp.dsl.component_factory."""
+    if _component_factory is None:
+        return
 
-    def _get_function_source_definition(func: Callable) -> str:
-        """Preserve ``@wandb_log`` decorator in serialized component source."""
-        func_code = inspect.getsource(func)
-        func_code = textwrap.dedent(func_code)
-        func_code_lines = func_code.split("\n")
+    from . import _kfp_v2_patch
 
-        func_code_lines = itertools.dropwhile(
-            lambda x: not (x.startswith("def") or x.startswith("@wandb_log")),
-            func_code_lines,
-        )
-
-        if not func_code_lines:
-            raise ValueError(
-                f"Failed to dedent and clean up the source of function "
-                f'"{func.__name__}". It is probably not properly indented.'
-            )
-
-        return "\n".join(func_code_lines)
-
-    def create_component_from_func(
-        func: Callable,
-        packages_to_install: list[str] | None = None,
-        **kwargs,
-    ) -> Callable:
-        """Auto-add ``wandb`` to *packages_to_install* for logged components."""
-        if getattr(func, "_wandb_logged", False):
-            packages_to_install = list(packages_to_install or [])
-            if not any(p.startswith("wandb") for p in packages_to_install):
-                packages_to_install.append("wandb")
-        return _orig_create(func, packages_to_install=packages_to_install, **kwargs)
-
-    def _get_command_and_args_for_lightweight_component(
-        func: Callable,
-        **kwargs,
-    ) -> tuple:
-        """Inject wandb decorator source into the component command."""
-        command, args = _orig_get_cmd(func, **kwargs)
-
-        if getattr(func, "_wandb_logged", False) and len(command) > 3:
-            source = command[3]
-            source = _wandb_logging_extras + "\n\n" + source
-            command = list(command)
-            command[3] = source
-
-        return command, args
+    _kfp_v2_patch._orig_create = _component_factory.create_component_from_func
+    _kfp_v2_patch._orig_get_cmd = (
+        _component_factory._get_command_and_args_for_lightweight_component
+    )
+    _kfp_v2_patch._wandb_logging_extras = _wandb_logging_extras
 
     to_patch = [
-        ("kfp.dsl.component_factory", _get_function_source_definition),
-        ("kfp.dsl.component_factory", create_component_from_func),
+        ("kfp.dsl.component_factory", _kfp_v2_patch.get_function_source_definition),
+        ("kfp.dsl.component_factory", _kfp_v2_patch.create_component_from_func),
         (
             "kfp.dsl.component_factory",
-            _get_command_and_args_for_lightweight_component,
+            _kfp_v2_patch.get_command_and_args_for_lightweight_component,
         ),
     ]
 
@@ -294,6 +283,11 @@ def _patch_kfp_v2() -> None:
             "Failed to patch one or more kfp v2 functions. "
             "@wandb_log may not work correctly with @dsl.component."
         )
+
+
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
 
 
 def unpatch_kfp() -> None:

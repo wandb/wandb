@@ -5,7 +5,7 @@ from functools import wraps
 from inspect import signature
 from typing import Any, Callable
 
-from kfp.dsl import Artifact as _KfpArtifact
+import kfp.dsl
 from kfp.dsl.types.type_annotations import (
     InputPath,
     OutputPath,
@@ -18,15 +18,25 @@ from wandb.sdk.lib import telemetry as wb_telemetry
 
 
 def _is_namedtuple(x: Any) -> bool:
-    """Return True if *x* is a ``NamedTuple`` instance.
+    """Return True if ``x`` is an instance of a NamedTuple.
 
-    Python has no common base class for named tuples created via
-    ``collections.namedtuple`` or ``typing.NamedTuple``.  The canonical
-    detection pattern checks that the type is a ``tuple`` subclass whose
-    ``_fields`` attribute is a tuple of strings.
+    Python does not provide a common base class for named tuples created
+    via ``collections.namedtuple`` or ``typing.NamedTuple``, so there is
+    no way to use ``isinstance``. Instead we check that the type is a
+    ``tuple`` subclass whose ``_fields`` attribute is a tuple of strings,
+    following the documented NamedTuple API:
+    https://docs.python.org/3/library/collections.html#collections.somenamedtuple._fields
 
-    KFP uses NamedTuples for multi-output components, so we need this to
-    log each output field separately.
+    KFP uses NamedTuples for multi-output components. The decorator sees
+    the actual return value at runtime and unpacks its fields for logging.
+    KFP's own executor processes type annotations separately for
+    serialization, so runtime value detection is the correct approach here.
+
+    Args:
+        x: The value to check.
+
+    Returns:
+        True if ``x`` is a NamedTuple instance.
     """
     t = type(x)
     if not issubclass(t, tuple):
@@ -37,24 +47,26 @@ def _is_namedtuple(x: Any) -> bool:
     return all(isinstance(n, str) for n in fields)
 
 
-def _is_kfp_artifact_value(value: Any) -> bool:
-    """Return True if *value* is a KFP v2 artifact instance."""
-    return isinstance(value, _KfpArtifact)
-
-
 def _is_output_annotation(ann: Any) -> bool:
-    """Return True if *ann* is a KFP ``Output[...]`` or ``OutputPath`` annotation."""
+    """Return True if ``ann`` is a KFP Output or OutputPath annotation."""
     return is_artifact_wrapped_in_Output(ann) or isinstance(ann, OutputPath)
 
 
 def _is_input_annotation(ann: Any) -> bool:
-    """Return True if *ann* is a KFP ``Input[...]`` or ``InputPath`` annotation."""
+    """Return True if ``ann`` is a KFP Input or InputPath annotation."""
     return is_artifact_wrapped_in_Input(ann) or isinstance(ann, InputPath)
 
 
 def _get_artifact_path(value: Any) -> str | None:
-    """Return the local file path for a KFP artifact value, or ``None``."""
-    if _is_kfp_artifact_value(value):
+    """Return the local file path for a KFP artifact value, or None.
+
+    Args:
+        value: A KFP artifact instance or a string file path.
+
+    Returns:
+        The local path if the artifact/file exists on disk, otherwise None.
+    """
+    if isinstance(value, kfp.dsl.Artifact):
         return value.path if os.path.exists(value.path) else None
     if isinstance(value, str) and os.path.exists(value):
         return value
@@ -62,13 +74,24 @@ def _get_artifact_path(value: Any) -> str | None:
 
 
 def _log_artifact(
-    run: wandb.sdk.wandb_run.Run,
+    run: wandb.Run,
     name: str,
     value: Any,
     *,
     use: bool = False,
 ) -> bool:
-    """Log or use a single artifact. Returns ``True`` on success."""
+    """Log or use a single artifact.
+
+    Args:
+        run: The active W&B run.
+        name: Artifact name.
+        value: A KFP artifact or string path.
+        use: If True, call ``run.use_artifact`` (for inputs); otherwise
+            call ``run.log_artifact`` (for outputs).
+
+    Returns:
+        True on success, False if the artifact path is missing.
+    """
     path = _get_artifact_path(value)
     if path is None:
         return False
@@ -83,74 +106,81 @@ def _log_artifact(
     return True
 
 
-def _classify_annotations(
-    func: Callable,
-) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], dict[str, Any]]:
-    """Split a function's annotations into scalar and artifact categories.
+class _KfpWandbLogger:
+    """Classifies a KFP component's annotations and logs I/O to W&B.
 
-    Returns:
-        A 4-tuple of ``(input_scalars, input_artifacts, output_scalars,
-        output_artifacts)`` where each element is a ``{name: annotation}``
-        mapping.
+    Inspects the function's type annotations at decoration time to
+    partition parameters into scalar inputs, artifact inputs, and
+    artifact outputs. Only parameter names are stored (annotation
+    values are not needed after classification).
+
+    Args:
+        func: The KFP component function to classify.
     """
-    scalars_in: dict[str, Any] = {}
-    artifacts_in: dict[str, Any] = {}
-    scalars_out: dict[str, Any] = {}
-    artifacts_out: dict[str, Any] = {}
-    for name, ann in func.__annotations__.items():
-        if name == "return":
-            scalars_out[name] = ann
-        elif _is_output_annotation(ann):
-            artifacts_out[name] = ann
-        elif _is_input_annotation(ann):
-            artifacts_in[name] = ann
-        else:
-            scalars_in[name] = ann
-    return scalars_in, artifacts_in, scalars_out, artifacts_out
 
+    def __init__(self, func: Callable) -> None:
+        self._scalars_in: set[str] = set()
+        self._artifacts_in: set[str] = set()
+        self._artifacts_out: set[str] = set()
+        for name, ann in func.__annotations__.items():
+            if name == "return":
+                continue
+            elif _is_output_annotation(ann):
+                self._artifacts_out.add(name)
+            elif _is_input_annotation(ann):
+                self._artifacts_in.add(name)
+            else:
+                self._scalars_in.add(name)
 
-def _log_inputs(
-    run: wandb.sdk.wandb_run.Run,
-    bound_args: dict[str, Any],
-    input_scalars: dict[str, Any],
-    input_artifacts: dict[str, Any],
-) -> None:
-    """Log scalar configs and input artifacts for a component invocation."""
-    for name in input_scalars:
-        if name in bound_args:
-            value = bound_args[name]
-            run.config[name] = value
-            wandb.termlog(f"Setting config: {name} to {value}")
+    def log_inputs(self, run: wandb.Run, bound_args: dict[str, Any]) -> None:
+        """Log scalar configs and input artifacts for a component invocation.
 
-    for name in input_artifacts:
-        if name in bound_args:
-            try:
-                _log_artifact(run, name, bound_args[name], use=True)
-            except Exception as e:
-                wandb.termwarn(f"Failed to log input artifact '{name}': {e}")
+        Args:
+            run: The active W&B run.
+            bound_args: Bound arguments from ``inspect.Signature.bind``.
+        """
+        for name in self._scalars_in:
+            if name in bound_args:
+                value = bound_args[name]
+                run.config[name] = value
+                wandb.termlog(f"Setting config: {name} to {value}")
 
+        for name in self._artifacts_in:
+            if name in bound_args:
+                try:
+                    _log_artifact(run, name, bound_args[name], use=True)
+                except Exception as e:
+                    wandb.termwarn(f"Failed to log input artifact '{name}': {e}")
 
-def _log_outputs(
-    run: wandb.sdk.wandb_run.Run,
-    func_name: str,
-    result: Any,
-    bound_args: dict[str, Any],
-    output_artifacts: dict[str, Any],
-) -> None:
-    """Log scalar results and output artifacts for a component invocation."""
-    if result is not None and not run._is_finished:
-        if _is_namedtuple(result):
-            for k, v in zip(result._fields, result):
-                run.log({f"{func_name}.{k}": v})
-        else:
-            run.log({func_name: result})
+    def log_outputs(
+        self,
+        run: wandb.Run,
+        func_name: str,
+        result: Any,
+        bound_args: dict[str, Any],
+    ) -> None:
+        """Log scalar results and output artifacts for a component invocation.
 
-    for name in output_artifacts:
-        if name in bound_args:
-            try:
-                _log_artifact(run, name, bound_args[name], use=False)
-            except Exception as e:
-                wandb.termwarn(f"Failed to log output artifact '{name}': {e}")
+        Args:
+            run: The active W&B run.
+            func_name: The component function's name (used as log key prefix).
+            result: The return value of the component function.
+            bound_args: Bound arguments from ``inspect.Signature.bind``.
+        """
+        if result is not None and not run._is_finished:
+            if _is_namedtuple(result):
+                run.log(
+                    {f"{func_name}.{k}": v for k, v in zip(result._fields, result)}
+                )
+            else:
+                run.log({func_name: result})
+
+        for name in self._artifacts_out:
+            if name in bound_args:
+                try:
+                    _log_artifact(run, name, bound_args[name], use=False)
+                except Exception as e:
+                    wandb.termwarn(f"Failed to log output artifact '{name}': {e}")
 
 
 def wandb_log(
@@ -158,27 +188,25 @@ def wandb_log(
 ) -> Callable:
     """Wrap a KFP v2 component function and log to W&B.
 
-    Compatible with ``kfp>=2.0.0``.  Automatically logs input parameters
-    to ``wandb.config`` and output scalars via ``wandb.log``.  Artifacts
+    Compatible with ``kfp>=2.0.0``. Automatically logs input parameters
+    to ``wandb.config`` and output scalars via ``wandb.log``. Artifacts
     annotated with KFP's ``Input`` / ``Output`` types are logged as W&B
     Artifacts.
 
-    Usage::
-
+    Example:
+        ```python
         from kfp import dsl
         from wandb.integration.kfp import wandb_log
-
 
         @dsl.component
         @wandb_log
         def add(a: float, b: float) -> float:
             return a + b
+        ```
     """
 
     def decorator(func: Callable) -> Callable:
-        input_scalars, input_artifacts, _, output_artifacts = _classify_annotations(
-            func
-        )
+        logger = _KfpWandbLogger(func)
         func_sig = signature(func)
 
         @wraps(func)
@@ -186,6 +214,9 @@ def wandb_log(
             bound = func_sig.bind(*args, **kwargs)
             bound.apply_defaults()
 
+            # WANDB_RUN_GROUP: standard W&B env var for grouping runs.
+            # KFP_RUN_NAME: set by the KFP orchestrator at container runtime.
+            # ARGO_WORKFLOW_NAME: set by Argo Workflows (KFP's execution backend).
             wandb_group = (
                 os.getenv("WANDB_RUN_GROUP")
                 or os.getenv("KFP_RUN_NAME")
@@ -199,20 +230,23 @@ def wandb_log(
                 if kubeflow_url:
                     run.config["LINK_TO_KUBEFLOW"] = kubeflow_url
 
-                _log_inputs(run, bound.arguments, input_scalars, input_artifacts)
+                logger.log_inputs(run, bound.arguments)
 
                 with wb_telemetry.context(run=run) as tel:
                     tel.feature.kfp_wandb_log = True
 
                 result = func(*bound.args, **bound.kwargs)
 
-                _log_outputs(
-                    run, func.__name__, result, bound.arguments, output_artifacts
-                )
+                logger.log_outputs(run, func.__name__, result, bound.arguments)
 
             return result
 
+        # Checked by kfp_patch.py to detect decorated functions for wandb
+        # package injection and decorator source serialization.
         wrapper._wandb_logged = True
+        # KFP's executor calls inspect.getfullargspec() to discover component
+        # parameters. Without this, the executor sees (*args, **kwargs) from
+        # the wrapper instead of the real function signature.
         wrapper.__signature__ = func_sig
         return wrapper
 
