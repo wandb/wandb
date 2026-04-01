@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import pathlib
+import shutil
 import subprocess
 from collections.abc import Mapping
 
@@ -78,6 +79,43 @@ def build_wandb_core(
             target_arch=target_arch,
         ),
     )
+
+    _strip_malformed_elf_sections(output_path, target_system)
+
+
+def _strip_malformed_elf_sections(
+    binary_path: pathlib.PurePath,
+    target_system: str,
+) -> None:
+    """Remove .gnu.version_r/.gnu.version sections from Go ELF binaries.
+
+    Go's internal linker writes these sections with sh_type=PROGBITS
+    instead of the correct SHT_GNU_verneed/SHT_GNU_versym. pyelftools
+    then returns a generic Section object (missing iter_versions()),
+    which crashes auditwheel during wheel repair. Since wandb-core is
+    statically linked (CGO_ENABLED=0), these sections are unused and
+    can be safely removed.
+    """
+    if target_system != "linux":
+        return
+
+    objcopy = shutil.which("objcopy")
+    if objcopy is None:
+        return
+
+    try:
+        subprocess.check_call(
+            [
+                objcopy,
+                "--remove-section",
+                ".gnu.version_r",
+                "--remove-section",
+                ".gnu.version",
+                str(binary_path),
+            ],
+        )
+    except subprocess.CalledProcessError:
+        pass
 
 
 def _go_linker_flags(wandb_commit_sha: str | None) -> str:
