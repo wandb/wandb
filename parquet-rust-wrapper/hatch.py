@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import pathlib
-import platform
 import subprocess
 
 
@@ -33,12 +32,11 @@ def build_arrow_rs_wrapper(
     """
     arrow_rs_wrapper_dir = pathlib.Path(__file__).parent
 
-    # Determine the library name based on target system
     if target_system == "windows":
         lib_name = "arrow_rs_wrapper.dll"
     elif target_system == "darwin":
         lib_name = "libarrow_rs_wrapper.dylib"
-    else:  # linux or None (default to .so)
+    else:
         lib_name = "libarrow_rs_wrapper.so"
 
     cmd = [
@@ -49,14 +47,6 @@ def build_arrow_rs_wrapper(
         "--manifest-path",
         str(arrow_rs_wrapper_dir / "Cargo.toml"),
     ]
-
-    # Only pass --target for actual cross-compilation. Passing it for
-    # native builds forces Rust into cross-compilation mode, which fails
-    # in manylinux containers that lack cross-compilation sysroots.
-    if target_system and target_arch:
-        target_triple = _get_rust_target_triple(target_system, target_arch)
-        if target_triple and not _is_native_target(target_triple):
-            cmd.extend(["--target", target_triple])
 
     try:
         cargo_output = subprocess.check_output(cmd, cwd=arrow_rs_wrapper_dir)
@@ -107,33 +97,3 @@ def _get_library_path(cargo_output: bytes, lib_name: str) -> pathlib.Path:
         f"Failed to find the `arrow-rs-wrapper` library ({lib_name}). `cargo build` output:\n"
         + cargo_output.decode("utf-8", errors="replace"),
     )
-
-
-def _get_rust_target_triple(target_system: str, target_arch: str) -> str | None:
-    """Convert Go-style OS/arch to Rust target triple."""
-    # Map of (goos, goarch) -> Rust target triple
-    target_map = {
-        ("darwin", "amd64"): "x86_64-apple-darwin",
-        ("darwin", "arm64"): "aarch64-apple-darwin",
-        ("linux", "amd64"): "x86_64-unknown-linux-gnu",
-        ("linux", "arm64"): "aarch64-unknown-linux-gnu",
-        ("windows", "amd64"): "x86_64-pc-windows-msvc",
-        ("windows", "arm64"): "aarch64-pc-windows-msvc",
-    }
-
-    return target_map.get((target_system, target_arch))
-
-
-def _is_native_target(target_triple: str) -> bool:
-    """Check if the Rust target triple matches the current host platform."""
-    host_os = platform.system().lower()
-    host_arch = platform.machine().lower()
-
-    native_triples = {
-        ("linux", "x86_64"): "x86_64-unknown-linux-gnu",
-        ("linux", "aarch64"): "aarch64-unknown-linux-gnu",
-        ("darwin", "x86_64"): "x86_64-apple-darwin",
-        ("darwin", "arm64"): "aarch64-apple-darwin",
-    }
-
-    return native_triples.get((host_os, host_arch)) == target_triple
