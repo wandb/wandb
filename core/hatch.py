@@ -80,54 +80,43 @@ def build_wandb_core(
         ),
     )
 
-    _strip_dynamic_elf_metadata(output_path, target_system)
+    if not with_cgo:
+        _strip_dynamic_elf_metadata(output_path, target_system)
 
 
 def _strip_dynamic_elf_metadata(
     binary_path: pathlib.PurePath,
     target_system: str,
 ) -> None:
-    """Fix Go ELF metadata that breaks auditwheel.
+    """Fix Go ELF metadata that breaks auditwheel on manylinux.
 
-    Go's internal linker produces binaries with two problems even
-    when CGO_ENABLED=0 (fully static, no libc calls at runtime):
+    Go's internal linker (CGO_ENABLED=0) writes .gnu.version_r and
+    .gnu.version with sh_type=PROGBITS instead of the correct
+    SHT_GNU_verneed/SHT_GNU_versym, crashing pyelftools'
+    iter_versions() during auditwheel repair.
 
-    1. .gnu.version_r has sh_type=PROGBITS instead of SHT_GNU_verneed,
-       crashing pyelftools' iter_versions() during auditwheel repair.
-    2. .dynamic lists libc.so.6 as DT_NEEDED, which conflicts with
-       musl libc on musllinux containers.
-
-    Fix 1 uses objcopy to remove the malformed version sections.
-    Fix 2 uses patchelf to remove the vestigial libc.so.6 dependency.
+    This is only called for non-CGO builds since it uses Go's internal linker.
     """
     if target_system != "linux":
         return
 
-    patchelf = shutil.which("patchelf")
-    if patchelf is not None:
-        for lib in ("libc.so.6", "libdl.so.2", "libpthread.so.0"):
-            try:
-                subprocess.check_call(
-                    [patchelf, "--remove-needed", lib, str(binary_path)],
-                )
-            except subprocess.CalledProcessError:
-                pass
-
     objcopy = shutil.which("objcopy")
-    if objcopy is not None:
-        try:
-            subprocess.check_call(
-                [
-                    objcopy,
-                    "--remove-section",
-                    ".gnu.version_r",
-                    "--remove-section",
-                    ".gnu.version",
-                    str(binary_path),
-                ],
-            )
-        except subprocess.CalledProcessError:
-            pass
+    if objcopy is None:
+        return
+
+    try:
+        subprocess.check_call(
+            [
+                objcopy,
+                "--remove-section",
+                ".gnu.version_r",
+                "--remove-section",
+                ".gnu.version",
+                str(binary_path),
+            ],
+        )
+    except subprocess.CalledProcessError:
+        pass
 
 
 def _go_linker_flags(wandb_commit_sha: str | None) -> str:
