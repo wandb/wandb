@@ -2030,7 +2030,7 @@ def agent(ctx, project, entity, count, forward_signals, sweep_id):
     is stopped, cancelled, or the `--count` limit is reached.
 
     Find the sweep ID within the Sweeps tab in the W&B App
-    or in the output of the `wandb sweep` command when you create a new sweep.    
+    or in the output of the `wandb sweep` command when you create a new sweep.
 
     The sweep ID can include the entity and project path
     (entity/project/sweep_id) or the eight character sweep ID.
@@ -3179,7 +3179,7 @@ def restore(ctx, run, no_git, branch, project, entity):
 
     Recreate the environment of a previous run so you can reproduce it.
     Requires authentication with W&B.
-    
+
     Restore up to three pieces of state, depending on what the original
     run recorded:
 
