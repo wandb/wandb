@@ -18,14 +18,12 @@ try:
 except (ImportError, ValueError):
     _KFP_V2 = False
 
-# ---------------------------------------------------------------------------
 # Build _wandb_logging_extras: the decorator source injected into KFP
 # container scripts at compile time.  Both v1 and v2 follow the same
 # pattern: an import preamble + the serialized decorator code.
-# ---------------------------------------------------------------------------
 
+_log_module = None
 _import_preamble = ""
-_decorator_code = ""
 _component_factory = None
 
 if _KFP_V2:
@@ -39,7 +37,6 @@ if _KFP_V2:
     else:
         from . import wandb_log_v2 as _log_module
 
-        _decorator_code = inspect.getsource(_log_module.wandb_log)
         _import_preamble = """\
 import os
 import typing
@@ -67,7 +64,6 @@ else:
     try:
         from . import wandb_log_v1 as _log_module
 
-        _decorator_code = inspect.getsource(_log_module.wandb_log)
         _import_preamble = """\
 import typing
 from typing import NamedTuple
@@ -83,6 +79,7 @@ import wandb"""
     except ImportError:
         pass
 
+_decorator_code = inspect.getsource(_log_module.wandb_log) if _log_module else ""
 _wandb_logging_extras = (
     f"{_import_preamble}\n\n{_decorator_code}\n" if _decorator_code else ""
 )

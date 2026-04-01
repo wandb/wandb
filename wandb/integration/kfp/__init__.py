@@ -2,34 +2,35 @@ from __future__ import annotations
 
 __all__ = ["wandb_log", "unpatch_kfp"]
 
-from typing import Any, Callable, ParamSpec, TypeVar, overload
+from typing import TYPE_CHECKING, Any, Callable
 
 from .kfp_patch import patch_kfp, unpatch_kfp
 
+if TYPE_CHECKING:
+    from typing import ParamSpec, TypeVar, overload
+
+    _P = ParamSpec("_P")
+    _T = TypeVar("_T")
+
+    @overload
+    def wandb_log(func: Callable[_P, _T]) -> Callable[_P, _T]: ...
+
+    @overload
+    def wandb_log(**kwargs: Any) -> Callable[[Callable[_P, _T]], Callable[_P, _T]]: ...
+
 try:
     from kfp import __version__ as _kfp_version
-    from packaging.version import parse as _parse_version
+    from packaging.version import parse
 
-    _KFP_V2 = _parse_version(_kfp_version) >= _parse_version("2.0.0")
+    _KFP_V2 = parse(_kfp_version) >= parse("2.0.0")
 except (ImportError, ValueError):
     _KFP_V2 = False
 
-_P = ParamSpec("_P")
-_T = TypeVar("_T")
-
-
-@overload
-def wandb_log(func: Callable[_P, _T]) -> Callable[_P, _T]: ...
-
-
-@overload
-def wandb_log(**kwargs: Any) -> Callable[[Callable[_P, _T]], Callable[_P, _T]]: ...
-
 
 def wandb_log(
-    func: Callable[_P, _T] | None = None,
+    func: Callable | None = None,
     **kwargs: Any,
-) -> Callable[_P, _T] | Callable[[Callable[_P, _T]], Callable[_P, _T]]:
+) -> Callable:
     """Decorator that wraps a KFP component function and logs to W&B.
 
     Automatically detects the installed KFP version and delegates to the
@@ -53,11 +54,11 @@ def wandb_log(
         ```
     """
     if _KFP_V2:
-        from .wandb_log_v2 import wandb_log as _impl
+        from .wandb_log_v2 import wandb_log
     else:
-        from .wandb_log_v1 import wandb_log as _impl
+        from .wandb_log_v1 import wandb_log
 
-    return _impl(func, **kwargs)
+    return wandb_log(func, **kwargs)
 
 
 patch_kfp()
