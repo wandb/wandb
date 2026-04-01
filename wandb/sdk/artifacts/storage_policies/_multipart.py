@@ -290,8 +290,10 @@ def multipart_download(
             # Cancel any pending futures.  Note:
             # - `Future.cancel()` does NOT stop the future if it's running, which is why
             #   there's a separate `threading.Event` to ensure cooperative cancellation.
-            # - Once Python 3.8 support is dropped, replace these `fut.cancel()`
-            #   calls with `Executor.shutdown(cancel_futures=True)`.
+            # - Note: Though Python 3.8 support is dropped, we are not replacing
+            #   these `fut.cancel()` calls with `Executor.shutdown(cancel_futures=True)`
+            #   because this executor is shared across files. If we ever stop sharing
+            #   the executor, we can make this change.
             for fut in not_done:
                 fut.cancel()
             raise
