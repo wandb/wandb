@@ -219,12 +219,11 @@ def sync(
     PATHS can include .wandb files, run directories containing .wandb files,
     and "wandb" directories containing run directories.
 
-    Examples:
-    Sync all runs in the current .wandb directory:
+    For example, to sync all runs in the current .wandb directory:
 
         $ wandb beta sync ./wandb
 
-    Sync a specific run by specifying the run directory:
+    To sync a specific run by specifying the run directory:
 
         $ wandb beta sync ./wandb/run-20250813_124246-n67z9ude
 
