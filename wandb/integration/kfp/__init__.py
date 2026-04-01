@@ -18,6 +18,7 @@ if TYPE_CHECKING:
     @overload
     def wandb_log(**kwargs: Any) -> Callable[[Callable[_P, _T]], Callable[_P, _T]]: ...
 
+
 try:
     from kfp import __version__ as _kfp_version
     from packaging.version import parse
