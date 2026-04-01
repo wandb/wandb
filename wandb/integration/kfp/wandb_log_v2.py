@@ -169,9 +169,7 @@ class _KfpWandbLogger:
         """
         if result is not None and not run._is_finished:
             if _is_namedtuple(result):
-                run.log(
-                    {f"{func_name}.{k}": v for k, v in zip(result._fields, result)}
-                )
+                run.log({f"{func_name}.{k}": v for k, v in zip(result._fields, result)})
             else:
                 run.log({func_name: result})
 
@@ -197,6 +195,7 @@ def wandb_log(
         ```python
         from kfp import dsl
         from wandb.integration.kfp import wandb_log
+
 
         @dsl.component
         @wandb_log

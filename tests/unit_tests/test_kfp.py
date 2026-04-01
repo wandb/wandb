@@ -164,9 +164,7 @@ def test_namedtuple_output_logged(mock_init):
     result = compute(a=3.0, b=4.0)
     assert result.sum == 7.0
     assert result.product == 12.0
-    mock_run.log.assert_called_once_with(
-        {"compute.sum": 7.0, "compute.product": 12.0}
-    )
+    mock_run.log.assert_called_once_with({"compute.sum": 7.0, "compute.product": 12.0})
 
 
 @patch("wandb.init")
