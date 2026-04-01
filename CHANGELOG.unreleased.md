@@ -28,6 +28,8 @@ This version drops compatibility with server versions older than 0.63.0 (for Ded
 - Bucketed heatmap chart mode for system metrics expressed as percentages (e.g. GPU utilization) in W&B LEET TUI (`wandb beta leet` command, cycle chart mode on a selected chart with `y`) (@dmitryduev in https://github.com/wandb/wandb/pull/11568 and https://github.com/wandb/wandb/pull/11607)
 - Colorblind-friendly `dusk-shore` (gradient) and `clear-signal` (cycle) color schemes in W&B LEET TUI (`wandb beta leet` command, configure with `wandb beta leet config`) (@dmitryduev in https://github.com/wandb/wandb/pull/11578)
 - `disable_git_fork_point` to prevent calculating git diff patch files closest ancestor commit when no upstream branch is set (@jacobromero in https://github.com/wandb/wandb/pull/10132)
+- Media pane for displaying `wandb.Image` data as ANSI thumbnails in W&B LEET TUI (`wandb beta leet` command), with grid layout, X-axis scrubbing, fullscreen mode, and keyboard/mouse navigation (@dmitryduev in
+  https://github.com/wandb/wandb/pull/11630)
 
 ### Changed
 
@@ -37,5 +39,6 @@ This version drops compatibility with server versions older than 0.63.0 (for Ded
 
 ### Fixed
 
+- Fixed `update_automation()` silently dropping event filters (e.g. alias conditions on `OnAddArtifactAlias`) when a new event is provided (@matthoare117-wandb in https://github.com/wandb/wandb/pull/11613)
 - Fixed artifact client ID collisions in forked child processes by reseeding the fast ID generator after `fork()` (@tonyyli-wandb in https://github.com/wandb/wandb/pull/11491)
 - Fixed `WANDB__EXTRA_HTTP_HEADERS` not being applied to presigned object-store upload and download requests (@pingleiwandb in https://github.com/wandb/wandb/pull/11620)

@@ -6,6 +6,7 @@ from unittest.mock import MagicMock
 import pytest
 from wandb.errors import CommError
 from wandb.sdk.launch.agent.agent import (
+    _DEFAULT_BASE_IMAGE,
     InternalAgentLogger,
     JobAndRunStatusTracker,
     LaunchAgent,
@@ -761,3 +762,91 @@ async def test_run_job_api_key_redaction(mocker):
 
     assert "<redacted>" in log_message
     assert "test_api_key" not in log_message
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "job_source_type,resource_args_build,use_noop,expected_image,expect_auto_default",
+    [
+        # NoOpBuilder + artifact/repo source → assign default base image, set auto_default
+        ("artifact", {}, True, _DEFAULT_BASE_IMAGE, True),
+        ("artifact", {"base_image": "custom:latest"}, True, "custom:latest", True),
+        ("repo", {}, True, _DEFAULT_BASE_IMAGE, True),
+        # NoOpBuilder + unknown source → falls through to builder.build_image
+        ("other", {}, True, "built-image", False),
+        # Real builder → always calls builder.build_image regardless of source type
+        ("artifact", {}, False, "built-image", False),
+    ],
+    ids=[
+        "noop-artifact-default-image",
+        "noop-artifact-custom-image",
+        "noop-repo-default-image",
+        "noop-unknown-source-calls-builder",
+        "real-builder-calls-build-image",
+    ],
+)
+async def test_base_image_resolution(
+    mocker,
+    clean_agent,
+    job_source_type,
+    resource_args_build,
+    use_noop,
+    expected_image,
+    expect_auto_default,
+):
+    """Test that _task_run_job correctly resolves image_uri when no docker/base image is set."""
+    _setup(mocker)
+    from wandb.sdk.launch.builder.noop import NoOpBuilder
+
+    mock_project = MagicMock()
+    mock_project.docker_image = None
+    mock_project.job_base_image = None
+    mock_project.job_source_type = job_source_type
+    mock_project._resource_args_build = resource_args_build
+    mock_project.run_id = "test-run-id"
+    mock_project.sweep_id = None
+
+    mocker.patch(
+        "wandb.sdk.launch.agent.agent.LaunchProject.from_spec",
+        return_value=mock_project,
+    )
+
+    mock_build_image = AsyncMock(return_value="built-image")
+    if use_noop:
+        mock_builder = NoOpBuilder({}, MagicMock(), MagicMock())
+        mock_builder.build_image = mock_build_image
+    else:
+        mock_builder = MagicMock()
+        mock_builder.build_image = mock_build_image
+
+    mocker.patch(
+        "wandb.sdk.launch.agent.agent.loader.builder_from_config",
+        return_value=mock_builder,
+    )
+    # Return None to short-circuit the polling loop ("if not run: return")
+    mocker.runner.run = AsyncMock(return_value=None)
+
+    job_tracker = JobAndRunStatusTracker("rqi", "test-queue", MagicMock())
+    agent = LaunchAgent(api=mocker.api, config={"entity": "e", "project": "p"})
+
+    await agent._task_run_job(
+        {"entity": "e", "project": "p", "resource": "kubernetes"},
+        {"runQueueItemId": "rqi"},
+        {},
+        mocker.api,
+        threading.current_thread().ident,
+        job_tracker,
+    )
+
+    mocker.runner.run.assert_called_once_with(mock_project, expected_image)
+
+    if expect_auto_default:
+        mock_project.set_job_base_image.assert_called_once_with(expected_image)
+        assert mock_project._auto_default_base_image is True
+        assert any(
+            expected_image in str(call) for call in mocker.termwarn.call_args_list
+        )
+        mock_build_image.assert_not_called()
+    else:
+        mock_project.set_job_base_image.assert_not_called()
+        mock_build_image.assert_called_once()

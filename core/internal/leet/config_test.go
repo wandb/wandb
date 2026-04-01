@@ -15,11 +15,12 @@ func TestConfigHotkeys_UpdateGridDimensions(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 
-	var m tea.Model = leet.NewRun("dummy", cfg, logger)
+	run := leet.NewRun("dummy", cfg, logger)
+	var m tea.Model = run
 	// Ensure model is sized so internal recomputations run.
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
 
-	// metrics rows: 'r' then '5'
+	// metrics rows: 'r' then '5' (default focus = metrics grid)
 	m, _ = m.Update(tea.KeyPressMsg{Code: 'r'})
 	m, _ = m.Update(tea.KeyPressMsg{Code: '5'})
 	gridRows, _ := cfg.MetricsGrid()
@@ -31,14 +32,17 @@ func TestConfigHotkeys_UpdateGridDimensions(t *testing.T) {
 	_, gridCols := cfg.MetricsGrid()
 	require.Equal(t, gridCols, 4)
 
-	// system rows: 'R' then '2'
-	m, _ = m.Update(tea.KeyPressMsg{Code: 'R'})
+	// Focus system metrics, then use universal 'r'/'c' to configure system grid.
+	run.TestSetFocusTarget(int(leet.FocusTargetSystemMetrics))
+
+	// system rows: 'r' then '2'
+	m, _ = m.Update(tea.KeyPressMsg{Code: 'r'})
 	m, _ = m.Update(tea.KeyPressMsg{Code: '2'})
 	gridRows, _ = cfg.SystemGrid()
 	require.Equal(t, gridRows, 2)
 
-	// system cols: 'C' then '3'
-	m, _ = m.Update(tea.KeyPressMsg{Code: 'C'})
+	// system cols: 'c' then '3'
+	m, _ = m.Update(tea.KeyPressMsg{Code: 'c'})
 	_, _ = m.Update(tea.KeyPressMsg{Code: '3'})
 	_, gridCols = cfg.SystemGrid()
 	require.Equal(t, gridCols, 3)

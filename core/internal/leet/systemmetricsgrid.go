@@ -302,6 +302,25 @@ func (g *SystemMetricsGrid) setFocus(row, col int) bool {
 	return true
 }
 
+// NavigateFocus moves chart focus by (dr, dc) within the current page.
+// Returns true if navigation occurred.
+func (g *SystemMetricsGrid) NavigateFocus(dr, dc int) bool {
+	size := g.effectiveGridSize()
+	if size.Rows == 0 || size.Cols == 0 || len(g.currentPage) == 0 {
+		return false
+	}
+
+	row, col := g.focus.Row, g.focus.Col
+	if row < 0 || col < 0 {
+		row, col = 0, 0
+	}
+
+	row = clamp(row+dr, 0, size.Rows-1)
+	col = clamp(col+dc, 0, size.Cols-1)
+
+	return g.setFocus(row, col)
+}
+
 // ClearFocus removes focus from all charts.
 func (g *SystemMetricsGrid) ClearFocus() {
 	if g.focus.Type == FocusSystemChart {
