@@ -309,11 +309,14 @@ def login(key, host, cloud, relogin, anonymously, verify, no_offline=False):
     If no API key is provided as an argument, the command looks for
     credentials in the following order:
 
-    1. The WANDB_API_KEY environment variable
-    2. The api_key setting in a system or workspace settings file (use
-        `wandb status` to see which settings file is used)
-    3. The .netrc file (~/.netrc, ~/_netrc, or the NETRC env var path)
-    4. An interactive prompt (if a TTY is available)
+        1. The WANDB_API_KEY environment variable
+
+        2. The api_key setting in a system or workspace settings file (use
+            `wandb status` to see which settings file is used)
+
+        3. The .netrc file (~/.netrc, ~/_netrc, or the NETRC env var path)
+
+        4. An interactive prompt (if a TTY is available)
 
     For self-hosted or dedicated cloud deployments, specify the server
     URL with `--host`, or set the WANDB_BASE_URL environment variable.
@@ -2026,13 +2029,11 @@ def agent(ctx, project, entity, count, forward_signals, sweep_id):
     The agent exits when the sweep completes, the sweep
     is stopped, cancelled, or the `--count` limit is reached.
 
-    \b
-    Find the sweep ID in:
-    - The W&B App at https://wandb.ai/entity/project/sweeps.
-    - The output of the `wandb sweep` command when you create a new sweep.
+    Find the sweep ID within the Sweeps tab in the W&B App
+    or in the output of the `wandb sweep` command when you create a new sweep.    
 
     The sweep ID can include the entity and project path
-    (entity/project/sweep_id) or the eight character sweep ID alone.
+    (entity/project/sweep_id) or the eight character sweep ID.
 
     For example, to start an agent for a sweep with a sweep ID of wbyz9876:
 
@@ -2420,13 +2421,13 @@ def controller(verbose, sweep_id):
 def docker_run(ctx, docker_run_args):
     """Wrap `docker run` and inject W&B environment variables automatically.
 
-    \b
     Pass all arguments through to `docker run` while injecting:
-    - WANDB_API_KEY: Inject the current API key if logged in so
-      the container can authenticate with W&B.
-    - WANDB_DOCKER: Inject the resolved image ID if the image can
-      be detected from the arguments so W&B can track which Docker
-      image produced the run.
+
+        - WANDB_API_KEY: Inject the current API key if logged in so the
+        container can authenticate with W&B.
+
+        - WANDB_DOCKER: Inject the resolved image ID if the image can be detected
+        from the arguments so W&B can track which Docker image produced the run.
 
     Add `--runtime nvidia` automatically if `nvidia-docker` is detected
     on the host and `--runtime` is not already set.
@@ -3178,29 +3179,27 @@ def restore(ctx, run, no_git, branch, project, entity):
 
     Recreate the environment of a previous run so you can reproduce it.
     Requires authentication with W&B.
-
-    \b
+    
     Restore up to three pieces of state, depending on what the original
     run recorded:
-    1. Config (always): Write the run config to wandb/config.yaml.
-    2. Git (if available): Check out the original commit on a new
-       wandb/run_id branch. Fetch and apply any saved diff patch.
-       If the original commit cannot be found,
-       fall back to an upstream commit if the original cannot be found.
-       Run this command from the same git repository as the original run. Skip
-       this step with `--no-git`.
-    3. Docker (if available): If the run was executed inside a Docker
-       container, start the same image with the original command.
+
+        1. Config (always): Write the run config to wandb/config.yaml.
+
+        2. Git (if available): Check out the original commit on a new
+        wandb/run_id branch. Fetch and apply any saved diff patch.
+        If the original commit cannot be found,
+        fall back to an upstream commit if the original cannot be found.
+        Run this command from the same git repository as the original run. Skip
+        this step with `--no-git`.
+
+        3. Docker (if available): If the run was executed inside a Docker
+        container, start the same image with the original command.
 
     If the run has no git history and no Docker image,
     restore only the config.
 
-    \b
     Accept the run identifier in any of the following formats:
-    - run_id
-    - project:run_id
-    - entity/project:run_id
-    - entity/project/run_id
+    run_id, project:run_id, entity/project:run_id, or entity/project/run_id .
 
     For example, to restore a run with run ID  in the default project
     (stored as the WANDB_PROJECT environment variable) and entity
