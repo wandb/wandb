@@ -3,7 +3,7 @@ LABEL maintainer='Weights & Biases <support@wandb.com>'
 
 ARG TARGETARCH
 
-RUN apk add --no-cache python3 git py3-pip gcc python3-dev curl
+RUN apk add --no-cache python3 git py3-pip gcc python3-dev curl openssl-dev pkgconf
 
 ARG GO_VERSION=1.26.1
 RUN if [ "$TARGETARCH" = "amd64" ]; then \

@@ -55,6 +55,8 @@ DEFAULT_STOPPED_RUN_TIMEOUT = 60
 DEFAULT_PRINT_INTERVAL = 5 * 60
 VERBOSE_PRINT_INTERVAL = 20
 
+_DEFAULT_BASE_IMAGE = "python:3.12-slim"
+
 _env_timeout = os.environ.get("WANDB_LAUNCH_START_TIMEOUT")
 if _env_timeout:
     try:
@@ -719,13 +721,34 @@ class LaunchAgent:
             resource, api, backend_config, environment, registry
         )
 
+        # TODO (nicholaspun-wandb): Refactor Builder/Runner to remove isinstance checks.
         if not (
             project.docker_image
             or project.job_base_image
             or isinstance(backend, LocalProcessRunner)
         ):
-            assert entrypoint is not None
-            image_uri = await builder.build_image(project, entrypoint, job_tracker)
+            # If no builder is configured and the job has source code,
+            # use a default base image with the emptyDir init container
+            # approach instead of failing.
+            from wandb.sdk.launch.builder.noop import NoOpBuilder
+
+            if isinstance(builder, NoOpBuilder) and project.job_source_type in (
+                "artifact",
+                "repo",
+            ):
+                base_image = (
+                    project._resource_args_build.get("base_image")
+                    or _DEFAULT_BASE_IMAGE
+                )
+                wandb.termwarn(
+                    f"{LOG_PREFIX}No builder configured. Using base image: {base_image}"
+                )
+                project.set_job_base_image(base_image)
+                project._auto_default_base_image = True
+                image_uri = base_image
+            else:
+                assert entrypoint is not None
+                image_uri = await builder.build_image(project, entrypoint, job_tracker)
 
         self._internal_logger.info("Backend loaded...")
         if isinstance(backend, LocalProcessRunner):
