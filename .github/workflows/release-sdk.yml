@@ -97,6 +97,7 @@ jobs:
         env:
           CIBW_ARCHS_LINUX: aarch64
           CIBW_BEFORE_ALL_LINUX: >
+            (apk add binutils 2>/dev/null || true) &&
             export DOWNLOAD_GOVERSION=$( grep '^go' core/go.mod | cut -d' ' -f2 ) &&
             curl -L https://golang.org/dl/go$DOWNLOAD_GOVERSION.linux-arm64.tar.gz > go.tar.gz &&
             tar -C /usr/local/ -xzf go.tar.gz &&
@@ -165,6 +166,7 @@ jobs:
 
           # Install Go and Rust for Linux amd64
           CIBW_BEFORE_ALL_LINUX: >
+            (apk add binutils 2>/dev/null || true) &&
             export DOWNLOAD_GOVERSION=$( grep '^go' core/go.mod | cut -d' ' -f2 ) &&
             curl -L https://golang.org/dl/go$DOWNLOAD_GOVERSION.linux-amd64.tar.gz > go.tar.gz &&
             tar -C /usr/local/ -xzf go.tar.gz &&
