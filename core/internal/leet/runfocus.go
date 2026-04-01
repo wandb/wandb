@@ -1,155 +1,160 @@
 package leet
 
-// runFocusRegion identifies a focusable UI region in the single-run view.
+// buildRunFocusManager constructs the FocusManager for the single-run view.
 //
-// This mirrors the workspace's focusRegion enum but only covers the two
-// regions available in single-run mode: the overview sidebar and the
-// console logs bottom bar.
-type runFocusRegion int
-
-const (
-	runFocusNone runFocusRegion = iota
-	runFocusOverview
-	runFocusLogs
-)
-
-// runFocusOrder defines the Tab-cycling order across single-run regions.
-var runFocusOrder = []runFocusRegion{runFocusOverview, runFocusLogs}
-
-// currentRunFocusRegion returns which focusable region currently holds focus.
-func (r *Run) currentRunFocusRegion() runFocusRegion {
-	switch {
-	case r.consoleLogsPane.Active():
-		return runFocusLogs
-	case r.leftSidebar.hasActiveSection():
-		return runFocusOverview
-	default:
-		return runFocusNone
-	}
+// Called once from NewRun after all UI components are initialized. The closures
+// capture the *Run pointer so availability checks always reflect live state.
+func (r *Run) buildRunFocusManager() *FocusManager {
+	return NewFocusManager([]FocusRegionDef{
+		{
+			Target:          FocusTargetOverview,
+			Available:       r.overviewFocusAvailable,
+			AvailableTarget: r.overviewFocusTargetAvailable,
+			Activate:        r.activateOverviewFocus,
+			Deactivate:      r.deactivateOverviewFocus,
+		},
+		{
+			Target:          FocusTargetMetricsGrid,
+			Available:       r.metricsGridFocusAvailable,
+			AvailableTarget: r.metricsGridFocusTargetAvailable,
+			Activate:        r.activateMetricsGridFocus,
+			Deactivate:      r.deactivateMetricsGridFocus,
+		},
+		{
+			Target:          FocusTargetSystemMetrics,
+			Available:       r.systemMetricsFocusAvailable,
+			AvailableTarget: r.systemMetricsFocusTargetAvailable,
+			Activate:        r.activateSystemMetricsFocus,
+			Deactivate:      r.deactivateSystemMetricsFocus,
+		},
+		{
+			Target:          FocusTargetMedia,
+			Available:       r.mediaFocusAvailable,
+			AvailableTarget: r.mediaFocusTargetAvailable,
+			Activate:        r.activateMediaFocus,
+			Deactivate:      r.deactivateMediaFocus,
+		},
+		{
+			Target:          FocusTargetConsoleLogs,
+			Available:       r.logsFocusAvailable,
+			AvailableTarget: r.logsFocusTargetAvailable,
+			Activate:        r.activateLogsFocus,
+			Deactivate:      r.deactivateLogsFocus,
+		},
+	})
 }
 
-// runRegionAvailability returns which regions are currently focusable.
-func (r *Run) runRegionAvailability() (overview, logs bool) {
+// ---- Availability ----
+
+func (r *Run) overviewFocusAvailable() bool {
 	firstSec, _ := r.leftSidebar.focusableSectionBounds()
-	overview = r.leftSidebar.animState.IsExpanded() && firstSec != -1
-	logs = r.consoleLogsPane.IsExpanded()
-	return overview, logs
+	return r.leftSidebar.animState.IsExpanded() && firstSec != -1
 }
 
-func runFocusRegionAvailable(region runFocusRegion, overviewAvail, logsAvail bool) bool {
-	switch region {
-	case runFocusOverview:
-		return overviewAvail
-	case runFocusLogs:
-		return logsAvail
-	default:
-		return false
-	}
-}
-
-func indexRunFocusRegion(order []runFocusRegion, region runFocusRegion) int {
-	for i, v := range order {
-		if v == region {
-			return i
-		}
-	}
-	return -1
-}
-
-// resolveRunFocusAfterVisibilityChange ensures focus stays on a valid region
-// after a panel visibility change. It mirrors Workspace.resolveFocusAfterVisibilityChange
-// but is specialized for the single-run view (overview + logs).
-func (r *Run) resolveRunFocusAfterVisibilityChange(overviewVisible, logsVisible bool) {
-	cur := r.currentRunFocusRegion()
-
+func (r *Run) overviewFocusTargetAvailable() bool {
 	firstSec, _ := r.leftSidebar.focusableSectionBounds()
-	overviewAvail := overviewVisible && firstSec != -1
-	logsAvail := logsVisible
-	if runFocusRegionAvailable(cur, overviewAvail, logsAvail) {
-		return
-	}
-
-	n := len(runFocusOrder)
-	if n == 0 {
-		r.clearAllRunFocus()
-		return
-	}
-
-	// If nothing is focused, start from the beginning of the focus order.
-	// Using -1 means step=1 evaluates index 0 first.
-	curIdx := indexRunFocusRegion(runFocusOrder, cur)
-
-	// Current region is being collapsed — find the next available one.
-	for step := 1; step <= n; step++ {
-		next := runFocusOrder[(curIdx+step)%n]
-		if runFocusRegionAvailable(next, overviewAvail, logsAvail) {
-			r.setRunFocusRegion(next, 1)
-			return
-		}
-	}
-
-	// Nothing available — clear focus.
-	r.clearAllRunFocus()
+	return r.leftSidebar.animState.TargetVisible() && firstSec != -1
 }
 
-// cycleRunFocusRegion cycles focus among available regions in the given direction.
-func (r *Run) cycleRunFocusRegion(cur runFocusRegion, direction int) {
-	overviewAvail, logsAvail := r.runRegionAvailability()
+func (r *Run) metricsGridFocusAvailable() bool {
+	return r.metricsGridAnimState.IsExpanded() && r.metricsGrid.ChartCount() > 0
+}
 
-	// Find current index in order.
-	n := len(runFocusOrder)
-	if n == 0 {
-		return
-	}
+func (r *Run) metricsGridFocusTargetAvailable() bool {
+	return r.metricsGridAnimState.TargetVisible() && r.metricsGrid.ChartCount() > 0
+}
 
-	curIdx := indexRunFocusRegion(runFocusOrder, cur)
-	if curIdx == -1 {
-		// With no current focus, Tab should pick the first available region and
-		// Shift-Tab should pick the last.
-		if direction >= 0 {
-			curIdx = -1
-		} else {
-			curIdx = 0
-		}
-	}
+func (r *Run) systemMetricsFocusAvailable() bool {
+	return r.rightSidebar.IsVisible() && r.rightSidebar.metricsGrid.ChartCount() > 0
+}
 
-	// Attempt each region in order.
-	for step := 1; step <= n; step++ {
-		nextIdx := curIdx + direction*step
-		nextIdx = ((nextIdx % n) + n) % n
-		next := runFocusOrder[nextIdx]
-		if runFocusRegionAvailable(next, overviewAvail, logsAvail) {
-			r.setRunFocusRegion(next, direction)
-			return
-		}
+func (r *Run) systemMetricsFocusTargetAvailable() bool {
+	return r.rightSidebar.animState.TargetVisible() &&
+		r.rightSidebar.metricsGrid.ChartCount() > 0
+}
+
+func (r *Run) mediaFocusAvailable() bool {
+	return r.mediaPane.IsExpanded() && r.mediaPane.HasData()
+}
+
+func (r *Run) mediaFocusTargetAvailable() bool {
+	return r.mediaPane.animState.TargetVisible() && r.mediaPane.HasData()
+}
+
+func (r *Run) logsFocusAvailable() bool {
+	return r.consoleLogsPane.IsExpanded()
+}
+
+func (r *Run) logsFocusTargetAvailable() bool {
+	return r.consoleLogsPane.animState.TargetVisible()
+}
+
+// ---- Activate ----
+
+func (r *Run) activateOverviewFocus(direction int) {
+	firstSec, lastSec := r.leftSidebar.focusableSectionBounds()
+	if direction >= 0 {
+		r.leftSidebar.setActiveSection(firstSec)
+	} else {
+		r.leftSidebar.setActiveSection(lastSec)
 	}
 }
 
-// setRunFocusRegion clears all focus and activates the given region.
-func (r *Run) setRunFocusRegion(region runFocusRegion, direction int) {
-	r.clearAllRunFocus()
-
-	switch region {
-	case runFocusOverview:
-		firstSec, lastSec := r.leftSidebar.focusableSectionBounds()
-		if direction >= 0 {
-			r.leftSidebar.setActiveSection(firstSec)
-		} else {
-			r.leftSidebar.setActiveSection(lastSec)
-		}
-	case runFocusLogs:
-		r.consoleLogsPane.SetActive(true)
+func (r *Run) activateMetricsGridFocus(_ int) {
+	r.focus.Type = FocusMainChart
+	if r.focus.Row < 0 || r.focus.Col < 0 {
+		r.focus.Row = 0
+		r.focus.Col = 0
 	}
+	r.metricsGrid.NavigateFocus(0, 0)
 }
 
-// clearAllRunFocus removes focus from all regions.
-func (r *Run) clearAllRunFocus() {
-	r.consoleLogsPane.SetActive(false)
+func (r *Run) activateSystemMetricsFocus(_ int) {
+	r.focus.Type = FocusSystemChart
+	if r.focus.Row < 0 || r.focus.Col < 0 {
+		r.focus.Row = 0
+		r.focus.Col = 0
+	}
+	r.rightSidebar.metricsGrid.NavigateFocus(0, 0)
+}
+
+func (r *Run) activateMediaFocus(_ int) {
+	r.mediaPane.SetActive(true)
+}
+
+func (r *Run) activateLogsFocus(_ int) {
+	r.consoleLogsPane.SetActive(true)
+}
+
+// ---- Deactivate ----
+
+func (r *Run) deactivateOverviewFocus() {
 	r.leftSidebar.deactivateAllSections()
 }
 
+func (r *Run) deactivateMetricsGridFocus() {
+	if r.focus.Type == FocusMainChart {
+		r.focus.Reset()
+	}
+}
+
+func (r *Run) deactivateSystemMetricsFocus() {
+	if r.focus.Type == FocusSystemChart {
+		r.focus.Reset()
+	}
+}
+
+func (r *Run) deactivateMediaFocus() {
+	r.mediaPane.SetActive(false)
+}
+
+func (r *Run) deactivateLogsFocus() {
+	r.consoleLogsPane.SetActive(false)
+}
+
+// ---- Within-region cycling ----
+
 // cycleRunOverviewSection tries to move within overview sections.
-//
 // Returns true if the navigation was handled (i.e. we're not at a boundary).
 func (r *Run) cycleRunOverviewSection(direction int) bool {
 	firstSec, lastSec := r.leftSidebar.focusableSectionBounds()

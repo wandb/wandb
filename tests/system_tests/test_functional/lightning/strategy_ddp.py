@@ -6,7 +6,7 @@ from torch.utils.data import DataLoader
 
 def main():
     # Set up data
-    num_samples = 100000
+    num_samples = 1000
     train = RandomDataset(32, num_samples)
     train = DataLoader(train, batch_size=32)
     val = RandomDataset(32, num_samples)

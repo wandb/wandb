@@ -35,7 +35,7 @@ executors:
       server_image_tag: { type: string }
     docker:
       - image: python:<<parameters.python>>
-    resource_class: xlarge
+    resource_class: wandb/docker-builder
 
   local-testcontainer:
     parameters:
@@ -51,7 +51,7 @@ executors:
         environment:
           CI: 1
           WANDB_ENABLE_TEST_CONTAINER: true
-    resource_class: xlarge
+    resource_class: wandb/docker-builder
 
   local-testcontainer-importers:
     parameters:
@@ -82,9 +82,22 @@ executors:
         name: << parameters.dst_server_name >>
     environment:
       WANDB_TEST_SERVER_URL2: http://<< parameters.dst_server_name >>
-    resource_class: xlarge
+    # Cannot use wandb/docker-builder (K8s container runner) here because
+    # all containers in a K8s pod share the same network namespace, and
+    # both testcontainer instances need to bind to port 8080.
+    resource_class: large
 
 commands:
+  print-pod-stats-link:
+    description: Print a Datadog link to this job's K8s pod resource stats.
+    steps:
+      - run:
+          name: Pod resource stats (Datadog)
+          command: |
+            POD_NAME="$HOSTNAME"
+            echo "Datadog pod stats:"
+            echo "https://us5.datadoghq.com/orchestration/explorer/pod?query=kube_cluster_name%3Aci-cluster%20pod_name%3A${POD_NAME}"
+
   save-test-results:
     description: "Save test results"
     steps:
@@ -233,6 +246,12 @@ commands:
           command: |
             curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain <<parameters.version>>
             echo 'export PATH="$HOME/.cargo/bin:$PATH"' >> "$BASH_ENV"
+            # In MSYS2/Git Bash on Windows, rustup defaults to the GNU host
+            # toolchain. Add the MSVC target so builds targeting
+            # x86_64-pc-windows-msvc have the correct standard library.
+            case "$(uname -s)" in
+              MINGW*|MSYS*) $HOME/.cargo/bin/rustup target add x86_64-pc-windows-msvc ;;
+            esac
             $HOME/.cargo/bin/rustup --version
             $HOME/.cargo/bin/cargo --version
           no_output_timeout: 1m
@@ -310,6 +329,7 @@ jobs:
 
     steps:
       - checkout
+      - print-pod-stats-link
       - run:
           name: Install system deps
           command: apt-get update && apt-get install -y libsndfile1 ffmpeg git
@@ -399,7 +419,7 @@ jobs:
           session: <<parameters.session>>
 
   code-check:
-    resource_class: large
+    resource_class: wandb/docker-builder
     docker:
       - image: "python:3.13"
     steps:
@@ -435,6 +455,7 @@ jobs:
       - save-test-results
 
   unit-tests-go:
+    resource_class: wandb/docker-builder
     docker:
       - image: cimg/base:current
     steps:
@@ -452,6 +473,7 @@ jobs:
       - codecov/upload: { flags: unit }
 
   unit-tests-rust:
+    resource_class: wandb/docker-builder
     docker:
       - image: cimg/base:current
     steps:
@@ -465,6 +487,11 @@ jobs:
           name: Run Rust tests for parquet-rust-wrapper
           command: |
             cd parquet-rust-wrapper
+            cargo test --verbose
+      - run:
+          name: Run Rust tests for gpu_stats
+          command: |
+            cd gpu_stats
             cargo test --verbose
 
   # Download the local-testcontainer image corresponding to the latest server release

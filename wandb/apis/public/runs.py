@@ -127,9 +127,7 @@ RUN_FRAGMENT_NAME = "RunFragment"
 LIGHTWEIGHT_RUN_FRAGMENT_NAME = "LightweightRunFragment"
 
 
-def _create_runs_query(
-    *, lazy: bool, with_internal_id: bool, with_project_id: bool
-) -> gql:
+def _create_runs_query(*, lazy: bool) -> gql:
     """Create GraphQL query for runs with appropriate fragment."""
     fragment = LIGHTWEIGHT_RUN_FRAGMENT if lazy else RUN_FRAGMENT
     fragment_name = LIGHTWEIGHT_RUN_FRAGMENT_NAME if lazy else RUN_FRAGMENT_NAME
@@ -138,13 +136,13 @@ def _create_runs_query(
         f"""#graphql
         query Runs($project: String!, $entity: String!, $cursor: String, $perPage: Int = 50, $order: String, $filters: JSONString) {{
             project(name: $project, entityName: $entity) {{
-                {"internalId" if with_internal_id else ""}
+                internalId
                 runCount(filters: $filters)
                 readOnly
                 runs(filters: $filters, after: $cursor, first: $perPage, order: $order) {{
                     edges {{
                         node {{
-                            {"projectId" if with_project_id else ""}
+                            projectId
                             ...{fragment_name}
                         }}
                         cursor
@@ -159,48 +157,6 @@ def _create_runs_query(
         {fragment}
         """
     )
-
-
-@normalize_exceptions
-def _server_provides_internal_id_for_project(client: RetryingClient) -> bool:
-    """Returns True if the server allows us to query the internalId field for a project."""
-    query_string = """
-       query ProbeProjectInput {
-            ProjectType: __type(name:"Project") {
-                fields {
-                    name
-                }
-            }
-        }
-    """
-
-    # Only perform the query once to avoid extra network calls
-    query = gql(query_string)
-    res = client.execute(query)
-    return "internalId" in [
-        x["name"] for x in (res.get("ProjectType", {}).get("fields", [{}]))
-    ]
-
-
-@normalize_exceptions
-def _server_provides_project_id_for_run(client: RetryingClient) -> bool:
-    """Returns True if the server allows us to query the projectId field for a run."""
-    query_string = """
-       query ProbeRunInput {
-            RunType: __type(name:"Run") {
-                fields {
-                    name
-                }
-            }
-        }
-    """
-
-    # Only perform the query once to avoid extra network calls
-    query = gql(query_string)
-    res = client.execute(query)
-    return "projectId" in [
-        x["name"] for x in (res.get("RunType", {}).get("fields", [{}]))
-    ]
 
 
 @normalize_exceptions
@@ -265,11 +221,7 @@ class Runs(SizedPaginator["Run"]):
         if not order:
             order = "+created_at"
 
-        self.QUERY = _create_runs_query(
-            lazy=lazy,
-            with_internal_id=_server_provides_internal_id_for_project(client),
-            with_project_id=_server_provides_project_id_for_run(client),
-        )
+        self.QUERY = _create_runs_query(lazy=lazy)
 
         self.entity = entity
         self.project = project
@@ -480,11 +432,7 @@ class Runs(SizedPaginator["Run"]):
         self._lazy = False
 
         # Regenerate query with full fragment
-        self.QUERY = _create_runs_query(
-            lazy=False,
-            with_internal_id=_server_provides_internal_id_for_project(self.client),
-            with_project_id=_server_provides_project_id_for_run(self.client),
-        )
+        self.QUERY = _create_runs_query(lazy=False)
 
         # Upgrade any existing runs that have been loaded - use parallel loading for performance
         lazy_runs = [run for run in self.objects if run._lazy]
@@ -570,7 +518,6 @@ class Run(Attrs):
         self._metadata: dict[str, Any] | None = None
         self._state = _attrs.get("state", "not found")
         self.server_provides_internal_id_field: bool | None = None
-        self._server_provides_project_id_field: bool | None = None
         self._is_loaded: bool = False
         self._service_api: ServiceApi | None = service_api
 
@@ -722,18 +669,12 @@ class Run(Attrs):
         self, fragment: str, fragment_name: str, force: bool = False
     ) -> dict[str, Any]:
         """Load run data using specified GraphQL fragment."""
-        # Cache the server capability check to avoid repeated network calls
-        if self._server_provides_project_id_field is None:
-            self._server_provides_project_id_field = (
-                _server_provides_project_id_for_run(self.client)
-            )
-
         query = gql(
             f"""#graphql
         query Run($project: String!, $entity: String!, $name: String!) {{
             project(name: $project, entityName: $entity) {{
                 run(name: $name) {{
-                    {"projectId" if self._server_provides_project_id_field else ""}
+                    projectId
                     ...{fragment_name}
                 }}
             }}

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.44.1
+
+### Internal Changes 🔧
+
+- Add preReleaseCommand for craft by @giortzisg in [#1232](https://github.com/getsentry/sentry-go/pull/1232)
+
 ## 0.43.0
 
 ### Breaking Changes 🛠

@@ -120,7 +120,7 @@ def asyncer():
 def fake_server(asyncer: asyncio_manager.AsyncioManager):
     spy = _FakeServer(asyncer)
 
-    server = asyncer.run(lambda: asyncio.start_server(spy.do_connection, "localhost"))
+    server = asyncer.run(lambda: asyncio.start_server(spy.do_connection, "127.0.0.1"))
     spy.port = server.sockets[0].getsockname()[1]
 
     asyncer.run_soon(server.serve_forever)
@@ -146,7 +146,7 @@ def client(
     Not automatically closed.
     """
     reader, writer = asyncer.run(
-        lambda: asyncio.open_connection("localhost", fake_server.port),
+        lambda: asyncio.open_connection("127.0.0.1", fake_server.port),
     )
     return ServiceClient(asyncer, reader, writer)
 

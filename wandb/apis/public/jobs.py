@@ -139,6 +139,15 @@ class Job:
         if self._base_image:
             launch_project.set_job_base_image(self._base_image)
 
+        launch_project.set_job_source_type("repo")
+        launch_project.set_job_source_info(
+            {
+                "git_remote": git_info["remote"],
+                "git_commit": git_info["commit"],
+                "job_artifact": self._job_artifact.qualified_name,
+            }
+        )
+
     def _configure_launch_project_artifact(self, launch_project: LaunchProject) -> None:
         artifact_string = self._job_info.get("source", {}).get("artifact")
         if artifact_string is None:
@@ -161,6 +170,14 @@ class Job:
             launch_project.set_job_build_context(self._build_context)
         if self._base_image:
             launch_project.set_job_base_image(self._base_image)
+
+        launch_project.set_job_source_type("artifact")
+        launch_project.set_job_source_info(
+            {
+                "artifact_string": code_artifact.qualified_name,
+                "job_artifact": self._job_artifact.qualified_name,
+            }
+        )
 
     def _configure_launch_project_container(
         self, launch_project: LaunchProject

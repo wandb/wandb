@@ -5,6 +5,7 @@ import (
 	"image/color"
 	"math"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -73,6 +74,27 @@ const (
 	// Horizontal padding for the status bar (left and right).
 	StatusBarPadding = 1
 
+	// ContentPadding is the number of blank columns on each side of every
+	// content area (sidebars, main-column panes, status bar). This is the
+	// single source of truth for horizontal content insets.
+	ContentPadding = 1
+
+	// ContentPaddingCols is the total horizontal columns consumed by
+	// ContentPadding (left + right).
+	ContentPaddingCols = 2 * ContentPadding
+
+	// SidebarBorderCols is the single terminal column occupied by a
+	// sidebar's vertical border rule (│).
+	SidebarBorderCols = 1
+
+	// SidebarOverhead is the total non-content columns inside a sidebar:
+	// one vertical border + ContentPadding on each side.
+	SidebarOverhead = SidebarBorderCols + ContentPaddingCols
+
+	// SidebarBottomPadding is the blank row at the bottom of a sidebar
+	// that separates content from the status bar.
+	SidebarBottomPadding = 1
+
 	MinChartWidth        = 20
 	MinChartHeight       = 5
 	MinMetricChartWidth  = 18
@@ -109,25 +131,11 @@ const (
 	SidebarMinWidth       = 40
 	SidebarMaxWidth       = 120
 
-	// Sidebar internal content padding (accounts for borders).
-	leftSidebarContentPadding = 4
-
 	// Key/value column width ratio.
 	sidebarKeyWidthRatio = 0.4 // 40% of available width for keys
 
-	// Sidebar content padding (accounts for borders and internal spacing).
-	rightSidebarContentPadding = 3
-
-	// sidebarVerticalBorderCols is the width (in terminal columns)
-	// consumed by a sidebar's vertical border.
-	// Both LeftBorder and RightBorder draw a single vertical rule.
-	sidebarVerticalBorderCols = 1
-
 	// Default grid height for system metrics when not calculated from terminal height.
 	defaultSystemMetricsGridHeight = 40
-
-	// Mouse click coordinate adjustments for border/padding.
-	rightSidebarMouseClickPaddingOffset = 1
 )
 
 // Rune constants for UI drawing.
@@ -474,14 +482,19 @@ func FrenchFriesColors(scheme string) []compat.AdaptiveColor {
 }
 
 // Metrics grid styles.
+//
+// Main-column panes must render exactly the width assigned by the layout.
+// Do not add external margins here: even a 1-column margin makes the
+// composed row wider than its allocated box, which clips the rightmost column
+// and can force an extra terminal wrap line.
 var (
 	headerStyle = lipgloss.NewStyle().Bold(true).Foreground(colorSubheading)
 
 	navInfoStyle = lipgloss.NewStyle().Foreground(colorSubtle)
 
-	headerContainerStyle = lipgloss.NewStyle().MarginLeft(1).MarginTop(0).MarginBottom(0)
+	headerContainerStyle = lipgloss.NewStyle()
 
-	gridContainerStyle = lipgloss.NewStyle().MarginLeft(1).MarginRight(1)
+	gridContainerStyle = lipgloss.NewStyle()
 )
 
 // Chart styles.
@@ -626,11 +639,13 @@ var (
 
 // Left sidebar styles.
 var (
-	leftSidebarStyle       = lipgloss.NewStyle().Padding(0, 1)
+	leftSidebarStyle       = lipgloss.NewStyle().Padding(0, ContentPadding)
 	leftSidebarBorderStyle = lipgloss.NewStyle().
 				Border(RightBorder).
 				BorderForeground(colorLayout).
-				BorderTop(false)
+				BorderTop(false).
+				BorderBottom(false).
+				BorderLeft(false)
 	leftSidebarHeaderStyle = lipgloss.NewStyle().
 				Bold(true).
 				Foreground(colorSubheading).
@@ -649,11 +664,13 @@ var (
 
 // Right sidebar styles.
 var (
-	rightSidebarStyle       = lipgloss.NewStyle().PaddingLeft(1)
+	rightSidebarStyle       = lipgloss.NewStyle().Padding(0, ContentPadding)
 	rightSidebarBorderStyle = lipgloss.NewStyle().
 				Border(LeftBorder).
 				BorderForeground(colorLayout).
-				BorderTop(false)
+				BorderTop(false).
+				BorderBottom(false).
+				BorderRight(false)
 	rightSidebarHeaderStyle = lipgloss.NewStyle().
 				Bold(true).
 				Foreground(colorSubheading).
@@ -672,15 +689,6 @@ var (
 
 // Console logs pane styles.
 var (
-	consoleLogsPaneBorderStyle = lipgloss.NewStyle().
-					Border(topOnlyBorder).
-					BorderForeground(colorLayout).
-					BorderTop(true).
-					BorderBottom(false).
-					BorderLeft(false).
-					BorderRight(false).
-					PaddingBottom(1)
-
 	consoleLogsPaneHeaderStyle = lipgloss.NewStyle().
 					Bold(true).
 					Foreground(colorSubheading).
@@ -701,19 +709,31 @@ var (
 	consoleLogsPaneHighlightedValueStyle = lipgloss.NewStyle().
 						Background(colorSelected).
 						Foreground(colorDark)
-
-	// topOnlyBorder draws a single horizontal line at the top of the box.
-	topOnlyBorder = lipgloss.Border{
-		Top:         string(unicodeEmDash),
-		Bottom:      "",
-		Left:        "",
-		Right:       "",
-		TopLeft:     string(unicodeEmDash),
-		TopRight:    string(unicodeEmDash),
-		BottomLeft:  "",
-		BottomRight: "",
-	}
 )
+
+// renderHorizontalSeparator draws a full-width em-dash separator line.
+// This is used between vertically stacked panes in the central column
+// instead of per-pane top borders.
+func renderHorizontalSeparator(width int) string {
+	if width <= 0 {
+		return ""
+	}
+	line := strings.Repeat(string(unicodeEmDash), width)
+	return lipgloss.NewStyle().Foreground(colorLayout).Render(line)
+}
+
+// joinWithSeparators joins rendered sections with horizontal separator lines.
+func joinWithSeparators(sections []string, width int) string {
+	if len(sections) == 0 {
+		return ""
+	}
+	sep := renderHorizontalSeparator(width)
+	result := sections[0]
+	for _, s := range sections[1:] {
+		result = lipgloss.JoinVertical(lipgloss.Left, result, sep, s)
+	}
+	return result
+}
 
 // AnimationDuration is the duration for sidebar animations.
 const AnimationDuration = 150 * time.Millisecond
@@ -737,9 +757,7 @@ var (
 
 // Workspace view mode styles.
 var (
-	workspaceTopMarginLines = 1
-	workspaceHeaderLines    = 1
-	runsSidebarBorderCols   = 2
+	workspaceHeaderLines = 1
 
 	colorSelectedRunInactiveStyle = compat.AdaptiveColor{
 		Light: lipgloss.Color("#F5D28A"),
@@ -754,7 +772,6 @@ var (
 
 // Symon mode styles.
 var (
-	symonContainerLeftPadding = 1
-	symonContainerStyle       = lipgloss.NewStyle().
-					PaddingLeft(symonContainerLeftPadding)
+	symonContainerStyle = lipgloss.NewStyle().
+		Padding(0, ContentPadding)
 )
