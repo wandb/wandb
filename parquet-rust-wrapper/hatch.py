@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import pathlib
+import platform
 import subprocess
 
 
@@ -49,10 +50,12 @@ def build_arrow_rs_wrapper(
         str(arrow_rs_wrapper_dir / "Cargo.toml"),
     ]
 
-    # Add target triple if specified
+    # Only pass --target for actual cross-compilation. Passing it for
+    # native builds forces Rust into cross-compilation mode, which fails
+    # in manylinux containers that lack cross-compilation sysroots.
     if target_system and target_arch:
         target_triple = _get_rust_target_triple(target_system, target_arch)
-        if target_triple:
+        if target_triple and not _is_native_target(target_triple):
             cmd.extend(["--target", target_triple])
 
     try:
@@ -119,3 +122,18 @@ def _get_rust_target_triple(target_system: str, target_arch: str) -> str | None:
     }
 
     return target_map.get((target_system, target_arch))
+
+
+def _is_native_target(target_triple: str) -> bool:
+    """Check if the Rust target triple matches the current host platform."""
+    host_os = platform.system().lower()
+    host_arch = platform.machine().lower()
+
+    native_triples = {
+        ("linux", "x86_64"): "x86_64-unknown-linux-gnu",
+        ("linux", "aarch64"): "aarch64-unknown-linux-gnu",
+        ("darwin", "x86_64"): "x86_64-apple-darwin",
+        ("darwin", "arm64"): "aarch64-apple-darwin",
+    }
+
+    return native_triples.get((host_os, host_arch)) == target_triple
