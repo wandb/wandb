@@ -52,13 +52,22 @@ def build_orjson(
             artifacts.append(dest_file)
 
     # Step 2: Build the Rust extension
-    cmd = (
+    cmd = [
         str(cargo_binary),
         "build",
         "--release",
         "--message-format=json",
         "--lib",
-    )
+    ]
+
+    # On Linux, libpython may not be available as a shared library
+    # (musl bundles it statically; manylinux may not have it on the
+    # linker search path). extension-module tells pyo3 to skip
+    # linking against libpython — the interpreter provides all
+    # symbols at runtime when it dlopen()s the extension.
+    # Not used on macOS/Windows where libpython linking works.
+    if sys.platform == "linux":
+        cmd.extend(["--features", "pyo3-ffi/extension-module"])
 
     env = _cargo_env()
     env["PYO3_PYTHON"] = str(pathlib.Path(sys.executable).resolve())
