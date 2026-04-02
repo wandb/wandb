@@ -43,7 +43,6 @@ __all__ = [
     "RENAME_REGISTRY_GQL",
     "RUN_INPUT_ARTIFACTS_GQL",
     "RUN_OUTPUT_ARTIFACTS_GQL",
-    "TYPE_INFO_GQL",
     "UNLINK_ARTIFACT_GQL",
     "UPDATE_ARTIFACT_GQL",
     "UPDATE_ARTIFACT_PORTFOLIO_GQL",
@@ -1509,27 +1508,6 @@ UNLINK_ARTIFACT_GQL = """
 mutation UnlinkArtifact($input: UnlinkArtifactInput!) {
   result: unlinkArtifact(input: $input) {
     success
-  }
-}
-"""
-
-TYPE_INFO_GQL = """
-query TypeInfo($name: String!) {
-  __type(name: $name) {
-    ...TypeInfoFragment
-  }
-}
-
-fragment TypeInfoFragment on __Type {
-  name
-  fields {
-    name
-    args {
-      name
-    }
-  }
-  inputFields {
-    name
   }
 }
 """
