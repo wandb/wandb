@@ -3665,7 +3665,7 @@ def purge_cache(
 
 
 @cli.command()
-@click.argument("path")
+@click.argument("path", type=click.Path(exists=True))
 @click.option(
     "--output",
     "-o",
@@ -3678,62 +3678,41 @@ def purge_cache(
     help="Comma-separated list of record types to include (e.g. history,summary,config).",
 )
 @click.option(
-    "--format",
-    "output_format",
-    type=click.Choice(["json", "proto"]),
-    default="json",
-    help="Output format: json (one record per line) or proto (raw protobuf text).",
-)
-@click.option(
-    "--pause",
-    is_flag=True,
-    default=False,
-    help="Pause and wait for Enter after each record.",
+    "--page-size",
+    default=100,
+    help="Number of records to fetch from wandb-core per batch.",
+    hidden=True,
 )
 @display_error
-def parse(path, output, record_types, output_format, pause):
+def parse(
+    path: str,
+    output: str | None,
+    record_types: str | None,
+    page_size: int,
+) -> None:
     """Parse a .wandb run file and output records as JSON.
 
-    Reads PATH (a run-<ID>.wandb file) and writes each record as a JSON
-    object. The outer protobuf type wrapper is removed so fields are at the
-    top level alongside record_type.
+    Reads PATH (a .wandb file) and writes each record as a JSON object,
+    one per line. The file is read by the Go transactionlog reader in
+    wandb-core.
 
     Example — stream history records to jq:
 
-        wandb parse --record-types history --expand-values run-abc.wandb | jq '.item[]'
+        wandb parse --record-types history run-abc.wandb | jq '.'
     """
-    import sys
+    from . import parse_wandb
 
-    from wandb.sdk.lib.run_file_parser import RunFileParser
-
-    type_filter = [t.strip() for t in record_types.split(",")] if record_types else None
-    parser = RunFileParser(path)
-
-    if output:
-        out = open(output, "w")
+    if record_types:
+        type_filter = [t.strip() for t in record_types.split(",")]
     else:
-        out = sys.stdout
+        type_filter = None
 
-    try:
-        if output_format == "json":
-            for line in parser.to_json(record_types=type_filter):
-                out.write(line + "\n")
-                if pause:
-                    input()
-        elif output_format == "proto":
-            for record_type, pb in parser.raw_records():
-                if type_filter and record_type not in type_filter:
-                    continue
-                out.write(f"RECORD TYPE: {record_type}\n{pb}\n\n")
-                if pause:
-                    input()
-        else:
-            raise ValueError(
-                f"Invalid output format: {output_format}, valid options are: json, proto"
-            )
-    finally:
-        if output:
-            out.close()
+    parse_wandb.parse(
+        path,
+        output=output,
+        record_types=type_filter,
+        page_size=page_size,
+    )
 
 
 cli.add_command(beta)

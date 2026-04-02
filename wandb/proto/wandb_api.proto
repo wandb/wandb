@@ -30,6 +30,7 @@ message ApiRequest {
     ReadRunHistoryRequest read_run_history_request = 2;
     FeaturesRequest features_request = 3;
     GraphQLRequest graphql_request = 4;
+    ParseRunFileRequest parse_run_file_request = 5;
   }
 }
 
@@ -38,6 +39,7 @@ message ApiResponse {
     ReadRunHistoryResponse read_run_history_response = 1;
     FeaturesResponse features_response = 3;
     GraphQLResponse graphql_response = 4;
+    ParseRunFileResponse parse_run_file_response = 5;
 
     ApiErrorResponse api_error_response = 2;
   }
@@ -246,4 +248,78 @@ message DownloadRunHistoryStatus {
 message DownloadRunHistoryStatusResponse {
   // Operation stats for progress display.
   wandb_internal.OperationStats operation_stats = 1;
+}
+
+// Parse run file
+//
+// Reads records from a local .wandb transaction log file using
+// the Go transactionlog reader. Uses an init/read/cleanup lifecycle
+// to hold the reader open across paginated requests.
+
+message ParseRunFileRequest {
+  oneof request {
+    ParseRunFileInit parse_run_file_init = 1;
+    ParseRunFileRead parse_run_file_read = 2;
+    ParseRunFileCleanup parse_run_file_cleanup = 3;
+  }
+}
+
+message ParseRunFileResponse {
+  oneof response {
+    ParseRunFileInitResponse parse_run_file_init = 1;
+    ParseRunFileReadResponse parse_run_file_read = 2;
+  }
+}
+
+// Initialize a parse operation over a .wandb file.
+message ParseRunFileInit {
+  // Absolute path to the .wandb file.
+  string path = 1;
+}
+
+message ParseRunFileInitResponse {
+  // An ID to correlate subsequent read/cleanup requests.
+  int32 request_id = 1;
+}
+
+// Read the next batch of records from an open .wandb file.
+message ParseRunFileRead {
+  // The request ID from the init response.
+  int32 request_id = 1;
+
+  // Maximum number of records to return in this batch.
+  int32 page_size = 2;
+
+  // Optional filter: only return records whose type is in this list.
+  // If empty, all record types are returned.
+  repeated string record_types = 3;
+}
+
+message ParseRunFileReadResponse {
+  // The batch of parsed records.
+  repeated ParsedRecord records = 1;
+
+  // True when the end of the file has been reached.
+  bool eof = 2;
+}
+
+// A single parsed record from a .wandb file.
+message ParsedRecord {
+  // The record's oneof variant name (e.g. "history", "run", "exit").
+  string record_type = 1;
+
+  // The record's sequence number within the transaction log.
+  int64 record_num = 2;
+
+  // The full record serialized as canonical JSON via protojson.
+  string json_content = 3;
+}
+
+// Clean up resources associated with a parse operation.
+//
+// This request receives no response. The client should fire-and-forget
+// using api_publish rather than api_request.
+message ParseRunFileCleanup {
+  // The request ID from the init response.
+  int32 request_id = 1;
 }
