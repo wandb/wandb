@@ -393,3 +393,64 @@ def test_launch_from_uri_creates_job(
     assert create_job_args[1] == "git"
     assert create_job_args[2] == "https://github.com/test/test.git"
     assert launch_args[1].endswith("/test/test:latest")
+
+
+def test_validate_run_config_success(monkeypatch):
+    """Test that _validate_run_config passes with valid config."""
+    # Mock the PublicApi and job
+    mock_job = Mock()
+    mock_artifact = Mock()
+    mock_artifact.metadata = {
+        "input_schemas": {
+            "@wandb.config": {
+                "type": "object",
+                "properties": {
+                    "learning_rate": {"type": "number"},
+                    "batch_size": {"type": "integer"},
+                },
+            }
+        }
+    }
+    mock_job._job_artifact = mock_artifact
+    
+    mock_public_api = Mock()
+    mock_public_api.job.return_value = mock_job
+    
+    monkeypatch.setattr("wandb.cli.cli.PublicApi", lambda: mock_public_api)
+    
+    # Valid config that matches schema
+    run_config = {"learning_rate": 0.001, "batch_size": 32}
+    
+    # Should not raise
+    cli._validate_run_config("entity/project/job:v0", run_config)
+
+
+def test_validate_run_config_validation_error(monkeypatch):
+    """Test that _validate_run_config raises LaunchError with invalid config."""
+    # Mock the PublicApi and job
+    mock_job = Mock()
+    mock_artifact = Mock()
+    mock_artifact.metadata = {
+        "input_schemas": {
+            "@wandb.config": {
+                "type": "object",
+                "properties": {
+                    "learning_rate": {"type": "number"},
+                },
+                "required": ["learning_rate"],
+            }
+        }
+    }
+    mock_job._job_artifact = mock_artifact
+    
+    mock_public_api = Mock()
+    mock_public_api.job.return_value = mock_job
+    
+    monkeypatch.setattr("wandb.cli.cli.PublicApi", lambda: mock_public_api)
+    
+    # Invalid config - missing required field
+    run_config = {"batch_size": 32}
+    
+    # Should raise LaunchError
+    with pytest.raises(LaunchError):
+        cli._validate_run_config("entity/project/job:v0", run_config)
