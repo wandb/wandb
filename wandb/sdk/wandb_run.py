@@ -1452,6 +1452,38 @@ class Run:
 
     @_log_to_run
     @_raise_if_finished
+    @_attach
+    def pin_config_keys(self, keys: Sequence[str]) -> None:
+        """Pin config keys to display in the References section on Run Overview.
+
+        Pinned keys appear prominently above Notes on the Run Overview page.
+        String values are rendered as markdown; non-strings are rendered as
+        plain text.
+
+        Args:
+            keys: Top-level config key names to pin. Order is preserved and
+                determines display order. Calling this again replaces the list.
+
+        Raises:
+            TypeError: If keys is not a list/tuple or contains non-strings.
+        """
+        if not isinstance(keys, (list, tuple)):
+            raise TypeError(
+                f"pin_config_keys expects a list or tuple of strings, "
+                f"got {type(keys).__name__}"
+            )
+        validated: list[str] = []
+        for key in keys:
+            if not isinstance(key, str):
+                raise TypeError(
+                    f"Each pinned key must be a string, "
+                    f"got {type(key).__name__}: {key!r}"
+                )
+            validated.append(key)
+        self._set_config_wandb("pinned_keys", validated)
+
+    @_log_to_run
+    @_raise_if_finished
     def _summary_update_callback(self, summary_record: SummaryRecord) -> None:
         with telemetry.context(run=self) as tel:
             tel.feature.set_summary = True
