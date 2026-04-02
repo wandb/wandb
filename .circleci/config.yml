@@ -489,10 +489,16 @@ jobs:
             cd parquet-rust-wrapper
             cargo test --verbose
       - run:
-          name: Run Rust tests for gpu_stats
+          name: Run Rust tests for accelerator (gpu_stats)
           command: |
             cd gpu_stats
             cargo test --verbose
+      - run:
+          name: Run accelerator libtpu integration test
+          command: |
+            pip install --quiet pip 2>/dev/null || true
+            cd gpu_stats
+            WANDB_TEST_LIBTPU=1 cargo test --verbose --bin accelerator -- tpu_libtpu::tests::test_libtpu_sdk
 
   # Download the local-testcontainer image corresponding to the latest server release
   # and store it in wandb-client-cicd/images/local-testcontainer.
