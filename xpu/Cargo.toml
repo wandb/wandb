@@ -1,5 +1,5 @@
 [package]
-name = "accelerator"
+name = "wandb-xpu"
 version = "0.7.0"
 edition = "2024"
 rust-version = "1.85"
@@ -37,6 +37,9 @@ tempfile = "3.27.0"
 libloading = "0.9"
 async-trait = "0.1"
 glob = "0.3"
+
+[dev-dependencies]
+zip = { version = "8.5.0", default-features = false, features = ["deflate"] }
 
 [target.'cfg(not(all(target_family = "wasm", target_os = "unknown")))'.dependencies]
 which = "8.0.2"

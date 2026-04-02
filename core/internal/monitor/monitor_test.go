@@ -20,7 +20,7 @@ func newTestSystemMonitor(t *testing.T) *monitor.SystemMonitor {
 	factory := &monitor.SystemMonitorFactory{
 		Logger:                     observabilitytest.NewTestLogger(t),
 		Settings:                   settings.From(&spb.Settings{}),
-		AcceleratorResourceManager: monitor.NewAcceleratorResourceManager(false),
+		XPUResourceManager: monitor.NewXPUResourceManager(false),
 	}
 	return factory.New(runworktest.New())
 }

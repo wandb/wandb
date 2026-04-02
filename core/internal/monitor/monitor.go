@@ -106,8 +106,8 @@ type SystemMonitorFactory struct {
 	// Stream settings.
 	Settings *settings.Settings
 
-	// AcceleratorResourceManager manages the sidecar for GPU/TPU metrics.
-	AcceleratorResourceManager *AcceleratorResourceManager
+	// XPUResourceManager manages the sidecar for GPU/TPU metrics.
+	XPUResourceManager *XPUResourceManager
 
 	// graphqlClient is the GraphQL client to communicate with the W&B backend.
 	GraphqlClient graphql.Client
@@ -152,14 +152,13 @@ func (f *SystemMonitorFactory) New(extraWork runwork.ExtraWork) *SystemMonitor {
 	}
 	sm.logger.Debug(fmt.Sprintf("monitor: sampling interval: %v", sm.samplingInterval))
 
-	sm.initializeResources(f.AcceleratorResourceManager)
+	sm.initializeResources(f.XPUResourceManager)
 
 	return sm
 }
 
 // initializeResources sets up the resources to be monitored based on the provided settings.
-func (sm *SystemMonitor) initializeResources(
-	acceleratorResourceManager *AcceleratorResourceManager) {
+func (sm *SystemMonitor) initializeResources(xpuResourceManager *XPUResourceManager) {
 	pid := sm.settings.GetStatsPid()
 	samplingInterval := sm.settings.GetStatsSamplingInterval()
 	neuronMonitorConfigPath := sm.settings.GetStatsNeuronMonitorConfigPath()
@@ -175,11 +174,11 @@ func (sm *SystemMonitor) initializeResources(
 		sm.resources = append(sm.resources, system)
 	}
 
-	if accel, err := NewAccelerator(acceleratorResourceManager, pid, gpuDeviceIds); accel != nil {
-		sm.resources = append(sm.resources, accel)
+	if xpu, err := NewXPU(xpuResourceManager, pid, gpuDeviceIds); xpu != nil {
+		sm.resources = append(sm.resources, xpu)
 	} else if err != nil {
 		sm.logger.CaptureError(
-			fmt.Errorf("monitor: failed to initialize accelerator resource: %v", err))
+			fmt.Errorf("monitor: failed to initialize xpu resource: %v", err))
 	}
 
 	if trainium := NewTrainium(
@@ -482,7 +481,7 @@ func (sm *SystemMonitor) monitorResource(resource Resource) {
 //
 // Use to filter out expected/transient failures. Keep this intentionally small and specific.
 func ShouldCaptureSamplingError(err error) bool {
-	// Transient gRPC connectivity to the accelerator sidecar.
+	// Transient gRPC connectivity to the wandb-xpu sidecar.
 	if s, ok := status.FromError(err); ok && s.Code() == codes.Unavailable {
 		return false
 	}

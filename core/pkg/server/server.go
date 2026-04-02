@@ -42,8 +42,8 @@ type Server struct {
 	// runSyncManager implements `wandb sync` operations.
 	runSyncManager *runsync.RunSyncManager
 
-	// acceleratorResourceManager manages costly resources for accelerator system metrics.
-	acceleratorResourceManager *monitor.AcceleratorResourceManager
+	// xpuResourceManager manages costly resources for accelerator system metrics.
+	xpuResourceManager *monitor.XPUResourceManager
 
 	// wg is the WaitGroup to wait for all connections to finish
 	// and for the serve goroutine to finish
@@ -107,7 +107,7 @@ func NewServer(params ServerParams) *Server {
 		stopServer:        stopServer,
 		streamMux:         stream.NewStreamMux(),
 		runSyncManager:    runsync.NewRunSyncManager(),
-		acceleratorResourceManager: monitor.NewAcceleratorResourceManager(
+		xpuResourceManager: monitor.NewXPUResourceManager(
 			params.EnableDCGMProfiling),
 		wg:                sync.WaitGroup{},
 		parentPID:         params.ParentPID,
@@ -252,7 +252,7 @@ func (s *Server) handleConnection(conn net.Conn) {
 			Conn:                       conn,
 			StreamMux:                  s.streamMux,
 			RunSyncManager:             s.runSyncManager,
-			AcceleratorResourceManager: s.acceleratorResourceManager,
+			XPUResourceManager: s.xpuResourceManager,
 			Commit:                     s.commit,
 			LoggerPath:                 s.loggerPath,
 			LogLevel:                   s.logLevel,

@@ -15,7 +15,7 @@ from typing_extensions import override
 # A small hack to allow importing build scripts from the source tree.
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
 from core import hatch as hatch_core
-from gpu_stats import hatch as hatch_gpu_stats
+from xpu import hatch as hatch_xpu
 
 _hatch_orjson_path = (
     pathlib.Path(__file__).parent / "wandb" / "vendor" / "wandb_orjson" / "hatch.py"
@@ -42,7 +42,7 @@ _WANDB_BUILD_COVERAGE = "WANDB_BUILD_COVERAGE"
 _WANDB_BUILD_GORACEDETECT = "WANDB_BUILD_GORACEDETECT"
 
 # Other build options.
-_WANDB_BUILD_SKIP_GPU_STATS = "WANDB_BUILD_SKIP_GPU_STATS"
+_WANDB_BUILD_SKIP_WANDB_XPU = "WANDB_BUILD_SKIP_WANDB_XPU"
 _WANDB_BUILD_SKIP_ORJSON = "WANDB_BUILD_SKIP_ORJSON"
 _WANDB_BUILD_SKIP_ARROW_RS_WRAPPER = "WANDB_BUILD_SKIP_ARROW_RS_WRAPPER"
 _WANDB_ENABLE_CGO = "WANDB_ENABLE_CGO"
@@ -62,8 +62,8 @@ class CustomBuildHook(BuildHookInterface):
         artifacts: list[str] = build_data["artifacts"]
         artifacts.extend(self._build_wandb_core())
         artifacts.extend(self._build_arrow_rs_wrapper())
-        if self._include_gpu_stats():
-            artifacts.extend(self._build_gpu_stats())
+        if self._include_wandb_xpu():
+            artifacts.extend(self._build_wandb_xpu())
         if self._include_orjson():
             artifacts.extend(self._build_orjson())
 
@@ -79,9 +79,9 @@ class CustomBuildHook(BuildHookInterface):
         # Build arrow-rs-wrapper
         self._build_arrow_rs_wrapper()
 
-        # Build gpu_stats if not skipped
-        if self._include_gpu_stats():
-            self._build_gpu_stats()
+        # Build wandb-xpu if not skipped
+        if self._include_wandb_xpu():
+            self._build_wandb_xpu()
 
     def _get_platform_tag(self) -> str:
         """Returns the platform tag for the current platform."""
@@ -113,9 +113,9 @@ class CustomBuildHook(BuildHookInterface):
 
         return platform_tag
 
-    def _include_gpu_stats(self) -> bool:
-        """Returns whether we should produce a wheel with gpu_stats."""
-        return not _get_env_bool(_WANDB_BUILD_SKIP_GPU_STATS, default=False)
+    def _include_wandb_xpu(self) -> bool:
+        """Returns whether we should produce a wheel with wandb-xpu."""
+        return not _get_env_bool(_WANDB_BUILD_SKIP_WANDB_XPU, default=False)
 
     def _include_orjson(self) -> bool:
         """Returns whether we should produce a wheel with vendored orjson."""
@@ -143,13 +143,13 @@ class CustomBuildHook(BuildHookInterface):
 
         return pathlib.Path(cargo)
 
-    def _build_gpu_stats(self) -> list[str]:
-        output = pathlib.Path("wandb", "bin", "gpu_stats")
+    def _build_wandb_xpu(self) -> list[str]:
+        output = pathlib.Path("wandb", "bin", "wandb-xpu")
         if self._target_platform().goos == "windows":
             output = output.with_suffix(".exe")
 
-        self.app.display_waiting("Building gpu_stats Rust binary...")
-        hatch_gpu_stats.build_gpu_stats(
+        self.app.display_waiting("Building wandb-xpu Rust binary...")
+        hatch_xpu.build_wandb_xpu(
             cargo_binary=self._get_and_require_cargo_binary(),
             output_path=output,
         )

@@ -35,9 +35,9 @@ const (
 )
 
 type ConnectionParams struct {
-	StreamMux                  *stream.StreamMux
-	RunSyncManager             *runsync.RunSyncManager
-	AcceleratorResourceManager *monitor.AcceleratorResourceManager
+	StreamMux          *stream.StreamMux
+	RunSyncManager     *runsync.RunSyncManager
+	XPUResourceManager *monitor.XPUResourceManager
 
 	ID string
 
@@ -78,8 +78,8 @@ type Connection struct {
 	// runSyncManager implements `wandb sync` operations.
 	runSyncManager *runsync.RunSyncManager
 
-	// acceleratorResourceManager is used by streams for system accelerator metrics.
-	acceleratorResourceManager *monitor.AcceleratorResourceManager
+	// xpuResourceManager is used by streams for system accelerator metrics.
+	xpuResourceManager *monitor.XPUResourceManager
 
 	// id is the unique id for the connection
 	id string
@@ -115,22 +115,22 @@ func NewConnection(
 	connLifetimeCtx, stopConnection := context.WithCancel(serverLifetimeCtx)
 
 	return &Connection{
-		connLifetimeCtx:            connLifetimeCtx,
-		stopConnection:             stopConnection,
-		requestCanceller:           NewRequestCanceller(),
-		stopServer:                 stopServer,
-		streamMux:                  params.StreamMux,
-		runSyncManager:             params.RunSyncManager,
-		acceleratorResourceManager: params.AcceleratorResourceManager,
-		conn:                       params.Conn,
-		commit:                     params.Commit,
-		id:                         params.ID,
-		inChan:                     make(chan *spb.ServerRequest, BufferSize),
-		outChan:                    make(chan *spb.ServerResponse, BufferSize),
-		closed:                     &atomic.Bool{},
-		loggerPath:                 params.LoggerPath,
-		logLevel:                   params.LogLevel,
-		apiManager:                 wbapi.NewManager(),
+		connLifetimeCtx:    connLifetimeCtx,
+		stopConnection:     stopConnection,
+		requestCanceller:   NewRequestCanceller(),
+		stopServer:         stopServer,
+		streamMux:          params.StreamMux,
+		runSyncManager:     params.RunSyncManager,
+		xpuResourceManager: params.XPUResourceManager,
+		conn:               params.Conn,
+		commit:             params.Commit,
+		id:                 params.ID,
+		inChan:             make(chan *spb.ServerRequest, BufferSize),
+		outChan:            make(chan *spb.ServerResponse, BufferSize),
+		closed:             &atomic.Bool{},
+		loggerPath:         params.LoggerPath,
+		logLevel:           params.LogLevel,
+		apiManager:         wbapi.NewManager(),
 	}
 }
 
@@ -385,7 +385,7 @@ func (nc *Connection) handleInformInit(msg *spb.ServerInformInitRequest) {
 
 	strm := stream.InjectStream(
 		stream.GitCommitHash(nc.commit),
-		nc.acceleratorResourceManager,
+		nc.xpuResourceManager,
 		stream.DebugCorePath(nc.loggerPath),
 		nc.logLevel,
 		s,

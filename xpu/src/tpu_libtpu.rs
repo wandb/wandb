@@ -697,3 +697,554 @@ fn resolve_path(path: &Path) -> Option<PathBuf> {
     if path.is_dir() { let j = path.join("libtpu.so"); if j.is_file() { return Some(j); } return None; }
     if path.is_file() { Some(path.to_path_buf()) } else { None }
 }
+
+// ============================================================
+// Tests
+// ============================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ---- helpers ----
+
+    fn metrics_map(v: &[(String, MetricValue)]) -> HashMap<String, f64> {
+        v.iter()
+            .filter_map(|(k, v)| match v {
+                MetricValue::Float(f) => Some((k.clone(), *f)),
+                _ => None,
+            })
+            .collect()
+    }
+
+    // ---- sanitize ----
+
+    #[test]
+    fn test_sanitize_simple() {
+        assert_eq!(sanitize("tensor_core-0"), "tensor_core_0");
+    }
+
+    #[test]
+    fn test_sanitize_special_chars() {
+        assert_eq!(sanitize("  GPU+Memory 100% "), "gpu_plus_memory_100pct");
+    }
+
+    #[test]
+    fn test_sanitize_empty() {
+        assert_eq!(sanitize("!!!"), "unknown");
+    }
+
+    // ---- split_csv ----
+
+    #[test]
+    fn test_split_csv_bracketed() {
+        let v = split_csv("[1.0, 2.0, 3.0]");
+        assert_eq!(v, vec!["1.0", "2.0", "3.0"]);
+    }
+
+    #[test]
+    fn test_split_csv_quoted() {
+        let v = split_csv("'hello', \"world\"");
+        assert_eq!(v, vec!["hello", "world"]);
+    }
+
+    #[test]
+    fn test_split_csv_empty() {
+        assert!(split_csv("").is_empty());
+        assert!(split_csv("[]").is_empty());
+    }
+
+    // ---- stat_names ----
+
+    #[test]
+    fn test_stat_names_5_default() {
+        let names = stat_names("latency distribution (mean, p50, p90, p95, p999)", 5);
+        assert_eq!(names, vec!["mean", "p50", "p90", "p95", "p999"]);
+    }
+
+    #[test]
+    fn test_stat_names_5_with_p99() {
+        // Description must contain "p99" but NOT contain "p95" at all.
+        let names = stat_names("some metric (p99 included)", 5);
+        assert_eq!(names, vec!["mean", "p50", "p90", "p99", "p999"]);
+    }
+
+    #[test]
+    fn test_stat_names_4() {
+        let names = stat_names("whatever", 4);
+        assert_eq!(names, vec!["p50", "p90", "p95", "p999"]);
+    }
+
+    #[test]
+    fn test_stat_names_fallback() {
+        let names = stat_names("unknown format", 3);
+        assert_eq!(names, vec!["stat0", "stat1", "stat2"]);
+    }
+
+    // ---- indexed_float ----
+
+    #[test]
+    fn test_indexed_float() {
+        let mut out = Vec::new();
+        indexed_float(
+            &mut out,
+            "tpu.{}.tensorcoreUtilization",
+            &["42.5".into(), "bad".into(), "99.1".into()],
+        );
+        let m = metrics_map(&out);
+        assert_eq!(m.get("tpu.0.tensorcoreUtilization"), Some(&42.5));
+        assert!(!m.contains_key("tpu.1.tensorcoreUtilization"));
+        assert_eq!(m.get("tpu.2.tensorcoreUtilization"), Some(&99.1));
+    }
+
+    // ---- labeled_dist ----
+
+    #[test]
+    fn test_labeled_dist() {
+        let mut out = Vec::new();
+        labeled_dist(
+            &mut out,
+            "tpu.hloExecTiming",
+            "Us",
+            "mean, p50, p90, p95, p999",
+            &["program_main, 100.0, 50.0, 90.0, 95.0, 999.0".into()],
+        );
+        let m = metrics_map(&out);
+        assert_eq!(m.get("tpu.hloExecTiming.program_main.meanUs"), Some(&100.0));
+        assert_eq!(m.get("tpu.hloExecTiming.program_main.p50Us"), Some(&50.0));
+        assert_eq!(m.get("tpu.hloExecTiming.program_main.p999Us"), Some(&999.0));
+    }
+
+    // ---- flat_dist ----
+
+    #[test]
+    fn test_flat_dist() {
+        let mut out = Vec::new();
+        flat_dist(
+            &mut out,
+            "tpu.grpcTcpMinRtt",
+            "Us",
+            "mean, p50, p90, p95, p999",
+            &["10.0, 20.0, 30.0, 40.0, 50.0".into()],
+        );
+        let m = metrics_map(&out);
+        assert_eq!(m.get("tpu.grpcTcpMinRtt.meanUs"), Some(&10.0));
+        assert_eq!(m.get("tpu.grpcTcpMinRtt.p999Us"), Some(&50.0));
+    }
+
+    #[test]
+    fn test_flat_dist_multiline() {
+        let mut out = Vec::new();
+        flat_dist(
+            &mut out,
+            "tpu.grpcTcpDeliveryRate",
+            "Mbps",
+            "p50, p90, p95, p999",
+            &["100.0".into(), "200.0".into(), "300.0".into(), "400.0".into()],
+        );
+        let m = metrics_map(&out);
+        assert_eq!(m.get("tpu.grpcTcpDeliveryRate.p50Mbps"), Some(&100.0));
+        assert_eq!(m.get("tpu.grpcTcpDeliveryRate.p999Mbps"), Some(&400.0));
+    }
+
+    // ---- colon_values ----
+
+    #[test]
+    fn test_colon_values() {
+        let mut out = Vec::new();
+        colon_values(
+            &mut out,
+            "tpu.hloQueueSize",
+            &["tensor_core-0: 5".into(), "tensor_core-1: 12".into()],
+        );
+        let m = metrics_map(&out);
+        assert_eq!(m.get("tpu.hloQueueSize.tensor_core_0"), Some(&5.0));
+        assert_eq!(m.get("tpu.hloQueueSize.tensor_core_1"), Some(&12.0));
+    }
+
+    #[test]
+    fn test_colon_values_no_colon() {
+        let mut out = Vec::new();
+        colon_values(&mut out, "tpu.x", &["42".into()]);
+        let m = metrics_map(&out);
+        assert_eq!(m.get("tpu.x.item_0"), Some(&42.0));
+    }
+
+    // ---- format_metric (SDK path integration) ----
+
+    #[test]
+    fn test_format_metric_tensorcore() {
+        let data = SdkMetricData {
+            description: String::new(),
+            values: vec!["75.5".into(), "80.2".into()],
+        };
+        let mut out = Vec::new();
+        format_metric("tensorcore_utilization", &data, &mut out);
+        let m = metrics_map(&out);
+        assert_eq!(m.get("tpu.0.tensorcoreUtilization"), Some(&75.5));
+        assert_eq!(m.get("tpu.1.tensorcoreUtilization"), Some(&80.2));
+    }
+
+    #[test]
+    fn test_format_metric_duty_cycle() {
+        let data = SdkMetricData {
+            description: String::new(),
+            values: vec!["42.0".into()],
+        };
+        let mut out = Vec::new();
+        format_metric("duty_cycle_pct", &data, &mut out);
+        let m = metrics_map(&out);
+        assert_eq!(m.get("tpu.0.dutyCycle"), Some(&42.0));
+    }
+
+    #[test]
+    fn test_format_metric_hlo_queue() {
+        let data = SdkMetricData {
+            description: String::new(),
+            values: vec!["tensor_core-0: 3".into(), "tensor_core-1: 7".into()],
+        };
+        let mut out = Vec::new();
+        format_metric("hlo_queue_size", &data, &mut out);
+        let m = metrics_map(&out);
+        assert_eq!(m.get("tpu.hloQueueSize.tensor_core_0"), Some(&3.0));
+        assert_eq!(m.get("tpu.hloQueueSize.tensor_core_1"), Some(&7.0));
+    }
+
+    // ---- distribution percentile calculation ----
+
+    #[test]
+    fn test_distribution_percentiles_exponential() {
+        // 4 finite buckets, growth=2, scale=10
+        // Boundaries: scale*g^1=20, scale*g^2=40, scale*g^3=80, scale*g^4=160
+        //   => [20, 40, 80, 160]
+        // 6 buckets total (underflow + 4 finite + overflow):
+        //   idx 0: [0, 20)    count=0
+        //   idx 1: [20, 40)   count=100   cumulative=100
+        //   idx 2: [40, 80)   count=300   cumulative=400
+        //   idx 3: [80, 160)  count=400   cumulative=800
+        //   idx 4: [160,160)  count=150   cumulative=950 (overflow)
+        //   idx 5: overflow   count=50    cumulative=1000
+        let dist = proto::Distribution {
+            count: 1000,
+            mean: 50.0,
+            min: 10.0,
+            max: 200.0,
+            sum_of_squared_deviation: 0.0,
+            bucket_options: Some(proto::distribution::BucketOptions {
+                options: Some(
+                    proto::distribution::bucket_options::Options::ExponentialBuckets(
+                        proto::distribution::bucket_options::Exponential {
+                            num_finite_buckets: 4,
+                            growth_factor: 2.0,
+                            scale: 10.0,
+                        },
+                    ),
+                ),
+            }),
+            bucket_counts: vec![0, 100, 300, 400, 150, 50],
+        };
+
+        let pcts = distribution_percentiles(&dist);
+        let pct_map: HashMap<&str, f64> = pcts.into_iter().collect();
+
+        // p50: target=500. cumulative: 0, 100, 400, 800>=500 at idx 3.
+        // bucket 3 = [80, 160). prev=400, count=400, frac=(500-400)/400=0.25
+        // value = 80 + 0.25*80 = 100
+        assert!((pct_map["p50"] - 100.0).abs() < 0.01, "p50={}", pct_map["p50"]);
+
+        // p90: target=900. cumulative reaches 800 at idx 3, then 950 at idx 4.
+        // bucket 4 is overflow [160,160). value=160
+        assert!(pct_map["p90"] >= 80.0, "p90={}", pct_map["p90"]);
+
+        for (name, val) in &pct_map {
+            assert!(*val > 0.0, "{name} should be positive, got {val}");
+        }
+    }
+
+    #[test]
+    fn test_distribution_percentiles_linear() {
+        // 3 finite buckets, width=10, offset=0
+        // Boundaries: [10, 20, 30]  (offset + width*1, offset + width*2, offset + width*3)
+        // 5 buckets: [0,10) [10,20) [20,30) [30,30) overflow
+        //   idx 0: [0, 10)  count=10  cumulative=10
+        //   idx 1: [10, 20) count=50  cumulative=60
+        //   idx 2: [20, 30) count=30  cumulative=90
+        //   idx 3: [30, 30) count=10  cumulative=100
+        let dist = proto::Distribution {
+            count: 100,
+            mean: 15.0,
+            min: 0.0,
+            max: 35.0,
+            sum_of_squared_deviation: 0.0,
+            bucket_options: Some(proto::distribution::BucketOptions {
+                options: Some(
+                    proto::distribution::bucket_options::Options::LinearBuckets(
+                        proto::distribution::bucket_options::Linear {
+                            num_finite_buckets: 3,
+                            width: 10.0,
+                            offset: 0.0,
+                        },
+                    ),
+                ),
+            }),
+            bucket_counts: vec![10, 50, 30, 10],
+        };
+
+        let pcts = distribution_percentiles(&dist);
+        let pct_map: HashMap<&str, f64> = pcts.into_iter().collect();
+        // p50: target=50. cumulative: 10, 60>=50 at idx 1.
+        // bucket 1 = [10, 20). prev=10, count=50, frac=(50-10)/50=0.8
+        // value = 10 + 0.8*10 = 18.0
+        assert!((pct_map["p50"] - 18.0).abs() < 0.01, "p50={}", pct_map["p50"]);
+    }
+
+    #[test]
+    fn test_distribution_percentiles_empty() {
+        let dist = proto::Distribution {
+            count: 0,
+            mean: 0.0,
+            min: 0.0,
+            max: 0.0,
+            sum_of_squared_deviation: 0.0,
+            bucket_options: None,
+            bucket_counts: vec![],
+        };
+        assert!(distribution_percentiles(&dist).is_empty());
+    }
+
+    // ---- quantile_name ----
+
+    #[test]
+    fn test_quantile_name() {
+        assert_eq!(quantile_name(0.50), Some("p50"));
+        assert_eq!(quantile_name(0.90), Some("p90"));
+        assert_eq!(quantile_name(0.95), Some("p95"));
+        assert_eq!(quantile_name(0.99), Some("p99"));
+        assert_eq!(quantile_name(0.999), Some("p999"));
+        assert_eq!(quantile_name(0.75), None);
+    }
+
+    // ---- bucket_range ----
+
+    #[test]
+    fn test_bucket_range() {
+        let bounds = vec![10.0, 20.0, 40.0];
+        assert_eq!(bucket_range(&bounds, 0), (0.0, 10.0)); // underflow
+        assert_eq!(bucket_range(&bounds, 1), (10.0, 20.0)); // first finite
+        assert_eq!(bucket_range(&bounds, 2), (20.0, 40.0)); // second finite
+        assert_eq!(bucket_range(&bounds, 3), (40.0, 40.0)); // last finite
+        assert_eq!(bucket_range(&bounds, 4), (40.0, 40.0)); // overflow
+
+        assert_eq!(bucket_range(&[], 0), (0.0, 0.0));
+    }
+
+    // ---- libtpu.so integration test ----
+    //
+    // Downloads libtpu from PyPI, extracts libtpu.so, loads it, and verifies
+    // the vtable is functional. Gated behind WANDB_TEST_LIBTPU=1.
+    //
+    // To run manually:
+    //   WANDB_TEST_LIBTPU=1 cargo test --verbose test_libtpu_sdk -- --nocapture
+    //
+    // In CI (unit-tests-rust), set the env var and install Python + pip.
+
+    #[test]
+    fn test_libtpu_sdk_load_and_create_client() {
+        if std::env::var("WANDB_TEST_LIBTPU").unwrap_or_default() != "1" {
+            eprintln!("skipping libtpu integration test (set WANDB_TEST_LIBTPU=1)");
+            return;
+        }
+
+        let libtpu_path = obtain_libtpu_so();
+        // Safety: single-threaded test context.
+        unsafe { std::env::set_var("WANDB_LIBTPU_PATH", &libtpu_path) };
+
+        // Verify the library loads and GetLibtpuSdkApi works.
+        let lib = unsafe {
+            Library::new(&libtpu_path)
+                .expect("failed to dlopen libtpu.so")
+        };
+
+        let api_ptr: *const u8 = unsafe {
+            let get_api: Symbol<unsafe extern "C" fn() -> *const u8> = lib
+                .get(b"GetLibtpuSdkApi")
+                .expect("GetLibtpuSdkApi symbol not found");
+            get_api()
+        };
+        assert!(!api_ptr.is_null(), "GetLibtpuSdkApi returned NULL");
+
+        // Verify header: h0=0, h1=1 (version tag).
+        let h0 = unsafe { std::ptr::read(api_ptr as *const u32) };
+        let h1 = unsafe { std::ptr::read(api_ptr.add(4) as *const u32) };
+        assert_eq!(h0, 0, "vtable header h0 should be 0");
+        assert_eq!(h1, 1, "vtable header h1 should be 1 (VERS_1.0)");
+
+        // Verify all expected vtable slots are non-null.
+        for (name, offset) in [
+            ("ErrorMessage", OFF_ERROR_MESSAGE),
+            ("DestroyError", OFF_DESTROY_ERROR),
+            ("CreateClient", OFF_CREATE_CLIENT),
+            ("DestroyClient", OFF_DESTROY_CLIENT),
+            ("GetMetric", OFF_GET_METRIC),
+            ("GetMetricDescription", OFF_GET_METRIC_DESC),
+            ("GetMetricValues", OFF_GET_METRIC_VALS),
+        ] {
+            let fn_ptr = unsafe { vtable_fn(api_ptr, offset) };
+            assert!(
+                fn_ptr as usize != 0,
+                "vtable slot {name} at offset {offset:#x} is NULL"
+            );
+        }
+
+        // CreateClient — should succeed even without a TPU.
+        #[repr(C)]
+        struct CreateClientArgs {
+            client: *mut std::ffi::c_void,
+        }
+        let client = unsafe {
+            let mut args = CreateClientArgs {
+                client: std::ptr::null_mut(),
+            };
+            let err = vtable_fn(api_ptr, OFF_CREATE_CLIENT)(
+                (&raw mut args) as *mut std::ffi::c_void,
+            );
+            assert!(err.is_null(), "CreateClient returned error");
+            assert!(!args.client.is_null(), "CreateClient returned null client");
+            args.client
+        };
+
+        // GetMetric with a known metric name — should return a handle
+        // (description will resolve; values may be empty without a workload).
+        let cname = CString::new("duty_cycle_pct").unwrap();
+
+        #[repr(C)]
+        struct GetMetricArgs {
+            client: *mut std::ffi::c_void,
+            metric_name: *const c_char,
+            metric: *mut std::ffi::c_void,
+        }
+
+        let metric = unsafe {
+            let mut args = GetMetricArgs {
+                client,
+                metric_name: cname.as_ptr(),
+                metric: std::ptr::null_mut(),
+            };
+            let err = vtable_fn(api_ptr, OFF_GET_METRIC)(
+                (&raw mut args) as *mut std::ffi::c_void,
+            );
+            assert!(err.is_null(), "GetMetric(duty_cycle_pct) returned error");
+            assert!(
+                !args.metric.is_null(),
+                "GetMetric(duty_cycle_pct) returned null handle"
+            );
+            args.metric
+        };
+
+        // GetMetricDescription — should return a non-empty description.
+        #[repr(C)]
+        struct GetDescArgs {
+            metric: *mut std::ffi::c_void,
+            description: *const c_char,
+            description_len: usize,
+        }
+        unsafe {
+            let mut args = GetDescArgs {
+                metric,
+                description: std::ptr::null(),
+                description_len: 0,
+            };
+            let err = vtable_fn(api_ptr, OFF_GET_METRIC_DESC)(
+                (&raw mut args) as *mut std::ffi::c_void,
+            );
+            assert!(err.is_null(), "GetMetricDescription returned error");
+            assert!(
+                args.description_len > 0,
+                "GetMetricDescription returned empty description"
+            );
+            let desc = std::slice::from_raw_parts(
+                args.description as *const u8,
+                args.description_len,
+            );
+            let desc_str = std::str::from_utf8(desc).unwrap();
+            assert!(
+                desc_str.contains("duty") || desc_str.contains("active"),
+                "unexpected description: {desc_str}"
+            );
+        }
+
+        // Cleanup.
+        #[repr(C)]
+        struct DestroyArgs {
+            client: *mut std::ffi::c_void,
+        }
+        unsafe {
+            let mut args = DestroyArgs { client };
+            vtable_fn(api_ptr, OFF_DESTROY_CLIENT)(
+                (&raw mut args) as *mut std::ffi::c_void,
+            );
+        }
+    }
+
+    /// Downloads the libtpu wheel from PyPI, extracts libtpu.so, returns its path.
+    fn obtain_libtpu_so() -> PathBuf {
+        // Check if already provided via env.
+        if let Ok(path) = std::env::var("WANDB_LIBTPU_PATH") {
+            let p = PathBuf::from(path.trim());
+            if p.is_file() {
+                return p;
+            }
+        }
+
+        let cache_dir = PathBuf::from(
+            std::env::var("WANDB_TEST_LIBTPU_CACHE")
+                .unwrap_or_else(|_| "/tmp/wandb-libtpu-test".into()),
+        );
+        let libtpu_path = cache_dir.join("libtpu.so");
+        if libtpu_path.is_file() {
+            return libtpu_path;
+        }
+
+        eprintln!("Downloading libtpu wheel from PyPI...");
+        std::fs::create_dir_all(&cache_dir).expect("failed to create cache dir");
+
+        // Use pip download to get the wheel.
+        let status = std::process::Command::new("pip")
+            .args([
+                "download", "--no-deps", "--dest", cache_dir.to_str().unwrap(),
+                "--only-binary=:all:", "--platform=manylinux_2_31_x86_64",
+                "--python-version=3.12", "--implementation=cp",
+                "libtpu",
+            ])
+            .status()
+            .expect("failed to run pip download");
+        assert!(status.success(), "pip download libtpu failed");
+
+        // Find the wheel.
+        let wheel = std::fs::read_dir(&cache_dir)
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .find(|e| {
+                e.file_name()
+                    .to_str()
+                    .is_some_and(|n| n.starts_with("libtpu") && n.ends_with(".whl"))
+            })
+            .expect("libtpu wheel not found after download");
+
+        // Extract libtpu.so from the wheel (it's a zip file).
+        eprintln!("Extracting libtpu.so from {}...", wheel.file_name().to_string_lossy());
+        let file = std::fs::File::open(wheel.path()).unwrap();
+        let mut archive = zip::ZipArchive::new(file).unwrap();
+        for i in 0..archive.len() {
+            let mut entry = archive.by_index(i).unwrap();
+            if entry.name().ends_with("libtpu.so") {
+                let mut out = std::fs::File::create(&libtpu_path).unwrap();
+                std::io::copy(&mut entry, &mut out).unwrap();
+                eprintln!("Extracted to {}", libtpu_path.display());
+                return libtpu_path;
+            }
+        }
+
+        panic!("libtpu.so not found in wheel");
+    }
+}

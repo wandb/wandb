@@ -11,13 +11,13 @@ import (
 )
 
 // portfile is used to communicate the token of the gRPC service
-// started by the accelerator sidecar binary to the wandb-core process.
+// started by the wandb-xpu sidecar binary to the wandb-core process.
 type portfile struct {
 	Path string
 }
 
 func NewPortfile() *portfile {
-	file, err := os.CreateTemp("", "wandb-system-monitor-portfile-*")
+	file, err := os.CreateTemp("", "wandb-xpu-portfile-*")
 	if err != nil {
 		return nil
 	}

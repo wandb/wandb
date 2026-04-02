@@ -65,12 +65,12 @@ func NewSymonSampler(params SymonSamplerParams) *SymonSampler {
 			DiskPaths:        defaultSymonDiskPaths(),
 		}))
 
-	acceleratorManager := monitor.NewAcceleratorResourceManager(false)
-	accel, err := monitor.NewAccelerator(acceleratorManager, 0, nil)
+	xm := monitor.NewXPUResourceManager(false)
+	xpu, err := monitor.NewXPU(xm, 0, nil)
 	if err != nil {
-		logger.Debug(fmt.Sprintf("symon: accelerator monitor unavailable: %v", err))
-	} else if accel != nil {
-		sampler.resources = append(sampler.resources, accel)
+		logger.Debug(fmt.Sprintf("symon: xpu monitor unavailable: %v", err))
+	} else if xpu != nil {
+		sampler.resources = append(sampler.resources, xpu)
 	}
 
 	return sampler
@@ -122,7 +122,7 @@ func (s *SymonSampler) Sample() StatsMsg {
 	return out
 }
 
-// Cleanup releases any resources that need explicit shutdown, such as the accelerator
+// Cleanup releases any resources that need explicit shutdown, such as the wandb-xpu
 // sidecar process managed by the monitor package.
 func (s *SymonSampler) Cleanup() {
 	for _, resource := range s.resources {

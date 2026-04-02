@@ -7,6 +7,8 @@
 package stream
 
 import (
+	"log/slog"
+
 	"github.com/google/wire"
 	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/featurechecker"
@@ -22,13 +24,12 @@ import (
 	"github.com/wandb/wandb/core/internal/tensorboard"
 	"github.com/wandb/wandb/core/internal/watcher"
 	"github.com/wandb/wandb/core/internal/wboperation"
-	"log/slog"
 )
 
 // Injectors from streaminject.go:
 
 // InjectStream returns a new Stream.
-func InjectStream(commit GitCommitHash, acceleratorResourceManager *monitor.AcceleratorResourceManager, debugCorePath DebugCorePath, logLevel slog.Level, settings2 *settings.Settings) *Stream {
+func InjectStream(commit GitCommitHash, xpuResourceManager *monitor.XPUResourceManager, debugCorePath DebugCorePath, logLevel slog.Level, settings2 *settings.Settings) *Stream {
 	clientID := sharedmode.RandomClientID()
 	streamStreamLoggerFile := openStreamLoggerFile(settings2)
 	sentryContext := streamSentryContext(settings2)
@@ -47,12 +48,12 @@ func InjectStream(commit GitCommitHash, acceleratorResourceManager *monitor.Acce
 	mailboxMailbox := mailbox.New()
 	wandbOperations := wboperation.NewOperations()
 	systemMonitorFactory := &monitor.SystemMonitorFactory{
-		Logger:                     coreLogger,
-		RunHandle:                  runHandle,
-		Settings:                   settings2,
-		AcceleratorResourceManager: acceleratorResourceManager,
-		GraphqlClient:              client,
-		WriterID:                   clientID,
+		Logger:             coreLogger,
+		RunHandle:          runHandle,
+		Settings:           settings2,
+		XPUResourceManager: xpuResourceManager,
+		GraphqlClient:      client,
+		WriterID:           clientID,
 	}
 	printer := observability.NewPrinter()
 	handlerFactory := &HandlerFactory{

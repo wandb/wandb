@@ -323,7 +323,7 @@ async fn create_listener(args: &Args) -> Result<ListenerType, Box<dyn std::error
                 .as_millis();
 
             let socket_filename = format!(
-                "wandb_gpu_stats-{}-{}-{}.sock",
+                "wandb_xpu-{}-{}-{}.sock",
                 args.parent_pid, pid, time_stamp
             );
             socket_path.push(socket_filename);
