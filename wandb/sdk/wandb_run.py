@@ -1453,7 +1453,7 @@ class Run:
     @_log_to_run
     @_raise_if_finished
     @_attach
-    def pin_config_keys(self, keys: Sequence[str]) -> None:
+    def pin_config_keys(self, keys: Sequence[str] = ()) -> None:
         """Pin config keys to display in the References section on Run Overview.
 
         Pinned keys appear prominently above Notes on the Run Overview page.
