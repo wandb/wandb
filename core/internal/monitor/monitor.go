@@ -158,7 +158,8 @@ func (f *SystemMonitorFactory) New(extraWork runwork.ExtraWork) *SystemMonitor {
 }
 
 // initializeResources sets up the resources to be monitored based on the provided settings.
-func (sm *SystemMonitor) initializeResources(acceleratorResourceManager *AcceleratorResourceManager) {
+func (sm *SystemMonitor) initializeResources(
+	acceleratorResourceManager *AcceleratorResourceManager) {
 	pid := sm.settings.GetStatsPid()
 	samplingInterval := sm.settings.GetStatsSamplingInterval()
 	neuronMonitorConfigPath := sm.settings.GetStatsNeuronMonitorConfigPath()
@@ -499,7 +500,9 @@ func ShouldCaptureSamplingError(err error) bool {
 		return false
 
 	// Container/lean Linux builds without /proc/diskstats.
-	case strings.Contains(msg, "/proc/diskstats") && (strings.Contains(msg, "no such file") || strings.Contains(msg, "no such file or directory")):
+	case strings.Contains(msg, "/proc/diskstats") &&
+		(strings.Contains(msg, "no such file") ||
+			strings.Contains(msg, "no such file or directory")):
 		return false
 
 	// Windows sporadic low-level API failure wording.
