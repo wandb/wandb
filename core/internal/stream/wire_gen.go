@@ -47,12 +47,12 @@ func InjectStream(commit GitCommitHash, acceleratorResourceManager *monitor.Acce
 	mailboxMailbox := mailbox.New()
 	wandbOperations := wboperation.NewOperations()
 	systemMonitorFactory := &monitor.SystemMonitorFactory{
-		Logger:             coreLogger,
-		RunHandle:          runHandle,
-		Settings:           settings2,
+		Logger:                     coreLogger,
+		RunHandle:                  runHandle,
+		Settings:                   settings2,
 		AcceleratorResourceManager: acceleratorResourceManager,
-		GraphqlClient:      client,
-		WriterID:           clientID,
+		GraphqlClient:              client,
+		WriterID:                   clientID,
 	}
 	printer := observability.NewPrinter()
 	handlerFactory := &HandlerFactory{

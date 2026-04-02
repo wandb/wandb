@@ -35,8 +35,8 @@ const (
 )
 
 type ConnectionParams struct {
-	StreamMux          *stream.StreamMux
-	RunSyncManager     *runsync.RunSyncManager
+	StreamMux                  *stream.StreamMux
+	RunSyncManager             *runsync.RunSyncManager
 	AcceleratorResourceManager *monitor.AcceleratorResourceManager
 
 	ID string
@@ -115,22 +115,22 @@ func NewConnection(
 	connLifetimeCtx, stopConnection := context.WithCancel(serverLifetimeCtx)
 
 	return &Connection{
-		connLifetimeCtx:    connLifetimeCtx,
-		stopConnection:     stopConnection,
-		requestCanceller:   NewRequestCanceller(),
-		stopServer:         stopServer,
-		streamMux:          params.StreamMux,
-		runSyncManager:     params.RunSyncManager,
+		connLifetimeCtx:            connLifetimeCtx,
+		stopConnection:             stopConnection,
+		requestCanceller:           NewRequestCanceller(),
+		stopServer:                 stopServer,
+		streamMux:                  params.StreamMux,
+		runSyncManager:             params.RunSyncManager,
 		acceleratorResourceManager: params.AcceleratorResourceManager,
-		conn:               params.Conn,
-		commit:             params.Commit,
-		id:                 params.ID,
-		inChan:             make(chan *spb.ServerRequest, BufferSize),
-		outChan:            make(chan *spb.ServerResponse, BufferSize),
-		closed:             &atomic.Bool{},
-		loggerPath:         params.LoggerPath,
-		logLevel:           params.LogLevel,
-		apiManager:         wbapi.NewManager(),
+		conn:                       params.Conn,
+		commit:                     params.Commit,
+		id:                         params.ID,
+		inChan:                     make(chan *spb.ServerRequest, BufferSize),
+		outChan:                    make(chan *spb.ServerResponse, BufferSize),
+		closed:                     &atomic.Bool{},
+		loggerPath:                 params.LoggerPath,
+		logLevel:                   params.LogLevel,
+		apiManager:                 wbapi.NewManager(),
 	}
 }
 
