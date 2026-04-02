@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"sort"
@@ -71,6 +72,16 @@ type runtimeMetricSelection struct {
 	MemoryBandwidthUtil   string
 	HLOExecutionTiming    string
 	HLOQueueSize          string
+
+	// Distribution metrics available via the runtime gRPC service.
+	BufferTransferLatency        string
+	InboundBufferTransferLatency string
+	HostToDeviceTransferLatency  string
+	DeviceToHostTransferLatency  string
+	CollectiveE2ELatency         string
+	HostComputeLatency           string
+	GrpcTcpMinRtt                string
+	GrpcTcpDeliveryRate          string
 }
 
 // TPU collects TPU metrics from two backends:
@@ -198,6 +209,20 @@ func (t *TPU) sampleRuntime(ctx context.Context) (map[string]any, error) {
 	if selection.HLOQueueSize != "" {
 		requested["hlo_queue_size"] = selection.HLOQueueSize
 	}
+	for logicalName, metricName := range map[string]string{
+		"buffer_transfer_latency":         selection.BufferTransferLatency,
+		"inbound_buffer_transfer_latency": selection.InboundBufferTransferLatency,
+		"host_to_device_transfer_latency": selection.HostToDeviceTransferLatency,
+		"device_to_host_transfer_latency": selection.DeviceToHostTransferLatency,
+		"collective_e2e_latency":          selection.CollectiveE2ELatency,
+		"host_compute_latency":            selection.HostComputeLatency,
+		"grpc_tcp_min_rtt":                selection.GrpcTcpMinRtt,
+		"grpc_tcp_delivery_rate":          selection.GrpcTcpDeliveryRate,
+	} {
+		if metricName != "" {
+			requested[logicalName] = metricName
+		}
+	}
 
 	metricSets, err := t.queryRuntimeMetricSets(ctx, requested)
 	metrics := t.runtimeMetricSetsToStats(metricSets)
@@ -254,6 +279,23 @@ func (t *TPU) ensureRuntimeMetricSelection(ctx context.Context) runtimeMetricSel
 			selection.HLOQueueSize = name
 		case hasAllTokens(normalized, "hlo") && hasAnyToken(normalized, "exec", "execution") && hasAnyToken(normalized, "timing", "duration", "time"):
 			selection.HLOExecutionTiming = name
+
+		case hasAllTokens(normalized, "dcn", "transfer", "latenc") && !hasAnyToken(normalized, "inbound"):
+			selection.BufferTransferLatency = name
+		case hasAllTokens(normalized, "dcn", "inbound", "transfer", "latenc"):
+			selection.InboundBufferTransferLatency = name
+		case hasAllTokens(normalized, "host", "device", "transfer", "latenc") && !hasAnyToken(normalized, "device to host", "device_to_host"):
+			selection.HostToDeviceTransferLatency = name
+		case hasAllTokens(normalized, "device", "host", "transfer", "latenc") && hasAnyToken(normalized, "device to host", "device_to_host"):
+			selection.DeviceToHostTransferLatency = name
+		case hasAllTokens(normalized, "collective") && hasAnyToken(normalized, "e2e", "end to end", "end_to_end") && hasAllTokens(normalized, "latenc"):
+			selection.CollectiveE2ELatency = name
+		case hasAnyToken(normalized, "compute") && hasAllTokens(normalized, "latenc") && hasAnyToken(normalized, "mxla", "host"):
+			selection.HostComputeLatency = name
+		case hasAllTokens(normalized, "grpc", "tcp") && hasAnyToken(normalized, "min rtt", "min_rtt", "round trip"):
+			selection.GrpcTcpMinRtt = name
+		case hasAllTokens(normalized, "grpc", "tcp") && hasAnyToken(normalized, "delivery rate", "delivery_rate"):
+			selection.GrpcTcpDeliveryRate = name
 		}
 	}
 
@@ -321,8 +363,6 @@ func (t *TPU) queryRuntimeMetricSets(ctx context.Context, requested map[string]s
 
 	var wg sync.WaitGroup
 	for logicalName, runtimeMetricName := range requested {
-		logicalName := logicalName
-		runtimeMetricName := runtimeMetricName
 		if runtimeMetricName == "" {
 			continue
 		}
@@ -385,6 +425,16 @@ func (t *TPU) runtimeMetricSetsToStats(metricSets map[string][]*tpuproto.Metric)
 
 	appendRuntimeHLOExecutionTiming(metrics, metricSets["hlo_exec_timing"])
 	appendRuntimeHLOQueueSize(metrics, metricSets["hlo_queue_size"])
+
+	appendRuntimeDistributionMetric(metrics, "tpu.bufferTransferLatency", "Us", metricSets["buffer_transfer_latency"])
+	appendRuntimeDistributionMetric(metrics, "tpu.inboundBufferTransferLatency", "Us", metricSets["inbound_buffer_transfer_latency"])
+	appendRuntimeDistributionMetric(metrics, "tpu.hostToDeviceTransferLatency", "Us", metricSets["host_to_device_transfer_latency"])
+	appendRuntimeDistributionMetric(metrics, "tpu.deviceToHostTransferLatency", "Us", metricSets["device_to_host_transfer_latency"])
+	appendRuntimeDistributionMetric(metrics, "tpu.collectiveE2ELatency", "Us", metricSets["collective_e2e_latency"])
+	appendRuntimeDistributionMetric(metrics, "tpu.hostComputeLatency", "Us", metricSets["host_compute_latency"])
+	appendRuntimeDistributionMetric(metrics, "tpu.grpcTcpMinRtt", "Us", metricSets["grpc_tcp_min_rtt"])
+	appendRuntimeDistributionMetric(metrics, "tpu.grpcTcpDeliveryRate", "Mbps", metricSets["grpc_tcp_delivery_rate"])
+
 	return metrics
 }
 
@@ -519,6 +569,159 @@ func almostEqual(a, b float64) bool {
 		return a-b < epsilon
 	}
 	return b-a < epsilon
+}
+
+// appendRuntimeDistributionMetric extracts percentile stats from distribution
+// or summary metrics returned by the runtime gRPC service.
+func appendRuntimeDistributionMetric(out map[string]any, baseKey, unitSuffix string, metricSet []*tpuproto.Metric) {
+	for idx, metric := range metricSet {
+		label := runtimeMetricLabel(metric, fmt.Sprintf("item_%d", idx))
+
+		if summary := metric.GetSummary(); summary != nil {
+			if count := summary.GetSampleCount(); count > 0 {
+				out[fmt.Sprintf("%s.%s.mean%s", baseKey, label, unitSuffix)] = summary.GetSampleSum() / float64(count)
+			}
+			for _, q := range summary.GetQuantile() {
+				name := quantileName(q.GetQuantile())
+				if name != "" {
+					out[fmt.Sprintf("%s.%s.%s%s", baseKey, label, name, unitSuffix)] = q.GetValue()
+				}
+			}
+			continue
+		}
+
+		if dist := metric.GetDistribution(); dist != nil && dist.GetCount() > 0 {
+			out[fmt.Sprintf("%s.%s.mean%s", baseKey, label, unitSuffix)] = dist.GetMean()
+			for pctName, pctValue := range distributionPercentiles(dist) {
+				out[fmt.Sprintf("%s.%s.%s%s", baseKey, label, pctName, unitSuffix)] = pctValue
+			}
+			continue
+		}
+
+		if gauge := metric.GetGauge(); gauge != nil {
+			value := gauge.GetAsDouble()
+			if value == 0 && gauge.GetAsInt() != 0 {
+				value = float64(gauge.GetAsInt())
+			}
+			out[fmt.Sprintf("%s.%s.mean%s", baseKey, label, unitSuffix)] = value
+		}
+	}
+}
+
+// distributionPercentiles computes p50/p90/p95/p999 from a Distribution proto
+// message using its bucket histogram.
+func distributionPercentiles(dist *tpuproto.Distribution) map[string]float64 {
+	counts := dist.GetBucketCounts()
+	if len(counts) == 0 {
+		return nil
+	}
+
+	var total int64
+	for _, c := range counts {
+		total += c
+	}
+	if total == 0 {
+		return nil
+	}
+
+	boundaries := distributionBoundaries(dist)
+	result := make(map[string]float64, 4)
+	for name, q := range map[string]float64{
+		"p50":  0.50,
+		"p90":  0.90,
+		"p95":  0.95,
+		"p999": 0.999,
+	} {
+		result[name] = interpolatePercentile(counts, boundaries, total, q)
+	}
+	return result
+}
+
+// distributionBoundaries returns the upper bounds of each finite bucket.
+func distributionBoundaries(dist *tpuproto.Distribution) []float64 {
+	opts := dist.GetBucketOptions()
+	if opts == nil {
+		return nil
+	}
+
+	if exp := opts.GetExponentialBuckets(); exp != nil {
+		n := int(exp.GetNumFiniteBuckets())
+		scale := exp.GetScale()
+		growth := exp.GetGrowthFactor()
+		if n <= 0 || scale <= 0 || growth <= 1 {
+			return nil
+		}
+		bounds := make([]float64, n)
+		for i := range n {
+			bounds[i] = scale * math.Pow(growth, float64(i+1))
+		}
+		return bounds
+	}
+
+	if lin := opts.GetLinearBuckets(); lin != nil {
+		n := int(lin.GetNumFiniteBuckets())
+		width := lin.GetWidth()
+		offset := lin.GetOffset()
+		if n <= 0 || width <= 0 {
+			return nil
+		}
+		bounds := make([]float64, n)
+		for i := range n {
+			bounds[i] = offset + width*float64(i+1)
+		}
+		return bounds
+	}
+
+	if explicit := opts.GetExplicitBuckets(); explicit != nil {
+		return explicit.GetBounds()
+	}
+
+	return nil
+}
+
+// interpolatePercentile computes a percentile value from bucket histogram data.
+// boundaries are the upper bounds of the N finite buckets. counts has N+2 entries:
+// [underflow, bucket_0, ..., bucket_{N-1}, overflow].
+func interpolatePercentile(counts []int64, boundaries []float64, total int64, quantile float64) float64 {
+	target := float64(total) * quantile
+	var cumulative int64
+
+	for i, count := range counts {
+		cumulative += count
+		if float64(cumulative) < target {
+			continue
+		}
+
+		lower, upper := bucketRange(boundaries, i)
+		prev := cumulative - count
+		fraction := (target - float64(prev)) / float64(count)
+		return lower + fraction*(upper-lower)
+	}
+
+	// Fell off the end: return the upper bound of the last finite bucket.
+	if len(boundaries) > 0 {
+		return boundaries[len(boundaries)-1]
+	}
+	return 0
+}
+
+// bucketRange returns the [lower, upper) range for the given bucket index.
+func bucketRange(boundaries []float64, index int) (float64, float64) {
+	if len(boundaries) == 0 {
+		return 0, 0
+	}
+	switch {
+	case index == 0:
+		// Underflow bucket: [0, first_boundary).
+		return 0, boundaries[0]
+	case index <= len(boundaries):
+		// Finite bucket.
+		return boundaries[index-1], boundaries[min(index, len(boundaries)-1)]
+	default:
+		// Overflow bucket: use the last boundary as both bounds.
+		last := boundaries[len(boundaries)-1]
+		return last, last
+	}
 }
 
 // Close closes the gRPC connection and the libtpu handle.

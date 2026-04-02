@@ -4,8 +4,6 @@ package monitor
 
 import (
 	"context"
-	"debug/elf"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -24,14 +22,7 @@ import (
 
 // Environment overrides for direct libtpu integration.
 const (
-	envLibtpuPath        = "WANDB_LIBTPU_PATH"
-	envListSymbol        = "WANDB_LIBTPU_MON_LIST_SYMBOL"
-	envGetSymbol         = "WANDB_LIBTPU_MON_GET_SYMBOL"
-	envDescriptionSymbol = "WANDB_LIBTPU_MON_DESC_SYMBOL"
-	envDataSymbol        = "WANDB_LIBTPU_MON_DATA_SYMBOL"
-	envFreeSymbol        = "WANDB_LIBTPU_MON_FREE_SYMBOL"
-	envVersionSymbol     = "WANDB_LIBTPU_MON_VERSION_SYMBOL"
-	envPjrtSymbol        = "WANDB_LIBTPU_PJRT_SYMBOL"
+	envLibtpuPath = "WANDB_LIBTPU_PATH"
 )
 
 type libtpuCollector interface {
@@ -40,40 +31,46 @@ type libtpuCollector interface {
 	Close() error
 }
 
-type libtpuSymbols struct {
-	GetPjrtAPI           string
-	ListSupportedMetrics string
-	GetMetric            string
-	MetricDescription    string
-	MetricData           string
-	MetricFree           string
-	Version              string
-}
-
 type libtpuProbeInfo struct {
 	LibraryPath      string
 	Version          string
 	SupportedMetrics []string
 	ResolvedMetrics  map[string]string
-	Symbols          libtpuSymbols
+	Symbols          string // "GetLibtpuSdkApi" or legacy symbol names
 }
 
-type puregoLibtpuCollector struct {
+// ---------- LibtpuSdkApi vtable layout ----------
+//
+// Recovered from libtpu.so (GetLibtpuSdkApi@@VERS_1.0) via disassembly.
+// The struct has an 8-byte header (two uint32), then function pointers.
+//
+// All API functions follow the convention:
+//   func(args *SomeArgs) -> *error_handle  (NULL on success)
+//
+// The args struct carries both inputs and outputs, modified in place.
+
+const (
+	// Vtable byte offsets from start of the LibtpuSdkApi struct.
+	// The struct has an 8-byte header (two uint32), then function pointers.
+	// Offsets verified against the CGO probe that successfully reads metrics.
+	vtableErrorMessage         = 0x08
+	vtableDestroyError         = 0x10
+	vtableCreateClient         = 0x20
+	vtableDestroyClient        = 0x28
+	vtableGetMetric            = 0x50
+	vtableGetMetricDescription = 0x58
+	vtableGetMetricValues      = 0x60
+)
+
+// sdkCollector uses GetLibtpuSdkApi to call libtpu.so directly via purego.
+type sdkCollector struct {
 	logger *observability.CoreLogger
 
 	path   string
 	handle uintptr
 
-	listSupportedMetrics func() uintptr
-	getMetric            func(*byte) uintptr
-	metricDescription    func(uintptr) uintptr
-	metricData           func(uintptr) uintptr
-	metricFree           func(uintptr)
-	getVersion           func() uintptr
-	getPjrtAPI           func() uintptr
-
-	exportedSymbols []string
-	symbols         libtpuSymbols
+	apiPtr uintptr // pointer to the LibtpuSdkApi struct
+	client uintptr // client handle from CreateClient
 
 	probeMu  sync.Mutex
 	probe    *libtpuProbeInfo
@@ -88,126 +85,58 @@ type desiredLibtpuMetric struct {
 var desiredLibtpuMetrics = []desiredLibtpuMetric{
 	{
 		LogicalName: "tensorcore_utilization",
-		Aliases: []string{
-			"tensorcore_utilization",
-			"tensorcore_util",
-		},
+		Aliases:     []string{"tensorcore_utilization", "tensorcore_util"},
+	},
+	{
+		LogicalName: "duty_cycle_pct",
+		Aliases:     []string{"duty_cycle_pct"},
+	},
+	{
+		LogicalName: "hbm_capacity_total",
+		Aliases:     []string{"hbm_capacity_total"},
+	},
+	{
+		LogicalName: "hbm_capacity_usage",
+		Aliases:     []string{"hbm_capacity_usage"},
 	},
 	{
 		LogicalName: "buffer_transfer_latency",
-		Aliases: []string{
-			"buffer_transfer_latency",
-		},
+		Aliases:     []string{"buffer_transfer_latency"},
 	},
 	{
 		LogicalName: "host_to_device_transfer_latency",
-		Aliases: []string{
-			"host_to_device_transfer_latency",
-		},
+		Aliases:     []string{"host_to_device_transfer_latency"},
 	},
 	{
 		LogicalName: "device_to_host_transfer_latency",
-		Aliases: []string{
-			"device_to_host_transfer_latency",
-		},
+		Aliases:     []string{"device_to_host_transfer_latency"},
 	},
 	{
 		LogicalName: "collective_e2e_latency",
-		Aliases: []string{
-			"collective_e2e_latency",
-		},
+		Aliases:     []string{"collective_e2e_latency"},
 	},
 	{
 		LogicalName: "grpc_tcp_min_rtt",
-		Aliases: []string{
-			"grpc_tcp_min_rtt",
-			"grpc_tcp_min_round_trip_times",
-		},
+		Aliases:     []string{"grpc_tcp_min_rtt", "grpc_tcp_min_round_trip_times"},
 	},
 	{
 		LogicalName: "grpc_tcp_delivery_rate",
-		Aliases: []string{
-			"grpc_tcp_delivery_rate",
-			"grpc_tcp_delivery_rates",
-		},
+		Aliases:     []string{"grpc_tcp_delivery_rate", "grpc_tcp_delivery_rates"},
 	},
 	{
 		LogicalName: "hlo_exec_timing",
-		Aliases: []string{
-			"hlo_exec_timing",
-		},
+		Aliases:     []string{"hlo_exec_timing"},
 	},
 	{
 		LogicalName: "hlo_queue_size",
-		Aliases: []string{
-			"hlo_queue_size",
-		},
+		Aliases:     []string{"hlo_queue_size"},
 	},
 }
 
-var listSupportedMetricSymbolCandidates = []string{
-	"TpuMonitoringListSupportedMetrics",
-	"LibtpuMonitoringListSupportedMetrics",
-	"libtpu_monitoring_list_supported_metrics",
-	"libtpu_list_supported_metrics",
-	"list_supported_metrics",
-}
-
-var getMetricSymbolCandidates = []string{
-	"TpuMonitoringGetMetric",
-	"LibtpuMonitoringGetMetric",
-	"libtpu_monitoring_get_metric",
-	"libtpu_get_metric",
-	"get_metric",
-}
-
-var metricDescriptionSymbolCandidates = []string{
-	"TpuMetricDescription",
-	"LibtpuMetricDescription",
-	"libtpu_metric_description",
-	"metric_description",
-	"description",
-}
-
-var metricDataSymbolCandidates = []string{
-	"TpuMetricData",
-	"LibtpuMetricData",
-	"libtpu_metric_data",
-	"metric_data",
-	"data",
-}
-
-var metricFreeSymbolCandidates = []string{
-	"TpuMetricFree",
-	"LibtpuMetricFree",
-	"libtpu_metric_free",
-	"metric_free",
-	"free_metric",
-}
-
-var versionSymbolCandidates = []string{
-	"LibtpuVersion",
-	"LibtpuGetVersion",
-	"libtpu_version",
-	"libtpu_get_version",
-	"GetLibtpuVersion",
-	"GetVersion",
-}
-
-var pjrtSymbolCandidates = []string{
-	"GetPjrtApi",
-}
-
-// newLibtpuCollector loads libtpu.so directly with purego.
-//
-// The monitoring ABI is not publicly documented in the sources available here, so
-// symbol resolution is layered:
-//  1. explicit env overrides
-//  2. common candidate names
-//  3. ELF-exported symbol heuristics
-//
-// If your environment uses different symbol names, set the WANDB_LIBTPU_MON_* env vars.
-func newLibtpuCollector(logger *observability.CoreLogger) (*puregoLibtpuCollector, error) {
+// newLibtpuCollector loads libtpu.so and calls GetLibtpuSdkApi to obtain
+// the SDK function table. All subsequent metric calls go through this vtable
+// using purego.SyscallN — no CGO required.
+func newLibtpuCollector(logger *observability.CoreLogger) (*sdkCollector, error) {
 	path := findLibtpuPath()
 	if path == "" {
 		return nil, fmt.Errorf("libtpu.so not found")
@@ -218,37 +147,34 @@ func newLibtpuCollector(logger *observability.CoreLogger) (*puregoLibtpuCollecto
 		return nil, fmt.Errorf("dlopen %q: %w", path, err)
 	}
 
-	c := &puregoLibtpuCollector{
-		logger:  logger,
-		path:    path,
-		handle:  handle,
-		symbols: libtpuSymbols{},
+	// Resolve GetLibtpuSdkApi.
+	var getAPI func() uintptr
+	purego.RegisterLibFunc(&getAPI, handle, "GetLibtpuSdkApi")
+	apiPtr := getAPI()
+	if apiPtr == 0 {
+		purego.Dlclose(handle)
+		return nil, fmt.Errorf("GetLibtpuSdkApi() returned NULL")
 	}
-	c.exportedSymbols, _ = exportedELFSymbols(path)
 
-	_ = c.resolveOptionalSymbol(&c.getPjrtAPI, &c.symbols.GetPjrtAPI, os.Getenv(envPjrtSymbol), pjrtSymbolCandidates)
+	c := &sdkCollector{
+		logger: logger,
+		path:   path,
+		handle: handle,
+		apiPtr: apiPtr,
+	}
 
-	_ = c.resolveOptionalSymbol(&c.listSupportedMetrics, &c.symbols.ListSupportedMetrics, os.Getenv(envListSymbol), listSupportedMetricSymbolCandidates)
-	_ = c.resolveOptionalSymbol(&c.metricFree, &c.symbols.MetricFree, os.Getenv(envFreeSymbol), metricFreeSymbolCandidates)
-	_ = c.resolveOptionalSymbol(&c.getVersion, &c.symbols.Version, os.Getenv(envVersionSymbol), versionSymbolCandidates)
-
-	if err := c.resolveRequiredSymbol(&c.getMetric, &c.symbols.GetMetric, os.Getenv(envGetSymbol), getMetricSymbolCandidates, []string{"get", "metric"}); err != nil {
-		_ = c.Close()
-		return nil, err
+	// Create a client immediately; this validates the vtable is functional.
+	client, err := c.createClient()
+	if err != nil {
+		purego.Dlclose(handle)
+		return nil, fmt.Errorf("CreateClient: %w", err)
 	}
-	if err := c.resolveRequiredSymbol(&c.metricDescription, &c.symbols.MetricDescription, os.Getenv(envDescriptionSymbol), metricDescriptionSymbolCandidates, []string{"description"}); err != nil {
-		_ = c.Close()
-		return nil, err
-	}
-	if err := c.resolveRequiredSymbol(&c.metricData, &c.symbols.MetricData, os.Getenv(envDataSymbol), metricDataSymbolCandidates, []string{"data"}); err != nil {
-		_ = c.Close()
-		return nil, err
-	}
+	c.client = client
 
 	return c, nil
 }
 
-func (c *puregoLibtpuCollector) Probe(ctx context.Context) (*libtpuProbeInfo, error) {
+func (c *sdkCollector) Probe(ctx context.Context) (*libtpuProbeInfo, error) {
 	_ = ctx
 
 	c.probeMu.Lock()
@@ -259,25 +185,25 @@ func (c *puregoLibtpuCollector) Probe(ctx context.Context) (*libtpuProbeInfo, er
 	}
 	c.probeMu.Unlock()
 
-	supportedMetrics, _ := c.listSupportedMetricNames()
-	resolvedMetrics := resolveLibtpuMetricNames(supportedMetrics)
-	if len(resolvedMetrics) == 0 {
-		// Fall back to first alias for optimistic probing when the list symbol is
-		// not exported. Sample() still treats per-metric failures independently.
-		resolvedMetrics = fallbackResolvedLibtpuMetrics()
+	// Try reading all known metric names to discover what's available.
+	var supported []string
+	for _, desired := range desiredLibtpuMetrics {
+		for _, alias := range desired.Aliases {
+			if _, _, err := c.readMetric(alias); err == nil {
+				supported = append(supported, alias)
+				break
+			}
+		}
 	}
+	sort.Strings(supported)
 
-	version := ""
-	if c.getVersion != nil {
-		version = cStringFromPtr(c.getVersion())
-	}
+	resolved := resolveLibtpuMetricNames(supported)
 
 	probe := &libtpuProbeInfo{
 		LibraryPath:      c.path,
-		Version:          strings.TrimSpace(version),
-		SupportedMetrics: supportedMetrics,
-		ResolvedMetrics:  resolvedMetrics,
-		Symbols:          c.symbols,
+		SupportedMetrics: supported,
+		ResolvedMetrics:  resolved,
+		Symbols:          "GetLibtpuSdkApi",
 	}
 
 	c.probeMu.Lock()
@@ -286,7 +212,7 @@ func (c *puregoLibtpuCollector) Probe(ctx context.Context) (*libtpuProbeInfo, er
 	return probe, nil
 }
 
-func (c *puregoLibtpuCollector) Sample(ctx context.Context) (map[string]any, error) {
+func (c *sdkCollector) Sample(ctx context.Context) (map[string]any, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -318,6 +244,12 @@ func (c *puregoLibtpuCollector) Sample(ctx context.Context) (map[string]any, err
 		switch desired.LogicalName {
 		case "tensorcore_utilization":
 			appendIndexedFloatMetrics(metrics, "tpu.%d.tensorcoreUtilization", data)
+		case "duty_cycle_pct":
+			appendIndexedFloatMetrics(metrics, "tpu.%d.dutyCycle", data)
+		case "hbm_capacity_total":
+			appendIndexedFloatMetrics(metrics, "tpu.%d.hbmCapacityTotal", data)
+		case "hbm_capacity_usage":
+			appendIndexedFloatMetrics(metrics, "tpu.%d.hbmCapacityUsage", data)
 		case "buffer_transfer_latency":
 			appendLabeledDistributionMetrics(metrics, "tpu.bufferTransferLatency", "Us", description, data)
 		case "host_to_device_transfer_latency":
@@ -343,152 +275,220 @@ func (c *puregoLibtpuCollector) Sample(ctx context.Context) (map[string]any, err
 	return metrics, errors.Join(sampleErrs...)
 }
 
-func (c *puregoLibtpuCollector) Close() error {
-	if c == nil || c.handle == 0 {
+func (c *sdkCollector) Close() error {
+	if c == nil {
 		return nil
 	}
-	err := purego.Dlclose(c.handle)
-	c.handle = 0
-	return err
-}
-
-func (c *puregoLibtpuCollector) readMetric(metricName string) (string, []string, error) {
-	name := cString(metricName)
-	handle := c.getMetric(&name[0])
-	runtime.KeepAlive(name)
-	if handle == 0 {
-		return "", nil, fmt.Errorf("get_metric returned nil")
+	if c.client != 0 {
+		c.destroyClient()
+		c.client = 0
 	}
-	if c.metricFree != nil {
-		defer c.metricFree(handle)
-	}
-
-	description := cStringFromPtr(c.metricDescription(handle))
-	rawData := cStringFromPtr(c.metricData(handle))
-	return description, parseMetricDataString(rawData), nil
-}
-
-func (c *puregoLibtpuCollector) listSupportedMetricNames() ([]string, error) {
-	if c.listSupportedMetrics == nil {
-		return nil, nil
-	}
-	raw := cStringFromPtr(c.listSupportedMetrics())
-	if strings.TrimSpace(raw) == "" {
-		return nil, nil
-	}
-	return parseMetricListString(raw), nil
-}
-
-func (c *puregoLibtpuCollector) resolveOptionalSymbol(fn any, dst *string, envName string, candidates []string) error {
-	if name, ok := c.resolveSymbolName(envName, candidates, nil); ok {
-		if err := registerLibFunc(c.handle, name, fn); err != nil {
-			return err
-		}
-		*dst = name
-	}
-	return nil
-}
-
-func (c *puregoLibtpuCollector) resolveRequiredSymbol(fn any, dst *string, envName string, candidates []string, heuristicTokens []string) error {
-	name, ok := c.resolveSymbolName(envName, candidates, heuristicTokens)
-	if !ok {
-		return fmt.Errorf(
-			"failed to resolve required libtpu symbol; set %s/%s/%s and inspect %s with `nm -D %s | grep -i -E 'metric|monitor|tpu'`",
-			envGetSymbol,
-			envDescriptionSymbol,
-			envDataSymbol,
-			filepath.Base(c.path),
-			c.path,
-		)
-	}
-	if err := registerLibFunc(c.handle, name, fn); err != nil {
-		return fmt.Errorf("register %q: %w", name, err)
-	}
-	*dst = name
-	return nil
-}
-
-func (c *puregoLibtpuCollector) resolveSymbolName(envName string, candidates []string, heuristicTokens []string) (string, bool) {
-	if envName != "" {
-		if symbolExists(c.handle, envName) {
-			return envName, true
-		}
-	}
-
-	for _, name := range candidates {
-		if name != "" && symbolExists(c.handle, name) {
-			return name, true
-		}
-	}
-
-	guessed := guessUniqueSymbol(c.exportedSymbols, heuristicTokens)
-	if guessed != "" && symbolExists(c.handle, guessed) {
-		return guessed, true
-	}
-	return "", false
-}
-
-func registerLibFunc(handle uintptr, name string, fn any) error {
-	if _, err := purego.Dlsym(handle, name); err != nil {
+	if c.handle != 0 {
+		err := purego.Dlclose(c.handle)
+		c.handle = 0
 		return err
 	}
-	purego.RegisterLibFunc(fn, handle, name)
 	return nil
 }
 
-func symbolExists(handle uintptr, name string) bool {
-	if name == "" {
-		return false
-	}
-	_, err := purego.Dlsym(handle, name)
-	return err == nil
+// ---------- SDK vtable calls via purego.SyscallN ----------
+
+// vtableSlot reads the function pointer at the given byte offset in the API struct.
+func (c *sdkCollector) vtableSlot(offset uintptr) uintptr {
+	return *(*uintptr)(unsafe.Pointer(c.apiPtr + offset))
 }
 
-func guessUniqueSymbol(symbols []string, tokens []string) string {
-	if len(symbols) == 0 || len(tokens) == 0 {
+// createClient calls CreateClient through the vtable.
+// Args layout: { void* client } — output only.
+func (c *sdkCollector) createClient() (uintptr, error) {
+	type createClientArgs struct {
+		client uintptr
+	}
+	var args createClientArgs
+	errHandle, _, _ := purego.SyscallN(c.vtableSlot(vtableCreateClient), uintptr(unsafe.Pointer(&args)))
+	runtime.KeepAlive(&args)
+	if err := c.consumeError(errHandle, "CreateClient"); err != nil {
+		return 0, err
+	}
+	if args.client == 0 {
+		return 0, fmt.Errorf("CreateClient returned nil client")
+	}
+	return args.client, nil
+}
+
+// destroyClient calls DestroyClient through the vtable.
+func (c *sdkCollector) destroyClient() {
+	if c.client == 0 {
+		return
+	}
+	type destroyClientArgs struct {
+		client uintptr
+	}
+	args := destroyClientArgs{client: c.client}
+	purego.SyscallN(c.vtableSlot(vtableDestroyClient), uintptr(unsafe.Pointer(&args)))
+	runtime.KeepAlive(&args)
+}
+
+// readMetric calls GetMetric, GetMetricDescription, and GetMetricValues.
+func (c *sdkCollector) readMetric(metricName string) (string, []string, error) {
+	metric, err := c.getMetric(metricName)
+	if err != nil {
+		return "", nil, err
+	}
+
+	desc, err := c.getMetricDescription(metric)
+	if err != nil {
+		return "", nil, err
+	}
+
+	values, err := c.getMetricValues(metric)
+	if err != nil {
+		return desc, nil, err
+	}
+
+	return desc, values, nil
+}
+
+// getMetric calls GetMetric(client, name) through the vtable.
+// Args layout: { void* client; const char* metric_name; void* metric }
+func (c *sdkCollector) getMetric(name string) (uintptr, error) {
+	cname := cString(name)
+	type getMetricArgs struct {
+		client     uintptr
+		metricName uintptr // *byte
+		metric     uintptr
+	}
+	args := getMetricArgs{
+		client:     c.client,
+		metricName: uintptr(unsafe.Pointer(&cname[0])),
+	}
+	errHandle, _, _ := purego.SyscallN(c.vtableSlot(vtableGetMetric), uintptr(unsafe.Pointer(&args)))
+	runtime.KeepAlive(cname)
+	runtime.KeepAlive(&args)
+	if err := c.consumeError(errHandle, fmt.Sprintf("GetMetric(%q)", name)); err != nil {
+		return 0, err
+	}
+	if args.metric == 0 {
+		return 0, fmt.Errorf("GetMetric(%q): nil handle", name)
+	}
+	return args.metric, nil
+}
+
+// getMetricDescription calls GetMetricDescription(metric) through the vtable.
+// Args layout: { const void* metric; const char* description; size_t description_len }
+func (c *sdkCollector) getMetricDescription(metric uintptr) (string, error) {
+	type getMetricDescriptionArgs struct {
+		metric         uintptr
+		description    uintptr // *byte
+		descriptionLen uintptr // size_t
+	}
+	args := getMetricDescriptionArgs{metric: metric}
+	errHandle, _, _ := purego.SyscallN(c.vtableSlot(vtableGetMetricDescription), uintptr(unsafe.Pointer(&args)))
+	runtime.KeepAlive(&args)
+	if err := c.consumeError(errHandle, "GetMetricDescription"); err != nil {
+		return "", err
+	}
+	if args.description == 0 || args.descriptionLen == 0 {
+		return "", nil
+	}
+	return goStringN(args.description, args.descriptionLen), nil
+}
+
+// getMetricValues calls GetMetricValues(metric) through the vtable.
+// Args layout: { const void* metric; const char** values; size_t value_count }
+func (c *sdkCollector) getMetricValues(metric uintptr) ([]string, error) {
+	type getMetricValuesArgs struct {
+		metric     uintptr
+		values     uintptr // **byte (array of C strings)
+		valueCount uintptr // size_t
+	}
+	args := getMetricValuesArgs{metric: metric}
+	errHandle, _, _ := purego.SyscallN(c.vtableSlot(vtableGetMetricValues), uintptr(unsafe.Pointer(&args)))
+	runtime.KeepAlive(&args)
+	if err := c.consumeError(errHandle, "GetMetricValues"); err != nil {
+		return nil, err
+	}
+	count := int(args.valueCount)
+	if count == 0 || args.values == 0 {
+		return nil, nil
+	}
+
+	// Read the char** array: each element is a pointer to a C string.
+	result := make([]string, 0, count)
+	for i := range count {
+		strPtr := *(*uintptr)(unsafe.Pointer(args.values + uintptr(i)*unsafe.Sizeof(uintptr(0))))
+		if strPtr == 0 {
+			result = append(result, "")
+			continue
+		}
+		result = append(result, cStringFromPtr(strPtr))
+	}
+	return result, nil
+}
+
+// consumeError reads and destroys a libtpu error handle.
+func (c *sdkCollector) consumeError(errHandle uintptr, context string) error {
+	if errHandle == 0 {
+		return nil
+	}
+
+	// ErrorMessage: { void* error; const char* message; size_t message_len }
+	type errorMessageArgs struct {
+		errHandle  uintptr
+		message    uintptr
+		messageLen uintptr
+	}
+	msgArgs := errorMessageArgs{errHandle: errHandle}
+	purego.SyscallN(c.vtableSlot(vtableErrorMessage), uintptr(unsafe.Pointer(&msgArgs)))
+	runtime.KeepAlive(&msgArgs)
+
+	msg := "unknown error"
+	if msgArgs.message != 0 && msgArgs.messageLen > 0 {
+		msg = goStringN(msgArgs.message, msgArgs.messageLen)
+	}
+
+	// DestroyError: { void* error }
+	type destroyErrorArgs struct {
+		errHandle uintptr
+	}
+	destroyArgs := destroyErrorArgs{errHandle: errHandle}
+	purego.SyscallN(c.vtableSlot(vtableDestroyError), uintptr(unsafe.Pointer(&destroyArgs)))
+	runtime.KeepAlive(&destroyArgs)
+
+	return fmt.Errorf("%s: %s", context, msg)
+}
+
+// ---------- String helpers ----------
+
+func goStringN(ptr uintptr, n uintptr) string {
+	if ptr == 0 || n == 0 {
 		return ""
 	}
-	matches := make([]string, 0, 4)
-	for _, symbol := range symbols {
-		normalized := normalizeMetricName(symbol)
-		ok := true
-		for _, token := range tokens {
-			if !strings.Contains(normalized, token) {
-				ok = false
-				break
-			}
-		}
-		if ok {
-			matches = append(matches, symbol)
-		}
-	}
-	if len(matches) == 1 {
-		return matches[0]
-	}
-	return ""
+	return unsafe.String((*byte)(unsafe.Pointer(ptr)), int(n))
 }
 
-func exportedELFSymbols(path string) ([]string, error) {
-	f, err := elf.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-
-	dynamicSymbols, err := f.DynamicSymbols()
-	if err != nil {
-		return nil, err
-	}
-
-	names := make([]string, 0, len(dynamicSymbols))
-	for _, symbol := range dynamicSymbols {
-		if elf.ST_BIND(symbol.Info) == elf.STB_GLOBAL && symbol.Name != "" {
-			names = append(names, symbol.Name)
-		}
-	}
-	sort.Strings(names)
-	return names, nil
+func cString(value string) []byte {
+	b := make([]byte, len(value)+1)
+	copy(b, value)
+	return b
 }
+
+func cStringFromPtr(p uintptr) string {
+	if p == 0 {
+		return ""
+	}
+	var data []byte
+	for offset := uintptr(0); ; offset++ {
+		current := *(*byte)(unsafe.Pointer(p + offset))
+		if current == 0 {
+			break
+		}
+		data = append(data, current)
+	}
+	return string(data)
+}
+
+// ---------- Metric name resolution ----------
 
 func resolveLibtpuMetricNames(supported []string) map[string]string {
 	resolved := make(map[string]string)
@@ -512,107 +512,9 @@ func resolveLibtpuMetricNames(supported []string) map[string]string {
 	return resolved
 }
 
-func fallbackResolvedLibtpuMetrics() map[string]string {
-	resolved := make(map[string]string, len(desiredLibtpuMetrics))
-	for _, desired := range desiredLibtpuMetrics {
-		if len(desired.Aliases) > 0 {
-			resolved[desired.LogicalName] = desired.Aliases[0]
-		}
-	}
-	return resolved
-}
-
-func parseMetricListString(raw string) []string {
-	raw = strings.TrimSpace(raw)
-	if raw == "" {
-		return nil
-	}
-
-	var jsonValues []string
-	if err := json.Unmarshal([]byte(raw), &jsonValues); err == nil {
-		return dedupeSortedStrings(jsonValues)
-	}
-
-	parts := splitMetricLine(raw)
-	if len(parts) == 0 {
-		fields := strings.FieldsFunc(raw, func(r rune) bool {
-			switch r {
-			case '\n', '\r', '\t', ',', ';', '[', ']':
-				return true
-			default:
-				return false
-			}
-		})
-		parts = fields
-	}
-	return dedupeSortedStrings(parts)
-}
-
-func parseMetricDataString(raw string) []string {
-	raw = strings.TrimSpace(raw)
-	if raw == "" {
-		return nil
-	}
-
-	var jsonValues []string
-	if err := json.Unmarshal([]byte(raw), &jsonValues); err == nil {
-		return jsonValues
-	}
-
-	lines := strings.Split(raw, "\n")
-	if len(lines) == 1 {
-		return splitMetricLine(raw)
-	}
-
-	result := make([]string, 0, len(lines))
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if line != "" {
-			result = append(result, line)
-		}
-	}
-	return result
-}
-
-func dedupeSortedStrings(values []string) []string {
-	cleaned := make([]string, 0, len(values))
-	seen := make(map[string]struct{}, len(values))
-	for _, value := range values {
-		value = strings.TrimSpace(strings.Trim(value, "\"'"))
-		if value == "" {
-			continue
-		}
-		if _, ok := seen[value]; ok {
-			continue
-		}
-		seen[value] = struct{}{}
-		cleaned = append(cleaned, value)
-	}
-	sort.Strings(cleaned)
-	return cleaned
-}
-
-func cString(value string) []byte {
-	b := make([]byte, len(value)+1)
-	copy(b, value)
-	return b
-}
-
-func cStringFromPtr(p uintptr) string {
-	if p == 0 {
-		return ""
-	}
-
-	var data []byte
-	for offset := uintptr(0); ; offset++ {
-		current := *(*byte)(unsafe.Pointer(p + offset))
-		if current == 0 {
-			break
-		}
-		data = append(data, current)
-	}
-	return string(data)
-}
+// ---------- Metric data parsing ----------
+// The libtpu SDK returns metric values as C strings.
+// These helpers parse them into structured output.
 
 func appendIndexedFloatMetrics(out map[string]any, keyFmt string, data []string) {
 	for idx, raw := range data {
@@ -760,6 +662,8 @@ func sanitizeMetricLabel(label string) string {
 	return cleaned
 }
 
+// ---------- libtpu.so discovery ----------
+
 func findLibtpuPath() string {
 	if libraryPath := resolveLibtpuFilePath(strings.TrimSpace(os.Getenv(envLibtpuPath))); libraryPath != "" {
 		return libraryPath
@@ -776,11 +680,11 @@ func findLibtpuPath() string {
 		"/usr/local/lib/libtpu.so",
 	}
 	if home, err := os.UserHomeDir(); err == nil && home != "" {
-		patterns := []string{
+		for _, pattern := range []string{
 			filepath.Join(home, ".local/lib/python*/site-packages/libtpu/libtpu.so"),
 			filepath.Join(home, ".local/lib/python*/site-packages/torch_xla/lib/libtpu.so"),
-		}
-		for _, pattern := range patterns {
+			filepath.Join(home, ".venv/lib/python*/site-packages/libtpu/libtpu.so"),
+		} {
 			matches, _ := filepath.Glob(pattern)
 			candidates = append(candidates, matches...)
 		}
@@ -817,15 +721,34 @@ func resolveLibtpuFilePath(path string) string {
 	if path == "" {
 		return ""
 	}
-	if info, err := os.Stat(path); err == nil {
-		if info.IsDir() {
-			joined := filepath.Join(path, "libtpu.so")
-			if fileInfo, fileErr := os.Stat(joined); fileErr == nil && !fileInfo.IsDir() {
-				return joined
-			}
-			return ""
-		}
-		return path
+	info, err := os.Stat(path)
+	if err != nil {
+		return ""
 	}
-	return ""
+	if info.IsDir() {
+		joined := filepath.Join(path, "libtpu.so")
+		if fi, err := os.Stat(joined); err == nil && !fi.IsDir() {
+			return joined
+		}
+		return ""
+	}
+	return path
+}
+
+func dedupeSortedStrings(values []string) []string {
+	cleaned := make([]string, 0, len(values))
+	seen := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(strings.Trim(value, "\"'"))
+		if value == "" {
+			continue
+		}
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		cleaned = append(cleaned, value)
+	}
+	sort.Strings(cleaned)
+	return cleaned
 }

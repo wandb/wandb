@@ -58,6 +58,10 @@ impl GpuMonitors {
             if let Some(monitor) = AmdGpuMonitor::new() {
                 monitors.push(Box::new(monitor));
             }
+
+            if let Some(monitor) = TpuLibtpuMonitor::new() {
+                monitors.push(Box::new(monitor));
+            }
         }
 
         Self { monitors }
@@ -258,6 +262,44 @@ impl GpuMonitor for DcgmGpuMonitor {
     fn shutdown(&self) {
         log::debug!("Signaling DCGM worker thread to shut down.");
         self.client.shutdown();
+    }
+}
+
+// ===== TPU libtpu Monitor =====
+#[cfg(target_os = "linux")]
+use crate::tpu_libtpu;
+
+#[cfg(target_os = "linux")]
+struct TpuLibtpuMonitor {
+    inner: tpu_libtpu::TpuLibtpuMonitor,
+}
+
+#[cfg(target_os = "linux")]
+impl TpuLibtpuMonitor {
+    fn new() -> Option<Self> {
+        tpu_libtpu::TpuLibtpuMonitor::new().map(|inner| {
+            debug!("Successfully initialized TPU libtpu monitoring");
+            Self { inner }
+        })
+    }
+}
+
+#[cfg(target_os = "linux")]
+#[async_trait::async_trait]
+impl GpuMonitor for TpuLibtpuMonitor {
+    async fn collect_metrics(
+        &self,
+        pid: i32,
+        gpu_device_ids: Option<Vec<i32>>,
+    ) -> Result<Vec<(String, metrics::MetricValue)>, Box<dyn std::error::Error>> {
+        self.inner.collect_metrics(pid, gpu_device_ids).await
+    }
+
+    async fn collect_metadata(
+        &self,
+        samples: &HashMap<String, &metrics::MetricValue>,
+    ) -> EnvironmentRecord {
+        self.inner.collect_metadata(samples).await
     }
 }
 

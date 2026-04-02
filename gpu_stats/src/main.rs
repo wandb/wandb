@@ -24,6 +24,8 @@ mod gpu_apple_sources;
 mod gpu_nvidia;
 #[cfg(target_os = "linux")]
 mod gpu_nvidia_dcgm;
+#[cfg(target_os = "linux")]
+mod tpu_libtpu;
 
 use clap::Parser;
 use env_logger::Builder;

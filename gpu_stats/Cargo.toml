@@ -36,6 +36,7 @@ tempfile = "3.27.0"
 
 libloading = "0.9"
 async-trait = "0.1"
+glob = "0.3"
 
 [target.'cfg(not(all(target_family = "wasm", target_os = "unknown")))'.dependencies]
 which = "8.0.2"
