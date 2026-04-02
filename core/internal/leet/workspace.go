@@ -95,6 +95,9 @@ type Workspace struct {
 	logger *observability.CoreLogger
 
 	width, height int
+
+	// isRemote is true if the workspace is for a project that is stored on the W&B backend.
+	isRemote bool
 }
 
 // WorkspaceRun holds per‑run state for the workspace multi‑run view.
@@ -197,6 +200,12 @@ func (w *Workspace) SetSize(width, height int) {
 // Init wires up long‑running commands for the workspace.
 func (w *Workspace) Init() tea.Cmd {
 	var cmds []tea.Cmd
+
+	// TODO: Add multi run support for remote projects.
+	if strings.HasPrefix(w.wandbDir, "http") {
+		w.isRemote = true
+		return tea.Batch()
+	}
 
 	// Start polling immediately; subsequent polls are scheduled by the handler.
 	cmds = append(cmds, w.pollWandbDirCmd(0))
@@ -1410,4 +1419,8 @@ func (w *Workspace) renderRunLines(contentWidth int) []string {
 	}
 
 	return lines
+}
+
+func (w *Workspace) IsRemote() bool {
+	return w.isRemote
 }

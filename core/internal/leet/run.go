@@ -14,6 +14,21 @@ import (
 	"github.com/wandb/wandb/core/internal/observability"
 )
 
+type RunParams struct {
+	*RemoteRunParams
+	*LocalRunParams
+}
+type RemoteRunParams struct {
+	BaseURL string
+	Entity  string
+	Project string
+	RunId   string
+}
+
+type LocalRunParams struct {
+	RunFile string
+}
+
 // Run holds data/state related to a single W&B run.
 //
 // Implements tea.Model.
@@ -29,8 +44,8 @@ type Run struct {
 	// Terminal dimensions.
 	width, height int
 
-	// Run file path.
-	runPath string
+	// runParams contains the information about the run.
+	runParams *RunParams
 
 	// Run state tracking.
 	runState RunState
@@ -84,12 +99,10 @@ type Run struct {
 }
 
 func NewRun(
-	runPath string,
+	runParams *RunParams,
 	cfg *ConfigManager,
 	logger *observability.CoreLogger,
 ) *Run {
-	logger.Info(fmt.Sprintf("run: creating new run model for runPath: %s", runPath))
-
 	if cfg == nil {
 		cfg = NewConfigManager(leetConfigPath(), logger)
 	}
@@ -116,13 +129,12 @@ func NewRun(
 	metricsGrid.SetSingleSeriesColorMode(cfg.SingleRunColorMode())
 
 	mediaStore := NewMediaStore()
-
 	run := &Run{
 		config:               cfg,
 		keyMap:               buildKeyMap(RunKeyBindings()),
 		focus:                focus,
 		isLoading:            true,
-		runPath:              runPath,
+		runParams:            runParams,
 		metricsGridAnimState: metricsGridAnimState,
 		metricsGrid:          metricsGrid,
 		runOverview:          ro,
@@ -151,7 +163,19 @@ func (r *Run) SetMediaStore(store *MediaStore) {
 // Implements tea.Model.Init.
 func (r *Run) Init() tea.Cmd {
 	r.logger.Debug("run: Init called")
-	source := InitializeLevelDBHistorySource(r.runPath, r.logger)
+	var source tea.Cmd
+
+	if r.runParams.RemoteRunParams != nil {
+		source = InitializeParquetHistorySource(
+			r.runParams.RemoteRunParams,
+			r.logger,
+		)
+	} else {
+		source = InitializeLevelDBHistorySource(
+			r.runParams.LocalRunParams,
+			r.logger,
+		)
+	}
 
 	return tea.Batch(
 		source,
@@ -629,6 +653,10 @@ func (r *Run) updateBottomPaneHeights(mediaVisible, logsVisible bool) {
 	if logsVisible {
 		r.consoleLogsPane.SetExpandedHeight(each)
 	}
+}
+
+func (r *Run) IsRemote() bool {
+	return r.runParams.RemoteRunParams != nil
 }
 
 // Layout represents the computed layout dimensions for the main UI.

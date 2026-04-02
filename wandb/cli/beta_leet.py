@@ -5,22 +5,40 @@ import os
 import pathlib
 import subprocess
 import sys
+import urllib.parse
 
 import click
 from typing_extensions import Never
 
+from wandb import util
 from wandb.analytics import get_sentry
 from wandb.env import error_reporting_enabled, is_debug
 from wandb.sdk import wandb_setup
+from wandb.sdk.lib import wbauth
 from wandb.util import get_core_path
 
 
-@dataclasses.dataclass(frozen=True)
 class LaunchConfig:
+    """Configuration for launching LEET."""
+
+
+@dataclasses.dataclass(frozen=True)
+class LocalLaunchConfig(LaunchConfig):
     """Configuration for launching LEET."""
 
     wandb_dir: str
     run_file: str | None = None
+
+
+@dataclasses.dataclass(frozen=True)
+class RemoteLaunchConfig(LaunchConfig):
+    """Configuration for launching LEET."""
+
+    base_url: str
+    project: str
+    entity: str
+    api_key: str
+    run_id: str | None = None
 
 
 def _fatal(message: str) -> Never:
@@ -51,7 +69,7 @@ def _resolve_path(path: str | None) -> LaunchConfig:
     """
     if not path:
         wandb_dir = wandb_setup.singleton().settings.wandb_dir
-        return LaunchConfig(wandb_dir=str(wandb_dir))
+        return LocalLaunchConfig(wandb_dir=str(wandb_dir))
 
     resolved = pathlib.Path(path).resolve()
 
@@ -59,7 +77,7 @@ def _resolve_path(path: str | None) -> LaunchConfig:
         if resolved.suffix == ".wandb":
             run_dir = resolved.parent
             wandb_dir = run_dir.parent
-            return LaunchConfig(wandb_dir=str(wandb_dir), run_file=str(resolved))
+            return LocalLaunchConfig(wandb_dir=str(wandb_dir), run_file=str(resolved))
         else:
             _fatal(f"Not a .wandb file: {resolved}")
 
@@ -67,9 +85,9 @@ def _resolve_path(path: str | None) -> LaunchConfig:
         wandb_file = _find_wandb_file_in_dir(resolved)
         if wandb_file:
             wandb_dir = resolved.parent
-            return LaunchConfig(wandb_dir=str(wandb_dir), run_file=str(wandb_file))
+            return LocalLaunchConfig(wandb_dir=str(wandb_dir), run_file=str(wandb_file))
         else:
-            return LaunchConfig(wandb_dir=str(resolved))
+            return LocalLaunchConfig(wandb_dir=str(resolved))
 
     _fatal(f"Path does not exist: {resolved}")
 
@@ -87,10 +105,10 @@ def _base_args() -> list[str]:
     return args
 
 
-def _run_core(args: list[str]) -> Never:
+def _run_core(args: list[str], env: dict[str, str] | None = None) -> Never:
     """Run wandb-core with the given arguments and exit with its return code."""
     try:
-        result = subprocess.run(args, env=os.environ, close_fds=True)
+        result = subprocess.run(args, env=env, close_fds=True)
         sys.exit(result.returncode)
     except Exception as e:
         get_sentry().reraise(e)
@@ -100,18 +118,26 @@ def launch(path: str | None, pprof: str) -> Never:
     """Launch the LEET TUI."""
     get_sentry().configure_scope(process_context="leet")
 
-    config = _resolve_path(path)
-    args = _base_args()
+    if path is not None and (path.startswith("https://") or path.startswith("http://")):
+        config = _create_remote_launch_config(path)
+    else:
+        config = _resolve_path(path)
 
-    if config.run_file:
-        args.extend(["--run-file", config.run_file])
+    args = _base_args()
+    env = os.environ.copy()
 
     if pprof:
         args.extend(["--pprof", pprof])
 
-    args.append(config.wandb_dir)
+    if isinstance(config, LocalLaunchConfig):
+        args.extend(_get_local_launch_args(config))
+    elif isinstance(config, RemoteLaunchConfig):
+        args.extend(_get_remote_launch_args(config))
 
-    _run_core(args)
+        # Set api key so it is not visible in the process tree
+        env["WANDB_API_KEY"] = config.api_key
+
+    _run_core(args, env)
 
 
 def launch_config() -> Never:
@@ -138,3 +164,58 @@ def launch_symon(pprof: str = "", interval: str = "") -> Never:
         args.extend(["--interval", interval])
 
     _run_core(args)
+
+
+def _get_local_launch_args(config: LocalLaunchConfig) -> list[str]:
+    """Get the arguments for launching LEET locally."""
+    args = []
+    if config.run_file:
+        args.extend(["--run-file", config.run_file])
+    args.append(config.wandb_dir)
+    return args
+
+
+def _get_remote_launch_args(config: RemoteLaunchConfig) -> list[str]:
+    """Get the arguments for launching LEET remotely."""
+    args = []
+    args.extend(
+        [
+            "--base-url",
+            config.base_url,
+            "--project",
+            config.project,
+            "--entity",
+            config.entity,
+        ]
+    )
+    if config.run_id:
+        args.extend(["--run-id", config.run_id])
+
+    # TODO: what args do we need for remote launch?
+    return args
+
+
+def _create_remote_launch_config(path: str) -> RemoteLaunchConfig:
+    """Create a LEET launch configuration for a remote run."""
+    parsed_url = urllib.parse.urlparse(path)
+    entity, project, run_id = util.parse_path(parsed_url.path, None, None)
+
+    base_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
+    if parsed_url.netloc == "wandb.ai":
+        base_url = "https://api.wandb.ai"
+
+    auth = wbauth.authenticate_session(
+        host=base_url,
+        source="wandb-cli",
+        no_offline=True,
+        input_timeout=wandb_setup.singleton().settings.login_timeout,
+    )
+    assert isinstance(auth, wbauth.AuthApiKey)
+
+    return RemoteLaunchConfig(
+        base_url=base_url,
+        project=project,
+        entity=entity,
+        api_key=auth.api_key,
+        run_id=run_id,
+    )

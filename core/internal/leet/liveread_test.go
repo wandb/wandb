@@ -41,7 +41,11 @@ func TestReadRecords_PassesThroughArguments(t *testing.T) {
 func TestRun_ReadLiveBatchCmd_WrapsChunkedBatchAndUsesLiveLimits(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
-	r := leet.NewRun("dummy", cfg, logger)
+	r := leet.NewRun(&leet.RunParams{
+		LocalRunParams: &leet.LocalRunParams{
+			RunFile: "dummy",
+		},
+	}, cfg, logger)
 
 	src := &stubHistorySource{
 		msg: leet.ChunkedBatchMsg{
@@ -67,7 +71,11 @@ func TestRun_ReadLiveBatchCmd_WrapsChunkedBatchAndUsesLiveLimits(t *testing.T) {
 func TestRun_ReadLiveBatchCmd_DropsEmptyChunk(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
-	r := leet.NewRun("dummy", cfg, logger)
+	r := leet.NewRun(&leet.RunParams{
+		LocalRunParams: &leet.LocalRunParams{
+			RunFile: "dummy",
+		},
+	}, cfg, logger)
 
 	src := &stubHistorySource{msg: leet.ChunkedBatchMsg{}}
 	require.Nil(t, r.ReadLiveBatchCmd(src)())

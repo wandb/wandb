@@ -10,17 +10,12 @@
 package runhistoryreader
 
 import (
-	"encoding/binary"
-	"encoding/json"
 	"fmt"
-	"math"
-	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
 	"path/filepath"
 	"testing"
-	"unsafe"
 
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/stretchr/testify/assert"
@@ -29,305 +24,22 @@ import (
 	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/gqlmock"
 	"github.com/wandb/wandb/core/internal/runhistoryreader/parquet"
-	"github.com/wandb/wandb/core/internal/runhistoryreader/parquet/ffi"
+	"github.com/wandb/wandb/core/internal/runhistoryreader/parquettest"
 )
-
-// mockKVDataStore keeps binary-encoded data alive so FFI pointers remain valid.
-type mockKVDataStore struct {
-	data [][]byte
-}
-
-func newMockKVDataStore() *mockKVDataStore {
-	return &mockKVDataStore{data: make([][]byte, 0)}
-}
-
-func (m *mockKVDataStore) store(data []byte) (uintptr, uintptr) {
-	dataCopy := make([]byte, len(data))
-	copy(dataCopy, data)
-	m.data = append(m.data, dataCopy)
-
-	if len(dataCopy) == 0 {
-		// Return null pointer for empty data
-		return 0, 0
-	}
-
-	storedSlice := m.data[len(m.data)-1]
-	ptr := uintptr(unsafe.Pointer(&storedSlice[0]))
-	return ptr, ptr
-}
-
-// columnDef describes a column for the test binary encoder.
-type columnDef struct {
-	name    string
-	colType string // "int64" or "float64"
-}
-
-// createMockRustArrowWrapper creates a mock wrapper that returns data
-// in a binary KV format.
-func createMockRustArrowWrapper(
-	t *testing.T,
-	columns []columnDef,
-	datasetMap map[uintptr][]map[string]any,
-) *ffi.RustArrowWrapper {
-	if t != nil {
-		t.Helper()
-	}
-
-	if columns == nil {
-		columns = []columnDef{{name: "_step", colType: "int64"}}
-	}
-
-	dataStore := newMockKVDataStore()
-	nextReaderID := uintptr(1000)
-	readerToDataset := make(map[uintptr][]map[string]any)
-	// Store allocated pointers so they don't get garbage collected
-	allocatedPointers := make([]*uintptr, 0)
-	assignedDatasets := make(map[uintptr]bool)
-
-	var emptyVecPtr, emptyDataPtr uintptr
-	var emptyLen uint64
-	if len(datasetMap) == 0 {
-		emptyBuf := createKVBinaryStream(columns, []map[string]any{})
-		emptyVecPtr, emptyDataPtr = dataStore.store(emptyBuf)
-		emptyLen = uint64(len(emptyBuf))
-	}
-
-	return ffi.RustArrowWrapperTester(
-		func(
-			filePath *byte,
-			columnNames **byte,
-			numColumns int,
-			outError **byte,
-		) unsafe.Pointer {
-			if len(datasetMap) == 0 {
-				id := new(uintptr)
-				*id = 1
-				allocatedPointers = append(allocatedPointers, id)
-				return unsafe.Pointer(id)
-			}
-
-			// Assign this reader a unique ID and map it to its dataset
-			readerID := nextReaderID
-			nextReaderID += 100
-
-			// Map datasets to readers in order of creation
-			for datasetID, dataset := range datasetMap {
-				if !assignedDatasets[datasetID] {
-					readerToDataset[readerID] = dataset
-					assignedDatasets[datasetID] = true
-					break
-				}
-			}
-
-			// Allocate memory for the reader ID to return a valid pointer
-			id := new(uintptr)
-			*id = readerID
-			allocatedPointers = append(allocatedPointers, id)
-			return unsafe.Pointer(id)
-		},
-		func(
-			readerPtr unsafe.Pointer,
-			minStep int64,
-			maxStep int64,
-			outResult *ffi.StepScanResult,
-		) *byte {
-			if len(readerToDataset) == 0 {
-				outResult.VecPtr = emptyVecPtr
-				outResult.DataPtr = emptyDataPtr
-				outResult.DataLen = emptyLen
-				outResult.NumRowsReturned = 0
-				return nil
-			}
-
-			readerID := *(*uintptr)(readerPtr)
-			dataset, ok := readerToDataset[readerID]
-			if !ok {
-				emptyBuf := createKVBinaryStream(columns, []map[string]any{})
-				vecPtr, dataPtr := dataStore.store(emptyBuf)
-				outResult.VecPtr = vecPtr
-				outResult.DataPtr = dataPtr
-				outResult.DataLen = uint64(len(emptyBuf))
-				outResult.NumRowsReturned = 0
-				return nil
-			}
-
-			// Filter data based on step range (exclusive of maxStep)
-			filteredData := []map[string]any{}
-			for _, row := range dataset {
-				step := row["_step"].(int64)
-				if step >= minStep && step < maxStep {
-					filteredData = append(filteredData, row)
-				}
-			}
-
-			kvBytes := createKVBinaryStream(columns, filteredData)
-			vecPtr, dataPtr := dataStore.store(kvBytes)
-
-			outResult.VecPtr = vecPtr
-			outResult.DataPtr = dataPtr
-			outResult.DataLen = uint64(len(kvBytes))
-			outResult.NumRowsReturned = uint64(len(filteredData))
-
-			return nil
-		},
-	)
-}
-
-// createKVBinaryStream builds a KV binary stream for testing.
-func createKVBinaryStream(
-	columns []columnDef,
-	data []map[string]any,
-) []byte {
-	buf := make([]byte, 0, 256)
-
-	// num_columns
-	buf = binary.LittleEndian.AppendUint32(buf, uint32(len(columns)))
-
-	// column names
-	for _, col := range columns {
-		nameBytes := []byte(col.name)
-		buf = binary.LittleEndian.AppendUint32(buf, uint32(len(nameBytes)))
-		buf = append(buf, nameBytes...)
-	}
-
-	// num_rows
-	buf = binary.LittleEndian.AppendUint32(buf, uint32(len(data)))
-
-	// row data
-	for _, row := range data {
-		for _, col := range columns {
-			value, exists := row[col.name]
-			if !exists || value == nil {
-				buf = append(buf, 0 /* Null type */)
-				continue
-			}
-
-			switch col.colType {
-			case "int64":
-				buf = append(buf, 1 /* Int64 type */)
-				var v int64
-				switch tv := value.(type) {
-				case int64:
-					v = tv
-				case float64:
-					v = int64(tv)
-				case int:
-					v = int64(tv)
-				}
-				buf = binary.LittleEndian.AppendUint64(buf, uint64(v))
-
-			case "float64":
-				buf = append(buf, 3 /* Float64 type */)
-				var v float64
-				switch tv := value.(type) {
-				case float64:
-					v = tv
-				case int64:
-					v = float64(tv)
-				case int:
-					v = float64(tv)
-				}
-				buf = binary.LittleEndian.AppendUint64(buf, math.Float64bits(v))
-
-			case "string":
-				buf = append(buf, 4 /* String type */)
-				s := value.(string)
-				buf = binary.LittleEndian.AppendUint32(buf, uint32(len(s)))
-				buf = append(buf, []byte(s)...)
-
-			default:
-				buf = append(buf, 0 /* Null type */)
-			}
-		}
-	}
-
-	return buf
-}
-
-// createDummyFileContent creates minimal content for HTTP server responses.
-// The mock FFI wrapper ignores actual file content.
-func createDummyFileContent() []byte {
-	return []byte("dummy-parquet-content-for-test")
-}
-
-func respondWithContent(
-	t *testing.T,
-	content []byte,
-) func(responseWriter http.ResponseWriter, request *http.Request) {
-	t.Helper()
-
-	return func(responseWriter http.ResponseWriter, request *http.Request) {
-		responseWriter.Header().Set("Accept-Ranges", "bytes")
-
-		// Handle range requests for remote reading
-		rangeHeader := request.Header.Get("Range")
-		if rangeHeader == "" {
-			_, err := responseWriter.Write(content)
-			require.NoError(t, err)
-			return
-		}
-
-		var start, end int64
-		_, err := fmt.Sscanf(rangeHeader, "bytes=%d-%d", &start, &end)
-		require.NoError(t, err)
-		responseWriter.Header().Set(
-			"Content-Range",
-			fmt.Sprintf("bytes %d-%d/%d", start, end, len(content)),
-		)
-		responseWriter.WriteHeader(http.StatusPartialContent)
-
-		minLength := min(end+1, int64(len(content)))
-		_, err = responseWriter.Write(content[start:minLength])
-		require.NoError(t, err)
-	}
-}
-
-func createHttpServer(
-	t *testing.T,
-	writerFunc func(responseWriter http.ResponseWriter, request *http.Request),
-) *httptest.Server {
-	t.Helper()
-
-	server := httptest.NewServer(http.HandlerFunc(writerFunc))
-	t.Cleanup(server.Close)
-
-	return server
-}
-
-func mockGraphQLWithParquetUrls(urls []string) *gqlmock.MockClient {
-	mockGQL := gqlmock.NewMockClient()
-	urlsJsonBytes, _ := json.Marshal(urls)
-	urlsJsonString := string(urlsJsonBytes)
-
-	mockGQL.StubMatchOnce(
-		gqlmock.WithOpName("RunParquetHistory"),
-		`{
-			"project": {
-				"run": {
-					"parquetHistory": {
-						"parquetUrls": `+urlsJsonString+`
-					}
-				}
-			}
-		}`,
-	)
-
-	return mockGQL
-}
 
 func TestHistoryReader_CreatesCacheDirIfNotExists(t *testing.T) {
 	ctx := t.Context()
 	nonExistentDir := filepath.Join(t.TempDir(), "deeply", "nested", "cache")
 	t.Setenv("WANDB_CACHE_DIR", nonExistentDir)
 
-	dummyContent := createDummyFileContent()
-	server := createHttpServer(t, respondWithContent(t, dummyContent))
-	mockGQL := mockGraphQLWithParquetUrls(
+	dummyContent := parquettest.DummyFileContent()
+	server := parquettest.CreateHTTPServer(t, parquettest.RespondWithContent(t, dummyContent))
+	mockGQL := parquettest.MockGraphQLWithParquetUrls(
 		[]string{server.URL + "/test.parquet"},
 	)
-	rustArrowWrapper := createMockRustArrowWrapper(
+	rustArrowWrapper := parquettest.CreateMockRustArrowWrapper(
 		t,
-		[]columnDef{{name: "_step", colType: "int64"}},
+		[]parquettest.ColumnDef{{Name: "_step", ColType: "int64"}},
 		map[uintptr][]map[string]any{1: {{"_step": int64(0)}}},
 	)
 
@@ -354,9 +66,9 @@ func TestHistoryReader_GetHistorySteps_WithoutKeys(t *testing.T) {
 	tempDir := t.TempDir()
 	t.Setenv("WANDB_CACHE_DIR", tempDir)
 
-	columns := []columnDef{
-		{name: "_step", colType: "int64"},
-		{name: "metric1", colType: "float64"},
+	columns := []parquettest.ColumnDef{
+		{Name: "_step", ColType: "int64"},
+		{Name: "metric1", ColType: "float64"},
 	}
 	data := []map[string]any{
 		{"_step": int64(0), "metric1": 1.0},
@@ -364,12 +76,12 @@ func TestHistoryReader_GetHistorySteps_WithoutKeys(t *testing.T) {
 		{"_step": int64(2), "metric1": 3.0},
 	}
 
-	dummyContent := createDummyFileContent()
-	server := createHttpServer(t, respondWithContent(t, dummyContent))
-	mockGQL := mockGraphQLWithParquetUrls(
+	dummyContent := parquettest.DummyFileContent()
+	server := parquettest.CreateHTTPServer(t, parquettest.RespondWithContent(t, dummyContent))
+	mockGQL := parquettest.MockGraphQLWithParquetUrls(
 		[]string{server.URL + "/test.parquet"},
 	)
-	rustArrowWrapper := createMockRustArrowWrapper(
+	rustArrowWrapper := parquettest.CreateMockRustArrowWrapper(
 		t,
 		columns,
 		map[uintptr][]map[string]any{1: data},
@@ -420,14 +132,11 @@ func TestHistoryReader_GetHistorySteps_WithoutKeys(t *testing.T) {
 func TestHistoryReader_GetHistorySteps_MultipleFiles(t *testing.T) {
 	ctx := t.Context()
 	tempDir := t.TempDir()
+	t.Setenv("WANDB_CACHE_DIR", tempDir)
 
-	// Ensure we use a clean cache directory for this test
-	os.Setenv("WANDB_CACHE_DIR", tempDir)
-	defer os.Unsetenv("WANDB_CACHE_DIR")
-
-	columns := []columnDef{
-		{name: "_step", colType: "int64"},
-		{name: "metric1", colType: "float64"},
+	columns := []parquettest.ColumnDef{
+		{Name: "_step", ColType: "int64"},
+		{Name: "metric1", ColType: "float64"},
 	}
 	data1 := []map[string]any{
 		{"_step": int64(0), "metric1": 0.0},
@@ -438,19 +147,19 @@ func TestHistoryReader_GetHistorySteps_MultipleFiles(t *testing.T) {
 		{"_step": int64(4), "metric1": 4.0},
 	}
 
-	dummyContent := createDummyFileContent()
+	dummyContent := parquettest.DummyFileContent()
 	servers := make([]*httptest.Server, 2)
 	for i := range 2 {
-		servers[i] = createHttpServer(
+		servers[i] = parquettest.CreateHTTPServer(
 			t,
-			respondWithContent(t, dummyContent),
+			parquettest.RespondWithContent(t, dummyContent),
 		)
 	}
-	mockGQL := mockGraphQLWithParquetUrls([]string{
+	mockGQL := parquettest.MockGraphQLWithParquetUrls([]string{
 		servers[0].URL + "/test1.parquet",
 		servers[1].URL + "/test2.parquet",
 	})
-	rustWrapper := createMockRustArrowWrapper(t, columns, map[uintptr][]map[string]any{
+	rustWrapper := parquettest.CreateMockRustArrowWrapper(t, columns, map[uintptr][]map[string]any{
 		1: data1,
 		2: data2,
 	})
@@ -492,9 +201,9 @@ func TestHistoryReader_GetHistorySteps_WithKeys(t *testing.T) {
 	tempDir := t.TempDir()
 	t.Setenv("WANDB_CACHE_DIR", tempDir)
 
-	columns := []columnDef{
-		{name: "_step", colType: "int64"},
-		{name: "metric1", colType: "float64"},
+	columns := []parquettest.ColumnDef{
+		{Name: "_step", ColType: "int64"},
+		{Name: "metric1", ColType: "float64"},
 	}
 	data := []map[string]any{
 		{"_step": int64(0), "metric1": 1.0},
@@ -502,12 +211,12 @@ func TestHistoryReader_GetHistorySteps_WithKeys(t *testing.T) {
 		{"_step": int64(2), "metric1": 3.0},
 	}
 
-	dummyContent := createDummyFileContent()
-	server := createHttpServer(t, respondWithContent(t, dummyContent))
-	mockGQL := mockGraphQLWithParquetUrls([]string{
+	dummyContent := parquettest.DummyFileContent()
+	server := parquettest.CreateHTTPServer(t, parquettest.RespondWithContent(t, dummyContent))
+	mockGQL := parquettest.MockGraphQLWithParquetUrls([]string{
 		server.URL + "/test.parquet",
 	})
-	rustWrapper := createMockRustArrowWrapper(
+	rustWrapper := parquettest.CreateMockRustArrowWrapper(
 		t,
 		columns,
 		map[uintptr][]map[string]any{1: data},
@@ -595,7 +304,7 @@ func TestHistoryReader_GetHistorySteps_AllLiveData(t *testing.T) {
 		retryablehttp.NewClient(),
 		[]string{},
 		true,
-		createMockRustArrowWrapper(nil, nil, nil),
+		parquettest.CreateMockRustArrowWrapper(nil, nil, nil),
 	)
 	require.NoError(t, err)
 
@@ -661,7 +370,7 @@ func TestHistoryReader_GetHistorySteps_AllLiveData_WithKeys(t *testing.T) {
 		retryablehttp.NewClient(),
 		[]string{"metric1"},
 		true,
-		createMockRustArrowWrapper(nil, nil, nil),
+		parquettest.CreateMockRustArrowWrapper(nil, nil, nil),
 	)
 	require.NoError(t, err)
 
@@ -686,16 +395,16 @@ func TestHistoryReader_GetHistorySteps_MixedParquetAndLiveData(t *testing.T) {
 	os.Setenv("WANDB_CACHE_DIR", tempDir)
 	defer os.Unsetenv("WANDB_CACHE_DIR")
 
-	columns := []columnDef{
-		{name: "_step", colType: "int64"},
-		{name: "metric1", colType: "float64"},
+	columns := []parquettest.ColumnDef{
+		{Name: "_step", ColType: "int64"},
+		{Name: "metric1", ColType: "float64"},
 	}
 	data := []map[string]any{
 		{"_step": int64(0), "metric1": 1.0},
 	}
 
-	dummyContent := createDummyFileContent()
-	server := createHttpServer(t, respondWithContent(t, dummyContent))
+	dummyContent := parquettest.DummyFileContent()
+	server := parquettest.CreateHTTPServer(t, parquettest.RespondWithContent(t, dummyContent))
 
 	mockGQL := gqlmock.NewMockClient()
 
@@ -729,7 +438,7 @@ func TestHistoryReader_GetHistorySteps_MixedParquetAndLiveData(t *testing.T) {
 			}
 		}`,
 	)
-	rustWrapper := createMockRustArrowWrapper(
+	rustWrapper := parquettest.CreateMockRustArrowWrapper(
 		t,
 		columns,
 		map[uintptr][]map[string]any{1: data},
@@ -770,9 +479,9 @@ func TestHistoryReader_GetHistorySteps_ResultsSortedByStep(t *testing.T) {
 	os.Setenv("WANDB_CACHE_DIR", tempDir)
 	defer os.Unsetenv("WANDB_CACHE_DIR")
 
-	columns := []columnDef{
-		{name: "_step", colType: "int64"},
-		{name: "metric1", colType: "float64"},
+	columns := []parquettest.ColumnDef{
+		{Name: "_step", ColType: "int64"},
+		{Name: "metric1", ColType: "float64"},
 	}
 	// Parquet contains steps 5 and 10 (higher than live data).
 	parquetData := []map[string]any{
@@ -780,8 +489,8 @@ func TestHistoryReader_GetHistorySteps_ResultsSortedByStep(t *testing.T) {
 		{"_step": int64(10), "metric1": 100.0},
 	}
 
-	dummyContent := createDummyFileContent()
-	server := createHttpServer(t, respondWithContent(t, dummyContent))
+	dummyContent := parquettest.DummyFileContent()
+	server := parquettest.CreateHTTPServer(t, parquettest.RespondWithContent(t, dummyContent))
 
 	mockGQL := gqlmock.NewMockClient()
 
@@ -819,7 +528,7 @@ func TestHistoryReader_GetHistorySteps_ResultsSortedByStep(t *testing.T) {
 		}`,
 	)
 
-	rustWrapper := createMockRustArrowWrapper(
+	rustWrapper := parquettest.CreateMockRustArrowWrapper(
 		t,
 		columns,
 		map[uintptr][]map[string]any{1: parquetData},
@@ -878,7 +587,7 @@ func TestHistoryReader_GetHistorySteps_NoPanicOnInvalidLiveData(t *testing.T) {
 		retryablehttp.NewClient(),
 		[]string{},
 		false,
-		createMockRustArrowWrapper(nil, nil, nil),
+		parquettest.CreateMockRustArrowWrapper(nil, nil, nil),
 	)
 	assert.ErrorContains(t, err, "expected LiveData to be map[string]any")
 }
@@ -911,7 +620,7 @@ func TestHistoryReader_GetHistorySteps_NoPanicOnMissingStepKey(t *testing.T) {
 		retryablehttp.NewClient(),
 		[]string{},
 		false,
-		createMockRustArrowWrapper(nil, nil, nil),
+		parquettest.CreateMockRustArrowWrapper(nil, nil, nil),
 	)
 	assert.ErrorContains(t, err, "expected LiveData to contain step key")
 }
@@ -944,7 +653,7 @@ func TestHistoryReader_GetHistorySteps_NoPanicOnNonConvertibleStepValue(t *testi
 		retryablehttp.NewClient(),
 		[]string{},
 		false,
-		createMockRustArrowWrapper(nil, nil, nil),
+		parquettest.CreateMockRustArrowWrapper(nil, nil, nil),
 	)
 	assert.ErrorContains(t, err, "expected step to be float64")
 }
@@ -997,7 +706,7 @@ func TestHistoryReader_GetHistorySteps_ConvertsStepValueToInt(t *testing.T) {
 				retryablehttp.NewClient(),
 				[]string{},
 				false,
-				createMockRustArrowWrapper(nil, nil, nil),
+				parquettest.CreateMockRustArrowWrapper(nil, nil, nil),
 			)
 			assert.NoError(t, err)
 		})
