@@ -34,7 +34,7 @@ type SymonSamplerParams struct {
 // resources.
 //
 // Each call to Sample collects one point-in-time snapshot across the available
-// system, GPU, and TPU resources. The resulting metrics are aligned to a single
+// system and accelerator resources. The resulting metrics are aligned to a single
 // wall-clock timestamp before they are merged into one StatsMsg for the UI.
 type SymonSampler struct {
 	interval  time.Duration
@@ -65,16 +65,12 @@ func NewSymonSampler(params SymonSamplerParams) *SymonSampler {
 			DiskPaths:        defaultSymonDiskPaths(),
 		}))
 
-	gpuManager := monitor.NewGPUResourceManager(false)
-	gpu, err := monitor.NewGPU(gpuManager, 0, nil)
+	acceleratorManager := monitor.NewAcceleratorResourceManager(false)
+	accel, err := monitor.NewAccelerator(acceleratorManager, 0, nil)
 	if err != nil {
-		logger.Debug(fmt.Sprintf("symon: gpu monitor unavailable: %v", err))
-	} else if gpu != nil {
-		sampler.resources = append(sampler.resources, gpu)
-	}
-
-	if tpu := monitor.NewTPU(sampler.logger); tpu != nil {
-		sampler.resources = append(sampler.resources, tpu)
+		logger.Debug(fmt.Sprintf("symon: accelerator monitor unavailable: %v", err))
+	} else if accel != nil {
+		sampler.resources = append(sampler.resources, accel)
 	}
 
 	return sampler
@@ -126,7 +122,7 @@ func (s *SymonSampler) Sample() StatsMsg {
 	return out
 }
 
-// Cleanup releases any resources that need explicit shutdown, such as the GPU
+// Cleanup releases any resources that need explicit shutdown, such as the accelerator
 // sidecar process managed by the monitor package.
 func (s *SymonSampler) Cleanup() {
 	for _, resource := range s.resources {

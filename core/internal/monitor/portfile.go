@@ -11,7 +11,7 @@ import (
 )
 
 // portfile is used to communicate the token of the gRPC service
-// started by the gpu_stats binary to the wandb-core process.
+// started by the accelerator sidecar binary to the wandb-core process.
 type portfile struct {
 	Path string
 }

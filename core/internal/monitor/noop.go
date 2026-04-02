@@ -26,16 +26,3 @@ func (t *Trainium) Sample() (*spb.StatsRecord, error) { return nil, nil }
 func (t *Trainium) Probe(_ context.Context) *spb.EnvironmentRecord {
 	return nil
 }
-
-// TPU is a dummy implementation of the Resource interface for TPUs.
-type TPU struct{}
-
-func NewTPU(logger *observability.CoreLogger) *TPU {
-	return nil
-}
-
-func (t *TPU) Sample() (*spb.StatsRecord, error) { return nil, nil }
-
-func (t *TPU) Probe(_ context.Context) *spb.EnvironmentRecord {
-	return nil
-}

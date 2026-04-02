@@ -106,8 +106,8 @@ type SystemMonitorFactory struct {
 	// Stream settings.
 	Settings *settings.Settings
 
-	// GpuResourceManager manages costly resources used for GPU metrics.
-	GpuResourceManager *GPUResourceManager
+	// AcceleratorResourceManager manages the sidecar for GPU/TPU metrics.
+	AcceleratorResourceManager *AcceleratorResourceManager
 
 	// graphqlClient is the GraphQL client to communicate with the W&B backend.
 	GraphqlClient graphql.Client
@@ -152,13 +152,13 @@ func (f *SystemMonitorFactory) New(extraWork runwork.ExtraWork) *SystemMonitor {
 	}
 	sm.logger.Debug(fmt.Sprintf("monitor: sampling interval: %v", sm.samplingInterval))
 
-	sm.initializeResources(f.GpuResourceManager)
+	sm.initializeResources(f.AcceleratorResourceManager)
 
 	return sm
 }
 
 // initializeResources sets up the resources to be monitored based on the provided settings.
-func (sm *SystemMonitor) initializeResources(gpuResourceManager *GPUResourceManager) {
+func (sm *SystemMonitor) initializeResources(acceleratorResourceManager *AcceleratorResourceManager) {
 	pid := sm.settings.GetStatsPid()
 	samplingInterval := sm.settings.GetStatsSamplingInterval()
 	neuronMonitorConfigPath := sm.settings.GetStatsNeuronMonitorConfigPath()
@@ -174,15 +174,11 @@ func (sm *SystemMonitor) initializeResources(gpuResourceManager *GPUResourceMana
 		sm.resources = append(sm.resources, system)
 	}
 
-	if gpu, err := NewGPU(gpuResourceManager, pid, gpuDeviceIds); gpu != nil {
-		sm.resources = append(sm.resources, gpu)
+	if accel, err := NewAccelerator(acceleratorResourceManager, pid, gpuDeviceIds); accel != nil {
+		sm.resources = append(sm.resources, accel)
 	} else if err != nil {
 		sm.logger.CaptureError(
-			fmt.Errorf("monitor: failed to initialize GPU resource: %v", err))
-	}
-
-	if tpu := NewTPU(sm.logger); tpu != nil {
-		sm.resources = append(sm.resources, tpu)
+			fmt.Errorf("monitor: failed to initialize accelerator resource: %v", err))
 	}
 
 	if trainium := NewTrainium(
@@ -485,7 +481,7 @@ func (sm *SystemMonitor) monitorResource(resource Resource) {
 //
 // Use to filter out expected/transient failures. Keep this intentionally small and specific.
 func ShouldCaptureSamplingError(err error) bool {
-	// Transient gRPC connectivity to the gpu_stats sidecar.
+	// Transient gRPC connectivity to the accelerator sidecar.
 	if s, ok := status.FromError(err); ok && s.Code() == codes.Unavailable {
 		return false
 	}

@@ -58,6 +58,10 @@ impl GpuMonitors {
             if let Some(monitor) = AmdGpuMonitor::new() {
                 monitors.push(Box::new(monitor));
             }
+
+            if let Some(monitor) = tpu_libtpu::TpuMonitor::new() {
+                monitors.push(Box::new(monitor));
+            }
         }
 
         Self { monitors }
@@ -260,6 +264,10 @@ impl GpuMonitor for DcgmGpuMonitor {
         self.client.shutdown();
     }
 }
+
+// ===== TPU Monitor (libtpu SDK + gRPC fallback) =====
+#[cfg(target_os = "linux")]
+use crate::tpu_libtpu;
 
 // ===== AMD GPU Monitor =====
 #[cfg(target_os = "linux")]
