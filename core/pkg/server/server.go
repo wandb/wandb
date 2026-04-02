@@ -103,19 +103,20 @@ func NewServer(params ServerParams) *Server {
 	serverLifetimeCtx, stopServer := context.WithCancel(context.Background())
 
 	return &Server{
-		serverLifetimeCtx:          serverLifetimeCtx,
-		stopServer:                 stopServer,
-		streamMux:                  stream.NewStreamMux(),
-		runSyncManager:             runsync.NewRunSyncManager(),
-		acceleratorResourceManager: monitor.NewAcceleratorResourceManager(params.EnableDCGMProfiling),
-		wg:                         sync.WaitGroup{},
-		parentPID:                  params.ParentPID,
-		detached:                   params.Detached,
-		idleTimeout:                params.IdleTimeout,
-		commit:                     params.Commit,
-		listenOnLocalhost:          params.ListenOnLocalhost,
-		loggerPath:                 params.LoggerPath,
-		logLevel:                   params.LogLevel,
+		serverLifetimeCtx: serverLifetimeCtx,
+		stopServer:        stopServer,
+		streamMux:         stream.NewStreamMux(),
+		runSyncManager:    runsync.NewRunSyncManager(),
+		acceleratorResourceManager: monitor.NewAcceleratorResourceManager(
+			params.EnableDCGMProfiling),
+		wg:                sync.WaitGroup{},
+		parentPID:         params.ParentPID,
+		detached:          params.Detached,
+		idleTimeout:       params.IdleTimeout,
+		commit:            params.Commit,
+		listenOnLocalhost: params.ListenOnLocalhost,
+		loggerPath:        params.LoggerPath,
+		logLevel:          params.LogLevel,
 	}
 }
 
