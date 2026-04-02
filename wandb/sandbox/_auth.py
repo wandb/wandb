@@ -4,7 +4,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
 
-from cwsandbox._auth import AuthHeaders, register_auth_mode
+from cwsandbox import AuthHeaders, CWSandboxAuthenticationError, set_auth_mode
 
 import wandb
 from wandb.errors import UsageError
@@ -24,8 +24,8 @@ _project_override: ContextVar[object | str | None] = ContextVar(
 
 
 def register_wandb_auth_mode() -> None:
-    """Register W&B runtime auth mode with cwsandbox's auth resolver."""
-    register_auth_mode(_AUTH_MODE_NAME, _try_wandb_sdk_auth)
+    """Install W&B as the active cwsandbox auth mode for this process."""
+    set_auth_mode(_AUTH_MODE_NAME, _resolve_wandb_sdk_auth)
 
 
 @contextmanager
@@ -77,7 +77,7 @@ def _current_override() -> tuple[str | None, str | None] | None:
     return resolved_entity, resolved_project
 
 
-def _try_wandb_sdk_auth() -> AuthHeaders | None:
+def _resolve_wandb_sdk_auth() -> AuthHeaders:
     host = _current_wandb_host()
     settings = wandb_setup.singleton().settings
 
@@ -90,7 +90,9 @@ def _try_wandb_sdk_auth() -> AuthHeaders | None:
         auth = wbauth.session_credentials(host=host)
 
     if auth is None:
-        return None
+        raise CWSandboxAuthenticationError(
+            "wandb.sandbox could not resolve W&B credentials for sandbox auth."
+        )
 
     if not isinstance(auth, wbauth.AuthApiKey):
         raise UsageError("wandb.sandbox currently supports only W&B user API-key auth.")

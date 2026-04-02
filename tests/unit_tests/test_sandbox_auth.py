@@ -34,23 +34,24 @@ def _import_sandbox_auth(monkeypatch):
     cwsandbox_module.wait = lambda *args, **kwargs: None
     cwsandbox_module.Secret = type("BaseSecret", (), {})
 
-    cwsandbox_auth_module = types.ModuleType("cwsandbox._auth")
-
     @dataclass(frozen=True)
     class AuthHeaders:
         headers: dict[str, str]
         strategy: str
 
-    registered: dict[str, object] = {}
+    class CWSandboxAuthenticationError(Exception):
+        pass
 
-    def register_auth_mode(name: str, func) -> None:
-        registered[name] = func
+    registered: dict[str, object | None] = {"name": None, "func": None}
 
-    cwsandbox_auth_module.AuthHeaders = AuthHeaders
-    cwsandbox_auth_module.register_auth_mode = register_auth_mode
+    def set_auth_mode(name: str, func) -> None:
+        registered["name"] = name
+        registered["func"] = func
 
+    cwsandbox_module.AuthHeaders = AuthHeaders
+    cwsandbox_module.CWSandboxAuthenticationError = CWSandboxAuthenticationError
+    cwsandbox_module.set_auth_mode = set_auth_mode
     monkeypatch.setitem(sys.modules, "cwsandbox", cwsandbox_module)
-    monkeypatch.setitem(sys.modules, "cwsandbox._auth", cwsandbox_auth_module)
     monkeypatch.delitem(sys.modules, "wandb.sandbox", raising=False)
     monkeypatch.delitem(sys.modules, "wandb.sandbox._auth", raising=False)
 
@@ -76,7 +77,8 @@ def test_override_auth_context_overrides_entity_without_leaking_project(
     monkeypatch.setattr(auth_module.wandb_setup, "singleton", lambda: singleton)
     monkeypatch.setattr(auth_module.wandb, "run", None)
 
-    assert "wandb_sdk" in registered
+    assert registered["name"] == "wandb_sdk"
+    assert registered["func"] is auth_module._resolve_wandb_sdk_auth
     assert auth_module._resolve_effective_entity_project() == (
         "default-entity",
         "default-project",
