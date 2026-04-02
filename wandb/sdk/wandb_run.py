@@ -2175,12 +2175,19 @@ class Run:
             tel.feature.save = True
 
         files_root = pathlib.Path(self._settings.files_dir)
-        preexisting = set(files_root.glob(relative_glob_str))
+        # When path contains "[" or "]" but no "*" or "?", treat as literal path.
+        # Otherwise glob interprets brackets as character class and fails to match.
+        full_glob_pattern = str(base_path / relative_glob_str)
+        relative_glob_pattern = str(relative_glob_str)
+        if "*" not in full_glob_pattern and "?" not in full_glob_pattern:
+            full_glob_pattern = glob.escape(full_glob_pattern)
+            relative_glob_pattern = glob.escape(relative_glob_pattern)
+        preexisting = set(files_root.glob(relative_glob_pattern))
 
         # Expand sources deterministically.
         src_paths = [
             pathlib.Path(p).absolute()
-            for p in sorted(glob.glob(GlobStr(str(base_path / relative_glob_str))))
+            for p in sorted(glob.glob(GlobStr(full_glob_pattern)))
         ]
 
         stats = LinkStats()
