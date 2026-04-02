@@ -49,7 +49,7 @@ impl TpuMonitor {
 
         Some(Self {
             sdk,
-            grpc: Mutex::new(None), // lazy-init on first use
+            grpc: Mutex::new(None),
         })
     }
 
@@ -77,7 +77,6 @@ impl TpuMonitor {
                 }
             }
         } else {
-            // No SDK — everything needs gRPC.
             sdk_failures.extend(DESIRED_METRICS.iter().map(|d| d.logical_name));
         }
 
@@ -125,8 +124,6 @@ impl GpuMonitor for TpuMonitor {
         &self,
         _samples: &HashMap<String, &MetricValue>,
     ) -> EnvironmentRecord {
-        // TPU metadata (chip type, count) is detected on the Go side via PCI scan.
-        // The Rust sidecar focuses on metrics.
         EnvironmentRecord::default()
     }
 }
@@ -157,7 +154,6 @@ const DESIRED_METRICS: &[DesiredMetric] = &[
     DesiredMetric { logical_name: "hlo_queue_size", sdk_aliases: &["hlo_queue_size"] },
 ];
 
-/// Maps logical metric names to gRPC runtime metric name strings.
 static GRPC_METRIC_MAP: std::sync::LazyLock<HashMap<&'static str, &'static str>> =
     std::sync::LazyLock::new(|| {
         HashMap::from([
@@ -174,7 +170,6 @@ static GRPC_METRIC_MAP: std::sync::LazyLock<HashMap<&'static str, &'static str>>
             ("grpc_tcp_delivery_rate", "megascale.grpc_tcp_delivery_rate.Mbps.cumulative.distribution"),
             ("hlo_exec_timing", "hlo.execution.timing.distribution.microseconds"),
             ("hlo_queue_size", "hlo.queue.size.gauge"),
-            // tensorcore_utilization intentionally omitted — SDK-only.
         ])
     });
 
@@ -182,8 +177,6 @@ static GRPC_METRIC_MAP: std::sync::LazyLock<HashMap<&'static str, &'static str>>
 // SDK client — libtpu.so via FFI
 // ============================================================
 
-// Vtable byte offsets from start of LibtpuSdkApi struct.
-// Verified against working CGO probe and libtpu 0.0.37 (VERS_1.0 ABI).
 const OFF_ERROR_MESSAGE: usize = 0x08;
 const OFF_DESTROY_ERROR: usize = 0x10;
 const OFF_CREATE_CLIENT: usize = 0x20;
@@ -282,9 +275,7 @@ impl SdkClient {
 
         let metric = unsafe {
             let mut args = GetMetricArgs {
-                client: self.client,
-                metric_name: cname.as_ptr(),
-                metric: std::ptr::null_mut(),
+                client: self.client, metric_name: cname.as_ptr(), metric: std::ptr::null_mut(),
             };
             let err = vtable_fn(self.api_ptr, OFF_GET_METRIC)(
                 (&raw mut args) as *mut std::ffi::c_void,
@@ -295,16 +286,10 @@ impl SdkClient {
         };
 
         #[repr(C)]
-        struct GetDescArgs {
-            metric: *mut std::ffi::c_void,
-            description: *const c_char,
-            description_len: usize,
-        }
+        struct GetDescArgs { metric: *mut std::ffi::c_void, description: *const c_char, description_len: usize }
 
         let description = unsafe {
-            let mut args = GetDescArgs {
-                metric, description: std::ptr::null(), description_len: 0,
-            };
+            let mut args = GetDescArgs { metric, description: std::ptr::null(), description_len: 0 };
             let err = vtable_fn(self.api_ptr, OFF_GET_METRIC_DESC)(
                 (&raw mut args) as *mut std::ffi::c_void,
             );
@@ -312,24 +297,16 @@ impl SdkClient {
             if args.description.is_null() || args.description_len == 0 {
                 String::new()
             } else {
-                let slice = std::slice::from_raw_parts(
-                    args.description as *const u8, args.description_len,
-                );
+                let slice = std::slice::from_raw_parts(args.description as *const u8, args.description_len);
                 String::from_utf8_lossy(slice).into_owned()
             }
         };
 
         #[repr(C)]
-        struct GetValsArgs {
-            metric: *mut std::ffi::c_void,
-            values: *const *const c_char,
-            value_count: usize,
-        }
+        struct GetValsArgs { metric: *mut std::ffi::c_void, values: *const *const c_char, value_count: usize }
 
         let values = unsafe {
-            let mut args = GetValsArgs {
-                metric, values: std::ptr::null(), value_count: 0,
-            };
+            let mut args = GetValsArgs { metric, values: std::ptr::null(), value_count: 0 };
             let err = vtable_fn(self.api_ptr, OFF_GET_METRIC_VALS)(
                 (&raw mut args) as *mut std::ffi::c_void,
             );
@@ -362,21 +339,13 @@ impl Drop for SdkClient {
 }
 
 #[repr(C)]
-struct ErrorMessageArgs {
-    error: *mut std::ffi::c_void,
-    message: *const c_char,
-    message_len: usize,
-}
+struct ErrorMessageArgs { error: *mut std::ffi::c_void, message: *const c_char, message_len: usize }
 
 #[repr(C)]
-struct DestroyErrorArgs {
-    error: *mut std::ffi::c_void,
-}
+struct DestroyErrorArgs { error: *mut std::ffi::c_void }
 
 unsafe fn read_error(api_ptr: *const u8, err: *mut std::ffi::c_void) -> String {
-    let mut msg_args = ErrorMessageArgs {
-        error: err, message: std::ptr::null(), message_len: 0,
-    };
+    let mut msg_args = ErrorMessageArgs { error: err, message: std::ptr::null(), message_len: 0 };
     vtable_fn(api_ptr, OFF_ERROR_MESSAGE)((&raw mut msg_args) as *mut std::ffi::c_void);
     let msg = if !msg_args.message.is_null() && msg_args.message_len > 0 {
         let s = std::slice::from_raw_parts(msg_args.message as *const u8, msg_args.message_len);
@@ -418,41 +387,29 @@ impl GrpcClient {
     fn get_metric(&self, metric_name: &str) -> Result<proto::TpuMetric, String> {
         let mut client = self.client.clone();
         let name = metric_name.to_string();
-        let rt = tokio::runtime::Handle::try_current()
-            .map_err(|e| e.to_string())?;
+        let rt = tokio::runtime::Handle::try_current().map_err(|e| e.to_string())?;
         rt.block_on(async {
             let resp = client
-                .get_runtime_metric(proto::MetricRequest {
-                    metric_name: name,
-                    skip_node_aggregation: false,
-                })
+                .get_runtime_metric(proto::MetricRequest { metric_name: name, skip_node_aggregation: false })
                 .await
                 .map_err(|e| e.to_string())?;
-            resp.into_inner()
-                .metric
-                .ok_or_else(|| "empty response".to_string())
+            resp.into_inner().metric.ok_or_else(|| "empty response".to_string())
         })
     }
 }
 
 fn is_grpc_available() -> bool {
-    // Quick check: is anything listening on port 8431?
     std::net::TcpStream::connect_timeout(
         &"127.0.0.1:8431".parse().unwrap(),
         std::time::Duration::from_millis(500),
-    )
-    .is_ok()
+    ).is_ok()
 }
 
 // ============================================================
 // Metric formatting — SDK path
 // ============================================================
 
-fn format_metric(
-    logical_name: &str,
-    data: &SdkMetricData,
-    out: &mut Vec<(String, MetricValue)>,
-) {
+fn format_metric(logical_name: &str, data: &SdkMetricData, out: &mut Vec<(String, MetricValue)>) {
     match logical_name {
         "tensorcore_utilization" => indexed_float(out, "tpu.{}.tensorcoreUtilization", &data.values),
         "duty_cycle_pct" => indexed_float(out, "tpu.{}.dutyCycle", &data.values),
@@ -499,9 +456,7 @@ fn flat_dist(out: &mut Vec<(String, MetricValue)>, base: &str, unit: &str, desc:
     let vals: Vec<String> = if data.len() == 1 {
         let p = split_csv(&data[0]);
         if p.len() > 1 { p } else { data.to_vec() }
-    } else {
-        data.to_vec()
-    };
+    } else { data.to_vec() };
     let names = stat_names(desc, vals.len());
     for (i, raw) in vals.iter().enumerate() {
         if i >= names.len() { break; }
@@ -523,25 +478,19 @@ fn colon_values(out: &mut Vec<(String, MetricValue)>, base: &str, data: &[String
 }
 
 // ============================================================
-// Metric formatting — gRPC path (proto Distribution/Summary/Gauge)
+// Metric formatting — gRPC path
 // ============================================================
 
-fn format_grpc_metric(
-    logical_name: &str,
-    tpu_metric: &proto::TpuMetric,
-    out: &mut Vec<(String, MetricValue)>,
-) {
+fn format_grpc_metric(logical_name: &str, tpu_metric: &proto::TpuMetric, out: &mut Vec<(String, MetricValue)>) {
     let base_key = match logical_name {
         "duty_cycle_pct" | "hbm_capacity_total" | "hbm_capacity_usage" => {
-            // Per-device gauge metrics.
             for m in &tpu_metric.metrics {
-                let device_id = grpc_device_id(m);
-                let value = grpc_gauge_value(m);
-                if let Some(v) = value {
+                let did = grpc_device_id(m);
+                if let Some(v) = grpc_gauge_value(m) {
                     let key = match logical_name {
-                        "duty_cycle_pct" => format!("tpu.{device_id}.dutyCycle"),
-                        "hbm_capacity_total" => format!("tpu.{device_id}.hbmCapacityTotal"),
-                        "hbm_capacity_usage" => format!("tpu.{device_id}.hbmCapacityUsage"),
+                        "duty_cycle_pct" => format!("tpu.{did}.dutyCycle"),
+                        "hbm_capacity_total" => format!("tpu.{did}.hbmCapacityTotal"),
+                        "hbm_capacity_usage" => format!("tpu.{did}.hbmCapacityUsage"),
                         _ => continue,
                     };
                     out.push((key, MetricValue::Float(v)));
@@ -578,7 +527,6 @@ fn format_grpc_metric(
             continue;
         }
 
-        // Distribution or Summary.
         if let Some(proto::metric::Measure::Summary(ref s)) = m.measure {
             if s.sample_count > 0 {
                 out.push((format!("{base_key}.{label}.mean{unit}"), MetricValue::Float(s.sample_sum / s.sample_count as f64)));
@@ -641,32 +589,21 @@ fn distribution_percentiles(d: &proto::Distribution) -> Vec<(&'static str, f64)>
     if counts.is_empty() { return vec![]; }
     let total: i64 = counts.iter().sum();
     if total == 0 { return vec![]; }
-
     let bounds = distribution_boundaries(d);
-    let mut result = Vec::with_capacity(4);
-    for (name, q) in [("p50", 0.50), ("p90", 0.90), ("p95", 0.95), ("p999", 0.999)] {
-        result.push((name, interpolate_percentile(counts, &bounds, total, q)));
-    }
-    result
+    [("p50", 0.50), ("p90", 0.90), ("p95", 0.95), ("p999", 0.999)]
+        .iter()
+        .map(|(name, q)| (*name, interpolate_percentile(counts, &bounds, total, *q)))
+        .collect()
 }
 
 fn distribution_boundaries(d: &proto::Distribution) -> Vec<f64> {
-    let opts = match &d.bucket_options {
-        Some(o) => o,
-        None => return vec![],
-    };
+    let opts = match &d.bucket_options { Some(o) => o, None => return vec![] };
     match &opts.options {
-        Some(proto::distribution::bucket_options::Options::ExponentialBuckets(e)) => {
-            let n = e.num_finite_buckets as usize;
-            (0..n).map(|i| e.scale * e.growth_factor.powi(i as i32 + 1)).collect()
-        }
-        Some(proto::distribution::bucket_options::Options::LinearBuckets(l)) => {
-            let n = l.num_finite_buckets as usize;
-            (0..n).map(|i| l.offset + l.width * (i as f64 + 1.0)).collect()
-        }
-        Some(proto::distribution::bucket_options::Options::ExplicitBuckets(e)) => {
-            e.bounds.clone()
-        }
+        Some(proto::distribution::bucket_options::Options::ExponentialBuckets(e)) =>
+            (0..e.num_finite_buckets as usize).map(|i| e.scale * e.growth_factor.powi(i as i32 + 1)).collect(),
+        Some(proto::distribution::bucket_options::Options::LinearBuckets(l)) =>
+            (0..l.num_finite_buckets as usize).map(|i| l.offset + l.width * (i as f64 + 1.0)).collect(),
+        Some(proto::distribution::bucket_options::Options::ExplicitBuckets(e)) => e.bounds.clone(),
         None => vec![],
     }
 }
@@ -711,23 +648,16 @@ fn stat_names(desc: &str, count: usize) -> Vec<String> {
 fn split_csv(raw: &str) -> Vec<String> {
     let raw = raw.trim().trim_matches(&['[', ']'][..]);
     if raw.is_empty() { return vec![]; }
-    raw.split(',')
-        .map(|s| s.trim().trim_matches(&['"', '\''][..]).to_string())
-        .filter(|s| !s.is_empty())
-        .collect()
+    raw.split(',').map(|s| s.trim().trim_matches(&['"', '\''][..]).to_string()).filter(|s| !s.is_empty()).collect()
 }
 
 fn sanitize(label: &str) -> String {
-    let label = label.trim().to_lowercase()
-        .replace('+', "_plus_").replace('%', "pct");
+    let label = label.trim().to_lowercase().replace('+', "_plus_").replace('%', "pct");
     let mut out = String::with_capacity(label.len());
     let mut last_under = false;
     for c in label.chars() {
-        if c.is_ascii_lowercase() || c.is_ascii_digit() {
-            out.push(c); last_under = false;
-        } else if !last_under {
-            out.push('_'); last_under = true;
-        }
+        if c.is_ascii_lowercase() || c.is_ascii_digit() { out.push(c); last_under = false; }
+        else if !last_under { out.push('_'); last_under = true; }
     }
     let out = out.trim_matches('_').to_string();
     if out.is_empty() { "unknown".to_string() } else { out }
@@ -743,40 +673,27 @@ fn find_libtpu_path() -> Option<PathBuf> {
             if let Some(p) = resolve_path(Path::new(val.trim())) { return Some(p); }
         }
     }
-
     let mut candidates: Vec<PathBuf> = vec![
-        "/lib/libtpu.so".into(),
-        "/usr/lib/libtpu.so".into(),
-        "/usr/local/lib/libtpu.so".into(),
+        "/lib/libtpu.so".into(), "/usr/lib/libtpu.so".into(), "/usr/local/lib/libtpu.so".into(),
     ];
-
     if let Ok(home) = std::env::var("HOME") {
         for pattern in [
             format!("{home}/.local/lib/python*/site-packages/libtpu/libtpu.so"),
             format!("{home}/.venv/lib/python*/site-packages/libtpu/libtpu.so"),
         ] {
-            if let Ok(matches) = glob::glob(&pattern) {
-                candidates.extend(matches.flatten());
-            }
+            if let Ok(matches) = glob::glob(&pattern) { candidates.extend(matches.flatten()); }
         }
     }
     for pattern in [
         "/usr/local/lib/python*/dist-packages/libtpu/libtpu.so",
         "/usr/local/lib/python*/dist-packages/torch_xla/lib/libtpu.so",
     ] {
-        if let Ok(matches) = glob::glob(pattern) {
-            candidates.extend(matches.flatten());
-        }
+        if let Ok(matches) = glob::glob(pattern) { candidates.extend(matches.flatten()); }
     }
-
     candidates.into_iter().find_map(|p| resolve_path(&p))
 }
 
 fn resolve_path(path: &Path) -> Option<PathBuf> {
-    if path.is_dir() {
-        let j = path.join("libtpu.so");
-        if j.is_file() { return Some(j); }
-        return None;
-    }
+    if path.is_dir() { let j = path.join("libtpu.so"); if j.is_file() { return Some(j); } return None; }
     if path.is_file() { Some(path.to_path_buf()) } else { None }
 }
