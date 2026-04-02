@@ -92,6 +92,16 @@ class Settings(BaseModel, validate_assignment=True):
 
     # Public settings.
 
+    allow_media_symlink: bool = False
+    """Whether to symlink media files to the run directory.
+
+    If true, media files will be symlinked or hardlinked to the
+    run directory instead of copied. This may result in faster
+    logging and reduced disk usage. However, deleting or modifying
+    the original files before upload to the W&B server will be
+    reflected in the uploaded data.
+    """
+
     allow_offline_artifacts: bool = True
     """Flag to allow table artifacts to be synced in offline mode.
 
