@@ -319,3 +319,28 @@ def test_update_finish_state(wandb_backend_spy, update_finish_state):
 
     with wandb_backend_spy.freeze() as snapshot:
         assert snapshot.completed(run_id=run.id) is update_finish_state
+
+
+def test_pin_config_keys(user):
+    with wandb.init(
+        mode="offline", config={"lr": 0.01, "links": "http://example.com"}
+    ) as run:
+        run.pin_config_keys(["links", "lr"])
+
+    assert run.config["_wandb"]["pinned_keys"] == ["links", "lr"]
+
+
+def test_pin_config_keys_replaces(user):
+    with wandb.init(mode="offline") as run:
+        run.pin_config_keys(["key1", "key2"])
+        run.pin_config_keys(["key3"])
+
+    assert run.config["_wandb"]["pinned_keys"] == ["key3"]
+
+
+def test_pin_config_keys_empty_list(user):
+    with wandb.init(mode="offline") as run:
+        run.pin_config_keys(["key1"])
+        run.pin_config_keys([])
+
+    assert run.config["_wandb"]["pinned_keys"] == []

@@ -1458,29 +1458,13 @@ class Run:
 
         Pinned keys appear prominently above Notes on the Run Overview page.
         String values are rendered as markdown; non-strings are rendered as
-        plain text.
+        plain text. Calling this again replaces the previously pinned list.
 
         Args:
             keys: Top-level config key names to pin. Order is preserved and
-                determines display order. Calling this again replaces the list.
-
-        Raises:
-            TypeError: If keys is not a list/tuple or contains non-strings.
+                determines display order.
         """
-        if not isinstance(keys, (list, tuple)):
-            raise TypeError(
-                f"pin_config_keys expects a list or tuple of strings, "
-                f"got {type(keys).__name__}"
-            )
-        validated: list[str] = []
-        for key in keys:
-            if not isinstance(key, str):
-                raise TypeError(
-                    f"Each pinned key must be a string, "
-                    f"got {type(key).__name__}: {key!r}"
-                )
-            validated.append(key)
-        self._set_config_wandb("pinned_keys", validated)
+        self._set_config_wandb("pinned_keys", list(keys))
 
     @_log_to_run
     @_raise_if_finished

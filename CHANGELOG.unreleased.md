@@ -32,7 +32,7 @@ This version drops compatibility with server versions older than 0.63.0 (for Ded
   https://github.com/wandb/wandb/pull/11630)
 - Kubeflow Pipelines v2 (`kfp>=2.0.0`) support for the `@wandb_log` decorator. (@ayulockin in https://github.com/wandb/wandb/pull/11423)
 - `allow_media_symlink` setting to symlink or hardlink media files to the run directory instead of copying, improving logging performance and reducing disk usage (@jacobromero in https://github.com/wandb/wandb/pull/11544)
-- `run.pin_config_keys(keys)` to programmatically pin specific config keys for display in a References section on the Run Overview page
+- `run.pin_config_keys(keys)` to programmatically pin specific config keys for display in a References section on the Run Overview page (@acasey-wandb in https://github.com/wandb/wandb/pull/11639)
 
 ### Changed
 
