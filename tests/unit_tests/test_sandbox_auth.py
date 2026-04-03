@@ -10,6 +10,7 @@ if sys.version_info < (3, 11):
     pytest.skip("wandb.sandbox requires Python 3.11+", allow_module_level=True)
 
 cwsandbox = pytest.importorskip("cwsandbox")
+_VALID_API_KEY = "x" * 40
 
 
 def _import_sandbox_auth(monkeypatch):
@@ -58,7 +59,7 @@ def test_wandb_sandbox_import_requires_python_3_11(monkeypatch) -> None:
     monkeypatch.delitem(sys.modules, "wandb.sandbox._auth", raising=False)
     monkeypatch.delattr(wandb_module, "sandbox", raising=False)
 
-    with pytest.raises(ImportError, match=r"Python 3\\.11 or newer"):
+    with pytest.raises(ImportError, match=r"Python 3\.11 or newer"):
         importlib.import_module("wandb.sandbox")
 
 
@@ -161,7 +162,7 @@ def test_resolve_wandb_sdk_auth_uses_session_credentials(monkeypatch) -> None:
     monkeypatch.setattr(
         auth_module.wbauth,
         "session_credentials",
-        lambda host: auth_module.wbauth.AuthApiKey(host=host, api_key="session-key"),
+        lambda host: auth_module.wbauth.AuthApiKey(host=host, api_key=_VALID_API_KEY),
     )
     monkeypatch.setattr(
         auth_module.wandb_login,
@@ -173,7 +174,7 @@ def test_resolve_wandb_sdk_auth_uses_session_credentials(monkeypatch) -> None:
 
     assert headers.strategy == "wandb_api_key"
     assert headers.headers == {
-        "x-api-key": "session-key",
+        "x-api-key": _VALID_API_KEY,
         "x-entity-id": "default-entity",
         "x-project-name": "default-project",
     }
@@ -181,7 +182,7 @@ def test_resolve_wandb_sdk_auth_uses_session_credentials(monkeypatch) -> None:
 
 def test_resolve_wandb_sdk_auth_falls_back_to_settings_api_key(monkeypatch) -> None:
     auth_module, _ = _import_sandbox_auth(monkeypatch)
-    singleton = _singleton(api_key="settings-key")
+    singleton = _singleton(api_key=_VALID_API_KEY)
 
     monkeypatch.setattr(auth_module.wandb_setup, "singleton", lambda: singleton)
     monkeypatch.setattr(auth_module.wandb, "run", None)
@@ -194,7 +195,7 @@ def test_resolve_wandb_sdk_auth_falls_back_to_settings_api_key(monkeypatch) -> N
 
     headers = auth_module._resolve_wandb_sdk_auth()
 
-    assert headers.headers["x-api-key"] == "settings-key"
+    assert headers.headers["x-api-key"] == _VALID_API_KEY
     assert headers.headers["x-entity-id"] == "default-entity"
     assert headers.headers["x-project-name"] == "default-project"
 
@@ -218,7 +219,7 @@ def test_resolve_wandb_sdk_auth_loads_auth_when_missing(monkeypatch) -> None:
     def session_credentials(host):
         if credentials:
             return credentials.pop(0)
-        return auth_module.wbauth.AuthApiKey(host=host, api_key="loaded-key")
+        return auth_module.wbauth.AuthApiKey(host=host, api_key=_VALID_API_KEY)
 
     monkeypatch.setattr(auth_module.wbauth, "session_credentials", session_credentials)
 
@@ -232,7 +233,7 @@ def test_resolve_wandb_sdk_auth_loads_auth_when_missing(monkeypatch) -> None:
         }
     ]
     assert headers.headers == {
-        "x-api-key": "loaded-key",
+        "x-api-key": _VALID_API_KEY,
         "x-entity-id": "recent-entity",
         "x-project-name": "recent-project",
     }
