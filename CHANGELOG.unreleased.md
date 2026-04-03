@@ -44,3 +44,4 @@ This version drops compatibility with server versions older than 0.63.0 (for Ded
 - Fixed `update_automation()` silently dropping event filters (e.g. alias conditions on `OnAddArtifactAlias`) when a new event is provided (@matthoare117-wandb in https://github.com/wandb/wandb/pull/11613)
 - Fixed artifact client ID collisions in forked child processes by reseeding the fast ID generator after `fork()` (@tonyyli-wandb in https://github.com/wandb/wandb/pull/11491)
 - Fixed `WANDB__EXTRA_HTTP_HEADERS` not being applied to presigned object-store upload and download requests (@pingleiwandb in https://github.com/wandb/wandb/pull/11620)
+- Fixed deadlock in `artifact.download()` for artifacts with many large files. (@amusipatla-wandb in https://github.com/wandb/wandb/pull/11615)

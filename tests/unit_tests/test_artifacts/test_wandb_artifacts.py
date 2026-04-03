@@ -526,19 +526,19 @@ def test_artifact_multipart_download_threshold():
     assert should_multipart_download(5070 * mb, override=False) is False
 
 
+@responses.activate()
 def test_artifact_multipart_download_network_error():
-    # Disable retries and backoff to avoid timeout in test
-    session = requests.Session()
-    adapter = requests.adapters.HTTPAdapter(max_retries=0)
-    session.mount("http://", adapter)
-    session.mount("https://", adapter)
+    responses.get(
+        "https://invalid.com",
+        body=requests.exceptions.ConnectionError("Connection refused"),
+    )
 
     opener = mock.mock_open()
     with pytest.raises(requests.exceptions.ConnectionError):
         with ThreadPoolExecutor(max_workers=2) as executor:
             multipart_download(
                 executor,
-                session,
+                requests.Session(),
                 4 * 1024 * 1024 * 1024,
                 opener,
                 initial_url="https://invalid.com",
@@ -655,3 +655,39 @@ def test_artifact_multipart_download_max_refresh_attempts_exceeded():
             )
 
     assert resp.call_count == 4  # 1 initial + 3 retries
+
+
+@responses.activate()
+def test_artifact_multipart_download_writer_not_on_shared_executor():
+    # Test to catch one source of deadlock in multipart download.
+    #
+    # If the writer and chunk downloader are submitted to the same executor,
+    # we can get into a situation where the writer will block on q.get() and the
+    # chunk downloader will never execute, causing a deadlock.
+    #
+    # We test this by passing an executor with 1 worker to `multipart_download`,
+    # which will reliably cause the deadlock if the executor is shared.
+
+    responses.get("https://s3.com/file", body=b"x" * 100, status=200)
+    opener = mock.mock_open()
+
+    def run_download():
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            multipart_download(
+                executor,
+                requests.Session(),
+                100,
+                opener,
+                initial_url="https://s3.com/file",
+                fetch_fn=lambda: "https://s3.com/file",
+                part_size=100,
+            )
+
+    future = ThreadPoolExecutor(max_workers=1).submit(run_download)
+    try:
+        # Add a timeout to the future to avoid hanging the test.
+        future.result(timeout=5)
+    except TimeoutError:
+        pytest.fail(
+            "multipart_download deadlocked: writer likely sharing the chunk executor"
+        )
