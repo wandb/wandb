@@ -18,8 +18,8 @@ import (
 func newTestSystemMonitor(t *testing.T) *monitor.SystemMonitor {
 	t.Helper()
 	factory := &monitor.SystemMonitorFactory{
-		Logger:                     observabilitytest.NewTestLogger(t),
-		Settings:                   settings.From(&spb.Settings{}),
+		Logger:             observabilitytest.NewTestLogger(t),
+		Settings:           settings.From(&spb.Settings{}),
 		XPUResourceManager: monitor.NewXPUResourceManager(false),
 	}
 	return factory.New(runworktest.New())

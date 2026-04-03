@@ -248,14 +248,14 @@ func (s *Server) handleConnection(conn net.Conn) {
 		s.serverLifetimeCtx,
 		s.stopServer,
 		ConnectionParams{
-			ID:                         id,
-			Conn:                       conn,
-			StreamMux:                  s.streamMux,
-			RunSyncManager:             s.runSyncManager,
+			ID:                 id,
+			Conn:               conn,
+			StreamMux:          s.streamMux,
+			RunSyncManager:     s.runSyncManager,
 			XPUResourceManager: s.xpuResourceManager,
-			Commit:                     s.commit,
-			LoggerPath:                 s.loggerPath,
-			LogLevel:                   s.logLevel,
+			Commit:             s.commit,
+			LoggerPath:         s.loggerPath,
+			LogLevel:           s.logLevel,
 		},
 	).ManageConnectionData()
 }
