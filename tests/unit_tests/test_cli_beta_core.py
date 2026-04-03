@@ -5,7 +5,6 @@ from dataclasses import dataclass
 
 from click.testing import CliRunner
 from wandb import env as wandb_env
-from wandb.cli import beta as beta_module
 from wandb.cli import beta_core, cli
 from wandb.proto import wandb_server_pb2 as spb
 from wandb.sdk.lib.service import service_token
@@ -51,7 +50,6 @@ class _FakeToken:
 def test_core_start_prints_service_value(monkeypatch) -> None:
     token = service_token.UnixServiceToken(parent_pid=123, path="/tmp/wandb.sock")
     captured: dict[str, str] = {}
-    monkeypatch.setattr(beta_module, "get_core_path", lambda: "/tmp/wandb-core")
 
     def fake_start_detached(settings, *, idle_timeout: str):
         _ = settings
@@ -75,7 +73,6 @@ def test_core_start_prints_service_value(monkeypatch) -> None:
 def test_core_stop_sends_teardown_and_clears_env(monkeypatch) -> None:
     client = _FakeClient()
     token = _FakeToken(client)
-    monkeypatch.setattr(beta_module, "get_core_path", lambda: "/tmp/wandb-core")
 
     monkeypatch.setattr(beta_core.service_token, "from_env", lambda: token)
 

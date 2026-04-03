@@ -46,9 +46,6 @@ def beta() -> None:
     These commands may change or even completely break in any release of wandb.
     """
     get_sentry().configure_scope(process_context="wandb_beta")
-
-
-def _require_core_path() -> None:
     try:
         get_core_path()
     except WandbCoreNotAvailableError as e:
@@ -72,7 +69,7 @@ def leet(ctx: click.Context) -> None:
         wandb beta leet ./wandb         View runs in directory
         wandb beta leet symon           View live local system metrics
     """
-    _require_core_path()
+    pass
 
 
 @leet.command()
@@ -280,7 +277,6 @@ def core() -> None:
     The shared service exits after 10 minutes of idleness by default.
     Override this with --idle-timeout on the start command.
     """
-    _require_core_path()
 
 
 @beta.group(cls=SandboxGroup)

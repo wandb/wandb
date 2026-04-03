@@ -96,9 +96,8 @@ def generate_random_data(n: int, n_metrics: int) -> list:
         lambda steps: np.exp(steps * 0.0001),
         lambda steps: np.exp(-steps * 0.0001) * 1000,  # Simulate decreasing loss
         lambda steps: 1 - np.exp(-steps * 0.0001),  # Simulate increasing accuracy
-        lambda steps: (
-            np.power(steps, -0.5) * 1000
-        ),  # Simulate decreasing loss with power-law decay
+        lambda steps: np.power(steps, -0.5)
+        * 1000,  # Simulate decreasing loss with power-law decay
         lambda steps: np.tanh(
             steps * 0.0001
         ),  # Simulate a metric converging to a value
@@ -110,17 +109,20 @@ def generate_random_data(n: int, n_metrics: int) -> list:
             [steps < n / 2, steps >= n / 2],
             [lambda steps: steps * 0.001, lambda steps: 1 - np.exp(-steps * 0.0001)],
         ),  # Simulate a two-stage training process
-        lambda steps: (
-            np.sin(steps * 0.001) * np.exp(-steps * 0.0001)
-        ),  # Sinusoidal oscillations with exponential decay
-        lambda steps: (
-            (np.cos(steps * 0.001) + 1) * 0.5 * (1 - np.exp(-steps * 0.0001))
+        lambda steps: np.sin(steps * 0.001)
+        * np.exp(-steps * 0.0001),  # Sinusoidal oscillations with exponential decay
+        lambda steps: (np.cos(steps * 0.001) + 1)
+        * 0.5
+        * (
+            1 - np.exp(-steps * 0.0001)
         ),  # Oscillations converging to increasing accuracy
-        lambda steps: (
-            np.log(steps + 1) * (1 - np.exp(-steps * 0.0001))
+        lambda steps: np.log(steps + 1)
+        * (
+            1 - np.exp(-steps * 0.0001)
         ),  # Logarithmic growth modulated by increasing accuracy
-        lambda steps: (
-            rng.random() * (1 - np.exp(-steps * 0.0001))
+        lambda steps: rng.random()
+        * (
+            1 - np.exp(-steps * 0.0001)
         ),  # Random constant value modulated by increasing accuracy
     ]
     for j in range(n_metrics):

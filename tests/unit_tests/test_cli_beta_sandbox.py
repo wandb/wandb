@@ -6,7 +6,6 @@ from contextlib import contextmanager
 import click
 import pytest
 from click.testing import CliRunner
-from wandb.cli import beta as beta_module
 from wandb.cli import beta_sandbox, cli
 
 
@@ -45,13 +44,6 @@ def _fake_cwsandbox_cli() -> click.Group:
 
 def test_sandbox_help_lists_upstream_subcommands(monkeypatch) -> None:
     monkeypatch.setattr(
-        beta_module,
-        "get_core_path",
-        lambda: (_ for _ in ()).throw(
-            AssertionError("wandb-core check should not run")
-        ),
-    )
-    monkeypatch.setattr(
         beta_sandbox, "_load_cwsandbox_cli", lambda: _fake_cwsandbox_cli()
     )
 
@@ -72,13 +64,6 @@ def test_sandbox_command_passes_entity_override(monkeypatch) -> None:
         captured.append(entity)
         yield
 
-    monkeypatch.setattr(
-        beta_module,
-        "get_core_path",
-        lambda: (_ for _ in ()).throw(
-            AssertionError("wandb-core check should not run")
-        ),
-    )
     monkeypatch.setattr(
         beta_sandbox, "_load_cwsandbox_cli", lambda: _fake_cwsandbox_cli()
     )
