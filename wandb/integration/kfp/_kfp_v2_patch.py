@@ -1,9 +1,9 @@
-"""KFP v2 monkey-patch functions for ``kfp.dsl.component_factory``.
+"""KFP v2 monkey-patch functions for `kfp.dsl.component_factory`.
 
-These replace three functions in the ``component_factory`` module so that
-``@wandb_log``-decorated components automatically include W&B logging at
-container runtime. Module-level state (``_orig_create``, ``_orig_get_cmd``,
-``_wandb_logging_extras``) is set by ``kfp_patch._patch_kfp_v2`` before the
+These replace three functions in the `component_factory` module so that
+`@wandb_log`-decorated components automatically include W&B logging at
+container runtime. Module-level state (`_orig_create`, `_orig_get_cmd`,
+`_wandb_logging_extras`) is set by `kfp_patch._patch_kfp_v2` before the
 patches are applied.
 """
 
@@ -20,18 +20,18 @@ _wandb_logging_extras: str = ""
 
 
 def get_function_source_definition(func: Callable) -> str:
-    """Preserve the ``@wandb_log`` decorator in serialized component source.
+    """Preserve the `@wandb_log` decorator in serialized component source.
 
     KFP strips decorators when capturing a component function's source.
-    This replacement keeps ``@wandb_log`` so the decorator is present
+    This replacement keeps `@wandb_log` so the decorator is present
     when the function runs inside the container.
 
     Args:
         func: The component function whose source is being captured.
 
     Returns:
-        The dedented source code, starting from the ``@wandb_log`` or
-        ``def`` line.
+        The dedented source code, starting from the `@wandb_log` or
+        `def` line.
 
     Raises:
         ValueError: If the source cannot be cleaned up.
@@ -59,16 +59,16 @@ def create_component_from_func(
     packages_to_install: list[str] | None = None,
     **kwargs: object,
 ) -> Callable:
-    """Auto-add ``wandb`` to packages_to_install for logged components.
+    """Auto-add `wandb` to packages_to_install for logged components.
 
-    When the component function has been decorated with ``@wandb_log``,
-    ``wandb`` is appended to the install list so it is available inside
+    When the component function has been decorated with `@wandb_log`,
+    `wandb` is appended to the install list so it is available inside
     the container.
 
     Args:
         func: The component function.
         packages_to_install: Pip packages required by the component.
-        **kwargs: Forwarded to the original ``create_component_from_func``.
+        **kwargs: Forwarded to the original `create_component_from_func`.
 
     Returns:
         The KFP component task factory.
@@ -86,7 +86,7 @@ def get_command_and_args_for_lightweight_component(
 ) -> tuple:
     """Inject wandb decorator source into the component command.
 
-    Prepends ``_wandb_logging_extras`` (the serialized ``wandb_log``
+    Prepends `_wandb_logging_extras` (the serialized `wandb_log`
     decorator source) to the Python script that KFP generates for the
     lightweight component.
 
@@ -95,7 +95,7 @@ def get_command_and_args_for_lightweight_component(
         **kwargs: Forwarded to the original function.
 
     Returns:
-        A ``(command, args)`` tuple for the container entrypoint.
+        A `(command, args)` tuple for the container entrypoint.
     """
     command, args = _orig_get_cmd(func, **kwargs)
 

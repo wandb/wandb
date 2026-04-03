@@ -18,12 +18,12 @@ from wandb.sdk.lib import telemetry as wb_telemetry
 
 
 def _is_namedtuple(x: Any) -> bool:
-    """Return True if ``x`` is an instance of a NamedTuple.
+    """Return True if `x` is an instance of a NamedTuple.
 
     Python does not provide a common base class for named tuples created
-    via ``collections.namedtuple`` or ``typing.NamedTuple``, so there is
-    no way to use ``isinstance``. Instead we check that the type is a
-    ``tuple`` subclass whose ``_fields`` attribute is a tuple of strings,
+    via `collections.namedtuple` or `typing.NamedTuple`, so there is
+    no way to use `isinstance`. Instead we check that the type is a
+    `tuple` subclass whose `_fields` attribute is a tuple of strings,
     following the documented NamedTuple API:
     https://docs.python.org/3/library/collections.html#collections.somenamedtuple._fields
 
@@ -36,7 +36,7 @@ def _is_namedtuple(x: Any) -> bool:
         x: The value to check.
 
     Returns:
-        True if ``x`` is a NamedTuple instance.
+        True if `x` is a NamedTuple instance.
     """
     t = type(x)
     if not issubclass(t, tuple):
@@ -48,12 +48,12 @@ def _is_namedtuple(x: Any) -> bool:
 
 
 def _is_output_annotation(ann: Any) -> bool:
-    """Return True if ``ann`` is a KFP Output or OutputPath annotation."""
+    """Return True if `ann` is a KFP Output or OutputPath annotation."""
     return is_artifact_wrapped_in_Output(ann) or isinstance(ann, OutputPath)
 
 
 def _is_input_annotation(ann: Any) -> bool:
-    """Return True if ``ann`` is a KFP Input or InputPath annotation."""
+    """Return True if `ann` is a KFP Input or InputPath annotation."""
     return is_artifact_wrapped_in_Input(ann) or isinstance(ann, InputPath)
 
 
@@ -86,8 +86,8 @@ def _log_artifact(
         run: The active W&B run.
         name: Artifact name.
         value: A KFP artifact or string path.
-        use: If True, call ``run.use_artifact`` (for inputs); otherwise
-            call ``run.log_artifact`` (for outputs).
+        use: If True, call `run.use_artifact` (for inputs); otherwise
+            call `run.log_artifact` (for outputs).
 
     Returns:
         True on success, False if the artifact path is missing.
@@ -137,7 +137,7 @@ class _KfpWandbLogger:
 
         Args:
             run: The active W&B run.
-            bound_args: Bound arguments from ``inspect.Signature.bind``.
+            bound_args: Bound arguments from `inspect.Signature.bind`.
         """
         for name in self._scalars_in:
             if name in bound_args:
@@ -165,7 +165,7 @@ class _KfpWandbLogger:
             run: The active W&B run.
             func_name: The component function's name (used as log key prefix).
             result: The return value of the component function.
-            bound_args: Bound arguments from ``inspect.Signature.bind``.
+            bound_args: Bound arguments from `inspect.Signature.bind`.
         """
         if result is not None and not run._is_finished:
             if _is_namedtuple(result):
@@ -186,9 +186,9 @@ def wandb_log(
 ) -> Callable:
     """Wrap a KFP v2 component function and log to W&B.
 
-    Compatible with ``kfp>=2.0.0``. Automatically logs input parameters
-    to ``wandb.config`` and output scalars via ``wandb.log``. Artifacts
-    annotated with KFP's ``Input`` / ``Output`` types are logged as W&B
+    Compatible with `kfp>=2.0.0`. Automatically logs input parameters
+    to `wandb.config` and output scalars via `wandb.log`. Artifacts
+    annotated with KFP's `Input` / `Output` types are logged as W&B
     Artifacts.
 
     Example:

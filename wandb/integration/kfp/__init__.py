@@ -37,8 +37,8 @@ def wandb_log(
     Automatically detects the installed KFP version and delegates to the
     appropriate implementation:
 
-    - kfp >= 2.0.0: logs input parameters to ``wandb.config``, output
-      scalars via ``wandb.log``, and Input/Output artifacts as W&B
+    - kfp >= 2.0.0: logs input parameters to `wandb.config`, output
+      scalars via `wandb.log`, and Input/Output artifacts as W&B
       Artifacts.
     - kfp < 2.0.0 (deprecated): legacy v1 logging behaviour.
 

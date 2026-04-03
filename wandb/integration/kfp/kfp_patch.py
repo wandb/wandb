@@ -19,7 +19,7 @@ except (ImportError, ValueError):
     _KFP_V2 = False
 
 # Build _wandb_logging_extras: the decorator source injected into KFP
-# container scripts at compile time.  Both v1 and v2 follow the same
+# container scripts at compile time. Both v1 and v2 follow the same
 # pattern: an import preamble + the serialized decorator code.
 
 _log_module = None
@@ -55,16 +55,15 @@ else:
 
         if parse(kfp_version) < parse(MIN_KFP_VERSION):
             wandb.termwarn(
-                f"Your version of kfp {kfp_version} may not work.  "
+                f"Your version of kfp {kfp_version} may not work. "
                 f"This integration requires kfp>={MIN_KFP_VERSION}"
             )
     except ImportError:
-        wandb.termerror("kfp not found!  Please `pip install kfp`")
+        wandb.termerror("kfp not found! Please `pip install kfp`")
 
-    try:
-        from . import wandb_log_v1 as _log_module
+    from . import wandb_log_v1 as _log_module
 
-        _import_preamble = """\
+    _import_preamble = """\
 import typing
 from typing import NamedTuple
 
@@ -76,13 +75,12 @@ from kfp import components
 from kfp.components import InputPath, OutputPath
 
 import wandb"""
-    except ImportError:
-        pass
 
-_decorator_code = inspect.getsource(_log_module.wandb_log) if _log_module else ""
-_wandb_logging_extras = (
-    f"{_import_preamble}\n\n{_decorator_code}\n" if _decorator_code else ""
-)
+if _log_module:
+    _decorator_code = inspect.getsource(_log_module.wandb_log)
+    _wandb_logging_extras = f"{_import_preamble}\n\n{_decorator_code}\n"
+else:
+    _wandb_logging_extras = ""
 
 
 # ---------------------------------------------------------------------------
@@ -112,7 +110,7 @@ def _patch_kfp_v1() -> None:
         successes.append(success)
     if not all(successes):
         wandb.termerror(
-            "Failed to patch one or more kfp functions.  "
+            "Failed to patch one or more kfp functions. "
             "Patching @wandb_log decorator to no-op."
         )
         patch("wandb.integration.kfp", _v1_wandb_log_noop)
@@ -139,7 +137,7 @@ def _v1_wandb_log_noop(
 
 
 def _v1_get_function_source_definition(func: Callable) -> str:
-    """Get the source code of a function, preserving ``@wandb_log``.
+    """Get the source code of a function, preserving `@wandb_log`.
 
     Modified from KFP v1. Original source:
     https://github.com/kubeflow/pipelines/blob/b6406b02f45cdb195c7b99e2f6d22bf85b12268b/sdk/python/kfp/components/_python_op.py#L300-L319
@@ -148,7 +146,7 @@ def _v1_get_function_source_definition(func: Callable) -> str:
         func: The function whose source to extract.
 
     Returns:
-        The dedented source code starting from ``@wandb_log`` or ``def``.
+        The dedented source code starting from `@wandb_log` or `def`.
 
     Raises:
         ValueError: If the source cannot be cleaned up.
@@ -288,7 +286,7 @@ def _patch_kfp_v2() -> None:
 
 
 def unpatch_kfp() -> None:
-    """Undo all KFP monkey-patches applied by ``patch_kfp``."""
+    """Undo all KFP monkey-patches applied by `patch_kfp`."""
     if _KFP_V2:
         _unpatch_kfp_v2()
     else:

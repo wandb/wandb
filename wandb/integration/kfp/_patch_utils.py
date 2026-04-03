@@ -9,7 +9,7 @@ def full_path_exists(full_func: str) -> bool:
     """Return True if every component in a dotted path exists as a module attribute.
 
     Args:
-        full_func: A dotted path such as ``kfp.dsl.component_factory.create_component_from_func``.
+        full_func: A dotted path such as `kfp.dsl.component_factory.create_component_from_func`.
 
     Returns:
         True if all intermediate modules and the final attribute exist.
@@ -25,11 +25,11 @@ def full_path_exists(full_func: str) -> bool:
 
 
 def patch(module_name: str, func: Callable) -> bool:
-    """Monkey-patch ``func`` onto ``module_name``, keeping a backup for ``unpatch``.
+    """Monkey-patch `func` onto `module_name`, keeping a backup for `unpatch`.
 
     Args:
-        module_name: Dotted module path (e.g. ``kfp.dsl.component_factory``).
-        func: Replacement function. Its ``__name__`` must match the target
+        module_name: Dotted module path (e.g. `kfp.dsl.component_factory`).
+        func: Replacement function. Its `__name__` must match the target
             attribute on the module.
 
     Returns:
@@ -41,7 +41,7 @@ def patch(module_name: str, func: Callable) -> bool:
     full_func = f"{module_name}.{func.__name__}"
     if not full_path_exists(full_func):
         wandb.termerror(
-            f"Failed to patch {module_name}.{func.__name__}!  "
+            f"Failed to patch {module_name}.{func.__name__}! "
             "Please check if this package/module is installed!"
         )
     else:
@@ -56,7 +56,7 @@ def patch(module_name: str, func: Callable) -> bool:
 
 
 def unpatch(module_name: str) -> None:
-    """Restore original functions previously replaced by ``patch``.
+    """Restore original functions previously replaced by `patch`.
 
     Args:
         module_name: Dotted module path that was previously patched.

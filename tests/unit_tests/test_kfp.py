@@ -14,6 +14,7 @@ from wandb.integration.kfp._patch_utils import full_path_exists, unpatch
 from wandb.integration.kfp._patch_utils import patch as kfp_patch_fn
 from wandb.integration.kfp.helpers import add_wandb_visualization
 from wandb.integration.kfp.kfp_patch import _KFP_V2, patch_kfp, unpatch_kfp
+from wandb.integration.kfp.wandb_log_v2 import _KfpWandbLogger
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -331,30 +332,32 @@ def test_no_kubeflow_url_no_config_entry(mock_init):
 
 
 def test_classify_input_artifact():
-    """Functions with Input[Artifact] should classify as input_artifacts."""
+    """Input[Artifact] params should be classified as artifact inputs."""
 
-    @wandb_log
     def process(data: Input[Dataset], x: float) -> float:
         return x
 
-    assert process._wandb_logged is True
-    assert process.__name__ == "process"
+    logger = _KfpWandbLogger(process)
+    assert logger._artifacts_in == {"data"}
+    assert logger._scalars_in == {"x"}
+    assert logger._artifacts_out == set()
 
 
 def test_classify_output_artifact():
-    """Functions with Output[Artifact] should classify as output_artifacts."""
+    """Output[Artifact] params should be classified as artifact outputs."""
 
-    @wandb_log
     def produce(x: float, out: Output[Artifact]) -> None:
         pass
 
-    assert produce._wandb_logged is True
+    logger = _KfpWandbLogger(produce)
+    assert logger._artifacts_out == {"out"}
+    assert logger._scalars_in == {"x"}
+    assert logger._artifacts_in == set()
 
 
 def test_classify_mixed_annotations():
-    """Both scalar and artifact annotations should be handled."""
+    """Mixed scalar, input artifact, and output artifact params should all be classified."""
 
-    @wandb_log
     def mixed(
         scalar_in: float,
         data_in: Input[Dataset],
@@ -362,7 +365,10 @@ def test_classify_mixed_annotations():
     ) -> float:
         return scalar_in * 2
 
-    assert mixed._wandb_logged is True
+    logger = _KfpWandbLogger(mixed)
+    assert logger._scalars_in == {"scalar_in"}
+    assert logger._artifacts_in == {"data_in"}
+    assert logger._artifacts_out == {"result_out"}
 
 
 @patch("wandb.init")
