@@ -1353,20 +1353,14 @@ mod tests {
     // ---- libtpu.so integration test ----
     //
     // Downloads libtpu from PyPI, extracts libtpu.so, loads it, and verifies
-    // the vtable is functional. Gated behind WANDB_TEST_LIBTPU=1.
+    // the vtable is functional. Marked #[ignore] — needs network + pip.
     //
     // To run manually:
-    //   WANDB_TEST_LIBTPU=1 cargo test --verbose test_libtpu_sdk -- --nocapture
-    //
-    // In CI (unit-tests-rust), set the env var and install Python + pip.
+    //   cargo test --verbose -- --include-ignored test_libtpu_sdk --nocapture
 
     #[test]
+    #[ignore] // needs network + pip to download libtpu wheel from PyPI
     fn test_libtpu_sdk_load_and_create_client() {
-        if std::env::var("WANDB_TEST_LIBTPU").unwrap_or_default() != "1" {
-            eprintln!("skipping libtpu integration test (set WANDB_TEST_LIBTPU=1)");
-            return;
-        }
-
         let libtpu_path = obtain_libtpu_so();
         // Safety: single-threaded test context.
         unsafe { std::env::set_var("WANDB_LIBTPU_PATH", &libtpu_path) };

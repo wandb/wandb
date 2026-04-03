@@ -498,7 +498,7 @@ jobs:
           command: |
             sudo apt-get install -y -qq python3-pip >/dev/null
             cd xpu
-            WANDB_TEST_LIBTPU=1 cargo test --verbose --bin wandb-xpu -- tpu_libtpu::tests::test_libtpu_sdk
+            cargo test --verbose --bin wandb-xpu -- --include-ignored tpu_libtpu::tests::test_libtpu_sdk
 
   # Download the local-testcontainer image corresponding to the latest server release
   # and store it in wandb-client-cicd/images/local-testcontainer.
