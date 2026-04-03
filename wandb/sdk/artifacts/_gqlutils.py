@@ -31,7 +31,7 @@ def org_info_from_entity(
 
 
 @lru_cache(maxsize=16)
-def server_features(client: RetryingClient) -> dict[str, bool]:
+def _server_features(client: RetryingClient) -> dict[str, bool]:
     """Returns a mapping of `{server_feature_name (str) -> is_enabled (bool)}`.
 
     Results are cached per client instance.
@@ -54,6 +54,9 @@ def server_features(client: RetryingClient) -> dict[str, bool]:
 def server_supports(client: RetryingClient, feature: str | int) -> bool:
     """Return whether the current server supports the given feature.
 
+    NOTE: This is deprecated. Please use `ServiceApi.feature_enabled()` when
+    possible, like in all public API code.
+
     Good to use for features that have a fallback mechanism for older servers.
     """
     # If we're given the protobuf enum value, convert to a string name.
@@ -65,7 +68,7 @@ def server_supports(client: RetryingClient, feature: str | int) -> bool:
         name = ServerFeature.Name(feature) if isinstance(feature, int) else feature
     except ValueError:
         return False  # Invalid int-like value, assume unsupported
-    return server_features(client).get(name) or False
+    return _server_features(client).get(name) or False
 
 
 @dataclass(frozen=True)
