@@ -65,6 +65,29 @@ def test_artifact_versions(api: Api):
 
 
 @mark.usefixtures("sample_data")
+def test_artifact_versions_start(api: Api):
+    collection = api.artifact_collection("dataset", "mnist")
+    all_names = [artifact.name for artifact in collection.artifacts(per_page=1)]
+
+    paged_artifacts = collection.artifacts(per_page=1)
+    first_page_name = next(paged_artifacts).name
+    cursor = paged_artifacts.cursor
+
+    assert cursor is not None
+
+    resumed_collection_names = [
+        artifact.name for artifact in collection.artifacts(per_page=1, start=cursor)
+    ]
+    resumed_api_names = [
+        artifact.name
+        for artifact in api.artifacts("dataset", "mnist", per_page=1, start=cursor)
+    ]
+
+    assert resumed_collection_names == resumed_api_names
+    assert all_names == [first_page_name] + resumed_api_names
+
+
+@mark.usefixtures("sample_data")
 def test_artifact_type(api: Api):
     atype = api.artifact_type("dataset")
     assert atype.name == "dataset"
@@ -83,11 +106,37 @@ def test_artifact_type_collections(api: Api):
         f.write("test")
     artifact.save()
     artifact.wait()
+    project_path = f"{artifact.entity}/{artifact.project}"
 
     cols = atype.collections()
     assert len(cols) == 2
     names = {c.name for c in cols}
     assert names == {"mnist", "another-collection"}
+
+    all_collection_names = [
+        collection.name for collection in atype.collections(per_page=1)
+    ]
+    paged_collections = atype.collections(per_page=1)
+    first_page_name = next(paged_collections).name
+    cursor = paged_collections.cursor
+
+    assert cursor is not None
+
+    resumed_collection_names = [
+        collection.name for collection in atype.collections(per_page=1, start=cursor)
+    ]
+    resumed_api_names = [
+        collection.name
+        for collection in api.artifact_collections(
+            project_path,
+            atype.name,
+            per_page=1,
+            start=cursor,
+        )
+    ]
+
+    assert resumed_collection_names == resumed_api_names
+    assert all_collection_names == [first_page_name] + resumed_api_names
 
     if server_supports(api.client, pb.ARTIFACT_COLLECTIONS_FILTERING_SORTING):
         cols = atype.collections(filters={"name": "mnist"})
@@ -112,6 +161,39 @@ def test_artifact_type_collections(api: Api):
 def test_artifact_types(api: Api):
     atypes = api.artifact_types()
     assert {atype.name for atype in atypes} == {"dataset"}
+
+
+@mark.usefixtures("sample_data")
+def test_artifact_types_start(api: Api):
+    from wandb.apis.public.artifacts import ArtifactTypes
+
+    artifact = wandb.Artifact(name="another-artifact", type="different-type")
+    with artifact.new_file("file.txt") as f:
+        f.write("test")
+    artifact.save()
+    artifact.wait()
+
+    project_path = f"{artifact.entity}/{artifact.project}"
+    all_type_names = [atype.name for atype in api.artifact_types(project_path)]
+
+    paged_types = ArtifactTypes(
+        api.client, artifact.entity, artifact.project, per_page=1
+    )
+    first_page_name = next(paged_types).name
+    cursor = paged_types.cursor
+
+    assert cursor is not None
+    assert set(all_type_names) == {
+        "dataset",
+        "different-type",
+    }
+
+    resumed_type_names = [
+        artifact_type.name
+        for artifact_type in api.artifact_types(project_path, start=cursor)
+    ]
+
+    assert all_type_names == [first_page_name] + resumed_type_names
 
 
 @mark.usefixtures("sample_data")
@@ -222,6 +304,19 @@ def test_artifacts_files_filtered_length(api: Api):
     assert len(assert_artifact.files()) == number_of_files
     assert len(assert_artifact.files(names=["file0.txt"])) == 1
     assert len(assert_artifact.files(names=["file0.txt", "file1.txt"])) == 2
+
+    all_file_names = [file.name for file in assert_artifact.files(per_page=3)]
+    paged_files = assert_artifact.files(per_page=3)
+    first_page_names = [next(paged_files).name for _ in range(3)]
+    cursor = paged_files.cursor
+
+    assert cursor is not None
+
+    resumed_file_names = [
+        file.name for file in assert_artifact.files(per_page=3, start=cursor)
+    ]
+
+    assert all_file_names == first_page_names + resumed_file_names
 
 
 @mark.usefixtures("sample_data")

@@ -371,6 +371,22 @@ def test_fetch_registries(team: str, org: str, org_entity: str, api: Api):
             visibility="organization",
         )
 
+    all_registry_names = [
+        registry.name for registry in api.registries(organization=org, per_page=1)
+    ]
+    paged_registries = api.registries(organization=org, per_page=1)
+    first_page_name = next(paged_registries).name
+    cursor = paged_registries.cursor
+
+    assert cursor is not None
+
+    resumed_registry_names = [
+        registry.name
+        for registry in api.registries(organization=org, per_page=1, start=cursor)
+    ]
+
+    assert all_registry_names == [first_page_name] + resumed_registry_names
+
     # Sort the registries by name for predictable assertions
     registries = sorted(api.registries(organization=org), key=lambda r: r.name)
 
@@ -409,7 +425,31 @@ def test_registries_collections(
     for i, artifact in enumerate(source_artifacts):
         artifact.link(f"{org}/{target_registry.full_name}/reg-collection-{i}")
 
-    registries = api.registries(organization=org)
+    registries = api.registries(
+        organization=org,
+        filter={"name": target_registry.full_name},
+    )
+
+    all_collection_names = [
+        collection.name for collection in registries.collections(per_page=1)
+    ]
+    paged_collections = registries.collections(per_page=1)
+    first_page_name = next(paged_collections).name
+    cursor = paged_collections.cursor
+
+    assert cursor is not None
+
+    resumed_registry_names = [
+        collection.name
+        for collection in target_registry.collections(per_page=1, start=cursor)
+    ]
+    resumed_registries_names = [
+        collection.name
+        for collection in registries.collections(per_page=1, start=cursor)
+    ]
+
+    assert resumed_registries_names == resumed_registry_names
+    assert all_collection_names == [first_page_name] + resumed_registries_names
 
     collections = sorted(registries.collections(), key=lambda c: c.name)
     assert len(collections) == len(source_artifacts)
@@ -432,7 +472,27 @@ def test_registries_versions(
     for artifact in source_artifacts:
         artifact.link(f"{org}/{target_registry.full_name}/reg-collection")
 
-    registries = api.registries(organization=org)
+    registries = api.registries(
+        organization=org,
+        filter={"name": target_registry.full_name},
+    )
+
+    all_version_names = [version.name for version in registries.versions(per_page=1)]
+    paged_versions = registries.versions(per_page=1)
+    first_page_name = next(paged_versions).name
+    cursor = paged_versions.cursor
+
+    assert cursor is not None
+
+    resumed_registry_names = [
+        version.name for version in target_registry.versions(per_page=1, start=cursor)
+    ]
+    resumed_registries_names = [
+        version.name for version in registries.versions(per_page=1, start=cursor)
+    ]
+
+    assert resumed_registries_names == resumed_registry_names
+    assert all_version_names == [first_page_name] + resumed_registries_names
 
     versions = sorted(registries.versions(), key=lambda v: v.name)
     assert len(versions) == len(source_artifacts)

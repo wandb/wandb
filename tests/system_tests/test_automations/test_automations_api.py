@@ -929,3 +929,46 @@ class TestPaginatedAutomations:
         expected_page_count = math.ceil(num_projects / page_size)
 
         assert client_spy.call_count >= expected_page_count
+
+    @mark.usefixtures(setup_paginated_automations.__name__)
+    def test_paginated_automations_start(
+        self,
+        user,
+        api: wandb.Api,
+        page_size,
+    ):
+        from wandb.apis.public.api import gql_compat
+        from wandb.apis.public.automations import Automations
+        from wandb.automations._generated import GET_AUTOMATIONS_BY_ENTITY_GQL
+
+        all_ids = [
+            automation.id
+            for automation in api.automations(entity=user, per_page=page_size)
+        ]
+
+        # `Api.automations()` yields from the internal paginator, so use the paginator
+        # directly here to capture a real cursor issued by the backend.
+        paginator = Automations(
+            api.client,
+            variables={"entity": user},
+            per_page=page_size,
+            _query=gql_compat(
+                GET_AUTOMATIONS_BY_ENTITY_GQL,
+                omit_fragments=api._omitted_automation_fragments(),
+            ),
+        )
+        first_page_ids = [next(paginator).id for _ in range(page_size)]
+        cursor = paginator.cursor
+
+        assert cursor is not None
+
+        resumed_ids = [
+            automation.id
+            for automation in api.automations(
+                entity=user,
+                per_page=page_size,
+                start=cursor,
+            )
+        ]
+
+        assert all_ids == first_page_ids + resumed_ids

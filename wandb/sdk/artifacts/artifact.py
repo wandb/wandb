@@ -2302,7 +2302,10 @@ class Artifact:
 
     @ensure_logged
     def files(
-        self, names: list[str] | None = None, per_page: int = 50
+        self,
+        names: list[str] | None = None,
+        per_page: int = 50,
+        start: str | None = None,
     ) -> ArtifactFiles:
         """Iterate over all files stored in this artifact.
 
@@ -2310,6 +2313,7 @@ class Artifact:
             names: The filename paths relative to the root of the artifact you wish to
                 list.
             per_page: The number of files to return per request.
+            start: The encoded start cursor for the first fetched page.
 
         Returns:
             An iterator containing `File` objects.
@@ -2319,7 +2323,7 @@ class Artifact:
         """
         if (client := self._client) is None:
             raise RuntimeError("Client not initialized")
-        return ArtifactFiles(client, self, names, per_page)
+        return ArtifactFiles(client, self, names, per_page, start=start)
 
     def _default_root(self, include_version: bool = True) -> FilePathStr:
         name = self.source_name if include_version else self.source_name.split(":")[0]

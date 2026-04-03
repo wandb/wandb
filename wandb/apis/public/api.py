@@ -1268,11 +1268,14 @@ class Api:
         return self._sweeps[path]
 
     @normalize_exceptions
-    def artifact_types(self, project: str | None = None) -> ArtifactTypes:
+    def artifact_types(
+        self, project: str | None = None, start: str | None = None
+    ) -> ArtifactTypes:
         """Returns a collection of matching artifact types.
 
         Args:
             project: The project name or path to filter on.
+            start: The encoded start cursor for the first fetched page.
 
         Returns:
             An iterable `ArtifactTypes` object.
@@ -1290,7 +1293,7 @@ class Api:
             entity = resolve_org_entity_name(
                 self.client, non_org_entity=settings_entity, org_or_entity=org
             )
-        return ArtifactTypes(self.client, entity, project)
+        return ArtifactTypes(self.client, entity, project, start=start)
 
     @normalize_exceptions
     def artifact_type(self, type_name: str, project: str | None = None) -> ArtifactType:
@@ -1320,7 +1323,11 @@ class Api:
 
     @normalize_exceptions
     def artifact_collections(
-        self, project_name: str, type_name: str, per_page: int = 50
+        self,
+        project_name: str,
+        type_name: str,
+        per_page: int = 50,
+        start: str | None = None,
     ) -> ArtifactCollections:
         """Returns a collection of matching artifact collections.
 
@@ -1329,6 +1336,7 @@ class Api:
             type_name: The name of the artifact type to filter on.
             per_page: Sets the page size for query pagination.
                 Usually there is no reason to change this.
+            start: The encoded start cursor for the first fetched page.
 
         Returns:
             An iterable `ArtifactCollections` object.
@@ -1346,7 +1354,7 @@ class Api:
                 self.client, non_org_entity=settings_entity, org_or_entity=org
             )
         return ArtifactCollections(
-            self.client, entity, project, type_name, per_page=per_page
+            self.client, entity, project, type_name, per_page=per_page, start=start
         )
 
     @normalize_exceptions
@@ -1426,6 +1434,7 @@ class Api:
         name: str,
         per_page: int = 50,
         tags: list[str] | None = None,
+        start: str | None = None,
     ) -> Artifacts:
         """Return an `Artifacts` collection.
 
@@ -1437,6 +1446,7 @@ class Api:
             per_page: Sets the page size for query pagination. Usually
                 there is no reason to change this.
             tags: Only return artifacts with all of these tags.
+            start: The encoded start cursor for the first fetched page.
 
         Returns:
             An iterable `Artifacts` object.
@@ -1473,6 +1483,7 @@ class Api:
             type_name,
             per_page=per_page,
             tags=tags,
+            start=start,
         )
 
     @normalize_exceptions
@@ -1751,6 +1762,7 @@ class Api:
         organization: str | None = None,
         filter: dict[str, Any] | None = None,
         per_page: int = 100,
+        start: str | None = None,
     ) -> Registries:
         """Returns a lazy iterator of `Registry` objects.
 
@@ -1768,6 +1780,7 @@ class Api:
                 Fields available to filter for versions are
                     `tag`, `alias`, `created_at`, `updated_at`, `metadata`
             per_page: Sets the page size for query pagination.
+            start: The encoded start cursor for the first fetched page.
 
         Returns:
             A lazy iterator of `Registry` objects.
@@ -1815,7 +1828,11 @@ class Api:
             self.settings, self.default_entity
         )
         return Registries(
-            self.client, organization=organization, filter=filter, per_page=per_page
+            self.client,
+            organization=organization,
+            filter=filter,
+            per_page=per_page,
+            start=start,
         )
 
     @tracked
@@ -1941,6 +1958,7 @@ class Api:
         entity: str | None = None,
         *,
         per_page: int = 50,
+        start: str | None = None,
     ) -> Iterator[Integration]:
         """Return an iterator of all integrations for an entity.
 
@@ -1957,11 +1975,13 @@ class Api:
         from wandb.apis.public.integrations import Integrations
 
         variables = {"entity": entity or self.default_entity}
-        return Integrations(self.client, variables=variables, per_page=per_page)
+        return Integrations(
+            self.client, variables=variables, per_page=per_page, start=start
+        )
 
     @tracked
     def webhook_integrations(
-        self, entity: str | None = None, *, per_page: int = 50
+        self, entity: str | None = None, *, per_page: int = 50, start: str | None = None
     ) -> Iterator[WebhookIntegration]:
         """Returns an iterator of webhook integrations for an entity.
 
@@ -1999,11 +2019,13 @@ class Api:
         from wandb.apis.public.integrations import WebhookIntegrations
 
         variables = {"entity": entity or self.default_entity}
-        return WebhookIntegrations(self.client, variables=variables, per_page=per_page)
+        return WebhookIntegrations(
+            self.client, variables=variables, per_page=per_page, start=start
+        )
 
     @tracked
     def slack_integrations(
-        self, *, entity: str | None = None, per_page: int = 50
+        self, *, entity: str | None = None, per_page: int = 50, start: str | None = None
     ) -> Iterator[SlackIntegration]:
         """Returns an iterator of Slack integrations for an entity.
 
@@ -2041,7 +2063,9 @@ class Api:
         from wandb.apis.public.integrations import SlackIntegrations
 
         variables = {"entity": entity or self.default_entity}
-        return SlackIntegrations(self.client, variables=variables, per_page=per_page)
+        return SlackIntegrations(
+            self.client, variables=variables, per_page=per_page, start=start
+        )
 
     def _supports_automation(
         self,
@@ -2160,6 +2184,7 @@ class Api:
         *,
         name: str | None = None,
         per_page: int = 50,
+        start: str | None = None,
     ) -> Iterator[Automation]:
         """Returns an iterator over all Automations that match the given parameters.
 
@@ -2171,6 +2196,7 @@ class Api:
             name: The name of the automation to fetch.
             per_page: The number of automations to fetch per page.
                 Defaults to 50.  Usually there is no reason to change this.
+            start: The encoded start cursor for the first fetched page.
 
         Returns:
             A list of automations.
@@ -2202,7 +2228,11 @@ class Api:
         omit_fragments = self._omitted_automation_fragments()
         query = gql_compat(gql_str, omit_fragments=omit_fragments)
         iterator = Automations(
-            self.client, variables=variables, per_page=per_page, _query=query
+            self.client,
+            variables=variables,
+            per_page=per_page,
+            start=start,
+            _query=query,
         )
 
         # FIXME: this is crude, move this client-side filtering logic into backend

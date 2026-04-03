@@ -142,13 +142,27 @@ class RelayPaginator(Paginator[_WandbT], Generic[_NodeT, _WandbT], ABC):
 
     last_response: Connection[_NodeT] | None
 
+    start: str | None
+    """The encoded start cursor for the first fetched page."""
+
+    def __init__(
+        self,
+        client: RetryingClient,
+        variables: Mapping[str, Any],
+        per_page: int = 50,
+        start: str | None = None,
+    ):
+        super().__init__(client, variables, per_page)
+        self.start = start
+
     @property
     def more(self) -> bool:
         return (conn := self.last_response) is None or conn.has_next
 
     @property
     def cursor(self) -> str | None:
-        return conn.next_cursor if (conn := self.last_response) else None
+        """The encoded start cursor for the next fetched page."""
+        return conn.next_cursor if (conn := self.last_response) else self.start
 
     @abstractmethod
     def _convert(self, node: _NodeT) -> _WandbT | Any:
