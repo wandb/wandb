@@ -59,7 +59,7 @@ def _import_sandbox_auth(monkeypatch):
     return auth_module, registered
 
 
-def test_override_auth_context_overrides_entity_without_leaking_project(
+def test_private_override_auth_context_overrides_entity_without_leaking_project(
     monkeypatch,
 ) -> None:
     auth_module, registered = _import_sandbox_auth(monkeypatch)
@@ -77,14 +77,16 @@ def test_override_auth_context_overrides_entity_without_leaking_project(
     monkeypatch.setattr(auth_module.wandb_setup, "singleton", lambda: singleton)
     monkeypatch.setattr(auth_module.wandb, "run", None)
 
-    assert registered["name"] == "wandb_sdk"
+    assert registered["name"] == auth_module._AUTH_MODE_NAME
     assert registered["func"] is auth_module._resolve_wandb_sdk_auth
+    assert not hasattr(auth_module, "override_auth_context")
+    assert not hasattr(auth_module, "register_wandb_auth_mode")
     assert auth_module._resolve_effective_entity_project() == (
         "default-entity",
         "default-project",
     )
 
-    with auth_module.override_auth_context(entity="non-default-entity"):
+    with auth_module._override_auth_context(entity="non-default-entity"):
         assert auth_module._resolve_effective_entity_project() == (
             "non-default-entity",
             None,

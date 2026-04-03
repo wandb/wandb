@@ -29,10 +29,10 @@ from cwsandbox import (
     wait,
 )
 
-from ._auth import register_wandb_auth_mode
+from ._auth import _set_wandb_auth_mode
 from ._secret import Secret
 
-register_wandb_auth_mode()
+_set_wandb_auth_mode()
 
 __all__ = (
     "NetworkOptions",

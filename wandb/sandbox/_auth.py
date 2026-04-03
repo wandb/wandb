@@ -11,7 +11,7 @@ from wandb.errors import UsageError
 from wandb.sdk import wandb_login, wandb_setup
 from wandb.sdk.lib import wbauth
 
-_AUTH_MODE_NAME = "wandb_sdk"
+_AUTH_MODE_NAME = "wandb"
 _OVERRIDE_UNSET = object()
 _entity_override: ContextVar[object | str | None] = ContextVar(
     "wandb_sandbox_entity_override",
@@ -19,13 +19,13 @@ _entity_override: ContextVar[object | str | None] = ContextVar(
 )
 
 
-def register_wandb_auth_mode() -> None:
+def _set_wandb_auth_mode() -> None:
     """Install W&B as the active cwsandbox auth mode for this process."""
     set_auth_mode(_AUTH_MODE_NAME, _resolve_wandb_sdk_auth)
 
 
 @contextmanager
-def override_auth_context(
+def _override_auth_context(
     *,
     entity: object | str | None = _OVERRIDE_UNSET,
 ) -> Iterator[None]:
@@ -44,32 +44,16 @@ def override_auth_context(
 
 def _resolve_effective_entity_project() -> tuple[str | None, str | None]:
     """Resolve entity/project from overrides, the active run, or global settings."""
-    entity_override = _current_entity_override()
+    entity_override = _entity_override.get()
     if entity_override is not _OVERRIDE_UNSET:
         return entity_override, None
 
-    run = _current_run()
-    if run is not None:
-        entity = run.entity or None
-        project = run.project or None
-        return entity, project
-
-    settings = wandb_setup.singleton().settings
-    entity = settings.entity or None
-    project = settings.project or None
-    return entity, project
-
-
-def _current_entity_override() -> object | str | None:
-    entity = _entity_override.get()
-    if entity is _OVERRIDE_UNSET:
-        return _OVERRIDE_UNSET
-    return entity
+    return _entity_project(_current_run() or _settings())
 
 
 def _resolve_wandb_sdk_auth() -> AuthHeaders:
     host = _current_wandb_host()
-    settings = wandb_setup.singleton().settings
+    settings = _settings()
 
     auth = wbauth.session_credentials(host=host)
     if auth is None and settings.api_key:
@@ -117,6 +101,17 @@ def _current_run():
     return wandb_setup.singleton().most_recent_active_run
 
 
+def _entity_project(source: object) -> tuple[str | None, str | None]:
+    return (
+        getattr(source, "entity", None) or None,
+        getattr(source, "project", None) or None,
+    )
+
+
+def _settings():
+    return wandb_setup.singleton().settings
+
+
 def _should_suppress_auth_output() -> bool:
     """Avoid duplicate auth output when a run is already active."""
     return _current_run() is not None
@@ -124,5 +119,5 @@ def _should_suppress_auth_output() -> bool:
 
 def _current_wandb_host() -> wbauth.HostUrl:
     """Return the configured W&B API host for auth resolution."""
-    settings = wandb_setup.singleton().settings
+    settings = _settings()
     return wbauth.HostUrl(settings.base_url, app_url=settings.app_url)

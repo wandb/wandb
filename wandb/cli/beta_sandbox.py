@@ -31,7 +31,7 @@ def _entity_override_context(entity: str | None):
         return nullcontext()
 
     auth_module = importlib.import_module("wandb.sandbox._auth")
-    return auth_module.override_auth_context(entity=entity)
+    return auth_module._override_auth_context(entity=entity)
 
 
 def _cwsandbox_error_type() -> type[BaseException]:
