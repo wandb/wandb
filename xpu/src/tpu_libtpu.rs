@@ -138,20 +138,62 @@ struct DesiredMetric {
 }
 
 const DESIRED_METRICS: &[DesiredMetric] = &[
-    DesiredMetric { logical_name: "tensorcore_utilization", sdk_aliases: &["tensorcore_utilization", "tensorcore_util"] },
-    DesiredMetric { logical_name: "duty_cycle_pct", sdk_aliases: &["duty_cycle_pct"] },
-    DesiredMetric { logical_name: "hbm_capacity_total", sdk_aliases: &["hbm_capacity_total"] },
-    DesiredMetric { logical_name: "hbm_capacity_usage", sdk_aliases: &["hbm_capacity_usage"] },
-    DesiredMetric { logical_name: "buffer_transfer_latency", sdk_aliases: &["buffer_transfer_latency"] },
-    DesiredMetric { logical_name: "inbound_buffer_transfer_latency", sdk_aliases: &["inbound_buffer_transfer_latency"] },
-    DesiredMetric { logical_name: "host_to_device_transfer_latency", sdk_aliases: &["host_to_device_transfer_latency"] },
-    DesiredMetric { logical_name: "device_to_host_transfer_latency", sdk_aliases: &["device_to_host_transfer_latency"] },
-    DesiredMetric { logical_name: "collective_e2e_latency", sdk_aliases: &["collective_e2e_latency"] },
-    DesiredMetric { logical_name: "host_compute_latency", sdk_aliases: &["host_compute_latency"] },
-    DesiredMetric { logical_name: "grpc_tcp_min_rtt", sdk_aliases: &["grpc_tcp_min_rtt", "grpc_tcp_min_round_trip_times"] },
-    DesiredMetric { logical_name: "grpc_tcp_delivery_rate", sdk_aliases: &["grpc_tcp_delivery_rate", "grpc_tcp_delivery_rates"] },
-    DesiredMetric { logical_name: "hlo_exec_timing", sdk_aliases: &["hlo_exec_timing"] },
-    DesiredMetric { logical_name: "hlo_queue_size", sdk_aliases: &["hlo_queue_size"] },
+    DesiredMetric {
+        logical_name: "tensorcore_utilization",
+        sdk_aliases: &["tensorcore_utilization", "tensorcore_util"],
+    },
+    DesiredMetric {
+        logical_name: "duty_cycle_pct",
+        sdk_aliases: &["duty_cycle_pct"],
+    },
+    DesiredMetric {
+        logical_name: "hbm_capacity_total",
+        sdk_aliases: &["hbm_capacity_total"],
+    },
+    DesiredMetric {
+        logical_name: "hbm_capacity_usage",
+        sdk_aliases: &["hbm_capacity_usage"],
+    },
+    DesiredMetric {
+        logical_name: "buffer_transfer_latency",
+        sdk_aliases: &["buffer_transfer_latency"],
+    },
+    DesiredMetric {
+        logical_name: "inbound_buffer_transfer_latency",
+        sdk_aliases: &["inbound_buffer_transfer_latency"],
+    },
+    DesiredMetric {
+        logical_name: "host_to_device_transfer_latency",
+        sdk_aliases: &["host_to_device_transfer_latency"],
+    },
+    DesiredMetric {
+        logical_name: "device_to_host_transfer_latency",
+        sdk_aliases: &["device_to_host_transfer_latency"],
+    },
+    DesiredMetric {
+        logical_name: "collective_e2e_latency",
+        sdk_aliases: &["collective_e2e_latency"],
+    },
+    DesiredMetric {
+        logical_name: "host_compute_latency",
+        sdk_aliases: &["host_compute_latency"],
+    },
+    DesiredMetric {
+        logical_name: "grpc_tcp_min_rtt",
+        sdk_aliases: &["grpc_tcp_min_rtt", "grpc_tcp_min_round_trip_times"],
+    },
+    DesiredMetric {
+        logical_name: "grpc_tcp_delivery_rate",
+        sdk_aliases: &["grpc_tcp_delivery_rate", "grpc_tcp_delivery_rates"],
+    },
+    DesiredMetric {
+        logical_name: "hlo_exec_timing",
+        sdk_aliases: &["hlo_exec_timing"],
+    },
+    DesiredMetric {
+        logical_name: "hlo_queue_size",
+        sdk_aliases: &["hlo_queue_size"],
+    },
 ];
 
 static GRPC_METRIC_MAP: std::sync::LazyLock<HashMap<&'static str, &'static str>> =
@@ -160,15 +202,42 @@ static GRPC_METRIC_MAP: std::sync::LazyLock<HashMap<&'static str, &'static str>>
             ("duty_cycle_pct", "tpu.runtime.tensorcore.dutycycle.percent"),
             ("hbm_capacity_total", "tpu.runtime.hbm.memory.total.bytes"),
             ("hbm_capacity_usage", "tpu.runtime.hbm.memory.usage.bytes"),
-            ("buffer_transfer_latency", "megascale.dcn_transfer_latencies.microsecond.cumulative.distribution"),
-            ("inbound_buffer_transfer_latency", "megascale.dcn_inbound_transfer_latencies.microsecond.cumulative.distribution"),
-            ("host_to_device_transfer_latency", "megascale.host_to_device_transfer_latencies.microsecond.cumulative.distribution"),
-            ("device_to_host_transfer_latency", "megascale.device_to_host_transfer_latencies.microsecond.cumulative.distribution"),
-            ("collective_e2e_latency", "megascale.collective_end_to_end_latencies.microsecond.cumulative.distribution"),
-            ("host_compute_latency", "megascale.mxla_compute_latencies.microsecond.cumulative.distribution"),
-            ("grpc_tcp_min_rtt", "megascale.grpc_tcp_min_rtt.microsecond.cumulative.distribution"),
-            ("grpc_tcp_delivery_rate", "megascale.grpc_tcp_delivery_rate.Mbps.cumulative.distribution"),
-            ("hlo_exec_timing", "hlo.execution.timing.distribution.microseconds"),
+            (
+                "buffer_transfer_latency",
+                "megascale.dcn_transfer_latencies.microsecond.cumulative.distribution",
+            ),
+            (
+                "inbound_buffer_transfer_latency",
+                "megascale.dcn_inbound_transfer_latencies.microsecond.cumulative.distribution",
+            ),
+            (
+                "host_to_device_transfer_latency",
+                "megascale.host_to_device_transfer_latencies.microsecond.cumulative.distribution",
+            ),
+            (
+                "device_to_host_transfer_latency",
+                "megascale.device_to_host_transfer_latencies.microsecond.cumulative.distribution",
+            ),
+            (
+                "collective_e2e_latency",
+                "megascale.collective_end_to_end_latencies.microsecond.cumulative.distribution",
+            ),
+            (
+                "host_compute_latency",
+                "megascale.mxla_compute_latencies.microsecond.cumulative.distribution",
+            ),
+            (
+                "grpc_tcp_min_rtt",
+                "megascale.grpc_tcp_min_rtt.microsecond.cumulative.distribution",
+            ),
+            (
+                "grpc_tcp_delivery_rate",
+                "megascale.grpc_tcp_delivery_rate.Mbps.cumulative.distribution",
+            ),
+            (
+                "hlo_exec_timing",
+                "hlo.execution.timing.distribution.microseconds",
+            ),
             ("hlo_queue_size", "hlo.queue.size.gauge"),
         ])
     });
@@ -177,6 +246,8 @@ static GRPC_METRIC_MAP: std::sync::LazyLock<HashMap<&'static str, &'static str>>
 // SDK client — libtpu.so via FFI
 // ============================================================
 
+// Vtable byte offsets from start of LibtpuSdkApi struct.
+// Verified against libtpu and 0.0.38 (VERS_1.0 ABI).
 const OFF_ERROR_MESSAGE: usize = 0x08;
 const OFF_DESTROY_ERROR: usize = 0x10;
 const OFF_CREATE_CLIENT: usize = 0x20;
@@ -223,13 +294,16 @@ impl SdkClient {
         }
 
         #[repr(C)]
-        struct CreateClientArgs { client: *mut std::ffi::c_void }
+        struct CreateClientArgs {
+            client: *mut std::ffi::c_void,
+        }
 
         let client = unsafe {
-            let mut args = CreateClientArgs { client: std::ptr::null_mut() };
-            let err = vtable_fn(api_ptr, OFF_CREATE_CLIENT)(
-                (&raw mut args) as *mut std::ffi::c_void,
-            );
+            let mut args = CreateClientArgs {
+                client: std::ptr::null_mut(),
+            };
+            let err =
+                vtable_fn(api_ptr, OFF_CREATE_CLIENT)((&raw mut args) as *mut std::ffi::c_void);
             if !err.is_null() {
                 let msg = read_error(api_ptr, err);
                 warn!("libtpu CreateClient failed: {msg}");
@@ -242,7 +316,12 @@ impl SdkClient {
             return None;
         }
 
-        Some(Self { _lib: lib, api_ptr, client, resolved: Mutex::new(None) })
+        Some(Self {
+            _lib: lib,
+            api_ptr,
+            client,
+            resolved: Mutex::new(None),
+        })
     }
 
     fn resolve_metrics(&self) -> HashMap<String, String> {
@@ -275,51 +354,84 @@ impl SdkClient {
 
         let metric = unsafe {
             let mut args = GetMetricArgs {
-                client: self.client, metric_name: cname.as_ptr(), metric: std::ptr::null_mut(),
+                client: self.client,
+                metric_name: cname.as_ptr(),
+                metric: std::ptr::null_mut(),
             };
-            let err = vtable_fn(self.api_ptr, OFF_GET_METRIC)(
-                (&raw mut args) as *mut std::ffi::c_void,
-            );
-            if !err.is_null() { return Err(read_error(self.api_ptr, err)); }
-            if args.metric.is_null() { return Err(format!("GetMetric({name}): null")); }
+            let err =
+                vtable_fn(self.api_ptr, OFF_GET_METRIC)((&raw mut args) as *mut std::ffi::c_void);
+            if !err.is_null() {
+                return Err(read_error(self.api_ptr, err));
+            }
+            if args.metric.is_null() {
+                return Err(format!("GetMetric({name}): null"));
+            }
             args.metric
         };
 
         #[repr(C)]
-        struct GetDescArgs { metric: *mut std::ffi::c_void, description: *const c_char, description_len: usize }
+        struct GetDescArgs {
+            metric: *mut std::ffi::c_void,
+            description: *const c_char,
+            description_len: usize,
+        }
 
         let description = unsafe {
-            let mut args = GetDescArgs { metric, description: std::ptr::null(), description_len: 0 };
+            let mut args = GetDescArgs {
+                metric,
+                description: std::ptr::null(),
+                description_len: 0,
+            };
             let err = vtable_fn(self.api_ptr, OFF_GET_METRIC_DESC)(
                 (&raw mut args) as *mut std::ffi::c_void,
             );
-            if !err.is_null() { return Err(read_error(self.api_ptr, err)); }
+            if !err.is_null() {
+                return Err(read_error(self.api_ptr, err));
+            }
             if args.description.is_null() || args.description_len == 0 {
                 String::new()
             } else {
-                let slice = std::slice::from_raw_parts(args.description as *const u8, args.description_len);
+                let slice =
+                    std::slice::from_raw_parts(args.description as *const u8, args.description_len);
                 String::from_utf8_lossy(slice).into_owned()
             }
         };
 
         #[repr(C)]
-        struct GetValsArgs { metric: *mut std::ffi::c_void, values: *const *const c_char, value_count: usize }
+        struct GetValsArgs {
+            metric: *mut std::ffi::c_void,
+            values: *const *const c_char,
+            value_count: usize,
+        }
 
         let values = unsafe {
-            let mut args = GetValsArgs { metric, values: std::ptr::null(), value_count: 0 };
+            let mut args = GetValsArgs {
+                metric,
+                values: std::ptr::null(),
+                value_count: 0,
+            };
             let err = vtable_fn(self.api_ptr, OFF_GET_METRIC_VALS)(
                 (&raw mut args) as *mut std::ffi::c_void,
             );
-            if !err.is_null() { return Err(read_error(self.api_ptr, err)); }
+            if !err.is_null() {
+                return Err(read_error(self.api_ptr, err));
+            }
             (0..args.value_count)
                 .map(|i| {
                     let p = *args.values.add(i);
-                    if p.is_null() { String::new() } else { CStr::from_ptr(p).to_string_lossy().into_owned() }
+                    if p.is_null() {
+                        String::new()
+                    } else {
+                        CStr::from_ptr(p).to_string_lossy().into_owned()
+                    }
                 })
                 .collect()
         };
 
-        Ok(SdkMetricData { description, values })
+        Ok(SdkMetricData {
+            description,
+            values,
+        })
     }
 }
 
@@ -327,9 +439,13 @@ impl Drop for SdkClient {
     fn drop(&mut self) {
         if !self.client.is_null() {
             #[repr(C)]
-            struct DestroyClientArgs { client: *mut std::ffi::c_void }
+            struct DestroyClientArgs {
+                client: *mut std::ffi::c_void,
+            }
             unsafe {
-                let mut args = DestroyClientArgs { client: self.client };
+                let mut args = DestroyClientArgs {
+                    client: self.client,
+                };
                 vtable_fn(self.api_ptr, OFF_DESTROY_CLIENT)(
                     (&raw mut args) as *mut std::ffi::c_void,
                 );
@@ -339,13 +455,23 @@ impl Drop for SdkClient {
 }
 
 #[repr(C)]
-struct ErrorMessageArgs { error: *mut std::ffi::c_void, message: *const c_char, message_len: usize }
+struct ErrorMessageArgs {
+    error: *mut std::ffi::c_void,
+    message: *const c_char,
+    message_len: usize,
+}
 
 #[repr(C)]
-struct DestroyErrorArgs { error: *mut std::ffi::c_void }
+struct DestroyErrorArgs {
+    error: *mut std::ffi::c_void,
+}
 
 unsafe fn read_error(api_ptr: *const u8, err: *mut std::ffi::c_void) -> String {
-    let mut msg_args = ErrorMessageArgs { error: err, message: std::ptr::null(), message_len: 0 };
+    let mut msg_args = ErrorMessageArgs {
+        error: err,
+        message: std::ptr::null(),
+        message_len: 0,
+    };
     vtable_fn(api_ptr, OFF_ERROR_MESSAGE)((&raw mut msg_args) as *mut std::ffi::c_void);
     let msg = if !msg_args.message.is_null() && msg_args.message_len > 0 {
         let s = std::slice::from_raw_parts(msg_args.message as *const u8, msg_args.message_len);
@@ -390,10 +516,15 @@ impl GrpcClient {
         let rt = tokio::runtime::Handle::try_current().map_err(|e| e.to_string())?;
         rt.block_on(async {
             let resp = client
-                .get_runtime_metric(proto::MetricRequest { metric_name: name, skip_node_aggregation: false })
+                .get_runtime_metric(proto::MetricRequest {
+                    metric_name: name,
+                    skip_node_aggregation: false,
+                })
                 .await
                 .map_err(|e| e.to_string())?;
-            resp.into_inner().metric.ok_or_else(|| "empty response".to_string())
+            resp.into_inner()
+                .metric
+                .ok_or_else(|| "empty response".to_string())
         })
     }
 }
@@ -402,7 +533,8 @@ fn is_grpc_available() -> bool {
     std::net::TcpStream::connect_timeout(
         &"127.0.0.1:8431".parse().unwrap(),
         std::time::Duration::from_millis(500),
-    ).is_ok()
+    )
+    .is_ok()
 }
 
 // ============================================================
@@ -411,19 +543,75 @@ fn is_grpc_available() -> bool {
 
 fn format_metric(logical_name: &str, data: &SdkMetricData, out: &mut Vec<(String, MetricValue)>) {
     match logical_name {
-        "tensorcore_utilization" => indexed_float(out, "tpu.{}.tensorcoreUtilization", &data.values),
+        "tensorcore_utilization" => {
+            indexed_float(out, "tpu.{}.tensorcoreUtilization", &data.values)
+        }
         "duty_cycle_pct" => indexed_float(out, "tpu.{}.dutyCycle", &data.values),
         "hbm_capacity_total" => indexed_float(out, "tpu.{}.hbmCapacityTotal", &data.values),
         "hbm_capacity_usage" => indexed_float(out, "tpu.{}.hbmCapacityUsage", &data.values),
-        "buffer_transfer_latency" => labeled_dist(out, "tpu.bufferTransferLatency", "Us", &data.description, &data.values),
-        "inbound_buffer_transfer_latency" => labeled_dist(out, "tpu.inboundBufferTransferLatency", "Us", &data.description, &data.values),
-        "host_to_device_transfer_latency" => labeled_dist(out, "tpu.hostToDeviceTransferLatency", "Us", &data.description, &data.values),
-        "device_to_host_transfer_latency" => labeled_dist(out, "tpu.deviceToHostTransferLatency", "Us", &data.description, &data.values),
-        "collective_e2e_latency" => labeled_dist(out, "tpu.collectiveE2ELatency", "Us", &data.description, &data.values),
-        "host_compute_latency" => labeled_dist(out, "tpu.hostComputeLatency", "Us", &data.description, &data.values),
-        "grpc_tcp_min_rtt" => flat_dist(out, "tpu.grpcTcpMinRtt", "Us", &data.description, &data.values),
-        "grpc_tcp_delivery_rate" => flat_dist(out, "tpu.grpcTcpDeliveryRate", "Mbps", &data.description, &data.values),
-        "hlo_exec_timing" => labeled_dist(out, "tpu.hloExecTiming", "Us", &data.description, &data.values),
+        "buffer_transfer_latency" => labeled_dist(
+            out,
+            "tpu.bufferTransferLatency",
+            "Us",
+            &data.description,
+            &data.values,
+        ),
+        "inbound_buffer_transfer_latency" => labeled_dist(
+            out,
+            "tpu.inboundBufferTransferLatency",
+            "Us",
+            &data.description,
+            &data.values,
+        ),
+        "host_to_device_transfer_latency" => labeled_dist(
+            out,
+            "tpu.hostToDeviceTransferLatency",
+            "Us",
+            &data.description,
+            &data.values,
+        ),
+        "device_to_host_transfer_latency" => labeled_dist(
+            out,
+            "tpu.deviceToHostTransferLatency",
+            "Us",
+            &data.description,
+            &data.values,
+        ),
+        "collective_e2e_latency" => labeled_dist(
+            out,
+            "tpu.collectiveE2ELatency",
+            "Us",
+            &data.description,
+            &data.values,
+        ),
+        "host_compute_latency" => labeled_dist(
+            out,
+            "tpu.hostComputeLatency",
+            "Us",
+            &data.description,
+            &data.values,
+        ),
+        "grpc_tcp_min_rtt" => flat_dist(
+            out,
+            "tpu.grpcTcpMinRtt",
+            "Us",
+            &data.description,
+            &data.values,
+        ),
+        "grpc_tcp_delivery_rate" => flat_dist(
+            out,
+            "tpu.grpcTcpDeliveryRate",
+            "Mbps",
+            &data.description,
+            &data.values,
+        ),
+        "hlo_exec_timing" => labeled_dist(
+            out,
+            "tpu.hloExecTiming",
+            "Us",
+            &data.description,
+            &data.values,
+        ),
         "hlo_queue_size" => colon_values(out, "tpu.hloQueueSize", &data.values),
         _ => {}
     }
@@ -437,29 +625,52 @@ fn indexed_float(out: &mut Vec<(String, MetricValue)>, pattern: &str, values: &[
     }
 }
 
-fn labeled_dist(out: &mut Vec<(String, MetricValue)>, base: &str, unit: &str, desc: &str, data: &[String]) {
+fn labeled_dist(
+    out: &mut Vec<(String, MetricValue)>,
+    base: &str,
+    unit: &str,
+    desc: &str,
+    data: &[String],
+) {
     for raw in data {
         let parts = split_csv(raw);
-        if parts.len() < 2 { continue; }
+        if parts.len() < 2 {
+            continue;
+        }
         let label = sanitize(&parts[0]);
         let names = stat_names(desc, parts.len() - 1);
         for (i, val) in parts[1..].iter().enumerate() {
-            if i >= names.len() { break; }
+            if i >= names.len() {
+                break;
+            }
             if let Ok(v) = val.trim().parse::<f64>() {
-                out.push((format!("{base}.{label}.{}{unit}", names[i]), MetricValue::Float(v)));
+                out.push((
+                    format!("{base}.{label}.{}{unit}", names[i]),
+                    MetricValue::Float(v),
+                ));
             }
         }
     }
 }
 
-fn flat_dist(out: &mut Vec<(String, MetricValue)>, base: &str, unit: &str, desc: &str, data: &[String]) {
+fn flat_dist(
+    out: &mut Vec<(String, MetricValue)>,
+    base: &str,
+    unit: &str,
+    desc: &str,
+    data: &[String],
+) {
     let vals: Vec<String> = if data.len() == 1 {
         let p = split_csv(&data[0]);
         if p.len() > 1 { p } else { data.to_vec() }
-    } else { data.to_vec() };
+    } else {
+        data.to_vec()
+    };
     let names = stat_names(desc, vals.len());
     for (i, raw) in vals.iter().enumerate() {
-        if i >= names.len() { break; }
+        if i >= names.len() {
+            break;
+        }
         if let Ok(v) = raw.trim().parse::<f64>() {
             out.push((format!("{base}.{}{unit}", names[i]), MetricValue::Float(v)));
         }
@@ -468,7 +679,8 @@ fn flat_dist(out: &mut Vec<(String, MetricValue)>, base: &str, unit: &str, desc:
 
 fn colon_values(out: &mut Vec<(String, MetricValue)>, base: &str, data: &[String]) {
     for (i, raw) in data.iter().enumerate() {
-        let (label, val) = raw.split_once(':')
+        let (label, val) = raw
+            .split_once(':')
             .map(|(l, r)| (sanitize(l), r.to_string()))
             .unwrap_or_else(|| (format!("item_{i}"), raw.clone()));
         if let Ok(v) = val.trim().parse::<f64>() {
@@ -481,9 +693,14 @@ fn colon_values(out: &mut Vec<(String, MetricValue)>, base: &str, data: &[String
 // Metric formatting — gRPC path
 // ============================================================
 
-fn format_grpc_metric(logical_name: &str, tpu_metric: &proto::TpuMetric, out: &mut Vec<(String, MetricValue)>) {
+fn format_grpc_metric(
+    logical_name: &str,
+    tpu_metric: &proto::TpuMetric,
+    out: &mut Vec<(String, MetricValue)>,
+) {
     let base_key = match logical_name {
         "duty_cycle_pct" | "hbm_capacity_total" | "hbm_capacity_usage" => {
+            // Per-device gauge metrics.
             for m in &tpu_metric.metrics {
                 let did = grpc_device_id(m);
                 if let Some(v) = grpc_gauge_value(m) {
@@ -527,20 +744,33 @@ fn format_grpc_metric(logical_name: &str, tpu_metric: &proto::TpuMetric, out: &m
             continue;
         }
 
+        // Distribution or Summary.
         if let Some(proto::metric::Measure::Summary(ref s)) = m.measure {
             if s.sample_count > 0 {
-                out.push((format!("{base_key}.{label}.mean{unit}"), MetricValue::Float(s.sample_sum / s.sample_count as f64)));
+                out.push((
+                    format!("{base_key}.{label}.mean{unit}"),
+                    MetricValue::Float(s.sample_sum / s.sample_count as f64),
+                ));
             }
             for q in &s.quantile {
                 if let Some(name) = quantile_name(q.quantile) {
-                    out.push((format!("{base_key}.{label}.{name}{unit}"), MetricValue::Float(q.value)));
+                    out.push((
+                        format!("{base_key}.{label}.{name}{unit}"),
+                        MetricValue::Float(q.value),
+                    ));
                 }
             }
         } else if let Some(proto::metric::Measure::Distribution(ref d)) = m.measure {
             if d.count > 0 {
-                out.push((format!("{base_key}.{label}.mean{unit}"), MetricValue::Float(d.mean)));
+                out.push((
+                    format!("{base_key}.{label}.mean{unit}"),
+                    MetricValue::Float(d.mean),
+                ));
                 for (name, val) in distribution_percentiles(d) {
-                    out.push((format!("{base_key}.{label}.{name}{unit}"), MetricValue::Float(val)));
+                    out.push((
+                        format!("{base_key}.{label}.{name}{unit}"),
+                        MetricValue::Float(val),
+                    ));
                 }
             }
         }
@@ -548,9 +778,13 @@ fn format_grpc_metric(logical_name: &str, tpu_metric: &proto::TpuMetric, out: &m
 }
 
 fn grpc_device_id(m: &proto::Metric) -> i64 {
-    m.attribute.as_ref()
+    m.attribute
+        .as_ref()
         .and_then(|a| a.value.as_ref())
-        .and_then(|v| match &v.attr { Some(proto::attr_value::Attr::IntAttr(i)) => Some(*i), _ => None })
+        .and_then(|v| match &v.attr {
+            Some(proto::attr_value::Attr::IntAttr(i)) => Some(*i),
+            _ => None,
+        })
         .unwrap_or(0)
 }
 
@@ -566,7 +800,8 @@ fn grpc_gauge_value(m: &proto::Metric) -> Option<f64> {
 }
 
 fn grpc_label(m: &proto::Metric) -> Option<String> {
-    m.attribute.as_ref()
+    m.attribute
+        .as_ref()
         .and_then(|a| a.value.as_ref())
         .and_then(|v| match &v.attr {
             Some(proto::attr_value::Attr::StringAttr(s)) if !s.is_empty() => Some(sanitize(s)),
@@ -576,19 +811,30 @@ fn grpc_label(m: &proto::Metric) -> Option<String> {
 
 fn quantile_name(q: f64) -> Option<&'static str> {
     const EPS: f64 = 1e-9;
-    if (q - 0.50).abs() < EPS { Some("p50") }
-    else if (q - 0.90).abs() < EPS { Some("p90") }
-    else if (q - 0.95).abs() < EPS { Some("p95") }
-    else if (q - 0.99).abs() < EPS { Some("p99") }
-    else if (q - 0.999).abs() < EPS { Some("p999") }
-    else { None }
+    if (q - 0.50).abs() < EPS {
+        Some("p50")
+    } else if (q - 0.90).abs() < EPS {
+        Some("p90")
+    } else if (q - 0.95).abs() < EPS {
+        Some("p95")
+    } else if (q - 0.99).abs() < EPS {
+        Some("p99")
+    } else if (q - 0.999).abs() < EPS {
+        Some("p999")
+    } else {
+        None
+    }
 }
 
 fn distribution_percentiles(d: &proto::Distribution) -> Vec<(&'static str, f64)> {
     let counts = &d.bucket_counts;
-    if counts.is_empty() { return vec![]; }
+    if counts.is_empty() {
+        return vec![];
+    }
     let total: i64 = counts.iter().sum();
-    if total == 0 { return vec![]; }
+    if total == 0 {
+        return vec![];
+    }
     let bounds = distribution_boundaries(d);
     [("p50", 0.50), ("p90", 0.90), ("p95", 0.95), ("p999", 0.999)]
         .iter()
@@ -597,12 +843,21 @@ fn distribution_percentiles(d: &proto::Distribution) -> Vec<(&'static str, f64)>
 }
 
 fn distribution_boundaries(d: &proto::Distribution) -> Vec<f64> {
-    let opts = match &d.bucket_options { Some(o) => o, None => return vec![] };
+    let opts = match &d.bucket_options {
+        Some(o) => o,
+        None => return vec![],
+    };
     match &opts.options {
-        Some(proto::distribution::bucket_options::Options::ExponentialBuckets(e)) =>
-            (0..e.num_finite_buckets as usize).map(|i| e.scale * e.growth_factor.powi(i as i32 + 1)).collect(),
-        Some(proto::distribution::bucket_options::Options::LinearBuckets(l)) =>
-            (0..l.num_finite_buckets as usize).map(|i| l.offset + l.width * (i as f64 + 1.0)).collect(),
+        Some(proto::distribution::bucket_options::Options::ExponentialBuckets(e)) => {
+            (0..e.num_finite_buckets as usize)
+                .map(|i| e.scale * e.growth_factor.powi(i as i32 + 1))
+                .collect()
+        }
+        Some(proto::distribution::bucket_options::Options::LinearBuckets(l)) => {
+            (0..l.num_finite_buckets as usize)
+                .map(|i| l.offset + l.width * (i as f64 + 1.0))
+                .collect()
+        }
         Some(proto::distribution::bucket_options::Options::ExplicitBuckets(e)) => e.bounds.clone(),
         None => vec![],
     }
@@ -613,7 +868,9 @@ fn interpolate_percentile(counts: &[i64], bounds: &[f64], total: i64, quantile: 
     let mut cumulative: i64 = 0;
     for (i, &count) in counts.iter().enumerate() {
         cumulative += count;
-        if (cumulative as f64) < target { continue; }
+        if (cumulative as f64) < target {
+            continue;
+        }
         let (lo, hi) = bucket_range(bounds, i);
         let prev = cumulative - count;
         let frac = (target - prev as f64) / count as f64;
@@ -623,11 +880,16 @@ fn interpolate_percentile(counts: &[i64], bounds: &[f64], total: i64, quantile: 
 }
 
 fn bucket_range(bounds: &[f64], index: usize) -> (f64, f64) {
-    if bounds.is_empty() { return (0.0, 0.0); }
+    if bounds.is_empty() {
+        return (0.0, 0.0);
+    }
     match index {
         0 => (0.0, bounds[0]),
         i if i <= bounds.len() => (bounds[i - 1], bounds[i.min(bounds.len() - 1)]),
-        _ => { let last = *bounds.last().unwrap(); (last, last) }
+        _ => {
+            let last = *bounds.last().unwrap();
+            (last, last)
+        }
     }
 }
 
@@ -642,25 +904,46 @@ fn stat_names(desc: &str, count: usize) -> Vec<String> {
         5 => vec!["mean", "p50", "p90", "p95", "p999"],
         4 => vec!["p50", "p90", "p95", "p999"],
         _ => return (0..count).map(|i| format!("stat{i}")).collect(),
-    }.into_iter().map(String::from).collect()
+    }
+    .into_iter()
+    .map(String::from)
+    .collect()
 }
 
 fn split_csv(raw: &str) -> Vec<String> {
     let raw = raw.trim().trim_matches(&['[', ']'][..]);
-    if raw.is_empty() { return vec![]; }
-    raw.split(',').map(|s| s.trim().trim_matches(&['"', '\''][..]).to_string()).filter(|s| !s.is_empty()).collect()
+    if raw.is_empty() {
+        return vec![];
+    }
+    raw.split(',')
+        .map(|s| s.trim().trim_matches(&['"', '\''][..]).to_string())
+        .filter(|s| !s.is_empty())
+        .collect()
 }
 
 fn sanitize(label: &str) -> String {
-    let label = label.trim().to_lowercase().replace('+', "_plus_").replace('%', "pct");
+    let label = label
+        .trim()
+        .to_lowercase()
+        .replace('+', "_plus_")
+        .replace('%', "pct");
     let mut out = String::with_capacity(label.len());
     let mut last_under = false;
     for c in label.chars() {
-        if c.is_ascii_lowercase() || c.is_ascii_digit() { out.push(c); last_under = false; }
-        else if !last_under { out.push('_'); last_under = true; }
+        if c.is_ascii_lowercase() || c.is_ascii_digit() {
+            out.push(c);
+            last_under = false;
+        } else if !last_under {
+            out.push('_');
+            last_under = true;
+        }
     }
     let out = out.trim_matches('_').to_string();
-    if out.is_empty() { "unknown".to_string() } else { out }
+    if out.is_empty() {
+        "unknown".to_string()
+    } else {
+        out
+    }
 }
 
 // ============================================================
@@ -670,32 +953,50 @@ fn sanitize(label: &str) -> String {
 fn find_libtpu_path() -> Option<PathBuf> {
     for var in &["WANDB_LIBTPU_PATH", "TPU_LIBRARY_PATH", "LIBTPU_PATH"] {
         if let Ok(val) = std::env::var(var) {
-            if let Some(p) = resolve_path(Path::new(val.trim())) { return Some(p); }
+            if let Some(p) = resolve_path(Path::new(val.trim())) {
+                return Some(p);
+            }
         }
     }
     let mut candidates: Vec<PathBuf> = vec![
-        "/lib/libtpu.so".into(), "/usr/lib/libtpu.so".into(), "/usr/local/lib/libtpu.so".into(),
+        "/lib/libtpu.so".into(),
+        "/usr/lib/libtpu.so".into(),
+        "/usr/local/lib/libtpu.so".into(),
     ];
     if let Ok(home) = std::env::var("HOME") {
         for pattern in [
             format!("{home}/.local/lib/python*/site-packages/libtpu/libtpu.so"),
             format!("{home}/.venv/lib/python*/site-packages/libtpu/libtpu.so"),
         ] {
-            if let Ok(matches) = glob::glob(&pattern) { candidates.extend(matches.flatten()); }
+            if let Ok(matches) = glob::glob(&pattern) {
+                candidates.extend(matches.flatten());
+            }
         }
     }
     for pattern in [
         "/usr/local/lib/python*/dist-packages/libtpu/libtpu.so",
         "/usr/local/lib/python*/dist-packages/torch_xla/lib/libtpu.so",
     ] {
-        if let Ok(matches) = glob::glob(pattern) { candidates.extend(matches.flatten()); }
+        if let Ok(matches) = glob::glob(pattern) {
+            candidates.extend(matches.flatten());
+        }
     }
     candidates.into_iter().find_map(|p| resolve_path(&p))
 }
 
 fn resolve_path(path: &Path) -> Option<PathBuf> {
-    if path.is_dir() { let j = path.join("libtpu.so"); if j.is_file() { return Some(j); } return None; }
-    if path.is_file() { Some(path.to_path_buf()) } else { None }
+    if path.is_dir() {
+        let j = path.join("libtpu.so");
+        if j.is_file() {
+            return Some(j);
+        }
+        return None;
+    }
+    if path.is_file() {
+        Some(path.to_path_buf())
+    } else {
+        None
+    }
 }
 
 // ============================================================
@@ -840,7 +1141,12 @@ mod tests {
             "tpu.grpcTcpDeliveryRate",
             "Mbps",
             "p50, p90, p95, p999",
-            &["100.0".into(), "200.0".into(), "300.0".into(), "400.0".into()],
+            &[
+                "100.0".into(),
+                "200.0".into(),
+                "300.0".into(),
+                "400.0".into(),
+            ],
         );
         let m = metrics_map(&out);
         assert_eq!(m.get("tpu.grpcTcpDeliveryRate.p50Mbps"), Some(&100.0));
@@ -950,7 +1256,11 @@ mod tests {
         // p50: target=500. cumulative: 0, 100, 400, 800>=500 at idx 3.
         // bucket 3 = [80, 160). prev=400, count=400, frac=(500-400)/400=0.25
         // value = 80 + 0.25*80 = 100
-        assert!((pct_map["p50"] - 100.0).abs() < 0.01, "p50={}", pct_map["p50"]);
+        assert!(
+            (pct_map["p50"] - 100.0).abs() < 0.01,
+            "p50={}",
+            pct_map["p50"]
+        );
 
         // p90: target=900. cumulative reaches 800 at idx 3, then 950 at idx 4.
         // bucket 4 is overflow [160,160). value=160
@@ -977,15 +1287,13 @@ mod tests {
             max: 35.0,
             sum_of_squared_deviation: 0.0,
             bucket_options: Some(proto::distribution::BucketOptions {
-                options: Some(
-                    proto::distribution::bucket_options::Options::LinearBuckets(
-                        proto::distribution::bucket_options::Linear {
-                            num_finite_buckets: 3,
-                            width: 10.0,
-                            offset: 0.0,
-                        },
-                    ),
-                ),
+                options: Some(proto::distribution::bucket_options::Options::LinearBuckets(
+                    proto::distribution::bucket_options::Linear {
+                        num_finite_buckets: 3,
+                        width: 10.0,
+                        offset: 0.0,
+                    },
+                )),
             }),
             bucket_counts: vec![10, 50, 30, 10],
         };
@@ -995,7 +1303,11 @@ mod tests {
         // p50: target=50. cumulative: 10, 60>=50 at idx 1.
         // bucket 1 = [10, 20). prev=10, count=50, frac=(50-10)/50=0.8
         // value = 10 + 0.8*10 = 18.0
-        assert!((pct_map["p50"] - 18.0).abs() < 0.01, "p50={}", pct_map["p50"]);
+        assert!(
+            (pct_map["p50"] - 18.0).abs() < 0.01,
+            "p50={}",
+            pct_map["p50"]
+        );
     }
 
     #[test]
@@ -1060,10 +1372,7 @@ mod tests {
         unsafe { std::env::set_var("WANDB_LIBTPU_PATH", &libtpu_path) };
 
         // Verify the library loads and GetLibtpuSdkApi works.
-        let lib = unsafe {
-            Library::new(&libtpu_path)
-                .expect("failed to dlopen libtpu.so")
-        };
+        let lib = unsafe { Library::new(&libtpu_path).expect("failed to dlopen libtpu.so") };
 
         let api_ptr: *const u8 = unsafe {
             let get_api: Symbol<unsafe extern "C" fn() -> *const u8> = lib
@@ -1105,9 +1414,8 @@ mod tests {
             let mut args = CreateClientArgs {
                 client: std::ptr::null_mut(),
             };
-            let err = vtable_fn(api_ptr, OFF_CREATE_CLIENT)(
-                (&raw mut args) as *mut std::ffi::c_void,
-            );
+            let err =
+                vtable_fn(api_ptr, OFF_CREATE_CLIENT)((&raw mut args) as *mut std::ffi::c_void);
             assert!(err.is_null(), "CreateClient returned error");
             assert!(!args.client.is_null(), "CreateClient returned null client");
             args.client
@@ -1130,9 +1438,7 @@ mod tests {
                 metric_name: cname.as_ptr(),
                 metric: std::ptr::null_mut(),
             };
-            let err = vtable_fn(api_ptr, OFF_GET_METRIC)(
-                (&raw mut args) as *mut std::ffi::c_void,
-            );
+            let err = vtable_fn(api_ptr, OFF_GET_METRIC)((&raw mut args) as *mut std::ffi::c_void);
             assert!(err.is_null(), "GetMetric(duty_cycle_pct) returned error");
             assert!(
                 !args.metric.is_null(),
@@ -1154,18 +1460,15 @@ mod tests {
                 description: std::ptr::null(),
                 description_len: 0,
             };
-            let err = vtable_fn(api_ptr, OFF_GET_METRIC_DESC)(
-                (&raw mut args) as *mut std::ffi::c_void,
-            );
+            let err =
+                vtable_fn(api_ptr, OFF_GET_METRIC_DESC)((&raw mut args) as *mut std::ffi::c_void);
             assert!(err.is_null(), "GetMetricDescription returned error");
             assert!(
                 args.description_len > 0,
                 "GetMetricDescription returned empty description"
             );
-            let desc = std::slice::from_raw_parts(
-                args.description as *const u8,
-                args.description_len,
-            );
+            let desc =
+                std::slice::from_raw_parts(args.description as *const u8, args.description_len);
             let desc_str = std::str::from_utf8(desc).unwrap();
             assert!(
                 desc_str.contains("duty") || desc_str.contains("active"),
@@ -1180,9 +1483,7 @@ mod tests {
         }
         unsafe {
             let mut args = DestroyArgs { client };
-            vtable_fn(api_ptr, OFF_DESTROY_CLIENT)(
-                (&raw mut args) as *mut std::ffi::c_void,
-            );
+            vtable_fn(api_ptr, OFF_DESTROY_CLIENT)((&raw mut args) as *mut std::ffi::c_void);
         }
     }
 
@@ -1211,9 +1512,14 @@ mod tests {
         // Use pip download to get the wheel.
         let status = std::process::Command::new("pip")
             .args([
-                "download", "--no-deps", "--dest", cache_dir.to_str().unwrap(),
-                "--only-binary=:all:", "--platform=manylinux_2_31_x86_64",
-                "--python-version=3.12", "--implementation=cp",
+                "download",
+                "--no-deps",
+                "--dest",
+                cache_dir.to_str().unwrap(),
+                "--only-binary=:all:",
+                "--platform=manylinux_2_31_x86_64",
+                "--python-version=3.12",
+                "--implementation=cp",
                 "libtpu",
             ])
             .status()
@@ -1232,7 +1538,10 @@ mod tests {
             .expect("libtpu wheel not found after download");
 
         // Extract libtpu.so from the wheel (it's a zip file).
-        eprintln!("Extracting libtpu.so from {}...", wheel.file_name().to_string_lossy());
+        eprintln!(
+            "Extracting libtpu.so from {}...",
+            wheel.file_name().to_string_lossy()
+        );
         let file = std::fs::File::open(wheel.path()).unwrap();
         let mut archive = zip::ZipArchive::new(file).unwrap();
         for i in 0..archive.len() {
