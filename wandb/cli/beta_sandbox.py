@@ -53,9 +53,9 @@ class SandboxGroup(click.Group):
 
         @click.pass_context
         def callback(ctx: click.Context, entity: str | None, **kwargs: Any) -> Any:
-            from wandb.sandbox._auth import _override_sandbox_entity
-
             from cwsandbox.exceptions import CWSandboxError
+
+            from wandb.sandbox._auth import _override_sandbox_entity
 
             try:
                 with _override_sandbox_entity(entity=entity):

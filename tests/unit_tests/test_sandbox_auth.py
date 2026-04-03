@@ -120,7 +120,9 @@ def test_resolve_effective_entity_project_uses_most_recent_active_run(
 
 def test_override_sandbox_entity_is_noop_for_none(monkeypatch) -> None:
     auth_module, _ = _import_sandbox_auth(monkeypatch)
-    singleton = _singleton(most_recent_active_run=_run("recent-entity", "recent-project"))
+    singleton = _singleton(
+        most_recent_active_run=_run("recent-entity", "recent-project")
+    )
 
     monkeypatch.setattr(auth_module.wandb_setup, "singleton", lambda: singleton)
     monkeypatch.setattr(auth_module.wandb, "run", None)
@@ -136,7 +138,9 @@ def test_override_sandbox_entity_overrides_entity_and_suppresses_project(
     monkeypatch,
 ) -> None:
     auth_module, _ = _import_sandbox_auth(monkeypatch)
-    singleton = _singleton(most_recent_active_run=_run("recent-entity", "recent-project"))
+    singleton = _singleton(
+        most_recent_active_run=_run("recent-entity", "recent-project")
+    )
 
     monkeypatch.setattr(auth_module.wandb_setup, "singleton", lambda: singleton)
     monkeypatch.setattr(auth_module.wandb, "run", _run("run-entity", "run-project"))
