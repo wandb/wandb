@@ -7,8 +7,6 @@
 package stream
 
 import (
-	"log/slog"
-
 	"github.com/google/wire"
 	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/featurechecker"
@@ -24,6 +22,7 @@ import (
 	"github.com/wandb/wandb/core/internal/tensorboard"
 	"github.com/wandb/wandb/core/internal/watcher"
 	"github.com/wandb/wandb/core/internal/wboperation"
+	"log/slog"
 )
 
 // Injectors from streaminject.go:
