@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 from collections import deque
+from itertools import islice
 from typing import Any, Callable
 
 import wandb
@@ -933,42 +934,24 @@ class TestPaginatedAutomations:
     @mark.usefixtures(setup_paginated_automations.__name__)
     def test_paginated_automations_start(
         self,
-        user,
-        api: wandb.Api,
+        module_user: str,
+        module_api: wandb.Api,
         page_size,
     ):
-        from wandb.apis.public.api import gql_compat
-        from wandb.apis.public.automations import Automations
-        from wandb.automations._generated import GET_AUTOMATIONS_BY_ENTITY_GQL
-
-        all_ids = [
-            automation.id
-            for automation in api.automations(entity=user, per_page=page_size)
-        ]
-
-        # `Api.automations()` yields from the internal paginator, so use the paginator
-        # directly here to capture a real cursor issued by the backend.
-        paginator = Automations(
-            api.client,
-            variables={"entity": user},
-            per_page=page_size,
-            _query=gql_compat(
-                GET_AUTOMATIONS_BY_ENTITY_GQL,
-                omit_fragments=api._omitted_automation_fragments(),
-            ),
+        all_automations = list(
+            module_api.automations(entity=module_user, per_page=page_size)
         )
-        first_page_ids = [next(paginator).id for _ in range(page_size)]
-        cursor = paginator.cursor
+        all_ids = [a.id for a in all_automations]
 
-        assert cursor is not None
+        paginator = module_api.automations(entity=module_user, per_page=page_size)
+        first_ids = [obj.id for obj in islice(paginator, page_size)]
 
-        resumed_ids = [
-            automation.id
-            for automation in api.automations(
-                entity=user,
-                per_page=page_size,
-                start=cursor,
-            )
-        ]
+        saved_cursor = paginator.cursor
+        assert saved_cursor is not None
 
-        assert all_ids == first_page_ids + resumed_ids
+        resumed_paginator = module_api.automations(
+            entity=module_user, per_page=page_size, start=saved_cursor
+        )
+        remaining_ids = [a.id for a in resumed_paginator]
+
+        assert all_ids == [*first_ids, *remaining_ids]

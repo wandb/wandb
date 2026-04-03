@@ -5,6 +5,7 @@ import platform
 import random
 import string
 from contextlib import nullcontext
+from itertools import islice
 from pathlib import Path
 from typing import Callable
 
@@ -67,24 +68,25 @@ def test_artifact_versions(api: Api):
 @mark.usefixtures("sample_data")
 def test_artifact_versions_start(api: Api):
     collection = api.artifact_collection("dataset", "mnist")
-    all_names = [artifact.name for artifact in collection.artifacts(per_page=1)]
+    all_names = [art.name for art in collection.artifacts(per_page=1)]
 
-    paged_artifacts = collection.artifacts(per_page=1)
-    first_page_name = next(paged_artifacts).name
-    cursor = paged_artifacts.cursor
+    artifacts = collection.artifacts(per_page=1)
+    first_name = next(artifacts).name
 
-    assert cursor is not None
+    saved_cursor = artifacts.cursor
 
-    resumed_collection_names = [
-        artifact.name for artifact in collection.artifacts(per_page=1, start=cursor)
+    assert saved_cursor is not None
+
+    remaining_names_via_collection = [
+        art.name for art in collection.artifacts(per_page=1, start=saved_cursor)
     ]
-    resumed_api_names = [
-        artifact.name
-        for artifact in api.artifacts("dataset", "mnist", per_page=1, start=cursor)
+    remaining_names_via_api = [
+        art.name
+        for art in api.artifacts("dataset", "mnist", per_page=1, start=saved_cursor)
     ]
 
-    assert resumed_collection_names == resumed_api_names
-    assert all_names == [first_page_name] + resumed_api_names
+    assert remaining_names_via_collection == remaining_names_via_api
+    assert all_names == [first_name, *remaining_names_via_api]
 
 
 @mark.usefixtures("sample_data")
@@ -113,30 +115,28 @@ def test_artifact_type_collections(api: Api):
     names = {c.name for c in cols}
     assert names == {"mnist", "another-collection"}
 
-    all_collection_names = [
-        collection.name for collection in atype.collections(per_page=1)
-    ]
-    paged_collections = atype.collections(per_page=1)
-    first_page_name = next(paged_collections).name
-    cursor = paged_collections.cursor
+    all_collection_names = [coll.name for coll in atype.collections(per_page=1)]
+    collections = atype.collections(per_page=1)
+    first_name = next(collections).name
+    saved_cursor = collections.cursor
 
-    assert cursor is not None
+    assert saved_cursor is not None
 
-    resumed_collection_names = [
-        collection.name for collection in atype.collections(per_page=1, start=cursor)
+    remaining_names_via_collection = [
+        coll.name for coll in atype.collections(per_page=1, start=saved_cursor)
     ]
-    resumed_api_names = [
-        collection.name
-        for collection in api.artifact_collections(
+    remaining_names_via_api = [
+        coll.name
+        for coll in api.artifact_collections(
             project_path,
             atype.name,
             per_page=1,
-            start=cursor,
+            start=saved_cursor,
         )
     ]
 
-    assert resumed_collection_names == resumed_api_names
-    assert all_collection_names == [first_page_name] + resumed_api_names
+    assert remaining_names_via_collection == remaining_names_via_api
+    assert all_collection_names == [first_name, *remaining_names_via_api]
 
     if server_supports(api.client, pb.ARTIFACT_COLLECTIONS_FILTERING_SORTING):
         cols = atype.collections(filters={"name": "mnist"})
@@ -176,24 +176,18 @@ def test_artifact_types_start(api: Api):
     project_path = f"{artifact.entity}/{artifact.project}"
     all_type_names = [atype.name for atype in api.artifact_types(project_path)]
 
-    paged_types = ArtifactTypes(
-        api.client, artifact.entity, artifact.project, per_page=1
-    )
-    first_page_name = next(paged_types).name
-    cursor = paged_types.cursor
+    types = ArtifactTypes(api.client, artifact.entity, artifact.project, per_page=1)
+    first_name = next(types).name
+    saved_cursor = types.cursor
 
-    assert cursor is not None
-    assert set(all_type_names) == {
-        "dataset",
-        "different-type",
-    }
+    assert saved_cursor is not None
+    assert set(all_type_names) == {"dataset", "different-type"}
 
-    resumed_type_names = [
-        artifact_type.name
-        for artifact_type in api.artifact_types(project_path, start=cursor)
+    remaining_names = [
+        atype.name for atype in api.artifact_types(project_path, start=saved_cursor)
     ]
 
-    assert all_type_names == [first_page_name] + resumed_type_names
+    assert all_type_names == [first_name, *remaining_names]
 
 
 @mark.usefixtures("sample_data")
@@ -305,18 +299,18 @@ def test_artifacts_files_filtered_length(api: Api):
     assert len(assert_artifact.files(names=["file0.txt"])) == 1
     assert len(assert_artifact.files(names=["file0.txt", "file1.txt"])) == 2
 
-    all_file_names = [file.name for file in assert_artifact.files(per_page=3)]
-    paged_files = assert_artifact.files(per_page=3)
-    first_page_names = [next(paged_files).name for _ in range(3)]
-    cursor = paged_files.cursor
+    all_names = [file.name for file in assert_artifact.files(per_page=3)]
+    files = assert_artifact.files(per_page=3)
+    first_names = [f.name for f in islice(files, 3)]
+    saved_cursor = files.cursor
 
-    assert cursor is not None
+    assert saved_cursor is not None
 
-    resumed_file_names = [
-        file.name for file in assert_artifact.files(per_page=3, start=cursor)
+    remaining_names = [
+        file.name for file in assert_artifact.files(per_page=3, start=saved_cursor)
     ]
 
-    assert all_file_names == first_page_names + resumed_file_names
+    assert all_names == [*first_names, *remaining_names]
 
 
 @mark.usefixtures("sample_data")

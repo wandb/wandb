@@ -2313,7 +2313,8 @@ class Artifact:
             names: The filename paths relative to the root of the artifact you wish to
                 list.
             per_page: The number of files to return per request.
-            start: The encoded start cursor for the first fetched page.
+            start: Pagination cursor for resuming a past query, captured
+                from a previous paginator's `.cursor` attribute.
 
         Returns:
             An iterator containing `File` objects.

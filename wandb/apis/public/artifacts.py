@@ -247,7 +247,8 @@ class ArtifactType:
                 The default order is the collection ID in descending order.
             per_page (int): The number of artifact collections to fetch per page.
                 Default is 50.
-            start: The encoded start cursor for the first fetched page.
+            start: Pagination cursor for resuming a past query, captured
+                from a previous paginator's `.cursor` attribute.
         """
         return ArtifactCollections(
             self.client,
@@ -541,12 +542,17 @@ class ArtifactCollection:
         return self._current.project
 
     @normalize_exceptions
-    def artifacts(self, per_page: int = 50, start: str | None = None) -> Artifacts:
+    def artifacts(
+        self,
+        per_page: int = 50,
+        start: str | None = None,
+    ) -> Artifacts:
         """Get all artifacts in the collection.
 
         Args:
             per_page: The number of artifacts to fetch per page.
-            start: The encoded start cursor for the first fetched page.
+            start: Pagination cursor for resuming a past query, captured
+                from a previous paginator's `.cursor` attribute.
         """
         return Artifacts(
             client=self.client,

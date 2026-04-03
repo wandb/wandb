@@ -142,8 +142,11 @@ class RelayPaginator(Paginator[_WandbT], Generic[_NodeT, _WandbT], ABC):
 
     last_response: Connection[_NodeT] | None
 
-    start: str | None
-    """The encoded start cursor for the first fetched page."""
+    _start: str | None
+    """Optional, opaque cursor used to "resume" pagination from a previous query.
+
+    If present, this is only used to fetch the first page.
+    """
 
     def __init__(
         self,
@@ -153,7 +156,7 @@ class RelayPaginator(Paginator[_WandbT], Generic[_NodeT, _WandbT], ABC):
         start: str | None = None,
     ):
         super().__init__(client, variables, per_page)
-        self.start = start
+        self._start = start
 
     @property
     def more(self) -> bool:
@@ -161,8 +164,12 @@ class RelayPaginator(Paginator[_WandbT], Generic[_NodeT, _WandbT], ABC):
 
     @property
     def cursor(self) -> str | None:
-        """The encoded start cursor for the next fetched page."""
-        return conn.next_cursor if (conn := self.last_response) else self.start
+        """An opaque cursor that marks the start of the next page to fetch.
+
+        This value may be saved and passed as `start=` to a later paginated query
+        to resume iteration from where this paginator left off.
+        """
+        return conn.next_cursor if (conn := self.last_response) else self._start
 
     @abstractmethod
     def _convert(self, node: _NodeT) -> _WandbT | Any:

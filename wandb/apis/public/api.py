@@ -1269,13 +1269,16 @@ class Api:
 
     @normalize_exceptions
     def artifact_types(
-        self, project: str | None = None, start: str | None = None
+        self,
+        project: str | None = None,
+        start: str | None = None,
     ) -> ArtifactTypes:
         """Returns a collection of matching artifact types.
 
         Args:
             project: The project name or path to filter on.
-            start: The encoded start cursor for the first fetched page.
+            start: Pagination cursor for resuming a past query, captured
+                from a previous paginator's `.cursor` attribute.
 
         Returns:
             An iterable `ArtifactTypes` object.
@@ -1336,7 +1339,8 @@ class Api:
             type_name: The name of the artifact type to filter on.
             per_page: Sets the page size for query pagination.
                 Usually there is no reason to change this.
-            start: The encoded start cursor for the first fetched page.
+            start: Pagination cursor for resuming a past query, captured
+                from a previous paginator's `.cursor` attribute.
 
         Returns:
             An iterable `ArtifactCollections` object.
@@ -1446,7 +1450,8 @@ class Api:
             per_page: Sets the page size for query pagination. Usually
                 there is no reason to change this.
             tags: Only return artifacts with all of these tags.
-            start: The encoded start cursor for the first fetched page.
+            start: Pagination cursor for resuming a past query, captured
+                from a previous paginator's `.cursor` attribute.
 
         Returns:
             An iterable `Artifacts` object.
@@ -1461,6 +1466,36 @@ class Api:
         import wandb
 
         wandb.Api().artifacts(type_name="type", name="entity/project/artifact_name")
+        ```
+
+        Pause iteration and resume later from the same position by saving
+        the paginator's `.cursor` and passing it as `start=`:
+
+        ```python
+        from itertools import islice
+
+        import wandb
+
+        api = wandb.Api()
+
+        # Consume the first page of results, then save the cursor.
+        page_size = 10
+        artifacts = api.artifacts(
+            type_name="type",
+            name="entity/project/artifact_name",
+            per_page=page_size,
+        )
+        first_page = list(islice(artifacts, page_size))
+
+        saved_cursor = artifacts.cursor
+
+        # Later (e.g. in a new process), resume iteration from the saved cursor.
+        remaining_artifacts = api.artifacts(
+            type_name="type",
+            name="entity/project/artifact_name",
+            per_page=page_size,
+            start=saved_cursor,
+        )
         ```
         """
         from wandb.sdk.artifacts._validators import is_artifact_registry_project
@@ -1780,7 +1815,8 @@ class Api:
                 Fields available to filter for versions are
                     `tag`, `alias`, `created_at`, `updated_at`, `metadata`
             per_page: Sets the page size for query pagination.
-            start: The encoded start cursor for the first fetched page.
+            start: Pagination cursor for resuming a past query, captured
+                from a previous paginator's `.cursor` attribute.
 
         Returns:
             A lazy iterator of `Registry` objects.
@@ -1815,6 +1851,27 @@ class Api:
         api.registries(filter={"name": {"$regex": "model"}}).versions(
             filter={"$or": [{"tag": "prod"}, {"alias": "best"}]}
         )
+        ```
+
+        Pause iteration and resume later from the same position by saving
+        the paginator's `.cursor` and passing it as `start=`:
+
+        ```python
+        from itertools import islice
+
+        import wandb
+
+        api = wandb.Api()
+
+        # Consume the first page of results, then save the cursor.
+        page_size = 10
+        registries = api.registries(per_page=page_size)
+        first_page = list(islice(registries, page_size))
+
+        saved_cursor = registries.cursor
+
+        # Later (e.g. in a new process), resume iteration from the saved cursor.
+        remaining_registries = api.registries(per_page=page_size, start=saved_cursor)
         ```
         """
         if not self._service_api.feature_enabled(pb.ARTIFACT_REGISTRY_SEARCH):
@@ -2196,7 +2253,8 @@ class Api:
             name: The name of the automation to fetch.
             per_page: The number of automations to fetch per page.
                 Defaults to 50.  Usually there is no reason to change this.
-            start: The encoded start cursor for the first fetched page.
+            start: Pagination cursor for resuming a past query, captured
+                from a previous paginator's `.cursor` attribute.
 
         Returns:
             A list of automations.
@@ -2237,8 +2295,8 @@ class Api:
 
         # FIXME: this is crude, move this client-side filtering logic into backend
         if name is not None:
-            iterator = filter(lambda x: x.name == name, iterator)
-        yield from iterator
+            return filter(lambda x: x.name == name, iterator)
+        return iterator
 
     @normalize_exceptions
     @tracked
