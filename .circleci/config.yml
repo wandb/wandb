@@ -496,7 +496,7 @@ jobs:
       - run:
           name: Run wandb-xpu libtpu integration test
           command: |
-            pip install --quiet pip 2>/dev/null || true
+            sudo apt-get install -y -qq python3-pip >/dev/null
             cd xpu
             WANDB_TEST_LIBTPU=1 cargo test --verbose --bin wandb-xpu -- tpu_libtpu::tests::test_libtpu_sdk
 

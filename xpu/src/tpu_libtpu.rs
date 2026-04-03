@@ -259,7 +259,7 @@ const OFF_GET_METRIC_VALS: usize = 0x60;
 type ApiFn = unsafe extern "C" fn(*mut std::ffi::c_void) -> *mut std::ffi::c_void;
 
 unsafe fn vtable_fn(api: *const u8, offset: usize) -> ApiFn {
-    std::ptr::read(api.add(offset) as *const ApiFn)
+    unsafe { std::ptr::read(api.add(offset) as *const ApiFn) }
 }
 
 struct SdkMetricData {
@@ -472,15 +472,15 @@ unsafe fn read_error(api_ptr: *const u8, err: *mut std::ffi::c_void) -> String {
         message: std::ptr::null(),
         message_len: 0,
     };
-    vtable_fn(api_ptr, OFF_ERROR_MESSAGE)((&raw mut msg_args) as *mut std::ffi::c_void);
+    unsafe { vtable_fn(api_ptr, OFF_ERROR_MESSAGE)((&raw mut msg_args) as *mut std::ffi::c_void) };
     let msg = if !msg_args.message.is_null() && msg_args.message_len > 0 {
-        let s = std::slice::from_raw_parts(msg_args.message as *const u8, msg_args.message_len);
+        let s = unsafe { std::slice::from_raw_parts(msg_args.message as *const u8, msg_args.message_len) };
         String::from_utf8_lossy(s).into_owned()
     } else {
         "unknown error".to_string()
     };
     let mut d = DestroyErrorArgs { error: err };
-    vtable_fn(api_ptr, OFF_DESTROY_ERROR)((&raw mut d) as *mut std::ffi::c_void);
+    unsafe { vtable_fn(api_ptr, OFF_DESTROY_ERROR)((&raw mut d) as *mut std::ffi::c_void) };
     msg
 }
 
@@ -1510,7 +1510,20 @@ mod tests {
         std::fs::create_dir_all(&cache_dir).expect("failed to create cache dir");
 
         // Use pip download to get the wheel.
-        let status = std::process::Command::new("pip")
+        // Try pip3 first, then pip.
+        let pip = ["pip3", "pip"]
+            .iter()
+            .copied()
+            .find(|cmd| {
+                std::process::Command::new(cmd)
+                    .arg("--version")
+                    .stdout(std::process::Stdio::null())
+                    .stderr(std::process::Stdio::null())
+                    .status()
+                    .is_ok()
+            })
+            .expect("neither pip3 nor pip found in PATH — install Python to run this test");
+        let status = std::process::Command::new(pip)
             .args([
                 "download",
                 "--no-deps",
