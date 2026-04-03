@@ -3,55 +3,23 @@ from __future__ import annotations
 import importlib
 import sys
 import types
-from dataclasses import dataclass
+
+import pytest
+
+if sys.version_info < (3, 11):
+    pytest.skip("wandb.sandbox requires Python 3.11+", allow_module_level=True)
+
+cwsandbox = pytest.importorskip("cwsandbox")
 
 
 def _import_sandbox_auth(monkeypatch):
-    cwsandbox_module = types.ModuleType("cwsandbox")
-    cwsandbox_module.__path__ = []
-
-    placeholder = type("Placeholder", (), {})
-    for name in (
-        "NetworkOptions",
-        "OperationRef",
-        "Process",
-        "ProcessResult",
-        "RemoteFunction",
-        "Sandbox",
-        "SandboxDefaults",
-        "SandboxStatus",
-        "Serialization",
-        "Session",
-        "StreamReader",
-        "StreamWriter",
-        "TerminalResult",
-        "TerminalSession",
-        "Waitable",
-    ):
-        setattr(cwsandbox_module, name, placeholder)
-
-    cwsandbox_module.results = lambda *args, **kwargs: None
-    cwsandbox_module.wait = lambda *args, **kwargs: None
-    cwsandbox_module.Secret = type("BaseSecret", (), {})
-
-    @dataclass(frozen=True)
-    class AuthHeaders:
-        headers: dict[str, str]
-        strategy: str
-
-    class CWSandboxAuthenticationError(Exception):
-        pass
-
     registered: dict[str, object | None] = {"name": None, "func": None}
 
     def set_auth_mode(name: str, func) -> None:
         registered["name"] = name
         registered["func"] = func
 
-    cwsandbox_module.AuthHeaders = AuthHeaders
-    cwsandbox_module.CWSandboxAuthenticationError = CWSandboxAuthenticationError
-    cwsandbox_module.set_auth_mode = set_auth_mode
-    monkeypatch.setitem(sys.modules, "cwsandbox", cwsandbox_module)
+    monkeypatch.setattr(cwsandbox, "set_auth_mode", set_auth_mode)
     monkeypatch.delitem(sys.modules, "wandb.sandbox", raising=False)
     monkeypatch.delitem(sys.modules, "wandb.sandbox._auth", raising=False)
 
@@ -59,64 +27,212 @@ def _import_sandbox_auth(monkeypatch):
     return auth_module, registered
 
 
-def test_private_override_sandbox_entity_overrides_entity_without_leaking_project(
-    monkeypatch,
-) -> None:
-    auth_module, registered = _import_sandbox_auth(monkeypatch)
+def _run(entity: str | None, project: str | None):
+    return types.SimpleNamespace(entity=entity, project=project)
 
-    singleton = types.SimpleNamespace(
+
+def _singleton(
+    *,
+    entity: str | None = "default-entity",
+    project: str | None = "default-project",
+    api_key: str | None = None,
+    most_recent_active_run=None,
+):
+    return types.SimpleNamespace(
         settings=types.SimpleNamespace(
-            entity="default-entity",
-            project="default-project",
-            api_key=None,
+            entity=entity,
+            project=project,
+            api_key=api_key,
             base_url="https://api.wandb.ai",
             app_url="https://wandb.ai",
         ),
-        most_recent_active_run=None,
+        most_recent_active_run=most_recent_active_run,
     )
-    monkeypatch.setattr(auth_module.wandb_setup, "singleton", lambda: singleton)
-    monkeypatch.setattr(auth_module.wandb, "run", None)
+
+
+def test_wandb_sandbox_import_requires_python_3_11(monkeypatch) -> None:
+    import wandb as wandb_module
+
+    monkeypatch.setattr(sys, "version_info", (3, 10, 0))
+    monkeypatch.delitem(sys.modules, "wandb.sandbox", raising=False)
+    monkeypatch.delitem(sys.modules, "wandb.sandbox._auth", raising=False)
+    monkeypatch.delattr(wandb_module, "sandbox", raising=False)
+
+    with pytest.raises(ImportError, match=r"Python 3\\.11 or newer"):
+        importlib.import_module("wandb.sandbox")
+
+
+def test_import_registers_wandb_auth_mode(monkeypatch) -> None:
+    auth_module, registered = _import_sandbox_auth(monkeypatch)
 
     assert registered["name"] == auth_module._AUTH_MODE_NAME
     assert registered["func"] is auth_module._resolve_wandb_sdk_auth
     assert not hasattr(auth_module, "override_auth_context")
     assert not hasattr(auth_module, "override_sandbox_entity")
     assert not hasattr(auth_module, "register_wandb_auth_mode")
+
+
+def test_resolve_effective_entity_project_uses_settings_without_run(
+    monkeypatch,
+) -> None:
+    auth_module, _ = _import_sandbox_auth(monkeypatch)
+    singleton = _singleton()
+
+    monkeypatch.setattr(auth_module.wandb_setup, "singleton", lambda: singleton)
+    monkeypatch.setattr(auth_module.wandb, "run", None)
+
     assert auth_module._resolve_effective_entity_project() == (
         "default-entity",
         "default-project",
     )
 
 
-def test_private_override_sandbox_entity_is_noop_for_none(monkeypatch) -> None:
+def test_resolve_effective_entity_project_prefers_active_run(monkeypatch) -> None:
     auth_module, _ = _import_sandbox_auth(monkeypatch)
+    singleton = _singleton()
 
-    singleton = types.SimpleNamespace(
-        settings=types.SimpleNamespace(
-            entity="default-entity",
-            project="default-project",
-            api_key=None,
-            base_url="https://api.wandb.ai",
-            app_url="https://wandb.ai",
-        ),
-        most_recent_active_run=None,
+    monkeypatch.setattr(auth_module.wandb_setup, "singleton", lambda: singleton)
+    monkeypatch.setattr(auth_module.wandb, "run", _run("run-entity", "run-project"))
+
+    assert auth_module._resolve_effective_entity_project() == (
+        "run-entity",
+        "run-project",
     )
+
+
+def test_resolve_effective_entity_project_uses_most_recent_active_run(
+    monkeypatch,
+) -> None:
+    auth_module, _ = _import_sandbox_auth(monkeypatch)
+    singleton = _singleton(
+        most_recent_active_run=_run("recent-entity", "recent-project")
+    )
+
+    monkeypatch.setattr(auth_module.wandb_setup, "singleton", lambda: singleton)
+    monkeypatch.setattr(auth_module.wandb, "run", None)
+
+    assert auth_module._resolve_effective_entity_project() == (
+        "recent-entity",
+        "recent-project",
+    )
+
+
+def test_override_sandbox_entity_is_noop_for_none(monkeypatch) -> None:
+    auth_module, _ = _import_sandbox_auth(monkeypatch)
+    singleton = _singleton(most_recent_active_run=_run("recent-entity", "recent-project"))
+
     monkeypatch.setattr(auth_module.wandb_setup, "singleton", lambda: singleton)
     monkeypatch.setattr(auth_module.wandb, "run", None)
 
     with auth_module._override_sandbox_entity(entity=None):
         assert auth_module._resolve_effective_entity_project() == (
-            "default-entity",
-            "default-project",
+            "recent-entity",
+            "recent-project",
         )
 
-    with auth_module._override_sandbox_entity(entity="non-default-entity"):
+
+def test_override_sandbox_entity_overrides_entity_and_suppresses_project(
+    monkeypatch,
+) -> None:
+    auth_module, _ = _import_sandbox_auth(monkeypatch)
+    singleton = _singleton(most_recent_active_run=_run("recent-entity", "recent-project"))
+
+    monkeypatch.setattr(auth_module.wandb_setup, "singleton", lambda: singleton)
+    monkeypatch.setattr(auth_module.wandb, "run", _run("run-entity", "run-project"))
+
+    with auth_module._override_sandbox_entity(entity="override-entity"):
         assert auth_module._resolve_effective_entity_project() == (
-            "non-default-entity",
+            "override-entity",
             None,
         )
 
     assert auth_module._resolve_effective_entity_project() == (
-        "default-entity",
-        "default-project",
+        "run-entity",
+        "run-project",
     )
+
+
+def test_resolve_wandb_sdk_auth_uses_session_credentials(monkeypatch) -> None:
+    auth_module, _ = _import_sandbox_auth(monkeypatch)
+    singleton = _singleton()
+
+    monkeypatch.setattr(auth_module.wandb_setup, "singleton", lambda: singleton)
+    monkeypatch.setattr(auth_module.wandb, "run", None)
+    monkeypatch.setattr(
+        auth_module.wbauth,
+        "session_credentials",
+        lambda host: auth_module.wbauth.AuthApiKey(host=host, api_key="session-key"),
+    )
+    monkeypatch.setattr(
+        auth_module.wandb_login,
+        "_login",
+        lambda **kwargs: pytest.fail("wandb_login._login should not run"),
+    )
+
+    headers = auth_module._resolve_wandb_sdk_auth()
+
+    assert headers.strategy == "wandb_api_key"
+    assert headers.headers == {
+        "x-api-key": "session-key",
+        "x-entity-id": "default-entity",
+        "x-project-name": "default-project",
+    }
+
+
+def test_resolve_wandb_sdk_auth_falls_back_to_settings_api_key(monkeypatch) -> None:
+    auth_module, _ = _import_sandbox_auth(monkeypatch)
+    singleton = _singleton(api_key="settings-key")
+
+    monkeypatch.setattr(auth_module.wandb_setup, "singleton", lambda: singleton)
+    monkeypatch.setattr(auth_module.wandb, "run", None)
+    monkeypatch.setattr(auth_module.wbauth, "session_credentials", lambda host: None)
+    monkeypatch.setattr(
+        auth_module.wandb_login,
+        "_login",
+        lambda **kwargs: pytest.fail("wandb_login._login should not run"),
+    )
+
+    headers = auth_module._resolve_wandb_sdk_auth()
+
+    assert headers.headers["x-api-key"] == "settings-key"
+    assert headers.headers["x-entity-id"] == "default-entity"
+    assert headers.headers["x-project-name"] == "default-project"
+
+
+def test_resolve_wandb_sdk_auth_loads_auth_when_missing(monkeypatch) -> None:
+    auth_module, _ = _import_sandbox_auth(monkeypatch)
+    singleton = _singleton(
+        most_recent_active_run=_run("recent-entity", "recent-project")
+    )
+    login_calls: list[dict[str, object]] = []
+    credentials: list[object | None] = [None]
+
+    monkeypatch.setattr(auth_module.wandb_setup, "singleton", lambda: singleton)
+    monkeypatch.setattr(auth_module.wandb, "run", None)
+    monkeypatch.setattr(
+        auth_module.wandb_login,
+        "_login",
+        lambda **kwargs: login_calls.append(kwargs),
+    )
+
+    def session_credentials(host):
+        if credentials:
+            return credentials.pop(0)
+        return auth_module.wbauth.AuthApiKey(host=host, api_key="loaded-key")
+
+    monkeypatch.setattr(auth_module.wbauth, "session_credentials", session_credentials)
+
+    headers = auth_module._resolve_wandb_sdk_auth()
+
+    assert login_calls == [
+        {
+            "host": "https://api.wandb.ai",
+            "update_api_key": False,
+            "_silent": True,
+        }
+    ]
+    assert headers.headers == {
+        "x-api-key": "loaded-key",
+        "x-entity-id": "recent-entity",
+        "x-project-name": "recent-project",
+    }

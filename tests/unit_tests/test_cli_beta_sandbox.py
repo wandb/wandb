@@ -1,14 +1,20 @@
 from __future__ import annotations
 
+import importlib
 import inspect
 import sys
-import types
 from contextlib import contextmanager
 
 import click
 import pytest
 from click.testing import CliRunner
 from wandb.cli import beta_sandbox, cli
+
+if sys.version_info < (3, 11):
+    pytest.skip("wandb.sandbox requires Python 3.11+", allow_module_level=True)
+
+pytest.importorskip("cwsandbox")
+pytest.importorskip("cwsandbox.cli")
 
 
 def make_cli_runner() -> CliRunner:
@@ -62,31 +68,19 @@ def test_sandbox_help_lists_upstream_subcommands(monkeypatch) -> None:
 
 def test_sandbox_command_passes_entity_override(monkeypatch) -> None:
     captured: list[str | None] = []
+    sandbox_auth = importlib.import_module("wandb.sandbox._auth")
 
     @contextmanager
     def fake_override(entity: str | None):
         captured.append(entity)
         yield
 
-    fake_sandbox_package = types.ModuleType("wandb.sandbox")
-    fake_sandbox_package.__path__ = []
-    fake_auth_module = types.ModuleType("wandb.sandbox._auth")
-    fake_auth_module._override_sandbox_entity = fake_override
-    fake_cwsandbox_package = types.ModuleType("cwsandbox")
-    fake_cwsandbox_package.__path__ = []
-    fake_exceptions_module = types.ModuleType("cwsandbox.exceptions")
-    fake_exceptions_module.CWSandboxError = RuntimeError
-
-    monkeypatch.setitem(sys.modules, "wandb.sandbox", fake_sandbox_package)
-    monkeypatch.setitem(sys.modules, "wandb.sandbox._auth", fake_auth_module)
-    monkeypatch.setitem(sys.modules, "cwsandbox", fake_cwsandbox_package)
-    monkeypatch.setitem(sys.modules, "cwsandbox.exceptions", fake_exceptions_module)
-
     monkeypatch.setattr(
         beta_sandbox.SandboxGroup,
         "_load_cwsandbox_cli",
         lambda self: _fake_cwsandbox_cli(),
     )
+    monkeypatch.setattr(sandbox_auth, "_override_sandbox_entity", fake_override)
 
     result = make_cli_runner().invoke(
         cli.beta,
@@ -106,4 +100,12 @@ def test_load_cwsandbox_cli_prints_install_hint(monkeypatch) -> None:
     group = beta_sandbox.SandboxGroup(name="sandbox")
 
     with pytest.raises(click.ClickException, match=r"wandb\[sandbox\]"):
+        group._load_cwsandbox_cli()
+
+
+def test_load_cwsandbox_cli_requires_python_3_11(monkeypatch) -> None:
+    monkeypatch.setattr(beta_sandbox.sys, "version_info", (3, 10, 0))
+    group = beta_sandbox.SandboxGroup(name="sandbox")
+
+    with pytest.raises(click.ClickException, match=r"Python 3\.11 or newer"):
         group._load_cwsandbox_cli()

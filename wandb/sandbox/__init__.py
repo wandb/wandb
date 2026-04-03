@@ -1,6 +1,12 @@
 from __future__ import annotations
 
 import importlib
+import sys
+
+if sys.version_info < (3, 11):
+    raise ImportError(
+        "wandb.sandbox requires Python 3.11 or newer because cwsandbox does not support older Python versions."
+    )
 
 try:
     importlib.import_module("cwsandbox")

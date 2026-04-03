@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import importlib
+import sys
 from typing import Any
 
 import click
@@ -19,6 +20,10 @@ class SandboxGroup(click.Group):
 
     def _load_cwsandbox_cli(self) -> click.Group:
         if self._base_cli is None:
+            if sys.version_info < (3, 11):
+                raise click.ClickException(
+                    "Sandbox CLI support requires Python 3.11 or newer because cwsandbox does not support older Python versions."
+                )
             try:
                 importlib.import_module("wandb.sandbox")
                 cli_module = importlib.import_module("cwsandbox.cli")
