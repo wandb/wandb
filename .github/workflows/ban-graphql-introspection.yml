@@ -1,0 +1,32 @@
+name: Ban GraphQL introspection
+
+on:
+  pull_request:
+    types:
+      # Default types: any change to a PR's contents.
+      - opened
+      - reopened
+      - synchronize
+      # Also trigger if a PR's description changes to detect the magic words
+      # that disable this check.
+      - edited
+
+jobs:
+  ban-graphql-introspection:
+    name: Detect added GraphQL introspection
+    runs-on: ubuntu-slim
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 2 # To allow diffing against HEAD^
+
+      - name: Test self
+        run: .github/scripts/ban-graphql-introspection-test.sh
+
+      - name: Run ban-graphql-introspection.sh
+        run: .github/scripts/ban-graphql-introspection.sh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ACTION: ${{ github.event.action }}
+          PR_REF: ${{ github.head_ref }}

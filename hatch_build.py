@@ -83,6 +83,10 @@ class CustomBuildHook(BuildHookInterface):
         if self._include_wandb_xpu():
             self._build_wandb_xpu()
 
+        # Build vendored orjson if not skipped.
+        if self._include_orjson():
+            self._build_orjson()
+
     def _get_platform_tag(self) -> str:
         """Returns the platform tag for the current platform."""
         # Replace dots, spaces and dashes with underscores following

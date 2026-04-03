@@ -13,19 +13,9 @@ from wandb.sdk.internal._generated import SERVER_FEATURES_QUERY_GQL, ServerFeatu
 
 if TYPE_CHECKING:
     from wandb.apis.public import RetryingClient
-    from wandb.sdk.artifacts._generated import TypeInfoFragment
     from wandb.sdk.artifacts._generated.fetch_org_info_from_entity import (
         FetchOrgInfoFromEntityEntity,
     )
-
-
-@lru_cache(maxsize=16)
-def type_info(client: RetryingClient, typename: str) -> TypeInfoFragment | None:
-    """Returns the type info for a given GraphQL type."""
-    from ._generated import TYPE_INFO_GQL, TypeInfo
-
-    data = client.execute(gql(TYPE_INFO_GQL), variable_values={"name": typename})
-    return TypeInfo.model_validate(data).type
 
 
 @lru_cache(maxsize=16)
@@ -76,12 +66,6 @@ def server_supports(client: RetryingClient, feature: str | int) -> bool:
     except ValueError:
         return False  # Invalid int-like value, assume unsupported
     return server_features(client).get(name) or False
-
-
-def allowed_fields(client: RetryingClient, typename: str) -> set[str]:
-    """Returns the allowed field names for a given GraphQL type."""
-    typ = type_info(client, typename)
-    return {f.name for f in typ.fields} if (typ and typ.fields) else set()
 
 
 @dataclass(frozen=True)

@@ -30,6 +30,8 @@ This version drops compatibility with server versions older than 0.63.0 (for Ded
 - `disable_git_fork_point` to prevent calculating git diff patch files closest ancestor commit when no upstream branch is set (@jacobromero in https://github.com/wandb/wandb/pull/10132)
 - Media pane for displaying `wandb.Image` data as ANSI thumbnails in W&B LEET TUI (`wandb beta leet` command), with grid layout, X-axis scrubbing, fullscreen mode, and keyboard/mouse navigation (@dmitryduev in
   https://github.com/wandb/wandb/pull/11630)
+- Kubeflow Pipelines v2 (`kfp>=2.0.0`) support for the `@wandb_log` decorator. (@ayulockin in https://github.com/wandb/wandb/pull/11423)
+- `allow_media_symlink` setting to symlink or hardlink media files to the run directory instead of copying, improving logging performance and reducing disk usage (@jacobromero in https://github.com/wandb/wandb/pull/11544)
 
 ### Changed
 
@@ -42,3 +44,4 @@ This version drops compatibility with server versions older than 0.63.0 (for Ded
 - Fixed `update_automation()` silently dropping event filters (e.g. alias conditions on `OnAddArtifactAlias`) when a new event is provided (@matthoare117-wandb in https://github.com/wandb/wandb/pull/11613)
 - Fixed artifact client ID collisions in forked child processes by reseeding the fast ID generator after `fork()` (@tonyyli-wandb in https://github.com/wandb/wandb/pull/11491)
 - Fixed `WANDB__EXTRA_HTTP_HEADERS` not being applied to presigned object-store upload and download requests (@pingleiwandb in https://github.com/wandb/wandb/pull/11620)
+- Fixed deadlock in `artifact.download()` for artifacts with many large files. (@amusipatla-wandb in https://github.com/wandb/wandb/pull/11615)
