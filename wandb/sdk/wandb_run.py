@@ -1464,7 +1464,9 @@ class Run:
             keys: Top-level config key names to pin. Order is preserved and
                 determines display order.
         """
-        self._set_config_wandb("pinned_keys", list(keys))
+        pinned = list(keys)
+        self._config["_wandb"]["pinned_keys"] = pinned
+        self._set_config_wandb("pinned_keys", pinned)
 
     @_log_to_run
     @_raise_if_finished

@@ -327,7 +327,7 @@ def test_pin_config_keys(user):
     ) as run:
         run.pin_config_keys(["links", "lr"])
 
-    assert run.config["_wandb"]["pinned_keys"] == ["links", "lr"]
+    assert dict(run.config)["_wandb"]["pinned_keys"] == ["links", "lr"]
 
 
 def test_pin_config_keys_replaces(user):
@@ -335,7 +335,7 @@ def test_pin_config_keys_replaces(user):
         run.pin_config_keys(["key1", "key2"])
         run.pin_config_keys(["key3"])
 
-    assert run.config["_wandb"]["pinned_keys"] == ["key3"]
+    assert dict(run.config)["_wandb"]["pinned_keys"] == ["key3"]
 
 
 def test_pin_config_keys_empty_list(user):
@@ -343,4 +343,4 @@ def test_pin_config_keys_empty_list(user):
         run.pin_config_keys(["key1"])
         run.pin_config_keys([])
 
-    assert run.config["_wandb"]["pinned_keys"] == []
+    assert dict(run.config)["_wandb"]["pinned_keys"] == []
