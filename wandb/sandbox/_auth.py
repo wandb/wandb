@@ -52,7 +52,7 @@ def _override_sandbox_entity(
 def _resolve_effective_entity_project() -> tuple[str | None, str | None]:
     """Resolve entity/project from overrides, the active run, or global settings."""
     entity_override = _entity_override.get()
-    if entity_override is not _OVERRIDE_UNSET:
+    if isinstance(entity_override, str):
         return entity_override, None
 
     run = wandb.run or wandb_setup.singleton().most_recent_active_run
