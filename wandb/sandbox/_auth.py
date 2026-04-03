@@ -13,28 +13,35 @@ from wandb.sdk.lib import wbauth
 
 _AUTH_MODE_NAME = "wandb"
 _OVERRIDE_UNSET = object()
-_entity_override: ContextVar[object | str | None] = ContextVar(
+_entity_override: ContextVar[object | str] = ContextVar(
     "wandb_sandbox_entity_override",
     default=_OVERRIDE_UNSET,
 )
 
 
 def _set_wandb_auth_mode() -> None:
-    """Install W&B as the active cwsandbox auth mode for this process."""
+    """Install W&B as the active cwsandbox auth mode for this process.
+
+    NOTE: This means the original cwsandbox auth using sandbox api key no longer works.
+    """
     set_auth_mode(_AUTH_MODE_NAME, _resolve_wandb_sdk_auth)
 
 
 @contextmanager
-def _override_auth_context(
+def _override_sandbox_entity(
     *,
-    entity: object | str | None = _OVERRIDE_UNSET,
+    entity: str | None = None,
 ) -> Iterator[None]:
-    """Temporarily override entity propagation for sandbox auth.
+    """Temporarily override the sandbox entity for sandbox auth.
 
-    While the override is active, sandbox auth suppresses project propagation so
-    CLI entity overrides do not accidentally inherit the current run or global
-    defaults.
+    Passing ``None`` is a no-op.
+
+    While the override is active, sandbox auth use entity from override.
     """
+    if entity is None:
+        yield
+        return
+
     entity_token = _entity_override.set(entity)
     try:
         yield
@@ -48,19 +55,29 @@ def _resolve_effective_entity_project() -> tuple[str | None, str | None]:
     if entity_override is not _OVERRIDE_UNSET:
         return entity_override, None
 
-    return _entity_project(_current_run() or _settings())
+    run = wandb.run or wandb_setup.singleton().most_recent_active_run
+    if run is not None:
+        return run.entity or None, run.project or None
+
+    settings = wandb_setup.singleton().settings
+    return settings.entity or None, settings.project or None
 
 
 def _resolve_wandb_sdk_auth() -> AuthHeaders:
-    host = _current_wandb_host()
-    settings = _settings()
+    settings = wandb_setup.singleton().settings
+    host = wbauth.HostUrl(settings.base_url, app_url=settings.app_url)
+    run = wandb.run or wandb_setup.singleton().most_recent_active_run
 
     auth = wbauth.session_credentials(host=host)
     if auth is None and settings.api_key:
         auth = wbauth.AuthApiKey(host=host, api_key=settings.api_key)
 
     if auth is None:
-        _ensure_wandb_auth_loaded(host.url)
+        wandb_login._login(
+            host=host.url,
+            update_api_key=False,
+            _silent=run is not None,
+        )
         auth = wbauth.session_credentials(host=host)
 
     if auth is None:
@@ -73,6 +90,9 @@ def _resolve_wandb_sdk_auth() -> AuthHeaders:
 
     entity, project = _resolve_effective_entity_project()
     metadata: list[tuple[str, str]] = [("x-api-key", auth.api_key)]
+    # Both entity and project are optional.
+    # entity will use the default entity user set in web UI.
+    # project will use/create 'sandbox' project automatically.
     if entity:
         metadata.append(("x-entity-id", entity))
     if project:
@@ -82,42 +102,3 @@ def _resolve_wandb_sdk_auth() -> AuthHeaders:
         headers={key: value for key, value in metadata},
         strategy="wandb_api_key",
     )
-
-
-def _ensure_wandb_auth_loaded(host: str) -> None:
-    """Load auth lazily using W&B's existing login path."""
-    wandb_login._login(
-        host=host,
-        update_api_key=False,
-        _silent=_should_suppress_auth_output(),
-    )
-
-
-def _current_run():
-    """Return the best current run candidate for auth propagation."""
-    if wandb.run is not None:
-        return wandb.run
-
-    return wandb_setup.singleton().most_recent_active_run
-
-
-def _entity_project(source: object) -> tuple[str | None, str | None]:
-    return (
-        getattr(source, "entity", None) or None,
-        getattr(source, "project", None) or None,
-    )
-
-
-def _settings():
-    return wandb_setup.singleton().settings
-
-
-def _should_suppress_auth_output() -> bool:
-    """Avoid duplicate auth output when a run is already active."""
-    return _current_run() is not None
-
-
-def _current_wandb_host() -> wbauth.HostUrl:
-    """Return the configured W&B API host for auth resolution."""
-    settings = _settings()
-    return wbauth.HostUrl(settings.base_url, app_url=settings.app_url)

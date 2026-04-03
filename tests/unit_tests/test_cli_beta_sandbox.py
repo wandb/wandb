@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import inspect
+import sys
+import types
 from contextlib import contextmanager
 
 import click
@@ -44,7 +46,9 @@ def _fake_cwsandbox_cli() -> click.Group:
 
 def test_sandbox_help_lists_upstream_subcommands(monkeypatch) -> None:
     monkeypatch.setattr(
-        beta_sandbox, "_load_cwsandbox_cli", lambda: _fake_cwsandbox_cli()
+        beta_sandbox.SandboxGroup,
+        "_load_cwsandbox_cli",
+        lambda self: _fake_cwsandbox_cli(),
     )
 
     result = make_cli_runner().invoke(cli.beta, ["sandbox", "--help"])
@@ -64,10 +68,25 @@ def test_sandbox_command_passes_entity_override(monkeypatch) -> None:
         captured.append(entity)
         yield
 
+    fake_sandbox_package = types.ModuleType("wandb.sandbox")
+    fake_sandbox_package.__path__ = []
+    fake_auth_module = types.ModuleType("wandb.sandbox._auth")
+    fake_auth_module._override_sandbox_entity = fake_override
+    fake_cwsandbox_package = types.ModuleType("cwsandbox")
+    fake_cwsandbox_package.__path__ = []
+    fake_exceptions_module = types.ModuleType("cwsandbox.exceptions")
+    fake_exceptions_module.CWSandboxError = RuntimeError
+
+    monkeypatch.setitem(sys.modules, "wandb.sandbox", fake_sandbox_package)
+    monkeypatch.setitem(sys.modules, "wandb.sandbox._auth", fake_auth_module)
+    monkeypatch.setitem(sys.modules, "cwsandbox", fake_cwsandbox_package)
+    monkeypatch.setitem(sys.modules, "cwsandbox.exceptions", fake_exceptions_module)
+
     monkeypatch.setattr(
-        beta_sandbox, "_load_cwsandbox_cli", lambda: _fake_cwsandbox_cli()
+        beta_sandbox.SandboxGroup,
+        "_load_cwsandbox_cli",
+        lambda self: _fake_cwsandbox_cli(),
     )
-    monkeypatch.setattr(beta_sandbox, "_entity_override_context", fake_override)
 
     result = make_cli_runner().invoke(
         cli.beta,
@@ -80,12 +99,11 @@ def test_sandbox_command_passes_entity_override(monkeypatch) -> None:
 
 
 def test_load_cwsandbox_cli_prints_install_hint(monkeypatch) -> None:
-    beta_sandbox._load_cwsandbox_cli.cache_clear()
-
     def fake_import_module(name: str):
         raise ImportError(f"missing {name}")
 
     monkeypatch.setattr(beta_sandbox.importlib, "import_module", fake_import_module)
+    group = beta_sandbox.SandboxGroup(name="sandbox")
 
     with pytest.raises(click.ClickException, match=r"wandb\[sandbox\]"):
-        beta_sandbox._load_cwsandbox_cli()
+        group._load_cwsandbox_cli()
