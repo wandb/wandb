@@ -3,9 +3,9 @@ from __future__ import annotations
 import importlib
 import inspect
 import sys
+import types
 from contextlib import contextmanager
 
-import click
 import pytest
 from click.testing import CliRunner
 from wandb.cli import beta_sandbox, cli
@@ -13,8 +13,8 @@ from wandb.cli import beta_sandbox, cli
 if sys.version_info < (3, 11):
     pytest.skip("wandb.sandbox requires Python 3.11+", allow_module_level=True)
 
-pytest.importorskip("cwsandbox")
-pytest.importorskip("cwsandbox.cli")
+import cwsandbox.cli.list as cwsandbox_list
+from cwsandbox.exceptions import CWSandboxError
 
 
 def make_cli_runner() -> CliRunner:
@@ -25,49 +25,46 @@ def make_cli_runner() -> CliRunner:
     return CliRunner(**runner_kwargs)
 
 
-def _fake_cwsandbox_cli() -> click.Group:
-    @click.group()
-    def sandbox() -> None:
-        """Fake CWSandbox CLI."""
-
-    @sandbox.command("ls")
-    @click.option("--status", default=None)
-    def list_sandboxes(status: str | None) -> None:
-        click.echo(f"ls:{status}")
-
-    @sandbox.command("logs")
-    def logs() -> None:
-        click.echo("logs")
-
-    @sandbox.command("exec")
-    def exec_command() -> None:
-        click.echo("exec")
-
-    @sandbox.command("sh")
-    def shell() -> None:
-        click.echo("sh")
-
-    return sandbox
+@pytest.fixture(autouse=True)
+def reset_sandbox_group_cache():
+    sandbox_group = cli.beta.commands["sandbox"]
+    assert isinstance(sandbox_group, beta_sandbox.SandboxGroup)
+    sandbox_group._base_cli = None
+    sandbox_group._wrapped_commands = {}
+    yield
+    sandbox_group._base_cli = None
+    sandbox_group._wrapped_commands = {}
 
 
-def test_sandbox_help_lists_upstream_subcommands(monkeypatch) -> None:
-    monkeypatch.setattr(
-        beta_sandbox.SandboxGroup,
-        "_load_cwsandbox_cli",
-        lambda self: _fake_cwsandbox_cli(),
-    )
-
+def test_sandbox_help_lists_real_upstream_subcommands() -> None:
     result = make_cli_runner().invoke(cli.beta, ["sandbox", "--help"])
 
+    expected_commands = {"ls", "logs", "exec", "sh"}
+    missing = [cmd for cmd in expected_commands if cmd not in result.output]
+
     assert result.exit_code == 0, result.output
-    assert "ls" in result.output
-    assert "logs" in result.output
-    assert "exec" in result.output
-    assert "sh" in result.output
+    assert not missing, f"Missing commands: {missing}"
 
 
-def test_sandbox_command_passes_entity_override(monkeypatch) -> None:
+def test_sandbox_ls_help_includes_entity_and_upstream_options() -> None:
+    result = make_cli_runner().invoke(cli.beta, ["sandbox", "ls", "--help"])
+
+    expected_flags = {
+        "--entity",
+        "--status",
+        "--tag",
+        "--runway-id",
+        "--tower-id",
+        "--output",
+    }
+
+    missing = [f for f in expected_flags if f not in result.output]
+    assert not missing, f"Missing flags: {missing}"
+
+
+def test_sandbox_command_passes_entity_override_to_real_ls_command(monkeypatch) -> None:
     captured: list[str | None] = []
+    list_calls: list[dict[str, object | None]] = []
     sandbox_auth = importlib.import_module("wandb.sandbox._auth")
 
     @contextmanager
@@ -75,12 +72,12 @@ def test_sandbox_command_passes_entity_override(monkeypatch) -> None:
         captured.append(entity)
         yield
 
-    monkeypatch.setattr(
-        beta_sandbox.SandboxGroup,
-        "_load_cwsandbox_cli",
-        lambda self: _fake_cwsandbox_cli(),
-    )
+    def fake_list(cls, **kwargs):
+        list_calls.append(kwargs)
+        return types.SimpleNamespace(result=lambda: [])
+
     monkeypatch.setattr(sandbox_auth, "_override_sandbox_entity", fake_override)
+    monkeypatch.setattr(cwsandbox_list.Sandbox, "list", classmethod(fake_list))
 
     result = make_cli_runner().invoke(
         cli.beta,
@@ -88,24 +85,25 @@ def test_sandbox_command_passes_entity_override(monkeypatch) -> None:
     )
 
     assert result.exit_code == 0, result.output
-    assert result.stdout.strip() == "ls:running"
+    assert result.output.strip() == "No sandboxes found."
     assert captured == ["team-override"]
+    assert list_calls == [
+        {
+            "tags": None,
+            "status": "running",
+            "runway_ids": None,
+            "tower_ids": None,
+        }
+    ]
 
 
-def test_load_cwsandbox_cli_prints_install_hint(monkeypatch) -> None:
-    def fake_import_module(name: str):
-        raise ImportError(f"missing {name}")
+def test_sandbox_command_converts_cwsandbox_error(monkeypatch) -> None:
+    def fake_list(cls, **kwargs):
+        raise CWSandboxError("boom")
 
-    monkeypatch.setattr(beta_sandbox.importlib, "import_module", fake_import_module)
-    group = beta_sandbox.SandboxGroup(name="sandbox")
+    monkeypatch.setattr(cwsandbox_list.Sandbox, "list", classmethod(fake_list))
 
-    with pytest.raises(click.ClickException, match=r"wandb\[sandbox\]"):
-        group._load_cwsandbox_cli()
+    result = make_cli_runner().invoke(cli.beta, ["sandbox", "ls"])
 
-
-def test_load_cwsandbox_cli_requires_python_3_11(monkeypatch) -> None:
-    monkeypatch.setattr(beta_sandbox.sys, "version_info", (3, 10, 0))
-    group = beta_sandbox.SandboxGroup(name="sandbox")
-
-    with pytest.raises(click.ClickException, match=r"Python 3\.11 or newer"):
-        group._load_cwsandbox_cli()
+    assert result.exit_code != 0
+    assert "Error: boom" in result.output

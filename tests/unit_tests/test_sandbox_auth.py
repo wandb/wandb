@@ -9,7 +9,8 @@ import pytest
 if sys.version_info < (3, 11):
     pytest.skip("wandb.sandbox requires Python 3.11+", allow_module_level=True)
 
-cwsandbox = pytest.importorskip("cwsandbox")
+import cwsandbox
+
 _VALID_API_KEY = "x" * 40
 
 
