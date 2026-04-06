@@ -12,6 +12,7 @@ if sys.version_info < (3, 11):
 import cwsandbox._sandbox as cwsandbox_sandbox
 import wandb.sandbox as wandb_sandbox
 
+
 class _FakeChannel:
     async def close(self, grace=None) -> None:
         _ = grace
