@@ -53,7 +53,7 @@ def _singleton(
     return Mock(spec_set=tuple(singleton), **singleton)
 
 
-def test_resolve_effective_entity_project_prefers_active_run_over_most_recent_run(
+def test_resolve_entity_project_prefers_active_run(
     monkeypatch,
 ) -> None:
     singleton = _singleton(
@@ -62,13 +62,13 @@ def test_resolve_effective_entity_project_prefers_active_run_over_most_recent_ru
     monkeypatch.setattr(sandbox_auth.wandb_setup, "singleton", lambda: singleton)
     monkeypatch.setattr(sandbox_auth.wandb, "run", _run("run-entity", "run-project"))
 
-    assert sandbox_auth._resolve_effective_entity_project() == (
+    assert sandbox_auth._resolve_entity_project() == (
         "run-entity",
         "run-project",
     )
 
 
-def test_resolve_effective_entity_project_uses_most_recent_active_run(
+def test_resolve_entity_project_uses_most_recent_run(
     monkeypatch,
 ) -> None:
     singleton = _singleton(
@@ -77,13 +77,13 @@ def test_resolve_effective_entity_project_uses_most_recent_active_run(
     monkeypatch.setattr(sandbox_auth.wandb_setup, "singleton", lambda: singleton)
     monkeypatch.setattr(sandbox_auth.wandb, "run", None)
 
-    assert sandbox_auth._resolve_effective_entity_project() == (
+    assert sandbox_auth._resolve_entity_project() == (
         "recent-entity",
         "recent-project",
     )
 
 
-def test_override_sandbox_entity_suppresses_project_and_restores_after_exit(
+def test_override_sandbox_entity_restores_after_exit(
     monkeypatch,
 ) -> None:
     singleton = _singleton(
@@ -93,12 +93,12 @@ def test_override_sandbox_entity_suppresses_project_and_restores_after_exit(
     monkeypatch.setattr(sandbox_auth.wandb, "run", _run("run-entity", "run-project"))
 
     with sandbox_auth._override_sandbox_entity(entity="override-entity"):
-        assert sandbox_auth._resolve_effective_entity_project() == (
+        assert sandbox_auth._resolve_entity_project() == (
             "override-entity",
             None,
         )
 
-    assert sandbox_auth._resolve_effective_entity_project() == (
+    assert sandbox_auth._resolve_entity_project() == (
         "run-entity",
         "run-project",
     )

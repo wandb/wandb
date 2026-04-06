@@ -29,14 +29,12 @@ def _set_wandb_auth_mode() -> None:
 
 @contextmanager
 def _override_sandbox_entity(
-    *,
     entity: str | None = None,
 ) -> Iterator[None]:
     """Temporarily override the sandbox entity for sandbox auth.
 
-    Passing ``None`` is a no-op.
-
-    While the override is active, sandbox auth use entity from override.
+    Passing ``None`` means using the default resolve logic from run
+    and setting. Only used by the cli to set entity via --entity.
     """
     if entity is None:
         yield
@@ -49,7 +47,7 @@ def _override_sandbox_entity(
         _entity_override.reset(entity_token)
 
 
-def _resolve_effective_entity_project() -> tuple[str | None, str | None]:
+def _resolve_entity_project() -> tuple[str | None, str | None]:
     """Resolve entity/project from overrides, the active run, or global settings."""
     entity_override = _entity_override.get()
     if isinstance(entity_override, str):
@@ -101,7 +99,7 @@ def _resolve_wandb_sdk_auth() -> AuthHeaders:
     if not isinstance(auth, wbauth.AuthApiKey):
         raise UsageError("wandb.sandbox currently supports only W&B user API-key auth.")
 
-    entity, project = _resolve_effective_entity_project()
+    entity, project = _resolve_entity_project()
     metadata: list[tuple[str, str]] = [("x-api-key", auth.api_key)]
     # Both entity and project are optional.
     # entity will use the default entity user set in web UI.
