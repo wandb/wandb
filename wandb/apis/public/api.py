@@ -692,7 +692,7 @@ class Api:
             if (viewer := result.viewer) is None:
                 msg = "Unable to fetch user data from W&B, please verify your API key is valid."
                 raise ValueError(msg)
-            self._viewer = User(self._client, viewer.model_dump())
+            self._viewer = User(self._client, viewer.model_dump(), api_key=self.api_key)
             self._default_entity = self._viewer.entity
         return self._viewer
 
@@ -1024,7 +1024,7 @@ class Api:
         if len(edges) > 1:
             msg = f"Found multiple users, returning the first user matching {username_or_email!r}"
             wandb.termwarn(msg)
-        return User(self._client, edges[0].node.model_dump())
+        return User(self._client, edges[0].node.model_dump(), api_key=self.api_key)
 
     def users(self, username_or_email: str) -> list[User]:
         """Return all users from a partial username or email address query.
@@ -1046,7 +1046,7 @@ class Api:
         result = SearchUsers.model_validate(data)
         if not ((conn := result.users) and (edges := conn.edges)):
             return []
-        return [User(self._client, edge.node.model_dump()) for edge in edges]
+        return [User(self._client, edge.node.model_dump(), api_key=self.api_key) for edge in edges]
 
     def runs(
         self,
