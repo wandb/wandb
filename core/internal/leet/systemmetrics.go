@@ -193,13 +193,38 @@ var metricDefs = []MetricDef{
 	{Name: "Process GPU Power", Unit: UnitWatt, MinY: 0, MaxY: 500, AutoRange: true,
 		Regex: regexp.MustCompile(`^gpu\.process\.\d+\.powerWatts(/l:.+)?$`)},
 
-	// TPU metrics
+	// TPU metrics — per-device gauges
+	{Name: "TPU Tensorcore Utilization", Unit: UnitPercent, MinY: 0, MaxY: 100, Percentage: true,
+		Regex: regexp.MustCompile(`^tpu\.\d+\.tensorcoreUtilization(/l:.+)?$`)},
 	{Name: "TPU Duty Cycle", Unit: UnitPercent, MinY: 0, MaxY: 100, Percentage: true,
 		Regex: regexp.MustCompile(`^tpu\.\d+\.dutyCycle(/l:.+)?$`)},
-	{Name: "TPU Memory", Unit: UnitPercent, MinY: 0, MaxY: 100, Percentage: true,
-		Regex: regexp.MustCompile(`^tpu\.\d+\.memory[Uu]sage(/l:.+)?$`)},
-	{Name: "TPU Memory", Unit: UnitGiB, MinY: 0, MaxY: 32, AutoRange: true,
-		Regex: regexp.MustCompile(`^tpu\.\d+\.memory[Uu]sage[Bb]ytes(/l:.+)?$`)},
+	{Name: "TPU HBM Capacity Total", Unit: UnitBytes, MinY: 0, MaxY: 32, AutoRange: true,
+		Regex: regexp.MustCompile(`^tpu\.\d+\.hbmCapacityTotal(/l:.+)?$`)},
+	{Name: "TPU HBM Capacity Usage", Unit: UnitBytes, MinY: 0, MaxY: 32, AutoRange: true,
+		Regex: regexp.MustCompile(`^tpu\.\d+\.hbmCapacityUsage(/l:.+)?$`)},
+	// TPU metrics — latency distributions (labeled: .label.statUs)
+	{Name: "TPU Buffer Transfer Latency", Unit: UnitScalar, MinY: 0, MaxY: 10000, AutoRange: true,
+		Regex: regexp.MustCompile(`^tpu\.bufferTransferLatency\..+$`)},
+	{Name: "TPU Inbound Buffer Transfer Latency", Unit: UnitScalar, MinY: 0, MaxY: 10000, AutoRange: true,
+		Regex: regexp.MustCompile(`^tpu\.inboundBufferTransferLatency\..+$`)},
+	{Name: "TPU Host-to-Device Latency", Unit: UnitScalar, MinY: 0, MaxY: 10000, AutoRange: true,
+		Regex: regexp.MustCompile(`^tpu\.hostToDeviceTransferLatency\..+$`)},
+	{Name: "TPU Device-to-Host Latency", Unit: UnitScalar, MinY: 0, MaxY: 10000, AutoRange: true,
+		Regex: regexp.MustCompile(`^tpu\.deviceToHostTransferLatency\..+$`)},
+	{Name: "TPU Collective E2E Latency", Unit: UnitScalar, MinY: 0, MaxY: 10000, AutoRange: true,
+		Regex: regexp.MustCompile(`^tpu\.collectiveE2ELatency\..+$`)},
+	{Name: "TPU Host Compute Latency", Unit: UnitScalar, MinY: 0, MaxY: 10000, AutoRange: true,
+		Regex: regexp.MustCompile(`^tpu\.hostComputeLatency\..+$`)},
+	{Name: "TPU HLO Exec Timing", Unit: UnitScalar, MinY: 0, MaxY: 10000, AutoRange: true,
+		Regex: regexp.MustCompile(`^tpu\.hloExecTiming\..+$`)},
+	// TPU metrics — flat distributions
+	{Name: "TPU gRPC TCP Min RTT", Unit: UnitScalar, MinY: 0, MaxY: 10000, AutoRange: true,
+		Regex: regexp.MustCompile(`^tpu\.grpcTcpMinRtt\..+$`)},
+	{Name: "TPU gRPC TCP Delivery Rate", Unit: UnitScalar, MinY: 0, MaxY: 10000, AutoRange: true,
+		Regex: regexp.MustCompile(`^tpu\.grpcTcpDeliveryRate\..+$`)},
+	// TPU metrics — HLO queue size (colon-keyed: .label)
+	{Name: "TPU HLO Queue Size", Unit: UnitScalar, MinY: 0, MaxY: 100, AutoRange: true,
+		Regex: regexp.MustCompile(`^tpu\.hloQueueSize\..+$`)},
 
 	// IPU metrics
 	{Name: "IPU Board Temp", Unit: UnitCelsius, MinY: 0, MaxY: 100, AutoRange: true,
