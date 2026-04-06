@@ -15,15 +15,10 @@ _SETTINGS_API_KEY = "y" * 40
 
 
 @pytest.fixture(autouse=True)
-def _clear_explicit_session_auth() -> None:
+def _clear_explicit_session_auth():
     sandbox_auth.wbauth.unauthenticate_session(update_settings=False)
     yield
     sandbox_auth.wbauth.unauthenticate_session(update_settings=False)
-
-
-def _run(entity: str | None, project: str | None):
-    data = {"entity": entity, "project": project}
-    return Mock(spec_set=tuple(data), **data)
 
 
 def _singleton(
@@ -55,10 +50,17 @@ def test_resolve_entity_project_prefers_active_run(
     monkeypatch,
 ) -> None:
     singleton = _singleton(
-        most_recent_active_run=_run("recent-entity", "recent-project")
+        most_recent_active_run=Mock(
+            entity="recent-entity",
+            project="recent-project",
+        )
     )
     monkeypatch.setattr(sandbox_auth.wandb_setup, "singleton", lambda: singleton)
-    monkeypatch.setattr(sandbox_auth.wandb, "run", _run("run-entity", "run-project"))
+    monkeypatch.setattr(
+        sandbox_auth.wandb,
+        "run",
+        Mock(entity="run-entity", project="run-project"),
+    )
 
     assert sandbox_auth._resolve_entity_project() == (
         "run-entity",
@@ -70,7 +72,10 @@ def test_resolve_entity_project_uses_most_recent_run(
     monkeypatch,
 ) -> None:
     singleton = _singleton(
-        most_recent_active_run=_run("recent-entity", "recent-project")
+        most_recent_active_run=Mock(
+            entity="recent-entity",
+            project="recent-project",
+        )
     )
     monkeypatch.setattr(sandbox_auth.wandb_setup, "singleton", lambda: singleton)
     monkeypatch.setattr(sandbox_auth.wandb, "run", None)
@@ -85,10 +90,17 @@ def test_override_sandbox_entity_restores_after_exit(
     monkeypatch,
 ) -> None:
     singleton = _singleton(
-        most_recent_active_run=_run("recent-entity", "recent-project")
+        most_recent_active_run=Mock(
+            entity="recent-entity",
+            project="recent-project",
+        )
     )
     monkeypatch.setattr(sandbox_auth.wandb_setup, "singleton", lambda: singleton)
-    monkeypatch.setattr(sandbox_auth.wandb, "run", _run("run-entity", "run-project"))
+    monkeypatch.setattr(
+        sandbox_auth.wandb,
+        "run",
+        Mock(entity="run-entity", project="run-project"),
+    )
 
     with sandbox_auth._override_sandbox_entity(entity="override-entity"):
         assert sandbox_auth._resolve_entity_project() == (
@@ -135,7 +147,10 @@ def test_resolve_wandb_sdk_auth_loads_auth_when_missing(
     monkeypatch,
 ) -> None:
     singleton = _singleton(
-        most_recent_active_run=_run("recent-entity", "recent-project")
+        most_recent_active_run=Mock(
+            entity="recent-entity",
+            project="recent-project",
+        )
     )
     login_calls: list[dict[str, object]] = []
     monkeypatch.setattr(sandbox_auth.wandb_setup, "singleton", lambda: singleton)

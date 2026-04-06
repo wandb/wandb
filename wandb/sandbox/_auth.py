@@ -51,6 +51,8 @@ def _resolve_entity_project() -> tuple[str | None, str | None]:
     """Resolve entity/project from overrides, the active run, or global settings."""
     entity_override = _entity_override.get()
     if isinstance(entity_override, str):
+        # None project is fine because the override is only used by cli, which does not
+        # support project for when filtering sandbox.
         return entity_override, None
 
     run = wandb.run or wandb_setup.singleton().most_recent_active_run
