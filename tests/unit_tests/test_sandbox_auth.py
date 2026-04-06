@@ -26,6 +26,7 @@ def _import_sandbox_auth(monkeypatch):
     monkeypatch.delitem(sys.modules, "wandb.sandbox._auth", raising=False)
 
     auth_module = importlib.import_module("wandb.sandbox._auth")
+    auth_module.wbauth.unauthenticate_session(update_settings=False)
     return auth_module, registered
 
 
@@ -79,7 +80,6 @@ def test_resolve_effective_entity_project_uses_settings_without_run(
 ) -> None:
     auth_module, _ = _import_sandbox_auth(monkeypatch)
     singleton = _singleton()
-
     monkeypatch.setattr(auth_module.wandb_setup, "singleton", lambda: singleton)
     monkeypatch.setattr(auth_module.wandb, "run", None)
 
@@ -89,10 +89,11 @@ def test_resolve_effective_entity_project_uses_settings_without_run(
     )
 
 
-def test_resolve_effective_entity_project_prefers_active_run(monkeypatch) -> None:
+def test_resolve_effective_entity_project_prefers_active_run(
+    monkeypatch,
+) -> None:
     auth_module, _ = _import_sandbox_auth(monkeypatch)
     singleton = _singleton()
-
     monkeypatch.setattr(auth_module.wandb_setup, "singleton", lambda: singleton)
     monkeypatch.setattr(auth_module.wandb, "run", _run("run-entity", "run-project"))
 
@@ -109,7 +110,6 @@ def test_resolve_effective_entity_project_uses_most_recent_active_run(
     singleton = _singleton(
         most_recent_active_run=_run("recent-entity", "recent-project")
     )
-
     monkeypatch.setattr(auth_module.wandb_setup, "singleton", lambda: singleton)
     monkeypatch.setattr(auth_module.wandb, "run", None)
 
@@ -119,12 +119,13 @@ def test_resolve_effective_entity_project_uses_most_recent_active_run(
     )
 
 
-def test_override_sandbox_entity_is_noop_for_none(monkeypatch) -> None:
+def test_override_sandbox_entity_is_noop_for_none(
+    monkeypatch,
+) -> None:
     auth_module, _ = _import_sandbox_auth(monkeypatch)
     singleton = _singleton(
         most_recent_active_run=_run("recent-entity", "recent-project")
     )
-
     monkeypatch.setattr(auth_module.wandb_setup, "singleton", lambda: singleton)
     monkeypatch.setattr(auth_module.wandb, "run", None)
 
@@ -142,7 +143,6 @@ def test_override_sandbox_entity_overrides_entity_and_suppresses_project(
     singleton = _singleton(
         most_recent_active_run=_run("recent-entity", "recent-project")
     )
-
     monkeypatch.setattr(auth_module.wandb_setup, "singleton", lambda: singleton)
     monkeypatch.setattr(auth_module.wandb, "run", _run("run-entity", "run-project"))
 
@@ -158,16 +158,19 @@ def test_override_sandbox_entity_overrides_entity_and_suppresses_project(
     )
 
 
-def test_resolve_wandb_sdk_auth_uses_session_credentials(monkeypatch) -> None:
+def test_resolve_wandb_sdk_auth_uses_session_credentials(
+    monkeypatch,
+) -> None:
     auth_module, _ = _import_sandbox_auth(monkeypatch)
     singleton = _singleton()
-
     monkeypatch.setattr(auth_module.wandb_setup, "singleton", lambda: singleton)
     monkeypatch.setattr(auth_module.wandb, "run", None)
-    monkeypatch.setattr(
-        auth_module.wbauth,
-        "session_credentials",
-        lambda host: auth_module.wbauth.AuthApiKey(host=host, api_key=_VALID_API_KEY),
+    auth_module.wbauth.use_explicit_auth(
+        auth=auth_module.wbauth.AuthApiKey(
+            host="https://api.wandb.ai",
+            api_key=_VALID_API_KEY,
+        ),
+        source="test",
     )
     monkeypatch.setattr(
         auth_module.wandb_login,
@@ -185,13 +188,13 @@ def test_resolve_wandb_sdk_auth_uses_session_credentials(monkeypatch) -> None:
     }
 
 
-def test_resolve_wandb_sdk_auth_falls_back_to_settings_api_key(monkeypatch) -> None:
+def test_resolve_wandb_sdk_auth_falls_back_to_settings_api_key(
+    monkeypatch,
+) -> None:
     auth_module, _ = _import_sandbox_auth(monkeypatch)
     singleton = _singleton(api_key=_VALID_API_KEY)
-
     monkeypatch.setattr(auth_module.wandb_setup, "singleton", lambda: singleton)
     monkeypatch.setattr(auth_module.wandb, "run", None)
-    monkeypatch.setattr(auth_module.wbauth, "session_credentials", lambda host: None)
     monkeypatch.setattr(
         auth_module.wandb_login,
         "_login",
@@ -205,28 +208,32 @@ def test_resolve_wandb_sdk_auth_falls_back_to_settings_api_key(monkeypatch) -> N
     assert headers.headers["x-project-name"] == "default-project"
 
 
-def test_resolve_wandb_sdk_auth_loads_auth_when_missing(monkeypatch) -> None:
+def test_resolve_wandb_sdk_auth_loads_auth_when_missing(
+    monkeypatch,
+) -> None:
     auth_module, _ = _import_sandbox_auth(monkeypatch)
     singleton = _singleton(
         most_recent_active_run=_run("recent-entity", "recent-project")
     )
     login_calls: list[dict[str, object]] = []
-    credentials: list[object | None] = [None]
-
     monkeypatch.setattr(auth_module.wandb_setup, "singleton", lambda: singleton)
     monkeypatch.setattr(auth_module.wandb, "run", None)
+
+    def fake_login(**kwargs) -> None:
+        login_calls.append(kwargs)
+        auth_module.wbauth.use_explicit_auth(
+            auth=auth_module.wbauth.AuthApiKey(
+                host="https://api.wandb.ai",
+                api_key=_VALID_API_KEY,
+            ),
+            source="test",
+        )
+
     monkeypatch.setattr(
         auth_module.wandb_login,
         "_login",
-        lambda **kwargs: login_calls.append(kwargs),
+        fake_login,
     )
-
-    def session_credentials(host):
-        if credentials:
-            return credentials.pop(0)
-        return auth_module.wbauth.AuthApiKey(host=host, api_key=_VALID_API_KEY)
-
-    monkeypatch.setattr(auth_module.wbauth, "session_credentials", session_credentials)
 
     headers = auth_module._resolve_wandb_sdk_auth()
 
@@ -242,3 +249,45 @@ def test_resolve_wandb_sdk_auth_loads_auth_when_missing(monkeypatch) -> None:
         "x-entity-id": "recent-entity",
         "x-project-name": "recent-project",
     }
+
+
+@pytest.mark.parametrize(
+    ("credential_source", "settings_api_key"),
+    [
+        pytest.param("session_credentials", None, id="session_credentials"),
+        pytest.param("settings_api_key", _VALID_API_KEY, id="settings_api_key"),
+    ],
+)
+def test_resolve_wandb_sdk_auth_allows_missing_entity_and_project(
+    monkeypatch,
+    credential_source: str,
+    settings_api_key: str | None,
+) -> None:
+    auth_module, _ = _import_sandbox_auth(monkeypatch)
+    singleton = _singleton(
+        entity=None,
+        project=None,
+        api_key=settings_api_key,
+    )
+    monkeypatch.setattr(auth_module.wandb_setup, "singleton", lambda: singleton)
+    monkeypatch.setattr(auth_module.wandb, "run", None)
+
+    if credential_source == "session_credentials":
+        auth_module.wbauth.use_explicit_auth(
+            auth=auth_module.wbauth.AuthApiKey(
+                host="https://api.wandb.ai",
+                api_key=_VALID_API_KEY,
+            ),
+            source="test",
+        )
+
+    monkeypatch.setattr(
+        auth_module.wandb_login,
+        "_login",
+        lambda **kwargs: pytest.fail("wandb_login._login should not run"),
+    )
+
+    headers = auth_module._resolve_wandb_sdk_auth()
+
+    assert headers.strategy == "wandb_api_key"
+    assert headers.headers == {"x-api-key": _VALID_API_KEY}
