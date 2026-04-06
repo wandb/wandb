@@ -39,6 +39,8 @@ def _singleton(
     entity: str | None = "default-entity",
     project: str | None = "default-project",
     api_key: str | None = None,
+    mode: str = "online",
+    offline: bool = False,
     most_recent_active_run=None,
 ):
     return types.SimpleNamespace(
@@ -46,6 +48,8 @@ def _singleton(
             entity=entity,
             project=project,
             api_key=api_key,
+            mode=mode,
+            _offline=offline,
             base_url="https://api.wandb.ai",
             app_url="https://wandb.ai",
         ),

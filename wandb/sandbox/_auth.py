@@ -64,9 +64,22 @@ def _resolve_effective_entity_project() -> tuple[str | None, str | None]:
 
 
 def _resolve_wandb_sdk_auth() -> AuthHeaders:
-    settings = wandb_setup.singleton().settings
-    host = wbauth.HostUrl(settings.base_url, app_url=settings.app_url)
     run = wandb.run or wandb_setup.singleton().most_recent_active_run
+    run_settings = getattr(run, "settings", None)
+    if run_settings is not None and (
+        getattr(run_settings, "_offline", False)
+        or getattr(run_settings, "mode", None) == "offline"
+    ):
+        raise UsageError("wandb.sandbox is not available in offline mode.")
+
+    settings = wandb_setup.singleton().settings
+    if (
+        getattr(settings, "_offline", False)
+        or getattr(settings, "mode", None) == "offline"
+    ):
+        raise UsageError("wandb.sandbox is not available in offline mode.")
+
+    host = wbauth.HostUrl(settings.base_url, app_url=settings.app_url)
 
     auth = wbauth.session_credentials(host=host)
     if auth is None and settings.api_key:
