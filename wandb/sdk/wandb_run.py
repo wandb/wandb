@@ -1461,12 +1461,12 @@ class Run:
         plain text. Calling this again replaces the previously pinned list.
 
         Args:
-            keys: Top-level config key names to pin. Order is preserved and
-                determines display order.
+            keys: Config key names to pin, matching keys set via
+                ``run.config``. These are exact key strings (dots and
+                slashes are treated literally, not as path separators).
+                Order is preserved and determines display order.
         """
-        pinned = list(keys)
-        self._config["_wandb"]["pinned_keys"] = pinned
-        self._set_config_wandb("pinned_keys", pinned)
+        self._set_config_wandb("pinned_keys", list(keys))
 
     @_log_to_run
     @_raise_if_finished
