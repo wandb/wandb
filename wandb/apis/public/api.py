@@ -1046,7 +1046,10 @@ class Api:
         result = SearchUsers.model_validate(data)
         if not ((conn := result.users) and (edges := conn.edges)):
             return []
-        return [User(self._client, edge.node.model_dump(), api_key=self.api_key) for edge in edges]
+        return [
+            User(self._client, edge.node.model_dump(), api_key=self.api_key)
+            for edge in edges
+        ]
 
     def runs(
         self,

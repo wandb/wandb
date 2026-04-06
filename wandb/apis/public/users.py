@@ -36,7 +36,12 @@ class User(Attrs):
     <!-- lazydoc-ignore-init: internal -->
     """
 
-    def __init__(self, client: RetryingClient, attrs: MutableMapping[str, Any], api_key: str | None = None):
+    def __init__(
+        self,
+        client: RetryingClient,
+        attrs: MutableMapping[str, Any],
+        api_key: str | None = None,
+    ):
         super().__init__(attrs)
         self._client = client
         self._api_key = api_key
