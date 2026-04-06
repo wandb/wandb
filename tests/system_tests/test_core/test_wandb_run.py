@@ -2,11 +2,15 @@ import math
 import os
 import pickle
 import sys
+from pathlib import Path
 
 import numpy as np
+import PIL.Image
 import pytest
 import wandb
 from wandb.errors import UsageError
+
+from tests.fixtures.wandb_backend_spy import WandbBackendSpy
 
 
 def test_log_nan_inf(wandb_backend_spy):
@@ -90,6 +94,39 @@ def test_media_in_config(user, test_settings):
     with wandb.init(settings=test_settings()) as run:
         with pytest.raises(ValueError):
             run.config["image"] = wandb.Image(np.random.randint(0, 255, (100, 100, 3)))
+
+
+@pytest.mark.parametrize("allow_media_symlink", [True, False])
+def test_media_symlink(
+    tmp_path: Path,
+    wandb_backend_spy: WandbBackendSpy,
+    allow_media_symlink: bool,
+) -> None:
+    image_path = tmp_path / "source_image.png"
+    PIL.Image.fromarray(np.random.randint(0, 255, (10, 10, 3), dtype=np.uint8)).save(
+        image_path
+    )
+
+    run_dir = Path()
+    with wandb.init(
+        settings=wandb.Settings(allow_media_symlink=allow_media_symlink),
+    ) as run:
+        run.log({"image": wandb.Image(str(image_path))})
+        run_dir = Path(run.dir)
+
+    media_files = list(run_dir.glob("media/images/**/*.png"))
+    assert len(media_files) == 1
+    logged_file = media_files[0]
+
+    if allow_media_symlink:
+        assert logged_file.is_symlink() or os.path.samefile(logged_file, image_path)
+    else:
+        assert not logged_file.is_symlink()
+        assert not os.path.samefile(logged_file, image_path)
+
+    with wandb_backend_spy.freeze() as snapshot:
+        uploaded = snapshot.uploaded_files(run_id=run.id)
+        assert any(f.endswith(".png") for f in uploaded)
 
 
 def test_init_with_settings(user, test_settings):
@@ -282,3 +319,32 @@ def test_update_finish_state(wandb_backend_spy, update_finish_state):
 
     with wandb_backend_spy.freeze() as snapshot:
         assert snapshot.completed(run_id=run.id) is update_finish_state
+
+
+def test_pin_config_keys(wandb_backend_spy: WandbBackendSpy):
+    with wandb.init(config={"lr": 0.01, "links": "http://example.com"}) as run:
+        run.pin_config_keys(["links", "lr"])
+
+    with wandb_backend_spy.freeze() as snapshot:
+        config = snapshot.config(run_id=run.id)
+        assert config["_wandb"]["value"]["pinned_keys"] == ["links", "lr"]
+
+
+def test_pin_config_keys_replaces(wandb_backend_spy: WandbBackendSpy):
+    with wandb.init() as run:
+        run.pin_config_keys(["key1", "key2"])
+        run.pin_config_keys(["key3"])
+
+    with wandb_backend_spy.freeze() as snapshot:
+        config = snapshot.config(run_id=run.id)
+        assert config["_wandb"]["value"]["pinned_keys"] == ["key3"]
+
+
+def test_pin_config_keys_empty_list(wandb_backend_spy: WandbBackendSpy):
+    with wandb.init() as run:
+        run.pin_config_keys(["key1"])
+        run.pin_config_keys([])
+
+    with wandb_backend_spy.freeze() as snapshot:
+        config = snapshot.config(run_id=run.id)
+        assert config["_wandb"]["value"]["pinned_keys"] == []

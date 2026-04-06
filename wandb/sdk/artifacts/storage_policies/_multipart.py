@@ -6,9 +6,9 @@ import logging
 import math
 import threading
 from collections.abc import Iterator
-from concurrent.futures import FIRST_EXCEPTION, Executor, wait
+from concurrent.futures import FIRST_EXCEPTION, Executor, ThreadPoolExecutor, wait
 from dataclasses import dataclass, field
-from queue import Queue
+from queue import Full, Queue
 from typing import IO, TYPE_CHECKING, Any, Callable, Final, Union
 
 import requests
@@ -123,6 +123,21 @@ class MultipartDownloadContext:
         with self._url_lock:
             self._url_invalidated = True
 
+    def signal_writer_stop(self) -> None:
+        """Signal the writer thread to stop.
+
+        On the error path (cancel already set), uses non-blocking put to avoid
+        hanging on a full queue. On the success path, uses blocking put so the
+        writer drains all remaining chunks before stopping.
+        """
+        if self.cancel.is_set():
+            try:
+                self.q.put_nowait(END_CHUNK)
+            except Full:
+                pass
+        else:
+            self.q.put(END_CHUNK)
+
 
 def _download_chunk_with_refresh(
     ctx: MultipartDownloadContext,
@@ -219,8 +234,10 @@ def multipart_download(
 ) -> None:
     """Download file as multiple parts in parallel.
 
-    Uses one thread for writing to file. Each part runs one HTTP request in one thread.
-    HTTP response chunks are sent to the writer thread via a queue.
+    Uses one thread for writing to file (so it never competes with
+    the caller's executor for thread slots). Each part runs one HTTP request
+    submitted to the caller's executor.  HTTP response chunks are sent to the
+    writer thread via a queue.
 
     Args:
         executor: Thread pool executor for parallel downloads.
@@ -240,8 +257,10 @@ def multipart_download(
 
     # Put cache_open at top so we remove the tmp file when there is network error.
     with cached_open("wb") as f:
-        # Start writer thread first
-        write_future = executor.submit(_write_chunks, ctx, f)
+        # Writer runs on its own single-thread executor (not in the shared
+        # download executor) so it never competes for thread slots.
+        writer_executor = ThreadPoolExecutor(max_workers=1)
+        write_future = writer_executor.submit(_write_chunks, ctx, f)
 
         # Start download threads for each chunk
         download_futures = set()
@@ -271,12 +290,13 @@ def multipart_download(
             # Cancel any pending futures.  Note:
             # - `Future.cancel()` does NOT stop the future if it's running, which is why
             #   there's a separate `threading.Event` to ensure cooperative cancellation.
-            # - Once Python 3.8 support is dropped, replace these `fut.cancel()`
-            #   calls with `Executor.shutdown(cancel_futures=True)`.
+            # - Note: Though Python 3.8 support is dropped, we are not replacing
+            #   these `fut.cancel()` calls with `Executor.shutdown(cancel_futures=True)`
+            #   because this executor is shared across files. If we ever stop sharing
+            #   the executor, we can make this change.
             for fut in not_done:
                 fut.cancel()
             raise
         finally:
-            # Always signal the writer to stop
-            ctx.q.put(END_CHUNK)
+            ctx.signal_writer_stop()
             write_future.result()

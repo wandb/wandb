@@ -281,27 +281,6 @@ class TeamRegistryMemberFragment(GQLResult):
     role: RegistryRoleFragment
 
 
-class TypeInfoFragment(GQLResult):
-    name: Optional[str]
-    fields: Optional[List[TypeInfoFragmentFields]]
-    input_fields: Optional[List[TypeInfoFragmentInputFields]] = Field(
-        alias="inputFields"
-    )
-
-
-class TypeInfoFragmentFields(GQLResult):
-    name: str
-    args: List[TypeInfoFragmentFieldsArgs]
-
-
-class TypeInfoFragmentFieldsArgs(GQLResult):
-    name: str
-
-
-class TypeInfoFragmentInputFields(GQLResult):
-    name: str
-
-
 class UserRegistryMemberFragment(GQLResult):
     id: GQLId
     name: Optional[str]
@@ -365,9 +344,5 @@ TeamMemberFragment.model_rebuild()
 TeamRegistryMemberFragment.model_rebuild()
 TeamFragment.model_rebuild()
 RegistryRoleFragment.model_rebuild()
-TypeInfoFragment.model_rebuild()
-TypeInfoFragmentFields.model_rebuild()
-TypeInfoFragmentFieldsArgs.model_rebuild()
-TypeInfoFragmentInputFields.model_rebuild()
 UserRegistryMemberFragment.model_rebuild()
 RegistryRoleFragment.model_rebuild()

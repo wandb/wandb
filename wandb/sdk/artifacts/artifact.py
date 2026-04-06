@@ -110,6 +110,8 @@ logger = logging.getLogger(__name__)
 
 
 _MB: Final[int] = 1024 * 1024
+_FILE_EXECUTOR_WORKERS = 32
+_MP_EXECUTOR_WORKERS = 32
 
 
 class Artifact:
@@ -2053,9 +2055,11 @@ class Artifact:
 
         download_logger = ArtifactDownloadLogger(nfiles=nfiles)
 
-        def _download_entry(entry: ArtifactManifestEntry, executor: Executor) -> None:
+        def _download_entry(
+            entry: ArtifactManifestEntry, mp_executor: Executor
+        ) -> None:
             multipart_executor = (
-                executor
+                mp_executor
                 if should_multipart_download(entry.size, override=multipart)
                 else None
             )
@@ -2081,7 +2085,10 @@ class Artifact:
                 return
             download_logger.notify_downloaded()
 
-        with ThreadPoolExecutor(max_workers=64) as executor:
+        with (
+            ThreadPoolExecutor(max_workers=_FILE_EXECUTOR_WORKERS) as file_executor,
+            ThreadPoolExecutor(max_workers=_MP_EXECUTOR_WORKERS) as mp_executor,
+        ):
             batch_size = env.get_artifact_fetch_file_url_batch_size()
 
             active_futures = set()
@@ -2103,7 +2110,9 @@ class Artifact:
                     entry._download_url = node.direct_url
                     if (not path_prefix) or entry.path.startswith(str(path_prefix)):
                         active_futures.add(
-                            executor.submit(_download_entry, entry, executor=executor)
+                            file_executor.submit(
+                                _download_entry, entry, mp_executor=mp_executor
+                            )
                         )
 
                 # Wait for download threads to catch up.

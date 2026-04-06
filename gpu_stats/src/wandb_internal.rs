@@ -596,6 +596,9 @@ pub struct Deprecated {
     /// wandb.beta.workflows.link_model() called
     #[prost(bool, tag = "30")]
     pub beta_workflows_link_model: bool,
+    /// wandb.integration.kfp.wandb_log used with kfp\<2.0.0
+    #[prost(bool, tag = "31")]
+    pub kfp_v1_wandb_log: bool,
 }
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct Issues {
