@@ -32,7 +32,6 @@ def _singleton(
     project: str | None = "default-project",
     api_key: str | None = None,
     mode: str = "online",
-    offline: bool = False,
     most_recent_active_run=None,
 ):
     settings = {
@@ -42,7 +41,6 @@ def _singleton(
         "identity_token_file": None,
         "credentials_file": None,
         "mode": mode,
-        "_offline": offline,
         "base_url": "https://api.wandb.ai",
         "app_url": "https://wandb.ai",
     }

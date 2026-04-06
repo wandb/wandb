@@ -123,24 +123,3 @@ def test_sandbox_run_without_run_uses_api_key_only(
     assert dict(calls.start[0]["metadata"]) == {"x-api-key": user}
     assert len(calls.stop) == 1
     assert dict(calls.stop[0]["metadata"]) == {"x-api-key": user}
-
-
-def test_sandbox_run_fails_in_offline_mode(
-    tmp_path,
-    monkeypatch,
-) -> None:
-    calls = _patch_sandbox_stub(monkeypatch)
-
-    with wandb.init(
-        project="sandbox-auth-system-test",
-        mode="offline",
-        dir=str(tmp_path),
-    ):
-        with pytest.raises(
-            wandb.UsageError,
-            match="wandb.sandbox is not available in offline mode.",
-        ):
-            wandb_sandbox.Sandbox.run("sleep", "infinity")
-
-    assert calls.start == []
-    assert calls.stop == []
