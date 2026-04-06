@@ -1452,6 +1452,24 @@ class Run:
 
     @_log_to_run
     @_raise_if_finished
+    @_attach
+    def pin_config_keys(self, keys: Sequence[str] = ()) -> None:
+        """Pin config keys to display in the References section on Run Overview.
+
+        Pinned keys appear prominently above Notes on the Run Overview page.
+        String values are rendered as markdown; non-strings are rendered as
+        plain text. Calling this again replaces the previously pinned list.
+
+        Args:
+            keys: Config key names to pin, matching keys set via
+                ``run.config``. These are exact key strings (dots and
+                slashes are treated literally, not as path separators).
+                Order is preserved and determines display order.
+        """
+        self._set_config_wandb("pinned_keys", list(keys))
+
+    @_log_to_run
+    @_raise_if_finished
     def _summary_update_callback(self, summary_record: SummaryRecord) -> None:
         with telemetry.context(run=self) as tel:
             tel.feature.set_summary = True

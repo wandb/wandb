@@ -116,6 +116,9 @@ mark_preempting = _preinit.PreInitCallable(
 )
 
 alert = _preinit.PreInitCallable("wandb.alert", Run.alert)  # type: ignore
+pin_config_keys = _preinit.PreInitCallable(
+    "wandb.pin_config_keys", Run.pin_config_keys  # type: ignore
+)
 
 # record of patched libraries
 patched = {"tensorboard": [], "keras": [], "gym": []}  # type: ignore

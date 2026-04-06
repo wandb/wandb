@@ -205,7 +205,8 @@ var metricDefs = []MetricDef{
 	// TPU metrics — latency distributions (labeled: .label.statUs)
 	{Name: "TPU Buffer Transfer Latency", Unit: UnitScalar, MinY: 0, MaxY: 10000, AutoRange: true,
 		Regex: regexp.MustCompile(`^tpu\.bufferTransferLatency\..+$`)},
-	{Name: "TPU Inbound Buffer Transfer Latency", Unit: UnitScalar, MinY: 0, MaxY: 10000, AutoRange: true,
+	{Name: "TPU Inbound Buffer Transfer Latency",
+		Unit: UnitScalar, MinY: 0, MaxY: 10000, AutoRange: true,
 		Regex: regexp.MustCompile(`^tpu\.inboundBufferTransferLatency\..+$`)},
 	{Name: "TPU Host-to-Device Latency", Unit: UnitScalar, MinY: 0, MaxY: 10000, AutoRange: true,
 		Regex: regexp.MustCompile(`^tpu\.hostToDeviceTransferLatency\..+$`)},

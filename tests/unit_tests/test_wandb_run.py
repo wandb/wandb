@@ -36,6 +36,7 @@ REFERENCE_ATTRIBUTES = set(
         "notes",
         "offline",
         "path",
+        "pin_config_keys",
         "project",
         "project_name",
         "project_url",
