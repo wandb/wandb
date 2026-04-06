@@ -607,6 +607,8 @@ def mypy_report(session: nox.Session) -> None:
     """
     session.install(
         "bokeh",
+        # wandb.sandbox imports typed symbols from the optional cwsandbox package.
+        "cwsandbox[cli]",
         "ipython",
         "lxml",
         # https://github.com/python/mypy/issues/17166

@@ -14,6 +14,8 @@ from wandb.analytics import get_sentry
 from wandb.errors import WandbCoreNotAvailableError
 from wandb.util import get_core_path
 
+from .beta_sandbox import SandboxGroup
+
 
 class DefaultCommandGroup(click.Group):
     """A click Group that falls through to a default command.
@@ -44,7 +46,6 @@ def beta() -> None:
     These commands may change or even completely break in any release of wandb.
     """
     get_sentry().configure_scope(process_context="wandb_beta")
-
     try:
         get_core_path()
     except WandbCoreNotAvailableError as e:
@@ -276,6 +277,11 @@ def core() -> None:
     The shared service exits after 10 minutes of idleness by default.
     Override this with --idle-timeout on the start command.
     """
+
+
+@beta.group(cls=SandboxGroup)
+def sandbox() -> None:
+    """Manage CoreWeave sandboxes through the W&B CLI."""
 
 
 @core.command()

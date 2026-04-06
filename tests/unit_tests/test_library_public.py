@@ -101,6 +101,7 @@ SYMBOLS_ROOT_OTHER = {
     "run",
     "sacred",
     "sagemaker_auth",
+    "sandbox",
     "save",
     "sdk",
     "set_trace",
