@@ -1,18 +1,16 @@
 from __future__ import annotations
 
 import sys
-import types
 from dataclasses import dataclass, field
 
 import pytest
 import wandb
-import wandb.sandbox as wandb_sandbox
 
 if sys.version_info < (3, 11):
     pytest.skip("wandb.sandbox requires Python 3.11+", allow_module_level=True)
 
 import cwsandbox._sandbox as cwsandbox_sandbox
-
+import wandb.sandbox as wandb_sandbox
 
 class _FakeChannel:
     async def close(self, grace=None) -> None:
@@ -27,15 +25,12 @@ class _SandboxStubCalls:
 
 def _patch_sandbox_stub(
     monkeypatch: pytest.MonkeyPatch,
-    *,
-    include_stop: bool,
 ) -> _SandboxStubCalls:
     calls = _SandboxStubCalls()
 
     class _FakeSandboxStub:
         def __init__(self, channel) -> None:
             self._channel = channel
-            self._include_stop = include_stop
 
         async def Start(self, request, timeout=None, metadata=None):  # noqa: N802
             calls.start.append(
@@ -45,7 +40,7 @@ def _patch_sandbox_stub(
                     "metadata": metadata,
                 }
             )
-            return types.SimpleNamespace(
+            return cwsandbox_sandbox.atc_pb2.StartSandboxResponse(
                 sandbox_id="sb-system-test",
                 service_address="",
                 exposed_ports=[],
@@ -54,8 +49,6 @@ def _patch_sandbox_stub(
             )
 
         async def Stop(self, request, timeout=None, metadata=None):  # noqa: N802
-            if not self._include_stop:
-                pytest.fail("Stop should not be called in this test")
             calls.stop.append(
                 {
                     "request": request,
@@ -63,7 +56,10 @@ def _patch_sandbox_stub(
                     "metadata": metadata,
                 }
             )
-            return types.SimpleNamespace(success=True, error_message="")
+            return cwsandbox_sandbox.atc_pb2.StopSandboxResponse(
+                success=True,
+                error_message="",
+            )
 
     monkeypatch.setattr(
         cwsandbox_sandbox,
@@ -83,7 +79,7 @@ def test_sandbox_run_uses_active_wandb_run_auth_headers(
     tmp_path,
     monkeypatch,
 ) -> None:
-    calls = _patch_sandbox_stub(monkeypatch, include_stop=True)
+    calls = _patch_sandbox_stub(monkeypatch)
 
     with wandb.init(
         project="sandbox-auth-system-test",
@@ -109,7 +105,7 @@ def test_sandbox_run_without_run_uses_api_key_only(
     user,
     monkeypatch,
 ) -> None:
-    calls = _patch_sandbox_stub(monkeypatch, include_stop=True)
+    calls = _patch_sandbox_stub(monkeypatch)
 
     monkeypatch.delenv("WANDB_ENTITY", raising=False)
     monkeypatch.delenv("WANDB_PROJECT", raising=False)
@@ -132,7 +128,7 @@ def test_sandbox_run_fails_in_offline_mode(
     tmp_path,
     monkeypatch,
 ) -> None:
-    calls = _patch_sandbox_stub(monkeypatch, include_stop=False)
+    calls = _patch_sandbox_stub(monkeypatch)
 
     with wandb.init(
         project="sandbox-auth-system-test",
@@ -146,3 +142,4 @@ def test_sandbox_run_fails_in_offline_mode(
             wandb_sandbox.Sandbox.run("sleep", "infinity")
 
     assert calls.start == []
+    assert calls.stop == []
