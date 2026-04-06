@@ -57,9 +57,10 @@ def mock_gcs(
         def get_blob(self, key, *args, **kwargs):
             generation = kwargs.get("generation")
             for blob in normalized_blobs:
-                if blob.name == key:
-                    if generation is None or blob.generation == generation:
-                        return blob
+                if blob.name == key and (
+                    generation is None or blob.generation == generation
+                ):
+                    return blob
             return None
 
         # https://docs.cloud.google.com/python/docs/reference/storage/latest/google.cloud.storage.bucket.Bucket#google_cloud_storage_bucket_Bucket_list_blobs

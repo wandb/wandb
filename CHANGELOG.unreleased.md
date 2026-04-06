@@ -45,3 +45,5 @@ This version drops compatibility with server versions older than 0.63.0 (for Ded
 - Fixed artifact client ID collisions in forked child processes by reseeding the fast ID generator after `fork()` (@tonyyli-wandb in https://github.com/wandb/wandb/pull/11491)
 - Fixed `WANDB__EXTRA_HTTP_HEADERS` not being applied to presigned object-store upload and download requests (@pingleiwandb in https://github.com/wandb/wandb/pull/11620)
 - Fixed deadlock in `artifact.download()` for artifacts with many large files. (@amusipatla-wandb in https://github.com/wandb/wandb/pull/11615)
+- Fixed `artifact.add_reference("gs://...")` to use `list_blobs` instead of `get_blob` when tracking external files on Google Cloud Storage. Accessing public buckets with anonymous credentials still uses `get_blob`.
+  (@pingleiwandb in https://github.com/wandb/wandb/pull/11145)
