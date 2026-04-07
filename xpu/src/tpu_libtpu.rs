@@ -16,25 +16,37 @@ use async_trait::async_trait;
 use libloading::{Library, Symbol};
 use log::{debug, warn};
 use std::collections::HashMap;
-use std::ffi::{CStr, CString};
+use std::ffi::{CStr, CString, c_void};
+use std::net::{SocketAddr, TcpStream};
 use std::os::raw::c_char;
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
-use tonic::transport::Channel;
+use std::sync::{Mutex, MutexGuard};
+use std::time::Duration;
+use tonic::transport::{Channel, Endpoint};
 
 // ============================================================
 // Public monitor — orchestrates SDK + gRPC
 // ============================================================
 
 pub struct TpuMonitor {
-    sdk: Option<SdkClient>,
+    sdk: Option<Mutex<SdkClient>>,
     grpc: Mutex<Option<GrpcClient>>,
+}
+
+fn lock_or_recover<'a, T>(mutex: &'a Mutex<T>, name: &str) -> MutexGuard<'a, T> {
+    match mutex.lock() {
+        Ok(guard) => guard,
+        Err(poisoned) => {
+            warn!("{name} mutex was poisoned; recovering");
+            poisoned.into_inner()
+        }
+    }
 }
 
 impl TpuMonitor {
     pub fn new() -> Option<Self> {
-        let sdk = SdkClient::new();
-        let grpc_available = is_grpc_available();
+        let sdk = SdkClient::new().map(Mutex::new);
+        let grpc_available = is_grpc_available_now();
 
         if sdk.is_none() && !grpc_available {
             return None;
@@ -44,7 +56,7 @@ impl TpuMonitor {
             debug!("TPU: libtpu SDK client initialized");
         }
         if grpc_available {
-            debug!("TPU: gRPC runtime service available on localhost:8431");
+            debug!("TPU: gRPC runtime service available on 127.0.0.1:8431");
         }
 
         Some(Self {
@@ -53,46 +65,44 @@ impl TpuMonitor {
         })
     }
 
-    fn collect_tpu_metrics(&self) -> Vec<(String, MetricValue)> {
+    async fn collect_tpu_metrics(&self) -> Vec<(String, MetricValue)> {
         let mut metrics = Vec::new();
         let mut sdk_failures = Vec::new();
 
         // Phase 1: collect everything we can from the SDK.
         if let Some(sdk) = &self.sdk {
-            let resolved = sdk.resolve_metrics();
+            let mut sdk = lock_or_recover(sdk, "tpu sdk");
             for desired in DESIRED_METRICS {
-                if let Some(actual_name) = resolved.get(desired.logical_name) {
-                    match sdk.read_metric(actual_name) {
+                if let Some(actual_name) = sdk.resolve_metric_name(desired) {
+                    match sdk.read_metric(&actual_name) {
                         Ok(data) => {
                             format_metric(desired.logical_name, &data, &mut metrics);
                             continue;
                         }
                         Err(e) => {
                             debug!("TPU SDK {}: {e}", desired.logical_name);
-                            sdk_failures.push(desired.logical_name);
                         }
                     }
-                } else {
-                    sdk_failures.push(desired.logical_name);
                 }
+                sdk_failures.push(desired.logical_name);
             }
         } else {
             sdk_failures.extend(DESIRED_METRICS.iter().map(|d| d.logical_name));
         }
 
         // Phase 2: fill gaps from gRPC.
-        if !sdk_failures.is_empty() {
-            if let Some(grpc) = self.get_grpc_client() {
-                for logical_name in sdk_failures {
-                    if let Some(grpc_name) = GRPC_METRIC_MAP.get(logical_name) {
-                        match grpc.get_metric(grpc_name) {
-                            Ok(tpu_metric) => {
-                                format_grpc_metric(logical_name, &tpu_metric, &mut metrics);
-                            }
-                            Err(e) => {
-                                debug!("TPU gRPC {logical_name}: {e}");
-                            }
-                        }
+        if !sdk_failures.is_empty() && is_grpc_available().await {
+            let grpc = self.get_grpc_client();
+            for logical_name in sdk_failures {
+                let Some(grpc_name) = GRPC_METRIC_MAP.get(logical_name) else {
+                    continue;
+                };
+                match grpc.get_metric(grpc_name).await {
+                    Ok(tpu_metric) => {
+                        format_grpc_metric(logical_name, &tpu_metric, &mut metrics);
+                    }
+                    Err(e) => {
+                        debug!("TPU gRPC {logical_name}: {e}");
                     }
                 }
             }
@@ -101,12 +111,9 @@ impl TpuMonitor {
         metrics
     }
 
-    fn get_grpc_client(&self) -> Option<GrpcClient> {
-        let mut guard = self.grpc.lock().unwrap();
-        if guard.is_none() {
-            *guard = GrpcClient::new();
-        }
-        guard.clone()
+    fn get_grpc_client(&self) -> GrpcClient {
+        let mut guard = lock_or_recover(&self.grpc, "tpu grpc");
+        guard.get_or_insert_with(GrpcClient::new).clone()
     }
 }
 
@@ -117,7 +124,7 @@ impl GpuMonitor for TpuMonitor {
         _pid: i32,
         _gpu_device_ids: Option<Vec<i32>>,
     ) -> Result<Vec<(String, MetricValue)>, Box<dyn std::error::Error>> {
-        Ok(self.collect_tpu_metrics())
+        Ok(self.collect_tpu_metrics().await)
     }
 
     async fn collect_metadata(
@@ -247,7 +254,7 @@ static GRPC_METRIC_MAP: std::sync::LazyLock<HashMap<&'static str, &'static str>>
 // ============================================================
 
 // Vtable byte offsets from start of LibtpuSdkApi struct.
-// Verified against libtpu and 0.0.38 (VERS_1.0 ABI).
+// Verified against libtpu 0.0.38 (VERS_1.0 ABI).
 const OFF_ERROR_MESSAGE: usize = 0x08;
 const OFF_DESTROY_ERROR: usize = 0x10;
 const OFF_CREATE_CLIENT: usize = 0x20;
@@ -256,10 +263,58 @@ const OFF_GET_METRIC: usize = 0x50;
 const OFF_GET_METRIC_DESC: usize = 0x58;
 const OFF_GET_METRIC_VALS: usize = 0x60;
 
-type ApiFn = unsafe extern "C" fn(*mut std::ffi::c_void) -> *mut std::ffi::c_void;
+const SDK_API_HEADER_0: u32 = 0;
+const SDK_API_HEADER_1: u32 = 1;
+const MAX_SDK_STRING_LEN: usize = 64 * 1024;
+const MAX_SDK_VALUE_COUNT: usize = 4096;
+const REQUIRED_VTABLE_SLOTS: &[(&str, usize)] = &[
+    ("ErrorMessage", OFF_ERROR_MESSAGE),
+    ("DestroyError", OFF_DESTROY_ERROR),
+    ("CreateClient", OFF_CREATE_CLIENT),
+    ("DestroyClient", OFF_DESTROY_CLIENT),
+    ("GetMetric", OFF_GET_METRIC),
+    ("GetMetricDescription", OFF_GET_METRIC_DESC),
+    ("GetMetricValues", OFF_GET_METRIC_VALS),
+];
+
+type RawApiFn = *const ();
+type ApiFn = unsafe extern "C" fn(*mut c_void) -> *mut c_void;
+
+unsafe fn read_vtable_slot(api: *const u8, offset: usize) -> RawApiFn {
+    unsafe { std::ptr::read_unaligned(api.add(offset) as *const RawApiFn) }
+}
+
+unsafe fn validate_api(api: *const u8) -> Result<(), String> {
+    if api.is_null() {
+        return Err("GetLibtpuSdkApi() returned NULL".to_string());
+    }
+
+    let h0 = unsafe { std::ptr::read_unaligned(api as *const u32) };
+    let h1 = unsafe { std::ptr::read_unaligned(api.add(4) as *const u32) };
+    if h0 != SDK_API_HEADER_0 || h1 != SDK_API_HEADER_1 {
+        return Err(format!(
+            "unexpected LibtpuSdkApi header: h0={h0}, h1={h1}, expected 0/1"
+        ));
+    }
+
+    for (name, offset) in REQUIRED_VTABLE_SLOTS {
+        if unsafe { read_vtable_slot(api, *offset) }.is_null() {
+            return Err(format!(
+                "required libtpu slot {name} at offset {offset:#x} was NULL"
+            ));
+        }
+    }
+
+    Ok(())
+}
 
 unsafe fn vtable_fn(api: *const u8, offset: usize) -> ApiFn {
-    unsafe { std::ptr::read(api.add(offset) as *const ApiFn) }
+    let slot = unsafe { read_vtable_slot(api, offset) };
+    debug_assert!(
+        !slot.is_null(),
+        "validated libtpu slot at {offset:#x} was NULL"
+    );
+    unsafe { std::mem::transmute::<RawApiFn, ApiFn>(slot) }
 }
 
 struct SdkMetricData {
@@ -270,76 +325,94 @@ struct SdkMetricData {
 struct SdkClient {
     _lib: Library,
     api_ptr: *const u8,
-    client: *mut std::ffi::c_void,
-    resolved: Mutex<Option<HashMap<String, String>>>,
+    client: *mut c_void,
+    resolved: HashMap<String, String>,
 }
 
+// SAFETY: `SdkClient` owns a libloading handle and an opaque SDK client pointer.
+// Access is serialized by `TpuMonitor`'s outer `Mutex`, so moving it across
+// threads is acceptable, but shared unsynchronized access is not.
 unsafe impl Send for SdkClient {}
-unsafe impl Sync for SdkClient {}
 
 impl SdkClient {
     fn new() -> Option<Self> {
-        let path = find_libtpu_path()?;
+        let Some(path) = find_libtpu_path() else {
+            debug!("TPU: libtpu.so not found in standard locations");
+            return None;
+        };
+
+        match Self::try_new(&path) {
+            Ok(client) => Some(client),
+            Err(e) => {
+                warn!("TPU: {e}");
+                None
+            }
+        }
+    }
+
+    fn try_new(path: &Path) -> Result<Self, String> {
         debug!("Loading libtpu from: {}", path.display());
 
-        let lib = unsafe { Library::new(&path) }.ok()?;
+        let lib = unsafe { Library::new(path) }
+            .map_err(|e| format!("failed to load {}: {e}", path.display()))?;
         let api_ptr: *const u8 = unsafe {
             let get_api: Symbol<unsafe extern "C" fn() -> *const u8> =
-                lib.get(b"GetLibtpuSdkApi").ok()?;
+                lib.get(b"GetLibtpuSdkApi").map_err(|e| {
+                    format!(
+                        "failed to resolve GetLibtpuSdkApi in {}: {e}",
+                        path.display()
+                    )
+                })?;
             get_api()
         };
-        if api_ptr.is_null() {
-            warn!("GetLibtpuSdkApi() returned NULL");
-            return None;
-        }
+        unsafe { validate_api(api_ptr) }
+            .map_err(|e| format!("invalid libtpu SDK API from {}: {e}", path.display()))?;
 
         #[repr(C)]
         struct CreateClientArgs {
-            client: *mut std::ffi::c_void,
+            client: *mut c_void,
         }
 
         let client = unsafe {
             let mut args = CreateClientArgs {
                 client: std::ptr::null_mut(),
             };
-            let err =
-                vtable_fn(api_ptr, OFF_CREATE_CLIENT)((&raw mut args) as *mut std::ffi::c_void);
+            let err = vtable_fn(api_ptr, OFF_CREATE_CLIENT)((&raw mut args) as *mut c_void);
             if !err.is_null() {
-                let msg = read_error(api_ptr, err);
-                warn!("libtpu CreateClient failed: {msg}");
-                return None;
+                return Err(format!(
+                    "libtpu CreateClient failed: {}",
+                    read_error(api_ptr, err)
+                ));
             }
             args.client
         };
         if client.is_null() {
-            warn!("libtpu CreateClient returned null");
-            return None;
+            return Err("libtpu CreateClient returned a null client".to_string());
         }
 
-        Some(Self {
+        Ok(Self {
             _lib: lib,
             api_ptr,
             client,
-            resolved: Mutex::new(None),
+            resolved: HashMap::new(),
         })
     }
 
-    fn resolve_metrics(&self) -> HashMap<String, String> {
-        let mut guard = self.resolved.lock().unwrap();
-        if let Some(ref r) = *guard {
-            return r.clone();
+    fn resolve_metric_name(&mut self, desired: &DesiredMetric) -> Option<String> {
+        if let Some(resolved) = self.resolved.get(desired.logical_name) {
+            return Some(resolved.clone());
         }
-        let mut resolved = HashMap::new();
-        for desired in DESIRED_METRICS {
-            for alias in desired.sdk_aliases {
-                if self.read_metric(alias).is_ok() {
-                    resolved.insert(desired.logical_name.to_string(), alias.to_string());
-                    break;
-                }
+
+        for alias in desired.sdk_aliases {
+            if self.read_metric(alias).is_ok() {
+                let alias = (*alias).to_string();
+                self.resolved
+                    .insert(desired.logical_name.to_string(), alias.clone());
+                return Some(alias);
             }
         }
-        *guard = Some(resolved.clone());
-        resolved
+
+        None
     }
 
     fn read_metric(&self, name: &str) -> Result<SdkMetricData, String> {
@@ -347,9 +420,9 @@ impl SdkClient {
 
         #[repr(C)]
         struct GetMetricArgs {
-            client: *mut std::ffi::c_void,
+            client: *mut c_void,
             metric_name: *const c_char,
-            metric: *mut std::ffi::c_void,
+            metric: *mut c_void,
         }
 
         let metric = unsafe {
@@ -358,20 +431,19 @@ impl SdkClient {
                 metric_name: cname.as_ptr(),
                 metric: std::ptr::null_mut(),
             };
-            let err =
-                vtable_fn(self.api_ptr, OFF_GET_METRIC)((&raw mut args) as *mut std::ffi::c_void);
+            let err = vtable_fn(self.api_ptr, OFF_GET_METRIC)((&raw mut args) as *mut c_void);
             if !err.is_null() {
                 return Err(read_error(self.api_ptr, err));
             }
             if args.metric.is_null() {
-                return Err(format!("GetMetric({name}): null"));
+                return Err(format!("GetMetric({name}) returned a null handle"));
             }
             args.metric
         };
 
         #[repr(C)]
         struct GetDescArgs {
-            metric: *mut std::ffi::c_void,
+            metric: *mut c_void,
             description: *const c_char,
             description_len: usize,
         }
@@ -382,14 +454,23 @@ impl SdkClient {
                 description: std::ptr::null(),
                 description_len: 0,
             };
-            let err = vtable_fn(self.api_ptr, OFF_GET_METRIC_DESC)(
-                (&raw mut args) as *mut std::ffi::c_void,
-            );
+            let err = vtable_fn(self.api_ptr, OFF_GET_METRIC_DESC)((&raw mut args) as *mut c_void);
             if !err.is_null() {
                 return Err(read_error(self.api_ptr, err));
             }
-            if args.description.is_null() || args.description_len == 0 {
+            if args.description_len > MAX_SDK_STRING_LEN {
+                return Err(format!(
+                    "GetMetricDescription({name}) returned {} bytes, over the {} byte cap",
+                    args.description_len, MAX_SDK_STRING_LEN
+                ));
+            }
+            if args.description_len == 0 {
                 String::new()
+            } else if args.description.is_null() {
+                return Err(format!(
+                    "GetMetricDescription({name}) returned a null description with len {}",
+                    args.description_len
+                ));
             } else {
                 let slice =
                     std::slice::from_raw_parts(args.description as *const u8, args.description_len);
@@ -399,7 +480,7 @@ impl SdkClient {
 
         #[repr(C)]
         struct GetValsArgs {
-            metric: *mut std::ffi::c_void,
+            metric: *mut c_void,
             values: *const *const c_char,
             value_count: usize,
         }
@@ -410,11 +491,21 @@ impl SdkClient {
                 values: std::ptr::null(),
                 value_count: 0,
             };
-            let err = vtable_fn(self.api_ptr, OFF_GET_METRIC_VALS)(
-                (&raw mut args) as *mut std::ffi::c_void,
-            );
+            let err = vtable_fn(self.api_ptr, OFF_GET_METRIC_VALS)((&raw mut args) as *mut c_void);
             if !err.is_null() {
                 return Err(read_error(self.api_ptr, err));
+            }
+            if args.value_count > MAX_SDK_VALUE_COUNT {
+                return Err(format!(
+                    "GetMetricValues({name}) returned {} values, over the {} value cap",
+                    args.value_count, MAX_SDK_VALUE_COUNT
+                ));
+            }
+            if args.value_count > 0 && args.values.is_null() {
+                return Err(format!(
+                    "GetMetricValues({name}) returned a null values pointer with count {}",
+                    args.value_count
+                ));
             }
             (0..args.value_count)
                 .map(|i| {
@@ -437,50 +528,63 @@ impl SdkClient {
 
 impl Drop for SdkClient {
     fn drop(&mut self) {
-        if !self.client.is_null() {
-            #[repr(C)]
-            struct DestroyClientArgs {
-                client: *mut std::ffi::c_void,
-            }
-            unsafe {
-                let mut args = DestroyClientArgs {
-                    client: self.client,
-                };
-                vtable_fn(self.api_ptr, OFF_DESTROY_CLIENT)(
-                    (&raw mut args) as *mut std::ffi::c_void,
-                );
-            }
+        if self.client.is_null() {
+            return;
+        }
+
+        #[repr(C)]
+        struct DestroyClientArgs {
+            client: *mut c_void,
+        }
+
+        let err = unsafe {
+            let mut args = DestroyClientArgs {
+                client: self.client,
+            };
+            vtable_fn(self.api_ptr, OFF_DESTROY_CLIENT)((&raw mut args) as *mut c_void)
+        };
+        if !err.is_null() {
+            debug!("libtpu DestroyClient failed: {}", unsafe {
+                read_error(self.api_ptr, err)
+            });
         }
     }
 }
 
 #[repr(C)]
 struct ErrorMessageArgs {
-    error: *mut std::ffi::c_void,
+    error: *mut c_void,
     message: *const c_char,
     message_len: usize,
 }
 
 #[repr(C)]
 struct DestroyErrorArgs {
-    error: *mut std::ffi::c_void,
+    error: *mut c_void,
 }
 
-unsafe fn read_error(api_ptr: *const u8, err: *mut std::ffi::c_void) -> String {
+unsafe fn read_error(api_ptr: *const u8, err: *mut c_void) -> String {
     let mut msg_args = ErrorMessageArgs {
         error: err,
         message: std::ptr::null(),
         message_len: 0,
     };
-    unsafe { vtable_fn(api_ptr, OFF_ERROR_MESSAGE)((&raw mut msg_args) as *mut std::ffi::c_void) };
+    unsafe { vtable_fn(api_ptr, OFF_ERROR_MESSAGE)((&raw mut msg_args) as *mut c_void) };
     let msg = if !msg_args.message.is_null() && msg_args.message_len > 0 {
-        let s = unsafe { std::slice::from_raw_parts(msg_args.message as *const u8, msg_args.message_len) };
+        let len = msg_args.message_len.min(MAX_SDK_STRING_LEN);
+        if msg_args.message_len > MAX_SDK_STRING_LEN {
+            warn!(
+                "libtpu error message was truncated from {} to {} bytes",
+                msg_args.message_len, len
+            );
+        }
+        let s = unsafe { std::slice::from_raw_parts(msg_args.message as *const u8, len) };
         String::from_utf8_lossy(s).into_owned()
     } else {
         "unknown error".to_string()
     };
     let mut d = DestroyErrorArgs { error: err };
-    unsafe { vtable_fn(api_ptr, OFF_DESTROY_ERROR)((&raw mut d) as *mut std::ffi::c_void) };
+    unsafe { vtable_fn(api_ptr, OFF_DESTROY_ERROR)((&raw mut d) as *mut c_void) };
     msg
 }
 
@@ -488,7 +592,14 @@ unsafe fn read_error(api_ptr: *const u8, err: *mut std::ffi::c_void) -> String {
 // gRPC client — localhost:8431 fallback
 // ============================================================
 
-const GRPC_ADDR: &str = "http://localhost:8431";
+const GRPC_ADDR: &str = "http://127.0.0.1:8431";
+const GRPC_PROBE_TIMEOUT: Duration = Duration::from_millis(100);
+const GRPC_CONNECT_TIMEOUT: Duration = Duration::from_millis(250);
+const GRPC_REQUEST_TIMEOUT: Duration = Duration::from_millis(500);
+
+fn grpc_socket_addr() -> SocketAddr {
+    SocketAddr::from(([127, 0, 0, 1], 8431))
+}
 
 #[derive(Clone)]
 struct GrpcClient {
@@ -496,45 +607,47 @@ struct GrpcClient {
 }
 
 impl GrpcClient {
-    fn new() -> Option<Self> {
-        let rt = tokio::runtime::Handle::try_current().ok()?;
-        let channel = rt.block_on(async {
-            Channel::from_static(GRPC_ADDR)
-                .connect_timeout(std::time::Duration::from_secs(2))
-                .connect()
-                .await
-                .ok()
-        })?;
-        Some(Self {
+    fn new() -> Self {
+        let channel = Endpoint::from_static(GRPC_ADDR)
+            .connect_timeout(GRPC_CONNECT_TIMEOUT)
+            .timeout(GRPC_REQUEST_TIMEOUT)
+            .connect_lazy();
+        Self {
             client: proto::runtime_metric_service_client::RuntimeMetricServiceClient::new(channel),
-        })
+        }
     }
 
-    fn get_metric(&self, metric_name: &str) -> Result<proto::TpuMetric, String> {
+    async fn get_metric(&self, metric_name: &str) -> Result<proto::TpuMetric, String> {
         let mut client = self.client.clone();
-        let name = metric_name.to_string();
-        let rt = tokio::runtime::Handle::try_current().map_err(|e| e.to_string())?;
-        rt.block_on(async {
-            let resp = client
-                .get_runtime_metric(proto::MetricRequest {
-                    metric_name: name,
-                    skip_node_aggregation: false,
-                })
-                .await
-                .map_err(|e| e.to_string())?;
-            resp.into_inner()
-                .metric
-                .ok_or_else(|| "empty response".to_string())
-        })
+        let mut request = tonic::Request::new(proto::MetricRequest {
+            metric_name: metric_name.to_string(),
+            skip_node_aggregation: false,
+        });
+        request.set_timeout(GRPC_REQUEST_TIMEOUT);
+        let resp = client
+            .get_runtime_metric(request)
+            .await
+            .map_err(|e| e.to_string())?;
+        resp.into_inner()
+            .metric
+            .ok_or_else(|| format!("metric {metric_name} returned an empty response"))
     }
 }
 
-fn is_grpc_available() -> bool {
-    std::net::TcpStream::connect_timeout(
-        &"127.0.0.1:8431".parse().unwrap(),
-        std::time::Duration::from_millis(500),
+fn is_grpc_available_now() -> bool {
+    TcpStream::connect_timeout(&grpc_socket_addr(), GRPC_PROBE_TIMEOUT).is_ok()
+}
+
+async fn is_grpc_available() -> bool {
+    match tokio::time::timeout(
+        GRPC_PROBE_TIMEOUT,
+        tokio::net::TcpStream::connect(grpc_socket_addr()),
     )
-    .is_ok()
+    .await
+    {
+        Ok(Ok(_)) => true,
+        Ok(Err(_)) | Err(_) => false,
+    }
 }
 
 // ============================================================
@@ -887,7 +1000,7 @@ fn bucket_range(bounds: &[f64], index: usize) -> (f64, f64) {
         0 => (0.0, bounds[0]),
         i if i <= bounds.len() => (bounds[i - 1], bounds[i.min(bounds.len() - 1)]),
         _ => {
-            let last = *bounds.last().unwrap();
+            let last = bounds.last().copied().unwrap_or(0.0);
             (last, last)
         }
     }
