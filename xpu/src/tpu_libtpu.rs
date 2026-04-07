@@ -1525,22 +1525,26 @@ mod tests {
         assert_eq!(bucket_range(&[], 0), (0.0, 0.0));
     }
 
-    // ---- libtpu.so integration test ----
+    // ---- libtpu.so integration tests ----
     //
-    // Downloads libtpu from PyPI, extracts libtpu.so, loads it, and verifies
-    // the vtable is functional. Marked #[ignore] — needs network + pip.
+    // test_libtpu_sdk_vtable: Downloads libtpu from PyPI, validates the
+    // vtable header and slot pointers. Safe to run anywhere (no TPU needed).
+    // Needs network + pip.
     //
-    // To run manually:
-    //   cargo test --verbose -- --include-ignored test_libtpu_sdk --nocapture
+    // test_libtpu_sdk_create_client: Actually calls CreateClient/GetMetric.
+    // Requires TPU hardware — CreateClient segfaults without the GCP
+    // metadata service. Only run on TPU VMs.
+    //
+    // To run:
+    //   cargo test -- --include-ignored test_libtpu_sdk_vtable --nocapture
+    //   # On a TPU VM only:
+    //   cargo test -- --include-ignored test_libtpu_sdk_create_client --nocapture
 
     #[test]
     #[ignore] // needs network + pip to download libtpu wheel from PyPI
-    fn test_libtpu_sdk_load_and_create_client() {
+    fn test_libtpu_sdk_vtable() {
         let libtpu_path = obtain_libtpu_so();
-        // Safety: single-threaded test context.
-        unsafe { std::env::set_var("WANDB_LIBTPU_PATH", &libtpu_path) };
 
-        // Verify the library loads and GetLibtpuSdkApi works.
         let lib = unsafe { Library::new(&libtpu_path).expect("failed to dlopen libtpu.so") };
 
         let api_ptr: *const u8 = unsafe {
@@ -1558,23 +1562,34 @@ mod tests {
         assert_eq!(h1, 1, "vtable header h1 should be 1 (VERS_1.0)");
 
         // Verify all expected vtable slots are non-null.
-        for (name, offset) in [
-            ("ErrorMessage", OFF_ERROR_MESSAGE),
-            ("DestroyError", OFF_DESTROY_ERROR),
-            ("CreateClient", OFF_CREATE_CLIENT),
-            ("DestroyClient", OFF_DESTROY_CLIENT),
-            ("GetMetric", OFF_GET_METRIC),
-            ("GetMetricDescription", OFF_GET_METRIC_DESC),
-            ("GetMetricValues", OFF_GET_METRIC_VALS),
-        ] {
-            let fn_ptr = unsafe { vtable_fn(api_ptr, offset) };
+        for (name, offset) in REQUIRED_VTABLE_SLOTS {
+            let slot = unsafe { read_vtable_slot(api_ptr, *offset) };
             assert!(
-                fn_ptr as usize != 0,
+                !slot.is_null(),
                 "vtable slot {name} at offset {offset:#x} is NULL"
             );
         }
 
-        // CreateClient — should succeed even without a TPU.
+        // Full validation should also pass.
+        unsafe { validate_api(api_ptr) }.expect("validate_api failed");
+    }
+
+    #[test]
+    #[ignore] // needs TPU hardware — CreateClient segfaults without GCP metadata service
+    fn test_libtpu_sdk_create_client() {
+        let libtpu_path = obtain_libtpu_so();
+        // Safety: single-threaded test context.
+        unsafe { std::env::set_var("WANDB_LIBTPU_PATH", &libtpu_path) };
+
+        let lib = unsafe { Library::new(&libtpu_path).expect("failed to dlopen libtpu.so") };
+        let api_ptr: *const u8 = unsafe {
+            let get_api: Symbol<unsafe extern "C" fn() -> *const u8> = lib
+                .get(b"GetLibtpuSdkApi")
+                .expect("GetLibtpuSdkApi symbol not found");
+            get_api()
+        };
+        unsafe { validate_api(api_ptr) }.expect("validate_api failed");
+
         #[repr(C)]
         struct CreateClientArgs {
             client: *mut std::ffi::c_void,
@@ -1590,8 +1605,7 @@ mod tests {
             args.client
         };
 
-        // GetMetric with a known metric name — should return a handle
-        // (description will resolve; values may be empty without a workload).
+        // GetMetric with a known metric name.
         let cname = CString::new("duty_cycle_pct").unwrap();
 
         #[repr(C)]
