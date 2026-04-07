@@ -305,8 +305,8 @@ func ExtractBaseKey(metricName string) string {
 
 	parts := strings.Split(metricName, ".")
 
-	// Special handling for disk I/O metrics: disk.diskN.in/out -> disk.in_out
-	if len(parts) == 3 && parts[0] == "disk" && strings.HasPrefix(parts[1], "disk") &&
+	// Special handling for disk I/O metrics: disk.{device}.in/out -> disk.io_per_device
+	if len(parts) == 3 && parts[0] == "disk" &&
 		(parts[2] == "in" || parts[2] == "out") {
 		return "disk.io_per_device"
 	}
@@ -319,6 +319,13 @@ func ExtractBaseKey(metricName string) string {
 	// Handle patterns like "gpu.process.0.temp" -> "gpu.process.temp"
 	if len(parts) >= 4 && parts[1] == "process" && isNumeric(parts[2]) {
 		return parts[0] + "." + parts[1] + "." + strings.Join(parts[3:], ".")
+	}
+
+	// Handle TPU non-per-device patterns like
+	// "tpu.hloExecTiming.tensor_core_0.meanUs" -> "tpu.hloExecTiming"
+	// "tpu.hloQueueSize.tensor_core_0" -> "tpu.hloQueueSize"
+	if len(parts) >= 3 && parts[0] == "tpu" && !isNumeric(parts[1]) {
+		return parts[0] + "." + parts[1]
 	}
 
 	return metricName
@@ -334,10 +341,9 @@ func ExtractSeriesName(metricName string) string {
 
 	parts := strings.Split(metricName, ".")
 
-	// Handle disk I/O patterns like "disk.disk4.in"
-	if len(parts) == 3 && parts[0] == "disk" && strings.HasPrefix(parts[1], "disk") &&
+	// Handle disk I/O patterns like "disk.disk4.in", "disk.nvme0n1.out"
+	if len(parts) == 3 && parts[0] == "disk" &&
 		(parts[2] == "in" || parts[2] == "out") {
-		// Extract disk name and I/O direction
 		diskName := parts[1]
 		direction := parts[2]
 		if direction == "in" {
@@ -363,6 +369,13 @@ func ExtractSeriesName(metricName string) string {
 	// Handle patterns like "cpu.0.cpu_percent"
 	if len(parts) >= 3 && parts[0] == "cpu" && isNumeric(parts[1]) {
 		return "Core " + parts[1]
+	}
+
+	// Handle TPU non-per-device patterns like
+	// "tpu.hloExecTiming.tensor_core_0.meanUs" -> "tensor_core_0 meanUs"
+	// "tpu.hloQueueSize.tensor_core_0" -> "tensor_core_0"
+	if len(parts) >= 3 && parts[0] == "tpu" && !isNumeric(parts[1]) {
+		return strings.Join(parts[2:], " ")
 	}
 
 	// For non-indexed metrics, return a default series name
