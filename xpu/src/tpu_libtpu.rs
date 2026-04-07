@@ -1671,13 +1671,10 @@ mod tests {
 
     // ---- libtpu.so smoke test ----
     //
-    // Downloads the libtpu wheel from PyPI and verifies the ABI contract
-    // documented in LIBTPU_REVERSE_ENGINEERING.md — all without dlopen.
+    // Downloads the libtpu wheel from PyPI and verifies the ABI contract.
     // libtpu runs global init constructors on load that crash without
     // TPU hardware, so we inspect binaries with nm only.
-
     #[test]
-    #[ignore] // needs network + pip to download libtpu wheel
     fn test_libtpu_sdk() {
         let (libtpu_path, sdk_path) = obtain_libtpu_binaries();
 
