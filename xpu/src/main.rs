@@ -25,8 +25,10 @@ mod gpu_nvidia;
 #[cfg(target_os = "linux")]
 mod gpu_nvidia_dcgm;
 #[cfg(target_os = "linux")]
+#[allow(dead_code)] // items used via dyn GpuMonitor dispatch; rustc can't trace through async_trait
 mod tpu_libtpu;
 #[cfg(target_os = "linux")]
+#[allow(dead_code)]
 #[path = "tpu.monitoring.runtime.rs"]
 mod tpu_runtime;
 
