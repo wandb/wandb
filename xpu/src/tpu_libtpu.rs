@@ -1,4 +1,4 @@
-//! TPU metrics via libtpu.so SDK (primary) with gRPC fallback.
+//! Google TPU metrics via libtpu.so SDK (primary) with gRPC fallback.
 //!
 //! The SDK path loads libtpu.so at runtime, resolves `GetLibtpuSdkApi`,
 //! and calls through the C vtable. This is the only way to get
@@ -67,7 +67,7 @@ impl TpuMonitor {
             debug!("TPU: libtpu SDK client initialized");
         }
         if grpc_available {
-            debug!("TPU: gRPC runtime service available on 127.0.0.1:8431");
+            debug!("TPU: gRPC runtime service available on {}", GRPC_ADDR);
         }
 
         Some(Self {
@@ -98,8 +98,10 @@ impl TpuMonitor {
                             debug!(
                                 "TPU SDK {:?}: {} values, none parsed, falling back to gRPC. \
                                  desc={:?} values={:?}",
-                                spec.sdk_names[0], data.values.len(),
-                                data.description, data.values,
+                                spec.sdk_names[0],
+                                data.values.len(),
+                                data.description,
+                                data.values,
                             );
                         }
                         Err(e) => {
@@ -117,7 +119,9 @@ impl TpuMonitor {
         if !sdk_failures.is_empty() && is_grpc_available().await {
             let grpc = self.get_grpc_client();
             for spec in sdk_failures {
-                let Some(grpc_name) = spec.grpc_name else { continue };
+                let Some(grpc_name) = spec.grpc_name else {
+                    continue;
+                };
                 match grpc.get_metric(grpc_name).await {
                     Ok(tpu_metric) => {
                         spec.format_grpc(&tpu_metric, dpc, &mut metrics);
@@ -168,7 +172,7 @@ impl GpuMonitor for TpuMonitor {
 }
 
 // ============================================================
-// Metric registry — single source of truth
+// Metric registry
 // ============================================================
 
 /// How to interpret the raw values from SDK or gRPC.
@@ -205,97 +209,129 @@ const METRICS: &[MetricSpec] = &[
         sdk_names: &["tensorcore_utilization", "tensorcore_util"],
         grpc_name: None,
         key: "tpu.{}.tensorcoreUtilization",
-        unit: "", shape: MetricShape::Gauge,
+        unit: "",
+        shape: MetricShape::Gauge,
     },
     MetricSpec {
         sdk_names: &["duty_cycle_pct"],
         grpc_name: Some("tpu.runtime.tensorcore.dutycycle.percent"),
         key: "tpu.{}.dutyCycle",
-        unit: "", shape: MetricShape::DutyCycle,
+        unit: "",
+        shape: MetricShape::DutyCycle,
     },
     MetricSpec {
         sdk_names: &["hbm_capacity_total"],
         grpc_name: Some("tpu.runtime.hbm.memory.total.bytes"),
         key: "tpu.{}.hbmCapacityTotal",
-        unit: "", shape: MetricShape::Gauge,
+        unit: "",
+        shape: MetricShape::Gauge,
     },
     MetricSpec {
         sdk_names: &["hbm_capacity_usage"],
         grpc_name: Some("tpu.runtime.hbm.memory.usage.bytes"),
         key: "tpu.{}.hbmCapacityUsage",
-        unit: "", shape: MetricShape::Gauge,
+        unit: "",
+        shape: MetricShape::Gauge,
     },
     MetricSpec {
         sdk_names: &["buffer_transfer_latency"],
         grpc_name: Some("megascale.dcn_transfer_latencies.microsecond.cumulative.distribution"),
         key: "tpu.bufferTransferLatency",
-        unit: "Us", shape: MetricShape::LabeledDist,
+        unit: "Us",
+        shape: MetricShape::LabeledDist,
     },
     MetricSpec {
         sdk_names: &["inbound_buffer_transfer_latency"],
-        grpc_name: Some("megascale.dcn_inbound_transfer_latencies.microsecond.cumulative.distribution"),
+        grpc_name: Some(
+            "megascale.dcn_inbound_transfer_latencies.microsecond.cumulative.distribution",
+        ),
         key: "tpu.inboundBufferTransferLatency",
-        unit: "Us", shape: MetricShape::LabeledDist,
+        unit: "Us",
+        shape: MetricShape::LabeledDist,
     },
     MetricSpec {
         sdk_names: &["host_to_device_transfer_latency"],
-        grpc_name: Some("megascale.host_to_device_transfer_latencies.microsecond.cumulative.distribution"),
+        grpc_name: Some(
+            "megascale.host_to_device_transfer_latencies.microsecond.cumulative.distribution",
+        ),
         key: "tpu.hostToDeviceTransferLatency",
-        unit: "Us", shape: MetricShape::LabeledDist,
+        unit: "Us",
+        shape: MetricShape::LabeledDist,
     },
     MetricSpec {
         sdk_names: &["device_to_host_transfer_latency"],
-        grpc_name: Some("megascale.device_to_host_transfer_latencies.microsecond.cumulative.distribution"),
+        grpc_name: Some(
+            "megascale.device_to_host_transfer_latencies.microsecond.cumulative.distribution",
+        ),
         key: "tpu.deviceToHostTransferLatency",
-        unit: "Us", shape: MetricShape::LabeledDist,
+        unit: "Us",
+        shape: MetricShape::LabeledDist,
     },
     MetricSpec {
         sdk_names: &["collective_e2e_latency"],
-        grpc_name: Some("megascale.collective_end_to_end_latencies.microsecond.cumulative.distribution"),
+        grpc_name: Some(
+            "megascale.collective_end_to_end_latencies.microsecond.cumulative.distribution",
+        ),
         key: "tpu.collectiveE2ELatency",
-        unit: "Us", shape: MetricShape::LabeledDist,
+        unit: "Us",
+        shape: MetricShape::LabeledDist,
     },
     MetricSpec {
         sdk_names: &["host_compute_latency"],
         grpc_name: Some("megascale.mxla_compute_latencies.microsecond.cumulative.distribution"),
         key: "tpu.hostComputeLatency",
-        unit: "Us", shape: MetricShape::LabeledDist,
+        unit: "Us",
+        shape: MetricShape::LabeledDist,
     },
     MetricSpec {
-        sdk_names: &["tcp_min_rtt", "grpc_tcp_min_rtt", "grpc_tcp_min_round_trip_times"],
+        sdk_names: &[
+            "tcp_min_rtt",
+            "grpc_tcp_min_rtt",
+            "grpc_tcp_min_round_trip_times",
+        ],
         grpc_name: Some("megascale.grpc_tcp_min_rtt.microsecond.cumulative.distribution"),
         key: "tpu.grpcTcpMinRtt",
-        unit: "Us", shape: MetricShape::FlatDist,
+        unit: "Us",
+        shape: MetricShape::FlatDist,
     },
     MetricSpec {
-        sdk_names: &["tcp_delivery_rate", "grpc_tcp_delivery_rate", "grpc_tcp_delivery_rates"],
+        sdk_names: &[
+            "tcp_delivery_rate",
+            "grpc_tcp_delivery_rate",
+            "grpc_tcp_delivery_rates",
+        ],
         grpc_name: Some("megascale.grpc_tcp_delivery_rate.Mbps.cumulative.distribution"),
         key: "tpu.grpcTcpDeliveryRate",
-        unit: "Mbps", shape: MetricShape::FlatDist,
+        unit: "Mbps",
+        shape: MetricShape::FlatDist,
     },
     MetricSpec {
         sdk_names: &["hlo_execution_timing", "hlo_exec_timing"],
         grpc_name: Some("hlo.execution.timing.distribution.microseconds"),
         key: "tpu.hloExecTiming",
-        unit: "Us", shape: MetricShape::LabeledDist,
+        unit: "Us",
+        shape: MetricShape::LabeledDist,
     },
     MetricSpec {
         sdk_names: &["hlo_queue_size"],
         grpc_name: Some("hlo.queue.size.gauge"),
         key: "tpu.hloQueueSize",
-        unit: "", shape: MetricShape::ColonKeyed,
+        unit: "",
+        shape: MetricShape::ColonKeyed,
     },
     MetricSpec {
         sdk_names: &["ici_link_health"],
         grpc_name: None,
         key: "tpu.{}.iciLinkHealth",
-        unit: "", shape: MetricShape::Gauge,
+        unit: "",
+        shape: MetricShape::Gauge,
     },
     MetricSpec {
         sdk_names: &["tpu_throttle_score"],
         grpc_name: None,
         key: "tpu.{}.throttleScore",
-        unit: "", shape: MetricShape::Gauge,
+        unit: "",
+        shape: MetricShape::Gauge,
     },
 ];
 
@@ -304,7 +340,7 @@ const METRICS: &[MetricSpec] = &[
 // ============================================================
 
 // Vtable byte offsets from start of LibtpuSdkApi struct.
-// Verified against libtpu 0.0.38 (VERS_1.0 ABI).
+// Verified against libtpu 0.0.37-0.0.39 (VERS_1.0 ABI).
 const OFF_ERROR_MESSAGE: usize = 0x08;
 const OFF_DESTROY_ERROR: usize = 0x10;
 const OFF_CREATE_CLIENT: usize = 0x20;
@@ -457,8 +493,7 @@ impl SdkClient {
         for alias in spec.sdk_names {
             if self.read_metric(alias).is_ok() {
                 let alias = (*alias).to_string();
-                self.resolved
-                    .insert(cache_key.to_string(), alias.clone());
+                self.resolved.insert(cache_key.to_string(), alias.clone());
                 return Some(alias);
             }
         }
@@ -739,8 +774,16 @@ impl MetricSpec {
         match self.shape {
             MetricShape::Gauge | MetricShape::DutyCycle => {
                 // key contains `{}` for device index; extract suffix after last `.{}`.
-                let suffix = self.key.rsplit_once(".{}.").map(|(_, s)| s).unwrap_or(self.key);
-                let fanout = if self.shape == MetricShape::DutyCycle { dpc } else { 1 };
+                let suffix = self
+                    .key
+                    .rsplit_once(".{}.")
+                    .map(|(_, s)| s)
+                    .unwrap_or(self.key);
+                let fanout = if self.shape == MetricShape::DutyCycle {
+                    dpc
+                } else {
+                    1
+                };
                 for m in &tpu_metric.metrics {
                     let chip_id = grpc_device_id(m);
                     if let Some(v) = grpc_gauge_value(m) {
@@ -1583,7 +1626,11 @@ mod tests {
         assert!(
             nm_out.contains("GetLibtpuSdkApi@@VERS_1.0"),
             "GetLibtpuSdkApi@@VERS_1.0 not found in libtpu.so. Symbols containing 'GetLibtpu': {}",
-            nm_out.lines().filter(|l| l.contains("GetLibtpu")).collect::<Vec<_>>().join(", "),
+            nm_out
+                .lines()
+                .filter(|l| l.contains("GetLibtpu"))
+                .collect::<Vec<_>>()
+                .join(", "),
         );
 
         // --- sdk.so: C++ wrapper methods confirming vtable layout ---
