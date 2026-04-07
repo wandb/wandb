@@ -491,14 +491,9 @@ jobs:
       - run:
           name: Run Rust tests for wandb-xpu
           command: |
-            cd xpu
-            cargo test --verbose
-      - run:
-          name: Run wandb-xpu libtpu integration test
-          command: |
             sudo apt-get install -y -qq python3-pip >/dev/null
             cd xpu
-            cargo test --verbose --bin wandb-xpu
+            cargo test --verbose
 
   # Download the local-testcontainer image corresponding to the latest server release
   # and store it in wandb-client-cicd/images/local-testcontainer.
