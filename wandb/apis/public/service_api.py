@@ -4,6 +4,7 @@ import contextlib
 import logging
 import uuid
 import weakref
+from typing import cast
 
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto.wandb_api_pb2 import ApiRequest, ApiResponse, FeaturesRequest
@@ -82,7 +83,7 @@ class ServiceApi:
 
     def feature_enabled(
         self,
-        feature: pb.ServerFeature,
+        feature: pb.ServerFeature | str,
         *,
         timeout: float = 10,
     ) -> bool:
@@ -91,9 +92,24 @@ class ServiceApi:
         On timeout or normal error, this logs and returns False.
 
         Args:
-            feature: The name of a boolean feature to check.
+            feature: The enum constant or name of the boolean feature to
+                check. Prefer to use the enum constants when possible, since
+                they have better type-checking. For unknown or incorrect names,
+                this returns False.
             timeout: The timeout to use. Defaults to 10 seconds.
         """
+        if isinstance(feature, str):
+            try:
+                # NOTE: pb.ServerFeature is not an actual runtime type.
+                #
+                # All protobuf enums are represented as integers.
+                # It is guaranteed that the return value of Value
+                # is a valid enum (if it exists), hence the cast.
+                feature = cast(pb.ServerFeature, pb.ServerFeature.Value(feature))
+            except ValueError:
+                # SERVER_FEATURE_UNSPECIFIED is always disabled.
+                return False
+
         req = ApiRequest(features_request=FeaturesRequest(features=[feature]))
 
         try:

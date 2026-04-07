@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-import os
+import contextlib
 from collections.abc import Generator, Iterator
 from dataclasses import dataclass
 from typing import Callable
 
 import pytest
+import wandb
 
 from tests.fixtures.wandb_backend_spy import (
     WandbBackendProxy,
@@ -94,15 +95,85 @@ def wandb_verbose(request):
 
 
 @pytest.fixture
-def user(mocker, backend_fixture_factory) -> Iterator[str]:
+def user(
+    request: pytest.FixtureRequest,
+    backend_fixture_factory: BackendFixtureFactory,
+) -> Iterator[str]:
+    """A user created for the duration of a test.
+
+    This cannot be used together with module_user. If module_user is also
+    requested by the test or one of its fixtures, this raises an error.
+
+    Sets login-related environment variables.
+    """
+    if "module_user" in request.fixturenames:
+        message = "Cannot use `user` and `module_user` fixtures together."
+        raise AssertionError(message)
+
+    with _user(backend_fixture_factory) as user:
+        yield user
+
+
+@pytest.fixture(scope="module")
+def module_user(
+    backend_fixture_factory: BackendFixtureFactory,
+) -> Iterator[str]:
+    """A new user shared by all tests in a module.
+
+    Just like `user`, but is shared by multiple tests.
+
+    This is used in some test files with many tests where mutating the same
+    test user's data does not affect correctness, and creating a user for
+    each test is slow.
+    """
+    with _user(backend_fixture_factory) as user:
+        yield user
+
+
+@contextlib.contextmanager
+def _user(backend_fixture_factory: BackendFixtureFactory) -> Iterator[str]:
     username = backend_fixture_factory.make_user()
-    envvars = {
-        "WANDB_API_KEY": username,
-        "WANDB_ENTITY": username,
-        "WANDB_USERNAME": username,
-    }
-    mocker.patch.dict(os.environ, envvars)
-    yield username
+
+    with pytest.MonkeyPatch.context() as monkeypatch:
+        monkeypatch.setenv("WANDB_API_KEY", username)
+        monkeypatch.setenv("WANDB_ENTITY", username)
+        monkeypatch.setenv("WANDB_USERNAME", username)
+
+        yield username
+
+
+@pytest.fixture
+@pytest.mark.usefixtures("skip_verify_login")
+def api(user: str) -> wandb.Api:
+    """A wandb.Api that can be used for the duration of a test."""
+    return wandb.Api(api_key=user)
+
+
+@pytest.fixture
+def module_api(make_module_api: Callable[[], wandb.Api]) -> wandb.Api:
+    """A wandb.Api using the `module_user` fixture.
+
+    Despite the name, this is function-scoped and exists only to force tests
+    to be explicit when they rely on `module_user`.
+
+    Module-scoped fixtures should use `make_module_api` directly.
+    """
+    return make_module_api()
+
+
+@pytest.fixture(scope="module")
+@pytest.mark.usefixtures("skip_verify_login")
+def make_module_api(module_user: str) -> Callable[[], wandb.Api]:
+    """A callback that creates a wandb.Api using the `module_user` fixture.
+
+    The returned object becomes invalid after `wandb.teardown()`, which is
+    called between tests.
+    """
+
+    def callback() -> wandb.Api:
+        return wandb.Api(api_key=module_user)
+
+    return callback
 
 
 @dataclass
