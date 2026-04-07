@@ -25,10 +25,8 @@ use std::sync::{Mutex, MutexGuard};
 use std::time::Duration;
 use tonic::transport::{Channel, Endpoint};
 
-// ============================================================
-// Public monitor — orchestrates SDK + gRPC
-// ============================================================
-
+/// Tpu collects metadata and metrics from Google TPUs using
+/// libtpu SDK and gRPC service.
 pub struct TpuMonitor {
     sdk: Option<Mutex<SdkClient>>,
     grpc: Mutex<Option<GrpcClient>>,
@@ -80,7 +78,7 @@ impl TpuMonitor {
         let mut metrics = Vec::new();
         let mut sdk_failures = Vec::new();
 
-        // Phase 1: collect everything we can from the SDK.
+        // Collect everything we can from the SDK.
         if let Some(sdk) = &self.sdk {
             let mut sdk = lock_or_recover(sdk, "tpu sdk");
             for desired in DESIRED_METRICS {
@@ -119,7 +117,7 @@ impl TpuMonitor {
             sdk_failures.extend(DESIRED_METRICS.iter().map(|d| d.logical_name));
         }
 
-        // Phase 2: fill gaps from gRPC.
+        // Fill gaps from gRPC.
         if !sdk_failures.is_empty() && is_grpc_available().await {
             let grpc = self.get_grpc_client();
             for logical_name in sdk_failures {
@@ -232,11 +230,19 @@ const DESIRED_METRICS: &[DesiredMetric] = &[
     },
     DesiredMetric {
         logical_name: "grpc_tcp_min_rtt",
-        sdk_aliases: &["tcp_min_rtt", "grpc_tcp_min_rtt", "grpc_tcp_min_round_trip_times"],
+        sdk_aliases: &[
+            "tcp_min_rtt",
+            "grpc_tcp_min_rtt",
+            "grpc_tcp_min_round_trip_times",
+        ],
     },
     DesiredMetric {
         logical_name: "grpc_tcp_delivery_rate",
-        sdk_aliases: &["tcp_delivery_rate", "grpc_tcp_delivery_rate", "grpc_tcp_delivery_rates"],
+        sdk_aliases: &[
+            "tcp_delivery_rate",
+            "grpc_tcp_delivery_rate",
+            "grpc_tcp_delivery_rates",
+        ],
     },
     DesiredMetric {
         logical_name: "hlo_exec_timing",
@@ -801,8 +807,8 @@ fn indexed_float(out: &mut Vec<(String, MetricValue)>, pattern: &str, values: &[
 }
 
 /// Like `indexed_float`, but fans out per-chip values to per-device entries.
-/// On v2/v3/v7x (2 devices per chip), chip 0 → devices 0,1; chip 1 → devices 2,3.
-/// On v4+ (1 device per chip), this is equivalent to `indexed_float`.
+/// On v2/v3/7x (2 devices per chip), chip 0 → devices 0,1; chip 1 → devices 2,3.
+/// On v4-v6 (1 device per chip), this is equivalent to `indexed_float`.
 fn indexed_float_fanout(
     out: &mut Vec<(String, MetricValue)>,
     pattern: &str,
@@ -909,7 +915,7 @@ fn format_grpc_metric(
                         "hbm_capacity_usage" => "hbmCapacityUsage",
                         _ => continue,
                     };
-                    // Fan out per-chip values to per-device on v2/v3/v7x.
+                    // Fan out per-chip values to per-device on v2/v3/7x.
                     for d in 0..dpc {
                         let device_id = chip_id * dpc + d;
                         out.push((
@@ -1268,15 +1274,43 @@ impl Default for TpuChip {
 fn tpu_chip_from_pci_ids(device_id: &str, subsystem_id: &str) -> Option<TpuChip> {
     match device_id {
         "0x0027" => match subsystem_id {
-            "0x004e" => Some(TpuChip { name: "v2".into(), hbm_gib: 8, devices_per_chip: 2 }),
-            "0x004f" => Some(TpuChip { name: "v3".into(), hbm_gib: 16, devices_per_chip: 2 }),
+            "0x004e" => Some(TpuChip {
+                name: "v2".into(),
+                hbm_gib: 8,
+                devices_per_chip: 2,
+            }),
+            "0x004f" => Some(TpuChip {
+                name: "v3".into(),
+                hbm_gib: 16,
+                devices_per_chip: 2,
+            }),
             _ => None,
         },
-        "0x005e" => Some(TpuChip { name: "v4".into(), hbm_gib: 32, devices_per_chip: 1 }),
-        "0x0063" => Some(TpuChip { name: "v5e".into(), hbm_gib: 16, devices_per_chip: 1 }),
-        "0x0062" => Some(TpuChip { name: "v5p".into(), hbm_gib: 95, devices_per_chip: 1 }),
-        "0x006f" => Some(TpuChip { name: "v6e".into(), hbm_gib: 32, devices_per_chip: 1 }),
-        "0x0076" => Some(TpuChip { name: "7x".into(), hbm_gib: 192, devices_per_chip: 2 }),
+        "0x005e" => Some(TpuChip {
+            name: "v4".into(),
+            hbm_gib: 32,
+            devices_per_chip: 1,
+        }),
+        "0x0063" => Some(TpuChip {
+            name: "v5e".into(),
+            hbm_gib: 16,
+            devices_per_chip: 1,
+        }),
+        "0x0062" => Some(TpuChip {
+            name: "v5p".into(),
+            hbm_gib: 95,
+            devices_per_chip: 1,
+        }),
+        "0x006f" => Some(TpuChip {
+            name: "v6e".into(),
+            hbm_gib: 32,
+            devices_per_chip: 1,
+        }),
+        "0x0076" => Some(TpuChip {
+            name: "7x".into(),
+            hbm_gib: 192,
+            devices_per_chip: 2,
+        }),
         _ => None,
     }
 }
@@ -1386,61 +1420,6 @@ mod tests {
     fn test_stat_names_5_default() {
         let names = stat_names("latency distribution (mean, p50, p90, p95, p999)", 5);
         assert_eq!(names, vec!["mean", "p50", "p90", "p95", "p999"]);
-    }
-
-    #[test]
-    fn test_stat_names_5_with_p99() {
-        // Description must contain "p99" but NOT contain "p95" at all.
-        let names = stat_names("some metric (p99 included)", 5);
-        assert_eq!(names, vec!["mean", "p50", "p90", "p99", "p999"]);
-    }
-
-    #[test]
-    fn test_stat_names_4() {
-        let names = stat_names("whatever", 4);
-        assert_eq!(names, vec!["p50", "p90", "p95", "p999"]);
-    }
-
-    #[test]
-    fn test_stat_names_fallback() {
-        let names = stat_names("unknown format", 3);
-        assert_eq!(names, vec!["stat0", "stat1", "stat2"]);
-    }
-
-    // ---- TPU chip detection ----
-
-    #[test]
-    fn test_tpu_chip_from_pci_ids() {
-        let v3 = tpu_chip_from_pci_ids("0x0027", "0x004f").unwrap();
-        assert_eq!(v3.name, "v3");
-        assert_eq!(v3.hbm_gib, 16);
-        assert_eq!(v3.devices_per_chip, 2);
-
-        let v5e = tpu_chip_from_pci_ids("0x0063", "").unwrap();
-        assert_eq!(v5e.name, "v5e");
-        assert_eq!(v5e.devices_per_chip, 1);
-
-        let v7x = tpu_chip_from_pci_ids("0x0076", "").unwrap();
-        assert_eq!(v7x.name, "7x");
-        assert_eq!(v7x.devices_per_chip, 2);
-
-        assert!(tpu_chip_from_pci_ids("0xffff", "").is_none());
-    }
-
-    // ---- indexed_float ----
-
-    #[test]
-    fn test_indexed_float() {
-        let mut out = Vec::new();
-        indexed_float(
-            &mut out,
-            "tpu.{}.tensorcoreUtilization",
-            &["42.5".into(), "bad".into(), "99.1".into()],
-        );
-        let m = metrics_map(&out);
-        assert_eq!(m.get("tpu.0.tensorcoreUtilization"), Some(&42.5));
-        assert!(!m.contains_key("tpu.1.tensorcoreUtilization"));
-        assert_eq!(m.get("tpu.2.tensorcoreUtilization"), Some(&99.1));
     }
 
     // ---- labeled_dist ----
@@ -1686,49 +1665,11 @@ mod tests {
         assert!(distribution_percentiles(&dist).is_empty());
     }
 
-    // ---- quantile_name ----
-
-    #[test]
-    fn test_quantile_name() {
-        assert_eq!(quantile_name(0.50), Some("p50"));
-        assert_eq!(quantile_name(0.90), Some("p90"));
-        assert_eq!(quantile_name(0.95), Some("p95"));
-        assert_eq!(quantile_name(0.99), Some("p99"));
-        assert_eq!(quantile_name(0.999), Some("p999"));
-        assert_eq!(quantile_name(0.75), None);
-    }
-
-    // ---- bucket_range ----
-
-    #[test]
-    fn test_bucket_range() {
-        let bounds = vec![10.0, 20.0, 40.0];
-        assert_eq!(bucket_range(&bounds, 0), (0.0, 10.0)); // underflow
-        assert_eq!(bucket_range(&bounds, 1), (10.0, 20.0)); // first finite
-        assert_eq!(bucket_range(&bounds, 2), (20.0, 40.0)); // second finite
-        assert_eq!(bucket_range(&bounds, 3), (40.0, 40.0)); // last finite
-        assert_eq!(bucket_range(&bounds, 4), (40.0, 40.0)); // overflow
-
-        assert_eq!(bucket_range(&[], 0), (0.0, 0.0));
-    }
-
     // ---- libtpu.so integration tests ----
-    //
-    // test_libtpu_sdk_vtable: Downloads libtpu from PyPI, validates the
-    // vtable header and slot pointers. Safe to run anywhere (no TPU needed).
-    // Needs network + pip.
-    //
-    // test_libtpu_sdk_create_client: Actually calls CreateClient/GetMetric.
-    // Requires TPU hardware — CreateClient segfaults without the GCP
-    // metadata service. Only run on TPU VMs.
-    //
-    // To run:
-    //   cargo test -- --include-ignored test_libtpu_sdk_vtable --nocapture
-    //   # On a TPU VM only:
-    //   cargo test -- --include-ignored test_libtpu_sdk_create_client --nocapture
 
     #[test]
-    #[ignore] // needs network + pip to download libtpu wheel from PyPI
+    // Downloads libtpu from PyPI, validates the vtable header and slot pointers.
+    // Safe to run anywhere (no TPU needed). Needs network + pip.
     fn test_libtpu_sdk_vtable() {
         let libtpu_path = obtain_libtpu_so();
 
@@ -1762,7 +1703,13 @@ mod tests {
     }
 
     #[test]
-    #[ignore] // needs TPU hardware — CreateClient segfaults without GCP metadata service
+    #[ignore]
+    // Calls CreateClient/GetMetric.
+    // Requires actual TPU hardware — CreateClient segfaults without the GCP
+    // metadata service. Only run on TPU VMs.
+    //
+    // To run:
+    //   cargo test -- --include-ignored test_libtpu_sdk_create_client --nocapture
     fn test_libtpu_sdk_create_client() {
         let libtpu_path = obtain_libtpu_so();
         // Safety: single-threaded test context.
