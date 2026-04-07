@@ -493,12 +493,10 @@ jobs:
           command: |
             cd xpu
             cargo test --verbose
-      - run:
-          name: Run wandb-xpu libtpu integration test
-          command: |
-            sudo apt-get install -y -qq python3-pip >/dev/null
-            cd xpu
-            cargo test --verbose --bin wandb-xpu -- --include-ignored tpu_libtpu::tests::test_libtpu_sdk_vtable
+      # libtpu integration tests require TPU hardware — GetLibtpuSdkApi()
+      # triggers GCP metadata fetches and segfaults without a real TPU VM.
+      # Run manually on TPU VMs with:
+      #   cargo test -- --include-ignored test_libtpu_sdk --nocapture
 
   # Download the local-testcontainer image corresponding to the latest server release
   # and store it in wandb-client-cicd/images/local-testcontainer.
