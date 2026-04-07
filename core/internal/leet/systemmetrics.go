@@ -228,6 +228,11 @@ var metricDefs = []MetricDef{
 	// TPU metrics — HLO queue size (colon-keyed: .label)
 	{Name: "TPU HLO Queue Size", Unit: UnitScalar, MinY: 0, MaxY: 100, AutoRange: true,
 		Regex: regexp.MustCompile(`^tpu\.hloQueueSize\..+$`)},
+	// TPU metrics — SDK-only gauges
+	{Name: "TPU ICI Link Health", Unit: UnitScalar, MinY: 0, MaxY: 1, AutoRange: true,
+		Regex: regexp.MustCompile(`^tpu\.\d+\.iciLinkHealth(/l:.+)?$`)},
+	{Name: "TPU Throttle Score", Unit: UnitScalar, MinY: 0, MaxY: 100, AutoRange: true,
+		Regex: regexp.MustCompile(`^tpu\.\d+\.throttleScore(/l:.+)?$`)},
 
 	// IPU metrics
 	{Name: "IPU Board Temp", Unit: UnitCelsius, MinY: 0, MaxY: 100, AutoRange: true,

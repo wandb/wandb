@@ -203,19 +203,27 @@ const DESIRED_METRICS: &[DesiredMetric] = &[
     },
     DesiredMetric {
         logical_name: "grpc_tcp_min_rtt",
-        sdk_aliases: &["grpc_tcp_min_rtt", "grpc_tcp_min_round_trip_times"],
+        sdk_aliases: &["tcp_min_rtt", "grpc_tcp_min_rtt", "grpc_tcp_min_round_trip_times"],
     },
     DesiredMetric {
         logical_name: "grpc_tcp_delivery_rate",
-        sdk_aliases: &["grpc_tcp_delivery_rate", "grpc_tcp_delivery_rates"],
+        sdk_aliases: &["tcp_delivery_rate", "grpc_tcp_delivery_rate", "grpc_tcp_delivery_rates"],
     },
     DesiredMetric {
         logical_name: "hlo_exec_timing",
-        sdk_aliases: &["hlo_exec_timing"],
+        sdk_aliases: &["hlo_execution_timing", "hlo_exec_timing"],
     },
     DesiredMetric {
         logical_name: "hlo_queue_size",
         sdk_aliases: &["hlo_queue_size"],
+    },
+    DesiredMetric {
+        logical_name: "ici_link_health",
+        sdk_aliases: &["ici_link_health"],
+    },
+    DesiredMetric {
+        logical_name: "tpu_throttle_score",
+        sdk_aliases: &["tpu_throttle_score"],
     },
 ];
 
@@ -742,6 +750,8 @@ fn format_metric(logical_name: &str, data: &SdkMetricData, out: &mut Vec<(String
             &data.values,
         ),
         "hlo_queue_size" => colon_values(out, "tpu.hloQueueSize", &data.values),
+        "ici_link_health" => indexed_float(out, "tpu.{}.iciLinkHealth", &data.values),
+        "tpu_throttle_score" => indexed_float(out, "tpu.{}.throttleScore", &data.values),
         _ => {}
     }
 }
