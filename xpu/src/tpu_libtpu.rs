@@ -10,13 +10,14 @@
 use crate::metrics::MetricValue;
 use crate::monitors::GpuMonitor;
 use crate::tpu_runtime as proto;
-use crate::wandb_internal::EnvironmentRecord;
+use crate::wandb_internal::{EnvironmentRecord, TpuInfo};
 
 use async_trait::async_trait;
 use libloading::{Library, Symbol};
 use log::{debug, warn};
 use std::collections::HashMap;
 use std::ffi::{CStr, CString, c_void};
+use std::fs;
 use std::net::{SocketAddr, TcpStream};
 use std::os::raw::c_char;
 use std::path::{Path, PathBuf};
@@ -31,6 +32,8 @@ use tonic::transport::{Channel, Endpoint};
 pub struct TpuMonitor {
     sdk: Option<Mutex<SdkClient>>,
     grpc: Mutex<Option<GrpcClient>>,
+    chip: TpuChip,
+    chip_count: u32,
 }
 
 fn lock_or_recover<'a, T>(mutex: &'a Mutex<T>, name: &str) -> MutexGuard<'a, T> {
@@ -45,12 +48,18 @@ fn lock_or_recover<'a, T>(mutex: &'a Mutex<T>, name: &str) -> MutexGuard<'a, T> 
 
 impl TpuMonitor {
     pub fn new() -> Option<Self> {
-        let sdk = SdkClient::new().map(Mutex::new);
-        let grpc_available = is_grpc_available_now();
-
-        if sdk.is_none() && !grpc_available {
+        let (chip, chip_count) = detect_local_tpu_chips();
+        if chip_count == 0 {
+            debug!("TPU: no TPU chips detected via PCI scan");
             return None;
         }
+        debug!(
+            "TPU: detected {} x {} ({}GiB HBM, {} devices/chip)",
+            chip_count, chip.name, chip.hbm_gib, chip.devices_per_chip
+        );
+
+        let sdk = SdkClient::new().map(Mutex::new);
+        let grpc_available = is_grpc_available_now();
 
         if sdk.is_some() {
             debug!("TPU: libtpu SDK client initialized");
@@ -62,6 +71,8 @@ impl TpuMonitor {
         Some(Self {
             sdk,
             grpc: Mutex::new(None),
+            chip,
+            chip_count,
         })
     }
 
@@ -77,7 +88,12 @@ impl TpuMonitor {
                     match sdk.read_metric(&actual_name) {
                         Ok(data) => {
                             let before = metrics.len();
-                            format_metric(desired.logical_name, &data, &mut metrics);
+                            format_metric(
+                                desired.logical_name,
+                                &data,
+                                self.chip.devices_per_chip,
+                                &mut metrics,
+                            );
                             if metrics.len() > before {
                                 continue;
                             }
@@ -112,7 +128,12 @@ impl TpuMonitor {
                 };
                 match grpc.get_metric(grpc_name).await {
                     Ok(tpu_metric) => {
-                        format_grpc_metric(logical_name, &tpu_metric, &mut metrics);
+                        format_grpc_metric(
+                            logical_name,
+                            &tpu_metric,
+                            self.chip.devices_per_chip,
+                            &mut metrics,
+                        );
                     }
                     Err(e) => {
                         debug!("TPU gRPC {logical_name}: {e}");
@@ -147,7 +168,15 @@ impl GpuMonitor for TpuMonitor {
         &self,
         _samples: &HashMap<String, &MetricValue>,
     ) -> EnvironmentRecord {
-        EnvironmentRecord::default()
+        EnvironmentRecord {
+            tpu: Some(TpuInfo {
+                name: self.chip.name.clone(),
+                hbm_gib: self.chip.hbm_gib,
+                devices_per_chip: self.chip.devices_per_chip,
+                count: self.chip_count,
+            }),
+            ..Default::default()
+        }
     }
 }
 
@@ -678,12 +707,19 @@ async fn is_grpc_available() -> bool {
 // Metric formatting — SDK path
 // ============================================================
 
-fn format_metric(logical_name: &str, data: &SdkMetricData, out: &mut Vec<(String, MetricValue)>) {
+fn format_metric(
+    logical_name: &str,
+    data: &SdkMetricData,
+    devices_per_chip: u32,
+    out: &mut Vec<(String, MetricValue)>,
+) {
     match logical_name {
         "tensorcore_utilization" => {
             indexed_float(out, "tpu.{}.tensorcoreUtilization", &data.values)
         }
-        "duty_cycle_pct" => indexed_float(out, "tpu.{}.dutyCycle", &data.values),
+        "duty_cycle_pct" => {
+            indexed_float_fanout(out, "tpu.{}.dutyCycle", &data.values, devices_per_chip)
+        }
         "hbm_capacity_total" => indexed_float(out, "tpu.{}.hbmCapacityTotal", &data.values),
         "hbm_capacity_usage" => indexed_float(out, "tpu.{}.hbmCapacityUsage", &data.values),
         "buffer_transfer_latency" => labeled_dist(
@@ -764,6 +800,29 @@ fn indexed_float(out: &mut Vec<(String, MetricValue)>, pattern: &str, values: &[
     }
 }
 
+/// Like `indexed_float`, but fans out per-chip values to per-device entries.
+/// On v2/v3/v7x (2 devices per chip), chip 0 → devices 0,1; chip 1 → devices 2,3.
+/// On v4+ (1 device per chip), this is equivalent to `indexed_float`.
+fn indexed_float_fanout(
+    out: &mut Vec<(String, MetricValue)>,
+    pattern: &str,
+    values: &[String],
+    devices_per_chip: u32,
+) {
+    let dpc = devices_per_chip.max(1) as usize;
+    for (chip_idx, raw) in values.iter().enumerate() {
+        if let Ok(v) = raw.trim().parse::<f64>() {
+            for d in 0..dpc {
+                let device_idx = chip_idx * dpc + d;
+                out.push((
+                    pattern.replace("{}", &device_idx.to_string()),
+                    MetricValue::Float(v),
+                ));
+            }
+        }
+    }
+}
+
 fn labeled_dist(
     out: &mut Vec<(String, MetricValue)>,
     base: &str,
@@ -835,21 +894,29 @@ fn colon_values(out: &mut Vec<(String, MetricValue)>, base: &str, data: &[String
 fn format_grpc_metric(
     logical_name: &str,
     tpu_metric: &proto::TpuMetric,
+    devices_per_chip: u32,
     out: &mut Vec<(String, MetricValue)>,
 ) {
+    let dpc = devices_per_chip.max(1) as i64;
     let base_key = match logical_name {
         "duty_cycle_pct" | "hbm_capacity_total" | "hbm_capacity_usage" => {
-            // Per-device gauge metrics.
             for m in &tpu_metric.metrics {
-                let did = grpc_device_id(m);
+                let chip_id = grpc_device_id(m);
                 if let Some(v) = grpc_gauge_value(m) {
-                    let key = match logical_name {
-                        "duty_cycle_pct" => format!("tpu.{did}.dutyCycle"),
-                        "hbm_capacity_total" => format!("tpu.{did}.hbmCapacityTotal"),
-                        "hbm_capacity_usage" => format!("tpu.{did}.hbmCapacityUsage"),
+                    let metric_suffix = match logical_name {
+                        "duty_cycle_pct" => "dutyCycle",
+                        "hbm_capacity_total" => "hbmCapacityTotal",
+                        "hbm_capacity_usage" => "hbmCapacityUsage",
                         _ => continue,
                     };
-                    out.push((key, MetricValue::Float(v)));
+                    // Fan out per-chip values to per-device on v2/v3/v7x.
+                    for d in 0..dpc {
+                        let device_id = chip_id * dpc + d;
+                        out.push((
+                            format!("tpu.{device_id}.{metric_suffix}"),
+                            MetricValue::Float(v),
+                        ));
+                    }
                 }
             }
             return;
@@ -1175,6 +1242,89 @@ fn resolve_path(path: &Path) -> Option<PathBuf> {
 }
 
 // ============================================================
+// TPU chip detection via PCI scan
+// ============================================================
+
+/// Google's PCI vendor ID for TPU devices.
+const GOOGLE_TPU_VENDOR_ID: &str = "0x1ae0";
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+struct TpuChip {
+    name: String,
+    hbm_gib: u32,
+    devices_per_chip: u32,
+}
+
+impl Default for TpuChip {
+    fn default() -> Self {
+        Self {
+            name: String::new(),
+            hbm_gib: 0,
+            devices_per_chip: 1,
+        }
+    }
+}
+
+fn tpu_chip_from_pci_ids(device_id: &str, subsystem_id: &str) -> Option<TpuChip> {
+    match device_id {
+        "0x0027" => match subsystem_id {
+            "0x004e" => Some(TpuChip { name: "v2".into(), hbm_gib: 8, devices_per_chip: 2 }),
+            "0x004f" => Some(TpuChip { name: "v3".into(), hbm_gib: 16, devices_per_chip: 2 }),
+            _ => None,
+        },
+        "0x005e" => Some(TpuChip { name: "v4".into(), hbm_gib: 32, devices_per_chip: 1 }),
+        "0x0063" => Some(TpuChip { name: "v5e".into(), hbm_gib: 16, devices_per_chip: 1 }),
+        "0x0062" => Some(TpuChip { name: "v5p".into(), hbm_gib: 95, devices_per_chip: 1 }),
+        "0x006f" => Some(TpuChip { name: "v6e".into(), hbm_gib: 32, devices_per_chip: 1 }),
+        "0x0076" => Some(TpuChip { name: "7x".into(), hbm_gib: 192, devices_per_chip: 2 }),
+        _ => None,
+    }
+}
+
+/// Scans PCI devices for Google TPU chips. Returns the most common chip type and count.
+fn detect_local_tpu_chips() -> (TpuChip, u32) {
+    let entries = match fs::read_dir("/sys/bus/pci/devices") {
+        Ok(e) => e,
+        Err(_) => return (TpuChip::default(), 0),
+    };
+
+    let mut counter: HashMap<TpuChip, u32> = HashMap::new();
+
+    for entry in entries.flatten() {
+        let pci_path = entry.path();
+
+        let vendor = match read_pci_attr(&pci_path, "vendor") {
+            Some(v) => v,
+            None => continue,
+        };
+        if vendor != GOOGLE_TPU_VENDOR_ID {
+            continue;
+        }
+
+        let device_id = match read_pci_attr(&pci_path, "device") {
+            Some(v) => v,
+            None => continue,
+        };
+        let subsystem_id = read_pci_attr(&pci_path, "subsystem_device").unwrap_or_default();
+
+        if let Some(chip) = tpu_chip_from_pci_ids(&device_id, &subsystem_id) {
+            *counter.entry(chip).or_insert(0) += 1;
+        }
+    }
+
+    counter
+        .into_iter()
+        .max_by_key(|(_, count)| *count)
+        .unwrap_or((TpuChip::default(), 0))
+}
+
+fn read_pci_attr(pci_path: &Path, attr: &str) -> Option<String> {
+    fs::read_to_string(pci_path.join(attr))
+        .ok()
+        .map(|s| s.trim().to_string())
+}
+
+// ============================================================
 // Tests
 // ============================================================
 
@@ -1255,6 +1405,26 @@ mod tests {
     fn test_stat_names_fallback() {
         let names = stat_names("unknown format", 3);
         assert_eq!(names, vec!["stat0", "stat1", "stat2"]);
+    }
+
+    // ---- TPU chip detection ----
+
+    #[test]
+    fn test_tpu_chip_from_pci_ids() {
+        let v3 = tpu_chip_from_pci_ids("0x0027", "0x004f").unwrap();
+        assert_eq!(v3.name, "v3");
+        assert_eq!(v3.hbm_gib, 16);
+        assert_eq!(v3.devices_per_chip, 2);
+
+        let v5e = tpu_chip_from_pci_ids("0x0063", "").unwrap();
+        assert_eq!(v5e.name, "v5e");
+        assert_eq!(v5e.devices_per_chip, 1);
+
+        let v7x = tpu_chip_from_pci_ids("0x0076", "").unwrap();
+        assert_eq!(v7x.name, "7x");
+        assert_eq!(v7x.devices_per_chip, 2);
+
+        assert!(tpu_chip_from_pci_ids("0xffff", "").is_none());
     }
 
     // ---- indexed_float ----
@@ -1360,7 +1530,7 @@ mod tests {
             values: vec!["75.5".into(), "80.2".into()],
         };
         let mut out = Vec::new();
-        format_metric("tensorcore_utilization", &data, &mut out);
+        format_metric("tensorcore_utilization", &data, 1, &mut out);
         let m = metrics_map(&out);
         assert_eq!(m.get("tpu.0.tensorcoreUtilization"), Some(&75.5));
         assert_eq!(m.get("tpu.1.tensorcoreUtilization"), Some(&80.2));
@@ -1373,9 +1543,26 @@ mod tests {
             values: vec!["42.0".into()],
         };
         let mut out = Vec::new();
-        format_metric("duty_cycle_pct", &data, &mut out);
+        // v4+ (1 device per chip)
+        format_metric("duty_cycle_pct", &data, 1, &mut out);
         let m = metrics_map(&out);
         assert_eq!(m.get("tpu.0.dutyCycle"), Some(&42.0));
+    }
+
+    #[test]
+    fn test_format_metric_duty_cycle_fanout() {
+        let data = SdkMetricData {
+            description: String::new(),
+            values: vec!["42.0".into(), "80.0".into()],
+        };
+        let mut out = Vec::new();
+        // v3 (2 devices per chip): chip 0 → devices 0,1; chip 1 → devices 2,3
+        format_metric("duty_cycle_pct", &data, 2, &mut out);
+        let m = metrics_map(&out);
+        assert_eq!(m.get("tpu.0.dutyCycle"), Some(&42.0));
+        assert_eq!(m.get("tpu.1.dutyCycle"), Some(&42.0));
+        assert_eq!(m.get("tpu.2.dutyCycle"), Some(&80.0));
+        assert_eq!(m.get("tpu.3.dutyCycle"), Some(&80.0));
     }
 
     #[test]
@@ -1385,7 +1572,7 @@ mod tests {
             values: vec!["tensor_core-0: 3".into(), "tensor_core-1: 7".into()],
         };
         let mut out = Vec::new();
-        format_metric("hlo_queue_size", &data, &mut out);
+        format_metric("hlo_queue_size", &data, 1, &mut out);
         let m = metrics_map(&out);
         assert_eq!(m.get("tpu.hloQueueSize.tensor_core_0"), Some(&3.0));
         assert_eq!(m.get("tpu.hloQueueSize.tensor_core_1"), Some(&7.0));
