@@ -601,11 +601,6 @@ func (s *Sender) finishRunSync(
 	// printing `run.finish()` progress, and it was necessary to "close"
 	// the progress bar shown in Jupyter. Yes, that was the only purpose.
 	s.fileTransferStats.SetDone()
-
-	// Prevent any new work from being added.
-	//
-	// Note that any work queued up at this point still gets processed.
-	s.runWork.SetDone()
 }
 
 // finishFileStream waits for FileStream uploads to complete.
