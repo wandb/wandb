@@ -102,6 +102,9 @@ impl GpuMonitors {
             metadata.gpu_nvidia.extend(monitor_metadata.gpu_nvidia);
             metadata.gpu_amd.extend(monitor_metadata.gpu_amd);
             metadata.apple = monitor_metadata.apple;
+            if monitor_metadata.tpu.is_some() {
+                metadata.tpu = monitor_metadata.tpu;
+            }
         }
 
         metadata
