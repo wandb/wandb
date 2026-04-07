@@ -202,6 +202,8 @@ var metricDefs = []MetricDef{
 		Regex: regexp.MustCompile(`^tpu\.\d+\.hbmCapacityTotal(/l:.+)?$`)},
 	{Name: "TPU HBM Capacity Usage", Unit: UnitBytes, MinY: 0, MaxY: 32, AutoRange: true,
 		Regex: regexp.MustCompile(`^tpu\.\d+\.hbmCapacityUsage(/l:.+)?$`)},
+	{Name: "TPU HBM Memory Usage (%)", Unit: UnitPercent, MinY: 0, MaxY: 100, Percentage: true,
+		Regex: regexp.MustCompile(`^tpu\.\d+\.hbmMemoryUsage(/l:.+)?$`)},
 	// TPU metrics — latency distributions (labeled: .label.statUs)
 	{Name: "TPU Buffer Transfer Latency", Unit: UnitScalar, MinY: 0, MaxY: 10000, AutoRange: true,
 		Regex: regexp.MustCompile(`^tpu\.bufferTransferLatency\..+$`)},

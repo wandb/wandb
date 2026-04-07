@@ -76,8 +76,21 @@ impl TpuMonitor {
                 if let Some(actual_name) = sdk.resolve_metric_name(desired) {
                     match sdk.read_metric(&actual_name) {
                         Ok(data) => {
+                            let before = metrics.len();
                             format_metric(desired.logical_name, &data, &mut metrics);
-                            continue;
+                            if metrics.len() > before {
+                                continue;
+                            }
+                            // SDK returned data but formatting produced nothing —
+                            // fall through to gRPC.
+                            debug!(
+                                "TPU SDK {}: got {} values but none parsed, falling back to gRPC. \
+                                 desc={:?} values={:?}",
+                                desired.logical_name,
+                                data.values.len(),
+                                data.description,
+                                data.values,
+                            );
                         }
                         Err(e) => {
                             debug!("TPU SDK {}: {e}", desired.logical_name);
@@ -107,6 +120,9 @@ impl TpuMonitor {
                 }
             }
         }
+
+        // Compute HBM memory usage percentage from total and usage.
+        compute_hbm_percentage(&mut metrics);
 
         metrics
     }
@@ -1002,6 +1018,42 @@ fn bucket_range(bounds: &[f64], index: usize) -> (f64, f64) {
         _ => {
             let last = bounds.last().copied().unwrap_or(0.0);
             (last, last)
+        }
+    }
+}
+
+// ============================================================
+// Derived metrics
+// ============================================================
+
+fn compute_hbm_percentage(metrics: &mut Vec<(String, MetricValue)>) {
+    // Collect per-device total and usage, keyed by device index.
+    let mut totals: HashMap<String, f64> = HashMap::new();
+    let mut usages: HashMap<String, f64> = HashMap::new();
+
+    for (key, val) in metrics.iter() {
+        let MetricValue::Float(v) = val else { continue };
+        if let Some(idx) = key
+            .strip_prefix("tpu.")
+            .and_then(|s| s.strip_suffix(".hbmCapacityTotal"))
+        {
+            totals.insert(idx.to_string(), *v);
+        } else if let Some(idx) = key
+            .strip_prefix("tpu.")
+            .and_then(|s| s.strip_suffix(".hbmCapacityUsage"))
+        {
+            usages.insert(idx.to_string(), *v);
+        }
+    }
+
+    for (idx, total) in &totals {
+        if let Some(usage) = usages.get(idx) {
+            if *total > 0.0 {
+                metrics.push((
+                    format!("tpu.{idx}.hbmMemoryUsage"),
+                    MetricValue::Float(usage / total * 100.0),
+                ));
+            }
         }
     }
 }
