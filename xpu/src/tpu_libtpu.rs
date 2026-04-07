@@ -45,6 +45,10 @@ fn lock_or_recover<'a, T>(mutex: &'a Mutex<T>, name: &str) -> MutexGuard<'a, T> 
 }
 
 impl TpuMonitor {
+    /// Returns `None` if no TPU hardware is detected (PCI scan).
+    /// This is critical: libtpu.so must never be loaded on non-TPU machines
+    /// (e.g. jax[tpu] installed on a GPU box) because its init constructors
+    /// crash without GCP TPU metadata.
     pub fn new() -> Option<Self> {
         let (chip, chip_count) = detect_local_tpu_chips();
         if chip_count == 0 {
@@ -1665,58 +1669,79 @@ mod tests {
         assert!(distribution_percentiles(&dist).is_empty());
     }
 
-    // ---- libtpu.so integration test ----
+    // ---- libtpu.so smoke test ----
     //
-    // Downloads the libtpu wheel from PyPI and verifies the .so contains
-    // the expected entry-point symbol. Does NOT dlopen — libtpu runs
-    // global init constructors on load that crash without TPU hardware.
-    // Vtable validation happens at runtime in SdkClient::try_new().
-    //
-    // cargo test -- --include-ignored test_libtpu_sdk --nocapture
+    // Downloads the libtpu wheel from PyPI and verifies the ABI contract
+    // documented in LIBTPU_REVERSE_ENGINEERING.md — all without dlopen.
+    // libtpu runs global init constructors on load that crash without
+    // TPU hardware, so we inspect binaries with nm only.
 
     #[test]
     #[ignore] // needs network + pip to download libtpu wheel
     fn test_libtpu_sdk() {
-        let libtpu_path = obtain_libtpu_so();
+        let (libtpu_path, sdk_path) = obtain_libtpu_binaries();
+
+        // --- libtpu.so: entry point with ABI version ---
         assert!(libtpu_path.is_file(), "libtpu.so not found");
-
-        // Verify the symbol exists via nm/objdump without loading the library.
-        let output = std::process::Command::new("nm")
-            .args(["-D", "--defined-only"])
-            .arg(&libtpu_path)
-            .output()
-            .expect("failed to run nm");
-        let symbols = String::from_utf8_lossy(&output.stdout);
+        let nm_out = nm_dynamic_symbols(&libtpu_path);
+        // GetLibtpuSdkApi must be a versioned symbol (@@VERS_1.0).
+        // The versioning is a strong ABI stability guarantee — the vtable
+        // layout won't change within the same major version.
         assert!(
-            symbols.contains("GetLibtpuSdkApi"),
-            "GetLibtpuSdkApi symbol not found in libtpu.so"
+            nm_out.contains("GetLibtpuSdkApi@@VERS_1.0"),
+            "GetLibtpuSdkApi@@VERS_1.0 not found in libtpu.so. Symbols containing 'GetLibtpu': {}",
+            nm_out.lines().filter(|l| l.contains("GetLibtpu")).collect::<Vec<_>>().join(", "),
         );
-    }
 
-    /// Downloads the libtpu wheel from PyPI, extracts libtpu.so, returns its path.
-    fn obtain_libtpu_so() -> PathBuf {
-        // Check if already provided via env.
-        if let Ok(path) = std::env::var("WANDB_LIBTPU_PATH") {
-            let p = PathBuf::from(path.trim());
-            if p.is_file() {
-                return p;
+        // --- sdk.so: C++ wrapper methods confirming vtable layout ---
+        // Each method in sdk.so calls through the vtable at a known offset.
+        // Their presence confirms the vtable slot ordering hasn't changed.
+        if let Some(sdk) = sdk_path {
+            let sdk_nm = nm_dynamic_symbols(&sdk);
+            let expected_methods = [
+                "CreateClient",
+                "DestroyClient",
+                "GetMetric",
+                "GetMetricDescription",
+                "GetMetricValues",
+                "GetChipCoordinates",
+                "GetRuntimeStatus",
+            ];
+            for method in expected_methods {
+                assert!(
+                    sdk_nm.contains(method),
+                    "LibtpuSdkCApiClient::{method} not found in sdk.so"
+                );
             }
         }
+    }
 
+    fn nm_dynamic_symbols(path: &Path) -> String {
+        let output = std::process::Command::new("nm")
+            .args(["-D", "--defined-only"])
+            .arg(path)
+            .output()
+            .unwrap_or_else(|e| panic!("failed to run nm on {}: {e}", path.display()));
+        String::from_utf8_lossy(&output.stdout).into_owned()
+    }
+
+    /// Downloads the libtpu wheel from PyPI, extracts libtpu.so and sdk.so.
+    /// Returns (libtpu_path, Option<sdk_path>).
+    fn obtain_libtpu_binaries() -> (PathBuf, Option<PathBuf>) {
         let cache_dir = PathBuf::from(
             std::env::var("WANDB_TEST_LIBTPU_CACHE")
                 .unwrap_or_else(|_| "/tmp/wandb-libtpu-test".into()),
         );
         let libtpu_path = cache_dir.join("libtpu.so");
+        let sdk_path = cache_dir.join("sdk.so");
+
         if libtpu_path.is_file() {
-            return libtpu_path;
+            return (libtpu_path, sdk_path.is_file().then_some(sdk_path));
         }
 
         eprintln!("Downloading libtpu wheel from PyPI...");
         std::fs::create_dir_all(&cache_dir).expect("failed to create cache dir");
 
-        // Use pip download to get the wheel.
-        // Try pip3 first, then pip.
         let pip = ["pip3", "pip"]
             .iter()
             .copied()
@@ -1728,7 +1753,7 @@ mod tests {
                     .status()
                     .is_ok()
             })
-            .expect("neither pip3 nor pip found in PATH — install Python to run this test");
+            .expect("neither pip3 nor pip found in PATH");
         let status = std::process::Command::new(pip)
             .args([
                 "download",
@@ -1745,7 +1770,6 @@ mod tests {
             .expect("failed to run pip download");
         assert!(status.success(), "pip download libtpu failed");
 
-        // Find the wheel.
         let wheel = std::fs::read_dir(&cache_dir)
             .unwrap()
             .filter_map(|e| e.ok())
@@ -1756,23 +1780,24 @@ mod tests {
             })
             .expect("libtpu wheel not found after download");
 
-        // Extract libtpu.so from the wheel (it's a zip file).
-        eprintln!(
-            "Extracting libtpu.so from {}...",
-            wheel.file_name().to_string_lossy()
-        );
         let file = std::fs::File::open(wheel.path()).unwrap();
         let mut archive = zip::ZipArchive::new(file).unwrap();
+        let mut found_libtpu = false;
         for i in 0..archive.len() {
             let mut entry = archive.by_index(i).unwrap();
-            if entry.name().ends_with("libtpu.so") {
+            let name = entry.name().to_string();
+            if name.ends_with("libtpu.so") {
                 let mut out = std::fs::File::create(&libtpu_path).unwrap();
                 std::io::copy(&mut entry, &mut out).unwrap();
-                eprintln!("Extracted to {}", libtpu_path.display());
-                return libtpu_path;
+                eprintln!("Extracted {}", libtpu_path.display());
+                found_libtpu = true;
+            } else if name.ends_with("sdk.so") {
+                let mut out = std::fs::File::create(&sdk_path).unwrap();
+                std::io::copy(&mut entry, &mut out).unwrap();
+                eprintln!("Extracted {}", sdk_path.display());
             }
         }
-
-        panic!("libtpu.so not found in wheel");
+        assert!(found_libtpu, "libtpu.so not found in wheel");
+        (libtpu_path, sdk_path.is_file().then_some(sdk_path))
     }
 }
