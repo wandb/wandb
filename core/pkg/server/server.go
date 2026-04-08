@@ -42,8 +42,8 @@ type Server struct {
 	// runSyncManager implements `wandb sync` operations.
 	runSyncManager *runsync.RunSyncManager
 
-	// gpuResourceManager manages costly resources for GPU system metrics.
-	gpuResourceManager *monitor.GPUResourceManager
+	// xpuResourceManager manages costly resources for accelerator system metrics.
+	xpuResourceManager *monitor.XPUResourceManager
 
 	// wg is the WaitGroup to wait for all connections to finish
 	// and for the serve goroutine to finish
@@ -103,19 +103,20 @@ func NewServer(params ServerParams) *Server {
 	serverLifetimeCtx, stopServer := context.WithCancel(context.Background())
 
 	return &Server{
-		serverLifetimeCtx:  serverLifetimeCtx,
-		stopServer:         stopServer,
-		streamMux:          stream.NewStreamMux(),
-		runSyncManager:     runsync.NewRunSyncManager(),
-		gpuResourceManager: monitor.NewGPUResourceManager(params.EnableDCGMProfiling),
-		wg:                 sync.WaitGroup{},
-		parentPID:          params.ParentPID,
-		detached:           params.Detached,
-		idleTimeout:        params.IdleTimeout,
-		commit:             params.Commit,
-		listenOnLocalhost:  params.ListenOnLocalhost,
-		loggerPath:         params.LoggerPath,
-		logLevel:           params.LogLevel,
+		serverLifetimeCtx: serverLifetimeCtx,
+		stopServer:        stopServer,
+		streamMux:         stream.NewStreamMux(),
+		runSyncManager:    runsync.NewRunSyncManager(),
+		xpuResourceManager: monitor.NewXPUResourceManager(
+			params.EnableDCGMProfiling),
+		wg:                sync.WaitGroup{},
+		parentPID:         params.ParentPID,
+		detached:          params.Detached,
+		idleTimeout:       params.IdleTimeout,
+		commit:            params.Commit,
+		listenOnLocalhost: params.ListenOnLocalhost,
+		loggerPath:        params.LoggerPath,
+		logLevel:          params.LogLevel,
 	}
 }
 
@@ -251,7 +252,7 @@ func (s *Server) handleConnection(conn net.Conn) {
 			Conn:               conn,
 			StreamMux:          s.streamMux,
 			RunSyncManager:     s.runSyncManager,
-			GPUResourceManager: s.gpuResourceManager,
+			XPUResourceManager: s.xpuResourceManager,
 			Commit:             s.commit,
 			LoggerPath:         s.loggerPath,
 			LogLevel:           s.logLevel,

@@ -407,6 +407,11 @@ func SymonKeyBindings() []BindingCategory[Symon] {
 					Description: "Next chart page",
 					Handler:     (*Symon).handleNextPage,
 				},
+				{
+					Keys:        []string{"w", "a", "s", "d"},
+					Description: "Navigate chart focus",
+					Handler:     (*Symon).handleGridWASD,
+				},
 			},
 		},
 		{

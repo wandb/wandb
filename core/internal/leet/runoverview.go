@@ -74,7 +74,7 @@ func (ro *RunOverview) ProcessRunMsg(msg RunMsg) {
 	ro.displayName = msg.DisplayName
 	ro.project = msg.Project
 	ro.notes = msg.Notes
-	ro.tags = slices.Clone(msg.Tags)
+	ro.tags = dedupStrings(msg.Tags)
 	ro.runState = RunStateRunning
 
 	if msg.Config != nil {
@@ -264,4 +264,16 @@ func processEnvironmentData(data map[string]any) []KeyValuePair {
 	return []KeyValuePair{
 		{Key: firstKey, Value: fmt.Sprintf("%v", firstValue), Path: []string{firstKey}},
 	}
+}
+
+func dedupStrings(ss []string) []string {
+	seen := make(map[string]struct{}, len(ss))
+	out := make([]string, 0, len(ss))
+	for _, s := range ss {
+		if _, dup := seen[s]; !dup {
+			seen[s] = struct{}{}
+			out = append(out, s)
+		}
+	}
+	return out
 }
