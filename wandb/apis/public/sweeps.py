@@ -40,6 +40,7 @@ from wandb_graphql.language.ast import Document
 import wandb
 from wandb import util
 from wandb.apis import public
+from wandb.apis._displayable import DisplayableMixin
 from wandb.apis.attrs import Attrs
 from wandb.apis.paginator import SizedPaginator
 from wandb.sdk.lib import ipython
@@ -169,7 +170,7 @@ class Sweeps(SizedPaginator["Sweep"]):
         return f"<Sweeps {self.entity}/{self.project}>"
 
 
-class Sweep(Attrs):
+class Sweep(Attrs, DisplayableMixin):
     """The set of runs associated with the sweep.
 
     Attributes:
@@ -371,9 +372,6 @@ class Sweep(Attrs):
             style += "display:none;"
             prefix = ipython.toggle_button("sweep")
         return prefix + f"<iframe src={url!r} style={style!r}></iframe>"
-
-    def _repr_html_(self) -> str:
-        return self.to_html()
 
     def __repr__(self) -> str:
         pathstr = "/".join(self.path)
