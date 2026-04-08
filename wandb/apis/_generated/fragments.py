@@ -10,6 +10,16 @@ from pydantic import Field
 from wandb._pydantic import GQLId, GQLResult, Typename
 
 
+class AgentFragment(GQLResult):
+    id: GQLId
+    name: str
+    host: str
+    state: Optional[str]
+    total_runs: int = Field(alias="totalRuns")
+    created_at: str = Field(alias="createdAt")
+    heartbeat_at: Optional[str] = Field(alias="heartbeatAt")
+
+
 class ApiKeyFragment(GQLResult):
     id: GQLId
     name: str
@@ -32,6 +42,30 @@ class LegacySweepFragment(GQLResult):
     state: str
     best_loss: Optional[float] = Field(alias="bestLoss")
     config: str
+
+
+class LightweightRunFragment(GQLResult):
+    id: GQLId
+    tags: Optional[List[str]]
+    name: str
+    display_name: Optional[str] = Field(alias="displayName")
+    sweep_name: Optional[str] = Field(alias="sweepName")
+    state: Optional[str]
+    group: Optional[str]
+    job_type: Optional[str] = Field(alias="jobType")
+    commit: Optional[str]
+    read_only: Optional[bool] = Field(alias="readOnly")
+    created_at: str = Field(alias="createdAt")
+    heartbeat_at: Optional[str] = Field(alias="heartbeatAt")
+    description: Optional[str]
+    notes: Optional[str]
+    history_line_count: Optional[int] = Field(alias="historyLineCount")
+    user: Optional[LightweightRunFragmentUser]
+
+
+class LightweightRunFragmentUser(GQLResult):
+    name: str
+    username: Optional[str]
 
 
 class PageInfoFragment(GQLResult):
@@ -107,9 +141,12 @@ class UserInfoFragment(GQLResult):
     admin: Optional[bool]
 
 
+AgentFragment.model_rebuild()
 ApiKeyFragment.model_rebuild()
 CreatedProjectFragment.model_rebuild()
 LegacySweepFragment.model_rebuild()
+LightweightRunFragment.model_rebuild()
+LightweightRunFragmentUser.model_rebuild()
 PageInfoFragment.model_rebuild()
 UserFragment.model_rebuild()
 UserFragmentApiKeys.model_rebuild()
