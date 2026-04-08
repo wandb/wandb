@@ -61,7 +61,8 @@ def poll_for_token(
         _SLEEP(max(0, min(0.2, end_time - _MONOTONIC())))
 
     raise ServicePollForTokenError(
-        f"Failed to read port info after {timeout} seconds.",
+        f"Failed to read port info after {timeout} seconds"
+        + f" (wandb-core PID={proc.pid}): {file}",
     )
 
 

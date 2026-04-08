@@ -28,7 +28,7 @@ import (
 // Injectors from streaminject.go:
 
 // InjectStream returns a new Stream.
-func InjectStream(commit GitCommitHash, gpuResourceManager *monitor.GPUResourceManager, debugCorePath DebugCorePath, logLevel slog.Level, settings2 *settings.Settings) *Stream {
+func InjectStream(commit GitCommitHash, xpuResourceManager *monitor.XPUResourceManager, debugCorePath DebugCorePath, logLevel slog.Level, settings2 *settings.Settings) *Stream {
 	clientID := sharedmode.RandomClientID()
 	streamStreamLoggerFile := openStreamLoggerFile(settings2)
 	sentryContext := streamSentryContext(settings2)
@@ -50,7 +50,7 @@ func InjectStream(commit GitCommitHash, gpuResourceManager *monitor.GPUResourceM
 		Logger:             coreLogger,
 		RunHandle:          runHandle,
 		Settings:           settings2,
-		GpuResourceManager: gpuResourceManager,
+		XPUResourceManager: xpuResourceManager,
 		GraphqlClient:      client,
 		WriterID:           clientID,
 	}

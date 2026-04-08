@@ -298,7 +298,7 @@ ignore-decorators = [
 "wandb/apis/public/**" = ["UP032"]
 
 # TODO: Fix these lints and remove the ignores.
-"gpu_stats/hatch.py" = ["W505"]
+"xpu/hatch.py" = ["W505"]
 "noxfile.py" = ["W505"]
 "wandb/cli/cli.py" = ["C901", "W505"]
 "wandb/integration/metaflow/metaflow.py" = ["F811"]

@@ -5,7 +5,8 @@ core/vendor/** linguist-vendored
 **/*_pb2.py linguist-generated
 **/*_pb2.pyi linguist-generated
 **/*.pb.go linguist-generated
-gpu_stats/src/wandb_internal.rs linguist-generated
+xpu/src/wandb_internal.rs linguist-generated
+xpu/src/tpu.monitoring.runtime.rs linguist-generated
 
 # https://github.com/google/wire
 **/wire_gen.go linguist-generated

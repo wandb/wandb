@@ -41,6 +41,7 @@ lightning
 ray[air,tune]; sys_platform != 'win32'
 
 pyarrow
+kfp
 metaflow
 xgboost
 lightgbm

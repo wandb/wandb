@@ -7,7 +7,7 @@ from string import ascii_lowercase, digits
 from typing import Callable, Union
 
 import wandb
-from pytest import FixtureRequest, MonkeyPatch, fixture, skip
+from pytest import FixtureRequest, fixture, skip
 from typing_extensions import TypeAlias
 from wandb import Artifact
 from wandb.apis.public import ArtifactCollection, Project
@@ -59,61 +59,47 @@ def make_name(worker_id: str) -> Callable[[str], str]:
 
 
 @fixture(scope="module")
-def user(backend_fixture_factory) -> Iterator[str]:
-    """A module-scoped user that overrides the default `user` fixture from the root-level `conftest.py`."""
-    username = backend_fixture_factory.make_user(admin=True)
-
-    # The `monkeypatch` fixture is strictly function-scoped, so we use a
-    # context manager to patch for this module-scoped fixture
-    envvars = dict.fromkeys(
-        ("WANDB_API_KEY", "WANDB_ENTITY", "WANDB_USERNAME"), username
-    )
-    with MonkeyPatch.context() as mpatch:
-        for k, v in envvars.items():
-            mpatch.setenv(k, v)
-        yield username
-
-
-# Request the `user` fixture to ensure env variables are set
-@fixture(scope="module")
-def api(user: str) -> wandb.Api:
-    """A redefined, module-scoped `Api` fixture for tests in this module.
-
-    Note that this overrides the default `api` fixture from the root-level
-    `conftest.py`.  This is necessary for any tests in these subfolders,
-    since the default `api` fixture is function-scoped, meaning it does not
-    play well with other module-scoped fixtures.
-    """
-    return wandb.Api(api_key=user)
-
-
-@fixture(scope="module")
-def project(user, api, make_name) -> Project:
+def project(
+    module_user: str,
+    make_module_api: Callable[[], wandb.Api],
+    make_name,
+) -> Project:
     """A wandb Project for tests in this module."""
     # Create the project first if it doesn't exist yet
     name = make_name("test-project")
-    api.create_project(name=name, entity=user)
-    return api.project(name=name, entity=user)
+    api = make_module_api()
+    api.create_project(name=name, entity=module_user)
+    return api.project(name=name, entity=module_user)
 
 
 @fixture(scope="module")
-def artifact(user, project, make_name) -> Artifact:
+def artifact(module_user: str, project: Project, make_name) -> Artifact:
     name = make_name("test-artifact")
-    with wandb.init(entity=user, project=project.name) as run:
+    with wandb.init(entity=module_user, project=project.name) as run:
         artifact = Artifact(name, "dataset")
         logged_artifact = run.log_artifact(artifact)
         return logged_artifact.wait()
 
 
 @fixture(scope="module")
-def artifact_collection(artifact, api) -> ArtifactCollection:
+def artifact_collection(
+    artifact: Artifact,
+    make_module_api: Callable[[], wandb.Api],
+) -> ArtifactCollection:
     """A test ArtifactCollection for tests in this module."""
-    return api.artifact(name=artifact.qualified_name, type=artifact.type).collection
+    return (
+        make_module_api()
+        .artifact(
+            name=artifact.qualified_name,
+            type=artifact.type,
+        )
+        .collection
+    )
 
 
 @fixture(scope="module")
 def make_webhook_integration(
-    api: wandb.Api,
+    make_module_api: Callable[[], wandb.Api],
 ) -> Callable[[str, str, str], WebhookIntegration]:
     """A module-scoped factory for creating WebhookIntegrations."""
     from wandb.automations._generated import CreateGenericWebhookIntegrationInput
@@ -129,6 +115,7 @@ def make_webhook_integration(
         )
         gql_op = gql(CREATE_GENERIC_WEBHOOK_INTEGRATION_GQL)
         gql_vars = {"input": gql_input.model_dump()}
+        api = make_module_api()
         data = api.client.execute(gql_op, variable_values=gql_vars)
 
         result = CreateGenericWebhookIntegration(**data)
@@ -140,13 +127,13 @@ def make_webhook_integration(
 
 @fixture(scope="module")
 def webhook(
-    api,
+    make_module_api: Callable[[], wandb.Api],
     make_webhook_integration: Callable[[str, str, str], WebhookIntegration],
     make_name: Callable[[str], str],
 ) -> Iterator[WebhookIntegration]:
     """A "registered" webhook integration for automation system tests."""
     name = make_name("test-webhook")
-    entity = api.default_entity
+    entity = make_module_api().default_entity
     yield make_webhook_integration(
         name=name,
         entity=entity,
@@ -188,13 +175,15 @@ def scope_type(request: FixtureRequest) -> ScopeType:
 
 @fixture(params=valid_input_events(), ids=lambda x: f"event={x.value}")
 def event_type(
-    request: FixtureRequest, scope_type: ScopeType, api: wandb.Api
+    request: FixtureRequest,
+    scope_type: ScopeType,
+    module_api: wandb.Api,
 ) -> EventType:
     """A fixture that parametrizes over all valid event types."""
 
     event_type = request.param
 
-    if not api._supports_automation(event=event_type):
+    if not module_api._supports_automation(event=event_type):
         skip(f"Server does not support event type: {event_type!r}")
 
     if (event_type, scope_type) in invalid_events_and_scopes():
@@ -204,11 +193,14 @@ def event_type(
 
 
 @fixture(params=valid_input_actions(), ids=lambda x: f"action={x.value}")
-def action_type(request: type[FixtureRequest], api: wandb.Api) -> ActionType:
+def action_type(
+    request: type[FixtureRequest],
+    module_api: wandb.Api,
+) -> ActionType:
     """A fixture that parametrizes over all valid action types."""
     action_type = request.param
 
-    if not api._supports_automation(action=action_type):
+    if not module_api._supports_automation(action=action_type):
         skip(f"Server does not support action type: {action_type!r}")
 
     return action_type

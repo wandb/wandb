@@ -1823,6 +1823,7 @@ type Deprecated struct {
 	Beta_Workflows_LogModel  bool `protobuf:"varint,28,opt,name=beta__workflows__log_model,json=betaWorkflowsLogModel,proto3" json:"beta__workflows__log_model,omitempty"`    // wandb.beta.workflows.log_model() called
 	Beta_Workflows_UseModel  bool `protobuf:"varint,29,opt,name=beta__workflows__use_model,json=betaWorkflowsUseModel,proto3" json:"beta__workflows__use_model,omitempty"`    // wandb.beta.workflows.use_model() called
 	Beta_Workflows_LinkModel bool `protobuf:"varint,30,opt,name=beta__workflows__link_model,json=betaWorkflowsLinkModel,proto3" json:"beta__workflows__link_model,omitempty"` // wandb.beta.workflows.link_model() called
+	KfpV1WandbLog            bool `protobuf:"varint,31,opt,name=kfp_v1_wandb_log,json=kfpV1WandbLog,proto3" json:"kfp_v1_wandb_log,omitempty"`                                // wandb.integration.kfp.wandb_log used with kfp<2.0.0
 	unknownFields            protoimpl.UnknownFields
 	sizeCache                protoimpl.SizeCache
 }
@@ -2035,6 +2036,13 @@ func (x *Deprecated) GetBeta_Workflows_UseModel() bool {
 func (x *Deprecated) GetBeta_Workflows_LinkModel() bool {
 	if x != nil {
 		return x.Beta_Workflows_LinkModel
+	}
+	return false
+}
+
+func (x *Deprecated) GetKfpV1WandbLog() bool {
+	if x != nil {
+		return x.KfpV1WandbLog
 	}
 	return false
 }
@@ -2334,7 +2342,7 @@ const file_wandb_proto_wandb_telemetry_proto_rawDesc = "" +
 	"codeString\x12\x1f\n" +
 	"\vrepo_string\x18\x02 \x01(\tR\n" +
 	"repoString\x12!\n" +
-	"\fcode_version\x18\x03 \x01(\tR\vcodeVersion\"\xb9\n" +
+	"\fcode_version\x18\x03 \x01(\tR\vcodeVersion\"\xe2\n" +
 	"\n" +
 	"\n" +
 	"Deprecated\x128\n" +
@@ -2364,7 +2372,8 @@ const file_wandb_proto_wandb_telemetry_proto_rawDesc = "" +
 	"\x15artifact__init_use_as\x18\x1b \x01(\bR\x11artifactInitUseAs\x129\n" +
 	"\x1abeta__workflows__log_model\x18\x1c \x01(\bR\x15betaWorkflowsLogModel\x129\n" +
 	"\x1abeta__workflows__use_model\x18\x1d \x01(\bR\x15betaWorkflowsUseModel\x12;\n" +
-	"\x1bbeta__workflows__link_model\x18\x1e \x01(\bR\x16betaWorkflowsLinkModelJ\x04\b\x02\x10\x03J\x04\b\x03\x10\x04J\x04\b\x04\x10\x05J\x04\b\x06\x10\a\"\xcf\x01\n" +
+	"\x1bbeta__workflows__link_model\x18\x1e \x01(\bR\x16betaWorkflowsLinkModel\x12'\n" +
+	"\x10kfp_v1_wandb_log\x18\x1f \x01(\bR\rkfpV1WandbLogJ\x04\b\x02\x10\x03J\x04\b\x03\x10\x04J\x04\b\x04\x10\x05J\x04\b\x06\x10\a\"\xcf\x01\n" +
 	"\x06Issues\x12A\n" +
 	"\x1dsettings__validation_warnings\x18\x01 \x01(\bR\x1asettingsValidationWarnings\x129\n" +
 	"\x19settings__unexpected_args\x18\x02 \x01(\bR\x16settingsUnexpectedArgs\x12G\n" +
