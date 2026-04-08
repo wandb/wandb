@@ -33,6 +33,7 @@ This version drops compatibility with server versions older than 0.63.0 (for Ded
 - Kubeflow Pipelines v2 (`kfp>=2.0.0`) support for the `@wandb_log` decorator. (@ayulockin in https://github.com/wandb/wandb/pull/11423)
 - `allow_media_symlink` setting to symlink or hardlink media files to the run directory instead of copying, improving logging performance and reducing disk usage (@jacobromero in https://github.com/wandb/wandb/pull/11544)
 - `run.pin_config_keys(keys)` to programmatically pin specific config keys for display in a References section on the Run Overview page (@acasey-wandb in https://github.com/wandb/wandb/pull/11639)
+- Direct TPU metric collection via `libtpu.so` FFI, capturing `tensorcore_util` (SDK-only, unavailable via gRPC), `duty_cycle_pct`, `hbm_capacity_total`, `hbm_capacity_usage`, and latency distributions (@dmitryduev in https://github.com/wandb/wandb/pull/11528)
 
 ### Changed
 

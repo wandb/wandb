@@ -25,7 +25,7 @@ import (
 // InjectStream returns a new Stream.
 func InjectStream(
 	commit GitCommitHash,
-	gpuResourceManager *monitor.GPUResourceManager,
+	xpuResourceManager *monitor.XPUResourceManager,
 	debugCorePath DebugCorePath,
 	logLevel slog.Level,
 	settings *settings.Settings,

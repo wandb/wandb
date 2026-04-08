@@ -240,6 +240,24 @@ func (s *Symon) handleNextPage(tea.KeyPressMsg) tea.Cmd {
 	return nil
 }
 
+func (s *Symon) handleGridWASD(msg tea.KeyPressMsg) tea.Cmd {
+	var dr, dc int
+	switch normalizeKey(msg.String()) {
+	case "w":
+		dr = -1
+	case "s":
+		dr = 1
+	case "a":
+		dc = -1
+	case "d":
+		dc = 1
+	default:
+		return nil
+	}
+	s.grid.NavigateFocus(dr, dc)
+	return nil
+}
+
 func (s *Symon) handleCycleFocusedChartMode(tea.KeyPressMsg) tea.Cmd {
 	s.grid.cycleFocusedChartMode()
 	return nil
@@ -259,9 +277,7 @@ func (s *Symon) handleClearSystemMetricsFilter(tea.KeyPressMsg) tea.Cmd {
 	if s.grid.FilterQuery() != "" {
 		s.grid.ClearFilter()
 	}
-	if s.focus.Type == FocusSystemChart {
-		s.focus.Reset()
-	}
+	s.grid.NavigateFocus(0, 0)
 	return nil
 }
 
