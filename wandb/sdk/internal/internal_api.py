@@ -342,7 +342,6 @@ class Api:
         self._azure_blob_module = util.get_module("azure.storage.blob")
 
         self._max_cli_version: str | None = None
-        self._server_settings_type: list[str] | None = None
 
         self._server_features_cache: dict[str, bool] | None = None
 
@@ -563,33 +562,6 @@ class Api:
         return project, run
 
     @normalize_exceptions
-    def server_settings_introspection(self) -> None:
-        query_string = """
-           query ProbeServerSettings {
-               ServerSettingsType: __type(name: "ServerSettings") {
-                   ...fieldData
-                }
-            }
-
-            fragment fieldData on __Type {
-                fields {
-                    name
-                }
-            }
-        """
-        if self._server_settings_type is None:
-            query = gql(query_string)
-            res = self.gql(query)
-            self._server_settings_type = (
-                [
-                    field.get("name", "")
-                    for field in res.get("ServerSettingsType", {}).get("fields", [{}])
-                ]
-                if res
-                else []
-            )
-
-    @normalize_exceptions
     def fail_run_queue_item(
         self,
         run_queue_item_id: str,
@@ -648,6 +620,10 @@ class Api:
 
     def _server_supports(self, feature: int | str) -> bool:
         """Return whether the current server supports the given feature.
+
+        NOTE: This is deprecated. Outside of this file, please use
+        `ServiceApi.feature_enabled()`. The `ServiceApi` is a sort of
+        replacement to this "internal" `Api` class.
 
         This also caches the underlying lookup of server feature flags,
         and it maps {feature_name (str) -> is_enabled (bool)}.
@@ -1823,7 +1799,7 @@ class Api:
         sweep_name: str | None = None,
         summary_metrics: str | None = None,
         num_retries: int | None = None,
-    ) -> tuple[dict, bool, list | None]:
+    ) -> tuple[dict, bool]:
         """Update a run.
 
         Args:
@@ -1908,29 +1884,10 @@ class Api:
                     historyLineCount
                 }
                 inserted
-                _Server_Settings_
             }
         }
         """
-        self.server_settings_introspection()
 
-        server_settings_string = (
-            """
-        serverSettings {
-                serverMessages{
-                    utfText
-                    plainText
-                    htmlText
-                    messageType
-                    messageLevel
-                }
-         }
-        """
-            if self._server_settings_type
-            else ""
-        )
-
-        query_string = query_string.replace("_Server_Settings_", server_settings_string)
         mutation = gql(query_string)
         config_str = json.dumps(config) if config else None
         if not description or description.isspace():
@@ -1988,18 +1945,9 @@ class Api:
             if entity_obj:
                 self.set_setting("entity", entity_obj["name"])
 
-        server_messages = None
-        if self._server_settings_type:
-            server_messages = (
-                response["upsertBucket"]
-                .get("serverSettings", {})
-                .get("serverMessages", [])
-            )
-
         return (
             response["upsertBucket"]["bucket"],
             response["upsertBucket"]["inserted"],
-            server_messages,
         )
 
     @normalize_exceptions

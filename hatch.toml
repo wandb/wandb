@@ -19,7 +19,7 @@ exclude = [
 [build.targets.sdist]
 include = [
     "core",
-    "gpu_stats",
+    "xpu",
     "wandb/vendor/wandb_orjson",
     "wandb/py.typed",
     "package_readme.md",

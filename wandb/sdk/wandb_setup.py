@@ -94,6 +94,7 @@ class _WandbSetup:
         self._asyncer.start()
 
         self._connection: ServiceConnection | None = None
+        self._connection_lock = threading.Lock()
 
         self._active_runs: list[wandb_run.Run] = []
         self._active_runs_lock = threading.Lock()
@@ -382,13 +383,17 @@ class _WandbSetup:
         if self._connection:
             return self._connection
 
-        from wandb.sdk.lib.service import service_connection
+        with self._connection_lock:
+            if self._connection:
+                return self._connection
 
-        self._connection = service_connection.connect_to_service(
-            self._asyncer,
-            self.settings,
-        )
-        return self._connection
+            from wandb.sdk.lib.service import service_connection
+
+            self._connection = service_connection.connect_to_service(
+                self._asyncer,
+                self.settings,
+            )
+            return self._connection
 
     def assert_service(self) -> ServiceConnection:
         """Returns a connection to the service process, asserting it exists.

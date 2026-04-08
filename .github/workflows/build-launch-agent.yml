@@ -23,8 +23,16 @@ defaults:
 
 jobs:
   build:
-    name: Build
-    runs-on: ubuntu-latest
+    name: Build (${{ matrix.platform }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-latest
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v6
 
@@ -51,15 +59,60 @@ jobs:
         run: |
           gcloud auth configure-docker us-central1-docker.pkg.dev
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
       - id: build
-        name: Build launch agent
+        name: Build and push by digest
+        uses: docker/build-push-action@v7
+        with:
+          context: ./tools/launch_release/build
+          platforms: ${{ matrix.platform }}
+          build-args: REF=${{ github.event.inputs.ref }}
+          outputs: type=image,name=wandb/launch-agent-dev,push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=registry,ref=wandb/launch-agent-dev:cache-${{ matrix.platform == 'linux/amd64' && 'amd64' || 'arm64' }}
+          cache-to: type=registry,ref=wandb/launch-agent-dev:cache-${{ matrix.platform == 'linux/amd64' && 'amd64' || 'arm64' }},mode=max
+
+      - name: Export digest
         run: |
-          docker context create builder
-          docker buildx create --use
+          mkdir -p /tmp/digests
+          digest="${{ steps.build.outputs.digest }}"
+          touch "/tmp/digests/${digest#sha256:}"
 
-          REF=${{ github.event.inputs.ref }}
+      - name: Upload digest
+        uses: actions/upload-artifact@v7
+        with:
+          name: digest-${{ matrix.platform == 'linux/amd64' && 'amd64' || 'arm64' }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
 
+  merge:
+    name: Merge manifests
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download digests
+        uses: actions/download-artifact@v8
+        with:
+          path: /tmp/digests
+          pattern: digest-*
+          merge-multiple: true
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Create and push manifest
+        run: |
           TAG=${{ github.event.inputs.tagName }}
-
-          echo Building launch agent image for version $TAG
-          docker buildx build --platform linux/amd64,linux/arm64 --build-arg REF=$REF -t wandb/launch-agent-dev:$TAG -t wandb/launch-agent-dev:latest . --push
+          docker buildx imagetools create \
+            -t wandb/launch-agent-dev:$TAG \
+            -t wandb/launch-agent-dev:latest \
+            $(printf 'wandb/launch-agent-dev@sha256:%s ' *)
+        working-directory: /tmp/digests

@@ -7,7 +7,7 @@ absl-py==2.3.1
     #   tensorflow
 aiohappyeyeballs==2.6.1
     # via aiohttp
-aiohttp==3.13.3
+aiohttp==3.13.4
     # via
     #   fsspec
     #   kubernetes-asyncio
@@ -48,7 +48,7 @@ async-timeout==5.0.1
     # via aiohttp
 asyncer==0.0.8
     # via dspy
-attrs==25.4.0
+attrs==26.1.0
     # via
     #   aiohttp
     #   hypothesis
@@ -56,13 +56,13 @@ attrs==25.4.0
     #   referencing
 autoflake==2.3.1
     # via ariadne-codegen
-awscli==1.44.58
+awscli==1.44.68
     # via
     #   -r requirements/requirements_dev.txt
     #   wandb
 azure-containerregistry==1.2.0
     # via wandb
-azure-core==1.38.3
+azure-core==1.39.0
     # via
     #   azure-containerregistry
     #   azure-identity
@@ -87,12 +87,12 @@ blinker==1.9.0
     # via flask
 bokeh==3.4.3
     # via -r requirements/requirements_dev.txt
-boto3==1.42.68
+boto3==1.42.78
     # via
     #   -r requirements/requirements_dev.txt
     #   metaflow
     #   wandb
-botocore==1.42.68
+botocore==1.42.78
     # via
     #   -r requirements/requirements_dev.txt
     #   awscli
@@ -109,6 +109,7 @@ certifi==2026.2.25
     # via
     #   httpcore
     #   httpx
+    #   kfp-server-api
     #   kubernetes
     #   kubernetes-asyncio
     #   requests
@@ -127,12 +128,16 @@ click==8.1.8
     #   -r requirements/requirements_dev.txt
     #   ariadne-codegen
     #   black
+    #   click-option-group
     #   flask
+    #   kfp
     #   litellm
     #   mlflow-skinny
     #   typer
     #   uvicorn
     #   wandb
+click-option-group==0.5.7
+    # via kfp
 cloudpickle==3.1.2
     # via
     #   -r requirements/requirements_dev.txt
@@ -162,7 +167,7 @@ coverage==7.10.7
     # via
     #   -r requirements/requirements_test.txt
     #   pytest-cov
-cryptography==46.0.5
+cryptography==46.0.6
     # via
     #   azure-identity
     #   azure-storage-blob
@@ -171,7 +176,7 @@ cryptography==46.0.5
     #   pyjwt
 cycler==0.12.1
     # via matplotlib
-databricks-sdk==0.100.0
+databricks-sdk==0.102.0
     # via mlflow-skinny
 datasets==4.0.0
     # via dspy
@@ -196,13 +201,13 @@ docker==7.1.0
     #   -r requirements/requirements_dev.txt
     #   mlflow
 docstring-parser==0.17.0
-    # via google-cloud-aiplatform
+    # via
+    #   google-cloud-aiplatform
+    #   kfp
 docutils==0.19
     # via awscli
 dspy==2.6.13
     # via -r requirements/requirements_dev.txt
-durationpy==0.10
-    # via kubernetes
 eval-type-backport==0.3.1
     # via
     #   -r requirements/requirements_dev.txt
@@ -271,6 +276,7 @@ google-api-core==2.30.0
     #   google-cloud-core
     #   google-cloud-resource-manager
     #   google-cloud-storage
+    #   kfp
 google-auth==2.49.1
     # via
     #   databricks-sdk
@@ -283,6 +289,8 @@ google-auth==2.49.1
     #   google-cloud-resource-manager
     #   google-cloud-storage
     #   google-genai
+    #   kfp
+    #   kubernetes
     #   wandb
 google-cloud-aiplatform==1.115.0
     # via
@@ -298,11 +306,12 @@ google-cloud-core==2.5.0
     # via
     #   google-cloud-bigquery
     #   google-cloud-storage
-google-cloud-resource-manager==1.16.0
+google-cloud-resource-manager==1.17.0
     # via google-cloud-aiplatform
 google-cloud-storage==2.19.0
     # via
     #   google-cloud-aiplatform
+    #   kfp
     #   wandb
 google-crc32c==1.8.0
     # via
@@ -316,7 +325,7 @@ google-resumable-media==2.8.0
     # via
     #   google-cloud-bigquery
     #   google-cloud-storage
-googleapis-common-protos==1.73.0
+googleapis-common-protos==1.73.1
     # via
     #   google-api-core
     #   grpc-google-iam-v1
@@ -338,7 +347,7 @@ grpc-google-iam-v1==0.14.3
     # via
     #   google-cloud-artifact-registry
     #   google-cloud-resource-manager
-grpcio==1.78.0
+grpcio==1.80.0
     # via
     #   google-api-core
     #   google-cloud-artifact-registry
@@ -349,7 +358,7 @@ grpcio==1.78.0
     #   grpcio-status
     #   tensorboard
     #   tensorflow
-grpcio-status==1.78.0
+grpcio-status==1.80.0
     # via google-api-core
 gymnasium==1.1.1
     # via
@@ -375,7 +384,7 @@ httpx==0.27.2
     #   jupyterlab
     #   litellm
     #   openai
-huggingface-hub==1.7.1
+huggingface-hub==1.8.0
     # via
     #   datasets
     #   tokenizers
@@ -473,7 +482,7 @@ joblib==1.5.3
     #   scikit-learn
 json-repair==0.44.1
     # via dspy
-json5==0.13.0
+json5==0.14.0
     # via jupyterlab-server
 jsonpointer==3.0.0
     # via jsonschema
@@ -536,10 +545,18 @@ jupyterlab-widgets==3.0.16
     # via ipywidgets
 keras==3.10.0
     # via tensorflow
+kfp==2.16.0
+    # via -r requirements/requirements_dev.txt
+kfp-pipeline-spec==2.16.0
+    # via kfp
+kfp-server-api==2.16.0
+    # via kfp
 kiwisolver==1.4.7
     # via matplotlib
-kubernetes==35.0.0
-    # via wandb
+kubernetes==30.1.0
+    # via
+    #   kfp
+    #   wandb
 kubernetes-asyncio==33.3.0
     # via wandb
 lark==1.3.1
@@ -555,7 +572,7 @@ lightning-utilities==0.15.2
     #   lightning
     #   pytorch-lightning
     #   torchmetrics
-litellm==1.82.2
+litellm==1.82.6
     # via dspy
 magicattr==0.1.6
     # via dspy
@@ -583,7 +600,7 @@ matplotlib-inline==0.2.1
     #   ipython
 mdurl==0.1.2
     # via markdown-it-py
-metaflow==2.19.21
+metaflow==2.19.22
     # via -r requirements/requirements_dev.txt
 mistune==3.2.0
     # via nbconvert
@@ -617,7 +634,7 @@ mypy-extensions==1.1.0
     # via black
 namex==0.1.0
     # via keras
-narwhals==2.18.0
+narwhals==2.18.1
     # via plotly
 nbclient==0.10.2
     # via
@@ -678,8 +695,10 @@ numpy==1.26.4
     #   torchvision
     #   xgboost
 oauthlib==3.3.1
-    # via requests-oauthlib
-openai==2.28.0
+    # via
+    #   kubernetes
+    #   requests-oauthlib
+openai==2.30.0
     # via
     #   -r requirements/requirements_dev.txt
     #   dspy
@@ -790,14 +809,14 @@ propcache==0.4.1
     # via
     #   aiohttp
     #   yarl
-proto-plus==1.27.1
+proto-plus==1.27.2
     # via
     #   google-api-core
     #   google-cloud-aiplatform
     #   google-cloud-artifact-registry
     #   google-cloud-compute
     #   google-cloud-resource-manager
-protobuf==6.33.5
+protobuf==6.33.6
     # via
     #   databricks-sdk
     #   google-api-core
@@ -808,6 +827,8 @@ protobuf==6.33.5
     #   googleapis-common-protos
     #   grpc-google-iam-v1
     #   grpcio-status
+    #   kfp
+    #   kfp-pipeline-spec
     #   mlflow-skinny
     #   proto-plus
     #   tensorboard
@@ -824,7 +845,7 @@ pyarrow==20.0.0
     #   -r requirements/requirements_dev.txt
     #   datasets
     #   mlflow
-pyasn1==0.6.2
+pyasn1==0.6.3
     # via
     #   pyasn1-modules
     #   rsa
@@ -851,7 +872,7 @@ pyfakefs==5.10.2
     # via -r requirements/requirements_test.txt
 pyflakes==3.4.0
     # via autoflake
-pygments==2.19.2
+pygments==2.20.0
     # via
     #   ipython
     #   jupyter-console
@@ -876,7 +897,7 @@ pytest==8.4.2
     #   pytest-xdist
 pytest-asyncio==1.2.0
     # via -r requirements/requirements_test.txt
-pytest-cov==7.0.0
+pytest-cov==7.1.0
     # via -r requirements/requirements_test.txt
 pytest-flakefinder==1.1.0
     # via -r requirements/requirements_test.txt
@@ -895,6 +916,7 @@ python-dateutil==2.9.0.post0
     #   google-cloud-bigquery
     #   graphene
     #   jupyter-client
+    #   kfp-server-api
     #   kubernetes
     #   kubernetes-asyncio
     #   matplotlib
@@ -925,6 +947,7 @@ pyyaml==6.0.3
     #   datasets
     #   huggingface-hub
     #   jupyter-events
+    #   kfp
     #   kubernetes
     #   kubernetes-asyncio
     #   lightning
@@ -970,12 +993,15 @@ requests==2.32.5
     #   moviepy
     #   msal
     #   requests-oauthlib
+    #   requests-toolbelt
     #   responses
     #   tensorflow
     #   tiktoken
     #   wandb
 requests-oauthlib==2.0.0
     # via kubernetes
+requests-toolbelt==1.0.0
+    # via kfp
 responses==0.23.3
     # via
     #   -r requirements/requirements_dev.txt
@@ -1021,7 +1047,7 @@ scipy==1.13.1
     #   xgboost
 send2trash==2.1.0
     # via jupyter-server
-sentry-sdk==2.54.0
+sentry-sdk==2.56.0
     # via wandb
 setuptools==82.0.1
     # via
@@ -1038,6 +1064,7 @@ six==1.17.0
     #   astunparse
     #   catboost
     #   google-pasta
+    #   kfp-server-api
     #   kubernetes
     #   kubernetes-asyncio
     #   python-dateutil
@@ -1072,6 +1099,8 @@ sweeps==0.2.0
     # via wandb
 sympy==1.14.0
     # via torch
+tabulate==0.9.0
+    # via kfp
 tenacity==9.1.2
     # via
     #   -r requirements/requirements_dev.txt
@@ -1100,7 +1129,7 @@ tokenizers==0.22.2
     # via litellm
 toml==0.10.2
     # via ariadne-codegen
-tomli==2.4.0
+tomli==2.4.1
     # via
     #   alembic
     #   autoflake
@@ -1225,6 +1254,8 @@ urllib3==1.26.20
     #   -r requirements/requirements_dev.txt
     #   botocore
     #   docker
+    #   kfp
+    #   kfp-server-api
     #   kubernetes
     #   kubernetes-asyncio
     #   requests
@@ -1254,7 +1285,7 @@ websocket-client==1.9.0
     #   kubernetes
 websockets==14.2
     # via google-genai
-werkzeug==3.1.6
+werkzeug==3.1.7
     # via
     #   flask
     #   tensorboard
@@ -1268,7 +1299,7 @@ xgboost==2.1.4
     # via -r requirements/requirements_dev.txt
 xxhash==3.6.0
     # via datasets
-xyzservices==2025.11.0
+xyzservices==2026.3.0
     # via bokeh
 yarl==1.22.0
     # via aiohttp

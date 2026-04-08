@@ -196,7 +196,10 @@ class AsyncioManager:
 
         with self._lock:
             if self._joined:
-                raise AlreadyJoinedError
+                raise AlreadyJoinedError(
+                    "Cannot schedule tasks after join()."  #
+                    + " Did you call wandb.teardown()?"
+                )
 
             if not daemon:
                 self._remaining_tasks += 1

@@ -50,6 +50,11 @@ func RunKeyBindings() []BindingCategory[Run] {
 			Name: "Panels",
 			Bindings: []KeyBinding[Run]{
 				{
+					Keys:        []string{"1"},
+					Description: "Toggle metrics grid",
+					Handler:     (*Run).handleToggleMetricsGrid,
+				},
+				{
 					Keys:        []string{"["},
 					Description: "Toggle left sidebar with run overview",
 					Handler:     (*Run).handleToggleLeftSidebar,
@@ -60,7 +65,12 @@ func RunKeyBindings() []BindingCategory[Run] {
 					Handler:     (*Run).handleToggleRightSidebar,
 				},
 				{
-					Keys:        []string{"l"},
+					Keys:        []string{"3"},
+					Description: "Toggle media pane",
+					Handler:     (*Run).handleToggleMediaPane,
+				},
+				{
+					Keys:        []string{"4"},
 					Description: "Toggle console logs panel",
 					Handler:     (*Run).handleToggleConsoleLogsPane,
 				},
@@ -71,23 +81,13 @@ func RunKeyBindings() []BindingCategory[Run] {
 			Bindings: []KeyBinding[Run]{
 				{
 					Keys:        []string{"N", "pgup"},
-					Description: "Previous chart page",
+					Description: "Previous page (focused pane)",
 					Handler:     (*Run).handlePrevPage,
 				},
 				{
 					Keys:        []string{"n", "pgdown"},
-					Description: "Next chart page",
+					Description: "Next page (focused pane)",
 					Handler:     (*Run).handleNextPage,
-				},
-				{
-					Keys:        []string{"M", "alt+N", "alt+pgup"},
-					Description: "Previous system metrics page",
-					Handler:     (*Run).handlePrevSystemPage,
-				},
-				{
-					Keys:        []string{"m", "alt+n", "alt+pgdown"},
-					Description: "Next system metrics page",
-					Handler:     (*Run).handleNextSystemPage,
 				},
 			},
 		},
@@ -141,33 +141,23 @@ func RunKeyBindings() []BindingCategory[Run] {
 			Bindings: []KeyBinding[Run]{
 				{
 					Keys:        []string{"c"},
-					Description: "Set metrics grid columns",
-					Handler:     (*Run).handleConfigMetricsCols,
+					Description: "Set grid columns (focused pane)",
+					Handler:     (*Run).handleConfigFocusedCols,
 				},
 				{
 					Keys:        []string{"r"},
-					Description: "Set metrics grid rows",
-					Handler:     (*Run).handleConfigMetricsRows,
-				},
-				{
-					Keys:        []string{"C"},
-					Description: "Set system grid columns (Shift+c)",
-					Handler:     (*Run).handleConfigSystemCols,
-				},
-				{
-					Keys:        []string{"R"},
-					Description: "Set system grid rows (Shift+r)",
-					Handler:     (*Run).handleConfigSystemRows,
+					Description: "Set grid rows (focused pane)",
+					Handler:     (*Run).handleConfigFocusedRows,
 				},
 			},
 		},
 
 		{
-			Name: "Sidebars (when open)",
+			Name: "Focusable panes (when open)",
 			Bindings: []KeyBinding[Run]{
 				{
 					Keys:        []string{"tab", "shift+tab"},
-					Description: "Cycle focus: overview ↔ logs (overview cycles sections)",
+					Description: "Cycle focus: overview ↔ metrics ↔ system ↔ media ↔ logs",
 					Handler:     (*Run).handleSidebarTabNav,
 				},
 				{
@@ -221,12 +211,17 @@ func WorkspaceKeyBindings() []BindingCategory[Workspace] {
 			Name: "Panels",
 			Bindings: []KeyBinding[Workspace]{
 				{
+					Keys:        []string{"1"},
+					Description: "Toggle metrics grid",
+					Handler:     (*Workspace).handleToggleMetricsGrid,
+				},
+				{
 					Keys:        []string{"["},
 					Description: "Toggle runs sidebar",
 					Handler:     (*Workspace).handleToggleRunsSidebar,
 				},
 				{
-					Keys:        []string{"s"},
+					Keys:        []string{"2"},
 					Description: "Toggle system metrics panel",
 					Handler:     (*Workspace).handleToggleSystemMetricsPane,
 				},
@@ -236,7 +231,12 @@ func WorkspaceKeyBindings() []BindingCategory[Workspace] {
 					Handler:     (*Workspace).handleToggleOverviewSidebar,
 				},
 				{
-					Keys:        []string{"l"},
+					Keys:        []string{"3"},
+					Description: "Toggle media pane",
+					Handler:     (*Workspace).handleToggleMediaPane,
+				},
+				{
+					Keys:        []string{"4"},
 					Description: "Toggle console logs panel",
 					Handler:     (*Workspace).handleToggleConsoleLogsPane,
 				},
@@ -247,23 +247,13 @@ func WorkspaceKeyBindings() []BindingCategory[Workspace] {
 			Bindings: []KeyBinding[Workspace]{
 				{
 					Keys:        []string{"N", "pgup"},
-					Description: "Previous chart page",
+					Description: "Previous page (focused pane)",
 					Handler:     (*Workspace).handlePrevPage,
 				},
 				{
 					Keys:        []string{"n", "pgdown"},
-					Description: "Next chart page",
+					Description: "Next page (focused pane)",
 					Handler:     (*Workspace).handleNextPage,
-				},
-				{
-					Keys:        []string{"M"},
-					Description: "Previous system metrics page",
-					Handler:     (*Workspace).handlePrevSystemMetricsPage,
-				},
-				{
-					Keys:        []string{"m"},
-					Description: "Next system metrics page",
-					Handler:     (*Workspace).handleNextSystemMetricsPage,
 				},
 			},
 		},
@@ -333,32 +323,22 @@ func WorkspaceKeyBindings() []BindingCategory[Workspace] {
 			Bindings: []KeyBinding[Workspace]{
 				{
 					Keys:        []string{"c"},
-					Description: "Set metrics grid columns",
-					Handler:     (*Workspace).handleConfigMetricsCols,
+					Description: "Set grid columns (focused pane)",
+					Handler:     (*Workspace).handleConfigFocusedCols,
 				},
 				{
 					Keys:        []string{"r"},
-					Description: "Set metrics grid rows",
-					Handler:     (*Workspace).handleConfigMetricsRows,
-				},
-				{
-					Keys:        []string{"C"},
-					Description: "Set system grid columns (Shift+c)",
-					Handler:     (*Workspace).handleConfigSystemCols,
-				},
-				{
-					Keys:        []string{"R"},
-					Description: "Set system grid rows (Shift+r)",
-					Handler:     (*Workspace).handleConfigSystemRows,
+					Description: "Set grid rows (focused pane)",
+					Handler:     (*Workspace).handleConfigFocusedRows,
 				},
 			},
 		},
 		{
-			Name: "Sidebars (when open)",
+			Name: "Focusable panes (when open)",
 			Bindings: []KeyBinding[Workspace]{
 				{
 					Keys:        []string{"tab", "shift+tab"},
-					Description: "Cycle focus between runs, overview, and console logs",
+					Description: "Cycle focus: runs ↔ metrics ↔ system ↔ media ↔ logs ↔ overview",
 					Handler:     (*Workspace).handleSidebarTabNav,
 				},
 				{
@@ -426,6 +406,11 @@ func SymonKeyBindings() []BindingCategory[Symon] {
 					Keys:        []string{"n", "pgdown"},
 					Description: "Next chart page",
 					Handler:     (*Symon).handleNextPage,
+				},
+				{
+					Keys:        []string{"w", "a", "s", "d"},
+					Description: "Navigate chart focus",
+					Handler:     (*Symon).handleGridWASD,
 				},
 			},
 		},

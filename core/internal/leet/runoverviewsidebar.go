@@ -111,17 +111,6 @@ func (s *RunOverviewSidebar) Update(msg tea.Msg) (*RunOverviewSidebar, tea.Cmd) 
 	return s, nil
 }
 
-// contentPadding accounts for borders and internal spacing depending on the sidebar placement.
-func (s *RunOverviewSidebar) contentPadding() int {
-	switch s.side {
-	case SidebarSideLeft:
-		return leftSidebarContentPadding
-	case SidebarSideRight:
-		return rightSidebarContentPadding
-	}
-	return 0
-}
-
 // style returns sidebar style depending on the its placement.
 func (s *RunOverviewSidebar) style() lipgloss.Style {
 	switch s.side {
@@ -156,7 +145,7 @@ func (s *RunOverviewSidebar) headerStyle() lipgloss.Style {
 // View renders the sidebar.
 func (s *RunOverviewSidebar) View(height int) tea.View {
 	width := s.animState.Value()
-	if height <= 0 || width <= s.contentPadding() {
+	if height <= 0 || width <= SidebarOverhead {
 		return tea.NewView("")
 	}
 
@@ -189,12 +178,12 @@ func (s *RunOverviewSidebar) View(height int) tea.View {
 		Render(content)
 
 	bordered := s.borderStyle().
-		Height(height + 1).
-		MaxHeight(height + 1).
+		Height(height).
+		MaxHeight(height).
 		Render(styledContent)
 
 	return tea.NewView(
-		lipgloss.Place(width, height+1, lipgloss.Left, lipgloss.Top, bordered),
+		lipgloss.Place(width, height, lipgloss.Left, lipgloss.Top, bordered),
 	)
 }
 
@@ -239,16 +228,7 @@ func (s *RunOverviewSidebar) Sync() {
 // UpdateDimensions updates the sidebar dimensions based on terminal width
 // and the visibility of the sidebar on the opposite side.
 func (s *RunOverviewSidebar) UpdateDimensions(terminalWidth int, oppositeSidebarVisible bool) {
-	var calculatedWidth int
-
-	if oppositeSidebarVisible {
-		calculatedWidth = int(float64(terminalWidth) * SidebarWidthRatioBoth)
-	} else {
-		calculatedWidth = int(float64(terminalWidth) * SidebarWidthRatio)
-	}
-
-	expandedWidth := clamp(calculatedWidth, SidebarMinWidth, SidebarMaxWidth)
-	s.animState.SetExpanded(expandedWidth)
+	s.animState.SetExpanded(expandedSidebarWidth(terminalWidth, oppositeSidebarVisible))
 }
 
 // Width returns the current width of the sidebar.
@@ -643,21 +623,16 @@ func (s *RunOverviewSidebar) focusableSectionBounds() (first, last int) {
 	return first, last
 }
 
-// sidebarContentWidth computes width available for content taking
-// borders and internal spacing into account.
+// sidebarContentWidth returns the width available for text content
+// after subtracting border and padding.
 func (s *RunOverviewSidebar) sidebarContentWidth(width int) int {
-	return max(width-s.contentPadding(), 1)
+	return sidebarContentWidth(width)
 }
 
+// sidebarInnerWidth returns the width for the lipgloss Style
+// (includes padding, excludes border).
 func (s *RunOverviewSidebar) sidebarInnerWidth(width int) int {
-	switch s.side {
-	case SidebarSideLeft:
-		return max(width-runsSidebarBorderCols, 0)
-	case SidebarSideRight:
-		return max(width-sidebarVerticalBorderCols, 0)
-	default:
-		return max(width, 0)
-	}
+	return sidebarInnerWidth(width)
 }
 
 func (s *RunOverviewSidebar) tagColorScheme() string {

@@ -489,9 +489,10 @@ jobs:
             cd parquet-rust-wrapper
             cargo test --verbose
       - run:
-          name: Run Rust tests for gpu_stats
+          name: Run Rust tests for wandb-xpu
           command: |
-            cd gpu_stats
+            sudo apt-get install -y -qq python3-pip >/dev/null
+            cd xpu
             cargo test --verbose
 
   # Download the local-testcontainer image corresponding to the latest server release

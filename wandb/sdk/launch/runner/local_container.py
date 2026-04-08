@@ -133,7 +133,7 @@ class LocalContainerRunner(AbstractRunner):
             docker_args["volume"].append(
                 f"{launch_project.project_dir}:{CODE_MOUNT_DIR}"
             )
-            docker_args["workdir"] = CODE_MOUNT_DIR
+            docker_args["workdir"] = launch_project.resolved_working_dir
         return docker_args
 
     async def run(
