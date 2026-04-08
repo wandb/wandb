@@ -1,5 +1,12 @@
 # Changes
 
+## [2.21.0](https://github.com/googleapis/google-cloud-go/releases/tag/v2.21.0) (2026-04-01)
+
+### Features
+
+* hook transport telemetry into gax.Invoke and record (#496) ([d531001](https://github.com/googleapis/google-cloud-go/commit/d5310019d6c635956b61558627b13c2c2419044e))
+* update IsFeatureEnabled to not require EXPERIMENTAL (#497) ([a2a329e](https://github.com/googleapis/google-cloud-go/commit/a2a329e31d8ef8348a1ef7bea1c7072f8abcc145))
+
 ## [2.20.0](https://github.com/googleapis/google-cloud-go/releases/tag/v2.20.0) (2026-03-25)
 
 ### Features
