@@ -77,6 +77,7 @@ class Registries(RelayPaginator["RegistryFragment", "Registry"]):
         per_page: PositiveInt = 100,
         start: str | None = None,
     ) -> Collections:
+        """List artifact collections for registries matching this search."""
         return Collections(
             client=self.client,
             organization=self.organization,
@@ -94,6 +95,7 @@ class Registries(RelayPaginator["RegistryFragment", "Registry"]):
         per_page: PositiveInt = 100,
         start: str | None = None,
     ) -> Versions:
+        """List artifact versions across registries matching this search."""
         return Versions(
             client=self.client,
             organization=self.organization,
@@ -196,6 +198,7 @@ class Collections(
         per_page: PositiveInt = 100,
         start: str | None = None,
     ) -> Versions:
+        """List artifact versions scoped to these collections."""
         return Versions(
             client=self.client,
             organization=self.organization,
