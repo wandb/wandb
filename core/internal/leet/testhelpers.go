@@ -258,15 +258,33 @@ func (c *EpochLineChart) TestFormatYTick(v float64) string {
 	return c.formatYTick(v)
 }
 
-// TestChartAt returns the chart at (row, col) on the current page (or nil).
+// TestChartAt returns the underlying line chart at (row, col) on the current page (or nil).
 func (mg *MetricsGrid) TestChartAt(row, col int) *EpochLineChart {
 	mg.mu.RLock()
 	defer mg.mu.RUnlock()
 	if row < 0 || row >= len(mg.currentPage) ||
-		col < 0 || col >= len(mg.currentPage[row]) {
+		col < 0 || col >= len(mg.currentPage[row]) ||
+		mg.currentPage[row][col] == nil {
 		return nil
 	}
-	return mg.currentPage[row][col]
+	return mg.currentPage[row][col].EpochLineChart
+}
+
+// TestHeatmapModeAt reports whether the main chart at (row, col) is in heatmap mode.
+func (mg *MetricsGrid) TestHeatmapModeAt(row, col int) bool {
+	mg.mu.RLock()
+	defer mg.mu.RUnlock()
+	if row < 0 || row >= len(mg.currentPage) ||
+		col < 0 || col >= len(mg.currentPage[row]) ||
+		mg.currentPage[row][col] == nil {
+		return false
+	}
+	return mg.currentPage[row][col].IsHeatmapMode()
+}
+
+// TestCycleFocusedChartMode advances the focused main chart through its modes.
+func (mg *MetricsGrid) TestCycleFocusedChartMode() bool {
+	return mg.cycleFocusedChartMode()
 }
 
 // TestSyncInspectActive exposes the synchronized inspection flag for tests.

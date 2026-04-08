@@ -99,19 +99,14 @@ func (c *TimeSeriesLineChart) SetTailWindow(window time.Duration) {
 }
 
 // AddDataPoint adds a data point to this chart, creating series as needed.
-func (c *TimeSeriesLineChart) AddDataPoint(seriesName string, timestamp int64, value float64) {
+func (c *TimeSeriesLineChart) AddDataPoint(seriesName string, x, value float64) {
 	seriesKey, created := c.ensureSeries(seriesName)
-	pointTime := time.Unix(timestamp, 0)
-	c.lastUpdate = pointTime
+	c.lastUpdate = time.Unix(int64(x), 0)
 
-	if value < c.minValue {
-		c.minValue = value
-	}
-	if value > c.maxValue {
-		c.maxValue = value
-	}
+	c.minValue = min(c.minValue, value)
+	c.maxValue = max(c.maxValue, value)
 
-	c.addPoint(seriesKey, float64(timestamp), value)
+	c.addPoint(seriesKey, x, value)
 
 	if created {
 		style := lipgloss.NewStyle().Foreground(c.seriesColors[seriesKey])

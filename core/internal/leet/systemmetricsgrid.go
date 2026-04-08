@@ -159,16 +159,13 @@ func (g *SystemMetricsGrid) createMetricChart(def *MetricDef) systemMetricChart 
 	})
 	lineChart.SetTailWindow(g.config.SystemTailWindow())
 
-	if !def.Percentage {
-		return lineChart
-	}
-
 	frenchFriesChart := NewFrenchFriesChart(&FrenchFriesChartParams{
-		Width:  chartWidth,
-		Height: chartHeight,
-		Def:    def,
-		Colors: FrenchFriesColors(g.config.FrenchFriesColorScheme()),
-		Now:    now,
+		Width:         chartWidth,
+		Height:        chartHeight,
+		Title:         def.Title(),
+		UnitFormatter: def.Unit.Format,
+		Colors:        FrenchFriesColors(g.config.FrenchFriesColorScheme()),
+		Now:           now,
 	})
 	return newFrenchFriesToggleChart(lineChart, frenchFriesChart)
 }
@@ -190,7 +187,7 @@ func (g *SystemMetricsGrid) AddDataPoint(metricName string, timestamp int64, val
 	seriesName := ExtractSeriesName(metricName)
 
 	chart := g.getOrCreateChart(baseKey, def)
-	chart.AddDataPoint(seriesName, timestamp, value)
+	chart.AddDataPoint(seriesName, float64(timestamp), value)
 	if g.isChartVisible(chart) {
 		chart.DrawIfNeeded()
 	}
@@ -674,7 +671,11 @@ func chartHeaderExtras(chart systemMetricChart) systemMetricHeaderExtras {
 	}
 	switch {
 	case chart.IsHeatmapMode():
-		extras.mode = " [heatmap]"
+		// TitleDetail already includes the legend when in heatmap mode,
+		// but show a fallback mode label if detail is empty.
+		if extras.detail == "" {
+			extras.mode = " [heatmap]"
+		}
 	case chart.IsLogY():
 		extras.mode = " [log]"
 	}

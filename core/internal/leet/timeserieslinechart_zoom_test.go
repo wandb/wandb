@@ -36,7 +36,7 @@ func TestTimeSeriesLineChart_AutoTrailFreezeAndShowAll(t *testing.T) {
 
 	for i := range 10 {
 		ts := start.Add(time.Duration(i-9) * time.Minute)
-		chart.AddDataPoint(leet.DefaultSystemMetricSeriesName, ts.Unix(), float64(i))
+		chart.AddDataPoint(leet.DefaultSystemMetricSeriesName, float64(ts.Unix()), float64(i))
 	}
 
 	viewMin, viewMax := chart.TestViewRange()
@@ -44,7 +44,8 @@ func TestTimeSeriesLineChart_AutoTrailFreezeAndShowAll(t *testing.T) {
 	require.InDelta(t, 120.0, viewMax-viewMin, 1.0, "tail window should default to 2 minutes")
 	require.GreaterOrEqual(t, viewMax, float64(start.Unix()))
 
-	chart.AddDataPoint(leet.DefaultSystemMetricSeriesName, start.Add(time.Minute).Unix(), 10)
+	chart.AddDataPoint(
+		leet.DefaultSystemMetricSeriesName, float64(start.Add(time.Minute).Unix()), 10)
 	trailMin, trailMax := chart.TestViewRange()
 	require.True(t, chart.TestAutoTrail())
 	require.Greater(t, trailMin, viewMin)
@@ -61,7 +62,7 @@ func TestTimeSeriesLineChart_AutoTrailFreezeAndShowAll(t *testing.T) {
 	frozenMin, frozenMax := chart.TestViewRange()
 
 	chart.AddDataPoint(
-		leet.DefaultSystemMetricSeriesName, start.Add(2*time.Minute).Unix(), 11)
+		leet.DefaultSystemMetricSeriesName, float64(start.Add(2*time.Minute).Unix()), 11)
 	stillMin, stillMax := chart.TestViewRange()
 	require.InDelta(t, frozenMin, stillMin, 1e-9)
 	require.InDelta(t, frozenMax, stillMax, 1e-9)
@@ -77,7 +78,7 @@ func TestTimeSeriesLineChart_AutoTrailFreezeAndShowAll(t *testing.T) {
 	showAllMin, showAllMax := chart.TestViewRange()
 
 	chart.AddDataPoint(
-		leet.DefaultSystemMetricSeriesName, start.Add(3*time.Minute).Unix(), 12)
+		leet.DefaultSystemMetricSeriesName, float64(start.Add(3*time.Minute).Unix()), 12)
 	expandedMin, expandedMax := chart.TestViewRange()
 	require.InDelta(t, showAllMin, expandedMin, 10,
 		"full-history mode should preserve the start")
