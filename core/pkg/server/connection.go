@@ -37,7 +37,7 @@ const (
 type ConnectionParams struct {
 	StreamMux          *stream.StreamMux
 	RunSyncManager     *runsync.RunSyncManager
-	GPUResourceManager *monitor.GPUResourceManager
+	XPUResourceManager *monitor.XPUResourceManager
 
 	ID string
 
@@ -78,8 +78,8 @@ type Connection struct {
 	// runSyncManager implements `wandb sync` operations.
 	runSyncManager *runsync.RunSyncManager
 
-	// gpuResourceManager is used by streams for system GPU metrics.
-	gpuResourceManager *monitor.GPUResourceManager
+	// xpuResourceManager is used by streams for system accelerator metrics.
+	xpuResourceManager *monitor.XPUResourceManager
 
 	// id is the unique id for the connection
 	id string
@@ -121,7 +121,7 @@ func NewConnection(
 		stopServer:         stopServer,
 		streamMux:          params.StreamMux,
 		runSyncManager:     params.RunSyncManager,
-		gpuResourceManager: params.GPUResourceManager,
+		xpuResourceManager: params.XPUResourceManager,
 		conn:               params.Conn,
 		commit:             params.Commit,
 		id:                 params.ID,
@@ -385,7 +385,7 @@ func (nc *Connection) handleInformInit(msg *spb.ServerInformInitRequest) {
 
 	strm := stream.InjectStream(
 		stream.GitCommitHash(nc.commit),
-		nc.gpuResourceManager,
+		nc.xpuResourceManager,
 		stream.DebugCorePath(nc.loggerPath),
 		nc.logLevel,
 		s,

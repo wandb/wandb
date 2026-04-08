@@ -240,6 +240,24 @@ func (s *Symon) handleNextPage(tea.KeyPressMsg) tea.Cmd {
 	return nil
 }
 
+func (s *Symon) handleGridWASD(msg tea.KeyPressMsg) tea.Cmd {
+	var dr, dc int
+	switch normalizeKey(msg.String()) {
+	case "w":
+		dr = -1
+	case "s":
+		dr = 1
+	case "a":
+		dc = -1
+	case "d":
+		dc = 1
+	default:
+		return nil
+	}
+	s.grid.NavigateFocus(dr, dc)
+	return nil
+}
+
 func (s *Symon) handleCycleFocusedChartMode(tea.KeyPressMsg) tea.Cmd {
 	s.grid.cycleFocusedChartMode()
 	return nil
@@ -259,9 +277,7 @@ func (s *Symon) handleClearSystemMetricsFilter(tea.KeyPressMsg) tea.Cmd {
 	if s.grid.FilterQuery() != "" {
 		s.grid.ClearFilter()
 	}
-	if s.focus.Type == FocusSystemChart {
-		s.focus.Reset()
-	}
+	s.grid.NavigateFocus(0, 0)
 	return nil
 }
 
@@ -308,7 +324,7 @@ func (s *Symon) handleMouse(msg tea.MouseMsg) tea.Cmd {
 		return nil
 	}
 
-	adjustedX := mouse.X
+	adjustedX := mouse.X - ContentPadding
 	adjustedY := mouse.Y - symonHeaderLines
 	if adjustedX < 0 || adjustedY < 0 {
 		return nil
@@ -351,11 +367,12 @@ func (s *Symon) handleMouse(msg tea.MouseMsg) tea.Cmd {
 
 // renderMainView renders the header, system metrics grid, and status bar.
 func (s *Symon) renderMainView() string {
+	innerW := max(s.width-ContentPaddingCols, 0)
 	header := symonContainerStyle.Render(
-		renderSystemMetricsHeader(s.width-symonContainerLeftPadding, "System Metrics", "", s.grid))
+		renderSystemMetricsHeader(innerW, "System Metrics", "", s.grid))
 	bodyHeight := max(s.height-StatusBarHeight-symonHeaderLines, 0)
 	body := symonContainerStyle.Render(renderSystemMetricsBody(
-		s.width-symonContainerLeftPadding,
+		innerW,
 		bodyHeight,
 		s.grid,
 		"Collecting system metrics...",
@@ -463,7 +480,10 @@ func (s *Symon) resizeGrid() {
 	if s.width <= 0 || s.height <= 0 {
 		return
 	}
-	s.grid.Resize(s.width, max(s.height-StatusBarHeight-symonHeaderLines, 1))
+	s.grid.Resize(
+		max(s.width-ContentPaddingCols, 0),
+		max(s.height-StatusBarHeight-symonHeaderLines, 1),
+	)
 }
 
 // isAwaitingUserInput reports whether a child component currently owns free-form

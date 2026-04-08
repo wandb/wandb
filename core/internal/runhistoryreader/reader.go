@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"sync"
 
 	"github.com/Khan/genqlient/graphql"
 
@@ -17,6 +18,10 @@ import (
 
 // HistoryReader downloads and reads an existing run's logged metrics.
 type HistoryReader struct {
+	// mu serializes calls to GetHistorySteps and Release.
+	// The Rust FFI readers are not safe for concurrent use.
+	mu sync.Mutex
+
 	// graphqlClient is the client to use to query the W&B backend.
 	graphqlClient graphql.Client
 
@@ -101,11 +106,16 @@ func (h *HistoryReader) GetRunId() string {
 // GetHistorySteps gets all history rows for HistoryReader's keys
 // that fall between minStep and maxStep.
 // Returns a list of KVMapLists, where each item in the list is a history row.
+//
+// It is safe to call from multiple goroutines.
 func (h *HistoryReader) GetHistorySteps(
 	ctx context.Context,
 	minStep int64,
 	maxStep int64,
 ) ([]parquet.KeyValueList, error) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
 	results := []parquet.KeyValueList{}
 	for _, reader := range h.parquetReaders {
 		resultsForPartition, err := reader.ScanStepRange(ctx, minStep, maxStep)
@@ -145,7 +155,12 @@ func (h *HistoryReader) GetHistorySteps(
 
 // Release calls the Release method on each partition's ParquetDataIterator
 // and frees any Rust resources.
+//
+// It is safe to call from multiple goroutines.
 func (h *HistoryReader) Release() {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
 	for _, reader := range h.parquetReaders {
 		reader.Release()
 	}

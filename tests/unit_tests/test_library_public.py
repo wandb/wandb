@@ -51,6 +51,7 @@ SYMBOLS_ROOT_SDK = {
     "controller",
     "sweep",
     "mark_preempting",
+    "pin_config_keys",
     "require",
     "profiler",
 }
@@ -192,6 +193,7 @@ SYMBOLS_RUN = {
     "log_code",
     "alert",
     "define_metric",
+    "pin_config_keys",
     # "summary",   # really this should be here
     "disabled",
     "offline",

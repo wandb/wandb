@@ -83,8 +83,10 @@ def leet(ctx: click.Context) -> None:
 def run(path: str | None = None, pprof: str = "") -> None:
     """Launch the LEET TUI.
 
-    PATH can be a .wandb file, a run directory, or a wandb directory.
-    If omitted, searches for the latest run.
+    LEET is a terminal UI for viewing a W&B run specified by an optional PATH.
+
+    PATH can include a .wandb file or a run directory containing a .wandb file.
+    If PATH is not provided, the command will look for the latest run.
     """
     from . import beta_leet
 
@@ -217,17 +219,17 @@ def sync(
     PATHS can include .wandb files, run directories containing .wandb files,
     and "wandb" directories containing run directories.
 
-    For example, to sync all runs in a directory:
+    For example, to sync all runs in the current .wandb directory:
 
-        wandb beta sync ./wandb
+        $ wandb beta sync ./wandb
 
-    To sync a specific run:
+    To sync a specific run by specifying the run directory:
 
-        wandb beta sync ./wandb/run-20250813_124246-n67z9ude
+        $ wandb beta sync ./wandb/run-20250813_124246-n67z9ude
 
     Or equivalently:
 
-        wandb beta sync ./wandb/run-20250813_124246-n67z9ude/run-n67z9ude.wandb
+        $ wandb beta sync ./wandb/run-20250813_124246-n67z9ude/run-n67z9ude.wandb
     """
     from . import beta_sync
 
@@ -252,7 +254,7 @@ def core() -> None:
 
     wandb-core is the local backend process that handles run data,
     file uploads, and system metrics collection. By default, each
-    process that calls wandb.init() starts its own backend. On a
+    process that calls `wandb.init()` starts its own backend. On a
     machine running many independent workers, that duplicates work
     and wastes CPU and memory.
 
@@ -263,7 +265,7 @@ def core() -> None:
     Typical workflow:
 
         $ wandb beta core start
-        $ export WANDB_SERVICE=<printed value>
+        $ export WANDB_SERVICE=printed_value
         $ python -m your_launcher
         $ wandb beta core stop
 

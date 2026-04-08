@@ -116,7 +116,7 @@ pub fn get_lib_path() -> Result<PathBuf, NvmlError> {
     }
 }
 
-/// Struct to collect metrics from NVIDIA GPUs using NVML.
+/// NvidiaGpu collects metadata and metrics from NVIDIA GPUs using NVML.
 pub struct NvidiaGpu {
     nvml: Nvml,
     cuda_version: String,

@@ -121,7 +121,9 @@ func TestMetricsGrid_Navigate_ClearsMainChartFocus(t *testing.T) {
 	f.Title = "alpha"
 
 	grid.Navigate(1)
-	require.Equal(t, leet.FocusNone, f.Type, "focus should be cleared after navigation")
+	require.Equal(t, leet.FocusMainChart, f.Type, "first chart should be focused after navigation")
+	require.Equal(t, 0, f.Row)
+	require.Equal(t, 0, f.Col)
 }
 
 func TestMetricsGrid_PreservesFocusAcrossHistoryUpdates(t *testing.T) {
