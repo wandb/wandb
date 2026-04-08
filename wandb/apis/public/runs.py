@@ -849,10 +849,13 @@ class Run(Attrs):
         return self._attrs
 
     def _load_from_attrs(self) -> dict[str, Any]:
+        # Snapshot before mutating: only persist config/rawconfig when the response
+        # included a config field (lazy runs omit it until load_full_data()).
+        had_config_field = "config" in self._attrs
         self._state = self._attrs.get("state", None)
 
         # Only convert fields if they exist in _attrs
-        if "config" in self._attrs:
+        if had_config_field:
             self._attrs["config"] = _convert_to_dict(self._attrs.get("config"))
         if "summaryMetrics" in self._attrs:
             self._attrs["summaryMetrics"] = _convert_to_dict(
@@ -888,9 +891,10 @@ class Run(Attrs):
                 # Handle case where config is malformed or not a dict
                 pass
 
-        config_raw.update(config_user)
-        self._attrs["config"] = config_user
-        self._attrs["rawconfig"] = config_raw
+        if had_config_field:
+            config_raw.update(config_user)
+            self._attrs["config"] = config_user
+            self._attrs["rawconfig"] = config_raw
 
         if "user" in self._attrs:
             self.user = public.User(self.client, self._attrs["user"])
