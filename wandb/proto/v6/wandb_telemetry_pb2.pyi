@@ -419,7 +419,7 @@ class Labels(_message.Message):
     def __init__(self, code_string: _Optional[str] = ..., repo_string: _Optional[str] = ..., code_version: _Optional[str] = ...) -> None: ...
 
 class Deprecated(_message.Message):
-    __slots__ = ("keras_callback__data_type", "plots", "init__config_include_keys", "init__config_exclude_keys", "keras_callback__save_model", "langchain_tracer", "artifact__get_path", "artifactmanifestentry__name", "api__artifact_versions", "artifact_collection__change_type", "run__define_metric_copy", "run_disabled", "keras_callback", "run__define_metric_best_goal", "run__finish_quiet", "run__reinit_bool", "run__get_url", "run__project_name", "run__get_project_url", "run__get_sweep_url", "run__use_artifact_use_as", "artifact__use_as", "artifact__init_use_as", "beta__workflows__log_model", "beta__workflows__use_model", "beta__workflows__link_model")
+    __slots__ = ("keras_callback__data_type", "plots", "init__config_include_keys", "init__config_exclude_keys", "keras_callback__save_model", "langchain_tracer", "artifact__get_path", "artifactmanifestentry__name", "api__artifact_versions", "artifact_collection__change_type", "run__define_metric_copy", "run_disabled", "keras_callback", "run__define_metric_best_goal", "run__finish_quiet", "run__reinit_bool", "run__get_url", "run__project_name", "run__get_project_url", "run__get_sweep_url", "run__use_artifact_use_as", "artifact__use_as", "artifact__init_use_as", "beta__workflows__log_model", "beta__workflows__use_model", "beta__workflows__link_model", "kfp_v1_wandb_log")
     KERAS_CALLBACK__DATA_TYPE_FIELD_NUMBER: _ClassVar[int]
     PLOTS_FIELD_NUMBER: _ClassVar[int]
     INIT__CONFIG_INCLUDE_KEYS_FIELD_NUMBER: _ClassVar[int]
@@ -446,6 +446,7 @@ class Deprecated(_message.Message):
     BETA__WORKFLOWS__LOG_MODEL_FIELD_NUMBER: _ClassVar[int]
     BETA__WORKFLOWS__USE_MODEL_FIELD_NUMBER: _ClassVar[int]
     BETA__WORKFLOWS__LINK_MODEL_FIELD_NUMBER: _ClassVar[int]
+    KFP_V1_WANDB_LOG_FIELD_NUMBER: _ClassVar[int]
     keras_callback__data_type: bool
     plots: bool
     init__config_include_keys: bool
@@ -472,7 +473,8 @@ class Deprecated(_message.Message):
     beta__workflows__log_model: bool
     beta__workflows__use_model: bool
     beta__workflows__link_model: bool
-    def __init__(self, keras_callback__data_type: _Optional[bool] = ..., plots: _Optional[bool] = ..., init__config_include_keys: _Optional[bool] = ..., init__config_exclude_keys: _Optional[bool] = ..., keras_callback__save_model: _Optional[bool] = ..., langchain_tracer: _Optional[bool] = ..., artifact__get_path: _Optional[bool] = ..., artifactmanifestentry__name: _Optional[bool] = ..., api__artifact_versions: _Optional[bool] = ..., artifact_collection__change_type: _Optional[bool] = ..., run__define_metric_copy: _Optional[bool] = ..., run_disabled: _Optional[bool] = ..., keras_callback: _Optional[bool] = ..., run__define_metric_best_goal: _Optional[bool] = ..., run__finish_quiet: _Optional[bool] = ..., run__reinit_bool: _Optional[bool] = ..., run__get_url: _Optional[bool] = ..., run__project_name: _Optional[bool] = ..., run__get_project_url: _Optional[bool] = ..., run__get_sweep_url: _Optional[bool] = ..., run__use_artifact_use_as: _Optional[bool] = ..., artifact__use_as: _Optional[bool] = ..., artifact__init_use_as: _Optional[bool] = ..., beta__workflows__log_model: _Optional[bool] = ..., beta__workflows__use_model: _Optional[bool] = ..., beta__workflows__link_model: _Optional[bool] = ...) -> None: ...
+    kfp_v1_wandb_log: bool
+    def __init__(self, keras_callback__data_type: _Optional[bool] = ..., plots: _Optional[bool] = ..., init__config_include_keys: _Optional[bool] = ..., init__config_exclude_keys: _Optional[bool] = ..., keras_callback__save_model: _Optional[bool] = ..., langchain_tracer: _Optional[bool] = ..., artifact__get_path: _Optional[bool] = ..., artifactmanifestentry__name: _Optional[bool] = ..., api__artifact_versions: _Optional[bool] = ..., artifact_collection__change_type: _Optional[bool] = ..., run__define_metric_copy: _Optional[bool] = ..., run_disabled: _Optional[bool] = ..., keras_callback: _Optional[bool] = ..., run__define_metric_best_goal: _Optional[bool] = ..., run__finish_quiet: _Optional[bool] = ..., run__reinit_bool: _Optional[bool] = ..., run__get_url: _Optional[bool] = ..., run__project_name: _Optional[bool] = ..., run__get_project_url: _Optional[bool] = ..., run__get_sweep_url: _Optional[bool] = ..., run__use_artifact_use_as: _Optional[bool] = ..., artifact__use_as: _Optional[bool] = ..., artifact__init_use_as: _Optional[bool] = ..., beta__workflows__log_model: _Optional[bool] = ..., beta__workflows__use_model: _Optional[bool] = ..., beta__workflows__link_model: _Optional[bool] = ..., kfp_v1_wandb_log: _Optional[bool] = ...) -> None: ...
 
 class Issues(_message.Message):
     __slots__ = ("settings__validation_warnings", "settings__unexpected_args", "settings__preprocessing_warnings")

@@ -22,7 +22,6 @@ import pytest
 import wandb
 import wandb.util
 from click.testing import CliRunner
-from wandb import Api
 from wandb.errors import term
 from wandb.sdk.interface.interface_queue import InterfaceQueue
 from wandb.sdk.lib import filesystem, module, runid, wbauth
@@ -238,12 +237,6 @@ def env_teardown():
 def clean_up():
     yield
     wandb.teardown()
-
-
-@pytest.fixture
-def api() -> Api:
-    with unittest.mock.patch("wandb.sdk.wandb_login._verify_login"):
-        return Api()
 
 
 # --------------------------------

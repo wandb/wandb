@@ -1,7 +1,9 @@
+import json
 from unittest import mock
 
 import pytest
 import wandb
+from wandb.apis.public.runs import Run
 
 
 @pytest.mark.parametrize(
@@ -91,3 +93,94 @@ def test_create_run_with_control_characters(field, value, expected):
             attrs={field: value},
         )
         assert getattr(run, field) == expected
+
+
+def _make_lightweight_attrs():
+    """Attrs matching LIGHTWEIGHT_RUN_FRAGMENT (no config/summary/system)."""
+    return {
+        "id": "abc123storeid",
+        "tags": [],
+        "name": "run-abc123",
+        "displayName": "happy-fox-42",
+        "sweepName": None,
+        "state": "finished",
+        "group": None,
+        "jobType": None,
+        "commit": None,
+        "readOnly": False,
+        "createdAt": "2026-03-24T01:00:00Z",
+        "heartbeatAt": "2026-03-24T02:00:00Z",
+        "description": "",
+        "notes": "",
+        "historyLineCount": 100,
+        "user": {"name": "testuser", "username": "testuser"},
+    }
+
+
+def _make_full_response(lightweight_attrs):
+    """Server response for a single-run query with RUN_FRAGMENT."""
+    return {
+        "project": {
+            "run": {
+                **lightweight_attrs,
+                "config": json.dumps(
+                    {
+                        "learning_rate": {"value": 0.001},
+                        "batch_size": {"value": 32},
+                        "_wandb": {"value": {"t": {"1": [1, 2, 3]}}},
+                    }
+                ),
+                "systemMetrics": "{}",
+                "summaryMetrics": '{"loss": 0.5}',
+                "historyKeys": "{}",
+            }
+        }
+    }
+
+
+@pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
+def test_lazy_run_config_triggers_full_load():
+    """run.config on a lazy run should trigger load_full_data and return config."""
+    client = mock.MagicMock()
+    lightweight = _make_lightweight_attrs()
+    client.execute.return_value = _make_full_response(lightweight)
+
+    run = Run(
+        client=client,
+        entity="test-entity",
+        project="test-project",
+        run_id="run-abc123",
+        attrs=dict(lightweight),
+        lazy=True,
+    )
+
+    assert run._lazy is True
+    assert run._full_data_loaded is False
+    assert "config" not in run._attrs
+
+    config = run.config
+
+    assert run._full_data_loaded is True
+    assert config == {"learning_rate": 0.001, "batch_size": 32}
+    assert "_wandb" not in config
+
+
+@pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
+def test_lazy_run_user_accessible_without_full_load():
+    """run.user should work on lazy runs without triggering a full data load."""
+    client = mock.MagicMock()
+    lightweight = _make_lightweight_attrs()
+
+    run = Run(
+        client=client,
+        entity="test-entity",
+        project="test-project",
+        run_id="run-abc123",
+        attrs=dict(lightweight),
+        lazy=True,
+    )
+
+    assert run._full_data_loaded is False
+    user = run.user
+    assert user.name == "testuser"
+    assert run._full_data_loaded is False

@@ -621,6 +621,10 @@ class Api:
     def _server_supports(self, feature: int | str) -> bool:
         """Return whether the current server supports the given feature.
 
+        NOTE: This is deprecated. Outside of this file, please use
+        `ServiceApi.feature_enabled()`. The `ServiceApi` is a sort of
+        replacement to this "internal" `Api` class.
+
         This also caches the underlying lookup of server feature flags,
         and it maps {feature_name (str) -> is_enabled (bool)}.
 

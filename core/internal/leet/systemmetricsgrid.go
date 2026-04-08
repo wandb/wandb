@@ -264,6 +264,7 @@ func (g *SystemMetricsGrid) Navigate(direction int) {
 	g.ClearFocus()
 	g.LoadCurrentPage()
 	g.drawVisible()
+	g.NavigateFocus(0, 0)
 }
 
 // HandleMouseClick handles mouse clicks for chart selection.
@@ -287,7 +288,6 @@ func (g *SystemMetricsGrid) HandleMouseClick(row, col int) bool {
 }
 
 func (g *SystemMetricsGrid) setFocus(row, col int) bool {
-	g.ClearFocus()
 	size := g.effectiveGridSize()
 	if row < 0 || row >= size.Rows || col < 0 || col >= size.Cols ||
 		row >= len(g.currentPage) || col >= len(g.currentPage[row]) {
@@ -298,27 +298,73 @@ func (g *SystemMetricsGrid) setFocus(row, col int) bool {
 		return false
 	}
 
+	g.ClearFocus()
 	g.focus.Set(FocusSystemChart, row, col, chart.Title())
 	return true
 }
 
 // NavigateFocus moves chart focus by (dr, dc) within the current page.
-// Returns true if navigation occurred.
+// On partial pages, vertical moves clamp to the last populated cell in the
+// target row.
+//
+// Returns true if focus changed or was re-materialized.
 func (g *SystemMetricsGrid) NavigateFocus(dr, dc int) bool {
-	size := g.effectiveGridSize()
-	if size.Rows == 0 || size.Cols == 0 || len(g.currentPage) == 0 {
+	if len(g.currentPage) == 0 {
 		return false
 	}
 
 	row, col := g.focus.Row, g.focus.Col
-	if row < 0 || col < 0 {
-		row, col = 0, 0
+	if g.focusedChart() == nil {
+		var ok bool
+		row, col, ok = g.firstNonNilCell()
+		if !ok {
+			return false
+		}
 	}
 
-	row = clamp(row+dr, 0, size.Rows-1)
-	col = clamp(col+dc, 0, size.Cols-1)
+	newRow := clamp(row+dr, 0, len(g.currentPage)-1)
+	lastCol := g.lastNonNilCol(newRow)
+	if lastCol < 0 {
+		return false
+	}
 
-	return g.setFocus(row, col)
+	newCol := clamp(col+dc, 0, lastCol)
+	chart := g.currentPage[newRow][newCol]
+	if chart == nil {
+		return false
+	}
+
+	if g.focus.Type == FocusSystemChart &&
+		g.focus.Row == newRow &&
+		g.focus.Col == newCol &&
+		g.focus.Title == chart.Title() {
+		return false
+	}
+
+	return g.setFocus(newRow, newCol)
+}
+
+func (g *SystemMetricsGrid) firstNonNilCell() (int, int, bool) {
+	for r, cells := range g.currentPage {
+		for c, ch := range cells {
+			if ch != nil {
+				return r, c, true
+			}
+		}
+	}
+	return 0, 0, false
+}
+
+func (g *SystemMetricsGrid) lastNonNilCol(row int) int {
+	if row >= len(g.currentPage) {
+		return -1
+	}
+	for c := len(g.currentPage[row]) - 1; c >= 0; c-- {
+		if g.currentPage[row][c] != nil {
+			return c
+		}
+	}
+	return -1
 }
 
 // ClearFocus removes focus from all charts.
@@ -488,6 +534,16 @@ func (g *SystemMetricsGrid) syncFocusToCurrentPage() {
 		return
 	}
 
+	// If the chart at the current position still matches, keep it.
+	// This avoids jumping when multiple charts share the same title.
+	r, c := g.focus.Row, g.focus.Col
+	if r >= 0 && c >= 0 && r < len(g.currentPage) && c < len(g.currentPage[r]) {
+		if ch := g.currentPage[r][c]; ch != nil && ch.Title() == g.focus.Title {
+			return
+		}
+	}
+
+	// Position changed (e.g. chart order shifted) — scan by title.
 	for row := range g.currentPage {
 		for col := range g.currentPage[row] {
 			ch := g.currentPage[row][col]

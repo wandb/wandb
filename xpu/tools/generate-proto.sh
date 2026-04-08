@@ -3,7 +3,7 @@
 set -e
 
 # Navigate one directory up to execute the cargo command
-# from the root of the gpu_stats project.
+# from the root of the wandb-xpu project.
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 cd "$SCRIPT_DIR/.."
 

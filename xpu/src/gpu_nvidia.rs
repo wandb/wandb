@@ -144,7 +144,7 @@ pub fn get_lib_path() -> Result<PathBuf, NvmlError> {
     }
 }
 
-/// Struct to collect metrics from NVIDIA GPUs using NVML.
+/// NvidiaGpu collects metadata and metrics from NVIDIA GPUs using NVML.
 pub struct NvidiaGpu {
     // SAFETY: gpm_previous_samples is declared before nvml to ensure GPM samples
     // are dropped (freeing GPU resources via nvmlGpmSampleFree) before the NVML

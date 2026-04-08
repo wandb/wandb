@@ -24,11 +24,19 @@ mod gpu_apple_sources;
 mod gpu_nvidia;
 #[cfg(target_os = "linux")]
 mod gpu_nvidia_dcgm;
+#[cfg(target_os = "linux")]
+#[allow(dead_code)] // items used via dyn GpuMonitor dispatch; rustc can't trace through async_trait
+mod tpu_libtpu;
+#[cfg(target_os = "linux")]
+#[allow(dead_code)]
+#[path = "tpu.monitoring.runtime.rs"]
+mod tpu_runtime;
 
 use clap::Parser;
 use env_logger::Builder;
 use log::{debug, LevelFilter};
 use std::collections::HashMap;
+use std::io::Write;
 use std::sync::Arc;
 use tokio::net::TcpListener;
 use tokio::task::JoinHandle;
@@ -318,7 +326,7 @@ async fn create_listener(args: &Args) -> Result<ListenerType, Box<dyn std::error
                 .as_millis();
 
             let socket_filename = format!(
-                "wandb_gpu_stats-{}-{}-{}.sock",
+                "wandb_xpu-{}-{}-{}.sock",
                 args.parent_pid, pid, time_stamp
             );
             socket_path.push(socket_filename);
@@ -356,19 +364,81 @@ async fn create_listener(args: &Args) -> Result<ListenerType, Box<dyn std::error
     }
 }
 
+/// Initialize logger that writes to a file in the wandb cache directory.
+/// Returns the open file handle (must be kept alive for the logger's lifetime).
+/// Falls back to stderr if the log file cannot be created.
+fn init_file_logger(level: LevelFilter) -> Option<std::fs::File> {
+    let cache_dir = std::env::var("WANDB_CACHE_DIR")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| {
+            // Match Go's os.UserCacheDir(): $HOME/.cache on Linux, $HOME/Library/Caches on macOS.
+            let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
+            #[cfg(target_os = "macos")]
+            { format!("{home}/Library/Caches") }
+            #[cfg(not(target_os = "macos"))]
+            { format!("{home}/.cache") }
+        });
+
+    let log_dir = std::path::PathBuf::from(&cache_dir).join("wandb").join("logs");
+    if let Err(e) = std::fs::create_dir_all(&log_dir) {
+        eprintln!("wandb-xpu: failed to create log dir {}: {e}", log_dir.display());
+        Builder::new().filter_level(level).init();
+        return None;
+    }
+
+    let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S");
+    let log_path = log_dir.join(format!("xpu-debug-{timestamp}.log"));
+
+    match std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&log_path)
+    {
+        Ok(file) => {
+            let writer = file.try_clone().expect("failed to clone log file handle");
+            Builder::new()
+                .filter_level(level)
+                .target(env_logger::Target::Pipe(Box::new(writer)))
+                .format(|buf, record| {
+                    writeln!(
+                        buf,
+                        "{} [{}] {}:{} {}",
+                        chrono::Local::now().format("%Y-%m-%dT%H:%M:%S%.3f"),
+                        record.level(),
+                        record.file().unwrap_or("?"),
+                        record.line().unwrap_or(0),
+                        record.args(),
+                    )
+                })
+                .init();
+            Some(file)
+        }
+        Err(e) => {
+            eprintln!("wandb-xpu: failed to open log file {}: {e}", log_path.display());
+            Builder::new().filter_level(level).init();
+            None
+        }
+    }
+}
+
 /// Main entry point for the system metrics service.
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Parse command-line arguments.
     let args = Args::parse();
 
-    // Initialize logging.
-    let logging_level = if args.verbose {
+    // Initialize logging — write to a persistent file matching wandb-core's pattern:
+    //   {cache_dir}/wandb/logs/xpu-debug-{timestamp}.log
+    let wandb_debug = std::env::var("WANDB_DEBUG")
+        .ok()
+        .is_some_and(|v| !v.is_empty() && v != "0" && v.to_lowercase() != "false");
+    let logging_level = if args.verbose || wandb_debug {
         LevelFilter::Debug
     } else {
         LevelFilter::Info
     };
-    Builder::new().filter_level(logging_level).init();
+    let _log_guard = init_file_logger(logging_level);
     debug!("Starting system metrics service");
 
     // Initialize error reporting with Sentry.

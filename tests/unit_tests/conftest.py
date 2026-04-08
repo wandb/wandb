@@ -1,9 +1,11 @@
+import unittest.mock
 from collections.abc import Generator
 from datetime import timedelta
 from queue import Queue
 from typing import Callable
 
 import pytest
+import wandb
 from hypothesis import settings
 
 settings.register_profile(
@@ -12,6 +14,17 @@ settings.register_profile(
     deadline=timedelta(seconds=1),
 )
 settings.load_profile("ci")
+
+
+@pytest.fixture
+def api() -> wandb.Api:
+    """A fake wandb.Api instance.
+
+    Unit tests can't talk to a local-testcontainer, so most methods on this
+    will fail unless patched.
+    """
+    with unittest.mock.patch("wandb.sdk.wandb_login._verify_login"):
+        return wandb.Api()
 
 
 # --------------------------------
