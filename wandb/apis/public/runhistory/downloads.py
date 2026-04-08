@@ -45,6 +45,14 @@ async def wait_for_download_with_progress(
     request_id: int,
     contains_live_data: bool,
 ) -> DownloadHistoryResult:
+    """Wait for a run's history exports to be downloaded and return the result.
+
+    Args:
+        service_api: The service API to use to send the request.
+        request_id: The request ID to use to track the download status.
+        contains_live_data: Whether the run contains live data,
+            not yet exported to parquet files.
+    """
     return await _DownloadStatusWatcher(
         service_api=service_api,
         request_id=request_id,

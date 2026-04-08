@@ -268,7 +268,9 @@ def prepare_to_create(
     # Validate all input variables, and prepare as expected by the GraphQL request.
     # - if an object is provided, override its fields with any keyword args
     # - otherwise, instantiate from the keyword args
-    obj_dict = {**obj.model_dump(), **kwargs} if obj else kwargs  # type: ignore[typeddict-item]
+    obj_dict: dict[str, Any] = (
+        {**obj.model_dump(), **dict(kwargs)} if obj else dict(kwargs)
+    )
     vobj = ValidatedCreateInput(**obj_dict)
     return CreateFilterTriggerInput.model_validate(vobj)
 

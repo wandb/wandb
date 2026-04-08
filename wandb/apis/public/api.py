@@ -47,7 +47,7 @@ from wandb.errors import UsageError
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto.wandb_telemetry_pb2 import Deprecated
 from wandb.sdk import wandb_login, wandb_setup
-from wandb.sdk.artifacts._gqlutils import resolve_org_entity_name
+from wandb.sdk.artifacts._gqlutils import resolve_org_entity_name, server_supports
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT
 from wandb.sdk.lib import retry, runid, wbauth
@@ -107,6 +107,7 @@ class RetryingClient:
         self._execute_decorated: Callable[..., Any] | None = None
 
     def execute(self, *args, **kwargs):
+        """Run a GraphQL operation using the client, with retries on transient errors."""
         if self._execute_decorated is None:
             self._execute_decorated = self._build_execute_wrapper()
         return self._execute_decorated(*args, **kwargs)
@@ -144,9 +145,8 @@ class RetryingClient:
             self._server_info = self.execute(self.INFO_QUERY).get("serverInfo")
         return self._server_info
 
-    def version_supported(
-        self, min_version: str
-    ) -> bool:  # User not encouraged to use this class directly
+    def version_supported(self, min_version: str) -> bool:
+        """Return True if the server's max CLI version is at least ``min_version``."""
         from packaging.version import parse
 
         return parse(min_version) <= parse(
@@ -1801,11 +1801,10 @@ class Api:
         )
         ```
         """
-        if not self._service_api.feature_enabled(pb.ARTIFACT_REGISTRY_SEARCH):
+        if not server_supports(self.client, pb.ARTIFACT_REGISTRY_SEARCH):
             raise RuntimeError(
-                "Registry search API is not enabled on this wandb server version."
-                + " Please upgrade your server version or contact support"
-                + " at support@wandb.com."
+                "Registry search API is not enabled on this wandb server version. "
+                "Please upgrade your server version or contact support at support@wandb.com."
             )
 
         organization = organization or fetch_org_from_settings_or_entity(
@@ -1842,11 +1841,10 @@ class Api:
         registry.save()
         ```
         """
-        if not self._service_api.feature_enabled(pb.ARTIFACT_REGISTRY_SEARCH):
+        if not server_supports(self.client, pb.ARTIFACT_REGISTRY_SEARCH):
             raise RuntimeError(
-                "api.registry() is not enabled on this wandb server version."
-                + " Please upgrade your server version or contact support"
-                + " at support@wandb.com."
+                "api.registry() is not enabled on this wandb server version. "
+                "Please upgrade your server version or contact support at support@wandb.com."
             )
         organization = organization or fetch_org_from_settings_or_entity(
             self.settings, self.default_entity
@@ -1900,13 +1898,12 @@ class Api:
         )
         ```
         """
-        if not self._service_api.feature_enabled(
-            pb.INCLUDE_ARTIFACT_TYPES_IN_REGISTRY_CREATION,
+        if not server_supports(
+            self.client, pb.INCLUDE_ARTIFACT_TYPES_IN_REGISTRY_CREATION
         ):
             raise RuntimeError(
-                "create_registry api is not enabled on this wandb server version."
-                + " Please upgrade your server version or contact support"
-                + " at support@wandb.com."
+                "create_registry api is not enabled on this wandb server version. "
+                "Please upgrade your server version or contact support at support@wandb.com."
             )
 
         organization = organization or fetch_org_from_settings_or_entity(
@@ -2055,12 +2052,12 @@ class Api:
         supports_event = (
             (event is None)
             or (event in ALWAYS_SUPPORTED_EVENTS)
-            or self._service_api.feature_enabled(f"AUTOMATION_EVENT_{event.value}")
+            or server_supports(self.client, f"AUTOMATION_EVENT_{event.value}")
         )
         supports_action = (
             (action is None)
             or (action in ALWAYS_SUPPORTED_ACTIONS)
-            or self._service_api.feature_enabled(f"AUTOMATION_ACTION_{action.value}")
+            or server_supports(self.client, f"AUTOMATION_ACTION_{action.value}")
         )
         return supports_event and supports_action
 

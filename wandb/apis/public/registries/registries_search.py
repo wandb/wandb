@@ -69,6 +69,7 @@ class Registries(RelayPaginator["RegistryFragment", "Registry"]):
     def collections(
         self, filter: dict[str, Any] | None = None, per_page: PositiveInt = 100
     ) -> Collections:
+        """List artifact collections for registries matching this search."""
         return Collections(
             client=self.client,
             organization=self.organization,
@@ -81,6 +82,7 @@ class Registries(RelayPaginator["RegistryFragment", "Registry"]):
     def versions(
         self, filter: dict[str, Any] | None = None, per_page: PositiveInt = 100
     ) -> Versions:
+        """List artifact versions across registries matching this search."""
         return Versions(
             client=self.client,
             organization=self.organization,
@@ -173,6 +175,7 @@ class Collections(
     def versions(
         self, filter: dict[str, Any] | None = None, per_page: PositiveInt = 100
     ) -> Versions:
+        """List artifact versions scoped to these collections."""
         return Versions(
             client=self.client,
             organization=self.organization,

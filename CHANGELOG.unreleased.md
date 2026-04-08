@@ -34,6 +34,7 @@ This version drops compatibility with server versions older than 0.63.0 (for Ded
 - `allow_media_symlink` setting to symlink or hardlink media files to the run directory instead of copying, improving logging performance and reducing disk usage (@jacobromero in https://github.com/wandb/wandb/pull/11544)
 - `run.pin_config_keys(keys)` to programmatically pin specific config keys for display in a References section on the Run Overview page (@acasey-wandb in https://github.com/wandb/wandb/pull/11639)
 - Direct TPU metric collection via `libtpu.so` FFI, capturing `tensorcore_util` (SDK-only, unavailable via gRPC), `duty_cycle_pct`, `hbm_capacity_total`, `hbm_capacity_usage`, and latency distributions (@dmitryduev in https://github.com/wandb/wandb/pull/11528)
+- Expand docstring checks to `wandb/apis/public/*` (@kmikowicz-wandb in https://github.com/wandb/wandb/pull/11670)
 
 ### Changed
 
@@ -43,6 +44,8 @@ This version drops compatibility with server versions older than 0.63.0 (for Ded
 
 ### Fixed
 
+- Failing D102 across `wandb/apis/public/*` (@kmikowicz-wandb in https://github.com/wandb/wandb/pull/11670)
+- Docstring checks on `wandb/apis/public/api.py` (@kmikowicz-wandb in https://github.com/wandb/wandb/pull/11670)
 - Fixed `update_automation()` silently dropping event filters (e.g. alias conditions on `OnAddArtifactAlias`) when a new event is provided (@matthoare117-wandb in https://github.com/wandb/wandb/pull/11613)
 - Fixed artifact client ID collisions in forked child processes by reseeding the fast ID generator after `fork()` (@tonyyli-wandb in https://github.com/wandb/wandb/pull/11491)
 - Fixed `WANDB__EXTRA_HTTP_HEADERS` not being applied to presigned object-store upload and download requests (@pingleiwandb in https://github.com/wandb/wandb/pull/11620)
