@@ -247,39 +247,6 @@ type Request struct {
 	Env         map[string]string `json:"env,omitempty"`
 }
 
-var sensitiveHeaders = map[string]struct{}{
-	"_csrf":               {},
-	"_csrf_token":         {},
-	"_session":            {},
-	"_xsrf":               {},
-	"Api-Key":             {},
-	"Apikey":              {},
-	"Auth":                {},
-	"Authorization":       {},
-	"Cookie":              {},
-	"Credentials":         {},
-	"Csrf":                {},
-	"Csrf-Token":          {},
-	"Csrftoken":           {},
-	"Ip-Address":          {},
-	"Passwd":              {},
-	"Password":            {},
-	"Private-Key":         {},
-	"Privatekey":          {},
-	"Proxy-Authorization": {},
-	"Remote-Addr":         {},
-	"Secret":              {},
-	"Session":             {},
-	"Sessionid":           {},
-	"Token":               {},
-	"User-Session":        {},
-	"X-Api-Key":           {},
-	"X-Csrftoken":         {},
-	"X-Forwarded-For":     {},
-	"X-Real-Ip":           {},
-	"XSRF-TOKEN":          {},
-}
-
 // NewRequest returns a new Sentry Request from the given http.Request.
 //
 // NewRequest avoids operations that depend on network access. In particular, it
@@ -312,7 +279,7 @@ func NewRequest(r *http.Request) *Request {
 		}
 	} else {
 		for k, v := range r.Header {
-			if _, ok := sensitiveHeaders[k]; !ok {
+			if !IsSensitiveHeader(k) {
 				headers[k] = strings.Join(v, ",")
 			}
 		}

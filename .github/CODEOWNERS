@@ -38,8 +38,8 @@
 /core/ @wandb/sdk-team
 /wandb/ @wandb/sdk-team
 
-# System metrics
-/gpu_stats/ @wandb/sdk-team
+# Hardware accelerator metrics
+/xpu/ @wandb/sdk-team
 
 # CircleCI configuration
 /.circleci @wandb/sdk-team

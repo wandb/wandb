@@ -510,7 +510,7 @@ def gql_codegen(session: nox.Session) -> None:
 def proto_rust(session: nox.Session) -> None:
     """Generate Rust bindings for protobufs."""
     session.run("./core/api/proto/install-protoc.sh", "34.1", external=True)
-    session.run("./gpu_stats/tools/generate-proto.sh", external=True)
+    session.run("./xpu/tools/generate-proto.sh", external=True)
 
 
 @nox.session(python=False, name="proto-go", tags=["proto"])

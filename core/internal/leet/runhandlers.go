@@ -412,24 +412,24 @@ func (r *Run) handleToggleRightSidebar(msg tea.KeyPressMsg) tea.Cmd {
 
 func (r *Run) handlePrevPage(msg tea.KeyPressMsg) tea.Cmd {
 	switch r.focusMgr.Current() {
+	case FocusTargetMetricsGrid:
+		r.metricsGrid.Navigate(-1)
 	case FocusTargetSystemMetrics:
 		r.rightSidebar.metricsGrid.Navigate(-1)
 	case FocusTargetMedia:
 		r.mediaPane.NavigatePage(-1)
-	default:
-		r.metricsGrid.Navigate(-1)
 	}
 	return nil
 }
 
 func (r *Run) handleNextPage(msg tea.KeyPressMsg) tea.Cmd {
 	switch r.focusMgr.Current() {
+	case FocusTargetMetricsGrid:
+		r.metricsGrid.Navigate(1)
 	case FocusTargetSystemMetrics:
 		r.rightSidebar.metricsGrid.Navigate(1)
 	case FocusTargetMedia:
 		r.mediaPane.NavigatePage(1)
-	default:
-		r.metricsGrid.Navigate(1)
 	}
 	return nil
 }
@@ -455,7 +455,9 @@ func (r *Run) handleClearMetricsFilter(msg tea.KeyPressMsg) tea.Cmd {
 	if r.metricsGrid.FilterQuery() != "" {
 		r.metricsGrid.ClearFilter()
 	}
-	r.focus.Reset()
+	if r.focusMgr.Current() == FocusTargetMetricsGrid {
+		r.metricsGrid.NavigateFocus(0, 0)
+	}
 	return nil
 }
 
@@ -574,8 +576,8 @@ func (r *Run) handleClearSystemMetricsFilter(msg tea.KeyPressMsg) tea.Cmd {
 	if r.rightSidebar.metricsGrid.FilterQuery() != "" {
 		r.rightSidebar.metricsGrid.ClearFilter()
 	}
-	if r.focus.Type == FocusSystemChart {
-		r.focus.Reset()
+	if r.focusMgr.Current() == FocusTargetSystemMetrics {
+		r.rightSidebar.metricsGrid.NavigateFocus(0, 0)
 	}
 	return nil
 }

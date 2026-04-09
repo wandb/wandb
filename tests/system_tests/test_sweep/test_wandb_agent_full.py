@@ -3,12 +3,18 @@
 import contextlib
 import io
 import pathlib
+import queue
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from unittest import mock
 
 import wandb
+import wandb.agents.pyagent as pyagent
 from wandb.apis.public import Api
 from wandb.cli import cli
 from wandb.sdk.launch.sweeps import SweepNotFoundError
+
+from .test_wandb_sweep import SWEEP_CONFIG_GRID
 
 
 def test_agent_basic(user):
@@ -246,3 +252,68 @@ def test_agent_sweep_deleted(user):
 
     stderr_output = captured_stderr.getvalue()
     assert "Sweep was deleted or agent was not found" in stderr_output
+
+
+def test_public_api_sweep_agent_retrieves_running_agent(user):
+    """While a sweep agent is blocked in user code, Api().sweep().agent() returns it."""
+    project = "test"
+    sweep_id = wandb.sweep(SWEEP_CONFIG_GRID, entity=user, project=project)
+
+    agent_id_queue = queue.Queue()
+    exit_lock = threading.Event()
+
+    def train():
+        with wandb.init():
+            agent_id_queue.put(agent._agent_id)
+            exit_lock.wait()
+
+    agent = pyagent.Agent(
+        sweep_id,
+        function=train,
+        entity=user,
+        project=project,
+        count=1,
+    )
+
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        executor.submit(agent.run)
+        try:
+            agent_id = agent_id_queue.get()
+            api = Api()
+            sweep = api.sweep(f"{user}/{project}/sweeps/{sweep_id}")
+            agents = sweep.agents()
+            assert len(agents) > 0
+            first = agents[0]
+            assert first.id == agent_id and first.state
+            by_name = sweep.agent(first.name)
+            assert by_name.id == agent_id and by_name.state
+        finally:
+            exit_lock.set()
+
+
+def test_public_api_sweep_agent_runs_lists_finished_run(user):
+    """After three sweep runs finish, Agent.runs(per_page=2) returns all three (paginated)."""
+    project = "test"
+    sweep_id = wandb.sweep(SWEEP_CONFIG_GRID, entity=user, project=project)
+
+    def train():
+        run = wandb.init()
+        run.log({"loss": 0.25})
+        run.finish()
+
+    wandb.agent(
+        sweep_id,
+        function=train,
+        count=3,
+        project=project,
+        entity=user,
+    )
+
+    api = Api()
+    sweep = api.sweep(f"{user}/{project}/sweeps/{sweep_id}")
+    agents = sweep.agents()
+    assert len(agents) >= 1
+    public_agent = agents[0]
+    runs_list = list(public_agent.runs(per_page=2))
+    assert len(runs_list) == 3
+    assert {r.state for r in runs_list} == {"finished"}

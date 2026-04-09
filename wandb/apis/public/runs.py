@@ -43,6 +43,7 @@ import urllib
 from collections.abc import Collection, Iterator, Mapping
 from typing import TYPE_CHECKING, Any, Literal
 
+from typing_extensions import override
 from wandb_gql import gql
 
 import wandb
@@ -50,6 +51,8 @@ import wandb.apis.public.runhistory as runhistory
 from wandb import env, util
 from wandb._strutils import nameof
 from wandb.apis import public
+from wandb.apis._generated import GET_AGENT_RUNS_GQL
+from wandb.apis._generated.get_agent_runs import GetAgentRuns
 from wandb.apis.attrs import Attrs
 from wandb.apis.internal import Api as InternalApi
 from wandb.apis.normalize import normalize_exceptions
@@ -448,6 +451,122 @@ class Runs(SizedPaginator["Run"]):
                     future.result()
 
 
+class AgentRuns(SizedPaginator["Run"]):
+    """A lazy iterator of `Run` objects for a single sweep agent.
+
+    <!-- lazydoc-ignore-class: internal -->
+    """
+
+    def __init__(
+        self,
+        client: RetryingClient,
+        entity: str,
+        project: str,
+        sweep_id: str,
+        agent_key: str,
+        *,
+        total_runs: int,
+        order: str = "+created_at",
+        per_page: int = 50,
+        service_api: ServiceApi | None = None,
+    ) -> None:
+        self.QUERY = gql(GET_AGENT_RUNS_GQL)
+        self.entity = entity
+        self.project = project
+        self._sweep_id = sweep_id
+        self._agent_key = agent_key
+        self.order = order
+        self._sweeps: dict[str, public.Sweep] = {}
+        self._service_api = service_api
+        self._total_runs = total_runs
+        self.per_page = per_page
+
+        variables = {
+            "project": self.project,
+            "entity": self.entity,
+            "order": self.order,
+            "agentID": self._agent_key,
+            "sweep": self._sweep_id,
+            "after": None,
+            "before": None,
+            "first": self.per_page,
+            "last": None,
+        }
+        super().__init__(client, variables, per_page)
+
+    @override
+    def update_variables(self) -> None:
+        """Map paginator state to GetAgentRuns variables (after/first, not cursor/perPage)."""
+        self.variables.update(
+            {
+                "first": self.per_page,
+                "after": self.cursor,
+                "before": None,
+                "last": None,
+            }
+        )
+
+    @property
+    @override
+    def _length(self) -> int:
+        return self._total_runs
+
+    def _parsed(self) -> GetAgentRuns:
+        assert self.last_response is not None
+        return GetAgentRuns.model_validate(self.last_response)
+
+    def _agent_runs_connection(self):
+        parsed = self._parsed()
+        if not parsed.project:
+            raise ValueError(f"Could not find project {self.project!r} for agent runs.")
+        if not parsed.project.sweep:
+            raise ValueError(f"Could not find sweep {self._sweep_id!r} for agent runs.")
+        if not parsed.project.sweep.agent:
+            raise ValueError(
+                f"Could not find agent {self._agent_key!r} for agent runs."
+            )
+        return parsed.project.sweep.agent.runs
+
+    @property
+    @override
+    def more(self) -> bool:
+        return self.last_response is None or bool(
+            self._agent_runs_connection().page_info.has_next_page
+        )
+
+    @property
+    @override
+    def cursor(self) -> str | None:
+        if not self.last_response:
+            return None
+        edges = self._agent_runs_connection().edges
+        return edges[-1].cursor if edges else None
+
+    @override
+    def convert_objects(self) -> list[Run]:
+        """Convert the current GraphQL page into :class:`Run` instances for this agent."""
+        objs = []
+        for edge in self._agent_runs_connection().edges:
+            node = edge.node.model_dump(by_alias=True)
+            run = Run(
+                self.client,
+                self.entity,
+                self.project,
+                node["name"],
+                node,
+                include_sweeps=False,
+                lazy=True,
+                service_api=self._service_api,
+            )
+            objs.append(run)
+
+        return objs
+
+    @override
+    def __repr__(self) -> str:
+        return f"<{nameof(type(self))} {self.entity}/{self.project} agent={self._agent_key!r}>"
+
+
 class Run(Attrs):
     """A single run associated with an entity and project.
 
@@ -730,10 +849,13 @@ class Run(Attrs):
         return self._attrs
 
     def _load_from_attrs(self) -> dict[str, Any]:
+        # Snapshot before mutating: only persist config/rawconfig when the response
+        # included a config field (lazy runs omit it until load_full_data()).
+        had_config_field = "config" in self._attrs
         self._state = self._attrs.get("state", None)
 
         # Only convert fields if they exist in _attrs
-        if "config" in self._attrs:
+        if had_config_field:
             self._attrs["config"] = _convert_to_dict(self._attrs.get("config"))
         if "summaryMetrics" in self._attrs:
             self._attrs["summaryMetrics"] = _convert_to_dict(
@@ -769,9 +891,10 @@ class Run(Attrs):
                 # Handle case where config is malformed or not a dict
                 pass
 
-        config_raw.update(config_user)
-        self._attrs["config"] = config_user
-        self._attrs["rawconfig"] = config_raw
+        if had_config_field:
+            config_raw.update(config_user)
+            self._attrs["config"] = config_user
+            self._attrs["rawconfig"] = config_raw
 
         if "user" in self._attrs:
             self.user = public.User(self.client, self._attrs["user"])
@@ -780,8 +903,9 @@ class Run(Attrs):
 
     def load(self, force: bool = False) -> dict[str, Any]:
         """Load run data using appropriate fragment based on lazy mode."""
-        if self._attrs.get("user") and not hasattr(self, "user"):
-            self.user = public.User(self.client, self._attrs["user"])
+        # Load any provided attrs
+        if self._attrs:
+            self._load_from_attrs()
 
         if self._lazy:
             return self._load_with_fragment(

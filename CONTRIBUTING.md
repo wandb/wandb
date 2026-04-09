@@ -227,7 +227,8 @@ brew install go@1.26
 
 ### Setting up Rust
 
-You will need the Rust toolchain to build the `gpu_stats` binary used to monitor Nvidia, AMD and Apple Arm GPUs.
+You will need the Rust toolchain to build the `wandb-xpu` binary used to monitor hardware accelerators
+including Nvidia, AMD and Apple Arm GPU, as well as Google TPU.
 Refer to the official Rust [docs](https://www.rust-lang.org/tools/install) and install it by running:
 
 ```shell

@@ -106,8 +106,8 @@ type SystemMonitorFactory struct {
 	// Stream settings.
 	Settings *settings.Settings
 
-	// GpuResourceManager manages costly resources used for GPU metrics.
-	GpuResourceManager *GPUResourceManager
+	// XPUResourceManager manages the sidecar for GPU/TPU metrics.
+	XPUResourceManager *XPUResourceManager
 
 	// graphqlClient is the GraphQL client to communicate with the W&B backend.
 	GraphqlClient graphql.Client
@@ -152,13 +152,13 @@ func (f *SystemMonitorFactory) New(extraWork runwork.ExtraWork) *SystemMonitor {
 	}
 	sm.logger.Debug(fmt.Sprintf("monitor: sampling interval: %v", sm.samplingInterval))
 
-	sm.initializeResources(f.GpuResourceManager)
+	sm.initializeResources(f.XPUResourceManager)
 
 	return sm
 }
 
 // initializeResources sets up the resources to be monitored based on the provided settings.
-func (sm *SystemMonitor) initializeResources(gpuResourceManager *GPUResourceManager) {
+func (sm *SystemMonitor) initializeResources(xpuResourceManager *XPUResourceManager) {
 	pid := sm.settings.GetStatsPid()
 	samplingInterval := sm.settings.GetStatsSamplingInterval()
 	neuronMonitorConfigPath := sm.settings.GetStatsNeuronMonitorConfigPath()
@@ -174,15 +174,11 @@ func (sm *SystemMonitor) initializeResources(gpuResourceManager *GPUResourceMana
 		sm.resources = append(sm.resources, system)
 	}
 
-	if gpu, err := NewGPU(gpuResourceManager, pid, gpuDeviceIds); gpu != nil {
-		sm.resources = append(sm.resources, gpu)
+	if xpu, err := NewXPU(xpuResourceManager, pid, gpuDeviceIds); xpu != nil {
+		sm.resources = append(sm.resources, xpu)
 	} else if err != nil {
 		sm.logger.CaptureError(
-			fmt.Errorf("monitor: failed to initialize GPU resource: %v", err))
-	}
-
-	if tpu := NewTPU(sm.logger); tpu != nil {
-		sm.resources = append(sm.resources, tpu)
+			fmt.Errorf("monitor: failed to initialize xpu resource: %v", err))
 	}
 
 	if trainium := NewTrainium(
@@ -453,8 +449,10 @@ func (sm *SystemMonitor) monitorResource(resource Resource) {
 				continue // nothing to do
 			}
 
-			// Push metrics to the buffer
-			sm.buffer.Push(metrics)
+			// Push metrics to the buffer when in-memory buffering is enabled.
+			if sm.buffer != nil {
+				sm.buffer.Push(metrics)
+			}
 
 			// Label for custom grouping of stats, e.g. per node in a multi-node run.
 			if label := sm.settings.GetLabel(); label != "" {
@@ -483,7 +481,7 @@ func (sm *SystemMonitor) monitorResource(resource Resource) {
 //
 // Use to filter out expected/transient failures. Keep this intentionally small and specific.
 func ShouldCaptureSamplingError(err error) bool {
-	// Transient gRPC connectivity to the gpu_stats sidecar.
+	// Transient gRPC connectivity to the wandb-xpu sidecar.
 	if s, ok := status.FromError(err); ok && s.Code() == codes.Unavailable {
 		return false
 	}
@@ -501,7 +499,9 @@ func ShouldCaptureSamplingError(err error) bool {
 		return false
 
 	// Container/lean Linux builds without /proc/diskstats.
-	case strings.Contains(msg, "/proc/diskstats") && (strings.Contains(msg, "no such file") || strings.Contains(msg, "no such file or directory")):
+	case strings.Contains(msg, "/proc/diskstats") &&
+		(strings.Contains(msg, "no such file") ||
+			strings.Contains(msg, "no such file or directory")):
 		return false
 
 	// Windows sporadic low-level API failure wording.
