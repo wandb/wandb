@@ -25,6 +25,10 @@ import (
 //
 // For information about the Amazon S3 inventory feature, see [Amazon S3 Inventory].
 //
+// After deleting a configuration, Amazon S3 might still deliver one additional
+// inventory report during a brief transition period while the system processes the
+// deletion.
+//
 // Operations related to DeleteBucketInventoryConfiguration include:
 //
 // [GetBucketInventoryConfiguration]

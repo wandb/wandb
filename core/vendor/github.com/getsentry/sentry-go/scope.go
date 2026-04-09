@@ -467,6 +467,23 @@ func (scope *Scope) ApplyToEvent(event *Event, hint *EventHint, client *Client) 
 		event.sdkMetaData.dsc = dsc
 	}
 
+	// If an external trace resolver is registered (e.g. OTel), override
+	// trace/span IDs from the hint context or the scope's request context.
+	if client != nil {
+		var ctx context.Context
+		if hint != nil {
+			ctx = hint.Context
+		}
+		if ctx == nil && scope.request != nil {
+			ctx = scope.request.Context()
+		}
+		if traceID, spanID, ok := client.externalTraceContextFromContext(ctx); event.Type != transactionType && ok {
+			traceCtx := event.Contexts["trace"]
+			traceCtx["trace_id"] = traceID.String()
+			traceCtx["span_id"] = spanID.String()
+		}
+	}
+
 	if len(scope.extra) > 0 {
 		if event.Extra == nil {
 			event.Extra = make(map[string]interface{}, len(scope.extra))
@@ -585,20 +602,27 @@ func hubFromContexts(ctxs ...context.Context) *Hub {
 // resolveTrace resolves trace ID and span ID from the given scope and contexts.
 //
 // The resolution order follows a most-specific-to-least-specific pattern:
-//  1. Check for span directly in contexts (SpanFromContext) - this is the most specific
+//  1. If an external trace resolver was registered (eg. OTel), we prioritise trace context
+//     information from that
+//  2. Check for span directly in contexts (SpanFromContext) - this is the most specific
 //     source as it represents a span explicitly attached to the current operation's context
-//  2. Check scope's span - provides access to span set on the hub's scope
-//  3. Fall back to scope's propagation context trace ID
+//  3. Check scope's span - provides access to span set on the hub's scope
+//  4. Fall back to scope's propagation context trace ID
 //
 // This ordering ensures we always use the most contextually relevant tracing information.
 // For example, if a specific span is active for an operation, we use that span's trace/span IDs
 // rather than accidentally using a different span that might be set on the hub's scope.
-func resolveTrace(scope *Scope, ctxs ...context.Context) (traceID TraceID, spanID SpanID) {
+func resolveTrace(scope *Scope, client *Client, ctxs ...context.Context) (traceID TraceID, spanID SpanID) {
 	var span *Span
 
 	for _, ctx := range ctxs {
 		if ctx == nil {
 			continue
+		}
+		if client != nil {
+			if traceID, spanID, ok := client.externalTraceContextFromContext(ctx); ok {
+				return traceID, spanID
+			}
 		}
 		if span = SpanFromContext(ctx); span != nil {
 			break
