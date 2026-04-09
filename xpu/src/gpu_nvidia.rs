@@ -146,11 +146,6 @@ pub fn get_lib_path() -> Result<PathBuf, NvmlError> {
 
 /// NvidiaGpu collects metadata and metrics from NVIDIA GPUs using NVML.
 pub struct NvidiaGpu {
-    // SAFETY: gpm_previous_samples is declared before nvml to ensure GPM samples
-    // are dropped (freeing GPU resources via nvmlGpmSampleFree) before the NVML
-    // library is unloaded. The GpmSample<'static> lifetime is transmuted from the
-    // actual borrow of self.nvml — see the safety comments in new() and get_metrics().
-    gpm_previous_samples: Vec<Option<gpm::GpmSample<'static>>>,
     nvml: Nvml,
     cuda_version: String,
     device_count: u32,
@@ -196,29 +191,17 @@ impl NvidiaGpu {
         let mut gpu_metric_availability =
             vec![GpuMetricAvailability::default(); device_count as usize];
 
-        // Probe GPM (GPU Performance Monitoring) support per device and take
-        // initial samples. GPM requires Hopper+ (H100 and newer).
-        let mut gpm_previous_samples: Vec<Option<gpm::GpmSample<'_>>> =
-            (0..device_count).map(|_| None).collect();
+        // Probe GPM (GPU Performance Monitoring) support per device.
+        // GPM requires Hopper+ (H100 and newer).
         for di in 0..device_count {
             if let Ok(device) = nvml.device_by_index(di) {
                 if device.gpm_support().unwrap_or(false) {
-                    if let Ok(sample) = device.gpm_sample() {
-                        gpu_metric_availability[di as usize].gpm = true;
-                        gpm_previous_samples[di as usize] = Some(sample);
-                    }
+                    gpu_metric_availability[di as usize].gpm = true;
                 }
             }
         }
-        // SAFETY: Transmute sample lifetimes from the borrow of `nvml` to 'static.
-        // This is sound because gpm_previous_samples is declared before nvml in the
-        // struct, so samples are always dropped while the NVML library is still loaded.
-        // GpmSample only uses the Nvml reference in its Drop impl (nvmlGpmSampleFree).
-        let gpm_previous_samples: Vec<Option<gpm::GpmSample<'static>>> =
-            unsafe { std::mem::transmute(gpm_previous_samples) };
 
         Ok(NvidiaGpu {
-            gpm_previous_samples,
             nvml,
             cuda_version: format!(
                 "{}.{}",
@@ -749,52 +732,46 @@ impl NvidiaGpu {
             }
 
             // GPM (GPU Performance Monitoring) — Hopper+ only.
-            // Computes metrics from two time-separated samples: the previous
-            // sample (stored from the last call or init) and a fresh one.
+            // Takes two samples separated by a short interval and computes
+            // derived metrics (utilization, bandwidth, etc.) from the pair.
             if availability.gpm {
                 let gpm_metric_ids: Vec<GpmMetricId> =
                     GPM_METRICS.iter().map(|(id, _)| *id).collect();
 
-                if let Some(prev_sample) = self.gpm_previous_samples[di as usize].take() {
-                    match device.gpm_sample() {
-                        Ok(new_sample) => {
-                            match gpm::gpm_metrics_get(
-                                &self.nvml,
-                                &prev_sample,
-                                &new_sample,
-                                &gpm_metric_ids,
-                            ) {
-                                Ok(results) => {
-                                    for (result, (_, name)) in results.iter().zip(GPM_METRICS) {
-                                        if let Ok(m) = result {
-                                            metrics.push((
-                                                format!("gpu.{}.{}", di, name),
-                                                MetricValue::Float(m.value),
-                                            ));
+                match device.gpm_sample() {
+                    Ok(sample1) => {
+                        std::thread::sleep(std::time::Duration::from_millis(200));
+                        match device.gpm_sample() {
+                            Ok(sample2) => {
+                                match gpm::gpm_metrics_get(
+                                    &self.nvml,
+                                    &sample1,
+                                    &sample2,
+                                    &gpm_metric_ids,
+                                ) {
+                                    Ok(results) => {
+                                        for (result, (_, name)) in
+                                            results.iter().zip(GPM_METRICS)
+                                        {
+                                            if let Ok(m) = result {
+                                                metrics.push((
+                                                    format!("gpu.{}.{}", di, name),
+                                                    MetricValue::Float(m.value),
+                                                ));
+                                            }
                                         }
                                     }
-                                }
-                                Err(_) => {
-                                    availability.gpm = false;
+                                    Err(_) => {
+                                        availability.gpm = false;
+                                    }
                                 }
                             }
-                            // SAFETY: see transmute comment in new().
-                            let new_sample: gpm::GpmSample<'static> =
-                                unsafe { std::mem::transmute(new_sample) };
-                            self.gpm_previous_samples[di as usize] = Some(new_sample);
-                        }
-                        Err(_) => {
-                            availability.gpm = false;
+                            Err(_) => {
+                                availability.gpm = false;
+                            }
                         }
                     }
-                } else {
-                    // No previous sample yet; take one for the next call.
-                    if let Ok(sample) = device.gpm_sample() {
-                        // SAFETY: see transmute comment in new().
-                        let sample: gpm::GpmSample<'static> =
-                            unsafe { std::mem::transmute(sample) };
-                        self.gpm_previous_samples[di as usize] = Some(sample);
-                    } else {
+                    Err(_) => {
                         availability.gpm = false;
                     }
                 }
