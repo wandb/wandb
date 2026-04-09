@@ -116,7 +116,7 @@ func (l *sentryLogger) log(ctx context.Context, level LogLevel, severity int, me
 	}
 
 	scope := hub.Scope()
-	traceID, spanID := resolveTrace(scope, ctx, l.ctx)
+	traceID, spanID := resolveTrace(scope, client, ctx, l.ctx)
 
 	// Pre-allocate with capacity hint to avoid map growth reallocations
 	estimatedCap := len(l.defaultAttributes) + len(entryAttrs) + len(args) + 8 // scope ~3 + instance ~5

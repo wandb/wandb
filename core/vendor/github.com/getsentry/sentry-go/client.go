@@ -96,6 +96,12 @@ var DebugLogger = debuglog.GetLogger()
 // Event processors are used to change an event before it is sent to Sentry.
 type EventProcessor func(event *Event, hint *EventHint) *Event
 
+// externalContextTraceResolver extracts trace and span IDs from an external context source.
+//
+// This is currently a workaround for extractring trace information from OTel SpanContext without
+// needing the otel dependency on the root package.
+type externalContextTraceResolver func(ctx context.Context) (traceID TraceID, spanID SpanID, ok bool)
+
 // EventModifier is the interface that wraps the ApplyToEvent method.
 //
 // ApplyToEvent changes an event based on external data and/or
@@ -286,13 +292,14 @@ type ClientOptions struct {
 // Client is the underlying processor that is used by the main API and Hub
 // instances. It must be created with NewClient.
 type Client struct {
-	mu              sync.RWMutex
-	options         ClientOptions
-	dsn             *Dsn
-	eventProcessors []EventProcessor
-	integrations    []Integration
-	sdkIdentifier   string
-	sdkVersion      string
+	mu                    sync.RWMutex
+	options               ClientOptions
+	dsn                   *Dsn
+	eventProcessors       []EventProcessor
+	integrations          []Integration
+	externalTraceResolver externalContextTraceResolver
+	sdkIdentifier         string
+	sdkVersion            string
 	// Transport is read-only. Replacing the transport of an existing client is
 	// not supported, create a new client instead.
 	Transport          Transport
@@ -558,6 +565,33 @@ func (client *Client) setupIntegrations() {
 // event processor to the client affects all hubs that share the client.
 func (client *Client) AddEventProcessor(processor EventProcessor) {
 	client.eventProcessors = append(client.eventProcessors, processor)
+}
+
+// SetExternalContextTraceResolver installs a resolver used to extract trace/span IDs
+// from external context implementations.
+//
+// This is intended for integrations such as OpenTelemetry.
+func (client *Client) SetExternalContextTraceResolver(resolver func(ctx context.Context) (TraceID, SpanID, bool)) {
+	client.mu.Lock()
+	defer client.mu.Unlock()
+
+	client.externalTraceResolver = resolver
+}
+
+func (client *Client) externalTraceContextFromContext(ctx context.Context) (TraceID, SpanID, bool) {
+	if ctx == nil {
+		return TraceID{}, SpanID{}, false
+	}
+
+	client.mu.RLock()
+	resolver := client.externalTraceResolver
+	client.mu.RUnlock()
+
+	if resolver == nil {
+		return TraceID{}, SpanID{}, false
+	}
+
+	return resolver(ctx)
 }
 
 // Options return ClientOptions for the current Client.

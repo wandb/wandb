@@ -400,9 +400,10 @@ func (t *AsyncTransport) SendEnvelope(envelope *protocol.Envelope) error {
 		return nil
 	}
 
+	identifier := util.EnvelopeIdentifier(envelope)
+
 	select {
 	case t.queue <- envelope:
-		identifier := util.EnvelopeIdentifier(envelope)
 		debuglog.Printf(
 			"Sending %s to %s project: %s",
 			identifier,
