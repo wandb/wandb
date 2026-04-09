@@ -526,3 +526,7 @@ reportUnusedCallResult = false
 # Any is frequently unavoidable when forwarding an argument with a generic type
 # to a library function that didn't specify the generic type parameters.
 reportExplicitAny = "hint"
+
+[[tool.cibuildwheel.overrides]]
+select = "*-musllinux*"
+environment = { WANDB_ENABLE_CGO = "true" }
