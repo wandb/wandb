@@ -1,3 +1,11 @@
+# v1.99.0 (2026-04-07)
+
+* **Feature**: Updated list of the valid AWS Region values for the LocationConstraint parameter for general purpose buckets.
+
+# v1.98.0 (2026-03-31)
+
+* **Feature**: Add Bucket Metrics configuration support to directory buckets
+
 # v1.97.3 (2026-03-26)
 
 * **Bug Fix**: Fix a bug where a recorded clock skew could persist on the client even if the client and server clock ended up realigning.
