@@ -42,11 +42,13 @@ from wandb import util
 from wandb.apis import public
 from wandb.apis.attrs import Attrs
 from wandb.apis.paginator import SizedPaginator
+from wandb.errors import Error
 from wandb.sdk.lib import ipython
 
 if TYPE_CHECKING:
     from wandb.apis._generated import GetSweeps
     from wandb.apis.public.api import RetryingClient
+    from wandb.apis.public.runs import AgentRuns
 
 
 class Sweeps(SizedPaginator["Sweep"]):
@@ -362,6 +364,57 @@ class Sweep(Attrs):
         )
         return sweep
 
+    def _make_sweep_agent(self, attrs: Mapping[str, Any]) -> Agent:
+        """Construct `Agent` from API payload."""
+        try:
+            return Agent(
+                self.client,
+                attrs=attrs,
+                entity=self.entity,
+                project=self.project,
+                sweep_id=self.id,
+            )
+        except ValueError as e:
+            raise Error(
+                "Sweep agent data from the W&B API was incomplete or invalid.",
+                context={"details": str(e)},
+            ) from e
+
+    def agent(self, agent_id: str) -> Agent:
+        """Query an agent by ID for this sweep.
+
+        Args:
+            agent_id: The ID of the agent to look up.
+        """
+        from wandb.apis._generated import GET_SWEEP_AGENT_GQL
+
+        variables = {
+            "agentID": agent_id,
+            "sweep": self.id,
+            "entity": self.entity,
+            "project": self.project,
+        }
+        data = self.client.execute(gql(GET_SWEEP_AGENT_GQL), variable_values=variables)
+        return self._make_sweep_agent(data["project"]["sweep"]["agent"])
+
+    def agents(self) -> list[Agent]:
+        """Query the list of all agents for this sweep."""
+        from wandb.apis._generated import GET_SWEEP_AGENTS_GQL, GetSweepAgents
+
+        variables = {
+            "sweep": self.id,
+            "entity": self.entity,
+            "project": self.project,
+        }
+        data = self.client.execute(gql(GET_SWEEP_AGENTS_GQL), variable_values=variables)
+        parsed = GetSweepAgents.model_validate(data)
+        if not parsed.project or not parsed.project.sweep:
+            return []
+        return [
+            self._make_sweep_agent(edge.node.model_dump(by_alias=True))
+            for edge in parsed.project.sweep.agents.edges
+        ]
+
     def to_html(self, height: int = 420, hidden: bool = False) -> str:
         """Generate HTML containing an iframe displaying this sweep."""
         url = self.url + "?jupyter=true"
@@ -379,3 +432,66 @@ class Sweep(Attrs):
         pathstr = "/".join(self.path)
         state = self._attrs.get("state", "Unknown State")
         return f"<Sweep {pathstr} ({state})>"
+
+
+class Agent(Attrs):
+    def __init__(
+        self,
+        client: RetryingClient,
+        attrs: Mapping[str, Any],
+        entity: str,
+        project: str,
+        sweep_id: str,
+    ) -> None:
+        super().__init__(dict(attrs or {}))
+        self._client = client
+        self._entity = entity
+        self._project = project
+        self._sweep_id = sweep_id
+
+        if self._entity is None:
+            raise ValueError(
+                "Agent requires entity. "
+                "Use an Agent returned from sweep.agent(...) or sweep.agents()."
+            )
+        if self._project is None:
+            raise ValueError(
+                "Agent requires project. "
+                "Use an Agent returned from sweep.agent(...) or sweep.agents()."
+            )
+        if self._sweep_id is None:
+            raise ValueError(
+                "Agent requires sweep_id. "
+                "Use an Agent returned from sweep.agent(...) or sweep.agents()."
+            )
+        if not (self._attrs.get("name") or self._attrs.get("id")):
+            if self._attrs.get("name") is None:
+                raise ValueError("Agent is missing name.")
+            if self._attrs.get("id") is None:
+                raise ValueError("Agent is missing id.")
+            raise ValueError("Agent is missing a usable name or id.")
+        self._agent_key: str = self._attrs.get("name") or self._attrs.get("id")
+
+    def runs(
+        self,
+        per_page: int = 50,
+    ) -> AgentRuns:
+        """Return a paginated collection of runs executed by this agent."""
+        from wandb.apis.public.runs import AgentRuns
+
+        total_runs = int(self._attrs.get("totalRuns") or 0)
+        return AgentRuns(
+            self._client,
+            entity=self._entity,
+            project=self._project,
+            sweep_id=self._sweep_id,
+            agent_key=self._agent_key,
+            total_runs=total_runs,
+            order="+created_at",
+            per_page=per_page,
+        )
+
+    def __repr__(self) -> str:
+        state = self._attrs.get("state", "Unknown State")
+        name = self._attrs.get("id", "Unknown")
+        return f"<Agent {name} ({state})>"
