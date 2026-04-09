@@ -17,7 +17,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.97.3
 	github.com/ebitengine/purego v0.10.0
 	github.com/getsentry/sentry-go v0.44.1
-	github.com/go-git/go-git/v5 v5.17.0
+	github.com/go-git/go-git/v5 v5.17.2
 	github.com/google/wire v0.7.0
 	github.com/googleapis/gax-go/v2 v2.21.0
 	github.com/hashicorp/go-retryablehttp v0.7.8
