@@ -2,10 +2,36 @@ use crate::metrics::MetricValue;
 use crate::wandb_internal::{GpuNvidiaInfo, EnvironmentRecord};
 
 use nvml_wrapper::enum_wrappers::device::{Clock, TemperatureSensor};
+use nvml_wrapper::enums::gpm::GpmMetricId;
 use nvml_wrapper::error::NvmlError;
+use nvml_wrapper::gpm;
 use nvml_wrapper::{Device, Nvml};
 use std::collections::HashMap;
 use std::path::PathBuf;
+
+/// GPM (GPU Performance Monitoring) metrics to collect and their output names.
+///
+/// These match the DCGM profiling metric names exactly so that downstream
+/// consumers (LEET, the web UI, etc.) work identically regardless of whether
+/// metrics came from DCGM or NVML GPM.
+///
+/// GPM is supported on Hopper+ architectures (H100 and newer). It computes
+/// metrics from two time-separated samples, so the first `get_metrics` call
+/// after initialization produces GPM data using the sample taken at init time.
+const GPM_METRICS: &[(GpmMetricId, &str)] = &[
+    (GpmMetricId::SmUtil, "smActive"),
+    (GpmMetricId::SmOccupancy, "smOccupancy"),
+    (GpmMetricId::AnyTensorUtil, "pipeTensorActive"),
+    (GpmMetricId::DramBwUtil, "dramActive"),
+    (GpmMetricId::Fp64Util, "pipeFp64Active"),
+    (GpmMetricId::Fp32Util, "pipeFp32Active"),
+    (GpmMetricId::Fp16Util, "pipeFp16Active"),
+    (GpmMetricId::HmmaTensorUtil, "pipeTensorHmmaActive"),
+    (GpmMetricId::PcieTxPerSec, "pcieTxBytes"),
+    (GpmMetricId::PcieRxPerSec, "pcieRxBytes"),
+    (GpmMetricId::NvlinkTotalTxPerSec, "nvlinkTxBytes"),
+    (GpmMetricId::NvlinkTotalRxPerSec, "nvlinkRxBytes"),
+];
 
 /// Static information about a GPU.
 #[derive(Default)]
@@ -41,6 +67,7 @@ struct GpuMetricAvailability {
     link_width: bool,
     max_link_gen: bool,
     max_link_width: bool,
+    gpm: bool,
 }
 
 impl Default for GpuMetricAvailability {
@@ -64,6 +91,7 @@ impl Default for GpuMetricAvailability {
             link_width: false,
             max_link_gen: false,
             max_link_width: false,
+            gpm: false,
         }
     }
 }
@@ -160,7 +188,18 @@ impl NvidiaGpu {
         }
 
         // Initialize metric availability with default values.
-        let gpu_metric_availability = vec![GpuMetricAvailability::default(); device_count as usize];
+        let mut gpu_metric_availability =
+            vec![GpuMetricAvailability::default(); device_count as usize];
+
+        // Probe GPM (GPU Performance Monitoring) support per device.
+        // GPM requires Hopper+ (H100 and newer).
+        for di in 0..device_count {
+            if let Ok(device) = nvml.device_by_index(di) {
+                if device.gpm_support().unwrap_or(false) {
+                    gpu_metric_availability[di as usize].gpm = true;
+                }
+            }
+        }
 
         Ok(NvidiaGpu {
             nvml,
@@ -688,6 +727,52 @@ impl NvidiaGpu {
                     }
                     Err(_) => {
                         availability.max_link_width = false;
+                    }
+                }
+            }
+
+            // GPM (GPU Performance Monitoring) — Hopper+ only.
+            // Takes two samples separated by a short interval and computes
+            // derived metrics (utilization, bandwidth, etc.) from the pair.
+            if availability.gpm {
+                let gpm_metric_ids: Vec<GpmMetricId> =
+                    GPM_METRICS.iter().map(|(id, _)| *id).collect();
+
+                match device.gpm_sample() {
+                    Ok(sample1) => {
+                        std::thread::sleep(std::time::Duration::from_millis(200));
+                        match device.gpm_sample() {
+                            Ok(sample2) => {
+                                match gpm::gpm_metrics_get(
+                                    &self.nvml,
+                                    &sample1,
+                                    &sample2,
+                                    &gpm_metric_ids,
+                                ) {
+                                    Ok(results) => {
+                                        for (result, (_, name)) in
+                                            results.iter().zip(GPM_METRICS)
+                                        {
+                                            if let Ok(m) = result {
+                                                metrics.push((
+                                                    format!("gpu.{}.{}", di, name),
+                                                    MetricValue::Float(m.value),
+                                                ));
+                                            }
+                                        }
+                                    }
+                                    Err(_) => {
+                                        availability.gpm = false;
+                                    }
+                                }
+                            }
+                            Err(_) => {
+                                availability.gpm = false;
+                            }
+                        }
+                    }
+                    Err(_) => {
+                        availability.gpm = false;
                     }
                 }
             }
