@@ -335,7 +335,6 @@ func (c *httpStorageClient) LockBucketRetentionPolicy(ctx context.Context, bucke
 		return err
 	}, s.retry, s.idempotent)
 }
-
 func (c *httpStorageClient) ListObjects(ctx context.Context, bucket string, q *Query, opts ...storageOption) *ObjectIterator {
 	s := callSettings(c.settings, opts...)
 	it := &ObjectIterator{
@@ -386,7 +385,7 @@ func (c *httpStorageClient) ListObjects(ctx context.Context, bucket string, q *Q
 		err = run(it.ctx, func(ctx context.Context) error {
 			resp, err = req.Context(ctx).Do()
 			return err
-		}, s.retry, s.idempotent, withOperation("ListObjects"), withObject(it.query.Prefix), withBucket(bucket))
+		}, s.retry, s.idempotent)
 		if err != nil {
 			return "", formatBucketError(err)
 		}
@@ -417,7 +416,7 @@ func (c *httpStorageClient) DeleteObject(ctx context.Context, bucket, object str
 	if s.userProject != "" {
 		req.UserProject(s.userProject)
 	}
-	err := run(ctx, func(ctx context.Context) error { return req.Context(ctx).Do() }, s.retry, s.idempotent, withOperation("DeleteObject"), withBucket(bucket), withObject(object))
+	err := run(ctx, func(ctx context.Context) error { return req.Context(ctx).Do() }, s.retry, s.idempotent)
 	return formatObjectErr(err)
 }
 
@@ -442,7 +441,7 @@ func (c *httpStorageClient) GetObject(ctx context.Context, params *getObjectPara
 	err = run(ctx, func(ctx context.Context) error {
 		obj, err = req.Context(ctx).Do()
 		return err
-	}, s.retry, s.idempotent, withOperation("GetObject"), withBucket(params.bucket), withObject(params.object))
+	}, s.retry, s.idempotent)
 	if err != nil {
 		return nil, formatObjectErr(err)
 	}
@@ -561,7 +560,7 @@ func (c *httpStorageClient) UpdateObject(ctx context.Context, params *updateObje
 
 	var obj *raw.Object
 	var err error
-	err = run(ctx, func(ctx context.Context) error { obj, err = call.Context(ctx).Do(); return err }, s.retry, s.idempotent, withOperation("UpdateObject"), withBucket(params.bucket), withObject(params.object))
+	err = run(ctx, func(ctx context.Context) error { obj, err = call.Context(ctx).Do(); return err }, s.retry, s.idempotent)
 	if err != nil {
 		return nil, formatObjectErr(err)
 	}
@@ -587,7 +586,7 @@ func (c *httpStorageClient) RestoreObject(ctx context.Context, params *restoreOb
 
 	var obj *raw.Object
 	var err error
-	err = run(ctx, func(ctx context.Context) error { obj, err = req.Context(ctx).Do(); return err }, s.retry, s.idempotent, withOperation("RestoreObject"), withBucket(params.bucket), withObject(params.object))
+	err = run(ctx, func(ctx context.Context) error { obj, err = req.Context(ctx).Do(); return err }, s.retry, s.idempotent)
 	if err != nil {
 		return nil, formatObjectErr(err)
 	}
@@ -611,7 +610,7 @@ func (c *httpStorageClient) MoveObject(ctx context.Context, params *moveObjectPa
 	}
 	var obj *raw.Object
 	var err error
-	err = run(ctx, func(ctx context.Context) error { obj, err = req.Context(ctx).Do(); return err }, s.retry, s.idempotent, withOperation("MoveObject"), withBucket(params.bucket), withObject(params.srcObject))
+	err = run(ctx, func(ctx context.Context) error { obj, err = req.Context(ctx).Do(); return err }, s.retry, s.idempotent)
 	if err != nil {
 		return nil, formatObjectErr(err)
 	}
@@ -800,7 +799,7 @@ func (c *httpStorageClient) ComposeObject(ctx context.Context, req *composeObjec
 	var err error
 	retryCall := func(ctx context.Context) error { obj, err = call.Context(ctx).Do(); return err }
 
-	if err := run(ctx, retryCall, s.retry, s.idempotent, withOperation("ComposeObject"), withBucket(req.dstBucket), withObject(req.dstObject.name)); err != nil {
+	if err := run(ctx, retryCall, s.retry, s.idempotent); err != nil {
 		return nil, formatObjectErr(err)
 	}
 	return newObject(obj), nil
@@ -847,7 +846,7 @@ func (c *httpStorageClient) RewriteObject(ctx context.Context, req *rewriteObjec
 
 	retryCall := func(ctx context.Context) error { res, err = call.Context(ctx).Do(); return err }
 
-	if err := run(ctx, retryCall, s.retry, s.idempotent, withOperation("RewriteObject"), withBucket(req.srcObject.bucket), withObject(req.srcObject.name)); err != nil {
+	if err := run(ctx, retryCall, s.retry, s.idempotent); err != nil {
 		return nil, formatObjectErr(err)
 	}
 
@@ -1115,14 +1114,7 @@ func (c *httpStorageClient) OpenWriter(params *openWriterParams, opts ...storage
 			}
 			if useRetry {
 				if s.retry != nil {
-					// Wrap shouldRetry to adapt to the googleapi WithRetry signature.
-					var retryFunc func(error) bool
-					if s.retry.shouldRetry != nil {
-						retryFunc = func(err error) bool {
-							return s.retry.shouldRetry(err, nil)
-						}
-					}
-					call.WithRetry(s.retry.backoff, retryFunc)
+					call.WithRetry(s.retry.backoff, s.retry.shouldRetry)
 				} else {
 					call.WithRetry(nil, nil)
 				}
@@ -1424,16 +1416,12 @@ func (r *httpReader) Read(p []byte) (int, error) {
 		// Read failed (likely due to connection issues), but we will try to reopen
 		// the pipe and continue. Send a ranged read request that takes into account
 		// the number of bytes we've already seen.
-
-		// Close the current body before retrying. Otherwise we leave a
-		// connection open and the retry might fail due to quota issues.
-		r.body.Close()
-
 		res, err := r.reopen(r.seen)
 		if err != nil {
 			// reopen already retries
 			return n, err
 		}
+		r.body.Close()
 		r.body = res.Body
 	}
 	return n, nil
@@ -1527,7 +1515,6 @@ func readerReopen(ctx context.Context, header http.Header, params *newRangeReade
 			if params.gen < 0 && res.Header.Get("X-Goog-Generation") != "" {
 				gen64, err := strconv.ParseInt(res.Header.Get("X-Goog-Generation"), 10, 64)
 				if err != nil {
-					res.Body.Close()
 					return err
 				}
 				params.gen = gen64
@@ -1541,12 +1528,8 @@ func readerReopen(ctx context.Context, header http.Header, params *newRangeReade
 	}
 }
 
-func parseReadResponse(res *http.Response, params *newRangeReaderParams, reopen func(int64) (*http.Response, error)) (r *Reader, err error) {
-	defer func() {
-		if err != nil {
-			res.Body.Close()
-		}
-	}()
+func parseReadResponse(res *http.Response, params *newRangeReaderParams, reopen func(int64) (*http.Response, error)) (*Reader, error) {
+	var err error
 	var (
 		size        int64 // total size of object, even if a range was requested.
 		checkCRC    bool
@@ -1556,23 +1539,20 @@ func parseReadResponse(res *http.Response, params *newRangeReaderParams, reopen 
 	if res.StatusCode == http.StatusPartialContent {
 		cr := strings.TrimSpace(res.Header.Get("Content-Range"))
 		if !strings.HasPrefix(cr, "bytes ") || !strings.Contains(cr, "/") {
-			err = fmt.Errorf("storage: invalid Content-Range %q", cr)
-			return nil, err
+			return nil, fmt.Errorf("storage: invalid Content-Range %q", cr)
 		}
 		// Content range is formatted <first byte>-<last byte>/<total size>. We take
 		// the total size.
 		size, err = strconv.ParseInt(cr[strings.LastIndex(cr, "/")+1:], 10, 64)
 		if err != nil {
-			err = fmt.Errorf("storage: invalid Content-Range %q: %w", cr, err)
-			return nil, err
+			return nil, fmt.Errorf("storage: invalid Content-Range %q", cr)
 		}
 
 		dashIndex := strings.Index(cr, "-")
 		if dashIndex >= 0 {
 			startOffset, err = strconv.ParseInt(cr[len("bytes="):dashIndex], 10, 64)
 			if err != nil {
-				err = fmt.Errorf("storage: invalid Content-Range %q: %w", cr, err)
-				return nil, err
+				return nil, fmt.Errorf("storage: invalid Content-Range %q: %w", cr, err)
 			}
 		}
 	} else {
