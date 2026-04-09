@@ -34,6 +34,7 @@ This version drops compatibility with server versions older than 0.63.0 (for Ded
 - `allow_media_symlink` setting to symlink or hardlink media files to the run directory instead of copying, improving logging performance and reducing disk usage (@jacobromero in https://github.com/wandb/wandb/pull/11544)
 - `run.pin_config_keys(keys)` to programmatically pin specific config keys for display in a References section on the Run Overview page (@acasey-wandb in https://github.com/wandb/wandb/pull/11639)
 - Direct TPU metric collection via `libtpu.so` FFI, capturing `tensorcore_util` (SDK-only, unavailable via gRPC), `duty_cycle_pct`, `hbm_capacity_total`, `hbm_capacity_usage`, and latency distributions (@dmitryduev in https://github.com/wandb/wandb/pull/11528)
+- NVML GPM (GPU Performance Monitoring) profiling metrics for Hopper+ GPUs (H100 and newer), providing SM utilization, tensor/FP pipeline activity, DRAM bandwidth, and PCIe/NVLink throughput without requiring the DCGM daemon (@dmitryduev in https://github.com/wandb/wandb/pull/11622)
 - `.runs()` on the `Agent` class to query run status for a given sweep agent (@kmikowicz-wandb in https://github.com/wandb/wandb/pull/11558)
 - `.agent()` and `.agents()` on the `Sweep` class to query active agents for a given sweep (@kmikowicz-wandb in https://github.com/wandb/wandb/pull/11558)
 
