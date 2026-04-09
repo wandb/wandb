@@ -34,16 +34,6 @@ if not IS_PYDANTIC_V2:
         "We recommend upgrading `pydantic` to use this feature."
     )
 
-else:
-    # If Pydantic v2 is available, we can use the full Automations API
-    # but communicate to users that the API is still experimental and
-    # may change rapidly.
-    wandb.termwarn(
-        "The W&B Automations API is experimental and the implementation is subject to change."
-        "Review the release notes before upgrading. We recommend pinning your "
-        f"package version to `{wandb.__package__}=={wandb.__version__}` to reduce the risk of disruption.",
-        repeat=False,
-    )
 # ----------------------------------------------------------------------------
 
 __all__ = [
