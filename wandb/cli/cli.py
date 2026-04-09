@@ -2689,7 +2689,7 @@ def start(ctx, port, env, daemon, upgrade, edge):
     API key is found.
 
     Requires Docker to be installed and running on the host machine.
-    
+
     This command starts only the W&B Models UI. It is provided only
     for local testing. In production, the W&B Kubernetes Operator is the recommended
     way to deploy W&B Server. See
