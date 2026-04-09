@@ -181,15 +181,6 @@ class CustomBuildHook(BuildHookInterface):
         with_race_detection = _get_env_bool(_WANDB_BUILD_GORACEDETECT, default=False)
         with_cgo = _get_env_bool(_WANDB_ENABLE_CGO, default=False)
 
-        # On musl (Alpine/musllinux), CGO must be enabled so that purego
-        # uses proper C dlopen() instead of fakecgo assembly stubs, which
-        # crash with SIGSEGV on musl when loading the Rust FFI library.
-        import glob as _glob
-
-        if not with_cgo and _glob.glob("/lib/ld-musl-*.so.1"):
-            self.app.display_waiting("Detected musl libc — enabling CGO for wandb-core")
-            with_cgo = True
-
         plat = self._target_platform()
 
         self.app.display_waiting("Building wandb-core Go binary...")
