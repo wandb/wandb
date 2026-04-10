@@ -412,6 +412,10 @@ message Settings {
   // Time-based rollover threshold for multipart console logs, in seconds.
   google.protobuf.Int32Value console_chunk_max_seconds = 201;
 
+  // Named Python loggers to capture into console output.
+  // Maps logger name to minimum log level (e.g. "my_app" -> "INFO").
+  MapStringKeyStringValue console_capture_loggers = 205;
+
   // Whether to sync TensorBoard logs to W&B.
   google.protobuf.BoolValue sync_tensorboard = 179;
 

@@ -406,9 +406,11 @@ func (s *Settings) GetSweepURL() string {
 }
 
 // Checks whether console capture is enabled. If it is, stdout and stderr
-// will be captured and sent to W&B.
+// will be captured and sent to W&B. Also enabled when named loggers are
+// configured via console_capture_loggers, even if console is "off".
 func (s *Settings) IsConsoleCaptureEnabled() bool {
-	return s.Proto.Console.GetValue() != "off"
+	return s.Proto.Console.GetValue() != "off" ||
+		len(s.Proto.ConsoleCaptureLoggers.GetValue()) > 0
 }
 
 // Size-based rollover threshold for multipart console logs, in bytes.
