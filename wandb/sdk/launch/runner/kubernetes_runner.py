@@ -1394,7 +1394,7 @@ def _build_source_init_container(
         init_env.append(api_key_env)
     return {
         "name": "wandb-source-code-init",
-        "image": "wandb/launch-agent:latest",
+        "image": "jzhaowandb/launch-agent-dev:main-v1",
         "volumeMounts": [
             {"name": "wandb-source-code-volume", "mountPath": CODE_MOUNT_DIR}
         ],
