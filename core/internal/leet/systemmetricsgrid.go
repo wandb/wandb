@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"charm.land/lipgloss/v2"
-	"charm.land/lipgloss/v2/compat"
 
 	"github.com/wandb/wandb/core/internal/observability"
 )
@@ -102,7 +101,7 @@ func (g *SystemMetricsGrid) effectiveGridSize() GridSize {
 }
 
 // nextPaletteColor returns the next color from the active system palette.
-func (g *SystemMetricsGrid) nextPaletteColor() compat.AdaptiveColor {
+func (g *SystemMetricsGrid) nextPaletteColor() AdaptiveColor {
 	palette := GraphColors(g.config.SystemColorScheme())
 	color := palette[g.nextColor%len(palette)]
 	g.nextColor++
@@ -114,10 +113,10 @@ func (g *SystemMetricsGrid) nextPaletteColor() compat.AdaptiveColor {
 //
 // The first call returns the color after the base color,
 // so the base can be used for the first series.
-func (g *SystemMetricsGrid) anchoredSeriesColorProvider(baseIdx int) func() compat.AdaptiveColor {
+func (g *SystemMetricsGrid) anchoredSeriesColorProvider(baseIdx int) func() AdaptiveColor {
 	palette := GraphColors(g.config.SystemColorScheme())
 	idx := baseIdx + 1
-	return func() compat.AdaptiveColor {
+	return func() AdaptiveColor {
 		c := palette[idx%len(palette)]
 		idx++
 		return c
@@ -136,7 +135,7 @@ func (g *SystemMetricsGrid) createMetricChart(def *MetricDef) systemMetricChart 
 
 	// Base color by color mode.
 	var (
-		baseColor compat.AdaptiveColor
+		baseColor AdaptiveColor
 		baseIdx   int
 	)
 	colorMode := g.config.SystemColorMode()

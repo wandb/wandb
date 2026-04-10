@@ -122,7 +122,7 @@ func NewModel(params ModelParams) *Model {
 // regardless of the starting mode. If starting in single-run mode, the run's
 // reader and watcher commands are also started.
 func (m *Model) Init() tea.Cmd {
-	cmds := []tea.Cmd{}
+	cmds := []tea.Cmd{tea.RequestBackgroundColor}
 
 	// Workspace always exists; initialize its long‑running commands.
 	if m.workspace != nil {
@@ -145,6 +145,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if wsMsg, ok := msg.(tea.WindowSizeMsg); ok {
 		m.width, m.height = wsMsg.Width, wsMsg.Height
 		m.help.SetSize(wsMsg.Width, wsMsg.Height)
+	}
+
+	if bgMsg, ok := msg.(tea.BackgroundColorMsg); ok {
+		SetDarkBackground(bgMsg.IsDark())
 	}
 
 	if handled, cmd := m.handleHelp(msg); handled {

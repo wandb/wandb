@@ -98,7 +98,7 @@ func NewSymon(params SymonParams) *Symon {
 
 // Init starts the initial sampling pass.
 func (s *Symon) Init() tea.Cmd {
-	return s.sampleNowCmd()
+	return tea.Batch(tea.RequestBackgroundColor, s.sampleNowCmd())
 }
 
 // Update handles resize events, help/restart shortcuts, user input, and live
@@ -108,6 +108,10 @@ func (s *Symon) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		s.width, s.height = ws.Width, ws.Height
 		s.help.SetSize(ws.Width, ws.Height)
 		s.resizeGrid()
+	}
+
+	if bgMsg, ok := msg.(tea.BackgroundColorMsg); ok {
+		SetDarkBackground(bgMsg.IsDark())
 	}
 
 	if handled, cmd := s.handleHelp(msg); handled {

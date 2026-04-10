@@ -8,7 +8,6 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
-	"charm.land/lipgloss/v2/compat"
 
 	"github.com/wandb/wandb/core/internal/observability"
 )
@@ -52,14 +51,14 @@ type MetricsGrid struct {
 	filter *Filter
 
 	// Stable color assignment.
-	colorOfTitle map[string]compat.AdaptiveColor
+	colorOfTitle map[string]AdaptiveColor
 	nextColorIdx int
 
 	// Palette for main metrics charts (derived from config.ColorScheme()).
-	palette []compat.AdaptiveColor
+	palette []AdaptiveColor
 
 	// Palette for per-plot mode in single-run view (derived from config.PerPlotColorScheme()).
-	perPlotPalette []compat.AdaptiveColor
+	perPlotPalette []AdaptiveColor
 
 	// When set to ColorModePerPlot, single-series charts are colored per chart title.
 	// Default is ColorModePerSeries (stable run-id color).
@@ -68,7 +67,7 @@ type MetricsGrid struct {
 	// seriesColorForKey optionally overrides per-series colors keyed by series
 	// name (for example workspace run paths). Intended for workspace multi-run
 	// view.
-	seriesColorForKey func(string) compat.AdaptiveColor
+	seriesColorForKey func(string) AdaptiveColor
 
 	// synchronized inspection session state (active only between press/release)
 	syncInspectActive bool
@@ -94,7 +93,7 @@ func NewMetricsGrid(
 		focus:                 focus,
 		filter:                NewFilter(),
 		logger:                logger,
-		colorOfTitle:          make(map[string]compat.AdaptiveColor),
+		colorOfTitle:          make(map[string]AdaptiveColor),
 		palette:               palette,
 		perPlotPalette:        perPlotPalette,
 		singleSeriesColorMode: ColorModePerSeries,
@@ -123,7 +122,7 @@ func (mg *MetricsGrid) SetSingleSeriesColorMode(mode string) {
 // Callers should set this before processing data so newly created series render
 // with the intended colors from their first frame.
 func (mg *MetricsGrid) SetSeriesColorProvider(
-	provider func(string) compat.AdaptiveColor,
+	provider func(string) AdaptiveColor,
 ) {
 	mg.mu.Lock()
 	defer mg.mu.Unlock()
@@ -271,7 +270,7 @@ func (mg *MetricsGrid) effectiveChartCountNoLock() int {
 }
 
 // colorForNoLock returns a stable color for a given metric title.
-func (mg *MetricsGrid) colorForNoLock(title string) compat.AdaptiveColor {
+func (mg *MetricsGrid) colorForNoLock(title string) AdaptiveColor {
 	if c, ok := mg.colorOfTitle[title]; ok {
 		return c
 	}
