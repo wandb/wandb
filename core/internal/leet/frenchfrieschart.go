@@ -99,6 +99,11 @@ type FrenchFriesChart struct {
 	orderedSeries []string
 	seriesDirty   bool
 
+	// Fixed value range for color mapping (e.g. 0–100 for percentages).
+	// When fixedMaxY > fixedMinY, colorForValue uses these instead of observed bounds.
+	fixedMinY float64
+	fixedMaxY float64
+
 	// Observed value range, updated incrementally by AddDataPoint.
 	observedMinY float64
 	observedMaxY float64
@@ -123,8 +128,11 @@ type FrenchFriesChartParams struct {
 	UnitFormatter func(float64) string
 	XLabelFunc    func(value float64, maxWidth int) string
 	SeriesColorFn func(seriesName string) color.Color
-	Colors        []compat.AdaptiveColor
-	Now           time.Time
+	// FixedMinY/FixedMaxY pin the color range (e.g. 0–100 for percentages).
+	// When FixedMaxY > FixedMinY, colorForValue uses these instead of observed bounds.
+	FixedMinY, FixedMaxY float64
+	Colors               []compat.AdaptiveColor
+	Now                  time.Time
 }
 
 func NewFrenchFriesChart(params *FrenchFriesChartParams) *FrenchFriesChart {
@@ -133,6 +141,8 @@ func NewFrenchFriesChart(params *FrenchFriesChartParams) *FrenchFriesChart {
 		unitFormatter: params.UnitFormatter,
 		xLabelFunc:    params.XLabelFunc,
 		seriesColorFn: params.SeriesColorFn,
+		fixedMinY:     params.FixedMinY,
+		fixedMaxY:     params.FixedMaxY,
 		series:        make(map[string]struct{}),
 		seriesDirty:   true,
 		observedMinY:  math.Inf(1),
@@ -149,30 +159,24 @@ func NewFrenchFriesChart(params *FrenchFriesChartParams) *FrenchFriesChart {
 func (c *FrenchFriesChart) Title() string { return c.title }
 
 func (c *FrenchFriesChart) TitleDetail() string {
-	var parts []string
-
 	series := c.sortedSeriesNames()
 	total := len(series)
-	if total > 1 {
-		layout := c.layout()
-		if layout.maxVisibleRows <= 0 || total <= layout.maxVisibleRows {
-			parts = append(parts, fmt.Sprintf("[%d]", total))
-		} else {
-			parts = append(parts, c.summarizeSeries(
-				c.visibleSeriesNames(layout.maxVisibleRows), total))
-		}
+	if total <= 1 {
+		return ""
 	}
 
-	if legend := c.legendDetail(); legend != "" {
-		parts = append(parts, legend)
+	layout := c.layout()
+	if layout.maxVisibleRows <= 0 || total <= layout.maxVisibleRows {
+		return fmt.Sprintf("[%d]", total)
 	}
 
-	return strings.Join(parts, " ")
+	return c.summarizeSeries(c.visibleSeriesNames(layout.maxVisibleRows), total)
 }
 
 // legendDetail returns a compact gradient bar with the observed range.
 func (c *FrenchFriesChart) legendDetail() string {
-	if !isFinite(c.observedMinY) || !isFinite(c.observedMaxY) || c.observedMaxY <= c.observedMinY {
+	minY, maxY := c.colorRange()
+	if maxY <= minY {
 		return ""
 	}
 	if len(c.coloredCells) == 0 {
@@ -192,7 +196,7 @@ func (c *FrenchFriesChart) legendDetail() string {
 		bar.WriteString(c.coloredCells[idx])
 	}
 
-	return formatter(c.observedMinY) + bar.String() + formatter(c.observedMaxY)
+	return formatter(minY) + bar.String() + formatter(maxY)
 }
 
 func (c *FrenchFriesChart) View() string {
@@ -847,9 +851,8 @@ func (c *FrenchFriesChart) colorForValue(value float64) string {
 		return " "
 	}
 
-	minY := c.observedMinY
-	maxY := c.observedMaxY
-	if !isFinite(minY) || !isFinite(maxY) || maxY <= minY {
+	minY, maxY := c.colorRange()
+	if maxY <= minY {
 		return c.coloredCells[len(c.coloredCells)/2]
 	}
 
@@ -857,6 +860,17 @@ func (c *FrenchFriesChart) colorForValue(value float64) string {
 	normalized = max(0, min(1, normalized))
 	idx := int(math.Round(normalized * float64(len(c.coloredCells)-1)))
 	return c.coloredCells[idx]
+}
+
+// colorRange returns the [min, max] used for color mapping.
+func (c *FrenchFriesChart) colorRange() (float64, float64) {
+	if c.fixedMaxY > c.fixedMinY {
+		return c.fixedMinY, c.fixedMaxY
+	}
+	if !isFinite(c.observedMinY) || !isFinite(c.observedMaxY) {
+		return 0, 0
+	}
+	return c.observedMinY, c.observedMaxY
 }
 
 // ObservedRange returns the tracked [min, max] of ingested values.

@@ -88,11 +88,7 @@ func TestFrenchFriesChart_TruncatedRowsExposeVisibleSeriesInTitle(t *testing.T) 
 	}
 
 	require.Equal(t, []string{"GPU 0", "GPU 1"}, chart.TestVisibleSeries())
-	detail := chart.TestTitleDetail()
-	require.Contains(t, detail, "[0,1/8]")
-	// Legend with gradient bar and range is also present.
-	require.Contains(t, detail, "0%")
-	require.Contains(t, detail, "70%")
+	require.Equal(t, "[0,1/8]", chart.TestTitleDetail())
 }
 
 func TestFrenchFriesChart_InspectionShowsValuesForWholeColumn(t *testing.T) {
@@ -213,12 +209,12 @@ func TestSystemMetricsGrid_FrenchFriesUsesConfiguredPalette(t *testing.T) {
 	chart := grid.TestFrenchFriesChartAt(0, 0)
 	require.NotNil(t, chart)
 
-	minY, maxY := chart.ObservedRange()
+	// GPU utilization uses fixed [0, 100] range for color mapping.
 	palette := leet.FrenchFriesColors("plasma")
 	low := lipgloss.NewStyle().Foreground(palette[0]).Render("█")
 	high := lipgloss.NewStyle().Foreground(palette[len(palette)-1]).Render("█")
-	require.Equal(t, low, chart.TestColorForValue(minY))
-	require.Equal(t, high, chart.TestColorForValue(maxY))
+	require.Equal(t, low, chart.TestColorForValue(0))
+	require.Equal(t, high, chart.TestColorForValue(100))
 }
 
 func TestFrenchFriesChart_StableBuckets_AddingDataDoesNotShiftExisting(t *testing.T) {

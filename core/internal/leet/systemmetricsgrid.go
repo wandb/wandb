@@ -159,14 +159,19 @@ func (g *SystemMetricsGrid) createMetricChart(def *MetricDef) systemMetricChart 
 	})
 	lineChart.SetTailWindow(g.config.SystemTailWindow())
 
-	frenchFriesChart := NewFrenchFriesChart(&FrenchFriesChartParams{
+	ffParams := &FrenchFriesChartParams{
 		Width:         chartWidth,
 		Height:        chartHeight,
 		Title:         def.Title(),
 		UnitFormatter: def.Unit.Format,
 		Colors:        FrenchFriesColors(g.config.FrenchFriesColorScheme()),
 		Now:           now,
-	})
+	}
+	if def.Percentage {
+		ffParams.FixedMinY = 0
+		ffParams.FixedMaxY = 100
+	}
+	frenchFriesChart := NewFrenchFriesChart(ffParams)
 	return newFrenchFriesToggleChart(lineChart, frenchFriesChart)
 }
 
@@ -671,15 +676,25 @@ func chartHeaderExtras(chart systemMetricChart) systemMetricHeaderExtras {
 	}
 	switch {
 	case chart.IsHeatmapMode():
-		// TitleDetail already includes the legend when in heatmap mode,
-		// but show a fallback mode label if detail is empty.
-		if extras.detail == "" {
+		// Show the gradient legend in the header; fall back to "[heatmap]".
+		if legend := heatmapLegendFromChart(chart); legend != "" {
+			extras.mode = " " + legend
+		} else {
 			extras.mode = " [heatmap]"
 		}
 	case chart.IsLogY():
 		extras.mode = " [log]"
 	}
 	return extras
+}
+
+// heatmapLegendFromChart extracts the gradient legend from the active
+// FrenchFriesChart, if the chart supports it.
+func heatmapLegendFromChart(chart systemMetricChart) string {
+	if tc, ok := chart.(*frenchFriesToggleChart); ok {
+		return tc.frenchFries.legendDetail()
+	}
+	return ""
 }
 
 // ChartCount returns the number of charts on the grid.
