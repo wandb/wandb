@@ -64,9 +64,15 @@ type RunWork interface {
 	// It does not close the channel or cancel any work.
 	SetDone()
 
-	// Close blocks until SetDone() is called and closes the output channel.
+	// Close blocks until SetDone(), closes the channel, cancels BeforeEndCtx.
 	//
 	// It is safe to call concurrently or multiple times.
+	// Any ongoing or future AddWork() calls discard their work and return
+	// immediately.
+	//
+	// Calling Close means that (1) all uploads have completed and (2) there
+	// will be no more queries (like OperationStats requests). In other words,
+	// wandb-core can forget about the run and cancel any remaining operations.
 	Close()
 }
 
