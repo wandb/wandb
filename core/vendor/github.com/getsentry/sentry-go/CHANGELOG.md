@@ -1,10 +1,118 @@
 # Changelog
 
-## 0.44.1
+## 0.45.0
+
+### Breaking Changes 🛠
+
+- Add support for Echo v5 by @Scorfly in [#1183](https://github.com/getsentry/sentry-go/pull/1183)
+
+### New Features ✨
+
+- Add OTLP trace exporter via new otel/otlp sub-module by @giortzisg in [#1229](https://github.com/getsentry/sentry-go/pull/1229)
+  - sentryotlp.NewTraceExporter sends OTel spans directly to Sentry's OTLP endpoint.
+  - sentryotel.NewOtelIntegration links Sentry errors, logs, and metrics to the active OTel trace. Works with both direct-to-Sentry and collector-based setups.
+  - NewSentrySpanProcessor, NewSentryPropagator, and SentrySpanMap are deprecated and will be removed in 0.47.0. To Migrate use `sentryotlp.NewTraceExporter` instead:
+  ```go
+  // Before
+  sentry.Init(sentry.ClientOptions{Dsn: dsn, EnableTracing: true, TracesSampleRate: 1.0})
+  
+  tp := sdktrace.NewTracerProvider(
+  	sdktrace.WithSpanProcessor(sentryotel.NewSentrySpanProcessor()),
+  )
+  otel.SetTextMapPropagator(sentryotel.NewSentryPropagator())
+  otel.SetTracerProvider(tp)
+  
+  // After:
+  sentry.Init(sentry.ClientOptions{
+  	Dsn: dsn, EnableTracing: true, TracesSampleRate: 1.0,
+  	Integrations: func(i []sentry.Integration) []sentry.Integration {
+  		return append(i, sentryotel.NewOtelIntegration())
+  	},
+  })
+  
+  exporter, _ := sentryotlp.NewTraceExporter(ctx, dsn)
+  tp := sdktrace.NewTracerProvider(sdktrace.WithBatcher(exporter))
+  otel.SetTracerProvider(tp)
+  ```
+- Add IsSensitiveHeader helper to easily distinguish which headers to scrub for PII. by @giortzisg in [#1239](https://github.com/getsentry/sentry-go/pull/1239)
+
+### Bug Fixes 🐛
+
+- (ci) Update validate-pr action to remove draft enforcement by @stephanie-anderson in [#1237](https://github.com/getsentry/sentry-go/pull/1237)
+- (fiber) Use UserContext for transaction to enable OTel trace linking by @giortzisg in [#1252](https://github.com/getsentry/sentry-go/pull/1252)
+- Race condition when getting envelope identifier by @giortzisg in [#1250](https://github.com/getsentry/sentry-go/pull/1250)
 
 ### Internal Changes 🔧
 
-- Add preReleaseCommand for craft by @giortzisg in [#1232](https://github.com/getsentry/sentry-go/pull/1232)
+#### Deps
+
+- Bump OpenTelemetry SDK to 1.40.0 by @giortzisg in [#1243](https://github.com/getsentry/sentry-go/pull/1243)
+- Bump changelog-preview.yml from 2.24.1 to 2.25.2 by @dependabot in [#1247](https://github.com/getsentry/sentry-go/pull/1247)
+- Bump getsentry/craft from 2.24.1 to 2.25.2 by @dependabot in [#1248](https://github.com/getsentry/sentry-go/pull/1248)
+- Bump codecov/codecov-action from 5.5.2 to 6.0.0 by @dependabot in [#1245](https://github.com/getsentry/sentry-go/pull/1245)
+- Bump actions/create-github-app-token from 2.2.1 to 3.0.0 by @dependabot in [#1246](https://github.com/getsentry/sentry-go/pull/1246)
+- Bump actions/setup-go from 6.3.0 to 6.4.0 by @dependabot in [#1244](https://github.com/getsentry/sentry-go/pull/1244)
+
+#### Other
+
+- Update validate-pr workflow by @stephanie-anderson in [#1242](https://github.com/getsentry/sentry-go/pull/1242)
+- Add PR validation workflow by @stephanie-anderson in [#1234](https://github.com/getsentry/sentry-go/pull/1234)
+
+## 0.44.1
+
+> [!NOTE]  
+> The v0.44.0 is missing due to a technical issue and had to be released again as v0.44.1
+
+### New Features ✨
+
+- Add RemoveAttribute api on the scope. by @giortzisg in [#1224](https://github.com/getsentry/sentry-go/pull/1224)
+- Deprecate `Scope.SetExtra`, `Scope.SetExtras`, and `Scope.RemoveExtra` in favor of `Scope.SetAttributes` and `Scope.RemoveAttribute` by @giortzisg in [#1224](https://github.com/getsentry/sentry-go/pull/1224)
+  - The recommended migration path is to use `SetAttributes` to attach values to logs and metrics. Note that attributes do not appear on error events; if you only capture errors, use `SetTag` or `SetContext` instead.
+  - Before:
+  ```go
+  scope.SetExtra("key.string", "str")
+  scope.SetExtra("key.int", 42)
+  ```
+  - After (for error events) — use tags and contexts:
+  ```go
+  scope.SetTag("key.string", "str")
+  scope.SetContext("my_data", sentry.Context{"key.int": 42})
+  ```
+  - After (for logs and metrics) — use attributes:
+  ```go
+  scope.SetAttributes(
+      attribute.String("key.string", "str"),
+      attribute.Int("key.int", 42),
+  )
+  ```
+- Add support for homogenous arrays by @giortzisg in [#1203](https://github.com/getsentry/sentry-go/pull/1203)
+- Add support for client reports by @giortzisg in [#1192](https://github.com/getsentry/sentry-go/pull/1192)
+- Add org id propagation in sentry_baggage by @giortzisg in [#1210](https://github.com/getsentry/sentry-go/pull/1210)
+- Add OrgID and StrictTraceContinuation client options. by @giortzisg in [#1210](https://github.com/getsentry/sentry-go/pull/1210)
+- Add the option to set attributes on the scope by @giortzisg in [#1208](https://github.com/getsentry/sentry-go/pull/1208)
+
+### Bug Fixes 🐛
+
+- (serialization) Pre-serialize mutable event fields to prevent race panics by @giortzisg in [#1214](https://github.com/getsentry/sentry-go/pull/1214)
+- Use HEROKU_BUILD_COMMIT with HEROKU_SLUG_COMMIT as fallback by @ericapisani in [#1220](https://github.com/getsentry/sentry-go/pull/1220)
+
+### Internal Changes 🔧
+
+#### Ai
+
+- Add AGENTS.md and testing guidelines by @giortzisg in [#1216](https://github.com/getsentry/sentry-go/pull/1216)
+- Add dotagents configuration by @giortzisg in [#1211](https://github.com/getsentry/sentry-go/pull/1211)
+
+#### Deps
+
+- Bump github.com/buger/jsonparser from 1.1.1 to 1.1.2 in /zerolog by @dependabot in [#1231](https://github.com/getsentry/sentry-go/pull/1231)
+- Bump github.com/gofiber/fiber/v2 from 2.52.11 to 2.52.12 in /fiber by @dependabot in [#1209](https://github.com/getsentry/sentry-go/pull/1209)
+
+#### Other
+
+- Pin GitHub Actions to full-length commit SHAs by @joshuarli in [#1230](https://github.com/getsentry/sentry-go/pull/1230)
+- Bump getsentry/craft to 2.24.1 by @giortzisg in [#1225](https://github.com/getsentry/sentry-go/pull/1225)
+- Handle independent go module versions for integrations by @giortzisg in [#1217](https://github.com/getsentry/sentry-go/pull/1217)
 
 ## 0.43.0
 

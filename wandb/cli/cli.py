@@ -2678,7 +2678,7 @@ def server():
 )
 @display_error
 def start(ctx, port, env, daemon, upgrade, edge):
-    """Start a local W&B server in a Docker container.
+    """Start a local W&B Server instance in a Docker container.
 
     Pull and run the wandb/local Docker image. Map the specified host
     port to port 8080 in the container and mount a persistent Docker
@@ -2689,6 +2689,11 @@ def start(ctx, port, env, daemon, upgrade, edge):
     API key is found.
 
     Requires Docker to be installed and running on the host machine.
+
+    This command starts only the W&B Models UI. It is provided only
+    for local testing. In production, the W&B Kubernetes Operator is the recommended
+    way to deploy W&B Server. See
+    https://docs.wandb.ai/platform/hosting/self-managed/operator.
 
     For example, to start a local W&B server on the default port (8080):
 

@@ -54,9 +54,8 @@ import (
 // regardless of any other documented package stability guarantees.
 // It should not be used by external consumers.
 type TransportTelemetryData struct {
-	serverAddress      string
-	serverPort         int
-	responseStatusCode int
+	serverAddress string
+	serverPort    int
 }
 
 // SetServerAddress sets the server address.
@@ -78,16 +77,6 @@ func (d *TransportTelemetryData) SetServerPort(port int) { d.serverPort = port }
 // Experimental: This function is experimental and may be modified or removed in future versions,
 // regardless of any other documented package stability guarantees.
 func (d *TransportTelemetryData) ServerPort() int { return d.serverPort }
-
-// SetResponseStatusCode sets the response status code.
-// Experimental: This function is experimental and may be modified or removed in future versions,
-// regardless of any other documented package stability guarantees.
-func (d *TransportTelemetryData) SetResponseStatusCode(code int) { d.responseStatusCode = code }
-
-// ResponseStatusCode returns the response status code.
-// Experimental: This function is experimental and may be modified or removed in future versions,
-// regardless of any other documented package stability guarantees.
-func (d *TransportTelemetryData) ResponseStatusCode() int { return d.responseStatusCode }
 
 // transportTelemetryKey is the private context key used to inject TransportTelemetryData
 type transportTelemetryKey struct{}
@@ -453,9 +442,20 @@ func recordMetric(ctx context.Context, settings CallSettings, d time.Duration, e
 	attrs = append(attrs, settings.clientMetrics.attributes()...)
 
 	errInfo := ExtractTelemetryErrorInfo(ctx, err)
+
+	if td := ExtractTransportTelemetry(ctx); td != nil {
+		if td.ServerAddress() != "" {
+			attrs = append(attrs, attribute.String("server.address", td.ServerAddress()))
+		}
+		if td.ServerPort() != 0 {
+			attrs = append(attrs, attribute.Int("server.port", td.ServerPort()))
+		}
+	}
+
 	if errInfo.ErrorType != "" {
 		attrs = append(attrs, attribute.String("error.type", errInfo.ErrorType))
 	}
+
 	attrs = append(attrs, attribute.String("rpc.response.status_code", errInfo.StatusCode))
 
 	if rpcMethod, ok := callctx.TelemetryFromContext(ctx, "rpc_method"); ok && rpcMethod != "" {

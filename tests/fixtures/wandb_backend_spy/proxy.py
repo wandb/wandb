@@ -216,7 +216,10 @@ class WandbBackendProxy:
         if not response:
             response = await self._relay(request)
 
-        if spy:
+        # Match post_graphql: only record spied state when the HTTP response
+        # succeeded. Otherwise failed filestream uploads would still append
+        # request payload to the spy (e.g. wandb-history.jsonl on 404).
+        if spy and 200 <= response.status_code < 300:
             spy.post_file_stream(
                 await request.body(),
                 response.body,
