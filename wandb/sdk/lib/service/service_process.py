@@ -113,11 +113,14 @@ def _launch_server(
     if platform.system() == "Windows":
         # DETACHED_PROCESS (0x8) prevents the child from inheriting or
         # allocating a console.
+        #
         # Without it, the Go runtime's package init code in
         # lipgloss/v2/compat opens CONIN$/CONOUT$
         # which blocks forever trying to query the terminal background color.
-        _detached_process = 0x00000008
-        creationflags: int = subprocess.CREATE_NEW_PROCESS_GROUP | _detached_process  # type: ignore[attr-defined]
+        creationflags: int = (
+            subprocess.CREATE_NEW_PROCESS_GROUP  # type: ignore[attr-defined]
+            | subprocess.DETACHED_PROCESS  # type: ignore[attr-defined]
+        )
         start_new_session = False
     else:
         creationflags = 0
