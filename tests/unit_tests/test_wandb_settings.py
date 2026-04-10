@@ -521,6 +521,52 @@ def test_console():
     assert test_settings.console == "wrap"
 
 
+def test_console_capture_loggers_accepts_dict():
+    settings = Settings(console_capture_loggers={"my_app": "INFO"})
+    assert settings.console_capture_loggers == {"my_app": "INFO"}
+
+
+def test_console_capture_loggers_accepts_none():
+    settings = Settings(console_capture_loggers=None)
+    assert settings.console_capture_loggers is None
+
+
+def test_console_capture_loggers_rejects_wandb_logger():
+    with pytest.raises(ValueError, match="wandb"):
+        Settings(console_capture_loggers={"wandb": "INFO"})
+
+
+def test_console_capture_loggers_rejects_wandb_child_logger():
+    with pytest.raises(ValueError, match="wandb"):
+        Settings(console_capture_loggers={"wandb.sdk": "INFO"})
+
+
+def test_console_capture_loggers_rejects_invalid_level():
+    with pytest.raises(ValueError, match="level"):
+        Settings(console_capture_loggers={"my_app": "NOTREAL"})
+
+
+def test_console_capture_loggers_parses_json_string():
+    settings = Settings(console_capture_loggers='{"my_app": "INFO"}')
+    assert settings.console_capture_loggers == {"my_app": "INFO"}
+
+
+def test_console_capture_loggers_rejects_invalid_json():
+    with pytest.raises(ValueError):
+        Settings(console_capture_loggers="not valid json")
+
+
+def test_console_capture_loggers_accepts_empty_dict():
+    settings = Settings(console_capture_loggers={})
+    assert settings.console_capture_loggers == {}
+
+
+def test_console_capture_loggers_accepts_multiple_loggers():
+    loggers = {"app": "INFO", "app.db": "ERROR", "app.api": "WARNING"}
+    settings = Settings(console_capture_loggers=loggers)
+    assert settings.console_capture_loggers == loggers
+
+
 def test_code_saving_save_code_env_false(mock_run):
     settings = Settings()
     settings.save_code = None

@@ -1,6 +1,7 @@
 import os
 import re
 import time
+import logging
 
 import pytest
 import tqdm
@@ -84,6 +85,72 @@ def test_very_long_output(user):
     assert "\\033[31m\\033[40m\\033[1mHello" in binary_log
     assert binary_log.count("LOG") == 1000000
     assert "===finish===" in binary_log
+
+
+def test_logger_capture_appears_in_output(wandb_backend_spy):
+    """Named logger output is captured and uploaded to the backend."""
+    logger = logging.getLogger("test_app")
+    logger.setLevel(logging.DEBUG)
+
+    with wandb.init(
+        settings={
+            "console": "off",
+            "console_capture_loggers": {"test_app": "INFO"},
+        }
+    ) as run:
+        logger.info("captured message")
+
+    with wandb_backend_spy.freeze() as snapshot:
+        output = snapshot.output(run_id=run.id)
+        output_text = "\n".join(output.values())
+        assert "captured message" in output_text
+
+
+def test_logger_capture_with_console_off(wandb_backend_spy):
+    """With console='off', only logger output is captured, not print()."""
+    logger = logging.getLogger("test_app_filtered")
+    logger.setLevel(logging.DEBUG)
+
+    with wandb.init(
+        settings={
+            "console": "off",
+            "console_capture_loggers": {"test_app_filtered": "INFO"},
+        }
+    ) as run:
+        print("this should NOT be captured")
+        logger.info("this SHOULD be captured")
+
+    with wandb_backend_spy.freeze() as snapshot:
+        output = snapshot.output(run_id=run.id)
+        output_text = "\n".join(output.values())
+        assert "this SHOULD be captured" in output_text
+        assert "this should NOT be captured" not in output_text
+
+
+def test_logger_capture_cleanup_after_finish(wandb_backend_spy):
+    """After wandb.finish(), handlers are removed from the user's logger."""
+    from wandb.sdk.lib.logger_capture import WandbLoggerHandler
+
+    logger = logging.getLogger("test_app_cleanup")
+    logger.setLevel(logging.DEBUG)
+    handlers_before = list(logger.handlers)
+
+    with wandb.init(
+        settings={
+            "console": "off",
+            "console_capture_loggers": {"test_app_cleanup": "INFO"},
+        }
+    ):
+        # During the run, our handler should be installed
+        wandb_handlers = [
+            h for h in logger.handlers if isinstance(h, WandbLoggerHandler)
+        ]
+        assert len(wandb_handlers) == 1
+
+    # After finish, our handler should be removed
+    wandb_handlers = [h for h in logger.handlers if isinstance(h, WandbLoggerHandler)]
+    assert len(wandb_handlers) == 0
+    assert logger.handlers == handlers_before
 
 
 def test_memory_leak2(user):
