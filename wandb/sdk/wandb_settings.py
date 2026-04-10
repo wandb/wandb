@@ -196,6 +196,29 @@ class Settings(BaseModel, validate_assignment=True):
     limit.
     """
 
+    console_capture_loggers: Optional[Dict[str, str]] = None
+    """Named Python loggers to capture into the run's console output.
+
+    A mapping of logger name to minimum log level. When set, wandb
+    installs a logging.Handler on each named logger. Log records
+    emitted by those loggers are published as console output to the
+    run, similar to stdout/stderr capture.
+
+    This is independent to the ``console`` setting: both can be active
+    simultaneously. To capture only specific loggers, combine with
+    ``console="off"``.
+
+    Example::
+
+        wandb.init(settings=wandb.Settings(
+            console="off",
+            console_capture_loggers={
+                "my_app": "INFO",
+                "my_app.training": "ERROR",
+            },
+        ))
+    """
+
     credentials_file: str = Field(
         default_factory=lambda: str(credentials.DEFAULT_WANDB_CREDENTIALS_FILE)
     )
@@ -1074,6 +1097,45 @@ class Settings(BaseModel, validate_assignment=True):
         """
         if value < 0:
             raise ValueError("console_chunk_max_seconds must be non-negative")
+
+        return value
+
+    @field_validator("console_capture_loggers", mode="before")
+    @classmethod
+    def validate_console_capture_loggers_parse(cls, value):
+        """Parse JSON string for console_capture_loggers.
+
+        <!-- lazydoc-ignore-classmethod: internal -->
+        """
+        if isinstance(value, str):
+            return json.loads(value)
+        return value
+
+    @field_validator("console_capture_loggers", mode="after")
+    @classmethod
+    def validate_console_capture_loggers(cls, value):
+        """Validate console_capture_loggers keys and values.
+
+        <!-- lazydoc-ignore-classmethod: internal -->
+        """
+        if value is None:
+            return value
+
+        valid_levels = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
+
+        for logger_name, level_str in value.items():
+            if logger_name == "wandb" or logger_name.startswith("wandb."):
+                raise ValueError(
+                    f"Cannot capture the '{logger_name}' logger — "
+                    "capturing wandb's own logger would cause a feedback loop."
+                )
+            level_upper = level_str.upper()
+            if level_upper not in valid_levels:
+                raise ValueError(
+                    f"Invalid log level '{level_str}' for logger '{logger_name}'. "
+                    f"Valid levels: {', '.join(sorted(valid_levels))}"
+                )
+            value[logger_name] = level_upper
 
         return value
 
