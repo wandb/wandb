@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import glob
 import json
+import os
 import pathlib
 import subprocess
 
@@ -49,14 +51,10 @@ def build_arrow_rs_wrapper(
         str(arrow_rs_wrapper_dir / "Cargo.toml"),
     ]
 
-    # Add target triple if specified
-    if target_system and target_arch:
-        target_triple = _get_rust_target_triple(target_system, target_arch)
-        if target_triple:
-            cmd.extend(["--target", target_triple])
+    env = _cargo_env()
 
     try:
-        cargo_output = subprocess.check_output(cmd, cwd=arrow_rs_wrapper_dir)
+        cargo_output = subprocess.check_output(cmd, cwd=arrow_rs_wrapper_dir, env=env)
     except subprocess.CalledProcessError as e:
         raise ArrowRsWrapperBuildError(
             "Failed to build the `arrow-rs-wrapper` Rust library. If you didn't"
@@ -106,16 +104,15 @@ def _get_library_path(cargo_output: bytes, lib_name: str) -> pathlib.Path:
     )
 
 
-def _get_rust_target_triple(target_system: str, target_arch: str) -> str | None:
-    """Convert Go-style OS/arch to Rust target triple."""
-    # Map of (goos, goarch) -> Rust target triple
-    target_map = {
-        ("darwin", "amd64"): "x86_64-apple-darwin",
-        ("darwin", "arm64"): "aarch64-apple-darwin",
-        ("linux", "amd64"): "x86_64-unknown-linux-gnu",
-        ("linux", "arm64"): "aarch64-unknown-linux-gnu",
-        ("windows", "amd64"): "x86_64-pc-windows-msvc",
-        ("windows", "arm64"): "aarch64-pc-windows-msvc",
-    }
+def _cargo_env() -> dict[str, str]:
+    """Build environment for cargo, with musl cdylib support.
 
-    return target_map.get((target_system, target_arch))
+    On musl-based systems (e.g. Alpine/musllinux), Rust defaults to
+    static linking which disables cdylib. Setting -crt-static switches
+    to dynamic linking against musl libc, enabling shared library output.
+    """
+    env = os.environ.copy()
+    if glob.glob("/lib/ld-musl-*.so.1"):
+        rustflags = env.get("RUSTFLAGS", "")
+        env["RUSTFLAGS"] = f"{rustflags} -C target-feature=-crt-static".strip()
+    return env

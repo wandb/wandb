@@ -1,5 +1,6 @@
 """Builds the orjson vendored library for fast JSON operations."""
 
+import glob
 import json
 import os
 import pathlib
@@ -51,18 +52,24 @@ def build_orjson(
             artifacts.append(dest_file)
 
     # Step 2: Build the Rust extension
-    cmd = (
+    cmd = [
         str(cargo_binary),
         "build",
         "--release",
         "--message-format=json",
         "--lib",
-    )
+    ]
 
-    # Pin the interpreter for pyo3-build.
-    # Since pip's build isolation prepends a temp directory to PATH,
-    # this causes cargo's build cache to be invalidated every run.
-    env = os.environ.copy()
+    # On Linux, libpython may not be available as a shared library
+    # (musl bundles it statically; manylinux may not have it on the
+    # linker search path). extension-module tells pyo3 to skip
+    # linking against libpython — the interpreter provides all
+    # symbols at runtime when it dlopen()s the extension.
+    # Not used on macOS/Windows where libpython linking works.
+    if sys.platform == "linux":
+        cmd.extend(["--features", "pyo3-ffi/extension-module"])
+
+    env = _cargo_env()
     env["PYO3_PYTHON"] = str(pathlib.Path(sys.executable).resolve())
 
     try:
@@ -137,3 +144,17 @@ def _get_cdylib_path(cargo_output: bytes) -> pathlib.Path:
         "Failed to find the `orjson` library. `cargo build` output:\n"
         + cargo_output.decode("utf-8", errors="replace"),
     )
+
+
+def _cargo_env() -> dict[str, str]:
+    """Build environment for cargo, with musl cdylib support.
+
+    On musl-based systems (e.g. Alpine/musllinux), Rust defaults to
+    static linking which disables cdylib. Setting -crt-static switches
+    to dynamic linking against musl libc, enabling shared library output.
+    """
+    env = os.environ.copy()
+    if glob.glob("/lib/ld-musl-*.so.1"):
+        rustflags = env.get("RUSTFLAGS", "")
+        env["RUSTFLAGS"] = f"{rustflags} -C target-feature=-crt-static".strip()
+    return env

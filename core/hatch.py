@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import pathlib
+import shutil
 import subprocess
 from collections.abc import Mapping
 
@@ -78,6 +79,45 @@ def build_wandb_core(
             target_arch=target_arch,
         ),
     )
+    # Race detection requires CGO enabled, so the external linker
+    # is used and produces valid ELF version sections which should not be modified.
+    if not with_cgo and not with_race_detection:
+        _strip_dynamic_elf_metadata(output_path, target_system)
+
+
+def _strip_dynamic_elf_metadata(
+    binary_path: pathlib.PurePath,
+    target_system: str,
+) -> None:
+    """Fix Go ELF metadata that breaks auditwheel on manylinux.
+
+    Go's internal linker (CGO_ENABLED=0) writes .gnu.version_r and
+    .gnu.version with sh_type=PROGBITS instead of the correct
+    SHT_GNU_verneed/SHT_GNU_versym, crashing pyelftools'
+    iter_versions() during auditwheel repair.
+
+    This is only called for non-CGO builds since it uses Go's internal linker.
+    """
+    if target_system != "linux":
+        return
+
+    objcopy = shutil.which("objcopy")
+    if objcopy is None:
+        return
+
+    try:
+        subprocess.check_call(
+            [
+                objcopy,
+                "--remove-section",
+                ".gnu.version_r",
+                "--remove-section",
+                ".gnu.version",
+                str(binary_path),
+            ],
+        )
+    except subprocess.CalledProcessError:
+        pass
 
 
 def _go_linker_flags(wandb_commit_sha: str | None) -> str:

@@ -9,7 +9,7 @@ arrow = { version = "53.3.0" }
 libc = "0.2"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-reqwest = { version = "0.12.11", features = ["blocking"] }
+reqwest = { version = "0.12.11", default-features = false, features = ["blocking", "rustls-tls"] }
 bytes = "1.0"
 
 [dev-dependencies]

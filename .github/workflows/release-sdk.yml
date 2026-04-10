@@ -97,11 +97,11 @@ jobs:
         env:
           CIBW_ARCHS_LINUX: aarch64
           CIBW_BEFORE_ALL_LINUX: >
+            (apk add binutils patchelf gcc musl-dev 2>/dev/null || true) &&
             export DOWNLOAD_GOVERSION=$( grep '^go' core/go.mod | cut -d' ' -f2 ) &&
             curl -L https://golang.org/dl/go$DOWNLOAD_GOVERSION.linux-arm64.tar.gz > go.tar.gz &&
             tar -C /usr/local/ -xzf go.tar.gz &&
             curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-          CIBW_ENVIRONMENT_LINUX: PATH=$PATH:/usr/local/go/bin:/root/.cargo/bin
 
       - uses: actions/upload-artifact@v7
         with:
@@ -147,6 +147,8 @@ jobs:
         env:
           CIBW_ARCHS_LINUX: x86_64 # aarch64 is handled by build-linux-arm64-wheels
           CIBW_ARCHS_MACOS: x86_64 arm64 # arm64 == aarch64
+          CIBW_BEFORE_ALL_MACOS: >
+            rustup target add x86_64-apple-darwin
 
           # Work around https://github.com/matthew-brett/delocate/issues/204
           # by adding `--ignore-missing-dependencies` to cibuildwheel's default
@@ -163,11 +165,11 @@ jobs:
 
           # Install Go and Rust for Linux amd64
           CIBW_BEFORE_ALL_LINUX: >
+            (apk add binutils patchelf gcc musl-dev 2>/dev/null || true) &&
             export DOWNLOAD_GOVERSION=$( grep '^go' core/go.mod | cut -d' ' -f2 ) &&
             curl -L https://golang.org/dl/go$DOWNLOAD_GOVERSION.linux-amd64.tar.gz > go.tar.gz &&
             tar -C /usr/local/ -xzf go.tar.gz &&
             curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-          CIBW_ENVIRONMENT_LINUX: PATH=$PATH:/usr/local/go/bin:/root/.cargo/bin
 
       - uses: actions/upload-artifact@v7
         with:
