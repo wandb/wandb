@@ -1,7 +1,7 @@
+import logging
 import os
 import re
 import time
-import logging
 
 import pytest
 import tqdm
