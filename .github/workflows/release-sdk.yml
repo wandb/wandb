@@ -281,6 +281,7 @@ jobs:
         shell: bash
         run: |
           WANDB_MODE=offline \
+          WANDB__SERVICE_WAIT=90 \
           python -c "import wandb; run = wandb.init(); run.finish()"
 
   verify-test-pypi-sdist:

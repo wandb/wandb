@@ -413,6 +413,9 @@ jobs:
 
       - install_go
       - install_rust
+      - run:
+          name: Increase wandb-core startup timeout for Windows CI
+          command: echo 'export WANDB__SERVICE_WAIT=90' >> "$BASH_ENV"
       - run-nox-tests:
           codecov_flags: <<parameters.codecov_flags>>
           python: <<parameters.python>>
