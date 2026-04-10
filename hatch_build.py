@@ -51,9 +51,7 @@ _WANDB_ENABLE_CGO = "WANDB_ENABLE_CGO"
 class CustomBuildHook(BuildHookInterface):
     @override
     def initialize(self, version: str, build_data: dict[str, Any]) -> None:
-        if version == "editable":
-            self._prepare_editable(build_data)
-        elif self.target_name == "wheel":
+        if self.target_name == "wheel":
             self._prepare_wheel(build_data)
 
     def _prepare_wheel(self, build_data: dict[str, Any]) -> None:
@@ -66,26 +64,6 @@ class CustomBuildHook(BuildHookInterface):
             artifacts.extend(self._build_wandb_xpu())
         if self._include_orjson():
             artifacts.extend(self._build_orjson())
-
-    def _prepare_editable(self, build_data: dict[str, Any]) -> None:
-        """Build native extensions for editable installs.
-
-        For editable installs, we need to build the native extensions and place
-        them in the source tree so they can be found at runtime.
-        """
-        # Build wandb-core and place it in wandb/bin
-        self._build_wandb_core()
-
-        # Build arrow-rs-wrapper
-        self._build_arrow_rs_wrapper()
-
-        # Build wandb-xpu if not skipped
-        if self._include_wandb_xpu():
-            self._build_wandb_xpu()
-
-        # Build vendored orjson if not skipped.
-        if self._include_orjson():
-            self._build_orjson()
 
     def _get_platform_tag(self) -> str:
         """Returns the platform tag for the current platform."""
