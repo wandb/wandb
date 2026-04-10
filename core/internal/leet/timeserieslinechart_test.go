@@ -70,11 +70,11 @@ func TestAddDataPoint_DefaultSeries_BookKeeping(t *testing.T) {
 		stubColorProvider(), now})
 
 	// First point
-	ts1 := now.Add(-5 * time.Minute).Unix()
+	ts1 := float64(now.Add(-5 * time.Minute).Unix())
 	val1 := 12.5
 	ch.AddDataPoint(leet.DefaultSystemMetricSeriesName, ts1, val1)
 
-	require.Equal(t, time.Unix(ts1, 0), ch.LastUpdate())
+	require.Equal(t, time.Unix(int64(ts1), 0), ch.LastUpdate())
 
 	minimum, maximum := ch.ValueBounds()
 	require.Equal(t, val1, minimum)
@@ -96,7 +96,7 @@ func TestAddDataPoint_DefaultSeries_BookKeeping(t *testing.T) {
 	minimum, maximum = ch.ValueBounds()
 	require.Equal(t, val2, minimum)
 	require.Equal(t, val3, maximum)
-	require.Equal(t, time.Unix(ts3, 0), ch.LastUpdate())
+	require.Equal(t, time.Unix(int64(ts3), 0), ch.LastUpdate())
 }
 
 func TestAddDataPoint_NamedSeries_CreatesSeriesOnDemand(t *testing.T) {
@@ -115,7 +115,7 @@ func TestAddDataPoint_NamedSeries_CreatesSeriesOnDemand(t *testing.T) {
 			Light: lipgloss.Color("#FF00FF"), Dark: lipgloss.Color("#FF00FF")},
 		stubColorProvider("#00FF00", "#0000FF"), now})
 
-	ts := now.Unix()
+	ts := float64(now.Unix())
 	ch.AddDataPoint("cpu0", ts, 30)
 	require.Equal(t, 1, ch.TestSeriesCount(), "first named series should be created")
 
@@ -159,8 +159,8 @@ func TestDefaultAndNamedSeries_GetDistinctColors(t *testing.T) {
 		Now:           now,
 	})
 
-	ch.AddDataPoint(leet.DefaultSystemMetricSeriesName, now.Unix(), 30)
-	ch.AddDataPoint("cpu0", now.Unix()+1, 70)
+	ch.AddDataPoint(leet.DefaultSystemMetricSeriesName, float64(now.Unix()), 30)
+	ch.AddDataPoint("cpu0", float64(now.Unix())+1, 70)
 
 	require.Equal(t, 2, ch.SeriesCount())
 	require.Equal(t, 1, ch.TestSeriesCount(), "only named series should count here")
@@ -188,8 +188,10 @@ func TestFormatXAxisTick_NarrowSystemChartsKeepEndpointLabels(t *testing.T) {
 		Now:           now,
 	})
 
-	ch.AddDataPoint(leet.DefaultSystemMetricSeriesName, now.Add(-10*time.Minute).Unix(), 990)
-	ch.AddDataPoint(leet.DefaultSystemMetricSeriesName, now.Unix(), 1100)
+	ch.AddDataPoint(
+		leet.DefaultSystemMetricSeriesName,
+		float64(now.Add(-10*time.Minute).Unix()), 990)
+	ch.AddDataPoint(leet.DefaultSystemMetricSeriesName, float64(now.Unix()), 1100)
 
 	viewMin, viewMax := ch.TestViewRange()
 	mid := (viewMin + viewMax) / 2
@@ -227,8 +229,10 @@ func TestFormatXAxisTick_WideSystemChartsKeepInteriorLabels(t *testing.T) {
 		Now:           now,
 	})
 
-	ch.AddDataPoint(leet.DefaultSystemMetricSeriesName, now.Add(-10*time.Minute).Unix(), 10)
-	ch.AddDataPoint(leet.DefaultSystemMetricSeriesName, now.Unix(), 20)
+	ch.AddDataPoint(
+		leet.DefaultSystemMetricSeriesName,
+		float64(now.Add(-10*time.Minute).Unix()), 10)
+	ch.AddDataPoint(leet.DefaultSystemMetricSeriesName, float64(now.Unix()), 20)
 
 	viewMin, viewMax := ch.TestViewRange()
 	mid := (viewMin + viewMax) / 2

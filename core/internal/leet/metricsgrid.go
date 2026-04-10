@@ -35,15 +35,15 @@ type MetricsGrid struct {
 	nav GridNavigator
 
 	// Charts state.
-	all      []*EpochLineChart          // all charts, sorted by Title()
-	byTitle  map[string]*EpochLineChart // Title() -> chart
-	filtered []*EpochLineChart          // subset matching filter (mirrors all when filter empty)
+	all      []*metricsChartWrapper          // all charts, sorted by Title()
+	byTitle  map[string]*metricsChartWrapper // Title() -> chart
+	filtered []*metricsChartWrapper          // subset matching filter (mirrors all when filter empty)
 
 	// Charts visible on the current page grid.
-	currentPage [][]*EpochLineChart
+	currentPage [][]*metricsChartWrapper
 
 	// lastDrawnCharts holds charts from the last visible page for parking.
-	lastDrawnCharts map[*EpochLineChart]struct{}
+	lastDrawnCharts map[*metricsChartWrapper]struct{}
 
 	// Chart focus management.
 	focus *Focus // focus.Row/Col only meaningful relative to currentPage
@@ -87,10 +87,10 @@ func NewMetricsGrid(
 	mg := &MetricsGrid{
 		config:                config,
 		gridConfig:            gridConfig,
-		all:                   make([]*EpochLineChart, 0),
-		byTitle:               make(map[string]*EpochLineChart),
-		filtered:              make([]*EpochLineChart, 0),
-		currentPage:           make([][]*EpochLineChart, gridRows),
+		all:                   make([]*metricsChartWrapper, 0),
+		byTitle:               make(map[string]*metricsChartWrapper),
+		filtered:              make([]*metricsChartWrapper, 0),
+		currentPage:           make([][]*metricsChartWrapper, gridRows),
 		focus:                 focus,
 		filter:                NewFilter(),
 		logger:                logger,
@@ -101,7 +101,7 @@ func NewMetricsGrid(
 	}
 
 	for r := range gridRows {
-		mg.currentPage[r] = make([]*EpochLineChart, gridCols)
+		mg.currentPage[r] = make([]*metricsChartWrapper, gridCols)
 	}
 	return mg
 }
@@ -137,7 +137,7 @@ func (mg *MetricsGrid) ChartCount() int {
 	return len(mg.all)
 }
 
-func (mg *MetricsGrid) focusedChart() *EpochLineChart {
+func (mg *MetricsGrid) focusedChart() *metricsChartWrapper {
 	mg.mu.RLock()
 	defer mg.mu.RUnlock()
 
@@ -165,6 +165,42 @@ func (mg *MetricsGrid) toggleFocusedChartLogY() bool {
 	}
 	chart.DrawIfNeeded()
 	return true
+}
+
+// cycleFocusedChartMode cycles the focused chart through linear → log → heatmap.
+func (mg *MetricsGrid) cycleFocusedChartMode() bool {
+	chart := mg.focusedChart()
+	if chart == nil {
+		return false
+	}
+
+	// Heatmap → exit heatmap, reset log if enabled.
+	if chart.IsHeatmapMode() {
+		chart.ToggleHeatmapMode()
+		if chart.IsLogY() {
+			chart.ToggleYScale()
+		}
+		chart.DrawIfNeeded()
+		return true
+	}
+
+	// Log → enter heatmap.
+	if chart.IsLogY() {
+		chart.ToggleHeatmapMode()
+		chart.DrawIfNeeded()
+		return true
+	}
+
+	// Linear → try log, else try heatmap.
+	if chart.ToggleYScale() {
+		chart.DrawIfNeeded()
+		return true
+	}
+	if chart.ToggleHeatmapMode() {
+		chart.DrawIfNeeded()
+		return true
+	}
+	return false
 }
 
 // CalculateChartDimensions computes chart dimensions.
@@ -207,8 +243,12 @@ func (mg *MetricsGrid) ProcessHistory(msg HistoryMsg) bool {
 	for name, data := range metrics {
 		chart, exists := mg.byTitle[name]
 		if !exists {
-			chart = NewEpochLineChart(name)
-			chart.SetPalette(mg.palette)
+			line := NewEpochLineChart(name)
+			line.SetPalette(mg.palette)
+			chart = newMetricsChartWrapper(
+				line,
+				FrenchFriesColors(mg.config.FrenchFriesColorScheme()),
+			)
 			mg.all = append(mg.all, chart)
 			mg.byTitle[name] = chart
 			needsSort = true
@@ -253,7 +293,7 @@ func (mg *MetricsGrid) effectiveGridSize() GridSize {
 // chartsToShowNoLock returns the slice backing the current view.
 //
 // Caller must hold mg.mu (RLock is fine).
-func (mg *MetricsGrid) chartsToShowNoLock() []*EpochLineChart {
+func (mg *MetricsGrid) chartsToShowNoLock() []*metricsChartWrapper {
 	if mg.filter.Query() == "" {
 		return mg.all
 	}
@@ -297,7 +337,7 @@ func (mg *MetricsGrid) sortChartsNoLock() {
 		return mg.all[i].Title() < mg.all[j].Title()
 	})
 
-	mg.byTitle = make(map[string]*EpochLineChart, len(mg.all))
+	mg.byTitle = make(map[string]*metricsChartWrapper, len(mg.all))
 	for _, chart := range mg.all {
 		mg.byTitle[chart.Title()] = chart
 
@@ -311,7 +351,7 @@ func (mg *MetricsGrid) sortChartsNoLock() {
 
 	// Ensure filtered mirrors all when filter is empty.
 	if mg.filter.Query() == "" {
-		mg.filtered = append(make([]*EpochLineChart, 0, len(mg.all)), mg.all...)
+		mg.filtered = append(make([]*metricsChartWrapper, 0, len(mg.all)), mg.all...)
 	}
 }
 
@@ -327,9 +367,9 @@ func (mg *MetricsGrid) loadCurrentPageNoLock() {
 	size := mg.effectiveGridSize()
 
 	// Rebuild grid structure
-	mg.currentPage = make([][]*EpochLineChart, size.Rows)
+	mg.currentPage = make([][]*metricsChartWrapper, size.Rows)
 	for row := 0; row < size.Rows; row++ {
-		mg.currentPage[row] = make([]*EpochLineChart, size.Cols)
+		mg.currentPage[row] = make([]*metricsChartWrapper, size.Cols)
 	}
 
 	chartsToShow := mg.chartsToShowNoLock()
@@ -460,7 +500,14 @@ func (mg *MetricsGrid) renderGridCell(row, col int, dims GridDims) string {
 		}
 
 		titleSuffix := ""
-		if chart.IsLogY() {
+		switch {
+		case chart.IsHeatmapMode():
+			if legend := chart.heatmap.legendDetail(); legend != "" {
+				titleSuffix = " " + legend
+			} else {
+				titleSuffix = " [heatmap]"
+			}
+		case chart.IsLogY():
 			titleSuffix = " [log]"
 		}
 
@@ -512,7 +559,7 @@ func (mg *MetricsGrid) drawVisible() {
 	mg.mu.Lock()
 	defer mg.mu.Unlock()
 
-	currentCharts := make(map[*EpochLineChart]struct{})
+	currentCharts := make(map[*metricsChartWrapper]struct{})
 	for row := range mg.currentPage {
 		for col := range mg.currentPage[row] {
 			if ch := mg.currentPage[row][col]; ch != nil {
@@ -690,7 +737,7 @@ func (mg *MetricsGrid) setFocusLocked(row, col int) bool {
 }
 
 // focusedChartLocked returns the focused chart or nil. Caller must hold mg.mu.
-func (mg *MetricsGrid) focusedChartLocked() *EpochLineChart {
+func (mg *MetricsGrid) focusedChartLocked() *metricsChartWrapper {
 	r, c := mg.focus.Row, mg.focus.Col
 	if r < 0 || c < 0 || r >= len(mg.currentPage) || c >= len(mg.currentPage[r]) {
 		return nil
@@ -775,7 +822,7 @@ func (mg *MetricsGrid) FilterQuery() string {
 func (mg *MetricsGrid) hitChartAndRelX(
 	adjustedX, row, col int,
 	dims GridDims,
-) (chart *EpochLineChart, relX int, needFocus, ok bool) {
+) (chart *metricsChartWrapper, relX int, needFocus, ok bool) {
 	size := mg.effectiveGridSize()
 
 	mg.mu.RLock()
@@ -791,11 +838,7 @@ func (mg *MetricsGrid) hitChartAndRelX(
 	}
 
 	chartStartX := col * dims.CellWWithPadding
-	graphStartX := chartStartX + 1
-	if chart.YStep() > 0 {
-		graphStartX += chart.Origin().X + 1
-	}
-	relX = adjustedX - graphStartX
+	relX = adjustedX - (chartStartX + chart.graphStartX())
 
 	needFocus = mg.focus.Type != FocusMainChart || mg.focus.Row != row || mg.focus.Col != col
 	return chart, relX, needFocus, true
@@ -867,7 +910,7 @@ func (mg *MetricsGrid) EndInspection() {
 		return
 	}
 	mg.mu.RLock()
-	var chart *EpochLineChart
+	var chart *metricsChartWrapper
 	if mg.focus.Row < len(mg.currentPage) &&
 		mg.focus.Col < len(mg.currentPage[mg.focus.Row]) {
 		chart = mg.currentPage[mg.focus.Row][mg.focus.Col]
@@ -967,7 +1010,7 @@ func (mg *MetricsGrid) RemoveSeries(key string) {
 	mg.all = filtered
 
 	// Rebuild index by title to stay consistent.
-	mg.byTitle = make(map[string]*EpochLineChart, len(mg.all))
+	mg.byTitle = make(map[string]*metricsChartWrapper, len(mg.all))
 	for _, ch := range mg.all {
 		mg.byTitle[ch.Title()] = ch
 	}

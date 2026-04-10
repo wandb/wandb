@@ -159,17 +159,19 @@ func (g *SystemMetricsGrid) createMetricChart(def *MetricDef) systemMetricChart 
 	})
 	lineChart.SetTailWindow(g.config.SystemTailWindow())
 
-	if !def.Percentage {
-		return lineChart
+	ffParams := &FrenchFriesChartParams{
+		Width:         chartWidth,
+		Height:        chartHeight,
+		Title:         def.Title(),
+		UnitFormatter: def.Unit.Format,
+		Colors:        FrenchFriesColors(g.config.FrenchFriesColorScheme()),
+		Now:           now,
 	}
-
-	frenchFriesChart := NewFrenchFriesChart(&FrenchFriesChartParams{
-		Width:  chartWidth,
-		Height: chartHeight,
-		Def:    def,
-		Colors: FrenchFriesColors(g.config.FrenchFriesColorScheme()),
-		Now:    now,
-	})
+	if def.Percentage {
+		ffParams.FixedMinY = 0
+		ffParams.FixedMaxY = 100
+	}
+	frenchFriesChart := NewFrenchFriesChart(ffParams)
 	return newFrenchFriesToggleChart(lineChart, frenchFriesChart)
 }
 
@@ -190,7 +192,7 @@ func (g *SystemMetricsGrid) AddDataPoint(metricName string, timestamp int64, val
 	seriesName := ExtractSeriesName(metricName)
 
 	chart := g.getOrCreateChart(baseKey, def)
-	chart.AddDataPoint(seriesName, timestamp, value)
+	chart.AddDataPoint(seriesName, float64(timestamp), value)
 	if g.isChartVisible(chart) {
 		chart.DrawIfNeeded()
 	}
@@ -674,11 +676,25 @@ func chartHeaderExtras(chart systemMetricChart) systemMetricHeaderExtras {
 	}
 	switch {
 	case chart.IsHeatmapMode():
-		extras.mode = " [heatmap]"
+		// Show the gradient legend in the header; fall back to "[heatmap]".
+		if legend := heatmapLegendFromChart(chart); legend != "" {
+			extras.mode = " " + legend
+		} else {
+			extras.mode = " [heatmap]"
+		}
 	case chart.IsLogY():
 		extras.mode = " [log]"
 	}
 	return extras
+}
+
+// heatmapLegendFromChart extracts the gradient legend from the active
+// FrenchFriesChart, if the chart supports it.
+func heatmapLegendFromChart(chart systemMetricChart) string {
+	if tc, ok := chart.(*frenchFriesToggleChart); ok {
+		return tc.frenchFries.legendDetail()
+	}
+	return ""
 }
 
 // ChartCount returns the number of charts on the grid.

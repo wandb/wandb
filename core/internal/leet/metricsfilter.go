@@ -16,7 +16,7 @@ func (mg *MetricsGrid) ApplyFilter() {
 // Caller must hold the lock mg.mu.
 func (mg *MetricsGrid) applyFilterNoLock() {
 	// Fresh slice, no alias with allCharts.
-	filtered := make([]*EpochLineChart, 0, len(mg.all))
+	filtered := make([]*metricsChartWrapper, 0, len(mg.all))
 	matcher := mg.filter.Matcher()
 	for _, ch := range mg.all {
 		if matcher(ch.Title()) {

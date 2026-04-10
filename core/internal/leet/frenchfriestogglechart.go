@@ -58,9 +58,9 @@ func (c *frenchFriesToggleChart) DrawIfNeeded() {
 	c.activeChart().DrawIfNeeded()
 }
 
-func (c *frenchFriesToggleChart) AddDataPoint(seriesName string, timestamp int64, value float64) {
-	c.line.AddDataPoint(seriesName, timestamp, value)
-	c.frenchFries.AddDataPoint(seriesName, timestamp, value)
+func (c *frenchFriesToggleChart) AddDataPoint(seriesName string, x, value float64) {
+	c.line.AddDataPoint(seriesName, x, value)
+	c.frenchFries.AddDataPoint(seriesName, x, value)
 	c.syncViewWindow()
 }
 

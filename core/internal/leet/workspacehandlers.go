@@ -816,7 +816,7 @@ func (w *Workspace) handleNextPage(msg tea.KeyPressMsg) tea.Cmd {
 func (w *Workspace) handleCycleFocusedChartMode(tea.KeyPressMsg) tea.Cmd {
 	switch w.focus.Type {
 	case FocusMainChart:
-		w.metricsGrid.toggleFocusedChartLogY()
+		w.metricsGrid.cycleFocusedChartMode()
 	case FocusSystemChart:
 		if g := w.activeSystemMetricsGrid(); g != nil {
 			g.cycleFocusedChartMode()

@@ -989,6 +989,16 @@ func (c *EpochLineChart) SetInspectionLabelFormatter(
 	c.dirty = true
 }
 
+// SeriesStyle returns the style assigned to a series, or nil if not found.
+func (c *EpochLineChart) SeriesStyle(key string) *lipgloss.Style {
+	s, ok := c.data[key]
+	if !ok || s == nil {
+		return nil
+	}
+	style, _ := s.style.Load().(lipgloss.Style)
+	return &style
+}
+
 // SeriesCount returns the number of series in the chart.
 func (c *EpochLineChart) SeriesCount() int {
 	return len(c.data)

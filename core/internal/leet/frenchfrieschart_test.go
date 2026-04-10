@@ -23,18 +23,17 @@ func TestFrenchFriesChart_UsesProvidedPalette(t *testing.T) {
 	}
 
 	chart := leet.NewFrenchFriesChart(&leet.FrenchFriesChartParams{
-		Width:  8,
-		Height: 2,
-		Def: &leet.MetricDef{
-			Name:       "GPU Utilization",
-			Unit:       leet.UnitPercent,
-			MinY:       0,
-			MaxY:       100,
-			Percentage: true,
-		},
-		Colors: palette,
-		Now:    time.Unix(1_700_000_000, 0),
+		Width:         8,
+		Height:        2,
+		Title:         "GPU Utilization (%)",
+		UnitFormatter: leet.UnitPercent.Format,
+		Colors:        palette,
+		Now:           time.Unix(1_700_000_000, 0),
 	})
+
+	// Seed observed range so color mapping works.
+	chart.AddDataPoint("GPU 0", 100, 0)
+	chart.AddDataPoint("GPU 0", 101, 100)
 
 	low := lipgloss.NewStyle().Foreground(palette[0]).Render("█")
 	high := lipgloss.NewStyle().Foreground(palette[len(palette)-1]).Render("█")
@@ -43,19 +42,12 @@ func TestFrenchFriesChart_UsesProvidedPalette(t *testing.T) {
 }
 
 func TestFrenchFriesChart_AlignsMetricsByTimestamp(t *testing.T) {
-	def := &leet.MetricDef{
-		Name:       "GPU Utilization",
-		Unit:       leet.UnitPercent,
-		MinY:       0,
-		MaxY:       100,
-		Percentage: true,
-	}
-
 	chart := leet.NewFrenchFriesChart(&leet.FrenchFriesChartParams{
-		Width:  8,
-		Height: 2,
-		Def:    def,
-		Now:    time.Unix(1_700_000_000, 0),
+		Width:         8,
+		Height:        2,
+		Title:         "GPU Utilization (%)",
+		UnitFormatter: leet.UnitPercent.Format,
+		Now:           time.Unix(1_700_000_000, 0),
 	})
 
 	chart.AddDataPoint("GPU 0", 100, 10)
@@ -67,75 +59,54 @@ func TestFrenchFriesChart_AlignsMetricsByTimestamp(t *testing.T) {
 }
 
 func TestFrenchFriesChart_RetainsHistoryBeyondVisibleWidth(t *testing.T) {
-	def := &leet.MetricDef{
-		Name:       "GPU Utilization",
-		Unit:       leet.UnitPercent,
-		MinY:       0,
-		MaxY:       100,
-		Percentage: true,
-	}
-
 	chart := leet.NewFrenchFriesChart(&leet.FrenchFriesChartParams{
-		Width:  4,
-		Height: 3,
-		Def:    def,
-		Now:    time.Unix(1_700_000_000, 0),
+		Width:         4,
+		Height:        3,
+		Title:         "GPU Utilization (%)",
+		UnitFormatter: leet.UnitPercent.Format,
+		Now:           time.Unix(1_700_000_000, 0),
 	})
 
 	for i := range 10 {
-		chart.AddDataPoint("GPU 0", int64(100+i), float64(i*10))
+		chart.AddDataPoint("GPU 0", float64(100+i), float64(i*10))
 	}
 
 	require.Equal(t, 10, chart.TestSampleCount())
 }
 
 func TestFrenchFriesChart_TruncatedRowsExposeVisibleSeriesInTitle(t *testing.T) {
-	def := &leet.MetricDef{
-		Name:       "GPU Utilization",
-		Unit:       leet.UnitPercent,
-		MinY:       0,
-		MaxY:       100,
-		Percentage: true,
-	}
-
 	chart := leet.NewFrenchFriesChart(&leet.FrenchFriesChartParams{
-		Width:  12,
-		Height: 3,
-		Def:    def,
-		Now:    time.Unix(1_700_000_000, 0),
+		Width:         12,
+		Height:        3,
+		Title:         "GPU Utilization (%)",
+		UnitFormatter: leet.UnitPercent.Format,
+		Now:           time.Unix(1_700_000_000, 0),
 	})
 
 	for gpu := 0; gpu < 8; gpu++ {
 		chart.AddDataPoint("GPU "+strconv.Itoa(gpu), 100, float64(gpu)*10)
 	}
 
-	require.Equal(t, []string{"GPU 0", "GPU 7"}, chart.TestVisibleSeries())
-	require.Equal(t, "[0,7/8]", chart.TestTitleDetail())
+	require.Equal(t, []string{"GPU 0", "GPU 1"}, chart.TestVisibleSeries())
+	require.Equal(t, "[0,1/8]", chart.TestTitleDetail())
 }
 
 func TestFrenchFriesChart_InspectionShowsValuesForWholeColumn(t *testing.T) {
-	def := &leet.MetricDef{
-		Name:       "GPU Utilization",
-		Unit:       leet.UnitPercent,
-		MinY:       0,
-		MaxY:       100,
-		Percentage: true,
-	}
-
 	start := time.Unix(1_700_000_000, 0)
 	chart := leet.NewFrenchFriesChart(&leet.FrenchFriesChartParams{
-		Width:  32,
-		Height: 4,
-		Def:    def,
-		Now:    start,
+		Width:         32,
+		Height:        4,
+		Title:         "GPU Utilization (%)",
+		UnitFormatter: leet.UnitPercent.Format,
+		Now:           start,
 	})
 
-	ts := start.Unix()
+	ts := float64(start.Unix())
 	chart.AddDataPoint("GPU 0", ts, 10)
 	chart.AddDataPoint("GPU 1", ts, 50)
 	chart.AddDataPoint("GPU 7", ts, 90)
-	chart.SetViewWindow(float64(ts-1), float64(ts+1))
-	chart.InspectAtDataX(float64(ts))
+	chart.SetViewWindow(ts-1, ts+1)
+	chart.InspectAtDataX(ts)
 
 	view := stripANSI(chart.View())
 	lines := strings.Split(view, "\n")
@@ -238,6 +209,7 @@ func TestSystemMetricsGrid_FrenchFriesUsesConfiguredPalette(t *testing.T) {
 	chart := grid.TestFrenchFriesChartAt(0, 0)
 	require.NotNil(t, chart)
 
+	// GPU utilization uses fixed [0, 100] range for color mapping.
 	palette := leet.FrenchFriesColors("plasma")
 	low := lipgloss.NewStyle().Foreground(palette[0]).Render("█")
 	high := lipgloss.NewStyle().Foreground(palette[len(palette)-1]).Render("█")
@@ -248,19 +220,12 @@ func TestSystemMetricsGrid_FrenchFriesUsesConfiguredPalette(t *testing.T) {
 func TestFrenchFriesChart_StableBuckets_AddingDataDoesNotShiftExisting(t *testing.T) {
 	const series = leet.DefaultSystemMetricSeriesName // no label → plotWidth == width
 
-	def := &leet.MetricDef{
-		Name:       "GPU Utilization",
-		Unit:       leet.UnitPercent,
-		MinY:       0,
-		MaxY:       100,
-		Percentage: true,
-	}
-
 	chart := leet.NewFrenchFriesChart(&leet.FrenchFriesChartParams{
-		Width:  10,
-		Height: 2,
-		Def:    def,
-		Now:    time.Unix(1_700_000_000, 0),
+		Width:         10,
+		Height:        2,
+		Title:         "GPU Utilization (%)",
+		UnitFormatter: leet.UnitPercent.Format,
+		Now:           time.Unix(1_700_000_000, 0),
 	})
 
 	// Fix the view window so it doesn't auto-adjust when we add data.
@@ -269,7 +234,7 @@ func TestFrenchFriesChart_StableBuckets_AddingDataDoesNotShiftExisting(t *testin
 
 	// Seed 10 samples, one per bucket.
 	for i := range 10 {
-		chart.AddDataPoint(series, int64(i*10), float64(i*10))
+		chart.AddDataPoint(series, float64(i*10), float64(i*10))
 	}
 	before := chart.TestBucketValues(series)
 
@@ -292,19 +257,12 @@ func TestFrenchFriesChart_StableBuckets_AddingDataDoesNotShiftExisting(t *testin
 func TestFrenchFriesChart_StableBuckets_AveragesWithinBucket(t *testing.T) {
 	const series = leet.DefaultSystemMetricSeriesName
 
-	def := &leet.MetricDef{
-		Name:       "GPU Utilization",
-		Unit:       leet.UnitPercent,
-		MinY:       0,
-		MaxY:       100,
-		Percentage: true,
-	}
-
 	chart := leet.NewFrenchFriesChart(&leet.FrenchFriesChartParams{
-		Width:  4,
-		Height: 2,
-		Def:    def,
-		Now:    time.Unix(1_700_000_000, 0),
+		Width:         4,
+		Height:        2,
+		Title:         "GPU Utilization (%)",
+		UnitFormatter: leet.UnitPercent.Format,
+		Now:           time.Unix(1_700_000_000, 0),
 	})
 
 	// 4-column chart with view window [0, 40): each bucket covers 10 seconds.
