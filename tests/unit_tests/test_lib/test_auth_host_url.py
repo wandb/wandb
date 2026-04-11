@@ -43,3 +43,17 @@ def test_app_url_default():
     url = HostUrl("https://api.wandb.ai")
 
     assert url.app_url == "https://wandb.ai"
+
+
+@pytest.mark.parametrize(
+    "raw_url",
+    (
+        "https://api-forest.wandb.ai",
+        "https://api-shared.wandb.ai",
+    ),
+)
+def test_accepts_api_subdomain_variants(raw_url: str):
+    """api-* subdomains (e.g. api-forest) are valid server addresses."""
+    url = HostUrl(raw_url)
+
+    assert url.url == raw_url
