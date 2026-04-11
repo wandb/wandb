@@ -280,6 +280,31 @@ class Settings(BaseModel, validate_assignment=True):
     init_timeout: float = 90.0
     """Time in seconds to wait for the `wandb.init` call to complete before timing out."""
 
+    finish_timeout: Optional[float] = None
+    """Time in seconds to wait for data to upload at the end of a run.
+
+    EXPERIMENTAL. Not fully implemented.
+
+    Setting this can limit costs caused by slow uploads to W&B at the end of a
+    run, with the trade-off that the run will be marked crashed and may be
+    missing some data. The default is for `run.finish()` to block until all
+    data finishes uploading.
+
+    Otherwise, `run.finish()` raises a TimeoutError after this many seconds and
+    gives up on uploading the remaining data. After some time, the run ends up
+    in a Crashed or Failed state in the UI. Any unuploaded data is still stored
+    on disk and can be uploaded with `wandb sync`.
+
+    Note that `run.finish()` is called implicitly when using a Run as a context
+    manager:
+
+        with wandb.init() as run:
+            ...  # run.finish() executes at the end of the `with` block
+
+    It is also implied by `wandb.teardown()`, which usually runs at the end of
+    a script in an atexit hook.
+    """
+
     insecure_disable_ssl: bool = False
     """Whether to insecurely disable SSL verification."""
 

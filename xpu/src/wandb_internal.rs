@@ -256,6 +256,7 @@ pub struct Imports {
     #[prost(bool, tag = "107")]
     pub dspy: bool,
 }
+/// Next ID: 75
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct Feature {
     /// wandb.watch() called
@@ -264,6 +265,9 @@ pub struct Feature {
     /// wandb.finish() called
     #[prost(bool, tag = "2")]
     pub finish: bool,
+    /// wandb.finish() with timeout
+    #[prost(bool, tag = "74")]
+    pub finish_timeout: bool,
     /// wandb.save() called
     #[prost(bool, tag = "3")]
     pub save: bool,

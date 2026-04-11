@@ -131,11 +131,13 @@ message Imports {
   bool dspy = 107;
 }
 
+// Next ID: 75
 message Feature {
   reserved 23, 45, 55;
 
   bool watch = 1;                         // wandb.watch() called
   bool finish = 2;                        // wandb.finish() called
+  bool finish_timeout = 74;               // wandb.finish() with timeout
   bool save = 3;                          // wandb.save() called
   bool offline = 4;                       // offline run was synced
   bool resumed = 5;                       // run was resumed

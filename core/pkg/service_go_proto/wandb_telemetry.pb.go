@@ -1019,10 +1019,12 @@ func (x *Imports) GetDspy() bool {
 	return false
 }
 
+// Next ID: 75
 type Feature struct {
 	state               protoimpl.MessageState `protogen:"open.v1"`
 	Watch               bool                   `protobuf:"varint,1,opt,name=watch,proto3" json:"watch,omitempty"`                                                         // wandb.watch() called
 	Finish              bool                   `protobuf:"varint,2,opt,name=finish,proto3" json:"finish,omitempty"`                                                       // wandb.finish() called
+	FinishTimeout       bool                   `protobuf:"varint,74,opt,name=finish_timeout,json=finishTimeout,proto3" json:"finish_timeout,omitempty"`                   // wandb.finish() with timeout
 	Save                bool                   `protobuf:"varint,3,opt,name=save,proto3" json:"save,omitempty"`                                                           // wandb.save() called
 	Offline             bool                   `protobuf:"varint,4,opt,name=offline,proto3" json:"offline,omitempty"`                                                     // offline run was synced
 	Resumed             bool                   `protobuf:"varint,5,opt,name=resumed,proto3" json:"resumed,omitempty"`                                                     // run was resumed
@@ -1136,6 +1138,13 @@ func (x *Feature) GetWatch() bool {
 func (x *Feature) GetFinish() bool {
 	if x != nil {
 		return x.Finish
+	}
+	return false
+}
+
+func (x *Feature) GetFinishTimeout() bool {
+	if x != nil {
+		return x.FinishTimeout
 	}
 	return false
 }
@@ -2243,10 +2252,11 @@ const file_wandb_proto_wandb_telemetry_proto_rawDesc = "" +
 	"\x14curated_transformers\x18h \x01(\bR\x13curatedTransformers\x12\x16\n" +
 	"\x06orjson\x18i \x01(\bR\x06orjson\x12\x1c\n" +
 	"\tlightning\x18j \x01(\bR\tlightning\x12\x12\n" +
-	"\x04dspy\x18k \x01(\bR\x04dspyJ\x04\b\x11\x10\x12J\x04\b\x13\x10\x14J\x04\b\x14\x10\x15J\x04\b\x17\x10\x18J\x04\b\x18\x10\x19J\x04\b\x19\x10\x1aJ\x04\b\x1a\x10\x1bJ\x04\b\x1b\x10\x1cJ\x04\b7\x108\"\xb5\x15\n" +
+	"\x04dspy\x18k \x01(\bR\x04dspyJ\x04\b\x11\x10\x12J\x04\b\x13\x10\x14J\x04\b\x14\x10\x15J\x04\b\x17\x10\x18J\x04\b\x18\x10\x19J\x04\b\x19\x10\x1aJ\x04\b\x1a\x10\x1bJ\x04\b\x1b\x10\x1cJ\x04\b7\x108\"\xdc\x15\n" +
 	"\aFeature\x12\x14\n" +
 	"\x05watch\x18\x01 \x01(\bR\x05watch\x12\x16\n" +
-	"\x06finish\x18\x02 \x01(\bR\x06finish\x12\x12\n" +
+	"\x06finish\x18\x02 \x01(\bR\x06finish\x12%\n" +
+	"\x0efinish_timeout\x18J \x01(\bR\rfinishTimeout\x12\x12\n" +
 	"\x04save\x18\x03 \x01(\bR\x04save\x12\x18\n" +
 	"\aoffline\x18\x04 \x01(\bR\aoffline\x12\x18\n" +
 	"\aresumed\x18\x05 \x01(\bR\aresumed\x12\x12\n" +
