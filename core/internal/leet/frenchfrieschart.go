@@ -142,6 +142,11 @@ func (c *FrenchFriesChart) View() string {
 	return c.rendered
 }
 
+// Park minimizes memory for off-screen charts by shrinking to 1x1.
+func (c *FrenchFriesChart) Park() {
+	c.Resize(parkedCanvasSize, parkedCanvasSize)
+}
+
 func (c *FrenchFriesChart) Resize(width, height int) {
 	width = max(width, 0)
 	height = max(height, 0)
