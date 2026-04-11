@@ -9,7 +9,6 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
-	"charm.land/lipgloss/v2/compat"
 
 	"github.com/wandb/wandb/core/internal/observability"
 )
@@ -1333,12 +1332,12 @@ func (w *Workspace) runPathForKey(runKey string) string {
 	return runWandbFile(w.wandbDir, runKey)
 }
 
-func (w *Workspace) runColorForKey(runKey string) compat.AdaptiveColor {
+func (w *Workspace) runColorForKey(runKey string) AdaptiveColor {
 	runPath := w.runPathForKey(runKey)
 	if w.runColors == nil {
 		colors := GraphColors(w.config.ColorScheme())
 		if len(colors) == 0 {
-			return compat.AdaptiveColor{}
+			return AdaptiveColor{}
 		}
 		return colors[colorIndex(runPath, len(colors))]
 	}

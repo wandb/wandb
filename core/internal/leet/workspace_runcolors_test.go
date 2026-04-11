@@ -7,14 +7,13 @@ import (
 	"testing"
 
 	"charm.land/lipgloss/v2"
-	"charm.land/lipgloss/v2/compat"
 	"github.com/stretchr/testify/require"
 
 	"github.com/wandb/wandb/core/internal/observability"
 )
 
-func testWorkspaceRunColorPalette() []compat.AdaptiveColor {
-	return []compat.AdaptiveColor{{
+func testWorkspaceRunColorPalette() []AdaptiveColor {
+	return []AdaptiveColor{{
 		Light: lipgloss.Color("#3DBAC4"),
 		Dark:  lipgloss.Color("#58D3DB"),
 	}}

@@ -7,7 +7,6 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
-	"charm.land/lipgloss/v2/compat"
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
@@ -87,7 +86,7 @@ func (c *TimeSeriesLineChart) TestSeriesCount() int {
 }
 
 // TestSeriesColor returns the configured color for a series key.
-func (c *TimeSeriesLineChart) TestSeriesColor(key string) compat.AdaptiveColor {
+func (c *TimeSeriesLineChart) TestSeriesColor(key string) AdaptiveColor {
 	return c.seriesColors[key]
 }
 

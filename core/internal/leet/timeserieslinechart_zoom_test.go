@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"charm.land/lipgloss/v2"
-	"charm.land/lipgloss/v2/compat"
 	"github.com/stretchr/testify/require"
 
 	"github.com/wandb/wandb/core/internal/leet"
@@ -28,7 +27,7 @@ func TestTimeSeriesLineChart_AutoTrailFreezeAndShowAll(t *testing.T) {
 		80,
 		20,
 		def,
-		compat.AdaptiveColor{Light: lipgloss.Color("#FF00FF"), Dark: lipgloss.Color("#FF00FF")},
+		leet.AdaptiveColor{Light: lipgloss.Color("#FF00FF"), Dark: lipgloss.Color("#FF00FF")},
 		stubColorProvider("#00FF00"),
 		start,
 	})

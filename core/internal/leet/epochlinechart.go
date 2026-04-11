@@ -10,7 +10,6 @@ import (
 	"sync/atomic"
 
 	"charm.land/lipgloss/v2"
-	"charm.land/lipgloss/v2/compat"
 	"github.com/NimbleMarkets/ntcharts/v2/canvas"
 	"github.com/NimbleMarkets/ntcharts/v2/canvas/graph"
 	"github.com/NimbleMarkets/ntcharts/v2/canvas/runes"
@@ -81,7 +80,7 @@ type Series struct {
 	yMinPositive float64
 }
 
-func NewSeries(name string, palette []compat.AdaptiveColor) *Series {
+func NewSeries(name string, palette []AdaptiveColor) *Series {
 	md := MetricData{
 		X: make([]float64, 0, initDataSliceCap),
 		Y: make([]float64, 0, initDataSliceCap),
@@ -168,7 +167,7 @@ type EpochLineChart struct {
 	order []string
 
 	// palette provides colors for new series added to this chart.
-	palette []compat.AdaptiveColor
+	palette []AdaptiveColor
 
 	// focused indicates whether this chart has input focus in the grid.
 	focused bool
@@ -331,7 +330,7 @@ func (c *EpochLineChart) maxXLabelWidth() int {
 
 // SetPalette updates the color palette for new series.
 // Existing series retain their current colors.
-func (c *EpochLineChart) SetPalette(colors []compat.AdaptiveColor) {
+func (c *EpochLineChart) SetPalette(colors []AdaptiveColor) {
 	if len(colors) == 0 {
 		colors = GraphColors(DefaultColorScheme)
 	}

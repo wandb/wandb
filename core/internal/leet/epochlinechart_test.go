@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"charm.land/lipgloss/v2"
-	"charm.land/lipgloss/v2/compat"
 	"github.com/stretchr/testify/require"
 
 	leet "github.com/wandb/wandb/core/internal/leet"
@@ -270,7 +269,7 @@ func TestTimeSeriesLineChart_LogY_FormatsTicksWithMetricUnits(t *testing.T) {
 		Width:  80,
 		Height: 20,
 		Def:    def,
-		BaseColor: compat.AdaptiveColor{
+		BaseColor: leet.AdaptiveColor{
 			Light: lipgloss.Color("#FF00FF"),
 			Dark:  lipgloss.Color("#FF00FF"),
 		},

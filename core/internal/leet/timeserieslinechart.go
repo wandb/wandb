@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"charm.land/lipgloss/v2"
-	"charm.land/lipgloss/v2/compat"
 )
 
 const (
@@ -33,12 +32,12 @@ type TimeSeriesLineChart struct {
 	series map[string]struct{}
 
 	// seriesColors stores the assigned color for each underlying series key.
-	seriesColors map[string]compat.AdaptiveColor
-	baseColor    compat.AdaptiveColor
+	seriesColors map[string]AdaptiveColor
+	baseColor    AdaptiveColor
 
 	// colorProvider yields the next color for additional series on this chart.
 	// It is anchored to the chart's base color so multi-series colors are stable per chart.
-	colorProvider func() compat.AdaptiveColor
+	colorProvider func() AdaptiveColor
 
 	tailWindow time.Duration
 	viewWindow time.Duration
@@ -54,8 +53,8 @@ type TimeSeriesLineChart struct {
 type TimeSeriesLineChartParams struct {
 	Width, Height int
 	Def           *MetricDef
-	BaseColor     compat.AdaptiveColor
-	ColorProvider func() compat.AdaptiveColor
+	BaseColor     AdaptiveColor
+	ColorProvider func() AdaptiveColor
 	Now           time.Time
 }
 
@@ -69,7 +68,7 @@ func NewTimeSeriesLineChart(params *TimeSeriesLineChartParams) *TimeSeriesLineCh
 		EpochLineChart: baseChart,
 		def:            params.Def,
 		series:         make(map[string]struct{}),
-		seriesColors:   make(map[string]compat.AdaptiveColor),
+		seriesColors:   make(map[string]AdaptiveColor),
 		baseColor:      params.BaseColor,
 		colorProvider:  params.ColorProvider,
 		tailWindow:     tailWindow,
@@ -263,7 +262,7 @@ func (c *TimeSeriesLineChart) addPoint(seriesKey string, x, y float64) {
 	c.dirty = true
 }
 
-func (c *TimeSeriesLineChart) nextSeriesColor() compat.AdaptiveColor {
+func (c *TimeSeriesLineChart) nextSeriesColor() AdaptiveColor {
 	if c.colorProvider == nil {
 		return c.baseColor
 	}
