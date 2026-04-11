@@ -2,7 +2,6 @@ package leet
 
 import (
 	"fmt"
-	"slices"
 	"sort"
 	"time"
 
@@ -38,6 +37,9 @@ type SystemMetricsGrid struct {
 
 	// Coloring state for per-plot mode.
 	nextColor int // next palette index
+
+	// lastDrawnCharts holds charts from the last visible page for parking.
+	lastDrawnCharts map[systemMetricChart]struct{}
 
 	// synchronized inspection session state (active only between press/release)
 	syncInspectActive bool
@@ -173,6 +175,9 @@ func (g *SystemMetricsGrid) createMetricChart(def *MetricDef) systemMetricChart 
 }
 
 // AddDataPoint adds a new data point to the appropriate metric chart.
+//
+// Drawing is deferred to the next View() call to avoid redundant redraws
+// when processing a batch of metrics from a single stats record.
 func (g *SystemMetricsGrid) AddDataPoint(metricName string, timestamp int64, value float64) {
 	g.logger.Debug(fmt.Sprintf(
 		"SystemMetricsGrid.AddDataPoint: metric=%s, timestamp=%d, value=%f",
@@ -190,9 +195,6 @@ func (g *SystemMetricsGrid) AddDataPoint(metricName string, timestamp int64, val
 
 	chart := g.getOrCreateChart(baseKey, def)
 	chart.AddDataPoint(seriesName, timestamp, value)
-	if g.isChartVisible(chart) {
-		chart.DrawIfNeeded()
-	}
 }
 
 // getOrCreateChart returns a chart for the given baseKey.
@@ -505,27 +507,32 @@ func (g *SystemMetricsGrid) Resize(width, height int) {
 	g.drawVisible()
 }
 
+// drawVisible resizes and draws charts on the current page.
+//
+// Charts no longer visible are parked to reduce memory usage.
 func (g *SystemMetricsGrid) drawVisible() {
 	dims := g.calculateChartDimensions()
+
+	currentCharts := make(map[systemMetricChart]struct{})
 	for row := range g.currentPage {
 		for col := range g.currentPage[row] {
-			chart := g.currentPage[row][col]
-			if chart == nil {
-				continue
+			if chart := g.currentPage[row][col]; chart != nil {
+				currentCharts[chart] = struct{}{}
 			}
-			chart.Resize(dims.CellW, dims.CellH)
-			chart.DrawIfNeeded()
 		}
 	}
-}
 
-func (g *SystemMetricsGrid) isChartVisible(target systemMetricChart) bool {
-	for row := range g.currentPage {
-		if slices.Contains(g.currentPage[row], target) {
-			return true
+	for ch := range g.lastDrawnCharts {
+		if _, stillVisible := currentCharts[ch]; !stillVisible {
+			ch.Park()
 		}
 	}
-	return false
+	g.lastDrawnCharts = currentCharts
+
+	for ch := range currentCharts {
+		ch.Resize(dims.CellW, dims.CellH)
+		ch.DrawIfNeeded()
+	}
 }
 
 func (g *SystemMetricsGrid) syncFocusToCurrentPage() {
@@ -559,9 +566,21 @@ func (g *SystemMetricsGrid) syncFocusToCurrentPage() {
 }
 
 // View renders the system metrics grid.
+//
+// Dirty visible charts are drawn before rendering so that data added
+// since the last frame is reflected without per-point draw overhead.
 func (g *SystemMetricsGrid) View() string {
 	dims := g.calculateChartDimensions()
 	size := g.effectiveGridSize()
+
+	// Draw any visible charts that received new data since the last frame.
+	for row := range g.currentPage {
+		for col := range g.currentPage[row] {
+			if chart := g.currentPage[row][col]; chart != nil {
+				chart.DrawIfNeeded()
+			}
+		}
+	}
 
 	var rows []string
 	for row := range size.Rows {
