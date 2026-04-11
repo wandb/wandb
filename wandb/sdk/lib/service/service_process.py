@@ -111,7 +111,7 @@ def _launch_server(
 ) -> ServiceProcess:
     """Launch server and set ports."""
     if platform.system() == "Windows":
-        creationflags: int = subprocess.CREATE_NEW_PROCESS_GROUP
+        creationflags: int = subprocess.CREATE_NEW_PROCESS_GROUP  # type: ignore[attr-defined]
         start_new_session = False
     else:
         creationflags = 0
