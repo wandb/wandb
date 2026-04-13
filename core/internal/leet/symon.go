@@ -335,6 +335,9 @@ func (s *Symon) handleMouse(msg tea.MouseMsg) tea.Cmd {
 	}
 
 	dims := s.grid.calculateChartDimensions()
+	if dims.CellHWithPadding == 0 || dims.CellWWithPadding == 0 {
+		return nil
+	}
 	row := adjustedY / dims.CellHWithPadding
 	col := adjustedX / dims.CellWWithPadding
 

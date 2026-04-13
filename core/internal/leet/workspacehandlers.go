@@ -161,6 +161,9 @@ func (w *Workspace) handleMetricsMouse(msg tea.MouseMsg, layout Layout) tea.Cmd 
 	}
 
 	dims := w.metricsGrid.CalculateChartDimensions(layout.mainContentAreaWidth, layout.height)
+	if dims.CellHWithPadding == 0 || dims.CellWWithPadding == 0 {
+		return nil
+	}
 
 	row := adjustedY / dims.CellHWithPadding
 	col := adjustedX / dims.CellWWithPadding
@@ -217,6 +220,9 @@ func (w *Workspace) handleSystemMetricsMouse(msg tea.MouseMsg, layout Layout) te
 	}
 
 	dims := grid.calculateChartDimensions()
+	if dims.CellHWithPadding == 0 || dims.CellWWithPadding == 0 {
+		return nil
+	}
 	row := adjustedY / dims.CellHWithPadding
 	col := adjustedX / dims.CellWWithPadding
 
