@@ -256,18 +256,15 @@ ignore-decorators = [
 # - D102: Require docstrings in public methods
 # - D103: Require docstrings in public functions
 # - D417: Require descriptions for all arguments
-"!wandb/apis/public/api.py" = [
+# Single negated glob: two `!...` entries with the same codes would stack, and
+# `!wandb/automations/**/*.py` would ignore D102/D103 everywhere outside
+# automations—including `wandb/apis/public/`, undoing the public-API exception.
+"!wandb/{apis/public/*,automations/**/*.py}" = [
     "D101",
     "D102",
     "D103",
     "D417",
-] # "Public API" module
-"!wandb/automations/**/*.py" = [
-    "D101",
-    "D102",
-    "D103",
-    "D417",
-] # Automations submodules
+] # Public API (top-level modules) and automations tree
 
 # Relax docstring and print() statement requirements in tests.
 "tests/**" = ["D", "T20", "W505"]

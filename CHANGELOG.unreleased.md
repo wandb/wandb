@@ -37,6 +37,7 @@ This version drops compatibility with server versions older than 0.63.0 (for Ded
 - NVML GPM (GPU Performance Monitoring) profiling metrics for Hopper+ GPUs (H100 and newer), providing SM utilization, tensor/FP pipeline activity, DRAM bandwidth, and PCIe/NVLink throughput without requiring the DCGM daemon (@dmitryduev in https://github.com/wandb/wandb/pull/11622)
 - `.runs()` on the `Agent` class to query run status for a given sweep agent (@kmikowicz-wandb in https://github.com/wandb/wandb/pull/11558)
 - `.agent()` and `.agents()` on the `Sweep` class to query active agents for a given sweep (@kmikowicz-wandb in https://github.com/wandb/wandb/pull/11558)
+- Expand docstring checks to `wandb/apis/public/*` (@kmikowicz-wandb in https://github.com/wandb/wandb/pull/11670)
 
 ### Changed
 
@@ -46,6 +47,8 @@ This version drops compatibility with server versions older than 0.63.0 (for Ded
 
 ### Fixed
 
+- Failing D102 across `wandb/apis/public/*` (@kmikowicz-wandb in https://github.com/wandb/wandb/pull/11670)
+- Docstring checks on `wandb/apis/public/api.py` (@kmikowicz-wandb in https://github.com/wandb/wandb/pull/11670)
 - Fixed `update_automation()` silently dropping event filters (e.g. alias conditions on `OnAddArtifactAlias`) when a new event is provided (@matthoare117-wandb in https://github.com/wandb/wandb/pull/11613)
 - Fixed artifact client ID collisions in forked child processes by reseeding the fast ID generator after `fork()` (@tonyyli-wandb in https://github.com/wandb/wandb/pull/11491)
 - Fixed `WANDB__EXTRA_HTTP_HEADERS` not being applied to presigned object-store upload and download requests (@pingleiwandb in https://github.com/wandb/wandb/pull/11620)
