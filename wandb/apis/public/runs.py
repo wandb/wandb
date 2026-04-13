@@ -983,11 +983,17 @@ class Run(Attrs):
         self.summary.update()
 
     @normalize_exceptions
-    def delete(self, delete_artifacts: bool = False) -> None:
+    def delete(
+        self,
+        delete_artifacts: bool = False,
+        delete_all_children: bool = False,
+    ) -> None:
         """Delete the given run from the wandb backend.
 
         Args:
             delete_artifacts (bool, optional): Whether to delete the artifacts
+                associated with the run.
+            delete_all_children (bool, optional): Whether to delete all children
                 associated with the run.
         """
         mutation = gql(
@@ -995,9 +1001,11 @@ class Run(Attrs):
             mutation DeleteRun(
                 $id: ID!,
                 {}
+                {}
             ) {{
                 deleteRun(input: {{
                     id: $id,
+                    {}
                     {}
                 }}) {{
                     clientMutationId
@@ -1005,7 +1013,9 @@ class Run(Attrs):
             }}
         """.format(
                 "$deleteArtifacts: Boolean" if delete_artifacts else "",
+                "$deleteAllChildren: Boolean" if delete_all_children else "",
                 "deleteArtifacts: $deleteArtifacts" if delete_artifacts else "",
+                "deleteAllChildren: $deleteAllChildren" if delete_all_children else "",
             )
         )
 
@@ -1014,6 +1024,7 @@ class Run(Attrs):
             variable_values={
                 "id": self.storage_id,
                 "deleteArtifacts": delete_artifacts,
+                "deleteAllChildren": delete_all_children,
             },
         )
 
