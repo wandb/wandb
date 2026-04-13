@@ -2551,7 +2551,7 @@ class Run:
 
             self._logger_handlers = logger_capture.install(
                 self._settings.console_capture_loggers,
-                self._console_callback,
+                self._console_raw_callback,
             )
 
     def _console_stop(self) -> None:
