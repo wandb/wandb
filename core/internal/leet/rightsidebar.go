@@ -83,6 +83,9 @@ func (rs *RightSidebar) gridMouseTarget(x, y int) (systemGridMouseTarget, bool) 
 	}
 
 	target.dims = rs.metricsGrid.calculateChartDimensions()
+	if target.dims.CellHWithPadding == 0 || target.dims.CellWWithPadding == 0 {
+		return systemGridMouseTarget{}, false
+	}
 	target.row = target.adjustedY / target.dims.CellHWithPadding
 	target.col = target.adjustedX / target.dims.CellWWithPadding
 	return target, true

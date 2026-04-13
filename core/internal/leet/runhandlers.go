@@ -244,6 +244,11 @@ func (r *Run) handleMainContentMouse(msg tea.MouseMsg, layout Layout) (*Run, tea
 		layout.height,
 	)
 
+	// Grid too small to interact with (e.g. tiny terminal).
+	if dims.CellHWithPadding == 0 || dims.CellWWithPadding == 0 {
+		return r, nil
+	}
+
 	// Chart 2D indices on the grid.
 	row := adjustedY / dims.CellHWithPadding
 	col := adjustedX / dims.CellWWithPadding
