@@ -6,7 +6,7 @@ import (
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
-// XPU monitors GPUs (Nvidia, AMD, Apple) and TPUs via the
+// XPU monitors GPUs (Nvidia, AMD, Apple) and Google TPUs via the
 // wandb-xpu sidecar binary.
 type XPU struct {
 	resourceManager *XPUResourceManager
