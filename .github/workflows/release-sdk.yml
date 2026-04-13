@@ -429,22 +429,18 @@ jobs:
     name: Post to Slack
     needs: publish-release-notes
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        channel: [C0108SLEP6K, C01KQ5KTDC3]
     steps:
-      - name: Install from PyPI and get version
-        id: get_version
-        run: |
-          sleep 60
-          python -m pip install --upgrade pip
-          python -m pip install wandb==${{ github.event.inputs.version }}
       - name: Post to Slack
-        id: slack
         uses: slackapi/slack-github-action@v3.0.1
         with:
           method: chat.postMessage
           token: ${{ secrets.SLACK_BOT_TOKEN }}
           errors: true
           payload: |
-            channel: ${{ secrets.SLACK_SDK_RELEASE_CHANNEL_ID }}
+            channel: ${{ matrix.channel }}
             text: "W&B SDK ${{ github.event.inputs.version }} released :tada::\n- PyPI: https://pypi.org/project/wandb/${{ github.event.inputs.version }}/\n- Release notes: https://github.com/${{ github.repository }}/releases/tag/v${{ github.event.inputs.version }}"
 
   # This job exists so that there's some traceability between SDK releases and
