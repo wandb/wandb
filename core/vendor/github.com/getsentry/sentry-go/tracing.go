@@ -540,9 +540,23 @@ func (s *Span) sample() Sampled {
 
 	// #3 use TracesSampler from ClientOptions.
 	sampler := clientOptions.TracesSampler
+	parentSampled := SampledUndefined
+	if s.parent != nil {
+		parentSampled = s.parent.Sampled
+	} else if s.ParentSpanID != zeroSpanID {
+		parentSampled = s.Sampled
+	}
+	var parentSampleRate *float64
+	if rateStr, ok := s.dynamicSamplingContext.Entries["sample_rate"]; ok {
+		if rate, err := strconv.ParseFloat(rateStr, 64); err == nil {
+			parentSampleRate = &rate
+		}
+	}
 	samplingContext := SamplingContext{
-		Span:   s,
-		Parent: s.parent,
+		Span:             s,
+		Parent:           s.parent,
+		ParentSampled:    parentSampled,
+		ParentSampleRate: parentSampleRate,
 	}
 
 	if sampler != nil {
