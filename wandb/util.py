@@ -652,6 +652,9 @@ def json_friendly(  # noqa: C901
         )
     elif isinstance(obj, float) and math.isnan(obj):
         obj = None
+    # float subclasses
+    elif isinstance(obj, float):
+        obj = float(obj)
     elif isinstance(obj, dict) and np:
         obj, converted = _sanitize_numpy_keys(obj)
     elif isinstance(obj, set):
