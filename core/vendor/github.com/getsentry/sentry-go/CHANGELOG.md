@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.45.1
+
+### Bug Fixes 🐛
+
+- Add missing TracesSampler fields for SamplingContext by @giortzisg in [#1259](https://github.com/getsentry/sentry-go/pull/1259)
+
 ## 0.45.0
 
 ### Breaking Changes 🛠
