@@ -142,8 +142,6 @@ def run_pytest(
         "CI": os.environ.get("CI"),
         # Required for the importers tests
         "WANDB_TEST_SERVER_URL2": os.environ.get("WANDB_TEST_SERVER_URL2"),
-        # Required for functional tests with openai
-        "OPENAI_API_KEY": os.environ.get("OPENAI_API_KEY"),
     }
 
     # Print 20 slowest tests.
