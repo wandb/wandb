@@ -1,38 +1,34 @@
-name: Rust
+name: Test Slack Notification
+run-name: "Test Slack notification"
 
 on:
   workflow_dispatch:
-
-env:
-  CARGO_TERM_COLOR: always
+    inputs:
+      channel_id:
+        type: string
+        description: "Slack channel ID to post to (defaults to SLACK_SDK_RELEASE_CHANNEL_ID secret)"
+        required: false
+      token_secret:
+        type: choice
+        description: "Which secret to use for the Slack bot token"
+        required: true
+        default: SLACK_BOT_TOKEN
+        options:
+          - SLACK_BOT_TOKEN
+          - WANDB_CI_SLACK_BOT_TOKEN
 
 jobs:
-  build:
-
+  test-slack:
+    name: Send test message
     runs-on: ubuntu-latest
-
     steps:
-      - uses: actions/checkout@v6
-      - name: Install Protoc
-        uses: arduino/setup-protoc@v3
-      - name: Setup Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-      - name: Setup python
-        uses: actions/setup-python@v6
+      - name: Post to Slack
+        id: slack
+        uses: slackapi/slack-github-action@v3.0.1
         with:
-          python-version: "3.11"
-      - name: Install maturin
-        run: pip install maturin
-      - name: Activate python venv
-        run: |
-          python -m venv .venv
-          source .venv/bin/activate
-      - name: Build python package with maturin
-        working-directory: ./experimental/client-rust
-        run: maturin develop
-      # - name: Build rust binary for testing
-      #   working-directory: ./experimental/client-rust
-      #   run: cargo build --verbose
-      # - name: Run tests
-      #   working-directory: ./experimental/client-rust
-      #   run: cargo test --verbose
+          method: chat.postMessage
+          token: ${{ inputs.token_secret == 'WANDB_CI_SLACK_BOT_TOKEN' && secrets.WANDB_CI_SLACK_BOT_TOKEN || secrets.SLACK_BOT_TOKEN }}
+          errors: true
+          payload: |
+            channel: ${{ inputs.channel_id || secrets.SLACK_SDK_RELEASE_CHANNEL_ID }}
+            text: "Test Slack notification from GitHub Actions :test_tube:\n- Repository: ${{ github.repository }}\n- Actor: ${{ github.actor }}\n- Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
