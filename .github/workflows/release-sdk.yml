@@ -412,7 +412,7 @@ jobs:
           echo "## What's Changed" > release_notes.md
           awk '/## \[${{ github.event.inputs.version }}\]/{flag=1;next}/## \[/{flag=0}flag' CHANGELOG.md >> release_notes.md
       - name: Create Release Notes
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           name: v${{ github.event.inputs.version }}
           tag_name: v${{ github.event.inputs.version }}
