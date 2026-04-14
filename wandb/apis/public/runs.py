@@ -251,7 +251,12 @@ class Runs(SizedPaginator["Run"]):
         """
         if not self.last_response:
             self._load_page()
-        return self.last_response["project"]["runCount"]
+
+        if self.last_response:
+            run_count = self.last_response.get("project", {}).get("runCount", 0)
+            return run_count
+
+        return 0
 
     @property
     def more(self) -> bool:
@@ -260,11 +265,15 @@ class Runs(SizedPaginator["Run"]):
         <!-- lazydoc-ignore: internal -->
         """
         if self.last_response:
-            return bool(
-                self.last_response["project"]["runs"]["pageInfo"]["hasNextPage"]
+            has_next_page = (
+                self.last_response.get("project", {})
+                .get("runs", {})
+                .get("pageInfo", {})
+                .get("hasNextPage", False)
             )
-        else:
-            return True
+            return has_next_page
+
+        return False
 
     @property
     def cursor(self):

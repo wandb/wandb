@@ -39,7 +39,7 @@ class Paginator(Iterator[_WandbT], ABC):
         self.per_page: int = per_page
         self.objects: list[_WandbT] = []
         self.index: int = -1
-        self.last_response: object | None = None
+        self.last_response: dict[str, Any] | None = None
 
     def __iter__(self) -> Iterator[_WandbT]:
         self.index = -1

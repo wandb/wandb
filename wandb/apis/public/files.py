@@ -111,7 +111,7 @@ class Files(SizedPaginator["File"]):
     def _get_query(self) -> Document:
         """Generate query dynamically based on server capabilities."""
         return gql(
-            f"""
+            f"""#graphql
             query RunFiles($project: String!, $entity: String!, $name: String!, $fileCursor: String,
                 $fileLimit: Int = 50, $fileNames: [String] = [], $upload: Boolean = false, $pattern: String) {{
                 project(name: $project, entityName: $entity) {{
@@ -192,11 +192,16 @@ class Files(SizedPaginator["File"]):
         <!-- lazydoc-ignore: internal -->
         """
         if self.last_response:
-            return self.last_response["project"]["run"]["files"]["pageInfo"][
-                "hasNextPage"
-            ]
-        else:
-            return True
+            has_next_page = (
+                self.last_response.get("project", {})
+                .get("run", {})
+                .get("files", {})
+                .get("pageInfo", {})
+                .get("hasNextPage", False)
+            )
+            return has_next_page
+
+        return False
 
     @property
     def cursor(self) -> str | None:

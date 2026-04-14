@@ -109,10 +109,15 @@ class Reports(SizedPaginator["BetaReport"]):
         <!-- lazydoc-ignore: internal -->
         """
         if self.last_response:
-            return bool(
-                self.last_response["project"]["allViews"]["pageInfo"]["hasNextPage"]
+            has_next_page = (
+                self.last_response.get("project", {})
+                .get("allViews", {})
+                .get("pageInfo", {})
+                .get("hasNextPage", False)
             )
-        return True
+            return has_next_page
+
+        return False
 
     @property
     def cursor(self) -> str | None:
