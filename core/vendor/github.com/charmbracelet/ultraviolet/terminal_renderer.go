@@ -5,8 +5,6 @@ import (
 	"errors"
 	"hash/maphash"
 	"io"
-	"log"
-	"os"
 	"strings"
 
 	"github.com/charmbracelet/colorprofile"
@@ -1216,7 +1214,7 @@ func (s *TerminalRenderer) Render(newbuf *RenderBuffer) {
 		}
 	}
 
-	if !s.flags.Contains(tFullscreen) {
+	if !s.flags.Contains(tFullscreen) && (curWidth != newWidth || curHeight != newHeight) {
 		s.move(newbuf, 0, newHeight-1)
 	}
 
@@ -1301,12 +1299,6 @@ func notLocal(cols, fx, fy, tx, ty int) bool {
 	return (tx > longDist) &&
 		(tx < cols-1-longDist) &&
 		(abs(ty-fy)+abs(tx-fx) > longDist)
-}
-
-func init() {
-	f, _ := os.OpenFile("tea_debug.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
-	log.SetFlags(log.LstdFlags | log.Lshortfile)
-	log.SetOutput(f)
 }
 
 // relativeCursorMove returns the relative cursor movement sequence using one or two
