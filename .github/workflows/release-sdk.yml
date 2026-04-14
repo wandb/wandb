@@ -72,8 +72,8 @@ jobs:
           git commit -am "Bump version and update CHANGELOG for release ${{ github.event.inputs.version }}"
           git push --no-verify -f origin release-${{ github.event.inputs.version }}
 
-  build-linux-arm64-wheels:
-    name: Build wheels for Linux arm64
+  build-linux-arm64-manylinux-wheels:
+    name: Build manylinux wheels for Linux arm64
     needs: prepare-release
     runs-on: linux-arm64-ubuntu24.04-4core # custom runner in wandb org
     timeout-minutes: 30
@@ -96,8 +96,8 @@ jobs:
           output-dir: dist
         env:
           CIBW_ARCHS_LINUX: aarch64
+          CIBW_BUILD: "*-manylinux_*"
           CIBW_BEFORE_ALL_LINUX: >
-            (apk add binutils patchelf gcc musl-dev 2>/dev/null || true) &&
             export DOWNLOAD_GOVERSION=$( grep '^go' core/go.mod | cut -d' ' -f2 ) &&
             curl -L https://golang.org/dl/go$DOWNLOAD_GOVERSION.linux-arm64.tar.gz > go.tar.gz &&
             tar -C /usr/local/ -xzf go.tar.gz &&
@@ -105,7 +105,117 @@ jobs:
 
       - uses: actions/upload-artifact@v7
         with:
-          name: wandb-sdk-distribution-linux-arm64
+          name: wandb-sdk-distribution-linux-arm64-manylinux
+          path: ./dist
+
+  build-linux-arm64-musllinux-wheels:
+    name: Build musllinux wheels for Linux arm64
+    needs: prepare-release
+    runs-on: linux-arm64-ubuntu24.04-4core # custom runner in wandb org
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: release-${{ github.event.inputs.version }}
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: core/go.mod
+          cache-dependency-path: core/go.sum
+
+      - name: Build wheels
+        uses: pypa/cibuildwheel@v3.4.1
+        with:
+          package-dir: .
+          output-dir: dist
+        env:
+          CIBW_ARCHS_LINUX: aarch64
+          CIBW_BUILD: "*-musllinux_*"
+          CIBW_BEFORE_ALL_LINUX: >
+            apk add binutils patchelf gcc musl-dev &&
+            export DOWNLOAD_GOVERSION=$( grep '^go' core/go.mod | cut -d' ' -f2 ) &&
+            curl -L https://golang.org/dl/go$DOWNLOAD_GOVERSION.linux-arm64.tar.gz > go.tar.gz &&
+            tar -C /usr/local/ -xzf go.tar.gz &&
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: wandb-sdk-distribution-linux-arm64-musllinux
+          path: ./dist
+
+  build-linux-x86_64-manylinux-wheels:
+    name: Build manylinux wheels for Linux x86_64
+    needs: prepare-release
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: release-${{ github.event.inputs.version }}
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: core/go.mod
+          cache-dependency-path: core/go.sum
+
+      - name: Build wheels
+        uses: pypa/cibuildwheel@v3.4.1
+        with:
+          package-dir: .
+          output-dir: dist
+        env:
+          CIBW_ARCHS_LINUX: x86_64
+          CIBW_BUILD: "*-manylinux_*"
+          CIBW_BEFORE_ALL_LINUX: >
+            export DOWNLOAD_GOVERSION=$( grep '^go' core/go.mod | cut -d' ' -f2 ) &&
+            curl -L https://golang.org/dl/go$DOWNLOAD_GOVERSION.linux-amd64.tar.gz > go.tar.gz &&
+            tar -C /usr/local/ -xzf go.tar.gz &&
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: wandb-sdk-distribution-linux-x86_64-manylinux
+          path: ./dist
+
+  build-linux-x86_64-musllinux-wheels:
+    name: Build musllinux wheels for Linux x86_64
+    needs: prepare-release
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: release-${{ github.event.inputs.version }}
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: core/go.mod
+          cache-dependency-path: core/go.sum
+
+      - name: Build wheels
+        uses: pypa/cibuildwheel@v3.4.1
+        with:
+          package-dir: .
+          output-dir: dist
+        env:
+          CIBW_ARCHS_LINUX: x86_64
+          CIBW_BUILD: "*-musllinux_*"
+          CIBW_BEFORE_ALL_LINUX: >
+            apk add binutils patchelf gcc musl-dev &&
+            export DOWNLOAD_GOVERSION=$( grep '^go' core/go.mod | cut -d' ' -f2 ) &&
+            curl -L https://golang.org/dl/go$DOWNLOAD_GOVERSION.linux-amd64.tar.gz > go.tar.gz &&
+            tar -C /usr/local/ -xzf go.tar.gz &&
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: wandb-sdk-distribution-linux-x86_64-musllinux
           path: ./dist
 
   build-platform-wheels:
@@ -117,7 +227,6 @@ jobs:
       fail-fast: false
       matrix:
         os:
-          - ubuntu-22.04
           - windows-2022
           - windows-11-arm
           - macos-14
@@ -145,7 +254,6 @@ jobs:
           package-dir: .
           output-dir: dist
         env:
-          CIBW_ARCHS_LINUX: x86_64 # aarch64 is handled by build-linux-arm64-wheels
           CIBW_ARCHS_MACOS: x86_64 arm64 # arm64 == aarch64
           CIBW_BEFORE_ALL_MACOS: >
             rustup target add x86_64-apple-darwin
@@ -162,14 +270,6 @@ jobs:
               -v {wheel}
           CIBW_ENVIRONMENT_MACOS: >
             MACOSX_DEPLOYMENT_TARGET=12
-
-          # Install Go and Rust for Linux amd64
-          CIBW_BEFORE_ALL_LINUX: >
-            (apk add binutils patchelf gcc musl-dev 2>/dev/null || true) &&
-            export DOWNLOAD_GOVERSION=$( grep '^go' core/go.mod | cut -d' ' -f2 ) &&
-            curl -L https://golang.org/dl/go$DOWNLOAD_GOVERSION.linux-amd64.tar.gz > go.tar.gz &&
-            tar -C /usr/local/ -xzf go.tar.gz &&
-            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 
       - uses: actions/upload-artifact@v7
         with:
@@ -203,7 +303,13 @@ jobs:
 
   test-pypi-publish:
     name: Publish to TestPyPI
-    needs: [build-platform-wheels, build-linux-arm64-wheels, build-sdist]
+    needs:
+      - build-platform-wheels
+      - build-linux-arm64-manylinux-wheels
+      - build-linux-arm64-musllinux-wheels
+      - build-linux-x86_64-manylinux-wheels
+      - build-linux-x86_64-musllinux-wheels
+      - build-sdist
     continue-on-error: true
     runs-on: ubuntu-latest
     environment:
