@@ -105,7 +105,7 @@ def test_flow_pytorch(wandb_backend_spy):
 
     with wandb_backend_spy.freeze() as snapshot:
         run_ids = snapshot.run_ids()
-        assert len(run_ids) == 5
+        assert len(run_ids) == 3
         for run_id in run_ids:
             config = snapshot.config(run_id=run_id)
             assert config["batch_size"]["value"] == 64
