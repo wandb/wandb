@@ -72,22 +72,40 @@ jobs:
           git commit -am "Bump version and update CHANGELOG for release ${{ github.event.inputs.version }}"
           git push --no-verify -f origin release-${{ github.event.inputs.version }}
 
-  build-linux-arm64-manylinux-wheels:
-    name: Build manylinux wheels for Linux arm64
+  build-linux-wheels:
+    name: Build ${{ matrix.libc }} Linux wheel for ${{ matrix.arch }}
     needs: prepare-release
-    runs-on: linux-arm64-ubuntu24.04-4core # custom runner in wandb org
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: aarch64
+            libc: manylinux
+            runner: linux-arm64-ubuntu24.04-4core
+            go_arch: linux-arm64
+            before_all_extra: ""
+          - arch: aarch64
+            libc: musllinux
+            runner: linux-arm64-ubuntu24.04-4core
+            go_arch: linux-arm64
+            before_all_extra: "apk add binutils patchelf gcc musl-dev &&"
+          - arch: x86_64
+            libc: manylinux
+            runner: ubuntu-22.04
+            go_arch: linux-amd64
+            before_all_extra: ""
+          - arch: x86_64
+            libc: musllinux
+            runner: ubuntu-22.04
+            go_arch: linux-amd64
+            before_all_extra: "apk add binutils patchelf gcc musl-dev &&"
 
     steps:
       - uses: actions/checkout@v6
         with:
           ref: release-${{ github.event.inputs.version }}
-
-      - name: Set up Go
-        uses: actions/setup-go@v6
-        with:
-          go-version-file: core/go.mod
-          cache-dependency-path: core/go.sum
 
       - name: Build wheels
         uses: pypa/cibuildwheel@v3.4.1
@@ -95,127 +113,18 @@ jobs:
           package-dir: .
           output-dir: dist
         env:
-          CIBW_ARCHS_LINUX: aarch64
-          CIBW_BUILD: "*-manylinux_*"
+          CIBW_ARCHS_LINUX: ${{ matrix.arch }}
+          CIBW_BUILD: "*-${{ matrix.libc }}_*"
           CIBW_BEFORE_ALL_LINUX: >
+            ${{ matrix.before_all_extra }}
             export DOWNLOAD_GOVERSION=$( grep '^go' core/go.mod | cut -d' ' -f2 ) &&
-            curl -L https://golang.org/dl/go$DOWNLOAD_GOVERSION.linux-arm64.tar.gz > go.tar.gz &&
+            curl -L https://golang.org/dl/go$DOWNLOAD_GOVERSION.${{ matrix.go_arch }}.tar.gz > go.tar.gz &&
             tar -C /usr/local/ -xzf go.tar.gz &&
             curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 
       - uses: actions/upload-artifact@v7
         with:
-          name: wandb-sdk-distribution-linux-arm64-manylinux
-          path: ./dist
-
-  build-linux-arm64-musllinux-wheels:
-    name: Build musllinux wheels for Linux arm64
-    needs: prepare-release
-    runs-on: linux-arm64-ubuntu24.04-4core # custom runner in wandb org
-    timeout-minutes: 30
-
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          ref: release-${{ github.event.inputs.version }}
-
-      - name: Set up Go
-        uses: actions/setup-go@v6
-        with:
-          go-version-file: core/go.mod
-          cache-dependency-path: core/go.sum
-
-      - name: Build wheels
-        uses: pypa/cibuildwheel@v3.4.1
-        with:
-          package-dir: .
-          output-dir: dist
-        env:
-          CIBW_ARCHS_LINUX: aarch64
-          CIBW_BUILD: "*-musllinux_*"
-          CIBW_BEFORE_ALL_LINUX: >
-            apk add binutils patchelf gcc musl-dev &&
-            export DOWNLOAD_GOVERSION=$( grep '^go' core/go.mod | cut -d' ' -f2 ) &&
-            curl -L https://golang.org/dl/go$DOWNLOAD_GOVERSION.linux-arm64.tar.gz > go.tar.gz &&
-            tar -C /usr/local/ -xzf go.tar.gz &&
-            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-
-      - uses: actions/upload-artifact@v7
-        with:
-          name: wandb-sdk-distribution-linux-arm64-musllinux
-          path: ./dist
-
-  build-linux-x86_64-manylinux-wheels:
-    name: Build manylinux wheels for Linux x86_64
-    needs: prepare-release
-    runs-on: ubuntu-22.04
-    timeout-minutes: 30
-
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          ref: release-${{ github.event.inputs.version }}
-
-      - name: Set up Go
-        uses: actions/setup-go@v6
-        with:
-          go-version-file: core/go.mod
-          cache-dependency-path: core/go.sum
-
-      - name: Build wheels
-        uses: pypa/cibuildwheel@v3.4.1
-        with:
-          package-dir: .
-          output-dir: dist
-        env:
-          CIBW_ARCHS_LINUX: x86_64
-          CIBW_BUILD: "*-manylinux_*"
-          CIBW_BEFORE_ALL_LINUX: >
-            export DOWNLOAD_GOVERSION=$( grep '^go' core/go.mod | cut -d' ' -f2 ) &&
-            curl -L https://golang.org/dl/go$DOWNLOAD_GOVERSION.linux-amd64.tar.gz > go.tar.gz &&
-            tar -C /usr/local/ -xzf go.tar.gz &&
-            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-
-      - uses: actions/upload-artifact@v7
-        with:
-          name: wandb-sdk-distribution-linux-x86_64-manylinux
-          path: ./dist
-
-  build-linux-x86_64-musllinux-wheels:
-    name: Build musllinux wheels for Linux x86_64
-    needs: prepare-release
-    runs-on: ubuntu-22.04
-    timeout-minutes: 30
-
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          ref: release-${{ github.event.inputs.version }}
-
-      - name: Set up Go
-        uses: actions/setup-go@v6
-        with:
-          go-version-file: core/go.mod
-          cache-dependency-path: core/go.sum
-
-      - name: Build wheels
-        uses: pypa/cibuildwheel@v3.4.1
-        with:
-          package-dir: .
-          output-dir: dist
-        env:
-          CIBW_ARCHS_LINUX: x86_64
-          CIBW_BUILD: "*-musllinux_*"
-          CIBW_BEFORE_ALL_LINUX: >
-            apk add binutils patchelf gcc musl-dev &&
-            export DOWNLOAD_GOVERSION=$( grep '^go' core/go.mod | cut -d' ' -f2 ) &&
-            curl -L https://golang.org/dl/go$DOWNLOAD_GOVERSION.linux-amd64.tar.gz > go.tar.gz &&
-            tar -C /usr/local/ -xzf go.tar.gz &&
-            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-
-      - uses: actions/upload-artifact@v7
-        with:
-          name: wandb-sdk-distribution-linux-x86_64-musllinux
+          name: wandb-sdk-distribution-linux-${{ matrix.arch }}-${{ matrix.libc }}
           path: ./dist
 
   build-platform-wheels:
@@ -305,10 +214,7 @@ jobs:
     name: Publish to TestPyPI
     needs:
       - build-platform-wheels
-      - build-linux-arm64-manylinux-wheels
-      - build-linux-arm64-musllinux-wheels
-      - build-linux-x86_64-manylinux-wheels
-      - build-linux-x86_64-musllinux-wheels
+      - build-linux-wheels
       - build-sdist
     continue-on-error: true
     runs-on: ubuntu-latest
