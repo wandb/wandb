@@ -13,3 +13,5 @@ sections:
 Section headings should be at level 3 (e.g. `### Added`).
 
 ## Unreleased
+### Fixed
+- Fix TypeError when server returns `None` for `flags`
