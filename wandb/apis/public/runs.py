@@ -296,7 +296,11 @@ class Runs(SizedPaginator["Run"]):
         objs = []
         if self.last_response is None or self.last_response.get("project") is None:
             raise ValueError("Could not find project {}".format(self.project))
-        for run_response in self.last_response["project"]["runs"]["edges"]:
+
+        project = self.last_response.get("project") or {}
+        runs_data = project.get("runs") or {}
+        edges = runs_data.get("edges") or []
+        for run_response in edges:
             run = Run(
                 self.client,
                 self.entity,

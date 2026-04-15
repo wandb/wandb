@@ -141,10 +141,18 @@ class Reports(SizedPaginator["BetaReport"]):
 
     def convert_objects(self) -> list[BetaReport]:
         """Converts GraphQL edges to File objects."""
-        if self.last_response["project"] is None:
+        if not self.last_response:
+            return []
+
+        project = self.last_response.get("project")
+        if project is None:
             raise ValueError(
                 f"Project {self.variables['project']} does not exist under entity {self.variables['entity']}"
             )
+
+        all_views = project.get("allViews") or {}
+        edges = all_views.get("edges") or []
+
         return [
             BetaReport(
                 self.client,
@@ -152,7 +160,7 @@ class Reports(SizedPaginator["BetaReport"]):
                 entity=self.project.entity,
                 project=self.project.name,
             )
-            for r in self.last_response["project"]["allViews"]["edges"]
+            for r in edges
         ]
 
     def __repr__(self) -> str:

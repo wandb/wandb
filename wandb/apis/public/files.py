@@ -234,10 +234,14 @@ class Files(SizedPaginator["File"]):
 
         <!-- lazydoc-ignore: internal -->
         """
-        return [
-            File(self.client, r["node"], self.run)
-            for r in self.last_response["project"]["run"]["files"]["edges"]
-        ]
+        if not self.last_response:
+            return []
+
+        project = self.last_response.get("project") or {}
+        run_data = project.get("run") or {}
+        files_data = run_data.get("files") or {}
+        edges = files_data.get("edges") or []
+        return [File(self.client, r["node"], self.run) for r in edges]
 
     def __repr__(self) -> str:
         return f"<{nameof(type(self))} {'/'.join(self.run.path)} ({len(self)})>"
