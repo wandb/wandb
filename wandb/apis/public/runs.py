@@ -986,14 +986,14 @@ class Run(Attrs):
     def delete(
         self,
         delete_artifacts: bool = False,
-        delete_all_children: bool = False,
+        delete_all_descendants: bool = False,
     ) -> None:
         """Delete the given run from the wandb backend.
 
         Args:
             delete_artifacts (bool, optional): Whether to delete the artifacts
                 associated with the run.
-            delete_all_children (bool, optional): Whether to delete all children
+            delete_all_descendants (bool, optional): Whether to delete all children
                 associated with the run.
         """
         mutation = gql(
@@ -1008,25 +1008,28 @@ class Run(Attrs):
                     {}
                     {}
                 }}) {{
-                    clientMutationId
+                    numDeleted
                 }}
             }}
         """.format(
                 "$deleteArtifacts: Boolean" if delete_artifacts else "",
-                "$deleteAllChildren: Boolean" if delete_all_children else "",
+                "$deleteAllDescendants: Boolean" if delete_all_descendants else "",
                 "deleteArtifacts: $deleteArtifacts" if delete_artifacts else "",
-                "deleteAllChildren: $deleteAllChildren" if delete_all_children else "",
+                "deleteAllDescendants: $deleteAllDescendants" if delete_all_descendants else "",
             )
         )
 
-        self.client.execute(
+        result = self.client.execute(
             mutation,
             variable_values={
                 "id": self.storage_id,
                 "deleteArtifacts": delete_artifacts,
-                "deleteAllChildren": delete_all_children,
+                "deleteAllDescendants": delete_all_descendants,
             },
         )
+        num_deleted = result["deleteRun"]["numDeleted"]
+        if num_deleted > 0:
+            wandb.termlog(f"Deleted {num_deleted} runs")
 
     def save(self) -> None:
         """Persist changes to the run object to the W&B backend."""
