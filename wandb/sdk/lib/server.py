@@ -37,7 +37,7 @@ class Server:
             return
         # TODO(jhr): should we kill the thread?
         self._viewer, self._serverinfo = viewer_tuple
-        self._flags = json.loads(self._viewer.get("flags", "{}"))
+        self._flags = json.loads(self._viewer.get("flags") or "{}")
 
     @property
     def viewer(self) -> dict[str, Any]:
