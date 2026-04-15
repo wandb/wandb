@@ -485,6 +485,20 @@ func (s *Settings) IsPrimary() bool {
 	return s.Proto.XPrimary.GetValue()
 }
 
+// Controls whether this process can update the run's final state
+// (finished/failed) on the server.
+//
+// Set to False in distributed training when only the main process should
+// determine the final state.
+func (s *Settings) ShouldUpdateFinishState() bool {
+	wrapper := s.Proto.XUpdateFinishState
+
+	// If the client does not set this at all (like the C# client),
+	// we treat it as true. This is a regrettable design; usually the default
+	// behavior corresponds to a false value to avoid confusion.
+	return wrapper == nil || wrapper.Value
+}
+
 // The size of the buffer for system metrics.
 func (s *Settings) GetStatsBufferSize() int32 {
 	return s.Proto.XStatsBufferSize.GetValue()

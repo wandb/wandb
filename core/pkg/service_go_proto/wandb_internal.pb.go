@@ -2006,10 +2006,22 @@ func (x *ErrorInfo) GetCode() ErrorInfo_ErrorCode {
 // queries and must end with an "inform_finish" request to allow the internal
 // service to clean up.
 type RunExitRecord struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	ExitCode      int32                  `protobuf:"varint,1,opt,name=exit_code,json=exitCode,proto3" json:"exit_code,omitempty"`
-	Runtime       int32                  `protobuf:"varint,2,opt,name=runtime,proto3" json:"runtime,omitempty"`
-	XInfo         *XRecordInfo           `protobuf:"bytes,200,opt,name=_info,json=Info,proto3" json:"_info,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Whether to mark the run successful (if zero) or failed (if nonzero).
+	//
+	// Ignored if not_complete
+	ExitCode int32 `protobuf:"varint,1,opt,name=exit_code,json=exitCode,proto3" json:"exit_code,omitempty"`
+	// If set, keeps the run in the Running state instead of transitioning it
+	// to a completed state.
+	//
+	// If not set, the value of the x_update_finish_state setting is used.
+	// Prefer to rely on the setting instead of this field.
+	//
+	// This is used in "shared" mode by secondary nodes. Only the primary node
+	// for a run sets its completion state.
+	NotComplete   bool         `protobuf:"varint,3,opt,name=not_complete,json=notComplete,proto3" json:"not_complete,omitempty"`
+	Runtime       int32        `protobuf:"varint,2,opt,name=runtime,proto3" json:"runtime,omitempty"`
+	XInfo         *XRecordInfo `protobuf:"bytes,200,opt,name=_info,json=Info,proto3" json:"_info,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2049,6 +2061,13 @@ func (x *RunExitRecord) GetExitCode() int32 {
 		return x.ExitCode
 	}
 	return 0
+}
+
+func (x *RunExitRecord) GetNotComplete() bool {
+	if x != nil {
+		return x.NotComplete
+	}
+	return false
 }
 
 func (x *RunExitRecord) GetRuntime() int32 {
@@ -4661,7 +4680,6 @@ type Request struct {
 	//	*Request_GetSystemMetrics
 	//	*Request_JobInput
 	//	*Request_LinkArtifact
-	//	*Request_RunFinishWithoutExit
 	//	*Request_SyncFinish
 	//	*Request_Operations
 	//	*Request_ProbeSystemInfo
@@ -4996,15 +5014,6 @@ func (x *Request) GetLinkArtifact() *LinkArtifactRequest {
 	return nil
 }
 
-func (x *Request) GetRunFinishWithoutExit() *RunFinishWithoutExitRequest {
-	if x != nil {
-		if x, ok := x.RequestType.(*Request_RunFinishWithoutExit); ok {
-			return x.RunFinishWithoutExit
-		}
-	}
-	return nil
-}
-
 func (x *Request) GetSyncFinish() *SyncFinishRequest {
 	if x != nil {
 		if x, ok := x.RequestType.(*Request_SyncFinish); ok {
@@ -5173,10 +5182,6 @@ type Request_LinkArtifact struct {
 	LinkArtifact *LinkArtifactRequest `protobuf:"bytes,78,opt,name=link_artifact,json=linkArtifact,proto3,oneof"`
 }
 
-type Request_RunFinishWithoutExit struct {
-	RunFinishWithoutExit *RunFinishWithoutExitRequest `protobuf:"bytes,79,opt,name=run_finish_without_exit,json=runFinishWithoutExit,proto3,oneof"`
-}
-
 type Request_SyncFinish struct {
 	SyncFinish *SyncFinishRequest `protobuf:"bytes,81,opt,name=sync_finish,json=syncFinish,proto3,oneof"`
 }
@@ -5259,8 +5264,6 @@ func (*Request_JobInput) isRequest_RequestType() {}
 
 func (*Request_LinkArtifact) isRequest_RequestType() {}
 
-func (*Request_RunFinishWithoutExit) isRequest_RequestType() {}
-
 func (*Request_SyncFinish) isRequest_RequestType() {}
 
 func (*Request_Operations) isRequest_RequestType() {}
@@ -5296,7 +5299,6 @@ type Response struct {
 	//	*Response_GetSystemMetricsResponse
 	//	*Response_LinkArtifactResponse
 	//	*Response_SyncResponse
-	//	*Response_RunFinishWithoutExitResponse
 	//	*Response_OperationsResponse
 	//	*Response_TestInjectResponse
 	ResponseType  isResponse_ResponseType `protobuf_oneof:"response_type"`
@@ -5539,15 +5541,6 @@ func (x *Response) GetSyncResponse() *SyncResponse {
 	return nil
 }
 
-func (x *Response) GetRunFinishWithoutExitResponse() *RunFinishWithoutExitResponse {
-	if x != nil {
-		if x, ok := x.ResponseType.(*Response_RunFinishWithoutExitResponse); ok {
-			return x.RunFinishWithoutExitResponse
-		}
-	}
-	return nil
-}
-
 func (x *Response) GetOperationsResponse() *OperationStatsResponse {
 	if x != nil {
 		if x, ok := x.ResponseType.(*Response_OperationsResponse); ok {
@@ -5658,10 +5651,6 @@ type Response_SyncResponse struct {
 	SyncResponse *SyncResponse `protobuf:"bytes,70,opt,name=sync_response,json=syncResponse,proto3,oneof"`
 }
 
-type Response_RunFinishWithoutExitResponse struct {
-	RunFinishWithoutExitResponse *RunFinishWithoutExitResponse `protobuf:"bytes,72,opt,name=run_finish_without_exit_response,json=runFinishWithoutExitResponse,proto3,oneof"`
-}
-
 type Response_OperationsResponse struct {
 	OperationsResponse *OperationStatsResponse `protobuf:"bytes,74,opt,name=operations_response,json=operationsResponse,proto3,oneof"`
 }
@@ -5713,8 +5702,6 @@ func (*Response_GetSystemMetricsResponse) isResponse_ResponseType() {}
 func (*Response_LinkArtifactResponse) isResponse_ResponseType() {}
 
 func (*Response_SyncResponse) isResponse_ResponseType() {}
-
-func (*Response_RunFinishWithoutExitResponse) isResponse_ResponseType() {}
 
 func (*Response_OperationsResponse) isResponse_ResponseType() {}
 
@@ -8878,87 +8865,6 @@ func (*RunStartResponse) Descriptor() ([]byte, []int) {
 	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{117}
 }
 
-// RunFinishWithoutExitRequest: finish the run without updating the exit status on the server
-type RunFinishWithoutExitRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	XInfo         *XRequestInfo          `protobuf:"bytes,200,opt,name=_info,json=Info,proto3" json:"_info,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *RunFinishWithoutExitRequest) Reset() {
-	*x = RunFinishWithoutExitRequest{}
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[118]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *RunFinishWithoutExitRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*RunFinishWithoutExitRequest) ProtoMessage() {}
-
-func (x *RunFinishWithoutExitRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[118]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use RunFinishWithoutExitRequest.ProtoReflect.Descriptor instead.
-func (*RunFinishWithoutExitRequest) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{118}
-}
-
-func (x *RunFinishWithoutExitRequest) GetXInfo() *XRequestInfo {
-	if x != nil {
-		return x.XInfo
-	}
-	return nil
-}
-
-type RunFinishWithoutExitResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *RunFinishWithoutExitResponse) Reset() {
-	*x = RunFinishWithoutExitResponse{}
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[119]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *RunFinishWithoutExitResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*RunFinishWithoutExitResponse) ProtoMessage() {}
-
-func (x *RunFinishWithoutExitResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[119]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use RunFinishWithoutExitResponse.ProtoReflect.Descriptor instead.
-func (*RunFinishWithoutExitResponse) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{119}
-}
-
 // CheckVersion:
 type CheckVersionRequest struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
@@ -8970,7 +8876,7 @@ type CheckVersionRequest struct {
 
 func (x *CheckVersionRequest) Reset() {
 	*x = CheckVersionRequest{}
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[120]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[118]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8982,7 +8888,7 @@ func (x *CheckVersionRequest) String() string {
 func (*CheckVersionRequest) ProtoMessage() {}
 
 func (x *CheckVersionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[120]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[118]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8995,7 +8901,7 @@ func (x *CheckVersionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CheckVersionRequest.ProtoReflect.Descriptor instead.
 func (*CheckVersionRequest) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{120}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{118}
 }
 
 func (x *CheckVersionRequest) GetCurrentVersion() string {
@@ -9023,7 +8929,7 @@ type CheckVersionResponse struct {
 
 func (x *CheckVersionResponse) Reset() {
 	*x = CheckVersionResponse{}
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[121]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[119]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9035,7 +8941,7 @@ func (x *CheckVersionResponse) String() string {
 func (*CheckVersionResponse) ProtoMessage() {}
 
 func (x *CheckVersionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[121]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[119]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9048,7 +8954,7 @@ func (x *CheckVersionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CheckVersionResponse.ProtoReflect.Descriptor instead.
 func (*CheckVersionResponse) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{121}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{119}
 }
 
 func (x *CheckVersionResponse) GetUpgradeMessage() string {
@@ -9082,7 +8988,7 @@ type JobInfoRequest struct {
 
 func (x *JobInfoRequest) Reset() {
 	*x = JobInfoRequest{}
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[122]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[120]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9094,7 +9000,7 @@ func (x *JobInfoRequest) String() string {
 func (*JobInfoRequest) ProtoMessage() {}
 
 func (x *JobInfoRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[122]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[120]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9107,7 +9013,7 @@ func (x *JobInfoRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use JobInfoRequest.ProtoReflect.Descriptor instead.
 func (*JobInfoRequest) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{122}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{120}
 }
 
 func (x *JobInfoRequest) GetXInfo() *XRequestInfo {
@@ -9127,7 +9033,7 @@ type JobInfoResponse struct {
 
 func (x *JobInfoResponse) Reset() {
 	*x = JobInfoResponse{}
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[123]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[121]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9139,7 +9045,7 @@ func (x *JobInfoResponse) String() string {
 func (*JobInfoResponse) ProtoMessage() {}
 
 func (x *JobInfoResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[123]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[121]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9152,7 +9058,7 @@ func (x *JobInfoResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use JobInfoResponse.ProtoReflect.Descriptor instead.
 func (*JobInfoResponse) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{123}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{121}
 }
 
 func (x *JobInfoResponse) GetSequenceId() string {
@@ -9182,7 +9088,7 @@ type LogArtifactRequest struct {
 
 func (x *LogArtifactRequest) Reset() {
 	*x = LogArtifactRequest{}
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[124]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[122]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9194,7 +9100,7 @@ func (x *LogArtifactRequest) String() string {
 func (*LogArtifactRequest) ProtoMessage() {}
 
 func (x *LogArtifactRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[124]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[122]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9207,7 +9113,7 @@ func (x *LogArtifactRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LogArtifactRequest.ProtoReflect.Descriptor instead.
 func (*LogArtifactRequest) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{124}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{122}
 }
 
 func (x *LogArtifactRequest) GetArtifact() *ArtifactRecord {
@@ -9248,7 +9154,7 @@ type LogArtifactResponse struct {
 
 func (x *LogArtifactResponse) Reset() {
 	*x = LogArtifactResponse{}
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[125]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[123]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9260,7 +9166,7 @@ func (x *LogArtifactResponse) String() string {
 func (*LogArtifactResponse) ProtoMessage() {}
 
 func (x *LogArtifactResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[125]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[123]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9273,7 +9179,7 @@ func (x *LogArtifactResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LogArtifactResponse.ProtoReflect.Descriptor instead.
 func (*LogArtifactResponse) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{125}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{123}
 }
 
 func (x *LogArtifactResponse) GetArtifactId() string {
@@ -9305,7 +9211,7 @@ type DownloadArtifactRequest struct {
 
 func (x *DownloadArtifactRequest) Reset() {
 	*x = DownloadArtifactRequest{}
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[126]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[124]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9317,7 +9223,7 @@ func (x *DownloadArtifactRequest) String() string {
 func (*DownloadArtifactRequest) ProtoMessage() {}
 
 func (x *DownloadArtifactRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[126]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[124]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9330,7 +9236,7 @@ func (x *DownloadArtifactRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DownloadArtifactRequest.ProtoReflect.Descriptor instead.
 func (*DownloadArtifactRequest) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{126}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{124}
 }
 
 func (x *DownloadArtifactRequest) GetArtifactId() string {
@@ -9384,7 +9290,7 @@ type DownloadArtifactResponse struct {
 
 func (x *DownloadArtifactResponse) Reset() {
 	*x = DownloadArtifactResponse{}
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[127]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[125]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9396,7 +9302,7 @@ func (x *DownloadArtifactResponse) String() string {
 func (*DownloadArtifactResponse) ProtoMessage() {}
 
 func (x *DownloadArtifactResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[127]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[125]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9409,7 +9315,7 @@ func (x *DownloadArtifactResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DownloadArtifactResponse.ProtoReflect.Descriptor instead.
 func (*DownloadArtifactResponse) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{127}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{125}
 }
 
 func (x *DownloadArtifactResponse) GetErrorMessage() string {
@@ -9429,7 +9335,7 @@ type KeepaliveRequest struct {
 
 func (x *KeepaliveRequest) Reset() {
 	*x = KeepaliveRequest{}
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[128]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[126]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9441,7 +9347,7 @@ func (x *KeepaliveRequest) String() string {
 func (*KeepaliveRequest) ProtoMessage() {}
 
 func (x *KeepaliveRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[128]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[126]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9454,7 +9360,7 @@ func (x *KeepaliveRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use KeepaliveRequest.ProtoReflect.Descriptor instead.
 func (*KeepaliveRequest) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{128}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{126}
 }
 
 func (x *KeepaliveRequest) GetXInfo() *XRequestInfo {
@@ -9472,7 +9378,7 @@ type KeepaliveResponse struct {
 
 func (x *KeepaliveResponse) Reset() {
 	*x = KeepaliveResponse{}
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[129]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[127]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9484,7 +9390,7 @@ func (x *KeepaliveResponse) String() string {
 func (*KeepaliveResponse) ProtoMessage() {}
 
 func (x *KeepaliveResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[129]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[127]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9497,7 +9403,7 @@ func (x *KeepaliveResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use KeepaliveResponse.ProtoReflect.Descriptor instead.
 func (*KeepaliveResponse) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{129}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{127}
 }
 
 // Job info specific for Partial -> Job upgrade
@@ -9514,7 +9420,7 @@ type ArtifactInfo struct {
 
 func (x *ArtifactInfo) Reset() {
 	*x = ArtifactInfo{}
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[130]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[128]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9526,7 +9432,7 @@ func (x *ArtifactInfo) String() string {
 func (*ArtifactInfo) ProtoMessage() {}
 
 func (x *ArtifactInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[130]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[128]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9539,7 +9445,7 @@ func (x *ArtifactInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ArtifactInfo.ProtoReflect.Descriptor instead.
 func (*ArtifactInfo) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{130}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{128}
 }
 
 func (x *ArtifactInfo) GetArtifact() string {
@@ -9587,7 +9493,7 @@ type GitInfo struct {
 
 func (x *GitInfo) Reset() {
 	*x = GitInfo{}
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[131]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[129]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9599,7 +9505,7 @@ func (x *GitInfo) String() string {
 func (*GitInfo) ProtoMessage() {}
 
 func (x *GitInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[131]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[129]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9612,7 +9518,7 @@ func (x *GitInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GitInfo.ProtoReflect.Descriptor instead.
 func (*GitInfo) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{131}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{129}
 }
 
 func (x *GitInfo) GetRemote() string {
@@ -9642,7 +9548,7 @@ type GitSource struct {
 
 func (x *GitSource) Reset() {
 	*x = GitSource{}
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[132]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[130]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9654,7 +9560,7 @@ func (x *GitSource) String() string {
 func (*GitSource) ProtoMessage() {}
 
 func (x *GitSource) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[132]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[130]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9667,7 +9573,7 @@ func (x *GitSource) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GitSource.ProtoReflect.Descriptor instead.
 func (*GitSource) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{132}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{130}
 }
 
 func (x *GitSource) GetGitInfo() *GitInfo {
@@ -9714,7 +9620,7 @@ type ImageSource struct {
 
 func (x *ImageSource) Reset() {
 	*x = ImageSource{}
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[133]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[131]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9726,7 +9632,7 @@ func (x *ImageSource) String() string {
 func (*ImageSource) ProtoMessage() {}
 
 func (x *ImageSource) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[133]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[131]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9739,7 +9645,7 @@ func (x *ImageSource) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ImageSource.ProtoReflect.Descriptor instead.
 func (*ImageSource) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{133}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{131}
 }
 
 func (x *ImageSource) GetImage() string {
@@ -9760,7 +9666,7 @@ type Source struct {
 
 func (x *Source) Reset() {
 	*x = Source{}
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[134]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[132]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9772,7 +9678,7 @@ func (x *Source) String() string {
 func (*Source) ProtoMessage() {}
 
 func (x *Source) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[134]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[132]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9785,7 +9691,7 @@ func (x *Source) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Source.ProtoReflect.Descriptor instead.
 func (*Source) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{134}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{132}
 }
 
 func (x *Source) GetGit() *GitSource {
@@ -9822,7 +9728,7 @@ type JobSource struct {
 
 func (x *JobSource) Reset() {
 	*x = JobSource{}
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[135]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[133]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9834,7 +9740,7 @@ func (x *JobSource) String() string {
 func (*JobSource) ProtoMessage() {}
 
 func (x *JobSource) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[135]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[133]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9847,7 +9753,7 @@ func (x *JobSource) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use JobSource.ProtoReflect.Descriptor instead.
 func (*JobSource) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{135}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{133}
 }
 
 func (x *JobSource) GetXVersion() string {
@@ -9888,7 +9794,7 @@ type PartialJobArtifact struct {
 
 func (x *PartialJobArtifact) Reset() {
 	*x = PartialJobArtifact{}
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[136]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[134]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9900,7 +9806,7 @@ func (x *PartialJobArtifact) String() string {
 func (*PartialJobArtifact) ProtoMessage() {}
 
 func (x *PartialJobArtifact) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[136]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[134]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9913,7 +9819,7 @@ func (x *PartialJobArtifact) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PartialJobArtifact.ProtoReflect.Descriptor instead.
 func (*PartialJobArtifact) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{136}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{134}
 }
 
 func (x *PartialJobArtifact) GetJobName() string {
@@ -9944,7 +9850,7 @@ type UseArtifactRecord struct {
 
 func (x *UseArtifactRecord) Reset() {
 	*x = UseArtifactRecord{}
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[137]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[135]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9956,7 +9862,7 @@ func (x *UseArtifactRecord) String() string {
 func (*UseArtifactRecord) ProtoMessage() {}
 
 func (x *UseArtifactRecord) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[137]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[135]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9969,7 +9875,7 @@ func (x *UseArtifactRecord) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UseArtifactRecord.ProtoReflect.Descriptor instead.
 func (*UseArtifactRecord) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{137}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{135}
 }
 
 func (x *UseArtifactRecord) GetId() string {
@@ -10015,7 +9921,7 @@ type UseArtifactResult struct {
 
 func (x *UseArtifactResult) Reset() {
 	*x = UseArtifactResult{}
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[138]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[136]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10027,7 +9933,7 @@ func (x *UseArtifactResult) String() string {
 func (*UseArtifactResult) ProtoMessage() {}
 
 func (x *UseArtifactResult) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[138]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[136]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10040,7 +9946,7 @@ func (x *UseArtifactResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UseArtifactResult.ProtoReflect.Descriptor instead.
 func (*UseArtifactResult) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{138}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{136}
 }
 
 // Cancel:
@@ -10054,7 +9960,7 @@ type CancelRequest struct {
 
 func (x *CancelRequest) Reset() {
 	*x = CancelRequest{}
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[139]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[137]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10066,7 +9972,7 @@ func (x *CancelRequest) String() string {
 func (*CancelRequest) ProtoMessage() {}
 
 func (x *CancelRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[139]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[137]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10079,7 +9985,7 @@ func (x *CancelRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CancelRequest.ProtoReflect.Descriptor instead.
 func (*CancelRequest) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{139}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{137}
 }
 
 func (x *CancelRequest) GetCancelSlot() string {
@@ -10104,7 +10010,7 @@ type CancelResponse struct {
 
 func (x *CancelResponse) Reset() {
 	*x = CancelResponse{}
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[140]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[138]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10116,7 +10022,7 @@ func (x *CancelResponse) String() string {
 func (*CancelResponse) ProtoMessage() {}
 
 func (x *CancelResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[140]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[138]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10129,7 +10035,7 @@ func (x *CancelResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CancelResponse.ProtoReflect.Descriptor instead.
 func (*CancelResponse) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{140}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{138}
 }
 
 // Run environment including system, hardware, software, and execution parameters.
@@ -10141,7 +10047,7 @@ type ProbeSystemInfoRequest struct {
 
 func (x *ProbeSystemInfoRequest) Reset() {
 	*x = ProbeSystemInfoRequest{}
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[141]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[139]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10153,7 +10059,7 @@ func (x *ProbeSystemInfoRequest) String() string {
 func (*ProbeSystemInfoRequest) ProtoMessage() {}
 
 func (x *ProbeSystemInfoRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[141]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[139]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10166,7 +10072,7 @@ func (x *ProbeSystemInfoRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProbeSystemInfoRequest.ProtoReflect.Descriptor instead.
 func (*ProbeSystemInfoRequest) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{141}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{139}
 }
 
 type DiskInfo struct {
@@ -10179,7 +10085,7 @@ type DiskInfo struct {
 
 func (x *DiskInfo) Reset() {
 	*x = DiskInfo{}
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[142]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[140]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10191,7 +10097,7 @@ func (x *DiskInfo) String() string {
 func (*DiskInfo) ProtoMessage() {}
 
 func (x *DiskInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[142]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[140]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10204,7 +10110,7 @@ func (x *DiskInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DiskInfo.ProtoReflect.Descriptor instead.
 func (*DiskInfo) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{142}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{140}
 }
 
 func (x *DiskInfo) GetTotal() uint64 {
@@ -10230,7 +10136,7 @@ type MemoryInfo struct {
 
 func (x *MemoryInfo) Reset() {
 	*x = MemoryInfo{}
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[143]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[141]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10242,7 +10148,7 @@ func (x *MemoryInfo) String() string {
 func (*MemoryInfo) ProtoMessage() {}
 
 func (x *MemoryInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[143]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[141]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10255,7 +10161,7 @@ func (x *MemoryInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MemoryInfo.ProtoReflect.Descriptor instead.
 func (*MemoryInfo) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{143}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{141}
 }
 
 func (x *MemoryInfo) GetTotal() uint64 {
@@ -10275,7 +10181,7 @@ type CpuInfo struct {
 
 func (x *CpuInfo) Reset() {
 	*x = CpuInfo{}
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[144]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[142]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10287,7 +10193,7 @@ func (x *CpuInfo) String() string {
 func (*CpuInfo) ProtoMessage() {}
 
 func (x *CpuInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[144]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[142]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10300,7 +10206,7 @@ func (x *CpuInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CpuInfo.ProtoReflect.Descriptor instead.
 func (*CpuInfo) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{144}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{142}
 }
 
 func (x *CpuInfo) GetCount() uint32 {
@@ -10333,7 +10239,7 @@ type AppleInfo struct {
 
 func (x *AppleInfo) Reset() {
 	*x = AppleInfo{}
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[145]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[143]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10345,7 +10251,7 @@ func (x *AppleInfo) String() string {
 func (*AppleInfo) ProtoMessage() {}
 
 func (x *AppleInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[145]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[143]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10358,7 +10264,7 @@ func (x *AppleInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AppleInfo.ProtoReflect.Descriptor instead.
 func (*AppleInfo) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{145}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{143}
 }
 
 func (x *AppleInfo) GetName() string {
@@ -10430,7 +10336,7 @@ type GpuNvidiaInfo struct {
 
 func (x *GpuNvidiaInfo) Reset() {
 	*x = GpuNvidiaInfo{}
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[146]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[144]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10442,7 +10348,7 @@ func (x *GpuNvidiaInfo) String() string {
 func (*GpuNvidiaInfo) ProtoMessage() {}
 
 func (x *GpuNvidiaInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[146]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[144]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10455,7 +10361,7 @@ func (x *GpuNvidiaInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GpuNvidiaInfo.ProtoReflect.Descriptor instead.
 func (*GpuNvidiaInfo) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{146}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{144}
 }
 
 func (x *GpuNvidiaInfo) GetName() string {
@@ -10514,7 +10420,7 @@ type GpuAmdInfo struct {
 
 func (x *GpuAmdInfo) Reset() {
 	*x = GpuAmdInfo{}
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[147]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[145]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10526,7 +10432,7 @@ func (x *GpuAmdInfo) String() string {
 func (*GpuAmdInfo) ProtoMessage() {}
 
 func (x *GpuAmdInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[147]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[145]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10539,7 +10445,7 @@ func (x *GpuAmdInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GpuAmdInfo.ProtoReflect.Descriptor instead.
 func (*GpuAmdInfo) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{147}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{145}
 }
 
 func (x *GpuAmdInfo) GetId() string {
@@ -10645,7 +10551,7 @@ type TrainiumInfo struct {
 
 func (x *TrainiumInfo) Reset() {
 	*x = TrainiumInfo{}
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[148]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[146]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10657,7 +10563,7 @@ func (x *TrainiumInfo) String() string {
 func (*TrainiumInfo) ProtoMessage() {}
 
 func (x *TrainiumInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[148]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[146]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10670,7 +10576,7 @@ func (x *TrainiumInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TrainiumInfo.ProtoReflect.Descriptor instead.
 func (*TrainiumInfo) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{148}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{146}
 }
 
 func (x *TrainiumInfo) GetName() string {
@@ -10713,7 +10619,7 @@ type TPUInfo struct {
 
 func (x *TPUInfo) Reset() {
 	*x = TPUInfo{}
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[149]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[147]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10725,7 +10631,7 @@ func (x *TPUInfo) String() string {
 func (*TPUInfo) ProtoMessage() {}
 
 func (x *TPUInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[149]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[147]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10738,7 +10644,7 @@ func (x *TPUInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TPUInfo.ProtoReflect.Descriptor instead.
 func (*TPUInfo) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{149}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{147}
 }
 
 func (x *TPUInfo) GetName() string {
@@ -10781,7 +10687,7 @@ type CoreWeaveInfo struct {
 
 func (x *CoreWeaveInfo) Reset() {
 	*x = CoreWeaveInfo{}
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[150]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[148]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10793,7 +10699,7 @@ func (x *CoreWeaveInfo) String() string {
 func (*CoreWeaveInfo) ProtoMessage() {}
 
 func (x *CoreWeaveInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[150]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[148]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10806,7 +10712,7 @@ func (x *CoreWeaveInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CoreWeaveInfo.ProtoReflect.Descriptor instead.
 func (*CoreWeaveInfo) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{150}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{148}
 }
 
 func (x *CoreWeaveInfo) GetClusterName() string {
@@ -10917,7 +10823,7 @@ type EnvironmentRecord struct {
 
 func (x *EnvironmentRecord) Reset() {
 	*x = EnvironmentRecord{}
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[151]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[149]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10929,7 +10835,7 @@ func (x *EnvironmentRecord) String() string {
 func (*EnvironmentRecord) ProtoMessage() {}
 
 func (x *EnvironmentRecord) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[151]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[149]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10942,7 +10848,7 @@ func (x *EnvironmentRecord) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EnvironmentRecord.ProtoReflect.Descriptor instead.
 func (*EnvironmentRecord) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{151}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{149}
 }
 
 func (x *EnvironmentRecord) GetOs() string {
@@ -11178,7 +11084,7 @@ type PythonPackagesRequest struct {
 
 func (x *PythonPackagesRequest) Reset() {
 	*x = PythonPackagesRequest{}
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[152]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[150]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11190,7 +11096,7 @@ func (x *PythonPackagesRequest) String() string {
 func (*PythonPackagesRequest) ProtoMessage() {}
 
 func (x *PythonPackagesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[152]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[150]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11203,7 +11109,7 @@ func (x *PythonPackagesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PythonPackagesRequest.ProtoReflect.Descriptor instead.
 func (*PythonPackagesRequest) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{152}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{150}
 }
 
 func (x *PythonPackagesRequest) GetPackage() []*PythonPackagesRequest_PythonPackage {
@@ -11228,7 +11134,7 @@ type JobInputPath struct {
 
 func (x *JobInputPath) Reset() {
 	*x = JobInputPath{}
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[153]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[151]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11240,7 +11146,7 @@ func (x *JobInputPath) String() string {
 func (*JobInputPath) ProtoMessage() {}
 
 func (x *JobInputPath) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[153]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[151]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11253,7 +11159,7 @@ func (x *JobInputPath) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use JobInputPath.ProtoReflect.Descriptor instead.
 func (*JobInputPath) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{153}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{151}
 }
 
 func (x *JobInputPath) GetPath() []string {
@@ -11281,7 +11187,7 @@ type JobInputSource struct {
 
 func (x *JobInputSource) Reset() {
 	*x = JobInputSource{}
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[154]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[152]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11293,7 +11199,7 @@ func (x *JobInputSource) String() string {
 func (*JobInputSource) ProtoMessage() {}
 
 func (x *JobInputSource) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[154]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[152]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11306,7 +11212,7 @@ func (x *JobInputSource) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use JobInputSource.ProtoReflect.Descriptor instead.
 func (*JobInputSource) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{154}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{152}
 }
 
 func (x *JobInputSource) GetSource() isJobInputSource_Source {
@@ -11372,7 +11278,7 @@ type JobInputRequest struct {
 
 func (x *JobInputRequest) Reset() {
 	*x = JobInputRequest{}
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[155]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[153]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11384,7 +11290,7 @@ func (x *JobInputRequest) String() string {
 func (*JobInputRequest) ProtoMessage() {}
 
 func (x *JobInputRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[155]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[153]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11397,7 +11303,7 @@ func (x *JobInputRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use JobInputRequest.ProtoReflect.Descriptor instead.
 func (*JobInputRequest) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{155}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{153}
 }
 
 func (x *JobInputRequest) GetInputSource() *JobInputSource {
@@ -11438,7 +11344,7 @@ type PythonPackagesRequest_PythonPackage struct {
 
 func (x *PythonPackagesRequest_PythonPackage) Reset() {
 	*x = PythonPackagesRequest_PythonPackage{}
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[159]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[157]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11450,7 +11356,7 @@ func (x *PythonPackagesRequest_PythonPackage) String() string {
 func (*PythonPackagesRequest_PythonPackage) ProtoMessage() {}
 
 func (x *PythonPackagesRequest_PythonPackage) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[159]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[157]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11463,7 +11369,7 @@ func (x *PythonPackagesRequest_PythonPackage) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use PythonPackagesRequest_PythonPackage.ProtoReflect.Descriptor instead.
 func (*PythonPackagesRequest_PythonPackage) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{152, 0}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{150, 0}
 }
 
 func (x *PythonPackagesRequest_PythonPackage) GetName() string {
@@ -11488,7 +11394,7 @@ type JobInputSource_RunConfigSource struct {
 
 func (x *JobInputSource_RunConfigSource) Reset() {
 	*x = JobInputSource_RunConfigSource{}
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[160]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[158]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11500,7 +11406,7 @@ func (x *JobInputSource_RunConfigSource) String() string {
 func (*JobInputSource_RunConfigSource) ProtoMessage() {}
 
 func (x *JobInputSource_RunConfigSource) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[160]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[158]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11513,7 +11419,7 @@ func (x *JobInputSource_RunConfigSource) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use JobInputSource_RunConfigSource.ProtoReflect.Descriptor instead.
 func (*JobInputSource_RunConfigSource) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{154, 0}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{152, 0}
 }
 
 type JobInputSource_ConfigFileSource struct {
@@ -11525,7 +11431,7 @@ type JobInputSource_ConfigFileSource struct {
 
 func (x *JobInputSource_ConfigFileSource) Reset() {
 	*x = JobInputSource_ConfigFileSource{}
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[161]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[159]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11537,7 +11443,7 @@ func (x *JobInputSource_ConfigFileSource) String() string {
 func (*JobInputSource_ConfigFileSource) ProtoMessage() {}
 
 func (x *JobInputSource_ConfigFileSource) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[161]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[159]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11550,7 +11456,7 @@ func (x *JobInputSource_ConfigFileSource) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use JobInputSource_ConfigFileSource.ProtoReflect.Descriptor instead.
 func (*JobInputSource_ConfigFileSource) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{154, 1}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{152, 1}
 }
 
 func (x *JobInputSource_ConfigFileSource) GetPath() string {
@@ -11680,9 +11586,10 @@ const file_wandb_proto_wandb_internal_proto_rawDesc = "" +
 	"\rCOMMUNICATION\x10\x01\x12\x12\n" +
 	"\x0eAUTHENTICATION\x10\x02\x12\t\n" +
 	"\x05USAGE\x10\x03\x12\x0f\n" +
-	"\vUNSUPPORTED\x10\x04\"y\n" +
+	"\vUNSUPPORTED\x10\x04\"\x9c\x01\n" +
 	"\rRunExitRecord\x12\x1b\n" +
-	"\texit_code\x18\x01 \x01(\x05R\bexitCode\x12\x18\n" +
+	"\texit_code\x18\x01 \x01(\x05R\bexitCode\x12!\n" +
+	"\fnot_complete\x18\x03 \x01(\bR\vnotComplete\x12\x18\n" +
 	"\aruntime\x18\x02 \x01(\x05R\aruntime\x121\n" +
 	"\x05_info\x18\xc8\x01 \x01(\v2\x1b.wandb_internal._RecordInfoR\x04Info\"\x0f\n" +
 	"\rRunExitResult\"H\n" +
@@ -11901,7 +11808,7 @@ const file_wandb_proto_wandb_internal_proto_rawDesc = "" +
 	"\x05level\x18\x03 \x01(\tR\x05level\x12#\n" +
 	"\rwait_duration\x18\x04 \x01(\x03R\fwaitDuration\x121\n" +
 	"\x05_info\x18\xc8\x01 \x01(\v2\x1b.wandb_internal._RecordInfoR\x04Info\"\r\n" +
-	"\vAlertResult\"\x8d\x15\n" +
+	"\vAlertResult\"\xad\x14\n" +
 	"\aRequest\x12D\n" +
 	"\vstop_status\x18\x01 \x01(\v2!.wandb_internal.StopStatusRequestH\x00R\n" +
 	"stopStatus\x12M\n" +
@@ -11941,8 +11848,7 @@ const file_wandb_proto_wandb_internal_proto_rawDesc = "" +
 	"\bjob_info\x18I \x01(\v2\x1e.wandb_internal.JobInfoRequestH\x00R\ajobInfo\x12W\n" +
 	"\x12get_system_metrics\x18J \x01(\v2'.wandb_internal.GetSystemMetricsRequestH\x00R\x10getSystemMetrics\x12>\n" +
 	"\tjob_input\x18M \x01(\v2\x1f.wandb_internal.JobInputRequestH\x00R\bjobInput\x12J\n" +
-	"\rlink_artifact\x18N \x01(\v2#.wandb_internal.LinkArtifactRequestH\x00R\flinkArtifact\x12d\n" +
-	"\x17run_finish_without_exit\x18O \x01(\v2+.wandb_internal.RunFinishWithoutExitRequestH\x00R\x14runFinishWithoutExit\x12D\n" +
+	"\rlink_artifact\x18N \x01(\v2#.wandb_internal.LinkArtifactRequestH\x00R\flinkArtifact\x12D\n" +
 	"\vsync_finish\x18Q \x01(\v2!.wandb_internal.SyncFinishRequestH\x00R\n" +
 	"syncFinish\x12G\n" +
 	"\n" +
@@ -11951,7 +11857,7 @@ const file_wandb_proto_wandb_internal_proto_rawDesc = "" +
 	"\x11probe_system_info\x18S \x01(\v2&.wandb_internal.ProbeSystemInfoRequestH\x00R\x0fprobeSystemInfo\x12E\n" +
 	"\vtest_inject\x18\xe8\a \x01(\v2!.wandb_internal.TestInjectRequestH\x00R\n" +
 	"testInjectB\x0e\n" +
-	"\frequest_typeJ\x04\b\x12\x10\x13J\x04\b\x16\x10\x17J\x04\bK\x10LJ\x04\bL\x10MJ\x04\bP\x10Q\"\xd1\x11\n" +
+	"\frequest_typeJ\x04\b\x12\x10\x13J\x04\b\x16\x10\x17J\x04\bK\x10LJ\x04\bL\x10MJ\x04\bO\x10PJ\x04\bP\x10Q\"\xdf\x10\n" +
 	"\bResponse\x12R\n" +
 	"\x12keepalive_response\x18\x12 \x01(\v2!.wandb_internal.KeepaliveResponseH\x00R\x11keepaliveResponse\x12V\n" +
 	"\x14stop_status_response\x18\x13 \x01(\v2\".wandb_internal.StopStatusResponseH\x00R\x12stopStatusResponse\x12_\n" +
@@ -11974,11 +11880,10 @@ const file_wandb_proto_wandb_internal_proto_rawDesc = "" +
 	"\x11job_info_response\x18D \x01(\v2\x1f.wandb_internal.JobInfoResponseH\x00R\x0fjobInfoResponse\x12i\n" +
 	"\x1bget_system_metrics_response\x18E \x01(\v2(.wandb_internal.GetSystemMetricsResponseH\x00R\x18getSystemMetricsResponse\x12\\\n" +
 	"\x16link_artifact_response\x18G \x01(\v2$.wandb_internal.LinkArtifactResponseH\x00R\x14linkArtifactResponse\x12C\n" +
-	"\rsync_response\x18F \x01(\v2\x1c.wandb_internal.SyncResponseH\x00R\fsyncResponse\x12v\n" +
-	" run_finish_without_exit_response\x18H \x01(\v2,.wandb_internal.RunFinishWithoutExitResponseH\x00R\x1crunFinishWithoutExitResponse\x12Y\n" +
+	"\rsync_response\x18F \x01(\v2\x1c.wandb_internal.SyncResponseH\x00R\fsyncResponse\x12Y\n" +
 	"\x13operations_response\x18J \x01(\v2&.wandb_internal.OperationStatsResponseH\x00R\x12operationsResponse\x12W\n" +
 	"\x14test_inject_response\x18\xe8\a \x01(\v2\".wandb_internal.TestInjectResponseH\x00R\x12testInjectResponseB\x0f\n" +
-	"\rresponse_typeJ\x04\b \x10!J\x04\bI\x10J\"\xc7\x02\n" +
+	"\rresponse_typeJ\x04\b \x10!J\x04\bH\x10IJ\x04\bI\x10J\"\xc7\x02\n" +
 	"\fDeferRequest\x12=\n" +
 	"\x05state\x18\x01 \x01(\x0e2'.wandb_internal.DeferRequest.DeferStateR\x05state\"\xf7\x01\n" +
 	"\n" +
@@ -12196,10 +12101,7 @@ const file_wandb_proto_wandb_internal_proto_rawDesc = "" +
 	"\x0fRunStartRequest\x12+\n" +
 	"\x03run\x18\x01 \x01(\v2\x19.wandb_internal.RunRecordR\x03run\x122\n" +
 	"\x05_info\x18\xc8\x01 \x01(\v2\x1c.wandb_internal._RequestInfoR\x04Info\"\x12\n" +
-	"\x10RunStartResponse\"Q\n" +
-	"\x1bRunFinishWithoutExitRequest\x122\n" +
-	"\x05_info\x18\xc8\x01 \x01(\v2\x1c.wandb_internal._RequestInfoR\x04Info\"\x1e\n" +
-	"\x1cRunFinishWithoutExitResponse\"r\n" +
+	"\x10RunStartResponse\"r\n" +
 	"\x13CheckVersionRequest\x12'\n" +
 	"\x0fcurrent_version\x18\x01 \x01(\tR\x0ecurrentVersion\x122\n" +
 	"\x05_info\x18\xc8\x01 \x01(\v2\x1c.wandb_internal._RequestInfoR\x04Info\"\x89\x01\n" +
@@ -12453,7 +12355,7 @@ func file_wandb_proto_wandb_internal_proto_rawDescGZIP() []byte {
 }
 
 var file_wandb_proto_wandb_internal_proto_enumTypes = make([]protoimpl.EnumInfo, 10)
-var file_wandb_proto_wandb_internal_proto_msgTypes = make([]protoimpl.MessageInfo, 162)
+var file_wandb_proto_wandb_internal_proto_msgTypes = make([]protoimpl.MessageInfo, 160)
 var file_wandb_proto_wandb_internal_proto_goTypes = []any{
 	(ServerFeature)(0),                          // 0: wandb_internal.ServerFeature
 	(ErrorInfo_ErrorCode)(0),                    // 1: wandb_internal.ErrorInfo.ErrorCode
@@ -12583,56 +12485,54 @@ var file_wandb_proto_wandb_internal_proto_goTypes = []any{
 	(*RunStatusResponse)(nil),                   // 125: wandb_internal.RunStatusResponse
 	(*RunStartRequest)(nil),                     // 126: wandb_internal.RunStartRequest
 	(*RunStartResponse)(nil),                    // 127: wandb_internal.RunStartResponse
-	(*RunFinishWithoutExitRequest)(nil),         // 128: wandb_internal.RunFinishWithoutExitRequest
-	(*RunFinishWithoutExitResponse)(nil),        // 129: wandb_internal.RunFinishWithoutExitResponse
-	(*CheckVersionRequest)(nil),                 // 130: wandb_internal.CheckVersionRequest
-	(*CheckVersionResponse)(nil),                // 131: wandb_internal.CheckVersionResponse
-	(*JobInfoRequest)(nil),                      // 132: wandb_internal.JobInfoRequest
-	(*JobInfoResponse)(nil),                     // 133: wandb_internal.JobInfoResponse
-	(*LogArtifactRequest)(nil),                  // 134: wandb_internal.LogArtifactRequest
-	(*LogArtifactResponse)(nil),                 // 135: wandb_internal.LogArtifactResponse
-	(*DownloadArtifactRequest)(nil),             // 136: wandb_internal.DownloadArtifactRequest
-	(*DownloadArtifactResponse)(nil),            // 137: wandb_internal.DownloadArtifactResponse
-	(*KeepaliveRequest)(nil),                    // 138: wandb_internal.KeepaliveRequest
-	(*KeepaliveResponse)(nil),                   // 139: wandb_internal.KeepaliveResponse
-	(*ArtifactInfo)(nil),                        // 140: wandb_internal.ArtifactInfo
-	(*GitInfo)(nil),                             // 141: wandb_internal.GitInfo
-	(*GitSource)(nil),                           // 142: wandb_internal.GitSource
-	(*ImageSource)(nil),                         // 143: wandb_internal.ImageSource
-	(*Source)(nil),                              // 144: wandb_internal.Source
-	(*JobSource)(nil),                           // 145: wandb_internal.JobSource
-	(*PartialJobArtifact)(nil),                  // 146: wandb_internal.PartialJobArtifact
-	(*UseArtifactRecord)(nil),                   // 147: wandb_internal.UseArtifactRecord
-	(*UseArtifactResult)(nil),                   // 148: wandb_internal.UseArtifactResult
-	(*CancelRequest)(nil),                       // 149: wandb_internal.CancelRequest
-	(*CancelResponse)(nil),                      // 150: wandb_internal.CancelResponse
-	(*ProbeSystemInfoRequest)(nil),              // 151: wandb_internal.ProbeSystemInfoRequest
-	(*DiskInfo)(nil),                            // 152: wandb_internal.DiskInfo
-	(*MemoryInfo)(nil),                          // 153: wandb_internal.MemoryInfo
-	(*CpuInfo)(nil),                             // 154: wandb_internal.CpuInfo
-	(*AppleInfo)(nil),                           // 155: wandb_internal.AppleInfo
-	(*GpuNvidiaInfo)(nil),                       // 156: wandb_internal.GpuNvidiaInfo
-	(*GpuAmdInfo)(nil),                          // 157: wandb_internal.GpuAmdInfo
-	(*TrainiumInfo)(nil),                        // 158: wandb_internal.TrainiumInfo
-	(*TPUInfo)(nil),                             // 159: wandb_internal.TPUInfo
-	(*CoreWeaveInfo)(nil),                       // 160: wandb_internal.CoreWeaveInfo
-	(*EnvironmentRecord)(nil),                   // 161: wandb_internal.EnvironmentRecord
-	(*PythonPackagesRequest)(nil),               // 162: wandb_internal.PythonPackagesRequest
-	(*JobInputPath)(nil),                        // 163: wandb_internal.JobInputPath
-	(*JobInputSource)(nil),                      // 164: wandb_internal.JobInputSource
-	(*JobInputRequest)(nil),                     // 165: wandb_internal.JobInputRequest
-	nil,                                         // 166: wandb_internal.GetSystemMetricsResponse.SystemMetricsEntry
-	nil,                                         // 167: wandb_internal.EnvironmentRecord.DiskEntry
-	nil,                                         // 168: wandb_internal.EnvironmentRecord.SlurmEntry
-	(*PythonPackagesRequest_PythonPackage)(nil), // 169: wandb_internal.PythonPackagesRequest.PythonPackage
-	(*JobInputSource_RunConfigSource)(nil),      // 170: wandb_internal.JobInputSource.RunConfigSource
-	(*JobInputSource_ConfigFileSource)(nil),     // 171: wandb_internal.JobInputSource.ConfigFileSource
-	(*TelemetryRecord)(nil),                     // 172: wandb_internal.TelemetryRecord
-	(*emptypb.Empty)(nil),                       // 173: google.protobuf.Empty
-	(*XRecordInfo)(nil),                         // 174: wandb_internal._RecordInfo
-	(*XResultInfo)(nil),                         // 175: wandb_internal._ResultInfo
-	(*timestamppb.Timestamp)(nil),               // 176: google.protobuf.Timestamp
-	(*XRequestInfo)(nil),                        // 177: wandb_internal._RequestInfo
+	(*CheckVersionRequest)(nil),                 // 128: wandb_internal.CheckVersionRequest
+	(*CheckVersionResponse)(nil),                // 129: wandb_internal.CheckVersionResponse
+	(*JobInfoRequest)(nil),                      // 130: wandb_internal.JobInfoRequest
+	(*JobInfoResponse)(nil),                     // 131: wandb_internal.JobInfoResponse
+	(*LogArtifactRequest)(nil),                  // 132: wandb_internal.LogArtifactRequest
+	(*LogArtifactResponse)(nil),                 // 133: wandb_internal.LogArtifactResponse
+	(*DownloadArtifactRequest)(nil),             // 134: wandb_internal.DownloadArtifactRequest
+	(*DownloadArtifactResponse)(nil),            // 135: wandb_internal.DownloadArtifactResponse
+	(*KeepaliveRequest)(nil),                    // 136: wandb_internal.KeepaliveRequest
+	(*KeepaliveResponse)(nil),                   // 137: wandb_internal.KeepaliveResponse
+	(*ArtifactInfo)(nil),                        // 138: wandb_internal.ArtifactInfo
+	(*GitInfo)(nil),                             // 139: wandb_internal.GitInfo
+	(*GitSource)(nil),                           // 140: wandb_internal.GitSource
+	(*ImageSource)(nil),                         // 141: wandb_internal.ImageSource
+	(*Source)(nil),                              // 142: wandb_internal.Source
+	(*JobSource)(nil),                           // 143: wandb_internal.JobSource
+	(*PartialJobArtifact)(nil),                  // 144: wandb_internal.PartialJobArtifact
+	(*UseArtifactRecord)(nil),                   // 145: wandb_internal.UseArtifactRecord
+	(*UseArtifactResult)(nil),                   // 146: wandb_internal.UseArtifactResult
+	(*CancelRequest)(nil),                       // 147: wandb_internal.CancelRequest
+	(*CancelResponse)(nil),                      // 148: wandb_internal.CancelResponse
+	(*ProbeSystemInfoRequest)(nil),              // 149: wandb_internal.ProbeSystemInfoRequest
+	(*DiskInfo)(nil),                            // 150: wandb_internal.DiskInfo
+	(*MemoryInfo)(nil),                          // 151: wandb_internal.MemoryInfo
+	(*CpuInfo)(nil),                             // 152: wandb_internal.CpuInfo
+	(*AppleInfo)(nil),                           // 153: wandb_internal.AppleInfo
+	(*GpuNvidiaInfo)(nil),                       // 154: wandb_internal.GpuNvidiaInfo
+	(*GpuAmdInfo)(nil),                          // 155: wandb_internal.GpuAmdInfo
+	(*TrainiumInfo)(nil),                        // 156: wandb_internal.TrainiumInfo
+	(*TPUInfo)(nil),                             // 157: wandb_internal.TPUInfo
+	(*CoreWeaveInfo)(nil),                       // 158: wandb_internal.CoreWeaveInfo
+	(*EnvironmentRecord)(nil),                   // 159: wandb_internal.EnvironmentRecord
+	(*PythonPackagesRequest)(nil),               // 160: wandb_internal.PythonPackagesRequest
+	(*JobInputPath)(nil),                        // 161: wandb_internal.JobInputPath
+	(*JobInputSource)(nil),                      // 162: wandb_internal.JobInputSource
+	(*JobInputRequest)(nil),                     // 163: wandb_internal.JobInputRequest
+	nil,                                         // 164: wandb_internal.GetSystemMetricsResponse.SystemMetricsEntry
+	nil,                                         // 165: wandb_internal.EnvironmentRecord.DiskEntry
+	nil,                                         // 166: wandb_internal.EnvironmentRecord.SlurmEntry
+	(*PythonPackagesRequest_PythonPackage)(nil), // 167: wandb_internal.PythonPackagesRequest.PythonPackage
+	(*JobInputSource_RunConfigSource)(nil),      // 168: wandb_internal.JobInputSource.RunConfigSource
+	(*JobInputSource_ConfigFileSource)(nil),     // 169: wandb_internal.JobInputSource.ConfigFileSource
+	(*TelemetryRecord)(nil),                     // 170: wandb_internal.TelemetryRecord
+	(*emptypb.Empty)(nil),                       // 171: google.protobuf.Empty
+	(*XRecordInfo)(nil),                         // 172: wandb_internal._RecordInfo
+	(*XResultInfo)(nil),                         // 173: wandb_internal._ResultInfo
+	(*timestamppb.Timestamp)(nil),               // 174: google.protobuf.Timestamp
+	(*XRequestInfo)(nil),                        // 175: wandb_internal._RequestInfo
 }
 var file_wandb_proto_wandb_internal_proto_depIdxs = []int32{
 	29,  // 0: wandb_internal.Record.history:type_name -> wandb_internal.HistoryRecord
@@ -12644,7 +12544,7 @@ var file_wandb_proto_wandb_internal_proto_depIdxs = []int32{
 	52,  // 6: wandb_internal.Record.artifact:type_name -> wandb_internal.ArtifactRecord
 	61,  // 7: wandb_internal.Record.tbrecord:type_name -> wandb_internal.TBRecord
 	63,  // 8: wandb_internal.Record.alert:type_name -> wandb_internal.AlertRecord
-	172, // 9: wandb_internal.Record.telemetry:type_name -> wandb_internal.TelemetryRecord
+	170, // 9: wandb_internal.Record.telemetry:type_name -> wandb_internal.TelemetryRecord
 	36,  // 10: wandb_internal.Record.metric:type_name -> wandb_internal.MetricRecord
 	34,  // 11: wandb_internal.Record.output_raw:type_name -> wandb_internal.OutputRawRecord
 	18,  // 12: wandb_internal.Record.run:type_name -> wandb_internal.RunRecord
@@ -12653,12 +12553,12 @@ var file_wandb_proto_wandb_internal_proto_depIdxs = []int32{
 	15,  // 15: wandb_internal.Record.header:type_name -> wandb_internal.HeaderRecord
 	16,  // 16: wandb_internal.Record.footer:type_name -> wandb_internal.FooterRecord
 	24,  // 17: wandb_internal.Record.preempting:type_name -> wandb_internal.RunPreemptingRecord
-	173, // 18: wandb_internal.Record.noop_link_artifact:type_name -> google.protobuf.Empty
-	147, // 19: wandb_internal.Record.use_artifact:type_name -> wandb_internal.UseArtifactRecord
-	161, // 20: wandb_internal.Record.environment:type_name -> wandb_internal.EnvironmentRecord
+	171, // 18: wandb_internal.Record.noop_link_artifact:type_name -> google.protobuf.Empty
+	145, // 19: wandb_internal.Record.use_artifact:type_name -> wandb_internal.UseArtifactRecord
+	159, // 20: wandb_internal.Record.environment:type_name -> wandb_internal.EnvironmentRecord
 	65,  // 21: wandb_internal.Record.request:type_name -> wandb_internal.Request
 	11,  // 22: wandb_internal.Record.control:type_name -> wandb_internal.Control
-	174, // 23: wandb_internal.Record._info:type_name -> wandb_internal._RecordInfo
+	172, // 23: wandb_internal.Record._info:type_name -> wandb_internal._RecordInfo
 	20,  // 24: wandb_internal.Result.run_result:type_name -> wandb_internal.RunUpdateResult
 	23,  // 25: wandb_internal.Result.exit_result:type_name -> wandb_internal.RunExitResult
 	31,  // 26: wandb_internal.Result.log_result:type_name -> wandb_internal.HistoryResult
@@ -12667,63 +12567,63 @@ var file_wandb_proto_wandb_internal_proto_depIdxs = []int32{
 	43,  // 29: wandb_internal.Result.config_result:type_name -> wandb_internal.ConfigResult
 	66,  // 30: wandb_internal.Result.response:type_name -> wandb_internal.Response
 	11,  // 31: wandb_internal.Result.control:type_name -> wandb_internal.Control
-	175, // 32: wandb_internal.Result._info:type_name -> wandb_internal._ResultInfo
-	174, // 33: wandb_internal.FinalRecord._info:type_name -> wandb_internal._RecordInfo
-	174, // 34: wandb_internal.VersionInfo._info:type_name -> wandb_internal._RecordInfo
+	173, // 32: wandb_internal.Result._info:type_name -> wandb_internal._ResultInfo
+	172, // 33: wandb_internal.FinalRecord._info:type_name -> wandb_internal._RecordInfo
+	172, // 34: wandb_internal.VersionInfo._info:type_name -> wandb_internal._RecordInfo
 	14,  // 35: wandb_internal.HeaderRecord.version_info:type_name -> wandb_internal.VersionInfo
-	174, // 36: wandb_internal.HeaderRecord._info:type_name -> wandb_internal._RecordInfo
-	174, // 37: wandb_internal.FooterRecord._info:type_name -> wandb_internal._RecordInfo
+	172, // 36: wandb_internal.HeaderRecord._info:type_name -> wandb_internal._RecordInfo
+	172, // 37: wandb_internal.FooterRecord._info:type_name -> wandb_internal._RecordInfo
 	41,  // 38: wandb_internal.RunRecord.config:type_name -> wandb_internal.ConfigRecord
 	44,  // 39: wandb_internal.RunRecord.summary:type_name -> wandb_internal.SummaryRecord
 	26,  // 40: wandb_internal.RunRecord.settings:type_name -> wandb_internal.SettingsRecord
-	176, // 41: wandb_internal.RunRecord.start_time:type_name -> google.protobuf.Timestamp
-	172, // 42: wandb_internal.RunRecord.telemetry:type_name -> wandb_internal.TelemetryRecord
+	174, // 41: wandb_internal.RunRecord.start_time:type_name -> google.protobuf.Timestamp
+	170, // 42: wandb_internal.RunRecord.telemetry:type_name -> wandb_internal.TelemetryRecord
 	19,  // 43: wandb_internal.RunRecord.git:type_name -> wandb_internal.GitRepoRecord
 	17,  // 44: wandb_internal.RunRecord.branch_point:type_name -> wandb_internal.BranchPoint
-	174, // 45: wandb_internal.RunRecord._info:type_name -> wandb_internal._RecordInfo
+	172, // 45: wandb_internal.RunRecord._info:type_name -> wandb_internal._RecordInfo
 	18,  // 46: wandb_internal.RunUpdateResult.run:type_name -> wandb_internal.RunRecord
 	21,  // 47: wandb_internal.RunUpdateResult.error:type_name -> wandb_internal.ErrorInfo
 	1,   // 48: wandb_internal.ErrorInfo.code:type_name -> wandb_internal.ErrorInfo.ErrorCode
-	174, // 49: wandb_internal.RunExitRecord._info:type_name -> wandb_internal._RecordInfo
-	174, // 50: wandb_internal.RunPreemptingRecord._info:type_name -> wandb_internal._RecordInfo
+	172, // 49: wandb_internal.RunExitRecord._info:type_name -> wandb_internal._RecordInfo
+	172, // 50: wandb_internal.RunPreemptingRecord._info:type_name -> wandb_internal._RecordInfo
 	27,  // 51: wandb_internal.SettingsRecord.item:type_name -> wandb_internal.SettingsItem
-	174, // 52: wandb_internal.SettingsRecord._info:type_name -> wandb_internal._RecordInfo
+	172, // 52: wandb_internal.SettingsRecord._info:type_name -> wandb_internal._RecordInfo
 	30,  // 53: wandb_internal.HistoryRecord.item:type_name -> wandb_internal.HistoryItem
 	28,  // 54: wandb_internal.HistoryRecord.step:type_name -> wandb_internal.HistoryStep
-	174, // 55: wandb_internal.HistoryRecord._info:type_name -> wandb_internal._RecordInfo
+	172, // 55: wandb_internal.HistoryRecord._info:type_name -> wandb_internal._RecordInfo
 	2,   // 56: wandb_internal.OutputRecord.output_type:type_name -> wandb_internal.OutputRecord.OutputType
-	176, // 57: wandb_internal.OutputRecord.timestamp:type_name -> google.protobuf.Timestamp
-	174, // 58: wandb_internal.OutputRecord._info:type_name -> wandb_internal._RecordInfo
+	174, // 57: wandb_internal.OutputRecord.timestamp:type_name -> google.protobuf.Timestamp
+	172, // 58: wandb_internal.OutputRecord._info:type_name -> wandb_internal._RecordInfo
 	3,   // 59: wandb_internal.OutputRawRecord.output_type:type_name -> wandb_internal.OutputRawRecord.OutputType
-	176, // 60: wandb_internal.OutputRawRecord.timestamp:type_name -> google.protobuf.Timestamp
-	174, // 61: wandb_internal.OutputRawRecord._info:type_name -> wandb_internal._RecordInfo
+	174, // 60: wandb_internal.OutputRawRecord.timestamp:type_name -> google.protobuf.Timestamp
+	172, // 61: wandb_internal.OutputRawRecord._info:type_name -> wandb_internal._RecordInfo
 	38,  // 62: wandb_internal.MetricRecord.options:type_name -> wandb_internal.MetricOptions
 	40,  // 63: wandb_internal.MetricRecord.summary:type_name -> wandb_internal.MetricSummary
 	4,   // 64: wandb_internal.MetricRecord.goal:type_name -> wandb_internal.MetricRecord.MetricGoal
 	39,  // 65: wandb_internal.MetricRecord._control:type_name -> wandb_internal.MetricControl
-	174, // 66: wandb_internal.MetricRecord._info:type_name -> wandb_internal._RecordInfo
+	172, // 66: wandb_internal.MetricRecord._info:type_name -> wandb_internal._RecordInfo
 	42,  // 67: wandb_internal.ConfigRecord.update:type_name -> wandb_internal.ConfigItem
 	42,  // 68: wandb_internal.ConfigRecord.remove:type_name -> wandb_internal.ConfigItem
-	174, // 69: wandb_internal.ConfigRecord._info:type_name -> wandb_internal._RecordInfo
+	172, // 69: wandb_internal.ConfigRecord._info:type_name -> wandb_internal._RecordInfo
 	45,  // 70: wandb_internal.SummaryRecord.update:type_name -> wandb_internal.SummaryItem
 	45,  // 71: wandb_internal.SummaryRecord.remove:type_name -> wandb_internal.SummaryItem
-	174, // 72: wandb_internal.SummaryRecord._info:type_name -> wandb_internal._RecordInfo
+	172, // 72: wandb_internal.SummaryRecord._info:type_name -> wandb_internal._RecordInfo
 	48,  // 73: wandb_internal.FilesRecord.files:type_name -> wandb_internal.FilesItem
-	174, // 74: wandb_internal.FilesRecord._info:type_name -> wandb_internal._RecordInfo
+	172, // 74: wandb_internal.FilesRecord._info:type_name -> wandb_internal._RecordInfo
 	5,   // 75: wandb_internal.FilesItem.policy:type_name -> wandb_internal.FilesItem.PolicyType
 	6,   // 76: wandb_internal.FilesItem.type:type_name -> wandb_internal.FilesItem.FileType
 	7,   // 77: wandb_internal.StatsRecord.stats_type:type_name -> wandb_internal.StatsRecord.StatsType
-	176, // 78: wandb_internal.StatsRecord.timestamp:type_name -> google.protobuf.Timestamp
+	174, // 78: wandb_internal.StatsRecord.timestamp:type_name -> google.protobuf.Timestamp
 	51,  // 79: wandb_internal.StatsRecord.item:type_name -> wandb_internal.StatsItem
-	174, // 80: wandb_internal.StatsRecord._info:type_name -> wandb_internal._RecordInfo
+	172, // 80: wandb_internal.StatsRecord._info:type_name -> wandb_internal._RecordInfo
 	53,  // 81: wandb_internal.ArtifactRecord.manifest:type_name -> wandb_internal.ArtifactManifest
-	174, // 82: wandb_internal.ArtifactRecord._info:type_name -> wandb_internal._RecordInfo
+	172, // 82: wandb_internal.ArtifactRecord._info:type_name -> wandb_internal._RecordInfo
 	56,  // 83: wandb_internal.ArtifactManifest.storage_policy_config:type_name -> wandb_internal.StoragePolicyConfigItem
 	54,  // 84: wandb_internal.ArtifactManifest.contents:type_name -> wandb_internal.ArtifactManifestEntry
 	55,  // 85: wandb_internal.ArtifactManifestEntry.extra:type_name -> wandb_internal.ExtraItem
-	174, // 86: wandb_internal.LinkArtifactRequest._info:type_name -> wandb_internal._RecordInfo
-	174, // 87: wandb_internal.TBRecord._info:type_name -> wandb_internal._RecordInfo
-	174, // 88: wandb_internal.AlertRecord._info:type_name -> wandb_internal._RecordInfo
+	172, // 86: wandb_internal.LinkArtifactRequest._info:type_name -> wandb_internal._RecordInfo
+	172, // 87: wandb_internal.TBRecord._info:type_name -> wandb_internal._RecordInfo
+	172, // 88: wandb_internal.AlertRecord._info:type_name -> wandb_internal._RecordInfo
 	82,  // 89: wandb_internal.Request.stop_status:type_name -> wandb_internal.StopStatusRequest
 	84,  // 90: wandb_internal.Request.network_status:type_name -> wandb_internal.NetworkStatusRequest
 	67,  // 91: wandb_internal.Request.defer:type_name -> wandb_internal.DeferRequest
@@ -12735,14 +12635,14 @@ var file_wandb_proto_wandb_internal_proto_depIdxs = []int32{
 	121, // 97: wandb_internal.Request.sampled_history:type_name -> wandb_internal.SampledHistoryRequest
 	119, // 98: wandb_internal.Request.partial_history:type_name -> wandb_internal.PartialHistoryRequest
 	126, // 99: wandb_internal.Request.run_start:type_name -> wandb_internal.RunStartRequest
-	130, // 100: wandb_internal.Request.check_version:type_name -> wandb_internal.CheckVersionRequest
-	134, // 101: wandb_internal.Request.log_artifact:type_name -> wandb_internal.LogArtifactRequest
-	136, // 102: wandb_internal.Request.download_artifact:type_name -> wandb_internal.DownloadArtifactRequest
-	138, // 103: wandb_internal.Request.keepalive:type_name -> wandb_internal.KeepaliveRequest
+	128, // 100: wandb_internal.Request.check_version:type_name -> wandb_internal.CheckVersionRequest
+	132, // 101: wandb_internal.Request.log_artifact:type_name -> wandb_internal.LogArtifactRequest
+	134, // 102: wandb_internal.Request.download_artifact:type_name -> wandb_internal.DownloadArtifactRequest
+	136, // 103: wandb_internal.Request.keepalive:type_name -> wandb_internal.KeepaliveRequest
 	124, // 104: wandb_internal.Request.run_status:type_name -> wandb_internal.RunStatusRequest
-	149, // 105: wandb_internal.Request.cancel:type_name -> wandb_internal.CancelRequest
+	147, // 105: wandb_internal.Request.cancel:type_name -> wandb_internal.CancelRequest
 	87,  // 106: wandb_internal.Request.internal_messages:type_name -> wandb_internal.InternalMessagesRequest
-	162, // 107: wandb_internal.Request.python_packages:type_name -> wandb_internal.PythonPackagesRequest
+	160, // 107: wandb_internal.Request.python_packages:type_name -> wandb_internal.PythonPackagesRequest
 	112, // 108: wandb_internal.Request.shutdown:type_name -> wandb_internal.ShutdownRequest
 	114, // 109: wandb_internal.Request.attach:type_name -> wandb_internal.AttachRequest
 	80,  // 110: wandb_internal.Request.status:type_name -> wandb_internal.StatusRequest
@@ -12752,132 +12652,129 @@ var file_wandb_proto_wandb_internal_proto_depIdxs = []int32{
 	100, // 114: wandb_internal.Request.status_report:type_name -> wandb_internal.StatusReportRequest
 	101, // 115: wandb_internal.Request.summary_record:type_name -> wandb_internal.SummaryRecordRequest
 	102, // 116: wandb_internal.Request.telemetry_record:type_name -> wandb_internal.TelemetryRecordRequest
-	132, // 117: wandb_internal.Request.job_info:type_name -> wandb_internal.JobInfoRequest
+	130, // 117: wandb_internal.Request.job_info:type_name -> wandb_internal.JobInfoRequest
 	76,  // 118: wandb_internal.Request.get_system_metrics:type_name -> wandb_internal.GetSystemMetricsRequest
-	165, // 119: wandb_internal.Request.job_input:type_name -> wandb_internal.JobInputRequest
+	163, // 119: wandb_internal.Request.job_input:type_name -> wandb_internal.JobInputRequest
 	59,  // 120: wandb_internal.Request.link_artifact:type_name -> wandb_internal.LinkArtifactRequest
-	128, // 121: wandb_internal.Request.run_finish_without_exit:type_name -> wandb_internal.RunFinishWithoutExitRequest
-	97,  // 122: wandb_internal.Request.sync_finish:type_name -> wandb_internal.SyncFinishRequest
-	92,  // 123: wandb_internal.Request.operations:type_name -> wandb_internal.OperationStatsRequest
-	151, // 124: wandb_internal.Request.probe_system_info:type_name -> wandb_internal.ProbeSystemInfoRequest
-	116, // 125: wandb_internal.Request.test_inject:type_name -> wandb_internal.TestInjectRequest
-	139, // 126: wandb_internal.Response.keepalive_response:type_name -> wandb_internal.KeepaliveResponse
-	83,  // 127: wandb_internal.Response.stop_status_response:type_name -> wandb_internal.StopStatusResponse
-	85,  // 128: wandb_internal.Response.network_status_response:type_name -> wandb_internal.NetworkStatusResponse
-	73,  // 129: wandb_internal.Response.login_response:type_name -> wandb_internal.LoginResponse
-	75,  // 130: wandb_internal.Response.get_summary_response:type_name -> wandb_internal.GetSummaryResponse
-	91,  // 131: wandb_internal.Response.poll_exit_response:type_name -> wandb_internal.PollExitResponse
-	123, // 132: wandb_internal.Response.sampled_history_response:type_name -> wandb_internal.SampledHistoryResponse
-	127, // 133: wandb_internal.Response.run_start_response:type_name -> wandb_internal.RunStartResponse
-	131, // 134: wandb_internal.Response.check_version_response:type_name -> wandb_internal.CheckVersionResponse
-	135, // 135: wandb_internal.Response.log_artifact_response:type_name -> wandb_internal.LogArtifactResponse
-	137, // 136: wandb_internal.Response.download_artifact_response:type_name -> wandb_internal.DownloadArtifactResponse
-	125, // 137: wandb_internal.Response.run_status_response:type_name -> wandb_internal.RunStatusResponse
-	150, // 138: wandb_internal.Response.cancel_response:type_name -> wandb_internal.CancelResponse
-	88,  // 139: wandb_internal.Response.internal_messages_response:type_name -> wandb_internal.InternalMessagesResponse
-	113, // 140: wandb_internal.Response.shutdown_response:type_name -> wandb_internal.ShutdownResponse
-	115, // 141: wandb_internal.Response.attach_response:type_name -> wandb_internal.AttachResponse
-	81,  // 142: wandb_internal.Response.status_response:type_name -> wandb_internal.StatusResponse
-	104, // 143: wandb_internal.Response.server_info_response:type_name -> wandb_internal.ServerInfoResponse
-	133, // 144: wandb_internal.Response.job_info_response:type_name -> wandb_internal.JobInfoResponse
-	79,  // 145: wandb_internal.Response.get_system_metrics_response:type_name -> wandb_internal.GetSystemMetricsResponse
-	60,  // 146: wandb_internal.Response.link_artifact_response:type_name -> wandb_internal.LinkArtifactResponse
-	98,  // 147: wandb_internal.Response.sync_response:type_name -> wandb_internal.SyncResponse
-	129, // 148: wandb_internal.Response.run_finish_without_exit_response:type_name -> wandb_internal.RunFinishWithoutExitResponse
-	93,  // 149: wandb_internal.Response.operations_response:type_name -> wandb_internal.OperationStatsResponse
-	117, // 150: wandb_internal.Response.test_inject_response:type_name -> wandb_internal.TestInjectResponse
-	8,   // 151: wandb_internal.DeferRequest.state:type_name -> wandb_internal.DeferRequest.DeferState
-	177, // 152: wandb_internal.PauseRequest._info:type_name -> wandb_internal._RequestInfo
-	177, // 153: wandb_internal.ResumeRequest._info:type_name -> wandb_internal._RequestInfo
-	177, // 154: wandb_internal.LoginRequest._info:type_name -> wandb_internal._RequestInfo
-	177, // 155: wandb_internal.GetSummaryRequest._info:type_name -> wandb_internal._RequestInfo
-	45,  // 156: wandb_internal.GetSummaryResponse.item:type_name -> wandb_internal.SummaryItem
-	177, // 157: wandb_internal.GetSystemMetricsRequest._info:type_name -> wandb_internal._RequestInfo
-	176, // 158: wandb_internal.SystemMetricSample.timestamp:type_name -> google.protobuf.Timestamp
-	77,  // 159: wandb_internal.SystemMetricsBuffer.record:type_name -> wandb_internal.SystemMetricSample
-	166, // 160: wandb_internal.GetSystemMetricsResponse.system_metrics:type_name -> wandb_internal.GetSystemMetricsResponse.SystemMetricsEntry
-	177, // 161: wandb_internal.StatusRequest._info:type_name -> wandb_internal._RequestInfo
-	177, // 162: wandb_internal.StopStatusRequest._info:type_name -> wandb_internal._RequestInfo
-	177, // 163: wandb_internal.NetworkStatusRequest._info:type_name -> wandb_internal._RequestInfo
-	86,  // 164: wandb_internal.NetworkStatusResponse.network_responses:type_name -> wandb_internal.HttpResponse
-	177, // 165: wandb_internal.InternalMessagesRequest._info:type_name -> wandb_internal._RequestInfo
-	89,  // 166: wandb_internal.InternalMessagesResponse.messages:type_name -> wandb_internal.InternalMessages
-	177, // 167: wandb_internal.PollExitRequest._info:type_name -> wandb_internal._RequestInfo
-	23,  // 168: wandb_internal.PollExitResponse.exit_result:type_name -> wandb_internal.RunExitResult
-	108, // 169: wandb_internal.PollExitResponse.pusher_stats:type_name -> wandb_internal.FilePusherStats
-	107, // 170: wandb_internal.PollExitResponse.file_counts:type_name -> wandb_internal.FileCounts
-	94,  // 171: wandb_internal.PollExitResponse.operation_stats:type_name -> wandb_internal.OperationStats
-	177, // 172: wandb_internal.OperationStatsRequest._info:type_name -> wandb_internal._RequestInfo
-	94,  // 173: wandb_internal.OperationStatsResponse.operation_stats:type_name -> wandb_internal.OperationStats
-	95,  // 174: wandb_internal.OperationStats.operations:type_name -> wandb_internal.Operation
-	95,  // 175: wandb_internal.Operation.subtasks:type_name -> wandb_internal.Operation
-	21,  // 176: wandb_internal.SyncResponse.error:type_name -> wandb_internal.ErrorInfo
-	176, // 177: wandb_internal.StatusReportRequest.sync_time:type_name -> google.protobuf.Timestamp
-	44,  // 178: wandb_internal.SummaryRecordRequest.summary:type_name -> wandb_internal.SummaryRecord
-	172, // 179: wandb_internal.TelemetryRecordRequest.telemetry:type_name -> wandb_internal.TelemetryRecord
-	177, // 180: wandb_internal.ServerInfoRequest._info:type_name -> wandb_internal._RequestInfo
-	111, // 181: wandb_internal.ServerInfoResponse.local_info:type_name -> wandb_internal.LocalInfo
-	105, // 182: wandb_internal.ServerInfoResponse.server_messages:type_name -> wandb_internal.ServerMessages
-	106, // 183: wandb_internal.ServerMessages.item:type_name -> wandb_internal.ServerMessage
-	9,   // 184: wandb_internal.FileTransferInfoRequest.type:type_name -> wandb_internal.FileTransferInfoRequest.TransferType
-	107, // 185: wandb_internal.FileTransferInfoRequest.file_counts:type_name -> wandb_internal.FileCounts
-	177, // 186: wandb_internal.ShutdownRequest._info:type_name -> wandb_internal._RequestInfo
-	177, // 187: wandb_internal.AttachRequest._info:type_name -> wandb_internal._RequestInfo
-	18,  // 188: wandb_internal.AttachResponse.run:type_name -> wandb_internal.RunRecord
-	21,  // 189: wandb_internal.AttachResponse.error:type_name -> wandb_internal.ErrorInfo
-	177, // 190: wandb_internal.TestInjectRequest._info:type_name -> wandb_internal._RequestInfo
-	30,  // 191: wandb_internal.PartialHistoryRequest.item:type_name -> wandb_internal.HistoryItem
-	28,  // 192: wandb_internal.PartialHistoryRequest.step:type_name -> wandb_internal.HistoryStep
-	118, // 193: wandb_internal.PartialHistoryRequest.action:type_name -> wandb_internal.HistoryAction
-	177, // 194: wandb_internal.PartialHistoryRequest._info:type_name -> wandb_internal._RequestInfo
-	177, // 195: wandb_internal.SampledHistoryRequest._info:type_name -> wandb_internal._RequestInfo
-	122, // 196: wandb_internal.SampledHistoryResponse.item:type_name -> wandb_internal.SampledHistoryItem
-	177, // 197: wandb_internal.RunStatusRequest._info:type_name -> wandb_internal._RequestInfo
-	176, // 198: wandb_internal.RunStatusResponse.sync_time:type_name -> google.protobuf.Timestamp
-	18,  // 199: wandb_internal.RunStartRequest.run:type_name -> wandb_internal.RunRecord
-	177, // 200: wandb_internal.RunStartRequest._info:type_name -> wandb_internal._RequestInfo
-	177, // 201: wandb_internal.RunFinishWithoutExitRequest._info:type_name -> wandb_internal._RequestInfo
-	177, // 202: wandb_internal.CheckVersionRequest._info:type_name -> wandb_internal._RequestInfo
-	177, // 203: wandb_internal.JobInfoRequest._info:type_name -> wandb_internal._RequestInfo
-	52,  // 204: wandb_internal.LogArtifactRequest.artifact:type_name -> wandb_internal.ArtifactRecord
-	177, // 205: wandb_internal.LogArtifactRequest._info:type_name -> wandb_internal._RequestInfo
-	177, // 206: wandb_internal.DownloadArtifactRequest._info:type_name -> wandb_internal._RequestInfo
-	177, // 207: wandb_internal.KeepaliveRequest._info:type_name -> wandb_internal._RequestInfo
-	141, // 208: wandb_internal.GitSource.git_info:type_name -> wandb_internal.GitInfo
-	142, // 209: wandb_internal.Source.git:type_name -> wandb_internal.GitSource
-	140, // 210: wandb_internal.Source.artifact:type_name -> wandb_internal.ArtifactInfo
-	143, // 211: wandb_internal.Source.image:type_name -> wandb_internal.ImageSource
-	144, // 212: wandb_internal.JobSource.source:type_name -> wandb_internal.Source
-	145, // 213: wandb_internal.PartialJobArtifact.source_info:type_name -> wandb_internal.JobSource
-	146, // 214: wandb_internal.UseArtifactRecord.partial:type_name -> wandb_internal.PartialJobArtifact
-	174, // 215: wandb_internal.UseArtifactRecord._info:type_name -> wandb_internal._RecordInfo
-	177, // 216: wandb_internal.CancelRequest._info:type_name -> wandb_internal._RequestInfo
-	176, // 217: wandb_internal.EnvironmentRecord.started_at:type_name -> google.protobuf.Timestamp
-	19,  // 218: wandb_internal.EnvironmentRecord.git:type_name -> wandb_internal.GitRepoRecord
-	167, // 219: wandb_internal.EnvironmentRecord.disk:type_name -> wandb_internal.EnvironmentRecord.DiskEntry
-	153, // 220: wandb_internal.EnvironmentRecord.memory:type_name -> wandb_internal.MemoryInfo
-	154, // 221: wandb_internal.EnvironmentRecord.cpu:type_name -> wandb_internal.CpuInfo
-	155, // 222: wandb_internal.EnvironmentRecord.apple:type_name -> wandb_internal.AppleInfo
-	156, // 223: wandb_internal.EnvironmentRecord.gpu_nvidia:type_name -> wandb_internal.GpuNvidiaInfo
-	157, // 224: wandb_internal.EnvironmentRecord.gpu_amd:type_name -> wandb_internal.GpuAmdInfo
-	168, // 225: wandb_internal.EnvironmentRecord.slurm:type_name -> wandb_internal.EnvironmentRecord.SlurmEntry
-	158, // 226: wandb_internal.EnvironmentRecord.trainium:type_name -> wandb_internal.TrainiumInfo
-	159, // 227: wandb_internal.EnvironmentRecord.tpu:type_name -> wandb_internal.TPUInfo
-	160, // 228: wandb_internal.EnvironmentRecord.coreweave:type_name -> wandb_internal.CoreWeaveInfo
-	174, // 229: wandb_internal.EnvironmentRecord._info:type_name -> wandb_internal._RecordInfo
-	169, // 230: wandb_internal.PythonPackagesRequest.package:type_name -> wandb_internal.PythonPackagesRequest.PythonPackage
-	170, // 231: wandb_internal.JobInputSource.run_config:type_name -> wandb_internal.JobInputSource.RunConfigSource
-	171, // 232: wandb_internal.JobInputSource.file:type_name -> wandb_internal.JobInputSource.ConfigFileSource
-	164, // 233: wandb_internal.JobInputRequest.input_source:type_name -> wandb_internal.JobInputSource
-	163, // 234: wandb_internal.JobInputRequest.include_paths:type_name -> wandb_internal.JobInputPath
-	163, // 235: wandb_internal.JobInputRequest.exclude_paths:type_name -> wandb_internal.JobInputPath
-	78,  // 236: wandb_internal.GetSystemMetricsResponse.SystemMetricsEntry.value:type_name -> wandb_internal.SystemMetricsBuffer
-	152, // 237: wandb_internal.EnvironmentRecord.DiskEntry.value:type_name -> wandb_internal.DiskInfo
-	238, // [238:238] is the sub-list for method output_type
-	238, // [238:238] is the sub-list for method input_type
-	238, // [238:238] is the sub-list for extension type_name
-	238, // [238:238] is the sub-list for extension extendee
-	0,   // [0:238] is the sub-list for field type_name
+	97,  // 121: wandb_internal.Request.sync_finish:type_name -> wandb_internal.SyncFinishRequest
+	92,  // 122: wandb_internal.Request.operations:type_name -> wandb_internal.OperationStatsRequest
+	149, // 123: wandb_internal.Request.probe_system_info:type_name -> wandb_internal.ProbeSystemInfoRequest
+	116, // 124: wandb_internal.Request.test_inject:type_name -> wandb_internal.TestInjectRequest
+	137, // 125: wandb_internal.Response.keepalive_response:type_name -> wandb_internal.KeepaliveResponse
+	83,  // 126: wandb_internal.Response.stop_status_response:type_name -> wandb_internal.StopStatusResponse
+	85,  // 127: wandb_internal.Response.network_status_response:type_name -> wandb_internal.NetworkStatusResponse
+	73,  // 128: wandb_internal.Response.login_response:type_name -> wandb_internal.LoginResponse
+	75,  // 129: wandb_internal.Response.get_summary_response:type_name -> wandb_internal.GetSummaryResponse
+	91,  // 130: wandb_internal.Response.poll_exit_response:type_name -> wandb_internal.PollExitResponse
+	123, // 131: wandb_internal.Response.sampled_history_response:type_name -> wandb_internal.SampledHistoryResponse
+	127, // 132: wandb_internal.Response.run_start_response:type_name -> wandb_internal.RunStartResponse
+	129, // 133: wandb_internal.Response.check_version_response:type_name -> wandb_internal.CheckVersionResponse
+	133, // 134: wandb_internal.Response.log_artifact_response:type_name -> wandb_internal.LogArtifactResponse
+	135, // 135: wandb_internal.Response.download_artifact_response:type_name -> wandb_internal.DownloadArtifactResponse
+	125, // 136: wandb_internal.Response.run_status_response:type_name -> wandb_internal.RunStatusResponse
+	148, // 137: wandb_internal.Response.cancel_response:type_name -> wandb_internal.CancelResponse
+	88,  // 138: wandb_internal.Response.internal_messages_response:type_name -> wandb_internal.InternalMessagesResponse
+	113, // 139: wandb_internal.Response.shutdown_response:type_name -> wandb_internal.ShutdownResponse
+	115, // 140: wandb_internal.Response.attach_response:type_name -> wandb_internal.AttachResponse
+	81,  // 141: wandb_internal.Response.status_response:type_name -> wandb_internal.StatusResponse
+	104, // 142: wandb_internal.Response.server_info_response:type_name -> wandb_internal.ServerInfoResponse
+	131, // 143: wandb_internal.Response.job_info_response:type_name -> wandb_internal.JobInfoResponse
+	79,  // 144: wandb_internal.Response.get_system_metrics_response:type_name -> wandb_internal.GetSystemMetricsResponse
+	60,  // 145: wandb_internal.Response.link_artifact_response:type_name -> wandb_internal.LinkArtifactResponse
+	98,  // 146: wandb_internal.Response.sync_response:type_name -> wandb_internal.SyncResponse
+	93,  // 147: wandb_internal.Response.operations_response:type_name -> wandb_internal.OperationStatsResponse
+	117, // 148: wandb_internal.Response.test_inject_response:type_name -> wandb_internal.TestInjectResponse
+	8,   // 149: wandb_internal.DeferRequest.state:type_name -> wandb_internal.DeferRequest.DeferState
+	175, // 150: wandb_internal.PauseRequest._info:type_name -> wandb_internal._RequestInfo
+	175, // 151: wandb_internal.ResumeRequest._info:type_name -> wandb_internal._RequestInfo
+	175, // 152: wandb_internal.LoginRequest._info:type_name -> wandb_internal._RequestInfo
+	175, // 153: wandb_internal.GetSummaryRequest._info:type_name -> wandb_internal._RequestInfo
+	45,  // 154: wandb_internal.GetSummaryResponse.item:type_name -> wandb_internal.SummaryItem
+	175, // 155: wandb_internal.GetSystemMetricsRequest._info:type_name -> wandb_internal._RequestInfo
+	174, // 156: wandb_internal.SystemMetricSample.timestamp:type_name -> google.protobuf.Timestamp
+	77,  // 157: wandb_internal.SystemMetricsBuffer.record:type_name -> wandb_internal.SystemMetricSample
+	164, // 158: wandb_internal.GetSystemMetricsResponse.system_metrics:type_name -> wandb_internal.GetSystemMetricsResponse.SystemMetricsEntry
+	175, // 159: wandb_internal.StatusRequest._info:type_name -> wandb_internal._RequestInfo
+	175, // 160: wandb_internal.StopStatusRequest._info:type_name -> wandb_internal._RequestInfo
+	175, // 161: wandb_internal.NetworkStatusRequest._info:type_name -> wandb_internal._RequestInfo
+	86,  // 162: wandb_internal.NetworkStatusResponse.network_responses:type_name -> wandb_internal.HttpResponse
+	175, // 163: wandb_internal.InternalMessagesRequest._info:type_name -> wandb_internal._RequestInfo
+	89,  // 164: wandb_internal.InternalMessagesResponse.messages:type_name -> wandb_internal.InternalMessages
+	175, // 165: wandb_internal.PollExitRequest._info:type_name -> wandb_internal._RequestInfo
+	23,  // 166: wandb_internal.PollExitResponse.exit_result:type_name -> wandb_internal.RunExitResult
+	108, // 167: wandb_internal.PollExitResponse.pusher_stats:type_name -> wandb_internal.FilePusherStats
+	107, // 168: wandb_internal.PollExitResponse.file_counts:type_name -> wandb_internal.FileCounts
+	94,  // 169: wandb_internal.PollExitResponse.operation_stats:type_name -> wandb_internal.OperationStats
+	175, // 170: wandb_internal.OperationStatsRequest._info:type_name -> wandb_internal._RequestInfo
+	94,  // 171: wandb_internal.OperationStatsResponse.operation_stats:type_name -> wandb_internal.OperationStats
+	95,  // 172: wandb_internal.OperationStats.operations:type_name -> wandb_internal.Operation
+	95,  // 173: wandb_internal.Operation.subtasks:type_name -> wandb_internal.Operation
+	21,  // 174: wandb_internal.SyncResponse.error:type_name -> wandb_internal.ErrorInfo
+	174, // 175: wandb_internal.StatusReportRequest.sync_time:type_name -> google.protobuf.Timestamp
+	44,  // 176: wandb_internal.SummaryRecordRequest.summary:type_name -> wandb_internal.SummaryRecord
+	170, // 177: wandb_internal.TelemetryRecordRequest.telemetry:type_name -> wandb_internal.TelemetryRecord
+	175, // 178: wandb_internal.ServerInfoRequest._info:type_name -> wandb_internal._RequestInfo
+	111, // 179: wandb_internal.ServerInfoResponse.local_info:type_name -> wandb_internal.LocalInfo
+	105, // 180: wandb_internal.ServerInfoResponse.server_messages:type_name -> wandb_internal.ServerMessages
+	106, // 181: wandb_internal.ServerMessages.item:type_name -> wandb_internal.ServerMessage
+	9,   // 182: wandb_internal.FileTransferInfoRequest.type:type_name -> wandb_internal.FileTransferInfoRequest.TransferType
+	107, // 183: wandb_internal.FileTransferInfoRequest.file_counts:type_name -> wandb_internal.FileCounts
+	175, // 184: wandb_internal.ShutdownRequest._info:type_name -> wandb_internal._RequestInfo
+	175, // 185: wandb_internal.AttachRequest._info:type_name -> wandb_internal._RequestInfo
+	18,  // 186: wandb_internal.AttachResponse.run:type_name -> wandb_internal.RunRecord
+	21,  // 187: wandb_internal.AttachResponse.error:type_name -> wandb_internal.ErrorInfo
+	175, // 188: wandb_internal.TestInjectRequest._info:type_name -> wandb_internal._RequestInfo
+	30,  // 189: wandb_internal.PartialHistoryRequest.item:type_name -> wandb_internal.HistoryItem
+	28,  // 190: wandb_internal.PartialHistoryRequest.step:type_name -> wandb_internal.HistoryStep
+	118, // 191: wandb_internal.PartialHistoryRequest.action:type_name -> wandb_internal.HistoryAction
+	175, // 192: wandb_internal.PartialHistoryRequest._info:type_name -> wandb_internal._RequestInfo
+	175, // 193: wandb_internal.SampledHistoryRequest._info:type_name -> wandb_internal._RequestInfo
+	122, // 194: wandb_internal.SampledHistoryResponse.item:type_name -> wandb_internal.SampledHistoryItem
+	175, // 195: wandb_internal.RunStatusRequest._info:type_name -> wandb_internal._RequestInfo
+	174, // 196: wandb_internal.RunStatusResponse.sync_time:type_name -> google.protobuf.Timestamp
+	18,  // 197: wandb_internal.RunStartRequest.run:type_name -> wandb_internal.RunRecord
+	175, // 198: wandb_internal.RunStartRequest._info:type_name -> wandb_internal._RequestInfo
+	175, // 199: wandb_internal.CheckVersionRequest._info:type_name -> wandb_internal._RequestInfo
+	175, // 200: wandb_internal.JobInfoRequest._info:type_name -> wandb_internal._RequestInfo
+	52,  // 201: wandb_internal.LogArtifactRequest.artifact:type_name -> wandb_internal.ArtifactRecord
+	175, // 202: wandb_internal.LogArtifactRequest._info:type_name -> wandb_internal._RequestInfo
+	175, // 203: wandb_internal.DownloadArtifactRequest._info:type_name -> wandb_internal._RequestInfo
+	175, // 204: wandb_internal.KeepaliveRequest._info:type_name -> wandb_internal._RequestInfo
+	139, // 205: wandb_internal.GitSource.git_info:type_name -> wandb_internal.GitInfo
+	140, // 206: wandb_internal.Source.git:type_name -> wandb_internal.GitSource
+	138, // 207: wandb_internal.Source.artifact:type_name -> wandb_internal.ArtifactInfo
+	141, // 208: wandb_internal.Source.image:type_name -> wandb_internal.ImageSource
+	142, // 209: wandb_internal.JobSource.source:type_name -> wandb_internal.Source
+	143, // 210: wandb_internal.PartialJobArtifact.source_info:type_name -> wandb_internal.JobSource
+	144, // 211: wandb_internal.UseArtifactRecord.partial:type_name -> wandb_internal.PartialJobArtifact
+	172, // 212: wandb_internal.UseArtifactRecord._info:type_name -> wandb_internal._RecordInfo
+	175, // 213: wandb_internal.CancelRequest._info:type_name -> wandb_internal._RequestInfo
+	174, // 214: wandb_internal.EnvironmentRecord.started_at:type_name -> google.protobuf.Timestamp
+	19,  // 215: wandb_internal.EnvironmentRecord.git:type_name -> wandb_internal.GitRepoRecord
+	165, // 216: wandb_internal.EnvironmentRecord.disk:type_name -> wandb_internal.EnvironmentRecord.DiskEntry
+	151, // 217: wandb_internal.EnvironmentRecord.memory:type_name -> wandb_internal.MemoryInfo
+	152, // 218: wandb_internal.EnvironmentRecord.cpu:type_name -> wandb_internal.CpuInfo
+	153, // 219: wandb_internal.EnvironmentRecord.apple:type_name -> wandb_internal.AppleInfo
+	154, // 220: wandb_internal.EnvironmentRecord.gpu_nvidia:type_name -> wandb_internal.GpuNvidiaInfo
+	155, // 221: wandb_internal.EnvironmentRecord.gpu_amd:type_name -> wandb_internal.GpuAmdInfo
+	166, // 222: wandb_internal.EnvironmentRecord.slurm:type_name -> wandb_internal.EnvironmentRecord.SlurmEntry
+	156, // 223: wandb_internal.EnvironmentRecord.trainium:type_name -> wandb_internal.TrainiumInfo
+	157, // 224: wandb_internal.EnvironmentRecord.tpu:type_name -> wandb_internal.TPUInfo
+	158, // 225: wandb_internal.EnvironmentRecord.coreweave:type_name -> wandb_internal.CoreWeaveInfo
+	172, // 226: wandb_internal.EnvironmentRecord._info:type_name -> wandb_internal._RecordInfo
+	167, // 227: wandb_internal.PythonPackagesRequest.package:type_name -> wandb_internal.PythonPackagesRequest.PythonPackage
+	168, // 228: wandb_internal.JobInputSource.run_config:type_name -> wandb_internal.JobInputSource.RunConfigSource
+	169, // 229: wandb_internal.JobInputSource.file:type_name -> wandb_internal.JobInputSource.ConfigFileSource
+	162, // 230: wandb_internal.JobInputRequest.input_source:type_name -> wandb_internal.JobInputSource
+	161, // 231: wandb_internal.JobInputRequest.include_paths:type_name -> wandb_internal.JobInputPath
+	161, // 232: wandb_internal.JobInputRequest.exclude_paths:type_name -> wandb_internal.JobInputPath
+	78,  // 233: wandb_internal.GetSystemMetricsResponse.SystemMetricsEntry.value:type_name -> wandb_internal.SystemMetricsBuffer
+	150, // 234: wandb_internal.EnvironmentRecord.DiskEntry.value:type_name -> wandb_internal.DiskInfo
+	235, // [235:235] is the sub-list for method output_type
+	235, // [235:235] is the sub-list for method input_type
+	235, // [235:235] is the sub-list for extension type_name
+	235, // [235:235] is the sub-list for extension extendee
+	0,   // [0:235] is the sub-list for field type_name
 }
 
 func init() { file_wandb_proto_wandb_internal_proto_init() }
@@ -12954,7 +12851,6 @@ func file_wandb_proto_wandb_internal_proto_init() {
 		(*Request_GetSystemMetrics)(nil),
 		(*Request_JobInput)(nil),
 		(*Request_LinkArtifact)(nil),
-		(*Request_RunFinishWithoutExit)(nil),
 		(*Request_SyncFinish)(nil),
 		(*Request_Operations)(nil),
 		(*Request_ProbeSystemInfo)(nil),
@@ -12983,11 +12879,10 @@ func file_wandb_proto_wandb_internal_proto_init() {
 		(*Response_GetSystemMetricsResponse)(nil),
 		(*Response_LinkArtifactResponse)(nil),
 		(*Response_SyncResponse)(nil),
-		(*Response_RunFinishWithoutExitResponse)(nil),
 		(*Response_OperationsResponse)(nil),
 		(*Response_TestInjectResponse)(nil),
 	}
-	file_wandb_proto_wandb_internal_proto_msgTypes[154].OneofWrappers = []any{
+	file_wandb_proto_wandb_internal_proto_msgTypes[152].OneofWrappers = []any{
 		(*JobInputSource_RunConfig)(nil),
 		(*JobInputSource_File)(nil),
 	}
@@ -12997,7 +12892,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_wandb_proto_wandb_internal_proto_rawDesc), len(file_wandb_proto_wandb_internal_proto_rawDesc)),
 			NumEnums:      10,
-			NumMessages:   162,
+			NumMessages:   160,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
