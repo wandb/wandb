@@ -1,4 +1,4 @@
-FROM us-central1-docker.pkg.dev/wandb-production/chainguard-pull-through/coreweave/chainguard-base:latest AS builder
+FROM us-central1-docker.pkg.dev/wandb-production/chainguard-pull-through/coreweave/chainguard-base@sha256:dda3d094786066267d0aace808afbd3fc506109dacf4e84a614d43e346bfe003 AS builder
 LABEL maintainer='Weights & Biases <support@wandb.com>'
 
 ARG TARGETARCH
@@ -6,7 +6,7 @@ ARG TARGETARCH
 RUN apk add --no-cache python3 git py3-pip gcc python3-dev curl openssl-dev pkgconf \
     && ln -sf /usr/bin/pkgconf /usr/bin/pkg-config
 
-ARG GO_VERSION=1.26.1
+ARG GO_VERSION=1.26.2
 RUN if [ "$TARGETARCH" = "amd64" ]; then \
     curl -L https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz | tar -C /usr/local -xzf -; \
     elif [ "$TARGETARCH" = "arm64" ]; then \
@@ -16,6 +16,7 @@ RUN if [ "$TARGETARCH" = "amd64" ]; then \
     fi
 ENV PATH="/usr/local/go/bin:${PATH}"
 ENV WANDB_BUILD_SKIP_GPU_STATS=true
+ENV WANDB_BUILD_SKIP_WANDB_XPU=false
 ENV GOTOOLCHAIN=local
 
 # Rust/cargo required to build vendored orjson when installing wandb from source
@@ -31,7 +32,7 @@ RUN pip3 install --upgrade pip \
     && pip3 install --no-cache-dir "wandb[launch] @ git+https://github.com/wandb/wandb.git@$REF"
 
 # --- Final image: no Go toolchain, no build tools ---
-FROM us-central1-docker.pkg.dev/wandb-production/chainguard-pull-through/coreweave/chainguard-base:latest
+FROM us-central1-docker.pkg.dev/wandb-production/chainguard-pull-through/coreweave/chainguard-base@sha256:dda3d094786066267d0aace808afbd3fc506109dacf4e84a614d43e346bfe003
 LABEL maintainer='Weights & Biases <support@wandb.com>'
 
 # Suppress RequestsDependencyWarning (pip-resolved urllib3/charset_normalizer often trigger it)
