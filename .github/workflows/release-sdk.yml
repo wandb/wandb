@@ -85,22 +85,22 @@ jobs:
             libc: manylinux
             runner: linux-arm64-ubuntu24.04-4core
             go_arch: linux-arm64
-            before_all_extra: ""
+            before_all_extra: "true"
           - arch: aarch64
             libc: musllinux
             runner: linux-arm64-ubuntu24.04-4core
             go_arch: linux-arm64
-            before_all_extra: "apk add binutils patchelf gcc musl-dev &&"
+            before_all_extra: "apk add binutils patchelf gcc musl-dev"
           - arch: x86_64
             libc: manylinux
             runner: ubuntu-22.04
             go_arch: linux-amd64
-            before_all_extra: ""
+            before_all_extra: "true"
           - arch: x86_64
             libc: musllinux
             runner: ubuntu-22.04
             go_arch: linux-amd64
-            before_all_extra: "apk add binutils patchelf gcc musl-dev &&"
+            before_all_extra: "apk add binutils patchelf gcc musl-dev"
 
     steps:
       - uses: actions/checkout@v6
@@ -116,7 +116,7 @@ jobs:
           CIBW_ARCHS_LINUX: ${{ matrix.arch }}
           CIBW_BUILD: "*-${{ matrix.libc }}_*"
           CIBW_BEFORE_ALL_LINUX: >
-            ${{ matrix.before_all_extra }}
+            ${{ matrix.before_all_extra }} &&
             export DOWNLOAD_GOVERSION=$( grep '^go' core/go.mod | cut -d' ' -f2 ) &&
             curl -L https://golang.org/dl/go$DOWNLOAD_GOVERSION.${{ matrix.go_arch }}.tar.gz > go.tar.gz &&
             tar -C /usr/local/ -xzf go.tar.gz &&
