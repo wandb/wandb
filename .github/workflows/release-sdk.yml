@@ -72,22 +72,40 @@ jobs:
           git commit -am "Bump version and update CHANGELOG for release ${{ github.event.inputs.version }}"
           git push --no-verify -f origin release-${{ github.event.inputs.version }}
 
-  build-linux-arm64-wheels:
-    name: Build wheels for Linux arm64
+  build-linux-wheels:
+    name: Build ${{ matrix.libc }} Linux wheel for ${{ matrix.arch }}
     needs: prepare-release
-    runs-on: linux-arm64-ubuntu24.04-4core # custom runner in wandb org
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: aarch64
+            libc: manylinux
+            runner: linux-arm64-ubuntu24.04-4core
+            go_arch: linux-arm64
+            before_all_extra: "true"
+          - arch: aarch64
+            libc: musllinux
+            runner: linux-arm64-ubuntu24.04-4core
+            go_arch: linux-arm64
+            before_all_extra: "apk add binutils patchelf gcc musl-dev"
+          - arch: x86_64
+            libc: manylinux
+            runner: ubuntu-22.04
+            go_arch: linux-amd64
+            before_all_extra: "true"
+          - arch: x86_64
+            libc: musllinux
+            runner: ubuntu-22.04
+            go_arch: linux-amd64
+            before_all_extra: "apk add binutils patchelf gcc musl-dev"
 
     steps:
       - uses: actions/checkout@v6
         with:
           ref: release-${{ github.event.inputs.version }}
-
-      - name: Set up Go
-        uses: actions/setup-go@v6
-        with:
-          go-version-file: core/go.mod
-          cache-dependency-path: core/go.sum
 
       - name: Build wheels
         uses: pypa/cibuildwheel@v3.4.1
@@ -95,17 +113,18 @@ jobs:
           package-dir: .
           output-dir: dist
         env:
-          CIBW_ARCHS_LINUX: aarch64
+          CIBW_ARCHS_LINUX: ${{ matrix.arch }}
+          CIBW_BUILD: "*-${{ matrix.libc }}_*"
           CIBW_BEFORE_ALL_LINUX: >
-            (apk add binutils patchelf gcc musl-dev 2>/dev/null || true) &&
+            ${{ matrix.before_all_extra }} &&
             export DOWNLOAD_GOVERSION=$( grep '^go' core/go.mod | cut -d' ' -f2 ) &&
-            curl -L https://golang.org/dl/go$DOWNLOAD_GOVERSION.linux-arm64.tar.gz > go.tar.gz &&
+            curl -L https://golang.org/dl/go$DOWNLOAD_GOVERSION.${{ matrix.go_arch }}.tar.gz > go.tar.gz &&
             tar -C /usr/local/ -xzf go.tar.gz &&
             curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 
       - uses: actions/upload-artifact@v7
         with:
-          name: wandb-sdk-distribution-linux-arm64
+          name: wandb-sdk-distribution-linux-${{ matrix.arch }}-${{ matrix.libc }}
           path: ./dist
 
   build-platform-wheels:
@@ -117,7 +136,6 @@ jobs:
       fail-fast: false
       matrix:
         os:
-          - ubuntu-22.04
           - windows-2022
           - windows-11-arm
           - macos-14
@@ -145,7 +163,6 @@ jobs:
           package-dir: .
           output-dir: dist
         env:
-          CIBW_ARCHS_LINUX: x86_64 # aarch64 is handled by build-linux-arm64-wheels
           CIBW_ARCHS_MACOS: x86_64 arm64 # arm64 == aarch64
           CIBW_BEFORE_ALL_MACOS: >
             rustup target add x86_64-apple-darwin
@@ -162,14 +179,6 @@ jobs:
               -v {wheel}
           CIBW_ENVIRONMENT_MACOS: >
             MACOSX_DEPLOYMENT_TARGET=12
-
-          # Install Go and Rust for Linux amd64
-          CIBW_BEFORE_ALL_LINUX: >
-            (apk add binutils patchelf gcc musl-dev 2>/dev/null || true) &&
-            export DOWNLOAD_GOVERSION=$( grep '^go' core/go.mod | cut -d' ' -f2 ) &&
-            curl -L https://golang.org/dl/go$DOWNLOAD_GOVERSION.linux-amd64.tar.gz > go.tar.gz &&
-            tar -C /usr/local/ -xzf go.tar.gz &&
-            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 
       - uses: actions/upload-artifact@v7
         with:
@@ -203,7 +212,10 @@ jobs:
 
   test-pypi-publish:
     name: Publish to TestPyPI
-    needs: [build-platform-wheels, build-linux-arm64-wheels, build-sdist]
+    needs:
+      - build-platform-wheels
+      - build-linux-wheels
+      - build-sdist
     continue-on-error: true
     runs-on: ubuntu-latest
     environment:

@@ -48,6 +48,10 @@ message ServerInformInitRequest {
 
 message ServerInformInitResponse {}
 
+// Indicate that no more requests will be sent for a run.
+//
+// The `_info.stream_id` is the ID of the run for which no more requests
+// will be sent on the current connection.
 message ServerInformFinishRequest {
   _RecordInfo _info = 200;
 }
