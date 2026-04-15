@@ -16,7 +16,7 @@ RUN if [ "$TARGETARCH" = "amd64" ]; then \
     fi
 ENV PATH="/usr/local/go/bin:${PATH}"
 ENV WANDB_BUILD_SKIP_GPU_STATS=true
-ENV WANDB_BUILD_SKIP_WANDB_XPU=false
+ENV WANDB_BUILD_SKIP_WANDB_XPU=true
 ENV GOTOOLCHAIN=local
 
 # Rust/cargo required to build vendored orjson when installing wandb from source
