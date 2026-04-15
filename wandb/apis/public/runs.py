@@ -253,8 +253,8 @@ class Runs(SizedPaginator["Run"]):
             self._load_page()
 
         if self.last_response:
-            run_count = self.last_response.get("project", {}).get("runCount", 0)
-            return run_count
+            project = self.last_response.get("project") or {}
+            return project.get("runCount", 0)
 
         return 0
 
@@ -265,15 +265,12 @@ class Runs(SizedPaginator["Run"]):
         <!-- lazydoc-ignore: internal -->
         """
         if self.last_response:
-            has_next_page = (
-                self.last_response.get("project", {})
-                .get("runs", {})
-                .get("pageInfo", {})
-                .get("hasNextPage", False)
-            )
-            return has_next_page
+            project = self.last_response.get("project") or {}
+            runs_data = project.get("runs") or {}
+            page_info = runs_data.get("pageInfo") or {}
+            return page_info.get("hasNextPage", False)
 
-        return False
+        return True
 
     @property
     def cursor(self):
@@ -282,9 +279,14 @@ class Runs(SizedPaginator["Run"]):
         <!-- lazydoc-ignore: internal -->
         """
         if self.last_response:
-            return self.last_response["project"]["runs"]["edges"][-1]["cursor"]
-        else:
+            project = self.last_response.get("project") or {}
+            runs_data = project.get("runs") or {}
+            edges = runs_data.get("edges") or []
+            if edges:
+                return edges[-1].get("cursor")
             return None
+
+        return None
 
     def convert_objects(self) -> list[Run]:
         """Converts GraphQL edges to Runs objects.

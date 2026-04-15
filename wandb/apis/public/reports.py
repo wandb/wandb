@@ -109,15 +109,12 @@ class Reports(SizedPaginator["BetaReport"]):
         <!-- lazydoc-ignore: internal -->
         """
         if self.last_response:
-            has_next_page = (
-                self.last_response.get("project", {})
-                .get("allViews", {})
-                .get("pageInfo", {})
-                .get("hasNextPage", False)
-            )
-            return has_next_page
+            project = self.last_response.get("project") or {}
+            views_data = project.get("allViews") or {}
+            page_info = views_data.get("pageInfo") or {}
+            return page_info.get("hasNextPage", False)
 
-        return False
+        return True
 
     @property
     def cursor(self) -> str | None:
@@ -126,7 +123,11 @@ class Reports(SizedPaginator["BetaReport"]):
         <!-- lazydoc-ignore: internal -->
         """
         if self.last_response:
-            return self.last_response["project"]["allViews"]["edges"][-1]["cursor"]
+            project = self.last_response.get("project") or {}
+            views_data = project.get("allViews") or {}
+            edges = views_data.get("edges") or []
+            if edges:
+                return edges[-1].get("cursor")
         return None
 
     def update_variables(self) -> None:
