@@ -17,11 +17,12 @@ import (
 )
 
 func TestOpenDebugSyncLogFile(t *testing.T) {
+	// Set TZ to UTC so that time.Now() uses UTC and not the local zone.
+	t.Setenv("TZ", "UTC")
+
 	synctest.Test(t, func(t *testing.T) {
 		// synctest time starts at 2000-01-01 at midnight UTC.
 		// Wait until 2000-01-02 at 3:04:05 for a more reliable assertion.
-		// Set TZ to UTC so that time.Now() uses UTC and not the local zone.
-		t.Setenv("TZ", "UTC")
 		time.Sleep(27*time.Hour + 4*time.Minute + 5*time.Second)
 
 		// Test that OpenDebugSyncLogFile creates the directory.
