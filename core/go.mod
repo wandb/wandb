@@ -19,7 +19,7 @@ require (
 	github.com/getsentry/sentry-go v0.45.1
 	github.com/go-git/go-git/v5 v5.17.2
 	github.com/google/wire v0.7.0
-	github.com/googleapis/gax-go/v2 v2.21.0
+	github.com/googleapis/gax-go/v2 v2.22.0
 	github.com/hashicorp/go-retryablehttp v0.7.8
 	github.com/hashicorp/golang-lru v1.0.2
 	github.com/mattn/go-runewidth v0.0.23
