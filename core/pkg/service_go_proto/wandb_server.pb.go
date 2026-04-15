@@ -396,6 +396,10 @@ func (*ServerInformInitResponse) Descriptor() ([]byte, []int) {
 	return file_wandb_proto_wandb_server_proto_rawDescGZIP(), []int{7}
 }
 
+// Indicate that no more requests will be sent for a run.
+//
+// The `_info.stream_id` is the ID of the run for which no more requests
+// will be sent on the current connection.
 type ServerInformFinishRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	XInfo         *XRecordInfo           `protobuf:"bytes,200,opt,name=_info,json=Info,proto3" json:"_info,omitempty"`
