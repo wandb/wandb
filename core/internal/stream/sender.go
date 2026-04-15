@@ -118,17 +118,6 @@ type Sender struct {
 	// exitCode is the exit code received by the Sender.
 	exitCode int32
 
-	// exitRequest is the request for an Exit record.
-	//
-	// It may be nil even if receivedExit is true, which just means that
-	// a response is not necessary.
-	exitRequest *runwork.Request
-
-	// finishWithoutExitRequest is the request for a FinishWithoutExit record.
-	//
-	// It's like exitRequest, but requires a different response type.
-	finishWithoutExitRequest *runwork.Request
-
 	// jobBuilder is the job builder for creating jobs from the run
 	// that allow users to re-run the run with different configurations
 	jobBuilder *launch.JobBuilder
@@ -293,22 +282,6 @@ func (s *Sender) respond(
 			ResultCommunicate: &spb.Result{
 				ResultType: &spb.Result_Response{
 					Response: response,
-				},
-			},
-		},
-	})
-}
-
-// respondToExit responds with a "RunExitResult" proto.
-func (s *Sender) respondToExit(
-	request *runwork.Request,
-	exit *spb.RunExitResult,
-) {
-	request.Respond(&spb.ServerResponse{
-		ServerResponseType: &spb.ServerResponse_ResultCommunicate{
-			ResultCommunicate: &spb.Result{
-				ResultType: &spb.Result_ExitResult{
-					ExitResult: exit,
 				},
 			},
 		},
@@ -540,10 +513,13 @@ func (s *Sender) sendJobFlush() {
 //
 // Everything happens in a separate goroutine during which the Sender
 // continues to process incoming work.
-func (s *Sender) startFinishRun() {
+func (s *Sender) startFinishRun(
+	exitRequest *runwork.Request,
+	exitResponse *spb.ServerResponse,
+) {
 	go func() {
 		defer s.logger.Reraise()
-		s.finishRunSync()
+		s.finishRunSync(exitRequest, exitResponse)
 	}()
 }
 
@@ -555,7 +531,30 @@ func (s *Sender) startFinishRun() {
 //
 // This starts after an Exit record is received, after which no more
 // run-modifying records can be generated. Requests may still be processed.
-func (s *Sender) finishRunSync() {
+//
+// On success, the exitResponse is sent to the exitRequest (if any).
+// The caller provides a response because there are multiple exit request types
+// with their own corresponding response types.
+//
+// If the exit request is cancelled, the run is aborted.
+func (s *Sender) finishRunSync(
+	exitRequest *runwork.Request,
+	exitResponse *spb.ServerResponse,
+) {
+	defer exitRequest.Respond(exitResponse)
+
+	// Abort upload operations if the Exit request is cancelled before
+	// we can respond to it.
+	//
+	// The shutdown stages will all still happen, but faster.
+	if exitRequest != nil {
+		cancelAbortOnRequestFinish := context.AfterFunc(
+			exitRequest.Context(),
+			s.runWork.Abort,
+		)
+		defer cancelAbortOnRequestFinish()
+	}
+
 	// Finish uploading captured console logs.
 	s.consoleLogsSender.Finish()
 
@@ -602,16 +601,6 @@ func (s *Sender) finishRunSync() {
 	// printing `run.finish()` progress, and it was necessary to "close"
 	// the progress bar shown in Jupyter. Yes, that was the only purpose.
 	s.fileTransferStats.SetDone()
-
-	// Respond to the client's exit record, if necessary.
-	if s.exitRequest != nil {
-		s.respondToExit(s.exitRequest, &spb.RunExitResult{})
-	}
-	if s.finishWithoutExitRequest != nil {
-		s.respond(s.finishWithoutExitRequest, &spb.Response{
-			ResponseType: &spb.Response_RunFinishWithoutExitResponse{},
-		})
-	}
 
 	// Prevent any new work from being added.
 	//
@@ -974,9 +963,20 @@ func (s *Sender) sendRequestRunFinishWithoutExit(
 	}
 
 	s.exitWithoutCode = true
-	s.finishWithoutExitRequest = request
 
-	s.startFinishRun()
+	response := &spb.ServerResponse{
+		ServerResponseType: &spb.ServerResponse_ResultCommunicate{
+			ResultCommunicate: &spb.Result{
+				ResultType: &spb.Result_Response{
+					Response: &spb.Response{
+						ResponseType: &spb.Response_RunFinishWithoutExitResponse{},
+					},
+				},
+			},
+		},
+	}
+
+	s.startFinishRun(request, response)
 }
 
 // sendExit sends an exit record to the server and triggers the shutdown of
@@ -988,9 +988,17 @@ func (s *Sender) sendExit(_ *spb.RunExitRecord, request *runwork.Request) {
 		return
 	}
 
-	s.exitRequest = request
+	response := &spb.ServerResponse{
+		ServerResponseType: &spb.ServerResponse_ResultCommunicate{
+			ResultCommunicate: &spb.Result{
+				ResultType: &spb.Result_ExitResult{
+					ExitResult: &spb.RunExitResult{},
+				},
+			},
+		},
+	}
 
-	s.startFinishRun()
+	s.startFinishRun(request, response)
 }
 
 // sendMetric updates the metrics in the run config.
