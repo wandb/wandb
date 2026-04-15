@@ -993,8 +993,8 @@ class Run(Attrs):
         Args:
             delete_artifacts (bool, optional): Whether to delete the artifacts
                 associated with the run.
-            delete_all_descendants (bool, optional): Whether to delete all children
-                associated with the run.
+            delete_all_descendants (bool, optional): Whether to delete all runs forked
+                from this run.
         """
         mutation = gql(
             """
@@ -1008,6 +1008,7 @@ class Run(Attrs):
                     {}
                     {}
                 }}) {{
+                    clientMutationId
                     numDeleted
                 }}
             }}
