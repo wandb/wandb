@@ -224,6 +224,57 @@ func Test_CreatesExitRecordIfNotSeen(t *testing.T) {
 		x.FakeRunWork.AllWorkImpls())
 }
 
+func Test_ParsesInitFailure(t *testing.T) {
+	testCases := []struct {
+		Name     string
+		ErrMsg   string
+		Response *spb.ServerResponse
+	}{
+		{"ServerErrorResponse", "Generic error!", &spb.ServerResponse{
+			ServerResponseType: &spb.ServerResponse_ErrorResponse{
+				ErrorResponse: &spb.ServerErrorResponse{
+					Message: "Generic error!",
+				},
+			},
+		}},
+
+		{"RunResult", "Run init error!", &spb.ServerResponse{
+			ServerResponseType: &spb.ServerResponse_ResultCommunicate{
+				ResultCommunicate: &spb.Result{
+					ResultType: &spb.Result_RunResult{
+						RunResult: &spb.RunUpdateResult{
+							Error: &spb.ErrorInfo{
+								Message: "Run init error!",
+							},
+						},
+					},
+				},
+			},
+		}},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.Name, func(t *testing.T) {
+			x := setup(t)
+			wandbFileWithRecords(t,
+				x.TransactionLog,
+				&spb.Record{
+					Num:        1,
+					RecordType: &spb.Record_Run{Run: &spb.RunRecord{}},
+				})
+			x.FakeRunWork.QueueResponse(tc.Response)
+			x.MockRecordParser.EXPECT().
+				Parse(gomock.Any()).
+				Times(2). // Run then Exit (no RunStart due to error)
+				Return(&testWork{})
+
+			err := x.RunReader.ProcessTransactionLog(t.Context())
+
+			assert.ErrorContains(t, err, tc.ErrMsg)
+		})
+	}
+}
+
 func Test_CreatesRunStartRequest(t *testing.T) {
 	x := setup(t)
 	wandbFileWithRecords(t,
@@ -241,6 +292,8 @@ func Test_CreatesRunStartRequest(t *testing.T) {
 		x.MockRecordParser.EXPECT().Parse(isRunStartRequest()).Return(runStartWork),
 		x.MockRecordParser.EXPECT().Parse(isExitRecord(1)).Return(exitWork),
 	)
+	// The Run record requires a response.
+	x.FakeRunWork.QueueResponse(&spb.ServerResponse{})
 
 	err := x.RunReader.ProcessTransactionLog(context.Background())
 	require.NoError(t, err)

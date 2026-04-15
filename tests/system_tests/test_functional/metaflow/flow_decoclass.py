@@ -29,10 +29,6 @@ class WandbExampleFlowDecoClass(FlowSpec):
     @step
     def start(self):
         self.raw_df = pd.read_csv(self.raw_data)
-        self.next(self.split_data)
-
-    @step
-    def split_data(self):
         X = self.raw_df.drop("Wine", axis=1)  # noqa: N806
         y = self.raw_df[["Wine"]]
         self.X_train, self.X_test, self.y_train, self.y_test = train_test_split(

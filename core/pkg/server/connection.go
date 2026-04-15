@@ -20,6 +20,7 @@ import (
 	"github.com/wandb/wandb/core/internal/monitor"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runsync"
+	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/stream"
 	"github.com/wandb/wandb/core/internal/wbapi"
@@ -325,9 +326,9 @@ func (nc *Connection) handleIncomingRequests() {
 		case *spb.ServerRequest_InformAttach:
 			nc.handleInformAttach(msg.RequestId, x.InformAttach)
 		case *spb.ServerRequest_RecordPublish:
-			nc.handleInformRecord(x.RecordPublish)
-		case *spb.ServerRequest_RecordCommunicate:
-			nc.handleInformRecord(x.RecordCommunicate)
+			nc.handleInformRecord(msg.RequestId, x.RecordPublish)
+		case *spb.ServerRequest_RecordCommunicate: // TODO: remove this dupe
+			nc.handleInformRecord(msg.RequestId, x.RecordCommunicate)
 		case *spb.ServerRequest_InformFinish:
 			nc.handleInformFinish(x.InformFinish)
 		case *spb.ServerRequest_InformTeardown:
@@ -390,7 +391,6 @@ func (nc *Connection) handleInformInit(msg *spb.ServerInformInitRequest) {
 		nc.logLevel,
 		s,
 	)
-	strm.AddResponders(stream.ResponderEntry{Responder: nc, ID: nc.id})
 	strm.Start()
 	slog.Info("handleInformInit: stream started", "streamId", streamId, "id", nc.id)
 
@@ -424,7 +424,6 @@ func (nc *Connection) handleInformAttach(
 			"handleInformAttach: error getting stream",
 			"err", err, "id", nc.id)
 	} else {
-		strm.AddResponders(stream.ResponderEntry{Responder: nc, ID: nc.id})
 		// TODO: we should redo this attach logic, so that the stream handles
 		//       the attach logic
 		resp := &spb.ServerResponse{
@@ -525,7 +524,7 @@ func (nc *Connection) handleAuthenticateImpl(
 // The function ensures that the message is sent to the correct stream for processing.
 // It also adds the connection ID to the control message so that the stream can send
 // a response back to the correct connection.
-func (nc *Connection) handleInformRecord(msg *spb.Record) {
+func (nc *Connection) handleInformRecord(requestID string, msg *spb.Record) {
 	streamId := msg.GetXInfo().GetStreamId()
 
 	slog.Debug("handleInformRecord: record received", "streamId", streamId, "id", nc.id)
@@ -538,16 +537,16 @@ func (nc *Connection) handleInformRecord(msg *spb.Record) {
 		return
 	}
 
-	// Add the connection ID to the control message to ensure the response is
-	// sent to the correct connection
-	if msg.Control != nil {
-		msg.Control.ConnectionId = nc.id
-	} else {
-		msg.Control = &spb.Control{ConnectionId: nc.id}
+	// Only create a Request if a response is required, which is indicated
+	// by the presence of a request ID.
+	var request *runwork.Request
+	if requestID != "" {
+		ctx, cancelCtx := nc.requestCanceller.Context(requestID)
+		request = runwork.NewRequest(requestID, ctx, cancelCtx, nc.outChan)
 	}
 
 	// Delegate the handling of the record to the stream
-	strm.HandleRecord(msg, nil) // TODO: Pass the Request.
+	strm.HandleRecord(msg, request)
 }
 
 // handleInformFinish processes a finish message from the client.
