@@ -1,6 +1,7 @@
 package stream
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -222,12 +223,17 @@ func (s *Stream) HandleRecord(record *spb.Record, request *runwork.Request) {
 	work.Schedule(&sync.WaitGroup{}, func() { s.runWork.AddWork(work) })
 }
 
-// Close waits for all run messages to be fully processed.
+// Close closes the stream and blocks until all its work is processed.
+//
+// Any incoming requests after this will immediately error out.
+//
+// This assumes that an exit record has been or will be pushed,
+// or else this blocks indefinitely.
 func (s *Stream) Close() {
-	s.logger.Info("stream: closing")
+	s.logger.Info("stream: finishing up")
 	s.runWork.Close()
 	s.wg.Wait()
-	s.logger.Info("stream: closed")
+	s.logger.Info("stream: all finished")
 
 	if s.loggerFile != nil {
 		// Sync the file instead of closing it, in case we keep writing to it.
@@ -235,17 +241,35 @@ func (s *Stream) Close() {
 	}
 }
 
-// FinishAndClose emits an exit record, waits for all run messages
-// to be fully processed, and prints the run footer to the terminal.
+// FinishAndClose emits an exit record, closes the stream and prints a footer.
+//
+// In contrast to Close, this assumes that an exit record has not and will
+// not be pushed by any other source. If there has already been an exit record,
+// this may shut down the run abruptly.
+//
+// This is used to shut down the stream if the client didn't do it explicitly.
 func (s *Stream) FinishAndClose(exitCode int32) {
+	// Use a synthetic exit request to detect when uploads finish.
+	exitCtx, cancelExit := context.WithCancel(context.Background())
+	exitResponse := make(chan *spb.ServerResponse, 1)
+	exitRequest := runwork.NewRequest(
+		"",
+		exitCtx,
+		cancelExit,
+		exitResponse,
+	)
+
 	s.HandleRecord(&spb.Record{
 		RecordType: &spb.Record_Exit{
 			Exit: &spb.RunExitRecord{
 				ExitCode: exitCode,
 			}},
 		Control: &spb.Control{AlwaysSend: true},
-	}, nil)
+	}, exitRequest)
 
+	// Wait until all uploads complete (or, if this is a duplicate exit,
+	// until it is rejected by the Sender).
+	<-exitCtx.Done()
 	s.Close()
 
 	s.printFooter()
