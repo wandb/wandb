@@ -203,8 +203,23 @@ message ErrorInfo {
 // queries and must end with an "inform_finish" request to allow the internal
 // service to clean up.
 message RunExitRecord {
+  // Whether to mark the run successful (if zero) or failed (if nonzero).
+  //
+  // Ignored if not_complete
   int32 exit_code = 1;
+
+  // If set, keeps the run in the Running state instead of transitioning it
+  // to a completed state.
+  //
+  // If not set, the value of the x_update_finish_state setting is used.
+  // Prefer to rely on the setting instead of this field.
+  //
+  // This is used in "shared" mode by secondary nodes. Only the primary node
+  // for a run sets its completion state.
+  bool not_complete = 3;
+
   int32 runtime = 2;
+
   _RecordInfo _info = 200;
 }
 
@@ -590,7 +605,7 @@ message AlertResult {}
  * Request: all non persistent messages
  */
 message Request {
-  reserved 18, 22, 75, 76, 80;
+  reserved 18, 22, 75, 76, 79, 80;
 
   oneof request_type {
     StopStatusRequest stop_status = 1;
@@ -625,7 +640,6 @@ message Request {
     GetSystemMetricsRequest get_system_metrics = 74;
     JobInputRequest job_input = 77;
     LinkArtifactRequest link_artifact = 78;
-    RunFinishWithoutExitRequest run_finish_without_exit = 79;
     SyncFinishRequest sync_finish = 81;
 
     // Requests information about tasks the service is performing.
@@ -642,7 +656,7 @@ message Request {
  * Response: all non persistent responses to Requests
  */
 message Response {
-  reserved 32, 73;
+  reserved 32, 72, 73;
 
   oneof response_type {
     KeepaliveResponse keepalive_response = 18;
@@ -667,7 +681,6 @@ message Response {
     GetSystemMetricsResponse get_system_metrics_response = 69;
     LinkArtifactResponse link_artifact_response = 71;
     SyncResponse sync_response = 70;
-    RunFinishWithoutExitResponse run_finish_without_exit_response = 72;
     OperationStatsResponse operations_response = 74;
     TestInjectResponse test_inject_response = 1000;
   }
@@ -1104,15 +1117,6 @@ message RunStartRequest {
 }
 
 message RunStartResponse {}
-
-/*
- * RunFinishWithoutExitRequest: finish the run without updating the exit status on the server
- */
-message RunFinishWithoutExitRequest {
-  _RequestInfo _info = 200;
-}
-
-message RunFinishWithoutExitResponse {}
 
 /*
  * CheckVersion:
