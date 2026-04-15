@@ -264,13 +264,13 @@ class Runs(SizedPaginator["Run"]):
 
         <!-- lazydoc-ignore: internal -->
         """
-        if self.last_response:
-            project = self.last_response.get("project") or {}
-            runs_data = project.get("runs") or {}
-            page_info = runs_data.get("pageInfo") or {}
-            return page_info.get("hasNextPage", False)
+        if not self.last_response:
+            return True
 
-        return True
+        project = self.last_response.get("project") or {}
+        runs_data = project.get("runs") or {}
+        page_info = runs_data.get("pageInfo") or {}
+        return page_info.get("hasNextPage", False)
 
     @property
     def cursor(self):
@@ -278,14 +278,14 @@ class Runs(SizedPaginator["Run"]):
 
         <!-- lazydoc-ignore: internal -->
         """
-        if self.last_response:
-            project = self.last_response.get("project") or {}
-            runs_data = project.get("runs") or {}
-            edges = runs_data.get("edges") or []
-            if edges:
-                return edges[-1].get("cursor")
+        if not self.last_response:
             return None
 
+        project = self.last_response.get("project") or {}
+        runs_data = project.get("runs") or {}
+        edges = runs_data.get("edges") or []
+        if edges:
+            return edges[-1].get("cursor")
         return None
 
     def convert_objects(self) -> list[Run]:

@@ -183,12 +183,12 @@ class Files(SizedPaginator["File"]):
         if not self.last_response:
             self._load_page()
 
-        if self.last_response:
-            project = self.last_response.get("project") or {}
-            run_data = project.get("run") or {}
-            return run_data.get("fileCount", 0)
+        if not self.last_response:
+            return 0
 
-        return 0
+        project = self.last_response.get("project") or {}
+        run_data = project.get("run") or {}
+        return run_data.get("fileCount", 0)
 
     @property
     def more(self) -> bool:
@@ -196,14 +196,14 @@ class Files(SizedPaginator["File"]):
 
         <!-- lazydoc-ignore: internal -->
         """
-        if self.last_response:
-            project = self.last_response.get("project") or {}
-            run_data = project.get("run") or {}
-            files_data = run_data.get("files") or {}
-            page_info = files_data.get("pageInfo") or {}
-            return page_info.get("hasNextPage", False)
+        if not self.last_response:
+            return True
 
-        return True
+        project = self.last_response.get("project") or {}
+        run_data = project.get("run") or {}
+        files_data = run_data.get("files") or {}
+        page_info = files_data.get("pageInfo") or {}
+        return page_info.get("hasNextPage", False)
 
     @property
     def cursor(self) -> str | None:
@@ -211,15 +211,15 @@ class Files(SizedPaginator["File"]):
 
         <!-- lazydoc-ignore: internal -->
         """
-        if self.last_response:
-            project = self.last_response.get("project") or {}
-            run_data = project.get("run") or {}
-            files_data = run_data.get("files") or {}
-            edges = files_data.get("edges") or []
-            if edges:
-                return edges[-1].get("cursor")
+        if not self.last_response:
             return None
 
+        project = self.last_response.get("project") or {}
+        run_data = project.get("run") or {}
+        files_data = run_data.get("files") or {}
+        edges = files_data.get("edges") or []
+        if edges:
+            return edges[-1].get("cursor")
         return None
 
     def update_variables(self) -> None:

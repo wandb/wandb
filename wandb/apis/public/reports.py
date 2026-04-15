@@ -98,9 +98,10 @@ class Reports(SizedPaginator["BetaReport"]):
         <!-- lazydoc-ignore: internal -->
         """
         # TODO: Add the count the backend
-        if self.last_response:
-            return len(self.objects)
-        return None
+        if not self.last_response:
+            return None
+
+        return len(self.objects)
 
     @property
     def more(self) -> bool:
@@ -108,13 +109,13 @@ class Reports(SizedPaginator["BetaReport"]):
 
         <!-- lazydoc-ignore: internal -->
         """
-        if self.last_response:
-            project = self.last_response.get("project") or {}
-            views_data = project.get("allViews") or {}
-            page_info = views_data.get("pageInfo") or {}
-            return page_info.get("hasNextPage", False)
+        if not self.last_response:
+            return True
 
-        return True
+        project = self.last_response.get("project") or {}
+        views_data = project.get("allViews") or {}
+        page_info = views_data.get("pageInfo") or {}
+        return page_info.get("hasNextPage", False)
 
     @property
     def cursor(self) -> str | None:
@@ -122,12 +123,14 @@ class Reports(SizedPaginator["BetaReport"]):
 
         <!-- lazydoc-ignore: internal -->
         """
-        if self.last_response:
-            project = self.last_response.get("project") or {}
-            views_data = project.get("allViews") or {}
-            edges = views_data.get("edges") or []
-            if edges:
-                return edges[-1].get("cursor")
+        if not self.last_response:
+            return None
+
+        project = self.last_response.get("project") or {}
+        views_data = project.get("allViews") or {}
+        edges = views_data.get("edges") or []
+        if edges:
+            return edges[-1].get("cursor")
         return None
 
     def update_variables(self) -> None:
