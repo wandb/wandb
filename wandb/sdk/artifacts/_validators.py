@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 from dataclasses import dataclass, field, replace
 from functools import singledispatch, wraps
+from pathlib import PureWindowsPath
 from typing import TYPE_CHECKING, Any, Callable, Literal, Optional, TypeVar
 
 from pydantic.dataclasses import dataclass as pydantic_dataclass
@@ -14,6 +16,7 @@ from typing_extensions import Concatenate, ParamSpec, Self
 from wandb._iterutils import always_list, unique_list
 from wandb._pydantic import from_json
 from wandb._strutils import nameof
+from wandb.sdk.lib.paths import FilePathStr, LogicalPath, StrPath
 from wandb.util import json_friendly_val
 
 from .exceptions import ArtifactFinalizedError, ArtifactNotLoggedError
@@ -60,6 +63,32 @@ class LinkArtifactFields:
     @property
     def linked_artifacts(self) -> list[Artifact]:
         return self._linked_artifacts
+
+
+def validate_artifact_path(path: StrPath) -> LogicalPath:
+    """Validate and canonicalize an artifact-relative path.
+
+    Among other things, this forbids absolute paths or relative paths with traversal.
+    """
+    logical_path = LogicalPath(path)
+    posix_path = logical_path.to_path()
+    windows_path = PureWindowsPath(path)
+
+    if (
+        logical_path == "."
+        or posix_path.anchor
+        or (".." in posix_path.parts)
+        or windows_path.anchor
+        or (".." in windows_path.parts)
+    ):
+        raise ValueError(f"Invalid artifact path: {path!r}")
+
+    return logical_path
+
+
+def validate_fspath(root: StrPath, relpath: StrPath) -> FilePathStr:
+    """Validate a native filesystem path under `root`."""
+    return os.path.join(os.fspath(root), validate_artifact_path(relpath))
 
 
 def validate_artifact_name(name: str) -> str:
