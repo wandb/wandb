@@ -118,6 +118,17 @@ func (s *Settings) GetDisplayName() string {
 	return s.Proto.RunName.GetValue()
 }
 
+// The timeout for finishing a run after receiving an exit record.
+//
+// If not positive, there is no timeout.
+func (s *Settings) GetFinishTimeout() time.Duration {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	timeoutMs := int64(s.Proto.FinishTimeout.GetValue() * 1000)
+	return time.Duration(timeoutMs) * time.Millisecond
+}
+
 // The start time of the run in microseconds since the Unix epoch.
 func (s *Settings) GetStartTime() time.Time {
 	seconds := s.Proto.XStartTime.GetValue()

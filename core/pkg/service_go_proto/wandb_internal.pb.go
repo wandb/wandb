@@ -2085,7 +2085,14 @@ func (x *RunExitRecord) GetXInfo() *XRecordInfo {
 }
 
 type RunExitResult struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// If true, the run's data may not have been fully uploaded due to
+	// a configured timeout.
+	//
+	// Clients should raise an error of some kind when this occurs
+	// to allow users to decide how to proceed (whether to ignore
+	// the error, print a message, or stop their script).
+	TimedOut      bool `protobuf:"varint,1,opt,name=timed_out,json=timedOut,proto3" json:"timed_out,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2118,6 +2125,13 @@ func (x *RunExitResult) ProtoReflect() protoreflect.Message {
 // Deprecated: Use RunExitResult.ProtoReflect.Descriptor instead.
 func (*RunExitResult) Descriptor() ([]byte, []int) {
 	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *RunExitResult) GetTimedOut() bool {
+	if x != nil {
+		return x.TimedOut
+	}
+	return false
 }
 
 // RunPreemptingRecord: run being preempted
@@ -11591,8 +11605,9 @@ const file_wandb_proto_wandb_internal_proto_rawDesc = "" +
 	"\texit_code\x18\x01 \x01(\x05R\bexitCode\x12!\n" +
 	"\fnot_complete\x18\x03 \x01(\bR\vnotComplete\x12\x18\n" +
 	"\aruntime\x18\x02 \x01(\x05R\aruntime\x121\n" +
-	"\x05_info\x18\xc8\x01 \x01(\v2\x1b.wandb_internal._RecordInfoR\x04Info\"\x0f\n" +
-	"\rRunExitResult\"H\n" +
+	"\x05_info\x18\xc8\x01 \x01(\v2\x1b.wandb_internal._RecordInfoR\x04Info\",\n" +
+	"\rRunExitResult\x12\x1b\n" +
+	"\ttimed_out\x18\x01 \x01(\bR\btimedOut\"H\n" +
 	"\x13RunPreemptingRecord\x121\n" +
 	"\x05_info\x18\xc8\x01 \x01(\v2\x1b.wandb_internal._RecordInfoR\x04Info\"\x15\n" +
 	"\x13RunPreemptingResult\"u\n" +

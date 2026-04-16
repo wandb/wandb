@@ -1301,7 +1301,12 @@ def init(  # noqa: C901
 
     `wandb.init()` spawns a new background process to log data to a run, and it
     also syncs data to https://wandb.ai by default, so you can see your results
-    in real-time. When you're done logging data, call `wandb.Run.finish()` to end the run.
+    in real-time. When you're done logging data, call `run.finish()` to
+    end the run, or use the run as a context manager to call it automatically:
+
+        with wandb.init() as run:
+            ...  # run.finish() executes at the end of the block
+
     If you don't call `run.finish()`, the run will end when your script exits.
 
     Run IDs must not contain any of the following special characters `/ \ # ? % :`
@@ -1539,6 +1544,10 @@ def init(  # noqa: C901
             init_telemetry.feature.set_init_name = True
         if run_settings.run_tags is not None:
             init_telemetry.feature.set_init_tags = True
+        if run_settings.finish_timeout > 0:
+            init_telemetry.feature.finish_timeout = True
+        if run_settings.finish_timeout_raises:
+            init_telemetry.feature.finish_timeout_raises = True
         if run_settings._offline:
             init_telemetry.feature.offline = True
         if run_settings.fork_from is not None:
