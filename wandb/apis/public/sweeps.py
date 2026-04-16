@@ -112,12 +112,13 @@ class Sweeps(SizedPaginator["Sweep"]):
 
         <!-- lazydoc-ignore: internal -->
         """
-        if self.last_response is None:
+        if not self.last_response:
             self._load_page()
 
-        if self.last_response and self.last_response.project:
-            return self.last_response.project.total_sweeps
-        return 0
+        if not self.last_response or not self.last_response.project:
+            return 0
+
+        return self.last_response.project.total_sweeps
 
     @property
     @override

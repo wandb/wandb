@@ -252,11 +252,11 @@ class Runs(SizedPaginator["Run"]):
         if not self.last_response:
             self._load_page()
 
-        if self.last_response:
-            project = self.last_response.get("project") or {}
-            return project.get("runCount", 0)
+        if not self.last_response:
+            return 0
 
-        return 0
+        project = self.last_response.get("project") or {}
+        return project.get("runCount", 0)
 
     @property
     def more(self) -> bool:
@@ -284,9 +284,11 @@ class Runs(SizedPaginator["Run"]):
         project = self.last_response.get("project") or {}
         runs_data = project.get("runs") or {}
         edges = runs_data.get("edges") or []
-        if edges:
-            return edges[-1].get("cursor")
-        return None
+
+        if not edges:
+            return None
+
+        return edges[-1].get("cursor")
 
     def convert_objects(self) -> list[Run]:
         """Converts GraphQL edges to Runs objects.

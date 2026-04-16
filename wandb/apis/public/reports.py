@@ -129,9 +129,11 @@ class Reports(SizedPaginator["BetaReport"]):
         project = self.last_response.get("project") or {}
         views_data = project.get("allViews") or {}
         edges = views_data.get("edges") or []
-        if edges:
-            return edges[-1].get("cursor")
-        return None
+
+        if not edges:
+            return None
+
+        return edges[-1].get("cursor")
 
     def update_variables(self) -> None:
         """Updates the GraphQL query variables for pagination."""

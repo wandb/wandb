@@ -218,9 +218,11 @@ class Files(SizedPaginator["File"]):
         run_data = project.get("run") or {}
         files_data = run_data.get("files") or {}
         edges = files_data.get("edges") or []
-        if edges:
-            return edges[-1].get("cursor")
-        return None
+
+        if not edges:
+            return None
+
+        return edges[-1].get("cursor")
 
     def update_variables(self) -> None:
         """Updates the GraphQL query variables for pagination.
