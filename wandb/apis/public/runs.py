@@ -1016,7 +1016,9 @@ class Run(Attrs):
                 "$deleteArtifacts: Boolean" if delete_artifacts else "",
                 "$deleteAllDescendants: Boolean" if delete_all_descendants else "",
                 "deleteArtifacts: $deleteArtifacts" if delete_artifacts else "",
-                "deleteAllDescendants: $deleteAllDescendants" if delete_all_descendants else "",
+                "deleteAllDescendants: $deleteAllDescendants"
+                if delete_all_descendants
+                else "",
             )
         )
 
