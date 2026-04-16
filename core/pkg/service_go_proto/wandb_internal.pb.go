@@ -1993,7 +1993,18 @@ func (x *ErrorInfo) GetCode() ErrorInfo_ErrorCode {
 	return ErrorInfo_UNKNOWN
 }
 
-// RunExitRecord: exit status of process
+// Complete the run and wait for it to upload.
+//
+// This record is special because it is written to the transaction log
+// but also requires a response, unlike other record types. It plays an
+// important role in finishing a run: First, after sending this, the client
+// guarantees not to send any more run-modifying records (but can still query
+// things like OperationStats). Second, a response to this record means
+// that all of the run's data has been uploaded.
+//
+// After getting a response to this record, the client may make some final
+// queries and must end with an "inform_finish" request to allow the internal
+// service to clean up.
 type RunExitRecord struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ExitCode      int32                  `protobuf:"varint,1,opt,name=exit_code,json=exitCode,proto3" json:"exit_code,omitempty"`

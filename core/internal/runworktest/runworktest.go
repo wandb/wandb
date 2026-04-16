@@ -126,10 +126,6 @@ func (w *FakeRunWork) Abort() {
 	w.rw.Abort()
 }
 
-func (w *FakeRunWork) SetDone() {
-	w.rw.SetDone()
-}
-
 func (w *FakeRunWork) Close() {
 	w.rw.Close()
 }

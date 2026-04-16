@@ -7,7 +7,6 @@ package wbapi
 
 import (
 	"context"
-	"log/slog"
 
 	"github.com/hashicorp/go-retryablehttp"
 
@@ -36,9 +35,7 @@ type WandbAPI struct {
 }
 
 // New returns a new WandbAPI.
-func New(s *settings.Settings) *WandbAPI {
-	logger := observability.NewNoOpLogger()
-
+func New(s *settings.Settings, logger *observability.CoreLogger) *WandbAPI {
 	baseURL := stream.BaseURLFromSettings(logger, s)
 	credentialProvider := stream.CredentialsFromSettings(logger, s)
 	graphqlClient := stream.NewGraphQLClient(
@@ -55,10 +52,7 @@ func New(s *settings.Settings) *WandbAPI {
 	httpClient.RetryWaitMin = s.GetFileTransferRetryWaitMin()
 	httpClient.RetryWaitMax = s.GetFileTransferRetryWaitMax()
 	httpClient.HTTPClient.Timeout = s.GetFileTransferTimeout()
-	httpClient.Logger = observability.NewCoreLogger(
-		slog.Default(),
-		nil,
-	)
+	httpClient.Logger = logger
 
 	featureProvider := featurechecker.New(graphqlClient, logger)
 

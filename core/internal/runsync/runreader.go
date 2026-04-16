@@ -109,20 +109,28 @@ func (r *RunReader) ExtractRunInfo(ctx context.Context) (*RunInfo, error) {
 //
 // Closes RunWork at the end, even on error. If there was no Exit record,
 // creates one with an exit code of 1.
-func (r *RunReader) ProcessTransactionLog(ctx context.Context) error {
+func (r *RunReader) ProcessTransactionLog(ctx context.Context) (err error) {
 	r.logger.Info("runsync: starting to read")
 
-	// Abort any async work on cancellation.
-	cancelAbort := context.AfterFunc(ctx, r.runWork.Abort)
-	defer cancelAbort() // must run after closeRunWork()
+	defer r.runWork.Close()
 
-	defer r.closeRunWork()
+	// Abort the run's uploads if the sync is cancelled.
+	cancelAbort := context.AfterFunc(ctx, r.runWork.Abort)
+	defer cancelAbort()
 
 	reader, err := r.open()
 	if err != nil {
 		return err
 	}
 	defer reader.Close()
+
+	// Make an Exit request if one was missing, so that the run's state
+	// is updated to failed. This can happen when syncing a partially-written
+	// transaction log.
+	defer func() {
+		exitErr := r.sendExitIfNotSeen(ctx)
+		err = FirstSyncError(r.logger, err, exitErr)
+	}()
 
 	for {
 		record, err := r.nextUpdatedRecord(ctx, reader, !r.seenExit /*retryEOF*/)
@@ -143,8 +151,13 @@ func (r *RunReader) ProcessTransactionLog(ctx context.Context) error {
 			r.parseAndAddWork(record)
 
 		case record.GetExit() != nil:
-			r.parseAndAddWork(record)
 			r.seenExit = true
+
+			// Block until the Exit is processed.
+			_, err := r.parseAndDoRequest(ctx, "sync-run-exit", record)
+			if err != nil {
+				return err
+			}
 
 		case record.GetRun() != nil:
 			// Fail early if initializing the run (UpsertBucket) fails.
@@ -166,24 +179,25 @@ func (r *RunReader) ProcessTransactionLog(ctx context.Context) error {
 	}
 }
 
-// closeRunWork closes RunWork creating an exit record if one hasn't been seen.
-func (r *RunReader) closeRunWork() {
-	if !r.seenExit {
-		r.logger.Warn(
-			"runsync: no exit record encountered, using exit code 1 (failed)",
-		)
-
-		r.parseAndAddWork(
-			&spb.Record{
-				RecordType: &spb.Record_Exit{
-					Exit: &spb.RunExitRecord{
-						ExitCode: 1,
-					},
-				},
-			})
+// sendExitIfNotSeen creates and waits for an exit record if one wasn't seen.
+func (r *RunReader) sendExitIfNotSeen(ctx context.Context) error {
+	if r.seenExit {
+		return nil
 	}
 
-	r.runWork.Close()
+	r.logger.Warn(
+		"runsync: no exit record encountered, using exit code 1 (failed)",
+	)
+
+	_, err := r.parseAndDoRequest(ctx, "sync-run-exit",
+		&spb.Record{
+			RecordType: &spb.Record_Exit{
+				Exit: &spb.RunExitRecord{
+					ExitCode: 1,
+				},
+			},
+		})
+	return err
 }
 
 // open returns an opened transaction log Reader.
