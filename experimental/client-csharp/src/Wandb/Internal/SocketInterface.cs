@@ -154,51 +154,30 @@ namespace Wandb.Internal
         }
 
         /// <summary>
-        /// Delivers a run finish request to wandb-core, without marking the run as exited
-        /// on the server.
-        /// </summary>
-        /// <param name="timeoutMilliseconds">
-        /// The timeout in milliseconds to wait for a response. Defaults to 0 (no timeout).
-        /// </param>
-        /// <returns>
-        /// A task representing the asynchronous operation. The task result contains the <see cref="Result"/>.
-        /// </returns>
-        /// <remarks>
-        /// This method is used to finish a run without marking it as exited on the server.
-        /// </remarks>
-        public async Task<Result> DeliverFinishWithoutExit(int timeoutMilliseconds = 0)
-        {
-            var record = new Record
-            {
-                Request = new Request
-                {
-                    RunFinishWithoutExit = new RunFinishWithoutExitRequest { }
-                },
-                Info = new _RecordInfo
-                {
-                    StreamId = _streamId
-                }
-            };
-            return await Deliver(record, timeoutMilliseconds).ConfigureAwait(false);
-        }
-
-        /// <summary>
         /// Delivers a run exit record to the server.
         /// </summary>
         /// <param name="exitCode">The exit code of the run. Defaults to 0.</param>
         /// <param name="timeoutMilliseconds">
         /// The timeout in milliseconds to wait for a response. Defaults to 0 (no timeout).
         /// </param>
+        /// <param name="markComplete">
+        /// Whether to change the run to a completed state. Defaults to true.
+        /// </param>
         /// <returns>
         /// A task representing the asynchronous operation. The task result contains the <see cref="Result"/>.
         /// </returns>
-        public async Task<Result> DeliverExit(int exitCode = 0, int timeoutMilliseconds = 0)
+        public async Task<Result> DeliverExit(
+            int exitCode = 0,
+            int timeoutMilliseconds = 0,
+            bool markComplete = true
+        )
         {
             var record = new Record
             {
                 Exit = new RunExitRecord
                 {
-                    ExitCode = exitCode
+                    ExitCode = exitCode,
+                    NotComplete = !markComplete
                 }
             };
             return await Deliver(record, timeoutMilliseconds).ConfigureAwait(false);

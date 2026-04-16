@@ -2730,10 +2730,7 @@ class Run:
 
         assert self._backend and self._backend.interface
 
-        if self._settings.x_update_finish_state:
-            exit_handle = self._backend.interface.deliver_exit(self._exit_code)
-        else:
-            exit_handle = self._backend.interface.deliver_finish_without_exit()
+        exit_handle = self._backend.interface.deliver_exit(self._exit_code)
 
         with progress.progress_printer(
             self._printer,

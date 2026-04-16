@@ -316,8 +316,6 @@ func (h *Handler) handleRequest(
 		// TODO: implement this
 	case *spb.Request_JobInput:
 		h.handleRequestJobInput(record, request)
-	case *spb.Request_RunFinishWithoutExit:
-		h.handleRequestRunFinishWithoutExit(record, request)
 	case *spb.Request_Operations:
 		h.handleRequestOperations(record, request)
 	case *spb.Request_ProbeSystemInfo:
@@ -696,17 +694,6 @@ func (h *Handler) handleRequestPause() {
 func (h *Handler) handleRequestResume() {
 	h.runTimer.Start()
 	h.systemMonitor.Resume()
-}
-
-func (h *Handler) handleRequestRunFinishWithoutExit(
-	record *spb.Record,
-	request *runwork.Request,
-) {
-	h.runTimer.Stop()
-	h.updateRunTiming()
-	h.systemMonitor.Finish()
-	h.flushPartialHistory(true, h.partialHistoryStep+1)
-	h.fwdRecord(record, request)
 }
 
 func (h *Handler) handleExit(
