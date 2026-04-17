@@ -191,10 +191,10 @@ class Files(SizedPaginator["File"]):
 
         <!-- lazydoc-ignore: internal -->
         """
-        if self.last_response:
-            return self.last_response["project"]["run"]["files"]["pageInfo"][
-                "hasNextPage"
-            ]
+        if self.last_response and (
+            files := self.last_response["project"]["run"]["files"]
+        ):
+            return files["pageInfo"]["hasNextPage"]
         else:
             return True
 
@@ -204,8 +204,10 @@ class Files(SizedPaginator["File"]):
 
         <!-- lazydoc-ignore: internal -->
         """
-        if self.last_response:
-            return self.last_response["project"]["run"]["files"]["edges"][-1]["cursor"]
+        if self.last_response and (
+            files := self.last_response["project"]["run"]["files"]
+        ):
+            return files["edges"][-1]["cursor"]
         else:
             return None
 
@@ -221,10 +223,12 @@ class Files(SizedPaginator["File"]):
 
         <!-- lazydoc-ignore: internal -->
         """
-        return [
-            File(self.client, r["node"], self.run)
-            for r in self.last_response["project"]["run"]["files"]["edges"]
-        ]
+        if self.last_response and (
+            files := self.last_response["project"]["run"]["files"]
+        ):
+            return [File(self.client, r["node"], self.run) for r in files["edges"]]
+        else:
+            return []
 
     def __repr__(self) -> str:
         return f"<{nameof(type(self))} {'/'.join(self.run.path)} ({len(self)})>"
