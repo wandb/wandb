@@ -5,8 +5,8 @@ from dataclasses import dataclass, field
 import cwsandbox._sandbox as cwsandbox_sandbox
 import pytest
 import wandb
-from wandb.sdk import wandb_setup
 from wandb.sandbox import Sandbox
+from wandb.sdk import wandb_setup
 
 
 class _FakeChannel:
@@ -20,6 +20,8 @@ class _SandboxStubCalls:
     stop: list[dict[str, object]] = field(default_factory=list)
 
 
+# TODO: We need to update the stub once upstream changes on rename are merged
+# https://github.com/coreweave/cwsandbox-client/pull/98
 def _patch_sandbox_stub(
     monkeypatch: pytest.MonkeyPatch,
 ) -> _SandboxStubCalls:
