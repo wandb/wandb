@@ -490,7 +490,7 @@ class Run:
     You can log data to a run with `wandb.Run.log()`. Anything you log using
     `wandb.Run.log()` is sent to that run. See
     [Create an experiment](https://docs.wandb.ai/models/track/create-an-experiment) or
-    [`wandb.init`](https://docs.wandb.ai/models/ref/python/functions/init) API reference page
+    [`wandb.init()`](https://docs.wandb.ai/models/ref/python/functions/init) API reference page
     or more information.
 
     There is a another `Run` object in the
@@ -1853,7 +1853,7 @@ class Run:
         For optimal performance, limit your logging to once every N iterations,
         or collect data over multiple iterations and log it in a single step.
 
-        By default, each call to `log` creates a new "step".
+        By default, each call to `wandb.Run.log()` creates a new "step".
         The step must always increase, and it is not possible to log
         to a previous step. You can use any metric as the X axis in charts.
         See [Custom log axes](https://docs.wandb.ai/models/track/log/customize-logging-axes)
@@ -2817,7 +2817,7 @@ class Run:
                 Supported options are "minimize" and "maximize". "goal" is
                 deprecated and should not be used, use "min" or "max" instead.
             overwrite: If false, then this call is merged with previous
-                `define_metric` calls for the same metric by using their
+                `wandb.Run.define_metric()` calls for the same metric by using their
                 values for any unspecified parameters. If true, then
                 unspecified parameters overwrite values specified by
                 previous calls.
@@ -2949,7 +2949,7 @@ class Run:
             log: Specifies whether to log "gradients", "parameters", or "all".
                 Set to None to disable logging. (default="gradients").
             log_freq: Frequency (in batches) to log gradients and parameters. (default=1000)
-            idx: Index used when tracking multiple models with `wandb.watch`. (default=None)
+            idx: Index used when tracking multiple models with `wandb.Run.watch()`. (default=None)
             log_graph: Whether to log the model's computational graph. (default=False)
 
         Raises:
@@ -3034,7 +3034,7 @@ class Run:
     ) -> Artifact:
         """Declare an artifact as an input to a run.
 
-        Call `download` or `file` on the returned object to get the contents locally.
+        Call `.download` or `.file` on the returned object to get the contents locally.
 
         Args:
             artifact_or_name: The name of the artifact to use. May be prefixed
@@ -3168,7 +3168,7 @@ class Run:
                     - `/local/directory/file.txt`
                     - `s3://bucket/path`
                 You can also pass an Artifact object created by calling
-                `wandb.Artifact`.
+                `wandb.Artifact()`.
             name: (str, optional) An artifact name. Valid names can be in the following forms:
                     - name:version
                     - name:alias
@@ -3204,7 +3204,7 @@ class Run:
     ) -> Artifact:
         """Declare (or append to) a non-finalized artifact as output of a run.
 
-        Note that you must call run.finish_artifact() to finalize the artifact.
+        Note that you must call `wandb.Run.finish_artifact()` to finalize the artifact.
         This is useful when distributed jobs need to all contribute to the same artifact.
 
         Args:
@@ -4043,10 +4043,10 @@ def restore(
     Args:
         name: The name of the file.
         run_path: Optional path to a run to pull files from, i.e. `username/project_name/run_id`
-            if wandb.init has not been called, this is required.
+            if `wandb.init()` has not been called, this is required.
         replace: Whether to download the file even if it already exists locally
         root: The directory to download the file to.  Defaults to the current
-            directory or the run directory if wandb.init was called.
+            directory or the run directory if `wandb.init()` was called.
 
     Returns:
         None if it can't find the file, otherwise a file object open for reading.
