@@ -36,14 +36,6 @@ class SandboxCommand(click.Command):
             raise click.ClickException(str(exc)) from None
 
 
-def _validate_shell_cmd(
-    ctx: click.Context,
-    param: click.Parameter,
-    value: str,
-) -> str:
-    return _cwsandbox_validate_cmd(ctx, param, value)
-
-
 class SandboxGroup(click.Group):
     """Click group for sandbox commands."""
 
@@ -59,15 +51,23 @@ def sandbox() -> None:
     created under a non-default W&B entity. Retry with ``--entity <entity>``.
 
     Examples:
+        # List all pending/running sandboxes
         wandb beta sandbox ls
 
-        wandb beta sandbox sh <sandbox-id>
+        # List all sandboxes
+        wandb beta sandbox ls -a
 
+        # List sandbox created using non default entity
+        wandb beta sandbox ls --entity my-other-team
+
+        # Run single command inside a running sandbox
         wandb beta sandbox exec <sandbox-id> echo hello
 
-        wandb beta sandbox logs <sandbox-id> --follow
+        # Open interavtive shell
+        wandb beta sandbox sh <sandbox-id>
 
-        wandb beta sandbox ls --entity team
+        # Tail log
+        wandb beta sandbox logs <sandbox-id> --follow
     """
 
 
@@ -79,6 +79,16 @@ def sandbox() -> None:
     type=click.Choice(_STATUS_CHOICES, case_sensitive=False),
     help="Filter by status.",
 )
+@click.option(
+    "--all",
+    "-a",
+    "include_stopped",
+    is_flag=True,
+    default=False,
+    help="Include stopped sandboxes in results.",
+)
+# TODO: cwsandbox is NOT returning the tags in the response object, so we can filter
+# by tags, but we cannot show what tags the matched sandbox has ....
 @click.option("--tag", "-t", "tags", multiple=True, help="Filter by tag (repeatable).")
 @click.option(
     "--output",
@@ -90,23 +100,28 @@ def sandbox() -> None:
 )
 def list_sandboxes(
     status: str | None,
+    include_stopped: bool,
     tags: tuple[str, ...],
     output_format: str,
 ) -> None:
     """List sandboxes.
 
     Examples:
+        # List all non stopped
         wandb beta sandbox ls
+
+        wandb beta sandbox ls -a
 
         wandb beta sandbox ls --status running
 
-        wandb beta sandbox ls --tag env=dev --output json
+        wandb beta sandbox ls --tag foo --output json
 
         wandb beta sandbox ls --entity team
     """
     sandboxes = Sandbox.list(
         tags=list(tags) if tags else None,
         status=status,
+        include_stopped=include_stopped,
     ).result()
 
     if output_format == "json":

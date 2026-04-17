@@ -16,7 +16,14 @@ from wandb.sandbox import CWSandboxError
         ),
         (
             ["sandbox", "ls", "--help"],
-            ["--entity", "--status", "--tag", "--output", "wandb beta sandbox ls"],
+            [
+                "--entity",
+                "--status",
+                "--all",
+                "--tag",
+                "--output",
+                "wandb beta sandbox ls",
+            ],
         ),
         (
             ["sandbox", "sh", "--help"],
