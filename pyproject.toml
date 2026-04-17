@@ -105,7 +105,10 @@ launch = [
 models = ["cloudpickle"]
 importers = ["polars<=1.2.1", "rich", "filelock", "mlflow", "tenacity"]
 workspaces = ["wandb-workspaces"]
-sandbox = ["cwsandbox[cli]>=0.14.0"]
+# TODO: lock to 0.16.0 for now due to proto rename.
+# Switch to 0.17.0 after server side is upgraded.
+# https://github.com/coreweave/cwsandbox-client/releases/tag/v0.17.0
+sandbox = ["cwsandbox[cli]==0.16.0"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

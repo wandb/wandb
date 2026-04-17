@@ -167,7 +167,7 @@ cryptography==46.0.6
     #   mlflow
     #   msal
     #   pyjwt
-cwsandbox==0.14.0
+cwsandbox==0.16.0
     # via -r requirements/requirements_test.txt
 cycler==0.12.1
     # via matplotlib
