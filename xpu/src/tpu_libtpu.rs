@@ -1209,7 +1209,7 @@ struct TpuChip {
     devices_per_chip: u32,
     /// Fan-out factor for per-chip metrics (like duty cycle) to per-device keys.
     /// V2/V3 report duty cycle per-chip but have 2 devices, so we fan out.
-    /// V4+ and V7X report per-device natively, so no fan-out (1).
+    /// V4+ and 7x report per-device natively, so no fan-out (1).
     duty_cycle_fanout: u32,
 }
 
@@ -1269,7 +1269,7 @@ fn tpu_chip_from_pci_ids(device_id: &str, subsystem_id: &str) -> Option<TpuChip>
             name: "7x".into(),
             hbm_gib: 192,
             devices_per_chip: 2,
-            duty_cycle_fanout: 1, // V7X reports per-device natively
+            duty_cycle_fanout: 1, // 7x reports per-device natively
         }),
         _ => None,
     }
