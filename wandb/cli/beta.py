@@ -14,8 +14,6 @@ from wandb.analytics import get_sentry
 from wandb.errors import WandbCoreNotAvailableError
 from wandb.util import get_core_path
 
-from .beta_sandbox import SandboxGroup
-
 
 class DefaultCommandGroup(click.Group):
     """A click Group that falls through to a default command.
@@ -279,9 +277,12 @@ def core() -> None:
     """
 
 
-@beta.group(cls=SandboxGroup)
-def sandbox() -> None:
-    """Manage CoreWeave sandboxes through the W&B CLI."""
+try:
+    from .beta_sandbox import sandbox as sandbox_group
+
+    beta.add_command(sandbox_group)
+except ImportError:
+    pass
 
 
 @core.command()
