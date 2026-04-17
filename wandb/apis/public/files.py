@@ -183,7 +183,18 @@ class Files(SizedPaginator["File"]):
         if not self.last_response:
             self._load_page()
 
-        return self.last_response["project"]["run"]["fileCount"]
+        files_data = self._get_files_data()
+        if files_data is None:
+            return 0
+        return self.last_response.get("project", {}).get("run", {}).get(
+            "fileCount", 0
+        )
+
+    def _get_files_data(self) -> dict[str, Any] | None:
+        """Safely get the files field from the response. API may return files=None when fileCount>0 (e.g. after offline sync)."""
+        if not self.last_response:
+            return None
+        return self.last_response.get("project", {}).get("run", {}).get("files")
 
     @property
     def more(self) -> bool:
@@ -191,12 +202,10 @@ class Files(SizedPaginator["File"]):
 
         <!-- lazydoc-ignore: internal -->
         """
-        if self.last_response:
-            return self.last_response["project"]["run"]["files"]["pageInfo"][
-                "hasNextPage"
-            ]
-        else:
-            return True
+        files_data = self._get_files_data()
+        if files_data and files_data.get("pageInfo"):
+            return files_data["pageInfo"].get("hasNextPage", False)
+        return False
 
     @property
     def cursor(self) -> str | None:
@@ -204,10 +213,10 @@ class Files(SizedPaginator["File"]):
 
         <!-- lazydoc-ignore: internal -->
         """
-        if self.last_response:
-            return self.last_response["project"]["run"]["files"]["edges"][-1]["cursor"]
-        else:
-            return None
+        files_data = self._get_files_data()
+        if files_data and files_data.get("edges"):
+            return files_data["edges"][-1].get("cursor")
+        return None
 
     def update_variables(self) -> None:
         """Updates the GraphQL query variables for pagination.
@@ -221,9 +230,12 @@ class Files(SizedPaginator["File"]):
 
         <!-- lazydoc-ignore: internal -->
         """
+        files_data = self._get_files_data()
+        if not files_data or not files_data.get("edges"):
+            return []
         return [
             File(self.client, r["node"], self.run)
-            for r in self.last_response["project"]["run"]["files"]["edges"]
+            for r in files_data["edges"]
         ]
 
     def __repr__(self) -> str:
