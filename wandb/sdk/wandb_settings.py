@@ -352,7 +352,7 @@ class Settings(BaseModel, validate_assignment=True):
         the "create_new" option.
     - "finish_previous": Finish all active runs, then return a new run.
     - "create_new": Create a new run without modifying other active runs.
-        Does not update `wandb.run` and top-level functions like `wandb.log`.
+        Does not update `wandb.Run` and top-level functions like `wandb.Run.log()`.
         Because of this, some older integrations that rely on the global run
         will not work.
 
@@ -902,7 +902,7 @@ class Settings(BaseModel, validate_assignment=True):
     x_sync_dir_suffix: str = ""
     """Suffix to add to the run's directory name (sync_dir).
 
-    This is set in wandb.init() to avoid naming conflicts.
+    This is set in `wandb.init()` to avoid naming conflicts.
     If set, it is joined to the default name with a dash.
     """
 
