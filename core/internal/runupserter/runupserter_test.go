@@ -2,14 +2,15 @@ package runupserter_test
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"testing"
 	"testing/synctest"
 	"time"
 
+	"github.com/Khan/genqlient/graphql"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/vektah/gqlparser/v2/gqlerror"
 	"go.uber.org/mock/gomock"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
@@ -161,13 +162,21 @@ func TestInitRun_UpsertError(t *testing.T) {
 	params.GraphqlClientOrNil = mockClient
 	mockClient.StubMatchWithError(
 		gqlmock.WithOpName("UpsertBucket"),
-		errors.New("test error"),
+		&graphql.HTTPError{
+			StatusCode: 500,
+			Response: graphql.Response{
+				Errors: gqlerror.List{
+					{Message: "Everything is broken"},
+				},
+			},
+		},
 	)
 
 	upserter, err := runupserter.InitRun(runRecord(&spb.RunRecord{}), params)
 
 	assert.Nil(t, upserter)
-	assert.ErrorContains(t, err, "test error")
+	runUpdateError := err.(*runupserter.RunUpdateError)
+	assert.Equal(t, "Everything is broken", runUpdateError.UserMessage)
 }
 
 func TestInitRun_Offline(t *testing.T) {
