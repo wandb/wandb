@@ -1,13 +1,10 @@
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime
+from datetime import datetime
 
 import click
-from cwsandbox.cli.exec import exec_command as cwsandbox_exec_command
-from cwsandbox.cli.logs import logs as cwsandbox_logs
 from cwsandbox.cli.shell import _validate_cmd as _cwsandbox_validate_cmd
-from cwsandbox.cli.shell import shell as cwsandbox_shell
 
 from wandb.sandbox import CWSandboxError, Sandbox, SandboxStatus
 from wandb.sandbox._auth import _override_sandbox_entity
@@ -145,7 +142,7 @@ def list_sandboxes(
 @click.option(
     "--cmd",
     default="/bin/bash",
-    callback=_validate_shell_cmd,
+    callback=_cwsandbox_validate_cmd,
     help="Command to run (default: /bin/bash). Accepts full command strings.",
 )
 def shell(
@@ -163,7 +160,9 @@ def shell(
 
         wandb beta sandbox sh --entity team <sandbox-id>
     """
-    callback = cwsandbox_shell.callback
+    from cwsandbox.cli.shell import shell
+
+    callback = shell.callback
     if callback is None:
         raise click.ClickException("Failed to load the cwsandbox CLI command.")
 
@@ -209,9 +208,11 @@ def exec_in_sandbox(
 
         wandb beta sandbox exec --entity team <sandbox-id> echo hello
     """
-    callback = cwsandbox_exec_command.callback
+    from cwsandbox.cli.exec import exec_command
+
+    callback = exec_command.callback
     if callback is None:
-        raise click.ClickException("Failed to load the cwsandbox CLI command.")
+        raise click.ClickException("Failed to load the cwsandbox exec command.")
 
     callback(
         sandbox_id=sandbox_id,
@@ -270,12 +271,11 @@ def logs(
 
         wandb beta sandbox logs --entity team <sandbox-id>
     """
-    if since_time is not None and since_time.tzinfo is None:
-        since_time = since_time.replace(tzinfo=UTC)
+    from cwsandbox.cli.logs import logs
 
-    callback = cwsandbox_logs.callback
+    callback = logs.callback
     if callback is None:
-        raise click.ClickException("Failed to load the cwsandbox CLI command.")
+        raise click.ClickException("Failed to load the cwsandbox logs command.")
 
     callback(
         sandbox_id=sandbox_id,

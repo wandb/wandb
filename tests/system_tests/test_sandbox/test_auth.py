@@ -6,7 +6,6 @@ import cwsandbox._sandbox as cwsandbox_sandbox
 import pytest
 import wandb
 from wandb.sandbox import Sandbox
-from wandb.sdk import wandb_setup
 
 
 class _FakeChannel:
@@ -73,46 +72,38 @@ def _patch_sandbox_stub(
     return calls
 
 
-def test_sandbox_run_uses_wandb_settings_auth_headers(
+def test_sandbox_run_uses_settings_entity_project(
     user,
-    tmp_path,
     monkeypatch,
 ) -> None:
     calls = _patch_sandbox_stub(monkeypatch)
 
-    with wandb.init(
-        project="sandbox-auth-system-test",
-        dir=str(tmp_path),
-    ):
-        settings = wandb_setup.singleton().settings
-        expected_headers = {"x-api-key": user}
-        if settings.entity:
-            expected_headers["x-entity-id"] = settings.entity
-        if settings.project:
-            expected_headers["x-project-name"] = settings.project
+    monkeypatch.setenv("WANDB_ENTITY", "entity-from-settings")
+    monkeypatch.setenv("WANDB_PROJECT", "project-from-settings")
 
-        with Sandbox.run("sleep", "infinity") as sandbox:
-            assert sandbox.sandbox_id == "sb-system-test"
+    with Sandbox.run("sleep", "infinity") as sandbox:
+        assert sandbox.sandbox_id == "sb-system-test"
 
+    expected_headers = {
+        "x-api-key": user,
+        "x-entity-id": "entity-from-settings",
+        "x-project-name": "project-from-settings",
+    }
     assert len(calls.start) == 1
     assert dict(calls.start[0]["metadata"]) == expected_headers
     assert len(calls.stop) == 1
     assert dict(calls.stop[0]["metadata"]) == expected_headers
 
 
-def test_sandbox_run_without_run_uses_settings_entity(
+def test_sandbox_run_ignore_run_override(
     user,
     monkeypatch,
 ) -> None:
     calls = _patch_sandbox_stub(monkeypatch)
 
-    monkeypatch.delenv("WANDB_PROJECT", raising=False)
-    wandb.teardown()
-
-    assert wandb.run is None
-
-    with Sandbox.run("sleep", "infinity") as sandbox:
-        assert sandbox.sandbox_id == "sb-system-test"
+    with wandb.init(project="project-from-run"):
+        with Sandbox.run("sleep", "infinity") as sandbox:
+            assert sandbox.sandbox_id == "sb-system-test"
 
     expected_headers = {
         "x-api-key": user,
@@ -124,7 +115,7 @@ def test_sandbox_run_without_run_uses_settings_entity(
     assert dict(calls.stop[0]["metadata"]) == expected_headers
 
 
-def test_sandbox_run_without_entity_or_project_uses_api_key_only(
+def test_sandbox_run_without_entity_or_project(
     user,
     monkeypatch,
 ) -> None:
@@ -132,9 +123,6 @@ def test_sandbox_run_without_entity_or_project_uses_api_key_only(
 
     monkeypatch.delenv("WANDB_ENTITY", raising=False)
     monkeypatch.delenv("WANDB_PROJECT", raising=False)
-    wandb.teardown()
-
-    assert wandb.run is None
 
     with Sandbox.run("sleep", "infinity") as sandbox:
         assert sandbox.sandbox_id == "sb-system-test"
