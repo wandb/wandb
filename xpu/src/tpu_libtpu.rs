@@ -81,7 +81,7 @@ impl TpuMonitor {
     async fn collect_tpu_metrics(&self) -> Vec<(String, MetricValue)> {
         let mut metrics = Vec::new();
         let mut sdk_failures: Vec<&MetricSpec> = Vec::new();
-        let dpc = self.chip.devices_per_chip;
+        let dpc = self.chip.duty_cycle_fanout;
 
         // Phase 1: collect from SDK.
         if let Some(sdk) = &self.sdk {
@@ -206,7 +206,7 @@ struct MetricSpec {
 
 const METRICS: &[MetricSpec] = &[
     MetricSpec {
-        sdk_names: &["tensorcore_utilization", "tensorcore_util"],
+        sdk_names: &["tensorcore_util", "tensorcore_utilization"],
         grpc_name: None,
         key: "tpu.{}.tensorcoreUtilization",
         unit: "",
@@ -491,7 +491,10 @@ impl SdkClient {
         }
 
         for alias in spec.sdk_names {
-            if self.read_metric(alias).is_ok() {
+            if let Ok(data) = self.read_metric(alias) {
+                if data.values.is_empty() {
+                    continue; // handle exists but no data; try next alias
+                }
                 let alias = (*alias).to_string();
                 self.resolved.insert(cache_key.to_string(), alias.clone());
                 return Some(alias);
@@ -745,13 +748,13 @@ impl MetricSpec {
     fn format_sdk(
         &self,
         data: &SdkMetricData,
-        devices_per_chip: u32,
+        duty_cycle_fanout: u32,
         out: &mut Vec<(String, MetricValue)>,
     ) {
         match self.shape {
             MetricShape::Gauge => emit_per_device(out, self.key, &data.values, 1),
             MetricShape::DutyCycle => {
-                emit_per_device(out, self.key, &data.values, devices_per_chip)
+                emit_per_device(out, self.key, &data.values, duty_cycle_fanout)
             }
             MetricShape::LabeledDist => {
                 emit_labeled_dist(out, self.key, self.unit, &data.description, &data.values)
@@ -767,10 +770,10 @@ impl MetricSpec {
     fn format_grpc(
         &self,
         tpu_metric: &proto::TpuMetric,
-        devices_per_chip: u32,
+        duty_cycle_fanout: u32,
         out: &mut Vec<(String, MetricValue)>,
     ) {
-        let dpc = devices_per_chip.max(1) as i64;
+        let dpc = duty_cycle_fanout.max(1) as i64;
         match self.shape {
             MetricShape::Gauge | MetricShape::DutyCycle => {
                 // key contains `{}` for device index; extract suffix after last `.{}`.
@@ -1202,7 +1205,12 @@ const GOOGLE_TPU_VENDOR_ID: &str = "0x1ae0";
 struct TpuChip {
     name: String,
     hbm_gib: u32,
+    /// Number of logical devices per physical chip. Used for metadata only.
     devices_per_chip: u32,
+    /// Fan-out factor for per-chip metrics (like duty cycle) to per-device keys.
+    /// V2/V3 report duty cycle per-chip but have 2 devices, so we fan out.
+    /// V4+ and 7x report per-device natively, so no fan-out (1).
+    duty_cycle_fanout: u32,
 }
 
 impl Default for TpuChip {
@@ -1211,6 +1219,7 @@ impl Default for TpuChip {
             name: String::new(),
             hbm_gib: 0,
             devices_per_chip: 1,
+            duty_cycle_fanout: 1,
         }
     }
 }
@@ -1222,11 +1231,13 @@ fn tpu_chip_from_pci_ids(device_id: &str, subsystem_id: &str) -> Option<TpuChip>
                 name: "v2".into(),
                 hbm_gib: 8,
                 devices_per_chip: 2,
+                duty_cycle_fanout: 2,
             }),
             "0x004f" => Some(TpuChip {
                 name: "v3".into(),
                 hbm_gib: 16,
                 devices_per_chip: 2,
+                duty_cycle_fanout: 2,
             }),
             _ => None,
         },
@@ -1234,26 +1245,31 @@ fn tpu_chip_from_pci_ids(device_id: &str, subsystem_id: &str) -> Option<TpuChip>
             name: "v4".into(),
             hbm_gib: 32,
             devices_per_chip: 1,
+            duty_cycle_fanout: 1,
         }),
         "0x0063" => Some(TpuChip {
             name: "v5e".into(),
             hbm_gib: 16,
             devices_per_chip: 1,
+            duty_cycle_fanout: 1,
         }),
         "0x0062" => Some(TpuChip {
             name: "v5p".into(),
             hbm_gib: 95,
             devices_per_chip: 1,
+            duty_cycle_fanout: 1,
         }),
         "0x006f" => Some(TpuChip {
             name: "v6e".into(),
             hbm_gib: 32,
             devices_per_chip: 1,
+            duty_cycle_fanout: 1,
         }),
         "0x0076" => Some(TpuChip {
             name: "7x".into(),
             hbm_gib: 192,
             devices_per_chip: 2,
+            duty_cycle_fanout: 1, // 7x reports per-device natively
         }),
         _ => None,
     }
