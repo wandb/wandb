@@ -290,12 +290,6 @@ class ServiceConnection:
             stream_id=run_id,
         )
 
-        return InterfaceSock(
-            self._asyncer,
-            self._client,
-            stream_id=run_id,
-        )
-
     def inform_finish(self, run_id: str) -> None:
         """Send an finish request to the service."""
         request = spb.ServerInformFinishRequest()
