@@ -2058,6 +2058,27 @@ class Run:
     @_log_to_run
     @_raise_if_finished
     @_attach
+    def write_logs(self, text: str) -> None:
+        """Write text to the run's Logs tab.
+
+        Enables more control over what appears in the Logs tab compared to automatic stdout/stderr console capture.
+        Text written with this method is not processed through terminal emulation.
+
+        For Python's logging module, use the built-in
+        ``WandbLoggerHandler`` convenience integration.
+
+        Args:
+            text: The text to write. A trailing newline is added if not present.
+
+        """
+        if not text.endswith("\n"):
+            text += "\n"
+        if self._backend and self._backend.interface:
+            self._backend.interface.publish_output_logger(text, nowait=True)
+
+    @_log_to_run
+    @_raise_if_finished
+    @_attach
     def save(
         self,
         glob_str: str | os.PathLike,
