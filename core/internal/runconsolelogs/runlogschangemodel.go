@@ -161,7 +161,7 @@ func (o *RunLogsChangeModel) NextLine(streamPrefix, streamLabel string) RunLogsL
 
 // AppendLine allocates a new line with pre-set content, bypassing terminal
 // emulation. Used for structured log output (e.g. run.write_logs).
-func (o *RunLogsChangeModel) AppendLine(streamPrefix string, content string) {
+func (o *RunLogsChangeModel) AppendLine(streamPrefix, content string) {
 	line := &RunLogsLine{}
 	line.StreamPrefix = streamPrefix
 	line.MaxLength = o.maxLineLength
