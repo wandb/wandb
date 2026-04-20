@@ -904,7 +904,7 @@ func (s *Sender) sendOutputRaw(_ *spb.Record, outputRaw *spb.OutputRawRecord) {
 }
 
 func (s *Sender) sendOutputLogger(_ *spb.Record, outputLogger *spb.OutputLoggerRecord) {
-	if s.exitRecord != nil {
+	if s.receivedExit {
 		s.logCalledAfterExit("sendOutputLogger")
 		return
 	}
