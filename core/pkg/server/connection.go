@@ -322,7 +322,7 @@ func (nc *Connection) handleIncomingRequests() {
 		case *spb.ServerRequest_Authenticate:
 			nc.handleAuthenticate(msg.RequestId, x.Authenticate)
 		case *spb.ServerRequest_InformInit:
-			nc.handleInformInit(x.InformInit)
+			nc.handleInformInit(msg.RequestId, x.InformInit)
 		case *spb.ServerRequest_InformAttach:
 			nc.handleInformAttach(msg.RequestId, x.InformAttach)
 		case *spb.ServerRequest_RecordPublish:
@@ -378,7 +378,10 @@ func (nc *Connection) handleCancel(msg *spb.ServerCancelRequest) {
 // This function is invoked when the server receives an `InformInit` message
 // from the client. It creates a new stream, associates it with the connection.
 // Also starts the stream and adds the connection as a responder to the stream.
-func (nc *Connection) handleInformInit(msg *spb.ServerInformInitRequest) {
+func (nc *Connection) handleInformInit(
+	requestID string,
+	msg *spb.ServerInformInitRequest,
+) {
 	s := settings.From(msg.GetSettings())
 
 	streamId := msg.GetXInfo().GetStreamId()
@@ -391,8 +394,6 @@ func (nc *Connection) handleInformInit(msg *spb.ServerInformInitRequest) {
 		nc.logLevel,
 		s,
 	)
-	strm.Start()
-	slog.Info("handleInformInit: stream started", "streamId", streamId, "id", nc.id)
 
 	if err := nc.streamMux.AddStream(streamId, strm); err != nil {
 		slog.Error(
@@ -401,8 +402,23 @@ func (nc *Connection) handleInformInit(msg *spb.ServerInformInitRequest) {
 			"streamId", streamId,
 			"id", nc.id,
 		)
-		// TODO: should we Close the stream?
-		return
+
+		nc.Respond(&spb.ServerResponse{
+			RequestId: requestID,
+			ServerResponseType: &spb.ServerResponse_ErrorResponse{
+				ErrorResponse: &spb.ServerErrorResponse{
+					Message: err.Error(),
+				},
+			},
+		})
+	} else {
+		strm.Start()
+		slog.Info(
+			"handleInformInit: stream started",
+			"streamId", streamId,
+			"id", nc.id,
+		)
+		nc.Respond(&spb.ServerResponse{RequestId: requestID})
 	}
 }
 
