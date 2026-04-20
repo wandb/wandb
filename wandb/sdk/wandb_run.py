@@ -534,7 +534,6 @@ class Run:
     _redirect_cb: Callable[[str, str], None] | None
     _redirect_raw_cb: Callable[[str, str], None] | None
     _output_writer: filesystem.CRDedupedFile | None
-    _logger_handlers: list[tuple[logging.Logger, logging.Handler]] | None
 
     _atexit_cleanup_called: bool
     _hooks: ExitHooks | None
@@ -637,7 +636,6 @@ class Run:
         self._output_writer = None
         self._out_redir = None
         self._err_redir = None
-        self._logger_handlers = None
         self._stdout_slave_fd = None
         self._stderr_slave_fd = None
 
@@ -2546,21 +2544,7 @@ class Run:
 
         self._redirect(self._stdout_slave_fd, self._stderr_slave_fd)
 
-        if self._settings.console_capture_loggers:
-            from wandb.sdk.lib import logger_capture
-
-            self._logger_handlers = logger_capture.install(
-                self._settings.console_capture_loggers,
-                self._console_raw_callback,
-            )
-
     def _console_stop(self) -> None:
-        if self._logger_handlers:
-            from wandb.sdk.lib import logger_capture
-
-            logger_capture.uninstall(self._logger_handlers)
-            self._logger_handlers = None
-
         self._restore()
         if self._output_writer:
             self._output_writer.close()
