@@ -51,6 +51,7 @@ message Record {
     google.protobuf.Empty noop_link_artifact = 24;
     UseArtifactRecord use_artifact = 25;
     EnvironmentRecord environment = 26;
+    OutputLoggerRecord output_logger = 27;
 
     // request field does not belong here longterm
     Request request = 100;
@@ -292,7 +293,7 @@ message OutputRecord {
 message OutputResult {}
 
 /*
- * OutputRawRecord: raw console output
+ * OutputRawRecord: raw console output from stderr and stout.
  */
 message OutputRawRecord {
   enum OutputType {
@@ -306,6 +307,17 @@ message OutputRawRecord {
 }
 
 message OutputRawResult {}
+
+/*
+ * OutputLoggerRecord: log output from run.write_logs for the Logs tab.
+ */
+message OutputLoggerRecord {
+  google.protobuf.Timestamp timestamp = 1;
+  string line = 2;
+  _RecordInfo _info = 200;
+}
+
+message OutputLoggerResult {}
 
 /*
  * MetricRecord: wandb/sdk/wandb_metric/Metric
