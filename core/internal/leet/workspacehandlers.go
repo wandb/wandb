@@ -85,7 +85,7 @@ func (w *Workspace) handleKeyPressMsg(msg tea.KeyPressMsg) tea.Cmd {
 	// Focus-aware key dispatch.
 	switch w.focusMgr.Current() {
 	case FocusTargetMetricsGrid, FocusTargetSystemMetrics:
-		if cmd := w.handleGridWASD(msg); cmd != nil {
+		if cmd := w.handleGridNav(msg); cmd != nil {
 			return cmd
 		}
 	case FocusTargetMedia:
@@ -801,6 +801,12 @@ func (w *Workspace) handlePrevPage(msg tea.KeyPressMsg) tea.Cmd {
 		}
 	case FocusTargetMedia:
 		w.mediaPane.NavigatePage(-1)
+	case FocusTargetRunsList:
+		w.runs.PageUp()
+	case FocusTargetOverview:
+		w.runOverviewSidebar.navigatePageUp()
+	case FocusTargetConsoleLogs:
+		w.consoleLogsPane.PageUp()
 	}
 	return nil
 }
@@ -815,6 +821,52 @@ func (w *Workspace) handleNextPage(msg tea.KeyPressMsg) tea.Cmd {
 		}
 	case FocusTargetMedia:
 		w.mediaPane.NavigatePage(1)
+	case FocusTargetRunsList:
+		w.runs.PageDown()
+	case FocusTargetOverview:
+		w.runOverviewSidebar.navigatePageDown()
+	case FocusTargetConsoleLogs:
+		w.consoleLogsPane.PageDown()
+	}
+	return nil
+}
+
+func (w *Workspace) handleNavHome(msg tea.KeyPressMsg) tea.Cmd {
+	switch w.focusMgr.Current() {
+	case FocusTargetMetricsGrid:
+		w.metricsGrid.NavigateHome()
+	case FocusTargetSystemMetrics:
+		if g := w.activeSystemMetricsGrid(); g != nil {
+			g.NavigateHome()
+		}
+	case FocusTargetMedia:
+		w.mediaPane.ScrubToStart()
+	case FocusTargetRunsList:
+		w.runs.Home()
+	case FocusTargetOverview:
+		w.runOverviewSidebar.navigateHome()
+	case FocusTargetConsoleLogs:
+		w.consoleLogsPane.ScrollToStart()
+	}
+	return nil
+}
+
+func (w *Workspace) handleNavEnd(msg tea.KeyPressMsg) tea.Cmd {
+	switch w.focusMgr.Current() {
+	case FocusTargetMetricsGrid:
+		w.metricsGrid.NavigateEnd()
+	case FocusTargetSystemMetrics:
+		if g := w.activeSystemMetricsGrid(); g != nil {
+			g.NavigateEnd()
+		}
+	case FocusTargetMedia:
+		w.mediaPane.ScrubToEnd()
+	case FocusTargetRunsList:
+		w.runs.End()
+	case FocusTargetOverview:
+		w.runOverviewSidebar.navigateEnd()
+	case FocusTargetConsoleLogs:
+		w.consoleLogsPane.ScrollToEnd()
 	}
 	return nil
 }
@@ -923,27 +975,48 @@ func (w *Workspace) handleMetricsGridAnimation() tea.Cmd {
 	return nil
 }
 
-func (w *Workspace) handleGridWASD(msg tea.KeyPressMsg) tea.Cmd {
-	var dr, dc int
-	switch normalizeKey(msg.String()) {
-	case "w":
-		dr = -1
-	case "s":
-		dr = 1
-	case "a":
-		dc = -1
-	case "d":
-		dc = 1
-	default:
+func (w *Workspace) handleGridNav(msg tea.KeyPressMsg) tea.Cmd {
+	dr, dc, page, jump, ok := gridNavIntent(msg)
+	if !ok {
 		return nil
 	}
 
 	switch {
-	case w.focusMgr.IsTarget(FocusTargetMetricsGrid):
-		w.metricsGrid.NavigateFocus(dr, dc)
-	case w.focusMgr.IsTarget(FocusTargetSystemMetrics):
-		if g := w.activeSystemMetricsGrid(); g != nil {
-			g.NavigateFocus(dr, dc)
+	case dr != 0 || dc != 0:
+		switch {
+		case w.focusMgr.IsTarget(FocusTargetMetricsGrid):
+			w.metricsGrid.NavigateFocus(dr, dc)
+		case w.focusMgr.IsTarget(FocusTargetSystemMetrics):
+			if g := w.activeSystemMetricsGrid(); g != nil {
+				g.NavigateFocus(dr, dc)
+			}
+		}
+	case page != 0:
+		switch {
+		case w.focusMgr.IsTarget(FocusTargetMetricsGrid):
+			w.metricsGrid.Navigate(page)
+		case w.focusMgr.IsTarget(FocusTargetSystemMetrics):
+			if g := w.activeSystemMetricsGrid(); g != nil {
+				g.Navigate(page)
+			}
+		}
+	case jump != 0:
+		end := jump > 0
+		switch {
+		case w.focusMgr.IsTarget(FocusTargetMetricsGrid):
+			if end {
+				w.metricsGrid.NavigateEnd()
+			} else {
+				w.metricsGrid.NavigateHome()
+			}
+		case w.focusMgr.IsTarget(FocusTargetSystemMetrics):
+			if g := w.activeSystemMetricsGrid(); g != nil {
+				if end {
+					g.NavigateEnd()
+				} else {
+					g.NavigateHome()
+				}
+			}
 		}
 	}
 	return func() tea.Msg { return nil }
@@ -1063,26 +1136,24 @@ func (w *Workspace) handlePinRunKey(msg tea.KeyPressMsg) tea.Cmd {
 // ---- Sidebar Navigation ----
 
 func (w *Workspace) handleRunsVerticalNav(msg tea.KeyPressMsg) tea.Cmd {
+	up := isVerticalUp(msg)
 	switch {
 	case w.focusMgr.IsTarget(FocusTargetConsoleLogs):
-		switch msg.String() {
-		case "up":
+		if up {
 			w.consoleLogsPane.Up()
-		case "down":
+		} else {
 			w.consoleLogsPane.Down()
 		}
 	case w.focusMgr.IsTarget(FocusTargetRunsList):
-		switch msg.String() {
-		case "up":
+		if up {
 			w.runs.Up()
-		case "down":
+		} else {
 			w.runs.Down()
 		}
 	case w.focusMgr.IsTarget(FocusTargetOverview):
-		switch msg.String() {
-		case "up":
+		if up {
 			w.runOverviewSidebar.navigateUp()
-		case "down":
+		} else {
 			w.runOverviewSidebar.navigateDown()
 		}
 	}
@@ -1107,37 +1178,27 @@ func (w *Workspace) handleSidebarTabNav(msg tea.KeyPressMsg) tea.Cmd {
 }
 
 func (w *Workspace) handleRunsPageNav(msg tea.KeyPressMsg) tea.Cmd {
+	left := isHorizontalLeft(msg)
 	switch {
 	case w.focusMgr.IsTarget(FocusTargetConsoleLogs):
-		switch msg.String() {
-		case "left":
+		if left {
 			w.consoleLogsPane.PageUp()
-		case "right":
+		} else {
 			w.consoleLogsPane.PageDown()
 		}
 	case w.focusMgr.IsTarget(FocusTargetRunsList):
-		switch msg.String() {
-		case "left":
+		if left {
 			w.runs.PageUp()
-		case "right":
+		} else {
 			w.runs.PageDown()
 		}
 	case w.focusMgr.IsTarget(FocusTargetOverview):
-		switch msg.String() {
-		case "left":
+		if left {
 			w.runOverviewSidebar.navigatePageUp()
-		case "right":
+		} else {
 			w.runOverviewSidebar.navigatePageDown()
 		}
 	}
-	return nil
-}
-
-func (w *Workspace) handleRunsHome(msg tea.KeyPressMsg) tea.Cmd {
-	if !w.runSelectorActive() {
-		return nil
-	}
-	w.runs.Home()
 	return nil
 }
 

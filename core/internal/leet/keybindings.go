@@ -77,17 +77,31 @@ func RunKeyBindings() []BindingCategory[Run] {
 			},
 		},
 		{
-			Name: "Navigation",
+			Name: "Navigation (focused pane)",
 			Bindings: []KeyBinding[Run]{
 				{
+					Keys:        []string{"w/s/a/d", "↑/↓/←/→"},
+					Description: "Move within focused pane (chart focus on grids, item nav on lists)",
+				},
+				{
 					Keys:        []string{"N", "pgup"},
-					Description: "Previous page (focused pane)",
+					Description: "Previous page / previous series page in media",
 					Handler:     (*Run).handlePrevPage,
 				},
 				{
 					Keys:        []string{"n", "pgdown"},
-					Description: "Next page (focused pane)",
+					Description: "Next page / next series page in media",
 					Handler:     (*Run).handleNextPage,
+				},
+				{
+					Keys:        []string{"home"},
+					Description: "Jump to first item / first page / scrub to start",
+					Handler:     (*Run).handleNavHome,
+				},
+				{
+					Keys:        []string{"end"},
+					Description: "Jump to last item / last page / scrub to end",
+					Handler:     (*Run).handleNavEnd,
 				},
 			},
 		},
@@ -161,13 +175,23 @@ func RunKeyBindings() []BindingCategory[Run] {
 					Handler:     (*Run).handleSidebarTabNav,
 				},
 				{
-					Keys:        []string{"up", "down"},
-					Description: "Navigate focused sidebar/list",
+					Keys:        []string{"w", "up"},
+					Description: "Item up (list) / chart focus up (grid) / scrub -10 in media (arrow only)",
 					Handler:     (*Run).handleSidebarVerticalNav,
 				},
 				{
-					Keys:        []string{"left", "right"},
-					Description: "Page in focused sidebar/list",
+					Keys:        []string{"s", "down"},
+					Description: "Item down (list) / chart focus down (grid) / scrub +10 in media (arrow only)",
+					Handler:     (*Run).handleSidebarVerticalNav,
+				},
+				{
+					Keys:        []string{"a", "left"},
+					Description: "Page prev (list) / chart focus left (grid) / scrub -1 in media (arrow only)",
+					Handler:     (*Run).handleSidebarPageNav,
+				},
+				{
+					Keys:        []string{"d", "right"},
+					Description: "Page next (list) / chart focus right (grid) / scrub +1 in media (arrow only)",
 					Handler:     (*Run).handleSidebarPageNav,
 				},
 			},
@@ -243,17 +267,31 @@ func WorkspaceKeyBindings() []BindingCategory[Workspace] {
 			},
 		},
 		{
-			Name: "Navigation",
+			Name: "Navigation (focused pane)",
 			Bindings: []KeyBinding[Workspace]{
 				{
+					Keys:        []string{"w/s/a/d", "↑/↓/←/→"},
+					Description: "Move within focused pane (chart focus on grids, item nav on lists)",
+				},
+				{
 					Keys:        []string{"N", "pgup"},
-					Description: "Previous page (focused pane)",
+					Description: "Previous page / previous series page in media",
 					Handler:     (*Workspace).handlePrevPage,
 				},
 				{
 					Keys:        []string{"n", "pgdown"},
-					Description: "Next page (focused pane)",
+					Description: "Next page / next series page in media",
 					Handler:     (*Workspace).handleNextPage,
+				},
+				{
+					Keys:        []string{"home"},
+					Description: "Jump to first item / first page / scrub to start",
+					Handler:     (*Workspace).handleNavHome,
+				},
+				{
+					Keys:        []string{"end"},
+					Description: "Jump to last item / last page / scrub to end",
+					Handler:     (*Workspace).handleNavEnd,
 				},
 			},
 		},
@@ -342,19 +380,24 @@ func WorkspaceKeyBindings() []BindingCategory[Workspace] {
 					Handler:     (*Workspace).handleSidebarTabNav,
 				},
 				{
-					Keys:        []string{"up", "down"},
-					Description: "Navigate focused sidebar list",
+					Keys:        []string{"w", "up"},
+					Description: "Item up (list) / chart focus up (grid) / scrub -10 in media (arrow only)",
 					Handler:     (*Workspace).handleRunsVerticalNav,
 				},
 				{
-					Keys:        []string{"left", "right"},
-					Description: "Navigate pages in focused sidebar list",
+					Keys:        []string{"s", "down"},
+					Description: "Item down (list) / chart focus down (grid) / scrub +10 in media (arrow only)",
+					Handler:     (*Workspace).handleRunsVerticalNav,
+				},
+				{
+					Keys:        []string{"a", "left"},
+					Description: "Page prev (list) / chart focus left (grid) / scrub -1 in media (arrow only)",
 					Handler:     (*Workspace).handleRunsPageNav,
 				},
 				{
-					Keys:        []string{"home"},
-					Description: "Jump to first run",
-					Handler:     (*Workspace).handleRunsHome,
+					Keys:        []string{"d", "right"},
+					Description: "Page next (list) / chart focus right (grid) / scrub +1 in media (arrow only)",
+					Handler:     (*Workspace).handleRunsPageNav,
 				},
 				{
 					Keys:        []string{"space"},
@@ -398,6 +441,11 @@ func SymonKeyBindings() []BindingCategory[Symon] {
 			Name: "Navigation",
 			Bindings: []KeyBinding[Symon]{
 				{
+					Keys:        []string{"w", "a", "s", "d", "up", "down", "left", "right"},
+					Description: "Navigate chart focus within page",
+					Handler:     (*Symon).handleGridNav,
+				},
+				{
 					Keys:        []string{"N", "pgup"},
 					Description: "Previous chart page",
 					Handler:     (*Symon).handlePrevPage,
@@ -408,9 +456,14 @@ func SymonKeyBindings() []BindingCategory[Symon] {
 					Handler:     (*Symon).handleNextPage,
 				},
 				{
-					Keys:        []string{"w", "a", "s", "d"},
-					Description: "Navigate chart focus",
-					Handler:     (*Symon).handleGridWASD,
+					Keys:        []string{"home"},
+					Description: "Jump to first chart page",
+					Handler:     (*Symon).handleNavHome,
+				},
+				{
+					Keys:        []string{"end"},
+					Description: "Jump to last chart page",
+					Handler:     (*Symon).handleNavEnd,
 				},
 			},
 		},

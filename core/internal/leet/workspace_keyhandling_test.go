@@ -256,6 +256,72 @@ func TestWorkspace_RunsVerticalNav_OverviewActive(t *testing.T) {
 		"runs should not become active from overview vertical nav")
 }
 
+// ---- Unified navigation: wasd/arrows/Home/End ----
+
+// newWorkspaceWithMultipleRuns seeds a workspace with N runs so list
+// navigation (up/down/page/home/end) is meaningful.
+func newWorkspaceWithMultipleRuns(t *testing.T, n int) (*leet.Workspace, []string) {
+	t.Helper()
+
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+	w := leet.NewWorkspace(t.TempDir(), cfg, logger)
+	_ = w.Update(tea.WindowSizeMsg{Width: 200, Height: 60})
+
+	keys := make([]string, n)
+	for i := range n {
+		keys[i] = "run-20260209_010101-" + string(rune('a'+i))
+	}
+	_ = w.Update(leet.WorkspaceRunDirsMsg{RunKeys: keys})
+	w.TestForceExpandRunsSidebar()
+
+	return w, keys
+}
+
+func TestWorkspace_UnifiedNav_WASDMatchesArrowsInRunsList(t *testing.T) {
+	// With multiple runs, pressing 's' should move down, same as KeyDown.
+	// Pressing 'w' should move up, same as KeyUp.
+	w, keys := newWorkspaceWithMultipleRuns(t, 5)
+	require.True(t, w.TestRunsActive(), "runs list should start focused")
+
+	// Latest run auto-pins; move to first-listed run before testing.
+	start := w.TestCurrentRunKey()
+	_ = w.Update(keyRune('s'))
+	afterS := w.TestCurrentRunKey()
+	require.NotEqual(t, start, afterS, "'s' should advance cursor in runs list")
+
+	_ = w.Update(keyRune('w'))
+	afterW := w.TestCurrentRunKey()
+	require.Equal(t, start, afterW, "'w' should undo 's' in runs list")
+
+	// Verify the same transitions occur with arrow keys for sanity.
+	_ = w.Update(tea.KeyPressMsg{Code: tea.KeyDown})
+	require.Equal(t, afterS, w.TestCurrentRunKey(),
+		"KeyDown should match 's' in runs list")
+	_ = w.Update(tea.KeyPressMsg{Code: tea.KeyUp})
+	require.Equal(t, start, w.TestCurrentRunKey(),
+		"KeyUp should match 'w' in runs list")
+
+	_ = keys
+}
+
+func TestWorkspace_UnifiedNav_HomeEndInRunsList(t *testing.T) {
+	// Home should jump to first run, End to last run.
+	w, keys := newWorkspaceWithMultipleRuns(t, 5)
+
+	// Move to middle of list before testing Home/End.
+	_ = w.Update(keyRune('s'))
+	_ = w.Update(keyRune('s'))
+
+	_ = w.Update(tea.KeyPressMsg{Code: tea.KeyHome})
+	require.Equal(t, keys[0], w.TestCurrentRunKey(),
+		"Home should jump to first run in the list")
+
+	_ = w.Update(tea.KeyPressMsg{Code: tea.KeyEnd})
+	require.Equal(t, keys[len(keys)-1], w.TestCurrentRunKey(),
+		"End should jump to last run in the list")
+}
+
 // ---- Console log message handling ----
 
 func TestWorkspace_ConsoleLogMsg_CreatesLogs(t *testing.T) {
