@@ -254,15 +254,6 @@ def mocked_interface(record_q: Queue) -> InterfaceQueue:
     return InterfaceQueue(record_q=record_q)
 
 
-@pytest.fixture
-def mocked_backend(mocked_interface: InterfaceQueue) -> Generator[object, None, None]:
-    class MockedBackend:
-        def __init__(self) -> None:
-            self.interface = mocked_interface
-
-    yield MockedBackend()
-
-
 @pytest.fixture(scope="function")
 def test_settings():
     def update_test_settings(
@@ -286,8 +277,8 @@ def test_settings():
 
 
 @pytest.fixture(scope="function")
-def mock_run(test_settings, mocked_backend) -> Generator[Callable, None, None]:
-    """Create a Run object with a stubbed out 'backend'.
+def mock_run(test_settings, mocked_interface) -> Generator[Callable, None, None]:
+    """Create a Run object with a mocked interface.
 
     This is similar to using `wandb.init(mode="offline")`, but much faster
     as it does not start up a service process.
@@ -305,7 +296,7 @@ def mock_run(test_settings, mocked_backend) -> Generator[Callable, None, None]:
         }
         run = wandb.Run(settings=test_settings(kwargs_settings), **kwargs)
         run._set_backend(
-            unittest.mock.MagicMock() if use_magic_mock else mocked_backend
+            unittest.mock.MagicMock() if use_magic_mock else mocked_interface
         )
         run._set_library(unittest.mock.MagicMock())
 
