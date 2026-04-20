@@ -40,13 +40,14 @@ class Integrations(RelayPaginator["IntegrationFields", "Integration"]):
         client: RetryingClient,
         variables: dict[str, Any],
         per_page: int = 50,
+        start: str | None = None,
     ):
         if self.QUERY is None:
             from wandb.automations._generated import INTEGRATIONS_BY_ENTITY_GQL
 
             type(self).QUERY = gql(INTEGRATIONS_BY_ENTITY_GQL)
 
-        super().__init__(client, variables=variables, per_page=per_page)
+        super().__init__(client, variables=variables, per_page=per_page, start=start)
 
     @override
     def _update_response(self) -> None:
