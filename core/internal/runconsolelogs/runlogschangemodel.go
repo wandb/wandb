@@ -159,6 +159,26 @@ func (o *RunLogsChangeModel) NextLine(streamPrefix, streamLabel string) RunLogsL
 	return RunLogsLineRef{output: o, lineNum: lineNum}
 }
 
+// AppendLine allocates a new line with pre-set content, bypassing terminal
+// emulation. Used for structured log output (e.g. run.write_logs).
+func (o *RunLogsChangeModel) AppendLine(streamPrefix string, content string) {
+	line := &RunLogsLine{}
+	line.StreamPrefix = streamPrefix
+	line.MaxLength = o.maxLineLength
+	line.Timestamp = o.getNow()
+	line.Content = []rune(content)
+
+	lineNum := o.firstLineNum + len(o.lines)
+	o.lines = append(o.lines, line)
+
+	if len(o.lines) > o.maxLines {
+		o.firstLineNum += 1
+		o.lines = slices.Delete(o.lines, 0, 1)
+	}
+
+	o.onChange(lineNum, line)
+}
+
 // RunLogsLineSupplier allows a terminal emulator to request new lines in the
 // output buffer.
 type RunLogsLineSupplier struct {

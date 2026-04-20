@@ -57,6 +57,9 @@ type Sender struct {
 
 	// isMultipart indicates whether we're using chunked file output.
 	isMultipart bool
+
+	// model tracks line state for the output buffer.
+	model *RunLogsChangeModel
 }
 
 // Params contains parameters for creating a console logs Sender.
@@ -175,6 +178,7 @@ func New(params Params) *Sender {
 		fsWriter:              fsWriter,
 		fileWriter:            fileWriter,
 		isMultipart:           params.Multipart,
+		model:                 model,
 	}
 }
 
@@ -192,6 +196,21 @@ func (s *Sender) Finish() {
 	if s.fileWriter != nil {
 		s.fileWriter.Finish()
 	}
+}
+
+// StreamLoggerOutput writes pre-formatted log lines to the run's console logs.
+//
+// Unlike StreamLogs, this bypasses terminal emulation — the line content
+// is written directly without interpreting escape sequences.
+func (s *Sender) StreamLoggerOutput(record *spb.OutputLoggerRecord) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.isFinished {
+		return
+	}
+
+	s.model.AppendLine("", record.Line)
 }
 
 // StreamLogs saves captured console logs with the run.

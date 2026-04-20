@@ -315,6 +315,8 @@ func (s *Sender) sendRecord(record *spb.Record, request *runwork.Request) {
 		s.sendSystemMetrics(x.Stats)
 	case *spb.Record_OutputRaw:
 		s.sendOutputRaw(record, x.OutputRaw)
+	case *spb.Record_OutputLogger:
+		s.sendOutputLogger(record, x.OutputLogger)
 	case *spb.Record_Output:
 		s.sendOutput(record, x.Output)
 	case *spb.Record_Telemetry:
@@ -899,6 +901,15 @@ func (s *Sender) sendOutputRaw(_ *spb.Record, outputRaw *spb.OutputRawRecord) {
 	}
 
 	s.consoleLogsSender.StreamLogs(outputRaw)
+}
+
+func (s *Sender) sendOutputLogger(_ *spb.Record, outputLogger *spb.OutputLoggerRecord) {
+	if s.exitRecord != nil {
+		s.logCalledAfterExit("sendOutputLogger")
+		return
+	}
+
+	s.consoleLogsSender.StreamLoggerOutput(outputLogger)
 }
 
 func (s *Sender) sendAlert(_ *spb.Record, alert *spb.AlertRecord) {
