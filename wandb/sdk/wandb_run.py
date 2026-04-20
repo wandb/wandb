@@ -104,7 +104,6 @@ if TYPE_CHECKING:
     )
 
     from .artifacts.artifact import Artifact
-    from .backend.backend import Backend
     from .interface.interface_queue import InterfaceQueue
     from .wandb_settings import Settings
 
@@ -525,7 +524,7 @@ class Run:
 
     _teardown_hooks: list[TeardownHook]
 
-    _backend: Backend | None
+    _interface: InterfaceBase | None
     _internal_run_interface: InterfaceQueue | None
     _wl: _WandbSetup | None
 
@@ -625,7 +624,7 @@ class Run:
 
         self._torch_history: wandb_torch.TorchHistory | None = None  # type: ignore
 
-        self._backend = None
+        self._interface = None
         self._internal_run_interface = None
         self._wl = None
         # Avoid calling wandb.Api() repeatedly in _public_api()
@@ -757,11 +756,11 @@ class Run:
             return
         if not self._telemetry_obj_dirty:
             return
-        if self._backend and self._backend.interface:
+        if self._interface:
             serialized = self._telemetry_obj.SerializeToString()
             if serialized == self._telemetry_obj_flushed:
                 return
-            self._backend.interface._publish_telemetry(self._telemetry_obj)
+            self._interface._publish_telemetry(self._telemetry_obj)
             self._telemetry_obj_flushed = serialized
             self._telemetry_obj_dirty = False
 
@@ -858,8 +857,8 @@ class Run:
         with telemetry.context(run=self) as tel:
             tel.feature.set_run_name = True
         self._settings.run_name = name
-        if self._backend and self._backend.interface:
-            self._backend.interface.publish_run(self)
+        if self._interface:
+            self._interface.publish_run(self)
 
     @property
     @_log_to_run
@@ -877,8 +876,8 @@ class Run:
     @_raise_if_finished
     def notes(self, notes: str) -> None:
         self._settings.run_notes = notes
-        if self._backend and self._backend.interface:
-            self._backend.interface.publish_run(self)
+        if self._interface:
+            self._interface.publish_run(self)
 
     @property
     @_log_to_run
@@ -906,8 +905,8 @@ class Run:
             wandb.termwarn(f"Invalid tag detected: {error_msg} Tags not updated.")
             return
 
-        if self._backend and self._backend.interface:
-            self._backend.interface.publish_run(self)
+        if self._interface:
+            self._interface.publish_run(self)
 
     @property
     @_log_to_run
@@ -1401,8 +1400,8 @@ class Run:
         data: dict[str, object] | None = None,
     ) -> None:
         logger.info(f"config_cb {key} {val} {data}")
-        if self._backend and self._backend.interface:
-            self._backend.interface.publish_config(key=key, val=val, data=data)
+        if self._interface:
+            self._interface.publish_config(key=key, val=val, data=data)
 
     @_log_to_run
     def _config_artifact_callback(
@@ -1473,8 +1472,8 @@ class Run:
     def _summary_update_callback(self, summary_record: SummaryRecord) -> None:
         with telemetry.context(run=self) as tel:
             tel.feature.set_summary = True
-        if self._backend and self._backend.interface:
-            self._backend.interface.publish_summary(self, summary_record)
+        if self._interface:
+            self._interface.publish_summary(self, summary_record)
 
     @_log_to_run
     def _summary_get_current_summary_callback(self) -> dict[str, Any]:
@@ -1482,9 +1481,9 @@ class Run:
             # TODO: WB-18420: fetch summary from backend and stage it before run is finished
             wandb.termwarn("Summary data not available in finished run")
             return {}
-        if not self._backend or not self._backend.interface:
+        if not self._interface:
             return {}
-        handle = self._backend.interface.deliver_get_summary()
+        handle = self._interface.deliver_get_summary()
 
         try:
             result = handle.wait_or(timeout=self._settings.summary_timeout)
@@ -1496,8 +1495,8 @@ class Run:
 
     @_log_to_run
     def _metric_callback(self, metric_record: MetricRecord) -> None:
-        if self._backend and self._backend.interface:
-            self._backend.interface._publish_metric(metric_record)
+        if self._interface:
+            self._interface._publish_metric(metric_record)
 
     @_log_to_run
     def _publish_file(self, fname: str) -> None:
@@ -1510,10 +1509,10 @@ class Run:
             fname: The path to the file in the run's files directory, relative
                 to the run's files directory.
         """
-        if not self._backend or not self._backend.interface:
+        if not self._interface:
             return
         files: FilesDict = dict(files=[(GlobStr(fname), "now")])
-        self._backend.interface.publish_files(files)
+        self._interface.publish_files(files)
 
     def _pop_all_charts(
         self,
@@ -1586,7 +1585,7 @@ class Run:
         step: int | None = None,
         commit: bool | None = None,
     ) -> None:
-        if not (self._backend and self._backend.interface):
+        if not self._interface:
             return
 
         data = data.copy()  # avoid modifying the original data
@@ -1595,7 +1594,7 @@ class Run:
         data = self._serialize_custom_charts(data)
 
         not_using_tensorboard = len(wandb.patched["tensorboard"]) == 0
-        self._backend.interface.publish_partial_history(
+        self._interface.publish_partial_history(
             self,
             data,
             user_step=self._step,
@@ -1606,9 +1605,9 @@ class Run:
 
     @_log_to_run
     def _console_callback(self, name: str, data: str) -> None:
-        if self._backend and self._backend.interface:
+        if self._interface:
             # nowait=True so that this can be called from an asyncio context.
-            self._backend.interface.publish_output(name, data, nowait=True)
+            self._interface.publish_output(name, data, nowait=True)
 
     @_log_to_run
     @_raise_if_finished
@@ -1621,23 +1620,23 @@ class Run:
         if console_pid != os.getpid():
             return
 
-        if self._backend and self._backend.interface:
+        if self._interface:
             # nowait=True so that this can be called from an asyncio context.
-            self._backend.interface.publish_output_raw(name, data, nowait=True)
+            self._interface.publish_output_raw(name, data, nowait=True)
 
     @_log_to_run
     def _tensorboard_callback(
         self, logdir: str, save: bool = True, root_logdir: str = ""
     ) -> None:
         logger.info("tensorboard callback: %s, %s", logdir, save)
-        if self._backend and self._backend.interface:
-            self._backend.interface.publish_tbdata(logdir, save, root_logdir)
+        if self._interface:
+            self._interface.publish_tbdata(logdir, save, root_logdir)
 
     def _set_library(self, library: _WandbSetup) -> None:
         self._wl = library
 
-    def _set_backend(self, backend: Backend) -> None:
-        self._backend = backend
+    def _set_backend(self, backend: InterfaceBase) -> None:
+        self._interface = backend
 
     def _set_internal_run_interface(self, interface: InterfaceQueue) -> None:
         self._internal_run_interface = interface
@@ -2239,8 +2238,8 @@ class Run:
         stats.emit_warnings()
 
         files_dict: FilesDict = {"files": publish_entries}
-        if self._backend and self._backend.interface:
-            self._backend.interface.publish_files(files_dict)
+        if self._interface:
+            self._interface.publish_files(files_dict)
 
         abs_targets = {files_root / pathlib.Path(g) for (g, _pol) in publish_entries}
         return [str(p) for p in sorted(abs_targets)]
@@ -2350,10 +2349,10 @@ class Run:
         self,
     ) -> RunStatus:
         """Get sync info from the internal backend, about the current run's sync status."""
-        if not self._backend or not self._backend.interface:
+        if not self._interface:
             return RunStatus()
 
-        handle_run_status = self._backend.interface.deliver_request_run_status()
+        handle_run_status = self._interface.deliver_request_run_status()
         result = handle_run_status.wait_or(timeout=None)
         sync_data = result.response.run_status_response
 
@@ -2496,7 +2495,7 @@ class Run:
         logger.info("restore done")
 
     def _atexit_cleanup(self, exit_code: int | None = None) -> None:
-        if self._backend is None:
+        if self._interface is None:
             logger.warning("process exited without backend configured")
             return
         if self._atexit_cleanup_called:
@@ -2556,23 +2555,19 @@ class Run:
         if self._settings.save_code and self._settings.code_dir is not None:
             self.log_code(self._settings.code_dir)
 
-        if (
-            self._settings.x_save_requirements
-            and self._backend
-            and self._backend.interface
-        ):
+        if self._settings.x_save_requirements and self._interface:
             from wandb.util import working_set
 
             logger.debug(
                 "Saving list of pip packages installed into the current environment"
             )
-            self._backend.interface.publish_python_packages(working_set())
+            self._interface.publish_python_packages(working_set())
 
-        if self._backend and self._backend.interface and not self._settings._offline:
+        if self._interface and not self._settings._offline:
             assert self._settings.run_id
             self._run_status_checker = RunStatusChecker(
                 self._settings.run_id,
-                interface=self._backend.interface,
+                interface=self._interface,
                 settings=self._settings,
             )
             self._run_status_checker.start()
@@ -2728,9 +2723,9 @@ class Run:
 
         self._console_stop()  # TODO: there's a race here with jupyter console logging
 
-        assert self._backend and self._backend.interface
+        assert self._interface
 
-        exit_handle = self._backend.interface.deliver_exit(self._exit_code)
+        exit_handle = self._interface.deliver_exit(self._exit_code)
 
         with progress.progress_printer(
             self._printer,
@@ -2743,24 +2738,22 @@ class Run:
                 display_progress=functools.partial(
                     progress.loop_printing_operation_stats,
                     progress_printer,
-                    self._backend.interface,
+                    self._interface,
                 ),
             )
 
-        poll_exit_handle = self._backend.interface.deliver_poll_exit()
+        poll_exit_handle = self._interface.deliver_poll_exit()
         result = poll_exit_handle.wait_or(timeout=None)
         self._poll_exit_response = result.response.poll_exit_response
 
-        internal_messages_handle = self._backend.interface.deliver_internal_messages()
+        internal_messages_handle = self._interface.deliver_internal_messages()
         result = internal_messages_handle.wait_or(timeout=None)
         self._internal_messages_response = result.response.internal_messages_response
 
         # dispatch all our final requests
 
-        final_summary_handle = self._backend.interface.deliver_get_summary()
-        sampled_history_handle = (
-            self._backend.interface.deliver_request_sampled_history()
-        )
+        final_summary_handle = self._interface.deliver_get_summary()
+        sampled_history_handle = self._interface.deliver_request_sampled_history()
 
         result = sampled_history_handle.wait_or(timeout=None)
         self._sampled_history = result.response.sampled_history_response
@@ -2768,8 +2761,8 @@ class Run:
         result = final_summary_handle.wait_or(timeout=None)
         self._final_summary = result.response.get_summary_response
 
-        if self._backend:
-            self._backend.cleanup()
+        if self._interface:
+            self._interface.join()
 
         if self._run_status_checker:
             self._run_status_checker.join()
@@ -3144,8 +3137,8 @@ class Run:
                     'You must pass an artifact name (e.g. "pedestrian-dataset:v1"), '
                     "an instance of `wandb.Artifact`, or `wandb.Api().artifact()` to `use_artifact`"
                 )
-        if self._backend and self._backend.interface:
-            self._backend.interface.publish_use_artifact(artifact)
+        if self._interface:
+            self._interface.publish_use_artifact(artifact)
         return artifact
 
     @_log_to_run
@@ -3329,9 +3322,9 @@ class Run:
 
         artifact.distributed_id = distributed_id
         self._assert_can_log_artifact(artifact)
-        if self._backend and self._backend.interface:
+        if self._interface:
             if not self._settings._offline:
-                handle = self._backend.interface.deliver_artifact(
+                handle = self._interface.deliver_artifact(
                     self,
                     artifact,
                     aliases,
@@ -3343,7 +3336,7 @@ class Run:
                 )
                 artifact._set_save_handle(handle, self._public_api().client)
             else:
-                self._backend.interface.publish_artifact(
+                self._interface.publish_artifact(
                     self,
                     artifact,
                     aliases,
@@ -3644,8 +3637,8 @@ class Run:
             )
         wait_duration = int(wait_duration.total_seconds() * 1000)
 
-        if self._backend and self._backend.interface:
-            self._backend.interface.publish_alert(title, text, level_str, wait_duration)
+        if self._interface:
+            self._interface.publish_alert(title, text, level_str, wait_duration)
 
     def __enter__(self) -> Run:
         return self
@@ -3671,8 +3664,8 @@ class Run:
 
         Also tells the internal process to immediately report this to server.
         """
-        if self._backend and self._backend.interface:
-            self._backend.interface.publish_preempting()
+        if self._interface:
+            self._interface.publish_preempting()
 
     @property
     @_log_to_run
@@ -3706,10 +3699,10 @@ class Run:
 
             return res
 
-        if not self._backend or not self._backend.interface:
+        if not self._interface:
             return {}
 
-        handle = self._backend.interface.deliver_get_system_metrics()
+        handle = self._interface.deliver_get_system_metrics()
 
         try:
             result = handle.wait_or(timeout=1)

@@ -1985,8 +1985,6 @@ class Artifact:
     ) -> FilePathStr:
         import pathlib
 
-        from wandb.sdk.backend.backend import Backend
-
         # TODO: Create a special stream instead of relying on an existing run.
         if wandb.run is None:
             wl = wandb_setup.singleton()
@@ -2002,19 +2000,12 @@ class Artifact:
             settings.run_id.value = stream_id
 
             service = wl.ensure_service()
-            service.inform_init(settings=settings, run_id=stream_id)
-
-            backend = Backend(settings=wl.settings, service=service)
-            backend.ensure_launched()
-
-            assert backend.interface
-            backend.interface._stream_id = stream_id  # type: ignore
+            interface = service.inform_init(settings=settings, run_id=stream_id)
         else:
-            assert wandb.run._backend
-            backend = wandb.run._backend
+            assert wandb.run._interface
+            interface = wandb.run._interface
 
-        assert backend.interface
-        handle = backend.interface.deliver_download_artifact(
+        handle = interface.deliver_download_artifact(
             self.id,  # type: ignore
             root,
             allow_missing_references,

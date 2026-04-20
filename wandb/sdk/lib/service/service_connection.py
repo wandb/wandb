@@ -120,14 +120,6 @@ class ServiceConnection:
         """
         return self._proc is not None
 
-    def make_interface(self, stream_id: str) -> InterfaceBase:
-        """Returns an interface for communicating with the service."""
-        return InterfaceSock(
-            self._asyncer,
-            self._client,
-            stream_id=stream_id,
-        )
-
     async def init_sync(
         self,
         paths: set[pathlib.Path],
@@ -266,14 +258,28 @@ class ServiceConnection:
     def inform_init(
         self,
         settings: wandb_settings_pb2.Settings,
-        run_id: str,
-    ) -> None:
-        """Send an init request to the service."""
+        run_id: str,  # TODO: remove and use the settings param
+    ) -> InterfaceBase:
+        """Initialize a run in wandb-core.
+
+        Args:
+            settings: The settings for the run.
+            run_id: The run's ID, which must match settings.run_id.
+
+        Returns:
+            An interface for sending messages for the run.
+        """
         request = spb.ServerInformInitRequest()
         request.settings.CopyFrom(settings)
         request._info.stream_id = run_id
         self._asyncer.run(
             lambda: self._client.publish(spb.ServerRequest(inform_init=request))
+        )
+
+        return InterfaceSock(
+            self._asyncer,
+            self._client,
+            stream_id=run_id,
         )
 
     def inform_finish(self, run_id: str) -> None:
@@ -287,10 +293,13 @@ class ServiceConnection:
     def inform_attach(
         self,
         attach_id: str,
-    ) -> wandb_settings_pb2.Settings:
-        """Send an attach request to the service.
+    ) -> tuple[wandb_settings_pb2.Settings, InterfaceBase]:
+        """Attach to a run already running in wandb-core.
 
         Raises a WandbAttachFailedError if attaching is not possible.
+
+        Returns:
+            The run's settings and an interface for sending messages.
         """
         request = spb.ServerRequest()
         request.inform_attach._info.stream_id = attach_id
@@ -311,8 +320,13 @@ class ServiceConnection:
                 + " process is busy (unlikely)."
             ) from None
 
-        else:
-            return response.inform_attach_response.settings
+        settings = response.inform_attach_response.settings
+        interface = InterfaceSock(
+            self._asyncer,
+            self._client,
+            stream_id=attach_id,
+        )
+        return settings, interface
 
     def teardown(self, exit_code: int) -> int | None:
         """Close the connection.

@@ -22,6 +22,7 @@ import sys
 import tempfile
 import time
 from collections.abc import Iterable, Iterator, Sequence
+from typing import TYPE_CHECKING
 
 from typing_extensions import Any, Literal, Protocol, Self
 
@@ -40,13 +41,15 @@ from wandb.sdk.lib.paths import StrPath
 from wandb.util import _is_artifact_representation
 
 from . import wandb_login, wandb_setup
-from .backend.backend import Backend
 from .lib import SummaryDisabled, filesystem, module, paths, printer, telemetry
 from .lib.deprecation import UNSET, DoNotSet, warn_and_record_deprecation
 from .mailbox import wait_with_progress
 from .wandb_helper import parse_config
 from .wandb_run import Run, TeardownHook, TeardownStage
 from .wandb_settings import Settings
+
+if TYPE_CHECKING:
+    from .interface.interface import InterfaceBase
 
 # Used to avoid printing the same notice repeatedly
 # for multiple runs in the same process.
@@ -157,7 +160,7 @@ class _WandbInit:
 
         self.kwargs = None
         self.run: Run | None = None
-        self.backend: Backend | None = None
+        self._interface: InterfaceBase | None = None
 
         self._teardown_hooks: list[TeardownHook] = []
         self.notebook: wandb.jupyter.Notebook | None = None
@@ -587,7 +590,7 @@ class _WandbInit:
         This pauses a run, preventing system metrics from being collected
         the run's runtime from increasing. It also uploads the notebook's code.
         """
-        if not self.backend:
+        if not self._interface:
             return
 
         if self.notebook and self.notebook.save_ipynb():
@@ -595,20 +598,19 @@ class _WandbInit:
             res = self.run.log_code(root=None)
             self._logger.info("saved code: %s", res)
 
-        if self.backend.interface is not None:
-            self._logger.info("pausing backend")
-            self.backend.interface.publish_pause()
+        self._logger.info("pausing backend")
+        self._interface.publish_pause()
 
     def _post_run_cell_hook(self, *args, **kwargs) -> None:
         """Hook for the IPython post_run_cell event.
 
         Resumes collection of system metrics and the run's timer.
         """
-        if self.backend is None or self.backend.interface is None:
+        if self._interface is None:
             return
 
         self._logger.info("resuming backend")
-        self.backend.interface.publish_resume()
+        self._interface.publish_resume()
 
     def _jupyter_teardown(self) -> None:
         """Teardown hooks and display saving, called with wandb.finish."""
@@ -821,7 +823,7 @@ class _WandbInit:
         drun._starting_step = 0
         drun._step = 0
         drun._attach_id = None
-        drun._backend = None
+        drun._interface = None
 
         # set the disabled run as the global run
         module.set_global(
@@ -909,13 +911,10 @@ class _WandbInit:
                 _shared_service_notice_shown = True
 
         self._logger.info("sending inform_init request")
-        service.inform_init(
+        interface = service.inform_init(
             settings=settings.to_proto(),
             run_id=settings.run_id,  # type: ignore
         )
-
-        backend = Backend(settings=settings, service=service)
-        backend.ensure_launched()
         self._logger.info("backend started and connected")
 
         run = Run(
@@ -989,11 +988,10 @@ class _WandbInit:
         self._logger.info("updated telemetry")
 
         run._set_library(self._wl)
-        run._set_backend(backend)
+        run._set_backend(interface)
         run._set_teardown_hooks(self._teardown_hooks)
 
-        assert backend.interface
-        backend.interface.publish_header()
+        interface.publish_header()
 
         # Using GitRepo() blocks & can be slow, depending on user's current git setup.
         # We don't want to block run initialization/start request, so populate run's git
@@ -1014,7 +1012,7 @@ class _WandbInit:
             f"communicating run to backend with {timeout} second timeout",
         )
 
-        run_init_handle = backend.interface.deliver_run(run)
+        run_init_handle = interface.deliver_run(run)
 
         try:
             with progress.progress_printer(
@@ -1027,7 +1025,7 @@ class _WandbInit:
                     display_progress=functools.partial(
                         progress.loop_printing_operation_stats,
                         progress_printer,
-                        backend.interface,
+                        interface,
                     ),
                 )
 
@@ -1057,16 +1055,14 @@ class _WandbInit:
 
         self._logger.info("starting run threads in backend")
 
-        assert backend.interface
-
-        run_start_handle = backend.interface.deliver_run_start(run)
+        run_start_handle = interface.deliver_run_start(run)
         try:
             # TODO: add progress to let user know we are doing something
             run_start_handle.wait_or(timeout=30)
         except TimeoutError:
             pass
 
-        backend.interface.publish_probe_system_info()
+        interface.publish_probe_system_info()
 
         assert self._wl is not None
         self.run = run
@@ -1089,7 +1085,7 @@ class _WandbInit:
         if job_artifact:
             run.use_artifact(job_artifact)
 
-        self.backend = backend
+        self._interface = interface
 
         if settings.reinit != "create_new":
             _set_global_run(run)
@@ -1130,7 +1126,7 @@ def _attach(
     service = _wl.ensure_service()
 
     try:
-        attach_settings = service.inform_attach(attach_id=attach_id)
+        attach_settings, interface = service.inform_attach(attach_id=attach_id)
     except Exception as e:
         raise UsageError(f"Unable to attach to run {attach_id}") from e
 
@@ -1143,9 +1139,6 @@ def _attach(
         }
     )
 
-    # TODO: consolidate this codepath with wandb.init()
-    backend = Backend(settings=settings, service=service)
-    backend.ensure_launched()
     logger.info("attach backend started and connected")
 
     if run is None:
@@ -1153,10 +1146,9 @@ def _attach(
     else:
         run._init(settings=settings)
     run._set_library(_wl)
-    run._set_backend(backend)
-    assert backend.interface
+    run._set_backend(interface)
 
-    attach_handle = backend.interface.deliver_attach(attach_id)
+    attach_handle = interface.deliver_attach(attach_id)
     try:
         # TODO: add progress to let user know we are doing something
         attach_result = attach_handle.wait_or(timeout=30)
