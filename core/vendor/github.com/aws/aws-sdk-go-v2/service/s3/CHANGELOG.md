@@ -1,3 +1,8 @@
+# v1.99.1 (2026-04-17)
+
+* **Dependency Update**: Bump smithy-go to 1.25.0 to support endpointBdd trait
+* **Dependency Update**: Updated to the latest SDK module versions
+
 # v1.99.0 (2026-04-07)
 
 * **Feature**: Updated list of the valid AWS Region values for the LocationConstraint parameter for general purpose buckets.
