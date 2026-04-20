@@ -255,16 +255,18 @@ func (s *Symon) handleNavEnd(tea.KeyPressMsg) tea.Cmd {
 }
 
 func (s *Symon) handleGridNav(msg tea.KeyPressMsg) tea.Cmd {
-	dr, dc, _, _, ok := gridNavIntent(msg)
-	if !ok {
-		return nil
-	}
 	// Symon binds page/home/end to their own handlers via the key map;
-	// here we only handle focus movement.
-	if dr == 0 && dc == 0 {
-		return nil
+	// here we only handle chart-focus motion.
+	switch DecodeNav(msg) {
+	case NavIntentUp:
+		s.grid.NavigateFocus(-1, 0)
+	case NavIntentDown:
+		s.grid.NavigateFocus(1, 0)
+	case NavIntentLeft:
+		s.grid.NavigateFocus(0, -1)
+	case NavIntentRight:
+		s.grid.NavigateFocus(0, 1)
 	}
-	s.grid.NavigateFocus(dr, dc)
 	return nil
 }
 

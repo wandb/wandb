@@ -44,3 +44,39 @@ func TestPagedList_SetItemsPerPage_ZeroDisablesNavigation(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, "a", item.Key)
 }
+
+func TestPagedList_End_JumpsToLastItem(t *testing.T) {
+	// 5 items, 2 per page -> 3 pages: [a b][c d][e]; End -> last page, last line.
+	list := leet.PagedList{
+		FilteredItems: []leet.KeyValuePair{
+			{Key: "a"}, {Key: "b"}, {Key: "c"}, {Key: "d"}, {Key: "e"},
+		},
+	}
+	list.SetItemsPerPage(2)
+
+	list.End()
+	item, ok := list.CurrentItem()
+	require.True(t, ok)
+	require.Equal(t, "e", item.Key)
+	require.Equal(t, 2, list.CurrentPage())
+	require.Equal(t, 0, list.CurrentLine())
+
+	// Full last page: 4 items, 2 per page -> End lands on (page 1, line 1).
+	full := leet.PagedList{
+		FilteredItems: []leet.KeyValuePair{{Key: "a"}, {Key: "b"}, {Key: "c"}, {Key: "d"}},
+	}
+	full.SetItemsPerPage(2)
+	full.End()
+	require.Equal(t, 1, full.CurrentPage())
+	require.Equal(t, 1, full.CurrentLine())
+}
+
+func TestPagedList_End_EmptyList_IsStable(t *testing.T) {
+	var list leet.PagedList
+	list.End()
+
+	_, ok := list.CurrentItem()
+	require.False(t, ok)
+	require.Equal(t, 0, list.CurrentPage())
+	require.Equal(t, 0, list.CurrentLine())
+}

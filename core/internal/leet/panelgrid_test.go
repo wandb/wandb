@@ -114,6 +114,42 @@ func TestGridNavigator_Navigate(t *testing.T) {
 	require.Equal(t, 1, nav.CurrentPage())
 }
 
+func TestGridNavigator_GoHomeAndGoEnd(t *testing.T) {
+	var nav leet.GridNavigator
+	nav.UpdateTotalPages(30, 10) // 3 pages
+
+	// GoHome is a no-op when already at page 0.
+	require.False(t, nav.GoHome())
+	require.Equal(t, 0, nav.CurrentPage())
+
+	// GoEnd jumps to the last page.
+	require.True(t, nav.GoEnd())
+	require.Equal(t, 2, nav.CurrentPage())
+
+	// GoEnd is a no-op when already at the last page.
+	require.False(t, nav.GoEnd())
+	require.Equal(t, 2, nav.CurrentPage())
+
+	// GoHome returns from the last page to the first.
+	require.True(t, nav.GoHome())
+	require.Equal(t, 0, nav.CurrentPage())
+}
+
+func TestGridNavigator_GoHomeAndGoEnd_NoopOnEmptyOrSinglePage(t *testing.T) {
+	var nav leet.GridNavigator
+
+	// Empty navigator: both operations are no-ops.
+	require.False(t, nav.GoHome())
+	require.False(t, nav.GoEnd())
+
+	// Single page: both operations are no-ops.
+	nav.UpdateTotalPages(5, 10)
+	require.Equal(t, 1, nav.TotalPages())
+	require.False(t, nav.GoHome())
+	require.False(t, nav.GoEnd())
+	require.Equal(t, 0, nav.CurrentPage())
+}
+
 func TestGridNavigator_NavigateSinglePage(t *testing.T) {
 	var nav leet.GridNavigator
 	nav.UpdateTotalPages(5, 10) // Only 1 page

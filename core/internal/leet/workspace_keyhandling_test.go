@@ -322,6 +322,138 @@ func TestWorkspace_UnifiedNav_HomeEndInRunsList(t *testing.T) {
 		"End should jump to last run in the list")
 }
 
+// TestWorkspace_UnifiedNav_ADMatchesLeftRightInRunsList verifies 'a'/'d'
+// alias Left/Right for runs list page nav.
+func TestWorkspace_UnifiedNav_ADMatchesLeftRightInRunsList(t *testing.T) {
+	w, _ := newWorkspaceWithMultipleRuns(t, 12)
+
+	// Constrain viewport so multiple pages are meaningful.
+	_ = w.Update(tea.WindowSizeMsg{Width: 200, Height: 10})
+
+	// Move to a middle run, then page nav with 'd' then 'a'.
+	_ = w.Update(keyRune('s'))
+	beforeD := w.TestCurrentRunKey()
+	_ = w.Update(keyRune('d'))
+	afterD := w.TestCurrentRunKey()
+
+	_ = w.Update(tea.KeyPressMsg{Code: tea.KeyRight})
+	afterRight := w.TestCurrentRunKey()
+	require.NotEqual(t, beforeD, afterD, "'d' should advance pages in runs list")
+	require.NotEqual(t, afterD, afterRight, "Right arrow should further advance pages")
+}
+
+// TestWorkspace_UnifiedNav_PgUpPgDnInRunsList verifies PgUp/PgDn also page
+// the runs list.
+func TestWorkspace_UnifiedNav_PgUpPgDnInRunsList(t *testing.T) {
+	w, _ := newWorkspaceWithMultipleRuns(t, 12)
+	_ = w.Update(tea.WindowSizeMsg{Width: 200, Height: 10})
+
+	before := w.TestCurrentRunKey()
+	_ = w.Update(tea.KeyPressMsg{Code: tea.KeyPgDown})
+	afterPgDown := w.TestCurrentRunKey()
+	require.NotEqual(t, before, afterPgDown,
+		"PgDn should advance pages in runs list")
+
+	_ = w.Update(tea.KeyPressMsg{Code: tea.KeyPgUp})
+	afterPgUp := w.TestCurrentRunKey()
+	require.Equal(t, before, afterPgUp,
+		"PgUp should undo PgDn in runs list")
+}
+
+// TestWorkspace_UnifiedNav_HomeEndInLogs verifies Home/End dispatches to
+// the console-logs pane when it's focused.
+func TestWorkspace_UnifiedNav_HomeEndInLogs(t *testing.T) {
+	w := newWorkspaceWithPanels(t)
+
+	// Focus the logs pane.
+	for !w.TestConsoleLogsPaneActive() {
+		_ = w.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	}
+
+	require.NotPanics(t, func() {
+		_ = w.Update(tea.KeyPressMsg{Code: tea.KeyHome})
+		_ = w.Update(tea.KeyPressMsg{Code: tea.KeyEnd})
+	}, "Home/End on focused logs should not panic")
+}
+
+// TestWorkspace_UnifiedNav_GridNavArrowsAndHomeEnd verifies that when the
+// metrics grid has focus, arrow keys move chart focus, and Home/End jump
+// between first and last pages.
+func TestWorkspace_UnifiedNav_GridNavArrowsAndHomeEnd(t *testing.T) {
+	w := newWorkspaceWithPanels(t)
+	w.TestForceExpandMetricsGrid()
+
+	// Seed 4 metrics to populate the grid.
+	w.TestMetricsGrid().ProcessHistory(leet.HistoryMsg{
+		Metrics: map[string]leet.MetricData{
+			"a": {X: []float64{1}, Y: []float64{1}},
+			"b": {X: []float64{1}, Y: []float64{2}},
+			"c": {X: []float64{1}, Y: []float64{3}},
+			"d": {X: []float64{1}, Y: []float64{4}},
+		},
+	})
+
+	w.TestSetFocusTarget(int(leet.FocusTargetMetricsGrid))
+
+	// Arrow keys + Home + End should not panic when focus is on the grid.
+	require.NotPanics(t, func() {
+		_ = w.Update(tea.KeyPressMsg{Code: tea.KeyRight})
+		_ = w.Update(tea.KeyPressMsg{Code: tea.KeyDown})
+		_ = w.Update(tea.KeyPressMsg{Code: tea.KeyLeft})
+		_ = w.Update(tea.KeyPressMsg{Code: tea.KeyUp})
+		_ = w.Update(tea.KeyPressMsg{Code: tea.KeyPgDown})
+		_ = w.Update(tea.KeyPressMsg{Code: tea.KeyPgUp})
+		_ = w.Update(tea.KeyPressMsg{Code: tea.KeyHome})
+		_ = w.Update(tea.KeyPressMsg{Code: tea.KeyEnd})
+	})
+}
+
+// TestWorkspace_UnifiedNav_HomeEndInOverview verifies Home/End dispatches
+// to the overview sidebar when it's focused.
+func TestWorkspace_UnifiedNav_HomeEndInOverview(t *testing.T) {
+	w := newWorkspaceWithPanels(t)
+	w.TestSetFocusTarget(int(leet.FocusTargetOverview))
+
+	require.NotPanics(t, func() {
+		_ = w.Update(tea.KeyPressMsg{Code: tea.KeyHome})
+		_ = w.Update(tea.KeyPressMsg{Code: tea.KeyEnd})
+	}, "Home/End on focused overview should not panic")
+}
+
+// TestWorkspace_UnifiedNav_PgUpPgDn_DispatchByFocus exercises the page-nav
+// branches of handlePrevPage/handleNextPage across focus targets.
+func TestWorkspace_UnifiedNav_PgUpPgDn_DispatchByFocus(t *testing.T) {
+	w := newWorkspaceWithPanels(t)
+	w.TestForceExpandMetricsGrid()
+
+	w.TestMetricsGrid().ProcessHistory(leet.HistoryMsg{
+		Metrics: map[string]leet.MetricData{
+			"a": {X: []float64{1}, Y: []float64{1}},
+		},
+	})
+
+	// Overview-focused.
+	w.TestSetFocusTarget(int(leet.FocusTargetOverview))
+	require.NotPanics(t, func() {
+		_ = w.Update(tea.KeyPressMsg{Code: tea.KeyPgDown})
+		_ = w.Update(tea.KeyPressMsg{Code: tea.KeyPgUp})
+	})
+
+	// Logs-focused.
+	w.TestSetFocusTarget(int(leet.FocusTargetConsoleLogs))
+	require.NotPanics(t, func() {
+		_ = w.Update(tea.KeyPressMsg{Code: tea.KeyPgDown})
+		_ = w.Update(tea.KeyPressMsg{Code: tea.KeyPgUp})
+	})
+
+	// Grid-focused.
+	w.TestSetFocusTarget(int(leet.FocusTargetMetricsGrid))
+	require.NotPanics(t, func() {
+		_ = w.Update(tea.KeyPressMsg{Code: tea.KeyPgDown})
+		_ = w.Update(tea.KeyPressMsg{Code: tea.KeyPgUp})
+	})
+}
+
 // ---- Console log message handling ----
 
 func TestWorkspace_ConsoleLogMsg_CreatesLogs(t *testing.T) {

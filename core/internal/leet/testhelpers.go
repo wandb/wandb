@@ -152,6 +152,16 @@ func (c *FrenchFriesChart) TestBucketValues(seriesName string) []float64 {
 	return out
 }
 
+// TestNavigatorCurrentPage returns the current page index on the grid navigator.
+func (g *SystemMetricsGrid) TestNavigatorCurrentPage() int {
+	return g.nav.CurrentPage()
+}
+
+// TestNavigatorCurrentPage returns the current page index on the grid navigator.
+func (mg *MetricsGrid) TestNavigatorCurrentPage() int {
+	return mg.nav.CurrentPage()
+}
+
 // TestCurrentPage returns the current grid of charts.
 func (g *SystemMetricsGrid) TestCurrentPage() [][]*TimeSeriesLineChart {
 	out := make([][]*TimeSeriesLineChart, len(g.currentPage))
@@ -423,6 +433,19 @@ func (w *Workspace) TestForceExpandOverviewSidebar() {
 // TestForceCollapseRunsSidebar instantly collapses the runs sidebar.
 func (w *Workspace) TestForceCollapseRunsSidebar() {
 	w.runsAnimState.ForceCollapse()
+}
+
+// TestSetFocusTarget sets the workspace focus manager's current target.
+func (w *Workspace) TestSetFocusTarget(target int) {
+	w.focusMgr.SetTarget(FocusTarget(target), 1)
+}
+
+// TestMetricsGrid exposes the workspace's main metrics grid for testing.
+func (w *Workspace) TestMetricsGrid() *MetricsGrid { return w.metricsGrid }
+
+// TestForceExpandMetricsGrid instantly expands the metrics grid.
+func (w *Workspace) TestForceExpandMetricsGrid() {
+	w.metricsGridAnimState.ForceExpand()
 }
 
 // TestForceExpandRunsSidebar instantly expands the runs sidebar.

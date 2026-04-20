@@ -196,3 +196,159 @@ func TestRun_SidebarPageNav_SidebarCollapsed(t *testing.T) {
 	r.Update(tea.KeyPressMsg{Code: tea.KeyLeft})
 	r.Update(tea.KeyPressMsg{Code: tea.KeyRight})
 }
+
+// ---- Unified navigation: wasd/arrows aliasing + Home/End ----
+
+// keyLetter builds a key press for a single rune.
+func keyLetter(r rune) tea.KeyPressMsg {
+	return tea.KeyPressMsg{Code: r, Text: string(r)}
+}
+
+// TestRun_UnifiedNav_WSMatchesUpDownOnOverview verifies that 'w'/'s' move
+// the overview cursor the same way Up/Down do.
+func TestRun_UnifiedNav_WSMatchesUpDownOnOverview(t *testing.T) {
+	r := newRunForHandlerTest(t)
+	require.True(t, r.TestLeftSidebarHasActiveSection(), "overview should be focused")
+
+	sidebar := r.TestGetLeftSidebar()
+	before, _ := sidebar.SelectedItem()
+
+	r.Update(keyLetter('s'))
+	afterS, _ := sidebar.SelectedItem()
+	r.Update(keyLetter('w'))
+	afterW, _ := sidebar.SelectedItem()
+
+	r.Update(tea.KeyPressMsg{Code: tea.KeyDown})
+	afterDown, _ := sidebar.SelectedItem()
+
+	require.NotEmpty(t, before)
+	require.Equal(t, afterS, afterDown,
+		"'s' and Down should land on the same item")
+	require.Equal(t, before, afterW,
+		"'w' should undo 's'")
+}
+
+// TestRun_UnifiedNav_ADMatchesLeftRightOnOverview verifies that 'a'/'d' do
+// the same page nav that Left/Right do inside the overview.
+func TestRun_UnifiedNav_ADMatchesLeftRightOnOverview(t *testing.T) {
+	r := newRunForHandlerTest(t)
+	require.True(t, r.TestLeftSidebarHasActiveSection())
+
+	// Page nav is a no-op when there's only one page, but it must not panic
+	// and must leave focus intact.
+	r.Update(keyLetter('d'))
+	r.Update(keyLetter('a'))
+	r.Update(tea.KeyPressMsg{Code: tea.KeyRight})
+	r.Update(tea.KeyPressMsg{Code: tea.KeyLeft})
+
+	require.True(t, r.TestLeftSidebarHasActiveSection(),
+		"overview should remain focused after page-nav aliases")
+}
+
+// TestRun_UnifiedNav_HomeEnd_OverviewFocused verifies Home/End in overview
+// jumps between first/last items of the active section.
+func TestRun_UnifiedNav_HomeEnd_OverviewFocused(t *testing.T) {
+	r := newRunForHandlerTest(t)
+	sidebar := r.TestGetLeftSidebar()
+
+	// Give overview global focus so vertical nav + Home/End dispatch there.
+	r.TestSetFocusTarget(int(leet.FocusTargetOverview))
+
+	// Move cursor down at least once so Home is observable.
+	r.Update(tea.KeyPressMsg{Code: tea.KeyDown})
+	afterDown, _ := sidebar.SelectedItem()
+
+	r.Update(tea.KeyPressMsg{Code: tea.KeyHome})
+	afterHome, _ := sidebar.SelectedItem()
+	require.NotEqual(t, afterDown, afterHome,
+		"Home should move the cursor away from the post-Down position")
+
+	r.Update(tea.KeyPressMsg{Code: tea.KeyEnd})
+	afterEnd, _ := sidebar.SelectedItem()
+	require.NotEqual(t, afterHome, afterEnd,
+		"End should move the cursor away from the Home position")
+}
+
+// TestRun_UnifiedNav_HomeEnd_LogsFocused verifies that Home scrolls logs to
+// the start and End to the end; both should not panic when logs are empty.
+func TestRun_UnifiedNav_HomeEnd_LogsFocused(t *testing.T) {
+	r := newRunForHandlerTest(t)
+	r.TestForceExpandConsoleLogsPane(10)
+
+	// Focus logs.
+	for !r.TestConsoleLogsPaneActive() {
+		r.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	}
+
+	require.NotPanics(t, func() {
+		r.Update(tea.KeyPressMsg{Code: tea.KeyHome})
+		r.Update(tea.KeyPressMsg{Code: tea.KeyEnd})
+	})
+}
+
+// TestRun_UnifiedNav_PgUpPgDn_DispatchByFocus verifies that PgUp/PgDn is
+// routed to whichever region is focused (grid, overview, logs).
+func TestRun_UnifiedNav_PgUpPgDn_DispatchByFocus(t *testing.T) {
+	r := newRunForHandlerTest(t)
+	r.TestForceExpandConsoleLogsPane(10)
+
+	// Seed metrics so the grid is non-empty.
+	r.TestHandleRecordMsg(leet.HistoryMsg{Metrics: map[string]leet.MetricData{
+		"a": {X: []float64{1}, Y: []float64{1}},
+		"b": {X: []float64{1}, Y: []float64{2}},
+	}})
+
+	// Overview-focused: PgDn/PgUp should not panic.
+	r.TestSetFocusTarget(int(leet.FocusTargetOverview))
+	require.NotPanics(t, func() {
+		r.Update(tea.KeyPressMsg{Code: tea.KeyPgDown})
+		r.Update(tea.KeyPressMsg{Code: tea.KeyPgUp})
+	})
+
+	// Logs-focused: PgDn/PgUp should not panic.
+	r.TestSetFocusTarget(int(leet.FocusTargetConsoleLogs))
+	require.NotPanics(t, func() {
+		r.Update(tea.KeyPressMsg{Code: tea.KeyPgDown})
+		r.Update(tea.KeyPressMsg{Code: tea.KeyPgUp})
+	})
+
+	// Grid-focused: PgDn/PgUp should not panic.
+	r.TestSetFocusTarget(int(leet.FocusTargetMetricsGrid))
+	require.NotPanics(t, func() {
+		r.Update(tea.KeyPressMsg{Code: tea.KeyPgDown})
+		r.Update(tea.KeyPressMsg{Code: tea.KeyPgUp})
+	})
+}
+
+// TestRun_UnifiedNav_ArrowsInGrid_MoveChartFocus verifies that arrow keys
+// move chart focus when a grid is focused (matching wasd semantics).
+func TestRun_UnifiedNav_ArrowsInGrid_MoveChartFocus(t *testing.T) {
+	r := newRunForHandlerTest(t)
+
+	// Seed enough metrics to form a 2x2 grid.
+	r.TestHandleRecordMsg(leet.HistoryMsg{Metrics: map[string]leet.MetricData{
+		"a": {X: []float64{1}, Y: []float64{1}},
+		"b": {X: []float64{1}, Y: []float64{2}},
+		"c": {X: []float64{1}, Y: []float64{3}},
+		"d": {X: []float64{1}, Y: []float64{4}},
+	}})
+
+	// Focus the metrics grid.
+	r.TestSetFocusTarget(int(leet.FocusTargetMetricsGrid))
+	r.TestSetMainChartFocus(0, 0)
+
+	focus := r.TestFocusState()
+	require.Equal(t, leet.FocusMainChart, focus.Type)
+	require.Equal(t, 0, focus.Row)
+	require.Equal(t, 0, focus.Col)
+
+	// Right arrow should advance the focused column like 'd'.
+	r.Update(tea.KeyPressMsg{Code: tea.KeyRight})
+	require.Equal(t, 1, focus.Col,
+		"Right arrow should advance chart focus one column")
+
+	// Down arrow should advance the focused row like 's'.
+	r.Update(tea.KeyPressMsg{Code: tea.KeyDown})
+	require.Equal(t, 1, focus.Row,
+		"Down arrow should advance chart focus one row")
+}

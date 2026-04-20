@@ -976,13 +976,12 @@ func (w *Workspace) handleMetricsGridAnimation() tea.Cmd {
 }
 
 func (w *Workspace) handleGridNav(msg tea.KeyPressMsg) tea.Cmd {
-	dr, dc, page, jump, ok := gridNavIntent(msg)
-	if !ok {
+	intent := DecodeNav(msg)
+	if intent == NavIntentNone {
 		return nil
 	}
 
-	switch {
-	case dr != 0 || dc != 0:
+	applyFocus := func(dr, dc int) {
 		switch {
 		case w.focusMgr.IsTarget(FocusTargetMetricsGrid):
 			w.metricsGrid.NavigateFocus(dr, dc)
@@ -991,17 +990,18 @@ func (w *Workspace) handleGridNav(msg tea.KeyPressMsg) tea.Cmd {
 				g.NavigateFocus(dr, dc)
 			}
 		}
-	case page != 0:
+	}
+	applyPage := func(dir int) {
 		switch {
 		case w.focusMgr.IsTarget(FocusTargetMetricsGrid):
-			w.metricsGrid.Navigate(page)
+			w.metricsGrid.Navigate(dir)
 		case w.focusMgr.IsTarget(FocusTargetSystemMetrics):
 			if g := w.activeSystemMetricsGrid(); g != nil {
-				g.Navigate(page)
+				g.Navigate(dir)
 			}
 		}
-	case jump != 0:
-		end := jump > 0
+	}
+	applyJump := func(end bool) {
 		switch {
 		case w.focusMgr.IsTarget(FocusTargetMetricsGrid):
 			if end {
@@ -1018,6 +1018,25 @@ func (w *Workspace) handleGridNav(msg tea.KeyPressMsg) tea.Cmd {
 				}
 			}
 		}
+	}
+
+	switch intent {
+	case NavIntentUp:
+		applyFocus(-1, 0)
+	case NavIntentDown:
+		applyFocus(1, 0)
+	case NavIntentLeft:
+		applyFocus(0, -1)
+	case NavIntentRight:
+		applyFocus(0, 1)
+	case NavIntentPageUp:
+		applyPage(-1)
+	case NavIntentPageDown:
+		applyPage(1)
+	case NavIntentHome:
+		applyJump(false)
+	case NavIntentEnd:
+		applyJump(true)
 	}
 	return func() tea.Msg { return nil }
 }
@@ -1136,7 +1155,7 @@ func (w *Workspace) handlePinRunKey(msg tea.KeyPressMsg) tea.Cmd {
 // ---- Sidebar Navigation ----
 
 func (w *Workspace) handleRunsVerticalNav(msg tea.KeyPressMsg) tea.Cmd {
-	up := isVerticalUp(msg)
+	up := DecodeNav(msg) == NavIntentUp
 	switch {
 	case w.focusMgr.IsTarget(FocusTargetConsoleLogs):
 		if up {
@@ -1178,7 +1197,7 @@ func (w *Workspace) handleSidebarTabNav(msg tea.KeyPressMsg) tea.Cmd {
 }
 
 func (w *Workspace) handleRunsPageNav(msg tea.KeyPressMsg) tea.Cmd {
-	left := isHorizontalLeft(msg)
+	left := DecodeNav(msg) == NavIntentLeft
 	switch {
 	case w.focusMgr.IsTarget(FocusTargetConsoleLogs):
 		if left {

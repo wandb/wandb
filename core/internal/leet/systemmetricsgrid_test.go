@@ -79,6 +79,55 @@ func TestSystemMetricsGrid_FocusToggleAndRebuild(t *testing.T) {
 	require.True(t, ok3, "expected to be able to focus after rebuild")
 }
 
+func TestSystemMetricsGrid_NavigateHomeEnd(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+	_, _ = cfg.SetSystemRows(1), cfg.SetSystemCols(1)
+
+	focus := leet.NewFocus()
+	filter := leet.NewFilter()
+	grid := leet.NewSystemMetricsGrid(
+		leet.MinMetricChartWidth, leet.MinMetricChartHeight,
+		cfg, cfg.SystemGrid, focus, filter, logger,
+	)
+
+	ts := time.Now().Unix()
+	// 3 distinct chart groups -> 3 pages at 1x1 grid.
+	grid.AddDataPoint("cpu.powerWatts", ts, 25.5)
+	grid.AddDataPoint("gpu.0.powerWatts", ts, 150.0)
+	grid.AddDataPoint("system.powerWatts", ts, 350.0)
+	grid.LoadCurrentPage()
+	require.Equal(t, 3, grid.ChartCount())
+
+	grid.Navigate(1)
+	grid.Navigate(1)
+	require.Equal(t, 2, grid.TestNavigatorCurrentPage(),
+		"precondition: navigated to last page")
+
+	grid.NavigateHome()
+	require.Equal(t, 0, grid.TestNavigatorCurrentPage(),
+		"NavigateHome returns to first page")
+
+	grid.NavigateEnd()
+	require.Equal(t, 2, grid.TestNavigatorCurrentPage(),
+		"NavigateEnd jumps to last page")
+}
+
+func TestSystemMetricsGrid_NavigateHomeEnd_EmptyGrid_IsStable(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+
+	focus := leet.NewFocus()
+	filter := leet.NewFilter()
+	grid := leet.NewSystemMetricsGrid(
+		leet.MinMetricChartWidth, leet.MinMetricChartHeight,
+		cfg, cfg.SystemGrid, focus, filter, logger,
+	)
+
+	require.NotPanics(t, func() { grid.NavigateHome() })
+	require.NotPanics(t, func() { grid.NavigateEnd() })
+}
+
 func TestSystemMetricsGrid_NavigateWithPowerMetrics(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)

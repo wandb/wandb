@@ -126,6 +126,39 @@ func TestMetricsGrid_Navigate_ClearsMainChartFocus(t *testing.T) {
 	require.Equal(t, 0, f.Col)
 }
 
+func TestMetricsGrid_NavigateHomeEnd(t *testing.T) {
+	// 1x1 grid so each chart lives on its own page.
+	w, h := 120, 20
+	grid := newMetricsGrid(t, 1, 1, w, h, nil)
+
+	grid.ProcessHistory(leet.HistoryMsg{Metrics: map[string]leet.MetricData{
+		"alpha": {X: []float64{1}, Y: []float64{1}},
+		"beta":  {X: []float64{1}, Y: []float64{2}},
+		"gamma": {X: []float64{1}, Y: []float64{3}},
+	}})
+	grid.UpdateDimensions(w, h)
+
+	// Nav forward: page 0 -> 1 -> 2.
+	grid.Navigate(1)
+	grid.Navigate(1)
+	dims := grid.CalculateChartDimensions(w, h)
+	require.Contains(t, grid.View(dims), "[3-3 of 3]", "navigated to last page")
+
+	grid.NavigateHome()
+	require.Contains(t, grid.View(dims), "[1-1 of 3]", "NavigateHome returns to first page")
+
+	grid.NavigateEnd()
+	require.Contains(t, grid.View(dims), "[3-3 of 3]", "NavigateEnd jumps to last page")
+}
+
+func TestMetricsGrid_NavigateHomeEnd_EmptyGrid_IsStable(t *testing.T) {
+	grid := newMetricsGrid(t, 1, 1, 120, 20, nil)
+
+	// No charts yet — neither operation should panic.
+	require.NotPanics(t, func() { grid.NavigateHome() })
+	require.NotPanics(t, func() { grid.NavigateEnd() })
+}
+
 func TestMetricsGrid_PreservesFocusAcrossHistoryUpdates(t *testing.T) {
 	f := &leet.Focus{}
 	w, h := 120, 20

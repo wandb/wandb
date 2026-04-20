@@ -424,9 +424,7 @@ func (r *Run) handlePrevPage(msg tea.KeyPressMsg) tea.Cmd {
 	case FocusTargetMedia:
 		r.mediaPane.NavigatePage(-1)
 	case FocusTargetOverview:
-		if r.leftSidebar.IsVisible() {
-			r.leftSidebar.navigatePageUp()
-		}
+		r.leftSidebar.navigatePageUp()
 	case FocusTargetConsoleLogs:
 		r.consoleLogsPane.PageUp()
 	}
@@ -442,9 +440,7 @@ func (r *Run) handleNextPage(msg tea.KeyPressMsg) tea.Cmd {
 	case FocusTargetMedia:
 		r.mediaPane.NavigatePage(1)
 	case FocusTargetOverview:
-		if r.leftSidebar.IsVisible() {
-			r.leftSidebar.navigatePageDown()
-		}
+		r.leftSidebar.navigatePageDown()
 	case FocusTargetConsoleLogs:
 		r.consoleLogsPane.PageDown()
 	}
@@ -460,9 +456,7 @@ func (r *Run) handleNavHome(msg tea.KeyPressMsg) tea.Cmd {
 	case FocusTargetMedia:
 		r.mediaPane.ScrubToStart()
 	case FocusTargetOverview:
-		if r.leftSidebar.IsVisible() {
-			r.leftSidebar.navigateHome()
-		}
+		r.leftSidebar.navigateHome()
 	case FocusTargetConsoleLogs:
 		r.consoleLogsPane.ScrollToStart()
 	}
@@ -478,9 +472,7 @@ func (r *Run) handleNavEnd(msg tea.KeyPressMsg) tea.Cmd {
 	case FocusTargetMedia:
 		r.mediaPane.ScrubToEnd()
 	case FocusTargetOverview:
-		if r.leftSidebar.IsVisible() {
-			r.leftSidebar.navigateEnd()
-		}
+		r.leftSidebar.navigateEnd()
 	case FocusTargetConsoleLogs:
 		r.consoleLogsPane.ScrollToEnd()
 	}
@@ -566,8 +558,8 @@ func (r *Run) metricsGridAnimationCmd() tea.Cmd {
 }
 
 func (r *Run) handleGridNav(msg tea.KeyPressMsg) tea.Cmd {
-	dr, dc, page, jump, ok := gridNavIntent(msg)
-	if !ok {
+	intent := DecodeNav(msg)
+	if intent == NavIntentNone {
 		return nil
 	}
 
@@ -604,44 +596,26 @@ func (r *Run) handleGridNav(msg tea.KeyPressMsg) tea.Cmd {
 		}
 	}
 
-	switch {
-	case dr != 0 || dc != 0:
-		applyFocus(dr, dc)
-	case page != 0:
-		applyPage(page)
-	case jump != 0:
-		applyJump(jump > 0)
+	switch intent {
+	case NavIntentUp:
+		applyFocus(-1, 0)
+	case NavIntentDown:
+		applyFocus(1, 0)
+	case NavIntentLeft:
+		applyFocus(0, -1)
+	case NavIntentRight:
+		applyFocus(0, 1)
+	case NavIntentPageUp:
+		applyPage(-1)
+	case NavIntentPageDown:
+		applyPage(1)
+	case NavIntentHome:
+		applyJump(false)
+	case NavIntentEnd:
+		applyJump(true)
 	}
 	// Return a no-op command to signal the key was consumed.
 	return func() tea.Msg { return nil }
-}
-
-// gridNavIntent decodes a key press into a grid navigation intent.
-//
-// Exactly one of (dr,dc), page, or jump is non-zero when ok is true:
-//   - (dr,dc): move chart focus within the current page
-//   - page: navigate by one page (-1 or +1)
-//   - jump: jump to the first (-1) or last (+1) page
-func gridNavIntent(msg tea.KeyPressMsg) (dr, dc, page, jump int, ok bool) {
-	switch normalizeKey(msg.String()) {
-	case "w", "up":
-		return -1, 0, 0, 0, true
-	case "s", "down":
-		return 1, 0, 0, 0, true
-	case "a", "left":
-		return 0, -1, 0, 0, true
-	case "d", "right":
-		return 0, 1, 0, 0, true
-	case "pgup", "N":
-		return 0, 0, -1, 0, true
-	case "pgdown", "n":
-		return 0, 0, 1, 0, true
-	case "home":
-		return 0, 0, 0, -1, true
-	case "end":
-		return 0, 0, 0, 1, true
-	}
-	return 0, 0, 0, 0, false
 }
 
 func (r *Run) handleConfigFocusedCols(msg tea.KeyPressMsg) tea.Cmd {
@@ -981,7 +955,7 @@ func (r *Run) handleSidebarTabNav(msg tea.KeyPressMsg) tea.Cmd {
 }
 
 func (r *Run) handleSidebarVerticalNav(msg tea.KeyPressMsg) tea.Cmd {
-	up := isVerticalUp(msg)
+	up := DecodeNav(msg) == NavIntentUp
 	switch r.focusMgr.Current() {
 	case FocusTargetMedia:
 		// Media pane keeps arrow-vs-letter distinction: arrows scrub by 10.
@@ -1009,7 +983,7 @@ func (r *Run) handleSidebarVerticalNav(msg tea.KeyPressMsg) tea.Cmd {
 }
 
 func (r *Run) handleSidebarPageNav(msg tea.KeyPressMsg) tea.Cmd {
-	left := isHorizontalLeft(msg)
+	left := DecodeNav(msg) == NavIntentLeft
 	switch r.focusMgr.Current() {
 	case FocusTargetMedia:
 		// Media pane keeps arrow-vs-letter distinction: arrows scrub by 1.
@@ -1034,24 +1008,4 @@ func (r *Run) handleSidebarPageNav(msg tea.KeyPressMsg) tea.Cmd {
 		}
 	}
 	return nil
-}
-
-// isVerticalUp reports whether the key press represents upward vertical motion.
-// Matches 'w' and Up arrow.
-func isVerticalUp(msg tea.KeyPressMsg) bool {
-	switch normalizeKey(msg.String()) {
-	case "w", "up":
-		return true
-	}
-	return false
-}
-
-// isHorizontalLeft reports whether the key press represents leftward motion.
-// Matches 'a' and Left arrow.
-func isHorizontalLeft(msg tea.KeyPressMsg) bool {
-	switch normalizeKey(msg.String()) {
-	case "a", "left":
-		return true
-	}
-	return false
 }
