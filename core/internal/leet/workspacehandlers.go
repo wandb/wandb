@@ -691,7 +691,7 @@ func (w *Workspace) handleWorkspaceRecord(run *WorkspaceRun, msg tea.Msg) {
 		if w.pinnedRun != "" {
 			w.refreshPinnedRun()
 		}
-		if w.hasLiveRuns.Load() {
+		if w.shouldResetRunHeartbeat(run) {
 			w.heartbeatMgr.Reset(w.hasLiveRuns.Load)
 		}
 

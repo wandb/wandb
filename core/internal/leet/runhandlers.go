@@ -31,14 +31,14 @@ func (r *Run) handleRecordMsg(msg tea.Msg) (*Run, tea.Cmd) { // TODO: return jus
 
 	case HistoryMsg:
 		r.logger.Debug("model: processing HistoryMsg")
-		if r.runState == RunStateRunning {
+		if r.shouldResetLiveHeartbeat() {
 			r.heartbeatMgr.Reset(r.isRunning)
 		}
 		return r.handleHistoryMsg(msg)
 
 	case StatsMsg:
 		r.logger.Debug(fmt.Sprintf("model: processing StatsMsg with timestamp %d", msg.Timestamp))
-		if r.runState == RunStateRunning {
+		if r.shouldResetLiveHeartbeat() {
 			r.heartbeatMgr.Reset(r.isRunning)
 		}
 		r.rightSidebar.ProcessStatsMsg(msg)
@@ -881,7 +881,8 @@ func (r *Run) handleChunkedBatch(msg ChunkedBatchMsg) []tea.Cmd {
 
 	r.recordsLoaded += msg.Progress
 
-	cmds := r.handleRecordsBatch(msg.Msgs, false)
+	// Draw once per boot chunk instead of once per history record.
+	cmds := r.handleRecordsBatch(msg.Msgs, true)
 
 	if msg.HasMore {
 		cmds = append(
