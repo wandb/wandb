@@ -14,7 +14,6 @@ import (
 	"github.com/wandb/wandb/core/internal/clients"
 	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/filetransfer"
-	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
@@ -71,13 +70,30 @@ func NewGraphQLClient(
 		return nil
 	}
 
-	return gql.NewGQLClient(
+	extraHeaders := make(map[string]string)
+	maps.Copy(extraHeaders, s.GetExtraHTTPHeaders())
+
+	// This header is used to indicate to the backend that the run is in shared
+	// mode to prevent a race condition when two UpsertRun requests are made
+	// simultaneously for the same run ID in shared mode.
+	if s.IsSharedMode() {
+		extraHeaders["X-WANDB-USE-ASYNC-FILESTREAM"] = "true"
+		extraHeaders["X-WANDB-CLIENT-ID"] = string(clientID)
+	}
+	// When enabled, this header instructs the backend to compute the derived summary
+	// using history updates, instead of relying on the SDK to calculate and send it.
+	if s.IsEnableServerSideDerivedSummary() {
+		extraHeaders["X-WANDB-SERVER-SIDE-DERIVED-SUMMARY"] = "true"
+	}
+
+	return api.NewGQLClient(
 		baseURL,
 		clientID,
 		credentialProvider,
-		logger,
+		logger.Logger,
 		peeker,
 		s,
+		extraHeaders,
 	)
 }
 

@@ -1,25 +1,25 @@
-package gql
+package api
 
 import (
 	"fmt"
+	"log/slog"
 	"maps"
 
 	"github.com/Khan/genqlient/graphql"
 
-	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/clients"
-	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/sharedmode"
 )
 
 func NewGQLClient(
-	baseURL api.WBBaseURL,
+	baseURL WBBaseURL,
 	clientID sharedmode.ClientID,
-	credentialProvider api.CredentialProvider,
-	logger *observability.CoreLogger,
-	peeker *observability.Peeker,
+	credentialProvider CredentialProvider,
+	logger *slog.Logger,
+	peeker Peeker,
 	s *settings.Settings,
+	extraHeaders map[string]string,
 ) graphql.Client {
 	// TODO: This is used for the service account feature to associate the run
 	// with the specified user. Note that we are using environment variables
@@ -36,27 +36,15 @@ func NewGQLClient(
 		"X-WANDB-USERNAME":   s.GetUserName(),
 		"X-WANDB-USER-EMAIL": s.GetEmail(),
 	}
-	maps.Copy(graphqlHeaders, s.GetExtraHTTPHeaders())
-	// This header is used to indicate to the backend that the run is in shared
-	// mode to prevent a race condition when two UpsertRun requests are made
-	// simultaneously for the same run ID in shared mode.
-	if s.IsSharedMode() {
-		graphqlHeaders["X-WANDB-USE-ASYNC-FILESTREAM"] = "true"
-		graphqlHeaders["X-WANDB-CLIENT-ID"] = string(clientID)
-	}
-	// When enabled, this header instructs the backend to compute the derived summary
-	// using history updates, instead of relying on the SDK to calculate and send it.
-	if s.IsEnableServerSideDerivedSummary() {
-		graphqlHeaders["X-WANDB-SERVER-SIDE-DERIVED-SUMMARY"] = "true"
-	}
+	maps.Copy(graphqlHeaders, extraHeaders)
 
-	opts := api.ClientOptions{
+	opts := ClientOptions{
 		BaseURL:         baseURL,
 		RetryPolicy:     clients.CheckRetry,
-		RetryMax:        api.DefaultRetryMax,
-		RetryWaitMin:    api.DefaultRetryWaitMin,
-		RetryWaitMax:    api.DefaultRetryWaitMax,
-		NonRetryTimeout: api.DefaultNonRetryTimeout,
+		RetryMax:        DefaultRetryMax,
+		RetryWaitMin:    DefaultRetryWaitMin,
+		RetryWaitMax:    DefaultRetryWaitMax,
+		NonRetryTimeout: DefaultNonRetryTimeout,
 		ExtraHeaders:    graphqlHeaders,
 		NetworkPeeker:   peeker,
 		Proxy: clients.ProxyFn(
@@ -65,7 +53,7 @@ func NewGQLClient(
 		),
 		InsecureDisableSSL: s.IsInsecureDisableSSL(),
 		CredentialProvider: credentialProvider,
-		Logger:             logger.Logger,
+		Logger:             logger,
 	}
 	if retryMax := s.GetGraphQLMaxRetries(); retryMax > 0 {
 		opts.RetryMax = int(retryMax)
@@ -80,8 +68,8 @@ func NewGQLClient(
 		opts.NonRetryTimeout = timeout
 	}
 
-	httpClient := api.NewClient(opts)
+	httpClient := NewClient(opts)
 	endpoint := fmt.Sprintf("%s/graphql", s.GetBaseURL())
 
-	return graphql.NewClient(endpoint, api.AsStandardClient(httpClient))
+	return graphql.NewClient(endpoint, AsStandardClient(httpClient))
 }

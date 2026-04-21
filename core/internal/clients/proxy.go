@@ -5,36 +5,21 @@ import (
 	"net/url"
 )
 
-// ProxyFn returns a function that returns a proxy URL for a given http.Request.
+// ProxyFn returns an http.Transport.Proxy function that routes requests
+// through httpProxy or httpsProxy based on the request scheme, falling back
+// to http.ProxyFromEnvironment when no custom proxy is configured.
 //
-// The function first checks if there's a custom proxy setting for the request
-// URL scheme. If not, it falls back to the default environment proxy settings.
-// If there is, it returns the custom proxy URL.
-//
-// This is useful if the user only want to proxy traffic to W&B, but not other traffic,
-// as the standard environment proxy settings would potentially proxy all traffic.
-//
-// The custom proxy URLs are passed as arguments to the function.
-//
-// The default environment proxy settings are read from the environment variables
-// HTTP_PROXY, HTTPS_PROXY, and NO_PROXY.
+// This lets callers proxy only W&B traffic; HTTP_PROXY/HTTPS_PROXY/NO_PROXY
+// would otherwise route all traffic through the proxy.
 func ProxyFn(httpProxy, httpsProxy string) func(req *http.Request) (*url.URL, error) {
 	return func(req *http.Request) (*url.URL, error) {
-		if req.URL.Scheme == "http" && httpProxy != "" {
-			proxyURLParsed, err := url.Parse(httpProxy)
-			if err != nil {
-				return nil, err
-			}
-			return proxyURLParsed, nil
-		} else if req.URL.Scheme == "https" && httpsProxy != "" {
-			proxyURLParsed, err := url.Parse(httpsProxy)
-			if err != nil {
-				return nil, err
-			}
-			return proxyURLParsed, nil
+		switch {
+		case req.URL.Scheme == "http" && httpProxy != "":
+			return url.Parse(httpProxy)
+		case req.URL.Scheme == "https" && httpsProxy != "":
+			return url.Parse(httpsProxy)
+		default:
+			return http.ProxyFromEnvironment(req)
 		}
-
-		// Fall back to the default environment proxy settings
-		return http.ProxyFromEnvironment(req)
 	}
 }

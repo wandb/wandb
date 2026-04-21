@@ -14,7 +14,6 @@ import (
 
 	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/featurechecker"
-	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/settings"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
@@ -51,13 +50,14 @@ func New(s *settings.Settings, logger *observability.CoreLogger) *WandbAPI {
 			fmt.Errorf("creating credential provider: %v", err))
 	}
 
-	graphqlClient := gql.NewGQLClient(
+	graphqlClient := api.NewGQLClient(
 		api.WBBaseURL(baseURL),
 		"", /*clientID*/
 		credentialProvider,
-		logger,
+		logger.Logger,
 		&observability.Peeker{},
 		s,
+		s.GetExtraHTTPHeaders(),
 	)
 
 	httpClient := retryablehttp.NewClient()
