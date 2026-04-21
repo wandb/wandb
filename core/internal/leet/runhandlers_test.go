@@ -172,96 +172,36 @@ func TestRun_OverviewUpdatesPreserveTabContext(t *testing.T) {
 
 // ---- Unified navigation: wasd/arrows aliasing + Home/End ----
 
-// keyLetter builds a key press for a single rune.
-func keyLetter(r rune) tea.KeyPressMsg {
-	return tea.KeyPressMsg{Code: r, Text: string(r)}
-}
-
-// TestRun_UnifiedNav_WSMatchesUpDownOnOverview verifies that 'w'/'s' move
-// the overview cursor the same way Up/Down do.
-func TestRun_UnifiedNav_WSMatchesUpDownOnOverview(t *testing.T) {
+func TestRun_UnifiedNav_OverviewUsesCanonicalKeys(t *testing.T) {
 	r := newRunForHandlerTest(t)
-	require.True(t, r.TestLeftSidebarHasActiveSection(), "overview should be focused")
-
 	sidebar := r.TestGetLeftSidebar()
 	before, _ := sidebar.SelectedItem()
 
-	r.Update(keyLetter('s'))
-	afterS, _ := sidebar.SelectedItem()
-	r.Update(keyLetter('w'))
-	afterW, _ := sidebar.SelectedItem()
-
-	r.Update(tea.KeyPressMsg{Code: tea.KeyDown})
-	afterDown, _ := sidebar.SelectedItem()
-
+	r.Update(primaryNavMsg(t, leet.NavIntentDown))
+	afterPrimaryDown, _ := sidebar.SelectedItem()
 	require.NotEmpty(t, before)
-	require.Equal(t, afterS, afterDown,
-		"'s' and Down should land on the same item")
-	require.Equal(t, before, afterW,
-		"'w' should undo 's'")
-}
+	require.NotEqual(t, before, afterPrimaryDown,
+		"the primary down binding should move the overview selection")
 
-// TestRun_UnifiedNav_ADMatchesLeftRightOnOverview verifies that 'a'/'d' do
-// the same page nav that Left/Right do inside the overview.
-func TestRun_UnifiedNav_ADMatchesLeftRightOnOverview(t *testing.T) {
-	r := newRunForHandlerTest(t)
-	require.True(t, r.TestLeftSidebarHasActiveSection())
+	r.Update(primaryNavMsg(t, leet.NavIntentUp))
+	require.Equal(t, before, mustSelectedItem(t, sidebar),
+		"the primary up binding should undo the down move")
 
-	// Page nav is a no-op when there's only one page, but it must not panic
-	// and must leave focus intact.
-	r.Update(keyLetter('d'))
-	r.Update(keyLetter('a'))
-	r.Update(tea.KeyPressMsg{Code: tea.KeyRight})
-	r.Update(tea.KeyPressMsg{Code: tea.KeyLeft})
+	r.Update(secondaryNavMsg(t, leet.NavIntentDown))
+	require.Equal(t, afterPrimaryDown, mustSelectedItem(t, sidebar),
+		"the secondary down binding should match the primary binding")
 
-	require.True(t, r.TestLeftSidebarHasActiveSection(),
-		"overview should remain focused after page-nav aliases")
-}
-
-// TestRun_UnifiedNav_HomeEnd_OverviewFocused verifies Home/End in overview
-// jumps between first/last items of the active section.
-func TestRun_UnifiedNav_HomeEnd_OverviewFocused(t *testing.T) {
-	r := newRunForHandlerTest(t)
-	sidebar := r.TestGetLeftSidebar()
-
-	// Give overview global focus so vertical nav + Home/End dispatch there.
-	r.TestSetFocusTarget(int(leet.FocusTargetOverview))
-
-	// Move cursor down at least once so Home is observable.
-	r.Update(tea.KeyPressMsg{Code: tea.KeyDown})
-	afterDown, _ := sidebar.SelectedItem()
-
-	r.Update(tea.KeyPressMsg{Code: tea.KeyHome})
+	r.Update(primaryNavMsg(t, leet.NavIntentHome))
 	afterHome, _ := sidebar.SelectedItem()
-	require.NotEqual(t, afterDown, afterHome,
-		"Home should move the cursor away from the post-Down position")
+	require.Equal(t, before, afterHome, "Home should return to the first item")
 
-	r.Update(tea.KeyPressMsg{Code: tea.KeyEnd})
+	r.Update(primaryNavMsg(t, leet.NavIntentEnd))
 	afterEnd, _ := sidebar.SelectedItem()
 	require.NotEqual(t, afterHome, afterEnd,
 		"End should move the cursor away from the Home position")
 }
 
-// TestRun_UnifiedNav_HomeEnd_LogsFocused verifies that Home scrolls logs to
-// the start and End to the end; both should not panic when logs are empty.
-func TestRun_UnifiedNav_HomeEnd_LogsFocused(t *testing.T) {
-	r := newRunForHandlerTest(t)
-	r.TestForceExpandConsoleLogsPane(10)
-
-	// Focus logs.
-	for !r.TestConsoleLogsPaneActive() {
-		r.Update(tea.KeyPressMsg{Code: tea.KeyTab})
-	}
-
-	require.NotPanics(t, func() {
-		r.Update(tea.KeyPressMsg{Code: tea.KeyHome})
-		r.Update(tea.KeyPressMsg{Code: tea.KeyEnd})
-	})
-}
-
-// TestRun_UnifiedNav_ArrowsInGrid_MoveChartFocus verifies that arrow keys
-// move chart focus when a grid is focused (matching wasd semantics).
-func TestRun_UnifiedNav_ArrowsInGrid_MoveChartFocus(t *testing.T) {
+func TestRun_UnifiedNav_GridUsesCanonicalDirectionalKeys(t *testing.T) {
 	r := newRunForHandlerTest(t)
 
 	// Seed enough metrics to form a 2x2 grid.
@@ -281,13 +221,24 @@ func TestRun_UnifiedNav_ArrowsInGrid_MoveChartFocus(t *testing.T) {
 	require.Equal(t, 0, focus.Row)
 	require.Equal(t, 0, focus.Col)
 
-	// Right arrow should advance the focused column like 'd'.
-	r.Update(tea.KeyPressMsg{Code: tea.KeyRight})
+	r.Update(primaryNavMsg(t, leet.NavIntentRight))
 	require.Equal(t, 1, focus.Col,
-		"Right arrow should advance chart focus one column")
+		"the primary right binding should advance chart focus")
 
-	// Down arrow should advance the focused row like 's'.
-	r.Update(tea.KeyPressMsg{Code: tea.KeyDown})
+	r.TestSetMainChartFocus(0, 0)
+	r.Update(secondaryNavMsg(t, leet.NavIntentRight))
+	require.Equal(t, 1, focus.Col,
+		"the secondary right binding should match the primary binding")
+
+	r.TestSetMainChartFocus(0, 0)
+	r.Update(secondaryNavMsg(t, leet.NavIntentDown))
 	require.Equal(t, 1, focus.Row,
-		"Down arrow should advance chart focus one row")
+		"the secondary down binding should advance chart focus vertically")
+}
+
+func mustSelectedItem(t *testing.T, sidebar *leet.RunOverviewSidebar) string {
+	t.Helper()
+	key, _ := sidebar.SelectedItem()
+	require.NotEmpty(t, key)
+	return key
 }

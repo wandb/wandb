@@ -11,9 +11,7 @@ import (
 	"github.com/wandb/wandb/core/internal/observability"
 )
 
-// TestSymon_ArrowsMoveChartFocus verifies arrow keys move chart focus
-// within the current page just like wasd.
-func TestSymon_ArrowsMoveChartFocus(t *testing.T) {
+func TestSymon_UnifiedNav_DirectionalAliases(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	cfg := NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 	_ = cfg.SetSymonRows(2)
@@ -38,18 +36,15 @@ func TestSymon_ArrowsMoveChartFocus(t *testing.T) {
 	require.Equal(t, 0, focus.Row)
 	require.Equal(t, 0, focus.Col)
 
-	// Right arrow should advance column like 'd'.
-	_, _ = s.Update(tea.KeyPressMsg{Code: tea.KeyRight})
-	require.Equal(t, 1, focus.Col, "Right arrow should advance focus one column")
+	_, _ = s.Update(testPrimaryNavMsg(t, NavIntentRight))
+	require.Equal(t, 1, focus.Col, "the primary right binding should advance focus")
 
-	// Down arrow should advance row like 's'.
-	_, _ = s.Update(tea.KeyPressMsg{Code: tea.KeyDown})
-	require.Equal(t, 1, focus.Row, "Down arrow should advance focus one row")
+	require.True(t, s.grid.HandleMouseClick(0, 0))
+	_, _ = s.Update(testSecondaryNavMsg(t, NavIntentRight))
+	require.Equal(t, 1, focus.Col, "the secondary right binding should match the primary binding")
 }
 
-// TestSymon_PgUpN_JumpsToPrevPage verifies that both PgUp and 'N' invoke
-// handlePrevPage.
-func TestSymon_PgUpN_JumpsToPrevPage(t *testing.T) {
+func TestSymon_UnifiedNav_PageAndBoundaryKeys(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	cfg := NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 	_ = cfg.SetSymonRows(1)
@@ -66,52 +61,23 @@ func TestSymon_PgUpN_JumpsToPrevPage(t *testing.T) {
 	s.grid.AddDataPoint("system.powerWatts", ts, 350)
 	s.grid.LoadCurrentPage()
 
-	// Advance to last page, then rewind with PgUp.
-	_, _ = s.Update(tea.KeyPressMsg{Code: tea.KeyEnd})
-	require.Equal(t, 2, s.grid.TestNavigatorCurrentPage())
-
-	_, _ = s.Update(tea.KeyPressMsg{Code: tea.KeyPgUp})
+	_, _ = s.Update(testPrimaryNavMsg(t, NavIntentPageDown))
 	require.Equal(t, 1, s.grid.TestNavigatorCurrentPage(),
-		"PgUp should go back one page")
+		"the primary page-down binding should advance one page")
 
-	// Shift+N -> capital N, same as PgUp.
-	_, _ = s.Update(tea.KeyPressMsg{Code: 'N', Text: "N"})
-	require.Equal(t, 0, s.grid.TestNavigatorCurrentPage(),
-		"'N' should go back one page, same as PgUp")
-}
+	_, _ = s.Update(testSecondaryNavMsg(t, NavIntentPageDown))
+	require.Equal(t, 2, s.grid.TestNavigatorCurrentPage(),
+		"the secondary page-down binding should match the primary binding")
 
-// TestSymon_HomeEndJumpsBetweenPages verifies that Home/End jump to
-// first/last page of the grid.
-func TestSymon_HomeEndJumpsBetweenPages(t *testing.T) {
-	logger := observability.NewNoOpLogger()
-	cfg := NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
-	_ = cfg.SetSymonRows(1)
-	_ = cfg.SetSymonCols(1)
+	_, _ = s.Update(testSecondaryNavMsg(t, NavIntentPageUp))
+	require.Equal(t, 1, s.grid.TestNavigatorCurrentPage(),
+		"the secondary page-up binding should rewind one page")
 
-	s := NewSymon(SymonParams{Config: cfg, Logger: logger})
-	defer s.Cleanup()
-
-	_, _ = s.Update(tea.WindowSizeMsg{Width: 140, Height: 45})
-
-	ts := time.Now().Unix()
-	// 3 distinct chart groups -> 3 pages at 1x1 grid.
-	s.grid.AddDataPoint("cpu.powerWatts", ts, 25)
-	s.grid.AddDataPoint("gpu.0.powerWatts", ts, 150)
-	s.grid.AddDataPoint("system.powerWatts", ts, 350)
-	s.grid.LoadCurrentPage()
-
-	// Advance to page 2 (last).
-	_, _ = s.Update(tea.KeyPressMsg{Code: tea.KeyPgDown})
-	_, _ = s.Update(tea.KeyPressMsg{Code: tea.KeyPgDown})
-	require.Equal(t, 2, s.grid.TestNavigatorCurrentPage())
-
-	// Home returns to page 0.
-	_, _ = s.Update(tea.KeyPressMsg{Code: tea.KeyHome})
+	_, _ = s.Update(testPrimaryNavMsg(t, NavIntentHome))
 	require.Equal(t, 0, s.grid.TestNavigatorCurrentPage(),
 		"Home should jump back to first page")
 
-	// End jumps to the last page.
-	_, _ = s.Update(tea.KeyPressMsg{Code: tea.KeyEnd})
+	_, _ = s.Update(testPrimaryNavMsg(t, NavIntentEnd))
 	require.Equal(t, 2, s.grid.TestNavigatorCurrentPage(),
 		"End should jump to last page")
 }

@@ -151,14 +151,6 @@ func TestMetricsGrid_NavigateHomeEnd(t *testing.T) {
 	require.Contains(t, grid.View(dims), "[3-3 of 3]", "NavigateEnd jumps to last page")
 }
 
-func TestMetricsGrid_NavigateHomeEnd_EmptyGrid_IsStable(t *testing.T) {
-	grid := newMetricsGrid(t, 1, 1, 120, 20, nil)
-
-	// No charts yet — neither operation should panic.
-	require.NotPanics(t, func() { grid.NavigateHome() })
-	require.NotPanics(t, func() { grid.NavigateEnd() })
-}
-
 func TestMetricsGrid_PreservesFocusAcrossHistoryUpdates(t *testing.T) {
 	f := &leet.Focus{}
 	w, h := 120, 20

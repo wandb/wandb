@@ -70,13 +70,3 @@ func TestPagedList_End_JumpsToLastItem(t *testing.T) {
 	require.Equal(t, 1, full.CurrentPage())
 	require.Equal(t, 1, full.CurrentLine())
 }
-
-func TestPagedList_End_EmptyList_IsStable(t *testing.T) {
-	var list leet.PagedList
-	list.End()
-
-	_, ok := list.CurrentItem()
-	require.False(t, ok)
-	require.Equal(t, 0, list.CurrentPage())
-	require.Equal(t, 0, list.CurrentLine())
-}

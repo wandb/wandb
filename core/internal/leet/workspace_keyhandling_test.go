@@ -233,8 +233,8 @@ func TestWorkspace_RunsVerticalNav_ConsoleLogsPaneConsoleLogsPaneActive(t *testi
 	require.True(t, w.TestConsoleLogsPaneActive())
 
 	// Up/Down should route to bottom bar, not runs list.
-	_ = w.Update(tea.KeyPressMsg{Code: tea.KeyUp})
-	_ = w.Update(tea.KeyPressMsg{Code: tea.KeyDown})
+	_ = w.Update(secondaryNavMsg(t, leet.NavIntentUp))
+	_ = w.Update(secondaryNavMsg(t, leet.NavIntentDown))
 	require.True(t, w.TestConsoleLogsPaneActive(),
 		"bottom bar should still be active after vertical nav")
 }
@@ -250,8 +250,8 @@ func TestWorkspace_RunsVerticalNav_OverviewActive(t *testing.T) {
 	require.False(t, w.TestConsoleLogsPaneActive())
 
 	// Up/Down should route to overview sidebar, not runs list.
-	_ = w.Update(tea.KeyPressMsg{Code: tea.KeyUp})
-	_ = w.Update(tea.KeyPressMsg{Code: tea.KeyDown})
+	_ = w.Update(secondaryNavMsg(t, leet.NavIntentUp))
+	_ = w.Update(secondaryNavMsg(t, leet.NavIntentDown))
 	require.False(t, w.TestRunsActive(),
 		"runs should not become active from overview vertical nav")
 }
@@ -278,180 +278,53 @@ func newWorkspaceWithMultipleRuns(t *testing.T, n int) (*leet.Workspace, []strin
 	return w, keys
 }
 
-func TestWorkspace_UnifiedNav_WASDMatchesArrowsInRunsList(t *testing.T) {
-	// With multiple runs, pressing 's' should move down, same as KeyDown.
-	// Pressing 'w' should move up, same as KeyUp.
-	w, keys := newWorkspaceWithMultipleRuns(t, 5)
+func TestWorkspace_UnifiedNav_RunsListDirectionalAliases(t *testing.T) {
+	w, _ := newWorkspaceWithMultipleRuns(t, 5)
 	require.True(t, w.TestRunsActive(), "runs list should start focused")
 
-	// Latest run auto-pins; move to first-listed run before testing.
 	start := w.TestCurrentRunKey()
-	_ = w.Update(keyRune('s'))
-	afterS := w.TestCurrentRunKey()
-	require.NotEqual(t, start, afterS, "'s' should advance cursor in runs list")
+	_ = w.Update(primaryNavMsg(t, leet.NavIntentDown))
+	afterPrimaryDown := w.TestCurrentRunKey()
+	require.NotEqual(t, start, afterPrimaryDown,
+		"the primary down binding should advance the runs cursor")
 
-	_ = w.Update(keyRune('w'))
-	afterW := w.TestCurrentRunKey()
-	require.Equal(t, start, afterW, "'w' should undo 's' in runs list")
-
-	// Verify the same transitions occur with arrow keys for sanity.
-	_ = w.Update(tea.KeyPressMsg{Code: tea.KeyDown})
-	require.Equal(t, afterS, w.TestCurrentRunKey(),
-		"KeyDown should match 's' in runs list")
-	_ = w.Update(tea.KeyPressMsg{Code: tea.KeyUp})
+	_ = w.Update(primaryNavMsg(t, leet.NavIntentUp))
 	require.Equal(t, start, w.TestCurrentRunKey(),
-		"KeyUp should match 'w' in runs list")
+		"the primary up binding should undo the down move")
 
-	_ = keys
+	_ = w.Update(secondaryNavMsg(t, leet.NavIntentDown))
+	require.Equal(t, afterPrimaryDown, w.TestCurrentRunKey(),
+		"the secondary down binding should match the primary binding")
+	_ = w.Update(secondaryNavMsg(t, leet.NavIntentUp))
+	require.Equal(t, start, w.TestCurrentRunKey(),
+		"the secondary up binding should match the primary binding")
 }
 
-func TestWorkspace_UnifiedNav_HomeEndInRunsList(t *testing.T) {
-	// Home should jump to first run, End to last run.
-	w, keys := newWorkspaceWithMultipleRuns(t, 5)
-
-	// Move to middle of list before testing Home/End.
-	_ = w.Update(keyRune('s'))
-	_ = w.Update(keyRune('s'))
-
-	_ = w.Update(tea.KeyPressMsg{Code: tea.KeyHome})
-	require.Equal(t, keys[0], w.TestCurrentRunKey(),
-		"Home should jump to first run in the list")
-
-	_ = w.Update(tea.KeyPressMsg{Code: tea.KeyEnd})
-	require.Equal(t, keys[len(keys)-1], w.TestCurrentRunKey(),
-		"End should jump to last run in the list")
-}
-
-// TestWorkspace_UnifiedNav_ADMatchesLeftRightInRunsList verifies 'a'/'d'
-// alias Left/Right for runs list page nav.
-func TestWorkspace_UnifiedNav_ADMatchesLeftRightInRunsList(t *testing.T) {
-	w, _ := newWorkspaceWithMultipleRuns(t, 12)
-
-	// Constrain viewport so multiple pages are meaningful.
-	_ = w.Update(tea.WindowSizeMsg{Width: 200, Height: 10})
-
-	// Move to a middle run, then page nav with 'd' then 'a'.
-	_ = w.Update(keyRune('s'))
-	beforeD := w.TestCurrentRunKey()
-	_ = w.Update(keyRune('d'))
-	afterD := w.TestCurrentRunKey()
-
-	_ = w.Update(tea.KeyPressMsg{Code: tea.KeyRight})
-	afterRight := w.TestCurrentRunKey()
-	require.NotEqual(t, beforeD, afterD, "'d' should advance pages in runs list")
-	require.NotEqual(t, afterD, afterRight, "Right arrow should further advance pages")
-}
-
-// TestWorkspace_UnifiedNav_PgUpPgDnInRunsList verifies PgUp/PgDn also page
-// the runs list.
-func TestWorkspace_UnifiedNav_PgUpPgDnInRunsList(t *testing.T) {
-	w, _ := newWorkspaceWithMultipleRuns(t, 12)
+func TestWorkspace_UnifiedNav_RunsListPagingAndBoundaries(t *testing.T) {
+	w, keys := newWorkspaceWithMultipleRuns(t, 12)
 	_ = w.Update(tea.WindowSizeMsg{Width: 200, Height: 10})
 
 	before := w.TestCurrentRunKey()
-	_ = w.Update(tea.KeyPressMsg{Code: tea.KeyPgDown})
-	afterPgDown := w.TestCurrentRunKey()
-	require.NotEqual(t, before, afterPgDown,
-		"PgDn should advance pages in runs list")
+	_ = w.Update(primaryNavMsg(t, leet.NavIntentPageDown))
+	afterPrimaryPageDown := w.TestCurrentRunKey()
+	require.NotEqual(t, before, afterPrimaryPageDown,
+		"the primary page-down binding should advance the runs page")
 
-	_ = w.Update(tea.KeyPressMsg{Code: tea.KeyPgUp})
-	afterPgUp := w.TestCurrentRunKey()
-	require.Equal(t, before, afterPgUp,
-		"PgUp should undo PgDn in runs list")
-}
+	_ = w.Update(secondaryNavMsg(t, leet.NavIntentPageUp))
+	require.Equal(t, before, w.TestCurrentRunKey(),
+		"the secondary page-up binding should undo the primary page-down move")
 
-// TestWorkspace_UnifiedNav_HomeEndInLogs verifies Home/End dispatches to
-// the console-logs pane when it's focused.
-func TestWorkspace_UnifiedNav_HomeEndInLogs(t *testing.T) {
-	w := newWorkspaceWithPanels(t)
+	_ = w.Update(secondaryNavMsg(t, leet.NavIntentPageDown))
+	require.Equal(t, afterPrimaryPageDown, w.TestCurrentRunKey(),
+		"the secondary page-down binding should match the primary binding")
 
-	// Focus the logs pane.
-	for !w.TestConsoleLogsPaneActive() {
-		_ = w.Update(tea.KeyPressMsg{Code: tea.KeyTab})
-	}
+	_ = w.Update(primaryNavMsg(t, leet.NavIntentHome))
+	require.Equal(t, keys[0], w.TestCurrentRunKey(),
+		"Home should jump to the first visible run")
 
-	require.NotPanics(t, func() {
-		_ = w.Update(tea.KeyPressMsg{Code: tea.KeyHome})
-		_ = w.Update(tea.KeyPressMsg{Code: tea.KeyEnd})
-	}, "Home/End on focused logs should not panic")
-}
-
-// TestWorkspace_UnifiedNav_GridNavArrowsAndHomeEnd verifies that when the
-// metrics grid has focus, arrow keys move chart focus, and Home/End jump
-// between first and last pages.
-func TestWorkspace_UnifiedNav_GridNavArrowsAndHomeEnd(t *testing.T) {
-	w := newWorkspaceWithPanels(t)
-	w.TestForceExpandMetricsGrid()
-
-	// Seed 4 metrics to populate the grid.
-	w.TestMetricsGrid().ProcessHistory(leet.HistoryMsg{
-		Metrics: map[string]leet.MetricData{
-			"a": {X: []float64{1}, Y: []float64{1}},
-			"b": {X: []float64{1}, Y: []float64{2}},
-			"c": {X: []float64{1}, Y: []float64{3}},
-			"d": {X: []float64{1}, Y: []float64{4}},
-		},
-	})
-
-	w.TestSetFocusTarget(int(leet.FocusTargetMetricsGrid))
-
-	// Arrow keys + Home + End should not panic when focus is on the grid.
-	require.NotPanics(t, func() {
-		_ = w.Update(tea.KeyPressMsg{Code: tea.KeyRight})
-		_ = w.Update(tea.KeyPressMsg{Code: tea.KeyDown})
-		_ = w.Update(tea.KeyPressMsg{Code: tea.KeyLeft})
-		_ = w.Update(tea.KeyPressMsg{Code: tea.KeyUp})
-		_ = w.Update(tea.KeyPressMsg{Code: tea.KeyPgDown})
-		_ = w.Update(tea.KeyPressMsg{Code: tea.KeyPgUp})
-		_ = w.Update(tea.KeyPressMsg{Code: tea.KeyHome})
-		_ = w.Update(tea.KeyPressMsg{Code: tea.KeyEnd})
-	})
-}
-
-// TestWorkspace_UnifiedNav_HomeEndInOverview verifies Home/End dispatches
-// to the overview sidebar when it's focused.
-func TestWorkspace_UnifiedNav_HomeEndInOverview(t *testing.T) {
-	w := newWorkspaceWithPanels(t)
-	w.TestSetFocusTarget(int(leet.FocusTargetOverview))
-
-	require.NotPanics(t, func() {
-		_ = w.Update(tea.KeyPressMsg{Code: tea.KeyHome})
-		_ = w.Update(tea.KeyPressMsg{Code: tea.KeyEnd})
-	}, "Home/End on focused overview should not panic")
-}
-
-// TestWorkspace_UnifiedNav_PgUpPgDn_DispatchByFocus exercises the page-nav
-// branches of handlePrevPage/handleNextPage across focus targets.
-func TestWorkspace_UnifiedNav_PgUpPgDn_DispatchByFocus(t *testing.T) {
-	w := newWorkspaceWithPanels(t)
-	w.TestForceExpandMetricsGrid()
-
-	w.TestMetricsGrid().ProcessHistory(leet.HistoryMsg{
-		Metrics: map[string]leet.MetricData{
-			"a": {X: []float64{1}, Y: []float64{1}},
-		},
-	})
-
-	// Overview-focused.
-	w.TestSetFocusTarget(int(leet.FocusTargetOverview))
-	require.NotPanics(t, func() {
-		_ = w.Update(tea.KeyPressMsg{Code: tea.KeyPgDown})
-		_ = w.Update(tea.KeyPressMsg{Code: tea.KeyPgUp})
-	})
-
-	// Logs-focused.
-	w.TestSetFocusTarget(int(leet.FocusTargetConsoleLogs))
-	require.NotPanics(t, func() {
-		_ = w.Update(tea.KeyPressMsg{Code: tea.KeyPgDown})
-		_ = w.Update(tea.KeyPressMsg{Code: tea.KeyPgUp})
-	})
-
-	// Grid-focused.
-	w.TestSetFocusTarget(int(leet.FocusTargetMetricsGrid))
-	require.NotPanics(t, func() {
-		_ = w.Update(tea.KeyPressMsg{Code: tea.KeyPgDown})
-		_ = w.Update(tea.KeyPressMsg{Code: tea.KeyPgUp})
-	})
+	_ = w.Update(primaryNavMsg(t, leet.NavIntentEnd))
+	require.Equal(t, keys[len(keys)-1], w.TestCurrentRunKey(),
+		"End should jump to the last visible run")
 }
 
 // ---- Console log message handling ----

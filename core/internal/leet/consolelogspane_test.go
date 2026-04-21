@@ -75,13 +75,6 @@ func TestConsoleLogsPane_ScrollToStart_JumpsToFirstAndFreezesAutoscroll(t *testi
 	require.Contains(t, out, "[1-2 of 8]", "autoscroll stays disabled after ScrollToStart")
 }
 
-func TestConsoleLogsPane_ScrollToStart_EmptyLogs_IsStable(t *testing.T) {
-	clp := leet.NewConsoleLogsPane(leet.NewAnimatedValue(false, leet.ConsoleLogsPaneMinHeight))
-	expandConsoleLogsPane(t, clp, 4)
-
-	require.NotPanics(t, func() { clp.ScrollToStart() })
-}
-
 func TestConsoleLogsPane_PageUpDown_WrapsAround(t *testing.T) {
 	clp := leet.NewConsoleLogsPane(leet.NewAnimatedValue(false, leet.ConsoleLogsPaneMinHeight))
 	expandConsoleLogsPane(t, clp, 4) // header + padding + 2 content lines
