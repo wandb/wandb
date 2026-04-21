@@ -21,3 +21,4 @@ Section headings should be at level 3 (e.g. `### Added`).
 ### Fixed
 
 - Made `wandb.init(id=run_id, reinit="create_new")` raise an error when another run in the same script with the same `run_id` is still running (@timoffex in https://github.com/wandb/wandb/pull/11759)
+- `wandb.Api` no longer fails GraphQL server feature checks when used in `offline` mode (@jacobromero in https://github.com/wandb/wandb/pull/11762)
