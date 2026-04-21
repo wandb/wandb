@@ -1031,8 +1031,8 @@ class Run(Attrs):
             },
         )
         num_deleted = result["deleteRun"]["numDeleted"]
-        if num_deleted > 0:
-            wandb.termlog(f"Deleted {num_deleted} runs")
+        if num_deleted:
+            wandb.termlog(f"Deleted {num_deleted} run(s)")
 
     def save(self) -> None:
         """Persist changes to the run object to the W&B backend."""

@@ -401,33 +401,47 @@ def test_api_uses_as_requests_auth(mocker: MockerFixture):
 
 
 @pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
-def test_run_delete_forking(monkeypatch, mock_wandb_log):
-    """Test delete with and without delete_all_descendants."""
+def test_run_delete_forking_without_cascade(monkeypatch):
+    """Test that delete raises CommError when run has descendants and delete_all_descendants=False."""
     api = wandb.Api()
     run = wandb.apis.public.Run(
         client=api.client,
         entity="test-entity",
         project="test-project",
         run_id="test-run",
-        attrs={"id": "abc123", "state": "finished"},
+        attrs={"id": "abc123"},
     )
 
-    def execute_side_effect(*args, **kwargs):
-        if kwargs.get("variable_values", {}).get("deleteAllDescendants"):
-            return {"deleteRun": {"numDeleted": 3}}
-        raise CommError("Cannot delete run with descendants")
-
-    mock_execute = MagicMock(side_effect=execute_side_effect)
+    mock_execute = MagicMock(
+        side_effect=CommError("Cannot delete run with descendants")
+    )
     monkeypatch.setattr(public_api.RetryingClient, "execute", mock_execute)
 
     with pytest.raises(CommError):
         run.delete(delete_all_descendants=False)
-    assert mock_execute.call_count == 1
-    first_call_vars = mock_execute.call_args_list[0].kwargs["variable_values"]
-    assert first_call_vars["deleteAllDescendants"] is False
+    assert (
+        mock_execute.call_args.kwargs["variable_values"]["deleteAllDescendants"]
+        is False
+    )
+
+
+@pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
+def test_run_delete_forking_with_cascade(monkeypatch, mock_wandb_log):
+    """Test that delete succeeds and logs when delete_all_descendants=True."""
+    api = wandb.Api()
+    run = wandb.apis.public.Run(
+        client=api.client,
+        entity="test-entity",
+        project="test-project",
+        run_id="test-run",
+        attrs={"id": "abc123"},
+    )
+
+    mock_execute = MagicMock(return_value={"deleteRun": {"numDeleted": 3}})
+    monkeypatch.setattr(public_api.RetryingClient, "execute", mock_execute)
 
     run.delete(delete_all_descendants=True)
-    assert mock_execute.call_count == 2
-    second_call_vars = mock_execute.call_args_list[1].kwargs["variable_values"]
-    assert second_call_vars["deleteAllDescendants"] is True
-    mock_wandb_log.assert_logged("Deleted 3 runs")
+    assert (
+        mock_execute.call_args.kwargs["variable_values"]["deleteAllDescendants"] is True
+    )
+    mock_wandb_log.assert_logged("Deleted 3 run(s)")
