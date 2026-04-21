@@ -171,7 +171,7 @@ func RunKeyBindings() []BindingCategory[Run] {
 			Bindings: []KeyBinding[Run]{
 				{
 					Keys:        []string{"tab", "shift+tab"},
-					Description: "Cycle focus: overview ↔ metrics ↔ system ↔ media ↔ logs",
+					Description: "Cycle focus: overview ↔ metrics ↔ media ↔ logs ↔ system",
 					Handler:     (*Run).handleSidebarTabNav,
 				},
 				{
