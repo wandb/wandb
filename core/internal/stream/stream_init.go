@@ -7,9 +7,8 @@ import (
 	"maps"
 	"net/url"
 
-	"golang.org/x/time/rate"
-
 	"github.com/Khan/genqlient/graphql"
+	"golang.org/x/time/rate"
 
 	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/clients"

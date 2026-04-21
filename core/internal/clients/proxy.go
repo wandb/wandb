@@ -5,7 +5,7 @@ import (
 	"net/url"
 )
 
-// ProxyFn returns a function that returns a proxy URL for a given hhtp.Request.
+// ProxyFn returns a function that returns a proxy URL for a given http.Request.
 //
 // The function first checks if there's a custom proxy setting for the request
 // URL scheme. If not, it falls back to the default environment proxy settings.
