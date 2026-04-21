@@ -7,13 +7,16 @@ package wbapi
 
 import (
 	"context"
+	"fmt"
+	"net/url"
 
 	"github.com/hashicorp/go-retryablehttp"
 
+	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/featurechecker"
+	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/settings"
-	"github.com/wandb/wandb/core/internal/stream"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
@@ -36,10 +39,20 @@ type WandbAPI struct {
 
 // New returns a new WandbAPI.
 func New(s *settings.Settings, logger *observability.CoreLogger) *WandbAPI {
-	baseURL := stream.BaseURLFromSettings(logger, s)
-	credentialProvider := stream.CredentialsFromSettings(logger, s)
-	graphqlClient := stream.NewGraphQLClient(
-		baseURL,
+	baseURL, err := url.Parse(s.GetBaseURL())
+	if err != nil {
+		logger.CaptureFatalAndPanic(
+			fmt.Errorf("parsing base URL: %v", err))
+	}
+
+	credentialProvider, err := api.NewCredentialProvider(s, logger.Logger)
+	if err != nil {
+		logger.CaptureFatalAndPanic(
+			fmt.Errorf("creating credential provider: %v", err))
+	}
+
+	graphqlClient := gql.NewGQLClient(
+		api.WBBaseURL(baseURL),
 		"", /*clientID*/
 		credentialProvider,
 		logger,

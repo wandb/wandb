@@ -5,16 +5,17 @@ package stream
 import (
 	"fmt"
 	"maps"
-	"net/http"
 	"net/url"
 
-	"github.com/Khan/genqlient/graphql"
 	"golang.org/x/time/rate"
+
+	"github.com/Khan/genqlient/graphql"
 
 	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/clients"
 	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/filetransfer"
+	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
@@ -56,40 +57,9 @@ func CredentialsFromSettings(
 	return credentialProvider
 }
 
-// ProxyFn returns a function that returns a proxy URL for a given hhtp.Request.
+// NewGraphQLClient creates a new GraphQL client.
 //
-// The function first checks if there's a custom proxy setting for the request
-// URL scheme. If not, it falls back to the default environment proxy settings.
-// If there is, it returns the custom proxy URL.
-//
-// This is useful if the user only want to proxy traffic to W&B, but not other traffic,
-// as the standard environment proxy settings would potentially proxy all traffic.
-//
-// The custom proxy URLs are passed as arguments to the function.
-//
-// The default environment proxy settings are read from the environment variables
-// HTTP_PROXY, HTTPS_PROXY, and NO_PROXY.
-func ProxyFn(httpProxy, httpsProxy string) func(req *http.Request) (*url.URL, error) {
-	return func(req *http.Request) (*url.URL, error) {
-		if req.URL.Scheme == "http" && httpProxy != "" {
-			proxyURLParsed, err := url.Parse(httpProxy)
-			if err != nil {
-				return nil, err
-			}
-			return proxyURLParsed, nil
-		} else if req.URL.Scheme == "https" && httpsProxy != "" {
-			proxyURLParsed, err := url.Parse(httpsProxy)
-			if err != nil {
-				return nil, err
-			}
-			return proxyURLParsed, nil
-		}
-
-		// Fall back to the default environment proxy settings
-		return http.ProxyFromEnvironment(req)
-	}
-}
-
+// If the offline setting is true, it returns nil.
 func NewGraphQLClient(
 	baseURL api.WBBaseURL,
 	clientID sharedmode.ClientID,
@@ -102,66 +72,14 @@ func NewGraphQLClient(
 		return nil
 	}
 
-	// TODO: This is used for the service account feature to associate the run
-	// with the specified user. Note that we are using environment variables
-	// here, instead of the settings object (which is ideally would be the only
-	// setting used). We are doing this because, the default setting populates
-	// the username with a value that not necessarily matches the username in
-	// our app. There is also a precedence issue, where if the username is set
-	// it will always be used, even if the email is set. Causing the owner of
-	// to be wrong.
-	// We should consider using the settings object here. But we need to make
-	// sure that the username setting is populated correctly. Leaving this as is
-	// for now just to avoid breakage in the service account feature.
-	graphqlHeaders := map[string]string{
-		"X-WANDB-USERNAME":   s.GetUserName(),
-		"X-WANDB-USER-EMAIL": s.GetEmail(),
-	}
-	maps.Copy(graphqlHeaders, s.GetExtraHTTPHeaders())
-	// This header is used to indicate to the backend that the run is in shared
-	// mode to prevent a race condition when two UpsertRun requests are made
-	// simultaneously for the same run ID in shared mode.
-	if s.IsSharedMode() {
-		graphqlHeaders["X-WANDB-USE-ASYNC-FILESTREAM"] = "true"
-		graphqlHeaders["X-WANDB-CLIENT-ID"] = string(clientID)
-	}
-	// When enabled, this header instructs the backend to compute the derived summary
-	// using history updates, instead of relying on the SDK to calculate and send it.
-	if s.IsEnableServerSideDerivedSummary() {
-		graphqlHeaders["X-WANDB-SERVER-SIDE-DERIVED-SUMMARY"] = "true"
-	}
-
-	opts := api.ClientOptions{
-		BaseURL:            baseURL,
-		RetryPolicy:        clients.CheckRetry,
-		RetryMax:           api.DefaultRetryMax,
-		RetryWaitMin:       api.DefaultRetryWaitMin,
-		RetryWaitMax:       api.DefaultRetryWaitMax,
-		NonRetryTimeout:    api.DefaultNonRetryTimeout,
-		ExtraHeaders:       graphqlHeaders,
-		NetworkPeeker:      peeker,
-		Proxy:              ProxyFn(s.GetHTTPProxy(), s.GetHTTPSProxy()),
-		InsecureDisableSSL: s.IsInsecureDisableSSL(),
-		CredentialProvider: credentialProvider,
-		Logger:             logger.Logger,
-	}
-	if retryMax := s.GetGraphQLMaxRetries(); retryMax > 0 {
-		opts.RetryMax = int(retryMax)
-	}
-	if retryWaitMin := s.GetGraphQLRetryWaitMin(); retryWaitMin > 0 {
-		opts.RetryWaitMin = retryWaitMin
-	}
-	if retryWaitMax := s.GetGraphQLRetryWaitMax(); retryWaitMax > 0 {
-		opts.RetryWaitMax = retryWaitMax
-	}
-	if timeout := s.GetGraphQLTimeout(); timeout > 0 {
-		opts.NonRetryTimeout = timeout
-	}
-
-	httpClient := api.NewClient(opts)
-	endpoint := fmt.Sprintf("%s/graphql", s.GetBaseURL())
-
-	return graphql.NewClient(endpoint, api.AsStandardClient(httpClient))
+	return gql.NewGQLClient(
+		baseURL,
+		clientID,
+		credentialProvider,
+		logger,
+		peeker,
+		s,
+	)
 }
 
 func NewFileStream(
@@ -189,15 +107,18 @@ func NewFileStream(
 	}
 
 	opts := api.ClientOptions{
-		BaseURL:            baseURL,
-		RetryPolicy:        clients.RetryMostFailures,
-		RetryMax:           filestream.DefaultRetryMax,
-		RetryWaitMin:       filestream.DefaultRetryWaitMin,
-		RetryWaitMax:       filestream.DefaultRetryWaitMax,
-		NonRetryTimeout:    filestream.DefaultNonRetryTimeout,
-		ExtraHeaders:       fileStreamHeaders,
-		NetworkPeeker:      peeker,
-		Proxy:              ProxyFn(s.GetHTTPProxy(), s.GetHTTPSProxy()),
+		BaseURL:         baseURL,
+		RetryPolicy:     clients.RetryMostFailures,
+		RetryMax:        filestream.DefaultRetryMax,
+		RetryWaitMin:    filestream.DefaultRetryWaitMin,
+		RetryWaitMax:    filestream.DefaultRetryWaitMax,
+		NonRetryTimeout: filestream.DefaultNonRetryTimeout,
+		ExtraHeaders:    fileStreamHeaders,
+		NetworkPeeker:   peeker,
+		Proxy: clients.ProxyFn(
+			s.GetHTTPProxy(),
+			s.GetHTTPSProxy(),
+		),
 		InsecureDisableSSL: s.IsInsecureDisableSSL(),
 		CredentialProvider: credentialProvider,
 		Logger:             logger.Logger,
@@ -250,7 +171,10 @@ func NewFileTransferManager(
 		RetryWaitMax:    filetransfer.DefaultRetryWaitMax,
 		NonRetryTimeout: filetransfer.DefaultNonRetryTimeout,
 
-		Proxy: ProxyFn(s.GetHTTPProxy(), s.GetHTTPSProxy()),
+		Proxy: clients.ProxyFn(
+			s.GetHTTPProxy(),
+			s.GetHTTPSProxy(),
+		),
 
 		InsecureDisableSSL: s.IsInsecureDisableSSL(),
 
