@@ -17,6 +17,7 @@ func (r *Run) handleRecordMsg(msg tea.Msg) (*Run, tea.Cmd) { // TODO: return jus
 	defer func() {
 		r.logger.Debug(fmt.Sprintf("perf: processRecordMsg(%T) took %s", msg, time.Since(start)))
 	}()
+	defer r.focusMgr.ResolveAfterAvailabilityChange()
 
 	switch msg := msg.(type) {
 	case RunMsg:

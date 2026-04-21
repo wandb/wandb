@@ -218,6 +218,7 @@ func (r *Run) handleWindowResize(msg tea.WindowSizeMsg) {
 
 	layout := r.computeViewports()
 	r.metricsGrid.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
+	r.focusMgr.ResolveAfterAvailabilityChange()
 }
 
 // isUIMsg returns true for messages that should flow to child view models.
