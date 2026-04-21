@@ -58,6 +58,30 @@ func (r *Run) TestHandleRecordMsg(msg tea.Msg) (*Run, tea.Cmd) {
 	return r.handleRecordMsg(msg)
 }
 
+func (r *Run) TestSetWatcherStarted(started bool) {
+	if r.watcherMgr != nil {
+		r.watcherMgr.started = started
+	}
+}
+
+func (r *Run) TestHeartbeatTimerArmed() bool {
+	return r.heartbeatMgr != nil && r.heartbeatMgr.timer != nil
+}
+
+func (r *Run) TestStopHeartbeat() {
+	if r.heartbeatMgr != nil {
+		r.heartbeatMgr.Stop()
+	}
+}
+
+func (s *Symon) TestGrid() *SystemMetricsGrid {
+	return s.grid
+}
+
+func (s *Symon) TestFocusState() *Focus {
+	return s.focus
+}
+
 // TestHandleChartGridClick handles a click on the main chart grid
 func (r *Run) TestHandleChartGridClick(row, col int) {
 	r.metricsGrid.HandleClick(row, col)
@@ -292,6 +316,64 @@ func (mg *MetricsGrid) TestToggleFocusedChartLogY() bool {
 
 func (w *Workspace) TestSelectedRunCount() int {
 	return len(w.selectedRuns)
+}
+
+func TestNewWorkspaceRun(key string) *WorkspaceRun {
+	return &WorkspaceRun{Key: key}
+}
+
+func (r *WorkspaceRun) TestSetWatcherStarted(started bool) {
+	if r.watcher == nil {
+		r.watcher = &WatcherManager{}
+	}
+	r.watcher.started = started
+}
+
+func (w *Workspace) TestAttachRun(run *WorkspaceRun, selected bool) {
+	w.runsByKey[run.Key] = run
+	if selected {
+		w.selectedRuns[run.Key] = true
+	} else {
+		delete(w.selectedRuns, run.Key)
+	}
+}
+
+func (w *Workspace) TestHandleWorkspaceRecord(run *WorkspaceRun, msg tea.Msg) {
+	w.handleWorkspaceRecord(run, msg)
+}
+
+func (w *Workspace) TestHeartbeatTimerArmed() bool {
+	return w.heartbeatMgr != nil && w.heartbeatMgr.timer != nil
+}
+
+func (w *Workspace) TestStopHeartbeat() {
+	if w.heartbeatMgr != nil {
+		w.heartbeatMgr.Stop()
+	}
+}
+
+func TestNewWorkspaceRunColors(palette []AdaptiveColor) *workspaceRunColors {
+	return newWorkspaceRunColors(palette)
+}
+
+func TestWorkspaceRunColorKey(c AdaptiveColor) string {
+	return workspaceRunColorKey(c)
+}
+
+func TestWorkspaceRunColorComponentRGB(component any) (uint8, uint8, uint8, bool) {
+	return workspaceRunColorComponentRGB(component)
+}
+
+func (w *Workspace) TestApplyRunKeys(runKeys []string) {
+	w.applyRunKeys(runKeys)
+}
+
+func (w *Workspace) TestRunColorForKey(runKey string) AdaptiveColor {
+	return w.runColorForKey(runKey)
+}
+
+func (w *Workspace) TestSetRunColors(palette []AdaptiveColor) {
+	w.runColors = newWorkspaceRunColors(palette)
 }
 
 func (w *Workspace) TestIsRunSelected(runKey string) bool {

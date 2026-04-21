@@ -53,3 +53,20 @@ func navBindingMsg(t *testing.T, key string) tea.KeyPressMsg {
 	require.Lenf(t, runes, 1, "unsupported nav binding %q", key)
 	return tea.KeyPressMsg{Code: runes[0], Text: key}
 }
+
+func TestDecodeNav_MatchesDeclaredBindings(t *testing.T) {
+	intents := []leet.NavIntent{
+		leet.NavIntentUp, leet.NavIntentDown, leet.NavIntentLeft, leet.NavIntentRight,
+		leet.NavIntentPageUp, leet.NavIntentPageDown, leet.NavIntentHome, leet.NavIntentEnd,
+	}
+	for _, intent := range intents {
+		keys := leet.NavKeysFor(intent)
+		require.NotEmpty(t, keys, "intent %d should have keys", intent)
+		for i := range keys {
+			require.Equalf(t, intent, leet.DecodeNav(navMsgAt(t, intent, i)),
+				"binding %q should decode to intent %d", keys[i], intent)
+		}
+	}
+
+	require.Equal(t, leet.NavIntentNone, leet.DecodeNav(tea.KeyPressMsg{Code: 'q', Text: "q"}))
+}
