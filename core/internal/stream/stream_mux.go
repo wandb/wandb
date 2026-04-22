@@ -30,7 +30,7 @@ func (sm *StreamMux) AddStream(streamId string, stream *Stream) error {
 		sm.mux[streamId] = stream
 		return nil
 	} else {
-		return fmt.Errorf("stream already exists")
+		return fmt.Errorf("run ID %s is in use", streamId)
 	}
 }
 
