@@ -169,6 +169,8 @@ def patch_apikey(dummy_api_key: str, monkeypatch: pytest.MonkeyPatch) -> None:
         source="test",
     )
 
+    wandb.ensure_configured()
+
 
 @pytest.fixture
 def skip_verify_login(monkeypatch: pytest.MonkeyPatch) -> None:

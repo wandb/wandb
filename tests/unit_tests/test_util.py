@@ -297,6 +297,24 @@ def test_app_url():
     assert util.app_url("https://wandb.foo") == "https://wandb.foo"
 
 
+@pytest.mark.parametrize(
+    "error",
+    [
+        errors.AuthenticationError("bad auth"),
+        errors.CommError("offline"),
+    ],
+)
+def test_get_max_cli_version_is_best_effort(
+    monkeypatch: pytest.MonkeyPatch, error: Exception
+):
+    def raise_error():
+        raise error
+
+    monkeypatch.setattr(wandb.api, "max_cli_version", raise_error)
+
+    assert util._get_max_cli_version() is None
+
+
 ###############################################################################
 # Test util.make_safe_for_json
 ###############################################################################

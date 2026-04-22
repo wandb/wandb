@@ -1042,6 +1042,17 @@ class TestJWTAuth:
         api = internal.InternalApi(environ={})
         assert api.access_token is None
 
+    def test_max_cli_version_returns_none_on_execute_error(self, mocker: MockerFixture):
+        api = internal.InternalApi(environ={})
+        execute_mock = mocker.patch.object(
+            api,
+            "execute",
+            side_effect=requests.exceptions.ConnectionError("offline"),
+        )
+
+        assert api.max_cli_version() is None
+        execute_mock.assert_called_once()
+
     def test_reauth_clears_basic_auth_when_api_key_is_removed(self):
         api = internal.InternalApi(
             default_settings={"api_key": "a" * 40},

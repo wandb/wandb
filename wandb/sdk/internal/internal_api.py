@@ -712,7 +712,21 @@ class Api:
         if self._max_cli_version is not None:
             return self._max_cli_version
 
-        _, server_info = self.viewer_server_info()
+        query = gql(
+            """
+        query ServerInfo{
+            serverInfo {
+                cliVersionInfo
+            }
+        }
+        """
+        )
+        try:
+            res = self.execute(query)
+        except Exception:
+            return None
+
+        server_info = res.get("serverInfo") or {}
         self._max_cli_version = server_info.get("cliVersionInfo", {}).get(
             "max_cli_version"
         )

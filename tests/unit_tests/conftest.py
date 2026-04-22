@@ -7,6 +7,7 @@ from typing import Callable
 import pytest
 import wandb
 from hypothesis import settings
+from wandb.sdk import wandb_setup
 
 settings.register_profile(
     "ci",
@@ -14,6 +15,26 @@ settings.register_profile(
     deadline=timedelta(seconds=1),
 )
 settings.load_profile("ci")
+
+
+_UNIT_TEST_BASE_URL = "http://127.0.0.1:9"
+
+
+@pytest.fixture(autouse=True)
+def unit_test_fake_base_url(monkeypatch: pytest.MonkeyPatch, clean_up) -> None:
+    """Point unit tests at a fail-fast dead URL unless they override it.
+
+    This catches accidental network dependencies in unit tests while still
+    allowing individual tests to opt into a different base URL with their own
+    monkeypatching or fixtures.
+    """
+    _ = clean_up
+
+    monkeypatch.setenv("WANDB_BASE_URL", _UNIT_TEST_BASE_URL)
+
+    # Keep the singleton and the global API proxy aligned with the patched URL.
+    wandb_setup.singleton().settings.base_url = _UNIT_TEST_BASE_URL
+    wandb.ensure_configured()
 
 
 @pytest.fixture
