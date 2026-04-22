@@ -27,8 +27,9 @@ intended to replace the `raven-go` package.
 
 The only requirement is a Go compiler.
 
-We verify this package against the 3 most recent releases of Go. Those are the
-supported versions. The exact versions are defined in
+We follow Go's [official release policy](https://go.dev/doc/devel/release#policy),
+supporting the two most recent Go releases. Each major Go release is supported
+until there are two newer major releases. The exact versions are defined in
 [`GitHub workflow`](.github/workflows/test.yml).
 
 In addition, we run tests against the current master branch of the Go toolchain,

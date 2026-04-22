@@ -1,5 +1,36 @@
 # Changelog
 
+## 0.46.0
+
+### Breaking Changes 🛠
+
+- Remove SetExtra by @giortzisg in [#1274](https://github.com/getsentry/sentry-go/pull/1274)
+- Update compatibility policy to align with Go, supporting only the last two major Go versions by @giortzisg in [#1264](https://github.com/getsentry/sentry-go/pull/1264)
+- Drop support for Go 1.24 by @giortzisg in [#1264](https://github.com/getsentry/sentry-go/pull/1264)
+
+### New Features ✨
+
+- Add internal_sdk_error client report on serialization fail by @giortzisg in [#1273](https://github.com/getsentry/sentry-go/pull/1273)
+- Add grpc integration support by @ribice in [#938](https://github.com/getsentry/sentry-go/pull/938)
+- Re-enable Telemetry Processor by default. To disable the behavior use the `DisableTelemetryBuffer` flag by @giortzisg in [#1254](https://github.com/getsentry/sentry-go/pull/1254)
+- Simplify client DSN storage to `internal/protocol.Dsn` and make it safe to access by @giortzisg in [#1254](https://github.com/getsentry/sentry-go/pull/1254)
+
+### Internal Changes 🔧
+
+#### Deps
+
+- Bump github.com/labstack/echo/v5 from 5.0.0 to 5.0.3 in /echo by @dependabot in [#1253](https://github.com/getsentry/sentry-go/pull/1253)
+- Bump github.com/labstack/echo/v5 from 5.0.0 to 5.0.3 in /crosstest by @dependabot in [#1272](https://github.com/getsentry/sentry-go/pull/1272)
+- Bump golangci-lint action from 2.1.1 to 2.11.4 by @giortzisg in [#1265](https://github.com/getsentry/sentry-go/pull/1265)
+- Bump go.opentelemetry.io/otel/sdk from 1.40.0 to 1.43.0 in /otel by @dependabot in [#1256](https://github.com/getsentry/sentry-go/pull/1256)
+- Bump go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp from 1.40.0 to 1.43.0 in /otel/otlp by @dependabot in [#1255](https://github.com/getsentry/sentry-go/pull/1255)
+
+#### Other
+
+- Improve ci by @giortzisg in [#1271](https://github.com/getsentry/sentry-go/pull/1271)
+- Add crosstest package by @giortzisg in [#1269](https://github.com/getsentry/sentry-go/pull/1269)
+- Add sentrytest package by @giortzisg in [#1267](https://github.com/getsentry/sentry-go/pull/1267)
+
 ## 0.45.1
 
 ### Bug Fixes 🐛
