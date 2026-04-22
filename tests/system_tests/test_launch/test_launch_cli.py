@@ -179,6 +179,10 @@ def test_launch_supplied_docker_image(
         "wandb.sdk.launch.runner.local_container._run_entry_point",
         patched_run_run_entry,
     )
+    monkeypatch.setattr(
+        "wandb.sdk.launch.utils.get_default_entity",
+        lambda api, config: "test-entity",
+    )
 
     async def _mock_validate_docker_installation():
         pass
@@ -334,6 +338,10 @@ def test_launch_template_vars(command_inputs, expected_error, runner, monkeypatc
     )
 
     monkeypatch.setattr("wandb.cli.cli.launch_utils.check_logged_in", lambda _: None)
+    monkeypatch.setattr(
+        "wandb.cli.cli.launch_utils.get_default_entity",
+        lambda api, config: "test-entity",
+    )
 
     def patched_run_queue(*args, **kwargs):
         mock_rq = Mock()
