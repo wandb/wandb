@@ -22,6 +22,17 @@ _weave_init_lock = threading.Lock()
 _DISABLE_WEAVE = "WANDB_DISABLE_WEAVE"
 _WEAVE_PACKAGE_NAME = "weave"
 
+
+def _is_weave_disabled() -> bool:
+    return bool(os.getenv(_DISABLE_WEAVE))
+
+
+def _build_project_path(entity: str | None, project: str | None) -> str | None:
+    if not project:
+        return None
+    return f"{entity}/{project}" if entity else project
+
+
 # This list is adapted from https://github.com/wandb/weave/blob/master/weave/integrations/__init__.py
 _AVAILABLE_WEAVE_INTEGRATIONS = [
     "anthropic",
@@ -54,17 +65,11 @@ def setup(entity: str | None, project: str | None) -> None:
     Args:
         project: The W&B project name to use for Weave initialization.
     """
-    # We can't or shouldn't init weave; return
-    if os.getenv(_DISABLE_WEAVE):
+    if _is_weave_disabled():
         return
-    if not project:
+    project_path = _build_project_path(entity, project)
+    if not project_path:
         return
-
-    # Use entity/project when available; otherwise fall back to project only
-    if entity:
-        project_path = f"{entity}/{project}"
-    else:
-        project_path = project
 
     # If weave is not yet imported, we can't init it from here.  Instead, we'll
     # rely on the weave library itself to detect a run and init itself.
@@ -78,6 +83,33 @@ def setup(entity: str | None, project: str | None) -> None:
         _weave_init(project_path)
     except Exception as e:
         wandb.termwarn(f"Failed to automatically initialize weave: {e}")
+
+
+def setup_with_import(entity: str | None, project: str | None) -> bool:
+    """Init Weave, importing weave if not yet imported (e.g. for eval logging).
+
+    Unlike setup(), always attempts to import and init weave rather than
+    skipping when weave has not been imported yet.
+
+    Returns:
+        False if WANDB_DISABLE_WEAVE is set (caller should surface this).
+        True otherwise.
+
+    Raises:
+        ImportError: If weave is not installed.
+    """
+    if _is_weave_disabled():
+        return False
+    project_path = _build_project_path(entity, project)
+    if not project_path:
+        return True
+    try:
+        _weave_init(project_path)
+    except ModuleNotFoundError as e:
+        raise ImportError(
+            "weave is not installed. Install it with: pip install weave"
+        ) from e
+    return True
 
 
 def _maybe_suggest_weave_installation() -> None:
@@ -109,13 +141,12 @@ def _maybe_suggest_weave_installation() -> None:
 
 
 def _weave_init(project_path: str) -> None:
-    """Call weave.init(), assuming weave has been imported.
+    """Call weave.init(). May trigger the first import of weave.
 
     Patched in tests.
     """
     # Lock because weave.init() is not thread-safe.
     with _weave_init_lock:
-        # The import is fast because weave should have been imported.
         import weave
 
         weave.init(project_path)
