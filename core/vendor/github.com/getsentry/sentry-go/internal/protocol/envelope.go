@@ -26,7 +26,7 @@ type EnvelopeHeader struct {
 	// Dsn can be used for self-authenticated envelopes.
 	// This means that the envelope has all the information necessary to be sent to sentry.
 	// In this case the full DSN must be stored in this key.
-	Dsn string `json:"dsn,omitempty"`
+	Dsn *Dsn `json:"dsn,omitempty"`
 
 	// Sdk carries the same payload as the sdk interface in the event payload but can be carried for all events.
 	// This means that SDK information can be carried for minidumps, session data and other submissions.

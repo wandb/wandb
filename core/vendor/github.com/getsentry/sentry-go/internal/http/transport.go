@@ -42,6 +42,7 @@ type TransportOptions struct {
 	CaCerts       *x509.CertPool
 	Recorder      report.ClientReportRecorder
 	Provider      report.ClientReportProvider
+	SdkInfo       func() *protocol.SdkInfo
 }
 
 func getProxyConfig(options TransportOptions) func(*http.Request) (*url.URL, error) {
@@ -74,8 +75,11 @@ func getTLSConfig(options TransportOptions) *tls.Config {
 func getSentryRequestFromEnvelope(ctx context.Context, dsn *protocol.Dsn, envelope *protocol.Envelope) (r *http.Request, err error) {
 	defer func() {
 		if r != nil {
-			sdkName := envelope.Header.Sdk.Name
-			sdkVersion := envelope.Header.Sdk.Version
+			var sdkName, sdkVersion string
+			if envelope.Header.Sdk != nil {
+				sdkVersion = envelope.Header.Sdk.Version
+				sdkName = envelope.Header.Sdk.Name
+			}
 
 			r.Header.Set("User-Agent", fmt.Sprintf("%s/%s", sdkName, sdkVersion))
 			r.Header.Set("Content-Type", "application/x-sentry-envelope")
@@ -151,6 +155,7 @@ type SyncTransport struct {
 	transport http.RoundTripper
 	recorder  report.ClientReportRecorder
 	provider  report.ClientReportProvider
+	sdkInfo   func() *protocol.SdkInfo
 
 	mu     sync.Mutex
 	limits ratelimit.Map
@@ -180,6 +185,7 @@ func NewSyncTransport(options TransportOptions) protocol.TelemetryTransport {
 		dsn:      dsn,
 		recorder: recorder,
 		provider: provider,
+		sdkInfo:  options.SdkInfo,
 	}
 
 	if options.HTTPTransport != nil {
@@ -288,6 +294,7 @@ type AsyncTransport struct {
 	transport http.RoundTripper
 	recorder  report.ClientReportRecorder
 	provider  report.ClientReportProvider
+	sdkInfo   func() *protocol.SdkInfo
 
 	queue chan *protocol.Envelope
 
@@ -330,6 +337,7 @@ func NewAsyncTransport(options TransportOptions) protocol.TelemetryTransport {
 		dsn:       dsn,
 		recorder:  recorder,
 		provider:  provider,
+		sdkInfo:   options.SdkInfo,
 	}
 
 	transport.queue = make(chan *protocol.Envelope, transport.QueueSize)
@@ -454,6 +462,13 @@ func (t *AsyncTransport) IsRateLimited(category ratelimit.Category) bool {
 	return t.isRateLimited(category)
 }
 
+func (t *AsyncTransport) resolveSdkInfo() *protocol.SdkInfo {
+	if t.sdkInfo == nil {
+		return &protocol.SdkInfo{}
+	}
+	return t.sdkInfo()
+}
+
 func (t *AsyncTransport) worker() {
 	defer t.wg.Done()
 
@@ -494,7 +509,8 @@ func (t *AsyncTransport) sendClientReport() {
 	}
 	header := &protocol.EnvelopeHeader{
 		SentAt: time.Now(),
-		Dsn:    t.dsn.String(),
+		Dsn:    t.dsn,
+		Sdk:    t.resolveSdkInfo(),
 	}
 	envelope := protocol.NewEnvelope(header)
 	envelope.AddItem(item)

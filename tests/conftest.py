@@ -235,6 +235,7 @@ def env_teardown():
 
 @pytest.fixture(scope="function", autouse=True)
 def clean_up():
+    wandb.teardown()
     yield
     wandb.teardown()
 

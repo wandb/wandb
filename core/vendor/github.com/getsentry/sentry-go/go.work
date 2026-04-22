@@ -1,0 +1,19 @@
+go 1.25.0
+
+use (
+	.
+	./crosstest
+	./echo
+	./fasthttp
+	./fiber
+	./gin
+	./grpc
+	./iris
+	./logrus
+	./negroni
+	./otel
+	./otel/otlp
+	./slog
+	./zap
+	./zerolog
+)

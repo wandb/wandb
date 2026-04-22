@@ -36,6 +36,7 @@ const (
 	SpanOriginStdLib   = "auto.http.stdlib"
 	SpanOriginIris     = "auto.http.iris"
 	SpanOriginNegroni  = "auto.http.negroni"
+	SpanOriginGrpc     = "auto.rpc.grpc"
 )
 
 // A Span is the building block of a Sentry transaction. Spans build up a tree
@@ -44,22 +45,20 @@ const (
 //
 // Spans must be started with either StartSpan or Span.StartChild.
 type Span struct { //nolint: maligned // prefer readability over optimal memory layout (see note below *)
-	TraceID      TraceID           `json:"trace_id"`
-	SpanID       SpanID            `json:"span_id"`
-	ParentSpanID SpanID            `json:"parent_span_id,omitzero"`
-	Name         string            `json:"name,omitempty"`
-	Op           string            `json:"op,omitempty"`
-	Description  string            `json:"description,omitempty"`
-	Status       SpanStatus        `json:"status,omitempty"`
-	Tags         map[string]string `json:"tags,omitempty"`
-	StartTime    time.Time         `json:"start_timestamp,omitzero"`
-	EndTime      time.Time         `json:"timestamp,omitzero"`
-	// Deprecated: use Data instead. To be removed in 0.33.0
-	Extra   map[string]interface{} `json:"-"`
-	Data    map[string]interface{} `json:"data,omitempty"`
-	Sampled Sampled                `json:"-"`
-	Source  TransactionSource      `json:"-"`
-	Origin  SpanOrigin             `json:"origin,omitempty"`
+	TraceID      TraceID                `json:"trace_id"`
+	SpanID       SpanID                 `json:"span_id"`
+	ParentSpanID SpanID                 `json:"parent_span_id,omitzero"`
+	Name         string                 `json:"name,omitempty"`
+	Op           string                 `json:"op,omitempty"`
+	Description  string                 `json:"description,omitempty"`
+	Status       SpanStatus             `json:"status,omitempty"`
+	Tags         map[string]string      `json:"tags,omitempty"`
+	StartTime    time.Time              `json:"start_timestamp,omitzero"`
+	EndTime      time.Time              `json:"timestamp,omitzero"`
+	Data         map[string]interface{} `json:"data,omitempty"`
+	Sampled      Sampled                `json:"-"`
+	Source       TransactionSource      `json:"-"`
+	Origin       SpanOrigin             `json:"origin,omitempty"`
 
 	// mu protects concurrent writes to map fields
 	mu sync.RWMutex
