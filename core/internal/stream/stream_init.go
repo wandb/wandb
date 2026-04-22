@@ -70,10 +70,7 @@ func NewGraphQLClient(
 		return nil
 	}
 
-	extraHeaders := map[string]string{
-		"X-WANDB-USERNAME":   s.GetUserName(),
-		"X-WANDB-USER-EMAIL": s.GetEmail(),
-	}
+	extraHeaders := make(map[string]string)
 	maps.Copy(extraHeaders, s.GetExtraHTTPHeaders())
 
 	// This header is used to indicate to the backend that the run is in shared

@@ -3,6 +3,7 @@ package api
 import (
 	"fmt"
 	"log/slog"
+	"maps"
 
 	"github.com/Khan/genqlient/graphql"
 
@@ -18,8 +19,24 @@ func NewGQLClient(
 	logger *slog.Logger,
 	peeker Peeker,
 	s *settings.Settings,
-	graphqlHeaders map[string]string,
+	extraHeaders map[string]string,
 ) graphql.Client {
+	// TODO: This is used for the service account feature to associate the run
+	// with the specified user. Note that we are using environment variables
+	// here, instead of the settings object (which is ideally would be the only
+	// setting used). We are doing this because, the default setting populates
+	// the username with a value that not necessarily matches the username in
+	// our app. There is also a precedence issue, where if the username is set
+	// it will always be used, even if the email is set. Causing the owner of
+	// to be wrong.
+	// We should consider using the settings object here. But we need to make
+	// sure that the username setting is populated correctly. Leaving this as is
+	// for now just to avoid breakage in the service account feature.
+	graphqlHeaders := map[string]string{
+		"X-WANDB-USERNAME":   s.GetUserName(),
+		"X-WANDB-USER-EMAIL": s.GetEmail(),
+	}
+	maps.Copy(graphqlHeaders, extraHeaders)
 
 	opts := ClientOptions{
 		BaseURL:         baseURL,

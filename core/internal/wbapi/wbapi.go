@@ -8,7 +8,6 @@ package wbapi
 import (
 	"context"
 	"fmt"
-	"maps"
 	"net/url"
 
 	"github.com/hashicorp/go-retryablehttp"
@@ -51,12 +50,6 @@ func New(s *settings.Settings, logger *observability.CoreLogger) *WandbAPI {
 			fmt.Errorf("creating credential provider: %v", err))
 	}
 
-	extraHeaders := map[string]string{
-		"X-WANDB-USERNAME":   s.GetUserName(),
-		"X-WANDB-USER-EMAIL": s.GetEmail(),
-	}
-	maps.Copy(extraHeaders, s.GetExtraHTTPHeaders())
-
 	graphqlClient := api.NewGQLClient(
 		api.WBBaseURL(baseURL),
 		"", /*clientID*/
@@ -64,7 +57,7 @@ func New(s *settings.Settings, logger *observability.CoreLogger) *WandbAPI {
 		logger.Logger,
 		&observability.Peeker{},
 		s,
-		extraHeaders,
+		s.GetExtraHTTPHeaders(),
 	)
 
 	httpClient := retryablehttp.NewClient()
