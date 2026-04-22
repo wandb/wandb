@@ -37,17 +37,18 @@ type WandbAPI struct {
 }
 
 // New returns a new WandbAPI.
-func New(s *settings.Settings, logger *observability.CoreLogger) *WandbAPI {
+func New(
+	s *settings.Settings,
+	logger *observability.CoreLogger,
+) (*WandbAPI, error) {
 	baseURL, err := url.Parse(s.GetBaseURL())
 	if err != nil {
-		logger.CaptureFatalAndPanic(
-			fmt.Errorf("parsing base URL: %v", err))
+		return nil, fmt.Errorf("error parsing base URL: %v", err)
 	}
 
 	credentialProvider, err := api.NewCredentialProvider(s, logger.Logger)
 	if err != nil {
-		logger.CaptureFatalAndPanic(
-			fmt.Errorf("creating credential provider: %v", err))
+		return nil, fmt.Errorf("error reading credentials: %v", err)
 	}
 
 	graphqlClient := api.NewGQLClient(
@@ -75,7 +76,7 @@ func New(s *settings.Settings, logger *observability.CoreLogger) *WandbAPI {
 
 		featuresHandler:      NewFeaturesHandler(featureProvider),
 		runHistoryApiHandler: NewRunHistoryAPIHandler(graphqlClient, httpClient),
-	}
+	}, nil
 }
 
 // HandleRequest handles an API request and returns an API response,
