@@ -170,8 +170,8 @@ cryptography==46.0.6
     #   mlflow
     #   msal
     #   pyjwt
-cwsandbox==0.16.0
-    # via -r requirements/requirements_test.txt
+cwsandbox==0.20.0
+    # via -r requirements/requirements_dev.txt
 cycler==0.12.1
     # via matplotlib
 databricks-sdk==0.102.0

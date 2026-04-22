@@ -176,8 +176,8 @@ cuda-pathfinder==1.5.0
     # via cuda-bindings
 cuda-toolkit==13.0.2
     # via torch
-cwsandbox==0.16.0
-    # via -r requirements/requirements_test.txt
+cwsandbox==0.20.0
+    # via -r requirements/requirements_dev.txt
 cycler==0.12.1
     # via matplotlib
 databricks-sdk==0.102.0
