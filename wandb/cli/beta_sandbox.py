@@ -7,7 +7,7 @@ import click
 from cwsandbox.cli.shell import _validate_cmd as _cwsandbox_validate_cmd
 
 from wandb.sandbox import CWSandboxError, Sandbox, SandboxStatus
-from wandb.sandbox._auth import _override_sandbox_entity
+from wandb.sandbox._auth import override_sandbox_entity
 
 _STATUS_CHOICES = [s.value for s in SandboxStatus if s != SandboxStatus.UNSPECIFIED]
 
@@ -30,7 +30,7 @@ class SandboxCommand(click.Command):
         entity = ctx.params.pop("entity", None)
 
         try:
-            with _override_sandbox_entity(entity=entity):
+            with override_sandbox_entity(entity=entity):
                 return super().invoke(ctx)
         except CWSandboxError as exc:
             raise click.ClickException(str(exc)) from None

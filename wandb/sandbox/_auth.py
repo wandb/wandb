@@ -27,7 +27,7 @@ def _set_wandb_auth_mode() -> None:
 
 
 @contextmanager
-def _override_sandbox_entity(
+def override_sandbox_entity(
     entity: str | None = None,
 ) -> Iterator[None]:
     """Temporarily override the sandbox entity for sandbox auth.
@@ -62,7 +62,7 @@ def _resolve_wandb_sdk_auth() -> AuthHeaders:
     # entity will use the default entity user set in web UI.
     # project will use/create 'sandbox' project automatically.
     entity = settings.entity
-    # entity can be set by --entity cli flag via _override_sandbox_entity
+    # entity can be set by --entity cli flag via override_sandbox_entity
     entity_override = _entity_override.get()
     if isinstance(entity_override, str):
         entity = entity_override

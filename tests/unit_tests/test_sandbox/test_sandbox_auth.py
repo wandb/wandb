@@ -48,7 +48,7 @@ def test_override_sandbox_entity_restores_after_exit(
         ),
     )
 
-    with sandbox_auth._override_sandbox_entity(entity="override-entity"):
+    with sandbox_auth.override_sandbox_entity(entity="override-entity"):
         assert sandbox_auth._resolve_wandb_sdk_auth().headers == {
             "x-api-key": _VALID_API_KEY,
             "x-entity-id": "override-entity",
