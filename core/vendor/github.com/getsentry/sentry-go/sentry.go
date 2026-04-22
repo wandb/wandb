@@ -6,11 +6,14 @@ import (
 )
 
 // The version of the SDK.
-const SDKVersion = "0.45.1"
+const SDKVersion = "0.46.0"
 
 // apiVersion is the minimum version of the Sentry API compatible with the
 // sentry-go SDK.
 const apiVersion = "7"
+
+// DefaultFlushTimeout is the default timeout used for flushing events.
+const DefaultFlushTimeout = 2 * time.Second
 
 // Init initializes the SDK with options. The returned error is non-nil if
 // options is invalid, for instance if a malformed DSN is provided.
