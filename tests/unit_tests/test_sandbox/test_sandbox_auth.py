@@ -71,10 +71,12 @@ def test_resolve_wandb_sdk_auth_delegates_to_authenticate_session(
     monkeypatch.setattr(
         sandbox_auth.wbauth,
         "authenticate_session",
-        lambda **kwargs: auth_calls.append(kwargs)
-        or sandbox_auth.wbauth.AuthApiKey(
-            host=kwargs["host"],
-            api_key=_VALID_API_KEY,
+        lambda **kwargs: (
+            auth_calls.append(kwargs)
+            or sandbox_auth.wbauth.AuthApiKey(
+                host=kwargs["host"],
+                api_key=_VALID_API_KEY,
+            )
         ),
     )
 

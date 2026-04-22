@@ -279,10 +279,10 @@ def core() -> None:
 
 try:
     from .beta_sandbox import sandbox as sandbox_group
-
-    beta.add_command(sandbox_group)
 except ImportError:
     pass
+else:
+    beta.add_command(sandbox_group)
 
 
 @core.command()
