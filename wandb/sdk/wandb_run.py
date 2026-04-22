@@ -136,6 +136,8 @@ logger = logging.getLogger("wandb")
 EXIT_TIMEOUT = 60
 RE_LABEL = re.compile(r"[a-zA-Z0-9_-]+$")
 
+_STOP_POLLING_INTERVAL = 15
+
 
 class TeardownStage(IntEnum):
     EARLY = 1
@@ -167,13 +169,11 @@ class RunStatusChecker:
         run_id: str,
         interface: InterfaceBase,
         settings: Settings,
-        stop_polling_interval: int = 15,
         retry_polling_interval: int = 5,
         internal_messages_polling_interval: int = 10,
     ) -> None:
         self._run_id = run_id
         self._interface = interface
-        self._stop_polling_interval = stop_polling_interval
         self._retry_polling_interval = retry_polling_interval
         self._internal_messages_polling_interval = internal_messages_polling_interval
         self._settings = settings
@@ -295,19 +295,32 @@ class RunStatusChecker:
         def _process_stop_status(result: Result) -> None:
             from wandb.agents import pyagent
 
-            stop_status = result.response.stop_status_response
-            if stop_status.run_should_stop and not pyagent.is_running():  # type: ignore
-                # TODO(frz): This check is required
-                # until WB-3606 is resolved on server side.
-                interrupt.interrupt_main()
+            # TODO: Remove the pyagent.is_running() check if safe to do so.
+            # See WB-3606.
+            if pyagent.is_running():
                 return
+
+            stop_status = result.response.stop_status_response
+            if not stop_status.run_should_stop:
+                return
+
+            if stop_fn := self._settings.stop_fn:
+                stop_fn()
+            else:
+                interrupt.interrupt_main()
+
+            # Only stop once.
+            self._abandon_status_check(
+                self._stop_status_lock,
+                self._stop_status_handle,
+            )
 
         with wb_logging.log_to_run(self._run_id):
             try:
                 self._loop_check_status(
                     lock=self._stop_status_lock,
                     set_handle=lambda x: setattr(self, "_stop_status_handle", x),
-                    timeout=self._stop_polling_interval,
+                    timeout=_STOP_POLLING_INTERVAL,
                     request=self._interface.deliver_stop_status,
                     process=_process_stop_status,
                 )
