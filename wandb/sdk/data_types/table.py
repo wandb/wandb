@@ -295,6 +295,15 @@ class Table(Media):
             f"Invalid log_mode: {log_mode}. Must be one of {_SUPPORTED_LOGGING_MODES}"
         )
 
+    def _has_been_logged(self) -> bool:
+        return self._run is not None or self._artifact_target is not None
+
+    def _reset_logging_state_after_mutation(self) -> None:
+        self._run = None
+        self._artifact_target = None
+        self._path = None
+        self._sha256 = None
+
     @staticmethod
     def _assert_valid_columns(columns):
         valid_col_types = [str, int]
@@ -561,6 +570,21 @@ class Table(Media):
 
     def _to_table_json(self, max_rows=None, warn=True):
         # separate this method for easier testing
+
+        # EvalTable cells aren't supported: EvalTable serializes through
+        # weave's EvaluationLogger and has no meaningful representation
+        # as a nested Table cell. `_log_type` string check avoids
+        # importing EvalTable here (would be a layering inversion).
+        for row_idx, row in enumerate(self.data):
+            for col_idx, val in enumerate(row):
+                if getattr(val, "_log_type", None) == "eval-table":
+                    col = self.columns[col_idx]
+                    raise TypeError(
+                        f"wandb.Table cannot contain EvalTable cells. "
+                        f"Found at row {row_idx}, column {col!r}. "
+                        "Log the EvalTable directly with run.log()."
+                    )
+
         if max_rows is None:
             max_rows = Table.MAX_ROWS
         n_rows = len(self.data)
