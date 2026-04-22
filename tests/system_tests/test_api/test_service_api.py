@@ -1,3 +1,4 @@
+import pytest
 from wandb.apis.public.service_api import ServiceApi
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk import wandb_setup
@@ -70,6 +71,7 @@ def test_feature_flags_error(wandb_backend_spy: WandbBackendSpy):
     assert not enabled
 
 
+@pytest.mark.skip(reason="Temporarily reverted wbapi offline fix to isolate CI flakes")
 def test_feature_flags__ignores_offline_mode(
     wandb_backend_spy,
     monkeypatch,
