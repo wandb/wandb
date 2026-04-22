@@ -120,7 +120,7 @@ class ScanRunHistoryInit(_message.Message):
     run_id: str
     keys: _containers.RepeatedScalarFieldContainer[str]
     use_cache: bool
-    def __init__(self, entity: _Optional[str] = ..., project: _Optional[str] = ..., run_id: _Optional[str] = ..., keys: _Optional[_Iterable[str]] = ..., use_cache: _Optional[bool] = ...) -> None: ...
+    def __init__(self, entity: _Optional[str] = ..., project: _Optional[str] = ..., run_id: _Optional[str] = ..., keys: _Optional[_Iterable[str]] = ..., use_cache: bool = ...) -> None: ...
 
 class ScanRunHistoryInitResponse(_message.Message):
     __slots__ = ("request_id",)
@@ -180,7 +180,7 @@ class DownloadRunHistoryInit(_message.Message):
     run_id: str
     download_dir: str
     require_complete_history: bool
-    def __init__(self, entity: _Optional[str] = ..., project: _Optional[str] = ..., run_id: _Optional[str] = ..., download_dir: _Optional[str] = ..., require_complete_history: _Optional[bool] = ...) -> None: ...
+    def __init__(self, entity: _Optional[str] = ..., project: _Optional[str] = ..., run_id: _Optional[str] = ..., download_dir: _Optional[str] = ..., require_complete_history: bool = ...) -> None: ...
 
 class DownloadRunHistoryInitResponse(_message.Message):
     __slots__ = ("request_id", "contains_live_data")
@@ -188,7 +188,7 @@ class DownloadRunHistoryInitResponse(_message.Message):
     CONTAINS_LIVE_DATA_FIELD_NUMBER: _ClassVar[int]
     request_id: int
     contains_live_data: bool
-    def __init__(self, request_id: _Optional[int] = ..., contains_live_data: _Optional[bool] = ...) -> None: ...
+    def __init__(self, request_id: _Optional[int] = ..., contains_live_data: bool = ...) -> None: ...
 
 class DownloadRunHistory(_message.Message):
     __slots__ = ("request_id",)
