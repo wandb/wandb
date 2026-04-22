@@ -437,7 +437,6 @@ importlib-metadata==8.7.1
     #   mlflow-skinny
     #   nbconvert
     #   opentelemetry-api
-    #   triton
 importlib-resources==6.5.2
     # via matplotlib
 iniconfig==2.1.0
@@ -713,44 +712,39 @@ numpy==1.26.4
     #   torchmetrics
     #   torchvision
     #   xgboost
-nvidia-cublas-cu12==12.8.4.1
+nvidia-cublas-cu12==12.4.5.8
     # via
     #   nvidia-cudnn-cu12
     #   nvidia-cusolver-cu12
     #   torch
-nvidia-cuda-cupti-cu12==12.8.90
+nvidia-cuda-cupti-cu12==12.4.127
     # via torch
-nvidia-cuda-nvrtc-cu12==12.8.93
+nvidia-cuda-nvrtc-cu12==12.4.127
     # via torch
-nvidia-cuda-runtime-cu12==12.8.90
+nvidia-cuda-runtime-cu12==12.4.127
     # via torch
-nvidia-cudnn-cu12==9.10.2.21
+nvidia-cudnn-cu12==9.1.0.70
     # via torch
-nvidia-cufft-cu12==11.3.3.83
+nvidia-cufft-cu12==11.2.1.3
     # via torch
-nvidia-cufile-cu12==1.13.1.3
+nvidia-curand-cu12==10.3.5.147
     # via torch
-nvidia-curand-cu12==10.3.9.90
+nvidia-cusolver-cu12==11.6.1.9
     # via torch
-nvidia-cusolver-cu12==11.7.3.90
-    # via torch
-nvidia-cusparse-cu12==12.5.8.93
+nvidia-cusparse-cu12==12.3.1.170
     # via
     #   nvidia-cusolver-cu12
     #   torch
-nvidia-cusparselt-cu12==0.7.1
+nvidia-cusparselt-cu12==0.6.2
     # via torch
-nvidia-nccl-cu12==2.27.3
+nvidia-nccl-cu12==2.21.5
+    # via torch
+nvidia-nvjitlink-cu12==12.4.127
     # via
-    #   torch
-    #   xgboost
-nvidia-nvjitlink-cu12==12.8.93
-    # via
-    #   nvidia-cufft-cu12
     #   nvidia-cusolver-cu12
     #   nvidia-cusparse-cu12
     #   torch
-nvidia-nvtx-cu12==12.8.90
+nvidia-nvtx-cu12==12.4.127
     # via torch
 oauthlib==3.3.1
     # via
@@ -1053,7 +1047,7 @@ pyzmq==27.1.0
     #   jupyter-server
 ray==2.51.2
     # via -r requirements/requirements_dev.txt
-rdkit==2025.9.2
+rdkit==2024.3.2
     # via -r requirements/requirements_dev.txt
 referencing==0.36.2
     # via
@@ -1146,7 +1140,6 @@ setuptools==82.0.1
     #   lightning-utilities
     #   tensorboard
     #   tensorflow
-    #   triton
 shapely==2.0.7
     # via google-cloud-aiplatform
 shellingham==1.5.4
@@ -1194,7 +1187,7 @@ starlette==0.46.2
     #   ray
 sweeps==0.2.0
     # via wandb
-sympy==1.14.0
+sympy==1.13.1
     # via torch
 tabulate==0.9.0
     # via kfp
@@ -1237,7 +1230,7 @@ tomli==2.4.1
     #   jupyterlab
     #   pytest
     #   wandb
-torch==2.8.0
+torch==2.6.0
     # via
     #   -r requirements/requirements_dev.txt
     #   lightning
@@ -1249,7 +1242,7 @@ torchmetrics==1.8.2
     # via
     #   lightning
     #   pytorch-lightning
-torchvision==0.23.0
+torchvision==0.21.0
     # via -r requirements/requirements_dev.txt
 tornado==6.5.5
     # via
@@ -1288,7 +1281,7 @@ traitlets==5.14.3
     #   nbclient
     #   nbconvert
     #   nbformat
-triton==3.4.0
+triton==3.2.0
     # via torch
 typer==0.23.2
     # via huggingface-hub
