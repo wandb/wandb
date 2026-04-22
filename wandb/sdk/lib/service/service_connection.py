@@ -260,7 +260,7 @@ class ServiceConnection:
         settings: wandb_settings_pb2.Settings,
         run_id: str,  # TODO: remove and use the settings param
     ) -> InterfaceBase:
-        """Initialize a run in wandb-core.
+        """Declare a run in wandb-core.
 
         Args:
             settings: The settings for the run.
@@ -268,13 +268,21 @@ class ServiceConnection:
 
         Returns:
             An interface for sending messages for the run.
+
+        Raises:
+            ServerResponseError: If there was an error, like if the run ID
+                is already in use.
         """
         request = spb.ServerInformInitRequest()
         request.settings.CopyFrom(settings)
         request._info.stream_id = run_id
-        self._asyncer.run(
-            lambda: self._client.publish(spb.ServerRequest(inform_init=request))
-        )
+
+        async def init_and_wait_for_response() -> None:
+            server_request = spb.ServerRequest(inform_init=request)
+            handle = await self._client.deliver(server_request)
+            await handle.wait_async(timeout=None)
+
+        self._asyncer.run(init_and_wait_for_response)
 
         return InterfaceSock(
             self._asyncer,

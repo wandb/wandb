@@ -1,10 +1,10 @@
-package stream_test
+package clients_test
 
 import (
 	"net/http"
 	"testing"
 
-	"github.com/wandb/wandb/core/internal/stream"
+	"github.com/wandb/wandb/core/internal/clients"
 )
 
 func TestProxyFn(t *testing.T) {
@@ -66,7 +66,7 @@ func TestProxyFn(t *testing.T) {
 				t.Fatalf("http.NewRequest failed: %v", err)
 			}
 
-			proxyFn := stream.ProxyFn(tt.httpProxy, tt.httpsProxy)
+			proxyFn := clients.ProxyFn(tt.httpProxy, tt.httpsProxy)
 			proxyURL, err := proxyFn(req)
 
 			if tt.expectedError {

@@ -17,7 +17,7 @@ from typing import Any, Callable
 
 import wandb
 from wandb import util
-from wandb.sdk import wandb_login
+from wandb.sdk import wandb_login, wandb_setup
 from wandb.sdk.lib import config_util, ipython
 
 logger = logging.getLogger(__name__)
@@ -677,6 +677,14 @@ def agent(
         )
     finally:
         _INSTANCES -= 1
+
+        # Clear sweep_id from the global settings singleton so that a subsequent
+        # wandb.init() call does not think it is still inside a sweep. Without
+        # this, clear_run_path_if_sweep_or_launch() in wandb_init.py will see a
+        # non-empty sweep_id and silently ignore the project/entity/run_id
+        # arguments passed to wandb.init(), preventing the user from
+        # reinitializing their run after the agent exits.
+        wandb_setup.singleton().settings.sweep_id = None
 
 
 _INSTANCES = 0
