@@ -271,23 +271,36 @@ def test_table_logging_mode_mutable():
     t = wandb.Table(columns=["a", "b"], log_mode="MUTABLE")
     t._run = "dummy_run"
     t._artifact_target = "dummy_target"
+    t._path = "dummy_path"
+    t._sha256 = "dummy_sha"
 
     t.add_data(1, 2)
 
     assert t._run is None
     assert t._artifact_target is None
+    assert t._path is None
+    assert t._sha256 is None
 
 
-def test_table_logging_mode_immutable():
+def test_table_logging_mode_immutable(mock_wandb_log):
     """Test that IMMUTABLE mode preserves state after mutations."""
     t = wandb.Table(columns=["a", "b"], log_mode="IMMUTABLE")
     t._run = "dummy_run"
     t._artifact_target = "dummy_target"
+    t._path = "dummy_path"
+    t._sha256 = "dummy_sha"
 
     t.add_data(1, 2)
 
     assert t._run == "dummy_run"
     assert t._artifact_target == "dummy_target"
+    assert t._path == "dummy_path"
+    assert t._sha256 == "dummy_sha"
+    mock_wandb_log.assert_warned(
+        "You are mutating a Table with log_mode='IMMUTABLE' that has been "
+        "logged already. Subsequent log() calls will have no effect. "
+        "Set log_mode='MUTABLE' to enable re-logging after mutations"
+    )
 
 
 def test_table_logging_mode_incremental():
@@ -302,6 +315,9 @@ def test_table_logging_mode_incremental():
     assert t._increment_num is None
 
     # simulate logging
+    t._run = "dummy_run"
+    t._path = "dummy_path"
+    t._sha256 = "dummy_sha"
     t._set_artifact_target(wandb.Artifact("dummy_art", "placeholder"), "dummy_art")
     t._increment_num = 0
 
@@ -309,6 +325,9 @@ def test_table_logging_mode_incremental():
 
     assert t._increment_num == 1
     assert t._artifact_target is None
+    assert t._run is None
+    assert t._path is None
+    assert t._sha256 is None
 
 
 def test_table_logging_mode_incremental_operations(mock_wandb_log):

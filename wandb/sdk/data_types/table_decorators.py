@@ -25,13 +25,10 @@ def allow_relogging_after_mutation(
 
     @wraps(method)
     def wrapper(self: wandb.Table, *args: Any, **kwargs: Any) -> _T:
-        has_been_logged = self._run is not None or self._artifact_target is not None
+        has_been_logged = self._has_been_logged()
 
         if self.log_mode == "MUTABLE":
-            self._run = None
-            self._artifact_target = None
-            self._path = None
-            self._sha256 = None
+            self._reset_logging_state_after_mutation()
         elif self.log_mode == "IMMUTABLE" and has_been_logged:
             wandb.termwarn(
                 "You are mutating a Table with log_mode='IMMUTABLE' that has been "
@@ -59,6 +56,11 @@ def allow_incremental_logging_after_append(
         res = method(self, *args, **kwargs)
 
         if self.log_mode != "INCREMENTAL" or self._artifact_target is None:
+            # EvalTable inherits this decorator, but does not use artifact
+            # increments and takes this short circuit path because it
+            # doesn't need the rest of the logic here. If we ever need
+            # more complex behavior for EvalTable, move this logic into
+            # a method that EvalTable can override.
             return res
 
         art_entry_url = self._get_artifact_entry_ref_url()
