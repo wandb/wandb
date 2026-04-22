@@ -994,6 +994,11 @@ def test_construct_use_artifact_query_without_used_as():
 
 
 class TestJWTAuth:
+    def test_no_api_key_omits_basic_auth(self):
+        api = internal.InternalApi(environ={})
+
+        assert api.client.transport.session.auth is None
+
     def test_jwt_auth_sets_bearer_header(
         self, tmp_path: pathlib.Path, mocker: MockerFixture
     ):
@@ -1036,6 +1041,19 @@ class TestJWTAuth:
     def test_access_token_returns_none_without_token_file(self):
         api = internal.InternalApi(environ={})
         assert api.access_token is None
+
+    def test_reauth_clears_basic_auth_when_api_key_is_removed(self):
+        api = internal.InternalApi(
+            default_settings={"api_key": "a" * 40},
+            environ={},
+        )
+
+        assert api.client.transport.session.auth == ("api", "a" * 40)
+
+        api.default_settings["api_key"] = None
+        api.reauth()
+
+        assert api.client.transport.session.auth is None
 
     def test_access_token_raises_for_missing_file(self, tmp_path: pathlib.Path):
         missing_file = tmp_path / "nonexistent.jwt"

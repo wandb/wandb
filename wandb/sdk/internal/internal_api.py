@@ -215,6 +215,15 @@ class Api:
     _global_context: context.Context
     _local_data: _ThreadLocalData
 
+    @staticmethod
+    def _basic_api_auth(api_key: str | None) -> tuple[str, str] | None:
+        """Convert an API key to requests auth.
+
+        Returning None avoids sending an empty Basic auth header for
+        unauthenticated requests to endpoints that allow anonymous access.
+        """
+        return ("api", api_key) if api_key else None
+
     def __init__(
         self,
         default_settings: (
@@ -279,13 +288,13 @@ class Api:
         )
 
         auth = None
-        api_key = api_key or self.default_settings.get("api_key")
-        if api_key:
-            auth = ("api", api_key)
+        explicit_api_key = api_key or self.default_settings.get("api_key")
+        if explicit_api_key:
+            auth = self._basic_api_auth(explicit_api_key)
         elif self.access_token is not None:
             self._extra_http_headers["Authorization"] = f"Bearer {self.access_token}"
         else:
-            auth = ("api", self.api_key or "")
+            auth = self._basic_api_auth(self.api_key)
 
         proxies = self.settings("_proxies") or json.loads(
             self._environ.get("WANDB__PROXIES", "{}")
@@ -365,7 +374,7 @@ class Api:
 
     def reauth(self) -> None:
         """Ensure the current api key is set in the transport."""
-        self.client.transport.session.auth = ("api", self.api_key or "")
+        self.client.transport.session.auth = self._basic_api_auth(self.api_key)
 
     def relocate(self) -> None:
         """Ensure the current api points to the right server."""
