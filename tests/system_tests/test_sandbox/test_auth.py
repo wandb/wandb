@@ -19,8 +19,6 @@ class _SandboxStubCalls:
     stop: list[dict[str, object]] = field(default_factory=list)
 
 
-# TODO: We need to update the stub once upstream changes on rename are merged
-# https://github.com/coreweave/cwsandbox-client/pull/98
 def _patch_sandbox_stub(
     monkeypatch: pytest.MonkeyPatch,
 ) -> _SandboxStubCalls:
@@ -38,12 +36,19 @@ def _patch_sandbox_stub(
                     "metadata": metadata,
                 }
             )
-            return cwsandbox_sandbox.atc_pb2.StartSandboxResponse(
+            return cwsandbox_sandbox.gateway_pb2.StartSandboxResponse(
                 sandbox_id="sb-system-test",
                 service_address="",
                 exposed_ports=[],
                 applied_ingress_mode="",
                 applied_egress_mode="",
+            )
+
+        async def Get(self, request, timeout=None, metadata=None):  # noqa: N802
+            _ = request, timeout, metadata
+            return cwsandbox_sandbox.gateway_pb2.GetSandboxResponse(
+                sandbox_id="sb-system-test",
+                sandbox_status=cwsandbox_sandbox.gateway_pb2.SANDBOX_STATUS_COMPLETED,
             )
 
         async def Stop(self, request, timeout=None, metadata=None):  # noqa: N802
@@ -54,7 +59,7 @@ def _patch_sandbox_stub(
                     "metadata": metadata,
                 }
             )
-            return cwsandbox_sandbox.atc_pb2.StopSandboxResponse(
+            return cwsandbox_sandbox.gateway_pb2.StopSandboxResponse(
                 success=True,
                 error_message="",
             )
@@ -65,8 +70,8 @@ def _patch_sandbox_stub(
         lambda target, is_secure: _FakeChannel(),
     )
     monkeypatch.setattr(
-        cwsandbox_sandbox.atc_pb2_grpc,
-        "ATCServiceStub",
+        cwsandbox_sandbox.gateway_pb2_grpc,
+        "GatewayServiceStub",
         _FakeSandboxStub,
     )
     return calls
