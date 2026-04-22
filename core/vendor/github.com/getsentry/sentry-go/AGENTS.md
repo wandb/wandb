@@ -69,17 +69,18 @@ The `internalAsyncTransportAdapter` in `transport.go` bridges old `Transport` to
 
 Test tier preference (use the highest tier that covers what you need):
 
-1. **Integration tests** (default) — `sentry.Init` with `BeforeSend` callbacks, `httptest.Server` with real framework routers, `sentry.Flush` to collect events. Prefer tests that use the public API.
-2. **Context-level tests** — `NewTestContext` with `MockTransport` for span/transaction behavior when no HTTP server is needed.
-3. **Unit tests** (sparingly) — Direct `NewClient` + `MockScope` only for self-contained logic like `BeforeSend` callbacks or sampling decisions.
+1. **Integration tests** (default) — Prefer `internal/sentrytest` with `sentrytest.Run` or `sentrytest.NewFixture`, plus real routers / `httptest` requests where needed. Prefer tests that use the public API.
+2. **Context-level tests** — Prefer `sentrytest.NewContext` or `fixture.NewContext(parent)` for tracing / context propagation tests. Prefer `sentrytest.NewFixture` for isolated client + hub setup when no HTTP server is needed.
+3. **Unit tests** (sparingly) — Direct `NewClient` + `MockScope` only for self-contained logic where `sentrytest` would add unnecessary indirection.
 
 Conventions:
 
 - Table-driven tests for multiple inputs through the same code path
 - `t.Parallel()` for tests that don't share global state
 - `cmp.Diff` with `cmpopts.IgnoreFields` for `*Event` comparison — ignore `EventID`, `Timestamp`, `Sdk`, `sdkMetaData`
-- `testutils.FlushTimeout()` when calling `sentry.Flush` (longer timeout in CI)
-- `testify` for assertions, `internal/testutils/` for mocks
+- Prefer `fixture.Flush()` over direct `sentry.Flush(...)` in tests built on `internal/sentrytest`
+- Prefer `fixture.Events()` as the captured event stream; inspect `event.Type` in assertions instead of relying on separate fixture streams
+- `testify` for assertions, `internal/testutils/` for non-assert test helpers like mocks and flush timing
 - All tests must pass `make test-race`
 
 What to test:

@@ -662,7 +662,20 @@ func (nc *Connection) handleSyncStatus(
 func (nc *Connection) handleApiInit(id string, request *spb.ServerApiInitRequest) {
 	s := settings.From(request.GetSettings())
 	logger := observability.NewCoreLogger(slog.Default(), nil)
-	wbapiInstance := wbapi.New(s, logger)
+	wbapiInstance, err := wbapi.New(s, logger)
+	if err != nil {
+		nc.Respond(&spb.ServerResponse{
+			RequestId: id,
+			ServerResponseType: &spb.ServerResponse_ErrorResponse{
+				ErrorResponse: &spb.ServerErrorResponse{
+					Message: err.Error(),
+				},
+			},
+		})
+
+		return
+	}
+
 	wbApiId := nc.apiManager.AddWandbAPI(wbapiInstance)
 
 	nc.Respond(&spb.ServerResponse{
