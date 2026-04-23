@@ -78,6 +78,17 @@ class InterfaceShared(InterfaceBase, abc.ABC):
         rec.output_raw.CopyFrom(outdata)
         self._publish(rec, nowait=nowait)
 
+    @override
+    def _publish_output_logger(
+        self,
+        outdata: pb.OutputLoggerRecord,
+        *,
+        nowait: bool = False,
+    ) -> None:
+        rec = pb.Record()
+        rec.output_logger.CopyFrom(outdata)
+        self._publish(rec, nowait=nowait)
+
     def _publish_cancel(self, cancel: pb.CancelRequest) -> None:
         rec = self._make_request(cancel=cancel)
         self._publish(rec)

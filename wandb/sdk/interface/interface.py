@@ -799,6 +799,25 @@ class InterfaceBase(abc.ABC):
     ) -> None:
         raise NotImplementedError
 
+    def publish_output_logger(
+        self,
+        line: str,
+        *,
+        nowait: bool = False,
+    ) -> None:
+        o = pb.OutputLoggerRecord(line=line)
+        o.timestamp.GetCurrentTime()
+        self._publish_output_logger(o, nowait=nowait)
+
+    @abc.abstractmethod
+    def _publish_output_logger(
+        self,
+        outdata: pb.OutputLoggerRecord,
+        *,
+        nowait: bool,
+    ) -> None:
+        raise NotImplementedError
+
     def publish_pause(self) -> None:
         pause = pb.PauseRequest()
         self._publish_pause(pause)

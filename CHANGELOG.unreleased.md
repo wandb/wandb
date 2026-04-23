@@ -13,3 +13,7 @@ sections:
 Section headings should be at level 3 (e.g. `### Added`).
 
 ## Unreleased
+
+### Added
+
+- `run.write_logs()` method to write text directly to the Logs tab to give users more control over logged output over what console capture alone previously provided. Includes `WandbLoggerHandler` as a convenience integration for Python's logging module (@itstania in https://github.com/wandb/wandb/pull/11702)

@@ -625,7 +625,7 @@ pub struct Record {
     pub info: ::core::option::Option<RecordInfo>,
     #[prost(
         oneof = "record::RecordType",
-        tags = "2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 17, 18, 20, 21, 22, 23, 24, 25, 26, 100"
+        tags = "2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 17, 18, 20, 21, 22, 23, 24, 25, 26, 27, 100"
     )]
     pub record_type: ::core::option::Option<record::RecordType>,
 }
@@ -678,6 +678,8 @@ pub mod record {
         UseArtifact(super::UseArtifactRecord),
         #[prost(message, tag = "26")]
         Environment(super::EnvironmentRecord),
+        #[prost(message, tag = "27")]
+        OutputLogger(super::OutputLoggerRecord),
         /// request field does not belong here longterm
         #[prost(message, tag = "100")]
         Request(super::Request),
@@ -1051,7 +1053,7 @@ pub mod output_record {
 }
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct OutputResult {}
-/// OutputRawRecord: raw console output
+/// OutputRawRecord: raw console output from stderr and stout.
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct OutputRawRecord {
     #[prost(enumeration = "output_raw_record::OutputType", tag = "1")]
@@ -1104,6 +1106,18 @@ pub mod output_raw_record {
 }
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct OutputRawResult {}
+/// OutputLoggerRecord: log output from run.write_logs for the Logs tab.
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct OutputLoggerRecord {
+    #[prost(message, optional, tag = "1")]
+    pub timestamp: ::core::option::Option<::prost_types::Timestamp>,
+    #[prost(string, tag = "2")]
+    pub line: ::prost::alloc::string::String,
+    #[prost(message, optional, tag = "200")]
+    pub info: ::core::option::Option<RecordInfo>,
+}
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct OutputLoggerResult {}
 /// MetricRecord: wandb/sdk/wandb_metric/Metric
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct MetricRecord {

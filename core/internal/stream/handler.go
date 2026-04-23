@@ -217,6 +217,7 @@ func (h *Handler) handleRecord(record *spb.Record, request *runwork.Request) {
 	case *spb.Record_History:
 	case *spb.Record_Output:
 	case *spb.Record_OutputRaw:
+	case *spb.Record_OutputLogger:
 	case *spb.Record_Preempting:
 	case *spb.Record_Stats:
 	case *spb.Record_Telemetry:

@@ -53,7 +53,7 @@ ARTIFACT_COLLECTIONS_FILTERING_SORTING: ServerFeature
 ARTIFACT_V2_DOWNLOAD_HANDLER_SUPPORTS_ARTIFACT_ID: ServerFeature
 
 class Record(_message.Message):
-    __slots__ = ("num", "history", "summary", "output", "config", "files", "stats", "artifact", "tbrecord", "alert", "telemetry", "metric", "output_raw", "run", "exit", "final", "header", "footer", "preempting", "noop_link_artifact", "use_artifact", "environment", "request", "control", "uuid", "_info")
+    __slots__ = ("num", "history", "summary", "output", "config", "files", "stats", "artifact", "tbrecord", "alert", "telemetry", "metric", "output_raw", "run", "exit", "final", "header", "footer", "preempting", "noop_link_artifact", "use_artifact", "environment", "output_logger", "request", "control", "uuid", "_info")
     NUM_FIELD_NUMBER: _ClassVar[int]
     HISTORY_FIELD_NUMBER: _ClassVar[int]
     SUMMARY_FIELD_NUMBER: _ClassVar[int]
@@ -76,6 +76,7 @@ class Record(_message.Message):
     NOOP_LINK_ARTIFACT_FIELD_NUMBER: _ClassVar[int]
     USE_ARTIFACT_FIELD_NUMBER: _ClassVar[int]
     ENVIRONMENT_FIELD_NUMBER: _ClassVar[int]
+    OUTPUT_LOGGER_FIELD_NUMBER: _ClassVar[int]
     REQUEST_FIELD_NUMBER: _ClassVar[int]
     CONTROL_FIELD_NUMBER: _ClassVar[int]
     UUID_FIELD_NUMBER: _ClassVar[int]
@@ -102,11 +103,12 @@ class Record(_message.Message):
     noop_link_artifact: _empty_pb2.Empty
     use_artifact: UseArtifactRecord
     environment: EnvironmentRecord
+    output_logger: OutputLoggerRecord
     request: Request
     control: Control
     uuid: str
     _info: _wandb_base_pb2._RecordInfo
-    def __init__(self, num: _Optional[int] = ..., history: _Optional[_Union[HistoryRecord, _Mapping]] = ..., summary: _Optional[_Union[SummaryRecord, _Mapping]] = ..., output: _Optional[_Union[OutputRecord, _Mapping]] = ..., config: _Optional[_Union[ConfigRecord, _Mapping]] = ..., files: _Optional[_Union[FilesRecord, _Mapping]] = ..., stats: _Optional[_Union[StatsRecord, _Mapping]] = ..., artifact: _Optional[_Union[ArtifactRecord, _Mapping]] = ..., tbrecord: _Optional[_Union[TBRecord, _Mapping]] = ..., alert: _Optional[_Union[AlertRecord, _Mapping]] = ..., telemetry: _Optional[_Union[_wandb_telemetry_pb2.TelemetryRecord, _Mapping]] = ..., metric: _Optional[_Union[MetricRecord, _Mapping]] = ..., output_raw: _Optional[_Union[OutputRawRecord, _Mapping]] = ..., run: _Optional[_Union[RunRecord, _Mapping]] = ..., exit: _Optional[_Union[RunExitRecord, _Mapping]] = ..., final: _Optional[_Union[FinalRecord, _Mapping]] = ..., header: _Optional[_Union[HeaderRecord, _Mapping]] = ..., footer: _Optional[_Union[FooterRecord, _Mapping]] = ..., preempting: _Optional[_Union[RunPreemptingRecord, _Mapping]] = ..., noop_link_artifact: _Optional[_Union[_empty_pb2.Empty, _Mapping]] = ..., use_artifact: _Optional[_Union[UseArtifactRecord, _Mapping]] = ..., environment: _Optional[_Union[EnvironmentRecord, _Mapping]] = ..., request: _Optional[_Union[Request, _Mapping]] = ..., control: _Optional[_Union[Control, _Mapping]] = ..., uuid: _Optional[str] = ..., _info: _Optional[_Union[_wandb_base_pb2._RecordInfo, _Mapping]] = ...) -> None: ...
+    def __init__(self, num: _Optional[int] = ..., history: _Optional[_Union[HistoryRecord, _Mapping]] = ..., summary: _Optional[_Union[SummaryRecord, _Mapping]] = ..., output: _Optional[_Union[OutputRecord, _Mapping]] = ..., config: _Optional[_Union[ConfigRecord, _Mapping]] = ..., files: _Optional[_Union[FilesRecord, _Mapping]] = ..., stats: _Optional[_Union[StatsRecord, _Mapping]] = ..., artifact: _Optional[_Union[ArtifactRecord, _Mapping]] = ..., tbrecord: _Optional[_Union[TBRecord, _Mapping]] = ..., alert: _Optional[_Union[AlertRecord, _Mapping]] = ..., telemetry: _Optional[_Union[_wandb_telemetry_pb2.TelemetryRecord, _Mapping]] = ..., metric: _Optional[_Union[MetricRecord, _Mapping]] = ..., output_raw: _Optional[_Union[OutputRawRecord, _Mapping]] = ..., run: _Optional[_Union[RunRecord, _Mapping]] = ..., exit: _Optional[_Union[RunExitRecord, _Mapping]] = ..., final: _Optional[_Union[FinalRecord, _Mapping]] = ..., header: _Optional[_Union[HeaderRecord, _Mapping]] = ..., footer: _Optional[_Union[FooterRecord, _Mapping]] = ..., preempting: _Optional[_Union[RunPreemptingRecord, _Mapping]] = ..., noop_link_artifact: _Optional[_Union[_empty_pb2.Empty, _Mapping]] = ..., use_artifact: _Optional[_Union[UseArtifactRecord, _Mapping]] = ..., environment: _Optional[_Union[EnvironmentRecord, _Mapping]] = ..., output_logger: _Optional[_Union[OutputLoggerRecord, _Mapping]] = ..., request: _Optional[_Union[Request, _Mapping]] = ..., control: _Optional[_Union[Control, _Mapping]] = ..., uuid: _Optional[str] = ..., _info: _Optional[_Union[_wandb_base_pb2._RecordInfo, _Mapping]] = ...) -> None: ...
 
 class Control(_message.Message):
     __slots__ = ("req_resp", "local", "relay_id", "mailbox_slot", "always_send", "flow_control", "end_offset", "connection_id")
@@ -391,6 +393,20 @@ class OutputRawRecord(_message.Message):
     def __init__(self, output_type: _Optional[_Union[OutputRawRecord.OutputType, str]] = ..., timestamp: _Optional[_Union[_timestamp_pb2.Timestamp, _Mapping]] = ..., line: _Optional[str] = ..., _info: _Optional[_Union[_wandb_base_pb2._RecordInfo, _Mapping]] = ...) -> None: ...
 
 class OutputRawResult(_message.Message):
+    __slots__ = ()
+    def __init__(self) -> None: ...
+
+class OutputLoggerRecord(_message.Message):
+    __slots__ = ("timestamp", "line", "_info")
+    TIMESTAMP_FIELD_NUMBER: _ClassVar[int]
+    LINE_FIELD_NUMBER: _ClassVar[int]
+    _INFO_FIELD_NUMBER: _ClassVar[int]
+    timestamp: _timestamp_pb2.Timestamp
+    line: str
+    _info: _wandb_base_pb2._RecordInfo
+    def __init__(self, timestamp: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., line: _Optional[str] = ..., _info: _Optional[_Union[_wandb_base_pb2._RecordInfo, _Mapping]] = ...) -> None: ...
+
+class OutputLoggerResult(_message.Message):
     __slots__ = ()
     def __init__(self) -> None: ...
 
