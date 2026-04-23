@@ -141,6 +141,8 @@ logger = logging.getLogger("wandb")
 EXIT_TIMEOUT = 60
 RE_LABEL = re.compile(r"[a-zA-Z0-9_-]+$")
 
+_STOP_POLLING_INTERVAL = 15
+
 
 class TeardownStage(IntEnum):
     EARLY = 1
