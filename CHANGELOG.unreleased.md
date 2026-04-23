@@ -17,6 +17,8 @@ Section headings should be at level 3 (e.g. `### Added`).
 ### Added
 
 - `Api` methods returning artifacts, registries, automations, and related paginators now accept an optional `start` argument to resume iteration from a saved cursor (@tonyyli-wandb in https://github.com/wandb/wandb/pull/11651)
+- The `stop_fn` setting to customize how a run is stopped (@timoffex in https://github.com/wandb/wandb/pull/11773)
+  - Allows overriding the default of sending a SIGINT to the Python process
 
 ### Fixed
 
