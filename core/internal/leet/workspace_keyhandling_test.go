@@ -233,8 +233,8 @@ func TestWorkspace_RunsVerticalNav_ConsoleLogsPaneConsoleLogsPaneActive(t *testi
 	require.True(t, w.TestConsoleLogsPaneActive())
 
 	// Up/Down should route to bottom bar, not runs list.
-	_ = w.Update(tea.KeyPressMsg{Code: tea.KeyUp})
-	_ = w.Update(tea.KeyPressMsg{Code: tea.KeyDown})
+	_ = w.Update(secondaryNavMsg(t, leet.NavIntentUp))
+	_ = w.Update(secondaryNavMsg(t, leet.NavIntentDown))
 	require.True(t, w.TestConsoleLogsPaneActive(),
 		"bottom bar should still be active after vertical nav")
 }
@@ -250,10 +250,81 @@ func TestWorkspace_RunsVerticalNav_OverviewActive(t *testing.T) {
 	require.False(t, w.TestConsoleLogsPaneActive())
 
 	// Up/Down should route to overview sidebar, not runs list.
-	_ = w.Update(tea.KeyPressMsg{Code: tea.KeyUp})
-	_ = w.Update(tea.KeyPressMsg{Code: tea.KeyDown})
+	_ = w.Update(secondaryNavMsg(t, leet.NavIntentUp))
+	_ = w.Update(secondaryNavMsg(t, leet.NavIntentDown))
 	require.False(t, w.TestRunsActive(),
 		"runs should not become active from overview vertical nav")
+}
+
+// ---- Unified navigation: wasd/arrows/Home/End ----
+
+// newWorkspaceWithMultipleRuns seeds a workspace with N runs so list
+// navigation (up/down/page/home/end) is meaningful.
+func newWorkspaceWithMultipleRuns(t *testing.T, n int) (*leet.Workspace, []string) {
+	t.Helper()
+
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+	w := leet.NewWorkspace(t.TempDir(), cfg, logger)
+	_ = w.Update(tea.WindowSizeMsg{Width: 200, Height: 60})
+
+	keys := make([]string, n)
+	for i := range n {
+		keys[i] = "run-20260209_010101-" + string(rune('a'+i))
+	}
+	_ = w.Update(leet.WorkspaceRunDirsMsg{RunKeys: keys})
+	w.TestForceExpandRunsSidebar()
+
+	return w, keys
+}
+
+func TestWorkspace_UnifiedNav_RunsListDirectionalAliases(t *testing.T) {
+	w, _ := newWorkspaceWithMultipleRuns(t, 5)
+	require.True(t, w.TestRunsActive(), "runs list should start focused")
+
+	start := w.TestCurrentRunKey()
+	_ = w.Update(primaryNavMsg(t, leet.NavIntentDown))
+	afterPrimaryDown := w.TestCurrentRunKey()
+	require.NotEqual(t, start, afterPrimaryDown,
+		"the primary down binding should advance the runs cursor")
+
+	_ = w.Update(primaryNavMsg(t, leet.NavIntentUp))
+	require.Equal(t, start, w.TestCurrentRunKey(),
+		"the primary up binding should undo the down move")
+
+	_ = w.Update(secondaryNavMsg(t, leet.NavIntentDown))
+	require.Equal(t, afterPrimaryDown, w.TestCurrentRunKey(),
+		"the secondary down binding should match the primary binding")
+	_ = w.Update(secondaryNavMsg(t, leet.NavIntentUp))
+	require.Equal(t, start, w.TestCurrentRunKey(),
+		"the secondary up binding should match the primary binding")
+}
+
+func TestWorkspace_UnifiedNav_RunsListPagingAndBoundaries(t *testing.T) {
+	w, keys := newWorkspaceWithMultipleRuns(t, 12)
+	_ = w.Update(tea.WindowSizeMsg{Width: 200, Height: 10})
+
+	before := w.TestCurrentRunKey()
+	_ = w.Update(primaryNavMsg(t, leet.NavIntentPageDown))
+	afterPrimaryPageDown := w.TestCurrentRunKey()
+	require.NotEqual(t, before, afterPrimaryPageDown,
+		"the primary page-down binding should advance the runs page")
+
+	_ = w.Update(secondaryNavMsg(t, leet.NavIntentPageUp))
+	require.Equal(t, before, w.TestCurrentRunKey(),
+		"the secondary page-up binding should undo the primary page-down move")
+
+	_ = w.Update(secondaryNavMsg(t, leet.NavIntentPageDown))
+	require.Equal(t, afterPrimaryPageDown, w.TestCurrentRunKey(),
+		"the secondary page-down binding should match the primary binding")
+
+	_ = w.Update(primaryNavMsg(t, leet.NavIntentHome))
+	require.Equal(t, keys[0], w.TestCurrentRunKey(),
+		"Home should jump to the first visible run")
+
+	_ = w.Update(primaryNavMsg(t, leet.NavIntentEnd))
+	require.Equal(t, keys[len(keys)-1], w.TestCurrentRunKey(),
+		"End should jump to the last visible run")
 }
 
 // ---- Console log message handling ----
