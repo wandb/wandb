@@ -182,7 +182,6 @@ class Artifact:
 
         # Internal.
         self._client: RetryingClient | None = None
-
         self._tmp_dir: tempfile.TemporaryDirectory | None = None
         self._added_objs: dict[int, tuple[WBValue, ArtifactManifestEntry]] = {}
         self._added_local_paths: dict[str, ArtifactManifestEntry] = {}
