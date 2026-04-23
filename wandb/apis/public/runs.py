@@ -251,7 +251,12 @@ class Runs(SizedPaginator["Run"]):
         """
         if not self.last_response:
             self._load_page()
-        return self.last_response["project"]["runCount"]
+
+        if not self.last_response:
+            return 0
+
+        project = self.last_response.get("project") or {}
+        return project.get("runCount", 0)
 
     @property
     def more(self) -> bool:
@@ -259,12 +264,13 @@ class Runs(SizedPaginator["Run"]):
 
         <!-- lazydoc-ignore: internal -->
         """
-        if self.last_response:
-            return bool(
-                self.last_response["project"]["runs"]["pageInfo"]["hasNextPage"]
-            )
-        else:
+        if not self.last_response:
             return True
+
+        project = self.last_response.get("project") or {}
+        runs_data = project.get("runs") or {}
+        page_info = runs_data.get("pageInfo") or {}
+        return page_info.get("hasNextPage", False)
 
     @property
     def cursor(self):
@@ -272,10 +278,17 @@ class Runs(SizedPaginator["Run"]):
 
         <!-- lazydoc-ignore: internal -->
         """
-        if self.last_response:
-            return self.last_response["project"]["runs"]["edges"][-1]["cursor"]
-        else:
+        if not self.last_response:
             return None
+
+        project = self.last_response.get("project") or {}
+        runs_data = project.get("runs") or {}
+        edges = runs_data.get("edges") or []
+
+        if not edges:
+            return None
+
+        return edges[-1].get("cursor")
 
     def convert_objects(self) -> list[Run]:
         """Converts GraphQL edges to Runs objects.
@@ -285,7 +298,11 @@ class Runs(SizedPaginator["Run"]):
         objs = []
         if self.last_response is None or self.last_response.get("project") is None:
             raise ValueError("Could not find project {}".format(self.project))
-        for run_response in self.last_response["project"]["runs"]["edges"]:
+
+        project = self.last_response.get("project") or {}
+        runs_data = project.get("runs") or {}
+        edges = runs_data.get("edges") or []
+        for run_response in edges:
             run = Run(
                 self.client,
                 self.entity,

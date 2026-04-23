@@ -308,6 +308,11 @@ func (*ServerStatusResponse) Descriptor() ([]byte, []int) {
 	return file_wandb_proto_wandb_server_proto_rawDescGZIP(), []int{5}
 }
 
+// Declare a run.
+//
+// This creates a Stream in wandb-core without uploading the run.
+// The Stream can receive messages after a successful response to this request.
+// The response may be an error.
 type ServerInformInitRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Settings      *Settings              `protobuf:"bytes,1,opt,name=settings,proto3" json:"settings,omitempty"`

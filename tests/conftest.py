@@ -38,12 +38,22 @@ pytest_plugins = [
 # --------------------------------
 
 
-@pytest.fixture(autouse=True)
-def setup_wandb_env_variables(monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.fixture(autouse=True, scope="session")
+def setup_wandb_env_variables() -> Iterator[None]:
     """Configures wandb env variables to suitable defaults for tests."""
-    # Set the _network_buffer setting to 1000 to increase the likelihood
-    # of triggering flow control logic.
-    monkeypatch.setenv("WANDB_X_NETWORK_BUFFER", "1000")
+    with pytest.MonkeyPatch().context() as monkeypatch:
+        # Override the base URL, which otherwise defaults to https://api.wandb.ai
+        # Tests may override this further (like to point to a local server),
+        # but if not, it prevents tests from accidentally hitting real endpoints.
+        #
+        # It is important that this runs as early as possible, hence the session
+        # scope. If a test overrides this and doesn't reset it, that should be
+        # considered a bug in the test, not in the choice of scope!
+        #
+        # Fun fact: the 'invalid' domain is described in RFC 6761 section 6.4.
+        monkeypatch.setenv("WANDB_BASE_URL", "https://invalid")
+
+        yield
 
 
 # --------------------------------
@@ -235,6 +245,7 @@ def env_teardown():
 
 @pytest.fixture(scope="function", autouse=True)
 def clean_up():
+    wandb.teardown()
     yield
     wandb.teardown()
 
@@ -252,15 +263,6 @@ def record_q() -> Queue:
 @pytest.fixture()
 def mocked_interface(record_q: Queue) -> InterfaceQueue:
     return InterfaceQueue(record_q=record_q)
-
-
-@pytest.fixture
-def mocked_backend(mocked_interface: InterfaceQueue) -> Generator[object, None, None]:
-    class MockedBackend:
-        def __init__(self) -> None:
-            self.interface = mocked_interface
-
-    yield MockedBackend()
 
 
 @pytest.fixture(scope="function")
@@ -286,8 +288,8 @@ def test_settings():
 
 
 @pytest.fixture(scope="function")
-def mock_run(test_settings, mocked_backend) -> Generator[Callable, None, None]:
-    """Create a Run object with a stubbed out 'backend'.
+def mock_run(test_settings, mocked_interface) -> Generator[Callable, None, None]:
+    """Create a Run object with a mocked interface.
 
     This is similar to using `wandb.init(mode="offline")`, but much faster
     as it does not start up a service process.
@@ -305,7 +307,7 @@ def mock_run(test_settings, mocked_backend) -> Generator[Callable, None, None]:
         }
         run = wandb.Run(settings=test_settings(kwargs_settings), **kwargs)
         run._set_backend(
-            unittest.mock.MagicMock() if use_magic_mock else mocked_backend
+            unittest.mock.MagicMock() if use_magic_mock else mocked_interface
         )
         run._set_library(unittest.mock.MagicMock())
 

@@ -394,7 +394,9 @@ jobs:
           git checkout -b bump-${new_version}
           bump2version patch --no-tag --no-commit --config-file .bumpversion.cfg --new-version ${new_version}
           git commit -am "chore(sdk): bump version to ${new_version}"
-          git push -u origin bump-${new_version}
+          # Force push so re-runs of the release workflow succeed even when the
+          # dev-bump branch was already created by an earlier run.
+          git push -u -f origin bump-${new_version}
 
       - name: Create Pull Request
         env:
@@ -402,7 +404,11 @@ jobs:
         run: |
           IFS='.' read -r major minor patch <<< "${{ github.event.inputs.version }}"
           new_version="${major}.${minor}.$((patch + 1)).dev1"
-          gh pr create --base main --head bump-${new_version} --title "chore(sdk): bump version to ${new_version}" --body "This PR bumps the version to the next dev version after the release of ${{ github.event.inputs.version }}."
+          if gh pr view "bump-${new_version}" --json number >/dev/null 2>&1; then
+            echo "PR already open for bump-${new_version}; force push updated it."
+          else
+            gh pr create --base main --head bump-${new_version} --title "chore(sdk): bump version to ${new_version}" --body "This PR bumps the version to the next dev version after the release of ${{ github.event.inputs.version }}."
+          fi
 
   publish-release-notes:
     name: Publish Release Notes

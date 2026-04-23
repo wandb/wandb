@@ -215,12 +215,12 @@ def test_job_input_arguments():
 def test_publish_job_input(mocker):
     """Test _publish_job_input function."""
     run = mocker.MagicMock()
-    run._backend.interface = mocker.MagicMock()
+    run._interface = mocker.MagicMock()
     arguments = JobInputArguments(
         include=["include"], exclude=["exclude"], file_path="path", run_config=True
     )
     _publish_job_input(arguments, run)
-    run._backend.interface.publish_job_input.assert_called_once_with(
+    run._interface.publish_job_input.assert_called_once_with(
         include_paths=[["include"]],
         exclude_paths=[["exclude"]],
         run_config=True,
@@ -245,7 +245,7 @@ def test_handle_config_file_input(mocker):
     wandb_run = MagicMock()
     mocker.patch("wandb.sdk.launch.inputs.internal.wandb.run", wandb_run)
     handle_config_file_input("path", include=["include"], exclude=["exclude"])
-    wandb_run._backend.interface.publish_job_input.assert_called_once_with(
+    wandb_run._interface.publish_job_input.assert_called_once_with(
         include_paths=[["include"]],
         exclude_paths=[["exclude"]],
         run_config=False,
@@ -277,7 +277,7 @@ def test_handle_config_file_input_pydantic(
     handle_config_file_input(
         "path", include=["include"], exclude=["exclude"], schema=ExampleSchema
     )
-    wandb_run._backend.interface.publish_job_input.assert_called_once_with(
+    wandb_run._interface.publish_job_input.assert_called_once_with(
         include_paths=[["include"]],
         exclude_paths=[["exclude"]],
         run_config=False,
@@ -289,10 +289,10 @@ def test_handle_config_file_input_pydantic(
 def test_handle_run_config_input(mocker):
     """Test handle_run_config_input function."""
     wandb_run = mocker.MagicMock()
-    wandb_run._backend.interface = mocker.MagicMock()
+    wandb_run._interface = mocker.MagicMock()
     mocker.patch("wandb.sdk.launch.inputs.internal.wandb.run", wandb_run)
     handle_run_config_input(include=["include"], exclude=["exclude"])
-    wandb_run._backend.interface.publish_job_input.assert_called_once_with(
+    wandb_run._interface.publish_job_input.assert_called_once_with(
         include_paths=[["include"]],
         exclude_paths=[["exclude"]],
         run_config=True,

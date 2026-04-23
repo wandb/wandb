@@ -99,7 +99,7 @@ func (r *SendResult) IsSendError() bool {
 // DoSendRequest executes an HTTP request, handles response logging, extracts rate limits, and
 // drains+closes the response body.
 func DoSendRequest(client *http.Client, request *http.Request, identifier string) (*SendResult, error) {
-	response, err := client.Do(request)
+	response, err := client.Do(request) //nolint:gosec // G704: request is constructed internally, not from user input
 	if err != nil {
 		return nil, err
 	}

@@ -98,9 +98,10 @@ class Reports(SizedPaginator["BetaReport"]):
         <!-- lazydoc-ignore: internal -->
         """
         # TODO: Add the count the backend
-        if self.last_response:
-            return len(self.objects)
-        return None
+        if not self.last_response:
+            return None
+
+        return len(self.objects)
 
     @property
     def more(self) -> bool:
@@ -108,11 +109,13 @@ class Reports(SizedPaginator["BetaReport"]):
 
         <!-- lazydoc-ignore: internal -->
         """
-        if self.last_response:
-            return bool(
-                self.last_response["project"]["allViews"]["pageInfo"]["hasNextPage"]
-            )
-        return True
+        if not self.last_response:
+            return True
+
+        project = self.last_response.get("project") or {}
+        views_data = project.get("allViews") or {}
+        page_info = views_data.get("pageInfo") or {}
+        return page_info.get("hasNextPage", False)
 
     @property
     def cursor(self) -> str | None:
@@ -120,9 +123,17 @@ class Reports(SizedPaginator["BetaReport"]):
 
         <!-- lazydoc-ignore: internal -->
         """
-        if self.last_response:
-            return self.last_response["project"]["allViews"]["edges"][-1]["cursor"]
-        return None
+        if not self.last_response:
+            return None
+
+        project = self.last_response.get("project") or {}
+        views_data = project.get("allViews") or {}
+        edges = views_data.get("edges") or []
+
+        if not edges:
+            return None
+
+        return edges[-1].get("cursor")
 
     def update_variables(self) -> None:
         """Updates the GraphQL query variables for pagination."""
@@ -132,10 +143,18 @@ class Reports(SizedPaginator["BetaReport"]):
 
     def convert_objects(self) -> list[BetaReport]:
         """Converts GraphQL edges to File objects."""
-        if self.last_response["project"] is None:
+        if not self.last_response:
+            return []
+
+        project = self.last_response.get("project")
+        if project is None:
             raise ValueError(
                 f"Project {self.variables['project']} does not exist under entity {self.variables['entity']}"
             )
+
+        all_views = project.get("allViews") or {}
+        edges = all_views.get("edges") or []
+
         return [
             BetaReport(
                 self.client,
@@ -143,7 +162,7 @@ class Reports(SizedPaginator["BetaReport"]):
                 entity=self.project.entity,
                 project=self.project.name,
             )
-            for r in self.last_response["project"]["allViews"]["edges"]
+            for r in edges
         ]
 
     def __repr__(self) -> str:

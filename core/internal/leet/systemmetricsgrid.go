@@ -268,6 +268,30 @@ func (g *SystemMetricsGrid) Navigate(direction int) {
 	g.NavigateFocus(0, 0)
 }
 
+// NavigateHome jumps to the first page.
+func (g *SystemMetricsGrid) NavigateHome() {
+	if !g.nav.GoHome() {
+		return
+	}
+
+	g.ClearFocus()
+	g.LoadCurrentPage()
+	g.drawVisible()
+	g.NavigateFocus(0, 0)
+}
+
+// NavigateEnd jumps to the last page.
+func (g *SystemMetricsGrid) NavigateEnd() {
+	if !g.nav.GoEnd() {
+		return
+	}
+
+	g.ClearFocus()
+	g.LoadCurrentPage()
+	g.drawVisible()
+	g.NavigateFocus(0, 0)
+}
+
 // HandleMouseClick handles mouse clicks for chart selection.
 //
 // Returns a bool indicating whether an element was focused.

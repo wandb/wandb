@@ -41,6 +41,11 @@ message ServerStatusRequest {
 
 message ServerStatusResponse {}
 
+// Declare a run.
+//
+// This creates a Stream in wandb-core without uploading the run.
+// The Stream can receive messages after a successful response to this request.
+// The response may be an error.
 message ServerInformInitRequest {
   Settings settings = 1;
   _RecordInfo _info = 200;

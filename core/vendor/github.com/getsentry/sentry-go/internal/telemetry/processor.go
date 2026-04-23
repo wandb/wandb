@@ -19,7 +19,7 @@ func NewProcessor(
 	buffers map[ratelimit.Category]Buffer[protocol.TelemetryItem],
 	transport protocol.TelemetryTransport,
 	dsn *protocol.Dsn,
-	sdkInfo *protocol.SdkInfo,
+	sdkInfo func() *protocol.SdkInfo,
 	recorder report.ClientReportRecorder,
 ) *Processor {
 	scheduler := NewScheduler(buffers, transport, dsn, sdkInfo, recorder)

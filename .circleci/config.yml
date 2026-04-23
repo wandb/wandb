@@ -23,7 +23,7 @@ executors:
     resource_class: m4pro.medium
 
   windows:
-    resource_class: windows.xlarge
+    resource_class: windows.large
     machine:
       image: windows-server-2022-gui:current
       shell: bash.exe

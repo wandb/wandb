@@ -1985,8 +1985,6 @@ class Artifact:
     ) -> FilePathStr:
         import pathlib
 
-        from wandb.sdk.backend.backend import Backend
-
         # TODO: Create a special stream instead of relying on an existing run.
         if wandb.run is None:
             wl = wandb_setup.singleton()
@@ -2002,19 +2000,12 @@ class Artifact:
             settings.run_id.value = stream_id
 
             service = wl.ensure_service()
-            service.inform_init(settings=settings, run_id=stream_id)
-
-            backend = Backend(settings=wl.settings, service=service)
-            backend.ensure_launched()
-
-            assert backend.interface
-            backend.interface._stream_id = stream_id  # type: ignore
+            interface = service.inform_init(settings=settings, run_id=stream_id)
         else:
-            assert wandb.run._backend
-            backend = wandb.run._backend
+            assert wandb.run._interface
+            interface = wandb.run._interface
 
-        assert backend.interface
-        handle = backend.interface.deliver_download_artifact(
+        handle = interface.deliver_download_artifact(
             self.id,  # type: ignore
             root,
             allow_missing_references,
@@ -2311,7 +2302,10 @@ class Artifact:
 
     @ensure_logged
     def files(
-        self, names: list[str] | None = None, per_page: int = 50
+        self,
+        names: list[str] | None = None,
+        per_page: int = 50,
+        start: str | None = None,
     ) -> ArtifactFiles:
         """Iterate over all files stored in this artifact.
 
@@ -2319,6 +2313,8 @@ class Artifact:
             names: The filename paths relative to the root of the artifact you wish to
                 list.
             per_page: The number of files to return per request.
+            start: Pagination cursor for resuming a past query, captured
+                from a previous paginator's `.cursor` attribute.
 
         Returns:
             An iterator containing `File` objects.
@@ -2328,7 +2324,7 @@ class Artifact:
         """
         if (client := self._client) is None:
             raise RuntimeError("Client not initialized")
-        return ArtifactFiles(client, self, names, per_page)
+        return ArtifactFiles(client, self, names, per_page, start=start)
 
     def _default_root(self, include_version: bool = True) -> FilePathStr:
         name = self.source_name if include_version else self.source_name.split(":")[0]

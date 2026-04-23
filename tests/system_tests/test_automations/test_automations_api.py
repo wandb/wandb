@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 from collections import deque
+from itertools import islice
 from typing import Any, Callable
 
 import wandb
@@ -929,3 +930,28 @@ class TestPaginatedAutomations:
         expected_page_count = math.ceil(num_projects / page_size)
 
         assert client_spy.call_count >= expected_page_count
+
+    @mark.usefixtures(setup_paginated_automations.__name__)
+    def test_paginated_automations_start(
+        self,
+        module_user: str,
+        module_api: wandb.Api,
+        page_size,
+    ):
+        all_automations = list(
+            module_api.automations(entity=module_user, per_page=page_size)
+        )
+        all_ids = [a.id for a in all_automations]
+
+        paginator = module_api.automations(entity=module_user, per_page=page_size)
+        first_ids = [obj.id for obj in islice(paginator, page_size)]
+
+        saved_cursor = paginator.cursor
+        assert saved_cursor is not None
+
+        resumed_paginator = module_api.automations(
+            entity=module_user, per_page=page_size, start=saved_cursor
+        )
+        remaining_ids = [a.id for a in resumed_paginator]
+
+        assert all_ids == [*first_ids, *remaining_ids]

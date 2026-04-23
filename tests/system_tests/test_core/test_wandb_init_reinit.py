@@ -9,6 +9,21 @@ def test_reinit_create_new__does_not_modify_wandb_run():
         assert wandb.run is None
 
 
+def test_reinit_create_new__fails_on_id_conflict():
+    with wandb.init(mode="offline") as run1:
+        with pytest.raises(match=r"run ID \w+ is in use"):
+            wandb.init(id=run1.id, mode="offline", reinit="create_new")
+
+
+def test_reinit_create_new__can_reuse_id_after_finish():
+    with wandb.init(mode="offline") as run1:
+        pass
+
+    # Allowed because run1 is finished.
+    with wandb.init(id=run1.id, mode="offline", reinit="create_new"):
+        pass
+
+
 def test_reinit_default__controls_wandb_run():
     with wandb.init(mode="offline") as run:
         assert wandb.run is run
