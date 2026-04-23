@@ -453,6 +453,9 @@ func TestModel_HandleMouseMsg(t *testing.T) {
 		},
 		{
 			name: "click_in_main_grid_focuses_and_unfocuses_chart",
+			setup: func(m *leet.Run) {
+				m.TestClearMainChartFocus()
+			},
 			events: []tea.Msg{
 				tea.MouseClickMsg{X: 60, Y: 15, Button: tea.MouseLeft},
 			},

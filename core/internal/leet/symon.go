@@ -244,21 +244,29 @@ func (s *Symon) handleNextPage(tea.KeyPressMsg) tea.Cmd {
 	return nil
 }
 
-func (s *Symon) handleGridWASD(msg tea.KeyPressMsg) tea.Cmd {
-	var dr, dc int
-	switch normalizeKey(msg.String()) {
-	case "w":
-		dr = -1
-	case "s":
-		dr = 1
-	case "a":
-		dc = -1
-	case "d":
-		dc = 1
-	default:
-		return nil
+func (s *Symon) handleNavHome(tea.KeyPressMsg) tea.Cmd {
+	s.grid.NavigateHome()
+	return nil
+}
+
+func (s *Symon) handleNavEnd(tea.KeyPressMsg) tea.Cmd {
+	s.grid.NavigateEnd()
+	return nil
+}
+
+func (s *Symon) handleGridNav(msg tea.KeyPressMsg) tea.Cmd {
+	// Symon binds page/home/end to their own handlers via the key map;
+	// here we only handle chart-focus motion.
+	switch DecodeNav(msg) {
+	case NavIntentUp:
+		s.grid.NavigateFocus(-1, 0)
+	case NavIntentDown:
+		s.grid.NavigateFocus(1, 0)
+	case NavIntentLeft:
+		s.grid.NavigateFocus(0, -1)
+	case NavIntentRight:
+		s.grid.NavigateFocus(0, 1)
 	}
-	s.grid.NavigateFocus(dr, dc)
 	return nil
 }
 

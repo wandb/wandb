@@ -38,12 +38,22 @@ pytest_plugins = [
 # --------------------------------
 
 
-@pytest.fixture(autouse=True)
-def setup_wandb_env_variables(monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.fixture(autouse=True, scope="session")
+def setup_wandb_env_variables() -> Iterator[None]:
     """Configures wandb env variables to suitable defaults for tests."""
-    # Set the _network_buffer setting to 1000 to increase the likelihood
-    # of triggering flow control logic.
-    monkeypatch.setenv("WANDB_X_NETWORK_BUFFER", "1000")
+    with pytest.MonkeyPatch().context() as monkeypatch:
+        # Override the base URL, which otherwise defaults to https://api.wandb.ai
+        # Tests may override this further (like to point to a local server),
+        # but if not, it prevents tests from accidentally hitting real endpoints.
+        #
+        # It is important that this runs as early as possible, hence the session
+        # scope. If a test overrides this and doesn't reset it, that should be
+        # considered a bug in the test, not in the choice of scope!
+        #
+        # Fun fact: the 'invalid' domain is described in RFC 6761 section 6.4.
+        monkeypatch.setenv("WANDB_BASE_URL", "https://invalid")
+
+        yield
 
 
 # --------------------------------

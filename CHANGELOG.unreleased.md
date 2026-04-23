@@ -17,6 +17,12 @@ Section headings should be at level 3 (e.g. `### Added`).
 ### Added
 
 - `Api` methods returning artifacts, registries, automations, and related paginators now accept an optional `start` argument to resume iteration from a saved cursor (@tonyyli-wandb in https://github.com/wandb/wandb/pull/11651)
+- The `stop_fn` setting to customize how a run is stopped (@timoffex in https://github.com/wandb/wandb/pull/11773)
+  - Allows overriding the default of sending a SIGINT to the Python process
+
+### Changed
+
+- Unified keyboard navigation in W&B LEET TUI (`wandb beta leet` command): `wasd` and arrow keys are now interchangeable within each focused pane (chart focus in grids, item/page nav in lists), and `Home`/`End`/`PgUp`/`PgDn` work universally; the media pane retains its deliberate split where arrows scrub and `wasd` selects tiles (@dmitryduev in https://github.com/wandb/wandb/pull/11756)
 
 ### Fixed
 

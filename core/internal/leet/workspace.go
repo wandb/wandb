@@ -815,6 +815,18 @@ func (w *Workspace) anyRunRunning() bool {
 	return false
 }
 
+// shouldResetRunHeartbeat reports whether new data for the run should re-arm
+// the workspace heartbeat safety net.
+//
+// Like the single-run view, the workspace only arms heartbeats after the
+// initial drain has finished and live streaming is active for the run.
+func (w *Workspace) shouldResetRunHeartbeat(run *WorkspaceRun) bool {
+	return run != nil &&
+		run.state == RunStateRunning &&
+		run.watcher != nil &&
+		run.watcher.IsStarted()
+}
+
 // syncLiveRunState updates the atomic liveness flag from the authoritative map state.
 //
 // Must be called on the main (Update) goroutine after any change to:
