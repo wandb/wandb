@@ -104,6 +104,7 @@ def test_parse_path_default_entity(path: str):
 @pytest.mark.usefixtures("skip_verify_login")
 def test_parse_path_no_entity(path: str):
     api = Api(api_key="fake" * 10)
+    api._default_entity = ""
 
     with pytest.raises(ValueError, match="missing entity"):
         api._parse_path(path)
