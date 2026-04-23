@@ -44,7 +44,6 @@ def beta() -> None:
     These commands may change or even completely break in any release of wandb.
     """
     get_sentry().configure_scope(process_context="wandb_beta")
-
     try:
         get_core_path()
     except WandbCoreNotAvailableError as e:
@@ -276,6 +275,14 @@ def core() -> None:
     The shared service exits after 10 minutes of idleness by default.
     Override this with --idle-timeout on the start command.
     """
+
+
+try:
+    from .beta_sandbox import sandbox as sandbox_group
+except ImportError:
+    pass
+else:
+    beta.add_command(sandbox_group)
 
 
 @core.command()
