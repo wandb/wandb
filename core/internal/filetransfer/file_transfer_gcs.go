@@ -185,7 +185,14 @@ func (ft *GCSFileTransfer) downloadFiles(
 				return ft.formatDownloadError("", err)
 			}
 			objectRelativePath, _ := strings.CutPrefix(objectName, rootObjectName)
-			localPath := filepath.Join(task.PathOrPrefix, filepath.FromSlash(objectRelativePath))
+			localRelPath := filepath.FromSlash(objectRelativePath)
+			if localRelPath != "" && !filepath.IsLocal(localRelPath) {
+				return fmt.Errorf(
+					"invalid object name %q: path traversal detected",
+					objectName,
+				)
+			}
+			localPath := filepath.Join(task.PathOrPrefix, localRelPath)
 			return ft.downloadFile(object, localPath)
 		})
 	}
