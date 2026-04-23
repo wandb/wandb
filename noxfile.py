@@ -197,7 +197,16 @@ def unit_tests(session: nox.Session) -> None:
     By default this runs all unit tests, but specific tests can be selected
     by passing them via positional arguments.
     """
-    install_wandb(session)
+    is_windows = platform.system() == "Windows"
+
+    if is_windows:
+        # Linux already exercises the heavier Go race/coverage and Rust extension
+        # build paths. Skipping them on Windows keeps this job focused on Python
+        # compatibility and avoids multi-minute rebuilds.
+        session.env["WANDB_BUILD_SKIP_WANDB_XPU"] = "true"
+        session.env["WANDB_BUILD_SKIP_ORJSON"] = "true"
+
+    install_wandb(session, dev=not is_windows)
 
     install_timed(
         session,
@@ -213,7 +222,7 @@ def unit_tests(session: nox.Session) -> None:
         session,
         paths=paths,
         # TODO: consider relaxing this once the test memory usage is under control.
-        opts={"n": "8"},
+        opts={"n": "4" if is_windows else "8"},
     )
 
 

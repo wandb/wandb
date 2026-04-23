@@ -119,6 +119,7 @@ def test_log_media_saves_to_run_directory(mock_run, request, media_object):
     ],
 )
 @pytest.mark.skipif(platform.system() != "Windows", reason="Windows-specific test")
+@pytest.mark.usefixtures("patch_max_cli_version")
 def test_log_media_with_invalid_character_on_windows(
     mock_run, image_media, invalid_character
 ):
