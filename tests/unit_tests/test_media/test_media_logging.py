@@ -13,6 +13,11 @@ from wandb import data_types
 data = np.random.randint(255, size=(1000))
 
 
+@pytest.fixture(autouse=True)
+def mock_image_server_capabilities(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(wandb.util, "_get_max_cli_version", lambda: "0.12.14")
+
+
 @pytest.fixture
 def audio_media() -> wandb.Audio:
     audio_data = np.random.uniform(-1, 1, 44100)

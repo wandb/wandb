@@ -1789,11 +1789,7 @@ def parse_artifact_string(v: str) -> tuple[str, str | None, bool]:
 
 
 def _get_max_cli_version() -> str | None:
-    try:
-        max_cli_version = wandb.api.max_cli_version()
-    except (AuthenticationError, CommError):
-        logger.info("Unable to fetch max CLI version for capability check.")
-        return None
+    max_cli_version = wandb.api.max_cli_version()
     return str(max_cli_version) if max_cli_version is not None else None
 
 

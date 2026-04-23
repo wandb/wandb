@@ -709,27 +709,11 @@ class Api:
 
     @normalize_exceptions
     def max_cli_version(self) -> str | None:
-        if self._max_cli_version is not None:
-            return self._max_cli_version
-
-        query = gql(
-            """
-        query ServerInfo{
-            serverInfo {
-                cliVersionInfo
-            }
-        }
-        """
-        )
-        try:
-            res = self.execute(query)
-        except Exception:
-            return None
-
-        server_info = res.get("serverInfo") or {}
-        self._max_cli_version = server_info.get("cliVersionInfo", {}).get(
-            "max_cli_version"
-        )
+        if self._max_cli_version is None:
+            _, server_info = self.viewer_server_info()
+            self._max_cli_version = server_info.get("cliVersionInfo", {}).get(
+                "max_cli_version"
+            )
         return self._max_cli_version
 
     @normalize_exceptions

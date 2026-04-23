@@ -156,6 +156,11 @@ def standard_mask():
     }
 
 
+@pytest.fixture(autouse=True)
+def mock_image_server_capabilities(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(wandb.util, "_get_max_cli_version", lambda: "0.12.14")
+
+
 def test_captions(
     image,
 ):
