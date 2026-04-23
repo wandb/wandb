@@ -22,7 +22,7 @@ from urllib.parse import quote, unquote
 
 from google.protobuf.wrappers_pb2 import BoolValue, DoubleValue, Int32Value, StringValue
 from pydantic import BaseModel, ConfigDict, Field
-from typing_extensions import Self
+from typing_extensions import Callable, Self
 
 import wandb
 from wandb import env, util
@@ -57,6 +57,7 @@ CLIENT_ONLY_SETTINGS = (
     "max_end_of_run_history_metrics",
     "max_end_of_run_summary_metrics",
     "reinit",
+    "stop_fn",
     "x_files_dir",
     "x_sync_dir_suffix",
 )
@@ -426,6 +427,20 @@ class Settings(BaseModel, validate_assignment=True):
 
     settings_system: Optional[str] = None
     """Path to the system-wide settings file."""
+
+    stop_fn: Optional[Callable[[], None]] = None
+    """A callback to execute to stop the run.
+
+    A run can be stopped through the web UI, or after a fatal error
+    (if configured via a setting).
+
+    By default, to stop a run, W&B sends a SIGINT to the main thread.
+    Set this callback to override this behavior, like to use a different
+    signal or to take some other action before interrupting.
+
+    The callback runs in a separate thread. It runs soon after a stop is
+    requested, but not immediately.
+    """
 
     max_end_of_run_history_metrics: int = 10
     """Maximum number of history sparklines to display at the end of a run."""

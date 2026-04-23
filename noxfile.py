@@ -17,15 +17,18 @@ nox.options.default_venv_backend = "uv"
 
 _SUPPORTED_PYTHONS = ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
 
-# Protobuf Python bindings
+# Protobuf Python bindings.
 #
-# protobuf X.Y.Z uses protoc Y.Z
-# See https://protobuf.dev/support/version-support/
+# Each entry is the OLDEST protoc version in the corresponding Python runtime
+# major series. Using the oldest keeps the runtime-version check embedded in
+# the gencode permissive, so the bindings load against any protobuf X.y.z
+# runtime in the same major. Protobuf X.Y.Z corresponds to protoc Y.Z; see
+# https://protobuf.dev/support/version-support/.
 _PROTOC_FOR_PB = {
     4: "23.4",
-    5: "27.0",
-    6: "32.1",
-    7: "34.1",
+    5: "26.0",
+    6: "30.0",
+    7: "34.0",
 }
 
 # Directories in which to create temporary per-session directories
