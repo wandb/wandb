@@ -354,6 +354,19 @@ func awsRestxml_deserializeOpDocumentCompleteMultipartUploadOutput(v **CompleteM
 				sv.ChecksumCRC64NVME = ptr.String(xtv)
 			}
 
+		case strings.EqualFold("ChecksumMD5", t.Name.Local):
+			val, err := decoder.Value()
+			if err != nil {
+				return err
+			}
+			if val == nil {
+				break
+			}
+			{
+				xtv := string(val)
+				sv.ChecksumMD5 = ptr.String(xtv)
+			}
+
 		case strings.EqualFold("ChecksumSHA1", t.Name.Local):
 			val, err := decoder.Value()
 			if err != nil {
@@ -380,6 +393,19 @@ func awsRestxml_deserializeOpDocumentCompleteMultipartUploadOutput(v **CompleteM
 				sv.ChecksumSHA256 = ptr.String(xtv)
 			}
 
+		case strings.EqualFold("ChecksumSHA512", t.Name.Local):
+			val, err := decoder.Value()
+			if err != nil {
+				return err
+			}
+			if val == nil {
+				break
+			}
+			{
+				xtv := string(val)
+				sv.ChecksumSHA512 = ptr.String(xtv)
+			}
+
 		case strings.EqualFold("ChecksumType", t.Name.Local):
 			val, err := decoder.Value()
 			if err != nil {
@@ -391,6 +417,45 @@ func awsRestxml_deserializeOpDocumentCompleteMultipartUploadOutput(v **CompleteM
 			{
 				xtv := string(val)
 				sv.ChecksumType = types.ChecksumType(xtv)
+			}
+
+		case strings.EqualFold("ChecksumXXHASH128", t.Name.Local):
+			val, err := decoder.Value()
+			if err != nil {
+				return err
+			}
+			if val == nil {
+				break
+			}
+			{
+				xtv := string(val)
+				sv.ChecksumXXHASH128 = ptr.String(xtv)
+			}
+
+		case strings.EqualFold("ChecksumXXHASH3", t.Name.Local):
+			val, err := decoder.Value()
+			if err != nil {
+				return err
+			}
+			if val == nil {
+				break
+			}
+			{
+				xtv := string(val)
+				sv.ChecksumXXHASH3 = ptr.String(xtv)
+			}
+
+		case strings.EqualFold("ChecksumXXHASH64", t.Name.Local):
+			val, err := decoder.Value()
+			if err != nil {
+				return err
+			}
+			if val == nil {
+				break
+			}
+			{
+				xtv := string(val)
+				sv.ChecksumXXHASH64 = ptr.String(xtv)
 			}
 
 		case strings.EqualFold("ETag", t.Name.Local):
@@ -6516,6 +6581,11 @@ func awsRestxml_deserializeOpHttpBindingsGetObjectOutput(v *GetObjectOutput, res
 		v.ChecksumCRC64NVME = ptr.String(headerValues[0])
 	}
 
+	if headerValues := response.Header.Values("x-amz-checksum-md5"); len(headerValues) != 0 {
+		headerValues[0] = strings.TrimSpace(headerValues[0])
+		v.ChecksumMD5 = ptr.String(headerValues[0])
+	}
+
 	if headerValues := response.Header.Values("x-amz-checksum-sha1"); len(headerValues) != 0 {
 		headerValues[0] = strings.TrimSpace(headerValues[0])
 		v.ChecksumSHA1 = ptr.String(headerValues[0])
@@ -6526,9 +6596,29 @@ func awsRestxml_deserializeOpHttpBindingsGetObjectOutput(v *GetObjectOutput, res
 		v.ChecksumSHA256 = ptr.String(headerValues[0])
 	}
 
+	if headerValues := response.Header.Values("x-amz-checksum-sha512"); len(headerValues) != 0 {
+		headerValues[0] = strings.TrimSpace(headerValues[0])
+		v.ChecksumSHA512 = ptr.String(headerValues[0])
+	}
+
 	if headerValues := response.Header.Values("x-amz-checksum-type"); len(headerValues) != 0 {
 		headerValues[0] = strings.TrimSpace(headerValues[0])
 		v.ChecksumType = types.ChecksumType(headerValues[0])
+	}
+
+	if headerValues := response.Header.Values("x-amz-checksum-xxhash128"); len(headerValues) != 0 {
+		headerValues[0] = strings.TrimSpace(headerValues[0])
+		v.ChecksumXXHASH128 = ptr.String(headerValues[0])
+	}
+
+	if headerValues := response.Header.Values("x-amz-checksum-xxhash3"); len(headerValues) != 0 {
+		headerValues[0] = strings.TrimSpace(headerValues[0])
+		v.ChecksumXXHASH3 = ptr.String(headerValues[0])
+	}
+
+	if headerValues := response.Header.Values("x-amz-checksum-xxhash64"); len(headerValues) != 0 {
+		headerValues[0] = strings.TrimSpace(headerValues[0])
+		v.ChecksumXXHASH64 = ptr.String(headerValues[0])
 	}
 
 	if headerValues := response.Header.Values("Content-Disposition"); len(headerValues) != 0 {
@@ -8215,6 +8305,11 @@ func awsRestxml_deserializeOpHttpBindingsHeadObjectOutput(v *HeadObjectOutput, r
 		v.ChecksumCRC64NVME = ptr.String(headerValues[0])
 	}
 
+	if headerValues := response.Header.Values("x-amz-checksum-md5"); len(headerValues) != 0 {
+		headerValues[0] = strings.TrimSpace(headerValues[0])
+		v.ChecksumMD5 = ptr.String(headerValues[0])
+	}
+
 	if headerValues := response.Header.Values("x-amz-checksum-sha1"); len(headerValues) != 0 {
 		headerValues[0] = strings.TrimSpace(headerValues[0])
 		v.ChecksumSHA1 = ptr.String(headerValues[0])
@@ -8225,9 +8320,29 @@ func awsRestxml_deserializeOpHttpBindingsHeadObjectOutput(v *HeadObjectOutput, r
 		v.ChecksumSHA256 = ptr.String(headerValues[0])
 	}
 
+	if headerValues := response.Header.Values("x-amz-checksum-sha512"); len(headerValues) != 0 {
+		headerValues[0] = strings.TrimSpace(headerValues[0])
+		v.ChecksumSHA512 = ptr.String(headerValues[0])
+	}
+
 	if headerValues := response.Header.Values("x-amz-checksum-type"); len(headerValues) != 0 {
 		headerValues[0] = strings.TrimSpace(headerValues[0])
 		v.ChecksumType = types.ChecksumType(headerValues[0])
+	}
+
+	if headerValues := response.Header.Values("x-amz-checksum-xxhash128"); len(headerValues) != 0 {
+		headerValues[0] = strings.TrimSpace(headerValues[0])
+		v.ChecksumXXHASH128 = ptr.String(headerValues[0])
+	}
+
+	if headerValues := response.Header.Values("x-amz-checksum-xxhash3"); len(headerValues) != 0 {
+		headerValues[0] = strings.TrimSpace(headerValues[0])
+		v.ChecksumXXHASH3 = ptr.String(headerValues[0])
+	}
+
+	if headerValues := response.Header.Values("x-amz-checksum-xxhash64"); len(headerValues) != 0 {
+		headerValues[0] = strings.TrimSpace(headerValues[0])
+		v.ChecksumXXHASH64 = ptr.String(headerValues[0])
 	}
 
 	if headerValues := response.Header.Values("Content-Disposition"); len(headerValues) != 0 {
@@ -12674,6 +12789,11 @@ func awsRestxml_deserializeOpHttpBindingsPutObjectOutput(v *PutObjectOutput, res
 		v.ChecksumCRC64NVME = ptr.String(headerValues[0])
 	}
 
+	if headerValues := response.Header.Values("x-amz-checksum-md5"); len(headerValues) != 0 {
+		headerValues[0] = strings.TrimSpace(headerValues[0])
+		v.ChecksumMD5 = ptr.String(headerValues[0])
+	}
+
 	if headerValues := response.Header.Values("x-amz-checksum-sha1"); len(headerValues) != 0 {
 		headerValues[0] = strings.TrimSpace(headerValues[0])
 		v.ChecksumSHA1 = ptr.String(headerValues[0])
@@ -12684,9 +12804,29 @@ func awsRestxml_deserializeOpHttpBindingsPutObjectOutput(v *PutObjectOutput, res
 		v.ChecksumSHA256 = ptr.String(headerValues[0])
 	}
 
+	if headerValues := response.Header.Values("x-amz-checksum-sha512"); len(headerValues) != 0 {
+		headerValues[0] = strings.TrimSpace(headerValues[0])
+		v.ChecksumSHA512 = ptr.String(headerValues[0])
+	}
+
 	if headerValues := response.Header.Values("x-amz-checksum-type"); len(headerValues) != 0 {
 		headerValues[0] = strings.TrimSpace(headerValues[0])
 		v.ChecksumType = types.ChecksumType(headerValues[0])
+	}
+
+	if headerValues := response.Header.Values("x-amz-checksum-xxhash128"); len(headerValues) != 0 {
+		headerValues[0] = strings.TrimSpace(headerValues[0])
+		v.ChecksumXXHASH128 = ptr.String(headerValues[0])
+	}
+
+	if headerValues := response.Header.Values("x-amz-checksum-xxhash3"); len(headerValues) != 0 {
+		headerValues[0] = strings.TrimSpace(headerValues[0])
+		v.ChecksumXXHASH3 = ptr.String(headerValues[0])
+	}
+
+	if headerValues := response.Header.Values("x-amz-checksum-xxhash64"); len(headerValues) != 0 {
+		headerValues[0] = strings.TrimSpace(headerValues[0])
+		v.ChecksumXXHASH64 = ptr.String(headerValues[0])
 	}
 
 	if headerValues := response.Header.Values("ETag"); len(headerValues) != 0 {
@@ -13909,6 +14049,11 @@ func awsRestxml_deserializeOpHttpBindingsUploadPartOutput(v *UploadPartOutput, r
 		v.ChecksumCRC64NVME = ptr.String(headerValues[0])
 	}
 
+	if headerValues := response.Header.Values("x-amz-checksum-md5"); len(headerValues) != 0 {
+		headerValues[0] = strings.TrimSpace(headerValues[0])
+		v.ChecksumMD5 = ptr.String(headerValues[0])
+	}
+
 	if headerValues := response.Header.Values("x-amz-checksum-sha1"); len(headerValues) != 0 {
 		headerValues[0] = strings.TrimSpace(headerValues[0])
 		v.ChecksumSHA1 = ptr.String(headerValues[0])
@@ -13917,6 +14062,26 @@ func awsRestxml_deserializeOpHttpBindingsUploadPartOutput(v *UploadPartOutput, r
 	if headerValues := response.Header.Values("x-amz-checksum-sha256"); len(headerValues) != 0 {
 		headerValues[0] = strings.TrimSpace(headerValues[0])
 		v.ChecksumSHA256 = ptr.String(headerValues[0])
+	}
+
+	if headerValues := response.Header.Values("x-amz-checksum-sha512"); len(headerValues) != 0 {
+		headerValues[0] = strings.TrimSpace(headerValues[0])
+		v.ChecksumSHA512 = ptr.String(headerValues[0])
+	}
+
+	if headerValues := response.Header.Values("x-amz-checksum-xxhash128"); len(headerValues) != 0 {
+		headerValues[0] = strings.TrimSpace(headerValues[0])
+		v.ChecksumXXHASH128 = ptr.String(headerValues[0])
+	}
+
+	if headerValues := response.Header.Values("x-amz-checksum-xxhash3"); len(headerValues) != 0 {
+		headerValues[0] = strings.TrimSpace(headerValues[0])
+		v.ChecksumXXHASH3 = ptr.String(headerValues[0])
+	}
+
+	if headerValues := response.Header.Values("x-amz-checksum-xxhash64"); len(headerValues) != 0 {
+		headerValues[0] = strings.TrimSpace(headerValues[0])
+		v.ChecksumXXHASH64 = ptr.String(headerValues[0])
 	}
 
 	if headerValues := response.Header.Values("ETag"); len(headerValues) != 0 {
@@ -16416,6 +16581,19 @@ func awsRestxml_deserializeDocumentChecksum(v **types.Checksum, decoder smithyxm
 				sv.ChecksumCRC64NVME = ptr.String(xtv)
 			}
 
+		case strings.EqualFold("ChecksumMD5", t.Name.Local):
+			val, err := decoder.Value()
+			if err != nil {
+				return err
+			}
+			if val == nil {
+				break
+			}
+			{
+				xtv := string(val)
+				sv.ChecksumMD5 = ptr.String(xtv)
+			}
+
 		case strings.EqualFold("ChecksumSHA1", t.Name.Local):
 			val, err := decoder.Value()
 			if err != nil {
@@ -16442,6 +16620,19 @@ func awsRestxml_deserializeDocumentChecksum(v **types.Checksum, decoder smithyxm
 				sv.ChecksumSHA256 = ptr.String(xtv)
 			}
 
+		case strings.EqualFold("ChecksumSHA512", t.Name.Local):
+			val, err := decoder.Value()
+			if err != nil {
+				return err
+			}
+			if val == nil {
+				break
+			}
+			{
+				xtv := string(val)
+				sv.ChecksumSHA512 = ptr.String(xtv)
+			}
+
 		case strings.EqualFold("ChecksumType", t.Name.Local):
 			val, err := decoder.Value()
 			if err != nil {
@@ -16453,6 +16644,45 @@ func awsRestxml_deserializeDocumentChecksum(v **types.Checksum, decoder smithyxm
 			{
 				xtv := string(val)
 				sv.ChecksumType = types.ChecksumType(xtv)
+			}
+
+		case strings.EqualFold("ChecksumXXHASH128", t.Name.Local):
+			val, err := decoder.Value()
+			if err != nil {
+				return err
+			}
+			if val == nil {
+				break
+			}
+			{
+				xtv := string(val)
+				sv.ChecksumXXHASH128 = ptr.String(xtv)
+			}
+
+		case strings.EqualFold("ChecksumXXHASH3", t.Name.Local):
+			val, err := decoder.Value()
+			if err != nil {
+				return err
+			}
+			if val == nil {
+				break
+			}
+			{
+				xtv := string(val)
+				sv.ChecksumXXHASH3 = ptr.String(xtv)
+			}
+
+		case strings.EqualFold("ChecksumXXHASH64", t.Name.Local):
+			val, err := decoder.Value()
+			if err != nil {
+				return err
+			}
+			if val == nil {
+				break
+			}
+			{
+				xtv := string(val)
+				sv.ChecksumXXHASH64 = ptr.String(xtv)
 			}
 
 		default:
@@ -16789,6 +17019,19 @@ func awsRestxml_deserializeDocumentCopyObjectResult(v **types.CopyObjectResult, 
 				sv.ChecksumCRC64NVME = ptr.String(xtv)
 			}
 
+		case strings.EqualFold("ChecksumMD5", t.Name.Local):
+			val, err := decoder.Value()
+			if err != nil {
+				return err
+			}
+			if val == nil {
+				break
+			}
+			{
+				xtv := string(val)
+				sv.ChecksumMD5 = ptr.String(xtv)
+			}
+
 		case strings.EqualFold("ChecksumSHA1", t.Name.Local):
 			val, err := decoder.Value()
 			if err != nil {
@@ -16815,6 +17058,19 @@ func awsRestxml_deserializeDocumentCopyObjectResult(v **types.CopyObjectResult, 
 				sv.ChecksumSHA256 = ptr.String(xtv)
 			}
 
+		case strings.EqualFold("ChecksumSHA512", t.Name.Local):
+			val, err := decoder.Value()
+			if err != nil {
+				return err
+			}
+			if val == nil {
+				break
+			}
+			{
+				xtv := string(val)
+				sv.ChecksumSHA512 = ptr.String(xtv)
+			}
+
 		case strings.EqualFold("ChecksumType", t.Name.Local):
 			val, err := decoder.Value()
 			if err != nil {
@@ -16826,6 +17082,45 @@ func awsRestxml_deserializeDocumentCopyObjectResult(v **types.CopyObjectResult, 
 			{
 				xtv := string(val)
 				sv.ChecksumType = types.ChecksumType(xtv)
+			}
+
+		case strings.EqualFold("ChecksumXXHASH128", t.Name.Local):
+			val, err := decoder.Value()
+			if err != nil {
+				return err
+			}
+			if val == nil {
+				break
+			}
+			{
+				xtv := string(val)
+				sv.ChecksumXXHASH128 = ptr.String(xtv)
+			}
+
+		case strings.EqualFold("ChecksumXXHASH3", t.Name.Local):
+			val, err := decoder.Value()
+			if err != nil {
+				return err
+			}
+			if val == nil {
+				break
+			}
+			{
+				xtv := string(val)
+				sv.ChecksumXXHASH3 = ptr.String(xtv)
+			}
+
+		case strings.EqualFold("ChecksumXXHASH64", t.Name.Local):
+			val, err := decoder.Value()
+			if err != nil {
+				return err
+			}
+			if val == nil {
+				break
+			}
+			{
+				xtv := string(val)
+				sv.ChecksumXXHASH64 = ptr.String(xtv)
 			}
 
 		case strings.EqualFold("ETag", t.Name.Local):
@@ -16933,6 +17228,19 @@ func awsRestxml_deserializeDocumentCopyPartResult(v **types.CopyPartResult, deco
 				sv.ChecksumCRC64NVME = ptr.String(xtv)
 			}
 
+		case strings.EqualFold("ChecksumMD5", t.Name.Local):
+			val, err := decoder.Value()
+			if err != nil {
+				return err
+			}
+			if val == nil {
+				break
+			}
+			{
+				xtv := string(val)
+				sv.ChecksumMD5 = ptr.String(xtv)
+			}
+
 		case strings.EqualFold("ChecksumSHA1", t.Name.Local):
 			val, err := decoder.Value()
 			if err != nil {
@@ -16957,6 +17265,58 @@ func awsRestxml_deserializeDocumentCopyPartResult(v **types.CopyPartResult, deco
 			{
 				xtv := string(val)
 				sv.ChecksumSHA256 = ptr.String(xtv)
+			}
+
+		case strings.EqualFold("ChecksumSHA512", t.Name.Local):
+			val, err := decoder.Value()
+			if err != nil {
+				return err
+			}
+			if val == nil {
+				break
+			}
+			{
+				xtv := string(val)
+				sv.ChecksumSHA512 = ptr.String(xtv)
+			}
+
+		case strings.EqualFold("ChecksumXXHASH128", t.Name.Local):
+			val, err := decoder.Value()
+			if err != nil {
+				return err
+			}
+			if val == nil {
+				break
+			}
+			{
+				xtv := string(val)
+				sv.ChecksumXXHASH128 = ptr.String(xtv)
+			}
+
+		case strings.EqualFold("ChecksumXXHASH3", t.Name.Local):
+			val, err := decoder.Value()
+			if err != nil {
+				return err
+			}
+			if val == nil {
+				break
+			}
+			{
+				xtv := string(val)
+				sv.ChecksumXXHASH3 = ptr.String(xtv)
+			}
+
+		case strings.EqualFold("ChecksumXXHASH64", t.Name.Local):
+			val, err := decoder.Value()
+			if err != nil {
+				return err
+			}
+			if val == nil {
+				break
+			}
+			{
+				xtv := string(val)
+				sv.ChecksumXXHASH64 = ptr.String(xtv)
 			}
 
 		case strings.EqualFold("ETag", t.Name.Local):
@@ -22696,6 +23056,19 @@ func awsRestxml_deserializeDocumentObjectPart(v **types.ObjectPart, decoder smit
 				sv.ChecksumCRC64NVME = ptr.String(xtv)
 			}
 
+		case strings.EqualFold("ChecksumMD5", t.Name.Local):
+			val, err := decoder.Value()
+			if err != nil {
+				return err
+			}
+			if val == nil {
+				break
+			}
+			{
+				xtv := string(val)
+				sv.ChecksumMD5 = ptr.String(xtv)
+			}
+
 		case strings.EqualFold("ChecksumSHA1", t.Name.Local):
 			val, err := decoder.Value()
 			if err != nil {
@@ -22720,6 +23093,58 @@ func awsRestxml_deserializeDocumentObjectPart(v **types.ObjectPart, decoder smit
 			{
 				xtv := string(val)
 				sv.ChecksumSHA256 = ptr.String(xtv)
+			}
+
+		case strings.EqualFold("ChecksumSHA512", t.Name.Local):
+			val, err := decoder.Value()
+			if err != nil {
+				return err
+			}
+			if val == nil {
+				break
+			}
+			{
+				xtv := string(val)
+				sv.ChecksumSHA512 = ptr.String(xtv)
+			}
+
+		case strings.EqualFold("ChecksumXXHASH128", t.Name.Local):
+			val, err := decoder.Value()
+			if err != nil {
+				return err
+			}
+			if val == nil {
+				break
+			}
+			{
+				xtv := string(val)
+				sv.ChecksumXXHASH128 = ptr.String(xtv)
+			}
+
+		case strings.EqualFold("ChecksumXXHASH3", t.Name.Local):
+			val, err := decoder.Value()
+			if err != nil {
+				return err
+			}
+			if val == nil {
+				break
+			}
+			{
+				xtv := string(val)
+				sv.ChecksumXXHASH3 = ptr.String(xtv)
+			}
+
+		case strings.EqualFold("ChecksumXXHASH64", t.Name.Local):
+			val, err := decoder.Value()
+			if err != nil {
+				return err
+			}
+			if val == nil {
+				break
+			}
+			{
+				xtv := string(val)
+				sv.ChecksumXXHASH64 = ptr.String(xtv)
 			}
 
 		case strings.EqualFold("PartNumber", t.Name.Local):
@@ -23289,6 +23714,19 @@ func awsRestxml_deserializeDocumentPart(v **types.Part, decoder smithyxml.NodeDe
 				sv.ChecksumCRC64NVME = ptr.String(xtv)
 			}
 
+		case strings.EqualFold("ChecksumMD5", t.Name.Local):
+			val, err := decoder.Value()
+			if err != nil {
+				return err
+			}
+			if val == nil {
+				break
+			}
+			{
+				xtv := string(val)
+				sv.ChecksumMD5 = ptr.String(xtv)
+			}
+
 		case strings.EqualFold("ChecksumSHA1", t.Name.Local):
 			val, err := decoder.Value()
 			if err != nil {
@@ -23313,6 +23751,58 @@ func awsRestxml_deserializeDocumentPart(v **types.Part, decoder smithyxml.NodeDe
 			{
 				xtv := string(val)
 				sv.ChecksumSHA256 = ptr.String(xtv)
+			}
+
+		case strings.EqualFold("ChecksumSHA512", t.Name.Local):
+			val, err := decoder.Value()
+			if err != nil {
+				return err
+			}
+			if val == nil {
+				break
+			}
+			{
+				xtv := string(val)
+				sv.ChecksumSHA512 = ptr.String(xtv)
+			}
+
+		case strings.EqualFold("ChecksumXXHASH128", t.Name.Local):
+			val, err := decoder.Value()
+			if err != nil {
+				return err
+			}
+			if val == nil {
+				break
+			}
+			{
+				xtv := string(val)
+				sv.ChecksumXXHASH128 = ptr.String(xtv)
+			}
+
+		case strings.EqualFold("ChecksumXXHASH3", t.Name.Local):
+			val, err := decoder.Value()
+			if err != nil {
+				return err
+			}
+			if val == nil {
+				break
+			}
+			{
+				xtv := string(val)
+				sv.ChecksumXXHASH3 = ptr.String(xtv)
+			}
+
+		case strings.EqualFold("ChecksumXXHASH64", t.Name.Local):
+			val, err := decoder.Value()
+			if err != nil {
+				return err
+			}
+			if val == nil {
+				break
+			}
+			{
+				xtv := string(val)
+				sv.ChecksumXXHASH64 = ptr.String(xtv)
 			}
 
 		case strings.EqualFold("ETag", t.Name.Local):
