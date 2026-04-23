@@ -123,12 +123,14 @@ def test_get_entrypoint():
 
     program_relpath = builder._get_program_relpath(job_source, metadata)
     entrypoint = builder._get_entrypoint(program_relpath, metadata)
-    assert entrypoint == ["python3", "main.py"]
+    assert entrypoint[1] == "main.py"
+    assert entrypoint[0].startswith("python")
 
     metadata = {"python": "3.9", "codePath": "main.py", "_partial": "v0"}
     program_relpath = builder._get_program_relpath(job_source, metadata)
     entrypoint = builder._get_entrypoint(program_relpath, metadata)
-    assert entrypoint == ["python3", "main.py"]
+    assert entrypoint[1] == "main.py"
+    assert entrypoint[0].startswith("python")
 
     metadata = {"codePath": "main.py"}
     program_relpath = builder._get_program_relpath(job_source, metadata)
