@@ -96,6 +96,7 @@ def plotly_media() -> wandb.Plotly:
         "plotly_media",
     ],
 )
+@pytest.mark.usefixtures("patch_max_cli_version")
 def test_log_media_saves_to_run_directory(mock_run, request, media_object):
     run = mock_run(use_magic_mock=True)
     media_object = request.getfixturevalue(media_object)
@@ -126,6 +127,7 @@ def test_log_media_with_invalid_character_on_windows(
         image_media.bind_to_run(run, f"image{invalid_character}test", 0)
 
 
+@pytest.mark.usefixtures("patch_max_cli_version")
 def test_log_media_with_path_traversal(mock_run, image_media):
     run = mock_run()
     image_media.bind_to_run(run, "../../../image", 0)
@@ -143,6 +145,7 @@ def test_log_media_with_path_traversal(mock_run, image_media):
         "my///image",
     ],
 )
+@pytest.mark.usefixtures("patch_max_cli_version")
 def test_log_media_prefixed_with_multiple_slashes(mock_run, media_key, image_media):
     run = mock_run()
     image_media.bind_to_run(run, media_key, 0)
