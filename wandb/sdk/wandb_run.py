@@ -1853,7 +1853,7 @@ class Run:
         For optimal performance, limit your logging to once every N iterations,
         or collect data over multiple iterations and log it in a single step.
 
-        By default, each call to `wandb.Run.log()` creates a new "step".
+        By default, each call to `run.log()` creates a new "step".
         The step must always increase, and it is not possible to log
         to a previous step. You can use any metric as the X axis in charts.
         See [Custom log axes](https://docs.wandb.ai/models/track/log/customize-logging-axes)
@@ -3034,7 +3034,7 @@ class Run:
     ) -> Artifact:
         """Declare an artifact as an input to a run.
 
-        Call `.download` or `.file` on the returned object to get the contents locally.
+        Call `download()` or `file()` on the returned object to get the contents locally.
 
         Args:
             artifact_or_name: The name of the artifact to use. May be prefixed
