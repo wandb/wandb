@@ -7,7 +7,6 @@ from typing import Callable
 import pytest
 import wandb
 from hypothesis import settings
-from wandb.sdk import wandb_setup
 
 settings.register_profile(
     "ci",
@@ -31,10 +30,6 @@ def unit_test_fake_base_url(monkeypatch: pytest.MonkeyPatch, clean_up) -> None:
     _ = clean_up
 
     monkeypatch.setenv("WANDB_BASE_URL", _UNIT_TEST_BASE_URL)
-
-    # Keep the singleton and the global API proxy aligned with the patched URL.
-    wandb_setup.singleton().settings.base_url = _UNIT_TEST_BASE_URL
-    wandb.ensure_configured()
 
 
 @pytest.fixture

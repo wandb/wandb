@@ -10,6 +10,17 @@ from wandb.sdk import wandb_login, wandb_setup
 from wandb.sdk.lib.credentials import _expires_at_fmt
 
 
+@pytest.fixture(autouse=True)
+def suppress_logged_in_message(monkeypatch: pytest.MonkeyPatch) -> None:
+    # The banner fetches viewer info; keep login unit tests focused on prompt
+    # and config behavior instead of network-backed account lookups.
+    monkeypatch.setattr(
+        wandb_login,
+        "_print_logged_in_message",
+        lambda *args, **kwargs: None,
+    )
+
+
 def test_login_timeout(emulated_terminal):
     emulated_terminal.queue_input("junk")
     emulated_terminal.queue_input("more")
