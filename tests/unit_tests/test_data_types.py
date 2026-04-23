@@ -164,6 +164,7 @@ def test_captions(
     assert wandb.Image.all_captions([wbone, wbtwo]) == ["Cool", "Nice"]
 
 
+@pytest.mark.usefixtures("patch_max_cli_version")
 def test_bind_image(
     mock_run,
     image,
@@ -179,6 +180,7 @@ def test_image_accepts_other_images():
     assert image_a == image_b
 
 
+@pytest.mark.usefixtures("patch_max_cli_version")
 def test_image_accepts_bounding_boxes(
     mock_run,
     image,
@@ -199,6 +201,7 @@ def test_image_accepts_bounding_boxes(
     assert os.path.exists(os.path.join(run.dir, path))
 
 
+@pytest.mark.usefixtures("patch_max_cli_version")
 def test_image_accepts_bounding_boxes_optional_args(
     mock_run,
     image,
@@ -224,6 +227,7 @@ def test_image_accepts_bounding_boxes_optional_args(
     assert os.path.exists(os.path.join(run.dir, path))
 
 
+@pytest.mark.usefixtures("patch_max_cli_version")
 def test_image_accepts_masks(
     mock_run,
     image,
@@ -242,6 +246,7 @@ def test_image_accepts_masks(
     assert os.path.exists(os.path.join(run.dir, path))
 
 
+@pytest.mark.usefixtures("patch_max_cli_version")
 def test_image_accepts_masks_without_class_labels(
     mock_run,
     image,
@@ -261,6 +266,7 @@ def test_image_accepts_masks_without_class_labels(
     assert os.path.exists(os.path.join(run.dir, path))
 
 
+@pytest.mark.usefixtures("patch_max_cli_version")
 def test_image_seq_to_json(
     mock_run,
     image,
@@ -272,6 +278,7 @@ def test_image_seq_to_json(
     assert os.path.exists(os.path.join(run.dir, "media", "images", "test_0_0.png"))
 
 
+@pytest.mark.usefixtures("patch_max_cli_version")
 def test_max_images(mock_run):
     run = mock_run()
     large_image = np.random.randint(255, size=(10, 10))
