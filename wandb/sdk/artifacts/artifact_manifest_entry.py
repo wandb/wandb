@@ -32,6 +32,7 @@ from wandb.sdk.lib.hashutil import (
 from wandb.sdk.lib.paths import FilePathStr, LogicalPath, URIStr
 
 from ._models.base_model import ArtifactsBase
+from ._validators import validate_fspath
 
 if TYPE_CHECKING:
     from .artifact import Artifact
@@ -171,7 +172,7 @@ class ArtifactManifestEntry(ArtifactsBase):
         """
         artifact = self.parent_artifact()
         rootdir = artifact._add_download_root(root)
-        dest_path = os.path.join(rootdir, self.path)
+        dest_path = validate_fspath(rootdir, self.path)
 
         # Skip checking the cache (and possibly downloading) if the file already exists
         # and has the digest we're expecting.
