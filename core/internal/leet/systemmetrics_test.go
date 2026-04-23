@@ -24,16 +24,17 @@ func TestMatchMetricDef_BasicFamilies(t *testing.T) {
 		{"System memory %", "memory_percent", "System Memory", "%"},
 		{"Network rx bytes", "network.recv", "Network Rx", "B"},
 		{"Process GPU mem bytes", "gpu.process.3.memoryAllocatedBytes", "Process GPU Memory", "B"},
+		{"TPU runtime HBM util", "tpu.0.runtimeHbmUtilization", "TPU Runtime HBM Utilization", "%"},
+		{"TPU tensorcore idle duration", "tpu.1.tensorcoreIdleDuration", "TPU Tensorcore Idle Duration", ""},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			def := leet.MatchMetricDef(tc.metric)
-			require.Equal(t,
-				fmt.Sprintf("%s (%s)", tc.wantName, tc.wantUnit),
-				def.Title(),
-				"metric: %s",
-				tc.metric,
-			)
+			wantTitle := tc.wantName
+			if tc.wantUnit != "" {
+				wantTitle = fmt.Sprintf("%s (%s)", tc.wantName, tc.wantUnit)
+			}
+			require.Equal(t, wantTitle, def.Title(), "metric: %s", tc.metric)
 		})
 	}
 }
