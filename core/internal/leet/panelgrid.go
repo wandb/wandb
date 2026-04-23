@@ -189,6 +189,28 @@ func (gn *GridNavigator) TotalPages() int {
 	return gn.totalPages
 }
 
+// GoHome jumps to the first page. Returns true if the page changed.
+func (gn *GridNavigator) GoHome() bool {
+	if gn.totalPages <= 0 || gn.currentPage == 0 {
+		return false
+	}
+	gn.currentPage = 0
+	return true
+}
+
+// GoEnd jumps to the last page. Returns true if the page changed.
+func (gn *GridNavigator) GoEnd() bool {
+	if gn.totalPages <= 0 {
+		return false
+	}
+	last := gn.totalPages - 1
+	if gn.currentPage == last {
+		return false
+	}
+	gn.currentPage = last
+	return true
+}
+
 // PageBounds returns the start and end indices for the current page.
 func (gn *GridNavigator) PageBounds(itemCount, itemsPerPage int) (startIdx, endIdx int) {
 	startIdx = gn.currentPage * itemsPerPage

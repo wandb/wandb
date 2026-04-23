@@ -122,6 +122,18 @@ func (s *PagedList) Home() {
 	s.currentLine = 0
 }
 
+// End navigates to the last item on the last page.
+func (s *PagedList) End() {
+	if !s.hasNavigableItems() {
+		s.resetCursor()
+		return
+	}
+
+	totalPages := s.totalPages()
+	s.currentPage = totalPages - 1
+	s.currentLine = s.itemsOnPage(s.currentPage) - 1
+}
+
 func (s *PagedList) SetPageAndLine(page, line int) {
 	if !s.hasNavigableItems() {
 		s.resetCursor()

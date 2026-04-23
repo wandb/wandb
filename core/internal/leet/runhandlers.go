@@ -17,6 +17,7 @@ func (r *Run) handleRecordMsg(msg tea.Msg) (*Run, tea.Cmd) { // TODO: return jus
 	defer func() {
 		r.logger.Debug(fmt.Sprintf("perf: processRecordMsg(%T) took %s", msg, time.Since(start)))
 	}()
+	defer r.focusMgr.ResolveAfterAvailabilityChange()
 
 	switch msg := msg.(type) {
 	case RunMsg:
@@ -30,14 +31,14 @@ func (r *Run) handleRecordMsg(msg tea.Msg) (*Run, tea.Cmd) { // TODO: return jus
 
 	case HistoryMsg:
 		r.logger.Debug("model: processing HistoryMsg")
-		if r.runState == RunStateRunning {
+		if r.shouldResetLiveHeartbeat() {
 			r.heartbeatMgr.Reset(r.isRunning)
 		}
 		return r.handleHistoryMsg(msg)
 
 	case StatsMsg:
 		r.logger.Debug(fmt.Sprintf("model: processing StatsMsg with timestamp %d", msg.Timestamp))
-		if r.runState == RunStateRunning {
+		if r.shouldResetLiveHeartbeat() {
 			r.heartbeatMgr.Reset(r.isRunning)
 		}
 		r.rightSidebar.ProcessStatsMsg(msg)
@@ -311,7 +312,7 @@ func (r *Run) handleKeyPressMsg(msg tea.KeyPressMsg) tea.Cmd {
 	// Focus-aware key dispatch: route to the currently focused component.
 	switch r.focusMgr.Current() {
 	case FocusTargetMetricsGrid, FocusTargetSystemMetrics:
-		if cmd := r.handleGridWASD(msg); cmd != nil {
+		if cmd := r.handleGridNav(msg); cmd != nil {
 			return cmd
 		}
 	case FocusTargetMedia:
@@ -423,6 +424,10 @@ func (r *Run) handlePrevPage(msg tea.KeyPressMsg) tea.Cmd {
 		r.rightSidebar.metricsGrid.Navigate(-1)
 	case FocusTargetMedia:
 		r.mediaPane.NavigatePage(-1)
+	case FocusTargetOverview:
+		r.leftSidebar.navigatePageUp()
+	case FocusTargetConsoleLogs:
+		r.consoleLogsPane.PageUp()
 	}
 	return nil
 }
@@ -435,6 +440,42 @@ func (r *Run) handleNextPage(msg tea.KeyPressMsg) tea.Cmd {
 		r.rightSidebar.metricsGrid.Navigate(1)
 	case FocusTargetMedia:
 		r.mediaPane.NavigatePage(1)
+	case FocusTargetOverview:
+		r.leftSidebar.navigatePageDown()
+	case FocusTargetConsoleLogs:
+		r.consoleLogsPane.PageDown()
+	}
+	return nil
+}
+
+func (r *Run) handleNavHome(msg tea.KeyPressMsg) tea.Cmd {
+	switch r.focusMgr.Current() {
+	case FocusTargetMetricsGrid:
+		r.metricsGrid.NavigateHome()
+	case FocusTargetSystemMetrics:
+		r.rightSidebar.metricsGrid.NavigateHome()
+	case FocusTargetMedia:
+		r.mediaPane.ScrubToStart()
+	case FocusTargetOverview:
+		r.leftSidebar.navigateHome()
+	case FocusTargetConsoleLogs:
+		r.consoleLogsPane.ScrollToStart()
+	}
+	return nil
+}
+
+func (r *Run) handleNavEnd(msg tea.KeyPressMsg) tea.Cmd {
+	switch r.focusMgr.Current() {
+	case FocusTargetMetricsGrid:
+		r.metricsGrid.NavigateEnd()
+	case FocusTargetSystemMetrics:
+		r.rightSidebar.metricsGrid.NavigateEnd()
+	case FocusTargetMedia:
+		r.mediaPane.ScrubToEnd()
+	case FocusTargetOverview:
+		r.leftSidebar.navigateEnd()
+	case FocusTargetConsoleLogs:
+		r.consoleLogsPane.ScrollToEnd()
 	}
 	return nil
 }
@@ -517,26 +558,62 @@ func (r *Run) metricsGridAnimationCmd() tea.Cmd {
 	})
 }
 
-func (r *Run) handleGridWASD(msg tea.KeyPressMsg) tea.Cmd {
-	var dr, dc int
-	switch normalizeKey(msg.String()) {
-	case "w":
-		dr = -1
-	case "s":
-		dr = 1
-	case "a":
-		dc = -1
-	case "d":
-		dc = 1
-	default:
+func (r *Run) handleGridNav(msg tea.KeyPressMsg) tea.Cmd {
+	intent := DecodeNav(msg)
+	if intent == NavIntentNone {
 		return nil
 	}
 
-	switch r.focusMgr.Current() {
-	case FocusTargetMetricsGrid:
-		r.metricsGrid.NavigateFocus(dr, dc)
-	case FocusTargetSystemMetrics:
-		r.rightSidebar.metricsGrid.NavigateFocus(dr, dc)
+	applyFocus := func(dr, dc int) {
+		switch r.focusMgr.Current() {
+		case FocusTargetMetricsGrid:
+			r.metricsGrid.NavigateFocus(dr, dc)
+		case FocusTargetSystemMetrics:
+			r.rightSidebar.metricsGrid.NavigateFocus(dr, dc)
+		}
+	}
+	applyPage := func(dir int) {
+		switch r.focusMgr.Current() {
+		case FocusTargetMetricsGrid:
+			r.metricsGrid.Navigate(dir)
+		case FocusTargetSystemMetrics:
+			r.rightSidebar.metricsGrid.Navigate(dir)
+		}
+	}
+	applyJump := func(end bool) {
+		switch r.focusMgr.Current() {
+		case FocusTargetMetricsGrid:
+			if end {
+				r.metricsGrid.NavigateEnd()
+			} else {
+				r.metricsGrid.NavigateHome()
+			}
+		case FocusTargetSystemMetrics:
+			if end {
+				r.rightSidebar.metricsGrid.NavigateEnd()
+			} else {
+				r.rightSidebar.metricsGrid.NavigateHome()
+			}
+		}
+	}
+
+	switch intent {
+	case NavIntentUp:
+		applyFocus(-1, 0)
+	case NavIntentDown:
+		applyFocus(1, 0)
+	case NavIntentLeft:
+		applyFocus(0, -1)
+	case NavIntentRight:
+		applyFocus(0, 1)
+	case NavIntentPageUp:
+		applyPage(-1)
+	case NavIntentPageDown:
+		applyPage(1)
+	case NavIntentHome:
+		applyJump(false)
+	case NavIntentEnd:
+		applyJump(true)
 	}
 	// Return a no-op command to signal the key was consumed.
 	return func() tea.Msg { return nil }
@@ -804,7 +881,8 @@ func (r *Run) handleChunkedBatch(msg ChunkedBatchMsg) []tea.Cmd {
 
 	r.recordsLoaded += msg.Progress
 
-	cmds := r.handleRecordsBatch(msg.Msgs, false)
+	// Draw once per boot chunk instead of once per history record.
+	cmds := r.handleRecordsBatch(msg.Msgs, true)
 
 	if msg.HasMore {
 		cmds = append(
@@ -879,27 +957,26 @@ func (r *Run) handleSidebarTabNav(msg tea.KeyPressMsg) tea.Cmd {
 }
 
 func (r *Run) handleSidebarVerticalNav(msg tea.KeyPressMsg) tea.Cmd {
+	up := DecodeNav(msg) == NavIntentUp
 	switch r.focusMgr.Current() {
 	case FocusTargetMedia:
-		switch msg.Code {
-		case tea.KeyUp:
+		// Media pane keeps arrow-vs-letter distinction: arrows scrub by 10.
+		if up {
 			r.mediaPane.Scrub(-10)
-		case tea.KeyDown:
+		} else {
 			r.mediaPane.Scrub(10)
 		}
 	case FocusTargetConsoleLogs:
-		switch msg.Code {
-		case tea.KeyUp:
+		if up {
 			r.consoleLogsPane.Up()
-		case tea.KeyDown:
+		} else {
 			r.consoleLogsPane.Down()
 		}
 	case FocusTargetOverview:
 		if r.leftSidebar.IsVisible() {
-			switch msg.Code {
-			case tea.KeyUp:
+			if up {
 				r.leftSidebar.navigateUp()
-			case tea.KeyDown:
+			} else {
 				r.leftSidebar.navigateDown()
 			}
 		}
@@ -908,27 +985,26 @@ func (r *Run) handleSidebarVerticalNav(msg tea.KeyPressMsg) tea.Cmd {
 }
 
 func (r *Run) handleSidebarPageNav(msg tea.KeyPressMsg) tea.Cmd {
+	left := DecodeNav(msg) == NavIntentLeft
 	switch r.focusMgr.Current() {
 	case FocusTargetMedia:
-		switch msg.Code {
-		case tea.KeyLeft:
+		// Media pane keeps arrow-vs-letter distinction: arrows scrub by 1.
+		if left {
 			r.mediaPane.Scrub(-1)
-		case tea.KeyRight:
+		} else {
 			r.mediaPane.Scrub(1)
 		}
 	case FocusTargetConsoleLogs:
-		switch msg.Code {
-		case tea.KeyLeft:
+		if left {
 			r.consoleLogsPane.PageUp()
-		case tea.KeyRight:
+		} else {
 			r.consoleLogsPane.PageDown()
 		}
 	case FocusTargetOverview:
 		if r.leftSidebar.IsVisible() {
-			switch msg.Code {
-			case tea.KeyLeft:
+			if left {
 				r.leftSidebar.navigatePageUp()
-			case tea.KeyRight:
+			} else {
 				r.leftSidebar.navigatePageDown()
 			}
 		}
