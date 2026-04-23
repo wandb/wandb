@@ -664,6 +664,7 @@ class Run:
         self._poll_exit_response = None
         self._internal_messages_response = None
         self._poll_exit_handle = None
+        self._finish_timed_out = False
 
         # Initialize telemetry object
         self._telemetry_obj = telemetry.TelemetryRecord()
@@ -2306,13 +2307,20 @@ class Run:
                 ),
                 run=self,
             )
-        return self._finish(exit_code)
+
+        self._finish(exit_code)
 
     @_log_to_run
     def _finish(
         self,
         exit_code: int | None = None,
     ) -> None:
+        """Finish the run and clean up all its resources.
+
+        Raises:
+            TimeoutError: If a finish timeout was set and the run timed out
+                before uploading fully.
+        """
         if self._is_finished:
             return
 
@@ -2354,6 +2362,12 @@ class Run:
             if wandb.run is self:
                 module.unset_globals()
             get_sentry().end_session()
+
+        if self._finish_timed_out and self.settings.finish_timeout_raises:
+            # NOTE: A timeout is theoretically possible in offline mode, so
+            # it's best not to assume what it implies (like "didn't finish
+            # uploading data").
+            raise TimeoutError("Timed out finishing run.")
 
     @_log_to_run
     @_raise_if_finished
@@ -2729,6 +2743,19 @@ class Run:
             return artifact
 
     def _on_finish(self) -> None:
+        """Shut down the run.
+
+        This sends and waits for an exit record to mark the run complete.
+        It also shuts down the run status checker, fetches some final
+        info like the run summary and any messages (storing the results
+        as attributes), and unregisters telemetry import hooks.
+
+        Sets `_finish_timed_out` if a finish timeout was set and the run
+        timed out before uploading completely.
+
+        TODO: Refactor this method, it does too much and not enough (some
+        shutdown steps happen outside it).
+        """
         trigger.call("on_finished")
 
         if self._run_status_checker is not None:
@@ -2745,7 +2772,7 @@ class Run:
             default_text="Finishing up...",
         ) as progress_printer:
             # Wait for the run to complete.
-            wait_with_progress(
+            result = wait_with_progress(
                 exit_handle,
                 timeout=None,
                 display_progress=functools.partial(
@@ -2754,6 +2781,8 @@ class Run:
                     self._interface,
                 ),
             )
+
+        self._finish_timed_out = result.exit_result.timed_out
 
         poll_exit_handle = self._interface.deliver_poll_exit()
         result = poll_exit_handle.wait_or(timeout=None)
@@ -3661,13 +3690,13 @@ class Run:
         exc_type: type[BaseException] | None,
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
-    ) -> bool:
+    ) -> None:
         exception_raised = exc_type is not None
         if exception_raised:
             traceback.print_exception(exc_type, exc_val, exc_tb)
         exit_code = 1 if exception_raised else 0
+
         self._finish(exit_code=exit_code)
-        return not exception_raised
 
     @_log_to_run
     @_raise_if_finished

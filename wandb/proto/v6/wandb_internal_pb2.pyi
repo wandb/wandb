@@ -291,8 +291,10 @@ class RunExitRecord(_message.Message):
     def __init__(self, exit_code: _Optional[int] = ..., not_complete: bool = ..., runtime: _Optional[int] = ..., _info: _Optional[_Union[_wandb_base_pb2._RecordInfo, _Mapping]] = ...) -> None: ...
 
 class RunExitResult(_message.Message):
-    __slots__ = ()
-    def __init__(self) -> None: ...
+    __slots__ = ("timed_out",)
+    TIMED_OUT_FIELD_NUMBER: _ClassVar[int]
+    timed_out: bool
+    def __init__(self, timed_out: bool = ...) -> None: ...
 
 class RunPreemptingRecord(_message.Message):
     __slots__ = ("_info",)

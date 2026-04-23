@@ -223,7 +223,15 @@ message RunExitRecord {
   _RecordInfo _info = 200;
 }
 
-message RunExitResult {}
+message RunExitResult {
+  // If true, the run's data may not have been fully uploaded due to
+  // a configured timeout.
+  //
+  // Clients should raise an error of some kind when this occurs
+  // to allow users to decide how to proceed (whether to ignore
+  // the error, print a message, or stop their script).
+  bool timed_out = 1;
+}
 
 /*
  * RunPreemptingRecord: run being preempted

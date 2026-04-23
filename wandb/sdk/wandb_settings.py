@@ -54,6 +54,7 @@ CLIENT_ONLY_SETTINGS = (
     "anonymous",
     "app_url_override",
     "files_dir",
+    "finish_timeout_raises",
     "max_end_of_run_history_metrics",
     "max_end_of_run_summary_metrics",
     "reinit",
@@ -280,6 +281,43 @@ class Settings(BaseModel, validate_assignment=True):
 
     init_timeout: float = 90.0
     """Time in seconds to wait for the `wandb.init` call to complete before timing out."""
+
+    finish_timeout: float = 0.0
+    """Time in seconds to wait for data to upload at the end of a run.
+
+    Setting this can limit costs caused by slow uploads to W&B at the end of a
+    run, with the trade-off that the run will be marked crashed and may be
+    missing some data. The default is for `run.finish()` to block until all
+    data finishes uploading.
+
+    If this is set to a number greater than zero, W&B gives up on uploading a
+    run's data after this many seconds at the end of a run, unblocking your
+    script. After some time, the run becomes Crashed or Failed in the UI. Any
+    unuploaded data is still stored on disk and can be uploaded with `wandb
+    sync`.
+
+    Use the `finish_timeout_raises` setting to raise an error in addition to
+    printing a warning message.
+
+    Runs shut down by `wandb.teardown()` (which automatically runs at the end
+    of a script in an atexit hook) will also respect this setting.
+    """
+
+    finish_timeout_raises: bool = False
+    """Whether to raise a TimeoutError if finish_timeout expires.
+
+    Using this together with the `finish_timeout` setting causes `run.finish()`
+    to raise a TimeoutError after a timeout in addition to printing a message.
+
+    Note that `run.finish()` is called implicitly when using a Run as a context
+    manager:
+
+        with wandb.init() as run:
+            ...  # run.finish() executes at the end of the `with` block
+
+    This does not cause `wandb.teardown()` to raise an error (since it runs
+    at the end of a script anyway).
+    """
 
     insecure_disable_ssl: bool = False
     """Whether to insecurely disable SSL verification."""
