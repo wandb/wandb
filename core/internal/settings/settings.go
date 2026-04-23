@@ -441,6 +441,11 @@ func (s *Settings) IsSaveCode() bool {
 	return s.Proto.SaveCode.GetValue()
 }
 
+// Whether to stop the run after an error that prevents further uploads.
+func (s *Settings) IsStopOnFatalError() bool {
+	return s.Proto.StopOnFatalError.GetValue()
+}
+
 // Whether to disable git capture and diff generation.
 func (s *Settings) IsDisableGit() bool {
 	return s.Proto.DisableGit.GetValue()

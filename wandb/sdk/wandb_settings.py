@@ -479,6 +479,19 @@ class Settings(BaseModel, validate_assignment=True):
     <!-- lazydoc-ignore-class-attributes -->
     """
 
+    stop_on_fatal_error: bool = False
+    """Whether to stop the run after a fatal error.
+
+    After W&B hits an unrecoverable error while uploading data, it prints
+    a message and stops uploading, but still allows logging more data.
+    This is usually desirable: your training metrics get stored on disk
+    and can be recovered using `wandb sync`, even if they aren't uploaded.
+
+    This is not useful if your files get deleted after training.
+    In that case, setting this to True will stop the run after a fatal error,
+    as if the stop button was pressed in the web UI.
+    """
+
     strict: Optional[bool] = None
     """Whether to enable strict mode for validation and error checking."""
 
