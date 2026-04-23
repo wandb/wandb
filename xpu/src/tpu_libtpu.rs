@@ -212,11 +212,11 @@ const METRICS: &[MetricSpec] = &[
         unit: "",
         shape: MetricShape::Gauge,
     },
+    // TODO(dima): Re-check the libtpu SDK aliases for the metrics added in
+    // tpu-info commit 77c2957 on a real TPU VM and wire them in once confirmed.
+    // On libtpu 0.0.40 / v5p we only verified the gRPC names so far.
     MetricSpec {
-        sdk_names: &[
-            "tensorcore_idle_duration",
-            "tpu.runtime.tensorcore.idle_duration.seconds",
-        ],
+        sdk_names: &[],
         grpc_name: Some("tpu.runtime.tensorcore.idle_duration.seconds"),
         key: "tpu.{}.tensorcoreIdleDuration",
         unit: "",
@@ -244,10 +244,7 @@ const METRICS: &[MetricSpec] = &[
         shape: MetricShape::Gauge,
     },
     MetricSpec {
-        sdk_names: &[
-            "runtime_hbm_utilization",
-            "tpu.runtime.hbm.utilization.percent",
-        ],
+        sdk_names: &[],
         grpc_name: Some("tpu.runtime.hbm.utilization.percent"),
         key: "tpu.{}.runtimeHbmUtilization",
         unit: "",
@@ -1502,14 +1499,14 @@ mod tests {
     fn test_new_google_metric_specs_registered() {
         let hbm = spec_by_key("tpu.{}.runtimeHbmUtilization");
         assert_eq!(hbm.grpc_name, Some("tpu.runtime.hbm.utilization.percent"));
-        assert!(hbm.sdk_names.contains(&"runtime_hbm_utilization"));
+        assert!(hbm.sdk_names.is_empty());
 
         let idle = spec_by_key("tpu.{}.tensorcoreIdleDuration");
         assert_eq!(
             idle.grpc_name,
             Some("tpu.runtime.tensorcore.idle_duration.seconds")
         );
-        assert!(idle.sdk_names.contains(&"tensorcore_idle_duration"));
+        assert!(idle.sdk_names.is_empty());
     }
 
     #[test]

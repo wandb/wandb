@@ -25,7 +25,8 @@ func TestMatchMetricDef_BasicFamilies(t *testing.T) {
 		{"Network rx bytes", "network.recv", "Network Rx", "B"},
 		{"Process GPU mem bytes", "gpu.process.3.memoryAllocatedBytes", "Process GPU Memory", "B"},
 		{"TPU runtime HBM util", "tpu.0.runtimeHbmUtilization", "TPU Runtime HBM Utilization", "%"},
-		{"TPU tensorcore idle duration", "tpu.1.tensorcoreIdleDuration", "TPU Tensorcore Idle Duration", ""},
+		{"TPU tensorcore idle duration", "tpu.1.tensorcoreIdleDuration",
+			"TPU Tensorcore Idle Duration", ""},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
