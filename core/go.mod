@@ -14,7 +14,7 @@ require (
 	github.com/NimbleMarkets/ntcharts/v2 v2.0.1
 	github.com/aws/aws-sdk-go-v2 v1.41.6
 	github.com/aws/aws-sdk-go-v2/config v1.32.16
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.99.1
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.100.0
 	github.com/ebitengine/purego v0.10.0
 	github.com/getsentry/sentry-go v0.46.0
 	github.com/go-git/go-git/v5 v5.18.0
