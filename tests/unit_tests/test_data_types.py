@@ -396,7 +396,13 @@ def test_image_from_matplotlib_with_image():
 def test_fail_to_make_file(
     mock_run,
     image,
+    monkeypatch,
 ):
+    monkeypatch.setattr(
+        wandb.util,
+        "_get_max_cli_version",
+        lambda: pytest.fail("_get_max_cli_version() should not be called"),
+    )
     with pytest.raises(
         ValueError,
         match="is invalid. Please remove invalid filename characters",

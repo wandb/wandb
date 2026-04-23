@@ -120,8 +120,13 @@ def test_log_media_saves_to_run_directory(mock_run, request, media_object):
 )
 @pytest.mark.skipif(platform.system() != "Windows", reason="Windows-specific test")
 def test_log_media_with_invalid_character_on_windows(
-    mock_run, image_media, invalid_character
+    mock_run, image_media, invalid_character, monkeypatch
 ):
+    monkeypatch.setattr(
+        wandb.util,
+        "_get_max_cli_version",
+        lambda: pytest.fail("_get_max_cli_version() should not be called"),
+    )
     run = mock_run()
     with pytest.raises(ValueError, match="Path .* is invalid"):
         image_media.bind_to_run(run, f"image{invalid_character}test", 0)
