@@ -98,49 +98,32 @@ commands:
             echo "Datadog pod stats:"
             echo "https://us5.datadoghq.com/orchestration/explorer/pod?query=kube_cluster_name%3Aci-cluster%20pod_name%3A${POD_NAME}"
 
-  prepare-uv-cache:
-    description: |
-      Create requirements/CACHE_KEY.txt to use as the uv cache key.
-
-      Required before save-uv-cache or restore-uv-cache.
-    parameters:
-      python: { type: string } # Like "3.9" or "3.13"
-      platform: { type: string } # Like "linux", "darwin" or "windows"
+  save-build-cache:
+    description: Save Go and Rust/Cargo build caches for faster compilation.
     steps:
-      - run:
-          name: Select requirements file to use as cache key
-          command: |
-            cp \
-              "requirements/requirements_dev.<<parameters.python>>.<<parameters.platform>>.txt" \
-              "requirements/CACHE_KEY.txt"
-
-  save-uv-cache:
-    description: Save the `uv` cache for a future run.
-    steps:
-      # https://docs.astral.sh/uv/concepts/cache/#caching-in-continuous-integration
-      - run: uv cache prune --ci
-      - run: "[[ ! -e .uv-cache ]] || rm -r .uv-cache"
-      - run: cp -R "$( uv cache dir )"/ .uv-cache
       - save_cache:
-          key: uv-v2-{{ arch }}-{{ checksum "requirements/CACHE_KEY.txt" }}
+          key: go-build-v1-{{ arch }}-{{ checksum "core/go.sum" }}
           paths:
-            - .uv-cache
+            - ~/.cache/go-build
+      - save_cache:
+          key: cargo-v1-{{ arch }}-{{ checksum "parquet-rust-wrapper/Cargo.lock" }}-{{ checksum "xpu/Cargo.lock" }}
+          paths:
+            - ~/.cargo/registry
+            - ~/.cargo/git
+            - parquet-rust-wrapper/target
+            - xpu/target
 
-  restore-uv-cache:
-    description: Restore the `uv` cache from a previous run.
+  restore-build-cache:
+    description: Restore Go and Rust/Cargo build caches.
     steps:
       - restore_cache:
           keys:
-            - uv-v2-{{ arch }}-{{ checksum "requirements/CACHE_KEY.txt" }}
-            - uv-v2-{{ arch }}
-
-      - run:
-          name: Copy .uv-cache to uv cache dir, if restored from cache
-          command: |
-            if [[ -d .uv-cache ]]; then
-              cp -Rf .uv-cache/ "$( uv cache dir )"
-              echo "Wrote $( uv cache dir )"
-            fi
+            - go-build-v1-{{ arch }}-{{ checksum "core/go.sum" }}
+            - go-build-v1-{{ arch }}
+      - restore_cache:
+          keys:
+            - cargo-v1-{{ arch }}-{{ checksum "parquet-rust-wrapper/Cargo.lock" }}-{{ checksum "xpu/Cargo.lock" }}
+            - cargo-v1-{{ arch }}
 
   save-test-results:
     description: "Save test results"
@@ -380,10 +363,7 @@ jobs:
           enabled: <<parameters.install_extras>>
 
       - run: python -m pip install -U uv
-      - prepare-uv-cache:
-          python: <<parameters.python>>
-          platform: linux
-      - restore-uv-cache
+      - restore-build-cache
 
       - when:
           condition:
@@ -405,7 +385,7 @@ jobs:
           python: <<parameters.python>>
           session: <<parameters.session>>
 
-      - save-uv-cache
+      - save-build-cache
 
   nox-tests-macos:
     parameters:
@@ -426,17 +406,14 @@ jobs:
       - install_rust
 
       - run: python -m pip install -U uv
-      - prepare-uv-cache:
-          python: <<parameters.python>>
-          platform: darwin
-      - restore-uv-cache
+      - restore-build-cache
 
       - run-nox-tests:
           codecov_flags: <<parameters.codecov_flags>>
           python: <<parameters.python>>
           session: <<parameters.session>>
 
-      - save-uv-cache
+      - save-build-cache
 
   nox-tests-win:
     parameters:
@@ -473,17 +450,14 @@ jobs:
       - install_rust
 
       - run: python -m pip install -U uv
-      - prepare-uv-cache:
-          python: <<parameters.python>>
-          platform: windows
-      - restore-uv-cache
+      - restore-build-cache
 
       - run-nox-tests:
           codecov_flags: <<parameters.codecov_flags>>
           python: <<parameters.python>>
           session: <<parameters.session>>
 
-      - save-uv-cache
+      - save-build-cache
 
   code-check:
     resource_class: wandb/docker-builder
