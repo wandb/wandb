@@ -141,9 +141,7 @@ func (s *Symon) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return s, cmd
 
 	case StatsMsg:
-		for metricName, value := range msg.Metrics {
-			s.grid.AddDataPoint(metricName, msg.Timestamp, value)
-		}
+		s.grid.ProcessStats(msg)
 		s.resizeGrid()
 		cmd := s.sampleLaterCmd()
 		return s, cmd
