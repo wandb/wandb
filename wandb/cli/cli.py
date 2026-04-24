@@ -170,9 +170,6 @@ def _get_cling_api(reset=None):
         _api = None
         wandb.teardown()
     if _api is None:
-        # TODO(jhr): make a settings object that is better for non runs.
-        # only override the necessary setting
-        wandb_setup.singleton().settings.x_cli_only_mode = True
         _api = InternalApi()
     return _api
 
@@ -223,6 +220,8 @@ class RunGroup(click.Group):
 @click.pass_context
 def cli(ctx):
     _setup_logger()
+
+    wandb_setup.singleton().settings.x_cli_only_mode = True
 
     if ctx.invoked_subcommand is None:
         click.echo(ctx.get_help())
@@ -365,7 +364,6 @@ def login(key, host, cloud, relogin, anonymously, verify, no_offline=False):
     relogin = True if key or relogin else False
 
     global_settings = wandb_setup.singleton().settings
-    global_settings.x_cli_only_mode = True
     global_settings.x_disable_viewer = relogin and not verify
 
     wandb.login(

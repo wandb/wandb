@@ -226,6 +226,7 @@ class Api:
                 headers={
                     "User-Agent": self.user_agent,
                     "Use-Admin-Privileges": "true",
+                    "X-WANDB-Client-Source": "sdk",
                 },
                 use_json=True,
                 # this timeout won't apply when the DNS lookup fails. in that case, it will be 60s

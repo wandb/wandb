@@ -573,7 +573,15 @@ class Settings(BaseModel, validate_assignment=True):
     # a part of the public API as they may change or be removed in future versions.
 
     x_cli_only_mode: bool = False
-    """Flag to indicate that the SDK is running in CLI-only mode.
+    """Flag to indicate that this Python process is the wandb CLI (`wandb <cmd>`).
+
+    Set once at the top of the cli click group callback so every `wandb <cmd>`
+    invocation has this True. Used to:
+    - skip program introspection / code-path setup in Settings._infer_run_settings
+      (only needed for wandb.init, not for CLI commands)
+    - bypass the offline short-circuit in wandb_login._login (an explicit
+      `wandb login` should proceed even if WANDB_MODE=offline)
+    - tag outgoing GraphQL traffic as `client_source=cli` in InternalApi
 
     <!-- lazydoc-ignore-class-attributes -->
     """

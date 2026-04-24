@@ -13,6 +13,8 @@ import wandb
 import wandb.docker
 from wandb import env
 from wandb.cli import cli
+from wandb.sdk import wandb_setup
+from wandb.sdk.internal.internal_api import Api as InternalApi
 
 DOCKER_SHA = (
     "wandb/deepo@sha256:"
@@ -621,3 +623,29 @@ def test_purge_cache_subdirectories(runner, monkeypatch, tmp_path):
     assert result.exit_code == 0
     assert "Deleted 1 file(s)" in result.output
     assert not file.exists()
+
+
+@pytest.fixture
+def _reset_cli_only_mode():
+    settings = wandb_setup.singleton().settings
+    original = settings.x_cli_only_mode
+    settings.x_cli_only_mode = False
+    yield
+    settings.x_cli_only_mode = original
+
+
+def test_cli_group_sets_x_cli_only_mode(runner, _reset_cli_only_mode):
+    result = runner.invoke(cli.cli, [])
+    assert result.exit_code == 0
+    assert wandb_setup.singleton().settings.x_cli_only_mode is True
+
+
+def test_internal_api_tags_sdk_by_default(_reset_cli_only_mode):
+    api = InternalApi()
+    assert api.client.transport.headers["X-WANDB-Client-Source"] == "sdk"
+
+
+def test_internal_api_tags_cli_when_flag_set(_reset_cli_only_mode):
+    wandb_setup.singleton().settings.x_cli_only_mode = True
+    api = InternalApi()
+    assert api.client.transport.headers["X-WANDB-Client-Source"] == "cli"
