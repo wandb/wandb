@@ -210,10 +210,10 @@ pub mod runtime_metric_service_client {
         dead_code,
         missing_docs,
         clippy::wildcard_imports,
-        clippy::let_unit_value,
+        clippy::let_unit_value
     )]
-    use tonic::codegen::*;
     use tonic::codegen::http::Uri;
+    use tonic::codegen::*;
     #[derive(Debug, Clone)]
     pub struct RuntimeMetricServiceClient<T> {
         inner: tonic::client::Grpc<T>,
@@ -252,14 +252,13 @@ pub mod runtime_metric_service_client {
             F: tonic::service::Interceptor,
             T::ResponseBody: Default,
             T: tonic::codegen::Service<
-                http::Request<tonic::body::Body>,
-                Response = http::Response<
-                    <T as tonic::client::GrpcService<tonic::body::Body>>::ResponseBody,
+                    http::Request<tonic::body::Body>,
+                    Response = http::Response<
+                        <T as tonic::client::GrpcService<tonic::body::Body>>::ResponseBody,
+                    >,
                 >,
-            >,
-            <T as tonic::codegen::Service<
-                http::Request<tonic::body::Body>,
-            >>::Error: Into<StdError> + std::marker::Send + std::marker::Sync,
+            <T as tonic::codegen::Service<http::Request<tonic::body::Body>>>::Error:
+                Into<StdError> + std::marker::Send + std::marker::Sync,
         {
             RuntimeMetricServiceClient::new(InterceptedService::new(inner, interceptor))
         }
@@ -298,55 +297,37 @@ pub mod runtime_metric_service_client {
             &mut self,
             request: impl tonic::IntoRequest<super::MetricRequest>,
         ) -> std::result::Result<tonic::Response<super::MetricResponse>, tonic::Status> {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
             let codec = tonic_prost::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
                 "/tpu.monitoring.runtime.RuntimeMetricService/GetRuntimeMetric",
             );
             let mut req = request.into_request();
-            req.extensions_mut()
-                .insert(
-                    GrpcMethod::new(
-                        "tpu.monitoring.runtime.RuntimeMetricService",
-                        "GetRuntimeMetric",
-                    ),
-                );
+            req.extensions_mut().insert(GrpcMethod::new(
+                "tpu.monitoring.runtime.RuntimeMetricService",
+                "GetRuntimeMetric",
+            ));
             self.inner.unary(req, path, codec).await
         }
         pub async fn list_supported_metrics(
             &mut self,
             request: impl tonic::IntoRequest<super::ListSupportedMetricsRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::ListSupportedMetricsResponse>,
-            tonic::Status,
-        > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+        ) -> std::result::Result<tonic::Response<super::ListSupportedMetricsResponse>, tonic::Status>
+        {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
             let codec = tonic_prost::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
                 "/tpu.monitoring.runtime.RuntimeMetricService/ListSupportedMetrics",
             );
             let mut req = request.into_request();
-            req.extensions_mut()
-                .insert(
-                    GrpcMethod::new(
-                        "tpu.monitoring.runtime.RuntimeMetricService",
-                        "ListSupportedMetrics",
-                    ),
-                );
+            req.extensions_mut().insert(GrpcMethod::new(
+                "tpu.monitoring.runtime.RuntimeMetricService",
+                "ListSupportedMetrics",
+            ));
             self.inner.unary(req, path, codec).await
         }
     }
