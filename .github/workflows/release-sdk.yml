@@ -452,7 +452,7 @@ jobs:
         channel: [C0108SLEP6K, C01KQ5KTDC3]
     steps:
       - name: Post to Slack
-        uses: slackapi/slack-github-action@v3.0.1
+        uses: slackapi/slack-github-action@v3.0.2
         with:
           method: chat.postMessage
           token: ${{ secrets.SLACK_BOT_TOKEN }}
