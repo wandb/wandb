@@ -29,6 +29,7 @@ ipykernel
 nbclient
 
 tensorboard
+tensorboardx
 tensorflow~=2.20; sys_platform != 'darwin'
 numpy<2.4.0  # tensorflow==2.20.0 uses deprecated args removed in numpy==2.4.0
 
@@ -37,8 +38,6 @@ torch
 torchvision
 jax[cpu]
 lightning
-# As of 2025/10/08, ray wheels for python>=3.13 are not available for Windows.
-ray[air,tune]; sys_platform != 'win32'
 
 pyarrow
 kfp
