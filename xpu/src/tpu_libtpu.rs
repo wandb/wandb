@@ -212,6 +212,16 @@ const METRICS: &[MetricSpec] = &[
         unit: "",
         shape: MetricShape::Gauge,
     },
+    // TODO(dima): Re-check the libtpu SDK aliases for the metrics added in
+    // tpu-info commit 77c2957 on a real TPU VM and wire them in once confirmed.
+    // On libtpu 0.0.40 / v5p we only verified the gRPC names so far.
+    MetricSpec {
+        sdk_names: &[],
+        grpc_name: Some("tpu.runtime.tensorcore.idle_duration.seconds"),
+        key: "tpu.{}.tensorcoreIdleDuration",
+        unit: "",
+        shape: MetricShape::Gauge,
+    },
     MetricSpec {
         sdk_names: &["duty_cycle_pct"],
         grpc_name: Some("tpu.runtime.tensorcore.dutycycle.percent"),
@@ -230,6 +240,13 @@ const METRICS: &[MetricSpec] = &[
         sdk_names: &["hbm_capacity_usage"],
         grpc_name: Some("tpu.runtime.hbm.memory.usage.bytes"),
         key: "tpu.{}.hbmCapacityUsage",
+        unit: "",
+        shape: MetricShape::Gauge,
+    },
+    MetricSpec {
+        sdk_names: &[],
+        grpc_name: Some("tpu.runtime.hbm.utilization.percent"),
+        key: "tpu.{}.runtimeHbmUtilization",
         unit: "",
         shape: MetricShape::Gauge,
     },
@@ -1462,6 +1479,36 @@ mod tests {
         METRICS.iter().find(|s| s.key == key).unwrap()
     }
 
+    fn grpc_gauge_metric(device_id: i64, value: f64) -> proto::Metric {
+        proto::Metric {
+            attribute: Some(proto::Attribute {
+                key: "device_id".into(),
+                value: Some(proto::AttrValue {
+                    attr: Some(proto::attr_value::Attr::IntAttr(device_id)),
+                }),
+            }),
+            start_timestamp: None,
+            timestamp: None,
+            measure: Some(proto::metric::Measure::Gauge(proto::Gauge {
+                value: Some(proto::gauge::Value::AsDouble(value)),
+            })),
+        }
+    }
+
+    #[test]
+    fn test_new_google_metric_specs_registered() {
+        let hbm = spec_by_key("tpu.{}.runtimeHbmUtilization");
+        assert_eq!(hbm.grpc_name, Some("tpu.runtime.hbm.utilization.percent"));
+        assert!(hbm.sdk_names.is_empty());
+
+        let idle = spec_by_key("tpu.{}.tensorcoreIdleDuration");
+        assert_eq!(
+            idle.grpc_name,
+            Some("tpu.runtime.tensorcore.idle_duration.seconds")
+        );
+        assert!(idle.sdk_names.is_empty());
+    }
+
     #[test]
     fn test_format_sdk_tensorcore() {
         let data = SdkMetricData {
@@ -1473,6 +1520,34 @@ mod tests {
         let m = metrics_map(&out);
         assert_eq!(m.get("tpu.0.tensorcoreUtilization"), Some(&75.5));
         assert_eq!(m.get("tpu.1.tensorcoreUtilization"), Some(&80.2));
+    }
+
+    #[test]
+    fn test_format_grpc_runtime_hbm_utilization() {
+        let tpu_metric = proto::TpuMetric {
+            name: "tpu.runtime.hbm.utilization.percent".into(),
+            description: String::new(),
+            metrics: vec![grpc_gauge_metric(0, 61.5), grpc_gauge_metric(1, 72.25)],
+        };
+        let mut out = Vec::new();
+        spec_by_key("tpu.{}.runtimeHbmUtilization").format_grpc(&tpu_metric, 1, &mut out);
+        let m = metrics_map(&out);
+        assert_eq!(m.get("tpu.0.runtimeHbmUtilization"), Some(&61.5));
+        assert_eq!(m.get("tpu.1.runtimeHbmUtilization"), Some(&72.25));
+    }
+
+    #[test]
+    fn test_format_grpc_tensorcore_idle_duration() {
+        let tpu_metric = proto::TpuMetric {
+            name: "tpu.runtime.tensorcore.idle_duration.seconds".into(),
+            description: String::new(),
+            metrics: vec![grpc_gauge_metric(0, 1.25), grpc_gauge_metric(1, 2.5)],
+        };
+        let mut out = Vec::new();
+        spec_by_key("tpu.{}.tensorcoreIdleDuration").format_grpc(&tpu_metric, 1, &mut out);
+        let m = metrics_map(&out);
+        assert_eq!(m.get("tpu.0.tensorcoreIdleDuration"), Some(&1.25));
+        assert_eq!(m.get("tpu.1.tensorcoreIdleDuration"), Some(&2.5));
     }
 
     #[test]

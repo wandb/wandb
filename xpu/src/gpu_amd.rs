@@ -11,7 +11,7 @@ use which::which;
 
 use crate::{
     metrics::MetricValue,
-    wandb_internal::{GpuAmdInfo, EnvironmentRecord},
+    wandb_internal::{EnvironmentRecord, GpuAmdInfo},
 };
 
 // AMD GPU stats are collecting using the rocm-smi tool.
