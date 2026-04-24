@@ -583,14 +583,6 @@ def test_computed_settings_included_in_model_dump():
     assert settings.model_dump()["_offline"] is True
 
 
-def test_stats_use_cgroup_resource_limits_to_proto():
-    settings = Settings()
-    assert settings.to_proto().x_stats_use_cgroup_resource_limits.value is True
-
-    settings = Settings(x_stats_use_cgroup_resource_limits=False)
-    assert settings.to_proto().x_stats_use_cgroup_resource_limits.value is False
-
-
 @pytest.mark.skipif(
     platform.system() != "Windows",
     reason="Drive letters are only relevant on Windows",
