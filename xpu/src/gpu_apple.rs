@@ -24,7 +24,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 use crate::gpu_apple_sources::{
-    cfio_get_residencies, cfio_watts, libc_ram, libc_swap, IOHIDSensors, IOReport, SocInfo, SMC,
+    IOHIDSensors, IOReport, SMC, SocInfo, cfio_get_residencies, cfio_watts, libc_ram, libc_swap,
 };
 use crate::metrics::MetricValue;
 use crate::wandb_internal::{AppleInfo, EnvironmentRecord};
@@ -75,11 +75,7 @@ pub struct Metrics {
 
 pub fn zero_div<T: core::ops::Div<Output = T> + Default + PartialEq>(a: T, b: T) -> T {
     let zero: T = Default::default();
-    if b == zero {
-        zero
-    } else {
-        a / b
-    }
+    if b == zero { zero } else { a / b }
 }
 
 fn calc_freq(item: CFDictionaryRef, freqs: &[u32]) -> (u32, f32) {
@@ -367,7 +363,7 @@ impl Sampler {
     }
 }
 
-use std::sync::mpsc::{channel, Receiver, Sender};
+use std::sync::mpsc::{Receiver, Sender, channel};
 use tokio::sync::oneshot;
 
 // Define a specific error type for our sampler

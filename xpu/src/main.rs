@@ -34,23 +34,23 @@ mod tpu_runtime;
 
 use clap::Parser;
 use env_logger::Builder;
-use log::{debug, LevelFilter};
+use log::{LevelFilter, debug};
 use std::collections::HashMap;
 use std::io::Write;
 use std::sync::Arc;
 use tokio::net::TcpListener;
 use tokio::task::JoinHandle;
 use tokio_stream::wrappers::TcpListenerStream;
-use tonic::{transport::Server, Request, Response, Status};
+use tonic::{Request, Response, Status, transport::Server};
 
 use chrono::Utc;
 use prost_types::Timestamp;
 use wandb_internal::{
+    GetMetadataRequest, GetMetadataResponse, GetStatsRequest, GetStatsResponse, Record, StatsItem,
+    StatsRecord, TearDownRequest, TearDownResponse,
     record::RecordType,
     stats_record::StatsType,
     system_monitor_service_server::{SystemMonitorService, SystemMonitorServiceServer},
-    GetMetadataRequest, GetMetadataResponse, GetStatsRequest, GetStatsResponse, Record, StatsItem,
-    StatsRecord, TearDownRequest, TearDownResponse,
 };
 
 use monitors::GpuMonitors;
@@ -325,10 +325,8 @@ async fn create_listener(args: &Args) -> Result<ListenerType, Box<dyn std::error
                 .expect("time should go forward")
                 .as_millis();
 
-            let socket_filename = format!(
-                "wandb_xpu-{}-{}-{}.sock",
-                args.parent_pid, pid, time_stamp
-            );
+            let socket_filename =
+                format!("wandb_xpu-{}-{}-{}.sock", args.parent_pid, pid, time_stamp);
             socket_path.push(socket_filename);
 
             // Ensure the socket is removed if it already exists
@@ -375,14 +373,23 @@ fn init_file_logger(level: LevelFilter) -> Option<std::fs::File> {
             // Match Go's os.UserCacheDir(): $HOME/.cache on Linux, $HOME/Library/Caches on macOS.
             let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
             #[cfg(target_os = "macos")]
-            { format!("{home}/Library/Caches") }
+            {
+                format!("{home}/Library/Caches")
+            }
             #[cfg(not(target_os = "macos"))]
-            { format!("{home}/.cache") }
+            {
+                format!("{home}/.cache")
+            }
         });
 
-    let log_dir = std::path::PathBuf::from(&cache_dir).join("wandb").join("logs");
+    let log_dir = std::path::PathBuf::from(&cache_dir)
+        .join("wandb")
+        .join("logs");
     if let Err(e) = std::fs::create_dir_all(&log_dir) {
-        eprintln!("wandb-xpu: failed to create log dir {}: {e}", log_dir.display());
+        eprintln!(
+            "wandb-xpu: failed to create log dir {}: {e}",
+            log_dir.display()
+        );
         Builder::new().filter_level(level).init();
         return None;
     }
@@ -415,7 +422,10 @@ fn init_file_logger(level: LevelFilter) -> Option<std::fs::File> {
             Some(file)
         }
         Err(e) => {
-            eprintln!("wandb-xpu: failed to open log file {}: {e}", log_path.display());
+            eprintln!(
+                "wandb-xpu: failed to open log file {}: {e}",
+                log_path.display()
+            );
             Builder::new().filter_level(level).init();
             None
         }
