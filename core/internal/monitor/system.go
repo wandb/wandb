@@ -35,6 +35,11 @@ type System struct {
 	// pid is the process ID to monitor for CPU and memory usage.
 	pid int32
 
+	// cgroup contains cgroup filesystem paths used to read resource limits.
+	//
+	// It is nil when cgroup limits are disabled or unavailable.
+	cgroup *cgroupResourceLimits
+
 	// System CPU count.
 	cpuCount int
 
@@ -65,9 +70,10 @@ type System struct {
 }
 
 type SystemParams struct {
-	Pid              int32
-	DiskPaths        []string
-	TrackProcessTree bool
+	Pid                         int32
+	DiskPaths                   []string
+	TrackProcessTree            bool
+	DisableCgroupResourceLimits bool
 }
 
 func NewSystem(params SystemParams) *System {
@@ -83,6 +89,10 @@ func NewSystem(params SystemParams) *System {
 	// CPU core counts.
 	s.cpuCount, _ = cpu.Counts(false)
 	s.cpuCountLogical, _ = cpu.Counts(true)
+
+	if !params.DisableCgroupResourceLimits {
+		s.cgroup = detectCgroupResourceLimits(defaultCgroupPaths)
+	}
 
 	// Initialize disk devices and I/O counters.
 	s.initializeDisk()
@@ -312,14 +322,17 @@ func (s *System) collectProcessTreeMetrics(
 	}
 
 	metrics["proc.memory.rssMB"] = float64(totalRSS) / 1024 / 1024
-	if virtualMem != nil && virtualMem.Total > 0 {
+	if memoryLimitBytes, ok := s.memoryLimitBytes(); ok {
+		metrics["proc.memory.percent"] =
+			(float64(totalRSS) / float64(memoryLimitBytes)) * 100
+	} else if virtualMem != nil && virtualMem.Total > 0 {
 		metrics["proc.memory.percent"] =
 			(float64(totalRSS) / float64(virtualMem.Total)) * 100
 	}
 
-	// Normalise CPU by logical core-count
-	if s.cpuCount > 0 {
-		metrics["cpu"] = totalCPU / float64(s.cpuCount)
+	// Normalise CPU by available CPU capacity.
+	if cpuCapacity := s.cpuCapacity(); cpuCapacity > 0 {
+		metrics["cpu"] = totalCPU / cpuCapacity
 	} else {
 		metrics["cpu"] = totalCPU
 	}
@@ -348,16 +361,56 @@ func (s *System) collectSystemMemoryMetrics(
 	metrics map[string]any,
 ) (*mem.VirtualMemoryStat, error) {
 	virtualMem, err := mem.VirtualMemory()
+
+	if current, limit, ok := s.cgroupMemoryStats(); ok {
+		metrics["memory_percent"] = (float64(current) / float64(limit)) * 100
+		if current < limit {
+			metrics["proc.memory.availableMB"] = float64(limit-current) / 1024 / 1024
+		} else {
+			metrics["proc.memory.availableMB"] = 0.0
+		}
+		return virtualMem, err
+	}
+
 	if err != nil {
 		return nil, err
 	}
-
 	// Total system memory usage in percent
 	metrics["memory_percent"] = virtualMem.UsedPercent
 	// Total system memory available in MB
 	metrics["proc.memory.availableMB"] = float64(virtualMem.Available) / 1024 / 1024
 
 	return virtualMem, nil
+}
+
+func (s *System) memoryLimitBytes() (uint64, bool) {
+	if s.cgroup == nil {
+		return 0, false
+	}
+
+	return s.cgroup.MemoryLimit()
+}
+
+func (s *System) cgroupMemoryStats() (current, limit uint64, ok bool) {
+	if s.cgroup == nil {
+		return 0, 0, false
+	}
+
+	return s.cgroup.MemoryStats()
+}
+
+func (s *System) cpuCapacity() float64 {
+	if s.cgroup != nil {
+		if cpuLimit := s.cgroup.CPULimit(); cpuLimit > 0 {
+			return cpuLimit
+		}
+	}
+
+	if s.cpuCount > 0 {
+		return float64(s.cpuCount)
+	}
+
+	return 0
 }
 
 // collectDiskUsageMetrics gathers disk space utilization statistics.
