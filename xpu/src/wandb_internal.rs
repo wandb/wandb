@@ -256,6 +256,7 @@ pub struct Imports {
     #[prost(bool, tag = "107")]
     pub dspy: bool,
 }
+/// Next ID: 76
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct Feature {
     /// wandb.watch() called
@@ -264,6 +265,12 @@ pub struct Feature {
     /// wandb.finish() called
     #[prost(bool, tag = "2")]
     pub finish: bool,
+    /// finish_timeout setting enabled
+    #[prost(bool, tag = "74")]
+    pub finish_timeout: bool,
+    /// finish_timeout_raises setting enabled
+    #[prost(bool, tag = "75")]
+    pub finish_timeout_raises: bool,
     /// wandb.save() called
     #[prost(bool, tag = "3")]
     pub save: bool,
@@ -933,7 +940,16 @@ pub struct RunExitRecord {
     pub info: ::core::option::Option<RecordInfo>,
 }
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
-pub struct RunExitResult {}
+pub struct RunExitResult {
+    /// If true, the run's data may not have been fully uploaded due to
+    /// a configured timeout.
+    ///
+    /// Clients should raise an error of some kind when this occurs
+    /// to allow users to decide how to proceed (whether to ignore
+    /// the error, print a message, or stop their script).
+    #[prost(bool, tag = "1")]
+    pub timed_out: bool,
+}
 /// RunPreemptingRecord: run being preempted
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct RunPreemptingRecord {

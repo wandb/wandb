@@ -97,7 +97,7 @@ if TYPE_CHECKING:
     import wandb
     from wandb.plot import CustomChart
 
-__version__: str = "0.26.1.dev1"
+__version__: str = "0.26.2.dev1"
 
 run: Run | None
 config: wandb_config.Config
@@ -239,7 +239,12 @@ def init(
 
     `wandb.init()` spawns a new background process to log data to a run, and it
     also syncs data to https://wandb.ai by default, so you can see your results
-    in real-time. When you're done logging data, call `wandb.Run.finish()` to end the run.
+    in real-time. When you're done logging data, call `run.finish()` to
+    end the run, or use the run as a context manager to call it automatically:
+
+        with wandb.init() as run:
+            ...  # run.finish() executes at the end of the block
+
     If you don't call `run.finish()`, the run will end when your script exits.
 
     Run IDs must not contain any of the following special characters `/ \ # ? % :`

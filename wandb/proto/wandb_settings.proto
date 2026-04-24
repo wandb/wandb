@@ -50,7 +50,7 @@ message RunMoment {
 //
 // Some fields such as `run_id` only make sense at the run level.
 //
-// Next ID: 205
+// Next ID: 207
 message Settings {
   reserved 3, 6, 8, 9, 12, 19, 36, 43, 44, 45, 50, 51, 54, 70, 91, 94, 100, 136, 137, 173, 176, 180;
 
@@ -98,6 +98,11 @@ message Settings {
 
   // The W&B organization.
   google.protobuf.StringValue organization = 188;
+
+  // A timeout in seconds for processing a run's exit record.
+  //
+  // If not set to a positive number, there is no timeout.
+  google.protobuf.DoubleValue finish_timeout = 206;
 
   // The start time of the run in seconds since the Unix epoch.
   google.protobuf.DoubleValue x_start_time = 41;
@@ -283,6 +288,9 @@ message Settings {
 
   // Whether to save the code used to create the run.
   google.protobuf.BoolValue save_code = 115;
+
+  // Whether to stop the run after an error that prevents further uploads.
+  google.protobuf.BoolValue stop_on_fatal_error = 205;
 
   // Whether to disable git capture and diff generation.
   google.protobuf.BoolValue disable_git = 63;

@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/Khan/genqlient/graphql"
@@ -55,6 +56,7 @@ type SenderFactory struct {
 	RunfilesUploaderFactory *runfiles.UploaderFactory
 	GraphqlClient           graphql.Client
 	Peeker                  *observability.Peeker
+	Printer                 *observability.Printer
 	RunHandle               *runhandle.RunHandle
 	Mailbox                 *mailbox.Mailbox
 }
@@ -117,6 +119,9 @@ type Sender struct {
 
 	// networkPeeker is a helper for peeking into network responses
 	networkPeeker *observability.Peeker
+
+	// printer sends messages to display in the run's terminal.
+	printer *observability.Printer
 
 	// mailbox is used to store cancel functions for each mailbox slot
 	mailbox *mailbox.Mailbox
@@ -187,6 +192,7 @@ func (f *SenderFactory) New(runWork runwork.RunWork) *Sender {
 			),
 		),
 		networkPeeker:     f.Peeker,
+		printer:           f.Printer,
 		graphqlClient:     f.GraphqlClient,
 		mailbox:           f.Mailbox,
 		runHandle:         f.RunHandle,
@@ -530,17 +536,27 @@ func (s *Sender) finishRunSync(
 	exitRecord *spb.RunExitRecord,
 	exitRequest *runwork.Request,
 ) {
-	exitResponse := &spb.ServerResponse{
-		ServerResponseType: &spb.ServerResponse_ResultCommunicate{
-			ResultCommunicate: &spb.Result{
-				ResultType: &spb.Result_ExitResult{
-					ExitResult: &spb.RunExitResult{},
-				},
-			},
-		},
-	}
+	// NOTE: Using an atomic because timeout callback runs in a goroutine.
+	// It's possible we say we timed out when all data uploaded successfully
+	// if it got really close to the timeout, but that's OK.
+	var timedOut atomic.Bool
 
-	defer exitRequest.Respond(exitResponse)
+	defer func() {
+		s.respondExit(exitRequest, timedOut.Load())
+	}()
+
+	// Abort upload operations after a timeout, if configured.
+	if timeout := s.settings.GetFinishTimeout(); timeout > 0 {
+		cancelTimeout := time.AfterFunc(
+			timeout,
+			func() {
+				s.printer.Errorf("Timed out finishing run.")
+				timedOut.Store(true)
+				s.runWork.Abort()
+			},
+		)
+		defer cancelTimeout.Stop()
+	}
 
 	// Abort upload operations if the Exit request is cancelled before
 	// we can respond to it.
@@ -604,6 +620,26 @@ func (s *Sender) finishRunSync(
 	// printing `run.finish()` progress, and it was necessary to "close"
 	// the progress bar shown in Jupyter. Yes, that was the only purpose.
 	s.fileTransferStats.SetDone()
+}
+
+// respondExit constructs and sends a response to an exit request.
+func (s *Sender) respondExit(
+	exitRequest *runwork.Request,
+	timedOut bool,
+) {
+	exitResponse := &spb.ServerResponse{
+		ServerResponseType: &spb.ServerResponse_ResultCommunicate{
+			ResultCommunicate: &spb.Result{
+				ResultType: &spb.Result_ExitResult{
+					ExitResult: &spb.RunExitResult{
+						TimedOut: timedOut,
+					},
+				},
+			},
+		},
+	}
+
+	exitRequest.Respond(exitResponse)
 }
 
 func (s *Sender) sendTelemetry(_ *spb.Record, telemetry *spb.TelemetryRecord) {

@@ -1019,27 +1019,30 @@ func (x *Imports) GetDspy() bool {
 	return false
 }
 
+// Next ID: 76
 type Feature struct {
 	state               protoimpl.MessageState `protogen:"open.v1"`
-	Watch               bool                   `protobuf:"varint,1,opt,name=watch,proto3" json:"watch,omitempty"`                                                         // wandb.watch() called
-	Finish              bool                   `protobuf:"varint,2,opt,name=finish,proto3" json:"finish,omitempty"`                                                       // wandb.finish() called
-	Save                bool                   `protobuf:"varint,3,opt,name=save,proto3" json:"save,omitempty"`                                                           // wandb.save() called
-	Offline             bool                   `protobuf:"varint,4,opt,name=offline,proto3" json:"offline,omitempty"`                                                     // offline run was synced
-	Resumed             bool                   `protobuf:"varint,5,opt,name=resumed,proto3" json:"resumed,omitempty"`                                                     // run was resumed
-	Grpc                bool                   `protobuf:"varint,6,opt,name=grpc,proto3" json:"grpc,omitempty"`                                                           // grpc-server (java integration)
-	Metric              bool                   `protobuf:"varint,7,opt,name=metric,proto3" json:"metric,omitempty"`                                                       // define_metric() called
-	Keras               bool                   `protobuf:"varint,8,opt,name=keras,proto3" json:"keras,omitempty"`                                                         // Keras WandbCallback used
-	Sagemaker           bool                   `protobuf:"varint,9,opt,name=sagemaker,proto3" json:"sagemaker,omitempty"`                                                 // User is using sagemaker
-	ArtifactIncremental bool                   `protobuf:"varint,10,opt,name=artifact_incremental,json=artifactIncremental,proto3" json:"artifact_incremental,omitempty"` // Artifact(incremental=True) used
-	Metaflow            bool                   `protobuf:"varint,11,opt,name=metaflow,proto3" json:"metaflow,omitempty"`                                                  // Using metaflow integration
-	Prodigy             bool                   `protobuf:"varint,12,opt,name=prodigy,proto3" json:"prodigy,omitempty"`                                                    // Using prodigy integration
-	SetInitName         bool                   `protobuf:"varint,13,opt,name=set_init_name,json=setInitName,proto3" json:"set_init_name,omitempty"`                       // users set run name from wandb.init
-	SetInitId           bool                   `protobuf:"varint,14,opt,name=set_init_id,json=setInitId,proto3" json:"set_init_id,omitempty"`                             // users set run id from wandb.init
-	SetInitTags         bool                   `protobuf:"varint,15,opt,name=set_init_tags,json=setInitTags,proto3" json:"set_init_tags,omitempty"`                       // users set tags within wandb.init
-	SetInitConfig       bool                   `protobuf:"varint,16,opt,name=set_init_config,json=setInitConfig,proto3" json:"set_init_config,omitempty"`                 // users set run config in wandb.init
-	SetRunName          bool                   `protobuf:"varint,17,opt,name=set_run_name,json=setRunName,proto3" json:"set_run_name,omitempty"`                          // user sets run name via wandb.run.name = ...
-	SetRunTags          bool                   `protobuf:"varint,18,opt,name=set_run_tags,json=setRunTags,proto3" json:"set_run_tags,omitempty"`                          // user sets run name via wandb.run.tags = ...
-	SetConfigItem       bool                   `protobuf:"varint,19,opt,name=set_config_item,json=setConfigItem,proto3" json:"set_config_item,omitempty"`                 // users set key in run config via run.config.key
+	Watch               bool                   `protobuf:"varint,1,opt,name=watch,proto3" json:"watch,omitempty"`                                                           // wandb.watch() called
+	Finish              bool                   `protobuf:"varint,2,opt,name=finish,proto3" json:"finish,omitempty"`                                                         // wandb.finish() called
+	FinishTimeout       bool                   `protobuf:"varint,74,opt,name=finish_timeout,json=finishTimeout,proto3" json:"finish_timeout,omitempty"`                     // finish_timeout setting enabled
+	FinishTimeoutRaises bool                   `protobuf:"varint,75,opt,name=finish_timeout_raises,json=finishTimeoutRaises,proto3" json:"finish_timeout_raises,omitempty"` // finish_timeout_raises setting enabled
+	Save                bool                   `protobuf:"varint,3,opt,name=save,proto3" json:"save,omitempty"`                                                             // wandb.save() called
+	Offline             bool                   `protobuf:"varint,4,opt,name=offline,proto3" json:"offline,omitempty"`                                                       // offline run was synced
+	Resumed             bool                   `protobuf:"varint,5,opt,name=resumed,proto3" json:"resumed,omitempty"`                                                       // run was resumed
+	Grpc                bool                   `protobuf:"varint,6,opt,name=grpc,proto3" json:"grpc,omitempty"`                                                             // grpc-server (java integration)
+	Metric              bool                   `protobuf:"varint,7,opt,name=metric,proto3" json:"metric,omitempty"`                                                         // define_metric() called
+	Keras               bool                   `protobuf:"varint,8,opt,name=keras,proto3" json:"keras,omitempty"`                                                           // Keras WandbCallback used
+	Sagemaker           bool                   `protobuf:"varint,9,opt,name=sagemaker,proto3" json:"sagemaker,omitempty"`                                                   // User is using sagemaker
+	ArtifactIncremental bool                   `protobuf:"varint,10,opt,name=artifact_incremental,json=artifactIncremental,proto3" json:"artifact_incremental,omitempty"`   // Artifact(incremental=True) used
+	Metaflow            bool                   `protobuf:"varint,11,opt,name=metaflow,proto3" json:"metaflow,omitempty"`                                                    // Using metaflow integration
+	Prodigy             bool                   `protobuf:"varint,12,opt,name=prodigy,proto3" json:"prodigy,omitempty"`                                                      // Using prodigy integration
+	SetInitName         bool                   `protobuf:"varint,13,opt,name=set_init_name,json=setInitName,proto3" json:"set_init_name,omitempty"`                         // users set run name from wandb.init
+	SetInitId           bool                   `protobuf:"varint,14,opt,name=set_init_id,json=setInitId,proto3" json:"set_init_id,omitempty"`                               // users set run id from wandb.init
+	SetInitTags         bool                   `protobuf:"varint,15,opt,name=set_init_tags,json=setInitTags,proto3" json:"set_init_tags,omitempty"`                         // users set tags within wandb.init
+	SetInitConfig       bool                   `protobuf:"varint,16,opt,name=set_init_config,json=setInitConfig,proto3" json:"set_init_config,omitempty"`                   // users set run config in wandb.init
+	SetRunName          bool                   `protobuf:"varint,17,opt,name=set_run_name,json=setRunName,proto3" json:"set_run_name,omitempty"`                            // user sets run name via wandb.run.name = ...
+	SetRunTags          bool                   `protobuf:"varint,18,opt,name=set_run_tags,json=setRunTags,proto3" json:"set_run_tags,omitempty"`                            // user sets run name via wandb.run.tags = ...
+	SetConfigItem       bool                   `protobuf:"varint,19,opt,name=set_config_item,json=setConfigItem,proto3" json:"set_config_item,omitempty"`                   // users set key in run config via run.config.key
 	// or run.config["key"]
 	Launch                   bool `protobuf:"varint,20,opt,name=launch,proto3" json:"launch,omitempty"`                                                                         // run is created through wandb launch
 	TorchProfilerTrace       bool `protobuf:"varint,21,opt,name=torch_profiler_trace,json=torchProfilerTrace,proto3" json:"torch_profiler_trace,omitempty"`                     // wandb.profiler.torch_trace_handler() called
@@ -1136,6 +1139,20 @@ func (x *Feature) GetWatch() bool {
 func (x *Feature) GetFinish() bool {
 	if x != nil {
 		return x.Finish
+	}
+	return false
+}
+
+func (x *Feature) GetFinishTimeout() bool {
+	if x != nil {
+		return x.FinishTimeout
+	}
+	return false
+}
+
+func (x *Feature) GetFinishTimeoutRaises() bool {
+	if x != nil {
+		return x.FinishTimeoutRaises
 	}
 	return false
 }
@@ -2243,10 +2260,12 @@ const file_wandb_proto_wandb_telemetry_proto_rawDesc = "" +
 	"\x14curated_transformers\x18h \x01(\bR\x13curatedTransformers\x12\x16\n" +
 	"\x06orjson\x18i \x01(\bR\x06orjson\x12\x1c\n" +
 	"\tlightning\x18j \x01(\bR\tlightning\x12\x12\n" +
-	"\x04dspy\x18k \x01(\bR\x04dspyJ\x04\b\x11\x10\x12J\x04\b\x13\x10\x14J\x04\b\x14\x10\x15J\x04\b\x17\x10\x18J\x04\b\x18\x10\x19J\x04\b\x19\x10\x1aJ\x04\b\x1a\x10\x1bJ\x04\b\x1b\x10\x1cJ\x04\b7\x108\"\xb5\x15\n" +
+	"\x04dspy\x18k \x01(\bR\x04dspyJ\x04\b\x11\x10\x12J\x04\b\x13\x10\x14J\x04\b\x14\x10\x15J\x04\b\x17\x10\x18J\x04\b\x18\x10\x19J\x04\b\x19\x10\x1aJ\x04\b\x1a\x10\x1bJ\x04\b\x1b\x10\x1cJ\x04\b7\x108\"\x90\x16\n" +
 	"\aFeature\x12\x14\n" +
 	"\x05watch\x18\x01 \x01(\bR\x05watch\x12\x16\n" +
-	"\x06finish\x18\x02 \x01(\bR\x06finish\x12\x12\n" +
+	"\x06finish\x18\x02 \x01(\bR\x06finish\x12%\n" +
+	"\x0efinish_timeout\x18J \x01(\bR\rfinishTimeout\x122\n" +
+	"\x15finish_timeout_raises\x18K \x01(\bR\x13finishTimeoutRaises\x12\x12\n" +
 	"\x04save\x18\x03 \x01(\bR\x04save\x12\x18\n" +
 	"\aoffline\x18\x04 \x01(\bR\aoffline\x12\x18\n" +
 	"\aresumed\x18\x05 \x01(\bR\aresumed\x12\x12\n" +

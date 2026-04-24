@@ -393,6 +393,7 @@ def test_image_from_matplotlib_with_image():
 @pytest.mark.skipif(
     platform.system() != "Windows", reason="Failure case is only happening on Windows"
 )
+@pytest.mark.usefixtures("patch_max_cli_version")
 def test_fail_to_make_file(
     mock_run,
     image,

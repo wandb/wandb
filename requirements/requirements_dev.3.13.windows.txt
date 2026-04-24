@@ -123,6 +123,7 @@ click==8.3.1
     #   ariadne-codegen
     #   black
     #   click-option-group
+    #   cwsandbox
     #   flask
     #   kfp
     #   litellm
@@ -169,6 +170,8 @@ cryptography==46.0.6
     #   mlflow
     #   msal
     #   pyjwt
+cwsandbox==0.20.0
+    # via -r requirements/requirements_dev.txt
 cycler==0.12.1
     # via matplotlib
 databricks-sdk==0.102.0
@@ -311,6 +314,7 @@ google-resumable-media==2.8.0
     #   google-cloud-storage
 googleapis-common-protos==1.73.1
     # via
+    #   cwsandbox
     #   google-api-core
     #   grpc-google-iam-v1
     #   grpcio-status
@@ -333,6 +337,7 @@ grpc-google-iam-v1==0.14.3
     #   google-cloud-resource-manager
 grpcio==1.80.0
     # via
+    #   cwsandbox
     #   google-api-core
     #   google-cloud-artifact-registry
     #   google-cloud-compute
@@ -663,6 +668,7 @@ numpy==2.3.5
     #   stable-baselines3
     #   sweeps
     #   tensorboard
+    #   tensorboardx
     #   tensorflow
     #   torchmetrics
     #   torchvision
@@ -729,6 +735,7 @@ packaging==26.0
     #   pytorch-lightning
     #   skops
     #   tensorboard
+    #   tensorboardx
     #   tensorflow
     #   torchmetrics
     #   wandb
@@ -798,6 +805,7 @@ proto-plus==1.27.2
     #   google-cloud-resource-manager
 protobuf==6.33.6
     # via
+    #   cwsandbox
     #   databricks-sdk
     #   google-api-core
     #   google-cloud-aiplatform
@@ -814,6 +822,7 @@ protobuf==6.33.6
     #   opentelemetry-proto
     #   proto-plus
     #   tensorboard
+    #   tensorboardx
     #   tensorflow
     #   wandb
 psutil==7.2.2
@@ -838,6 +847,7 @@ pydantic==2.12.5
     # via
     #   -r requirements/requirements_dev.txt
     #   ariadne-codegen
+    #   cwsandbox
     #   dspy
     #   fastapi
     #   google-cloud-aiplatform
@@ -1094,6 +1104,8 @@ tensorboard==2.20.0
     # via -r requirements/requirements_dev.txt
 tensorboard-data-server==0.7.2
     # via tensorboard
+tensorboardx==2.6.5
+    # via -r requirements/requirements_dev.txt
 tensorflow==2.21.0
     # via -r requirements/requirements_dev.txt
 termcolor==3.3.0

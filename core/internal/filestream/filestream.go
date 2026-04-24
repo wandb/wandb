@@ -258,6 +258,10 @@ func (fs *fileStream) IsStopped() bool { return fs.stopState.Load() }
 // when we can't guarantee correctness, in which case we stop uploading
 // data but continue to save it to disk to avoid data loss.
 func (fs *fileStream) logFatalAndStopWorking(err error) {
+	if fs.settings.IsStopOnFatalError() {
+		fs.stopState.Store(true)
+	}
+
 	fs.logger.CaptureFatal(fmt.Errorf("filestream: fatal error: %v", err))
 	fs.deadChanOnce.Do(func() {
 		close(fs.deadChan)
