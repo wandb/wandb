@@ -98,6 +98,50 @@ commands:
             echo "Datadog pod stats:"
             echo "https://us5.datadoghq.com/orchestration/explorer/pod?query=kube_cluster_name%3Aci-cluster%20pod_name%3A${POD_NAME}"
 
+  prepare-uv-cache:
+    description: |
+      Create requirements/CACHE_KEY.txt to use as the uv cache key.
+
+      Required before save-uv-cache or restore-uv-cache.
+    parameters:
+      python: { type: string } # Like "3.9" or "3.13"
+      platform: { type: string } # Like "linux", "darwin" or "windows"
+    steps:
+      - run:
+          name: Select requirements file to use as cache key
+          command: |
+            cp \
+              "requirements/requirements_dev.<<parameters.python>>.<<parameters.platform>>.txt" \
+              "requirements/CACHE_KEY.txt"
+
+  save-uv-cache:
+    description: Save the `uv` cache for a future run.
+    steps:
+      # https://docs.astral.sh/uv/concepts/cache/#caching-in-continuous-integration
+      - run: uv cache prune --ci
+      - run: "[[ ! -e .uv-cache ]] || rm -r .uv-cache"
+      - run: cp -R "$( uv cache dir )"/ .uv-cache
+      - save_cache:
+          key: uv-v2-{{ arch }}-{{ checksum "requirements/CACHE_KEY.txt" }}
+          paths:
+            - .uv-cache
+
+  restore-uv-cache:
+    description: Restore the `uv` cache from a previous run.
+    steps:
+      - restore_cache:
+          keys:
+            - uv-v2-{{ arch }}-{{ checksum "requirements/CACHE_KEY.txt" }}
+            - uv-v2-{{ arch }}
+
+      - run:
+          name: Copy .uv-cache to uv cache dir, if restored from cache
+          command: |
+            if [[ -d .uv-cache ]]; then
+              cp -Rf .uv-cache/ "$( uv cache dir )"
+              echo "Wrote $( uv cache dir )"
+            fi
+
   save-test-results:
     description: "Save test results"
     steps:
@@ -121,7 +165,7 @@ commands:
     steps:
       - run:
           name: Install Python dependencies
-          command: python -m pip install -U nox pip uv!=0.10.5
+          command: uv pip install --system -U nox pip
           no_output_timeout: 5m
 
       - run:
@@ -139,9 +183,6 @@ commands:
     parameters:
       python: { type: string }
     steps:
-      - run:
-          name: Upgrade pip and uv
-          command: python -m pip install -U pip uv!=0.10.5
       - run:
           name: Install tool dependencies
           command: |
@@ -338,6 +379,12 @@ jobs:
       - install_extras:
           enabled: <<parameters.install_extras>>
 
+      - run: python -m pip install -U uv
+      - prepare-uv-cache:
+          python: <<parameters.python>>
+          platform: linux
+      - restore-uv-cache
+
       - when:
           condition:
             equal: ["local-testcontainer", <<parameters.executor_name>>]
@@ -358,6 +405,8 @@ jobs:
           python: <<parameters.python>>
           session: <<parameters.session>>
 
+      - save-uv-cache
+
   nox-tests-macos:
     parameters:
       parallelism: { type: integer }
@@ -375,10 +424,19 @@ jobs:
           command: brew install ffmpeg python@<<parameters.python>>
       - install_go
       - install_rust
+
+      - run: python -m pip install -U uv
+      - prepare-uv-cache:
+          python: <<parameters.python>>
+          platform: darwin
+      - restore-uv-cache
+
       - run-nox-tests:
           codecov_flags: <<parameters.codecov_flags>>
           python: <<parameters.python>>
           session: <<parameters.session>>
+
+      - save-uv-cache
 
   nox-tests-win:
     parameters:
@@ -413,10 +471,19 @@ jobs:
 
       - install_go
       - install_rust
+
+      - run: python -m pip install -U uv
+      - prepare-uv-cache:
+          python: <<parameters.python>>
+          platform: windows
+      - restore-uv-cache
+
       - run-nox-tests:
           codecov_flags: <<parameters.codecov_flags>>
           python: <<parameters.python>>
           session: <<parameters.session>>
+
+      - save-uv-cache
 
   code-check:
     resource_class: wandb/docker-builder
