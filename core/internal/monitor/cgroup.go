@@ -5,7 +5,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"sync"
 )
 
 // The cgroup interface is a Linux kernel ABI exposed as files.
@@ -82,11 +81,6 @@ type cgroupResourceLimits struct {
 	memory cgroupController
 	cpu    cgroupController
 	cpuset cgroupController
-
-	memoryStatsOnce sync.Once
-	memoryStats     cgroupMemoryStats
-	cpuLimitOnce    sync.Once
-	cpuLimit        float64
 }
 
 // cgroupController records one mounted controller and the candidate cgroup
@@ -94,14 +88,6 @@ type cgroupResourceLimits struct {
 type cgroupController struct {
 	version int
 	dirs    []string
-}
-
-// cgroupMemoryStats caches the stable memory limit and current-usage file. The
-// memory usage value itself is read fresh for each sample.
-type cgroupMemoryStats struct {
-	currentFile string
-	limit       uint64
-	ok          bool
 }
 
 // cgroupMountInfo is the subset of /proc/[pid]/mountinfo needed to map a
@@ -139,10 +125,30 @@ func detectCgroupResourceLimits(paths cgroupPaths) *cgroupResourceLimits {
 	}
 
 	v1 := cgroupV1ResourceLimits(procInfo, mounts)
-	if v1 == nil || v2.hasPrimaryLimit() {
+	if v1 == nil {
 		return v2
 	}
-	return v1
+
+	// Hybrid hierarchies can expose the v2 tree while resource controllers still
+	// live in v1 mounts, so choose the most restrictive controller per resource.
+	limits := *v2
+	if v1Limit, ok := v1.MemoryLimit(); ok {
+		if v2Limit, ok := v2.MemoryLimit(); !ok || v1Limit < v2Limit {
+			limits.memory = v1.memory
+		}
+	}
+	if v1Quota := v1.cpuQuotaLimit(); v1Quota > 0 {
+		if v2Quota := v2.cpuQuotaLimit(); v2Quota == 0 || v1Quota < v2Quota {
+			limits.cpu = v1.cpu
+		}
+	}
+	if v1CPUSet := v1.cpusetLimit(); v1CPUSet > 0 {
+		if v2CPUSet := v2.cpusetLimit(); v2CPUSet == 0 || v1CPUSet < v2CPUSet {
+			limits.cpuset = v1.cpuset
+		}
+	}
+
+	return &limits
 }
 
 func cgroupV2ResourceLimits(
@@ -154,7 +160,7 @@ func cgroupV2ResourceLimits(
 	}
 
 	for _, mount := range mounts {
-		if mount.fsType == cgroupV2FSType && procInfo.unified != "" {
+		if mount.fsType == cgroupV2FSType {
 			dirs := ancestorDirs(
 				cgroupDir(mount.mountPoint, mount.root, procInfo.unified),
 				mount.mountPoint,
@@ -202,16 +208,6 @@ func cgroupV1ResourceLimits(
 	return limits
 }
 
-// hasPrimaryLimit reports whether this hierarchy has the limits this feature
-// primarily needs as denominators. A cpuset alone does not suppress v1 fallback
-// on hybrid hosts, where the v2 root can expose only host-wide cpuset state.
-func (c *cgroupResourceLimits) hasPrimaryLimit() bool {
-	if _, ok := c.MemoryLimit(); ok {
-		return true
-	}
-	return c.cpuQuotaLimit() > 0
-}
-
 // controllerFromMount maps a cgroup v1 controller mount and process cgroup path
 // to the directories that can hold effective resource limits.
 func controllerFromMount(mount cgroupMountInfo, cgroupPath string) cgroupController {
@@ -228,53 +224,52 @@ func controllerFromMount(mount cgroupMountInfo, cgroupPath string) cgroupControl
 	}
 }
 
-// MemoryStats returns cgroup memory usage and the cached finite hard limit. The
-// limit and current-usage file are resolved once; usage is read fresh each call.
+// MemoryStats returns cgroup memory usage and the finite hard limit.
 func (c *cgroupResourceLimits) MemoryStats() (current, limit uint64, ok bool) {
-	c.memoryStatsOnce.Do(c.initMemoryStats)
-	if !c.memoryStats.ok {
-		return 0, 0, false
-	}
-
-	current, ok = readCgroupUint(c.memoryStats.currentFile)
+	currentFile, limit, ok := c.memoryCurrentFileAndLimit()
 	if !ok {
 		return 0, 0, false
 	}
 
-	return current, c.memoryStats.limit, true
-}
-
-// MemoryLimit returns the cached finite cgroup memory limit.
-func (c *cgroupResourceLimits) MemoryLimit() (limit uint64, ok bool) {
-	c.memoryStatsOnce.Do(c.initMemoryStats)
-	return c.memoryStats.limit, c.memoryStats.ok
-}
-
-// initMemoryStats resolves the smallest finite cgroup memory limit while walking
-// from the process cgroup toward its ancestors.
-func (c *cgroupResourceLimits) initMemoryStats() {
-	if len(c.memory.dirs) == 0 {
-		return
+	current, ok = readCgroupUint(currentFile)
+	if !ok {
+		return 0, 0, false
 	}
 
-	currentFile, limitFile := memoryFileNames(c.memory.version)
+	return current, limit, true
+}
+
+// MemoryLimit returns the finite cgroup memory limit.
+func (c *cgroupResourceLimits) MemoryLimit() (limit uint64, ok bool) {
+	_, limit, ok = c.memoryCurrentFileAndLimit()
+	return limit, ok
+}
+
+// memoryCurrentFileAndLimit resolves the smallest finite cgroup memory limit
+// while walking from the process cgroup toward its ancestors.
+func (c *cgroupResourceLimits) memoryCurrentFileAndLimit() (currentFile string, limit uint64, ok bool) {
+	if len(c.memory.dirs) == 0 {
+		return "", 0, false
+	}
+
+	currentName, limitName := memoryFileNames(c.memory.version)
 
 	for _, dir := range c.memory.dirs {
-		limit, ok := readCgroupUint(filepath.Join(dir, limitFile))
-		if !ok || !isFiniteMemoryLimit(limit) {
+		nextLimit, readOK := readCgroupUint(filepath.Join(dir, limitName))
+		if !readOK || !isFiniteMemoryLimit(nextLimit) {
 			continue
 		}
 
-		if c.memoryStats.ok && limit >= c.memoryStats.limit {
+		if currentFile != "" && nextLimit >= limit {
 			continue
 		}
 
-		c.memoryStats = cgroupMemoryStats{
-			currentFile: filepath.Join(dir, currentFile),
-			limit:       limit,
-			ok:          true,
-		}
+		currentFile = filepath.Join(dir, currentName)
+		limit = nextLimit
+		ok = true
 	}
+
+	return currentFile, limit, ok
 }
 
 // memoryFileNames returns the cgroup files for the active memory controller.
@@ -287,18 +282,8 @@ func memoryFileNames(version int) (currentFile, limitFile string) {
 }
 
 // CPULimit returns the number of CPUs available to the process according to the
-// cached most restrictive cgroup CPU quota or cpuset bound.
+// most restrictive cgroup CPU quota or cpuset bound.
 func (c *cgroupResourceLimits) CPULimit() float64 {
-	c.cpuLimitOnce.Do(c.initCPULimit)
-	return c.cpuLimit
-}
-
-func (c *cgroupResourceLimits) initCPULimit() {
-	c.cpuLimit = c.detectCPULimit()
-}
-
-// detectCPULimit resolves the cgroup CPU capacity from quota and cpuset files.
-func (c *cgroupResourceLimits) detectCPULimit() float64 {
 	limit := c.cpuQuotaLimit()
 	if cpusetLimit := c.cpusetLimit(); cpusetLimit > 0 &&
 		(limit == 0 || cpusetLimit < limit) {

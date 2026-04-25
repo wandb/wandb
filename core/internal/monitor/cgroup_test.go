@@ -163,54 +163,6 @@ func TestCgroupV2UsesSmallestAncestorLimits(t *testing.T) {
 	require.InEpsilon(t, 1.5, limits.CPULimit(), 1e-9)
 }
 
-func TestCgroupStableLimitsAreCached(t *testing.T) {
-	root := t.TempDir()
-	mountPoint := filepath.Join(root, "sys", "fs", "cgroup")
-	cgroupPath := filepath.Join(mountPoint, "kubepods", "pod123", "container456")
-	memoryLimitPath := filepath.Join(cgroupPath, "memory.max")
-	memoryCurrentPath := filepath.Join(cgroupPath, "memory.current")
-	cpuLimitPath := filepath.Join(cgroupPath, "cpu.max")
-	cpusetPath := filepath.Join(cgroupPath, "cpuset.cpus.effective")
-
-	writeTestFile(t, filepath.Join(root, "proc-cgroup"), "0::/kubepods/pod123/container456\n")
-	writeTestFile(
-		t,
-		filepath.Join(root, "mountinfo"),
-		fmt.Sprintf("1 0 0:1 / %s rw,relatime - cgroup2 cgroup rw\n", mountPoint),
-	)
-	writeCgroupFile(t, memoryLimitPath, fmt.Sprint(8*1024*1024*1024))
-	writeCgroupFile(t, memoryCurrentPath, fmt.Sprint(7*1024*1024*1024))
-	writeCgroupFile(t, cpuLimitPath, "400000 100000")
-	writeCgroupFile(t, cpusetPath, "0-7")
-
-	limits := detectCgroupResourceLimits(cgroupPaths{
-		procCgroup:    filepath.Join(root, "proc-cgroup"),
-		procMountInfo: filepath.Join(root, "mountinfo"),
-	})
-	require.NotNil(t, limits)
-
-	current, limit, ok := limits.MemoryStats()
-	require.True(t, ok)
-	require.Equal(t, uint64(7*1024*1024*1024), current)
-	require.Equal(t, uint64(8*1024*1024*1024), limit)
-	require.InEpsilon(t, 4.0, limits.CPULimit(), 1e-9)
-
-	writeCgroupFile(t, memoryLimitPath, fmt.Sprint(4*1024*1024*1024))
-	writeCgroupFile(t, memoryCurrentPath, fmt.Sprint(5*1024*1024*1024))
-	writeCgroupFile(t, cpuLimitPath, "100000 100000")
-	writeCgroupFile(t, cpusetPath, "0-1")
-
-	current, limit, ok = limits.MemoryStats()
-	require.True(t, ok)
-	require.Equal(t, uint64(5*1024*1024*1024), current)
-	require.Equal(t, uint64(8*1024*1024*1024), limit)
-	require.InEpsilon(t, 4.0, limits.CPULimit(), 1e-9)
-
-	memoryLimit, ok := limits.MemoryLimit()
-	require.True(t, ok)
-	require.Equal(t, uint64(8*1024*1024*1024), memoryLimit)
-}
-
 func TestCgroupV1ResourceLimits(t *testing.T) {
 	root := t.TempDir()
 	memoryMount := filepath.Join(root, "sys", "fs", "cgroup", "memory")
@@ -252,28 +204,25 @@ func TestCgroupV1ResourceLimits(t *testing.T) {
 	require.InEpsilon(t, 2.5, limits.CPULimit(), 1e-9)
 }
 
-func TestCgroupHybridFallsBackToV1Limits(t *testing.T) {
+func TestCgroupHybridCombinesV2MemoryAndV1CPU(t *testing.T) {
 	root := t.TempDir()
 	unifiedMount := filepath.Join(root, "sys", "fs", "cgroup", "unified")
-	memoryMount := filepath.Join(root, "sys", "fs", "cgroup", "memory")
 	cpuMount := filepath.Join(root, "sys", "fs", "cgroup", "cpu")
+	v2Path := filepath.Join(unifiedMount, "kubepods", "pod123")
 
 	writeTestFile(t, filepath.Join(root, "proc-cgroup"),
-		"0::/\n5:memory:/docker/abc\n4:cpu,cpuacct:/docker/abc\n")
+		"0::/kubepods/pod123\n4:cpu,cpuacct:/docker/abc\n")
 	writeTestFile(
 		t,
 		filepath.Join(root, "mountinfo"),
 		fmt.Sprintf(
-			"1 0 0:1 / %s rw - cgroup2 cgroup rw\n2 0 0:2 / %s rw - cgroup cgroup rw,memory\n3 0 0:3 / %s rw - cgroup cgroup rw,cpu,cpuacct\n",
+			"1 0 0:1 / %s rw - cgroup2 cgroup rw\n2 0 0:2 / %s rw - cgroup cgroup rw,cpu,cpuacct\n",
 			unifiedMount,
-			memoryMount,
 			cpuMount,
 		),
 	)
-	writeCgroupFile(t, filepath.Join(memoryMount, "docker", "abc", "memory.limit_in_bytes"),
-		fmt.Sprint(4*1024*1024*1024))
-	writeCgroupFile(t, filepath.Join(memoryMount, "docker", "abc", "memory.usage_in_bytes"),
-		fmt.Sprint(3*1024*1024*1024))
+	writeCgroupFile(t, filepath.Join(v2Path, "memory.max"), fmt.Sprint(8*1024*1024*1024))
+	writeCgroupFile(t, filepath.Join(v2Path, "memory.current"), fmt.Sprint(7*1024*1024*1024))
 	writeCgroupFile(t, filepath.Join(cpuMount, "docker", "abc", "cpu.cfs_quota_us"), "250000")
 	writeCgroupFile(t, filepath.Join(cpuMount, "docker", "abc", "cpu.cfs_period_us"), "100000")
 
@@ -285,8 +234,8 @@ func TestCgroupHybridFallsBackToV1Limits(t *testing.T) {
 
 	current, limit, ok := limits.MemoryStats()
 	require.True(t, ok)
-	require.Equal(t, uint64(3*1024*1024*1024), current)
-	require.Equal(t, uint64(4*1024*1024*1024), limit)
+	require.Equal(t, uint64(7*1024*1024*1024), current)
+	require.Equal(t, uint64(8*1024*1024*1024), limit)
 	require.InEpsilon(t, 2.5, limits.CPULimit(), 1e-9)
 }
 

@@ -40,8 +40,8 @@ type System struct {
 	// It is nil when cgroup limits are disabled or unavailable.
 	cgroup *cgroupResourceLimits
 
-	// Logical CPU count.
-	cpuCountLogical int
+	// Physical CPU count used to preserve non-cgroup CPU metric semantics.
+	cpuCountPhysical int
 
 	// Whether to collect process-specific metrics from the entire process tree,
 	// starting from the process with PID `pid`.
@@ -83,8 +83,8 @@ func NewSystem(params SystemParams) *System {
 		diskInitialWriteBytes: make(map[string]uint64),
 	}
 
-	// Logical CPU count. process.CPUPercent reports percentages in logical CPU units.
-	s.cpuCountLogical, _ = cpu.Counts(true)
+	// Physical CPU count.
+	s.cpuCountPhysical, _ = cpu.Counts(false)
 
 	if !params.DisableCgroupResourceLimits {
 		s.cgroup = detectCgroupResourceLimits(defaultCgroupPaths)
@@ -318,10 +318,13 @@ func (s *System) collectProcessTreeMetrics(
 	}
 
 	metrics["proc.memory.rssMB"] = float64(totalRSS) / 1024 / 1024
-	if memoryLimitBytes, ok := s.memoryLimitBytes(); ok {
-		metrics["proc.memory.percent"] =
-			(float64(totalRSS) / float64(memoryLimitBytes)) * 100
-	} else if virtualMem != nil && virtualMem.Total > 0 {
+	if s.cgroup != nil {
+		if memoryLimitBytes, ok := s.cgroup.MemoryLimit(); ok {
+			metrics["proc.memory.percent"] =
+				(float64(totalRSS) / float64(memoryLimitBytes)) * 100
+		}
+	}
+	if _, ok := metrics["proc.memory.percent"]; !ok && virtualMem != nil && virtualMem.Total > 0 {
 		metrics["proc.memory.percent"] =
 			(float64(totalRSS) / float64(virtualMem.Total)) * 100
 	}
@@ -356,18 +359,19 @@ func (s *System) collectNetworkMetrics(metrics map[string]any) error {
 func (s *System) collectSystemMemoryMetrics(
 	metrics map[string]any,
 ) (*mem.VirtualMemoryStat, error) {
-	virtualMem, err := mem.VirtualMemory()
-
-	if current, limit, ok := s.cgroupMemoryStats(); ok {
-		metrics["memory_percent"] = (float64(current) / float64(limit)) * 100
-		if current < limit {
-			metrics["proc.memory.availableMB"] = float64(limit-current) / 1024 / 1024
-		} else {
-			metrics["proc.memory.availableMB"] = 0.0
+	if s.cgroup != nil {
+		if current, limit, ok := s.cgroup.MemoryStats(); ok {
+			metrics["memory_percent"] = (float64(current) / float64(limit)) * 100
+			if current < limit {
+				metrics["proc.memory.availableMB"] = float64(limit-current) / 1024 / 1024
+			} else {
+				metrics["proc.memory.availableMB"] = 0.0
+			}
+			return nil, nil
 		}
-		return virtualMem, err
 	}
 
+	virtualMem, err := mem.VirtualMemory()
 	if err != nil {
 		return nil, err
 	}
@@ -379,22 +383,6 @@ func (s *System) collectSystemMemoryMetrics(
 	return virtualMem, nil
 }
 
-func (s *System) memoryLimitBytes() (uint64, bool) {
-	if s.cgroup == nil {
-		return 0, false
-	}
-
-	return s.cgroup.MemoryLimit()
-}
-
-func (s *System) cgroupMemoryStats() (current, limit uint64, ok bool) {
-	if s.cgroup == nil {
-		return 0, 0, false
-	}
-
-	return s.cgroup.MemoryStats()
-}
-
 func (s *System) cpuCapacity() float64 {
 	if s.cgroup != nil {
 		if cpuLimit := s.cgroup.CPULimit(); cpuLimit > 0 {
@@ -402,8 +390,8 @@ func (s *System) cpuCapacity() float64 {
 		}
 	}
 
-	if s.cpuCountLogical > 0 {
-		return float64(s.cpuCountLogical)
+	if s.cpuCountPhysical > 0 {
+		return float64(s.cpuCountPhysical)
 	}
 
 	return 0
