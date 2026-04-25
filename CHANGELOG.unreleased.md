@@ -16,6 +16,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ### Added
 
+- TPU system metadata now includes topology details such as JAX-compatible device kind, process counts, slice counts, and devices per slice; runs on GCP/GKE also capture project, zone, region, instance, orchestrator, and GKE workload metadata (@dmitryduev in https://github.com/wandb/wandb/pull/11792)
 - The `stop_on_fatal_error` setting to stop a run (using `stop_fn`) after a fatal error that prevents it from uploading metrics (@timoffex in https://github.com/wandb/wandb/pull/11774)
 - New `wandb.sandbox` package and the `wandb beta sandbox` cli for using wandb sandbox (@pingleiwandb in https://github.com/wandb/wandb/pull/11606)
 - The `finish_timeout` and `finish_timeout_raises` settings (@timoffex in https://github.com/wandb/wandb/pull/11737)
