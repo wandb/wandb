@@ -159,12 +159,21 @@ impl GpuMonitor for TpuMonitor {
         &self,
         _samples: &HashMap<String, &MetricValue>,
     ) -> EnvironmentRecord {
+        let topology = detect_tpu_topology(&self.chip, self.chip_count);
         EnvironmentRecord {
             tpu: Some(TpuInfo {
                 name: self.chip.name.clone(),
                 hbm_gib: self.chip.hbm_gib,
                 devices_per_chip: self.chip.devices_per_chip,
                 count: self.chip_count,
+                device_kind: topology.device_kind,
+                local_device_count: topology.local_device_count,
+                global_device_count: topology.global_device_count,
+                num_slices: topology.num_slices,
+                devices_per_slice: topology.devices_per_slice,
+                process_index: topology.process_index,
+                process_count: topology.process_count,
+                topology_source: topology.source,
             }),
             ..Default::default()
         }
@@ -1241,6 +1250,165 @@ impl Default for TpuChip {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct TpuTopology {
+    device_kind: String,
+    local_device_count: u32,
+    global_device_count: u32,
+    num_slices: u32,
+    devices_per_slice: u32,
+    process_index: u32,
+    process_count: u32,
+    source: String,
+}
+
+const TPU_CHIPS_PER_PROCESS_BOUNDS_ENV: &[&str] =
+    &["TPU_CHIPS_PER_PROCESS_BOUNDS", "TPU_CHIPS_PER_HOST_BOUNDS"];
+const PROCESS_INDEX_ENV: &[&str] = &[
+    "JAX_PROCESS_INDEX",
+    "TPU_PROCESS_INDEX",
+    "TPU_WORKER_ID",
+    "CLOUD_TPU_TASK_ID",
+    "PROCESS_INDEX",
+    "RANK",
+    "OMPI_COMM_WORLD_RANK",
+    "PMI_RANK",
+    "SLURM_PROCID",
+];
+const PROCESS_COUNT_ENV: &[&str] = &[
+    "JAX_PROCESS_COUNT",
+    "TPU_PROCESS_COUNT",
+    "PROCESS_COUNT",
+    "WORLD_SIZE",
+    "OMPI_COMM_WORLD_SIZE",
+    "PMI_SIZE",
+    "SLURM_NTASKS",
+];
+const PROCESS_COUNT_LIST_ENV: &[&str] = &["TPU_WORKER_HOSTNAMES"];
+const NUM_SLICES_ENV: &[&str] = &[
+    "TPU_NUM_SLICES",
+    "JAX_NUM_SLICES",
+    "NUM_TPU_SLICES",
+    "MEGASCALE_NUM_SLICES",
+];
+const DEVICES_PER_SLICE_ENV: &[&str] = &["TPU_DEVICES_PER_SLICE", "JAX_DEVICES_PER_SLICE"];
+
+fn detect_tpu_topology(chip: &TpuChip, chip_count: u32) -> TpuTopology {
+    detect_tpu_topology_with_env(chip, chip_count, |key| std::env::var(key).ok())
+}
+
+fn detect_tpu_topology_with_env<F>(chip: &TpuChip, chip_count: u32, env: F) -> TpuTopology
+where
+    F: Fn(&str) -> Option<String>,
+{
+    let mut sources = vec!["local_pci"];
+    let chip_bounds = env_first_u32_product(&env, TPU_CHIPS_PER_PROCESS_BOUNDS_ENV);
+    let addressable_chip_count = match chip_bounds {
+        Some(bounds) if chip_count > 0 => {
+            sources.push("tpu_chips_per_process_bounds");
+            bounds.min(chip_count)
+        }
+        _ => chip_count,
+    };
+    let local_device_count = addressable_chip_count.saturating_mul(chip.devices_per_chip);
+
+    let process_index_from_env = env_first_u32(&env, PROCESS_INDEX_ENV);
+    let process_count_from_env = env_first_u32(&env, PROCESS_COUNT_ENV)
+        .or_else(|| env_first_list_count(&env, PROCESS_COUNT_LIST_ENV))
+        .filter(|count| *count > 0);
+    if process_index_from_env.is_some() || process_count_from_env.is_some() {
+        sources.push("process_env");
+    }
+    let process_index = process_index_from_env.unwrap_or(0);
+    let process_count = process_count_from_env.unwrap_or(1);
+    let global_device_count = local_device_count.saturating_mul(process_count);
+
+    let num_slices_from_env = env_first_u32(&env, NUM_SLICES_ENV).filter(|count| *count > 0);
+    let devices_per_slice_from_env =
+        env_first_u32(&env, DEVICES_PER_SLICE_ENV).filter(|count| *count > 0);
+    if num_slices_from_env.is_some() || devices_per_slice_from_env.is_some() {
+        sources.push("slice_env");
+    }
+    let num_slices = num_slices_from_env.unwrap_or(1);
+    let devices_per_slice = devices_per_slice_from_env.unwrap_or_else(|| {
+        if num_slices > 0 && global_device_count % num_slices == 0 {
+            global_device_count / num_slices
+        } else {
+            0
+        }
+    });
+
+    TpuTopology {
+        device_kind: jax_device_kind(chip),
+        local_device_count,
+        global_device_count,
+        num_slices,
+        devices_per_slice,
+        process_index,
+        process_count,
+        source: sources.join(","),
+    }
+}
+
+fn jax_device_kind(chip: &TpuChip) -> String {
+    match chip.name.as_str() {
+        "" => String::new(),
+        "v6e" => "TPU v6 lite".into(),
+        "7x" => "TPU7x".into(),
+        name => format!("TPU {name}"),
+    }
+}
+
+fn env_first_u32<F>(env: &F, names: &[&str]) -> Option<u32>
+where
+    F: Fn(&str) -> Option<String>,
+{
+    names
+        .iter()
+        .find_map(|name| env(name).and_then(|value| value.trim().parse::<u32>().ok()))
+}
+
+fn env_first_u32_product<F>(env: &F, names: &[&str]) -> Option<u32>
+where
+    F: Fn(&str) -> Option<String>,
+{
+    names.iter().find_map(|name| {
+        env(name).and_then(|value| {
+            let mut product = 1u32;
+            let mut saw_value = false;
+            for part in value
+                .split(',')
+                .map(str::trim)
+                .filter(|part| !part.is_empty())
+            {
+                let value = part.parse::<u32>().ok()?;
+                if value == 0 {
+                    return None;
+                }
+                product = product.checked_mul(value)?;
+                saw_value = true;
+            }
+            saw_value.then_some(product)
+        })
+    })
+}
+
+fn env_first_list_count<F>(env: &F, names: &[&str]) -> Option<u32>
+where
+    F: Fn(&str) -> Option<String>,
+{
+    names.iter().find_map(|name| {
+        env(name).and_then(|value| {
+            let count = value
+                .split(',')
+                .map(str::trim)
+                .filter(|part| !part.is_empty())
+                .count();
+            u32::try_from(count).ok().filter(|count| *count > 0)
+        })
+    })
+}
+
 fn tpu_chip_from_pci_ids(device_id: &str, subsystem_id: &str) -> Option<TpuChip> {
     match device_id {
         "0x0027" => match subsystem_id {
@@ -1352,6 +1520,104 @@ mod tests {
                 _ => None,
             })
             .collect()
+    }
+
+    fn test_chip(name: &str, devices_per_chip: u32) -> TpuChip {
+        TpuChip {
+            name: name.into(),
+            hbm_gib: 0,
+            devices_per_chip,
+            duty_cycle_fanout: 1,
+        }
+    }
+
+    fn topology_with_env(chip: &TpuChip, chip_count: u32, pairs: &[(&str, &str)]) -> TpuTopology {
+        let env: HashMap<&str, &str> = pairs.iter().copied().collect();
+        detect_tpu_topology_with_env(chip, chip_count, |key| {
+            env.get(key).map(|value| value.to_string())
+        })
+    }
+
+    // ---- topology ----
+
+    #[test]
+    fn test_topology_defaults_to_single_process_single_slice() {
+        let topology = topology_with_env(&test_chip("v5p", 1), 4, &[]);
+
+        assert_eq!(topology.device_kind, "TPU v5p");
+        assert_eq!(topology.local_device_count, 4);
+        assert_eq!(topology.global_device_count, 4);
+        assert_eq!(topology.num_slices, 1);
+        assert_eq!(topology.devices_per_slice, 4);
+        assert_eq!(topology.process_index, 0);
+        assert_eq!(topology.process_count, 1);
+        assert_eq!(topology.source, "local_pci");
+    }
+
+    #[test]
+    fn test_topology_uses_process_and_slice_env() {
+        let topology = topology_with_env(
+            &test_chip("v4", 1),
+            4,
+            &[
+                ("JAX_PROCESS_INDEX", "3"),
+                ("JAX_PROCESS_COUNT", "8"),
+                ("TPU_NUM_SLICES", "2"),
+            ],
+        );
+
+        assert_eq!(topology.device_kind, "TPU v4");
+        assert_eq!(topology.local_device_count, 4);
+        assert_eq!(topology.global_device_count, 32);
+        assert_eq!(topology.num_slices, 2);
+        assert_eq!(topology.devices_per_slice, 16);
+        assert_eq!(topology.process_index, 3);
+        assert_eq!(topology.process_count, 8);
+        assert_eq!(topology.source, "local_pci,process_env,slice_env");
+    }
+
+    #[test]
+    fn test_topology_uses_tpu_worker_env() {
+        let topology = topology_with_env(
+            &test_chip("v5e", 1),
+            4,
+            &[
+                ("TPU_WORKER_ID", "1"),
+                ("TPU_WORKER_HOSTNAMES", "host-0,host-1,host-2"),
+            ],
+        );
+
+        assert_eq!(topology.device_kind, "TPU v5e");
+        assert_eq!(topology.process_index, 1);
+        assert_eq!(topology.process_count, 3);
+        assert_eq!(topology.global_device_count, 12);
+    }
+
+    #[test]
+    fn test_topology_honors_tpu_chips_per_process_bounds() {
+        let topology = topology_with_env(
+            &test_chip("v3", 2),
+            8,
+            &[
+                ("TPU_CHIPS_PER_PROCESS_BOUNDS", "1,2,1"),
+                ("WORLD_SIZE", "4"),
+            ],
+        );
+
+        assert_eq!(topology.device_kind, "TPU v3");
+        assert_eq!(topology.local_device_count, 4);
+        assert_eq!(topology.global_device_count, 16);
+        assert_eq!(topology.devices_per_slice, 16);
+        assert_eq!(
+            topology.source,
+            "local_pci,tpu_chips_per_process_bounds,process_env"
+        );
+    }
+
+    #[test]
+    fn test_topology_device_kind_matches_jax_names() {
+        assert_eq!(jax_device_kind(&test_chip("v6e", 1)), "TPU v6 lite");
+        assert_eq!(jax_device_kind(&test_chip("7x", 2)), "TPU7x");
     }
 
     // ---- sanitize ----

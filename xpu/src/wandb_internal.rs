@@ -2559,6 +2559,22 @@ pub struct TpuInfo {
     pub devices_per_chip: u32,
     #[prost(uint32, tag = "4")]
     pub count: u32,
+    #[prost(string, tag = "5")]
+    pub device_kind: ::prost::alloc::string::String,
+    #[prost(uint32, tag = "6")]
+    pub local_device_count: u32,
+    #[prost(uint32, tag = "7")]
+    pub global_device_count: u32,
+    #[prost(uint32, tag = "8")]
+    pub num_slices: u32,
+    #[prost(uint32, tag = "9")]
+    pub devices_per_slice: u32,
+    #[prost(uint32, tag = "10")]
+    pub process_index: u32,
+    #[prost(uint32, tag = "11")]
+    pub process_count: u32,
+    #[prost(string, tag = "12")]
+    pub topology_source: ::prost::alloc::string::String,
 }
 /// CoreWeaveInfo stores information about a CoreWeave compute environment.
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
@@ -2569,6 +2585,43 @@ pub struct CoreWeaveInfo {
     pub org_id: ::prost::alloc::string::String,
     #[prost(string, tag = "3")]
     pub region: ::prost::alloc::string::String,
+}
+/// GKEInfo stores information about a Google Kubernetes Engine workload.
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GkeInfo {
+    #[prost(string, tag = "1")]
+    pub cluster_name: ::prost::alloc::string::String,
+    #[prost(string, tag = "2")]
+    pub namespace: ::prost::alloc::string::String,
+    #[prost(string, tag = "3")]
+    pub workload_kind: ::prost::alloc::string::String,
+    #[prost(string, tag = "4")]
+    pub workload_name: ::prost::alloc::string::String,
+    #[prost(string, tag = "5")]
+    pub parent_workload: ::prost::alloc::string::String,
+    #[prost(string, tag = "6")]
+    pub creation_timestamp: ::prost::alloc::string::String,
+    #[prost(string, tag = "7")]
+    pub workload_id: ::prost::alloc::string::String,
+    #[prost(map = "string, string", tag = "8")]
+    pub labels:
+        ::std::collections::HashMap<::prost::alloc::string::String, ::prost::alloc::string::String>,
+}
+/// GoogleCloudInfo stores information about a Google Cloud compute environment.
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GoogleCloudInfo {
+    #[prost(string, tag = "1")]
+    pub project_id: ::prost::alloc::string::String,
+    #[prost(string, tag = "2")]
+    pub zone: ::prost::alloc::string::String,
+    #[prost(string, tag = "3")]
+    pub region: ::prost::alloc::string::String,
+    #[prost(string, tag = "4")]
+    pub instance_id: ::prost::alloc::string::String,
+    #[prost(string, tag = "5")]
+    pub orchestrator: ::prost::alloc::string::String,
+    #[prost(message, optional, tag = "6")]
+    pub gke: ::core::option::Option<GkeInfo>,
 }
 /// EnvironmentRecord stores a snapshot of the system, hardware, software,
 /// and execution parameters captured at a run writer initialization.
@@ -2679,6 +2732,9 @@ pub struct EnvironmentRecord {
     /// Information about CoreWeave cloud environment.
     #[prost(message, optional, tag = "30")]
     pub coreweave: ::core::option::Option<CoreWeaveInfo>,
+    /// Information about Google Cloud environment.
+    #[prost(message, optional, tag = "31")]
+    pub google_cloud: ::core::option::Option<GoogleCloudInfo>,
     /// A unique identifier for this writer session.
     ///
     /// This ID distinguishes this writer's metadata from that of other writers

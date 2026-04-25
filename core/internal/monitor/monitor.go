@@ -205,6 +205,18 @@ func (sm *SystemMonitor) initializeResources(xpuResourceManager *XPUResourceMana
 			fmt.Errorf("monitor: failed to initialize CoreWeave metadata resource: %v", err))
 	}
 
+	// Google Cloud compute environment metadata.
+	if gcm, err := NewGoogleCloudMetadata(
+		GoogleCloudMetadataParams{
+			Logger: sm.logger,
+		},
+	); gcm != nil {
+		sm.resources = append(sm.resources, gcm)
+	} else if err != nil {
+		sm.logger.CaptureError(
+			fmt.Errorf("monitor: failed to initialize Google Cloud metadata resource: %v", err))
+	}
+
 	// DCGM Exporter.
 	if url := sm.settings.GetStatsDcgmExporter(); url != "" {
 		params := DCGMExporterParams{
