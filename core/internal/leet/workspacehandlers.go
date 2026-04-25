@@ -697,9 +697,7 @@ func (w *Workspace) handleWorkspaceRecord(run *WorkspaceRun, msg tea.Msg) {
 
 	case StatsMsg:
 		grid := w.getOrCreateSystemMetricsGrid(run.Key)
-		for metricName, value := range m.Metrics {
-			grid.AddDataPoint(metricName, m.Timestamp, value)
-		}
+		grid.ProcessStats(m)
 
 	case SystemInfoMsg:
 		w.getOrCreateRunOverview(run.Key).ProcessSystemInfoMsg(m.Record)

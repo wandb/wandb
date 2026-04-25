@@ -908,6 +908,9 @@ func (r *Run) handleChunkedBatch(msg ChunkedBatchMsg) []tea.Cmd {
 func (r *Run) handleBatched(msg BatchedRecordsMsg) []tea.Cmd {
 	r.logger.Debug(fmt.Sprintf("model: BatchedRecordsMsg received with %d messages", len(msg.Msgs)))
 	cmds := r.handleRecordsBatch(msg.Msgs, true)
+	if r.runState != RunStateRunning {
+		return cmds
+	}
 	cmds = append(
 		cmds,
 		r.ReadLiveBatchCmd(r.historySource),
@@ -918,6 +921,10 @@ func (r *Run) handleBatched(msg BatchedRecordsMsg) []tea.Cmd {
 // handleHeartbeat triggers a live read and re-arms the heartbeat.
 func (r *Run) handleHeartbeat() []tea.Cmd {
 	r.logger.Debug("model: processing HeartbeatMsg")
+	if r.runState != RunStateRunning {
+		r.heartbeatMgr.Stop()
+		return nil
+	}
 	r.heartbeatMgr.Reset(r.isRunning)
 	return []tea.Cmd{
 		r.ReadLiveBatchCmd(r.historySource),
@@ -927,6 +934,9 @@ func (r *Run) handleHeartbeat() []tea.Cmd {
 
 // handleFileChange coalesces change notifications into a read.
 func (r *Run) handleFileChange() []tea.Cmd {
+	if r.runState != RunStateRunning {
+		return nil
+	}
 	r.heartbeatMgr.Reset(r.isRunning)
 	return []tea.Cmd{
 		r.ReadLiveBatchCmd(r.historySource),

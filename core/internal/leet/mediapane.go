@@ -836,17 +836,24 @@ type mediaRenderKey struct {
 	height int
 }
 
+const mediaErrorRetryAfter = time.Second
+
+type mediaRenderError struct {
+	text string
+	at   time.Time
+}
+
 type mediaImageRenderer struct {
 	mu       sync.RWMutex
 	decoded  map[string]image.Image
-	errors   map[string]string
+	errors   map[string]mediaRenderError
 	rendered map[mediaRenderKey]string
 }
 
 func newMediaImageRenderer() *mediaImageRenderer {
 	return &mediaImageRenderer{
 		decoded:  make(map[string]image.Image),
-		errors:   make(map[string]string),
+		errors:   make(map[string]mediaRenderError),
 		rendered: make(map[mediaRenderKey]string),
 	}
 }
@@ -866,24 +873,29 @@ func (r *mediaImageRenderer) Render(path string, width, height int) string {
 		return rendered
 	}
 	img := r.decoded[path]
-	errText := r.errors[path]
+	errEntry, hasErr := r.errors[path]
 	r.mu.RUnlock()
 
-	if img == nil && errText == "" {
+	if img == nil && hasErr && time.Since(errEntry.at) < mediaErrorRetryAfter {
+		return renderMediaPlaceholder(width, height, truncateValue(errEntry.text, width))
+	}
+
+	if img == nil {
 		loaded, err := loadMediaImage(path)
 		r.mu.Lock()
 		if err != nil {
-			errText = err.Error()
-			r.errors[path] = errText
+			errEntry = mediaRenderError{text: err.Error(), at: time.Now()}
+			r.errors[path] = errEntry
 		} else {
 			img = loaded
 			r.decoded[path] = img
+			delete(r.errors, path)
 		}
 		r.mu.Unlock()
 	}
 
 	if img == nil {
-		return renderMediaPlaceholder(width, height, truncateValue(errText, width))
+		return renderMediaPlaceholder(width, height, truncateValue(errEntry.text, width))
 	}
 
 	rendered := renderANSIImage(img, width, height)
