@@ -40,9 +40,6 @@ type System struct {
 	// It is nil when cgroup limits are disabled or unavailable.
 	cgroup *cgroupResourceLimits
 
-	// System CPU count.
-	cpuCount int
-
 	// Logical CPU count.
 	cpuCountLogical int
 
@@ -86,8 +83,7 @@ func NewSystem(params SystemParams) *System {
 		diskInitialWriteBytes: make(map[string]uint64),
 	}
 
-	// CPU core counts.
-	s.cpuCount, _ = cpu.Counts(false)
+	// Logical CPU count. process.CPUPercent reports percentages in logical CPU units.
 	s.cpuCountLogical, _ = cpu.Counts(true)
 
 	if !params.DisableCgroupResourceLimits {
@@ -406,8 +402,8 @@ func (s *System) cpuCapacity() float64 {
 		}
 	}
 
-	if s.cpuCount > 0 {
-		return float64(s.cpuCount)
+	if s.cpuCountLogical > 0 {
+		return float64(s.cpuCountLogical)
 	}
 
 	return 0

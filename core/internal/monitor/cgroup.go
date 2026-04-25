@@ -1,7 +1,6 @@
 package monitor
 
 import (
-	"math"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -44,43 +43,11 @@ const (
 	cgroupCPUSetEffectiveFile = "cpuset.cpus.effective"
 	cgroupCPUSetFile          = "cpuset.cpus"
 
-	cgroupRootPath    = "/"
-	cgroupCurrentPath = "."
-
+	// cgroup v1 reports no memory limit as a huge LONG_MAX-derived value. This
+	// threshold treats those sentinel values as unlimited without rejecting real limits.
 	cgroupV1NoMemoryLimit = uint64(1 << 60)
 
-	procCgroupSeparator       = ":"
-	procCgroupFieldCount      = 3
-	procCgroupControllerField = 1
-	procCgroupPathField       = 2
-
-	mountInfoSeparator       = " - "
-	mountInfoFieldCount      = 2
-	mountInfoMinPrefixFields = 5
-	mountInfoMinSuffixFields = 3
-	mountInfoRootField       = 3
-	mountInfoMountPointField = 4
-	mountInfoFSTypeField     = 0
-	mountInfoOptionsField    = 2
-
-	cpusetRangeFieldCount = 2
-
-	lineSeparator  = "\n"
-	listSeparator  = ","
-	rangeSeparator = "-"
-
-	mountInfoEscapedSpace     = `\040`
-	mountInfoEscapedTab       = `\011`
-	mountInfoEscapedNewline   = `\012`
-	mountInfoEscapedBackslash = `\134`
-
-	spaceCharacter     = " "
-	tabCharacter       = "\t"
-	newlineCharacter   = "\n"
-	backslashCharacter = `\`
-
-	base10 = 10
-	bits64 = 64
+	mountInfoSeparator = " - "
 )
 
 var (
@@ -93,6 +60,13 @@ var (
 		cgroupCPUSetEffectiveFile,
 		cgroupCPUSetFile,
 	}
+
+	mountInfoPathUnescaper = strings.NewReplacer(
+		`\040`, " ",
+		`\011`, "\t",
+		`\012`, "\n",
+		`\134`, `\`,
+	)
 )
 
 // cgroupPaths names the procfs files used to discover the current process's
@@ -118,9 +92,8 @@ type cgroupResourceLimits struct {
 // cgroupController records one mounted controller and the candidate cgroup
 // directories to inspect, ordered from the process cgroup toward the mount root.
 type cgroupController struct {
-	version    int
-	dirs       []string
-	mountPoint string
+	version int
+	dirs    []string
 }
 
 // cgroupMemoryStats caches the stable memory limit and current-usage file. The
@@ -160,55 +133,65 @@ func detectCgroupResourceLimits(paths cgroupPaths) *cgroupResourceLimits {
 		return nil
 	}
 
+	v2 := cgroupV2ResourceLimits(procInfo, mounts)
+	if v2 == nil {
+		return cgroupV1ResourceLimits(procInfo, mounts)
+	}
+
+	v1 := cgroupV1ResourceLimits(procInfo, mounts)
+	if v1 == nil || v2.hasPrimaryLimit() {
+		return v2
+	}
+	return v1
+}
+
+func cgroupV2ResourceLimits(
+	procInfo procCgroupInfo,
+	mounts []cgroupMountInfo,
+) *cgroupResourceLimits {
+	if procInfo.unified == "" {
+		return nil
+	}
+
 	for _, mount := range mounts {
 		if mount.fsType == cgroupV2FSType && procInfo.unified != "" {
 			dirs := ancestorDirs(
 				cgroupDir(mount.mountPoint, mount.root, procInfo.unified),
 				mount.mountPoint,
 			)
+			controller := cgroupController{
+				version: cgroupVersion2,
+				dirs:    dirs,
+			}
 			return &cgroupResourceLimits{
-				memory: cgroupController{
-					version:    cgroupVersion2,
-					dirs:       dirs,
-					mountPoint: mount.mountPoint,
-				},
-				cpu: cgroupController{
-					version:    cgroupVersion2,
-					dirs:       dirs,
-					mountPoint: mount.mountPoint,
-				},
-				cpuset: cgroupController{
-					version:    cgroupVersion2,
-					dirs:       dirs,
-					mountPoint: mount.mountPoint,
-				},
+				memory: controller,
+				cpu:    controller,
+				cpuset: controller,
 			}
 		}
 	}
 
+	return nil
+}
+
+func cgroupV1ResourceLimits(
+	procInfo procCgroupInfo,
+	mounts []cgroupMountInfo,
+) *cgroupResourceLimits {
 	limits := &cgroupResourceLimits{}
 	for _, mount := range mounts {
 		if mount.fsType != cgroupV1FSType {
 			continue
 		}
 
-		if _, ok := mount.controllers[cgroupMemoryController]; ok {
-			limits.memory = controllerFromMount(
-				mount,
-				procInfo.controller[cgroupMemoryController],
-			)
+		if _, ok := mount.controllers[cgroupMemoryController]; ok && len(limits.memory.dirs) == 0 {
+			limits.memory = controllerFromMount(mount, procInfo.controller[cgroupMemoryController])
 		}
-		if _, ok := mount.controllers[cgroupCPUController]; ok {
-			limits.cpu = controllerFromMount(
-				mount,
-				procInfo.controller[cgroupCPUController],
-			)
+		if _, ok := mount.controllers[cgroupCPUController]; ok && len(limits.cpu.dirs) == 0 {
+			limits.cpu = controllerFromMount(mount, procInfo.controller[cgroupCPUController])
 		}
-		if _, ok := mount.controllers[cgroupCPUSetController]; ok {
-			limits.cpuset = controllerFromMount(
-				mount,
-				procInfo.controller[cgroupCPUSetController],
-			)
+		if _, ok := mount.controllers[cgroupCPUSetController]; ok && len(limits.cpuset.dirs) == 0 {
+			limits.cpuset = controllerFromMount(mount, procInfo.controller[cgroupCPUSetController])
 		}
 	}
 
@@ -217,6 +200,16 @@ func detectCgroupResourceLimits(paths cgroupPaths) *cgroupResourceLimits {
 	}
 
 	return limits
+}
+
+// hasPrimaryLimit reports whether this hierarchy has the limits this feature
+// primarily needs as denominators. A cpuset alone does not suppress v1 fallback
+// on hybrid hosts, where the v2 root can expose only host-wide cpuset state.
+func (c *cgroupResourceLimits) hasPrimaryLimit() bool {
+	if _, ok := c.MemoryLimit(); ok {
+		return true
+	}
+	return c.cpuQuotaLimit() > 0
 }
 
 // controllerFromMount maps a cgroup v1 controller mount and process cgroup path
@@ -232,7 +225,6 @@ func controllerFromMount(mount cgroupMountInfo, cgroupPath string) cgroupControl
 			cgroupDir(mount.mountPoint, mount.root, cgroupPath),
 			mount.mountPoint,
 		),
-		mountPoint: mount.mountPoint,
 	}
 }
 
@@ -258,18 +250,22 @@ func (c *cgroupResourceLimits) MemoryLimit() (limit uint64, ok bool) {
 	return c.memoryStats.limit, c.memoryStats.ok
 }
 
-// initMemoryStats resolves the first finite cgroup memory limit while walking
+// initMemoryStats resolves the smallest finite cgroup memory limit while walking
 // from the process cgroup toward its ancestors.
 func (c *cgroupResourceLimits) initMemoryStats() {
 	if len(c.memory.dirs) == 0 {
 		return
 	}
 
-	currentFile, limitFile := c.memoryFileNames()
+	currentFile, limitFile := memoryFileNames(c.memory.version)
 
 	for _, dir := range c.memory.dirs {
 		limit, ok := readCgroupUint(filepath.Join(dir, limitFile))
 		if !ok || !isFiniteMemoryLimit(limit) {
+			continue
+		}
+
+		if c.memoryStats.ok && limit >= c.memoryStats.limit {
 			continue
 		}
 
@@ -278,13 +274,12 @@ func (c *cgroupResourceLimits) initMemoryStats() {
 			limit:       limit,
 			ok:          true,
 		}
-		return
 	}
 }
 
 // memoryFileNames returns the cgroup files for the active memory controller.
-func (c *cgroupResourceLimits) memoryFileNames() (currentFile, limitFile string) {
-	if c.memory.version == cgroupVersion2 {
+func memoryFileNames(version int) (currentFile, limitFile string) {
+	if version == cgroupVersion2 {
 		return cgroupV2MemoryCurrentFile, cgroupV2MemoryMaxFile
 	}
 
@@ -294,32 +289,23 @@ func (c *cgroupResourceLimits) memoryFileNames() (currentFile, limitFile string)
 // CPULimit returns the number of CPUs available to the process according to the
 // cached most restrictive cgroup CPU quota or cpuset bound.
 func (c *cgroupResourceLimits) CPULimit() float64 {
-	c.cpuLimitOnce.Do(func() {
-		c.cpuLimit = c.detectCPULimit()
-	})
+	c.cpuLimitOnce.Do(c.initCPULimit)
 	return c.cpuLimit
+}
+
+func (c *cgroupResourceLimits) initCPULimit() {
+	c.cpuLimit = c.detectCPULimit()
 }
 
 // detectCPULimit resolves the cgroup CPU capacity from quota and cpuset files.
 func (c *cgroupResourceLimits) detectCPULimit() float64 {
-	limits := make([]float64, 0, 2)
-
-	if limit := c.cpuQuotaLimit(); limit > 0 {
-		limits = append(limits, limit)
-	}
-	if limit := c.cpusetLimit(); limit > 0 {
-		limits = append(limits, limit)
+	limit := c.cpuQuotaLimit()
+	if cpusetLimit := c.cpusetLimit(); cpusetLimit > 0 &&
+		(limit == 0 || cpusetLimit < limit) {
+		limit = cpusetLimit
 	}
 
-	if len(limits) == 0 {
-		return 0
-	}
-
-	out := limits[0]
-	for _, limit := range limits[1:] {
-		out = math.Min(out, limit)
-	}
-	return out
+	return limit
 }
 
 // cpuQuotaLimit returns the CPU quota as a count of host CPUs, or zero when no
@@ -329,26 +315,34 @@ func (c *cgroupResourceLimits) cpuQuotaLimit() float64 {
 		return 0
 	}
 
+	var out float64
 	for _, dir := range c.cpu.dirs {
-		var quota, period int64
-		var ok bool
-
-		if c.cpu.version == cgroupVersion2 {
-			quota, period, ok = readCgroupV2CPUMax(filepath.Join(dir, cgroupV2CPUMaxFile))
-		} else {
-			quota, ok = readCgroupInt(filepath.Join(dir, cgroupV1CPUQuotaFile))
-			if !ok || quota <= 0 {
-				continue
-			}
-			period, ok = readCgroupInt(filepath.Join(dir, cgroupV1CPUPeriodFile))
+		quota, period, ok := cpuQuotaAndPeriod(c.cpu, dir)
+		if !ok || quota <= 0 || period <= 0 {
+			continue
 		}
 
-		if ok && quota > 0 && period > 0 {
-			return float64(quota) / float64(period)
+		limit := float64(quota) / float64(period)
+		if out == 0 || limit < out {
+			out = limit
 		}
 	}
 
-	return 0
+	return out
+}
+
+func cpuQuotaAndPeriod(controller cgroupController, dir string) (quota, period int64, ok bool) {
+	if controller.version == cgroupVersion2 {
+		return readCgroupV2CPUMax(filepath.Join(dir, cgroupV2CPUMaxFile))
+	}
+
+	quota, ok = readCgroupInt(filepath.Join(dir, cgroupV1CPUQuotaFile))
+	if !ok || quota <= 0 {
+		return 0, 0, false
+	}
+
+	period, ok = readCgroupInt(filepath.Join(dir, cgroupV1CPUPeriodFile))
+	return quota, period, ok
 }
 
 // cpusetLimit returns the number of CPUs granted by the cgroup cpuset
@@ -383,23 +377,27 @@ func parseProcCgroup(path string) (procCgroupInfo, error) {
 	}
 
 	info := procCgroupInfo{controller: make(map[string]string)}
-	for line := range strings.SplitSeq(strings.TrimSpace(string(data)), lineSeparator) {
+	for line := range strings.SplitSeq(strings.TrimSpace(string(data)), "\n") {
 		if line == "" {
 			continue
 		}
 
-		parts := strings.SplitN(line, procCgroupSeparator, procCgroupFieldCount)
-		if len(parts) != procCgroupFieldCount {
+		_, rest, ok := strings.Cut(line, ":")
+		if !ok {
+			continue
+		}
+		controllers, cgroupPath, ok := strings.Cut(rest, ":")
+		if !ok {
 			continue
 		}
 
-		if parts[procCgroupControllerField] == "" {
-			info.unified = parts[procCgroupPathField]
+		if controllers == "" {
+			info.unified = cgroupPath
 			continue
 		}
 
-		for controller := range strings.SplitSeq(parts[procCgroupControllerField], listSeparator) {
-			info.controller[controller] = parts[procCgroupPathField]
+		for controller := range strings.SplitSeq(controllers, ",") {
+			info.controller[controller] = cgroupPath
 		}
 	}
 
@@ -415,7 +413,7 @@ func parseCgroupMountInfo(path string) ([]cgroupMountInfo, error) {
 	}
 
 	var mounts []cgroupMountInfo
-	for line := range strings.SplitSeq(strings.TrimSpace(string(data)), lineSeparator) {
+	for line := range strings.SplitSeq(strings.TrimSpace(string(data)), "\n") {
 		if line == "" {
 			continue
 		}
@@ -433,35 +431,46 @@ func parseCgroupMountInfo(path string) ([]cgroupMountInfo, error) {
 // separator is significant because mountinfo has optional fields before it and
 // fixed filesystem fields after it.
 func parseCgroupMountInfoLine(line string) (cgroupMountInfo, bool) {
-	parts := strings.SplitN(line, mountInfoSeparator, mountInfoFieldCount)
-	if len(parts) != mountInfoFieldCount {
+	pre, post, ok := strings.Cut(line, mountInfoSeparator)
+	if !ok {
 		return cgroupMountInfo{}, false
 	}
 
-	preFields := strings.Fields(parts[0])
-	postFields := strings.Fields(parts[1])
-	if len(preFields) < mountInfoMinPrefixFields || len(postFields) < mountInfoMinSuffixFields {
+	preFields := strings.Fields(pre)
+	postFields := strings.Fields(post)
+	if len(preFields) < 5 || len(postFields) < 3 {
 		return cgroupMountInfo{}, false
 	}
 
-	fsType := postFields[mountInfoFSTypeField]
+	fsType := postFields[0]
 	if fsType != cgroupV1FSType && fsType != cgroupV2FSType {
 		return cgroupMountInfo{}, false
 	}
 
 	controllers := make(map[string]struct{})
 	if fsType == cgroupV1FSType {
-		for opt := range strings.SplitSeq(postFields[mountInfoOptionsField], listSeparator) {
-			controllers[opt] = struct{}{}
+		for opt := range strings.SplitSeq(postFields[2], ",") {
+			if isCgroupV1Controller(opt) {
+				controllers[opt] = struct{}{}
+			}
 		}
 	}
 
 	return cgroupMountInfo{
 		fsType:      fsType,
-		root:        unescapeMountInfoPath(preFields[mountInfoRootField]),
-		mountPoint:  unescapeMountInfoPath(preFields[mountInfoMountPointField]),
+		root:        unescapeMountInfoPath(preFields[3]),
+		mountPoint:  unescapeMountInfoPath(preFields[4]),
 		controllers: controllers,
 	}, true
+}
+
+func isCgroupV1Controller(name string) bool {
+	switch name {
+	case cgroupMemoryController, cgroupCPUController, cgroupCPUSetController:
+		return true
+	default:
+		return false
+	}
 }
 
 // cgroupDir converts a process cgroup path into an absolute path under a cgroup
@@ -470,15 +479,15 @@ func cgroupDir(mountPoint, mountRoot, cgroupPath string) string {
 	rel := filepath.Clean(cgroupPath)
 	root := filepath.Clean(mountRoot)
 
-	if root != cgroupRootPath {
+	if root != "/" {
 		if rel == root {
-			rel = cgroupRootPath
-		} else if strings.HasPrefix(rel, root+cgroupRootPath) {
+			rel = "/"
+		} else if strings.HasPrefix(rel, root+"/") {
 			rel = strings.TrimPrefix(rel, root)
 		}
 	}
 
-	return filepath.Join(mountPoint, strings.TrimPrefix(rel, cgroupRootPath))
+	return filepath.Join(mountPoint, strings.TrimPrefix(rel, "/"))
 }
 
 // ancestorDirs returns a cgroup directory and its ancestors up to the mount
@@ -491,7 +500,7 @@ func ancestorDirs(dir, mountPoint string) []string {
 	var dirs []string
 	for {
 		dirs = append(dirs, dir)
-		if dir == mountPoint || dir == cgroupCurrentPath || dir == cgroupRootPath {
+		if dir == mountPoint || dir == "." || dir == "/" {
 			return dirs
 		}
 
@@ -515,12 +524,12 @@ func readCgroupV2CPUMax(path string) (quota, period int64, ok bool) {
 		return 0, 0, false
 	}
 
-	quota, err = strconv.ParseInt(fields[0], base10, bits64)
+	quota, err = strconv.ParseInt(fields[0], 10, 64)
 	if err != nil {
 		return 0, 0, false
 	}
 
-	period, err = strconv.ParseInt(fields[1], base10, bits64)
+	period, err = strconv.ParseInt(fields[1], 10, 64)
 	if err != nil {
 		return 0, 0, false
 	}
@@ -541,7 +550,7 @@ func readCgroupUint(path string) (uint64, bool) {
 		return 0, false
 	}
 
-	out, err := strconv.ParseUint(value, base10, bits64)
+	out, err := strconv.ParseUint(value, 10, 64)
 	return out, err == nil
 }
 
@@ -552,7 +561,7 @@ func readCgroupInt(path string) (int64, bool) {
 		return 0, false
 	}
 
-	out, err := strconv.ParseInt(strings.TrimSpace(string(text)), base10, bits64)
+	out, err := strconv.ParseInt(strings.TrimSpace(string(text)), 10, 64)
 	return out, err == nil
 }
 
@@ -570,20 +579,20 @@ func countCPUSet(value string) int {
 	}
 
 	count := 0
-	for part := range strings.SplitSeq(value, listSeparator) {
+	for part := range strings.SplitSeq(value, ",") {
 		part = strings.TrimSpace(part)
 		if part == "" {
 			continue
 		}
 
-		bounds := strings.SplitN(part, rangeSeparator, cpusetRangeFieldCount)
+		bounds := strings.SplitN(part, "-", 2)
 		start, err := strconv.Atoi(bounds[0])
 		if err != nil {
 			continue
 		}
 
 		end := start
-		if len(bounds) == cpusetRangeFieldCount {
+		if len(bounds) == 2 {
 			end, err = strconv.Atoi(bounds[1])
 			if err != nil {
 				continue
@@ -602,11 +611,5 @@ func countCPUSet(value string) int {
 // unescapeMountInfoPath decodes the octal escapes used in mountinfo path
 // fields.
 func unescapeMountInfoPath(path string) string {
-	replacer := strings.NewReplacer(
-		mountInfoEscapedSpace, spaceCharacter,
-		mountInfoEscapedTab, tabCharacter,
-		mountInfoEscapedNewline, newlineCharacter,
-		mountInfoEscapedBackslash, backslashCharacter,
-	)
-	return replacer.Replace(path)
+	return mountInfoPathUnescaper.Replace(path)
 }
