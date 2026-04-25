@@ -11,7 +11,7 @@
 use libloading::{Library, Symbol};
 use std::{
     collections::HashSet,
-    ffi::{c_char, c_int, c_void, CStr, CString},
+    ffi::{CStr, CString, c_char, c_int, c_void},
     ptr,
     sync::mpsc::{self, Receiver as SyncReceiver, SyncSender},
     thread,
@@ -415,8 +415,14 @@ impl DcgmLibrary for DcgmLib {
     ) -> Result<(), String> {
         unsafe {
             log::debug!("Setting up field watches");
-            log::debug!("group_id={}, field_group_id={}, update_freq_us={}, max_keep_age={}, max_keep_samples={}",
-                     group_id, field_group_id, update_freq_us, max_keep_age, max_keep_samples);
+            log::debug!(
+                "group_id={}, field_group_id={}, update_freq_us={}, max_keep_age={}, max_keep_samples={}",
+                group_id,
+                field_group_id,
+                update_freq_us,
+                max_keep_age,
+                max_keep_samples
+            );
 
             let watch_fields: Symbol<
                 unsafe extern "C" fn(
@@ -485,7 +491,7 @@ impl DcgmLibrary for DcgmLib {
                         f
                     }
                     Err(e) => {
-                        return Err(format!("Failed to get dcgmUpdateAllFields symbol: {}", e))
+                        return Err(format!("Failed to get dcgmUpdateAllFields symbol: {}", e));
                     }
                 };
 
@@ -556,7 +562,7 @@ impl DcgmLibrary for DcgmLib {
                     return Err(format!(
                         "Failed to get dcgmGetLatestValues_v2 symbol: {}",
                         e
-                    ))
+                    ));
                 }
             };
 
@@ -567,7 +573,9 @@ impl DcgmLibrary for DcgmLib {
 
             // Handle different error cases
             if result == DCGM_ST_NO_DATA {
-                log::debug!("No data available yet (DCGM_ST_NO_DATA). The profiling metrics might need time to be collected.");
+                log::debug!(
+                    "No data available yet (DCGM_ST_NO_DATA). The profiling metrics might need time to be collected."
+                );
                 return Ok(());
             } else if result == DCGM_ST_NOT_SUPPORTED {
                 return Err(format!(
@@ -684,7 +692,7 @@ impl DcgmLib {
                     return Err(format!(
                         "Failed to get dcgmProfGetSupportedMetricGroups symbol: {}",
                         e
-                    ))
+                    ));
                 }
             };
 
@@ -1374,7 +1382,7 @@ mod tests {
         // This is the error the *mock* is programmed to return
         let base_error_msg = "DCGM FFI call failed".to_string();
         mock_lib.expect_update_all_fields(Ok(())); // Assume update succeeds
-                                                   // Program the mock to return the base error
+        // Program the mock to return the base error
         mock_lib.expect_get_latest_values(Err(base_error_msg.clone()));
 
         let (_tx, rx) = mpsc::channel();
