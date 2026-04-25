@@ -179,6 +179,35 @@ func (g *SystemMetricsGrid) createMetricChart(def *MetricDef) systemMetricChart 
 // Drawing is deferred to the next View() call to avoid redundant redraws
 // when processing a batch of metrics from a single stats record.
 func (g *SystemMetricsGrid) AddDataPoint(metricName string, timestamp int64, value float64) {
+	if g.addDataPoint(metricName, timestamp, value) {
+		g.refreshChartSet()
+	}
+}
+
+// ProcessStats ingests all metrics from a single stats record, batching any
+// chart creation/filtering/redraw work.
+func (g *SystemMetricsGrid) ProcessStats(msg StatsMsg) {
+	if len(msg.Metrics) == 0 {
+		return
+	}
+
+	chartSetChanged := false
+	for metricName, value := range msg.Metrics {
+		if g.addDataPoint(metricName, msg.Timestamp, value) {
+			chartSetChanged = true
+		}
+	}
+	if chartSetChanged {
+		g.refreshChartSet()
+	}
+}
+
+// addDataPoint adds a sample and reports whether the chart set changed.
+func (g *SystemMetricsGrid) addDataPoint(
+	metricName string,
+	timestamp int64,
+	value float64,
+) bool {
 	g.logger.Debug(fmt.Sprintf(
 		"SystemMetricsGrid.AddDataPoint: metric=%s, timestamp=%d, value=%f",
 		metricName, timestamp, value))
@@ -187,41 +216,48 @@ func (g *SystemMetricsGrid) AddDataPoint(metricName string, timestamp int64, val
 	if def == nil {
 		g.logger.Debug(fmt.Sprintf(
 			"SystemMetricsGrid.AddDataPoint: no definition for metric=%s", metricName))
-		return
+		return false
 	}
 
 	baseKey := ExtractBaseKey(metricName)
 	seriesName := ExtractSeriesName(metricName)
 
-	chart := g.getOrCreateChart(baseKey, def)
+	chart, created := g.getOrCreateChart(baseKey, def)
 	chart.AddDataPoint(seriesName, timestamp, value)
+	return created
 }
 
 // getOrCreateChart returns a chart for the given baseKey.
-func (g *SystemMetricsGrid) getOrCreateChart(baseKey string, def *MetricDef) systemMetricChart {
+func (g *SystemMetricsGrid) getOrCreateChart(
+	baseKey string,
+	def *MetricDef,
+) (systemMetricChart, bool) {
 	chart, exists := g.byBaseKey[baseKey]
 	if !exists {
 		g.logger.Debug(fmt.Sprintf("systemmetricsgrid: creating new chart for baseKey=%s", baseKey))
 		chart = g.createMetricChart(def)
 		g.byBaseKey[baseKey] = chart
 		g.addChart(chart)
+		return chart, true
 	}
-	return chart
+	return chart, false
 }
 
-// addChart adds a chart to the ordered list and updates pagination.
+// addChart adds a chart to the ordered list.
 func (g *SystemMetricsGrid) addChart(chart systemMetricChart) {
 	g.ordered = append(g.ordered, chart)
 	sort.Slice(g.ordered, func(i, j int) bool {
 		return g.ordered[i].Title() < g.ordered[j].Title()
 	})
 
+	g.logger.Debug(fmt.Sprintf(
+		"SystemMetricsGrid.addChart: chart added, total=%d",
+		len(g.ordered)))
+}
+
+func (g *SystemMetricsGrid) refreshChartSet() {
 	g.ApplyFilter()
 	g.drawVisible()
-
-	g.logger.Debug(fmt.Sprintf(
-		"SystemMetricsGrid.addChart: chart added, total=%d, pages=%d",
-		len(g.ordered), g.nav.TotalPages()))
 }
 
 // LoadCurrentPage loads charts for the current page.

@@ -66,7 +66,7 @@ func TestReadAllRecordsChunked_HistoryThenExit(t *testing.T) {
 	batch, ok := msg.(leet.ChunkedBatchMsg)
 	require.True(t, ok)
 	require.False(t, batch.HasMore)
-	require.Equal(t, 1, batch.Progress)
+	require.Equal(t, 2, batch.Progress)
 	require.Equal(t, 2, len(batch.Msgs))
 
 	assert.IsType(t, leet.HistoryMsg{}, batch.Msgs[0])
@@ -74,6 +74,84 @@ func TestReadAllRecordsChunked_HistoryThenExit(t *testing.T) {
 	assert.EqualValues(t, 0.42, batch.Msgs[0].(leet.HistoryMsg).Metrics["loss"].Y[0])
 	assert.IsType(t, leet.FileCompleteMsg{}, batch.Msgs[1])
 	assert.EqualValues(t, 0, batch.Msgs[1].(leet.FileCompleteMsg).ExitCode)
+}
+
+func TestLevelDBHistorySource_FileCompleteEmittedOnce(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "complete-once.wandb")
+
+	w, err := transactionlog.OpenWriter(path)
+	require.NoError(t, err)
+	require.NoError(t,
+		w.Write(&spb.Record{
+			RecordType: &spb.Record_Exit{
+				Exit: &spb.RunExitRecord{ExitCode: 0},
+			},
+		}))
+	require.NoError(t, w.Close())
+
+	reader, err := leet.NewLevelDBHistorySource(path, observability.NewNoOpLogger())
+	require.NoError(t, err)
+	defer reader.Close()
+
+	msg, err := reader.Read(leet.BootLoadChunkSize, leet.BootLoadMaxTime)
+	require.NoError(t, err)
+	batch, ok := msg.(leet.ChunkedBatchMsg)
+	require.True(t, ok)
+	require.Len(t, batch.Msgs, 1)
+	require.IsType(t, leet.FileCompleteMsg{}, batch.Msgs[0])
+
+	msg, err = reader.Read(leet.BootLoadChunkSize, leet.BootLoadMaxTime)
+	require.ErrorIs(t, err, io.EOF)
+	batch, ok = msg.(leet.ChunkedBatchMsg)
+	require.True(t, ok)
+	require.Empty(t, batch.Msgs)
+}
+
+func TestLevelDBHistorySource_UnsupportedRecordsKeepChunking(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "unsupported-then-history.wandb")
+
+	w, err := transactionlog.OpenWriter(path)
+	require.NoError(t, err)
+	for range 2 {
+		require.NoError(t,
+			w.Write(&spb.Record{
+				RecordType: &spb.Record_Files{Files: &spb.FilesRecord{}},
+			}))
+	}
+	require.NoError(t,
+		w.Write(&spb.Record{
+			RecordType: &spb.Record_History{
+				History: &spb.HistoryRecord{
+					Item: []*spb.HistoryItem{
+						{NestedKey: []string{"_step"}, ValueJson: "3"},
+						{NestedKey: []string{"loss"}, ValueJson: "0.25"},
+					},
+				},
+			},
+		}))
+	require.NoError(t, w.Close())
+
+	reader, err := leet.NewLevelDBHistorySource(path, observability.NewNoOpLogger())
+	require.NoError(t, err)
+	defer reader.Close()
+
+	msg, err := reader.Read(2, leet.BootLoadMaxTime)
+	require.NoError(t, err)
+	batch, ok := msg.(leet.ChunkedBatchMsg)
+	require.True(t, ok)
+	require.True(t, batch.HasMore)
+	require.Equal(t, 2, batch.Progress)
+	require.Empty(t, batch.Msgs)
+
+	msg, err = reader.Read(2, leet.BootLoadMaxTime)
+	require.NoError(t, err)
+	batch, ok = msg.(leet.ChunkedBatchMsg)
+	require.True(t, ok)
+	require.Len(t, batch.Msgs, 1)
+	hist, ok := batch.Msgs[0].(leet.HistoryMsg)
+	require.True(t, ok)
+	require.Equal(t, 3.0, hist.Metrics["loss"].X[0])
+	require.Equal(t, 0.25, hist.Metrics["loss"].Y[0])
 }
 
 //gocyclo:ignore

@@ -253,10 +253,7 @@ func (rs *RightSidebar) ProcessStatsMsg(msg StatsMsg) {
 		"rightsidebar: ProcessStatsMsg: processing %d metrics (state=%v, width=%d)",
 		len(msg.Metrics), rs.animState, rs.animState.Value()))
 
-	// Add all data points to the grid.
-	for metricName, value := range msg.Metrics {
-		rs.metricsGrid.AddDataPoint(metricName, msg.Timestamp, value)
-	}
+	rs.metricsGrid.ProcessStats(msg)
 }
 
 // calculateGridHeight returns the available height for the metrics grid.
