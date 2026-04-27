@@ -40,7 +40,7 @@ import pathlib
 import tempfile
 import time
 import urllib
-from collections.abc import Collection, Iterator, Mapping
+from collections.abc import Collection, Mapping
 from typing import TYPE_CHECKING, Any, Literal
 
 from typing_extensions import override
@@ -1606,7 +1606,7 @@ class Run(Attrs):
         min_step: int = 0,
         max_step: int | None = None,
         use_cache: bool = True,
-    ) -> public.BetaHistoryScan:
+    ) -> public.HistoryScan:
         """Returns an iterable collection of all history records for a run.
 
         Args:
@@ -1636,7 +1636,7 @@ class Run(Attrs):
             settings = wandb_setup.singleton().settings.model_copy()
             self._service_api = ServiceApi(settings=settings)
 
-        beta_history_scan = public.BetaHistoryScan(
+        beta_history_scan = public.HistoryScan(
             service_api=self._service_api,
             run=self,
             min_step=min_step,
@@ -1717,7 +1717,7 @@ class Run(Attrs):
         min_step: int = 0,
         max_step: int | None = None,
         use_cache: bool = True,
-    ) -> public.BetaHistoryScan:
+    ) -> public.HistoryScan:
         return self.scan_history(
             keys=keys,
             page_size=page_size,

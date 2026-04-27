@@ -18,22 +18,19 @@ from collections.abc import Iterator
 from typing import TYPE_CHECKING, Any
 
 from typing_extensions import Self, TypeAlias
-from wandb_gql import gql
 
-from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.public.service_api import ServiceApi
 from wandb.proto import wandb_api_pb2 as pb
 from wandb.sdk.mailbox.mailbox import MailboxClosedError
 
 if TYPE_CHECKING:
     from . import runs
-    from .api import RetryingClient
 
 _RowDict: TypeAlias = dict[str, Any]
 """Type alias for a single history row as a dict."""
 
 
-class BetaHistoryScan(Iterator[_RowDict]):
+class HistoryScan(Iterator[_RowDict]):
     """Iterator for scanning complete run history.
 
     <!-- lazydoc-ignore-class: internal -->
@@ -161,197 +158,3 @@ class BetaHistoryScan(Iterator[_RowDict]):
             service_api.send_api_request(
                 pb.ApiRequest(read_run_history_request=scan_run_history_cleanup_request)
             )
-
-
-class HistoryScan(Iterator[_RowDict]):
-    """Iterator for scanning complete run history.
-
-    <!-- lazydoc-ignore-class: internal -->
-    """
-
-    QUERY = gql(
-        """
-        query HistoryPage($entity: String!, $project: String!, $run: String!, $minStep: Int64!, $maxStep: Int64!, $pageSize: Int!) {
-            project(name: $project, entityName: $entity) {
-                run(name: $run) {
-                    history(minStep: $minStep, maxStep: $maxStep, samples: $pageSize)
-                }
-            }
-        }
-        """
-    )
-
-    def __init__(
-        self,
-        client: RetryingClient,
-        run: runs.Run,
-        min_step: int,
-        max_step: int,
-        page_size: int = 1_000,
-    ):
-        """Initialize a HistoryScan instance.
-
-        Args:
-            client: The client instance to use for making API calls to the W&B backend.
-            run: The run object whose history is to be scanned.
-            min_step: The minimum step to start scanning from.
-            max_step: The exclusive upper bound for scanned history rows.
-            page_size: Number of history rows to fetch per page.
-                Default page_size is 1000.
-        """
-        self.client = client
-        self.run = run
-        self.page_size = page_size
-        self.min_step = min_step
-        self._stop_step = max_step
-        self.page_offset = min_step  # minStep for next page
-        self.scan_offset = 0  # index within current page of rows
-        self.rows: list[_RowDict] = []  # current page of rows
-
-    @property
-    def max_step(self) -> int:
-        """The highest step that can be yielded by this scan."""
-        return self._stop_step - 1
-
-    def __iter__(self) -> Self:
-        self.page_offset = self.min_step
-        self.scan_offset = 0
-        self.rows = []
-        return self
-
-    def __next__(self) -> _RowDict:
-        """Return the next row of history data with automatic pagination.
-
-        <!-- lazydoc-ignore: internal -->
-        """
-        while True:
-            if self.scan_offset < len(self.rows):
-                row = self.rows[self.scan_offset]
-                self.scan_offset += 1
-                return row
-            if self.page_offset >= self._stop_step:
-                raise StopIteration()
-            self._load_next()
-
-    next = __next__
-
-    @normalize_exceptions
-    def _load_next(self) -> None:
-        max_step = self.page_offset + self.page_size
-        if max_step > self._stop_step:
-            max_step = self._stop_step
-        variables = {
-            "entity": self.run.entity,
-            "project": self.run.project,
-            "run": self.run.id,
-            "minStep": int(self.page_offset),
-            "maxStep": int(max_step),
-            "pageSize": int(self.page_size),
-        }
-
-        res = self.client.execute(self.QUERY, variable_values=variables)
-        res = res["project"]["run"]["history"]
-        self.rows = [json.loads(row) for row in res]
-        self.page_offset += self.page_size
-        self.scan_offset = 0
-
-
-class SampledHistoryScan(Iterator[_RowDict]):
-    """Iterator for sampling run history data.
-
-    <!-- lazydoc-ignore-class: internal -->
-    """
-
-    QUERY = gql(
-        """
-        query SampledHistoryPage($entity: String!, $project: String!, $run: String!, $spec: JSONString!) {
-            project(name: $project, entityName: $entity) {
-                run(name: $run) {
-                    sampledHistory(specs: [$spec])
-                }
-            }
-        }
-        """
-    )
-
-    def __init__(
-        self,
-        client: RetryingClient,
-        run: runs.Run,
-        keys: list[str],
-        min_step: int,
-        max_step: int,
-        page_size: int = 1_000,
-    ):
-        """Initialize a SampledHistoryScan instance.
-
-        Args:
-            client: The client instance to use for making API calls to the W&B backend.
-            run: The run object whose history is to be sampled.
-            keys: List of keys to sample from the history.
-            min_step: The minimum step to start sampling from.
-            max_step: The exclusive upper bound for sampled history rows.
-            page_size: Number of sampled history rows to fetch per page.
-                Default page_size is 1000.
-        """
-        self.client = client
-        self.run = run
-        self.keys = keys
-        self.page_size = page_size
-        self.min_step = min_step
-        self._stop_step = max_step
-        self.page_offset = min_step  # minStep for next page
-        self.scan_offset = 0  # index within current page of rows
-        self.rows: list[_RowDict] = []  # current page of rows
-
-    @property
-    def max_step(self) -> int:
-        """The highest step that can be yielded by this scan."""
-        return self._stop_step - 1
-
-    def __iter__(self) -> Self:
-        self.page_offset = self.min_step
-        self.scan_offset = 0
-        self.rows = []
-        return self
-
-    def __next__(self) -> _RowDict:
-        """Return the next row of sampled history data with automatic pagination.
-
-        <!-- lazydoc-ignore: internal -->
-        """
-        while True:
-            if self.scan_offset < len(self.rows):
-                row = self.rows[self.scan_offset]
-                self.scan_offset += 1
-                return row
-            if self.page_offset >= self._stop_step:
-                raise StopIteration()
-            self._load_next()
-
-    next = __next__
-
-    @normalize_exceptions
-    def _load_next(self) -> None:
-        max_step = self.page_offset + self.page_size
-        if max_step > self._stop_step:
-            max_step = self._stop_step
-        variables = {
-            "entity": self.run.entity,
-            "project": self.run.project,
-            "run": self.run.id,
-            "spec": json.dumps(
-                {
-                    "keys": self.keys,
-                    "minStep": int(self.page_offset),
-                    "maxStep": int(max_step),
-                    "samples": int(self.page_size),
-                }
-            ),
-        }
-
-        res = self.client.execute(self.QUERY, variable_values=variables)
-        res = res["project"]["run"]["sampledHistory"]
-        self.rows = res[0]
-        self.page_offset += self.page_size
-        self.scan_offset = 0
