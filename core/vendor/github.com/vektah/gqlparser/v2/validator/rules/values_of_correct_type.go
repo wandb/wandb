@@ -188,20 +188,8 @@ func ruleFuncValuesOfCorrectType(observers *Events, addError AddErrFunc, disable
 							return
 						}
 
-						isVariable := fieldValue.Kind == ast.Variable
-						if isVariable {
-							variableName := fieldValue.VariableDefinition.Variable
-							isNullableVariable := !fieldValue.VariableDefinition.Type.NonNull
-							if isNullableVariable {
-								addError(
-									Message(
-										`Variable "%s" must be non-nullable to be used for OneOf Input Object "%s".`,
-										variableName,
-										value.Definition.Name,
-									),
-									At(fieldValue.Position),
-								)
-							}
+						if fieldValue.Kind == ast.Variable {
+							return
 						}
 					}()
 				}
