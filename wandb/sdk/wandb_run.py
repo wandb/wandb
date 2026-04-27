@@ -3783,7 +3783,11 @@ class Run:
                 f"or set {self._printer.code('WANDB_MODE=online')} "
                 "to enable cloud syncing."
             )
-            self._printer.display([offline_warning, sync_location_msg])
+            leet_hint = (
+                f"View this run in the terminal with "
+                f"{self._printer.code('`wandb beta leet`')}"
+            )
+            self._printer.display([offline_warning, sync_location_msg, leet_hint])
         else:
             messages = [sync_location_msg]
 
