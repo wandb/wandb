@@ -1,0 +1,16 @@
+FROM golang:1.26-bookworm
+
+RUN apt-get update -qq && apt-get install -y -qq python3 python3-venv curl libssl-dev pkg-config
+
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
+ENV PATH="/root/.cargo/bin:/usr/local/go/bin:$PATH"
+
+RUN python3 -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+ARG WANDB_SHA
+RUN PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig \
+    OPENSSL_INCLUDE_DIR=/usr/include \
+    OPENSSL_LIB_DIR=/usr/lib/x86_64-linux-gnu \
+    pip install --quiet --no-cache-dir \
+    "wandb[sandbox] @ git+https://github.com/wandb/wandb.git@${WANDB_SHA}"

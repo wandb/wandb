@@ -1,0 +1,71 @@
+name: Sandbox Integration Test
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'wandb branch to test against'
+        required: true
+        default: 'main'
+
+jobs:
+  sandbox-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set image name
+        run: echo "IMAGE=ttl.sh/sandbox-canary-${{ github.run_id }}:15m" >> $GITHUB_ENV
+
+      - name: Resolve wandb branch to SHA
+        id: wandb-sha
+        run: |
+          SHA=$(git ls-remote https://github.com/wandb/wandb.git "refs/heads/${{ inputs.branch }}" | cut -f1)
+          echo "sha=$SHA" >> $GITHUB_OUTPUT
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build ephemeral canary image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: tools/sandbox-canary/Dockerfile.ci
+          platforms: linux/amd64
+          push: true
+          tags: ${{ env.IMAGE }}
+          build-args: WANDB_SHA=${{ steps.wandb-sha.outputs.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - uses: azure/setup-kubectl@v3
+
+      - name: Run canary job
+        env:
+          KUBECONFIG_B64: ${{ secrets.SANDBOX_KUBECONFIG }}
+        run: |
+          echo "$KUBECONFIG_B64" | base64 -d > /tmp/kube.yaml
+          JOB=sandbox-ci-${{ github.run_id }}
+
+          kubectl --kubeconfig /tmp/kube.yaml -n aviato-system \
+            create job $JOB --from=cronjob/sandbox-canary \
+            --dry-run=client -o json | \
+            jq --arg img "$IMAGE" '
+              .spec.template.spec.containers[0].image = $img |
+              (.spec.template.spec.containers[0].env[] | select(.name=="DD_API_KEY")).value = ""
+            ' | kubectl --kubeconfig /tmp/kube.yaml apply -f -
+
+          kubectl --kubeconfig /tmp/kube.yaml -n aviato-system \
+            logs -l job-name=$JOB -f --pod-running-timeout=300s
+
+      - name: Get job exit code
+        if: always()
+        env:
+          KUBECONFIG_B64: ${{ secrets.SANDBOX_KUBECONFIG }}
+        run: |
+          echo "$KUBECONFIG_B64" | base64 -d > /tmp/kube.yaml
+          JOB=sandbox-ci-${{ github.run_id }}
+          EXIT=$(kubectl --kubeconfig /tmp/kube.yaml -n aviato-system \
+            get pods -l job-name=$JOB \
+            -o jsonpath='{.items[0].status.containerStatuses[0].state.terminated.exitCode}')
+          echo "Canary exit code: $EXIT"
+          exit ${EXIT:-1}
