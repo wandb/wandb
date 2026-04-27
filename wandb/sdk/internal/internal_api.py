@@ -291,12 +291,18 @@ class Api:
             self._environ.get("WANDB__PROXIES", "{}")
         )
 
+        if wandb_setup.singleton().settings.x_cli_only_mode:
+            client_source = "cli"
+        else:
+            client_source = "sdk"
+
         self.client = Client(
             transport=GraphQLSession(
                 headers={
                     "User-Agent": self.user_agent,
                     "X-WANDB-USERNAME": env.get_username(env=self._environ),
                     "X-WANDB-USER-EMAIL": env.get_user_email(env=self._environ),
+                    "X-WANDB-Client-Source": client_source,
                     **self._extra_http_headers,
                 },
                 use_json=True,
