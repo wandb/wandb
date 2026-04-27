@@ -3665,4 +3665,76 @@ def purge_cache(
     )
 
 
+@cli.command()
+@click.argument("path")
+@click.option(
+    "--output",
+    "-o",
+    default=None,
+    help="Output file path. Defaults to stdout.",
+)
+@click.option(
+    "--record-types",
+    default=None,
+    help="Comma-separated list of record types to include (e.g. history,summary,config).",
+)
+@click.option(
+    "--format",
+    "output_format",
+    type=click.Choice(["json", "proto"]),
+    default="json",
+    help="Output format: json (one record per line) or proto (raw protobuf text).",
+)
+@click.option(
+    "--pause",
+    is_flag=True,
+    default=False,
+    help="Pause and wait for Enter after each record.",
+)
+@display_error
+def parse(path, output, record_types, output_format, pause):
+    """Parse a .wandb run file and output records as JSON.
+
+    Reads PATH (a run-<ID>.wandb file) and writes each record as a JSON
+    object. The outer protobuf type wrapper is removed so fields are at the
+    top level alongside record_type.
+
+    Example — stream history records to jq:
+
+        wandb parse --record-types history --expand-values run-abc.wandb | jq '.item[]'
+    """
+    import sys
+
+    from wandb.sdk.lib.run_file_parser import RunFileParser
+
+    type_filter = [t.strip() for t in record_types.split(",")] if record_types else None
+    parser = RunFileParser(path)
+
+    if output:
+        out = open(output, "w")
+    else:
+        out = sys.stdout
+
+    try:
+        if output_format == "json":
+            for line in parser.to_json(record_types=type_filter):
+                out.write(line + "\n")
+                if pause:
+                    input()
+        elif output_format == "proto":
+            for record_type, pb in parser.raw_records():
+                if type_filter and record_type not in type_filter:
+                    continue
+                out.write(f"RECORD TYPE: {record_type}\n{pb}\n\n")
+                if pause:
+                    input()
+        else:
+            raise ValueError(
+                f"Invalid output format: {output_format}, valid options are: json, proto"
+            )
+    finally:
+        if output:
+            out.close()
+
+
 cli.add_command(beta)
