@@ -10,7 +10,9 @@ from requests import HTTPError
 from wandb import Api
 from wandb.apis import internal
 from wandb.apis._generated import ProjectFragment, UserFragment
+from wandb.apis.public import api as public_api
 from wandb.errors import UsageError
+from wandb.errors.errors import CommError
 from wandb.sdk import wandb_login
 from wandb.sdk.artifacts.artifact_download_logger import ArtifactDownloadLogger
 from wandb.sdk.lib import wbauth
@@ -397,3 +399,50 @@ def test_api_uses_as_requests_auth(mocker: MockerFixture):
     Api()
 
     mock_auth.as_requests_auth.assert_called_once()
+
+
+@pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
+def test_run_delete_forking_without_cascade(monkeypatch):
+    """Test that delete raises CommError when run has descendants and delete_all_descendants=False."""
+    api = wandb.Api()
+    run = wandb.apis.public.Run(
+        client=api.client,
+        entity="test-entity",
+        project="test-project",
+        run_id="test-run",
+        attrs={"id": "abc123"},
+    )
+
+    mock_execute = MagicMock(
+        side_effect=CommError("Cannot delete run with descendants")
+    )
+    monkeypatch.setattr(public_api.RetryingClient, "execute", mock_execute)
+
+    with pytest.raises(CommError):
+        run.delete(delete_all_descendants=False)
+    assert (
+        mock_execute.call_args.kwargs["variable_values"]["deleteAllDescendants"]
+        is False
+    )
+
+
+@pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
+def test_run_delete_forking_with_cascade(monkeypatch, mock_wandb_log):
+    """Test that delete succeeds and logs when delete_all_descendants=True."""
+    api = wandb.Api()
+    run = wandb.apis.public.Run(
+        client=api.client,
+        entity="test-entity",
+        project="test-project",
+        run_id="test-run",
+        attrs={"id": "abc123"},
+    )
+
+    mock_execute = MagicMock(return_value={"deleteRun": {"numDeleted": 3}})
+    monkeypatch.setattr(public_api.RetryingClient, "execute", mock_execute)
+
+    run.delete(delete_all_descendants=True)
+    assert (
+        mock_execute.call_args.kwargs["variable_values"]["deleteAllDescendants"] is True
+    )
+    mock_wandb_log.assert_logged("Deleted 3 run(s)")

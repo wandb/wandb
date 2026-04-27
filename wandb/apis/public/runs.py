@@ -983,39 +983,56 @@ class Run(Attrs):
         self.summary.update()
 
     @normalize_exceptions
-    def delete(self, delete_artifacts: bool = False) -> None:
+    def delete(
+        self,
+        delete_artifacts: bool = False,
+        delete_all_descendants: bool = False,
+    ) -> None:
         """Delete the given run from the wandb backend.
 
         Args:
             delete_artifacts (bool, optional): Whether to delete the artifacts
                 associated with the run.
+            delete_all_descendants (bool, optional): Whether to delete all runs forked
+                from this run.
         """
         mutation = gql(
             """
             mutation DeleteRun(
                 $id: ID!,
                 {}
+                {}
             ) {{
                 deleteRun(input: {{
                     id: $id,
                     {}
+                    {}
                 }}) {{
                     clientMutationId
+                    numDeleted
                 }}
             }}
         """.format(
                 "$deleteArtifacts: Boolean" if delete_artifacts else "",
+                "$deleteAllDescendants: Boolean" if delete_all_descendants else "",
                 "deleteArtifacts: $deleteArtifacts" if delete_artifacts else "",
+                "deleteAllDescendants: $deleteAllDescendants"
+                if delete_all_descendants
+                else "",
             )
         )
 
-        self.client.execute(
+        result = self.client.execute(
             mutation,
             variable_values={
                 "id": self.storage_id,
                 "deleteArtifacts": delete_artifacts,
+                "deleteAllDescendants": delete_all_descendants,
             },
         )
+        num_deleted = result["deleteRun"]["numDeleted"]
+        if num_deleted:
+            wandb.termlog(f"Deleted {num_deleted} run(s)")
 
     def save(self) -> None:
         """Persist changes to the run object to the W&B backend."""
