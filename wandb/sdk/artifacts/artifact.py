@@ -1935,7 +1935,7 @@ class Artifact:
         """Download the contents of the artifact to the specified root directory.
 
         Existing files located within `root` are not modified. Explicitly delete `root`
-        before you call `download` if you want the contents of `root` to exactly match
+        before you call `download()` if you want the contents of `root` to exactly match
         the artifact.
 
         Args:
