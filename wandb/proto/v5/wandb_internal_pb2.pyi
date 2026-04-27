@@ -1675,16 +1675,32 @@ class TrainiumInfo(_message.Message):
     def __init__(self, name: _Optional[str] = ..., vendor: _Optional[str] = ..., neuron_device_count: _Optional[int] = ..., neuroncore_per_device_count: _Optional[int] = ...) -> None: ...
 
 class TPUInfo(_message.Message):
-    __slots__ = ("name", "hbm_gib", "devices_per_chip", "count")
+    __slots__ = ("name", "hbm_gib", "devices_per_chip", "count", "device_kind", "local_device_count", "global_device_count", "num_slices", "devices_per_slice", "process_index", "process_count", "topology_source")
     NAME_FIELD_NUMBER: _ClassVar[int]
     HBM_GIB_FIELD_NUMBER: _ClassVar[int]
     DEVICES_PER_CHIP_FIELD_NUMBER: _ClassVar[int]
     COUNT_FIELD_NUMBER: _ClassVar[int]
+    DEVICE_KIND_FIELD_NUMBER: _ClassVar[int]
+    LOCAL_DEVICE_COUNT_FIELD_NUMBER: _ClassVar[int]
+    GLOBAL_DEVICE_COUNT_FIELD_NUMBER: _ClassVar[int]
+    NUM_SLICES_FIELD_NUMBER: _ClassVar[int]
+    DEVICES_PER_SLICE_FIELD_NUMBER: _ClassVar[int]
+    PROCESS_INDEX_FIELD_NUMBER: _ClassVar[int]
+    PROCESS_COUNT_FIELD_NUMBER: _ClassVar[int]
+    TOPOLOGY_SOURCE_FIELD_NUMBER: _ClassVar[int]
     name: str
     hbm_gib: int
     devices_per_chip: int
     count: int
-    def __init__(self, name: _Optional[str] = ..., hbm_gib: _Optional[int] = ..., devices_per_chip: _Optional[int] = ..., count: _Optional[int] = ...) -> None: ...
+    device_kind: str
+    local_device_count: int
+    global_device_count: int
+    num_slices: int
+    devices_per_slice: int
+    process_index: int
+    process_count: int
+    topology_source: str
+    def __init__(self, name: _Optional[str] = ..., hbm_gib: _Optional[int] = ..., devices_per_chip: _Optional[int] = ..., count: _Optional[int] = ..., device_kind: _Optional[str] = ..., local_device_count: _Optional[int] = ..., global_device_count: _Optional[int] = ..., num_slices: _Optional[int] = ..., devices_per_slice: _Optional[int] = ..., process_index: _Optional[int] = ..., process_count: _Optional[int] = ..., topology_source: _Optional[str] = ...) -> None: ...
 
 class CoreWeaveInfo(_message.Message):
     __slots__ = ("cluster_name", "org_id", "region")
@@ -1696,8 +1712,51 @@ class CoreWeaveInfo(_message.Message):
     region: str
     def __init__(self, cluster_name: _Optional[str] = ..., org_id: _Optional[str] = ..., region: _Optional[str] = ...) -> None: ...
 
+class GKEInfo(_message.Message):
+    __slots__ = ("cluster_name", "namespace", "workload_kind", "workload_name", "parent_workload", "creation_timestamp", "workload_id", "labels")
+    class LabelsEntry(_message.Message):
+        __slots__ = ("key", "value")
+        KEY_FIELD_NUMBER: _ClassVar[int]
+        VALUE_FIELD_NUMBER: _ClassVar[int]
+        key: str
+        value: str
+        def __init__(self, key: _Optional[str] = ..., value: _Optional[str] = ...) -> None: ...
+    CLUSTER_NAME_FIELD_NUMBER: _ClassVar[int]
+    NAMESPACE_FIELD_NUMBER: _ClassVar[int]
+    WORKLOAD_KIND_FIELD_NUMBER: _ClassVar[int]
+    WORKLOAD_NAME_FIELD_NUMBER: _ClassVar[int]
+    PARENT_WORKLOAD_FIELD_NUMBER: _ClassVar[int]
+    CREATION_TIMESTAMP_FIELD_NUMBER: _ClassVar[int]
+    WORKLOAD_ID_FIELD_NUMBER: _ClassVar[int]
+    LABELS_FIELD_NUMBER: _ClassVar[int]
+    cluster_name: str
+    namespace: str
+    workload_kind: str
+    workload_name: str
+    parent_workload: str
+    creation_timestamp: str
+    workload_id: str
+    labels: _containers.ScalarMap[str, str]
+    def __init__(self, cluster_name: _Optional[str] = ..., namespace: _Optional[str] = ..., workload_kind: _Optional[str] = ..., workload_name: _Optional[str] = ..., parent_workload: _Optional[str] = ..., creation_timestamp: _Optional[str] = ..., workload_id: _Optional[str] = ..., labels: _Optional[_Mapping[str, str]] = ...) -> None: ...
+
+class GoogleCloudInfo(_message.Message):
+    __slots__ = ("project_id", "zone", "region", "instance_id", "orchestrator", "gke")
+    PROJECT_ID_FIELD_NUMBER: _ClassVar[int]
+    ZONE_FIELD_NUMBER: _ClassVar[int]
+    REGION_FIELD_NUMBER: _ClassVar[int]
+    INSTANCE_ID_FIELD_NUMBER: _ClassVar[int]
+    ORCHESTRATOR_FIELD_NUMBER: _ClassVar[int]
+    GKE_FIELD_NUMBER: _ClassVar[int]
+    project_id: str
+    zone: str
+    region: str
+    instance_id: str
+    orchestrator: str
+    gke: GKEInfo
+    def __init__(self, project_id: _Optional[str] = ..., zone: _Optional[str] = ..., region: _Optional[str] = ..., instance_id: _Optional[str] = ..., orchestrator: _Optional[str] = ..., gke: _Optional[_Union[GKEInfo, _Mapping]] = ...) -> None: ...
+
 class EnvironmentRecord(_message.Message):
-    __slots__ = ("os", "python", "started_at", "docker", "args", "program", "code_path", "code_path_local", "git", "email", "root", "host", "username", "executable", "colab", "cpu_count", "cpu_count_logical", "gpu_type", "gpu_count", "disk", "memory", "cpu", "apple", "gpu_nvidia", "cuda_version", "gpu_amd", "slurm", "trainium", "tpu", "coreweave", "writer_id", "_info")
+    __slots__ = ("os", "python", "started_at", "docker", "args", "program", "code_path", "code_path_local", "git", "email", "root", "host", "username", "executable", "colab", "cpu_count", "cpu_count_logical", "gpu_type", "gpu_count", "disk", "memory", "cpu", "apple", "gpu_nvidia", "cuda_version", "gpu_amd", "slurm", "trainium", "tpu", "coreweave", "google_cloud", "writer_id", "_info")
     class DiskEntry(_message.Message):
         __slots__ = ("key", "value")
         KEY_FIELD_NUMBER: _ClassVar[int]
@@ -1742,6 +1801,7 @@ class EnvironmentRecord(_message.Message):
     TRAINIUM_FIELD_NUMBER: _ClassVar[int]
     TPU_FIELD_NUMBER: _ClassVar[int]
     COREWEAVE_FIELD_NUMBER: _ClassVar[int]
+    GOOGLE_CLOUD_FIELD_NUMBER: _ClassVar[int]
     WRITER_ID_FIELD_NUMBER: _ClassVar[int]
     _INFO_FIELD_NUMBER: _ClassVar[int]
     os: str
@@ -1774,9 +1834,10 @@ class EnvironmentRecord(_message.Message):
     trainium: TrainiumInfo
     tpu: TPUInfo
     coreweave: CoreWeaveInfo
+    google_cloud: GoogleCloudInfo
     writer_id: str
     _info: _wandb_base_pb2._RecordInfo
-    def __init__(self, os: _Optional[str] = ..., python: _Optional[str] = ..., started_at: _Optional[_Union[_timestamp_pb2.Timestamp, _Mapping]] = ..., docker: _Optional[str] = ..., args: _Optional[_Iterable[str]] = ..., program: _Optional[str] = ..., code_path: _Optional[str] = ..., code_path_local: _Optional[str] = ..., git: _Optional[_Union[GitRepoRecord, _Mapping]] = ..., email: _Optional[str] = ..., root: _Optional[str] = ..., host: _Optional[str] = ..., username: _Optional[str] = ..., executable: _Optional[str] = ..., colab: _Optional[str] = ..., cpu_count: _Optional[int] = ..., cpu_count_logical: _Optional[int] = ..., gpu_type: _Optional[str] = ..., gpu_count: _Optional[int] = ..., disk: _Optional[_Mapping[str, DiskInfo]] = ..., memory: _Optional[_Union[MemoryInfo, _Mapping]] = ..., cpu: _Optional[_Union[CpuInfo, _Mapping]] = ..., apple: _Optional[_Union[AppleInfo, _Mapping]] = ..., gpu_nvidia: _Optional[_Iterable[_Union[GpuNvidiaInfo, _Mapping]]] = ..., cuda_version: _Optional[str] = ..., gpu_amd: _Optional[_Iterable[_Union[GpuAmdInfo, _Mapping]]] = ..., slurm: _Optional[_Mapping[str, str]] = ..., trainium: _Optional[_Union[TrainiumInfo, _Mapping]] = ..., tpu: _Optional[_Union[TPUInfo, _Mapping]] = ..., coreweave: _Optional[_Union[CoreWeaveInfo, _Mapping]] = ..., writer_id: _Optional[str] = ..., _info: _Optional[_Union[_wandb_base_pb2._RecordInfo, _Mapping]] = ...) -> None: ...
+    def __init__(self, os: _Optional[str] = ..., python: _Optional[str] = ..., started_at: _Optional[_Union[_timestamp_pb2.Timestamp, _Mapping]] = ..., docker: _Optional[str] = ..., args: _Optional[_Iterable[str]] = ..., program: _Optional[str] = ..., code_path: _Optional[str] = ..., code_path_local: _Optional[str] = ..., git: _Optional[_Union[GitRepoRecord, _Mapping]] = ..., email: _Optional[str] = ..., root: _Optional[str] = ..., host: _Optional[str] = ..., username: _Optional[str] = ..., executable: _Optional[str] = ..., colab: _Optional[str] = ..., cpu_count: _Optional[int] = ..., cpu_count_logical: _Optional[int] = ..., gpu_type: _Optional[str] = ..., gpu_count: _Optional[int] = ..., disk: _Optional[_Mapping[str, DiskInfo]] = ..., memory: _Optional[_Union[MemoryInfo, _Mapping]] = ..., cpu: _Optional[_Union[CpuInfo, _Mapping]] = ..., apple: _Optional[_Union[AppleInfo, _Mapping]] = ..., gpu_nvidia: _Optional[_Iterable[_Union[GpuNvidiaInfo, _Mapping]]] = ..., cuda_version: _Optional[str] = ..., gpu_amd: _Optional[_Iterable[_Union[GpuAmdInfo, _Mapping]]] = ..., slurm: _Optional[_Mapping[str, str]] = ..., trainium: _Optional[_Union[TrainiumInfo, _Mapping]] = ..., tpu: _Optional[_Union[TPUInfo, _Mapping]] = ..., coreweave: _Optional[_Union[CoreWeaveInfo, _Mapping]] = ..., google_cloud: _Optional[_Union[GoogleCloudInfo, _Mapping]] = ..., writer_id: _Optional[str] = ..., _info: _Optional[_Union[_wandb_base_pb2._RecordInfo, _Mapping]] = ...) -> None: ...
 
 class PythonPackagesRequest(_message.Message):
     __slots__ = ("package",)
