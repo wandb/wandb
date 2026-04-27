@@ -959,6 +959,11 @@ class Settings(BaseModel, validate_assignment=True):
     This can have a performance overhead and is disabled by default.
     """
 
+    x_stats_use_cgroup_resource_limits: bool = Field(
+        default_factory=lambda: platform.system() == "Linux"
+    )
+    """Use cgroup v2 CPU and memory limits for system metric percentages."""
+
     x_sync: bool = False
     """Flag to indicate whether we are syncing a run from the transaction log.
 

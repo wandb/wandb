@@ -50,7 +50,7 @@ message RunMoment {
 //
 // Some fields such as `run_id` only make sense at the run level.
 //
-// Next ID: 207
+// Next ID: 208
 message Settings {
   reserved 3, 6, 8, 9, 12, 19, 36, 43, 44, 45, 50, 51, 54, 70, 91, 94, 100, 136, 137, 173, 176, 180;
 
@@ -364,6 +364,9 @@ message Settings {
   // from the process with PID `x_stats_pid` and all of its descendants.
   // This can have a performance overhead and is disabled by default.
   google.protobuf.BoolValue x_stats_track_process_tree = 198;
+
+  // Whether to use cgroup CPU and memory limits for system metric percentages.
+  google.protobuf.BoolValue x_stats_use_cgroup_resource_limits = 207;
 
   // Label to assign to system metrics and console logs collected for the run
   // to group by on the frontend. Can be used to distinguish data from different
