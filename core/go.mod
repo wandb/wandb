@@ -30,7 +30,7 @@ require (
 	github.com/shirou/gopsutil/v4 v4.26.3
 	github.com/spf13/afero v1.15.0
 	github.com/stretchr/testify v1.11.1
-	github.com/vektah/gqlparser/v2 v2.5.32
+	github.com/vektah/gqlparser/v2 v2.5.33
 	github.com/wandb/simplejsonext v0.0.0-20250915191530-b44163b534be
 	go.uber.org/mock v0.6.0
 	gocloud.dev v0.45.0

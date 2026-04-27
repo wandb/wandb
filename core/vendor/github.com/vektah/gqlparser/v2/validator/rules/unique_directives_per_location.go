@@ -13,7 +13,7 @@ var UniqueDirectivesPerLocationRule = Rule{
 			seen := map[string]bool{}
 
 			for _, dir := range directives {
-				if dir.Name != "repeatable" && seen[dir.Name] {
+				if (dir.Definition == nil || !dir.Definition.IsRepeatable) && seen[dir.Name] {
 					addError(
 						Message(
 							`The directive "@%s" can only be used once at this location.`,
