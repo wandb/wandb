@@ -498,6 +498,30 @@ def test_artifact_manifest_length():
     assert len(artifact.manifest) == 2
 
 
+def test_new_file_stages_to_survive_tempdir_cleanup():
+    """Files created via new_file() should be staged so they survive temp dir cleanup.
+
+    Regression test for https://github.com/wandb/wandb/issues/10968
+    """
+    artifact = Artifact("test-artifact", "test-type")
+    with artifact.new_file("test.txt") as f:
+        f.write("hello")
+
+    entry = artifact.manifest.entries["test.txt"]
+    # The staged copy should exist at this point
+    assert Path(entry.local_path).is_file()
+
+    # Simulate what happens when the program exits: the TemporaryDirectory
+    # is garbage-collected and cleaned up
+    artifact._tmp_dir.cleanup()
+    artifact._tmp_dir = None
+
+    # The staged copy should STILL exist because the file was copied
+    # to the staging directory (policy="mutable"), not left in the temp dir
+    assert Path(entry.local_path).is_file()
+    assert Path(entry.local_path).read_text() == "hello"
+
+
 def test_download_with_pathlib_root(monkeypatch):
     artifact = Artifact("test-artifact", "test-type")
     artifact._state = ArtifactState.COMMITTED
