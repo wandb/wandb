@@ -435,6 +435,177 @@ class Runs(SizedPaginator["Run"]):
 
             return combined_df
 
+    @normalize_exceptions
+    def aggregate_history(
+        self,
+        cache_dir: str | pathlib.Path | None = None,
+        keys: list[str] | None = None,
+        max_results: int = 10_000_000,
+        max_workers: int = 10,
+        page_size: int = 1_000,
+        force_redownload: bool = False,
+        require_complete: bool = False,
+    ) -> pl.LazyFrame:
+        """Return full unsampled history for all runs as a Polars LazyFrame.
+
+        Downloads run history as parquet files, then returns a LazyFrame that
+        reads from those files. Data is not loaded into memory until .collect()
+        is called, and Polars pushes column/row filters down to the parquet
+        reader for efficiency.
+
+        Downloads run in parallel using a thread pool. If a run's download
+        fails, it is skipped with a warning and does not abort other downloads.
+
+        The ``run_id`` column is added lazily at scan time -- parquet files on
+        disk are not rewritten.
+
+        Args:
+            cache_dir: Directory to store downloaded parquet files.
+                Defaults to ``$WANDB_CACHE_DIR/runhistory`` (or the platform
+                cache directory if ``WANDB_CACHE_DIR`` is unset).
+                For team usage, point this at a shared mount or sync to S3.
+                The cache is a snapshot; delete a run's directory to re-download.
+            keys: Only include these metric columns in the result. If None,
+                all metrics are included. Filtering keys improves read
+                performance on wide datasets.
+            max_results: Maximum total rows in the result. Defaults to
+                10,000,000. Applied as .head() on the LazyFrame.
+            max_workers: Maximum number of parallel download threads.
+                Defaults to 10.
+            page_size: Number of rows per page (retained for backward
+                compatibility).
+            force_redownload: If True, ignore cached data and re-download
+                all runs. Useful when history data has been updated since
+                the last download.
+            require_complete: If True, raise ``ValueError`` if any run
+                has history data not yet exported to parquet (i.e. the
+                run is still live). By default, incomplete runs produce
+                a warning but are still included.
+
+        Returns:
+            polars.LazyFrame: A lazy frame over the cached parquet files.
+                Call .collect() to materialise results. Use .select() and
+                .filter() before .collect() to read only what you need.
+
+        Example:
+            ```python
+            runs = api.runs("entity/project")
+            lf = runs.aggregate_history()
+
+            # Read only specific metrics -- skips all other columns on disk
+            df = lf.select(["run_id", "_step", "loss"]).collect()
+
+            # Combine with configs
+            configs = runs.configs(format="polars")
+            full = df.join(configs, on="run_id")
+            ```
+        """
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
+        pl = util.get_module("polars", required="aggregate_history requires polars")
+
+        if cache_dir is None:
+            cache_path = env.get_cache_dir() / "runhistory"
+        else:
+            cache_path = pathlib.Path(cache_dir)
+        cache_path.mkdir(parents=True, exist_ok=True)
+
+        # Phase 1: Identify cached vs. needs-download runs
+        parquet_files: list[pathlib.Path] = []
+        runs_to_download = []
+        run_dirs: dict[str, pathlib.Path] = {}
+
+        for run in self:
+            run_dir = cache_path / run.id
+            run_dir.mkdir(exist_ok=True)
+
+            sentinel = run_dir / ".complete"
+            if sentinel.exists() and not force_redownload:
+                existing = list(run_dir.glob("*.parquet"))
+                parquet_files.extend(existing)
+                continue
+
+            if force_redownload and sentinel.exists():
+                sentinel.unlink()
+
+            # Clean up partial downloads before re-downloading
+            for old_file in run_dir.glob("*.parquet"):
+                old_file.unlink()
+
+            runs_to_download.append(run)
+            run_dirs[run.id] = run_dir
+
+        # Phase 2: Parallel downloads with per-run error isolation
+        if runs_to_download:
+
+            def _download_run(run):
+                run_dir = run_dirs[run.id]
+                result = run.download_history_exports(
+                    download_dir=run_dir,
+                    require_complete_history=False,
+                )
+                return (run.id, result.paths, result.contains_live_data)
+
+            n_workers = min(len(runs_to_download), max_workers)
+            failed_runs: list[str] = []
+
+            with ThreadPoolExecutor(max_workers=n_workers) as executor:
+                future_to_run = {
+                    executor.submit(_download_run, run): run for run in runs_to_download
+                }
+
+                for future in as_completed(future_to_run):
+                    run = future_to_run[future]
+                    try:
+                        run_id, paths, has_live_data = future.result()
+
+                        if paths:
+                            (run_dirs[run_id] / ".complete").touch()
+                            parquet_files.extend(paths)
+
+                        if has_live_data:
+                            msg = (
+                                f"Run {run_id} has history data not yet exported "
+                                "to parquet. Results may be incomplete."
+                            )
+                            if require_complete:
+                                raise ValueError(msg)
+                            wandb.termwarn(msg)
+
+                    except (WandbApiFailedError, wandb.Error, OSError) as e:
+                        wandb.termwarn(f"Run {run.id} failed to download: {e}")
+                        failed_runs.append(run.id)
+
+            if failed_runs:
+                wandb.termwarn(
+                    f"{len(failed_runs)}/{len(runs_to_download)} runs failed "
+                    f"to download ({', '.join(failed_runs)})"
+                )
+
+        # Phase 3: Build LazyFrame
+        if not parquet_files:
+            return pl.LazyFrame()
+
+        lazy_frames = []
+        for pf in parquet_files:
+            run_id = pf.parent.name
+            lf = pl.scan_parquet(pf).with_columns(pl.lit(run_id).alias("run_id"))
+            lazy_frames.append(lf)
+
+        combined = pl.concat(lazy_frames, how="diagonal")
+
+        # Apply key filter if specified
+        if keys:
+            select_cols = ["run_id"] + [k for k in keys if k != "run_id"]
+            available = combined.collect_schema().names()
+            select_cols = [c for c in select_cols if c in available]
+            combined = combined.select(select_cols)
+
+        # Apply max_results cap
+        combined = combined.head(max_results)
+
+        return combined
+
     def __repr__(self) -> str:
         return f"<{nameof(type(self))} {self.entity}/{self.project}>"
 
