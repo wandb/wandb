@@ -1080,6 +1080,91 @@ class _PartitionTablePartEntry:
         self._part = None
 
 
+class EvalTable(Table):
+    """A Table that is also logged to the Weave trace server as an Evaluation.
+
+    Drop-in replacement for `wandb.Table` that additionally uploads every row to
+    the Weave trace server whenever the table is passed to `wandb.log`.  The
+    Weave upload happens transparently; the normal W&B Table panel is still
+    written as usual (set ``log_to_artifact=False`` to suppress it).
+
+    Args:
+        columns: Column names. Must be in the same order as the values in each
+            row of ``data``. See `wandb.Table` for full details.
+        data: A list of rows, where each row is a list of values whose order
+            matches ``columns``. See `wandb.Table` for full details.
+        input_columns: Column names to send as the *inputs* of each evaluation
+            row (``example`` field in Weave). Columns not assigned to any
+            category default to ``output_columns``.
+        output_columns: Column names to send as the *output* of each row.
+        score_columns: Column names to send as the *scores* of each row.
+        table_inputs: Optional dict of evaluation-level inputs attached to the
+            root Weave call (e.g. ``{"epoch": 3}``).
+        table_scores: Optional dict of evaluation-level scores shown in the
+            Weave Evaluation UI "Scores" panel.  Each value must be one of:
+
+            - ``float`` — continuous score, auto-displayed as a mean
+            - ``{"true_fraction": float, "true_count": int}`` — binary summary
+              (e.g. fraction of correct predictions over the dataset)
+
+            Any other value type raises ``ValueError``.
+        log_to_artifact: When ``True`` (default), also upload a standard W&B
+            Table artifact so it appears in the W&B UI table panel.  Set to
+            ``False`` to send data to Weave only.
+        **kwargs: Any additional keyword arguments accepted by `wandb.Table`
+            (e.g. ``allow_mixed_types``, ``log_mode``).
+
+    Example::
+
+        val_table = wandb.EvalTable(
+            columns=["image", "predicted", "truth", "correct"],
+            data=rows,  # each row: [wandb.Image, int, int, bool]
+            input_columns=["image", "truth"],
+            output_columns=["predicted"],
+            score_columns=["correct"],
+            table_inputs={"epoch": epoch},  # optional: eval-level inputs
+            table_scores={  # optional: eval-level scores
+                "val_loss": val_loss,  # auto-wrapped as {"mean": val_loss}
+                "val_accuracy": {
+                    "true_fraction": val_acc,  # explicit binary summary
+                    "true_count": n_correct,
+                },
+            },
+        )
+        wandb.log({"val_predictions": val_table})
+    """
+
+    def __init__(
+        self,
+        columns=None,
+        data=None,
+        input_columns=None,
+        output_columns=None,
+        score_columns=None,
+        table_inputs=None,
+        table_scores=None,
+        log_to_artifact: bool = True,
+        **kwargs,
+    ):
+        super().__init__(columns=columns, data=data, **kwargs)
+        self.input_columns: list[str] = list(input_columns or [])
+        self.output_columns: list[str] = list(output_columns or [])
+        self.score_columns: list[str] = list(score_columns or [])
+        self.table_inputs: dict = dict(table_inputs or {})
+        self.table_scores: dict = dict(table_scores or {})
+        self.log_to_artifact: bool = log_to_artifact
+        self._log_key: str | None = None  # set by val_to_json with the wandb.log key
+
+    def to_json(self, run_or_artifact):
+        if isinstance(run_or_artifact, wandb.Run):
+            from wandb.sdk.data_types._weave_eval import log_eval_table_to_weave
+
+            log_eval_table_to_weave(self, run_or_artifact)
+            if not self.log_to_artifact:
+                return {"_type": "eval-table-weave-only"}
+        return super().to_json(run_or_artifact)
+
+
 class PartitionedTable(Media):
     """A table which is composed of multiple sub-tables.
 
