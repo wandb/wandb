@@ -29,6 +29,7 @@ message ApiRequest {
   oneof request {
     ReadRunHistoryRequest read_run_history_request = 2;
     FeaturesRequest features_request = 3;
+    GraphQLRequest graphql_request = 4;
   }
 }
 
@@ -36,6 +37,7 @@ message ApiResponse {
   oneof response {
     ReadRunHistoryResponse read_run_history_response = 1;
     FeaturesResponse features_response = 3;
+    GraphQLResponse graphql_response = 4;
 
     ApiErrorResponse api_error_response = 2;
   }
@@ -93,6 +95,16 @@ message FeaturesRequest {
 message FeaturesResponse {
   // Names of enabled boolean features.
   repeated ServerFeature enabled = 1;
+}
+
+// Execute a GraphQL document.
+message GraphQLRequest {
+  string query = 1;
+  string variables_json = 2;
+}
+
+message GraphQLResponse {
+  string data_json = 1;
 }
 
 // Start of Scan run history

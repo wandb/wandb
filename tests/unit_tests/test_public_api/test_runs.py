@@ -143,7 +143,7 @@ def test_lazy_run_config_triggers_full_load():
     """run.config on a lazy run should trigger load_full_data and return config."""
     client = mock.MagicMock()
     lightweight = _make_lightweight_attrs()
-    client.execute.return_value = _make_full_response(lightweight)
+    client.service_api.execute_graphql.return_value = _make_full_response(lightweight)
 
     run = Run(
         client=client,
@@ -163,6 +163,7 @@ def test_lazy_run_config_triggers_full_load():
     assert run._full_data_loaded is True
     assert config == {"learning_rate": 0.001, "batch_size": 32}
     assert "_wandb" not in config
+    client.service_api.execute_graphql.assert_called_once()
 
 
 @pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
