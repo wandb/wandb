@@ -105,6 +105,7 @@ class RetryingClient:
         self._server_info = None
         self._client = client
         self._execute_decorated: Callable[..., Any] | None = None
+        self.service_api: ServiceApi | None = None
 
     def execute(self, *args, **kwargs):
         if self._execute_decorated is None:
@@ -244,6 +245,7 @@ class Api:
         settings.base_url = base_url
         settings.api_key = self.api_key or ""
         self._service_api = ServiceApi(settings=settings)
+        self._client.service_api = self._service_api
 
     def _load_auth(self, base_url: str) -> wbauth.Auth:
         """Load or prompt for authentication credentials."""

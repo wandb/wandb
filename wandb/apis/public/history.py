@@ -18,11 +18,11 @@ from collections.abc import Iterator
 from typing import TYPE_CHECKING, Any
 
 from typing_extensions import Self, TypeAlias
-from wandb_gql import gql
 
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.public.service_api import ServiceApi
 from wandb.proto import wandb_api_pb2 as pb
+from wandb.sdk import wandb_setup
 from wandb.sdk.mailbox.mailbox import MailboxClosedError
 
 if TYPE_CHECKING:
@@ -31,6 +31,19 @@ if TYPE_CHECKING:
 
 _RowDict: TypeAlias = dict[str, Any]
 """Type alias for a single history row as a dict."""
+
+
+def _service_api_for(
+    client: RetryingClient,
+    service_api: ServiceApi | None = None,
+) -> ServiceApi:
+    if service_api is not None:
+        return service_api
+    if client_service_api := getattr(client, "service_api", None):
+        return client_service_api
+
+    settings = wandb_setup.singleton().settings.model_copy()
+    return ServiceApi(settings=settings)
 
 
 class BetaHistoryScan(Iterator[_RowDict]):
@@ -169,8 +182,7 @@ class HistoryScan(Iterator[_RowDict]):
     <!-- lazydoc-ignore-class: internal -->
     """
 
-    QUERY = gql(
-        """
+    QUERY = """
         query HistoryPage($entity: String!, $project: String!, $run: String!, $minStep: Int64!, $maxStep: Int64!, $pageSize: Int!) {
             project(name: $project, entityName: $entity) {
                 run(name: $run) {
@@ -179,7 +191,6 @@ class HistoryScan(Iterator[_RowDict]):
             }
         }
         """
-    )
 
     def __init__(
         self,
@@ -188,6 +199,7 @@ class HistoryScan(Iterator[_RowDict]):
         min_step: int,
         max_step: int,
         page_size: int = 1_000,
+        service_api: ServiceApi | None = None,
     ):
         """Initialize a HistoryScan instance.
 
@@ -207,6 +219,7 @@ class HistoryScan(Iterator[_RowDict]):
         self.page_offset = min_step  # minStep for next page
         self.scan_offset = 0  # index within current page of rows
         self.rows: list[_RowDict] = []  # current page of rows
+        self._service_api = _service_api_for(client, service_api)
 
     @property
     def max_step(self) -> int:
@@ -249,7 +262,7 @@ class HistoryScan(Iterator[_RowDict]):
             "pageSize": int(self.page_size),
         }
 
-        res = self.client.execute(self.QUERY, variable_values=variables)
+        res = self._service_api.execute_graphql(self.QUERY, variables)
         res = res["project"]["run"]["history"]
         self.rows = [json.loads(row) for row in res]
         self.page_offset += self.page_size
@@ -262,8 +275,7 @@ class SampledHistoryScan(Iterator[_RowDict]):
     <!-- lazydoc-ignore-class: internal -->
     """
 
-    QUERY = gql(
-        """
+    QUERY = """
         query SampledHistoryPage($entity: String!, $project: String!, $run: String!, $spec: JSONString!) {
             project(name: $project, entityName: $entity) {
                 run(name: $run) {
@@ -272,7 +284,6 @@ class SampledHistoryScan(Iterator[_RowDict]):
             }
         }
         """
-    )
 
     def __init__(
         self,
@@ -282,6 +293,7 @@ class SampledHistoryScan(Iterator[_RowDict]):
         min_step: int,
         max_step: int,
         page_size: int = 1_000,
+        service_api: ServiceApi | None = None,
     ):
         """Initialize a SampledHistoryScan instance.
 
@@ -303,6 +315,7 @@ class SampledHistoryScan(Iterator[_RowDict]):
         self.page_offset = min_step  # minStep for next page
         self.scan_offset = 0  # index within current page of rows
         self.rows: list[_RowDict] = []  # current page of rows
+        self._service_api = _service_api_for(client, service_api)
 
     @property
     def max_step(self) -> int:
@@ -350,7 +363,7 @@ class SampledHistoryScan(Iterator[_RowDict]):
             ),
         }
 
-        res = self.client.execute(self.QUERY, variable_values=variables)
+        res = self._service_api.execute_graphql(self.QUERY, variables)
         res = res["project"]["run"]["sampledHistory"]
         self.rows = res[0]
         self.page_offset += self.page_size

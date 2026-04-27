@@ -30,24 +30,28 @@ class ServerApiInitResponse(_message.Message):
     def __init__(self, error_message: _Optional[str] = ..., api_id: _Optional[str] = ...) -> None: ...
 
 class ApiRequest(_message.Message):
-    __slots__ = ("api_id", "read_run_history_request", "features_request")
+    __slots__ = ("api_id", "read_run_history_request", "features_request", "graphql_request")
     API_ID_FIELD_NUMBER: _ClassVar[int]
     READ_RUN_HISTORY_REQUEST_FIELD_NUMBER: _ClassVar[int]
     FEATURES_REQUEST_FIELD_NUMBER: _ClassVar[int]
+    GRAPHQL_REQUEST_FIELD_NUMBER: _ClassVar[int]
     api_id: str
     read_run_history_request: ReadRunHistoryRequest
     features_request: FeaturesRequest
-    def __init__(self, api_id: _Optional[str] = ..., read_run_history_request: _Optional[_Union[ReadRunHistoryRequest, _Mapping]] = ..., features_request: _Optional[_Union[FeaturesRequest, _Mapping]] = ...) -> None: ...
+    graphql_request: GraphQLRequest
+    def __init__(self, api_id: _Optional[str] = ..., read_run_history_request: _Optional[_Union[ReadRunHistoryRequest, _Mapping]] = ..., features_request: _Optional[_Union[FeaturesRequest, _Mapping]] = ..., graphql_request: _Optional[_Union[GraphQLRequest, _Mapping]] = ...) -> None: ...
 
 class ApiResponse(_message.Message):
-    __slots__ = ("read_run_history_response", "features_response", "api_error_response")
+    __slots__ = ("read_run_history_response", "features_response", "graphql_response", "api_error_response")
     READ_RUN_HISTORY_RESPONSE_FIELD_NUMBER: _ClassVar[int]
     FEATURES_RESPONSE_FIELD_NUMBER: _ClassVar[int]
+    GRAPHQL_RESPONSE_FIELD_NUMBER: _ClassVar[int]
     API_ERROR_RESPONSE_FIELD_NUMBER: _ClassVar[int]
     read_run_history_response: ReadRunHistoryResponse
     features_response: FeaturesResponse
+    graphql_response: GraphQLResponse
     api_error_response: ApiErrorResponse
-    def __init__(self, read_run_history_response: _Optional[_Union[ReadRunHistoryResponse, _Mapping]] = ..., features_response: _Optional[_Union[FeaturesResponse, _Mapping]] = ..., api_error_response: _Optional[_Union[ApiErrorResponse, _Mapping]] = ...) -> None: ...
+    def __init__(self, read_run_history_response: _Optional[_Union[ReadRunHistoryResponse, _Mapping]] = ..., features_response: _Optional[_Union[FeaturesResponse, _Mapping]] = ..., graphql_response: _Optional[_Union[GraphQLResponse, _Mapping]] = ..., api_error_response: _Optional[_Union[ApiErrorResponse, _Mapping]] = ...) -> None: ...
 
 class ApiErrorResponse(_message.Message):
     __slots__ = ("message", "error_type")
@@ -74,6 +78,20 @@ class FeaturesResponse(_message.Message):
     ENABLED_FIELD_NUMBER: _ClassVar[int]
     enabled: _containers.RepeatedScalarFieldContainer[_wandb_internal_pb2.ServerFeature]
     def __init__(self, enabled: _Optional[_Iterable[_Union[_wandb_internal_pb2.ServerFeature, str]]] = ...) -> None: ...
+
+class GraphQLRequest(_message.Message):
+    __slots__ = ("query", "variables_json")
+    QUERY_FIELD_NUMBER: _ClassVar[int]
+    VARIABLES_JSON_FIELD_NUMBER: _ClassVar[int]
+    query: str
+    variables_json: str
+    def __init__(self, query: _Optional[str] = ..., variables_json: _Optional[str] = ...) -> None: ...
+
+class GraphQLResponse(_message.Message):
+    __slots__ = ("data_json",)
+    DATA_JSON_FIELD_NUMBER: _ClassVar[int]
+    data_json: str
+    def __init__(self, data_json: _Optional[str] = ...) -> None: ...
 
 class ReadRunHistoryRequest(_message.Message):
     __slots__ = ("scan_run_history_init", "scan_run_history", "scan_run_history_cleanup", "download_run_history_init", "download_run_history", "download_run_history_status")

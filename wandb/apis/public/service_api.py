@@ -1,13 +1,21 @@
 from __future__ import annotations
 
 import contextlib
+import json
 import logging
+import textwrap
 import uuid
 import weakref
-from typing import cast
+from collections.abc import Mapping
+from typing import Any, cast
 
 from wandb.proto import wandb_internal_pb2 as pb
-from wandb.proto.wandb_api_pb2 import ApiRequest, ApiResponse, FeaturesRequest
+from wandb.proto.wandb_api_pb2 import (
+    ApiRequest,
+    ApiResponse,
+    FeaturesRequest,
+    GraphQLRequest,
+)
 from wandb.sdk import wandb_settings, wandb_setup
 from wandb.sdk.lib.service.service_connection import (
     ServiceConnection,
@@ -66,6 +74,22 @@ class ServiceApi:
         conn = self._get_service_connection()
         request.api_id = self._api_id
         return conn.api_request(request, timeout=timeout)
+
+    def execute_graphql(
+        self,
+        query: str,
+        variables: Mapping[str, Any] | None = None,
+        timeout: float | None = None,
+    ) -> Any:
+        """Execute a GraphQL request in wandb-core."""
+        request = ApiRequest(
+            graphql_request=GraphQLRequest(
+                query=textwrap.dedent(query).strip(),
+                variables_json=json.dumps(variables or {}),
+            )
+        )
+        response = self.send_api_request(request, timeout=timeout)
+        return json.loads(response.graphql_response.data_json)
 
     async def send_api_request_async(
         self,
