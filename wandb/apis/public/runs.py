@@ -40,7 +40,7 @@ import pathlib
 import tempfile
 import time
 import urllib
-from collections.abc import Collection, Iterator, Mapping
+from collections.abc import Collection, Mapping
 from typing import TYPE_CHECKING, Any, Literal
 
 from typing_extensions import override
@@ -1255,68 +1255,6 @@ class Run(Attrs):
         return lines
 
     @normalize_exceptions
-    def scan_history(
-        self,
-        keys: list[str] | None = None,
-        page_size: int = 1_000,
-        min_step: int | None = None,
-        max_step: int | None = None,
-    ) -> Iterator[dict[str, Any]]:
-        """Returns an iterable collection of all history records for a run.
-
-        Args:
-            keys ([str], optional): only fetch these keys, and only fetch rows that have all of keys defined.
-            page_size (int, optional): size of pages to fetch from the api.
-            min_step (int, optional): the minimum number of pages to scan at a time.
-            max_step (int, optional): the maximum number of pages to scan at a time.
-
-        Returns:
-            An iterable collection over history records (dict).
-
-        Example:
-        Export all the loss values for an example run
-
-        ```python
-        run = api.run("entity/project-name/run-id")
-        history = run.scan_history(keys=["Loss"])
-        losses = [row["Loss"] for row in history]
-        ```
-        """
-        if keys is not None and not isinstance(keys, list):
-            wandb.termerror("keys must be specified in a list")
-            return []
-        if keys is not None and len(keys) > 0 and not isinstance(keys[0], str):
-            wandb.termerror("keys argument must be a list of strings")
-            return []
-
-        last_step = self.lastHistoryStep
-        # set defaults for min/max step
-        if min_step is None:
-            min_step = 0
-        if max_step is None:
-            max_step = last_step + 1
-        # if the max step is past the actual last step, clamp it down
-        if max_step > last_step:
-            max_step = last_step + 1
-        if keys is None:
-            return public.HistoryScan(
-                run=self,
-                client=self.client,
-                page_size=page_size,
-                min_step=min_step,
-                max_step=max_step,
-            )
-        else:
-            return public.SampledHistoryScan(
-                run=self,
-                client=self.client,
-                keys=keys,
-                page_size=page_size,
-                min_step=min_step,
-                max_step=max_step,
-            )
-
-    @normalize_exceptions
     def logged_artifacts(self, per_page: int = 100) -> public.RunArtifacts:
         """Fetches all artifacts logged by this run.
 
@@ -1660,19 +1598,16 @@ class Run(Attrs):
     def _string_representation(self) -> str:
         return f"<{nameof(type(self))} {'/'.join(self.path)} ({self.state})>"
 
-    def beta_scan_history(
+    @normalize_exceptions
+    def scan_history(
         self,
         keys: list[str] | None = None,
         page_size: int = 1_000,
         min_step: int = 0,
         max_step: int | None = None,
         use_cache: bool = True,
-    ) -> public.BetaHistoryScan:
+    ) -> public.HistoryScan:
         """Returns an iterable collection of all history records for a run.
-
-        This function is still in development and may not work as expected.
-        It uses wandb-core to read history from a run's exported
-        parquet history locally.
 
         Args:
             keys: list of metrics to read from the run's history.
@@ -1688,11 +1623,20 @@ class Run(Attrs):
             A BetaHistoryScan object,
             which can be iterator over to get history records.
         """
+        if keys is not None and not isinstance(keys, list):
+            raise ValueError("keys must be specified in a list")
+        if (
+            keys is not None
+            and len(keys) > 0
+            and not all(isinstance(key, str) for key in keys)
+        ):
+            raise ValueError("keys argument must be a list of strings")
+
         if self._service_api is None:
             settings = wandb_setup.singleton().settings.model_copy()
             self._service_api = ServiceApi(settings=settings)
 
-        beta_history_scan = public.BetaHistoryScan(
+        beta_history_scan = public.HistoryScan(
             service_api=self._service_api,
             run=self,
             min_step=min_step,
@@ -1764,4 +1708,20 @@ class Run(Attrs):
                 request_id,
                 contains_live_data,
             )
+        )
+
+    def beta_scan_history(
+        self,
+        keys: list[str] | None = None,
+        page_size: int = 1_000,
+        min_step: int = 0,
+        max_step: int | None = None,
+        use_cache: bool = True,
+    ) -> public.HistoryScan:
+        return self.scan_history(
+            keys=keys,
+            page_size=page_size,
+            min_step=min_step,
+            max_step=max_step,
+            use_cache=use_cache,
         )
