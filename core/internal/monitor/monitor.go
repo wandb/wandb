@@ -166,9 +166,10 @@ func (sm *SystemMonitor) initializeResources(xpuResourceManager *XPUResourceMana
 
 	if system := NewSystem(
 		SystemParams{
-			Pid:              pid,
-			TrackProcessTree: sm.settings.GetStatsTrackProcessTree(),
-			DiskPaths:        sm.settings.GetStatsDiskPaths(),
+			Pid:                         pid,
+			TrackProcessTree:            sm.settings.GetStatsTrackProcessTree(),
+			DisableCgroupResourceLimits: !sm.settings.GetStatsUseCgroupResourceLimits(),
+			DiskPaths:                   sm.settings.GetStatsDiskPaths(),
 		},
 	); system != nil {
 		sm.resources = append(sm.resources, system)

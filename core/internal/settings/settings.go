@@ -604,6 +604,12 @@ func (s *Settings) GetStatsTrackProcessTree() bool {
 	return s.Proto.XStatsTrackProcessTree.GetValue()
 }
 
+// Whether to use cgroup resource limits for system metric percentages.
+func (s *Settings) GetStatsUseCgroupResourceLimits() bool {
+	wrapper := s.Proto.XStatsUseCgroupResourceLimits
+	return wrapper == nil || wrapper.Value
+}
+
 // The label for the run namespacing for console output and system metrics.
 func (s *Settings) GetLabel() string {
 	return s.Proto.XLabel.GetValue()
