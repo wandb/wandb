@@ -306,6 +306,8 @@ type AsyncTransport struct {
 
 	flushRequest chan chan struct{}
 
+	closeMu sync.RWMutex
+
 	QueueSize int
 	Timeout   time.Duration
 
@@ -392,6 +394,9 @@ func (t *AsyncTransport) HasCapacity() bool {
 }
 
 func (t *AsyncTransport) SendEnvelope(envelope *protocol.Envelope) error {
+	t.closeMu.RLock()
+	defer t.closeMu.RUnlock()
+
 	select {
 	case <-t.done:
 		return ErrTransportClosed
@@ -411,6 +416,8 @@ func (t *AsyncTransport) SendEnvelope(envelope *protocol.Envelope) error {
 	identifier := util.EnvelopeIdentifier(envelope)
 
 	select {
+	case <-t.done:
+		return ErrTransportClosed
 	case t.queue <- envelope:
 		debuglog.Printf(
 			"Sending %s to %s project: %s",
@@ -432,8 +439,14 @@ func (t *AsyncTransport) Flush(timeout time.Duration) bool {
 }
 
 func (t *AsyncTransport) FlushWithContext(ctx context.Context) bool {
+	t.closeMu.RLock()
+	defer t.closeMu.RUnlock()
+
 	flushResponse := make(chan struct{})
 	select {
+	case <-t.done:
+		debuglog.Println("Failed to flush, transport is closed.")
+		return false
 	case t.flushRequest <- flushResponse:
 		select {
 		case <-flushResponse:
@@ -451,9 +464,10 @@ func (t *AsyncTransport) FlushWithContext(ctx context.Context) bool {
 
 func (t *AsyncTransport) Close() {
 	t.closeOnce.Do(func() {
+		t.closeMu.Lock()
+		defer t.closeMu.Unlock()
+
 		close(t.done)
-		close(t.queue)
-		close(t.flushRequest)
 		t.wg.Wait()
 	})
 }

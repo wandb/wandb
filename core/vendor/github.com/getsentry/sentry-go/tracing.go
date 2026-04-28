@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"net/http"
 	"regexp"
 	"strconv"
@@ -79,6 +80,10 @@ type Span struct { //nolint: maligned // prefer readability over optimal memory 
 	finishOnce sync.Once
 	// explicitSampled is a flag for configuring sampling by using `WithSpanSampled` option.
 	explicitSampled Sampled
+	// Pre-serialized copies of mutable fields, set by MakeSerializationSafe.
+	serializedTags    json.RawMessage
+	serializedData    json.RawMessage
+	serializationSafe bool
 }
 
 // TraceParentContext describes the context of a (remote) parent span.
@@ -226,6 +231,51 @@ func (s *Span) Context() context.Context { return s.ctx }
 // StartSpan(span.Context(), operation, options...).
 func (s *Span) StartChild(operation string, options ...SpanOption) *Span {
 	return StartSpan(s.Context(), operation, options...)
+}
+
+// makeSerializationSafe pre-serializes user mutable fields.
+func (s *Span) makeSerializationSafe() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if len(s.Tags) > 0 {
+		if b, err := json.Marshal(s.Tags); err == nil {
+			s.serializedTags = b
+		}
+	}
+	if len(s.Data) > 0 {
+		if b, err := json.Marshal(s.Data); err == nil {
+			s.serializedData = b
+		}
+	}
+
+	s.serializationSafe = true
+}
+
+// MarshalJSON emits the span using pre-serialized fields if available.
+func (s *Span) MarshalJSON() ([]byte, error) {
+	s.mu.RLock()
+	serializationSafe := s.serializationSafe
+	serializedTags := s.serializedTags
+	serializedData := s.serializedData
+	s.mu.RUnlock()
+
+	if !serializationSafe {
+		type span Span
+		return json.Marshal((*span)(s))
+	}
+
+	type span Span
+	type safeSpan struct {
+		*span
+		Tags json.RawMessage `json:"tags,omitempty"`
+		Data json.RawMessage `json:"data,omitempty"`
+	}
+	return json.Marshal(safeSpan{
+		span: (*span)(s),
+		Tags: serializedTags,
+		Data: serializedData,
+	})
 }
 
 // SetTag sets a tag on the span. It is recommended to use SetTag instead of
@@ -645,7 +695,7 @@ func (s *Span) toEvent() *Event {
 	for k, v := range s.contexts {
 		contexts[k] = cloneContext(v)
 	}
-	contexts["trace"] = s.traceContext().Map()
+	contexts["trace"] = s.traceContextLockFree().Map()
 
 	// Make sure that the transaction source is valid
 	transactionSource := s.Source
@@ -657,7 +707,7 @@ func (s *Span) toEvent() *Event {
 		Type:        transactionType,
 		Transaction: s.Name,
 		Contexts:    contexts,
-		Tags:        s.Tags,
+		Tags:        maps.Clone(s.Tags),
 		Timestamp:   s.EndTime,
 		StartTime:   s.StartTime,
 		Spans:       finished,
@@ -670,7 +720,27 @@ func (s *Span) toEvent() *Event {
 	}
 }
 
+// traceContext returns a TraceContext snapshot for an active span.
+//
+// It needs to clone span Data to avoid holding any user mutable state.
 func (s *Span) traceContext() *TraceContext {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return &TraceContext{
+		TraceID:      s.TraceID,
+		SpanID:       s.SpanID,
+		ParentSpanID: s.ParentSpanID,
+		Op:           s.Op,
+		Data:         maps.Clone(s.Data),
+		Description:  s.Description,
+		Status:       s.Status,
+	}
+}
+
+// traceContextLockFree is the lock-free variant of traceContext.
+//
+// This is supposed to be used only when span Finish() was already called.
+func (s *Span) traceContextLockFree() *TraceContext {
 	return &TraceContext{
 		TraceID:      s.TraceID,
 		SpanID:       s.SpanID,

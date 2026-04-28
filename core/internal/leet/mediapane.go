@@ -15,6 +15,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	_ "github.com/NimbleMarkets/ntcharts/v2/picture"
 )
 
 const (
