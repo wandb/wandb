@@ -101,3 +101,11 @@ func WithAutoYRange() Option {
 		m.AutoMaxY = true
 	}
 }
+
+// WithMaxInterpolationPoints sets the maximum number of points to interpolate
+// for lines and circles. If 0, graph.DefaultMaxPoints is used.
+func WithMaxInterpolationPoints(n int) Option {
+	return func(m *Model) {
+		m.MaxInterpolationPoints = n
+	}
+}
