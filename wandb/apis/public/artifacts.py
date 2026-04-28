@@ -73,7 +73,7 @@ def _run_artifacts_mode_to_gql() -> dict[Literal["logged", "used"], str]:
 class _ArtifactCollectionAliases(RelayPaginator["ArtifactAliasFragment", str]):
     """An internal iterator of collection alias names.
 
-    <!-- lazydoc-ignore-init: internal -->
+    <!-- lazydoc-ignore: internal -->
     """
 
     QUERY: ClassVar[Document | None] = None
@@ -116,7 +116,7 @@ class _ArtifactCollectionAliases(RelayPaginator["ArtifactAliasFragment", str]):
 class ArtifactTypes(RelayPaginator["ArtifactTypeFragment", "ArtifactType"]):
     """An lazy iterator of `ArtifactType` objects for a specific project.
 
-    <!-- lazydoc-ignore-init: internal -->
+    <!-- lazydoc-ignore: internal -->
     """
 
     QUERY: ClassVar[Document | None] = None
@@ -177,7 +177,7 @@ class ArtifactType:
             If omitted, the object will load its attributes from W&B upon
             initialization.
 
-    <!-- lazydoc-ignore-init: internal -->
+    <!-- lazydoc-ignore: internal -->
     """
 
     _attrs: ArtifactTypeFragment
@@ -295,7 +295,7 @@ class ArtifactCollections(
             If you prepend order with a - order is descending.
         per_page: The number of artifact collections to fetch per page. Default is 50.
 
-    <!-- lazydoc-ignore-init: internal -->
+    <!-- lazydoc-ignore: internal -->
     """
 
     QUERY: ClassVar[Document | None] = None
@@ -388,7 +388,7 @@ class ProjectArtifactCollections(
             If you prepend order with a - order is descending.
         per_page: The number of artifact collections to fetch per page. Default is 50.
 
-    <!-- lazydoc-ignore-init: internal -->
+    <!-- lazydoc-ignore: internal -->
     """
 
     QUERY: ClassVar[Document | None] = None
@@ -490,7 +490,7 @@ class ArtifactCollection:
             If not provided, the object will load its attributes from W&B upon
             initialization.
 
-    <!-- lazydoc-ignore-init: internal -->
+    <!-- lazydoc-ignore: internal -->
     """
 
     _saved: ArtifactCollectionData
@@ -849,7 +849,7 @@ class Artifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
         per_page: The number of artifact versions to fetch per page. Default is 50.
         tags: Optional string or list of strings to filter artifacts by tags.
 
-    <!-- lazydoc-ignore-init: internal -->
+    <!-- lazydoc-ignore: internal -->
     """
 
     QUERY: Document  # Must be set per-instance
@@ -950,7 +950,7 @@ class Artifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
 class RunArtifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
     """An iterable collection of artifacts associated with a specific run.
 
-    <!-- lazydoc-ignore-init: internal -->
+    <!-- lazydoc-ignore: internal -->
     """
 
     QUERY: Document  # Must be set per-instance
@@ -1005,7 +1005,7 @@ class RunArtifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
 class ArtifactFiles(SizedRelayPaginator["FileFragment", "File"]):
     """A paginator for files in an artifact.
 
-    <!-- lazydoc-ignore-init: internal -->
+    <!-- lazydoc-ignore: internal -->
     """
 
     QUERY: Document  # Must be set per-instance

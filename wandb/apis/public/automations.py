@@ -23,7 +23,7 @@ if TYPE_CHECKING:
 class Automations(RelayPaginator["ProjectTriggersFields", "Automation"]):
     """A lazy iterator of `Automation` objects.
 
-    <!-- lazydoc-ignore-class: internal -->
+    <!-- lazydoc-ignore: internal -->
     """
 
     QUERY: Document  # Must be set per-instance

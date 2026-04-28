@@ -471,7 +471,7 @@ class Runs(SizedPaginator["Run"]):
 class AgentRuns(SizedPaginator["Run"]):
     """A lazy iterator of `Run` objects for a single sweep agent.
 
-    <!-- lazydoc-ignore-class: internal -->
+    <!-- lazydoc-ignore: internal -->
     """
 
     def __init__(
