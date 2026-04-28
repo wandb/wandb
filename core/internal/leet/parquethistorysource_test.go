@@ -1,16 +1,25 @@
+// These tests mock Rust FFI calls by creating Go-allocated memory and converting
+// pointers to uintptr. The race detector's checkptr instrumentation correctly
+// identifies this as potentially unsafe (Go's GC can move memory, invalidating
+// the uintptr). Since the real production code uses actual Rust-allocated memory
+// (which doesn't move), this is only a limitation of the test mock, not the
+// production code. These tests are excluded when building with -race.
+
+//go:build !race
+
 package leet_test
 
 import (
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"math"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"path/filepath"
 	"testing"
 	"time"
+	"unsafe"
 
-	"github.com/apache/arrow-go/v18/arrow"
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -18,22 +27,181 @@ import (
 	"github.com/wandb/wandb/core/internal/gqlmock"
 	"github.com/wandb/wandb/core/internal/leet"
 	"github.com/wandb/wandb/core/internal/observability"
-	"github.com/wandb/wandb/core/internal/runhistoryreader/parquet/iterator"
-	"github.com/wandb/wandb/core/internal/runhistoryreader/parquet/iterator/iteratortest"
+	"github.com/wandb/wandb/core/internal/runhistoryreader/parquet"
+	"github.com/wandb/wandb/core/internal/runhistoryreader/parquet/ffi"
 )
 
-func mockGraphQLWithParquetUrls(urls []string) *gqlmock.MockClient {
-	mockGQL := gqlmock.NewMockClient()
-	urlsJsonBytes, _ := json.Marshal(urls)
-	urlsJsonString := string(urlsJsonBytes)
+// mockDataStore keeps binary-encoded data alive so FFI pointers remain valid.
+type mockDataStore struct {
+	data [][]byte
+}
 
+func (m *mockDataStore) store(data []byte) (uintptr, uintptr) {
+	dataCopy := make([]byte, len(data))
+	copy(dataCopy, data)
+	m.data = append(m.data, dataCopy)
+
+	if len(dataCopy) == 0 {
+		return 0, 0
+	}
+
+	storedSlice := m.data[len(m.data)-1]
+	ptr := uintptr(unsafe.Pointer(&storedSlice[0]))
+	return ptr, ptr
+}
+
+type testColumnDef struct {
+	name    string
+	colType string // "int64" or "float64"
+}
+
+// buildKVBinaryStream encodes test data into the binary format returned
+// by the Rust FFI scanStepRange function.
+func buildKVBinaryStream(
+	columns []testColumnDef,
+	data []map[string]any,
+) []byte {
+	buf := make([]byte, 0, 256)
+
+	buf = binary.LittleEndian.AppendUint32(buf, uint32(len(columns)))
+	for _, col := range columns {
+		nameBytes := []byte(col.name)
+		buf = binary.LittleEndian.AppendUint32(buf, uint32(len(nameBytes)))
+		buf = append(buf, nameBytes...)
+	}
+
+	buf = binary.LittleEndian.AppendUint32(buf, uint32(len(data)))
+	for _, row := range data {
+		for _, col := range columns {
+			value, exists := row[col.name]
+			if !exists || value == nil {
+				buf = append(buf, 0)
+				continue
+			}
+
+			switch col.colType {
+			case "int64":
+				buf = append(buf, 1)
+				var v int64
+				switch tv := value.(type) {
+				case int64:
+					v = tv
+				case float64:
+					v = int64(tv)
+				case int:
+					v = int64(tv)
+				}
+				buf = binary.LittleEndian.AppendUint64(buf, uint64(v))
+
+			case "float64":
+				buf = append(buf, 3)
+				var v float64
+				switch tv := value.(type) {
+				case float64:
+					v = tv
+				case int64:
+					v = float64(tv)
+				case int:
+					v = float64(tv)
+				}
+				buf = binary.LittleEndian.AppendUint64(buf, math.Float64bits(v))
+
+			default:
+				buf = append(buf, 0)
+			}
+		}
+	}
+
+	return buf
+}
+
+// createTestRustArrowWrapper builds a mock FFI wrapper that returns
+// the given dataset when scanStepRange is called.
+func createTestRustArrowWrapper(
+	columns []testColumnDef,
+	dataset []map[string]any,
+) *ffi.RustArrowWrapper {
+	dataStore := &mockDataStore{data: make([][]byte, 0)}
+	allocatedPointers := make([]*uintptr, 0)
+
+	return ffi.RustArrowWrapperTester(
+		func(
+			filePath *byte,
+			columnNames **byte,
+			numColumns int,
+			outError **byte,
+		) unsafe.Pointer {
+			id := new(uintptr)
+			*id = 1
+			allocatedPointers = append(allocatedPointers, id)
+			return unsafe.Pointer(id)
+		},
+		func(
+			readerPtr unsafe.Pointer,
+			minStep int64,
+			maxStep int64,
+			outResult *ffi.StepScanResult,
+		) *byte {
+			filtered := []map[string]any{}
+			for _, row := range dataset {
+				step := row["_step"].(int64)
+				if step >= minStep && step < maxStep {
+					filtered = append(filtered, row)
+				}
+			}
+
+			kvBytes := buildKVBinaryStream(columns, filtered)
+			vecPtr, dataPtr := dataStore.store(kvBytes)
+			outResult.VecPtr = vecPtr
+			outResult.DataPtr = dataPtr
+			outResult.DataLen = uint64(len(kvBytes))
+			outResult.NumRowsReturned = uint64(len(filtered))
+			return nil
+		},
+	)
+}
+
+func serveDummyParquet(t *testing.T) *httptest.Server {
+	t.Helper()
+	content := []byte("dummy-parquet-content")
+	server := httptest.NewServer(http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Accept-Ranges", "bytes")
+			_, err := w.Write(content)
+			require.NoError(t, err)
+		},
+	))
+	t.Cleanup(server.Close)
+	return server
+}
+
+func mockGraphQLForParquetSource(
+	urls []string,
+	displayName string,
+	summaryMetrics string,
+) *gqlmock.MockClient {
+	mockGQL := gqlmock.NewMockClient()
+
+	mockGQL.StubMatchOnce(
+		gqlmock.WithOpName("QueryRunInfo"),
+		fmt.Sprintf(`{
+			"project": {
+				"run": {
+					"displayName": %q,
+					"summaryMetrics": %q
+				}
+			}
+		}`, displayName, summaryMetrics),
+	)
+
+	urlsJSON, _ := json.Marshal(urls)
 	mockGQL.StubMatchOnce(
 		gqlmock.WithOpName("RunParquetHistory"),
 		`{
 			"project": {
 				"run": {
 					"parquetHistory": {
-						"parquetUrls": `+urlsJsonString+`
+						"parquetUrls": `+string(urlsJSON)+`
 					}
 				}
 			}
@@ -43,58 +211,19 @@ func mockGraphQLWithParquetUrls(urls []string) *gqlmock.MockClient {
 	return mockGQL
 }
 
-func serveParquetFile(t *testing.T, path string) *httptest.Server {
-	t.Helper()
-
-	parquetContent, err := os.ReadFile(path)
-	require.NoError(t, err)
-
-	handler := func(responseWriter http.ResponseWriter, request *http.Request) {
-		responseWriter.Header().Set("Accept-Ranges", "bytes")
-
-		// Handle range requests for remote reading
-		rangeHeader := request.Header.Get("Range")
-		if rangeHeader == "" {
-			// Serve the entire file if no range request
-			_, err := responseWriter.Write(parquetContent)
-			require.NoError(t, err)
-			return
-		}
-
-		var start, end int64
-		_, err := fmt.Sscanf(rangeHeader, "bytes=%d-%d", &start, &end)
-		require.NoError(t, err)
-
-		responseWriter.Header().Set(
-			"Content-Range",
-			fmt.Sprintf("bytes %d-%d/%d", start, end, len(parquetContent)),
-		)
-		responseWriter.WriteHeader(http.StatusPartialContent)
-
-		minLength := min(end+1, int64(len(parquetContent)))
-		_, err = responseWriter.Write(parquetContent[start:minLength])
-		require.NoError(t, err)
-	}
-
-	server := httptest.NewServer(http.HandlerFunc(handler))
-	t.Cleanup(server.Close)
-
-	return server
-}
-
 func TestParseParquetHistorySteps(t *testing.T) {
 	logger := observability.NewNoOpLogger()
-	historySteps := []iterator.KeyValueList{
+	historySteps := []parquet.KeyValueList{
 		{
-			{Key: iterator.StepKey, Value: float64(0)},
+			{Key: parquet.StepKey, Value: float64(0)},
 			{Key: "loss", Value: float64(1.0)},
 		},
 		{
-			{Key: iterator.StepKey, Value: float64(1)},
+			{Key: parquet.StepKey, Value: float64(1)},
 			{Key: "loss", Value: float64(0.8)},
 		},
 		{
-			{Key: iterator.StepKey, Value: float64(2)},
+			{Key: parquet.StepKey, Value: float64(2)},
 			{Key: "loss", Value: float64(0.6)},
 		},
 	}
@@ -110,30 +239,35 @@ func TestParseParquetHistorySteps(t *testing.T) {
 }
 
 func TestReadRecords_ThenExit(t *testing.T) {
+	tempDir := t.TempDir()
+	t.Setenv("WANDB_CACHE_DIR", tempDir)
+
 	logger := observability.NewNoOpLogger()
-	path := filepath.Join(t.TempDir(), "test.parquet")
-	schema := arrow.NewSchema(
-		[]arrow.Field{
-			{Name: "_step", Type: arrow.PrimitiveTypes.Int64},
-			{Name: "loss", Type: arrow.PrimitiveTypes.Float64},
-		},
-		nil,
-	)
+
+	columns := []testColumnDef{
+		{name: "_step", colType: "int64"},
+		{name: "loss", colType: "float64"},
+	}
 	data := []map[string]any{
 		{"_step": int64(0), "loss": 1.0},
 		{"_step": int64(1), "loss": 0.8},
 		{"_step": int64(2), "loss": 0.6},
 	}
-	iteratortest.CreateTestParquetFileFromData(t, path, schema, data)
-	server := serveParquetFile(t, path)
-	mockGQL := mockGraphQLWithParquetUrls([]string{server.URL + "/test.parquet"})
+
+	server := serveDummyParquet(t)
+	summaryJSON := `{\"loss\":0.6}`
+	mockGQL := mockGraphQLForParquetSource(
+		[]string{server.URL + "/test.parquet"},
+		"run_display_name",
+		summaryJSON,
+	)
+	rustWrapper := createTestRustArrowWrapper(columns, data)
+
 	runInfo := leet.NewRunInfo(
 		"entity",
 		"project",
 		"run-id",
-		map[string]any{
-			"loss": 0.6,
-		},
+		map[string]any{"loss": 0.6},
 		"run_display_name",
 	)
 	source, err := leet.NewParquetHistorySource(
@@ -144,6 +278,7 @@ func TestReadRecords_ThenExit(t *testing.T) {
 		retryablehttp.NewClient(),
 		runInfo,
 		logger,
+		rustWrapper,
 	)
 	require.NoError(t, err)
 

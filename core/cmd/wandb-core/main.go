@@ -23,7 +23,6 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/containerd/continuity/fs"
 	"github.com/getsentry/sentry-go"
 
 	"github.com/wandb/wandb/core/internal/leet"
@@ -368,10 +367,10 @@ func validateLeetOptions(fs *flag.FlagSet, opts leetOptions) error {
 		fmt.Fprintln(os.Stderr, "Error: --symon does not take a wandb directory")
 		fs.Usage()
 		return fmt.Errorf("unexpected wandb directory %q in symon mode", fs.Arg(0))
-	case !opts.editConfig && !opts.symonMode && opts.wandbDir == "":
-		fmt.Fprintln(os.Stderr, "Error: wandb directory path required")
+	case !opts.editConfig && !opts.symonMode && opts.wandbDir == "" && opts.baseUrl == "":
+		fmt.Fprintln(os.Stderr, "Error: wandb directory path or --base-url required")
 		fs.Usage()
-		return fmt.Errorf("wandb directory path required")
+		return fmt.Errorf("wandb directory path or --base-url required")
 	default:
 		return nil
 	}
@@ -516,7 +515,6 @@ func runLeetWorkspace(opts leetOptions, logger *observability.CoreLogger) int {
 
 		if wandbDir == "" {
 			fmt.Fprintln(os.Stderr, "Error: wandb directory path required")
-			fs.Usage()
 			return exitCodeErrorArgs
 		}
 	}
