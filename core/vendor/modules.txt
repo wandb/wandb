@@ -165,8 +165,8 @@ github.com/Microsoft/go-winio/internal/fs
 github.com/Microsoft/go-winio/internal/socket
 github.com/Microsoft/go-winio/internal/stringbuffer
 github.com/Microsoft/go-winio/pkg/guid
-# github.com/NimbleMarkets/ntcharts/v2 v2.0.1
-## explicit; go 1.24.2
+# github.com/NimbleMarkets/ntcharts/v2 v2.0.2
+## explicit; go 1.25.0
 github.com/NimbleMarkets/ntcharts/v2/canvas
 github.com/NimbleMarkets/ntcharts/v2/canvas/graph
 github.com/NimbleMarkets/ntcharts/v2/canvas/runes
@@ -352,7 +352,7 @@ github.com/cespare/xxhash/v2
 # github.com/charmbracelet/colorprofile v0.4.3
 ## explicit; go 1.25.0
 github.com/charmbracelet/colorprofile
-# github.com/charmbracelet/ultraviolet v0.0.0-20260420095748-421e4a7fa8d7
+# github.com/charmbracelet/ultraviolet v0.0.0-20260422141423-a0f1f21775f7
 ## explicit; go 1.25.0
 github.com/charmbracelet/ultraviolet
 # github.com/charmbracelet/x/ansi v0.11.7
