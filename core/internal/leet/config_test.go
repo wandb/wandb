@@ -15,13 +15,13 @@ func TestConfigHotkeys_UpdateGridDimensions(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 
-	run := leet.NewRun("dummy", cfg, logger)
-	var m tea.Model = run
 	runParams := &leet.RunParams{
 		LocalRunParams: &leet.LocalRunParams{
 			RunFile: "dummy",
 		},
 	}
+	run := leet.NewRun(runParams, cfg, logger)
+	var m tea.Model = run
 	// Ensure model is sized so internal recomputations run.
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
 
