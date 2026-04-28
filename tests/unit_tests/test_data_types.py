@@ -866,6 +866,7 @@ def test_html_str(mock_run):
 
 def test_html_styles():
     pre = (
+        '<meta charset="utf-8">'
         '<base target="_blank"><link rel="stylesheet" type="text/css" '
         'href="https://app.wandb.ai/normalize.css" />'
     )
@@ -881,6 +882,16 @@ def test_html_styles():
     assert html.html == pre + "<h1>Hello</h1>"
     html = wandb.Html("<h1>Hello</h1>", inject=False)
     assert html.html == "<h1>Hello</h1>"
+
+
+def test_html_unicode_charset():
+    """Test that inject_head includes charset meta tag for proper Unicode rendering.
+
+    Regression test for https://github.com/wandb/wandb/issues/10369
+    """
+    html = wandb.Html("<p>Here's an emdash: \u2014</p>")
+    assert '<meta charset="utf-8">' in html.html
+    assert "\u2014" in html.html
 
 
 def test_html_file(mock_run):
