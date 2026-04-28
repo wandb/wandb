@@ -986,26 +986,21 @@ class Run(Attrs):
     def delete(
         self,
         delete_artifacts: bool = False,
-        delete_all_descendants: bool = False,
     ) -> None:
         """Delete the given run from the wandb backend.
 
         Args:
             delete_artifacts (bool, optional): Whether to delete the artifacts
                 associated with the run.
-            delete_all_descendants (bool, optional): Whether to delete all runs forked
-                from this run.
         """
         mutation = gql(
             """
             mutation DeleteRun(
                 $id: ID!,
                 {}
-                {}
             ) {{
                 deleteRun(input: {{
                     id: $id,
-                    {}
                     {}
                 }}) {{
                     clientMutationId
@@ -1014,11 +1009,7 @@ class Run(Attrs):
             }}
         """.format(
                 "$deleteArtifacts: Boolean" if delete_artifacts else "",
-                "$deleteAllDescendants: Boolean" if delete_all_descendants else "",
                 "deleteArtifacts: $deleteArtifacts" if delete_artifacts else "",
-                "deleteAllDescendants: $deleteAllDescendants"
-                if delete_all_descendants
-                else "",
             )
         )
 
@@ -1027,7 +1018,6 @@ class Run(Attrs):
             variable_values={
                 "id": self.storage_id,
                 "deleteArtifacts": delete_artifacts,
-                "deleteAllDescendants": delete_all_descendants,
             },
         )
         num_deleted = result["deleteRun"]["numDeleted"]
