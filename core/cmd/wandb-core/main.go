@@ -368,8 +368,8 @@ func validateLeetOptions(fs *flag.FlagSet, opts *leetOptions) error {
 		fmt.Fprintln(os.Stderr, "Error: --symon does not take a wandb directory")
 		fs.Usage()
 		return fmt.Errorf("unexpected wandb directory %q in symon mode", fs.Arg(0))
-	case !opts.editConfig && !opts.symonMode && opts.wandbDir == "" && opts.baseUrl == "":
-		fmt.Fprintln(os.Stderr, "Error: wandb directory path or --base-url required")
+	case !opts.editConfig && !opts.symonMode && opts.baseUrl == "" && opts.wandbDir == "":
+		fmt.Fprintln(os.Stderr, "Error: wandb directory path required")
 		fs.Usage()
 		return fmt.Errorf("wandb directory path or --base-url required")
 	default:
@@ -508,8 +508,6 @@ func runLeetWorkspace(opts *leetOptions, logger *observability.CoreLogger) int {
 		}
 		return exitCodeErrorArgs
 	}
-
-	wandbDir := opts.wandbDir
 
 	for {
 		m := leet.NewModel(leet.ModelParams{

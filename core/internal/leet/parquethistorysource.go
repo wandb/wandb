@@ -285,7 +285,7 @@ func (s *ParquetHistorySource) Close() {
 	s.runhistoryreader.Release()
 }
 
-// ParseParquetHistorySteps converts a list of iterator.KeyValueList to a HistoryMsg.
+// ParseParquetHistorySteps converts a list of parquet.KeyValueList to a HistoryMsg.
 func ParseParquetHistorySteps(
 	historySteps []parquet.KeyValueList,
 	logger *observability.CoreLogger,

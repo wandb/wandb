@@ -524,7 +524,7 @@ func (w *Workspace) ensureLiveStreaming(run *WorkspaceRun) tea.Cmd {
 		ch := make(chan tea.Msg, 1) // coalesce notifications for this run
 		run.watcher = NewWatcherManager(ch, w.logger)
 
-		if err := run.watcher.Start(run.watchPath); err != nil {
+		if err := run.watcher.Start(run.wandbPath); err != nil {
 			w.logger.CaptureError(fmt.Errorf(
 				"workspace: failed to start watcher for %s: %v", run.Key, err))
 			run.watcher = nil
