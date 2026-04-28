@@ -1,6 +1,7 @@
 version: 2.1
 
 orbs:
+  go: circleci/go@3.0.4
   slack: circleci/slack@4.12.5
   gcloud: circleci/gcp-cli@3.1.1
   codecov: codecov/codecov@5.0.0
@@ -97,6 +98,58 @@ commands:
             POD_NAME="$HOSTNAME"
             echo "Datadog pod stats:"
             echo "https://us5.datadoghq.com/orchestration/explorer/pod?query=kube_cluster_name%3Aci-cluster%20pod_name%3A${POD_NAME}"
+
+  save-go-cache:
+    description: Save the wandb-core Go build and mod caches for faster compilation.
+    steps:
+      - go/save-build-cache:
+          checksum: &go-checksum '{{ checksum "core/go.sum" }}'
+
+  load-go-cache:
+    description: Restore the wandb-core Go caches.
+    steps:
+      - go/load-build-cache:
+          checksum: *go-checksum
+
+  save-cargo-cache:
+    description: Save the Cargo cache.
+    steps:
+      - save_cache:
+          name: Saving Rust/Cargo cache
+          key: &cargo-checksum >-
+            v1-cargo-{{ .Environment.CIRCLE_JOB }}-{{ arch }}-{{
+              checksum "parquet-rust-wrapper/Cargo.lock" }}-{{
+              checksum "xpu/Cargo.lock" }}-{{
+              epoch | round "72h" }}
+          paths:
+            - parquet-rust-wrapper/target
+            - xpu/target
+            # https://doc.rust-lang.org/cargo/guide/cargo-home.html
+            - ~/.cargo/.crates.toml
+            - ~/.cargo/.crates2.json
+            - ~/.cargo/bin
+            - ~/.cargo/registry/index
+            - ~/.cargo/registry/cache
+            - ~/.cargo/git/db
+
+  load-cargo-cache:
+    description: Restore the Cargo cache.
+    steps:
+      - restore_cache:
+          name: Restoring Rust/Cargo cache
+          keys: [*cargo-checksum]
+
+  save-all-caches:
+    description: Save all caches for building wandb.
+    steps:
+      - save-go-cache
+      - save-cargo-cache
+
+  load-all-caches:
+    description: Restore all caches for building wandb.
+    steps:
+      - load-go-cache
+      - load-cargo-cache
 
   save-test-results:
     description: "Save test results"
@@ -338,6 +391,8 @@ jobs:
       - install_extras:
           enabled: <<parameters.install_extras>>
 
+      - load-all-caches
+
       - when:
           condition:
             equal: ["local-testcontainer", <<parameters.executor_name>>]
@@ -358,6 +413,8 @@ jobs:
           python: <<parameters.python>>
           session: <<parameters.session>>
 
+      - save-all-caches
+
   nox-tests-macos:
     parameters:
       parallelism: { type: integer }
@@ -375,10 +432,15 @@ jobs:
           command: brew install ffmpeg python@<<parameters.python>>
       - install_go
       - install_rust
+
+      - load-all-caches
+
       - run-nox-tests:
           codecov_flags: <<parameters.codecov_flags>>
           python: <<parameters.python>>
           session: <<parameters.session>>
+
+      - save-all-caches
 
   nox-tests-win:
     parameters:
@@ -413,10 +475,15 @@ jobs:
 
       - install_go
       - install_rust
+
+      - load-all-caches
+
       - run-nox-tests:
           codecov_flags: <<parameters.codecov_flags>>
           python: <<parameters.python>>
           session: <<parameters.session>>
+
+      - save-all-caches
 
   code-check:
     resource_class: wandb/docker-builder
@@ -465,11 +532,15 @@ jobs:
           command: |
             sudo apt-get update
       - install_go
+
+      - load-go-cache
       - run:
           name: Run wandb core's Go tests and collect coverage
           command: |
             cd core
-            go test -race -coverprofile=coverage.txt -covermode=atomic ./...
+            go test -count=1 -race -coverprofile=coverage.txt -covermode=atomic ./...
+      - save-go-cache
+
       - codecov/upload: { flags: unit }
 
   unit-tests-rust:
@@ -483,6 +554,8 @@ jobs:
           command: |
             sudo apt-get update
       - install_rust
+
+      - load-cargo-cache
       - run:
           name: Run Rust tests for parquet-rust-wrapper
           command: |
@@ -494,6 +567,7 @@ jobs:
             sudo apt-get install -y -qq python3-pip >/dev/null
             cd xpu
             cargo test --verbose
+      - save-cargo-cache
 
   # Download the local-testcontainer image corresponding to the latest server release
   # and store it in wandb-client-cicd/images/local-testcontainer.
