@@ -584,8 +584,6 @@ func runLeetWorkspace(opts *leetOptions, logger *observability.CoreLogger) int {
 		return exitCodeErrorArgs
 	}
 
-	wandbDir := opts.wandbDir
-
 	for {
 		m := leet.NewModel(leet.ModelParams{
 			WandbDir:  wandbDir,
