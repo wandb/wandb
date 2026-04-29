@@ -83,6 +83,11 @@ type ParquetHistorySource struct {
 	// currentStep is the current step of the reader.
 	currentStep int64
 
+	// maxKnownStep is the last step logged by the run, extracted from the
+	// run summary's "_step" field. Used as the termination bound: scanning
+	// stops when currentStep exceeds this value.
+	maxKnownStep int64
+
 	// runInfo is the information about the run.
 	runInfo *RunInfo
 }
@@ -117,11 +122,14 @@ func NewParquetHistorySource(
 		return nil, err
 	}
 
+	maxKnownStep := maxStepFromSummary(runInfo)
+	logger.Info("maxKnownStep", "maxKnownStep", maxKnownStep)
 	return &ParquetHistorySource{
 		logger:           logger,
 		ctx:              ctx,
 		cancel:           cancel,
 		currentStep:      0,
+		maxKnownStep:     maxKnownStep,
 		runInfo:          runInfo,
 		runhistoryreader: historyReader,
 	}, nil
@@ -239,17 +247,17 @@ func (s *ParquetHistorySource) Read(
 			return nil, err
 		}
 
-		if len(historySteps) == 0 {
-			hasMore = false
-			s.readerDone = true
-			break
-		}
-
 		maxStep := historySteps[len(historySteps)-1].StepValue()
 		s.currentStep = maxStep + 1
 		historyMsg := ParseParquetHistorySteps(historySteps, s.logger)
 		histories = append(histories, historyMsg)
 		numMsgs += len(historySteps)
+		
+		if s.currentStep > s.maxKnownStep {
+			hasMore = false
+			s.readerDone = true
+			break
+		}
 	}
 
 	if len(histories) > 0 {
@@ -321,6 +329,26 @@ func ParseParquetHistorySteps(
 		}
 	}
 	return h
+}
+
+// maxStepFromSummary extracts the "_step" value from the run summary.
+// Returns 0 if the summary is nil or doesn't contain "_step".
+func maxStepFromSummary(runInfo *RunInfo) int64 {
+	if runInfo == nil {
+		return 0
+	}
+	v, ok := runInfo.runSummary["_step"]
+	if !ok {
+		return 0
+	}
+	switch n := v.(type) {
+	case float64:
+		return int64(n)
+	case int64:
+		return n
+	default:
+		return 0
+	}
 }
 
 func getStepFromMetricsList(historySteps parquet.KeyValueList) (float64, error) {
