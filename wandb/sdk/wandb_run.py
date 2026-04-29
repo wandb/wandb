@@ -526,8 +526,6 @@ class Run:
     with wandb.init(entity="entity", project="project") as run:
         run.log({"accuracy": acc, "loss": loss})
     ```
-
-    <!-- lazydoc-ignore: internal -->
     """
 
     _telemetry_obj: telemetry.TelemetryRecord
