@@ -271,6 +271,7 @@ func TestReadRecords_ThenExit(t *testing.T) {
 		"run_display_name",
 	)
 	source, err := leet.NewParquetHistorySource(
+		t.Context(),
 		"test-entity",
 		"test-project",
 		"test-run-id",

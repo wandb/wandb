@@ -69,6 +69,11 @@ func NewRunInfo(
 type ParquetHistorySource struct {
 	logger *observability.CoreLogger
 
+	// ctx is cancelled by Close to abort in-flight requests
+	// and prevent reads after shutdown.
+	ctx    context.Context
+	cancel context.CancelFunc
+
 	// readerDone is a flag to indicate if the reader is done.
 	readerDone bool
 
@@ -84,6 +89,7 @@ type ParquetHistorySource struct {
 
 // NewParquetHistorySource creates a new ParquetHistorySource.
 func NewParquetHistorySource(
+	ctx context.Context,
 	entity string,
 	project string,
 	runId string,
@@ -93,8 +99,10 @@ func NewParquetHistorySource(
 	logger *observability.CoreLogger,
 	rustArrowWrapper *ffi.RustArrowWrapper,
 ) (*ParquetHistorySource, error) {
+	ctx, cancel := context.WithCancel(ctx)
+
 	historyReader, err := runhistoryreader.New(
-		context.Background(),
+		ctx,
 		entity,
 		project,
 		runId,
@@ -105,11 +113,14 @@ func NewParquetHistorySource(
 		rustArrowWrapper,
 	)
 	if err != nil {
+		cancel()
 		return nil, err
 	}
 
 	return &ParquetHistorySource{
 		logger:           logger,
+		ctx:              ctx,
+		cancel:           cancel,
 		currentStep:      0,
 		runInfo:          runInfo,
 		runhistoryreader: historyReader,
@@ -167,6 +178,7 @@ func InitializeParquetHistorySource(
 		}
 
 		source, err := NewParquetHistorySource(
+			context.Background(),
 			entity,
 			project,
 			runId,
@@ -193,6 +205,9 @@ func (s *ParquetHistorySource) Read(
 	if s.readerDone {
 		return nil, io.EOF
 	}
+	if err := s.ctx.Err(); err != nil {
+		return nil, io.EOF
+	}
 
 	var msgs []tea.Msg
 	var histories []HistoryMsg
@@ -216,7 +231,7 @@ func (s *ParquetHistorySource) Read(
 
 	for time.Since(startTime) < maxTimePerChunk && numMsgs < chunkSize {
 		historySteps, err := s.runhistoryreader.GetHistorySteps(
-			context.Background(),
+			s.ctx,
 			s.currentStep,
 			s.currentStep+int64(parquetBatchScanSize),
 		)
@@ -254,6 +269,7 @@ func (s *ParquetHistorySource) Read(
 
 // Close implements HistorySource.Close.
 func (s *ParquetHistorySource) Close() {
+	s.cancel()
 	s.runhistoryreader.Release()
 }
 
