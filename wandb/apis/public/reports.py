@@ -176,18 +176,6 @@ class BetaReport(Attrs):
     timestamps) and methods for retrieving associated runs,
     sections, and for rendering the report as HTML.
 
-    Attributes:
-        id (string): Unique identifier of the report.
-        display_name (string): Human-readable display name of the report.
-        name (string): The name of the report. Use `display_name` for a more user-friendly name.
-        description (string): Description of the report.
-        user (User): Dictionary containing user info (username, email) who
-            created the report.
-        spec (dict): The spec of the report.
-        url (string): The URL of the report.
-        updated_at (string): Timestamp of last update.
-        created_at (string): Timestamp when the report was created.
-
     Args:
         client: The API client instance to use for querying W&B.
         attrs: A dictionary of report attributes, typically obtained

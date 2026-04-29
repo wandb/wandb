@@ -48,18 +48,27 @@ class Paginator(Iterator[_WandbT], ABC):
     @property
     @abstractmethod
     def more(self) -> bool:
-        """Whether there are more pages to be fetched."""
+        """Whether there are more pages to be fetched.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         raise NotImplementedError
 
     @property
     @abstractmethod
     def cursor(self) -> str | None:
-        """The start cursor to use for the next fetched page."""
+        """The start cursor to use for the next fetched page.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         raise NotImplementedError
 
     @abstractmethod
     def convert_objects(self) -> Iterable[_WandbT]:
-        """Convert the last fetched response data into the iterated objects."""
+        """Convert the last fetched response data into the iterated objects.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         raise NotImplementedError
 
     def update_variables(self) -> None:

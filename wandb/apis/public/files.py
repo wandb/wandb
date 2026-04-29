@@ -96,7 +96,7 @@ class Files(SizedPaginator["File"]):
             uses mySQL's LIKE syntax, so matching all files that end
             with .json would be "%.json".
 
-    Example:
+    Examples:
     ```python
     from wandb.apis.public.files import Files
     from wandb.apis.public.api import Api
