@@ -224,7 +224,7 @@ func leetMain(args []string) int {
 	}
 	defer stopLeetPprof(pprofStop)
 
-	flushSentry := configureLeetSentry(opts.disableAnalytics, leetSentryMessage(opts))
+	flushSentry := configureLeetSentry(opts.disableAnalytics, leetSentryMessage(&opts))
 	defer flushSentry()
 
 	logger, closeLogger, err := newLeetLogger(opts.logLevel)
@@ -234,7 +234,7 @@ func leetMain(args []string) int {
 	}
 	defer closeLogger()
 
-	return runLeetCommand(opts, logger)
+	return runLeetCommand(&opts, logger)
 }
 
 type leetOptions struct {
@@ -266,7 +266,7 @@ func parseLeetOptions(args []string) (leetOptions, error) {
 	}
 
 	opts.wandbDir = fs.Arg(0)
-	if err := validateLeetOptions(fs, opts); err != nil {
+	if err := validateLeetOptions(fs, &opts); err != nil {
 		return leetOptions{}, err
 	}
 
@@ -345,7 +345,7 @@ Arguments:
   <wandb-file> Path to the .wandb file of a W&B run or a W&B run path.
 		Example:
 		  /path/to/.wandb/run-20250731_170606-iazb7i1k/run-iazb7i1k.wandb
-		  
+
    <wandb-run-url> URL of a W&B run to open.
 		Example:
 		  https://wandb.ai/wandbEntity/wandbProject/run-1234567890
@@ -357,7 +357,7 @@ Flags:
 	fs.PrintDefaults()
 }
 
-func validateLeetOptions(fs *flag.FlagSet, opts leetOptions) error {
+func validateLeetOptions(fs *flag.FlagSet, opts *leetOptions) error {
 	switch {
 	case opts.symonInterval <= 0:
 		fmt.Fprintln(os.Stderr, "Error: --interval must be > 0")
@@ -412,7 +412,7 @@ func configureLeetSentry(disableAnalytics bool, message string) func() {
 	return func() { sentry.Flush(2 * time.Second) }
 }
 
-func leetSentryMessage(opts leetOptions) string {
+func leetSentryMessage(opts *leetOptions) string {
 	switch {
 	case opts.editConfig:
 		return "wandb-leet-config"
@@ -451,7 +451,7 @@ func newLeetLogger(logLevel int) (*observability.CoreLogger, func(), error) {
 	return logger, closeLogWriter, nil
 }
 
-func runLeetCommand(opts leetOptions, logger *observability.CoreLogger) int {
+func runLeetCommand(opts *leetOptions, logger *observability.CoreLogger) int {
 	if opts.editConfig {
 		return runLeetConfigEditor(logger)
 	}
@@ -471,7 +471,7 @@ func runLeetConfigEditor(logger *observability.CoreLogger) int {
 	return exitCodeSuccess
 }
 
-func runSymon(opts leetOptions, logger *observability.CoreLogger) int {
+func runSymon(opts *leetOptions, logger *observability.CoreLogger) int {
 	for {
 		m := leet.NewSymon(leet.SymonParams{
 			Logger:           logger,
@@ -493,11 +493,10 @@ func runSymon(opts leetOptions, logger *observability.CoreLogger) int {
 	}
 }
 
-func runLeetWorkspace(opts leetOptions, logger *observability.CoreLogger) int {
+func runLeetWorkspace(opts *leetOptions, logger *observability.CoreLogger) int {
 	var runParams *leet.RunParams
 	wandbDir := opts.wandbDir
 	if opts.baseUrl != "" {
-		wandbDir = opts.baseUrl
 		runParams = &leet.RunParams{
 			RemoteRunParams: &leet.RemoteRunParams{
 				BaseURL: opts.baseUrl,
