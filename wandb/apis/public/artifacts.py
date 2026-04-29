@@ -114,10 +114,7 @@ class _ArtifactCollectionAliases(RelayPaginator["ArtifactAliasFragment", str]):
 
 
 class ArtifactTypes(RelayPaginator["ArtifactTypeFragment", "ArtifactType"]):
-    """An lazy iterator of `ArtifactType` objects for a specific project.
-
-    <!-- lazydoc-ignore: internal -->
-    """
+    """An lazy iterator of `ArtifactType` objects for a specific project."""
 
     QUERY: ClassVar[Document | None] = None
     last_response: ArtifactTypeConnection | None
@@ -948,10 +945,7 @@ class Artifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
 
 
 class RunArtifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
-    """An iterable collection of artifacts associated with a specific run.
-
-    <!-- lazydoc-ignore: internal -->
-    """
+    """An iterable collection of artifacts associated with a specific run."""
 
     QUERY: Document  # Must be set per-instance
     last_response: ConnectionWithTotal[ArtifactFragment] | None
@@ -1003,10 +997,7 @@ class RunArtifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
 
 
 class ArtifactFiles(SizedRelayPaginator["FileFragment", "File"]):
-    """A paginator for files in an artifact.
-
-    <!-- lazydoc-ignore: internal -->
-    """
+    """A paginator for files in an artifact."""
 
     QUERY: Document  # Must be set per-instance
     last_response: ArtifactFileConnection | None
