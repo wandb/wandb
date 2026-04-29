@@ -44,5 +44,34 @@ var VariablesInAllowedPositionRule = Rule{
 				)
 			}
 		})
+
+		observers.OnValue(func(walker *Walker, value *ast.Value) {
+			if value.Kind != ast.ObjectValue || value.Definition == nil {
+				return
+			}
+			if value.Definition.Directives.ForName("oneOf") == nil {
+				return
+			}
+
+			for _, child := range value.Children {
+				fieldValue := child.Value
+				if fieldValue == nil || fieldValue.Kind != ast.Variable ||
+					fieldValue.VariableDefinition == nil {
+					continue
+				}
+				if !fieldValue.VariableDefinition.Type.NonNull {
+					addError(
+						Message(
+							`Variable "%s" is of type "%s" but must be non-nullable to be used for OneOf Input Object "%s".`,
+							fieldValue,
+							fieldValue.VariableDefinition.Type.String(),
+							value.Definition.Name,
+						),
+						At(fieldValue.VariableDefinition.Position),
+						At(fieldValue.Position),
+					)
+				}
+			}
+		})
 	},
 }
