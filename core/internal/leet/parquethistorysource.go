@@ -82,9 +82,7 @@ type ParquetHistorySource struct {
 	runInfo *RunInfo
 }
 
-// NewParquetHistorySource creates a new ParquetHistorySource for the given run path.
-//
-// A run path is a string in the format of "wandb://<entity>/<project>/<runId>".
+// NewParquetHistorySource creates a new ParquetHistorySource.
 func NewParquetHistorySource(
 	entity string,
 	project string,
@@ -226,16 +224,17 @@ func (s *ParquetHistorySource) Read(
 			return nil, err
 		}
 
-		s.currentStep += int64(len(historySteps))
-		historyMsg := ParseParquetHistorySteps(historySteps, s.logger)
-		histories = append(histories, historyMsg)
-		numMsgs += len(historySteps)
-
 		if len(historySteps) == 0 {
 			hasMore = false
 			s.readerDone = true
 			break
 		}
+
+		maxStep := historySteps[len(historySteps)-1].StepValue()
+		s.currentStep = maxStep + 1
+		historyMsg := ParseParquetHistorySteps(historySteps, s.logger)
+		histories = append(histories, historyMsg)
+		numMsgs += len(historySteps)
 	}
 
 	if len(histories) > 0 {
@@ -393,7 +392,17 @@ func loadRunInfo(
 		return nil, err
 	}
 
-	displayName := response.Project.Run.DisplayName
+	if response.Project == nil {
+		return nil, fmt.Errorf("project %q not found for entity %q", project, entity)
+	}
+	if response.Project.Run == nil {
+		return nil, fmt.Errorf("run %q not found in %s/%s", runId, entity, project)
+	}
+
+	var displayName string
+	if response.Project.Run.DisplayName != nil {
+		displayName = *response.Project.Run.DisplayName
+	}
 
 	runSummaryString := response.Project.Run.SummaryMetrics
 	var runSummaryJson map[string]any
@@ -405,7 +414,7 @@ func loadRunInfo(
 	}
 
 	return &RunInfo{
-		displayName: *displayName,
+		displayName: displayName,
 		entity:      entity,
 		project:     project,
 		runId:       runId,
