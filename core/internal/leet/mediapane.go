@@ -1064,10 +1064,11 @@ func (r *mediaImageRenderer) ToggleMode() tea.Cmd {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
+	if !terminalSupportsKittyGraphics() {
+		return nil
+	}
+
 	if r.mode == picture.PictureGlyph {
-		if !terminalSupportsKittyGraphics() {
-			return nil
-		}
 		r.mode = picture.PictureKitty
 		return nil
 	}
