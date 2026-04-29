@@ -3,6 +3,7 @@ package leet
 import (
 	"fmt"
 	"image"
+	"image/color"
 	_ "image/gif"
 	_ "image/jpeg"
 	_ "image/png"
@@ -1287,14 +1288,73 @@ func renderPictureGlyph(img image.Image, width, height int) string {
 		return renderMediaPlaceholder(width, height, "Empty image")
 	}
 
-	model := picture.New()
-	model.SetSize(width, height)
-	model.SetImage(scaleImageToFitCells(img, width, height))
-	view := model.View().Content
+	view := renderHalfBlockImage(scaleImageToFitCells(img, width, height))
 	if view == "" {
 		return renderMediaPlaceholder(width, height, "Empty image")
 	}
 	return lipgloss.Place(width, height, lipgloss.Center, lipgloss.Center, view)
+}
+
+func renderHalfBlockImage(img image.Image) string {
+	bounds := img.Bounds()
+	if bounds.Empty() {
+		return ""
+	}
+
+	var b strings.Builder
+	for y := bounds.Min.Y; y < bounds.Max.Y; y += 2 {
+		if y > bounds.Min.Y {
+			b.WriteByte('\n')
+		}
+		for x := bounds.Min.X; x < bounds.Max.X; x++ {
+			upper := colorToRGBA(img.At(x, y))
+			lower := rgbaColor{}
+			if y+1 < bounds.Max.Y {
+				lower = colorToRGBA(img.At(x, y+1))
+			}
+			writeHalfBlockCell(&b, upper, lower)
+		}
+		b.WriteString("\x1b[0m")
+	}
+	return b.String()
+}
+
+type rgbaColor struct {
+	r, g, b, a uint8
+}
+
+func colorToRGBA(c color.Color) rgbaColor {
+	r, g, b, a := c.RGBA()
+	return rgbaColor{
+		r: uint8(r >> 8),
+		g: uint8(g >> 8),
+		b: uint8(b >> 8),
+		a: uint8(a >> 8),
+	}
+}
+
+func writeHalfBlockCell(b *strings.Builder, upper, lower rgbaColor) {
+	const (
+		lowerHalfBlock = "▄"
+		upperHalfBlock = "▀"
+	)
+
+	switch {
+	case upper.a == 0 && lower.a == 0:
+		b.WriteString("\x1b[0m ")
+	case upper.a == 0:
+		fmt.Fprintf(b, "\x1b[0m\x1b[38;2;%d;%d;%dm%s", lower.r, lower.g, lower.b, lowerHalfBlock)
+	case lower.a == 0:
+		fmt.Fprintf(b, "\x1b[0m\x1b[38;2;%d;%d;%dm%s", upper.r, upper.g, upper.b, upperHalfBlock)
+	default:
+		fmt.Fprintf(
+			b,
+			"\x1b[48;2;%d;%d;%dm\x1b[38;2;%d;%d;%dm%s",
+			upper.r, upper.g, upper.b,
+			lower.r, lower.g, lower.b,
+			lowerHalfBlock,
+		)
+	}
 }
 
 func scaleImageToFitCells(img image.Image, cols, rows int) image.Image {
