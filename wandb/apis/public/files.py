@@ -86,6 +86,16 @@ class Files(SizedPaginator["File"]):
     Access and manage files uploaded to W&B during a run. Handles pagination
     automatically when iterating through large collections of files.
 
+    Args:
+        client: The API client instance to use for querying W&B.
+        run: The run object that contains the files.
+        names: Optional list of file names to filter by. If None, fetches all files.
+        per_page: The number of files to fetch per page. Default is 50.
+        upload: If `True`, fetch the upload URL for each file. Default is `False`.
+        pattern: Pattern to match when returning files from W&B. This pattern
+            uses mySQL's LIKE syntax, so matching all files that end
+            with .json would be "%.json".
+
     Example:
     ```python
     from wandb.apis.public.files import Files

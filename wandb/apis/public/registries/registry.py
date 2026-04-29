@@ -36,7 +36,14 @@ if TYPE_CHECKING:
 
 
 class Registry:
-    """A single registry in the Registry."""
+    """A single registry in the Registry.
+
+    Args:
+        client: The API client used to query W&B.
+        entity: The entity which owns the registry.
+        name: The name of the registry (without the `wandb-registry-` prefix).
+        attrs: The attributes of the registry, typically obtained from a GraphQL response.
+    """
 
     _saved: RegistryData
     """The saved registry data as last fetched from the W&B server."""
@@ -163,6 +170,7 @@ class Registry:
 
     @property
     def path(self) -> list[str]:
+        """Returns the path of the registry."""
         return [self.entity, self.full_name]
 
     @property
@@ -601,7 +609,7 @@ class Registry:
         member: User | UserMember | Team | TeamMember | str,
         role: MemberRole | str,
     ) -> Self:
-        """Updates the role of a member (user or team) within this registry.
+        """Updates the role of a member  within this registry.
 
         Args:
             member: The user or team to update the role of.

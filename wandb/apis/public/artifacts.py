@@ -114,7 +114,16 @@ class _ArtifactCollectionAliases(RelayPaginator["ArtifactAliasFragment", str]):
 
 
 class ArtifactTypes(RelayPaginator["ArtifactTypeFragment", "ArtifactType"]):
-    """An lazy iterator of `ArtifactType` objects for a specific project."""
+    """A lazy iterator of `ArtifactType` objects for a specific project.
+
+    Args:
+        client: The client instance to use for querying W&B.
+        entity: The entity that owns the project.
+        project: The name of the project to query for artifact types.
+        per_page: The number of artifact types to fetch per page. Defaults to 50.
+        start: Pagination cursor for resuming a past query, captured from a
+            previous paginator's `.cursor` attribute.
+    """
 
     QUERY: ClassVar[Document | None] = None
     last_response: ArtifactTypeConnection | None
@@ -167,7 +176,7 @@ class ArtifactType:
 
     Args:
         client: The client instance to use for querying W&B.
-        entity: The entity (user or team) that owns the project.
+        entity: The entity that owns the project.
         project: The name of the project to query for artifact types.
         type_name: The name of the artifact type.
         attrs: Optional attributes to initialize the ArtifactType.
@@ -283,7 +292,7 @@ class ArtifactCollections(
 
     Args:
         client: The client instance to use for querying W&B.
-        entity: The entity (user or team) that owns the project.
+        entity: The entity that owns the project.
         project: The name of the project to query for artifact collections.
         type_name: The name of the artifact type for which to fetch collections.
         filters: Optional mapping of filters to apply to the query.
@@ -291,6 +300,8 @@ class ArtifactCollections(
             If you prepend order with a + order is ascending (default).
             If you prepend order with a - order is descending.
         per_page: The number of artifact collections to fetch per page. Default is 50.
+        start: Pagination cursor for resuming a past query, captured
+            from a previous paginator's `.cursor` attribute.
 
     <!-- lazydoc-ignore: internal -->
     """
@@ -377,13 +388,15 @@ class ProjectArtifactCollections(
 
     Args:
         client: The client instance to use for querying W&B.
-        entity: The entity (user or team) that owns the project.
+        entity: The entity that owns the project.
         project: The name of the project to query for artifact collections.
         filters: Optional mapping of filters to apply to the query.
         order: Optional string to specify the order of the results.
             If you prepend order with a + order is ascending (default).
             If you prepend order with a - order is descending.
         per_page: The number of artifact collections to fetch per page. Default is 50.
+        start: Pagination cursor for resuming a past query,
+            captured from a previous paginator's `.cursor` attribute.
 
     <!-- lazydoc-ignore: internal -->
     """
@@ -478,7 +491,7 @@ class ArtifactCollection:
 
     Args:
         client: The client instance to use for querying W&B.
-        entity: The entity (user or team) that owns the project.
+        entity: The entity that owns the project.
         project: The name of the project to query for artifact collections.
         name: The name of the artifact collection.
         type: The type of the artifact collection (e.g., "dataset", "model").
@@ -530,7 +543,7 @@ class ArtifactCollection:
 
     @property
     def entity(self) -> str:
-        """The entity (user or team) that owns the project."""
+        """The entity that owns the project."""
         return self._current.entity
 
     @property
@@ -547,7 +560,7 @@ class ArtifactCollection:
         """Get all artifacts in the collection.
 
         Args:
-            per_page: The number of artifacts to fetch per page.
+            per_page: The number of artifacts to fetch per page. Default is 50.
             start: Pagination cursor for resuming a past query, captured
                 from a previous paginator's `.cursor` attribute.
         """
@@ -836,7 +849,7 @@ class Artifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
 
     Args:
         client: The client instance to use for querying W&B.
-        entity: The entity (user or team) that owns the project.
+        entity: The entity  that owns the project.
         project: The name of the project to query for artifacts.
         collection_name: The name of the artifact collection to query.
         type: The type of the artifacts to query. Common examples include
@@ -845,6 +858,8 @@ class Artifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
         order: Optional string to specify the order of the results.
         per_page: The number of artifact versions to fetch per page. Default is 50.
         tags: Optional string or list of strings to filter artifacts by tags.
+        start: Pagination cursor for resuming a past query, captured from a
+            previous paginator's `.cursor` attribute.
 
     <!-- lazydoc-ignore: internal -->
     """
@@ -945,7 +960,16 @@ class Artifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
 
 
 class RunArtifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
-    """An iterable collection of artifacts associated with a specific run."""
+    """An iterable collection of artifacts associated with a specific run.
+    
+    Args:
+        client: The client instance to use for querying W&B.
+        run: The run for which to fetch artifacts.
+        mode: The mode of artifacts to fetch, either "logged" or "used".
+        per_page: The number of artifact versions to fetch per page. Default is 50.
+        start: Pagination cursor for resuming a past query, captured from a
+            previous paginator's `.cursor` attribute.
+    """
 
     QUERY: Document  # Must be set per-instance
     last_response: ConnectionWithTotal[ArtifactFragment] | None
@@ -997,7 +1021,16 @@ class RunArtifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
 
 
 class ArtifactFiles(SizedRelayPaginator["FileFragment", "File"]):
-    """A paginator for files in an artifact."""
+    """A paginator for files in an artifact.
+
+    Args:
+        client: The client instance to use for querying W&B.
+        artifact: The artifact for which to fetch files.
+        names: Optional list of file names to filter by. If None, fetches all files.
+        per_page: The number of files to fetch per page. Default is 50.
+        start: Pagination cursor for resuming a past query, captured from a
+            previous paginator's `.cursor` attribute.
+    """
 
     QUERY: Document  # Must be set per-instance
     last_response: ArtifactFileConnection | None

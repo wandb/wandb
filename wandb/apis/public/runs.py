@@ -207,6 +207,9 @@ class Runs(SizedPaginator["Run"]):
         per_page: (int) The number of runs to fetch per request (default is 50).
         include_sweeps: (bool) Whether to include sweep information in the
             runs. Defaults to True.
+        lazy: (bool) Whether to lazily load run data or fetch full data immediately.
+        service_api: (Optional[ServiceApi]) An optional ServiceApi instance for
+            making additional API calls, such as fetching run history exports.
     """
 
     def __init__(
@@ -594,27 +597,8 @@ class Run(Attrs):
         run_id: The unique identifier for the run.
         attrs: The attributes of the run.
         include_sweeps: Whether to include sweeps in the run.
-
-    Attributes:
-        tags ([str]): a list of tags associated with the run
-        url (str): the url of this run
-        id (str): unique identifier for the run (defaults to eight characters)
-        name (str): the name of the run
-        state (str): one of: running, finished, crashed, killed, preempting, preempted
-        config (dict): a dict of hyperparameters associated with the run
-        created_at (str): ISO timestamp when the run was started
-        system_metrics (dict): the latest system metrics recorded for the run
-        summary (dict): A mutable dict-like property that holds the current summary.
-                    Calling update will persist any changes.
-        project (str): the project associated with the run
-        entity (str): the name of the entity associated with the run
-        project_internal_id (int): the internal id of the project
-        user (str): the name of the user who created the run
-        path (str): Unique identifier [entity]/[project]/[run_id]
-        notes (str): Notes about the run
-        read_only (boolean): Whether the run is editable
-        history_keys (str): History metric keys logged with `wandb.Run.log({"key": "value"})`
-        metadata (str): Metadata about the run from wandb-metadata.json
+        lazy: Whether to lazily load run data or fetch full data immediately.
+        service_api: Optional ServiceApi instance for making additional API calls.
     """
 
     def __init__(
@@ -729,7 +713,7 @@ class Run(Attrs):
             run_id: Optional run ID. If not provided, a random ID will be generated.
             project: Optional project name. Defaults to the project in API settings
                 or "uncategorized".
-            entity: Optional entity (user or team) name.
+            entity: Optional entity  name.
             state: Initial state of the run. Use "pending" for runs that will be
                 resumed later, or "running" for immediate execution.
 
@@ -1637,7 +1621,10 @@ class Run(Attrs):
         return history_keys.get("lastStep", -1)
 
     def to_html(self, height: int = 420, hidden: bool = False) -> str:
-        """Generate HTML containing an iframe displaying this run."""
+        """Generate HTML containing an iframe displaying this run.
+        
+        <!-- lazydoc-ignore: internal -->
+        """
         url = self.url + "?jupyter=true"
         style = f"border:none;width:100%;height:{height}px;"
         prefix = ""

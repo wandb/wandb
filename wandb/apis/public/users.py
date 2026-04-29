@@ -32,6 +32,9 @@ class User(Attrs):
     Args:
         client: The GraphQL client to use for network operations.
         attrs: A subset of the User type in the GraphQL schema.
+        api_key: An optional API key for the user, used to create a `wandb.Api`
+            instance for the user. This is required for some operations, such as
+            generating new API keys for the user.
 
     <!-- lazydoc-ignore: internal -->
     """

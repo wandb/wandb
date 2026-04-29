@@ -56,7 +56,7 @@ if TYPE_CHECKING:
 
 
 class Projects(RelayPaginator["ProjectFragment", "Project"]):
-    """An lazy iterator of `Project` objects.
+    """A lazy iterator of `Project` objects.
 
     An iterable interface to access projects created and saved by the entity.
 
@@ -65,7 +65,7 @@ class Projects(RelayPaginator["ProjectFragment", "Project"]):
         entity (str): The entity name (username or team) to fetch projects for.
         per_page (int): Number of projects to fetch per request (default is 50).
 
-    Example:
+    Examples:
     ```python
     from wandb.apis.public.api import Api
 
@@ -80,7 +80,6 @@ class Projects(RelayPaginator["ProjectFragment", "Project"]):
         print(f"- Is benchmark: {project.is_benchmark}")
     ```
     """
-
     QUERY: ClassVar[Document | None] = None
     last_response: Connection[ProjectFragment] | None
 
@@ -90,13 +89,6 @@ class Projects(RelayPaginator["ProjectFragment", "Project"]):
         entity: str,
         per_page: int = 50,
     ) -> Projects:
-        """An iterable collection of `Project` objects.
-
-        Args:
-            client: The API client used to query W&B.
-            entity: The entity which owns the projects.
-            per_page: The number of projects to fetch per request to the API.
-        """
         if self.QUERY is None:
             from wandb.apis._generated import GET_PROJECTS_GQL
 
@@ -140,10 +132,11 @@ class Project(Attrs):
 
     Args:
         client: W&B API client instance.
-        name (str): The name of the project.
         entity (str): The entity name that owns the project.
+        project (str): The name of the project.
+        attrs: A dictionary of project attributes, typically obtained
+            from a GraphQL response.
     """
-
     def __init__(
         self,
         client: RetryingClient,
@@ -151,14 +144,6 @@ class Project(Attrs):
         project: str,
         attrs: Mapping[str, Any],
     ) -> Project:
-        """A single project associated with an entity.
-
-        Args:
-            client: The API client used to query W&B.
-            entity: The entity which owns the project.
-            project: The name of the project to query.
-            attrs: The attributes of the project.
-        """
         super().__init__(attrs)
         self._is_loaded = bool(attrs)
         self.client = client
@@ -268,6 +253,7 @@ class Project(Attrs):
 
     @property
     def id(self) -> str:
+        """Returns the unique identifier of the project."""
         if not self._is_loaded:
             self._load()
 
