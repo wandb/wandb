@@ -198,7 +198,7 @@ def _get_remote_launch_args(config: RemoteLaunchConfig) -> list[str]:
 def _create_remote_launch_config(path: str) -> RemoteLaunchConfig:
     """Create a LEET launch configuration for a remote run."""
     parsed_url = urllib.parse.urlparse(path)
-    entity, project, run_id = util.parse_path(parsed_url.path, None, None)
+    entity, project, run_id = _parse_path(parsed_url.path)
 
     base_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
     if parsed_url.netloc == "wandb.ai":
@@ -219,3 +219,21 @@ def _create_remote_launch_config(path: str) -> RemoteLaunchConfig:
         api_key=auth.api_key,
         run_id=run_id,
     )
+
+
+def _parse_path(path: str) -> tuple[str, str, str]:
+    """Parse the given path into a tuple of (entity, project, run_id)."""
+    input_path = path
+    path = path.replace("/runs/", "/")
+    path = path.replace("/sweeps/", "/")
+    path = path.strip("/")
+
+    parts = path.split("/")
+
+    if len(parts) != 3:
+        raise ValueError(
+            f"Invalid path: {input_path!r}."
+            + " Expected format: https://<base_url>/<entity>/<project>/<run_id>"
+        )
+
+    return parts[0], parts[1], parts[2]
