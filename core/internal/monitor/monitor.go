@@ -168,7 +168,7 @@ func (sm *SystemMonitor) initializeResources(xpuResourceManager *XPUResourceMana
 		SystemParams{
 			Pid:                         pid,
 			TrackProcessTree:            sm.settings.GetStatsTrackProcessTree(),
-			DisableCgroupResourceLimits: !sm.settings.GetStatsUseCgroupResourceLimits(),
+			DisableCgroupResourceLimits: sm.settings.GetStatsNoCgroup(),
 			DiskPaths:                   sm.settings.GetStatsDiskPaths(),
 		},
 	); system != nil {

@@ -277,6 +277,15 @@ func TestCgroupResourceLimitsUnavailable(t *testing.T) {
 	require.Nil(t, limits)
 }
 
+func TestMinPositive(t *testing.T) {
+	require.Zero(t, minPositive(0, 0))
+	require.Zero(t, minPositive(0, -10))
+	require.Equal(t, 2.0, minPositive(0, 2))
+	require.Equal(t, 3.0, minPositive(3, 0))
+	require.Equal(t, 2.0, minPositive(3, 2))
+	require.Equal(t, 3.0, minPositive(3, -10))
+}
+
 func testCgroupPaths(root string) cgroupPaths {
 	return cgroupPaths{procRoot: root, pid: 1, logicalCPUCount: 8}
 }

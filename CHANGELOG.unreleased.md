@@ -22,4 +22,4 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ### Changed
 
-- Changed CPU and memory system metric percentages in Linux containers to use cgroup resource limits instead of host node totals. Set the private `x_stats_use_cgroup_resource_limits` setting to `False` to opt out.
+- Changed CPU and memory system metric percentages in Linux containers to use cgroup v2 resource limits instead of host node totals. Set the private `x_stats_no_cgroup` setting to `True` to opt out.

@@ -28,6 +28,8 @@ var (
 		procRoot: procfs.DefaultMountPoint,
 	}
 
+	// /proc/<pid>/mountinfo escapes space, tab, newline, and backslash in
+	// pathname fields as octal byte sequences. procfs leaves them escaped.
 	mountInfoPathUnescaper = strings.NewReplacer(
 		`\040`, " ",
 		`\011`, "\t",
@@ -36,12 +38,18 @@ var (
 	)
 )
 
+// cgroupPaths describes which procfs tree to inspect.
+//
+// The zero value reads /proc/self; tests can point procRoot and pid at a fake
+// /proc tree. logicalCPUCount lets us ignore an unrestricted CPU affinity list.
 type cgroupPaths struct {
 	procRoot        string
 	pid             int
 	logicalCPUCount int
 }
 
+// cgroupResourceLimits contains the cgroup v2 limits used as metric
+// denominators. Limits are cached at startup; memory usage is read live.
 type cgroupResourceLimits struct {
 	memoryCurrentFile string
 	memoryLimitBytes  uint64
@@ -83,7 +91,9 @@ func detectCgroupResourceLimits(paths cgroupPaths) *cgroupResourceLimits {
 		cpuAllowedLimit(procInfo.cpuAllowed, paths.logicalCPUCount),
 	)
 
-	if limits.memoryLimitBytes == 0 && limits.cpuLimit == 0 {
+	hasMemoryLimit := limits.memoryLimitBytes > 0
+	hasCPULimit := limits.cpuLimit > 0
+	if !hasMemoryLimit && !hasCPULimit {
 		return nil
 	}
 	return limits
@@ -198,7 +208,16 @@ func cpuAllowedLimit(allowed, logicalCPUCount int) float64 {
 }
 
 func minPositive(a, b float64) float64 {
-	if a == 0 || (b > 0 && b < a) {
+	if a <= 0 {
+		if b > 0 {
+			return b
+		}
+		return 0
+	}
+	if b <= 0 {
+		return a
+	}
+	if b < a {
 		return b
 	}
 	return a

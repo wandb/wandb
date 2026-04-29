@@ -595,8 +595,8 @@ type Settings struct {
 	// from the process with PID `x_stats_pid` and all of its descendants.
 	// This can have a performance overhead and is disabled by default.
 	XStatsTrackProcessTree *wrapperspb.BoolValue `protobuf:"bytes,198,opt,name=x_stats_track_process_tree,json=xStatsTrackProcessTree,proto3" json:"x_stats_track_process_tree,omitempty"`
-	// Whether to use cgroup CPU and memory limits for system metric percentages.
-	XStatsUseCgroupResourceLimits *wrapperspb.BoolValue `protobuf:"bytes,207,opt,name=x_stats_use_cgroup_resource_limits,json=xStatsUseCgroupResourceLimits,proto3" json:"x_stats_use_cgroup_resource_limits,omitempty"`
+	// Whether to skip cgroup CPU and memory limits for system metric percentages.
+	XStatsNoCgroup *wrapperspb.BoolValue `protobuf:"bytes,207,opt,name=x_stats_no_cgroup,json=xStatsNoCgroup,proto3" json:"x_stats_no_cgroup,omitempty"`
 	// Label to assign to system metrics and console logs collected for the run
 	// to group by on the frontend. Can be used to distinguish data from different
 	// processes in a distributed training job.
@@ -1358,9 +1358,9 @@ func (x *Settings) GetXStatsTrackProcessTree() *wrapperspb.BoolValue {
 	return nil
 }
 
-func (x *Settings) GetXStatsUseCgroupResourceLimits() *wrapperspb.BoolValue {
+func (x *Settings) GetXStatsNoCgroup() *wrapperspb.BoolValue {
 	if x != nil {
-		return x.XStatsUseCgroupResourceLimits
+		return x.XStatsNoCgroup
 	}
 	return nil
 }
@@ -2107,7 +2107,7 @@ const file_wandb_proto_wandb_settings_proto_rawDesc = "" +
 	"\tRunMoment\x12\x10\n" +
 	"\x03run\x18\x01 \x01(\tR\x03run\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\x01R\x05value\x12\x16\n" +
-	"\x06metric\x18\x03 \x01(\tR\x06metric\"\xfef\n" +
+	"\x06metric\x18\x03 \x01(\tR\x06metric\"\xdef\n" +
 	"\bSettings\x125\n" +
 	"\aapi_key\x187 \x01(\v2\x1c.google.protobuf.StringValueR\x06apiKey\x12M\n" +
 	"\x13identity_token_file\x18\xaa\x01 \x01(\v2\x1c.google.protobuf.StringValueR\x11identityTokenFile\x12H\n" +
@@ -2196,8 +2196,8 @@ const file_wandb_proto_wandb_settings_proto_rawDesc = "" +
 	"\x19x_stats_cpu_logical_count\x18\xc3\x01 \x01(\v2\x1b.google.protobuf.Int32ValueR\x15xStatsCpuLogicalCount\x12G\n" +
 	"\x11x_stats_gpu_count\x18\xc4\x01 \x01(\v2\x1b.google.protobuf.Int32ValueR\x0exStatsGpuCount\x12F\n" +
 	"\x10x_stats_gpu_type\x18\xc5\x01 \x01(\v2\x1c.google.protobuf.StringValueR\rxStatsGpuType\x12W\n" +
-	"\x1ax_stats_track_process_tree\x18\xc6\x01 \x01(\v2\x1a.google.protobuf.BoolValueR\x16xStatsTrackProcessTree\x12f\n" +
-	"\"x_stats_use_cgroup_resource_limits\x18\xcf\x01 \x01(\v2\x1a.google.protobuf.BoolValueR\x1dxStatsUseCgroupResourceLimits\x126\n" +
+	"\x1ax_stats_track_process_tree\x18\xc6\x01 \x01(\v2\x1a.google.protobuf.BoolValueR\x16xStatsTrackProcessTree\x12F\n" +
+	"\x11x_stats_no_cgroup\x18\xcf\x01 \x01(\v2\x1a.google.protobuf.BoolValueR\x0exStatsNoCgroup\x126\n" +
 	"\ax_label\x18\xb5\x01 \x01(\v2\x1c.google.protobuf.StringValueR\x06xLabel\x128\n" +
 	"\tx_primary\x18\xb6\x01 \x01(\v2\x1a.google.protobuf.BoolValueR\bxPrimary\x12N\n" +
 	"\x15x_update_finish_state\x18\xb7\x01 \x01(\v2\x1a.google.protobuf.BoolValueR\x12xUpdateFinishState\x12S\n" +
@@ -2428,7 +2428,7 @@ var file_wandb_proto_wandb_settings_proto_depIdxs = []int32{
 	12,  // 83: wandb_internal.Settings.x_stats_gpu_count:type_name -> google.protobuf.Int32Value
 	9,   // 84: wandb_internal.Settings.x_stats_gpu_type:type_name -> google.protobuf.StringValue
 	10,  // 85: wandb_internal.Settings.x_stats_track_process_tree:type_name -> google.protobuf.BoolValue
-	10,  // 86: wandb_internal.Settings.x_stats_use_cgroup_resource_limits:type_name -> google.protobuf.BoolValue
+	10,  // 86: wandb_internal.Settings.x_stats_no_cgroup:type_name -> google.protobuf.BoolValue
 	9,   // 87: wandb_internal.Settings.x_label:type_name -> google.protobuf.StringValue
 	10,  // 88: wandb_internal.Settings.x_primary:type_name -> google.protobuf.BoolValue
 	10,  // 89: wandb_internal.Settings.x_update_finish_state:type_name -> google.protobuf.BoolValue
