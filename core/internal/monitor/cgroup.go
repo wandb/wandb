@@ -28,8 +28,10 @@ var (
 		procRoot: procfs.DefaultMountPoint,
 	}
 
-	// /proc/<pid>/mountinfo escapes space, tab, newline, and backslash in
-	// pathname fields as octal byte sequences. procfs leaves them escaped.
+	// /proc/<pid>/mountinfo is space-delimited. The kernel escapes space,
+	// tab, newline, and backslash in pathname fields as octal byte sequences
+	// (\040, \011, \012, \134). procfs parses the fields but leaves those
+	// path escapes in place.
 	mountInfoPathUnescaper = strings.NewReplacer(
 		`\040`, " ",
 		`\011`, "\t",
