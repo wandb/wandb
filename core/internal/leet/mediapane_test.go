@@ -44,6 +44,25 @@ func mediaKeyMsg(t *testing.T, intent leet.MediaKeyIntent) tea.KeyPressMsg {
 	return mediaBindingMsg(t, keys[0])
 }
 
+func setKittyGraphicsEnv(t *testing.T, supported bool) {
+	t.Helper()
+	for _, key := range []string{
+		"KITTY_WINDOW_ID",
+		"WEZTERM_EXECUTABLE",
+		"WEZTERM_PANE",
+		"GHOSTTY_BIN_DIR",
+		"GHOSTTY_RESOURCES_DIR",
+		"TERM_PROGRAM",
+	} {
+		t.Setenv(key, "")
+	}
+	if supported {
+		t.Setenv("TERM", "xterm-kitty")
+	} else {
+		t.Setenv("TERM", "xterm-256color")
+	}
+}
+
 func feedImages(store *leet.MediaStore, key string, steps ...float64) {
 	for _, step := range steps {
 		store.ProcessHistory(leet.HistoryMsg{
@@ -521,6 +540,8 @@ func TestMediaPane_ViewANSIKeepsTopAndBottomRows(t *testing.T) {
 }
 
 func TestMediaPane_ToggleRendererModeTitle(t *testing.T) {
+	setKittyGraphicsEnv(t, true)
+
 	pane, store := testMediaPane(t)
 	path := writeTestImage(t)
 	store.ProcessHistory(leet.HistoryMsg{
@@ -548,6 +569,29 @@ func TestMediaPane_ToggleRendererModeTitle(t *testing.T) {
 	view = pane.View(80, 20, "", "")
 	require.Contains(t, view, "[ansi]")
 	require.NotContains(t, pane.StatusLabel(), "kitty")
+}
+
+func TestMediaPane_ToggleRendererModeUnsupportedTerminalStaysANSI(t *testing.T) {
+	setKittyGraphicsEnv(t, false)
+
+	pane, store := testMediaPane(t)
+	path := writeTestImage(t)
+	store.ProcessHistory(leet.HistoryMsg{
+		Media: map[string][]leet.MediaPoint{
+			"s": {{X: 0, FilePath: path}},
+		},
+	})
+	pane.SetStore(store)
+	pane.SetActive(true)
+
+	handled, toggleCmd := pane.HandleKey(tea.KeyPressMsg{Code: 'k', Text: "k"})
+	require.True(t, handled)
+	require.Nil(t, toggleCmd)
+
+	view := pane.View(80, 20, "", "")
+	require.Contains(t, view, "[ansi]")
+	require.NotContains(t, view, "[full-res]")
+	require.NotContains(t, view, "\x1b_G")
 }
 
 func TestMediaPane_HeaderShowsRangeWithoutPageNumber(t *testing.T) {

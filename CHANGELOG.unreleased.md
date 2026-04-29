@@ -19,4 +19,4 @@ Section headings should be at level 3 (e.g. `### Added`).
 - The `stop_on_fatal_error` setting to stop a run (using `stop_fn`) after a fatal error that prevents it from uploading metrics (@timoffex in https://github.com/wandb/wandb/pull/11774)
 - New `wandb.sandbox` package and the `wandb beta sandbox` cli for using wandb sandbox (@pingleiwandb in https://github.com/wandb/wandb/pull/11606)
 - The `finish_timeout` and `finish_timeout_raises` settings (@timoffex in https://github.com/wandb/wandb/pull/11737)
-- High-resolution image rendering with ANSI fallback in the W&B LEET TUI media pane (`wandb beta leet` command), including visible-page image parking to reduce memory usage (@dmitryduev in https://github.com/wandb/wandb/pull/11806)
+- High-resolution image rendering in terminals supporting the Kitty protocol with ANSI fallback in the W&B LEET TUI media pane (`wandb beta leet` command) (@dmitryduev in https://github.com/wandb/wandb/pull/11806)

@@ -1065,6 +1065,9 @@ func (r *mediaImageRenderer) ToggleMode() tea.Cmd {
 	defer r.mu.Unlock()
 
 	if r.mode == picture.PictureGlyph {
+		if !terminalSupportsKittyGraphics() {
+			return nil
+		}
 		r.mode = picture.PictureKitty
 		return nil
 	}
@@ -1078,6 +1081,28 @@ func (r *mediaImageRenderer) ToggleMode() tea.Cmd {
 		delete(r.pictures, key)
 	}
 	return tea.Batch(cmds...)
+}
+
+func terminalSupportsKittyGraphics() bool {
+	// TODO: come up with a more robust way to check.
+	if os.Getenv("KITTY_WINDOW_ID") != "" ||
+		os.Getenv("WEZTERM_EXECUTABLE") != "" ||
+		os.Getenv("WEZTERM_PANE") != "" ||
+		os.Getenv("GHOSTTY_BIN_DIR") != "" ||
+		os.Getenv("GHOSTTY_RESOURCES_DIR") != "" {
+		return true
+	}
+
+	switch strings.ToLower(os.Getenv("TERM_PROGRAM")) {
+	case "kitty", "wezterm", "ghostty":
+		return true
+	}
+
+	switch strings.ToLower(os.Getenv("TERM")) {
+	case "xterm-kitty", "xterm-ghostty":
+		return true
+	}
+	return false
 }
 
 func (r *mediaImageRenderer) Update(msg picture.KittyFrameMsg) tea.Cmd {
