@@ -16,6 +16,7 @@ import (
 	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/runhistoryreader/parquet/ffi"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/stream"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
@@ -179,6 +180,14 @@ func (b *RemoteWorkspaceBackend) InitReaderCmd(runKey string) tea.Cmd {
 	project := b.project
 
 	return func() tea.Msg {
+		rustArrowWrapper, err := ffi.NewRustArrowWrapper()
+		if err != nil {
+			return WorkspaceInitErrMsg{
+				RunKey: runKey,
+				Err:    fmt.Errorf("failed to create rust arrow wrapper: %w", err),
+			}
+		}
+
 		source, err := NewParquetHistorySource(
 			entity,
 			project,
@@ -187,6 +196,7 @@ func (b *RemoteWorkspaceBackend) InitReaderCmd(runKey string) tea.Cmd {
 			httpClient,
 			info,
 			logger,
+			rustArrowWrapper,
 		)
 		if err != nil {
 			return WorkspaceInitErrMsg{
