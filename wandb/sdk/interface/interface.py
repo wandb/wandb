@@ -995,16 +995,6 @@ class InterfaceBase(abc.ABC):
     ) -> MailboxHandle[pb.Result]:
         raise NotImplementedError
 
-    def deliver_internal_messages(self) -> MailboxHandle[pb.Result]:
-        internal_message = pb.InternalMessagesRequest()
-        return self._deliver_internal_messages(internal_message)
-
-    @abc.abstractmethod
-    def _deliver_internal_messages(
-        self, internal_message: pb.InternalMessagesRequest
-    ) -> MailboxHandle[pb.Result]:
-        raise NotImplementedError
-
     def deliver_get_summary(self) -> MailboxHandle[pb.Result]:
         get_summary = pb.GetSummaryRequest()
         return self._deliver_get_summary(get_summary)
