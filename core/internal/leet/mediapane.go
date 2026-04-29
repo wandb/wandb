@@ -15,7 +15,8 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
-	_ "github.com/NimbleMarkets/ntcharts/v2/picture"
+	"github.com/NimbleMarkets/ntcharts/v2/picture"
+	imagedraw "golang.org/x/image/draw"
 )
 
 const (
@@ -40,6 +41,8 @@ const (
 	mediaTileTitleLines  = 1
 	mediaTileFooterLines = 1
 	mediaPaneMinHeight   = mediaPaneHeaderLines + mediaTileMinHeight
+
+	mediaKittyIDBase = 10_000
 )
 
 var (
@@ -80,8 +83,7 @@ var (
 					Foreground(colorSubtle)
 )
 
-// MediaPane is a collapsible, animated pane that renders wandb.Image media as
-// ANSI thumbnails.
+// MediaPane is a collapsible, animated pane that renders wandb.Image media.
 type MediaPane struct {
 	animState  *AnimatedValue
 	gridConfig func() (rows, cols int)
@@ -100,7 +102,12 @@ type MediaPane struct {
 	xIndices    map[string]int
 	autoFollows map[string]bool
 
-	nav GridNavigator
+	nav    GridNavigator
+	keyMap map[string]KeyBinding[MediaPane]
+
+	renderMu   sync.RWMutex
+	renderKeys []mediaRenderKey
+	prepareCh  chan struct{}
 }
 
 func NewMediaPane(animState *AnimatedValue, gridConfig func() (rows, cols int)) *MediaPane {
@@ -112,6 +119,8 @@ func NewMediaPane(animState *AnimatedValue, gridConfig func() (rows, cols int)) 
 		autoFollows: make(map[string]bool),
 		pageRows:    1,
 		pageCols:    1,
+		keyMap:      buildKeyBindingMap(MediaPaneKeyBindings()),
+		prepareCh:   make(chan struct{}, 1),
 	}
 }
 
@@ -134,6 +143,11 @@ func (p *MediaPane) UpdateExpandedHeight(maxTerminalHeight int) {
 	p.SetExpandedHeight(maxHeight)
 }
 
+// Init starts the media pane's internal prepare loop.
+func (p *MediaPane) Init() tea.Cmd {
+	return p.waitForPrepare()
+}
+
 func (p *MediaPane) SetStore(store *MediaStore) {
 	if p.store == store {
 		p.syncState()
@@ -149,6 +163,80 @@ func (p *MediaPane) ToggleFullscreen() {
 		p.active = true
 	}
 }
+
+func (p *MediaPane) togglePictureMode() tea.Cmd {
+	return p.renderer.ToggleMode()
+}
+
+func (p *MediaPane) handleKittyFrame(msg picture.KittyFrameMsg) tea.Cmd {
+	return p.renderer.Update(msg)
+}
+
+func (p *MediaPane) waitForPrepare() tea.Cmd {
+	if p.prepareCh == nil {
+		return nil
+	}
+	return func() tea.Msg {
+		<-p.prepareCh
+		return mediaPanePrepareMsg{}
+	}
+}
+
+func (p *MediaPane) requestRenderedMediaPrepare() {
+	if p.renderer.Mode() != picture.PictureKitty || p.prepareCh == nil {
+		return
+	}
+	select {
+	case p.prepareCh <- struct{}{}:
+	default:
+	}
+}
+
+func (p *MediaPane) handlePrepareMsg() tea.Cmd {
+	return batchCmds(p.prepareRenderedMedia(), p.waitForPrepare())
+}
+
+func (p *MediaPane) prepareRenderedMedia() tea.Cmd {
+	return p.renderer.PrepareVisible(p.renderedMedia())
+}
+
+// Park releases rendered media for images that are not currently visible.
+func (p *MediaPane) Park() {
+	p.setRenderedMedia(nil)
+}
+
+func (p *MediaPane) setRenderedMedia(keys []mediaRenderKey) {
+	p.renderer.Park(keys)
+
+	p.renderMu.Lock()
+	changed := len(p.renderKeys) != len(keys)
+	if !changed {
+		for i := range keys {
+			if p.renderKeys[i] != keys[i] {
+				changed = true
+				break
+			}
+		}
+	}
+
+	p.renderKeys = append(p.renderKeys[:0], keys...)
+	p.renderMu.Unlock()
+
+	if changed {
+		p.requestRenderedMediaPrepare()
+	}
+}
+
+func (p *MediaPane) renderedMedia() []mediaRenderKey {
+	p.renderMu.RLock()
+	defer p.renderMu.RUnlock()
+
+	keys := make([]mediaRenderKey, len(p.renderKeys))
+	copy(keys, p.renderKeys)
+	return keys
+}
+
+type mediaPanePrepareMsg struct{}
 
 // MediaPaneViewState captures the navigable state of a MediaPane so it can
 // be saved and restored across Run view transitions.
@@ -304,64 +392,102 @@ func (p *MediaPane) StatusLabel() string {
 	return strings.Join(parts, " • ")
 }
 
-// HandleKey handles media-pane-local navigation. It returns true when the key
-// was consumed.
-func (p *MediaPane) HandleKey(msg tea.KeyPressMsg) bool {
+// HandleKey handles media-pane-local navigation. It returns whether the key was
+// consumed and any command needed to render media.
+func (p *MediaPane) HandleKey(msg tea.KeyPressMsg) (bool, tea.Cmd) {
 	if !p.active && !p.fullscreen {
-		return false
+		return false, nil
 	}
 
-	switch normalizeKey(msg.String()) {
-	case "enter":
-		if p.HasData() {
-			p.ToggleFullscreen()
-		}
-		return true
-	case "esc":
-		if p.fullscreen {
-			p.ExitFullscreen()
-			return true
-		}
-		return false
-	case "left":
-		p.Scrub(-1)
-		return true
-	case "right":
-		p.Scrub(1)
-		return true
-	case "up":
-		p.Scrub(-10)
-		return true
-	case "down":
-		p.Scrub(10)
-		return true
-	case "home":
-		p.ScrubToStart()
-		return true
-	case "end":
-		p.ScrubToEnd()
-		return true
-	case "a":
-		p.MoveSelection(-1, 0)
-		return true
-	case "d":
-		p.MoveSelection(1, 0)
-		return true
-	case "w":
-		p.MoveSelection(0, -1)
-		return true
-	case "s":
-		p.MoveSelection(0, 1)
-		return true
-	case "pgup":
-		p.NavigatePage(-1)
-		return true
-	case "pgdown":
-		p.NavigatePage(1)
-		return true
-	default:
-		return false
+	binding, ok := p.keyMap[normalizeKey(msg.String())]
+	if !ok {
+		return false, nil
 	}
+	if binding.Enabled != nil && !binding.Enabled(p, msg) {
+		return false, nil
+	}
+	return true, binding.Handler(p, msg)
+}
+
+func (p *MediaPane) handleToggleFullscreenKey(tea.KeyPressMsg) tea.Cmd {
+	if p.HasData() {
+		p.ToggleFullscreen()
+	}
+	return nil
+}
+
+func (p *MediaPane) handleExitFullscreenKey(tea.KeyPressMsg) tea.Cmd {
+	p.ExitFullscreen()
+	return nil
+}
+
+func (p *MediaPane) handleTogglePictureModeKey(tea.KeyPressMsg) tea.Cmd {
+	if !p.HasData() {
+		return nil
+	}
+	cmd := p.togglePictureMode()
+	p.requestRenderedMediaPrepare()
+	return cmd
+}
+
+func (p *MediaPane) handleScrubStepKey(msg tea.KeyPressMsg) tea.Cmd {
+	switch DecodeMediaKey(msg) {
+	case MediaKeyScrubBackward:
+		p.Scrub(-1)
+	case MediaKeyScrubForward:
+		p.Scrub(1)
+	}
+	return nil
+}
+
+func (p *MediaPane) handleScrubJumpKey(msg tea.KeyPressMsg) tea.Cmd {
+	switch DecodeMediaKey(msg) {
+	case MediaKeyScrubJumpBackward:
+		p.Scrub(-10)
+	case MediaKeyScrubJumpForward:
+		p.Scrub(10)
+	}
+	return nil
+}
+
+func (p *MediaPane) handleScrubBoundaryKey(msg tea.KeyPressMsg) tea.Cmd {
+	switch DecodeMediaKey(msg) {
+	case MediaKeyScrubStart:
+		p.ScrubToStart()
+	case MediaKeyScrubEnd:
+		p.ScrubToEnd()
+	}
+	return nil
+}
+
+func (p *MediaPane) handleSelectionColumnKey(msg tea.KeyPressMsg) tea.Cmd {
+	switch DecodeMediaKey(msg) {
+	case MediaKeySelectionLeft:
+		p.MoveSelection(-1, 0)
+	case MediaKeySelectionRight:
+		p.MoveSelection(1, 0)
+	}
+	return nil
+}
+
+func (p *MediaPane) handleSelectionRowKey(msg tea.KeyPressMsg) tea.Cmd {
+	switch DecodeMediaKey(msg) {
+	case MediaKeySelectionUp:
+		p.MoveSelection(0, -1)
+	case MediaKeySelectionDown:
+		p.MoveSelection(0, 1)
+	}
+	return nil
+}
+
+func (p *MediaPane) handlePageKey(msg tea.KeyPressMsg) tea.Cmd {
+	switch DecodeMediaKey(msg) {
+	case MediaKeyPagePrevious:
+		p.NavigatePage(-1)
+	case MediaKeyPageNext:
+		p.NavigatePage(1)
+	}
+	return nil
 }
 
 func (p *MediaPane) MoveSelection(dx, dy int) {
@@ -525,12 +651,14 @@ func (p *MediaPane) HandleMouseClick(x, y, width, height int) bool {
 
 func (p *MediaPane) View(width, height int, runLabel, hint string) string {
 	if width <= 0 || height < mediaPaneMinHeight {
+		p.setRenderedMedia(nil)
 		return ""
 	}
 
 	innerW := max(width-ContentPaddingCols, 0)
 	innerH := max(height, 0)
 	if innerW == 0 || innerH == 0 {
+		p.setRenderedMedia(nil)
 		return ""
 	}
 	p.syncGridLayoutForViewport(width, height)
@@ -561,13 +689,19 @@ func (p *MediaPane) renderFullscreenBody(width, height int, runLabel, hint strin
 	slider := p.renderSlider(width)
 	bodyHeight := max(height-mediaPaneHeaderLines, 0)
 	if !ok {
+		p.setRenderedMedia(nil)
 		placeholder := renderMediaPlaceholder(width, bodyHeight, hintOrDefault(hint, "No media."))
 		return lipgloss.JoinVertical(lipgloss.Left, head, slider, placeholder)
 	}
 
-	title := mediaTileSelectedTitleStyle.Width(width).Render(key)
+	title := p.renderTitle(key, width, true)
 	footer := mediaTileFooterStyle.Width(width).Render(p.fullscreenFooter(point, width))
 	imageHeight := max(bodyHeight-2, 1)
+	p.setRenderedMedia([]mediaRenderKey{{
+		path:   point.FilePath,
+		width:  width,
+		height: imageHeight,
+	}})
 	img := p.renderer.Render(point.FilePath, width, imageHeight)
 	content := lipgloss.JoinVertical(lipgloss.Left, title, img, footer)
 	content = lipgloss.Place(width, bodyHeight, lipgloss.Left, lipgloss.Top, content)
@@ -583,30 +717,34 @@ func (p *MediaPane) renderHeader(width int, runLabel string, fullscreen bool) st
 	if p.active || p.fullscreen {
 		headerStyle = mediaPaneActiveHeaderStyle
 	}
-	left := headerStyle.Render(title)
-	if runLabel != "" {
-		left = lipgloss.JoinHorizontal(
-			lipgloss.Left,
-			left,
-			mediaPaneSliderStyle.Render(" • "+truncateValue(runLabel, max(width/3, 1))),
-		)
-	}
+	titleLabel := headerStyle.Render(title)
 
 	keys := p.seriesKeys()
 	itemsPerPage := p.itemsPerPage()
 	p.nav.UpdateTotalPages(len(keys), itemsPerPage)
-	startIdx, endIdx := p.nav.PageBounds(len(keys), itemsPerPage)
-	info := ""
+	navInfo := ""
 	if len(keys) > 0 {
-		info = fmt.Sprintf("[%d-%d of %d]", startIdx+1, endIdx, len(keys))
+		startIdx, endIdx := p.nav.PageBounds(len(keys), itemsPerPage)
+		navInfo = mediaPaneSliderStyle.Render(
+			fmt.Sprintf(" [%d-%d of %d]", startIdx+1, endIdx, len(keys)))
 	}
-	if p.nav.TotalPages() > 1 {
-		info = fmt.Sprintf("%s  p.%d/%d", info, p.nav.CurrentPage()+1, p.nav.TotalPages())
-	}
-	info = mediaPaneSliderStyle.Render(strings.TrimSpace(info))
 
-	fillerWidth := max(width-lipgloss.Width(left)-lipgloss.Width(info), 0)
-	return lipgloss.JoinHorizontal(lipgloss.Left, left, strings.Repeat(" ", fillerWidth), info)
+	left := titleLabel
+	if runLabel != "" {
+		sep := " • "
+		maxRunWidth := width - lipgloss.Width(titleLabel) - lipgloss.Width(navInfo) - len(sep)
+		if maxRunWidth > 0 {
+			left = lipgloss.JoinHorizontal(
+				lipgloss.Left,
+				titleLabel,
+				mediaPaneSliderStyle.Render(sep+truncateValue(runLabel, maxRunWidth)),
+			)
+		}
+	}
+
+	fillerWidth := width - lipgloss.Width(left) - lipgloss.Width(navInfo)
+	filler := strings.Repeat(" ", max(fillerWidth, 0))
+	return lipgloss.JoinHorizontal(lipgloss.Left, left, filler, navInfo)
 }
 
 func (p *MediaPane) renderSlider(width int) string {
@@ -627,7 +765,7 @@ func (p *MediaPane) renderSlider(width int) string {
 	}
 
 	var b strings.Builder
-	for i := 0; i < barWidth; i++ {
+	for i := range barWidth {
 		switch {
 		case i < pos:
 			b.WriteRune('━')
@@ -651,6 +789,7 @@ func (p *MediaPane) renderSlider(width int) string {
 func (p *MediaPane) renderGrid(width, height int, hint string) string {
 	keys := p.seriesKeys()
 	if len(keys) == 0 {
+		p.setRenderedMedia(nil)
 		return renderMediaPlaceholder(width, height, hintOrDefault(hint, "No media."))
 	}
 
@@ -664,6 +803,8 @@ func (p *MediaPane) renderGrid(width, height int, hint string) string {
 
 	showSelection := p.active || p.fullscreen
 	cells := make([]string, 0, itemsPerPage)
+	innerW, _, imageH, _ := mediaTileLayout(slotW, slotH)
+	renderKeys := make([]mediaRenderKey, 0, endIdx-startIdx)
 	for idx := startIdx; idx < endIdx; idx++ {
 		key := keys[idx]
 		x, hasX := p.currentXForSeries(key)
@@ -671,11 +812,19 @@ func (p *MediaPane) renderGrid(width, height int, hint string) string {
 		if hasX && p.store != nil {
 			point, ok = p.store.ResolveAt(key, x)
 		}
+		if ok {
+			renderKeys = append(renderKeys, mediaRenderKey{
+				path:   point.FilePath,
+				width:  innerW,
+				height: imageH,
+			})
+		}
 		cells = append(
 			cells,
 			p.renderTile(key, point, ok, showSelection && idx == p.selectedIndex, slotW, slotH))
 
 	}
+	p.setRenderedMedia(renderKeys)
 	for len(cells) < itemsPerPage {
 		cells = append(cells, lipgloss.NewStyle().Width(slotW).Height(slotH).Render(""))
 	}
@@ -702,23 +851,14 @@ func (p *MediaPane) renderTile(
 	slotW int,
 	slotH int,
 ) string {
-	innerW := max(slotW-mediaTileBorderLines, 1)
-	innerH := max(slotH-mediaTileBorderLines, 1)
+	innerW, innerH, imageH, footerLines := mediaTileLayout(slotW, slotH)
 
-	footerLines := 0
-	if innerH >= mediaTileTitleLines+mediaTileFooterLines+2 {
-		footerLines = mediaTileFooterLines
-	}
-	imageH := max(innerH-mediaTileTitleLines-footerLines, 1)
-
-	titleStyle := mediaTileTitleStyle
 	borderStyle := mediaTileBorderStyle
 	if selected {
-		titleStyle = mediaTileSelectedTitleStyle
 		borderStyle = mediaTileSelectedBorderStyle
 	}
 
-	title := titleStyle.Width(innerW).Render(truncateValue(key, innerW))
+	title := p.renderTitle(key, innerW, selected)
 
 	var imageView string
 	if ok {
@@ -736,6 +876,48 @@ func (p *MediaPane) renderTile(
 	content := lipgloss.JoinVertical(lipgloss.Left, parts...)
 	content = lipgloss.Place(innerW, innerH, lipgloss.Left, lipgloss.Top, content)
 	return borderStyle.Width(slotW).Height(slotH).Render(content)
+}
+
+func (p *MediaPane) renderTitle(key string, width int, selected bool) string {
+	if width <= 0 {
+		return ""
+	}
+
+	titleStyle := mediaTileTitleStyle
+	if selected {
+		titleStyle = mediaTileSelectedTitleStyle
+	}
+
+	suffix := p.rendererModeTitleSuffix()
+	suffixWidth := lipgloss.Width(suffix)
+	if width <= suffixWidth+1 {
+		return titleStyle.Width(width).Render(truncateValue(key, width))
+	}
+
+	label := titleStyle.Render(truncateValue(key, width-suffixWidth))
+	suffixLabel := navInfoStyle.Render(suffix)
+	line := label + suffixLabel
+	if padding := width - lipgloss.Width(line); padding > 0 {
+		line += strings.Repeat(" ", padding)
+	}
+	return line
+}
+
+func (p *MediaPane) rendererModeTitleSuffix() string {
+	if p.renderer.Mode() == picture.PictureKitty {
+		return " [full-res]"
+	}
+	return " [ansi]"
+}
+
+func mediaTileLayout(slotW, slotH int) (innerW, innerH, imageH, footerLines int) {
+	innerW = max(slotW-mediaTileBorderLines, 1)
+	innerH = max(slotH-mediaTileBorderLines, 1)
+	if innerH >= mediaTileTitleLines+mediaTileFooterLines+2 {
+		footerLines = mediaTileFooterLines
+	}
+	imageH = max(innerH-mediaTileTitleLines-footerLines, 1)
+	return innerW, innerH, imageH, footerLines
 }
 
 func (p *MediaPane) tileFooter(key string, point MediaPoint, ok bool, width int) string {
@@ -844,18 +1026,145 @@ type mediaRenderError struct {
 	at   time.Time
 }
 
+type mediaPicture struct {
+	model picture.Model
+	img   image.Image
+}
+
 type mediaImageRenderer struct {
-	mu       sync.RWMutex
-	decoded  map[string]image.Image
-	errors   map[string]mediaRenderError
-	rendered map[mediaRenderKey]string
+	mu   sync.RWMutex
+	mode picture.PictureMode
+	// Kitty image IDs share the terminal namespace. Allocate one per visible
+	// placement so multiple thumbnails do not overwrite each other.
+	nextKittyID int
+	decoded     map[string]image.Image
+	errors      map[string]mediaRenderError
+	rendered    map[mediaRenderKey]string
+	pictures    map[mediaRenderKey]*mediaPicture
 }
 
 func newMediaImageRenderer() *mediaImageRenderer {
 	return &mediaImageRenderer{
-		decoded:  make(map[string]image.Image),
-		errors:   make(map[string]mediaRenderError),
-		rendered: make(map[mediaRenderKey]string),
+		nextKittyID: mediaKittyIDBase,
+		decoded:     make(map[string]image.Image),
+		errors:      make(map[string]mediaRenderError),
+		rendered:    make(map[mediaRenderKey]string),
+		pictures:    make(map[mediaRenderKey]*mediaPicture),
+	}
+}
+
+func (r *mediaImageRenderer) Mode() picture.PictureMode {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.mode
+}
+
+func (r *mediaImageRenderer) ToggleMode() tea.Cmd {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if r.mode == picture.PictureGlyph {
+		r.mode = picture.PictureKitty
+		return nil
+	}
+
+	r.mode = picture.PictureGlyph
+	cmds := make([]tea.Cmd, 0, len(r.pictures))
+	for key, pic := range r.pictures {
+		if cmd := pic.model.SetImage(nil); cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+		delete(r.pictures, key)
+	}
+	return tea.Batch(cmds...)
+}
+
+func (r *mediaImageRenderer) Update(msg picture.KittyFrameMsg) tea.Cmd {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	cmds := make([]tea.Cmd, 0, 1)
+	for _, pic := range r.pictures {
+		if cmd := pic.model.Update(msg); cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+	}
+	return tea.Batch(cmds...)
+}
+
+func (r *mediaImageRenderer) PrepareVisible(keys []mediaRenderKey) tea.Cmd {
+	r.Park(keys)
+
+	r.mu.RLock()
+	mode := r.mode
+	r.mu.RUnlock()
+	if mode != picture.PictureKitty {
+		return nil
+	}
+
+	visible := make(map[mediaRenderKey]bool, len(keys))
+	cmds := make([]tea.Cmd, 0, len(keys))
+	for _, key := range keys {
+		if key.path == "" || key.width <= 0 || key.height <= 0 {
+			continue
+		}
+		visible[key] = true
+
+		img, _ := r.image(key.path)
+		if img == nil {
+			continue
+		}
+
+		r.mu.Lock()
+		if cmd := r.preparePictureLocked(key, img); cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+		r.mu.Unlock()
+	}
+
+	r.mu.Lock()
+	for key, pic := range r.pictures {
+		if visible[key] {
+			continue
+		}
+		if cmd := pic.model.SetImage(nil); cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+		delete(r.pictures, key)
+	}
+	r.mu.Unlock()
+
+	return tea.Batch(cmds...)
+}
+
+func (r *mediaImageRenderer) Park(keys []mediaRenderKey) {
+	visibleKeys := make(map[mediaRenderKey]struct{}, len(keys))
+	visiblePaths := make(map[string]struct{}, len(keys))
+	for _, key := range keys {
+		if key.path == "" || key.width <= 0 || key.height <= 0 {
+			continue
+		}
+		visibleKeys[key] = struct{}{}
+		visiblePaths[key.path] = struct{}{}
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	for path := range r.decoded {
+		if _, ok := visiblePaths[path]; !ok {
+			delete(r.decoded, path)
+		}
+	}
+	for path := range r.errors {
+		if _, ok := visiblePaths[path]; !ok {
+			delete(r.errors, path)
+		}
+	}
+	for key := range r.rendered {
+		if _, ok := visibleKeys[key]; !ok {
+			delete(r.rendered, key)
+		}
 	}
 }
 
@@ -869,41 +1178,91 @@ func (r *mediaImageRenderer) Render(path string, width, height int) string {
 
 	key := mediaRenderKey{path: path, width: width, height: height}
 	r.mu.RLock()
+	if r.mode == picture.PictureKitty {
+		if pic := r.pictures[key]; pic != nil {
+			if view := pic.model.View().Content; view != "" {
+				r.mu.RUnlock()
+				return view
+			}
+		}
+		r.mu.RUnlock()
+		return r.renderGlyph(path, width, height)
+	}
+
 	if rendered, ok := r.rendered[key]; ok {
 		r.mu.RUnlock()
 		return rendered
 	}
+	r.mu.RUnlock()
+
+	return r.renderGlyph(path, width, height)
+}
+
+func (r *mediaImageRenderer) image(path string) (image.Image, mediaRenderError) {
+	r.mu.RLock()
 	img := r.decoded[path]
 	errEntry, hasErr := r.errors[path]
 	r.mu.RUnlock()
 
-	if img == nil && hasErr && time.Since(errEntry.at) < mediaErrorRetryAfter {
+	if img != nil {
+		return img, mediaRenderError{}
+	}
+	if hasErr && time.Since(errEntry.at) < mediaErrorRetryAfter {
+		return nil, errEntry
+	}
+
+	loaded, err := loadMediaImage(path)
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if err != nil {
+		errEntry = mediaRenderError{text: err.Error(), at: time.Now()}
+		r.errors[path] = errEntry
+		return nil, errEntry
+	}
+	r.decoded[path] = loaded
+	delete(r.errors, path)
+	return loaded, mediaRenderError{}
+}
+
+func (r *mediaImageRenderer) renderGlyph(path string, width, height int) string {
+	img, errEntry := r.image(path)
+	if img == nil {
 		return renderMediaPlaceholder(width, height, truncateValue(errEntry.text, width))
 	}
 
-	if img == nil {
-		loaded, err := loadMediaImage(path)
-		r.mu.Lock()
-		if err != nil {
-			errEntry = mediaRenderError{text: err.Error(), at: time.Now()}
-			r.errors[path] = errEntry
-		} else {
-			img = loaded
-			r.decoded[path] = img
-			delete(r.errors, path)
-		}
-		r.mu.Unlock()
-	}
-
-	if img == nil {
-		return renderMediaPlaceholder(width, height, truncateValue(errEntry.text, width))
-	}
-
-	rendered := renderANSIImage(img, width, height)
+	key := mediaRenderKey{path: path, width: width, height: height}
+	rendered := renderPictureGlyph(img, width, height)
 	r.mu.Lock()
 	r.rendered[key] = rendered
 	r.mu.Unlock()
 	return rendered
+}
+
+func (r *mediaImageRenderer) preparePictureLocked(key mediaRenderKey, img image.Image) tea.Cmd {
+	pic := r.pictures[key]
+	if pic == nil {
+		model := picture.NewWithConfig(picture.Config{
+			KittyID: r.nextKittyID,
+		})
+		r.nextKittyID++
+		pic = &mediaPicture{model: model}
+		r.pictures[key] = pic
+		if r.mode == picture.PictureKitty {
+			pic.model.Toggle()
+		}
+	}
+
+	var cmds []tea.Cmd
+	if cmd := pic.model.SetSize(key.width, key.height); cmd != nil {
+		cmds = append(cmds, cmd)
+	}
+	if pic.img != img {
+		pic.img = img
+		if cmd := pic.model.SetImage(img); cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+	}
+	return tea.Batch(cmds...)
 }
 
 func loadMediaImage(path string) (image.Image, error) {
@@ -920,79 +1279,45 @@ func loadMediaImage(path string) (image.Image, error) {
 	return img, nil
 }
 
-func renderANSIImage(img image.Image, width, height int) string {
+func renderPictureGlyph(img image.Image, width, height int) string {
 	if width <= 0 || height <= 0 {
 		return ""
 	}
+	if img.Bounds().Empty() {
+		return renderMediaPlaceholder(width, height, "Empty image")
+	}
 
+	model := picture.New()
+	model.SetSize(width, height)
+	model.SetImage(scaleImageToFitCells(img, width, height))
+	view := model.View().Content
+	if view == "" {
+		return renderMediaPlaceholder(width, height, "Empty image")
+	}
+	return lipgloss.Place(width, height, lipgloss.Center, lipgloss.Center, view)
+}
+
+func scaleImageToFitCells(img image.Image, cols, rows int) image.Image {
 	bounds := img.Bounds()
-	if bounds.Empty() {
-		return renderMediaPlaceholder(width, height, "Empty image")
+	srcW, srcH := bounds.Dx(), bounds.Dy()
+	if srcW <= 0 || srcH <= 0 || cols <= 0 || rows <= 0 {
+		return img
 	}
 
-	targetPixW := max(width, 1)
-	targetPixH := max(height*2, 1)
-	srcW := float64(bounds.Dx())
-	srcH := float64(bounds.Dy())
-	if srcW <= 0 || srcH <= 0 {
-		return renderMediaPlaceholder(width, height, "Empty image")
+	targetW := cols
+	targetH := rows * 2
+	scale := math.Min(float64(targetW)/float64(srcW), float64(targetH)/float64(srcH))
+	if scale <= 0 {
+		return img
 	}
 
-	scale := math.Min(float64(targetPixW)/srcW, float64(targetPixH)/srcH)
-	drawW := max(int(math.Round(srcW*scale)), 1)
-	drawH := max(int(math.Round(srcH*scale)), 1)
-	xOff := max((targetPixW-drawW)/2, 0)
-	yOff := max((targetPixH-drawH)/2, 0)
-
-	sample := func(tx, ty int) (r, g, b uint8, ok bool) {
-		if tx < xOff || tx >= xOff+drawW || ty < yOff || ty >= yOff+drawH {
-			return 0, 0, 0, false
-		}
-
-		ux := float64(tx-xOff) + 0.5
-		uy := float64(ty-yOff) + 0.5
-		sx := bounds.Min.X + int(ux*srcW/float64(drawW))
-		sy := bounds.Min.Y + int(uy*srcH/float64(drawH))
-		if sx >= bounds.Max.X {
-			sx = bounds.Max.X - 1
-		}
-		if sy >= bounds.Max.Y {
-			sy = bounds.Max.Y - 1
-		}
-
-		r32, g32, b32, a32 := img.At(sx, sy).RGBA()
-		if a32 == 0 {
-			return 0, 0, 0, false
-		}
-		return uint8(r32 >> 8), uint8(g32 >> 8), uint8(b32 >> 8), true
+	dstW := max(int(math.Round(float64(srcW)*scale)), 1)
+	dstH := max(int(math.Round(float64(srcH)*scale)), 1)
+	if dstW == srcW && dstH == srcH {
+		return img
 	}
 
-	var out strings.Builder
-	for row := 0; row < height; row++ {
-		upperY := row * 2
-		lowerY := upperY + 1
-		for col := 0; col < width; col++ {
-			ur, ug, ub, upperOK := sample(col, upperY)
-			lr, lg, lb, lowerOK := sample(col, lowerY)
-			switch {
-			case upperOK && lowerOK:
-				fmt.Fprintf(
-					&out,
-					"\x1b[38;2;%d;%d;%dm\x1b[48;2;%d;%d;%dm▀",
-					ur, ug, ub, lr, lg, lb,
-				)
-			case upperOK:
-				fmt.Fprintf(&out, "\x1b[0m\x1b[38;2;%d;%d;%dm▀", ur, ug, ub)
-			case lowerOK:
-				fmt.Fprintf(&out, "\x1b[0m\x1b[38;2;%d;%d;%dm▄", lr, lg, lb)
-			default:
-				out.WriteString("\x1b[0m ")
-			}
-		}
-		out.WriteString("\x1b[0m")
-		if row+1 < height {
-			out.WriteByte('\n')
-		}
-	}
-	return out.String()
+	dst := image.NewRGBA(image.Rect(0, 0, dstW, dstH))
+	imagedraw.CatmullRom.Scale(dst, dst.Bounds(), img, bounds, imagedraw.Over, nil)
+	return dst
 }

@@ -13,6 +13,8 @@ import (
 	_ "image/gif"  // decoder registration
 	_ "image/jpeg" // decoder registration
 	_ "image/png"  // decoder registration
+	"strings"
+	"sync/atomic"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/eliukblau/pixterm/pkg/ansimage"
@@ -38,6 +40,7 @@ type Config struct {
 // Bubble Tea program. The Model has no notion of where images come from;
 // callers feed it via SetImage. For URL-driven fetching, see pictureurl.
 type Model struct {
+	modelID    uint64
 	mode       PictureMode
 	cols, rows int
 
@@ -52,6 +55,8 @@ type Model struct {
 	kittyID    int
 	background color.Color
 }
+
+var nextModelID atomic.Uint64
 
 // New returns a Model with default Config.
 func New() Model {
@@ -68,6 +73,7 @@ func NewWithConfig(cfg Config) Model {
 		cfg.Background = color.Transparent
 	}
 	return Model{
+		modelID:    nextModelID.Add(1),
 		mode:       PictureGlyph,
 		kittyID:    cfg.KittyID,
 		background: cfg.Background,
@@ -77,13 +83,21 @@ func NewWithConfig(cfg Config) Model {
 // SetImage sets the image to render. Pass nil to clear. Returns a tea.Cmd if
 // rendering needs to be scheduled (Kitty mode), or a cleanup Cmd if Kitty was
 // previously placed and is now being cleared, or nil otherwise.
+//
+// In Kitty mode with a non-nil new image, the previous placeholder grid is
+// preserved until the new KittyFrameMsg arrives. The grid is a pure function
+// of (cols, rows, kittyID) — byte-identical between renders when those are
+// stable — and the previously-resident image at kittyID stays visible until
+// the new APC overwrites it. Clearing the grid synchronously would create a
+// visible blank window during animation.
 func (m *Model) SetImage(img image.Image) tea.Cmd {
 	prev := m.img
 	m.img = img
 	m.seq++
-	m.invalidate()
+	m.invalidateGlyph()
 
 	if img == nil {
+		m.invalidateKitty()
 		if m.mode == PictureKitty && prev != nil {
 			return tea.Raw(kittyDeleteImage(m.kittyID))
 		}
@@ -101,7 +115,8 @@ func (m *Model) SetSize(cols, rows int) tea.Cmd {
 	m.cols = cols
 	m.rows = rows
 	m.seq++
-	m.invalidate()
+	m.invalidateGlyph()
+	m.invalidateKitty()
 	return m.renderCmd()
 }
 
@@ -116,7 +131,8 @@ func (m *Model) Toggle() tea.Cmd {
 		m.mode = PictureGlyph
 	}
 	m.seq++
-	m.invalidate()
+	m.invalidateGlyph()
+	m.invalidateKitty()
 
 	if prev == PictureKitty && m.img != nil {
 		return tea.Raw(kittyDeleteImage(m.kittyID))
@@ -144,7 +160,7 @@ func IsPictureMsg(msg tea.Msg) bool {
 func (m *Model) Update(msg tea.Msg) tea.Cmd {
 	switch msg := msg.(type) {
 	case KittyFrameMsg:
-		if msg.ID != m.kittyID || msg.Seq != m.seq {
+		if msg.modelID != m.modelID || msg.Seq != m.seq {
 			return nil
 		}
 		m.kittyGrid = msg.Grid
@@ -184,15 +200,21 @@ func (m *Model) View() tea.View {
 		return tea.NewView("")
 	}
 
-	out := ascii.RenderExt(false, false)
+	// pixterm/ansimage appends \n after every row including the last; the
+	// Kitty path does not. Strip so both modes report the same shape to
+	// newline-aware layout code (lipgloss.JoinVertical, etc.).
+	out := strings.TrimRight(ascii.RenderExt(false, false), "\n")
 	m.glyphCache = out
 	m.glyphKey = key
 	return tea.NewView(out)
 }
 
-func (m *Model) invalidate() {
+func (m *Model) invalidateGlyph() {
 	m.glyphCache = ""
 	m.glyphKey = ""
+}
+
+func (m *Model) invalidateKitty() {
 	m.kittyGrid = ""
 }
 
@@ -201,10 +223,10 @@ func (m *Model) renderCmd() tea.Cmd {
 		return nil
 	}
 	img := composite(m.img, m.background)
-	id, cols, rows, seq := m.kittyID, m.cols, m.rows, m.seq
+	modelID, id, cols, rows, seq := m.modelID, m.kittyID, m.cols, m.rows, m.seq
 	return func() tea.Msg {
 		apc := buildKittyAPC(img, id, cols, rows)
 		grid := buildKittyGrid(cols, rows, id)
-		return KittyFrameMsg{ID: id, Seq: seq, APC: apc, Grid: grid}
+		return KittyFrameMsg{modelID: modelID, ID: id, Seq: seq, APC: apc, Grid: grid}
 	}
 }

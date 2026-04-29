@@ -141,7 +141,7 @@ func helpEntriesFromCategories[T any](categories []BindingCategory[T]) []HelpEnt
 		entries = append(entries, HelpEntry{Key: category.Name, Description: ""})
 		for _, binding := range category.Bindings {
 			entries = append(entries, HelpEntry{
-				Key:         strings.Join(binding.Keys, ", "),
+				Key:         strings.Join(binding.helpKeys(), ", "),
 				Description: binding.Description,
 			})
 		}

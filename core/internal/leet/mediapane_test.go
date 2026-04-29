@@ -1,9 +1,15 @@
 package leet_test
 
 import (
+	"image"
+	"image/color"
+	"image/png"
+	"os"
+	"strings"
 	"testing"
 	"time"
 
+	tea "charm.land/bubbletea/v2"
 	"github.com/stretchr/testify/require"
 
 	"github.com/wandb/wandb/core/internal/leet"
@@ -34,6 +40,24 @@ func feedImages(store *leet.MediaStore, key string, steps ...float64) {
 			},
 		})
 	}
+}
+
+func writeTestImage(t *testing.T) string {
+	t.Helper()
+	path := t.TempDir() + "/img.png"
+	img := image.NewRGBA(image.Rect(0, 0, 4, 4))
+	for y := range 4 {
+		for x := range 4 {
+			img.Set(x, y, color.RGBA{R: uint8(64 * x), G: uint8(64 * y), B: 200, A: 255})
+		}
+	}
+
+	f, err := os.Create(path)
+	require.NoError(t, err)
+	defer f.Close()
+
+	require.NoError(t, png.Encode(f, img))
+	return path
 }
 
 // --- MediaStore tests ---
@@ -276,4 +300,73 @@ func TestMediaPane_View_TooSmall(t *testing.T) {
 	require.Empty(t, pane.View(0, 20, "", ""))
 	require.Empty(t, pane.View(80, 0, "", ""))
 	require.Empty(t, pane.View(80, 5, "", "")) // below mediaPaneMinHeight
+}
+
+func TestMediaPane_View_RendersImageWithPictureGlyph(t *testing.T) {
+	pane, store := testMediaPane(t)
+	path := writeTestImage(t)
+	store.ProcessHistory(leet.HistoryMsg{
+		Media: map[string][]leet.MediaPoint{
+			"s": {{X: 0, FilePath: path}},
+		},
+	})
+	pane.SetStore(store)
+
+	view := pane.View(80, 20, "", "")
+	require.NotContains(t, view, "open image")
+	require.NotContains(t, view, "No image at X")
+}
+
+func TestMediaPane_ToggleRendererModeTitle(t *testing.T) {
+	pane, store := testMediaPane(t)
+	path := writeTestImage(t)
+	store.ProcessHistory(leet.HistoryMsg{
+		Media: map[string][]leet.MediaPoint{
+			"s": {{X: 0, FilePath: path}},
+		},
+	})
+	pane.SetStore(store)
+	pane.SetActive(true)
+
+	view := pane.View(80, 20, "", "")
+	require.Contains(t, view, "[ansi]")
+	require.NotContains(t, pane.StatusLabel(), "kitty")
+
+	handled, toggleCmd := pane.HandleKey(tea.KeyPressMsg{Code: 'k', Text: "k"})
+	require.True(t, handled)
+	require.Nil(t, toggleCmd)
+	view = pane.View(80, 20, "", "")
+	require.Contains(t, view, "[full-res]")
+	require.NotContains(t, pane.StatusLabel(), "kitty")
+
+	handled, toggleCmd = pane.HandleKey(tea.KeyPressMsg{Code: 'k', Text: "k"})
+	require.True(t, handled)
+	require.Nil(t, toggleCmd)
+	view = pane.View(80, 20, "", "")
+	require.Contains(t, view, "[ansi]")
+	require.NotContains(t, pane.StatusLabel(), "kitty")
+}
+
+func TestMediaPane_HeaderShowsRangeWithoutPageNumber(t *testing.T) {
+	pane, store := testMediaPane(t)
+	path := writeTestImage(t)
+	store.ProcessHistory(leet.HistoryMsg{
+		Media: map[string][]leet.MediaPoint{
+			"a": {{X: 0, FilePath: path}},
+			"b": {{X: 0, FilePath: path}},
+			"c": {{X: 0, FilePath: path}},
+			"d": {{X: 0, FilePath: path}},
+			"e": {{X: 0, FilePath: path}},
+			"f": {{X: 0, FilePath: path}},
+			"g": {{X: 0, FilePath: path}},
+		},
+	})
+	pane.SetStore(store)
+
+	view := pane.View(80, 20, "", "")
+	require.Contains(t, view, "[1-6 of 7]")
+	require.NotContains(t, view, "p.1/2")
+
+	header := strings.Split(stripANSI(view), "\n")[0]
+	require.True(t, strings.HasSuffix(strings.TrimRight(header, " "), "[1-6 of 7]"))
 }

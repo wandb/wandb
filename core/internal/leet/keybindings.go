@@ -11,7 +11,9 @@ import (
 // component or a parent model).
 type KeyBinding[T any] struct {
 	Keys        []string
+	DisplayKeys []string
 	Description string
+	Enabled     func(*T, tea.KeyPressMsg) bool
 	Handler     func(*T, tea.KeyPressMsg) tea.Cmd
 }
 
@@ -19,6 +21,13 @@ type KeyBinding[T any] struct {
 type BindingCategory[T any] struct {
 	Name     string
 	Bindings []KeyBinding[T]
+}
+
+func (b KeyBinding[T]) helpKeys() []string {
+	if len(b.DisplayKeys) > 0 {
+		return b.DisplayKeys
+	}
+	return b.Keys
 }
 
 // RunKeyBindings returns key bindings relevant to the single-run view.
@@ -85,26 +94,27 @@ func RunKeyBindings() []BindingCategory[Run] {
 				},
 				{
 					Keys:        NavKeysFor(NavIntentPageUp),
-					Description: "Previous page / previous series page in media",
+					Description: "Previous page",
 					Handler:     (*Run).handlePrevPage,
 				},
 				{
 					Keys:        NavKeysFor(NavIntentPageDown),
-					Description: "Next page / next series page in media",
+					Description: "Next page",
 					Handler:     (*Run).handleNextPage,
 				},
 				{
 					Keys:        NavKeysFor(NavIntentHome),
-					Description: "Jump to first item / first page / scrub to start",
+					Description: "Jump to first item / first page",
 					Handler:     (*Run).handleNavHome,
 				},
 				{
 					Keys:        NavKeysFor(NavIntentEnd),
-					Description: "Jump to last item / last page / scrub to end",
+					Description: "Jump to last item / last page",
 					Handler:     (*Run).handleNavEnd,
 				},
 			},
 		},
+		mediaPaneHelpCategory[Run](),
 		{
 			Name: "Charts",
 			Bindings: []KeyBinding[Run]{
@@ -176,22 +186,22 @@ func RunKeyBindings() []BindingCategory[Run] {
 				},
 				{
 					Keys:        NavKeysFor(NavIntentUp),
-					Description: "Item up (list) / chart focus up (grid) / scrub -10 in media (arrow only)",
+					Description: "Item up (list) / chart focus up (grid)",
 					Handler:     (*Run).handleSidebarVerticalNav,
 				},
 				{
 					Keys:        NavKeysFor(NavIntentDown),
-					Description: "Item down (list) / chart focus down (grid) / scrub +10 in media (arrow only)",
+					Description: "Item down (list) / chart focus down (grid)",
 					Handler:     (*Run).handleSidebarVerticalNav,
 				},
 				{
 					Keys:        NavKeysFor(NavIntentLeft),
-					Description: "Page prev (list) / chart focus left (grid) / scrub -1 in media (arrow only)",
+					Description: "Page prev (list) / chart focus left (grid)",
 					Handler:     (*Run).handleSidebarPageNav,
 				},
 				{
 					Keys:        NavKeysFor(NavIntentRight),
-					Description: "Page next (list) / chart focus right (grid) / scrub +1 in media (arrow only)",
+					Description: "Page next (list) / chart focus right (grid)",
 					Handler:     (*Run).handleSidebarPageNav,
 				},
 			},
@@ -275,26 +285,27 @@ func WorkspaceKeyBindings() []BindingCategory[Workspace] {
 				},
 				{
 					Keys:        NavKeysFor(NavIntentPageUp),
-					Description: "Previous page / previous series page in media",
+					Description: "Previous page",
 					Handler:     (*Workspace).handlePrevPage,
 				},
 				{
 					Keys:        NavKeysFor(NavIntentPageDown),
-					Description: "Next page / next series page in media",
+					Description: "Next page",
 					Handler:     (*Workspace).handleNextPage,
 				},
 				{
 					Keys:        NavKeysFor(NavIntentHome),
-					Description: "Jump to first item / first page / scrub to start",
+					Description: "Jump to first item / first page",
 					Handler:     (*Workspace).handleNavHome,
 				},
 				{
 					Keys:        NavKeysFor(NavIntentEnd),
-					Description: "Jump to last item / last page / scrub to end",
+					Description: "Jump to last item / last page",
 					Handler:     (*Workspace).handleNavEnd,
 				},
 			},
 		},
+		mediaPaneHelpCategory[Workspace](),
 		{
 			Name: "Runs",
 			Bindings: []KeyBinding[Workspace]{
@@ -381,22 +392,22 @@ func WorkspaceKeyBindings() []BindingCategory[Workspace] {
 				},
 				{
 					Keys:        NavKeysFor(NavIntentUp),
-					Description: "Item up (list) / chart focus up (grid) / scrub -10 in media (arrow only)",
+					Description: "Item up (list) / chart focus up (grid)",
 					Handler:     (*Workspace).handleRunsVerticalNav,
 				},
 				{
 					Keys:        NavKeysFor(NavIntentDown),
-					Description: "Item down (list) / chart focus down (grid) / scrub +10 in media (arrow only)",
+					Description: "Item down (list) / chart focus down (grid)",
 					Handler:     (*Workspace).handleRunsVerticalNav,
 				},
 				{
 					Keys:        NavKeysFor(NavIntentLeft),
-					Description: "Page prev (list) / chart focus left (grid) / scrub -1 in media (arrow only)",
+					Description: "Page prev (list) / chart focus left (grid)",
 					Handler:     (*Workspace).handleRunsPageNav,
 				},
 				{
 					Keys:        NavKeysFor(NavIntentRight),
-					Description: "Page next (list) / chart focus right (grid) / scrub +1 in media (arrow only)",
+					Description: "Page next (list) / chart focus right (grid)",
 					Handler:     (*Workspace).handleRunsPageNav,
 				},
 				{
@@ -510,6 +521,104 @@ func SymonKeyBindings() []BindingCategory[Symon] {
 	}
 }
 
+func MediaPaneKeyBindings() []BindingCategory[MediaPane] {
+	return []BindingCategory[MediaPane]{
+		{
+			Name: "Media",
+			Bindings: []KeyBinding[MediaPane]{
+				{
+					Keys:        MediaKeysFor(MediaKeyToggleFullscreen),
+					Description: "Toggle fullscreen",
+					Handler:     (*MediaPane).handleToggleFullscreenKey,
+				},
+				{
+					Keys:        MediaKeysFor(MediaKeyExitFullscreen),
+					Description: "Exit fullscreen",
+					Enabled: func(p *MediaPane, _ tea.KeyPressMsg) bool {
+						return p.fullscreen
+					},
+					Handler: (*MediaPane).handleExitFullscreenKey,
+				},
+				{
+					Keys:        MediaKeysFor(MediaKeyToggleRenderer),
+					Description: "Toggle image renderer",
+					Handler:     (*MediaPane).handleTogglePictureModeKey,
+				},
+				{
+					Keys: concatKeys(
+						MediaKeysFor(MediaKeyScrubBackward),
+						MediaKeysFor(MediaKeyScrubForward),
+					),
+					DisplayKeys: []string{"←/→"},
+					Description: "Scrub one step",
+					Handler:     (*MediaPane).handleScrubStepKey,
+				},
+				{
+					Keys: concatKeys(
+						MediaKeysFor(MediaKeyScrubJumpBackward),
+						MediaKeysFor(MediaKeyScrubJumpForward),
+					),
+					DisplayKeys: []string{"↑/↓"},
+					Description: "Scrub ten steps",
+					Handler:     (*MediaPane).handleScrubJumpKey,
+				},
+				{
+					Keys: concatKeys(
+						MediaKeysFor(MediaKeyScrubStart),
+						MediaKeysFor(MediaKeyScrubEnd),
+					),
+					DisplayKeys: []string{"home/end"},
+					Description: "Scrub to first/last step",
+					Handler:     (*MediaPane).handleScrubBoundaryKey,
+				},
+				{
+					Keys: concatKeys(
+						MediaKeysFor(MediaKeySelectionLeft),
+						MediaKeysFor(MediaKeySelectionRight),
+					),
+					DisplayKeys: []string{"a/d"},
+					Description: "Move selection left/right",
+					Handler:     (*MediaPane).handleSelectionColumnKey,
+				},
+				{
+					Keys: concatKeys(
+						MediaKeysFor(MediaKeySelectionUp),
+						MediaKeysFor(MediaKeySelectionDown),
+					),
+					DisplayKeys: []string{"w/s"},
+					Description: "Move selection up/down",
+					Handler:     (*MediaPane).handleSelectionRowKey,
+				},
+				{
+					Keys: concatKeys(
+						MediaKeysFor(MediaKeyPagePrevious),
+						MediaKeysFor(MediaKeyPageNext),
+					),
+					DisplayKeys: []string{"pgup/pgdown"},
+					Description: "Previous/next series page",
+					Handler:     (*MediaPane).handlePageKey,
+				},
+			},
+		},
+	}
+}
+
+func mediaPaneHelpCategory[T any]() BindingCategory[T] {
+	src := MediaPaneKeyBindings()[0]
+	bindings := make([]KeyBinding[T], 0, len(src.Bindings))
+	for _, binding := range src.Bindings {
+		bindings = append(bindings, KeyBinding[T]{
+			Keys:        binding.Keys,
+			DisplayKeys: binding.DisplayKeys,
+			Description: binding.Description,
+		})
+	}
+	return BindingCategory[T]{
+		Name:     src.Name,
+		Bindings: bindings,
+	}
+}
+
 // buildKeyMap builds a fast lookup map from key string to handler.
 func buildKeyMap[T any](
 	categories []BindingCategory[T]) map[string]func(*T, tea.KeyPressMsg) tea.Cmd {
@@ -519,8 +628,30 @@ func buildKeyMap[T any](
 			if binding.Handler == nil {
 				continue
 			}
+			handler := binding.Handler
+			enabled := binding.Enabled
 			for _, key := range binding.Keys {
-				keyMap[normalizeKey(key)] = binding.Handler
+				keyMap[normalizeKey(key)] = func(target *T, msg tea.KeyPressMsg) tea.Cmd {
+					if enabled != nil && !enabled(target, msg) {
+						return nil
+					}
+					return handler(target, msg)
+				}
+			}
+		}
+	}
+	return keyMap
+}
+
+func buildKeyBindingMap[T any](categories []BindingCategory[T]) map[string]KeyBinding[T] {
+	keyMap := make(map[string]KeyBinding[T])
+	for _, category := range categories {
+		for _, binding := range category.Bindings {
+			if binding.Handler == nil {
+				continue
+			}
+			for _, key := range binding.Keys {
+				keyMap[normalizeKey(key)] = binding
 			}
 		}
 	}
