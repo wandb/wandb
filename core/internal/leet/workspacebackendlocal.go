@@ -90,7 +90,7 @@ func (b *LocalWorkspaceBackend) PreloadOverviewCmd(runKey string) tea.Cmd {
 				return WorkspaceRunOverviewPreloadedMsg{RunKey: runKey, Err: err}
 			}
 		}
-		if rm, ok := msg.(RunMsg); ok && rm.ID != "" {
+		if rm, ok := FindRunMsg(msg); ok {
 			return WorkspaceRunOverviewPreloadedMsg{RunKey: runKey, Run: &rm}
 		}
 
