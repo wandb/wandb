@@ -216,6 +216,21 @@ func TestMediaPane_Fullscreen(t *testing.T) {
 	require.False(t, pane.IsFullscreen())
 }
 
+func TestMediaPane_EscapeOnlyConsumesFullscreen(t *testing.T) {
+	pane, _ := testMediaPane(t)
+	pane.SetActive(true)
+
+	handled, cmd := pane.HandleKey(tea.KeyPressMsg{Code: tea.KeyEsc})
+	require.False(t, handled)
+	require.Nil(t, cmd)
+
+	pane.ToggleFullscreen()
+	handled, cmd = pane.HandleKey(tea.KeyPressMsg{Code: tea.KeyEsc})
+	require.True(t, handled)
+	require.Nil(t, cmd)
+	require.False(t, pane.IsFullscreen())
+}
+
 // --- MediaPane navigation ---
 
 func TestMediaPane_MoveSelection(t *testing.T) {
