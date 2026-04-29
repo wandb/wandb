@@ -145,7 +145,7 @@ def box3d(
     Returns:
         A Box3D object.
 
-    Example:
+    Examples:
     The following example creates a point cloud with 60 boxes rotating
     around the X, Y and Z axes.
 
