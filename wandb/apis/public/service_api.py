@@ -26,6 +26,13 @@ from wandb.sdk.mailbox.mailbox_handle import MailboxHandle
 _logger = logging.getLogger(__name__)
 
 
+def _normalize_graphql_query(query: str) -> str:
+    query = textwrap.dedent(query).strip()
+    if query.startswith("#graphql"):
+        query = textwrap.dedent(query.removeprefix("#graphql")).strip()
+    return query
+
+
 def _cleanup(connection: ServiceConnection | None, api_id: str) -> None:
     """Clean up the api resources associated with the api id."""
     if connection is not None:
@@ -84,7 +91,7 @@ class ServiceApi:
         """Execute a GraphQL request in wandb-core."""
         request = ApiRequest(
             graphql_request=GraphQLRequest(
-                query=textwrap.dedent(query).strip(),
+                query=_normalize_graphql_query(query),
                 variables_json=json.dumps(variables or {}),
             )
         )
