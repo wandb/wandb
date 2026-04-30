@@ -4,6 +4,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"sync"
 	"sync/atomic"
 
 	"google.golang.org/protobuf/encoding/protojson"
@@ -15,6 +16,7 @@ import (
 
 // ParseRunFileHandler handles requests to parse local .wandb files.
 type ParseRunFileHandler struct {
+	mu               sync.RWMutex
 	currentRequestId atomic.Int32
 	readers          map[int32]*transactionlog.Reader
 	logger           *observability.CoreLogger
@@ -54,7 +56,10 @@ func (h *ParseRunFileHandler) handleInit(
 	}
 
 	requestId := h.currentRequestId.Add(1)
+
+	h.mu.Lock()
 	h.readers[requestId] = reader
+	h.mu.Unlock()
 
 	return &spb.ApiResponse{
 		Response: &spb.ApiResponse_ParseRunFileResponse{
@@ -72,7 +77,9 @@ func (h *ParseRunFileHandler) handleInit(
 func (h *ParseRunFileHandler) handleRead(
 	request *spb.ParseRunFileRead,
 ) *spb.ApiResponse {
+	h.mu.RLock()
 	reader, ok := h.readers[request.RequestId]
+	h.mu.RUnlock()
 	if !ok || reader == nil {
 		return parseRunFileError("Parse operation not initialized.")
 	}
@@ -147,10 +154,15 @@ func (h *ParseRunFileHandler) handleRead(
 func (h *ParseRunFileHandler) handleCleanup(
 	request *spb.ParseRunFileCleanup,
 ) *spb.ApiResponse {
+	h.mu.Lock()
 	reader, ok := h.readers[request.RequestId]
 	if ok && reader != nil {
-		reader.Close()
 		delete(h.readers, request.RequestId)
+	}
+	h.mu.Unlock()
+
+	if ok && reader != nil {
+		reader.Close()
 	}
 
 	return nil
