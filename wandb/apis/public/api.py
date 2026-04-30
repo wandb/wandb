@@ -245,6 +245,19 @@ class Api:
         settings.api_key = self.api_key or ""
         self._service_api = ServiceApi(settings=settings)
 
+    def _set_request_cookies_and_headers(
+        self,
+        cookies: dict[str, str] | None,
+        headers: dict[str, str] | None = None,
+    ) -> None:
+        """For internal use: set per-request cookies and headers on the GQL transport."""
+        self._base_client.transport.cookies = cookies
+        if headers:
+            self._base_client.transport.headers = {
+                **(self._base_client.transport.headers or {}),
+                **headers,
+            }
+
     def _load_auth(self, base_url: str) -> wbauth.Auth:
         """Load or prompt for authentication credentials."""
         auth = wbauth.authenticate_session(

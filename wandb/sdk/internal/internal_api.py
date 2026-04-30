@@ -208,6 +208,10 @@ class Api:
         default_settings(dict, optional): If you aren't using a settings
         file, or you wish to override the section to use in the settings file
         Override the settings here.
+        cookies: For internal use only, for caller to forward user cookies to a wandb
+        API call.
+        extra_headers: Also for internal use only, for caller to forward user headers to
+        a wandb API call.
     """
 
     HTTP_TIMEOUT = env.get_http_timeout(20)
@@ -228,6 +232,8 @@ class Api:
         environ: MutableMapping[str, str] = os.environ,
         retry_callback: Callable[[int, str], Any] | None = None,
         api_key: str | None = None,
+        cookies: dict[str, str] | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> None:
         import requests
 
@@ -277,6 +283,10 @@ class Api:
         self._extra_http_headers = self.settings("_extra_http_headers") or json.loads(
             self._environ.get("WANDB__EXTRA_HTTP_HEADERS", "{}")
         )
+        if extra_headers:
+            self._extra_http_headers.update(extra_headers)
+
+        self._cookies = cookies
 
         auth = None
         api_key = api_key or self.default_settings.get("api_key")
@@ -306,6 +316,7 @@ class Api:
                 auth=auth,
                 url=f"{self.settings('base_url')}/graphql",
                 proxies=proxies,
+                cookies=self._cookies,
             )
         )
 
