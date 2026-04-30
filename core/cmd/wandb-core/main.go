@@ -570,26 +570,23 @@ func runSymon(opts *leetOptions, logger *observability.CoreLogger) int {
 }
 
 func runLeetWorkspace(opts *leetOptions, logger *observability.CoreLogger) int {
-	var runParams *leet.RunParams
-	wandbDir := opts.wandbDir
-	if opts.baseUrl != "" {
-		runParams = &leet.RunParams{
-			RemoteRunParams: &leet.RemoteRunParams{
-				BaseURL: opts.baseUrl,
-				Entity:  opts.entity,
-				Project: opts.project,
-				RunId:   opts.runId,
-			},
-		}
+	startupArgs := &leet.StartupArgs{
+		BaseURL:  &opts.baseUrl,
+		Entity:   &opts.entity,
+		Project:  &opts.project,
+		RunId:    &opts.runId,
+		RunFile:  &opts.runFile,
+		WandbDir: opts.wandbDir,
+	}
+
+	modelParams, err := leet.CreateModelParams(startupArgs, logger)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
 		return exitCodeErrorArgs
 	}
 
 	for {
-		m := leet.NewModel(leet.ModelParams{
-			WandbDir:  wandbDir,
-			RunParams: modelParams.RunParams,
-			Logger:    logger,
-		})
+		m := leet.NewModel(*modelParams)
 		program := tea.NewProgram(m)
 
 		finalModel, err := program.Run()
@@ -607,3 +604,4 @@ func runLeetWorkspace(opts *leetOptions, logger *observability.CoreLogger) int {
 		}
 		return exitCodeSuccess
 	}
+}

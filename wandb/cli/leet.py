@@ -189,13 +189,6 @@ def _resolve_path(path: str | None) -> LaunchConfig:
         wandb_dir = wandb_setup.singleton().settings.wandb_dir
         return LocalLaunchConfig(wandb_dir=str(wandb_dir))
 
-    if path.startswith("https://") or path.startswith("http://"):
-        parsed_url = urllib.parse.urlparse(path)
-        return LaunchConfig(
-            wandb_dir=f"{parsed_url.scheme}://{parsed_url.netloc}",
-            run_file=path,
-        )
-
     resolved = pathlib.Path(path).resolve()
 
     if resolved.is_file():
@@ -328,30 +321,6 @@ def _get_remote_launch_args(config: RemoteLaunchConfig) -> list[str]:
 def _create_remote_launch_config(path: str) -> RemoteLaunchConfig:
     """Create a LEET launch configuration for a remote run."""
     base_url, remote_url = _parse_remote_url(path)
-
-    path = parsed.path.strip("/")
-    parts = path.split("/")
-
-    # Filter out the "runs" segment to normalise the path.
-    # e.g. /entity/project/runs/run_id -> /entity/project/run_id
-    parts = [p for p in parts if p != "runs"]
-
-    if len(parts) == 2:
-        entity, project = parts
-        return base_url, entity, project, None
-    elif len(parts) == 3:
-        entity, project, run_id = parts
-        return base_url, entity, project, run_id
-    else:
-        _fatal(
-            f"Cannot parse W&B URL: {url}\n"
-            "  Expected: https://wandb.ai/<entity>/<project>[/runs/<run_id>]"
-        )
-
-
-def _create_remote_launch_config(path: str) -> RemoteLaunchConfig:
-    """Create a LEET launch configuration for a remote project or run."""
-    base_url, entity, project, run_id = _parse_wandb_url(path)
 
     auth = wbauth.authenticate_session(
         host=base_url,
