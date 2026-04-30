@@ -1,4 +1,4 @@
-package wbapi
+package wbapi_test
 
 import (
 	"context"
@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/wandb/wandb/core/internal/wbapi"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
@@ -35,7 +36,7 @@ func TestGraphQLHandlerExecutesRequest(t *testing.T) {
 	client := &recordingGraphQLClient{
 		data: `{"viewer":{"id":"user-id"}}`,
 	}
-	handler := NewGraphQLHandler(client)
+	handler := wbapi.NewGraphQLHandler(client)
 
 	response := handler.HandleRequest(context.Background(), &spb.GraphQLRequest{
 		Query:         "query Viewer($step: Int64!) { viewer { id } }",
@@ -58,7 +59,7 @@ func TestGraphQLHandlerExecutesRequest(t *testing.T) {
 }
 
 func TestGraphQLHandlerRejectsInvalidVariables(t *testing.T) {
-	handler := NewGraphQLHandler(&recordingGraphQLClient{})
+	handler := wbapi.NewGraphQLHandler(&recordingGraphQLClient{})
 
 	response := handler.HandleRequest(context.Background(), &spb.GraphQLRequest{
 		Query:         "query Viewer { viewer { id } }",
@@ -70,7 +71,7 @@ func TestGraphQLHandlerRejectsInvalidVariables(t *testing.T) {
 }
 
 func TestGraphQLHandlerReturnsGraphQLError(t *testing.T) {
-	handler := NewGraphQLHandler(&recordingGraphQLClient{
+	handler := wbapi.NewGraphQLHandler(&recordingGraphQLClient{
 		err: errors.New("server unavailable"),
 	})
 
