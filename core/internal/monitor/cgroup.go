@@ -56,21 +56,21 @@ func detectCgroupResourceLimits(paths cgroupPaths) *cgroupResourceLimits {
 		return nil
 	}
 
-	var dirs []string
+	var leafDirs []string
 	for _, mount := range mounts {
 		if mount.FSType != cgroupV2FSType {
 			continue
 		}
-		dirs = append(dirs, cgroupDirsForMount(mount, procInfo.cgroupV2Path)...)
+		leafDirs = append(leafDirs, cgroupDir(mount, procInfo.cgroupV2Path))
 	}
-	if len(dirs) == 0 {
+	if len(leafDirs) == 0 {
 		return nil
 	}
 
 	limits := &cgroupResourceLimits{}
-	limits.memoryCurrentFile, limits.memoryLimitBytes = memoryLimit(dirs)
+	limits.memoryCurrentFile, limits.memoryLimitBytes = memoryLimit(leafDirs)
 	limits.cpuLimit = minPositive(
-		cpuQuotaLimit(dirs),
+		cpuQuotaLimit(leafDirs),
 		cpuAllowedLimit(procInfo.cpuAllowed, paths.logicalCPUCount),
 	)
 
@@ -162,10 +162,7 @@ func (c *cgroupResourceLimits) CPULimit() float64 {
 }
 
 // memoryLimit returns the smallest finite memory.max and the memory.current
-// file from the same directory.
-//
-// dirs must be ordered from the process's leaf cgroup to the mount point. Ties
-// keep the first directory, so equal limits use the most specific memory.current.
+// file from the same cgroup directory.
 func memoryLimit(dirs []string) (currentFile string, limit uint64) {
 	for _, dir := range dirs {
 		nextLimit, ok := readCgroupUint(filepath.Join(dir, cgroupV2MemoryMaxFile))
@@ -216,17 +213,11 @@ func minPositive(a, b float64) float64 {
 	}
 }
 
-// cgroupDirsForMount returns visible cgroup directories for mount, ordered from
-// the process's leaf cgroup to the mount point.
-//
-// A parent cgroup can set a tighter effective limit than the leaf. Scanning
-// visible ancestors finds that limit when the runtime exposes them; bind-mounted
-// cgroup subtrees naturally stop at the mount point.
-func cgroupDirsForMount(mount *procfs.MountInfo, cgroupPath string) []string {
-	return ancestorDirs(cgroupDir(mount, cgroupPath), mount.MountPoint)
-}
-
 // cgroupDir maps a /proc/<pid>/cgroup path to a directory under mount.
+//
+// This intentionally returns only the leaf cgroup containing this process. A
+// visible parent cgroup may have a tighter limit, but parent memory.current can
+// include sibling workloads, so leaf-only keeps usage and limit from one cgroup.
 func cgroupDir(mount *procfs.MountInfo, cgroupPath string) string {
 	rel := filepath.Clean(cgroupPath)
 	root := filepath.Clean(mount.Root)
@@ -240,26 +231,6 @@ func cgroupDir(mount *procfs.MountInfo, cgroupPath string) string {
 	}
 
 	return filepath.Join(mount.MountPoint, strings.TrimPrefix(rel, "/"))
-}
-
-// ancestorDirs returns dir and its parents through mountPoint, inclusive.
-func ancestorDirs(dir, mountPoint string) []string {
-	dir = filepath.Clean(dir)
-	mountPoint = filepath.Clean(mountPoint)
-
-	var dirs []string
-	for {
-		dirs = append(dirs, dir)
-		if dir == mountPoint {
-			return dirs
-		}
-
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			return dirs
-		}
-		dir = parent
-	}
 }
 
 func readCgroupV2CPUMax(path string) (quota, period int64, ok bool) {
