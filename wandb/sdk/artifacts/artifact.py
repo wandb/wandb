@@ -101,6 +101,7 @@ if TYPE_CHECKING:
     from collections.abc import Iterable
 
     from wandb.apis.public import RetryingClient
+    from wandb.apis.public.service_api import ServiceApi
 
     from ._generated import ArtifactFragment, ArtifactMembershipFragment
     from ._models.pagination import FileWithUrlConnection
@@ -182,6 +183,7 @@ class Artifact:
 
         # Internal.
         self._client: RetryingClient | None = None
+        self._service_api: ServiceApi | None = None
 
         self._tmp_dir: tempfile.TemporaryDirectory | None = None
         self._added_objs: dict[int, tuple[WBValue, ArtifactManifestEntry]] = {}
@@ -255,8 +257,23 @@ class Artifact:
     def __repr__(self) -> str:
         return f"<Artifact {self.id or self.name}>"
 
+    def _get_service_api(self) -> ServiceApi:
+        if self._service_api is None:
+            from wandb import Api
+
+            entity = self._source_entity or self._entity
+            kwargs = {"overrides": {"entity": entity}} if entity else {}
+            self._service_api = Api(**kwargs).service_api
+        return self._service_api
+
     @classmethod
-    def _from_id(cls, artifact_id: str, client: RetryingClient) -> Artifact | None:
+    def _from_id(
+        cls,
+        artifact_id: str,
+        client: RetryingClient,
+        *,
+        _service_api: ServiceApi | None = None,
+    ) -> Artifact | None:
         from ._generated import ARTIFACT_BY_ID_GQL, ArtifactByID
         from ._validators import FullArtifactPath
 
@@ -280,11 +297,15 @@ class Artifact:
         name = f"{src_collection.name}:v{artifact.version_index}"
 
         path = FullArtifactPath(prefix=entity_name, project=project_name, name=name)
-        return cls._from_attrs(path, artifact, client)
+        return cls._from_attrs(path, artifact, client, _service_api=_service_api)
 
     @classmethod
     def _membership_from_name(
-        cls, *, path: FullArtifactPath, client: RetryingClient
+        cls,
+        *,
+        path: FullArtifactPath,
+        client: RetryingClient,
+        _service_api: ServiceApi | None = None,
     ) -> Artifact:
         from ._generated import (
             ARTIFACT_MEMBERSHIP_BY_NAME_GQL,
@@ -311,7 +332,12 @@ class Artifact:
             msg = f"artifact membership {path.name!r} not found in {entity_project!r}"
             raise ValueError(msg)
 
-        return cls._from_membership(membership, target=path, client=client)
+        return cls._from_membership(
+            membership,
+            target=path,
+            client=client,
+            _service_api=_service_api,
+        )
 
     @classmethod
     def _from_name(
@@ -319,12 +345,17 @@ class Artifact:
         *,
         path: FullArtifactPath,
         client: RetryingClient,
+        _service_api: ServiceApi | None = None,
         enable_tracking: bool = False,
     ) -> Artifact:
         from ._generated import ARTIFACT_BY_NAME_GQL, ArtifactByName
 
         if server_supports(client, pb.PROJECT_ARTIFACT_COLLECTION_MEMBERSHIP):
-            return cls._membership_from_name(path=path, client=client)
+            return cls._membership_from_name(
+                path=path,
+                client=client,
+                _service_api=_service_api,
+            )
 
         gql_vars = {
             "entity": path.prefix,
@@ -345,7 +376,7 @@ class Artifact:
             msg = f"artifact {path.name!r} not found in {entity_project!r}"
             raise ValueError(msg)
 
-        return cls._from_attrs(path, artifact, client)
+        return cls._from_attrs(path, artifact, client, _service_api=_service_api)
 
     @classmethod
     def _from_membership(
@@ -353,6 +384,7 @@ class Artifact:
         membership: ArtifactMembershipFragment,
         target: FullArtifactPath,
         client: RetryingClient,
+        _service_api: ServiceApi | None = None,
     ) -> Artifact:
         from ._validators import is_artifact_registry_project
 
@@ -380,7 +412,13 @@ class Artifact:
         if not (artifact := membership.artifact):
             raise ValueError(f"Artifact {target.to_str()!r} not found in response")
 
-        return cls._from_attrs(new_target, artifact, client, membership=membership)
+        return cls._from_attrs(
+            new_target,
+            artifact,
+            client,
+            membership=membership,
+            _service_api=_service_api,
+        )
 
     @classmethod
     def _from_attrs(
@@ -389,12 +427,14 @@ class Artifact:
         src_art: ArtifactFragment,
         client: RetryingClient,
         *,
+        _service_api: ServiceApi | None = None,
         # aliases/version_index are taken from the membership, if given
         membership: ArtifactMembershipFragment | None = None,
     ) -> Artifact:
         # Placeholder is required to skip validation.
         artifact = cls("placeholder", type="placeholder")
         artifact._client = client
+        artifact._service_api = _service_api
         artifact._entity = path.prefix
         artifact._project = path.project
         artifact._name = path.name
@@ -545,6 +585,7 @@ class Artifact:
         # We can reuse the client, and copy over all the attributes that aren't
         # version-dependent and don't depend on having been logged.
         artifact._client = self._client
+        artifact._service_api = self._service_api
         artifact._description = self.description
         artifact._metadata = self.metadata
         artifact._manifest = ArtifactManifest.from_manifest_json(
@@ -629,7 +670,12 @@ class Artifact:
             raise RuntimeError("Client not initialized")
         base_name = self.name.split(":")[0]
         return ArtifactCollection(
-            client, self.entity, self.project, base_name, self.type
+            client,
+            self.entity,
+            self.project,
+            base_name,
+            self.type,
+            _service_api=self._service_api,
         )
 
     @property
@@ -681,7 +727,12 @@ class Artifact:
             raise RuntimeError("Client not initialized")
         base_name = self.source_name.split(":")[0]
         return ArtifactCollection(
-            client, self.source_entity, self.source_project, base_name, self.type
+            client,
+            self.source_entity,
+            self.source_project,
+            base_name,
+            self.type,
+            _service_api=self._service_api,
         )
 
     @property
@@ -729,7 +780,11 @@ class Artifact:
                     project=self.source_project,
                     name=self.source_name,
                 )
-                self._source_artifact = self._from_name(path=path, client=client)
+                self._source_artifact = self._from_name(
+                    path=path,
+                    client=client,
+                    _service_api=self._get_service_api(),
+                )
             except Exception as e:
                 raise ValueError(
                     f"Unable to fetch source artifact for linked artifact {self.name}"
@@ -1865,7 +1920,11 @@ class Artifact:
         # that artifact.
         if referenced_id := entry._referenced_artifact_id():
             assert self._client is not None
-            artifact = self._from_id(referenced_id, client=self._client)
+            artifact = self._from_id(
+                referenced_id,
+                client=self._client,
+                _service_api=self._get_service_api(),
+            )
             assert artifact is not None
             return artifact.get(uri_from_path(entry.ref))
 
@@ -2484,7 +2543,12 @@ class Artifact:
 
         # Newer server versions can return artifactMembership directly in the response
         if result and (membership := result.artifact_membership):
-            return self._from_membership(membership, target=target, client=client)
+            return self._from_membership(
+                membership,
+                target=target,
+                client=client,
+                _service_api=self._get_service_api(),
+            )
 
         # Old behavior, which requires re-fetching the linked artifact to return it
         if not (result and (version_idx := result.version_index) is not None):
@@ -2556,8 +2620,15 @@ class Artifact:
             and (edges := used_by.edges)
         ):
             run_nodes = (e.node for e in edges)
+            service_api = self._get_service_api()
             return [
-                Run(client, proj.entity.name, proj.name, run.name)
+                Run(
+                    client,
+                    proj.entity.name,
+                    proj.name,
+                    run.name,
+                    _service_api=service_api,
+                )
                 for run in run_nodes
                 if (proj := run.project)
             ]
@@ -2589,7 +2660,13 @@ class Artifact:
             and (name := creator.name)
             and (project := creator.project)
         ):
-            return Run(client, project.entity.name, project.name, name)
+            return Run(
+                client,
+                project.entity.name,
+                project.name,
+                name,
+                _service_api=self._get_service_api(),
+            )
         return None
 
     @ensure_logged

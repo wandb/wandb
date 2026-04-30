@@ -24,6 +24,7 @@ def test_create_run_with_string_attrs(field, value, expected):
         project="test",
         run_id="test",
         attrs={field: value},
+        _service_api=api.service_api,
     )
     assert getattr(run, field) == expected
 
@@ -47,6 +48,7 @@ def test_create_run_with_dictionary_attrs_already_parsed(field, value):
             project="test",
             run_id="test",
             attrs={field: value},
+            _service_api=api.service_api,
         )
         assert getattr(run, field) == value
 
@@ -73,6 +75,7 @@ def test_create_run_with_dictionary__throws_type_error(field, value):
                 attrs={
                     field: value,
                 },
+                _service_api=api.service_api,
             )
 
 
@@ -95,6 +98,7 @@ def test_create_run_with_control_characters(field, value, expected):
             project="test",
             run_id="test",
             attrs={field: value},
+            _service_api=api.service_api,
         )
         assert getattr(run, field) == expected
 
@@ -147,7 +151,6 @@ def test_lazy_run_config_triggers_full_load():
     """run.config on a lazy run should trigger load_full_data and return config."""
     client = mock.MagicMock()
     service_api = mock.MagicMock()
-    client.service_api = service_api
     lightweight = _make_lightweight_attrs()
     service_api.execute_graphql.return_value = _make_full_response(lightweight)
 
@@ -158,6 +161,7 @@ def test_lazy_run_config_triggers_full_load():
         run_id="run-abc123",
         attrs=dict(lightweight),
         lazy=True,
+        _service_api=service_api,
     )
 
     assert run._lazy is True
@@ -177,7 +181,6 @@ def test_lazy_run_user_accessible_without_full_load():
     """run.user should work on lazy runs without triggering a full data load."""
     client = mock.MagicMock()
     service_api = mock.MagicMock()
-    client.service_api = service_api
     lightweight = _make_lightweight_attrs()
 
     run = Run(
@@ -187,6 +190,7 @@ def test_lazy_run_user_accessible_without_full_load():
         run_id="run-abc123",
         attrs=dict(lightweight),
         lazy=True,
+        _service_api=service_api,
     )
 
     assert run._full_data_loaded is False

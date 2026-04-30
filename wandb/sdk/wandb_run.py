@@ -1430,7 +1430,11 @@ class Run:
         if _is_artifact_version_weave_dict(val):
             assert isinstance(val, dict)
             public_api = self._public_api()
-            artifact = Artifact._from_id(val["id"], public_api.client)
+            artifact = Artifact._from_id(
+                val["id"],
+                public_api.client,
+                _service_api=public_api.service_api,
+            )
 
             assert artifact
             return self.use_artifact(artifact)
@@ -1445,7 +1449,11 @@ class Run:
             else:
                 public_api = self._public_api()
             if is_id:
-                artifact = Artifact._from_id(artifact_string, public_api._client)
+                artifact = Artifact._from_id(
+                    artifact_string,
+                    public_api._client,
+                    _service_api=public_api.service_api,
+                )
             else:
                 artifact = public_api._artifact(name=artifact_string)
             # in the future we'll need to support using artifacts from

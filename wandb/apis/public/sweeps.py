@@ -49,6 +49,7 @@ if TYPE_CHECKING:
     from wandb.apis._generated import GetSweeps
     from wandb.apis.public.api import RetryingClient
     from wandb.apis.public.runs import AgentRuns
+    from wandb.apis.public.service_api import ServiceApi
 
 
 class Sweeps(SizedPaginator["Sweep"]):
@@ -78,6 +79,8 @@ class Sweeps(SizedPaginator["Sweep"]):
         entity: str,
         project: str,
         per_page: int = 50,
+        *,
+        _service_api: ServiceApi,
     ) -> Sweeps:
         """An iterable collection of `Sweep` objects.
 
@@ -94,7 +97,7 @@ class Sweeps(SizedPaginator["Sweep"]):
 
         self.entity = entity
         self.project = project
-        self.service_api = client.service_api
+        self._service_api = _service_api
         variables = {"project": self.project, "entity": self.entity}
         super().__init__(client, variables, per_page)
 
@@ -176,6 +179,7 @@ class Sweeps(SizedPaginator["Sweep"]):
                 self.entity,
                 self.project,
                 node.name,
+                _service_api=self._service_api,
             )
             for node in Connection[SweepFragment].model_validate(project.sweeps).nodes()
         ]
@@ -204,6 +208,8 @@ class Sweep(Attrs):
         project: str,
         sweep_id: str,
         attrs: Mapping[str, Any] | None = None,
+        *,
+        _service_api: ServiceApi,
     ):
         # TODO: Add agents / flesh this out.
         super().__init__(dict(attrs or {}))
@@ -211,7 +217,7 @@ class Sweep(Attrs):
         self._entity = entity
         self.project = project
         self.id = sweep_id
-        self.service_api = client.service_api
+        self._service_api = _service_api
         self.runs = []
 
         self.load(force=not attrs)
@@ -238,7 +244,15 @@ class Sweep(Attrs):
         <!-- lazydoc-ignore: internal -->
         """
         if force or not self._attrs:
-            if not (sweep := self.get(self.client, self.entity, self.project, self.id)):
+            if not (
+                sweep := self.get(
+                    self.client,
+                    self.entity,
+                    self.project,
+                    self.id,
+                    _service_api=self._service_api,
+                )
+            ):
                 raise ValueError(f"Could not find sweep {self!r}")
             self._attrs = sweep._attrs
             self.runs = sweep.runs
@@ -276,6 +290,7 @@ class Sweep(Attrs):
                 order=order,
                 filters=filters,
                 per_page=1,
+                _service_api=self._service_api,
             )[0]
         except IndexError:
             return None
@@ -330,6 +345,8 @@ class Sweep(Attrs):
         sid: str | None = None,
         order: str | None = None,
         query: Document | None = None,
+        *,
+        _service_api: ServiceApi,
         **kwargs,
     ):
         """Execute a query against the cloud backend.
@@ -367,7 +384,14 @@ class Sweep(Attrs):
             and (sweep_dict := proj_dict.get("sweep"))
         ):
             return None
-        sweep = cls(client, entity, project, sid, attrs=sweep_dict)
+        sweep = cls(
+            client,
+            entity,
+            project,
+            sid,
+            attrs=sweep_dict,
+            _service_api=_service_api,
+        )
         sweep.runs = public.Runs(
             client,
             entity,
@@ -375,6 +399,7 @@ class Sweep(Attrs):
             order=order,
             per_page=10,
             filters={"$and": [{"sweep": sweep.id}]},
+            _service_api=_service_api,
         )
         return sweep
 
@@ -387,6 +412,7 @@ class Sweep(Attrs):
                 entity=self.entity,
                 project=self.project,
                 sweep_id=self.id,
+                _service_api=self._service_api,
             )
         except ValueError as e:
             raise Error(
@@ -456,13 +482,15 @@ class Agent(Attrs):
         entity: str,
         project: str,
         sweep_id: str,
+        *,
+        _service_api: ServiceApi,
     ) -> None:
         super().__init__(dict(attrs or {}))
         self._client = client
         self._entity = entity
         self._project = project
         self._sweep_id = sweep_id
-        self.service_api = client.service_api
+        self._service_api = _service_api
 
         if self._entity is None:
             raise ValueError(
@@ -504,6 +532,7 @@ class Agent(Attrs):
             total_runs=total_runs,
             order="+created_at",
             per_page=per_page,
+            _service_api=self._service_api,
         )
 
     def __repr__(self) -> str:

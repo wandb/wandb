@@ -4,16 +4,13 @@ import asyncio
 import pathlib
 import time
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
 
+from wandb.apis.public.service_api import ServiceApi
 from wandb.proto import wandb_api_pb2 as apb
 from wandb.sdk.lib import asyncio_compat
 from wandb.sdk.lib.printer import new_printer
 from wandb.sdk.lib.progress import progress_printer
 from wandb.sdk.lib.service.service_connection import WandbApiFailedError
-
-if TYPE_CHECKING:
-    from wandb.apis.public.api import RetryingClient
 
 _POLL_WAIT_SECONDS = 0.1
 
@@ -44,12 +41,12 @@ class DownloadHistoryResult:
 
 
 async def wait_for_download_with_progress(
-    client: RetryingClient,
+    service_api: ServiceApi,
     request_id: int,
     contains_live_data: bool,
 ) -> DownloadHistoryResult:
     return await _DownloadStatusWatcher(
-        client=client,
+        service_api=service_api,
         request_id=request_id,
         contains_live_data=contains_live_data,
     ).wait_with_progress()
@@ -58,11 +55,11 @@ async def wait_for_download_with_progress(
 class _DownloadStatusWatcher:
     def __init__(
         self,
-        client: RetryingClient,
+        service_api: ServiceApi,
         request_id: int,
         contains_live_data: bool,
     ):
-        self.service_api = client.service_api
+        self._service_api = service_api
         self.request_id = request_id
         self.contains_live_data = contains_live_data
         self.done_event = asyncio.Event()
@@ -87,7 +84,7 @@ class _DownloadStatusWatcher:
             )
         )
 
-        handle = await self.service_api.send_api_request_async(api_request)
+        handle = await self._service_api.send_api_request_async(api_request)
         response = await handle.wait_async(timeout=None)
 
         downloaded_files = [
@@ -118,7 +115,7 @@ class _DownloadStatusWatcher:
                         )
                     )
                 )
-                handle = await self.service_api.send_api_request_async(status_request)
+                handle = await self._service_api.send_api_request_async(status_request)
                 last_response = await handle.wait_async(timeout=None)
 
                 if last_response is not None:

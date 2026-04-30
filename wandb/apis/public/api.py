@@ -104,15 +104,10 @@ class RetryingClient:
         """
     )
 
-    def __init__(self, client: Client, service_api: ServiceApi):
+    def __init__(self, client: Client):
         self._server_info = None
         self._client = client
-        self._service_api = service_api
         self._execute_decorated: Callable[..., Any] | None = None
-
-    @property
-    def service_api(self) -> ServiceApi:
-        return self._service_api
 
     def execute(self, *args, **kwargs):
         if self._execute_decorated is None:
@@ -249,7 +244,7 @@ class Api:
                 proxies=proxies,
             )
         )
-        self._client = RetryingClient(self._base_client, self.service_api)
+        self._client = RetryingClient(self._base_client)
         self._sentry = wandb.analytics.sentry.Sentry(pid=os.getpid())
         self._configure_sentry()
 
@@ -436,6 +431,7 @@ class Api:
             _access="PROJECT",
             _default_resource_config_id=config_id,
             _default_resource_config=config,
+            _service_api=self.service_api,
         )
 
     def create_custom_chart(
@@ -624,6 +620,7 @@ class Api:
             client=self.client,
             name=name,
             entity=entity,
+            _service_api=self.service_api,
         )
 
     def create_user(self, email: str, admin: bool | None = False) -> User:
@@ -776,6 +773,7 @@ class Api:
                     },
                     parts[0],
                     parts[1],
+                    _service_api=self.service_api,
                 )
         raise wandb.Error(
             "Invalid path, should be TEAM/PROJECT/TYPE/ID where TYPE is runs, sweeps, or reports"
@@ -912,6 +910,7 @@ class Api:
                 self.client,
                 entity,
                 per_page=per_page,
+                _service_api=self.service_api,
             )
         return self._projects[entity]
 
@@ -941,7 +940,9 @@ class Api:
             entity = resolve_org_entity_name(
                 self.client, non_org_entity=settings_entity, org_or_entity=org
             )
-        return public.Project(self.client, entity, name, {})
+        return public.Project(
+            self.client, entity, name, {}, _service_api=self.service_api
+        )
 
     def reports(
         self, path: str = "", name: str | None = None, per_page: int = 50
@@ -981,9 +982,16 @@ class Api:
         if key not in self._reports:
             self._reports[key] = public.Reports(
                 self.client,
-                public.Project(self.client, entity, project, {}),
+                public.Project(
+                    self.client,
+                    entity,
+                    project,
+                    {},
+                    _service_api=self.service_api,
+                ),
                 name=name,
                 per_page=per_page,
+                _service_api=self.service_api,
             )
         return self._reports[key]
 
@@ -1196,6 +1204,7 @@ class Api:
             per_page=per_page,
             include_sweeps=include_sweeps,
             lazy=lazy,
+            _service_api=self.service_api,
         )
         return self._runs[key]
 
@@ -1220,6 +1229,7 @@ class Api:
                 project,
                 run_id,
                 lazy=False,
+                _service_api=self.service_api,
             )
         return self._runs[path]
 
@@ -1244,6 +1254,7 @@ class Api:
             run_queue_item_id,
             project_queue=project_queue,
             priority=priority,
+            _service_api=self.service_api,
         )
 
     def run_queue(
@@ -1259,6 +1270,7 @@ class Api:
             self.client,
             name,
             entity,
+            _service_api=self.service_api,
         )
 
     @normalize_exceptions
@@ -1281,6 +1293,7 @@ class Api:
                 entity,
                 project,
                 sweep_id,
+                _service_api=self.service_api,
             )
         return self._sweeps[path]
 
@@ -1313,7 +1326,9 @@ class Api:
             entity = resolve_org_entity_name(
                 self.client, non_org_entity=settings_entity, org_or_entity=org
             )
-        return ArtifactTypes(self.client, entity, project, start=start)
+        return ArtifactTypes(
+            self.client, entity, project, start=start, _service_api=self.service_api
+        )
 
     @normalize_exceptions
     def artifact_type(self, type_name: str, project: str | None = None) -> ArtifactType:
@@ -1339,7 +1354,9 @@ class Api:
             entity = resolve_org_entity_name(
                 self.client, non_org_entity=settings_entity, org_or_entity=org
             )
-        return ArtifactType(self.client, entity, project, type_name)
+        return ArtifactType(
+            self.client, entity, project, type_name, _service_api=self.service_api
+        )
 
     @normalize_exceptions
     def artifact_collections(
@@ -1375,7 +1392,13 @@ class Api:
                 self.client, non_org_entity=settings_entity, org_or_entity=org
             )
         return ArtifactCollections(
-            self.client, entity, project, type_name, per_page=per_page, start=start
+            self.client,
+            entity,
+            project,
+            type_name,
+            per_page=per_page,
+            start=start,
+            _service_api=self.service_api,
         )
 
     @normalize_exceptions
@@ -1433,7 +1456,12 @@ class Api:
             )
 
         return ArtifactCollection(
-            self.client, entity, project, collection_name, type_name
+            self.client,
+            entity,
+            project,
+            collection_name,
+            type_name,
+            _service_api=self.service_api,
         )
 
     @normalize_exceptions
@@ -1536,6 +1564,7 @@ class Api:
             per_page=per_page,
             tags=tags,
             start=start,
+            _service_api=self.service_api,
         )
 
     @normalize_exceptions
@@ -1576,6 +1605,7 @@ class Api:
         artifact = Artifact._from_name(
             path=path,
             client=self.client,
+            _service_api=self.service_api,
             enable_tracking=enable_tracking,
         )
         if type is not None and artifact.type != type:
@@ -1907,6 +1937,7 @@ class Api:
             filter=filter,
             per_page=per_page,
             start=start,
+            _service_api=self.service_api,
         )
 
     @tracked
@@ -1946,7 +1977,13 @@ class Api:
             self.settings, self.default_entity
         )
         org_entity = fetch_org_entity_from_organization(self.client, organization)
-        registry = Registry(self.client, organization, org_entity, name)
+        registry = Registry(
+            self.client,
+            organization,
+            org_entity,
+            name,
+            _service_api=self.service_api,
+        )
         registry.load()
         return registry
 
@@ -2024,6 +2061,7 @@ class Api:
             visibility,
             description,
             artifact_types,
+            _service_api=self.service_api,
         )
 
     @tracked

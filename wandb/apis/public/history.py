@@ -41,6 +41,8 @@ class BetaHistoryScan(Iterator[_RowDict]):
     def __init__(
         self,
         run: runs.Run,
+        *,
+        _service_api: ServiceApi,
         min_step: int,
         max_step: int,
         keys: list[str] | None = None,
@@ -52,7 +54,7 @@ class BetaHistoryScan(Iterator[_RowDict]):
         self._stop_step = max_step
         self.keys = keys
         self.page_size = page_size
-        self.service_api = run.service_api
+        self._service_api = _service_api
 
         # Tell wandb-core to initialize resources to scan the run's history.
         scan_run_history_init = pb.ScanRunHistoryInit(
@@ -68,7 +70,7 @@ class BetaHistoryScan(Iterator[_RowDict]):
         api_request = pb.ApiRequest(
             read_run_history_request=scan_run_history_init_request
         )
-        response: pb.ApiResponse = self.service_api.send_api_request(api_request)
+        response: pb.ApiResponse = self._service_api.send_api_request(api_request)
 
         self._scan_request_id = (
             response.read_run_history_response.scan_run_history_init.request_id
@@ -87,7 +89,7 @@ class BetaHistoryScan(Iterator[_RowDict]):
         weakref.finalize(
             self,
             self.cleanup,
-            self.service_api,
+            self._service_api,
             self._scan_request_id,
         )
 
@@ -130,7 +132,7 @@ class BetaHistoryScan(Iterator[_RowDict]):
         )
         api_request = pb.ApiRequest(read_run_history_request=read_run_history_request)
 
-        response: pb.ApiResponse = self.service_api.send_api_request(api_request)
+        response: pb.ApiResponse = self._service_api.send_api_request(api_request)
         run_history: pb.RunHistoryResponse = (
             response.read_run_history_response.run_history
         )
@@ -184,6 +186,8 @@ class HistoryScan(Iterator[_RowDict]):
         min_step: int,
         max_step: int,
         page_size: int = 1_000,
+        *,
+        _service_api: ServiceApi,
     ):
         """Initialize a HistoryScan instance.
 
@@ -203,7 +207,7 @@ class HistoryScan(Iterator[_RowDict]):
         self.page_offset = min_step  # minStep for next page
         self.scan_offset = 0  # index within current page of rows
         self.rows: list[_RowDict] = []  # current page of rows
-        self.service_api = client.service_api
+        self._service_api = _service_api
 
     @property
     def max_step(self) -> int:
@@ -246,7 +250,7 @@ class HistoryScan(Iterator[_RowDict]):
             "pageSize": int(self.page_size),
         }
 
-        res = self.service_api.execute_graphql(self.QUERY, variables)
+        res = self._service_api.execute_graphql(self.QUERY, variables)
         res = res["project"]["run"]["history"]
         self.rows = [json.loads(row) for row in res]
         self.page_offset += self.page_size
@@ -277,6 +281,8 @@ class SampledHistoryScan(Iterator[_RowDict]):
         min_step: int,
         max_step: int,
         page_size: int = 1_000,
+        *,
+        _service_api: ServiceApi,
     ):
         """Initialize a SampledHistoryScan instance.
 
@@ -298,7 +304,7 @@ class SampledHistoryScan(Iterator[_RowDict]):
         self.page_offset = min_step  # minStep for next page
         self.scan_offset = 0  # index within current page of rows
         self.rows: list[_RowDict] = []  # current page of rows
-        self.service_api = client.service_api
+        self._service_api = _service_api
 
     @property
     def max_step(self) -> int:
@@ -346,7 +352,7 @@ class SampledHistoryScan(Iterator[_RowDict]):
             ),
         }
 
-        res = self.service_api.execute_graphql(self.QUERY, variables)
+        res = self._service_api.execute_graphql(self.QUERY, variables)
         res = res["project"]["run"]["sampledHistory"]
         self.rows = res[0]
         self.page_offset += self.page_size

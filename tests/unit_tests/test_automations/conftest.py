@@ -138,6 +138,7 @@ def project(mock_client: Mock) -> Project:
         attrs={
             "id": make_graphql_id(prefix="Project"),
         },
+        _service_api=Mock(),
     )
 
 

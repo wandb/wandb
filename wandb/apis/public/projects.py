@@ -53,6 +53,7 @@ if TYPE_CHECKING:
 
     from wandb._pydantic import Connection
     from wandb.apis._generated import ProjectFragment
+    from wandb.apis.public.service_api import ServiceApi
 
 
 class Projects(RelayPaginator["ProjectFragment", "Project"]):
@@ -89,6 +90,8 @@ class Projects(RelayPaginator["ProjectFragment", "Project"]):
         client: RetryingClient,
         entity: str,
         per_page: int = 50,
+        *,
+        _service_api: ServiceApi,
     ) -> Projects:
         """An iterable collection of `Project` objects.
 
@@ -103,7 +106,7 @@ class Projects(RelayPaginator["ProjectFragment", "Project"]):
             type(self).QUERY = gql(GET_PROJECTS_GQL)
 
         self.entity = entity
-        self.service_api = client.service_api
+        self._service_api = _service_api
         super().__init__(client, variables={"entity": entity}, per_page=per_page)
 
     @override
@@ -135,6 +138,7 @@ class Projects(RelayPaginator["ProjectFragment", "Project"]):
             self.entity,
             node.name,
             node.model_dump(),
+            _service_api=self._service_api,
         )
 
     def __repr__(self):
@@ -156,6 +160,8 @@ class Project(Attrs):
         entity: str,
         project: str,
         attrs: Mapping[str, Any],
+        *,
+        _service_api: ServiceApi,
     ) -> Project:
         """A single project associated with an entity.
 
@@ -170,7 +176,7 @@ class Project(Attrs):
         self.client = client
         self.name = project
         self.entity = entity
-        self.service_api = client.service_api
+        self._service_api = _service_api
 
     def _load(self) -> None:
         from requests import HTTPError
@@ -233,7 +239,9 @@ class Project(Attrs):
     @normalize_exceptions
     def artifacts_types(self, per_page: int = 50) -> public.ArtifactTypes:
         """Returns all artifact types associated with this project."""
-        return public.ArtifactTypes(self.client, self.entity, self.name)
+        return public.ArtifactTypes(
+            self.client, self.entity, self.name, _service_api=self._service_api
+        )
 
     @normalize_exceptions
     def collections(
@@ -259,6 +267,7 @@ class Project(Attrs):
             filters=filters,
             order=order,
             per_page=per_page,
+            _service_api=self._service_api,
         )
 
     @normalize_exceptions
@@ -276,6 +285,7 @@ class Project(Attrs):
             self.entity,
             self.name,
             per_page=per_page,
+            _service_api=self._service_api,
         )
 
     @property

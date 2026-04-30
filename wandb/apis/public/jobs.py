@@ -31,6 +31,7 @@ from wandb.sdk.launch.utils import (
 
 if TYPE_CHECKING:
     from wandb.apis.public import Api, RetryingClient
+    from wandb.apis.public.service_api import ServiceApi
     from wandb.sdk.launch._project_spec import LaunchProject
 
 
@@ -96,7 +97,11 @@ class Job:
 
         artifact_string, base_url, is_id = util.parse_artifact_string(artifact_string)
         if is_id:
-            code_artifact = wandb.Artifact._from_id(artifact_string, self._api._client)
+            code_artifact = wandb.Artifact._from_id(
+                artifact_string,
+                self._api._client,
+                _service_api=self._api.service_api,
+            )
         else:
             code_artifact = self._api._artifact(name=artifact_string, type="code")
         if code_artifact is None:
@@ -288,9 +293,11 @@ class QueuedRun:
         run_queue_item_id: str,
         project_queue: str = LAUNCH_DEFAULT_PROJECT,
         priority: int | None = None,
+        *,
+        _service_api: ServiceApi,
     ):
         self.client = client
-        self.service_api = client.service_api
+        self._service_api = _service_api
         self._entity = entity
         self._project = project
         self._queue_name = queue_name
@@ -476,6 +483,7 @@ class QueuedRun:
                         self.project,
                         item["associatedRunId"],
                         None,
+                        _service_api=self._service_api,
                     )
                     self._run_id = item["associatedRunId"]
                 except ValueError as e:
@@ -522,10 +530,12 @@ class RunQueue:
         _access: RunQueueAccessType | None = None,
         _default_resource_config_id: int | None = None,
         _default_resource_config: dict[str, Any] | None = None,
+        *,
+        _service_api: ServiceApi,
     ) -> None:
         self._name: str = name
         self._client = client
-        self.service_api = client.service_api
+        self._service_api = _service_api
         self._entity = entity
         self._prioritization_mode = prioritization_mode
         self._access = _access
@@ -735,6 +745,7 @@ class RunQueue:
                     LAUNCH_DEFAULT_PROJECT,
                     self._name,
                     item["node"]["id"],
+                    _service_api=self._service_api,
                 )
             )
 

@@ -297,6 +297,7 @@ def test_create_run_with_dictionary_config():
         project="test",
         run_id="test",
         attrs={"config": '{"test": "test"}'},
+        _service_api=api.service_api,
     )
     assert run.config == {"test": "test"}
 
@@ -312,6 +313,7 @@ def test_create_run_with_dictionary__config_not_parsable():
         attrs={
             "config": {"test": "test"},
         },
+        _service_api=api.service_api,
     )
     assert run.config == {"test": "test"}
 
@@ -328,6 +330,7 @@ def test_create_run_with_dictionary__throws_error():
             attrs={
                 "config": 1,
             },
+            _service_api=api.service_api,
         )
 
 
@@ -363,6 +366,7 @@ def test_project_id_lazy_load(monkeypatch):
         entity="test-entity",
         project="test-project",
         attrs={},
+        _service_api=api.service_api,
     )
 
     assert project.id == "123"
@@ -382,6 +386,7 @@ def test_project_load__raises_error(monkeypatch):
         entity="test-entity",
         project="test-project",
         attrs={},
+        _service_api=api.service_api,
     )
 
     with pytest.raises(ValueError):

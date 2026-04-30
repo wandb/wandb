@@ -1825,7 +1825,12 @@ def launch(
         if entity is None:
             entity = launch_utils.get_default_entity(api, config)
         public_api = PublicApi()
-        runqueue = RunQueue(client=public_api.client, name=queue, entity=entity)
+        runqueue = RunQueue(
+            client=public_api.client,
+            name=queue,
+            entity=entity,
+            _service_api=public_api.service_api,
+        )
         template_variables = launch_utils.fetch_and_validate_template_variables(
             runqueue, cli_template_vars
         )
