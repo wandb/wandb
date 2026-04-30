@@ -10,7 +10,6 @@ import urllib.parse
 import click
 from typing_extensions import Never
 
-from wandb import util
 from wandb.analytics import get_sentry
 from wandb.env import error_reporting_enabled, is_debug
 from wandb.sdk import wandb_setup

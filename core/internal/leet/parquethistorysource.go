@@ -252,7 +252,7 @@ func (s *ParquetHistorySource) Read(
 		historyMsg := ParseParquetHistorySteps(historySteps, s.logger)
 		histories = append(histories, historyMsg)
 		numMsgs += len(historySteps)
-		
+
 		if s.currentStep > s.maxKnownStep {
 			hasMore = false
 			s.readerDone = true
