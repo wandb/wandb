@@ -82,20 +82,14 @@ def leet(ctx: click.Context) -> None:
 def run(path: str | None = None, pprof: str = "") -> None:
     """Launch the LEET TUI.
 
-    <<<<<<< HEAD
-        LEET is a terminal UI for viewing a W&B run specified by an optional PATH.
+    LEET is a terminal UI for viewing a W&B run specified by an optional PATH.
 
-        PATH can include a .wandb file or a run directory containing a .wandb file.
-        If PATH is not provided, the command will look for the latest run.
-    ||||||| parent of 08ef9d71d (use wandb urls for displaying runs from W&B)
-        PATH can be a .wandb file, a run directory, or a wandb directory.
-        If omitted, searches for the latest run.
-    =======
-        PATH can be a .wandb file, a run directory, a wandb directory,
-        or the URL of a run store on the W&B backend.
+    PATH can include a .wandb file, a run directory containing a .wandb file,
+    a wandb directory, the URL of a project workspace on the W&B backend,
+    or the URL of a run store on the W&B backend.
 
-        If omitted, searches for the latest run.
-    >>>>>>> 08ef9d71d (use wandb urls for displaying runs from W&B)
+    If PATH is not provided,
+    the command will look for the latest run in the local wandb directory.
     """
     from . import beta_leet
 
