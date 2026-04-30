@@ -1,3 +1,9 @@
+# v1.100.1 (2026-04-29)
+
+* **Bug Fix**: Fix a memory leak in the credential cache used for S3 Express session credentials.
+* **Dependency Update**: Update to smithy-go v1.25.1.
+* **Dependency Update**: Updated to the latest SDK module versions
+
 # v1.100.0 (2026-04-22)
 
 * **Feature**: This release adds five additional checksum algorithms for S3 data integrity (MD5, SHA-512, XXHash3, XXHash64, XXHash128) and support for S3 Inventory on directory buckets (S3 Express One Zone).
