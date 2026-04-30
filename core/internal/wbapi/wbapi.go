@@ -35,7 +35,7 @@ type WandbAPI struct {
 	featuresHandler      *FeaturesHandler
 	graphqlHandler       *GraphQLHandler
 	runHistoryApiHandler *RunHistoryAPIHandler
-	parseRunFileHandler  *ParseRunFileHandler
+	runFileReaderHandler *RunFileReaderHandler
 }
 
 // New returns a new WandbAPI.
@@ -79,6 +79,7 @@ func New(
 		featuresHandler:      NewFeaturesHandler(featureProvider),
 		graphqlHandler:       NewGraphQLHandler(graphqlClient),
 		runHistoryApiHandler: NewRunHistoryAPIHandler(graphqlClient, httpClient),
+		runFileReaderHandler: NewRunFileReaderHandler(),
 	}, nil
 }
 
@@ -103,9 +104,9 @@ func (p *WandbAPI) HandleRequest(
 	case *spb.ApiRequest_ReadRunHistoryRequest:
 		// TODO: Propagate ctx here.
 		return p.runHistoryApiHandler.HandleRequest(req.ReadRunHistoryRequest)
-	case *spb.ApiRequest_ParseRunFileRequest:
-		return p.parseRunFileHandler.HandleRequest(
-			request.GetParseRunFileRequest(),
+	case *spb.ApiRequest_RunFileReaderRequest:
+		return p.runFileReaderHandler.HandleRequest(
+			req.RunFileReaderRequest,
 		)
 	}
 

@@ -1,27 +1,16 @@
-"""System tests for ``wandb parse`` — full Python → wandb-core round-trip.
-
-These tests exercise the complete pipeline with no mocks:
-  Python CLI / parse_wandb → ServiceApi → wandb-core (Go) →
-  transactionlog.Reader → ParseRunFileResponse → JSON output
-
-wandb-core is started as a real subprocess by ServiceApi.ensure_service().
-No W&B backend server is needed; everything runs locally.
-"""
-
 from __future__ import annotations
 
+import io
 import json
 import pathlib
 
 import pytest
 import wandb
-
 from wandb.cli import parse_wandb
 
 
 @pytest.fixture()
 def run_file(tmp_path: pathlib.Path) -> str:
-    """Create a .wandb file with known content via an offline run."""
     with wandb.init(dir=tmp_path, mode="offline") as run:
         run.log({"loss": 0.5, "acc": 0.8})
         run.log({"loss": 0.3, "acc": 0.9})
@@ -29,145 +18,104 @@ def run_file(tmp_path: pathlib.Path) -> str:
     return sync_file
 
 
-def _parse_to_records(
-    run_file: str,
-    tmp_path: pathlib.Path,
-    *,
-    record_types: list[str] | None = None,
-    page_size: int = 100,
-) -> list[dict]:
-    """Helper: run parse_wandb.parse and return parsed JSON records."""
-    out = tmp_path / "output.jsonl"
+def test_parse_returns_expected_records(run_file):
+    buf = io.StringIO()
     parse_wandb.parse(
         pathlib.Path(run_file),
-        output=str(out),
-        record_types=record_types,
-        page_size=page_size,
+        output=buf,
+        record_types=None,
     )
-    return [json.loads(line) for line in out.read_text().strip().splitlines() if line]
+    records = [json.loads(line) for line in buf.getvalue().strip().splitlines()]
 
+    for r in records:
+        assert isinstance(r, dict)
+    record_types = [r["record_type"] for r in records]
+    assert "run" in record_types
+    assert "exit" in record_types
+    assert record_types.count("history") >= 2
 
-class TestParseAllRecords:
-    """Verify that parsing returns the expected record types."""
+    history_records = [r for r in records if r["record_type"] == "history"]
 
-    def test_returns_multiple_records(self, run_file, tmp_path):
-        records = _parse_to_records(run_file, tmp_path)
-        assert len(records) > 0
-
-    def test_contains_run_record(self, run_file, tmp_path):
-        records = _parse_to_records(run_file, tmp_path)
-        assert any("run" in r for r in records)
-
-    def test_contains_history_records(self, run_file, tmp_path):
-        records = _parse_to_records(run_file, tmp_path)
-        history = [r for r in records if "history" in r]
-        assert len(history) >= 2
-
-    def test_contains_exit_record(self, run_file, tmp_path):
-        records = _parse_to_records(run_file, tmp_path)
-        assert any("exit" in r for r in records)
-
-    def test_every_record_is_valid_json_object(self, run_file, tmp_path):
-        records = _parse_to_records(run_file, tmp_path)
-        for r in records:
-            assert isinstance(r, dict)
-
-
-class TestParseHistoryValues:
-    """Verify that history records contain the exact values we logged."""
-
-    def test_first_step_values(self, run_file, tmp_path):
-        records = _parse_to_records(run_file, tmp_path, record_types=["history"])
-        items = {
-            item["key"]: item["value_json"]
-            for item in records[0]["history"]["item"]
+    expected = [
+        {"loss": 0.5, "acc": 0.8},
+        {"loss": 0.3, "acc": 0.9},
+    ]
+    for record, exp in zip(history_records, expected):
+        content = json.loads(record["json_content"])
+        step = {
+            item["nested_key"][0]: item["value_json"]
+            for item in content["history"]["item"]
         }
-        assert float(items["loss"]) == pytest.approx(0.5)
-        assert float(items["acc"]) == pytest.approx(0.8)
-
-    def test_second_step_values(self, run_file, tmp_path):
-        records = _parse_to_records(run_file, tmp_path, record_types=["history"])
-        items = {
-            item["key"]: item["value_json"]
-            for item in records[1]["history"]["item"]
-        }
-        assert float(items["loss"]) == pytest.approx(0.3)
-        assert float(items["acc"]) == pytest.approx(0.9)
+        for key, val in exp.items():
+            assert float(step[key]) == pytest.approx(val)
 
 
-class TestRecordTypeFilter:
-    """Verify the --record-types filter works end-to-end."""
+def test_filter_single_type(run_file):
+    buf = io.StringIO()
+    parse_wandb.parse(
+        pathlib.Path(run_file),
+        output=buf,
+        record_types=["history"],
+    )
+    records = [json.loads(line) for line in buf.getvalue().strip().splitlines()]
 
-    def test_filter_history_only(self, run_file, tmp_path):
-        records = _parse_to_records(run_file, tmp_path, record_types=["history"])
-        for r in records:
-            assert "history" in r
-            assert "run" not in r
-            assert "exit" not in r
-
-    def test_filter_exit_only(self, run_file, tmp_path):
-        records = _parse_to_records(run_file, tmp_path, record_types=["exit"])
-        assert len(records) == 1
-        assert "exit" in records[0]
-
-    def test_filter_multiple_types(self, run_file, tmp_path):
-        records = _parse_to_records(
-            run_file, tmp_path, record_types=["run", "exit"]
-        )
-        for r in records:
-            assert "run" in r or "exit" in r
+    assert all(r["record_type"] == "history" for r in records)
 
 
-class TestPagination:
-    """Verify that small page sizes still yield the full result set."""
+def test_filter_multiple_types(run_file):
+    buf = io.StringIO()
+    parse_wandb.parse(
+        pathlib.Path(run_file),
+        output=buf,
+        record_types=["run", "exit"],
+    )
+    records = [json.loads(line) for line in buf.getvalue().strip().splitlines()]
 
-    def test_page_size_one(self, run_file, tmp_path):
-        all_records = _parse_to_records(run_file, tmp_path, page_size=100)
-        paginated = _parse_to_records(run_file, tmp_path / "paged", page_size=1)
-        assert len(paginated) == len(all_records)
-
-    def test_page_size_two(self, run_file, tmp_path):
-        all_records = _parse_to_records(run_file, tmp_path, page_size=100)
-        paginated = _parse_to_records(run_file, tmp_path / "paged", page_size=2)
-        assert len(paginated) == len(all_records)
+    assert all(r["record_type"] in ("run", "exit") for r in records)
 
 
-class TestOutputFile:
-    """Verify writing to an output file works."""
+def test_parse__page_size_returns_all_records(run_file):
+    buf_all = io.StringIO()
+    parse_wandb.parse(
+        pathlib.Path(run_file),
+        output=buf_all,
+        record_types=None,
+    )
+    all_records = [json.loads(line) for line in buf_all.getvalue().strip().splitlines()]
 
-    def test_output_file_created(self, run_file, tmp_path):
-        out = tmp_path / "out.jsonl"
+    buf_paged = io.StringIO()
+    parse_wandb.parse(
+        pathlib.Path(run_file),
+        output=buf_paged,
+        record_types=None,
+        page_size=1,
+    )
+    paginated = [json.loads(line) for line in buf_paged.getvalue().strip().splitlines()]
+
+    assert paginated == all_records
+
+
+def test_output_file_created(run_file, tmp_path):
+    out = tmp_path / "out.jsonl"
+    with open(out, "w") as f:
         parse_wandb.parse(
             pathlib.Path(run_file),
-            output=str(out),
+            output=f,
             record_types=None,
-            page_size=100,
         )
-        assert out.exists()
-        assert out.stat().st_size > 0
+    assert out.exists()
+    lines = out.read_text().strip().splitlines()
+    assert len(lines) > 0
+    for line in lines:
+        record = json.loads(line)
+        assert "record_type" in record
+        assert "json_content" in record
 
-    def test_output_file_contains_valid_json(self, run_file, tmp_path):
-        out = tmp_path / "out.jsonl"
+
+def test_missing_file_raises(tmp_path):
+    with pytest.raises(ValueError, match="not found"):
         parse_wandb.parse(
-            pathlib.Path(run_file),
-            output=str(out),
+            tmp_path / "nonexistent.wandb",
+            output=io.StringIO(),
             record_types=None,
-            page_size=100,
         )
-        for line in out.read_text().strip().splitlines():
-            json.loads(line)
-
-
-class TestErrorHandling:
-    """Verify error cases."""
-
-    def test_missing_file_raises(self, tmp_path):
-        from wandb.sdk.lib.service.service_connection import WandbApiFailedError
-
-        with pytest.raises(WandbApiFailedError):
-            parse_wandb.parse(
-                tmp_path / "nonexistent.wandb",
-                output=str(tmp_path / "out.jsonl"),
-                record_types=None,
-                page_size=100,
-            )

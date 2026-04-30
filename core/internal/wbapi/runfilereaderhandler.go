@@ -14,16 +14,23 @@ import (
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
-// ParseRunFileHandler handles requests to parse local .wandb files.
-type ParseRunFileHandler struct {
-	mu               sync.RWMutex
+// RunFileReaderHandler handles requests to read local .wandb files.
+type RunFileReaderHandler struct {
+	mu     sync.RWMutex
+	logger *observability.CoreLogger
+
+	// currentRequestId is the id for the next reader init request.
+	//
+	// It is used to provide a unique id for each reader init request
+	// and track the associated reader across read requests.
 	currentRequestId atomic.Int32
-	readers          map[int32]*transactionlog.Reader
-	logger           *observability.CoreLogger
+
+	// readers is a map of request ids to transactionlog readers.
+	readers map[int32]*transactionlog.Reader
 }
 
-func NewParseRunFileHandler() *ParseRunFileHandler {
-	return &ParseRunFileHandler{
+func NewRunFileReaderHandler() *RunFileReaderHandler {
+	return &RunFileReaderHandler{
 		readers: make(map[int32]*transactionlog.Reader),
 		logger: observability.NewCoreLogger(
 			slog.Default(),
@@ -32,27 +39,30 @@ func NewParseRunFileHandler() *ParseRunFileHandler {
 	}
 }
 
-// HandleRequest dispatches a ParseRunFileRequest to the appropriate handler.
-func (h *ParseRunFileHandler) HandleRequest(
-	request *spb.ParseRunFileRequest,
+// HandleRequest dispatches a RunFileReaderRequest to the appropriate handler.
+func (h *RunFileReaderHandler) HandleRequest(
+	request *spb.RunFileReaderRequest,
 ) *spb.ApiResponse {
 	switch request.Request.(type) {
-	case *spb.ParseRunFileRequest_ParseRunFileInit:
-		return h.handleInit(request.GetParseRunFileInit())
-	case *spb.ParseRunFileRequest_ParseRunFileRead:
-		return h.handleRead(request.GetParseRunFileRead())
-	case *spb.ParseRunFileRequest_ParseRunFileCleanup:
-		return h.handleCleanup(request.GetParseRunFileCleanup())
+	case *spb.RunFileReaderRequest_RunFileReaderInit:
+		return h.handleInit(request.GetRunFileReaderInit())
+	case *spb.RunFileReaderRequest_RunFileReaderRead:
+		return h.handleRead(request.GetRunFileReaderRead())
+	case *spb.RunFileReaderRequest_RunFileReaderCleanup:
+		h.handleCleanup(request.GetRunFileReaderCleanup())
+		return nil
 	}
 	return nil
 }
 
-func (h *ParseRunFileHandler) handleInit(
-	request *spb.ParseRunFileInit,
+// handleInit initializes a transactionlog reader for a .wandb file,
+// And saves it for iterating over the file's records.
+func (h *RunFileReaderHandler) handleInit(
+	request *spb.RunFileReaderInit,
 ) *spb.ApiResponse {
 	reader, err := transactionlog.OpenReader(request.Path, h.logger)
 	if err != nil {
-		return parseRunFileError(err.Error())
+		return runFileReaderError(err.Error())
 	}
 
 	requestId := h.currentRequestId.Add(1)
@@ -62,10 +72,10 @@ func (h *ParseRunFileHandler) handleInit(
 	h.mu.Unlock()
 
 	return &spb.ApiResponse{
-		Response: &spb.ApiResponse_ParseRunFileResponse{
-			ParseRunFileResponse: &spb.ParseRunFileResponse{
-				Response: &spb.ParseRunFileResponse_ParseRunFileInit{
-					ParseRunFileInit: &spb.ParseRunFileInitResponse{
+		Response: &spb.ApiResponse_RunFileReaderResponse{
+			RunFileReaderResponse: &spb.RunFileReaderResponse{
+				Response: &spb.RunFileReaderResponse_RunFileReaderInit{
+					RunFileReaderInit: &spb.RunFileReaderInitResponse{
 						RequestId: requestId,
 					},
 				},
@@ -74,14 +84,15 @@ func (h *ParseRunFileHandler) handleInit(
 	}
 }
 
-func (h *ParseRunFileHandler) handleRead(
-	request *spb.ParseRunFileRead,
+// handleRead reads a batch of records from a transactionlog reader for a given request id.
+func (h *RunFileReaderHandler) handleRead(
+	request *spb.RunFileReaderRead,
 ) *spb.ApiResponse {
 	h.mu.RLock()
 	reader, ok := h.readers[request.RequestId]
 	h.mu.RUnlock()
 	if !ok || reader == nil {
-		return parseRunFileError("Parse operation not initialized.")
+		return runFileReaderError("Transaction log reader has not been initialized.")
 	}
 
 	pageSize := int(request.PageSize)
@@ -99,17 +110,17 @@ func (h *ParseRunFileHandler) handleRead(
 	}
 
 	var records []*spb.ParsedRecord
-	eof := false
+	hasMore := true
 
 	for len(records) < pageSize {
 		record, err := reader.Read()
 
 		if errors.Is(err, io.EOF) {
-			eof = true
+			hasMore = false
 			break
 		}
 		if err != nil {
-			return parseRunFileError(err.Error())
+			return runFileReaderError(err.Error())
 		}
 
 		recordType := recordTypeName(record)
@@ -123,7 +134,7 @@ func (h *ParseRunFileHandler) handleRead(
 
 		jsonBytes, err := marshaler.Marshal(record)
 		if err != nil {
-			return parseRunFileError(err.Error())
+			return runFileReaderError(err.Error())
 		}
 
 		records = append(records, &spb.ParsedRecord{
@@ -134,12 +145,12 @@ func (h *ParseRunFileHandler) handleRead(
 	}
 
 	return &spb.ApiResponse{
-		Response: &spb.ApiResponse_ParseRunFileResponse{
-			ParseRunFileResponse: &spb.ParseRunFileResponse{
-				Response: &spb.ParseRunFileResponse_ParseRunFileRead{
-					ParseRunFileRead: &spb.ParseRunFileReadResponse{
+		Response: &spb.ApiResponse_RunFileReaderResponse{
+			RunFileReaderResponse: &spb.RunFileReaderResponse{
+				Response: &spb.RunFileReaderResponse_RunFileReaderRead{
+					RunFileReaderRead: &spb.RunFileReaderReadResponse{
 						Records: records,
-						Eof:     eof,
+						HasMore: hasMore,
 					},
 				},
 			},
@@ -151,9 +162,9 @@ func (h *ParseRunFileHandler) handleRead(
 //
 // Returns nil so that no response is sent back to the client —
 // cleanup is fire-and-forget from the caller's perspective.
-func (h *ParseRunFileHandler) handleCleanup(
-	request *spb.ParseRunFileCleanup,
-) *spb.ApiResponse {
+func (h *RunFileReaderHandler) handleCleanup(
+	request *spb.RunFileReaderCleanup,
+) {
 	h.mu.Lock()
 	reader, ok := h.readers[request.RequestId]
 	if ok && reader != nil {
@@ -164,8 +175,6 @@ func (h *ParseRunFileHandler) handleCleanup(
 	if ok && reader != nil {
 		reader.Close()
 	}
-
-	return nil
 }
 
 // recordTypeName returns the proto field name of the record's oneof variant.
@@ -188,7 +197,7 @@ func recordTypeName(record *spb.Record) string {
 	return string(field.Name())
 }
 
-func parseRunFileError(message string) *spb.ApiResponse {
+func runFileReaderError(message string) *spb.ApiResponse {
 	return &spb.ApiResponse{
 		Response: &spb.ApiResponse_ApiErrorResponse{
 			ApiErrorResponse: &spb.ApiErrorResponse{

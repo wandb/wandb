@@ -3707,12 +3707,21 @@ def parse(
     else:
         type_filter = None
 
-    parse_wandb.parse(
-        pathlib.Path(path),
-        output=output,
-        record_types=type_filter,
-        page_size=page_size,
-    )
+    if output:
+        with open(output, "w") as f:
+            parse_wandb.parse(
+                pathlib.Path(path),
+                output=f,
+                record_types=type_filter,
+                page_size=page_size,
+            )
+    else:
+        parse_wandb.parse(
+            pathlib.Path(path),
+            output=sys.stdout,
+            record_types=type_filter,
+            page_size=page_size,
+        )
 
 
 cli.add_command(beta)

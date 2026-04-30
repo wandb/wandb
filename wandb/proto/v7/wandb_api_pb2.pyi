@@ -31,32 +31,32 @@ class ServerApiInitResponse(_message.Message):
     def __init__(self, error_message: _Optional[str] = ..., api_id: _Optional[str] = ...) -> None: ...
 
 class ApiRequest(_message.Message):
-    __slots__ = ("api_id", "read_run_history_request", "features_request", "graphql_request", "parse_run_file_request")
+    __slots__ = ("api_id", "read_run_history_request", "features_request", "graphql_request", "run_file_reader_request")
     API_ID_FIELD_NUMBER: _ClassVar[int]
     READ_RUN_HISTORY_REQUEST_FIELD_NUMBER: _ClassVar[int]
     FEATURES_REQUEST_FIELD_NUMBER: _ClassVar[int]
     GRAPHQL_REQUEST_FIELD_NUMBER: _ClassVar[int]
-    PARSE_RUN_FILE_REQUEST_FIELD_NUMBER: _ClassVar[int]
+    RUN_FILE_READER_REQUEST_FIELD_NUMBER: _ClassVar[int]
     api_id: str
     read_run_history_request: ReadRunHistoryRequest
     features_request: FeaturesRequest
     graphql_request: GraphQLRequest
-    parse_run_file_request: ParseRunFileRequest
-    def __init__(self, api_id: _Optional[str] = ..., read_run_history_request: _Optional[_Union[ReadRunHistoryRequest, _Mapping]] = ..., features_request: _Optional[_Union[FeaturesRequest, _Mapping]] = ..., graphql_request: _Optional[_Union[GraphQLRequest, _Mapping]] = ..., parse_run_file_request: _Optional[_Union[ParseRunFileRequest, _Mapping]] = ...) -> None: ...
+    run_file_reader_request: RunFileReaderRequest
+    def __init__(self, api_id: _Optional[str] = ..., read_run_history_request: _Optional[_Union[ReadRunHistoryRequest, _Mapping]] = ..., features_request: _Optional[_Union[FeaturesRequest, _Mapping]] = ..., graphql_request: _Optional[_Union[GraphQLRequest, _Mapping]] = ..., run_file_reader_request: _Optional[_Union[RunFileReaderRequest, _Mapping]] = ...) -> None: ...
 
 class ApiResponse(_message.Message):
-    __slots__ = ("read_run_history_response", "features_response", "graphql_response", "parse_run_file_response", "api_error_response")
+    __slots__ = ("read_run_history_response", "features_response", "graphql_response", "run_file_reader_response", "api_error_response")
     READ_RUN_HISTORY_RESPONSE_FIELD_NUMBER: _ClassVar[int]
     FEATURES_RESPONSE_FIELD_NUMBER: _ClassVar[int]
     GRAPHQL_RESPONSE_FIELD_NUMBER: _ClassVar[int]
-    PARSE_RUN_FILE_RESPONSE_FIELD_NUMBER: _ClassVar[int]
+    RUN_FILE_READER_RESPONSE_FIELD_NUMBER: _ClassVar[int]
     API_ERROR_RESPONSE_FIELD_NUMBER: _ClassVar[int]
     read_run_history_response: ReadRunHistoryResponse
     features_response: FeaturesResponse
     graphql_response: GraphQLResponse
-    parse_run_file_response: ParseRunFileResponse
+    run_file_reader_response: RunFileReaderResponse
     api_error_response: ApiErrorResponse
-    def __init__(self, read_run_history_response: _Optional[_Union[ReadRunHistoryResponse, _Mapping]] = ..., features_response: _Optional[_Union[FeaturesResponse, _Mapping]] = ..., graphql_response: _Optional[_Union[GraphQLResponse, _Mapping]] = ..., parse_run_file_response: _Optional[_Union[ParseRunFileResponse, _Mapping]] = ..., api_error_response: _Optional[_Union[ApiErrorResponse, _Mapping]] = ...) -> None: ...
+    def __init__(self, read_run_history_response: _Optional[_Union[ReadRunHistoryResponse, _Mapping]] = ..., features_response: _Optional[_Union[FeaturesResponse, _Mapping]] = ..., graphql_response: _Optional[_Union[GraphQLResponse, _Mapping]] = ..., run_file_reader_response: _Optional[_Union[RunFileReaderResponse, _Mapping]] = ..., api_error_response: _Optional[_Union[ApiErrorResponse, _Mapping]] = ...) -> None: ...
 
 class ApiErrorResponse(_message.Message):
     __slots__ = ("message", "error_type")
@@ -249,37 +249,37 @@ class DownloadRunHistoryStatusResponse(_message.Message):
     operation_stats: _wandb_internal_pb2.OperationStats
     def __init__(self, operation_stats: _Optional[_Union[_wandb_internal_pb2.OperationStats, _Mapping]] = ...) -> None: ...
 
-class ParseRunFileRequest(_message.Message):
-    __slots__ = ("parse_run_file_init", "parse_run_file_read", "parse_run_file_cleanup")
-    PARSE_RUN_FILE_INIT_FIELD_NUMBER: _ClassVar[int]
-    PARSE_RUN_FILE_READ_FIELD_NUMBER: _ClassVar[int]
-    PARSE_RUN_FILE_CLEANUP_FIELD_NUMBER: _ClassVar[int]
-    parse_run_file_init: ParseRunFileInit
-    parse_run_file_read: ParseRunFileRead
-    parse_run_file_cleanup: ParseRunFileCleanup
-    def __init__(self, parse_run_file_init: _Optional[_Union[ParseRunFileInit, _Mapping]] = ..., parse_run_file_read: _Optional[_Union[ParseRunFileRead, _Mapping]] = ..., parse_run_file_cleanup: _Optional[_Union[ParseRunFileCleanup, _Mapping]] = ...) -> None: ...
+class RunFileReaderRequest(_message.Message):
+    __slots__ = ("run_file_reader_init", "run_file_reader_read", "run_file_reader_cleanup")
+    RUN_FILE_READER_INIT_FIELD_NUMBER: _ClassVar[int]
+    RUN_FILE_READER_READ_FIELD_NUMBER: _ClassVar[int]
+    RUN_FILE_READER_CLEANUP_FIELD_NUMBER: _ClassVar[int]
+    run_file_reader_init: RunFileReaderInit
+    run_file_reader_read: RunFileReaderRead
+    run_file_reader_cleanup: RunFileReaderCleanup
+    def __init__(self, run_file_reader_init: _Optional[_Union[RunFileReaderInit, _Mapping]] = ..., run_file_reader_read: _Optional[_Union[RunFileReaderRead, _Mapping]] = ..., run_file_reader_cleanup: _Optional[_Union[RunFileReaderCleanup, _Mapping]] = ...) -> None: ...
 
-class ParseRunFileResponse(_message.Message):
-    __slots__ = ("parse_run_file_init", "parse_run_file_read")
-    PARSE_RUN_FILE_INIT_FIELD_NUMBER: _ClassVar[int]
-    PARSE_RUN_FILE_READ_FIELD_NUMBER: _ClassVar[int]
-    parse_run_file_init: ParseRunFileInitResponse
-    parse_run_file_read: ParseRunFileReadResponse
-    def __init__(self, parse_run_file_init: _Optional[_Union[ParseRunFileInitResponse, _Mapping]] = ..., parse_run_file_read: _Optional[_Union[ParseRunFileReadResponse, _Mapping]] = ...) -> None: ...
+class RunFileReaderResponse(_message.Message):
+    __slots__ = ("run_file_reader_init", "run_file_reader_read")
+    RUN_FILE_READER_INIT_FIELD_NUMBER: _ClassVar[int]
+    RUN_FILE_READER_READ_FIELD_NUMBER: _ClassVar[int]
+    run_file_reader_init: RunFileReaderInitResponse
+    run_file_reader_read: RunFileReaderReadResponse
+    def __init__(self, run_file_reader_init: _Optional[_Union[RunFileReaderInitResponse, _Mapping]] = ..., run_file_reader_read: _Optional[_Union[RunFileReaderReadResponse, _Mapping]] = ...) -> None: ...
 
-class ParseRunFileInit(_message.Message):
+class RunFileReaderInit(_message.Message):
     __slots__ = ("path",)
     PATH_FIELD_NUMBER: _ClassVar[int]
     path: str
     def __init__(self, path: _Optional[str] = ...) -> None: ...
 
-class ParseRunFileInitResponse(_message.Message):
+class RunFileReaderInitResponse(_message.Message):
     __slots__ = ("request_id",)
     REQUEST_ID_FIELD_NUMBER: _ClassVar[int]
     request_id: int
     def __init__(self, request_id: _Optional[int] = ...) -> None: ...
 
-class ParseRunFileRead(_message.Message):
+class RunFileReaderRead(_message.Message):
     __slots__ = ("request_id", "page_size", "record_types")
     REQUEST_ID_FIELD_NUMBER: _ClassVar[int]
     PAGE_SIZE_FIELD_NUMBER: _ClassVar[int]
@@ -289,13 +289,13 @@ class ParseRunFileRead(_message.Message):
     record_types: _containers.RepeatedScalarFieldContainer[str]
     def __init__(self, request_id: _Optional[int] = ..., page_size: _Optional[int] = ..., record_types: _Optional[_Iterable[str]] = ...) -> None: ...
 
-class ParseRunFileReadResponse(_message.Message):
-    __slots__ = ("records", "eof")
+class RunFileReaderReadResponse(_message.Message):
+    __slots__ = ("records", "has_more")
     RECORDS_FIELD_NUMBER: _ClassVar[int]
-    EOF_FIELD_NUMBER: _ClassVar[int]
+    HAS_MORE_FIELD_NUMBER: _ClassVar[int]
     records: _containers.RepeatedCompositeFieldContainer[ParsedRecord]
-    eof: bool
-    def __init__(self, records: _Optional[_Iterable[_Union[ParsedRecord, _Mapping]]] = ..., eof: _Optional[bool] = ...) -> None: ...
+    has_more: bool
+    def __init__(self, records: _Optional[_Iterable[_Union[ParsedRecord, _Mapping]]] = ..., has_more: _Optional[bool] = ...) -> None: ...
 
 class ParsedRecord(_message.Message):
     __slots__ = ("record_type", "record_num", "json_content")
@@ -307,7 +307,7 @@ class ParsedRecord(_message.Message):
     json_content: str
     def __init__(self, record_type: _Optional[str] = ..., record_num: _Optional[int] = ..., json_content: _Optional[str] = ...) -> None: ...
 
-class ParseRunFileCleanup(_message.Message):
+class RunFileReaderCleanup(_message.Message):
     __slots__ = ("request_id",)
     REQUEST_ID_FIELD_NUMBER: _ClassVar[int]
     request_id: int

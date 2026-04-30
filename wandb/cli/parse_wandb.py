@@ -1,12 +1,11 @@
 from __future__ import annotations
 
 import contextlib
-import os
+import json
 import pathlib
-import sys
 import weakref
 from collections.abc import Iterator
-from typing import Any
+from typing import IO, Any
 
 from typing_extensions import Self
 
@@ -16,7 +15,7 @@ from wandb.sdk import wandb_setup
 from wandb.sdk.mailbox.mailbox import MailboxClosedError
 
 
-class ParseRunFileScan(Iterator[dict[str, Any]]):
+class RunFileReader(Iterator[dict[str, Any]]):
     """Iterator that reads records from a .wandb file via wandb-core."""
 
     def __init__(
@@ -42,18 +41,18 @@ class ParseRunFileScan(Iterator[dict[str, Any]]):
         self._service_api = service_api
         self._record_types = record_types or []
         self._page_size = page_size
-        self._eof = False
+        self._has_more = True
         self._scan_offset = 0
         self._records: list[dict[str, Any]] = []
 
         init_request = pb.ApiRequest(
-            parse_run_file_request=pb.ParseRunFileRequest(
-                parse_run_file_init=pb.ParseRunFileInit(path=path),
+            run_file_reader_request=pb.RunFileReaderRequest(
+                run_file_reader_init=pb.RunFileReaderInit(path=str(path)),
             ),
         )
         init_response = self._service_api.send_api_request(init_request)
         self._request_id = (
-            init_response.parse_run_file_response.parse_run_file_init.request_id
+            init_response.run_file_reader_response.run_file_reader_init.request_id
         )
 
         weakref.finalize(
@@ -72,14 +71,14 @@ class ParseRunFileScan(Iterator[dict[str, Any]]):
                 record = self._records[self._scan_offset]
                 self._scan_offset += 1
                 return record
-            if self._eof:
+            if not self._has_more:
                 raise StopIteration
             self._load_next()
 
     def _load_next(self) -> None:
         read_request = pb.ApiRequest(
-            parse_run_file_request=pb.ParseRunFileRequest(
-                parse_run_file_read=pb.ParseRunFileRead(
+            run_file_reader_request=pb.RunFileReaderRequest(
+                run_file_reader_read=pb.RunFileReaderRead(
                     request_id=self._request_id,
                     page_size=self._page_size,
                     record_types=self._record_types,
@@ -87,7 +86,7 @@ class ParseRunFileScan(Iterator[dict[str, Any]]):
             ),
         )
         read_response = self._service_api.send_api_request(read_request)
-        page = read_response.parse_run_file_response.parse_run_file_read
+        page = read_response.run_file_reader_response.run_file_reader_read
 
         self._records = [
             {
@@ -98,13 +97,13 @@ class ParseRunFileScan(Iterator[dict[str, Any]]):
             for r in page.records
         ]
         self._scan_offset = 0
-        self._eof = page.eof
+        self._has_more = page.has_more
 
     @staticmethod
     def cleanup(service_api: ServiceApi, request_id: int) -> None:
         cleanup_request = pb.ApiRequest(
-            parse_run_file_request=pb.ParseRunFileRequest(
-                parse_run_file_cleanup=pb.ParseRunFileCleanup(
+            run_file_reader_request=pb.RunFileReaderRequest(
+                run_file_reader_cleanup=pb.RunFileReaderCleanup(
                     request_id=request_id,
                 ),
             ),
@@ -116,26 +115,21 @@ class ParseRunFileScan(Iterator[dict[str, Any]]):
 def parse(
     path: pathlib.Path,
     *,
-    output: str | None,
-    record_types: list[str] | None,
-    page_size: int,
+    output: IO[str],
+    record_types: list[str] | None = None,
+    page_size: int = 100,
 ) -> None:
     """Read a .wandb file via wandb-core and print records as JSON lines."""
     singleton = wandb_setup.singleton()
     settings = singleton.settings.model_copy()
     service_api = ServiceApi(settings=settings)
 
-    scanner = ParseRunFileScan(
+    scanner = RunFileReader(
         service_api=service_api,
         path=path.absolute(),
         record_types=record_types,
         page_size=page_size,
     )
 
-    out = open(output, "w") if output else sys.stdout
-    try:
-        for record in scanner:
-            out.write(record["json_content"] + "\n")
-    finally:
-        if output:
-            out.close()
+    for record in scanner:
+        output.write(json.dumps(record) + "\n")

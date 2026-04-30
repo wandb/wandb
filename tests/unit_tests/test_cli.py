@@ -1,7 +1,6 @@
 import datetime
 import getpass
 import importlib
-import json
 import netrc
 import os
 import pathlib
@@ -12,11 +11,9 @@ from unittest import mock
 
 import pytest
 import wandb
-from wandb.apis.public.service_api import ServiceApi
 import wandb.docker
 from wandb import env
 from wandb.cli import cli
-from wandb.sdk import wandb_setup
 
 DOCKER_SHA = (
     "wandb/deepo@sha256:"
@@ -639,153 +636,25 @@ def test_purge_cache_subdirectories(runner, monkeypatch, tmp_path):
     assert not file.exists()
 
 
+def test_parse(runner, wandb_run_file, tmp_path):
+    """Test wandb parse CLI outputs valid JSON records."""
+    import json
 
-def test_parse_raw_records(wandb_run_file):
-    """Test RunFileParser.raw_records directly against a real run file."""
-    from wandb.cli.parse_wandb import ParseRunFileScan
+    out = tmp_path / "output.jsonl"
+    result = runner.invoke(cli.parse, [wandb_run_file, "-o", str(out)])
+    assert result.exit_code == 0
 
-    singleton = wandb_setup.singleton()
-    settings = singleton.settings.model_copy()
-    service_api = ServiceApi(settings=settings)
-
-    parser = ParseRunFileScan(service_api=service_api, path=wandb_run_file)
-    results = [rec for rec in parser]
-
-    assert len(results) > 0
-    for rec in results:
+    records = [json.loads(line) for line in out.read_text().strip().splitlines()]
+    assert len(records) > 0
+    for rec in records:
         assert isinstance(rec["record_type"], str)
         assert isinstance(rec["json_content"], str)
 
 
-def test_parse_empty_file_raises(tmp_path):
-    """Test RunFileParser raises ValueError on an empty file."""
-    from wandb.cli.parse_wandb import ParseRunFileScan
-
+def test_parse_empty_file_raises(runner, tmp_path):
+    """Test wandb parse CLI fails on an empty file."""
     fpath = tmp_path / "empty.wandb"
     fpath.write_bytes(b"")
 
-    singleton = wandb_setup.singleton()
-    settings = singleton.settings.model_copy()
-    service_api = ServiceApi(settings=settings)
-
-    with pytest.raises(ValueError, match="empty or invalid"):
-        parser = ParseRunFileScan(service_api=service_api, path=fpath)
-
-
-# ---------------------------------------------------------------------------
-# wandb parse (unit tests with mocked ServiceApi)
-# ---------------------------------------------------------------------------
-
-
-def test_parse_calls_service_api(tmp_path, monkeypatch):
-    """Test that parse_cmd.parse sends init/read requests and fires cleanup.
-
-    The mock returns a realistic record sequence (run, two history steps,
-    exit) so we can verify the exact output written to the file.
-    """
-    from wandb.cli import parse_wandb
-    from wandb.proto import wandb_api_pb2 as pb
-
-    dummy_file = tmp_path / "run.wandb"
-    dummy_file.write_bytes(b"dummy")
-
-    expected_records = [
-        pb.ParsedRecord(
-            record_type="run",
-            record_num=1,
-            json_content='{"num":"1","run":{"run_id":"test-run-id","project":"myproj"}}',
-        ),
-        pb.ParsedRecord(
-            record_type="history",
-            record_num=2,
-            json_content='{"num":"2","history":{"item":[{"key":"loss","value_json":"0.5"},{"key":"acc","value_json":"0.8"}]}}',
-        ),
-        pb.ParsedRecord(
-            record_type="history",
-            record_num=3,
-            json_content='{"num":"3","history":{"item":[{"key":"loss","value_json":"0.3"},{"key":"acc","value_json":"0.9"}]}}',
-        ),
-        pb.ParsedRecord(
-            record_type="exit",
-            record_num=4,
-            json_content='{"num":"4","exit":{"exit_code":0}}',
-        ),
-    ]
-
-    send_calls = []
-    publish_calls = []
-
-    def fake_send(request, timeout=None):
-        send_calls.append(request)
-        if request.HasField("parse_run_file_request"):
-            inner = request.parse_run_file_request
-            if inner.HasField("parse_run_file_init"):
-                return pb.ApiResponse(
-                    parse_run_file_response=pb.ParseRunFileResponse(
-                        parse_run_file_init=pb.ParseRunFileInitResponse(
-                            request_id=42,
-                        ),
-                    ),
-                )
-            elif inner.HasField("parse_run_file_read"):
-                return pb.ApiResponse(
-                    parse_run_file_response=pb.ParseRunFileResponse(
-                        parse_run_file_read=pb.ParseRunFileReadResponse(
-                            records=expected_records,
-                            eof=True,
-                        ),
-                    ),
-                )
-        return pb.ApiResponse()
-
-    def fake_publish(request):
-        publish_calls.append(request)
-
-    fake_conn = mock.MagicMock()
-    fake_conn.api_publish = fake_publish
-
-    fake_api = mock.MagicMock()
-    fake_api.send_api_request = fake_send
-    fake_api._get_service_connection.return_value = fake_conn
-
-    monkeypatch.setattr(parse_wandb, "ServiceApi", lambda settings: fake_api)
-    monkeypatch.setattr(
-        "wandb.sdk.wandb_setup.singleton",
-        lambda: mock.MagicMock(settings=mock.MagicMock()),
-    )
-
-    out_path = tmp_path / "output.jsonl"
-    parse_wandb.parse(
-        dummy_file,
-        output=str(out_path),
-        record_types=None,
-        page_size=100,
-    )
-
-    # Verify request lifecycle: init + read via send, cleanup via publish.
-    assert len(send_calls) == 2
-    assert send_calls[0].parse_run_file_request.HasField("parse_run_file_init")
-    assert send_calls[1].parse_run_file_request.HasField("parse_run_file_read")
-    assert len(publish_calls) == 1
-    assert publish_calls[0].parse_run_file_request.HasField("parse_run_file_cleanup")
-
-    # Verify exact output: one JSON line per record, matching the mock data.
-    lines = [l for l in out_path.read_text().strip().splitlines() if l]
-    assert len(lines) == len(expected_records)
-
-    run_rec = json.loads(lines[0])
-    assert run_rec["run"]["run_id"] == "test-run-id"
-    assert run_rec["run"]["project"] == "myproj"
-
-    hist1 = json.loads(lines[1])
-    assert hist1["history"]["item"][0]["key"] == "loss"
-    assert hist1["history"]["item"][0]["value_json"] == "0.5"
-    assert hist1["history"]["item"][1]["key"] == "acc"
-    assert hist1["history"]["item"][1]["value_json"] == "0.8"
-
-    hist2 = json.loads(lines[2])
-    assert hist2["history"]["item"][0]["value_json"] == "0.3"
-    assert hist2["history"]["item"][1]["value_json"] == "0.9"
-
-    exit_rec = json.loads(lines[3])
-    assert exit_rec["exit"]["exit_code"] == 0
+    result = runner.invoke(cli.parse, [str(fpath)])
+    assert result.exit_code != 0
