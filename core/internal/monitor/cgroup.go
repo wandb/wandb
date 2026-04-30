@@ -122,29 +122,28 @@ func detectCgroupResourceLimits(paths cgroupPaths) *cgroupResourceLimits {
 		return nil
 	}
 
-	// Map the process's cgroup path to a directory on disk for every
-	// cgroup2 mount we see. There is normally exactly one such mount, but
-	// the loop tolerates a setup that mounts the unified hierarchy more
-	// than once (e.g. a debug bind-mount inside the container).
-	var leafDirs []string
+	// Cgroup v2 has a single unified hierarchy per mount namespace, so we
+	// expect at most one cgroup2 mount visible to the process. Use the
+	// first one and skip cgroup v1 entries.
+	var leafDir string
 	for _, mount := range mounts {
-		if mount.FSType != cgroupV2FSType {
-			continue
+		if mount.FSType == cgroupV2FSType {
+			leafDir = cgroupDir(mount, procInfo.cgroupV2Path)
+			break
 		}
-		leafDirs = append(leafDirs, cgroupDir(mount, procInfo.cgroupV2Path))
 	}
-	if len(leafDirs) == 0 {
+	if leafDir == "" {
 		return nil
 	}
 
 	limits := &cgroupResourceLimits{}
-	limits.memoryCurrentFile, limits.memoryLimitBytes = memoryLimit(leafDirs)
+	limits.memoryCurrentFile, limits.memoryLimitBytes = memoryLimit(leafDir)
 	// cpu.max and the cpuset affinity list are independent restrictions:
 	// either may be unset, both may apply. Take the binding constraint.
 	// minPositive (instead of plain min) avoids letting an unset 0 win
 	// over a real positive limit.
 	limits.cpuLimit = minPositive(
-		cpuQuotaLimit(leafDirs),
+		cpuQuotaLimit(leafDir),
 		cpuAllowedLimit(procInfo.cpuAllowed, paths.logicalCPUCount),
 	)
 
@@ -283,56 +282,35 @@ func (c *cgroupResourceLimits) CPULimit() float64 {
 	return c.cpuLimit
 }
 
-// memoryLimit picks the smallest finite memory.max across the supplied
-// cgroup directories and returns its companion memory.current path.
+// memoryLimit reads memory.max from a cgroup directory and returns it
+// alongside the path to the matching memory.current file.
 //
-// In normal operation dirs has exactly one entry — the leaf cgroup —
-// because we no longer walk parents (see the package comment). The loop
-// only matters when more than one cgroup2 mount is visible to the
-// process, in which case "smallest finite limit wins" picks the binding
-// constraint.
-//
-// Pre: each dir is the absolute path of a cgroup v2 directory.
-// Post: returns ("", 0) if no directory had a finite memory.max — the
+// Pre: dir is the absolute path of a cgroup v2 directory.
+// Post: returns ("", 0) if memory.max is missing or unbounded — the
 // caller treats this as "no memory limit applies". When the limit is
-// finite, currentFile is in the same directory as the chosen
-// memoryLimitBytes so live reads stay consistent with the cached limit.
-func memoryLimit(dirs []string) (currentFile string, limit uint64) {
-	for _, dir := range dirs {
-		nextLimit, ok := readCgroupUint(filepath.Join(dir, cgroupV2MemoryMaxFile))
-		if !ok || nextLimit == 0 {
-			continue
-		}
-		if limit == 0 || nextLimit < limit {
-			currentFile = filepath.Join(dir, cgroupV2MemoryCurrentFile)
-			limit = nextLimit
-		}
+// finite, currentFile is in the same directory so live reads stay
+// consistent with the cached limit.
+func memoryLimit(dir string) (currentFile string, limit uint64) {
+	limit, ok := readCgroupUint(filepath.Join(dir, cgroupV2MemoryMaxFile))
+	if !ok || limit == 0 {
+		return "", 0
 	}
-	return currentFile, limit
+	return filepath.Join(dir, cgroupV2MemoryCurrentFile), limit
 }
 
-// cpuQuotaLimit returns the smallest finite cpu.max value, expressed in
-// CPUs (quota / period), across the supplied cgroup directories.
+// cpuQuotaLimit reads cpu.max from a cgroup directory and returns the
+// effective CPU count (quota / period).
 //
-// Like memoryLimit, the loop body matters only when multiple cgroup2
-// mounts are visible. minPositive (rather than plain min) ensures that a
-// missing cpu.max in one of several mounts does not collapse the result
-// to 0 when another mount has a real quota.
-//
-// Pre: each dir is the absolute path of a cgroup v2 directory.
-// Post: returns 0 ("no cpu.max-imposed limit") if no directory had a
-// finite cpu.max. The caller folds this into minPositive with
+// Pre: dir is the absolute path of a cgroup v2 directory.
+// Post: returns 0 ("no cpu.max-imposed limit") when cpu.max is missing,
+// unbounded, or malformed. The caller folds this into minPositive with
 // cpuAllowedLimit, so 0 is a sentinel rather than a CPU value.
-func cpuQuotaLimit(dirs []string) float64 {
-	var out float64
-	for _, dir := range dirs {
-		quota, period, ok := readCgroupV2CPUMax(filepath.Join(dir, cgroupV2CPUMaxFile))
-		if !ok || quota <= 0 || period <= 0 {
-			continue
-		}
-		out = minPositive(out, float64(quota)/float64(period))
+func cpuQuotaLimit(dir string) float64 {
+	quota, period, ok := readCgroupV2CPUMax(filepath.Join(dir, cgroupV2CPUMaxFile))
+	if !ok || quota <= 0 || period <= 0 {
+		return 0
 	}
-	return out
+	return float64(quota) / float64(period)
 }
 
 // cpuAllowedLimit treats /proc/<pid>/status Cpus_allowed_list as a CPU
