@@ -189,6 +189,7 @@ func (b *RemoteWorkspaceBackend) InitReaderCmd(runKey string) tea.Cmd {
 		}
 
 		source, err := NewParquetHistorySource(
+			context.Background(),
 			entity,
 			project,
 			runKey,

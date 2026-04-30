@@ -10,6 +10,7 @@ import urllib.parse
 import click
 from typing_extensions import Never
 
+from wandb import util
 from wandb.analytics import get_sentry
 from wandb.env import error_reporting_enabled, is_debug
 from wandb.sdk import wandb_setup
@@ -69,13 +70,6 @@ def _resolve_path(path: str | None) -> LaunchConfig:
     if not path:
         wandb_dir = wandb_setup.singleton().settings.wandb_dir
         return LocalLaunchConfig(wandb_dir=str(wandb_dir))
-
-    if path.startswith("https://") or path.startswith("http://"):
-        parsed_url = urllib.parse.urlparse(path)
-        return LaunchConfig(
-            wandb_dir=f"{parsed_url.scheme}://{parsed_url.netloc}",
-            run_file=path,
-        )
 
     resolved = pathlib.Path(path).resolve()
 
@@ -206,40 +200,9 @@ def _create_remote_launch_config(path: str) -> RemoteLaunchConfig:
     parsed_url = urllib.parse.urlparse(path)
     entity, project, run_id = _parse_path(parsed_url.path)
 
-    Supports:
-        https://wandb.ai/entity/project              -> workspace mode
-        https://wandb.ai/entity/project/runs/run_id   -> single-run mode
-        https://wandb.ai/entity/project/run_id         -> single-run mode
-    """
-    parsed = urllib.parse.urlparse(url)
-
-    base_url = f"{parsed.scheme}://{parsed.netloc}"
-    if parsed.netloc == "wandb.ai":
+    base_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
+    if parsed_url.netloc == "wandb.ai":
         base_url = "https://api.wandb.ai"
-
-    path = parsed.path.strip("/")
-    parts = path.split("/")
-
-    # Filter out the "runs" segment to normalise the path.
-    # e.g. /entity/project/runs/run_id -> /entity/project/run_id
-    parts = [p for p in parts if p != "runs"]
-
-    if len(parts) == 2:
-        entity, project = parts
-        return base_url, entity, project, None
-    elif len(parts) == 3:
-        entity, project, run_id = parts
-        return base_url, entity, project, run_id
-    else:
-        _fatal(
-            f"Cannot parse W&B URL: {url}\n"
-            "  Expected: https://wandb.ai/<entity>/<project>[/runs/<run_id>]"
-        )
-
-
-def _create_remote_launch_config(path: str) -> RemoteLaunchConfig:
-    """Create a LEET launch configuration for a remote project or run."""
-    base_url, entity, project, run_id = _parse_wandb_url(path)
 
     auth = wbauth.authenticate_session(
         host=base_url,
@@ -258,7 +221,7 @@ def _create_remote_launch_config(path: str) -> RemoteLaunchConfig:
     )
 
 
-def _parse_path(path: str) -> tuple[str, str, str]:
+def _parse_path(path: str) -> tuple[str, str, str | None]:
     """Parse the given path into a tuple of (entity, project, run_id)."""
     input_path = path
     path = path.replace("/runs/", "/")
@@ -267,10 +230,18 @@ def _parse_path(path: str) -> tuple[str, str, str]:
 
     parts = path.split("/")
 
-    if len(parts) != 3:
+    if len(parts) < 2:
         raise ValueError(
             f"Invalid path: {input_path!r}."
             + " Expected format: https://<base_url>/<entity>/<project>/<run_id>"
         )
 
-    return parts[0], parts[1], parts[2]
+    if len(parts) == 2:
+        return parts[0], parts[1], None
+    elif len(parts) == 3:
+        return parts[0], parts[1], parts[2]
+    else:
+        raise ValueError(
+            f"Invalid path: {input_path!r}."
+            + " Expected format: https://<base_url>/<entity>/<project>/<run_id>"
+        )
