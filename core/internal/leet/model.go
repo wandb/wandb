@@ -497,7 +497,6 @@ func (m *Model) exitRunView() tea.Cmd {
 	if m.run != nil && m.run.IsRemote() {
 		return nil
 	}
-
 	if m.run != nil {
 		// Save media pane view state for later restoration.
 		runKey := m.workspace.SelectedRunKey()
