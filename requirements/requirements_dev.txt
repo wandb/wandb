@@ -37,7 +37,7 @@ scikit-learn
 torch
 torchvision
 jax[cpu]
-lightning==2.6.1
+# lightning==2.6.1  # lightning==2.6.{2,3} were compromised. package is quarantined as of 4/30/2026.
 
 pyarrow
 kfp

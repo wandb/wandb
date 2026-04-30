@@ -256,8 +256,6 @@ fsspec==2025.3.0
     # via
     #   datasets
     #   huggingface-hub
-    #   lightning
-    #   pytorch-lightning
     #   torch
 gast==0.7.0
     # via tensorflow
@@ -565,13 +563,6 @@ libclang==18.1.1
     # via tensorflow
 lightgbm==4.6.0
     # via -r requirements/requirements_dev.txt
-lightning==2.6.0
-    # via -r requirements/requirements_dev.txt
-lightning-utilities==0.15.2
-    # via
-    #   lightning
-    #   pytorch-lightning
-    #   torchmetrics
 litellm==1.82.6
     # via dspy
 magicattr==0.1.6
@@ -692,7 +683,6 @@ numpy==1.26.4
     #   tensorboard
     #   tensorboardx
     #   tensorflow
-    #   torchmetrics
     #   torchvision
     #   xgboost
 oauthlib==3.3.1
@@ -739,19 +729,15 @@ packaging==25.0
     #   jupyterlab
     #   jupyterlab-server
     #   keras
-    #   lightning
-    #   lightning-utilities
     #   matplotlib
     #   mlflow-skinny
     #   nbconvert
     #   optuna
     #   plotly
     #   pytest
-    #   pytorch-lightning
     #   tensorboard
     #   tensorboardx
     #   tensorflow
-    #   torchmetrics
     #   wandb
     #   wheel
 pandas==1.5.3
@@ -930,8 +916,6 @@ python-json-logger==4.0.0
     # via jupyter-events
 pytokens==0.4.1
     # via black
-pytorch-lightning==2.6.0
-    # via lightning
 pytz==2026.1.post1
     # via pandas
 pywin32==311
@@ -953,10 +937,8 @@ pyyaml==6.0.3
     #   kfp
     #   kubernetes
     #   kubernetes-asyncio
-    #   lightning
     #   mlflow-skinny
     #   optuna
-    #   pytorch-lightning
     #   responses
     #   sweeps
     #   wandb
@@ -1055,7 +1037,6 @@ sentry-sdk==2.56.0
 setuptools==82.0.1
     # via
     #   jupyterlab
-    #   lightning-utilities
     #   tensorboard
     #   tensorflow
 shapely==2.0.7
@@ -1146,15 +1127,8 @@ tomli==2.4.1
 torch==2.8.0
     # via
     #   -r requirements/requirements_dev.txt
-    #   lightning
-    #   pytorch-lightning
     #   stable-baselines3
-    #   torchmetrics
     #   torchvision
-torchmetrics==1.8.2
-    # via
-    #   lightning
-    #   pytorch-lightning
 torchvision==0.23.0
     # via -r requirements/requirements_dev.txt
 tornado==6.5.5
@@ -1173,12 +1147,10 @@ tqdm==4.67.3
     #   datasets
     #   dspy
     #   huggingface-hub
-    #   lightning
     #   moviepy
     #   openai
     #   optuna
     #   proglog
-    #   pytorch-lightning
 traitlets==5.14.3
     # via
     #   ipykernel
@@ -1222,8 +1194,6 @@ typing-extensions==4.15.0
     #   gymnasium
     #   huggingface-hub
     #   ipython
-    #   lightning
-    #   lightning-utilities
     #   mistune
     #   mlflow-skinny
     #   multidict
@@ -1237,7 +1207,6 @@ typing-extensions==4.15.0
     #   pyjwt
     #   pytest-asyncio
     #   python-json-logger
-    #   pytorch-lightning
     #   referencing
     #   sqlalchemy
     #   starlette

@@ -6,7 +6,6 @@ aiohappyeyeballs==2.6.1
     # via aiohttp
 aiohttp==3.13.4
     # via
-    #   fsspec
     #   kubernetes-asyncio
     #   litellm
 aiosignal==1.4.0
@@ -228,8 +227,6 @@ frozenlist==1.8.0
 fsspec==2026.3.0
     # via
     #   huggingface-hub
-    #   lightning
-    #   pytorch-lightning
     #   torch
 gepa==0.0.26
     # via dspy
@@ -513,13 +510,6 @@ lark==1.3.1
     # via rfc3987-syntax
 lightgbm==4.6.0
     # via -r requirements/requirements_dev.txt
-lightning==2.6.1
-    # via -r requirements/requirements_dev.txt
-lightning-utilities==0.15.3
-    # via
-    #   lightning
-    #   pytorch-lightning
-    #   torchmetrics
 litellm==1.82.6
     # via dspy
 mako==1.3.10
@@ -633,7 +623,6 @@ numpy==2.3.5
     #   stable-baselines3
     #   tensorboard
     #   tensorboardx
-    #   torchmetrics
     #   torchvision
     #   xgboost
 oauthlib==3.3.1
@@ -682,8 +671,6 @@ packaging==26.0
     #   jupyter-server
     #   jupyterlab
     #   jupyterlab-server
-    #   lightning
-    #   lightning-utilities
     #   matplotlib
     #   mlflow-skinny
     #   mlflow-tracing
@@ -691,11 +678,9 @@ packaging==26.0
     #   optuna
     #   plotly
     #   pytest
-    #   pytorch-lightning
     #   skops
     #   tensorboard
     #   tensorboardx
-    #   torchmetrics
     #   wandb
 pandas==2.3.3
     # via
@@ -883,8 +868,6 @@ python-json-logger==4.1.0
     # via jupyter-events
 pytokens==0.4.1
     # via black
-pytorch-lightning==2.6.1
-    # via lightning
 pytz==2026.1.post1
     # via pandas
 pyyaml==6.0.3
@@ -896,10 +879,8 @@ pyyaml==6.0.3
     #   kfp
     #   kubernetes
     #   kubernetes-asyncio
-    #   lightning
     #   mlflow-skinny
     #   optuna
-    #   pytorch-lightning
     #   responses
     #   wandb
 pyzmq==27.1.0
@@ -1067,15 +1048,8 @@ tomli==2.4.1
 torch==2.11.0
     # via
     #   -r requirements/requirements_dev.txt
-    #   lightning
-    #   pytorch-lightning
     #   stable-baselines3
-    #   torchmetrics
     #   torchvision
-torchmetrics==1.9.0
-    # via
-    #   lightning
-    #   pytorch-lightning
 torchvision==0.26.0
     # via -r requirements/requirements_dev.txt
 tornado==6.5.5
@@ -1093,12 +1067,10 @@ tqdm==4.67.3
     #   -r requirements/requirements_dev.txt
     #   dspy
     #   huggingface-hub
-    #   lightning
     #   moviepy
     #   openai
     #   optuna
     #   proglog
-    #   pytorch-lightning
 traitlets==5.14.3
     # via
     #   ipykernel
@@ -1132,8 +1104,6 @@ typing-extensions==4.15.0
     #   grpcio
     #   gymnasium
     #   huggingface-hub
-    #   lightning
-    #   lightning-utilities
     #   mlflow-skinny
     #   openai
     #   opentelemetry-api
@@ -1141,7 +1111,6 @@ typing-extensions==4.15.0
     #   opentelemetry-semantic-conventions
     #   pydantic
     #   pydantic-core
-    #   pytorch-lightning
     #   sqlalchemy
     #   torch
     #   typing-inspection
