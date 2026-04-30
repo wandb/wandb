@@ -310,25 +310,25 @@ func bindLeetFlags(fs *flag.FlagSet, opts *leetOptions) {
 		&opts.baseUrl,
 		"base-url",
 		"",
-		"Base URL of the W&B server to open.",
+		"Specifies the base URL of the W&B server for querying remote runs.",
 	)
 	fs.StringVar(
 		&opts.entity,
 		"entity",
 		"",
-		"Entity of the W&B run to open.",
+		"Specifies the entity who owns the run.",
 	)
 	fs.StringVar(
 		&opts.project,
 		"project",
 		"",
-		"Project of the W&B run to open.",
+		"Specifies the project the remote run belongs to.",
 	)
 	fs.StringVar(
 		&opts.runId,
 		"run-id",
 		"",
-		"Run ID of the W&B run to open.",
+		"Specifies the run ID of the remote run.",
 	)
 }
 
@@ -340,6 +340,7 @@ Usage:
   wandb-core leet [flags] <wandb-directory>
   wandb-core leet --config
   wandb-core leet --symon [flags]
+  wandb-core leet [flags] <wandb-file/wandb-run-path>
 
 Arguments:
   <wandb-file> Path to the .wandb file of a W&B run or a W&B run path.
@@ -367,8 +368,8 @@ func validateLeetOptions(fs *flag.FlagSet, opts *leetOptions) error {
 		fmt.Fprintln(os.Stderr, "Error: --symon does not take a wandb directory")
 		fs.Usage()
 		return fmt.Errorf("unexpected wandb directory %q in symon mode", fs.Arg(0))
-	case !opts.editConfig && !opts.symonMode && opts.wandbDir == "" && opts.baseUrl == "":
-		fmt.Fprintln(os.Stderr, "Error: wandb directory path or --base-url required")
+	case !opts.editConfig && !opts.symonMode && opts.baseUrl == "" && opts.wandbDir == "":
+		fmt.Fprintln(os.Stderr, "Error: wandb directory path required")
 		fs.Usage()
 		return fmt.Errorf("wandb directory path or --base-url required")
 	default:
@@ -494,36 +495,23 @@ func runSymon(opts *leetOptions, logger *observability.CoreLogger) int {
 }
 
 func runLeetWorkspace(opts *leetOptions, logger *observability.CoreLogger) int {
-	var runParams *leet.RunParams
-	wandbDir := opts.wandbDir
-	if opts.baseUrl != "" {
-		runParams = &leet.RunParams{
-			RemoteRunParams: &leet.RemoteRunParams{
-				BaseURL: opts.baseUrl,
-				Entity:  opts.entity,
-				Project: opts.project,
-				RunId:   opts.runId,
-			},
-		}
-	} else if opts.runFile != "" {
-		runParams = &leet.RunParams{
-			LocalRunParams: &leet.LocalRunParams{
-				RunFile: opts.runFile,
-			},
-		}
+	startupArgs := &leet.StartupArgs{
+		BaseURL:  &opts.baseUrl,
+		Entity:   &opts.entity,
+		Project:  &opts.project,
+		RunId:    &opts.runId,
+		RunFile:  &opts.runFile,
+		WandbDir: opts.wandbDir,
+	}
 
-		if wandbDir == "" {
-			fmt.Fprintln(os.Stderr, "Error: wandb directory path required")
-			return exitCodeErrorArgs
-		}
+	modelParams, err := leet.CreateModelParams(startupArgs, logger)
+	if err != nil {
+		logger.Error("main: failed to create model params", "error", err)
+		return exitCodeErrorArgs
 	}
 
 	for {
-		m := leet.NewModel(leet.ModelParams{
-			WandbDir:  opts.wandbDir,
-			RunParams: runParams,
-			Logger:    logger,
-		})
+		m := leet.NewModel(*modelParams)
 		program := tea.NewProgram(m)
 
 		finalModel, err := program.Run()
