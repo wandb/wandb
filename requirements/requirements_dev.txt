@@ -37,7 +37,7 @@ scikit-learn
 torch
 torchvision
 jax[cpu]
-lightning
+lightning==2.6.1
 
 pyarrow
 kfp
