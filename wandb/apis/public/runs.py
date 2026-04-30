@@ -1688,6 +1688,12 @@ class Run(Attrs):
         max_step: int | None = None,
         use_cache: bool = True,
     ) -> public.HistoryScan:
+        wandb.termwarn(
+            "`beta_scan_history` is deprecated and will be removed in a future release. "
+            + "Use `scan_history` instead.",
+            repeat=False,
+        )
+
         return self.scan_history(
             keys=keys,
             page_size=page_size,
