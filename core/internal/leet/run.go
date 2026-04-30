@@ -10,6 +10,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/NimbleMarkets/ntcharts/v2/picture"
 
 	"github.com/wandb/wandb/core/internal/observability"
 )
@@ -156,6 +157,7 @@ func (r *Run) Init() tea.Cmd {
 	return tea.Batch(
 		source,
 		r.watcherMgr.WaitForMsg,
+		r.mediaPane.Init(),
 	)
 }
 
@@ -184,26 +186,52 @@ func (r *Run) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	// Route message to appropriate handler.
 	switch t := msg.(type) {
+	case picture.KittyFrameMsg:
+		return r, r.mediaPane.handleKittyFrame(t)
+
+	case mediaPanePrepareMsg:
+		return r, r.mediaPane.handlePrepareMsg()
+
 	case tea.KeyPressMsg:
 		if c := r.handleKeyPressMsg(t); c != nil {
 			cmds = append(cmds, c)
 		}
-		return r, tea.Batch(cmds...)
+		return r, batchCmds(cmds...)
 
 	case tea.MouseMsg:
 		newM, c := r.handleMouseMsg(t)
 		if c != nil {
 			cmds = append(cmds, c)
 		}
-		return newM, tea.Batch(cmds...)
+		return newM, batchCmds(cmds...)
 
 	case tea.WindowSizeMsg:
 		r.handleWindowResize(t)
-		return r, tea.Batch(cmds...)
+		return r, batchCmds(cmds...)
+
+	case LeftSidebarAnimationMsg, RightSidebarAnimationMsg:
+		cmds = append(cmds, r.handleSidebarAnimation(t)...)
+		return r, batchCmds(cmds...)
+
+	case ConsoleLogsPaneAnimationMsg:
+		cmds = append(cmds, r.handleConsoleLogsPaneAnimation()...)
+		return r, batchCmds(cmds...)
+
+	case MediaPaneAnimationMsg:
+		cmds = append(cmds, r.handleMediaPaneAnimation()...)
+		return r, batchCmds(cmds...)
+
+	case MetricsGridAnimationMsg:
+		cmds = append(cmds, r.handleMetricsGridAnimation()...)
+		return r, batchCmds(cmds...)
+
+	case RunMsg, HistoryMsg, ChunkedBatchMsg, BatchedRecordsMsg:
+		cmds = append(cmds, r.dispatch(t)...)
+		return r, batchCmds(cmds...)
 
 	default:
 		cmds = append(cmds, r.dispatch(msg)...)
-		return r, tea.Batch(cmds...)
+		return r, batchCmds(cmds...)
 	}
 }
 
@@ -318,6 +346,8 @@ func (r *Run) renderMainView() string {
 
 		if layout.mediaHeight > 0 {
 			sections = append(sections, r.mediaPane.View(w, layout.mediaHeight, "", ""))
+		} else {
+			r.mediaPane.Park()
 		}
 		if layout.consoleLogsHeight > 0 {
 			r.consoleLogsPane.SetConsoleLogs(r.consoleLogs.Items())

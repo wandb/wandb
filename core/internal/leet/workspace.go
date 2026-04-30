@@ -9,6 +9,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/NimbleMarkets/ntcharts/v2/picture"
 
 	"github.com/wandb/wandb/core/internal/observability"
 )
@@ -204,20 +205,28 @@ func (w *Workspace) Init() tea.Cmd {
 	if w.heartbeatMgr != nil && w.liveChan != nil {
 		cmds = append(cmds, w.waitForLiveMsg)
 	}
+	cmds = append(cmds, w.mediaPane.Init())
 
 	return tea.Batch(cmds...)
 }
 
 func (w *Workspace) Update(msg tea.Msg) tea.Cmd {
-	switch t := msg.(type) {
+	switch msg := msg.(type) {
+	case picture.KittyFrameMsg:
+		return w.mediaPane.handleKittyFrame(msg)
+
+	case mediaPanePrepareMsg:
+		return w.mediaPane.handlePrepareMsg()
+
 	case tea.WindowSizeMsg:
-		w.handleWindowResize(t.Width, t.Height)
+		w.handleWindowResize(msg.Width, msg.Height)
+		return nil
 
 	case tea.KeyPressMsg:
-		return w.handleKeyPressMsg(t)
+		return w.handleKeyPressMsg(msg)
 
 	case tea.MouseMsg:
-		return w.handleMouse(t)
+		return w.handleMouse(msg)
 
 	case WorkspaceRunsAnimationMsg:
 		return w.handleRunsAnimation()
@@ -238,25 +247,25 @@ func (w *Workspace) Update(msg tea.Msg) tea.Cmd {
 		return w.handleSystemMetricsPaneAnimation(time.Now())
 
 	case WorkspaceRunInitMsg:
-		return w.handleWorkspaceRunInit(t)
+		return w.handleWorkspaceRunInit(msg)
 
 	case WorkspaceInitErrMsg:
-		return w.handleWorkspaceInitErr(t)
+		return w.handleWorkspaceInitErr(msg)
 
 	case WorkspaceRunDirsMsg:
-		return w.handleWorkspaceRunDirs(t)
+		return w.handleWorkspaceRunDirs(msg)
 
 	case WorkspaceRunOverviewPreloadedMsg:
-		return w.handleWorkspaceRunOverviewPreloaded(t)
+		return w.handleWorkspaceRunOverviewPreloaded(msg)
 
 	case WorkspaceChunkedBatchMsg:
-		return w.handleWorkspaceChunkedBatch(t)
+		return w.handleWorkspaceChunkedBatch(msg)
 
 	case WorkspaceBatchedRecordsMsg:
-		return w.handleWorkspaceBatchedRecords(t)
+		return w.handleWorkspaceBatchedRecords(msg)
 
 	case WorkspaceFileChangedMsg:
-		return w.handleWorkspaceFileChanged(t)
+		return w.handleWorkspaceFileChanged(msg)
 
 	case HeartbeatMsg:
 		return w.handleHeartbeat()
@@ -295,6 +304,8 @@ func (w *Workspace) View() tea.View {
 		if layout.mediaHeight > 0 {
 			sections = append(sections,
 				w.mediaPane.View(contentWidth, layout.mediaHeight, runLabel, mediaHint))
+		} else {
+			w.mediaPane.Park()
 		}
 
 		if layout.consoleLogsHeight > 0 {

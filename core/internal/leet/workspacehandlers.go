@@ -89,8 +89,8 @@ func (w *Workspace) handleKeyPressMsg(msg tea.KeyPressMsg) tea.Cmd {
 			return cmd
 		}
 	case FocusTargetMedia:
-		if w.mediaPane.HandleKey(msg) {
-			return nil
+		if handled, cmd := w.mediaPane.HandleKey(msg); handled {
+			return cmd
 		}
 	}
 

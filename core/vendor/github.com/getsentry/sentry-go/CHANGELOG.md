@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.46.1
+
+### Bug Fixes 🐛
+
+- Correctly capture request body for fasthttp and fiber. by @giortzisg in [#1284](https://github.com/getsentry/sentry-go/pull/1284)
+- (http) Avoid async transport shutdown panics by @giortzisg in [#1288](https://github.com/getsentry/sentry-go/pull/1288)
+- (httpclient) Clone request before adding trace headers by @giortzisg in [#1290](https://github.com/getsentry/sentry-go/pull/1290)
+- (scope) Use scoped client for request PII by @giortzisg in [#1289](https://github.com/getsentry/sentry-go/pull/1289)
+- Safe concurrent access for span and scope by @giortzisg in [#1285](https://github.com/getsentry/sentry-go/pull/1285)
+
 ## 0.46.0
 
 ### Breaking Changes 🛠
