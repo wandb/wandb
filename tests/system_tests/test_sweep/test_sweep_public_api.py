@@ -70,7 +70,13 @@ def test_sweep_api_expected_run_count(
         )
 
     api = Api()
-    sweep = Sweep.get(api.client, user, _project, sweep_id, query=SWEEP_QUERY)
+    sweep = Sweep.get(
+        api.client,
+        user,
+        _project,
+        sweep_id,
+        query=SWEEP_QUERY,
+    )
 
     assert sweep.expected_run_count == expected_run_count
     assert len(sweep._attrs["priorRuns"]["edges"]) == 1

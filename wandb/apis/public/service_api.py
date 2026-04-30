@@ -26,7 +26,7 @@ from wandb.sdk.mailbox.mailbox_handle import MailboxHandle
 _logger = logging.getLogger(__name__)
 
 
-def _normalize_graphql_query(query: str) -> str:
+def normalize_graphql_query(query: str) -> str:
     query = textwrap.dedent(query).strip()
     if query.startswith("#graphql"):
         query = textwrap.dedent(query.removeprefix("#graphql")).strip()
@@ -91,7 +91,7 @@ class ServiceApi:
         """Execute a GraphQL request in wandb-core."""
         request = ApiRequest(
             graphql_request=GraphQLRequest(
-                query=_normalize_graphql_query(query),
+                query=normalize_graphql_query(query),
                 variables_json=json.dumps(variables or {}),
             )
         )

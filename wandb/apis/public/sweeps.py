@@ -94,6 +94,7 @@ class Sweeps(SizedPaginator["Sweep"]):
 
         self.entity = entity
         self.project = project
+        self.service_api = client.service_api
         variables = {"project": self.project, "entity": self.entity}
         super().__init__(client, variables, per_page)
 
@@ -210,6 +211,7 @@ class Sweep(Attrs):
         self._entity = entity
         self.project = project
         self.id = sweep_id
+        self.service_api = client.service_api
         self.runs = []
 
         self.load(force=not attrs)
@@ -460,6 +462,7 @@ class Agent(Attrs):
         self._entity = entity
         self._project = project
         self._sweep_id = sweep_id
+        self.service_api = client.service_api
 
         if self._entity is None:
             raise ValueError(

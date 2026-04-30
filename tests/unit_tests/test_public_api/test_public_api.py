@@ -290,8 +290,9 @@ def test_initialize_api_uses_explicit_key(
 
 @pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
 def test_create_run_with_dictionary_config():
+    api = wandb.Api()
     run = wandb.apis.public.Run(
-        client=wandb.Api().client,
+        client=api.client,
         entity="test",
         project="test",
         run_id="test",
@@ -302,8 +303,9 @@ def test_create_run_with_dictionary_config():
 
 @pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
 def test_create_run_with_dictionary__config_not_parsable():
+    api = wandb.Api()
     run = wandb.apis.public.Run(
-        client=wandb.Api().client,
+        client=api.client,
         entity="test",
         project="test",
         run_id="test",
@@ -316,9 +318,10 @@ def test_create_run_with_dictionary__config_not_parsable():
 
 @pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
 def test_create_run_with_dictionary__throws_error():
+    api = wandb.Api()
     with pytest.raises(wandb.errors.CommError):
         wandb.apis.public.Run(
-            client=wandb.Api().client,
+            client=api.client,
             entity="test",
             project="test",
             run_id="test",

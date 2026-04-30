@@ -103,6 +103,7 @@ class Projects(RelayPaginator["ProjectFragment", "Project"]):
             type(self).QUERY = gql(GET_PROJECTS_GQL)
 
         self.entity = entity
+        self.service_api = client.service_api
         super().__init__(client, variables={"entity": entity}, per_page=per_page)
 
     @override
@@ -129,7 +130,12 @@ class Projects(RelayPaginator["ProjectFragment", "Project"]):
         return None
 
     def _convert(self, node: ProjectFragment) -> Project:
-        return Project(self.client, self.entity, node.name, node.model_dump())
+        return Project(
+            self.client,
+            self.entity,
+            node.name,
+            node.model_dump(),
+        )
 
     def __repr__(self):
         return f"<Projects {self.entity}>"
@@ -164,6 +170,7 @@ class Project(Attrs):
         self.client = client
         self.name = project
         self.entity = entity
+        self.service_api = client.service_api
 
     def _load(self) -> None:
         from requests import HTTPError
@@ -264,7 +271,12 @@ class Project(Attrs):
         Returns:
             A `Sweeps` object, which is an iterable collection of `Sweep` objects.
         """
-        return Sweeps(self.client, self.entity, self.name, per_page=per_page)
+        return Sweeps(
+            self.client,
+            self.entity,
+            self.name,
+            per_page=per_page,
+        )
 
     @property
     def id(self) -> str:

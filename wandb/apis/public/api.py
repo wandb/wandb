@@ -81,7 +81,10 @@ logger = logging.getLogger(__name__)
 
 
 class RetryingClient:
-    """A GraphQL client that retries requests on failure.
+    """Legacy GraphQL client for public API requests not yet routed through wandb-core.
+
+    New public API GraphQL calls should use `ServiceApi.execute_graphql`.
+    Delete this once all `execute()` call sites have moved to wandb-core.
 
     <!-- lazydoc-ignore-class: internal -->
     """
@@ -101,11 +104,15 @@ class RetryingClient:
         """
     )
 
-    def __init__(self, client: Client):
+    def __init__(self, client: Client, service_api: ServiceApi):
         self._server_info = None
         self._client = client
+        self._service_api = service_api
         self._execute_decorated: Callable[..., Any] | None = None
-        self.service_api: ServiceApi | None = None
+
+    @property
+    def service_api(self) -> ServiceApi:
+        return self._service_api
 
     def execute(self, *args, **kwargs):
         if self._execute_decorated is None:
@@ -222,6 +229,11 @@ class Api:
         proxies = self.settings.get("_proxies") or json.loads(
             os.environ.get("WANDB__PROXIES", "{}")
         )
+        settings = wandb_setup.singleton().settings.model_copy()
+        settings.base_url = base_url
+        settings.api_key = self.api_key or ""
+        self._service_api: ServiceApi = ServiceApi(settings=settings)
+
         self._base_client = Client(
             transport=GraphQLSession(
                 headers={
@@ -237,15 +249,13 @@ class Api:
                 proxies=proxies,
             )
         )
-        self._client = RetryingClient(self._base_client)
+        self._client = RetryingClient(self._base_client, self.service_api)
         self._sentry = wandb.analytics.sentry.Sentry(pid=os.getpid())
         self._configure_sentry()
 
-        settings = wandb_setup.singleton().settings.model_copy()
-        settings.base_url = base_url
-        settings.api_key = self.api_key or ""
-        self._service_api = ServiceApi(settings=settings)
-        self._client.service_api = self._service_api
+    @property
+    def service_api(self) -> ServiceApi:
+        return self._service_api
 
     def _load_auth(self, base_url: str) -> wbauth.Auth:
         """Load or prompt for authentication credentials."""
@@ -899,7 +909,9 @@ class Api:
                 )
         if entity not in self._projects:
             self._projects[entity] = public.Projects(
-                self.client, entity, per_page=per_page
+                self.client,
+                entity,
+                per_page=per_page,
             )
         return self._projects[entity]
 
@@ -1179,7 +1191,6 @@ class Api:
             self.client,
             entity,
             project,
-            service_api=self._service_api,
             filters=filters,
             order=order,
             per_page=per_page,
@@ -1208,7 +1219,6 @@ class Api:
                 entity,
                 project,
                 run_id,
-                service_api=self._service_api,
                 lazy=False,
             )
         return self._runs[path]
@@ -1266,7 +1276,12 @@ class Api:
         """
         entity, project, sweep_id = self._parse_path(path)
         if not self._sweeps.get(path):
-            self._sweeps[path] = public.Sweep(self.client, entity, project, sweep_id)
+            self._sweeps[path] = public.Sweep(
+                self.client,
+                entity,
+                project,
+                sweep_id,
+            )
         return self._sweeps[path]
 
     @normalize_exceptions
@@ -1876,7 +1891,7 @@ class Api:
         remaining_registries = api.registries(per_page=page_size, start=saved_cursor)
         ```
         """
-        if not self._service_api.feature_enabled(pb.ARTIFACT_REGISTRY_SEARCH):
+        if not self.service_api.feature_enabled(pb.ARTIFACT_REGISTRY_SEARCH):
             raise RuntimeError(
                 "Registry search API is not enabled on this wandb server version."
                 + " Please upgrade your server version or contact support"
@@ -1921,7 +1936,7 @@ class Api:
         registry.save()
         ```
         """
-        if not self._service_api.feature_enabled(pb.ARTIFACT_REGISTRY_SEARCH):
+        if not self.service_api.feature_enabled(pb.ARTIFACT_REGISTRY_SEARCH):
             raise RuntimeError(
                 "api.registry() is not enabled on this wandb server version."
                 + " Please upgrade your server version or contact support"
@@ -1979,7 +1994,7 @@ class Api:
         )
         ```
         """
-        if not self._service_api.feature_enabled(
+        if not self.service_api.feature_enabled(
             pb.INCLUDE_ARTIFACT_TYPES_IN_REGISTRY_CREATION,
         ):
             raise RuntimeError(
@@ -2141,12 +2156,12 @@ class Api:
         supports_event = (
             (event is None)
             or (event in ALWAYS_SUPPORTED_EVENTS)
-            or self._service_api.feature_enabled(f"AUTOMATION_EVENT_{event.value}")
+            or self.service_api.feature_enabled(f"AUTOMATION_EVENT_{event.value}")
         )
         supports_action = (
             (action is None)
             or (action in ALWAYS_SUPPORTED_ACTIONS)
-            or self._service_api.feature_enabled(f"AUTOMATION_ACTION_{action.value}")
+            or self.service_api.feature_enabled(f"AUTOMATION_ACTION_{action.value}")
         )
         return supports_event and supports_action
 
