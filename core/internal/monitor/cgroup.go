@@ -211,19 +211,14 @@ func cpuAllowedLimit(allowed, logicalCPUCount int) float64 {
 }
 
 func minPositive(a, b float64) float64 {
-	if a <= 0 {
-		if b > 0 {
-			return b
-		}
-		return 0
+	switch {
+	case a <= 0:
+		return max(b, 0)
+	case b <= 0:
+		return max(a, 0)
+	default:
+		return min(a, b)
 	}
-	if b <= 0 {
-		return a
-	}
-	if b < a {
-		return b
-	}
-	return a
 }
 
 func cgroupDir(mountPoint, mountRoot, cgroupPath string) string {
