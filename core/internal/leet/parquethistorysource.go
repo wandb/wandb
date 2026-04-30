@@ -261,7 +261,18 @@ func (s *ParquetHistorySource) Read(
 	}
 
 	if len(histories) > 0 {
-		msgs = append(msgs, concatenateHistory(histories, "TODO"))
+		msgs = append(
+			msgs,
+			concatenateHistory(
+				histories,
+				fmt.Sprintf(
+					"%s/%s/%s",
+					s.runInfo.entity,
+					s.runInfo.project,
+					s.runInfo.runId,
+				),
+			),
+		)
 	}
 
 	if !hasMore {
