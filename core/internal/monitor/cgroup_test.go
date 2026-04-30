@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -94,30 +93,6 @@ func TestCgroupV2BindMountRoot(t *testing.T) {
 	require.Equal(t, uint64(7*1024*1024*1024), current)
 	require.Equal(t, uint64(8*1024*1024*1024), limit)
 	require.InEpsilon(t, 4.0, limits.CPULimit(), 1e-9)
-}
-
-func TestCgroupMountInfoEscapedPath(t *testing.T) {
-	root := t.TempDir()
-	mountPoint := filepath.Join(root, "sys", "fs", "cg space")
-	escapedMountPoint := strings.ReplaceAll(mountPoint, " ", `\040`)
-	cgroupPath := filepath.Join(mountPoint, "kubepods", "pod123")
-
-	writeTestFile(t, testProcCgroupPath(root), "0::/kubepods/pod123\n")
-	writeTestFile(
-		t,
-		testProcMountInfoPath(root),
-		fmt.Sprintf("1 0 0:1 / %s rw,relatime - cgroup2 cgroup rw\n", escapedMountPoint),
-	)
-	writeCgroupFile(t, filepath.Join(cgroupPath, "memory.max"), fmt.Sprint(8*1024*1024*1024))
-	writeCgroupFile(t, filepath.Join(cgroupPath, "memory.current"), fmt.Sprint(7*1024*1024*1024))
-
-	limits := detectCgroupResourceLimits(testCgroupPaths(root))
-	require.NotNil(t, limits)
-
-	current, limit, ok := limits.MemoryStats()
-	require.True(t, ok)
-	require.Equal(t, uint64(7*1024*1024*1024), current)
-	require.Equal(t, uint64(8*1024*1024*1024), limit)
 }
 
 func TestCgroupV2UsesSmallestAncestorLimits(t *testing.T) {

@@ -23,23 +23,9 @@ const (
 	cgroupV2CPUMaxFile = "cpu.max"
 )
 
-var (
-	defaultCgroupPaths = cgroupPaths{
-		procRoot: procfs.DefaultMountPoint,
-	}
-
-	// /proc/<pid>/mountinfo is space-delimited. The kernel escapes space,
-	// tab, newline, and backslash in pathname fields as octal byte sequences
-	// (\040, \011, \012, \134). procfs parses the fields but leaves those
-	// path escapes in place. Use raw string literals so Go does not interpret
-	// the octal escapes before strings.NewReplacer sees them.
-	mountInfoPathUnescaper = strings.NewReplacer(
-		`\040`, " ",
-		`\011`, "\t",
-		`\012`, "\n",
-		`\134`, `\`,
-	)
-)
+var defaultCgroupPaths = cgroupPaths{
+	procRoot: procfs.DefaultMountPoint,
+}
 
 // cgroupPaths describes which procfs tree to inspect.
 //
@@ -66,7 +52,7 @@ func detectCgroupResourceLimits(paths cgroupPaths) *cgroupResourceLimits {
 	if err != nil {
 		return nil
 	}
-	if procInfo.unified == "" {
+	if procInfo.cgroupV2Path == "" {
 		return nil
 	}
 
@@ -78,7 +64,7 @@ func detectCgroupResourceLimits(paths cgroupPaths) *cgroupResourceLimits {
 		dirs = append(
 			dirs,
 			ancestorDirs(
-				cgroupDir(mount.MountPoint, mount.Root, procInfo.unified),
+				cgroupDir(mount.MountPoint, mount.Root, procInfo.cgroupV2Path),
 				mount.MountPoint,
 			)...,
 		)
@@ -103,8 +89,10 @@ func detectCgroupResourceLimits(paths cgroupPaths) *cgroupResourceLimits {
 }
 
 type procCgroupInfo struct {
-	unified    string
-	cpuAllowed int
+	// cgroupV2Path is the path from the cgroup v2 unified hierarchy entry
+	// in /proc/<pid>/cgroup. procfs exposes that entry with no controllers.
+	cgroupV2Path string
+	cpuAllowed   int
 }
 
 func readCgroupProcInfo(paths cgroupPaths) (procCgroupInfo, []*procfs.MountInfo, error) {
@@ -143,7 +131,7 @@ func readCgroupProcInfo(paths cgroupPaths) (procCgroupInfo, []*procfs.MountInfo,
 	var info procCgroupInfo
 	for _, cgroup := range cgroups {
 		if len(cgroup.Controllers) == 0 {
-			info.unified = cgroup.Path
+			info.cgroupV2Path = cgroup.Path
 			break
 		}
 	}
@@ -223,8 +211,7 @@ func minPositive(a, b float64) float64 {
 
 func cgroupDir(mountPoint, mountRoot, cgroupPath string) string {
 	rel := filepath.Clean(cgroupPath)
-	root := filepath.Clean(unescapeMountInfoPath(mountRoot))
-	mountPoint = unescapeMountInfoPath(mountPoint)
+	root := filepath.Clean(mountRoot)
 
 	if root != "/" {
 		if rel == root {
@@ -291,8 +278,4 @@ func readCgroupUint(path string) (uint64, bool) {
 
 	out, err := strconv.ParseUint(value, 10, 64)
 	return out, err == nil
-}
-
-func unescapeMountInfoPath(path string) string {
-	return mountInfoPathUnescaper.Replace(path)
 }
