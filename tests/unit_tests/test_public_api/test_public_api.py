@@ -28,7 +28,6 @@ def test_base_url_sanitization():
     assert api.settings["base_url"] == "https://wandb.corp.net"
 
 
-
 @pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
 def test_direct_specification_of_api_key():
     # test_settings has a different API key
