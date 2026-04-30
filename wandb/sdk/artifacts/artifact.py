@@ -262,8 +262,10 @@ class Artifact:
             from wandb import Api
 
             entity = self._source_entity or self._entity
-            kwargs = {"overrides": {"entity": entity}} if entity else {}
-            self._service_api = Api(**kwargs).service_api
+            if entity:
+                self._service_api = Api(overrides={"entity": entity}).service_api
+            else:
+                self._service_api = Api().service_api
         return self._service_api
 
     @classmethod
