@@ -3,6 +3,7 @@
 package leet_test
 
 import (
+	"context"
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
@@ -257,6 +258,7 @@ func TestReadRecords_ThenExit(t *testing.T) {
 		"run_display_name",
 	)
 	source, err := leet.NewParquetHistorySource(
+		context.Background(),
 		"test-entity",
 		"test-project",
 		"test-run-id",

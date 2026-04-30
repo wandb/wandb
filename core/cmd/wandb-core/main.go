@@ -310,25 +310,25 @@ func bindLeetFlags(fs *flag.FlagSet, opts *leetOptions) {
 		&opts.baseUrl,
 		"base-url",
 		"",
-		"Base URL of the W&B server to open.",
+		"Specifies the base URL of the W&B server for querying remote runs.",
 	)
 	fs.StringVar(
 		&opts.entity,
 		"entity",
 		"",
-		"Entity of the W&B run to open.",
+		"Specifies the entity who owns the run.",
 	)
 	fs.StringVar(
 		&opts.project,
 		"project",
 		"",
-		"Project of the W&B run to open.",
+		"Specifies the project the remote run belongs to.",
 	)
 	fs.StringVar(
 		&opts.runId,
 		"run-id",
 		"",
-		"Run ID of the W&B run to open.",
+		"Specifies the run ID of the remote run.",
 	)
 }
 
@@ -506,7 +506,7 @@ func runLeetWorkspace(opts *leetOptions, logger *observability.CoreLogger) int {
 
 	modelParams, err := leet.CreateModelParams(startupArgs, logger)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		logger.Error("main: failed to create model params", "error", err)
 		return exitCodeErrorArgs
 	}
 

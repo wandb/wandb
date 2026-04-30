@@ -123,7 +123,6 @@ func NewParquetHistorySource(
 	}
 
 	maxKnownStep := maxStepFromSummary(runInfo)
-	logger.Info("maxKnownStep", "maxKnownStep", maxKnownStep)
 	return &ParquetHistorySource{
 		logger:           logger,
 		ctx:              ctx,
@@ -273,10 +272,6 @@ func (s *ParquetHistorySource) Read(
 				),
 			),
 		)
-	}
-
-	if !hasMore {
-		msgs = append(msgs, FileCompleteMsg{ExitCode: 0})
 	}
 
 	if !hasMore {
