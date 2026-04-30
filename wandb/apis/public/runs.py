@@ -1622,7 +1622,7 @@ class Run(Attrs):
 
     def to_html(self, height: int = 420, hidden: bool = False) -> str:
         """Generate HTML containing an iframe displaying this run.
-        
+
         <!-- lazydoc-ignore: internal -->
         """
         url = self.url + "?jupyter=true"

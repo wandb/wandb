@@ -36,7 +36,7 @@ class DownloadHistoryResult:
 
     Args:
         paths: The paths to the downloaded history files.
-        contains_live_data: Whether the run contains live data, not yet 
+        contains_live_data: Whether the run contains live data, not yet
             exported to parquet files.
         errors: A dictionary mapping file paths to error messages for
             files that failed to download. None if all downloads succeeded.

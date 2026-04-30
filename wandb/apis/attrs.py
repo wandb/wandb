@@ -44,7 +44,7 @@ class Attrs:
 
     def to_html(self, *args, **kwargs):
         """Generate HTML for this object.
-    
+
         <!-- lazydoc-ignore: internal -->
         """
         return None

@@ -59,7 +59,7 @@ class Sweeps(SizedPaginator["Sweep"]):
         entity: The entity which owns the sweeps.
         project: The project which contains the sweeps.
         per_page: The number of sweeps to fetch per request to the API.
-    
+
     Example:
     ```python
     from wandb.apis.public import Api
@@ -434,7 +434,7 @@ class Sweep(Attrs):
 
     def to_html(self, height: int = 420, hidden: bool = False) -> str:
         """Generate HTML containing an iframe displaying this sweep.
-        
+
         <!-- lazydoc-ignore: internal -->
         """
         url = self.url + "?jupyter=true"

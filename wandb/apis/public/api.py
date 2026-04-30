@@ -166,7 +166,7 @@ class Api:
         api_key: API key to use for authentication. If not provided, the
             API key from the current environment or configuration will be
             used. Prompts for an API key if none is provided or configured
-            in the environment.            
+            in the environment.
 
     Examples:
     ```python

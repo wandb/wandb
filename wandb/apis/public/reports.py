@@ -309,7 +309,7 @@ class BetaReport(Attrs):
 
     def to_html(self, height: int = 1024, hidden: bool = False) -> str:
         """Generate HTML containing an iframe displaying this report.
-        
+
         <!-- lazydoc-ignore: internal -->
         """
         url = self.url

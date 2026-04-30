@@ -961,7 +961,7 @@ class Artifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
 
 class RunArtifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
     """An iterable collection of artifacts associated with a specific run.
-    
+
     Args:
         client: The client instance to use for querying W&B.
         run: The run for which to fetch artifacts.
