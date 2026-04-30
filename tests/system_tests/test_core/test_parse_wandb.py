@@ -39,7 +39,7 @@ def _parse_to_records(
     """Helper: run parse_wandb.parse and return parsed JSON records."""
     out = tmp_path / "output.jsonl"
     parse_wandb.parse(
-        run_file,
+        pathlib.Path(run_file),
         output=str(out),
         record_types=record_types,
         page_size=page_size,
@@ -138,7 +138,10 @@ class TestOutputFile:
     def test_output_file_created(self, run_file, tmp_path):
         out = tmp_path / "out.jsonl"
         parse_wandb.parse(
-            run_file, output=str(out), record_types=None, page_size=100
+            pathlib.Path(run_file),
+            output=str(out),
+            record_types=None,
+            page_size=100,
         )
         assert out.exists()
         assert out.stat().st_size > 0
@@ -146,7 +149,10 @@ class TestOutputFile:
     def test_output_file_contains_valid_json(self, run_file, tmp_path):
         out = tmp_path / "out.jsonl"
         parse_wandb.parse(
-            run_file, output=str(out), record_types=None, page_size=100
+            pathlib.Path(run_file),
+            output=str(out),
+            record_types=None,
+            page_size=100,
         )
         for line in out.read_text().strip().splitlines():
             json.loads(line)
@@ -160,7 +166,7 @@ class TestErrorHandling:
 
         with pytest.raises(WandbApiFailedError):
             parse_wandb.parse(
-                str(tmp_path / "nonexistent.wandb"),
+                tmp_path / "nonexistent.wandb",
                 output=str(tmp_path / "out.jsonl"),
                 record_types=None,
                 page_size=100,

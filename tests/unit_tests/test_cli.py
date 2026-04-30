@@ -12,9 +12,11 @@ from unittest import mock
 
 import pytest
 import wandb
+from wandb.apis.public.service_api import ServiceApi
 import wandb.docker
 from wandb import env
 from wandb.cli import cli
+from wandb.sdk import wandb_setup
 
 DOCKER_SHA = (
     "wandb/deepo@sha256:"
@@ -640,54 +642,34 @@ def test_purge_cache_subdirectories(runner, monkeypatch, tmp_path):
 
 def test_parse_raw_records(wandb_run_file):
     """Test RunFileParser.raw_records directly against a real run file."""
-    from wandb.proto import wandb_internal_pb2
-    from wandb.sdk.lib.run_file_parser import RunFileParser
+    from wandb.cli.parse_wandb import ParseRunFileScan
 
-    parser = RunFileParser(wandb_run_file)
-    results = list(parser.raw_records())
+    singleton = wandb_setup.singleton()
+    settings = singleton.settings.model_copy()
+    service_api = ServiceApi(settings=settings)
+
+    parser = ParseRunFileScan(service_api=service_api, path=wandb_run_file)
+    results = [rec for rec in parser]
 
     assert len(results) > 0
-    for record_type, pb in results:
-        assert isinstance(record_type, str)
-        assert isinstance(pb, wandb_internal_pb2.Record)
-
-
-def test_parse_to_json(wandb_run_file):
-    """Test RunFileParser.to_json directly against a real run file."""
-    from wandb.sdk.lib.run_file_parser import RunFileParser
-
-    parser = RunFileParser(wandb_run_file)
-    lines = list(parser.to_json())
-
-    assert len(lines) > 0
-    for line in lines:
-        parsed = json.loads(line)
-        assert "record_type" in parsed
-
-
-def test_parse_to_json_filter(wandb_run_file):
-    """Test RunFileParser.to_json record_types filter against a real run."""
-    from wandb.sdk.lib.run_file_parser import RunFileParser
-
-    parser = RunFileParser(wandb_run_file)
-    lines = list(parser.to_json(record_types=["history"]))
-
-    assert len(lines) >= 2
-    for line in lines:
-        parsed = json.loads(line)
-        assert parsed["record_type"] == "history"
+    for rec in results:
+        assert isinstance(rec["record_type"], str)
+        assert isinstance(rec["json_content"], str)
 
 
 def test_parse_empty_file_raises(tmp_path):
     """Test RunFileParser raises ValueError on an empty file."""
-    from wandb.sdk.lib.run_file_parser import RunFileParser
+    from wandb.cli.parse_wandb import ParseRunFileScan
 
     fpath = tmp_path / "empty.wandb"
     fpath.write_bytes(b"")
 
-    parser = RunFileParser(str(fpath))
+    singleton = wandb_setup.singleton()
+    settings = singleton.settings.model_copy()
+    service_api = ServiceApi(settings=settings)
+
     with pytest.raises(ValueError, match="empty or invalid"):
-        list(parser.raw_records())
+        parser = ParseRunFileScan(service_api=service_api, path=fpath)
 
 
 # ---------------------------------------------------------------------------
@@ -774,7 +756,7 @@ def test_parse_calls_service_api(tmp_path, monkeypatch):
 
     out_path = tmp_path / "output.jsonl"
     parse_wandb.parse(
-        str(dummy_file),
+        dummy_file,
         output=str(out_path),
         record_types=None,
         page_size=100,
