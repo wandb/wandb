@@ -9,6 +9,7 @@ import (
 	"github.com/Khan/genqlient/graphql"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/vektah/gqlparser/v2/gqlerror"
 
 	"github.com/wandb/wandb/core/internal/wbapi"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
@@ -81,4 +82,41 @@ func TestGraphQLHandlerReturnsGraphQLError(t *testing.T) {
 
 	require.NotNil(t, response.GetApiErrorResponse())
 	assert.Equal(t, "server unavailable", response.GetApiErrorResponse().GetMessage())
+}
+
+func TestGraphQLHandlerReturnsHTTPGraphQLErrorMessage(t *testing.T) {
+	handler := wbapi.NewGraphQLHandler(&recordingGraphQLClient{
+		err: &graphql.HTTPError{
+			StatusCode: 400,
+			Response: graphql.Response{
+				Errors: gqlerror.List{
+					{Message: "first GraphQL error"},
+					{Message: "second GraphQL error"},
+				},
+			},
+		},
+	})
+
+	response := handler.HandleRequest(context.Background(), &spb.GraphQLRequest{
+		Query: "query Viewer { viewer { id } }",
+	})
+
+	require.NotNil(t, response.GetApiErrorResponse())
+	assert.Equal(t,
+		"[first GraphQL error; second GraphQL error]",
+		response.GetApiErrorResponse().GetMessage(),
+	)
+}
+
+func TestGraphQLHandlerFallsBackForHTTPErrorWithoutGraphQLErrors(t *testing.T) {
+	handler := wbapi.NewGraphQLHandler(&recordingGraphQLClient{
+		err: &graphql.HTTPError{StatusCode: 500},
+	})
+
+	response := handler.HandleRequest(context.Background(), &spb.GraphQLRequest{
+		Query: "query Viewer { viewer { id } }",
+	})
+
+	require.NotNil(t, response.GetApiErrorResponse())
+	assert.Contains(t, response.GetApiErrorResponse().GetMessage(), "returned error 500")
 }

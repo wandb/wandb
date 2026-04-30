@@ -605,7 +605,13 @@ func (x *FeaturesResponse) GetEnabled() []ServerFeature {
 	return nil
 }
 
-// Execute a GraphQL document.
+// Execute a raw GraphQL document.
+//
+// A successful request returns GraphQLResponse with the JSON-encoded `data`
+// field from the GraphQL response. Invalid input, transport failures, and
+// non-successful HTTP status codes return ApiErrorResponse. For HTTP responses
+// that include GraphQL `errors`, ApiErrorResponse.message is derived from
+// those error messages.
 type GraphQLRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Query         string                 `protobuf:"bytes,1,opt,name=query,proto3" json:"query,omitempty"`

@@ -979,9 +979,7 @@ class Run(Attrs):
             }}
         }}
         {}
-        """.format(
-            RUN_FRAGMENT
-        )
+        """.format(RUN_FRAGMENT)
         _ = self._exec(
             mutation,
             id=self.storage_id,
@@ -1138,9 +1136,7 @@ class Run(Attrs):
                 run(name: $name) {{ {}(samples: $samples) }}
             }}
         }}
-        """.format(
-            node
-        )
+        """.format(node)
 
         response = self._exec(query, samples=samples)
         return [json.loads(line) for line in response["project"]["run"][node]]
@@ -1753,9 +1749,7 @@ class Run(Attrs):
             else:
                 raise WandbApiFailedError("Failed to download history") from e
 
-        contains_live_data = (
-            response.read_run_history_response.download_run_history_init.contains_live_data
-        )
+        contains_live_data = response.read_run_history_response.download_run_history_init.contains_live_data
         request_id = (
             response.read_run_history_response.download_run_history_init.request_id
         )

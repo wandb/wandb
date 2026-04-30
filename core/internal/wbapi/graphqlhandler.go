@@ -3,10 +3,12 @@ package wbapi
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/Khan/genqlient/graphql"
+	"github.com/vektah/gqlparser/v2/gqlerror"
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
@@ -26,8 +28,8 @@ func NewGraphQLHandler(graphqlClient graphql.Client) *GraphQLHandler {
 // vendored Python GraphQL library and onto wandb-core.
 // Once that transition is complete and the vendored code is removed, each
 // individual query should move from a Python function to generated Go code.
-// Python should then drive those generated queries and mutations through a
-// modified proto message that identifies the specific operation to invoke.
+// Python will still own the public API object model, but it should send
+// operation-specific proto requests instead of raw GraphQL documents.
 func (h *GraphQLHandler) HandleRequest(
 	ctx context.Context,
 	request *spb.GraphQLRequest,
@@ -35,6 +37,7 @@ func (h *GraphQLHandler) HandleRequest(
 	var variables map[string]any
 	if request.GetVariablesJson() != "" {
 		decoder := json.NewDecoder(strings.NewReader(request.GetVariablesJson()))
+		// Preserve integer precision when genqlient re-encodes variables.
 		decoder.UseNumber()
 		if err := decoder.Decode(&variables); err != nil {
 			return apiErrorResponse(fmt.Sprintf("decode GraphQL variables: %v", err))
@@ -48,7 +51,7 @@ func (h *GraphQLHandler) HandleRequest(
 		Variables: variables,
 	}, response)
 	if err != nil {
-		return apiErrorResponse(err.Error())
+		return apiErrorResponse(graphqlErrorMessage(err))
 	}
 
 	dataJSON := "null"
@@ -72,5 +75,40 @@ func apiErrorResponse(message string) *spb.ApiResponse {
 				Message: message,
 			},
 		},
+	}
+}
+
+func graphqlErrorMessage(err error) string {
+	var httpError *graphql.HTTPError
+	if !errors.As(err, &httpError) {
+		return err.Error()
+	}
+
+	message := graphqlErrorsMessage(httpError.Response.Errors)
+	if message == "" {
+		message = httpError.Error()
+	}
+	return message
+}
+
+func graphqlErrorsMessage(gqlErrors gqlerror.List) string {
+	switch len(gqlErrors) {
+	case 0:
+		return ""
+	case 1:
+		if gqlErrors[0] == nil || gqlErrors[0].Message == "" {
+			return "<no message>"
+		}
+		return gqlErrors[0].Message
+	default:
+		messages := make([]string, 0, len(gqlErrors))
+		for _, gqlError := range gqlErrors {
+			if gqlError == nil || gqlError.Message == "" {
+				messages = append(messages, "<no message>")
+				continue
+			}
+			messages = append(messages, gqlError.Message)
+		}
+		return fmt.Sprintf("[%s]", strings.Join(messages, "; "))
 	}
 }

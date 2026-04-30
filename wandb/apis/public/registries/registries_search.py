@@ -18,8 +18,8 @@ if TYPE_CHECKING:
     from wandb_graphql.language.ast import Document
 
     from wandb.apis.public import ArtifactCollection, RetryingClient
-    from wandb.apis.public.service_api import ServiceApi
     from wandb.apis.public.registries.registry import Registry
+    from wandb.apis.public.service_api import ServiceApi
     from wandb.sdk.artifacts._generated import (
         ArtifactMembershipFragment,
         RegistryCollectionFragment,

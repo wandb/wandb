@@ -97,7 +97,13 @@ message FeaturesResponse {
   repeated ServerFeature enabled = 1;
 }
 
-// Execute a GraphQL document.
+// Execute a raw GraphQL document.
+//
+// A successful request returns GraphQLResponse with the JSON-encoded `data`
+// field from the GraphQL response. Invalid input, transport failures, and
+// non-successful HTTP status codes return ApiErrorResponse. For HTTP responses
+// that include GraphQL `errors`, ApiErrorResponse.message is derived from
+// those error messages.
 message GraphQLRequest {
   string query = 1;
   string variables_json = 2;
