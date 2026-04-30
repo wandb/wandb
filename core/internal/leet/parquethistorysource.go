@@ -274,10 +274,6 @@ func (s *ParquetHistorySource) Read(
 		msgs = append(msgs, FileCompleteMsg{ExitCode: 0})
 	}
 
-	if !hasMore {
-		msgs = append(msgs, FileCompleteMsg{ExitCode: 0})
-	}
-
 	return ChunkedBatchMsg{
 		Msgs:     msgs,
 		HasMore:  hasMore,

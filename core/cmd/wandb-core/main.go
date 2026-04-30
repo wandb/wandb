@@ -581,7 +581,7 @@ func runLeetWorkspace(opts *leetOptions, logger *observability.CoreLogger) int {
 
 	modelParams, err := leet.CreateModelParams(startupArgs, logger)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		logger.Error("main: failed to create model params", "error", err)
 		return exitCodeErrorArgs
 	}
 
