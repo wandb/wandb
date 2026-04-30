@@ -27,6 +27,12 @@ _logger = logging.getLogger(__name__)
 
 
 def normalize_graphql_query(query: str) -> str:
+    """Normalize a GraphQL document for transport.
+
+    Strips surrounding whitespace and removes a leading ``#graphql`` marker
+    used by some editors to enable GraphQL syntax highlighting in template
+    strings.
+    """
     query = textwrap.dedent(query).strip()
     if query.startswith("#graphql"):
         query = textwrap.dedent(query.removeprefix("#graphql")).strip()
@@ -88,7 +94,27 @@ class ServiceApi:
         variables: Mapping[str, Any] | None = None,
         timeout: float | None = None,
     ) -> Any:
-        """Execute a GraphQL request in wandb-core."""
+        """Execute a GraphQL operation through the wandb-core sidecar.
+
+        The query is sent to wandb-core, which performs the network round-trip
+        against the W&B backend and returns the parsed ``data`` field of the
+        GraphQL response.
+
+        Args:
+            query: The GraphQL document to execute. A leading ``#graphql``
+                marker is stripped before transport.
+            variables: Variables for the GraphQL operation, JSON-serialized
+                on the wire.
+            timeout: Optional request timeout in seconds.
+
+        Returns:
+            The decoded ``data`` field of the GraphQL response.
+
+        Raises:
+            WandbApiFailedError: The request failed for any reason, including
+                transport errors, non-successful HTTP status codes, and GraphQL
+                ``errors`` returned by the server.
+        """
         request = ApiRequest(
             graphql_request=GraphQLRequest(
                 query=normalize_graphql_query(query),

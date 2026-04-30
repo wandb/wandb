@@ -78,6 +78,13 @@ func apiErrorResponse(message string) *spb.ApiResponse {
 	}
 }
 
+// graphqlErrorMessage returns a user-facing error message for a request
+// failure from the GraphQL client.
+//
+// genqlient's *graphql.HTTPError stringifies as the JSON-encoded response
+// body, which leaks `data` and unstructured fields into the message a user
+// would see. When the body carries GraphQL `errors`, prefer their messages;
+// otherwise fall back to the HTTPError's default rendering.
 func graphqlErrorMessage(err error) string {
 	var httpError *graphql.HTTPError
 	if !errors.As(err, &httpError) {
@@ -91,6 +98,9 @@ func graphqlErrorMessage(err error) string {
 	return message
 }
 
+// graphqlErrorsMessage joins a list of GraphQL error messages into a single
+// string. It returns an empty string for an empty list so callers can detect
+// "no GraphQL errors reported" and fall back to other error context.
 func graphqlErrorsMessage(gqlErrors gqlerror.List) string {
 	switch len(gqlErrors) {
 	case 0:
