@@ -57,7 +57,6 @@ from wandb.apis.internal import Api as InternalApi
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.paginator import SizedPaginator
 from wandb.apis.public.const import RETRY_TIMEDELTA
-from wandb.apis.public.service_api import ServiceApi
 from wandb.proto import wandb_api_pb2 as apb
 from wandb.sdk import wandb_setup
 from wandb.sdk.lib import ipython, json_util, runid
@@ -182,19 +181,6 @@ def _convert_to_dict(value: Any) -> dict[str, Any]:
     raise TypeError(f"Unable to convert {value} to a dict")
 
 
-def _service_api_for(
-    client: RetryingClient,
-    service_api: ServiceApi | None = None,
-) -> ServiceApi:
-    if service_api is not None:
-        return service_api
-    if client_service_api := getattr(client, "service_api", None):
-        return client_service_api
-
-    settings = wandb_setup.singleton().settings.model_copy()
-    return ServiceApi(settings=settings)
-
-
 class Runs(SizedPaginator["Run"]):
     """A lazy iterator of `Run` objects associated with a project and optional filter.
 
@@ -228,7 +214,6 @@ class Runs(SizedPaginator["Run"]):
         per_page: int = 50,
         include_sweeps: bool = True,
         lazy: bool = True,
-        service_api: ServiceApi | None = None,
     ):
         if not order:
             order = "+created_at"
@@ -243,7 +228,7 @@ class Runs(SizedPaginator["Run"]):
         self._sweeps: dict[str, public.Sweep] = {}
         self._include_sweeps = include_sweeps
         self._lazy = lazy
-        self._service_api = _service_api_for(client, service_api)
+        self.service_api = client.service_api
         variables = {
             "project": self.project,
             "entity": self.entity,
@@ -254,7 +239,7 @@ class Runs(SizedPaginator["Run"]):
 
     @override
     def _update_response(self) -> None:
-        self.last_response = self._service_api.execute_graphql(
+        self.last_response = self.service_api.execute_graphql(
             self.QUERY,
             self.variables,
         )
@@ -327,7 +312,6 @@ class Runs(SizedPaginator["Run"]):
                 run_response["node"],
                 include_sweeps=self._include_sweeps,
                 lazy=self._lazy,
-                service_api=self._service_api,
             )
             objs.append(run)
 
@@ -501,7 +485,6 @@ class AgentRuns(SizedPaginator["Run"]):
         total_runs: int,
         order: str = "+created_at",
         per_page: int = 50,
-        service_api: ServiceApi | None = None,
     ) -> None:
         self.QUERY = GET_AGENT_RUNS_GQL
         self.entity = entity
@@ -510,7 +493,7 @@ class AgentRuns(SizedPaginator["Run"]):
         self._agent_key = agent_key
         self.order = order
         self._sweeps: dict[str, public.Sweep] = {}
-        self._service_api = _service_api_for(client, service_api)
+        self.service_api = client.service_api
         self._total_runs = total_runs
         self.per_page = per_page
 
@@ -529,7 +512,7 @@ class AgentRuns(SizedPaginator["Run"]):
 
     @override
     def _update_response(self) -> None:
-        self.last_response = self._service_api.execute_graphql(
+        self.last_response = self.service_api.execute_graphql(
             self.QUERY,
             self.variables,
         )
@@ -596,7 +579,6 @@ class AgentRuns(SizedPaginator["Run"]):
                 node,
                 include_sweeps=False,
                 lazy=True,
-                service_api=self._service_api,
             )
             objs.append(run)
 
@@ -649,7 +631,6 @@ class Run(Attrs):
         attrs: Mapping | None = None,
         include_sweeps: bool = True,
         lazy: bool = True,
-        service_api: ServiceApi | None = None,
     ):
         """Initialize a Run object.
 
@@ -678,7 +659,7 @@ class Run(Attrs):
         self._state = _attrs.get("state", "not found")
         self.server_provides_internal_id_field: bool | None = None
         self._is_loaded: bool = False
-        self._service_api: ServiceApi = _service_api_for(client, service_api)
+        self.service_api = client.service_api
 
         self.load(force=not _attrs)
 
@@ -802,8 +783,7 @@ class Run(Attrs):
             "name": run_id,
             "state": state,
         }
-        service_api = _service_api_for(api.client, getattr(api, "_service_api", None))
-        res = service_api.execute_graphql(
+        res = api.service_api.execute_graphql(
             mutation,
             variables,
         )
@@ -824,7 +804,6 @@ class Run(Attrs):
                 "state": state,
             },
             lazy=False,  # Created runs should have full data available immediately
-            service_api=service_api,
         )
 
     def _load_with_fragment(
@@ -1027,7 +1006,7 @@ class Run(Attrs):
             "deleteArtifacts: $deleteArtifacts" if delete_artifacts else "",
         )
 
-        self._service_api.execute_graphql(
+        self.service_api.execute_graphql(
             mutation,
             {
                 "id": self.storage_id,
@@ -1064,7 +1043,7 @@ class Run(Attrs):
             """
 
         try:
-            result = self._service_api.execute_graphql(
+            result = self.service_api.execute_graphql(
                 mutation,
                 {
                     "input": {
@@ -1112,7 +1091,7 @@ class Run(Attrs):
         """Execute a query against the cloud backend."""
         variables = {"entity": self.entity, "project": self.project, "name": self.id}
         variables.update(kwargs)
-        return self._service_api.execute_graphql(query, variables)
+        return self.service_api.execute_graphql(query, variables)
 
     def _sampled_history(
         self,
@@ -1314,7 +1293,6 @@ class Run(Attrs):
             return public.HistoryScan(
                 run=self,
                 client=self.client,
-                service_api=self._service_api,
                 page_size=page_size,
                 min_step=min_step,
                 max_step=max_step,
@@ -1323,7 +1301,6 @@ class Run(Attrs):
             return public.SampledHistoryScan(
                 run=self,
                 client=self.client,
-                service_api=self._service_api,
                 keys=keys,
                 page_size=page_size,
                 min_step=min_step,
@@ -1701,7 +1678,6 @@ class Run(Attrs):
             which can be iterator over to get history records.
         """
         beta_history_scan = public.BetaHistoryScan(
-            service_api=self._service_api,
             run=self,
             min_step=min_step,
             max_step=max_step or self.lastHistoryStep + 1,
@@ -1748,7 +1724,7 @@ class Run(Attrs):
 
         response: apb.ApiResponse
         try:
-            response = self._service_api.send_api_request(api_request)
+            response = self.service_api.send_api_request(api_request)
         except WandbApiFailedError as e:
             if (
                 e.response is not None
@@ -1764,7 +1740,7 @@ class Run(Attrs):
         )
         return wandb_setup.singleton().asyncer.run(
             lambda: runhistory.wait_for_download_with_progress(
-                self._service_api,
+                self.client,
                 request_id,
                 contains_live_data,
             )

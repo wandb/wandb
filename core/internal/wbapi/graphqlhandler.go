@@ -20,6 +20,14 @@ func NewGraphQLHandler(graphqlClient graphql.Client) *GraphQLHandler {
 	return &GraphQLHandler{graphqlClient: graphqlClient}
 }
 
+// HandleRequest handles raw GraphQL requests from the public API.
+//
+// This is transitional code for moving public API requests off the old
+// vendored Python GraphQL library and onto wandb-core.
+// Once that transition is complete and the vendored code is removed, each
+// individual query should move from a Python function to generated Go code.
+// Python should then drive those generated queries and mutations through a
+// modified proto message that identifies the specific operation to invoke.
 func (h *GraphQLHandler) HandleRequest(
 	ctx context.Context,
 	request *spb.GraphQLRequest,

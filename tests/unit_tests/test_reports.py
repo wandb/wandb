@@ -67,7 +67,7 @@ def test_report_properties_missing_attributes():
         "displayName": "Test Display Name",
     }
 
-    report = BetaReport(None, attrs, "test-entity", "test-project")
+    report = BetaReport(mock.MagicMock(), attrs, "test-entity", "test-project")
 
     assert report.id == "test-id"
     assert report.display_name == "Test Display Name"
@@ -87,7 +87,7 @@ def test_report_user_property_access():
         "user": {"username": "testuser", "email": "test@example.com"},
     }
 
-    report = BetaReport(None, attrs, "test-entity", "test-project")
+    report = BetaReport(mock.MagicMock(), attrs, "test-entity", "test-project")
 
     assert report.user["username"] == "testuser"
     assert report.user["email"] == "test@example.com"
@@ -100,7 +100,7 @@ def test_report_user_property_missing():
         "id": "test-id",
     }
 
-    report = BetaReport(None, attrs, "test-entity", "test-project")
+    report = BetaReport(mock.MagicMock(), attrs, "test-entity", "test-project")
 
     assert report.user is None
 

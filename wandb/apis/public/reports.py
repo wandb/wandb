@@ -84,6 +84,7 @@ class Reports(SizedPaginator["BetaReport"]):
     ):
         self.project = project
         self.name = name
+        self.service_api = client.service_api
         variables = {
             "project": project.name,
             "entity": project.entity,
@@ -199,6 +200,7 @@ class BetaReport(Attrs):
         self.client = client
         self.project = project
         self.entity = entity
+        self.service_api = client.service_api
         self.query_generator = public.QueryGenerator()
         super().__init__(dict(attrs))
 

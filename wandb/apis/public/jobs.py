@@ -290,6 +290,7 @@ class QueuedRun:
         priority: int | None = None,
     ):
         self.client = client
+        self.service_api = client.service_api
         self._entity = entity
         self._project = project
         self._queue_name = queue_name
@@ -524,6 +525,7 @@ class RunQueue:
     ) -> None:
         self._name: str = name
         self._client = client
+        self.service_api = client.service_api
         self._entity = entity
         self._prioritization_mode = prioritization_mode
         self._access = _access
