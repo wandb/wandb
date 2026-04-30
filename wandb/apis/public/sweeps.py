@@ -54,7 +54,13 @@ if TYPE_CHECKING:
 class Sweeps(SizedPaginator["Sweep"]):
     """A lazy iterator over a collection of `Sweep` objects.
 
-    Examples:
+    Args:
+        client: The API client used to query W&B.
+        entity: The entity which owns the sweeps.
+        project: The project which contains the sweeps.
+        per_page: The number of sweeps to fetch per request to the API.
+
+    Example:
     ```python
     from wandb.apis.public import Api
 
@@ -186,14 +192,13 @@ class Sweeps(SizedPaginator["Sweep"]):
 class Sweep(Attrs):
     """The set of runs associated with the sweep.
 
-    Attributes:
-        runs (Runs): List of runs
-        id (str): Sweep ID
-        project (str): The name of the project the sweep belongs to
-        config (dict): Dictionary containing the sweep configuration
-        state (str): The state of the sweep. Can be "Finished", "Failed",
-            "Crashed", or "Running".
-        expected_run_count (int): The number of expected runs for the sweep
+    Args:
+        client: The API client used to query W&B.
+        entity: The entity which owns the sweep.
+        project: The project which contains the sweep.
+        sweep_id: The unique identifier for the sweep.
+        attrs: The attributes of the sweep, typically obtained
+            from a GraphQL response.
     """
 
     def __init__(
@@ -428,7 +433,10 @@ class Sweep(Attrs):
         ]
 
     def to_html(self, height: int = 420, hidden: bool = False) -> str:
-        """Generate HTML containing an iframe displaying this sweep."""
+        """Generate HTML containing an iframe displaying this sweep.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         url = self.url + "?jupyter=true"
         style = f"border:none;width:100%;height:{height}px;"
         prefix = ""

@@ -32,8 +32,11 @@ class User(Attrs):
     Args:
         client: The GraphQL client to use for network operations.
         attrs: A subset of the User type in the GraphQL schema.
+        api_key: An optional API key for the user, used to create a `wandb.Api`
+            instance for the user. This is required for some operations, such as
+            generating new API keys for the user.
 
-    <!-- lazydoc-ignore-init: internal -->
+    <!-- lazydoc-ignore: internal -->
     """
 
     def __init__(
@@ -69,7 +72,7 @@ class User(Attrs):
         Returns:
             A `User` object.
 
-        <!-- lazydoc-ignore-classmethod: internal -->
+        <!-- lazydoc-ignore: internal -->
         """
         from wandb.apis._generated import (
             CREATE_USER_FROM_ADMIN_GQL,

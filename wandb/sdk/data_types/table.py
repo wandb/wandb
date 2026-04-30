@@ -613,7 +613,7 @@ class Table(Media):
     def get_media_subdir(cls):
         """Get media subdirectory.
 
-        <!-- lazydoc-ignore-classmethod: internal -->
+        <!-- lazydoc-ignore: internal -->
         """
         return os.path.join("media", "table")
 
@@ -621,7 +621,7 @@ class Table(Media):
     def from_json(cls, json_obj, source_artifact: artifact.Artifact):
         """Deserialize JSON object into it's class representation.
 
-        <!-- lazydoc-ignore-classmethod: internal -->
+        <!-- lazydoc-ignore: internal -->
         """
         data = []
         column_types = None

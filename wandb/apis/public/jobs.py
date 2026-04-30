@@ -503,7 +503,7 @@ class RunQueue:
     Args:
         client: W&B API client instance.
         name: Name of the run queue
-        entity: The entity (user or team) that owns this queue
+        entity: The entity  that owns this queue
         prioritization_mode: Queue priority mode
             Can be "DISABLED" or "V0". Defaults to `None`.
         _access: Access level for the queue
@@ -751,7 +751,7 @@ class RunQueue:
         Args:
             name: The name of the run queue to create.
             resource: The resource type for execution.
-            entity: The entity (user or team) that will own the queue.
+            entity: The entity  that will own the queue.
                 Defaults to the default entity of the API client.
             prioritization_mode: The prioritization mode for the queue.
                 Can be "DISABLED" or "V0". Defaults to None.

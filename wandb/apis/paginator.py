@@ -48,18 +48,27 @@ class Paginator(Iterator[_WandbT], ABC):
     @property
     @abstractmethod
     def more(self) -> bool:
-        """Whether there are more pages to be fetched."""
+        """Whether there are more pages to be fetched.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         raise NotImplementedError
 
     @property
     @abstractmethod
     def cursor(self) -> str | None:
-        """The start cursor to use for the next fetched page."""
+        """The start cursor to use for the next fetched page.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         raise NotImplementedError
 
     @abstractmethod
     def convert_objects(self) -> Iterable[_WandbT]:
-        """Convert the last fetched response data into the iterated objects."""
+        """Convert the last fetched response data into the iterated objects.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         raise NotImplementedError
 
     def update_variables(self) -> None:
@@ -137,7 +146,7 @@ class SizedPaginator(Paginator[_WandbT], Sized, ABC):
 class RelayPaginator(Paginator[_WandbT], Generic[_NodeT, _WandbT], ABC):
     """A Paginator for GQL relay-style nodes parsed via Pydantic.
 
-    <!-- lazydoc-ignore-class: internal -->
+    <!-- lazydoc-ignore: internal -->
     """
 
     last_response: Connection[_NodeT] | None
@@ -189,7 +198,7 @@ class RelayPaginator(Paginator[_WandbT], Generic[_NodeT, _WandbT], ABC):
 class SizedRelayPaginator(RelayPaginator[_NodeT, _WandbT], Sized, ABC):
     """A Paginator for GQL nodes parsed via Pydantic, with a known total count.
 
-    <!-- lazydoc-ignore-class: internal -->
+    <!-- lazydoc-ignore: internal -->
     """
 
     last_response: Connection[_NodeT] | None

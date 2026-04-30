@@ -13,6 +13,10 @@ class Attrs:
         self._attrs = dict(attrs)
 
     def snake_to_camel(self, string):
+        """Convert snake_case string to camelCase.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         camel = "".join([i.title() for i in string.split("_")])
         return camel[0].lower() + camel[1:]
 
@@ -39,6 +43,10 @@ class Attrs:
         return True
 
     def to_html(self, *args, **kwargs):
+        """Generate HTML for this object.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         return None
 
     def __getattr__(self, name):

@@ -23,7 +23,12 @@ if TYPE_CHECKING:
 class Automations(RelayPaginator["ProjectTriggersFields", "Automation"]):
     """A lazy iterator of `Automation` objects.
 
-    <!-- lazydoc-ignore-class: internal -->
+    Args:
+        client: The client instance to use for querying W&B.
+        variables: A mapping of variables to use in the GraphQL query.
+        per_page: The number of automations to fetch per page. Default is 50.
+        start: Pagination cursor for resuming a past query, captured
+            from a previous paginator's `.cursor` attribute.
     """
 
     QUERY: Document  # Must be set per-instance

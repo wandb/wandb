@@ -83,7 +83,7 @@ logger = logging.getLogger(__name__)
 class RetryingClient:
     """A GraphQL client that retries requests on failure.
 
-    <!-- lazydoc-ignore-class: internal -->
+    <!-- lazydoc-ignore: internal -->
     """
 
     INFO_QUERY = gql(
@@ -157,6 +157,17 @@ class RetryingClient:
 class Api:
     """Used for querying the W&B server.
 
+    Args:
+        overrides: You can set `base_url` if you are
+            using a W&B server other than `https://api.wandb.ai`. You can also
+            set defaults for `entity`, `project`, and `run`.
+        timeout: HTTP timeout in seconds for API requests. If not specified,
+            the default timeout will be used.
+        api_key: API key to use for authentication. If not provided, the
+            API key from the current environment or configuration will be
+            used. Prompts for an API key if none is provided or configured
+            in the environment.
+
     Examples:
     ```python
     import wandb
@@ -173,19 +184,6 @@ class Api:
         timeout: int | None = None,
         api_key: str | None = None,
     ) -> None:
-        """Initialize the API.
-
-        Args:
-            overrides: You can set `base_url` if you are
-                using a W&B server other than `https://api.wandb.ai`. You can also
-                set defaults for `entity`, `project`, and `run`.
-            timeout: HTTP timeout in seconds for API requests. If not
-                specified, the default timeout will be used.
-            api_key: API key to use for authentication. If not provided,
-                the API key from the current environment or configuration will be used.
-                Prompts for an API key if none is provided
-                or configured in the environment.
-        """
         self.settings = InternalApi().settings()
         self.settings.update(overrides or {})
         self.settings["base_url"] = self.settings["base_url"].rstrip("/")
@@ -438,7 +436,7 @@ class Api:
         """Create a custom chart preset and return its id.
 
         Args:
-            entity: The entity (user or team) that owns the chart
+            entity: The entity that owns the chart
             name: Unique identifier for the chart preset
             display_name: Human-readable name shown in the UI
             spec_type: Type of specification. Must be "vega2" for Vega-Lite v2 specifications.

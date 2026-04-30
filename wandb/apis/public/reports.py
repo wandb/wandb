@@ -176,17 +176,12 @@ class BetaReport(Attrs):
     timestamps) and methods for retrieving associated runs,
     sections, and for rendering the report as HTML.
 
-    Attributes:
-        id (string): Unique identifier of the report.
-        display_name (string): Human-readable display name of the report.
-        name (string): The name of the report. Use `display_name` for a more user-friendly name.
-        description (string): Description of the report.
-        user (User): Dictionary containing user info (username, email) who
-            created the report.
-        spec (dict): The spec of the report.
-        url (string): The URL of the report.
-        updated_at (string): Timestamp of last update.
-        created_at (string): Timestamp when the report was created.
+    Args:
+        client: The API client instance to use for querying W&B.
+        attrs: A dictionary of report attributes, typically obtained
+            from a GraphQL response.
+        entity: The entity name for the project.
+        project: The project name for the report.
     """
 
     def __init__(
@@ -210,6 +205,7 @@ class BetaReport(Attrs):
 
     @property
     def spec(self) -> dict[str, Any]:
+        """Get the spec of the report as a dictionary."""
         return self._attrs["spec"]
 
     @property
@@ -248,34 +244,42 @@ class BetaReport(Attrs):
 
     @property
     def id(self) -> str:
+        """Get the unique identifier of the report."""
         return self._attrs.get("id")
 
     @property
     def name(self) -> str | None:
+        """Get the name of the report."""
         return self._attrs.get("name")
 
     @property
     def display_name(self) -> str | None:
+        """Get the display name of the report."""
         return self._attrs.get("displayName")
 
     @property
     def description(self) -> str | None:
+        """Get the description of the report."""
         return self._attrs.get("description")
 
     @property
     def user(self):
+        """Get the user who created the report."""
         return self._attrs.get("user")
 
     @property
     def updated_at(self):
+        """Get the timestamp of the last update."""
         return self._attrs.get("updatedAt")
 
     @property
     def created_at(self):
+        """Get the timestamp when the report was created."""
         return self._attrs.get("createdAt")
 
     @property
     def url(self) -> str | None:
+        """Get the URL of the report."""
         if (
             not self.client
             or not self.entity
@@ -304,7 +308,10 @@ class BetaReport(Attrs):
         )
 
     def to_html(self, height: int = 1024, hidden: bool = False) -> str:
-        """Generate HTML containing an iframe displaying this report."""
+        """Generate HTML containing an iframe displaying this report.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         url = self.url
         if url is None:
             return "<div>Report URL not available</div>"
@@ -323,7 +330,7 @@ class BetaReport(Attrs):
 class PythonMongoishQueryGenerator:
     """Converts Python-style query expressions to MongoDB-style queries for W&B reports.
 
-    <!-- lazydoc-ignore-class: internal -->
+    <!-- lazydoc-ignore: internal -->
     """
 
     SPACER = "----------"
@@ -539,7 +546,7 @@ class PythonMongoishQueryGenerator:
 class PanelMetricsHelper:
     """Converts Python-style query expressions to MongoDB-style queries for W&B reports.
 
-    <!-- lazydoc-ignore-class: internal -->
+    <!-- lazydoc-ignore: internal -->
     """
 
     FRONTEND_NAME_MAPPING = {

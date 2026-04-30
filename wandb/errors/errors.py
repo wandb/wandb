@@ -4,7 +4,7 @@ from __future__ import annotations
 class Error(Exception):
     """Base W&B Error.
 
-    <!-- lazydoc-ignore-class: internal -->
+    <!-- lazydoc-ignore: internal -->
     """
 
     def __init__(self, message: str, context: dict | None = None) -> None:
