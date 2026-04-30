@@ -61,13 +61,7 @@ func detectCgroupResourceLimits(paths cgroupPaths) *cgroupResourceLimits {
 		if mount.FSType != cgroupV2FSType {
 			continue
 		}
-		dirs = append(
-			dirs,
-			ancestorDirs(
-				cgroupDir(mount.MountPoint, mount.Root, procInfo.cgroupV2Path),
-				mount.MountPoint,
-			)...,
-		)
+		dirs = append(dirs, cgroupDirsForMount(mount, procInfo.cgroupV2Path)...)
 	}
 	if len(dirs) == 0 {
 		return nil
@@ -131,6 +125,8 @@ func readCgroupProcInfo(paths cgroupPaths) (procCgroupInfo, []*procfs.MountInfo,
 	var info procCgroupInfo
 	for _, cgroup := range cgroups {
 		if len(cgroup.Controllers) == 0 {
+			// Cgroup v2 has one unified hierarchy, written as "0::<path>"
+			// in /proc/<pid>/cgroup. procfs exposes it with no controllers.
 			info.cgroupV2Path = cgroup.Path
 			break
 		}
@@ -165,6 +161,11 @@ func (c *cgroupResourceLimits) CPULimit() float64 {
 	return c.cpuLimit
 }
 
+// memoryLimit returns the smallest finite memory.max and the memory.current
+// file from the same directory.
+//
+// dirs must be ordered from the process's leaf cgroup to the mount point. Ties
+// keep the first directory, so equal limits use the most specific memory.current.
 func memoryLimit(dirs []string) (currentFile string, limit uint64) {
 	for _, dir := range dirs {
 		nextLimit, ok := readCgroupUint(filepath.Join(dir, cgroupV2MemoryMaxFile))
@@ -179,6 +180,7 @@ func memoryLimit(dirs []string) (currentFile string, limit uint64) {
 	return currentFile, limit
 }
 
+// cpuQuotaLimit returns the smallest finite CPU quota found in dirs.
 func cpuQuotaLimit(dirs []string) float64 {
 	var out float64
 	for _, dir := range dirs {
@@ -192,12 +194,17 @@ func cpuQuotaLimit(dirs []string) float64 {
 }
 
 func cpuAllowedLimit(allowed, logicalCPUCount int) float64 {
-	if allowed <= 0 || logicalCPUCount <= 0 || allowed >= logicalCPUCount {
+	if allowed <= 0 {
+		return 0
+	}
+	if logicalCPUCount > 0 && allowed >= logicalCPUCount {
 		return 0
 	}
 	return float64(allowed)
 }
 
+// minPositive returns the smaller positive value. Non-positive values mean
+// "missing" and are ignored.
 func minPositive(a, b float64) float64 {
 	switch {
 	case a <= 0:
@@ -209,9 +216,20 @@ func minPositive(a, b float64) float64 {
 	}
 }
 
-func cgroupDir(mountPoint, mountRoot, cgroupPath string) string {
+// cgroupDirsForMount returns visible cgroup directories for mount, ordered from
+// the process's leaf cgroup to the mount point.
+//
+// A parent cgroup can set a tighter effective limit than the leaf. Scanning
+// visible ancestors finds that limit when the runtime exposes them; bind-mounted
+// cgroup subtrees naturally stop at the mount point.
+func cgroupDirsForMount(mount *procfs.MountInfo, cgroupPath string) []string {
+	return ancestorDirs(cgroupDir(mount, cgroupPath), mount.MountPoint)
+}
+
+// cgroupDir maps a /proc/<pid>/cgroup path to a directory under mount.
+func cgroupDir(mount *procfs.MountInfo, cgroupPath string) string {
 	rel := filepath.Clean(cgroupPath)
-	root := filepath.Clean(mountRoot)
+	root := filepath.Clean(mount.Root)
 
 	if root != "/" {
 		if rel == root {
@@ -221,9 +239,10 @@ func cgroupDir(mountPoint, mountRoot, cgroupPath string) string {
 		}
 	}
 
-	return filepath.Join(mountPoint, strings.TrimPrefix(rel, "/"))
+	return filepath.Join(mount.MountPoint, strings.TrimPrefix(rel, "/"))
 }
 
+// ancestorDirs returns dir and its parents through mountPoint, inclusive.
 func ancestorDirs(dir, mountPoint string) []string {
 	dir = filepath.Clean(dir)
 	mountPoint = filepath.Clean(mountPoint)
@@ -231,7 +250,7 @@ func ancestorDirs(dir, mountPoint string) []string {
 	var dirs []string
 	for {
 		dirs = append(dirs, dir)
-		if dir == mountPoint || dir == "." || dir == "/" {
+		if dir == mountPoint {
 			return dirs
 		}
 

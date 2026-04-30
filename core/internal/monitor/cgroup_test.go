@@ -261,6 +261,13 @@ func TestMinPositive(t *testing.T) {
 	require.Equal(t, 3.0, minPositive(3, -10))
 }
 
+func TestCPUAllowedLimit(t *testing.T) {
+	require.Zero(t, cpuAllowedLimit(0, 8))
+	require.Zero(t, cpuAllowedLimit(8, 8))
+	require.Equal(t, 2.0, cpuAllowedLimit(2, 8))
+	require.Equal(t, 2.0, cpuAllowedLimit(2, 0))
+}
+
 func testCgroupPaths(root string) cgroupPaths {
 	return cgroupPaths{procRoot: root, pid: 1, logicalCPUCount: 8}
 }

@@ -22,4 +22,4 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ### Changed
 
-- Changed CPU and memory system metric percentages in Linux containers to use cgroup v2 resource limits instead of host node totals. Set the private `x_stats_no_cgroup` setting to `True` to opt out.
+- Changed CPU and memory system metric percentages in Linux containers to use cgroup v2 resource limits instead of host node totals. Set the private `x_stats_no_cgroup` setting to `True` to opt out (@dmitryduev in https://github.com/wandb/wandb/pull/11796)
