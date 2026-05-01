@@ -668,3 +668,53 @@ def test_artifact_download_http_headers(user, monkeypatch, tmp_path):
         # Expect all requests to have been populated with the custom headers
         for req in storage_requests:
             assert custom_headers.items() <= req.headers.items()
+
+
+# ------------------------------------------------------------------------------
+# Test for error messages on invalid path / inaccessible resource.
+#
+# `Api.artifacts(...)` and other paginators in `wandb.apis.public.artifacts`
+# previously raised a generic `Unable to parse '<Class>' response data` ValueError
+# whenever the GraphQL response had a `null` at any level (which the server
+# returns with HTTP 200 for invalid path or access-denied). These tests pin down
+# specific, user-actionable messages identifying the missing path component.
+
+
+def test_artifacts_invalid_project(logged_artifact: Artifact, api: Api):
+    artifact_type = logged_artifact.type
+
+    entity = logged_artifact.entity
+    invalid_project = "nonexistent_project"
+    collection = logged_artifact.name.split(":")[0]
+    path = f"{entity}/{invalid_project}/{collection}"
+
+    expected_message = rf"{invalid_project}.*not found"
+
+    with raises(ValueError, match=expected_message):
+        list(api.artifacts(type_name=artifact_type, name=path))
+
+
+def test_artifacts_invalid_type(logged_artifact: Artifact, api: Api):
+    invalid_artifact_type = "nonexistent_type"
+
+    entity = logged_artifact.entity
+    project = logged_artifact.project
+    collection = logged_artifact.name.split(":")[0]
+    path = f"{entity}/{project}/{collection}"
+
+    expected_message = rf"{invalid_artifact_type}.*not found"
+
+    with raises(ValueError, match=expected_message):
+        list(api.artifacts(type_name=invalid_artifact_type, name=path))
+
+
+def test_project_collections_invalid_project(logged_artifact: Artifact, api: Api):
+    invalid_project_name = "nonexistent_project"
+
+    # This doesn't error because the data for the returned Project is fetched lazily.
+    project = api.project(name=invalid_project_name, entity=logged_artifact.entity)
+
+    expected_message = rf"{invalid_project_name}.*not found"
+
+    with raises(ValueError, match=expected_message):
+        list(project.collections())
