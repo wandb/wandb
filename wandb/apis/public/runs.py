@@ -983,7 +983,10 @@ class Run(Attrs):
         self.summary.update()
 
     @normalize_exceptions
-    def delete(self, delete_artifacts: bool = False) -> None:
+    def delete(
+        self,
+        delete_artifacts: bool = False,
+    ) -> None:
         """Delete the given run from the wandb backend.
 
         Args:
@@ -1001,6 +1004,7 @@ class Run(Attrs):
                     {}
                 }}) {{
                     clientMutationId
+                    numDeleted
                 }}
             }}
         """.format(
@@ -1009,13 +1013,16 @@ class Run(Attrs):
             )
         )
 
-        self.client.execute(
+        result = self.client.execute(
             mutation,
             variable_values={
                 "id": self.storage_id,
                 "deleteArtifacts": delete_artifacts,
             },
         )
+        num_deleted = result["deleteRun"]["numDeleted"]
+        if num_deleted:
+            wandb.termlog(f"Deleted {num_deleted} run(s)")
 
     def save(self) -> None:
         """Persist changes to the run object to the W&B backend."""
