@@ -27,6 +27,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 - The message format used to communicate between internal processes has slightly changed. If you use `wandb beta core`, restart the service after upgrading `wandb`, as some operations may fail if the SDK and service versions differ. (@tonyyli-wandb in https://github.com/wandb/wandb/pull/12374)
 - `wandb.sandbox` now allows GPU resource requests for sandboxes instead of rejecting `resources.gpu` client-side (@nicholaspun-wandb in https://github.com/wandb/wandb/pull/12455)
 - Registry search methods (`Api.registries()`, `.collections()`, `.versions()`) now validate filter field names, rejecting unsupported field names. (@tonyyli-wandb in https://github.com/wandb/wandb/pull/12182)
+- More informative errors are raised from `Api.artifacts()` and related artifact paginators when the artifact path is invalid or inaccessible (@tonyyli-wandb in https://github.com/wandb/wandb/pull/11813)
 
 ### Removed
 
