@@ -57,7 +57,7 @@ def _resolve_wandb_sdk_auth() -> AuthHeaders:
     if not isinstance(auth, wbauth.AuthApiKey):
         raise UsageError("wandb.sandbox currently supports only W&B user API-key auth.")
 
-    metadata: list[tuple[str, str]] = [("x-api-key", auth.api_key)]
+    metadata: list[tuple[str, str]] = [("x-wandb-api-key", auth.api_key)]
     # Both entity and project are optional.
     # entity will use the default entity user set in web UI.
     # project will use/create 'sandbox' project automatically.
