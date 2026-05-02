@@ -100,7 +100,7 @@ class Job:
             code_artifact = wandb.Artifact._from_id(
                 artifact_string,
                 self._api._client,
-                _service_api=self._api.service_api,
+                service_api=self._api.service_api,
             )
         else:
             code_artifact = self._api._artifact(name=artifact_string, type="code")
@@ -294,10 +294,10 @@ class QueuedRun:
         project_queue: str = LAUNCH_DEFAULT_PROJECT,
         priority: int | None = None,
         *,
-        _service_api: ServiceApi,
+        service_api: ServiceApi,
     ):
         self.client = client
-        self._service_api = _service_api
+        self._service_api = service_api
         self._entity = entity
         self._project = project
         self._queue_name = queue_name
@@ -483,7 +483,7 @@ class QueuedRun:
                         self.project,
                         item["associatedRunId"],
                         None,
-                        _service_api=self._service_api,
+                        service_api=self._service_api,
                     )
                     self._run_id = item["associatedRunId"]
                 except ValueError as e:
@@ -531,11 +531,11 @@ class RunQueue:
         _default_resource_config_id: int | None = None,
         _default_resource_config: dict[str, Any] | None = None,
         *,
-        _service_api: ServiceApi,
+        service_api: ServiceApi,
     ) -> None:
         self._name: str = name
         self._client = client
-        self._service_api = _service_api
+        self._service_api = service_api
         self._entity = entity
         self._prioritization_mode = prioritization_mode
         self._access = _access
@@ -745,7 +745,7 @@ class RunQueue:
                     LAUNCH_DEFAULT_PROJECT,
                     self._name,
                     item["node"]["id"],
-                    _service_api=self._service_api,
+                    service_api=self._service_api,
                 )
             )
 

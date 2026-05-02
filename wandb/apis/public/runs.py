@@ -216,7 +216,7 @@ class Runs(SizedPaginator["Run"]):
         include_sweeps: bool = True,
         lazy: bool = True,
         *,
-        _service_api: ServiceApi,
+        service_api: ServiceApi,
     ):
         if not order:
             order = "+created_at"
@@ -231,7 +231,7 @@ class Runs(SizedPaginator["Run"]):
         self._sweeps: dict[str, public.Sweep] = {}
         self._include_sweeps = include_sweeps
         self._lazy = lazy
-        self._service_api = _service_api
+        self._service_api = service_api
         variables = {
             "project": self.project,
             "entity": self.entity,
@@ -315,7 +315,7 @@ class Runs(SizedPaginator["Run"]):
                 run_response["node"],
                 include_sweeps=self._include_sweeps,
                 lazy=self._lazy,
-                _service_api=self._service_api,
+                service_api=self._service_api,
             )
             objs.append(run)
 
@@ -329,7 +329,7 @@ class Runs(SizedPaginator["Run"]):
                         self.project,
                         run.sweep_name,
                         withRuns=False,
-                        _service_api=self._service_api,
+                        service_api=self._service_api,
                     )
                     self._sweeps[run.sweep_name] = sweep
 
@@ -490,7 +490,7 @@ class AgentRuns(SizedPaginator["Run"]):
         total_runs: int,
         order: str = "+created_at",
         per_page: int = 50,
-        _service_api: ServiceApi,
+        service_api: ServiceApi,
     ) -> None:
         self.QUERY = GET_AGENT_RUNS_GQL
         self.entity = entity
@@ -499,7 +499,7 @@ class AgentRuns(SizedPaginator["Run"]):
         self._agent_key = agent_key
         self.order = order
         self._sweeps: dict[str, public.Sweep] = {}
-        self._service_api = _service_api
+        self._service_api = service_api
         self._total_runs = total_runs
         self.per_page = per_page
 
@@ -585,7 +585,7 @@ class AgentRuns(SizedPaginator["Run"]):
                 node,
                 include_sweeps=False,
                 lazy=True,
-                _service_api=self._service_api,
+                service_api=self._service_api,
             )
             objs.append(run)
 
@@ -639,7 +639,7 @@ class Run(Attrs):
         include_sweeps: bool = True,
         lazy: bool = True,
         *,
-        _service_api: ServiceApi,
+        service_api: ServiceApi,
     ):
         """Initialize a Run object.
 
@@ -668,7 +668,7 @@ class Run(Attrs):
         self._state = _attrs.get("state", "not found")
         self.server_provides_internal_id_field: bool | None = None
         self._is_loaded: bool = False
-        self._service_api = _service_api
+        self._service_api = service_api
 
         self.load(force=not _attrs)
 
@@ -813,7 +813,7 @@ class Run(Attrs):
                 "state": state,
             },
             lazy=False,  # Created runs should have full data available immediately
-            _service_api=api.service_api,
+            service_api=api.service_api,
         )
 
     def _load_with_fragment(
@@ -855,7 +855,7 @@ class Run(Attrs):
                     self.project,
                     self.sweep_name,
                     withRuns=False,
-                    _service_api=self._service_api,
+                    service_api=self._service_api,
                 )
 
         if not self._is_loaded or force:
@@ -906,7 +906,7 @@ class Run(Attrs):
                 self.project,
                 self._attrs["sweepName"],
                 withRuns=False,
-                _service_api=self._service_api,
+                service_api=self._service_api,
             )
 
         config_user, config_raw = {}, {}
@@ -1305,7 +1305,7 @@ class Run(Attrs):
             return public.HistoryScan(
                 run=self,
                 client=self.client,
-                _service_api=self._service_api,
+                service_api=self._service_api,
                 page_size=page_size,
                 min_step=min_step,
                 max_step=max_step,
@@ -1314,7 +1314,7 @@ class Run(Attrs):
             return public.SampledHistoryScan(
                 run=self,
                 client=self.client,
-                _service_api=self._service_api,
+                service_api=self._service_api,
                 keys=keys,
                 page_size=page_size,
                 min_step=min_step,
@@ -1693,7 +1693,7 @@ class Run(Attrs):
         """
         beta_history_scan = public.BetaHistoryScan(
             run=self,
-            _service_api=self._service_api,
+            service_api=self._service_api,
             min_step=min_step,
             max_step=max_step or self.lastHistoryStep + 1,
             keys=keys,

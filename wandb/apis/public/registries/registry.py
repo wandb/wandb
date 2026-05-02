@@ -53,10 +53,10 @@ class Registry:
         name: str,
         attrs: RegistryFragment | None = None,
         *,
-        _service_api: ServiceApi | None = None,
+        service_api: ServiceApi | None = None,
     ):
         self.client = client
-        self._service_api = _service_api
+        self._service_api = service_api
 
         if attrs is None:
             # FIXME: This is awkward and bypasses validation which seems shaky.
@@ -210,7 +210,7 @@ class Registry:
             collection_filter=filter,
             per_page=per_page,
             start=start,
-            _service_api=self._service_api,
+            service_api=self._service_api,
         )
 
     @tracked
@@ -229,7 +229,7 @@ class Registry:
             artifact_filter=filter,
             per_page=per_page,
             start=start,
-            _service_api=self._service_api,
+            service_api=self._service_api,
         )
 
     @classmethod
@@ -243,7 +243,7 @@ class Registry:
         description: str | None = None,
         artifact_types: list[str] | None = None,
         *,
-        _service_api: ServiceApi | None = None,
+        service_api: ServiceApi | None = None,
     ) -> Self:
         """Create a new registry.
 
@@ -305,7 +305,7 @@ class Registry:
             entity=org_entity,
             name=name,
             attrs=registry_project,
-            _service_api=_service_api,
+            service_api=service_api,
         )
 
     @tracked

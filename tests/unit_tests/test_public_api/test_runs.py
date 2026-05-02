@@ -24,7 +24,7 @@ def test_create_run_with_string_attrs(field, value, expected):
         project="test",
         run_id="test",
         attrs={field: value},
-        _service_api=api.service_api,
+        service_api=api.service_api,
     )
     assert getattr(run, field) == expected
 
@@ -48,7 +48,7 @@ def test_create_run_with_dictionary_attrs_already_parsed(field, value):
             project="test",
             run_id="test",
             attrs={field: value},
-            _service_api=api.service_api,
+            service_api=api.service_api,
         )
         assert getattr(run, field) == value
 
@@ -75,7 +75,7 @@ def test_create_run_with_dictionary__throws_type_error(field, value):
                 attrs={
                     field: value,
                 },
-                _service_api=api.service_api,
+                service_api=api.service_api,
             )
 
 
@@ -98,7 +98,7 @@ def test_create_run_with_control_characters(field, value, expected):
             project="test",
             run_id="test",
             attrs={field: value},
-            _service_api=api.service_api,
+            service_api=api.service_api,
         )
         assert getattr(run, field) == expected
 
@@ -161,7 +161,7 @@ def test_lazy_run_config_triggers_full_load():
         run_id="run-abc123",
         attrs=dict(lightweight),
         lazy=True,
-        _service_api=service_api,
+        service_api=service_api,
     )
 
     assert run._lazy is True
@@ -190,7 +190,7 @@ def test_lazy_run_user_accessible_without_full_load():
         run_id="run-abc123",
         attrs=dict(lightweight),
         lazy=True,
-        _service_api=service_api,
+        service_api=service_api,
     )
 
     assert run._full_data_loaded is False

@@ -259,13 +259,13 @@ class Artifact:
 
     def _get_service_api(self) -> ServiceApi:
         if self._service_api is None:
-            from wandb import Api
+            from wandb.apis.public.service_api import ServiceApi
 
+            settings = wandb_setup.singleton().settings.model_copy()
             entity = self._source_entity or self._entity
             if entity:
-                self._service_api = Api(overrides={"entity": entity}).service_api
-            else:
-                self._service_api = Api().service_api
+                settings.entity = entity
+            self._service_api = ServiceApi(settings=settings)
         return self._service_api
 
     @classmethod
@@ -274,7 +274,7 @@ class Artifact:
         artifact_id: str,
         client: RetryingClient,
         *,
-        _service_api: ServiceApi | None = None,
+        service_api: ServiceApi | None = None,
     ) -> Artifact | None:
         from ._generated import ARTIFACT_BY_ID_GQL, ArtifactByID
         from ._validators import FullArtifactPath
@@ -299,7 +299,7 @@ class Artifact:
         name = f"{src_collection.name}:v{artifact.version_index}"
 
         path = FullArtifactPath(prefix=entity_name, project=project_name, name=name)
-        return cls._from_attrs(path, artifact, client, _service_api=_service_api)
+        return cls._from_attrs(path, artifact, client, service_api=service_api)
 
     @classmethod
     def _membership_from_name(
@@ -307,7 +307,7 @@ class Artifact:
         *,
         path: FullArtifactPath,
         client: RetryingClient,
-        _service_api: ServiceApi | None = None,
+        service_api: ServiceApi | None = None,
     ) -> Artifact:
         from ._generated import (
             ARTIFACT_MEMBERSHIP_BY_NAME_GQL,
@@ -338,7 +338,7 @@ class Artifact:
             membership,
             target=path,
             client=client,
-            _service_api=_service_api,
+            service_api=service_api,
         )
 
     @classmethod
@@ -347,7 +347,7 @@ class Artifact:
         *,
         path: FullArtifactPath,
         client: RetryingClient,
-        _service_api: ServiceApi | None = None,
+        service_api: ServiceApi | None = None,
         enable_tracking: bool = False,
     ) -> Artifact:
         from ._generated import ARTIFACT_BY_NAME_GQL, ArtifactByName
@@ -356,7 +356,7 @@ class Artifact:
             return cls._membership_from_name(
                 path=path,
                 client=client,
-                _service_api=_service_api,
+                service_api=service_api,
             )
 
         gql_vars = {
@@ -378,7 +378,7 @@ class Artifact:
             msg = f"artifact {path.name!r} not found in {entity_project!r}"
             raise ValueError(msg)
 
-        return cls._from_attrs(path, artifact, client, _service_api=_service_api)
+        return cls._from_attrs(path, artifact, client, service_api=service_api)
 
     @classmethod
     def _from_membership(
@@ -386,7 +386,7 @@ class Artifact:
         membership: ArtifactMembershipFragment,
         target: FullArtifactPath,
         client: RetryingClient,
-        _service_api: ServiceApi | None = None,
+        service_api: ServiceApi | None = None,
     ) -> Artifact:
         from ._validators import is_artifact_registry_project
 
@@ -419,7 +419,7 @@ class Artifact:
             artifact,
             client,
             membership=membership,
-            _service_api=_service_api,
+            service_api=service_api,
         )
 
     @classmethod
@@ -429,14 +429,14 @@ class Artifact:
         src_art: ArtifactFragment,
         client: RetryingClient,
         *,
-        _service_api: ServiceApi | None = None,
+        service_api: ServiceApi | None = None,
         # aliases/version_index are taken from the membership, if given
         membership: ArtifactMembershipFragment | None = None,
     ) -> Artifact:
         # Placeholder is required to skip validation.
         artifact = cls("placeholder", type="placeholder")
         artifact._client = client
-        artifact._service_api = _service_api
+        artifact._service_api = service_api
         artifact._entity = path.prefix
         artifact._project = path.project
         artifact._name = path.name
@@ -677,7 +677,7 @@ class Artifact:
             self.project,
             base_name,
             self.type,
-            _service_api=self._service_api,
+            service_api=self._service_api,
         )
 
     @property
@@ -734,7 +734,7 @@ class Artifact:
             self.source_project,
             base_name,
             self.type,
-            _service_api=self._service_api,
+            service_api=self._service_api,
         )
 
     @property
@@ -785,7 +785,7 @@ class Artifact:
                 self._source_artifact = self._from_name(
                     path=path,
                     client=client,
-                    _service_api=self._get_service_api(),
+                    service_api=self._get_service_api(),
                 )
             except Exception as e:
                 raise ValueError(
@@ -1925,7 +1925,7 @@ class Artifact:
             artifact = self._from_id(
                 referenced_id,
                 client=self._client,
-                _service_api=self._get_service_api(),
+                service_api=self._get_service_api(),
             )
             assert artifact is not None
             return artifact.get(uri_from_path(entry.ref))
@@ -2549,7 +2549,7 @@ class Artifact:
                 membership,
                 target=target,
                 client=client,
-                _service_api=self._get_service_api(),
+                service_api=self._get_service_api(),
             )
 
         # Old behavior, which requires re-fetching the linked artifact to return it
@@ -2629,7 +2629,7 @@ class Artifact:
                     proj.entity.name,
                     proj.name,
                     run.name,
-                    _service_api=service_api,
+                    service_api=service_api,
                 )
                 for run in run_nodes
                 if (proj := run.project)
@@ -2667,7 +2667,7 @@ class Artifact:
                 project.entity.name,
                 project.name,
                 name,
-                _service_api=self._get_service_api(),
+                service_api=self._get_service_api(),
             )
         return None
 

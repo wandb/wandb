@@ -431,7 +431,7 @@ class Api:
             _access="PROJECT",
             _default_resource_config_id=config_id,
             _default_resource_config=config,
-            _service_api=self.service_api,
+            service_api=self.service_api,
         )
 
     def create_custom_chart(
@@ -620,7 +620,7 @@ class Api:
             client=self.client,
             name=name,
             entity=entity,
-            _service_api=self.service_api,
+            service_api=self.service_api,
         )
 
     def create_user(self, email: str, admin: bool | None = False) -> User:
@@ -773,7 +773,7 @@ class Api:
                     },
                     parts[0],
                     parts[1],
-                    _service_api=self.service_api,
+                    service_api=self.service_api,
                 )
         raise wandb.Error(
             "Invalid path, should be TEAM/PROJECT/TYPE/ID where TYPE is runs, sweeps, or reports"
@@ -910,7 +910,7 @@ class Api:
                 self.client,
                 entity,
                 per_page=per_page,
-                _service_api=self.service_api,
+                service_api=self.service_api,
             )
         return self._projects[entity]
 
@@ -941,7 +941,7 @@ class Api:
                 self.client, non_org_entity=settings_entity, org_or_entity=org
             )
         return public.Project(
-            self.client, entity, name, {}, _service_api=self.service_api
+            self.client, entity, name, {}, service_api=self.service_api
         )
 
     def reports(
@@ -987,11 +987,11 @@ class Api:
                     entity,
                     project,
                     {},
-                    _service_api=self.service_api,
+                    service_api=self.service_api,
                 ),
                 name=name,
                 per_page=per_page,
-                _service_api=self.service_api,
+                service_api=self.service_api,
             )
         return self._reports[key]
 
@@ -1204,7 +1204,7 @@ class Api:
             per_page=per_page,
             include_sweeps=include_sweeps,
             lazy=lazy,
-            _service_api=self.service_api,
+            service_api=self.service_api,
         )
         return self._runs[key]
 
@@ -1229,7 +1229,7 @@ class Api:
                 project,
                 run_id,
                 lazy=False,
-                _service_api=self.service_api,
+                service_api=self.service_api,
             )
         return self._runs[path]
 
@@ -1254,7 +1254,7 @@ class Api:
             run_queue_item_id,
             project_queue=project_queue,
             priority=priority,
-            _service_api=self.service_api,
+            service_api=self.service_api,
         )
 
     def run_queue(
@@ -1270,7 +1270,7 @@ class Api:
             self.client,
             name,
             entity,
-            _service_api=self.service_api,
+            service_api=self.service_api,
         )
 
     @normalize_exceptions
@@ -1293,7 +1293,7 @@ class Api:
                 entity,
                 project,
                 sweep_id,
-                _service_api=self.service_api,
+                service_api=self.service_api,
             )
         return self._sweeps[path]
 
@@ -1327,7 +1327,7 @@ class Api:
                 self.client, non_org_entity=settings_entity, org_or_entity=org
             )
         return ArtifactTypes(
-            self.client, entity, project, start=start, _service_api=self.service_api
+            self.client, entity, project, start=start, service_api=self.service_api
         )
 
     @normalize_exceptions
@@ -1355,7 +1355,7 @@ class Api:
                 self.client, non_org_entity=settings_entity, org_or_entity=org
             )
         return ArtifactType(
-            self.client, entity, project, type_name, _service_api=self.service_api
+            self.client, entity, project, type_name, service_api=self.service_api
         )
 
     @normalize_exceptions
@@ -1398,7 +1398,7 @@ class Api:
             type_name,
             per_page=per_page,
             start=start,
-            _service_api=self.service_api,
+            service_api=self.service_api,
         )
 
     @normalize_exceptions
@@ -1461,7 +1461,7 @@ class Api:
             project,
             collection_name,
             type_name,
-            _service_api=self.service_api,
+            service_api=self.service_api,
         )
 
     @normalize_exceptions
@@ -1564,7 +1564,7 @@ class Api:
             per_page=per_page,
             tags=tags,
             start=start,
-            _service_api=self.service_api,
+            service_api=self.service_api,
         )
 
     @normalize_exceptions
@@ -1605,7 +1605,7 @@ class Api:
         artifact = Artifact._from_name(
             path=path,
             client=self.client,
-            _service_api=self.service_api,
+            service_api=self.service_api,
             enable_tracking=enable_tracking,
         )
         if type is not None and artifact.type != type:
@@ -1937,7 +1937,7 @@ class Api:
             filter=filter,
             per_page=per_page,
             start=start,
-            _service_api=self.service_api,
+            service_api=self.service_api,
         )
 
     @tracked
@@ -1982,7 +1982,7 @@ class Api:
             organization,
             org_entity,
             name,
-            _service_api=self.service_api,
+            service_api=self.service_api,
         )
         registry.load()
         return registry
@@ -2061,7 +2061,7 @@ class Api:
             visibility,
             description,
             artifact_types,
-            _service_api=self.service_api,
+            service_api=self.service_api,
         )
 
     @tracked

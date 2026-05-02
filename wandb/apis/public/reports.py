@@ -83,11 +83,11 @@ class Reports(SizedPaginator["BetaReport"]):
         entity: str | None = None,
         per_page: int = 50,
         *,
-        _service_api: ServiceApi,
+        service_api: ServiceApi,
     ):
         self.project = project
         self.name = name
-        self._service_api = _service_api
+        self._service_api = service_api
         variables = {
             "project": project.name,
             "entity": project.entity,
@@ -165,7 +165,7 @@ class Reports(SizedPaginator["BetaReport"]):
                 r["node"],
                 entity=self.project.entity,
                 project=self.project.name,
-                _service_api=self._service_api,
+                service_api=self._service_api,
             )
             for r in edges
         ]
@@ -201,12 +201,12 @@ class BetaReport(Attrs):
         entity: str | None = None,
         project: str | None = None,
         *,
-        _service_api: ServiceApi,
+        service_api: ServiceApi,
     ):
         self.client = client
         self.project = project
         self.entity = entity
-        self._service_api = _service_api
+        self._service_api = service_api
         self.query_generator = public.QueryGenerator()
         super().__init__(dict(attrs))
 
@@ -252,7 +252,7 @@ class BetaReport(Attrs):
             filters=filters,
             order=order,
             per_page=per_page,
-            _service_api=self._service_api,
+            service_api=self._service_api,
         )
 
     @property

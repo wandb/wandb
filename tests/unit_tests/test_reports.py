@@ -48,7 +48,7 @@ def test_report_properties_full():
         attrs,
         "test-entity",
         "test-project",
-        _service_api=mock.MagicMock(),
+        service_api=mock.MagicMock(),
     )
 
     assert report.id == "test-id"
@@ -78,7 +78,7 @@ def test_report_properties_missing_attributes():
         attrs,
         "test-entity",
         "test-project",
-        _service_api=mock.MagicMock(),
+        service_api=mock.MagicMock(),
     )
 
     assert report.id == "test-id"
@@ -104,7 +104,7 @@ def test_report_user_property_access():
         attrs,
         "test-entity",
         "test-project",
-        _service_api=mock.MagicMock(),
+        service_api=mock.MagicMock(),
     )
 
     assert report.user["username"] == "testuser"
@@ -123,7 +123,7 @@ def test_report_user_property_missing():
         attrs,
         "test-entity",
         "test-project",
-        _service_api=mock.MagicMock(),
+        service_api=mock.MagicMock(),
     )
 
     assert report.user is None
@@ -147,7 +147,7 @@ def test_report_url_creation():
         attrs,
         test_entity,
         test_project,
-        _service_api=mock.MagicMock(),
+        service_api=mock.MagicMock(),
     )
 
     assert (

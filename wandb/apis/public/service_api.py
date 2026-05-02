@@ -3,7 +3,6 @@ from __future__ import annotations
 import contextlib
 import json
 import logging
-import textwrap
 import uuid
 import weakref
 from collections.abc import Mapping
@@ -24,19 +23,6 @@ from wandb.sdk.lib.service.service_connection import (
 from wandb.sdk.mailbox.mailbox_handle import MailboxHandle
 
 _logger = logging.getLogger(__name__)
-
-
-def normalize_graphql_query(query: str) -> str:
-    """Normalize a GraphQL document for transport.
-
-    Strips surrounding whitespace and removes a leading ``#graphql`` marker
-    used by some editors to enable GraphQL syntax highlighting in template
-    strings.
-    """
-    query = textwrap.dedent(query).strip()
-    if query.startswith("#graphql"):
-        query = textwrap.dedent(query.removeprefix("#graphql")).strip()
-    return query
 
 
 def _cleanup(connection: ServiceConnection | None, api_id: str) -> None:
@@ -101,11 +87,11 @@ class ServiceApi:
         GraphQL response.
 
         Args:
-            query: The GraphQL document to execute. A leading ``#graphql``
-                marker is stripped before transport.
+            query: The GraphQL document to execute.
             variables: Variables for the GraphQL operation, JSON-serialized
                 on the wire.
-            timeout: Optional request timeout in seconds.
+            timeout: Optional timeout in seconds for waiting on wandb-core.
+                On timeout, the request is cancelled on a best-effort basis.
 
         Returns:
             The decoded ``data`` field of the GraphQL response.
@@ -117,7 +103,7 @@ class ServiceApi:
         """
         request = ApiRequest(
             graphql_request=GraphQLRequest(
-                query=normalize_graphql_query(query),
+                query=query,
                 variables_json=json.dumps(variables or {}),
             )
         )

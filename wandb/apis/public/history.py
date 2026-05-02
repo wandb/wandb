@@ -42,7 +42,7 @@ class BetaHistoryScan(Iterator[_RowDict]):
         self,
         run: runs.Run,
         *,
-        _service_api: ServiceApi,
+        service_api: ServiceApi,
         min_step: int,
         max_step: int,
         keys: list[str] | None = None,
@@ -54,7 +54,7 @@ class BetaHistoryScan(Iterator[_RowDict]):
         self._stop_step = max_step
         self.keys = keys
         self.page_size = page_size
-        self._service_api = _service_api
+        self._service_api = service_api
 
         # Tell wandb-core to initialize resources to scan the run's history.
         scan_run_history_init = pb.ScanRunHistoryInit(
@@ -187,7 +187,7 @@ class HistoryScan(Iterator[_RowDict]):
         max_step: int,
         page_size: int = 1_000,
         *,
-        _service_api: ServiceApi,
+        service_api: ServiceApi,
     ):
         """Initialize a HistoryScan instance.
 
@@ -207,7 +207,7 @@ class HistoryScan(Iterator[_RowDict]):
         self.page_offset = min_step  # minStep for next page
         self.scan_offset = 0  # index within current page of rows
         self.rows: list[_RowDict] = []  # current page of rows
-        self._service_api = _service_api
+        self._service_api = service_api
 
     @property
     def max_step(self) -> int:
@@ -282,7 +282,7 @@ class SampledHistoryScan(Iterator[_RowDict]):
         max_step: int,
         page_size: int = 1_000,
         *,
-        _service_api: ServiceApi,
+        service_api: ServiceApi,
     ):
         """Initialize a SampledHistoryScan instance.
 
@@ -304,7 +304,7 @@ class SampledHistoryScan(Iterator[_RowDict]):
         self.page_offset = min_step  # minStep for next page
         self.scan_offset = 0  # index within current page of rows
         self.rows: list[_RowDict] = []  # current page of rows
-        self._service_api = _service_api
+        self._service_api = service_api
 
     @property
     def max_step(self) -> int:

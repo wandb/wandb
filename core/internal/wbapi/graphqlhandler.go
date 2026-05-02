@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/Khan/genqlient/graphql"
-	"github.com/vektah/gqlparser/v2/gqlerror"
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
@@ -91,33 +90,23 @@ func graphqlErrorMessage(err error) string {
 		return err.Error()
 	}
 
-	message := graphqlErrorsMessage(httpError.Response.Errors)
+	message := httpGraphQLErrorMessage(httpError)
 	if message == "" {
-		message = httpError.Error()
+		return "<no message>"
 	}
 	return message
 }
 
-// graphqlErrorsMessage joins a list of GraphQL error messages into a single
-// string. It returns an empty string for an empty list so callers can detect
-// "no GraphQL errors reported" and fall back to other error context.
-func graphqlErrorsMessage(gqlErrors gqlerror.List) string {
-	switch len(gqlErrors) {
-	case 0:
-		return ""
-	case 1:
-		if gqlErrors[0] == nil || gqlErrors[0].Message == "" {
-			return "<no message>"
-		}
-		return gqlErrors[0].Message
+func httpGraphQLErrorMessage(httpError *graphql.HTTPError) string {
+	switch {
+	case len(httpError.Response.Errors) == 0:
+		return httpError.Error()
+	case len(httpError.Response.Errors) == 1:
+		return httpError.Response.Errors[0].Message
 	default:
-		messages := make([]string, 0, len(gqlErrors))
-		for _, gqlError := range gqlErrors {
-			if gqlError == nil || gqlError.Message == "" {
-				messages = append(messages, "<no message>")
-				continue
-			}
-			messages = append(messages, gqlError.Message)
+		messages := make([]string, 0, len(httpError.Response.Errors))
+		for _, err := range httpError.Response.Errors {
+			messages = append(messages, err.Message)
 		}
 		return fmt.Sprintf("[%s]", strings.Join(messages, "; "))
 	}

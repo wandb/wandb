@@ -1433,7 +1433,7 @@ class Run:
             artifact = Artifact._from_id(
                 val["id"],
                 public_api.client,
-                _service_api=public_api.service_api,
+                service_api=public_api.service_api,
             )
 
             assert artifact
@@ -1452,7 +1452,7 @@ class Run:
                 artifact = Artifact._from_id(
                     artifact_string,
                     public_api._client,
-                    _service_api=public_api.service_api,
+                    service_api=public_api.service_api,
                 )
             else:
                 artifact = public_api._artifact(name=artifact_string)
