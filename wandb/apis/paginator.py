@@ -8,10 +8,8 @@ import wandb
 from wandb._strutils import nameof
 
 if TYPE_CHECKING:
-    from wandb_graphql.language.ast import Document
-
     from wandb._pydantic import Connection
-    from wandb.apis.public.api import RetryingClient
+    from wandb.apis.public.service_api import ServiceApi
 
 _WandbT = TypeVar("_WandbT")
 """Generic type variable for a W&B object."""
@@ -23,11 +21,11 @@ _NodeT = TypeVar("_NodeT")
 class Paginator(Iterator[_WandbT], ABC):
     """An iterator for paginated objects from GraphQL requests."""
 
-    QUERY: Document | ClassVar[Document | None]
+    QUERY: str | ClassVar[str | None]
 
     def __init__(
         self,
-        client: RetryingClient,
+        client: ServiceApi,
         variables: Mapping[str, Any],
         per_page: int = 50,  # We don't allow unbounded paging
     ):
@@ -150,7 +148,7 @@ class RelayPaginator(Paginator[_WandbT], Generic[_NodeT, _WandbT], ABC):
 
     def __init__(
         self,
-        client: RetryingClient,
+        client: ServiceApi,
         variables: Mapping[str, Any],
         per_page: int = 50,
         start: str | None = None,

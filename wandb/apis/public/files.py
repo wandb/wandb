@@ -38,9 +38,6 @@ import io
 import os
 from typing import TYPE_CHECKING, Any, Callable
 
-from wandb_gql import gql
-from wandb_gql.client import RetryError
-
 import wandb
 from wandb._strutils import nameof
 from wandb.apis.attrs import Attrs
@@ -53,9 +50,8 @@ from wandb.sdk.lib import retry
 from wandb.util import POW_2_BYTES, download_file_from_url, no_retry_auth, to_human_size
 
 if TYPE_CHECKING:
-    from wandb_graphql.language.ast import Document
-
-    from wandb.apis.public import Api, RetryingClient
+    from wandb.apis.public import Api
+    from wandb.apis.public.service_api import ServiceApi
 
 FILE_FRAGMENT = """fragment RunFilesFragment on Run {
     files(names: $fileNames, after: $fileCursor, first: $fileLimit, pattern: $pattern) {
@@ -95,7 +91,7 @@ class Files(SizedPaginator["File"]):
     run = Api().run("entity/project/run-id")
 
     # Create a Files object to iterate over files in the run
-    files = Files(api.client, run)
+    files = Files(api.service_api, run)
 
     # Iterate over files
     for file in files:
@@ -108,10 +104,9 @@ class Files(SizedPaginator["File"]):
     ```
     """
 
-    def _get_query(self) -> Document:
+    def _get_query(self) -> str:
         """Generate query dynamically based on server capabilities."""
-        return gql(
-            f"""#graphql
+        return f"""#graphql
             query RunFiles($project: String!, $entity: String!, $name: String!, $fileCursor: String,
                 $fileLimit: Int = 50, $fileNames: [String] = [], $upload: Boolean = false, $pattern: String) {{
                 project(name: $project, entityName: $entity) {{
@@ -124,11 +119,10 @@ class Files(SizedPaginator["File"]):
             }}
             {FILE_FRAGMENT}
             """
-        )
 
     def __init__(
         self,
-        client: RetryingClient,
+        service_api: ServiceApi,
         run: Run,
         names: list[str] | None = None,
         per_page: int = 50,
@@ -140,7 +134,7 @@ class Files(SizedPaginator["File"]):
         Files are retrieved in pages from the W&B server as needed.
 
         Args:
-            client: The run object that contains the files
+            service_api: The service API instance to use for querying W&B.
             run: The run object that contains the files
             names (list, optional): A list of file names to filter the files
             per_page (int, optional): The number of files to fetch per page
@@ -165,7 +159,7 @@ class Files(SizedPaginator["File"]):
             "upload": upload,
             "pattern": pattern,
         }
-        super().__init__(client, variables, per_page)
+        super().__init__(service_api, variables, per_page)
 
     def _update_response(self) -> None:
         """Fetch and store the response data for the next page using dynamic query."""
@@ -272,7 +266,7 @@ class File(Attrs):
     - path_uri (str): path to file in the bucket, currently only available for S3 objects and reference files
 
     Args:
-        client: The run object that contains the file
+        service_api: The service API instance to use for querying W&B.
         attrs (dict): A dictionary of attributes that define the file
         run: The run object that contains the file
 
@@ -281,11 +275,11 @@ class File(Attrs):
 
     def __init__(
         self,
-        client: RetryingClient,
+        service_api: ServiceApi,
         attrs: dict[str, Any],
         run: Run | None = None,
     ):
-        self.client = client
+        self.client = service_api
         self._attrs = attrs
         self.run = run
         self._download_decorated: Callable[..., Any] | None = None
@@ -327,7 +321,7 @@ class File(Attrs):
         @retry.retriable(
             retry_timedelta=RETRY_TIMEDELTA,
             check_retry_fn=no_retry_auth,
-            retryable_exceptions=(RetryError, requests.RequestException),
+            retryable_exceptions=(requests.RequestException,),
         )
         def _impl(
             root: str = ".",
@@ -388,7 +382,7 @@ class File(Attrs):
             "projectId": self.run._project_internal_id,
         }
 
-        mutation = gql("""
+        mutation = """
             mutation deleteFiles($files: [ID!]!, $projectId: Int) {
                 deleteFiles(input: {
                     files: $files
@@ -397,7 +391,7 @@ class File(Attrs):
                     success
                 }
             }
-        """)
+        """
 
         self.client.execute(
             mutation,

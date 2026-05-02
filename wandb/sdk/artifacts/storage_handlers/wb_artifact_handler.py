@@ -69,7 +69,7 @@ class WBArtifactHandler(StorageHandler):
         artifact_id = hex_to_b64_id(parsed.netloc)
         artifact_file_path = str(parsed.path).removeprefix("/")
 
-        dep_artifact = Artifact._from_id(artifact_id, self.client.client)
+        dep_artifact = Artifact._from_id(artifact_id, self.client.service_api)
         assert dep_artifact is not None
         link_target_path: URIStr | FilePathStr
         if local:
@@ -107,7 +107,7 @@ class WBArtifactHandler(StorageHandler):
             artifact_id = hex_to_b64_id(parsed.netloc)
             artifact_file_path = parsed.path.removeprefix("/")
 
-            target_artifact = Artifact._from_id(artifact_id, self.client.client)
+            target_artifact = Artifact._from_id(artifact_id, self.client.service_api)
             assert target_artifact is not None
 
             entry = target_artifact.manifest.get_entry_by_path(artifact_file_path)

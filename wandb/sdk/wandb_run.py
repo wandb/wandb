@@ -1429,7 +1429,10 @@ class Run:
         if _is_artifact_version_weave_dict(val):
             assert isinstance(val, dict)
             public_api = self._public_api()
-            artifact = public_api._artifact_from_id(val["id"])
+            artifact = Artifact._from_id(
+                val["id"],
+                public_api.service_api,
+            )
 
             assert artifact
             return self.use_artifact(artifact)
@@ -1444,7 +1447,10 @@ class Run:
             else:
                 public_api = self._public_api()
             if is_id:
-                artifact = public_api._artifact_from_id(artifact_string)
+                artifact = Artifact._from_id(
+                    artifact_string,
+                    public_api.service_api,
+                )
             else:
                 artifact = public_api._artifact(name=artifact_string)
             # in the future we'll need to support using artifacts from
@@ -3427,7 +3433,7 @@ class Run:
             entity = public_api.settings["entity"]
             project = public_api.settings["project"]
             expected_type = Artifact._expected_type(
-                entity, project, artifact.name, public_api.client
+                entity, project, artifact.name, public_api.service_api
             )
         except requests.exceptions.RequestException:
             # Just return early if there is a network error. This is

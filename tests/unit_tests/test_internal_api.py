@@ -772,9 +772,12 @@ ENABLED_FEATURE_RESPONSE = {
 
 @pytest.fixture
 def mock_client(mocker: MockerFixture):
-    mock = mocker.patch("wandb.sdk.internal.internal_api.Client")
-    mock.return_value = mocker.Mock()
-    yield mock.return_value
+    mock = mocker.Mock()
+    mocker.patch(
+        "wandb.sdk.internal.internal_api.Api._new_service_api",
+        return_value=mock,
+    )
+    yield mock
 
 
 @pytest.fixture
@@ -966,7 +969,7 @@ def test_construct_use_artifact_query_without_entity_project():
 
 
 def test_construct_use_artifact_query_without_used_as():
-    # Test when server doesn't support usedAs field
+    # Test when no use_as value is provided.
     api = internal.InternalApi()
     api.settings = Mock(side_effect=lambda x: "default-" + x)
 
@@ -982,13 +985,13 @@ def test_construct_use_artifact_query_without_used_as():
         project_name="test-project",
         run_name="test-run",
         artifact_id="test-artifact-id",
-        use_as="test-use-as",
+        use_as=None,
         artifact_entity_name="test-artifact-entity",
         artifact_project_name="test-artifact-project",
     )
     query_str = str(query)
 
-    # Verify usedAs is still in variables but not in query
+    # Verify usedAs is still in variables but not in query.
     assert "usedAs" in variables
     assert "usedAs:" not in query_str
 
@@ -1031,7 +1034,7 @@ class TestJWTAuth:
         )
 
         fetch_mock.assert_not_called()
-        assert api.client.transport.session.auth == ("api", "a" * 40)
+        assert api.request_auth == ("api", "a" * 40)
 
     def test_access_token_returns_none_without_token_file(self):
         api = internal.InternalApi(environ={})

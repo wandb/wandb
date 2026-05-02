@@ -2,7 +2,6 @@ import pytest
 import wandb
 from wandb import Api
 from wandb.sdk.internal.internal_api import Api as InternalApi
-from wandb_gql import gql
 
 from .test_wandb_sweep import (
     SWEEP_CONFIG_BAYES,
@@ -13,8 +12,7 @@ from .test_wandb_sweep import (
     VALID_SWEEP_CONFIGS_MINIMAL,
 )
 
-SWEEP_QUERY = gql(
-    """
+SWEEP_QUERY = """
 query Sweep($project: String, $entity: String, $name: String!) {
     project(name: $project, entityName: $entity) {
         sweep(sweepName: $name) {
@@ -36,7 +34,6 @@ query Sweep($project: String, $entity: String, $name: String!) {
     }
 }
 """
-)
 
 
 @pytest.mark.parametrize(
@@ -69,7 +66,8 @@ def test_sweep_api_expected_run_count(
         )
 
     api = Api()
-    sweep = api._get_sweep(
+    sweep = Sweep.get(
+        api.service_api,
         user,
         _project,
         sweep_id,
