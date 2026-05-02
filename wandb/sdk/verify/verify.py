@@ -13,7 +13,6 @@ from typing import Any, Callable
 
 import click
 import requests
-from wandb_gql import gql
 
 import wandb
 from wandb.sdk.artifacts.artifact import Artifact
@@ -422,8 +421,7 @@ def check_large_post() -> bool:
 
     username = getpass.getuser()
     failed_test_strings = []
-    query = gql(
-        """
+    query = """
         query Project($entity: String!, $name: String!, $runName: String!, $desc: String!){
             project(entityName: $entity, name: $name) {
                 run(name: $runName, desc: $desc) {
@@ -433,7 +431,6 @@ def check_large_post() -> bool:
             }
         }
         """
-    )
     public_api = wandb.Api()
     client = public_api._base_client
 

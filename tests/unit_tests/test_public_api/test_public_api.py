@@ -6,14 +6,15 @@ from unittest.mock import MagicMock
 import pytest
 import wandb
 from pytest_mock import MockerFixture
-from requests import HTTPError
 from wandb import Api
 from wandb.apis import internal
 from wandb.apis._generated import ProjectFragment, UserFragment
 from wandb.errors import UsageError
+from wandb.proto import wandb_api_pb2 as apb
 from wandb.sdk import wandb_login
 from wandb.sdk.artifacts.artifact_download_logger import ArtifactDownloadLogger
 from wandb.sdk.lib import wbauth
+from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 
 
 def test_api_auto_login_no_tty():
@@ -218,11 +219,9 @@ def test_artifact_download_logger():
             termlog.assert_not_called()
 
 
-def test_create_custom_chart(monkeypatch):
+def test_create_custom_chart():
     _api = internal.Api()
     _api.api.gql = MagicMock(return_value={"createCustomChart": {"chart": {"id": "1"}}})
-    mock_gql = MagicMock(return_value="test-gql-resp")
-    monkeypatch.setattr(wandb.sdk.internal.internal_api, "gql", mock_gql)
 
     # Test with uppercase access (as would be passed from public API)
     kwargs = {
@@ -236,17 +235,17 @@ def test_create_custom_chart(monkeypatch):
 
     resp = _api.create_custom_chart(**kwargs)
     assert resp == {"chart": {"id": "1"}}
-    _api.api.gql.assert_called_once_with(
-        "test-gql-resp",
-        {
-            "entity": "test-entity",
-            "name": "chart",
-            "displayName": "Chart",
-            "type": "vega2",
-            "access": "PRIVATE",
-            "spec": json.dumps({}),
-        },
-    )
+    _api.api.gql.assert_called_once()
+    query, variables = _api.api.gql.call_args.args
+    assert "mutation CreateCustomChart" in query
+    assert variables == {
+        "entity": "test-entity",
+        "name": "chart",
+        "displayName": "Chart",
+        "type": "vega2",
+        "access": "PRIVATE",
+        "spec": json.dumps({}),
+    }
 
 
 def test_initialize_api_authenticates(
@@ -292,12 +291,11 @@ def test_initialize_api_uses_explicit_key(
 def test_create_run_with_dictionary_config():
     api = wandb.Api()
     run = wandb.apis.public.Run(
-        client=api.client,
+        service_api=api.service_api,
         entity="test",
         project="test",
         run_id="test",
         attrs={"config": '{"test": "test"}'},
-        _service_api=api.service_api,
     )
     assert run.config == {"test": "test"}
 
@@ -306,14 +304,13 @@ def test_create_run_with_dictionary_config():
 def test_create_run_with_dictionary__config_not_parsable():
     api = wandb.Api()
     run = wandb.apis.public.Run(
-        client=api.client,
+        service_api=api.service_api,
         entity="test",
         project="test",
         run_id="test",
         attrs={
             "config": {"test": "test"},
         },
-        _service_api=api.service_api,
     )
     assert run.config == {"test": "test"}
 
@@ -323,14 +320,13 @@ def test_create_run_with_dictionary__throws_error():
     api = wandb.Api()
     with pytest.raises(wandb.errors.CommError):
         wandb.apis.public.Run(
-            client=api.client,
+            service_api=api.service_api,
             entity="test",
             project="test",
             run_id="test",
             attrs={
                 "config": 1,
             },
-            _service_api=api.service_api,
         )
 
 
@@ -360,13 +356,12 @@ def test_project_id_lazy_load(monkeypatch):
             ).model_dump(),
         }
     )
-    monkeypatch.setattr(wandb.apis.public.api.RetryingClient, "execute", mock_execute)
+    monkeypatch.setattr(wandb.apis.public.api.ServiceApi, "execute", mock_execute)
     project = wandb.apis.public.Project(
-        client=api.client,
+        service_api=api.service_api,
         entity="test-entity",
         project="test-project",
         attrs={},
-        _service_api=api.service_api,
     )
 
     assert project.id == "123"
@@ -379,14 +374,16 @@ def test_project_id_lazy_load(monkeypatch):
 @pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
 def test_project_load__raises_error(monkeypatch):
     api = wandb.Api()
-    mock_execute = MagicMock(side_effect=HTTPError(response=MagicMock(status_code=404)))
-    monkeypatch.setattr(wandb.apis.public.api.RetryingClient, "execute", mock_execute)
+    error_response = apb.ApiErrorResponse(message="returned error 404: not found")
+    mock_execute = MagicMock(
+        side_effect=WandbApiFailedError(error_response.message, error_response)
+    )
+    monkeypatch.setattr(wandb.apis.public.api.ServiceApi, "execute", mock_execute)
     project = wandb.apis.public.Project(
-        client=api.client,
+        service_api=api.service_api,
         entity="test-entity",
         project="test-project",
         attrs={},
-        _service_api=api.service_api,
     )
 
     with pytest.raises(ValueError):
@@ -394,8 +391,8 @@ def test_project_load__raises_error(monkeypatch):
 
 
 @pytest.mark.usefixtures("skip_verify_login")
-def test_api_uses_as_requests_auth(mocker: MockerFixture):
-    """Test that Api() calls as_requests_auth() on the auth object."""
+def test_api_does_not_use_requests_auth(mocker: MockerFixture):
+    """Test that Api() does not build requests auth for the service API."""
     mock_auth = mocker.Mock(spec=wbauth.Auth)
     mock_auth.host = wbauth.HostUrl("https://api.wandb.ai")
     mock_auth.as_requests_auth = mocker.Mock(return_value=mocker.Mock())
@@ -404,4 +401,4 @@ def test_api_uses_as_requests_auth(mocker: MockerFixture):
 
     Api()
 
-    mock_auth.as_requests_auth.assert_called_once()
+    mock_auth.as_requests_auth.assert_not_called()

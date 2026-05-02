@@ -3,12 +3,10 @@ from textwrap import dedent
 import pytest
 from wandb.apis.public.utils import (
     fetch_org_from_settings_or_entity,
-    gql_compat,
     parse_org_from_registry_path,
 )
 from wandb.sdk.internal.internal_api import _OrgNames
-from wandb_gql import gql
-from wandb_graphql import print_ast
+from wandb.sdk.lib.graphql_compat import gql_compat
 
 
 @pytest.mark.parametrize(
@@ -104,9 +102,7 @@ def test_multiple_orgs_raises_error(mock_fetch_orgs_and_org_entities_from_entity
 
 def normalize_gql_str(gql_str: str) -> str:
     """Test helper to normalize a GraphQL string for consistent comparison and easier diffing."""
-    normalized_str = print_ast(gql(gql_str))
-    # handle whitespace consistently for easier diffing
-    return "\n".join(filter(str.strip, normalized_str.splitlines()))
+    return "\n".join(line.strip() for line in gql_str.splitlines() if line.strip())
 
 
 def test_gql_compat():
@@ -196,7 +192,7 @@ def test_gql_compat():
     # Normalize the expected and actual query strings for consistent comparison
     orig_query_str = normalize_gql_str(orig_query_str)
     expected_query_str = normalize_gql_str(expected_query_str)
-    compat_query_str = normalize_gql_str(print_ast(compat_query))
+    compat_query_str = normalize_gql_str(compat_query)
 
     assert compat_query_str == expected_query_str
     assert compat_query_str != orig_query_str
@@ -256,7 +252,7 @@ def test_gql_compat_omits_unused_fragments():
     # Omit RemovedFragment by its fragment (spread) name
     compat_query = gql_compat(orig_query_str, omit_fragments={"RemovedFragment"})
 
-    compat_query_str = normalize_gql_str(print_ast(compat_query))
+    compat_query_str = normalize_gql_str(compat_query)
     expected_query_str = normalize_gql_str(expected_query_str)
 
     assert compat_query_str != orig_query_str
@@ -265,7 +261,7 @@ def test_gql_compat_omits_unused_fragments():
     # Omit RemovedFragment by its _parent_ field name
     compat_query = gql_compat(orig_query_str, omit_fields={"removedParentField"})
 
-    compat_query_str = normalize_gql_str(print_ast(compat_query))
+    compat_query_str = normalize_gql_str(compat_query)
     expected_query_str = normalize_gql_str(expected_query_str)
 
     assert compat_query_str != orig_query_str
@@ -325,7 +321,7 @@ def test_gql_compat_rename_fields():
     # Normalize the query strings for consistent comparison
     orig_query_str = normalize_gql_str(orig_query_str)
     expected_query_str = normalize_gql_str(expected_query_str)
-    compat_query_str = normalize_gql_str(print_ast(compat_query))
+    compat_query_str = normalize_gql_str(compat_query)
 
     assert compat_query_str == expected_query_str
     assert compat_query_str != orig_query_str

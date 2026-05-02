@@ -2,12 +2,9 @@
 
 from __future__ import annotations
 
-import ast
 import sys
 from functools import wraps
 from typing import Callable, TypeVar
-
-from wandb_gql.client import RetryError
 
 from wandb import env
 from wandb.errors import CommError, Error
@@ -44,26 +41,6 @@ def normalize_exceptions(func: _F) -> _F:
 
             raise CommError(message, error)
 
-        except RetryError as err:
-            if (
-                "response" in dir(err.last_exception)
-                and err.last_exception.response is not None
-            ):
-                try:
-                    message = err.last_exception.response.json().get(
-                        "errors", [{"message": message}]
-                    )[0]["message"]
-                except ValueError:
-                    message = err.last_exception.response.text
-            else:
-                message = err.last_exception
-
-            if env.is_debug():
-                raise err.last_exception.with_traceback(sys.exc_info()[2])
-            else:
-                raise CommError(message, err.last_exception).with_traceback(
-                    sys.exc_info()[2]
-                )
         except Error:
             raise
         except Exception as err:
@@ -73,6 +50,8 @@ def normalize_exceptions(func: _F) -> _F:
             else:
                 payload = err
             if str(payload).startswith("{"):
+                import ast
+
                 message = ast.literal_eval(str(payload))["message"]
             else:
                 message = str(err)

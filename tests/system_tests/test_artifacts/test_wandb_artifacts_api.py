@@ -497,8 +497,7 @@ def test_artifact_enable_tracking_flag(user: str, api: Api, mocker):
 
     from_name_spy.assert_called_once_with(
         path=artifact_path_obj,
-        client=api.client,
-        _service_api=api.service_api,
+        service_api=api.service_api,
         enable_tracking=True,
     )
 
@@ -508,8 +507,7 @@ def test_artifact_enable_tracking_flag(user: str, api: Api, mocker):
 
     from_name_spy.assert_called_once_with(
         path=artifact_path_obj,
-        client=api.client,
-        _service_api=api.service_api,
+        service_api=api.service_api,
         enable_tracking=False,
     )
 

@@ -1432,8 +1432,7 @@ class Run:
             public_api = self._public_api()
             artifact = Artifact._from_id(
                 val["id"],
-                public_api.client,
-                _service_api=public_api.service_api,
+                public_api.service_api,
             )
 
             assert artifact
@@ -1451,8 +1450,7 @@ class Run:
             if is_id:
                 artifact = Artifact._from_id(
                     artifact_string,
-                    public_api._client,
-                    _service_api=public_api.service_api,
+                    public_api.service_api,
                 )
             else:
                 artifact = public_api._artifact(name=artifact_string)
@@ -3436,7 +3434,7 @@ class Run:
             entity = public_api.settings["entity"]
             project = public_api.settings["project"]
             expected_type = Artifact._expected_type(
-                entity, project, artifact.name, public_api.client
+                entity, project, artifact.name, public_api.service_api
             )
         except requests.exceptions.RequestException:
             # Just return early if there is a network error. This is

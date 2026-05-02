@@ -68,7 +68,6 @@ if TYPE_CHECKING:
     import polars as pl
     from typing_extensions import Self
 
-    from wandb.apis.public import RetryingClient
     from wandb.apis.public.service_api import ServiceApi
     from wandb.old.summary import HTTPSummary
 
@@ -190,7 +189,7 @@ class Runs(SizedPaginator["Run"]):
     This is generally used indirectly using the `Api.runs` namespace.
 
     Args:
-        client: (`wandb.apis.public.RetryingClient`) The API client to use
+        service_api: (`wandb.apis.public.ServiceApi`) The service API to use
             for requests.
         entity: (str) The entity (username or team) that owns the project.
         project: (str) The name of the project to fetch runs from.
@@ -207,7 +206,7 @@ class Runs(SizedPaginator["Run"]):
 
     def __init__(
         self,
-        client: RetryingClient,
+        service_api: ServiceApi,
         entity: str,
         project: str,
         filters: dict[str, Any] | None = None,
@@ -215,8 +214,6 @@ class Runs(SizedPaginator["Run"]):
         per_page: int = 50,
         include_sweeps: bool = True,
         lazy: bool = True,
-        *,
-        _service_api: ServiceApi,
     ):
         if not order:
             order = "+created_at"
@@ -231,14 +228,14 @@ class Runs(SizedPaginator["Run"]):
         self._sweeps: dict[str, public.Sweep] = {}
         self._include_sweeps = include_sweeps
         self._lazy = lazy
-        self._service_api = _service_api
+        self._service_api = service_api
         variables = {
             "project": self.project,
             "entity": self.entity,
             "order": self.order,
             "filters": json.dumps(self.filters),
         }
-        super().__init__(client, variables, per_page)
+        super().__init__(service_api, variables, per_page)
 
     @override
     def _update_response(self) -> None:
@@ -308,14 +305,13 @@ class Runs(SizedPaginator["Run"]):
         edges = runs_data.get("edges") or []
         for run_response in edges:
             run = Run(
-                self.client,
+                self._service_api,
                 self.entity,
                 self.project,
                 run_response["node"]["name"],
                 run_response["node"],
                 include_sweeps=self._include_sweeps,
                 lazy=self._lazy,
-                _service_api=self._service_api,
             )
             objs.append(run)
 
@@ -324,12 +320,11 @@ class Runs(SizedPaginator["Run"]):
                     sweep = self._sweeps[run.sweep_name]
                 else:
                     sweep = public.Sweep.get(
-                        self.client,
+                        self._service_api,
                         self.entity,
                         self.project,
                         run.sweep_name,
                         withRuns=False,
-                        _service_api=self._service_api,
                     )
                     self._sweeps[run.sweep_name] = sweep
 
@@ -481,7 +476,7 @@ class AgentRuns(SizedPaginator["Run"]):
 
     def __init__(
         self,
-        client: RetryingClient,
+        service_api: ServiceApi,
         entity: str,
         project: str,
         sweep_id: str,
@@ -490,7 +485,6 @@ class AgentRuns(SizedPaginator["Run"]):
         total_runs: int,
         order: str = "+created_at",
         per_page: int = 50,
-        _service_api: ServiceApi,
     ) -> None:
         self.QUERY = GET_AGENT_RUNS_GQL
         self.entity = entity
@@ -499,7 +493,7 @@ class AgentRuns(SizedPaginator["Run"]):
         self._agent_key = agent_key
         self.order = order
         self._sweeps: dict[str, public.Sweep] = {}
-        self._service_api = _service_api
+        self._service_api = service_api
         self._total_runs = total_runs
         self.per_page = per_page
 
@@ -514,7 +508,7 @@ class AgentRuns(SizedPaginator["Run"]):
             "first": self.per_page,
             "last": None,
         }
-        super().__init__(client, variables, per_page)
+        super().__init__(service_api, variables, per_page)
 
     @override
     def _update_response(self) -> None:
@@ -578,14 +572,13 @@ class AgentRuns(SizedPaginator["Run"]):
         for edge in self._agent_runs_connection().edges:
             node = edge.node.model_dump(by_alias=True)
             run = Run(
-                self.client,
+                self._service_api,
                 self.entity,
                 self.project,
                 node["name"],
                 node,
                 include_sweeps=False,
                 lazy=True,
-                _service_api=self._service_api,
             )
             objs.append(run)
 
@@ -631,15 +624,13 @@ class Run(Attrs):
 
     def __init__(
         self,
-        client: RetryingClient,
+        service_api: ServiceApi,
         entity: str,
         project: str,
         run_id: str,
         attrs: Mapping | None = None,
         include_sweeps: bool = True,
         lazy: bool = True,
-        *,
-        _service_api: ServiceApi,
     ):
         """Initialize a Run object.
 
@@ -648,7 +639,7 @@ class Run(Attrs):
         """
         _attrs = attrs or {}
         super().__init__(dict(_attrs))
-        self.client = client
+        self.client = service_api
         self._entity = entity
         self.project = project
         self._files = {}
@@ -668,7 +659,7 @@ class Run(Attrs):
         self._state = _attrs.get("state", "not found")
         self.server_provides_internal_id_field: bool | None = None
         self._is_loaded: bool = False
-        self._service_api = _service_api
+        self._service_api = service_api
 
         self.load(force=not _attrs)
 
@@ -798,7 +789,7 @@ class Run(Attrs):
         )
         res = res["upsertBucket"]["bucket"]
         return cls(
-            api.client,
+            api.service_api,
             res["project"]["entity"]["name"],
             res["project"]["name"],
             res["name"],
@@ -813,7 +804,6 @@ class Run(Attrs):
                 "state": state,
             },
             lazy=False,  # Created runs should have full data available immediately
-            _service_api=api.service_api,
         )
 
     def _load_with_fragment(
@@ -844,18 +834,17 @@ class Run(Attrs):
 
             self._state = self._attrs["state"]
             if self._attrs.get("user"):
-                self.user = public.User(self.client, self._attrs["user"])
+                self.user = public.User(self._service_api, self._attrs["user"])
 
             if self._include_sweeps and self.sweep_name and not self.sweep:
                 # There may be a lot of runs. Don't bother pulling them all
                 # just for the sake of this one.
                 self.sweep = public.Sweep.get(
-                    self.client,
+                    self._service_api,
                     self.entity,
                     self.project,
                     self.sweep_name,
                     withRuns=False,
-                    _service_api=self._service_api,
                 )
 
         if not self._is_loaded or force:
@@ -901,12 +890,11 @@ class Run(Attrs):
         if self._include_sweeps and self._attrs.get("sweepName") and not self.sweep:
             # There may be a lot of runs. Don't bother pulling them all
             self.sweep = public.Sweep.get(
-                self.client,
+                self._service_api,
                 self.entity,
                 self.project,
                 self._attrs["sweepName"],
                 withRuns=False,
-                _service_api=self._service_api,
             )
 
         config_user, config_raw = {}, {}
@@ -929,7 +917,7 @@ class Run(Attrs):
             self._attrs["rawconfig"] = config_raw
 
         if "user" in self._attrs:
-            self.user = public.User(self.client, self._attrs["user"])
+            self.user = public.User(self._service_api, self._attrs["user"])
 
         return self._attrs
 
@@ -1165,7 +1153,7 @@ class Run(Attrs):
             A `Files` object, which is an iterator over `File` objects.
         """
         return public.Files(
-            self.client,
+            self._service_api,
             self,
             names or [],
             pattern=pattern,
@@ -1182,7 +1170,7 @@ class Run(Attrs):
         Returns:
             A `File` matching the name argument.
         """
-        return public.Files(self.client, self, [name])[0]
+        return public.Files(self._service_api, self, [name])[0]
 
     @normalize_exceptions
     def upload_file(self, path: str, root: str = ".") -> public.File:
@@ -1208,7 +1196,7 @@ class Run(Attrs):
         upload_path = util.make_file_path_upload_safe(name)
         with open(os.path.join(root, name), "rb") as f:
             api.push({LogicalPath(upload_path): f})
-        return public.Files(self.client, self, [name])[0]
+        return public.Files(self._service_api, self, [name])[0]
 
     @normalize_exceptions
     def history(
@@ -1303,18 +1291,16 @@ class Run(Attrs):
             max_step = last_step + 1
         if keys is None:
             return public.HistoryScan(
+                self._service_api,
                 run=self,
-                client=self.client,
-                _service_api=self._service_api,
                 page_size=page_size,
                 min_step=min_step,
                 max_step=max_step,
             )
         else:
             return public.SampledHistoryScan(
+                self._service_api,
                 run=self,
-                client=self.client,
-                _service_api=self._service_api,
                 keys=keys,
                 page_size=page_size,
                 min_step=min_step,
@@ -1357,7 +1343,9 @@ class Run(Attrs):
         ```
 
         """
-        return public.RunArtifacts(self.client, self, mode="logged", per_page=per_page)
+        return public.RunArtifacts(
+            self._service_api, self, mode="logged", per_page=per_page
+        )
 
     @normalize_exceptions
     def used_artifacts(self, per_page: int = 100) -> public.RunArtifacts:
@@ -1388,7 +1376,9 @@ class Run(Attrs):
         test_artifact
         ```
         """
-        return public.RunArtifacts(self.client, self, mode="used", per_page=per_page)
+        return public.RunArtifacts(
+            self._service_api, self, mode="used", per_page=per_page
+        )
 
     @normalize_exceptions
     def use_artifact(
@@ -1608,10 +1598,10 @@ class Run(Attrs):
         if self._metadata is None:
             try:
                 f = self.file("wandb-metadata.json")
-                session = self.client._client.transport.session
-                response = session.get(f.url, timeout=5)
-                response.raise_for_status()
-                contents = response.content
+                contents = util.download_file_into_memory(
+                    f.url,
+                    api_key=self._service_api.api_key,
+                )
                 self._metadata = json_util.loads(contents)
             except:  # noqa: E722
                 # file doesn't exist, or can't be downloaded, or can't be parsed
@@ -1693,7 +1683,7 @@ class Run(Attrs):
         """
         beta_history_scan = public.BetaHistoryScan(
             run=self,
-            _service_api=self._service_api,
+            service_api=self._service_api,
             min_step=min_step,
             max_step=max_step or self.lastHistoryStep + 1,
             keys=keys,

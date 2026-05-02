@@ -11,12 +11,9 @@ import threading
 import fastapi
 from typing_extensions import Any, TypeAlias, override
 
-# Matches queries containing a line in one of the following forms:
-#   mutation OpName(
-#   mutation OpName{
-#   query OpName(
-#   query OpName{
-_GQL_OPNAME_RE = re.compile(r"(?m)^(mutation|query)\s+(\w+)\s*[\(\{]")
+# Matches queries containing an operation line, ignoring whitespace and
+# GraphQL comments that may precede it.
+_GQL_OPNAME_RE = re.compile(r"(?m)^\s*(?:#.*\n\s*)*(mutation|query)\s+(\w+)\s*[\(\{]")
 
 
 # NOTE: In Python 3.12+, this would be done with a `type` statement.

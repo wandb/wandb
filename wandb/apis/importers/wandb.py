@@ -22,7 +22,6 @@ import requests
 import urllib3
 import wandb_workspaces.reports.v1 as wr
 import yaml
-from wandb_gql import gql
 from wandb_workspaces.reports.v1 import Report
 
 import wandb
@@ -1496,8 +1495,7 @@ def _get_run_or_dummy_from_art(art: Artifact, api=None):
     if run is not None:
         return run
 
-    query = gql(
-        """
+    query = """
         query ArtifactCreatedBy(
             $id: ID!
         ) {
@@ -1514,7 +1512,6 @@ def _get_run_or_dummy_from_art(art: Artifact, api=None):
             }
         }
     """
-    )
     response = api.client.execute(query, variable_values={"id": art.id})
     creator = response.get("artifact", {}).get("createdBy", {})
     run = _DummyRun(

@@ -3,12 +3,14 @@ from __future__ import annotations
 import contextlib
 import json
 import logging
-import textwrap
 import uuid
 import weakref
 from collections.abc import Mapping
 from typing import Any, cast
 
+from packaging.version import parse
+
+from wandb import util
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto.wandb_api_pb2 import (
     ApiRequest,
@@ -26,19 +28,6 @@ from wandb.sdk.mailbox.mailbox_handle import MailboxHandle
 _logger = logging.getLogger(__name__)
 
 
-def normalize_graphql_query(query: str) -> str:
-    """Normalize a GraphQL document for transport.
-
-    Strips surrounding whitespace and removes a leading ``#graphql`` marker
-    used by some editors to enable GraphQL syntax highlighting in template
-    strings.
-    """
-    query = textwrap.dedent(query).strip()
-    if query.startswith("#graphql"):
-        query = textwrap.dedent(query.removeprefix("#graphql")).strip()
-    return query
-
-
 def _cleanup(connection: ServiceConnection | None, api_id: str) -> None:
     """Clean up the api resources associated with the api id."""
     if connection is not None:
@@ -49,13 +38,50 @@ def _cleanup(connection: ServiceConnection | None, api_id: str) -> None:
 class ServiceApi:
     """A lazy initialized handle to the wandb-core service for handling API requests."""
 
+    _SERVER_INFO_QUERY = """
+        query ServerInfo{
+            serverInfo {
+                cliVersionInfo
+                latestLocalVersionInfo {
+                    outOfDate
+                    latestVersionString
+                    versionOnThisInstanceString
+                }
+            }
+        }
+        """
+
     def __init__(
         self,
         settings: wandb_settings.Settings,
+        timeout: float | None = None,
     ):
         self._settings = settings
+        self._timeout = timeout
         self._service_connection: ServiceConnection | None = None
         self._api_id = str(uuid.uuid4())
+        self._server_info: dict[str, Any] | None = None
+
+    @property
+    def app_url(self) -> str:
+        return util.app_url(self._settings.base_url.rstrip("/")) + "/"
+
+    @property
+    def api_key(self) -> str | None:
+        return self._settings.api_key
+
+    @property
+    def server_info(self) -> dict[str, Any]:
+        if self._server_info is None:
+            self._server_info = self.execute_graphql(self._SERVER_INFO_QUERY).get(
+                "serverInfo"
+            )
+        return self._server_info or {}
+
+    def version_supported(self, min_version: str) -> bool:
+        return parse(min_version) <= parse(
+            self.server_info["cliVersionInfo"]["max_cli_version"]
+        )
 
     def _get_service_connection(self) -> ServiceConnection:
         """Connects to the service and initializes resources for handling API requests."""
@@ -101,8 +127,7 @@ class ServiceApi:
         GraphQL response.
 
         Args:
-            query: The GraphQL document to execute. A leading ``#graphql``
-                marker is stripped before transport.
+            query: The GraphQL document to execute.
             variables: Variables for the GraphQL operation, JSON-serialized
                 on the wire.
             timeout: Optional request timeout in seconds.
@@ -117,12 +142,32 @@ class ServiceApi:
         """
         request = ApiRequest(
             graphql_request=GraphQLRequest(
-                query=normalize_graphql_query(query),
+                query=query,
                 variables_json=json.dumps(variables or {}),
             )
         )
-        response = self.send_api_request(request, timeout=timeout)
+        response = self.send_api_request(
+            request,
+            timeout=timeout if timeout is not None else self._timeout,
+        )
         return json.loads(response.graphql_response.data_json)
+
+    def execute(
+        self,
+        query: str,
+        variable_values: Mapping[str, Any] | None = None,
+        timeout: float | None = None,
+    ) -> Any:
+        """Execute a GraphQL operation.
+
+        This mirrors the old public API client's method signature while routing
+        the request through wandb-core.
+        """
+        return self.execute_graphql(
+            query,
+            variables=variable_values,
+            timeout=timeout,
+        )
 
     async def send_api_request_async(
         self,

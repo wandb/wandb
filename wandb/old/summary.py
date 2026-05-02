@@ -2,8 +2,6 @@ import json
 import os
 import time
 
-from wandb_gql import gql
-
 import wandb
 from wandb import util
 from wandb.apis.internal import Api
@@ -407,15 +405,13 @@ class HTTPSummary(Summary):
         super().open_h5()
 
     def _write(self, commit=False):
-        mutation = gql(
-            """
+        mutation = """
         mutation UpsertBucket( $id: String, $summaryMetrics: JSONString) {
             upsertBucket(input: { id: $id, summaryMetrics: $summaryMetrics}) {
                 bucket { id }
             }
         }
         """
-        )
         if commit:
             if self._h5:
                 self._h5.close()

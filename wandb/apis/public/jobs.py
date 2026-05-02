@@ -13,8 +13,6 @@ import time
 from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any, Callable, Literal
 
-from wandb_gql import gql
-
 import wandb
 from wandb import util
 from wandb.apis import public
@@ -30,7 +28,7 @@ from wandb.sdk.launch.utils import (
 )
 
 if TYPE_CHECKING:
-    from wandb.apis.public import Api, RetryingClient
+    from wandb.apis.public import Api
     from wandb.apis.public.service_api import ServiceApi
     from wandb.sdk.launch._project_spec import LaunchProject
 
@@ -99,8 +97,7 @@ class Job:
         if is_id:
             code_artifact = wandb.Artifact._from_id(
                 artifact_string,
-                self._api._client,
-                _service_api=self._api.service_api,
+                self._api.service_api,
             )
         else:
             code_artifact = self._api._artifact(name=artifact_string, type="code")
@@ -286,18 +283,16 @@ class QueuedRun:
 
     def __init__(
         self,
-        client: RetryingClient,
+        service_api: ServiceApi,
         entity: str,
         project: str,
         queue_name: str,
         run_queue_item_id: str,
         project_queue: str = LAUNCH_DEFAULT_PROJECT,
         priority: int | None = None,
-        *,
-        _service_api: ServiceApi,
     ):
-        self.client = client
-        self._service_api = _service_api
+        self.client = service_api
+        self._service_api = service_api
         self._entity = entity
         self._project = project
         self._queue_name = queue_name
@@ -340,8 +335,7 @@ class QueuedRun:
 
     @normalize_exceptions
     def _get_run_queue_item_legacy(self) -> dict[str, Any]:
-        query = gql(
-            """
+        query = """
             query GetRunQueueItem($projectName: String!, $entityName: String!, $runQueue: String!) {
                 project(name: $projectName, entityName: $entityName) {
                     runQueue(name:$runQueue) {
@@ -358,7 +352,6 @@ class QueuedRun:
                 }
             }
             """
-        )
         variable_values = {
             "projectName": self.project_queue,
             "entityName": self._entity,
@@ -372,8 +365,7 @@ class QueuedRun:
 
     @normalize_exceptions
     def _get_item(self) -> dict[str, Any]:
-        query = gql(
-            """
+        query = """
             query GetRunQueueItem($projectName: String!, $entityName: String!, $runQueue: String!, $itemId: ID!) {
                 project(name: $projectName, entityName: $entityName) {
                     runQueue(name: $runQueue) {
@@ -386,7 +378,6 @@ class QueuedRun:
                 }
             }
         """
-        )
         variable_values = {
             "projectName": self.project_queue,
             "entityName": self._entity,
@@ -417,8 +408,7 @@ class QueuedRun:
     @normalize_exceptions
     def delete(self, delete_artifacts: bool = False) -> None:
         """Delete the given queued run from the wandb backend."""
-        query = gql(
-            """
+        query = """
             query fetchRunQueuesFromProject($entityName: String!, $projectName: String!, $runQueueName: String!) {
                 project(name: $projectName, entityName: $entityName) {
                     runQueue(name: $runQueueName) {
@@ -427,7 +417,6 @@ class QueuedRun:
                 }
             }
             """
-        )
 
         res = self.client.execute(
             query,
@@ -441,8 +430,7 @@ class QueuedRun:
         if res["project"].get("runQueue") is not None:
             queue_id = res["project"]["runQueue"]["id"]
 
-        mutation = gql(
-            """
+        mutation = """
             mutation DeleteFromRunQueue(
                 $queueID: ID!,
                 $runQueueItemId: ID!
@@ -456,7 +444,6 @@ class QueuedRun:
                 }
             }
             """
-        )
         self.client.execute(
             mutation,
             variable_values={
@@ -478,12 +465,11 @@ class QueuedRun:
             if item and item["associatedRunId"] is not None:
                 try:
                     self._run = public.Run(
-                        self.client,
+                        self._service_api,
                         self._entity,
                         self.project,
                         item["associatedRunId"],
                         None,
-                        _service_api=self._service_api,
                     )
                     self._run_id = item["associatedRunId"]
                 except ValueError as e:
@@ -523,19 +509,17 @@ class RunQueue:
 
     def __init__(
         self,
-        client: RetryingClient,
+        service_api: ServiceApi,
         name: str,
         entity: str,
         prioritization_mode: RunQueuePrioritizationMode | None = None,
         _access: RunQueueAccessType | None = None,
         _default_resource_config_id: int | None = None,
         _default_resource_config: dict[str, Any] | None = None,
-        *,
-        _service_api: ServiceApi,
     ) -> None:
         self._name: str = name
-        self._client = client
-        self._service_api = _service_api
+        self._client = service_api
+        self._service_api = service_api
         self._entity = entity
         self._prioritization_mode = prioritization_mode
         self._access = _access
@@ -625,8 +609,7 @@ class RunQueue:
     @normalize_exceptions
     def delete(self) -> None:
         """Delete the run queue from the wandb backend."""
-        query = gql(
-            """
+        query = """
             mutation DeleteRunQueue($id: ID!) {
                 deleteRunQueues(input: {queueIDs: [$id]}) {
                     success
@@ -634,7 +617,6 @@ class RunQueue:
                 }
             }
             """
-        )
         variable_values = {"id": self.id}
         res = self._client.execute(query, variable_values)
         if res["deleteRunQueues"]["success"]:
@@ -651,8 +633,7 @@ class RunQueue:
 
     @normalize_exceptions
     def _get_metadata(self) -> None:
-        query = gql(
-            """
+        query = """
             query GetRunQueueMetadata($projectName: String!, $entityName: String!, $runQueue: String!) {
                 project(name: $projectName, entityName: $entityName) {
                     runQueue(name: $runQueue) {
@@ -665,7 +646,6 @@ class RunQueue:
                 }
             }
         """
-        )
         variable_values = {
             "projectName": LAUNCH_DEFAULT_PROJECT,
             "entityName": self._entity,
@@ -684,8 +664,7 @@ class RunQueue:
 
     @normalize_exceptions
     def _get_default_resource_config(self) -> None:
-        query = gql(
-            """
+        query = """
             query GetDefaultResourceConfig($entityName: String!, $id: ID!) {
                 entity(name: $entityName) {
                     defaultResourceConfig(id: $id) {
@@ -699,7 +678,6 @@ class RunQueue:
                 }
             }
         """
-        )
         variable_values = {
             "entityName": self._entity,
             "id": self._default_resource_config_id,
@@ -713,8 +691,7 @@ class RunQueue:
 
     @normalize_exceptions
     def _get_items(self) -> None:
-        query = gql(
-            """
+        query = """
             query GetRunQueueItems($projectName: String!, $entityName: String!, $runQueue: String!) {
                 project(name: $projectName, entityName: $entityName) {
                     runQueue(name: $runQueue) {
@@ -729,7 +706,6 @@ class RunQueue:
                 }
             }
         """
-        )
         variable_values = {
             "projectName": LAUNCH_DEFAULT_PROJECT,
             "entityName": self._entity,
@@ -740,12 +716,11 @@ class RunQueue:
         for item in res["project"]["runQueue"]["runQueueItems"]["edges"]:
             self._items.append(
                 QueuedRun(
-                    self._client,
+                    self._service_api,
                     self._entity,
                     LAUNCH_DEFAULT_PROJECT,
                     self._name,
                     item["node"]["id"],
-                    _service_api=self._service_api,
                 )
             )
 

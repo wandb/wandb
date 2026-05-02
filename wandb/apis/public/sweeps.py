@@ -34,8 +34,6 @@ from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any, ClassVar
 
 from typing_extensions import override
-from wandb_gql import gql
-from wandb_graphql.language.ast import Document
 
 import wandb
 from wandb import util
@@ -47,7 +45,6 @@ from wandb.sdk.lib import ipython
 
 if TYPE_CHECKING:
     from wandb.apis._generated import GetSweeps
-    from wandb.apis.public.api import RetryingClient
     from wandb.apis.public.runs import AgentRuns
     from wandb.apis.public.service_api import ServiceApi
 
@@ -70,22 +67,20 @@ class Sweeps(SizedPaginator["Sweep"]):
     ```
     """
 
-    QUERY: ClassVar[Document | None] = None
+    QUERY: ClassVar[str | None] = None
     last_response: GetSweeps | None
 
     def __init__(
         self,
-        client: RetryingClient,
+        service_api: ServiceApi,
         entity: str,
         project: str,
         per_page: int = 50,
-        *,
-        _service_api: ServiceApi,
     ) -> Sweeps:
         """An iterable collection of `Sweep` objects.
 
         Args:
-            client: The API client used to query W&B.
+            service_api: The service API used to query W&B.
             entity: The entity which owns the sweeps.
             project: The project which contains the sweeps.
             per_page: The number of sweeps to fetch per request to the API.
@@ -93,13 +88,13 @@ class Sweeps(SizedPaginator["Sweep"]):
         if self.QUERY is None:
             from wandb.apis._generated import GET_SWEEPS_GQL
 
-            type(self).QUERY = gql(GET_SWEEPS_GQL)
+            type(self).QUERY = GET_SWEEPS_GQL
 
         self.entity = entity
         self.project = project
-        self._service_api = _service_api
+        self._service_api = service_api
         variables = {"project": self.project, "entity": self.entity}
-        super().__init__(client, variables, per_page)
+        super().__init__(service_api, variables, per_page)
 
     @override
     def _update_response(self) -> None:
@@ -175,11 +170,10 @@ class Sweeps(SizedPaginator["Sweep"]):
             return []
         return [
             Sweep(
-                self.client,
+                self._service_api,
                 self.entity,
                 self.project,
                 node.name,
-                _service_api=self._service_api,
             )
             for node in Connection[SweepFragment].model_validate(project.sweeps).nodes()
         ]
@@ -203,21 +197,19 @@ class Sweep(Attrs):
 
     def __init__(
         self,
-        client: RetryingClient,
+        service_api: ServiceApi,
         entity: str,
         project: str,
         sweep_id: str,
         attrs: Mapping[str, Any] | None = None,
-        *,
-        _service_api: ServiceApi,
     ):
         # TODO: Add agents / flesh this out.
         super().__init__(dict(attrs or {}))
-        self.client = client
+        self.client = service_api
         self._entity = entity
         self.project = project
         self.id = sweep_id
-        self._service_api = _service_api
+        self._service_api = service_api
         self.runs = []
 
         self.load(force=not attrs)
@@ -246,11 +238,10 @@ class Sweep(Attrs):
         if force or not self._attrs:
             if not (
                 sweep := self.get(
-                    self.client,
+                    self._service_api,
                     self.entity,
                     self.project,
                     self.id,
-                    _service_api=self._service_api,
                 )
             ):
                 raise ValueError(f"Could not find sweep {self!r}")
@@ -284,13 +275,12 @@ class Sweep(Attrs):
         filters = {"$and": [{"sweep": self.id}]}
         try:
             return public.Runs(
-                self.client,
+                self._service_api,
                 self.entity,
                 self.project,
                 order=order,
                 filters=filters,
                 per_page=1,
-                _service_api=self._service_api,
             )[0]
         except IndexError:
             return None
@@ -339,20 +329,18 @@ class Sweep(Attrs):
     @classmethod
     def get(
         cls,
-        client: RetryingClient,
+        service_api: ServiceApi,
         entity: str | None = None,
         project: str | None = None,
         sid: str | None = None,
         order: str | None = None,
-        query: Document | None = None,
-        *,
-        _service_api: ServiceApi,
+        query: str | None = None,
         **kwargs,
     ):
         """Execute a query against the cloud backend.
 
         Args:
-            client: The client to use to execute the query.
+            service_api: The service API to use to execute the query.
             entity: The entity (username or team) that owns the project.
             project: The name of the project to fetch sweep from.
             sid: The sweep ID to query.
@@ -367,14 +355,14 @@ class Sweep(Attrs):
 
         variables = {"entity": entity, "project": project, "name": sid, **kwargs}
         if query is None:
-            query = gql(GET_SWEEP_GQL)
+            query = GET_SWEEP_GQL
         try:
-            data = client.execute(query, variable_values=variables)
+            data = service_api.execute(query, variable_values=variables)
         except Exception:
             # Don't handle exception, rely on legacy query
             # TODO(gst): Implement updated introspection workaround
-            query = gql(GET_SWEEP_LEGACY_GQL)
-            data = client.execute(query, variable_values=variables)
+            query = GET_SWEEP_LEGACY_GQL
+            data = service_api.execute(query, variable_values=variables)
 
         # FIXME: looks like this method allows passing arbitrary GQL queries, so for now
         # we'll have to skip trying to validate the result with a generated pydantic model.
@@ -385,21 +373,19 @@ class Sweep(Attrs):
         ):
             return None
         sweep = cls(
-            client,
+            service_api,
             entity,
             project,
             sid,
             attrs=sweep_dict,
-            _service_api=_service_api,
         )
         sweep.runs = public.Runs(
-            client,
+            service_api,
             entity,
             project,
             order=order,
             per_page=10,
             filters={"$and": [{"sweep": sweep.id}]},
-            _service_api=_service_api,
         )
         return sweep
 
@@ -407,12 +393,11 @@ class Sweep(Attrs):
         """Construct `Agent` from API payload."""
         try:
             return Agent(
-                self.client,
+                self._service_api,
                 attrs=attrs,
                 entity=self.entity,
                 project=self.project,
                 sweep_id=self.id,
-                _service_api=self._service_api,
             )
         except ValueError as e:
             raise Error(
@@ -434,7 +419,7 @@ class Sweep(Attrs):
             "entity": self.entity,
             "project": self.project,
         }
-        data = self.client.execute(gql(GET_SWEEP_AGENT_GQL), variable_values=variables)
+        data = self.client.execute((GET_SWEEP_AGENT_GQL), variable_values=variables)
         return self._make_sweep_agent(data["project"]["sweep"]["agent"])
 
     def agents(self) -> list[Agent]:
@@ -446,7 +431,7 @@ class Sweep(Attrs):
             "entity": self.entity,
             "project": self.project,
         }
-        data = self.client.execute(gql(GET_SWEEP_AGENTS_GQL), variable_values=variables)
+        data = self.client.execute((GET_SWEEP_AGENTS_GQL), variable_values=variables)
         parsed = GetSweepAgents.model_validate(data)
         if not parsed.project or not parsed.project.sweep:
             return []
@@ -477,20 +462,18 @@ class Sweep(Attrs):
 class Agent(Attrs):
     def __init__(
         self,
-        client: RetryingClient,
+        service_api: ServiceApi,
         attrs: Mapping[str, Any],
         entity: str,
         project: str,
         sweep_id: str,
-        *,
-        _service_api: ServiceApi,
     ) -> None:
         super().__init__(dict(attrs or {}))
-        self._client = client
+        self._client = service_api
         self._entity = entity
         self._project = project
         self._sweep_id = sweep_id
-        self._service_api = _service_api
+        self._service_api = service_api
 
         if self._entity is None:
             raise ValueError(
@@ -524,7 +507,7 @@ class Agent(Attrs):
 
         total_runs = int(self._attrs.get("totalRuns") or 0)
         return AgentRuns(
-            self._client,
+            self._service_api,
             entity=self._entity,
             project=self._project,
             sweep_id=self._sweep_id,
@@ -532,7 +515,6 @@ class Agent(Attrs):
             total_runs=total_runs,
             order="+created_at",
             per_page=per_page,
-            _service_api=self._service_api,
         )
 
     def __repr__(self) -> str:

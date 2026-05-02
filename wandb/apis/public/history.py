@@ -25,7 +25,6 @@ from wandb.sdk.mailbox.mailbox import MailboxClosedError
 
 if TYPE_CHECKING:
     from . import runs
-    from .api import RetryingClient
     from .service_api import ServiceApi
 
 _RowDict: TypeAlias = dict[str, Any]
@@ -42,7 +41,7 @@ class BetaHistoryScan(Iterator[_RowDict]):
         self,
         run: runs.Run,
         *,
-        _service_api: ServiceApi,
+        service_api: ServiceApi,
         min_step: int,
         max_step: int,
         keys: list[str] | None = None,
@@ -54,7 +53,7 @@ class BetaHistoryScan(Iterator[_RowDict]):
         self._stop_step = max_step
         self.keys = keys
         self.page_size = page_size
-        self._service_api = _service_api
+        self._service_api = service_api
 
         # Tell wandb-core to initialize resources to scan the run's history.
         scan_run_history_init = pb.ScanRunHistoryInit(
@@ -181,25 +180,23 @@ class HistoryScan(Iterator[_RowDict]):
 
     def __init__(
         self,
-        client: RetryingClient,
+        service_api: ServiceApi,
         run: runs.Run,
         min_step: int,
         max_step: int,
         page_size: int = 1_000,
-        *,
-        _service_api: ServiceApi,
     ):
         """Initialize a HistoryScan instance.
 
         Args:
-            client: The client instance to use for making API calls to the W&B backend.
+            service_api: The service API to use for making API calls to the W&B backend.
             run: The run object whose history is to be scanned.
             min_step: The minimum step to start scanning from.
             max_step: The exclusive upper bound for scanned history rows.
             page_size: Number of history rows to fetch per page.
                 Default page_size is 1000.
         """
-        self.client = client
+        self.client = service_api
         self.run = run
         self.page_size = page_size
         self.min_step = min_step
@@ -207,7 +204,7 @@ class HistoryScan(Iterator[_RowDict]):
         self.page_offset = min_step  # minStep for next page
         self.scan_offset = 0  # index within current page of rows
         self.rows: list[_RowDict] = []  # current page of rows
-        self._service_api = _service_api
+        self._service_api = service_api
 
     @property
     def max_step(self) -> int:
@@ -275,19 +272,17 @@ class SampledHistoryScan(Iterator[_RowDict]):
 
     def __init__(
         self,
-        client: RetryingClient,
+        service_api: ServiceApi,
         run: runs.Run,
         keys: list[str],
         min_step: int,
         max_step: int,
         page_size: int = 1_000,
-        *,
-        _service_api: ServiceApi,
     ):
         """Initialize a SampledHistoryScan instance.
 
         Args:
-            client: The client instance to use for making API calls to the W&B backend.
+            service_api: The service API to use for making API calls to the W&B backend.
             run: The run object whose history is to be sampled.
             keys: List of keys to sample from the history.
             min_step: The minimum step to start sampling from.
@@ -295,7 +290,7 @@ class SampledHistoryScan(Iterator[_RowDict]):
             page_size: Number of sampled history rows to fetch per page.
                 Default page_size is 1000.
         """
-        self.client = client
+        self.client = service_api
         self.run = run
         self.keys = keys
         self.page_size = page_size
@@ -304,7 +299,7 @@ class SampledHistoryScan(Iterator[_RowDict]):
         self.page_offset = min_step  # minStep for next page
         self.scan_offset = 0  # index within current page of rows
         self.rows: list[_RowDict] = []  # current page of rows
-        self._service_api = _service_api
+        self._service_api = service_api
 
     @property
     def max_step(self) -> int:

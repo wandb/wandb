@@ -1,6 +1,6 @@
 __all__ = (
     "Api",
-    "RetryingClient",  # doc:exclude
+    "ServiceApi",  # doc:exclude
     "requests",  # doc:exclude
     "ArtifactCollection",
     "ArtifactCollections",
@@ -45,7 +45,7 @@ __all__ = (
 )
 
 
-from wandb.apis.public.api import Api, RetryingClient
+from wandb.apis.public.api import Api
 from wandb.apis.public.artifacts import (
     ArtifactCollection,
     ArtifactCollections,
@@ -82,6 +82,7 @@ from wandb.apis.public.runhistory.downloads import (
     IncompleteRunHistoryError,
 )
 from wandb.apis.public.runs import RUN_FRAGMENT, AgentRuns, Run, Runs
+from wandb.apis.public.service_api import ServiceApi
 from wandb.apis.public.sweeps import Sweep
 from wandb.apis.public.teams import Member, Team
 from wandb.apis.public.users import User
