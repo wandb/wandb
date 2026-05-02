@@ -2022,6 +2022,8 @@ class Api:
                 will be used.
             per_page: Number of integrations to fetch per page.
                 Defaults to 50.  Usually there is no reason to change this.
+            start: Cursor for pagination; pass the cursor from a previous
+                response to retrieve the next page.
 
         Yields:
             Iterator[SlackIntegration | WebhookIntegration]: An iterator of any supported integrations.
@@ -2045,6 +2047,8 @@ class Api:
                 will be used.
             per_page: Number of integrations to fetch per page.
                 Defaults to 50.  Usually there is no reason to change this.
+            start: Cursor for pagination; pass the cursor from a previous
+                response to retrieve the next page.
 
         Yields:
             Iterator[WebhookIntegration]: An iterator of webhook integrations.
@@ -2089,6 +2093,8 @@ class Api:
                 will be used.
             per_page: Number of integrations to fetch per page.
                 Defaults to 50.  Usually there is no reason to change this.
+            start: Cursor for pagination; pass the cursor from a previous
+                response to retrieve the next page.
 
         Yields:
             Iterator[SlackIntegration]: An iterator of Slack integrations.
