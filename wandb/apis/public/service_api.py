@@ -98,8 +98,9 @@ class ServiceApi:
 
         Raises:
             WandbApiFailedError: The request failed for any reason, including
-                transport errors, non-successful HTTP status codes, and GraphQL
-                `errors` returned by the server.
+                timeouts while waiting on wandb-core, transport errors,
+                non-successful HTTP status codes, and GraphQL `errors`
+                returned by the server.
         """
         request = ApiRequest(
             graphql_request=GraphQLRequest(
