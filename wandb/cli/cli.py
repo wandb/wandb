@@ -1829,7 +1829,7 @@ def launch(
             client=public_api.client,
             name=queue,
             entity=entity,
-            service_api=public_api.service_api,
+            service_api=public_api._service_api,
         )
         template_variables = launch_utils.fetch_and_validate_template_variables(
             runqueue, cli_template_vars

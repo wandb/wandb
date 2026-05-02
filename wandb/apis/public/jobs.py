@@ -100,7 +100,7 @@ class Job:
             code_artifact = wandb.Artifact._from_id(
                 artifact_string,
                 self._api._client,
-                service_api=self._api.service_api,
+                service_api=self._api._service_api,
             )
         else:
             code_artifact = self._api._artifact(name=artifact_string, type="code")

@@ -248,10 +248,6 @@ class Api:
         self._sentry = wandb.analytics.sentry.Sentry(pid=os.getpid())
         self._configure_sentry()
 
-    @property
-    def service_api(self) -> ServiceApi:
-        return self._service_api
-
     def _load_auth(self, base_url: str) -> wbauth.Auth:
         """Load or prompt for authentication credentials."""
         auth = wbauth.authenticate_session(
@@ -431,7 +427,7 @@ class Api:
             _access="PROJECT",
             _default_resource_config_id=config_id,
             _default_resource_config=config,
-            service_api=self.service_api,
+            service_api=self._service_api,
         )
 
     def create_custom_chart(
@@ -620,7 +616,7 @@ class Api:
             client=self.client,
             name=name,
             entity=entity,
-            service_api=self.service_api,
+            service_api=self._service_api,
         )
 
     def create_user(self, email: str, admin: bool | None = False) -> User:
@@ -773,7 +769,7 @@ class Api:
                     },
                     parts[0],
                     parts[1],
-                    service_api=self.service_api,
+                    service_api=self._service_api,
                 )
         raise wandb.Error(
             "Invalid path, should be TEAM/PROJECT/TYPE/ID where TYPE is runs, sweeps, or reports"
@@ -910,7 +906,7 @@ class Api:
                 self.client,
                 entity,
                 per_page=per_page,
-                service_api=self.service_api,
+                service_api=self._service_api,
             )
         return self._projects[entity]
 
@@ -941,7 +937,7 @@ class Api:
                 self.client, non_org_entity=settings_entity, org_or_entity=org
             )
         return public.Project(
-            self.client, entity, name, {}, service_api=self.service_api
+            self.client, entity, name, {}, service_api=self._service_api
         )
 
     def reports(
@@ -987,11 +983,11 @@ class Api:
                     entity,
                     project,
                     {},
-                    service_api=self.service_api,
+                    service_api=self._service_api,
                 ),
                 name=name,
                 per_page=per_page,
-                service_api=self.service_api,
+                service_api=self._service_api,
             )
         return self._reports[key]
 
@@ -1204,7 +1200,7 @@ class Api:
             per_page=per_page,
             include_sweeps=include_sweeps,
             lazy=lazy,
-            service_api=self.service_api,
+            service_api=self._service_api,
         )
         return self._runs[key]
 
@@ -1229,7 +1225,7 @@ class Api:
                 project,
                 run_id,
                 lazy=False,
-                service_api=self.service_api,
+                service_api=self._service_api,
             )
         return self._runs[path]
 
@@ -1254,7 +1250,7 @@ class Api:
             run_queue_item_id,
             project_queue=project_queue,
             priority=priority,
-            service_api=self.service_api,
+            service_api=self._service_api,
         )
 
     def run_queue(
@@ -1270,7 +1266,7 @@ class Api:
             self.client,
             name,
             entity,
-            service_api=self.service_api,
+            service_api=self._service_api,
         )
 
     @normalize_exceptions
@@ -1293,7 +1289,7 @@ class Api:
                 entity,
                 project,
                 sweep_id,
-                service_api=self.service_api,
+                service_api=self._service_api,
             )
         return self._sweeps[path]
 
@@ -1327,7 +1323,7 @@ class Api:
                 self.client, non_org_entity=settings_entity, org_or_entity=org
             )
         return ArtifactTypes(
-            self.client, entity, project, start=start, service_api=self.service_api
+            self.client, entity, project, start=start, service_api=self._service_api
         )
 
     @normalize_exceptions
@@ -1355,7 +1351,7 @@ class Api:
                 self.client, non_org_entity=settings_entity, org_or_entity=org
             )
         return ArtifactType(
-            self.client, entity, project, type_name, service_api=self.service_api
+            self.client, entity, project, type_name, service_api=self._service_api
         )
 
     @normalize_exceptions
@@ -1398,7 +1394,7 @@ class Api:
             type_name,
             per_page=per_page,
             start=start,
-            service_api=self.service_api,
+            service_api=self._service_api,
         )
 
     @normalize_exceptions
@@ -1461,7 +1457,7 @@ class Api:
             project,
             collection_name,
             type_name,
-            service_api=self.service_api,
+            service_api=self._service_api,
         )
 
     @normalize_exceptions
@@ -1564,7 +1560,7 @@ class Api:
             per_page=per_page,
             tags=tags,
             start=start,
-            service_api=self.service_api,
+            service_api=self._service_api,
         )
 
     @normalize_exceptions
@@ -1605,7 +1601,7 @@ class Api:
         artifact = Artifact._from_name(
             path=path,
             client=self.client,
-            service_api=self.service_api,
+            service_api=self._service_api,
             enable_tracking=enable_tracking,
         )
         if type is not None and artifact.type != type:
@@ -1921,7 +1917,7 @@ class Api:
         remaining_registries = api.registries(per_page=page_size, start=saved_cursor)
         ```
         """
-        if not self.service_api.feature_enabled(pb.ARTIFACT_REGISTRY_SEARCH):
+        if not self._service_api.feature_enabled(pb.ARTIFACT_REGISTRY_SEARCH):
             raise RuntimeError(
                 "Registry search API is not enabled on this wandb server version."
                 + " Please upgrade your server version or contact support"
@@ -1937,7 +1933,7 @@ class Api:
             filter=filter,
             per_page=per_page,
             start=start,
-            service_api=self.service_api,
+            service_api=self._service_api,
         )
 
     @tracked
@@ -1967,7 +1963,7 @@ class Api:
         registry.save()
         ```
         """
-        if not self.service_api.feature_enabled(pb.ARTIFACT_REGISTRY_SEARCH):
+        if not self._service_api.feature_enabled(pb.ARTIFACT_REGISTRY_SEARCH):
             raise RuntimeError(
                 "api.registry() is not enabled on this wandb server version."
                 + " Please upgrade your server version or contact support"
@@ -1982,7 +1978,7 @@ class Api:
             organization,
             org_entity,
             name,
-            service_api=self.service_api,
+            service_api=self._service_api,
         )
         registry.load()
         return registry
@@ -2031,7 +2027,7 @@ class Api:
         )
         ```
         """
-        if not self.service_api.feature_enabled(
+        if not self._service_api.feature_enabled(
             pb.INCLUDE_ARTIFACT_TYPES_IN_REGISTRY_CREATION,
         ):
             raise RuntimeError(
@@ -2061,7 +2057,7 @@ class Api:
             visibility,
             description,
             artifact_types,
-            service_api=self.service_api,
+            service_api=self._service_api,
         )
 
     @tracked
@@ -2194,12 +2190,12 @@ class Api:
         supports_event = (
             (event is None)
             or (event in ALWAYS_SUPPORTED_EVENTS)
-            or self.service_api.feature_enabled(f"AUTOMATION_EVENT_{event.value}")
+            or self._service_api.feature_enabled(f"AUTOMATION_EVENT_{event.value}")
         )
         supports_action = (
             (action is None)
             or (action in ALWAYS_SUPPORTED_ACTIONS)
-            or self.service_api.feature_enabled(f"AUTOMATION_ACTION_{action.value}")
+            or self._service_api.feature_enabled(f"AUTOMATION_ACTION_{action.value}")
         )
         return supports_event and supports_action
 

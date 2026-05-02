@@ -792,7 +792,7 @@ class Run(Attrs):
             "name": run_id,
             "state": state,
         }
-        res = api.service_api.execute_graphql(
+        res = api._service_api.execute_graphql(
             mutation,
             variables,
         )
@@ -813,7 +813,7 @@ class Run(Attrs):
                 "state": state,
             },
             lazy=False,  # Created runs should have full data available immediately
-            service_api=api.service_api,
+            service_api=api._service_api,
         )
 
     def _load_with_fragment(

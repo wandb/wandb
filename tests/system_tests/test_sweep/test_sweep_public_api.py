@@ -76,7 +76,7 @@ def test_sweep_api_expected_run_count(
         _project,
         sweep_id,
         query=SWEEP_QUERY,
-        service_api=api.service_api,
+        service_api=api._service_api,
     )
 
     assert sweep.expected_run_count == expected_run_count
