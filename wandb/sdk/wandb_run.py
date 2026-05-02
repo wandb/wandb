@@ -38,7 +38,7 @@ from wandb.proto.wandb_internal_pb2 import (
     RunRecord,
 )
 from wandb.proto.wandb_telemetry_pb2 import Deprecated
-from wandb.sdk.lib import asyncio_manager, run_messages, wb_logging
+from wandb.sdk.lib import asyncio_manager, run_messages, run_stopping, wb_logging
 from wandb.sdk.lib.filesystem import (
     FilesDict,
     GlobStr,
@@ -135,8 +135,6 @@ logger = logging.getLogger("wandb")
 EXIT_TIMEOUT = 60
 RE_LABEL = re.compile(r"[a-zA-Z0-9_-]+$")
 
-_STOP_POLLING_INTERVAL = 15
-
 
 class TeardownStage(IntEnum):
     EARLY = 1
@@ -156,8 +154,6 @@ class RunStatusChecker:
     - check the run sync status.
     """
 
-    _stop_status_lock: threading.Lock
-    _stop_status_handle: MailboxHandle[Result] | None
     _network_status_lock: threading.Lock
     _network_status_handle: MailboxHandle[Result] | None
 
@@ -178,14 +174,6 @@ class RunStatusChecker:
 
         self._join_event = threading.Event()
 
-        self._stop_status_lock = threading.Lock()
-        self._stop_status_handle = None
-        self._stop_thread = threading.Thread(
-            target=self.check_stop_status,
-            name="ChkStopThr",
-            daemon=True,
-        )
-
         self._network_status_lock = threading.Lock()
         self._network_status_handle = None
         self._network_status_thread = threading.Thread(
@@ -194,10 +182,15 @@ class RunStatusChecker:
             daemon=True,
         )
 
+        self._stop_checker = run_stopping.RunStopChecker(
+            asyncer,
+            interface,
+            settings.stop_fn or interrupt.interrupt_main,
+        )
         self._internal_messages = run_messages.RunMessages(asyncer, interface)
 
     def start(self) -> None:
-        self._stop_thread.start()
+        self._stop_checker.start()
         self._network_status_thread.start()
         self._internal_messages.start()
 
@@ -283,51 +276,8 @@ class RunStatusChecker:
                     self._network_status_handle,
                 )
 
-    def check_stop_status(self) -> None:
-        def _process_stop_status(result: Result) -> None:
-            from wandb.agents import pyagent
-
-            # TODO: Remove the pyagent.is_running() check if safe to do so.
-            # See WB-3606.
-            if pyagent.is_running():
-                return
-
-            stop_status = result.response.stop_status_response
-            if not stop_status.run_should_stop:
-                return
-
-            if stop_fn := self._settings.stop_fn:
-                stop_fn()
-            else:
-                interrupt.interrupt_main()
-
-            # Only stop once.
-            self._abandon_status_check(
-                self._stop_status_lock,
-                self._stop_status_handle,
-            )
-
-        with wb_logging.log_to_run(self._run_id):
-            try:
-                self._loop_check_status(
-                    lock=self._stop_status_lock,
-                    set_handle=lambda x: setattr(self, "_stop_status_handle", x),
-                    timeout=_STOP_POLLING_INTERVAL,
-                    request=self._interface.deliver_stop_status,
-                    process=_process_stop_status,
-                )
-            except BrokenPipeError:
-                self._abandon_status_check(
-                    self._stop_status_lock,
-                    self._stop_status_handle,
-                )
-
     def stop(self) -> None:
         self._join_event.set()
-        self._abandon_status_check(
-            self._stop_status_lock,
-            self._stop_status_handle,
-        )
         self._abandon_status_check(
             self._network_status_lock,
             self._network_status_handle,
@@ -335,7 +285,8 @@ class RunStatusChecker:
 
     def join(self) -> None:
         self.stop()
-        self._stop_thread.join()
+
+        self._stop_checker.stop_soon()
         self._network_status_thread.join()
         self._internal_messages.stop(timeout=5)  # TODO: use finish timeout
 

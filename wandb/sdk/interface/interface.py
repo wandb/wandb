@@ -973,17 +973,6 @@ class InterfaceBase(abc.ABC):
     ) -> MailboxHandle[pb.Result]:
         raise NotImplementedError
 
-    def deliver_stop_status(self) -> MailboxHandle[pb.Result]:
-        status = pb.StopStatusRequest()
-        return self._deliver_stop_status(status)
-
-    @abc.abstractmethod
-    def _deliver_stop_status(
-        self,
-        status: pb.StopStatusRequest,
-    ) -> MailboxHandle[pb.Result]:
-        raise NotImplementedError
-
     def deliver_network_status(self) -> MailboxHandle[pb.Result]:
         status = pb.NetworkStatusRequest()
         return self._deliver_network_status(status)

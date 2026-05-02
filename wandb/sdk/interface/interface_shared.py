@@ -130,7 +130,6 @@ class InterfaceShared(InterfaceBase, abc.ABC):
         pause: pb.PauseRequest | None = None,
         resume: pb.ResumeRequest | None = None,
         status: pb.StatusRequest | None = None,
-        stop_status: pb.StopStatusRequest | None = None,
         network_status: pb.NetworkStatusRequest | None = None,
         poll_exit: pb.PollExitRequest | None = None,
         partial_history: pb.PartialHistoryRequest | None = None,
@@ -166,8 +165,6 @@ class InterfaceShared(InterfaceBase, abc.ABC):
             request.resume.CopyFrom(resume)
         elif status:
             request.status.CopyFrom(status)
-        elif stop_status:
-            request.stop_status.CopyFrom(stop_status)
         elif network_status:
             request.network_status.CopyFrom(network_status)
         elif poll_exit:
@@ -456,13 +453,6 @@ class InterfaceShared(InterfaceBase, abc.ABC):
         poll_exit: pb.PollExitRequest,
     ) -> MailboxHandle[pb.Result]:
         record = self._make_request(poll_exit=poll_exit)
-        return self._deliver(record)
-
-    def _deliver_stop_status(
-        self,
-        stop_status: pb.StopStatusRequest,
-    ) -> MailboxHandle[pb.Result]:
-        record = self._make_request(stop_status=stop_status)
         return self._deliver(record)
 
     def _deliver_attach(
