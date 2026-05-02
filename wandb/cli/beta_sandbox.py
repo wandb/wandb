@@ -273,7 +273,7 @@ def logs(
     """Stream logs from a sandbox's main process.
 
     Streams stdout/stderr from the command used to create the sandbox. Output
-    from ``wandb beta sandbox exec`` commands is not included.
+    from `wandb beta sandbox exec` commands is not included.
 
     SANDBOX_ID is the ID of the sandbox to stream logs from.
 

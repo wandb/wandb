@@ -83,7 +83,7 @@ class ServiceApi:
         """Execute a GraphQL operation through the wandb-core sidecar.
 
         The query is sent to wandb-core, which performs the network round-trip
-        against the W&B backend and returns the parsed ``data`` field of the
+        against the W&B backend and returns the parsed `data` field of the
         GraphQL response.
 
         Args:
@@ -94,12 +94,12 @@ class ServiceApi:
                 On timeout, the request is cancelled on a best-effort basis.
 
         Returns:
-            The decoded ``data`` field of the GraphQL response.
+            The decoded `data` field of the GraphQL response.
 
         Raises:
             WandbApiFailedError: The request failed for any reason, including
                 transport errors, non-successful HTTP status codes, and GraphQL
-                ``errors`` returned by the server.
+                `errors` returned by the server.
         """
         request = ApiRequest(
             graphql_request=GraphQLRequest(
