@@ -37,23 +37,20 @@ from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any, ClassVar
 
 from typing_extensions import override
-from wandb_gql import gql
 
 from wandb._strutils import nameof
 from wandb.apis import public
 from wandb.apis.attrs import Attrs
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.paginator import RelayPaginator
-from wandb.apis.public.api import RetryingClient
+from wandb.apis.public.service_api import ServiceApi
 from wandb.apis.public.sweeps import Sweeps
 from wandb.sdk.lib import ipython
+from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 
 if TYPE_CHECKING:
-    from wandb_graphql.language.ast import Document
-
     from wandb._pydantic import Connection
     from wandb.apis._generated import ProjectFragment
-    from wandb.apis.public.service_api import ServiceApi
 
 
 class Projects(RelayPaginator["ProjectFragment", "Project"]):
@@ -82,32 +79,30 @@ class Projects(RelayPaginator["ProjectFragment", "Project"]):
     ```
     """
 
-    QUERY: ClassVar[Document | None] = None
+    QUERY: ClassVar[str | None] = None
     last_response: Connection[ProjectFragment] | None
 
     def __init__(
         self,
-        client: RetryingClient,
+        service_api: ServiceApi,
         entity: str,
         per_page: int = 50,
-        *,
-        service_api: ServiceApi,
     ) -> Projects:
         """An iterable collection of `Project` objects.
 
         Args:
-            client: The API client used to query W&B.
+            service_api: The service API used to query W&B.
             entity: The entity which owns the projects.
             per_page: The number of projects to fetch per request to the API.
         """
         if self.QUERY is None:
             from wandb.apis._generated import GET_PROJECTS_GQL
 
-            type(self).QUERY = gql(GET_PROJECTS_GQL)
+            type(self).QUERY = GET_PROJECTS_GQL
 
         self.entity = entity
         self._service_api = service_api
-        super().__init__(client, variables={"entity": entity}, per_page=per_page)
+        super().__init__(service_api, variables={"entity": entity}, per_page=per_page)
 
     @override
     def _update_response(self) -> None:
@@ -134,11 +129,10 @@ class Projects(RelayPaginator["ProjectFragment", "Project"]):
 
     def _convert(self, node: ProjectFragment) -> Project:
         return Project(
-            self.client,
+            self._service_api,
             self.entity,
             node.name,
             node.model_dump(),
-            service_api=self._service_api,
         )
 
     def __repr__(self):
@@ -156,37 +150,33 @@ class Project(Attrs):
 
     def __init__(
         self,
-        client: RetryingClient,
+        service_api: ServiceApi,
         entity: str,
         project: str,
         attrs: Mapping[str, Any],
-        *,
-        service_api: ServiceApi,
     ) -> Project:
         """A single project associated with an entity.
 
         Args:
-            client: The API client used to query W&B.
+            service_api: The service API used to query W&B.
             entity: The entity which owns the project.
             project: The name of the project to query.
             attrs: The attributes of the project.
         """
         super().__init__(attrs)
         self._is_loaded = bool(attrs)
-        self.client = client
+        self.client = service_api
         self.name = project
         self.entity = entity
         self._service_api = service_api
 
     def _load(self) -> None:
-        from requests import HTTPError
-
         from wandb.apis._generated import GET_PROJECT_GQL, GetProject
 
         gql_vars = {"name": self.name, "entity": self.entity}
         try:
-            data = self.client.execute(gql(GET_PROJECT_GQL), gql_vars)
-        except HTTPError as e:
+            data = self.client.execute((GET_PROJECT_GQL), gql_vars)
+        except WandbApiFailedError as e:
             raise ValueError(f"Unable to fetch project ID: {gql_vars!r}") from e
 
         project = GetProject.model_validate(data).project
@@ -204,7 +194,7 @@ class Project(Attrs):
             self._load()
         if "user" not in self._attrs:
             raise ValueError(f"No user found for project {self.name}")
-        return public.User(self.client, self._attrs["user"])
+        return public.User(self._service_api, self._attrs["user"])
 
     @property
     def path(self) -> list[str]:
@@ -239,9 +229,7 @@ class Project(Attrs):
     @normalize_exceptions
     def artifacts_types(self, per_page: int = 50) -> public.ArtifactTypes:
         """Returns all artifact types associated with this project."""
-        return public.ArtifactTypes(
-            self.client, self.entity, self.name, service_api=self._service_api
-        )
+        return public.ArtifactTypes(self._service_api, self.entity, self.name)
 
     @normalize_exceptions
     def collections(
@@ -261,13 +249,12 @@ class Project(Attrs):
                 Default is 50.
         """
         return public.ProjectArtifactCollections(
-            self.client,
+            self._service_api,
             self.entity,
             self.name,
             filters=filters,
             order=order,
             per_page=per_page,
-            service_api=self._service_api,
         )
 
     @normalize_exceptions
@@ -281,11 +268,10 @@ class Project(Attrs):
             A `Sweeps` object, which is an iterable collection of `Sweep` objects.
         """
         return Sweeps(
-            self.client,
+            self._service_api,
             self.entity,
             self.name,
             per_page=per_page,
-            service_api=self._service_api,
         )
 
     @property

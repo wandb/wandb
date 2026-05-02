@@ -12,7 +12,6 @@ from wandb.apis.public.registries.registry import Registry
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.artifacts._gqlutils import server_supports
 from wandb.util import random_string
-from wandb_gql import gql
 
 if TYPE_CHECKING:
     from ..backend_fixtures import BackendFixtureFactory, TeamAndOrgNames
@@ -114,7 +113,7 @@ def set_team_as_default_entity(request: FixtureRequest, mocker: MockerFixture) -
     # Eh, this will have to do for now.
     # Set the server-side default entity for the user for the test run.
     wandb.Api().client.execute(
-        gql(
+        (
             """
             mutation SetDefaultEntity($entity: String!) {
                 updateUser(input: {defaultEntity: $entity}) {

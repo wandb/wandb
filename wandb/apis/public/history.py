@@ -25,7 +25,6 @@ from wandb.sdk.mailbox.mailbox import MailboxClosedError
 
 if TYPE_CHECKING:
     from . import runs
-    from .api import RetryingClient
     from .service_api import ServiceApi
 
 _RowDict: TypeAlias = dict[str, Any]
@@ -181,25 +180,23 @@ class HistoryScan(Iterator[_RowDict]):
 
     def __init__(
         self,
-        client: RetryingClient,
+        service_api: ServiceApi,
         run: runs.Run,
         min_step: int,
         max_step: int,
         page_size: int = 1_000,
-        *,
-        service_api: ServiceApi,
     ):
         """Initialize a HistoryScan instance.
 
         Args:
-            client: The client instance to use for making API calls to the W&B backend.
+            service_api: The service API to use for making API calls to the W&B backend.
             run: The run object whose history is to be scanned.
             min_step: The minimum step to start scanning from.
             max_step: The exclusive upper bound for scanned history rows.
             page_size: Number of history rows to fetch per page.
                 Default page_size is 1000.
         """
-        self.client = client
+        self.client = service_api
         self.run = run
         self.page_size = page_size
         self.min_step = min_step
@@ -275,19 +272,17 @@ class SampledHistoryScan(Iterator[_RowDict]):
 
     def __init__(
         self,
-        client: RetryingClient,
+        service_api: ServiceApi,
         run: runs.Run,
         keys: list[str],
         min_step: int,
         max_step: int,
         page_size: int = 1_000,
-        *,
-        service_api: ServiceApi,
     ):
         """Initialize a SampledHistoryScan instance.
 
         Args:
-            client: The client instance to use for making API calls to the W&B backend.
+            service_api: The service API to use for making API calls to the W&B backend.
             run: The run object whose history is to be sampled.
             keys: List of keys to sample from the history.
             min_step: The minimum step to start sampling from.
@@ -295,7 +290,7 @@ class SampledHistoryScan(Iterator[_RowDict]):
             page_size: Number of sampled history rows to fetch per page.
                 Default page_size is 1000.
         """
-        self.client = client
+        self.client = service_api
         self.run = run
         self.keys = keys
         self.page_size = page_size
