@@ -163,6 +163,7 @@ def patched_run_run_entry(cmd, dir):
     return mock_run
 
 
+@pytest.mark.usefixtures("user")
 def test_launch_supplied_docker_image(
     runner,
     monkeypatch,
@@ -307,6 +308,7 @@ def test_launch_supplied_logfile(runner, monkeypatch, wandb_caplog, user):
         ),
     ],
 )
+@pytest.mark.usefixtures("user")
 def test_launch_template_vars(command_inputs, expected_error, runner, monkeypatch):
     mock_template_variables = [
         {"name": "test_str", "schema": json.dumps({"type": "string"})},

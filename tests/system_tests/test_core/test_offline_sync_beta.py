@@ -217,6 +217,23 @@ def test_syncs_run(
         assert "test_file.txt" in files
 
 
+def test_sync_reports_init_error(
+    runner: CliRunner,
+    wandb_backend_spy: WandbBackendSpy,
+):
+    with wandb.init(mode="offline") as run:
+        pass
+    gql = wandb_backend_spy.gql
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="UpsertBucket"),
+        gql.once(content="fake UpsertBucket error", status=400),
+    )
+
+    result = runner.invoke(cli.beta, f"sync {run.settings.sync_dir}")
+
+    assert "fake UpsertBucket error" in result.output
+
+
 def test_sync_defaults_to_wandb_dir(tmp_path: pathlib.Path, runner: CliRunner):
     global_settings = wandb_setup.singleton().settings
     global_settings.root_dir = str(tmp_path)

@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/Khan/genqlient/graphql"
@@ -55,6 +56,7 @@ type SenderFactory struct {
 	RunfilesUploaderFactory *runfiles.UploaderFactory
 	GraphqlClient           graphql.Client
 	Peeker                  *observability.Peeker
+	Printer                 *observability.Printer
 	RunHandle               *runhandle.RunHandle
 	Mailbox                 *mailbox.Mailbox
 }
@@ -77,9 +79,6 @@ type Sender struct {
 
 	// settings is the settings for the sender
 	settings *settings.Settings
-
-	// outChan is the channel for dispatcher messages
-	outChan chan *spb.Result
 
 	// graphqlClient is the graphql client
 	graphqlClient graphql.Client
@@ -111,11 +110,8 @@ type Sender struct {
 	// runSummary is the full summary for the run
 	runSummary *runsummary.RunSummary
 
-	// Keep track of exit record to pass to file stream when the time comes
-	exitRecord *spb.Record
-
-	// Keep track of finishWithoutExitRecord to pass to file stream if and when the time comes
-	finishWithoutExitRecord *spb.Record
+	// receivedExit is true once the Sender receives an Exit record.
+	receivedExit bool
 
 	// jobBuilder is the job builder for creating jobs from the run
 	// that allow users to re-run the run with different configurations
@@ -123,6 +119,9 @@ type Sender struct {
 
 	// networkPeeker is a helper for peeking into network responses
 	networkPeeker *observability.Peeker
+
+	// printer sends messages to display in the run's terminal.
+	printer *observability.Printer
 
 	// mailbox is used to store cancel functions for each mailbox slot
 	mailbox *mailbox.Mailbox
@@ -193,11 +192,11 @@ func (f *SenderFactory) New(runWork runwork.RunWork) *Sender {
 			),
 		),
 		networkPeeker:     f.Peeker,
+		printer:           f.Printer,
 		graphqlClient:     f.GraphqlClient,
 		mailbox:           f.Mailbox,
 		runHandle:         f.RunHandle,
 		runSummary:        runsummary.New(),
-		outChan:           make(chan *spb.Result, BufferSize),
 		consoleLogsSender: runconsolelogs.New(consoleLogsSenderParams),
 	}
 
@@ -206,11 +205,6 @@ func (f *SenderFactory) New(runWork runwork.RunWork) *Sender {
 	}
 
 	return s
-}
-
-// ResponseChan contains responses for the client.
-func (h *Sender) ResponseChan() <-chan *spb.Result {
-	return h.outChan
 }
 
 // Do processes all work on the input channel.
@@ -228,7 +222,7 @@ func (s *Sender) Do(allWork <-chan runwork.Work) {
 		s.logger.Debug("sender: got work", "work", work)
 
 		s.mu.Lock()
-		work.Process(s.sendRecord, s.outChan)
+		work.Process(s.sendRecord)
 		s.mu.Unlock()
 
 		hangDetectionOutChan <- struct{}{}
@@ -237,7 +231,6 @@ func (s *Sender) Do(allWork <-chan runwork.Work) {
 	close(hangDetectionInChan)
 	close(hangDetectionOutChan)
 
-	s.Close()
 	s.logger.Info("sender: closed")
 }
 
@@ -276,78 +269,33 @@ outerLoop:
 			}
 		}
 	}
-
 }
 
-func (s *Sender) Close() {
-	// sender is done processing data, close our dispatch channel
-	close(s.outChan)
+// respond responds with a "Response" proto.
+func (s *Sender) respond(
+	request *runwork.Request,
+	response *spb.Response,
+) {
+	request.Respond(&spb.ServerResponse{
+		ServerResponseType: &spb.ServerResponse_ResultCommunicate{
+			ResultCommunicate: &spb.Result{
+				ResultType: &spb.Result_Response{
+					Response: response,
+				},
+			},
+		},
+	})
 }
 
-func (s *Sender) respond(record *spb.Record, response any) {
-	if record == nil {
-		s.logger.Error("sender: respond: nil record")
-		return
-	}
-
-	switch x := response.(type) {
-	case *spb.Response:
-		s.respondResponse(record, x)
-	case *spb.RunExitResult:
-		s.respondExit(record, x)
-	case *spb.RunUpdateResult:
-		s.respondRunUpdate(record, x)
-	case nil:
-		s.logger.CaptureFatalAndPanic(
-			errors.New("sender: respond: nil response"))
-	default:
-		s.logger.CaptureFatalAndPanic(
-			fmt.Errorf("sender: respond: unexpected type %T", x))
-	}
-}
-
-func (s *Sender) respondRunUpdate(record *spb.Record, run *spb.RunUpdateResult) {
-	result := &spb.Result{
-		ResultType: &spb.Result_RunResult{RunResult: run},
-		Control:    record.Control,
-		Uuid:       record.Uuid,
-	}
-	s.outChan <- result
-}
-
-// respondResponse responds to a response record
-func (s *Sender) respondResponse(record *spb.Record, response *spb.Response) {
-	result := &spb.Result{
-		ResultType: &spb.Result_Response{Response: response},
-		Control:    record.Control,
-		Uuid:       record.Uuid,
-	}
-	s.outChan <- result
-}
-
-// respondExit responds to an exit record
-func (s *Sender) respondExit(record *spb.Record, exit *spb.RunExitResult) {
-	if !s.exitRecord.GetControl().GetReqResp() &&
-		s.exitRecord.GetControl().GetMailboxSlot() == "" {
-		return
-	}
-	result := &spb.Result{
-		ResultType: &spb.Result_ExitResult{ExitResult: exit},
-		Control:    record.Control,
-		Uuid:       record.Uuid,
-	}
-	s.outChan <- result
-}
-
-func (s *Sender) SendRecord(record *spb.Record) {
+func (s *Sender) SendRecord(record *spb.Record, request *runwork.Request) {
 	// this is for testing purposes only yet
-	s.sendRecord(record)
+	s.sendRecord(record, request)
 }
 
 // sendRecord sends a record
 //
 //gocyclo:ignore
-func (s *Sender) sendRecord(record *spb.Record) {
+func (s *Sender) sendRecord(record *spb.Record, request *runwork.Request) {
 	switch x := record.RecordType.(type) {
 	case *spb.Record_Header:
 		// no-op
@@ -356,7 +304,7 @@ func (s *Sender) sendRecord(record *spb.Record) {
 	case *spb.Record_Final:
 		// no-op
 	case *spb.Record_Exit:
-		s.sendExit(record)
+		s.sendExit(x.Exit, request)
 	case *spb.Record_Alert:
 		s.sendAlert(record, x.Alert)
 	case *spb.Record_Metric:
@@ -382,7 +330,7 @@ func (s *Sender) sendRecord(record *spb.Record) {
 	case *spb.Record_Preempting:
 		s.sendPreempting(x.Preempting)
 	case *spb.Record_Request:
-		s.sendRequest(record, x.Request)
+		s.sendRequest(record, x.Request, request)
 	case *spb.Record_UseArtifact:
 		s.sendUseArtifact(record)
 	case *spb.Record_Artifact:
@@ -401,8 +349,12 @@ func (s *Sender) sendRecord(record *spb.Record) {
 }
 
 // sendRequest sends a request
-func (s *Sender) sendRequest(record *spb.Record, request *spb.Request) {
-	switch x := request.RequestType.(type) {
+func (s *Sender) sendRequest(
+	record *spb.Record,
+	requestRecord *spb.Request,
+	request *runwork.Request,
+) {
+	switch x := requestRecord.RequestType.(type) {
 	case *spb.Request_ServerInfo:
 	case *spb.Request_CheckVersion:
 		// These requests were removed from the client, so we don't need to
@@ -410,21 +362,19 @@ func (s *Sender) sendRequest(record *spb.Record, request *spb.Request) {
 	case *spb.Request_RunStart:
 		s.sendRequestRunStart(x.RunStart)
 	case *spb.Request_NetworkStatus:
-		s.sendRequestNetworkStatus(record, x.NetworkStatus)
+		s.sendRequestNetworkStatus(x.NetworkStatus, request)
 	case *spb.Request_LogArtifact:
-		s.sendRequestLogArtifact(record, x.LogArtifact)
+		s.sendRequestLogArtifact(x.LogArtifact, request)
 	case *spb.Request_LinkArtifact:
-		s.sendLinkArtifact(record, x.LinkArtifact)
+		s.sendLinkArtifact(x.LinkArtifact, request)
 	case *spb.Request_DownloadArtifact:
-		s.sendRequestDownloadArtifact(record, x.DownloadArtifact)
+		s.sendRequestDownloadArtifact(x.DownloadArtifact, request)
 	case *spb.Request_SenderRead:
 		// TODO: implement this
 	case *spb.Request_StopStatus:
-		s.sendRequestStopStatus(record)
+		s.sendRequestStopStatus(request)
 	case *spb.Request_JobInput:
 		s.sendRequestJobInput(x.JobInput)
-	case *spb.Request_RunFinishWithoutExit:
-		s.sendRequestRunFinishWithoutExit(record, x.RunFinishWithoutExit)
 	case nil:
 		s.logger.CaptureFatalAndPanic(
 			errors.New("sender: sendRequest: nil RequestType"))
@@ -488,8 +438,8 @@ func (s *Sender) sendRequestRunStart(_ *spb.RunStartRequest) {
 }
 
 func (s *Sender) sendRequestNetworkStatus(
-	record *spb.Record,
 	_ *spb.NetworkStatusRequest,
+	request *runwork.Request,
 ) {
 	// in case of network peeker is not set, we don't need to do anything
 	if s.networkPeeker == nil {
@@ -498,7 +448,7 @@ func (s *Sender) sendRequestNetworkStatus(
 
 	// send the network status response if there is any
 	if response := s.networkPeeker.Read(); len(response) > 0 {
-		s.respond(record,
+		s.respond(request,
 			&spb.Response{
 				ResponseType: &spb.Response_NetworkStatusResponse{
 					NetworkStatusResponse: &spb.NetworkStatusResponse{
@@ -560,10 +510,13 @@ func (s *Sender) sendJobFlush() {
 //
 // Everything happens in a separate goroutine during which the Sender
 // continues to process incoming work.
-func (s *Sender) startFinishRun() {
+func (s *Sender) startFinishRun(
+	exitRecord *spb.RunExitRecord,
+	exitRequest *runwork.Request,
+) {
 	go func() {
 		defer s.logger.Reraise()
-		s.finishRunSync()
+		s.finishRunSync(exitRecord, exitRequest)
 	}()
 }
 
@@ -575,7 +528,48 @@ func (s *Sender) startFinishRun() {
 //
 // This starts after an Exit record is received, after which no more
 // run-modifying records can be generated. Requests may still be processed.
-func (s *Sender) finishRunSync() {
+//
+// At the end, a response is sent to the exitRequest (if any).
+//
+// If the exit request is cancelled, the run is aborted.
+func (s *Sender) finishRunSync(
+	exitRecord *spb.RunExitRecord,
+	exitRequest *runwork.Request,
+) {
+	// NOTE: Using an atomic because timeout callback runs in a goroutine.
+	// It's possible we say we timed out when all data uploaded successfully
+	// if it got really close to the timeout, but that's OK.
+	var timedOut atomic.Bool
+
+	defer func() {
+		s.respondExit(exitRequest, timedOut.Load())
+	}()
+
+	// Abort upload operations after a timeout, if configured.
+	if timeout := s.settings.GetFinishTimeout(); timeout > 0 {
+		cancelTimeout := time.AfterFunc(
+			timeout,
+			func() {
+				s.printer.Errorf("Timed out finishing run.")
+				timedOut.Store(true)
+				s.runWork.Abort()
+			},
+		)
+		defer cancelTimeout.Stop()
+	}
+
+	// Abort upload operations if the Exit request is cancelled before
+	// we can respond to it.
+	//
+	// The shutdown stages will all still happen, but faster.
+	if exitRequest != nil {
+		cancelAbortOnRequestFinish := context.AfterFunc(
+			exitRequest.Context(),
+			s.runWork.Abort,
+		)
+		defer cancelAbortOnRequestFinish()
+	}
+
 	// Finish uploading captured console logs.
 	s.consoleLogsSender.Finish()
 
@@ -613,7 +607,11 @@ func (s *Sender) finishRunSync() {
 
 	// Mark the run finished.
 	if s.fileStream != nil {
-		s.finishFileStream()
+		if exitRecord.NotComplete || !s.settings.ShouldUpdateFinishState() {
+			s.fileStream.FinishWithoutExit()
+		} else {
+			s.fileStream.FinishWithExit(exitRecord.ExitCode)
+		}
 	}
 
 	// Indicate that `run.finish()` is done.
@@ -622,40 +620,26 @@ func (s *Sender) finishRunSync() {
 	// printing `run.finish()` progress, and it was necessary to "close"
 	// the progress bar shown in Jupyter. Yes, that was the only purpose.
 	s.fileTransferStats.SetDone()
-
-	// Respond to the client's exit record, if necessary.
-	switch {
-	case s.exitRecord != nil:
-		s.respond(s.exitRecord, &spb.RunExitResult{})
-	case s.finishWithoutExitRecord != nil:
-		response := &spb.Response{
-			ResponseType: &spb.Response_RunFinishWithoutExitResponse{},
-		}
-		s.respond(s.finishWithoutExitRecord, response)
-	default:
-		s.logger.Error("sender: finished without exit record")
-	}
-
-	// Prevent any new work from being added.
-	//
-	// Note that any work queued up at this point still gets processed.
-	s.runWork.SetDone()
 }
 
-// finishFileStream waits for FileStream uploads to complete.
-func (s *Sender) finishFileStream() {
-	switch {
-	case s.exitRecord != nil:
-		s.fileStream.FinishWithExit(
-			s.exitRecord.GetExit().GetExitCode(),
-		)
-	case s.finishWithoutExitRecord != nil:
-		s.fileStream.FinishWithoutExit()
-	default:
-		s.logger.CaptureError(
-			fmt.Errorf("sender: no exit code on finish"))
-		s.fileStream.FinishWithoutExit()
+// respondExit constructs and sends a response to an exit request.
+func (s *Sender) respondExit(
+	exitRequest *runwork.Request,
+	timedOut bool,
+) {
+	exitResponse := &spb.ServerResponse{
+		ServerResponseType: &spb.ServerResponse_ResultCommunicate{
+			ResultCommunicate: &spb.Result{
+				ResultType: &spb.Result_ExitResult{
+					ExitResult: &spb.RunExitResult{
+						TimedOut: timedOut,
+					},
+				},
+			},
+		},
 	}
+
+	exitRequest.Respond(exitResponse)
 }
 
 func (s *Sender) sendTelemetry(_ *spb.Record, telemetry *spb.TelemetryRecord) {
@@ -715,7 +699,7 @@ func (s *Sender) uploadMetadataFile() {
 }
 
 func (s *Sender) sendPreempting(record *spb.RunPreemptingRecord) {
-	if s.exitRecord != nil {
+	if s.receivedExit {
 		s.logCalledAfterExit("sendPreempting")
 		return
 	}
@@ -727,7 +711,10 @@ func (s *Sender) sendPreempting(record *spb.RunPreemptingRecord) {
 	s.fileStream.StreamUpdate(&fs.PreemptingUpdate{Record: record})
 }
 
-func (s *Sender) sendLinkArtifact(record *spb.Record, msg *spb.LinkArtifactRequest) {
+func (s *Sender) sendLinkArtifact(
+	msg *spb.LinkArtifactRequest,
+	request *runwork.Request,
+) {
 	var response spb.LinkArtifactResponse
 	linker := artifacts.ArtifactLinker{
 		Ctx:           s.runWork.BeforeEndCtx(),
@@ -747,18 +734,12 @@ func (s *Sender) sendLinkArtifact(record *spb.Record, msg *spb.LinkArtifactReque
 	} else {
 		response.VersionIndex = nil
 	}
-	result := &spb.Result{
-		ResultType: &spb.Result_Response{
-			Response: &spb.Response{
-				ResponseType: &spb.Response_LinkArtifactResponse{
-					LinkArtifactResponse: &response,
-				},
-			},
+
+	s.respond(request, &spb.Response{
+		ResponseType: &spb.Response_LinkArtifactResponse{
+			LinkArtifactResponse: &response,
 		},
-		Control: record.Control,
-		Uuid:    record.Uuid,
-	}
-	s.outChan <- result
+	})
 }
 
 func (s *Sender) sendUseArtifact(record *spb.Record) {
@@ -772,7 +753,7 @@ func (s *Sender) sendUseArtifact(record *spb.Record) {
 // sendHistory sends a history record to the file stream,
 // which will then send it to the server
 func (s *Sender) sendHistory(record *spb.HistoryRecord) {
-	if s.exitRecord != nil {
+	if s.receivedExit {
 		s.logCalledAfterExit("sendHistory")
 		return
 	}
@@ -785,7 +766,7 @@ func (s *Sender) sendHistory(record *spb.HistoryRecord) {
 }
 
 func (s *Sender) sendSummary(_ *spb.Record, summary *spb.SummaryRecord) {
-	if s.exitRecord != nil {
+	if s.receivedExit {
 		s.logCalledAfterExit("sendSummary")
 		return
 	}
@@ -906,7 +887,7 @@ func (s *Sender) sendConfig(_ *spb.Record, configRecord *spb.ConfigRecord) {
 
 // sendSystemMetrics sends a system metrics record via the file stream
 func (s *Sender) sendSystemMetrics(record *spb.StatsRecord) {
-	if s.exitRecord != nil {
+	if s.receivedExit {
 		s.logCalledAfterExit("sendSystemMetrics")
 		return
 	}
@@ -939,7 +920,7 @@ func (s *Sender) sendSystemMetrics(record *spb.StatsRecord) {
 }
 
 func (s *Sender) sendOutput(_ *spb.Record, _ *spb.OutputRecord) {
-	if s.exitRecord != nil {
+	if s.receivedExit {
 		s.logCalledAfterExit("sendOutput")
 		return
 	}
@@ -948,7 +929,7 @@ func (s *Sender) sendOutput(_ *spb.Record, _ *spb.OutputRecord) {
 }
 
 func (s *Sender) sendOutputRaw(_ *spb.Record, outputRaw *spb.OutputRawRecord) {
-	if s.exitRecord != nil {
+	if s.receivedExit {
 		s.logCalledAfterExit("sendOutputRaw")
 		return
 	}
@@ -994,34 +975,22 @@ func (s *Sender) sendAlert(_ *spb.Record, alert *spb.AlertRecord) {
 
 }
 
-// sendRequestRunFinishWithoutExit triggers the shutdown of the stream without marking the run as finished
-// on the server.
-func (s *Sender) sendRequestRunFinishWithoutExit(
-	record *spb.Record,
-	_ *spb.RunFinishWithoutExitRequest,
+// sendExit sends an exit record to the server and triggers the shutdown of
+// the stream.
+func (s *Sender) sendExit(
+	record *spb.RunExitRecord,
+	request *runwork.Request,
 ) {
-	if s.finishWithoutExitRecord != nil {
+	if s.receivedExit {
 		s.logger.CaptureError(
-			errors.New("sender: received RequestRunFinishWithoutExit more than once, ignoring"))
+			errors.New("sender: received exit more than once, ignoring"))
+		request.WillNotRespond()
 		return
 	}
 
-	s.finishWithoutExitRecord = record
+	s.receivedExit = true
 
-	s.startFinishRun()
-}
-
-// sendExit sends an exit record to the server and triggers the shutdown of the stream
-func (s *Sender) sendExit(record *spb.Record) {
-	if s.exitRecord != nil {
-		s.logger.Warn("sender: received Exit record more than once, ignoring")
-		return
-	}
-
-	// response is done by respond() and called when defer state machine is complete
-	s.exitRecord = record
-
-	s.startFinishRun()
+	s.startFinishRun(record, request)
 }
 
 // sendMetric updates the metrics in the run config.
@@ -1073,7 +1042,10 @@ func (s *Sender) sendArtifact(_ *spb.Record, msg *spb.ArtifactRecord) {
 	}()
 }
 
-func (s *Sender) sendRequestLogArtifact(record *spb.Record, msg *spb.LogArtifactRequest) {
+func (s *Sender) sendRequestLogArtifact(
+	msg *spb.LogArtifactRequest,
+	request *runwork.Request,
+) {
 	op := s.operations.New(
 		fmt.Sprintf(
 			"uploading artifact %s",
@@ -1113,7 +1085,7 @@ func (s *Sender) sendRequestLogArtifact(record *spb.Record, msg *spb.LogArtifact
 			)
 		}
 
-		s.respond(record,
+		s.respond(request,
 			&spb.Response{
 				ResponseType: &spb.Response_LogArtifactResponse{
 					LogArtifactResponse: &response,
@@ -1122,7 +1094,10 @@ func (s *Sender) sendRequestLogArtifact(record *spb.Record, msg *spb.LogArtifact
 	}()
 }
 
-func (s *Sender) sendRequestDownloadArtifact(record *spb.Record, msg *spb.DownloadArtifactRequest) {
+func (s *Sender) sendRequestDownloadArtifact(
+	msg *spb.DownloadArtifactRequest,
+	request *runwork.Request,
+) {
 	var response spb.DownloadArtifactResponse
 
 	if s.graphqlClient == nil {
@@ -1149,7 +1124,7 @@ func (s *Sender) sendRequestDownloadArtifact(record *spb.Record, msg *spb.Downlo
 		response.ErrorMessage = err.Error()
 	}
 
-	s.respond(record,
+	s.respond(request,
 		&spb.Response{
 			ResponseType: &spb.Response_DownloadArtifactResponse{
 				DownloadArtifactResponse: &response,
@@ -1157,8 +1132,8 @@ func (s *Sender) sendRequestDownloadArtifact(record *spb.Record, msg *spb.Downlo
 		})
 }
 
-func (s *Sender) sendRequestStopStatus(record *spb.Record) {
-	s.respond(record, &spb.Response{
+func (s *Sender) sendRequestStopStatus(request *runwork.Request) {
+	s.respond(request, &spb.Response{
 		ResponseType: &spb.Response_StopStatusResponse{
 			StopStatusResponse: &spb.StopStatusResponse{
 				RunShouldStop: s.fileStream != nil && s.fileStream.IsStopped(),

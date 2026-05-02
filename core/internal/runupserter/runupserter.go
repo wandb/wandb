@@ -178,7 +178,7 @@ func InitRun(
 		err := upserter.updateMetadataForResume(ctx, params.Settings.GetResume())
 
 		if err != nil {
-			return nil, runUpdateErrorFromBranchError(err)
+			return nil, ToRunUpdateError(err)
 		}
 
 	case branchPoint != nil && branchPoint.GetRun() == runRecord.RunId:
@@ -186,7 +186,7 @@ func InitRun(
 		err := upserter.updateMetadataForRewind(ctx, branchPoint)
 
 		if err != nil {
-			return nil, runUpdateErrorFromBranchError(err)
+			return nil, ToRunUpdateError(err)
 		}
 
 	case branchPoint != nil && branchPoint.GetRun() != "":
@@ -194,7 +194,7 @@ func InitRun(
 		err := upserter.updateMetadataForFork(branchPoint)
 
 		if err != nil {
-			return nil, runUpdateErrorFromBranchError(err)
+			return nil, ToRunUpdateError(err)
 		}
 	}
 
@@ -214,11 +214,7 @@ func InitRun(
 	)
 
 	if err != nil {
-		return nil, &RunUpdateError{
-			UserMessage: fmt.Sprintf("Error uploading run: %v", err),
-			Cause:       err,
-			Code:        spb.ErrorInfo_COMMUNICATION,
-		}
+		return nil, ToRunUpdateError(err)
 	}
 
 	// Fill some metadata based on the server response.

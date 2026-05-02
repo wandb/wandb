@@ -36,7 +36,7 @@ class ServerInitSyncRequest(_message.Message):
     new_run_id: str
     new_job_type: str
     tag_replacements: _containers.ScalarMap[str, str]
-    def __init__(self, path: _Optional[_Iterable[str]] = ..., cwd: _Optional[str] = ..., live: _Optional[bool] = ..., settings: _Optional[_Union[_wandb_settings_pb2.Settings, _Mapping]] = ..., new_entity: _Optional[str] = ..., new_project: _Optional[str] = ..., new_run_id: _Optional[str] = ..., new_job_type: _Optional[str] = ..., tag_replacements: _Optional[_Mapping[str, str]] = ...) -> None: ...
+    def __init__(self, path: _Optional[_Iterable[str]] = ..., cwd: _Optional[str] = ..., live: bool = ..., settings: _Optional[_Union[_wandb_settings_pb2.Settings, _Mapping]] = ..., new_entity: _Optional[str] = ..., new_project: _Optional[str] = ..., new_run_id: _Optional[str] = ..., new_job_type: _Optional[str] = ..., tag_replacements: _Optional[_Mapping[str, str]] = ...) -> None: ...
 
 class ServerInitSyncResponse(_message.Message):
     __slots__ = ("id",)

@@ -690,6 +690,7 @@ numpy==1.26.4
     #   stable-baselines3
     #   sweeps
     #   tensorboard
+    #   tensorboardx
     #   tensorflow
     #   torchmetrics
     #   torchvision
@@ -748,6 +749,7 @@ packaging==25.0
     #   pytest
     #   pytorch-lightning
     #   tensorboard
+    #   tensorboardx
     #   tensorflow
     #   torchmetrics
     #   wandb
@@ -832,6 +834,7 @@ protobuf==6.33.6
     #   mlflow-skinny
     #   proto-plus
     #   tensorboard
+    #   tensorboardx
     #   tensorflow
     #   wandb
 psutil==7.2.2
@@ -1111,6 +1114,8 @@ tensorboard==2.20.0
     #   tensorflow
 tensorboard-data-server==0.7.2
     # via tensorboard
+tensorboardx==2.6.5
+    # via -r requirements/requirements_dev.txt
 tensorflow==2.20.0
     # via -r requirements/requirements_dev.txt
 termcolor==3.1.0

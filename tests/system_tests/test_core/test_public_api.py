@@ -1298,6 +1298,23 @@ def test_generate_api_key_failure(
     assert user.generate_api_key("conflict") is None
 
 
+def test_user_api_uses_propagated_key(
+    stub_search_users,
+    skip_verify_login,
+):
+    _ = skip_verify_login  # Don't verify user API keys.
+    email = "test@test.com"
+    api_key = {"name": "X" * 40, "id": "QXBpS2V5OjE4MzA=", "description": None}
+    stub_search_users(email=email, api_keys=[api_key], teams=[])
+
+    fake_key = "A" * 92
+    api = Api(api_key=fake_key)
+    user = api.user(email)
+
+    assert user.user_api is not None
+    assert user.user_api.api_key == fake_key
+
+
 def test_runs_histories(
     stub_run_gql_once,
     stub_run_full_history,

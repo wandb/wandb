@@ -143,35 +143,19 @@ func (fm *FocusManager) TabWithinOrAdvance(direction int, withinFn func(int) boo
 	fm.Tab(direction)
 }
 
+// ResolveAfterAvailabilityChange keeps the current focus when it is still
+// available. Otherwise, it activates the first currently available region.
+// If none are available, it clears focus.
+func (fm *FocusManager) ResolveAfterAvailabilityChange() {
+	fm.resolve(fm.regionAvailable)
+}
+
 // ResolveAfterVisibilityChange checks whether the current target is still
 // available under the target visibility state after a toggle. If not, it
-// advances to the first available region. If none are available, it clears
-// focus.
+// activates the first region that will be available in the target state. If
+// none are available, it clears focus.
 func (fm *FocusManager) ResolveAfterVisibilityChange() {
-	if fm.current == FocusTargetNone {
-		return
-	}
-
-	for i := range fm.regions {
-		if fm.regions[i].Target != fm.current {
-			continue
-		}
-		if fm.regionAvailableForResolve(&fm.regions[i]) {
-			return
-		}
-		break
-	}
-
-	for i := range fm.regions {
-		if fm.regionAvailableForResolve(&fm.regions[i]) {
-			fm.deactivateAll()
-			fm.current = fm.regions[i].Target
-			fm.regions[i].Activate(1)
-			return
-		}
-	}
-
-	fm.ClearAll()
+	fm.resolve(fm.regionAvailableForResolve)
 }
 
 func (fm *FocusManager) regionAvailable(r *FocusRegionDef) bool {
@@ -183,6 +167,32 @@ func (fm *FocusManager) regionAvailableForResolve(r *FocusRegionDef) bool {
 		return r.AvailableTarget()
 	}
 	return fm.regionAvailable(r)
+}
+
+func (fm *FocusManager) resolve(isAvailable func(*FocusRegionDef) bool) {
+	if fm.current != FocusTargetNone {
+		for i := range fm.regions {
+			if fm.regions[i].Target != fm.current {
+				continue
+			}
+			if isAvailable(&fm.regions[i]) {
+				return
+			}
+			break
+		}
+	}
+
+	for i := range fm.regions {
+		if !isAvailable(&fm.regions[i]) {
+			continue
+		}
+		fm.deactivateAll()
+		fm.current = fm.regions[i].Target
+		fm.regions[i].Activate(1)
+		return
+	}
+
+	fm.ClearAll()
 }
 
 func (fm *FocusManager) deactivateAll() {

@@ -28,6 +28,8 @@ type LevelDBHistorySource struct {
 	exitSeen bool
 	// exitCode is the exit code of the run if the exit record has been seen.
 	exitCode int32
+	// fileCompleteEmitted is true after the terminal FileCompleteMsg has been emitted.
+	fileCompleteEmitted bool
 }
 
 func NewLevelDBHistorySource(
@@ -79,15 +81,21 @@ func (hs *LevelDBHistorySource) Read(
 			HasMore: false,
 		}, nil
 	}
+	if hs.exitSeen && hs.fileCompleteEmitted {
+		return ChunkedBatchMsg{
+			Msgs:    []tea.Msg{},
+			HasMore: false,
+		}, io.EOF
+	}
 
 	var msgs []tea.Msg
 	var histories []HistoryMsg
 	var summaries []SummaryMsg
-	recordCount := 0
+	scannedCount := 0
 	startTime := time.Now()
 	var err error
 
-	for recordCount < chunkSize && time.Since(startTime) < maxTimePerChunk {
+	for scannedCount < chunkSize && time.Since(startTime) < maxTimePerChunk {
 		record, readErr := hs.store.Read()
 		if readErr != nil {
 			if errors.Is(readErr, io.EOF) {
@@ -104,6 +112,7 @@ func (hs *LevelDBHistorySource) Read(
 		if record == nil {
 			continue
 		}
+		scannedCount++
 
 		// Handle exit record first to avoid double FileComplete.
 		if exit, ok := record.RecordType.(*spb.Record_Exit); ok && exit.Exit != nil {
@@ -121,7 +130,6 @@ func (hs *LevelDBHistorySource) Read(
 			default:
 				msgs = append(msgs, msg)
 			}
-			recordCount++
 		}
 	}
 
@@ -132,18 +140,19 @@ func (hs *LevelDBHistorySource) Read(
 		msgs = append(msgs, hs.concatenateSummary(summaries))
 	}
 
-	if hs.exitSeen {
+	if hs.exitSeen && !hs.fileCompleteEmitted {
 		msgs = append(msgs, FileCompleteMsg{ExitCode: hs.exitCode})
+		hs.fileCompleteEmitted = true
 	}
 
 	// Determine if there's more to read,
 	// i.e. whether we have records and didn't hit EOF, there might be more.
-	hasMore := !hs.exitSeen && recordCount > 0
+	hasMore := !hs.exitSeen && scannedCount > 0
 
 	return ChunkedBatchMsg{
 		Msgs:     msgs,
 		HasMore:  hasMore,
-		Progress: recordCount,
+		Progress: scannedCount,
 	}, err
 }
 

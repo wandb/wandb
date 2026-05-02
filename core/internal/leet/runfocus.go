@@ -2,6 +2,10 @@ package leet
 
 // buildRunFocusManager constructs the FocusManager for the single-run view.
 //
+// The region order follows the spatial layout so Tab flows naturally:
+// left sidebar (overview) → main column top-to-bottom (metrics, media,
+// logs) → right sidebar (system metrics).
+//
 // Called once from NewRun after all UI components are initialized. The closures
 // capture the *Run pointer so availability checks always reflect live state.
 func (r *Run) buildRunFocusManager() *FocusManager {
@@ -21,13 +25,6 @@ func (r *Run) buildRunFocusManager() *FocusManager {
 			Deactivate:      r.deactivateMetricsGridFocus,
 		},
 		{
-			Target:          FocusTargetSystemMetrics,
-			Available:       r.systemMetricsFocusAvailable,
-			AvailableTarget: r.systemMetricsFocusTargetAvailable,
-			Activate:        r.activateSystemMetricsFocus,
-			Deactivate:      r.deactivateSystemMetricsFocus,
-		},
-		{
 			Target:          FocusTargetMedia,
 			Available:       r.mediaFocusAvailable,
 			AvailableTarget: r.mediaFocusTargetAvailable,
@@ -40,6 +37,13 @@ func (r *Run) buildRunFocusManager() *FocusManager {
 			AvailableTarget: r.logsFocusTargetAvailable,
 			Activate:        r.activateLogsFocus,
 			Deactivate:      r.deactivateLogsFocus,
+		},
+		{
+			Target:          FocusTargetSystemMetrics,
+			Available:       r.systemMetricsFocusAvailable,
+			AvailableTarget: r.systemMetricsFocusTargetAvailable,
+			Activate:        r.activateSystemMetricsFocus,
+			Deactivate:      r.deactivateSystemMetricsFocus,
 		},
 	})
 }

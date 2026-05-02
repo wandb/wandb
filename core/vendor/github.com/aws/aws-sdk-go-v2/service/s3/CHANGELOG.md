@@ -1,3 +1,20 @@
+# v1.100.0 (2026-04-22)
+
+* **Feature**: This release adds five additional checksum algorithms for S3 data integrity (MD5, SHA-512, XXHash3, XXHash64, XXHash128) and support for S3 Inventory on directory buckets (S3 Express One Zone).
+
+# v1.99.1 (2026-04-17)
+
+* **Dependency Update**: Bump smithy-go to 1.25.0 to support endpointBdd trait
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.99.0 (2026-04-07)
+
+* **Feature**: Updated list of the valid AWS Region values for the LocationConstraint parameter for general purpose buckets.
+
+# v1.98.0 (2026-03-31)
+
+* **Feature**: Add Bucket Metrics configuration support to directory buckets
+
 # v1.97.3 (2026-03-26)
 
 * **Bug Fix**: Fix a bug where a recorded clock skew could persist on the client even if the client and server clock ended up realigning.

@@ -212,11 +212,16 @@ func (hub *Hub) ConfigureScope(f func(scope *Scope)) {
 // passing it a top-level Scope.
 // Returns EventID if successfully, or nil if there's no Scope or Client available.
 func (hub *Hub) CaptureEvent(event *Event) *EventID {
+	return hub.CaptureEventWithHint(event, nil)
+}
+
+// CaptureEventWithHint is like CaptureEvent but additionally accepts an EventHint.
+func (hub *Hub) CaptureEventWithHint(event *Event, hint *EventHint) *EventID {
 	client, scope := hub.Client(), hub.Scope()
 	if client == nil || scope == nil {
 		return nil
 	}
-	eventID := client.CaptureEvent(event, nil, scope)
+	eventID := client.CaptureEvent(event, hint, scope)
 
 	if event.Type != transactionType && eventID != nil {
 		hub.mu.Lock()

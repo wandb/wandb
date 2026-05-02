@@ -2,12 +2,10 @@ package leet
 
 import (
 	"fmt"
-	"slices"
 	"sort"
 	"time"
 
 	"charm.land/lipgloss/v2"
-	"charm.land/lipgloss/v2/compat"
 
 	"github.com/wandb/wandb/core/internal/observability"
 )
@@ -39,6 +37,9 @@ type SystemMetricsGrid struct {
 
 	// Coloring state for per-plot mode.
 	nextColor int // next palette index
+
+	// lastDrawnCharts holds charts from the last visible page for parking.
+	lastDrawnCharts map[systemMetricChart]struct{}
 
 	// synchronized inspection session state (active only between press/release)
 	syncInspectActive bool
@@ -102,7 +103,7 @@ func (g *SystemMetricsGrid) effectiveGridSize() GridSize {
 }
 
 // nextPaletteColor returns the next color from the active system palette.
-func (g *SystemMetricsGrid) nextPaletteColor() compat.AdaptiveColor {
+func (g *SystemMetricsGrid) nextPaletteColor() AdaptiveColor {
 	palette := GraphColors(g.config.SystemColorScheme())
 	color := palette[g.nextColor%len(palette)]
 	g.nextColor++
@@ -114,10 +115,10 @@ func (g *SystemMetricsGrid) nextPaletteColor() compat.AdaptiveColor {
 //
 // The first call returns the color after the base color,
 // so the base can be used for the first series.
-func (g *SystemMetricsGrid) anchoredSeriesColorProvider(baseIdx int) func() compat.AdaptiveColor {
+func (g *SystemMetricsGrid) anchoredSeriesColorProvider(baseIdx int) func() AdaptiveColor {
 	palette := GraphColors(g.config.SystemColorScheme())
 	idx := baseIdx + 1
-	return func() compat.AdaptiveColor {
+	return func() AdaptiveColor {
 		c := palette[idx%len(palette)]
 		idx++
 		return c
@@ -136,7 +137,7 @@ func (g *SystemMetricsGrid) createMetricChart(def *MetricDef) systemMetricChart 
 
 	// Base color by color mode.
 	var (
-		baseColor compat.AdaptiveColor
+		baseColor AdaptiveColor
 		baseIdx   int
 	)
 	colorMode := g.config.SystemColorMode()
@@ -174,7 +175,39 @@ func (g *SystemMetricsGrid) createMetricChart(def *MetricDef) systemMetricChart 
 }
 
 // AddDataPoint adds a new data point to the appropriate metric chart.
+//
+// Drawing is deferred to the next View() call to avoid redundant redraws
+// when processing a batch of metrics from a single stats record.
 func (g *SystemMetricsGrid) AddDataPoint(metricName string, timestamp int64, value float64) {
+	if g.addDataPoint(metricName, timestamp, value) {
+		g.refreshChartSet()
+	}
+}
+
+// ProcessStats ingests all metrics from a single stats record, batching any
+// chart creation/filtering/redraw work.
+func (g *SystemMetricsGrid) ProcessStats(msg StatsMsg) {
+	if len(msg.Metrics) == 0 {
+		return
+	}
+
+	chartSetChanged := false
+	for metricName, value := range msg.Metrics {
+		if g.addDataPoint(metricName, msg.Timestamp, value) {
+			chartSetChanged = true
+		}
+	}
+	if chartSetChanged {
+		g.refreshChartSet()
+	}
+}
+
+// addDataPoint adds a sample and reports whether the chart set changed.
+func (g *SystemMetricsGrid) addDataPoint(
+	metricName string,
+	timestamp int64,
+	value float64,
+) bool {
 	g.logger.Debug(fmt.Sprintf(
 		"SystemMetricsGrid.AddDataPoint: metric=%s, timestamp=%d, value=%f",
 		metricName, timestamp, value))
@@ -183,44 +216,48 @@ func (g *SystemMetricsGrid) AddDataPoint(metricName string, timestamp int64, val
 	if def == nil {
 		g.logger.Debug(fmt.Sprintf(
 			"SystemMetricsGrid.AddDataPoint: no definition for metric=%s", metricName))
-		return
+		return false
 	}
 
 	baseKey := ExtractBaseKey(metricName)
 	seriesName := ExtractSeriesName(metricName)
 
-	chart := g.getOrCreateChart(baseKey, def)
+	chart, created := g.getOrCreateChart(baseKey, def)
 	chart.AddDataPoint(seriesName, timestamp, value)
-	if g.isChartVisible(chart) {
-		chart.DrawIfNeeded()
-	}
+	return created
 }
 
 // getOrCreateChart returns a chart for the given baseKey.
-func (g *SystemMetricsGrid) getOrCreateChart(baseKey string, def *MetricDef) systemMetricChart {
+func (g *SystemMetricsGrid) getOrCreateChart(
+	baseKey string,
+	def *MetricDef,
+) (systemMetricChart, bool) {
 	chart, exists := g.byBaseKey[baseKey]
 	if !exists {
 		g.logger.Debug(fmt.Sprintf("systemmetricsgrid: creating new chart for baseKey=%s", baseKey))
 		chart = g.createMetricChart(def)
 		g.byBaseKey[baseKey] = chart
 		g.addChart(chart)
+		return chart, true
 	}
-	return chart
+	return chart, false
 }
 
-// addChart adds a chart to the ordered list and updates pagination.
+// addChart adds a chart to the ordered list.
 func (g *SystemMetricsGrid) addChart(chart systemMetricChart) {
 	g.ordered = append(g.ordered, chart)
 	sort.Slice(g.ordered, func(i, j int) bool {
 		return g.ordered[i].Title() < g.ordered[j].Title()
 	})
 
+	g.logger.Debug(fmt.Sprintf(
+		"SystemMetricsGrid.addChart: chart added, total=%d",
+		len(g.ordered)))
+}
+
+func (g *SystemMetricsGrid) refreshChartSet() {
 	g.ApplyFilter()
 	g.drawVisible()
-
-	g.logger.Debug(fmt.Sprintf(
-		"SystemMetricsGrid.addChart: chart added, total=%d, pages=%d",
-		len(g.ordered), g.nav.TotalPages()))
 }
 
 // LoadCurrentPage loads charts for the current page.
@@ -258,6 +295,30 @@ func (g *SystemMetricsGrid) LoadCurrentPage() {
 // Navigate changes pages.
 func (g *SystemMetricsGrid) Navigate(direction int) {
 	if !g.nav.Navigate(direction) {
+		return
+	}
+
+	g.ClearFocus()
+	g.LoadCurrentPage()
+	g.drawVisible()
+	g.NavigateFocus(0, 0)
+}
+
+// NavigateHome jumps to the first page.
+func (g *SystemMetricsGrid) NavigateHome() {
+	if !g.nav.GoHome() {
+		return
+	}
+
+	g.ClearFocus()
+	g.LoadCurrentPage()
+	g.drawVisible()
+	g.NavigateFocus(0, 0)
+}
+
+// NavigateEnd jumps to the last page.
+func (g *SystemMetricsGrid) NavigateEnd() {
+	if !g.nav.GoEnd() {
 		return
 	}
 
@@ -506,27 +567,32 @@ func (g *SystemMetricsGrid) Resize(width, height int) {
 	g.drawVisible()
 }
 
+// drawVisible resizes and draws charts on the current page.
+//
+// Charts no longer visible are parked to reduce memory usage.
 func (g *SystemMetricsGrid) drawVisible() {
 	dims := g.calculateChartDimensions()
+
+	currentCharts := make(map[systemMetricChart]struct{})
 	for row := range g.currentPage {
 		for col := range g.currentPage[row] {
-			chart := g.currentPage[row][col]
-			if chart == nil {
-				continue
+			if chart := g.currentPage[row][col]; chart != nil {
+				currentCharts[chart] = struct{}{}
 			}
-			chart.Resize(dims.CellW, dims.CellH)
-			chart.DrawIfNeeded()
 		}
 	}
-}
 
-func (g *SystemMetricsGrid) isChartVisible(target systemMetricChart) bool {
-	for row := range g.currentPage {
-		if slices.Contains(g.currentPage[row], target) {
-			return true
+	for ch := range g.lastDrawnCharts {
+		if _, stillVisible := currentCharts[ch]; !stillVisible {
+			ch.Park()
 		}
 	}
-	return false
+	g.lastDrawnCharts = currentCharts
+
+	for ch := range currentCharts {
+		ch.Resize(dims.CellW, dims.CellH)
+		ch.DrawIfNeeded()
+	}
 }
 
 func (g *SystemMetricsGrid) syncFocusToCurrentPage() {
@@ -560,9 +626,21 @@ func (g *SystemMetricsGrid) syncFocusToCurrentPage() {
 }
 
 // View renders the system metrics grid.
+//
+// Dirty visible charts are drawn before rendering so that data added
+// since the last frame is reflected without per-point draw overhead.
 func (g *SystemMetricsGrid) View() string {
 	dims := g.calculateChartDimensions()
 	size := g.effectiveGridSize()
+
+	// Draw any visible charts that received new data since the last frame.
+	for row := range g.currentPage {
+		for col := range g.currentPage[row] {
+			if chart := g.currentPage[row][col]; chart != nil {
+				chart.DrawIfNeeded()
+			}
+		}
+	}
 
 	var rows []string
 	for row := range size.Rows {

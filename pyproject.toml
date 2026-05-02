@@ -105,6 +105,7 @@ launch = [
 models = ["cloudpickle"]
 importers = ["polars<=1.2.1", "rich", "filelock", "mlflow", "tenacity"]
 workspaces = ["wandb-workspaces"]
+sandbox = ["cwsandbox[cli]>=0.20.0"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
@@ -523,3 +524,11 @@ reportUnusedCallResult = false
 # Any is frequently unavoidable when forwarding an argument with a generic type
 # to a library function that didn't specify the generic type parameters.
 reportExplicitAny = "hint"
+
+[tool.cibuildwheel.linux]
+environment = { PATH = "$PATH:/usr/local/go/bin:/root/.cargo/bin" }
+
+[[tool.cibuildwheel.overrides]]
+select = "*-musllinux*"
+inherit.environment = "append"
+environment = { WANDB_ENABLE_CGO = "true" }

@@ -395,10 +395,13 @@ func (m *Model) drawYLabel(n int) {
 		v := m.viewMinY + (increment * float64(i)) // value to set left of Y axis
 		s := m.YLabelFormatter(i, v)
 		if lastVal != s {
-			m.Canvas.SetStringWithStyle(canvas.Point{m.origin.X - len(s), m.origin.Y - i}, s, m.LabelStyle)
+			m.Canvas.SetStringWithStyle(canvas.Point{X: m.origin.X - len(s), Y: m.origin.Y - i}, s, m.LabelStyle)
 			lastVal = s
 		}
-		i += n
+		if i == m.graphHeight {
+			break
+		}
+		i = min(i+n, m.graphHeight)
 	}
 }
 
@@ -413,19 +416,23 @@ func (m *Model) drawXLabel(n int) {
 	var lastVal string
 	rangeSz := m.viewMaxX - m.viewMinX // range of possible expected values
 	increment := rangeSz / float64(m.graphWidth)
+	last := m.graphWidth - 1
 	for i := 0; i < m.graphWidth; {
 		// can only set if rune to the left of target coordinates is empty
-		if c := m.Canvas.Cell(canvas.Point{m.origin.X + i - 1, m.origin.Y + 1}); c.Rune == runes.Null {
+		if c := m.Canvas.Cell(canvas.Point{X: m.origin.X + i - 1, Y: m.origin.Y + 1}); c.Rune == runes.Null {
 			v := m.viewMinX + (increment * float64(i)) // value to set under X axis
 			s := m.XLabelFormatter(i, v)
 			// dont display if number will be cut off or value repeats
 			sLen := len(s) + m.origin.X + i
 			if (s != lastVal) && (sLen <= m.Canvas.Width()) {
-				m.Canvas.SetStringWithStyle(canvas.Point{m.origin.X + i, m.origin.Y + 1}, s, m.LabelStyle)
+				m.Canvas.SetStringWithStyle(canvas.Point{X: m.origin.X + i, Y: m.origin.Y + 1}, s, m.LabelStyle)
 				lastVal = s
 			}
 		}
-		i += n
+		if i == last {
+			break
+		}
+		i = min(i+n, last)
 	}
 }
 

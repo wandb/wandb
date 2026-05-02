@@ -84,6 +84,7 @@ func InjectRunSyncerFactory(settings2 *settings.Settings, logger *observability.
 		RunfilesUploaderFactory: uploaderFactory,
 		GraphqlClient:           client,
 		Peeker:                  peeker,
+		Printer:                 printer,
 		RunHandle:               runHandle,
 		Mailbox:                 mailboxMailbox,
 	}

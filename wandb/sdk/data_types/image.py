@@ -515,6 +515,10 @@ class Image(BatchableMedia):
                 "Image media created by a reference to external storage cannot currently be added to a run"
             )
 
+        # Validate the key before checking server capabilities so invalid
+        # Windows filenames fail fast instead of blocking on a version lookup.
+        util.make_file_path_upload_safe(str(key))
+
         if (
             not _server_accepts_artifact_path(run)
             or self._get_artifact_entry_ref_url() is None

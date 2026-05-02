@@ -1,118 +1,61 @@
 .DEFAULT_GOAL := help
 
-MKFILE_PATH := $(abspath $(lastword $(MAKEFILE_LIST)))
-MKFILE_DIR := $(dir $(MKFILE_PATH))
 ALL_GO_MOD_DIRS := $(shell find . -type f -name 'go.mod' -exec dirname {} \; | sort)
 GO = go
 TIMEOUT = 300
 
-# Parse Makefile and display the help
 help: ## Show help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
 .PHONY: help
 
-build: ## Build everything
-	set -e ; \
-	for dir in $(ALL_GO_MOD_DIRS); do \
-		MOD_GO=$$(sed -n 's/^go \([0-9]*\.[0-9]*\).*/\1/p' "$${dir}/go.mod"); \
-		CURRENT=$$($(GO) env GOVERSION | sed 's/^go//' | cut -d. -f1,2); \
-		if [ "$$(printf '%s\n%s' "$${MOD_GO}" "$${CURRENT}" | sort -V | head -n1)" != "$${MOD_GO}" ]; then \
-			echo ">>> Skipping $${dir} (requires Go $${MOD_GO}, have $${CURRENT})"; \
-			continue; \
-		fi; \
-		echo ">>> Running 'go build' for module: $${dir}"; \
-		(cd "$${dir}" && go build ./...); \
-	done;
+build: ## Build all workspace modules
+	$(GO) build work
 .PHONY: build
 
-### Tests (inspired by https://github.com/open-telemetry/opentelemetry-go/blob/main/Makefile)
-TEST_TARGETS := test-short test-verbose test-race
-test-race:    ARGS=-race
-test-short:   ARGS=-short
-test-verbose: ARGS=-v -race
-$(TEST_TARGETS): test
-test: $(ALL_GO_MOD_DIRS:%=test/%)  ## Run tests
-test/%: DIR=$*
-test/%:
-	@MOD_GO=$$(sed -n 's/^go \([0-9]*\.[0-9]*\).*/\1/p' "$(DIR)/go.mod"); \
-	CURRENT=$$($(GO) env GOVERSION | sed 's/^go//' | cut -d. -f1,2); \
-	if [ "$$(printf '%s\n%s' "$$MOD_GO" "$$CURRENT" | sort -V | head -n1)" != "$$MOD_GO" ]; then \
-		echo ">>> Skipping tests for $(DIR) (requires Go $$MOD_GO, have $$CURRENT)"; \
-	else \
-		echo ">>> Running tests for module: $(DIR)"; \
-		(cd $(DIR) && $(GO) test -count=1 -timeout $(TIMEOUT)s $(ARGS) ./...); \
-	fi
-.PHONY: $(TEST_TARGETS) test
+test: ## Run tests across all workspace modules
+	$(GO) test -count=1 -timeout $(TIMEOUT)s work
+.PHONY: test
 
-# Coverage
-COVERAGE_MODE    = atomic
-COVERAGE_PROFILE = coverage.out
-COVERAGE_REPORT_DIR = .coverage
-COVERAGE_REPORT_DIR_ABS = "$(MKFILE_DIR)/$(COVERAGE_REPORT_DIR)"
-$(COVERAGE_REPORT_DIR):
-	mkdir -p $(COVERAGE_REPORT_DIR)
-clean-report-dir: $(COVERAGE_REPORT_DIR)
-	test $(COVERAGE_REPORT_DIR) && rm -f $(COVERAGE_REPORT_DIR)/*
-test-coverage: $(COVERAGE_REPORT_DIR) clean-report-dir  ## Test with coverage enabled
-	set -e ; \
-	for dir in $(ALL_GO_MOD_DIRS); do \
-	  MOD_GO=$$(sed -n 's/^go \([0-9]*\.[0-9]*\).*/\1/p' "$${dir}/go.mod"); \
-	  CURRENT=$$($(GO) env GOVERSION | sed 's/^go//' | cut -d. -f1,2); \
-	  if [ "$$(printf '%s\n%s' "$${MOD_GO}" "$${CURRENT}" | sort -V | head -n1)" != "$${MOD_GO}" ]; then \
-	    echo ">>> Skipping $${dir} (requires Go $${MOD_GO}, have $${CURRENT})"; \
-	    continue; \
-	  fi; \
-	  echo ">>> Running tests with coverage for module: $${dir}"; \
-	  DIR_ABS=$$(python -c 'import os, sys; print(os.path.realpath(sys.argv[1]))' $${dir}) ; \
-	  REPORT_NAME=$$(basename $${DIR_ABS}); \
-	  (cd "$${dir}" && \
-	    $(GO) test -count=1 -timeout $(TIMEOUT)s -coverpkg=./... -covermode=$(COVERAGE_MODE) -coverprofile="$(COVERAGE_PROFILE)" ./... && \
-		cp $(COVERAGE_PROFILE) "$(COVERAGE_REPORT_DIR_ABS)/$${REPORT_NAME}_$(COVERAGE_PROFILE)" && \
-	    $(GO) tool cover -html=$(COVERAGE_PROFILE) -o coverage.html); \
-	done;
-.PHONY: test-coverage clean-report-dir
-test-race-coverage: $(COVERAGE_REPORT_DIR) clean-report-dir  ## Run tests with race detection and coverage
-	set -e ; \
-	for dir in $(ALL_GO_MOD_DIRS); do \
-	  MOD_GO=$$(sed -n 's/^go \([0-9]*\.[0-9]*\).*/\1/p' "$${dir}/go.mod"); \
-	  CURRENT=$$($(GO) env GOVERSION | sed 's/^go//' | cut -d. -f1,2); \
-	  if [ "$$(printf '%s\n%s' "$${MOD_GO}" "$${CURRENT}" | sort -V | head -n1)" != "$${MOD_GO}" ]; then \
-	    echo ">>> Skipping $${dir} (requires Go $${MOD_GO}, have $${CURRENT})"; \
-	    continue; \
-	  fi; \
-	  echo ">>> Running tests with race detection and coverage for module: $${dir}"; \
-	  DIR_ABS=$$(python -c 'import os, sys; print(os.path.realpath(sys.argv[1]))' $${dir}) ; \
-	  REPORT_NAME=$$(basename $${DIR_ABS}); \
-	  (cd "$${dir}" && \
-	    $(GO) test -count=1 -timeout $(TIMEOUT)s -race -coverpkg=./... -covermode=$(COVERAGE_MODE) -coverprofile="$(COVERAGE_PROFILE)" ./... && \
-		cp $(COVERAGE_PROFILE) "$(COVERAGE_REPORT_DIR_ABS)/$${REPORT_NAME}_$(COVERAGE_PROFILE)" && \
-	    $(GO) tool cover -html=$(COVERAGE_PROFILE) -o coverage.html); \
-	done;
+test-race: ## Run tests with race detection
+	$(GO) test -count=1 -timeout $(TIMEOUT)s -race work
+.PHONY: test-race
+
+COVERAGE_MODE = atomic
+COVERAGE_DIR = .coverage
+COVERAGE_PROFILE = $(COVERAGE_DIR)/coverage.out
+
+$(COVERAGE_DIR):
+	mkdir -p $(COVERAGE_DIR)
+
+test-coverage: $(COVERAGE_DIR) ## Test with coverage enabled
+	rm -f $(COVERAGE_DIR)/*
+	$(GO) test -count=1 -timeout $(TIMEOUT)s -covermode=$(COVERAGE_MODE) -coverprofile=$(COVERAGE_PROFILE) work
+.PHONY: test-coverage
+
+test-race-coverage: $(COVERAGE_DIR) ## Run tests with race detection and coverage
+	rm -f $(COVERAGE_DIR)/*
+	$(GO) test -count=1 -timeout $(TIMEOUT)s -race -covermode=$(COVERAGE_MODE) -coverprofile=$(COVERAGE_PROFILE) work
 .PHONY: test-race-coverage
+
+vet: ## Run "go vet" across all workspace modules
+	$(GO) vet work
+.PHONY: vet
+
 mod-tidy: ## Check go.mod tidiness
-	set -e ; \
+	@set -e ; \
 	for dir in $(ALL_GO_MOD_DIRS); do \
 		MOD_GO=$$(sed -n 's/^go \([0-9.]*\)/\1/p' "$${dir}/go.mod"); \
 		echo ">>> Running 'go mod tidy' for module: $${dir} (go $${MOD_GO})"; \
-		(cd "$${dir}" && GOTOOLCHAIN=local go mod tidy -go=$${MOD_GO} -compat=$${MOD_GO}); \
+		(cd "$${dir}" && GOTOOLCHAIN=local $(GO) mod tidy -go=$${MOD_GO} -compat=$${MOD_GO}); \
 	done; \
-	git diff --exit-code;
+	git diff --exit-code
 .PHONY: mod-tidy
 
-vet: ## Run "go vet"
-	set -e ; \
-	for dir in $(ALL_GO_MOD_DIRS); do \
-		MOD_GO=$$(sed -n 's/^go \([0-9]*\.[0-9]*\).*/\1/p' "$${dir}/go.mod"); \
-		CURRENT=$$($(GO) env GOVERSION | sed 's/^go//' | cut -d. -f1,2); \
-		if [ "$$(printf '%s\n%s' "$${MOD_GO}" "$${CURRENT}" | sort -V | head -n1)" != "$${MOD_GO}" ]; then \
-			echo ">>> Skipping $${dir} (requires Go $${MOD_GO}, have $${CURRENT})"; \
-			continue; \
-		fi; \
-		echo ">>> Running 'go vet' for module: $${dir}"; \
-		(cd "$${dir}" && go vet ./...); \
-	done;
-.PHONY: vet
-
+gotidy: $(ALL_GO_MOD_DIRS:%=gotidy/%) ## Run go mod tidy across all modules
+gotidy/%: DIR=$*
+gotidy/%:
+	@echo "==> $(DIR)" && (cd "$(DIR)" && $(GO) mod tidy)
+.PHONY: gotidy
 
 lint: ## Lint (using "golangci-lint")
 	golangci-lint run

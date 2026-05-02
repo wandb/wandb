@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"charm.land/lipgloss/v2"
-	"charm.land/lipgloss/v2/compat"
 	"github.com/stretchr/testify/require"
 
 	"github.com/wandb/wandb/core/internal/leet"
@@ -16,7 +15,7 @@ import (
 )
 
 func TestFrenchFriesChart_UsesProvidedPalette(t *testing.T) {
-	palette := []compat.AdaptiveColor{
+	palette := []leet.AdaptiveColor{
 		{Light: lipgloss.Color("#112233"), Dark: lipgloss.Color("#112233")},
 		{Light: lipgloss.Color("#445566"), Dark: lipgloss.Color("#445566")},
 		{Light: lipgloss.Color("#778899"), Dark: lipgloss.Color("#778899")},

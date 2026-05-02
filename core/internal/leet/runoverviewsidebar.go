@@ -199,6 +199,7 @@ func (s *RunOverviewSidebar) Sync() {
 		return
 	}
 
+	hadActiveSection := s.hasActiveSection()
 	var selectedKey string
 	if s.activeSection >= 0 && s.activeSection < len(s.sections) {
 		selectedKey, _ = s.SelectedItem()
@@ -222,6 +223,10 @@ func (s *RunOverviewSidebar) Sync() {
 		s.selectFirstAvailableItem()
 	} else {
 		s.restoreSelection(selectedKey)
+	}
+
+	if !hadActiveSection {
+		s.deactivateAllSections()
 	}
 }
 

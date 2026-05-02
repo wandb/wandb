@@ -9,12 +9,11 @@ import (
 	"time"
 
 	"charm.land/lipgloss/v2"
-	"charm.land/lipgloss/v2/compat"
 )
 
 const frenchFriesCell = "█"
 
-func renderFrenchFriesCells(colors []compat.AdaptiveColor) []string {
+func renderFrenchFriesCells(colors []AdaptiveColor) []string {
 	if len(colors) == 0 {
 		colors = FrenchFriesColors(DefaultFrenchFriesColorScheme)
 	}
@@ -102,7 +101,7 @@ type FrenchFriesChart struct {
 type FrenchFriesChartParams struct {
 	Width, Height int
 	Def           *MetricDef
-	Colors        []compat.AdaptiveColor
+	Colors        []AdaptiveColor
 	Now           time.Time
 }
 
@@ -140,6 +139,11 @@ func (c *FrenchFriesChart) TitleDetail() string {
 func (c *FrenchFriesChart) View() string {
 	c.DrawIfNeeded()
 	return c.rendered
+}
+
+// Park minimizes memory for off-screen charts by shrinking to 1x1.
+func (c *FrenchFriesChart) Park() {
+	c.Resize(parkedCanvasSize, parkedCanvasSize)
 }
 
 func (c *FrenchFriesChart) Resize(width, height int) {

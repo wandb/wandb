@@ -84,6 +84,7 @@ class _ArtifactCollectionAliases(RelayPaginator["ArtifactAliasFragment", str]):
         client: RetryingClient,
         collection_id: str,
         per_page: int = 1_000,
+        start: str | None = None,
     ):
         if self.QUERY is None:
             from wandb.sdk.artifacts._generated import ARTIFACT_COLLECTION_ALIASES_GQL
@@ -91,7 +92,7 @@ class _ArtifactCollectionAliases(RelayPaginator["ArtifactAliasFragment", str]):
             type(self).QUERY = gql(ARTIFACT_COLLECTION_ALIASES_GQL)
 
         variables = {"id": collection_id}
-        super().__init__(client, variables=variables, per_page=per_page)
+        super().__init__(client, variables=variables, per_page=per_page, start=start)
 
     def _update_response(self) -> None:
         from wandb.sdk.artifacts._generated import (
@@ -127,6 +128,7 @@ class ArtifactTypes(RelayPaginator["ArtifactTypeFragment", "ArtifactType"]):
         entity: str,
         project: str,
         per_page: int = 50,
+        start: str | None = None,
     ):
         if self.QUERY is None:
             from wandb.sdk.artifacts._generated import PROJECT_ARTIFACT_TYPES_GQL
@@ -136,7 +138,7 @@ class ArtifactTypes(RelayPaginator["ArtifactTypeFragment", "ArtifactType"]):
         self.entity = entity
         self.project = project
         variables = {"entity": entity, "project": project}
-        super().__init__(client, variables=variables, per_page=per_page)
+        super().__init__(client, variables=variables, per_page=per_page, start=start)
 
     @override
     def _update_response(self) -> None:
@@ -233,6 +235,7 @@ class ArtifactType:
         filters: Mapping[str, Any] | None = None,
         order: str | None = None,
         per_page: int = 50,
+        start: str | None = None,
     ) -> ArtifactCollections:
         """Get all artifact collections associated with this artifact type.
 
@@ -244,6 +247,8 @@ class ArtifactType:
                 The default order is the collection ID in descending order.
             per_page (int): The number of artifact collections to fetch per page.
                 Default is 50.
+            start: Pagination cursor for resuming a past query, captured
+                from a previous paginator's `.cursor` attribute.
         """
         return ArtifactCollections(
             self.client,
@@ -253,6 +258,7 @@ class ArtifactType:
             order=order,
             type_name=self.type,
             per_page=per_page,
+            start=start,
         )
 
     def collection(self, name: str) -> ArtifactCollection:
@@ -304,6 +310,7 @@ class ArtifactCollections(
         filters: Mapping[str, Any] | None = None,
         order: str | None = None,
         per_page: int = 50,
+        start: str | None = None,
     ):
         if self.QUERY is None:
             from wandb.sdk.artifacts._generated import (
@@ -332,7 +339,7 @@ class ArtifactCollections(
             "order": order,
             "filters": json.dumps(f) if (f := filters) else None,
         }
-        super().__init__(client, variables=variables, per_page=per_page)
+        super().__init__(client, variables=variables, per_page=per_page, start=start)
 
     @override
     def _update_response(self) -> None:
@@ -395,6 +402,7 @@ class ProjectArtifactCollections(
         filters: Mapping[str, Any] | None = None,
         order: str | None = None,
         per_page: int = 50,
+        start: str | None = None,
     ):
         if (order is not None or filters is not None) and not server_supports(
             client, pb.ARTIFACT_COLLECTIONS_FILTERING_SORTING
@@ -436,7 +444,7 @@ class ProjectArtifactCollections(
             "filters": json.dumps(f) if (f := filters) else None,
         }
 
-        super().__init__(client, variables=variables, per_page=per_page)
+        super().__init__(client, variables=variables, per_page=per_page, start=start)
 
     @override
     def _update_response(self) -> None:
@@ -534,8 +542,18 @@ class ArtifactCollection:
         return self._current.project
 
     @normalize_exceptions
-    def artifacts(self, per_page: int = 50) -> Artifacts:
-        """Get all artifacts in the collection."""
+    def artifacts(
+        self,
+        per_page: int = 50,
+        start: str | None = None,
+    ) -> Artifacts:
+        """Get all artifacts in the collection.
+
+        Args:
+            per_page: The number of artifacts to fetch per page.
+            start: Pagination cursor for resuming a past query, captured
+                from a previous paginator's `.cursor` attribute.
+        """
         return Artifacts(
             client=self.client,
             entity=self.entity,
@@ -545,6 +563,7 @@ class ArtifactCollection:
             collection_name=self._saved.name,
             type=self._saved.type,
             per_page=per_page,
+            start=start,
         )
 
     @property
@@ -849,6 +868,7 @@ class Artifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
         order: str | None = None,
         per_page: int = 50,
         tags: str | list[str] | None = None,
+        start: str | None = None,
     ):
         from wandb.sdk.artifacts._generated import PROJECT_ARTIFACTS_GQL
 
@@ -869,7 +889,7 @@ class Artifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
             "collection": self.collection_name,
             "filters": json.dumps(self.filters),
         }
-        super().__init__(client, variables=variables, per_page=per_page)
+        super().__init__(client, variables=variables, per_page=per_page, start=start)
 
     @override
     def _update_response(self) -> None:
@@ -942,6 +962,7 @@ class RunArtifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
         run: Run,
         mode: Literal["logged", "used"] = "logged",
         per_page: int = 50,
+        start: str | None = None,
     ):
         try:
             query_str = _run_artifacts_mode_to_gql()[mode]
@@ -952,7 +973,7 @@ class RunArtifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
 
         self.run = run
         variables = {"entity": run.entity, "project": run.project, "run": run.id}
-        super().__init__(client, variables=variables, per_page=per_page)
+        super().__init__(client, variables=variables, per_page=per_page, start=start)
 
     @override
     def _update_response(self) -> None:
@@ -996,6 +1017,7 @@ class ArtifactFiles(SizedRelayPaginator["FileFragment", "File"]):
         artifact: Artifact,
         names: Sequence[str] | None = None,
         per_page: int = 50,
+        start: str | None = None,
     ):
         from wandb.sdk.artifacts._generated import (
             GET_ARTIFACT_FILES_GQL,
@@ -1033,7 +1055,7 @@ class ArtifactFiles(SizedRelayPaginator["FileFragment", "File"]):
             else {"totalCount"}
         )
         self.QUERY = gql_compat(query_str, omit_fields=omit_fields)
-        super().__init__(client, variables=variables, per_page=per_page)
+        super().__init__(client, variables=variables, per_page=per_page, start=start)
 
     @override
     def _update_response(self) -> None:

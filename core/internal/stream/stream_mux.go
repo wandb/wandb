@@ -30,7 +30,7 @@ func (sm *StreamMux) AddStream(streamId string, stream *Stream) error {
 		sm.mux[streamId] = stream
 		return nil
 	} else {
-		return fmt.Errorf("stream already exists")
+		return fmt.Errorf("run ID %s is in use", streamId)
 	}
 }
 
@@ -58,17 +58,18 @@ func (sm *StreamMux) RemoveStream(streamId string) (*Stream, error) {
 }
 
 // FinishAndCloseAllStreams closes all streams in the mux.
+//
+// Blocks until all streams are done.
 func (sm *StreamMux) FinishAndCloseAllStreams(exitCode int32) {
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
 
 	wg := sync.WaitGroup{}
 	for streamId, stream := range sm.mux {
-		wg.Add(1)
-		go func(stream *Stream) {
+		wg.Go(func() {
 			stream.FinishAndClose(exitCode)
-			wg.Done()
-		}(stream)
+		})
+
 		// delete all streams from mux
 		delete(sm.mux, streamId)
 	}

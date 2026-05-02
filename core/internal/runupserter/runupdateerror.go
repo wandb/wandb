@@ -2,30 +2,75 @@ package runupserter
 
 import (
 	"errors"
+	"fmt"
+	"strings"
+
+	"github.com/Khan/genqlient/graphql"
 
 	"github.com/wandb/wandb/core/internal/runbranch"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
-// runUpdateErrorFromBranchError converts a resume, rewind or fork error
-// to a RunUpdateError.
+// ToRunUpdateError converts error types seen by the runupserter
+// into RunUpdateError.
 //
-// Other values including nil are returned unchanged.
-func runUpdateErrorFromBranchError(err error) error {
+// Generic errors including nil are returned unchanged.
+func ToRunUpdateError(err error) error {
 	if err == nil {
 		return nil
 	}
 
 	var runBranchError *runbranch.BranchError
 	if errors.As(err, &runBranchError) {
-		return &RunUpdateError{
-			Cause:       runBranchError.Err,
-			UserMessage: runBranchError.Response.GetMessage(),
-			Code:        runBranchError.Response.GetCode(),
-		}
+		return fromRunBranchError(runBranchError)
+	}
+
+	var gqlError *graphql.HTTPError
+	if errors.As(err, &gqlError) {
+		return fromGQLError(gqlError)
 	}
 
 	return err
+}
+
+func fromRunBranchError(runBranchError *runbranch.BranchError) *RunUpdateError {
+	return &RunUpdateError{
+		Cause:       runBranchError.Err,
+		UserMessage: runBranchError.Response.GetMessage(),
+		Code:        runBranchError.Response.GetCode(),
+	}
+}
+
+func fromGQLError(gqlError *graphql.HTTPError) *RunUpdateError {
+	var userMessage string
+
+	switch {
+	case len(gqlError.Response.Errors) == 0:
+		userMessage = gqlError.Error()
+	case len(gqlError.Response.Errors) == 1:
+		userMessage = gqlError.Response.Errors[0].Message
+	default:
+		var messages []string
+		for _, err := range gqlError.Response.Errors {
+			messages = append(messages, err.Message)
+		}
+		joinedMessages := strings.Join(messages, "; ")
+		userMessage = fmt.Sprintf("[%s]", joinedMessages)
+	}
+
+	if userMessage == "" {
+		// An empty UserMessage is treated like "no error" by the client.
+		//
+		// This can happen if the backend returns an empty response and
+		// an error status.
+		userMessage = "<no message>"
+	}
+
+	return &RunUpdateError{
+		Cause:       gqlError,
+		UserMessage: userMessage,
+		Code:        spb.ErrorInfo_COMMUNICATION,
+	}
 }
 
 type RunUpdateError struct {

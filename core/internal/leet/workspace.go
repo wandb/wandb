@@ -9,7 +9,6 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
-	"charm.land/lipgloss/v2/compat"
 
 	"github.com/wandb/wandb/core/internal/observability"
 )
@@ -816,6 +815,18 @@ func (w *Workspace) anyRunRunning() bool {
 	return false
 }
 
+// shouldResetRunHeartbeat reports whether new data for the run should re-arm
+// the workspace heartbeat safety net.
+//
+// Like the single-run view, the workspace only arms heartbeats after the
+// initial drain has finished and live streaming is active for the run.
+func (w *Workspace) shouldResetRunHeartbeat(run *WorkspaceRun) bool {
+	return run != nil &&
+		run.state == RunStateRunning &&
+		run.watcher != nil &&
+		run.watcher.IsStarted()
+}
+
 // syncLiveRunState updates the atomic liveness flag from the authoritative map state.
 //
 // Must be called on the main (Update) goroutine after any change to:
@@ -1333,12 +1344,12 @@ func (w *Workspace) runPathForKey(runKey string) string {
 	return runWandbFile(w.wandbDir, runKey)
 }
 
-func (w *Workspace) runColorForKey(runKey string) compat.AdaptiveColor {
+func (w *Workspace) runColorForKey(runKey string) AdaptiveColor {
 	runPath := w.runPathForKey(runKey)
 	if w.runColors == nil {
 		colors := GraphColors(w.config.ColorScheme())
 		if len(colors) == 0 {
-			return compat.AdaptiveColor{}
+			return AdaptiveColor{}
 		}
 		return colors[colorIndex(runPath, len(colors))]
 	}

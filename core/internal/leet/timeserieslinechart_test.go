@@ -6,22 +6,21 @@ import (
 	"time"
 
 	"charm.land/lipgloss/v2"
-	"charm.land/lipgloss/v2/compat"
 	"github.com/stretchr/testify/require"
 
 	"github.com/wandb/wandb/core/internal/leet"
 )
 
 // stubColorProvider returns deterministic colors for series creation order.
-func stubColorProvider(colors ...string) func() compat.AdaptiveColor {
+func stubColorProvider(colors ...string) func() leet.AdaptiveColor {
 	i := 0
-	return func() compat.AdaptiveColor {
+	return func() leet.AdaptiveColor {
 		if len(colors) == 0 {
-			return compat.AdaptiveColor{}
+			return leet.AdaptiveColor{}
 		}
 		c := colors[i%len(colors)]
 		i++
-		return compat.AdaptiveColor{
+		return leet.AdaptiveColor{
 			Light: lipgloss.Color(c), Dark: lipgloss.Color(c)}
 	}
 }
@@ -40,7 +39,7 @@ func TestNewTimeSeriesLineChart_ConstructsAndInitializes(t *testing.T) {
 	ch := leet.NewTimeSeriesLineChart(&leet.TimeSeriesLineChartParams{
 		80, 20,
 		def,
-		compat.AdaptiveColor{
+		leet.AdaptiveColor{
 			Light: lipgloss.Color("#FF00FF"), Dark: lipgloss.Color("#FF00FF")}, // base color
 		stubColorProvider("#00FF00"), // provider for subsequent series
 		now,
@@ -65,7 +64,7 @@ func TestAddDataPoint_DefaultSeries_BookKeeping(t *testing.T) {
 	}
 	now := time.Unix(1_700_000_000, 0)
 	ch := leet.NewTimeSeriesLineChart(&leet.TimeSeriesLineChartParams{
-		80, 20, def, compat.AdaptiveColor{
+		80, 20, def, leet.AdaptiveColor{
 			Light: lipgloss.Color("#ABCDEF"), Dark: lipgloss.Color("#ABCDEF")},
 		stubColorProvider(), now})
 
@@ -111,7 +110,7 @@ func TestAddDataPoint_NamedSeries_CreatesSeriesOnDemand(t *testing.T) {
 	now := time.Unix(1_700_000_000, 0)
 	ch := leet.NewTimeSeriesLineChart(&leet.TimeSeriesLineChartParams{
 		80, 20, def,
-		compat.AdaptiveColor{
+		leet.AdaptiveColor{
 			Light: lipgloss.Color("#FF00FF"), Dark: lipgloss.Color("#FF00FF")},
 		stubColorProvider("#00FF00", "#0000FF"), now})
 
@@ -142,11 +141,11 @@ func TestDefaultAndNamedSeries_GetDistinctColors(t *testing.T) {
 		Percentage: false,
 	}
 	now := time.Unix(1_700_000_000, 0)
-	baseColor := compat.AdaptiveColor{
+	baseColor := leet.AdaptiveColor{
 		Light: lipgloss.Color("#FF00FF"),
 		Dark:  lipgloss.Color("#FF00FF"),
 	}
-	nextColor := compat.AdaptiveColor{
+	nextColor := leet.AdaptiveColor{
 		Light: lipgloss.Color("#00FF00"),
 		Dark:  lipgloss.Color("#00FF00"),
 	}
@@ -182,7 +181,7 @@ func TestFormatXAxisTick_NarrowSystemChartsKeepEndpointLabels(t *testing.T) {
 		Width:  leet.MinMetricChartWidth,
 		Height: 8,
 		Def:    def,
-		BaseColor: compat.AdaptiveColor{
+		BaseColor: leet.AdaptiveColor{
 			Light: lipgloss.Color("#FF00FF"), Dark: lipgloss.Color("#FF00FF")},
 		ColorProvider: stubColorProvider("#00FF00"),
 		Now:           now,
@@ -221,7 +220,7 @@ func TestFormatXAxisTick_WideSystemChartsKeepInteriorLabels(t *testing.T) {
 		Width:  80,
 		Height: 12,
 		Def:    def,
-		BaseColor: compat.AdaptiveColor{
+		BaseColor: leet.AdaptiveColor{
 			Light: lipgloss.Color("#FF00FF"), Dark: lipgloss.Color("#FF00FF")},
 		ColorProvider: stubColorProvider("#00FF00"),
 		Now:           now,

@@ -118,8 +118,9 @@ func TestSendLinkArtifact(t *testing.T) {
 		gqlmock.WithOpName("LinkArtifact"),
 		validLinkArtifactResponse,
 	)
-	x.Sender.SendRecord(linkArtifact)
-	<-x.Sender.ResponseChan()
+	request, outputs := runworktest.SimpleRequest(t, "test-id")
+	x.Sender.SendRecord(linkArtifact, request)
+	<-outputs
 
 	requests := mockGQL.AllRequests()
 	assert.Len(t, requests, 1)
@@ -152,8 +153,9 @@ func TestSendLinkArtifact(t *testing.T) {
 		gqlmock.WithOpName("LinkArtifact"),
 		validLinkArtifactResponse,
 	)
-	x.Sender.SendRecord(linkArtifact)
-	<-x.Sender.ResponseChan()
+	request, outputs = runworktest.SimpleRequest(t, "test-id")
+	x.Sender.SendRecord(linkArtifact, request)
+	<-outputs
 
 	requests = mockGQL.AllRequests()
 	assert.Len(t, requests, 2)
@@ -186,8 +188,9 @@ func TestSendLinkArtifact(t *testing.T) {
 		gqlmock.WithOpName("LinkArtifact"),
 		validLinkArtifactResponse,
 	)
-	x.Sender.SendRecord(linkArtifact)
-	<-x.Sender.ResponseChan()
+	request, outputs = runworktest.SimpleRequest(t, "test-id")
+	x.Sender.SendRecord(linkArtifact, request)
+	<-outputs
 
 	requests = mockGQL.AllRequests()
 	assert.Len(t, requests, 3)
@@ -215,7 +218,7 @@ func TestSendUseArtifact(t *testing.T) {
 		},
 	}
 	// verify doesn't panic if used job artifact
-	x.Sender.SendRecord(useArtifact)
+	x.Sender.SendRecord(useArtifact, nil)
 
 	// verify doesn't panic if partial job is broken
 	useArtifact = &spb.Record{
@@ -241,7 +244,7 @@ func TestSendUseArtifact(t *testing.T) {
 			},
 		},
 	}
-	x.Sender.SendRecord(useArtifact)
+	x.Sender.SendRecord(useArtifact, nil)
 }
 
 var validFetchOrgEntityFromEntityResponse = `{

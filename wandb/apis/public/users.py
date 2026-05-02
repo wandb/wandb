@@ -36,16 +36,22 @@ class User(Attrs):
     <!-- lazydoc-ignore-init: internal -->
     """
 
-    def __init__(self, client: RetryingClient, attrs: MutableMapping[str, Any]):
+    def __init__(
+        self,
+        client: RetryingClient,
+        attrs: MutableMapping[str, Any],
+        api_key: str | None = None,
+    ):
         super().__init__(attrs)
         self._client = client
+        self._api_key = api_key
         self._user_api: Api | None = None
 
     @property
     def user_api(self) -> Api | None:
         """A `wandb.Api` instance using the user's credentials."""
-        if self._user_api is None and self.api_keys:
-            self._user_api = wandb.Api(api_key=self.api_keys[0])
+        if self._user_api is None and self._api_key:
+            self._user_api = wandb.Api(api_key=self._api_key)
         return self._user_api
 
     @classmethod
@@ -73,7 +79,7 @@ class User(Attrs):
         gql_op = gql(CREATE_USER_FROM_ADMIN_GQL)
         data = api.client.execute(gql_op, {"email": email, "admin": admin})
         user = CreateUserFromAdmin.model_validate(data).result.user
-        return cls(api.client, user.model_dump())
+        return cls(api.client, user.model_dump(), api_key=api.api_key)
 
     @property
     def api_keys(self) -> list[str]:
@@ -143,7 +149,7 @@ class User(Attrs):
         try:
             # We must make this call using credentials from the original user
             gql_op = gql(GENERATE_API_KEY_GQL)
-            data = self.user_api.client.execute(gql_op, {"description": description})
+            data = self._client.execute(gql_op, {"description": description})
             key_fragment = GenerateApiKey.model_validate(data).result.api_key
             self._attrs["apiKeys"]["edges"].append({"node": key_fragment.model_dump()})
         except (HTTPError, AttributeError):

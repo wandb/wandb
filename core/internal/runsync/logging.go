@@ -53,7 +53,7 @@ func OpenDebugSyncLogFile(
 		return nil, err
 	}
 
-	now := time.Now()
+	now := time.Now().UTC()
 	dateStr := now.Format("20060102")
 	timeStr := now.Format("150405")
 

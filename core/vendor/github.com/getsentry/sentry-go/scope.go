@@ -37,7 +37,6 @@ type Scope struct {
 	user        User
 	tags        map[string]string
 	contexts    map[string]Context
-	extra       map[string]interface{}
 	fingerprint []string
 	level       Level
 	request     *http.Request
@@ -64,7 +63,6 @@ func NewScope() *Scope {
 		attachments:        make([]*Attachment, 0),
 		tags:               make(map[string]string),
 		contexts:           make(map[string]Context),
-		extra:              make(map[string]interface{}),
 		fingerprint:        make([]string, 0),
 		propagationContext: NewPropagationContext(),
 	}
@@ -282,44 +280,6 @@ func (scope *Scope) RemoveContext(key string) {
 	delete(scope.contexts, key)
 }
 
-// SetExtra adds an extra to the current scope.
-//
-// Deprecated: Use [Scope.SetAttributes] instead, which attaches typed key-value
-// pairs to logs and metrics. Note that attributes do not attach to error events;
-// if you only capture errors, use [Scope.SetTag] or [Scope.SetContext] to enrich them.
-func (scope *Scope) SetExtra(key string, value interface{}) {
-	scope.mu.Lock()
-	defer scope.mu.Unlock()
-
-	scope.extra[key] = value
-}
-
-// SetExtras assigns multiple extras to the current scope.
-//
-// Deprecated: Use [Scope.SetAttributes] instead, which attaches typed key-value
-// pairs to logs and metrics. Note that attributes do not attach to error events;
-// if you only capture errors, use [Scope.SetTag] or [Scope.SetContext] to enrich them.
-func (scope *Scope) SetExtras(extra map[string]interface{}) {
-	scope.mu.Lock()
-	defer scope.mu.Unlock()
-
-	for k, v := range extra {
-		scope.extra[k] = v
-	}
-}
-
-// RemoveExtra removes a extra from the current scope.
-//
-// Deprecated: Use [Scope.RemoveAttribute] instead. Note that attributes only
-// attach to logs and metrics, not error events. If you only capture errors,
-// use [Scope.RemoveTag] or [Scope.RemoveContext] instead.
-func (scope *Scope) RemoveExtra(key string) {
-	scope.mu.Lock()
-	defer scope.mu.Unlock()
-
-	delete(scope.extra, key)
-}
-
 // SetFingerprint sets new fingerprint for the current scope.
 func (scope *Scope) SetFingerprint(fingerprint []string) {
 	scope.mu.Lock()
@@ -374,7 +334,6 @@ func (scope *Scope) Clone() *Scope {
 	clone.attributes = maps.Clone(scope.attributes)
 	clone.contexts = maps.Clone(scope.contexts)
 	clone.tags = maps.Clone(scope.tags)
-	clone.extra = maps.Clone(scope.extra)
 	clone.fingerprint = make([]string, len(scope.fingerprint))
 	copy(clone.fingerprint, scope.fingerprint)
 	clone.level = scope.level
@@ -467,13 +426,20 @@ func (scope *Scope) ApplyToEvent(event *Event, hint *EventHint, client *Client) 
 		event.sdkMetaData.dsc = dsc
 	}
 
-	if len(scope.extra) > 0 {
-		if event.Extra == nil {
-			event.Extra = make(map[string]interface{}, len(scope.extra))
+	// If an external trace resolver is registered (e.g. OTel), override
+	// trace/span IDs from the hint context or the scope's request context.
+	if client != nil {
+		var ctx context.Context
+		if hint != nil {
+			ctx = hint.Context
 		}
-
-		for key, value := range scope.extra {
-			event.Extra[key] = value
+		if ctx == nil && scope.request != nil {
+			ctx = scope.request.Context()
+		}
+		if traceID, spanID, ok := client.externalTraceContextFromContext(ctx); event.Type != transactionType && ok {
+			traceCtx := event.Contexts["trace"]
+			traceCtx["trace_id"] = traceID.String()
+			traceCtx["span_id"] = spanID.String()
 		}
 	}
 
@@ -499,7 +465,7 @@ func (scope *Scope) ApplyToEvent(event *Event, hint *EventHint, client *Client) 
 		// invalid payloads that are more prone to leaking PII data.
 		//
 		// Users can still send more data along their events if they want to,
-		// for example using Event.Extra.
+		// for example using Event.Contexts.
 		if scope.requestBody != nil && !scope.requestBody.Overflow() {
 			event.Request.Data = string(scope.requestBody.Bytes())
 		}
@@ -585,20 +551,27 @@ func hubFromContexts(ctxs ...context.Context) *Hub {
 // resolveTrace resolves trace ID and span ID from the given scope and contexts.
 //
 // The resolution order follows a most-specific-to-least-specific pattern:
-//  1. Check for span directly in contexts (SpanFromContext) - this is the most specific
+//  1. If an external trace resolver was registered (eg. OTel), we prioritise trace context
+//     information from that
+//  2. Check for span directly in contexts (SpanFromContext) - this is the most specific
 //     source as it represents a span explicitly attached to the current operation's context
-//  2. Check scope's span - provides access to span set on the hub's scope
-//  3. Fall back to scope's propagation context trace ID
+//  3. Check scope's span - provides access to span set on the hub's scope
+//  4. Fall back to scope's propagation context trace ID
 //
 // This ordering ensures we always use the most contextually relevant tracing information.
 // For example, if a specific span is active for an operation, we use that span's trace/span IDs
 // rather than accidentally using a different span that might be set on the hub's scope.
-func resolveTrace(scope *Scope, ctxs ...context.Context) (traceID TraceID, spanID SpanID) {
+func resolveTrace(scope *Scope, client *Client, ctxs ...context.Context) (traceID TraceID, spanID SpanID) {
 	var span *Span
 
 	for _, ctx := range ctxs {
 		if ctx == nil {
 			continue
+		}
+		if client != nil {
+			if traceID, spanID, ok := client.externalTraceContextFromContext(ctx); ok {
+				return traceID, spanID
+			}
 		}
 		if span = SpanFromContext(ctx); span != nil {
 			break

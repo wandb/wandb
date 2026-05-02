@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"charm.land/lipgloss/v2"
-	"charm.land/lipgloss/v2/compat"
 )
 
 const (
@@ -31,24 +30,24 @@ const (
 // The workspace owns this allocator on the Bubble Tea update goroutine, so it
 // does not require internal locking.
 type workspaceRunColors struct {
-	palette  []compat.AdaptiveColor
-	assigned map[string]compat.AdaptiveColor // run path -> color
-	used     map[string]string               // serialized color -> run path
+	palette  []AdaptiveColor
+	assigned map[string]AdaptiveColor // run path -> color
+	used     map[string]string        // serialized color -> run path
 }
 
-func newWorkspaceRunColors(palette []compat.AdaptiveColor) *workspaceRunColors {
+func newWorkspaceRunColors(palette []AdaptiveColor) *workspaceRunColors {
 	if len(palette) == 0 {
 		palette = GraphColors(DefaultColorScheme)
 	}
 	return &workspaceRunColors{
-		palette:  append([]compat.AdaptiveColor(nil), palette...),
-		assigned: make(map[string]compat.AdaptiveColor),
+		palette:  append([]AdaptiveColor(nil), palette...),
+		assigned: make(map[string]AdaptiveColor),
 		used:     make(map[string]string),
 	}
 }
 
 // Assign returns the stable color for runPath, allocating one if needed.
-func (a *workspaceRunColors) Assign(runPath string) compat.AdaptiveColor {
+func (a *workspaceRunColors) Assign(runPath string) AdaptiveColor {
 	if c, ok := a.assigned[runPath]; ok {
 		return c
 	}
@@ -73,7 +72,7 @@ func (a *workspaceRunColors) Release(runPath string) {
 	}
 }
 
-func (a *workspaceRunColors) pickColor(runPath string) compat.AdaptiveColor {
+func (a *workspaceRunColors) pickColor(runPath string) AdaptiveColor {
 	base := a.palette[colorIndex(runPath, len(a.palette))]
 	if a.isAvailable(base, runPath) {
 		return base
@@ -90,14 +89,14 @@ func (a *workspaceRunColors) pickColor(runPath string) compat.AdaptiveColor {
 }
 
 func (a *workspaceRunColors) isAvailable(
-	c compat.AdaptiveColor,
+	c AdaptiveColor,
 	runPath string,
 ) bool {
 	owner, ok := a.used[workspaceRunColorKey(c)]
 	return !ok || owner == runPath
 }
 
-func workspaceRunColorKey(c compat.AdaptiveColor) string {
+func workspaceRunColorKey(c AdaptiveColor) string {
 	return normalizeWorkspaceRunColorComponent(c.Light) +
 		"|" +
 		normalizeWorkspaceRunColorComponent(c.Dark)
@@ -131,7 +130,7 @@ func workspaceRunColorComponentRGB(component any) (uint8, uint8, uint8, bool) {
 // so adjacent collisions remain visually distinct. Saturation and lightness use
 // a reflected walk instead of simple clamping, which avoids collapsing repeated
 // attempts to identical black, white, or gray endpoints.
-func workspaceRunColorVariant(base compat.AdaptiveColor, step int) compat.AdaptiveColor {
+func workspaceRunColorVariant(base AdaptiveColor, step int) AdaptiveColor {
 	if step <= 0 {
 		return base
 	}
@@ -165,7 +164,7 @@ func workspaceRunColorVariant(base compat.AdaptiveColor, step int) compat.Adapti
 		saturationDelta = -0.5 * workspaceRunColorSaturationStep * magnitude
 	}
 
-	return compat.AdaptiveColor{
+	return AdaptiveColor{
 		Light: adjustWorkspaceRunColor(base.Light, hueShift, saturationDelta, lightnessDelta),
 		Dark:  adjustWorkspaceRunColor(base.Dark, hueShift, saturationDelta, lightnessDelta),
 	}

@@ -193,7 +193,10 @@ class Registry:
 
     @tracked
     def collections(
-        self, filter: dict[str, Any] | None = None, per_page: PositiveInt = 100
+        self,
+        filter: dict[str, Any] | None = None,
+        per_page: PositiveInt = 100,
+        start: str | None = None,
     ) -> Collections:
         """Returns the collections belonging to the registry."""
         return Collections(
@@ -202,11 +205,15 @@ class Registry:
             registry_filter={"name": self.full_name},
             collection_filter=filter,
             per_page=per_page,
+            start=start,
         )
 
     @tracked
     def versions(
-        self, filter: dict[str, Any] | None = None, per_page: PositiveInt = 100
+        self,
+        filter: dict[str, Any] | None = None,
+        per_page: PositiveInt = 100,
+        start: str | None = None,
     ) -> Versions:
         """Returns the versions belonging to the registry."""
         return Versions(
@@ -216,6 +223,7 @@ class Registry:
             collection_filter=None,
             artifact_filter=filter,
             per_page=per_page,
+            start=start,
         )
 
     @classmethod

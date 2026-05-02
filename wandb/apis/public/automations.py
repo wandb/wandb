@@ -35,10 +35,11 @@ class Automations(RelayPaginator["ProjectTriggersFields", "Automation"]):
         variables: Mapping[str, Any],
         per_page: int = 50,
         *,
+        start: str | None = None,
         _query: Document,  # internal use only, but required
     ):
         self.QUERY = _query
-        super().__init__(client, variables=variables, per_page=per_page)
+        super().__init__(client, variables=variables, per_page=per_page, start=start)
 
     @override
     def _update_response(self) -> None:

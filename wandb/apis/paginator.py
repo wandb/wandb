@@ -39,7 +39,7 @@ class Paginator(Iterator[_WandbT], ABC):
         self.per_page: int = per_page
         self.objects: list[_WandbT] = []
         self.index: int = -1
-        self.last_response: object | None = None
+        self.last_response: Any | None = None
 
     def __iter__(self) -> Iterator[_WandbT]:
         self.index = -1
@@ -108,6 +108,8 @@ class Paginator(Iterator[_WandbT], ABC):
 class SizedPaginator(Paginator[_WandbT], Sized, ABC):
     """A Paginator for objects with a known total count."""
 
+    last_response: dict[str, Any] | None = None
+
     @property
     def length(self) -> int | None:
         wandb.termwarn(
@@ -140,13 +142,34 @@ class RelayPaginator(Paginator[_WandbT], Generic[_NodeT, _WandbT], ABC):
 
     last_response: Connection[_NodeT] | None
 
+    _start: str | None
+    """Optional, opaque cursor used to "resume" pagination from a previous query.
+
+    If present, this is only used to fetch the first page.
+    """
+
+    def __init__(
+        self,
+        client: RetryingClient,
+        variables: Mapping[str, Any],
+        per_page: int = 50,
+        start: str | None = None,
+    ):
+        super().__init__(client, variables, per_page)
+        self._start = start
+
     @property
     def more(self) -> bool:
         return (conn := self.last_response) is None or conn.has_next
 
     @property
     def cursor(self) -> str | None:
-        return conn.next_cursor if (conn := self.last_response) else None
+        """An opaque cursor that marks the start of the next page to fetch.
+
+        This value may be saved and passed as `start=` to a later paginated query
+        to resume iteration from where this paginator left off.
+        """
+        return conn.next_cursor if (conn := self.last_response) else self._start
 
     @abstractmethod
     def _convert(self, node: _NodeT) -> _WandbT | Any:

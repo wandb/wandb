@@ -13,6 +13,9 @@ targets:
     tagPrefix: otel/v
     tagOnly: true
   - name: github
+    tagPrefix: otel/otlp/v
+    tagOnly: true
+  - name: github
     tagPrefix: echo/v
     tagOnly: true
   - name: github
@@ -23,6 +26,9 @@ targets:
     tagOnly: true
   - name: github
     tagPrefix: gin/v
+    tagOnly: true
+  - name: github
+    tagPrefix: grpc/v
     tagOnly: true
   - name: github
     tagPrefix: iris/v

@@ -111,7 +111,7 @@ class Files(SizedPaginator["File"]):
     def _get_query(self) -> Document:
         """Generate query dynamically based on server capabilities."""
         return gql(
-            f"""
+            f"""#graphql
             query RunFiles($project: String!, $entity: String!, $name: String!, $fileCursor: String,
                 $fileLimit: Int = 50, $fileNames: [String] = [], $upload: Boolean = false, $pattern: String) {{
                 project(name: $project, entityName: $entity) {{
@@ -183,7 +183,12 @@ class Files(SizedPaginator["File"]):
         if not self.last_response:
             self._load_page()
 
-        return self.last_response["project"]["run"]["fileCount"]
+        if not self.last_response:
+            return 0
+
+        project = self.last_response.get("project") or {}
+        run_data = project.get("run") or {}
+        return run_data.get("fileCount", 0)
 
     @property
     def more(self) -> bool:
@@ -191,12 +196,14 @@ class Files(SizedPaginator["File"]):
 
         <!-- lazydoc-ignore: internal -->
         """
-        if self.last_response:
-            return self.last_response["project"]["run"]["files"]["pageInfo"][
-                "hasNextPage"
-            ]
-        else:
+        if not self.last_response:
             return True
+
+        project = self.last_response.get("project") or {}
+        run_data = project.get("run") or {}
+        files_data = run_data.get("files") or {}
+        page_info = files_data.get("pageInfo") or {}
+        return page_info.get("hasNextPage", False)
 
     @property
     def cursor(self) -> str | None:
@@ -204,10 +211,18 @@ class Files(SizedPaginator["File"]):
 
         <!-- lazydoc-ignore: internal -->
         """
-        if self.last_response:
-            return self.last_response["project"]["run"]["files"]["edges"][-1]["cursor"]
-        else:
+        if not self.last_response:
             return None
+
+        project = self.last_response.get("project") or {}
+        run_data = project.get("run") or {}
+        files_data = run_data.get("files") or {}
+        edges = files_data.get("edges") or []
+
+        if not edges:
+            return None
+
+        return edges[-1].get("cursor")
 
     def update_variables(self) -> None:
         """Updates the GraphQL query variables for pagination.
@@ -221,10 +236,14 @@ class Files(SizedPaginator["File"]):
 
         <!-- lazydoc-ignore: internal -->
         """
-        return [
-            File(self.client, r["node"], self.run)
-            for r in self.last_response["project"]["run"]["files"]["edges"]
-        ]
+        if not self.last_response:
+            return []
+
+        project = self.last_response.get("project") or {}
+        run_data = project.get("run") or {}
+        files_data = run_data.get("files") or {}
+        edges = files_data.get("edges") or []
+        return [File(self.client, r["node"], self.run) for r in edges]
 
     def __repr__(self) -> str:
         return f"<{nameof(type(self))} {'/'.join(self.run.path)} ({len(self)})>"

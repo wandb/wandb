@@ -156,7 +156,6 @@ class InterfaceShared(InterfaceBase, abc.ABC):
         get_system_metrics: pb.GetSystemMetricsRequest | None = None,
         python_packages: pb.PythonPackagesRequest | None = None,
         job_input: pb.JobInputRequest | None = None,
-        run_finish_without_exit: pb.RunFinishWithoutExitRequest | None = None,
         probe_system_info: pb.ProbeSystemInfoRequest | None = None,
     ) -> pb.Record:
         request = pb.Request()
@@ -220,8 +219,6 @@ class InterfaceShared(InterfaceBase, abc.ABC):
             request.python_packages.CopyFrom(python_packages)
         elif job_input:
             request.job_input.CopyFrom(job_input)
-        elif run_finish_without_exit:
-            request.run_finish_without_exit.CopyFrom(run_finish_without_exit)
         elif probe_system_info:
             request.probe_system_info.CopyFrom(probe_system_info)
         else:
@@ -410,10 +407,6 @@ class InterfaceShared(InterfaceBase, abc.ABC):
         req = self._make_request(status=status)
         return self._deliver(req)
 
-    def _publish_exit(self, exit_data: pb.RunExitRecord) -> None:
-        rec = self._make_record(exit=exit_data)
-        self._publish(rec)
-
     def _publish_keepalive(self, keepalive: pb.KeepaliveRequest) -> None:
         record = self._make_request(keepalive=keepalive)
         self._publish(record)
@@ -466,12 +459,6 @@ class InterfaceShared(InterfaceBase, abc.ABC):
         poll_exit: pb.PollExitRequest,
     ) -> MailboxHandle[pb.Result]:
         record = self._make_request(poll_exit=poll_exit)
-        return self._deliver(record)
-
-    def _deliver_finish_without_exit(
-        self, run_finish_without_exit: pb.RunFinishWithoutExitRequest
-    ) -> MailboxHandle[pb.Result]:
-        record = self._make_request(run_finish_without_exit=run_finish_without_exit)
         return self._deliver(record)
 
     def _deliver_stop_status(

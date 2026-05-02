@@ -98,7 +98,7 @@ func NewSymon(params SymonParams) *Symon {
 
 // Init starts the initial sampling pass.
 func (s *Symon) Init() tea.Cmd {
-	return s.sampleNowCmd()
+	return tea.Batch(tea.RequestBackgroundColor, s.sampleNowCmd())
 }
 
 // Update handles resize events, help/restart shortcuts, user input, and live
@@ -108,6 +108,10 @@ func (s *Symon) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		s.width, s.height = ws.Width, ws.Height
 		s.help.SetSize(ws.Width, ws.Height)
 		s.resizeGrid()
+	}
+
+	if bgMsg, ok := msg.(tea.BackgroundColorMsg); ok {
+		SetDarkBackground(bgMsg.IsDark())
 	}
 
 	if handled, cmd := s.handleHelp(msg); handled {
@@ -137,9 +141,7 @@ func (s *Symon) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return s, cmd
 
 	case StatsMsg:
-		for metricName, value := range msg.Metrics {
-			s.grid.AddDataPoint(metricName, msg.Timestamp, value)
-		}
+		s.grid.ProcessStats(msg)
 		s.resizeGrid()
 		cmd := s.sampleLaterCmd()
 		return s, cmd
@@ -240,21 +242,29 @@ func (s *Symon) handleNextPage(tea.KeyPressMsg) tea.Cmd {
 	return nil
 }
 
-func (s *Symon) handleGridWASD(msg tea.KeyPressMsg) tea.Cmd {
-	var dr, dc int
-	switch normalizeKey(msg.String()) {
-	case "w":
-		dr = -1
-	case "s":
-		dr = 1
-	case "a":
-		dc = -1
-	case "d":
-		dc = 1
-	default:
-		return nil
+func (s *Symon) handleNavHome(tea.KeyPressMsg) tea.Cmd {
+	s.grid.NavigateHome()
+	return nil
+}
+
+func (s *Symon) handleNavEnd(tea.KeyPressMsg) tea.Cmd {
+	s.grid.NavigateEnd()
+	return nil
+}
+
+func (s *Symon) handleGridNav(msg tea.KeyPressMsg) tea.Cmd {
+	// Symon binds page/home/end to their own handlers via the key map;
+	// here we only handle chart-focus motion.
+	switch DecodeNav(msg) {
+	case NavIntentUp:
+		s.grid.NavigateFocus(-1, 0)
+	case NavIntentDown:
+		s.grid.NavigateFocus(1, 0)
+	case NavIntentLeft:
+		s.grid.NavigateFocus(0, -1)
+	case NavIntentRight:
+		s.grid.NavigateFocus(0, 1)
 	}
-	s.grid.NavigateFocus(dr, dc)
 	return nil
 }
 
@@ -331,6 +341,9 @@ func (s *Symon) handleMouse(msg tea.MouseMsg) tea.Cmd {
 	}
 
 	dims := s.grid.calculateChartDimensions()
+	if dims.CellHWithPadding == 0 || dims.CellWWithPadding == 0 {
+		return nil
+	}
 	row := adjustedY / dims.CellHWithPadding
 	col := adjustedX / dims.CellWWithPadding
 

@@ -17,6 +17,19 @@ settings.load_profile("ci")
 
 
 @pytest.fixture
+def patch_max_cli_version(monkeypatch: pytest.MonkeyPatch):
+    """Make util._get_max_cli_version() always return None.
+
+    By default, this fails in unit tests (usually times out).
+
+    Tests that invoke `_get_max_cli_version()` but don't care about the version
+    should use this fixture. It is not autouse because that can conflict with
+    other patches or with tests for the function itself.
+    """
+    monkeypatch.setattr("wandb.util._get_max_cli_version", lambda: None)
+
+
+@pytest.fixture
 def api() -> wandb.Api:
     """A fake wandb.Api instance.
 

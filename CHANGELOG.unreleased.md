@@ -14,10 +14,6 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ## Unreleased
 
-### Notable Changes
-
-This version drops compatibility with server versions older than 0.63.0 (for Dedicated Cloud and Self-Managed W&B deployments).
-
 ### Added
 
 - `wandb beta core start|stop` commands to run a detached `wandb-core` service and reuse it across multiple processes via the `WANDB_SERVICE` env var (@dmitryduev in https://github.com/wandb/wandb/pull/11418)
@@ -37,12 +33,16 @@ This version drops compatibility with server versions older than 0.63.0 (for Ded
 - `.runs()` on the `Agent` class to query run status for a given sweep agent (@kmikowicz-wandb in https://github.com/wandb/wandb/pull/11558)
 - `.agent()` and `.agents()` on the `Sweep` class to query active agents for a given sweep (@kmikowicz-wandb in https://github.com/wandb/wandb/pull/11558)
 - Expand docstring checks to `wandb/apis/public/*` (@kmikowicz-wandb in https://github.com/wandb/wandb/pull/11670)
+- The `stop_on_fatal_error` setting to stop a run (using `stop_fn`) after a fatal error that prevents it from uploading metrics (@timoffex in https://github.com/wandb/wandb/pull/11774)
+- New `wandb.sandbox` package and the `wandb beta sandbox` cli for using wandb sandbox (@pingleiwandb in https://github.com/wandb/wandb/pull/11606)
+- The `finish_timeout` and `finish_timeout_raises` settings (@timoffex in https://github.com/wandb/wandb/pull/11737)
 
 ### Changed
 
 - JSON serialization and deserialization now use `orjson` for improved performance (@jacobromero in https://github.com/wandb/wandb/pull/11163)
 - Improved system metrics UX with multi-series overlays, inspection, and live/history zoom in W&B LEET TUI (`wandb beta leet` command) (@dmitryduev in https://github.com/wandb/wandb/pull/11512)
 - Prevent run base color collisions in W&B LEET TUI's workspace (`wandb beta leet` command) (@dmitryduev in https://github.com/wandb/wandb/pull/11567)
+- Changed CPU and memory system metric percentages in Linux containers to use cgroup v2 resource limits instead of host node totals. Set the private `x_stats_no_cgroup` setting to `True` to opt out (@dmitryduev in https://github.com/wandb/wandb/pull/11796)
 
 ### Fixed
 

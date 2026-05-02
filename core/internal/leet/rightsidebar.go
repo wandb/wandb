@@ -83,6 +83,9 @@ func (rs *RightSidebar) gridMouseTarget(x, y int) (systemGridMouseTarget, bool) 
 	}
 
 	target.dims = rs.metricsGrid.calculateChartDimensions()
+	if target.dims.CellHWithPadding == 0 || target.dims.CellWWithPadding == 0 {
+		return systemGridMouseTarget{}, false
+	}
 	target.row = target.adjustedY / target.dims.CellHWithPadding
 	target.col = target.adjustedX / target.dims.CellWWithPadding
 	return target, true
@@ -250,10 +253,7 @@ func (rs *RightSidebar) ProcessStatsMsg(msg StatsMsg) {
 		"rightsidebar: ProcessStatsMsg: processing %d metrics (state=%v, width=%d)",
 		len(msg.Metrics), rs.animState, rs.animState.Value()))
 
-	// Add all data points to the grid.
-	for metricName, value := range msg.Metrics {
-		rs.metricsGrid.AddDataPoint(metricName, msg.Timestamp, value)
-	}
+	rs.metricsGrid.ProcessStats(msg)
 }
 
 // calculateGridHeight returns the available height for the metrics grid.

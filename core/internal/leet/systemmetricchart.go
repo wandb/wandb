@@ -8,6 +8,7 @@ type systemMetricChart interface {
 	View() string
 	Resize(width, height int)
 	DrawIfNeeded()
+	Park()
 	AddDataPoint(seriesName string, timestamp int64, value float64)
 	GraphWidth() int
 	GraphHeight() int

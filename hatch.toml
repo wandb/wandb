@@ -20,6 +20,7 @@ exclude = [
 include = [
     "core",
     "xpu",
+    "parquet-rust-wrapper",
     "wandb/vendor/wandb_orjson",
     "wandb/py.typed",
     "package_readme.md",

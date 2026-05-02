@@ -1543,7 +1543,7 @@ def test_emptydir_fetch_script(
     init = next(
         c for c in pod_spec["initContainers"] if c["name"] == "wandb-source-code-init"
     )
-    assert init["image"] == "wandb/launch-agent:latest"
+    assert init["image"] == "wandb/launch-agent:0.25.1"
     script = init["command"][-1]
     for expected in expected_in_script:
         assert expected in script

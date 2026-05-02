@@ -110,11 +110,10 @@ def _publish_job_input(
         input (JobInputArguments): The arguments for the job input.
         run (wandb.Run): The run to publish the job input to.
     """
-    assert run._backend is not None
-    assert run._backend.interface is not None
+    assert run._interface is not None
     assert input.run_config is not None
 
-    interface = run._backend.interface
+    interface = run._interface
     if input.file_path:
         config_dir = ConfigTmpDir()
         dest = os.path.join(config_dir.configs_dir, input.file_path)

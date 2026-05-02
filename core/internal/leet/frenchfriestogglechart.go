@@ -47,6 +47,12 @@ func (c *frenchFriesToggleChart) View() string {
 	return c.activeChart().View()
 }
 
+// Park minimizes memory for both underlying charts.
+func (c *frenchFriesToggleChart) Park() {
+	c.line.Park()
+	c.frenchFries.Park()
+}
+
 func (c *frenchFriesToggleChart) Resize(width, height int) {
 	c.line.Resize(width, height)
 	c.frenchFries.Resize(width, height)

@@ -10,6 +10,7 @@ import pytest
 import wandb
 from wandb.errors import UsageError
 
+from tests.fixtures.mock_wandb_log import MockWandbLog
 from tests.fixtures.wandb_backend_spy import WandbBackendSpy
 
 
@@ -319,6 +320,44 @@ def test_update_finish_state(wandb_backend_spy, update_finish_state):
 
     with wandb_backend_spy.freeze() as snapshot:
         assert snapshot.completed(run_id=run.id) is update_finish_state
+
+
+def test_finish_timeout_raises(
+    wandb_backend_spy: WandbBackendSpy,
+    mock_wandb_log: MockWandbLog,
+):
+    settings = wandb.Settings(
+        finish_timeout=0.001,
+        finish_timeout_raises=True,
+    )
+
+    with pytest.raises(TimeoutError, match="Timed out finishing run"):
+        with wandb.init(settings=settings) as run:
+            # This should sit in the FileStream buffer until the exit record,
+            # and then fail to upload because of the timeout.
+            run.log({"x": 1})
+
+    mock_wandb_log.assert_warned("Timed out finishing run.")
+    with wandb_backend_spy.freeze() as snapshot:
+        history = snapshot.history(run_id=run.id)
+        assert len(history) == 0  # verify timeout aborts uploads
+
+
+def test_finish_timeout__warns_by_default(
+    wandb_backend_spy: WandbBackendSpy,
+    mock_wandb_log: MockWandbLog,
+):
+    settings = wandb.Settings(finish_timeout=0.001)
+
+    with wandb.init(settings=settings) as run:
+        # This should sit in the FileStream buffer until the exit record,
+        # and then fail to upload because of the timeout.
+        run.log({"x": 1})
+
+    mock_wandb_log.assert_warned("Timed out finishing run.")
+    with wandb_backend_spy.freeze() as snapshot:
+        history = snapshot.history(run_id=run.id)
+        assert len(history) == 0  # verify timeout aborts uploads
 
 
 def test_pin_config_keys(wandb_backend_spy: WandbBackendSpy):

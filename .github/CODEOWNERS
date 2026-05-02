@@ -73,6 +73,12 @@
 /tests/system_tests/test_launch/      @wandb/launch-reviewers @wandb/sdk-team
 /tests/unit_tests/test_launch/        @wandb/launch-reviewers @wandb/sdk-team
 
+# Sandbox
+/wandb/sandbox/                       @wandb/launch-reviewers @wandb/sdk-team
+/wandb/cli/beta_sandbox.py            @wandb/launch-reviewers @wandb/sdk-team
+/tests/system_tests/test_sandbox/     @wandb/launch-reviewers @wandb/sdk-team
+/tests/unit_tests/test_sandbox/       @wandb/launch-reviewers @wandb/sdk-team
+
 # Sweeps
 /wandb/sdk/wandb_agent.py                        @wandb/sweeps-launch-team @wandb/sdk-team
 /tests/system_tests/test_sweep/                  @wandb/sweeps-launch-team @wandb/sdk-team
