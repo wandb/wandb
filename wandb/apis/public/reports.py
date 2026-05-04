@@ -31,7 +31,9 @@ class Reports(SizedPaginator["BetaReport"]):
     """Reports is a lazy iterator of `BetaReport` objects.
 
     Args:
-        client (`wandb.apis.internal.Api`): The API client instance to use.
+        client: Legacy GraphQL client retained for API compatibility.
+        service_api: Interface to the wandb-core service that performs
+            W&B API calls for this collection.
         project (`wandb.sdk.internal.Project`): The project to fetch reports from.
         name (str, optional): The name of the report to filter by. If `None`,
             fetches all reports.

@@ -174,7 +174,9 @@ class ArtifactType:
     """An artifact object that satisfies query based on the specified type.
 
     Args:
-        client: The client instance to use for querying W&B.
+        client: Legacy GraphQL client retained for API compatibility.
+        service_api: Interface to the wandb-core service that performs
+            W&B API calls for this artifact type.
         entity: The entity (user or team) that owns the project.
         project: The name of the project to query for artifact types.
         type_name: The name of the artifact type.
@@ -295,7 +297,9 @@ class ArtifactCollections(
     """Artifact collections of a specific type in a project.
 
     Args:
-        client: The client instance to use for querying W&B.
+        client: Legacy GraphQL client retained for API compatibility.
+        service_api: Interface to the wandb-core service that performs
+            W&B API calls for this collection.
         entity: The entity (user or team) that owns the project.
         project: The name of the project to query for artifact collections.
         type_name: The name of the artifact type for which to fetch collections.
@@ -393,7 +397,9 @@ class ProjectArtifactCollections(
     """Artifact collections in a project.
 
     Args:
-        client: The client instance to use for querying W&B.
+        client: Legacy GraphQL client retained for API compatibility.
+        service_api: Interface to the wandb-core service that performs
+            W&B API calls for this collection.
         entity: The entity (user or team) that owns the project.
         project: The name of the project to query for artifact collections.
         filters: Optional mapping of filters to apply to the query.
@@ -498,7 +504,9 @@ class ArtifactCollection:
     """An artifact collection that represents a group of related artifacts.
 
     Args:
-        client: The client instance to use for querying W&B.
+        client: Legacy GraphQL client retained for API compatibility.
+        service_api: Interface to the wandb-core service that performs
+            W&B API calls for this collection.
         entity: The entity (user or team) that owns the project.
         project: The name of the project to query for artifact collections.
         name: The name of the artifact collection.
@@ -860,7 +868,9 @@ class Artifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
     Optionally pass in filters to narrow down the results based on specific criteria.
 
     Args:
-        client: The client instance to use for querying W&B.
+        client: Legacy GraphQL client retained for API compatibility.
+        service_api: Interface to the wandb-core service that performs
+            W&B API calls for these artifact versions.
         entity: The entity (user or team) that owns the project.
         project: The name of the project to query for artifacts.
         collection_name: The name of the artifact collection to query.
@@ -989,6 +999,8 @@ class RunArtifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
         mode: Literal["logged", "used"] = "logged",
         per_page: int = 50,
         start: str | None = None,
+        *,
+        service_api: ServiceApi,
     ):
         try:
             query_str = _run_artifacts_mode_to_gql()[mode]
@@ -998,7 +1010,7 @@ class RunArtifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
             self.QUERY = gql(query_str)
 
         self.run = run
-        self._service_api = run._service_api
+        self._service_api = service_api
         variables = {"entity": run.entity, "project": run.project, "run": run.id}
         super().__init__(client, variables=variables, per_page=per_page, start=start)
 

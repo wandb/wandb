@@ -192,12 +192,15 @@ class HistoryScan(Iterator[_RowDict]):
         """Initialize a HistoryScan instance.
 
         Args:
-            client: The client instance to use for making API calls to the W&B backend.
+            client: Legacy GraphQL client retained for API compatibility;
+                history rows are fetched through `service_api`.
             run: The run object whose history is to be scanned.
             min_step: The minimum step to start scanning from.
             max_step: The exclusive upper bound for scanned history rows.
             page_size: Number of history rows to fetch per page.
                 Default page_size is 1000.
+            service_api: Interface to the wandb-core service that performs
+                W&B API calls for this scan.
         """
         self.client = client
         self.run = run
@@ -287,13 +290,16 @@ class SampledHistoryScan(Iterator[_RowDict]):
         """Initialize a SampledHistoryScan instance.
 
         Args:
-            client: The client instance to use for making API calls to the W&B backend.
+            client: Legacy GraphQL client retained for API compatibility;
+                sampled history rows are fetched through `service_api`.
             run: The run object whose history is to be sampled.
             keys: List of keys to sample from the history.
             min_step: The minimum step to start sampling from.
             max_step: The exclusive upper bound for sampled history rows.
             page_size: Number of sampled history rows to fetch per page.
                 Default page_size is 1000.
+            service_api: Interface to the wandb-core service that performs
+                W&B API calls for this scan.
         """
         self.client = client
         self.run = run

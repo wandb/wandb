@@ -62,7 +62,9 @@ class Projects(RelayPaginator["ProjectFragment", "Project"]):
     An iterable interface to access projects created and saved by the entity.
 
     Args:
-        client (`wandb.apis.internal.Api`): The API client instance to use.
+        client: Legacy GraphQL client retained for API compatibility.
+        service_api: Interface to the wandb-core service that performs
+            W&B API calls for this collection.
         entity (str): The entity name (username or team) to fetch projects for.
         per_page (int): Number of projects to fetch per request (default is 50).
 
@@ -96,7 +98,9 @@ class Projects(RelayPaginator["ProjectFragment", "Project"]):
         """An iterable collection of `Project` objects.
 
         Args:
-            client: The API client used to query W&B.
+            client: Legacy GraphQL client retained for API compatibility.
+            service_api: Interface to the wandb-core service that performs
+                W&B API calls for this collection.
             entity: The entity which owns the projects.
             per_page: The number of projects to fetch per request to the API.
         """
@@ -149,7 +153,9 @@ class Project(Attrs):
     """A project is a namespace for runs.
 
     Args:
-        client: W&B API client instance.
+        client: Legacy GraphQL client retained for API compatibility.
+        service_api: Interface to the wandb-core service that performs
+            W&B API calls for this project.
         name (str): The name of the project.
         entity (str): The entity name that owns the project.
     """
@@ -166,7 +172,9 @@ class Project(Attrs):
         """A single project associated with an entity.
 
         Args:
-            client: The API client used to query W&B.
+            client: Legacy GraphQL client retained for API compatibility.
+            service_api: Interface to the wandb-core service that performs
+                W&B API calls for this project.
             entity: The entity which owns the project.
             project: The name of the project to query.
             attrs: The attributes of the project.

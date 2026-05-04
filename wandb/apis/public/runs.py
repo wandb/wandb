@@ -59,7 +59,7 @@ from wandb.apis.paginator import SizedPaginator
 from wandb.apis.public.const import RETRY_TIMEDELTA
 from wandb.proto import wandb_api_pb2 as apb
 from wandb.sdk import wandb_setup
-from wandb.sdk.lib import ipython, json_util, runid
+from wandb.sdk.lib import ipython, json_util
 from wandb.sdk.lib.paths import LogicalPath
 from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 
@@ -190,8 +190,9 @@ class Runs(SizedPaginator["Run"]):
     This is generally used indirectly using the `Api.runs` namespace.
 
     Args:
-        client: (`wandb.apis.public.RetryingClient`) The API client to use
-            for requests.
+        client: Legacy GraphQL client retained for API compatibility.
+        service_api: Interface to the wandb-core service that performs
+            W&B API calls for this collection.
         entity: (str) The entity (username or team) that owns the project.
         project: (str) The name of the project to fetch runs from.
         filters: (Optional[Dict[str, Any]]) A dictionary of filters to apply
@@ -600,7 +601,9 @@ class Run(Attrs):
     """A single run associated with an entity and project.
 
     Args:
-        client: The W&B API client.
+        client: Legacy GraphQL client retained for API compatibility.
+        service_api: Interface to the wandb-core service that performs
+            W&B API calls for this run.
         entity: The entity associated with the run.
         project: The project associated with the run.
         run_id: The unique identifier for the run.
@@ -768,52 +771,11 @@ class Run(Attrs):
         )
         ```
         """
-        api._sentry.message("Invoking Run.create", level="info")
-        run_id = run_id or runid.generate_id()
-        project = project or api.settings.get("project") or "uncategorized"
-        mutation = """
-        mutation UpsertBucket($project: String, $entity: String, $name: String!, $state: String) {
-            upsertBucket(input: {modelName: $project, entityName: $entity, name: $name, state: $state}) {
-                bucket {
-                    project {
-                        name
-                        entity { name }
-                    }
-                    id
-                    name
-                }
-                inserted
-            }
-        }
-        """
-        variables = {
-            "entity": entity,
-            "project": project,
-            "name": run_id,
-            "state": state,
-        }
-        res = api._service_api.execute_graphql(
-            mutation,
-            variables,
-        )
-        res = res["upsertBucket"]["bucket"]
-        return cls(
-            api.client,
-            res["project"]["entity"]["name"],
-            res["project"]["name"],
-            res["name"],
-            {
-                "id": res["id"],
-                "config": "{}",
-                "systemMetrics": "{}",
-                "summaryMetrics": "{}",
-                "tags": [],
-                "description": None,
-                "notes": None,
-                "state": state,
-            },
-            lazy=False,  # Created runs should have full data available immediately
-            service_api=api._service_api,
+        return api._create_run(
+            run_id=run_id,
+            project=project,
+            entity=entity,
+            state=state,
         )
 
     def _load_with_fragment(
@@ -1357,7 +1319,13 @@ class Run(Attrs):
         ```
 
         """
-        return public.RunArtifacts(self.client, self, mode="logged", per_page=per_page)
+        return public.RunArtifacts(
+            self.client,
+            self,
+            mode="logged",
+            per_page=per_page,
+            service_api=self._service_api,
+        )
 
     @normalize_exceptions
     def used_artifacts(self, per_page: int = 100) -> public.RunArtifacts:
@@ -1388,7 +1356,13 @@ class Run(Attrs):
         test_artifact
         ```
         """
-        return public.RunArtifacts(self.client, self, mode="used", per_page=per_page)
+        return public.RunArtifacts(
+            self.client,
+            self,
+            mode="used",
+            per_page=per_page,
+            service_api=self._service_api,
+        )
 
     @normalize_exceptions
     def use_artifact(

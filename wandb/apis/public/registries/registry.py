@@ -251,7 +251,9 @@ class Registry:
         This function should be called using `api.create_registry()`
 
         Args:
-            client: The GraphQL client.
+            client: Legacy GraphQL client retained for API compatibility.
+            service_api: Interface to the wandb-core service that performs
+                W&B API calls for the created registry.
             organization: The name of the organization.
             name: The name of the registry (without the `wandb-registry-` prefix).
             visibility: The visibility level ('organization' or 'restricted').

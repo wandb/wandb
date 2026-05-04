@@ -41,6 +41,7 @@ from wandb._pydantic import from_json
 from wandb._strutils import nameof
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.public import ArtifactCollection, ArtifactFiles, Run
+from wandb.apis.public.service_api import ServiceApi
 from wandb.apis.public.utils import gql_compat
 from wandb.data_types import WBValue
 from wandb.errors import CommError
@@ -101,7 +102,6 @@ if TYPE_CHECKING:
     from collections.abc import Iterable
 
     from wandb.apis.public import RetryingClient
-    from wandb.apis.public.service_api import ServiceApi
 
     from ._generated import ArtifactFragment, ArtifactMembershipFragment
     from ._models.pagination import FileWithUrlConnection
@@ -259,12 +259,8 @@ class Artifact:
 
     def _get_service_api(self) -> ServiceApi:
         if self._service_api is None:
-            from wandb.apis.public.service_api import ServiceApi
-
             settings = wandb_setup.singleton().settings.model_copy()
-            entity = self._source_entity or self._entity
-            if entity:
-                settings.entity = entity
+            settings.entity = self._source_entity or self._entity or settings.entity
             self._service_api = ServiceApi(settings=settings)
         return self._service_api
 

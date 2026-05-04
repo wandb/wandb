@@ -1907,7 +1907,7 @@ class Settings(BaseModel, validate_assignment=True):
             )
 
         # Print at the start so that users can diagnose uncaught exceptions.
-        if not self.quiet:
+        if not self.quiet and not self.silent and not env.is_silent():
             printed_sources = True
             wandb.termlog(f"Loading settings from {source_string}")
         else:

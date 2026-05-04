@@ -85,7 +85,9 @@ class Sweeps(SizedPaginator["Sweep"]):
         """An iterable collection of `Sweep` objects.
 
         Args:
-            client: The API client used to query W&B.
+            client: Legacy GraphQL client retained for API compatibility.
+            service_api: Interface to the wandb-core service that performs
+                W&B API calls for this collection.
             entity: The entity which owns the sweeps.
             project: The project which contains the sweeps.
             per_page: The number of sweeps to fetch per request to the API.
@@ -352,7 +354,9 @@ class Sweep(Attrs):
         """Execute a query against the cloud backend.
 
         Args:
-            client: The client to use to execute the query.
+            client: Legacy GraphQL client retained for API compatibility.
+            service_api: Interface to the wandb-core service that performs
+                W&B API calls for the returned sweep.
             entity: The entity (username or team) that owns the project.
             project: The name of the project to fetch sweep from.
             sid: The sweep ID to query.

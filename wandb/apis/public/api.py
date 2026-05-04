@@ -320,7 +320,63 @@ class Api:
         """
         if entity is None:
             entity = self.default_entity
-        return public.Run.create(self, run_id=run_id, project=project, entity=entity)
+        return self._create_run(run_id=run_id, project=project, entity=entity)
+
+    def _create_run(
+        self,
+        *,
+        run_id: str | None = None,
+        project: str | None = None,
+        entity: str | None = None,
+        state: Literal["running", "pending"] = "running",
+    ) -> public.Run:
+        self._sentry.message("Invoking Run.create", level="info")
+        run_id = run_id or runid.generate_id()
+        project = project or self.settings.get("project") or "uncategorized"
+        mutation = """
+        mutation UpsertBucket($project: String, $entity: String, $name: String!, $state: String) {
+            upsertBucket(input: {modelName: $project, entityName: $entity, name: $name, state: $state}) {
+                bucket {
+                    project {
+                        name
+                        entity { name }
+                    }
+                    id
+                    name
+                }
+                inserted
+            }
+        }
+        """
+        variables = {
+            "entity": entity,
+            "project": project,
+            "name": run_id,
+            "state": state,
+        }
+        res = self._service_api.execute_graphql(
+            mutation,
+            variables,
+        )
+        res = res["upsertBucket"]["bucket"]
+        return public.Run(
+            self.client,
+            res["project"]["entity"]["name"],
+            res["project"]["name"],
+            res["name"],
+            {
+                "id": res["id"],
+                "config": "{}",
+                "systemMetrics": "{}",
+                "summaryMetrics": "{}",
+                "tags": [],
+                "description": None,
+                "notes": None,
+                "state": state,
+            },
+            lazy=False,  # Created runs should have full data available immediately
+            service_api=self._service_api,
+        )
 
     def create_run_queue(
         self,
@@ -1293,6 +1349,26 @@ class Api:
             )
         return self._sweeps[path]
 
+    def _get_sweep(
+        self,
+        entity: str | None = None,
+        project: str | None = None,
+        sweep_id: str | None = None,
+        order: str | None = None,
+        query: Any | None = None,
+        **kwargs: Any,
+    ) -> public.Sweep | None:
+        return public.Sweep.get(
+            self.client,
+            entity,
+            project,
+            sweep_id,
+            order=order,
+            query=query,
+            service_api=self._service_api,
+            **kwargs,
+        )
+
     @normalize_exceptions
     def artifact_types(
         self,
@@ -1610,6 +1686,15 @@ class Api:
             )
         return artifact
 
+    def _artifact_from_id(self, artifact_id: str) -> Artifact | None:
+        from wandb.sdk.artifacts.artifact import Artifact
+
+        return Artifact._from_id(
+            artifact_id,
+            self.client,
+            service_api=self._service_api,
+        )
+
     @normalize_exceptions
     def artifact(self, name: str, type: str | None = None):
         """Returns a single artifact.
@@ -1676,7 +1761,7 @@ class Api:
             raise ValueError(
                 "Invalid job specification. A job must be of the form: <entity>/<project>/<job-name>:<alias-or-version>"
             )
-        return public.Job(self, name, path)
+        return public.Job(self, name, path, service_api=self._service_api)
 
     @normalize_exceptions
     def list_jobs(self, entity: str, project: str) -> list[dict[str, Any]]:
