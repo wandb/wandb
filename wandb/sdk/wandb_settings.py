@@ -1907,7 +1907,7 @@ class Settings(BaseModel, validate_assignment=True):
             )
 
         # Print at the start so that users can diagnose uncaught exceptions.
-        if not self.quiet:
+        if not self.quiet and not self.silent:
             printed_sources = True
             wandb.termlog(f"Loading settings from {source_string}")
         else:
@@ -2303,6 +2303,8 @@ class Settings(BaseModel, validate_assignment=True):
             )
         except Exception:
             # if the git command fails, fall back to the current working directory
+            root = os.getcwd()
+        if not isinstance(root, (str, os.PathLike)):
             root = os.getcwd()
 
         self.program_relpath = self.program_relpath or self._get_program_relpath(
