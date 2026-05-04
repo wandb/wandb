@@ -80,6 +80,10 @@ def test_standard_immutable_log(mock_eval_logger, mock_run, monkeypatch):
     mock_eval_logger._create_with_meta.assert_called_once_with(
         {"wandb_eval_table": True},
         name="my_eval",
+        dataset=[
+            {"i1": "i1-v", "i2": "i2-v"},
+            {"i1": "i1-v2", "i2": "i2-v2"},
+        ],
     )
 
     ev = mock_eval_logger.created_loggers[0]
@@ -123,6 +127,7 @@ def test_custom_summary(mock_eval_logger, mock_run):
     mock_eval_logger._create_with_meta.assert_called_once_with(
         {"wandb_eval_table": True},
         name="my_eval",
+        dataset=[{"i": "i-v"}],
     )
     ev = mock_eval_logger.created_loggers[0]
     ev.log_summary.assert_called_once_with({"val_loss": 0.3}, auto_summarize=False)

@@ -323,9 +323,18 @@ class EvalTable(Table):
             self._input_columns, self._output_columns, self._score_columns
         )
 
+        # Auto-generate a dataset based on input columns.
+        dataset_rows: list[dict[str, Any]] | None = None
+        if self._input_columns:
+            dataset_rows = [
+                {col: row[col] for col in self._input_columns}
+                for row in self._iter_unwrapped_rows()
+            ]
+
         self._weave_eval_logger = eval_logger_cls._create_with_meta(
             EVAL_TABLE_MARKER,
             name=key,
+            dataset=dataset_rows,
         )
 
         # INCREMENTAL evals defer summary/finalization until `finish()` or
