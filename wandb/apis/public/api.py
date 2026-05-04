@@ -2426,6 +2426,12 @@ class Api:
         variables = {"input": gql_input.model_dump()}
 
         name = gql_input.name
+        if fetch_existing:
+            try:
+                return self.automation(name=name)
+            except wandb.errors.CommError:
+                pass
+
         try:
             data = self.client.execute(mutation, variable_values=variables)
         except WandbApiFailedError as e:

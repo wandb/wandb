@@ -2304,6 +2304,8 @@ class Settings(BaseModel, validate_assignment=True):
         except Exception:
             # if the git command fails, fall back to the current working directory
             root = os.getcwd()
+        if not isinstance(root, (str, os.PathLike)):
+            root = os.getcwd()
 
         self.program_relpath = self.program_relpath or self._get_program_relpath(
             program, root

@@ -1,10 +1,12 @@
 import os
 import pathlib
+import shutil
 import subprocess
 
 import pytest
 
 
+@pytest.mark.skipif(shutil.which("dotnet") is None, reason="dotnet is not installed")
 @pytest.mark.timeout(300)
 def test_client_sharp(wandb_backend_spy):
     script_path = (

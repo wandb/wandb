@@ -20,12 +20,10 @@ import filelock
 import polars as pl
 import requests
 import urllib3
-import wandb_workspaces.reports.v1 as wr
 import yaml
-from wandb_workspaces.reports.v1 import Report
 
 import wandb
-from wandb.apis.public import ArtifactCollection, Run
+from wandb.apis.public import ArtifactCollection, BetaReport, Run
 from wandb.apis.public.files import File
 from wandb.sdk.lib import json_util
 from wandb.util import coalesce, remove_keys_with_none_values
@@ -51,6 +49,49 @@ ART_DUMMY_PLACEHOLDER_TYPE = "__temp__"
 
 SRC_ART_PATH = "./artifacts/src"
 DST_ART_PATH = "./artifacts/dst"
+
+UPSERT_VIEW = """
+    mutation upsertView(
+        $id: ID
+        $entityName: String
+        $projectName: String
+        $type: String
+        $name: String
+        $displayName: String
+        $description: String
+        $spec: String!
+    ) {
+        upsertView(
+            input: {
+                id: $id
+                entityName: $entityName
+                projectName: $projectName
+                name: $name
+                displayName: $displayName
+                description: $description
+                type: $type
+                createdUsing: WANDB_SDK
+                spec: $spec
+            }
+        ) {
+            view {
+                id
+                type
+                name
+                displayName
+                description
+                project {
+                    id
+                    name
+                    entityName
+                }
+                spec
+                updatedAt
+            }
+            inserted
+        }
+    }
+"""
 
 
 logger = logging.getLogger(__name__)
@@ -716,7 +757,7 @@ class WandbImporter:
                 run.delete(delete_artifacts=False)
 
     def _import_report(
-        self, report: Report, *, namespace: Namespace | None = None
+        self, report: BetaReport, *, namespace: Namespace | None = None
     ) -> None:
         """Import one wandb.Report.
 
@@ -728,7 +769,7 @@ class WandbImporter:
         entity = coalesce(namespace.entity, report.entity)
         project = coalesce(namespace.project, report.project)
         name = report.name
-        title = report.title
+        title = report.display_name
         description = report.description
 
         api = self.dst_api
@@ -742,8 +783,8 @@ class WandbImporter:
                 logger.warning(f"Issue upserting {entity=}/{project=}, {e=}")
 
         logger.debug(f"Upserting report {entity=}, {project=}, {name=}, {title=}")
-        api.client.execute(
-            wr.report.UPSERT_VIEW,
+        api.service_api.execute(
+            UPSERT_VIEW,
             variable_values={
                 "id": None,  # Is there any benefit for this to be the same as default report?
                 "name": name,
@@ -872,7 +913,7 @@ class WandbImporter:
             self._import_report(report, namespace=namespace)
             logger.debug(f"Finished importing {report=}, {namespace=}")
 
-        for_each(_import_report_wrapped, reports)
+        for_each(_import_report_wrapped, reports, parallel=False)
 
         logger.info("END: Importing reports")
 
@@ -1332,8 +1373,7 @@ class WandbImporter:
 
         def reports():
             for ns in namespaces:
-                for r in api.reports(ns.path):
-                    yield wr.Report.from_url(r.url, api=api)
+                yield from api.reports(ns.path)
 
         yield from itertools.islice(reports(), limit)
 
