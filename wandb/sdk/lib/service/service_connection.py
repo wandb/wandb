@@ -233,12 +233,12 @@ class ServiceConnection:
             response = handle.wait_or(timeout=timeout)
         except (MailboxClosedError, HandleAbandonedError):
             raise WandbApiFailedError(
-                "Failed to initialize API resources:"
+                "Failed to execute API request:"
                 + " the service process is not running.",
             ) from None
         except TimeoutError:
             raise WandbApiFailedError(
-                "Failed to initialize API resources:"
+                "Failed to execute API request:"
                 + " the service process is busy and did not respond in time.",
             ) from None
 

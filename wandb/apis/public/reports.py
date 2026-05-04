@@ -24,13 +24,16 @@ from wandb.sdk.lib import ipython
 if TYPE_CHECKING:
     from .api import RetryingClient
     from .projects import Project
+    from .service_api import ServiceApi
 
 
 class Reports(SizedPaginator["BetaReport"]):
     """Reports is a lazy iterator of `BetaReport` objects.
 
     Args:
-        client (`wandb.apis.internal.Api`): The API client instance to use.
+        client: Legacy GraphQL client retained for API compatibility.
+        service_api: Interface to the wandb-core service that performs
+            W&B API calls for this collection.
         project (`wandb.sdk.internal.Project`): The project to fetch reports from.
         name (str, optional): The name of the report to filter by. If `None`,
             fetches all reports.
@@ -81,9 +84,12 @@ class Reports(SizedPaginator["BetaReport"]):
         name: str | None = None,
         entity: str | None = None,
         per_page: int = 50,
+        *,
+        service_api: ServiceApi,
     ):
         self.project = project
         self.name = name
+        self._service_api = service_api
         variables = {
             "project": project.name,
             "entity": project.entity,
@@ -161,6 +167,7 @@ class Reports(SizedPaginator["BetaReport"]):
                 r["node"],
                 entity=self.project.entity,
                 project=self.project.name,
+                service_api=self._service_api,
             )
             for r in edges
         ]
@@ -195,10 +202,13 @@ class BetaReport(Attrs):
         attrs: dict,
         entity: str | None = None,
         project: str | None = None,
+        *,
+        service_api: ServiceApi,
     ):
         self.client = client
         self.project = project
         self.entity = entity
+        self._service_api = service_api
         self.query_generator = public.QueryGenerator()
         super().__init__(dict(attrs))
 
@@ -244,6 +254,7 @@ class BetaReport(Attrs):
             filters=filters,
             order=order,
             per_page=per_page,
+            service_api=self._service_api,
         )
 
     @property

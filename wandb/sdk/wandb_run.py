@@ -1422,7 +1422,6 @@ class Run:
         self, key: str, val: str | Artifact | dict
     ) -> Artifact:
         from wandb.apis import public
-        from wandb.sdk.artifacts.artifact import Artifact
 
         # artifacts can look like dicts as they are passed into the run config
         # since the run config stores them on the backend as a dict with fields shown
@@ -1430,7 +1429,7 @@ class Run:
         if _is_artifact_version_weave_dict(val):
             assert isinstance(val, dict)
             public_api = self._public_api()
-            artifact = Artifact._from_id(val["id"], public_api.client)
+            artifact = public_api._artifact_from_id(val["id"])
 
             assert artifact
             return self.use_artifact(artifact)
@@ -1445,7 +1444,7 @@ class Run:
             else:
                 public_api = self._public_api()
             if is_id:
-                artifact = Artifact._from_id(artifact_string, public_api._client)
+                artifact = public_api._artifact_from_id(artifact_string)
             else:
                 artifact = public_api._artifact(name=artifact_string)
             # in the future we'll need to support using artifacts from

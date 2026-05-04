@@ -19,6 +19,7 @@ if TYPE_CHECKING:
 
     from wandb.apis.public import ArtifactCollection, RetryingClient
     from wandb.apis.public.registries.registry import Registry
+    from wandb.apis.public.service_api import ServiceApi
     from wandb.sdk.artifacts._generated import (
         ArtifactMembershipFragment,
         RegistryCollectionFragment,
@@ -45,6 +46,8 @@ class Registries(RelayPaginator["RegistryFragment", "Registry"]):
         filter: dict[str, Any] | None = None,
         per_page: PositiveInt = 100,
         start: str | None = None,
+        *,
+        service_api: ServiceApi | None = None,
     ):
         if self.QUERY is None:
             from wandb.sdk.artifacts._generated import FETCH_REGISTRIES_GQL
@@ -54,6 +57,7 @@ class Registries(RelayPaginator["RegistryFragment", "Registry"]):
         self.client = client
         self.organization = organization
         self.filter = ensure_registry_prefix_on_names(filter or {})
+        self._service_api = service_api
 
         variables = {"organization": organization, "filters": json.dumps(self.filter)}
         super().__init__(client, variables=variables, per_page=per_page, start=start)
@@ -80,6 +84,7 @@ class Registries(RelayPaginator["RegistryFragment", "Registry"]):
             collection_filter=filter,
             per_page=per_page,
             start=start,
+            service_api=self._service_api,
         )
 
     @tracked
@@ -97,6 +102,7 @@ class Registries(RelayPaginator["RegistryFragment", "Registry"]):
             artifact_filter=filter,
             per_page=per_page,
             start=start,
+            service_api=self._service_api,
         )
 
     @property
@@ -133,6 +139,7 @@ class Registries(RelayPaginator["RegistryFragment", "Registry"]):
             entity=node.entity.name,
             name=remove_registry_prefix(node.name),
             attrs=node,
+            service_api=self._service_api,
         )
 
 
@@ -152,6 +159,8 @@ class Collections(
         collection_filter: dict[str, Any] | None = None,
         per_page: PositiveInt = 100,
         start: str | None = None,
+        *,
+        service_api: ServiceApi | None = None,
     ):
         if self.QUERY is None:
             from wandb.sdk.artifacts._generated import REGISTRY_COLLECTIONS_GQL
@@ -162,6 +171,7 @@ class Collections(
         self.organization = organization
         self.registry_filter = registry_filter
         self.collection_filter = collection_filter or {}
+        self._service_api = service_api
 
         variables = {
             "registryFilter": json.dumps(f) if (f := registry_filter) else None,
@@ -194,6 +204,7 @@ class Collections(
             artifact_filter=filter,
             per_page=per_page,
             start=start,
+            service_api=self._service_api,
         )
 
     @override
@@ -234,6 +245,7 @@ class Collections(
             type=node.type.name,
             organization=self.organization,
             attrs=node,
+            service_api=self._service_api,
         )
 
 
@@ -252,6 +264,8 @@ class Versions(RelayPaginator["ArtifactMembershipFragment", "Artifact"]):
         artifact_filter: dict[str, Any] | None = None,
         per_page: PositiveInt = 100,
         start: str | None = None,
+        *,
+        service_api: ServiceApi | None = None,
     ):
         from wandb.sdk.artifacts._generated import REGISTRY_VERSIONS_GQL
 
@@ -262,6 +276,7 @@ class Versions(RelayPaginator["ArtifactMembershipFragment", "Artifact"]):
         self.registry_filter = registry_filter
         self.collection_filter = collection_filter
         self.artifact_filter = artifact_filter or {}
+        self._service_api = service_api
 
         variables = {
             "registryFilter": json.dumps(f) if (f := registry_filter) else None,
@@ -323,4 +338,5 @@ class Versions(RelayPaginator["ArtifactMembershipFragment", "Artifact"]):
                 name=f"{collection.name}:v{version_idx}",
             ),
             client=self.client,
+            service_api=self._service_api,
         )

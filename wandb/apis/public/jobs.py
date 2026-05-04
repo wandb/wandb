@@ -31,6 +31,7 @@ from wandb.sdk.launch.utils import (
 
 if TYPE_CHECKING:
     from wandb.apis.public import Api, RetryingClient
+    from wandb.apis.public.service_api import ServiceApi
     from wandb.sdk.launch._project_spec import LaunchProject
 
 
@@ -44,7 +45,14 @@ class Job:
     _notebook_job: bool
     _partial: bool
 
-    def __init__(self, api: Api, name, path: str | None = None) -> None:
+    def __init__(
+        self,
+        api: Api,
+        name,
+        path: str | None = None,
+        *,
+        service_api: ServiceApi | None = None,
+    ) -> None:
         try:
             self._job_artifact = api._artifact(name, type="job")
         except CommError:
@@ -56,6 +64,7 @@ class Job:
             self._fpath = self._job_artifact.download()
         self._name = name
         self._api = api
+        self._service_api = service_api
         self._entity = api.default_entity
 
         with open(os.path.join(self._fpath, "wandb-job.json")) as f:
@@ -96,7 +105,11 @@ class Job:
 
         artifact_string, base_url, is_id = util.parse_artifact_string(artifact_string)
         if is_id:
-            code_artifact = wandb.Artifact._from_id(artifact_string, self._api._client)
+            code_artifact = wandb.Artifact._from_id(
+                artifact_string,
+                self._api._client,
+                service_api=self._service_api,
+            )
         else:
             code_artifact = self._api._artifact(name=artifact_string, type="code")
         if code_artifact is None:
@@ -268,6 +281,9 @@ class QueuedRun:
     """A single queued run associated with an entity and project.
 
     Args:
+        client: Legacy GraphQL client retained for API compatibility.
+        service_api: Interface to the wandb-core service that performs
+            W&B API calls for this queued run.
         entity: The entity associated with the queued run.
         project (str): The project where runs executed by the queue are logged to.
         queue_name (str): The name of the queue.
@@ -288,8 +304,11 @@ class QueuedRun:
         run_queue_item_id: str,
         project_queue: str = LAUNCH_DEFAULT_PROJECT,
         priority: int | None = None,
+        *,
+        service_api: ServiceApi,
     ):
         self.client = client
+        self._service_api = service_api
         self._entity = entity
         self._project = project
         self._queue_name = queue_name
@@ -475,6 +494,7 @@ class QueuedRun:
                         self.project,
                         item["associatedRunId"],
                         None,
+                        service_api=self._service_api,
                     )
                     self._run_id = item["associatedRunId"]
                 except ValueError as e:
@@ -501,7 +521,9 @@ class RunQueue:
     """Class that represents a run queue in W&B.
 
     Args:
-        client: W&B API client instance.
+        client: Legacy GraphQL client retained for API compatibility.
+        service_api: Interface to the wandb-core service that performs
+            W&B API calls for this queue.
         name: Name of the run queue
         entity: The entity (user or team) that owns this queue
         prioritization_mode: Queue priority mode
@@ -521,9 +543,12 @@ class RunQueue:
         _access: RunQueueAccessType | None = None,
         _default_resource_config_id: int | None = None,
         _default_resource_config: dict[str, Any] | None = None,
+        *,
+        service_api: ServiceApi,
     ) -> None:
         self._name: str = name
         self._client = client
+        self._service_api = service_api
         self._entity = entity
         self._prioritization_mode = prioritization_mode
         self._access = _access
@@ -733,6 +758,7 @@ class RunQueue:
                     LAUNCH_DEFAULT_PROJECT,
                     self._name,
                     item["node"]["id"],
+                    service_api=self._service_api,
                 )
             )
 

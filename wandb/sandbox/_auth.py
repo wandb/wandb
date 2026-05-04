@@ -32,7 +32,7 @@ def override_sandbox_entity(
 ) -> Iterator[None]:
     """Temporarily override the sandbox entity for sandbox auth.
 
-    Passing ``None`` means using the default resolve logic from run
+    Passing `None` means using the default resolve logic from run
     and setting. Only used by the cli to set entity via --entity.
     """
     if entity is None:

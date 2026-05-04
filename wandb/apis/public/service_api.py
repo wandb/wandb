@@ -1,13 +1,20 @@
 from __future__ import annotations
 
 import contextlib
+import json
 import logging
 import uuid
 import weakref
-from typing import cast
+from collections.abc import Mapping
+from typing import Any, cast
 
 from wandb.proto import wandb_internal_pb2 as pb
-from wandb.proto.wandb_api_pb2 import ApiRequest, ApiResponse, FeaturesRequest
+from wandb.proto.wandb_api_pb2 import (
+    ApiRequest,
+    ApiResponse,
+    FeaturesRequest,
+    GraphQLRequest,
+)
 from wandb.sdk import wandb_settings, wandb_setup
 from wandb.sdk.lib.service.service_connection import (
     ServiceConnection,
@@ -66,6 +73,43 @@ class ServiceApi:
         conn = self._get_service_connection()
         request.api_id = self._api_id
         return conn.api_request(request, timeout=timeout)
+
+    def execute_graphql(
+        self,
+        query: str,
+        variables: Mapping[str, Any] | None = None,
+        timeout: float | None = None,
+    ) -> Any:
+        """Execute a GraphQL operation through the wandb-core sidecar.
+
+        The query is sent to wandb-core, which performs the network round-trip
+        against the W&B backend and returns the parsed `data` field of the
+        GraphQL response.
+
+        Args:
+            query: The GraphQL document to execute.
+            variables: Variables for the GraphQL operation, JSON-serialized
+                on the wire.
+            timeout: Optional timeout in seconds for waiting on wandb-core.
+                On timeout, the request is cancelled on a best-effort basis.
+
+        Returns:
+            The decoded `data` field of the GraphQL response.
+
+        Raises:
+            WandbApiFailedError: The request failed for any reason, including
+                timeouts while waiting on wandb-core, transport errors,
+                non-successful HTTP status codes, and GraphQL `errors`
+                returned by the server.
+        """
+        request = ApiRequest(
+            graphql_request=GraphQLRequest(
+                query=query,
+                variables_json=json.dumps(variables or {}),
+            )
+        )
+        response = self.send_api_request(request, timeout=timeout)
+        return json.loads(response.graphql_response.data_json)
 
     async def send_api_request_async(
         self,

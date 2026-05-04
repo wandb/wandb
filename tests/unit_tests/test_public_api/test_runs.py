@@ -17,12 +17,14 @@ from wandb.apis.public.runs import Run
 )
 @pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
 def test_create_run_with_string_attrs(field, value, expected):
+    api = wandb.Api()
     run = wandb.apis.public.Run(
-        client=wandb.Api().client,
+        client=api.client,
         entity="test",
         project="test",
         run_id="test",
         attrs={field: value},
+        service_api=mock.MagicMock(),
     )
     assert getattr(run, field) == expected
 
@@ -39,12 +41,14 @@ def test_create_run_with_string_attrs(field, value, expected):
 @pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
 def test_create_run_with_dictionary_attrs_already_parsed(field, value):
     with mock.patch.object(wandb, "login", mock.MagicMock()):
+        api = wandb.Api()
         run = wandb.apis.public.Run(
-            client=wandb.Api().client,
+            client=api.client,
             entity="test",
             project="test",
             run_id="test",
             attrs={field: value},
+            service_api=mock.MagicMock(),
         )
         assert getattr(run, field) == value
 
@@ -61,15 +65,17 @@ def test_create_run_with_dictionary_attrs_already_parsed(field, value):
 @pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
 def test_create_run_with_dictionary__throws_type_error(field, value):
     with mock.patch.object(wandb, "login", mock.MagicMock()):
+        api = wandb.Api()
         with pytest.raises(wandb.errors.CommError):
             wandb.apis.public.Run(
-                client=wandb.Api().client,
+                client=api.client,
                 entity="test",
                 project="test",
                 run_id="test",
                 attrs={
                     field: value,
                 },
+                service_api=mock.MagicMock(),
             )
 
 
@@ -85,12 +91,14 @@ def test_create_run_with_dictionary__throws_type_error(field, value):
 @pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
 def test_create_run_with_control_characters(field, value, expected):
     with mock.patch.object(wandb, "login", mock.MagicMock()):
+        api = wandb.Api()
         run = wandb.apis.public.Run(
-            client=wandb.Api().client,
+            client=api.client,
             entity="test",
             project="test",
             run_id="test",
             attrs={field: value},
+            service_api=mock.MagicMock(),
         )
         assert getattr(run, field) == expected
 
@@ -142,8 +150,9 @@ def _make_full_response(lightweight_attrs):
 def test_lazy_run_config_triggers_full_load():
     """run.config on a lazy run should trigger load_full_data and return config."""
     client = mock.MagicMock()
+    service_api = mock.MagicMock()
     lightweight = _make_lightweight_attrs()
-    client.execute.return_value = _make_full_response(lightweight)
+    service_api.execute_graphql.return_value = _make_full_response(lightweight)
 
     run = Run(
         client=client,
@@ -152,6 +161,7 @@ def test_lazy_run_config_triggers_full_load():
         run_id="run-abc123",
         attrs=dict(lightweight),
         lazy=True,
+        service_api=service_api,
     )
 
     assert run._lazy is True
@@ -163,12 +173,14 @@ def test_lazy_run_config_triggers_full_load():
     assert run._full_data_loaded is True
     assert config == {"learning_rate": 0.001, "batch_size": 32}
     assert "_wandb" not in config
+    service_api.execute_graphql.assert_called_once()
 
 
 @pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
 def test_lazy_run_user_accessible_without_full_load():
     """run.user should work on lazy runs without triggering a full data load."""
     client = mock.MagicMock()
+    service_api = mock.MagicMock()
     lightweight = _make_lightweight_attrs()
 
     run = Run(
@@ -178,6 +190,7 @@ def test_lazy_run_user_accessible_without_full_load():
         run_id="run-abc123",
         attrs=dict(lightweight),
         lazy=True,
+        service_api=service_api,
     )
 
     assert run._full_data_loaded is False
