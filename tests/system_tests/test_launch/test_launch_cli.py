@@ -327,8 +327,16 @@ def test_launch_template_vars(command_inputs, expected_error, runner, monkeypatc
         patched_launch_add,
     )
 
+    def patched_run_queue(*args, **kwargs):
+        mock_rq = Mock()
+        mock_rq.template_variables = mock_template_variables
+        mock_rq.name = "test-queue"
+        return mock_rq
+
     def patched_public_api(*args, **kwargs):
-        return Mock()
+        mock_api = Mock()
+        mock_api.run_queue.side_effect = patched_run_queue
+        return mock_api
 
     monkeypatch.setattr(
         "wandb.cli.cli.PublicApi",
@@ -336,17 +344,6 @@ def test_launch_template_vars(command_inputs, expected_error, runner, monkeypatc
     )
 
     monkeypatch.setattr("wandb.cli.cli.launch_utils.check_logged_in", lambda _: None)
-
-    def patched_run_queue(*args, **kwargs):
-        mock_rq = Mock()
-        mock_rq.template_variables = mock_template_variables
-        mock_rq.name = "test-queue"
-        return mock_rq
-
-    monkeypatch.setattr(
-        "wandb.cli.cli.RunQueue",
-        patched_run_queue,
-    )
 
     result = "none"
     with runner.isolated_filesystem():

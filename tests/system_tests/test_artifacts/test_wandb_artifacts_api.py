@@ -495,21 +495,21 @@ def test_artifact_enable_tracking_flag(user: str, api: Api, mocker):
     # Test that api.artifact() calls Artifact._from_name() with enable_tracking=True
     api.artifact(name=artifact_path_str)
 
-    from_name_spy.assert_called_once_with(
-        path=artifact_path_obj,
-        client=api.client,
-        enable_tracking=True,
-    )
+    from_name_spy.assert_called_once()
+    assert from_name_spy.call_args.kwargs["path"] == artifact_path_obj
+    assert from_name_spy.call_args.kwargs["client"] is api.client
+    assert from_name_spy.call_args.kwargs["service_api"] is not None
+    assert from_name_spy.call_args.kwargs["enable_tracking"] is True
 
     # Test that internal methods, like api.artifact_exists(), call Artifact._from_name() with enable_tracking=False
     from_name_spy.reset_mock()
     api.artifact_exists(name=artifact_path_str)
 
-    from_name_spy.assert_called_once_with(
-        path=artifact_path_obj,
-        client=api.client,
-        enable_tracking=False,
-    )
+    from_name_spy.assert_called_once()
+    assert from_name_spy.call_args.kwargs["path"] == artifact_path_obj
+    assert from_name_spy.call_args.kwargs["client"] is api.client
+    assert from_name_spy.call_args.kwargs["service_api"] is not None
+    assert from_name_spy.call_args.kwargs["enable_tracking"] is False
 
 
 def test_artifact_history_step(user: str, api: Api):

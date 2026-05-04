@@ -27,6 +27,7 @@ def test_public_agent_repr():
         entity="test-entity",
         project="test-project",
         sweep_id="test-sweep",
+        service_api=mock.Mock(),
     )
     assert repr(agent) == "<Agent test-agent-id (RUNNING)>"
 

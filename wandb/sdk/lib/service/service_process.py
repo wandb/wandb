@@ -51,7 +51,7 @@ def start_detached(
         settings: SDK settings.
         idle_timeout: How long the service should stay alive with no connected
             clients before shutting down. This uses Go duration syntax, for
-            example ``30s`` or ``10m``. Use ``0`` to disable idle shutdown.
+            example `30s` or `10m`. Use `0` to disable idle shutdown.
 
     Returns:
         A handle to the process.
