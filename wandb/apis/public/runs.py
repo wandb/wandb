@@ -59,7 +59,7 @@ from wandb.apis.paginator import SizedPaginator
 from wandb.apis.public.const import RETRY_TIMEDELTA
 from wandb.proto import wandb_api_pb2 as apb
 from wandb.sdk import wandb_setup
-from wandb.sdk.lib import ipython, json_util
+from wandb.sdk.lib import ipython, json_util, runid
 from wandb.sdk.lib.paths import LogicalPath
 from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 
