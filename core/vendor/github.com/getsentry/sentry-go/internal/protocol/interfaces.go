@@ -35,6 +35,14 @@ type EnvelopeItemConvertible interface {
 	ToEnvelopeItem() (*EnvelopeItem, error)
 }
 
+// EnvelopeConvertible represents items that can convert themselves to complete envelopes.
+type EnvelopeConvertible interface {
+	TelemetryItem
+
+	// ToEnvelope converts the item to a Sentry envelope using the provided header.
+	ToEnvelope(*EnvelopeHeader) (*Envelope, error)
+}
+
 // TelemetryTransport represents the envelope-first transport interface.
 // This interface is designed for the telemetry buffer system and provides
 // non-blocking sends with backpressure signals.
