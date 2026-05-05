@@ -1,7 +1,8 @@
 .DEFAULT_GOAL := help
 
-ALL_GO_MOD_DIRS := $(shell find . -type f -name 'go.mod' -exec dirname {} \; | sort)
 GO = go
+ALL_GO_MOD_DIRS := $(shell $(GO) work edit -json | jq -r '.Use[].DiskPath')
+WORK_LINT_TARGETS := $(patsubst %, %/..., $(ALL_GO_MOD_DIRS))
 TIMEOUT = 300
 
 help: ## Show help
@@ -58,7 +59,7 @@ gotidy/%:
 .PHONY: gotidy
 
 lint: ## Lint (using "golangci-lint")
-	golangci-lint run
+	golangci-lint run $(WORK_LINT_TARGETS)
 .PHONY: lint
 
 fmt: ## Format all Go files

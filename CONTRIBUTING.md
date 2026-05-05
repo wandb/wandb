@@ -35,6 +35,8 @@ Please make sure to update the ToC when you update this page!
 - [Testing](#testing)
   - [Using pytest](#using-pytest)
   - [Running `system_tests` locally (internal-only)](#running-system_tests-locally-internal-only)
+- [Troubleshooting](#troubleshooting)
+  - [golangci-lint version mismatch](#golangci-lint-version-mismatch)
 
 ## Development workflow
 
@@ -374,3 +376,20 @@ When you're done, shut it down:
 ```shell
 python tools/local_wandb_server.py stop
 ```
+
+## Troubleshooting
+
+### golangci-lint version mismatch
+
+Example:
+
+`Error: can't load config: the Go language version (go1.25) used to build golangci-lint is lower than the targeted Go version (1.26.2)`\
+`The command is terminated due to an error: can't load config: the Go language version (go1.25) used to build golangci-lint is lower than the targeted Go version (1.26.2)`
+
+Try:
+
+```shell
+prek cache clean
+```
+
+This will rebuild `golangci-lint` and may solve the issue.

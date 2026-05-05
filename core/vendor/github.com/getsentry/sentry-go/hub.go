@@ -390,23 +390,22 @@ func (hub *Hub) FlushWithContext(ctx context.Context) bool {
 // on the current span, or the scope's propagation context.
 func (hub *Hub) GetTraceparent() string {
 	scope := hub.Scope()
-
-	if scope.span != nil {
-		return scope.span.ToSentryTrace()
+	if span := scope.GetSpan(); span != nil {
+		return span.ToSentryTrace()
 	}
-
-	return fmt.Sprintf("%s-%s", scope.propagationContext.TraceID, scope.propagationContext.SpanID)
+	propagationContext := scope.propagationContextSnapshot()
+	return fmt.Sprintf("%s-%s", propagationContext.TraceID, propagationContext.SpanID)
 }
 
 // GetTraceparentW3C returns the current traceparent string in W3C format.
 // This is intended for propagation to downstream services that expect the W3C header.
 func (hub *Hub) GetTraceparentW3C() string {
 	scope := hub.Scope()
-	if scope.span != nil {
-		return scope.span.ToTraceparent()
+	if span := scope.GetSpan(); span != nil {
+		return span.ToTraceparent()
 	}
-
-	return fmt.Sprintf("00-%s-%s-00", scope.propagationContext.TraceID, scope.propagationContext.SpanID)
+	propagationContext := scope.propagationContextSnapshot()
+	return fmt.Sprintf("00-%s-%s-00", propagationContext.TraceID, propagationContext.SpanID)
 }
 
 // GetBaggage returns the current Sentry baggage string, to be used as a HTTP header value
@@ -415,12 +414,10 @@ func (hub *Hub) GetTraceparentW3C() string {
 // on the current span or the scope's propagation context.
 func (hub *Hub) GetBaggage() string {
 	scope := hub.Scope()
-
-	if scope.span != nil {
-		return scope.span.ToBaggage()
+	if span := scope.GetSpan(); span != nil {
+		return span.ToBaggage()
 	}
-
-	return scope.propagationContext.DynamicSamplingContext.String()
+	return scope.propagationContextSnapshot().DynamicSamplingContext.String()
 }
 
 // HasHubOnContext checks whether Hub instance is bound to a given Context struct.

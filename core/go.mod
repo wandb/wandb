@@ -16,7 +16,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/config v1.32.17
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.100.1
 	github.com/ebitengine/purego v0.10.0
-	github.com/getsentry/sentry-go v0.46.0
+	github.com/getsentry/sentry-go v0.46.2
 	github.com/go-git/go-git/v5 v5.18.0
 	github.com/google/wire v0.7.0
 	github.com/googleapis/gax-go/v2 v2.22.0
@@ -28,7 +28,7 @@ require (
 	github.com/prometheus/common v0.67.5
 	github.com/prometheus/procfs v0.20.1
 	github.com/radovskyb/watcher v1.0.7
-	github.com/shirou/gopsutil/v4 v4.26.3
+	github.com/shirou/gopsutil/v4 v4.26.4
 	github.com/spf13/afero v1.15.0
 	github.com/stretchr/testify v1.11.1
 	github.com/vektah/gqlparser/v2 v2.5.33
@@ -38,7 +38,7 @@ require (
 	golang.org/x/sync v0.20.0
 	golang.org/x/time v0.15.0
 	google.golang.org/api v0.276.0
-	google.golang.org/grpc v1.80.0
+	google.golang.org/grpc v1.81.0
 	google.golang.org/protobuf v1.36.11
 	gopkg.in/yaml.v3 v3.0.1
 )
