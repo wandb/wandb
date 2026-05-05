@@ -95,7 +95,7 @@ def artifact_collection(mock_client: Mock) -> ArtifactCollection:
     entity_name = "test-entity"
     collection_type = "dataset"
     collection = ArtifactCollection(
-        client=mock_client,
+        service_api=mock_client,
         entity=entity_name,
         project=project_name,
         name=collection_name,
@@ -132,13 +132,12 @@ def project(mock_client: Mock) -> Project:
     Tests relying on real `wandb.Api` calls should live in system tests.
     """
     return Project(
-        client=mock_client,
+        service_api=mock_client,
         entity="test-entity",
         project="test-project",
         attrs={
             "id": make_graphql_id(prefix="Project"),
         },
-        service_api=Mock(),
     )
 
 

@@ -1,17 +1,14 @@
 import json
 from unittest.mock import MagicMock
 
-import wandb
 from wandb.apis import internal
 
 
-def test_create_run_queue(monkeypatch):
+def test_create_run_queue():
     _api = internal.Api()
 
     # prioritization_mode present on server
     _api.api.gql = MagicMock(return_value={"createRunQueue": "test-result"})
-    mock_gql = MagicMock(return_value="test-gql-resp")
-    monkeypatch.setattr(wandb.sdk.internal.internal_api, "gql", mock_gql)
 
     kwargs = {
         "entity": "test-entity",
@@ -23,25 +20,23 @@ def test_create_run_queue(monkeypatch):
     }
     resp = _api.create_run_queue(**kwargs)
     assert resp == "test-result"
-    _api.api.gql.assert_called_once_with(
-        "test-gql-resp",
-        {
-            "entity": "test-entity",
-            "project": "test-project",
-            "queueName": "test-queue",
-            "access": "test-access",
-            "prioritizationMode": "test-prioritization-mode",
-            "defaultResourceConfigID": "test-config-id",
-        },
-    )
+    call_args = _api.api.gql.call_args[0]
+    assert "createRunQueue" in call_args[0]
+    assert call_args[1] == {
+        "entity": "test-entity",
+        "project": "test-project",
+        "queueName": "test-queue",
+        "access": "test-access",
+        "prioritizationMode": "test-prioritization-mode",
+        "defaultResourceConfigID": "test-config-id",
+    }
 
 
-def test_push_to_run_queue_by_name(monkeypatch):
+def test_push_to_run_queue_by_name():
     _api = internal.Api()
     mock_run_spec = {"test-key": "test-value"}
     mock_gql_response = {"pushToRunQueueByName": {"runSpec": json.dumps(mock_run_spec)}}
     _api.api.gql = MagicMock(return_value=mock_gql_response)
-    monkeypatch.setattr(wandb.sdk.internal.internal_api, "gql", lambda x: x)
 
     push_kwargs = {
         "entity": "test-entity",
@@ -67,13 +62,12 @@ def test_push_to_run_queue_by_name(monkeypatch):
     }
 
 
-def test_upsert_sweep(monkeypatch):
+def test_upsert_sweep():
     _api = internal.Api()
     mock_sweep_name = "test-sweep"
     mock_display_name = "test-sweep-display-name"
     mock_gql_response = {"upsertSweep": {"sweep": {"name": mock_sweep_name}}}
     _api.api.gql = MagicMock(return_value=mock_gql_response)
-    monkeypatch.setattr(wandb.sdk.internal.internal_api, "gql", lambda x: x)
 
     run_ids = ["abc", "def"]
     sweep_config = {

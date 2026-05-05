@@ -291,7 +291,7 @@ class Api:
         )
         res = res["upsertBucket"]["bucket"]
         return public.Run(
-            self.client,
+            self.service_api,
             res["project"]["entity"]["name"],
             res["project"]["name"],
             res["name"],
@@ -306,7 +306,6 @@ class Api:
                 "state": state,
             },
             lazy=False,  # Created runs should have full data available immediately
-            service_api=self._service_api,
         )
 
     def create_run_queue(
@@ -1284,13 +1283,12 @@ class Api:
         **kwargs: Any,
     ) -> public.Sweep | None:
         return public.Sweep.get(
-            self.client,
+            self.service_api,
             entity,
             project,
             sweep_id,
             order=order,
             query=query,
-            service_api=self._service_api,
             **kwargs,
         )
 
@@ -1608,8 +1606,7 @@ class Api:
 
         return Artifact._from_id(
             artifact_id,
-            self.client,
-            service_api=self._service_api,
+            self.service_api,
         )
 
     @normalize_exceptions

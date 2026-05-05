@@ -1090,8 +1090,10 @@ class Run:
     def project_url(self) -> str | None:
         """URL of the W&B project associated with the run, if there is one.
 
-        Offline runs do not have a project URL.
+        Offline and disabled runs do not have a project URL.
         """
+        if self._settings._noop:
+            return None
         if self._settings._offline:
             wandb.termwarn("URL not available in offline run")
             return None
@@ -1225,8 +1227,10 @@ class Run:
     def sweep_url(self) -> str | None:
         """URL of the sweep associated with the run, if there is one.
 
-        Offline runs do not have a sweep URL.
+        Offline and disabled runs do not have a sweep URL.
         """
+        if self._settings._noop:
+            return None
         if self._settings._offline:
             wandb.termwarn("URL not available in offline run")
             return None
@@ -1255,8 +1259,10 @@ class Run:
     def url(self) -> str | None:
         """The url for the W&B run, if there is one.
 
-        Offline runs will not have a url.
+        Offline and disabled runs will not have a url.
         """
+        if self._settings._noop:
+            return None
         if self._settings._offline:
             wandb.termwarn("URL not available in offline run")
             return None
@@ -1422,6 +1428,7 @@ class Run:
         self, key: str, val: str | Artifact | dict
     ) -> Artifact:
         from wandb.apis import public
+        from wandb.sdk.artifacts.artifact import Artifact
 
         # artifacts can look like dicts as they are passed into the run config
         # since the run config stores them on the backend as a dict with fields shown

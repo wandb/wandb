@@ -990,8 +990,6 @@ class RunArtifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
         mode: Literal["logged", "used"] = "logged",
         per_page: int = 50,
         start: str | None = None,
-        *,
-        service_api: ServiceApi,
     ):
         try:
             query_str = _run_artifacts_mode_to_gql()[mode]
