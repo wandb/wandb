@@ -254,7 +254,9 @@ class Artifact:
             from wandb.apis.public.service_api import ServiceApi
 
             settings = wandb_setup.singleton().settings.model_copy()
-            settings.entity = self._source_entity or self._entity or settings.entity
+            entity = self._source_entity or self._entity
+            if entity:
+                settings.entity = entity
             self._service_api = ServiceApi(settings=settings)
         return self._service_api
 
