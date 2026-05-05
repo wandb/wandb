@@ -2306,6 +2306,7 @@ class Settings(BaseModel, validate_assignment=True):
             root = os.getcwd()
         if not isinstance(root, (str, os.PathLike)):
             root = os.getcwd()
+        root = os.fsdecode(root)
 
         self.program_relpath = self.program_relpath or self._get_program_relpath(
             program, root
