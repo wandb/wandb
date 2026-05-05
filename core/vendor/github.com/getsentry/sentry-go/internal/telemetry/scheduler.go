@@ -295,14 +295,32 @@ func (s *Scheduler) sendItem(item protocol.EnvelopeItemConvertible) {
 	if header.EventID == "" {
 		header.EventID = protocol.GenerateEventID()
 	}
-	envelope := protocol.NewEnvelope(header)
-	envItem, err := item.ToEnvelopeItem()
-	if err != nil {
-		debuglog.Printf("error while converting to envelope item: %v", err)
-		s.recorder.RecordItem(report.ReasonInternalError, item)
-		return
+
+	// TODO: need to restructure the abstraction layer to actually return envelopes instead of
+	// envelope items. The problem with envelope items, is that for events and batches we might
+	// need envelopes (eg. attachments need to be added separately and splitting the `Add` path
+	// is problematic). Currently this is a workaround for adding attachments to events without
+	// adding a circular dependency on telemetry/scheduler.
+	var envelope *protocol.Envelope
+	if convertible, ok := item.(protocol.EnvelopeConvertible); ok {
+		var err error
+		envelope, err = convertible.ToEnvelope(header)
+		if err != nil {
+			debuglog.Printf("error while converting to envelope: %v", err)
+			s.recorder.RecordItem(report.ReasonInternalError, item)
+			return
+		}
+	} else {
+		envItem, err := item.ToEnvelopeItem()
+		if err != nil {
+			debuglog.Printf("error while converting to envelope item: %v", err)
+			s.recorder.RecordItem(report.ReasonInternalError, item)
+			return
+		}
+		envelope = protocol.NewEnvelope(header)
+		envelope.AddItem(envItem)
 	}
-	envelope.AddItem(envItem)
+
 	if err := s.transport.SendEnvelope(envelope); err != nil {
 		debuglog.Printf("error sending envelope: %v", err)
 	}
