@@ -4,6 +4,7 @@ import json
 import secrets
 import subprocess
 import sys
+import time
 from collections import deque
 from dataclasses import InitVar, asdict, dataclass, field
 from pathlib import Path
@@ -14,6 +15,8 @@ import httpx
 
 #: The root directory of this repo.
 REPO_ROOT: Final[Path] = Path(__file__).parent.parent.parent
+FIXTURE_REQUEST_ATTEMPTS: Final[int] = 4
+FIXTURE_REQUEST_RETRY_DELAY_SECONDS: Final[float] = 0.25
 
 
 @dataclass(frozen=True)
@@ -242,12 +245,20 @@ class BackendFixtureFactory:
         endpoint = str(self._client.base_url.join(path))
         # FIXME: Figure out how SDK team preferences/conventions for replacing print statements
         print(f"Triggering fixture on {endpoint!r}: {data!r}", file=sys.stderr)
-        try:
-            response = self._client.post(path, json=data)
-            response.raise_for_status()
-        except httpx.HTTPStatusError as e:
-            # FIXME: Figure out how SDK team preferences/conventions for replacing print statements
-            print(e.response.text, file=sys.stderr)
+        for attempt in range(FIXTURE_REQUEST_ATTEMPTS):
+            try:
+                response = self._client.post(path, json=data)
+                response.raise_for_status()
+            except httpx.RemoteProtocolError:
+                if attempt == FIXTURE_REQUEST_ATTEMPTS - 1:
+                    raise
+                time.sleep(FIXTURE_REQUEST_RETRY_DELAY_SECONDS * (attempt + 1))
+            except httpx.HTTPStatusError as e:
+                # FIXME: Figure out how SDK team preferences/conventions for replacing print statements
+                print(e.response.text, file=sys.stderr)
+                return
+            else:
+                return
 
     def cleanup(self) -> None:
         while True:

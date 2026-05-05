@@ -44,7 +44,7 @@ class User(Attrs):
         api_key: str | None = None,
     ):
         super().__init__(attrs)
-        self._client = service_api
+        self._service_api = service_api
         self._api_key = api_key
         self._user_api: Api | None = None
 
@@ -72,15 +72,7 @@ class User(Attrs):
 
         <!-- lazydoc-ignore-classmethod: internal -->
         """
-        from wandb.apis._generated import (
-            CREATE_USER_FROM_ADMIN_GQL,
-            CreateUserFromAdmin,
-        )
-
-        gql_op = CREATE_USER_FROM_ADMIN_GQL
-        data = api.service_api.execute(gql_op, {"email": email, "admin": admin})
-        user = CreateUserFromAdmin.model_validate(data).result.user
-        return cls(api.service_api, user.model_dump(), api_key=api.api_key)
+        return api._create_user(email, admin)
 
     @property
     def api_keys(self) -> list[str]:
@@ -125,7 +117,10 @@ class User(Attrs):
         idx = self.api_keys.index(api_key)
         api_key_id = self._attrs["apiKeys"]["edges"][idx]["node"]["id"]
         try:
-            self._client.execute((DELETE_API_KEY_GQL), {"id": api_key_id})
+            self._service_api.execute_graphql(
+                (DELETE_API_KEY_GQL),
+                {"id": api_key_id},
+            )
         except WandbApiFailedError:
             return False
         return True
@@ -146,7 +141,10 @@ class User(Attrs):
         try:
             # We must make this call using credentials from the original user
             gql_op = GENERATE_API_KEY_GQL
-            data = self._client.execute(gql_op, {"description": description})
+            data = self._service_api.execute_graphql(
+                gql_op,
+                {"description": description},
+            )
             key_fragment = GenerateApiKey.model_validate(data).result.api_key
             self._attrs["apiKeys"]["edges"].append({"node": key_fragment.model_dump()})
         except (WandbApiFailedError, AttributeError):

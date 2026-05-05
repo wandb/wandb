@@ -33,7 +33,7 @@ from typing import TYPE_CHECKING, Any, Union
 
 import wandb
 import wandb.integration.sagemaker as sagemaker
-from wandb.env import CONFIG_DIR, QUIET, SILENT
+from wandb.env import CONFIG_DIR
 from wandb.errors import UsageError
 from wandb.sdk.lib import asyncio_manager, import_hooks, wb_logging
 
@@ -224,17 +224,11 @@ class _WandbSetup:
             self._settings.settings_system = str(
                 pathlib.Path("~", ".config", "wandb", "settings").expanduser()
             )
+        self._settings.update_from_system_settings()
+
         # load settings from the environment variables
         self._logger.info("Loading settings from environment variables")
         self._settings_environ = os.environ.copy()
-        self._settings.update_from_env_vars(
-            {
-                setting: value
-                for setting, value in self._settings_environ.items()
-                if setting in (QUIET, SILENT)
-            }
-        )
-        self._settings.update_from_system_settings()
         self._settings.update_from_env_vars(self._settings_environ)
 
         # infer settings from the system environment

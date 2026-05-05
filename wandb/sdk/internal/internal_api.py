@@ -31,7 +31,7 @@ import click
 import wandb
 from wandb import env, util
 from wandb.analytics import get_sentry
-from wandb.apis.normalize import normalize_exceptions, parse_backend_error_messages
+from wandb.apis.normalize import normalize_exceptions
 from wandb.errors import AuthenticationError, CommError, UsageError
 from wandb.integration.sagemaker import parse_sm_secrets
 from wandb.proto.wandb_internal_pb2 import ServerFeature
@@ -39,6 +39,7 @@ from wandb.sdk import wandb_setup
 from wandb.sdk.internal import settings_static
 from wandb.sdk.internal._generated import SERVER_FEATURES_QUERY_GQL, ServerFeaturesQuery
 from wandb.sdk.lib.hashutil import B64MD5, md5_file_b64
+from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 
 from ..lib import retry, wbauth
 from ..lib.filenames import DIFF_FNAME, METADATA_FNAME
@@ -300,7 +301,7 @@ class Api:
             key: value for key, value in request_headers.items() if value is not None
         }
         self._request_proxies = dict(proxies or {})
-        self.client = self._new_service_api()
+        self._service_api = self._new_service_api()
 
         self.retry_callback = retry_callback
         self._current_run_id: str | None = None
@@ -347,24 +348,19 @@ class Api:
     def reauth(self) -> None:
         """Ensure the current api key is set on the service API."""
         self._request_auth = ("api", self.api_key or "")
-        self.client = self._new_service_api()
+        self._service_api = self._new_service_api()
 
     def relocate(self) -> None:
         """Ensure the current api points to the right server."""
-        self.client = self._new_service_api()
+        self._service_api = self._new_service_api()
 
     def execute(self, *args: Any, **kwargs: Any) -> _Response:
-        """Wrapper around execute that logs in cases of failure."""
-        import requests
-
         try:
-            return self.client.execute(*args, **kwargs)  # type: ignore[return-value]
-        except requests.exceptions.HTTPError as err:
-            response = err.response
-            assert response is not None
+            return self._service_api.execute_graphql(*args, **kwargs)  # type: ignore[return-value]
+        except WandbApiFailedError as err:
             logger.exception("Error executing GraphQL.")
-            for error in parse_backend_error_messages(response):
-                wandb.termerror(f"Error while calling W&B API: {error} ({response})")
+            message = err.response.message if err.response else str(err)
+            wandb.termerror(f"Error while calling W&B API: {message}")
             raise
 
     @property
@@ -582,13 +578,13 @@ class Api:
         stage: str,
         file_paths: list[str] | None = None,
     ) -> bool:
-        variable_values: dict[str, str | (list[str] | None)] = {
+        variables: dict[str, str | (list[str] | None)] = {
             "runQueueItemId": run_queue_item_id,
             "message": message,
             "stage": stage,
         }
         if file_paths is not None:
-            variable_values["filePaths"] = file_paths
+            variables["filePaths"] = file_paths
         mutation_string = """
         mutation failRunQueueItem($runQueueItemId: ID!, $message: String!, $stage: String!, $filePaths: [String!]) {
             failRunQueueItem(
@@ -605,7 +601,7 @@ class Api:
         """
 
         mutation = mutation_string
-        response = self.gql(mutation, variable_values=variable_values)
+        response = self.gql(mutation, variables=variables)
         result: bool = response["failRunQueueItem"]["success"]
         return result
 
@@ -675,7 +671,7 @@ class Api:
         """
         response = self.gql(
             mutation,
-            variable_values={
+            variables={
                 "runQueueItemId": run_queue_item_id,
                 "message": message,
                 "stage": stage,
@@ -773,9 +769,9 @@ class Api:
         }
         """
         project_list: list[dict[str, str]] = self._flatten_edges(
-            self.gql(
-                query, variable_values={"entity": entity or self.settings("entity")}
-            )["models"]
+            self.gql(query, variables={"entity": entity or self.settings("entity")})[
+                "models"
+            ]
         )
         return project_list
 
@@ -802,7 +798,7 @@ class Api:
         }
         """
         response: _Response = self.gql(
-            query, variable_values={"entity": entity, "project": project}
+            query, variables={"entity": entity, "project": project}
         )["model"]
         return response
 
@@ -867,7 +863,7 @@ class Api:
         project = project or self.settings("project")
         response = self.gql(
             query,
-            variable_values={
+            variables={
                 "entity": entity,
                 "project": project,
                 "sweep": sweep,
@@ -913,7 +909,7 @@ class Api:
         return self._flatten_edges(
             self.gql(
                 query,
-                variable_values={
+                variables={
                     "entity": entity or self.settings("entity"),
                     "model": project or self.settings("project"),
                 },
@@ -964,7 +960,7 @@ class Api:
         }
         """
 
-        variable_values = {
+        variables = {
             "name": project,
             "run": run,
             "entity": entity,
@@ -986,16 +982,16 @@ class Api:
         # Unfortunately we're unable to construct a single pattern that matches
         # our 2 files, we would need something like regex for that.
         for filename in [DIFF_FNAME, METADATA_FNAME]:
-            variable_values["pattern"] = filename
-            response = self.gql(query, variable_values=variable_values)
+            variables["pattern"] = filename
+            response = self.gql(query, variables=variables)
             if response["model"] is None:
                 raise CommError(f"Run {entity}/{project}/{run} not found")
             run_obj: dict = response["model"]["bucket"]
             # we only need to fetch this config once
-            if variable_values["includeConfig"]:
+            if variables["includeConfig"]:
                 commit = run_obj["commit"]
                 config = json.loads(run_obj["config"] or "{}")
-                variable_values["includeConfig"] = False
+                variables["includeConfig"] = False
             if run_obj["files"] is not None:
                 for file_edge in run_obj["files"]["edges"]:
                     name = file_edge["node"]["name"]
@@ -1051,7 +1047,7 @@ class Api:
 
         response = self.gql(
             query,
-            variable_values={
+            variables={
                 "entity": entity,
                 "project": project_name,
                 "name": name,
@@ -1086,7 +1082,7 @@ class Api:
 
         response = self.gql(
             query,
-            variable_values={
+            variables={
                 "projectName": project_name,
                 "entityName": entity_name,
                 "runId": run_id,
@@ -1133,7 +1129,7 @@ class Api:
         """
         response = self.gql(
             mutation,
-            variable_values={
+            variables={
                 "name": self.format_project(project),
                 "entity": entity or self.settings("entity"),
                 "description": description,
@@ -1153,11 +1149,11 @@ class Api:
                 }
             }
             """
-        variable_values = {
+        variables = {
             "entity": entity,
         }
 
-        res = self.gql(query, variable_values)
+        res = self.gql(query, variables)
         if res.get("entity") is None:
             raise Exception(
                 f"Error fetching entity {entity} "
@@ -1181,12 +1177,12 @@ class Api:
             }
         }
         """
-        variable_values = {
+        variables = {
             "projectName": project,
             "entity": entity,
         }
 
-        res = self.gql(query, variable_values)
+        res = self.gql(query, variables)
         if res.get("project") is None:
             # circular dependency: (LAUNCH_DEFAULT_PROJECT = model-registry)
             if project == "model-registry":
@@ -1226,16 +1222,16 @@ class Api:
             templateVariables: $templateVariables
         """
 
-        variable_values = {
+        variables = {
             "entityName": entity,
             "resource": resource,
             "config": config,
         }
 
         if template_variables is not None:
-            variable_values["templateVariables"] = json.dumps(template_variables)
+            variables["templateVariables"] = json.dumps(template_variables)
         else:
-            variable_values["templateVariables"] = "{}"
+            variables["templateVariables"] = "{}"
 
         query = f"""
         mutation createDefaultResourceConfig(
@@ -1252,7 +1248,7 @@ class Api:
         }}
         """
 
-        result: dict[str, Any] | None = self.gql(query, variable_values)[
+        result: dict[str, Any] | None = self.gql(query, variables)[
             "createDefaultResourceConfig"
         ]
         return result
@@ -1291,7 +1287,7 @@ class Api:
             }
         }
         """
-        variable_values = {
+        variables = {
             "entity": entity,
             "project": project,
             "queueName": queue_name,
@@ -1300,9 +1296,7 @@ class Api:
             "defaultResourceConfigID": config_id,
         }
 
-        result: dict[str, Any] | None = self.gql(query, variable_values)[
-            "createRunQueue"
-        ]
+        result: dict[str, Any] | None = self.gql(query, variables)["createRunQueue"]
         return result
 
     @normalize_exceptions
@@ -1347,7 +1341,7 @@ class Api:
                 }
             }
             """
-        variable_values = {
+        variables = {
             "entityName": entity,
             "projectName": project,
             "queueName": queue_name,
@@ -1359,7 +1353,7 @@ class Api:
             "prioritizationMode": prioritization_mode,
             "externalLinks": json.dumps(external_links) if external_links else None,
         }
-        result: dict[str, Any] = self.gql(query, variable_values)
+        result: dict[str, Any] = self.gql(query, variables)
         return result["upsertRunQueue"]
 
     @normalize_exceptions
@@ -1563,7 +1557,7 @@ class Api:
         }}
         """
 
-        response = self.gql(mutation, variable_values=variables)
+        response = self.gql(mutation, variables=variables)
         if not response.get("pushToRunQueue"):
             raise CommError(f"Error pushing run queue item to queue {queue_name}.")
 
@@ -1593,7 +1587,7 @@ class Api:
         """
         response = self.gql(
             mutation,
-            variable_values={
+            variables={
                 "entity": entity,
                 "project": project,
                 "queueName": queue_name,
@@ -1613,7 +1607,7 @@ class Api:
         }
         """
         response = self.gql(
-            mutation, variable_values={"itemId": item_id, "runId": str(run_id)}
+            mutation, variables={"itemId": item_id, "runId": str(run_id)}
         )
         if not response["ackRunQueueItem"]["success"]:
             raise CommError(
@@ -1653,7 +1647,7 @@ class Api:
 
         hostname = socket.gethostname()
 
-        variable_values = {
+        variables = {
             "entity": entity,
             "project": project,
             "queues": polling_queue_ids,
@@ -1693,7 +1687,7 @@ class Api:
                 }}
             }}
             """
-        result: dict = self.gql(mutation, variable_values)["createLaunchAgent"]
+        result: dict = self.gql(mutation, variables)["createLaunchAgent"]
         return result
 
     @normalize_exceptions
@@ -1714,11 +1708,11 @@ class Api:
                 }
             }
             """
-        variable_values = {
+        variables = {
             "agentId": agent_id,
             "agentStatus": status,
         }
-        result: dict = self.gql(mutation, variable_values)["updateLaunchAgent"]
+        result: dict = self.gql(mutation, variables)["updateLaunchAgent"]
         return result
 
     @normalize_exceptions
@@ -1736,10 +1730,10 @@ class Api:
                 }
             }
             """
-        variable_values = {
+        variables = {
             "agentId": agent_id,
         }
-        result: dict = self.gql(query, variable_values)["launchAgent"]
+        result: dict = self.gql(query, variables)["launchAgent"]
         return result
 
     @normalize_exceptions
@@ -1858,7 +1852,7 @@ class Api:
         if not description or description.isspace():
             description = None
 
-        variable_values = {
+        variables = {
             "id": id,
             "entity": entity or self.settings("entity"),
             "name": name,
@@ -1884,7 +1878,7 @@ class Api:
 
         response = self.gql(
             mutation,
-            variable_values=variable_values,
+            variables=variables,
         )
 
         run_obj: dict[str, dict[str, dict[str, str]]] = response["upsertBucket"][
@@ -1971,7 +1965,7 @@ class Api:
 
         mutation = query_string
 
-        variable_values = {
+        variables = {
             "runName": run_name,
             "entity": entity or self.settings("entity"),
             "project": project or util.auto_project_name(program_path),
@@ -1981,7 +1975,7 @@ class Api:
 
         response = self.gql(
             mutation,
-            variable_values=variable_values,
+            variables=variables,
         )
 
         run_obj: dict[str, dict[str, dict[str, str]]] = response.get(
@@ -2027,8 +2021,8 @@ class Api:
             }
         }
         """
-        variable_values = {"project": project, "entity": entity, "name": name}
-        res = self.gql(query, variable_values)
+        variables = {"project": project, "entity": entity, "name": name}
+        res = self.gql(query, variables)
         if res.get("project") is None:
             raise CommError(
                 f"Error fetching run info for {entity}/{project}/{name}. Check that this project exists and you have access to this entity and project"
@@ -2054,12 +2048,12 @@ class Api:
             }
         }
         """
-        variable_values = {
+        variables = {
             "project": project,
             "entity": entity,
             "name": name,
         }
-        res = self.gql(query, variable_values)
+        res = self.gql(query, variables)
         if res.get("project") is None or res["project"].get("run") is None:
             raise CommError(f"Error fetching run state for {entity}/{project}/{name}.")
         run_state: str = res["project"]["run"]["state"]
@@ -2117,7 +2111,7 @@ class Api:
 
         query_result = self.gql(
             query,
-            variable_values={
+            variables={
                 "project": project,
                 "run": run_name,
                 "entity": entity,
@@ -2171,7 +2165,7 @@ class Api:
         entity = entity or self.settings("entity")
         query_result = self.gql(
             query,
-            variable_values={
+            variables={
                 "name": project,
                 "run": run_id,
                 "entity": entity,
@@ -2241,7 +2235,7 @@ class Api:
         entity = entity or self.settings("entity")
         query_result = self.gql(
             query,
-            variable_values={
+            variables={
                 "name": project,
                 "run": run,
                 "entity": entity,
@@ -2296,7 +2290,7 @@ class Api:
         assert run, "run must be specified"
         query_result = self.gql(
             query,
-            variable_values={
+            variables={
                 "name": project,
                 "run": run,
                 "fileName": file_name,
@@ -2568,7 +2562,7 @@ class Api:
 
         response = self.gql(
             mutation,
-            variable_values={
+            variables={
                 "host": host,
                 "entityName": entity,
                 "projectName": project_name,
@@ -2624,7 +2618,7 @@ class Api:
         try:
             response = self.gql(
                 mutation,
-                variable_values={
+                variables={
                     "id": agent_id,
                     "metrics": json.dumps(metrics),
                     "runState": json.dumps(run_states),
@@ -2846,7 +2840,7 @@ class Api:
 
                 response = self.gql(
                     mutation,
-                    variable_values=variables,
+                    variables=variables,
                 )
             except UsageError:
                 raise
@@ -3055,7 +3049,7 @@ class Api:
             replace("ID_TYPE", "$clientID: ID")
             replace("ID_VALUE", "clientID: $clientID")
 
-        variable_values = {
+        variables = {
             "clientID": client_id,
             "artifactID": server_id,
             "artifactPortfolioName": portfolio_name,
@@ -3068,7 +3062,7 @@ class Api:
         }
 
         mutation = template
-        response = self.gql(mutation, variable_values=variable_values)
+        response = self.gql(mutation, variables=variables)
         link_artifact: dict[str, Any] = response["linkArtifact"]
         return link_artifact
 
@@ -3133,7 +3127,7 @@ class Api:
             """
         response = self.gql(
             query,
-            variable_values={
+            variables={
                 "entityName": entity,
             },
         )
@@ -3203,7 +3197,7 @@ class Api:
         project_name = project_name or self.settings("project")
         run_name = run_name or self.current_run_id
 
-        variable_values: dict[str, Any] = {
+        variables: dict[str, Any] = {
             "entityName": entity_name,
             "projectName": project_name,
             "runName": run_name,
@@ -3227,8 +3221,8 @@ class Api:
                     "artifactProjectName: $artifactProjectName",
                 ]
             )
-            variable_values["artifactEntityName"] = artifact_entity_name
-            variable_values["artifactProjectName"] = artifact_project_name
+            variables["artifactEntityName"] = artifact_entity_name
+            variables["artifactProjectName"] = artifact_project_name
 
         vars_str = ", ".join(query_vars)
         args_str = ", ".join(query_args)
@@ -3247,7 +3241,7 @@ class Api:
                 }}
             }}
             """
-        return query, variable_values
+        return query, variables
 
     def use_artifact(
         self,
@@ -3259,7 +3253,7 @@ class Api:
         artifact_project_name: str | None = None,
         use_as: str | None = None,
     ) -> dict[str, Any] | None:
-        query, variable_values = self._construct_use_artifact_query(
+        query, variables = self._construct_use_artifact_query(
             artifact_id,
             entity_name,
             project_name,
@@ -3268,7 +3262,7 @@ class Api:
             artifact_entity_name,
             artifact_project_name,
         )
-        response = self.gql(query, variable_values)
+        response = self.gql(query, variables)
 
         if response["useArtifact"]["artifact"]:
             artifact: dict[str, Any] = response["useArtifact"]["artifact"]
@@ -3305,7 +3299,7 @@ class Api:
         project_name = project_name or self.settings("project")
         response = self.gql(
             mutation,
-            variable_values={
+            variables={
                 "entityName": entity_name,
                 "projectName": project_name,
                 "artifactTypeName": artifact_type_name,
@@ -3417,7 +3411,7 @@ class Api:
         mutation = query_template
         response = self.gql(
             mutation,
-            variable_values={
+            variables={
                 "entityName": entity_name,
                 "projectName": project_name,
                 "runName": run_name,
@@ -3461,7 +3455,7 @@ class Api:
 
         response: _Response = self.gql(
             mutation,
-            variable_values={"artifactID": artifact_id},
+            variables={"artifactID": artifact_id},
             timeout=60,
         )
         return response
@@ -3497,7 +3491,7 @@ class Api:
         """
         response = self.gql(
             mutation,
-            variable_values={
+            variables={
                 "completeMultipartAction": complete_multipart_action,
                 "artifactID": artifact_id,
                 "storagePath": storage_path,
@@ -3565,7 +3559,7 @@ class Api:
 
         response = self.gql(
             mutation,
-            variable_values={
+            variables={
                 "name": name,
                 "digest": digest,
                 "artifactID": artifact_id,
@@ -3617,7 +3611,7 @@ class Api:
 
         response = self.gql(
             mutation,
-            variable_values={
+            variables={
                 "artifactManifestID": artifact_manifest_id,
                 "digest": digest,
                 "baseArtifactID": base_artifact_id,
@@ -3651,7 +3645,7 @@ class Api:
         """
         response = self.gql(
             mutation,
-            variable_values={
+            variables={
                 "artifactID": artifact_id,
                 "metadata": json.dumps(metadata),
             },
@@ -3674,7 +3668,7 @@ class Api:
         """
         response = self.gql(
             query,
-            variable_values={
+            variables={
                 "clientID": client_id,
             },
         )
@@ -3736,7 +3730,7 @@ class Api:
         mutation = query_template
         response = self.gql(
             mutation,
-            variable_values={
+            variables={
                 "storageLayout": storage_layout,
                 "artifactFiles": [af for af in artifact_files],
             },
@@ -3782,7 +3776,7 @@ class Api:
 
         response = self.gql(
             mutation,
-            variable_values={
+            variables={
                 "entityName": self.settings("entity"),
                 "projectName": self.settings("project"),
                 "runName": self.current_run_id,
@@ -3809,7 +3803,7 @@ class Api:
             """
         response = self.gql(
             query,
-            variable_values={
+            variables={
                 "sweep": sweep,
                 "entity": entity or self.settings("entity"),
                 "project": project or self.settings("project"),
@@ -3853,7 +3847,7 @@ class Api:
         """
         self.gql(
             mutation,
-            variable_values={
+            variables={
                 "id": sweep_id,
                 "state": state,
                 "entityName": entity or self.settings("entity"),
@@ -3937,7 +3931,7 @@ class Api:
 
         response = self.gql(
             mutation,
-            variable_values={
+            variables={
                 "id": run_id,
             },
         )
@@ -3983,7 +3977,7 @@ class Api:
             }
             """
 
-        variable_values = {
+        variables = {
             "entity": entity,
             "name": name,
             "displayName": display_name,
@@ -3992,7 +3986,7 @@ class Api:
             "spec": spec,
         }
 
-        result: dict[str, Any] | None = self.gql(mutation, variable_values)[
+        result: dict[str, Any] | None = self.gql(mutation, variables)[
             "createCustomChart"
         ]
         return result

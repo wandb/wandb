@@ -90,8 +90,8 @@ class Files(SizedPaginator["File"]):
     # Example run object
     run = Api().run("entity/project/run-id")
 
-    # Create a Files object to iterate over files in the run
-    files = Files(api.service_api, run)
+    # Get the files for the run
+    files = run.files()
 
     # Iterate over files
     for file in files:
@@ -163,8 +163,8 @@ class Files(SizedPaginator["File"]):
 
     def _update_response(self) -> None:
         """Fetch and store the response data for the next page using dynamic query."""
-        self.last_response = self.client.execute(
-            self._get_query(), variable_values=self.variables
+        self.last_response = self._service_api.execute_graphql(
+            self._get_query(), variables=self.variables
         )
 
     @property
@@ -237,7 +237,7 @@ class Files(SizedPaginator["File"]):
         run_data = project.get("run") or {}
         files_data = run_data.get("files") or {}
         edges = files_data.get("edges") or []
-        return [File(self.client, r["node"], self.run) for r in edges]
+        return [File(self._service_api, r["node"], self.run) for r in edges]
 
     def __repr__(self) -> str:
         return f"<{nameof(type(self))} {'/'.join(self.run.path)} ({len(self)})>"
@@ -377,7 +377,7 @@ class File(Attrs):
     @normalize_exceptions
     def delete(self) -> None:
         """Delete the file from the W&B server."""
-        variable_values = {
+        variables = {
             "files": [self.id],
             "projectId": self.run._project_internal_id,
         }
@@ -393,9 +393,9 @@ class File(Attrs):
             }
         """
 
-        self.client.execute(
+        self.client.execute_graphql(
             mutation,
-            variable_values=variable_values,
+            variables=variables,
         )
 
     def __repr__(self) -> str:

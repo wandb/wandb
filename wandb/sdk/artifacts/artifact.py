@@ -260,21 +260,17 @@ class Artifact:
             self._service_api = ServiceApi(settings=settings)
         return self._service_api
 
-    @classmethod
-    def _from_id(
-        cls,
-        artifact_id: str,
-        service_api: ServiceApi,
-    ) -> Artifact | None:
+    def _referenced_artifact_from_id(self, artifact_id: str) -> Artifact | None:
         from ._generated import ARTIFACT_BY_ID_GQL, ArtifactByID
         from ._validators import FullArtifactPath
 
         if cached_artifact := artifact_instance_cache.get(artifact_id):
             return cached_artifact
 
+        service_api = self._get_service_api()
         gql_op = ARTIFACT_BY_ID_GQL
 
-        data = service_api.execute(gql_op, variable_values={"id": artifact_id})
+        data = service_api.execute_graphql(gql_op, variables={"id": artifact_id})
         result = ArtifactByID.model_validate(data)
 
         if (artifact := result.artifact) is None:
@@ -289,7 +285,7 @@ class Artifact:
         name = f"{src_collection.name}:v{artifact.version_index}"
 
         path = FullArtifactPath(prefix=entity_name, project=project_name, name=name)
-        return cls._from_attrs(path, artifact, service_api)
+        return type(self)._from_attrs(path, artifact, service_api)
 
     @classmethod
     def _membership_from_name(
@@ -311,7 +307,7 @@ class Artifact:
 
         gql_op = ARTIFACT_MEMBERSHIP_BY_NAME_GQL
         gql_vars = {"entity": path.prefix, "project": path.project, "name": path.name}
-        data = service_api.execute(gql_op, variable_values=gql_vars)
+        data = service_api.execute_graphql(gql_op, variables=gql_vars)
         result = ArtifactMembershipByName.model_validate(data)
 
         if not (project := result.project):
@@ -352,7 +348,7 @@ class Artifact:
             "enableTracking": enable_tracking,
         }
         gql_op = ARTIFACT_BY_NAME_GQL
-        data = service_api.execute(gql_op, variable_values=gql_vars)
+        data = service_api.execute_graphql(gql_op, variables=gql_vars)
         result = ArtifactByName.model_validate(data)
 
         if not (project := result.project):
@@ -1078,7 +1074,7 @@ class Artifact:
         # From the GraphQL API, get the (expiring) directUrl for downloading the manifest.
         gql_op = FETCH_ARTIFACT_MANIFEST_GQL
         gql_vars = {"id": self.id}
-        data = client.execute(gql_op, variable_values=gql_vars)
+        data = client.execute_graphql(gql_op, variables=gql_vars)
         result = FetchArtifactManifest.model_validate(data)
 
         # Now fetch the actual manifest contents from the directUrl.
@@ -1292,7 +1288,7 @@ class Artifact:
             raise RuntimeError("Client not initialized for artifact queries")
 
         gql_op = ARTIFACT_BY_ID_GQL
-        data = client.execute(gql_op, variable_values={"id": artifact_id})
+        data = client.execute_graphql(gql_op, variables={"id": artifact_id})
         result = ArtifactByID.model_validate(data)
 
         if not (artifact := result.artifact):
@@ -1333,7 +1329,7 @@ class Artifact:
             tags_to_delete=[{"tagName": t} for t in validate_tags(old_tags - new_tags)],
         )
         gql_vars = {"input": gql_input.model_dump()}
-        data = client.execute(gql_op, variable_values=gql_vars)
+        data = client.execute_graphql(gql_op, variables=gql_vars)
 
         result = UpdateArtifact.model_validate(data).result
         if not (result and (artifact := result.artifact)):
@@ -1360,7 +1356,7 @@ class Artifact:
             gql_input = AddAliasesInput(artifact_id=self.id, aliases=alias_inputs)
             gql_vars = {"input": gql_input.model_dump()}
             try:
-                client.execute(gql_op, variable_values=gql_vars)
+                client.execute_graphql(gql_op, variables=gql_vars)
             except CommError as e:
                 msg = (
                     "You do not have permission to add"
@@ -1387,7 +1383,7 @@ class Artifact:
             gql_input = DeleteAliasesInput(artifact_id=self.id, aliases=alias_inputs)
             gql_vars = {"input": gql_input.model_dump()}
             try:
-                client.execute(gql_op, variable_values=gql_vars)
+                client.execute_graphql(gql_op, variables=gql_vars)
             except CommError as e:
                 msg = (
                     f"You do not have permission to delete"
@@ -1899,10 +1895,7 @@ class Artifact:
         # that artifact.
         if referenced_id := entry._referenced_artifact_id():
             assert self._client is not None
-            artifact = self._from_id(
-                referenced_id,
-                service_api=self._get_service_api(),
-            )
+            artifact = self._referenced_artifact_from_id(referenced_id)
             assert artifact is not None
             return artifact.get(uri_from_path(entry.ref))
 
@@ -2209,7 +2202,9 @@ class Artifact:
                     "cursor": cursor,
                     "perPage": per_page,
                 }
-                data = self._client.execute(query, variable_values=gql_vars, timeout=60)
+                data = self._client.execute_graphql(
+                    query, variables=gql_vars, timeout=60
+                )
                 result = GetArtifactMembershipFileUrls.model_validate(data)
 
                 if not (
@@ -2225,7 +2220,9 @@ class Artifact:
             else:
                 query = GET_ARTIFACT_FILE_URLS_GQL
                 gql_vars = {"id": self.id, "cursor": cursor, "perPage": per_page}
-                data = self._client.execute(query, variable_values=gql_vars, timeout=60)
+                data = self._client.execute_graphql(
+                    query, variables=gql_vars, timeout=60
+                )
                 result = GetArtifactFileUrls.model_validate(data)
 
                 if not ((artifact := result.artifact) and (files := artifact.files)):
@@ -2426,7 +2423,9 @@ class Artifact:
             artifact_id=self.id,
             delete_aliases=delete_aliases,
         )
-        self._client.execute(gql_op, variable_values={"input": gql_input.model_dump()})
+        self._client.execute_graphql(
+            gql_op, variables={"input": gql_input.model_dump()}
+        )
 
     @normalize_exceptions
     def link(self, target_path: str, aliases: Iterable[str] | None = None) -> Artifact:
@@ -2516,7 +2515,7 @@ class Artifact:
         gql_op = gql_compat(
             LINK_ARTIFACT_GQL, omit_variables=omit_variables, omit_fields=omit_fields
         )
-        data = client.execute(gql_op, variable_values=gql_vars)
+        data = client.execute_graphql(gql_op, variables=gql_vars)
         result = LinkArtifact.model_validate(data).result
 
         # Newer server versions can return artifactMembership directly in the response
@@ -2565,7 +2564,7 @@ class Artifact:
         )
         gql_vars = {"input": gql_input.model_dump()}
         try:
-            self._client.execute(mutation, variable_values=gql_vars)
+            self._client.execute_graphql(mutation, variables=gql_vars)
         except CommError as e:
             raise CommError(
                 f"You do not have permission to unlink the artifact {self.qualified_name!r}"
@@ -2588,7 +2587,7 @@ class Artifact:
 
         query = ARTIFACT_USED_BY_GQL
         gql_vars = {"id": self.id}
-        data = client.execute(query, variable_values=gql_vars)
+        data = client.execute_graphql(query, variables=gql_vars)
         result = ArtifactUsedBy.model_validate(data)
 
         if (
@@ -2627,7 +2626,7 @@ class Artifact:
 
         gql_op = ARTIFACT_CREATED_BY_GQL
         gql_vars = {"id": self.id}
-        data = client.execute(gql_op, variable_values=gql_vars)
+        data = client.execute_graphql(gql_op, variables=gql_vars)
         result = ArtifactCreatedBy.model_validate(data)
 
         if (
@@ -2664,7 +2663,7 @@ class Artifact:
 
         gql_op = ARTIFACT_TYPE_GQL
         gql_vars = {"entity": entity_name, "project": project_name, "name": name}
-        data = service_api.execute(gql_op, variable_values=gql_vars)
+        data = service_api.execute_graphql(gql_op, variables=gql_vars)
         result = ArtifactType.model_validate(data)
         if (project := result.project) and (artifact := project.artifact):
             return artifact.artifact_type.name
@@ -2704,7 +2703,7 @@ class Artifact:
             raise ValueError("Client is not initialized")
 
         gql_op = gql_compat(FETCH_LINKED_ARTIFACTS_GQL)
-        data = client.execute(gql_op, variable_values={"artifactID": self.id})
+        data = client.execute_graphql(gql_op, variables={"artifactID": self.id})
         result = FetchLinkedArtifacts.model_validate(data)
 
         if not (

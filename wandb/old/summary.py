@@ -416,9 +416,9 @@ class HTTPSummary(Summary):
             if self._h5:
                 self._h5.close()
                 self._h5 = None
-            res = self._client.execute(
+            res = self._client.execute_graphql(
                 mutation,
-                variable_values={
+                variables={
                     "id": self._run.storage_id,
                     "summaryMetrics": util.json_dumps_safer(self._json_dict),
                 },

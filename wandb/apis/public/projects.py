@@ -112,7 +112,7 @@ class Projects(RelayPaginator["ProjectFragment", "Project"]):
         from wandb._pydantic import Connection
         from wandb.apis._generated import GetProjects, ProjectFragment
 
-        data = self.client.execute(self.QUERY, variable_values=self.variables)
+        data = self._service_api.execute_graphql(self.QUERY, variables=self.variables)
         result = GetProjects.model_validate(data)
         if not (conn := result.models):
             raise ValueError(f"Unable to parse {nameof(type(self))!r} response data")
@@ -179,7 +179,7 @@ class Project(Attrs):
 
         gql_vars = {"name": self.name, "entity": self.entity}
         try:
-            data = self.client.execute((GET_PROJECT_GQL), gql_vars)
+            data = self.client.execute_graphql((GET_PROJECT_GQL), gql_vars)
         except WandbApiFailedError as e:
             raise ValueError(f"Unable to fetch project ID: {gql_vars!r}") from e
 

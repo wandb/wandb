@@ -99,7 +99,7 @@ class _ArtifactCollectionAliases(RelayPaginator["ArtifactAliasFragment", str]):
             ArtifactCollectionAliases,
         )
 
-        data = self.client.execute(self.QUERY, variable_values=self.variables)
+        data = self._service_api.execute_graphql(self.QUERY, variables=self.variables)
         result = ArtifactCollectionAliases.model_validate(data)
 
         # Extract the inner `*Connection` result for faster/easier access.
@@ -148,7 +148,7 @@ class ArtifactTypes(RelayPaginator["ArtifactTypeFragment", "ArtifactType"]):
         from wandb.sdk.artifacts._generated import ProjectArtifactTypes
         from wandb.sdk.artifacts._models.pagination import ArtifactTypeConnection
 
-        data = self.client.execute(self.QUERY, variable_values=self.variables)
+        data = self._service_api.execute_graphql(self.QUERY, variables=self.variables)
         result = ProjectArtifactTypes.model_validate(data)
 
         # Extract the inner `*Connection` result for faster/easier access.
@@ -218,7 +218,7 @@ class ArtifactType:
 
         gql_op = PROJECT_ARTIFACT_TYPE_GQL
         gql_vars = {"entity": self.entity, "project": self.project, "type": self.type}
-        data = self.client.execute(gql_op, variable_values=gql_vars)
+        data = self.client.execute_graphql(gql_op, variables=gql_vars)
         result = ProjectArtifactType.model_validate(data)
         if not ((proj := result.project) and (artifact_type := proj.artifact_type)):
             raise ValueError(f"Could not find artifact type {self.type!r}")
@@ -357,7 +357,7 @@ class ArtifactCollections(
         from wandb.sdk.artifacts._generated import ArtifactTypeArtifactCollections
         from wandb.sdk.artifacts._models.pagination import ArtifactCollectionConnection
 
-        data = self.client.execute(self.QUERY, variable_values=self.variables)
+        data = self._service_api.execute_graphql(self.QUERY, variables=self.variables)
         result = ArtifactTypeArtifactCollections.model_validate(data)
 
         # Extract the inner `*Connection` result for faster/easier access.
@@ -473,7 +473,7 @@ class ProjectArtifactCollections(
             ProjectArtifactCollectionConnection,
         )
 
-        data = self.client.execute(self.QUERY, variable_values=self.variables)
+        data = self._service_api.execute_graphql(self.QUERY, variables=self.variables)
         result = ProjectArtifactCollections.model_validate(data)
 
         # Extract the inner `*Connection` result for faster/easier access.
@@ -624,7 +624,7 @@ class ArtifactCollection:
 
         gql_op = PROJECT_ARTIFACT_COLLECTION_GQL
         gql_vars = {"entity": entity, "project": project, "type": type_, "name": name}
-        data = self.client.execute(gql_op, variable_values=gql_vars)
+        data = self.client.execute_graphql(gql_op, variables=gql_vars)
         result = ProjectArtifactCollection.model_validate(data)
         if not (
             result.project
@@ -670,7 +670,7 @@ class ArtifactCollection:
             artifact_sequence_id=self.id,
             destination_artifact_type_name=new_type,
         )
-        self.client.execute(gql_op, variable_values={"input": gql_input.model_dump()})
+        self.client.execute_graphql(gql_op, variables={"input": gql_input.model_dump()})
         self._saved.type = new_type
         self._current.type = new_type
 
@@ -691,7 +691,7 @@ class ArtifactCollection:
             if self.is_sequence()
             else DELETE_ARTIFACT_PORTFOLIO_GQL
         )
-        self.client.execute(gql_op, variable_values={"id": self.id})
+        self.client.execute_graphql(gql_op, variables={"id": self.id})
 
     @property
     def description(self) -> str | None:
@@ -759,7 +759,7 @@ class ArtifactCollection:
                 name=self.name,
                 description=self.description,
             )
-        self.client.execute(gql_op, variable_values={"input": gql_input.model_dump()})
+        self.client.execute_graphql(gql_op, variables={"input": gql_input.model_dump()})
         self._saved.name = self._current.name
         self._saved.description = self._current.description
         self._saved.updated_at = self._current.updated_at
@@ -775,7 +775,7 @@ class ArtifactCollection:
             artifact_sequence_id=self.id,
             destination_artifact_type_name=self.type,
         )
-        self.client.execute(gql_op, variable_values={"input": gql_input.model_dump()})
+        self.client.execute_graphql(gql_op, variables={"input": gql_input.model_dump()})
         self._saved.type = self._current.type
 
     def _add_tags(self, tag_names: Iterable[str]) -> None:
@@ -791,7 +791,7 @@ class ArtifactCollection:
             artifact_collection_name=self._saved.name,
             tags=[{"tagName": tag} for tag in tag_names],
         )
-        self.client.execute(gql_op, variable_values={"input": gql_input.model_dump()})
+        self.client.execute_graphql(gql_op, variables={"input": gql_input.model_dump()})
 
     def _delete_tags(self, tag_names: Iterable[str]) -> None:
         from wandb.sdk.artifacts._generated import (
@@ -806,7 +806,7 @@ class ArtifactCollection:
             artifact_collection_name=self._saved.name,
             tags=[{"tagName": tag} for tag in tag_names],
         )
-        self.client.execute(gql_op, variable_values={"input": gql_input.model_dump()})
+        self.client.execute_graphql(gql_op, variables={"input": gql_input.model_dump()})
 
     @normalize_exceptions
     def save(self) -> None:
@@ -922,7 +922,7 @@ class Artifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
     def _update_response(self) -> None:
         from wandb.sdk.artifacts._generated import ArtifactFragment, ProjectArtifacts
 
-        data = self.client.execute(self.QUERY, variable_values=self.variables)
+        data = self._service_api.execute_graphql(self.QUERY, variables=self.variables)
         result = ProjectArtifacts.model_validate(data)
 
         # Extract the inner `*Connection` result for faster/easier access.
@@ -1009,7 +1009,7 @@ class RunArtifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
     def _update_response(self) -> None:
         from wandb.sdk.artifacts._models.pagination import RunArtifactConnection
 
-        data = self.client.execute(self.QUERY, variable_values=self.variables)
+        data = self._service_api.execute_graphql(self.QUERY, variables=self.variables)
 
         # Extract the inner `*Connection` result for faster/easier access.
         inner_data = data["project"]["run"]["artifacts"]
@@ -1097,7 +1097,7 @@ class ArtifactFiles(SizedRelayPaginator["FileFragment", "File"]):
         )
         from wandb.sdk.artifacts._models.pagination import ArtifactFileConnection
 
-        data = self.client.execute(self.QUERY, variable_values=self.variables)
+        data = self._service_api.execute_graphql(self.QUERY, variables=self.variables)
 
         # Extract the inner `*Connection` result for faster/easier access.
         if self.query_via_membership:
@@ -1118,7 +1118,7 @@ class ArtifactFiles(SizedRelayPaginator["FileFragment", "File"]):
         return [self.artifact.entity, self.artifact.project, self.artifact.name]
 
     def _convert(self, node: FileFragment) -> File:
-        return File(self.client, attrs=node.model_dump(exclude_unset=True))
+        return File(self._service_api, attrs=node.model_dump(exclude_unset=True))
 
     def __repr__(self) -> str:
         path_str = "/".join(self.path)

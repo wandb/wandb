@@ -59,7 +59,7 @@ from wandb.apis.paginator import SizedPaginator
 from wandb.apis.public.const import RETRY_TIMEDELTA
 from wandb.proto import wandb_api_pb2 as apb
 from wandb.sdk import wandb_setup
-from wandb.sdk.lib import ipython, json_util, runid
+from wandb.sdk.lib import ipython, json_util
 from wandb.sdk.lib.paths import LogicalPath
 from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 
@@ -319,7 +319,9 @@ class Runs(SizedPaginator["Run"]):
                 if run.sweep_name in self._sweeps:
                     sweep = self._sweeps[run.sweep_name]
                 else:
-                    sweep = public.Sweep.get(
+                    from wandb.apis.public.sweeps import _get_sweep
+
+                    sweep = _get_sweep(
                         self._service_api,
                         self.entity,
                         self.project,
@@ -641,7 +643,6 @@ class Run(Attrs):
         """
         _attrs = attrs or {}
         super().__init__(dict(_attrs))
-        self.client = service_api
         self._entity = entity
         self.project = project
         self._files = {}
@@ -761,51 +762,11 @@ class Run(Attrs):
         )
         ```
         """
-        api._sentry.message("Invoking Run.create", level="info")
-        run_id = run_id or runid.generate_id()
-        project = project or api.settings.get("project") or "uncategorized"
-        mutation = """
-        mutation UpsertBucket($project: String, $entity: String, $name: String!, $state: String) {
-            upsertBucket(input: {modelName: $project, entityName: $entity, name: $name, state: $state}) {
-                bucket {
-                    project {
-                        name
-                        entity { name }
-                    }
-                    id
-                    name
-                }
-                inserted
-            }
-        }
-        """
-        variables = {
-            "entity": entity,
-            "project": project,
-            "name": run_id,
-            "state": state,
-        }
-        res = api._service_api.execute_graphql(
-            mutation,
-            variables,
-        )
-        res = res["upsertBucket"]["bucket"]
-        return cls(
-            api.service_api,
-            res["project"]["entity"]["name"],
-            res["project"]["name"],
-            res["name"],
-            {
-                "id": res["id"],
-                "config": "{}",
-                "systemMetrics": "{}",
-                "summaryMetrics": "{}",
-                "tags": [],
-                "description": None,
-                "notes": None,
-                "state": state,
-            },
-            lazy=False,  # Created runs should have full data available immediately
+        return api._create_run(
+            run_id=run_id,
+            project=project,
+            entity=entity,
+            state=state,
         )
 
     def _load_with_fragment(
@@ -841,7 +802,9 @@ class Run(Attrs):
             if self._include_sweeps and self.sweep_name and not self.sweep:
                 # There may be a lot of runs. Don't bother pulling them all
                 # just for the sake of this one.
-                self.sweep = public.Sweep.get(
+                from wandb.apis.public.sweeps import _get_sweep
+
+                self.sweep = _get_sweep(
                     self._service_api,
                     self.entity,
                     self.project,
@@ -891,7 +854,9 @@ class Run(Attrs):
         # Only check for sweeps if sweep_name is available (not in lazy mode or if it exists)
         if self._include_sweeps and self._attrs.get("sweepName") and not self.sweep:
             # There may be a lot of runs. Don't bother pulling them all
-            self.sweep = public.Sweep.get(
+            from wandb.apis.public.sweeps import _get_sweep
+
+            self.sweep = _get_sweep(
                 self._service_api,
                 self.entity,
                 self.project,
@@ -1520,7 +1485,11 @@ class Run(Attrs):
             from wandb.old.summary import HTTPSummary
 
             # TODO: fix the outdir issue
-            self._summary = HTTPSummary(self, self.client, summary=self.summary_metrics)
+            self._summary = HTTPSummary(
+                self,
+                self._service_api,
+                summary=self.summary_metrics,
+            )
         return self._summary
 
     @property
@@ -1588,7 +1557,7 @@ class Run(Attrs):
         """
         path = self.path
         path.insert(2, "runs")
-        return self.client.app_url + "/".join(path)
+        return self._service_api.app_url + "/".join(path)
 
     @property
     def metadata(self) -> dict[str, Any] | None:

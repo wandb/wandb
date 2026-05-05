@@ -10,7 +10,7 @@ from wandb.proto.wandb_internal_pb2 import ServerFeature
 from wandb.sdk.internal._generated import SERVER_FEATURES_QUERY_GQL, ServerFeaturesQuery
 
 if TYPE_CHECKING:
-    from wandb.apis.public import ServiceApi
+    from wandb.apis.public.service_api import ServiceApi
     from wandb.sdk.artifacts._generated.fetch_org_info_from_entity import (
         FetchOrgInfoFromEntityEntity,
     )
@@ -24,7 +24,7 @@ def org_info_from_entity(
     from ._generated import FETCH_ORG_INFO_FROM_ENTITY_GQL, FetchOrgInfoFromEntity
 
     gql_op = FETCH_ORG_INFO_FROM_ENTITY_GQL
-    data = service_api.execute(gql_op, variable_values={"entity": entity})
+    data = service_api.execute_graphql(gql_op, variables={"entity": entity})
     return FetchOrgInfoFromEntity.model_validate(data).entity
 
 
@@ -35,7 +35,7 @@ def _server_features(service_api: ServiceApi) -> dict[str, bool]:
     Results are cached per service API instance.
     """
     try:
-        response = service_api.execute(SERVER_FEATURES_QUERY_GQL)
+        response = service_api.execute_graphql(SERVER_FEATURES_QUERY_GQL)
     except Exception as e:
         # Unfortunately we currently have to match on the text of the error message,
         # as the `gql` client raises `Exception` rather than a more specific error.

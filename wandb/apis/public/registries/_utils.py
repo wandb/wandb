@@ -108,8 +108,8 @@ def fetch_org_entity_from_organization(
 
     gql_op = FETCH_ORG_ENTITY_FROM_ORGANIZATION_GQL
     try:
-        data = service_api.execute(
-            gql_op, variable_values={"organization": organization}
+        data = service_api.execute_graphql(
+            gql_op, variables={"organization": organization}
         )
     except Exception as e:
         msg = f"Error fetching org entity for organization: {organization!r}"

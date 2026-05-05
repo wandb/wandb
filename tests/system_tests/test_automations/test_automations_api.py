@@ -918,8 +918,8 @@ class TestPaginatedAutomations:
         num_projects,
         page_size,
     ):
-        # Spy on the client method that makes the GQL request.  Not ideal, but it may have to do for now
-        client_spy = mocker.spy(module_api.client, "execute")
+        # Spy on the service method that makes the GQL request.
+        client_spy = mocker.spy(module_api._service_api, "execute_graphql")
 
         # Fetch the automations
         list(module_api.automations(entity=module_user, per_page=page_size))

@@ -153,23 +153,6 @@ class ServiceApi:
         )
         return json.loads(response.graphql_response.data_json)
 
-    def execute(
-        self,
-        query: str,
-        variable_values: Mapping[str, Any] | None = None,
-        timeout: float | None = None,
-    ) -> Any:
-        """Execute a GraphQL operation.
-
-        This mirrors the old public API client's method signature while routing
-        the request through wandb-core.
-        """
-        return self.execute_graphql(
-            query,
-            variables=variable_values,
-            timeout=timeout,
-        )
-
     async def send_api_request_async(
         self,
         request: ApiRequest,

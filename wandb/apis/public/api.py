@@ -217,6 +217,21 @@ class Api:
             },
         )
 
+    def _resolve_org_entity_name(
+        self,
+        *,
+        non_org_entity: str | None,
+        org_or_entity: str | None = None,
+    ) -> str:
+        return resolve_org_entity_name(
+            self._service_api,
+            non_org_entity=non_org_entity,
+            org_or_entity=org_or_entity,
+        )
+
+    def _fetch_org_entity_from_organization(self, organization: str) -> str:
+        return fetch_org_entity_from_organization(self._service_api, organization)
+
     def create_project(self, name: str, entity: str) -> None:
         """Create a new project.
 
@@ -227,7 +242,10 @@ class Api:
         from wandb.apis._generated import CREATE_PROJECT_GQL, UpsertModelInput
 
         gql_input = UpsertModelInput(name=name, entity_name=entity)
-        self.client.execute(CREATE_PROJECT_GQL, {"input": gql_input.model_dump()})
+        self._service_api.execute_graphql(
+            CREATE_PROJECT_GQL,
+            {"input": gql_input.model_dump()},
+        )
 
     def create_run(
         self,
@@ -291,7 +309,7 @@ class Api:
         )
         res = res["upsertBucket"]["bucket"]
         return public.Run(
-            self.service_api,
+            self._service_api,
             res["project"]["entity"]["name"],
             res["project"]["name"],
             res["name"],
@@ -406,7 +424,7 @@ class Api:
             raise wandb.Error("failed to create run queue")
 
         return public.RunQueue(
-            self.service_api,
+            self._service_api,
             name=name,
             entity=entity,
             prioritization_mode=prioritization_mode,
@@ -598,7 +616,7 @@ class Api:
             wandb.termwarn(f"resource config validation: {error}")
 
         return public.RunQueue(
-            self.service_api,
+            self._service_api,
             name=name,
             entity=entity,
         )
@@ -617,6 +635,21 @@ class Api:
 
         return User.create(self, email, admin)
 
+    def _create_user(self, email: str, admin: bool | None = False) -> User:
+        from wandb.apis._generated import (
+            CREATE_USER_FROM_ADMIN_GQL,
+            CreateUserFromAdmin,
+        )
+
+        from .users import User
+
+        data = self._service_api.execute_graphql(
+            CREATE_USER_FROM_ADMIN_GQL,
+            {"email": email, "admin": admin},
+        )
+        user = CreateUserFromAdmin.model_validate(data).result.user
+        return User(self._service_api, user.model_dump(), api_key=self.api_key)
+
     def sync_tensorboard(self, root_dir, run_id=None, project=None, entity=None):
         """Sync a local directory containing tfevent files to wandb."""
         from wandb.sync import SyncManager  # TODO: circular import madness
@@ -630,7 +663,7 @@ class Api:
             entity=entity,
             run_id=run_id,
             mark_synced=False,
-            app_url=self.client.app_url,
+            app_url=self._service_api.app_url,
             view=False,
             verbose=False,
             sync_tensorboard=True,
@@ -640,16 +673,6 @@ class Api:
         while not sm.is_done():
             _ = sm.poll()
         return self.run("/".join([entity, project, run_id]))
-
-    @property
-    def service_api(self) -> ServiceApi:
-        """Returns the service API object."""
-        return self._service_api
-
-    @property
-    def client(self) -> ServiceApi:
-        """Returns the client object."""
-        return self._service_api
 
     @property
     def user_agent(self) -> str:
@@ -662,7 +685,7 @@ class Api:
         from wandb.apis._generated import GET_DEFAULT_ENTITY_GQL, GetDefaultEntity
 
         if self._default_entity is None:
-            data = self.client.execute(GET_DEFAULT_ENTITY_GQL)
+            data = self._service_api.execute_graphql(GET_DEFAULT_ENTITY_GQL)
             result = GetDefaultEntity.model_validate(data)
             if (viewer := result.viewer) and (entity := viewer.entity):
                 self._default_entity = entity
@@ -681,13 +704,13 @@ class Api:
         from .users import User
 
         if self._viewer is None:
-            data = self.client.execute(GET_VIEWER_GQL)
+            data = self._service_api.execute_graphql(GET_VIEWER_GQL)
             result = GetViewer.model_validate(data)
             if (viewer := result.viewer) is None:
                 msg = "Unable to fetch user data from W&B, please verify your API key is valid."
                 raise ValueError(msg)
             self._viewer = User(
-                self.service_api, viewer.model_dump(), api_key=self.api_key
+                self._service_api, viewer.model_dump(), api_key=self.api_key
             )
             self._default_entity = self._viewer.entity
         return self._viewer
@@ -752,7 +775,7 @@ class Api:
                         parts[-1] = "--" + parts[-1]
                 name, id = parts[-1].split("--")
                 return public.BetaReport(
-                    self.service_api,
+                    self._service_api,
                     {
                         "displayName": urllib.parse.unquote(name.replace("-", " ")),
                         "id": id,
@@ -893,7 +916,7 @@ class Api:
                 )
         if entity not in self._projects:
             self._projects[entity] = public.Projects(
-                self.service_api,
+                self._service_api,
                 entity,
                 per_page=per_page,
             )
@@ -922,10 +945,11 @@ class Api:
         # For registry artifacts, resolve org-based entity
         if is_artifact_registry_project(name):
             settings_entity = self.settings["entity"] or self.default_entity
-            entity = resolve_org_entity_name(
-                self.client, non_org_entity=settings_entity, org_or_entity=org
+            entity = self._resolve_org_entity_name(
+                non_org_entity=settings_entity,
+                org_or_entity=org,
             )
-        return public.Project(self.service_api, entity, name, {})
+        return public.Project(self._service_api, entity, name, {})
 
     def reports(
         self, path: str = "", name: str | None = None, per_page: int = 50
@@ -964,9 +988,9 @@ class Api:
 
         if key not in self._reports:
             self._reports[key] = public.Reports(
-                self.service_api,
+                self._service_api,
                 public.Project(
-                    self.service_api,
+                    self._service_api,
                     entity,
                     project,
                     {},
@@ -991,6 +1015,20 @@ class Api:
 
         return Team.create(self, team, admin_username)
 
+    def _create_team(self, team: str, admin_username: str | None = None) -> Team:
+        from wandb.apis._generated import CREATE_TEAM_GQL
+
+        from .teams import Team
+
+        try:
+            self._service_api.execute_graphql(
+                CREATE_TEAM_GQL,
+                {"teamName": team, "teamAdminUserName": admin_username},
+            )
+        except WandbApiFailedError:
+            pass
+        return Team(self._service_api, team)
+
     def team(self, team: str) -> Team:
         """Return the matching `Team` with the given name.
 
@@ -1002,7 +1040,7 @@ class Api:
         """
         from .teams import Team
 
-        return Team(self.service_api, team)
+        return Team(self._service_api, team)
 
     def user(self, username_or_email: str) -> User | None:
         """Return a user from a username or email address.
@@ -1020,14 +1058,17 @@ class Api:
 
         from .users import User
 
-        data = self.client.execute(SEARCH_USERS_GQL, {"query": username_or_email})
+        data = self._service_api.execute_graphql(
+            SEARCH_USERS_GQL,
+            {"query": username_or_email},
+        )
         result = SearchUsers.model_validate(data)
         if not (conn := result.users) or not (edges := conn.edges):
             return None
         if len(edges) > 1:
             msg = f"Found multiple users, returning the first user matching {username_or_email!r}"
             wandb.termwarn(msg)
-        return User(self.service_api, edges[0].node.model_dump(), api_key=self.api_key)
+        return User(self._service_api, edges[0].node.model_dump(), api_key=self.api_key)
 
     def users(self, username_or_email: str) -> list[User]:
         """Return all users from a partial username or email address query.
@@ -1045,12 +1086,15 @@ class Api:
 
         from .users import User
 
-        data = self.client.execute(SEARCH_USERS_GQL, {"query": username_or_email})
+        data = self._service_api.execute_graphql(
+            SEARCH_USERS_GQL,
+            {"query": username_or_email},
+        )
         result = SearchUsers.model_validate(data)
         if not ((conn := result.users) and (edges := conn.edges)):
             return []
         return [
-            User(self.service_api, edge.node.model_dump(), api_key=self.api_key)
+            User(self._service_api, edge.node.model_dump(), api_key=self.api_key)
             for edge in edges
         ]
 
@@ -1177,7 +1221,7 @@ class Api:
 
         # Create new Runs object
         self._runs[key] = public.Runs(
-            self.service_api,
+            self._service_api,
             entity,
             project,
             filters=filters,
@@ -1204,7 +1248,7 @@ class Api:
         if not self._runs.get(path):
             # Individual runs should load full data by default
             self._runs[path] = public.Run(
-                self.service_api,
+                self._service_api,
                 entity,
                 project,
                 run_id,
@@ -1226,7 +1270,7 @@ class Api:
         Parses paths of the form `entity/project/queue_id/run_queue_item_id`.
         """
         return public.QueuedRun(
-            self.service_api,
+            self._service_api,
             entity,
             project,
             queue_name,
@@ -1245,7 +1289,7 @@ class Api:
         See `Api.create_run_queue` for more information on how to create a run queue.
         """
         return public.RunQueue(
-            self.service_api,
+            self._service_api,
             name,
             entity,
         )
@@ -1266,7 +1310,7 @@ class Api:
         entity, project, sweep_id = self._parse_path(path)
         if not self._sweeps.get(path):
             self._sweeps[path] = public.Sweep(
-                self.service_api,
+                self._service_api,
                 entity,
                 project,
                 sweep_id,
@@ -1282,8 +1326,10 @@ class Api:
         query: Any | None = None,
         **kwargs: Any,
     ) -> public.Sweep | None:
-        return public.Sweep.get(
-            self.service_api,
+        from .sweeps import _get_sweep
+
+        return _get_sweep(
+            self._service_api,
             entity,
             project,
             sweep_id,
@@ -1318,10 +1364,11 @@ class Api:
         if is_artifact_registry_project(project):
             settings_entity = self.settings["entity"] or self.default_entity
             org = parse_org_from_registry_path(project_path, PathType.PROJECT)
-            entity = resolve_org_entity_name(
-                self.client, non_org_entity=settings_entity, org_or_entity=org
+            entity = self._resolve_org_entity_name(
+                non_org_entity=settings_entity,
+                org_or_entity=org,
             )
-        return ArtifactTypes(self.service_api, entity, project, start=start)
+        return ArtifactTypes(self._service_api, entity, project, start=start)
 
     @normalize_exceptions
     def artifact_type(self, type_name: str, project: str | None = None) -> ArtifactType:
@@ -1344,10 +1391,11 @@ class Api:
         if is_artifact_registry_project(project):
             org = parse_org_from_registry_path(project_path, PathType.PROJECT)
             settings_entity = self.settings["entity"] or self.default_entity
-            entity = resolve_org_entity_name(
-                self.client, non_org_entity=settings_entity, org_or_entity=org
+            entity = self._resolve_org_entity_name(
+                non_org_entity=settings_entity,
+                org_or_entity=org,
             )
-        return ArtifactType(self.service_api, entity, project, type_name)
+        return ArtifactType(self._service_api, entity, project, type_name)
 
     @normalize_exceptions
     def artifact_collections(
@@ -1379,11 +1427,12 @@ class Api:
         if is_artifact_registry_project(project):
             org = parse_org_from_registry_path(project_name, PathType.PROJECT)
             settings_entity = self.settings["entity"] or self.default_entity
-            entity = resolve_org_entity_name(
-                self.client, non_org_entity=settings_entity, org_or_entity=org
+            entity = self._resolve_org_entity_name(
+                non_org_entity=settings_entity,
+                org_or_entity=org,
             )
         return ArtifactCollections(
-            self.service_api,
+            self._service_api,
             entity,
             project,
             type_name,
@@ -1436,8 +1485,9 @@ class Api:
         if is_artifact_registry_project(project):
             org = parse_org_from_registry_path(name, PathType.ARTIFACT)
             settings_entity = self.settings["entity"] or self.default_entity
-            entity = resolve_org_entity_name(
-                self.client, non_org_entity=settings_entity, org_or_entity=org
+            entity = self._resolve_org_entity_name(
+                non_org_entity=settings_entity,
+                org_or_entity=org,
             )
 
         if entity is None:
@@ -1446,7 +1496,7 @@ class Api:
             )
 
         return ArtifactCollection(
-            self.service_api,
+            self._service_api,
             entity,
             project,
             collection_name,
@@ -1541,11 +1591,12 @@ class Api:
         if is_artifact_registry_project(project):
             org = parse_org_from_registry_path(name, PathType.ARTIFACT)
             settings_entity = self.settings["entity"] or self.default_entity
-            entity = resolve_org_entity_name(
-                self.client, non_org_entity=settings_entity, org_or_entity=org
+            entity = self._resolve_org_entity_name(
+                non_org_entity=settings_entity,
+                org_or_entity=org,
             )
         return Artifacts(
-            self.service_api,
+            self._service_api,
             entity,
             project,
             collection_name,
@@ -1580,8 +1631,9 @@ class Api:
             settings_entity = self.settings["entity"] or self.default_entity
             # Registry artifacts are under the org entity. Because we offer a shorthand and alias for this path,
             # we need to fetch the org entity to for the user behind the scenes.
-            entity = resolve_org_entity_name(
-                self.client, non_org_entity=settings_entity, org_or_entity=organization
+            entity = self._resolve_org_entity_name(
+                non_org_entity=settings_entity,
+                org_or_entity=organization,
             )
 
         if entity is None:
@@ -1592,7 +1644,7 @@ class Api:
         path = FullArtifactPath(prefix=entity, project=project, name=artifact_name)
         artifact = Artifact._from_name(
             path=path,
-            service_api=self.service_api,
+            service_api=self._service_api,
             enable_tracking=enable_tracking,
         )
         if type is not None and artifact.type != type:
@@ -1602,12 +1654,46 @@ class Api:
         return artifact
 
     def _artifact_from_id(self, artifact_id: str) -> Artifact | None:
+        from wandb.sdk.artifacts._generated import ARTIFACT_BY_ID_GQL, ArtifactByID
+        from wandb.sdk.artifacts._validators import FullArtifactPath
+        from wandb.sdk.artifacts.artifact import Artifact
+        from wandb.sdk.artifacts.artifact_instance_cache import artifact_instance_cache
+
+        if cached_artifact := artifact_instance_cache.get(artifact_id):
+            return cached_artifact
+
+        data = self._service_api.execute_graphql(
+            ARTIFACT_BY_ID_GQL,
+            variables={"id": artifact_id},
+        )
+        result = ArtifactByID.model_validate(data)
+        if (artifact := result.artifact) is None:
+            return None
+
+        src_collection = artifact.artifact_sequence
+        src_project = src_collection.project
+        entity_name = src_project.entity.name if src_project else ""
+        project_name = src_project.name if src_project else ""
+        path = FullArtifactPath(
+            prefix=entity_name,
+            project=project_name,
+            name=f"{src_collection.name}:v{artifact.version_index}",
+        )
+        return Artifact._from_attrs(path, artifact, self._service_api)
+
+    def _set_artifact_save_handle(self, artifact: Artifact, handle: Any) -> None:
+        artifact._set_save_handle(handle, self._service_api)
+
+    def _expected_artifact_type(
+        self,
+        *,
+        entity: str,
+        project: str,
+        name: str,
+    ) -> str | None:
         from wandb.sdk.artifacts.artifact import Artifact
 
-        return Artifact._from_id(
-            artifact_id,
-            self.service_api,
-        )
+        return Artifact._expected_type(entity, project, name, self._service_api)
 
     @normalize_exceptions
     def artifact(self, name: str, type: str | None = None):
@@ -1727,7 +1813,7 @@ class Api:
         """
 
         try:
-            artifact_query = self.client.execute(
+            artifact_query = self._service_api.execute_graphql(
                 query,
                 {
                     "projectName": project,
@@ -1923,7 +2009,7 @@ class Api:
             self.settings, self.default_entity
         )
         return Registries(
-            self.service_api,
+            self._service_api,
             organization=organization,
             filter=filter,
             per_page=per_page,
@@ -1966,9 +2052,9 @@ class Api:
         organization = organization or fetch_org_from_settings_or_entity(
             self.settings, self.default_entity
         )
-        org_entity = fetch_org_entity_from_organization(self.service_api, organization)
+        org_entity = self._fetch_org_entity_from_organization(organization)
         registry = Registry(
-            self.service_api,
+            self._service_api,
             organization,
             org_entity,
             name,
@@ -2044,12 +2130,64 @@ class Api:
             )
 
         return Registry.create(
-            self.service_api,
+            self,
             organization,
             name,
             visibility,
             description,
             artifact_types,
+        )
+
+    def _create_registry(
+        self,
+        organization: str,
+        name: str,
+        visibility: Literal["organization", "restricted"],
+        description: str | None = None,
+        artifact_types: list[str] | None = None,
+    ) -> Registry:
+        from wandb.sdk.artifacts._generated import (
+            UPSERT_REGISTRY_GQL,
+            UpsertModelInput,
+            UpsertRegistry,
+        )
+        from wandb.sdk.artifacts._validators import (
+            REGISTRY_PREFIX,
+            validate_project_name,
+        )
+
+        from .registries._utils import Visibility, prepare_artifact_types_input
+
+        failed_msg = (
+            f"Failed to create registry {name!r} in organization {organization!r}."
+        )
+
+        org_entity = self._fetch_org_entity_from_organization(organization)
+        gql_input = UpsertModelInput(
+            description=description,
+            entity_name=org_entity,
+            name=validate_project_name(f"{REGISTRY_PREFIX}{name}"),
+            access=Visibility.from_python(visibility).value,
+            allow_all_artifact_types_in_registry=not artifact_types,
+            artifact_types=prepare_artifact_types_input(artifact_types),
+        )
+        try:
+            data = self._service_api.execute_graphql(
+                UPSERT_REGISTRY_GQL,
+                {"input": gql_input.model_dump()},
+            )
+            result = UpsertRegistry.model_validate(data).upsert_model
+        except Exception as e:
+            raise ValueError(failed_msg) from e
+        if not (result and result.inserted and (registry_project := result.project)):
+            raise ValueError(failed_msg)
+
+        return Registry(
+            self._service_api,
+            organization=organization,
+            entity=org_entity,
+            name=name,
+            attrs=registry_project,
         )
 
     @tracked
@@ -2076,7 +2214,7 @@ class Api:
 
         variables = {"entity": entity or self.default_entity}
         return Integrations(
-            self.service_api, variables=variables, per_page=per_page, start=start
+            self._service_api, variables=variables, per_page=per_page, start=start
         )
 
     @tracked
@@ -2120,7 +2258,7 @@ class Api:
 
         variables = {"entity": entity or self.default_entity}
         return WebhookIntegrations(
-            self.service_api, variables=variables, per_page=per_page, start=start
+            self._service_api, variables=variables, per_page=per_page, start=start
         )
 
     @tracked
@@ -2164,7 +2302,7 @@ class Api:
 
         variables = {"entity": entity or self.default_entity}
         return SlackIntegrations(
-            self.service_api, variables=variables, per_page=per_page, start=start
+            self._service_api, variables=variables, per_page=per_page, start=start
         )
 
     def _supports_automation(
@@ -2329,7 +2467,7 @@ class Api:
         omit_fragments = self._omitted_automation_fragments()
         query = gql_compat(gql_str, omit_fragments=omit_fragments)
         iterator = Automations(
-            self.service_api,
+            self._service_api,
             variables=variables,
             per_page=per_page,
             start=start,
@@ -2430,7 +2568,7 @@ class Api:
                 pass
 
         try:
-            data = self.client.execute(mutation, variable_values=variables)
+            data = self._service_api.execute_graphql(mutation, variables=variables)
         except WandbApiFailedError as e:
             status = _api_error_status(e)
             if status is HTTPStatus.CONFLICT:  # 409
@@ -2550,7 +2688,7 @@ class Api:
 
         name = gql_input.name
         try:
-            data = self.client.execute(mutation, variable_values=variables)
+            data = self._service_api.execute_graphql(mutation, variables=variables)
         except WandbApiFailedError as e:
             status = _api_error_status(e)
             if status is HTTPStatus.NOT_FOUND:  # 404
@@ -2596,7 +2734,7 @@ class Api:
         mutation = DELETE_AUTOMATION_GQL
         variables = {"id": id_}
 
-        data = self.client.execute(mutation, variable_values=variables)
+        data = self._service_api.execute_graphql(mutation, variables=variables)
 
         try:
             result = DeleteAutomation.model_validate(data).result

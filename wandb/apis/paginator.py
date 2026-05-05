@@ -25,11 +25,11 @@ class Paginator(Iterator[_WandbT], ABC):
 
     def __init__(
         self,
-        client: ServiceApi,
+        service_api: ServiceApi,
         variables: Mapping[str, Any],
         per_page: int = 50,  # We don't allow unbounded paging
     ):
-        self.client = client
+        self._service_api = service_api
 
         # shallow copy partly guards against mutating the original input
         self.variables: dict[str, Any] = dict(variables)
@@ -66,8 +66,8 @@ class Paginator(Iterator[_WandbT], ABC):
 
     def _update_response(self) -> None:
         """Fetch and store the response data for the next page."""
-        self.last_response = self.client.execute(
-            self.QUERY, variable_values=self.variables
+        self.last_response = self._service_api.execute_graphql(
+            self.QUERY, variables=self.variables
         )
 
     def _load_page(self) -> bool:
@@ -148,12 +148,12 @@ class RelayPaginator(Paginator[_WandbT], Generic[_NodeT, _WandbT], ABC):
 
     def __init__(
         self,
-        client: ServiceApi,
+        service_api: ServiceApi,
         variables: Mapping[str, Any],
         per_page: int = 50,
         start: str | None = None,
     ):
-        super().__init__(client, variables, per_page)
+        super().__init__(service_api, variables, per_page)
         self._start = start
 
     @property

@@ -68,7 +68,7 @@ def test_sweep_api_expected_run_count(
 
     api = Api()
     sweep = Sweep.get(
-        api.service_api,
+        api,
         user,
         _project,
         sweep_id,

@@ -85,9 +85,9 @@ def server_src(user):
 
 
 def create_report(api, *, entity: str, project: str, name: str) -> None:
-    api.service_api.execute(
+    api._service_api.execute_graphql(
         UPSERT_VIEW,
-        variable_values={
+        variables={
             "id": None,
             "name": name,
             "entityName": entity,

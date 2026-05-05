@@ -34,7 +34,7 @@ class Member(Attrs):
 
     def __init__(self, service_api: ServiceApi, team: str, attrs: Mapping[str, Any]):
         super().__init__(attrs)
-        self._client = service_api
+        self._service_api = service_api
         self.team = team
 
     def delete(self):
@@ -46,7 +46,7 @@ class Member(Attrs):
         from wandb.apis._generated import DELETE_INVITE_GQL, DeleteInvite
 
         try:
-            data = self._client.execute(
+            data = self._service_api.execute_graphql(
                 (DELETE_INVITE_GQL),
                 {"id": self.id, "entity": self.team},
             )
@@ -83,7 +83,7 @@ class Team(Attrs):
         attrs: Mapping[str, Any] | None = None,
     ):
         super().__init__(attrs or {})
-        self._client = service_api
+        self._service_api = service_api
         self.name = name
         self.load()
 
@@ -99,16 +99,7 @@ class Team(Attrs):
         Returns:
             A `Team` object
         """
-        from wandb.apis._generated import CREATE_TEAM_GQL
-
-        try:
-            api.service_api.execute(
-                (CREATE_TEAM_GQL),
-                {"teamName": team, "teamAdminUserName": admin_username},
-            )
-        except WandbApiFailedError:
-            pass
-        return cls(api.service_api, team)
+        return api._create_team(team, admin_username)
 
     def invite(self, username_or_email: str, admin: bool = False) -> bool:
         """Invite a user to a team.
@@ -130,7 +121,7 @@ class Team(Attrs):
             ("email" if ("@" in username_or_email) else "username"): username_or_email,
         }
         try:
-            self._client.execute((CREATE_INVITE_GQL), variables)
+            self._service_api.execute_graphql((CREATE_INVITE_GQL), variables)
         except WandbApiFailedError:
             return False
         return True
@@ -147,7 +138,7 @@ class Team(Attrs):
         from wandb.apis._generated import CREATE_SERVICE_ACCOUNT_GQL
 
         try:
-            self._client.execute(
+            self._service_api.execute_graphql(
                 (CREATE_SERVICE_ACCOUNT_GQL),
                 {"entity": self.name, "description": description},
             )
@@ -164,11 +155,14 @@ class Team(Attrs):
         from wandb.apis._generated import GET_TEAM_ENTITY_GQL, GetTeamEntity
 
         if force or not self._attrs:
-            data = self._client.execute((GET_TEAM_ENTITY_GQL), {"name": self.name})
+            data = self._service_api.execute_graphql(
+                (GET_TEAM_ENTITY_GQL),
+                {"name": self.name},
+            )
             result = GetTeamEntity.model_validate(data)
             self._attrs = entity.model_dump() if (entity := result.entity) else {}
             self._attrs["members"] = [
-                Member(self._client, self.name, member)
+                Member(self._service_api, self.name, member)
                 for member in self._attrs["members"]
             ]
         return self._attrs

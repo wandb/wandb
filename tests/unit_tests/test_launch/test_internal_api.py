@@ -95,9 +95,9 @@ def test_upsert_sweep():
     assert "$priorRunsFilters: JSONString" in call_args[0]
     assert "priorRunsFilters: $priorRunsFilters" in call_args[0]
     assert (
-        call_kwargs["variable_values"]["priorRunsFilters"]
+        call_kwargs["variables"]["priorRunsFilters"]
         == '{"$or": [{"name": "abc"}, {"name": "def"}]}'
     )
     assert "$displayName: String" in call_args[0]
     assert "displayName: $displayName" in call_args[0]
-    assert call_kwargs["variable_values"]["displayName"] == mock_display_name
+    assert call_kwargs["variables"]["displayName"] == mock_display_name

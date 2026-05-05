@@ -19,7 +19,7 @@ from wandb.apis.public.runs import Run
 def test_create_run_with_string_attrs(field, value, expected):
     api = wandb.Api()
     run = wandb.apis.public.Run(
-        service_api=api.service_api,
+        service_api=api._service_api,
         entity="test",
         project="test",
         run_id="test",
@@ -42,7 +42,7 @@ def test_create_run_with_dictionary_attrs_already_parsed(field, value):
     with mock.patch.object(wandb, "login", mock.MagicMock()):
         api = wandb.Api()
         run = wandb.apis.public.Run(
-            service_api=api.service_api,
+            service_api=api._service_api,
             entity="test",
             project="test",
             run_id="test",
@@ -66,7 +66,7 @@ def test_create_run_with_dictionary__throws_type_error(field, value):
         api = wandb.Api()
         with pytest.raises(wandb.errors.CommError):
             wandb.apis.public.Run(
-                service_api=api.service_api,
+                service_api=api._service_api,
                 entity="test",
                 project="test",
                 run_id="test",
@@ -90,7 +90,7 @@ def test_create_run_with_control_characters(field, value, expected):
     with mock.patch.object(wandb, "login", mock.MagicMock()):
         api = wandb.Api()
         run = wandb.apis.public.Run(
-            service_api=api.service_api,
+            service_api=api._service_api,
             entity="test",
             project="test",
             run_id="test",

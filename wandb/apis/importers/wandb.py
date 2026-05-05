@@ -783,9 +783,10 @@ class WandbImporter:
                 logger.warning(f"Issue upserting {entity=}/{project=}, {e=}")
 
         logger.debug(f"Upserting report {entity=}, {project=}, {name=}, {title=}")
-        api.service_api.execute(
+        # TODO: Move report upsert behind an Api-owned operation.
+        api._service_api.execute_graphql(
             UPSERT_VIEW,
-            variable_values={
+            variables={
                 "id": None,  # Is there any benefit for this to be the same as default report?
                 "name": name,
                 "entityName": entity,
@@ -1552,7 +1553,8 @@ def _get_run_or_dummy_from_art(art: Artifact, api=None):
             }
         }
     """
-    response = api.client.execute(query, variable_values={"id": art.id})
+    # TODO: Move artifact creator lookup behind an Api-owned operation.
+    response = api._service_api.execute_graphql(query, variables={"id": art.id})
     creator = response.get("artifact", {}).get("createdBy", {})
     run = _DummyRun(
         entity=art.entity,

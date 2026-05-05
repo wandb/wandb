@@ -20,6 +20,7 @@ from pytest_mock import MockerFixture
 from responses import RequestsMock
 from wandb.apis import internal
 from wandb.errors import CommError
+from wandb.proto import wandb_api_pb2 as apb
 from wandb.proto.wandb_internal_pb2 import ServerFeature
 from wandb.sdk.internal.internal_api import (
     _match_org_with_fetched_org_entities,
@@ -27,6 +28,7 @@ from wandb.sdk.internal.internal_api import (
 )
 from wandb.sdk.launch.sweeps import SweepNotFoundError
 from wandb.sdk.lib import retry
+from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 
 from .test_retry import MockTime, mock_time  # noqa: F401
 
@@ -86,6 +88,30 @@ def test_get_run_state_invalid_kwargs():
         _api.get_run_state("test_entity", None, "test_run")
 
     assert "Error fetching run state" in str(e.value)
+
+
+def test_execute_logs_service_api_errors(mocker: MockerFixture):
+    service_api = mocker.Mock()
+    error_response = apb.ApiErrorResponse(message="server unavailable")
+    service_api.execute_graphql.side_effect = WandbApiFailedError(
+        error_response.message,
+        error_response,
+    )
+    mocker.patch(
+        "wandb.sdk.internal.internal_api.Api._new_service_api",
+        return_value=service_api,
+    )
+    termerror = mocker.patch("wandb.termerror")
+    log_exception = mocker.patch(
+        "wandb.sdk.internal.internal_api.logger.exception",
+    )
+    api = internal.InternalApi()
+
+    with pytest.raises(WandbApiFailedError):
+        api.execute("query Viewer { viewer { id } }")
+
+    log_exception.assert_called_once_with("Error executing GraphQL.")
+    termerror.assert_called_once_with("Error while calling W&B API: server unavailable")
 
 
 @pytest.mark.parametrize(
@@ -771,7 +797,7 @@ ENABLED_FEATURE_RESPONSE = {
 
 
 @pytest.fixture
-def mock_client(mocker: MockerFixture):
+def mock_service_api(mocker: MockerFixture):
     mock = mocker.Mock()
     mocker.patch(
         "wandb.sdk.internal.internal_api.Api._new_service_api",
@@ -781,32 +807,32 @@ def mock_client(mocker: MockerFixture):
 
 
 @pytest.fixture
-def mock_client_with_enabled_features(mock_client):
-    mock_client.execute.return_value = ENABLED_FEATURE_RESPONSE
-    yield mock_client
+def mock_service_api_with_enabled_features(mock_service_api):
+    mock_service_api.execute_graphql.return_value = ENABLED_FEATURE_RESPONSE
+    yield mock_service_api
 
 
 NO_FEATURES_RESPONSE = {"serverInfo": {"features": []}}
 
 
 @pytest.fixture
-def mock_client_with_no_features(mock_client):
-    mock_client.execute.return_value = NO_FEATURES_RESPONSE
-    yield mock_client
+def mock_service_api_with_no_features(mock_service_api):
+    mock_service_api.execute_graphql.return_value = NO_FEATURES_RESPONSE
+    yield mock_service_api
 
 
 @pytest.fixture
-def mock_client_with_error_no_field(mock_client):
+def mock_service_api_with_error_no_field(mock_service_api):
     error_msg = 'Cannot query field "features" on type "ServerInfo".'
-    mock_client.execute.side_effect = Exception(error_msg)
-    yield mock_client
+    mock_service_api.execute_graphql.side_effect = Exception(error_msg)
+    yield mock_service_api
 
 
 @pytest.fixture
-def mock_client_with_random_error(mock_client):
+def mock_service_api_with_random_error(mock_service_api):
     error_msg = "Some random error"
-    mock_client.execute.side_effect = Exception(error_msg)
-    yield mock_client
+    mock_service_api.execute_graphql.side_effect = Exception(error_msg)
+    yield mock_service_api
 
 
 @pytest.mark.parametrize(
@@ -814,42 +840,42 @@ def mock_client_with_random_error(mock_client):
     [
         (
             # Test enabled features
-            mock_client_with_enabled_features.__name__,
+            mock_service_api_with_enabled_features.__name__,
             ServerFeature.LARGE_FILENAMES,
             True,
             False,
         ),
         (
             # Test disabled features
-            mock_client_with_enabled_features.__name__,
+            mock_service_api_with_enabled_features.__name__,
             ServerFeature.ARTIFACT_TAGS,
             False,
             False,
         ),
         (
             # Test features not in response
-            mock_client_with_enabled_features.__name__,
+            mock_service_api_with_enabled_features.__name__,
             ServerFeature.ARTIFACT_REGISTRY_SEARCH,
             False,
             False,
         ),
         (
             # Test empty features list
-            mock_client_with_no_features.__name__,
+            mock_service_api_with_no_features.__name__,
             ServerFeature.LARGE_FILENAMES,
             False,
             False,
         ),
         (
             # Test server not supporting features
-            mock_client_with_error_no_field.__name__,
+            mock_service_api_with_error_no_field.__name__,
             ServerFeature.LARGE_FILENAMES,
             False,
             False,
         ),
         (
             # Test other server errors
-            mock_client_with_random_error.__name__,
+            mock_service_api_with_random_error.__name__,
             ServerFeature.LARGE_FILENAMES,
             False,
             True,

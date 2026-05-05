@@ -49,7 +49,6 @@ class Registries(RelayPaginator["RegistryFragment", "Registry"]):
 
             type(self).QUERY = FETCH_REGISTRIES_GQL
 
-        self.client = service_api
         self.organization = organization
         self.filter = ensure_registry_prefix_on_names(filter or {})
         self._service_api = service_api
@@ -111,7 +110,7 @@ class Registries(RelayPaginator["RegistryFragment", "Registry"]):
         from wandb.sdk.artifacts._generated import FetchRegistries
         from wandb.sdk.artifacts._models.pagination import RegistryConnection
 
-        data = self.client.execute(self.QUERY, variable_values=self.variables)
+        data = self._service_api.execute_graphql(self.QUERY, variables=self.variables)
         result = FetchRegistries.model_validate(data)
         if not ((org := result.organization) and (org_entity := org.org_entity)):
             raise ValueError(
@@ -159,7 +158,6 @@ class Collections(
 
             type(self).QUERY = REGISTRY_COLLECTIONS_GQL
 
-        self.client = service_api
         self.organization = organization
         self.registry_filter = registry_filter
         self.collection_filter = collection_filter or {}
@@ -205,7 +203,7 @@ class Collections(
         from wandb.sdk.artifacts._generated import RegistryCollections
         from wandb.sdk.artifacts._models.pagination import RegistryCollectionConnection
 
-        data = self.client.execute(self.QUERY, variable_values=self.variables)
+        data = self._service_api.execute_graphql(self.QUERY, variables=self.variables)
         result = RegistryCollections.model_validate(data)
         if not ((org := result.organization) and (org_entity := org.org_entity)):
             raise ValueError(
@@ -261,7 +259,6 @@ class Versions(RelayPaginator["ArtifactMembershipFragment", "Artifact"]):
 
         self.QUERY = REGISTRY_VERSIONS_GQL
 
-        self.client = service_api
         self.organization = organization
         self.registry_filter = registry_filter
         self.collection_filter = collection_filter
@@ -298,7 +295,7 @@ class Versions(RelayPaginator["ArtifactMembershipFragment", "Artifact"]):
         from wandb.sdk.artifacts._generated import RegistryVersions
         from wandb.sdk.artifacts._models.pagination import ArtifactMembershipConnection
 
-        data = self.client.execute(self.QUERY, variable_values=self.variables)
+        data = self._service_api.execute_graphql(self.QUERY, variables=self.variables)
         result = RegistryVersions.model_validate(data)
         if not ((org := result.organization) and (org_entity := org.org_entity)):
             raise ValueError(

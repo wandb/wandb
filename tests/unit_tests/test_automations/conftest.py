@@ -75,7 +75,7 @@ def automation_id() -> str:
 @fixture(scope="session")
 def mock_client(session_mocker: MockerFixture) -> Mock:
     """A mocked wandb client to prevent real API calls."""
-    from wandb.apis.public import ServiceApi
+    from wandb.apis.public.service_api import ServiceApi
 
     return session_mocker.Mock(spec=ServiceApi)
 

@@ -115,7 +115,7 @@ def make_webhook_integration(
         gql_op = CREATE_GENERIC_WEBHOOK_INTEGRATION_GQL
         gql_vars = {"input": gql_input.model_dump()}
         api = make_module_api()
-        data = api.client.execute(gql_op, variable_values=gql_vars)
+        data = api._service_api.execute_graphql(gql_op, variables=gql_vars)
 
         result = CreateGenericWebhookIntegration(**data)
         integration = result.create_generic_webhook_integration.integration

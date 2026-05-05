@@ -22,14 +22,11 @@ from ._members import (
     UserMember,
     parse_member_ids,
 )
-from ._utils import (
-    Visibility,
-    fetch_org_entity_from_organization,
-    prepare_artifact_types_input,
-)
+from ._utils import prepare_artifact_types_input
 from .registries_search import Collections, Versions
 
 if TYPE_CHECKING:
+    from wandb.apis.public.api import Api
     from wandb.apis.public.service_api import ServiceApi
     from wandb.sdk.artifacts._generated import RegistryFragment
 
@@ -51,7 +48,6 @@ class Registry:
         name: str,
         attrs: RegistryFragment | None = None,
     ):
-        self.client = service_api
         self._service_api = service_api
 
         if attrs is None:
@@ -230,7 +226,7 @@ class Registry:
     @tracked
     def create(
         cls,
-        service_api: ServiceApi,
+        api: Api,
         organization: str,
         name: str,
         visibility: Literal["organization", "restricted"],
@@ -243,7 +239,7 @@ class Registry:
         This function should be called using `api.create_registry()`
 
         Args:
-            service_api: The service API.
+            api: The W&B API instance.
             organization: The name of the organization.
             name: The name of the registry (without the `wandb-registry-` prefix).
             visibility: The visibility level ('organization' or 'restricted').
@@ -257,46 +253,12 @@ class Registry:
             ValueError: If a registry with the same name already exists in the
                 organization or if the creation fails.
         """
-        from wandb.sdk.artifacts._generated import (
-            UPSERT_REGISTRY_GQL,
-            UpsertModelInput,
-            UpsertRegistry,
-        )
-        from wandb.sdk.artifacts._validators import (
-            REGISTRY_PREFIX,
-            validate_project_name,
-        )
-
-        failed_msg = (
-            f"Failed to create registry {name!r} in organization {organization!r}."
-        )
-
-        org_entity = fetch_org_entity_from_organization(service_api, organization)
-
-        gql_op = UPSERT_REGISTRY_GQL
-        gql_input = UpsertModelInput(
-            description=description,
-            entity_name=org_entity,
-            name=validate_project_name(f"{REGISTRY_PREFIX}{name}"),
-            access=Visibility.from_python(visibility).value,
-            allow_all_artifact_types_in_registry=not artifact_types,
-            artifact_types=prepare_artifact_types_input(artifact_types),
-        )
-        gql_vars = {"input": gql_input.model_dump()}
-        try:
-            data = service_api.execute(gql_op, variable_values=gql_vars)
-            result = UpsertRegistry.model_validate(data).upsert_model
-        except Exception as e:
-            raise ValueError(failed_msg) from e
-        if not (result and result.inserted and (registry_project := result.project)):
-            raise ValueError(failed_msg)
-
-        return cls(
-            service_api,
+        return api._create_registry(
             organization=organization,
-            entity=org_entity,
             name=name,
-            attrs=registry_project,
+            visibility=visibility,
+            description=description,
+            artifact_types=artifact_types,
         )
 
     @tracked
@@ -309,7 +271,7 @@ class Registry:
         gql_op = DELETE_REGISTRY_GQL
         gql_vars = {"id": self.id}
         try:
-            data = self.client.execute(gql_op, variable_values=gql_vars)
+            data = self._service_api.execute_graphql(gql_op, variables=gql_vars)
             result = DeleteRegistry.model_validate(data).delete_model
         except Exception as e:
             raise ValueError(failed_msg) from e
@@ -329,7 +291,7 @@ class Registry:
         gql_op = FETCH_REGISTRY_GQL
         gql_vars = {"name": self.full_name, "entity": self.entity}
         try:
-            data = self.client.execute(gql_op, variable_values=gql_vars)
+            data = self._service_api.execute_graphql(gql_op, variables=gql_vars)
             result = FetchRegistry.model_validate(data)
         except Exception as e:
             raise ValueError(failed_msg) from e
@@ -354,7 +316,7 @@ class Registry:
         from wandb.sdk.artifacts._validators import validate_project_name
 
         if not server_supports(
-            self.client, pb.INCLUDE_ARTIFACT_TYPES_IN_REGISTRY_CREATION
+            self._service_api, pb.INCLUDE_ARTIFACT_TYPES_IN_REGISTRY_CREATION
         ):
             raise RuntimeError(
                 "Saving the registry is not enabled on this wandb server version. "
@@ -386,7 +348,7 @@ class Registry:
         )
         upsert_vars = {"input": upsert_input.model_dump()}
         try:
-            data = self.client.execute(upsert_op, variable_values=upsert_vars)
+            data = self._service_api.execute_graphql(upsert_op, variables=upsert_vars)
             result = UpsertRegistry.model_validate(data).upsert_model
         except Exception as e:
             raise ValueError(failed_msg) from e
@@ -411,7 +373,7 @@ class Registry:
                 new_project_name=new_project_name,
             )
             rename_vars = {"input": rename_input.model_dump()}
-            data = self.client.execute(rename_op, variable_values=rename_vars)
+            data = self._service_api.execute_graphql(rename_op, variables=rename_vars)
             result = RenameRegistry.model_validate(data).rename_project
             if not (result and (registry_project := result.project)):
                 raise ValueError(failed_msg)
@@ -435,7 +397,7 @@ class Registry:
 
         gql_op = REGISTRY_USER_MEMBERS_GQL
         gql_vars = {"project": self.full_name, "entity": self.entity}
-        data = self.client.execute(gql_op, variable_values=gql_vars)
+        data = self._service_api.execute_graphql(gql_op, variables=gql_vars)
         result = RegistryUserMembers.model_validate(data)
 
         if not (project := result.project):
@@ -463,7 +425,7 @@ class Registry:
 
         gql_op = REGISTRY_TEAM_MEMBERS_GQL
         gql_vars = {"project": self.full_name, "entity": self.entity}
-        data = self.client.execute(gql_op, variable_values=gql_vars)
+        data = self._service_api.execute_graphql(gql_op, variables=gql_vars)
         result = RegistryTeamMembers.model_validate(data)
 
         if not (project := result.project):
@@ -532,7 +494,7 @@ class Registry:
             user_ids=user_ids, team_ids=team_ids, project_id=self.id
         )
         gql_vars = {"input": gql_input.model_dump()}
-        data = self.client.execute(gql_op, variable_values=gql_vars)
+        data = self._service_api.execute_graphql(gql_op, variables=gql_vars)
         result = CreateRegistryMembers.model_validate(data).result
 
         if not (result and result.success):
@@ -589,7 +551,7 @@ class Registry:
             user_ids=user_ids, team_ids=team_ids, project_id=self.id
         )
         gql_vars = {"input": gql_input.model_dump()}
-        data = self.client.execute(gql_op, variable_values=gql_vars)
+        data = self._service_api.execute_graphql(gql_op, variables=gql_vars)
         result = DeleteRegistryMembers.model_validate(data).result
 
         if not (result and result.success):
@@ -659,7 +621,7 @@ class Registry:
             assert_never(id_.kind)
 
         gql_vars = {"input": gql_input.model_dump()}
-        data = self.client.execute(gql_op, variable_values=gql_vars)
+        data = self._service_api.execute_graphql(gql_op, variables=gql_vars)
         result = result_cls.model_validate(data).result
 
         if not (result and result.success):

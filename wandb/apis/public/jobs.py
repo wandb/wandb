@@ -103,10 +103,7 @@ class Job:
 
         artifact_string, base_url, is_id = util.parse_artifact_string(artifact_string)
         if is_id:
-            code_artifact = wandb.Artifact._from_id(
-                artifact_string,
-                self._api.service_api,
-            )
+            code_artifact = self._api._artifact_from_id(artifact_string)
         else:
             code_artifact = self._api._artifact(name=artifact_string, type="code")
         if code_artifact is None:
@@ -363,12 +360,12 @@ class QueuedRun:
                 }
             }
             """
-        variable_values = {
+        variables = {
             "projectName": self.project_queue,
             "entityName": self._entity,
             "runQueue": self.queue_name,
         }
-        res = self.client.execute(query, variable_values)
+        res = self.client.execute_graphql(query, variables)
 
         for item in res["project"]["runQueue"]["runQueueItems"]["edges"]:
             if str(item["node"]["id"]) == str(self.id):
@@ -389,14 +386,16 @@ class QueuedRun:
                 }
             }
         """
-        variable_values = {
+        variables = {
             "projectName": self.project_queue,
             "entityName": self._entity,
             "runQueue": self.queue_name,
             "itemId": self.id,
         }
         try:
-            res = self.client.execute(query, variable_values)  # exception w/ old server
+            res = self.client.execute_graphql(
+                query, variables
+            )  # exception w/ old server
             if res["project"]["runQueue"].get("runQueueItem") is not None:
                 return res["project"]["runQueue"]["runQueueItem"]
         except Exception as e:
@@ -429,9 +428,9 @@ class QueuedRun:
             }
             """
 
-        res = self.client.execute(
+        res = self.client.execute_graphql(
             query,
-            variable_values={
+            variables={
                 "entityName": self.entity,
                 "projectName": self.project_queue,
                 "runQueueName": self.queue_name,
@@ -455,9 +454,9 @@ class QueuedRun:
                 }
             }
             """
-        self.client.execute(
+        self.client.execute_graphql(
             mutation,
-            variable_values={
+            variables={
                 "queueID": queue_id,
                 "runQueueItemId": self._run_queue_item_id,
             },
@@ -630,8 +629,8 @@ class RunQueue:
                 }
             }
             """
-        variable_values = {"id": self.id}
-        res = self._client.execute(query, variable_values)
+        variables = {"id": self.id}
+        res = self._client.execute_graphql(query, variables)
         if res["deleteRunQueues"]["success"]:
             self._id = None
             self._access = None
@@ -659,12 +658,12 @@ class RunQueue:
                 }
             }
         """
-        variable_values = {
+        variables = {
             "projectName": LAUNCH_DEFAULT_PROJECT,
             "entityName": self._entity,
             "runQueue": self._name,
         }
-        res = self._client.execute(query, variable_values)
+        res = self._client.execute_graphql(query, variables)
         self._id = res["project"]["runQueue"]["id"]
         self._access = res["project"]["runQueue"]["access"]
         self._default_resource_config_id = res["project"]["runQueue"][
@@ -691,11 +690,11 @@ class RunQueue:
                 }
             }
         """
-        variable_values = {
+        variables = {
             "entityName": self._entity,
             "id": self._default_resource_config_id,
         }
-        res = self._client.execute(query, variable_values)
+        res = self._client.execute_graphql(query, variables)
         self._type = res["entity"]["defaultResourceConfig"]["resource"]
         self._default_resource_config = res["entity"]["defaultResourceConfig"]["config"]
         self._template_variables = res["entity"]["defaultResourceConfig"][
@@ -719,12 +718,12 @@ class RunQueue:
                 }
             }
         """
-        variable_values = {
+        variables = {
             "projectName": LAUNCH_DEFAULT_PROJECT,
             "entityName": self._entity,
             "runQueue": self._name,
         }
-        res = self._client.execute(query, variable_values)
+        res = self._client.execute_graphql(query, variables)
         self._items = []
         for item in res["project"]["runQueue"]["runQueueItems"]["edges"]:
             self._items.append(

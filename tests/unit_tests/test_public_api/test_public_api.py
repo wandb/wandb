@@ -1,5 +1,6 @@
 import json
 import sys
+from types import SimpleNamespace
 from unittest import mock
 from unittest.mock import MagicMock
 
@@ -291,7 +292,7 @@ def test_initialize_api_uses_explicit_key(
 def test_create_run_with_dictionary_config():
     api = wandb.Api()
     run = wandb.apis.public.Run(
-        service_api=api.service_api,
+        service_api=api._service_api,
         entity="test",
         project="test",
         run_id="test",
@@ -304,7 +305,7 @@ def test_create_run_with_dictionary_config():
 def test_create_run_with_dictionary__config_not_parsable():
     api = wandb.Api()
     run = wandb.apis.public.Run(
-        service_api=api.service_api,
+        service_api=api._service_api,
         entity="test",
         project="test",
         run_id="test",
@@ -320,7 +321,7 @@ def test_create_run_with_dictionary__throws_error():
     api = wandb.Api()
     with pytest.raises(wandb.errors.CommError):
         wandb.apis.public.Run(
-            service_api=api.service_api,
+            service_api=api._service_api,
             entity="test",
             project="test",
             run_id="test",
@@ -328,6 +329,46 @@ def test_create_run_with_dictionary__throws_error():
                 "config": 1,
             },
         )
+
+
+@pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
+def test_api_artifact_from_id_uses_service_api(monkeypatch):
+    from wandb.sdk.artifacts._generated import ARTIFACT_BY_ID_GQL, ArtifactByID
+    from wandb.sdk.artifacts.artifact import Artifact
+    from wandb.sdk.artifacts.artifact_instance_cache import artifact_instance_cache
+
+    artifact_id = "test-artifact-id"
+    artifact_instance_cache.pop(artifact_id, None)
+
+    api = wandb.Api()
+    execute = MagicMock(return_value={})
+    monkeypatch.setattr(api._service_api, "execute_graphql", execute)
+
+    artifact = SimpleNamespace(
+        artifact_sequence=SimpleNamespace(
+            name="dataset",
+            project=SimpleNamespace(
+                name="project",
+                entity=SimpleNamespace(name="entity"),
+            ),
+        ),
+        version_index=3,
+    )
+    monkeypatch.setattr(
+        ArtifactByID,
+        "model_validate",
+        MagicMock(return_value=SimpleNamespace(artifact=artifact)),
+    )
+    from_attrs = MagicMock(return_value="artifact")
+    monkeypatch.setattr(Artifact, "_from_attrs", from_attrs)
+
+    assert api._artifact_from_id(artifact_id) == "artifact"
+
+    execute.assert_called_once_with(ARTIFACT_BY_ID_GQL, variables={"id": artifact_id})
+    path, src_art, service_api = from_attrs.call_args.args
+    assert path.to_str() == "entity/project/dataset:v3"
+    assert src_art is artifact
+    assert service_api is api._service_api
 
 
 @pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
@@ -356,9 +397,13 @@ def test_project_id_lazy_load(monkeypatch):
             ).model_dump(),
         }
     )
-    monkeypatch.setattr(wandb.apis.public.api.ServiceApi, "execute", mock_execute)
+    monkeypatch.setattr(
+        wandb.apis.public.api.ServiceApi,
+        "execute_graphql",
+        mock_execute,
+    )
     project = wandb.apis.public.Project(
-        service_api=api.service_api,
+        service_api=api._service_api,
         entity="test-entity",
         project="test-project",
         attrs={},
@@ -378,9 +423,13 @@ def test_project_load__raises_error(monkeypatch):
     mock_execute = MagicMock(
         side_effect=WandbApiFailedError(error_response.message, error_response)
     )
-    monkeypatch.setattr(wandb.apis.public.api.ServiceApi, "execute", mock_execute)
+    monkeypatch.setattr(
+        wandb.apis.public.api.ServiceApi,
+        "execute_graphql",
+        mock_execute,
+    )
     project = wandb.apis.public.Project(
-        service_api=api.service_api,
+        service_api=api._service_api,
         entity="test-entity",
         project="test-project",
         attrs={},
