@@ -57,6 +57,7 @@ from wandb.apis.internal import Api as InternalApi
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.paginator import SizedPaginator
 from wandb.apis.public.const import RETRY_TIMEDELTA
+from wandb.apis.public.service_api import ServiceApi
 from wandb.proto import wandb_api_pb2 as apb
 from wandb.sdk import wandb_setup
 from wandb.sdk.lib import ipython, json_util
@@ -69,7 +70,6 @@ if TYPE_CHECKING:
     from typing_extensions import Self
 
     from wandb.apis.public import RetryingClient
-    from wandb.apis.public.service_api import ServiceApi
     from wandb.old.summary import HTTPSummary
 
 WANDB_INTERNAL_KEYS = {"_wandb", "wandb_version"}

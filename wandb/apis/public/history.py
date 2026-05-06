@@ -19,12 +19,12 @@ from typing import TYPE_CHECKING, Any
 
 from typing_extensions import Self, TypeAlias
 
-from wandb.apis.public.service_api import ServiceApi
 from wandb.proto import wandb_api_pb2 as pb
 from wandb.sdk.mailbox.mailbox import MailboxClosedError
 
 if TYPE_CHECKING:
     from . import runs
+    from .service_api import ServiceApi
 
 _RowDict: TypeAlias = dict[str, Any]
 """Type alias for a single history row as a dict."""
