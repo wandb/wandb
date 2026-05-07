@@ -222,7 +222,10 @@ class Files(SizedPaginator["File"]):
         if not edges:
             return None
 
-        return edges[-1].get("cursor")
+        for edge in reversed(edges):
+            if edge and (cursor := edge.get("cursor")) is not None:
+                return cursor
+        return None
 
     def update_variables(self) -> None:
         """Updates the GraphQL query variables for pagination.
@@ -243,7 +246,12 @@ class Files(SizedPaginator["File"]):
         run_data = project.get("run") or {}
         files_data = run_data.get("files") or {}
         edges = files_data.get("edges") or []
-        return [File(self.client, r["node"], self.run) for r in edges]
+        objects = []
+        for edge in edges:
+            if not edge or not (node := edge.get("node")):
+                continue
+            objects.append(File(self.client, node, self.run))
+        return objects
 
     def __repr__(self) -> str:
         return f"<{nameof(type(self))} {'/'.join(self.run.path)} ({len(self)})>"
