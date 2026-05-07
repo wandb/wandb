@@ -39,7 +39,7 @@ import os
 import pathlib
 import tempfile
 import time
-from urllib.parse import quote
+import urllib.parse
 from collections.abc import Collection, Iterator, Mapping
 from typing import TYPE_CHECKING, Any, Literal
 
@@ -1556,9 +1556,9 @@ class Run(Attrs):
     def path(self) -> list[str]:
         """The path of the run. The path is a list containing the entity, project, and run_id."""
         return [
-            quote(str(self.entity), safe=""),
-            quote(str(self.project), safe=""),
-            quote(str(self.id), safe=""),
+            urllib.parse.quote(str(self.entity), safe=""),
+            urllib.parse.quote(str(self.project), safe=""),
+            urllib.parse.quote(str(self.id), safe=""),
         ]
 
     @property
