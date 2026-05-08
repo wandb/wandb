@@ -13,8 +13,6 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any
 
-from typing_extensions import Self
-
 from wandb.apis.attrs import Attrs
 from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 
@@ -88,7 +86,7 @@ class Team(Attrs):
         self.load()
 
     @classmethod
-    def create(cls, api: Api, team: str, admin_username: str | None = None) -> Self:
+    def create(cls, api: Api, team: str, admin_username: str | None = None) -> Team:
         """Create a new team.
 
         Args:
