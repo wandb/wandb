@@ -442,7 +442,7 @@ class WandbImporter:
         settings_override = {
             "api_key": self.dst_api_key,
             "base_url": self.dst_base_url,
-            "resume": "true",
+            "resume": "allow",
             "resumed": True,
         }
 
@@ -530,7 +530,7 @@ class WandbImporter:
         settings_override = {
             "api_key": self.dst_api_key,
             "base_url": self.dst_base_url,
-            "resume": "true",
+            "resume": "allow",
             "resumed": True,
         }
 
@@ -810,7 +810,7 @@ class WandbImporter:
         settings_override = {
             "api_key": self.dst_api_key,
             "base_url": self.dst_base_url,
-            "resume": "true",
+            "resume": "allow",
             "resumed": True,
         }
         logger.debug(f"Using artifact sequence with {settings_override=}, {namespace=}")

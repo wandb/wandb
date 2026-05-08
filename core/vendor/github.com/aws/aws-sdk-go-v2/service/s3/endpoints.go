@@ -7754,124 +7754,133 @@ func (r *resolver) ResolveEndpoint(
 																	_accessPointName := *exprVal
 																	_ = _accessPointName
 																	if _outpostType == "accesspoint" {
-																		if exprVal := params.Endpoint; exprVal != nil {
-																			_Endpoint := *exprVal
-																			_ = _Endpoint
-																			if exprVal := rulesfn.ParseURL(_Endpoint); exprVal != nil {
-																				_url := *exprVal
-																				_ = _url
-																				uriString := func() string {
-																					var out strings.Builder
-																					out.WriteString("https://")
-																					out.WriteString(_accessPointName)
-																					out.WriteString("-")
-																					out.WriteString(_bucketArn.AccountId)
-																					out.WriteString(".")
-																					out.WriteString(_outpostId)
-																					out.WriteString(".")
-																					out.WriteString(_url.Authority)
-																					return out.String()
-																				}()
+																		if rulesfn.IsValidHostLabel(_accessPointName, false) {
+																			if exprVal := params.Endpoint; exprVal != nil {
+																				_Endpoint := *exprVal
+																				_ = _Endpoint
+																				if exprVal := rulesfn.ParseURL(_Endpoint); exprVal != nil {
+																					_url := *exprVal
+																					_ = _url
+																					uriString := func() string {
+																						var out strings.Builder
+																						out.WriteString("https://")
+																						out.WriteString(_accessPointName)
+																						out.WriteString("-")
+																						out.WriteString(_bucketArn.AccountId)
+																						out.WriteString(".")
+																						out.WriteString(_outpostId)
+																						out.WriteString(".")
+																						out.WriteString(_url.Authority)
+																						return out.String()
+																					}()
 
-																				uri, err := url.Parse(uriString)
-																				if err != nil {
-																					return endpoint, fmt.Errorf("Failed to parse uri: %s", uriString)
+																					uri, err := url.Parse(uriString)
+																					if err != nil {
+																						return endpoint, fmt.Errorf("Failed to parse uri: %s", uriString)
+																					}
+
+																					return smithyendpoints.Endpoint{
+																						URI:     *uri,
+																						Headers: http.Header{},
+																						Properties: func() smithy.Properties {
+																							var out smithy.Properties
+																							smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
+																								{
+																									SchemeID: "aws.auth#sigv4a",
+																									SignerProperties: func() smithy.Properties {
+																										var sp smithy.Properties
+																										smithyhttp.SetDisableDoubleEncoding(&sp, true)
+
+																										smithyhttp.SetSigV4SigningName(&sp, "s3-outposts")
+																										smithyhttp.SetSigV4ASigningName(&sp, "s3-outposts")
+
+																										smithyhttp.SetSigV4ASigningRegions(&sp, []string{"*"})
+																										return sp
+																									}(),
+																								},
+																								{
+																									SchemeID: "aws.auth#sigv4",
+																									SignerProperties: func() smithy.Properties {
+																										var sp smithy.Properties
+																										smithyhttp.SetDisableDoubleEncoding(&sp, true)
+
+																										smithyhttp.SetSigV4SigningName(&sp, "s3-outposts")
+																										smithyhttp.SetSigV4ASigningName(&sp, "s3-outposts")
+
+																										smithyhttp.SetSigV4SigningRegion(&sp, _bucketArn.Region)
+																										return sp
+																									}(),
+																								},
+																							})
+																							return out
+																						}(),
+																					}, nil
 																				}
-
-																				return smithyendpoints.Endpoint{
-																					URI:     *uri,
-																					Headers: http.Header{},
-																					Properties: func() smithy.Properties {
-																						var out smithy.Properties
-																						smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
-																							{
-																								SchemeID: "aws.auth#sigv4a",
-																								SignerProperties: func() smithy.Properties {
-																									var sp smithy.Properties
-																									smithyhttp.SetDisableDoubleEncoding(&sp, true)
-
-																									smithyhttp.SetSigV4SigningName(&sp, "s3-outposts")
-																									smithyhttp.SetSigV4ASigningName(&sp, "s3-outposts")
-
-																									smithyhttp.SetSigV4ASigningRegions(&sp, []string{"*"})
-																									return sp
-																								}(),
-																							},
-																							{
-																								SchemeID: "aws.auth#sigv4",
-																								SignerProperties: func() smithy.Properties {
-																									var sp smithy.Properties
-																									smithyhttp.SetDisableDoubleEncoding(&sp, true)
-
-																									smithyhttp.SetSigV4SigningName(&sp, "s3-outposts")
-																									smithyhttp.SetSigV4ASigningName(&sp, "s3-outposts")
-
-																									smithyhttp.SetSigV4SigningRegion(&sp, _bucketArn.Region)
-																									return sp
-																								}(),
-																							},
-																						})
-																						return out
-																					}(),
-																				}, nil
 																			}
+																			uriString := func() string {
+																				var out strings.Builder
+																				out.WriteString("https://")
+																				out.WriteString(_accessPointName)
+																				out.WriteString("-")
+																				out.WriteString(_bucketArn.AccountId)
+																				out.WriteString(".")
+																				out.WriteString(_outpostId)
+																				out.WriteString(".s3-outposts.")
+																				out.WriteString(_bucketArn.Region)
+																				out.WriteString(".")
+																				out.WriteString(_bucketPartition.DnsSuffix)
+																				return out.String()
+																			}()
+
+																			uri, err := url.Parse(uriString)
+																			if err != nil {
+																				return endpoint, fmt.Errorf("Failed to parse uri: %s", uriString)
+																			}
+
+																			return smithyendpoints.Endpoint{
+																				URI:     *uri,
+																				Headers: http.Header{},
+																				Properties: func() smithy.Properties {
+																					var out smithy.Properties
+																					smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
+																						{
+																							SchemeID: "aws.auth#sigv4a",
+																							SignerProperties: func() smithy.Properties {
+																								var sp smithy.Properties
+																								smithyhttp.SetDisableDoubleEncoding(&sp, true)
+
+																								smithyhttp.SetSigV4SigningName(&sp, "s3-outposts")
+																								smithyhttp.SetSigV4ASigningName(&sp, "s3-outposts")
+
+																								smithyhttp.SetSigV4ASigningRegions(&sp, []string{"*"})
+																								return sp
+																							}(),
+																						},
+																						{
+																							SchemeID: "aws.auth#sigv4",
+																							SignerProperties: func() smithy.Properties {
+																								var sp smithy.Properties
+																								smithyhttp.SetDisableDoubleEncoding(&sp, true)
+
+																								smithyhttp.SetSigV4SigningName(&sp, "s3-outposts")
+																								smithyhttp.SetSigV4ASigningName(&sp, "s3-outposts")
+
+																								smithyhttp.SetSigV4SigningRegion(&sp, _bucketArn.Region)
+																								return sp
+																							}(),
+																						},
+																					})
+																					return out
+																				}(),
+																			}, nil
 																		}
-																		uriString := func() string {
+																		return endpoint, fmt.Errorf("endpoint rule error, %s", func() string {
 																			var out strings.Builder
-																			out.WriteString("https://")
+																			out.WriteString("Invalid ARN: The access point name may only contain a-z, A-Z, 0-9 and `-`. Found: `")
 																			out.WriteString(_accessPointName)
-																			out.WriteString("-")
-																			out.WriteString(_bucketArn.AccountId)
-																			out.WriteString(".")
-																			out.WriteString(_outpostId)
-																			out.WriteString(".s3-outposts.")
-																			out.WriteString(_bucketArn.Region)
-																			out.WriteString(".")
-																			out.WriteString(_bucketPartition.DnsSuffix)
+																			out.WriteString("`")
 																			return out.String()
-																		}()
-
-																		uri, err := url.Parse(uriString)
-																		if err != nil {
-																			return endpoint, fmt.Errorf("Failed to parse uri: %s", uriString)
-																		}
-
-																		return smithyendpoints.Endpoint{
-																			URI:     *uri,
-																			Headers: http.Header{},
-																			Properties: func() smithy.Properties {
-																				var out smithy.Properties
-																				smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
-																					{
-																						SchemeID: "aws.auth#sigv4a",
-																						SignerProperties: func() smithy.Properties {
-																							var sp smithy.Properties
-																							smithyhttp.SetDisableDoubleEncoding(&sp, true)
-
-																							smithyhttp.SetSigV4SigningName(&sp, "s3-outposts")
-																							smithyhttp.SetSigV4ASigningName(&sp, "s3-outposts")
-
-																							smithyhttp.SetSigV4ASigningRegions(&sp, []string{"*"})
-																							return sp
-																						}(),
-																					},
-																					{
-																						SchemeID: "aws.auth#sigv4",
-																						SignerProperties: func() smithy.Properties {
-																							var sp smithy.Properties
-																							smithyhttp.SetDisableDoubleEncoding(&sp, true)
-
-																							smithyhttp.SetSigV4SigningName(&sp, "s3-outposts")
-																							smithyhttp.SetSigV4ASigningName(&sp, "s3-outposts")
-
-																							smithyhttp.SetSigV4SigningRegion(&sp, _bucketArn.Region)
-																							return sp
-																						}(),
-																					},
-																				})
-																				return out
-																			}(),
-																		}, nil
+																		}())
 																	}
 																	return endpoint, fmt.Errorf("endpoint rule error, %s", func() string {
 																		var out strings.Builder
@@ -7957,8 +7966,8 @@ func (r *resolver) ResolveEndpoint(
 			}
 			if _ForcePathStyle == true {
 				if exprVal := awsrulesfn.ParseARN(_Bucket); exprVal != nil {
-					_var_487 := *exprVal
-					_ = _var_487
+					_var_488 := *exprVal
+					_ = _var_488
 					return endpoint, fmt.Errorf("endpoint rule error, %s", "Path-style addressing cannot be used with ARN buckets")
 				}
 			}

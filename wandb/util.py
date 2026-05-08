@@ -62,7 +62,7 @@ T = TypeVar("T")
 
 
 logger = logging.getLogger(__name__)
-_not_importable = set()
+_not_importable: set[str] = set()
 
 LAUNCH_JOB_ARTIFACT_SLOT_NAME = "_wandb_job"
 

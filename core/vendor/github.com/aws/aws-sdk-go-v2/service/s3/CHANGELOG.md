@@ -1,3 +1,7 @@
+# v1.101.0 (2026-05-06)
+
+* **Feature**: Validate outpost access point resource name
+
 # v1.100.1 (2026-04-29)
 
 * **Bug Fix**: Fix a memory leak in the credential cache used for S3 Express session credentials.
