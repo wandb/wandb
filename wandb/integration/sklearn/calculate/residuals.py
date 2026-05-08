@@ -50,7 +50,7 @@ def make_table(
     y_pred_column, dataset_column, residuals_column = [], [], []
 
     datapoints, max_datapoints_train = 0, 100
-    for pred, residual in zip(y_pred_train, residuals_train):
+    for pred, residual in zip(y_pred_train, residuals_train, strict=False):
         # add class counts from training set
         y_pred_column.append(pred)
         dataset_column.append("train")
@@ -60,7 +60,7 @@ def make_table(
             break
 
     datapoints = 0
-    for pred, residual in zip(y_pred_test, residuals_test):
+    for pred, residual in zip(y_pred_test, residuals_test, strict=False):
         # add class counts from training set
         y_pred_column.append(pred)
         dataset_column.append("test")

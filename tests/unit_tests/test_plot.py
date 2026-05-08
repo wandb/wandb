@@ -215,7 +215,7 @@ def test_line_series(x_values, y_values):
     expected_data = []
     for idx, y_values_line in enumerate(y_values):
         line_label = f"line_{idx}"
-        for x, y in zip(x_values, y_values_line):
+        for x, y in zip(x_values, y_values_line, strict=False):
             expected_data.append([x, line_label, y])
 
     assert chart.table.data == expected_data

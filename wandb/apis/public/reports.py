@@ -412,7 +412,7 @@ class PythonMongoishQueryGenerator:
 
     def _replace_numeric_dots(self, s):
         numeric_dots = []
-        for i, (left, mid, right) in enumerate(zip(s, s[1:], s[2:]), 1):
+        for i, (left, mid, right) in enumerate(zip(s, s[1:], s[2:], strict=False), 1):
             if mid == "." and (
                 left.isdigit()
                 and right.isdigit()  # 1.2
@@ -428,7 +428,7 @@ class PythonMongoishQueryGenerator:
         numeric_dots = [-1] + numeric_dots + [len(s)]
 
         substrs = []
-        for start, stop in zip(numeric_dots, numeric_dots[1:]):
+        for start, stop in zip(numeric_dots, numeric_dots[1:], strict=False):
             substrs.append(s[start + 1 : stop])
             substrs.append(self.DECIMAL_SPACER)
         substrs = substrs[:-1]
