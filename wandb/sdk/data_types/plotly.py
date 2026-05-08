@@ -3,7 +3,7 @@ from __future__ import annotations
 import codecs
 import os
 from collections.abc import Sequence
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypeAlias
 
 from wandb import util
 from wandb.sdk.lib import runid
@@ -22,7 +22,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
     from ..wandb_run import Run as LocalRun
 
-    ValToJsonType = (
+    ValToJsonType: TypeAlias = (
         dict
         | WBValue
         | Sequence[WBValue]

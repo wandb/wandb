@@ -31,8 +31,10 @@ if TYPE_CHECKING:  # pragma: no cover
 
     from wandb.sdk.artifacts.artifact import Artifact
 
-    TorchTensorType = torch.Tensor | torch.Variable
-    ImageDataType = matplotlib.artist.Artist | PILImage | TorchTensorType | np.ndarray
+    TorchTensorType: TypeAlias = torch.Tensor | torch.Variable
+    ImageDataType: TypeAlias = (
+        matplotlib.artist.Artist | PILImage | TorchTensorType | np.ndarray
+    )
     ImageDataOrPathType: TypeAlias = "str | pathlib.Path | Image | ImageDataType"
 
 

@@ -5,7 +5,7 @@ import logging
 import os
 from collections.abc import Sequence
 from decimal import Decimal
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, TypeAlias, cast
 
 import wandb
 from wandb import util
@@ -23,7 +23,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
     from ..wandb_run import Run as LocalRun
 
-    ValToJsonType = (
+    ValToJsonType: TypeAlias = (
         dict
         | WBValue
         | Sequence[WBValue]
