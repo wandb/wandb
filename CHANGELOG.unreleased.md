@@ -23,3 +23,4 @@ Section headings should be at level 3 (e.g. `### Added`).
 ### Changed
 
 - Changed CPU and memory system metric percentages in Linux containers to use cgroup v2 resource limits instead of host node totals. Set the private `x_stats_no_cgroup` setting to `True` to opt out (@dmitryduev in https://github.com/wandb/wandb/pull/11796)
+- More informative errors are raised from `Api.artifacts()` and related artifact paginators when the artifact path is invalid or inaccessible (@tonyyli-wandb in https://github.com/wandb/wandb/pull/11813)
