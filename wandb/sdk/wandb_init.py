@@ -22,9 +22,9 @@ import sys
 import tempfile
 import time
 from collections.abc import Iterable, Iterator, Sequence
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
-from typing_extensions import Any, Literal, Protocol, Self
+from typing_extensions import Any, Protocol, Self
 
 import wandb
 import wandb.env

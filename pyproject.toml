@@ -11,7 +11,7 @@ readme = "package_readme.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.10"
 dependencies = [
-    "Click>=8.0.1",
+    "Click>=8.2.0",
     "GitPython>=1.0.0,!=3.1.29",
     "requests>=2.0.0,<3",
     "sentry-sdk>=2.0.0",
@@ -161,7 +161,7 @@ extend-exclude = [
     "wandb/vendor/**",
     "wandb/proto/**",
 ]
-target-version = "py39"
+target-version = "py310"
 
 [tool.ruff.format]
 docstring-code-format = true
@@ -197,7 +197,6 @@ select = [
     "SIM401", # if-else-block-instead-of-dict-get
     "SIM910", # dict-get-with-none-default
     "SIM911", # zip-dict-keys-and-values
-
 
     # tryceratops
     "TRY004", # type-check-without-type-error

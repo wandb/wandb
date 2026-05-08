@@ -17,7 +17,8 @@ from contextlib import suppress
 from itertools import chain
 from pathlib import Path
 from shutil import rmtree
-from typing import Any, ClassVar, Iterable, Iterator, Mapping
+from typing import Any, ClassVar
+from collections.abc import Iterable, Iterator, Mapping
 
 from ariadne_codegen import Plugin
 from graphql import (

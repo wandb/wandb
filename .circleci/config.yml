@@ -632,7 +632,7 @@ workflows:
 
           matrix:
             parameters:
-              python: ["3.9", "3.13"]
+              python: ["3.10", "3.13"]
 
       - nox-tests-linux:
           name: unit-tests-pydantic-v1-linux-<<matrix.python>>
@@ -642,7 +642,7 @@ workflows:
 
           matrix:
             parameters:
-              python: ["3.9", "3.13"]
+              python: ["3.10", "3.13"]
 
       #
       # Unit tests with pytest on macOS
@@ -655,7 +655,7 @@ workflows:
 
           matrix:
             parameters:
-              python: ["3.9", "3.13"]
+              python: ["3.10", "3.13"]
 
       #
       # Unit tests with pytest on Windows
@@ -675,7 +675,7 @@ workflows:
 
           matrix:
             parameters:
-              python: ["3.9", "3.13"]
+              python: ["3.10", "3.13"]
 
       #
       # System tests on Linux
@@ -694,7 +694,7 @@ workflows:
 
           matrix:
             parameters:
-              python: ["3.9", "3.13"]
+              python: ["3.10", "3.13"]
 
       - nox-tests-linux:
           name: system-tests-min-server-version-linux-<<matrix.python>>
@@ -726,7 +726,7 @@ workflows:
 
           matrix:
             parameters:
-              python: ["3.9", "3.13"]
+              python: ["3.10", "3.13"]
 
       #
       # Functional tests with pytest on Linux
@@ -772,16 +772,8 @@ workflows:
       #
       - nox-tests-linux:
           name: system-tests-linux-importers-wandb
-          session: importer_tests-3.9(importer='wandb')
+          session: importer_tests-3.10(importer='wandb')
           codecov_flags: system
           parallelism: 1
           executor_name: local-testcontainer-importers
-          python: "3.9"
-      # FIXME: mlflow importer requires pydantic<2
-      # - nox-tests-linux:
-      #     name: system-tests-linux-importers-mlflow
-      #     session: importer_tests-3.9(importer='mlflow')
-      #     codecov_flags: system
-      #     parallelism: 1
-      #     executor_name: local-testcontainer-importers
-      #     python: "3.9"
+          python: "3.10"

@@ -15,9 +15,9 @@ import contextlib
 import json
 import weakref
 from collections.abc import Iterator
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, TypeAlias
 
-from typing_extensions import Self, TypeAlias
+from typing_extensions import Self
 
 from wandb.apis.normalize import normalize_exceptions
 from wandb.proto import wandb_api_pb2 as pb

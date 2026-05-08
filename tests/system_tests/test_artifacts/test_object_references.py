@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import shutil
 import time
+from collections.abc import Callable
 from contextlib import suppress
 from pathlib import Path
-from typing import Callable, Literal
+from typing import Literal
 
 import boto3
 import botocore

@@ -88,7 +88,7 @@ def mock_launch_project(mocker):
         override_config={},
         override_args=[],
         override_artifacts={},
-        python_version="3.9.11",
+        python_version="3.10.13",
     )
     launch_project.get_job_entry_point = lambda: launch_project.entry_point
     return launch_project
@@ -243,7 +243,7 @@ def test_get_requirements_section_pyproject(
 
 def test_job_builder_includes_services_in_wandb_job_json(tmp_path):
     metadata = {
-        "python": "3.9",
+        "python": "3.10",
         "codePath": "main.py",
         "entrypoint": ["python", "main.py"],
         "docker": "my-image:latest",
@@ -264,7 +264,7 @@ def test_job_builder_includes_services_in_wandb_job_json(tmp_path):
 def test_job_builder_excludes_services_in_wandb_job_json(tmp_path):
     """Test that JobBuilder.build excludes services key when no services are set."""
     metadata = {
-        "python": "3.9",
+        "python": "3.10",
         "codePath": "main.py",
         "entrypoint": ["python", "main.py"],
         "docker": "my-image:latest",

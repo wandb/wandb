@@ -7,10 +7,10 @@ import shutil
 import sys
 import time
 import unittest.mock
-from collections.abc import Generator, Iterator
+from collections.abc import Callable, Generator, Iterator
 from pathlib import Path
 from queue import Queue
-from typing import Any, Callable
+from typing import Any
 
 from wandb.sdk import wandb_setup
 

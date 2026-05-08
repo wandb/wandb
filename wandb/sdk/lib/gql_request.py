@@ -6,7 +6,8 @@ The only substantial change is to reuse a requests.Session object.
 
 from __future__ import annotations
 
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from wandb_gql.transport.http import HTTPTransport
 from wandb_graphql.execution import ExecutionResult

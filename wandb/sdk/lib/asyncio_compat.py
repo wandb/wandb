@@ -7,8 +7,8 @@ import concurrent
 import concurrent.futures
 import contextlib
 import threading
-from collections.abc import AsyncIterator, Coroutine
-from typing import Any, Callable, TypeVar
+from collections.abc import AsyncIterator, Callable, Coroutine
+from typing import Any, TypeVar
 
 _T = TypeVar("_T")
 

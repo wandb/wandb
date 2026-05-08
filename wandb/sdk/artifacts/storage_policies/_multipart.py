@@ -5,14 +5,14 @@ from __future__ import annotations
 import logging
 import math
 import threading
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from concurrent.futures import FIRST_EXCEPTION, Executor, ThreadPoolExecutor, wait
 from dataclasses import dataclass, field
 from queue import Full, Queue
-from typing import IO, TYPE_CHECKING, Any, Callable, Final, Union
+from typing import IO, TYPE_CHECKING, Any, Final, TypeAlias
 
 import requests
-from typing_extensions import TypeAlias, TypeIs, final
+from typing_extensions import TypeIs, final
 
 from wandb import env
 from wandb.sdk.artifacts.artifact_file_cache import Opener
@@ -78,7 +78,7 @@ class ChunkContent:
     data: bytes
 
 
-QueuedChunk: TypeAlias = Union[ChunkContent, _ChunkSentinel]
+QueuedChunk: TypeAlias = ChunkContent | _ChunkSentinel
 
 
 def should_multipart_download(size: int | None, override: bool | None = None) -> bool:

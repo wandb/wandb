@@ -54,7 +54,7 @@ import os
 import random
 import string
 import time
-from typing import Callable
+from collections.abc import Callable
 
 import yaml
 
@@ -201,7 +201,9 @@ class _WandbController:
 
             # check for custom search and or stopping functions
             for config_key, controller_attr in zip(
-                ["method", "early_terminate"], ["_custom_search", "_custom_stopping"]
+                ["method", "early_terminate"],
+                ["_custom_search", "_custom_stopping"],
+                strict=True,
             ):
                 if callable(config_key in self._create and self._create[config_key]):
                     setattr(self, controller_attr, self._create[config_key])

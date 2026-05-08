@@ -7,9 +7,10 @@ import getpass
 import io
 import os
 import time
+from collections.abc import Callable
 from functools import partial
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 import click
 import requests
