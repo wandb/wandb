@@ -174,26 +174,33 @@ def _field_range(query: str, tokens: list[_Token], idx: int) -> tuple[int, int] 
 
     end_idx = idx
     cursor = idx + 1
-    while cursor < len(tokens):
-        value = tokens[cursor].value
-        if value in {"(", "{"}:
+
+    if cursor < len(tokens) and tokens[cursor].value == "(":
+        match_idx = _matching_token(tokens, cursor)
+        if match_idx is None:
+            return None
+        end_idx = match_idx
+        cursor = match_idx + 1
+
+    while cursor < len(tokens) and tokens[cursor].value == "@":
+        end_idx = cursor
+        cursor += 1
+        if cursor >= len(tokens):
+            break
+        end_idx = cursor
+        cursor += 1
+        if cursor < len(tokens) and tokens[cursor].value == "(":
             match_idx = _matching_token(tokens, cursor)
             if match_idx is None:
                 return None
             end_idx = match_idx
             cursor = match_idx + 1
-        elif value == "@":
-            cursor += 1
-        elif value in {"}", ")"}:
-            break
-        elif value == ",":
-            end_idx = cursor
-            break
-        else:
-            end_idx = cursor
-            cursor += 1
-            if cursor < len(tokens) and tokens[cursor].value not in {"(", "{", "@"}:
-                break
+
+    if cursor < len(tokens) and tokens[cursor].value == "{":
+        match_idx = _matching_token(tokens, cursor)
+        if match_idx is None:
+            return None
+        end_idx = match_idx
 
     return _line_range(query, tokens[start_idx].start, tokens[end_idx].end)
 

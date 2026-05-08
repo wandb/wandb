@@ -325,3 +325,27 @@ def test_gql_compat_rename_fields():
 
     assert compat_query_str == expected_query_str
     assert compat_query_str != orig_query_str
+
+
+@pytest.mark.parametrize(
+    "generated_query_name",
+    [
+        "GET_ARTIFACT_FILES_GQL",
+        "GET_ARTIFACT_MEMBERSHIP_FILES_GQL",
+        "PROJECT_ARTIFACT_COLLECTIONS_GQL",
+    ],
+)
+def test_gql_compat_omits_directed_total_count_preserving_siblings(
+    generated_query_name,
+):
+    from wandb.sdk.artifacts import _generated
+
+    compat_query = gql_compat(
+        getattr(_generated, generated_query_name),
+        omit_fields={"totalCount"},
+    )
+
+    compat_query_str = normalize_gql_str(compat_query)
+    assert "totalCount" not in compat_query_str
+    assert "pageInfo {" in compat_query_str
+    assert "edges {" in compat_query_str

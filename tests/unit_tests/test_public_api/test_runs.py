@@ -192,16 +192,15 @@ def test_lazy_run_user_accessible_without_full_load():
 
 
 def test_run_url_encodes_spaces_in_project_name():
-    client = mock.MagicMock()
-    client.app_url = "https://wandb.ai/"
+    service_api = mock.MagicMock()
+    service_api.app_url = "https://wandb.ai/"
 
     run = Run(
-        client=client,
+        service_api=service_api,
         entity="my-entity",
         project="My Project",
         run_id="12345",
         attrs={"name": "test"},
-        service_api=mock.MagicMock(),
     )
 
     assert run.url == "https://wandb.ai/my-entity/My%20Project/runs/12345"
