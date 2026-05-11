@@ -121,7 +121,7 @@ async def test_run_job_secure_mode(mocker, clean_agent):
         'This agent is configured to lock the "entrypoint" override but the job specification attempts to override it.',
     ]
     mock_file_saver = MagicMock()
-    for job, error in zip(jobs, errors):
+    for job, error in zip(jobs, errors, strict=False):
         with pytest.raises(ValueError, match=error):
             await agent.run_job(job, "test-queue", mock_file_saver)
 

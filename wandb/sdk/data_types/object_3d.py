@@ -5,7 +5,7 @@ import itertools
 import os
 import pathlib
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, ClassVar, Literal, TextIO, TypedDict, Union
+from typing import TYPE_CHECKING, ClassVar, Literal, TextIO, TypeAlias, TypedDict
 
 import wandb
 from wandb import util
@@ -24,7 +24,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
     from ..wandb_run import Run as LocalRun
 
-    numeric = Union[int, float, np.integer, np.float64]
+    numeric: TypeAlias = int | float | np.integer | np.float64
     FileFormat3D = Literal[
         "obj",
         "gltf",
@@ -36,7 +36,7 @@ if TYPE_CHECKING:  # pragma: no cover
     Point3D = tuple[numeric, numeric, numeric]
     Point3DWithCategory = tuple[numeric, numeric, numeric, numeric]
     Point3DWithColors = tuple[numeric, numeric, numeric, numeric, numeric, numeric]
-    Point = Union[Point3D, Point3DWithCategory, Point3DWithColors]
+    Point: TypeAlias = Point3D | Point3DWithCategory | Point3DWithColors
     PointCloudType = Literal["lidar/beta"]
     RGBColor = tuple[numeric, numeric, numeric]
 

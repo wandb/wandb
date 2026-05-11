@@ -3,13 +3,12 @@ from __future__ import annotations
 import json
 import secrets
 from functools import cache
-from typing import Union
+from typing import TypeAlias
 from unittest.mock import Mock
 
 from hypothesis import settings
 from pytest import FixtureRequest, fixture, skip
 from pytest_mock import MockerFixture
-from typing_extensions import TypeAlias
 from wandb._strutils import b64encode_ascii
 from wandb.apis.public import ArtifactCollection, Project
 from wandb.automations import (
@@ -37,7 +36,7 @@ settings.register_profile("default", max_examples=100)
 settings.load_profile("default")
 
 
-ScopableWandbType: TypeAlias = Union[ArtifactCollection, Project]
+ScopableWandbType: TypeAlias = ArtifactCollection | Project
 
 
 # ---------------------------------------------------------------------------

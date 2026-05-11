@@ -8,14 +8,15 @@ import shutil
 import subprocess
 import textwrap
 import time
+from collections.abc import Callable
 from contextlib import contextmanager
-from typing import Any, Callable
+from typing import Any
 
 import nox
 
 nox.options.default_venv_backend = "uv"
 
-_SUPPORTED_PYTHONS = ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
+_SUPPORTED_PYTHONS = ["3.10", "3.11", "3.12", "3.13", "3.14"]
 
 # Protobuf Python bindings.
 #
@@ -96,7 +97,7 @@ def _requirements_file(python_version: str) -> str:
     Uses the current platform as the platform tag.
 
     Args:
-        python_version: Python version string, like "3.9", "3.13".
+        python_version: Python version string, like "3.10", "3.13".
     """
     platform_tag = platform.system().lower()
 

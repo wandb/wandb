@@ -1,14 +1,13 @@
 from __future__ import annotations
 
 import secrets
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from functools import lru_cache
 from string import ascii_lowercase, digits
-from typing import Callable, Union
+from typing import TypeAlias
 
 import wandb
 from pytest import FixtureRequest, fixture, skip
-from typing_extensions import TypeAlias
 from wandb import Artifact
 from wandb.apis.public import ArtifactCollection, Project
 from wandb.automations import (
@@ -34,7 +33,7 @@ from wandb.automations._generated import (
 from wandb.automations._utils import INVALID_INPUT_ACTIONS, INVALID_INPUT_EVENTS
 from wandb.automations.events import InputEvent
 
-ScopableWandbType: TypeAlias = Union[ArtifactCollection, Project]
+ScopableWandbType: TypeAlias = ArtifactCollection | Project
 
 
 def random_string(chars: str = ascii_lowercase + digits, n: int = 12) -> str:

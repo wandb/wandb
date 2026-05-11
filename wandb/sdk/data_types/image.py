@@ -6,7 +6,7 @@ import os
 import pathlib
 from collections.abc import Sequence
 from io import BytesIO
-from typing import TYPE_CHECKING, Any, Union, cast
+from typing import TYPE_CHECKING, Any, TypeAlias, cast
 from urllib import parse
 
 from packaging.version import parse as parse_version
@@ -31,11 +31,11 @@ if TYPE_CHECKING:  # pragma: no cover
 
     from wandb.sdk.artifacts.artifact import Artifact
 
-    ImageDataType = Union[
-        "matplotlib.artist.Artist", "PILImage", "TorchTensorType", "np.ndarray"
-    ]
-    ImageDataOrPathType = Union[str, pathlib.Path, "Image", ImageDataType]
-    TorchTensorType = Union["torch.Tensor", "torch.Variable"]
+    TorchTensorType: TypeAlias = torch.Tensor | torch.Variable
+    ImageDataType: TypeAlias = (
+        matplotlib.artist.Artist | PILImage | TorchTensorType | np.ndarray
+    )
+    ImageDataOrPathType: TypeAlias = "str | pathlib.Path | Image | ImageDataType"
 
 
 def _warn_on_invalid_data_range(

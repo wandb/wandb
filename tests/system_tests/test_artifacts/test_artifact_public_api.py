@@ -4,10 +4,10 @@ import os
 import platform
 import random
 import string
+from collections.abc import Callable
 from contextlib import nullcontext
 from itertools import islice
 from pathlib import Path
-from typing import Callable
 
 import requests
 import wandb

@@ -1,8 +1,7 @@
 from __future__ import annotations
 
 import os
-from collections.abc import Generator
-from typing import Callable
+from collections.abc import Callable, Generator
 
 WANDB_DIRS = ("wandb", ".wandb")
 

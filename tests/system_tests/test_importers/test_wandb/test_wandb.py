@@ -40,12 +40,12 @@ def test_import_runs(
         assert len(src_runs) == len(dst_runs)
 
         # And the data is the same
-        for src_run, dst_run in zip(src_runs, dst_runs):
+        for src_run, dst_run in zip(src_runs, dst_runs, strict=False):
             src_history = list(src_run.scan_history())
             dst_history = list(dst_run.scan_history())
 
             assert len(src_history) == len(dst_history)
-            for src_row, dst_row in zip(src_history, dst_history):
+            for src_row, dst_row in zip(src_history, dst_history, strict=False):
                 assert src_row == dst_row
 
 
@@ -96,7 +96,7 @@ def test_import_artifact_sequences(
         assert len(src_arts) == len(dst_arts)
 
         # Their contents are the same
-        for src_art, dst_art in zip(src_arts, dst_arts):
+        for src_art, dst_art in zip(src_arts, dst_arts, strict=False):
             assert src_art.name == dst_art.name
             assert src_art.type == dst_art.type
             assert src_art.digest == dst_art.digest

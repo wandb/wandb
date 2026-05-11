@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import os
-from collections.abc import Iterator
-from typing import TYPE_CHECKING, Callable
+from collections.abc import Callable, Iterator
+from typing import TYPE_CHECKING
 
 from pytest import fixture, mark
 from wandb import Api

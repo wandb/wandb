@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import sys
+from collections.abc import Callable
 from functools import wraps
-from typing import Callable, TypeVar
+from typing import TypeVar
 
 from wandb import env
 from wandb.errors import CommError, Error

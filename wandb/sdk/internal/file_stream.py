@@ -10,8 +10,9 @@ import random
 import sys
 import threading
 import time
+from collections.abc import Callable
 from types import TracebackType
-from typing import TYPE_CHECKING, Any, Callable, NamedTuple
+from typing import TYPE_CHECKING, Any, NamedTuple
 
 if TYPE_CHECKING:
     from typing import TypedDict

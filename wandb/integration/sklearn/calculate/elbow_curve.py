@@ -30,7 +30,7 @@ def elbow_curve(clusterer, X, cluster_ranges, n_jobs, show_cluster_time):  # noq
 def make_table(cluster_ranges, clfs, times):
     columns = ["cluster_ranges", "errors", "clustering_time"]
 
-    data = list(zip(cluster_ranges, clfs, times))
+    data = list(zip(cluster_ranges, clfs, times, strict=False))
 
     table = wandb.Table(columns=columns, data=data)
 
@@ -42,7 +42,7 @@ def _compute_results_parallel(n_jobs, clusterer, x, cluster_ranges):
     _cluster_scorer = delayed(_clone_and_score_clusterer)
     results = parallel_runner(_cluster_scorer(clusterer, x, i) for i in cluster_ranges)
 
-    clfs, times = zip(*results)
+    clfs, times = zip(*results, strict=False)
 
     return clfs, times
 

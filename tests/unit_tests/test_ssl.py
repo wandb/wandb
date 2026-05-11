@@ -3,9 +3,8 @@ import dataclasses
 import http.server
 import ssl
 import threading
-from collections.abc import Iterator, Mapping
+from collections.abc import Callable, Iterator, Mapping
 from pathlib import Path
-from typing import Callable
 from unittest.mock import patch
 
 import pytest

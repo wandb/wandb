@@ -2,7 +2,8 @@ from __future__ import annotations
 
 __all__ = ["wandb_log", "unpatch_kfp"]
 
-from typing import TYPE_CHECKING, Any, Callable
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
 
 from .kfp_patch import patch_kfp, unpatch_kfp
 

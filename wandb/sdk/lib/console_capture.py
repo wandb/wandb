@@ -30,8 +30,8 @@ import contextvars
 import logging
 import sys
 import threading
-from collections.abc import Iterator
-from typing import IO, AnyStr, Callable, Protocol
+from collections.abc import Callable, Iterator
+from typing import IO, AnyStr, Protocol
 
 from . import wb_logging
 

@@ -7,9 +7,10 @@ import dataclasses
 import json
 import re
 import threading
+from typing import TypeAlias
 
 import fastapi
-from typing_extensions import Any, TypeAlias, override
+from typing_extensions import Any, override
 
 # Matches queries containing an operation line, ignoring whitespace and
 # GraphQL comments that may precede it.

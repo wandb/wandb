@@ -152,7 +152,10 @@ INVALID_TAG_LISTS = (
     # Given an invalid + valid tag
     *([bad, "good-tag"] for bad in INVALID_TAGS),
     # Given pairs of invalid tags
-    *([bad1, bad2] for bad1, bad2 in zip(INVALID_TAGS[:-1], INVALID_TAGS[1:])),
+    *(
+        [bad1, bad2]
+        for bad1, bad2 in zip(INVALID_TAGS[:-1], INVALID_TAGS[1:], strict=False)
+    ),
 )
 
 

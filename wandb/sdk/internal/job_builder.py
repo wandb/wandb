@@ -7,7 +7,8 @@ import logging
 import os
 import re
 import sys
-from typing import TYPE_CHECKING, Any, Callable, Literal, TypedDict
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any, Literal, TypedDict
 
 import wandb
 from wandb.sdk.artifacts._internal_artifact import InternalArtifact

@@ -10,7 +10,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import time
-from typing import Callable
+from collections.abc import Callable
 
 from wandb.agents import pyagent
 from wandb.proto import wandb_internal_pb2 as pb

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import atexit
 import pathlib
-from typing import Callable
+from collections.abc import Callable
 
 from wandb.proto import wandb_api_pb2, wandb_settings_pb2, wandb_sync_pb2
 from wandb.proto import wandb_server_pb2 as spb

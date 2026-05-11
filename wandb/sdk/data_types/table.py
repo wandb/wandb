@@ -346,7 +346,7 @@ class Table(Media):
             dtype = [dtype for _ in range(len(self.columns))]
 
         self._column_types = _dtypes.TypedDictType({})
-        for col_name, opt, dt in zip(self.columns, optional, dtype):
+        for col_name, opt, dt in zip(self.columns, optional, dtype, strict=False):
             self.cast(col_name, dt, opt)
 
     def _load_incremental_table_state_from_resumed_run(self, run: LocalRun, key: str):

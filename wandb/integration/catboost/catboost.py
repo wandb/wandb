@@ -96,7 +96,9 @@ def _log_feature_importance(
 
     fi_data = [
         [feat, feat_imp]
-        for feat, feat_imp in zip(feat_df["Feature Id"], feat_df["Importances"])
+        for feat, feat_imp in zip(
+            feat_df["Feature Id"], feat_df["Importances"], strict=False
+        )
     ]
     table = wandb.Table(data=fi_data, columns=["Feature", "Importance"])
     # todo: replace with wandb.run._log once available

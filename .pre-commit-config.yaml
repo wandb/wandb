@@ -8,13 +8,13 @@ default_stages:
 default_install_hook_types: [pre-push, pre-commit]
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: "v0.14.11"
+    rev: "v0.15.12"
     hooks:
       - id: ruff-check
         args: [--fix]
       - id: ruff-format
   - repo: https://github.com/pre-commit/mirrors-clang-format
-    rev: v21.1.8
+    rev: v22.1.5
     hooks:
       - id: clang-format
         types_or: [proto]

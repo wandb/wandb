@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 from functools import singledispatch, wraps
-from typing import TYPE_CHECKING, Any, Callable, Literal, Optional, TypeVar
+from typing import TYPE_CHECKING, Any, Concatenate, Literal, Optional, TypeVar
 
 from pydantic.dataclasses import dataclass as pydantic_dataclass
-from typing_extensions import Concatenate, ParamSpec, Self
+from typing_extensions import ParamSpec, Self
 
 from wandb._iterutils import always_list, unique_list
 from wandb._pydantic import from_json
