@@ -1394,7 +1394,15 @@ def init(  # noqa: C901
             proceed. If `False` (default), the script can proceed without a login,
             switching to offline mode if the user is not logged in.
         reinit: Shorthand for the "reinit" setting. Determines the behavior of
-            `wandb.init()` when a run is active.
+            `wandb.init()` when a run is active. Valid string values are:
+        - `"default"`: Use `"finish_previous"` in notebooks and `"return_previous"`
+            otherwise.
+        - `"return_previous"`: Return the most recently created run that is not
+            yet finished.
+        - `"finish_previous"`: Finish all active runs, then return a new run.
+        - `"create_new"`: Create a new run without modifying other active runs.
+        - `True`: Deprecated. Use `"finish_previous"` instead.
+        - `False`: Deprecated. Use `"return_previous"` instead.
         resume: Controls the behavior when resuming a run with the specified `id`.
             Available options are:
         - `"allow"`: If a run with the specified `id` exists, it will resume
