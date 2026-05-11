@@ -331,8 +331,19 @@ def init(
             the user must be logged in to W&B; otherwise, the script will not
             proceed. If `False` (default), the script can proceed without a login,
             switching to offline mode if the user is not logged in.
-        reinit: Shorthand for the "reinit" setting. Determines the behavior of
-            `wandb.init()` when a run is active.
+        reinit: Controls the behavior of `wandb.init()` when a run is already
+            active. Available options are:
+        - `"default"`: (default) In interactive notebook environments, finishes
+            the active run and starts a new one. In non-interactive scripts,
+            returns the active run without starting a new one.
+        - `"return_previous"`: Returns the active run without starting a new
+            one.
+        - `"finish_previous"`: Finishes the active run and starts a new one.
+        - `"create_new"`: Starts a new run without finishing the active run.
+            Both runs remain active concurrently.
+        - `True`: Deprecated. Use `"finish_previous"` instead.
+        - `False`: Deprecated. Use the default behavior (leaving `reinit`
+            unset) to return the active run in non-notebook environments.
         resume: Controls the behavior when resuming a run with the specified `id`.
             Available options are:
         - `"allow"`: If a run with the specified `id` exists, it will resume
