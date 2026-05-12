@@ -1332,6 +1332,14 @@ message TPUInfo {
   uint32 hbm_gib = 2;
   uint32 devices_per_chip = 3;
   uint32 count = 4;
+  string device_kind = 5;
+  uint32 local_device_count = 6;
+  uint32 global_device_count = 7;
+  uint32 num_slices = 8;
+  uint32 devices_per_slice = 9;
+  uint32 process_index = 10;
+  uint32 process_count = 11;
+  string topology_source = 12;
 }
 
 // CoreWeaveInfo stores information about a CoreWeave compute environment.
@@ -1339,6 +1347,28 @@ message CoreWeaveInfo {
   string cluster_name = 1;
   string org_id = 2;
   string region = 3;
+}
+
+// GKEInfo stores information about a Google Kubernetes Engine workload.
+message GKEInfo {
+  string cluster_name = 1;
+  string namespace = 2;
+  string workload_kind = 3;
+  string workload_name = 4;
+  string parent_workload = 5;
+  string creation_timestamp = 6;
+  string workload_id = 7;
+  map<string, string> labels = 8;
+}
+
+// GoogleCloudInfo stores information about a Google Cloud compute environment.
+message GoogleCloudInfo {
+  string project_id = 1;
+  string zone = 2;
+  string region = 3;
+  string instance_id = 4;
+  string orchestrator = 5;
+  GKEInfo gke = 6;
 }
 
 // EnvironmentRecord stores a snapshot of the system, hardware, software,
@@ -1417,6 +1447,8 @@ message EnvironmentRecord {
   TPUInfo tpu = 29;
   // Information about CoreWeave cloud environment.
   CoreWeaveInfo coreweave = 30;
+  // Information about Google Cloud environment.
+  GoogleCloudInfo google_cloud = 31;
 
   // A unique identifier for this writer session.
   //
