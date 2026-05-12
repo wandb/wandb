@@ -190,7 +190,6 @@ def _get_remote_launch_args(config: RemoteLaunchConfig) -> list[str]:
     if config.run_id:
         args.extend(["--run-id", config.run_id])
 
-    # TODO: what args do we need for remote launch?
     return args
 
 

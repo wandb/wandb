@@ -7,6 +7,7 @@ import (
 	"os"
 	"reflect"
 	"slices"
+	"strings"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -28,6 +29,7 @@ import (
 
 const (
 	parquetBatchScanSize = 100
+	unknownMaxStep       = -1
 )
 
 type RunInfo struct {
@@ -80,12 +82,16 @@ type ParquetHistorySource struct {
 	// runhistoryreader is the reader for the run history's parquet files.
 	runhistoryreader *runhistoryreader.HistoryReader
 
+	// runPath identifies the remote run in messages.
+	runPath string
+
 	// currentStep is the current step of the reader.
 	currentStep int64
 
 	// maxKnownStep is the last step logged by the run, extracted from the
 	// run summary's "_step" field. Used as the termination bound: scanning
-	// stops when currentStep exceeds this value.
+	// stops when currentStep exceeds this value. A negative value means the
+	// summary did not provide a bound.
 	maxKnownStep int64
 
 	// runInfo is the information about the run.
@@ -122,23 +128,20 @@ func NewParquetHistorySource(
 		return nil, err
 	}
 
-	maxKnownStep := maxStepFromSummary(runInfo)
-	logger.Info("maxKnownStep", "maxKnownStep", maxKnownStep)
 	return &ParquetHistorySource{
 		logger:           logger,
 		ctx:              ctx,
 		cancel:           cancel,
+		runPath:          remoteRunPath(entity, project, runId),
 		currentStep:      0,
-		maxKnownStep:     maxKnownStep,
+		maxKnownStep:     maxStepFromSummary(runInfo),
 		runInfo:          runInfo,
 		runhistoryreader: historyReader,
 	}, nil
 }
 
 // InitializeParquetHistorySource returns a tea.Cmd that initializes a
-// ParquetHistorySource for the given run path.
-//
-// A run path is a string in the format of "wandb://<entity>/<project>/<runId>".
+// ParquetHistorySource for a remote run.
 func InitializeParquetHistorySource(
 	runParams *RemoteRunParams,
 	logger *observability.CoreLogger,
@@ -227,6 +230,7 @@ func (s *ParquetHistorySource) Read(
 		if s.runInfo != nil {
 			msgs = append(msgs,
 				RunMsg{
+					RunPath:     s.runPath,
 					ID:          s.runInfo.runId,
 					Project:     s.runInfo.project,
 					DisplayName: s.runInfo.displayName,
@@ -238,22 +242,43 @@ func (s *ParquetHistorySource) Read(
 	}
 
 	for time.Since(startTime) < maxTimePerChunk && numMsgs < chunkSize {
+		if s.maxKnownStep >= 0 && s.currentStep > s.maxKnownStep {
+			hasMore = false
+			s.readerDone = true
+			break
+		}
+
+		nextStep := s.currentStep + int64(parquetBatchScanSize)
 		historySteps, err := s.runhistoryreader.GetHistorySteps(
 			s.ctx,
 			s.currentStep,
-			s.currentStep+int64(parquetBatchScanSize),
+			nextStep,
 		)
 		if err != nil {
 			return nil, err
 		}
 
+		if len(historySteps) == 0 {
+			if s.maxKnownStep < 0 {
+				hasMore = false
+				s.readerDone = true
+				break
+			}
+			s.currentStep = nextStep
+			continue
+		}
+
 		maxStep := historySteps[len(historySteps)-1].StepValue()
-		s.currentStep = maxStep + 1
+		if maxStep < s.currentStep {
+			s.currentStep = nextStep
+		} else {
+			s.currentStep = maxStep + 1
+		}
 		historyMsg := ParseParquetHistorySteps(historySteps, s.logger)
 		histories = append(histories, historyMsg)
 		numMsgs += len(historySteps)
 
-		if s.currentStep > s.maxKnownStep {
+		if s.maxKnownStep >= 0 && s.currentStep > s.maxKnownStep {
 			hasMore = false
 			s.readerDone = true
 			break
@@ -261,7 +286,7 @@ func (s *ParquetHistorySource) Read(
 	}
 
 	if len(histories) > 0 {
-		msgs = append(msgs, concatenateHistory(histories, "TODO"))
+		msgs = append(msgs, concatenateHistory(histories, s.runPath))
 	}
 
 	if !hasMore {
@@ -302,7 +327,7 @@ func ParseParquetHistorySteps(
 		}
 
 		for _, keyValue := range historyStep {
-			if keyValue.Key == parquet.StepKey {
+			if keyValue.Key == parquet.StepKey || strings.HasPrefix(keyValue.Key, "_") {
 				continue
 			}
 
@@ -332,22 +357,24 @@ func ParseParquetHistorySteps(
 }
 
 // maxStepFromSummary extracts the "_step" value from the run summary.
-// Returns 0 if the summary is nil or doesn't contain "_step".
+// It returns unknownMaxStep if the summary is nil or doesn't contain "_step".
 func maxStepFromSummary(runInfo *RunInfo) int64 {
 	if runInfo == nil {
-		return 0
+		return unknownMaxStep
 	}
 	v, ok := runInfo.runSummary["_step"]
 	if !ok {
-		return 0
+		return unknownMaxStep
 	}
 	switch n := v.(type) {
 	case float64:
 		return int64(n)
 	case int64:
 		return n
+	case uint64:
+		return int64(n)
 	default:
-		return 0
+		return unknownMaxStep
 	}
 }
 
@@ -387,6 +414,7 @@ func (s *ParquetHistorySource) processRunSummary() tea.Msg {
 	}
 
 	return SummaryMsg{
+		RunPath: s.runPath,
 		Summary: []*spb.SummaryRecord{
 			{
 				Update: summaryItems,
@@ -436,6 +464,9 @@ func loadRunInfo(
 		return nil, err
 	}
 
+	if response == nil {
+		return nil, fmt.Errorf("run %q not found in %s/%s", runId, entity, project)
+	}
 	if response.Project == nil {
 		return nil, fmt.Errorf("project %q not found for entity %q", project, entity)
 	}
@@ -464,4 +495,8 @@ func loadRunInfo(
 		runId:       runId,
 		runSummary:  runSummaryJson,
 	}, nil
+}
+
+func remoteRunPath(entity, project, runId string) string {
+	return fmt.Sprintf("%s/%s/%s", entity, project, runId)
 }
