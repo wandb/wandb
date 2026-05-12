@@ -217,10 +217,12 @@ func TestParseParquetHistorySteps(t *testing.T) {
 		{
 			{Key: parquet.StepKey, Value: float64(0)},
 			{Key: "loss", Value: float64(1.0)},
+			{Key: parquet.TimestampKey, Value: float64(100)},
 		},
 		{
 			{Key: parquet.StepKey, Value: float64(1)},
 			{Key: "loss", Value: float64(0.8)},
+			{Key: "_runtime", Value: float64(3.2)},
 		},
 		{
 			{Key: parquet.StepKey, Value: float64(2)},
@@ -236,6 +238,124 @@ func TestParseParquetHistorySteps(t *testing.T) {
 	assert.Contains(t, result.Metrics, "loss")
 	assert.Equal(t, []float64{0, 1, 2}, result.Metrics["loss"].X)
 	assert.Equal(t, []float64{1.0, 0.8, 0.6}, result.Metrics["loss"].Y)
+}
+
+func TestReadRecords_SparseSteps(t *testing.T) {
+	tempDir := t.TempDir()
+	t.Setenv("WANDB_CACHE_DIR", tempDir)
+
+	logger := observability.NewNoOpLogger()
+
+	columns := []testColumnDef{
+		{name: "_step", colType: "int64"},
+		{name: "loss", colType: "float64"},
+	}
+	data := []map[string]any{
+		{"_step": int64(0), "loss": 1.0},
+		{"_step": int64(50), "loss": 0.5},
+		{"_step": int64(1000), "loss": 0.1},
+	}
+
+	server := serveDummyParquet(t)
+	mockGQL := mockGraphQLForParquetSource(
+		[]string{server.URL + "/test.parquet"},
+		"run_display_name",
+		`{\"_step\":1000,\"loss\":0.1}`,
+	)
+	rustWrapper := createTestRustArrowWrapper(columns, data)
+
+	runInfo := leet.NewRunInfo(
+		"entity",
+		"project",
+		"run-id",
+		map[string]any{"_step": int64(1000), "loss": 0.1},
+		"run_display_name",
+	)
+	source, err := leet.NewParquetHistorySource(
+		t.Context(),
+		"test-entity",
+		"test-project",
+		"test-run-id",
+		mockGQL,
+		retryablehttp.NewClient(),
+		runInfo,
+		logger,
+		rustWrapper,
+	)
+	require.NoError(t, err)
+
+	msg, err := source.Read(100, 10*time.Second)
+	require.NoError(t, err)
+
+	chunkedBatchMsg, ok := msg.(leet.ChunkedBatchMsg)
+	require.True(t, ok)
+	require.False(t, chunkedBatchMsg.HasMore)
+	require.Len(t, chunkedBatchMsg.Msgs, 4)
+
+	historyMsg, ok := chunkedBatchMsg.Msgs[2].(leet.HistoryMsg)
+	require.True(t, ok)
+	assert.Equal(t, []float64{0, 50, 1000}, historyMsg.Metrics["loss"].X)
+	assert.Equal(t, []float64{1.0, 0.5, 0.1}, historyMsg.Metrics["loss"].Y)
+	assert.Equal(t, "test-entity/test-project/test-run-id", historyMsg.RunPath)
+
+	_, ok = chunkedBatchMsg.Msgs[3].(leet.FileCompleteMsg)
+	require.True(t, ok)
+}
+
+func TestReadRecords_WithoutSummaryStepReadsUntilEmptyWindow(t *testing.T) {
+	tempDir := t.TempDir()
+	t.Setenv("WANDB_CACHE_DIR", tempDir)
+
+	logger := observability.NewNoOpLogger()
+
+	columns := []testColumnDef{
+		{name: "_step", colType: "int64"},
+		{name: "loss", colType: "float64"},
+	}
+	data := []map[string]any{
+		{"_step": int64(0), "loss": 1.0},
+		{"_step": int64(100), "loss": 0.1},
+	}
+
+	server := serveDummyParquet(t)
+	mockGQL := mockGraphQLForParquetSource(
+		[]string{server.URL + "/test.parquet"},
+		"run_display_name",
+		`{\"loss\":0.1}`,
+	)
+	rustWrapper := createTestRustArrowWrapper(columns, data)
+
+	runInfo := leet.NewRunInfo(
+		"entity",
+		"project",
+		"run-id",
+		map[string]any{"loss": 0.1},
+		"run_display_name",
+	)
+	source, err := leet.NewParquetHistorySource(
+		t.Context(),
+		"test-entity",
+		"test-project",
+		"test-run-id",
+		mockGQL,
+		retryablehttp.NewClient(),
+		runInfo,
+		logger,
+		rustWrapper,
+	)
+	require.NoError(t, err)
+
+	msg, err := source.Read(100, 10*time.Second)
+	require.NoError(t, err)
+
+	chunkedBatchMsg, ok := msg.(leet.ChunkedBatchMsg)
+	require.True(t, ok)
+	require.False(t, chunkedBatchMsg.HasMore)
+
+	historyMsg, ok := chunkedBatchMsg.Msgs[2].(leet.HistoryMsg)
+	require.True(t, ok)
+	assert.Equal(t, []float64{0, 100}, historyMsg.Metrics["loss"].X)
+	assert.Equal(t, []float64{1.0, 0.1}, historyMsg.Metrics["loss"].Y)
 }
 
 func TestReadRecords_ThenExit(t *testing.T) {

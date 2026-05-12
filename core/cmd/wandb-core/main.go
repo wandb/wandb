@@ -338,17 +338,13 @@ A terminal UI for viewing your W&B runs locally.
 
 Usage:
   wandb-core leet [flags] <wandb-directory>
+  wandb-core leet --run-file <wandb-file> <wandb-directory>
+  wandb-core leet --base-url <base-url> --entity <entity> --project <project> --run-id <run-id>
   wandb-core leet --config
   wandb-core leet --symon [flags]
 
 Arguments:
-  <wandb-file> Path to the .wandb file of a W&B run or a W&B run path.
-		Example:
-		  /path/to/.wandb/run-20250731_170606-iazb7i1k/run-iazb7i1k.wandb
-
-   <wandb-run-url> URL of a W&B run to open.
-		Example:
-		  https://wandb.ai/wandbEntity/wandbProject/run-1234567890
+  <wandb-directory>  Path to the wandb directory containing run folders.
 
 Options:
   -h, --help         Show this help message
