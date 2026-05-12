@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterator, Mapping
+from collections.abc import Iterable, Iterator, Mapping
 from itertools import chain
 from typing import TYPE_CHECKING, Any
 
@@ -35,10 +35,21 @@ class Automations(RelayPaginator["ProjectTriggersFields", "Automation"]):
         *,
         start: str | None = None,
         _query: str,  # internal use only, but required
+        omit_variables: Iterable[str] | None = None,
+        omit_fragments: Iterable[str] | None = None,
+        omit_fields: Iterable[str] | None = None,
+        rename_fields: Mapping[str, str] | None = None,
     ):
         self.QUERY = _query
         super().__init__(
-            service_api, variables=variables, per_page=per_page, start=start
+            service_api,
+            variables=variables,
+            per_page=per_page,
+            start=start,
+            omit_variables=omit_variables,
+            omit_fragments=omit_fragments,
+            omit_fields=omit_fields,
+            rename_fields=rename_fields,
         )
 
     @override
@@ -47,7 +58,7 @@ class Automations(RelayPaginator["ProjectTriggersFields", "Automation"]):
         from wandb._pydantic import Connection
         from wandb.automations._generated import ProjectTriggersFields
 
-        data = self._service_api.execute_graphql(self.QUERY, variables=self.variables)
+        data = self._execute_query()
         try:
             conn_data = data["scope"]["projects"]
             conn = Connection[ProjectTriggersFields].model_validate(conn_data)

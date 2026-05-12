@@ -1340,7 +1340,7 @@ class Api:
             "prioritizationMode": prioritization_mode,
             "externalLinks": json.dumps(external_links) if external_links else None,
         }
-        result: dict[str, Any] = self.execute(query, variables)
+        result: _Response = self.execute(query, variables)
         return result["upsertRunQueue"]
 
     @normalize_exceptions
