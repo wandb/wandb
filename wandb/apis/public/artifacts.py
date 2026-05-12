@@ -26,7 +26,6 @@ from wandb.proto.wandb_telemetry_pb2 import Deprecated
 from wandb.sdk.artifacts._gqlutils import server_supports
 from wandb.sdk.artifacts._models import ArtifactCollectionData
 from wandb.sdk.lib.deprecation import warn_and_record_deprecation
-from wandb.sdk.lib.graphql_compat import gql_compat
 
 from .files import File
 
@@ -196,11 +195,10 @@ class ArtifactType:
     ):
         from wandb.sdk.artifacts._generated import ArtifactTypeFragment
 
-        self.client = service_api
+        self._service_api = service_api
         self.entity = entity
         self.project = project
         self.type = type_name
-        self._service_api = service_api
 
         # FIXME: Make this lazy, so we don't (re-)fetch the attributes until they are needed
         self._attrs = ArtifactTypeFragment.model_validate(attrs or self.load())
@@ -218,7 +216,7 @@ class ArtifactType:
 
         gql_op = PROJECT_ARTIFACT_TYPE_GQL
         gql_vars = {"entity": self.entity, "project": self.project, "type": self.type}
-        data = self.client.execute_graphql(gql_op, variables=gql_vars)
+        data = self._service_api.execute_graphql(gql_op, variables=gql_vars)
         result = ProjectArtifactType.model_validate(data)
         if not ((proj := result.project) and (artifact_type := proj.artifact_type)):
             raise ValueError(f"Could not find artifact type {self.type!r}")
@@ -403,7 +401,7 @@ class ProjectArtifactCollections(
     <!-- lazydoc-ignore-init: internal -->
     """
 
-    QUERY: ClassVar[str | None] = None
+    QUERY: str | None
     last_response: ArtifactCollectionConnection | None
 
     def __init__(
@@ -416,38 +414,18 @@ class ProjectArtifactCollections(
         per_page: int = 50,
         start: str | None = None,
     ):
-        if (order is not None or filters is not None) and not server_supports(
+        from wandb.sdk.artifacts._generated import PROJECT_ARTIFACT_COLLECTIONS_GQL
+
+        supports_filtering = server_supports(
             service_api, pb.ARTIFACT_COLLECTIONS_FILTERING_SORTING
-        ):
+        )
+        if (order is not None or filters is not None) and not supports_filtering:
             raise UnsupportedError(
                 "Filtering and ordering of artifact collections is not supported on this wandb server version. "
                 "Please upgrade your server version or contact support at support@wandb.com."
             )
 
-        if self.QUERY is None:
-            from wandb.sdk.artifacts._generated import PROJECT_ARTIFACT_COLLECTIONS_GQL
-
-            omit_fields = (
-                None
-                if server_supports(
-                    service_api, pb.ARTIFACT_COLLECTIONS_FILTERING_SORTING
-                )
-                else {"totalCount"}
-            )
-
-            omit_variables = (
-                None
-                if server_supports(
-                    service_api, pb.ARTIFACT_COLLECTIONS_FILTERING_SORTING
-                )
-                else {"filters"}
-            )
-
-            type(self).QUERY = gql_compat(
-                PROJECT_ARTIFACT_COLLECTIONS_GQL,
-                omit_variables=omit_variables,
-                omit_fields=omit_fields,
-            )
+        self.QUERY = PROJECT_ARTIFACT_COLLECTIONS_GQL
 
         self.entity = entity
         self.project = project
@@ -462,7 +440,12 @@ class ProjectArtifactCollections(
         }
 
         super().__init__(
-            service_api, variables=variables, per_page=per_page, start=start
+            service_api,
+            variables=variables,
+            per_page=per_page,
+            start=start,
+            omit_variables=None if supports_filtering else {"filters"},
+            omit_fields=None if supports_filtering else {"totalCount"},
         )
 
     @override
@@ -473,7 +456,7 @@ class ProjectArtifactCollections(
             ProjectArtifactCollectionConnection,
         )
 
-        data = self._service_api.execute_graphql(self.QUERY, variables=self.variables)
+        data = self._execute_query()
         result = ProjectArtifactCollections.model_validate(data)
 
         # Extract the inner `*Connection` result for faster/easier access.
@@ -530,7 +513,6 @@ class ArtifactCollection:
         organization: str | None = None,
         attrs: ArtifactCollectionFragment | None = None,
     ):
-        self.client = service_api
         self._service_api = service_api
 
         # FIXME: Make this lazy, so we don't (re-)fetch the attributes until they are needed
@@ -624,7 +606,7 @@ class ArtifactCollection:
 
         gql_op = PROJECT_ARTIFACT_COLLECTION_GQL
         gql_vars = {"entity": entity, "project": project, "type": type_, "name": name}
-        data = self.client.execute_graphql(gql_op, variables=gql_vars)
+        data = self._service_api.execute_graphql(gql_op, variables=gql_vars)
         result = ProjectArtifactCollection.model_validate(data)
         if not (
             result.project
@@ -670,7 +652,9 @@ class ArtifactCollection:
             artifact_sequence_id=self.id,
             destination_artifact_type_name=new_type,
         )
-        self.client.execute_graphql(gql_op, variables={"input": gql_input.model_dump()})
+        self._service_api.execute_graphql(
+            gql_op, variables={"input": gql_input.model_dump()}
+        )
         self._saved.type = new_type
         self._current.type = new_type
 
@@ -691,7 +675,7 @@ class ArtifactCollection:
             if self.is_sequence()
             else DELETE_ARTIFACT_PORTFOLIO_GQL
         )
-        self.client.execute_graphql(gql_op, variables={"id": self.id})
+        self._service_api.execute_graphql(gql_op, variables={"id": self.id})
 
     @property
     def description(self) -> str | None:
@@ -759,7 +743,9 @@ class ArtifactCollection:
                 name=self.name,
                 description=self.description,
             )
-        self.client.execute_graphql(gql_op, variables={"input": gql_input.model_dump()})
+        self._service_api.execute_graphql(
+            gql_op, variables={"input": gql_input.model_dump()}
+        )
         self._saved.name = self._current.name
         self._saved.description = self._current.description
         self._saved.updated_at = self._current.updated_at
@@ -775,7 +761,9 @@ class ArtifactCollection:
             artifact_sequence_id=self.id,
             destination_artifact_type_name=self.type,
         )
-        self.client.execute_graphql(gql_op, variables={"input": gql_input.model_dump()})
+        self._service_api.execute_graphql(
+            gql_op, variables={"input": gql_input.model_dump()}
+        )
         self._saved.type = self._current.type
 
     def _add_tags(self, tag_names: Iterable[str]) -> None:
@@ -791,7 +779,9 @@ class ArtifactCollection:
             artifact_collection_name=self._saved.name,
             tags=[{"tagName": tag} for tag in tag_names],
         )
-        self.client.execute_graphql(gql_op, variables={"input": gql_input.model_dump()})
+        self._service_api.execute_graphql(
+            gql_op, variables={"input": gql_input.model_dump()}
+        )
 
     def _delete_tags(self, tag_names: Iterable[str]) -> None:
         from wandb.sdk.artifacts._generated import (
@@ -806,7 +796,9 @@ class ArtifactCollection:
             artifact_collection_name=self._saved.name,
             tags=[{"tagName": tag} for tag in tag_names],
         )
-        self.client.execute_graphql(gql_op, variables={"input": gql_input.model_dump()})
+        self._service_api.execute_graphql(
+            gql_op, variables={"input": gql_input.model_dump()}
+        )
 
     @normalize_exceptions
     def save(self) -> None:
@@ -1079,14 +1071,17 @@ class ArtifactFiles(SizedRelayPaginator["FileFragment", "File"]):
                 "fileNames": names,
             }
 
-        omit_fields = (
-            None
-            if server_supports(service_api, pb.TOTAL_COUNT_IN_FILE_CONNECTION)
-            else {"totalCount"}
-        )
-        self.QUERY = gql_compat(query_str, omit_fields=omit_fields)
+        self.QUERY = query_str
         super().__init__(
-            service_api, variables=variables, per_page=per_page, start=start
+            service_api,
+            variables=variables,
+            per_page=per_page,
+            start=start,
+            omit_fields=(
+                None
+                if server_supports(service_api, pb.TOTAL_COUNT_IN_FILE_CONNECTION)
+                else {"totalCount"}
+            ),
         )
 
     @override
@@ -1097,7 +1092,7 @@ class ArtifactFiles(SizedRelayPaginator["FileFragment", "File"]):
         )
         from wandb.sdk.artifacts._models.pagination import ArtifactFileConnection
 
-        data = self._service_api.execute_graphql(self.QUERY, variables=self.variables)
+        data = self._execute_query()
 
         # Extract the inner `*Connection` result for faster/easier access.
         if self.query_via_membership:

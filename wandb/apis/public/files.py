@@ -280,7 +280,7 @@ class File(Attrs):
         attrs: dict[str, Any],
         run: Run | None = None,
     ):
-        self.client = service_api
+        self._service_api = service_api
         self._attrs = attrs
         self.run = run
         self._download_decorated: Callable[..., Any] | None = None
@@ -394,7 +394,7 @@ class File(Attrs):
             }
         """
 
-        self.client.execute_graphql(
+        self._service_api.execute_graphql(
             mutation,
             variables=variables,
         )

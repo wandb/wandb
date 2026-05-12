@@ -196,7 +196,7 @@ class HistoryScan(Iterator[_RowDict]):
             page_size: Number of history rows to fetch per page.
                 Default page_size is 1000.
         """
-        self.client = service_api
+        self._service_api = service_api
         self.run = run
         self.page_size = page_size
         self.min_step = min_step
@@ -204,7 +204,6 @@ class HistoryScan(Iterator[_RowDict]):
         self.page_offset = min_step  # minStep for next page
         self.scan_offset = 0  # index within current page of rows
         self.rows: list[_RowDict] = []  # current page of rows
-        self._service_api = service_api
 
     @property
     def max_step(self) -> int:
@@ -290,7 +289,7 @@ class SampledHistoryScan(Iterator[_RowDict]):
             page_size: Number of sampled history rows to fetch per page.
                 Default page_size is 1000.
         """
-        self.client = service_api
+        self._service_api = service_api
         self.run = run
         self.keys = keys
         self.page_size = page_size
@@ -299,7 +298,6 @@ class SampledHistoryScan(Iterator[_RowDict]):
         self.page_offset = min_step  # minStep for next page
         self.scan_offset = 0  # index within current page of rows
         self.rows: list[_RowDict] = []  # current page of rows
-        self._service_api = service_api
 
     @property
     def max_step(self) -> int:

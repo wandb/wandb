@@ -5,7 +5,7 @@ import json
 import logging
 import uuid
 import weakref
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from typing import Any, cast
 
 from packaging.version import parse
@@ -118,6 +118,11 @@ class ServiceApi:
         query: str,
         variables: Mapping[str, Any] | None = None,
         timeout: float | None = None,
+        *,
+        omit_variables: Iterable[str] | None = None,
+        omit_fragments: Iterable[str] | None = None,
+        omit_fields: Iterable[str] | None = None,
+        rename_fields: Mapping[str, str] | None = None,
     ) -> Any:
         """Execute a GraphQL operation through the wandb-core sidecar.
 
@@ -131,6 +136,16 @@ class ServiceApi:
                 on the wire.
             timeout: Optional timeout in seconds for waiting on wandb-core.
                 On timeout, the request is cancelled on a best-effort basis.
+            omit_variables: Variable names ($var) to strip from the query
+                server-side before forwarding to the backend. Use this to
+                drop variables that the deployed server version does not
+                support, leaving the rest of the query intact.
+            omit_fragments: Fragment names to strip (both their definitions
+                and any spreads referring to them).
+            omit_fields: Field names to strip from selection sets. Aliased
+                occurrences are also removed.
+            rename_fields: Field renames applied to selection sets
+                (`{old_name: new_name}`). Aliases are preserved.
 
         Returns:
             The decoded `data` field of the GraphQL response.
@@ -145,6 +160,10 @@ class ServiceApi:
             graphql_request=GraphQLRequest(
                 query=query,
                 variables_json=json.dumps(variables or {}),
+                omit_variables=list(omit_variables) if omit_variables else None,
+                omit_fragments=list(omit_fragments) if omit_fragments else None,
+                omit_fields=list(omit_fields) if omit_fields else None,
+                rename_fields=dict(rename_fields) if rename_fields else None,
             )
         )
         response = self.send_api_request(

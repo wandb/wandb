@@ -65,7 +65,7 @@ def test_check_large_post_uses_service_api(monkeypatch):
 
 
 def test_check_large_post_reports_core_413(monkeypatch, capsys):
-    error_response = apb.ApiErrorResponse(message="returned error 413: too large")
+    error_response = apb.ApiErrorResponse(message="too large", http_status=413)
     public_api = unittest.mock.Mock()
     public_api._service_api.execute_graphql.side_effect = WandbApiFailedError(
         error_response.message,

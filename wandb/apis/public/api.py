@@ -49,7 +49,6 @@ from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT
 from wandb.sdk.lib import runid, wbauth
 from wandb.sdk.lib.deprecation import warn_and_record_deprecation
-from wandb.sdk.lib.graphql_compat import gql_compat
 from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 
 if TYPE_CHECKING:
@@ -79,14 +78,10 @@ logger = logging.getLogger(__name__)
 
 
 def _api_error_status(error: WandbApiFailedError) -> HTTPStatus | None:
-    message = error.response.message if error.response else str(error)
-    prefix = "returned error "
-    if not message.startswith(prefix):
+    if error.response is None or not error.response.http_status:
         return None
-
-    status_text = message.removeprefix(prefix).split(":", 1)[0].split(maxsplit=1)[0]
     try:
-        return HTTPStatus(int(status_text))
+        return HTTPStatus(error.response.http_status)
     except ValueError:
         return None
 
@@ -2464,14 +2459,13 @@ class Api:
             gql_str = GET_AUTOMATIONS_BY_ENTITY_GQL  # Automations for entity
 
         # If needed, rewrite the GraphQL field selection set to omit unsupported fields/fragments/types
-        omit_fragments = self._omitted_automation_fragments()
-        query = gql_compat(gql_str, omit_fragments=omit_fragments)
         iterator = Automations(
             self._service_api,
             variables=variables,
             per_page=per_page,
             start=start,
-            _query=query,
+            _query=gql_str,
+            omit_fragments=self._omitted_automation_fragments(),
         )
 
         # FIXME: this is crude, move this client-side filtering logic into backend
@@ -2555,9 +2549,7 @@ class Api:
                 "support@wandb.com."
             )
 
-        # If needed, rewrite the GraphQL field selection set to omit unsupported fields/fragments/types
         omit_fragments = self._omitted_automation_fragments()
-        mutation = gql_compat(CREATE_AUTOMATION_GQL, omit_fragments=omit_fragments)
         variables = {"input": gql_input.model_dump()}
 
         name = gql_input.name
@@ -2568,7 +2560,11 @@ class Api:
                 pass
 
         try:
-            data = self._service_api.execute_graphql(mutation, variables=variables)
+            data = self._service_api.execute_graphql(
+                CREATE_AUTOMATION_GQL,
+                variables=variables,
+                omit_fragments=omit_fragments,
+            )
         except WandbApiFailedError as e:
             status = _api_error_status(e)
             if status is HTTPStatus.CONFLICT:  # 409
@@ -2681,14 +2677,15 @@ class Api:
                 "support@wandb.com."
             )
 
-        # If needed, rewrite the GraphQL field selection set to omit unsupported fields/fragments/types
-        omit_fragments = self._omitted_automation_fragments()
-        mutation = gql_compat(UPDATE_AUTOMATION_GQL, omit_fragments=omit_fragments)
         variables = {"input": gql_input.model_dump()}
 
         name = gql_input.name
         try:
-            data = self._service_api.execute_graphql(mutation, variables=variables)
+            data = self._service_api.execute_graphql(
+                UPDATE_AUTOMATION_GQL,
+                variables=variables,
+                omit_fragments=self._omitted_automation_fragments(),
+            )
         except WandbApiFailedError as e:
             status = _api_error_status(e)
             if status is HTTPStatus.NOT_FOUND:  # 404

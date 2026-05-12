@@ -57,7 +57,7 @@ def test_agent_heartbeat_raises_sweep_not_found_on_404():
     http_error = requests.exceptions.HTTPError()
     http_error.response = mock_response
 
-    with patch.object(a.api, "gql", side_effect=http_error):
+    with patch.object(a.api, "execute", side_effect=http_error):
         with pytest.raises(SweepNotFoundError):
             a.agent_heartbeat("test-agent-id", {}, {})
 
@@ -72,7 +72,7 @@ def test_agent_heartbeat_returns_empty_on_non_404_error():
     http_error = requests.exceptions.HTTPError()
     http_error.response = mock_response
 
-    with patch.object(a.api, "gql", side_effect=http_error):
+    with patch.object(a.api, "execute", side_effect=http_error):
         result = a.agent_heartbeat("test-agent-id", {}, {})
         assert result == []
 
@@ -81,10 +81,10 @@ def test_get_run_state_invalid_kwargs():
     with pytest.raises(CommError) as e:
         _api = internal.Api()
 
-        def _mock_gql(*args, **kwargs):
+        def _mock_execute(*args, **kwargs):
             return dict()
 
-        _api.api.gql = _mock_gql
+        _api.api.execute = _mock_execute
         _api.get_run_state("test_entity", None, "test_run")
 
     assert "Error fetching run state" in str(e.value)
@@ -172,7 +172,7 @@ def test_internal_api_with_no_write_global_config_dir(
 
 @pytest.fixture
 def mock_gql():
-    with patch("wandb.sdk.internal.internal_api.Api.gql") as mock:
+    with patch("wandb.sdk.internal.internal_api.Api.execute") as mock:
         mock.return_value = None
         yield mock
 

@@ -195,10 +195,9 @@ class BetaReport(Attrs):
         entity: str | None = None,
         project: str | None = None,
     ):
-        self.client = service_api
+        self._service_api = service_api
         self.project = project
         self.entity = entity
-        self._service_api = service_api
         self.query_generator = public.QueryGenerator()
         super().__init__(dict(attrs))
 
@@ -277,14 +276,14 @@ class BetaReport(Attrs):
     @property
     def url(self) -> str | None:
         if (
-            not self.client
+            not self._service_api
             or not self.entity
             or not self.project
             or not self.display_name
             or not self.id
         ):
             return None
-        return self.client.app_url + "/".join(
+        return self._service_api.app_url + "/".join(
             [
                 self.entity,
                 self.project,

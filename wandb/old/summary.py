@@ -380,10 +380,10 @@ class FileSummary(Summary):
 
 
 class HTTPSummary(Summary):
-    def __init__(self, run, client, summary=None):
+    def __init__(self, run, service_api, summary=None):
         super().__init__(run, summary=summary)
         self._run = run
-        self._client = client
+        self._service_api = service_api
         self._started = time.time()
 
     def __delitem__(self, key):
@@ -416,7 +416,7 @@ class HTTPSummary(Summary):
             if self._h5:
                 self._h5.close()
                 self._h5 = None
-            res = self._client.execute_graphql(
+            res = self._service_api.execute_graphql(
                 mutation,
                 variables={
                     "id": self._run.storage_id,

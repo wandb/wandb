@@ -8,7 +8,7 @@ def test_create_run_queue():
     _api = internal.Api()
 
     # prioritization_mode present on server
-    _api.api.gql = MagicMock(return_value={"createRunQueue": "test-result"})
+    _api.api.execute = MagicMock(return_value={"createRunQueue": "test-result"})
 
     kwargs = {
         "entity": "test-entity",
@@ -20,7 +20,7 @@ def test_create_run_queue():
     }
     resp = _api.create_run_queue(**kwargs)
     assert resp == "test-result"
-    call_args = _api.api.gql.call_args[0]
+    call_args = _api.api.execute.call_args[0]
     assert "createRunQueue" in call_args[0]
     assert call_args[1] == {
         "entity": "test-entity",
@@ -36,7 +36,7 @@ def test_push_to_run_queue_by_name():
     _api = internal.Api()
     mock_run_spec = {"test-key": "test-value"}
     mock_gql_response = {"pushToRunQueueByName": {"runSpec": json.dumps(mock_run_spec)}}
-    _api.api.gql = MagicMock(return_value=mock_gql_response)
+    _api.api.execute = MagicMock(return_value=mock_gql_response)
 
     push_kwargs = {
         "entity": "test-entity",
@@ -50,7 +50,7 @@ def test_push_to_run_queue_by_name():
     resp = _api.api.push_to_run_queue_by_name(**push_kwargs)
 
     assert resp == {"runSpec": mock_run_spec}
-    call_args = _api.api.gql.call_args[0]
+    call_args = _api.api.execute.call_args[0]
     assert "$priority: Int" in call_args[0]
     assert "priority: $priority" in call_args[0]
     assert call_args[1] == {
@@ -67,7 +67,7 @@ def test_upsert_sweep():
     mock_sweep_name = "test-sweep"
     mock_display_name = "test-sweep-display-name"
     mock_gql_response = {"upsertSweep": {"sweep": {"name": mock_sweep_name}}}
-    _api.api.gql = MagicMock(return_value=mock_gql_response)
+    _api.api.execute = MagicMock(return_value=mock_gql_response)
 
     run_ids = ["abc", "def"]
     sweep_config = {
@@ -90,8 +90,8 @@ def test_upsert_sweep():
     resp = _api.api.upsert_sweep(**upsert_kwargs)
 
     assert resp == (mock_sweep_name, [])
-    call_args = _api.api.gql.call_args[0]
-    call_kwargs = _api.api.gql.call_args.kwargs
+    call_args = _api.api.execute.call_args[0]
+    call_kwargs = _api.api.execute.call_args.kwargs
     assert "$priorRunsFilters: JSONString" in call_args[0]
     assert "priorRunsFilters: $priorRunsFilters" in call_args[0]
     assert (

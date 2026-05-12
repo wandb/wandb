@@ -222,7 +222,9 @@ def test_artifact_download_logger():
 
 def test_create_custom_chart():
     _api = internal.Api()
-    _api.api.gql = MagicMock(return_value={"createCustomChart": {"chart": {"id": "1"}}})
+    _api.api.execute = MagicMock(
+        return_value={"createCustomChart": {"chart": {"id": "1"}}}
+    )
 
     # Test with uppercase access (as would be passed from public API)
     kwargs = {
@@ -236,8 +238,8 @@ def test_create_custom_chart():
 
     resp = _api.create_custom_chart(**kwargs)
     assert resp == {"chart": {"id": "1"}}
-    _api.api.gql.assert_called_once()
-    query, variables = _api.api.gql.call_args.args
+    _api.api.execute.assert_called_once()
+    query, variables = _api.api.execute.call_args.args
     assert "mutation CreateCustomChart" in query
     assert variables == {
         "entity": "test-entity",
@@ -419,7 +421,7 @@ def test_project_id_lazy_load(monkeypatch):
 @pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
 def test_project_load__raises_error(monkeypatch):
     api = wandb.Api()
-    error_response = apb.ApiErrorResponse(message="returned error 404: not found")
+    error_response = apb.ApiErrorResponse(message="not found", http_status=404)
     mock_execute = MagicMock(
         side_effect=WandbApiFailedError(error_response.message, error_response)
     )

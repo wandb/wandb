@@ -169,17 +169,16 @@ class Project(Attrs):
         """
         super().__init__(attrs)
         self._is_loaded = bool(attrs)
-        self.client = service_api
+        self._service_api = service_api
         self.name = project
         self.entity = entity
-        self._service_api = service_api
 
     def _load(self) -> None:
         from wandb.apis._generated import GET_PROJECT_GQL, GetProject
 
         gql_vars = {"name": self.name, "entity": self.entity}
         try:
-            data = self.client.execute_graphql((GET_PROJECT_GQL), gql_vars)
+            data = self._service_api.execute_graphql((GET_PROJECT_GQL), gql_vars)
         except WandbApiFailedError as e:
             raise ValueError(f"Unable to fetch project ID: {gql_vars!r}") from e
 
@@ -209,7 +208,7 @@ class Project(Attrs):
     @property
     def url(self) -> str:
         """Returns the URL of the project."""
-        return self.client.app_url + "/".join(self.path + ["workspace"])
+        return self._service_api.app_url + "/".join(self.path + ["workspace"])
 
     def to_html(self, height: int = 420, hidden: bool = False) -> str:
         """Generate HTML containing an iframe displaying this project.

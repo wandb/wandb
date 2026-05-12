@@ -299,7 +299,6 @@ class QueuedRun:
         project_queue: str = LAUNCH_DEFAULT_PROJECT,
         priority: int | None = None,
     ):
-        self.client = service_api
         self._service_api = service_api
         self._entity = entity
         self._project = project
@@ -365,7 +364,7 @@ class QueuedRun:
             "entityName": self._entity,
             "runQueue": self.queue_name,
         }
-        res = self.client.execute_graphql(query, variables)
+        res = self._service_api.execute_graphql(query, variables)
 
         for item in res["project"]["runQueue"]["runQueueItems"]["edges"]:
             if str(item["node"]["id"]) == str(self.id):
@@ -393,7 +392,7 @@ class QueuedRun:
             "itemId": self.id,
         }
         try:
-            res = self.client.execute_graphql(
+            res = self._service_api.execute_graphql(
                 query, variables
             )  # exception w/ old server
             if res["project"]["runQueue"].get("runQueueItem") is not None:
@@ -428,7 +427,7 @@ class QueuedRun:
             }
             """
 
-        res = self.client.execute_graphql(
+        res = self._service_api.execute_graphql(
             query,
             variables={
                 "entityName": self.entity,
@@ -454,7 +453,7 @@ class QueuedRun:
                 }
             }
             """
-        self.client.execute_graphql(
+        self._service_api.execute_graphql(
             mutation,
             variables={
                 "queueID": queue_id,
@@ -530,7 +529,6 @@ class RunQueue:
         _default_resource_config: dict[str, Any] | None = None,
     ) -> None:
         self._name: str = name
-        self._client = service_api
         self._service_api = service_api
         self._entity = entity
         self._prioritization_mode = prioritization_mode
@@ -630,7 +628,7 @@ class RunQueue:
             }
             """
         variables = {"id": self.id}
-        res = self._client.execute_graphql(query, variables)
+        res = self._service_api.execute_graphql(query, variables)
         if res["deleteRunQueues"]["success"]:
             self._id = None
             self._access = None
@@ -663,7 +661,7 @@ class RunQueue:
             "entityName": self._entity,
             "runQueue": self._name,
         }
-        res = self._client.execute_graphql(query, variables)
+        res = self._service_api.execute_graphql(query, variables)
         self._id = res["project"]["runQueue"]["id"]
         self._access = res["project"]["runQueue"]["access"]
         self._default_resource_config_id = res["project"]["runQueue"][
@@ -694,7 +692,7 @@ class RunQueue:
             "entityName": self._entity,
             "id": self._default_resource_config_id,
         }
-        res = self._client.execute_graphql(query, variables)
+        res = self._service_api.execute_graphql(query, variables)
         self._type = res["entity"]["defaultResourceConfig"]["resource"]
         self._default_resource_config = res["entity"]["defaultResourceConfig"]["config"]
         self._template_variables = res["entity"]["defaultResourceConfig"][
@@ -723,7 +721,7 @@ class RunQueue:
             "entityName": self._entity,
             "runQueue": self._name,
         }
-        res = self._client.execute_graphql(query, variables)
+        res = self._service_api.execute_graphql(query, variables)
         self._items = []
         for item in res["project"]["runQueue"]["runQueueItems"]["edges"]:
             self._items.append(

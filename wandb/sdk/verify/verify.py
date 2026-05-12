@@ -449,10 +449,8 @@ def check_large_post() -> bool:
             timeout=60,
         )
     except WandbApiFailedError as e:
-        message = e.response.message if e.response is not None else str(e)
-        if message.startswith(
-            f"returned error {HTTPStatus.REQUEST_ENTITY_TOO_LARGE.value}"
-        ):
+        status = e.response.http_status if e.response is not None else 0
+        if status == HTTPStatus.REQUEST_ENTITY_TOO_LARGE.value:
             failed_test_strings.append(
                 'Failed to send a large payload. Check nginx.ingress.kubernetes.io/proxy-body-size is "0".'
             )
