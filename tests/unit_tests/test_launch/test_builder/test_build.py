@@ -10,6 +10,7 @@ from wandb.sdk.launch.builder.abstract import registry_from_uri
 from wandb.sdk.launch.builder.context_manager import get_requirements_section
 from wandb.sdk.launch.builder.templates.dockerfile import PIP_TEMPLATE
 from wandb.sdk.launch.create_job import _configure_job_builder_for_partial
+from wandb.sdk.launch.errors import LaunchError
 
 
 def _read_wandb_job_json_from_artifact(artifact: Artifact) -> dict:
@@ -92,6 +93,43 @@ def mock_launch_project(mocker):
     )
     launch_project.get_job_entry_point = lambda: launch_project.entry_point
     return launch_project
+
+
+@pytest.mark.parametrize(
+    "base_image",
+    [
+        "ubuntu:22.04",
+        "nvidia/cuda:12.4.1-runtime-ubuntu22.04",
+        "registry.example.com:5000/team/image:tag",
+        f"ubuntu@sha256:{'a' * 64}",
+    ],
+)
+def test_get_base_setup_accepts_accelerator_base_image_refs(base_image):
+    launch_project = MagicMock()
+    launch_project.accelerator_base_image = base_image
+
+    dockerfile = build.get_base_setup(launch_project, "3.10", "3")
+
+    assert f"FROM {base_image} as base" in dockerfile
+
+
+@pytest.mark.parametrize(
+    "base_image",
+    [
+        "ubuntu:22.04\nRUN echo PROOF > /proof.txt\n#",
+        "ubuntu:22.04 # comment",
+        "ubuntu:22.04 as base",
+        "ubuntu:22.04\n",
+        "ubuntu:22.04@sha256:not-a-digest",
+        1,
+    ],
+)
+def test_get_base_setup_rejects_invalid_accelerator_base_image_refs(base_image):
+    launch_project = MagicMock()
+    launch_project.accelerator_base_image = base_image
+
+    with pytest.raises(LaunchError, match="Invalid accelerator base image"):
+        build.get_base_setup(launch_project, "3.10", "3")
 
 
 def _setup(mocker):
