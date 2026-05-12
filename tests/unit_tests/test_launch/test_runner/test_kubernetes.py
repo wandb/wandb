@@ -976,7 +976,7 @@ def pod_factory(event_type, job_name, condition_types, condition_reasons, phase=
                             "reason": condition_reason,
                         }
                         for condition_type, condition_reason in zip(
-                            condition_types, condition_reasons
+                            condition_types, condition_reasons, strict=False
                         )
                     ],
                 },

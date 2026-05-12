@@ -15,8 +15,7 @@ from datetime import datetime
 
 # Optional and Union are used for type hinting instead of | because
 # the latter is not supported in pydantic<2.6 and Python<3.10.
-# Dict, List, and Tuple are used for backwards compatibility
-# with pydantic v1 and Python<3.9.
+# Dict, List, and Tuple are used for backwards compatibility with pydantic v1.
 from typing import Any, Dict, List, Literal, Optional, Tuple, Union
 from urllib.parse import quote, unquote
 
@@ -53,6 +52,7 @@ def _path_convert(*args: str) -> str:
 CLIENT_ONLY_SETTINGS = (
     "anonymous",
     "app_url_override",
+    "capture_loggers",
     "files_dir",
     "finish_timeout_raises",
     "max_end_of_run_history_metrics",
@@ -196,6 +196,36 @@ class Settings(BaseModel, validate_assignment=True):
     `True`.  May be used with `console_chunk_max_bytes`; the first limit
     reached closes the part. A value of `0` disables the time-based
     limit.
+    """
+
+    capture_loggers: Optional[dict[str, str]] = None
+    """Names of Python loggers to capture into the run's Logs tab.
+
+    A mapping of logger name to minimum log level. When set, wandb installs a
+    logging.Handler on each named logger and removes it when the run finishes.
+    Log records emitted by those loggers are published as console output to the
+    run, similar to stdout/stderr capture.
+
+    Log records are formatted the same as `logging.basicConfig()`, like
+    `INFO:my_module:Some message.` This is not currently customizable.
+
+    To capture all logs, pass the name of the root logger, which is 'root'.
+
+    This is independent of the `console` setting: both can be active
+    simultaneously.
+
+    Example:
+    ```python
+    wandb.init(
+        settings=wandb.Settings(
+            console="off",
+            capture_loggers={
+                "my_app": "INFO",
+                "my_app.training": "ERROR",
+            },
+        ),
+    )
+    ```
     """
 
     credentials_file: str = Field(
@@ -958,6 +988,9 @@ class Settings(BaseModel, validate_assignment=True):
     from the process with PID `x_stats_pid` and all of its descendants.
     This can have a performance overhead and is disabled by default.
     """
+
+    x_stats_no_cgroup: bool = False
+    """Disable cgroup v2 CPU and memory limits for system metric percentages."""
 
     x_sync: bool = False
     """Flag to indicate whether we are syncing a run from the transaction log.
@@ -1904,7 +1937,7 @@ class Settings(BaseModel, validate_assignment=True):
             )
 
         # Print at the start so that users can diagnose uncaught exceptions.
-        if not self.quiet:
+        if not self.quiet and not self.silent and not env.is_silent():
             printed_sources = True
             wandb.termlog(f"Loading settings from {source_string}")
         else:

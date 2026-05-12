@@ -5,9 +5,7 @@ import hashlib
 import logging
 import mmap
 import time
-from typing import TYPE_CHECKING
-
-from typing_extensions import TypeAlias
+from typing import TYPE_CHECKING, TypeAlias
 
 from wandb.sdk.lib.paths import StrPath
 

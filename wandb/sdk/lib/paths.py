@@ -4,9 +4,7 @@ import os
 import platform
 from functools import wraps
 from pathlib import PurePath, PurePosixPath
-from typing import Any, Union
-
-from typing_extensions import TypeAlias
+from typing import Any, TypeAlias, Union
 
 # Path _inputs_ should generally accept any kind of path. This is named the same and
 # modeled after the hint defined in the Python standard library's `typeshed`:

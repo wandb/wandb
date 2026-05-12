@@ -22,9 +22,9 @@ import sys
 import tempfile
 import time
 from collections.abc import Iterable, Iterator, Sequence
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
-from typing_extensions import Any, Literal, Protocol, Self
+from typing_extensions import Any, Protocol, Self
 
 import wandb
 import wandb.env
@@ -783,6 +783,7 @@ class _WandbInit:
             "restore",
             "status",
             "watch",
+            "write_logs",
             "unwatch",
             "upsert_artifact",
             "_finish",
@@ -1556,6 +1557,7 @@ def init(  # noqa: C901
             init_telemetry.feature.rewind_mode = True
 
         wi.set_run_id(run_settings)
+        try_create_root_dir(run_settings)
         wi.set_sync_dir_suffix(run_settings)
         run_printer = printer.new_printer(run_settings)
         show_warnings(run_printer)
@@ -1573,7 +1575,6 @@ def init(  # noqa: C901
             if run_settings._noop:
                 return wi.make_disabled_run(run_config)
 
-            try_create_root_dir(run_settings)
             exit_stack.enter_context(wi.setup_run_log_directory(run_settings))
 
             if run_settings._jupyter:

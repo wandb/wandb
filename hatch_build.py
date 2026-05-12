@@ -100,9 +100,6 @@ class CustomBuildHook(BuildHookInterface):
 
     def _include_orjson(self) -> bool:
         """Returns whether we should produce a wheel with vendored orjson."""
-        # orjson requires Python 3.10+, skip on older versions
-        if sys.version_info < (3, 10):
-            return False
         return not _get_env_bool(_WANDB_BUILD_SKIP_ORJSON, default=False)
 
     def _get_and_require_cargo_binary(self) -> pathlib.Path:

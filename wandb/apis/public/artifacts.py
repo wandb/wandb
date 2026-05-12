@@ -35,6 +35,7 @@ if TYPE_CHECKING:
     from wandb_graphql.language.ast import Document
 
     from wandb.apis.public.api import RetryingClient
+    from wandb.apis.public.service_api import ServiceApi
     from wandb.sdk.artifacts._generated import (
         ArtifactAliasFragment,
         ArtifactCollectionFragment,
@@ -129,6 +130,8 @@ class ArtifactTypes(RelayPaginator["ArtifactTypeFragment", "ArtifactType"]):
         project: str,
         per_page: int = 50,
         start: str | None = None,
+        *,
+        service_api: ServiceApi | None = None,
     ):
         if self.QUERY is None:
             from wandb.sdk.artifacts._generated import PROJECT_ARTIFACT_TYPES_GQL
@@ -137,6 +140,7 @@ class ArtifactTypes(RelayPaginator["ArtifactTypeFragment", "ArtifactType"]):
 
         self.entity = entity
         self.project = project
+        self._service_api = service_api
         variables = {"entity": entity, "project": project}
         super().__init__(client, variables=variables, per_page=per_page, start=start)
 
@@ -162,6 +166,7 @@ class ArtifactTypes(RelayPaginator["ArtifactTypeFragment", "ArtifactType"]):
             project=self.project,
             type_name=node.name,
             attrs=node,
+            service_api=self._service_api,
         )
 
 
@@ -169,7 +174,9 @@ class ArtifactType:
     """An artifact object that satisfies query based on the specified type.
 
     Args:
-        client: The client instance to use for querying W&B.
+        client: Legacy GraphQL client retained for API compatibility.
+        service_api: Interface to the wandb-core service that performs
+            W&B API calls for this artifact type.
         entity: The entity (user or team) that owns the project.
         project: The name of the project to query for artifact types.
         type_name: The name of the artifact type.
@@ -189,6 +196,8 @@ class ArtifactType:
         project: str,
         type_name: str,
         attrs: ArtifactTypeFragment | None = None,
+        *,
+        service_api: ServiceApi | None = None,
     ):
         from wandb.sdk.artifacts._generated import ArtifactTypeFragment
 
@@ -196,6 +205,7 @@ class ArtifactType:
         self.entity = entity
         self.project = project
         self.type = type_name
+        self._service_api = service_api
 
         # FIXME: Make this lazy, so we don't (re-)fetch the attributes until they are needed
         self._attrs = ArtifactTypeFragment.model_validate(attrs or self.load())
@@ -259,6 +269,7 @@ class ArtifactType:
             type_name=self.type,
             per_page=per_page,
             start=start,
+            service_api=self._service_api,
         )
 
     def collection(self, name: str) -> ArtifactCollection:
@@ -273,6 +284,7 @@ class ArtifactType:
             project=self.project,
             name=name,
             type=self.type,
+            service_api=self._service_api,
         )
 
     def __repr__(self) -> str:
@@ -285,7 +297,9 @@ class ArtifactCollections(
     """Artifact collections of a specific type in a project.
 
     Args:
-        client: The client instance to use for querying W&B.
+        client: Legacy GraphQL client retained for API compatibility.
+        service_api: Interface to the wandb-core service that performs
+            W&B API calls for this collection.
         entity: The entity (user or team) that owns the project.
         project: The name of the project to query for artifact collections.
         type_name: The name of the artifact type for which to fetch collections.
@@ -311,6 +325,8 @@ class ArtifactCollections(
         order: str | None = None,
         per_page: int = 50,
         start: str | None = None,
+        *,
+        service_api: ServiceApi | None = None,
     ):
         if self.QUERY is None:
             from wandb.sdk.artifacts._generated import (
@@ -332,6 +348,7 @@ class ArtifactCollections(
         self.type_name = type_name
         self.filters = filters
         self.order = order
+        self._service_api = service_api
         variables = {
             "entity": entity,
             "project": project,
@@ -370,6 +387,7 @@ class ArtifactCollections(
             name=node.name,
             type=node.type.name,
             attrs=node,
+            service_api=self._service_api,
         )
 
 
@@ -379,7 +397,9 @@ class ProjectArtifactCollections(
     """Artifact collections in a project.
 
     Args:
-        client: The client instance to use for querying W&B.
+        client: Legacy GraphQL client retained for API compatibility.
+        service_api: Interface to the wandb-core service that performs
+            W&B API calls for this collection.
         entity: The entity (user or team) that owns the project.
         project: The name of the project to query for artifact collections.
         filters: Optional mapping of filters to apply to the query.
@@ -403,6 +423,8 @@ class ProjectArtifactCollections(
         order: str | None = None,
         per_page: int = 50,
         start: str | None = None,
+        *,
+        service_api: ServiceApi | None = None,
     ):
         if (order is not None or filters is not None) and not server_supports(
             client, pb.ARTIFACT_COLLECTIONS_FILTERING_SORTING
@@ -437,6 +459,7 @@ class ProjectArtifactCollections(
         self.project = project
         self.filters = filters
         self.order = order
+        self._service_api = service_api
         variables = {
             "entity": entity,
             "project": project,
@@ -473,6 +496,7 @@ class ProjectArtifactCollections(
             name=node.name,
             type=node.type.name,
             attrs=node,
+            service_api=self._service_api,
         )
 
 
@@ -480,7 +504,9 @@ class ArtifactCollection:
     """An artifact collection that represents a group of related artifacts.
 
     Args:
-        client: The client instance to use for querying W&B.
+        client: Legacy GraphQL client retained for API compatibility.
+        service_api: Interface to the wandb-core service that performs
+            W&B API calls for this collection.
         entity: The entity (user or team) that owns the project.
         project: The name of the project to query for artifact collections.
         name: The name of the artifact collection.
@@ -508,8 +534,11 @@ class ArtifactCollection:
         type: str,
         organization: str | None = None,
         attrs: ArtifactCollectionFragment | None = None,
+        *,
+        service_api: ServiceApi | None = None,
     ):
         self.client = client
+        self._service_api = service_api
 
         # FIXME: Make this lazy, so we don't (re-)fetch the attributes until they are needed
         self._update_data(attrs or self.load(entity, project, type, name))
@@ -564,6 +593,7 @@ class ArtifactCollection:
             type=self._saved.type,
             per_page=per_page,
             start=start,
+            service_api=self._service_api,
         )
 
     @property
@@ -838,7 +868,9 @@ class Artifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
     Optionally pass in filters to narrow down the results based on specific criteria.
 
     Args:
-        client: The client instance to use for querying W&B.
+        client: Legacy GraphQL client retained for API compatibility.
+        service_api: Interface to the wandb-core service that performs
+            W&B API calls for these artifact versions.
         entity: The entity (user or team) that owns the project.
         project: The name of the project to query for artifacts.
         collection_name: The name of the artifact collection to query.
@@ -869,6 +901,8 @@ class Artifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
         per_page: int = 50,
         tags: str | list[str] | None = None,
         start: str | None = None,
+        *,
+        service_api: ServiceApi | None = None,
     ):
         from wandb.sdk.artifacts._generated import PROJECT_ARTIFACTS_GQL
 
@@ -881,6 +915,7 @@ class Artifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
         self.filters = {"state": "COMMITTED"} if filters is None else filters
         self.tags = always_list(tags or [])
         self.order = order
+        self._service_api = service_api
         variables = {
             "entity": self.entity,
             "project": self.project,
@@ -932,6 +967,7 @@ class Artifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
             ),
             src_art=edge.node,
             client=self.client,
+            service_api=self._service_api,
         )
 
     @override
@@ -963,6 +999,8 @@ class RunArtifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
         mode: Literal["logged", "used"] = "logged",
         per_page: int = 50,
         start: str | None = None,
+        *,
+        service_api: ServiceApi,
     ):
         try:
             query_str = _run_artifacts_mode_to_gql()[mode]
@@ -972,6 +1010,7 @@ class RunArtifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
             self.QUERY = gql(query_str)
 
         self.run = run
+        self._service_api = service_api
         variables = {"entity": run.entity, "project": run.project, "run": run.id}
         super().__init__(client, variables=variables, per_page=per_page, start=start)
 
@@ -999,6 +1038,7 @@ class RunArtifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
             ),
             src_art=node,
             client=self.client,
+            service_api=self._service_api,
         )
 
 

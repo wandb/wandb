@@ -11,20 +11,10 @@ import re
 import socket
 import sys
 import threading
-from collections.abc import Iterable, Mapping, MutableMapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, MutableMapping, Sequence
 from copy import deepcopy
 from pathlib import Path
-from typing import (
-    IO,
-    TYPE_CHECKING,
-    Any,
-    Callable,
-    Literal,
-    NamedTuple,
-    TextIO,
-    Union,
-    overload,
-)
+from typing import IO, TYPE_CHECKING, Any, Literal, NamedTuple, TextIO, overload
 
 import click
 from wandb_gql import Client, gql
@@ -119,7 +109,7 @@ if TYPE_CHECKING:
 
     _Response = MutableMapping
     SweepState = Literal["RUNNING", "PAUSED", "CANCELED", "FINISHED"]
-    Number = Union[int, float]
+    Number = int | float
 
 httpclient_logger = logging.getLogger("http.client")
 if os.environ.get("WANDB_DEBUG"):

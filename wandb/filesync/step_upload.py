@@ -7,8 +7,8 @@ import logging
 import queue
 import sys
 import threading
-from collections.abc import MutableMapping, MutableSequence, MutableSet
-from typing import TYPE_CHECKING, Callable, NamedTuple, Union
+from collections.abc import Callable, MutableMapping, MutableSequence, MutableSet
+from typing import TYPE_CHECKING, NamedTuple
 
 from wandb.errors.term import termerror
 from wandb.filesync import upload_job
@@ -62,7 +62,7 @@ class EventJobDone(NamedTuple):
     exc: BaseException | None
 
 
-Event = Union[RequestUpload, RequestCommitArtifact, RequestFinish, EventJobDone]
+Event = RequestUpload | RequestCommitArtifact | RequestFinish | EventJobDone
 
 
 class StepUpload:

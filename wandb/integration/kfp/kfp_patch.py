@@ -3,8 +3,7 @@ from __future__ import annotations
 import inspect
 import itertools
 import textwrap
-from collections.abc import Mapping
-from typing import Callable
+from collections.abc import Callable, Mapping
 
 import wandb
 

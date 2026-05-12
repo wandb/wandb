@@ -66,7 +66,7 @@ def get_ground_truth_bbox_annotations(
     ratio_pad = batch["ratio_pad"][img_idx]
 
     data = []
-    for box, label in zip(bboxes, cls_labels):
+    for box, label in zip(bboxes, cls_labels, strict=False):
         box = scale_bounding_box_to_original_image_shape(
             box, resized_image_shape, original_image_shape, ratio_pad
         )
@@ -91,7 +91,7 @@ def get_mean_confidence_map(
 ) -> dict[str, float]:
     """Get Mean-confidence map from the predictions to be logged into a `wandb.Table`."""
     confidence_map = {v: [] for _, v in class_id_to_label.items()}
-    for class_idx, confidence_value in zip(classes, confidence):
+    for class_idx, confidence_value in zip(classes, confidence, strict=False):
         confidence_map[class_id_to_label[class_idx]].append(confidence_value)
     updated_confidence_map = {}
     for label, confidence_list in confidence_map.items():

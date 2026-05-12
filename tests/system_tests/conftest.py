@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 import contextlib
-from collections.abc import Generator, Iterator
+from collections.abc import Callable, Generator, Iterator
 from dataclasses import dataclass
-from typing import Callable
 
 import pytest
 import wandb

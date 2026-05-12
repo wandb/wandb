@@ -9,9 +9,9 @@ description = "A CLI and library for interacting with the Weights & Biases API."
 authors = [{ name = "Weights & Biases", email = "support@wandb.com" }]
 readme = "package_readme.md"
 license = { file = "LICENSE" }
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 dependencies = [
-    "Click>=8.0.1",
+    "Click>=8.2.0",
     "GitPython>=1.0.0,!=3.1.29",
     "requests>=2.0.0,<3",
     "sentry-sdk>=2.0.0",
@@ -20,7 +20,6 @@ dependencies = [
     "platformdirs",
     "typing_extensions>=4.8,<5",
     "pydantic<3",
-    "eval_type_backport; python_version < '3.10'",
     "packaging",
 ]
 classifiers = [
@@ -30,7 +29,6 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Natural Language :: English",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
@@ -38,6 +36,7 @@ classifiers = [
     "Programming Language :: Python :: 3.14",
     "Programming Language :: Python :: 3 :: Only",
     "Programming Language :: Go",
+    "Programming Language :: Rust",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Topic :: System :: Logging",
@@ -100,7 +99,7 @@ launch = [
     "typing_extensions",
     "tomli",
     "PyYAML>=6.0.0",
-    "tornado>=6.5.0;python_version>='3.9'",
+    "tornado>=6.5.0",
 ]
 models = ["cloudpickle"]
 importers = ["polars<=1.2.1", "rich", "filelock", "mlflow", "tenacity"]
@@ -162,7 +161,7 @@ extend-exclude = [
     "wandb/vendor/**",
     "wandb/proto/**",
 ]
-target-version = "py39"
+target-version = "py310"
 
 [tool.ruff.format]
 docstring-code-format = true
@@ -198,7 +197,6 @@ select = [
     "SIM401", # if-else-block-instead-of-dict-get
     "SIM910", # dict-get-with-none-default
     "SIM911", # zip-dict-keys-and-values
-
 
     # tryceratops
     "TRY004", # type-check-without-type-error
@@ -501,7 +499,7 @@ ignore_missing_imports = true
 
 
 [tool.basedpyright]
-pythonVersion = "3.9"
+pythonVersion = "3.10"
 pythonPlatform = "All"
 
 # We use implicit string concatenation quite a lot, so don't yell too loud.

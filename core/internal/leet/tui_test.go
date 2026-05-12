@@ -565,7 +565,7 @@ func TestConsoleLogsPanel_ToggleAppendAndNavigate(t *testing.T) {
 
 	// Wait until:
 	// - log 10 is visible (auto-scroll)
-	// - range is present and shows 2 visible rows (expanded height 4 => 2 content lines)
+	// - range is present and scrolled to the latest log
 	var start0, end0, total0 int
 	waitForContent(t, tm.Output(),
 		func(s string) bool {
@@ -576,8 +576,7 @@ func TestConsoleLogsPanel_ToggleAppendAndNavigate(t *testing.T) {
 			if !ok || tot < 2 {
 				return false
 			}
-			if en-st+1 != 2 {
-				// Not fully expanded yet (during animation it may show fewer rows).
+			if en != tot {
 				return false
 			}
 			start0, end0, total0 = st, en, tot

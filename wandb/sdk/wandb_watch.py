@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 try:
     from typing import Literal
 except ImportError:
-    from typing_extensions import Literal  # type: ignore
+    from typing import Literal  # type: ignore
 
 import wandb
 

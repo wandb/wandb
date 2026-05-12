@@ -632,7 +632,7 @@ pub struct Record {
     pub info: ::core::option::Option<RecordInfo>,
     #[prost(
         oneof = "record::RecordType",
-        tags = "2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 17, 18, 20, 21, 22, 23, 24, 25, 26, 100"
+        tags = "2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 17, 18, 20, 21, 22, 23, 24, 25, 26, 27, 100"
     )]
     pub record_type: ::core::option::Option<record::RecordType>,
 }
@@ -685,6 +685,8 @@ pub mod record {
         UseArtifact(super::UseArtifactRecord),
         #[prost(message, tag = "26")]
         Environment(super::EnvironmentRecord),
+        #[prost(message, tag = "27")]
+        OutputLogger(super::OutputLoggerRecord),
         /// request field does not belong here longterm
         #[prost(message, tag = "100")]
         Request(super::Request),
@@ -869,7 +871,17 @@ pub struct ErrorInfo {
 }
 /// Nested message and enum types in `ErrorInfo`.
 pub mod error_info {
-    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
+    #[derive(
+        Clone,
+        Copy,
+        Debug,
+        PartialEq,
+        Eq,
+        Hash,
+        PartialOrd,
+        Ord,
+        ::prost::Enumeration
+    )]
     #[repr(i32)]
     pub enum ErrorCode {
         Unknown = 0,
@@ -1018,7 +1030,17 @@ pub struct OutputRecord {
 }
 /// Nested message and enum types in `OutputRecord`.
 pub mod output_record {
-    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
+    #[derive(
+        Clone,
+        Copy,
+        Debug,
+        PartialEq,
+        Eq,
+        Hash,
+        PartialOrd,
+        Ord,
+        ::prost::Enumeration
+    )]
     #[repr(i32)]
     pub enum OutputType {
         Stderr = 0,
@@ -1047,7 +1069,7 @@ pub mod output_record {
 }
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct OutputResult {}
-/// OutputRawRecord: raw console output
+/// OutputRawRecord: raw console output from stderr and stout.
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct OutputRawRecord {
     #[prost(enumeration = "output_raw_record::OutputType", tag = "1")]
@@ -1061,7 +1083,17 @@ pub struct OutputRawRecord {
 }
 /// Nested message and enum types in `OutputRawRecord`.
 pub mod output_raw_record {
-    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
+    #[derive(
+        Clone,
+        Copy,
+        Debug,
+        PartialEq,
+        Eq,
+        Hash,
+        PartialOrd,
+        Ord,
+        ::prost::Enumeration
+    )]
     #[repr(i32)]
     pub enum OutputType {
         Stderr = 0,
@@ -1090,6 +1122,18 @@ pub mod output_raw_record {
 }
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct OutputRawResult {}
+/// OutputLoggerRecord: log output from run.write_logs for the Logs tab.
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct OutputLoggerRecord {
+    #[prost(message, optional, tag = "1")]
+    pub timestamp: ::core::option::Option<::prost_types::Timestamp>,
+    #[prost(string, tag = "2")]
+    pub line: ::prost::alloc::string::String,
+    #[prost(message, optional, tag = "200")]
+    pub info: ::core::option::Option<RecordInfo>,
+}
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct OutputLoggerResult {}
 /// MetricRecord: wandb/sdk/wandb_metric/Metric
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct MetricRecord {
@@ -1120,7 +1164,17 @@ pub struct MetricRecord {
 }
 /// Nested message and enum types in `MetricRecord`.
 pub mod metric_record {
-    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
+    #[derive(
+        Clone,
+        Copy,
+        Debug,
+        PartialEq,
+        Eq,
+        Hash,
+        PartialOrd,
+        Ord,
+        ::prost::Enumeration
+    )]
     #[repr(i32)]
     pub enum MetricGoal {
         GoalUnset = 0,
@@ -1261,7 +1315,17 @@ pub struct FilesItem {
 }
 /// Nested message and enum types in `FilesItem`.
 pub mod files_item {
-    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
+    #[derive(
+        Clone,
+        Copy,
+        Debug,
+        PartialEq,
+        Eq,
+        Hash,
+        PartialOrd,
+        Ord,
+        ::prost::Enumeration
+    )]
     #[repr(i32)]
     pub enum PolicyType {
         /// Upload the file immediately.
@@ -1293,7 +1357,17 @@ pub mod files_item {
             }
         }
     }
-    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
+    #[derive(
+        Clone,
+        Copy,
+        Debug,
+        PartialEq,
+        Eq,
+        Hash,
+        PartialOrd,
+        Ord,
+        ::prost::Enumeration
+    )]
     #[repr(i32)]
     pub enum FileType {
         Other = 0,
@@ -1342,7 +1416,17 @@ pub struct StatsRecord {
 }
 /// Nested message and enum types in `StatsRecord`.
 pub mod stats_record {
-    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
+    #[derive(
+        Clone,
+        Copy,
+        Debug,
+        PartialEq,
+        Eq,
+        Hash,
+        PartialOrd,
+        Ord,
+        ::prost::Enumeration
+    )]
     #[repr(i32)]
     pub enum StatsType {
         System = 0,
@@ -1716,7 +1800,17 @@ pub struct DeferRequest {
 }
 /// Nested message and enum types in `DeferRequest`.
 pub mod defer_request {
-    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
+    #[derive(
+        Clone,
+        Copy,
+        Debug,
+        PartialEq,
+        Eq,
+        Hash,
+        PartialOrd,
+        Ord,
+        ::prost::Enumeration
+    )]
     #[repr(i32)]
     pub enum DeferState {
         Begin = 0,
@@ -1843,8 +1937,10 @@ pub struct SystemMetricsBuffer {
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetSystemMetricsResponse {
     #[prost(map = "string, message", tag = "1")]
-    pub system_metrics:
-        ::std::collections::HashMap<::prost::alloc::string::String, SystemMetricsBuffer>,
+    pub system_metrics: ::std::collections::HashMap<
+        ::prost::alloc::string::String,
+        SystemMetricsBuffer,
+    >,
 }
 /// StatusRequest:
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
@@ -2116,7 +2212,17 @@ pub struct FileTransferInfoRequest {
 }
 /// Nested message and enum types in `FileTransferInfoRequest`.
 pub mod file_transfer_info_request {
-    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
+    #[derive(
+        Clone,
+        Copy,
+        Debug,
+        PartialEq,
+        Eq,
+        Hash,
+        PartialOrd,
+        Ord,
+        ::prost::Enumeration
+    )]
     #[repr(i32)]
     pub enum TransferType {
         Upload = 0,
@@ -2668,8 +2774,10 @@ pub struct EnvironmentRecord {
     pub gpu_amd: ::prost::alloc::vec::Vec<GpuAmdInfo>,
     /// Information from the Slurm workload manager, if present.
     #[prost(map = "string, string", tag = "27")]
-    pub slurm:
-        ::std::collections::HashMap<::prost::alloc::string::String, ::prost::alloc::string::String>,
+    pub slurm: ::std::collections::HashMap<
+        ::prost::alloc::string::String,
+        ::prost::alloc::string::String,
+    >,
     /// Information about AWS Trainium hardware.
     #[prost(message, optional, tag = "28")]
     pub trainium: ::core::option::Option<TrainiumInfo>,
@@ -2822,7 +2930,9 @@ impl ServerFeature {
             Self::ClientIds => "CLIENT_IDS",
             Self::ArtifactRegistrySearch => "ARTIFACT_REGISTRY_SEARCH",
             Self::StructuredConsoleLogs => "STRUCTURED_CONSOLE_LOGS",
-            Self::ArtifactCollectionMembershipFiles => "ARTIFACT_COLLECTION_MEMBERSHIP_FILES",
+            Self::ArtifactCollectionMembershipFiles => {
+                "ARTIFACT_COLLECTION_MEMBERSHIP_FILES"
+            }
             Self::ArtifactCollectionMembershipFileDownloadHandler => {
                 "ARTIFACT_COLLECTION_MEMBERSHIP_FILE_DOWNLOAD_HANDLER"
             }
@@ -2836,12 +2946,16 @@ impl ServerFeature {
             Self::IncludeArtifactTypesInRegistryCreation => {
                 "INCLUDE_ARTIFACT_TYPES_IN_REGISTRY_CREATION"
             }
-            Self::ProjectArtifactCollectionMembership => "PROJECT_ARTIFACT_COLLECTION_MEMBERSHIP",
+            Self::ProjectArtifactCollectionMembership => {
+                "PROJECT_ARTIFACT_COLLECTION_MEMBERSHIP"
+            }
             Self::ArtifactMembershipInLinkArtifactResponse => {
                 "ARTIFACT_MEMBERSHIP_IN_LINK_ARTIFACT_RESPONSE"
             }
             Self::TotalCountInFileConnection => "TOTAL_COUNT_IN_FILE_CONNECTION",
-            Self::ArtifactCollectionsFilteringSorting => "ARTIFACT_COLLECTIONS_FILTERING_SORTING",
+            Self::ArtifactCollectionsFilteringSorting => {
+                "ARTIFACT_COLLECTIONS_FILTERING_SORTING"
+            }
             Self::ArtifactV2DownloadHandlerSupportsArtifactId => {
                 "ARTIFACT_V2_DOWNLOAD_HANDLER_SUPPORTS_ARTIFACT_ID"
             }
@@ -2856,7 +2970,9 @@ impl ServerFeature {
             "CLIENT_IDS" => Some(Self::ClientIds),
             "ARTIFACT_REGISTRY_SEARCH" => Some(Self::ArtifactRegistrySearch),
             "STRUCTURED_CONSOLE_LOGS" => Some(Self::StructuredConsoleLogs),
-            "ARTIFACT_COLLECTION_MEMBERSHIP_FILES" => Some(Self::ArtifactCollectionMembershipFiles),
+            "ARTIFACT_COLLECTION_MEMBERSHIP_FILES" => {
+                Some(Self::ArtifactCollectionMembershipFiles)
+            }
             "ARTIFACT_COLLECTION_MEMBERSHIP_FILE_DOWNLOAD_HANDLER" => {
                 Some(Self::ArtifactCollectionMembershipFileDownloadHandler)
             }
@@ -2865,7 +2981,9 @@ impl ServerFeature {
             }
             "EXPAND_DEFINED_METRIC_GLOBS" => Some(Self::ExpandDefinedMetricGlobs),
             "AUTOMATION_EVENT_RUN_METRIC" => Some(Self::AutomationEventRunMetric),
-            "AUTOMATION_EVENT_RUN_METRIC_CHANGE" => Some(Self::AutomationEventRunMetricChange),
+            "AUTOMATION_EVENT_RUN_METRIC_CHANGE" => {
+                Some(Self::AutomationEventRunMetricChange)
+            }
             "AUTOMATION_ACTION_NO_OP" => Some(Self::AutomationActionNoOp),
             "INCLUDE_ARTIFACT_TYPES_IN_REGISTRY_CREATION" => {
                 Some(Self::IncludeArtifactTypesInRegistryCreation)
@@ -2925,10 +3043,10 @@ pub mod system_monitor_service_client {
         dead_code,
         missing_docs,
         clippy::wildcard_imports,
-        clippy::let_unit_value
+        clippy::let_unit_value,
     )]
-    use tonic::codegen::http::Uri;
     use tonic::codegen::*;
+    use tonic::codegen::http::Uri;
     /// SystemMonitorService gRPC service.
     ///
     /// This service is used to collect system metrics from the host machine.
@@ -2970,13 +3088,14 @@ pub mod system_monitor_service_client {
             F: tonic::service::Interceptor,
             T::ResponseBody: Default,
             T: tonic::codegen::Service<
-                    http::Request<tonic::body::Body>,
-                    Response = http::Response<
-                        <T as tonic::client::GrpcService<tonic::body::Body>>::ResponseBody,
-                    >,
+                http::Request<tonic::body::Body>,
+                Response = http::Response<
+                    <T as tonic::client::GrpcService<tonic::body::Body>>::ResponseBody,
                 >,
-            <T as tonic::codegen::Service<http::Request<tonic::body::Body>>>::Error:
-                Into<StdError> + std::marker::Send + std::marker::Sync,
+            >,
+            <T as tonic::codegen::Service<
+                http::Request<tonic::body::Body>,
+            >>::Error: Into<StdError> + std::marker::Send + std::marker::Sync,
         {
             SystemMonitorServiceClient::new(InterceptedService::new(inner, interceptor))
         }
@@ -3015,58 +3134,81 @@ pub mod system_monitor_service_client {
         pub async fn get_stats(
             &mut self,
             request: impl tonic::IntoRequest<super::GetStatsRequest>,
-        ) -> std::result::Result<tonic::Response<super::GetStatsResponse>, tonic::Status> {
-            self.inner.ready().await.map_err(|e| {
-                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
-            })?;
+        ) -> std::result::Result<
+            tonic::Response<super::GetStatsResponse>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
             let codec = tonic_prost::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
                 "/wandb_internal.SystemMonitorService/GetStats",
             );
             let mut req = request.into_request();
-            req.extensions_mut().insert(GrpcMethod::new(
-                "wandb_internal.SystemMonitorService",
-                "GetStats",
-            ));
+            req.extensions_mut()
+                .insert(
+                    GrpcMethod::new("wandb_internal.SystemMonitorService", "GetStats"),
+                );
             self.inner.unary(req, path, codec).await
         }
         /// GetMetadata returns static metadata about the system.
         pub async fn get_metadata(
             &mut self,
             request: impl tonic::IntoRequest<super::GetMetadataRequest>,
-        ) -> std::result::Result<tonic::Response<super::GetMetadataResponse>, tonic::Status>
-        {
-            self.inner.ready().await.map_err(|e| {
-                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
-            })?;
+        ) -> std::result::Result<
+            tonic::Response<super::GetMetadataResponse>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
             let codec = tonic_prost::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
                 "/wandb_internal.SystemMonitorService/GetMetadata",
             );
             let mut req = request.into_request();
-            req.extensions_mut().insert(GrpcMethod::new(
-                "wandb_internal.SystemMonitorService",
-                "GetMetadata",
-            ));
+            req.extensions_mut()
+                .insert(
+                    GrpcMethod::new("wandb_internal.SystemMonitorService", "GetMetadata"),
+                );
             self.inner.unary(req, path, codec).await
         }
         /// TearDown instructs the system monitor to shut down.
         pub async fn tear_down(
             &mut self,
             request: impl tonic::IntoRequest<super::TearDownRequest>,
-        ) -> std::result::Result<tonic::Response<super::TearDownResponse>, tonic::Status> {
-            self.inner.ready().await.map_err(|e| {
-                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
-            })?;
+        ) -> std::result::Result<
+            tonic::Response<super::TearDownResponse>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
             let codec = tonic_prost::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
                 "/wandb_internal.SystemMonitorService/TearDown",
             );
             let mut req = request.into_request();
-            req.extensions_mut().insert(GrpcMethod::new(
-                "wandb_internal.SystemMonitorService",
-                "TearDown",
-            ));
+            req.extensions_mut()
+                .insert(
+                    GrpcMethod::new("wandb_internal.SystemMonitorService", "TearDown"),
+                );
             self.inner.unary(req, path, codec).await
         }
     }
@@ -3078,7 +3220,7 @@ pub mod system_monitor_service_server {
         dead_code,
         missing_docs,
         clippy::wildcard_imports,
-        clippy::let_unit_value
+        clippy::let_unit_value,
     )]
     use tonic::codegen::*;
     /// Generated trait containing gRPC methods that should be implemented for use with SystemMonitorServiceServer.
@@ -3088,17 +3230,26 @@ pub mod system_monitor_service_server {
         async fn get_stats(
             &self,
             request: tonic::Request<super::GetStatsRequest>,
-        ) -> std::result::Result<tonic::Response<super::GetStatsResponse>, tonic::Status>;
+        ) -> std::result::Result<
+            tonic::Response<super::GetStatsResponse>,
+            tonic::Status,
+        >;
         /// GetMetadata returns static metadata about the system.
         async fn get_metadata(
             &self,
             request: tonic::Request<super::GetMetadataRequest>,
-        ) -> std::result::Result<tonic::Response<super::GetMetadataResponse>, tonic::Status>;
+        ) -> std::result::Result<
+            tonic::Response<super::GetMetadataResponse>,
+            tonic::Status,
+        >;
         /// TearDown instructs the system monitor to shut down.
         async fn tear_down(
             &self,
             request: tonic::Request<super::TearDownRequest>,
-        ) -> std::result::Result<tonic::Response<super::TearDownResponse>, tonic::Status>;
+        ) -> std::result::Result<
+            tonic::Response<super::TearDownResponse>,
+            tonic::Status,
+        >;
     }
     /// SystemMonitorService gRPC service.
     ///
@@ -3124,7 +3275,10 @@ pub mod system_monitor_service_server {
                 max_encoding_message_size: None,
             }
         }
-        pub fn with_interceptor<F>(inner: T, interceptor: F) -> InterceptedService<Self, F>
+        pub fn with_interceptor<F>(
+            inner: T,
+            interceptor: F,
+        ) -> InterceptedService<Self, F>
         where
             F: tonic::service::Interceptor,
         {
@@ -3159,7 +3313,8 @@ pub mod system_monitor_service_server {
             self
         }
     }
-    impl<T, B> tonic::codegen::Service<http::Request<B>> for SystemMonitorServiceServer<T>
+    impl<T, B> tonic::codegen::Service<http::Request<B>>
+    for SystemMonitorServiceServer<T>
     where
         T: SystemMonitorService,
         B: Body + std::marker::Send + 'static,
@@ -3179,18 +3334,23 @@ pub mod system_monitor_service_server {
                 "/wandb_internal.SystemMonitorService/GetStats" => {
                     #[allow(non_camel_case_types)]
                     struct GetStatsSvc<T: SystemMonitorService>(pub Arc<T>);
-                    impl<T: SystemMonitorService>
-                        tonic::server::UnaryService<super::GetStatsRequest> for GetStatsSvc<T>
-                    {
+                    impl<
+                        T: SystemMonitorService,
+                    > tonic::server::UnaryService<super::GetStatsRequest>
+                    for GetStatsSvc<T> {
                         type Response = super::GetStatsResponse;
-                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::GetStatsRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as SystemMonitorService>::get_stats(&inner, request).await
+                                <T as SystemMonitorService>::get_stats(&inner, request)
+                                    .await
                             };
                             Box::pin(fut)
                         }
@@ -3220,19 +3380,23 @@ pub mod system_monitor_service_server {
                 "/wandb_internal.SystemMonitorService/GetMetadata" => {
                     #[allow(non_camel_case_types)]
                     struct GetMetadataSvc<T: SystemMonitorService>(pub Arc<T>);
-                    impl<T: SystemMonitorService>
-                        tonic::server::UnaryService<super::GetMetadataRequest>
-                        for GetMetadataSvc<T>
-                    {
+                    impl<
+                        T: SystemMonitorService,
+                    > tonic::server::UnaryService<super::GetMetadataRequest>
+                    for GetMetadataSvc<T> {
                         type Response = super::GetMetadataResponse;
-                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::GetMetadataRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as SystemMonitorService>::get_metadata(&inner, request).await
+                                <T as SystemMonitorService>::get_metadata(&inner, request)
+                                    .await
                             };
                             Box::pin(fut)
                         }
@@ -3262,18 +3426,23 @@ pub mod system_monitor_service_server {
                 "/wandb_internal.SystemMonitorService/TearDown" => {
                     #[allow(non_camel_case_types)]
                     struct TearDownSvc<T: SystemMonitorService>(pub Arc<T>);
-                    impl<T: SystemMonitorService>
-                        tonic::server::UnaryService<super::TearDownRequest> for TearDownSvc<T>
-                    {
+                    impl<
+                        T: SystemMonitorService,
+                    > tonic::server::UnaryService<super::TearDownRequest>
+                    for TearDownSvc<T> {
                         type Response = super::TearDownResponse;
-                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::TearDownRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as SystemMonitorService>::tear_down(&inner, request).await
+                                <T as SystemMonitorService>::tear_down(&inner, request)
+                                    .await
                             };
                             Box::pin(fut)
                         }
@@ -3300,19 +3469,25 @@ pub mod system_monitor_service_server {
                     };
                     Box::pin(fut)
                 }
-                _ => Box::pin(async move {
-                    let mut response = http::Response::new(tonic::body::Body::default());
-                    let headers = response.headers_mut();
-                    headers.insert(
-                        tonic::Status::GRPC_STATUS,
-                        (tonic::Code::Unimplemented as i32).into(),
-                    );
-                    headers.insert(
-                        http::header::CONTENT_TYPE,
-                        tonic::metadata::GRPC_CONTENT_TYPE,
-                    );
-                    Ok(response)
-                }),
+                _ => {
+                    Box::pin(async move {
+                        let mut response = http::Response::new(
+                            tonic::body::Body::default(),
+                        );
+                        let headers = response.headers_mut();
+                        headers
+                            .insert(
+                                tonic::Status::GRPC_STATUS,
+                                (tonic::Code::Unimplemented as i32).into(),
+                            );
+                        headers
+                            .insert(
+                                http::header::CONTENT_TYPE,
+                                tonic::metadata::GRPC_CONTENT_TYPE,
+                            );
+                        Ok(response)
+                    })
+                }
             }
         }
     }

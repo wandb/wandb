@@ -270,7 +270,7 @@ class _GradAccumulatorCallback(tf.keras.callbacks.Callback):
         self.grads = [np.zeros(tuple(w.shape)) for w in model.trainable_weights]
 
     def on_batch_end(self, batch, logs=None):
-        for g, w in zip(self.grads, self.model.trainable_weights):
+        for g, w in zip(self.grads, self.model.trainable_weights, strict=False):
             g += w.numpy()
         self.model.set_weights(self.og_weights)
 
@@ -845,7 +845,11 @@ class WandbCallback(tf.keras.callbacks.Callback):
                     wandb.Image(data, caption=captions[i])
                     for i, data in enumerate(reference_image_data)
                 ]
-                return list(chain.from_iterable(zip(output_images, reference_images)))
+                return list(
+                    chain.from_iterable(
+                        zip(output_images, reference_images, strict=False)
+                    )
+                )
         elif self.input_type in ("image", "images", "segmentation_mask"):
             input_image_data = (
                 self._masks_to_pixels(test_data)
@@ -882,7 +886,7 @@ class WandbCallback(tf.keras.callbacks.Callback):
                 ]
                 return list(
                     chain.from_iterable(
-                        zip(input_images, output_images, reference_images)
+                        zip(input_images, output_images, reference_images, strict=False)
                     )
                 )
             else:
@@ -907,7 +911,9 @@ class WandbCallback(tf.keras.callbacks.Callback):
             reference_images = [
                 wandb.Image(data) for i, data in enumerate(reference_image_data)
             ]
-            return list(chain.from_iterable(zip(output_images, reference_images)))
+            return list(
+                chain.from_iterable(zip(output_images, reference_images, strict=False))
+            )
 
     def _log_weights(self):
         metrics = {}
@@ -941,7 +947,7 @@ class WandbCallback(tf.keras.callbacks.Callback):
         weights = self.model.trainable_weights
         grads = self._grad_accumulator_callback.grads
         metrics = {}
-        for weight, grad in zip(weights, grads):
+        for weight, grad in zip(weights, grads, strict=False):
             metrics["gradients/" + weight.name.split(":")[0] + ".gradient"] = (
                 wandb.Histogram(grad)
             )

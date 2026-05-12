@@ -57,7 +57,7 @@ def assert_deep_lists_equal(a, b, indices=None):
         else:
             top = False
 
-        for i, (x, y) in enumerate(zip(a, b)):
+        for i, (x, y) in enumerate(zip(a, b, strict=False)):
             try:
                 assert_deep_lists_equal(x, y, indices)
             except AssertionError:

@@ -304,6 +304,13 @@ func (scope *Scope) SetPropagationContext(propagationContext PropagationContext)
 	scope.propagationContext = propagationContext
 }
 
+func (scope *Scope) propagationContextSnapshot() PropagationContext {
+	scope.mu.RLock()
+	defer scope.mu.RUnlock()
+
+	return scope.propagationContext
+}
+
 // GetSpan returns the span from the current scope.
 func (scope *Scope) GetSpan() *Span {
 	scope.mu.RLock()
@@ -456,7 +463,7 @@ func (scope *Scope) ApplyToEvent(event *Event, hint *EventHint, client *Client) 
 	}
 
 	if event.Request == nil && scope.request != nil {
-		event.Request = NewRequest(scope.request)
+		event.Request = newRequest(scope.request, sendDefaultPIIEnabled(client))
 		// NOTE: The SDK does not attempt to send partial request body data.
 		//
 		// The reason being that Sentry's ingest pipeline and UI are optimized

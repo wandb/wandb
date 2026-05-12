@@ -7,7 +7,8 @@ Usage:
     trigger.unregister('on_something', func)
 """
 
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 _triggers = {}
 

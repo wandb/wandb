@@ -49,6 +49,7 @@ if TYPE_CHECKING:
     from wandb.apis._generated import GetSweeps
     from wandb.apis.public.api import RetryingClient
     from wandb.apis.public.runs import AgentRuns
+    from wandb.apis.public.service_api import ServiceApi
 
 
 class Sweeps(SizedPaginator["Sweep"]):
@@ -78,11 +79,15 @@ class Sweeps(SizedPaginator["Sweep"]):
         entity: str,
         project: str,
         per_page: int = 50,
+        *,
+        service_api: ServiceApi,
     ) -> Sweeps:
         """An iterable collection of `Sweep` objects.
 
         Args:
-            client: The API client used to query W&B.
+            client: Legacy GraphQL client retained for API compatibility.
+            service_api: Interface to the wandb-core service that performs
+                W&B API calls for this collection.
             entity: The entity which owns the sweeps.
             project: The project which contains the sweeps.
             per_page: The number of sweeps to fetch per request to the API.
@@ -94,6 +99,7 @@ class Sweeps(SizedPaginator["Sweep"]):
 
         self.entity = entity
         self.project = project
+        self._service_api = service_api
         variables = {"project": self.project, "entity": self.entity}
         super().__init__(client, variables, per_page)
 
@@ -175,6 +181,7 @@ class Sweeps(SizedPaginator["Sweep"]):
                 self.entity,
                 self.project,
                 node.name,
+                service_api=self._service_api,
             )
             for node in Connection[SweepFragment].model_validate(project.sweeps).nodes()
         ]
@@ -203,6 +210,8 @@ class Sweep(Attrs):
         project: str,
         sweep_id: str,
         attrs: Mapping[str, Any] | None = None,
+        *,
+        service_api: ServiceApi,
     ):
         # TODO: Add agents / flesh this out.
         super().__init__(dict(attrs or {}))
@@ -210,6 +219,7 @@ class Sweep(Attrs):
         self._entity = entity
         self.project = project
         self.id = sweep_id
+        self._service_api = service_api
         self.runs = []
 
         self.load(force=not attrs)
@@ -236,7 +246,15 @@ class Sweep(Attrs):
         <!-- lazydoc-ignore: internal -->
         """
         if force or not self._attrs:
-            if not (sweep := self.get(self.client, self.entity, self.project, self.id)):
+            if not (
+                sweep := self.get(
+                    self.client,
+                    self.entity,
+                    self.project,
+                    self.id,
+                    service_api=self._service_api,
+                )
+            ):
                 raise ValueError(f"Could not find sweep {self!r}")
             self._attrs = sweep._attrs
             self.runs = sweep.runs
@@ -274,6 +292,7 @@ class Sweep(Attrs):
                 order=order,
                 filters=filters,
                 per_page=1,
+                service_api=self._service_api,
             )[0]
         except IndexError:
             return None
@@ -328,12 +347,16 @@ class Sweep(Attrs):
         sid: str | None = None,
         order: str | None = None,
         query: Document | None = None,
+        *,
+        service_api: ServiceApi,
         **kwargs,
     ):
         """Execute a query against the cloud backend.
 
         Args:
-            client: The client to use to execute the query.
+            client: Legacy GraphQL client retained for API compatibility.
+            service_api: Interface to the wandb-core service that performs
+                W&B API calls for the returned sweep.
             entity: The entity (username or team) that owns the project.
             project: The name of the project to fetch sweep from.
             sid: The sweep ID to query.
@@ -365,7 +388,14 @@ class Sweep(Attrs):
             and (sweep_dict := proj_dict.get("sweep"))
         ):
             return None
-        sweep = cls(client, entity, project, sid, attrs=sweep_dict)
+        sweep = cls(
+            client,
+            entity,
+            project,
+            sid,
+            attrs=sweep_dict,
+            service_api=service_api,
+        )
         sweep.runs = public.Runs(
             client,
             entity,
@@ -373,6 +403,7 @@ class Sweep(Attrs):
             order=order,
             per_page=10,
             filters={"$and": [{"sweep": sweep.id}]},
+            service_api=service_api,
         )
         return sweep
 
@@ -385,6 +416,7 @@ class Sweep(Attrs):
                 entity=self.entity,
                 project=self.project,
                 sweep_id=self.id,
+                service_api=self._service_api,
             )
         except ValueError as e:
             raise Error(
@@ -454,12 +486,15 @@ class Agent(Attrs):
         entity: str,
         project: str,
         sweep_id: str,
+        *,
+        service_api: ServiceApi,
     ) -> None:
         super().__init__(dict(attrs or {}))
         self._client = client
         self._entity = entity
         self._project = project
         self._sweep_id = sweep_id
+        self._service_api = service_api
 
         if self._entity is None:
             raise ValueError(
@@ -501,6 +536,7 @@ class Agent(Attrs):
             total_runs=total_runs,
             order="+created_at",
             per_page=per_page,
+            service_api=self._service_api,
         )
 
     def __repr__(self) -> str:

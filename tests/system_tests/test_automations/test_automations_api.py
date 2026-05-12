@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import math
 from collections import deque
+from collections.abc import Callable
 from itertools import islice
-from typing import Any, Callable
+from typing import Any
 
 import wandb
 from pytest import FixtureRequest, fixture, mark, raises, skip
@@ -884,7 +885,9 @@ class TestPaginatedAutomations:
         automation_names = [make_name(f"automation-{i}") for i in range(num_projects)]
 
         created_automation_ids = deque()
-        for project_name, automation_name in zip(project_names, automation_names):
+        for project_name, automation_name in zip(
+            project_names, automation_names, strict=True
+        ):
             # Create the placeholder project for the automation
             setup_api.create_project(name=project_name, entity=module_user)
             project = setup_api.project(name=project_name, entity=module_user)

@@ -36,7 +36,8 @@ from __future__ import annotations
 
 import io
 import os
-from typing import TYPE_CHECKING, Any, Callable
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
 
 from wandb_gql import gql
 from wandb_gql.client import RetryError

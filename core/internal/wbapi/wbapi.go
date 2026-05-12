@@ -33,6 +33,7 @@ type WandbAPI struct {
 	settings *settings.Settings
 
 	featuresHandler      *FeaturesHandler
+	graphqlHandler       *GraphQLHandler
 	runHistoryApiHandler *RunHistoryAPIHandler
 }
 
@@ -75,6 +76,7 @@ func New(
 		settings:  s,
 
 		featuresHandler:      NewFeaturesHandler(featureProvider),
+		graphqlHandler:       NewGraphQLHandler(graphqlClient),
 		runHistoryApiHandler: NewRunHistoryAPIHandler(graphqlClient, httpClient),
 	}, nil
 }
@@ -95,6 +97,8 @@ func (p *WandbAPI) HandleRequest(
 	switch req := request.Request.(type) {
 	case *spb.ApiRequest_FeaturesRequest:
 		return p.featuresHandler.HandleRequest(ctx, req.FeaturesRequest)
+	case *spb.ApiRequest_GraphqlRequest:
+		return p.graphqlHandler.HandleRequest(ctx, req.GraphqlRequest)
 	case *spb.ApiRequest_ReadRunHistoryRequest:
 		// TODO: Propagate ctx here.
 		return p.runHistoryApiHandler.HandleRequest(req.ReadRunHistoryRequest)

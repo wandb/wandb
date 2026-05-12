@@ -1,8 +1,7 @@
 import unittest.mock
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from datetime import timedelta
 from queue import Queue
-from typing import Callable
 
 import pytest
 import wandb

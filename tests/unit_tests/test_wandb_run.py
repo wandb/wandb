@@ -59,6 +59,7 @@ REFERENCE_ATTRIBUTES = set(
         "use_artifact",
         "use_model",
         "watch",
+        "write_logs",
     ]
 )
 
