@@ -6,7 +6,7 @@ ARG TARGETARCH
 RUN apk add --no-cache python3 git py3-pip gcc python3-dev curl openssl-dev pkgconf \
     && ln -sf /usr/bin/pkgconf /usr/bin/pkg-config
 
-ARG GO_VERSION=1.26.2
+ARG GO_VERSION=1.26.3
 RUN if [ "$TARGETARCH" = "amd64" ]; then \
     curl -L https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz | tar -C /usr/local -xzf -; \
     elif [ "$TARGETARCH" = "arm64" ]; then \
