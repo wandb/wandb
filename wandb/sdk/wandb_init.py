@@ -783,6 +783,7 @@ class _WandbInit:
             "restore",
             "status",
             "watch",
+            "write_logs",
             "unwatch",
             "upsert_artifact",
             "_finish",

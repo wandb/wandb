@@ -52,6 +52,7 @@ def _path_convert(*args: str) -> str:
 CLIENT_ONLY_SETTINGS = (
     "anonymous",
     "app_url_override",
+    "capture_loggers",
     "files_dir",
     "finish_timeout_raises",
     "max_end_of_run_history_metrics",
@@ -195,6 +196,36 @@ class Settings(BaseModel, validate_assignment=True):
     `True`.  May be used with `console_chunk_max_bytes`; the first limit
     reached closes the part. A value of `0` disables the time-based
     limit.
+    """
+
+    capture_loggers: Optional[dict[str, str]] = None
+    """Names of Python loggers to capture into the run's Logs tab.
+
+    A mapping of logger name to minimum log level. When set, wandb installs a
+    logging.Handler on each named logger and removes it when the run finishes.
+    Log records emitted by those loggers are published as console output to the
+    run, similar to stdout/stderr capture.
+
+    Log records are formatted the same as `logging.basicConfig()`, like
+    `INFO:my_module:Some message.` This is not currently customizable.
+
+    To capture all logs, pass the name of the root logger, which is 'root'.
+
+    This is independent of the `console` setting: both can be active
+    simultaneously.
+
+    Example:
+    ```python
+    wandb.init(
+        settings=wandb.Settings(
+            console="off",
+            capture_loggers={
+                "my_app": "INFO",
+                "my_app.training": "ERROR",
+            },
+        ),
+    )
+    ```
     """
 
     credentials_file: str = Field(

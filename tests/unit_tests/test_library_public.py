@@ -207,6 +207,7 @@ SYMBOLS_RUN = {
     "display",
     "settings",
     "status",
+    "write_logs",
 }
 
 # symbols having to do with resuming, we should clean this up

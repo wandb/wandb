@@ -23,6 +23,8 @@ This version drops support for Python 3.9.
 - The `stop_on_fatal_error` setting to stop a run (using `stop_fn`) after a fatal error that prevents it from uploading metrics (@timoffex in https://github.com/wandb/wandb/pull/11774)
 - New `wandb.sandbox` package and the `wandb beta sandbox` cli for using wandb sandbox (@pingleiwandb in https://github.com/wandb/wandb/pull/11606)
 - The `finish_timeout` and `finish_timeout_raises` settings (@timoffex in https://github.com/wandb/wandb/pull/11737)
+- The `run.write_logs()` method to write text directly to the Logs tab (@itstania in https://github.com/wandb/wandb/pull/11702)
+- The `capture_loggers` setting to automatically capture `logging.Logger` logs using `write_logs()` (@itstania in https://github.com/wandb/wandb/pull/11702)
 
 ### Changed
 

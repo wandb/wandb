@@ -47,7 +47,13 @@ type Sender struct {
 	runfilesUploaderOrNil runfiles.Uploader
 
 	// captureEnabled indicates whether to capture console output.
+	//
+	// TODO: Check captureEnabled in the client instead of here.
 	captureEnabled bool
+
+	// streamLabel is an optional label to add to all lines to disambiguate
+	// logs from different machines in a mode="shared" run.
+	streamLabel string
 
 	// fsWriter pushes updates to the FileStream.
 	fsWriter *filestreamWriter
@@ -57,6 +63,9 @@ type Sender struct {
 
 	// isMultipart indicates whether we're using chunked file output.
 	isMultipart bool
+
+	// model is the combined output of all logs sources.
+	model *RunLogsChangeModel
 }
 
 // Params contains parameters for creating a console logs Sender.
@@ -172,9 +181,11 @@ func New(params Params) *Sender {
 		logger:                params.Logger,
 		runfilesUploaderOrNil: params.RunfilesUploaderOrNil,
 		captureEnabled:        params.EnableCapture,
+		streamLabel:           params.Label,
 		fsWriter:              fsWriter,
 		fileWriter:            fileWriter,
 		isMultipart:           params.Multipart,
+		model:                 model,
 	}
 }
 
@@ -194,7 +205,22 @@ func (s *Sender) Finish() {
 	}
 }
 
-// StreamLogs saves captured console logs with the run.
+// StreamLoggerOutput appends a custom line of text to the run's console logs.
+//
+// This implements `run.write_logs()` in the Python client.
+func (s *Sender) StreamLoggerOutput(record *spb.OutputLoggerRecord) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.isFinished {
+		return
+	}
+
+	// We can discard the line reference because we never change the line.
+	_ = s.model.NextLine("", s.streamLabel, record.Line)
+}
+
+// StreamLogs updates the run's captured console logs.
 func (s *Sender) StreamLogs(record *spb.OutputRawRecord) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
