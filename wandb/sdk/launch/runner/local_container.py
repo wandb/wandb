@@ -303,12 +303,12 @@ def get_docker_command(
                 cmd += [prefix, shlex.quote(str(value))]
 
     if entry_cmd:
-        cmd += ["--entrypoint", entry_cmd[0]]
+        cmd += ["--entrypoint", shlex.quote(str(entry_cmd[0]))]
     cmd += [shlex.quote(image)]
     if entry_cmd and len(entry_cmd) > 1:
-        cmd += entry_cmd[1:]
+        cmd += [shlex.quote(str(arg)) for arg in entry_cmd[1:]]
     if additional_args:
-        cmd += additional_args
+        cmd += [shlex.quote(str(arg)) for arg in additional_args]
     return cmd
 
 

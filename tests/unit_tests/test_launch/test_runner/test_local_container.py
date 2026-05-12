@@ -1,5 +1,6 @@
 import os
 import platform
+import shlex
 from unittest.mock import MagicMock
 
 import pytest
@@ -133,6 +134,21 @@ def test_shell_command_uses_cmd_on_windows(mocker):
 
     assert local_container._shell_command("echo hello") == ["cmd", "/C", "echo hello"]
     mock_which.assert_not_called()
+
+
+def test_get_docker_command_quotes_user_controlled_args_for_shell():
+    payload = "; echo HACKED > /tmp/wandb-poc-cmd-injection; #"
+
+    command = local_container.get_docker_command(
+        "test-image",
+        {},
+        entry_cmd=[payload, payload],
+        additional_args=[payload],
+    )
+
+    split_command = shlex.split(" ".join(command))
+    assert split_command[split_command.index("--entrypoint") + 1] == payload
+    assert split_command[-2:] == [payload, payload]
 
 
 @pytest.mark.asyncio
