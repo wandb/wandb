@@ -1704,18 +1704,14 @@ def test_s3_storage_handler_load_path_missing_reference(monkeypatch, user, artif
             artifact.download()
 
 
-def test_change_artifact_collection_type(user):
+def test_change_artifact_collection_type(user, api):
     with wandb.init() as run:
         artifact = Artifact("image_data", "data")
-        run.log_artifact(artifact)
+        run.log_artifact(artifact).wait()
 
-    with wandb.init() as run:
-        artifact = run.use_artifact("image_data:latest")
-        artifact.collection.change_type("lucas_type")
+    api.artifact("image_data:latest").collection.change_type("lucas_type")
 
-    with wandb.init() as run:
-        artifact = run.use_artifact("image_data:latest")
-        assert artifact.type == "lucas_type"
+    assert api.artifact("image_data:latest").type == "lucas_type"
 
 
 def test_change_artifact_collection_type_to_internal_type(user):
@@ -1725,15 +1721,15 @@ def test_change_artifact_collection_type_to_internal_type(user):
 
     internal_type = f"{RESERVED_ARTIFACT_TYPE_PREFIX}invalid"
     collection = artifact.collection
-    with wandb.init() as run:
-        # test deprecated change_type errors for changing to internal type
-        with raises(CommError, match="is reserved for internal use"):
-            collection.change_type(internal_type)
 
-        # test .save()
-        with raises(CommError, match="is reserved for internal use"):
-            collection.type = internal_type
-            collection.save()
+    # test deprecated change_type errors for changing to internal type
+    with raises(CommError, match="is reserved for internal use"):
+        collection.change_type(internal_type)
+
+    # test .save()
+    with raises(CommError, match="is reserved for internal use"):
+        collection.type = internal_type
+        collection.save()
 
 
 def test_change_type_of_internal_artifact_collection(user):
@@ -1743,15 +1739,15 @@ def test_change_type_of_internal_artifact_collection(user):
         run.log_artifact(artifact).wait()
 
     collection = artifact.collection
-    with wandb.init() as run:
-        # test deprecated change_type
-        with raises(CommError, match="is an internal type and cannot be changed"):
-            collection.change_type("model")
 
-        # test .save()
-        with raises(CommError, match="is an internal type and cannot be changed"):
-            collection.type = "model"
-            collection.save()
+    # test deprecated change_type
+    with raises(CommError, match="is an internal type and cannot be changed"):
+        collection.change_type("model")
+
+    # test .save()
+    with raises(CommError, match="is an internal type and cannot be changed"):
+        collection.type = "model"
+        collection.save()
 
 
 @mark.parametrize(
@@ -1787,31 +1783,26 @@ def test_setting_invalid_artifact_collection_name(user, api, invalid_name):
 def test_save_artifact_sequence(user: str, api: Api, new_description: str | None):
     with wandb.init() as run:
         artifact = Artifact("sequence_name", "data")
-        run.log_artifact(artifact)
-        artifact.wait()
+        run.log_artifact(artifact).wait()
 
-        artifact = run.use_artifact("sequence_name:latest")
-        collection = api.artifact_collection("data", "sequence_name")
-        collection.description = new_description
-        collection.name = "new_name"
-        collection.type = "new_type"
-        collection.tags = ["tag"]
-        collection.save()
+    collection = api.artifact_collection("data", "sequence_name")
+    collection.description = new_description
+    collection.name = "new_name"
+    collection.type = "new_type"
+    collection.tags = ["tag"]
+    collection.save()
 
-        artifact = run.use_artifact("new_name:latest")
-        assert artifact.type == "new_type"
-        collection = artifact.collection
-        assert collection.type == "new_type"
-        assert collection.name == "new_name"
-        assert collection.description == new_description
-        assert len(collection.tags) == 1 and collection.tags[0] == "tag"
+    collection = api.artifact_collection("new_type", "new_name")
+    assert collection.type == "new_type"
+    assert collection.name == "new_name"
+    assert collection.description == new_description
+    assert collection.tags == ["tag"]
 
-        collection.tags = ["new_tag"]
-        collection.save()
+    collection.tags = ["new_tag"]
+    collection.save()
 
-        artifact = run.use_artifact("new_name:latest")
-        collection = artifact.collection
-        assert len(collection.tags) == 1 and collection.tags[0] == "new_tag"
+    collection = api.artifact_collection("new_type", "new_name")
+    assert collection.tags == ["new_tag"]
 
 
 def test_artifact_standard_url(user, api):
