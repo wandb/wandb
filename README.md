@@ -62,7 +62,7 @@ config = {"epochs": 1337, "lr": 3e-4}
 #
 # In a notebook, it may be more convenient to write `run = wandb.init()`
 # and manually call `run.finish()` instead of using a `with` block.
-with wandb.init(project=project, config=config) as run:
+with wandb.init(project=project, ;config=config) as run:
     # Training code here
 
     # Log values to W&B with run.log()
