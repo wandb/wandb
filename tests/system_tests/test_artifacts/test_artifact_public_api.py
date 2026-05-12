@@ -343,8 +343,7 @@ def test_artifact_collection_exists(api: Api):
     assert api.artifact_collection_exists("mnist-fake", "dataset") is False
 
 
-@mark.usefixtures("sample_data")
-def test_artifact_exists_raises_on_timeout(mocker: MockerFixture, api: Api):
+def test_artifact_exists_raises_on_timeout(user: str, mocker: MockerFixture, api: Api):
     # FIXME: We should really be mocking the GraphQL HTTP requests/responses, NOT the
     # actual python methods, but this is complicated by the fact that we need to instantiate
     # a new Api with a shorter timeout, and that Api makes immediate requests on _instantiation_.
@@ -368,8 +367,9 @@ def test_artifact_exists_raises_on_timeout(mocker: MockerFixture, api: Api):
     assert isinstance(exc_info.value.exc, requests.Timeout)
 
 
-@mark.usefixtures("sample_data")
-def test_artifact_collection_exists_raises_on_timeout(mocker: MockerFixture, api: Api):
+def test_artifact_collection_exists_raises_on_timeout(
+    user: str, mocker: MockerFixture, api: Api
+):
     # FIXME: We should really be mocking the GraphQL HTTP requests/responses, NOT the
     # actual python methods, but this is complicated by the fact that we need to instantiate
     # a new Api with a shorter timeout, and that Api makes immediate requests on _instantiation_.
