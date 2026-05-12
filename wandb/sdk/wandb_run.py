@@ -2118,9 +2118,17 @@ class Run:
         preexisting = set(files_root.glob(relative_glob_str))
 
         # Expand sources deterministically.
+        # Escape only bracket characters in base_path so that literal '[' or ']'
+        # in directory names are not misinterpreted as glob character classes.
+        # '*' and '?' are intentionally left unescaped to allow derived base paths
+        # (from glob patterns without an explicit base_path) to still expand.
+        # Single-pass to prevent chained replacements from corrupting escapes.
+        escaped_base = "".join(
+            "[[]" if c == "[" else "[]]" if c == "]" else c for c in str(base_path)
+        )
         src_paths = [
             pathlib.Path(p).absolute()
-            for p in sorted(glob.glob(GlobStr(str(base_path / relative_glob_str))))
+            for p in sorted(glob.glob(GlobStr(os.path.join(escaped_base, str(relative_glob_str)))))
         ]
 
         stats = LinkStats()
