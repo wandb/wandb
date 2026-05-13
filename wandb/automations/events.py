@@ -186,7 +186,7 @@ class SavedEvent(FilterEventFields):  # from: FilterEventTriggeringCondition
 
     # We override the type of the `filter` field in order to enforce the expected
     # structure for the JSON data when validating and serializing.
-    filter: JsonEncoded[
+    filter: JsonEncoded[  # type: ignore[assignment]
         Union[_WrappedSavedEventFilter, RunMetricFilter, RunStateFilter]
     ]
     """The condition(s) under which this event triggers an automation."""

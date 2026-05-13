@@ -55,7 +55,10 @@ class SupportsBitwiseLogicalOps:
             return And(exprs=(self, other))
         return NotImplemented
 
-    def __invert__(self) -> Not:
+    # Subclasses widen the return to their operator-specific inverse
+    # (e.g. `Lt -> Gte`); the parent type must cover all those cases so
+    # the overrides don't trip Liskov return-type checks.
+    def __invert__(self) -> Op | FilterExpr:
         """Implements default `~` behavior: `~a -> Not(a)`."""
         return Not(expr=self)
 

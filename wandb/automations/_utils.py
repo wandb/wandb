@@ -29,6 +29,7 @@ from .events import (
     EventType,
     InputEvent,
     RunMetricFilter,
+    RunStateFilter,
     SavedEvent,
     _WrappedSavedEventFilter,
 )
@@ -109,7 +110,7 @@ def prepare_action_config_input(obj: SavedAction | InputAction) -> dict[str, Any
 
 
 def prepare_event_filter_input(
-    obj: _WrappedSavedEventFilter | MongoLikeFilter | RunMetricFilter,
+    obj: _WrappedSavedEventFilter | MongoLikeFilter | RunMetricFilter | RunStateFilter,
 ) -> str:
     """Unnests (if needed) and serializes an `EventFilter` input to JSON.
 
