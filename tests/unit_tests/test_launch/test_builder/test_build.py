@@ -141,11 +141,6 @@ def test_get_base_setup_accepts_accelerator_base_image_refs(base_image):
             "Ubuntu:22.04",
             "Expected a valid Docker image reference name.",
         ),
-        (
-            1,
-            "Expected builder.accelerator.base_image to be a string Docker image "
-            "reference, got int.",
-        ),
     ],
 )
 def test_get_base_setup_rejects_invalid_accelerator_base_image_refs(
