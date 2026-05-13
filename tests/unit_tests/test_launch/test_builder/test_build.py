@@ -1,5 +1,6 @@
 import hashlib
 import json
+import re
 from unittest.mock import MagicMock
 
 import pytest
@@ -114,21 +115,46 @@ def test_get_base_setup_accepts_accelerator_base_image_refs(base_image):
 
 
 @pytest.mark.parametrize(
-    "base_image",
+    "base_image,expected_error",
     [
-        "ubuntu:22.04\nRUN echo PROOF > /proof.txt\n#",
-        "ubuntu:22.04 # comment",
-        "ubuntu:22.04 as base",
-        "ubuntu:22.04\n",
-        "ubuntu:22.04@sha256:not-a-digest",
-        1,
+        (
+            "ubuntu:22.04\nRUN echo PROOF > /proof.txt\n#",
+            "Docker image references cannot contain whitespace or '#'.",
+        ),
+        (
+            "ubuntu:22.04 # comment",
+            "Docker image references cannot contain whitespace or '#'.",
+        ),
+        (
+            "ubuntu:22.04 as base",
+            "Docker image references cannot contain whitespace or '#'.",
+        ),
+        (
+            "ubuntu:22.04\n",
+            "Docker image references cannot contain whitespace or '#'.",
+        ),
+        (
+            "ubuntu:22.04@sha256:not-a-digest",
+            "Expected digest to match sha256:<64 hex characters>.",
+        ),
+        (
+            "Ubuntu:22.04",
+            "Expected a valid Docker image reference name.",
+        ),
+        (
+            1,
+            "Expected builder.accelerator.base_image to be a string Docker image "
+            "reference, got int.",
+        ),
     ],
 )
-def test_get_base_setup_rejects_invalid_accelerator_base_image_refs(base_image):
+def test_get_base_setup_rejects_invalid_accelerator_base_image_refs(
+    base_image, expected_error
+):
     launch_project = MagicMock()
     launch_project.accelerator_base_image = base_image
 
-    with pytest.raises(LaunchError, match="Invalid accelerator base image"):
+    with pytest.raises(LaunchError, match=re.escape(expected_error)):
         build.get_base_setup(launch_project, "3.10", "3")
 
 

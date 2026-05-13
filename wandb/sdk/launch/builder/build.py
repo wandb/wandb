@@ -38,27 +38,32 @@ _DOCKER_IMAGE_REF_UNSAFE_CHARS = re.compile(r"[\s#]")
 _DOCKER_IMAGE_SHA256_DIGEST = re.compile(r"sha256:[0-9a-fA-F]{64}")
 
 
-def _validate_accelerator_base_image(base_image: str) -> str:
+def _validate_accelerator_base_image(base_image: Any) -> str:
     """Validate accelerator base image before inserting it into a Dockerfile."""
     if not isinstance(base_image, str):
         raise LaunchError(
-            "Invalid accelerator base image. Expected a Docker image reference."
+            "Invalid accelerator base image. Expected "
+            "builder.accelerator.base_image to be a string Docker image "
+            f"reference, got {type(base_image).__name__}."
         )
 
     if _DOCKER_IMAGE_REF_UNSAFE_CHARS.search(base_image):
         raise LaunchError(
-            "Invalid accelerator base image. Expected a Docker image reference."
+            "Invalid accelerator base image. Docker image references cannot "
+            "contain whitespace or '#'."
         )
 
     image_name, digest_sep, digest = base_image.partition("@")
     if digest_sep and not _DOCKER_IMAGE_SHA256_DIGEST.fullmatch(digest):
         raise LaunchError(
-            "Invalid accelerator base image. Expected a Docker image reference."
+            "Invalid accelerator base image. Expected digest to match "
+            "sha256:<64 hex characters>."
         )
 
     if not image_name or not docker_image_regex(image_name):
         raise LaunchError(
-            "Invalid accelerator base image. Expected a Docker image reference."
+            "Invalid accelerator base image. Expected a valid Docker image "
+            "reference name."
         )
 
     return base_image
