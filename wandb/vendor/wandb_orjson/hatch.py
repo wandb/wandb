@@ -7,7 +7,8 @@ import pathlib
 import shutil
 import subprocess
 import sys
-from typing import List
+import sysconfig
+from typing import List, Optional
 
 
 class OrjsonBuildError(Exception):
@@ -59,6 +60,8 @@ def build_orjson(
         "--message-format=json",
         "--lib",
     ]
+    if cargo_target := _cargo_target():
+        cmd.extend(["--target", cargo_target])
 
     # On Linux, libpython may not be available as a shared library
     # (musl bundles it statically; manylinux may not have it on the
@@ -158,3 +161,19 @@ def _cargo_env() -> dict[str, str]:
         rustflags = env.get("RUSTFLAGS", "")
         env["RUSTFLAGS"] = f"{rustflags} -C target-feature=-crt-static".strip()
     return env
+
+
+def _cargo_target() -> Optional[str]:
+    """Returns a Rust target triple to pass via --target, or None.
+
+    cibuildwheel builds cp*-win32 wheels by running a 32-bit Python on a
+    64-bit Windows runner. Cargo's default target follows the host
+    (x86_64-pc-windows-msvc), so pyo3-ffi's build script aborts with
+    "your Rust target architecture (64-bit) does not match your python
+    interpreter (32-bit)". Returning i686-pc-windows-msvc keeps the two
+    aligned. CI must `rustup target add i686-pc-windows-msvc` first.
+    """
+    if sysconfig.get_platform() == "win32":
+        return "i686-pc-windows-msvc"
+
+    return None
