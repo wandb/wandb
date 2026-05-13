@@ -54,14 +54,26 @@ class CustomBuildHook(BuildHookInterface):
             self._prepare_wheel(build_data)
 
     def _prepare_wheel(self, build_data: dict[str, Any]) -> None:
-        build_data["tag"] = f"py3-none-{self._get_platform_tag()}"
+        platform_tag = self._get_platform_tag()
+        include_orjson = self._include_orjson()
+
+        if include_orjson:
+            # orjson uses CPython ABI, so the wheel tag must be version-specific.
+            version_info = sys.version_info
+            build_data["tag"] = (
+                f"cp{version_info.major}{version_info.minor}"
+                f"-cp{version_info.major}{version_info.minor}"
+                f"-{platform_tag}"
+            )
+        else:
+            build_data["tag"] = f"py3-none-{platform_tag}"
 
         artifacts: list[str] = build_data["artifacts"]
         artifacts.extend(self._build_wandb_core())
         artifacts.extend(self._build_arrow_rs_wrapper())
         if self._include_wandb_xpu():
             artifacts.extend(self._build_wandb_xpu())
-        if self._include_orjson():
+        if include_orjson:
             artifacts.extend(self._build_orjson())
 
     def _get_platform_tag(self) -> str:
