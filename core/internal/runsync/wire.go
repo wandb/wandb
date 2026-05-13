@@ -35,8 +35,8 @@ var runSyncerFactoryBindings = wire.NewSet(
 	filestream.FileStreamProviders,
 	filetransfer.NewFileTransferStats,
 	mailbox.New,
-	observability.NewPrinter,
 	provideFileWatcher,
+	providePrinter,
 	runfiles.UploaderProviders,
 	runhandle.New,
 	runReaderProviders,
@@ -51,6 +51,10 @@ var runSyncerFactoryBindings = wire.NewSet(
 	tensorboard.TBHandlerProviders,
 	wboperation.NewOperations,
 )
+
+func providePrinter() *observability.Printer {
+	return observability.NewPrinter(printerBufferSize)
+}
 
 func provideFileWatcher(logger *observability.CoreLogger) watcher.Watcher {
 	return watcher.New(watcher.Params{Logger: logger})

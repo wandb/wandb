@@ -54,7 +54,7 @@ func InjectStream(commit GitCommitHash, xpuResourceManager *monitor.XPUResourceM
 		GraphqlClient:      client,
 		WriterID:           clientID,
 	}
-	printer := observability.NewPrinter()
+	printer := providePrinter()
 	handlerFactory := &HandlerFactory{
 		Commit:               commit,
 		FileTransferStats:    fileTransferStats,
@@ -129,9 +129,15 @@ var streamProviders = wire.NewSet(
 	NewStream, wire.Bind(new(api.Peeker), new(*observability.Peeker)), wire.Struct(new(observability.Peeker)), BaseURLFromSettings,
 	CredentialsFromSettings, featurechecker.New, filestream.FileStreamProviders, filetransfer.NewFileTransferStats, flowControlProviders,
 	handlerProviders, mailbox.New, monitor.SystemMonitorProviders, NewFileTransferManager,
-	NewGraphQLClient, observability.NewPrinter, provideFileWatcher,
+	NewGraphQLClient,
+	provideFileWatcher,
+	providePrinter,
 	RecordParserProviders, runfiles.UploaderProviders, runhandle.New, SenderProviders, sharedmode.RandomClientID, streamLoggerProviders, tensorboard.TBHandlerProviders, wboperation.NewOperations, WriterProviders,
 )
+
+func providePrinter() *observability.Printer {
+	return observability.NewPrinter(printerBufferSize)
+}
 
 func provideFileWatcher(logger *observability.CoreLogger) watcher.Watcher {
 	return watcher.New(watcher.Params{Logger: logger})

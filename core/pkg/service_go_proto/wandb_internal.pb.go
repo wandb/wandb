@@ -6719,8 +6719,14 @@ func (x *HttpResponse) GetHttpResponseText() string {
 
 // InternalMessagesRequest:
 type InternalMessagesRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	XInfo         *XRequestInfo          `protobuf:"bytes,200,opt,name=_info,json=Info,proto3" json:"_info,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// If true, block until there are messages or the run ends.
+	//
+	// The response is empty if and only if the run is over.
+	// The request can be cancelled via the usual ServerCancelRequest
+	// mechanism.
+	Wait          bool          `protobuf:"varint,1,opt,name=wait,proto3" json:"wait,omitempty"`
+	XInfo         *XRequestInfo `protobuf:"bytes,200,opt,name=_info,json=Info,proto3" json:"_info,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -6753,6 +6759,13 @@ func (x *InternalMessagesRequest) ProtoReflect() protoreflect.Message {
 // Deprecated: Use InternalMessagesRequest.ProtoReflect.Descriptor instead.
 func (*InternalMessagesRequest) Descriptor() ([]byte, []int) {
 	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{78}
+}
+
+func (x *InternalMessagesRequest) GetWait() bool {
+	if x != nil {
+		return x.Wait
+	}
+	return false
 }
 
 func (x *InternalMessagesRequest) GetXInfo() *XRequestInfo {
@@ -12064,8 +12077,9 @@ const file_wandb_proto_wandb_internal_proto_rawDesc = "" +
 	"\x11network_responses\x18\x01 \x03(\v2\x1c.wandb_internal.HttpResponseR\x10networkResponses\"f\n" +
 	"\fHttpResponse\x12(\n" +
 	"\x10http_status_code\x18\x01 \x01(\x05R\x0ehttpStatusCode\x12,\n" +
-	"\x12http_response_text\x18\x02 \x01(\tR\x10httpResponseText\"M\n" +
-	"\x17InternalMessagesRequest\x122\n" +
+	"\x12http_response_text\x18\x02 \x01(\tR\x10httpResponseText\"a\n" +
+	"\x17InternalMessagesRequest\x12\x12\n" +
+	"\x04wait\x18\x01 \x01(\bR\x04wait\x122\n" +
 	"\x05_info\x18\xc8\x01 \x01(\v2\x1c.wandb_internal._RequestInfoR\x04Info\"X\n" +
 	"\x18InternalMessagesResponse\x12<\n" +
 	"\bmessages\x18\x01 \x01(\v2 .wandb_internal.InternalMessagesR\bmessages\",\n" +
