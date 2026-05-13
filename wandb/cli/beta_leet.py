@@ -31,13 +31,15 @@ class LocalLaunchConfig(LaunchConfig):
 
 @dataclasses.dataclass(frozen=True)
 class RemoteLaunchConfig(LaunchConfig):
-    """Configuration for launching LEET."""
+    """Configuration for launching LEET against a remote run/project.
 
-    base_url: str
-    project: str
-    entity: str
+    The URL is the single source of truth — its path is parsed both here
+    (for early validation) and again on the Go side to derive entity,
+    project, and optional run id.
+    """
+
+    remote_url: str
     api_key: str
-    run_id: str | None = None
 
 
 def _fatal(message: str) -> Never:
@@ -176,31 +178,17 @@ def _get_local_launch_args(config: LocalLaunchConfig) -> list[str]:
 
 def _get_remote_launch_args(config: RemoteLaunchConfig) -> list[str]:
     """Get the arguments for launching LEET remotely."""
-    args = []
-    args.extend(
-        [
-            "--base-url",
-            config.base_url,
-            "--project",
-            config.project,
-            "--entity",
-            config.entity,
-        ]
-    )
-    if config.run_id:
-        args.extend(["--run-id", config.run_id])
-
-    return args
+    return ["--remote-url", config.remote_url]
 
 
 def _create_remote_launch_config(path: str) -> RemoteLaunchConfig:
     """Create a LEET launch configuration for a remote run."""
     parsed_url = urllib.parse.urlparse(path)
-    entity, project, run_id = _parse_path(parsed_url.path)
+    _validate_remote_path(parsed_url.path, original=path)
 
-    base_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
-    if parsed_url.netloc == "wandb.ai":
-        base_url = "https://api.wandb.ai"
+    netloc = "api.wandb.ai" if parsed_url.netloc == "wandb.ai" else parsed_url.netloc
+    base_url = f"{parsed_url.scheme}://{netloc}"
+    canonical_url = f"{base_url}{parsed_url.path}"
 
     auth = wbauth.authenticate_session(
         host=base_url,
@@ -210,28 +198,15 @@ def _create_remote_launch_config(path: str) -> RemoteLaunchConfig:
     )
     assert isinstance(auth, wbauth.AuthApiKey)
 
-    return RemoteLaunchConfig(
-        base_url=base_url,
-        project=project,
-        entity=entity,
-        api_key=auth.api_key,
-        run_id=run_id,
-    )
+    return RemoteLaunchConfig(remote_url=canonical_url, api_key=auth.api_key)
 
 
-def _parse_path(path: str) -> tuple[str, str, str]:
-    """Parse the given path into a tuple of (entity, project, run_id)."""
-    input_path = path
-    path = path.replace("/runs/", "/")
-    path = path.replace("/sweeps/", "/")
-    path = path.strip("/")
-
-    parts = path.split("/")
-
+def _validate_remote_path(path: str, *, original: str) -> None:
+    """Reject malformed remote paths early so we don't fork wandb-core for nothing."""
+    normalized = path.replace("/runs/", "/").replace("/sweeps/", "/").strip("/")
+    parts = normalized.split("/")
     if len(parts) != 3:
         raise ValueError(
-            f"Invalid path: {input_path!r}."
-            + " Expected format: https://<base_url>/<entity>/<project>/<run_id>"
+            f"Invalid path: {original!r}."
+            " Expected format: https://<base_url>/<entity>/<project>/<run_id>"
         )
-
-    return parts[0], parts[1], parts[2]
