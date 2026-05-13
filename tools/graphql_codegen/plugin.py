@@ -193,20 +193,8 @@ class GraphQLCodegenPlugin(Plugin):
     def _ensure_all_model_rebuilds(self, module: ast.Module) -> ast.Module:
         """Ensure that all generated classes call `model_rebuild()` after being defined.
 
-        NOTE: This is intended only as a workaround to accommodate pydantic v1
-        compatibility issues.
-
-        Context: In some cases, depending on the order of class definitions/imports/etc.,
-        pydantic v1 requires calling `.update_forward_refs()` (i.e. `.model_rebuild()` in v2)
-        when it would no longer be necessary in pydantic v2.
-
-        Example error from pydantic v1:
-
-            pydantic.errors.ConfigError: field "args" not yet prepared
-            so type is still a ForwardRef, you might need to call
-            TypeInfoFragmentFields.update_forward_refs().
-
-        We can probably drop this codegen hack/workaround once pydantic v1 is no longer supported.
+        The generated modules have forward references between sibling classes.
+        Normalizing the rebuild calls here keeps regenerated files stable.
         """
         import_stmts = deque()  # e.g. `from typing import ...`
         classdef_stmts = deque()  # e.g. `class MyFragmentFields(BaseModel): ...`

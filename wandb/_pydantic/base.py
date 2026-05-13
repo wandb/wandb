@@ -1,16 +1,13 @@
 """Base classes and other customizations for generated pydantic types."""
 
-# Older-style type annotations required for Pydantic v1 / python 3.8 compatibility.
-
 from __future__ import annotations
 
 from abc import ABC
 from typing import TYPE_CHECKING, Any, Callable, ClassVar, Dict, Literal, overload
 
 from pydantic import BaseModel, ConfigDict
+from pydantic.alias_generators import to_camel
 from typing_extensions import TypedDict, Unpack, override
-
-from .v1_compat import PydanticCompatMixin, to_camel
 
 if TYPE_CHECKING:
     from pydantic.main import IncEx
@@ -44,11 +41,9 @@ class ModelDumpKwargs(TypedDict, total=False):
 # prevents it from showing up in generated docs for subclasses.
 
 
-# FOR INTERNAL USE ONLY: v1-compatible drop-in replacement for `pydantic.BaseModel`.
-# If pydantic v2 is detected, this is just `pydantic.BaseModel`.
-#
+# FOR INTERNAL USE ONLY: W&B's shared base model for generated pydantic types.
 # Deliberately inherits ALL default configuration from `pydantic.BaseModel`.
-class CompatBaseModel(PydanticCompatMixin, BaseModel):
+class CompatBaseModel(BaseModel):
     __doc__ = None  # Prevent subclasses from inheriting the BaseModel docstring
 
 

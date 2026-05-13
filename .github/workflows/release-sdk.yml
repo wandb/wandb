@@ -167,12 +167,6 @@ jobs:
           CIBW_BEFORE_ALL_MACOS: >
             rustup target add x86_64-apple-darwin
 
-          # cp*-win32 builds run a 32-bit Python on the 64-bit Windows host;
-          # the wandb_orjson hatch script passes --target i686-pc-windows-msvc
-          # to cargo to match, which needs the std lib for that triple.
-          CIBW_BEFORE_ALL_WINDOWS: >
-            rustup target add i686-pc-windows-msvc
-
           # Work around https://github.com/matthew-brett/delocate/issues/204
           # by adding `--ignore-missing-dependencies` to cibuildwheel's default
           # repair wheel command.

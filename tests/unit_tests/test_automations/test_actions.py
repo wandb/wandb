@@ -2,8 +2,6 @@ import json
 
 from hypothesis import given
 from hypothesis.strategies import dictionaries, sampled_from, text
-from pytest import mark
-from wandb._pydantic import IS_PYDANTIC_V2
 from wandb.automations import ActionType, SendNotification, SendWebhook
 from wandb.automations._generated import AlertSeverity, TriggeredActionType
 from wandb.sdk.wandb_alerts import AlertLevel
@@ -30,10 +28,6 @@ def test_public_action_type_enum_is_subset_of_generated():
     assert public_enum_values.issubset(generated_enum_values)
 
 
-@mark.skipif(
-    not IS_PYDANTIC_V2,
-    reason="Unsupported in Pydantic v1: non-essential enhancement",
-)
 @given(
     integration_id=gql_ids(prefix="Integration"),
     title=printable_text,
