@@ -9,7 +9,7 @@ import os
 import shutil
 import subprocess
 import sys
-from collections.abc import Iterator
+from collections.abc import Generator
 from contextlib import AbstractContextManager
 from functools import lru_cache
 from pathlib import Path
@@ -203,7 +203,7 @@ class ArtifactFileCache:
 
     def _opener(self, path: Path, size: int, skip_cache: bool = False) -> Opener:
         @contextlib.contextmanager
-        def atomic_open(mode: str = "w") -> Iterator[IO]:
+        def atomic_open(mode: str = "w") -> Generator[IO]:
             if "a" in mode:
                 raise ValueError("Appending to cache files is not supported")
 
