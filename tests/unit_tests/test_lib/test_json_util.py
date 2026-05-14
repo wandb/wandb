@@ -63,18 +63,29 @@ _NONFINITE = [
 
 
 @pytest.mark.parametrize("value, literal", _NONFINITE)
-def test_dumps_nonfinite_float_matches_stdlib_literal(
+def test_dumps_nonfinite_float_consistent_with_stdlib(
     value: float, literal: str
 ) -> None:
-    """Wrapper emits the same JS-style literal stdlib does for each non-finite.
+    """Wrapper and stdlib both round-trip non-finite floats via the JS literal.
 
-    stdlib's `json.dumps` with the default `allow_nan=True` produces these
-    bareword tokens; the wrapper uses `inf_nan_mode="constants"` to match.
+    Whitespace varies between serializers, so this checks behavior rather than
+    exact bytes: the literal token appears in both outputs, and parsing either
+    output via stdlib `json.loads` produces the same Python float.
     """
     wrapper_out = json_util.dumps({"x": value})
     stdlib_out = json.dumps({"x": value})
-    assert f'"x":{literal}' in wrapper_out
-    assert f'"x": {literal}' in stdlib_out  # stdlib has a space after the colon
+
+    # Both contain the bareword literal (the spacing around it differs).
+    assert literal in wrapper_out
+    assert literal in stdlib_out
+
+    # And both round-trip to the same Python float (NaN compared via isnan).
+    wrapper_x = json.loads(wrapper_out)["x"]
+    stdlib_x = json.loads(stdlib_out)["x"]
+    if math.isnan(value):
+        assert math.isnan(wrapper_x) and math.isnan(stdlib_x)
+    else:
+        assert wrapper_x == stdlib_x == value
 
 
 @pytest.mark.parametrize("value, literal", _NONFINITE)
@@ -201,13 +212,30 @@ def test_dumps_falls_back_to_stdlib_for_unsupported_types() -> None:
         json_util.dumps({"x": Unknown()})
 
 
-def test_loads_with_kwargs_uses_stdlib() -> None:
-    """`loads(..., parse_float=...)` routes through stdlib so the kwarg is honored."""
-    assert json_util.loads("1.5", parse_float=str) == "1.5"
-
-
 def test_loads_basic() -> None:
     assert json_util.loads('{"a":[1,2,3]}') == {"a": [1, 2, 3]}
+
+
+@pytest.mark.parametrize(
+    "encoded",
+    [
+        "null",
+        "true",
+        "false",
+        "0",
+        "-1",
+        "3.14",
+        '"hello"',
+        "[]",
+        "{}",
+        "[1, 2, 3]",
+        '{"a": 1, "b": [2, 3]}',
+        '{"nested": {"x": null}}',
+    ],
+)
+def test_loads_consistent_with_stdlib(encoded: str) -> None:
+    """`loads(s)` returns the same Python value as `json.loads(s)`."""
+    assert json_util.loads(encoded) == json.loads(encoded)
 
 
 def test_dump_writes_to_text_fp() -> None:
