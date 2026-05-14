@@ -283,7 +283,7 @@ class Settings(BaseModel, validate_assignment=True):
     heartbeat_seconds: int = 30
     """Interval in seconds between heartbeat signals sent to the W&B servers.
 
-    <!-- lazydoc-ignore-class-attributes -->
+    <!-- lazydoc-ignore: internal -->
     """
 
     host: Optional[str] = None
@@ -356,7 +356,7 @@ class Settings(BaseModel, validate_assignment=True):
     launch: bool = False
     """Flag to indicate if the run is being launched through W&B Launch.
 
-    <!-- lazydoc-ignore-class-attributes -->
+    <!-- lazydoc-ignore: internal -->
     """
 
     launch_config_path: Optional[str] = None
@@ -449,7 +449,7 @@ class Settings(BaseModel, validate_assignment=True):
     """Indication from the server about the state of the run.
 
     This is different from resume, a user provided flag.
-    <!-- lazydoc-ignore-class-attributes -->
+    <!-- lazydoc-ignore: internal -->
     """
 
     root_dir: str = Field(default_factory=lambda: os.path.abspath(os.getcwd()))
@@ -511,13 +511,13 @@ class Settings(BaseModel, validate_assignment=True):
     show_colors: Optional[bool] = None
     """Whether to use colored output in the console.
 
-    <!-- lazydoc-ignore-class-attributes -->
+    <!-- lazydoc-ignore: internal -->
     """
 
     show_emoji: Optional[bool] = None
     """Whether to show emoji in the console output.
 
-    <!-- lazydoc-ignore-class-attributes -->
+    <!-- lazydoc-ignore: internal -->
     """
 
     show_errors: bool = True
@@ -536,7 +536,7 @@ class Settings(BaseModel, validate_assignment=True):
     """Method to use for starting subprocesses.
 
     This is deprecated and will be removed in a future release.
-    <!-- lazydoc-ignore-class-attributes -->
+    <!-- lazydoc-ignore: internal -->
     """
 
     stop_on_fatal_error: bool = False
@@ -561,7 +561,7 @@ class Settings(BaseModel, validate_assignment=True):
     summary_warnings: int = 5
     """Maximum number of summary warnings to display.
 
-    <!-- lazydoc-ignore-class-attributes -->
+    <!-- lazydoc-ignore: internal -->
     """
 
     sweep_id: Optional[str] = None
@@ -597,7 +597,7 @@ class Settings(BaseModel, validate_assignment=True):
     x_cli_only_mode: bool = False
     """Flag to indicate that the SDK is running in CLI-only mode.
 
-    <!-- lazydoc-ignore-class-attributes -->
+    <!-- lazydoc-ignore: internal -->
     """
 
     x_disable_meta: bool = False
@@ -609,19 +609,19 @@ class Settings(BaseModel, validate_assignment=True):
     x_disable_viewer: bool = False
     """Flag to disable the early viewer query.
 
-    <!-- lazydoc-ignore-class-attributes -->
+    <!-- lazydoc-ignore: internal -->
     """
 
     x_disable_machine_info: bool = False
     """Flag to disable automatic machine info collection.
 
-    <!-- lazydoc-ignore-class-attributes -->
+    <!-- lazydoc-ignore: internal -->
     """
 
     x_executable: Optional[str] = None
     """Path to the Python executable.
 
-    <!-- lazydoc-ignore-class-attributes -->
+    <!-- lazydoc-ignore: internal -->
     """
 
     x_extra_http_headers: Optional[Dict[str, str]] = None
@@ -633,19 +633,19 @@ class Settings(BaseModel, validate_assignment=True):
     Its purpose is to prevent HTTP requests from failing due to
     containing too much data. This number is approximate:
     requests will be slightly larger.
-    <!-- lazydoc-ignore-class-attributes -->
+    <!-- lazydoc-ignore: internal -->
     """
 
     x_file_stream_max_line_bytes: Optional[int] = None
     """Maximum line length for filestream JSONL files.
 
-    <!-- lazydoc-ignore-class-attributes -->
+    <!-- lazydoc-ignore: internal -->
     """
 
     x_file_stream_transmit_interval: Optional[float] = None
     """Interval in seconds between filestream transmissions.
 
-    <!-- lazydoc-ignore-class-attributes -->
+    <!-- lazydoc-ignore: internal -->
     """
 
     # Filestream retry client configuration.
@@ -653,25 +653,25 @@ class Settings(BaseModel, validate_assignment=True):
     x_file_stream_retry_max: Optional[int] = None
     """Max number of retries for filestream operations.
 
-    <!-- lazydoc-ignore-class-attributes -->
+    <!-- lazydoc-ignore: internal -->
     """
 
     x_file_stream_retry_wait_min_seconds: Optional[float] = None
     """Minimum wait time between retries for filestream operations.
 
-    <!-- lazydoc-ignore-class-attributes -->
+    <!-- lazydoc-ignore: internal -->
     """
 
     x_file_stream_retry_wait_max_seconds: Optional[float] = None
     """Maximum wait time between retries for filestream operations.
 
-    <!-- lazydoc-ignore-class-attributes -->
+    <!-- lazydoc-ignore: internal -->
     """
 
     x_file_stream_timeout_seconds: Optional[float] = None
     """Timeout in seconds for individual filestream HTTP requests.
 
-    <!-- lazydoc-ignore-class-attributes -->
+    <!-- lazydoc-ignore: internal -->
     """
 
     # file transfer retry client configuration
@@ -679,25 +679,25 @@ class Settings(BaseModel, validate_assignment=True):
     x_file_transfer_retry_max: Optional[int] = None
     """Max number of retries for file transfer operations.
 
-    <!-- lazydoc-ignore-class-attributes -->
+    <!-- lazydoc-ignore: internal -->
     """
 
     x_file_transfer_retry_wait_min_seconds: Optional[float] = None
     """Minimum wait time between retries for file transfer operations.
 
-    <!-- lazydoc-ignore-class-attributes -->
+    <!-- lazydoc-ignore: internal -->
     """
 
     x_file_transfer_retry_wait_max_seconds: Optional[float] = None
     """Maximum wait time between retries for file transfer operations.
 
-    <!-- lazydoc-ignore-class-attributes -->
+    <!-- lazydoc-ignore: internal -->
     """
 
     x_file_transfer_timeout_seconds: Optional[float] = None
     """Timeout in seconds for individual file transfer HTTP requests.
 
-    <!-- lazydoc-ignore-class-attributes -->
+    <!-- lazydoc-ignore: internal -->
     """
 
     x_files_dir: Optional[str] = None
@@ -706,21 +706,21 @@ class Settings(BaseModel, validate_assignment=True):
     DEPRECATED, DO NOT USE. This private setting is not respected by wandb-core
     but will continue to work for some legacy Python code.
 
-    <!-- lazydoc-ignore-class-attributes -->
+    <!-- lazydoc-ignore: internal -->
     """
 
     x_flow_control_custom: Optional[bool] = None
     """Flag indicating custom flow control for filestream.
 
     TODO: Not implemented in wandb-core.
-    <!-- lazydoc-ignore-class-attributes -->
+    <!-- lazydoc-ignore: internal -->
     """
 
     x_flow_control_disabled: Optional[bool] = None
     """Flag indicating flow control is disabled for filestream.
 
     TODO: Not implemented in wandb-core.
-    <!-- lazydoc-ignore-class-attributes -->
+    <!-- lazydoc-ignore: internal -->
     """
 
     # graphql retry client configuration
@@ -728,49 +728,49 @@ class Settings(BaseModel, validate_assignment=True):
     x_graphql_retry_max: Optional[int] = None
     """Max number of retries for GraphQL operations.
 
-    <!-- lazydoc-ignore-class-attributes -->
+    <!-- lazydoc-ignore: internal -->
     """
 
     x_graphql_retry_wait_min_seconds: Optional[float] = None
     """Minimum wait time between retries for GraphQL operations.
 
-    <!-- lazydoc-ignore-class-attributes -->
+    <!-- lazydoc-ignore: internal -->
     """
 
     x_graphql_retry_wait_max_seconds: Optional[float] = None
     """Maximum wait time between retries for GraphQL operations.
 
-    <!-- lazydoc-ignore-class-attributes -->
+    <!-- lazydoc-ignore: internal -->
     """
 
     x_graphql_timeout_seconds: Optional[float] = None
     """Timeout in seconds for individual GraphQL requests.
 
-    <!-- lazydoc-ignore-class-attributes -->
+    <!-- lazydoc-ignore: internal -->
     """
 
     x_internal_check_process: float = 8.0
     """Interval for internal process health checks in seconds.
 
-    <!-- lazydoc-ignore-class-attributes -->
+    <!-- lazydoc-ignore: internal -->
     """
 
     x_jupyter_name: Optional[str] = None
     """Name of the Jupyter notebook.
 
-    <!-- lazydoc-ignore-class-attributes -->
+    <!-- lazydoc-ignore: internal -->
     """
 
     x_jupyter_path: Optional[str] = None
     """Path to the Jupyter notebook.
 
-    <!-- lazydoc-ignore-class-attributes -->
+    <!-- lazydoc-ignore: internal -->
     """
 
     x_jupyter_root: Optional[str] = None
     """Root directory of the Jupyter notebook.
 
-    <!-- lazydoc-ignore-class-attributes -->
+    <!-- lazydoc-ignore: internal -->
     """
 
     x_label: Optional[str] = None
@@ -783,26 +783,26 @@ class Settings(BaseModel, validate_assignment=True):
     x_live_policy_rate_limit: Optional[int] = None
     """Rate limit for live policy updates in seconds.
 
-    <!-- lazydoc-ignore-class-attributes -->
+    <!-- lazydoc-ignore: internal -->
     """
 
     x_live_policy_wait_time: Optional[int] = None
     """Wait time between live policy updates in seconds.
 
-    <!-- lazydoc-ignore-class-attributes -->
+    <!-- lazydoc-ignore: internal -->
     """
 
     x_log_level: int = logging.INFO
     """Logging level for internal operations.
 
-    <!-- lazydoc-ignore-class-attributes -->
+    <!-- lazydoc-ignore: internal -->
     """
 
     x_network_buffer: Optional[int] = None
     """Size of the network buffer used in flow control.
 
     TODO: Not implemented in wandb-core.
-    <!-- lazydoc-ignore-class-attributes -->
+    <!-- lazydoc-ignore: internal -->
     """
 
     x_primary: bool = Field(
@@ -820,13 +820,13 @@ class Settings(BaseModel, validate_assignment=True):
 
     This is deprecated and will be removed in a future release.
     Please use `http_proxy` and `https_proxy` instead.
-    <!-- lazydoc-ignore-class-attributes -->
+    <!-- lazydoc-ignore: internal -->
     """
 
     x_runqueue_item_id: Optional[str] = None
     """ID of the Launch run queue item being processed.
 
-    <!-- lazydoc-ignore-class-attributes -->
+    <!-- lazydoc-ignore: internal -->
     """
 
     x_save_requirements: bool = True
@@ -842,13 +842,13 @@ class Settings(BaseModel, validate_assignment=True):
     """Flag to delegate glob matching of metrics in define_metric to the server.
 
     If the server does not support this, the client will perform the glob matching.
-    <!-- lazydoc-ignore-class-attributes -->
+    <!-- lazydoc-ignore: internal -->
     """
 
     x_service_transport: Optional[str] = None
     """Transport method for communication with the wandb service.
 
-    <!-- lazydoc-ignore-class-attributes -->
+    <!-- lazydoc-ignore: internal -->
     """
 
     x_service_wait: float = 30.0
@@ -867,13 +867,13 @@ class Settings(BaseModel, validate_assignment=True):
     x_start_time: Optional[float] = None
     """The start time of the run in seconds since the Unix epoch.
 
-    <!-- lazydoc-ignore-class-attributes -->
+    <!-- lazydoc-ignore: internal -->
     """
 
     x_stats_pid: int = os.getpid()
     """PID of the process that started the wandb-core process to collect system stats for.
 
-    <!-- lazydoc-ignore-class-attributes -->
+    <!-- lazydoc-ignore: internal -->
     """
 
     x_stats_sampling_interval: float = Field(default=15.0)
@@ -883,7 +883,7 @@ class Settings(BaseModel, validate_assignment=True):
     """Path to the default config file for the neuron-monitor tool.
 
     This is used to monitor AWS Trainium devices.
-    <!-- lazydoc-ignore-class-attributes -->
+    <!-- lazydoc-ignore: internal -->
     """
 
     x_stats_dcgm_exporter: Optional[str] = None
@@ -898,7 +898,7 @@ class Settings(BaseModel, validate_assignment=True):
     Examples:
      - `http://localhost:9400/api/v1/query?query=DCGM_FI_DEV_GPU_TEMP{node="l1337", cluster="globular"}`.
      - TODO: `http://192.168.0.1:9400/metrics`.
-    <!-- lazydoc-ignore-class-attributes -->
+    <!-- lazydoc-ignore: internal -->
     """
 
     x_stats_open_metrics_endpoints: Optional[Dict[str, str]] = None
@@ -955,14 +955,14 @@ class Settings(BaseModel, validate_assignment=True):
     """Number of system metric samples to buffer in memory in the wandb-core process.
 
     Can be accessed via run._system_metrics.
-    <!-- lazydoc-ignore-class-attributes -->
+    <!-- lazydoc-ignore: internal -->
     """
 
     x_stats_coreweave_metadata_base_url: str = "http://169.254.169.254"
     """The scheme and hostname for contacting the CoreWeave metadata server.
 
     Only accessible from within a CoreWeave cluster.
-    <!-- lazydoc-ignore-class-attributes -->
+    <!-- lazydoc-ignore: internal -->
     """
 
     x_stats_coreweave_metadata_endpoint: str = "/api/v2/cloud-init/meta-data"
@@ -970,7 +970,7 @@ class Settings(BaseModel, validate_assignment=True):
 
     This must not include the schema and hostname prefix.
     Only accessible from within a CoreWeave cluster.
-    <!-- lazydoc-ignore-class-attributes -->
+    <!-- lazydoc-ignore: internal -->
     """
 
     x_stats_track_process_tree: bool = False
@@ -987,7 +987,7 @@ class Settings(BaseModel, validate_assignment=True):
     x_sync: bool = False
     """Flag to indicate whether we are syncing a run from the transaction log.
 
-    <!-- lazydoc-ignore-class-attributes -->
+    <!-- lazydoc-ignore: internal -->
     """
 
     x_sync_dir_suffix: str = ""
@@ -1011,7 +1011,7 @@ class Settings(BaseModel, validate_assignment=True):
 
         This is a compatibility layer to handle previous versions of the settings.
 
-        <!-- lazydoc-ignore-classmethod: internal -->
+        <!-- lazydoc-ignore: internal -->
         """
         new_values = {}
         for key in values:
@@ -1067,7 +1067,7 @@ class Settings(BaseModel, validate_assignment=True):
     def validate_api_key(cls, value):
         """Validate the API key.
 
-        <!-- lazydoc-ignore-classmethod: internal -->
+        <!-- lazydoc-ignore: internal -->
         """
         if value is not None and (len(value) > len(value.strip())):
             raise UsageError("API key cannot start or end with whitespace")
@@ -1078,7 +1078,7 @@ class Settings(BaseModel, validate_assignment=True):
     def validate_base_url(cls, value):
         """Validate the base URL.
 
-        <!-- lazydoc-ignore-classmethod: internal -->
+        <!-- lazydoc-ignore: internal -->
         """
         urls.validate_url(value)
         # wandb.ai-specific checks
@@ -1096,7 +1096,7 @@ class Settings(BaseModel, validate_assignment=True):
     def validate_code_dir(cls, value):
         """Validate the code directory.
 
-        <!-- lazydoc-ignore-classmethod: internal -->
+        <!-- lazydoc-ignore: internal -->
         """
         # TODO: add native support for pathlib.Path
         if isinstance(value, pathlib.Path):
@@ -1108,7 +1108,7 @@ class Settings(BaseModel, validate_assignment=True):
     def validate_console(cls, value, values):
         """Validate the console capture method.
 
-        <!-- lazydoc-ignore-classmethod: internal -->
+        <!-- lazydoc-ignore: internal -->
         """
         if value != "auto":
             return value
@@ -1120,7 +1120,7 @@ class Settings(BaseModel, validate_assignment=True):
     def validate_console_chunk_max_bytes(cls, value):
         """Validate the console_chunk_max_bytes value.
 
-        <!-- lazydoc-ignore-classmethod: internal -->
+        <!-- lazydoc-ignore: internal -->
         """
         if value < 0:
             raise ValueError("console_chunk_max_bytes must be non-negative")
@@ -1132,7 +1132,7 @@ class Settings(BaseModel, validate_assignment=True):
     def validate_console_chunk_max_seconds(cls, value):
         """Validate the console_chunk_max_seconds value.
 
-        <!-- lazydoc-ignore-classmethod: internal -->
+        <!-- lazydoc-ignore: internal -->
         """
         if value < 0:
             raise ValueError("console_chunk_max_seconds must be non-negative")
@@ -1144,7 +1144,7 @@ class Settings(BaseModel, validate_assignment=True):
     def validate_x_executable(cls, value):
         """Validate the Python executable path.
 
-        <!-- lazydoc-ignore-classmethod: internal -->
+        <!-- lazydoc-ignore: internal -->
         """
         # TODO: add native support for pathlib.Path
         if isinstance(value, pathlib.Path):
@@ -1163,7 +1163,7 @@ class Settings(BaseModel, validate_assignment=True):
     def validate_file_stream_max_line_bytes(cls, value):
         """Validate the maximum line length for filestream JSONL files.
 
-        <!-- lazydoc-ignore-classmethod: internal -->
+        <!-- lazydoc-ignore: internal -->
         """
         if value is not None and value < 1:
             raise ValueError("File stream max line bytes must be greater than 0")
@@ -1174,7 +1174,7 @@ class Settings(BaseModel, validate_assignment=True):
     def validate_x_files_dir(cls, value):
         """Validate the files directory.
 
-        <!-- lazydoc-ignore-classmethod: internal -->
+        <!-- lazydoc-ignore: internal -->
         """
         # TODO: add native support for pathlib.Path
         if isinstance(value, pathlib.Path):
@@ -1186,7 +1186,7 @@ class Settings(BaseModel, validate_assignment=True):
     def validate_fork_from(cls, value, values) -> Optional[RunMoment]:
         """Validate the fork_from field.
 
-        <!-- lazydoc-ignore-classmethod: internal -->
+        <!-- lazydoc-ignore: internal -->
         """
         run_moment = cls._runmoment_preprocessor(value)
 
@@ -1209,7 +1209,7 @@ class Settings(BaseModel, validate_assignment=True):
     def validate_http_proxy(cls, value):
         """Validate the HTTP proxy.
 
-        <!-- lazydoc-ignore-classmethod: internal -->
+        <!-- lazydoc-ignore: internal -->
         """
         if value is None:
             return None
@@ -1221,7 +1221,7 @@ class Settings(BaseModel, validate_assignment=True):
     def validate_https_proxy(cls, value):
         """Validate the HTTPS proxy.
 
-        <!-- lazydoc-ignore-classmethod: internal -->
+        <!-- lazydoc-ignore: internal -->
         """
         if value is None:
             return None
@@ -1233,7 +1233,7 @@ class Settings(BaseModel, validate_assignment=True):
     def validate_ignore_globs(cls, value):
         """Validate the ignore globs.
 
-        <!-- lazydoc-ignore-classmethod: internal -->
+        <!-- lazydoc-ignore: internal -->
         """
         return tuple(value) if not isinstance(value, tuple) else value
 
@@ -1242,7 +1242,7 @@ class Settings(BaseModel, validate_assignment=True):
     def validate_program(cls, value):
         """Validate the program path.
 
-        <!-- lazydoc-ignore-classmethod: internal -->
+        <!-- lazydoc-ignore: internal -->
         """
         # TODO: add native support for pathlib.Path
         if isinstance(value, pathlib.Path):
@@ -1254,7 +1254,7 @@ class Settings(BaseModel, validate_assignment=True):
     def validate_program_abspath(cls, value):
         """Validate the absolute program path.
 
-        <!-- lazydoc-ignore-classmethod: internal -->
+        <!-- lazydoc-ignore: internal -->
         """
         # TODO: add native support for pathlib.Path
         if isinstance(value, pathlib.Path):
@@ -1266,7 +1266,7 @@ class Settings(BaseModel, validate_assignment=True):
     def validate_program_relpath(cls, value):
         """Validate the relative program path.
 
-        <!-- lazydoc-ignore-classmethod: internal -->
+        <!-- lazydoc-ignore: internal -->
         """
         # TODO: add native support for pathlib.Path
         if isinstance(value, pathlib.Path):
@@ -1278,7 +1278,7 @@ class Settings(BaseModel, validate_assignment=True):
     def validate_project(cls, value, values):
         """Validate the project name.
 
-        <!-- lazydoc-ignore-classmethod: internal -->
+        <!-- lazydoc-ignore: internal -->
         """
         if value is None:
             return None
@@ -1299,7 +1299,7 @@ class Settings(BaseModel, validate_assignment=True):
     def validate_resume(cls, value):
         """Validate the resume behavior.
 
-        <!-- lazydoc-ignore-classmethod: internal -->
+        <!-- lazydoc-ignore: internal -->
         """
         if value is False:
             return None
@@ -1312,7 +1312,7 @@ class Settings(BaseModel, validate_assignment=True):
     def validate_resume_from(cls, value, values) -> Optional[RunMoment]:
         """Validate the resume_from field.
 
-        <!-- lazydoc-ignore-classmethod: internal -->
+        <!-- lazydoc-ignore: internal -->
         """
         run_moment = cls._runmoment_preprocessor(value)
 
@@ -1333,7 +1333,7 @@ class Settings(BaseModel, validate_assignment=True):
     def validate_root_dir(cls, value):
         """Validate the root directory.
 
-        <!-- lazydoc-ignore-classmethod: internal -->
+        <!-- lazydoc-ignore: internal -->
         """
         # TODO: add native support for pathlib.Path
         if isinstance(value, pathlib.Path):
@@ -1345,7 +1345,7 @@ class Settings(BaseModel, validate_assignment=True):
     def validate_run_id(cls, value, values):
         """Validate the run ID.
 
-        <!-- lazydoc-ignore-classmethod: internal -->
+        <!-- lazydoc-ignore: internal -->
         """
         if value is None:
             return None
@@ -1368,7 +1368,7 @@ class Settings(BaseModel, validate_assignment=True):
     def validate_settings_system(cls, value):
         """Validate the system settings file path.
 
-        <!-- lazydoc-ignore-classmethod: internal -->
+        <!-- lazydoc-ignore: internal -->
         """
         if value is None:
             return None
@@ -1382,7 +1382,7 @@ class Settings(BaseModel, validate_assignment=True):
     def validate_service_wait(cls, value):
         """Validate the service wait time.
 
-        <!-- lazydoc-ignore-classmethod: internal -->
+        <!-- lazydoc-ignore: internal -->
         """
         if value < 0:
             raise UsageError("Service wait time cannot be negative")
@@ -1393,7 +1393,7 @@ class Settings(BaseModel, validate_assignment=True):
     def validate_start_method(cls, value):
         """Validate the start method for subprocesses.
 
-        <!-- lazydoc-ignore-classmethod: internal -->
+        <!-- lazydoc-ignore: internal -->
         """
         if value is None:
             return value
@@ -1415,7 +1415,7 @@ class Settings(BaseModel, validate_assignment=True):
     def validate_x_stats_gpu_device_ids(cls, value):
         """Validate the GPU device IDs.
 
-        <!-- lazydoc-ignore-classmethod: internal -->
+        <!-- lazydoc-ignore: internal -->
         """
         if isinstance(value, str):
             return json.loads(value)
@@ -1426,7 +1426,7 @@ class Settings(BaseModel, validate_assignment=True):
     def validate_x_stats_neuron_monitor_config_path(cls, value):
         """Validate the path to the neuron-monitor config file.
 
-        <!-- lazydoc-ignore-classmethod: internal -->
+        <!-- lazydoc-ignore: internal -->
         """
         # TODO: add native support for pathlib.Path
         if isinstance(value, pathlib.Path):
@@ -1438,7 +1438,7 @@ class Settings(BaseModel, validate_assignment=True):
     def validate_stats_open_metrics_endpoints(cls, value):
         """Validate the OpenMetrics endpoints.
 
-        <!-- lazydoc-ignore-classmethod: internal -->
+        <!-- lazydoc-ignore: internal -->
         """
         if isinstance(value, str):
             return json.loads(value)
@@ -1449,7 +1449,7 @@ class Settings(BaseModel, validate_assignment=True):
     def validate_stats_open_metrics_filters(cls, value):
         """Validate the OpenMetrics filters.
 
-        <!-- lazydoc-ignore-classmethod: internal -->
+        <!-- lazydoc-ignore: internal -->
         """
         if isinstance(value, str):
             return json.loads(value)
@@ -1460,7 +1460,7 @@ class Settings(BaseModel, validate_assignment=True):
     def validate_stats_open_metrics_http_headers(cls, value):
         """Validate the OpenMetrics HTTP headers.
 
-        <!-- lazydoc-ignore-classmethod: internal -->
+        <!-- lazydoc-ignore: internal -->
         """
         if isinstance(value, str):
             return json.loads(value)
@@ -1471,7 +1471,7 @@ class Settings(BaseModel, validate_assignment=True):
     def validate_stats_sampling_interval(cls, value):
         """Validate the stats sampling interval.
 
-        <!-- lazydoc-ignore-classmethod: internal -->
+        <!-- lazydoc-ignore: internal -->
         """
         if value < 0.1:
             raise UsageError("Stats sampling interval cannot be less than 0.1 seconds")
@@ -1482,7 +1482,7 @@ class Settings(BaseModel, validate_assignment=True):
     def validate_sweep_id(cls, value):
         """Validate the sweep ID.
 
-        <!-- lazydoc-ignore-classmethod: internal -->
+        <!-- lazydoc-ignore: internal -->
         """
         if value is None:
             return None
@@ -1504,7 +1504,7 @@ class Settings(BaseModel, validate_assignment=True):
         - Converts single string values to tuple format
         - Preserves None values
 
-        <!-- lazydoc-ignore-classmethod: internal -->
+        <!-- lazydoc-ignore: internal -->
 
         Args:
             value: A string, list, tuple, or None representing tags
@@ -1554,7 +1554,7 @@ class Settings(BaseModel, validate_assignment=True):
     def validate_sweep_param_path(cls, value):
         """Validate the sweep parameter path.
 
-        <!-- lazydoc-ignore-classmethod: internal -->
+        <!-- lazydoc-ignore: internal -->
         """
         # TODO: add native support for pathlib.Path
         if isinstance(value, pathlib.Path):

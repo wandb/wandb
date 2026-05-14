@@ -35,7 +35,7 @@ _RowDict: TypeAlias = dict[str, Any]
 class BetaHistoryScan(Iterator[_RowDict]):
     """Iterator for scanning complete run history.
 
-    <!-- lazydoc-ignore-class: internal -->
+    <!-- lazydoc-ignore: internal -->
     """
 
     def __init__(
@@ -166,7 +166,7 @@ class BetaHistoryScan(Iterator[_RowDict]):
 class HistoryScan(Iterator[_RowDict]):
     """Iterator for scanning complete run history.
 
-    <!-- lazydoc-ignore-class: internal -->
+    <!-- lazydoc-ignore: internal -->
     """
 
     QUERY = """
@@ -263,7 +263,7 @@ class HistoryScan(Iterator[_RowDict]):
 class SampledHistoryScan(Iterator[_RowDict]):
     """Iterator for sampling run history data.
 
-    <!-- lazydoc-ignore-class: internal -->
+    <!-- lazydoc-ignore: internal -->
     """
 
     QUERY = """

@@ -277,7 +277,7 @@ class File(Attrs):
         attrs (dict): A dictionary of attributes that define the file
         run: The run object that contains the file
 
-    <!-- lazydoc-ignore-init: internal -->
+    <!-- lazydoc-ignore: internal -->
     """
 
     def __init__(

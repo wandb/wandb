@@ -29,7 +29,7 @@ if TYPE_CHECKING:
 class Integrations(RelayPaginator["IntegrationFields", "Integration"]):
     """A lazy iterator of `Integration` objects.
 
-    <!-- lazydoc-ignore-class: internal -->
+    <!-- lazydoc-ignore: internal -->
     """
 
     QUERY: ClassVar[Document | None] = None
@@ -74,7 +74,7 @@ class Integrations(RelayPaginator["IntegrationFields", "Integration"]):
 class WebhookIntegrations(Integrations):
     """A lazy iterator of `WebhookIntegration` objects.
 
-    <!-- lazydoc-ignore-class: internal -->
+    <!-- lazydoc-ignore: internal -->
     """
 
     def _convert(self, node: IntegrationFields) -> WebhookIntegration:
@@ -84,7 +84,7 @@ class WebhookIntegrations(Integrations):
 class SlackIntegrations(Integrations):
     """A lazy iterator of `SlackIntegration` objects.
 
-    <!-- lazydoc-ignore-class: internal -->
+    <!-- lazydoc-ignore: internal -->
     """
 
     def _convert(self, node: IntegrationFields) -> SlackIntegration:
