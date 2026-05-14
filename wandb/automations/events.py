@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Annotated, Any, Literal, Optional, Union
+from typing import TYPE_CHECKING, Annotated, Any, Literal, get_args
 
 from pydantic import AfterValidator, Field
-from typing_extensions import get_args
 
 from wandb._pydantic import GQLBase, model_validator, pydantic_isinstance
 from wandb._strutils import nameof
@@ -125,18 +124,16 @@ class RunMetricFilter(GQLBase):  # from: TriggeringRunMetricEvent
     """Filters that must match any runs that will trigger this event."""
 
     metric: Annotated[
-        Union[
-            _WrappedMetricThresholdFilter,
-            _WrappedMetricChangeFilter,
-            _WrappedMetricZScoreFilter,
-        ],
+        _WrappedMetricThresholdFilter
+        | _WrappedMetricChangeFilter
+        | _WrappedMetricZScoreFilter,
         Field(alias="run_metric_filter"),
     ]
     """Metric condition(s) that must be satisfied for this event to trigger."""
 
     # ------------------------------------------------------------------------------
     legacy_metric_filter: Annotated[
-        Optional[JsonEncoded[MetricThresholdFilter]],
+        JsonEncoded[MetricThresholdFilter] | None,
         Field(alias="metric_filter", deprecated=True),
     ] = None
     """Deprecated legacy field for defining run metric threshold events.
@@ -187,7 +184,7 @@ class SavedEvent(FilterEventFields):  # from: FilterEventTriggeringCondition
     # We override the type of the `filter` field in order to enforce the expected
     # structure for the JSON data when validating and serializing.
     filter: JsonEncoded[  # type: ignore[assignment]
-        Union[_WrappedSavedEventFilter, RunMetricFilter, RunStateFilter]
+        _WrappedSavedEventFilter | RunMetricFilter | RunStateFilter
     ]
     """The condition(s) under which this event triggers an automation."""
 
@@ -384,13 +381,7 @@ class OnRunState(_BaseRunEventInput):
 
 # for type annotations
 InputEvent = Annotated[
-    Union[
-        OnLinkArtifact,
-        OnAddArtifactAlias,
-        OnCreateArtifact,
-        OnRunMetric,
-        OnRunState,
-    ],
+    OnLinkArtifact | OnAddArtifactAlias | OnCreateArtifact | OnRunMetric | OnRunState,
     Field(discriminator="event_type"),
 ]
 # for runtime type checks

@@ -3,8 +3,6 @@
 
 from __future__ import annotations
 
-from typing import List, Optional
-
 from pydantic import Field
 
 from wandb._pydantic import GQLResult
@@ -13,15 +11,15 @@ from .fragments import LightweightRunFragment, PageInfoFragment
 
 
 class GetAgentRuns(GQLResult):
-    project: Optional[GetAgentRunsProject]
+    project: GetAgentRunsProject | None
 
 
 class GetAgentRunsProject(GQLResult):
-    sweep: Optional[GetAgentRunsProjectSweep]
+    sweep: GetAgentRunsProjectSweep | None
 
 
 class GetAgentRunsProjectSweep(GQLResult):
-    agent: Optional[GetAgentRunsProjectSweepAgent]
+    agent: GetAgentRunsProjectSweepAgent | None
 
 
 class GetAgentRunsProjectSweepAgent(GQLResult):
@@ -30,7 +28,7 @@ class GetAgentRunsProjectSweepAgent(GQLResult):
 
 class GetAgentRunsProjectSweepAgentRuns(GQLResult):
     page_info: PageInfoFragment = Field(alias="pageInfo")
-    edges: List[GetAgentRunsProjectSweepAgentRunsEdges]
+    edges: list[GetAgentRunsProjectSweepAgentRunsEdges]
 
 
 class GetAgentRunsProjectSweepAgentRunsEdges(GQLResult):

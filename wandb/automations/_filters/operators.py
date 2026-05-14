@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from abc import ABC
 from collections.abc import Iterable
-from typing import TYPE_CHECKING, Any, Tuple, TypeVar, Union
+from typing import TYPE_CHECKING, Any, TypeAlias, TypeVar, get_args
 
 from pydantic import ConfigDict, Field, StrictBool, StrictFloat, StrictInt, StrictStr
-from typing_extensions import Self, TypeAlias, get_args, override
+from typing_extensions import Self, override
 
 from wandb._pydantic import GQLBase
 from wandb._strutils import nameof
@@ -16,22 +16,17 @@ if TYPE_CHECKING:
     from .expressions import FilterExpr
 
 # for type annotations
-Scalar = Union[StrictStr, StrictInt, StrictFloat, StrictBool]
+Scalar = StrictStr | StrictInt | StrictFloat | StrictBool
 # for runtime type checks
 ScalarTypes: tuple[type, ...] = tuple(t.__origin__ for t in get_args(Scalar))
 
 # See: https://rich.readthedocs.io/en/stable/pretty.html#rich-repr-protocol
 RichReprResult: TypeAlias = Iterable[
-    Union[
-        Any,
-        Tuple[Any],
-        Tuple[str, Any],
-        Tuple[str, Any, Any],
-    ]
+    Any | tuple[Any] | tuple[str, Any] | tuple[str, Any, Any]
 ]
 
 T = TypeVar("T")
-TupleOf: TypeAlias = Tuple[T, ...]
+TupleOf: TypeAlias = tuple[T, ...]
 
 
 # NOTE: Wherever class descriptions that are not docstrings, this is deliberate.
@@ -91,7 +86,7 @@ class BaseOp(GQLBase, SupportsBitwiseLogicalOps, ABC):
 
 # Base type for logical operators that take a variable number of expressions.
 class BaseVariadicLogicalOp(BaseOp, ABC):
-    exprs: TupleOf[Union[FilterExpr, Op]]
+    exprs: TupleOf[FilterExpr | Op]
 
     @classmethod
     def wrap(cls, expr: Any) -> Self:
@@ -104,11 +99,11 @@ class BaseVariadicLogicalOp(BaseOp, ABC):
 # https://www.mongodb.com/docs/manual/reference/operator/query/nor/
 # https://www.mongodb.com/docs/manual/reference/operator/query/not/
 class And(BaseVariadicLogicalOp):
-    exprs: TupleOf[Union[FilterExpr, Op]] = Field(default=(), alias="$and")
+    exprs: TupleOf[FilterExpr | Op] = Field(default=(), alias="$and")
 
 
 class Or(BaseVariadicLogicalOp):
-    exprs: TupleOf[Union[FilterExpr, Op]] = Field(default=(), alias="$or")
+    exprs: TupleOf[FilterExpr | Op] = Field(default=(), alias="$or")
 
     @override
     def __invert__(self) -> Nor:
@@ -117,7 +112,7 @@ class Or(BaseVariadicLogicalOp):
 
 
 class Nor(BaseVariadicLogicalOp):
-    exprs: TupleOf[Union[FilterExpr, Op]] = Field(default=(), alias="$nor")
+    exprs: TupleOf[FilterExpr | Op] = Field(default=(), alias="$nor")
 
     @override
     def __invert__(self) -> Or:
@@ -126,10 +121,10 @@ class Nor(BaseVariadicLogicalOp):
 
 
 class Not(BaseOp):
-    expr: Union[FilterExpr, Op] = Field(alias="$not")
+    expr: FilterExpr | Op = Field(alias="$not")
 
     @override
-    def __invert__(self) -> Union[FilterExpr, Op]:
+    def __invert__(self) -> FilterExpr | Op:
         """Implements `~Not(a) -> a`."""
         return self.expr
 
@@ -262,20 +257,20 @@ KEY_TO_OP: dict[str, type[BaseOp]] = {
 
 
 # Known, implemented MongoDB operators for type annotations.
-Op = Union[
-    And,
-    Or,
-    Nor,
-    Not,
-    Lt,
-    Gt,
-    Lte,
-    Gte,
-    Eq,
-    Ne,
-    In,
-    NotIn,
-    Exists,
-    Regex,
-    Contains,
-]
+Op = (
+    And
+    | Or
+    | Nor
+    | Not
+    | Lt
+    | Gt
+    | Lte
+    | Gte
+    | Eq
+    | Ne
+    | In
+    | NotIn
+    | Exists
+    | Regex
+    | Contains
+)

@@ -62,8 +62,8 @@ __all__ = (
 )
 
 import os
-from collections.abc import Iterable, Sequence
-from typing import TYPE_CHECKING, Any, Callable, Literal, TextIO
+from collections.abc import Callable, Iterable, Sequence
+from typing import TYPE_CHECKING, Any, Literal, TextIO
 
 import wandb.plot as plot
 from wandb.apis import InternalApi
