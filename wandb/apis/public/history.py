@@ -150,6 +150,7 @@ class BetaHistoryScan(Iterator[_RowDict]):
 
     @staticmethod
     def cleanup(service_api: ServiceApi, request_id: int) -> None:
+        """Release resources for a history scan request."""
         scan_run_history_cleanup = pb.ScanRunHistoryCleanup(
             request_id=request_id,
         )

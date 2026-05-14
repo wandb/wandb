@@ -13,3 +13,12 @@ sections:
 Section headings should be at level 3 (e.g. `### Added`).
 
 ## Unreleased
+
+### Added
+
+- Expand docstring checks to `wandb/apis/public/*` (@kmikowicz-wandb in https://github.com/wandb/wandb/pull/11670)
+
+### Fixed
+
+- Failing D102 across `wandb/apis/public/*` (@kmikowicz-wandb in https://github.com/wandb/wandb/pull/11670)
+- Docstring checks on `wandb/apis/public/api.py` (@kmikowicz-wandb in https://github.com/wandb/wandb/pull/11670)
