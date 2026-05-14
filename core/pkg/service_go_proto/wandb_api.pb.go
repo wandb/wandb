@@ -390,9 +390,13 @@ func (*ApiResponse_GraphqlResponse) isApiResponse_Response() {}
 func (*ApiResponse_ApiErrorResponse) isApiResponse_Response() {}
 
 type ApiErrorResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Message       string                 `protobuf:"bytes,1,opt,name=message,proto3" json:"message,omitempty"`
-	ErrorType     *ErrorType             `protobuf:"varint,2,opt,name=error_type,json=errorType,proto3,enum=wandb_internal.ErrorType,oneof" json:"error_type,omitempty"`
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	Message   string                 `protobuf:"bytes,1,opt,name=message,proto3" json:"message,omitempty"`
+	ErrorType *ErrorType             `protobuf:"varint,2,opt,name=error_type,json=errorType,proto3,enum=wandb_internal.ErrorType,oneof" json:"error_type,omitempty"`
+	// HTTP status code from the upstream W&B backend, if the failure originated
+	// from an HTTP response. 0 if the failure had no HTTP status (transport
+	// error, GraphQL `errors` without an associated HTTP error, etc.).
+	HttpStatus    int32 `protobuf:"varint,3,opt,name=http_status,json=httpStatus,proto3" json:"http_status,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -439,6 +443,13 @@ func (x *ApiErrorResponse) GetErrorType() ErrorType {
 		return *x.ErrorType
 	}
 	return ErrorType_UNKNOWN_ERROR
+}
+
+func (x *ApiErrorResponse) GetHttpStatus() int32 {
+	if x != nil {
+		return x.HttpStatus
+	}
+	return 0
 }
 
 // Remove the API instance identified by an ID.
@@ -612,10 +623,23 @@ func (x *FeaturesResponse) GetEnabled() []ServerFeature {
 // non-successful HTTP status codes return ApiErrorResponse. For HTTP responses
 // that include GraphQL `errors`, ApiErrorResponse.message is derived from
 // those error messages.
+//
+// The optional omit_* and rename_fields fields rewrite the query
+// before it is sent upstream. They strip parts of generated queries that are
+// not supported by the deployed W&B server (decided client-side based on
+// feature flags) without reproducing a GraphQL parser in Python.
 type GraphQLRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Query         string                 `protobuf:"bytes,1,opt,name=query,proto3" json:"query,omitempty"`
 	VariablesJson string                 `protobuf:"bytes,2,opt,name=variables_json,json=variablesJson,proto3" json:"variables_json,omitempty"`
+	// Variable names ($var) to remove from variable definitions and usages.
+	OmitVariables []string `protobuf:"bytes,3,rep,name=omit_variables,json=omitVariables,proto3" json:"omit_variables,omitempty"`
+	// Fragment names to remove (both definitions and `...spreads`).
+	OmitFragments []string `protobuf:"bytes,4,rep,name=omit_fragments,json=omitFragments,proto3" json:"omit_fragments,omitempty"`
+	// Field names to remove from selection sets.
+	OmitFields []string `protobuf:"bytes,5,rep,name=omit_fields,json=omitFields,proto3" json:"omit_fields,omitempty"`
+	// Field renames applied to selection sets: { old_name: new_name }.
+	RenameFields  map[string]string `protobuf:"bytes,6,rep,name=rename_fields,json=renameFields,proto3" json:"rename_fields,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -662,6 +686,34 @@ func (x *GraphQLRequest) GetVariablesJson() string {
 		return x.VariablesJson
 	}
 	return ""
+}
+
+func (x *GraphQLRequest) GetOmitVariables() []string {
+	if x != nil {
+		return x.OmitVariables
+	}
+	return nil
+}
+
+func (x *GraphQLRequest) GetOmitFragments() []string {
+	if x != nil {
+		return x.OmitFragments
+	}
+	return nil
+}
+
+func (x *GraphQLRequest) GetOmitFields() []string {
+	if x != nil {
+		return x.OmitFields
+	}
+	return nil
+}
+
+func (x *GraphQLRequest) GetRenameFields() map[string]string {
+	if x != nil {
+		return x.RenameFields
+	}
+	return nil
 }
 
 type GraphQLResponse struct {
@@ -1803,21 +1855,31 @@ const file_wandb_proto_wandb_api_proto_rawDesc = "" +
 	"\x10graphql_response\x18\x04 \x01(\v2\x1f.wandb_internal.GraphQLResponseH\x00R\x0fgraphqlResponse\x12P\n" +
 	"\x12api_error_response\x18\x02 \x01(\v2 .wandb_internal.ApiErrorResponseH\x00R\x10apiErrorResponseB\n" +
 	"\n" +
-	"\bresponse\"z\n" +
+	"\bresponse\"\x9b\x01\n" +
 	"\x10ApiErrorResponse\x12\x18\n" +
 	"\amessage\x18\x01 \x01(\tR\amessage\x12=\n" +
 	"\n" +
-	"error_type\x18\x02 \x01(\x0e2\x19.wandb_internal.ErrorTypeH\x00R\terrorType\x88\x01\x01B\r\n" +
+	"error_type\x18\x02 \x01(\x0e2\x19.wandb_internal.ErrorTypeH\x00R\terrorType\x88\x01\x01\x12\x1f\n" +
+	"\vhttp_status\x18\x03 \x01(\x05R\n" +
+	"httpStatusB\r\n" +
 	"\v_error_type\"0\n" +
 	"\x17ServerApiCleanupRequest\x12\x15\n" +
 	"\x06api_id\x18\x01 \x01(\tR\x05apiId\"L\n" +
 	"\x0fFeaturesRequest\x129\n" +
 	"\bfeatures\x18\x01 \x03(\x0e2\x1d.wandb_internal.ServerFeatureR\bfeatures\"K\n" +
 	"\x10FeaturesResponse\x127\n" +
-	"\aenabled\x18\x01 \x03(\x0e2\x1d.wandb_internal.ServerFeatureR\aenabled\"M\n" +
+	"\aenabled\x18\x01 \x03(\x0e2\x1d.wandb_internal.ServerFeatureR\aenabled\"\xd4\x02\n" +
 	"\x0eGraphQLRequest\x12\x14\n" +
 	"\x05query\x18\x01 \x01(\tR\x05query\x12%\n" +
-	"\x0evariables_json\x18\x02 \x01(\tR\rvariablesJson\".\n" +
+	"\x0evariables_json\x18\x02 \x01(\tR\rvariablesJson\x12%\n" +
+	"\x0eomit_variables\x18\x03 \x03(\tR\romitVariables\x12%\n" +
+	"\x0eomit_fragments\x18\x04 \x03(\tR\romitFragments\x12\x1f\n" +
+	"\vomit_fields\x18\x05 \x03(\tR\n" +
+	"omitFields\x12U\n" +
+	"\rrename_fields\x18\x06 \x03(\v20.wandb_internal.GraphQLRequest.RenameFieldsEntryR\frenameFields\x1a?\n" +
+	"\x11RenameFieldsEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\".\n" +
 	"\x0fGraphQLResponse\x12\x1b\n" +
 	"\tdata_json\x18\x01 \x01(\tR\bdataJson\"\xd1\x04\n" +
 	"\x15ReadRunHistoryRequest\x12W\n" +
@@ -1907,7 +1969,7 @@ func file_wandb_proto_wandb_api_proto_rawDescGZIP() []byte {
 }
 
 var file_wandb_proto_wandb_api_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_wandb_proto_wandb_api_proto_msgTypes = make([]protoimpl.MessageInfo, 28)
+var file_wandb_proto_wandb_api_proto_msgTypes = make([]protoimpl.MessageInfo, 29)
 var file_wandb_proto_wandb_api_proto_goTypes = []any{
 	(ErrorType)(0),                           // 0: wandb_internal.ErrorType
 	(*ServerApiInitRequest)(nil),             // 1: wandb_internal.ServerApiInitRequest
@@ -1937,13 +1999,14 @@ var file_wandb_proto_wandb_api_proto_goTypes = []any{
 	(*IncompleteRunHistoryError)(nil),        // 25: wandb_internal.IncompleteRunHistoryError
 	(*DownloadRunHistoryStatus)(nil),         // 26: wandb_internal.DownloadRunHistoryStatus
 	(*DownloadRunHistoryStatusResponse)(nil), // 27: wandb_internal.DownloadRunHistoryStatusResponse
-	nil,                                      // 28: wandb_internal.DownloadRunHistoryResponse.ErrorsEntry
-	(*Settings)(nil),                         // 29: wandb_internal.Settings
-	(ServerFeature)(0),                       // 30: wandb_internal.ServerFeature
-	(*OperationStats)(nil),                   // 31: wandb_internal.OperationStats
+	nil,                                      // 28: wandb_internal.GraphQLRequest.RenameFieldsEntry
+	nil,                                      // 29: wandb_internal.DownloadRunHistoryResponse.ErrorsEntry
+	(*Settings)(nil),                         // 30: wandb_internal.Settings
+	(ServerFeature)(0),                       // 31: wandb_internal.ServerFeature
+	(*OperationStats)(nil),                   // 32: wandb_internal.OperationStats
 }
 var file_wandb_proto_wandb_api_proto_depIdxs = []int32{
-	29, // 0: wandb_internal.ServerApiInitRequest.settings:type_name -> wandb_internal.Settings
+	30, // 0: wandb_internal.ServerApiInitRequest.settings:type_name -> wandb_internal.Settings
 	11, // 1: wandb_internal.ApiRequest.read_run_history_request:type_name -> wandb_internal.ReadRunHistoryRequest
 	7,  // 2: wandb_internal.ApiRequest.features_request:type_name -> wandb_internal.FeaturesRequest
 	9,  // 3: wandb_internal.ApiRequest.graphql_request:type_name -> wandb_internal.GraphQLRequest
@@ -1952,29 +2015,30 @@ var file_wandb_proto_wandb_api_proto_depIdxs = []int32{
 	10, // 6: wandb_internal.ApiResponse.graphql_response:type_name -> wandb_internal.GraphQLResponse
 	5,  // 7: wandb_internal.ApiResponse.api_error_response:type_name -> wandb_internal.ApiErrorResponse
 	0,  // 8: wandb_internal.ApiErrorResponse.error_type:type_name -> wandb_internal.ErrorType
-	30, // 9: wandb_internal.FeaturesRequest.features:type_name -> wandb_internal.ServerFeature
-	30, // 10: wandb_internal.FeaturesResponse.enabled:type_name -> wandb_internal.ServerFeature
-	13, // 11: wandb_internal.ReadRunHistoryRequest.scan_run_history_init:type_name -> wandb_internal.ScanRunHistoryInit
-	15, // 12: wandb_internal.ReadRunHistoryRequest.scan_run_history:type_name -> wandb_internal.ScanRunHistory
-	19, // 13: wandb_internal.ReadRunHistoryRequest.scan_run_history_cleanup:type_name -> wandb_internal.ScanRunHistoryCleanup
-	21, // 14: wandb_internal.ReadRunHistoryRequest.download_run_history_init:type_name -> wandb_internal.DownloadRunHistoryInit
-	23, // 15: wandb_internal.ReadRunHistoryRequest.download_run_history:type_name -> wandb_internal.DownloadRunHistory
-	26, // 16: wandb_internal.ReadRunHistoryRequest.download_run_history_status:type_name -> wandb_internal.DownloadRunHistoryStatus
-	14, // 17: wandb_internal.ReadRunHistoryResponse.scan_run_history_init:type_name -> wandb_internal.ScanRunHistoryInitResponse
-	16, // 18: wandb_internal.ReadRunHistoryResponse.run_history:type_name -> wandb_internal.RunHistoryResponse
-	20, // 19: wandb_internal.ReadRunHistoryResponse.scan_run_history_cleanup:type_name -> wandb_internal.ScanRunHistoryCleanupResponse
-	22, // 20: wandb_internal.ReadRunHistoryResponse.download_run_history_init:type_name -> wandb_internal.DownloadRunHistoryInitResponse
-	24, // 21: wandb_internal.ReadRunHistoryResponse.download_run_history:type_name -> wandb_internal.DownloadRunHistoryResponse
-	27, // 22: wandb_internal.ReadRunHistoryResponse.download_run_history_status:type_name -> wandb_internal.DownloadRunHistoryStatusResponse
-	17, // 23: wandb_internal.RunHistoryResponse.history_rows:type_name -> wandb_internal.HistoryRow
-	18, // 24: wandb_internal.HistoryRow.history_items:type_name -> wandb_internal.ParquetHistoryItem
-	28, // 25: wandb_internal.DownloadRunHistoryResponse.errors:type_name -> wandb_internal.DownloadRunHistoryResponse.ErrorsEntry
-	31, // 26: wandb_internal.DownloadRunHistoryStatusResponse.operation_stats:type_name -> wandb_internal.OperationStats
-	27, // [27:27] is the sub-list for method output_type
-	27, // [27:27] is the sub-list for method input_type
-	27, // [27:27] is the sub-list for extension type_name
-	27, // [27:27] is the sub-list for extension extendee
-	0,  // [0:27] is the sub-list for field type_name
+	31, // 9: wandb_internal.FeaturesRequest.features:type_name -> wandb_internal.ServerFeature
+	31, // 10: wandb_internal.FeaturesResponse.enabled:type_name -> wandb_internal.ServerFeature
+	28, // 11: wandb_internal.GraphQLRequest.rename_fields:type_name -> wandb_internal.GraphQLRequest.RenameFieldsEntry
+	13, // 12: wandb_internal.ReadRunHistoryRequest.scan_run_history_init:type_name -> wandb_internal.ScanRunHistoryInit
+	15, // 13: wandb_internal.ReadRunHistoryRequest.scan_run_history:type_name -> wandb_internal.ScanRunHistory
+	19, // 14: wandb_internal.ReadRunHistoryRequest.scan_run_history_cleanup:type_name -> wandb_internal.ScanRunHistoryCleanup
+	21, // 15: wandb_internal.ReadRunHistoryRequest.download_run_history_init:type_name -> wandb_internal.DownloadRunHistoryInit
+	23, // 16: wandb_internal.ReadRunHistoryRequest.download_run_history:type_name -> wandb_internal.DownloadRunHistory
+	26, // 17: wandb_internal.ReadRunHistoryRequest.download_run_history_status:type_name -> wandb_internal.DownloadRunHistoryStatus
+	14, // 18: wandb_internal.ReadRunHistoryResponse.scan_run_history_init:type_name -> wandb_internal.ScanRunHistoryInitResponse
+	16, // 19: wandb_internal.ReadRunHistoryResponse.run_history:type_name -> wandb_internal.RunHistoryResponse
+	20, // 20: wandb_internal.ReadRunHistoryResponse.scan_run_history_cleanup:type_name -> wandb_internal.ScanRunHistoryCleanupResponse
+	22, // 21: wandb_internal.ReadRunHistoryResponse.download_run_history_init:type_name -> wandb_internal.DownloadRunHistoryInitResponse
+	24, // 22: wandb_internal.ReadRunHistoryResponse.download_run_history:type_name -> wandb_internal.DownloadRunHistoryResponse
+	27, // 23: wandb_internal.ReadRunHistoryResponse.download_run_history_status:type_name -> wandb_internal.DownloadRunHistoryStatusResponse
+	17, // 24: wandb_internal.RunHistoryResponse.history_rows:type_name -> wandb_internal.HistoryRow
+	18, // 25: wandb_internal.HistoryRow.history_items:type_name -> wandb_internal.ParquetHistoryItem
+	29, // 26: wandb_internal.DownloadRunHistoryResponse.errors:type_name -> wandb_internal.DownloadRunHistoryResponse.ErrorsEntry
+	32, // 27: wandb_internal.DownloadRunHistoryStatusResponse.operation_stats:type_name -> wandb_internal.OperationStats
+	28, // [28:28] is the sub-list for method output_type
+	28, // [28:28] is the sub-list for method input_type
+	28, // [28:28] is the sub-list for extension type_name
+	28, // [28:28] is the sub-list for extension extendee
+	0,  // [0:28] is the sub-list for field type_name
 }
 
 func init() { file_wandb_proto_wandb_api_proto_init() }
@@ -2018,7 +2082,7 @@ func file_wandb_proto_wandb_api_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_wandb_proto_wandb_api_proto_rawDesc), len(file_wandb_proto_wandb_api_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   28,
+			NumMessages:   29,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
