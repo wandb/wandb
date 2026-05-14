@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import contextlib
-from collections.abc import Callable, Generator, Iterator
+from collections.abc import Callable, Generator
 from dataclasses import dataclass
 
 import pytest
@@ -97,7 +97,7 @@ def wandb_verbose(request):
 def user(
     request: pytest.FixtureRequest,
     backend_fixture_factory: BackendFixtureFactory,
-) -> Iterator[str]:
+) -> Generator[str]:
     """A user created for the duration of a test.
 
     This cannot be used together with module_user. If module_user is also
@@ -116,7 +116,7 @@ def user(
 @pytest.fixture(scope="module")
 def module_user(
     backend_fixture_factory: BackendFixtureFactory,
-) -> Iterator[str]:
+) -> Generator[str]:
     """A new user shared by all tests in a module.
 
     Just like `user`, but is shared by multiple tests.
@@ -130,7 +130,7 @@ def module_user(
 
 
 @contextlib.contextmanager
-def _user(backend_fixture_factory: BackendFixtureFactory) -> Iterator[str]:
+def _user(backend_fixture_factory: BackendFixtureFactory) -> Generator[str]:
     username = backend_fixture_factory.make_user()
 
     with pytest.MonkeyPatch.context() as monkeypatch:
@@ -185,7 +185,7 @@ class UserOrg:
 def user_in_orgs_factory(
     backend_fixture_factory: BackendFixtureFactory,
     user: str,
-) -> Iterator[Callable[[int], UserOrg]]:
+) -> Generator[Callable[[int], UserOrg]]:
     """Fixture that provides a factory function to create a user and associated orgs.
 
     Usage in a test:
