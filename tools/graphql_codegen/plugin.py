@@ -193,8 +193,12 @@ class GraphQLCodegenPlugin(Plugin):
     def _ensure_all_model_rebuilds(self, module: ast.Module) -> ast.Module:
         """Ensure that all generated classes call `model_rebuild()` after being defined.
 
-        The generated modules have forward references between sibling classes.
-        Normalizing the rebuild calls here keeps regenerated files stable.
+        TODO: This was originally a workaround for Pydantic v1, where forward
+        references between sibling classes required explicit
+        `.update_forward_refs()` (i.e. `.model_rebuild()` in v2) calls that v2
+        normally resolves automatically. Now that v1 is no longer supported,
+        this codegen pass — and the resulting `model_rebuild()` boilerplate in
+        the generated files — should be removable.
         """
         import_stmts = deque()  # e.g. `from typing import ...`
         classdef_stmts = deque()  # e.g. `class MyFragmentFields(BaseModel): ...`

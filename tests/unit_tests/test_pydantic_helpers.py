@@ -1,7 +1,10 @@
 """Basic tests for W&B's Pydantic helper layer."""
 
-# Keep existing annotation style in this legacy test file.
-# ruff: noqa: UP006  # allow e.g. `List[X]` instead of `list[x]`
+# TODO: These noqa entries were originally needed for Pydantic v1, where
+# modern annotation forms (`list[X]`, `X | None`) could trip up runtime type
+# introspection. v1 is dropped, so the annotations below can be modernized
+# and these ignores removed.
+# ruff: noqa: UP006  # allow e.g. `List[X]` instead of `list[X]`
 # ruff: noqa: UP035  # allow deprecated typing module imports
 # ruff: noqa: UP045  # allow e.g. `Optional[X]` instead of `X | None`
 

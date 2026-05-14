@@ -243,7 +243,7 @@ def test_make_json_if_not_number():
         assert json.loads(result) == obj
 
 
-def test_json_dumps_safer_preserves_nonfinite_float_constants():
+def test_json_dumps_safer_preserves_nonfinite_floats():
     encoded = util.json_dumps_safer(
         {
             "nan": float("nan"),
