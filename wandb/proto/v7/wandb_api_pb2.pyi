@@ -83,27 +83,12 @@ class FeaturesResponse(_message.Message):
     def __init__(self, enabled: _Optional[_Iterable[_Union[_wandb_internal_pb2.ServerFeature, str]]] = ...) -> None: ...
 
 class GraphQLRequest(_message.Message):
-    __slots__ = ("query", "variables_json", "omit_variables", "omit_fragments", "omit_fields", "rename_fields")
-    class RenameFieldsEntry(_message.Message):
-        __slots__ = ("key", "value")
-        KEY_FIELD_NUMBER: _ClassVar[int]
-        VALUE_FIELD_NUMBER: _ClassVar[int]
-        key: str
-        value: str
-        def __init__(self, key: _Optional[str] = ..., value: _Optional[str] = ...) -> None: ...
+    __slots__ = ("query", "variables_json")
     QUERY_FIELD_NUMBER: _ClassVar[int]
     VARIABLES_JSON_FIELD_NUMBER: _ClassVar[int]
-    OMIT_VARIABLES_FIELD_NUMBER: _ClassVar[int]
-    OMIT_FRAGMENTS_FIELD_NUMBER: _ClassVar[int]
-    OMIT_FIELDS_FIELD_NUMBER: _ClassVar[int]
-    RENAME_FIELDS_FIELD_NUMBER: _ClassVar[int]
     query: str
     variables_json: str
-    omit_variables: _containers.RepeatedScalarFieldContainer[str]
-    omit_fragments: _containers.RepeatedScalarFieldContainer[str]
-    omit_fields: _containers.RepeatedScalarFieldContainer[str]
-    rename_fields: _containers.ScalarMap[str, str]
-    def __init__(self, query: _Optional[str] = ..., variables_json: _Optional[str] = ..., omit_variables: _Optional[_Iterable[str]] = ..., omit_fragments: _Optional[_Iterable[str]] = ..., omit_fields: _Optional[_Iterable[str]] = ..., rename_fields: _Optional[_Mapping[str, str]] = ...) -> None: ...
+    def __init__(self, query: _Optional[str] = ..., variables_json: _Optional[str] = ...) -> None: ...
 
 class GraphQLResponse(_message.Message):
     __slots__ = ("data_json",)

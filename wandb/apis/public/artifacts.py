@@ -444,8 +444,6 @@ class ProjectArtifactCollections(
             variables=variables,
             per_page=per_page,
             start=start,
-            omit_variables=None if supports_filtering else {"filters"},
-            omit_fields=None if supports_filtering else {"totalCount"},
         )
 
     @override
@@ -1077,11 +1075,6 @@ class ArtifactFiles(SizedRelayPaginator["FileFragment", "File"]):
             variables=variables,
             per_page=per_page,
             start=start,
-            omit_fields=(
-                None
-                if server_supports(service_api, pb.TOTAL_COUNT_IN_FILE_CONNECTION)
-                else {"totalCount"}
-            ),
         )
 
     @override

@@ -34,8 +34,9 @@ def simplify_expr(expr: MongoLikeFilter) -> MongoLikeFilter:
     return expr  # default implementation is a no-op
 
 
+# singledispatch on the abstract parent dispatches to all And/Or/Nor subclasses
 @simplify_expr.register
-def _(op: BaseVariadicLogicalOp) -> MongoLikeFilter:
+def _(op: BaseVariadicLogicalOp) -> MongoLikeFilter:  # type: ignore[misc]
     """Simplify an `And/Or/Nor` operator by removing and unnesting redundant expressions.
 
     This will flatten the operator's inner expressions and simplify them recursively,
@@ -59,7 +60,10 @@ def _(op: BaseVariadicLogicalOp) -> MongoLikeFilter:
     # Flatten and simplify the operator's inner expressions.
     if len(exprs := [simplify_expr(x) for x in flatten_inner(op, cls)]) == 1:
         return exprs[0]  # Unnest single inner expressions.
-    return cls(exprs=exprs)
+    # cls is always one of And/Or/Nor — concrete subclasses of BaseVariadicLogicalOp
+    # that *are* in the MongoLikeFilter union, but mypy can't see this through the
+    # abstract `type(op)` capture.
+    return cls(exprs=exprs)  # type: ignore[return-value]
 
 
 @simplify_expr.register

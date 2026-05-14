@@ -43,20 +43,10 @@ func (h *GraphQLHandler) HandleRequest(
 		}
 	}
 
-	query, err := rewriteQuery(request.GetQuery(), gqlCompatOptionsFromRequest(
-		request.GetOmitVariables(),
-		request.GetOmitFragments(),
-		request.GetOmitFields(),
-		request.GetRenameFields(),
-	))
-	if err != nil {
-		return apiErrorResponse(err.Error(), 0)
-	}
-
 	var data json.RawMessage
 	response := &graphql.Response{Data: &data}
-	err = h.graphqlClient.MakeRequest(ctx, &graphql.Request{
-		Query:     query,
+	err := h.graphqlClient.MakeRequest(ctx, &graphql.Request{
+		Query:     request.GetQuery(),
 		Variables: variables,
 	}, response)
 	if err != nil {

@@ -38,7 +38,13 @@ from wandb.proto.wandb_internal_pb2 import (
     RunRecord,
 )
 from wandb.proto.wandb_telemetry_pb2 import Deprecated
-from wandb.sdk.lib import asyncio_manager, run_messages, run_stopping, wb_logging
+from wandb.sdk.lib import (
+    asyncio_manager,
+    logger_capture,
+    run_messages,
+    run_stopping,
+    wb_logging,
+)
 from wandb.sdk.lib.filesystem import (
     FilesDict,
     GlobStr,
@@ -1984,6 +1990,33 @@ class Run:
         self._log(data=data, step=step, commit=commit)
 
     @_log_to_run
+    @_attach
+    def write_logs(self, text: str) -> None:
+        """Write text to the run's Logs tab.
+
+        Use `write_logs` to directly write text to the Logs tab instead of
+        relying on automatic stdout/stderr capture. Calls after the run has
+        finished are silently ignored.
+
+        Consider using the `capture_loggers` setting which integrates with
+        Python's `logging` module.
+
+        Args:
+            text: The text to write. A trailing newline is added if not present.
+        """
+        if self._is_finished or not self._interface:
+            return
+
+        if not text.endswith("\n"):
+            text += "\n"
+
+        # nowait=True is needed because we may be in the asyncio thread.
+        #
+        # write_logs() is called by LoggerHandler, which could be attached
+        # to the root logger, which may get logs in an asyncio context.
+        self._interface.publish_output_logger(text, nowait=True)
+
+    @_log_to_run
     @_raise_if_finished
     @_attach
     def save(
@@ -2490,6 +2523,30 @@ class Run:
             self._output_writer.close()
             self._output_writer = None
 
+    def _begin_capturing_loggers(self) -> None:
+        """Begin capturing logger output if configured."""
+        capture_loggers = self._settings.capture_loggers
+        if not capture_loggers:
+            return
+
+        for name, level in capture_loggers.items():
+            handler = logger_capture.LoggerHandler(self, level)
+            logger = logging.getLogger(name)
+            logger.addHandler(handler)
+
+            def unregister(
+                logger: logging.Logger = logger,
+                handler: logging.Handler = handler,
+            ) -> None:
+                logger.removeHandler(handler)
+
+            self._teardown_hooks.append(
+                TeardownHook(
+                    call=unregister,
+                    stage=TeardownStage.EARLY,
+                )
+            )
+
     def _on_start(self) -> None:
         assert self._wl
 
@@ -2517,6 +2574,7 @@ class Run:
             self._run_status_checker.start()
 
         self._console_start()
+        self._begin_capturing_loggers()
         self._on_ready()
 
     def _on_attach(self) -> None:

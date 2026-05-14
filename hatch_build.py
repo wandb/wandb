@@ -17,13 +17,6 @@ sys.path.insert(0, str(pathlib.Path(__file__).parent))
 from core import hatch as hatch_core
 from xpu import hatch as hatch_xpu
 
-_hatch_orjson_path = (
-    pathlib.Path(__file__).parent / "wandb" / "vendor" / "wandb_orjson" / "hatch.py"
-)
-_spec = importlib.util.spec_from_file_location("hatch_orjson", _hatch_orjson_path)
-hatch_orjson = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(hatch_orjson)
-
 # Import arrow-rs-wrapper hatch module dynamically
 _arrow_rs_wrapper_hatch_path = (
     pathlib.Path(__file__).parent / "parquet-rust-wrapper" / "hatch.py"
@@ -43,7 +36,6 @@ _WANDB_BUILD_GORACEDETECT = "WANDB_BUILD_GORACEDETECT"
 
 # Other build options.
 _WANDB_BUILD_SKIP_WANDB_XPU = "WANDB_BUILD_SKIP_WANDB_XPU"
-_WANDB_BUILD_SKIP_ORJSON = "WANDB_BUILD_SKIP_ORJSON"
 _WANDB_ENABLE_CGO = "WANDB_ENABLE_CGO"
 
 
@@ -61,8 +53,6 @@ class CustomBuildHook(BuildHookInterface):
         artifacts.extend(self._build_arrow_rs_wrapper())
         if self._include_wandb_xpu():
             artifacts.extend(self._build_wandb_xpu())
-        if self._include_orjson():
-            artifacts.extend(self._build_orjson())
 
     def _get_platform_tag(self) -> str:
         """Returns the platform tag for the current platform."""
@@ -97,10 +87,6 @@ class CustomBuildHook(BuildHookInterface):
     def _include_wandb_xpu(self) -> bool:
         """Returns whether we should produce a wheel with wandb-xpu."""
         return not _get_env_bool(_WANDB_BUILD_SKIP_WANDB_XPU, default=False)
-
-    def _include_orjson(self) -> bool:
-        """Returns whether we should produce a wheel with vendored orjson."""
-        return not _get_env_bool(_WANDB_BUILD_SKIP_ORJSON, default=False)
 
     def _get_and_require_cargo_binary(self) -> pathlib.Path:
         cargo = shutil.which("cargo")
@@ -252,18 +238,6 @@ class CustomBuildHook(BuildHookInterface):
             goos=goos,
             goarch=goarch,
         )
-
-    def _build_orjson(self) -> list[str]:
-        """Build the vendored orjson library."""
-        output = pathlib.Path("wandb", "vendor", "wandb_orjson")
-
-        self.app.display_waiting("Building vendored orjson library...")
-        artifacts = hatch_orjson.build_orjson(
-            cargo_binary=self._get_and_require_cargo_binary(),
-            output_path=output,
-        )
-
-        return [artifact.as_posix() for artifact in artifacts]
 
 
 def _get_env_bool(name: str, default: bool) -> bool:

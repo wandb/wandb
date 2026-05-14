@@ -3,6 +3,7 @@ from unittest.mock import MagicMock
 
 import pytest
 from wandb.sdk.launch._project_spec import LaunchProject, LaunchSource
+from wandb.sdk.launch.errors import LaunchError
 
 
 def test_project_build_required():
@@ -197,6 +198,44 @@ def mock_project_args():
         "run_id": None,
         "sweep_id": "mock-sweep-id",
     }
+
+
+@pytest.mark.parametrize("accelerator_key", ["accelerator", "cuda"])
+def test_project_rejects_non_string_accelerator_base_image(
+    mock_project_args, accelerator_key
+):
+    mock_project_args["resource_args"] = {
+        "local-container": {
+            "builder": {
+                accelerator_key: {"base_image": 123},
+            }
+        }
+    }
+
+    with pytest.raises(
+        LaunchError,
+        match=(
+            "Expected builder\\."
+            f"{accelerator_key}\\.base_image to be a string Docker image "
+            "reference, got int\\."
+        ),
+    ):
+        LaunchProject(**mock_project_args)
+
+
+@pytest.mark.parametrize("accelerator_key", ["accelerator", "cuda"])
+def test_project_sets_string_accelerator_base_image(mock_project_args, accelerator_key):
+    mock_project_args["resource_args"] = {
+        "local-container": {
+            "builder": {
+                accelerator_key: {"base_image": "ubuntu:22.04"},
+            }
+        }
+    }
+
+    project = LaunchProject(**mock_project_args)
+
+    assert project.accelerator_base_image == "ubuntu:22.04"
 
 
 def test_project_parse_existing_requirements_invalid_requirement(

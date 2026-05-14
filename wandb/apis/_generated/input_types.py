@@ -3,15 +3,13 @@
 
 from __future__ import annotations
 
-from typing import List, Optional
-
 from pydantic import Field
 
 from wandb._pydantic import GQLId, GQLInput
 
 
 class ArtifactTypeInput(GQLInput):
-    description: Optional[str] = None
+    description: str | None = None
     name: str = Field(max_length=128, pattern="^[-\\w]+([ ]*[-.\\w]+)*$")
 
 
@@ -21,48 +19,46 @@ class ProjectIconInput(GQLInput):
 
 
 class RateLimitsInput(GQLInput):
-    create_artifacts: Optional[int] = Field(alias="createArtifacts", default=None)
-    create_artifacts_time_window: Optional[int] = Field(
+    create_artifacts: int | None = Field(alias="createArtifacts", default=None)
+    create_artifacts_time_window: int | None = Field(
         alias="createArtifactsTimeWindow", default=None
     )
-    filestream_count: Optional[float] = Field(alias="filestreamCount", default=None)
-    filestream_per_run_count: Optional[float] = Field(
+    filestream_count: float | None = Field(alias="filestreamCount", default=None)
+    filestream_per_run_count: float | None = Field(
         alias="filestreamPerRunCount", default=None
     )
-    filestream_size: Optional[int] = Field(alias="filestreamSize", default=None)
-    graphql: Optional[int] = None
-    run_update_count: Optional[float] = Field(alias="runUpdateCount", default=None)
-    sdk_graphql: Optional[int] = Field(alias="sdkGraphql", default=None)
-    sdk_graphql_query_seconds: Optional[float] = Field(
+    filestream_size: int | None = Field(alias="filestreamSize", default=None)
+    graphql: int | None = None
+    run_update_count: float | None = Field(alias="runUpdateCount", default=None)
+    sdk_graphql: int | None = Field(alias="sdkGraphql", default=None)
+    sdk_graphql_query_seconds: float | None = Field(
         alias="sdkGraphqlQuerySeconds", default=None
     )
 
 
 class UpsertModelInput(GQLInput):
-    access: Optional[str] = None
-    allow_all_artifact_types_in_registry: Optional[bool] = Field(
+    access: str | None = None
+    allow_all_artifact_types_in_registry: bool | None = Field(
         alias="allowAllArtifactTypesInRegistry", default=None
     )
-    artifact_types: Optional[List[ArtifactTypeInput]] = Field(
+    artifact_types: list[ArtifactTypeInput] | None = Field(
         alias="artifactTypes", default=None
     )
-    client_mutation_id: Optional[str] = Field(alias="clientMutationId", default=None)
-    description: Optional[str] = None
-    docker_image: Optional[str] = Field(
-        alias="dockerImage", default=None, max_length=512
-    )
-    entity_name: Optional[str] = Field(alias="entityName", default=None)
-    framework: Optional[str] = None
-    icon: Optional[ProjectIconInput] = None
-    id: Optional[str] = None
-    is_benchmark: Optional[bool] = Field(alias="isBenchmark", default=None)
-    is_published: Optional[bool] = Field(alias="isPublished", default=None)
-    linked_benchmark: Optional[GQLId] = Field(alias="linkedBenchmark", default=None)
-    name: Optional[str] = Field(default=None, max_length=128)
-    owner: Optional[GQLId] = None
-    rate_limits: Optional[RateLimitsInput] = Field(alias="rateLimits", default=None)
-    repo: Optional[str] = Field(default=None, max_length=256)
-    views: Optional[str] = None
+    client_mutation_id: str | None = Field(alias="clientMutationId", default=None)
+    description: str | None = None
+    docker_image: str | None = Field(alias="dockerImage", default=None, max_length=512)
+    entity_name: str | None = Field(alias="entityName", default=None)
+    framework: str | None = None
+    icon: ProjectIconInput | None = None
+    id: str | None = None
+    is_benchmark: bool | None = Field(alias="isBenchmark", default=None)
+    is_published: bool | None = Field(alias="isPublished", default=None)
+    linked_benchmark: GQLId | None = Field(alias="linkedBenchmark", default=None)
+    name: str | None = Field(default=None, max_length=128)
+    owner: GQLId | None = None
+    rate_limits: RateLimitsInput | None = Field(alias="rateLimits", default=None)
+    repo: str | None = Field(default=None, max_length=256)
+    views: str | None = None
 
 
 UpsertModelInput.model_rebuild()

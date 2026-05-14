@@ -109,23 +109,9 @@ message FeaturesResponse {
 // non-successful HTTP status codes return ApiErrorResponse. For HTTP responses
 // that include GraphQL `errors`, ApiErrorResponse.message is derived from
 // those error messages.
-//
-// The optional omit_* and rename_fields fields rewrite the query
-// before it is sent upstream. They strip parts of generated queries that are
-// not supported by the deployed W&B server (decided client-side based on
-// feature flags) without reproducing a GraphQL parser in Python.
 message GraphQLRequest {
   string query = 1;
   string variables_json = 2;
-
-  // Variable names ($var) to remove from variable definitions and usages.
-  repeated string omit_variables = 3;
-  // Fragment names to remove (both definitions and `...spreads`).
-  repeated string omit_fragments = 4;
-  // Field names to remove from selection sets.
-  repeated string omit_fields = 5;
-  // Field renames applied to selection sets: { old_name: new_name }.
-  map<string, string> rename_fields = 6;
 }
 
 message GraphQLResponse {

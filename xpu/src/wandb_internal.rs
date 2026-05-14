@@ -632,7 +632,7 @@ pub struct Record {
     pub info: ::core::option::Option<RecordInfo>,
     #[prost(
         oneof = "record::RecordType",
-        tags = "2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 17, 18, 20, 21, 22, 23, 24, 25, 26, 100"
+        tags = "2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 17, 18, 20, 21, 22, 23, 24, 25, 26, 27, 100"
     )]
     pub record_type: ::core::option::Option<record::RecordType>,
 }
@@ -685,6 +685,8 @@ pub mod record {
         UseArtifact(super::UseArtifactRecord),
         #[prost(message, tag = "26")]
         Environment(super::EnvironmentRecord),
+        #[prost(message, tag = "27")]
+        OutputLogger(super::OutputLoggerRecord),
         /// request field does not belong here longterm
         #[prost(message, tag = "100")]
         Request(super::Request),
@@ -1067,7 +1069,7 @@ pub mod output_record {
 }
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct OutputResult {}
-/// OutputRawRecord: raw console output
+/// OutputRawRecord: raw console output from stderr and stout.
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct OutputRawRecord {
     #[prost(enumeration = "output_raw_record::OutputType", tag = "1")]
@@ -1120,6 +1122,12 @@ pub mod output_raw_record {
 }
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct OutputRawResult {}
+/// OutputLoggerRecord: log output from run.write_logs for the Logs tab.
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct OutputLoggerRecord {
+    #[prost(string, tag = "1")]
+    pub line: ::prost::alloc::string::String,
+}
 /// MetricRecord: wandb/sdk/wandb_metric/Metric
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct MetricRecord {
@@ -2902,6 +2910,26 @@ pub enum ServerFeature {
     /// Indicates that the server supports both the artifact id and the birth artifact id in the artifact file download
     /// url.
     ArtifactV2DownloadHandlerSupportsArtifactId = 18,
+    /// Indicates that the server supports automation event RUN_METRIC_ZSCORE.
+    AutomationEventRunMetricZscore = 19,
+    /// Indicates that the server supports automation event RUN_STATE.
+    AutomationEventRunState = 20,
+    /// Indicates that the server supports automation action PUSH_NOTIFICATION.
+    AutomationActionPushNotification = 21,
+    /// Indicates that the server supports automation event ADD_ARTIFACT_TAG.
+    AutomationEventAddArtifactTag = 22,
+    /// Indicates that the server supports automation event ADD_COLLECTION_TAG.
+    AutomationEventAddCollectionTag = 23,
+    /// Indicates that the server supports automation event REMOVE_ARTIFACT_TAG.
+    AutomationEventRemoveArtifactTag = 24,
+    /// Indicates that the server supports automation event REMOVE_COLLECTION_TAG.
+    AutomationEventRemoveCollectionTag = 25,
+    /// Indicates that the server supports automation event UNLINK_ARTIFACT.
+    AutomationEventUnlinkArtifact = 26,
+    /// Indicates that the server supports User.triggers.
+    AutomationsOnUser = 27,
+    /// Indicates that the server supports Trigger.lastExecutedAt.
+    AutomationLastExecutedAt = 28,
 }
 impl ServerFeature {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -2945,6 +2973,24 @@ impl ServerFeature {
             Self::ArtifactV2DownloadHandlerSupportsArtifactId => {
                 "ARTIFACT_V2_DOWNLOAD_HANDLER_SUPPORTS_ARTIFACT_ID"
             }
+            Self::AutomationEventRunMetricZscore => "AUTOMATION_EVENT_RUN_METRIC_ZSCORE",
+            Self::AutomationEventRunState => "AUTOMATION_EVENT_RUN_STATE",
+            Self::AutomationActionPushNotification => {
+                "AUTOMATION_ACTION_PUSH_NOTIFICATION"
+            }
+            Self::AutomationEventAddArtifactTag => "AUTOMATION_EVENT_ADD_ARTIFACT_TAG",
+            Self::AutomationEventAddCollectionTag => {
+                "AUTOMATION_EVENT_ADD_COLLECTION_TAG"
+            }
+            Self::AutomationEventRemoveArtifactTag => {
+                "AUTOMATION_EVENT_REMOVE_ARTIFACT_TAG"
+            }
+            Self::AutomationEventRemoveCollectionTag => {
+                "AUTOMATION_EVENT_REMOVE_COLLECTION_TAG"
+            }
+            Self::AutomationEventUnlinkArtifact => "AUTOMATION_EVENT_UNLINK_ARTIFACT",
+            Self::AutomationsOnUser => "AUTOMATIONS_ON_USER",
+            Self::AutomationLastExecutedAt => "AUTOMATION_LAST_EXECUTED_AT",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -2987,6 +3033,30 @@ impl ServerFeature {
             "ARTIFACT_V2_DOWNLOAD_HANDLER_SUPPORTS_ARTIFACT_ID" => {
                 Some(Self::ArtifactV2DownloadHandlerSupportsArtifactId)
             }
+            "AUTOMATION_EVENT_RUN_METRIC_ZSCORE" => {
+                Some(Self::AutomationEventRunMetricZscore)
+            }
+            "AUTOMATION_EVENT_RUN_STATE" => Some(Self::AutomationEventRunState),
+            "AUTOMATION_ACTION_PUSH_NOTIFICATION" => {
+                Some(Self::AutomationActionPushNotification)
+            }
+            "AUTOMATION_EVENT_ADD_ARTIFACT_TAG" => {
+                Some(Self::AutomationEventAddArtifactTag)
+            }
+            "AUTOMATION_EVENT_ADD_COLLECTION_TAG" => {
+                Some(Self::AutomationEventAddCollectionTag)
+            }
+            "AUTOMATION_EVENT_REMOVE_ARTIFACT_TAG" => {
+                Some(Self::AutomationEventRemoveArtifactTag)
+            }
+            "AUTOMATION_EVENT_REMOVE_COLLECTION_TAG" => {
+                Some(Self::AutomationEventRemoveCollectionTag)
+            }
+            "AUTOMATION_EVENT_UNLINK_ARTIFACT" => {
+                Some(Self::AutomationEventUnlinkArtifact)
+            }
+            "AUTOMATIONS_ON_USER" => Some(Self::AutomationsOnUser),
+            "AUTOMATION_LAST_EXECUTED_AT" => Some(Self::AutomationLastExecutedAt),
             _ => None,
         }
     }

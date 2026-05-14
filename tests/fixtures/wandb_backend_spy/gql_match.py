@@ -14,7 +14,21 @@ from typing_extensions import Any, override
 
 # Matches queries containing an operation line, ignoring whitespace and
 # GraphQL comments that may precede it.
-_GQL_OPNAME_RE = re.compile(r"(?m)^\s*(?:#.*\n\s*)*(mutation|query)\s+(\w+)\s*[\(\{]")
+_GQL_OPNAME_RE = re.compile(
+    r"""
+    ^
+    (?:
+        \s+
+        | \# [^\n]* (?: \n | $ )
+    )*
+    (mutation|query)
+    \s+
+    (\w+)
+    \s*
+    [({]
+    """,
+    re.MULTILINE | re.VERBOSE,
+)
 
 
 # NOTE: In Python 3.12+, this would be done with a `type` statement.

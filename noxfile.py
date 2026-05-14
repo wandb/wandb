@@ -201,11 +201,10 @@ def unit_tests(session: nox.Session) -> None:
     is_windows = platform.system() == "Windows"
 
     if is_windows:
-        # Linux already exercises the heavier Go race/coverage and Rust extension
-        # build paths. Skipping them on Windows keeps this job focused on Python
-        # compatibility and avoids multi-minute rebuilds.
+        # Linux already exercises the heavier Go race/coverage build path.
+        # Skipping it on Windows keeps this job focused on Python compatibility
+        # and avoids multi-minute rebuilds.
         session.env["WANDB_BUILD_SKIP_WANDB_XPU"] = "true"
-        session.env["WANDB_BUILD_SKIP_ORJSON"] = "true"
 
     install_wandb(session, dev=not is_windows)
 
@@ -224,31 +223,6 @@ def unit_tests(session: nox.Session) -> None:
         paths=paths,
         # TODO: consider relaxing this once the test memory usage is under control.
         opts={"n": "4" if is_windows else "8"},
-    )
-
-
-@nox.session(python=_SUPPORTED_PYTHONS)
-def unit_tests_pydantic_v1(session: nox.Session) -> None:
-    """Runs a subset of Python unit tests with pydantic v1."""
-    install_wandb(session)
-    install_timed(
-        session,
-        "-r",
-        _requirements_file(session.python),
-    )
-    # force-downgrade pydantic to v1
-    install_timed(session, "pydantic<2")
-
-    run_pytest(
-        session,
-        paths=session.posargs
-        or [
-            "tests/unit_tests/test_wandb_settings.py",
-            "tests/unit_tests/test_wandb_run.py",
-            "tests/unit_tests/test_pydantic_v1_compat.py",
-            "tests/unit_tests/test_artifacts",
-        ],
-        opts={"n": "4"},
     )
 
 
@@ -784,9 +758,7 @@ def importer_tests(session: nox.Session, importer: str):
     install_wandb(session)
     session.install("-r", _requirements_file(session.python))
     if importer == "wandb":
-        session.install(".[workspaces]", "pydantic>=2")
-    elif importer == "mlflow":
-        session.install("pydantic<2")
+        session.install(".[workspaces]")
     session.install(
         "polyfactory",
         "polars<=1.2.1",

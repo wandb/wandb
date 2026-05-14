@@ -51,6 +51,7 @@ message Record {
     google.protobuf.Empty noop_link_artifact = 24;
     UseArtifactRecord use_artifact = 25;
     EnvironmentRecord environment = 26;
+    OutputLoggerRecord output_logger = 27;
 
     // request field does not belong here longterm
     Request request = 100;
@@ -300,7 +301,7 @@ message OutputRecord {
 message OutputResult {}
 
 /*
- * OutputRawRecord: raw console output
+ * OutputRawRecord: raw console output from stderr and stout.
  */
 message OutputRawRecord {
   enum OutputType {
@@ -314,6 +315,13 @@ message OutputRawRecord {
 }
 
 message OutputRawResult {}
+
+/*
+ * OutputLoggerRecord: log output from run.write_logs for the Logs tab.
+ */
+message OutputLoggerRecord {
+  string line = 1;
+}
 
 /*
  * MetricRecord: wandb/sdk/wandb_metric/Metric
@@ -1540,4 +1548,34 @@ enum ServerFeature {
   // Indicates that the server supports both the artifact id and the birth artifact id in the artifact file download
   // url.
   ARTIFACT_V2_DOWNLOAD_HANDLER_SUPPORTS_ARTIFACT_ID = 18;
+
+  // Indicates that the server supports automation event RUN_METRIC_ZSCORE.
+  AUTOMATION_EVENT_RUN_METRIC_ZSCORE = 19;
+
+  // Indicates that the server supports automation event RUN_STATE.
+  AUTOMATION_EVENT_RUN_STATE = 20;
+
+  // Indicates that the server supports automation action PUSH_NOTIFICATION.
+  AUTOMATION_ACTION_PUSH_NOTIFICATION = 21;
+
+  // Indicates that the server supports automation event ADD_ARTIFACT_TAG.
+  AUTOMATION_EVENT_ADD_ARTIFACT_TAG = 22;
+
+  // Indicates that the server supports automation event ADD_COLLECTION_TAG.
+  AUTOMATION_EVENT_ADD_COLLECTION_TAG = 23;
+
+  // Indicates that the server supports automation event REMOVE_ARTIFACT_TAG.
+  AUTOMATION_EVENT_REMOVE_ARTIFACT_TAG = 24;
+
+  // Indicates that the server supports automation event REMOVE_COLLECTION_TAG.
+  AUTOMATION_EVENT_REMOVE_COLLECTION_TAG = 25;
+
+  // Indicates that the server supports automation event UNLINK_ARTIFACT.
+  AUTOMATION_EVENT_UNLINK_ARTIFACT = 26;
+
+  // Indicates that the server supports User.triggers.
+  AUTOMATIONS_ON_USER = 27;
+
+  // Indicates that the server supports Trigger.lastExecutedAt.
+  AUTOMATION_LAST_EXECUTED_AT = 28;
 }

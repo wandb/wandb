@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Collection
-from typing import Annotated, Any, Final, Optional, Protocol, TypedDict, Union
+from typing import Annotated, Any, Final, Protocol, TypedDict
 
 from pydantic import Field
 from typing_extensions import Self, Unpack
@@ -29,6 +29,7 @@ from .events import (
     EventType,
     InputEvent,
     RunMetricFilter,
+    RunStateFilter,
     SavedEvent,
     _WrappedSavedEventFilter,
 )
@@ -89,11 +90,11 @@ class InputActionConfig(TriggeredActionConfig):
     # NOTE: `QueueJobActionInput` for defining a Launch job is deprecated,
     # so while it's allowed here to update EXISTING mutations, we don't
     # currently expose it through the public API to create NEW automations.
-    queue_job_action_input: Optional[QueueJobActionInput] = None
+    queue_job_action_input: QueueJobActionInput | None = None
 
-    notification_action_input: Optional[SendNotification] = None
-    generic_webhook_action_input: Optional[SendWebhook] = None
-    no_op_action_input: Optional[DoNothing] = None
+    notification_action_input: SendNotification | None = None
+    generic_webhook_action_input: SendWebhook | None = None
+    no_op_action_input: DoNothing | None = None
 
 
 def prepare_action_config_input(obj: SavedAction | InputAction) -> dict[str, Any]:
@@ -109,7 +110,7 @@ def prepare_action_config_input(obj: SavedAction | InputAction) -> dict[str, Any
 
 
 def prepare_event_filter_input(
-    obj: _WrappedSavedEventFilter | MongoLikeFilter | RunMetricFilter,
+    obj: _WrappedSavedEventFilter | MongoLikeFilter | RunMetricFilter | RunStateFilter,
 ) -> str:
     """Unnests (if needed) and serializes an `EventFilter` input to JSON.
 
@@ -145,7 +146,7 @@ class ValidatedCreateInput(GQLInput, extra="forbid", frozen=True):
     """
 
     name: str
-    description: Optional[str] = None
+    description: str | None = None
     enabled: bool = True
 
     # ------------------------------------------------------------------------------
@@ -210,12 +211,12 @@ class ValidatedUpdateInput(GQLInput, extra="ignore", frozen=True):
 
     id: GQLId
 
-    name: Optional[str] = None
-    description: Optional[str] = None
-    enabled: Optional[bool] = None
+    name: str | None = None
+    description: str | None = None
+    enabled: bool | None = None
 
-    event: Annotated[Union[InputEvent, SavedEvent], Field(exclude=True)]
-    action: Annotated[Union[InputAction, SavedAction], Field(exclude=True)]
+    event: Annotated[InputEvent | SavedEvent, Field(exclude=True)]
+    action: Annotated[InputAction | SavedAction, Field(exclude=True)]
     scope: Annotated[AutomationScope, Field(exclude=True)]
 
     # --------------------------------------------------------------------------

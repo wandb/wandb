@@ -3,13 +3,11 @@
 
 from __future__ import annotations
 
-from typing import Optional
-
 from wandb._pydantic import GQLResult
 
 
 class DeleteAliases(GQLResult):
-    result: Optional[DeleteAliasesResult]
+    result: DeleteAliasesResult | None
 
 
 class DeleteAliasesResult(GQLResult):
