@@ -5,6 +5,7 @@ import io
 import pathlib
 import queue
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
 from unittest import mock
 
@@ -254,6 +255,52 @@ def test_agent_sweep_deleted(user):
     assert "Sweep was deleted or agent was not found" in stderr_output
 
 
+def test_agent_sweep_deleted_waits_for_in_flight_run(user, monkeypatch):
+    """404 on heartbeat does not stop the agent while a trial thread is still running."""
+    sweep_config = {
+        "name": "My Sweep",
+        "method": "grid",
+        "parameters": {"a": {"values": [1, 2, 3]}},
+    }
+    sweep_id = wandb.sweep(sweep_config)
+
+    first_heartbeat_done = threading.Event()
+    trial_in_user_code = threading.Event()
+
+    monkeypatch.setattr(pyagent.Agent, "HEARTBEAT_SLEEP_SECONDS", 0)
+
+    def train():
+        run = wandb.init()
+        trial_in_user_code.set()
+        run.finish()
+
+    def agent_heartbeat_mock(agent_id, metrics, run_states):
+        if first_heartbeat_done.is_set():
+            trial_in_user_code.wait()
+            raise SweepNotFoundError("Sweep not found")
+        first_heartbeat_done.set()
+        return [
+            {
+                "type": "run",
+                "run_id": "sweep-deleted-wait-run",
+                "args": {"a": {"value": 1}},
+                "program": "train.py",
+            }
+        ]
+
+    captured_stderr = io.StringIO()
+    with contextlib.redirect_stderr(captured_stderr):
+        with mock.patch(
+            "wandb.sdk.internal.internal_api.Api.agent_heartbeat",
+            side_effect=agent_heartbeat_mock,
+        ):
+            wandb.agent(sweep_id, function=train, count=1)
+
+    stderr_output = captured_stderr.getvalue()
+    assert "Sweep was deleted or agent was not found" in stderr_output
+    assert "Waiting for the in-process run to finish" in stderr_output
+
+
 def test_public_api_sweep_agent_retrieves_running_agent(user):
     """While a sweep agent is blocked in user code, Api().sweep().agent() returns it."""
     project = "test"
@@ -326,7 +373,6 @@ def test_normal_run_after_agent_does_not_overwrite_sweep_run(user, runner, monke
     with an explicit id. The normal run must be separate and must not overwrite
     the sweep run.
     """
-    import time
 
     with runner.isolated_filesystem():
         project_name = "test-normal-run-after-agent"

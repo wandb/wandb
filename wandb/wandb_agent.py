@@ -19,6 +19,7 @@ from typing import Any
 import wandb
 from wandb import util
 from wandb.sdk import wandb_login, wandb_setup
+from wandb.sdk.launch.sweeps import SweepNotFoundError
 from wandb.sdk.lib import config_util, ipython
 
 logger = logging.getLogger(__name__)
@@ -246,6 +247,7 @@ class Agent:
             self.MAX_INITIAL_FAILURES
         )
         self._forward_signals = forward_signals
+        self._sweep_not_found = False
         if self._report_interval is None:
             raise AgentError("Invalid agent report interval")
         if self._kill_delay is None:
@@ -360,11 +362,32 @@ class Agent:
                     self._last_report_time = None
                     self._finished += 1
 
+                if self._sweep_not_found and not self._run_processes:
+                    self._running = False
+                    continue
+
                 if self._count and self._finished >= self._count or not self._running:
                     self._running = False
                     continue
 
-                commands = self._api.agent_heartbeat(agent_id, {}, run_status)
+                if self._sweep_not_found:
+                    commands = []
+                else:
+                    try:
+                        commands = self._api.agent_heartbeat(agent_id, {}, run_status)
+                    except SweepNotFoundError:
+                        if self._run_processes:
+                            wandb.termerror(
+                                "Sweep was deleted or agent was not found. "
+                                "Waiting for active runs to finish."
+                            )
+                            self._sweep_not_found = True
+                            commands = []
+                        else:
+                            wandb.termerror(
+                                "Sweep was deleted or agent was not found. Stopping agent."
+                            )
+                            raise
 
                 # TODO: send _server_responses
                 self._server_responses = []
