@@ -603,6 +603,7 @@ def mypy_report(session: nox.Session) -> None:
         "types-requests",
         "types-six",
         "types-tqdm",
+        "weave>=0.52.40",
     )
 
     path = "mypy-results"
