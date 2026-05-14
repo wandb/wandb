@@ -16,10 +16,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ### Notable Changes
 
-This version drops support for Python 3.9 and Pydantic v1. Pydantic v2.6 or
-newer is now required; the vendored `orjson` Rust extension is removed in
-favor of `pydantic_core` (a transitive dependency of Pydantic v2) for fast
-JSON (de)serialization, eliminating per-CPython-version wheel artifacts.
+This version drops support for Python 3.9 and Pydantic v1. Pydantic v2.6 or newer is now required.
 
 ### Added
 
@@ -33,9 +30,7 @@ JSON (de)serialization, eliminating per-CPython-version wheel artifacts.
 
 - Changed CPU and memory system metric percentages in Linux containers to use cgroup v2 resource limits instead of host node totals. Set the private `x_stats_no_cgroup` setting to `True` to opt out (@dmitryduev in https://github.com/wandb/wandb/pull/11796)
 - Python 3.9 is no longer supported (@dmitryduev in https://github.com/wandb/wandb/pull/11841)
-- JSON (de)serialization now uses `pydantic_core` instead of a vendored copy of `orjson`; non-finite floats (`NaN`, `Infinity`, `-Infinity`) continue to be preserved as JSON literals rather than coerced to `null`
 
 ### Removed
 
-- Pydantic v1 is no longer supported; `pydantic >= 2.6` is required
-- The vendored `wandb_orjson` extension and its `WANDB_DISABLE_ORJSON` / `WANDB_BUILD_SKIP_ORJSON` environment variables
+- Pydantic v1 is no longer supported; `pydantic >= 2.6` is required. The vendored `wandb_orjson` extension and its `WANDB_DISABLE_ORJSON` / `WANDB_BUILD_SKIP_ORJSON` environment variables removed (@dmitryduev in https://github.com/wandb/wandb/pull/11869)
