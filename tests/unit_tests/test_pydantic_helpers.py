@@ -1,17 +1,9 @@
 """Basic tests for W&B's Pydantic helper layer."""
 
-# TODO: These noqa entries were originally needed for Pydantic v1, where
-# modern annotation forms (`list[X]`, `X | None`) could trip up runtime type
-# introspection. v1 is dropped, so the annotations below can be modernized
-# and these ignores removed.
-# ruff: noqa: UP006  # allow e.g. `List[X]` instead of `list[X]`
-# ruff: noqa: UP035  # allow deprecated typing module imports
-# ruff: noqa: UP045  # allow e.g. `Optional[X]` instead of `X | None`
-
 from __future__ import annotations
 
 import json
-from typing import Any, List, Optional
+from typing import Any
 
 from pydantic import ConfigDict, Field, Json, ValidationError
 from pytest import raises
@@ -135,7 +127,7 @@ def test_model_fields_class_property():
 def test_model_fields_set_property():
     class Model(CompatBaseModel):
         x: int
-        y: Optional[str] = None
+        y: str | None = None
 
     obj = Model(x=1)
     assert obj.model_fields_set == {"x"}
@@ -197,9 +189,9 @@ def test_model_config_conversion():
 def test_model_dump_methods_with_json_fields():
     class Model(CompatBaseModel):
         x: int
-        req_json_field: Json[List[int]]
-        opt_json_field: Optional[Json[List[int]]] = None
-        unset_opt_json_field: Optional[Json[List[int]]] = None
+        req_json_field: Json[list[int]]
+        opt_json_field: Json[list[int]] | None = None
+        unset_opt_json_field: Json[list[int]] | None = None
 
     obj = Model(
         x=1,
@@ -239,10 +231,8 @@ class Item(CompatBaseModel):
 
 
 class ListFields(CompatBaseModel):
-    required_list: List[Item] = Field(min_length=1, max_length=3)
-    optional_list: Optional[List[Item]] = Field(
-        default=None, min_length=1, max_length=3
-    )
+    required_list: list[Item] = Field(min_length=1, max_length=3)
+    optional_list: list[Item] | None = Field(default=None, min_length=1, max_length=3)
 
 
 def test_field_constraints_on_list_fields():
@@ -274,7 +264,7 @@ def test_field_constraints_on_list_fields():
 def test_field_constraints_on_str_fields():
     class StringFields(CompatBaseModel):
         required_str: str = Field(min_length=1, max_length=3, pattern=r"^[a-z]+$")
-        optional_str: Optional[str] = Field(
+        optional_str: str | None = Field(
             default=None, min_length=1, max_length=3, pattern=r"^[a-z]+$"
         )
 
@@ -358,15 +348,15 @@ def test_generated_pydantic_fragment_validates_response_data():
 
 # ------------------------------------------------------------------------------
 class NestedInput(GQLInput):
-    inner_str: Optional[str] = None
-    inner_int: Optional[int] = None
+    inner_str: str | None = None
+    inner_int: int | None = None
 
 
 class CreateThingInput(GQLInput):
     required_value: int
-    optional_str: Optional[str] = None
-    optional_int: Optional[int] = None
-    nested: Optional[NestedInput] = None
+    optional_str: str | None = None
+    optional_int: int | None = None
+    nested: NestedInput | None = None
 
 
 NestedInput.model_rebuild()

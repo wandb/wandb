@@ -14,10 +14,9 @@ from os.path import getsize
 from typing import TYPE_CHECKING, Annotated, Any, Dict, Final, Optional, Union
 from urllib.parse import urlparse
 
-from pydantic import Field, NonNegativeInt
+from pydantic import Field, NonNegativeInt, field_validator, model_validator
 from typing_extensions import Self
 
-from wandb._pydantic import field_validator, model_validator
 from wandb._strutils import nameof
 from wandb.proto.wandb_telemetry_pb2 import Deprecated
 from wandb.sdk.lib.deprecation import warn_and_record_deprecation

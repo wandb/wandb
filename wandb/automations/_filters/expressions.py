@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
-from typing import Any, Dict, Union
+from typing import Any, TypeAlias
 
 from pydantic import ConfigDict, model_serializer
-from typing_extensions import Self, TypeAlias
+from typing_extensions import Self
 
 from wandb._pydantic import CompatBaseModel, model_validator
 from wandb._strutils import nameof
@@ -136,7 +136,7 @@ class FilterExpr(CompatBaseModel, SupportsBitwiseLogicalOps):
     )
 
     field: str
-    op: Union[Op, Dict[str, Any]]
+    op: Op | dict[str, Any]
 
     def __repr__(self) -> str:
         return f"{nameof(type(self))}({self.field!s}: {self.op!r})"
@@ -177,4 +177,4 @@ Nor.model_rebuild()
 Not.model_rebuild()
 
 # for type annotations
-MongoLikeFilter: TypeAlias = Union[Op, FilterExpr, Dict[str, Any]]
+MongoLikeFilter: TypeAlias = Op | FilterExpr | dict[str, Any]
