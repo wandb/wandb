@@ -31,6 +31,16 @@ class ServerFeature(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     TOTAL_COUNT_IN_FILE_CONNECTION: _ClassVar[ServerFeature]
     ARTIFACT_COLLECTIONS_FILTERING_SORTING: _ClassVar[ServerFeature]
     ARTIFACT_V2_DOWNLOAD_HANDLER_SUPPORTS_ARTIFACT_ID: _ClassVar[ServerFeature]
+    AUTOMATION_EVENT_RUN_METRIC_ZSCORE: _ClassVar[ServerFeature]
+    AUTOMATION_EVENT_RUN_STATE: _ClassVar[ServerFeature]
+    AUTOMATION_ACTION_PUSH_NOTIFICATION: _ClassVar[ServerFeature]
+    AUTOMATION_EVENT_ADD_ARTIFACT_TAG: _ClassVar[ServerFeature]
+    AUTOMATION_EVENT_ADD_COLLECTION_TAG: _ClassVar[ServerFeature]
+    AUTOMATION_EVENT_REMOVE_ARTIFACT_TAG: _ClassVar[ServerFeature]
+    AUTOMATION_EVENT_REMOVE_COLLECTION_TAG: _ClassVar[ServerFeature]
+    AUTOMATION_EVENT_UNLINK_ARTIFACT: _ClassVar[ServerFeature]
+    AUTOMATIONS_ON_USER: _ClassVar[ServerFeature]
+    AUTOMATION_LAST_EXECUTED_AT: _ClassVar[ServerFeature]
 SERVER_FEATURE_UNSPECIFIED: ServerFeature
 LARGE_FILENAMES: ServerFeature
 ARTIFACT_TAGS: ServerFeature
@@ -50,6 +60,16 @@ ARTIFACT_MEMBERSHIP_IN_LINK_ARTIFACT_RESPONSE: ServerFeature
 TOTAL_COUNT_IN_FILE_CONNECTION: ServerFeature
 ARTIFACT_COLLECTIONS_FILTERING_SORTING: ServerFeature
 ARTIFACT_V2_DOWNLOAD_HANDLER_SUPPORTS_ARTIFACT_ID: ServerFeature
+AUTOMATION_EVENT_RUN_METRIC_ZSCORE: ServerFeature
+AUTOMATION_EVENT_RUN_STATE: ServerFeature
+AUTOMATION_ACTION_PUSH_NOTIFICATION: ServerFeature
+AUTOMATION_EVENT_ADD_ARTIFACT_TAG: ServerFeature
+AUTOMATION_EVENT_ADD_COLLECTION_TAG: ServerFeature
+AUTOMATION_EVENT_REMOVE_ARTIFACT_TAG: ServerFeature
+AUTOMATION_EVENT_REMOVE_COLLECTION_TAG: ServerFeature
+AUTOMATION_EVENT_UNLINK_ARTIFACT: ServerFeature
+AUTOMATIONS_ON_USER: ServerFeature
+AUTOMATION_LAST_EXECUTED_AT: ServerFeature
 
 class Record(_message.Message):
     __slots__ = ("num", "history", "summary", "output", "config", "files", "stats", "artifact", "tbrecord", "alert", "telemetry", "metric", "output_raw", "run", "exit", "final", "header", "footer", "preempting", "noop_link_artifact", "use_artifact", "environment", "output_logger", "request", "control", "uuid", "_info")

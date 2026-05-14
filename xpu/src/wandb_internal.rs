@@ -1125,15 +1125,9 @@ pub struct OutputRawResult {}
 /// OutputLoggerRecord: log output from run.write_logs for the Logs tab.
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct OutputLoggerRecord {
-    #[prost(message, optional, tag = "1")]
-    pub timestamp: ::core::option::Option<::prost_types::Timestamp>,
-    #[prost(string, tag = "2")]
+    #[prost(string, tag = "1")]
     pub line: ::prost::alloc::string::String,
-    #[prost(message, optional, tag = "200")]
-    pub info: ::core::option::Option<RecordInfo>,
 }
-#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
-pub struct OutputLoggerResult {}
 /// MetricRecord: wandb/sdk/wandb_metric/Metric
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct MetricRecord {
@@ -2916,6 +2910,26 @@ pub enum ServerFeature {
     /// Indicates that the server supports both the artifact id and the birth artifact id in the artifact file download
     /// url.
     ArtifactV2DownloadHandlerSupportsArtifactId = 18,
+    /// Indicates that the server supports automation event RUN_METRIC_ZSCORE.
+    AutomationEventRunMetricZscore = 19,
+    /// Indicates that the server supports automation event RUN_STATE.
+    AutomationEventRunState = 20,
+    /// Indicates that the server supports automation action PUSH_NOTIFICATION.
+    AutomationActionPushNotification = 21,
+    /// Indicates that the server supports automation event ADD_ARTIFACT_TAG.
+    AutomationEventAddArtifactTag = 22,
+    /// Indicates that the server supports automation event ADD_COLLECTION_TAG.
+    AutomationEventAddCollectionTag = 23,
+    /// Indicates that the server supports automation event REMOVE_ARTIFACT_TAG.
+    AutomationEventRemoveArtifactTag = 24,
+    /// Indicates that the server supports automation event REMOVE_COLLECTION_TAG.
+    AutomationEventRemoveCollectionTag = 25,
+    /// Indicates that the server supports automation event UNLINK_ARTIFACT.
+    AutomationEventUnlinkArtifact = 26,
+    /// Indicates that the server supports User.triggers.
+    AutomationsOnUser = 27,
+    /// Indicates that the server supports Trigger.lastExecutedAt.
+    AutomationLastExecutedAt = 28,
 }
 impl ServerFeature {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -2959,6 +2973,24 @@ impl ServerFeature {
             Self::ArtifactV2DownloadHandlerSupportsArtifactId => {
                 "ARTIFACT_V2_DOWNLOAD_HANDLER_SUPPORTS_ARTIFACT_ID"
             }
+            Self::AutomationEventRunMetricZscore => "AUTOMATION_EVENT_RUN_METRIC_ZSCORE",
+            Self::AutomationEventRunState => "AUTOMATION_EVENT_RUN_STATE",
+            Self::AutomationActionPushNotification => {
+                "AUTOMATION_ACTION_PUSH_NOTIFICATION"
+            }
+            Self::AutomationEventAddArtifactTag => "AUTOMATION_EVENT_ADD_ARTIFACT_TAG",
+            Self::AutomationEventAddCollectionTag => {
+                "AUTOMATION_EVENT_ADD_COLLECTION_TAG"
+            }
+            Self::AutomationEventRemoveArtifactTag => {
+                "AUTOMATION_EVENT_REMOVE_ARTIFACT_TAG"
+            }
+            Self::AutomationEventRemoveCollectionTag => {
+                "AUTOMATION_EVENT_REMOVE_COLLECTION_TAG"
+            }
+            Self::AutomationEventUnlinkArtifact => "AUTOMATION_EVENT_UNLINK_ARTIFACT",
+            Self::AutomationsOnUser => "AUTOMATIONS_ON_USER",
+            Self::AutomationLastExecutedAt => "AUTOMATION_LAST_EXECUTED_AT",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -3001,6 +3033,30 @@ impl ServerFeature {
             "ARTIFACT_V2_DOWNLOAD_HANDLER_SUPPORTS_ARTIFACT_ID" => {
                 Some(Self::ArtifactV2DownloadHandlerSupportsArtifactId)
             }
+            "AUTOMATION_EVENT_RUN_METRIC_ZSCORE" => {
+                Some(Self::AutomationEventRunMetricZscore)
+            }
+            "AUTOMATION_EVENT_RUN_STATE" => Some(Self::AutomationEventRunState),
+            "AUTOMATION_ACTION_PUSH_NOTIFICATION" => {
+                Some(Self::AutomationActionPushNotification)
+            }
+            "AUTOMATION_EVENT_ADD_ARTIFACT_TAG" => {
+                Some(Self::AutomationEventAddArtifactTag)
+            }
+            "AUTOMATION_EVENT_ADD_COLLECTION_TAG" => {
+                Some(Self::AutomationEventAddCollectionTag)
+            }
+            "AUTOMATION_EVENT_REMOVE_ARTIFACT_TAG" => {
+                Some(Self::AutomationEventRemoveArtifactTag)
+            }
+            "AUTOMATION_EVENT_REMOVE_COLLECTION_TAG" => {
+                Some(Self::AutomationEventRemoveCollectionTag)
+            }
+            "AUTOMATION_EVENT_UNLINK_ARTIFACT" => {
+                Some(Self::AutomationEventUnlinkArtifact)
+            }
+            "AUTOMATIONS_ON_USER" => Some(Self::AutomationsOnUser),
+            "AUTOMATION_LAST_EXECUTED_AT" => Some(Self::AutomationLastExecutedAt),
             _ => None,
         }
     }

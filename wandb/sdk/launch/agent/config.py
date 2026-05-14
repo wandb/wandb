@@ -7,10 +7,11 @@ from enum import Enum
 # ValidationError is imported for exception type checking purposes only.
 from pydantic import (  # type: ignore
     BaseModel,
+    ConfigDict,
     Field,
     ValidationError,
-    root_validator,
-    validator,
+    field_validator,
+    model_validator,
 )
 
 import wandb
@@ -78,9 +79,11 @@ class RegistryConfig(BaseModel):
         description="The URI of the registry.",
     )
 
-    @validator("uri")  # type: ignore
+    @field_validator("uri")
     @classmethod
-    def validate_uri(cls, uri: str) -> str:
+    def validate_uri(cls, uri: str | None) -> str | None:
+        if uri is None:
+            return None
         return validate_registry_uri(uri)
 
 
@@ -93,10 +96,9 @@ class EnvironmentConfig(BaseModel):
     )
     region: str | None = Field(..., description="The region to use.")
 
-    class Config:
-        extra = "allow"
+    model_config = ConfigDict(extra="allow")
 
-    @root_validator(pre=True)  # type: ignore
+    @model_validator(mode="before")
     @classmethod
     def check_extra_fields(cls, values: dict) -> dict:
         """Check for extra fields and print a warning."""
@@ -151,7 +153,7 @@ class BuilderConfig(BaseModel):
         alias="kaniko-image",
     )
 
-    @validator("build_context_store")  # type: ignore
+    @field_validator("build_context_store")
     @classmethod
     def validate_build_context_store(
         cls, build_context_store: str | None
@@ -171,13 +173,7 @@ class BuilderConfig(BaseModel):
             "S3 bucket, GCS bucket, or Azure blob."
         )
 
-    @root_validator(pre=True)  # type: ignore
-    @classmethod
-    def validate_docker(cls, values: dict) -> dict:
-        """Right now there are no required fields for docker builds."""
-        return values
-
-    @validator("destination")  # type: ignore
+    @field_validator("destination")
     @classmethod
     def validate_destination(cls, destination: str | None) -> str | None:
         """Validate that the destination is a valid container registry URI."""

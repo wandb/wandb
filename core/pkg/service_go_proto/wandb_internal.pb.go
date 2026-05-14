@@ -69,6 +69,26 @@ const (
 	// Indicates that the server supports both the artifact id and the birth artifact id in the artifact file download
 	// url.
 	ServerFeature_ARTIFACT_V2_DOWNLOAD_HANDLER_SUPPORTS_ARTIFACT_ID ServerFeature = 18
+	// Indicates that the server supports automation event RUN_METRIC_ZSCORE.
+	ServerFeature_AUTOMATION_EVENT_RUN_METRIC_ZSCORE ServerFeature = 19
+	// Indicates that the server supports automation event RUN_STATE.
+	ServerFeature_AUTOMATION_EVENT_RUN_STATE ServerFeature = 20
+	// Indicates that the server supports automation action PUSH_NOTIFICATION.
+	ServerFeature_AUTOMATION_ACTION_PUSH_NOTIFICATION ServerFeature = 21
+	// Indicates that the server supports automation event ADD_ARTIFACT_TAG.
+	ServerFeature_AUTOMATION_EVENT_ADD_ARTIFACT_TAG ServerFeature = 22
+	// Indicates that the server supports automation event ADD_COLLECTION_TAG.
+	ServerFeature_AUTOMATION_EVENT_ADD_COLLECTION_TAG ServerFeature = 23
+	// Indicates that the server supports automation event REMOVE_ARTIFACT_TAG.
+	ServerFeature_AUTOMATION_EVENT_REMOVE_ARTIFACT_TAG ServerFeature = 24
+	// Indicates that the server supports automation event REMOVE_COLLECTION_TAG.
+	ServerFeature_AUTOMATION_EVENT_REMOVE_COLLECTION_TAG ServerFeature = 25
+	// Indicates that the server supports automation event UNLINK_ARTIFACT.
+	ServerFeature_AUTOMATION_EVENT_UNLINK_ARTIFACT ServerFeature = 26
+	// Indicates that the server supports User.triggers.
+	ServerFeature_AUTOMATIONS_ON_USER ServerFeature = 27
+	// Indicates that the server supports Trigger.lastExecutedAt.
+	ServerFeature_AUTOMATION_LAST_EXECUTED_AT ServerFeature = 28
 )
 
 // Enum value maps for ServerFeature.
@@ -93,6 +113,16 @@ var (
 		15: "TOTAL_COUNT_IN_FILE_CONNECTION",
 		16: "ARTIFACT_COLLECTIONS_FILTERING_SORTING",
 		18: "ARTIFACT_V2_DOWNLOAD_HANDLER_SUPPORTS_ARTIFACT_ID",
+		19: "AUTOMATION_EVENT_RUN_METRIC_ZSCORE",
+		20: "AUTOMATION_EVENT_RUN_STATE",
+		21: "AUTOMATION_ACTION_PUSH_NOTIFICATION",
+		22: "AUTOMATION_EVENT_ADD_ARTIFACT_TAG",
+		23: "AUTOMATION_EVENT_ADD_COLLECTION_TAG",
+		24: "AUTOMATION_EVENT_REMOVE_ARTIFACT_TAG",
+		25: "AUTOMATION_EVENT_REMOVE_COLLECTION_TAG",
+		26: "AUTOMATION_EVENT_UNLINK_ARTIFACT",
+		27: "AUTOMATIONS_ON_USER",
+		28: "AUTOMATION_LAST_EXECUTED_AT",
 	}
 	ServerFeature_value = map[string]int32{
 		"SERVER_FEATURE_UNSPECIFIED":           0,
@@ -114,6 +144,16 @@ var (
 		"TOTAL_COUNT_IN_FILE_CONNECTION":                       15,
 		"ARTIFACT_COLLECTIONS_FILTERING_SORTING":               16,
 		"ARTIFACT_V2_DOWNLOAD_HANDLER_SUPPORTS_ARTIFACT_ID":    18,
+		"AUTOMATION_EVENT_RUN_METRIC_ZSCORE":                   19,
+		"AUTOMATION_EVENT_RUN_STATE":                           20,
+		"AUTOMATION_ACTION_PUSH_NOTIFICATION":                  21,
+		"AUTOMATION_EVENT_ADD_ARTIFACT_TAG":                    22,
+		"AUTOMATION_EVENT_ADD_COLLECTION_TAG":                  23,
+		"AUTOMATION_EVENT_REMOVE_ARTIFACT_TAG":                 24,
+		"AUTOMATION_EVENT_REMOVE_COLLECTION_TAG":               25,
+		"AUTOMATION_EVENT_UNLINK_ARTIFACT":                     26,
+		"AUTOMATIONS_ON_USER":                                  27,
+		"AUTOMATION_LAST_EXECUTED_AT":                          28,
 	}
 )
 
@@ -12397,7 +12437,7 @@ const file_wandb_proto_wandb_internal_proto_rawDesc = "" +
 	"\finput_source\x18\x01 \x01(\v2\x1e.wandb_internal.JobInputSourceR\vinputSource\x12A\n" +
 	"\rinclude_paths\x18\x02 \x03(\v2\x1c.wandb_internal.JobInputPathR\fincludePaths\x12A\n" +
 	"\rexclude_paths\x18\x03 \x03(\v2\x1c.wandb_internal.JobInputPathR\fexcludePaths\x12!\n" +
-	"\finput_schema\x18\x04 \x01(\tR\vinputSchema*\xda\x05\n" +
+	"\finput_schema\x18\x04 \x01(\tR\vinputSchema*\xd1\b\n" +
 	"\rServerFeature\x12\x1e\n" +
 	"\x1aSERVER_FEATURE_UNSPECIFIED\x10\x00\x12\x13\n" +
 	"\x0fLARGE_FILENAMES\x10\x11\x12\x11\n" +
@@ -12419,7 +12459,17 @@ const file_wandb_proto_wandb_internal_proto_rawDesc = "" +
 	"-ARTIFACT_MEMBERSHIP_IN_LINK_ARTIFACT_RESPONSE\x10\x0e\x12\"\n" +
 	"\x1eTOTAL_COUNT_IN_FILE_CONNECTION\x10\x0f\x12*\n" +
 	"&ARTIFACT_COLLECTIONS_FILTERING_SORTING\x10\x10\x125\n" +
-	"1ARTIFACT_V2_DOWNLOAD_HANDLER_SUPPORTS_ARTIFACT_ID\x10\x12B\x1bZ\x19core/pkg/service_go_protob\x06proto3"
+	"1ARTIFACT_V2_DOWNLOAD_HANDLER_SUPPORTS_ARTIFACT_ID\x10\x12\x12&\n" +
+	"\"AUTOMATION_EVENT_RUN_METRIC_ZSCORE\x10\x13\x12\x1e\n" +
+	"\x1aAUTOMATION_EVENT_RUN_STATE\x10\x14\x12'\n" +
+	"#AUTOMATION_ACTION_PUSH_NOTIFICATION\x10\x15\x12%\n" +
+	"!AUTOMATION_EVENT_ADD_ARTIFACT_TAG\x10\x16\x12'\n" +
+	"#AUTOMATION_EVENT_ADD_COLLECTION_TAG\x10\x17\x12(\n" +
+	"$AUTOMATION_EVENT_REMOVE_ARTIFACT_TAG\x10\x18\x12*\n" +
+	"&AUTOMATION_EVENT_REMOVE_COLLECTION_TAG\x10\x19\x12$\n" +
+	" AUTOMATION_EVENT_UNLINK_ARTIFACT\x10\x1a\x12\x17\n" +
+	"\x13AUTOMATIONS_ON_USER\x10\x1b\x12\x1f\n" +
+	"\x1bAUTOMATION_LAST_EXECUTED_AT\x10\x1cB\x1bZ\x19core/pkg/service_go_protob\x06proto3"
 
 var (
 	file_wandb_proto_wandb_internal_proto_rawDescOnce sync.Once

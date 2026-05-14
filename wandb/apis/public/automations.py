@@ -63,4 +63,8 @@ class Automations(RelayPaginator["ProjectTriggersFields", "Automation"]):
 
     @override
     def convert_objects(self) -> Iterator[Automation]:
-        return chain.from_iterable(super().convert_objects())
+        # `_convert` above yields an iterator-per-node (one project may have many
+        # automations), so the parent's `convert_objects` returns iterables-of-
+        # iterables; flatten them. The parent's contract types `_convert` as
+        # returning a single object, hence the type: ignore.
+        return chain.from_iterable(super().convert_objects())  # type: ignore[arg-type]

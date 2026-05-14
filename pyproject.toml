@@ -19,7 +19,7 @@ dependencies = [
     "PyYAML",
     "platformdirs",
     "typing_extensions>=4.8,<5",
-    "pydantic<3",
+    "pydantic>=2.6,<3",
     "packaging",
 ]
 classifiers = [
@@ -356,19 +356,19 @@ ignore-decorators = [
     # Generated code names may not respect PEP8.
     "N8",
 
-    # Standard library generics (list[...]) can cause issues with older
-    # Pydantic versions.
+    # TODO: These ignores were originally needed for Pydantic v1, where
+    # `list[...]` / `X | Y` could trip up runtime type introspection
+    # (especially without `eval_type_backport` on Python < 3.10). With
+    # Pydantic v1 dropped and Python >= 3.10 required, the annotations can
+    # be modernized and these ignores lifted.
     "UP006",
-
-    # The `X | Y` syntax can cause issues with older python + pydantic versions:
-    # - if `eval_type_backport` is installed, with pydantic < 2.0
-    # - if `eval_type_backport` is not installed, with pydantic < 2.6
     "UP007",
     "UP035",
     "UP045",
 ]
 
-# Pydantic code requires an older style for type annotations.
+# TODO: Same as above — kept for Pydantic v1 compatibility, can be modernized
+# now that v2 is required.
 "wandb/sdk/wandb_settings.py" = ["UP006", "UP007", "UP035", "UP045"]
 "wandb/sdk/wandb_metadata.py" = ["UP006", "UP007", "UP035", "UP045"]
 "wandb/sdk/lib/run_moment.py" = ["UP006", "UP007", "UP035", "UP045"]
