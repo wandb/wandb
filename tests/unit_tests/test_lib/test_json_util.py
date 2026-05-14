@@ -130,7 +130,6 @@ def test_nonfinite_floats_preserved_in_nested_structures() -> None:
 
 
 def test_dumps_does_not_coerce_nonfinite_to_null() -> None:
-    """Guard against the upstream orjson default we worked around by vendoring."""
     encoded = json_util.dumps({"nan": float("nan"), "inf": float("inf")})
     assert "null" not in encoded
 
