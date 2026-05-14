@@ -120,10 +120,10 @@ class FilterableField:
     def __ge__(self, other: Any) -> FilterExpr:
         return self.gte(other)
 
-    def __eq__(self, other: Any) -> FilterExpr:
+    def __eq__(self, other: Any) -> FilterExpr:  # type: ignore[override]
         return self.eq(other)
 
-    def __ne__(self, other: Any) -> FilterExpr:
+    def __ne__(self, other: Any) -> FilterExpr:  # type: ignore[override]
         return self.ne(other)
 
 

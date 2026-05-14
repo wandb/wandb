@@ -1,20 +1,12 @@
-"""Basic, minimal tests for the pydantic v1 compatibility layer.
+"""Basic tests for W&B's Pydantic helper layer."""
 
-Because Pydantic v1 is already EOL at the time of implementation, these tests
-are not intended to be comprehensive, nor is the v1 compatibility layer intended
-to be a full backport of pydantic v2.
-
-Whenever possible, users should strongly prefer upgrading to Pydantic v2 to
-ensure full compatibility, though this is understandably not always a feasible
-option.
-
-Consider removing tests once Pydantic v1 support is dropped.
-"""
-
-# Ignored linter rules to ensure compatibility with older pydantic and/or python versions.
-# ruff: noqa: UP006  # allow e.g. `List[X]` instead of `list[x]`
+# TODO: These noqa entries were originally needed for Pydantic v1, where
+# modern annotation forms (`list[X]`, `X | None`) could trip up runtime type
+# introspection. v1 is dropped, so the annotations below can be modernized
+# and these ignores removed.
+# ruff: noqa: UP006  # allow e.g. `List[X]` instead of `list[X]`
 # ruff: noqa: UP035  # allow deprecated typing module imports
-# ruff: noqa: UP045  # allow e.g. `Optional[X]` instead of `X | None` (pydantic<2.6)
+# ruff: noqa: UP045  # allow e.g. `Optional[X]` instead of `X | None`
 
 from __future__ import annotations
 
@@ -24,7 +16,6 @@ from typing import Any, List, Optional
 from pydantic import ConfigDict, Field, Json, ValidationError
 from pytest import raises
 from wandb._pydantic import (
-    IS_PYDANTIC_V2,
     AliasChoices,
     CompatBaseModel,
     GQLInput,
@@ -123,25 +114,14 @@ def test_computed_field_property():
 
 
 def test_alias_choices():
-    from contextlib import nullcontext as does_not_raise
-
     class Model(CompatBaseModel):
         value: str = Field(validation_alias=AliasChoices("val", "v"))
 
-    # NOTE: Pydantic v1 compatibility isn't currently implemented for AliasChoices.
-    # For now we just ensure it won't raise an error on class definition.
+    obj1 = Model.model_validate({"val": "test"})
+    assert obj1.value == "test"
 
-    expectation = does_not_raise() if IS_PYDANTIC_V2 else raises(ValidationError)
-
-    # Test first alias
-    with expectation:
-        obj1 = Model.model_validate({"val": "test"})
-        assert obj1.value == "test"
-
-    # Test second alias
-    with expectation:
-        obj2 = Model.model_validate({"v": "test"})
-        assert obj2.value == "test"
+    obj2 = Model.model_validate({"v": "test"})
+    assert obj2.value == "test"
 
 
 def test_model_fields_class_property():
@@ -155,9 +135,7 @@ def test_model_fields_class_property():
 def test_model_fields_set_property():
     class Model(CompatBaseModel):
         x: int
-        y: Optional[str] = (
-            None  # `Optional[X]` instead of `X | None` for pydantic<2.6 compatibility
-        )
+        y: Optional[str] = None
 
     obj = Model(x=1)
     assert obj.model_fields_set == {"x"}
@@ -241,9 +219,6 @@ def test_model_dump_methods_with_json_fields():
     # Check `.model_dump(round_trip=True)` behavior.
     rt_dict = obj.model_dump(round_trip=True)
 
-    # NOTE: We avoid asserting on exact JSON strings here, since:
-    # - pydantic v2 dumps compact JSON by default, e.g. `"[1,2,3]"`
-    # - pydantic v1 dumps JSON with whitespace by default, e.g. `"[1, 2, 3]"`
     assert rt_dict["x"] == 1
 
     assert isinstance(rt_dict["req_json_field"], str)
@@ -288,16 +263,12 @@ def test_field_constraints_on_list_fields():
     assert valid_model3.required_list == [Item(val=1)]
     assert valid_model3.optional_list == [Item(val=123)]
 
-    # Invalid values are deliberately NOT tested here.
-    #
-    # Unfortunately, we cannot support runtime validation of list length
-    # constraints in Pydantic v1 due to issues with deferred type annotations
-    # via `from __future__ import annotations`.
-    #
-    # See: https://github.com/pydantic/pydantic/issues/3745
-    #
-    # We only check that the class DEFINITION (above) does not raise an error
-    # when the model builds (e.g. at import time).
+    with raises(ValidationError):
+        ListFields(required_list=[])
+    with raises(ValidationError):
+        ListFields(required_list=[Item(val=1)], optional_list=[])
+    with raises(ValidationError):
+        ListFields(required_list=[Item(val=1), Item(val=2), Item(val=3), Item(val=4)])
 
 
 def test_field_constraints_on_str_fields():
@@ -346,11 +317,7 @@ def test_field_constraints_on_str_fields():
 
 # ------------------------------------------------------------------------------
 def test_generated_pydantic_fragment_validates_response_data():
-    """Check that the generated fragment validates the response data.
-
-    In Pydantic v1 environments, this partly guards against regressions of:
-    - https://github.com/wandb/wandb/pull/9795
-    """
+    """Check that the generated fragment validates the response data."""
     response_data = {
         "project": {
             "artifactType": {
@@ -446,6 +413,5 @@ def test_gql_result_is_frozen_and_uses_camelcase_aliases_by_default():
     assert result.model_dump() == {"fooBar": 7, "helloWORLD": "good morning"}
 
     # Instances are frozen/immutable
-    expectation = raises(ValidationError if IS_PYDANTIC_V2 else TypeError)
-    with expectation:
+    with raises(ValidationError):
         result.foo_bar = 9  # type: ignore[misc]
