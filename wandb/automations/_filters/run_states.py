@@ -3,10 +3,10 @@ from __future__ import annotations
 from collections.abc import Iterable
 from typing import TYPE_CHECKING, Annotated, Any
 
-from pydantic import BeforeValidator
+from pydantic import BeforeValidator, field_validator
 
 from wandb._iterutils import always_list
-from wandb._pydantic import GQLBase, field_validator
+from wandb._pydantic import GQLBase
 from wandb.automations._validators import LenientStrEnum
 
 from .expressions import FilterExpr
