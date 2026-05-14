@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterator, Mapping
+from collections.abc import Iterable, Iterator, Mapping
 from itertools import chain
 from typing import TYPE_CHECKING, Any
 
@@ -35,6 +35,10 @@ class Automations(RelayPaginator["ProjectTriggersFields", "Automation"]):
         *,
         start: str | None = None,
         _query: str,  # internal use only, but required
+        omit_variables: Iterable[str] | None = None,
+        omit_fragments: Iterable[str] | None = None,
+        omit_fields: Iterable[str] | None = None,
+        rename_fields: Mapping[str, str] | None = None,
     ):
         self.QUERY = _query
         super().__init__(
@@ -42,6 +46,10 @@ class Automations(RelayPaginator["ProjectTriggersFields", "Automation"]):
             variables=variables,
             per_page=per_page,
             start=start,
+            omit_variables=omit_variables,
+            omit_fragments=omit_fragments,
+            omit_fields=omit_fields,
+            rename_fields=rename_fields,
         )
 
     @override
@@ -66,8 +74,4 @@ class Automations(RelayPaginator["ProjectTriggersFields", "Automation"]):
 
     @override
     def convert_objects(self) -> Iterator[Automation]:
-        # `_convert` above yields an iterator-per-node (one project may have many
-        # automations), so the parent's `convert_objects` returns iterables-of-
-        # iterables; flatten them. The parent's contract types `_convert` as
-        # returning a single object, hence the type: ignore.
-        return chain.from_iterable(super().convert_objects())  # type: ignore[arg-type]
+        return chain.from_iterable(super().convert_objects())

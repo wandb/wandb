@@ -2465,6 +2465,7 @@ class Api:
             per_page=per_page,
             start=start,
             _query=gql_str,
+            omit_fragments=self._omitted_automation_fragments(),
         )
 
         # FIXME: this is crude, move this client-side filtering logic into backend
@@ -2548,6 +2549,7 @@ class Api:
                 "support@wandb.com."
             )
 
+        omit_fragments = self._omitted_automation_fragments()
         variables = {"input": gql_input.model_dump()}
 
         name = gql_input.name
@@ -2561,6 +2563,7 @@ class Api:
             data = self._service_api.execute_graphql(
                 CREATE_AUTOMATION_GQL,
                 variables=variables,
+                omit_fragments=omit_fragments,
             )
         except WandbApiFailedError as e:
             status = _api_error_status(e)
@@ -2681,6 +2684,7 @@ class Api:
             data = self._service_api.execute_graphql(
                 UPDATE_AUTOMATION_GQL,
                 variables=variables,
+                omit_fragments=self._omitted_automation_fragments(),
             )
         except WandbApiFailedError as e:
             status = _api_error_status(e)

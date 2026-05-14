@@ -2205,10 +2205,10 @@ class Artifact:
                 data = self._service_api.execute_graphql(
                     query, variables=gql_vars, timeout=60
                 )
-                membership_result = GetArtifactMembershipFileUrls.model_validate(data)
+                result = GetArtifactMembershipFileUrls.model_validate(data)
 
                 if not (
-                    (project := membership_result.project)
+                    (project := result.project)
                     and (collection := project.artifact_collection)
                     and (membership := collection.artifact_membership)
                     and (files := membership.files)
@@ -2223,16 +2223,13 @@ class Artifact:
                 data = self._service_api.execute_graphql(
                     query, variables=gql_vars, timeout=60
                 )
-                file_result = GetArtifactFileUrls.model_validate(data)
+                result = GetArtifactFileUrls.model_validate(data)
 
-                if not (
-                    (artifact := file_result.artifact)
-                    and (artifact_files := artifact.files)
-                ):
+                if not ((artifact := result.artifact) and (files := artifact.files)):
                     raise ValueError(
                         f"Unable to fetch files for artifact: {self.name!r}"
                     )
-                return FileWithUrlConnection.model_validate(artifact_files)
+                return FileWithUrlConnection.model_validate(files)
 
         return _impl
 
@@ -2508,9 +2505,20 @@ class Artifact:
         )
         gql_vars = {"input": gql_input.model_dump()}
 
+        # Newer server versions can return `artifactMembership` directly in the response,
+        # avoiding the need to re-fetch the linked artifact at the end.
+        omit_variables = omit_fields = None
+        if not server_supports(
+            service_api, pb.ARTIFACT_MEMBERSHIP_IN_LINK_ARTIFACT_RESPONSE
+        ):
+            omit_variables = {"includeAliases"}
+            omit_fields = {"artifactMembership"}
+
         data = service_api.execute_graphql(
             LINK_ARTIFACT_GQL,
             variables=gql_vars,
+            omit_variables=omit_variables,
+            omit_fields=omit_fields,
         )
         result = LinkArtifact.model_validate(data).result
 
@@ -2616,7 +2624,6 @@ class Artifact:
             ArtifactNotLoggedError: If the artifact is not logged.
         """
         from ._generated import ARTIFACT_CREATED_BY_GQL, ArtifactCreatedBy
-        from ._generated.fragments import RunInfoFragment
 
         if (service_api := self._service_api) is None:
             raise RuntimeError("Client not initialized for artifact queries")
@@ -2626,11 +2633,9 @@ class Artifact:
         data = service_api.execute_graphql(gql_op, variables=gql_vars)
         result = ArtifactCreatedBy.model_validate(data)
 
-        # `created_by` is a union of Run and User; only a Run has a project to
-        # construct a `Run` from.
         if (
             (artifact := result.artifact)
-            and isinstance(creator := artifact.created_by, RunInfoFragment)
+            and (creator := artifact.created_by)
             and (name := creator.name)
             and (project := creator.project)
         ):
