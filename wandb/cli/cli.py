@@ -3664,4 +3664,64 @@ def purge_cache(
     )
 
 
+@cli.command()
+@click.argument("path", type=click.Path(exists=True))
+@click.option(
+    "--output",
+    "-o",
+    default=None,
+    help="Output file path. Defaults to stdout.",
+)
+@click.option(
+    "--record-types",
+    default=None,
+    help="Comma-separated list of record types to include (e.g. history,summary,config).",
+)
+@click.option(
+    "--page-size",
+    default=100,
+    help="Number of records to fetch from wandb-core per batch.",
+    hidden=True,
+)
+@display_error
+def parse(
+    path: str,
+    output: str | None,
+    record_types: str | None,
+    page_size: int,
+) -> None:
+    """Parse a .wandb run file and output records as JSON.
+
+    Reads PATH (a .wandb file) and writes each record as a JSON object,
+    one per line. The file is read by the Go transactionlog reader in
+    wandb-core.
+
+    Example — stream history records to jq:
+
+        wandb parse --record-types history run-abc.wandb | jq '.'
+    """
+    from . import parse_wandb
+
+    if record_types:
+        type_filter = [t.strip() for t in record_types.split(",")]
+    else:
+        type_filter = None
+
+    if output:
+        with open(output, "w") as f:
+            parse_wandb.parse(
+                pathlib.Path(path),
+                output=f,
+                record_types=type_filter,
+                page_size=page_size,
+            )
+    else:
+        parse_wandb.parse(
+            pathlib.Path(path),
+            output=sys.stdout,
+            record_types=type_filter,
+            page_size=page_size,
+        )
+
+
 cli.add_command(beta)

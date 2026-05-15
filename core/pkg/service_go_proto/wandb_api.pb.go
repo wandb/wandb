@@ -177,6 +177,7 @@ type ApiRequest struct {
 	//	*ApiRequest_ReadRunHistoryRequest
 	//	*ApiRequest_FeaturesRequest
 	//	*ApiRequest_GraphqlRequest
+	//	*ApiRequest_RunFileReaderRequest
 	Request       isApiRequest_Request `protobuf_oneof:"request"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -253,6 +254,15 @@ func (x *ApiRequest) GetGraphqlRequest() *GraphQLRequest {
 	return nil
 }
 
+func (x *ApiRequest) GetRunFileReaderRequest() *RunFileReaderRequest {
+	if x != nil {
+		if x, ok := x.Request.(*ApiRequest_RunFileReaderRequest); ok {
+			return x.RunFileReaderRequest
+		}
+	}
+	return nil
+}
+
 type isApiRequest_Request interface {
 	isApiRequest_Request()
 }
@@ -269,11 +279,17 @@ type ApiRequest_GraphqlRequest struct {
 	GraphqlRequest *GraphQLRequest `protobuf:"bytes,4,opt,name=graphql_request,json=graphqlRequest,proto3,oneof"`
 }
 
+type ApiRequest_RunFileReaderRequest struct {
+	RunFileReaderRequest *RunFileReaderRequest `protobuf:"bytes,5,opt,name=run_file_reader_request,json=runFileReaderRequest,proto3,oneof"`
+}
+
 func (*ApiRequest_ReadRunHistoryRequest) isApiRequest_Request() {}
 
 func (*ApiRequest_FeaturesRequest) isApiRequest_Request() {}
 
 func (*ApiRequest_GraphqlRequest) isApiRequest_Request() {}
+
+func (*ApiRequest_RunFileReaderRequest) isApiRequest_Request() {}
 
 type ApiResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -282,6 +298,7 @@ type ApiResponse struct {
 	//	*ApiResponse_ReadRunHistoryResponse
 	//	*ApiResponse_FeaturesResponse
 	//	*ApiResponse_GraphqlResponse
+	//	*ApiResponse_RunFileReaderResponse
 	//	*ApiResponse_ApiErrorResponse
 	Response      isApiResponse_Response `protobuf_oneof:"response"`
 	unknownFields protoimpl.UnknownFields
@@ -352,6 +369,15 @@ func (x *ApiResponse) GetGraphqlResponse() *GraphQLResponse {
 	return nil
 }
 
+func (x *ApiResponse) GetRunFileReaderResponse() *RunFileReaderResponse {
+	if x != nil {
+		if x, ok := x.Response.(*ApiResponse_RunFileReaderResponse); ok {
+			return x.RunFileReaderResponse
+		}
+	}
+	return nil
+}
+
 func (x *ApiResponse) GetApiErrorResponse() *ApiErrorResponse {
 	if x != nil {
 		if x, ok := x.Response.(*ApiResponse_ApiErrorResponse); ok {
@@ -377,6 +403,10 @@ type ApiResponse_GraphqlResponse struct {
 	GraphqlResponse *GraphQLResponse `protobuf:"bytes,4,opt,name=graphql_response,json=graphqlResponse,proto3,oneof"`
 }
 
+type ApiResponse_RunFileReaderResponse struct {
+	RunFileReaderResponse *RunFileReaderResponse `protobuf:"bytes,5,opt,name=run_file_reader_response,json=runFileReaderResponse,proto3,oneof"`
+}
+
 type ApiResponse_ApiErrorResponse struct {
 	ApiErrorResponse *ApiErrorResponse `protobuf:"bytes,2,opt,name=api_error_response,json=apiErrorResponse,proto3,oneof"`
 }
@@ -386,6 +416,8 @@ func (*ApiResponse_ReadRunHistoryResponse) isApiResponse_Response() {}
 func (*ApiResponse_FeaturesResponse) isApiResponse_Response() {}
 
 func (*ApiResponse_GraphqlResponse) isApiResponse_Response() {}
+
+func (*ApiResponse_RunFileReaderResponse) isApiResponse_Response() {}
 
 func (*ApiResponse_ApiErrorResponse) isApiResponse_Response() {}
 
@@ -1780,6 +1812,509 @@ func (x *DownloadRunHistoryStatusResponse) GetOperationStats() *OperationStats {
 	return nil
 }
 
+// Requests to handle reading from a .wandb transaction log file associated with a run.
+type RunFileReaderRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Types that are valid to be assigned to Request:
+	//
+	//	*RunFileReaderRequest_RunFileReaderInit
+	//	*RunFileReaderRequest_RunFileReaderRead
+	//	*RunFileReaderRequest_RunFileReaderCleanup
+	Request       isRunFileReaderRequest_Request `protobuf_oneof:"request"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RunFileReaderRequest) Reset() {
+	*x = RunFileReaderRequest{}
+	mi := &file_wandb_proto_wandb_api_proto_msgTypes[27]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RunFileReaderRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RunFileReaderRequest) ProtoMessage() {}
+
+func (x *RunFileReaderRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_wandb_proto_wandb_api_proto_msgTypes[27]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RunFileReaderRequest.ProtoReflect.Descriptor instead.
+func (*RunFileReaderRequest) Descriptor() ([]byte, []int) {
+	return file_wandb_proto_wandb_api_proto_rawDescGZIP(), []int{27}
+}
+
+func (x *RunFileReaderRequest) GetRequest() isRunFileReaderRequest_Request {
+	if x != nil {
+		return x.Request
+	}
+	return nil
+}
+
+func (x *RunFileReaderRequest) GetRunFileReaderInit() *RunFileReaderInit {
+	if x != nil {
+		if x, ok := x.Request.(*RunFileReaderRequest_RunFileReaderInit); ok {
+			return x.RunFileReaderInit
+		}
+	}
+	return nil
+}
+
+func (x *RunFileReaderRequest) GetRunFileReaderRead() *RunFileReaderRead {
+	if x != nil {
+		if x, ok := x.Request.(*RunFileReaderRequest_RunFileReaderRead); ok {
+			return x.RunFileReaderRead
+		}
+	}
+	return nil
+}
+
+func (x *RunFileReaderRequest) GetRunFileReaderCleanup() *RunFileReaderCleanup {
+	if x != nil {
+		if x, ok := x.Request.(*RunFileReaderRequest_RunFileReaderCleanup); ok {
+			return x.RunFileReaderCleanup
+		}
+	}
+	return nil
+}
+
+type isRunFileReaderRequest_Request interface {
+	isRunFileReaderRequest_Request()
+}
+
+type RunFileReaderRequest_RunFileReaderInit struct {
+	RunFileReaderInit *RunFileReaderInit `protobuf:"bytes,1,opt,name=run_file_reader_init,json=runFileReaderInit,proto3,oneof"`
+}
+
+type RunFileReaderRequest_RunFileReaderRead struct {
+	RunFileReaderRead *RunFileReaderRead `protobuf:"bytes,2,opt,name=run_file_reader_read,json=runFileReaderRead,proto3,oneof"`
+}
+
+type RunFileReaderRequest_RunFileReaderCleanup struct {
+	RunFileReaderCleanup *RunFileReaderCleanup `protobuf:"bytes,3,opt,name=run_file_reader_cleanup,json=runFileReaderCleanup,proto3,oneof"`
+}
+
+func (*RunFileReaderRequest_RunFileReaderInit) isRunFileReaderRequest_Request() {}
+
+func (*RunFileReaderRequest_RunFileReaderRead) isRunFileReaderRequest_Request() {}
+
+func (*RunFileReaderRequest_RunFileReaderCleanup) isRunFileReaderRequest_Request() {}
+
+type RunFileReaderResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Types that are valid to be assigned to Response:
+	//
+	//	*RunFileReaderResponse_RunFileReaderInit
+	//	*RunFileReaderResponse_RunFileReaderRead
+	Response      isRunFileReaderResponse_Response `protobuf_oneof:"response"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RunFileReaderResponse) Reset() {
+	*x = RunFileReaderResponse{}
+	mi := &file_wandb_proto_wandb_api_proto_msgTypes[28]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RunFileReaderResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RunFileReaderResponse) ProtoMessage() {}
+
+func (x *RunFileReaderResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_wandb_proto_wandb_api_proto_msgTypes[28]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RunFileReaderResponse.ProtoReflect.Descriptor instead.
+func (*RunFileReaderResponse) Descriptor() ([]byte, []int) {
+	return file_wandb_proto_wandb_api_proto_rawDescGZIP(), []int{28}
+}
+
+func (x *RunFileReaderResponse) GetResponse() isRunFileReaderResponse_Response {
+	if x != nil {
+		return x.Response
+	}
+	return nil
+}
+
+func (x *RunFileReaderResponse) GetRunFileReaderInit() *RunFileReaderInitResponse {
+	if x != nil {
+		if x, ok := x.Response.(*RunFileReaderResponse_RunFileReaderInit); ok {
+			return x.RunFileReaderInit
+		}
+	}
+	return nil
+}
+
+func (x *RunFileReaderResponse) GetRunFileReaderRead() *RunFileReaderReadResponse {
+	if x != nil {
+		if x, ok := x.Response.(*RunFileReaderResponse_RunFileReaderRead); ok {
+			return x.RunFileReaderRead
+		}
+	}
+	return nil
+}
+
+type isRunFileReaderResponse_Response interface {
+	isRunFileReaderResponse_Response()
+}
+
+type RunFileReaderResponse_RunFileReaderInit struct {
+	RunFileReaderInit *RunFileReaderInitResponse `protobuf:"bytes,1,opt,name=run_file_reader_init,json=runFileReaderInit,proto3,oneof"`
+}
+
+type RunFileReaderResponse_RunFileReaderRead struct {
+	RunFileReaderRead *RunFileReaderReadResponse `protobuf:"bytes,2,opt,name=run_file_reader_read,json=runFileReaderRead,proto3,oneof"`
+}
+
+func (*RunFileReaderResponse_RunFileReaderInit) isRunFileReaderResponse_Response() {}
+
+func (*RunFileReaderResponse_RunFileReaderRead) isRunFileReaderResponse_Response() {}
+
+// Initialize a reader over a .wandb transaction log file at the given path.
+type RunFileReaderInit struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Absolute path to the .wandb file.
+	Path          string `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RunFileReaderInit) Reset() {
+	*x = RunFileReaderInit{}
+	mi := &file_wandb_proto_wandb_api_proto_msgTypes[29]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RunFileReaderInit) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RunFileReaderInit) ProtoMessage() {}
+
+func (x *RunFileReaderInit) ProtoReflect() protoreflect.Message {
+	mi := &file_wandb_proto_wandb_api_proto_msgTypes[29]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RunFileReaderInit.ProtoReflect.Descriptor instead.
+func (*RunFileReaderInit) Descriptor() ([]byte, []int) {
+	return file_wandb_proto_wandb_api_proto_rawDescGZIP(), []int{29}
+}
+
+func (x *RunFileReaderInit) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+type RunFileReaderInitResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// An ID to correlate subsequent read/cleanup requests.
+	RequestId     int32 `protobuf:"varint,1,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RunFileReaderInitResponse) Reset() {
+	*x = RunFileReaderInitResponse{}
+	mi := &file_wandb_proto_wandb_api_proto_msgTypes[30]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RunFileReaderInitResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RunFileReaderInitResponse) ProtoMessage() {}
+
+func (x *RunFileReaderInitResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_wandb_proto_wandb_api_proto_msgTypes[30]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RunFileReaderInitResponse.ProtoReflect.Descriptor instead.
+func (*RunFileReaderInitResponse) Descriptor() ([]byte, []int) {
+	return file_wandb_proto_wandb_api_proto_rawDescGZIP(), []int{30}
+}
+
+func (x *RunFileReaderInitResponse) GetRequestId() int32 {
+	if x != nil {
+		return x.RequestId
+	}
+	return 0
+}
+
+// Reads the next batch of records from an open .wandb file.
+type RunFileReaderRead struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The request ID from the init response.
+	RequestId int32 `protobuf:"varint,1,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
+	// Maximum number of records to return in this batch.
+	PageSize int32 `protobuf:"varint,2,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	// Optionally filter records by type.
+	// If empty, all record types are returned.
+	RecordTypes   []string `protobuf:"bytes,3,rep,name=record_types,json=recordTypes,proto3" json:"record_types,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RunFileReaderRead) Reset() {
+	*x = RunFileReaderRead{}
+	mi := &file_wandb_proto_wandb_api_proto_msgTypes[31]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RunFileReaderRead) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RunFileReaderRead) ProtoMessage() {}
+
+func (x *RunFileReaderRead) ProtoReflect() protoreflect.Message {
+	mi := &file_wandb_proto_wandb_api_proto_msgTypes[31]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RunFileReaderRead.ProtoReflect.Descriptor instead.
+func (*RunFileReaderRead) Descriptor() ([]byte, []int) {
+	return file_wandb_proto_wandb_api_proto_rawDescGZIP(), []int{31}
+}
+
+func (x *RunFileReaderRead) GetRequestId() int32 {
+	if x != nil {
+		return x.RequestId
+	}
+	return 0
+}
+
+func (x *RunFileReaderRead) GetPageSize() int32 {
+	if x != nil {
+		return x.PageSize
+	}
+	return 0
+}
+
+func (x *RunFileReaderRead) GetRecordTypes() []string {
+	if x != nil {
+		return x.RecordTypes
+	}
+	return nil
+}
+
+type RunFileReaderReadResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The batch of parsed records.
+	Records []*ParsedRecord `protobuf:"bytes,1,rep,name=records,proto3" json:"records,omitempty"`
+	// True when more records are available to read.
+	HasMore       bool `protobuf:"varint,2,opt,name=has_more,json=hasMore,proto3" json:"has_more,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RunFileReaderReadResponse) Reset() {
+	*x = RunFileReaderReadResponse{}
+	mi := &file_wandb_proto_wandb_api_proto_msgTypes[32]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RunFileReaderReadResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RunFileReaderReadResponse) ProtoMessage() {}
+
+func (x *RunFileReaderReadResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_wandb_proto_wandb_api_proto_msgTypes[32]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RunFileReaderReadResponse.ProtoReflect.Descriptor instead.
+func (*RunFileReaderReadResponse) Descriptor() ([]byte, []int) {
+	return file_wandb_proto_wandb_api_proto_rawDescGZIP(), []int{32}
+}
+
+func (x *RunFileReaderReadResponse) GetRecords() []*ParsedRecord {
+	if x != nil {
+		return x.Records
+	}
+	return nil
+}
+
+func (x *RunFileReaderReadResponse) GetHasMore() bool {
+	if x != nil {
+		return x.HasMore
+	}
+	return false
+}
+
+// A single parsed record from a .wandb file.
+type ParsedRecord struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The record type for the record. (e.g. "history", "run", "exit")
+	RecordType string `protobuf:"bytes,1,opt,name=record_type,json=recordType,proto3" json:"record_type,omitempty"`
+	// The record's sequence number within the transaction log.
+	RecordNum int64 `protobuf:"varint,2,opt,name=record_num,json=recordNum,proto3" json:"record_num,omitempty"`
+	// The full record serialized as canonical JSON via protojson.
+	JsonContent   string `protobuf:"bytes,3,opt,name=json_content,json=jsonContent,proto3" json:"json_content,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ParsedRecord) Reset() {
+	*x = ParsedRecord{}
+	mi := &file_wandb_proto_wandb_api_proto_msgTypes[33]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ParsedRecord) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ParsedRecord) ProtoMessage() {}
+
+func (x *ParsedRecord) ProtoReflect() protoreflect.Message {
+	mi := &file_wandb_proto_wandb_api_proto_msgTypes[33]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ParsedRecord.ProtoReflect.Descriptor instead.
+func (*ParsedRecord) Descriptor() ([]byte, []int) {
+	return file_wandb_proto_wandb_api_proto_rawDescGZIP(), []int{33}
+}
+
+func (x *ParsedRecord) GetRecordType() string {
+	if x != nil {
+		return x.RecordType
+	}
+	return ""
+}
+
+func (x *ParsedRecord) GetRecordNum() int64 {
+	if x != nil {
+		return x.RecordNum
+	}
+	return 0
+}
+
+func (x *ParsedRecord) GetJsonContent() string {
+	if x != nil {
+		return x.JsonContent
+	}
+	return ""
+}
+
+// Clean up resources associated with a run file read operation.
+//
+// This request receives no response.
+type RunFileReaderCleanup struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The request ID from the init response.
+	RequestId     int32 `protobuf:"varint,1,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RunFileReaderCleanup) Reset() {
+	*x = RunFileReaderCleanup{}
+	mi := &file_wandb_proto_wandb_api_proto_msgTypes[34]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RunFileReaderCleanup) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RunFileReaderCleanup) ProtoMessage() {}
+
+func (x *RunFileReaderCleanup) ProtoReflect() protoreflect.Message {
+	mi := &file_wandb_proto_wandb_api_proto_msgTypes[34]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RunFileReaderCleanup.ProtoReflect.Descriptor instead.
+func (*RunFileReaderCleanup) Descriptor() ([]byte, []int) {
+	return file_wandb_proto_wandb_api_proto_rawDescGZIP(), []int{34}
+}
+
+func (x *RunFileReaderCleanup) GetRequestId() int32 {
+	if x != nil {
+		return x.RequestId
+	}
+	return 0
+}
+
 var File_wandb_proto_wandb_api_proto protoreflect.FileDescriptor
 
 const file_wandb_proto_wandb_api_proto_rawDesc = "" +
@@ -1789,18 +2324,20 @@ const file_wandb_proto_wandb_api_proto_rawDesc = "" +
 	"\bsettings\x18\x01 \x01(\v2\x18.wandb_internal.SettingsR\bsettings\"S\n" +
 	"\x15ServerApiInitResponse\x12#\n" +
 	"\rerror_message\x18\x01 \x01(\tR\ferrorMessage\x12\x15\n" +
-	"\x06api_id\x18\x02 \x01(\tR\x05apiId\"\xa9\x02\n" +
+	"\x06api_id\x18\x02 \x01(\tR\x05apiId\"\x88\x03\n" +
 	"\n" +
 	"ApiRequest\x12\x15\n" +
 	"\x06api_id\x18\x01 \x01(\tR\x05apiId\x12`\n" +
 	"\x18read_run_history_request\x18\x02 \x01(\v2%.wandb_internal.ReadRunHistoryRequestH\x00R\x15readRunHistoryRequest\x12L\n" +
 	"\x10features_request\x18\x03 \x01(\v2\x1f.wandb_internal.FeaturesRequestH\x00R\x0ffeaturesRequest\x12I\n" +
-	"\x0fgraphql_request\x18\x04 \x01(\v2\x1e.wandb_internal.GraphQLRequestH\x00R\x0egraphqlRequestB\t\n" +
-	"\arequest\"\xef\x02\n" +
+	"\x0fgraphql_request\x18\x04 \x01(\v2\x1e.wandb_internal.GraphQLRequestH\x00R\x0egraphqlRequest\x12]\n" +
+	"\x17run_file_reader_request\x18\x05 \x01(\v2$.wandb_internal.RunFileReaderRequestH\x00R\x14runFileReaderRequestB\t\n" +
+	"\arequest\"\xd1\x03\n" +
 	"\vApiResponse\x12c\n" +
 	"\x19read_run_history_response\x18\x01 \x01(\v2&.wandb_internal.ReadRunHistoryResponseH\x00R\x16readRunHistoryResponse\x12O\n" +
 	"\x11features_response\x18\x03 \x01(\v2 .wandb_internal.FeaturesResponseH\x00R\x10featuresResponse\x12L\n" +
-	"\x10graphql_response\x18\x04 \x01(\v2\x1f.wandb_internal.GraphQLResponseH\x00R\x0fgraphqlResponse\x12P\n" +
+	"\x10graphql_response\x18\x04 \x01(\v2\x1f.wandb_internal.GraphQLResponseH\x00R\x0fgraphqlResponse\x12`\n" +
+	"\x18run_file_reader_response\x18\x05 \x01(\v2%.wandb_internal.RunFileReaderResponseH\x00R\x15runFileReaderResponse\x12P\n" +
 	"\x12api_error_response\x18\x02 \x01(\v2 .wandb_internal.ApiErrorResponseH\x00R\x10apiErrorResponseB\n" +
 	"\n" +
 	"\bresponse\"z\n" +
@@ -1889,7 +2426,39 @@ const file_wandb_proto_wandb_api_proto_rawDesc = "" +
 	"\n" +
 	"request_id\x18\x01 \x01(\x05R\trequestId\"k\n" +
 	" DownloadRunHistoryStatusResponse\x12G\n" +
-	"\x0foperation_stats\x18\x01 \x01(\v2\x1e.wandb_internal.OperationStatsR\x0eoperationStats*@\n" +
+	"\x0foperation_stats\x18\x01 \x01(\v2\x1e.wandb_internal.OperationStatsR\x0eoperationStats\"\xac\x02\n" +
+	"\x14RunFileReaderRequest\x12T\n" +
+	"\x14run_file_reader_init\x18\x01 \x01(\v2!.wandb_internal.RunFileReaderInitH\x00R\x11runFileReaderInit\x12T\n" +
+	"\x14run_file_reader_read\x18\x02 \x01(\v2!.wandb_internal.RunFileReaderReadH\x00R\x11runFileReaderRead\x12]\n" +
+	"\x17run_file_reader_cleanup\x18\x03 \x01(\v2$.wandb_internal.RunFileReaderCleanupH\x00R\x14runFileReaderCleanupB\t\n" +
+	"\arequest\"\xdf\x01\n" +
+	"\x15RunFileReaderResponse\x12\\\n" +
+	"\x14run_file_reader_init\x18\x01 \x01(\v2).wandb_internal.RunFileReaderInitResponseH\x00R\x11runFileReaderInit\x12\\\n" +
+	"\x14run_file_reader_read\x18\x02 \x01(\v2).wandb_internal.RunFileReaderReadResponseH\x00R\x11runFileReaderReadB\n" +
+	"\n" +
+	"\bresponse\"'\n" +
+	"\x11RunFileReaderInit\x12\x12\n" +
+	"\x04path\x18\x01 \x01(\tR\x04path\":\n" +
+	"\x19RunFileReaderInitResponse\x12\x1d\n" +
+	"\n" +
+	"request_id\x18\x01 \x01(\x05R\trequestId\"r\n" +
+	"\x11RunFileReaderRead\x12\x1d\n" +
+	"\n" +
+	"request_id\x18\x01 \x01(\x05R\trequestId\x12\x1b\n" +
+	"\tpage_size\x18\x02 \x01(\x05R\bpageSize\x12!\n" +
+	"\frecord_types\x18\x03 \x03(\tR\vrecordTypes\"n\n" +
+	"\x19RunFileReaderReadResponse\x126\n" +
+	"\arecords\x18\x01 \x03(\v2\x1c.wandb_internal.ParsedRecordR\arecords\x12\x19\n" +
+	"\bhas_more\x18\x02 \x01(\bR\ahasMore\"q\n" +
+	"\fParsedRecord\x12\x1f\n" +
+	"\vrecord_type\x18\x01 \x01(\tR\n" +
+	"recordType\x12\x1d\n" +
+	"\n" +
+	"record_num\x18\x02 \x01(\x03R\trecordNum\x12!\n" +
+	"\fjson_content\x18\x03 \x01(\tR\vjsonContent\"5\n" +
+	"\x14RunFileReaderCleanup\x12\x1d\n" +
+	"\n" +
+	"request_id\x18\x01 \x01(\x05R\trequestId*@\n" +
 	"\tErrorType\x12\x11\n" +
 	"\rUNKNOWN_ERROR\x10\x00\x12 \n" +
 	"\x1cINCOMPLETE_RUN_HISTORY_ERROR\x10\x01B\x1bZ\x19core/pkg/service_go_protob\x06proto3"
@@ -1907,7 +2476,7 @@ func file_wandb_proto_wandb_api_proto_rawDescGZIP() []byte {
 }
 
 var file_wandb_proto_wandb_api_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_wandb_proto_wandb_api_proto_msgTypes = make([]protoimpl.MessageInfo, 28)
+var file_wandb_proto_wandb_api_proto_msgTypes = make([]protoimpl.MessageInfo, 36)
 var file_wandb_proto_wandb_api_proto_goTypes = []any{
 	(ErrorType)(0),                           // 0: wandb_internal.ErrorType
 	(*ServerApiInitRequest)(nil),             // 1: wandb_internal.ServerApiInitRequest
@@ -1937,44 +2506,60 @@ var file_wandb_proto_wandb_api_proto_goTypes = []any{
 	(*IncompleteRunHistoryError)(nil),        // 25: wandb_internal.IncompleteRunHistoryError
 	(*DownloadRunHistoryStatus)(nil),         // 26: wandb_internal.DownloadRunHistoryStatus
 	(*DownloadRunHistoryStatusResponse)(nil), // 27: wandb_internal.DownloadRunHistoryStatusResponse
-	nil,                                      // 28: wandb_internal.DownloadRunHistoryResponse.ErrorsEntry
-	(*Settings)(nil),                         // 29: wandb_internal.Settings
-	(ServerFeature)(0),                       // 30: wandb_internal.ServerFeature
-	(*OperationStats)(nil),                   // 31: wandb_internal.OperationStats
+	(*RunFileReaderRequest)(nil),             // 28: wandb_internal.RunFileReaderRequest
+	(*RunFileReaderResponse)(nil),            // 29: wandb_internal.RunFileReaderResponse
+	(*RunFileReaderInit)(nil),                // 30: wandb_internal.RunFileReaderInit
+	(*RunFileReaderInitResponse)(nil),        // 31: wandb_internal.RunFileReaderInitResponse
+	(*RunFileReaderRead)(nil),                // 32: wandb_internal.RunFileReaderRead
+	(*RunFileReaderReadResponse)(nil),        // 33: wandb_internal.RunFileReaderReadResponse
+	(*ParsedRecord)(nil),                     // 34: wandb_internal.ParsedRecord
+	(*RunFileReaderCleanup)(nil),             // 35: wandb_internal.RunFileReaderCleanup
+	nil,                                      // 36: wandb_internal.DownloadRunHistoryResponse.ErrorsEntry
+	(*Settings)(nil),                         // 37: wandb_internal.Settings
+	(ServerFeature)(0),                       // 38: wandb_internal.ServerFeature
+	(*OperationStats)(nil),                   // 39: wandb_internal.OperationStats
 }
 var file_wandb_proto_wandb_api_proto_depIdxs = []int32{
-	29, // 0: wandb_internal.ServerApiInitRequest.settings:type_name -> wandb_internal.Settings
+	37, // 0: wandb_internal.ServerApiInitRequest.settings:type_name -> wandb_internal.Settings
 	11, // 1: wandb_internal.ApiRequest.read_run_history_request:type_name -> wandb_internal.ReadRunHistoryRequest
 	7,  // 2: wandb_internal.ApiRequest.features_request:type_name -> wandb_internal.FeaturesRequest
 	9,  // 3: wandb_internal.ApiRequest.graphql_request:type_name -> wandb_internal.GraphQLRequest
-	12, // 4: wandb_internal.ApiResponse.read_run_history_response:type_name -> wandb_internal.ReadRunHistoryResponse
-	8,  // 5: wandb_internal.ApiResponse.features_response:type_name -> wandb_internal.FeaturesResponse
-	10, // 6: wandb_internal.ApiResponse.graphql_response:type_name -> wandb_internal.GraphQLResponse
-	5,  // 7: wandb_internal.ApiResponse.api_error_response:type_name -> wandb_internal.ApiErrorResponse
-	0,  // 8: wandb_internal.ApiErrorResponse.error_type:type_name -> wandb_internal.ErrorType
-	30, // 9: wandb_internal.FeaturesRequest.features:type_name -> wandb_internal.ServerFeature
-	30, // 10: wandb_internal.FeaturesResponse.enabled:type_name -> wandb_internal.ServerFeature
-	13, // 11: wandb_internal.ReadRunHistoryRequest.scan_run_history_init:type_name -> wandb_internal.ScanRunHistoryInit
-	15, // 12: wandb_internal.ReadRunHistoryRequest.scan_run_history:type_name -> wandb_internal.ScanRunHistory
-	19, // 13: wandb_internal.ReadRunHistoryRequest.scan_run_history_cleanup:type_name -> wandb_internal.ScanRunHistoryCleanup
-	21, // 14: wandb_internal.ReadRunHistoryRequest.download_run_history_init:type_name -> wandb_internal.DownloadRunHistoryInit
-	23, // 15: wandb_internal.ReadRunHistoryRequest.download_run_history:type_name -> wandb_internal.DownloadRunHistory
-	26, // 16: wandb_internal.ReadRunHistoryRequest.download_run_history_status:type_name -> wandb_internal.DownloadRunHistoryStatus
-	14, // 17: wandb_internal.ReadRunHistoryResponse.scan_run_history_init:type_name -> wandb_internal.ScanRunHistoryInitResponse
-	16, // 18: wandb_internal.ReadRunHistoryResponse.run_history:type_name -> wandb_internal.RunHistoryResponse
-	20, // 19: wandb_internal.ReadRunHistoryResponse.scan_run_history_cleanup:type_name -> wandb_internal.ScanRunHistoryCleanupResponse
-	22, // 20: wandb_internal.ReadRunHistoryResponse.download_run_history_init:type_name -> wandb_internal.DownloadRunHistoryInitResponse
-	24, // 21: wandb_internal.ReadRunHistoryResponse.download_run_history:type_name -> wandb_internal.DownloadRunHistoryResponse
-	27, // 22: wandb_internal.ReadRunHistoryResponse.download_run_history_status:type_name -> wandb_internal.DownloadRunHistoryStatusResponse
-	17, // 23: wandb_internal.RunHistoryResponse.history_rows:type_name -> wandb_internal.HistoryRow
-	18, // 24: wandb_internal.HistoryRow.history_items:type_name -> wandb_internal.ParquetHistoryItem
-	28, // 25: wandb_internal.DownloadRunHistoryResponse.errors:type_name -> wandb_internal.DownloadRunHistoryResponse.ErrorsEntry
-	31, // 26: wandb_internal.DownloadRunHistoryStatusResponse.operation_stats:type_name -> wandb_internal.OperationStats
-	27, // [27:27] is the sub-list for method output_type
-	27, // [27:27] is the sub-list for method input_type
-	27, // [27:27] is the sub-list for extension type_name
-	27, // [27:27] is the sub-list for extension extendee
-	0,  // [0:27] is the sub-list for field type_name
+	28, // 4: wandb_internal.ApiRequest.run_file_reader_request:type_name -> wandb_internal.RunFileReaderRequest
+	12, // 5: wandb_internal.ApiResponse.read_run_history_response:type_name -> wandb_internal.ReadRunHistoryResponse
+	8,  // 6: wandb_internal.ApiResponse.features_response:type_name -> wandb_internal.FeaturesResponse
+	10, // 7: wandb_internal.ApiResponse.graphql_response:type_name -> wandb_internal.GraphQLResponse
+	29, // 8: wandb_internal.ApiResponse.run_file_reader_response:type_name -> wandb_internal.RunFileReaderResponse
+	5,  // 9: wandb_internal.ApiResponse.api_error_response:type_name -> wandb_internal.ApiErrorResponse
+	0,  // 10: wandb_internal.ApiErrorResponse.error_type:type_name -> wandb_internal.ErrorType
+	38, // 11: wandb_internal.FeaturesRequest.features:type_name -> wandb_internal.ServerFeature
+	38, // 12: wandb_internal.FeaturesResponse.enabled:type_name -> wandb_internal.ServerFeature
+	13, // 13: wandb_internal.ReadRunHistoryRequest.scan_run_history_init:type_name -> wandb_internal.ScanRunHistoryInit
+	15, // 14: wandb_internal.ReadRunHistoryRequest.scan_run_history:type_name -> wandb_internal.ScanRunHistory
+	19, // 15: wandb_internal.ReadRunHistoryRequest.scan_run_history_cleanup:type_name -> wandb_internal.ScanRunHistoryCleanup
+	21, // 16: wandb_internal.ReadRunHistoryRequest.download_run_history_init:type_name -> wandb_internal.DownloadRunHistoryInit
+	23, // 17: wandb_internal.ReadRunHistoryRequest.download_run_history:type_name -> wandb_internal.DownloadRunHistory
+	26, // 18: wandb_internal.ReadRunHistoryRequest.download_run_history_status:type_name -> wandb_internal.DownloadRunHistoryStatus
+	14, // 19: wandb_internal.ReadRunHistoryResponse.scan_run_history_init:type_name -> wandb_internal.ScanRunHistoryInitResponse
+	16, // 20: wandb_internal.ReadRunHistoryResponse.run_history:type_name -> wandb_internal.RunHistoryResponse
+	20, // 21: wandb_internal.ReadRunHistoryResponse.scan_run_history_cleanup:type_name -> wandb_internal.ScanRunHistoryCleanupResponse
+	22, // 22: wandb_internal.ReadRunHistoryResponse.download_run_history_init:type_name -> wandb_internal.DownloadRunHistoryInitResponse
+	24, // 23: wandb_internal.ReadRunHistoryResponse.download_run_history:type_name -> wandb_internal.DownloadRunHistoryResponse
+	27, // 24: wandb_internal.ReadRunHistoryResponse.download_run_history_status:type_name -> wandb_internal.DownloadRunHistoryStatusResponse
+	17, // 25: wandb_internal.RunHistoryResponse.history_rows:type_name -> wandb_internal.HistoryRow
+	18, // 26: wandb_internal.HistoryRow.history_items:type_name -> wandb_internal.ParquetHistoryItem
+	36, // 27: wandb_internal.DownloadRunHistoryResponse.errors:type_name -> wandb_internal.DownloadRunHistoryResponse.ErrorsEntry
+	39, // 28: wandb_internal.DownloadRunHistoryStatusResponse.operation_stats:type_name -> wandb_internal.OperationStats
+	30, // 29: wandb_internal.RunFileReaderRequest.run_file_reader_init:type_name -> wandb_internal.RunFileReaderInit
+	32, // 30: wandb_internal.RunFileReaderRequest.run_file_reader_read:type_name -> wandb_internal.RunFileReaderRead
+	35, // 31: wandb_internal.RunFileReaderRequest.run_file_reader_cleanup:type_name -> wandb_internal.RunFileReaderCleanup
+	31, // 32: wandb_internal.RunFileReaderResponse.run_file_reader_init:type_name -> wandb_internal.RunFileReaderInitResponse
+	33, // 33: wandb_internal.RunFileReaderResponse.run_file_reader_read:type_name -> wandb_internal.RunFileReaderReadResponse
+	34, // 34: wandb_internal.RunFileReaderReadResponse.records:type_name -> wandb_internal.ParsedRecord
+	35, // [35:35] is the sub-list for method output_type
+	35, // [35:35] is the sub-list for method input_type
+	35, // [35:35] is the sub-list for extension type_name
+	35, // [35:35] is the sub-list for extension extendee
+	0,  // [0:35] is the sub-list for field type_name
 }
 
 func init() { file_wandb_proto_wandb_api_proto_init() }
@@ -1988,11 +2573,13 @@ func file_wandb_proto_wandb_api_proto_init() {
 		(*ApiRequest_ReadRunHistoryRequest)(nil),
 		(*ApiRequest_FeaturesRequest)(nil),
 		(*ApiRequest_GraphqlRequest)(nil),
+		(*ApiRequest_RunFileReaderRequest)(nil),
 	}
 	file_wandb_proto_wandb_api_proto_msgTypes[3].OneofWrappers = []any{
 		(*ApiResponse_ReadRunHistoryResponse)(nil),
 		(*ApiResponse_FeaturesResponse)(nil),
 		(*ApiResponse_GraphqlResponse)(nil),
+		(*ApiResponse_RunFileReaderResponse)(nil),
 		(*ApiResponse_ApiErrorResponse)(nil),
 	}
 	file_wandb_proto_wandb_api_proto_msgTypes[4].OneofWrappers = []any{}
@@ -2012,13 +2599,22 @@ func file_wandb_proto_wandb_api_proto_init() {
 		(*ReadRunHistoryResponse_DownloadRunHistory)(nil),
 		(*ReadRunHistoryResponse_DownloadRunHistoryStatus)(nil),
 	}
+	file_wandb_proto_wandb_api_proto_msgTypes[27].OneofWrappers = []any{
+		(*RunFileReaderRequest_RunFileReaderInit)(nil),
+		(*RunFileReaderRequest_RunFileReaderRead)(nil),
+		(*RunFileReaderRequest_RunFileReaderCleanup)(nil),
+	}
+	file_wandb_proto_wandb_api_proto_msgTypes[28].OneofWrappers = []any{
+		(*RunFileReaderResponse_RunFileReaderInit)(nil),
+		(*RunFileReaderResponse_RunFileReaderRead)(nil),
+	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_wandb_proto_wandb_api_proto_rawDesc), len(file_wandb_proto_wandb_api_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   28,
+			NumMessages:   36,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

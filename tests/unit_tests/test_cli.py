@@ -3,6 +3,7 @@ import getpass
 import importlib
 import netrc
 import os
+import pathlib
 import subprocess
 import time
 import traceback
@@ -57,6 +58,18 @@ def empty_netrc(monkeypatch):
             return {"api.wandb.ai": None}
 
     monkeypatch.setattr(netrc, "netrc", lambda *args: FakeNet())
+
+
+@pytest.fixture()
+def wandb_run_file(tmp_path: pathlib.Path) -> str:
+    """Create a real offline wandb run and return the .wandb file path."""
+    sync_file = ""
+    with wandb.init(dir=tmp_path, mode="offline") as run:
+        run.log({"loss": 0.5, "acc": 0.8})
+        run.log({"loss": 0.3, "acc": 0.9})
+        sync_file = run.settings.sync_file
+
+    return sync_file
 
 
 @pytest.mark.skip(reason="Currently dont have on in cling")
@@ -621,3 +634,27 @@ def test_purge_cache_subdirectories(runner, monkeypatch, tmp_path):
     assert result.exit_code == 0
     assert "Deleted 1 file(s)" in result.output
     assert not file.exists()
+
+
+def test_parse(runner, wandb_run_file, tmp_path):
+    """Test wandb parse CLI outputs valid JSON records."""
+    import json
+
+    out = tmp_path / "output.jsonl"
+    result = runner.invoke(cli.parse, [wandb_run_file, "-o", str(out)])
+    assert result.exit_code == 0
+
+    records = [json.loads(line) for line in out.read_text().strip().splitlines()]
+    assert len(records) > 0
+    for rec in records:
+        assert isinstance(rec["record_type"], str)
+        assert isinstance(rec["json_content"], str)
+
+
+def test_parse_empty_file_raises(runner, tmp_path):
+    """Test wandb parse CLI fails on an empty file."""
+    fpath = tmp_path / "empty.wandb"
+    fpath.write_bytes(b"")
+
+    result = runner.invoke(cli.parse, [str(fpath)])
+    assert result.exit_code != 0

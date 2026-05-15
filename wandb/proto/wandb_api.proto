@@ -30,6 +30,7 @@ message ApiRequest {
     ReadRunHistoryRequest read_run_history_request = 2;
     FeaturesRequest features_request = 3;
     GraphQLRequest graphql_request = 4;
+    RunFileReaderRequest run_file_reader_request = 5;
   }
 }
 
@@ -38,6 +39,7 @@ message ApiResponse {
     ReadRunHistoryResponse read_run_history_response = 1;
     FeaturesResponse features_response = 3;
     GraphQLResponse graphql_response = 4;
+    RunFileReaderResponse run_file_reader_response = 5;
 
     ApiErrorResponse api_error_response = 2;
   }
@@ -246,4 +248,72 @@ message DownloadRunHistoryStatus {
 message DownloadRunHistoryStatusResponse {
   // Operation stats for progress display.
   wandb_internal.OperationStats operation_stats = 1;
+}
+
+// Requests to handle reading from a .wandb transaction log file associated with a run.
+message RunFileReaderRequest {
+  oneof request {
+    RunFileReaderInit run_file_reader_init = 1;
+    RunFileReaderRead run_file_reader_read = 2;
+    RunFileReaderCleanup run_file_reader_cleanup = 3;
+  }
+}
+
+message RunFileReaderResponse {
+  oneof response {
+    RunFileReaderInitResponse run_file_reader_init = 1;
+    RunFileReaderReadResponse run_file_reader_read = 2;
+  }
+}
+
+// Initialize a reader over a .wandb transaction log file at the given path.
+message RunFileReaderInit {
+  // Absolute path to the .wandb file.
+  string path = 1;
+}
+
+message RunFileReaderInitResponse {
+  // An ID to correlate subsequent read/cleanup requests.
+  int32 request_id = 1;
+}
+
+// Reads the next batch of records from an open .wandb file.
+message RunFileReaderRead {
+  // The request ID from the init response.
+  int32 request_id = 1;
+
+  // Maximum number of records to return in this batch.
+  int32 page_size = 2;
+
+  // Optionally filter records by type.
+  // If empty, all record types are returned.
+  repeated string record_types = 3;
+}
+
+message RunFileReaderReadResponse {
+  // The batch of parsed records.
+  repeated ParsedRecord records = 1;
+
+  // True when more records are available to read.
+  bool has_more = 2;
+}
+
+// A single parsed record from a .wandb file.
+message ParsedRecord {
+  // The record type for the record. (e.g. "history", "run", "exit")
+  string record_type = 1;
+
+  // The record's sequence number within the transaction log.
+  int64 record_num = 2;
+
+  // The full record serialized as canonical JSON via protojson.
+  string json_content = 3;
+}
+
+// Clean up resources associated with a run file read operation.
+//
+// This request receives no response.
+message RunFileReaderCleanup {
+  // The request ID from the init response.
+  int32 request_id = 1;
 }
