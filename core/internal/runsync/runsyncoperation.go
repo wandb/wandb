@@ -9,6 +9,7 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
+	"github.com/wandb/wandb/core/internal/analytics"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/settings"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
@@ -40,12 +41,18 @@ func (f *RunSyncOperationFactory) New(
 		printer: observability.NewPrinter(printerBufferSize),
 	}
 
-	logFile, err := OpenDebugSyncLogFile(settings.From(globalSettings))
+	wandbSettings := settings.From(globalSettings)
+	telemetryProxy := analytics.NewOpenTelemetryProxy(wandbSettings.GetBaseURL())
+	if err := telemetryProxy.Start(context.Background()); err != nil {
+		slog.Error("runsync: failed to start telemetry proxy", "error", err)
+	}
+
+	logFile, err := OpenDebugSyncLogFile(wandbSettings)
 	if err != nil {
 		slog.Error("runsync: couldn't create log file", "error", err)
 	}
 	op.logFile = logFile
-	op.logger = NewSyncLogger(logFile, slog.LevelInfo)
+	op.logger = NewSyncLogger(logFile, slog.LevelInfo, telemetryProxy)
 
 	for _, userPath := range paths {
 		var path string

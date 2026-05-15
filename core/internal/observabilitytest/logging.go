@@ -22,6 +22,7 @@ func NewTestLogger(t *testing.T) *observability.CoreLogger {
 	return observability.NewCoreLogger(
 		slog.New(slog.NewJSONHandler(t.Output(), &slog.HandlerOptions{})),
 		nil,
+		nil,
 	)
 }
 
@@ -38,6 +39,7 @@ func NewRecordingTestLogger(t *testing.T) (
 
 	return observability.NewCoreLogger(
 		slog.New(slog.NewJSONHandler(writer, &slog.HandlerOptions{})),
+		nil,
 		nil,
 	), recordedLogs
 }
@@ -62,6 +64,7 @@ func NewSentryTestLogger(t *testing.T) (
 	return observability.NewCoreLogger(
 		slog.New(slog.NewJSONHandler(writer, &slog.HandlerOptions{})),
 		observability.NewSentryContext(hub),
+		nil,
 	), recordedLogs, transport
 }
 

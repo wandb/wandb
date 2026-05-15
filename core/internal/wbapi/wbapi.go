@@ -75,9 +75,13 @@ func New(
 		semaphore: make(chan struct{}, maxConcurrency),
 		settings:  s,
 
-		featuresHandler:      NewFeaturesHandler(featureProvider),
-		graphqlHandler:       NewGraphQLHandler(graphqlClient),
-		runHistoryApiHandler: NewRunHistoryAPIHandler(graphqlClient, httpClient),
+		featuresHandler: NewFeaturesHandler(featureProvider),
+		graphqlHandler:  NewGraphQLHandler(graphqlClient),
+		runHistoryApiHandler: NewRunHistoryAPIHandler(
+			graphqlClient,
+			httpClient,
+			logger,
+		),
 	}, nil
 }
 
