@@ -230,6 +230,39 @@ func TestRewriteQuery_OmitOnlyTargetField(t *testing.T) {
 	}
 }
 
+func TestRewriteQuery_RewritesInlineFragments(t *testing.T) {
+	const orig = `query Q {
+		node {
+			... on Artifact {
+				keptField
+				removedField
+				...KeptFragment
+			}
+		}
+	}
+	fragment KeptFragment on Artifact { nestedKeptField }`
+
+	got := mustRewrite(t, orig, wbapi.GQLCompatOptions{
+		OmitFields: map[string]bool{"removedField": true},
+	})
+	gotN := normalize(t, got)
+
+	for _, kept := range []string{
+		"... on Artifact",
+		"keptField",
+		"KeptFragment",
+		"fragment KeptFragment",
+		"nestedKeptField",
+	} {
+		if !strings.Contains(gotN, kept) {
+			t.Errorf("rewritten query should contain %q:\n%s", kept, gotN)
+		}
+	}
+	if strings.Contains(gotN, "removedField") {
+		t.Errorf("removedField should be removed:\n%s", gotN)
+	}
+}
+
 func TestRewriteQuery_ParseFailureReturnsError(t *testing.T) {
 	_, err := wbapi.RewriteQuery("not a graphql {", wbapi.GQLCompatOptions{
 		OmitFields: map[string]bool{"x": true},
