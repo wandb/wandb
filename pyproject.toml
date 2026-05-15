@@ -20,6 +20,9 @@ dependencies = [
     "typing_extensions>=4.8,<5",
     "pydantic>=2.6,<3",
     "packaging",
+    "opentelemetry-api>=1.20.0",
+    "opentelemetry-sdk>=1.20.0",
+    "opentelemetry-exporter-otlp-proto-grpc>=1.20.0",
 ]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
