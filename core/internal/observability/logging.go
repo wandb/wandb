@@ -10,6 +10,9 @@ import (
 	"time"
 
 	"github.com/getsentry/sentry-go"
+	otellogapi "go.opentelemetry.io/otel/log"
+
+	"github.com/wandb/wandb/core/internal/analytics"
 )
 
 type Tags map[string]string
@@ -46,6 +49,8 @@ type CoreLogger struct {
 	*slog.Logger
 	sentryCtx *SentryContext // nil if Sentry is disabled
 
+	telemetryProxy analytics.OpenTelemetryProxy // nil if telemetry is disabled
+
 	extraSentryTags Tags // extra Sentry tags for just this logger
 
 	captureRateLimiter *CaptureRateLimiter
@@ -58,6 +63,7 @@ type CoreLogger struct {
 func NewCoreLogger(
 	logger *slog.Logger,
 	sentryCtx *SentryContext,
+	telemetryProxy analytics.OpenTelemetryProxy,
 ) *CoreLogger {
 	const captureRateLimiterCacheSize = 100
 	const captureMinDuration = 5 * time.Minute
@@ -76,6 +82,7 @@ func NewCoreLogger(
 	return &CoreLogger{
 		Logger:             logger,
 		sentryCtx:          sentryCtx,
+		telemetryProxy:     telemetryProxy,
 		extraSentryTags:    make(Tags),
 		captureRateLimiter: captureRateLimiter,
 	}
@@ -109,6 +116,7 @@ func (cl *CoreLogger) With(
 	return &CoreLogger{
 		Logger:             cl.Logger.With(attrs...),
 		sentryCtx:          cl.sentryCtx,
+		telemetryProxy:     cl.telemetryProxy,
 		extraSentryTags:    extraSentryTags,
 		captureRateLimiter: cl.captureRateLimiter,
 	}
@@ -155,17 +163,21 @@ func (cl *CoreLogger) CaptureFatalAndPanic(err error, args ...any) {
 // CaptureWarn logs a warning and sends it to Sentry.
 func (cl *CoreLogger) CaptureWarn(msg string, args ...any) {
 	cl.Warn(msg, args...)
-	cl.captureMessage(msg, args...)
+	cl.captureMessage(msg, otellogapi.SeverityWarn, args...)
 }
 
 // CaptureInfo logs an info message and sends it to Sentry.
 func (cl *CoreLogger) CaptureInfo(msg string, args ...any) {
 	cl.Info(msg, args...)
-	cl.captureMessage(msg, args...)
+	cl.captureMessage(msg, otellogapi.SeverityInfo, args...)
 }
 
 // captureException uploads an error to Sentry if possible and allowed.
 func (cl *CoreLogger) captureException(err error, args ...any) {
+	if cl.telemetryProxy != nil {
+		cl.telemetryProxy.Exception(err.Error(), err)
+	}
+
 	if cl.sentryCtx == nil || !cl.captureRateLimiter.AllowCapture(err.Error()) {
 		return
 	}
@@ -177,7 +189,19 @@ func (cl *CoreLogger) captureException(err error, args ...any) {
 }
 
 // captureException uploads a message to Sentry if possible and allowed.
-func (cl *CoreLogger) captureMessage(msg string, args ...any) {
+func (cl *CoreLogger) captureMessage(
+	msg string,
+	severity otellogapi.Severity,
+	args ...any,
+) {
+	if cl.telemetryProxy != nil {
+		cl.telemetryProxy.RecordLog(
+			msg,
+			argsToAttributes(args...),
+			severity,
+		)
+	}
+
 	if cl.sentryCtx == nil || !cl.captureRateLimiter.AllowCapture(msg) {
 		return
 	}
@@ -204,9 +228,38 @@ func (cl *CoreLogger) Reraise(args ...any) {
 	}
 }
 
+// RecordTelemetry records an event as both a counter metric and a log record.
+//
+// The counter metric aggregates over a low-cardinality attribute space, while
+// the log record captures the full, possibly high-cardinality, attributes.
+func (cl *CoreLogger) RecordTelemetry(
+	event string,
+	attributes map[string]string,
+) {
+	if cl.telemetryProxy == nil {
+		return
+	}
+
+	cl.telemetryProxy.RecordMetricAndLogEvent(event, attributes)
+}
+
 // NewNoOpLogger returns a logger that discards all messages.
 //
 // Used for testing.
 func NewNoOpLogger() *CoreLogger {
-	return NewCoreLogger(slog.New(slog.NewJSONHandler(io.Discard, nil)), nil)
+	return NewCoreLogger(
+		slog.New(slog.NewJSONHandler(io.Discard, nil)),
+		nil,
+		nil,
+	)
+}
+
+func argsToAttributes(args ...any) map[string]string {
+	attributes := make(map[string]string)
+	for _, arg := range args {
+		if attr, ok := arg.(slog.Attr); ok {
+			attributes[attr.Key] = attr.Value.String()
+		}
+	}
+	return attributes
 }

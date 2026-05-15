@@ -10,6 +10,7 @@ import (
 
 	"github.com/Khan/genqlient/graphql"
 
+	"github.com/wandb/wandb/core/internal/analytics"
 	"github.com/wandb/wandb/core/internal/featurechecker"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/pfxout"
@@ -61,6 +62,10 @@ type Stream struct {
 	// logger writes debug logs for the run.
 	logger *observability.CoreLogger
 
+	// telemetryProxy sends metrics and logs to the W&B backend's
+	// OpenTelemetry proxy API.
+	telemetryProxy analytics.OpenTelemetryProxy
+
 	// loggerFile is the file (if any) to which the logger writes.
 	loggerFile *os.File
 
@@ -102,6 +107,7 @@ func NewStream(
 	handlerFactory *HandlerFactory,
 	loggerFile streamLoggerFile,
 	logger *observability.CoreLogger,
+	telemetryProxy analytics.OpenTelemetryProxy,
 	operations *wboperation.WandbOperations,
 	recordParserFactory *RecordParserFactory,
 	senderFactory *SenderFactory,
@@ -134,6 +140,7 @@ func NewStream(
 		featureProvider:    featureProvider,
 		graphqlClientOrNil: graphqlClientOrNil,
 		logger:             logger,
+		telemetryProxy:     telemetryProxy,
 		loggerFile:         loggerFile,
 		settings:           s,
 		recordParser:       recordParser,
@@ -155,6 +162,15 @@ func (s *Stream) GetSettings() *settings.Settings {
 
 // Start begins processing the stream's input records and producing outputs.
 func (s *Stream) Start() {
+	if s.telemetryProxy != nil {
+		if err := s.telemetryProxy.Start(context.Background()); err != nil {
+			s.logger.Error(
+				"stream: failed to start telemetry proxy",
+				"error", err,
+			)
+		}
+	}
+
 	s.wg.Add(1)
 	go func() {
 		s.handler.Do(s.runWork.Chan())
@@ -250,6 +266,21 @@ func (s *Stream) Close() {
 	s.runWork.Close()
 	s.wg.Wait()
 	s.logger.Info("stream: all finished")
+
+	// Flush any pending telemetry and shut the proxy down.
+	if s.telemetryProxy != nil {
+		shutdownCtx, cancel := context.WithTimeout(
+			context.Background(),
+			5*time.Second,
+		)
+		defer cancel()
+		if err := s.telemetryProxy.Shutdown(shutdownCtx); err != nil {
+			s.logger.Error(
+				"stream: failed to shut down telemetry proxy",
+				"error", err,
+			)
+		}
+	}
 
 	if s.loggerFile != nil {
 		// Sync the file instead of closing it, in case we keep writing to it.
