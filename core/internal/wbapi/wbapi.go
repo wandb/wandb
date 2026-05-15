@@ -99,12 +99,16 @@ func New(
 		semaphore: make(chan struct{}, maxConcurrency),
 		settings:  s,
 
-		featuresHandler:      NewFeaturesHandler(featureProvider),
-		fileTransferHandler:  NewFileTransferHandler(fileTransferManager),
-		graphqlHandler:       NewGraphQLHandler(graphqlClient),
-		runFilesHandler:      NewRunFilesHandler(graphqlClient),
-		runHandler:           NewRunHandler(graphqlClient),
-		runHistoryApiHandler: NewRunHistoryAPIHandler(graphqlClient, httpClient),
+		featuresHandler:     NewFeaturesHandler(featureProvider),
+		fileTransferHandler: NewFileTransferHandler(fileTransferManager),
+		graphqlHandler:      NewGraphQLHandler(graphqlClient),
+		runFilesHandler:     NewRunFilesHandler(graphqlClient),
+		runHandler:          NewRunHandler(graphqlClient),
+		runHistoryApiHandler: NewRunHistoryAPIHandler(
+			graphqlClient,
+			httpClient,
+			logger,
+		),
 	}, nil
 }
 
