@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Iterator
+from collections.abc import Generator
 from contextlib import contextmanager
 from contextvars import ContextVar
 
@@ -29,7 +29,7 @@ def _set_wandb_auth_mode() -> None:
 @contextmanager
 def override_sandbox_entity(
     entity: str | None = None,
-) -> Iterator[None]:
+) -> Generator[None]:
     """Temporarily override the sandbox entity for sandbox auth.
 
     Passing `None` means using the default resolve logic from run

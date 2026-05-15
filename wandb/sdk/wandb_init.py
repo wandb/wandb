@@ -21,7 +21,7 @@ import platform
 import sys
 import tempfile
 import time
-from collections.abc import Iterable, Iterator, Sequence
+from collections.abc import Generator, Iterable, Sequence
 from typing import TYPE_CHECKING, Literal
 
 from typing_extensions import Any, Protocol, Self
@@ -659,7 +659,7 @@ class _WandbInit:
         ipython.display_pub.publish = publish
 
     @contextlib.contextmanager
-    def setup_run_log_directory(self, settings: Settings) -> Iterator[None]:
+    def setup_run_log_directory(self, settings: Settings) -> Generator[None]:
         """Set up the run's log directory.
 
         This is a context manager that closes and unregisters the log handler

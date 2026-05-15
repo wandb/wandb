@@ -3,7 +3,7 @@ import dataclasses
 import http.server
 import ssl
 import threading
-from collections.abc import Callable, Iterator, Mapping
+from collections.abc import Callable, Generator, Mapping
 from pathlib import Path
 from unittest.mock import patch
 
@@ -35,7 +35,7 @@ def ssl_creds(assets_path: Callable[[str], Path]) -> SSLCredPaths:
 
 
 @pytest.fixture(scope="session")
-def ssl_server(ssl_creds: SSLCredPaths) -> Iterator[http.server.HTTPServer]:
+def ssl_server(ssl_creds: SSLCredPaths) -> Generator[http.server.HTTPServer]:
     class MyServer(http.server.BaseHTTPRequestHandler):
         protocol_version = "HTTP/1.1"
 

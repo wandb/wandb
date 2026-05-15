@@ -10,7 +10,6 @@ import (
 	"net"
 	"net/url"
 	"sync"
-	"sync/atomic"
 
 	"github.com/Khan/genqlient/graphql"
 
@@ -55,7 +54,9 @@ type ConnectionParams struct {
 // and outgoing responses, maintaining the state of the connection, and providing
 // error reporting mechanisms.
 type Connection struct {
-	// connLifetimeCtx is cancelled when the connection should be closed.
+	// connLifetimeCtx is alive for as long as responses should be sent.
+	//
+	// Once it is cancelled, the connection should shut down.
 	connLifetimeCtx context.Context
 
 	// stopConnection cancels connLifetimeCtx.
@@ -88,12 +89,12 @@ type Connection struct {
 	// inChan is the channel for incoming messages
 	inChan chan *spb.ServerRequest
 
-	// outChan is the channel for outgoing messages
+	// outChan is the channel for outgoing messages.
+	//
+	// Messages are processed until connLifetimeCtx ends, after which further
+	// writes will deadlock. The channel is never closed. All writes should be
+	// guarded by a fallback case that runs if connLifetimeCtx is done.
 	outChan chan *spb.ServerResponse
-
-	// An atomic flag indicating whether the `outChan` has been closed, ensuring
-	// thread-safe checking and updating of the connection’s closure state.
-	closed *atomic.Bool
 
 	// The current W&B Git commit hash, identifying the specific version of the binary.
 	commit string
@@ -118,7 +119,7 @@ func NewConnection(
 	return &Connection{
 		connLifetimeCtx:    connLifetimeCtx,
 		stopConnection:     stopConnection,
-		requestCanceller:   NewRequestCanceller(),
+		requestCanceller:   NewRequestCanceller(connLifetimeCtx),
 		stopServer:         stopServer,
 		streamMux:          params.StreamMux,
 		runSyncManager:     params.RunSyncManager,
@@ -128,7 +129,6 @@ func NewConnection(
 		id:                 params.ID,
 		inChan:             make(chan *spb.ServerRequest, BufferSize),
 		outChan:            make(chan *spb.ServerResponse, BufferSize),
-		closed:             &atomic.Bool{},
 		loggerPath:         params.LoggerPath,
 		logLevel:           params.LogLevel,
 		apiManager:         wbapi.NewManager(),
@@ -145,18 +145,9 @@ func (nc *Connection) ManageConnectionData() {
 
 	var wg sync.WaitGroup
 
-	wg.Go(func() {
-		defer nc.stopConnection()
-		nc.processIncomingData()
-	})
-
-	wg.Go(func() {
-		nc.handleIncomingRequests()
-	})
-
-	wg.Go(func() {
-		nc.processOutgoingData()
-	})
+	wg.Go(nc.processIncomingData)
+	wg.Go(nc.handleIncomingRequests)
+	wg.Go(nc.processOutgoingData)
 
 	<-nc.connLifetimeCtx.Done()
 
@@ -172,16 +163,28 @@ func (nc *Connection) ManageConnectionData() {
 	slog.Info("connection: ManageConnectionData: connection closed", "id", nc.id)
 }
 
-// processOutgoingData processes and sends outgoing messages from the server to the client.
-//
-// It reads protobuf messages from the `outChan`, serializes them, and writes the serialized
-// data to the network connection. The client is responsible for reading and parsing the messages.
-// If any error occurs during serialization or writing, the function logs the error and terminates
-// early to prevent further message processing.
+// processOutgoingData processes outChan until connLifetimeCtx ends
+// or an error occurs.
 func (nc *Connection) processOutgoingData() {
+	// Shut down the connection once we're done sending responses.
+	//
+	// This only happens on error, since the loop already runs until the
+	// context is cancelled.
+	defer nc.stopConnection()
+
 	slog.Debug("processOutgoingData: started", "id", nc.id)
 
-	for msg := range nc.outChan {
+	for {
+		var msg *spb.ServerResponse
+
+		select {
+		case <-nc.connLifetimeCtx.Done():
+			slog.Info("processOutgoingData: finished", "id", nc.id)
+			return
+
+		case msg = <-nc.outChan:
+		}
+
 		// Marshal the message to protobuf format
 		out, err := proto.Marshal(msg)
 		if err != nil {
@@ -212,8 +215,6 @@ func (nc *Connection) processOutgoingData() {
 			return
 		}
 	}
-
-	slog.Debug("processOutgoingData: finished", "id", nc.id)
 }
 
 // processIncomingData reads and processes messages from a network connection.
@@ -301,17 +302,22 @@ func (nc *Connection) processIncomingData() {
 	}
 }
 
-// handleIncomingRequests handles incoming messages from the client.
+// handleIncomingRequests parses and responds to incoming requests (inChan)
+// until the channel is closed or an error occurs.
 //
-// This function ensures proper message routing based on the message type. If an
-// unknown or invalid message type is encountered, the function logs an error and
-// halts processing.
-//
-// Once all messages are processed, it safely closes the outgoing message channel.
+// Shuts down the connection after responding to all requests or encountering an
+// error. Does not wait for requests handled by Streams to complete, relying
+// instead on the Finish request to synchronize those.
 func (nc *Connection) handleIncomingRequests() {
+	// Shut down the connection once we're done accepting requests.
+	defer nc.stopConnection()
+
 	slog.Debug("handleIncomingRequests: started", "id", nc.id)
 
+	// Before exiting, wait for async operations to complete so that they
+	// can send responses.
 	wg := &sync.WaitGroup{}
+	defer wg.Wait()
 
 	for msg := range nc.inChan {
 		slog.Debug("handleIncomingRequests: processing message", "msg", msg, "id", nc.id)
@@ -346,23 +352,22 @@ func (nc *Connection) handleIncomingRequests() {
 		case *spb.ServerRequest_ApiRequest:
 			nc.handleApi(wg, msg.RequestId, x.ApiRequest)
 		case nil:
-			slog.Error("handleIncomingRequests: ServerRequestType is nil", "id", nc.id)
-			panic("ServerRequestType is nil")
+			slog.Error(
+				"handleIncomingRequests: ServerRequestType is nil",
+				"id", nc.id,
+			)
+			return
 		default:
-			slog.Error("handleIncomingRequests: unknown ServerRequestType", "type", x, "id", nc.id)
-			panic(fmt.Sprintf("Unknown ServerRequestType: %T", x))
+			slog.Error(
+				"handleIncomingRequests: unknown ServerRequestType",
+				"type", x,
+				"id", nc.id,
+			)
+			return
 		}
 	}
 
-	// Wait to complete any asynchronous requests.
-	wg.Wait()
-
-	// Ensure outChan is closed if connection isn't already marked as closed
-	if !nc.closed.Swap(true) {
-		close(nc.outChan)
-	}
-
-	slog.Debug("handleIncomingRequests: finished", "id", nc.id)
+	slog.Debug("handleIncomingRequests: finishing", "id", nc.id)
 }
 
 // handleCancel cancels the work of a previous server request.
@@ -557,6 +562,8 @@ func (nc *Connection) handleInformRecord(requestID string, msg *spb.Record) {
 	// by the presence of a request ID.
 	var request *runwork.Request
 	if requestID != "" {
+		// NOTE: The request is cancelled when connLifetimeCtx ends,
+		// so it will not deadlock trying to write to outChan.
 		ctx, cancelCtx := nc.requestCanceller.Context(requestID)
 		request = runwork.NewRequest(requestID, ctx, cancelCtx, nc.outChan)
 	}
@@ -745,19 +752,16 @@ func (nc *Connection) Close() {
 	}
 }
 
-// Respond impplements the Responder interface to send a response to the client.
+// Respond implements the Responder interface to send a response to the client.
 //
-// This is used to send a response to the outgoing message channel for the connection.
-// The response is then processed and sent to the client by the `processOutgoingData`
-// function.
+// If the connection is closed or becomes closed, the response is ignored
+// and a warning is logged.
 func (nc *Connection) Respond(resp *spb.ServerResponse) {
-	// Check if the connection has already been closed
-	if nc.closed.Load() {
-		// TODO: this is a bit of a hack, we should probably handle this better
-		//       and not send responses to closed connections
-		slog.Warn("connection: Respond: attempt to send response on closed connection", "id", nc.id)
-		return
+	select {
+	case nc.outChan <- resp:
+	case <-nc.connLifetimeCtx.Done():
+		slog.Warn(
+			"connection: tried to respond on closed connection",
+			"id", nc.id)
 	}
-
-	nc.outChan <- resp
 }
