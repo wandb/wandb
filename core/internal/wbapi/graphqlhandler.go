@@ -43,7 +43,7 @@ func (h *GraphQLHandler) HandleRequest(
 		}
 	}
 
-	query, err := rewriteQuery(request.GetQuery(), gqlCompatOptionsFromRequest(
+	query, err := RewriteQuery(request.GetQuery(), gqlCompatOptionsFromRequest(
 		request.GetOmitVariables(),
 		request.GetOmitFragments(),
 		request.GetOmitFields(),

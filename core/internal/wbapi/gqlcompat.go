@@ -9,28 +9,26 @@ import (
 	"github.com/vektah/gqlparser/v2/parser"
 )
 
-// gqlCompatOptions are the rewrites applied to a GraphQL document before it
+// GQLCompatOptions are the rewrites applied to a GraphQL document before it
 // is forwarded to the upstream W&B backend. They let the client strip parts
-// of a generated query that the deployed server version does not support,
-// without reproducing a GraphQL parser in Python.
-type gqlCompatOptions struct {
+// of a generated query that the deployed server version does not support.
+type GQLCompatOptions struct {
 	OmitVariables map[string]bool
 	OmitFragments map[string]bool
 	OmitFields    map[string]bool
 	RenameFields  map[string]string
 }
 
-func (o gqlCompatOptions) empty() bool {
+func (o GQLCompatOptions) empty() bool {
 	return len(o.OmitVariables) == 0 &&
 		len(o.OmitFragments) == 0 &&
 		len(o.OmitFields) == 0 &&
 		len(o.RenameFields) == 0
 }
 
-// rewriteQuery applies the configured rewrites and returns the rewritten
-// document. If no rewrites are configured the original query is returned
-// unchanged (no parse / format round-trip).
-func rewriteQuery(query string, opts gqlCompatOptions) (string, error) {
+// RewriteQuery applies the configured rewrites and returns the rewritten
+// document.
+func RewriteQuery(query string, opts GQLCompatOptions) (string, error) {
 	if opts.empty() {
 		return query, nil
 	}
@@ -98,12 +96,10 @@ func filterVariableDefinitions(
 // RenameFields is renamed (aliases are preserved). Arguments that resolve to
 // an omitted variable are dropped, including those nested in input objects.
 // Fragment spreads in OmitFragments are dropped. A field that had a non-empty
-// selection set in the source but is empty after rewriting is dropped — this
-// matches the Python behavior of pruning `parent { ...RemovedFragment }` to
-// nothing.
+// selection set in the source but is empty after rewriting is dropped.
 func rewriteSelectionSet(
 	sel ast.SelectionSet,
-	opts gqlCompatOptions,
+	opts GQLCompatOptions,
 ) ast.SelectionSet {
 	out := sel[:0]
 	for _, s := range sel {
@@ -234,8 +230,8 @@ func pruneOrphanFragments(doc *ast.QueryDocument) ast.FragmentDefinitionList {
 func gqlCompatOptionsFromRequest(
 	omitVariables, omitFragments, omitFields []string,
 	renameFields map[string]string,
-) gqlCompatOptions {
-	return gqlCompatOptions{
+) GQLCompatOptions {
+	return GQLCompatOptions{
 		OmitVariables: stringSet(omitVariables),
 		OmitFragments: stringSet(omitFragments),
 		OmitFields:    stringSet(omitFields),
