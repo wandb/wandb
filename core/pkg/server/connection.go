@@ -54,7 +54,9 @@ type ConnectionParams struct {
 // and outgoing responses, maintaining the state of the connection, and providing
 // error reporting mechanisms.
 type Connection struct {
-	// connLifetimeCtx is cancelled when the connection should be closed.
+	// connLifetimeCtx is alive for as long as responses should be sent.
+	//
+	// Once it is cancelled, the connection should shut down.
 	connLifetimeCtx context.Context
 
 	// stopConnection cancels connLifetimeCtx.
@@ -143,18 +145,9 @@ func (nc *Connection) ManageConnectionData() {
 
 	var wg sync.WaitGroup
 
-	wg.Go(func() {
-		nc.processIncomingData()
-	})
-
-	wg.Go(func() {
-		defer nc.stopConnection()
-		nc.handleIncomingRequests()
-	})
-
-	wg.Go(func() {
-		nc.processOutgoingData()
-	})
+	wg.Go(nc.processIncomingData)
+	wg.Go(nc.handleIncomingRequests)
+	wg.Go(nc.processOutgoingData)
 
 	<-nc.connLifetimeCtx.Done()
 
@@ -170,8 +163,15 @@ func (nc *Connection) ManageConnectionData() {
 	slog.Info("connection: ManageConnectionData: connection closed", "id", nc.id)
 }
 
-// processOutgoingData processes outChan until connLifetimeCtx ends.
+// processOutgoingData processes outChan until connLifetimeCtx ends
+// or an error occurs.
 func (nc *Connection) processOutgoingData() {
+	// Shut down the connection once we're done sending responses.
+	//
+	// This only happens on error, since the loop already runs until the
+	// context is cancelled.
+	defer nc.stopConnection()
+
 	slog.Debug("processOutgoingData: started", "id", nc.id)
 
 	for {
@@ -302,17 +302,22 @@ func (nc *Connection) processIncomingData() {
 	}
 }
 
-// handleIncomingRequests handles incoming messages from the client.
+// handleIncomingRequests parses and responds to incoming requests (inChan)
+// until the channel is closed or an error occurs.
 //
-// This function ensures proper message routing based on the message type. If an
-// unknown or invalid message type is encountered, the function logs an error and
-// halts processing.
-//
-// Once all messages are processed, it safely closes the outgoing message channel.
+// Shuts down the connection after responding to all requests or encountering an
+// error. Does not wait for requests handled by Streams to complete, relying
+// instead on the Finish request to synchronize those.
 func (nc *Connection) handleIncomingRequests() {
+	// Shut down the connection once we're done accepting requests.
+	defer nc.stopConnection()
+
 	slog.Debug("handleIncomingRequests: started", "id", nc.id)
 
+	// Before exiting, wait for async operations to complete so that they
+	// can send responses.
 	wg := &sync.WaitGroup{}
+	defer wg.Wait()
 
 	for msg := range nc.inChan {
 		slog.Debug("handleIncomingRequests: processing message", "msg", msg, "id", nc.id)
@@ -347,18 +352,22 @@ func (nc *Connection) handleIncomingRequests() {
 		case *spb.ServerRequest_ApiRequest:
 			nc.handleApi(wg, msg.RequestId, x.ApiRequest)
 		case nil:
-			slog.Error("handleIncomingRequests: ServerRequestType is nil", "id", nc.id)
-			panic("ServerRequestType is nil")
+			slog.Error(
+				"handleIncomingRequests: ServerRequestType is nil",
+				"id", nc.id,
+			)
+			return
 		default:
-			slog.Error("handleIncomingRequests: unknown ServerRequestType", "type", x, "id", nc.id)
-			panic(fmt.Sprintf("Unknown ServerRequestType: %T", x))
+			slog.Error(
+				"handleIncomingRequests: unknown ServerRequestType",
+				"type", x,
+				"id", nc.id,
+			)
+			return
 		}
 	}
 
-	// Wait to complete any asynchronous requests.
-	wg.Wait()
-
-	slog.Debug("handleIncomingRequests: finished", "id", nc.id)
+	slog.Debug("handleIncomingRequests: finishing", "id", nc.id)
 }
 
 // handleCancel cancels the work of a previous server request.
