@@ -98,16 +98,6 @@ def test_setup_with_import_initializes_project(
     weave_init.assert_called_once_with("test-entity/test-project")
 
 
-def test_setup_with_import_translates_missing_weave(
-    monkeypatch: pytest.MonkeyPatch,
-):
-    weave_init = MagicMock(side_effect=ModuleNotFoundError("No module named 'weave'"))
-    monkeypatch.setattr(wandb_weave_integration, "_weave_init", weave_init)
-
-    with pytest.raises(ImportError, match="weave is not installed"):
-        wandb_weave_integration.setup_with_import("test-entity", "test-project")
-
-
 def test_weave_init_skips_matching_active_client(monkeypatch: pytest.MonkeyPatch):
     fake_weave = types.ModuleType("weave")
     fake_weave.init = MagicMock()

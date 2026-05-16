@@ -10,6 +10,8 @@ from wandb.errors import UsageError
 from wandb.sdk.data_types.table import Table
 
 if TYPE_CHECKING:
+    from weave.evaluation.eval_imperative import EvaluationLogger
+
     from wandb.sdk.wandb_run import Run as LocalRun
 
 
@@ -19,11 +21,8 @@ EVAL_TABLE_ROW_INDEX_KEY = "row"
 
 
 # This function can be patched for testing to mock out calls to weave..
-#
-# TODO: Once wandb requires weave, return the real EvaluationLogger type instead
-# of Any and let mypy check calls against weave's implementation.
-def _get_evaluation_logger_cls(run: LocalRun) -> Any:  # pragma: no cover
-    """Import and return weave's EvaluationLogger, verifying it's new enough."""
+def _get_evaluation_logger_cls(run: LocalRun) -> type[EvaluationLogger]:  # pragma: no cover
+    """Import and return weave's EvaluationLogger."""
     from wandb.integration.weave.weave import setup_with_import
 
     if not setup_with_import(
@@ -34,31 +33,7 @@ def _get_evaluation_logger_cls(run: LocalRun) -> Any:  # pragma: no cover
             "Unset it or use run.log() with a regular Table to suppress this."
         )
 
-    # TODO: Remove this once we add a required dep from wandb to weave.
-    try:
-        from weave.evaluation.eval_imperative import (  # type: ignore[import-not-found]
-            EvaluationLogger,
-        )
-    except ModuleNotFoundError as e:
-        raise ImportError(
-            "`wandb.EvalTable` requires the `weave` package to be installed. "
-            "Install it with `pip install weave`."
-        ) from e
-
-    try:
-        create_with_meta = EvaluationLogger._create_with_meta
-    except AttributeError as e:
-        raise ImportError(
-            "`wandb.EvalTable` requires a version of weave whose "
-            "EvaluationLogger has a `_create_with_meta` classmethod. "
-            "Upgrade with `pip install -U weave`."
-        ) from e
-    if not callable(create_with_meta):
-        raise TypeError(
-            "`wandb.EvalTable` requires a version of weave whose "
-            "EvaluationLogger has a callable `_create_with_meta` classmethod. "
-            "Upgrade with `pip install -U weave`."
-        )
+    from weave.evaluation.eval_imperative import EvaluationLogger
 
     return EvaluationLogger
 
@@ -185,7 +160,7 @@ class EvalTable(Table):
         self._auto_summarize: bool = True
         # INCREMENTAL mode reuses one logger so all batches land in the same
         # eval. IMMUTABLE/MUTABLE use local loggers and only persist call ids.
-        self._weave_eval_logger: Any | None = None
+        self._weave_eval_logger: EvaluationLogger | None = None
         self._immutable_evaluate_call_id: str | None = None
         # Track separately from self._last_logged_idx used by normal INCREMENTAL tables
         # to avoid conflating our somewhat different semantics.
@@ -389,7 +364,9 @@ class EvalTable(Table):
                 for col, val in zip(cols, row, strict=True)
             }
 
-    def _create_weave_eval_logger(self, run: LocalRun, eval_name: str) -> Any:
+    def _create_weave_eval_logger(
+        self, run: LocalRun, eval_name: str
+    ) -> EvaluationLogger:
         self._validate_columns(
             self._input_columns, self._output_columns, self._score_columns
         )
@@ -406,7 +383,7 @@ class EvalTable(Table):
 
     def _setup_incremental_weave_eval_logger(
         self, run: LocalRun, eval_name: str
-    ) -> Any:
+    ) -> EvaluationLogger:
         """Build the INCREMENTAL EvaluationLogger on first use."""
         if self._weave_eval_logger is not None:
             return self._weave_eval_logger
