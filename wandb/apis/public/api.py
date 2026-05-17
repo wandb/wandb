@@ -175,6 +175,8 @@ class Api:
         overrides: dict[str, Any] | None = None,
         timeout: int | None = None,
         api_key: str | None = None,
+        *,
+        admin_privileges: bool = False,
     ) -> None:
         """Initialize the API.
 
@@ -188,6 +190,13 @@ class Api:
                 the API key from the current environment or configuration will be used.
                 Prompts for an API key if none is provided
                 or configured in the environment.
+            admin_privileges: If `True`, send the `Use-Admin-Privileges` header
+                on GraphQL requests issued by this `Api` instance. Only set this
+                when authenticated with an admin API key and you intend to call
+                admin-only endpoints (for example, `create_user`, `user`,
+                `users`). Defaults to `False`; some W&B deployments reject the
+                header for non-admin keys, which would otherwise cause every
+                `Api()` call to fail at construction time.
         """
         self.settings = InternalApi().settings()
         self.settings.update(overrides or {})
@@ -229,12 +238,13 @@ class Api:
         settings.api_key = self.api_key or ""
         self._service_api: ServiceApi = ServiceApi(settings=settings)
 
+        client_headers: dict[str, str] = {"User-Agent": self.user_agent}
+        if admin_privileges:
+            client_headers["Use-Admin-Privileges"] = "true"
+
         self._base_client = Client(
             transport=GraphQLSession(
-                headers={
-                    "User-Agent": self.user_agent,
-                    "Use-Admin-Privileges": "true",
-                },
+                headers=client_headers,
                 use_json=True,
                 # this timeout won't apply when the DNS lookup fails. in that case, it will be 60s
                 # https://bugs.python.org/issue22889

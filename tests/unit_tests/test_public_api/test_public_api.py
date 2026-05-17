@@ -160,6 +160,23 @@ def test_direct_specification_of_api_key():
     assert api.api_key == "abcd" * 10
 
 
+@pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
+def test_admin_privileges_header_absent_by_default():
+    # The Use-Admin-Privileges header should not be sent by default, since
+    # some W&B deployments reject it for non-admin keys and would otherwise
+    # break `Api()` construction.
+    api = Api()
+    headers = api._base_client.transport.headers
+    assert "Use-Admin-Privileges" not in headers
+
+
+@pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
+def test_admin_privileges_header_present_when_opted_in():
+    api = Api(admin_privileges=True)
+    headers = api._base_client.transport.headers
+    assert headers.get("Use-Admin-Privileges") == "true"
+
+
 @pytest.mark.parametrize(
     "path",
     [
