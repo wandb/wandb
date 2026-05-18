@@ -21,7 +21,7 @@ import platform
 import sys
 import tempfile
 import time
-from collections.abc import Iterable, Iterator, Sequence
+from collections.abc import Generator, Iterable, Sequence
 from typing import TYPE_CHECKING, Literal
 
 from typing_extensions import Any, Protocol, Self
@@ -659,7 +659,7 @@ class _WandbInit:
         ipython.display_pub.publish = publish
 
     @contextlib.contextmanager
-    def setup_run_log_directory(self, settings: Settings) -> Iterator[None]:
+    def setup_run_log_directory(self, settings: Settings) -> Generator[None]:
         """Set up the run's log directory.
 
         This is a context manager that closes and unregisters the log handler
@@ -789,6 +789,10 @@ class _WandbInit:
             "_finish",
         ):
             setattr(drun, symbol, lambda *_, **__: None)  # type: ignore
+
+        # set properties to None
+        for attr in ("url", "project_url", "sweep_url"):
+            setattr(type(drun), attr, property(lambda _: None))
 
         class _ChainableNoOp:
             """An object that allows chaining arbitrary attributes and method calls."""
@@ -1553,6 +1557,8 @@ def init(  # noqa: C901
             init_telemetry.feature.rewind_mode = True
 
         wi.set_run_id(run_settings)
+        try_create_root_dir(run_settings)
+        wi.set_sync_dir_suffix(run_settings)
         run_printer = printer.new_printer(run_settings)
         show_warnings(run_printer)
 
@@ -1569,8 +1575,6 @@ def init(  # noqa: C901
             if run_settings._noop:
                 return wi.make_disabled_run(run_config)
 
-            try_create_root_dir(run_settings)
-            wi.set_sync_dir_suffix(run_settings)
             exit_stack.enter_context(wi.setup_run_log_directory(run_settings))
 
             if run_settings._jupyter:

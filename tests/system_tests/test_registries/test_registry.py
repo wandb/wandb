@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Generator
 from unittest.mock import patch
 
 import wandb
@@ -12,7 +12,7 @@ from wandb.sdk.artifacts._validators import REGISTRY_PREFIX
 
 
 @fixture
-def default_organization(user_in_orgs_factory) -> Iterator[str]:
+def default_organization(user_in_orgs_factory) -> Generator[str]:
     """Provides the name of the single default organization."""
     user_in_orgs = user_in_orgs_factory()
     yield user_in_orgs.organization_names[0]

@@ -1,4 +1,4 @@
-from collections.abc import Iterator
+from collections.abc import Generator
 
 import pytest
 import wandb
@@ -13,7 +13,7 @@ from tests.fixtures.mock_wandb_log import MockWandbLog
 @pytest.fixture()
 def dynamic_progress_printer(
     emulated_terminal: EmulatedTerminal,
-) -> Iterator[progress.ProgressPrinter]:
+) -> Generator[progress.ProgressPrinter]:
     """A ProgressPrinter writing to an emulated terminal."""
     # Ensure dynamic text is supported.
     _ = emulated_terminal
@@ -26,7 +26,7 @@ def dynamic_progress_printer(
 
 
 @pytest.fixture()
-def static_progress_printer() -> Iterator[progress.ProgressPrinter]:
+def static_progress_printer() -> Generator[progress.ProgressPrinter]:
     """A ProgressPrinter that writes to a file or dumb terminal."""
     with progress.progress_printer(
         p.new_printer(settings=wandb.Settings()),

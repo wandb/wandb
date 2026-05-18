@@ -14,7 +14,7 @@ import stat
 import tempfile
 import time
 from collections import deque
-from collections.abc import Iterator, Sequence
+from collections.abc import Generator, Sequence
 from concurrent.futures import Executor, ThreadPoolExecutor, as_completed
 from copy import copy
 from dataclasses import asdict, replace
@@ -1427,7 +1427,7 @@ class Artifact:
     @ensure_not_finalized
     def new_file(
         self, name: str, mode: str = "x", encoding: str | None = None
-    ) -> Iterator[IO]:
+    ) -> Generator[IO]:
         """Open a new temporary file and add it to the artifact.
 
         Args:

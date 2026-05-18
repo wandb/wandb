@@ -4,7 +4,7 @@ import filecmp
 import os
 import shutil
 import unittest.mock
-from collections.abc import Callable, Iterator, Mapping
+from collections.abc import Callable, Generator, Mapping
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import nullcontext
 from datetime import datetime, timedelta, timezone
@@ -476,7 +476,7 @@ def test_add_reference_local_file_no_checksum(tmp_path, artifact):
 
 class TestAddReferenceLocalFileNoChecksumTwice:
     @fixture
-    def run(self, user) -> Iterator[wandb.Run]:
+    def run(self, user) -> Generator[wandb.Run]:
         with wandb.init() as run:
             yield run
 

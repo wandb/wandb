@@ -1,9 +1,11 @@
-package wbapi
+package wbapi_test
 
 import (
 	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/wandb/wandb/core/internal/wbapi"
 )
 
 // normalize strips comments and collapses all whitespace runs so that test
@@ -19,9 +21,9 @@ func normalize(t *testing.T, s string) string {
 	return s
 }
 
-func mustRewrite(t *testing.T, query string, opts gqlCompatOptions) string {
+func mustRewrite(t *testing.T, query string, opts wbapi.GQLCompatOptions) string {
 	t.Helper()
-	got, err := rewriteQuery(query, opts)
+	got, err := opts.RewriteQuery(query)
 	if err != nil {
 		t.Fatalf("rewriteQuery: %v", err)
 	}
@@ -30,7 +32,7 @@ func mustRewrite(t *testing.T, query string, opts gqlCompatOptions) string {
 
 func TestRewriteQuery_NoOptionsReturnsInputUnchanged(t *testing.T) {
 	const q = "query Q { a b c }"
-	got, err := rewriteQuery(q, gqlCompatOptions{})
+	got, err := wbapi.GQLCompatOptions{}.RewriteQuery(q)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -40,8 +42,6 @@ func TestRewriteQuery_NoOptionsReturnsInputUnchanged(t *testing.T) {
 }
 
 func TestRewriteQuery_StripsVariablesFieldsAndFragments(t *testing.T) {
-	// Mirrors test_gql_compat in Python: omits variables threaded through an
-	// input-object argument and removes fragment + matching fields.
 	const orig = `mutation updateArtifact(
 		$artifactID: ID!
 		$description: String
@@ -75,7 +75,7 @@ func TestRewriteQuery_StripsVariablesFieldsAndFragments(t *testing.T) {
 	fragment ArtifactInfo on Artifact { description versionIndex }
 	`
 
-	got := mustRewrite(t, orig, gqlCompatOptions{
+	got := mustRewrite(t, orig, wbapi.GQLCompatOptions{
 		OmitVariables: map[string]bool{
 			"ttlDurationSeconds": true,
 			"tagsToAdd":          true,
@@ -115,7 +115,6 @@ func TestRewriteQuery_StripsVariablesFieldsAndFragments(t *testing.T) {
 }
 
 func TestRewriteQuery_PrunesOrphanFragments(t *testing.T) {
-	// Mirrors test_gql_compat_omits_unused_fragments.
 	const orig = `fragment KeptFragmentA on KeptTypeA { keptInnerFieldA }
 	query MyQuery {
 		...KeptFragmentA
@@ -157,14 +156,14 @@ func TestRewriteQuery_PrunesOrphanFragments(t *testing.T) {
 	}
 
 	t.Run("by fragment name", func(t *testing.T) {
-		got := mustRewrite(t, orig, gqlCompatOptions{
+		got := mustRewrite(t, orig, wbapi.GQLCompatOptions{
 			OmitFragments: map[string]bool{"RemovedFragment": true},
 		})
 		checkPruned(t, got)
 	})
 
 	t.Run("by parent field name", func(t *testing.T) {
-		got := mustRewrite(t, orig, gqlCompatOptions{
+		got := mustRewrite(t, orig, wbapi.GQLCompatOptions{
 			OmitFields: map[string]bool{"removedParentField": true},
 		})
 		checkPruned(t, got)
@@ -172,7 +171,6 @@ func TestRewriteQuery_PrunesOrphanFragments(t *testing.T) {
 }
 
 func TestRewriteQuery_RenameFieldsPreservesAlias(t *testing.T) {
-	// Mirrors test_gql_compat_rename_fields.
 	const orig = `query ArtifactTypeArtifactCollections(
 		$entityName: String!,
 		$projectName: String!,
@@ -189,7 +187,7 @@ func TestRewriteQuery_RenameFieldsPreservesAlias(t *testing.T) {
 		}
 	}`
 
-	got := mustRewrite(t, orig, gqlCompatOptions{
+	got := mustRewrite(t, orig, wbapi.GQLCompatOptions{
 		RenameFields: map[string]string{"artifactCollections": "artifactSequences"},
 	})
 
@@ -217,7 +215,7 @@ func TestRewriteQuery_OmitOnlyTargetField(t *testing.T) {
 		}
 	}`
 
-	got := mustRewrite(t, orig, gqlCompatOptions{
+	got := mustRewrite(t, orig, wbapi.GQLCompatOptions{
 		OmitFields: map[string]bool{"totalCount": true},
 	})
 	gotN := normalize(t, got)
@@ -232,11 +230,66 @@ func TestRewriteQuery_OmitOnlyTargetField(t *testing.T) {
 	}
 }
 
-func TestRewriteQuery_ParseFailureReturnsError(t *testing.T) {
-	_, err := rewriteQuery("not a graphql {", gqlCompatOptions{
-		OmitFields: map[string]bool{"x": true},
+func TestRewriteQuery_RewritesInlineFragments(t *testing.T) {
+	const orig = `query Q {
+		node {
+			... on Artifact {
+				keptField
+				removedField
+				...KeptFragment
+			}
+		}
+	}
+	fragment KeptFragment on Artifact { nestedKeptField }`
+
+	got := mustRewrite(t, orig, wbapi.GQLCompatOptions{
+		OmitFields: map[string]bool{"removedField": true},
 	})
+	gotN := normalize(t, got)
+
+	for _, kept := range []string{
+		"... on Artifact",
+		"keptField",
+		"KeptFragment",
+		"fragment KeptFragment",
+		"nestedKeptField",
+	} {
+		if !strings.Contains(gotN, kept) {
+			t.Errorf("rewritten query should contain %q:\n%s", kept, gotN)
+		}
+	}
+	if strings.Contains(gotN, "removedField") {
+		t.Errorf("removedField should be removed:\n%s", gotN)
+	}
+}
+
+func TestRewriteQuery_ParseFailureReturnsError(t *testing.T) {
+	_, err := wbapi.GQLCompatOptions{
+		OmitFields: map[string]bool{"x": true},
+	}.RewriteQuery("not a graphql {")
 	if err == nil {
 		t.Fatal("expected parse error, got nil")
+	}
+}
+
+func TestGQLCompatOptionsFromRequest(t *testing.T) {
+	opts := wbapi.GQLCompatOptionsFromRequest(
+		[]string{"varA"},
+		[]string{"FragmentA"},
+		[]string{"fieldA"},
+		map[string]string{"oldField": "newField"},
+	)
+
+	if !opts.OmitVariables["varA"] {
+		t.Error("expected varA to be omitted")
+	}
+	if !opts.OmitFragments["FragmentA"] {
+		t.Error("expected FragmentA to be omitted")
+	}
+	if !opts.OmitFields["fieldA"] {
+		t.Error("expected fieldA to be omitted")
+	}
+	if got := opts.RenameFields["oldField"]; got != "newField" {
+		t.Errorf("expected oldField to rename to newField, got %q", got)
 	}
 }

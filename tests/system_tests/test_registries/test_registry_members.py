@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Generator
 from typing import TYPE_CHECKING
 
 from pytest import fixture, mark
@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 @fixture(scope="module")
 def user(
     module_mocker, backend_fixture_factory: BackendFixtureFactory
-) -> Iterator[str]:
+) -> Generator[str]:
     """Module-scoped admin user that deliberately overrides the default user fixture.
 
     We need admin privileges to perform some of the setup steps via the public API.

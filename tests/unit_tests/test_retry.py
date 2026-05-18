@@ -2,7 +2,7 @@
 
 import dataclasses
 import datetime
-from collections.abc import Iterator
+from collections.abc import Generator
 from unittest import mock
 
 import pytest
@@ -16,7 +16,7 @@ class MockTime:
 
 
 @pytest.fixture(autouse=True)
-def mock_time() -> Iterator[MockTime]:
+def mock_time() -> Generator[MockTime]:
     """Mock out the now()/sleep() funcs used by the retry logic."""
     now = datetime.datetime.now()
 
