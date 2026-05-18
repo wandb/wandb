@@ -66,7 +66,11 @@ boto3
 botocore>=1.5.76
 
 # `ariadne-codegen` is a dev-only dependency used for GraphQL codegen.
-ariadne-codegen
+# Restricting to `<0.17.2` is deliberate for now. See: https://github.com/mirumee/ariadne-codegen/pull/403,
+# which renames generated fields shadowing Python builtin types
+# (e.g. `filter`/`type` -> `filter_`/`type_` via `alias=...`) and would break
+# handwritten subclasses and callers of generated types.
+ariadne-codegen==0.17.1
 
 awscli; sys_platform == 'win32'
 .[launch]
