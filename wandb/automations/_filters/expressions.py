@@ -149,6 +149,13 @@ class FilterExpr(CompatBaseModel, SupportsBitwiseLogicalOps):
     @classmethod
     def _validate(cls, data: Any) -> Any:
         """Parse a MongoDB dict representation of the filter expression."""
+        # TODO: Get this working
+        # match data:
+        #     case {str() as field: op, **extra} if field.startswith("$") and (not extra):
+        #         return {"field": field, "op": op}
+        #     case _:
+        #         return data
+
         if (
             isinstance(data, dict)
             and len(data) == 1
