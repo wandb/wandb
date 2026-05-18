@@ -40,6 +40,10 @@ type CPKInfo = generated.CPKInfo
 // CPKScopeInfo contains a group of parameters for client provided encryption scope.
 type CPKScopeInfo = generated.CPKScopeInfo
 
+// SourceCPKInfo contains a group of parameters for the AppendBlobClient.AppendBlockFromURL,
+// BlockBlobClient.UploadBlobFromURL, BlockBlobClient.StageBlockFromURL and PageBlobClient.UploadPagesFromURL methods.
+type SourceCPKInfo = generated.SourceCPKInfo
+
 // HTTPHeaders contains a group of parameters for the BlobClient.SetHTTPHeaders method.
 type HTTPHeaders = generated.BlobHTTPHeaders
 
@@ -188,6 +192,17 @@ type DownloadFileOptions struct {
 
 // ---------------------------------------------------------------------------------------------------------------------
 
+// AccessTierConditions specifies conditions based on when the blob's access tier was last changed.
+// These conditions allow operations to be performed only if the access tier has or has not been
+// modified relative to the specified date/time.
+type AccessTierConditions struct {
+	// Specify this header value to operate only on a blob if the access-tier has been modified since the specified date/time.
+	IfModifiedSince *time.Time
+
+	// Specify this header value to operate only on a blob if the access-tier has not been modified since the specified date/time.
+	IfUnmodifiedSince *time.Time
+}
+
 // DeleteOptions contains the optional parameters for the Client.Delete method.
 type DeleteOptions struct {
 	// Required if the blob has associated snapshots. Specify one of the following two options: include: Delete the base blob
@@ -199,6 +214,11 @@ type DeleteOptions struct {
 	// with caution.
 	// For more information, see https://docs.microsoft.com/rest/api/storageservices/delete-blob
 	BlobDeleteType *DeleteType
+
+	// AccessTierConditions specifies optional conditions based on when the blob's access tier was last changed.
+	// These conditions allow operations to be performed only if the access tier has or has not been
+	// modified relative to the specified date/time.
+	AccessTierConditions *AccessTierConditions
 }
 
 func (o *DeleteOptions) format() (*generated.BlobClientDeleteOptions, *generated.LeaseAccessConditions, *generated.ModifiedAccessConditions) {
@@ -209,6 +229,11 @@ func (o *DeleteOptions) format() (*generated.BlobClientDeleteOptions, *generated
 	basics := generated.BlobClientDeleteOptions{
 		DeleteSnapshots: o.DeleteSnapshots,
 		DeleteType:      o.BlobDeleteType, // None by default
+	}
+
+	if o.AccessTierConditions != nil {
+		basics.AccessTierIfModifiedSince = o.AccessTierConditions.IfModifiedSince
+		basics.AccessTierIfUnmodifiedSince = o.AccessTierConditions.IfUnmodifiedSince
 	}
 
 	if o.AccessConditions == nil {
