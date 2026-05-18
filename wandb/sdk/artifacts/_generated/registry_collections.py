@@ -3,9 +3,11 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import Field
 
-from wandb._pydantic import GQLResult
+from wandb._pydantic import GQLResult, Typename
 
 from .fragments import PageInfoFragment, RegistryCollectionFragment
 
@@ -34,7 +36,15 @@ class RegistryCollectionsOrganizationOrgEntityArtifactCollections(GQLResult):
 
 
 class RegistryCollectionsOrganizationOrgEntityArtifactCollectionsEdges(GQLResult):
-    node: RegistryCollectionFragment | None
+    node: RegistryCollectionsOrganizationOrgEntityArtifactCollectionsEdgesNode | None
+
+
+class RegistryCollectionsOrganizationOrgEntityArtifactCollectionsEdgesNode(
+    RegistryCollectionFragment
+):
+    typename__: Typename[
+        Literal["ArtifactCollection", "ArtifactPortfolio", "ArtifactSequence"]
+    ]
 
 
 RegistryCollections.model_rebuild()

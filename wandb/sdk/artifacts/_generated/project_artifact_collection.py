@@ -3,9 +3,11 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import Field
 
-from wandb._pydantic import GQLResult
+from wandb._pydantic import GQLResult, Typename
 
 from .fragments import ArtifactCollectionFragment
 
@@ -21,9 +23,17 @@ class ProjectArtifactCollectionProject(GQLResult):
 
 
 class ProjectArtifactCollectionProjectArtifactType(GQLResult):
-    artifact_collection: ArtifactCollectionFragment | None = Field(
-        alias="artifactCollection"
-    )
+    artifact_collection: (
+        ProjectArtifactCollectionProjectArtifactTypeArtifactCollection | None
+    ) = Field(alias="artifactCollection")
+
+
+class ProjectArtifactCollectionProjectArtifactTypeArtifactCollection(
+    ArtifactCollectionFragment
+):
+    typename__: Typename[
+        Literal["ArtifactCollection", "ArtifactPortfolio", "ArtifactSequence"]
+    ]
 
 
 ProjectArtifactCollection.model_rebuild()

@@ -29,8 +29,8 @@ class IntegrationsByEntityEntityIntegrationsEdges(GQLResult):
     node: (
         Annotated[
             IntegrationsByEntityEntityIntegrationsEdgesNodeIntegration
-            | WebhookIntegrationFields
-            | SlackIntegrationFields,
+            | IntegrationsByEntityEntityIntegrationsEdgesNodeGenericWebhookIntegration
+            | IntegrationsByEntityEntityIntegrationsEdgesNodeSlackIntegration,
             Field(discriminator="typename__"),
         ]
         | None
@@ -39,6 +39,18 @@ class IntegrationsByEntityEntityIntegrationsEdges(GQLResult):
 
 class IntegrationsByEntityEntityIntegrationsEdgesNodeIntegration(GQLResult):
     typename__: Typename[Literal["GitHubOAuthIntegration", "Integration"]]
+
+
+class IntegrationsByEntityEntityIntegrationsEdgesNodeGenericWebhookIntegration(
+    WebhookIntegrationFields
+):
+    typename__: Typename[Literal["GenericWebhookIntegration"]]
+
+
+class IntegrationsByEntityEntityIntegrationsEdgesNodeSlackIntegration(
+    SlackIntegrationFields
+):
+    typename__: Typename[Literal["SlackIntegration"]]
 
 
 IntegrationsByEntity.model_rebuild()

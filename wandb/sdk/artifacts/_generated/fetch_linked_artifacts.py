@@ -3,9 +3,11 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import Field
 
-from wandb._pydantic import GQLResult
+from wandb._pydantic import GQLResult, Typename
 
 from .fragments import ArtifactAliasFragment, CollectionInfoFragment
 
@@ -31,9 +33,18 @@ class FetchLinkedArtifactsArtifactArtifactMembershipsEdges(GQLResult):
 class FetchLinkedArtifactsArtifactArtifactMembershipsEdgesNode(GQLResult):
     version_index: int | None = Field(alias="versionIndex")
     aliases: list[ArtifactAliasFragment]
-    artifact_collection: CollectionInfoFragment | None = Field(
-        alias="artifactCollection"
-    )
+    artifact_collection: (
+        FetchLinkedArtifactsArtifactArtifactMembershipsEdgesNodeArtifactCollection
+        | None
+    ) = Field(alias="artifactCollection")
+
+
+class FetchLinkedArtifactsArtifactArtifactMembershipsEdgesNodeArtifactCollection(
+    CollectionInfoFragment
+):
+    typename__: Typename[
+        Literal["ArtifactCollection", "ArtifactPortfolio", "ArtifactSequence"]
+    ]
 
 
 FetchLinkedArtifacts.model_rebuild()

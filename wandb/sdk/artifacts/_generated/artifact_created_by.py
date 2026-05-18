@@ -19,11 +19,16 @@ class ArtifactCreatedBy(GQLResult):
 class ArtifactCreatedByArtifact(GQLResult):
     created_by: (
         Annotated[
-            RunInfoFragment | ArtifactCreatedByArtifactCreatedByUser,
+            ArtifactCreatedByArtifactCreatedByRun
+            | ArtifactCreatedByArtifactCreatedByUser,
             Field(discriminator="typename__"),
         ]
         | None
     ) = Field(alias="createdBy")
+
+
+class ArtifactCreatedByArtifactCreatedByRun(RunInfoFragment):
+    typename__: Typename[Literal["Run"]]
 
 
 class ArtifactCreatedByArtifactCreatedByUser(GQLResult):

@@ -1,11 +1,9 @@
 fragment SlackIntegrationFields on SlackIntegration {
-  __typename
   id
   teamName
   channelName
 }
 fragment WebhookIntegrationFields on GenericWebhookIntegration {
-  __typename
   id
   name
   urlEndpoint
@@ -13,31 +11,26 @@ fragment WebhookIntegrationFields on GenericWebhookIntegration {
 
 # ------------------------------------------------------------------------------
 fragment ProjectScopeFields on Project {
-  __typename
   id
   name
 }
 fragment ArtifactPortfolioScopeFields on ArtifactPortfolio {
-  __typename
   id
   name
 }
 fragment ArtifactSequenceScopeFields on ArtifactSequence {
-  __typename
   id
   name
 }
 
 # ------------------------------------------------------------------------------
 fragment FilterEventFields on FilterEventTriggeringCondition {
-  __typename
   eventType
   filter
 }
 
 # ------------------------------------------------------------------------------
 fragment QueueJobActionFields on QueueJobTriggeredAction {
-  __typename
   queue {
     id
     name
@@ -46,7 +39,6 @@ fragment QueueJobActionFields on QueueJobTriggeredAction {
 }
 
 fragment NotificationActionFields on NotificationTriggeredAction {
-  __typename
   integration {
     ...SlackIntegrationFields
   }
@@ -56,22 +48,20 @@ fragment NotificationActionFields on NotificationTriggeredAction {
 }
 
 fragment GenericWebhookActionFields on GenericWebhookTriggeredAction {
-  __typename
   integration {
-    ...WebhookIntegrationFields
+    ... on GenericWebhookIntegration {
+      ...WebhookIntegrationFields
+    }
   }
   requestPayload
 }
 
 fragment NoOpActionFields on NoOpTriggeredAction {
-  __typename
   noOp # GraphQL doesn't support empty objects, so this should be an ignored placeholder field
 }
 
 # ------------------------------------------------------------------------------
 fragment TriggerFields on Trigger {
-  __typename
-
   id
   createdAt
   updatedAt
@@ -184,7 +174,9 @@ query IntegrationsByEntity($entity: String!, $cursor: String, $perPage: Int) {
   }
 }
 
-mutation CreateGenericWebhookIntegration($input: CreateGenericWebhookIntegrationInput!) {
+mutation CreateGenericWebhookIntegration(
+  $input: CreateGenericWebhookIntegrationInput!
+) {
   createGenericWebhookIntegration(input: $input) {
     integration {
       ...WebhookIntegrationFields
