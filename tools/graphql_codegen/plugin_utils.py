@@ -36,37 +36,18 @@ def is_redundant_class(stmt: ast.stmt) -> TypeGuard[ast.ClassDef]:
         class MyClass(ParentClass):
             pass
 
-    Another kind of redundant subclass is one that inherits from a fragment
-    type but doesn't define any meaningfully new fields, like:
-        class MyClass(MyFragmentType):
-            typename__: Typename[Literal["MyFragmentType"]]
-
     In general, we only drop redundant subclasses if they inherit from a SINGLE parent class.
     """
-    return (
-        is_class_def(stmt)
-        and len(stmt.bases) == 1
-        and len(stmt.body) == 1
-        and (
-            (isinstance(stmt.body[0], ast.Pass))
-            or (
-                stmt.bases[0].id not in {"GQLInput", "GQLResult"}
-                and isinstance(ann_assign := stmt.body[0], ast.AnnAssign)
-                and isinstance(ann_assign.target, ast.Name)
-                and ann_assign.target.id == "typename__"
-            )
-        )
-    )
+    match stmt:
+        case ast.ClassDef(bases=[_], body=[ast.Pass()]):
+            return True
+        case _:
+            return False
 
 
 def is_class_def(stmt: ast.stmt) -> TypeGuard[ast.ClassDef]:
     """Return True if this node is a class definition."""
     return isinstance(stmt, ast.ClassDef)
-
-
-def is_import_from(stmt: ast.stmt) -> TypeGuard[ast.ImportFrom]:
-    """Return True if this node is a `from ... import ...` statement."""
-    return isinstance(stmt, ast.ImportFrom)
 
 
 def make_all_assignment(names: Iterable[str]) -> ast.Assign:

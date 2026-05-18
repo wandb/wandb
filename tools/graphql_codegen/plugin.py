@@ -28,6 +28,7 @@ from graphql import (
     GraphQLInputField,
     GraphQLInterfaceType,
     GraphQLObjectType,
+    GraphQLScalarType,
     GraphQLSchema,
     SchemaMetaFieldDef,
     SelectionSetNode,
@@ -39,7 +40,6 @@ from graphql import (
     get_named_type,
     get_nullable_type,
     is_list_type,
-    is_scalar_type,
     visit,
 )
 
@@ -51,8 +51,6 @@ from .plugin_utils import (
     base_class_names,
     imported_names,
     is_class_def,
-    is_field_call,
-    is_import_from,
     is_redundant_class,
     make_all_assignment,
     make_import_from,
@@ -184,10 +182,13 @@ class GraphQLCodegenPlugin(Plugin):
         omit_names = self.classes_to_drop
         for stmt in stmts:
             # Keep only imports from modules that aren't being dropped
-            if is_import_from(imp := stmt) and (imp.module not in omit_modules):
-                # Keep only imported names that aren't being dropped
-                kept_names = sorted(set(imported_names(imp)) - omit_names)
-                yield make_import_from(imp.module, kept_names, level=imp.level)
+            match stmt:
+                case ast.ImportFrom(module=module) if module not in omit_modules:
+                    # Keep only imported names that aren't being dropped
+                    kept_names = sorted(set(imported_names(stmt)) - omit_names)
+                    yield make_import_from(module, kept_names, level=stmt.level)
+                case _:
+                    pass
 
     def process_schema(self, schema: GraphQLSchema) -> GraphQLSchema:
         # `ariadne-codegen` 0.16 misses standard GraphQL meta fields in the schema model.
@@ -282,7 +283,6 @@ class GraphQLCodegenPlugin(Plugin):
         self,
         constraints: ParsedConstraints,
         ann: ast.AnnAssign,
-        # gql_field: GraphQLField | GraphQLInputField,
     ) -> ast.AnnAssign:
         """Apply any `@constraints(...)` from the GraphQL field definition to this pydantic `Field(...)`.
 
@@ -291,13 +291,15 @@ class GraphQLCodegenPlugin(Plugin):
         field_kws = constraints.to_ast_keywords()
 
         # Preserve existing `= Field(...)` calls in the annotated assignment.
-        if is_field_call(pydantic_field := ann.value):
-            pydantic_field.keywords = [*pydantic_field.keywords, *field_kws]
-            return ann
-
-        # Otherwise, if there's a default value assigned to the field, preserve it.
-        if (default_expr := ann.value) is not None:
-            field_kws = [ast.keyword("default", default_expr), *field_kws]
+        match ann.value:
+            case ast.Call(func=ast.Name("Field"), keywords=keywords) as pydantic_field:
+                pydantic_field.keywords = [*keywords, *field_kws]
+                return ann
+            case ast.expr() as default_expr:
+                # Otherwise, if there's a default value assigned to the field, preserve it.
+                field_kws = [ast.keyword("default", default_expr), *field_kws]
+            case _:
+                pass
 
         ann.value = ast.Call(ast.Name("Field"), args=[], keywords=field_kws)
         return ann
@@ -332,16 +334,14 @@ class GraphQLCodegenPlugin(Plugin):
             return ListConstraints(**argmap)
 
         # Otherwise handle scalar-like named types, e.g. `String`, `Int`, `Float`
-        named_type = get_named_type(gql_type)
-        if is_scalar_type(named_type):
-            if named_type.name in {"String"}:
+        match named_type := get_named_type(gql_type):
+            case GraphQLScalarType(name="String"):
                 return StringConstraints(**argmap)
-            if named_type.name in {"Int", "Int64", "Float"}:
+            case GraphQLScalarType(name="Int" | "Int64" | "Float"):
                 return NumericConstraints(**argmap)
-
-        raise TypeError(
-            f"Unable to parse @constraints on field with GraphQL type: {named_type!r}"
-        )
+            case _:
+                msg = f"Unable to parse @constraints on field with GraphQL type: {named_type!r}"
+                raise TypeError(msg)
 
     def _concrete_typenames(self, gql_name: str) -> list[str] | None:
         """Returns the actual concrete GQL type names from the given GQL type name.
@@ -398,16 +398,17 @@ class GraphQLCodegenPlugin(Plugin):
         #   - AFTER:  `typename__: Literal["OrigSchemaTypeName"] = "OrigSchemaTypeName"`
         for class_def in filter(is_class_def, module.body):
             for stmt in class_def.body:
-                if (
-                    isinstance(stmt, ast.AnnAssign)
-                    and (stmt.target.id == "typename__")
-                    and (names := fragment2typenames.get(class_def.name))
-                ):
-                    stmt.annotation = make_literal(*names)
-                    # Determine if we prepopulate `typename__` with a default field value
-                    # - assign default: Fragment defined on a GQL object type OR interface with 1 impl.
-                    # - omit default: Fragment defined on a GQL interface with multiple impls.
-                    stmt.value = ast.Constant(names[0]) if len(names) == 1 else None
+                match stmt:
+                    case ast.AnnAssign(target=ast.Name("typename__")) if (
+                        names := fragment2typenames.get(class_def.name)
+                    ):
+                        stmt.annotation = make_literal(*names)
+                        # Determine if we prepopulate `typename__` with a default field value
+                        # - assign default: Fragment defined on a GQL object type OR interface with 1 impl.
+                        # - omit default: Fragment defined on a GQL interface with multiple impls.
+                        stmt.value = ast.Constant(names[0]) if len(names) == 1 else None
+                    case _:
+                        pass
 
         return self._rewrite_generated_module(module)
 

@@ -14,40 +14,30 @@ from .enums import AlertSeverity, EventTriggeringConditionType
 
 
 class ArtifactPortfolioScopeFields(GQLResult):
-    typename__: Typename[Literal["ArtifactPortfolio"]] = "ArtifactPortfolio"
     id: GQLId
     name: str
 
 
 class ArtifactSequenceScopeFields(GQLResult):
-    typename__: Typename[Literal["ArtifactSequence"]] = "ArtifactSequence"
     id: GQLId
     name: str
 
 
 class FilterEventFields(GQLResult):
-    typename__: Typename[Literal["FilterEventTriggeringCondition"]] = (
-        "FilterEventTriggeringCondition"
-    )
     event_type: EventTriggeringConditionType = Field(alias="eventType")
     filter: str
 
 
 class WebhookIntegrationFields(GQLResult):
-    typename__: Typename[Literal["GenericWebhookIntegration"]] = (
-        "GenericWebhookIntegration"
-    )
     id: GQLId
     name: str
     url_endpoint: str = Field(alias="urlEndpoint")
 
 
 class GenericWebhookActionFields(GQLResult):
-    typename__: Typename[Literal["GenericWebhookTriggeredAction"]] = (
-        "GenericWebhookTriggeredAction"
-    )
     integration: (
-        GenericWebhookActionFieldsIntegrationIntegration | WebhookIntegrationFields
+        GenericWebhookActionFieldsIntegrationIntegration
+        | GenericWebhookActionFieldsIntegrationGenericWebhookIntegration
     ) = Field(discriminator="typename__")
     request_payload: str | None = Field(alias="requestPayload")
 
@@ -58,24 +48,26 @@ class GenericWebhookActionFieldsIntegrationIntegration(GQLResult):
     ]
 
 
+class GenericWebhookActionFieldsIntegrationGenericWebhookIntegration(
+    WebhookIntegrationFields
+):
+    typename__: Typename[Literal["GenericWebhookIntegration"]]
+
+
 class NoOpActionFields(GQLResult):
-    typename__: Typename[Literal["NoOpTriggeredAction"]] = "NoOpTriggeredAction"
     no_op: bool | None = Field(alias="noOp")
 
 
 class SlackIntegrationFields(GQLResult):
-    typename__: Typename[Literal["SlackIntegration"]] = "SlackIntegration"
     id: GQLId
     team_name: str = Field(alias="teamName")
     channel_name: str = Field(alias="channelName")
 
 
 class NotificationActionFields(GQLResult):
-    typename__: Typename[Literal["NotificationTriggeredAction"]] = (
-        "NotificationTriggeredAction"
-    )
     integration: (
-        NotificationActionFieldsIntegrationIntegration | SlackIntegrationFields
+        NotificationActionFieldsIntegrationIntegration
+        | NotificationActionFieldsIntegrationSlackIntegration
     ) = Field(discriminator="typename__")
     title: str | None
     message: str | None
@@ -88,19 +80,21 @@ class NotificationActionFieldsIntegrationIntegration(GQLResult):
     ]
 
 
+class NotificationActionFieldsIntegrationSlackIntegration(SlackIntegrationFields):
+    typename__: Typename[Literal["SlackIntegration"]]
+
+
 class PageInfoFields(GQLResult):
     end_cursor: str | None = Field(alias="endCursor")
     has_next_page: bool = Field(alias="hasNextPage")
 
 
 class ProjectScopeFields(GQLResult):
-    typename__: Typename[Literal["Project"]] = "Project"
     id: GQLId
     name: str
 
 
 class QueueJobActionFields(GQLResult):
-    typename__: Typename[Literal["QueueJobTriggeredAction"]] = "QueueJobTriggeredAction"
     queue: QueueJobActionFieldsQueue | None
     template: str
 
@@ -111,7 +105,6 @@ class QueueJobActionFieldsQueue(GQLResult):
 
 
 class TriggerFields(GQLResult):
-    typename__: Typename[Literal["Trigger"]] = "Trigger"
     id: GQLId
     created_at: datetime = Field(alias="createdAt")
     updated_at: datetime | None = Field(alias="updatedAt")
@@ -119,20 +112,54 @@ class TriggerFields(GQLResult):
     description: str | None
     enabled: bool
     scope: (
-        ArtifactPortfolioScopeFields | ArtifactSequenceScopeFields | ProjectScopeFields
+        TriggerFieldsScopeArtifactPortfolio
+        | TriggerFieldsScopeArtifactSequence
+        | TriggerFieldsScopeProject
     ) = Field(discriminator="typename__")
-    event: FilterEventFields
+    event: TriggerFieldsEventFilterEventTriggeringCondition
     action: (
-        GenericWebhookActionFields
-        | NoOpActionFields
-        | NotificationActionFields
+        TriggerFieldsActionGenericWebhookTriggeredAction
+        | TriggerFieldsActionNoOpTriggeredAction
+        | TriggerFieldsActionNotificationTriggeredAction
         | TriggerFieldsActionPushNotificationTriggeredAction
-        | QueueJobActionFields
+        | TriggerFieldsActionQueueJobTriggeredAction
     ) = Field(discriminator="typename__")
+
+
+class TriggerFieldsScopeArtifactPortfolio(ArtifactPortfolioScopeFields):
+    typename__: Typename[Literal["ArtifactPortfolio"]]
+
+
+class TriggerFieldsScopeArtifactSequence(ArtifactSequenceScopeFields):
+    typename__: Typename[Literal["ArtifactSequence"]]
+
+
+class TriggerFieldsScopeProject(ProjectScopeFields):
+    typename__: Typename[Literal["Project"]]
+
+
+class TriggerFieldsEventFilterEventTriggeringCondition(FilterEventFields):
+    typename__: Typename[Literal["FilterEventTriggeringCondition"]]
+
+
+class TriggerFieldsActionGenericWebhookTriggeredAction(GenericWebhookActionFields):
+    typename__: Typename[Literal["GenericWebhookTriggeredAction"]]
+
+
+class TriggerFieldsActionNoOpTriggeredAction(NoOpActionFields):
+    typename__: Typename[Literal["NoOpTriggeredAction"]]
+
+
+class TriggerFieldsActionNotificationTriggeredAction(NotificationActionFields):
+    typename__: Typename[Literal["NotificationTriggeredAction"]]
 
 
 class TriggerFieldsActionPushNotificationTriggeredAction(GQLResult):
     typename__: Typename[Literal["PushNotificationTriggeredAction"]]
+
+
+class TriggerFieldsActionQueueJobTriggeredAction(QueueJobActionFields):
+    typename__: Typename[Literal["QueueJobTriggeredAction"]]
 
 
 class ProjectTriggersFields(GQLResult):

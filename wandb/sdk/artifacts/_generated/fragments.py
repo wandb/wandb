@@ -96,9 +96,15 @@ class ArtifactFragmentArtifactType(GQLResult):
 
 
 class ArtifactFragmentAliases(ArtifactAliasFragment):
-    artifact_collection: CollectionInfoFragment | None = Field(
+    artifact_collection: ArtifactFragmentAliasesArtifactCollection | None = Field(
         alias="artifactCollection"
     )
+
+
+class ArtifactFragmentAliasesArtifactCollection(CollectionInfoFragment):
+    typename__: Typename[
+        Literal["ArtifactCollection", "ArtifactPortfolio", "ArtifactSequence"]
+    ]
 
 
 class ArtifactMembershipFragment(GQLResult):
@@ -108,10 +114,16 @@ class ArtifactMembershipFragment(GQLResult):
     id: GQLId
     version_index: int | None = Field(alias="versionIndex")
     aliases: list[ArtifactAliasFragment]
-    artifact_collection: CollectionInfoFragment | None = Field(
+    artifact_collection: ArtifactMembershipFragmentArtifactCollection | None = Field(
         alias="artifactCollection"
     )
     artifact: ArtifactFragment | None
+
+
+class ArtifactMembershipFragmentArtifactCollection(CollectionInfoFragment):
+    typename__: Typename[
+        Literal["ArtifactCollection", "ArtifactPortfolio", "ArtifactSequence"]
+    ]
 
 
 class ArtifactPortfolioTypeFields(GQLResult):

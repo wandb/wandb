@@ -28,38 +28,34 @@ query GetAutomations($cursor: String, $perPage: Int) {
 }
 
 fragment ArtifactPortfolioScopeFields on ArtifactPortfolio {
-  __typename
   id
   name
 }
 
 fragment ArtifactSequenceScopeFields on ArtifactSequence {
-  __typename
   id
   name
 }
 
 fragment FilterEventFields on FilterEventTriggeringCondition {
-  __typename
   eventType
   filter
 }
 
 fragment GenericWebhookActionFields on GenericWebhookTriggeredAction {
-  __typename
   integration {
-    ...WebhookIntegrationFields
+    ... on GenericWebhookIntegration {
+      ...WebhookIntegrationFields
+    }
   }
   requestPayload
 }
 
 fragment NoOpActionFields on NoOpTriggeredAction {
-  __typename
   noOp
 }
 
 fragment NotificationActionFields on NotificationTriggeredAction {
-  __typename
   integration {
     ...SlackIntegrationFields
   }
@@ -74,7 +70,6 @@ fragment PageInfoFields on PageInfo {
 }
 
 fragment ProjectScopeFields on Project {
-  __typename
   id
   name
 }
@@ -87,7 +82,6 @@ fragment ProjectTriggersFields on Project {
 }
 
 fragment QueueJobActionFields on QueueJobTriggeredAction {
-  __typename
   queue {
     id
     name
@@ -96,14 +90,12 @@ fragment QueueJobActionFields on QueueJobTriggeredAction {
 }
 
 fragment SlackIntegrationFields on SlackIntegration {
-  __typename
   id
   teamName
   channelName
 }
 
 fragment TriggerFields on Trigger {
-  __typename
   id
   createdAt
   updatedAt
@@ -127,7 +119,6 @@ fragment TriggerFields on Trigger {
 }
 
 fragment WebhookIntegrationFields on GenericWebhookIntegration {
-  __typename
   id
   name
   urlEndpoint
@@ -151,38 +142,34 @@ query GetAutomationsByEntity($entity: String!, $cursor: String, $perPage: Int) {
 }
 
 fragment ArtifactPortfolioScopeFields on ArtifactPortfolio {
-  __typename
   id
   name
 }
 
 fragment ArtifactSequenceScopeFields on ArtifactSequence {
-  __typename
   id
   name
 }
 
 fragment FilterEventFields on FilterEventTriggeringCondition {
-  __typename
   eventType
   filter
 }
 
 fragment GenericWebhookActionFields on GenericWebhookTriggeredAction {
-  __typename
   integration {
-    ...WebhookIntegrationFields
+    ... on GenericWebhookIntegration {
+      ...WebhookIntegrationFields
+    }
   }
   requestPayload
 }
 
 fragment NoOpActionFields on NoOpTriggeredAction {
-  __typename
   noOp
 }
 
 fragment NotificationActionFields on NotificationTriggeredAction {
-  __typename
   integration {
     ...SlackIntegrationFields
   }
@@ -197,7 +184,6 @@ fragment PageInfoFields on PageInfo {
 }
 
 fragment ProjectScopeFields on Project {
-  __typename
   id
   name
 }
@@ -210,7 +196,6 @@ fragment ProjectTriggersFields on Project {
 }
 
 fragment QueueJobActionFields on QueueJobTriggeredAction {
-  __typename
   queue {
     id
     name
@@ -219,14 +204,12 @@ fragment QueueJobActionFields on QueueJobTriggeredAction {
 }
 
 fragment SlackIntegrationFields on SlackIntegration {
-  __typename
   id
   teamName
   channelName
 }
 
 fragment TriggerFields on Trigger {
-  __typename
   id
   createdAt
   updatedAt
@@ -250,7 +233,6 @@ fragment TriggerFields on Trigger {
 }
 
 fragment WebhookIntegrationFields on GenericWebhookIntegration {
-  __typename
   id
   name
   urlEndpoint
@@ -267,38 +249,34 @@ mutation CreateAutomation($input: CreateFilterTriggerInput!) {
 }
 
 fragment ArtifactPortfolioScopeFields on ArtifactPortfolio {
-  __typename
   id
   name
 }
 
 fragment ArtifactSequenceScopeFields on ArtifactSequence {
-  __typename
   id
   name
 }
 
 fragment FilterEventFields on FilterEventTriggeringCondition {
-  __typename
   eventType
   filter
 }
 
 fragment GenericWebhookActionFields on GenericWebhookTriggeredAction {
-  __typename
   integration {
-    ...WebhookIntegrationFields
+    ... on GenericWebhookIntegration {
+      ...WebhookIntegrationFields
+    }
   }
   requestPayload
 }
 
 fragment NoOpActionFields on NoOpTriggeredAction {
-  __typename
   noOp
 }
 
 fragment NotificationActionFields on NotificationTriggeredAction {
-  __typename
   integration {
     ...SlackIntegrationFields
   }
@@ -308,13 +286,11 @@ fragment NotificationActionFields on NotificationTriggeredAction {
 }
 
 fragment ProjectScopeFields on Project {
-  __typename
   id
   name
 }
 
 fragment QueueJobActionFields on QueueJobTriggeredAction {
-  __typename
   queue {
     id
     name
@@ -323,14 +299,12 @@ fragment QueueJobActionFields on QueueJobTriggeredAction {
 }
 
 fragment SlackIntegrationFields on SlackIntegration {
-  __typename
   id
   teamName
   channelName
 }
 
 fragment TriggerFields on Trigger {
-  __typename
   id
   createdAt
   updatedAt
@@ -354,7 +328,6 @@ fragment TriggerFields on Trigger {
 }
 
 fragment WebhookIntegrationFields on GenericWebhookIntegration {
-  __typename
   id
   name
   urlEndpoint
@@ -371,38 +344,34 @@ mutation UpdateAutomation($input: UpdateFilterTriggerInput!) {
 }
 
 fragment ArtifactPortfolioScopeFields on ArtifactPortfolio {
-  __typename
   id
   name
 }
 
 fragment ArtifactSequenceScopeFields on ArtifactSequence {
-  __typename
   id
   name
 }
 
 fragment FilterEventFields on FilterEventTriggeringCondition {
-  __typename
   eventType
   filter
 }
 
 fragment GenericWebhookActionFields on GenericWebhookTriggeredAction {
-  __typename
   integration {
-    ...WebhookIntegrationFields
+    ... on GenericWebhookIntegration {
+      ...WebhookIntegrationFields
+    }
   }
   requestPayload
 }
 
 fragment NoOpActionFields on NoOpTriggeredAction {
-  __typename
   noOp
 }
 
 fragment NotificationActionFields on NotificationTriggeredAction {
-  __typename
   integration {
     ...SlackIntegrationFields
   }
@@ -412,13 +381,11 @@ fragment NotificationActionFields on NotificationTriggeredAction {
 }
 
 fragment ProjectScopeFields on Project {
-  __typename
   id
   name
 }
 
 fragment QueueJobActionFields on QueueJobTriggeredAction {
-  __typename
   queue {
     id
     name
@@ -427,14 +394,12 @@ fragment QueueJobActionFields on QueueJobTriggeredAction {
 }
 
 fragment SlackIntegrationFields on SlackIntegration {
-  __typename
   id
   teamName
   channelName
 }
 
 fragment TriggerFields on Trigger {
-  __typename
   id
   createdAt
   updatedAt
@@ -458,7 +423,6 @@ fragment TriggerFields on Trigger {
 }
 
 fragment WebhookIntegrationFields on GenericWebhookIntegration {
-  __typename
   id
   name
   urlEndpoint
@@ -497,14 +461,12 @@ fragment PageInfoFields on PageInfo {
 }
 
 fragment SlackIntegrationFields on SlackIntegration {
-  __typename
   id
   teamName
   channelName
 }
 
 fragment WebhookIntegrationFields on GenericWebhookIntegration {
-  __typename
   id
   name
   urlEndpoint
@@ -522,7 +484,6 @@ mutation CreateGenericWebhookIntegration($input: CreateGenericWebhookIntegration
 }
 
 fragment WebhookIntegrationFields on GenericWebhookIntegration {
-  __typename
   id
   name
   urlEndpoint
