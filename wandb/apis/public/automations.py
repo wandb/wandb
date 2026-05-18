@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from collections.abc import Iterable, Iterator, Mapping
-from itertools import chain
 from typing import TYPE_CHECKING, Any
 
 from pydantic import ValidationError
@@ -74,4 +73,6 @@ class Automations(RelayPaginator["ProjectTriggersFields", "Automation"]):
 
     @override
     def convert_objects(self) -> Iterator[Automation]:
-        return chain.from_iterable(super().convert_objects())
+        if conn := self.last_response:
+            for node in conn.nodes():
+                yield from self._convert(node)

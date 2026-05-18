@@ -2205,31 +2205,34 @@ class Artifact:
                 data = self._service_api.execute_graphql(
                     query, variables=gql_vars, timeout=60
                 )
-                result = GetArtifactMembershipFileUrls.model_validate(data)
+                membership_result = GetArtifactMembershipFileUrls.model_validate(data)
 
                 if not (
-                    (project := result.project)
+                    (project := membership_result.project)
                     and (collection := project.artifact_collection)
                     and (membership := collection.artifact_membership)
-                    and (files := membership.files)
+                    and (membership_files := membership.files)
                 ):
                     raise ValueError(
                         f"Unable to fetch files for artifact: {self.name!r}"
                     )
-                return FileWithUrlConnection.model_validate(files)
+                return FileWithUrlConnection.model_validate(membership_files)
             else:
                 query = GET_ARTIFACT_FILE_URLS_GQL
                 gql_vars = {"id": self.id, "cursor": cursor, "perPage": per_page}
                 data = self._service_api.execute_graphql(
                     query, variables=gql_vars, timeout=60
                 )
-                result = GetArtifactFileUrls.model_validate(data)
+                file_result = GetArtifactFileUrls.model_validate(data)
 
-                if not ((artifact := result.artifact) and (files := artifact.files)):
+                if not (
+                    (artifact := file_result.artifact)
+                    and (artifact_files := artifact.files)
+                ):
                     raise ValueError(
                         f"Unable to fetch files for artifact: {self.name!r}"
                     )
-                return FileWithUrlConnection.model_validate(files)
+                return FileWithUrlConnection.model_validate(artifact_files)
 
         return _impl
 
@@ -2623,7 +2626,11 @@ class Artifact:
         Raises:
             ArtifactNotLoggedError: If the artifact is not logged.
         """
-        from ._generated import ARTIFACT_CREATED_BY_GQL, ArtifactCreatedBy
+        from ._generated import (
+            ARTIFACT_CREATED_BY_GQL,
+            ArtifactCreatedBy,
+            RunInfoFragment,
+        )
 
         if (service_api := self._service_api) is None:
             raise RuntimeError("Client not initialized for artifact queries")
@@ -2636,6 +2643,7 @@ class Artifact:
         if (
             (artifact := result.artifact)
             and (creator := artifact.created_by)
+            and isinstance(creator, RunInfoFragment)
             and (name := creator.name)
             and (project := creator.project)
         ):
