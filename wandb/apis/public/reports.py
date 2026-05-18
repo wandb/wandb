@@ -12,8 +12,6 @@ import re
 import urllib
 from typing import TYPE_CHECKING, Any
 
-from wandb_gql import gql
-
 import wandb
 from wandb._strutils import nameof
 from wandb.apis import public
@@ -22,7 +20,6 @@ from wandb.apis.paginator import SizedPaginator
 from wandb.sdk.lib import ipython
 
 if TYPE_CHECKING:
-    from .api import RetryingClient
     from .projects import Project
     from .service_api import ServiceApi
 
@@ -42,8 +39,7 @@ class Reports(SizedPaginator["BetaReport"]):
         per_page (int): Number of reports to fetch per page (default is 50).
     """
 
-    QUERY = gql(
-        """
+    QUERY = """
         query ProjectViews($project: String!, $entity: String!, $reportCursor: String,
             $reportLimit: Int!, $viewType: String = "runs", $viewName: String) {
             project(name: $project, entityName: $entity) {
@@ -75,17 +71,14 @@ class Reports(SizedPaginator["BetaReport"]):
             }
         }
         """
-    )
 
     def __init__(
         self,
-        client: RetryingClient,
+        service_api: ServiceApi,
         project: Project,
         name: str | None = None,
         entity: str | None = None,
         per_page: int = 50,
-        *,
-        service_api: ServiceApi,
     ):
         self.project = project
         self.name = name
@@ -95,7 +88,7 @@ class Reports(SizedPaginator["BetaReport"]):
             "entity": project.entity,
             "viewName": self.name,
         }
-        super().__init__(client, variables, per_page)
+        super().__init__(service_api, variables, per_page)
 
     @property
     def _length(self) -> int | None:
@@ -163,11 +156,10 @@ class Reports(SizedPaginator["BetaReport"]):
 
         return [
             BetaReport(
-                self.client,
+                self._service_api,
                 r["node"],
                 entity=self.project.entity,
                 project=self.project.name,
-                service_api=self._service_api,
             )
             for r in edges
         ]
@@ -198,17 +190,14 @@ class BetaReport(Attrs):
 
     def __init__(
         self,
-        client: RetryingClient,
+        service_api: ServiceApi,
         attrs: dict,
         entity: str | None = None,
         project: str | None = None,
-        *,
-        service_api: ServiceApi,
     ):
-        self.client = client
+        self._service_api = service_api
         self.project = project
         self.entity = entity
-        self._service_api = service_api
         self.query_generator = public.QueryGenerator()
         super().__init__(dict(attrs))
 
@@ -248,13 +237,12 @@ class BetaReport(Attrs):
                 {"name": {"$in": run_set["selections"]["tree"]}}
             )
         return public.Runs(
-            self.client,
+            self._service_api,
             self.entity,
             self.project,
             filters=filters,
             order=order,
             per_page=per_page,
-            service_api=self._service_api,
         )
 
     @property
@@ -288,14 +276,14 @@ class BetaReport(Attrs):
     @property
     def url(self) -> str | None:
         if (
-            not self.client
+            not self._service_api
             or not self.entity
             or not self.project
             or not self.display_name
             or not self.id
         ):
             return None
-        return self.client.app_url + "/".join(
+        return self._service_api.app_url + "/".join(
             [
                 self.entity,
                 self.project,

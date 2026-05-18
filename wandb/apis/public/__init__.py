@@ -1,6 +1,5 @@
 __all__ = (
     "Api",
-    "RetryingClient",  # doc:exclude
     "requests",  # doc:exclude
     "ArtifactCollection",
     "ArtifactCollections",
@@ -45,7 +44,7 @@ __all__ = (
 )
 
 
-from wandb.apis.public.api import Api, RetryingClient
+from wandb.apis.public.api import Api
 from wandb.apis.public.artifacts import (
     ArtifactCollection,
     ArtifactCollections,

@@ -1,22 +1,53 @@
-from unittest import mock
+from __future__ import annotations
 
+from typing import Any
+
+import pytest
 from wandb.apis.public.service_api import ServiceApi
-from wandb.proto.wandb_api_pb2 import ApiResponse, GraphQLResponse
+from wandb.proto import wandb_api_pb2 as apb
+from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 
 
 def test_execute_graphql_sends_query_unchanged_and_timeout():
-    api = ServiceApi(mock.MagicMock())
-    api.send_api_request = mock.MagicMock(
-        return_value=ApiResponse(
-            graphql_response=GraphQLResponse(data_json='{"ok": true}')
+    api = ServiceApi.__new__(ServiceApi)
+    api._timeout = None
+    sent: dict[str, Any] = {}
+
+    def send_api_request(
+        request: apb.ApiRequest,
+        timeout: float | None = None,
+    ) -> apb.ApiResponse:
+        sent["request"] = request
+        sent["timeout"] = timeout
+        return apb.ApiResponse(
+            graphql_response=apb.GraphQLResponse(data_json='{"ok": true}')
         )
-    )
+
+    api.send_api_request = send_api_request
 
     query = "#graphql\nquery Viewer { viewer { id } }"
+    result = api.execute_graphql(query, {"x": 1}, timeout=3)
 
-    assert api.execute_graphql(query, {"x": 1}, timeout=3) == {"ok": True}
+    assert result == {"ok": True}
+    assert sent["timeout"] == 3
+    assert sent["request"].graphql_request.query == query
+    assert sent["request"].graphql_request.variables_json == '{"x": 1}'
 
-    request = api.send_api_request.call_args.args[0]
-    assert request.graphql_request.query == query
-    assert request.graphql_request.variables_json == '{"x": 1}'
-    assert api.send_api_request.call_args.kwargs == {"timeout": 3}
+
+def test_execute_graphql_propagates_core_api_error_response():
+    api = ServiceApi.__new__(ServiceApi)
+    api._timeout = None
+    error_response = apb.ApiErrorResponse(message="server unavailable")
+
+    def send_api_request(
+        request: apb.ApiRequest,
+        timeout: float | None = None,
+    ) -> apb.ApiResponse:
+        raise WandbApiFailedError(error_response.message, error_response)
+
+    api.send_api_request = send_api_request
+
+    with pytest.raises(WandbApiFailedError, match="server unavailable") as exc_info:
+        api.execute_graphql("query Viewer { viewer { id } }")
+
+    assert exc_info.value.response is error_response

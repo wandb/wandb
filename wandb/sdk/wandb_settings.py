@@ -2213,6 +2213,7 @@ class Settings(BaseModel, validate_assignment=True):
         except Exception:
             # if the git command fails, fall back to the current working directory
             root = os.getcwd()
+        root = os.fsdecode(root)
 
         self.program_relpath = self.program_relpath or self._get_program_relpath(
             program, root

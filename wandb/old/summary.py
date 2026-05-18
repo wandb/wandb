@@ -2,8 +2,6 @@ import json
 import os
 import time
 
-from wandb_gql import gql
-
 import wandb
 from wandb import util
 from wandb.apis.internal import Api
@@ -382,10 +380,10 @@ class FileSummary(Summary):
 
 
 class HTTPSummary(Summary):
-    def __init__(self, run, client, summary=None):
+    def __init__(self, run, service_api, summary=None):
         super().__init__(run, summary=summary)
         self._run = run
-        self._client = client
+        self._service_api = service_api
         self._started = time.time()
 
     def __delitem__(self, key):
@@ -407,22 +405,20 @@ class HTTPSummary(Summary):
         super().open_h5()
 
     def _write(self, commit=False):
-        mutation = gql(
-            """
+        mutation = """
         mutation UpsertBucket( $id: String, $summaryMetrics: JSONString) {
             upsertBucket(input: { id: $id, summaryMetrics: $summaryMetrics}) {
                 bucket { id }
             }
         }
         """
-        )
         if commit:
             if self._h5:
                 self._h5.close()
                 self._h5 = None
-            res = self._client.execute(
+            res = self._service_api.execute_graphql(
                 mutation,
-                variable_values={
+                variables={
                     "id": self._run.storage_id,
                     "summaryMetrics": util.json_dumps_safer(self._json_dict),
                 },

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import errno
 import os
 import random
@@ -122,6 +124,22 @@ def test_check_md5_obj_path_override(artifact_file_cache):
     artifact_file_cache._override_cache_path = override_path
     path, exists, _ = artifact_file_cache.check_md5_obj_path(md5, 2)
     assert path == override_path
+    assert exists is False
+
+
+def test_check_md5_obj_path_explicit_override_does_not_persist(artifact_file_cache):
+    md5 = md5_string("hi")
+    override_path = os.path.join(artifact_file_cache._cache_dir, "override.cache")
+    path, exists, _ = artifact_file_cache.check_md5_obj_path(
+        md5,
+        2,
+        override_cache_path=override_path,
+    )
+    assert path == override_path
+    assert exists is False
+
+    path, exists, _ = artifact_file_cache.check_md5_obj_path(md5, 2)
+    assert path != override_path
     assert exists is False
 
 
@@ -476,15 +494,23 @@ def test_cache_add_cleans_up_tmp_when_write_fails(artifact_file_cache, monkeypat
 
 
 class FakePublicApi:
+    service_api = object()
+
     @property
     def client(self):
         return None
 
+    def _artifact_from_id(self, _artifact_id: str) -> Artifact | None:
+        artifact = wandb.Artifact("test", type="dataset")
+        artifact.get_entry = lambda _: artifact
+        artifact.ref_target = lambda: "wandb-artifact://deadbeef/path/to/file.json"
+        artifact.download = lambda: "foo/bar"
+        return artifact
 
-def test_wbartifact_handler_load_path_nonlocal(monkeypatch):
+
+def test_wbartifact_handler_load_path_nonlocal():
     path = "foo/bar"
     uri = "wandb-artifact://deadbeef/path/to/file.json"
-    artifact = wandb.Artifact("test", type="dataset")
     manifest_entry = ArtifactManifestEntry(
         path=path,
         ref=uri,
@@ -494,18 +520,14 @@ def test_wbartifact_handler_load_path_nonlocal(monkeypatch):
 
     handler = WBArtifactHandler()
     handler._client = FakePublicApi()
-    monkeypatch.setattr(Artifact, "_from_id", lambda _1, _2: artifact)
-    artifact.get_entry = lambda _: artifact
-    artifact.ref_target = lambda: uri
 
     local_path = handler.load_path(manifest_entry)
     assert local_path == uri
 
 
-def test_wbartifact_handler_load_path_local(monkeypatch):
+def test_wbartifact_handler_load_path_local():
     path = "foo/bar"
     uri = "wandb-artifact://deadbeef/path/to/file.json"
-    artifact = wandb.Artifact("test", type="dataset")
     manifest_entry = ArtifactManifestEntry(
         path=path,
         ref=uri,
@@ -515,9 +537,6 @@ def test_wbartifact_handler_load_path_local(monkeypatch):
 
     handler = WBArtifactHandler()
     handler._client = FakePublicApi()
-    monkeypatch.setattr(Artifact, "_from_id", lambda _1, _2: artifact)
-    artifact.get_entry = lambda _: artifact
-    artifact.download = lambda: path
 
     local_path = handler.load_path(manifest_entry, local=True)
     assert local_path == path

@@ -62,12 +62,15 @@ class _TtyTester:
         # The child side is for the subprocess. The subprocess can read it
         # to receive bytes written on the parent side and can write to it
         # to output bytes to the parent side.
+        env = os.environ.copy()
+        env["TERM"] = "xterm-256color"
         self._parent_fd, child_fd = pty.openpty()
         self._proc = subprocess.Popen(
             ("python", self._script, *(args or [])),
             stdin=child_fd,
             stderr=child_fd,
             stdout=child_fd,
+            env=env,
         )
 
         # Close our copy of the child FD as we no longer need it.

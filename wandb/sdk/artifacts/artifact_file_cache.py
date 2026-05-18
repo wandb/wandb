@@ -14,7 +14,7 @@ from contextlib import AbstractContextManager
 from functools import lru_cache
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import IO, Protocol
+from typing import IO, Protocol, cast
 
 import wandb
 from wandb import env, util
@@ -25,6 +25,9 @@ from wandb.sdk.lib.paths import FilePathStr, StrPath, URIStr
 
 class Opener(Protocol):
     def __call__(self, mode: str = ...) -> AbstractContextManager[IO]: ...
+
+
+_DEFAULT_OVERRIDE = object()
 
 
 def artifacts_cache_dir() -> Path:
@@ -55,12 +58,17 @@ class ArtifactFileCache:
         self._override_cache_path: StrPath | None = None
 
     def check_md5_obj_path(
-        self, b64_md5: B64MD5, size: int
+        self,
+        b64_md5: B64MD5,
+        size: int,
+        override_cache_path: StrPath | None | object = _DEFAULT_OVERRIDE,
     ) -> tuple[FilePathStr, bool, Opener]:
         # Check if we're using vs skipping the cache
-        if self._override_cache_path is not None:
+        if override_cache_path is _DEFAULT_OVERRIDE:
+            override_cache_path = self._override_cache_path
+        if override_cache_path is not None:
             skip_cache = True
-            path = Path(self._override_cache_path)
+            path = Path(cast(StrPath, override_cache_path))
         else:
             skip_cache = False
             hex_md5 = b64_to_hex_id(b64_md5)
@@ -74,11 +82,14 @@ class ArtifactFileCache:
         url: URIStr,
         etag: ETag,
         size: int,
+        override_cache_path: StrPath | None | object = _DEFAULT_OVERRIDE,
     ) -> tuple[FilePathStr, bool, Opener]:
         # Check if we're using vs skipping the cache
-        if self._override_cache_path is not None:
+        if override_cache_path is _DEFAULT_OVERRIDE:
+            override_cache_path = self._override_cache_path
+        if override_cache_path is not None:
             skip_cache = True
-            path = Path(self._override_cache_path)
+            path = Path(cast(StrPath, override_cache_path))
         else:
             skip_cache = False
             hexhash = hashlib.sha256(

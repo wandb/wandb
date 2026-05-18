@@ -138,7 +138,7 @@ def test_artifact_type_collections(api: Api):
     assert remaining_names_via_collection == remaining_names_via_api
     assert all_collection_names == [first_name, *remaining_names_via_api]
 
-    if server_supports(api.client, pb.ARTIFACT_COLLECTIONS_FILTERING_SORTING):
+    if server_supports(api._service_api, pb.ARTIFACT_COLLECTIONS_FILTERING_SORTING):
         cols = atype.collections(filters={"name": "mnist"})
         assert len(cols) == 1 and cols[0].name == "mnist"
         cols = atype.collections(order="name")
@@ -176,7 +176,12 @@ def test_artifact_types_start(api: Api):
     project_path = f"{artifact.entity}/{artifact.project}"
     all_type_names = [atype.name for atype in api.artifact_types(project_path)]
 
-    types = ArtifactTypes(api.client, artifact.entity, artifact.project, per_page=1)
+    types = ArtifactTypes(
+        api._service_api,
+        artifact.entity,
+        artifact.project,
+        per_page=1,
+    )
     first_name = next(types).name
     saved_cursor = types.cursor
 
@@ -203,7 +208,7 @@ def test_project_collections(api: Api):
     project_name = artifact.project
     project = api.project(project_name)
 
-    if server_supports(api.client, pb.ARTIFACT_COLLECTIONS_FILTERING_SORTING):
+    if server_supports(api._service_api, pb.ARTIFACT_COLLECTIONS_FILTERING_SORTING):
         # fetching all collections in the project
         cols = project.collections()
         assert len(cols) == 2
@@ -264,7 +269,7 @@ def test_artifact_file(api: Api):
 @mark.usefixtures("sample_data")
 def test_artifact_files(api: Api):
     art = api.artifact("mnist:v0", type="dataset")
-    if server_supports(api.client, pb.TOTAL_COUNT_IN_FILE_CONNECTION):
+    if server_supports(api._service_api, pb.TOTAL_COUNT_IN_FILE_CONNECTION):
         assert (
             str(art.files())
             == f"<ArtifactFiles {art.entity}/uncategorized/mnist:v0 (1)>"
@@ -279,7 +284,7 @@ def test_artifact_files(api: Api):
 
 @mark.usefixtures("sample_data")
 def test_artifacts_files_filtered_length(api: Api):
-    if not server_supports(api.client, pb.TOTAL_COUNT_IN_FILE_CONNECTION):
+    if not server_supports(api._service_api, pb.TOTAL_COUNT_IN_FILE_CONNECTION):
         skip("Server doesn't support FileConnection.totalCount")
 
     # creating a new artifact with files
@@ -338,8 +343,7 @@ def test_artifact_collection_exists(api: Api):
     assert api.artifact_collection_exists("mnist-fake", "dataset") is False
 
 
-@mark.usefixtures("sample_data")
-def test_artifact_exists_raises_on_timeout(mocker: MockerFixture, api: Api):
+def test_artifact_exists_raises_on_timeout(user: str, mocker: MockerFixture, api: Api):
     # FIXME: We should really be mocking the GraphQL HTTP requests/responses, NOT the
     # actual python methods, but this is complicated by the fact that we need to instantiate
     # a new Api with a shorter timeout, and that Api makes immediate requests on _instantiation_.
@@ -363,8 +367,9 @@ def test_artifact_exists_raises_on_timeout(mocker: MockerFixture, api: Api):
     assert isinstance(exc_info.value.exc, requests.Timeout)
 
 
-@mark.usefixtures("sample_data")
-def test_artifact_collection_exists_raises_on_timeout(mocker: MockerFixture, api: Api):
+def test_artifact_collection_exists_raises_on_timeout(
+    user: str, mocker: MockerFixture, api: Api
+):
     # FIXME: We should really be mocking the GraphQL HTTP requests/responses, NOT the
     # actual python methods, but this is complicated by the fact that we need to instantiate
     # a new Api with a shorter timeout, and that Api makes immediate requests on _instantiation_.
@@ -617,7 +622,8 @@ def test_fetch_registry_artifact(
     from tests.fixtures.wandb_backend_spy.gql_match import Constant, Matcher
 
     server_supports_artifact_via_membership = server_supports(
-        api.client, pb.PROJECT_ARTIFACT_COLLECTION_MEMBERSHIP
+        api._service_api,
+        pb.PROJECT_ARTIFACT_COLLECTION_MEMBERSHIP,
     )
 
     mocker.patch("wandb.sdk.artifacts.artifact.Artifact._from_attrs")

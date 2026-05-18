@@ -1,17 +1,14 @@
 import json
 from unittest.mock import MagicMock
 
-import wandb
 from wandb.apis import internal
 
 
-def test_create_run_queue(monkeypatch):
+def test_create_run_queue():
     _api = internal.Api()
 
     # prioritization_mode present on server
-    _api.api.gql = MagicMock(return_value={"createRunQueue": "test-result"})
-    mock_gql = MagicMock(return_value="test-gql-resp")
-    monkeypatch.setattr(wandb.sdk.internal.internal_api, "gql", mock_gql)
+    _api.api.execute = MagicMock(return_value={"createRunQueue": "test-result"})
 
     kwargs = {
         "entity": "test-entity",
@@ -23,25 +20,23 @@ def test_create_run_queue(monkeypatch):
     }
     resp = _api.create_run_queue(**kwargs)
     assert resp == "test-result"
-    _api.api.gql.assert_called_once_with(
-        "test-gql-resp",
-        {
-            "entity": "test-entity",
-            "project": "test-project",
-            "queueName": "test-queue",
-            "access": "test-access",
-            "prioritizationMode": "test-prioritization-mode",
-            "defaultResourceConfigID": "test-config-id",
-        },
-    )
+    call_args = _api.api.execute.call_args[0]
+    assert "createRunQueue" in call_args[0]
+    assert call_args[1] == {
+        "entity": "test-entity",
+        "project": "test-project",
+        "queueName": "test-queue",
+        "access": "test-access",
+        "prioritizationMode": "test-prioritization-mode",
+        "defaultResourceConfigID": "test-config-id",
+    }
 
 
-def test_push_to_run_queue_by_name(monkeypatch):
+def test_push_to_run_queue_by_name():
     _api = internal.Api()
     mock_run_spec = {"test-key": "test-value"}
     mock_gql_response = {"pushToRunQueueByName": {"runSpec": json.dumps(mock_run_spec)}}
-    _api.api.gql = MagicMock(return_value=mock_gql_response)
-    monkeypatch.setattr(wandb.sdk.internal.internal_api, "gql", lambda x: x)
+    _api.api.execute = MagicMock(return_value=mock_gql_response)
 
     push_kwargs = {
         "entity": "test-entity",
@@ -55,7 +50,7 @@ def test_push_to_run_queue_by_name(monkeypatch):
     resp = _api.api.push_to_run_queue_by_name(**push_kwargs)
 
     assert resp == {"runSpec": mock_run_spec}
-    call_args = _api.api.gql.call_args[0]
+    call_args = _api.api.execute.call_args[0]
     assert "$priority: Int" in call_args[0]
     assert "priority: $priority" in call_args[0]
     assert call_args[1] == {
@@ -67,13 +62,12 @@ def test_push_to_run_queue_by_name(monkeypatch):
     }
 
 
-def test_upsert_sweep(monkeypatch):
+def test_upsert_sweep():
     _api = internal.Api()
     mock_sweep_name = "test-sweep"
     mock_display_name = "test-sweep-display-name"
     mock_gql_response = {"upsertSweep": {"sweep": {"name": mock_sweep_name}}}
-    _api.api.gql = MagicMock(return_value=mock_gql_response)
-    monkeypatch.setattr(wandb.sdk.internal.internal_api, "gql", lambda x: x)
+    _api.api.execute = MagicMock(return_value=mock_gql_response)
 
     run_ids = ["abc", "def"]
     sweep_config = {
@@ -96,14 +90,14 @@ def test_upsert_sweep(monkeypatch):
     resp = _api.api.upsert_sweep(**upsert_kwargs)
 
     assert resp == (mock_sweep_name, [])
-    call_args = _api.api.gql.call_args[0]
-    call_kwargs = _api.api.gql.call_args.kwargs
+    call_args = _api.api.execute.call_args[0]
+    call_kwargs = _api.api.execute.call_args.kwargs
     assert "$priorRunsFilters: JSONString" in call_args[0]
     assert "priorRunsFilters: $priorRunsFilters" in call_args[0]
     assert (
-        call_kwargs["variable_values"]["priorRunsFilters"]
+        call_kwargs["variables"]["priorRunsFilters"]
         == '{"$or": [{"name": "abc"}, {"name": "def"}]}'
     )
     assert "$displayName: String" in call_args[0]
     assert "displayName: $displayName" in call_args[0]
-    assert call_kwargs["variable_values"]["displayName"] == mock_display_name
+    assert call_kwargs["variables"]["displayName"] == mock_display_name

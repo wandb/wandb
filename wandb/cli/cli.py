@@ -1413,6 +1413,11 @@ def launch_sweep(
     if not sweep_utils.check_job_exists(PublicApi(), scheduler_job):
         return False
 
+    if not sweep_config.get("job") and not any(
+        p["name"] == project for p in api.list_projects(entity=entity)
+    ):
+        raise LaunchError(f"Could not find project {entity}/{project}")
+
     # Set run overrides for the Scheduler
     overrides = {"run_config": {}}
     if launch_args:

@@ -32,7 +32,6 @@ from wandb.automations._generated import (
 )
 from wandb.automations._utils import INVALID_INPUT_ACTIONS, INVALID_INPUT_EVENTS
 from wandb.automations.events import InputEvent
-from wandb_gql import gql
 
 ScopableWandbType: TypeAlias = ArtifactCollection | Project
 
@@ -112,10 +111,10 @@ def make_webhook_integration(
         gql_input = CreateGenericWebhookIntegrationInput(
             name=name, entity_name=entity, url_endpoint=url
         )
-        gql_op = gql(CREATE_GENERIC_WEBHOOK_INTEGRATION_GQL)
+        gql_op = CREATE_GENERIC_WEBHOOK_INTEGRATION_GQL
         gql_vars = {"input": gql_input.model_dump()}
         api = make_module_api()
-        data = api.client.execute(gql_op, variable_values=gql_vars)
+        data = api._service_api.execute_graphql(gql_op, variables=gql_vars)
 
         result = CreateGenericWebhookIntegration(**data)
         integration = result.create_generic_webhook_integration.integration

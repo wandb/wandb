@@ -5,9 +5,12 @@ import json
 import logging
 import uuid
 import weakref
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from typing import Any, cast
 
+from packaging.version import parse
+
+from wandb import util
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto.wandb_api_pb2 import (
     ApiRequest,
@@ -35,31 +38,67 @@ def _cleanup(connection: ServiceConnection | None, api_id: str) -> None:
 class ServiceApi:
     """A lazy initialized handle to the wandb-core service for handling API requests."""
 
+    _SERVER_INFO_QUERY = """
+        query ServerInfo{
+            serverInfo {
+                cliVersionInfo
+                latestLocalVersionInfo {
+                    outOfDate
+                    latestVersionString
+                    versionOnThisInstanceString
+                }
+            }
+        }
+        """
+
     def __init__(
         self,
         settings: wandb_settings.Settings,
+        timeout: float | None = None,
     ):
         self._settings = settings
+        self._timeout = timeout
         self._service_connection: ServiceConnection | None = None
         self._api_id = str(uuid.uuid4())
+        self._server_info: dict[str, Any] | None = None
+
+    @property
+    def app_url(self) -> str:
+        return util.app_url(self._settings.base_url.rstrip("/")) + "/"
+
+    @property
+    def api_key(self) -> str | None:
+        return self._settings.api_key
+
+    @property
+    def server_info(self) -> dict[str, Any]:
+        if self._server_info is None:
+            self._server_info = self.execute_graphql(self._SERVER_INFO_QUERY).get(
+                "serverInfo"
+            )
+        return self._server_info or {}
+
+    def version_supported(self, min_version: str) -> bool:
+        return parse(min_version) <= parse(
+            self.server_info["cliVersionInfo"]["max_cli_version"]
+        )
 
     def _get_service_connection(self) -> ServiceConnection:
         """Connects to the service and initializes resources for handling API requests."""
-        if self._service_connection is None:
-            self._service_connection = wandb_setup.singleton().ensure_service()
-            response = self._service_connection.api_init_request(
-                self._settings.to_proto(),
-            )
+        service_connection = wandb_setup.singleton().ensure_service()
+        if self._service_connection is not service_connection:
+            self._service_connection = service_connection
+            response = service_connection.api_init_request(self._settings.to_proto())
             self._api_id = response.api_id
 
             weakref.finalize(
                 self,
                 _cleanup,
-                self._service_connection,
+                service_connection,
                 self._api_id,
             )
 
-        return self._service_connection
+        return service_connection
 
     def send_api_request(
         self,
@@ -79,6 +118,11 @@ class ServiceApi:
         query: str,
         variables: Mapping[str, Any] | None = None,
         timeout: float | None = None,
+        *,
+        omit_variables: Iterable[str] | None = None,
+        omit_fragments: Iterable[str] | None = None,
+        omit_fields: Iterable[str] | None = None,
+        rename_fields: Mapping[str, str] | None = None,
     ) -> Any:
         """Execute a GraphQL operation through the wandb-core sidecar.
 
@@ -92,6 +136,16 @@ class ServiceApi:
                 on the wire.
             timeout: Optional timeout in seconds for waiting on wandb-core.
                 On timeout, the request is cancelled on a best-effort basis.
+            omit_variables: Variable names ($var) to strip from the query
+                server-side before forwarding to the backend. Use this to
+                drop variables that the deployed server version does not
+                support, leaving the rest of the query intact.
+            omit_fragments: Fragment names to strip (both their definitions
+                and any spreads referring to them).
+            omit_fields: Field names to strip from selection sets. Aliased
+                occurrences are also removed.
+            rename_fields: Field renames applied to selection sets
+                (`{old_name: new_name}`). Aliases are preserved.
 
         Returns:
             The decoded `data` field of the GraphQL response.
@@ -106,9 +160,16 @@ class ServiceApi:
             graphql_request=GraphQLRequest(
                 query=query,
                 variables_json=json.dumps(variables or {}),
+                omit_variables=list(omit_variables) if omit_variables else None,
+                omit_fragments=list(omit_fragments) if omit_fragments else None,
+                omit_fields=list(omit_fields) if omit_fields else None,
+                rename_fields=dict(rename_fields) if rename_fields else None,
             )
         )
-        response = self.send_api_request(request, timeout=timeout)
+        response = self.send_api_request(
+            request,
+            timeout=timeout if timeout is not None else self._timeout,
+        )
         return json.loads(response.graphql_response.data_json)
 
     async def send_api_request_async(

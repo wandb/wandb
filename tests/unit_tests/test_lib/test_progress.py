@@ -1,6 +1,7 @@
 from collections.abc import Generator
 
 import pytest
+import wandb
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.lib import printer as p
 from wandb.sdk.lib import progress
@@ -18,7 +19,7 @@ def dynamic_progress_printer(
     _ = emulated_terminal
 
     with progress.progress_printer(
-        p.new_printer(),
+        p.new_printer(settings=wandb.Settings()),
         "DEFAULT TEXT",
     ) as progress_printer:
         yield progress_printer
@@ -28,7 +29,7 @@ def dynamic_progress_printer(
 def static_progress_printer() -> Generator[progress.ProgressPrinter]:
     """A ProgressPrinter that writes to a file or dumb terminal."""
     with progress.progress_printer(
-        p.new_printer(),
+        p.new_printer(settings=wandb.Settings()),
         "DEFAULT TEXT",
     ) as progress_printer:
         yield progress_printer

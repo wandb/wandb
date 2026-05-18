@@ -371,6 +371,12 @@ class JobBuilder:
         if self._partial and metadata.get("entrypoint"):
             entrypoint: list[str] = metadata["entrypoint"]
             return entrypoint
+        if (
+            self._partial
+            and (python_version := metadata.get("python"))
+            and (match := re.match(r"^(\d+)", str(python_version)))
+        ):
+            return [f"python{match.group(1)}", program_relpath]
         # job is being built from a run
         entrypoint = [os.path.basename(sys.executable), program_relpath]
 

@@ -74,9 +74,9 @@ def automation_id() -> str:
 @fixture(scope="session")
 def mock_client(session_mocker: MockerFixture) -> Mock:
     """A mocked wandb client to prevent real API calls."""
-    from wandb.apis.public import RetryingClient
+    from wandb.apis.public.service_api import ServiceApi
 
-    return session_mocker.Mock(spec=RetryingClient)
+    return session_mocker.Mock(spec=ServiceApi)
 
 
 @fixture(scope="session")
@@ -94,7 +94,7 @@ def artifact_collection(mock_client: Mock) -> ArtifactCollection:
     entity_name = "test-entity"
     collection_type = "dataset"
     collection = ArtifactCollection(
-        client=mock_client,
+        service_api=mock_client,
         entity=entity_name,
         project=project_name,
         name=collection_name,
@@ -131,13 +131,12 @@ def project(mock_client: Mock) -> Project:
     Tests relying on real `wandb.Api` calls should live in system tests.
     """
     return Project(
-        client=mock_client,
+        service_api=mock_client,
         entity="test-entity",
         project="test-project",
         attrs={
             "id": make_graphql_id(prefix="Project"),
         },
-        service_api=Mock(),
     )
 
 

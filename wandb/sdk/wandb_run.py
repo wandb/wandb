@@ -3341,7 +3341,7 @@ class Run:
                     is_user_created=is_user_created,
                     use_after_commit=use_after_commit,
                 )
-                artifact._set_save_handle(handle, self._public_api().client)
+                self._public_api()._set_artifact_save_handle(artifact, handle)
             else:
                 self._interface.publish_artifact(
                     self,
@@ -3384,16 +3384,16 @@ class Run:
     def _assert_can_log_artifact(self, artifact) -> None:  # type: ignore
         import requests
 
-        from wandb.sdk.artifacts.artifact import Artifact
-
         if self._settings._offline:
             return
         try:
             public_api = self._public_api()
             entity = public_api.settings["entity"]
             project = public_api.settings["project"]
-            expected_type = Artifact._expected_type(
-                entity, project, artifact.name, public_api.client
+            expected_type = public_api._expected_artifact_type(
+                entity=entity,
+                project=project,
+                name=artifact.name,
             )
         except requests.exceptions.RequestException:
             # Just return early if there is a network error. This is
