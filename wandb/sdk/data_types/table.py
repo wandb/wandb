@@ -7,6 +7,7 @@ import datetime
 import json
 import logging
 import os
+from collections.abc import Iterator
 from typing import TYPE_CHECKING, Any, Literal
 
 import wandb
@@ -829,6 +830,24 @@ class Table(Media):
             index = _TableIndex(ndx)
             index.set_table(self)
             yield index, self.data[ndx]
+
+    def iter_records_unwrapped(self) -> Iterator[dict[str, Any]]:
+        """Iterate table rows as dicts with wandb media types converted for Weave.
+
+        Yields one dict per row, lazily. wandb.Image values are converted to
+        PIL.Image (or weave.Content as fallback). Other wandb media types raise
+        TypeError. Non-media values are returned unchanged.
+
+        Yields:
+        ------
+        row: dict mapping column name to unwrapped cell value.
+        """
+        from wandb.sdk.data_types.media_adapters import unwrap_value
+
+        cols = self.columns
+        warned: set[type] = set()
+        for row in self.data:
+            yield {col: unwrap_value(val, col, warned) for col, val in zip(cols, row)}
 
     @allow_relogging_after_mutation
     def set_pk(self, col_name):
