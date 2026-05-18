@@ -1,4 +1,9 @@
-"""Tooling for the W&B Importer."""
+"""
+NOT SUPPORTED: This is a proof of concept, and not an actual migration script. This is not expected to work in any W&B server or client version. 
+Do NOT rely on this tooling to move data between W&B instances.
+
+Tooling for the W&B Importer.
+"""
 
 from __future__ import annotations
 
