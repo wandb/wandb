@@ -56,7 +56,7 @@ attrs==26.1.0
     #   referencing
 autoflake==2.3.3
     # via ariadne-codegen
-awscli==1.45.6
+awscli==1.45.9
     # via wandb
 azure-containerregistry==1.2.0
     # via wandb
@@ -67,7 +67,7 @@ azure-core==1.41.0
     #   azure-storage-blob
 azure-identity==1.25.3
     # via wandb
-azure-storage-blob==12.28.0
+azure-storage-blob==12.29.0
     # via wandb
 babel==2.18.0
     # via jupyterlab-server
@@ -75,7 +75,7 @@ backports-asyncio-runner==1.2.0
     # via pytest-asyncio
 beautifulsoup4==4.14.3
     # via nbconvert
-black==26.3.1
+black==26.5.1
     # via ariadne-codegen
 bleach==6.3.0
     # via nbconvert
@@ -83,19 +83,19 @@ blinker==1.9.0
     # via flask
 bokeh==3.9.0
     # via -r requirements/requirements_dev.txt
-boto3==1.43.6
+boto3==1.43.9
     # via
     #   -r requirements/requirements_dev.txt
     #   metaflow
     #   wandb
-botocore==1.43.6
+botocore==1.43.9
     # via
     #   -r requirements/requirements_dev.txt
     #   awscli
     #   boto3
     #   s3transfer
     #   wandb
-cachetools==7.1.1
+cachetools==7.1.2
     # via
     #   dspy
     #   mlflow-skinny
@@ -120,7 +120,7 @@ chardet==7.4.3
     # via wandb
 charset-normalizer==3.4.7
     # via requests
-click==8.3.3
+click==8.4.0
     # via
     #   -r requirements/requirements_dev.txt
     #   ariadne-codegen
@@ -154,7 +154,7 @@ contourpy==1.3.2
     # via
     #   bokeh
     #   matplotlib
-coverage==7.13.5
+coverage==7.14.0
     # via
     #   -r requirements/requirements_test.txt
     #   pytest-cov
@@ -174,7 +174,7 @@ cuda-toolkit==13.0.2
     # via torch
 cycler==0.12.1
     # via matplotlib
-databricks-sdk==0.106.0
+databricks-sdk==0.109.0
     # via
     #   mlflow-skinny
     #   mlflow-tracing
@@ -238,7 +238,7 @@ flask-cors==6.0.2
     # via mlflow
 flatbuffers==25.12.19
     # via tensorflow
-fonttools==4.62.1
+fonttools==4.63.0
     # via matplotlib
 fqdn==1.5.1
     # via jsonschema
@@ -272,7 +272,7 @@ google-api-core==2.30.3
     #   google-cloud-resource-manager
     #   google-cloud-storage
     #   kfp
-google-auth==2.52.0
+google-auth==2.53.0
     # via
     #   databricks-sdk
     #   google-api-core
@@ -383,15 +383,15 @@ httpx==0.27.2
     #   openai
 huey==2.6.0
     # via mlflow
-huggingface-hub==1.14.0
+huggingface-hub==1.15.0
     # via tokenizers
-hypothesis==6.152.4
+hypothesis==6.152.7
     # via
     #   -r requirements/requirements_test.txt
     #   hypothesis-fspaths
 hypothesis-fspaths==0.1
     # via -r requirements/requirements_test.txt
-idna==3.13
+idna==3.15
     # via
     #   anyio
     #   httpx
@@ -462,7 +462,7 @@ jmespath==1.1.0
     #   botocore
 joblib==1.5.3
     # via scikit-learn
-json-repair==0.59.5
+json-repair==0.59.10
     # via dspy
 json5==0.14.0
     # via jupyterlab-server
@@ -580,7 +580,7 @@ matplotlib-inline==0.2.2
     #   ipython
 mdurl==0.1.2
     # via markdown-it-py
-metaflow==2.19.28
+metaflow==2.19.29
     # via -r requirements/requirements_dev.txt
 mistune==3.2.1
     # via nbconvert
@@ -614,7 +614,7 @@ mypy-extensions==1.1.0
     # via black
 namex==0.1.0
     # via keras
-narwhals==2.21.0
+narwhals==2.21.2
     # via
     #   bokeh
     #   plotly
@@ -678,18 +678,20 @@ numpy==1.26.4
     #   torchmetrics
     #   torchvision
     #   xgboost
-nvidia-cublas==13.1.0.3
+nvidia-cublas==13.1.1.3
     # via
-    #   cuda-toolkit
     #   nvidia-cudnn-cu13
     #   nvidia-cusolver
+    #   torch
 nvidia-cuda-cupti==13.0.85
     # via cuda-toolkit
 nvidia-cuda-nvrtc==13.0.88
-    # via cuda-toolkit
+    # via
+    #   cuda-toolkit
+    #   nvidia-cublas
 nvidia-cuda-runtime==13.0.96
     # via cuda-toolkit
-nvidia-cudnn-cu13==9.19.0.56
+nvidia-cudnn-cu13==9.20.0.48
     # via torch
 nvidia-cufft==12.0.0.61
     # via cuda-toolkit
@@ -703,11 +705,11 @@ nvidia-cusparse==12.6.3.3
     # via
     #   cuda-toolkit
     #   nvidia-cusolver
-nvidia-cusparselt-cu13==0.8.0
+nvidia-cusparselt-cu13==0.8.1
     # via torch
 nvidia-nccl-cu12==2.30.4
     # via xgboost
-nvidia-nccl-cu13==2.28.9
+nvidia-nccl-cu13==2.29.7
     # via torch
 nvidia-nvjitlink==13.0.88
     # via
@@ -723,7 +725,7 @@ oauthlib==3.3.1
     # via
     #   kubernetes
     #   requests-oauthlib
-openai==2.36.0
+openai==2.37.0
     # via
     #   -r requirements/requirements_dev.txt
     #   dspy
@@ -997,18 +999,18 @@ pyzmq==27.1.0
     #   jupyter-client
     #   jupyter-console
     #   jupyter-server
-rdkit==2026.3.1
+rdkit==2026.3.2
     # via -r requirements/requirements_dev.txt
 referencing==0.37.0
     # via
     #   jsonschema
     #   jsonschema-specifications
     #   jupyter-events
-regex==2026.4.4
+regex==2026.5.9
     # via
     #   dspy
     #   tiktoken
-requests==2.33.1
+requests==2.34.2
     # via
     #   -r requirements/requirements_dev.txt
     #   azure-core
@@ -1082,7 +1084,7 @@ scipy==1.15.3
     #   xgboost
 send2trash==2.1.0
     # via jupyter-server
-sentry-sdk==2.59.0
+sentry-sdk==2.60.0
     # via wandb
 setuptools==81.0.0
     # via
@@ -1162,7 +1164,7 @@ terminado==0.18.1
     #   jupyter-server-terminals
 threadpoolctl==3.6.0
     # via scikit-learn
-tiktoken==0.12.0
+tiktoken==0.13.0
     # via litellm
 tinycss2==1.4.0
     # via bleach
@@ -1179,7 +1181,7 @@ tomli==2.4.1
     #   jupyterlab
     #   pytest
     #   wandb
-torch==2.11.0
+torch==2.12.0
     # via
     #   -r requirements/requirements_dev.txt
     #   lightning
@@ -1191,7 +1193,7 @@ torchmetrics==1.9.0
     # via
     #   lightning
     #   pytorch-lightning
-torchvision==0.26.0
+torchvision==0.27.0
     # via -r requirements/requirements_dev.txt
 tornado==6.5.5
     # via
@@ -1229,13 +1231,13 @@ traitlets==5.15.0
     #   nbclient
     #   nbconvert
     #   nbformat
-triton==3.6.0
+triton==3.7.0
     # via torch
 typeguard==4.4.3
     # via dspy
 typer==0.25.1
     # via huggingface-hub
-types-pyyaml==6.0.12.20260508
+types-pyyaml==6.0.12.20260518
     # via responses
 typing-extensions==4.15.0
     # via
