@@ -13,3 +13,7 @@ sections:
 Section headings should be at level 3 (e.g. `### Added`).
 
 ## Unreleased
+
+### Fixed
+- sweep agents will now allow the in-progress run to complete before exiting when the sweep is deleted or Api()
+returns 404 (@kmikowicz-wandb in https://github.com/wandb/wandb/pull/11880)
