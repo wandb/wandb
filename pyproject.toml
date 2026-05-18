@@ -105,6 +105,12 @@ models = ["cloudpickle"]
 importers = ["polars<=1.2.1", "rich", "filelock", "mlflow", "tenacity"]
 workspaces = ["wandb-workspaces"]
 sandbox = ["cwsandbox[cli]>=0.20.0"]
+eval-table = [
+    "weave>=0.52.40",
+    # TODO: Temp workaround. Update weave version and remove opentelemetry pin
+    # once https://github.com/wandb/weave/pull/6866 gets released
+    "opentelemetry-proto>=1.28.0",
+]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
