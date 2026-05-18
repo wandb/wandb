@@ -23,7 +23,7 @@ func normalize(t *testing.T, s string) string {
 
 func mustRewrite(t *testing.T, query string, opts wbapi.GQLCompatOptions) string {
 	t.Helper()
-	got, err := wbapi.RewriteQuery(query, opts)
+	got, err := opts.RewriteQuery(query)
 	if err != nil {
 		t.Fatalf("rewriteQuery: %v", err)
 	}
@@ -32,7 +32,7 @@ func mustRewrite(t *testing.T, query string, opts wbapi.GQLCompatOptions) string
 
 func TestRewriteQuery_NoOptionsReturnsInputUnchanged(t *testing.T) {
 	const q = "query Q { a b c }"
-	got, err := wbapi.RewriteQuery(q, wbapi.GQLCompatOptions{})
+	got, err := wbapi.GQLCompatOptions{}.RewriteQuery(q)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -264,10 +264,32 @@ func TestRewriteQuery_RewritesInlineFragments(t *testing.T) {
 }
 
 func TestRewriteQuery_ParseFailureReturnsError(t *testing.T) {
-	_, err := wbapi.RewriteQuery("not a graphql {", wbapi.GQLCompatOptions{
+	_, err := wbapi.GQLCompatOptions{
 		OmitFields: map[string]bool{"x": true},
-	})
+	}.RewriteQuery("not a graphql {")
 	if err == nil {
 		t.Fatal("expected parse error, got nil")
+	}
+}
+
+func TestGQLCompatOptionsFromRequest(t *testing.T) {
+	opts := wbapi.GQLCompatOptionsFromRequest(
+		[]string{"varA"},
+		[]string{"FragmentA"},
+		[]string{"fieldA"},
+		map[string]string{"oldField": "newField"},
+	)
+
+	if !opts.OmitVariables["varA"] {
+		t.Error("expected varA to be omitted")
+	}
+	if !opts.OmitFragments["FragmentA"] {
+		t.Error("expected FragmentA to be omitted")
+	}
+	if !opts.OmitFields["fieldA"] {
+		t.Error("expected fieldA to be omitted")
+	}
+	if got := opts.RenameFields["oldField"]; got != "newField" {
+		t.Errorf("expected oldField to rename to newField, got %q", got)
 	}
 }

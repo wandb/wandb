@@ -28,20 +28,20 @@ func (o GQLCompatOptions) empty() bool {
 
 // RewriteQuery applies the configured rewrites and returns the rewritten
 // document.
-func RewriteQuery(query string, opts GQLCompatOptions) (string, error) {
+func (opts GQLCompatOptions) RewriteQuery(query string) (string, error) {
 	if opts.empty() {
 		return query, nil
 	}
 
-	doc, err := parser.ParseQuery(&ast.Source{Name: "compat", Input: query})
+	doc, err := parser.ParseQuery(&ast.Source{
+		Name:  "wandb-core GraphQL rewrite for older W&B server compatibility",
+		Input: query,
+	})
 	if err != nil {
-		return "", fmt.Errorf("gqlcompat: parse: %w", err)
-	}
-
-	// Drop fragment definitions targeted by OmitFragments. Removing them
-	// before walking selection sets keeps `pruneOrphanFragments` work small.
-	if len(opts.OmitFragments) > 0 {
-		doc.Fragments = filterFragments(doc.Fragments, opts.OmitFragments)
+		return "", fmt.Errorf(
+			"gqlcompat: rewrite GraphQL for older W&B server compatibility: parse: %w",
+			err,
+		)
 	}
 
 	for _, op := range doc.Operations {
@@ -50,31 +50,24 @@ func RewriteQuery(query string, opts GQLCompatOptions) (string, error) {
 				op.VariableDefinitions, opts.OmitVariables,
 			)
 		}
-		op.SelectionSet = rewriteSelectionSet(op.SelectionSet, opts)
+		op.SelectionSet = opts.rewriteSelectionSet(op.SelectionSet)
 	}
 
+	keptFragments := doc.Fragments[:0]
 	for _, frag := range doc.Fragments {
-		frag.SelectionSet = rewriteSelectionSet(frag.SelectionSet, opts)
+		if opts.OmitFragments[frag.Name] {
+			continue
+		}
+		frag.SelectionSet = opts.rewriteSelectionSet(frag.SelectionSet)
+		keptFragments = append(keptFragments, frag)
 	}
+	doc.Fragments = keptFragments
 
-	doc.Fragments = pruneOrphanFragments(doc)
+	pruneOrphanFragments(doc)
 
 	var buf bytes.Buffer
 	formatter.NewFormatter(&buf).FormatQueryDocument(doc)
 	return buf.String(), nil
-}
-
-func filterFragments(
-	frags ast.FragmentDefinitionList,
-	omit map[string]bool,
-) ast.FragmentDefinitionList {
-	kept := frags[:0]
-	for _, f := range frags {
-		if !omit[f.Name] {
-			kept = append(kept, f)
-		}
-	}
-	return kept
 }
 
 func filterVariableDefinitions(
@@ -97,9 +90,8 @@ func filterVariableDefinitions(
 // an omitted variable are dropped, including those nested in input objects.
 // Fragment spreads in OmitFragments are dropped. A field that had a non-empty
 // selection set in the source but is empty after rewriting is dropped.
-func rewriteSelectionSet(
+func (opts GQLCompatOptions) rewriteSelectionSet(
 	sel ast.SelectionSet,
-	opts GQLCompatOptions,
 ) ast.SelectionSet {
 	out := sel[:0]
 	for _, s := range sel {
@@ -108,31 +100,40 @@ func rewriteSelectionSet(
 			if opts.OmitFields[s.Name] {
 				continue
 			}
+
 			if newName, ok := opts.RenameFields[s.Name]; ok {
 				s.Name = newName
 			}
+
 			if len(opts.OmitVariables) > 0 {
 				s.Arguments = filterArguments(s.Arguments, opts.OmitVariables)
 			}
-			hadSelections := len(s.SelectionSet) > 0
-			if hadSelections {
-				s.SelectionSet = rewriteSelectionSet(s.SelectionSet, opts)
-				if len(s.SelectionSet) == 0 {
-					continue
-				}
+
+			// No subselection and field not omitted.
+			if len(s.SelectionSet) == 0 {
+				out = append(out, s)
+				continue
 			}
-			out = append(out, s)
+
+			// Rewrite the subselection. If this removes everything,
+			// discard the field too.
+			s.SelectionSet = opts.rewriteSelectionSet(s.SelectionSet)
+			if len(s.SelectionSet) > 0 {
+				out = append(out, s)
+			}
+
 		case *ast.FragmentSpread:
 			if opts.OmitFragments[s.Name] {
 				continue
 			}
 			out = append(out, s)
+
 		case *ast.InlineFragment:
-			s.SelectionSet = rewriteSelectionSet(s.SelectionSet, opts)
-			if len(s.SelectionSet) == 0 {
-				continue
+			s.SelectionSet = opts.rewriteSelectionSet(s.SelectionSet)
+			if len(s.SelectionSet) > 0 {
+				out = append(out, s)
 			}
-			out = append(out, s)
+
 		default:
 			out = append(out, s)
 		}
@@ -180,11 +181,11 @@ func stripOmittedVarsFromValue(v *ast.Value, omitVars map[string]bool) {
 	v.Children = kept
 }
 
-// pruneOrphanFragments returns the subset of doc.Fragments transitively
+// pruneOrphanFragments removes fragment definitions that are not transitively
 // reachable from doc.Operations.
-func pruneOrphanFragments(doc *ast.QueryDocument) ast.FragmentDefinitionList {
+func pruneOrphanFragments(doc *ast.QueryDocument) {
 	if len(doc.Fragments) == 0 {
-		return doc.Fragments
+		return
 	}
 
 	byName := make(map[string]*ast.FragmentDefinition, len(doc.Fragments))
@@ -193,27 +194,8 @@ func pruneOrphanFragments(doc *ast.QueryDocument) ast.FragmentDefinitionList {
 	}
 
 	used := make(map[string]bool, len(doc.Fragments))
-	var visit func(ast.SelectionSet)
-	visit = func(sel ast.SelectionSet) {
-		for _, s := range sel {
-			switch s := s.(type) {
-			case *ast.Field:
-				visit(s.SelectionSet)
-			case *ast.FragmentSpread:
-				if used[s.Name] {
-					continue
-				}
-				used[s.Name] = true
-				if frag := byName[s.Name]; frag != nil {
-					visit(frag.SelectionSet)
-				}
-			case *ast.InlineFragment:
-				visit(s.SelectionSet)
-			}
-		}
-	}
 	for _, op := range doc.Operations {
-		visit(op.SelectionSet)
+		markUsedFragments(op.SelectionSet, byName, used)
 	}
 
 	kept := doc.Fragments[:0]
@@ -222,12 +204,37 @@ func pruneOrphanFragments(doc *ast.QueryDocument) ast.FragmentDefinitionList {
 			kept = append(kept, f)
 		}
 	}
-	return kept
+	doc.Fragments = kept
 }
 
-// gqlCompatOptionsFromRequest builds rewrite options from a GraphQLRequest
+func markUsedFragments(
+	sel ast.SelectionSet,
+	byName map[string]*ast.FragmentDefinition,
+	used map[string]bool,
+) {
+	for _, s := range sel {
+		switch s := s.(type) {
+		case *ast.Field:
+			markUsedFragments(s.SelectionSet, byName, used)
+
+		case *ast.FragmentSpread:
+			if used[s.Name] {
+				continue
+			}
+			used[s.Name] = true
+			if frag := byName[s.Name]; frag != nil {
+				markUsedFragments(frag.SelectionSet, byName, used)
+			}
+
+		case *ast.InlineFragment:
+			markUsedFragments(s.SelectionSet, byName, used)
+		}
+	}
+}
+
+// GQLCompatOptionsFromRequest builds rewrite options from a GraphQLRequest
 // proto's omit_*/rename_fields fields.
-func gqlCompatOptionsFromRequest(
+func GQLCompatOptionsFromRequest(
 	omitVariables, omitFragments, omitFields []string,
 	renameFields map[string]string,
 ) GQLCompatOptions {
