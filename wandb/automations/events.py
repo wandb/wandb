@@ -344,12 +344,13 @@ class OnRunMetric(_BaseRunEventInput):
         This supports both "threshold" and "change" metric filters, which can
         only be determined after parsing and validating the inner JSON data.
         """
-        if isinstance(data, dict) and (raw_filter := data.get("filter")):
-            # At this point, `raw_filter` may or may not be JSON-serialized
-            parsed_filter = RunMetricFilter.model_validate_json(ensure_json(raw_filter))
-            return {**data, "event_type": parsed_filter.metric.event_type}
-
-        return data
+        match data:
+            case {"filter": raw}:
+                # At this point, `raw_filter` may or may not be JSON-serialized
+                filter_ = RunMetricFilter.model_validate_json(ensure_json(raw))
+                return {**data, "event_type": filter_.metric.event_type}
+            case _:
+                return data
 
 
 class OnRunState(_BaseRunEventInput):

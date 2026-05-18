@@ -11,7 +11,7 @@ from pydantic import (
     StrictInt,
     field_validator,
 )
-from typing_extensions import override
+from typing_extensions import assert_never, override
 
 from wandb._pydantic import GQLBase
 from wandb.automations._validators import LenientStrEnum
@@ -270,23 +270,24 @@ class BaseMetricOperand(GQLBase, ABC, extra="forbid"):
                 metric. Must be positive. For example, `frac=0.1` denotes a 10% relative
                 increase or decrease.
         """
-        if (
+        match diff, frac:
             # Enforce mutually exclusive keyword args
-            ((frac is None) and (diff is None))
-            or ((frac is not None) and (diff is not None))
-        ):
-            raise ValueError("Must provide exactly one of `frac` or `diff`")
+            case (None, None) | (int() | float(), int() | float()):
+                raise ValueError("Must provide exactly one of `frac` or `diff`")
 
-        # Enforce positive values
-        if (frac is not None) and (frac <= 0):
-            raise ValueError(f"Expected positive threshold, got: {frac=}")
-        if (diff is not None) and (diff <= 0):
-            raise ValueError(f"Expected positive threshold, got: {diff=}")
+            # Enforce positive values
+            case (None, int() | float()) if frac <= 0:
+                raise ValueError(f"Expected positive threshold, got: {frac=}")
+            case (int() | float(), None) if diff <= 0:
+                raise ValueError(f"Expected positive threshold, got: {diff=}")
 
-        if diff is None:
-            kws = dict(change_dir=_dir, change_type=ChangeType.REL, threshold=frac)
-        else:
-            kws = dict(change_dir=_dir, change_type=ChangeType.ABS, threshold=diff)
+            case (int() | float(), None):
+                kws = dict(change_dir=_dir, change_type=ChangeType.ABS, threshold=diff)
+            case (None, int() | float()):
+                kws = dict(change_dir=_dir, change_type=ChangeType.REL, threshold=frac)
+            case _:
+                assert_never(dict(diff=diff, frac=frac))
+
         return MetricChangeFilter(**dict(self), **kws)
 
     @overload
@@ -494,12 +495,15 @@ class MetricZScoreFilter(GQLBase, extra="forbid"):
         return self.__and__(other)
 
     def __repr__(self) -> str:
-        if self.change_dir is ChangeDir.ANY:
-            return repr(rf"abs(zscore({self.name!r})) > {self.threshold}")
-        elif self.change_dir is ChangeDir.DECREASE:
-            return repr(rf"zscore({self.name!r}) < -{self.threshold}")
-        else:  # ChangeDir.INCREASE
-            return repr(rf"zscore({self.name!r}) > +{self.threshold}")
+        match self.change_dir:
+            case ChangeDir.ANY:
+                return repr(rf"abs(zscore({self.name!r})) > {self.threshold}")
+            case ChangeDir.DECREASE:
+                return repr(rf"zscore({self.name!r}) < -{self.threshold}")
+            case ChangeDir.INCREASE:
+                return repr(rf"zscore({self.name!r}) > +{self.threshold}")
+            case _:
+                assert_never(self.change_dir)
 
     @override
     def __rich_repr__(self) -> RichReprResult:
