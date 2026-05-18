@@ -1006,10 +1006,8 @@ class Run:
     def project_url(self) -> str | None:
         """URL of the W&B project associated with the run, if there is one.
 
-        Offline and disabled runs do not have a project URL.
+        Offline runs do not have a project URL.
         """
-        if self._settings._noop:
-            return None
         if self._settings._offline:
             wandb.termwarn("URL not available in offline run")
             return None
@@ -1143,10 +1141,8 @@ class Run:
     def sweep_url(self) -> str | None:
         """URL of the sweep associated with the run, if there is one.
 
-        Offline and disabled runs do not have a sweep URL.
+        Offline runs do not have a sweep URL.
         """
-        if self._settings._noop:
-            return None
         if self._settings._offline:
             wandb.termwarn("URL not available in offline run")
             return None
@@ -1175,10 +1171,8 @@ class Run:
     def url(self) -> str | None:
         """The url for the W&B run, if there is one.
 
-        Offline and disabled runs will not have a url.
+        Offline runs will not have a url.
         """
-        if self._settings._noop:
-            return None
         if self._settings._offline:
             wandb.termwarn("URL not available in offline run")
             return None

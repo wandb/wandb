@@ -28,24 +28,6 @@ def test_mode_disabled():
         assert run.me_too()
 
 
-def test_disabled_run_does_not_patch_run_url_properties(mock_run):
-    disabled_run = wandb.init(mode="disabled")
-
-    assert disabled_run.project_url is None
-
-    base_url = "https://my.cool.site.com"
-    run = mock_run(
-        settings=wandb.Settings(
-            base_url=base_url,
-            entity="me",
-            project="lol",
-            run_id="my-run",
-        )
-    )
-
-    assert run.project_url == f"{base_url}/me/lol"
-
-
 def test_disabled_can_pickle():
     # This case comes up when using wandb in disabled mode, with keras
     # https://wandb.atlassian.net/browse/WB-3981
