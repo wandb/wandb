@@ -549,7 +549,14 @@ func (ft *AzureFileTransfer) downloadFiles(
 	for _, blobName := range blobNames {
 		g.Go(func() error {
 			objectRelativePath, _ := strings.CutPrefix(blobName, blobInfo.BlobPrefix)
-			localPath := filepath.Join(task.PathOrPrefix, filepath.FromSlash(objectRelativePath))
+			localRelPath := filepath.FromSlash(objectRelativePath)
+			if localRelPath != "" && !filepath.IsLocal(localRelPath) {
+				return fmt.Errorf(
+					"invalid blob name %q: path traversal detected",
+					blobName,
+				)
+			}
+			localPath := filepath.Join(task.PathOrPrefix, localRelPath)
 			return ft.downloadBlobToFile(blobInfo, blobName, task, localPath)
 		})
 	}
