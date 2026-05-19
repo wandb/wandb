@@ -13,14 +13,14 @@ from packaging.version import parse as parse_version
 
 import wandb
 from wandb import util
-from wandb.sdk.lib import hashutil, runid
+from wandb.sdk.lib import runid
 from wandb.sdk.lib.paths import LogicalPath
 
 from . import _dtypes
 from ._private import MEDIA_TMP
 from .base_types.media import BatchableMedia, Media
 from .helper_types.bounding_boxes_2d import BoundingBoxes2D
-from .helper_types.classes import Classes
+from .helper_types.classes import Classes, _classes_to_artifact_ref
 from .helper_types.image_mask import ImageMask
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -326,12 +326,15 @@ class Image(BatchableMedia):
             self._masks = masks_final
 
         if classes is not None:
+            # An explicit ``classes=`` argument represents the image's non-mask
+            # class set (e.g. for image classification or for typed Table
+            # columns). Use it as the sole source for ``self._classes`` so it
+            # isn't polluted by mask/box ``class_labels``. Per-mask labels are
+            # still preserved as per-mask classes-file refs in ``to_json``.
             if isinstance(classes, Classes):
-                total_classes.update(
-                    {val["id"]: val["name"] for val in classes._class_set}
-                )
+                total_classes = {val["id"]: val["name"] for val in classes._class_set}
             else:
-                total_classes.update({val["id"]: val["name"] for val in classes})
+                total_classes = {val["id"]: val["name"] for val in classes}
 
         if len(total_classes.keys()) > 0:
             self._classes = Classes(
@@ -564,20 +567,7 @@ class Image(BatchableMedia):
                 )
 
             if self._classes is not None:
-                class_id = hashutil._md5(
-                    str(self._classes._class_set).encode("utf-8")
-                ).hexdigest()
-                class_name = os.path.join(
-                    "media",
-                    "classes",
-                    class_id + "_cls",
-                )
-                classes_entry = artifact.add(self._classes, class_name)
-                json_dict["classes"] = {
-                    "type": "classes-file",
-                    "path": classes_entry.path,
-                    "digest": classes_entry.digest,
-                }
+                json_dict["classes"] = _classes_to_artifact_ref(self._classes, artifact)
 
         elif not isinstance(run_or_artifact, wandb.Run):
             raise TypeError("to_json accepts wandb.Run or wandb_artifact.Artifact")
@@ -841,12 +831,14 @@ class _ImageFileType(_dtypes.Type):
         box_score_keys=None,
         mask_layers=None,
         class_map=None,
+        mask_class_labels=None,
         **kwargs,
     ):
         box_layers = box_layers or {}
         box_score_keys = box_score_keys or []
         mask_layers = mask_layers or {}
         class_map = class_map or {}
+        mask_class_labels = mask_class_labels or {}
 
         if isinstance(box_layers, _dtypes.ConstType):
             box_layers = box_layers._params["val"]
@@ -880,12 +872,28 @@ class _ImageFileType(_dtypes.Type):
         else:
             class_map = _dtypes.ConstType(class_map)
 
+        if isinstance(mask_class_labels, _dtypes.ConstType):
+            mask_class_labels = mask_class_labels._params["val"]
+        if not isinstance(mask_class_labels, dict):
+            raise TypeError("mask_class_labels must be a dict")
+        else:
+            mask_class_labels = _dtypes.ConstType(
+                {
+                    str(mask_key): {
+                        str(class_id): name
+                        for class_id, name in mask_class_labels[mask_key].items()
+                    }
+                    for mask_key in mask_class_labels
+                }
+            )
+
         self.params.update(
             {
                 "box_layers": box_layers,
                 "box_score_keys": box_score_keys,
                 "mask_layers": mask_layers,
                 "class_map": class_map,
+                "mask_class_labels": mask_class_labels,
             }
         )
 
@@ -895,11 +903,21 @@ class _ImageFileType(_dtypes.Type):
             box_score_keys_self = self.params["box_score_keys"].params["val"] or []
             mask_layers_self = self.params["mask_layers"].params["val"] or {}
             class_map_self = self.params["class_map"].params["val"] or {}
+            mask_class_labels_self = (
+                self.params.get("mask_class_labels").params["val"]
+                if "mask_class_labels" in self.params
+                else {}
+            ) or {}
 
             box_layers_other = wb_type.params["box_layers"].params["val"] or {}
             box_score_keys_other = wb_type.params["box_score_keys"].params["val"] or []
             mask_layers_other = wb_type.params["mask_layers"].params["val"] or {}
             class_map_other = wb_type.params["class_map"].params["val"] or {}
+            mask_class_labels_other = (
+                wb_type.params.get("mask_class_labels").params["val"]
+                if "mask_class_labels" in wb_type.params
+                else {}
+            ) or {}
 
             # Merge the class_ids from each set of box_layers
             box_layers = {
@@ -934,7 +952,32 @@ class _ImageFileType(_dtypes.Type):
                 )
             }
 
-            return _ImageFileType(box_layers, box_score_keys, mask_layers, class_map)
+            # Merge per-mask class labels: union of mask keys; within a mask key,
+            # union of class IDs, preferring self's name on collision (mirrors
+            # ``class_map`` above).
+            mask_class_labels = {}
+            for mask_key in set(
+                list(mask_class_labels_self.keys())
+                + list(mask_class_labels_other.keys())
+            ):
+                self_labels = mask_class_labels_self.get(mask_key, {})
+                other_labels = mask_class_labels_other.get(mask_key, {})
+                mask_class_labels[str(mask_key)] = {
+                    str(class_id): self_labels.get(
+                        class_id, other_labels.get(class_id, None)
+                    )
+                    for class_id in set(
+                        list(self_labels.keys()) + list(other_labels.keys())
+                    )
+                }
+
+            return _ImageFileType(
+                box_layers,
+                box_score_keys,
+                mask_layers,
+                class_map,
+                mask_class_labels,
+            )
 
         return _dtypes.InvalidType()
 
@@ -968,8 +1011,20 @@ class _ImageFileType(_dtypes.Type):
                     )
                     for key in py_obj._masks
                 }
+                mask_class_labels = {
+                    str(key): {
+                        str(class_id): name
+                        for class_id, name in py_obj._masks[key]
+                        ._val["class_labels"]
+                        .items()
+                    }
+                    for key in py_obj._masks
+                    if hasattr(py_obj._masks[key], "_val")
+                    and "class_labels" in py_obj._masks[key]._val
+                }
             else:
                 mask_layers = {}
+                mask_class_labels = {}
 
             if hasattr(py_obj, "_classes") and py_obj._classes:
                 class_set = {
@@ -978,7 +1033,9 @@ class _ImageFileType(_dtypes.Type):
             else:
                 class_set = {}
 
-            return cls(box_layers, box_score_keys, mask_layers, class_set)
+            return cls(
+                box_layers, box_score_keys, mask_layers, class_set, mask_class_labels
+            )
 
 
 _dtypes.TypeRegistry.add(_ImageFileType)

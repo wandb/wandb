@@ -266,6 +266,112 @@ def test_image_accepts_masks_without_class_labels(
     assert os.path.exists(os.path.join(run.dir, path))
 
 
+def test_image_masks_emit_per_mask_classes_in_artifact(image):
+    """WB-26043: each mask's ``class_labels`` must survive artifact serialization.
+
+    Before the fix, only a single merged (and clobbered) classes-file was emitted
+    at the image level; per-mask class_labels were lost on disk.
+    """
+    img = wandb.Image(
+        image,
+        masks={
+            "ground_truth": {
+                "mask_data": np.array([[1, 2], [2, 1]]),
+                "class_labels": {1: "Ignored", 2: "Text"},
+            },
+            "predictions": {
+                "mask_data": np.array([[1, 2], [3, 1]]),
+                "class_labels": {1: "Incorrect", 2: "Correct", 3: "FP"},
+            },
+        },
+    )
+    art = wandb.Artifact("test_per_mask_classes", "dataset")
+    img_json = img.to_json(art)
+
+    for mask_key in ("ground_truth", "predictions"):
+        ref = img_json["masks"][mask_key].get("classes")
+        assert ref is not None, f"Missing classes ref on mask '{mask_key}'"
+        assert ref["type"] == "classes-file"
+        assert "path" in ref and ref["path"]
+
+    gt_path = img_json["masks"]["ground_truth"]["classes"]["path"]
+    pred_path = img_json["masks"]["predictions"]["classes"]["path"]
+    assert gt_path != pred_path
+
+
+def test_image_mask_classes_dedup_when_labels_identical(image):
+    """WB-26043: two masks with identical ``class_labels`` must share one classes-file.
+
+    Content-addressing (md5 of the class set) means duplicate label sets dedupe
+    automatically in the artifact, so the table JSON stays small when many cells
+    share labels.
+    """
+    common_labels = {1: "Same", 2: "Identical"}
+    img = wandb.Image(
+        image,
+        masks={
+            "a": {
+                "mask_data": np.array([[1, 2], [2, 1]]),
+                "class_labels": common_labels,
+            },
+            "b": {
+                "mask_data": np.array([[1, 2], [1, 2]]),
+                "class_labels": common_labels,
+            },
+        },
+    )
+    art = wandb.Artifact("test_dedup", "dataset")
+    img_json = img.to_json(art)
+
+    a_path = img_json["masks"]["a"]["classes"]["path"]
+    b_path = img_json["masks"]["b"]["classes"]["path"]
+    assert a_path == b_path
+
+
+def test_image_explicit_classes_not_polluted_by_mask_labels(image):
+    """WB-26043: explicit ``classes=`` represents the image's non-mask class set
+    and must not be merged with mask ``class_labels``. Per-mask labels live in
+    per-mask classes-file refs; the top-level classes-file reflects user intent.
+    """
+    img = wandb.Image(
+        image,
+        masks={
+            "ground_truth": {
+                "mask_data": np.array([[1, 2], [2, 1]]),
+                "class_labels": {1: "Ignored", 2: "Text"},
+            },
+        },
+        classes=[{"id": 99, "name": "BackgroundOnly"}],
+    )
+    assert img._classes._class_set == [{"id": 99, "name": "BackgroundOnly"}]
+
+
+def test_image_mask_type_schema_carries_per_mask_class_labels(image):
+    """WB-26043: ``_ImageFileType`` exposes per-mask class labels so a Table's
+    column_types schema carries them, separate from the merged ``class_map``."""
+    img = wandb.Image(
+        image,
+        masks={
+            "ground_truth": {
+                "mask_data": np.array([[1, 2], [2, 1]]),
+                "class_labels": {1: "Ignored", 2: "Text"},
+            },
+            "predictions": {
+                "mask_data": np.array([[1, 2], [3, 1]]),
+                "class_labels": {1: "Incorrect", 2: "Correct", 3: "FP"},
+            },
+        },
+    )
+    img_type = _dtypes.TypeRegistry.type_of(img)
+    mask_class_labels = img_type.params["mask_class_labels"]._params["val"]
+    assert mask_class_labels["ground_truth"] == {"1": "Ignored", "2": "Text"}
+    assert mask_class_labels["predictions"] == {
+        "1": "Incorrect",
+        "2": "Correct",
+        "3": "FP",
+    }
+
+
 @pytest.mark.usefixtures("patch_max_cli_version")
 def test_image_seq_to_json(
     mock_run,
