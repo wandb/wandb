@@ -4,6 +4,8 @@ import os
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
+from wandb.sdk.lib import hashutil
+
 from .. import _dtypes
 from ..base_types.media import Media
 
@@ -11,6 +13,22 @@ if TYPE_CHECKING:  # pragma: no cover
     from wandb.sdk.artifacts.artifact import Artifact
 
     from ...wandb_run import Run as LocalRun
+
+
+def _classes_to_artifact_ref(classes: Classes, artifact: Artifact) -> dict:
+    """Add a ``Classes`` object to ``artifact`` and return a ``classes-file`` reference dict.
+
+    The artifact entry is content-addressed by the md5 of the class set, so
+    identical class sets dedupe to a single artifact entry across callers.
+    """
+    class_id = hashutil._md5(str(classes._class_set).encode("utf-8")).hexdigest()
+    class_name = os.path.join("media", "classes", class_id + "_cls")
+    entry = artifact.add(classes, class_name)
+    return {
+        "type": "classes-file",
+        "path": entry.path,
+        "digest": entry.digest,
+    }
 
 
 class Classes(Media):

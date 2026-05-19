@@ -10,6 +10,7 @@ from wandb.sdk.lib import runid
 
 from .._private import MEDIA_TMP
 from ..base_types.media import Media
+from .classes import Classes, _classes_to_artifact_ref
 
 if TYPE_CHECKING:  # pragma: no cover
     from wandb.sdk.artifacts.artifact import Artifact
@@ -217,7 +218,19 @@ class ImageMask(Media):
             json_dict["_type"] = self.type_name()
             return json_dict
         elif isinstance(run_or_artifact, wandb.Artifact):
-            # Nothing special to add (used to add "digest", but no longer used.)
+            # Emit a per-mask classes-file reference so each mask's
+            # ``class_labels`` survive artifact serialization (e.g. when an
+            # Image is logged inside a wandb.Table). Content-addressing dedupes
+            # identical label sets across masks/cells.
+            val = getattr(self, "_val", None)
+            class_labels = val.get("class_labels") if val else None
+            if class_labels:
+                classes = Classes(
+                    [{"id": k, "name": v} for k, v in class_labels.items()]
+                )
+                json_dict["classes"] = _classes_to_artifact_ref(
+                    classes, run_or_artifact
+                )
             return json_dict
         else:
             raise TypeError("to_json accepts wandb_run.Run or wandb.Artifact")
