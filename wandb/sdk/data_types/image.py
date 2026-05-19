@@ -13,7 +13,7 @@ from packaging.version import parse as parse_version
 
 import wandb
 from wandb import util
-from wandb.sdk.lib import hashutil, runid
+from wandb.sdk.lib import runid
 from wandb.sdk.lib.paths import LogicalPath
 
 from . import _dtypes
@@ -567,9 +567,7 @@ class Image(BatchableMedia):
                 )
 
             if self._classes is not None:
-                json_dict["classes"] = _classes_to_artifact_ref(
-                    self._classes, artifact
-                )
+                json_dict["classes"] = _classes_to_artifact_ref(self._classes, artifact)
 
         elif not isinstance(run_or_artifact, wandb.Run):
             raise TypeError("to_json accepts wandb.Run or wandb_artifact.Artifact")
