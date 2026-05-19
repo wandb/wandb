@@ -224,7 +224,7 @@ func leetMain(args []string) int {
 	}
 	defer stopLeetPprof(pprofStop)
 
-	flushSentry := configureLeetSentry(opts.disableAnalytics, leetSentryMessage(opts))
+	flushSentry := configureLeetSentry(opts.disableAnalytics, leetSentryMessage(&opts))
 	defer flushSentry()
 
 	logger, closeLogger, err := newLeetLogger(opts.logLevel)
@@ -234,7 +234,7 @@ func leetMain(args []string) int {
 	}
 	defer closeLogger()
 
-	return runLeetCommand(opts, logger)
+	return runLeetCommand(&opts, logger)
 }
 
 type leetOptions struct {
@@ -246,6 +246,11 @@ type leetOptions struct {
 	symonMode        bool
 	symonInterval    time.Duration
 	wandbDir         string
+
+	// remoteURL is the full canonical W&B URL of the run/project to open
+	// (e.g. https://api.wandb.ai/<entity>/<project>/<run-id>). Non-empty
+	// means we are in remote mode.
+	remoteURL string
 }
 
 func parseLeetOptions(args []string) (leetOptions, error) {
@@ -261,7 +266,7 @@ func parseLeetOptions(args []string) (leetOptions, error) {
 	}
 
 	opts.wandbDir = fs.Arg(0)
-	if err := validateLeetOptions(fs, opts); err != nil {
+	if err := validateLeetOptions(fs, &opts); err != nil {
 		return leetOptions{}, err
 	}
 
@@ -301,6 +306,13 @@ func bindLeetFlags(fs *flag.FlagSet, opts *leetOptions) {
 		leet.DefaultSymonSamplingInterval,
 		"Sampling interval for standalone system metrics (e.g. 500ms, 2s, 1m).",
 	)
+	fs.StringVar(
+		&opts.remoteURL,
+		"remote-url",
+		"",
+		"URL of a W&B run to open"+
+			" (e.g. https://wandb.ai/<entity>/<project>/runs/<run-id>).",
+	)
 }
 
 func printLeetUsage(fs *flag.FlagSet) {
@@ -309,6 +321,8 @@ A terminal UI for viewing your W&B runs locally.
 
 Usage:
   wandb-core leet [flags] <wandb-directory>
+  wandb-core leet --run-file <wandb-file> <wandb-directory>
+  wandb-core leet --remote-url <wandb-run-url>
   wandb-core leet --config
   wandb-core leet --symon [flags]
 
@@ -317,13 +331,12 @@ Arguments:
 
 Options:
   -h, --help         Show this help message
-
 Flags:
 `)
 	fs.PrintDefaults()
 }
 
-func validateLeetOptions(fs *flag.FlagSet, opts leetOptions) error {
+func validateLeetOptions(fs *flag.FlagSet, opts *leetOptions) error {
 	switch {
 	case opts.symonInterval <= 0:
 		fmt.Fprintln(os.Stderr, "Error: --interval must be > 0")
@@ -333,10 +346,10 @@ func validateLeetOptions(fs *flag.FlagSet, opts leetOptions) error {
 		fmt.Fprintln(os.Stderr, "Error: --symon does not take a wandb directory")
 		fs.Usage()
 		return fmt.Errorf("unexpected wandb directory %q in symon mode", fs.Arg(0))
-	case !opts.editConfig && !opts.symonMode && opts.wandbDir == "":
-		fmt.Fprintln(os.Stderr, "Error: wandb directory path required")
+	case !opts.editConfig && !opts.symonMode && opts.wandbDir == "" && opts.remoteURL == "":
+		fmt.Fprintln(os.Stderr, "Error: wandb directory path or --remote-url required")
 		fs.Usage()
-		return fmt.Errorf("wandb directory path required")
+		return fmt.Errorf("wandb directory path or --remote-url required")
 	default:
 		return nil
 	}
@@ -378,7 +391,7 @@ func configureLeetSentry(disableAnalytics bool, message string) func() {
 	return func() { sentry.Flush(2 * time.Second) }
 }
 
-func leetSentryMessage(opts leetOptions) string {
+func leetSentryMessage(opts *leetOptions) string {
 	switch {
 	case opts.editConfig:
 		return "wandb-leet-config"
@@ -417,7 +430,7 @@ func newLeetLogger(logLevel int) (*observability.CoreLogger, func(), error) {
 	return logger, closeLogWriter, nil
 }
 
-func runLeetCommand(opts leetOptions, logger *observability.CoreLogger) int {
+func runLeetCommand(opts *leetOptions, logger *observability.CoreLogger) int {
 	if opts.editConfig {
 		return runLeetConfigEditor(logger)
 	}
@@ -437,7 +450,7 @@ func runLeetConfigEditor(logger *observability.CoreLogger) int {
 	return exitCodeSuccess
 }
 
-func runSymon(opts leetOptions, logger *observability.CoreLogger) int {
+func runSymon(opts *leetOptions, logger *observability.CoreLogger) int {
 	for {
 		m := leet.NewSymon(leet.SymonParams{
 			Logger:           logger,
@@ -459,12 +472,34 @@ func runSymon(opts leetOptions, logger *observability.CoreLogger) int {
 	}
 }
 
-func runLeetWorkspace(opts leetOptions, logger *observability.CoreLogger) int {
+func runLeetWorkspace(opts *leetOptions, logger *observability.CoreLogger) int {
+	var runParams *leet.RunParams
+	wandbDir := opts.wandbDir
+	if opts.remoteURL != "" {
+		remote, err := leet.ParseRemoteURL(opts.remoteURL)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "Error:", err)
+			return exitCodeErrorArgs
+		}
+		runParams = &leet.RunParams{RemoteRunParams: remote}
+	} else if opts.runFile != "" {
+		runParams = &leet.RunParams{
+			LocalRunParams: &leet.LocalRunParams{
+				RunFile: opts.runFile,
+			},
+		}
+
+		if wandbDir == "" {
+			fmt.Fprintln(os.Stderr, "Error: wandb directory path required")
+			return exitCodeErrorArgs
+		}
+	}
+
 	for {
 		m := leet.NewModel(leet.ModelParams{
-			WandbDir: opts.wandbDir,
-			RunFile:  opts.runFile,
-			Logger:   logger,
+			WandbDir:  opts.wandbDir,
+			RunParams: runParams,
+			Logger:    logger,
 		})
 		program := tea.NewProgram(m)
 
