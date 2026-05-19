@@ -960,3 +960,23 @@ def test_artifact_type():
         == nested_target_type
     )
     assert type_of_nested_artifact_string.assign(nested_artifact) == nested_target_type
+
+
+def test_type_from_dict_missing_wb_type():
+    with pytest.raises(TypeError):
+        TypeRegistry.type_from_dict({})
+
+
+def test_type_from_dict_unknown_wb_type():
+    with pytest.raises(TypeError):
+        TypeRegistry.type_from_dict({"wb_type": "nonexistent_type_xyz"})
+
+
+def test_const_type_rejects_unsupported_type():
+    with pytest.raises(TypeError):
+        ConstType(object())
+
+
+def test_typed_dict_type_from_obj_rejects_non_dict():
+    with pytest.raises(TypeError):
+        TypedDictType.from_obj("not a dict")
