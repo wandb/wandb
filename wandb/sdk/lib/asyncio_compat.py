@@ -279,3 +279,14 @@ async def race(*coros: Coroutine[Any, Any, Any]) -> None:
     async with open_task_group(race=True) as tg:
         for coro in coros:
             tg.start_soon(coro)
+
+
+def now() -> float:
+    """Returns the current time according to the running event loop.
+
+    This is normally `time.monotonic()`, but using this allows a custom
+    event loop implementation to override how time works during tests.
+
+    This raises an error if called outside of an asyncio loop.
+    """
+    return asyncio.get_running_loop().time()

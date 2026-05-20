@@ -556,6 +556,8 @@ lightning-utilities==0.15.3
     #   torchmetrics
 litellm==1.83.0
     # via dspy
+looptime==0.7
+    # via -r requirements/requirements_test.txt
 mako==1.3.12
     # via alembic
 markdown==3.10.2
