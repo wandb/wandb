@@ -1,8 +1,8 @@
 """Builds the wandb-xpu binary for monitoring hardware accelerators."""
 
+import json
 import pathlib
 import subprocess
-import sys
 
 
 class WandbXpuBuildError(Exception):
@@ -35,10 +35,11 @@ def build_wandb_xpu(
         "--release",
         "--bin",
         "wandb-xpu",
+        "--message-format=json",
     )
 
     try:
-        subprocess.run(cmd, cwd=rust_pkg_root, check=True)
+        cargo_output = subprocess.check_output(cmd, cwd=rust_pkg_root)
     except subprocess.CalledProcessError as e:
         raise WandbXpuBuildError(
             "Failed to build the `wandb-xpu` Rust binary. If you didn't"
@@ -50,9 +51,31 @@ def build_wandb_xpu(
             " package that doesn't collect hardware accelerator metrics."
         ) from e
 
-    binary_name = "wandb-xpu.exe" if sys.platform == "win32" else "wandb-xpu"
-    built_binary_path = rust_pkg_root / "target" / "release" / binary_name
+    built_binary_path = get_binary_path(cargo_output)
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     built_binary_path.replace(output_path)
     output_path.chmod(0o755)
+
+
+def get_binary_path(cargo_output: bytes) -> pathlib.Path:
+    for line in cargo_output.splitlines():
+        try:
+            message = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+
+        if message.get("reason") != "compiler-artifact":
+            continue
+
+        target = message.get("target", {})
+        if target.get("name") != "wandb-xpu" or "bin" not in target.get("kind", []):
+            continue
+
+        if executable := message.get("executable"):
+            return pathlib.Path(executable)
+
+    raise WandbXpuBuildError(
+        "Failed to find the `wandb-xpu` binary. `cargo build` output:\n"
+        + cargo_output.decode("utf-8", errors="replace"),
+    )
