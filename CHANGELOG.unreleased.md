@@ -17,3 +17,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 ### Changed
 
 - `wandb.Api` GraphQL operations are routed through the wandb-core service. Failures from these operations now raise `WandbApiFailedError` instead of `requests` HTTP exceptions.
+
+### Removed
+
+- Removed the unsupported `wandb.apis.importers` API (@dmitryduev in https://github.com/wandb/wandb/pull/11923)
