@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import pathlib
-import time
 from collections.abc import Iterable, Iterator
 from itertools import filterfalse
 
@@ -13,7 +12,7 @@ import wandb
 from wandb.errors import term
 from wandb.proto.wandb_sync_pb2 import ServerSyncResponse
 from wandb.sdk import wandb_setup
-from wandb.sdk.lib import asyncio_compat, wbauth
+from wandb.sdk.lib import asyncio_compat, ratelimit, wbauth
 from wandb.sdk.lib.printer import Printer, new_printer
 from wandb.sdk.lib.progress import progress_printer
 from wandb.sdk.lib.service.service_connection import ServiceConnection
@@ -21,7 +20,6 @@ from wandb.sdk.mailbox.mailbox_handle import MailboxHandle
 
 _MAX_LIST_LINES = 20
 _POLL_WAIT_SECONDS = 0.1
-_SLEEP = asyncio.sleep  # patched in tests
 
 
 def sync(
@@ -227,7 +225,7 @@ class _SyncStatusLoop:
         self._service = service
         self._printer = printer
 
-        self._rate_limit_last_time: float | None = None
+        self._rate_limit = ratelimit.Cooldown(_POLL_WAIT_SECONDS)
         self._done = asyncio.Event()
 
     async def wait_with_progress(
@@ -261,15 +259,10 @@ class _SyncStatusLoop:
 
     async def _rate_limit_check_done(self) -> bool:
         """Wait for rate limit and return whether _done is set."""
-        now = time.monotonic()
-        last_time = self._rate_limit_last_time
-        self._rate_limit_last_time = now
-
-        if last_time and (time_since_last := now - last_time) < _POLL_WAIT_SECONDS:
-            await asyncio_compat.race(
-                _SLEEP(_POLL_WAIT_SECONDS - time_since_last),
-                self._done.wait(),
-            )
+        await asyncio_compat.race(
+            self._rate_limit.wait(),
+            self._done.wait(),
+        )
 
         return self._done.is_set()
 
