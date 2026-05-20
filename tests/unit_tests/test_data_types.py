@@ -266,14 +266,33 @@ def test_image_accepts_masks_without_class_labels(
     assert os.path.exists(os.path.join(run.dir, path))
 
 
-def test_image_masks_emit_per_mask_classes_in_artifact(image):
-    """WB-26043: each mask's ``class_labels`` must survive artifact serialization.
-
-    Before the fix, only a single merged (and clobbered) classes-file was emitted
-    at the image level; per-mask class_labels were lost on disk.
+def test_image_merged_class_map_joins_colliding_mask_labels(image):
+    """When two boxes or masks bind different names to the same class ID, the
+    top-level ``_classes`` (the back-compat ``classes-file``) joins them with
+    vertical bar so older frontends — which only read ``class_map`` — surface the
+    ambiguity instead of silently picking one. Newer frontends read
+    ``box_class_maps`` or ``mask_class_maps`` and are unaffected. Box and mask
+    labels are combined across both axes when IDs collide across the two.
     """
+
+    def box(class_id: int) -> dict:
+        return {
+            "position": {"minX": 0.1, "maxX": 0.2, "minY": 0.1, "maxY": 0.2},
+            "class_id": class_id,
+        }
+
     img = wandb.Image(
         image,
+        boxes={
+            "box_gt": {
+                "box_data": [box(1), box(4)],
+                "class_labels": {1: "BoxGtA", 4: "BoxGtOnly"},
+            },
+            "box_pred": {
+                "box_data": [box(1)],
+                "class_labels": {1: "BoxPredA"},
+            },
+        },
         masks={
             "ground_truth": {
                 "mask_data": np.array([[1, 2], [2, 1]]),
@@ -285,53 +304,44 @@ def test_image_masks_emit_per_mask_classes_in_artifact(image):
             },
         },
     )
-    art = wandb.Artifact("test_per_mask_classes", "dataset")
-    img_json = img.to_json(art)
-
-    for mask_key in ("ground_truth", "predictions"):
-        ref = img_json["masks"][mask_key].get("classes")
-        assert ref is not None, f"Missing classes ref on mask '{mask_key}'"
-        assert ref["type"] == "classes-file"
-        assert "path" in ref and ref["path"]
-
-    gt_path = img_json["masks"]["ground_truth"]["classes"]["path"]
-    pred_path = img_json["masks"]["predictions"]["classes"]["path"]
-    assert gt_path != pred_path
+    merged = {item["id"]: item["name"] for item in img._classes._class_set}
+    # ID 1 collides across both box keys AND both mask keys; all four
+    # distinct names join in insertion order (boxes first, then masks).
+    assert merged[1] == "BoxGtA|BoxPredA|Ignored|Incorrect"
+    # ID 2 collides only across masks.
+    assert merged[2] == "Text|Correct"
+    # ID 3 appears only in a single mask.
+    assert merged[3] == "FP"
+    # ID 4 appears only in a single box.
+    assert merged[4] == "BoxGtOnly"
 
 
-def test_image_mask_classes_dedup_when_labels_identical(image):
-    """WB-26043: two masks with identical ``class_labels`` must share one classes-file.
-
-    Content-addressing (md5 of the class set) means duplicate label sets dedupe
-    automatically in the artifact, so the table JSON stays small when many cells
-    share labels.
-    """
-    common_labels = {1: "Same", 2: "Identical"}
+def test_image_merged_class_map_dedupes_identical_names(image):
+    """If two masks bind the same ID to the same name, the merged map shows
+    that name once (no ``"X|X"`` noise)."""
     img = wandb.Image(
         image,
         masks={
             "a": {
                 "mask_data": np.array([[1, 2], [2, 1]]),
-                "class_labels": common_labels,
+                "class_labels": {1: "Shared", 2: "Other"},
             },
             "b": {
                 "mask_data": np.array([[1, 2], [1, 2]]),
-                "class_labels": common_labels,
+                "class_labels": {1: "Shared", 2: "Different"},
             },
         },
     )
-    art = wandb.Artifact("test_dedup", "dataset")
-    img_json = img.to_json(art)
-
-    a_path = img_json["masks"]["a"]["classes"]["path"]
-    b_path = img_json["masks"]["b"]["classes"]["path"]
-    assert a_path == b_path
+    merged = {item["id"]: item["name"] for item in img._classes._class_set}
+    assert merged[1] == "Shared"
+    assert merged[2] == "Other|Different"
 
 
-def test_image_explicit_classes_not_polluted_by_mask_labels(image):
-    """WB-26043: explicit ``classes=`` represents the image's non-mask class set
-    and must not be merged with mask ``class_labels``. Per-mask labels live in
-    per-mask classes-file refs; the top-level classes-file reflects user intent.
+def test_image_explicit_classes_not_polluted_by_mask_or_box_labels(image):
+    """Explicit ``classes=`` represents the image's non-mask, non-box class
+    set and must not be merged with mask or box ``class_labels``. Per-key
+    labels live in ``mask_class_maps`` / ``box_class_maps``; the top-level
+    ``_classes`` (back-compat ``classes-file``) reflects user intent only.
     """
     img = wandb.Image(
         image,
@@ -341,13 +351,75 @@ def test_image_explicit_classes_not_polluted_by_mask_labels(image):
                 "class_labels": {1: "Ignored", 2: "Text"},
             },
         },
+        boxes={
+            "box_set_1": {
+                "box_data": [
+                    {
+                        "position": {
+                            "minX": 0.1,
+                            "maxX": 0.2,
+                            "minY": 0.1,
+                            "maxY": 0.2,
+                        },
+                        "class_id": 1,
+                    }
+                ],
+                "class_labels": {1: "BoxOnly"},
+            },
+        },
         classes=[{"id": 99, "name": "BackgroundOnly"}],
     )
+    # Neither the mask's ``{1: "Ignored", 2: "Text"}`` nor the box's
+    # ``{1: "BoxOnly"}`` should appear in the merged class set; only the
+    # caller's explicit ``classes=`` does.
     assert img._classes._class_set == [{"id": 99, "name": "BackgroundOnly"}]
 
 
-def test_image_mask_type_schema_carries_per_mask_class_labels(image):
-    """WB-26043: ``_ImageFileType`` exposes per-mask class labels so a Table's
+def test_image_box_type_schema_carries_per_box_class_maps(image):
+    """``_ImageFileType.box_class_maps`` carries per-box ``class_labels`` so
+    the frontend can render distinct legends per box-set even when IDs collide.
+    """
+    img = wandb.Image(
+        image,
+        boxes={
+            "box_set_1": {
+                "box_data": [
+                    {
+                        "position": {
+                            "minX": 0.1,
+                            "maxX": 0.2,
+                            "minY": 0.1,
+                            "maxY": 0.2,
+                        },
+                        "class_id": 1,
+                    }
+                ],
+                "class_labels": {1: "Box Label A"},
+            },
+            "box_set_2": {
+                "box_data": [
+                    {
+                        "position": {
+                            "minX": 0.3,
+                            "maxX": 0.4,
+                            "minY": 0.3,
+                            "maxY": 0.4,
+                        },
+                        "class_id": 1,
+                    }
+                ],
+                "class_labels": {1: "Different Box Label"},
+            },
+        },
+    )
+    img_type = _dtypes.TypeRegistry.type_of(img)
+    box_class_maps = img_type.params["box_class_maps"]._params["val"]
+    assert box_class_maps["box_set_1"] == {"1": "Box Label A"}
+    assert box_class_maps["box_set_2"] == {"1": "Different Box Label"}
+
+
+def test_image_mask_type_schema_carries_per_mask_class_maps(image):
+    """``_ImageFileType`` exposes per-mask class labels so a Table's
     column_types schema carries them, separate from the merged ``class_map``."""
     img = wandb.Image(
         image,
@@ -363,9 +435,9 @@ def test_image_mask_type_schema_carries_per_mask_class_labels(image):
         },
     )
     img_type = _dtypes.TypeRegistry.type_of(img)
-    mask_class_labels = img_type.params["mask_class_labels"]._params["val"]
-    assert mask_class_labels["ground_truth"] == {"1": "Ignored", "2": "Text"}
-    assert mask_class_labels["predictions"] == {
+    mask_class_maps = img_type.params["mask_class_maps"]._params["val"]
+    assert mask_class_maps["ground_truth"] == {"1": "Ignored", "2": "Text"}
+    assert mask_class_maps["predictions"] == {
         "1": "Incorrect",
         "2": "Correct",
         "3": "FP",
