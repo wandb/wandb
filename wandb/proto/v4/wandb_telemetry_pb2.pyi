@@ -6,7 +6,7 @@ from typing import ClassVar as _ClassVar, Mapping as _Mapping, Optional as _Opti
 DESCRIPTOR: _descriptor.FileDescriptor
 
 class TelemetryRecord(_message.Message):
-    __slots__ = ["imports_init", "imports_finish", "feature", "python_version", "cli_version", "huggingface_version", "env", "label", "deprecated", "issues", "core_version", "platform", "_info"]
+    __slots__ = ["imports_init", "imports_finish", "feature", "python_version", "cli_version", "huggingface_version", "env", "label", "deprecated", "core_version", "platform", "_info"]
     IMPORTS_INIT_FIELD_NUMBER: _ClassVar[int]
     IMPORTS_FINISH_FIELD_NUMBER: _ClassVar[int]
     FEATURE_FIELD_NUMBER: _ClassVar[int]
@@ -16,7 +16,6 @@ class TelemetryRecord(_message.Message):
     ENV_FIELD_NUMBER: _ClassVar[int]
     LABEL_FIELD_NUMBER: _ClassVar[int]
     DEPRECATED_FIELD_NUMBER: _ClassVar[int]
-    ISSUES_FIELD_NUMBER: _ClassVar[int]
     CORE_VERSION_FIELD_NUMBER: _ClassVar[int]
     PLATFORM_FIELD_NUMBER: _ClassVar[int]
     _INFO_FIELD_NUMBER: _ClassVar[int]
@@ -29,11 +28,10 @@ class TelemetryRecord(_message.Message):
     env: Env
     label: Labels
     deprecated: Deprecated
-    issues: Issues
     core_version: str
     platform: str
     _info: _wandb_base_pb2._RecordInfo
-    def __init__(self, imports_init: _Optional[_Union[Imports, _Mapping]] = ..., imports_finish: _Optional[_Union[Imports, _Mapping]] = ..., feature: _Optional[_Union[Feature, _Mapping]] = ..., python_version: _Optional[str] = ..., cli_version: _Optional[str] = ..., huggingface_version: _Optional[str] = ..., env: _Optional[_Union[Env, _Mapping]] = ..., label: _Optional[_Union[Labels, _Mapping]] = ..., deprecated: _Optional[_Union[Deprecated, _Mapping]] = ..., issues: _Optional[_Union[Issues, _Mapping]] = ..., core_version: _Optional[str] = ..., platform: _Optional[str] = ..., _info: _Optional[_Union[_wandb_base_pb2._RecordInfo, _Mapping]] = ...) -> None: ...
+    def __init__(self, imports_init: _Optional[_Union[Imports, _Mapping]] = ..., imports_finish: _Optional[_Union[Imports, _Mapping]] = ..., feature: _Optional[_Union[Feature, _Mapping]] = ..., python_version: _Optional[str] = ..., cli_version: _Optional[str] = ..., huggingface_version: _Optional[str] = ..., env: _Optional[_Union[Env, _Mapping]] = ..., label: _Optional[_Union[Labels, _Mapping]] = ..., deprecated: _Optional[_Union[Deprecated, _Mapping]] = ..., core_version: _Optional[str] = ..., platform: _Optional[str] = ..., _info: _Optional[_Union[_wandb_base_pb2._RecordInfo, _Mapping]] = ...) -> None: ...
 
 class TelemetryResult(_message.Message):
     __slots__ = []
@@ -422,20 +420,16 @@ class Labels(_message.Message):
     def __init__(self, code_string: _Optional[str] = ..., repo_string: _Optional[str] = ..., code_version: _Optional[str] = ...) -> None: ...
 
 class Deprecated(_message.Message):
-    __slots__ = ["keras_callback__data_type", "plots", "init__config_include_keys", "init__config_exclude_keys", "keras_callback__save_model", "langchain_tracer", "artifact__get_path", "artifactmanifestentry__name", "api__artifact_versions", "artifact_collection__change_type", "run__define_metric_copy", "run_disabled", "keras_callback", "run__define_metric_best_goal", "run__finish_quiet", "run__reinit_bool", "run__get_url", "run__project_name", "run__get_project_url", "run__get_sweep_url", "run__use_artifact_use_as", "artifact__use_as", "artifact__init_use_as", "beta__workflows__log_model", "beta__workflows__use_model", "beta__workflows__link_model", "kfp_v1_wandb_log"]
-    KERAS_CALLBACK__DATA_TYPE_FIELD_NUMBER: _ClassVar[int]
+    __slots__ = ["plots", "init__config_include_keys", "init__config_exclude_keys", "artifact__get_path", "artifactmanifestentry__name", "api__artifact_versions", "artifact_collection__change_type", "run__define_metric_copy", "run_disabled", "run__define_metric_best_goal", "run__finish_quiet", "run__reinit_bool", "run__get_url", "run__project_name", "run__get_project_url", "run__get_sweep_url", "run__use_artifact_use_as", "artifact__use_as", "artifact__init_use_as", "kfp_v1_wandb_log"]
     PLOTS_FIELD_NUMBER: _ClassVar[int]
     INIT__CONFIG_INCLUDE_KEYS_FIELD_NUMBER: _ClassVar[int]
     INIT__CONFIG_EXCLUDE_KEYS_FIELD_NUMBER: _ClassVar[int]
-    KERAS_CALLBACK__SAVE_MODEL_FIELD_NUMBER: _ClassVar[int]
-    LANGCHAIN_TRACER_FIELD_NUMBER: _ClassVar[int]
     ARTIFACT__GET_PATH_FIELD_NUMBER: _ClassVar[int]
     ARTIFACTMANIFESTENTRY__NAME_FIELD_NUMBER: _ClassVar[int]
     API__ARTIFACT_VERSIONS_FIELD_NUMBER: _ClassVar[int]
     ARTIFACT_COLLECTION__CHANGE_TYPE_FIELD_NUMBER: _ClassVar[int]
     RUN__DEFINE_METRIC_COPY_FIELD_NUMBER: _ClassVar[int]
     RUN_DISABLED_FIELD_NUMBER: _ClassVar[int]
-    KERAS_CALLBACK_FIELD_NUMBER: _ClassVar[int]
     RUN__DEFINE_METRIC_BEST_GOAL_FIELD_NUMBER: _ClassVar[int]
     RUN__FINISH_QUIET_FIELD_NUMBER: _ClassVar[int]
     RUN__REINIT_BOOL_FIELD_NUMBER: _ClassVar[int]
@@ -446,23 +440,16 @@ class Deprecated(_message.Message):
     RUN__USE_ARTIFACT_USE_AS_FIELD_NUMBER: _ClassVar[int]
     ARTIFACT__USE_AS_FIELD_NUMBER: _ClassVar[int]
     ARTIFACT__INIT_USE_AS_FIELD_NUMBER: _ClassVar[int]
-    BETA__WORKFLOWS__LOG_MODEL_FIELD_NUMBER: _ClassVar[int]
-    BETA__WORKFLOWS__USE_MODEL_FIELD_NUMBER: _ClassVar[int]
-    BETA__WORKFLOWS__LINK_MODEL_FIELD_NUMBER: _ClassVar[int]
     KFP_V1_WANDB_LOG_FIELD_NUMBER: _ClassVar[int]
-    keras_callback__data_type: bool
     plots: bool
     init__config_include_keys: bool
     init__config_exclude_keys: bool
-    keras_callback__save_model: bool
-    langchain_tracer: bool
     artifact__get_path: bool
     artifactmanifestentry__name: bool
     api__artifact_versions: bool
     artifact_collection__change_type: bool
     run__define_metric_copy: bool
     run_disabled: bool
-    keras_callback: bool
     run__define_metric_best_goal: bool
     run__finish_quiet: bool
     run__reinit_bool: bool
@@ -473,18 +460,5 @@ class Deprecated(_message.Message):
     run__use_artifact_use_as: bool
     artifact__use_as: bool
     artifact__init_use_as: bool
-    beta__workflows__log_model: bool
-    beta__workflows__use_model: bool
-    beta__workflows__link_model: bool
     kfp_v1_wandb_log: bool
-    def __init__(self, keras_callback__data_type: bool = ..., plots: bool = ..., init__config_include_keys: bool = ..., init__config_exclude_keys: bool = ..., keras_callback__save_model: bool = ..., langchain_tracer: bool = ..., artifact__get_path: bool = ..., artifactmanifestentry__name: bool = ..., api__artifact_versions: bool = ..., artifact_collection__change_type: bool = ..., run__define_metric_copy: bool = ..., run_disabled: bool = ..., keras_callback: bool = ..., run__define_metric_best_goal: bool = ..., run__finish_quiet: bool = ..., run__reinit_bool: bool = ..., run__get_url: bool = ..., run__project_name: bool = ..., run__get_project_url: bool = ..., run__get_sweep_url: bool = ..., run__use_artifact_use_as: bool = ..., artifact__use_as: bool = ..., artifact__init_use_as: bool = ..., beta__workflows__log_model: bool = ..., beta__workflows__use_model: bool = ..., beta__workflows__link_model: bool = ..., kfp_v1_wandb_log: bool = ...) -> None: ...
-
-class Issues(_message.Message):
-    __slots__ = ["settings__validation_warnings", "settings__unexpected_args", "settings__preprocessing_warnings"]
-    SETTINGS__VALIDATION_WARNINGS_FIELD_NUMBER: _ClassVar[int]
-    SETTINGS__UNEXPECTED_ARGS_FIELD_NUMBER: _ClassVar[int]
-    SETTINGS__PREPROCESSING_WARNINGS_FIELD_NUMBER: _ClassVar[int]
-    settings__validation_warnings: bool
-    settings__unexpected_args: bool
-    settings__preprocessing_warnings: bool
-    def __init__(self, settings__validation_warnings: bool = ..., settings__unexpected_args: bool = ..., settings__preprocessing_warnings: bool = ...) -> None: ...
+    def __init__(self, plots: bool = ..., init__config_include_keys: bool = ..., init__config_exclude_keys: bool = ..., artifact__get_path: bool = ..., artifactmanifestentry__name: bool = ..., api__artifact_versions: bool = ..., artifact_collection__change_type: bool = ..., run__define_metric_copy: bool = ..., run_disabled: bool = ..., run__define_metric_best_goal: bool = ..., run__finish_quiet: bool = ..., run__reinit_bool: bool = ..., run__get_url: bool = ..., run__project_name: bool = ..., run__get_project_url: bool = ..., run__get_sweep_url: bool = ..., run__use_artifact_use_as: bool = ..., artifact__use_as: bool = ..., artifact__init_use_as: bool = ..., kfp_v1_wandb_log: bool = ...) -> None: ...
