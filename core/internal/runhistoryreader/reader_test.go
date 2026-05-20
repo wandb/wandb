@@ -549,6 +549,92 @@ func TestHistoryReader_GetHistorySteps_WithKeys(t *testing.T) {
 	}
 }
 
+func TestHistoryReader_New_AddsStepKeyWhenMissing(t *testing.T) {
+	ctx := t.Context()
+	tempDir := t.TempDir()
+	t.Setenv("WANDB_CACHE_DIR", tempDir)
+
+	columns := []columnDef{
+		{name: "_step", colType: "int64"},
+		{name: "metric1", colType: "float64"},
+	}
+	data := []map[string]any{
+		{"_step": int64(0), "metric1": 1.0},
+	}
+
+	dummyContent := createDummyFileContent()
+	server := createHttpServer(t, respondWithContent(t, dummyContent))
+	mockGQL := mockGraphQLWithParquetUrls([]string{
+		server.URL + "/test.parquet",
+	})
+	rustWrapper := createMockRustArrowWrapper(
+		t,
+		columns,
+		map[uintptr][]map[string]any{1: data},
+	)
+
+	reader, err := New(
+		ctx,
+		"test-entity",
+		"test-project",
+		"test-run-id",
+		mockGQL,
+		retryablehttp.NewClient(),
+		[]string{"metric1"},
+		true,
+		rustWrapper,
+	)
+	require.NoError(t, err)
+
+	assert.ElementsMatch(t,
+		[]string{"metric1", parquet.StepKey},
+		reader.keys,
+	)
+}
+
+func TestHistoryReader_New_DoesNotDuplicateStepKey(t *testing.T) {
+	ctx := t.Context()
+	tempDir := t.TempDir()
+	t.Setenv("WANDB_CACHE_DIR", tempDir)
+
+	columns := []columnDef{
+		{name: "_step", colType: "int64"},
+		{name: "metric1", colType: "float64"},
+	}
+	data := []map[string]any{
+		{"_step": int64(0), "metric1": 1.0},
+	}
+
+	dummyContent := createDummyFileContent()
+	server := createHttpServer(t, respondWithContent(t, dummyContent))
+	mockGQL := mockGraphQLWithParquetUrls([]string{
+		server.URL + "/test.parquet",
+	})
+	rustWrapper := createMockRustArrowWrapper(
+		t,
+		columns,
+		map[uintptr][]map[string]any{1: data},
+	)
+
+	reader, err := New(
+		ctx,
+		"test-entity",
+		"test-project",
+		"test-run-id",
+		mockGQL,
+		retryablehttp.NewClient(),
+		[]string{parquet.StepKey, "metric1"},
+		true,
+		rustWrapper,
+	)
+	require.NoError(t, err)
+
+	assert.Equal(t,
+		[]string{parquet.StepKey, "metric1"},
+		reader.keys,
+	)
+}
+
 func TestHistoryReader_GetHistorySteps_AllLiveData(t *testing.T) {
 	ctx := t.Context()
 	mockGQL := gqlmock.NewMockClient()

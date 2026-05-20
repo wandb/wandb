@@ -98,6 +98,46 @@ def test_run_beta_scan_history(
     ]
 
 
+def test_run_beta_scan_history__keys_subset(
+    wandb_backend_spy,
+    parquet_file_server,
+    monkeypatch,
+):
+    """Scanning with a key list that omits _step should still succeed.
+
+    The Rust parquet reader requires _step to filter rows by step range,
+    so the Go HistoryReader is expected to add it to the user-supplied
+    key list automatically.
+    """
+    monkeypatch.setenv("WANDB_CACHE_DIR", tempfile.mkdtemp())
+
+    parquet_data_path = "parquet/1.parquet"
+    run_data = {
+        "_step": [0, 1, 2],
+        "acc": [0.5, 0.75, 0.9],
+        "loss": [1.0, 0.5, 0.1],
+    }
+    parquet_file_server.serve_data_as_parquet_file(parquet_data_path, run_data)
+    stub_run_parquet_history(
+        wandb_backend_spy, parquet_file_server, [parquet_data_path]
+    )
+    stub_api_run_history_keys(wandb_backend_spy, 2)
+    with wandb.init() as run:
+        pass
+    run = wandb.Api().run(
+        f"{run.entity}/{run.project}/{run.id}",
+    )
+
+    scan = run.beta_scan_history(keys=["acc"])
+
+    history = [row for row in scan]
+    assert history == [
+        {"_step": 0, "acc": 0.5},
+        {"_step": 1, "acc": 0.75},
+        {"_step": 2, "acc": 0.9},
+    ]
+
+
 def test_run_beta_scan_history__iter_resets(
     wandb_backend_spy,
     parquet_file_server,
