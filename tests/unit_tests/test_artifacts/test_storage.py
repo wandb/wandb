@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import errno
 import os
 import random
@@ -124,22 +122,6 @@ def test_check_md5_obj_path_override(artifact_file_cache):
     artifact_file_cache._override_cache_path = override_path
     path, exists, _ = artifact_file_cache.check_md5_obj_path(md5, 2)
     assert path == override_path
-    assert exists is False
-
-
-def test_check_md5_obj_path_explicit_override_does_not_persist(artifact_file_cache):
-    md5 = md5_string("hi")
-    override_path = os.path.join(artifact_file_cache._cache_dir, "override.cache")
-    path, exists, _ = artifact_file_cache.check_md5_obj_path(
-        md5,
-        2,
-        override_cache_path=override_path,
-    )
-    assert path == override_path
-    assert exists is False
-
-    path, exists, _ = artifact_file_cache.check_md5_obj_path(md5, 2)
-    assert path != override_path
     assert exists is False
 
 

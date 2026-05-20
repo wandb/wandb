@@ -224,9 +224,6 @@ class Api:
             org_or_entity=org_or_entity,
         )
 
-    def _fetch_org_entity_from_organization(self, organization: str) -> str:
-        return fetch_org_entity_from_organization(self._service_api, organization)
-
     def create_project(self, name: str, entity: str) -> None:
         """Create a new project.
 
@@ -2047,7 +2044,10 @@ class Api:
         organization = organization or fetch_org_from_settings_or_entity(
             self.settings, self.default_entity
         )
-        org_entity = self._fetch_org_entity_from_organization(organization)
+        org_entity = fetch_org_entity_from_organization(
+            self._service_api,
+            organization,
+        )
         registry = Registry(
             self._service_api,
             organization,
@@ -2157,7 +2157,10 @@ class Api:
             f"Failed to create registry {name!r} in organization {organization!r}."
         )
 
-        org_entity = self._fetch_org_entity_from_organization(organization)
+        org_entity = fetch_org_entity_from_organization(
+            self._service_api,
+            organization,
+        )
         gql_input = UpsertModelInput(
             description=description,
             entity_name=org_entity,

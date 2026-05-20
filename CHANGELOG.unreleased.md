@@ -13,3 +13,7 @@ sections:
 Section headings should be at level 3 (e.g. `### Added`).
 
 ## Unreleased
+
+### Changed
+
+- `wandb.Api` GraphQL operations are routed through the wandb-core service. Failures from these operations now raise `WandbApiFailedError` instead of `requests` HTTP exceptions.

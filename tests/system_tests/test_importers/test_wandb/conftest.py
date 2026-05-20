@@ -1,4 +1,3 @@
-import json
 import logging
 import os
 import random
@@ -12,9 +11,9 @@ import plotly.express as px
 import plotly.io as pio
 import pytest
 import wandb
+import wandb.apis.reports as wr
 from PIL import Image
 from rdkit import Chem
-from wandb.apis.importers.wandb import UPSERT_VIEW
 
 
 @pytest.fixture
@@ -79,37 +78,9 @@ def server_src(user):
         #         if v == 1:
         #             art.delete(delete_aliases=True)
 
-    api = wandb.Api()
-    for i in range(n_reports):
-        create_report(api, entity=user, project=project_name, name=f"report-{i}")
-
-
-def create_report(api, *, entity: str, project: str, name: str) -> None:
-    api._service_api.execute_graphql(
-        UPSERT_VIEW,
-        variables={
-            "id": None,
-            "name": name,
-            "entityName": entity,
-            "projectName": project,
-            "description": "",
-            "displayName": "blah",
-            "type": "runs",
-            "spec": json.dumps(
-                {
-                    "version": 5,
-                    "panelSettings": {},
-                    "blocks": [
-                        {"type": "heading", "children": [{"text": "blah"}], "level": 1}
-                    ],
-                    "width": "readable",
-                    "authors": [],
-                    "discussionThreads": [],
-                    "ref": {},
-                }
-            ),
-        },
-    )
+    # create reports
+    for _ in range(n_reports):
+        wr.Report(project=project_name, blocks=[wr.H1("blah")]).save()
 
 
 def generate_random_data(n: int, n_metrics: int) -> list:

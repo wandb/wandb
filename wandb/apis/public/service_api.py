@@ -10,7 +10,6 @@ from typing import Any, cast
 
 from packaging.version import parse
 
-from wandb import util
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto.wandb_api_pb2 import (
     ApiRequest,
@@ -64,7 +63,7 @@ class ServiceApi:
 
     @property
     def app_url(self) -> str:
-        return util.app_url(self._settings.base_url.rstrip("/")) + "/"
+        return self._settings.app_url.rstrip("/") + "/"
 
     @property
     def api_key(self) -> str | None:

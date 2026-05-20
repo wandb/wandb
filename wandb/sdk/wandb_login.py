@@ -293,8 +293,6 @@ def _verify_login(key: str, base_url: str) -> None:
     api = InternalApi(
         api_key=key,
         default_settings={"base_url": base_url},
-        environ={},
-        load_settings=False,
     )
 
     try:

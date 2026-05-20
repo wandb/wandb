@@ -189,19 +189,17 @@ class Runs(SizedPaginator["Run"]):
     This is generally used indirectly using the `Api.runs` namespace.
 
     Args:
-        service_api: (`wandb.apis.public.ServiceApi`) The service API to use
-            for requests.
-        entity: (str) The entity (username or team) that owns the project.
-        project: (str) The name of the project to fetch runs from.
-        filters: (Optional[Dict[str, Any]]) A dictionary of filters to apply
-            to the runs query.
-        order: (str) Order can be `created_at`, `heartbeat_at`, `config.*.value`, or `summary_metrics.*`.
+        service_api: The service API to use for requests.
+        entity: The entity (username or team) that owns the project.
+        project: The name of the project to fetch runs from.
+        filters: Filters to apply to the runs query.
+        order: Order can be `created_at`, `heartbeat_at`, `config.*.value`, or `summary_metrics.*`.
             If you prepend order with a + order is ascending (default).
             If you prepend order with a - order is descending.
             The default order is run.created_at from oldest to newest.
-        per_page: (int) The number of runs to fetch per request (default is 50).
-        include_sweeps: (bool) Whether to include sweep information in the
-            runs. Defaults to True.
+        per_page: The number of runs to fetch per request (default is 50).
+        include_sweeps: Whether to include sweep information in the runs.
+            Defaults to True.
     """
 
     def __init__(
@@ -595,7 +593,6 @@ class Run(Attrs):
     """A single run associated with an entity and project.
 
     Args:
-        client: Legacy GraphQL client retained for API compatibility.
         service_api: Interface to the wandb-core service that performs
             W&B API calls for this run.
         entity: The entity associated with the run.

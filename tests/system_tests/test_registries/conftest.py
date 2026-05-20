@@ -8,6 +8,7 @@ import wandb
 from pytest import FixtureRequest, fixture, skip
 from pytest_mock import MockerFixture
 from wandb import Api, Artifact
+from wandb.apis.public.registries._utils import fetch_org_entity_from_organization
 from wandb.apis.public.registries.registry import Registry
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.artifacts._gqlutils import server_supports
@@ -63,7 +64,7 @@ def org_entity(org: str, api: Api) -> str:
     if not server_supports(api._service_api, pb.ARTIFACT_REGISTRY_SEARCH):
         skip("Cannot fetch org entity on this server version.")
 
-    return api._fetch_org_entity_from_organization(org)
+    return fetch_org_entity_from_organization(api._service_api, org)
 
 
 @fixture

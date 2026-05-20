@@ -1,16 +1,14 @@
-from __future__ import annotations
-
 from typing import Any
 
 import pytest
 from wandb.apis.public.service_api import ServiceApi
 from wandb.proto import wandb_api_pb2 as apb
 from wandb.sdk.lib.service.service_connection import WandbApiFailedError
+from wandb.sdk.wandb_settings import Settings
 
 
 def test_execute_graphql_sends_query_unchanged_and_timeout():
-    api = ServiceApi.__new__(ServiceApi)
-    api._timeout = None
+    api = ServiceApi(Settings())
     sent: dict[str, Any] = {}
 
     def send_api_request(
@@ -35,8 +33,7 @@ def test_execute_graphql_sends_query_unchanged_and_timeout():
 
 
 def test_execute_graphql_propagates_core_api_error_response():
-    api = ServiceApi.__new__(ServiceApi)
-    api._timeout = None
+    api = ServiceApi(Settings())
     error_response = apb.ApiErrorResponse(message="server unavailable")
 
     def send_api_request(
