@@ -20,6 +20,9 @@ class ProjectIconInput(GQLInput):
 
 class RateLimitsInput(GQLInput):
     create_artifacts: int | None = Field(alias="createArtifacts", default=None)
+    create_artifacts_request_count: int | None = Field(
+        alias="createArtifactsRequestCount", default=None
+    )
     create_artifacts_time_window: int | None = Field(
         alias="createArtifactsTimeWindow", default=None
     )
@@ -53,7 +56,6 @@ class UpsertModelInput(GQLInput):
     id: str | None = None
     is_benchmark: bool | None = Field(alias="isBenchmark", default=None)
     is_published: bool | None = Field(alias="isPublished", default=None)
-    linked_benchmark: GQLId | None = Field(alias="linkedBenchmark", default=None)
     name: str | None = Field(default=None, max_length=128)
     owner: GQLId | None = None
     rate_limits: RateLimitsInput | None = Field(alias="rateLimits", default=None)

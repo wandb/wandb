@@ -14,6 +14,10 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ## Unreleased
 
+### Added
+
+- The automations API now supports artifact tag, collection tag, and artifact unlinking events (@tonyyli-wandb in https://github.com/wandb/wandb/pull/11922)
+
 ### Changed
 
 - `wandb.Api` GraphQL operations are routed through the wandb-core service instead of the legacy Python GraphQL client. Failures from these operations now raise `WandbApiFailedError` instead of `requests` HTTP exceptions, and customizations made by patching `requests` no longer affect these GraphQL calls (@dmitryduev in https://github.com/wandb/wandb/pull/11818)
