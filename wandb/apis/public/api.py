@@ -86,7 +86,7 @@ class RetryingClient:
     New public API GraphQL calls should use `ServiceApi.execute_graphql`.
     Delete this once all `execute()` call sites have moved to wandb-core.
 
-    <!-- lazydoc-ignore-class: internal -->
+    <!-- lazydoc-ignore: internal -->
     """
 
     INFO_QUERY = gql(

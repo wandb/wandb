@@ -33,7 +33,7 @@ class User(Attrs):
         client: The GraphQL client to use for network operations.
         attrs: A subset of the User type in the GraphQL schema.
 
-    <!-- lazydoc-ignore-init: internal -->
+    <!-- lazydoc-ignore: internal -->
     """
 
     def __init__(
@@ -69,7 +69,7 @@ class User(Attrs):
         Returns:
             A `User` object.
 
-        <!-- lazydoc-ignore-classmethod: internal -->
+        <!-- lazydoc-ignore: internal -->
         """
         from wandb.apis._generated import (
             CREATE_USER_FROM_ADMIN_GQL,
