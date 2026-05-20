@@ -131,8 +131,8 @@ def parse_input_action(v: Any) -> Any:
 
 
 # ----------------------------------------------------------------------------
-def wrap_run_event_run_filter(f: MongoLikeFilter) -> MongoLikeFilter:
-    """Wrap a run filter in an `And` operator if it's not already.
+def wrap_run_filter(f: MongoLikeFilter) -> MongoLikeFilter:
+    """Wrap a run filter for a run event in an `And` operator if it's not already.
 
     This is a necessary constraint imposed elsewhere by backend/frontend code.
     """

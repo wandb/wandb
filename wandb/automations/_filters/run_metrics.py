@@ -11,7 +11,7 @@ from pydantic import (
     StrictInt,
     field_validator,
 )
-from typing_extensions import assert_never, override
+from typing_extensions import override
 
 from wandb._pydantic import GQLBase
 from wandb.automations._validators import LenientStrEnum
@@ -88,7 +88,7 @@ class BaseMetricFilter(GQLBase, ABC, extra="forbid"):
 
     # ------------------------------------------------------------------------------
     cmp: str | None
-    """Comparison operator between the metric expression (left) vs. the threshold or target (right)."""  # noqa: W505
+    """Comparison operator between the metric (left) vs. threshold (right) values."""
 
     # ------------------------------------------------------------------------------
     threshold: StrictInt | StrictFloat
@@ -199,6 +199,56 @@ class MetricChangeFilter(BaseMetricFilter):  # from: RunMetricChangeFilter
         return repr(rf"{metric} {verb} {amt}")
 
 
+class MetricZScoreFilter(GQLBase, extra="forbid"):
+    """Filter that compares a metric's z-score against a user-defined threshold."""
+
+    name: str
+    """Name of the observed metric."""
+
+    window: Annotated[PositiveInt, Field(alias="window_size")] = 30
+    """Size of the window to calculate the metric mean and standard deviation over."""
+
+    threshold: PosNum = 3.0
+    """Threshold for the z-score."""
+
+    change_dir: ChangeDir = ChangeDir.ANY
+    """Direction of the z-score change to watch for."""
+
+    def __and__(self, other: Any) -> RunMetricFilter:
+        """Returns `(metric_filter & run_filter)` as a `RunMetricFilter`."""
+        from wandb.automations.events import RunMetricFilter
+
+        if isinstance(run_filter := other, (BaseOp, FilterExpr)):
+            # Treat `other` as a run filter and build a RunMetricEvent. Let the
+            # metric filter validators wrap or nest as appropriate.
+            return RunMetricFilter(run=run_filter, metric=self)
+        return NotImplemented
+
+    def __rand__(self, other: BaseOp | FilterExpr) -> RunMetricFilter:
+        """Ensures `&` is commutative for run and metric filters.
+
+        I.e. `(run_filter & metric_filter) == (metric_filter & run_filter)`.
+        """
+        return self.__and__(other)
+
+    def __repr__(self) -> str:
+        match self.change_dir:
+            case ChangeDir.ANY:
+                return repr(rf"abs(zscore({self.name!r})) > {self.threshold}")
+            case ChangeDir.DECREASE:
+                return repr(rf"zscore({self.name!r}) < -{self.threshold}")
+            case ChangeDir.INCREASE:
+                return repr(rf"zscore({self.name!r}) > +{self.threshold}")
+            case _:
+                raise ValueError(f"Unexpected change direction: {self.change_dir!r}")
+
+    @override
+    def __rich_repr__(self) -> RichReprResult:
+        """Returns the `rich` pretty-print representation of the metric filter."""
+        # See: https://rich.readthedocs.io/en/stable/pretty.html#rich-repr-protocol
+        yield None, repr(self)
+
+
 class BaseMetricOperand(GQLBase, ABC, extra="forbid"):
     def gt(self, value: int | float, /) -> MetricThresholdFilter:
         """Returns a filter that watches for `metric_expr > threshold`."""
@@ -286,7 +336,8 @@ class BaseMetricOperand(GQLBase, ABC, extra="forbid"):
             case (None, int() | float()):
                 kws = dict(change_dir=_dir, change_type=ChangeType.REL, threshold=frac)
             case _:
-                assert_never(dict(diff=diff, frac=frac))
+                msg = f"Expected numeric `diff` or `frac`, got: {diff=}, {frac=}"
+                raise TypeError(msg)
 
         return MetricChangeFilter(**dict(self), **kws)
 
@@ -460,53 +511,3 @@ class ZScoreMetricOperand(GQLBase, extra="forbid"):
         Allows using either `abs(zscore)` or `zscore.abs()`.
         """
         return self.__abs__()
-
-
-class MetricZScoreFilter(GQLBase, extra="forbid"):
-    """Filter that compares a metric's z-score against a user-defined threshold."""
-
-    name: str
-    """Name of the observed metric."""
-
-    window: Annotated[PositiveInt, Field(alias="window_size")] = 30
-    """Size of the window to calculate the metric mean and standard deviation over."""
-
-    threshold: PosNum = 3.0
-    """Threshold for the z-score."""
-
-    change_dir: ChangeDir = ChangeDir.ANY
-    """Direction of the z-score change to watch for."""
-
-    def __and__(self, other: Any) -> RunMetricFilter:
-        """Returns `(metric_filter & run_filter)` as a `RunMetricFilter`."""
-        from wandb.automations.events import RunMetricFilter
-
-        if isinstance(run_filter := other, (BaseOp, FilterExpr)):
-            # Treat `other` as a run filter and build a RunMetricEvent. Let the
-            # metric filter validators wrap or nest as appropriate.
-            return RunMetricFilter(run=run_filter, metric=self)
-        return NotImplemented
-
-    def __rand__(self, other: BaseOp | FilterExpr) -> RunMetricFilter:
-        """Ensures `&` is commutative for run and metric filters.
-
-        I.e. `(run_filter & metric_filter) == (metric_filter & run_filter)`.
-        """
-        return self.__and__(other)
-
-    def __repr__(self) -> str:
-        match self.change_dir:
-            case ChangeDir.ANY:
-                return repr(rf"abs(zscore({self.name!r})) > {self.threshold}")
-            case ChangeDir.DECREASE:
-                return repr(rf"zscore({self.name!r}) < -{self.threshold}")
-            case ChangeDir.INCREASE:
-                return repr(rf"zscore({self.name!r}) > +{self.threshold}")
-            case _:
-                assert_never(self.change_dir)
-
-    @override
-    def __rich_repr__(self) -> RichReprResult:
-        """Returns the `rich` pretty-print representation of the metric filter."""
-        # See: https://rich.readthedocs.io/en/stable/pretty.html#rich-repr-protocol
-        yield None, repr(self)

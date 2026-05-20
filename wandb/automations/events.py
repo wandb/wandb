@@ -24,7 +24,7 @@ from ._validators import (
     LenientStrEnum,
     ensure_json,
     wrap_mutation_event_filter,
-    wrap_run_event_run_filter,
+    wrap_run_filter,
 )
 from .actions import InputAction, InputActionTypes, SavedActionTypes
 from .scopes import ArtifactCollectionScope, AutomationScope, ProjectScope
@@ -61,11 +61,11 @@ class EventType(LenientStrEnum):
 
 # Note: In GQL responses containing saved automation data, the filter is wrapped
 # in an extra `filter` key.
-class _WrappedSavedEventFilter(GQLBase):  # from: TriggeringFilterEvent
+class _WrappedSavedEventFilter(GQLBase):  # from: FilterEventSpec
     filter: JsonEncoded[MongoLikeFilter] = And()
 
 
-class _WrappedMetricThresholdFilter(GQLBase):  # from: RunMetricFilter
+class _WrappedMetricThresholdFilter(GQLBase):  # from: MetricFilterChoice
     event_type: Annotated[
         Literal[EventType.RUN_METRIC_THRESHOLD],
         Field(exclude=True, repr=False),
@@ -82,7 +82,7 @@ class _WrappedMetricThresholdFilter(GQLBase):  # from: RunMetricFilter
         return v
 
 
-class _WrappedMetricChangeFilter(GQLBase):  # from: RunMetricFilter
+class _WrappedMetricChangeFilter(GQLBase):  # from: MetricFilterChoice
     event_type: Annotated[
         Literal[EventType.RUN_METRIC_CHANGE],
         Field(exclude=True, repr=False),
@@ -99,7 +99,7 @@ class _WrappedMetricChangeFilter(GQLBase):  # from: RunMetricFilter
         return v
 
 
-class _WrappedMetricZScoreFilter(GQLBase):  # from: RunMetricFilter
+class _WrappedMetricZScoreFilter(GQLBase):  # from: MetricFilterChoice
     event_type: Annotated[
         Literal[EventType.RUN_METRIC_ZSCORE],
         Field(exclude=True, repr=False),
@@ -115,10 +115,10 @@ class _WrappedMetricZScoreFilter(GQLBase):  # from: RunMetricFilter
         return v
 
 
-class RunMetricFilter(GQLBase):  # from: TriggeringRunMetricEvent
+class RunMetricFilter(GQLBase):  # from: RunMetricEventSpec
     run: Annotated[
         JsonEncoded[MongoLikeFilter],
-        AfterValidator(wrap_run_event_run_filter),
+        AfterValidator(wrap_run_filter),
         Field(alias="run_filter"),
     ] = And()
     """Filters that must match any runs that will trigger this event."""
@@ -153,12 +153,12 @@ class RunMetricFilter(GQLBase):  # from: TriggeringRunMetricEvent
         return v
 
 
-class RunStateFilter(GQLBase):  # from: TriggeringRunStateEvent
+class RunStateFilter(GQLBase):  # from: RunStateEventSpec
     """Represents a filter for triggering events based on changes in run states."""
 
     run: Annotated[
         JsonEncoded[MongoLikeFilter],
-        AfterValidator(wrap_run_event_run_filter),
+        AfterValidator(wrap_run_filter),
         Field(alias="run_filter"),
     ] = And()
     """Filters that must match any runs that will trigger this event."""
@@ -409,15 +409,6 @@ class RunEvent:
 class ArtifactEvent:
     alias = FilterableField()
 
-
-MetricThresholdFilter.model_rebuild()
-RunMetricFilter.model_rebuild()
-_WrappedSavedEventFilter.model_rebuild()
-
-OnLinkArtifact.model_rebuild()
-OnAddArtifactAlias.model_rebuild()
-OnCreateArtifact.model_rebuild()
-OnRunMetric.model_rebuild()
 
 __all__ = [
     "EventType",
