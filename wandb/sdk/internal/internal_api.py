@@ -2781,7 +2781,9 @@ class Api:
         )
 
         # TODO(dag): replace this with a query for protocol versioning
-        mutations = [mutation_5, mutation_4, mutation_3, mutation_2, mutation_1]
+        mutations = [mutation_5, mutation_4]
+        if launch_scheduler is None:
+            mutations.extend([mutation_3, mutation_2, mutation_1])
 
         config = self._validate_config_and_fill_distribution(config)
 

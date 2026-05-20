@@ -1,7 +1,10 @@
 import json
 from unittest.mock import MagicMock
 
+import pytest
 from wandb.apis import internal
+from wandb.errors import CommError
+from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 
 
 def test_create_run_queue():
@@ -101,3 +104,18 @@ def test_upsert_sweep():
     assert "$displayName: String" in call_args[0]
     assert "displayName: $displayName" in call_args[0]
     assert call_kwargs["variables"]["displayName"] == mock_display_name
+
+
+def test_upsert_sweep_does_not_drop_launch_scheduler_on_errors():
+    _api = internal.Api()
+    _api.api.execute = MagicMock(
+        side_effect=WandbApiFailedError("could not find launch queue project")
+    )
+
+    with pytest.raises(CommError):
+        _api.api.upsert_sweep(
+            config={"method": "grid", "parameters": {}},
+            launch_scheduler="{}",
+        )
+
+    assert _api.api.execute.call_count == 2
