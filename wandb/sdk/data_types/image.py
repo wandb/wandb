@@ -294,22 +294,16 @@ class Image(BatchableMedia):
         if grouping is not None:
             self._grouping = grouping
 
-        # Each bounding box and mask needs its own set of classes, keyed by pixel value.
-        # Unfortunately, we had a bug where we used a single dict keyed by pixel value
-        # for all boxes and masks, meaning the last one processed for each value
-        # overwrote the rest.
+        # Per-box and per-mask class labels are now also surfaced via the
+        # `box_class_maps` / `mask_class_maps`. The legacy class_map logic
+        # here is broken, as each box and mask clobbers the classes from
+        # the previous one, e.g. if box A has `1: foo`, and box B has
+        # `1: bar`, only `1: bar` will be retained, and it will be used
+        # for both boxes A and B.
         #
-        # We are now storing them separately, but legacy frontends still expect to see
-        # and use a single list, and the best we can do is to just present all possible
-        # values for each pixel value, e.g. 1: "foo|bar" (whereas bar would've just
-        # clobbered foo in the past).
-        distinct_names_by_id: dict = {}
-
-        def _accumulate_labels(labels: dict) -> None:
-            for cid, name in labels.items():
-                names = distinct_names_by_id.setdefault(cid, [])
-                if name not in names:
-                    names.append(name)
+        # TODO: Deprecate this legacy path after the current server release
+        # (0.81) is deprecated.
+        total_classes = {}
 
         if boxes:
             if not isinstance(boxes, dict):
@@ -322,7 +316,7 @@ class Image(BatchableMedia):
                 elif isinstance(box_item, dict):
                     # TODO: Consider injecting top-level classes if user-provided is empty
                     boxes_final[key] = BoundingBoxes2D(box_item, key)
-                _accumulate_labels(boxes_final[key]._class_labels)
+                total_classes.update(boxes_final[key]._class_labels)
             self._boxes = boxes_final
 
         if masks:
@@ -337,19 +331,16 @@ class Image(BatchableMedia):
                     # TODO: Consider injecting top-level classes if user-provided is empty
                     masks_final[key] = ImageMask(mask_item, key)
                 if hasattr(masks_final[key], "_val"):
-                    _accumulate_labels(masks_final[key]._val["class_labels"])
+                    total_classes.update(masks_final[key]._val["class_labels"])
             self._masks = masks_final
 
         if classes is not None:
             if isinstance(classes, Classes):
-                total_classes = {val["id"]: val["name"] for val in classes._class_set}
+                total_classes.update(
+                    {val["id"]: val["name"] for val in classes._class_set}
+                )
             else:
-                total_classes = {val["id"]: val["name"] for val in classes}
-        else:
-            # Concat all possible classes for each pixel value id.
-            total_classes = {
-                cid: "|".join(names) for cid, names in distinct_names_by_id.items()
-            }
+                total_classes.update({val["id"]: val["name"] for val in classes})
 
         if len(total_classes.keys()) > 0:
             self._classes = Classes(
