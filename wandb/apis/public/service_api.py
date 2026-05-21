@@ -51,22 +51,21 @@ class ServiceApi:
 
     def _get_service_connection(self) -> ServiceConnection:
         """Connects to the service and initializes resources for handling API requests."""
-        service_connection = wandb_setup.singleton().ensure_service()
-        # The singleton can return a fresh connection after a service restart.
-        # Re-initialize API resources for the connection that is current now.
-        if self._service_connection is not service_connection:
-            self._service_connection = service_connection
-            response = service_connection.api_init_request(self._settings.to_proto())
+        if self._service_connection is None:
+            self._service_connection = wandb_setup.singleton().ensure_service()
+            response = self._service_connection.api_init_request(
+                self._settings.to_proto()
+            )
             self._api_id = response.api_id
 
             weakref.finalize(
                 self,
                 _cleanup,
-                service_connection,
+                self._service_connection,
                 self._api_id,
             )
 
-        return service_connection
+        return self._service_connection
 
     def send_api_request(
         self,
