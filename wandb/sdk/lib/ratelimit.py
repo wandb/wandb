@@ -36,9 +36,14 @@ class Cooldown:
 
         Does not affect the cooldown if cancelled.
         """
-        # Loop in case tasks call wait() concurrently.
-        # This is exactly like using a condvar.
-        while (remaining := (self._unblock_at - asyncio_compat.now())) > 0:
-            await asyncio.sleep(remaining)
+        now = asyncio_compat.now()
+        remaining = self._unblock_at - now
 
-        self._unblock_at = asyncio_compat.now() + self._cooldown
+        if remaining <= 0:
+            self._unblock_at = now + self._cooldown
+            return
+
+        # Set the unblock time for the next `wait()` before sleeping,
+        # in case `wait()` is called again concurrently.
+        self._unblock_at += self._cooldown
+        await asyncio.sleep(remaining)
