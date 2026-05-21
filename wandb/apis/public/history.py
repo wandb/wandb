@@ -75,6 +75,7 @@ class HistoryScan(Iterator[_RowDict]):
         )
 
         self.scan_offset = 0
+        self.page_offset = self.min_step
         self.rows: list[_RowDict] = []
         self.keys = keys
 

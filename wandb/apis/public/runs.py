@@ -1257,11 +1257,17 @@ class Run(Attrs):
             settings = wandb_setup.singleton().settings.model_copy()
             self._service_api = ServiceApi(settings=settings)
 
+        last_step = self.lastHistoryStep
+        if max_step is None:
+            max_step = last_step + 1
+        elif max_step > last_step:
+            max_step = last_step + 1
+
         return public.HistoryScan(
             service_api=self._service_api,
             run=self,
             min_step=min_step,
-            max_step=max_step or self.lastHistoryStep + 1,
+            max_step=max_step,
             keys=keys,
             page_size=page_size,
             use_cache=use_cache,
