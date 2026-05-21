@@ -39,7 +39,10 @@ try:
         from lightning.pytorch.callbacks.model_checkpoint import ModelCheckpoint
 
 except ImportError as e:
-    wandb.Error(e)
+    raise wandb.Error(
+        "This integration requires `lightning` and `torch`. "
+        "To install, please run `pip install lightning torch`."
+    ) from e
 
 
 class WandbLogger(Logger):

@@ -3,14 +3,21 @@ import tensorflow as tf
 import wandb
 from wandb.sdk.lib import telemetry
 
-if hasattr(tf.estimator, "SessionRunHook"):
+tf_estimator = getattr(tf, "estimator", None)
+
+if tf_estimator is not None and hasattr(tf_estimator, "SessionRunHook"):
     # In tf 1.14 and beyond, SessionRunHook is in the estimator package.
-    SessionRunHook = tf.estimator.SessionRunHook
-    SessionRunArgs = tf.estimator.SessionRunArgs
-else:
+    SessionRunHook = tf_estimator.SessionRunHook
+    SessionRunArgs = tf_estimator.SessionRunArgs
+elif hasattr(tf.train, "SessionRunHook"):
     # In older versions it's in train.
     SessionRunHook = tf.train.SessionRunHook
     SessionRunArgs = tf.train.SessionRunArgs
+else:
+    # Modern TensorFlow no longer exposes tf.estimator, but the v1 hook types
+    # are still available through compat.v1.
+    SessionRunHook = tf.compat.v1.train.SessionRunHook
+    SessionRunArgs = tf.compat.v1.train.SessionRunArgs
 
 if hasattr(tf.train, "get_global_step"):
     get_global_step = tf.train.get_global_step
