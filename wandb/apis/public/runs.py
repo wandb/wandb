@@ -1241,7 +1241,7 @@ class Run(Attrs):
                 If set to False, the run history will be downloaded every time.
 
         Returns:
-            A BetaHistoryScan object,
+            A HistoryScan object,
             which can be iterator over to get history records.
         """
         if keys is not None and not isinstance(keys, list):
