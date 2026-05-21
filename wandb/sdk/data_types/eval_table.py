@@ -19,8 +19,11 @@ EVAL_TABLE_MARKER = {"wandb_eval_table": True}
 
 EVAL_TABLE_ROW_INDEX_KEY = "row"
 
+
 # This function can be patched for testing to mock out calls to weave..
-def _get_evaluation_logger_cls(run: LocalRun) -> type[EvaluationLogger]:  # pragma: no cover
+def _get_evaluation_logger_cls(  # pragma: no cover
+    run: LocalRun,
+) -> type[EvaluationLogger]:
     """Import and return weave's EvaluationLogger."""
     from wandb.integration.weave.weave import setup_with_import
 
