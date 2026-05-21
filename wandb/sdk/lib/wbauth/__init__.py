@@ -7,6 +7,7 @@ __all__ = (
     "authenticate_session",
     "unauthenticate_session",
     "use_explicit_auth",
+    "set_auth_settings",
     "check_api_key",
     "prompt_and_save_api_key",
     "read_netrc_auth",
@@ -23,5 +24,6 @@ from .authenticate import (
 )
 from .host_url import HostUrl
 from .prompt import prompt_and_save_api_key
+from .settings import set_auth_settings
 from .validation import check_api_key
 from .wbnetrc import WriteNetrcError, read_netrc_auth, write_netrc_auth
