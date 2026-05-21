@@ -86,6 +86,13 @@ def _api_error_status(error: WandbApiFailedError) -> HTTPStatus | None:
         return None
 
 
+def _is_service_api_transport_error(error: BaseException | None) -> bool:
+    if not isinstance(error, WandbApiFailedError):
+        return False
+    status = _api_error_status(error)
+    return status in {None, HTTPStatus.REQUEST_TIMEOUT, HTTPStatus.GATEWAY_TIMEOUT}
+
+
 class Api:
     """Used for querying the W&B server.
 
@@ -1810,12 +1817,10 @@ class Api:
         ```
 
         """
-        import requests
-
         try:
             self._artifact(name, type)
         except wandb.errors.CommError as e:
-            if isinstance(e.exc, requests.Timeout):
+            if _is_service_api_transport_error(e.exc):
                 raise
             return False
         return True
@@ -1846,12 +1851,10 @@ class Api:
         wandb.Api.artifact_collection_exists(type="type", name="collection_name")
         ```
         """
-        import requests
-
         try:
             self.artifact_collection(type, name)
         except wandb.errors.CommError as e:
-            if isinstance(e.exc, requests.Timeout):
+            if _is_service_api_transport_error(e.exc):
                 raise
             return False
         return True

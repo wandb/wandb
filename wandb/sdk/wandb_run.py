@@ -3382,7 +3382,7 @@ class Run:
 
     # TODO(jhr): annotate this
     def _assert_can_log_artifact(self, artifact) -> None:  # type: ignore
-        import requests
+        from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 
         if self._settings._offline:
             return
@@ -3395,8 +3395,8 @@ class Run:
                 project=project,
                 name=artifact.name,
             )
-        except requests.exceptions.RequestException:
-            # Just return early if there is a network error. This is
+        except WandbApiFailedError:
+            # Just return early if the API request fails. This is
             # ok, as this function is intended to help catch an invalid
             # type early, but not a hard requirement for valid operation.
             return

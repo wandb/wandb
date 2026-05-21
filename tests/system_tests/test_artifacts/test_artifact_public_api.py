@@ -9,13 +9,12 @@ from contextlib import nullcontext
 from itertools import islice
 from pathlib import Path
 
-import requests
 import wandb
 from pytest import MonkeyPatch, fixture, mark, raises, skip
-from pytest_mock import MockerFixture
 from wandb import Api
 from wandb._strutils import nameof
 from wandb.errors import CommError, UnsupportedError
+from wandb.proto import wandb_api_pb2
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.artifacts._generated import (
     ArtifactByName,
@@ -27,6 +26,7 @@ from wandb.sdk.artifacts._generated import (
 from wandb.sdk.artifacts._gqlutils import server_supports
 from wandb.sdk.artifacts.exceptions import ArtifactFinalizedError
 from wandb.sdk.lib.paths import StrPath
+from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 
 
 @fixture
@@ -343,50 +343,38 @@ def test_artifact_collection_exists(api: Api):
     assert api.artifact_collection_exists("mnist-fake", "dataset") is False
 
 
-def test_artifact_exists_raises_on_timeout(user: str, mocker: MockerFixture, api: Api):
-    # FIXME: We should really be mocking the GraphQL HTTP requests/responses, NOT the
-    # actual python methods, but this is complicated by the fact that we need to instantiate
-    # a new Api with a shorter timeout, and that Api makes immediate requests on _instantiation_.
-    #
-    # Mocking every single one of them makes test setup quite brittle and error prone.
-    # Moreover, the interaction between @normalize_exceptions and our home-grown retry
-    # logic isn't readily configurable, so this test can easily become flaky and/or timeout.
-    # The following will have to do for now.
-    mocker.patch.object(api, "_artifact", side_effect=requests.Timeout())
+def test_artifact_exists_raises_on_service_api_failure(mocker, api: Api):
+    error = WandbApiFailedError(
+        "context deadline exceeded",
+        wandb_api_pb2.ApiErrorResponse(
+            message="context deadline exceeded",
+            http_status=0,
+        ),
+    )
+    mocker.patch.object(api, "_artifact", side_effect=CommError(str(error), error))
 
     with raises(CommError) as exc_info:
         api.artifact_exists("mnist:v0")
-    assert isinstance(exc_info.value.exc, requests.Timeout)
-
-    with raises(CommError) as exc_info:
-        api.artifact_exists("mnist-fake:v0")
-    assert isinstance(exc_info.value.exc, requests.Timeout)
-
-    with raises(CommError):
-        api.artifact_exists("mnist-fake:v0")
-    assert isinstance(exc_info.value.exc, requests.Timeout)
+    assert exc_info.value.exc is error
 
 
-def test_artifact_collection_exists_raises_on_timeout(
-    user: str, mocker: MockerFixture, api: Api
-):
-    # FIXME: We should really be mocking the GraphQL HTTP requests/responses, NOT the
-    # actual python methods, but this is complicated by the fact that we need to instantiate
-    # a new Api with a shorter timeout, and that Api makes immediate requests on _instantiation_.
-    #
-    # Mocking every single one of them makes test setup quite brittle and error prone.
-    # Moreover, the interaction between @normalize_exceptions and our home-grown retry
-    # logic isn't readily configurable, so this test can easily become flaky and/or timeout.
-    # The following will have to do for now.
-    mocker.patch.object(api, "artifact_collection", side_effect=requests.Timeout())
+def test_artifact_collection_exists_raises_on_service_api_failure(mocker, api: Api):
+    error = WandbApiFailedError(
+        "context deadline exceeded",
+        wandb_api_pb2.ApiErrorResponse(
+            message="context deadline exceeded",
+            http_status=0,
+        ),
+    )
+    mocker.patch.object(
+        api,
+        "artifact_collection",
+        side_effect=CommError(str(error), error),
+    )
 
     with raises(CommError) as exc_info:
         api.artifact_collection_exists("mnist", "dataset")
-    assert isinstance(exc_info.value.exc, requests.Timeout)
-
-    with raises(CommError) as exc_info:
-        api.artifact_collection_exists("mnist-fake", "dataset")
-    assert isinstance(exc_info.value.exc, requests.Timeout)
+    assert exc_info.value.exc is error
 
 
 @mark.usefixtures("sample_data")
