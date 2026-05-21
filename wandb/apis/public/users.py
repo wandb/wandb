@@ -56,7 +56,7 @@ class User(Attrs):
         return self._user_api
 
     @classmethod
-    def create(cls, api: Api, email: str, admin: bool = False) -> Self:
+    def create(cls, api: Api, email: str, admin: bool | None = False) -> Self:
         """Create a new user.
 
         This is an internal method. Use the `create_user()` method of
@@ -72,7 +72,19 @@ class User(Attrs):
 
         <!-- lazydoc-ignore-classmethod: internal -->
         """
-        return api._create_user(email, admin)
+        from wandb.apis._generated import (
+            CREATE_USER_FROM_ADMIN_GQL,
+            CreateUserFromAdmin,
+        )
+
+        data = api._service_api.execute_graphql(
+            CREATE_USER_FROM_ADMIN_GQL,
+            {"email": email, "admin": admin},
+        )
+        result = CreateUserFromAdmin.model_validate(data).result
+        if not (result and (user := result.user)):
+            raise ValueError(f"Failed to create user {email!r}.")
+        return cls(api._service_api, user.model_dump(), api_key=api.api_key)
 
     @property
     def api_keys(self) -> list[str]:

@@ -29,7 +29,6 @@ from wandb.sdk import wandb_setup
 from wandb.sdk.internal import settings_static
 from wandb.sdk.internal._generated import SERVER_FEATURES_QUERY_GQL, ServerFeaturesQuery
 from wandb.sdk.lib.hashutil import B64MD5, md5_file_b64
-from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 
 from ..lib import retry, wbauth
 from ..lib.filenames import DIFF_FNAME, METADATA_FNAME
@@ -342,13 +341,7 @@ class Api:
         self._service_api = self._new_service_api()
 
     def execute(self, *args: Any, **kwargs: Any) -> _Response:
-        try:
-            return self._service_api.execute_graphql(*args, **kwargs)  # type: ignore[return-value]
-        except WandbApiFailedError as err:
-            logger.exception("Error executing GraphQL.")
-            message = err.response.message if err.response else str(err)
-            wandb.termerror(f"Error while calling W&B API: {message}")
-            raise
+        return self._service_api.execute_graphql(*args, **kwargs)  # type: ignore[return-value]
 
     @property
     def request_auth(self) -> tuple[str, str] | None:

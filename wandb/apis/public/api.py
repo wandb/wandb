@@ -152,15 +152,11 @@ class Api:
             os.environ.get("WANDB__PROXIES", "{}")
         )
         settings = wandb_setup.singleton().settings.model_copy()
+        wbauth.set_auth_settings(settings, self._auth)
         settings.base_url = base_url
-        if isinstance(self._auth, wbauth.AuthApiKey):
-            settings.api_key = self.api_key or ""
-            settings.identity_token_file = None
-        elif isinstance(self._auth, wbauth.AuthIdentityTokenFile):
-            settings.api_key = None
-            settings.identity_token_file = str(self._auth.path)
-            settings.credentials_file = str(self._auth.credentials_path)
         extra_headers = dict(settings.x_extra_http_headers or {})
+        # Preserve the legacy admin-capable Public API transport behavior while
+        # routing GraphQL through wandb-core.
         extra_headers["Use-Admin-Privileges"] = "true"
         settings.x_extra_http_headers = extra_headers
         if http_proxy := proxies.get("http"):
@@ -194,11 +190,9 @@ class Api:
         if not env.error_reporting_enabled():
             return
 
-        import requests
-
         try:
             viewer = self.viewer
-        except (ValueError, requests.RequestException, WandbApiFailedError):
+        except (ValueError, WandbApiFailedError):
             # we need the viewer to configure the entity, and user email
             return
 
@@ -316,6 +310,7 @@ class Api:
                 "state": state,
             },
             lazy=False,  # Created runs should have full data available immediately
+            api_key=self.api_key,
         )
 
     def create_run_queue(
@@ -423,6 +418,7 @@ class Api:
             _access="PROJECT",
             _default_resource_config_id=config_id,
             _default_resource_config=config,
+            api_key=self.api_key,
         )
 
     def create_custom_chart(
@@ -611,6 +607,7 @@ class Api:
             self._service_api,
             name=name,
             entity=entity,
+            api_key=self.api_key,
         )
 
     def create_user(self, email: str, admin: bool | None = False) -> User:
@@ -626,21 +623,6 @@ class Api:
         from .users import User
 
         return User.create(self, email, admin)
-
-    def _create_user(self, email: str, admin: bool | None = False) -> User:
-        from wandb.apis._generated import (
-            CREATE_USER_FROM_ADMIN_GQL,
-            CreateUserFromAdmin,
-        )
-
-        from .users import User
-
-        data = self._service_api.execute_graphql(
-            CREATE_USER_FROM_ADMIN_GQL,
-            {"email": email, "admin": admin},
-        )
-        user = CreateUserFromAdmin.model_validate(data).result.user
-        return User(self._service_api, user.model_dump(), api_key=self.api_key)
 
     def sync_tensorboard(self, root_dir, run_id=None, project=None, entity=None):
         """Sync a local directory containing tfevent files to wandb."""
@@ -689,7 +671,7 @@ class Api:
 
         Raises:
             ValueError: If viewer data is not able to be fetched from W&B.
-            requests.RequestException: If an error occurs while making the graphql request.
+            WandbApiFailedError: If an error occurs while making the GraphQL request.
         """
         from wandb.apis._generated import GET_VIEWER_GQL, GetViewer
 
@@ -1007,20 +989,6 @@ class Api:
 
         return Team.create(self, team, admin_username)
 
-    def _create_team(self, team: str, admin_username: str | None = None) -> Team:
-        from wandb.apis._generated import CREATE_TEAM_GQL
-
-        from .teams import Team
-
-        try:
-            self._service_api.execute_graphql(
-                CREATE_TEAM_GQL,
-                {"teamName": team, "teamAdminUserName": admin_username},
-            )
-        except WandbApiFailedError:
-            pass
-        return Team(self._service_api, team)
-
     def team(self, team: str) -> Team:
         """Return the matching `Team` with the given name.
 
@@ -1221,6 +1189,7 @@ class Api:
             per_page=per_page,
             include_sweeps=include_sweeps,
             lazy=lazy,
+            api_key=self.api_key,
         )
         return self._runs[key]
 
@@ -1245,6 +1214,7 @@ class Api:
                 project,
                 run_id,
                 lazy=False,
+                api_key=self.api_key,
             )
         return self._runs[path]
 
@@ -1269,6 +1239,7 @@ class Api:
             run_queue_item_id,
             project_queue=project_queue,
             priority=priority,
+            api_key=self.api_key,
         )
 
     def run_queue(
@@ -1284,6 +1255,7 @@ class Api:
             self._service_api,
             name,
             entity,
+            api_key=self.api_key,
         )
 
     @normalize_exceptions
@@ -1646,32 +1618,9 @@ class Api:
         return artifact
 
     def _artifact_from_id(self, artifact_id: str) -> Artifact | None:
-        from wandb.sdk.artifacts._generated import ARTIFACT_BY_ID_GQL, ArtifactByID
-        from wandb.sdk.artifacts._validators import FullArtifactPath
         from wandb.sdk.artifacts.artifact import Artifact
-        from wandb.sdk.artifacts.artifact_instance_cache import artifact_instance_cache
 
-        if cached_artifact := artifact_instance_cache.get(artifact_id):
-            return cached_artifact
-
-        data = self._service_api.execute_graphql(
-            ARTIFACT_BY_ID_GQL,
-            variables={"id": artifact_id},
-        )
-        result = ArtifactByID.model_validate(data)
-        if (artifact := result.artifact) is None:
-            return None
-
-        src_collection = artifact.artifact_sequence
-        src_project = src_collection.project
-        entity_name = src_project.entity.name if src_project else ""
-        project_name = src_project.name if src_project else ""
-        path = FullArtifactPath(
-            prefix=entity_name,
-            project=project_name,
-            name=f"{src_collection.name}:v{artifact.version_index}",
-        )
-        return Artifact._from_attrs(path, artifact, self._service_api)
+        return Artifact._from_id(artifact_id, self._service_api)
 
     def _set_artifact_save_handle(self, artifact: Artifact, handle: Any) -> None:
         artifact._set_save_handle(handle, self._service_api)
@@ -2131,61 +2080,6 @@ class Api:
             visibility,
             description,
             artifact_types,
-        )
-
-    def _create_registry(
-        self,
-        organization: str,
-        name: str,
-        visibility: Literal["organization", "restricted"],
-        description: str | None = None,
-        artifact_types: list[str] | None = None,
-    ) -> Registry:
-        from wandb.sdk.artifacts._generated import (
-            UPSERT_REGISTRY_GQL,
-            UpsertModelInput,
-            UpsertRegistry,
-        )
-        from wandb.sdk.artifacts._validators import (
-            REGISTRY_PREFIX,
-            validate_project_name,
-        )
-
-        from .registries._utils import Visibility, prepare_artifact_types_input
-
-        failed_msg = (
-            f"Failed to create registry {name!r} in organization {organization!r}."
-        )
-
-        org_entity = fetch_org_entity_from_organization(
-            self._service_api,
-            organization,
-        )
-        gql_input = UpsertModelInput(
-            description=description,
-            entity_name=org_entity,
-            name=validate_project_name(f"{REGISTRY_PREFIX}{name}"),
-            access=Visibility.from_python(visibility).value,
-            allow_all_artifact_types_in_registry=not artifact_types,
-            artifact_types=prepare_artifact_types_input(artifact_types),
-        )
-        try:
-            data = self._service_api.execute_graphql(
-                UPSERT_REGISTRY_GQL,
-                {"input": gql_input.model_dump()},
-            )
-            result = UpsertRegistry.model_validate(data).upsert_model
-        except Exception as e:
-            raise ValueError(failed_msg) from e
-        if not (result and result.inserted and (registry_project := result.project)):
-            raise ValueError(failed_msg)
-
-        return Registry(
-            self._service_api,
-            organization=organization,
-            entity=org_entity,
-            name=name,
-            attrs=registry_project,
         )
 
     @tracked

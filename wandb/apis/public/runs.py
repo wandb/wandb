@@ -212,6 +212,7 @@ class Runs(SizedPaginator["Run"]):
         per_page: int = 50,
         include_sweeps: bool = True,
         lazy: bool = True,
+        api_key: str | None = None,
     ):
         if not order:
             order = "+created_at"
@@ -227,6 +228,7 @@ class Runs(SizedPaginator["Run"]):
         self._include_sweeps = include_sweeps
         self._lazy = lazy
         self._service_api = service_api
+        self._api_key = api_key
         variables = {
             "project": self.project,
             "entity": self.entity,
@@ -310,6 +312,7 @@ class Runs(SizedPaginator["Run"]):
                 run_response["node"],
                 include_sweeps=self._include_sweeps,
                 lazy=self._lazy,
+                api_key=self._api_key,
             )
             objs.append(run)
 
@@ -632,6 +635,7 @@ class Run(Attrs):
         attrs: Mapping | None = None,
         include_sweeps: bool = True,
         lazy: bool = True,
+        api_key: str | None = None,
     ):
         """Initialize a Run object.
 
@@ -660,6 +664,7 @@ class Run(Attrs):
         self.server_provides_internal_id_field: bool | None = None
         self._is_loaded: bool = False
         self._service_api = service_api
+        self._api_key = api_key
 
         self.load(force=not _attrs)
 
@@ -1568,7 +1573,7 @@ class Run(Attrs):
                 f = self.file("wandb-metadata.json")
                 contents = util.download_file_into_memory(
                     f.url,
-                    api_key=self._service_api.api_key,
+                    api_key=self._api_key,
                 )
                 self._metadata = json_util.loads(contents)
             except:  # noqa: E722

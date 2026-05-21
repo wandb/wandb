@@ -298,6 +298,7 @@ class QueuedRun:
         run_queue_item_id: str,
         project_queue: str = LAUNCH_DEFAULT_PROJECT,
         priority: int | None = None,
+        api_key: str | None = None,
     ):
         self._service_api = service_api
         self._entity = entity
@@ -308,6 +309,7 @@ class QueuedRun:
         self._run: public.Run | None = None
         self.project_queue = project_queue
         self.priority = priority
+        self._api_key = api_key
 
     @property
     def queue_name(self) -> str:
@@ -479,6 +481,7 @@ class QueuedRun:
                         self.project,
                         item["associatedRunId"],
                         None,
+                        api_key=self._api_key,
                     )
                     self._run_id = item["associatedRunId"]
                 except ValueError as e:
@@ -527,6 +530,7 @@ class RunQueue:
         _access: RunQueueAccessType | None = None,
         _default_resource_config_id: int | None = None,
         _default_resource_config: dict[str, Any] | None = None,
+        api_key: str | None = None,
     ) -> None:
         self._name: str = name
         self._service_api = service_api
@@ -539,6 +543,7 @@ class RunQueue:
         self._type = None
         self._items: list[QueuedRun] | None = None
         self._id: str | None = None
+        self._api_key = api_key
 
     @property
     def name(self) -> str:
@@ -731,6 +736,7 @@ class RunQueue:
                     LAUNCH_DEFAULT_PROJECT,
                     self._name,
                     item["node"]["id"],
+                    api_key=self._api_key,
                 )
             )
 

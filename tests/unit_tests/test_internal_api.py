@@ -90,7 +90,7 @@ def test_get_run_state_invalid_kwargs():
     assert "Error fetching run state" in str(e.value)
 
 
-def test_execute_logs_service_api_errors(mocker: MockerFixture):
+def test_execute_propagates_service_api_errors(mocker: MockerFixture):
     service_api = mocker.Mock()
     error_response = apb.ApiErrorResponse(message="server unavailable")
     service_api.execute_graphql.side_effect = WandbApiFailedError(
@@ -101,17 +101,14 @@ def test_execute_logs_service_api_errors(mocker: MockerFixture):
         "wandb.sdk.internal.internal_api.Api._new_service_api",
         return_value=service_api,
     )
-    termerror = mocker.patch("wandb.termerror")
-    log_exception = mocker.patch(
-        "wandb.sdk.internal.internal_api.logger.exception",
-    )
     api = internal.InternalApi()
 
     with pytest.raises(WandbApiFailedError):
         api.execute("query Viewer { viewer { id } }")
 
-    log_exception.assert_called_once_with("Error executing GraphQL.")
-    termerror.assert_called_once_with("Error while calling W&B API: server unavailable")
+    service_api.execute_graphql.assert_called_once_with(
+        "query Viewer { viewer { id } }"
+    )
 
 
 @pytest.mark.parametrize(

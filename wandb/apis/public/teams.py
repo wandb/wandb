@@ -97,7 +97,16 @@ class Team(Attrs):
         Returns:
             A `Team` object
         """
-        return api._create_team(team, admin_username)
+        from wandb.apis._generated import CREATE_TEAM_GQL
+
+        try:
+            api._service_api.execute_graphql(
+                CREATE_TEAM_GQL,
+                {"teamName": team, "teamAdminUserName": admin_username},
+            )
+        except WandbApiFailedError:
+            pass
+        return cls(api._service_api, team)
 
     def invite(self, username_or_email: str, admin: bool = False) -> bool:
         """Invite a user to a team.

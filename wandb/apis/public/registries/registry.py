@@ -22,7 +22,11 @@ from ._members import (
     UserMember,
     parse_member_ids,
 )
-from ._utils import prepare_artifact_types_input
+from ._utils import (
+    Visibility,
+    fetch_org_entity_from_organization,
+    prepare_artifact_types_input,
+)
 from .registries_search import Collections, Versions
 
 if TYPE_CHECKING:
@@ -253,12 +257,48 @@ class Registry:
             ValueError: If a registry with the same name already exists in the
                 organization or if the creation fails.
         """
-        return api._create_registry(
-            organization=organization,
-            name=name,
-            visibility=visibility,
+        from wandb.sdk.artifacts._generated import (
+            UPSERT_REGISTRY_GQL,
+            UpsertModelInput,
+            UpsertRegistry,
+        )
+        from wandb.sdk.artifacts._validators import (
+            REGISTRY_PREFIX,
+            validate_project_name,
+        )
+
+        failed_msg = (
+            f"Failed to create registry {name!r} in organization {organization!r}."
+        )
+
+        # TODO: Avoid reaching into Api internals once registry creation has a
+        # dedicated wandb-core API request.
+        org_entity = fetch_org_entity_from_organization(api._service_api, organization)
+        gql_input = UpsertModelInput(
             description=description,
-            artifact_types=artifact_types,
+            entity_name=org_entity,
+            name=validate_project_name(f"{REGISTRY_PREFIX}{name}"),
+            access=Visibility.from_python(visibility).value,
+            allow_all_artifact_types_in_registry=not artifact_types,
+            artifact_types=prepare_artifact_types_input(artifact_types),
+        )
+        try:
+            data = api._service_api.execute_graphql(
+                UPSERT_REGISTRY_GQL,
+                {"input": gql_input.model_dump()},
+            )
+            result = UpsertRegistry.model_validate(data).upsert_model
+        except Exception as e:
+            raise ValueError(failed_msg) from e
+        if not (result and result.inserted and (registry_project := result.project)):
+            raise ValueError(failed_msg)
+
+        return cls(
+            api._service_api,
+            organization=organization,
+            entity=org_entity,
+            name=name,
+            attrs=registry_project,
         )
 
     @tracked

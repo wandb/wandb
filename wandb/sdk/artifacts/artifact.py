@@ -258,32 +258,33 @@ class Artifact:
             self._service_api = ServiceApi(settings=settings)
         return self._service_api
 
-    def _referenced_artifact_from_id(self, artifact_id: str) -> Artifact | None:
+    @classmethod
+    def _from_id(cls, artifact_id: str, service_api: ServiceApi) -> Artifact | None:
         from ._generated import ARTIFACT_BY_ID_GQL, ArtifactByID
         from ._validators import FullArtifactPath
 
         if cached_artifact := artifact_instance_cache.get(artifact_id):
             return cached_artifact
 
-        service_api = self._get_service_api()
-        gql_op = ARTIFACT_BY_ID_GQL
-
-        data = service_api.execute_graphql(gql_op, variables={"id": artifact_id})
+        data = service_api.execute_graphql(
+            ARTIFACT_BY_ID_GQL,
+            variables={"id": artifact_id},
+        )
         result = ArtifactByID.model_validate(data)
-
         if (artifact := result.artifact) is None:
             return None
 
         src_collection = artifact.artifact_sequence
         src_project = src_collection.project
-
         entity_name = src_project.entity.name if src_project else ""
         project_name = src_project.name if src_project else ""
-
         name = f"{src_collection.name}:v{artifact.version_index}"
 
         path = FullArtifactPath(prefix=entity_name, project=project_name, name=name)
-        return type(self)._from_attrs(path, artifact, service_api)
+        return cls._from_attrs(path, artifact, service_api)
+
+    def _referenced_artifact_from_id(self, artifact_id: str) -> Artifact | None:
+        return type(self)._from_id(artifact_id, self._get_service_api())
 
     @classmethod
     def _membership_from_name(

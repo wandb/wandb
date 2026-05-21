@@ -33,7 +33,7 @@ def normalize_exceptions(func: _F) -> _F:
                 message = str(err) or message
             if env.is_debug():
                 raise
-            raise CommError(message, err).with_traceback(sys.exc_info()[2])
+            raise CommError(message, err) from err
 
         except requests.HTTPError as error:
             errors = parse_backend_error_messages(error.response)

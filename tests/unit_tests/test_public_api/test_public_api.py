@@ -335,17 +335,26 @@ def test_create_run_with_dictionary__throws_error():
 
 @pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
 def test_api_artifact_from_id_uses_service_api(monkeypatch):
+    from wandb.sdk.artifacts.artifact import Artifact
+
+    artifact_id = "test-artifact-id"
+    api = wandb.Api()
+    from_id = MagicMock(return_value="artifact")
+    monkeypatch.setattr(Artifact, "_from_id", from_id)
+
+    assert api._artifact_from_id(artifact_id) == "artifact"
+    from_id.assert_called_once_with(artifact_id, api._service_api)
+
+
+def test_artifact_from_id_uses_service_api(monkeypatch):
     from wandb.sdk.artifacts._generated import ARTIFACT_BY_ID_GQL, ArtifactByID
     from wandb.sdk.artifacts.artifact import Artifact
     from wandb.sdk.artifacts.artifact_instance_cache import artifact_instance_cache
 
     artifact_id = "test-artifact-id"
     artifact_instance_cache.pop(artifact_id, None)
-
-    api = wandb.Api()
-    execute = MagicMock(return_value={})
-    monkeypatch.setattr(api._service_api, "execute_graphql", execute)
-
+    service_api = MagicMock()
+    service_api.execute_graphql.return_value = {}
     artifact = SimpleNamespace(
         artifact_sequence=SimpleNamespace(
             name="dataset",
@@ -364,13 +373,16 @@ def test_api_artifact_from_id_uses_service_api(monkeypatch):
     from_attrs = MagicMock(return_value="artifact")
     monkeypatch.setattr(Artifact, "_from_attrs", from_attrs)
 
-    assert api._artifact_from_id(artifact_id) == "artifact"
+    assert Artifact._from_id(artifact_id, service_api) == "artifact"
 
-    execute.assert_called_once_with(ARTIFACT_BY_ID_GQL, variables={"id": artifact_id})
-    path, src_art, service_api = from_attrs.call_args.args
+    service_api.execute_graphql.assert_called_once_with(
+        ARTIFACT_BY_ID_GQL,
+        variables={"id": artifact_id},
+    )
+    path, src_art, actual_service_api = from_attrs.call_args.args
     assert path.to_str() == "entity/project/dataset:v3"
     assert src_art is artifact
-    assert service_api is api._service_api
+    assert actual_service_api is service_api
 
 
 @pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
@@ -444,9 +456,11 @@ def test_project_load__raises_error(monkeypatch):
 @pytest.mark.usefixtures("skip_verify_login")
 def test_api_does_not_use_requests_auth(mocker: MockerFixture):
     """Test that Api() does not build requests auth for the service API."""
-    mock_auth = mocker.Mock(spec=wbauth.Auth)
-    mock_auth.host = wbauth.HostUrl("https://api.wandb.ai")
-    mock_auth.as_requests_auth = mocker.Mock(return_value=mocker.Mock())
+    mock_auth = wbauth.AuthApiKey(
+        host=wbauth.HostUrl("https://api.wandb.ai"),
+        api_key="a" * 40,
+    )
+    mocker.spy(mock_auth, "as_requests_auth")
 
     mocker.patch.object(wbauth, "authenticate_session", return_value=mock_auth)
 
