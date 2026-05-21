@@ -25,8 +25,8 @@ EVAL_TABLE_WEAVE_DEP_MSG = (
 
 # This function can be patched for testing to mock out calls to weave..
 #
-# TODO: Once wandb requires weave, return the real EvaluationLogger type instead
-# of Any and let mypy check calls against weave's implementation.
+# TODO: If/when wandb adds a required dep on weave, return the real EvaluationLogger
+# type instead of Any and let mypy check calls against weave's implementation.
 def _get_evaluation_logger_cls(run: LocalRun) -> Any:  # pragma: no cover
     """Import and return weave's EvaluationLogger, verifying it's new enough."""
     from wandb.integration.weave.weave import setup_with_import
