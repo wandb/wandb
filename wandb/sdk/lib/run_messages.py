@@ -5,17 +5,11 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
-import time
 
 from wandb.errors import term
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.interface.interface import InterfaceBase
-from wandb.sdk.lib import asyncio_compat, asyncio_manager
-
-# Patched in tests.
-_NOW = time.monotonic
-_SLEEP = asyncio.sleep
-
+from wandb.sdk.lib import asyncio_compat, asyncio_manager, ratelimit
 
 _logger = logging.getLogger(__name__)
 
@@ -70,7 +64,7 @@ class _RunMessagesImpl:
         poll_interval: float,
     ) -> None:
         self._interface = interface
-        self._poll_interval = poll_interval
+        self._rate_limit = ratelimit.Cooldown(poll_interval)
 
         self._stop_event = asyncio.Event()  # stop requested
         self._done_event = asyncio.Event()  # loop() done
@@ -85,12 +79,12 @@ class _RunMessagesImpl:
                 On timeout, some messages may be missed or may print
                 asynchronously.
         """
-        timeout_at = time.monotonic() + timeout
+        timeout_at = asyncio_compat.now() + timeout
 
         self._stop_event.set()
         try:
             await asyncio.wait_for(self._done_event.wait(), timeout)
-            await self._poll_and_print(timeout=timeout_at - time.monotonic())
+            await self._poll_and_print(timeout=timeout_at - asyncio_compat.now())
 
         # NOTE: asyncio.TimeoutError is different from TimeoutError
         #   until Python 3.11.
@@ -100,17 +94,16 @@ class _RunMessagesImpl:
     async def loop(self) -> None:
         """Print messages until asked to stop."""
         try:
-            while not self._stop_event.is_set():
-                start_time = _NOW()
-                await self._poll_and_print(timeout=None)
-                end_time = _NOW()
+            await self._rate_limit.wait()
 
-                remaining = self._poll_interval - (end_time - start_time)
-                if remaining > 0:
-                    await asyncio_compat.race(
-                        self._stop_event.wait(),  # wake up if stopping
-                        _SLEEP(remaining),
-                    )
+            while not self._stop_event.is_set():
+                await self._poll_and_print(timeout=None)
+
+                await asyncio_compat.race(
+                    self._stop_event.wait(),  # wake up if stopping
+                    self._rate_limit.wait(),
+                )
+
         finally:
             self._done_event.set()
 
