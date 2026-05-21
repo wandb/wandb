@@ -17,6 +17,11 @@ EVAL_TABLE_MARKER = {"wandb_eval_table": True}
 
 EVAL_TABLE_ROW_INDEX_KEY = "row"
 
+EVAL_TABLE_WEAVE_DEP_MSG = (
+    "`wandb.EvalTable` is missing weave dependency. "
+    'Install it with `pip install wandb["eval-table"]`.'
+)
+
 
 # This function can be patched for testing to mock out calls to weave..
 #
@@ -26,9 +31,14 @@ def _get_evaluation_logger_cls(run: LocalRun) -> Any:  # pragma: no cover
     """Import and return weave's EvaluationLogger, verifying it's new enough."""
     from wandb.integration.weave.weave import setup_with_import
 
-    if not setup_with_import(
-        getattr(run, "entity", None), getattr(run, "project", None)
-    ):
+    try:
+        weave_is_enabled = setup_with_import(
+            getattr(run, "entity", None), getattr(run, "project", None)
+        )
+    except ImportError as e:
+        raise ImportError(EVAL_TABLE_WEAVE_DEP_MSG) from e
+
+    if not weave_is_enabled:
         raise RuntimeError(
             "Weave logging is disabled (WANDB_DISABLE_WEAVE is set). "
             "Unset it or use run.log() with a regular Table to suppress this."
@@ -40,25 +50,14 @@ def _get_evaluation_logger_cls(run: LocalRun) -> Any:  # pragma: no cover
             EvaluationLogger,
         )
     except ModuleNotFoundError as e:
-        raise ImportError(
-            "`wandb.EvalTable` requires the `weave` package to be installed. "
-            "Install it with `pip install weave`."
-        ) from e
+        raise ImportError(EVAL_TABLE_WEAVE_DEP_MSG) from e
 
     try:
         create_with_meta = EvaluationLogger._create_with_meta
     except AttributeError as e:
-        raise ImportError(
-            "`wandb.EvalTable` requires a version of weave whose "
-            "EvaluationLogger has a `_create_with_meta` classmethod. "
-            "Upgrade with `pip install -U weave`."
-        ) from e
+        raise ImportError(EVAL_TABLE_WEAVE_DEP_MSG) from e
     if not callable(create_with_meta):
-        raise TypeError(
-            "`wandb.EvalTable` requires a version of weave whose "
-            "EvaluationLogger has a callable `_create_with_meta` classmethod. "
-            "Upgrade with `pip install -U weave`."
-        )
+        raise TypeError(EVAL_TABLE_WEAVE_DEP_MSG)
 
     return EvaluationLogger
 

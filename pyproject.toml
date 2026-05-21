@@ -105,6 +105,9 @@ models = ["cloudpickle"]
 importers = ["polars<=1.2.1", "rich", "filelock", "mlflow", "tenacity"]
 workspaces = ["wandb-workspaces"]
 sandbox = ["cwsandbox[cli]>=0.20.0"]
+eval-table = [
+    "weave>=0.52.41",
+]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

@@ -101,6 +101,27 @@ def test_eval_table_offline_run_fails_fast(mock_eval_logger, mock_run):
     mock_eval_logger._create_with_meta.assert_not_called()
 
 
+def test_eval_table_rewrites_setup_with_import_import_error(monkeypatch, mock_run):
+    from wandb.sdk.data_types import eval_table as eval_table_module
+
+    run = mock_run(settings={"entity": "e", "project": "p", "mode": "online"})
+    setup_error = ImportError("weave is not installed")
+
+    def fail_setup_with_import(*args, **kwargs):
+        raise setup_error
+
+    monkeypatch.setattr(
+        "wandb.integration.weave.weave.setup_with_import",
+        fail_setup_with_import,
+    )
+
+    with pytest.raises(ImportError) as exc_info:
+        eval_table_module._get_evaluation_logger_cls(run)
+
+    assert str(exc_info.value) == eval_table_module.EVAL_TABLE_WEAVE_DEP_MSG
+    assert exc_info.value.__cause__ is setup_error
+
+
 # Standard case: 6 columns, 2 each of input/output/score; second log no-op.
 def test_standard_immutable_log(mock_eval_logger, mock_wandb_log, run):
     et = wandb.EvalTable(
