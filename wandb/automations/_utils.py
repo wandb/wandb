@@ -42,7 +42,10 @@ While we forbid new/edited automations from assigning these event types,
 they're defined so that we can still parse existing automations that may use them.
 """
 
-INVALID_INPUT_ACTIONS: Final[Collection[ActionType]] = (ActionType.QUEUE_JOB,)
+INVALID_INPUT_ACTIONS: Final[Collection[ActionType]] = (
+    ActionType.QUEUE_JOB,
+    ActionType.PUSH_NOTIFICATION,
+)
 """Action types that should NOT be allowed as new values on new or edited automations.
 
 While we forbid new/edited automations from assigning these action types,
@@ -76,16 +79,10 @@ def extract_id(obj: HasId | str) -> str:
 
 
 # ---------------------------------------------------------------------------
-ACTION_CONFIG_KEYS: dict[ActionType, str] = {
-    ActionType.NOTIFICATION: "notification_action_input",
-    ActionType.GENERIC_WEBHOOK: "generic_webhook_action_input",
-    ActionType.NO_OP: "no_op_action_input",
-    ActionType.QUEUE_JOB: "queue_job_action_input",
-}
 
 
-class InputActionConfig(TriggeredActionConfig):
-    """Prepares action configuration data for saving an automation."""
+class ActionSpecInput(TriggeredActionConfig):
+    """Input action spec for saving an automation."""
 
     # NOTE: `QueueJobActionInput` for defining a Launch job is deprecated,
     # so while it's allowed here to update EXISTING mutations, we don't
@@ -96,17 +93,25 @@ class InputActionConfig(TriggeredActionConfig):
     generic_webhook_action_input: SendWebhook | None = None
     no_op_action_input: DoNothing | None = None
 
+    @classmethod
+    def from_action(cls, obj: SavedAction | InputAction) -> Self:
+        """Nests the action input under the correct key for `TriggeredActionConfig`.
 
-def prepare_action_config_input(obj: SavedAction | InputAction) -> dict[str, Any]:
-    """Nests the action input under the correct key for `TriggeredActionConfig`.
-
-    This is necessary to conform to the schemas for:
-    - `CreateFilterTriggerInput`
-    - `UpdateFilterTriggerInput`
-    """
-    # Delegate to inner validators to convert SavedAction -> InputAction types, if needed.
-    obj = parse_input_action(obj)
-    return InputActionConfig(**{ACTION_CONFIG_KEYS[obj.action_type]: obj}).model_dump()
+        This is necessary to conform to the schemas for:
+        - `CreateFilterTriggerInput`
+        - `UpdateFilterTriggerInput`
+        """
+        match (parsed := parse_input_action(obj)).action_type:
+            case ActionType.NOTIFICATION:
+                return cls(notification_action_input=parsed)
+            case ActionType.GENERIC_WEBHOOK:
+                return cls(generic_webhook_action_input=parsed)
+            case ActionType.NO_OP:
+                return cls(no_op_action_input=parsed)
+            case ActionType.QUEUE_JOB:
+                return cls(queue_job_action_input=parsed)
+            case _:
+                return cls.model_validate(parsed)
 
 
 def prepare_event_filter_input(
@@ -179,7 +184,8 @@ class ValidatedCreateInput(GQLInput, extra="forbid", frozen=True):
 
     @computed_field
     def triggered_action_config(self) -> dict[str, Any]:
-        return prepare_action_config_input(self.action)
+        # model_dump() serializes inner JSON fields like `requestPayload` correctly.
+        return ActionSpecInput.from_action(self.action).model_dump()
 
     # ------------------------------------------------------------------------------
     # Custom validation
@@ -243,7 +249,8 @@ class ValidatedUpdateInput(GQLInput, extra="ignore", frozen=True):
 
     @computed_field
     def triggered_action_config(self) -> dict[str, Any]:
-        return prepare_action_config_input(self.action)
+        # model_dump() serializes inner JSON fields like `requestPayload` correctly.
+        return ActionSpecInput.from_action(self.action).model_dump()
 
     # --------------------------------------------------------------------------
     # Custom validation
@@ -269,7 +276,7 @@ def prepare_to_create(
     # Validate all input variables, and prepare as expected by the GraphQL request.
     # - if an object is provided, override its fields with any keyword args
     # - otherwise, instantiate from the keyword args
-    obj_dict = {**obj.model_dump(), **kwargs} if obj else kwargs  # type: ignore[typeddict-item]
+    obj_dict = (obj.model_dump() | kwargs) if obj else kwargs
     vobj = ValidatedCreateInput(**obj_dict)
     return CreateFilterTriggerInput.model_validate(vobj)
 

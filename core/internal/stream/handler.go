@@ -310,7 +310,7 @@ func (h *Handler) handleRequest(
 	case *spb.Request_GetSystemMetrics:
 		h.handleRequestGetSystemMetrics(record, request)
 	case *spb.Request_InternalMessages:
-		h.handleRequestInternalMessages(record, request)
+		h.handleRequestInternalMessages(x.InternalMessages, request)
 	case *spb.Request_SyncFinish:
 		h.handleRequestSyncFinish(record, request)
 	case *spb.Request_SenderRead:
@@ -786,10 +786,28 @@ func (h *Handler) handleRequestGetSystemMetrics(
 }
 
 func (h *Handler) handleRequestInternalMessages(
-	record *spb.Record,
+	record *spb.InternalMessagesRequest,
 	request *runwork.Request,
 ) {
-	messages := h.terminalPrinter.Read()
+	if request == nil {
+		return
+	}
+
+	go h.popInternalMessages(record, request)
+}
+
+// popInternalMessages responds to the internal messages request,
+// possibly blocking until messages are available.
+func (h *Handler) popInternalMessages(
+	record *spb.InternalMessagesRequest,
+	request *runwork.Request,
+) {
+	var messages []observability.PrinterMessage
+	if record.Wait {
+		messages = h.terminalPrinter.ReadWait(request.Context())
+	} else {
+		messages = h.terminalPrinter.Read()
+	}
 
 	// TODO: Respect message severity in the InternalMessages request.
 	messageContents := make([]string, 0, len(messages))
