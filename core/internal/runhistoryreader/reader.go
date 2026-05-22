@@ -61,6 +61,10 @@ func New(
 	useCache bool,
 	rustArrowWrapper *ffi.RustArrowWrapper,
 ) (*HistoryReader, error) {
+	if len(keys) > 0 && !slices.Contains(keys, "_step") {
+		keys = append([]string{"_step"}, keys...)
+	}
+
 	historyReader := &HistoryReader{
 		entity:        entity,
 		graphqlClient: graphqlClient,
