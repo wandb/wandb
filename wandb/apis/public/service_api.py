@@ -3,9 +3,9 @@ from __future__ import annotations
 import contextlib
 import json
 import logging
-import uuid
 import weakref
 from collections.abc import Iterable, Mapping
+from dataclasses import dataclass
 from typing import Any, cast
 
 from wandb.proto import wandb_internal_pb2 as pb
@@ -25,11 +25,16 @@ from wandb.sdk.mailbox.mailbox_handle import MailboxHandle
 _logger = logging.getLogger(__name__)
 
 
-def _cleanup(connection: ServiceConnection | None, api_id: str) -> None:
+def _cleanup(connection: ServiceConnection, api_id: str) -> None:
     """Clean up the api resources associated with the api id."""
-    if connection is not None:
-        with contextlib.suppress(Exception):
-            connection.api_cleanup_request(api_id)
+    with contextlib.suppress(Exception):
+        connection.api_cleanup_request(api_id)
+
+
+@dataclass(frozen=True)
+class _ServiceApiSession:
+    connection: ServiceConnection
+    api_id: str
 
 
 class ServiceApi:
@@ -42,30 +47,34 @@ class ServiceApi:
     ):
         self._settings = settings
         self._timeout = timeout
-        self._service_connection: ServiceConnection | None = None
-        self._api_id = str(uuid.uuid4())
+        self._session: _ServiceApiSession | None = None
 
     @property
     def app_url(self) -> str:
         return self._settings.app_url.rstrip("/") + "/"
 
-    def _get_service_connection(self) -> ServiceConnection:
-        """Connects to the service and initializes resources for handling API requests."""
-        if self._service_connection is None:
-            self._service_connection = wandb_setup.singleton().ensure_service()
-            response = self._service_connection.api_init_request(
-                self._settings.to_proto()
-            )
-            self._api_id = response.api_id
+    def _ensure_session(self) -> _ServiceApiSession:
+        """Return API resources initialized on the current service connection."""
+        session = self._session
+        if session is not None and not session.connection.closed:
+            return session
 
-            weakref.finalize(
-                self,
-                _cleanup,
-                self._service_connection,
-                self._api_id,
-            )
+        service_connection = wandb_setup.singleton().ensure_service()
+        response = service_connection.api_init_request(self._settings.to_proto())
+        session = _ServiceApiSession(
+            connection=service_connection,
+            api_id=response.api_id,
+        )
+        self._session = session
 
-        return self._service_connection
+        weakref.finalize(
+            self,
+            _cleanup,
+            session.connection,
+            session.api_id,
+        )
+
+        return session
 
     def send_api_request(
         self,
@@ -76,9 +85,9 @@ class ServiceApi:
 
         Creates the backend service connection if it has not been created yet.
         """
-        conn = self._get_service_connection()
-        request.api_id = self._api_id
-        return conn.api_request(request, timeout=timeout)
+        session = self._ensure_session()
+        request.api_id = session.api_id
+        return session.connection.api_request(request, timeout=timeout)
 
     def execute_graphql(
         self,
@@ -149,9 +158,9 @@ class ServiceApi:
             request: The Api request to send.
             timeout: The timeout for the request.
         """
-        conn = self._get_service_connection()
-        request.api_id = self._api_id
-        return await conn.api_request_async(request)
+        session = self._ensure_session()
+        request.api_id = session.api_id
+        return await session.connection.api_request_async(request)
 
     def feature_enabled(
         self,
