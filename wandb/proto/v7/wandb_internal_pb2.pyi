@@ -1068,10 +1068,12 @@ class HttpResponse(_message.Message):
     def __init__(self, http_status_code: _Optional[int] = ..., http_response_text: _Optional[str] = ...) -> None: ...
 
 class InternalMessagesRequest(_message.Message):
-    __slots__ = ("_info",)
+    __slots__ = ("wait", "_info")
+    WAIT_FIELD_NUMBER: _ClassVar[int]
     _INFO_FIELD_NUMBER: _ClassVar[int]
+    wait: bool
     _info: _wandb_base_pb2._RequestInfo
-    def __init__(self, _info: _Optional[_Union[_wandb_base_pb2._RequestInfo, _Mapping]] = ...) -> None: ...
+    def __init__(self, wait: _Optional[bool] = ..., _info: _Optional[_Union[_wandb_base_pb2._RequestInfo, _Mapping]] = ...) -> None: ...
 
 class InternalMessagesResponse(_message.Message):
     __slots__ = ("messages",)

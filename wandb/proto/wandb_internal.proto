@@ -822,6 +822,13 @@ message HttpResponse {
  * InternalMessagesRequest:
  */
 message InternalMessagesRequest {
+  // If true, block until there are messages or the run ends.
+  //
+  // The response is empty if and only if the run is over.
+  // The request can be cancelled via the usual ServerCancelRequest
+  // mechanism.
+  bool wait = 1;
+
   _RequestInfo _info = 200;
 }
 
