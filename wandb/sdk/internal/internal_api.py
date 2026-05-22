@@ -29,6 +29,7 @@ from wandb.sdk import wandb_setup
 from wandb.sdk.internal import settings_static
 from wandb.sdk.internal._generated import SERVER_FEATURES_QUERY_GQL, ServerFeaturesQuery
 from wandb.sdk.lib.hashutil import B64MD5, md5_file_b64
+from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 
 from ..lib import retry, wbauth
 from ..lib.filenames import DIFF_FNAME, METADATA_FNAME
@@ -2569,8 +2570,6 @@ class Api:
             SweepNotFoundError: If the server returns a 404, indicating the
                 sweep was likely deleted.
         """
-        import requests
-
         from wandb.sdk.launch.sweeps import SweepNotFoundError
 
         mutation = """
@@ -2605,8 +2604,8 @@ class Api:
                 },
                 timeout=60,
             )
-        except requests.exceptions.HTTPError as e:
-            if e.response is not None and e.response.status_code == 404:
+        except WandbApiFailedError as e:
+            if e.response is not None and e.response.http_status == 404:
                 raise SweepNotFoundError(
                     "Sweep not found. The sweep may have been deleted."
                 ) from e

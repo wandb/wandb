@@ -51,13 +51,10 @@ def test_agent_heartbeat_raises_sweep_not_found_on_404():
     """Test that agent_heartbeat raises SweepNotFoundError on 404."""
     a = internal.Api()
 
-    mock_response = Mock()
-    mock_response.status_code = 404
+    error_response = apb.ApiErrorResponse(message="not found", http_status=404)
+    error = WandbApiFailedError(error_response.message, error_response)
 
-    http_error = requests.exceptions.HTTPError()
-    http_error.response = mock_response
-
-    with patch.object(a.api, "execute", side_effect=http_error):
+    with patch.object(a.api, "execute", side_effect=error):
         with pytest.raises(SweepNotFoundError):
             a.agent_heartbeat("test-agent-id", {}, {})
 
@@ -66,13 +63,10 @@ def test_agent_heartbeat_returns_empty_on_non_404_error():
     """Test that non-404 HTTP errors return empty list instead of raising."""
     a = internal.Api()
 
-    mock_response = Mock()
-    mock_response.status_code = 500
+    error_response = apb.ApiErrorResponse(message="server error", http_status=500)
+    error = WandbApiFailedError(error_response.message, error_response)
 
-    http_error = requests.exceptions.HTTPError()
-    http_error.response = mock_response
-
-    with patch.object(a.api, "execute", side_effect=http_error):
+    with patch.object(a.api, "execute", side_effect=error):
         result = a.agent_heartbeat("test-agent-id", {}, {})
         assert result == []
 

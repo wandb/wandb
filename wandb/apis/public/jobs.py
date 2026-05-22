@@ -275,7 +275,6 @@ class QueuedRun:
     """A single queued run associated with an entity and project.
 
     Args:
-        client: Legacy GraphQL client retained for API compatibility.
         service_api: Interface to the wandb-core service that performs
             W&B API calls for this queued run.
         entity: The entity associated with the queued run.
@@ -508,7 +507,6 @@ class RunQueue:
     """Class that represents a run queue in W&B.
 
     Args:
-        client: Legacy GraphQL client retained for API compatibility.
         service_api: Interface to the wandb-core service that performs
             W&B API calls for this queue.
         name: Name of the run queue

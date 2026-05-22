@@ -130,7 +130,7 @@ class User(Attrs):
         api_key_id = self._attrs["apiKeys"]["edges"][idx]["node"]["id"]
         try:
             self._service_api.execute_graphql(
-                (DELETE_API_KEY_GQL),
+                DELETE_API_KEY_GQL,
                 {"id": api_key_id},
             )
         except WandbApiFailedError:

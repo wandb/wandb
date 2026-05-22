@@ -45,7 +45,7 @@ class Member(Attrs):
 
         try:
             data = self._service_api.execute_graphql(
-                (DELETE_INVITE_GQL),
+                DELETE_INVITE_GQL,
                 {"id": self.id, "entity": self.team},
             )
         except WandbApiFailedError:
@@ -128,7 +128,7 @@ class Team(Attrs):
             ("email" if ("@" in username_or_email) else "username"): username_or_email,
         }
         try:
-            self._service_api.execute_graphql((CREATE_INVITE_GQL), variables)
+            self._service_api.execute_graphql(CREATE_INVITE_GQL, variables)
         except WandbApiFailedError:
             return False
         return True
@@ -146,7 +146,7 @@ class Team(Attrs):
 
         try:
             self._service_api.execute_graphql(
-                (CREATE_SERVICE_ACCOUNT_GQL),
+                CREATE_SERVICE_ACCOUNT_GQL,
                 {"entity": self.name, "description": description},
             )
             self.load(True)
@@ -163,7 +163,7 @@ class Team(Attrs):
 
         if force or not self._attrs:
             data = self._service_api.execute_graphql(
-                (GET_TEAM_ENTITY_GQL),
+                GET_TEAM_ENTITY_GQL,
                 {"name": self.name},
             )
             result = GetTeamEntity.model_validate(data)

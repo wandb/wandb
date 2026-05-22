@@ -59,7 +59,6 @@ class Projects(RelayPaginator["ProjectFragment", "Project"]):
     An iterable interface to access projects created and saved by the entity.
 
     Args:
-        client: Legacy GraphQL client retained for API compatibility.
         service_api: Interface to the wandb-core service that performs
             W&B API calls for this collection.
         entity (str): The entity name (username or team) to fetch projects for.
@@ -145,7 +144,6 @@ class Project(Attrs):
     """A project is a namespace for runs.
 
     Args:
-        client: Legacy GraphQL client retained for API compatibility.
         service_api: Interface to the wandb-core service that performs
             W&B API calls for this project.
         name (str): The name of the project.
@@ -178,7 +176,7 @@ class Project(Attrs):
 
         gql_vars = {"name": self.name, "entity": self.entity}
         try:
-            data = self._service_api.execute_graphql((GET_PROJECT_GQL), gql_vars)
+            data = self._service_api.execute_graphql(GET_PROJECT_GQL, gql_vars)
         except WandbApiFailedError as e:
             raise ValueError(f"Unable to fetch project ID: {gql_vars!r}") from e
 

@@ -440,7 +440,7 @@ class Sweep(Attrs):
             "project": self.project,
         }
         data = self._service_api.execute_graphql(
-            (GET_SWEEP_AGENT_GQL),
+            GET_SWEEP_AGENT_GQL,
             variables=variables,
         )
         return self._make_sweep_agent(data["project"]["sweep"]["agent"])
@@ -455,7 +455,7 @@ class Sweep(Attrs):
             "project": self.project,
         }
         data = self._service_api.execute_graphql(
-            (GET_SWEEP_AGENTS_GQL),
+            GET_SWEEP_AGENTS_GQL,
             variables=variables,
         )
         parsed = GetSweepAgents.model_validate(data)
