@@ -50,7 +50,7 @@ func makeSender(t *testing.T, client graphql.Client) testFixtures {
 	credentialProvider := stream.CredentialsFromSettings(logger, settings)
 	fileStreamFactory := &filestream.FileStreamFactory{
 		Logger:   logger,
-		Printer:  observability.NewPrinter(),
+		Printer:  observability.NewPrinter(0),
 		Settings: settings,
 	}
 	fileTransferManager := stream.NewFileTransferManager(

@@ -1941,6 +1941,13 @@ pub struct HttpResponse {
 /// InternalMessagesRequest:
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct InternalMessagesRequest {
+    /// If true, block until there are messages or the run ends.
+    ///
+    /// The response is empty if and only if the run is over.
+    /// The request can be cancelled via the usual ServerCancelRequest
+    /// mechanism.
+    #[prost(bool, tag = "1")]
+    pub wait: bool,
     #[prost(message, optional, tag = "200")]
     pub info: ::core::option::Option<RequestInfo>,
 }
