@@ -17,7 +17,7 @@ from typing import Any
 import click
 from typing_extensions import Never
 
-from wandb.analytics import get_sentry
+from wandb.analytics import get_otel, get_sentry
 from wandb.env import error_reporting_enabled, is_debug
 from wandb.errors import WandbCoreNotAvailableError
 from wandb.sdk import wandb_setup
@@ -196,6 +196,7 @@ def _base_args() -> list[str]:
     try:
         core_path = get_core_path()
     except WandbCoreNotAvailableError as e:
+        get_otel().exception(f"using `wandb leet`. failed with {e}", e)
         get_sentry().exception(f"using `wandb leet`. failed with {e}")
         _fatal(str(e))
 
@@ -216,6 +217,7 @@ def _run_core(args: list[str], env: dict[str, str] | None = None) -> Never:
         result = subprocess.run(args, env=env, close_fds=True)
         sys.exit(result.returncode)
     except Exception as e:
+        get_otel().exception(f"using `wandb leet`. failed with {e}", e)
         get_sentry().reraise(e)
 
 
