@@ -26,7 +26,7 @@ import wandb
 import wandb.errors
 import wandb.sdk.verify.verify as wandb_verify
 from wandb import Config, Error, env, util, wandb_agent
-from wandb.analytics import get_sentry
+from wandb.analytics import get_otel, get_sentry
 from wandb.apis import InternalApi, PublicApi
 from wandb.cli import beta_sync
 from wandb.errors.links import url_registry
@@ -1985,10 +1985,12 @@ def launch(
                 sys.exit(1)
         except LaunchError as e:
             logger.exception("An error occurred.")
+            get_otel().exception(str(e), e)
             get_sentry().exception(e)
             sys.exit(e)
         except ExecutionError as e:
             logger.exception("An error occurred.")
+            get_otel().exception(str(e), e)
             get_sentry().exception(e)
             sys.exit(e)
         except asyncio.CancelledError:
@@ -2017,6 +2019,7 @@ def launch(
             )
 
         except Exception as e:
+            get_otel().exception(str(e), e)
             get_sentry().exception(e)
             raise
 
@@ -2110,6 +2113,7 @@ def launch_agent(
     try:
         _launch.create_and_run_agent(api, agent_config)
     except Exception as e:
+        get_otel().exception(str(e), e)
         get_sentry().exception(e)
         raise
 
@@ -2247,6 +2251,7 @@ def scheduler(
         )
         _scheduler.start()
     except Exception as e:
+        get_otel().exception(str(e), e)
         get_sentry().exception(e)
         raise
 

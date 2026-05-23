@@ -29,7 +29,7 @@ from typing_extensions import Any, Protocol
 import wandb
 import wandb.env
 from wandb import env, trigger
-from wandb.analytics import get_sentry
+from wandb.analytics import get_otel, get_sentry
 from wandb.errors import CommError, Error, UsageError
 from wandb.errors.links import url_registry
 from wandb.errors.util import ProtobufErrorHandler
@@ -1530,5 +1530,5 @@ def init(  # noqa: C901
     except Exception as e:
         if wl:
             wl._get_logger().exception("error in wandb.init()", exc_info=e)
-
+        get_otel().exception(str(e), e)
         get_sentry().reraise(e)
