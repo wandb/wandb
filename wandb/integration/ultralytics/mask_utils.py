@@ -5,7 +5,18 @@ import numpy as np
 from tqdm.auto import tqdm
 from ultralytics.engine.results import Results
 from ultralytics.models.yolo.segment import SegmentationPredictor
-from ultralytics.utils.ops import scale_image
+
+try:
+    from ultralytics.utils.ops import scale_image
+except ImportError:
+
+    def scale_image(masks, shape):
+        return cv2.resize(
+            masks,
+            (shape[1], shape[0]),
+            interpolation=cv2.INTER_NEAREST,
+        )
+
 
 import wandb
 from wandb.integration.ultralytics.bbox_utils import (

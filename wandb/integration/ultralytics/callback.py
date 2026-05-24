@@ -44,7 +44,14 @@ try:
         SegmentationTrainer,
         SegmentationValidator,
     )
-    from ultralytics.utils.torch_utils import de_parallel
+
+    try:
+        from ultralytics.utils.torch_utils import de_parallel
+    except ImportError:
+        from ultralytics.utils.torch_utils import is_parallel
+
+        def de_parallel(model):
+            return model.module if is_parallel(model) else model
 
     try:
         from ultralytics.yolo.utils import RANK, __version__
@@ -68,8 +75,11 @@ try:
         plot_pose_predictions,
         plot_pose_validation_results,
     )
-except Exception as e:
-    wandb.Error(e)
+except ImportError as e:
+    raise wandb.Error(
+        "This integration requires `ultralytics`, `torch`, and `tqdm`. "
+        "To install, please run `pip install ultralytics torch tqdm`."
+    ) from e
 
 
 TRAINER_TYPE = (

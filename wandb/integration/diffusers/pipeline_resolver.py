@@ -47,5 +47,7 @@ class DiffusersPipelineResolver:
                 pipeline_name, self.pipeline_call_count
             )
             self.pipeline_call_count += 1
+        else:
+            return None
         loggable_dict = resolver(args, kwargs, response, start_time, time_elapsed)
         return loggable_dict

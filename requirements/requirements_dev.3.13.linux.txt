@@ -184,6 +184,8 @@ decorator==4.4.2
     #   moviepy
 defusedxml==0.7.1
     # via nbconvert
+diffusers==0.37.1
+    # via -r requirements/requirements_dev.txt
 diskcache==5.6.3
     # via dspy
 distro==1.9.0
@@ -217,6 +219,7 @@ fastuuid==0.14.0
 filelock==3.25.2
     # via
     #   -r requirements/requirements_dev.txt
+    #   diffusers
     #   huggingface-hub
     #   torch
 flask==2.3.3
@@ -369,6 +372,7 @@ httpx==0.27.2
     # via
     #   -r requirements/requirements_test.txt
     #   ariadne-codegen
+    #   diffusers
     #   huggingface-hub
     #   jupyterlab
     #   litellm
@@ -376,7 +380,10 @@ httpx==0.27.2
 huey==2.6.0
     # via mlflow
 huggingface-hub==1.8.0
-    # via tokenizers
+    # via
+    #   diffusers
+    #   tokenizers
+    #   transformers
 hypothesis==6.151.10
     # via
     #   -r requirements/requirements_test.txt
@@ -400,6 +407,7 @@ imageio-ffmpeg==0.6.0
     #   moviepy
 importlib-metadata==8.7.1
     # via
+    #   diffusers
     #   litellm
     #   mlflow-skinny
     #   opentelemetry-api
@@ -647,6 +655,7 @@ numpy==2.3.5
     #   bokeh
     #   catboost
     #   contourpy
+    #   diffusers
     #   dspy
     #   gymnasium
     #   h5py
@@ -674,6 +683,7 @@ numpy==2.3.5
     #   tensorflow
     #   torchmetrics
     #   torchvision
+    #   transformers
     #   xgboost
 nvidia-cublas==13.1.0.3
     # via
@@ -782,6 +792,7 @@ packaging==26.0
     #   tensorboardx
     #   tensorflow
     #   torchmetrics
+    #   transformers
     #   wandb
     #   wheel
 pandas==2.3.3
@@ -804,6 +815,7 @@ pillow==12.1.1
     # via
     #   -r requirements/requirements_dev.txt
     #   bokeh
+    #   diffusers
     #   imageio
     #   matplotlib
     #   rdkit
@@ -991,6 +1003,7 @@ pyyaml==6.0.3
     #   pytorch-lightning
     #   responses
     #   sweeps
+    #   transformers
     #   wandb
 pyzmq==27.1.0
     # via
@@ -1007,13 +1020,16 @@ referencing==0.37.0
     #   jupyter-events
 regex==2026.3.32
     # via
+    #   diffusers
     #   dspy
     #   tiktoken
+    #   transformers
 requests==2.33.1
     # via
     #   -r requirements/requirements_dev.txt
     #   azure-core
     #   databricks-sdk
+    #   diffusers
     #   docker
     #   dspy
     #   google-api-core
@@ -1064,6 +1080,10 @@ s3transfer==0.16.0
     # via
     #   awscli
     #   boto3
+safetensors==0.7.0
+    # via
+    #   diffusers
+    #   transformers
 scikit-learn==1.8.0
     # via
     #   -r requirements/requirements_dev.txt
@@ -1164,7 +1184,9 @@ tiktoken==0.12.0
 tinycss2==1.4.0
     # via bleach
 tokenizers==0.22.2
-    # via litellm
+    # via
+    #   litellm
+    #   transformers
 toml==0.10.2
     # via ariadne-codegen
 tomli==2.4.1
@@ -1204,6 +1226,7 @@ tqdm==4.67.3
     #   optuna
     #   proglog
     #   pytorch-lightning
+    #   transformers
 traitlets==5.14.3
     # via
     #   ipykernel
@@ -1219,10 +1242,14 @@ traitlets==5.14.3
     #   nbclient
     #   nbconvert
     #   nbformat
+transformers==5.9.0
+    # via -r requirements/requirements_dev.txt
 triton==3.6.0
     # via torch
 typer==0.24.1
-    # via huggingface-hub
+    # via
+    #   huggingface-hub
+    #   transformers
 types-pyyaml==6.0.12.20250915
     # via responses
 typing-extensions==4.15.0
