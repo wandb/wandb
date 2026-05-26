@@ -220,7 +220,7 @@ def _create_remote_launch_config(path: str) -> RemoteLaunchConfig:
     )
 
 
-def _parse_path(path: str) -> tuple[str, str, str]:
+def _parse_path(path: str) -> tuple[str, str, str | None]:
     """Parse the given path into a tuple of (entity, project, run_id)."""
     input_path = path
     path = path.replace("/runs/", "/")
@@ -229,10 +229,18 @@ def _parse_path(path: str) -> tuple[str, str, str]:
 
     parts = path.split("/")
 
-    if len(parts) != 3:
+    if len(parts) < 2:
         raise ValueError(
             f"Invalid path: {input_path!r}."
             + " Expected format: https://<base_url>/<entity>/<project>/<run_id>"
         )
 
-    return parts[0], parts[1], parts[2]
+    if len(parts) == 2:
+        return parts[0], parts[1], None
+    elif len(parts) == 3:
+        return parts[0], parts[1], parts[2]
+    else:
+        raise ValueError(
+            f"Invalid path: {input_path!r}."
+            + " Expected format: https://<base_url>/<entity>/<project>/<run_id>"
+        )

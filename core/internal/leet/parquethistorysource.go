@@ -123,7 +123,6 @@ func NewParquetHistorySource(
 	}
 
 	maxKnownStep := maxStepFromSummary(runInfo)
-	logger.Info("maxKnownStep", "maxKnownStep", maxKnownStep)
 	return &ParquetHistorySource{
 		logger:           logger,
 		ctx:              ctx,
@@ -261,7 +260,18 @@ func (s *ParquetHistorySource) Read(
 	}
 
 	if len(histories) > 0 {
-		msgs = append(msgs, concatenateHistory(histories, "TODO"))
+		msgs = append(
+			msgs,
+			concatenateHistory(
+				histories,
+				fmt.Sprintf(
+					"%s/%s/%s",
+					s.runInfo.entity,
+					s.runInfo.project,
+					s.runInfo.runId,
+				),
+			),
+		)
 	}
 
 	if !hasMore {
@@ -281,7 +291,7 @@ func (s *ParquetHistorySource) Close() {
 	s.runhistoryreader.Release()
 }
 
-// ParseParquetHistorySteps converts a list of iterator.KeyValueList to a HistoryMsg.
+// ParseParquetHistorySteps converts a list of parquet.KeyValueList to a HistoryMsg.
 func ParseParquetHistorySteps(
 	historySteps []parquet.KeyValueList,
 	logger *observability.CoreLogger,
