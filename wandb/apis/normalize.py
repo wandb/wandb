@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 import sys
 from collections.abc import Callable
 from functools import wraps
@@ -60,8 +61,6 @@ def normalize_exceptions(func: _F) -> _F:
             else:
                 payload = err
             if str(payload).startswith("{"):
-                import ast
-
                 message = ast.literal_eval(str(payload))["message"]
             else:
                 message = str(err)

@@ -67,7 +67,10 @@ def project(
     name = make_name("test-project")
     api = make_module_api()
     api.create_project(name=name, entity=module_user)
-    return api.project(name=name, entity=module_user)
+    project = api.project(name=name, entity=module_user)
+    # This fixture is module-scoped; load attrs before per-test teardown invalidates the API.
+    _ = project.id
+    return project
 
 
 @fixture(scope="module")

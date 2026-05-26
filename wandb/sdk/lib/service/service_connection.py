@@ -120,11 +120,6 @@ class ServiceConnection:
         """
         return self._proc is not None
 
-    @property
-    def closed(self) -> bool:
-        """Whether teardown() has been called on this connection."""
-        return self._torn_down
-
     async def init_sync(
         self,
         paths: set[pathlib.Path],

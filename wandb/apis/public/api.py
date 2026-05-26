@@ -77,20 +77,27 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def _api_error_status(error: WandbApiFailedError) -> HTTPStatus | None:
+def _api_error_status(error: WandbApiFailedError) -> int | None:
     if error.response is None or not error.response.http_status:
         return None
-    try:
-        return HTTPStatus(error.response.http_status)
-    except ValueError:
-        return None
+    return error.response.http_status
 
 
 def _is_service_api_transport_error(error: BaseException | None) -> bool:
+    """Whether the error is a transport failure (timeout or no HTTP response).
+
+    Existence checks should re-raise these instead of returning False, since
+    the caller never got an authoritative answer about whether the resource
+    exists.
+    """
     if not isinstance(error, WandbApiFailedError):
         return False
     status = _api_error_status(error)
-    return status in {None, HTTPStatus.REQUEST_TIMEOUT, HTTPStatus.GATEWAY_TIMEOUT}
+    return status in {
+        None,
+        HTTPStatus.REQUEST_TIMEOUT.value,
+        HTTPStatus.GATEWAY_TIMEOUT.value,
+    }
 
 
 class Api:
@@ -2453,12 +2460,6 @@ class Api:
         variables = {"input": gql_input.model_dump()}
 
         name = gql_input.name
-        if fetch_existing:
-            try:
-                return self.automation(name=name)
-            except wandb.errors.CommError:
-                pass
-
         try:
             data = self._service_api.execute_graphql(
                 CREATE_AUTOMATION_GQL,
@@ -2467,7 +2468,7 @@ class Api:
             )
         except WandbApiFailedError as e:
             status = _api_error_status(e)
-            if status is HTTPStatus.CONFLICT:  # 409
+            if status == HTTPStatus.CONFLICT.value:
                 if fetch_existing:
                     wandb.termlog(f"Automation {name!r} exists. Fetching it instead.")
                     return self.automation(name=name)
@@ -2588,7 +2589,7 @@ class Api:
             )
         except WandbApiFailedError as e:
             status = _api_error_status(e)
-            if status is HTTPStatus.NOT_FOUND:  # 404
+            if status == HTTPStatus.NOT_FOUND.value:
                 if create_missing:
                     wandb.termlog(f"Automation {name!r} not found. Creating it.")
                     return self.create_automation(obj)

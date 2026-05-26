@@ -47,17 +47,16 @@ class ServiceApi:
     ):
         self._settings = settings
         self._timeout = timeout
-        self._session: _ServiceApiSession | None = None
+        self._api_session: _ServiceApiSession | None = None
 
     @property
     def app_url(self) -> str:
         return self._settings.app_url.rstrip("/") + "/"
 
-    def _ensure_session(self) -> _ServiceApiSession:
-        """Return API resources initialized on the current service connection."""
-        session = self._session
-        if session is not None and not session.connection.closed:
-            return session
+    def _get_api_session(self) -> _ServiceApiSession:
+        """Connect to the service and initialize resources for API requests."""
+        if self._api_session is not None:
+            return self._api_session
 
         service_connection = wandb_setup.singleton().ensure_service()
         response = service_connection.api_init_request(self._settings.to_proto())
@@ -65,7 +64,7 @@ class ServiceApi:
             connection=service_connection,
             api_id=response.api_id,
         )
-        self._session = session
+        self._api_session = session
 
         weakref.finalize(
             self,
@@ -85,7 +84,7 @@ class ServiceApi:
 
         Creates the backend service connection if it has not been created yet.
         """
-        session = self._ensure_session()
+        session = self._get_api_session()
         request.api_id = session.api_id
         return session.connection.api_request(request, timeout=timeout)
 
@@ -158,7 +157,7 @@ class ServiceApi:
             request: The Api request to send.
             timeout: The timeout for the request.
         """
-        session = self._ensure_session()
+        session = self._get_api_session()
         request.api_id = session.api_id
         return await session.connection.api_request_async(request)
 

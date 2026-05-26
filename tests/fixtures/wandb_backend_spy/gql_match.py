@@ -17,15 +17,13 @@ from typing_extensions import Any, override
 _GQL_OPNAME_RE = re.compile(
     r"""
     ^
-    (?:
+    (?:                         # Leading whitespace or GraphQL comments.
         \s+
         | \# [^\n]* (?: \n | $ )
     )*
-    (mutation|query)
-    \s+
-    (\w+)
-    \s*
-    [({]
+    (mutation|query) \s+        # Operation type.
+    (\w+) \s*                   # Operation name.
+    [({]                        # Variable list or selection set.
     """,
     re.MULTILINE | re.VERBOSE,
 )
