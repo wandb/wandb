@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
-from typing import Any
+from collections.abc import Callable, Mapping, Sequence
+from typing import Any, ParamSpec, TypeVar
 
-from cwsandbox import NetworkOptions, ResourceOptions, SandboxDefaults
+from cwsandbox import NetworkOptions, RemoteFunction, ResourceOptions, SandboxDefaults
 from cwsandbox import Sandbox as _BaseSandbox
 from cwsandbox import Session as _BaseSession
 
@@ -11,6 +11,8 @@ from wandb.errors import UsageError
 
 _PLACEMENT_OVERRIDE_FIELDS = ("profile_ids", "profile_names", "runner_ids")
 _SUPPORTED_EGRESS_MODES = ("internet", "none")
+P = ParamSpec("P")
+R = TypeVar("R")
 
 
 def _placement_override_error(fields: Sequence[str]) -> UsageError:
@@ -56,7 +58,10 @@ def _resources_include_gpu(
         gpu = resources.get("gpu")
         return gpu is not None and gpu != {}
 
-    return getattr(resources, "gpu", None) is not None
+    if isinstance(resources, ResourceOptions):
+        return resources.gpu is not None
+
+    return False
 
 
 def _reject_gpu_resources(
@@ -72,13 +77,21 @@ def _reject_unsupported_egress_mode(
     if network is None:
         return
 
-    egress_mode = (
-        network.get("egress_mode")
-        if isinstance(network, Mapping)
-        else getattr(network, "egress_mode", None)
-    )
+    if isinstance(network, Mapping):
+        egress_mode = network.get("egress_mode")
+    elif isinstance(network, NetworkOptions):
+        egress_mode = network.egress_mode
+    else:
+        return
+
     if egress_mode is not None and egress_mode not in _SUPPORTED_EGRESS_MODES:
         raise _egress_mode_error(egress_mode)
+
+
+def _reject_invalid_kwargs(kwargs: Mapping[str, Any]) -> None:
+    _reject_placement_override_kwargs(kwargs)
+    _reject_gpu_resources(kwargs.get("resources"))
+    _reject_unsupported_egress_mode(kwargs.get("network"))
 
 
 def _reject_invalid_defaults(
@@ -122,9 +135,7 @@ class Sandbox(_BaseSandbox):
     """W&B sandbox wrapper with W&B Serverless policy guardrails."""
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
-        _reject_placement_override_kwargs(kwargs)
-        _reject_gpu_resources(kwargs.get("resources"))
-        _reject_unsupported_egress_mode(kwargs.get("network"))
+        _reject_invalid_kwargs(kwargs)
         _reject_invalid_defaults(kwargs.get("defaults"))
         super().__init__(*args, **kwargs)
 
@@ -154,7 +165,12 @@ class Session(_BaseSession):
         self,
         **kwargs: Any,
     ) -> _BaseSandbox:
-        _reject_placement_override_kwargs(kwargs)
-        _reject_gpu_resources(kwargs.get("resources"))
-        _reject_unsupported_egress_mode(kwargs.get("network"))
+        _reject_invalid_kwargs(kwargs)
         return super().sandbox(**kwargs)
+
+    def function(
+        self,
+        **kwargs: Any,
+    ) -> Callable[[Callable[P, R]], RemoteFunction[P, R]]:
+        _reject_invalid_kwargs(kwargs)
+        return super().function(**kwargs)

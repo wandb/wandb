@@ -148,6 +148,30 @@ def test_sandbox_session_rejects_default_unsupported_egress_modes(network) -> No
         wandb_sandbox.Session(defaults={"network": network})
 
 
+@pytest.mark.parametrize("field", _PLACEMENT_OVERRIDE_FIELDS)
+def test_sandbox_session_function_rejects_placement_overrides(field: str) -> None:
+    session = wandb_sandbox.Session()
+
+    with pytest.raises(UsageError, match=f"placement overrides.*{field}"):
+        session.function(**{field: ["placement-1"]})
+
+
+@pytest.mark.parametrize("resources", _GPU_RESOURCE_VALUES)
+def test_sandbox_session_function_rejects_gpu_resources(resources) -> None:
+    session = wandb_sandbox.Session()
+
+    with pytest.raises(UsageError, match="GPU resources"):
+        session.function(resources=resources)
+
+
+@pytest.mark.parametrize("network", _UNSUPPORTED_EGRESS_NETWORK_VALUES)
+def test_sandbox_session_function_rejects_unsupported_egress_modes(network) -> None:
+    session = wandb_sandbox.Session()
+
+    with pytest.raises(UsageError, match="egress modes.*private"):
+        session.function(network=network)
+
+
 def test_sandbox_session_forwards_kwargs(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -166,6 +190,27 @@ def test_sandbox_session_forwards_kwargs(
     assert result is sandbox
     assert calls == [
         (session, {"command": "sleep", "future_option": {"enabled": True}})
+    ]
+
+
+def test_sandbox_session_function_forwards_kwargs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = []
+    decorator = object()
+
+    def fake_base_function(self, **kwargs):
+        calls.append((self, kwargs))
+        return decorator
+
+    monkeypatch.setattr(sandbox_module._BaseSession, "function", fake_base_function)
+
+    session = wandb_sandbox.Session()
+    result = session.function(container_image="python:3.11", future_option=True)
+
+    assert result is decorator
+    assert calls == [
+        (session, {"container_image": "python:3.11", "future_option": True})
     ]
 
 
