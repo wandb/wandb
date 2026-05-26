@@ -17,7 +17,7 @@ from urllib.parse import quote, unquote
 
 from google.protobuf.wrappers_pb2 import BoolValue, DoubleValue, Int32Value, StringValue
 from pydantic import BaseModel, ConfigDict, Field
-from typing_extensions import Callable, Self
+from typing_extensions import Self
 
 import wandb
 from wandb import env, util

@@ -2,6 +2,7 @@ package leet
 
 import (
 	"fmt"
+	"net/url"
 	"runtime/debug"
 	"strings"
 	"sync"
@@ -23,6 +24,50 @@ type RemoteRunParams struct {
 	Entity  string
 	Project string
 	RunId   string
+}
+
+// ParseRemoteURL parses a canonical W&B run URL into a RemoteRunParams.
+//
+// The expected URL format is:
+//
+//	<scheme>://<host>/<entity>/<project>/runs/<run-id>
+//
+// The "/runs/" segment is optional and is collapsed away; sweep URLs of the
+// form "/sweeps/<sweep-id>" are accepted with the same shape. The base URL
+// (scheme + host) is preserved as-is so callers can route GraphQL requests to
+// the correct W&B server.
+func ParseRemoteURL(rawURL string) (*RemoteRunParams, error) {
+	if rawURL == "" {
+		return nil, fmt.Errorf("remote URL is empty")
+	}
+
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return nil, fmt.Errorf("invalid remote URL %q: %w", rawURL, err)
+	}
+	if parsed.Scheme == "" || parsed.Host == "" {
+		return nil, fmt.Errorf(
+			"invalid remote URL %q: expected scheme://host/entity/project/runs/run-id",
+			rawURL,
+		)
+	}
+
+	normalized := strings.ReplaceAll(parsed.Path, "/runs/", "/")
+	normalized = strings.ReplaceAll(normalized, "/sweeps/", "/")
+	parts := strings.Split(strings.Trim(normalized, "/"), "/")
+	if len(parts) != 3 || parts[0] == "" || parts[1] == "" || parts[2] == "" {
+		return nil, fmt.Errorf(
+			"invalid remote URL %q: expected scheme://host/entity/project/runs/run-id",
+			rawURL,
+		)
+	}
+
+	return &RemoteRunParams{
+		BaseURL: fmt.Sprintf("%s://%s", parsed.Scheme, parsed.Host),
+		Entity:  parts[0],
+		Project: parts[1],
+		RunId:   parts[2],
+	}, nil
 }
 
 type LocalRunParams struct {

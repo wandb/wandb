@@ -647,26 +647,6 @@ func (s *Sender) respondExit(
 	exitRequest.Respond(exitResponse)
 }
 
-// respondExit constructs and sends a response to an exit request.
-func (s *Sender) respondExit(
-	exitRequest *runwork.Request,
-	timedOut bool,
-) {
-	exitResponse := &spb.ServerResponse{
-		ServerResponseType: &spb.ServerResponse_ResultCommunicate{
-			ResultCommunicate: &spb.Result{
-				ResultType: &spb.Result_ExitResult{
-					ExitResult: &spb.RunExitResult{
-						TimedOut: timedOut,
-					},
-				},
-			},
-		},
-	}
-
-	exitRequest.Respond(exitResponse)
-}
-
 func (s *Sender) sendTelemetry(_ *spb.Record, telemetry *spb.TelemetryRecord) {
 	upserter, err := s.runHandle.Upserter()
 	if err != nil {
