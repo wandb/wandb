@@ -633,7 +633,7 @@ message AlertResult {}
 // step with a PartialHistoryRequest, which produces artificial Records
 // when a step is committed).
 //
-// Next ID: 84
+// Next ID: 85
 message Request {
   reserved 18, 22, 75, 76, 79, 80;
 
@@ -646,8 +646,11 @@ message Request {
     PauseRequest pause = 6;
     ResumeRequest resume = 7;
     PollExitRequest poll_exit = 8;
+
     SampledHistoryRequest sampled_history = 9;
     PartialHistoryRequest partial_history = 10;
+    HistoryStepRequest history_step = 84;
+
     RunStartRequest run_start = 11;
     CheckVersionRequest check_version = 12;
     LogArtifactRequest log_artifact = 13;
@@ -684,6 +687,8 @@ message Request {
 
 /*
  * Response: all non persistent responses to Requests
+ *
+ * Next ID: 75
  */
 message Response {
   reserved 32, 72, 73;
@@ -695,7 +700,10 @@ message Response {
     LoginResponse login_response = 24;
     GetSummaryResponse get_summary_response = 25;
     PollExitResponse poll_exit_response = 26;
+
     SampledHistoryResponse sampled_history_response = 27;
+    HistoryStepResponse history_step_response = 75;
+
     RunStartResponse run_start_response = 28;
     CheckVersionResponse check_version_response = 29;
     LogArtifactResponse log_artifact_response = 30;
@@ -1103,6 +1111,19 @@ message PartialHistoryRequest {
 }
 
 message PartialHistoryResponse {}
+
+// Get the run's current W&B step number (the step of the next `log()` call).
+//
+// Returns a ServerErrorResponse in shared mode.
+message HistoryStepRequest {}
+
+message HistoryStepResponse {
+  // The step of the next `log()` call.
+  //
+  // This is 0 before anything is logged, 1 after the first `log()` call,
+  // and so on. Corresponds to the artificial `_step` metric.
+  int64 step = 1;
+}
 
 /*
  * SampledHistoryRequest:
