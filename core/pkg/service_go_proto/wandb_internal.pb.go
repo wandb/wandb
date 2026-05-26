@@ -658,7 +658,16 @@ func (FileTransferInfoRequest_TransferType) EnumDescriptor() ([]byte, []int) {
 	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{101, 0}
 }
 
-// Record: joined record for message passing and persistence
+// A sequence of Records fully defines a run.
+//
+// Records make up a run's transaction log, which can be replayed to reupload
+// the run or upload it for the first time in offline mode.
+//
+// Since Records are persistent, and a new `wandb` version can be used to
+// sync an older transaction log, it is important to follow proper protobuf
+// versioning practices: https://protobuf.dev/best-practices/
+//
+// Next ID: 28
 type Record struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	Num   int64                  `protobuf:"varint,1,opt,name=num,proto3" json:"num,omitempty"`
@@ -4758,7 +4767,16 @@ func (*AlertResult) Descriptor() ([]byte, []int) {
 	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{55}
 }
 
-// Request: all non persistent messages
+// Runtime communication that's not part of a run's transaction log.
+//
+// Unlike Records, Requests are not necessary to recreate a run and are not
+// stored in its transaction log. They are generally used to either get
+// information about a run (like whether it stopped, or if there are
+// warnings) or to control the logging process (like to add to the current
+// step with a PartialHistoryRequest, which produces artificial Records
+// when a step is committed).
+//
+// Next ID: 84
 type Request struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Types that are valid to be assigned to RequestType:
