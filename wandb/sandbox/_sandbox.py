@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
-from typing import Any, ParamSpec, TypeVar
+from typing import TYPE_CHECKING, Any, ParamSpec, TypeVar
 
 from cwsandbox import NetworkOptions, RemoteFunction, ResourceOptions, SandboxDefaults
 from cwsandbox import Sandbox as _BaseSandbox
@@ -134,43 +134,45 @@ def _reject_invalid_defaults(
 class Sandbox(_BaseSandbox):
     """W&B sandbox wrapper with W&B Serverless policy guardrails."""
 
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
-        _reject_invalid_kwargs(kwargs)
-        _reject_invalid_defaults(kwargs.get("defaults"))
-        super().__init__(*args, **kwargs)
+    if TYPE_CHECKING:
+        __init__ = _BaseSandbox.__init__
+    else:
+
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            _reject_invalid_kwargs(kwargs)
+            _reject_invalid_defaults(kwargs.get("defaults"))
+            super().__init__(*args, **kwargs)
 
     @classmethod
-    def session(
-        cls,
-        *args: Any,
-        **kwargs: Any,
-    ) -> Session:
+    def session(cls, *args: Any, **kwargs: Any) -> Session:
         return Session(*args, **kwargs)
 
 
 class Session(_BaseSession):
     """W&B sandbox session wrapper with W&B Serverless policy guardrails."""
 
-    def __init__(
-        self,
-        *args: Any,
-        **kwargs: Any,
-    ) -> None:
-        if args:
-            _reject_invalid_defaults(args[0])
-        _reject_invalid_defaults(kwargs.get("defaults"))
-        super().__init__(*args, **kwargs)
+    if TYPE_CHECKING:
+        __init__ = _BaseSession.__init__
+        sandbox = _BaseSession.sandbox
+        function = _BaseSession.function
+    else:
 
-    def sandbox(
-        self,
-        **kwargs: Any,
-    ) -> _BaseSandbox:
-        _reject_invalid_kwargs(kwargs)
-        return super().sandbox(**kwargs)
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            if args:
+                _reject_invalid_defaults(args[0])
+            _reject_invalid_defaults(kwargs.get("defaults"))
+            super().__init__(*args, **kwargs)
 
-    def function(
-        self,
-        **kwargs: Any,
-    ) -> Callable[[Callable[P, R]], RemoteFunction[P, R]]:
-        _reject_invalid_kwargs(kwargs)
-        return super().function(**kwargs)
+        def sandbox(
+            self,
+            **kwargs: Any,
+        ) -> _BaseSandbox:
+            _reject_invalid_kwargs(kwargs)
+            return super().sandbox(**kwargs)
+
+        def function(
+            self,
+            **kwargs: Any,
+        ) -> Callable[[Callable[P, R]], RemoteFunction[P, R]]:
+            _reject_invalid_kwargs(kwargs)
+            return super().function(**kwargs)
