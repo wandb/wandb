@@ -310,10 +310,6 @@ def test_launch_supplied_logfile(runner, monkeypatch, wandb_caplog, user):
 )
 @pytest.mark.usefixtures("user")
 def test_launch_template_vars(command_inputs, expected_error, runner, monkeypatch):
-    # CliRunner invokes commands in-process, so clear the cached InternalApi
-    # that would be a fresh object in a real CLI process.
-    monkeypatch.setattr(cli, "_api", None)
-
     mock_template_variables = [
         {"name": "test_str", "schema": json.dumps({"type": "string"})},
         {"name": "test_int", "schema": json.dumps({"type": "integer"})},
@@ -364,8 +360,6 @@ def test_launch_from_uri_creates_job(
     mocker,
     user,
 ):
-    mocker.patch.object(cli, "_api", None)
-
     mock_job_artifact = MagicMock()
     mock_job_artifact.name = "test:latest"
     mock_create_job_function = MagicMock(return_value=(mock_job_artifact, None, None))
