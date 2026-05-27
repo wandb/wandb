@@ -202,8 +202,10 @@ class Runs(SizedPaginator["Run"]):
             If you prepend order with a - order is descending.
             The default order is run.created_at from oldest to newest.
         per_page: (int) The number of runs to fetch per request (default is 50).
-        include_sweeps: (bool) Whether to include sweep information in the
-            runs. Defaults to True.
+        include_sweeps: (bool) Whether to eagerly fetch sweep information for
+            each run. Defaults to False. When False, accessing `Run.sweep`
+            lazily fetches the sweep on first access. When True, sweeps are
+            fetched upfront and shared across runs in the same sweep.
     """
 
     def __init__(
@@ -214,7 +216,7 @@ class Runs(SizedPaginator["Run"]):
         filters: dict[str, Any] | None = None,
         order: str = "+created_at",
         per_page: int = 50,
-        include_sweeps: bool = True,
+        include_sweeps: bool = False,
         lazy: bool = True,
         *,
         service_api: ServiceApi,
@@ -608,7 +610,9 @@ class Run(Attrs):
         project: The project associated with the run.
         run_id: The unique identifier for the run.
         attrs: The attributes of the run.
-        include_sweeps: Whether to include sweeps in the run.
+        include_sweeps: Whether to eagerly fetch sweep information at load
+            time. Defaults to False. When False, accessing `Run.sweep`
+            lazily fetches the sweep on first access.
 
     Attributes:
         tags ([str]): a list of tags associated with the run
@@ -639,7 +643,7 @@ class Run(Attrs):
         project: str,
         run_id: str,
         attrs: Mapping | None = None,
-        include_sweeps: bool = True,
+        include_sweeps: bool = False,
         lazy: bool = True,
         *,
         service_api: ServiceApi,
@@ -657,7 +661,8 @@ class Run(Attrs):
         self._files = {}
         self._base_dir = env.get_dir(tempfile.gettempdir())
         self.id = run_id
-        self.sweep = None
+        self._sweep: public.Sweep | None = None
+        self._sweep_loaded = False
         self._include_sweeps = include_sweeps
         self._lazy = lazy
         self._full_data_loaded = False  # Track if we've loaded full data
@@ -808,7 +813,7 @@ class Run(Attrs):
             if self._attrs.get("user"):
                 self.user = public.User(self.client, self._attrs["user"])
 
-            if self._include_sweeps and self.sweep_name and not self.sweep:
+            if self._include_sweeps and self.sweep_name and not self._sweep_loaded:
                 # There may be a lot of runs. Don't bother pulling them all
                 # just for the sake of this one.
                 self.sweep = public.Sweep.get(
@@ -860,7 +865,11 @@ class Run(Attrs):
             )
 
         # Only check for sweeps if sweep_name is available (not in lazy mode or if it exists)
-        if self._include_sweeps and self._attrs.get("sweepName") and not self.sweep:
+        if (
+            self._include_sweeps
+            and self._attrs.get("sweepName")
+            and not self._sweep_loaded
+        ):
             # There may be a lot of runs. Don't bother pulling them all
             self.sweep = public.Sweep.get(
                 self.client,
@@ -1541,6 +1550,29 @@ class Run(Attrs):
         """Get sweep name. Always available since sweepName is in lightweight fragment."""
         # sweepName is included in lightweight fragment, so no need to load full data
         return self._attrs.get("sweepName")
+
+    @property
+    def sweep(self) -> public.Sweep | None:
+        """The sweep associated with the run, or None if the run is not part of a sweep.
+
+        If the run was loaded with `include_sweeps=False`, the sweep is
+        fetched lazily on first access and cached for subsequent accesses.
+        """
+        if not self._sweep_loaded and self.sweep_name:
+            self._sweep = public.Sweep.get(
+                self.client,
+                self.entity,
+                self.project,
+                self.sweep_name,
+                withRuns=False,
+            )
+            self._sweep_loaded = True
+        return self._sweep
+
+    @sweep.setter
+    def sweep(self, value: public.Sweep | None) -> None:
+        self._sweep = value
+        self._sweep_loaded = True
 
     @property
     def path(self) -> list[str]:
