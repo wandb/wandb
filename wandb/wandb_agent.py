@@ -150,11 +150,14 @@ class AgentProcess:
         if original_handler and callable(original_handler):
             original_handler(signum, frame)
         elif signum in _TERMINATING_SIGNALS:
-            # These signals' default disposition is SIG_DFL (terminate), which
-            # would fall through silently here and let the heartbeat loop pull
-            # the next (often requeued) run. Mirror SIGINT instead so the
-            # agent's KeyboardInterrupt cleanup path in `Agent.run` runs.
-            raise KeyboardInterrupt
+            # These signals' default disposition is SIG_DFL (terminate). The
+            # child run subprocess has already received the forwarded signal
+            # above and is in its own process group; it will handle the signal
+            # on its own. Exit the agent immediately without waiting on or
+            # further signaling the child, so the heartbeat loop cannot re-pop
+            # a requeued run. Exit code mirrors the shell convention for a
+            # process killed by `signum`.
+            os._exit(128 + signum)
 
     def _start(self, finished_q, env, function, run_id, in_jupyter):
         if env:
