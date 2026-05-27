@@ -1,3 +1,8 @@
+# v1.102.0 (2026-05-27)
+
+* **Feature**: Add SHA-512 support for s3 operations
+* **Dependency Update**: Updated to the latest SDK module versions
+
 # v1.101.0 (2026-05-06)
 
 * **Feature**: Validate outpost access point resource name
