@@ -10,13 +10,26 @@ import (
 
 // WriteJSONToTempFileWithMetadata writes the provided data as JSON to a temporary file.
 //
+// The OS default temp directory (typically $TMPDIR) is tried first to preserve
+// legacy behavior. If that fails — e.g. because $TMPDIR points to a missing
+// path on HPC setups where the job script never created it — and fallbackDir
+// is non-empty, the call is retried with fallbackDir. Pass a wandb-controlled
+// location (e.g. an artifact's stagingDir) so manifest writes don't silently
+// fail when the host $TMPDIR is broken. An empty fallbackDir disables the
+// retry and preserves the original legacy semantics.
+//
 // Returns the path to the temporary file, the Base64-encoded MD5 digest of the JSON data,
 // the size of the file, and an error if something goes wrong during the process.
 func WriteJSONToTempFileWithMetadata(
 	data any,
+	fallbackDir string,
 ) (filename, digest string, size int64, err error) {
-	// Create a temporary file
+	// Try the OS default temp dir first (legacy behavior). If that errors and
+	// the caller supplied a wandb-controlled fallback, retry there.
 	f, err := os.CreateTemp("", "tmpfile-")
+	if err != nil && fallbackDir != "" {
+		f, err = os.CreateTemp(fallbackDir, "tmpfile-")
+	}
 	if err != nil {
 		return "", "", 0, fmt.Errorf("unable to create temporary file: %w", err)
 	}

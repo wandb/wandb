@@ -17,12 +17,20 @@ import (
 type ArtifactBuilder struct {
 	artifactRecord   *spb.ArtifactRecord
 	isDigestUpToDate bool
+
+	// fallbackTempDir is used by AddData when the OS default temp dir
+	// (os.TempDir() / $TMPDIR) fails. Pass a wandb-controlled directory so
+	// AddData doesn't silently fail in HPC environments where $TMPDIR points
+	// to a path the job never created. Empty disables the fallback (legacy
+	// behavior).
+	fallbackTempDir string
 }
 
-func NewArtifactBuilder(artifactRecord *spb.ArtifactRecord) *ArtifactBuilder {
+func NewArtifactBuilder(artifactRecord *spb.ArtifactRecord, fallbackTempDir string) *ArtifactBuilder {
 	artifactClone := proto.Clone(artifactRecord).(*spb.ArtifactRecord)
 	builder := &ArtifactBuilder{
-		artifactRecord: artifactClone,
+		artifactRecord:  artifactClone,
+		fallbackTempDir: fallbackTempDir,
 	}
 	builder.initDefaultManifest()
 	return builder
@@ -43,7 +51,7 @@ func (b *ArtifactBuilder) initDefaultManifest() {
 }
 
 func (b *ArtifactBuilder) AddData(name string, data any) error {
-	filename, digest, size, err := WriteJSONToTempFileWithMetadata(data)
+	filename, digest, size, err := WriteJSONToTempFileWithMetadata(data, b.fallbackTempDir)
 	if err != nil {
 		return err
 	}

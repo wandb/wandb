@@ -786,7 +786,11 @@ func (as *ArtifactSaver) Save() (artifactID string, rerr error) {
 		return "", fmt.Errorf("ArtifactSaver.resolveClientIDReferences: %w", err)
 	}
 	// TODO: check if size is needed
-	manifestFile, manifestDigest, _, err := manifest.WriteToFile()
+	// stagingDir is the wandb-controlled fallback for the manifest temp file
+	// when the host's default temp dir ($TMPDIR / os.TempDir()) is missing or
+	// unwritable. The Python SDK guarantees stagingDir exists before sending
+	// the LogArtifactRequest, so it's a safe last-resort write location.
+	manifestFile, manifestDigest, _, err := manifest.WriteToFile(as.stagingDir)
 	if err != nil {
 		return "", fmt.Errorf("ArtifactSaver.writeManifest: %w", err)
 	}

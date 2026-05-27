@@ -693,7 +693,10 @@ func (j *JobBuilder) buildArtifact(
 	fileDir string,
 	sourceType SourceType,
 ) (*spb.ArtifactRecord, error) {
-	artifactBuilder := artifacts.NewArtifactBuilder(baseArtifact)
+	// fileDir is the run's files directory — guaranteed to exist and be
+	// writable by the SDK contract. Used as a fallback for temp-file writes
+	// when the host's $TMPDIR is missing.
+	artifactBuilder := artifacts.NewArtifactBuilder(baseArtifact, fileDir)
 
 	err := artifactBuilder.AddFile(
 		filepath.Join(fileDir, REQUIREMENTS_FNAME),

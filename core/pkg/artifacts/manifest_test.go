@@ -186,7 +186,7 @@ func TestManifest_WriteToFile(t *testing.T) {
 		},
 	}
 
-	filename, digest, size, err := manifest.WriteToFile()
+	filename, digest, size, err := manifest.WriteToFile("")
 	defer func() {
 		_ = os.Remove(filename)
 	}()
