@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
 import hashlib
 import importlib
 import json
 import sys
 import types
 import warnings
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any, Literal, get_args
 
