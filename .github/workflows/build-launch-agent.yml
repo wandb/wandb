@@ -62,6 +62,25 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
+      - name: Build local image for scanning
+        if: matrix.platform == 'linux/amd64'
+        uses: docker/build-push-action@v7
+        with:
+          context: ./tools/launch_release/build
+          platforms: linux/amd64
+          push: false
+          load: true
+          build-args: REF=${{ github.event.inputs.ref }}
+          tags: launch-agent-scan:${{ github.sha }}
+
+      - name: Scan image for secrets (TruffleHog)
+        if: matrix.platform == 'linux/amd64'
+        run: |
+          curl -sSfL https://github.com/trufflesecurity/trufflehog/releases/download/v3.95.3/trufflehog_3.95.3_linux_amd64.tar.gz -o trufflehog.tar.gz
+          echo "5d836eae522540a32ca0f1a1e00efd4c3153a52462466a4b4008fac1e6c1a548  trufflehog.tar.gz" | sha256sum -c
+          tar -xzf trufflehog.tar.gz trufflehog
+          ./trufflehog docker --image=docker://launch-agent-scan:${{ github.sha }} --fail --only-verified --github-actions
+
       - id: build
         name: Build and push by digest
         uses: docker/build-push-action@v7
