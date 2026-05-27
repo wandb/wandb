@@ -28,7 +28,6 @@ import wandb.sdk.verify.verify as wandb_verify
 from wandb import Config, Error, env, util, wandb_agent
 from wandb.analytics import get_sentry
 from wandb.apis import InternalApi, PublicApi
-from wandb.apis.public import RunQueue
 from wandb.errors.links import url_registry
 from wandb.old import core as old_core
 from wandb.sdk import wandb_setup, wandb_sweep
@@ -1825,7 +1824,7 @@ def launch(
         if entity is None:
             entity = launch_utils.get_default_entity(api, config)
         public_api = PublicApi()
-        runqueue = RunQueue(client=public_api.client, name=queue, entity=entity)
+        runqueue = public_api.run_queue(entity=entity, name=queue)
         template_variables = launch_utils.fetch_and_validate_template_variables(
             runqueue, cli_template_vars
         )

@@ -5,7 +5,7 @@ This module provides classes for interacting with W&B integrations.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, ClassVar, Union
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from typing_extensions import override
 from wandb_gql import gql
@@ -23,7 +23,7 @@ if TYPE_CHECKING:
         WebhookIntegrationFields,
     )
 
-    IntegrationFields = Union[SlackIntegrationFields, WebhookIntegrationFields]
+    IntegrationFields = SlackIntegrationFields | WebhookIntegrationFields
 
 
 class Integrations(RelayPaginator["IntegrationFields", "Integration"]):

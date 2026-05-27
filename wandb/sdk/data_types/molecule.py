@@ -4,7 +4,7 @@ import io
 import os
 import pathlib
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Union
+from typing import TYPE_CHECKING, TypeAlias
 
 from wandb import util
 from wandb.sdk.lib import runid
@@ -22,7 +22,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
     from ..wandb_run import Run as LocalRun
 
-    RDKitDataType = Union[str, "rdkit.Chem.rdchem.Mol"]
+    RDKitDataType: TypeAlias = str | rdkit.Chem.rdchem.Mol
 
 
 class Molecule(BatchableMedia):

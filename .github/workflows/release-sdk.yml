@@ -449,10 +449,10 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        channel: [C0108SLEP6K, C01KQ5KTDC3]
+        channel: [C0108SLEP6K, C01KQ5KTDC3, C080Q7GLKRR]
     steps:
       - name: Post to Slack
-        uses: slackapi/slack-github-action@v3.0.2
+        uses: slackapi/slack-github-action@v3.0.3
         with:
           method: chat.postMessage
           token: ${{ secrets.SLACK_BOT_TOKEN }}

@@ -7,8 +7,8 @@ import concurrent.futures
 import contextlib
 import logging
 import threading
-from collections.abc import Awaitable
-from typing import Callable, TypeVar
+from collections.abc import Awaitable, Callable
+from typing import TypeVar
 
 from . import asyncio_compat
 

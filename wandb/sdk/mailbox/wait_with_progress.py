@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import time
-from collections.abc import Coroutine
-from typing import Any, Callable, TypeVar, cast
+from collections.abc import Callable, Coroutine
+from typing import Any, TypeVar, cast
 
 from wandb.sdk.lib import asyncio_compat
 

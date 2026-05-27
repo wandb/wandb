@@ -290,41 +290,47 @@ def test_initialize_api_uses_explicit_key(
 
 @pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
 def test_create_run_with_dictionary_config():
+    api = wandb.Api()
     run = wandb.apis.public.Run(
-        client=wandb.Api().client,
+        client=api.client,
         entity="test",
         project="test",
         run_id="test",
         attrs={"config": '{"test": "test"}'},
+        service_api=MagicMock(),
     )
     assert run.config == {"test": "test"}
 
 
 @pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
 def test_create_run_with_dictionary__config_not_parsable():
+    api = wandb.Api()
     run = wandb.apis.public.Run(
-        client=wandb.Api().client,
+        client=api.client,
         entity="test",
         project="test",
         run_id="test",
         attrs={
             "config": {"test": "test"},
         },
+        service_api=MagicMock(),
     )
     assert run.config == {"test": "test"}
 
 
 @pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
 def test_create_run_with_dictionary__throws_error():
+    api = wandb.Api()
     with pytest.raises(wandb.errors.CommError):
         wandb.apis.public.Run(
-            client=wandb.Api().client,
+            client=api.client,
             entity="test",
             project="test",
             run_id="test",
             attrs={
                 "config": 1,
             },
+            service_api=MagicMock(),
         )
 
 
@@ -360,6 +366,7 @@ def test_project_id_lazy_load(monkeypatch):
         entity="test-entity",
         project="test-project",
         attrs={},
+        service_api=MagicMock(),
     )
 
     assert project.id == "123"
@@ -379,6 +386,7 @@ def test_project_load__raises_error(monkeypatch):
         entity="test-entity",
         project="test-project",
         attrs={},
+        service_api=MagicMock(),
     )
 
     with pytest.raises(ValueError):

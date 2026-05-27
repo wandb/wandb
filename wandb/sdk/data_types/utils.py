@@ -5,7 +5,7 @@ import logging
 import os
 from collections.abc import Sequence
 from decimal import Decimal
-from typing import TYPE_CHECKING, Union, cast
+from typing import TYPE_CHECKING, TypeAlias, cast
 
 import wandb
 from wandb import util
@@ -23,15 +23,15 @@ if TYPE_CHECKING:  # pragma: no cover
 
     from ..wandb_run import Run as LocalRun
 
-    ValToJsonType = Union[
-        dict,
-        "WBValue",
-        Sequence["WBValue"],
-        "plotly.Figure",
-        "matplotlib.artist.Artist",
-        "pd.DataFrame",
-        object,
-    ]
+    ValToJsonType: TypeAlias = (
+        dict
+        | WBValue
+        | Sequence[WBValue]
+        | plotly.Figure
+        | matplotlib.artist.Artist
+        | pd.DataFrame
+        | object
+    )
 
 
 def history_dict_to_json(

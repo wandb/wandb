@@ -8,10 +8,10 @@ import math
 import numbers
 import time
 from collections import defaultdict
-from collections.abc import Iterable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from queue import Queue
 from threading import Event
-from typing import TYPE_CHECKING, Any, Callable, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from wandb.errors.links import url_registry
 from wandb.proto.wandb_internal_pb2 import (

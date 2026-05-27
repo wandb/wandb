@@ -3,19 +3,17 @@
 
 from __future__ import annotations
 
-from typing import Optional
-
 from wandb._pydantic import GQLResult
 
 from .fragments import ArtifactFragment
 
 
 class ArtifactByName(GQLResult):
-    project: Optional[ArtifactByNameProject]
+    project: ArtifactByNameProject | None
 
 
 class ArtifactByNameProject(GQLResult):
-    artifact: Optional[ArtifactFragment]
+    artifact: ArtifactFragment | None
 
 
 ArtifactByName.model_rebuild()

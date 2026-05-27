@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import copy
+from collections.abc import Callable
 from datetime import datetime
-from typing import Callable, Union
 
 from packaging import version
 
@@ -72,19 +72,19 @@ except Exception as e:
     wandb.Error(e)
 
 
-TRAINER_TYPE = Union[
-    ClassificationTrainer, DetectionTrainer, SegmentationTrainer, PoseTrainer
-]
-VALIDATOR_TYPE = Union[
-    ClassificationValidator, DetectionValidator, SegmentationValidator, PoseValidator
-]
-PREDICTOR_TYPE = Union[
-    ClassificationPredictor,
-    DetectionPredictor,
-    SegmentationPredictor,
-    PosePredictor,
-    SAMPredictor,
-]
+TRAINER_TYPE = (
+    ClassificationTrainer | DetectionTrainer | SegmentationTrainer | PoseTrainer
+)
+VALIDATOR_TYPE = (
+    ClassificationValidator | DetectionValidator | SegmentationValidator | PoseValidator
+)
+PREDICTOR_TYPE = (
+    ClassificationPredictor
+    | DetectionPredictor
+    | SegmentationPredictor
+    | PosePredictor
+    | SAMPredictor
+)
 
 
 class WandBUltralyticsCallback:
@@ -98,7 +98,7 @@ class WandBUltralyticsCallback:
     Example:
         ```python
         from ultralytics.yolo.engine.model import YOLO
-        from wandb.yolov8 import add_wandb_callback
+        from wandb.integration.ultralytics import add_wandb_callback
 
         # initialize YOLO model
         model = YOLO("yolov8n.pt")
@@ -452,7 +452,7 @@ def add_wandb_callback(
     Example:
         ```python
         from ultralytics.yolo.engine.model import YOLO
-        from wandb.yolov8 import add_wandb_callback
+        from wandb.integration.ultralytics import add_wandb_callback
 
         # initialize YOLO model
         model = YOLO("yolov8n.pt")

@@ -54,9 +54,9 @@ function compile() {
         >/dev/null  # https://github.com/astral-sh/uv/issues/3701
 }
 
-compile 3.9 darwin
-compile 3.9 linux
-compile 3.9 windows
+compile 3.10 darwin
+compile 3.10 linux
+compile 3.10 windows
 
 compile 3.13 darwin
 compile 3.13 linux

@@ -16,6 +16,9 @@ const requestCountWarnInterval = 100
 type RequestCanceller struct {
 	mu sync.Mutex
 
+	// ctx is the parent context for all requests.
+	ctx context.Context
+
 	// requestCtxCancel maps some active server request IDs to functions
 	// that can be used to cancel their operations.
 	requestCtxCancel map[string]func()
@@ -27,8 +30,9 @@ type RequestCanceller struct {
 	warnInterval, lastWarnCount int
 }
 
-func NewRequestCanceller() *RequestCanceller {
+func NewRequestCanceller(ctx context.Context) *RequestCanceller {
 	return &RequestCanceller{
+		ctx:              ctx,
 		requestCtxCancel: make(map[string]func()),
 		warnInterval:     requestCountWarnInterval,
 	}
@@ -50,12 +54,12 @@ func (rc *RequestCanceller) SetWarnInterval(warnInterval int) {
 // A context leak is a goroutine leak; enough of these can crash the program,
 // so it's important to make designs that support a `defer cancel()`.
 //
-// If the request ID is empty, this returns a background context and a no-op
+// If the request ID is empty, this returns the root context and a no-op
 // cancellation function. If a previous request's ID is given, an error is
-// logged and a background context is returned.
+// logged and the root context is returned.
 func (rc *RequestCanceller) Context(id string) (context.Context, func()) {
 	if id == "" {
-		return context.Background(), func() {}
+		return rc.ctx, func() {}
 	}
 
 	rc.mu.Lock()
@@ -63,10 +67,10 @@ func (rc *RequestCanceller) Context(id string) (context.Context, func()) {
 
 	if _, exists := rc.requestCtxCancel[id]; exists {
 		slog.Error("requestcanceller: request ID already exists", "id", id)
-		return context.Background(), func() {}
+		return rc.ctx, func() {}
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(rc.ctx)
 	rc.requestCtxCancel[id] = cancel
 
 	// Clear the map once the context is cancelled.

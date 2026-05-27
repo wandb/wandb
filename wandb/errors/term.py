@@ -18,7 +18,7 @@ import re
 import shutil
 import sys
 import threading
-from collections.abc import Iterator
+from collections.abc import Generator
 from typing import TYPE_CHECKING, Protocol
 
 import click
@@ -93,7 +93,7 @@ def termsetup(
 
 
 @contextlib.contextmanager
-def dynamic_text() -> Iterator[DynamicBlock | None]:
+def dynamic_text() -> Generator[DynamicBlock | None]:
     """A context manager that provides a handle to a new dynamic text area.
 
     The text goes to stderr. Returns None if dynamic text is not supported.

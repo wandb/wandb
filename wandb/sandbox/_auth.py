@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Iterator
+from collections.abc import Generator
 from contextlib import contextmanager
 from contextvars import ContextVar
 
@@ -29,10 +29,10 @@ def _set_wandb_auth_mode() -> None:
 @contextmanager
 def override_sandbox_entity(
     entity: str | None = None,
-) -> Iterator[None]:
+) -> Generator[None]:
     """Temporarily override the sandbox entity for sandbox auth.
 
-    Passing ``None`` means using the default resolve logic from run
+    Passing `None` means using the default resolve logic from run
     and setting. Only used by the cli to set entity via --entity.
     """
     if entity is None:
@@ -57,7 +57,7 @@ def _resolve_wandb_sdk_auth() -> AuthHeaders:
     if not isinstance(auth, wbauth.AuthApiKey):
         raise UsageError("wandb.sandbox currently supports only W&B user API-key auth.")
 
-    metadata: list[tuple[str, str]] = [("x-api-key", auth.api_key)]
+    metadata: list[tuple[str, str]] = [("x-wandb-api-key", auth.api_key)]
     # Both entity and project are optional.
     # entity will use the default entity user set in web UI.
     # project will use/create 'sandbox' project automatically.

@@ -31,7 +31,7 @@ func makeHandler(
 	handlerFactory := stream.HandlerFactory{
 		Logger:          observabilitytest.NewTestLogger(t),
 		Settings:        s,
-		TerminalPrinter: observability.NewPrinter(),
+		TerminalPrinter: observability.NewPrinter(0),
 		Commit:          stream.GitCommitHash(commit),
 	}
 	h := handlerFactory.New(runworktest.New())

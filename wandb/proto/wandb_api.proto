@@ -29,6 +29,7 @@ message ApiRequest {
   oneof request {
     ReadRunHistoryRequest read_run_history_request = 2;
     FeaturesRequest features_request = 3;
+    GraphQLRequest graphql_request = 4;
   }
 }
 
@@ -36,6 +37,7 @@ message ApiResponse {
   oneof response {
     ReadRunHistoryResponse read_run_history_response = 1;
     FeaturesResponse features_response = 3;
+    GraphQLResponse graphql_response = 4;
 
     ApiErrorResponse api_error_response = 2;
   }
@@ -44,6 +46,11 @@ message ApiResponse {
 message ApiErrorResponse {
   string message = 1;
   optional ErrorType error_type = 2;
+
+  // HTTP status code from the upstream W&B backend, if the failure originated
+  // from an HTTP response. 0 if the failure had no HTTP status (transport
+  // error, GraphQL `errors` without an associated HTTP error, etc.).
+  int32 http_status = 3;
 }
 
 enum ErrorType {
@@ -93,6 +100,36 @@ message FeaturesRequest {
 message FeaturesResponse {
   // Names of enabled boolean features.
   repeated ServerFeature enabled = 1;
+}
+
+// Execute a raw GraphQL document.
+//
+// A successful request returns GraphQLResponse with the JSON-encoded `data`
+// field from the GraphQL response. Invalid input, transport failures, and
+// non-successful HTTP status codes return ApiErrorResponse. For HTTP responses
+// that include GraphQL `errors`, ApiErrorResponse.message is derived from
+// those error messages.
+//
+// The optional omit_* and rename_fields fields rewrite the query
+// before it is sent upstream. They strip parts of generated queries that are
+// not supported by the deployed W&B server (decided client-side based on
+// feature flags) without reproducing a GraphQL parser in Python.
+message GraphQLRequest {
+  string query = 1;
+  string variables_json = 2;
+
+  // Variable names ($var) to remove from variable definitions and usages.
+  repeated string omit_variables = 3;
+  // Fragment names to remove (both definitions and `...spreads`).
+  repeated string omit_fragments = 4;
+  // Field names to remove from selection sets.
+  repeated string omit_fields = 5;
+  // Field renames applied to selection sets: { old_name: new_name }.
+  map<string, string> rename_fields = 6;
+}
+
+message GraphQLResponse {
+  string data_json = 1;
 }
 
 // Start of Scan run history

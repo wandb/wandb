@@ -13,14 +13,14 @@ import sys
 import threading
 import time
 import traceback
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from enum import IntEnum
 from types import TracebackType
-from typing import TYPE_CHECKING, Callable, TextIO, TypeVar
+from typing import TYPE_CHECKING, Concatenate, Literal, TextIO, TypeVar
 
-from typing_extensions import Any, Concatenate, Literal, NamedTuple, ParamSpec
+from typing_extensions import Any, NamedTuple, ParamSpec
 
 import wandb
 import wandb.env
@@ -38,7 +38,13 @@ from wandb.proto.wandb_internal_pb2 import (
     RunRecord,
 )
 from wandb.proto.wandb_telemetry_pb2 import Deprecated
-from wandb.sdk.lib import wb_logging
+from wandb.sdk.lib import (
+    asyncio_manager,
+    logger_capture,
+    run_messages,
+    run_stopping,
+    wb_logging,
+)
 from wandb.sdk.lib.filesystem import (
     FilesDict,
     GlobStr,
@@ -99,7 +105,6 @@ if TYPE_CHECKING:
     from wandb.apis.public import Api as PublicApi
     from wandb.proto.wandb_internal_pb2 import (
         GetSummaryResponse,
-        InternalMessagesResponse,
         SampledHistoryResponse,
     )
 
@@ -136,8 +141,6 @@ logger = logging.getLogger("wandb")
 EXIT_TIMEOUT = 60
 RE_LABEL = re.compile(r"[a-zA-Z0-9_-]+$")
 
-_STOP_POLLING_INTERVAL = 15
-
 
 class TeardownStage(IntEnum):
     EARLY = 1
@@ -157,16 +160,13 @@ class RunStatusChecker:
     - check the run sync status.
     """
 
-    _stop_status_lock: threading.Lock
-    _stop_status_handle: MailboxHandle[Result] | None
     _network_status_lock: threading.Lock
     _network_status_handle: MailboxHandle[Result] | None
-    _internal_messages_lock: threading.Lock
-    _internal_messages_handle: MailboxHandle[Result] | None
 
     def __init__(
         self,
         run_id: str,
+        asyncer: asyncio_manager.AsyncioManager,
         interface: InterfaceBase,
         settings: Settings,
         retry_polling_interval: int = 5,
@@ -180,14 +180,6 @@ class RunStatusChecker:
 
         self._join_event = threading.Event()
 
-        self._stop_status_lock = threading.Lock()
-        self._stop_status_handle = None
-        self._stop_thread = threading.Thread(
-            target=self.check_stop_status,
-            name="ChkStopThr",
-            daemon=True,
-        )
-
         self._network_status_lock = threading.Lock()
         self._network_status_handle = None
         self._network_status_thread = threading.Thread(
@@ -196,18 +188,17 @@ class RunStatusChecker:
             daemon=True,
         )
 
-        self._internal_messages_lock = threading.Lock()
-        self._internal_messages_handle = None
-        self._internal_messages_thread = threading.Thread(
-            target=self.check_internal_messages,
-            name="IntMsgThr",
-            daemon=True,
+        self._stop_checker = run_stopping.RunStopChecker(
+            asyncer,
+            interface,
+            settings.stop_fn or interrupt.interrupt_main,
         )
+        self._internal_messages = run_messages.RunMessages(asyncer, interface)
 
     def start(self) -> None:
-        self._stop_thread.start()
+        self._stop_checker.start()
         self._network_status_thread.start()
-        self._internal_messages_thread.start()
+        self._internal_messages.start()
 
     @staticmethod
     def _abandon_status_check(
@@ -291,92 +282,19 @@ class RunStatusChecker:
                     self._network_status_handle,
                 )
 
-    def check_stop_status(self) -> None:
-        def _process_stop_status(result: Result) -> None:
-            from wandb.agents import pyagent
-
-            # TODO: Remove the pyagent.is_running() check if safe to do so.
-            # See WB-3606.
-            if pyagent.is_running():
-                return
-
-            stop_status = result.response.stop_status_response
-            if not stop_status.run_should_stop:
-                return
-
-            if stop_fn := self._settings.stop_fn:
-                stop_fn()
-            else:
-                interrupt.interrupt_main()
-
-            # Only stop once.
-            self._abandon_status_check(
-                self._stop_status_lock,
-                self._stop_status_handle,
-            )
-
-        with wb_logging.log_to_run(self._run_id):
-            try:
-                self._loop_check_status(
-                    lock=self._stop_status_lock,
-                    set_handle=lambda x: setattr(self, "_stop_status_handle", x),
-                    timeout=_STOP_POLLING_INTERVAL,
-                    request=self._interface.deliver_stop_status,
-                    process=_process_stop_status,
-                )
-            except BrokenPipeError:
-                self._abandon_status_check(
-                    self._stop_status_lock,
-                    self._stop_status_handle,
-                )
-
-    def check_internal_messages(self) -> None:
-        def _process_internal_messages(result: Result) -> None:
-            if (
-                not self._settings.show_warnings
-                or self._settings.quiet
-                or self._settings.silent
-            ):
-                return
-            internal_messages = result.response.internal_messages_response
-            for msg in internal_messages.messages.warning:
-                wandb.termwarn(msg, repeat=False)
-
-        with wb_logging.log_to_run(self._run_id):
-            try:
-                self._loop_check_status(
-                    lock=self._internal_messages_lock,
-                    set_handle=lambda x: setattr(self, "_internal_messages_handle", x),
-                    timeout=self._internal_messages_polling_interval,
-                    request=self._interface.deliver_internal_messages,
-                    process=_process_internal_messages,
-                )
-            except BrokenPipeError:
-                self._abandon_status_check(
-                    self._internal_messages_lock,
-                    self._internal_messages_handle,
-                )
-
     def stop(self) -> None:
         self._join_event.set()
-        self._abandon_status_check(
-            self._stop_status_lock,
-            self._stop_status_handle,
-        )
         self._abandon_status_check(
             self._network_status_lock,
             self._network_status_handle,
         )
-        self._abandon_status_check(
-            self._internal_messages_lock,
-            self._internal_messages_handle,
-        )
 
     def join(self) -> None:
         self.stop()
-        self._stop_thread.join()
+
+        self._stop_checker.stop_soon()
         self._network_status_thread.join()
-        self._internal_messages_thread.join()
+        self._internal_messages.stop(timeout=5)  # TODO: use finish timeout
 
 
 _P = ParamSpec("_P")
@@ -557,7 +475,6 @@ class Run:
     _final_summary: GetSummaryResponse | None
     _poll_exit_handle: MailboxHandle[Result] | None
     _poll_exit_response: PollExitResponse | None
-    _internal_messages_response: InternalMessagesResponse | None
 
     _stdout_slave_fd: int | None
     _stderr_slave_fd: int | None
@@ -662,7 +579,6 @@ class Run:
         self._sampled_history = None
         self._final_summary = None
         self._poll_exit_response = None
-        self._internal_messages_response = None
         self._poll_exit_handle = None
         self._finish_timed_out = False
 
@@ -1422,7 +1338,6 @@ class Run:
         self, key: str, val: str | Artifact | dict
     ) -> Artifact:
         from wandb.apis import public
-        from wandb.sdk.artifacts.artifact import Artifact
 
         # artifacts can look like dicts as they are passed into the run config
         # since the run config stores them on the backend as a dict with fields shown
@@ -1430,7 +1345,7 @@ class Run:
         if _is_artifact_version_weave_dict(val):
             assert isinstance(val, dict)
             public_api = self._public_api()
-            artifact = Artifact._from_id(val["id"], public_api.client)
+            artifact = public_api._artifact_from_id(val["id"])
 
             assert artifact
             return self.use_artifact(artifact)
@@ -1445,7 +1360,7 @@ class Run:
             else:
                 public_api = self._public_api()
             if is_id:
-                artifact = Artifact._from_id(artifact_string, public_api._client)
+                artifact = public_api._artifact_from_id(artifact_string)
             else:
                 artifact = public_api._artifact(name=artifact_string)
             # in the future we'll need to support using artifacts from
@@ -2069,6 +1984,33 @@ class Run:
         self._log(data=data, step=step, commit=commit)
 
     @_log_to_run
+    @_attach
+    def write_logs(self, text: str) -> None:
+        """Write text to the run's Logs tab.
+
+        Use `write_logs` to directly write text to the Logs tab instead of
+        relying on automatic stdout/stderr capture. Calls after the run has
+        finished are silently ignored.
+
+        Consider using the `capture_loggers` setting which integrates with
+        Python's `logging` module.
+
+        Args:
+            text: The text to write. A trailing newline is added if not present.
+        """
+        if self._is_finished or not self._interface:
+            return
+
+        if not text.endswith("\n"):
+            text += "\n"
+
+        # nowait=True is needed because we may be in the asyncio thread.
+        #
+        # write_logs() is called by LoggerHandler, which could be attached
+        # to the root logger, which may get logs in an asyncio context.
+        self._interface.publish_output_logger(text, nowait=True)
+
+    @_log_to_run
     @_raise_if_finished
     @_attach
     def save(
@@ -2559,7 +2501,6 @@ class Run:
             sampled_history=self._sampled_history,
             final_summary=self._final_summary,
             poll_exit_response=self._poll_exit_response,
-            internal_messages_response=self._internal_messages_response,
             settings=self._settings,
             printer=self._printer,
         )
@@ -2576,7 +2517,33 @@ class Run:
             self._output_writer.close()
             self._output_writer = None
 
+    def _begin_capturing_loggers(self) -> None:
+        """Begin capturing logger output if configured."""
+        capture_loggers = self._settings.capture_loggers
+        if not capture_loggers:
+            return
+
+        for name, level in capture_loggers.items():
+            handler = logger_capture.LoggerHandler(self, level)
+            logger = logging.getLogger(name)
+            logger.addHandler(handler)
+
+            def unregister(
+                logger: logging.Logger = logger,
+                handler: logging.Handler = handler,
+            ) -> None:
+                logger.removeHandler(handler)
+
+            self._teardown_hooks.append(
+                TeardownHook(
+                    call=unregister,
+                    stage=TeardownStage.EARLY,
+                )
+            )
+
     def _on_start(self) -> None:
+        assert self._wl
+
         self._header()
 
         if self._settings.save_code and self._settings.code_dir is not None:
@@ -2594,12 +2561,14 @@ class Run:
             assert self._settings.run_id
             self._run_status_checker = RunStatusChecker(
                 self._settings.run_id,
+                asyncer=self._wl.asyncer,
                 interface=self._interface,
                 settings=self._settings,
             )
             self._run_status_checker.start()
 
         self._console_start()
+        self._begin_capturing_loggers()
         self._on_ready()
 
     def _on_attach(self) -> None:
@@ -2787,10 +2756,6 @@ class Run:
         poll_exit_handle = self._interface.deliver_poll_exit()
         result = poll_exit_handle.wait_or(timeout=None)
         self._poll_exit_response = result.response.poll_exit_response
-
-        internal_messages_handle = self._interface.deliver_internal_messages()
-        result = internal_messages_handle.wait_or(timeout=None)
-        self._internal_messages_response = result.response.internal_messages_response
 
         # dispatch all our final requests
 
@@ -3861,7 +3826,6 @@ class Run:
         sampled_history: SampledHistoryResponse | None = None,
         final_summary: GetSummaryResponse | None = None,
         poll_exit_response: PollExitResponse | None = None,
-        internal_messages_response: InternalMessagesResponse | None = None,
         *,
         settings: Settings,
         printer: printer.Printer,
@@ -3879,11 +3843,6 @@ class Run:
             printer=printer,
         )
         Run._footer_log_dir_info(settings=settings, printer=printer)
-        Run._footer_internal_messages(
-            internal_messages_response=internal_messages_response,
-            settings=settings,
-            printer=printer,
-        )
 
     @staticmethod
     def _footer_sync_info(
@@ -4045,22 +4004,6 @@ class Run:
             summary_rows.append([f"+{remaining:,d}", "..."])
 
         return printer.grid(summary_rows, "Run summary:")
-
-    @staticmethod
-    def _footer_internal_messages(
-        internal_messages_response: InternalMessagesResponse | None = None,
-        *,
-        settings: Settings,
-        printer: printer.Printer,
-    ) -> None:
-        if settings.quiet or settings.silent:
-            return
-
-        if not internal_messages_response:
-            return
-
-        for message in internal_messages_response.messages.warning:
-            printer.display(message, level="warn")
 
 
 # We define this outside of the run context to support restoring before init

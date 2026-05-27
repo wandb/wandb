@@ -19,8 +19,8 @@ import sys
 import threading
 import time
 from collections import defaultdict
-from collections.abc import Iterable
-from typing import Callable, Literal
+from collections.abc import Callable, Iterable
+from typing import Literal
 
 import wandb
 from wandb.sdk.lib import console_capture

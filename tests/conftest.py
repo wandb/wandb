@@ -7,10 +7,10 @@ import shutil
 import sys
 import time
 import unittest.mock
-from collections.abc import Generator, Iterator
+from collections.abc import Callable, Generator
 from pathlib import Path
 from queue import Queue
-from typing import Any, Callable
+from typing import Any
 
 from wandb.sdk import wandb_setup
 
@@ -39,7 +39,7 @@ pytest_plugins = [
 
 
 @pytest.fixture(autouse=True, scope="session")
-def setup_wandb_env_variables() -> Iterator[None]:
+def setup_wandb_env_variables() -> Generator[None]:
     """Configures wandb env variables to suitable defaults for tests."""
     with pytest.MonkeyPatch().context() as monkeypatch:
         # Override the base URL, which otherwise defaults to https://api.wandb.ai
@@ -92,7 +92,7 @@ def copy_asset(
 @pytest.fixture()
 def wandb_caplog(
     caplog: pytest.LogCaptureFixture,
-) -> Iterator[pytest.LogCaptureFixture]:
+) -> Generator[pytest.LogCaptureFixture]:
     """Modified caplog fixture that detect wandb log messages.
 
     The wandb logger is configured to not propagate messages to the root logger,

@@ -5,8 +5,8 @@ from __future__ import annotations
 import queue
 import threading
 import time
-from collections.abc import Mapping, Sequence
-from typing import TYPE_CHECKING, Callable, NamedTuple, Union
+from collections.abc import Callable, Mapping, Sequence
+from typing import TYPE_CHECKING, NamedTuple
 
 if TYPE_CHECKING:
     from wandb.sdk.internal.internal_api import (
@@ -35,7 +35,7 @@ class ResponsePrepare(NamedTuple):
     multipart_upload_urls: dict[int, str] | None
 
 
-Request = Union[RequestPrepare, RequestFinish]
+Request = RequestPrepare | RequestFinish
 
 
 def _clamp(x: float, low: float, high: float) -> float:

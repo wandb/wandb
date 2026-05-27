@@ -3,8 +3,6 @@
 
 from __future__ import annotations
 
-from typing import List, Optional
-
 from pydantic import Field
 
 from wandb._pydantic import GQLResult
@@ -13,20 +11,20 @@ from .fragments import FileWithUrlFragment, PageInfoFragment
 
 
 class GetArtifactFileUrls(GQLResult):
-    artifact: Optional[GetArtifactFileUrlsArtifact]
+    artifact: GetArtifactFileUrlsArtifact | None
 
 
 class GetArtifactFileUrlsArtifact(GQLResult):
-    files: Optional[GetArtifactFileUrlsArtifactFiles]
+    files: GetArtifactFileUrlsArtifactFiles | None
 
 
 class GetArtifactFileUrlsArtifactFiles(GQLResult):
     page_info: PageInfoFragment = Field(alias="pageInfo")
-    edges: List[GetArtifactFileUrlsArtifactFilesEdges]
+    edges: list[GetArtifactFileUrlsArtifactFilesEdges]
 
 
 class GetArtifactFileUrlsArtifactFilesEdges(GQLResult):
-    node: Optional[FileWithUrlFragment]
+    node: FileWithUrlFragment | None
 
 
 GetArtifactFileUrls.model_rebuild()

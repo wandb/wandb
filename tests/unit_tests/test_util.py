@@ -57,7 +57,7 @@ def assert_deep_lists_equal(a, b, indices=None):
         else:
             top = False
 
-        for i, (x, y) in enumerate(zip(a, b)):
+        for i, (x, y) in enumerate(zip(a, b, strict=False)):
             try:
                 assert_deep_lists_equal(x, y, indices)
             except AssertionError:
@@ -241,6 +241,34 @@ def test_make_json_if_not_number():
         result = util.make_json_if_not_number(obj)
         assert isinstance(result, str)
         assert json.loads(result) == obj
+
+
+def test_json_dumps_safer_preserves_nonfinite_floats():
+    encoded = util.json_dumps_safer(
+        {
+            "nan": float("nan"),
+            "inf": float("inf"),
+            "ninf": float("-inf"),
+        }
+    )
+
+    assert '"nan":NaN' in encoded
+    assert '"inf":Infinity' in encoded
+    assert '"ninf":-Infinity' in encoded
+    assert "null" not in encoded
+
+
+def test_json_dumps_safer_supports_non_string_keys():
+    assert util.json_dumps_safer({1: "one"}) == '{"1":"one"}'
+
+
+def test_json_dumps_safer_uses_wandb_encoder_default():
+    class JsonEncodeObj:
+        def json_encode(self):
+            return {"value": 7}
+
+    encoded = util.json_dumps_safer({"obj": JsonEncodeObj()})
+    assert json.loads(encoded) == {"obj": {"value": 7}}
 
 
 ###############################################################################
@@ -821,7 +849,7 @@ def test_json_dump_uncompressed_with_numpy_datatypes():
     }
     iostr = io.StringIO()
     util.json_dump_uncompressed(data, iostr)
-    assert iostr.getvalue() == '{"a": [1, 2.0, 3]}'
+    assert json.loads(iostr.getvalue()) == {"a": [1, 2.0, 3]}
 
 
 @pytest.mark.parametrize(

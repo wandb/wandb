@@ -5,8 +5,9 @@ from __future__ import annotations
 import os
 import tempfile
 import time
+from collections.abc import Callable
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING
 from unittest.mock import Mock, patch
 
 import pytest

@@ -154,7 +154,7 @@ class HuggingFacePipelineRequestResponseResolver:
         response = response if isinstance(response, list) else [response]
 
         formatted_data = []
-        for i_text, r_text in zip(input_data, response):
+        for i_text, r_text in zip(input_data, response, strict=False):
             # Unpack single element responses for better rendering in wandb UI when it is a task without top_k
             # top_k = 1 would unpack the response into a single element while top_k > 1 would be a list
             # this would cause the UI to not properly concatenate the tables of the same task by omitting the elements past the first

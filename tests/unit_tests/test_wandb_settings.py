@@ -11,7 +11,6 @@ from unittest import mock
 
 import pytest
 import wandb
-from pydantic.version import VERSION as PYDANTIC_VERSION
 from wandb import Settings
 from wandb.errors import UsageError
 from wandb.sdk.lib.credentials import DEFAULT_WANDB_CREDENTIALS_FILE
@@ -19,10 +18,7 @@ from wandb.sdk.lib.run_moment import RunMoment
 
 from tests.fixtures.mock_wandb_log import MockWandbLog
 
-is_pydantic_v1 = int(PYDANTIC_VERSION[0]) == 1
 
-
-@pytest.mark.skipif(is_pydantic_v1, reason="Pydantic v1 allows extra fields")
 def test_unexpected_arguments():
     with pytest.raises(ValueError):
         Settings(lol=False)
@@ -39,7 +35,6 @@ def test_is_local():
     assert s.is_local is False
 
 
-@pytest.mark.skipif(is_pydantic_v1, reason="Pydantic v1 does type coercion")
 def test_invalid_field_type():
     with pytest.raises(ValueError):
         Settings(api_key=271828)  # must be a string
