@@ -22,6 +22,23 @@ from wandb.sdk.lib import config_util, ipython
 
 logger = logging.getLogger(__name__)
 
+# Signals whose kernel default action is "terminate the process" and that
+# orchestrators / shells use to request graceful shutdown. When the agent
+# receives one of these via _forward_signal with no callable original
+# handler captured, we translate it into KeyboardInterrupt so the agent's
+# existing SIGINT cleanup path runs and the heartbeat loop stops before
+# re-popping a requeued run. SIGHUP/SIGQUIT are POSIX-only; getattr keeps
+# this portable on Windows.
+_TERMINATING_SIGNALS = frozenset(
+    s
+    for s in (
+        getattr(signal, "SIGTERM", None),
+        getattr(signal, "SIGHUP", None),
+        getattr(signal, "SIGQUIT", None),
+    )
+    if s is not None
+)
+
 
 class AgentError(Exception):
     pass
@@ -132,11 +149,11 @@ class AgentProcess:
         original_handler = self._original_handlers.get(signum)
         if original_handler and callable(original_handler):
             original_handler(signum, frame)
-        elif signum == signal.SIGTERM:
-            # SIGTERM's default disposition is SIG_DFL, which would fall
-            # through silently and let the heartbeat loop pull the next
-            # (often requeued) run. Mirror SIGINT instead so the agent's
-            # KeyboardInterrupt cleanup path in `Agent.run` runs.
+        elif signum in _TERMINATING_SIGNALS:
+            # These signals' default disposition is SIG_DFL (terminate), which
+            # would fall through silently here and let the heartbeat loop pull
+            # the next (often requeued) run. Mirror SIGINT instead so the
+            # agent's KeyboardInterrupt cleanup path in `Agent.run` runs.
             raise KeyboardInterrupt
 
     def _start(self, finished_q, env, function, run_id, in_jupyter):
