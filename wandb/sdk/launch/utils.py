@@ -56,6 +56,8 @@ _WANDB_LOCAL_DEV_URI_REGEX = re.compile(
 
 API_KEY_REGEX = r"WANDB_API_KEY=\w+(-\w+)?"
 
+AWS_APN_ID = "4hgxdk3sk5l64i2yswlc008fw"
+
 MACRO_REGEX = re.compile(r"\$\{(\w+)\}")
 
 AZURE_CONTAINER_REGISTRY_URI_REGEX = re.compile(

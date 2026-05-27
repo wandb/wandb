@@ -17,6 +17,7 @@ from wandb.sdk.launch.errors import LaunchError
 from .._project_spec import EntryPoint, LaunchProject
 from ..registry.abstract import AbstractRegistry
 from ..utils import (
+    AWS_APN_ID,
     LOG_PREFIX,
     MAX_ENV_LENGTHS,
     PROJECT_SYNCHRONOUS,
@@ -370,6 +371,7 @@ def build_sagemaker_args(
     # Add wandb tag
     tags = sagemaker_args.get("Tags", [])
     tags.append({"Key": "WandbRunId", "Value": launch_project.run_id})
+    tags.append({"Key": "aws-apn-id", "Value": AWS_APN_ID})
     sagemaker_args["Tags"] = tags
 
     # remove args that were passed in for launch but not passed to sagemaker
