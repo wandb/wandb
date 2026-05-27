@@ -6,18 +6,48 @@ from collections.abc import Iterator
 from typing import TYPE_CHECKING, Any, Literal, cast
 
 import wandb
+from typing_extensions import override
 from wandb.errors import UsageError
 from wandb.sdk.data_types.table import Table
 
 if TYPE_CHECKING:
+    from typing import Protocol
+
     from wandb.sdk.wandb_run import Run as LocalRun
+
+    class _EvaluationCall(Protocol):
+        id: str
+
+    class _EvaluationLogger(Protocol):
+        _evaluate_call: _EvaluationCall
+
+        def log_example(
+            self, inputs: dict[str, Any], output: Any, scores: dict[str, Any]
+        ) -> None: ...
+
+        def log_summary(
+            self, summary: dict[str, Any] | None = None, auto_summarize: bool = True
+        ) -> None: ...
+
+    class _EvaluationLoggerCls(Protocol):
+        def _create_with_meta(
+            self,
+            eval_meta: dict[str, Any],
+            *,
+            name: str | None = None,
+            **kwargs: Any,
+        ) -> _EvaluationLogger: ...
+
+else:
+    _EvaluationLogger = Any
+    _EvaluationLoggerCls = Any
 
 
 EVAL_TABLE_MARKER = {"wandb_eval_table": True}
 
 EVAL_TABLE_ROW_INDEX_KEY = "row"
 
-EVAL_TABLE_WEAVE_DEP_MSG = (
+_EVAL_TABLE_WEAVE_DEP_MSG = (
     "`wandb.EvalTable` is missing weave dependency. "
     'Install it with `pip install wandb["eval-table"]`.'
 )
@@ -26,17 +56,27 @@ EVAL_TABLE_WEAVE_DEP_MSG = (
 # This function can be patched for testing to mock out calls to weave..
 #
 # TODO: If/when wandb adds a required dep on weave, return the real EvaluationLogger
-# type instead of Any and let mypy check calls against weave's implementation.
-def _get_evaluation_logger_cls(run: LocalRun) -> Any:  # pragma: no cover
+# type instead of the typing.Protocol version and let mypy check calls against weave's
+# implementation.
+def _get_evaluation_logger_cls(
+    run: LocalRun,
+) -> _EvaluationLoggerCls:  # pragma: no cover
     """Import and return weave's EvaluationLogger, verifying it's new enough."""
     from wandb.integration.weave.weave import setup_with_import
 
     try:
-        weave_is_enabled = setup_with_import(
-            getattr(run, "entity", None), getattr(run, "project", None)
-        )
+        entity = run.entity
+    except AttributeError:
+        entity = None
+    try:
+        project = run.project
+    except AttributeError:
+        project = None
+
+    try:
+        weave_is_enabled = setup_with_import(entity, project)
     except ImportError as e:
-        raise ImportError(EVAL_TABLE_WEAVE_DEP_MSG) from e
+        raise ImportError(_EVAL_TABLE_WEAVE_DEP_MSG) from e
 
     if not weave_is_enabled:
         raise RuntimeError(
@@ -50,16 +90,16 @@ def _get_evaluation_logger_cls(run: LocalRun) -> Any:  # pragma: no cover
             EvaluationLogger,
         )
     except ModuleNotFoundError as e:
-        raise ImportError(EVAL_TABLE_WEAVE_DEP_MSG) from e
+        raise ImportError(_EVAL_TABLE_WEAVE_DEP_MSG) from e
 
     try:
         create_with_meta = EvaluationLogger._create_with_meta
     except AttributeError as e:
-        raise ImportError(EVAL_TABLE_WEAVE_DEP_MSG) from e
+        raise ImportError(_EVAL_TABLE_WEAVE_DEP_MSG) from e
     if not callable(create_with_meta):
-        raise TypeError(EVAL_TABLE_WEAVE_DEP_MSG)
+        raise TypeError(_EVAL_TABLE_WEAVE_DEP_MSG)
 
-    return EvaluationLogger
+    return cast(_EvaluationLoggerCls, EvaluationLogger)
 
 
 class EvalTable(Table):
@@ -90,6 +130,7 @@ class EvalTable(Table):
         input_columns: list[str] | None = None,
         output_columns: list[str] | None = None,
         score_columns: list[str] | None = None,
+        unsupported_media_mode: Literal["raise", "stub"] = "raise",
     ) -> None:
         """Initializes an EvalTable object.
 
@@ -119,6 +160,11 @@ class EvalTable(Table):
             score_columns: (List[str]) Names of the score columns.
                 These represent derived scores for the outputs. By default, we will
                 auto-summarize any numeric and boolean scores.
+            unsupported_media_mode: How to handle unsupported wandb media/value types.
+                - "raise" (default): fail fast when unsupported values are added.
+                - "stub": log unsupported values as short placeholder strings
+                  like "[wandb.Html unsupported: abc12345]". (This is a temporary flag
+                  for use during development.)
 
         Examples:
             et1 = wandb.EvalTable(
@@ -183,14 +229,22 @@ class EvalTable(Table):
         self._summary: dict | None = None
         self._auto_summarize: bool = True
         # INCREMENTAL mode reuses one logger so all batches land in the same
-        # eval. IMMUTABLE/MUTABLE use local loggers and only persist call ids.
-        self._weave_eval_logger: Any | None = None
+        # eval. It does not trigger any of the artifact-related code in normal tables,
+        # including in table_decorators::allow_incremental_logging_after_append().
+        # IMMUTABLE/MUTABLE use local loggers and only persist call ids.
+        self._incremental_eval_logger: _EvaluationLogger | None = None
         self._immutable_evaluate_call_id: str | None = None
         # Track separately from self._last_logged_idx used by normal INCREMENTAL tables
         # to avoid conflating our somewhat different semantics.
         self._last_weave_logged_idx: int | None = None
         self._is_incremental_finished = False
         self._run_log_key: str | None = None
+        from wandb.integration.weave.media_adapters import (
+            validate_unsupported_media_mode,
+        )
+
+        validate_unsupported_media_mode(unsupported_media_mode)
+        self._unsupported_media_mode = unsupported_media_mode
 
         # Derive columns from role lists if columns arg omitted, so users
         # don't have to double-name columns when they've already listed
@@ -214,7 +268,8 @@ class EvalTable(Table):
             log_mode=log_mode,
         )
 
-    def bind_to_run(  # type: ignore[override]
+    @override
+    def bind_to_run(
         self,
         run: LocalRun,
         key: str,
@@ -230,6 +285,7 @@ class EvalTable(Table):
         self._run = run
         self._run_log_key = key
 
+    @override
     def to_json(self, run_or_artifact: Any) -> dict:
         """Returns the JSON representation expected by the backend.
 
@@ -239,8 +295,6 @@ class EvalTable(Table):
             raise UsageError("Cannot log an EvalTable after finish() has been called.")
 
         if isinstance(run_or_artifact, wandb.Artifact):
-            raise TypeError("EvalTable cannot be logged to a wandb.Artifact.")
-        if hasattr(run_or_artifact, "add") and not hasattr(run_or_artifact, "log"):
             raise TypeError("EvalTable cannot be logged to a wandb.Artifact.")
 
         run = cast("LocalRun", run_or_artifact)
@@ -265,13 +319,14 @@ class EvalTable(Table):
             "evaluate_call_id": evaluate_call_id,
         }
 
+    @override
     def _has_been_logged(self) -> bool:
         match self.log_mode:
             case "IMMUTABLE":
                 return self._immutable_evaluate_call_id is not None
             case "INCREMENTAL":
                 return (
-                    self._weave_eval_logger is not None
+                    self._incremental_eval_logger is not None
                     or self._last_weave_logged_idx is not None
                 )
             case "MUTABLE":
@@ -279,11 +334,41 @@ class EvalTable(Table):
             case _:
                 return False
 
+    @override
     def _reset_logging_state_after_mutation(self) -> None:
         super()._reset_logging_state_after_mutation()
         self._run_log_key = None
 
-    def _validate_columns(
+    def _validate_cell_value(self, val: Any, row_idx: int, col: str | int) -> None:
+        from wandb.integration.weave.media_adapters import validate_supported_value
+
+        validate_supported_value(
+            val,
+            col,
+            row_idx=row_idx,
+            unsupported_media_mode=self._unsupported_media_mode,
+        )
+
+    @override
+    def add_data(self, *data: Any) -> None:
+        if len(data) == len(self.columns):
+            row_idx = len(self.data)
+            for col, val in zip(self.columns, data, strict=True):
+                self._validate_cell_value(val, row_idx, col)
+
+        super().add_data(*data)
+
+    @override
+    def add_column(self, name: Any, data: Any, optional: bool = False) -> None:
+        if self.log_mode != "INCREMENTAL" and (
+            isinstance(data, list) or wandb.util.is_numpy_array(data)
+        ):
+            for row_idx, val in enumerate(data):
+                self._validate_cell_value(val, row_idx, name)
+
+        super().add_column(name, data, optional=optional)
+
+    def _validate_column_mappings(
         self,
         input_cols: list[str],
         output_cols: list[str],
@@ -309,22 +394,6 @@ class EvalTable(Table):
                     stacklevel=3,
                 )
             seen.add(col)
-
-    def _validate_no_nested_tables(self) -> None:
-        """Raise if any cell value is a Table (or EvalTable) instance.
-
-        Nested tables don't translate to weave's eval model and would either
-        produce broken evals or silently lose information; reject upfront.
-        """
-        for row_idx, row in enumerate(self.data):
-            for col_idx, val in enumerate(row):
-                if isinstance(val, Table):
-                    col = self.columns[col_idx]
-                    raise TypeError(
-                        f"Cell at row {row_idx}, column {col!r} contains a "
-                        f"{type(val).__name__}; EvalTable does not support "
-                        "nested Tables (or EvalTables) as cell values."
-                    )
 
     def set_summary(
         self, summary: dict | None = None, auto_summarize: bool = True
@@ -358,7 +427,7 @@ class EvalTable(Table):
         if self._is_incremental_finished:
             return
 
-        ev = self._weave_eval_logger
+        ev = self._incremental_eval_logger
         if ev is None:
             raise UsageError(
                 "EvalTable.finish() requires the EvalTable to be logged with "
@@ -384,12 +453,19 @@ class EvalTable(Table):
         warned: set[type] = set()
         for row in self.data[start:]:
             yield {
-                col: unwrap_value(val, col, warned)
+                col: unwrap_value(
+                    val,
+                    col,
+                    warned,
+                    unsupported_media_mode=self._unsupported_media_mode,
+                )
                 for col, val in zip(cols, row, strict=True)
             }
 
-    def _create_weave_eval_logger(self, run: LocalRun, eval_name: str) -> Any:
-        self._validate_columns(
+    def _create_weave_eval_logger(
+        self, run: LocalRun, eval_name: str
+    ) -> _EvaluationLogger:
+        self._validate_column_mappings(
             self._input_columns, self._output_columns, self._score_columns
         )
 
@@ -405,12 +481,12 @@ class EvalTable(Table):
 
     def _setup_incremental_weave_eval_logger(
         self, run: LocalRun, eval_name: str
-    ) -> Any:
+    ) -> _EvaluationLogger:
         """Build the INCREMENTAL EvaluationLogger on first use."""
-        if self._weave_eval_logger is not None:
-            return self._weave_eval_logger
+        if self._incremental_eval_logger is not None:
+            return self._incremental_eval_logger
 
-        self._weave_eval_logger = self._create_weave_eval_logger(run, eval_name)
+        self._incremental_eval_logger = self._create_weave_eval_logger(run, eval_name)
 
         # INCREMENTAL evals defer summary/finalization until `finish()` or
         # process exit. Register an atexit handler that fires before weave's
@@ -418,11 +494,11 @@ class EvalTable(Table):
         # registered its `_cleanup_all_evaluations` at module import.
         atexit.register(self._summarize_at_exit)
 
-        return self._weave_eval_logger
+        return self._incremental_eval_logger
 
     def _summarize_at_exit(self) -> None:
         """Fire `log_summary` if this EvalTable has not been finished yet."""
-        ev = self._weave_eval_logger
+        ev = self._incremental_eval_logger
         if ev is None or self._is_incremental_finished:
             return
         pending_rows = self._num_unlogged_rows()
@@ -468,11 +544,6 @@ class EvalTable(Table):
                 repeat=False,
             )
             return self._immutable_evaluate_call_id
-
-        # Validate cell values every call: rows can be added between log
-        # calls, so a check confined to logger setup would miss later
-        # additions in INCREMENTAL/MUTABLE mode.
-        self._validate_no_nested_tables()
 
         if self.log_mode == "INCREMENTAL":
             ev = self._setup_incremental_weave_eval_logger(run, eval_name)
@@ -527,6 +598,8 @@ class EvalTable(Table):
         if self.log_mode in ("IMMUTABLE", "MUTABLE"):
             ev.log_summary(self._summary, auto_summarize=self._auto_summarize)
             if self.log_mode == "IMMUTABLE":
+                # TODO: We should work with Weave on exposing a public
+                # evaluate_call_id() instead of relying on this private field.
                 self._immutable_evaluate_call_id = ev._evaluate_call.id
         # INCREMENTAL: log_summary fires from explicit `finish()` or via the
         # `_summarize_at_exit` atexit handler, using the latest `set_summary` value.

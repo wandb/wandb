@@ -118,7 +118,7 @@ def test_eval_table_rewrites_setup_with_import_import_error(monkeypatch, mock_ru
     with pytest.raises(ImportError) as exc_info:
         eval_table_module._get_evaluation_logger_cls(run)
 
-    assert str(exc_info.value) == eval_table_module.EVAL_TABLE_WEAVE_DEP_MSG
+    assert str(exc_info.value) == eval_table_module._EVAL_TABLE_WEAVE_DEP_MSG
     assert exc_info.value.__cause__ is setup_error
 
 
@@ -156,7 +156,7 @@ def test_standard_immutable_log(mock_eval_logger, mock_wandb_log, run):
     )
     ev.log_summary.assert_called_once_with(None, auto_summarize=True)
     assert mock_eval_logger.atexit_handlers == []
-    assert et._weave_eval_logger is None
+    assert et._incremental_eval_logger is None
     assert et._immutable_evaluate_call_id == "eval-1"
 
     # Second log on IMMUTABLE table is a no-op.
@@ -300,10 +300,7 @@ def test_derived_columns_count_mismatch_raises():
         )
 
 
-# DataFrame input: parent Table populates columns/data from the frame.
-# Uses a duck-typed fake (no pandas dep) by spoofing the module path so
-# wandb's `is_pandas_data_frame` typename check accepts it.
-def test_dataframe_input(mock_eval_logger, run, monkeypatch):
+def _fake_dataframe(monkeypatch, columns, rows):
     class _FakeSeries:
         def __init__(self, values):
             self.values = values
@@ -330,7 +327,13 @@ def test_dataframe_input(mock_eval_logger, run, monkeypatch):
     # of whether pandas is installed in the host env.
     monkeypatch.setattr("wandb.util.pd_available", False)
 
-    df = FakeDataFrame(
+    return FakeDataFrame(columns=columns, rows=rows)
+
+
+# DataFrame input: parent Table populates columns/data from the frame.
+def test_dataframe_input(mock_eval_logger, run, monkeypatch):
+    df = _fake_dataframe(
+        monkeypatch,
         columns=["in", "out", "score"],
         rows=[["in1", "out1", 0.5], ["in2", "out2", 0.6]],
     )
@@ -355,6 +358,14 @@ def test_dataframe_input(mock_eval_logger, run, monkeypatch):
     )
 
 
+def test_dataframe_nested_table_cell_raises(monkeypatch):
+    inner = wandb.Table(columns=["x"], data=[["v"]])
+    df = _fake_dataframe(monkeypatch, columns=["t", "n"], rows=[[inner, 1]])
+
+    with pytest.raises(TypeError, match="does not support nested Tables"):
+        wandb.EvalTable(dataframe=df)
+
+
 # MUTABLE: each run.log() builds a fresh local logger.
 def test_mutable_logs_fresh_each_time(mock_eval_logger, run):
     et = wandb.EvalTable(
@@ -366,7 +377,7 @@ def test_mutable_logs_fresh_each_time(mock_eval_logger, run):
 
     run.log({"my_eval": et})
     assert len(mock_eval_logger.created_loggers) == 1
-    assert et._weave_eval_logger is None
+    assert et._incremental_eval_logger is None
     ev1 = mock_eval_logger.created_loggers[0]
     assert ev1.log_example.call_count == 1
     ev1.log_summary.assert_called_once()
@@ -377,7 +388,7 @@ def test_mutable_logs_fresh_each_time(mock_eval_logger, run):
     run.log({"my_eval": et})
 
     assert len(mock_eval_logger.created_loggers) == 2
-    assert et._weave_eval_logger is None
+    assert et._incremental_eval_logger is None
     ev2 = mock_eval_logger.created_loggers[1]
     # ev2 logged BOTH rows fresh.
     assert ev2.log_example.call_count == 2
@@ -476,16 +487,105 @@ def test_duplicate_role_columns_warn(mock_eval_logger, run):
     )
 
 
-# Nested Table inside an EvalTable cell: rejected at log time.
-@pytest.mark.usefixtures("mock_eval_logger")
-def test_nested_table_cell_raises(run):
+# Nested Table inside an EvalTable cell: rejected at insertion time.
+def test_nested_table_cell_raises_from_constructor():
     inner = wandb.Table(columns=["x"], data=[["v"]])
-    et = wandb.EvalTable(
-        columns=["t", "n"],
-        data=[[inner, 1]],
-    )
+
     with pytest.raises(TypeError, match="does not support nested Tables"):
+        wandb.EvalTable(columns=["t", "n"], data=[[inner, 1]])
+
+
+def test_add_data_nested_table_cell_raises():
+    inner = wandb.Table(columns=["x"], data=[["v"]])
+    et = wandb.EvalTable(columns=["t", "n"])
+
+    with pytest.raises(TypeError, match="does not support nested Tables"):
+        et.add_data(inner, 1)
+
+    assert et.data == []
+
+
+def test_add_column_nested_table_cell_raises():
+    inner = wandb.Table(columns=["x"], data=[["v"]])
+    et = wandb.EvalTable(columns=["n"], data=[[1]])
+
+    with pytest.raises(TypeError, match="does not support nested Tables"):
+        et.add_column("t", [inner])
+
+    assert et.columns == ["n"]
+    assert et.data == [[1]]
+
+
+def test_unsupported_wandb_media_cell_raises_from_constructor():
+    html = wandb.Html("<p>hi</p>")
+
+    with pytest.raises(TypeError) as exc_info:
+        wandb.EvalTable(columns=["html"], data=[[html]])
+    assert "unsupported wandb media type 'Html'" in str(exc_info.value)
+    assert "unsupported_media_mode='stub'" in str(exc_info.value)
+
+
+def test_add_data_unsupported_wandb_value_cell_raises():
+    histogram = wandb.Histogram([1, 2, 3])
+    et = wandb.EvalTable(columns=["histogram"])
+
+    with pytest.raises(TypeError) as exc_info:
+        et.add_data(histogram)
+    assert "unsupported wandb value type 'Histogram'" in str(exc_info.value)
+    assert "unsupported_media_mode='stub'" in str(exc_info.value)
+
+    assert et.data == []
+
+
+def test_unsupported_media_mode_rejects_unknown_mode():
+    with pytest.raises(ValueError, match="unsupported_media_mode"):
+        wandb.EvalTable(columns=["x"], unsupported_media_mode="ignore")
+
+
+def test_unsupported_wandb_media_stubbed_on_log(mock_eval_logger, run):
+    html = wandb.Html("<p>hi</p>", inject=False)
+    assert html._sha256 is not None
+    expected_stub = f"[wandb.Html unsupported: {html._sha256[:8]}]"
+
+    et = wandb.EvalTable(
+        columns=["html", "label"],
+        data=[[html, "ok"]],
+        input_columns=["html"],
+        output_columns=["label"],
+        unsupported_media_mode="stub",
+    )
+
+    with pytest.warns(UserWarning, match="wandb.Html values are not supported"):
         run.log({"my_eval": et})
+
+    ev = mock_eval_logger.created_loggers[0]
+    ev.log_example.assert_called_once_with(
+        inputs={"html": expected_stub},
+        output={"label": "ok"},
+        scores={},
+    )
+
+
+def test_unsupported_wandb_value_without_natural_hash_stubbed_on_log(
+    mock_eval_logger, run
+):
+    histogram = wandb.Histogram([1, 2, 3])
+    et = wandb.EvalTable(
+        columns=["histogram"],
+        data=[[histogram]],
+        unsupported_media_mode="stub",
+    )
+
+    with pytest.warns(UserWarning, match="wandb.Histogram values are not supported"):
+        run.log({"my_eval": et})
+
+    ev = mock_eval_logger.created_loggers[0]
+    output = ev.log_example.call_args.kwargs["output"]
+    stub = output["histogram"]
+    assert stub.startswith("[wandb.Histogram unsupported: ")
+    assert stub.endswith("]")
+    digest = stub.removeprefix("[wandb.Histogram unsupported: ").removesuffix("]")
+    assert len(digest) == 8
 
 
 # Logging an EvalTable to an Artifact: rejected.
@@ -498,23 +598,15 @@ def test_artifact_path_raises():
         et.to_json(fake_artifact)
 
 
-@pytest.mark.usefixtures("mock_eval_logger")
-def test_artifact_like_object_without_log_raises():
-    et = wandb.EvalTable(columns=["out"], data=[["x"]])
-    fake_artifact = types.SimpleNamespace(add=MagicMock())
-
-    with pytest.raises(TypeError, match="cannot be logged to a wandb.Artifact"):
-        et.to_json(fake_artifact)
-
-
-# Parent wandb.Table rejects EvalTable cells in its serialization path.
+# Parent wandb.Table rejects EvalTable cells through artifact serialization.
 @pytest.mark.usefixtures("mock_eval_logger")
 def test_parent_table_rejects_evaltable_cell():
     et = wandb.EvalTable(columns=["out"], data=[["x"]])
     parent = wandb.Table(columns=["c1", "c2"], data=[[et, "other"]])
+    fake_artifact = MagicMock(spec=wandb.Artifact)
 
-    with pytest.raises(TypeError, match="cannot contain EvalTable cells"):
-        parent._to_table_json()
+    with pytest.raises(TypeError, match="cannot be logged to a wandb.Artifact"):
+        parent.to_json(fake_artifact)
 
 
 # INCREMENTAL: atexit handler fires the deferred summary at process exit.
@@ -996,5 +1088,5 @@ def test_media_adapter_rejects_unsupported_wandb_media():
 
     html = wandb.Html("<p>hi</p>")
 
-    with pytest.raises(TypeError, match="Unsupported wandb media type 'Html'"):
+    with pytest.raises(TypeError, match="unsupported wandb media type 'Html'"):
         unwrap_value(html, "html", set())

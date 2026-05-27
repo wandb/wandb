@@ -56,11 +56,6 @@ def allow_incremental_logging_after_append(
         res = method(self, *args, **kwargs)
 
         if self.log_mode != "INCREMENTAL" or self._artifact_target is None:
-            # EvalTable inherits this decorator, but does not use artifact
-            # increments and takes this short circuit path because it
-            # doesn't need the rest of the logic here. If we ever need
-            # more complex behavior for EvalTable, move this logic into
-            # a method that EvalTable can override.
             return res
 
         art_entry_url = self._get_artifact_entry_ref_url()
