@@ -132,6 +132,12 @@ class AgentProcess:
         original_handler = self._original_handlers.get(signum)
         if original_handler and callable(original_handler):
             original_handler(signum, frame)
+        elif signum == signal.SIGTERM:
+            # SIGTERM's default disposition is SIG_DFL, which would fall
+            # through silently and let the heartbeat loop pull the next
+            # (often requeued) run. Mirror SIGINT instead so the agent's
+            # KeyboardInterrupt cleanup path in `Agent.run` runs.
+            raise KeyboardInterrupt
 
     def _start(self, finished_q, env, function, run_id, in_jupyter):
         if env:
