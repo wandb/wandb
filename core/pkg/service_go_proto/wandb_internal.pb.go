@@ -658,7 +658,16 @@ func (FileTransferInfoRequest_TransferType) EnumDescriptor() ([]byte, []int) {
 	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{101, 0}
 }
 
-// Record: joined record for message passing and persistence
+// A sequence of Records fully defines a run.
+//
+// Records make up a run's transaction log, which can be replayed to reupload
+// the run or upload it for the first time in offline mode.
+//
+// Since Records are persistent, and a new `wandb` version can be used to
+// sync an older transaction log, it is important to follow proper protobuf
+// versioning practices: https://protobuf.dev/best-practices/
+//
+// Next ID: 28
 type Record struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	Num   int64                  `protobuf:"varint,1,opt,name=num,proto3" json:"num,omitempty"`
@@ -4758,7 +4767,16 @@ func (*AlertResult) Descriptor() ([]byte, []int) {
 	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{55}
 }
 
-// Request: all non persistent messages
+// Runtime communication that's not part of a run's transaction log.
+//
+// Unlike Records, Requests are not necessary to recreate a run and are not
+// stored in its transaction log. They are generally used to either get
+// information about a run (like whether it stopped, or if there are
+// warnings) or to control the logging process (like to add to the current
+// step with a PartialHistoryRequest, which produces artificial Records
+// when a step is committed).
+//
+// Next ID: 84
 type Request struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Types that are valid to be assigned to RequestType:
@@ -6719,8 +6737,14 @@ func (x *HttpResponse) GetHttpResponseText() string {
 
 // InternalMessagesRequest:
 type InternalMessagesRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	XInfo         *XRequestInfo          `protobuf:"bytes,200,opt,name=_info,json=Info,proto3" json:"_info,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// If true, block until there are messages or the run ends.
+	//
+	// The response is empty if and only if the run is over.
+	// The request can be cancelled via the usual ServerCancelRequest
+	// mechanism.
+	Wait          bool          `protobuf:"varint,1,opt,name=wait,proto3" json:"wait,omitempty"`
+	XInfo         *XRequestInfo `protobuf:"bytes,200,opt,name=_info,json=Info,proto3" json:"_info,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -6753,6 +6777,13 @@ func (x *InternalMessagesRequest) ProtoReflect() protoreflect.Message {
 // Deprecated: Use InternalMessagesRequest.ProtoReflect.Descriptor instead.
 func (*InternalMessagesRequest) Descriptor() ([]byte, []int) {
 	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{78}
+}
+
+func (x *InternalMessagesRequest) GetWait() bool {
+	if x != nil {
+		return x.Wait
+	}
+	return false
 }
 
 func (x *InternalMessagesRequest) GetXInfo() *XRequestInfo {
@@ -12064,8 +12095,9 @@ const file_wandb_proto_wandb_internal_proto_rawDesc = "" +
 	"\x11network_responses\x18\x01 \x03(\v2\x1c.wandb_internal.HttpResponseR\x10networkResponses\"f\n" +
 	"\fHttpResponse\x12(\n" +
 	"\x10http_status_code\x18\x01 \x01(\x05R\x0ehttpStatusCode\x12,\n" +
-	"\x12http_response_text\x18\x02 \x01(\tR\x10httpResponseText\"M\n" +
-	"\x17InternalMessagesRequest\x122\n" +
+	"\x12http_response_text\x18\x02 \x01(\tR\x10httpResponseText\"a\n" +
+	"\x17InternalMessagesRequest\x12\x12\n" +
+	"\x04wait\x18\x01 \x01(\bR\x04wait\x122\n" +
 	"\x05_info\x18\xc8\x01 \x01(\v2\x1c.wandb_internal._RequestInfoR\x04Info\"X\n" +
 	"\x18InternalMessagesResponse\x12<\n" +
 	"\bmessages\x18\x01 \x01(\v2 .wandb_internal.InternalMessagesR\bmessages\",\n" +
