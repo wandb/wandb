@@ -5,8 +5,9 @@ import warnings
 from collections.abc import Iterator
 from typing import TYPE_CHECKING, Any, Literal, cast
 
-import wandb
 from typing_extensions import override
+
+import wandb
 from wandb.errors import UsageError
 from wandb.sdk.data_types.table import Table
 
