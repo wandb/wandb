@@ -603,8 +603,8 @@ github.com/google/uuid
 github.com/google/wire
 github.com/google/wire/cmd/wire
 github.com/google/wire/internal/wire
-# github.com/googleapis/enterprise-certificate-proxy v0.3.15
-## explicit; go 1.24.11
+# github.com/googleapis/enterprise-certificate-proxy v0.3.16
+## explicit; go 1.25.8
 github.com/googleapis/enterprise-certificate-proxy/client
 github.com/googleapis/enterprise-certificate-proxy/client/util
 # github.com/googleapis/gax-go/v2 v2.22.0
@@ -904,7 +904,7 @@ golang.org/x/crypto/ssh/knownhosts
 golang.org/x/mod/internal/lazyregexp
 golang.org/x/mod/module
 golang.org/x/mod/semver
-# golang.org/x/net v0.54.0
+# golang.org/x/net v0.55.0
 ## explicit; go 1.25.0
 golang.org/x/net/context
 golang.org/x/net/http/httpguts
@@ -935,7 +935,7 @@ golang.org/x/oauth2/jwt
 ## explicit; go 1.25.0
 golang.org/x/sync/errgroup
 golang.org/x/sync/semaphore
-# golang.org/x/sys v0.44.0
+# golang.org/x/sys v0.45.0
 ## explicit; go 1.25.0
 golang.org/x/sys/cpu
 golang.org/x/sys/execabs
@@ -987,8 +987,8 @@ golang.org/x/tools/internal/versions
 ## explicit; go 1.18
 golang.org/x/xerrors
 golang.org/x/xerrors/internal
-# google.golang.org/api v0.280.0
-## explicit; go 1.25.0
+# google.golang.org/api v0.281.0
+## explicit; go 1.25.8
 google.golang.org/api/googleapi
 google.golang.org/api/googleapi/transport
 google.golang.org/api/iamcredentials/v1
@@ -1020,7 +1020,7 @@ google.golang.org/genproto/googleapis/api/expr/v1alpha1
 google.golang.org/genproto/googleapis/api/label
 google.golang.org/genproto/googleapis/api/metric
 google.golang.org/genproto/googleapis/api/monitoredres
-# google.golang.org/genproto/googleapis/rpc v0.0.0-20260511170946-3700d4141b60
+# google.golang.org/genproto/googleapis/rpc v0.0.0-20260523011958-0a33c5d7ca68
 ## explicit; go 1.25.0
 google.golang.org/genproto/googleapis/rpc/code
 google.golang.org/genproto/googleapis/rpc/errdetails
