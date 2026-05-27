@@ -12,7 +12,7 @@ from __future__ import annotations
 import inspect
 import itertools
 import textwrap
-from typing import Callable
+from collections.abc import Callable
 
 _orig_create: Callable | None = None
 _orig_get_cmd: Callable | None = None

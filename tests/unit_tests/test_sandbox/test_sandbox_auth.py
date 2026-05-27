@@ -50,13 +50,13 @@ def test_override_sandbox_entity_restores_after_exit(
 
     with sandbox_auth.override_sandbox_entity(entity="override-entity"):
         assert sandbox_auth._resolve_wandb_sdk_auth().headers == {
-            "x-api-key": _VALID_API_KEY,
+            "x-wandb-api-key": _VALID_API_KEY,
             "x-entity-id": "override-entity",
             "x-project-name": "default-project",
         }
 
     assert sandbox_auth._resolve_wandb_sdk_auth().headers == {
-        "x-api-key": _VALID_API_KEY,
+        "x-wandb-api-key": _VALID_API_KEY,
         "x-entity-id": "default-entity",
         "x-project-name": "default-project",
     }
@@ -90,7 +90,7 @@ def test_resolve_wandb_sdk_auth_delegates_to_authenticate_session(
     assert auth_calls[0]["no_offline"] is True
     assert headers.strategy == "wandb_api_key"
     assert headers.headers == {
-        "x-api-key": _VALID_API_KEY,
+        "x-wandb-api-key": _VALID_API_KEY,
         "x-entity-id": "default-entity",
         "x-project-name": "default-project",
     }
@@ -112,7 +112,7 @@ def test_resolve_wandb_sdk_auth_omits_optional_metadata_when_unset(
 
     headers = sandbox_auth._resolve_wandb_sdk_auth()
 
-    assert headers.headers == {"x-api-key": _VALID_API_KEY}
+    assert headers.headers == {"x-wandb-api-key": _VALID_API_KEY}
 
 
 def test_resolve_wandb_sdk_auth_rejects_non_api_key_credentials(

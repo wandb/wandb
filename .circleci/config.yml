@@ -9,7 +9,7 @@ orbs:
 parameters:
   go_version:
     type: string
-    default: "1.26.2"
+    default: "1.26.3"
   server_image:
     type: string
     default: "us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer"
@@ -53,40 +53,6 @@ executors:
           CI: 1
           WANDB_ENABLE_TEST_CONTAINER: true
     resource_class: wandb/docker-builder
-
-  local-testcontainer-importers:
-    parameters:
-      python: { type: string }
-      server_image: { type: string }
-      server_image_tag: { type: string }
-      dst_server_name:
-        type: string
-        default: localhost-wandb-2
-    docker:
-      - image: "python:<<parameters.python>>"
-      # the src server
-      - image: <<parameters.server_image>>:<<parameters.server_image_tag>>
-        auth:
-          username: _json_key
-          password: $GCP_SERVICE_ACCOUNT_JSON_DECODED
-        environment:
-          CI: 1
-          WANDB_ENABLE_TEST_CONTAINER: true
-      # the dst server
-      - image: <<parameters.server_image>>:<<parameters.server_image_tag>>
-        auth:
-          username: _json_key
-          password: $GCP_SERVICE_ACCOUNT_JSON_DECODED
-        environment:
-          CI: 1
-          WANDB_ENABLE_TEST_CONTAINER: true
-        name: << parameters.dst_server_name >>
-    environment:
-      WANDB_TEST_SERVER_URL2: http://<< parameters.dst_server_name >>
-    # Cannot use wandb/docker-builder (K8s container runner) here because
-    # all containers in a K8s pod share the same network namespace, and
-    # both testcontainer instances need to bind to port 8080.
-    resource_class: large
 
 commands:
   print-pod-stats-link:
@@ -209,18 +175,6 @@ commands:
           command: |
             python tools/local_wandb_server.py start \
               --hostname localhost \
-              --base-port 8080 \
-              --fixture-port 9015
-
-  connect-to-local-testcontainer-importers:
-    description: Make importer tests use a running local-testcontainer.
-    steps:
-      - run:
-          name: Connect to local-testcontainer-importers
-          command: |
-            python tools/local_wandb_server.py start \
-              --name wandb-local-testcontainer-importers \
-              --hostname localhost-wandb-2 \
               --base-port 8080 \
               --fixture-port 9015
 
@@ -399,14 +353,6 @@ jobs:
           steps:
             - local-wandb-server-deps: { python: <<parameters.python>> }
             - connect-to-local-testcontainer
-      - when:
-          condition:
-            equal:
-              ["local-testcontainer-importers", <<parameters.executor_name>>]
-          steps:
-            - local-wandb-server-deps: { python: <<parameters.python>> }
-            - connect-to-local-testcontainer
-            - connect-to-local-testcontainer-importers
 
       - run-nox-tests:
           codecov_flags: <<parameters.codecov_flags>>
@@ -632,17 +578,7 @@ workflows:
 
           matrix:
             parameters:
-              python: ["3.9", "3.13"]
-
-      - nox-tests-linux:
-          name: unit-tests-pydantic-v1-linux-<<matrix.python>>
-          session: unit_tests_pydantic_v1
-          codecov_flags: unit
-          parallelism: 2
-
-          matrix:
-            parameters:
-              python: ["3.9", "3.13"]
+              python: ["3.10", "3.13"]
 
       #
       # Unit tests with pytest on macOS
@@ -655,7 +591,7 @@ workflows:
 
           matrix:
             parameters:
-              python: ["3.9", "3.13"]
+              python: ["3.10", "3.13"]
 
       #
       # Unit tests with pytest on Windows
@@ -675,7 +611,7 @@ workflows:
 
           matrix:
             parameters:
-              python: ["3.9", "3.13"]
+              python: ["3.10", "3.13"]
 
       #
       # System tests on Linux
@@ -694,7 +630,7 @@ workflows:
 
           matrix:
             parameters:
-              python: ["3.9", "3.13"]
+              python: ["3.10", "3.13"]
 
       - nox-tests-linux:
           name: system-tests-min-server-version-linux-<<matrix.python>>
@@ -726,7 +662,7 @@ workflows:
 
           matrix:
             parameters:
-              python: ["3.9", "3.13"]
+              python: ["3.10", "3.13"]
 
       #
       # Functional tests with pytest on Linux
@@ -766,22 +702,3 @@ workflows:
           matrix:
             parameters:
               python: ["3.13"]
-
-      #
-      # W&B Importer tests on Linux, using 2 real wandb servers
-      #
-      - nox-tests-linux:
-          name: system-tests-linux-importers-wandb
-          session: importer_tests-3.9(importer='wandb')
-          codecov_flags: system
-          parallelism: 1
-          executor_name: local-testcontainer-importers
-          python: "3.9"
-      # FIXME: mlflow importer requires pydantic<2
-      # - nox-tests-linux:
-      #     name: system-tests-linux-importers-mlflow
-      #     session: importer_tests-3.9(importer='mlflow')
-      #     codecov_flags: system
-      #     parallelism: 1
-      #     executor_name: local-testcontainer-importers
-      #     python: "3.9"

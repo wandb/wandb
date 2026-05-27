@@ -37,7 +37,8 @@ scikit-learn
 torch
 torchvision
 jax[cpu]
-lightning==2.6.1
+lightning==2.6.0; python_version < '3.10'
+lightning==2.6.1; python_version >= '3.10'
 
 pyarrow
 kfp

@@ -21,7 +21,7 @@ def test_create_artifact_metadata(mocker):
     mocker.termwarn = MagicMock()
     mocker.patch("wandb.termwarn", mocker.termwarn)
     path = tempfile.TemporaryDirectory().name
-    runtime = "3.9"
+    runtime = "3.10"
     entrypoint = "python test.py"
     entrypoint_list = ["python", "test.py"]
     entrypoint_file = "test.py"
@@ -119,13 +119,13 @@ def test_get_entrypoint():
     job_source = "artifact"
     builder = _configure_job_builder_for_partial(dir, job_source)
 
-    metadata = {"python": "3.9.11", "codePathLocal": "main.py", "_partial": "v0"}
+    metadata = {"python": "3.10.13", "codePathLocal": "main.py", "_partial": "v0"}
 
     program_relpath = builder._get_program_relpath(job_source, metadata)
     entrypoint = builder._get_entrypoint(program_relpath, metadata)
     assert entrypoint == ["python3", "main.py"]
 
-    metadata = {"python": "3.9", "codePath": "main.py", "_partial": "v0"}
+    metadata = {"python": "3.10", "codePath": "main.py", "_partial": "v0"}
     program_relpath = builder._get_program_relpath(job_source, metadata)
     entrypoint = builder._get_entrypoint(program_relpath, metadata)
     assert entrypoint == ["python3", "main.py"]
@@ -139,7 +139,7 @@ def test_get_entrypoint():
 
 def test_create_repo_metadata_entrypoint_traversal():
     result = _create_repo_metadata(
-        "", "", entrypoint="../../../../../usr/bin/python3.9 main.py"
+        "", "", entrypoint="../../../../../usr/bin/python3.10 main.py"
     )
     assert result is None
 
@@ -150,7 +150,7 @@ def test_create_repo_metadata_custom_dockerfile(monkeypatch, tmp_path):
     subdir = tmp_path / "subdir"
     subdir.mkdir()
     (subdir / "main.py").write_text("print('hello world')")
-    (subdir / "Dockerfile.wandb").write_text("FROM python:3.9")
+    (subdir / "Dockerfile.wandb").write_text("FROM python:3.10")
 
     mock_git_ref = MagicMock(
         return_value=MagicMock(
@@ -168,6 +168,6 @@ def test_create_repo_metadata_custom_dockerfile(monkeypatch, tmp_path):
     )
     assert result is not None
 
-    # dockerfile.write_text("FROM python:3.9")
+    # dockerfile.write_text("FROM python:3.10")
     # result = _create_repo_metadata("", "", dockerfile=dockerfile)
     # assert result["dockerfile"] == "Dockerfile"

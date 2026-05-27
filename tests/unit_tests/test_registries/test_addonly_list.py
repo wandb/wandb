@@ -56,7 +56,7 @@ def test_init_with_iterable(init_items: Iterable[str]) -> None:
     assert len(addonly_list) == len(normal_list)
 
     # For clarity, also directly check per-item order and equality
-    for a, b in zip(addonly_list, normal_list):
+    for a, b in zip(addonly_list, normal_list, strict=False):
         assert a == b
 
     # Check the frozen and draft items under the hood, even though they're not publicly exposed

@@ -799,6 +799,24 @@ class InterfaceBase(abc.ABC):
     ) -> None:
         raise NotImplementedError
 
+    def publish_output_logger(
+        self,
+        line: str,
+        *,
+        nowait: bool = False,
+    ) -> None:
+        o = pb.OutputLoggerRecord(line=line)
+        self._publish_output_logger(o, nowait=nowait)
+
+    @abc.abstractmethod
+    def _publish_output_logger(
+        self,
+        outdata: pb.OutputLoggerRecord,
+        *,
+        nowait: bool,
+    ) -> None:
+        raise NotImplementedError
+
     def publish_pause(self) -> None:
         pause = pb.PauseRequest()
         self._publish_pause(pause)
@@ -973,17 +991,6 @@ class InterfaceBase(abc.ABC):
     ) -> MailboxHandle[pb.Result]:
         raise NotImplementedError
 
-    def deliver_stop_status(self) -> MailboxHandle[pb.Result]:
-        status = pb.StopStatusRequest()
-        return self._deliver_stop_status(status)
-
-    @abc.abstractmethod
-    def _deliver_stop_status(
-        self,
-        status: pb.StopStatusRequest,
-    ) -> MailboxHandle[pb.Result]:
-        raise NotImplementedError
-
     def deliver_network_status(self) -> MailboxHandle[pb.Result]:
         status = pb.NetworkStatusRequest()
         return self._deliver_network_status(status)
@@ -992,16 +999,6 @@ class InterfaceBase(abc.ABC):
     def _deliver_network_status(
         self,
         status: pb.NetworkStatusRequest,
-    ) -> MailboxHandle[pb.Result]:
-        raise NotImplementedError
-
-    def deliver_internal_messages(self) -> MailboxHandle[pb.Result]:
-        internal_message = pb.InternalMessagesRequest()
-        return self._deliver_internal_messages(internal_message)
-
-    @abc.abstractmethod
-    def _deliver_internal_messages(
-        self, internal_message: pb.InternalMessagesRequest
     ) -> MailboxHandle[pb.Result]:
         raise NotImplementedError
 

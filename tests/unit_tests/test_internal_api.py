@@ -5,10 +5,10 @@ import hashlib
 import os
 import pathlib
 import tempfile
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from itertools import chain
 from pathlib import Path
-from typing import Callable, TypeVar, Union
+from typing import TypeVar
 from unittest.mock import Mock, call, patch
 
 import pytest
@@ -412,7 +412,7 @@ def test_resolve_org_entity_name_with_multiple_orgs_invalid_org(api_with_multipl
         api_with_multiple_orgs._resolve_org_entity_name("entity", "potato-org")
 
 
-MockResponseOrException = Union[Exception, tuple[int, Mapping[int, int], str]]
+MockResponseOrException = Exception | tuple[int, Mapping[int, int], str]
 
 
 class TestUploadFile:

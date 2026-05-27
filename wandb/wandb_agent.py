@@ -13,7 +13,8 @@ import subprocess
 import sys
 import time
 import traceback
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 import wandb
 from wandb import util

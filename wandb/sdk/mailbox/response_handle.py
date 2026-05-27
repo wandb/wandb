@@ -3,8 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import math
-from collections.abc import Awaitable
-from typing import Callable
+from collections.abc import Awaitable, Callable
 
 from typing_extensions import override
 

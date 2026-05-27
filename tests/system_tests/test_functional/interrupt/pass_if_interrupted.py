@@ -6,7 +6,7 @@ import sys
 import time
 
 import wandb
-import wandb.sdk.wandb_run
+import wandb.sdk.lib.run_stopping
 
 if __name__ == "__main__":
     # The stop status is delivered via a FileStream response.
@@ -14,7 +14,7 @@ if __name__ == "__main__":
     start_time: float | None = None
 
     # Use a faster polling interval to speed up the test.
-    wandb.sdk.wandb_run._STOP_POLLING_INTERVAL = 0.1
+    wandb.sdk.lib.run_stopping._POLL_INTERVAL = 0.1
 
     try:
         with wandb.init(settings=settings):

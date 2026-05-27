@@ -13,7 +13,7 @@ import subprocess
 import sys
 import time
 import traceback
-from collections.abc import Iterator
+from collections.abc import Generator
 
 import click
 import filelock
@@ -252,7 +252,7 @@ def _resources(suffix: str) -> pathlib.Path:
 
 
 @contextlib.contextmanager
-def _info_file() -> Iterator[_InfoFile]:
+def _info_file() -> Generator[_InfoFile]:
     with filelock.FileLock(_resources(".state.lock")):
         with open(_resources(".state"), "a+") as f:
             f.seek(0)

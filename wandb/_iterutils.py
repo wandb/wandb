@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 from collections.abc import Hashable, Iterable
-from typing import TYPE_CHECKING, Any, TypeVar, Union, overload
+from typing import TYPE_CHECKING, Any, TypeVar, overload
 
 if TYPE_CHECKING:
     T = TypeVar("T")
     HashableT = TypeVar("HashableT", bound=Hashable)
-    ClassInfo = Union[type[T], tuple[type[T], ...]]
+    ClassInfo = type[T] | tuple[type[T], ...]
 
 
 @overload

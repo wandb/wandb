@@ -1,11 +1,9 @@
 from __future__ import annotations
 
-from typing import Optional
-
 from pydantic import ConfigDict, StrictStr
+from pydantic.alias_generators import to_camel
 from typing_extensions import Self
 
-from wandb._pydantic import to_camel
 from wandb.sdk.artifacts.storage_layout import StorageLayout
 
 from .base_model import ArtifactsBase
@@ -19,8 +17,8 @@ class StoragePolicyConfig(ArtifactsBase):
         str_strip_whitespace=True,
     )
 
-    storage_layout: Optional[StorageLayout] = None
-    storage_region: Optional[StrictStr] = None
+    storage_layout: StorageLayout | None = None
+    storage_region: StrictStr | None = None
 
     @classmethod
     def from_env(

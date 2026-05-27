@@ -62,8 +62,8 @@ __all__ = (
 )
 
 import os
-from collections.abc import Iterable, Sequence
-from typing import TYPE_CHECKING, Any, Callable, Literal, TextIO
+from collections.abc import Callable, Iterable, Sequence
+from typing import TYPE_CHECKING, Any, Literal, TextIO
 
 import wandb.plot as plot
 from wandb.apis import InternalApi
@@ -97,7 +97,7 @@ if TYPE_CHECKING:
     import wandb
     from wandb.plot import CustomChart
 
-__version__: str = "0.26.2.dev1"
+__version__: str = "0.27.1.dev1"
 
 run: Run | None
 config: wandb_config.Config

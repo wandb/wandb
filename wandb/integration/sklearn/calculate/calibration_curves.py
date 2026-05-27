@@ -57,7 +57,7 @@ def calibration_curves(clf, X, y, clf_name):  # noqa: N803
     models = [lr, isotonic, sigmoid]
     names = ["Logistic", f"{clf_name} Isotonic", f"{clf_name} Sigmoid"]
 
-    for model, name in zip(models, names):
+    for model, name in zip(models, names, strict=False):
         model.fit(x_train, y_train)
         if hasattr(model, "predict_proba"):
             prob_pos = model.predict_proba(x_test)[:, 1]
@@ -119,6 +119,7 @@ def make_table(
             mean_pred_value_column,
             hist_column,
             edge_column,
+            strict=False,
         )
     )
 

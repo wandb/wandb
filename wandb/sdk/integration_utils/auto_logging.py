@@ -5,7 +5,7 @@ import functools
 import inspect
 import logging
 from collections.abc import Sequence
-from typing import Any, Optional, Protocol, TypeVar
+from typing import Any, Protocol, TypeVar
 
 import wandb.sdk
 import wandb.util
@@ -15,7 +15,7 @@ from wandb.sdk.lib.timer import Timer
 logger = logging.getLogger(__name__)
 
 
-AutologInitArgs = Optional[dict[str, Any]]
+AutologInitArgs = dict[str, Any] | None
 
 
 K = TypeVar("K", bound=str)
@@ -47,9 +47,9 @@ class PatchAPI:
         resolver: ArgumentResponseResolver,
     ) -> None:
         """Patches the API to log wandb Media or metrics."""
-        # name of the LLM provider, e.g. "Cohere" or "OpenAI" or package name like "Transformers"
+        # name of the API provider or package, e.g. "transformers"
         self.name = name
-        # api library name, e.g. "cohere" or "openai" or "transformers"
+        # api library name, e.g. "transformers"
         self._api = None
         # dictionary of original methods
         self.original_methods: dict[str, Any] = {}

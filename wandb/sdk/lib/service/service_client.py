@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 import logging
 import struct
-import sys
 from types import TracebackType
 
 from wandb.proto import wandb_server_pb2 as spb
@@ -28,8 +27,6 @@ class ServiceClient:
     ) -> None:
         self._broken_exc: Exception | None = None
         self._broken_tb: TracebackType | None = None
-
-        self._drain_lock: asyncio.Lock | None = None
 
         self._reader = reader
         self._writer = writer
@@ -92,16 +89,7 @@ class ServiceClient:
 
     async def _drain_writer(self) -> None:
         """Wait for the socket's flow control."""
-        if sys.version_info >= (3, 10):
-            await self._writer.drain()
-            return
-
-        # Prior to 3.10, drain() incorrectly raised an AssertionError when the
-        # write buffer was maxed out if called from more than one async task.
-
-        self._drain_lock = self._drain_lock or asyncio.Lock()
-        async with self._drain_lock:
-            await self._writer.drain()
+        await self._writer.drain()
 
     async def _cancel_request(self, id: str, /) -> None:
         """Cancel a request by ID.

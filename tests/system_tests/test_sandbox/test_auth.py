@@ -90,7 +90,7 @@ def test_sandbox_run_uses_settings_entity_project(
         assert sandbox.sandbox_id == "sb-system-test"
 
     expected_headers = {
-        "x-api-key": user,
+        "x-wandb-api-key": user,
         "x-entity-id": "entity-from-settings",
         "x-project-name": "project-from-settings",
     }
@@ -111,7 +111,7 @@ def test_sandbox_run_ignore_run_override(
             assert sandbox.sandbox_id == "sb-system-test"
 
     expected_headers = {
-        "x-api-key": user,
+        "x-wandb-api-key": user,
         "x-entity-id": user,
     }
     assert len(calls.start) == 1
@@ -133,6 +133,6 @@ def test_sandbox_run_without_entity_or_project(
         assert sandbox.sandbox_id == "sb-system-test"
 
     assert len(calls.start) == 1
-    assert dict(calls.start[0]["metadata"]) == {"x-api-key": user}
+    assert dict(calls.start[0]["metadata"]) == {"x-wandb-api-key": user}
     assert len(calls.stop) == 1
-    assert dict(calls.stop[0]["metadata"]) == {"x-api-key": user}
+    assert dict(calls.stop[0]["metadata"]) == {"x-wandb-api-key": user}

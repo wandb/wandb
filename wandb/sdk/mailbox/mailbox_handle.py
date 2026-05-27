@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import abc
-from typing import Callable, Generic
+from collections.abc import Callable
+from typing import Generic
 
 from typing_extensions import TypeVar, override
 

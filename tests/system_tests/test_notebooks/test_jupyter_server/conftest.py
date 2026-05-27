@@ -3,9 +3,8 @@ import socket
 import tempfile
 import threading
 import time
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from pathlib import Path
-from typing import Callable
 
 import jupyter_core
 import nbformat

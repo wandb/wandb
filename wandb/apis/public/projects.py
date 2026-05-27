@@ -53,6 +53,7 @@ if TYPE_CHECKING:
 
     from wandb._pydantic import Connection
     from wandb.apis._generated import ProjectFragment
+    from wandb.apis.public.service_api import ServiceApi
 
 
 class Projects(RelayPaginator["ProjectFragment", "Project"]):
@@ -61,7 +62,9 @@ class Projects(RelayPaginator["ProjectFragment", "Project"]):
     An iterable interface to access projects created and saved by the entity.
 
     Args:
-        client (`wandb.apis.internal.Api`): The API client instance to use.
+        client: Legacy GraphQL client retained for API compatibility.
+        service_api: Interface to the wandb-core service that performs
+            W&B API calls for this collection.
         entity (str): The entity name (username or team) to fetch projects for.
         per_page (int): Number of projects to fetch per request (default is 50).
 
@@ -89,11 +92,15 @@ class Projects(RelayPaginator["ProjectFragment", "Project"]):
         client: RetryingClient,
         entity: str,
         per_page: int = 50,
+        *,
+        service_api: ServiceApi,
     ) -> Projects:
         """An iterable collection of `Project` objects.
 
         Args:
-            client: The API client used to query W&B.
+            client: Legacy GraphQL client retained for API compatibility.
+            service_api: Interface to the wandb-core service that performs
+                W&B API calls for this collection.
             entity: The entity which owns the projects.
             per_page: The number of projects to fetch per request to the API.
         """
@@ -103,6 +110,7 @@ class Projects(RelayPaginator["ProjectFragment", "Project"]):
             type(self).QUERY = gql(GET_PROJECTS_GQL)
 
         self.entity = entity
+        self._service_api = service_api
         super().__init__(client, variables={"entity": entity}, per_page=per_page)
 
     @override
@@ -129,7 +137,13 @@ class Projects(RelayPaginator["ProjectFragment", "Project"]):
         return None
 
     def _convert(self, node: ProjectFragment) -> Project:
-        return Project(self.client, self.entity, node.name, node.model_dump())
+        return Project(
+            self.client,
+            self.entity,
+            node.name,
+            node.model_dump(),
+            service_api=self._service_api,
+        )
 
     def __repr__(self):
         return f"<Projects {self.entity}>"
@@ -139,7 +153,9 @@ class Project(Attrs):
     """A project is a namespace for runs.
 
     Args:
-        client: W&B API client instance.
+        client: Legacy GraphQL client retained for API compatibility.
+        service_api: Interface to the wandb-core service that performs
+            W&B API calls for this project.
         name (str): The name of the project.
         entity (str): The entity name that owns the project.
     """
@@ -150,11 +166,15 @@ class Project(Attrs):
         entity: str,
         project: str,
         attrs: Mapping[str, Any],
+        *,
+        service_api: ServiceApi,
     ) -> Project:
         """A single project associated with an entity.
 
         Args:
-            client: The API client used to query W&B.
+            client: Legacy GraphQL client retained for API compatibility.
+            service_api: Interface to the wandb-core service that performs
+                W&B API calls for this project.
             entity: The entity which owns the project.
             project: The name of the project to query.
             attrs: The attributes of the project.
@@ -164,6 +184,7 @@ class Project(Attrs):
         self.client = client
         self.name = project
         self.entity = entity
+        self._service_api = service_api
 
     def _load(self) -> None:
         from requests import HTTPError
@@ -226,7 +247,9 @@ class Project(Attrs):
     @normalize_exceptions
     def artifacts_types(self, per_page: int = 50) -> public.ArtifactTypes:
         """Returns all artifact types associated with this project."""
-        return public.ArtifactTypes(self.client, self.entity, self.name)
+        return public.ArtifactTypes(
+            self.client, self.entity, self.name, service_api=self._service_api
+        )
 
     @normalize_exceptions
     def collections(
@@ -252,6 +275,7 @@ class Project(Attrs):
             filters=filters,
             order=order,
             per_page=per_page,
+            service_api=self._service_api,
         )
 
     @normalize_exceptions
@@ -264,7 +288,13 @@ class Project(Attrs):
         Returns:
             A `Sweeps` object, which is an iterable collection of `Sweep` objects.
         """
-        return Sweeps(self.client, self.entity, self.name, per_page=per_page)
+        return Sweeps(
+            self.client,
+            self.entity,
+            self.name,
+            per_page=per_page,
+            service_api=self._service_api,
+        )
 
     @property
     def id(self) -> str:

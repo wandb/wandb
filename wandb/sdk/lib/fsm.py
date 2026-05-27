@@ -31,11 +31,11 @@ Usage:
 from __future__ import annotations
 
 from abc import abstractmethod
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from typing import Callable, Generic, Union
+from typing import Generic, TypeAlias
 
-from typing_extensions import Protocol, TypeAlias, TypeVar, runtime_checkable
+from typing_extensions import Protocol, TypeVar, runtime_checkable
 
 T_FsmInputs = TypeVar("T_FsmInputs", contravariant=True)
 T_FsmContext = TypeVar("T_FsmContext")
@@ -85,14 +85,14 @@ class FsmStateExit(Protocol[T_FsmInputs, T_FsmContext_cov]):
 #   https://peps.python.org/pep-0544/#support-optional-protocol-members
 # Until then, we can only enforce that a state at least supports one protocol interface.  This
 # unfortunately will not check the signature of other potential protocols.
-FsmState: TypeAlias = Union[
-    FsmStateCheck[T_FsmInputs],
-    FsmStateOutput[T_FsmInputs],
-    FsmStateEnter[T_FsmInputs],
-    FsmStateEnterWithContext[T_FsmInputs, T_FsmContext],
-    FsmStateStay[T_FsmInputs],
-    FsmStateExit[T_FsmInputs, T_FsmContext],
-]
+FsmState: TypeAlias = (
+    FsmStateCheck[T_FsmInputs]
+    | FsmStateOutput[T_FsmInputs]
+    | FsmStateEnter[T_FsmInputs]
+    | FsmStateEnterWithContext[T_FsmInputs, T_FsmContext]
+    | FsmStateStay[T_FsmInputs]
+    | FsmStateExit[T_FsmInputs, T_FsmContext]
+)
 
 
 @dataclass

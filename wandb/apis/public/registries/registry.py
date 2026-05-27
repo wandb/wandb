@@ -32,6 +32,7 @@ from .registries_search import Collections, Versions
 
 if TYPE_CHECKING:
     from wandb.apis.public.api import RetryingClient
+    from wandb.apis.public.service_api import ServiceApi
     from wandb.sdk.artifacts._generated import RegistryFragment
 
 
@@ -51,8 +52,11 @@ class Registry:
         entity: str,
         name: str,
         attrs: RegistryFragment | None = None,
+        *,
+        service_api: ServiceApi | None = None,
     ):
         self.client = client
+        self._service_api = service_api
 
         if attrs is None:
             # FIXME: This is awkward and bypasses validation which seems shaky.
@@ -206,6 +210,7 @@ class Registry:
             collection_filter=filter,
             per_page=per_page,
             start=start,
+            service_api=self._service_api,
         )
 
     @tracked
@@ -224,6 +229,7 @@ class Registry:
             artifact_filter=filter,
             per_page=per_page,
             start=start,
+            service_api=self._service_api,
         )
 
     @classmethod
@@ -236,6 +242,8 @@ class Registry:
         visibility: Literal["organization", "restricted"],
         description: str | None = None,
         artifact_types: list[str] | None = None,
+        *,
+        service_api: ServiceApi | None = None,
     ) -> Self:
         """Create a new registry.
 
@@ -243,7 +251,9 @@ class Registry:
         This function should be called using `api.create_registry()`
 
         Args:
-            client: The GraphQL client.
+            client: Legacy GraphQL client retained for API compatibility.
+            service_api: Interface to the wandb-core service that performs
+                W&B API calls for the created registry.
             organization: The name of the organization.
             name: The name of the registry (without the `wandb-registry-` prefix).
             visibility: The visibility level ('organization' or 'restricted').
@@ -297,6 +307,7 @@ class Registry:
             entity=org_entity,
             name=name,
             attrs=registry_project,
+            service_api=service_api,
         )
 
     @tracked
