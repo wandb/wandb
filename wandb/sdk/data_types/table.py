@@ -298,12 +298,6 @@ class Table(Media):
     def _has_been_logged(self) -> bool:
         return self._run is not None or self._artifact_target is not None
 
-    def _reset_logging_state_after_mutation(self) -> None:
-        self._run = None
-        self._artifact_target = None
-        self._path = None
-        self._sha256 = None
-
     @staticmethod
     def _assert_valid_columns(columns):
         valid_col_types = [str, int]

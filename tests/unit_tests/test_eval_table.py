@@ -41,11 +41,6 @@ def mock_eval_logger(monkeypatch):
     )
     mock_evaluation_logger_cls.created_loggers = created_loggers
 
-    # Capture atexit handlers so they don't leak between tests AND so tests
-    # can fire them on demand (e.g. to verify INCREMENTAL summary timing).
-    atexit_handlers: list = []
-    mock_evaluation_logger_cls.atexit_handlers = atexit_handlers
-
     weave_module = types.ModuleType("weave")
     weave_module.__path__ = []
     weave_module.__version__ = "999.0.0"
@@ -66,10 +61,6 @@ def mock_eval_logger(monkeypatch):
     monkeypatch.setattr(
         "wandb.sdk.data_types.eval_table._setup_weave_for_eval_table",
         lambda run: None,
-    )
-    monkeypatch.setattr(
-        "wandb.sdk.data_types.eval_table.atexit",
-        types.SimpleNamespace(register=lambda fn: (atexit_handlers.append(fn), fn)[1]),
     )
     return mock_evaluation_logger_cls
 
@@ -232,7 +223,13 @@ def test_eval_table_version_mismatch_error_includes_actual_version(monkeypatch, 
 
 
 # Standard case: 6 columns, 2 each of input/output/score; second log no-op.
-def test_standard_immutable_log(mock_eval_logger, mock_wandb_log, run):
+def test_standard_immutable_log(mock_eval_logger, mock_wandb_log, run, monkeypatch):
+    setup_weave = MagicMock()
+    monkeypatch.setattr(
+        "wandb.sdk.data_types.eval_table._setup_weave_for_eval_table",
+        setup_weave,
+    )
+
     et = wandb.EvalTable(
         columns=["in1", "in2", "out1", "out2", "score1", "score2"],
         data=[
@@ -264,13 +261,12 @@ def test_standard_immutable_log(mock_eval_logger, mock_wandb_log, run):
         scores={"score1": 0.6, "score2": 0.8},
     )
     ev.log_summary.assert_called_once_with(None, auto_summarize=True)
-    assert mock_eval_logger.atexit_handlers == []
-    assert et._incremental_eval_logger is None
     assert et._immutable_evaluate_call_id == "eval-1"
 
     # Second log on IMMUTABLE table is a no-op.
     run.log({"my_eval": et})
     assert mock_eval_logger._create_with_meta.call_count == 1
+    assert setup_weave.call_count == 1
     assert ev.log_example.call_count == 2
     assert ev.log_summary.call_count == 1
     mock_wandb_log.assert_warned(
@@ -295,6 +291,52 @@ def test_immutable_mutation_after_log_warns_and_still_noops(
         output={"out": "x"},
         scores={},
     )
+    mock_wandb_log.assert_warned("mutating a Table with log_mode='IMMUTABLE'")
+    mock_wandb_log.assert_warned(
+        "EvalTable with log_mode='IMMUTABLE' has already been logged"
+    )
+
+
+def test_mutation_after_failed_log_does_not_warn_as_already_logged(
+    monkeypatch, mock_wandb_log, mock_run
+):
+    run = mock_run(settings={"entity": "e", "project": "p", "mode": "online"})
+
+    def fail_setup_with_import(*args, **kwargs):
+        raise ImportError("weave is not installed")
+
+    monkeypatch.setattr(
+        "wandb.sdk.data_types.eval_table.setup_with_import",
+        fail_setup_with_import,
+    )
+
+    et = wandb.EvalTable(columns=["out"], data=[["x"]])
+
+    with pytest.raises(ImportError):
+        run.log({"my_eval": et})
+
+    et.add_data("y")
+
+    assert not any(
+        "mutating a Table with log_mode='IMMUTABLE'" in msg
+        for msg in mock_wandb_log._logs(mock_wandb_log._termwarn)
+    )
+
+
+def test_immutable_relog_returns_original_json_after_mutation(
+    mock_eval_logger, mock_wandb_log, run
+):
+    et = wandb.EvalTable(columns=["out"], data=[["x"]])
+    et.bind_to_run(run, "my_eval", 0)
+
+    first_json = et.to_json(run)
+
+    et.add_data("y")
+    second_json = et.to_json(run)
+
+    assert second_json == first_json
+    assert second_json["nrows"] == 1
+    assert mock_eval_logger._create_with_meta.call_count == 1
     mock_wandb_log.assert_warned("mutating a Table with log_mode='IMMUTABLE'")
     mock_wandb_log.assert_warned(
         "EvalTable with log_mode='IMMUTABLE' has already been logged"
@@ -475,93 +517,10 @@ def test_dataframe_nested_table_cell_raises(monkeypatch):
         wandb.EvalTable(dataframe=df)
 
 
-# MUTABLE: each run.log() builds a fresh local logger.
-def test_mutable_logs_fresh_each_time(mock_eval_logger, run):
-    et = wandb.EvalTable(
-        columns=["in", "out"],
-        data=[["in1", "out1"]],
-        input_columns=["in"],
-        log_mode="MUTABLE",
-    )
-
-    run.log({"my_eval": et})
-    assert len(mock_eval_logger.created_loggers) == 1
-    assert et._incremental_eval_logger is None
-    ev1 = mock_eval_logger.created_loggers[0]
-    assert ev1.log_example.call_count == 1
-    ev1.log_summary.assert_called_once()
-
-    # Add a row, log again — second call builds a new logger from scratch.
-    et.add_data("in2", "out2")
-
-    run.log({"my_eval": et})
-
-    assert len(mock_eval_logger.created_loggers) == 2
-    assert et._incremental_eval_logger is None
-    ev2 = mock_eval_logger.created_loggers[1]
-    # ev2 logged BOTH rows fresh.
-    assert ev2.log_example.call_count == 2
-    ev2.log_summary.assert_called_once()
-    # ev2 is a distinct mock from ev1.
-    assert ev1 is not ev2
-
-    # Previous logger was not kept around or finalized again.
-    ev1.log_summary.assert_called_once()
-
-
-@pytest.mark.parametrize("log_mode", ["IMMUTABLE", "MUTABLE"])
-def test_num_unlogged_rows_only_supported_for_incremental(mock_eval_logger, log_mode):
-    et = wandb.EvalTable(
-        columns=["out"],
-        data=[["x"]],
-        log_mode=log_mode,
-    )
-
-    with pytest.raises(UsageError, match="only supported for log_mode='INCREMENTAL'"):
-        et._num_unlogged_rows()
-
-
-# INCREMENTAL: row index continues across batches; summary deferred (atexit).
-def test_incremental_continues_row_index_and_defers_summary(mock_eval_logger, run):
-    et = wandb.EvalTable(
-        columns=["out1", "out2"],
-        data=[["x", 1], ["y", 2]],
-        log_mode="INCREMENTAL",
-    )
-    run.log({"my_eval": et})
-
-    ev = mock_eval_logger.created_loggers[0]
-    assert ev.log_example.call_count == 2
-    ev.log_example.assert_any_call(
-        inputs={"row": 1}, output={"out1": "x", "out2": 1}, scores={}
-    )
-    ev.log_example.assert_any_call(
-        inputs={"row": 2}, output={"out1": "y", "out2": 2}, scores={}
-    )
-    # Summary not called inline — deferred to atexit handler.
-    ev.log_summary.assert_not_called()
-
-    # Add another row, log again — same logger reused, row_idx continues at 3.
-    et.add_data("z", 3)
-    run.log({"my_eval": et})
-
-    assert len(mock_eval_logger.created_loggers) == 1  # idempotent setup
-    assert ev.log_example.call_count == 3
-    ev.log_example.assert_any_call(
-        inputs={"row": 3}, output={"out1": "z", "out2": 3}, scores={}
-    )
-    ev.log_summary.assert_not_called()
-
-
-@pytest.mark.usefixtures("mock_eval_logger")
-def test_num_unlogged_rows_returns_all_rows_before_incremental_log():
-    et = wandb.EvalTable(
-        columns=["out"],
-        data=[["x"], ["y"]],
-        log_mode="INCREMENTAL",
-    )
-
-    assert et._num_unlogged_rows() == 2
+@pytest.mark.parametrize("log_mode", ["MUTABLE", "INCREMENTAL"])
+def test_eval_table_only_supports_immutable_log_mode(log_mode):
+    with pytest.raises(UsageError, match="only supports log_mode='IMMUTABLE'"):
+        wandb.EvalTable(columns=["out"], data=[["x"]], log_mode=log_mode)
 
 
 # Column-role mismatch: column listed in input/output/score but not in columns.
@@ -716,175 +675,6 @@ def test_parent_table_rejects_evaltable_cell():
 
     with pytest.raises(TypeError, match="cannot be logged to a wandb.Artifact"):
         parent.to_json(fake_artifact)
-
-
-# INCREMENTAL: atexit handler fires the deferred summary at process exit.
-def test_incremental_atexit_fires_summary(mock_eval_logger, run):
-    et = wandb.EvalTable(
-        columns=["out"],
-        data=[["x"]],
-        log_mode="INCREMENTAL",
-    )
-    et.set_summary({"final": 1.0}, auto_summarize=False)
-    run.log({"my_eval": et})
-
-    ev = mock_eval_logger.created_loggers[0]
-    ev.log_summary.assert_not_called()  # deferred
-
-    assert len(mock_eval_logger.atexit_handlers) == 1
-    mock_eval_logger.atexit_handlers[0]()
-
-    ev.log_summary.assert_called_once_with({"final": 1.0}, auto_summarize=False)
-
-    # Once EvalTable has run its own summary path, the handler is a no-op.
-    ev.log_summary.reset_mock()
-    mock_eval_logger.atexit_handlers[0]()
-    ev.log_summary.assert_not_called()
-
-
-@pytest.mark.parametrize("log_mode", ["IMMUTABLE", "MUTABLE"])
-def test_finish_only_supported_for_incremental(mock_eval_logger, run, log_mode):
-    et = wandb.EvalTable(columns=["out"], data=[["x"]], log_mode=log_mode)
-    run.log({"my_eval": et})
-
-    with pytest.raises(UsageError, match="only supported for log_mode='INCREMENTAL'"):
-        et.finish()
-
-
-@pytest.mark.parametrize("log_mode", ["IMMUTABLE", "MUTABLE"])
-def test_log_summary_only_supported_for_incremental(mock_eval_logger, run, log_mode):
-    et = wandb.EvalTable(columns=["out"], data=[["x"]], log_mode=log_mode)
-    run.log({"my_eval": et})
-
-    with pytest.raises(UsageError, match="only supported for log_mode='INCREMENTAL'"):
-        et.log_summary({"final": 1.0})
-
-
-def test_incremental_finish_requires_prior_log(mock_eval_logger):
-    et = wandb.EvalTable(columns=["out"], data=[["x"]], log_mode="INCREMENTAL")
-
-    with pytest.raises(UsageError, match="logged with run.log\\(\\) first"):
-        et.finish()
-
-    assert mock_eval_logger.created_loggers == []
-
-
-def test_incremental_finish_with_pending_rows_warns(
-    mock_eval_logger, mock_wandb_log, run
-):
-    et = wandb.EvalTable(
-        columns=["out"],
-        data=[["x"]],
-        log_mode="INCREMENTAL",
-    )
-    run.log({"my_eval": et})
-    ev = mock_eval_logger.created_loggers[0]
-
-    et.add_data("y")
-
-    et.finish()
-
-    mock_wandb_log.assert_warned(
-        "EvalTable.finish() called with 1 row(s) added after the last run.log()"
-    )
-    ev.log_summary.assert_called_once_with(None, auto_summarize=True)
-
-
-def test_incremental_finish_logs_summary_and_is_idempotent(mock_eval_logger, run):
-    et = wandb.EvalTable(
-        columns=["out"],
-        data=[["x"]],
-        log_mode="INCREMENTAL",
-    )
-    et.set_summary({"final": 1.0}, auto_summarize=False)
-    run.log({"my_eval": et})
-    ev = mock_eval_logger.created_loggers[0]
-
-    et.finish()
-    et.finish()
-
-    ev.log_summary.assert_called_once_with({"final": 1.0}, auto_summarize=False)
-
-    with pytest.raises(UsageError, match="after finish\\(\\) has been called"):
-        run.log({"my_eval": et})
-
-
-def test_incremental_add_data_and_run_log_after_finish_raises(mock_eval_logger, run):
-    et = wandb.EvalTable(
-        columns=["out"],
-        data=[["x"]],
-        log_mode="INCREMENTAL",
-    )
-    run.log({"my_eval": et})
-    ev = mock_eval_logger.created_loggers[0]
-    et.finish()
-    et.add_data("y")
-
-    with pytest.raises(UsageError, match="after finish\\(\\) has been called"):
-        run.log({"my_eval": et})
-
-    with pytest.raises(UsageError, match="after finish\\(\\) has been called"):
-        et._log_to_weave("my_eval")
-
-    assert ev.log_example.call_count == 1
-    ev.log_summary.assert_called_once_with(None, auto_summarize=True)
-
-
-def test_incremental_log_summary_sets_summary_and_finishes(mock_eval_logger, run):
-    et = wandb.EvalTable(
-        columns=["out"],
-        data=[["x"]],
-        log_mode="INCREMENTAL",
-    )
-    run.log({"my_eval": et})
-    ev = mock_eval_logger.created_loggers[0]
-
-    et.log_summary({"final": 1.0}, auto_summarize=False)
-
-    ev.log_summary.assert_called_once_with({"final": 1.0}, auto_summarize=False)
-
-    with pytest.raises(UsageError, match="after finish\\(\\) has been called"):
-        run.log({"my_eval": et})
-
-
-def test_incremental_log_summary_after_finish_warns(
-    mock_eval_logger, mock_wandb_log, run
-):
-    et = wandb.EvalTable(
-        columns=["out"],
-        data=[["x"]],
-        log_mode="INCREMENTAL",
-    )
-    run.log({"my_eval": et})
-    ev = mock_eval_logger.created_loggers[0]
-
-    et.log_summary({"first": 1.0}, auto_summarize=False)
-    et.log_summary({"second": 2.0}, auto_summarize=False)
-
-    ev.log_summary.assert_called_once_with({"first": 1.0}, auto_summarize=False)
-    mock_wandb_log.assert_warned(
-        "EvalTable.log_summary() called after the EvalTable was already finished"
-    )
-
-
-def test_incremental_atexit_warns_on_unlogged_rows(
-    mock_eval_logger, mock_wandb_log, run
-):
-    et = wandb.EvalTable(
-        columns=["out"],
-        data=[["x"]],
-        log_mode="INCREMENTAL",
-    )
-    run.log({"my_eval": et})
-    ev = mock_eval_logger.created_loggers[0]
-    et.add_data("y")
-
-    mock_eval_logger.atexit_handlers[0]()
-
-    ev.log_summary.assert_called_once_with(None, auto_summarize=True)
-    mock_wandb_log.assert_warned(
-        "EvalTable process-exit cleanup found 1 row(s) added after the last run.log()"
-    )
 
 
 # wandb.Image cell values are unwrapped to PIL.Image before being

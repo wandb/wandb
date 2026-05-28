@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import atexit
 import sys
 import warnings
 from collections.abc import Iterator
@@ -15,10 +14,6 @@ from wandb.integration.weave.weave import setup_with_import
 from wandb.sdk.data_types.table import Table
 
 if TYPE_CHECKING:
-    from weave.evaluation.eval_imperative import (  # type: ignore[import-not-found]
-        EvaluationLogger as _EvaluationLoggerT,
-    )
-
     from wandb.sdk.wandb_run import Run as LocalRun
 
 
@@ -81,7 +76,7 @@ class EvalTable(Table):
         dtype=None,
         optional=True,
         allow_mixed_types=False,
-        log_mode: Literal["IMMUTABLE", "MUTABLE", "INCREMENTAL"] | None = "IMMUTABLE",
+        log_mode: Literal["IMMUTABLE"] = "IMMUTABLE",
         *,
         input_columns: list[str] | None = None,
         output_columns: list[str] | None = None,
@@ -100,12 +95,7 @@ class EvalTable(Table):
                 is passed to ``run.log()`` more than once.
                 - "IMMUTABLE" (default): full table logged on first ``run.log()``;
                   subsequent ``run.log()`` calls are no-ops.
-                - "INCREMENTAL": each ``run.log()`` appends new rows since the last
-                  call to the same eval. Defers logging the summary and closing out
-                  the eval until ``finish()`` or process exit.
-                - "MUTABLE": each ``run.log()`` logs a fresh eval with the current table
-                  contents and summary. Provided for backward compatibility with Table
-                  and not recommended.
+                - "MUTABLE" and "INCREMENTAL": not currently supported for EvalTable.
             input_columns: (List[str]) Names of the input columns.
                 If set, designates these columns as inputs. Eval comparisons will match
                 rows based on matching values from input columns. If unset, we will
@@ -163,37 +153,17 @@ class EvalTable(Table):
             et4.set_summary({"val_loss": 0.3})
             run.log({"my_eval_4": et4})
             # You can set eval-level summary scores.
-
-            et5 = wandb.EvalTable(
-                input_columns=["epoch", "image"],
-                output_columns=["prediction"],
-                score_columns=["score"],
-                log_mode="INCREMENTAL",
-            )
-            for epoch in range(num_epochs):
-                for pil_image in validation_images:
-                    prediction, score = evaluate_one_image(epoch, pil_image)
-                    et5.add_data(epoch, pil_image, prediction, score)
-                run.log({"my_eval_5": et5})
-            et5.log_summary({"val_loss": 0.3})
-            # In INCREMENTAL mode, we'll keep logging to the same eval and leave it
-            # open until you call log_summary() or finish().
         """
+        if log_mode != "IMMUTABLE":
+            raise UsageError("EvalTable currently only supports log_mode='IMMUTABLE'.")
+
         self._input_columns: list[str] = list(input_columns or [])
         self._output_columns: list[str] = list(output_columns or [])
         self._score_columns: list[str] = list(score_columns or [])
         self._summary: dict | None = None
         self._auto_summarize: bool = True
-        # INCREMENTAL mode reuses one logger so all batches land in the same
-        # eval. It does not trigger any of the artifact-related code in normal tables,
-        # including in table_decorators::allow_incremental_logging_after_append().
-        # IMMUTABLE/MUTABLE use local loggers and only persist call ids.
-        self._incremental_eval_logger: _EvaluationLoggerT | None = None
         self._immutable_evaluate_call_id: str | None = None
-        # Track separately from self._last_logged_idx used by normal INCREMENTAL tables
-        # to avoid conflating our somewhat different semantics.
-        self._last_weave_logged_idx: int | None = None
-        self._is_incremental_finished = False
+        self._immutable_logged_json: dict[str, Any] | None = None
         self._run_log_key: str | None = None
         from wandb.integration.weave.media_adapters import (
             validate_unsupported_media_mode,
@@ -247,9 +217,6 @@ class EvalTable(Table):
 
         <!-- lazydoc-ignore: internal -->
         """
-        if self._is_incremental_finished:
-            raise UsageError("Cannot log an EvalTable after finish() has been called.")
-
         if isinstance(run_or_artifact, wandb.Artifact):
             raise TypeError("EvalTable cannot be logged to a wandb.Artifact.")
 
@@ -266,36 +233,26 @@ class EvalTable(Table):
         if self._run_log_key is None:
             raise UsageError("EvalTable must be logged with run.log().")
 
+        if self._immutable_logged_json is not None:
+            self._warn_immutable_already_logged()
+            return dict(self._immutable_logged_json)
+
         _setup_weave_for_eval_table(run)
         evaluate_call_id = self._log_to_weave(self._run_log_key)
 
-        return {
+        json_dict = {
             "_type": "eval-table",
             "ncols": len(self.columns),
             "nrows": len(self.data),
             "log_mode": self.log_mode,
             "evaluate_call_id": evaluate_call_id,
         }
+        self._immutable_logged_json = dict(json_dict)
+        return json_dict
 
     @override
     def _has_been_logged(self) -> bool:
-        match self.log_mode:
-            case "IMMUTABLE":
-                return self._immutable_evaluate_call_id is not None
-            case "INCREMENTAL":
-                return (
-                    self._incremental_eval_logger is not None
-                    or self._last_weave_logged_idx is not None
-                )
-            case "MUTABLE":
-                return self._run is not None
-            case _:
-                return False
-
-    @override
-    def _reset_logging_state_after_mutation(self) -> None:
-        super()._reset_logging_state_after_mutation()
-        self._run_log_key = None
+        return self._immutable_evaluate_call_id is not None
 
     def _validate_cell_value(self, val: Any, row_idx: int, col: str | int) -> None:
         from wandb.integration.weave.media_adapters import validate_supported_value
@@ -318,9 +275,7 @@ class EvalTable(Table):
 
     @override
     def add_column(self, name: Any, data: Any, optional: bool = False) -> None:
-        if self.log_mode != "INCREMENTAL" and (
-            isinstance(data, list) or wandb.util.is_numpy_array(data)
-        ):
+        if isinstance(data, list) or wandb.util.is_numpy_array(data):
             for row_idx, val in enumerate(data):
                 self._validate_cell_value(val, row_idx, name)
 
@@ -360,50 +315,6 @@ class EvalTable(Table):
         self._summary = summary
         self._auto_summarize = auto_summarize
 
-    def log_summary(
-        self, summary: dict | None = None, auto_summarize: bool = True
-    ) -> None:
-        """Set the summary and finalize an INCREMENTAL EvalTable."""
-        if self._is_incremental_finished:
-            wandb.termwarn(
-                "EvalTable.log_summary() called after the EvalTable was already "
-                "finished. The new summary will not be logged.",
-                repeat=False,
-            )
-            return
-
-        self.set_summary(summary, auto_summarize=auto_summarize)
-        self.finish()
-
-    def finish(self) -> None:
-        """Finalize an INCREMENTAL EvalTable after all rows have been logged."""
-        if self.log_mode != "INCREMENTAL":
-            raise UsageError(
-                "EvalTable.finish() is only supported for log_mode='INCREMENTAL'."
-            )
-
-        if self._is_incremental_finished:
-            return
-
-        ev = self._incremental_eval_logger
-        if ev is None:
-            raise UsageError(
-                "EvalTable.finish() requires the EvalTable to be logged with "
-                "run.log() first."
-            )
-
-        pending_rows = self._num_unlogged_rows()
-        if pending_rows:
-            wandb.termwarn(
-                f"EvalTable.finish() called with {pending_rows} row(s) added "
-                "after the last run.log(); those rows will not be included in "
-                "the finalized evaluation.",
-                repeat=False,
-            )
-
-        ev.log_summary(self._summary, auto_summarize=self._auto_summarize)
-        self._is_incremental_finished = True
-
     def _iter_unwrapped_rows(self, start: int = 0) -> Iterator[dict[str, Any]]:
         from wandb.integration.weave.media_adapters import unwrap_value
 
@@ -420,7 +331,7 @@ class EvalTable(Table):
                 for col, val in zip(cols, row, strict=True)
             }
 
-    def _create_weave_eval_logger(self, eval_name: str) -> _EvaluationLoggerT:
+    def _create_weave_eval_logger(self, eval_name: str) -> Any:
         # Assumes _setup_weave_for_eval_table has already imported weave
         from weave.evaluation.eval_imperative import (  # type: ignore[import-not-found]
             EvaluationLogger,
@@ -435,57 +346,14 @@ class EvalTable(Table):
             name=eval_name,
         )
 
-    def _setup_incremental_weave_eval_logger(
-        self, eval_name: str
-    ) -> _EvaluationLoggerT:
-        """Build the INCREMENTAL EvaluationLogger on first use."""
-        if self._incremental_eval_logger is not None:
-            return self._incremental_eval_logger
-
-        self._incremental_eval_logger = self._create_weave_eval_logger(eval_name)
-
-        # INCREMENTAL evals defer summary/finalization until `finish()` or
-        # process exit. Register an atexit handler that fires before weave's
-        # own EvaluationLogger cleanup: atexit runs in LIFO order, and weave
-        # registered its `_cleanup_all_evaluations` at module import.
-        atexit.register(self._summarize_at_exit)
-
-        return self._incremental_eval_logger
-
-    def _summarize_at_exit(self) -> None:
-        """Fire `log_summary` if this EvalTable has not been finished yet."""
-        ev = self._incremental_eval_logger
-        if ev is None or self._is_incremental_finished:
-            return
-        pending_rows = self._num_unlogged_rows()
-        if pending_rows:
-            wandb.termwarn(
-                f"EvalTable process-exit cleanup found {pending_rows} row(s) "
-                "added after the last run.log(); those rows will not be "
-                "included in the finalized evaluation.",
-                repeat=False,
-            )
-        try:
-            ev.log_summary(self._summary, auto_summarize=self._auto_summarize)
-            self._is_incremental_finished = True
-        except Exception:
-            # Best-effort cleanup; don't raise during atexit.
-            pass
-
-    def _num_unlogged_rows(self) -> int:
-        if self.log_mode != "INCREMENTAL":
-            raise UsageError(
-                "EvalTable._num_unlogged_rows() is only supported for "
-                "log_mode='INCREMENTAL'."
-            )
-        if self._last_weave_logged_idx is None:
-            return len(self.data)
-        return max(0, len(self.data) - self._last_weave_logged_idx - 1)
+    def _warn_immutable_already_logged(self) -> None:
+        wandb.termwarn(
+            "EvalTable with log_mode='IMMUTABLE' has already been logged. "
+            "Subsequent run.log() calls have no effect.",
+            repeat=False,
+        )
 
     def _log_to_weave(self, eval_name: str) -> str:
-        if self._is_incremental_finished:
-            raise UsageError("Cannot log an EvalTable after finish() has been called.")
-
         # IMMUTABLE: only the first run.log() should fire the weave path.
         # The framework may still call to_json on subsequent log()s, but
         # the eval has already been logged in full and summarized.
@@ -493,18 +361,10 @@ class EvalTable(Table):
             self.log_mode == "IMMUTABLE"
             and self._immutable_evaluate_call_id is not None
         ):
-            wandb.termwarn(
-                "EvalTable with log_mode='IMMUTABLE' has already been logged. "
-                "Subsequent run.log() calls have no effect. Set "
-                "log_mode='MUTABLE' or log_mode='INCREMENTAL' to log updates.",
-                repeat=False,
-            )
+            self._warn_immutable_already_logged()
             return self._immutable_evaluate_call_id
 
-        if self.log_mode == "INCREMENTAL":
-            ev = self._setup_incremental_weave_eval_logger(eval_name)
-        else:
-            ev = self._create_weave_eval_logger(eval_name)
+        ev = self._create_weave_eval_logger(eval_name)
 
         # Any column not listed in a role defaults to an output column.
         assigned = (
@@ -522,13 +382,7 @@ class EvalTable(Table):
         # leak into the input-equality criteria.
         inject_row_index = not self._input_columns
 
-        # INCREMENTAL logs only rows added since the last EvalTable log.
-        # IMMUTABLE/MUTABLE always log all rows from scratch.
-        if self.log_mode == "INCREMENTAL":
-            last_idx = self._last_weave_logged_idx
-            start_idx = last_idx + 1 if last_idx is not None else 0
-        else:
-            start_idx = 0
+        start_idx = 0
 
         for offset, row in enumerate(self._iter_unwrapped_rows(start=start_idx)):
             row_idx = start_idx + offset + 1  # 1-indexed cumulative
@@ -548,15 +402,8 @@ class EvalTable(Table):
 
             ev.log_example(inputs=inputs, output=output, scores=scores)
 
-        if self.log_mode == "INCREMENTAL":
-            self._last_weave_logged_idx = len(self.data) - 1
-
-        if self.log_mode in ("IMMUTABLE", "MUTABLE"):
-            ev.log_summary(self._summary, auto_summarize=self._auto_summarize)
-            if self.log_mode == "IMMUTABLE":
-                # TODO: We should work with Weave on exposing a public
-                # evaluate_call_id() instead of relying on this private field.
-                self._immutable_evaluate_call_id = ev._evaluate_call.id
-        # INCREMENTAL: log_summary fires from explicit `finish()` or via the
-        # `_summarize_at_exit` atexit handler, using the latest `set_summary` value.
+        ev.log_summary(self._summary, auto_summarize=self._auto_summarize)
+        # TODO: We should work with Weave on exposing a public evaluate_call_id()
+        # instead of relying on this private field.
+        self._immutable_evaluate_call_id = ev._evaluate_call.id
         return ev._evaluate_call.id
