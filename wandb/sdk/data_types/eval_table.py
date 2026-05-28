@@ -1,12 +1,10 @@
 from __future__ import annotations
 
 import atexit
-import sys
 import warnings
 from collections.abc import Iterator
 from typing import TYPE_CHECKING, Any, Literal, cast
 
-from packaging.version import parse as parse_version
 from typing_extensions import override
 
 import wandb
@@ -15,51 +13,20 @@ from wandb.integration.weave.weave import setup_with_import
 from wandb.sdk.data_types.table import Table
 
 if TYPE_CHECKING:
-    from typing import Protocol
+    from weave.evaluation.eval_imperative import EvaluationLogger
 
     from wandb.sdk.wandb_run import Run as LocalRun
-
-    class _EvaluateCall(Protocol):
-        id: str
-
-    class _EvaluationLogger(Protocol):
-        _evaluate_call: _EvaluateCall
-
-        def log_example(
-            self,
-            inputs: dict[str, Any],
-            output: Any,
-            scores: dict[str, float | bool | dict],
-        ) -> None: ...
-
-        def log_summary(
-            self,
-            summary: dict[str, Any] | None = None,
-            auto_summarize: bool = True,
-        ) -> None: ...
-
-    class _EvaluationLoggerCls(Protocol):
-        def _create_with_meta(
-            self,
-            eval_meta: dict[str, Any],
-            *,
-            name: str | None = None,
-            **kwargs: Any,
-        ) -> _EvaluationLogger: ...
-
 
 EVAL_TABLE_MARKER = {"wandb_eval_table": True}
 
 EVAL_TABLE_ROW_INDEX_KEY = "row"
 
-_MIN_WEAVE_VERSION = "0.52.41"
-_EVAL_TABLE_WEAVE_DEP_MSG = (
-    "`wandb.EvalTable` is missing weave dependency. "
-    'Install it with `pip install wandb["eval-table"]`.'
-)
 
-
-def _get_evaluation_logger_cls(run: LocalRun) -> _EvaluationLoggerCls:
+# This function can be patched for testing to mock out calls to weave..
+def _get_evaluation_logger_cls(  # pragma: no cover
+    run: LocalRun,
+) -> type[EvaluationLogger]:
+    """Import and return weave's EvaluationLogger."""
     try:
         entity = run.entity
     except AttributeError:
@@ -69,37 +36,15 @@ def _get_evaluation_logger_cls(run: LocalRun) -> _EvaluationLoggerCls:
     except AttributeError:
         project = None
 
-    try:
-        if not setup_with_import(entity, project):
-            raise RuntimeError(
-                "Weave logging is disabled (WANDB_DISABLE_WEAVE is set). "
-                "Unset it or use run.log() with a regular Table to suppress this."
-            )
-    except ImportError as e:
-        raise ImportError(_EVAL_TABLE_WEAVE_DEP_MSG) from e
-
-    weave = sys.modules["weave"]
-    try:
-        weave_version = weave.__version__
-    except AttributeError as e:
-        raise ImportError(_EVAL_TABLE_WEAVE_DEP_MSG) from e
-
-    if parse_version(weave_version) < parse_version(_MIN_WEAVE_VERSION):
-        raise ImportError(
-            "`wandb.EvalTable` requires "
-            f"weave>={_MIN_WEAVE_VERSION}; found weave=={weave_version}. "
-            "Install it with "
-            '`pip install wandb["eval-table"]`.'
+    if not setup_with_import(entity, project):
+        raise RuntimeError(
+            "Weave logging is disabled (WANDB_DISABLE_WEAVE is set). "
+            "Unset it or use run.log() with a regular Table to suppress this."
         )
 
-    try:
-        from weave.evaluation.eval_imperative import (  # type: ignore[import-not-found]
-            EvaluationLogger,
-        )
-    except Exception as e:
-        raise ImportError(_EVAL_TABLE_WEAVE_DEP_MSG) from e
+    from weave.evaluation.eval_imperative import EvaluationLogger
 
-    return cast("_EvaluationLoggerCls", EvaluationLogger)
+    return EvaluationLogger
 
 
 class EvalTable(Table):
@@ -232,7 +177,7 @@ class EvalTable(Table):
         # eval. It does not trigger any of the artifact-related code in normal tables,
         # including in table_decorators::allow_incremental_logging_after_append().
         # IMMUTABLE/MUTABLE use local loggers and only persist call ids.
-        self._incremental_eval_logger: _EvaluationLogger | None = None
+        self._incremental_eval_logger: EvaluationLogger | None = None
         self._immutable_evaluate_call_id: str | None = None
         # Track separately from self._last_logged_idx used by normal INCREMENTAL tables
         # to avoid conflating our somewhat different semantics.
@@ -464,7 +409,7 @@ class EvalTable(Table):
 
     def _create_weave_eval_logger(
         self, run: LocalRun, eval_name: str
-    ) -> _EvaluationLogger:
+    ) -> EvaluationLogger:
         self._validate_column_mappings(
             self._input_columns, self._output_columns, self._score_columns
         )
@@ -481,7 +426,7 @@ class EvalTable(Table):
 
     def _setup_incremental_weave_eval_logger(
         self, run: LocalRun, eval_name: str
-    ) -> _EvaluationLogger:
+    ) -> EvaluationLogger:
         """Build the INCREMENTAL EvaluationLogger on first use."""
         if self._incremental_eval_logger is not None:
             return self._incremental_eval_logger

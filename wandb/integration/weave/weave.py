@@ -73,6 +73,9 @@ def setup(entity: str | None, project: str | None) -> None:
 
     # If weave is not yet imported, we can't init it from here.  Instead, we'll
     # rely on the weave library itself to detect a run and init itself.
+    #
+    # TODO: Get rid of this check once we're confident the new direct weave required
+    # dependency is here to stay.
     if _WEAVE_PACKAGE_NAME not in sys.modules:
         _maybe_suggest_weave_installation()
         return
@@ -96,7 +99,6 @@ def setup_with_import(entity: str | None, project: str | None) -> bool:
         True otherwise.
 
     Raises:
-        ImportError: If weave is not installed.
         ValueError: If no project is available.
     """
     if _is_weave_disabled():
@@ -104,13 +106,7 @@ def setup_with_import(entity: str | None, project: str | None) -> bool:
     project_path = _build_project_path(entity, project)
     if not project_path:
         raise ValueError("setup_with_import requires a project to initialize weave.")
-    try:
-        importlib.import_module(_WEAVE_PACKAGE_NAME)
-        _weave_init(project_path)
-    except ModuleNotFoundError as e:
-        raise ImportError(
-            "weave is not installed. Install it with: pip install weave"
-        ) from e
+    _weave_init(project_path)
     return True
 
 
