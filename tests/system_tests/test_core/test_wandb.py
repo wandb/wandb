@@ -15,7 +15,6 @@ from unittest import mock
 
 import numpy as np
 import pytest
-import requests
 import wandb
 from wandb.sdk.lib import filesystem
 
@@ -464,23 +463,15 @@ def test_log_empty_string(wandb_backend_spy):
         assert history[0]["cool"] == ""
 
 
-def test_log_table_offline_no_network(user, monkeypatch):
-    wandb_base_url = os.environ.get("WANDB_BASE_URL", "https://api.wandb.ai")
-    wandb_network_calls = []
-    original_request = requests.Session.request
+def test_log_table_offline_no_network(wandb_backend_spy):
+    graphql_spy = wandb_backend_spy.gql.Capture()
+    wandb_backend_spy.stub_gql(wandb_backend_spy.gql.any(), graphql_spy)
 
-    def mock_request(self, method, url, *args, **kwargs):
-        if isinstance(url, str) and wandb_base_url in url:
-            wandb_network_calls.append((method, url))
-        return original_request(self, method, url, *args, **kwargs)
-
-    monkeypatch.setattr(requests.Session, "request", mock_request)
     run = wandb.init(mode="offline")
     run.log({"table": wandb.Table()})
     run.finish()
-    assert wandb_network_calls == [], (
-        f"Unexpected wandb API calls: {wandb_network_calls}"
-    )
+
+    assert graphql_spy.total_calls == 0
     assert run.offline is True
 
 

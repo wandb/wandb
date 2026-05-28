@@ -17,7 +17,6 @@ from typing_extensions import assert_never
 
 from wandb.errors.term import termwarn
 from wandb.proto import wandb_internal_pb2 as pb
-from wandb.sdk.artifacts._gqlutils import server_supports
 from wandb.sdk.artifacts._models.storage import StoragePolicyConfig
 from wandb.sdk.artifacts.artifact_file_cache import (
     ArtifactFileCache,
@@ -44,8 +43,6 @@ from wandb.sdk.lib.paths import FilePathStr, URIStr
 from ._factories import make_http_session, make_storage_handlers
 
 if TYPE_CHECKING:
-    import requests
-
     from wandb.filesync.step_prepare import StepPrepare
     from wandb.sdk.artifacts.artifact import Artifact
     from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
@@ -243,12 +240,12 @@ class WandbStoragePolicy(StoragePolicy):
         if layout is StorageLayout.V2:
             birth_artifact_id = entry.birth_artifact_id or ""
             artifact_id = artifact.id or ""
-            if server_supports(
-                api.client, pb.ARTIFACT_V2_DOWNLOAD_HANDLER_SUPPORTS_ARTIFACT_ID
+            if api._server_supports(
+                pb.ARTIFACT_V2_DOWNLOAD_HANDLER_SUPPORTS_ARTIFACT_ID
             ):
                 return f"{base_url}/artifactsV2/{region}/{quote(entity)}/{quote(project)}/{quote(collection)}/{quote(artifact_id)}/{quote(birth_artifact_id)}/{hexhash}/{entry.path.name}"
-            if server_supports(
-                api.client, pb.ARTIFACT_COLLECTION_MEMBERSHIP_FILE_DOWNLOAD_HANDLER
+            if api._server_supports(
+                pb.ARTIFACT_COLLECTION_MEMBERSHIP_FILE_DOWNLOAD_HANDLER
             ):
                 return f"{base_url}/artifactsV2/{region}/{quote(entity)}/{quote(project)}/{quote(collection)}/{quote(birth_artifact_id)}/{hexhash}/{entry.path.name}"
 

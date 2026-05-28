@@ -96,6 +96,7 @@ def user(
 
 @pytest.fixture(scope="module")
 def module_user(
+    request: pytest.FixtureRequest,
     backend_fixture_factory: BackendFixtureFactory,
 ) -> Generator[str]:
     """A new user shared by all tests in a module.
@@ -106,6 +107,10 @@ def module_user(
     test user's data does not affect correctness, and creating a user for
     each test is slow.
     """
+    if "user" in request.fixturenames:
+        message = "Cannot use `user` and `module_user` fixtures together."
+        raise AssertionError(message)
+
     with _user(backend_fixture_factory) as user:
         yield user
 

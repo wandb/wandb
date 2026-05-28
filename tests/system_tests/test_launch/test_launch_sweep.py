@@ -169,6 +169,9 @@ def test_sweep_scheduler_job_with_queue(runner, user, mocker):
             ["config.json", "--queue", queue],
         )
 
+        # cli._get_cling_api(reset=True) calls wandb.teardown(), so create a
+        # fresh API before inspecting queue state.
+        api = wandb.sdk.internal.internal_api.Api()
         rqi = api.pop_from_run_queue(
             queue,
             user,
