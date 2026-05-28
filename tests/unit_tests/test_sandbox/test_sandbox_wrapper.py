@@ -53,7 +53,7 @@ def test_sandbox_wrapper_uses_wandb_secret_override() -> None:
 
 @pytest.mark.parametrize("field", _PLACEMENT_OVERRIDE_FIELDS)
 def test_sandbox_wrapper_rejects_placement_overrides(field: str) -> None:
-    with pytest.raises(UsageError, match=f"placement overrides.*{field}"):
+    with pytest.raises(UsageError, match=f"selects the runner and profile.*{field}"):
         wandb_sandbox.Sandbox(**{field: []})
 
 
@@ -61,13 +61,13 @@ def test_sandbox_wrapper_rejects_placement_overrides(field: str) -> None:
 def test_sandbox_wrapper_rejects_default_placement_overrides(field: str) -> None:
     defaults = cwsandbox.SandboxDefaults(**{field: ("placement-1",)})
 
-    with pytest.raises(UsageError, match=f"placement overrides.*{field}"):
+    with pytest.raises(UsageError, match=f"selects the runner and profile.*{field}"):
         wandb_sandbox.Sandbox(defaults=defaults)
 
 
 @pytest.mark.parametrize("resources", _GPU_RESOURCE_VALUES)
 def test_sandbox_wrapper_rejects_gpu_resources(resources) -> None:
-    with pytest.raises(UsageError, match="GPU resources"):
+    with pytest.raises(UsageError, match="CPU and memory resources"):
         wandb_sandbox.Sandbox(resources=resources)
 
 
@@ -75,7 +75,7 @@ def test_sandbox_wrapper_rejects_gpu_resources(resources) -> None:
 def test_sandbox_wrapper_rejects_default_gpu_resources(resources) -> None:
     defaults = cwsandbox.SandboxDefaults(resources=resources)
 
-    with pytest.raises(UsageError, match="GPU resources"):
+    with pytest.raises(UsageError, match="CPU and memory resources"):
         wandb_sandbox.Sandbox(defaults=defaults)
 
 
@@ -102,13 +102,13 @@ def test_sandbox_wrapper_allows_supported_network_options(network) -> None:
 def test_sandbox_session_rejects_placement_overrides(field: str) -> None:
     session = wandb_sandbox.Session()
 
-    with pytest.raises(UsageError, match=f"placement overrides.*{field}"):
+    with pytest.raises(UsageError, match=f"selects the runner and profile.*{field}"):
         session.sandbox(**{field: ["placement-1"]})
 
 
 @pytest.mark.parametrize("field", _PLACEMENT_OVERRIDE_FIELDS)
 def test_sandbox_session_rejects_default_placement_overrides(field: str) -> None:
-    with pytest.raises(UsageError, match=f"placement overrides.*{field}"):
+    with pytest.raises(UsageError, match=f"selects the runner and profile.*{field}"):
         wandb_sandbox.Session(defaults={field: ["placement-1"]})
 
 
@@ -116,7 +116,7 @@ def test_sandbox_session_rejects_default_placement_overrides(field: str) -> None
 def test_sandbox_session_rejects_positional_default_placement_overrides(
     field: str,
 ) -> None:
-    with pytest.raises(UsageError, match=f"placement overrides.*{field}"):
+    with pytest.raises(UsageError, match=f"selects the runner and profile.*{field}"):
         wandb_sandbox.Session({field: ["placement-1"]})
 
 
@@ -124,13 +124,13 @@ def test_sandbox_session_rejects_positional_default_placement_overrides(
 def test_sandbox_session_rejects_gpu_resources(resources) -> None:
     session = wandb_sandbox.Session()
 
-    with pytest.raises(UsageError, match="GPU resources"):
+    with pytest.raises(UsageError, match="CPU and memory resources"):
         session.sandbox(resources=resources)
 
 
 @pytest.mark.parametrize("resources", _GPU_RESOURCE_VALUES)
 def test_sandbox_session_rejects_default_gpu_resources(resources) -> None:
-    with pytest.raises(UsageError, match="GPU resources"):
+    with pytest.raises(UsageError, match="CPU and memory resources"):
         wandb_sandbox.Session(defaults={"resources": resources})
 
 
@@ -152,7 +152,7 @@ def test_sandbox_session_rejects_default_unsupported_egress_modes(network) -> No
 def test_sandbox_session_function_rejects_placement_overrides(field: str) -> None:
     session = wandb_sandbox.Session()
 
-    with pytest.raises(UsageError, match=f"placement overrides.*{field}"):
+    with pytest.raises(UsageError, match=f"selects the runner and profile.*{field}"):
         session.function(**{field: ["placement-1"]})
 
 
@@ -160,7 +160,7 @@ def test_sandbox_session_function_rejects_placement_overrides(field: str) -> Non
 def test_sandbox_session_function_rejects_gpu_resources(resources) -> None:
     session = wandb_sandbox.Session()
 
-    with pytest.raises(UsageError, match="GPU resources"):
+    with pytest.raises(UsageError, match="CPU and memory resources"):
         session.function(resources=resources)
 
 
