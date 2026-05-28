@@ -1,12 +1,10 @@
 from __future__ import annotations
 
 import atexit
-import sys
 import warnings
 from collections.abc import Iterator
 from typing import TYPE_CHECKING, Any, Literal, cast
 
-from packaging.version import parse as parse_version
 from typing_extensions import override
 
 import wandb
@@ -29,8 +27,6 @@ def _get_evaluation_logger_cls(  # pragma: no cover
     run: LocalRun,
 ) -> type[EvaluationLogger]:
     """Import and return weave's EvaluationLogger."""
-    from wandb.integration.weave.weave import setup_with_import
-
     try:
         entity = run.entity
     except AttributeError:

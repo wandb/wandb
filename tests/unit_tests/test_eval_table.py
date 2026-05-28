@@ -13,7 +13,6 @@ import wandb
 import wandb.data_types as wandb_data_types
 from wandb.errors import UsageError
 
-
 eval_table_module = importlib.import_module("wandb.sdk.data_types.eval_table")
 wandb.EvalTable = eval_table_module.EvalTable
 wandb_data_types.EvalTable = eval_table_module.EvalTable
