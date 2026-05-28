@@ -20,15 +20,20 @@ git config user.email "<>"
 
 # Set up a test file and add GQL introspection to it.
 TEST_FILE=ban-graphql-introspection.txt
+# Also test deletions, since they have special handling.
+# Must be alphabetically before the other file.
+TEST_DELETED_FILE="a.txt"
 
 # Initial content:
+echo "content" >"$TEST_DELETED_FILE"
 cat >"$TEST_FILE" <<EOF
 Line 1 contains __type but is unchanged.
 Line 2 contains __type but will be deleted.
 EOF
-git add "$TEST_FILE" && git commit -m initial
+git add "$TEST_FILE" "$TEST_DELETED_FILE" && git commit -m initial
 
 # Updated content:
+rm "$TEST_DELETED_FILE"
 cat >"$TEST_FILE" <<EOF
 Line 1 contains __type but is unchanged.
 Line 2 had GQL introspection that got removed.
@@ -36,7 +41,7 @@ Line 3 uses __schema, which is not allowed.
 Line 4 uses __type, also not allowed.
 Line 5 uses __typename, which is OK.
 EOF
-git add "$TEST_FILE" && git commit -m initial
+git add "$TEST_FILE" "$TEST_DELETED_FILE" && git commit -m updated
 
 
 # Check that the expected output is produced.

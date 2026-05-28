@@ -294,7 +294,7 @@ type ClientOptions struct {
 type Client struct {
 	mu                    sync.RWMutex
 	options               ClientOptions
-	dsn                   *Dsn
+	dsn                   *protocol.Dsn
 	eventProcessors       []EventProcessor
 	integrations          []Integration
 	externalTraceResolver externalContextTraceResolver
@@ -395,10 +395,10 @@ func NewClient(options ClientOptions) (*Client, error) {
 		}
 	}
 
-	var dsn *Dsn
+	var dsn *protocol.Dsn
 	if options.Dsn != "" {
 		var err error
-		dsn, err = NewDsn(options.Dsn)
+		dsn, err = protocol.NewDsn(options.Dsn)
 		if err != nil {
 			return nil, err
 		}
@@ -419,25 +419,29 @@ func NewClient(options ClientOptions) (*Client, error) {
 		client.reportProvider = a
 	}
 
-	client.setupTransport()
+	// We currently disallow using custom Transport with the new Telemetry Processor, due to the difference in transport signatures.
+	// The option should be enabled when the new Transport interface signature changes.
+	if !options.DisableTelemetryBuffer && client.options.Transport == nil {
+		client.setupTelemetryProcessor()
+	} else {
+		if client.options.Transport != nil {
+			debuglog.Println("Cannot enable Telemetry Processor with custom Transport: fallback to old transport")
+		}
+		client.setupTransport()
 
-	// noop Telemetry Buffers and Processor fow now
-	// if !options.DisableTelemetryBuffer {
-	// 	client.setupTelemetryProcessor()
-	// } else
-	if options.EnableLogs {
-		client.batchLogger = newLogBatchProcessor(&client)
-		client.batchLogger.Start()
+		if options.EnableLogs {
+			client.batchLogger = newLogBatchProcessor(&client)
+			client.batchLogger.Start()
+		}
+		if !options.DisableMetrics {
+			client.batchMeter = newMetricBatchProcessor(&client)
+			client.batchMeter.Start()
+		}
 	}
-
-	if !options.DisableMetrics {
-		client.batchMeter = newMetricBatchProcessor(&client)
-		client.batchMeter.Start()
-	}
+	client.setupIntegrations()
 	if options.OrgID != 0 && client.dsn != nil {
 		client.dsn.SetOrgID(options.OrgID)
 	}
-	client.setupIntegrations()
 
 	return &client, nil
 }
@@ -474,31 +478,19 @@ func (client *Client) setupTransport() {
 	client.Transport = transport
 }
 
-func (client *Client) setupTelemetryProcessor() { // nolint: unused
-	if client.options.DisableTelemetryBuffer {
-		return
+func (client *Client) sdkInfo() *protocol.SdkInfo {
+	return &protocol.SdkInfo{
+		Name:         client.GetSDKIdentifier(),
+		Version:      SDKVersion,
+		Integrations: client.listIntegrations(),
+		Packages: []SdkPackage{{
+			Name:    "sentry-go",
+			Version: SDKVersion,
+		}},
 	}
+}
 
-	if client.dsn == nil {
-		debuglog.Println("Telemetry buffer disabled: no DSN configured")
-		return
-	}
-
-	// We currently disallow using custom Transport with the new Telemetry Processor, due to the difference in transport signatures.
-	// The option should be enabled when the new Transport interface signature changes.
-	if client.options.Transport != nil {
-		debuglog.Println("Cannot enable Telemetry Processor/Buffers with custom Transport: fallback to old transport")
-		if client.options.EnableLogs {
-			client.batchLogger = newLogBatchProcessor(client)
-			client.batchLogger.Start()
-		}
-		if !client.options.DisableMetrics {
-			client.batchMeter = newMetricBatchProcessor(client)
-			client.batchMeter.Start()
-		}
-		return
-	}
-
+func (client *Client) setupTelemetryProcessor() {
 	transport := httpInternal.NewAsyncTransport(httpInternal.TransportOptions{
 		Dsn:           client.options.Dsn,
 		HTTPClient:    client.options.HTTPClient,
@@ -508,6 +500,7 @@ func (client *Client) setupTelemetryProcessor() { // nolint: unused
 		CaCerts:       client.options.CaCerts,
 		Recorder:      client.reportRecorder,
 		Provider:      client.reportProvider,
+		SdkInfo:       client.sdkInfo,
 	})
 	client.Transport = &internalAsyncTransportAdapter{transport: transport}
 
@@ -519,12 +512,7 @@ func (client *Client) setupTelemetryProcessor() { // nolint: unused
 		ratelimit.CategoryTraceMetric: telemetry.NewRingBuffer[protocol.TelemetryItem](ratelimit.CategoryTraceMetric, 10*100, telemetry.OverflowPolicyDropOldest, 100, 5*time.Second, client.reportRecorder),
 	}
 
-	sdkInfo := &protocol.SdkInfo{
-		Name:    client.sdkIdentifier,
-		Version: client.sdkVersion,
-	}
-
-	client.telemetryProcessor = telemetry.NewProcessor(buffers, transport, &client.dsn.Dsn, sdkInfo, client.reportRecorder)
+	client.telemetryProcessor = telemetry.NewProcessor(buffers, transport, client.dsn, client.sdkInfo, client.reportRecorder)
 }
 
 func (client *Client) setupIntegrations() {

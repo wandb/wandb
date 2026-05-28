@@ -33,15 +33,12 @@ pub struct TelemetryRecord {
     pub cli_version: ::prost::alloc::string::String,
     #[prost(string, tag = "6")]
     pub huggingface_version: ::prost::alloc::string::String,
-    /// string  framework = 7;
     #[prost(message, optional, tag = "8")]
     pub env: ::core::option::Option<Env>,
     #[prost(message, optional, tag = "9")]
     pub label: ::core::option::Option<Labels>,
     #[prost(message, optional, tag = "10")]
     pub deprecated: ::core::option::Option<Deprecated>,
-    #[prost(message, optional, tag = "11")]
-    pub issues: ::core::option::Option<Issues>,
     #[prost(string, tag = "12")]
     pub core_version: ::prost::alloc::string::String,
     #[prost(string, tag = "13")]
@@ -256,6 +253,7 @@ pub struct Imports {
     #[prost(bool, tag = "107")]
     pub dspy: bool,
 }
+/// Next ID: 76
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct Feature {
     /// wandb.watch() called
@@ -264,6 +262,12 @@ pub struct Feature {
     /// wandb.finish() called
     #[prost(bool, tag = "2")]
     pub finish: bool,
+    /// finish_timeout setting enabled
+    #[prost(bool, tag = "74")]
+    pub finish_timeout: bool,
+    /// finish_timeout_raises setting enabled
+    #[prost(bool, tag = "75")]
+    pub finish_timeout_raises: bool,
     /// wandb.save() called
     #[prost(bool, tag = "3")]
     pub save: bool,
@@ -518,9 +522,6 @@ pub struct Labels {
 }
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct Deprecated {
-    /// wandb.integration.keras.WandbCallback(data_type=...) called
-    #[prost(bool, tag = "1")]
-    pub keras_callback_data_type: bool,
     /// wandb.plots.\* called
     #[prost(bool, tag = "5")]
     pub plots: bool,
@@ -530,12 +531,6 @@ pub struct Deprecated {
     /// wandb.init(config_exclude_keys=...) called
     #[prost(bool, tag = "8")]
     pub init_config_exclude_keys: bool,
-    /// wandb.integration.keras.WandbCallback(save_model=True) called
-    #[prost(bool, tag = "9")]
-    pub keras_callback_save_model: bool,
-    /// wandb.integration.langchain.WandbTracer called
-    #[prost(bool, tag = "10")]
-    pub langchain_tracer: bool,
     /// wandb.sdk.artifacts.artifact.Artifact.get_path(...) called
     #[prost(bool, tag = "11")]
     pub artifact_get_path: bool,
@@ -554,9 +549,6 @@ pub struct Deprecated {
     /// wandb.sdk.lib.disabled.RunDisabled used
     #[prost(bool, tag = "16")]
     pub run_disabled: bool,
-    /// wandb.integration.keras.WandbCallback used
-    #[prost(bool, tag = "17")]
-    pub keras_callback: bool,
     /// wandb.run.define_metric() called with summary="best" and goal="maximize/minimize"
     #[prost(bool, tag = "18")]
     pub run_define_metric_best_goal: bool,
@@ -587,32 +579,20 @@ pub struct Deprecated {
     /// wandb.sdk.artifacts.artifact.Artifact(use_as=...) called
     #[prost(bool, tag = "27")]
     pub artifact_init_use_as: bool,
-    /// wandb.beta.workflows.log_model() called
-    #[prost(bool, tag = "28")]
-    pub beta_workflows_log_model: bool,
-    /// wandb.beta.workflows.use_model() called
-    #[prost(bool, tag = "29")]
-    pub beta_workflows_use_model: bool,
-    /// wandb.beta.workflows.link_model() called
-    #[prost(bool, tag = "30")]
-    pub beta_workflows_link_model: bool,
     /// wandb.integration.kfp.wandb_log used with kfp\<2.0.0
     #[prost(bool, tag = "31")]
     pub kfp_v1_wandb_log: bool,
 }
-#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
-pub struct Issues {
-    /// validation warnings for settings
-    #[prost(bool, tag = "1")]
-    pub settings_validation_warnings: bool,
-    /// unexpected settings init args
-    #[prost(bool, tag = "2")]
-    pub settings_unexpected_args: bool,
-    /// settings preprocessing warnings
-    #[prost(bool, tag = "3")]
-    pub settings_preprocessing_warnings: bool,
-}
-/// Record: joined record for message passing and persistence
+/// A sequence of Records fully defines a run.
+///
+/// Records make up a run's transaction log, which can be replayed to reupload
+/// the run or upload it for the first time in offline mode.
+///
+/// Since Records are persistent, and a new `wandb` version can be used to
+/// sync an older transaction log, it is important to follow proper protobuf
+/// versioning practices: <https://protobuf.dev/best-practices/>
+///
+/// Next ID: 28
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Record {
     #[prost(int64, tag = "1")]
@@ -625,7 +605,7 @@ pub struct Record {
     pub info: ::core::option::Option<RecordInfo>,
     #[prost(
         oneof = "record::RecordType",
-        tags = "2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 17, 18, 20, 21, 22, 23, 24, 25, 26, 100"
+        tags = "2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 17, 18, 20, 21, 22, 23, 24, 25, 26, 27, 100"
     )]
     pub record_type: ::core::option::Option<record::RecordType>,
 }
@@ -678,6 +658,8 @@ pub mod record {
         UseArtifact(super::UseArtifactRecord),
         #[prost(message, tag = "26")]
         Environment(super::EnvironmentRecord),
+        #[prost(message, tag = "27")]
+        OutputLogger(super::OutputLoggerRecord),
         /// request field does not belong here longterm
         #[prost(message, tag = "100")]
         Request(super::Request),
@@ -908,18 +890,51 @@ pub mod error_info {
         }
     }
 }
-/// RunExitRecord: exit status of process
+/// Complete the run and wait for it to upload.
+///
+/// This record is special because it is written to the transaction log
+/// but also requires a response, unlike other record types. It plays an
+/// important role in finishing a run: First, after sending this, the client
+/// guarantees not to send any more run-modifying records (but can still query
+/// things like OperationStats). Second, a response to this record means
+/// that all of the run's data has been uploaded.
+///
+/// After getting a response to this record, the client may make some final
+/// queries and must end with an "inform_finish" request to allow the internal
+/// service to clean up.
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct RunExitRecord {
+    /// Whether to mark the run successful (if zero) or failed (if nonzero).
+    ///
+    /// Ignored if not_complete
     #[prost(int32, tag = "1")]
     pub exit_code: i32,
+    /// If set, keeps the run in the Running state instead of transitioning it
+    /// to a completed state.
+    ///
+    /// If not set, the value of the x_update_finish_state setting is used.
+    /// Prefer to rely on the setting instead of this field.
+    ///
+    /// This is used in "shared" mode by secondary nodes. Only the primary node
+    /// for a run sets its completion state.
+    #[prost(bool, tag = "3")]
+    pub not_complete: bool,
     #[prost(int32, tag = "2")]
     pub runtime: i32,
     #[prost(message, optional, tag = "200")]
     pub info: ::core::option::Option<RecordInfo>,
 }
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
-pub struct RunExitResult {}
+pub struct RunExitResult {
+    /// If true, the run's data may not have been fully uploaded due to
+    /// a configured timeout.
+    ///
+    /// Clients should raise an error of some kind when this occurs
+    /// to allow users to decide how to proceed (whether to ignore
+    /// the error, print a message, or stop their script).
+    #[prost(bool, tag = "1")]
+    pub timed_out: bool,
+}
 /// RunPreemptingRecord: run being preempted
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct RunPreemptingRecord {
@@ -1027,7 +1042,7 @@ pub mod output_record {
 }
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct OutputResult {}
-/// OutputRawRecord: raw console output
+/// OutputRawRecord: raw console output from stderr and stout.
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct OutputRawRecord {
     #[prost(enumeration = "output_raw_record::OutputType", tag = "1")]
@@ -1080,6 +1095,12 @@ pub mod output_raw_record {
 }
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct OutputRawResult {}
+/// OutputLoggerRecord: log output from run.write_logs for the Logs tab.
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct OutputLoggerRecord {
+    #[prost(string, tag = "1")]
+    pub line: ::prost::alloc::string::String,
+}
 /// MetricRecord: wandb/sdk/wandb_metric/Metric
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct MetricRecord {
@@ -1585,12 +1606,21 @@ pub struct AlertRecord {
 }
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct AlertResult {}
-/// Request: all non persistent messages
+/// Runtime communication that's not part of a run's transaction log.
+///
+/// Unlike Records, Requests are not necessary to recreate a run and are not
+/// stored in its transaction log. They are generally used to either get
+/// information about a run (like whether it stopped, or if there are
+/// warnings) or to control the logging process (like to add to the current
+/// step with a PartialHistoryRequest, which produces artificial Records
+/// when a step is committed).
+///
+/// Next ID: 84
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Request {
     #[prost(
         oneof = "request::RequestType",
-        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 17, 20, 21, 23, 24, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 77, 78, 79, 81, 82, 83, 1000"
+        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 17, 20, 21, 23, 24, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 77, 78, 81, 82, 83, 1000"
     )]
     pub request_type: ::core::option::Option<request::RequestType>,
 }
@@ -1662,8 +1692,6 @@ pub mod request {
         JobInput(super::JobInputRequest),
         #[prost(message, tag = "78")]
         LinkArtifact(super::LinkArtifactRequest),
-        #[prost(message, tag = "79")]
-        RunFinishWithoutExit(super::RunFinishWithoutExitRequest),
         #[prost(message, tag = "81")]
         SyncFinish(super::SyncFinishRequest),
         /// Requests information about tasks the service is performing.
@@ -1681,7 +1709,7 @@ pub mod request {
 pub struct Response {
     #[prost(
         oneof = "response::ResponseType",
-        tags = "18, 19, 20, 24, 25, 26, 27, 28, 29, 30, 31, 35, 36, 37, 64, 65, 66, 67, 68, 69, 71, 70, 72, 74, 1000"
+        tags = "18, 19, 20, 24, 25, 26, 27, 28, 29, 30, 31, 35, 36, 37, 64, 65, 66, 67, 68, 69, 71, 70, 74, 1000"
     )]
     pub response_type: ::core::option::Option<response::ResponseType>,
 }
@@ -1733,8 +1761,6 @@ pub mod response {
         LinkArtifactResponse(super::LinkArtifactResponse),
         #[prost(message, tag = "70")]
         SyncResponse(super::SyncResponse),
-        #[prost(message, tag = "72")]
-        RunFinishWithoutExitResponse(super::RunFinishWithoutExitResponse),
         #[prost(message, tag = "74")]
         OperationsResponse(super::OperationStatsResponse),
         #[prost(message, tag = "1000")]
@@ -1933,6 +1959,13 @@ pub struct HttpResponse {
 /// InternalMessagesRequest:
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct InternalMessagesRequest {
+    /// If true, block until there are messages or the run ends.
+    ///
+    /// The response is empty if and only if the run is over.
+    /// The request can be cancelled via the usual ServerCancelRequest
+    /// mechanism.
+    #[prost(bool, tag = "1")]
+    pub wait: bool,
     #[prost(message, optional, tag = "200")]
     pub info: ::core::option::Option<RequestInfo>,
 }
@@ -2339,14 +2372,6 @@ pub struct RunStartRequest {
 }
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct RunStartResponse {}
-/// RunFinishWithoutExitRequest: finish the run without updating the exit status on the server
-#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
-pub struct RunFinishWithoutExitRequest {
-    #[prost(message, optional, tag = "200")]
-    pub info: ::core::option::Option<RequestInfo>,
-}
-#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
-pub struct RunFinishWithoutExitResponse {}
 /// CheckVersion:
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct CheckVersionRequest {
@@ -2874,6 +2899,26 @@ pub enum ServerFeature {
     /// Indicates that the server supports both the artifact id and the birth artifact id in the artifact file download
     /// url.
     ArtifactV2DownloadHandlerSupportsArtifactId = 18,
+    /// Indicates that the server supports automation event RUN_METRIC_ZSCORE.
+    AutomationEventRunMetricZscore = 19,
+    /// Indicates that the server supports automation event RUN_STATE.
+    AutomationEventRunState = 20,
+    /// Indicates that the server supports automation action PUSH_NOTIFICATION.
+    AutomationActionPushNotification = 21,
+    /// Indicates that the server supports automation event ADD_ARTIFACT_TAG.
+    AutomationEventAddArtifactTag = 22,
+    /// Indicates that the server supports automation event ADD_COLLECTION_TAG.
+    AutomationEventAddCollectionTag = 23,
+    /// Indicates that the server supports automation event REMOVE_ARTIFACT_TAG.
+    AutomationEventRemoveArtifactTag = 24,
+    /// Indicates that the server supports automation event REMOVE_COLLECTION_TAG.
+    AutomationEventRemoveCollectionTag = 25,
+    /// Indicates that the server supports automation event UNLINK_ARTIFACT.
+    AutomationEventUnlinkArtifact = 26,
+    /// Indicates that the server supports User.triggers.
+    AutomationsOnUser = 27,
+    /// Indicates that the server supports Trigger.lastExecutedAt.
+    AutomationLastExecutedAt = 28,
 }
 impl ServerFeature {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -2917,6 +2962,24 @@ impl ServerFeature {
             Self::ArtifactV2DownloadHandlerSupportsArtifactId => {
                 "ARTIFACT_V2_DOWNLOAD_HANDLER_SUPPORTS_ARTIFACT_ID"
             }
+            Self::AutomationEventRunMetricZscore => "AUTOMATION_EVENT_RUN_METRIC_ZSCORE",
+            Self::AutomationEventRunState => "AUTOMATION_EVENT_RUN_STATE",
+            Self::AutomationActionPushNotification => {
+                "AUTOMATION_ACTION_PUSH_NOTIFICATION"
+            }
+            Self::AutomationEventAddArtifactTag => "AUTOMATION_EVENT_ADD_ARTIFACT_TAG",
+            Self::AutomationEventAddCollectionTag => {
+                "AUTOMATION_EVENT_ADD_COLLECTION_TAG"
+            }
+            Self::AutomationEventRemoveArtifactTag => {
+                "AUTOMATION_EVENT_REMOVE_ARTIFACT_TAG"
+            }
+            Self::AutomationEventRemoveCollectionTag => {
+                "AUTOMATION_EVENT_REMOVE_COLLECTION_TAG"
+            }
+            Self::AutomationEventUnlinkArtifact => "AUTOMATION_EVENT_UNLINK_ARTIFACT",
+            Self::AutomationsOnUser => "AUTOMATIONS_ON_USER",
+            Self::AutomationLastExecutedAt => "AUTOMATION_LAST_EXECUTED_AT",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -2959,6 +3022,30 @@ impl ServerFeature {
             "ARTIFACT_V2_DOWNLOAD_HANDLER_SUPPORTS_ARTIFACT_ID" => {
                 Some(Self::ArtifactV2DownloadHandlerSupportsArtifactId)
             }
+            "AUTOMATION_EVENT_RUN_METRIC_ZSCORE" => {
+                Some(Self::AutomationEventRunMetricZscore)
+            }
+            "AUTOMATION_EVENT_RUN_STATE" => Some(Self::AutomationEventRunState),
+            "AUTOMATION_ACTION_PUSH_NOTIFICATION" => {
+                Some(Self::AutomationActionPushNotification)
+            }
+            "AUTOMATION_EVENT_ADD_ARTIFACT_TAG" => {
+                Some(Self::AutomationEventAddArtifactTag)
+            }
+            "AUTOMATION_EVENT_ADD_COLLECTION_TAG" => {
+                Some(Self::AutomationEventAddCollectionTag)
+            }
+            "AUTOMATION_EVENT_REMOVE_ARTIFACT_TAG" => {
+                Some(Self::AutomationEventRemoveArtifactTag)
+            }
+            "AUTOMATION_EVENT_REMOVE_COLLECTION_TAG" => {
+                Some(Self::AutomationEventRemoveCollectionTag)
+            }
+            "AUTOMATION_EVENT_UNLINK_ARTIFACT" => {
+                Some(Self::AutomationEventUnlinkArtifact)
+            }
+            "AUTOMATIONS_ON_USER" => Some(Self::AutomationsOnUser),
+            "AUTOMATION_LAST_EXECUTED_AT" => Some(Self::AutomationLastExecutedAt),
             _ => None,
         }
     }

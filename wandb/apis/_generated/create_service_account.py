@@ -3,17 +3,15 @@
 
 from __future__ import annotations
 
-from typing import Optional
-
 from wandb._pydantic import GQLId, GQLResult
 
 
 class CreateServiceAccount(GQLResult):
-    result: Optional[CreateServiceAccountResult]
+    result: CreateServiceAccountResult | None
 
 
 class CreateServiceAccountResult(GQLResult):
-    user: Optional[CreateServiceAccountResultUser]
+    user: CreateServiceAccountResultUser | None
 
 
 class CreateServiceAccountResultUser(GQLResult):

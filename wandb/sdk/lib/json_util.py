@@ -1,82 +1,54 @@
+"""JSON helpers backed by pydantic-core, with stdlib fallback.
+
+The wrapper mirrors the stdlib `json` surface (`dumps`/`dump`/`loads`/`load`)
+and routes the hot path through `pydantic_core` for speed. Anything pydantic
+cannot do — unrecognized kwargs, unserializable objects without a fallback,
+etc. — is caught and re-tried with the stdlib so semantics stay aligned.
+"""
+
 from __future__ import annotations
 
 import json
 import logging
-import os
 from typing import Any
 
-from wandb import env
+import pydantic_core
 
 logger = logging.getLogger(__name__)
 
 
-try:
-    import wandb.vendor.wandb_orjson as orjson
+def dumps(obj: Any, **kwargs: Any) -> str:
+    """Serialize `obj` to a JSON string."""
+    try:
+        cls = kwargs.get("cls")
+        fallback = kwargs.get("default") or (cls and cls().default)
+        return pydantic_core.to_json(
+            obj,
+            indent=kwargs.get("indent"),
+            inf_nan_mode="constants",
+            fallback=fallback,
+        ).decode()
+    except Exception:
+        logger.exception("pydantic_core.to_json failed; using stdlib json")
+        return json.dumps(obj, **kwargs)
 
-    # Allow disabling orjson for compatibility and safety.
-    if not os.environ.get(env.DISABLE_ORJSON):
 
-        def dumps(obj: Any, **kwargs: Any) -> str:
-            """Wrapper for <json|orjson>.dumps."""
-            cls = kwargs.pop("cls", None)
-            try:
-                _kwargs = kwargs.copy()
-                if cls:
-                    _kwargs["default"] = cls.default
-                encoded = orjson.dumps(
-                    obj,
-                    option=orjson.OPT_NON_STR_KEYS | orjson.OPT_FAIL_ON_INVALID_FLOAT,  # type: ignore[attr-defined]
-                    **_kwargs,
-                ).decode()
-            except Exception:
-                logger.exception("Error using orjson.dumps")
-                if cls:
-                    kwargs["cls"] = cls
-                encoded = json.dumps(obj, **kwargs)
+def dump(obj: Any, fp: Any, **kwargs: Any) -> None:
+    """Serialize `obj` as JSON and write the result to `fp`."""
+    fp.write(dumps(obj, **kwargs))
 
-            return encoded  # type: ignore[no-any-return]
 
-        def dump(obj: Any, fp: Any, **kwargs: Any) -> None:
-            """Wrapper for <json|orjson>.dump."""
-            cls = kwargs.pop("cls", None)
-            try:
-                _kwargs = kwargs.copy()
-                if cls:
-                    _kwargs["default"] = cls.default
-                encoded = orjson.dumps(
-                    obj,
-                    option=orjson.OPT_NON_STR_KEYS | orjson.OPT_FAIL_ON_INVALID_FLOAT,  # type: ignore[attr-defined]
-                    **_kwargs,
-                )
-                fp.write(encoded.decode())
-            except Exception:
-                logger.exception("Error using orjson.dump")
-                if cls:
-                    kwargs["cls"] = cls
-                json.dump(obj, fp, **kwargs)
+def loads(s: str | bytes | bytearray, **kwargs: Any) -> Any:
+    """Deserialize a JSON string to a Python object."""
+    if kwargs:
+        return json.loads(s, **kwargs)
+    try:
+        return pydantic_core.from_json(s)
+    except Exception:
+        logger.exception("pydantic_core.from_json failed; using stdlib json")
+        return json.loads(s)
 
-        def loads(obj: str | bytes) -> Any:
-            """Wrapper for orjson.loads."""
-            try:
-                decoded = orjson.loads(obj)
-            except Exception:
-                logger.exception("Error using orjson.loads")
-                decoded = json.loads(obj)
 
-            return decoded
-
-        def load(fp: Any) -> Any:
-            """Wrapper for orjson.load."""
-            try:
-                decoded = orjson.loads(fp.read())
-            except Exception:
-                logger.exception("Error using orjson.load")
-                decoded = json.load(fp)
-
-            return decoded
-
-    else:
-        from json import dump, dumps, load, loads  # type: ignore[assignment]
-
-except ImportError:
-    from json import dump, dumps, load, loads  # type: ignore[assignment] # noqa: F401
+def load(fp: Any, **kwargs: Any) -> Any:
+    """Read JSON from `fp` and return the deserialized object."""
+    return loads(fp.read(), **kwargs)

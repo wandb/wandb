@@ -11,6 +11,46 @@ Unreleased changes are in [CHANGELOG.unreleased.md](CHANGELOG.unreleased.md).
 
 <!-- tools/changelog.py: insert here -->
 
+## [0.27.0] - 2026-05-14
+
+### Notable Changes
+
+This version drops support for Python 3.9 and Pydantic v1. Pydantic v2.6 or newer is now required.
+
+### Added
+
+- The `stop_on_fatal_error` setting to stop a run (using `stop_fn`) after a fatal error that prevents it from uploading metrics (@timoffex in https://github.com/wandb/wandb/pull/11774)
+- New `wandb.sandbox` package and the `wandb beta sandbox` cli for using wandb sandbox (@pingleiwandb in https://github.com/wandb/wandb/pull/11606)
+- The `finish_timeout` and `finish_timeout_raises` settings (@timoffex in https://github.com/wandb/wandb/pull/11737)
+- The `run.write_logs()` method to write text directly to the Logs tab (@itstania in https://github.com/wandb/wandb/pull/11702)
+- The `capture_loggers` setting to automatically capture `logging.Logger` logs using `write_logs()` (@itstania in https://github.com/wandb/wandb/pull/11702)
+
+### Changed
+
+- Changed CPU and memory system metric percentages in Linux containers to use cgroup v2 resource limits instead of host node totals. Set the private `x_stats_no_cgroup` setting to `True` to opt out (@dmitryduev in https://github.com/wandb/wandb/pull/11796)
+- Python 3.9 is no longer supported (@dmitryduev in https://github.com/wandb/wandb/pull/11841)
+
+### Removed
+
+- Pydantic v1 is no longer supported; `pydantic >= 2.6` is required. The vendored `wandb_orjson` extension and its `WANDB_DISABLE_ORJSON` / `WANDB_BUILD_SKIP_ORJSON` environment variables removed (@dmitryduev in https://github.com/wandb/wandb/pull/11869)
+
+## [0.26.1] - 2026-04-23
+
+### Added
+
+- `Api` methods returning artifacts, registries, automations, and related paginators now accept an optional `start` argument to resume iteration from a saved cursor (@tonyyli-wandb in https://github.com/wandb/wandb/pull/11651)
+- The `stop_fn` setting to customize how a run is stopped (@timoffex in https://github.com/wandb/wandb/pull/11773)
+  - Allows overriding the default of sending a SIGINT to the Python process
+
+### Changed
+
+- Unified keyboard navigation in W&B LEET TUI (`wandb beta leet` command): `wasd` and arrow keys are now interchangeable within each focused pane (chart focus in grids, item/page nav in lists), and `Home`/`End`/`PgUp`/`PgDn` work universally; the media pane retains its deliberate split where arrows scrub and `wasd` selects tiles (@dmitryduev in https://github.com/wandb/wandb/pull/11756)
+
+### Fixed
+
+- Made `wandb.init(id=run_id, reinit="create_new")` raise an error when another run in the same script with the same `run_id` is still running (@timoffex in https://github.com/wandb/wandb/pull/11759)
+- `wandb.Api` no longer raises an error for some api operations when offline mode is enabled via the `WANDB_MODE` environment variable or the `mode` setting. (@jacobromero in https://github.com/wandb/wandb/pull/11762)
+
 ## [0.26.0] - 2026-04-13
 
 ### Notable Changes

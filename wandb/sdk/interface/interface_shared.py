@@ -78,6 +78,17 @@ class InterfaceShared(InterfaceBase, abc.ABC):
         rec.output_raw.CopyFrom(outdata)
         self._publish(rec, nowait=nowait)
 
+    @override
+    def _publish_output_logger(
+        self,
+        outdata: pb.OutputLoggerRecord,
+        *,
+        nowait: bool = False,
+    ) -> None:
+        rec = pb.Record()
+        rec.output_logger.CopyFrom(outdata)
+        self._publish(rec, nowait=nowait)
+
     def _publish_cancel(self, cancel: pb.CancelRequest) -> None:
         rec = self._make_request(cancel=cancel)
         self._publish(rec)
@@ -130,8 +141,6 @@ class InterfaceShared(InterfaceBase, abc.ABC):
         pause: pb.PauseRequest | None = None,
         resume: pb.ResumeRequest | None = None,
         status: pb.StatusRequest | None = None,
-        stop_status: pb.StopStatusRequest | None = None,
-        internal_messages: pb.InternalMessagesRequest | None = None,
         network_status: pb.NetworkStatusRequest | None = None,
         poll_exit: pb.PollExitRequest | None = None,
         partial_history: pb.PartialHistoryRequest | None = None,
@@ -156,7 +165,6 @@ class InterfaceShared(InterfaceBase, abc.ABC):
         get_system_metrics: pb.GetSystemMetricsRequest | None = None,
         python_packages: pb.PythonPackagesRequest | None = None,
         job_input: pb.JobInputRequest | None = None,
-        run_finish_without_exit: pb.RunFinishWithoutExitRequest | None = None,
         probe_system_info: pb.ProbeSystemInfoRequest | None = None,
     ) -> pb.Record:
         request = pb.Request()
@@ -168,10 +176,6 @@ class InterfaceShared(InterfaceBase, abc.ABC):
             request.resume.CopyFrom(resume)
         elif status:
             request.status.CopyFrom(status)
-        elif stop_status:
-            request.stop_status.CopyFrom(stop_status)
-        elif internal_messages:
-            request.internal_messages.CopyFrom(internal_messages)
         elif network_status:
             request.network_status.CopyFrom(network_status)
         elif poll_exit:
@@ -220,8 +224,6 @@ class InterfaceShared(InterfaceBase, abc.ABC):
             request.python_packages.CopyFrom(python_packages)
         elif job_input:
             request.job_input.CopyFrom(job_input)
-        elif run_finish_without_exit:
-            request.run_finish_without_exit.CopyFrom(run_finish_without_exit)
         elif probe_system_info:
             request.probe_system_info.CopyFrom(probe_system_info)
         else:
@@ -410,10 +412,6 @@ class InterfaceShared(InterfaceBase, abc.ABC):
         req = self._make_request(status=status)
         return self._deliver(req)
 
-    def _publish_exit(self, exit_data: pb.RunExitRecord) -> None:
-        rec = self._make_record(exit=exit_data)
-        self._publish(rec)
-
     def _publish_keepalive(self, keepalive: pb.KeepaliveRequest) -> None:
         record = self._make_request(keepalive=keepalive)
         self._publish(record)
@@ -468,19 +466,6 @@ class InterfaceShared(InterfaceBase, abc.ABC):
         record = self._make_request(poll_exit=poll_exit)
         return self._deliver(record)
 
-    def _deliver_finish_without_exit(
-        self, run_finish_without_exit: pb.RunFinishWithoutExitRequest
-    ) -> MailboxHandle[pb.Result]:
-        record = self._make_request(run_finish_without_exit=run_finish_without_exit)
-        return self._deliver(record)
-
-    def _deliver_stop_status(
-        self,
-        stop_status: pb.StopStatusRequest,
-    ) -> MailboxHandle[pb.Result]:
-        record = self._make_request(stop_status=stop_status)
-        return self._deliver(record)
-
     def _deliver_attach(
         self,
         attach: pb.AttachRequest,
@@ -492,12 +477,6 @@ class InterfaceShared(InterfaceBase, abc.ABC):
         self, network_status: pb.NetworkStatusRequest
     ) -> MailboxHandle[pb.Result]:
         record = self._make_request(network_status=network_status)
-        return self._deliver(record)
-
-    def _deliver_internal_messages(
-        self, internal_message: pb.InternalMessagesRequest
-    ) -> MailboxHandle[pb.Result]:
-        record = self._make_request(internal_messages=internal_message)
         return self._deliver(record)
 
     def _deliver_request_sampled_history(

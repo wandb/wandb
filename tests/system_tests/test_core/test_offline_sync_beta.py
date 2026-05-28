@@ -3,8 +3,10 @@ from __future__ import annotations
 import asyncio
 import pathlib
 import re
-from typing import Callable
+from collections.abc import Callable
+from typing import cast
 
+import looptime
 import pytest
 import wandb
 from click.testing import CliRunner
@@ -167,14 +169,6 @@ class _Tester:
         return handle.map(to_response)
 
 
-@pytest.fixture
-def skip_asyncio_sleep(monkeypatch: pytest.MonkeyPatch):
-    async def do_nothing(duration: float) -> None:
-        _ = duration
-
-    monkeypatch.setattr(beta_sync, "_SLEEP", do_nothing)
-
-
 def _unauthenticate_for_test() -> None:
     """Clear auth to verify that syncing explicitly authenticates."""
     wbauth.unauthenticate_session(update_settings=True)
@@ -215,6 +209,23 @@ def test_syncs_run(
 
         files = snapshot.uploaded_files(run_id=run.id)
         assert "test_file.txt" in files
+
+
+def test_sync_reports_init_error(
+    runner: CliRunner,
+    wandb_backend_spy: WandbBackendSpy,
+):
+    with wandb.init(mode="offline") as run:
+        pass
+    gql = wandb_backend_spy.gql
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="UpsertBucket"),
+        gql.once(content="fake UpsertBucket error", status=400),
+    )
+
+    result = runner.invoke(cli.beta, f"sync {run.settings.sync_dir}")
+
+    assert "fake UpsertBucket error" in result.output
 
 
 def test_sync_defaults_to_wandb_dir(tmp_path: pathlib.Path, runner: CliRunner):
@@ -446,7 +457,6 @@ def test_prints_relative_paths(
     ]
 
 
-@pytest.mark.usefixtures("skip_asyncio_sleep")
 def test_prints_status_updates(
     tmp_path: pathlib.Path,
     emulated_terminal: EmulatedTerminal,
@@ -481,6 +491,10 @@ def test_prints_status_updates(
         await tester.respond_sync_status(new_infos=[], new_errors=[])
 
     async def do_test():
+        # Enable looptime to fast-forward any sleeping.
+        loop = asyncio.get_running_loop()
+        looptime.patch_event_loop(cast(asyncio.BaseEventLoop, loop))
+
         tester: Any = _Tester(mailbox=mailbox)
 
         async with asyncio_compat.open_task_group(exit_timeout=5) as group:

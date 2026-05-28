@@ -3,8 +3,6 @@
 
 from __future__ import annotations
 
-from typing import List, Optional
-
 from pydantic import Field
 
 from wandb._pydantic import GQLResult
@@ -13,7 +11,7 @@ from .fragments import RunInfoFragment
 
 
 class ArtifactUsedBy(GQLResult):
-    artifact: Optional[ArtifactUsedByArtifact]
+    artifact: ArtifactUsedByArtifact | None
 
 
 class ArtifactUsedByArtifact(GQLResult):
@@ -21,7 +19,7 @@ class ArtifactUsedByArtifact(GQLResult):
 
 
 class ArtifactUsedByArtifactUsedBy(GQLResult):
-    edges: List[ArtifactUsedByArtifactUsedByEdges]
+    edges: list[ArtifactUsedByArtifactUsedByEdges]
 
 
 class ArtifactUsedByArtifactUsedByEdges(GQLResult):

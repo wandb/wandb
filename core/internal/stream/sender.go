@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/Khan/genqlient/graphql"
@@ -55,6 +56,7 @@ type SenderFactory struct {
 	RunfilesUploaderFactory *runfiles.UploaderFactory
 	GraphqlClient           graphql.Client
 	Peeker                  *observability.Peeker
+	Printer                 *observability.Printer
 	RunHandle               *runhandle.RunHandle
 	Mailbox                 *mailbox.Mailbox
 }
@@ -108,26 +110,8 @@ type Sender struct {
 	// runSummary is the full summary for the run
 	runSummary *runsummary.RunSummary
 
-	// receivedExit is true once the Sender receives an Exit
-	// or FinishWithoutExit record.
+	// receivedExit is true once the Sender receives an Exit record.
 	receivedExit bool
-
-	// exitWithoutCode is true if the run should not upload an exit code.
-	exitWithoutCode bool
-
-	// exitCode is the exit code received by the Sender.
-	exitCode int32
-
-	// exitRequest is the request for an Exit record.
-	//
-	// It may be nil even if receivedExit is true, which just means that
-	// a response is not necessary.
-	exitRequest *runwork.Request
-
-	// finishWithoutExitRequest is the request for a FinishWithoutExit record.
-	//
-	// It's like exitRequest, but requires a different response type.
-	finishWithoutExitRequest *runwork.Request
 
 	// jobBuilder is the job builder for creating jobs from the run
 	// that allow users to re-run the run with different configurations
@@ -135,6 +119,9 @@ type Sender struct {
 
 	// networkPeeker is a helper for peeking into network responses
 	networkPeeker *observability.Peeker
+
+	// printer sends messages to display in the run's terminal.
+	printer *observability.Printer
 
 	// mailbox is used to store cancel functions for each mailbox slot
 	mailbox *mailbox.Mailbox
@@ -205,6 +192,7 @@ func (f *SenderFactory) New(runWork runwork.RunWork) *Sender {
 			),
 		),
 		networkPeeker:     f.Peeker,
+		printer:           f.Printer,
 		graphqlClient:     f.GraphqlClient,
 		mailbox:           f.Mailbox,
 		runHandle:         f.RunHandle,
@@ -299,22 +287,6 @@ func (s *Sender) respond(
 	})
 }
 
-// respondToExit responds with a "RunExitResult" proto.
-func (s *Sender) respondToExit(
-	request *runwork.Request,
-	exit *spb.RunExitResult,
-) {
-	request.Respond(&spb.ServerResponse{
-		ServerResponseType: &spb.ServerResponse_ResultCommunicate{
-			ResultCommunicate: &spb.Result{
-				ResultType: &spb.Result_ExitResult{
-					ExitResult: exit,
-				},
-			},
-		},
-	})
-}
-
 func (s *Sender) SendRecord(record *spb.Record, request *runwork.Request) {
 	// this is for testing purposes only yet
 	s.sendRecord(record, request)
@@ -349,6 +321,8 @@ func (s *Sender) sendRecord(record *spb.Record, request *runwork.Request) {
 		s.sendSystemMetrics(x.Stats)
 	case *spb.Record_OutputRaw:
 		s.sendOutputRaw(record, x.OutputRaw)
+	case *spb.Record_OutputLogger:
+		s.sendOutputLogger(record, x.OutputLogger)
 	case *spb.Record_Output:
 		s.sendOutput(record, x.Output)
 	case *spb.Record_Telemetry:
@@ -403,8 +377,6 @@ func (s *Sender) sendRequest(
 		s.sendRequestStopStatus(request)
 	case *spb.Request_JobInput:
 		s.sendRequestJobInput(x.JobInput)
-	case *spb.Request_RunFinishWithoutExit:
-		s.sendRequestRunFinishWithoutExit(x.RunFinishWithoutExit, request)
 	case nil:
 		s.logger.CaptureFatalAndPanic(
 			errors.New("sender: sendRequest: nil RequestType"))
@@ -540,10 +512,13 @@ func (s *Sender) sendJobFlush() {
 //
 // Everything happens in a separate goroutine during which the Sender
 // continues to process incoming work.
-func (s *Sender) startFinishRun() {
+func (s *Sender) startFinishRun(
+	exitRecord *spb.RunExitRecord,
+	exitRequest *runwork.Request,
+) {
 	go func() {
 		defer s.logger.Reraise()
-		s.finishRunSync()
+		s.finishRunSync(exitRecord, exitRequest)
 	}()
 }
 
@@ -555,7 +530,48 @@ func (s *Sender) startFinishRun() {
 //
 // This starts after an Exit record is received, after which no more
 // run-modifying records can be generated. Requests may still be processed.
-func (s *Sender) finishRunSync() {
+//
+// At the end, a response is sent to the exitRequest (if any).
+//
+// If the exit request is cancelled, the run is aborted.
+func (s *Sender) finishRunSync(
+	exitRecord *spb.RunExitRecord,
+	exitRequest *runwork.Request,
+) {
+	// NOTE: Using an atomic because timeout callback runs in a goroutine.
+	// It's possible we say we timed out when all data uploaded successfully
+	// if it got really close to the timeout, but that's OK.
+	var timedOut atomic.Bool
+
+	defer func() {
+		s.respondExit(exitRequest, timedOut.Load())
+	}()
+
+	// Abort upload operations after a timeout, if configured.
+	if timeout := s.settings.GetFinishTimeout(); timeout > 0 {
+		cancelTimeout := time.AfterFunc(
+			timeout,
+			func() {
+				s.printer.Errorf("Timed out finishing run.")
+				timedOut.Store(true)
+				s.runWork.Abort()
+			},
+		)
+		defer cancelTimeout.Stop()
+	}
+
+	// Abort upload operations if the Exit request is cancelled before
+	// we can respond to it.
+	//
+	// The shutdown stages will all still happen, but faster.
+	if exitRequest != nil {
+		cancelAbortOnRequestFinish := context.AfterFunc(
+			exitRequest.Context(),
+			s.runWork.Abort,
+		)
+		defer cancelAbortOnRequestFinish()
+	}
+
 	// Finish uploading captured console logs.
 	s.consoleLogsSender.Finish()
 
@@ -593,7 +609,11 @@ func (s *Sender) finishRunSync() {
 
 	// Mark the run finished.
 	if s.fileStream != nil {
-		s.finishFileStream()
+		if exitRecord.NotComplete || !s.settings.ShouldUpdateFinishState() {
+			s.fileStream.FinishWithoutExit()
+		} else {
+			s.fileStream.FinishWithExit(exitRecord.ExitCode)
+		}
 	}
 
 	// Indicate that `run.finish()` is done.
@@ -603,29 +623,28 @@ func (s *Sender) finishRunSync() {
 	// the progress bar shown in Jupyter. Yes, that was the only purpose.
 	s.fileTransferStats.SetDone()
 
-	// Respond to the client's exit record, if necessary.
-	if s.exitRequest != nil {
-		s.respondToExit(s.exitRequest, &spb.RunExitResult{})
-	}
-	if s.finishWithoutExitRequest != nil {
-		s.respond(s.finishWithoutExitRequest, &spb.Response{
-			ResponseType: &spb.Response_RunFinishWithoutExitResponse{},
-		})
-	}
-
-	// Prevent any new work from being added.
-	//
-	// Note that any work queued up at this point still gets processed.
-	s.runWork.SetDone()
+	// Unblock any printer reads.
+	s.printer.Close()
 }
 
-// finishFileStream waits for FileStream uploads to complete.
-func (s *Sender) finishFileStream() {
-	if s.exitWithoutCode {
-		s.fileStream.FinishWithoutExit()
-	} else {
-		s.fileStream.FinishWithExit(s.exitCode)
+// respondExit constructs and sends a response to an exit request.
+func (s *Sender) respondExit(
+	exitRequest *runwork.Request,
+	timedOut bool,
+) {
+	exitResponse := &spb.ServerResponse{
+		ServerResponseType: &spb.ServerResponse_ResultCommunicate{
+			ResultCommunicate: &spb.Result{
+				ResultType: &spb.Result_ExitResult{
+					ExitResult: &spb.RunExitResult{
+						TimedOut: timedOut,
+					},
+				},
+			},
+		},
 	}
+
+	exitRequest.Respond(exitResponse)
 }
 
 func (s *Sender) sendTelemetry(_ *spb.Record, telemetry *spb.TelemetryRecord) {
@@ -923,6 +942,15 @@ func (s *Sender) sendOutputRaw(_ *spb.Record, outputRaw *spb.OutputRawRecord) {
 	s.consoleLogsSender.StreamLogs(outputRaw)
 }
 
+func (s *Sender) sendOutputLogger(_ *spb.Record, outputLogger *spb.OutputLoggerRecord) {
+	if s.receivedExit {
+		s.logCalledAfterExit("sendOutputLogger")
+		return
+	}
+
+	s.consoleLogsSender.StreamLoggerOutput(outputLogger)
+}
+
 func (s *Sender) sendAlert(_ *spb.Record, alert *spb.AlertRecord) {
 	if s.graphqlClient == nil {
 		return
@@ -961,36 +989,22 @@ func (s *Sender) sendAlert(_ *spb.Record, alert *spb.AlertRecord) {
 
 }
 
-// sendRequestRunFinishWithoutExit triggers the shutdown of the stream without
-// marking the run as finished on the server.
-func (s *Sender) sendRequestRunFinishWithoutExit(
-	_ *spb.RunFinishWithoutExitRequest,
+// sendExit sends an exit record to the server and triggers the shutdown of
+// the stream.
+func (s *Sender) sendExit(
+	record *spb.RunExitRecord,
 	request *runwork.Request,
 ) {
 	if s.receivedExit {
 		s.logger.CaptureError(
 			errors.New("sender: received exit more than once, ignoring"))
+		request.WillNotRespond()
 		return
 	}
 
-	s.exitWithoutCode = true
-	s.finishWithoutExitRequest = request
+	s.receivedExit = true
 
-	s.startFinishRun()
-}
-
-// sendExit sends an exit record to the server and triggers the shutdown of
-// the stream.
-func (s *Sender) sendExit(_ *spb.RunExitRecord, request *runwork.Request) {
-	if s.receivedExit {
-		s.logger.CaptureError(
-			errors.New("sender: received exit more than once, ignoring"))
-		return
-	}
-
-	s.exitRequest = request
-
-	s.startFinishRun()
+	s.startFinishRun(record, request)
 }
 
 // sendMetric updates the metrics in the run config.

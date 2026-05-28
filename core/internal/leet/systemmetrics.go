@@ -196,12 +196,16 @@ var metricDefs = []MetricDef{
 	// TPU metrics — per-device gauges
 	{Name: "TPU Tensorcore Utilization", Unit: UnitPercent, MinY: 0, MaxY: 100, Percentage: true,
 		Regex: regexp.MustCompile(`^tpu\.\d+\.tensorcoreUtilization(/l:.+)?$`)},
+	{Name: "TPU Tensorcore Idle Duration", Unit: UnitScalar, MinY: 0, MaxY: 100, AutoRange: true,
+		Regex: regexp.MustCompile(`^tpu\.\d+\.tensorcoreIdleDuration(/l:.+)?$`)},
 	{Name: "TPU Duty Cycle", Unit: UnitPercent, MinY: 0, MaxY: 100, Percentage: true,
 		Regex: regexp.MustCompile(`^tpu\.\d+\.dutyCycle(/l:.+)?$`)},
 	{Name: "TPU HBM Capacity Total", Unit: UnitBytes, MinY: 0, MaxY: 32, AutoRange: true,
 		Regex: regexp.MustCompile(`^tpu\.\d+\.hbmCapacityTotal(/l:.+)?$`)},
 	{Name: "TPU HBM Capacity Usage", Unit: UnitBytes, MinY: 0, MaxY: 32, AutoRange: true,
 		Regex: regexp.MustCompile(`^tpu\.\d+\.hbmCapacityUsage(/l:.+)?$`)},
+	{Name: "TPU Runtime HBM Utilization", Unit: UnitPercent, MinY: 0, MaxY: 100, Percentage: true,
+		Regex: regexp.MustCompile(`^tpu\.\d+\.runtimeHbmUtilization(/l:.+)?$`)},
 	{Name: "TPU HBM Memory Usage", Unit: UnitPercent, MinY: 0, MaxY: 100, Percentage: true,
 		Regex: regexp.MustCompile(`^tpu\.\d+\.hbmMemoryUsage(/l:.+)?$`)},
 	// TPU metrics — latency distributions (labeled: .label.statUs)

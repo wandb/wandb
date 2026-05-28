@@ -29,23 +29,23 @@ SOFTWARE.
 use std::{
     collections::HashMap,
     marker::{PhantomData, PhantomPinned},
-    mem::{size_of, MaybeUninit},
+    mem::{MaybeUninit, size_of},
     os::raw::c_void,
     ptr::null,
 };
 
 use core_foundation::{
     array::{CFArrayGetCount, CFArrayGetValueAtIndex, CFArrayRef},
-    base::{kCFAllocatorDefault, kCFAllocatorNull, CFAllocatorRef, CFRange, CFRelease, CFTypeRef},
+    base::{CFAllocatorRef, CFRange, CFRelease, CFTypeRef, kCFAllocatorDefault, kCFAllocatorNull},
     data::{CFDataGetBytes, CFDataGetLength, CFDataRef},
     dictionary::{
-        kCFTypeDictionaryKeyCallBacks, kCFTypeDictionaryValueCallBacks, CFDictionaryCreate,
-        CFDictionaryCreateMutableCopy, CFDictionaryGetCount, CFDictionaryGetKeysAndValues,
-        CFDictionaryGetValue, CFDictionaryRef, CFMutableDictionaryRef,
+        CFDictionaryCreate, CFDictionaryCreateMutableCopy, CFDictionaryGetCount,
+        CFDictionaryGetKeysAndValues, CFDictionaryGetValue, CFDictionaryRef,
+        CFMutableDictionaryRef, kCFTypeDictionaryKeyCallBacks, kCFTypeDictionaryValueCallBacks,
     },
-    number::{kCFNumberSInt32Type, CFNumberCreate, CFNumberRef},
+    number::{CFNumberCreate, CFNumberRef, kCFNumberSInt32Type},
     string::{
-        kCFStringEncodingUTF8, CFStringCreateWithBytesNoCopy, CFStringGetCString, CFStringRef,
+        CFStringCreateWithBytesNoCopy, CFStringGetCString, CFStringRef, kCFStringEncodingUTF8,
     },
 };
 use serde::Serialize;

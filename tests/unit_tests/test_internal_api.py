@@ -5,10 +5,10 @@ import hashlib
 import os
 import pathlib
 import tempfile
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from itertools import chain
 from pathlib import Path
-from typing import Callable, TypeVar, Union
+from typing import TypeVar
 from unittest.mock import Mock, call, patch
 
 import pytest
@@ -20,6 +20,7 @@ from pytest_mock import MockerFixture
 from responses import RequestsMock
 from wandb.apis import internal
 from wandb.errors import CommError
+from wandb.proto import wandb_api_pb2 as apb
 from wandb.proto.wandb_internal_pb2 import ServerFeature
 from wandb.sdk.internal.internal_api import (
     _match_org_with_fetched_org_entities,
@@ -27,6 +28,7 @@ from wandb.sdk.internal.internal_api import (
 )
 from wandb.sdk.launch.sweeps import SweepNotFoundError
 from wandb.sdk.lib import retry
+from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 
 from .test_retry import MockTime, mock_time  # noqa: F401
 
@@ -49,13 +51,10 @@ def test_agent_heartbeat_raises_sweep_not_found_on_404():
     """Test that agent_heartbeat raises SweepNotFoundError on 404."""
     a = internal.Api()
 
-    mock_response = Mock()
-    mock_response.status_code = 404
+    error_response = apb.ApiErrorResponse(message="not found", http_status=404)
+    error = WandbApiFailedError(error_response.message, error_response)
 
-    http_error = requests.exceptions.HTTPError()
-    http_error.response = mock_response
-
-    with patch.object(a.api, "gql", side_effect=http_error):
+    with patch.object(a.api, "execute", side_effect=error):
         with pytest.raises(SweepNotFoundError):
             a.agent_heartbeat("test-agent-id", {}, {})
 
@@ -64,13 +63,10 @@ def test_agent_heartbeat_returns_empty_on_non_404_error():
     """Test that non-404 HTTP errors return empty list instead of raising."""
     a = internal.Api()
 
-    mock_response = Mock()
-    mock_response.status_code = 500
+    error_response = apb.ApiErrorResponse(message="server error", http_status=500)
+    error = WandbApiFailedError(error_response.message, error_response)
 
-    http_error = requests.exceptions.HTTPError()
-    http_error.response = mock_response
-
-    with patch.object(a.api, "gql", side_effect=http_error):
+    with patch.object(a.api, "execute", side_effect=error):
         result = a.agent_heartbeat("test-agent-id", {}, {})
         assert result == []
 
@@ -79,13 +75,34 @@ def test_get_run_state_invalid_kwargs():
     with pytest.raises(CommError) as e:
         _api = internal.Api()
 
-        def _mock_gql(*args, **kwargs):
+        def _mock_execute(*args, **kwargs):
             return dict()
 
-        _api.api.gql = _mock_gql
+        _api.api.execute = _mock_execute
         _api.get_run_state("test_entity", None, "test_run")
 
     assert "Error fetching run state" in str(e.value)
+
+
+def test_execute_propagates_service_api_errors(mocker: MockerFixture):
+    service_api = mocker.Mock()
+    error_response = apb.ApiErrorResponse(message="server unavailable")
+    service_api.execute_graphql.side_effect = WandbApiFailedError(
+        error_response.message,
+        error_response,
+    )
+    mocker.patch(
+        "wandb.sdk.internal.internal_api.Api._new_service_api",
+        return_value=service_api,
+    )
+    api = internal.InternalApi()
+
+    with pytest.raises(WandbApiFailedError):
+        api.execute("query Viewer { viewer { id } }")
+
+    service_api.execute_graphql.assert_called_once_with(
+        "query Viewer { viewer { id } }"
+    )
 
 
 @pytest.mark.parametrize(
@@ -146,7 +163,7 @@ def test_internal_api_with_no_write_global_config_dir(
 
 @pytest.fixture
 def mock_gql():
-    with patch("wandb.sdk.internal.internal_api.Api.gql") as mock:
+    with patch("wandb.sdk.internal.internal_api.Api.execute") as mock:
         mock.return_value = None
         yield mock
 
@@ -412,7 +429,7 @@ def test_resolve_org_entity_name_with_multiple_orgs_invalid_org(api_with_multipl
         api_with_multiple_orgs._resolve_org_entity_name("entity", "potato-org")
 
 
-MockResponseOrException = Union[Exception, tuple[int, Mapping[int, int], str]]
+MockResponseOrException = Exception | tuple[int, Mapping[int, int], str]
 
 
 class TestUploadFile:
@@ -771,39 +788,42 @@ ENABLED_FEATURE_RESPONSE = {
 
 
 @pytest.fixture
-def mock_client(mocker: MockerFixture):
-    mock = mocker.patch("wandb.sdk.internal.internal_api.Client")
-    mock.return_value = mocker.Mock()
-    yield mock.return_value
+def mock_service_api(mocker: MockerFixture):
+    mock = mocker.Mock()
+    mocker.patch(
+        "wandb.sdk.internal.internal_api.Api._new_service_api",
+        return_value=mock,
+    )
+    yield mock
 
 
 @pytest.fixture
-def mock_client_with_enabled_features(mock_client):
-    mock_client.execute.return_value = ENABLED_FEATURE_RESPONSE
-    yield mock_client
+def mock_service_api_with_enabled_features(mock_service_api):
+    mock_service_api.execute_graphql.return_value = ENABLED_FEATURE_RESPONSE
+    yield mock_service_api
 
 
 NO_FEATURES_RESPONSE = {"serverInfo": {"features": []}}
 
 
 @pytest.fixture
-def mock_client_with_no_features(mock_client):
-    mock_client.execute.return_value = NO_FEATURES_RESPONSE
-    yield mock_client
+def mock_service_api_with_no_features(mock_service_api):
+    mock_service_api.execute_graphql.return_value = NO_FEATURES_RESPONSE
+    yield mock_service_api
 
 
 @pytest.fixture
-def mock_client_with_error_no_field(mock_client):
+def mock_service_api_with_error_no_field(mock_service_api):
     error_msg = 'Cannot query field "features" on type "ServerInfo".'
-    mock_client.execute.side_effect = Exception(error_msg)
-    yield mock_client
+    mock_service_api.execute_graphql.side_effect = Exception(error_msg)
+    yield mock_service_api
 
 
 @pytest.fixture
-def mock_client_with_random_error(mock_client):
+def mock_service_api_with_random_error(mock_service_api):
     error_msg = "Some random error"
-    mock_client.execute.side_effect = Exception(error_msg)
-    yield mock_client
+    mock_service_api.execute_graphql.side_effect = Exception(error_msg)
+    yield mock_service_api
 
 
 @pytest.mark.parametrize(
@@ -811,42 +831,42 @@ def mock_client_with_random_error(mock_client):
     [
         (
             # Test enabled features
-            mock_client_with_enabled_features.__name__,
+            mock_service_api_with_enabled_features.__name__,
             ServerFeature.LARGE_FILENAMES,
             True,
             False,
         ),
         (
             # Test disabled features
-            mock_client_with_enabled_features.__name__,
+            mock_service_api_with_enabled_features.__name__,
             ServerFeature.ARTIFACT_TAGS,
             False,
             False,
         ),
         (
             # Test features not in response
-            mock_client_with_enabled_features.__name__,
+            mock_service_api_with_enabled_features.__name__,
             ServerFeature.ARTIFACT_REGISTRY_SEARCH,
             False,
             False,
         ),
         (
             # Test empty features list
-            mock_client_with_no_features.__name__,
+            mock_service_api_with_no_features.__name__,
             ServerFeature.LARGE_FILENAMES,
             False,
             False,
         ),
         (
             # Test server not supporting features
-            mock_client_with_error_no_field.__name__,
+            mock_service_api_with_error_no_field.__name__,
             ServerFeature.LARGE_FILENAMES,
             False,
             False,
         ),
         (
             # Test other server errors
-            mock_client_with_random_error.__name__,
+            mock_service_api_with_random_error.__name__,
             ServerFeature.LARGE_FILENAMES,
             False,
             True,
@@ -966,7 +986,7 @@ def test_construct_use_artifact_query_without_entity_project():
 
 
 def test_construct_use_artifact_query_without_used_as():
-    # Test when server doesn't support usedAs field
+    # Test when no use_as value is provided.
     api = internal.InternalApi()
     api.settings = Mock(side_effect=lambda x: "default-" + x)
 
@@ -982,13 +1002,13 @@ def test_construct_use_artifact_query_without_used_as():
         project_name="test-project",
         run_name="test-run",
         artifact_id="test-artifact-id",
-        use_as="test-use-as",
+        use_as=None,
         artifact_entity_name="test-artifact-entity",
         artifact_project_name="test-artifact-project",
     )
     query_str = str(query)
 
-    # Verify usedAs is still in variables but not in query
+    # Verify usedAs is still in variables but not in query.
     assert "usedAs" in variables
     assert "usedAs:" not in query_str
 
@@ -1031,7 +1051,7 @@ class TestJWTAuth:
         )
 
         fetch_mock.assert_not_called()
-        assert api.client.transport.session.auth == ("api", "a" * 40)
+        assert api.request_auth == ("api", "a" * 40)
 
     def test_access_token_returns_none_without_token_file(self):
         api = internal.InternalApi(environ={})

@@ -152,7 +152,10 @@ INVALID_TAG_LISTS = (
     # Given an invalid + valid tag
     *([bad, "good-tag"] for bad in INVALID_TAGS),
     # Given pairs of invalid tags
-    *([bad1, bad2] for bad1, bad2 in zip(INVALID_TAGS[:-1], INVALID_TAGS[1:])),
+    *(
+        [bad1, bad2]
+        for bad1, bad2 in zip(INVALID_TAGS[:-1], INVALID_TAGS[1:], strict=False)
+    ),
 )
 
 
@@ -497,7 +500,7 @@ def test_artifact_enable_tracking_flag(user: str, api: Api, mocker):
 
     from_name_spy.assert_called_once_with(
         path=artifact_path_obj,
-        client=api.client,
+        service_api=api._service_api,
         enable_tracking=True,
     )
 
@@ -507,7 +510,7 @@ def test_artifact_enable_tracking_flag(user: str, api: Api, mocker):
 
     from_name_spy.assert_called_once_with(
         path=artifact_path_obj,
-        client=api.client,
+        service_api=api._service_api,
         enable_tracking=False,
     )
 

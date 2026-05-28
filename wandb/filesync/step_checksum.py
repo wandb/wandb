@@ -8,7 +8,7 @@ import os
 import queue
 import shutil
 import threading
-from typing import TYPE_CHECKING, NamedTuple, Union, cast
+from typing import TYPE_CHECKING, NamedTuple, cast
 
 from wandb.filesync import step_upload
 from wandb.sdk.lib import filesystem, runid
@@ -46,9 +46,9 @@ class RequestFinish(NamedTuple):
     callback: step_upload.OnRequestFinishFn | None
 
 
-Event = Union[
-    RequestUpload, RequestStoreManifestFiles, RequestCommitArtifact, RequestFinish
-]
+Event = (
+    RequestUpload | RequestStoreManifestFiles | RequestCommitArtifact | RequestFinish
+)
 
 
 class StepChecksum:

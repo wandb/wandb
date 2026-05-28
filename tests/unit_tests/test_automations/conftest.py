@@ -3,13 +3,12 @@ from __future__ import annotations
 import json
 import secrets
 from functools import cache
-from typing import Union
+from typing import TypeAlias
 from unittest.mock import Mock
 
 from hypothesis import settings
 from pytest import FixtureRequest, fixture, skip
 from pytest_mock import MockerFixture
-from typing_extensions import TypeAlias
 from wandb._strutils import b64encode_ascii
 from wandb.apis.public import ArtifactCollection, Project
 from wandb.automations import (
@@ -27,7 +26,13 @@ from wandb.automations import (
     SendWebhook,
 )
 from wandb.automations._utils import INVALID_INPUT_ACTIONS, INVALID_INPUT_EVENTS
-from wandb.automations.actions import InputAction, SavedAction, SavedNoOpAction
+from wandb.automations.actions import (
+    InputAction,
+    SavedAction,
+    SavedNoOpAction,
+    SavedNotificationAction,
+    SavedWebhookAction,
+)
 from wandb.automations.automations import Automation
 from wandb.automations.events import InputEvent, OnRunState, SavedEvent
 from wandb.sdk.artifacts._generated import ArtifactCollectionFragment
@@ -37,7 +42,7 @@ settings.register_profile("default", max_examples=100)
 settings.load_profile("default")
 
 
-ScopableWandbType: TypeAlias = Union[ArtifactCollection, Project]
+ScopableWandbType: TypeAlias = ArtifactCollection | Project
 
 
 # ---------------------------------------------------------------------------
@@ -75,9 +80,9 @@ def automation_id() -> str:
 @fixture(scope="session")
 def mock_client(session_mocker: MockerFixture) -> Mock:
     """A mocked wandb client to prevent real API calls."""
-    from wandb.apis.public import RetryingClient
+    from wandb.apis.public.service_api import ServiceApi
 
-    return session_mocker.Mock(spec=RetryingClient)
+    return session_mocker.Mock(spec=ServiceApi)
 
 
 @fixture(scope="session")
@@ -95,7 +100,7 @@ def artifact_collection(mock_client: Mock) -> ArtifactCollection:
     entity_name = "test-entity"
     collection_type = "dataset"
     collection = ArtifactCollection(
-        client=mock_client,
+        service_api=mock_client,
         entity=entity_name,
         project=project_name,
         name=collection_name,
@@ -132,7 +137,7 @@ def project(mock_client: Mock) -> Project:
     Tests relying on real `wandb.Api` calls should live in system tests.
     """
     return Project(
-        client=mock_client,
+        service_api=mock_client,
         entity="test-entity",
         project="test-project",
         attrs={
@@ -345,9 +350,25 @@ def input_action(request: FixtureRequest, action_type: ActionType) -> InputActio
     return request.getfixturevalue(action2fixture[action_type])
 
 
-@fixture
-def saved_action() -> SavedAction:
-    return SavedNoOpAction()
+@fixture(params=valid_input_actions())
+def saved_action(request: FixtureRequest) -> SavedAction:
+    match action_type := request.param:
+        case ActionType.NO_OP:
+            return SavedNoOpAction()
+        case ActionType.NOTIFICATION:
+            return SavedNotificationAction(
+                integration={"id": "PLACEHOLDER"},
+                title=None,
+                message=None,
+                severity=None,
+            )
+        case ActionType.GENERIC_WEBHOOK:
+            return SavedWebhookAction(
+                integration={"id": "PLACEHOLDER"},
+                request_payload=None,
+            )
+        case _:
+            raise ValueError(f"Unsupported saved action type: {action_type!r}")
 
 
 @fixture
@@ -389,12 +410,11 @@ def run_event_type(request: FixtureRequest) -> EventType:
 @fixture
 def run_event_filter_json(run_event_type: EventType) -> str:
     """A realistic JSON-serialized filter string for a run event type."""
-    if run_event_type is EventType.RUN_METRIC_THRESHOLD:
-        return json.dumps(
-            {
-                "run_filter": json.dumps(
-                    {"$and": [{"display_name": {"$contains": "my-run"}}]}
-                ),
+    run_filter = json.dumps({"$and": [{"display_name": {"$contains": "my-run"}}]})
+
+    match run_event_type:
+        case EventType.RUN_METRIC_THRESHOLD:
+            extra_filter = {
                 "run_metric_filter": {
                     "threshold_filter": {
                         "name": "my-metric",
@@ -403,20 +423,39 @@ def run_event_filter_json(run_event_type: EventType) -> str:
                         "cmp_op": "$gt",
                         "threshold": 0,
                     }
-                },
-                "metric_filter": None,
+                }
             }
-        )
-    if run_event_type is EventType.RUN_STATE:
-        return json.dumps(
-            {
-                "run_filter": json.dumps(
-                    {"$and": [{"display_name": {"$contains": "my-run"}}]}
-                ),
-                "run_state_filter": {"states": ["FAILED"]},
+        case EventType.RUN_METRIC_CHANGE:
+            extra_filter = {
+                "run_metric_filter": {
+                    "change_filter": {
+                        "name": "my-metric",
+                        "agg_op": "AVERAGE",
+                        "window_size": 5,
+                        "prior_window_size": 5,
+                        "change_dir": "ANY",
+                        "change_type": "RELATIVE",
+                        "change_amount": 123.45,
+                    }
+                }
             }
-        )
-    raise ValueError(f"Unsupported run event type: {run_event_type!r}")
+        case EventType.RUN_METRIC_ZSCORE:
+            extra_filter = {
+                "run_metric_filter": {
+                    "zscore_filter": {
+                        "name": "my-metric",
+                        "window_size": 5,
+                        "threshold": 3.0,
+                        "change_dir": "ANY",
+                    }
+                }
+            }
+        case EventType.RUN_STATE:
+            extra_filter = {"run_state_filter": {"states": ["FAILED"]}}
+        case _:
+            raise ValueError(f"Unsupported run event type: {run_event_type!r}")
+
+    return json.dumps({"run_filter": run_filter} | extra_filter)
 
 
 @fixture

@@ -8,24 +8,28 @@ import shutil
 import subprocess
 import textwrap
 import time
+from collections.abc import Callable
 from contextlib import contextmanager
-from typing import Any, Callable
+from typing import Any
 
 import nox
 
 nox.options.default_venv_backend = "uv"
 
-_SUPPORTED_PYTHONS = ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
+_SUPPORTED_PYTHONS = ["3.10", "3.11", "3.12", "3.13", "3.14"]
 
-# Protobuf Python bindings
+# Protobuf Python bindings.
 #
-# protobuf X.Y.Z uses protoc Y.Z
-# See https://protobuf.dev/support/version-support/
+# Each entry is the OLDEST protoc version in the corresponding Python runtime
+# major series. Using the oldest keeps the runtime-version check embedded in
+# the gencode permissive, so the bindings load against any protobuf X.y.z
+# runtime in the same major. Protobuf X.Y.Z corresponds to protoc Y.Z; see
+# https://protobuf.dev/support/version-support/.
 _PROTOC_FOR_PB = {
     4: "23.4",
-    5: "27.0",
-    6: "32.1",
-    7: "34.1",
+    5: "26.0",
+    6: "30.0",
+    7: "34.0",
 }
 
 # Directories in which to create temporary per-session directories
@@ -93,7 +97,7 @@ def _requirements_file(python_version: str) -> str:
     Uses the current platform as the platform tag.
 
     Args:
-        python_version: Python version string, like "3.9", "3.13".
+        python_version: Python version string, like "3.10", "3.13".
     """
     platform_tag = platform.system().lower()
 
@@ -140,8 +144,6 @@ def run_pytest(
         # which uses auth information from the home directory.
         "HOME": os.environ.get("HOME"),
         "CI": os.environ.get("CI"),
-        # Required for the importers tests
-        "WANDB_TEST_SERVER_URL2": os.environ.get("WANDB_TEST_SERVER_URL2"),
     }
 
     # Print 20 slowest tests.
@@ -194,7 +196,15 @@ def unit_tests(session: nox.Session) -> None:
     By default this runs all unit tests, but specific tests can be selected
     by passing them via positional arguments.
     """
-    install_wandb(session)
+    is_windows = platform.system() == "Windows"
+
+    if is_windows:
+        # Linux already exercises the heavier Go race/coverage build path.
+        # Skipping it on Windows keeps this job focused on Python compatibility
+        # and avoids multi-minute rebuilds.
+        session.env["WANDB_BUILD_SKIP_WANDB_XPU"] = "true"
+
+    install_wandb(session, dev=not is_windows)
 
     install_timed(
         session,
@@ -210,32 +220,7 @@ def unit_tests(session: nox.Session) -> None:
         session,
         paths=paths,
         # TODO: consider relaxing this once the test memory usage is under control.
-        opts={"n": "8"},
-    )
-
-
-@nox.session(python=_SUPPORTED_PYTHONS)
-def unit_tests_pydantic_v1(session: nox.Session) -> None:
-    """Runs a subset of Python unit tests with pydantic v1."""
-    install_wandb(session)
-    install_timed(
-        session,
-        "-r",
-        _requirements_file(session.python),
-    )
-    # force-downgrade pydantic to v1
-    install_timed(session, "pydantic<2")
-
-    run_pytest(
-        session,
-        paths=session.posargs
-        or [
-            "tests/unit_tests/test_wandb_settings.py",
-            "tests/unit_tests/test_wandb_run.py",
-            "tests/unit_tests/test_pydantic_v1_compat.py",
-            "tests/unit_tests/test_artifacts",
-        ],
-        opts={"n": "4"},
+        opts={"n": "4" if is_windows else "8"},
     )
 
 
@@ -251,7 +236,6 @@ def system_tests(session: nox.Session) -> None:
 
     paths = session.posargs or [
         "tests/system_tests",
-        "--ignore=tests/system_tests/test_importers",
         "--ignore=tests/system_tests/test_notebooks",
         "--ignore=tests/system_tests/test_functional",
         "--ignore=tests/system_tests/test_experimental",
@@ -595,6 +579,8 @@ def mypy_report(session: nox.Session) -> None:
     """
     session.install(
         "bokeh",
+        # wandb.sandbox imports typed symbols from the optional cwsandbox package.
+        "cwsandbox[cli]",
         "ipython",
         "lxml",
         # https://github.com/python/mypy/issues/17166
@@ -760,31 +746,6 @@ def combine_test_results(session: nox.Session) -> None:
     )
 
     shutil.rmtree(_NOX_PYTEST_RESULTS_DIR, ignore_errors=True)
-
-
-@nox.session(python=_SUPPORTED_PYTHONS)
-@nox.parametrize("importer", ["wandb", "mlflow"])
-def importer_tests(session: nox.Session, importer: str):
-    """Run importer tests for wandb->wandb and mlflow->wandb."""
-    install_wandb(session)
-    session.install("-r", _requirements_file(session.python))
-    if importer == "wandb":
-        session.install(".[workspaces]", "pydantic>=2")
-    elif importer == "mlflow":
-        session.install("pydantic<2")
-    session.install(
-        "polyfactory",
-        "polars<=1.2.1",
-        "rich",
-        "filelock",
-    )
-
-    run_pytest(
-        session,
-        paths=(
-            session.posargs or [f"tests/system_tests/test_importers/test_{importer}"]
-        ),
-    )
 
 
 @nox.session(name="wandb-core-size-check", python="3.12")

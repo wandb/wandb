@@ -218,6 +218,7 @@ func (r *Run) handleWindowResize(msg tea.WindowSizeMsg) {
 
 	layout := r.computeViewports()
 	r.metricsGrid.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
+	r.focusMgr.ResolveAfterAvailabilityChange()
 }
 
 // isUIMsg returns true for messages that should flow to child view models.
@@ -387,6 +388,18 @@ func (m *Run) logPanic(context string) {
 // Safe to call from any goroutine (reads an atomic.Bool).
 func (r *Run) isRunning() bool {
 	return r.liveRunning.Load()
+}
+
+// shouldResetLiveHeartbeat reports whether incremental data should re-arm the
+// live heartbeat safety net.
+//
+// During boot load we may already know the run is live, but we intentionally
+// avoid arming heartbeats until live streaming has fully started. Watcher and
+// heartbeat startup happen together after the initial history drain completes.
+func (r *Run) shouldResetLiveHeartbeat() bool {
+	return r.runState == RunStateRunning &&
+		r.watcherMgr != nil &&
+		r.watcherMgr.IsStarted()
 }
 
 // syncLiveRunning updates the atomic liveness flag from the authoritative state.

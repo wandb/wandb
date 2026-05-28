@@ -20,9 +20,8 @@ from wandb.wandb_agent import Agent
 
 def test_public_agent_repr():
     """Public API Agent.__repr__ uses id and state from attrs."""
-    client = mock.Mock()
     agent = PublicAgent(
-        client,
+        mock.Mock(),
         attrs={"id": "test-agent-id", "state": "RUNNING"},
         entity="test-entity",
         project="test-project",

@@ -101,6 +101,7 @@ SYMBOLS_ROOT_OTHER = {
     "run",
     "sacred",
     "sagemaker_auth",
+    "sandbox",
     "save",
     "sdk",
     "set_trace",
@@ -206,6 +207,7 @@ SYMBOLS_RUN = {
     "display",
     "settings",
     "status",
+    "write_logs",
 }
 
 # symbols having to do with resuming, we should clean this up

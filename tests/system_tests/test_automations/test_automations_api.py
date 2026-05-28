@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import math
 from collections import deque
-from typing import Any, Callable
+from collections.abc import Callable
+from itertools import islice
+from typing import Any
 
 import wandb
 from pytest import FixtureRequest, fixture, mark, raises, skip
@@ -737,7 +739,7 @@ class TestUpdateAutomation:
             old_automation.scope = artifact_collection
             module_api.update_automation(old_automation)
 
-    MUTATION_EVENT_TYPE_TO_CLASS = {
+    MUTATION_EVENT_CLASSES = {
         EventType.ADD_ARTIFACT_ALIAS: OnAddArtifactAlias,
         EventType.LINK_ARTIFACT: OnLinkArtifact,
         EventType.CREATE_ARTIFACT: OnCreateArtifact,
@@ -745,7 +747,7 @@ class TestUpdateAutomation:
 
     @mark.parametrize(
         "event_type",
-        sorted(MUTATION_EVENT_TYPE_TO_CLASS.keys()),
+        sorted(MUTATION_EVENT_CLASSES.keys()),
         indirect=True,
         ids=lambda x: f"event={x.value}",
     )
@@ -757,7 +759,7 @@ class TestUpdateAutomation:
         artifact_collection: ArtifactCollection,
     ):
         """Updating an automation with a new InputEvent must preserve the alias filter."""
-        event_cls = self.MUTATION_EVENT_TYPE_TO_CLASS[event_type]
+        event_cls = self.MUTATION_EVENT_CLASSES[event_type]
         new_event = event_cls(
             scope=artifact_collection,
             filter=ArtifactEvent.alias == "prod",
@@ -883,7 +885,9 @@ class TestPaginatedAutomations:
         automation_names = [make_name(f"automation-{i}") for i in range(num_projects)]
 
         created_automation_ids = deque()
-        for project_name, automation_name in zip(project_names, automation_names):
+        for project_name, automation_name in zip(
+            project_names, automation_names, strict=True
+        ):
             # Create the placeholder project for the automation
             setup_api.create_project(name=project_name, entity=module_user)
             project = setup_api.project(name=project_name, entity=module_user)
@@ -917,8 +921,8 @@ class TestPaginatedAutomations:
         num_projects,
         page_size,
     ):
-        # Spy on the client method that makes the GQL request.  Not ideal, but it may have to do for now
-        client_spy = mocker.spy(module_api.client, "execute")
+        # Spy on the service method that makes the GQL request.
+        client_spy = mocker.spy(module_api._service_api, "execute_graphql")
 
         # Fetch the automations
         list(module_api.automations(entity=module_user, per_page=page_size))
@@ -929,3 +933,28 @@ class TestPaginatedAutomations:
         expected_page_count = math.ceil(num_projects / page_size)
 
         assert client_spy.call_count >= expected_page_count
+
+    @mark.usefixtures(setup_paginated_automations.__name__)
+    def test_paginated_automations_start(
+        self,
+        module_user: str,
+        module_api: wandb.Api,
+        page_size,
+    ):
+        all_automations = list(
+            module_api.automations(entity=module_user, per_page=page_size)
+        )
+        all_ids = [a.id for a in all_automations]
+
+        paginator = module_api.automations(entity=module_user, per_page=page_size)
+        first_ids = [obj.id for obj in islice(paginator, page_size)]
+
+        saved_cursor = paginator.cursor
+        assert saved_cursor is not None
+
+        resumed_paginator = module_api.automations(
+            entity=module_user, per_page=page_size, start=saved_cursor
+        )
+        remaining_ids = [a.id for a in resumed_paginator]
+
+        assert all_ids == [*first_ids, *remaining_ids]

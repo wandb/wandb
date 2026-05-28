@@ -13,27 +13,26 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any
 
-from typing_extensions import Self
-from wandb_gql import gql
-
 from wandb.apis.attrs import Attrs
+from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 
 if TYPE_CHECKING:
-    from .api import Api, RetryingClient
+    from .api import Api
+    from .service_api import ServiceApi
 
 
 class Member(Attrs):
     """A member of a team.
 
     Args:
-        client (`wandb.apis.internal.Api`): The client instance to use
+        service_api: The service API instance to use for querying W&B.
         team (str): The name of the team this member belongs to
         attrs (dict): The member attributes
     """
 
-    def __init__(self, client: RetryingClient, team: str, attrs: Mapping[str, Any]):
+    def __init__(self, service_api: ServiceApi, team: str, attrs: Mapping[str, Any]):
         super().__init__(attrs)
-        self._client = client
+        self._service_api = service_api
         self.team = team
 
     def delete(self):
@@ -42,15 +41,14 @@ class Member(Attrs):
         Returns:
             Boolean indicating success
         """
-        from requests import HTTPError
-
         from wandb.apis._generated import DELETE_INVITE_GQL, DeleteInvite
 
         try:
-            data = self._client.execute(
-                gql(DELETE_INVITE_GQL), {"id": self.id, "entity": self.team}
+            data = self._service_api.execute_graphql(
+                DELETE_INVITE_GQL,
+                {"id": self.id, "entity": self.team},
             )
-        except HTTPError:
+        except WandbApiFailedError:
             return False
         else:
             result = DeleteInvite.model_validate(data).result
@@ -68,7 +66,7 @@ class Team(Attrs):
     to handle team attributes.
 
     Args:
-        client (`wandb.apis.public.Api`): The api instance to use
+        service_api: The service API instance to use for querying W&B.
         name (str): The name of the team
         attrs (dict): Optional dictionary of team attributes
 
@@ -78,17 +76,17 @@ class Team(Attrs):
 
     def __init__(
         self,
-        client: RetryingClient,
+        service_api: ServiceApi,
         name: str,
         attrs: Mapping[str, Any] | None = None,
     ):
         super().__init__(attrs or {})
-        self._client = client
+        self._service_api = service_api
         self.name = name
         self.load()
 
     @classmethod
-    def create(cls, api: Api, team: str, admin_username: str | None = None) -> Self:
+    def create(cls, api: Api, team: str, admin_username: str | None = None) -> Team:
         """Create a new team.
 
         Args:
@@ -99,18 +97,16 @@ class Team(Attrs):
         Returns:
             A `Team` object
         """
-        from requests import HTTPError
-
         from wandb.apis._generated import CREATE_TEAM_GQL
 
         try:
-            api.client.execute(
-                gql(CREATE_TEAM_GQL),
+            api._service_api.execute_graphql(
+                CREATE_TEAM_GQL,
                 {"teamName": team, "teamAdminUserName": admin_username},
             )
-        except HTTPError:
+        except WandbApiFailedError:
             pass
-        return cls(api.client, team)
+        return cls(api._service_api, team)
 
     def invite(self, username_or_email: str, admin: bool = False) -> bool:
         """Invite a user to a team.
@@ -124,8 +120,6 @@ class Team(Attrs):
         Returns:
             `True` on success, `False` if user was already invited or didn't exist.
         """
-        from requests import HTTPError
-
         from wandb.apis._generated import CREATE_INVITE_GQL
 
         variables = {
@@ -134,8 +128,8 @@ class Team(Attrs):
             ("email" if ("@" in username_or_email) else "username"): username_or_email,
         }
         try:
-            self._client.execute(gql(CREATE_INVITE_GQL), variables)
-        except HTTPError:
+            self._service_api.execute_graphql(CREATE_INVITE_GQL, variables)
+        except WandbApiFailedError:
             return False
         return True
 
@@ -148,18 +142,16 @@ class Team(Attrs):
         Returns:
             The service account `Member` object, or None on failure
         """
-        from requests import HTTPError
-
         from wandb.apis._generated import CREATE_SERVICE_ACCOUNT_GQL
 
         try:
-            self._client.execute(
-                gql(CREATE_SERVICE_ACCOUNT_GQL),
+            self._service_api.execute_graphql(
+                CREATE_SERVICE_ACCOUNT_GQL,
                 {"entity": self.name, "description": description},
             )
             self.load(True)
             return self.members[-1]
-        except HTTPError:
+        except WandbApiFailedError:
             return None
 
     def load(self, force: bool = False) -> dict[str, Any]:
@@ -170,11 +162,14 @@ class Team(Attrs):
         from wandb.apis._generated import GET_TEAM_ENTITY_GQL, GetTeamEntity
 
         if force or not self._attrs:
-            data = self._client.execute(gql(GET_TEAM_ENTITY_GQL), {"name": self.name})
+            data = self._service_api.execute_graphql(
+                GET_TEAM_ENTITY_GQL,
+                {"name": self.name},
+            )
             result = GetTeamEntity.model_validate(data)
             self._attrs = entity.model_dump() if (entity := result.entity) else {}
             self._attrs["members"] = [
-                Member(self._client, self.name, member)
+                Member(self._service_api, self.name, member)
                 for member in self._attrs["members"]
             ]
         return self._attrs

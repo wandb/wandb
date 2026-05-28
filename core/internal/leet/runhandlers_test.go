@@ -119,80 +119,126 @@ func TestRun_SidebarTabNav_OnlyOverviewVisible(t *testing.T) {
 		"logs should never get focus when collapsed")
 }
 
-// ---- handleSidebarVerticalNav ----
+func TestRun_InitialFocus_PicksFirstAvailablePane(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+	_ = cfg.SetLeftSidebarVisible(false)
+	_ = cfg.SetConsoleLogsVisible(true)
 
-func TestRun_SidebarVerticalNav_LogsFocused(t *testing.T) {
-	r := newRunForHandlerTest(t)
-	r.TestForceExpandConsoleLogsPane(10)
+	r := leet.NewRun("testdata/fake.wandb", cfg, logger)
+	r.Update(tea.WindowSizeMsg{Width: 200, Height: 60})
 
-	// Focus logs and add some data.
-	r.Update(tea.KeyPressMsg{Code: tea.KeyTab})
-	for !r.TestConsoleLogsPaneActive() {
-		r.Update(tea.KeyPressMsg{Code: tea.KeyTab})
-	}
-
-	// Vertical nav should not panic even without log data.
-	r.Update(tea.KeyPressMsg{Code: tea.KeyUp})
-	r.Update(tea.KeyPressMsg{Code: tea.KeyDown})
+	require.True(t, r.TestConsoleLogsPaneActive(),
+		"the first available pane should receive focus on load")
+	require.False(t, r.TestLeftSidebarHasActiveSection(),
+		"collapsed overview should not appear focused")
 }
 
-func TestRun_SidebarVerticalNav_OverviewFocused(t *testing.T) {
+func TestRun_OverviewUpdatesPreserveTabContext(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+	_ = cfg.SetLeftSidebarVisible(true)
+
+	r := leet.NewRun("testdata/fake.wandb", cfg, logger)
+	r.Update(tea.WindowSizeMsg{Width: 200, Height: 60})
+
+	r.TestHandleRecordMsg(leet.RunMsg{
+		ID:      "abc123",
+		Project: "test-project",
+		Config: &spb.ConfigRecord{
+			Update: []*spb.ConfigItem{
+				{NestedKey: []string{"lr"}, ValueJson: "0.01"},
+			},
+		},
+	})
+	require.Equal(t, 1, r.TestLeftSidebarActiveSectionIdx(),
+		"initial single-run focus should land on the first populated overview section")
+
+	r.TestHandleRecordMsg(leet.SystemInfoMsg{
+		Record: &spb.EnvironmentRecord{WriterId: "w1", Os: "linux"},
+	})
+	r.TestHandleRecordMsg(leet.SummaryMsg{
+		Summary: []*spb.SummaryRecord{{
+			Update: []*spb.SummaryItem{
+				{NestedKey: []string{"loss"}, ValueJson: "0.42"},
+			},
+		}},
+	})
+
+	r.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	require.Equal(t, 2, r.TestLeftSidebarActiveSectionIdx(),
+		"Tab should continue from Config to Summary after overview updates arrive")
+}
+
+// ---- Unified navigation: wasd/arrows aliasing + Home/End ----
+
+func TestRun_UnifiedNav_OverviewUsesCanonicalKeys(t *testing.T) {
 	r := newRunForHandlerTest(t)
-
-	// Sidebar should be focused with sections.
-	require.True(t, r.TestLeftSidebarHasActiveSection())
-
 	sidebar := r.TestGetLeftSidebar()
-	k1, _ := sidebar.SelectedItem()
-	require.NotEmpty(t, k1, "should have a selected item")
+	before, _ := sidebar.SelectedItem()
 
-	r.Update(tea.KeyPressMsg{Code: tea.KeyDown})
-	k2, _ := sidebar.SelectedItem()
-	// The selected item may or may not change (depends on section content),
-	// but it should not panic and should remain valid.
-	require.NotEmpty(t, k2)
+	r.Update(primaryNavMsg(t, leet.NavIntentDown))
+	afterPrimaryDown, _ := sidebar.SelectedItem()
+	require.NotEmpty(t, before)
+	require.NotEqual(t, before, afterPrimaryDown,
+		"the primary down binding should move the overview selection")
+
+	r.Update(primaryNavMsg(t, leet.NavIntentUp))
+	require.Equal(t, before, mustSelectedItem(t, sidebar),
+		"the primary up binding should undo the down move")
+
+	r.Update(secondaryNavMsg(t, leet.NavIntentDown))
+	require.Equal(t, afterPrimaryDown, mustSelectedItem(t, sidebar),
+		"the secondary down binding should match the primary binding")
+
+	r.Update(primaryNavMsg(t, leet.NavIntentHome))
+	afterHome, _ := sidebar.SelectedItem()
+	require.Equal(t, before, afterHome, "Home should return to the first item")
+
+	r.Update(primaryNavMsg(t, leet.NavIntentEnd))
+	afterEnd, _ := sidebar.SelectedItem()
+	require.NotEqual(t, afterHome, afterEnd,
+		"End should move the cursor away from the Home position")
 }
 
-func TestRun_SidebarVerticalNav_SidebarCollapsed(t *testing.T) {
+func TestRun_UnifiedNav_GridUsesCanonicalDirectionalKeys(t *testing.T) {
 	r := newRunForHandlerTest(t)
-	r.TestForceCollapseLeftSidebar()
 
-	// With sidebar collapsed, vertical nav should be a no-op.
-	r.Update(tea.KeyPressMsg{Code: tea.KeyUp})
-	r.Update(tea.KeyPressMsg{Code: tea.KeyDown})
+	// Seed enough metrics to form a 2x2 grid.
+	r.TestHandleRecordMsg(leet.HistoryMsg{Metrics: map[string]leet.MetricData{
+		"a": {X: []float64{1}, Y: []float64{1}},
+		"b": {X: []float64{1}, Y: []float64{2}},
+		"c": {X: []float64{1}, Y: []float64{3}},
+		"d": {X: []float64{1}, Y: []float64{4}},
+	}})
+
+	// Focus the metrics grid.
+	r.TestSetFocusTarget(int(leet.FocusTargetMetricsGrid))
+	r.TestSetMainChartFocus(0, 0)
+
+	focus := r.TestFocusState()
+	require.Equal(t, leet.FocusMainChart, focus.Type)
+	require.Equal(t, 0, focus.Row)
+	require.Equal(t, 0, focus.Col)
+
+	r.Update(primaryNavMsg(t, leet.NavIntentRight))
+	require.Equal(t, 1, focus.Col,
+		"the primary right binding should advance chart focus")
+
+	r.TestSetMainChartFocus(0, 0)
+	r.Update(secondaryNavMsg(t, leet.NavIntentRight))
+	require.Equal(t, 1, focus.Col,
+		"the secondary right binding should match the primary binding")
+
+	r.TestSetMainChartFocus(0, 0)
+	r.Update(secondaryNavMsg(t, leet.NavIntentDown))
+	require.Equal(t, 1, focus.Row,
+		"the secondary down binding should advance chart focus vertically")
 }
 
-// ---- handleSidebarPageNav ----
-
-func TestRun_SidebarPageNav_LogsFocused(t *testing.T) {
-	r := newRunForHandlerTest(t)
-	r.TestForceExpandConsoleLogsPane(10)
-
-	// Focus logs.
-	r.Update(tea.KeyPressMsg{Code: tea.KeyTab})
-	for !r.TestConsoleLogsPaneActive() {
-		r.Update(tea.KeyPressMsg{Code: tea.KeyTab})
-	}
-
-	// Left/Right should page through logs (no-op with empty logs, but shouldn't panic).
-	r.Update(tea.KeyPressMsg{Code: tea.KeyLeft})
-	r.Update(tea.KeyPressMsg{Code: tea.KeyRight})
-}
-
-func TestRun_SidebarPageNav_OverviewFocused(t *testing.T) {
-	r := newRunForHandlerTest(t)
-	require.True(t, r.TestLeftSidebarHasActiveSection())
-
-	// Left/Right should page through overview sections.
-	r.Update(tea.KeyPressMsg{Code: tea.KeyLeft})
-	r.Update(tea.KeyPressMsg{Code: tea.KeyRight})
-}
-
-func TestRun_SidebarPageNav_SidebarCollapsed(t *testing.T) {
-	r := newRunForHandlerTest(t)
-	r.TestForceCollapseLeftSidebar()
-
-	// With sidebar collapsed, page nav should be a no-op.
-	r.Update(tea.KeyPressMsg{Code: tea.KeyLeft})
-	r.Update(tea.KeyPressMsg{Code: tea.KeyRight})
+func mustSelectedItem(t *testing.T, sidebar *leet.RunOverviewSidebar) string {
+	t.Helper()
+	key, _ := sidebar.SelectedItem()
+	require.NotEmpty(t, key)
+	return key
 }

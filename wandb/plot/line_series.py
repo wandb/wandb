@@ -153,8 +153,8 @@ def line_series(
 
     data = [
         [x, keys[i], y]
-        for i, (xx, yy) in enumerate(zip(xs, ys))
-        for x, y in zip(xx, yy)
+        for i, (xx, yy) in enumerate(zip(xs, ys, strict=False))
+        for x, y in zip(xx, yy, strict=False)
     ]
     table = wandb.Table(
         data=data,

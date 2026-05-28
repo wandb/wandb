@@ -36,6 +36,27 @@ RESOURCE_UID_MAP = {"local": 1000, "sagemaker": 0}
 IMAGE_TAG_MAX_LENGTH = 32
 
 
+def _get_accelerator_base_image(
+    resource_args_build: dict[str, Any],
+) -> str | None:
+    """Return configured accelerator base image from raw builder resource args."""
+    for accelerator_key in ("accelerator", "cuda"):
+        base_image = resource_args_build.get(accelerator_key, {}).get("base_image")
+        if base_image is None or base_image == "":
+            continue
+
+        if not isinstance(base_image, str):
+            raise LaunchError(
+                "Invalid accelerator base image. Expected "
+                f"builder.{accelerator_key}.base_image to be a string Docker "
+                f"image reference, got {type(base_image).__name__}."
+            )
+
+        return base_image
+
+    return None
+
+
 class LaunchSource(enum.IntEnum):
     """Enumeration of possible sources for a launch project.
 
@@ -119,10 +140,8 @@ class LaunchProject:
         self._job_dockerfile: str | None = None
         self._job_build_context: str | None = None
         self._job_base_image: str | None = None
-        self.accelerator_base_image: str | None = self._resource_args_build.get(
-            "accelerator", {}
-        ).get("base_image") or self._resource_args_build.get("cuda", {}).get(
-            "base_image"
+        self.accelerator_base_image: str | None = _get_accelerator_base_image(
+            self._resource_args_build
         )
         self.docker_image: str | None = docker_config.get(
             "docker_image"

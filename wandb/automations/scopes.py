@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Annotated, Literal, Union
+from typing import Annotated, Literal, TypeAlias, get_args
 
 from pydantic import BeforeValidator, Field
-from typing_extensions import TypeAlias, get_args
 
 from wandb._pydantic import GQLBase
 
@@ -43,7 +42,7 @@ class _ArtifactPortfolioScope(_BaseScope, ArtifactPortfolioScopeFields):
 
 # for type annotations
 ArtifactCollectionScope = Annotated[
-    Union[_ArtifactSequenceScope, _ArtifactPortfolioScope],
+    _ArtifactSequenceScope | _ArtifactPortfolioScope,
     BeforeValidator(parse_scope),
     Field(discriminator="typename__"),
 ]
@@ -63,7 +62,7 @@ class ProjectScope(_BaseScope, ProjectScopeFields):
 
 # for type annotations
 AutomationScope: TypeAlias = Annotated[
-    Union[_ArtifactSequenceScope, _ArtifactPortfolioScope, ProjectScope],
+    _ArtifactSequenceScope | _ArtifactPortfolioScope | ProjectScope,
     BeforeValidator(parse_scope),
     Field(discriminator="typename__"),
 ]

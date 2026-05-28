@@ -7,8 +7,8 @@ import concurrent
 import concurrent.futures
 import contextlib
 import threading
-from collections.abc import AsyncIterator, Coroutine
-from typing import Any, Callable, TypeVar
+from collections.abc import AsyncGenerator, Callable, Coroutine
+from typing import Any, TypeVar
 
 _T = TypeVar("_T")
 
@@ -208,7 +208,7 @@ async def open_task_group(
     *,
     exit_timeout: float | None = None,
     race: bool = False,
-) -> AsyncIterator[TaskGroup]:
+) -> AsyncGenerator[TaskGroup]:
     """Create a task group.
 
     `asyncio` gained task groups in Python 3.11.
@@ -244,7 +244,9 @@ async def open_task_group(
 
 
 @contextlib.asynccontextmanager
-async def cancel_on_exit(coro: Coroutine[Any, Any, Any]) -> AsyncIterator[None]:
+async def cancel_on_exit(
+    coro: Coroutine[Any, Any, Any],
+) -> AsyncGenerator[None]:
     """Schedule a task, cancelling it when exiting the context manager.
 
     If the context manager exits successfully but the given coroutine raises
@@ -277,3 +279,14 @@ async def race(*coros: Coroutine[Any, Any, Any]) -> None:
     async with open_task_group(race=True) as tg:
         for coro in coros:
             tg.start_soon(coro)
+
+
+def now() -> float:
+    """Returns the current time according to the running event loop.
+
+    This is normally `time.monotonic()`, but using this allows a custom
+    event loop implementation to override how time works during tests.
+
+    This raises an error if called outside of an asyncio loop.
+    """
+    return asyncio.get_running_loop().time()

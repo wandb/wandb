@@ -13,13 +13,17 @@ async def pass_if_cancelled() -> None:
     global _got_cancelled
 
     try:
-        print("TEST READY", flush=True)
         print(f"Ready at {time.monotonic()}", file=sys.stderr)
+        print("TEST READY", flush=True)
         await asyncio.sleep(5)
+
+        # If this happens, the CI machine is running too slowly.
+        print(f"Finished sleeping at {time.monotonic()}", file=sys.stderr)
 
     except asyncio.CancelledError:
         # The test sends a SIGINT to the process, which we expect
         # asyncio_compat.run() to turn into task cancellation.
+        print(f"CancelledError caught at {time.monotonic()}", file=sys.stderr)
         with _got_cancelled_lock:
             _got_cancelled = True
         raise

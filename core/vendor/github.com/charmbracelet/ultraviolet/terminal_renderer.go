@@ -937,6 +937,7 @@ func (s *TerminalRenderer) transformLine(newbuf *RenderBuffer, y int) {
 				for next != nil && next.IsZero() {
 					n++
 					oLastCell++
+					next = newLine.At(n + 1)
 				}
 			}
 
@@ -1411,8 +1412,6 @@ func relativeCursorMove(s *TerminalRenderer, newbuf *RenderBuffer, fx, fy, tx, t
 					if cell != nil && cell.Width > 0 {
 						ovw += cell.String()
 						i += cell.Width - 1
-					} else {
-						ovw += " "
 					}
 				}
 			}

@@ -7,14 +7,15 @@ package wbapi
 
 import (
 	"context"
-	"log/slog"
+	"fmt"
+	"net/url"
 
 	"github.com/hashicorp/go-retryablehttp"
 
+	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/featurechecker"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/settings"
-	"github.com/wandb/wandb/core/internal/stream"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
@@ -32,22 +33,33 @@ type WandbAPI struct {
 	settings *settings.Settings
 
 	featuresHandler      *FeaturesHandler
+	graphqlHandler       *GraphQLHandler
 	runHistoryApiHandler *RunHistoryAPIHandler
 }
 
 // New returns a new WandbAPI.
-func New(s *settings.Settings) *WandbAPI {
-	logger := observability.NewNoOpLogger()
+func New(
+	s *settings.Settings,
+	logger *observability.CoreLogger,
+) (*WandbAPI, error) {
+	baseURL, err := url.Parse(s.GetBaseURL())
+	if err != nil {
+		return nil, fmt.Errorf("error parsing base URL: %v", err)
+	}
 
-	baseURL := stream.BaseURLFromSettings(logger, s)
-	credentialProvider := stream.CredentialsFromSettings(logger, s)
-	graphqlClient := stream.NewGraphQLClient(
-		baseURL,
+	credentialProvider, err := api.NewCredentialProvider(s, logger.Logger)
+	if err != nil {
+		return nil, fmt.Errorf("error reading credentials: %v", err)
+	}
+
+	graphqlClient := api.NewGQLClient(
+		api.WBBaseURL(baseURL),
 		"", /*clientID*/
 		credentialProvider,
-		logger,
+		logger.Logger,
 		&observability.Peeker{},
 		s,
+		s.GetExtraHTTPHeaders(),
 	)
 
 	httpClient := retryablehttp.NewClient()
@@ -55,10 +67,7 @@ func New(s *settings.Settings) *WandbAPI {
 	httpClient.RetryWaitMin = s.GetFileTransferRetryWaitMin()
 	httpClient.RetryWaitMax = s.GetFileTransferRetryWaitMax()
 	httpClient.HTTPClient.Timeout = s.GetFileTransferTimeout()
-	httpClient.Logger = observability.NewCoreLogger(
-		slog.Default(),
-		nil,
-	)
+	httpClient.Logger = logger
 
 	featureProvider := featurechecker.New(graphqlClient, logger)
 
@@ -67,8 +76,9 @@ func New(s *settings.Settings) *WandbAPI {
 		settings:  s,
 
 		featuresHandler:      NewFeaturesHandler(featureProvider),
+		graphqlHandler:       NewGraphQLHandler(graphqlClient),
 		runHistoryApiHandler: NewRunHistoryAPIHandler(graphqlClient, httpClient),
-	}
+	}, nil
 }
 
 // HandleRequest handles an API request and returns an API response,
@@ -87,6 +97,8 @@ func (p *WandbAPI) HandleRequest(
 	switch req := request.Request.(type) {
 	case *spb.ApiRequest_FeaturesRequest:
 		return p.featuresHandler.HandleRequest(ctx, req.FeaturesRequest)
+	case *spb.ApiRequest_GraphqlRequest:
+		return p.graphqlHandler.HandleRequest(ctx, req.GraphqlRequest)
 	case *spb.ApiRequest_ReadRunHistoryRequest:
 		// TODO: Propagate ctx here.
 		return p.runHistoryApiHandler.HandleRequest(req.ReadRunHistoryRequest)

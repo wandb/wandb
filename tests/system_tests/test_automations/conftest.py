@@ -1,14 +1,13 @@
 from __future__ import annotations
 
 import secrets
-from collections.abc import Iterator
+from collections.abc import Callable, Generator
 from functools import lru_cache
 from string import ascii_lowercase, digits
-from typing import Callable, Union
+from typing import TypeAlias
 
 import wandb
 from pytest import FixtureRequest, fixture, skip
-from typing_extensions import TypeAlias
 from wandb import Artifact
 from wandb.apis.public import ArtifactCollection, Project
 from wandb.automations import (
@@ -33,9 +32,8 @@ from wandb.automations._generated import (
 )
 from wandb.automations._utils import INVALID_INPUT_ACTIONS, INVALID_INPUT_EVENTS
 from wandb.automations.events import InputEvent
-from wandb_gql import gql
 
-ScopableWandbType: TypeAlias = Union[ArtifactCollection, Project]
+ScopableWandbType: TypeAlias = ArtifactCollection | Project
 
 
 def random_string(chars: str = ascii_lowercase + digits, n: int = 12) -> str:
@@ -69,7 +67,10 @@ def project(
     name = make_name("test-project")
     api = make_module_api()
     api.create_project(name=name, entity=module_user)
-    return api.project(name=name, entity=module_user)
+    project = api.project(name=name, entity=module_user)
+    # This fixture is module-scoped; load attrs before per-test teardown invalidates the API.
+    _ = project.id
+    return project
 
 
 @fixture(scope="module")
@@ -113,10 +114,10 @@ def make_webhook_integration(
         gql_input = CreateGenericWebhookIntegrationInput(
             name=name, entity_name=entity, url_endpoint=url
         )
-        gql_op = gql(CREATE_GENERIC_WEBHOOK_INTEGRATION_GQL)
+        gql_op = CREATE_GENERIC_WEBHOOK_INTEGRATION_GQL
         gql_vars = {"input": gql_input.model_dump()}
         api = make_module_api()
-        data = api.client.execute(gql_op, variable_values=gql_vars)
+        data = api._service_api.execute_graphql(gql_op, variables=gql_vars)
 
         result = CreateGenericWebhookIntegration(**data)
         integration = result.create_generic_webhook_integration.integration
@@ -130,7 +131,7 @@ def webhook(
     make_module_api: Callable[[], wandb.Api],
     make_webhook_integration: Callable[[str, str, str], WebhookIntegration],
     make_name: Callable[[str], str],
-) -> Iterator[WebhookIntegration]:
+) -> Generator[WebhookIntegration]:
     """A "registered" webhook integration for automation system tests."""
     name = make_name("test-webhook")
     entity = make_module_api().default_entity

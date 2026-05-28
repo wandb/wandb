@@ -16,7 +16,7 @@ type Scheduler struct {
 	buffers   map[ratelimit.Category]Buffer[protocol.TelemetryItem]
 	transport protocol.TelemetryTransport
 	dsn       *protocol.Dsn
-	sdkInfo   *protocol.SdkInfo
+	sdkInfo   func() *protocol.SdkInfo
 	recorder  report.ClientReportRecorder
 
 	currentCycle []ratelimit.Priority
@@ -36,14 +36,14 @@ func NewScheduler(
 	buffers map[ratelimit.Category]Buffer[protocol.TelemetryItem],
 	transport protocol.TelemetryTransport,
 	dsn *protocol.Dsn,
-	sdkInfo *protocol.SdkInfo,
+	sdkInfo func() *protocol.SdkInfo,
 	recorder report.ClientReportRecorder,
 ) *Scheduler {
 	if recorder == nil {
 		recorder = report.NoopRecorder()
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(context.Background()) //nolint:gosec // G118: cancel is stored in s.cancel and called in Shutdown()
 
 	priorityWeights := map[ratelimit.Priority]int{
 		ratelimit.PriorityCritical: 5,
@@ -83,6 +83,13 @@ func NewScheduler(
 	s.cond = sync.NewCond(&s.mu)
 
 	return s
+}
+
+func (s *Scheduler) resolveSdkInfo() *protocol.SdkInfo {
+	if s.sdkInfo == nil {
+		return &protocol.SdkInfo{}
+	}
+	return s.sdkInfo()
 }
 
 func (s *Scheduler) Start() {
@@ -237,10 +244,7 @@ func (s *Scheduler) processItems(buffer Buffer[protocol.TelemetryItem], category
 	switch category {
 	case ratelimit.CategoryLog:
 		logs := protocol.Logs(items)
-		header := &protocol.EnvelopeHeader{EventID: protocol.GenerateEventID(), SentAt: time.Now(), Sdk: s.sdkInfo}
-		if s.dsn != nil {
-			header.Dsn = s.dsn.String()
-		}
+		header := &protocol.EnvelopeHeader{EventID: protocol.GenerateEventID(), SentAt: time.Now(), Dsn: s.dsn, Sdk: s.resolveSdkInfo()}
 		envelope := protocol.NewEnvelope(header)
 		item, err := logs.ToEnvelopeItem()
 		if err != nil {
@@ -254,10 +258,7 @@ func (s *Scheduler) processItems(buffer Buffer[protocol.TelemetryItem], category
 		return
 	case ratelimit.CategoryTraceMetric:
 		metrics := protocol.Metrics(items)
-		header := &protocol.EnvelopeHeader{EventID: protocol.GenerateEventID(), SentAt: time.Now(), Sdk: s.sdkInfo}
-		if s.dsn != nil {
-			header.Dsn = s.dsn.String()
-		}
+		header := &protocol.EnvelopeHeader{EventID: protocol.GenerateEventID(), SentAt: time.Now(), Dsn: s.dsn, Sdk: s.resolveSdkInfo()}
 		envelope := protocol.NewEnvelope(header)
 		item, err := metrics.ToEnvelopeItem()
 		if err != nil {
@@ -287,22 +288,39 @@ func (s *Scheduler) sendItem(item protocol.EnvelopeItemConvertible) {
 	header := &protocol.EnvelopeHeader{
 		EventID: item.GetEventID(),
 		SentAt:  time.Now(),
+		Dsn:     s.dsn,
 		Trace:   item.GetDynamicSamplingContext(),
-		Sdk:     s.sdkInfo,
+		Sdk:     s.resolveSdkInfo(),
 	}
 	if header.EventID == "" {
 		header.EventID = protocol.GenerateEventID()
 	}
-	if s.dsn != nil {
-		header.Dsn = s.dsn.String()
+
+	// TODO: need to restructure the abstraction layer to actually return envelopes instead of
+	// envelope items. The problem with envelope items, is that for events and batches we might
+	// need envelopes (eg. attachments need to be added separately and splitting the `Add` path
+	// is problematic). Currently this is a workaround for adding attachments to events without
+	// adding a circular dependency on telemetry/scheduler.
+	var envelope *protocol.Envelope
+	if convertible, ok := item.(protocol.EnvelopeConvertible); ok {
+		var err error
+		envelope, err = convertible.ToEnvelope(header)
+		if err != nil {
+			debuglog.Printf("error while converting to envelope: %v", err)
+			s.recorder.RecordItem(report.ReasonInternalError, item)
+			return
+		}
+	} else {
+		envItem, err := item.ToEnvelopeItem()
+		if err != nil {
+			debuglog.Printf("error while converting to envelope item: %v", err)
+			s.recorder.RecordItem(report.ReasonInternalError, item)
+			return
+		}
+		envelope = protocol.NewEnvelope(header)
+		envelope.AddItem(envItem)
 	}
-	envelope := protocol.NewEnvelope(header)
-	envItem, err := item.ToEnvelopeItem()
-	if err != nil {
-		debuglog.Printf("error while converting to envelope item: %v", err)
-		return
-	}
-	envelope.AddItem(envItem)
+
 	if err := s.transport.SendEnvelope(envelope); err != nil {
 		debuglog.Printf("error sending envelope: %v", err)
 	}

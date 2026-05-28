@@ -502,6 +502,30 @@ func (mg *MetricsGrid) Navigate(direction int) {
 	mg.NavigateFocus(0, 0)
 }
 
+// NavigateHome jumps to the first page.
+func (mg *MetricsGrid) NavigateHome() {
+	if !mg.nav.GoHome() {
+		return
+	}
+
+	mg.clearFocus()
+	mg.loadCurrentPage()
+	mg.drawVisible()
+	mg.NavigateFocus(0, 0)
+}
+
+// NavigateEnd jumps to the last page.
+func (mg *MetricsGrid) NavigateEnd() {
+	if !mg.nav.GoEnd() {
+		return
+	}
+
+	mg.clearFocus()
+	mg.loadCurrentPage()
+	mg.drawVisible()
+	mg.NavigateFocus(0, 0)
+}
+
 // drawVisible draws charts that are currently visible.
 //
 // Charts no longer visible are parked to reduce memory usage.

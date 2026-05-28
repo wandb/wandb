@@ -67,7 +67,6 @@ func TestAddWorkConcurrent(t *testing.T) {
 		}()
 	}
 	wgProducer.Wait()
-	rw.SetDone()
 	rw.Close()
 	wgConsumer.Wait()
 
@@ -80,7 +79,6 @@ func TestAddWorkAfterClose(t *testing.T) {
 	rw := runwork.New(0, observability.NewCoreLogger(logger, nil))
 	req := newTestRequest(t)
 
-	rw.SetDone()
 	rw.Close()
 	rw.AddWork(runwork.Work{
 		WorkImpl: runwork.WorkFromRecord(&spb.Record{}),
@@ -101,7 +99,6 @@ func TestCloseDuringAddWork(t *testing.T) {
 		// Increase odds that Close() happens while AddWork() is
 		// blocked on a channel write.
 		<-time.After(5 * time.Millisecond)
-		rw.SetDone()
 		rw.Close()
 	}()
 	rw.AddWork(runwork.Work{
@@ -117,8 +114,6 @@ func TestCloseDuringAddWork(t *testing.T) {
 func TestCloseAfterClose(t *testing.T) {
 	rw := runwork.New(0, observabilitytest.NewTestLogger(t))
 
-	rw.SetDone()
-	rw.SetDone()
 	rw.Close()
 	rw.Close()
 
@@ -132,10 +127,7 @@ func TestRaceAddWorkClose(t *testing.T) {
 			// and this test doesn't wait for goroutines to exit.
 			rw := runwork.New(0, observability.NewNoOpLogger())
 
-			go func() {
-				rw.SetDone()
-				rw.Close()
-			}()
+			go rw.Close()
 			go rw.AddWork(runwork.NoRequest(
 				runwork.WorkFromRecord(&spb.Record{}),
 			))
@@ -147,41 +139,10 @@ func TestRaceAddWorkClose(t *testing.T) {
 func TestCloseCancelsContext(t *testing.T) {
 	rw := runwork.New(0, observabilitytest.NewTestLogger(t))
 
-	go func() {
-		rw.SetDone()
-		rw.Close()
-	}()
+	go rw.Close()
 	<-rw.BeforeEndCtx().Done()
 
 	assert.Error(t, rw.BeforeEndCtx().Err())
-}
-
-func TestCloseBlocksUntilDone(t *testing.T) {
-	rw := runwork.New(0, observabilitytest.NewTestLogger(t))
-	wg := &sync.WaitGroup{}
-	count := 0
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		for range rw.Chan() {
-			count++
-		}
-	}()
-
-	// All AddWork() calls should go despite racing with Close()
-	// because SetDone() is only called at the end.
-	go rw.Close()
-	for range 10 {
-		<-time.After(time.Millisecond)
-		rw.AddWork(runwork.NoRequest(
-			runwork.WorkFromRecord(&spb.Record{}),
-		))
-	}
-	rw.SetDone()
-	wg.Wait()
-
-	assert.Equal(t, 10, count)
 }
 
 func Test_AddWorkOrCancel_CancelledBefore(t *testing.T) {

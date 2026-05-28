@@ -1,5 +1,3 @@
-import datetime
-
 from google.protobuf import empty_pb2 as _empty_pb2
 from google.protobuf import timestamp_pb2 as _timestamp_pb2
 from wandb.proto import wandb_base_pb2 as _wandb_base_pb2
@@ -34,6 +32,16 @@ class ServerFeature(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     TOTAL_COUNT_IN_FILE_CONNECTION: _ClassVar[ServerFeature]
     ARTIFACT_COLLECTIONS_FILTERING_SORTING: _ClassVar[ServerFeature]
     ARTIFACT_V2_DOWNLOAD_HANDLER_SUPPORTS_ARTIFACT_ID: _ClassVar[ServerFeature]
+    AUTOMATION_EVENT_RUN_METRIC_ZSCORE: _ClassVar[ServerFeature]
+    AUTOMATION_EVENT_RUN_STATE: _ClassVar[ServerFeature]
+    AUTOMATION_ACTION_PUSH_NOTIFICATION: _ClassVar[ServerFeature]
+    AUTOMATION_EVENT_ADD_ARTIFACT_TAG: _ClassVar[ServerFeature]
+    AUTOMATION_EVENT_ADD_COLLECTION_TAG: _ClassVar[ServerFeature]
+    AUTOMATION_EVENT_REMOVE_ARTIFACT_TAG: _ClassVar[ServerFeature]
+    AUTOMATION_EVENT_REMOVE_COLLECTION_TAG: _ClassVar[ServerFeature]
+    AUTOMATION_EVENT_UNLINK_ARTIFACT: _ClassVar[ServerFeature]
+    AUTOMATIONS_ON_USER: _ClassVar[ServerFeature]
+    AUTOMATION_LAST_EXECUTED_AT: _ClassVar[ServerFeature]
 SERVER_FEATURE_UNSPECIFIED: ServerFeature
 LARGE_FILENAMES: ServerFeature
 ARTIFACT_TAGS: ServerFeature
@@ -53,9 +61,19 @@ ARTIFACT_MEMBERSHIP_IN_LINK_ARTIFACT_RESPONSE: ServerFeature
 TOTAL_COUNT_IN_FILE_CONNECTION: ServerFeature
 ARTIFACT_COLLECTIONS_FILTERING_SORTING: ServerFeature
 ARTIFACT_V2_DOWNLOAD_HANDLER_SUPPORTS_ARTIFACT_ID: ServerFeature
+AUTOMATION_EVENT_RUN_METRIC_ZSCORE: ServerFeature
+AUTOMATION_EVENT_RUN_STATE: ServerFeature
+AUTOMATION_ACTION_PUSH_NOTIFICATION: ServerFeature
+AUTOMATION_EVENT_ADD_ARTIFACT_TAG: ServerFeature
+AUTOMATION_EVENT_ADD_COLLECTION_TAG: ServerFeature
+AUTOMATION_EVENT_REMOVE_ARTIFACT_TAG: ServerFeature
+AUTOMATION_EVENT_REMOVE_COLLECTION_TAG: ServerFeature
+AUTOMATION_EVENT_UNLINK_ARTIFACT: ServerFeature
+AUTOMATIONS_ON_USER: ServerFeature
+AUTOMATION_LAST_EXECUTED_AT: ServerFeature
 
 class Record(_message.Message):
-    __slots__ = ("num", "history", "summary", "output", "config", "files", "stats", "artifact", "tbrecord", "alert", "telemetry", "metric", "output_raw", "run", "exit", "final", "header", "footer", "preempting", "noop_link_artifact", "use_artifact", "environment", "request", "control", "uuid", "_info")
+    __slots__ = ("num", "history", "summary", "output", "config", "files", "stats", "artifact", "tbrecord", "alert", "telemetry", "metric", "output_raw", "run", "exit", "final", "header", "footer", "preempting", "noop_link_artifact", "use_artifact", "environment", "output_logger", "request", "control", "uuid", "_info")
     NUM_FIELD_NUMBER: _ClassVar[int]
     HISTORY_FIELD_NUMBER: _ClassVar[int]
     SUMMARY_FIELD_NUMBER: _ClassVar[int]
@@ -78,6 +96,7 @@ class Record(_message.Message):
     NOOP_LINK_ARTIFACT_FIELD_NUMBER: _ClassVar[int]
     USE_ARTIFACT_FIELD_NUMBER: _ClassVar[int]
     ENVIRONMENT_FIELD_NUMBER: _ClassVar[int]
+    OUTPUT_LOGGER_FIELD_NUMBER: _ClassVar[int]
     REQUEST_FIELD_NUMBER: _ClassVar[int]
     CONTROL_FIELD_NUMBER: _ClassVar[int]
     UUID_FIELD_NUMBER: _ClassVar[int]
@@ -104,11 +123,12 @@ class Record(_message.Message):
     noop_link_artifact: _empty_pb2.Empty
     use_artifact: UseArtifactRecord
     environment: EnvironmentRecord
+    output_logger: OutputLoggerRecord
     request: Request
     control: Control
     uuid: str
     _info: _wandb_base_pb2._RecordInfo
-    def __init__(self, num: _Optional[int] = ..., history: _Optional[_Union[HistoryRecord, _Mapping]] = ..., summary: _Optional[_Union[SummaryRecord, _Mapping]] = ..., output: _Optional[_Union[OutputRecord, _Mapping]] = ..., config: _Optional[_Union[ConfigRecord, _Mapping]] = ..., files: _Optional[_Union[FilesRecord, _Mapping]] = ..., stats: _Optional[_Union[StatsRecord, _Mapping]] = ..., artifact: _Optional[_Union[ArtifactRecord, _Mapping]] = ..., tbrecord: _Optional[_Union[TBRecord, _Mapping]] = ..., alert: _Optional[_Union[AlertRecord, _Mapping]] = ..., telemetry: _Optional[_Union[_wandb_telemetry_pb2.TelemetryRecord, _Mapping]] = ..., metric: _Optional[_Union[MetricRecord, _Mapping]] = ..., output_raw: _Optional[_Union[OutputRawRecord, _Mapping]] = ..., run: _Optional[_Union[RunRecord, _Mapping]] = ..., exit: _Optional[_Union[RunExitRecord, _Mapping]] = ..., final: _Optional[_Union[FinalRecord, _Mapping]] = ..., header: _Optional[_Union[HeaderRecord, _Mapping]] = ..., footer: _Optional[_Union[FooterRecord, _Mapping]] = ..., preempting: _Optional[_Union[RunPreemptingRecord, _Mapping]] = ..., noop_link_artifact: _Optional[_Union[_empty_pb2.Empty, _Mapping]] = ..., use_artifact: _Optional[_Union[UseArtifactRecord, _Mapping]] = ..., environment: _Optional[_Union[EnvironmentRecord, _Mapping]] = ..., request: _Optional[_Union[Request, _Mapping]] = ..., control: _Optional[_Union[Control, _Mapping]] = ..., uuid: _Optional[str] = ..., _info: _Optional[_Union[_wandb_base_pb2._RecordInfo, _Mapping]] = ...) -> None: ...
+    def __init__(self, num: _Optional[int] = ..., history: _Optional[_Union[HistoryRecord, _Mapping]] = ..., summary: _Optional[_Union[SummaryRecord, _Mapping]] = ..., output: _Optional[_Union[OutputRecord, _Mapping]] = ..., config: _Optional[_Union[ConfigRecord, _Mapping]] = ..., files: _Optional[_Union[FilesRecord, _Mapping]] = ..., stats: _Optional[_Union[StatsRecord, _Mapping]] = ..., artifact: _Optional[_Union[ArtifactRecord, _Mapping]] = ..., tbrecord: _Optional[_Union[TBRecord, _Mapping]] = ..., alert: _Optional[_Union[AlertRecord, _Mapping]] = ..., telemetry: _Optional[_Union[_wandb_telemetry_pb2.TelemetryRecord, _Mapping]] = ..., metric: _Optional[_Union[MetricRecord, _Mapping]] = ..., output_raw: _Optional[_Union[OutputRawRecord, _Mapping]] = ..., run: _Optional[_Union[RunRecord, _Mapping]] = ..., exit: _Optional[_Union[RunExitRecord, _Mapping]] = ..., final: _Optional[_Union[FinalRecord, _Mapping]] = ..., header: _Optional[_Union[HeaderRecord, _Mapping]] = ..., footer: _Optional[_Union[FooterRecord, _Mapping]] = ..., preempting: _Optional[_Union[RunPreemptingRecord, _Mapping]] = ..., noop_link_artifact: _Optional[_Union[_empty_pb2.Empty, _Mapping]] = ..., use_artifact: _Optional[_Union[UseArtifactRecord, _Mapping]] = ..., environment: _Optional[_Union[EnvironmentRecord, _Mapping]] = ..., output_logger: _Optional[_Union[OutputLoggerRecord, _Mapping]] = ..., request: _Optional[_Union[Request, _Mapping]] = ..., control: _Optional[_Union[Control, _Mapping]] = ..., uuid: _Optional[str] = ..., _info: _Optional[_Union[_wandb_base_pb2._RecordInfo, _Mapping]] = ...) -> None: ...
 
 class Control(_message.Message):
     __slots__ = ("req_resp", "local", "relay_id", "mailbox_slot", "always_send", "flow_control", "end_offset", "connection_id")
@@ -128,7 +148,7 @@ class Control(_message.Message):
     flow_control: bool
     end_offset: int
     connection_id: str
-    def __init__(self, req_resp: _Optional[bool] = ..., local: _Optional[bool] = ..., relay_id: _Optional[str] = ..., mailbox_slot: _Optional[str] = ..., always_send: _Optional[bool] = ..., flow_control: _Optional[bool] = ..., end_offset: _Optional[int] = ..., connection_id: _Optional[str] = ...) -> None: ...
+    def __init__(self, req_resp: bool = ..., local: bool = ..., relay_id: _Optional[str] = ..., mailbox_slot: _Optional[str] = ..., always_send: bool = ..., flow_control: bool = ..., end_offset: _Optional[int] = ..., connection_id: _Optional[str] = ...) -> None: ...
 
 class Result(_message.Message):
     __slots__ = ("run_result", "exit_result", "log_result", "summary_result", "output_result", "config_result", "response", "control", "uuid", "_info")
@@ -242,7 +262,7 @@ class RunRecord(_message.Message):
     forked: bool
     branch_point: BranchPoint
     _info: _wandb_base_pb2._RecordInfo
-    def __init__(self, run_id: _Optional[str] = ..., entity: _Optional[str] = ..., project: _Optional[str] = ..., config: _Optional[_Union[ConfigRecord, _Mapping]] = ..., summary: _Optional[_Union[SummaryRecord, _Mapping]] = ..., run_group: _Optional[str] = ..., job_type: _Optional[str] = ..., display_name: _Optional[str] = ..., notes: _Optional[str] = ..., tags: _Optional[_Iterable[str]] = ..., settings: _Optional[_Union[SettingsRecord, _Mapping]] = ..., sweep_id: _Optional[str] = ..., host: _Optional[str] = ..., starting_step: _Optional[int] = ..., storage_id: _Optional[str] = ..., start_time: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., resumed: _Optional[bool] = ..., telemetry: _Optional[_Union[_wandb_telemetry_pb2.TelemetryRecord, _Mapping]] = ..., runtime: _Optional[int] = ..., git: _Optional[_Union[GitRepoRecord, _Mapping]] = ..., forked: _Optional[bool] = ..., branch_point: _Optional[_Union[BranchPoint, _Mapping]] = ..., _info: _Optional[_Union[_wandb_base_pb2._RecordInfo, _Mapping]] = ...) -> None: ...
+    def __init__(self, run_id: _Optional[str] = ..., entity: _Optional[str] = ..., project: _Optional[str] = ..., config: _Optional[_Union[ConfigRecord, _Mapping]] = ..., summary: _Optional[_Union[SummaryRecord, _Mapping]] = ..., run_group: _Optional[str] = ..., job_type: _Optional[str] = ..., display_name: _Optional[str] = ..., notes: _Optional[str] = ..., tags: _Optional[_Iterable[str]] = ..., settings: _Optional[_Union[SettingsRecord, _Mapping]] = ..., sweep_id: _Optional[str] = ..., host: _Optional[str] = ..., starting_step: _Optional[int] = ..., storage_id: _Optional[str] = ..., start_time: _Optional[_Union[_timestamp_pb2.Timestamp, _Mapping]] = ..., resumed: bool = ..., telemetry: _Optional[_Union[_wandb_telemetry_pb2.TelemetryRecord, _Mapping]] = ..., runtime: _Optional[int] = ..., git: _Optional[_Union[GitRepoRecord, _Mapping]] = ..., forked: bool = ..., branch_point: _Optional[_Union[BranchPoint, _Mapping]] = ..., _info: _Optional[_Union[_wandb_base_pb2._RecordInfo, _Mapping]] = ...) -> None: ...
 
 class GitRepoRecord(_message.Message):
     __slots__ = ("remote_url", "commit")
@@ -281,18 +301,22 @@ class ErrorInfo(_message.Message):
     def __init__(self, message: _Optional[str] = ..., code: _Optional[_Union[ErrorInfo.ErrorCode, str]] = ...) -> None: ...
 
 class RunExitRecord(_message.Message):
-    __slots__ = ("exit_code", "runtime", "_info")
+    __slots__ = ("exit_code", "not_complete", "runtime", "_info")
     EXIT_CODE_FIELD_NUMBER: _ClassVar[int]
+    NOT_COMPLETE_FIELD_NUMBER: _ClassVar[int]
     RUNTIME_FIELD_NUMBER: _ClassVar[int]
     _INFO_FIELD_NUMBER: _ClassVar[int]
     exit_code: int
+    not_complete: bool
     runtime: int
     _info: _wandb_base_pb2._RecordInfo
-    def __init__(self, exit_code: _Optional[int] = ..., runtime: _Optional[int] = ..., _info: _Optional[_Union[_wandb_base_pb2._RecordInfo, _Mapping]] = ...) -> None: ...
+    def __init__(self, exit_code: _Optional[int] = ..., not_complete: bool = ..., runtime: _Optional[int] = ..., _info: _Optional[_Union[_wandb_base_pb2._RecordInfo, _Mapping]] = ...) -> None: ...
 
 class RunExitResult(_message.Message):
-    __slots__ = ()
-    def __init__(self) -> None: ...
+    __slots__ = ("timed_out",)
+    TIMED_OUT_FIELD_NUMBER: _ClassVar[int]
+    timed_out: bool
+    def __init__(self, timed_out: bool = ...) -> None: ...
 
 class RunPreemptingRecord(_message.Message):
     __slots__ = ("_info",)
@@ -366,7 +390,7 @@ class OutputRecord(_message.Message):
     timestamp: _timestamp_pb2.Timestamp
     line: str
     _info: _wandb_base_pb2._RecordInfo
-    def __init__(self, output_type: _Optional[_Union[OutputRecord.OutputType, str]] = ..., timestamp: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., line: _Optional[str] = ..., _info: _Optional[_Union[_wandb_base_pb2._RecordInfo, _Mapping]] = ...) -> None: ...
+    def __init__(self, output_type: _Optional[_Union[OutputRecord.OutputType, str]] = ..., timestamp: _Optional[_Union[_timestamp_pb2.Timestamp, _Mapping]] = ..., line: _Optional[str] = ..., _info: _Optional[_Union[_wandb_base_pb2._RecordInfo, _Mapping]] = ...) -> None: ...
 
 class OutputResult(_message.Message):
     __slots__ = ()
@@ -388,11 +412,17 @@ class OutputRawRecord(_message.Message):
     timestamp: _timestamp_pb2.Timestamp
     line: str
     _info: _wandb_base_pb2._RecordInfo
-    def __init__(self, output_type: _Optional[_Union[OutputRawRecord.OutputType, str]] = ..., timestamp: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., line: _Optional[str] = ..., _info: _Optional[_Union[_wandb_base_pb2._RecordInfo, _Mapping]] = ...) -> None: ...
+    def __init__(self, output_type: _Optional[_Union[OutputRawRecord.OutputType, str]] = ..., timestamp: _Optional[_Union[_timestamp_pb2.Timestamp, _Mapping]] = ..., line: _Optional[str] = ..., _info: _Optional[_Union[_wandb_base_pb2._RecordInfo, _Mapping]] = ...) -> None: ...
 
 class OutputRawResult(_message.Message):
     __slots__ = ()
     def __init__(self) -> None: ...
+
+class OutputLoggerRecord(_message.Message):
+    __slots__ = ("line",)
+    LINE_FIELD_NUMBER: _ClassVar[int]
+    line: str
+    def __init__(self, line: _Optional[str] = ...) -> None: ...
 
 class MetricRecord(_message.Message):
     __slots__ = ("name", "glob_name", "step_metric", "step_metric_index", "options", "summary", "goal", "_control", "expanded_from_glob", "_info")
@@ -424,7 +454,7 @@ class MetricRecord(_message.Message):
     _control: MetricControl
     expanded_from_glob: bool
     _info: _wandb_base_pb2._RecordInfo
-    def __init__(self, name: _Optional[str] = ..., glob_name: _Optional[str] = ..., step_metric: _Optional[str] = ..., step_metric_index: _Optional[int] = ..., options: _Optional[_Union[MetricOptions, _Mapping]] = ..., summary: _Optional[_Union[MetricSummary, _Mapping]] = ..., goal: _Optional[_Union[MetricRecord.MetricGoal, str]] = ..., _control: _Optional[_Union[MetricControl, _Mapping]] = ..., expanded_from_glob: _Optional[bool] = ..., _info: _Optional[_Union[_wandb_base_pb2._RecordInfo, _Mapping]] = ...) -> None: ...
+    def __init__(self, name: _Optional[str] = ..., glob_name: _Optional[str] = ..., step_metric: _Optional[str] = ..., step_metric_index: _Optional[int] = ..., options: _Optional[_Union[MetricOptions, _Mapping]] = ..., summary: _Optional[_Union[MetricSummary, _Mapping]] = ..., goal: _Optional[_Union[MetricRecord.MetricGoal, str]] = ..., _control: _Optional[_Union[MetricControl, _Mapping]] = ..., expanded_from_glob: bool = ..., _info: _Optional[_Union[_wandb_base_pb2._RecordInfo, _Mapping]] = ...) -> None: ...
 
 class MetricResult(_message.Message):
     __slots__ = ()
@@ -438,13 +468,13 @@ class MetricOptions(_message.Message):
     step_sync: bool
     hidden: bool
     defined: bool
-    def __init__(self, step_sync: _Optional[bool] = ..., hidden: _Optional[bool] = ..., defined: _Optional[bool] = ...) -> None: ...
+    def __init__(self, step_sync: bool = ..., hidden: bool = ..., defined: bool = ...) -> None: ...
 
 class MetricControl(_message.Message):
     __slots__ = ("overwrite",)
     OVERWRITE_FIELD_NUMBER: _ClassVar[int]
     overwrite: bool
-    def __init__(self, overwrite: _Optional[bool] = ...) -> None: ...
+    def __init__(self, overwrite: bool = ...) -> None: ...
 
 class MetricSummary(_message.Message):
     __slots__ = ("min", "max", "mean", "best", "last", "none", "copy", "first")
@@ -464,7 +494,7 @@ class MetricSummary(_message.Message):
     none: bool
     copy: bool
     first: bool
-    def __init__(self, min: _Optional[bool] = ..., max: _Optional[bool] = ..., mean: _Optional[bool] = ..., best: _Optional[bool] = ..., last: _Optional[bool] = ..., none: _Optional[bool] = ..., copy: _Optional[bool] = ..., first: _Optional[bool] = ...) -> None: ...
+    def __init__(self, min: bool = ..., max: bool = ..., mean: bool = ..., best: bool = ..., last: bool = ..., none: bool = ..., copy: bool = ..., first: bool = ...) -> None: ...
 
 class ConfigRecord(_message.Message):
     __slots__ = ("update", "remove", "_info")
@@ -568,7 +598,7 @@ class StatsRecord(_message.Message):
     timestamp: _timestamp_pb2.Timestamp
     item: _containers.RepeatedCompositeFieldContainer[StatsItem]
     _info: _wandb_base_pb2._RecordInfo
-    def __init__(self, stats_type: _Optional[_Union[StatsRecord.StatsType, str]] = ..., timestamp: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., item: _Optional[_Iterable[_Union[StatsItem, _Mapping]]] = ..., _info: _Optional[_Union[_wandb_base_pb2._RecordInfo, _Mapping]] = ...) -> None: ...
+    def __init__(self, stats_type: _Optional[_Union[StatsRecord.StatsType, str]] = ..., timestamp: _Optional[_Union[_timestamp_pb2.Timestamp, _Mapping]] = ..., item: _Optional[_Iterable[_Union[StatsItem, _Mapping]]] = ..., _info: _Optional[_Union[_wandb_base_pb2._RecordInfo, _Mapping]] = ...) -> None: ...
 
 class StatsItem(_message.Message):
     __slots__ = ("key", "value_json")
@@ -622,7 +652,7 @@ class ArtifactRecord(_message.Message):
     tags: _containers.RepeatedScalarFieldContainer[str]
     incremental_beta1: bool
     _info: _wandb_base_pb2._RecordInfo
-    def __init__(self, run_id: _Optional[str] = ..., project: _Optional[str] = ..., entity: _Optional[str] = ..., type: _Optional[str] = ..., name: _Optional[str] = ..., digest: _Optional[str] = ..., description: _Optional[str] = ..., metadata: _Optional[str] = ..., user_created: _Optional[bool] = ..., use_after_commit: _Optional[bool] = ..., aliases: _Optional[_Iterable[str]] = ..., manifest: _Optional[_Union[ArtifactManifest, _Mapping]] = ..., distributed_id: _Optional[str] = ..., finalize: _Optional[bool] = ..., client_id: _Optional[str] = ..., sequence_client_id: _Optional[str] = ..., base_id: _Optional[str] = ..., ttl_duration_seconds: _Optional[int] = ..., tags: _Optional[_Iterable[str]] = ..., incremental_beta1: _Optional[bool] = ..., _info: _Optional[_Union[_wandb_base_pb2._RecordInfo, _Mapping]] = ...) -> None: ...
+    def __init__(self, run_id: _Optional[str] = ..., project: _Optional[str] = ..., entity: _Optional[str] = ..., type: _Optional[str] = ..., name: _Optional[str] = ..., digest: _Optional[str] = ..., description: _Optional[str] = ..., metadata: _Optional[str] = ..., user_created: bool = ..., use_after_commit: bool = ..., aliases: _Optional[_Iterable[str]] = ..., manifest: _Optional[_Union[ArtifactManifest, _Mapping]] = ..., distributed_id: _Optional[str] = ..., finalize: bool = ..., client_id: _Optional[str] = ..., sequence_client_id: _Optional[str] = ..., base_id: _Optional[str] = ..., ttl_duration_seconds: _Optional[int] = ..., tags: _Optional[_Iterable[str]] = ..., incremental_beta1: bool = ..., _info: _Optional[_Union[_wandb_base_pb2._RecordInfo, _Mapping]] = ...) -> None: ...
 
 class ArtifactManifest(_message.Message):
     __slots__ = ("version", "storage_policy", "storage_policy_config", "contents", "manifest_file_path")
@@ -658,7 +688,7 @@ class ArtifactManifestEntry(_message.Message):
     birth_artifact_id: str
     skip_cache: bool
     extra: _containers.RepeatedCompositeFieldContainer[ExtraItem]
-    def __init__(self, path: _Optional[str] = ..., digest: _Optional[str] = ..., ref: _Optional[str] = ..., size: _Optional[int] = ..., mimetype: _Optional[str] = ..., local_path: _Optional[str] = ..., birth_artifact_id: _Optional[str] = ..., skip_cache: _Optional[bool] = ..., extra: _Optional[_Iterable[_Union[ExtraItem, _Mapping]]] = ...) -> None: ...
+    def __init__(self, path: _Optional[str] = ..., digest: _Optional[str] = ..., ref: _Optional[str] = ..., size: _Optional[int] = ..., mimetype: _Optional[str] = ..., local_path: _Optional[str] = ..., birth_artifact_id: _Optional[str] = ..., skip_cache: bool = ..., extra: _Optional[_Iterable[_Union[ExtraItem, _Mapping]]] = ...) -> None: ...
 
 class ExtraItem(_message.Message):
     __slots__ = ("key", "value_json")
@@ -722,7 +752,7 @@ class TBRecord(_message.Message):
     log_dir: str
     root_dir: str
     save: bool
-    def __init__(self, _info: _Optional[_Union[_wandb_base_pb2._RecordInfo, _Mapping]] = ..., log_dir: _Optional[str] = ..., root_dir: _Optional[str] = ..., save: _Optional[bool] = ...) -> None: ...
+    def __init__(self, _info: _Optional[_Union[_wandb_base_pb2._RecordInfo, _Mapping]] = ..., log_dir: _Optional[str] = ..., root_dir: _Optional[str] = ..., save: bool = ...) -> None: ...
 
 class TBResult(_message.Message):
     __slots__ = ()
@@ -747,7 +777,7 @@ class AlertResult(_message.Message):
     def __init__(self) -> None: ...
 
 class Request(_message.Message):
-    __slots__ = ("stop_status", "network_status", "defer", "get_summary", "login", "pause", "resume", "poll_exit", "sampled_history", "partial_history", "run_start", "check_version", "log_artifact", "download_artifact", "keepalive", "run_status", "cancel", "internal_messages", "python_packages", "shutdown", "attach", "status", "server_info", "sender_mark", "sender_read", "status_report", "summary_record", "telemetry_record", "job_info", "get_system_metrics", "job_input", "link_artifact", "run_finish_without_exit", "sync_finish", "operations", "probe_system_info", "test_inject")
+    __slots__ = ("stop_status", "network_status", "defer", "get_summary", "login", "pause", "resume", "poll_exit", "sampled_history", "partial_history", "run_start", "check_version", "log_artifact", "download_artifact", "keepalive", "run_status", "cancel", "internal_messages", "python_packages", "shutdown", "attach", "status", "server_info", "sender_mark", "sender_read", "status_report", "summary_record", "telemetry_record", "job_info", "get_system_metrics", "job_input", "link_artifact", "sync_finish", "operations", "probe_system_info", "test_inject")
     STOP_STATUS_FIELD_NUMBER: _ClassVar[int]
     NETWORK_STATUS_FIELD_NUMBER: _ClassVar[int]
     DEFER_FIELD_NUMBER: _ClassVar[int]
@@ -780,7 +810,6 @@ class Request(_message.Message):
     GET_SYSTEM_METRICS_FIELD_NUMBER: _ClassVar[int]
     JOB_INPUT_FIELD_NUMBER: _ClassVar[int]
     LINK_ARTIFACT_FIELD_NUMBER: _ClassVar[int]
-    RUN_FINISH_WITHOUT_EXIT_FIELD_NUMBER: _ClassVar[int]
     SYNC_FINISH_FIELD_NUMBER: _ClassVar[int]
     OPERATIONS_FIELD_NUMBER: _ClassVar[int]
     PROBE_SYSTEM_INFO_FIELD_NUMBER: _ClassVar[int]
@@ -817,15 +846,14 @@ class Request(_message.Message):
     get_system_metrics: GetSystemMetricsRequest
     job_input: JobInputRequest
     link_artifact: LinkArtifactRequest
-    run_finish_without_exit: RunFinishWithoutExitRequest
     sync_finish: SyncFinishRequest
     operations: OperationStatsRequest
     probe_system_info: ProbeSystemInfoRequest
     test_inject: TestInjectRequest
-    def __init__(self, stop_status: _Optional[_Union[StopStatusRequest, _Mapping]] = ..., network_status: _Optional[_Union[NetworkStatusRequest, _Mapping]] = ..., defer: _Optional[_Union[DeferRequest, _Mapping]] = ..., get_summary: _Optional[_Union[GetSummaryRequest, _Mapping]] = ..., login: _Optional[_Union[LoginRequest, _Mapping]] = ..., pause: _Optional[_Union[PauseRequest, _Mapping]] = ..., resume: _Optional[_Union[ResumeRequest, _Mapping]] = ..., poll_exit: _Optional[_Union[PollExitRequest, _Mapping]] = ..., sampled_history: _Optional[_Union[SampledHistoryRequest, _Mapping]] = ..., partial_history: _Optional[_Union[PartialHistoryRequest, _Mapping]] = ..., run_start: _Optional[_Union[RunStartRequest, _Mapping]] = ..., check_version: _Optional[_Union[CheckVersionRequest, _Mapping]] = ..., log_artifact: _Optional[_Union[LogArtifactRequest, _Mapping]] = ..., download_artifact: _Optional[_Union[DownloadArtifactRequest, _Mapping]] = ..., keepalive: _Optional[_Union[KeepaliveRequest, _Mapping]] = ..., run_status: _Optional[_Union[RunStatusRequest, _Mapping]] = ..., cancel: _Optional[_Union[CancelRequest, _Mapping]] = ..., internal_messages: _Optional[_Union[InternalMessagesRequest, _Mapping]] = ..., python_packages: _Optional[_Union[PythonPackagesRequest, _Mapping]] = ..., shutdown: _Optional[_Union[ShutdownRequest, _Mapping]] = ..., attach: _Optional[_Union[AttachRequest, _Mapping]] = ..., status: _Optional[_Union[StatusRequest, _Mapping]] = ..., server_info: _Optional[_Union[ServerInfoRequest, _Mapping]] = ..., sender_mark: _Optional[_Union[SenderMarkRequest, _Mapping]] = ..., sender_read: _Optional[_Union[SenderReadRequest, _Mapping]] = ..., status_report: _Optional[_Union[StatusReportRequest, _Mapping]] = ..., summary_record: _Optional[_Union[SummaryRecordRequest, _Mapping]] = ..., telemetry_record: _Optional[_Union[TelemetryRecordRequest, _Mapping]] = ..., job_info: _Optional[_Union[JobInfoRequest, _Mapping]] = ..., get_system_metrics: _Optional[_Union[GetSystemMetricsRequest, _Mapping]] = ..., job_input: _Optional[_Union[JobInputRequest, _Mapping]] = ..., link_artifact: _Optional[_Union[LinkArtifactRequest, _Mapping]] = ..., run_finish_without_exit: _Optional[_Union[RunFinishWithoutExitRequest, _Mapping]] = ..., sync_finish: _Optional[_Union[SyncFinishRequest, _Mapping]] = ..., operations: _Optional[_Union[OperationStatsRequest, _Mapping]] = ..., probe_system_info: _Optional[_Union[ProbeSystemInfoRequest, _Mapping]] = ..., test_inject: _Optional[_Union[TestInjectRequest, _Mapping]] = ...) -> None: ...
+    def __init__(self, stop_status: _Optional[_Union[StopStatusRequest, _Mapping]] = ..., network_status: _Optional[_Union[NetworkStatusRequest, _Mapping]] = ..., defer: _Optional[_Union[DeferRequest, _Mapping]] = ..., get_summary: _Optional[_Union[GetSummaryRequest, _Mapping]] = ..., login: _Optional[_Union[LoginRequest, _Mapping]] = ..., pause: _Optional[_Union[PauseRequest, _Mapping]] = ..., resume: _Optional[_Union[ResumeRequest, _Mapping]] = ..., poll_exit: _Optional[_Union[PollExitRequest, _Mapping]] = ..., sampled_history: _Optional[_Union[SampledHistoryRequest, _Mapping]] = ..., partial_history: _Optional[_Union[PartialHistoryRequest, _Mapping]] = ..., run_start: _Optional[_Union[RunStartRequest, _Mapping]] = ..., check_version: _Optional[_Union[CheckVersionRequest, _Mapping]] = ..., log_artifact: _Optional[_Union[LogArtifactRequest, _Mapping]] = ..., download_artifact: _Optional[_Union[DownloadArtifactRequest, _Mapping]] = ..., keepalive: _Optional[_Union[KeepaliveRequest, _Mapping]] = ..., run_status: _Optional[_Union[RunStatusRequest, _Mapping]] = ..., cancel: _Optional[_Union[CancelRequest, _Mapping]] = ..., internal_messages: _Optional[_Union[InternalMessagesRequest, _Mapping]] = ..., python_packages: _Optional[_Union[PythonPackagesRequest, _Mapping]] = ..., shutdown: _Optional[_Union[ShutdownRequest, _Mapping]] = ..., attach: _Optional[_Union[AttachRequest, _Mapping]] = ..., status: _Optional[_Union[StatusRequest, _Mapping]] = ..., server_info: _Optional[_Union[ServerInfoRequest, _Mapping]] = ..., sender_mark: _Optional[_Union[SenderMarkRequest, _Mapping]] = ..., sender_read: _Optional[_Union[SenderReadRequest, _Mapping]] = ..., status_report: _Optional[_Union[StatusReportRequest, _Mapping]] = ..., summary_record: _Optional[_Union[SummaryRecordRequest, _Mapping]] = ..., telemetry_record: _Optional[_Union[TelemetryRecordRequest, _Mapping]] = ..., job_info: _Optional[_Union[JobInfoRequest, _Mapping]] = ..., get_system_metrics: _Optional[_Union[GetSystemMetricsRequest, _Mapping]] = ..., job_input: _Optional[_Union[JobInputRequest, _Mapping]] = ..., link_artifact: _Optional[_Union[LinkArtifactRequest, _Mapping]] = ..., sync_finish: _Optional[_Union[SyncFinishRequest, _Mapping]] = ..., operations: _Optional[_Union[OperationStatsRequest, _Mapping]] = ..., probe_system_info: _Optional[_Union[ProbeSystemInfoRequest, _Mapping]] = ..., test_inject: _Optional[_Union[TestInjectRequest, _Mapping]] = ...) -> None: ...
 
 class Response(_message.Message):
-    __slots__ = ("keepalive_response", "stop_status_response", "network_status_response", "login_response", "get_summary_response", "poll_exit_response", "sampled_history_response", "run_start_response", "check_version_response", "log_artifact_response", "download_artifact_response", "run_status_response", "cancel_response", "internal_messages_response", "shutdown_response", "attach_response", "status_response", "server_info_response", "job_info_response", "get_system_metrics_response", "link_artifact_response", "sync_response", "run_finish_without_exit_response", "operations_response", "test_inject_response")
+    __slots__ = ("keepalive_response", "stop_status_response", "network_status_response", "login_response", "get_summary_response", "poll_exit_response", "sampled_history_response", "run_start_response", "check_version_response", "log_artifact_response", "download_artifact_response", "run_status_response", "cancel_response", "internal_messages_response", "shutdown_response", "attach_response", "status_response", "server_info_response", "job_info_response", "get_system_metrics_response", "link_artifact_response", "sync_response", "operations_response", "test_inject_response")
     KEEPALIVE_RESPONSE_FIELD_NUMBER: _ClassVar[int]
     STOP_STATUS_RESPONSE_FIELD_NUMBER: _ClassVar[int]
     NETWORK_STATUS_RESPONSE_FIELD_NUMBER: _ClassVar[int]
@@ -848,7 +876,6 @@ class Response(_message.Message):
     GET_SYSTEM_METRICS_RESPONSE_FIELD_NUMBER: _ClassVar[int]
     LINK_ARTIFACT_RESPONSE_FIELD_NUMBER: _ClassVar[int]
     SYNC_RESPONSE_FIELD_NUMBER: _ClassVar[int]
-    RUN_FINISH_WITHOUT_EXIT_RESPONSE_FIELD_NUMBER: _ClassVar[int]
     OPERATIONS_RESPONSE_FIELD_NUMBER: _ClassVar[int]
     TEST_INJECT_RESPONSE_FIELD_NUMBER: _ClassVar[int]
     keepalive_response: KeepaliveResponse
@@ -873,10 +900,9 @@ class Response(_message.Message):
     get_system_metrics_response: GetSystemMetricsResponse
     link_artifact_response: LinkArtifactResponse
     sync_response: SyncResponse
-    run_finish_without_exit_response: RunFinishWithoutExitResponse
     operations_response: OperationStatsResponse
     test_inject_response: TestInjectResponse
-    def __init__(self, keepalive_response: _Optional[_Union[KeepaliveResponse, _Mapping]] = ..., stop_status_response: _Optional[_Union[StopStatusResponse, _Mapping]] = ..., network_status_response: _Optional[_Union[NetworkStatusResponse, _Mapping]] = ..., login_response: _Optional[_Union[LoginResponse, _Mapping]] = ..., get_summary_response: _Optional[_Union[GetSummaryResponse, _Mapping]] = ..., poll_exit_response: _Optional[_Union[PollExitResponse, _Mapping]] = ..., sampled_history_response: _Optional[_Union[SampledHistoryResponse, _Mapping]] = ..., run_start_response: _Optional[_Union[RunStartResponse, _Mapping]] = ..., check_version_response: _Optional[_Union[CheckVersionResponse, _Mapping]] = ..., log_artifact_response: _Optional[_Union[LogArtifactResponse, _Mapping]] = ..., download_artifact_response: _Optional[_Union[DownloadArtifactResponse, _Mapping]] = ..., run_status_response: _Optional[_Union[RunStatusResponse, _Mapping]] = ..., cancel_response: _Optional[_Union[CancelResponse, _Mapping]] = ..., internal_messages_response: _Optional[_Union[InternalMessagesResponse, _Mapping]] = ..., shutdown_response: _Optional[_Union[ShutdownResponse, _Mapping]] = ..., attach_response: _Optional[_Union[AttachResponse, _Mapping]] = ..., status_response: _Optional[_Union[StatusResponse, _Mapping]] = ..., server_info_response: _Optional[_Union[ServerInfoResponse, _Mapping]] = ..., job_info_response: _Optional[_Union[JobInfoResponse, _Mapping]] = ..., get_system_metrics_response: _Optional[_Union[GetSystemMetricsResponse, _Mapping]] = ..., link_artifact_response: _Optional[_Union[LinkArtifactResponse, _Mapping]] = ..., sync_response: _Optional[_Union[SyncResponse, _Mapping]] = ..., run_finish_without_exit_response: _Optional[_Union[RunFinishWithoutExitResponse, _Mapping]] = ..., operations_response: _Optional[_Union[OperationStatsResponse, _Mapping]] = ..., test_inject_response: _Optional[_Union[TestInjectResponse, _Mapping]] = ...) -> None: ...
+    def __init__(self, keepalive_response: _Optional[_Union[KeepaliveResponse, _Mapping]] = ..., stop_status_response: _Optional[_Union[StopStatusResponse, _Mapping]] = ..., network_status_response: _Optional[_Union[NetworkStatusResponse, _Mapping]] = ..., login_response: _Optional[_Union[LoginResponse, _Mapping]] = ..., get_summary_response: _Optional[_Union[GetSummaryResponse, _Mapping]] = ..., poll_exit_response: _Optional[_Union[PollExitResponse, _Mapping]] = ..., sampled_history_response: _Optional[_Union[SampledHistoryResponse, _Mapping]] = ..., run_start_response: _Optional[_Union[RunStartResponse, _Mapping]] = ..., check_version_response: _Optional[_Union[CheckVersionResponse, _Mapping]] = ..., log_artifact_response: _Optional[_Union[LogArtifactResponse, _Mapping]] = ..., download_artifact_response: _Optional[_Union[DownloadArtifactResponse, _Mapping]] = ..., run_status_response: _Optional[_Union[RunStatusResponse, _Mapping]] = ..., cancel_response: _Optional[_Union[CancelResponse, _Mapping]] = ..., internal_messages_response: _Optional[_Union[InternalMessagesResponse, _Mapping]] = ..., shutdown_response: _Optional[_Union[ShutdownResponse, _Mapping]] = ..., attach_response: _Optional[_Union[AttachResponse, _Mapping]] = ..., status_response: _Optional[_Union[StatusResponse, _Mapping]] = ..., server_info_response: _Optional[_Union[ServerInfoResponse, _Mapping]] = ..., job_info_response: _Optional[_Union[JobInfoResponse, _Mapping]] = ..., get_system_metrics_response: _Optional[_Union[GetSystemMetricsResponse, _Mapping]] = ..., link_artifact_response: _Optional[_Union[LinkArtifactResponse, _Mapping]] = ..., sync_response: _Optional[_Union[SyncResponse, _Mapping]] = ..., operations_response: _Optional[_Union[OperationStatsResponse, _Mapping]] = ..., test_inject_response: _Optional[_Union[TestInjectResponse, _Mapping]] = ...) -> None: ...
 
 class DeferRequest(_message.Message):
     __slots__ = ("state",)
@@ -974,7 +1000,7 @@ class SystemMetricSample(_message.Message):
     VALUE_FIELD_NUMBER: _ClassVar[int]
     timestamp: _timestamp_pb2.Timestamp
     value: float
-    def __init__(self, timestamp: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., value: _Optional[float] = ...) -> None: ...
+    def __init__(self, timestamp: _Optional[_Union[_timestamp_pb2.Timestamp, _Mapping]] = ..., value: _Optional[float] = ...) -> None: ...
 
 class SystemMetricsBuffer(_message.Message):
     __slots__ = ("record",)
@@ -1005,7 +1031,7 @@ class StatusResponse(_message.Message):
     __slots__ = ("run_should_stop",)
     RUN_SHOULD_STOP_FIELD_NUMBER: _ClassVar[int]
     run_should_stop: bool
-    def __init__(self, run_should_stop: _Optional[bool] = ...) -> None: ...
+    def __init__(self, run_should_stop: bool = ...) -> None: ...
 
 class StopStatusRequest(_message.Message):
     __slots__ = ("_info",)
@@ -1017,7 +1043,7 @@ class StopStatusResponse(_message.Message):
     __slots__ = ("run_should_stop",)
     RUN_SHOULD_STOP_FIELD_NUMBER: _ClassVar[int]
     run_should_stop: bool
-    def __init__(self, run_should_stop: _Optional[bool] = ...) -> None: ...
+    def __init__(self, run_should_stop: bool = ...) -> None: ...
 
 class NetworkStatusRequest(_message.Message):
     __slots__ = ("_info",)
@@ -1040,10 +1066,12 @@ class HttpResponse(_message.Message):
     def __init__(self, http_status_code: _Optional[int] = ..., http_response_text: _Optional[str] = ...) -> None: ...
 
 class InternalMessagesRequest(_message.Message):
-    __slots__ = ("_info",)
+    __slots__ = ("wait", "_info")
+    WAIT_FIELD_NUMBER: _ClassVar[int]
     _INFO_FIELD_NUMBER: _ClassVar[int]
+    wait: bool
     _info: _wandb_base_pb2._RequestInfo
-    def __init__(self, _info: _Optional[_Union[_wandb_base_pb2._RequestInfo, _Mapping]] = ...) -> None: ...
+    def __init__(self, wait: bool = ..., _info: _Optional[_Union[_wandb_base_pb2._RequestInfo, _Mapping]] = ...) -> None: ...
 
 class InternalMessagesResponse(_message.Message):
     __slots__ = ("messages",)
@@ -1075,7 +1103,7 @@ class PollExitResponse(_message.Message):
     pusher_stats: FilePusherStats
     file_counts: FileCounts
     operation_stats: OperationStats
-    def __init__(self, done: _Optional[bool] = ..., exit_result: _Optional[_Union[RunExitResult, _Mapping]] = ..., pusher_stats: _Optional[_Union[FilePusherStats, _Mapping]] = ..., file_counts: _Optional[_Union[FileCounts, _Mapping]] = ..., operation_stats: _Optional[_Union[OperationStats, _Mapping]] = ...) -> None: ...
+    def __init__(self, done: bool = ..., exit_result: _Optional[_Union[RunExitResult, _Mapping]] = ..., pusher_stats: _Optional[_Union[FilePusherStats, _Mapping]] = ..., file_counts: _Optional[_Union[FileCounts, _Mapping]] = ..., operation_stats: _Optional[_Union[OperationStats, _Mapping]] = ...) -> None: ...
 
 class OperationStatsRequest(_message.Message):
     __slots__ = ("_info",)
@@ -1145,7 +1173,7 @@ class StatusReportRequest(_message.Message):
     record_num: int
     sent_offset: int
     sync_time: _timestamp_pb2.Timestamp
-    def __init__(self, record_num: _Optional[int] = ..., sent_offset: _Optional[int] = ..., sync_time: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ...) -> None: ...
+    def __init__(self, record_num: _Optional[int] = ..., sent_offset: _Optional[int] = ..., sync_time: _Optional[_Union[_timestamp_pb2.Timestamp, _Mapping]] = ...) -> None: ...
 
 class SummaryRecordRequest(_message.Message):
     __slots__ = ("summary",)
@@ -1249,7 +1277,7 @@ class LocalInfo(_message.Message):
     OUT_OF_DATE_FIELD_NUMBER: _ClassVar[int]
     version: str
     out_of_date: bool
-    def __init__(self, version: _Optional[str] = ..., out_of_date: _Optional[bool] = ...) -> None: ...
+    def __init__(self, version: _Optional[str] = ..., out_of_date: bool = ...) -> None: ...
 
 class ShutdownRequest(_message.Message):
     __slots__ = ("_info",)
@@ -1309,7 +1337,7 @@ class TestInjectRequest(_message.Message):
     msg_drop: bool
     msg_hang: bool
     _info: _wandb_base_pb2._RequestInfo
-    def __init__(self, handler_exc: _Optional[bool] = ..., handler_exit: _Optional[bool] = ..., handler_abort: _Optional[bool] = ..., sender_exc: _Optional[bool] = ..., sender_exit: _Optional[bool] = ..., sender_abort: _Optional[bool] = ..., req_exc: _Optional[bool] = ..., req_exit: _Optional[bool] = ..., req_abort: _Optional[bool] = ..., resp_exc: _Optional[bool] = ..., resp_exit: _Optional[bool] = ..., resp_abort: _Optional[bool] = ..., msg_drop: _Optional[bool] = ..., msg_hang: _Optional[bool] = ..., _info: _Optional[_Union[_wandb_base_pb2._RequestInfo, _Mapping]] = ...) -> None: ...
+    def __init__(self, handler_exc: bool = ..., handler_exit: bool = ..., handler_abort: bool = ..., sender_exc: bool = ..., sender_exit: bool = ..., sender_abort: bool = ..., req_exc: bool = ..., req_exit: bool = ..., req_abort: bool = ..., resp_exc: bool = ..., resp_exit: bool = ..., resp_abort: bool = ..., msg_drop: bool = ..., msg_hang: bool = ..., _info: _Optional[_Union[_wandb_base_pb2._RequestInfo, _Mapping]] = ...) -> None: ...
 
 class TestInjectResponse(_message.Message):
     __slots__ = ()
@@ -1319,7 +1347,7 @@ class HistoryAction(_message.Message):
     __slots__ = ("flush",)
     FLUSH_FIELD_NUMBER: _ClassVar[int]
     flush: bool
-    def __init__(self, flush: _Optional[bool] = ...) -> None: ...
+    def __init__(self, flush: bool = ...) -> None: ...
 
 class PartialHistoryRequest(_message.Message):
     __slots__ = ("item", "step", "action", "_info")
@@ -1375,7 +1403,7 @@ class RunStatusResponse(_message.Message):
     sync_items_total: int
     sync_items_pending: int
     sync_time: _timestamp_pb2.Timestamp
-    def __init__(self, sync_items_total: _Optional[int] = ..., sync_items_pending: _Optional[int] = ..., sync_time: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ...) -> None: ...
+    def __init__(self, sync_items_total: _Optional[int] = ..., sync_items_pending: _Optional[int] = ..., sync_time: _Optional[_Union[_timestamp_pb2.Timestamp, _Mapping]] = ...) -> None: ...
 
 class RunStartRequest(_message.Message):
     __slots__ = ("run", "_info")
@@ -1386,16 +1414,6 @@ class RunStartRequest(_message.Message):
     def __init__(self, run: _Optional[_Union[RunRecord, _Mapping]] = ..., _info: _Optional[_Union[_wandb_base_pb2._RequestInfo, _Mapping]] = ...) -> None: ...
 
 class RunStartResponse(_message.Message):
-    __slots__ = ()
-    def __init__(self) -> None: ...
-
-class RunFinishWithoutExitRequest(_message.Message):
-    __slots__ = ("_info",)
-    _INFO_FIELD_NUMBER: _ClassVar[int]
-    _info: _wandb_base_pb2._RequestInfo
-    def __init__(self, _info: _Optional[_Union[_wandb_base_pb2._RequestInfo, _Mapping]] = ...) -> None: ...
-
-class RunFinishWithoutExitResponse(_message.Message):
     __slots__ = ()
     def __init__(self) -> None: ...
 
@@ -1465,7 +1483,7 @@ class DownloadArtifactRequest(_message.Message):
     skip_cache: bool
     path_prefix: str
     _info: _wandb_base_pb2._RequestInfo
-    def __init__(self, artifact_id: _Optional[str] = ..., download_root: _Optional[str] = ..., allow_missing_references: _Optional[bool] = ..., skip_cache: _Optional[bool] = ..., path_prefix: _Optional[str] = ..., _info: _Optional[_Union[_wandb_base_pb2._RequestInfo, _Mapping]] = ...) -> None: ...
+    def __init__(self, artifact_id: _Optional[str] = ..., download_root: _Optional[str] = ..., allow_missing_references: bool = ..., skip_cache: bool = ..., path_prefix: _Optional[str] = ..., _info: _Optional[_Union[_wandb_base_pb2._RequestInfo, _Mapping]] = ...) -> None: ...
 
 class DownloadArtifactResponse(_message.Message):
     __slots__ = ("error_message",)
@@ -1495,7 +1513,7 @@ class ArtifactInfo(_message.Message):
     notebook: bool
     build_context: str
     dockerfile: str
-    def __init__(self, artifact: _Optional[str] = ..., entrypoint: _Optional[_Iterable[str]] = ..., notebook: _Optional[bool] = ..., build_context: _Optional[str] = ..., dockerfile: _Optional[str] = ...) -> None: ...
+    def __init__(self, artifact: _Optional[str] = ..., entrypoint: _Optional[_Iterable[str]] = ..., notebook: bool = ..., build_context: _Optional[str] = ..., dockerfile: _Optional[str] = ...) -> None: ...
 
 class GitInfo(_message.Message):
     __slots__ = ("remote", "commit")
@@ -1517,7 +1535,7 @@ class GitSource(_message.Message):
     notebook: bool
     build_context: str
     dockerfile: str
-    def __init__(self, git_info: _Optional[_Union[GitInfo, _Mapping]] = ..., entrypoint: _Optional[_Iterable[str]] = ..., notebook: _Optional[bool] = ..., build_context: _Optional[str] = ..., dockerfile: _Optional[str] = ...) -> None: ...
+    def __init__(self, git_info: _Optional[_Union[GitInfo, _Mapping]] = ..., entrypoint: _Optional[_Iterable[str]] = ..., notebook: bool = ..., build_context: _Optional[str] = ..., dockerfile: _Optional[str] = ...) -> None: ...
 
 class ImageSource(_message.Message):
     __slots__ = ("image",)
@@ -1789,7 +1807,7 @@ class EnvironmentRecord(_message.Message):
     coreweave: CoreWeaveInfo
     writer_id: str
     _info: _wandb_base_pb2._RecordInfo
-    def __init__(self, os: _Optional[str] = ..., python: _Optional[str] = ..., started_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., docker: _Optional[str] = ..., args: _Optional[_Iterable[str]] = ..., program: _Optional[str] = ..., code_path: _Optional[str] = ..., code_path_local: _Optional[str] = ..., git: _Optional[_Union[GitRepoRecord, _Mapping]] = ..., email: _Optional[str] = ..., root: _Optional[str] = ..., host: _Optional[str] = ..., username: _Optional[str] = ..., executable: _Optional[str] = ..., colab: _Optional[str] = ..., cpu_count: _Optional[int] = ..., cpu_count_logical: _Optional[int] = ..., gpu_type: _Optional[str] = ..., gpu_count: _Optional[int] = ..., disk: _Optional[_Mapping[str, DiskInfo]] = ..., memory: _Optional[_Union[MemoryInfo, _Mapping]] = ..., cpu: _Optional[_Union[CpuInfo, _Mapping]] = ..., apple: _Optional[_Union[AppleInfo, _Mapping]] = ..., gpu_nvidia: _Optional[_Iterable[_Union[GpuNvidiaInfo, _Mapping]]] = ..., cuda_version: _Optional[str] = ..., gpu_amd: _Optional[_Iterable[_Union[GpuAmdInfo, _Mapping]]] = ..., slurm: _Optional[_Mapping[str, str]] = ..., trainium: _Optional[_Union[TrainiumInfo, _Mapping]] = ..., tpu: _Optional[_Union[TPUInfo, _Mapping]] = ..., coreweave: _Optional[_Union[CoreWeaveInfo, _Mapping]] = ..., writer_id: _Optional[str] = ..., _info: _Optional[_Union[_wandb_base_pb2._RecordInfo, _Mapping]] = ...) -> None: ...
+    def __init__(self, os: _Optional[str] = ..., python: _Optional[str] = ..., started_at: _Optional[_Union[_timestamp_pb2.Timestamp, _Mapping]] = ..., docker: _Optional[str] = ..., args: _Optional[_Iterable[str]] = ..., program: _Optional[str] = ..., code_path: _Optional[str] = ..., code_path_local: _Optional[str] = ..., git: _Optional[_Union[GitRepoRecord, _Mapping]] = ..., email: _Optional[str] = ..., root: _Optional[str] = ..., host: _Optional[str] = ..., username: _Optional[str] = ..., executable: _Optional[str] = ..., colab: _Optional[str] = ..., cpu_count: _Optional[int] = ..., cpu_count_logical: _Optional[int] = ..., gpu_type: _Optional[str] = ..., gpu_count: _Optional[int] = ..., disk: _Optional[_Mapping[str, DiskInfo]] = ..., memory: _Optional[_Union[MemoryInfo, _Mapping]] = ..., cpu: _Optional[_Union[CpuInfo, _Mapping]] = ..., apple: _Optional[_Union[AppleInfo, _Mapping]] = ..., gpu_nvidia: _Optional[_Iterable[_Union[GpuNvidiaInfo, _Mapping]]] = ..., cuda_version: _Optional[str] = ..., gpu_amd: _Optional[_Iterable[_Union[GpuAmdInfo, _Mapping]]] = ..., slurm: _Optional[_Mapping[str, str]] = ..., trainium: _Optional[_Union[TrainiumInfo, _Mapping]] = ..., tpu: _Optional[_Union[TPUInfo, _Mapping]] = ..., coreweave: _Optional[_Union[CoreWeaveInfo, _Mapping]] = ..., writer_id: _Optional[str] = ..., _info: _Optional[_Union[_wandb_base_pb2._RecordInfo, _Mapping]] = ...) -> None: ...
 
 class PythonPackagesRequest(_message.Message):
     __slots__ = ("package",)

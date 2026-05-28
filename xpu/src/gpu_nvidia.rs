@@ -1,5 +1,5 @@
 use crate::metrics::MetricValue;
-use crate::wandb_internal::{GpuNvidiaInfo, EnvironmentRecord};
+use crate::wandb_internal::{EnvironmentRecord, GpuNvidiaInfo};
 
 use nvml_wrapper::enum_wrappers::device::{Clock, TemperatureSensor};
 use nvml_wrapper::enums::gpm::GpmMetricId;
@@ -361,8 +361,7 @@ impl NvidiaGpu {
             MetricValue::Int(self.device_count as i64),
         ));
 
-        let gpm_metric_ids: Vec<GpmMetricId> =
-            GPM_METRICS.iter().map(|(id, _)| *id).collect();
+        let gpm_metric_ids: Vec<GpmMetricId> = GPM_METRICS.iter().map(|(id, _)| *id).collect();
 
         // GPM phase 1: take the first sample for every GPM-capable device
         // up front so the normal NVML collection fills the sampling window
@@ -773,7 +772,6 @@ impl NvidiaGpu {
                     }
                 }
             }
-
         }
 
         // GPM phase 2: the normal NVML collection above filled part of the
@@ -801,9 +799,7 @@ impl NvidiaGpu {
                                 &gpm_metric_ids,
                             ) {
                                 Ok(results) => {
-                                    for (result, (_, name)) in
-                                        results.iter().zip(GPM_METRICS)
-                                    {
+                                    for (result, (_, name)) in results.iter().zip(GPM_METRICS) {
                                         if let Ok(m) = result {
                                             metrics.push((
                                                 format!("gpu.{}.{}", di, name),

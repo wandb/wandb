@@ -28,6 +28,9 @@ targets:
     tagPrefix: gin/v
     tagOnly: true
   - name: github
+    tagPrefix: grpc/v
+    tagOnly: true
+  - name: github
     tagPrefix: iris/v
     tagOnly: true
   - name: github

@@ -7,17 +7,19 @@ import getpass
 import io
 import os
 import time
+from collections.abc import Callable
 from functools import partial
+from http import HTTPStatus
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 import click
 import requests
-from wandb_gql import gql
 
 import wandb
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.lib import runid
+from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 
 from ...apis.internal import Api
 
@@ -422,8 +424,7 @@ def check_large_post() -> bool:
 
     username = getpass.getuser()
     failed_test_strings = []
-    query = gql(
-        """
+    query = """
         query Project($entity: String!, $name: String!, $runName: String!, $desc: String!){
             project(entityName: $entity, name: $name) {
                 run(name: $runName, desc: $desc) {
@@ -433,14 +434,13 @@ def check_large_post() -> bool:
             }
         }
         """
-    )
     public_api = wandb.Api()
-    client = public_api._base_client
 
     try:
-        client._get_result(
+        # TODO: Move this verify query behind an Api-owned operation.
+        public_api._service_api.execute_graphql(
             query,
-            variable_values={
+            variables={
                 "entity": username,
                 "name": PROJECT_NAME,
                 "runName": "",
@@ -450,9 +450,9 @@ def check_large_post() -> bool:
         )
     except Exception as e:
         if (
-            isinstance(e, requests.HTTPError)
+            isinstance(e, WandbApiFailedError)
             and e.response is not None
-            and e.response.status_code == 413
+            and e.response.http_status == HTTPStatus.REQUEST_ENTITY_TOO_LARGE.value
         ):
             failed_test_strings.append(
                 'Failed to send a large payload. Check nginx.ingress.kubernetes.io/proxy-body-size is "0".'

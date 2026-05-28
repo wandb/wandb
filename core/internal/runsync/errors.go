@@ -1,6 +1,7 @@
 package runsync
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/wandb/wandb/core/internal/observability"
@@ -26,6 +27,35 @@ func (e *SyncError) Error() string {
 	} else {
 		return e.Message
 	}
+}
+
+// FirstSyncError returns the first available SyncError, if any, and logs
+// the other ones.
+//
+// If none of the errors are SyncErrors, joins all of them using errors.Join.
+func FirstSyncError(logger *observability.CoreLogger, errs ...error) error {
+	var syncErr *SyncError
+
+	// Find a SyncError.
+	for _, err := range errs {
+		var ok bool
+		if syncErr, ok = err.(*SyncError); ok {
+			break
+		}
+	}
+
+	if syncErr == nil {
+		return errors.Join(errs...)
+	}
+
+	// Log all the errors that we aren't returning.
+	for _, err := range errs {
+		if err != nil && err != syncErr {
+			LogSyncFailure(logger, err)
+		}
+	}
+
+	return syncErr
 }
 
 // LogSyncFailure logs and possibly captures an error that prevents sync

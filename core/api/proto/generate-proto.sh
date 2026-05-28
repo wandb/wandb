@@ -7,7 +7,7 @@ __DIR__=$(dirname "$__SCRIPT__")
 cd $__DIR__
 ./install-protoc.sh 34.1
 go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11
-go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.6.2
 
 # make sure we are running from the root of the repo
 BASE=$(dirname $(dirname $(dirname $(dirname "$__SCRIPT__"))))

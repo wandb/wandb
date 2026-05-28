@@ -7,7 +7,6 @@ from typing import Any
 from unittest import mock
 
 import pytest
-import requests
 import wandb
 import wandb.apis.public
 import wandb.util
@@ -16,6 +15,7 @@ from wandb.apis._generated import ProjectFragment, UserFragment
 from wandb.apis._generated.generate_api_key import GenerateApiKey
 from wandb.errors.errors import CommError
 from wandb.old.summary import Summary
+from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 
 
 @pytest.mark.parametrize(
@@ -250,12 +250,6 @@ def test_run_history_keys_bad_arg(stub_run_gql_once, mock_wandb_log):
     mock_wandb_log.assert_errored("keys must be specified in a list")
 
     run.history(keys=[["acc"]], pandas=False)
-    mock_wandb_log.assert_errored("keys argument must be a list of strings")
-
-    run.scan_history(keys="acc")
-    mock_wandb_log.assert_errored("keys must be specified in a list")
-
-    run.scan_history(keys=[["acc"]])
     mock_wandb_log.assert_errored("keys argument must be a list of strings")
 
 
@@ -1101,7 +1095,7 @@ def test_create_team_exists(wandb_backend_spy):
         gql.Constant(content={"error": "resource already exists"}, status=409),
     )
 
-    with pytest.raises(requests.exceptions.HTTPError):
+    with pytest.raises(WandbApiFailedError):
         Api().create_team("test")
 
 

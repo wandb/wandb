@@ -42,6 +42,7 @@ type TransportOptions struct {
 	CaCerts       *x509.CertPool
 	Recorder      report.ClientReportRecorder
 	Provider      report.ClientReportProvider
+	SdkInfo       func() *protocol.SdkInfo
 }
 
 func getProxyConfig(options TransportOptions) func(*http.Request) (*url.URL, error) {
@@ -74,8 +75,11 @@ func getTLSConfig(options TransportOptions) *tls.Config {
 func getSentryRequestFromEnvelope(ctx context.Context, dsn *protocol.Dsn, envelope *protocol.Envelope) (r *http.Request, err error) {
 	defer func() {
 		if r != nil {
-			sdkName := envelope.Header.Sdk.Name
-			sdkVersion := envelope.Header.Sdk.Version
+			var sdkName, sdkVersion string
+			if envelope.Header.Sdk != nil {
+				sdkVersion = envelope.Header.Sdk.Version
+				sdkName = envelope.Header.Sdk.Name
+			}
 
 			r.Header.Set("User-Agent", fmt.Sprintf("%s/%s", sdkName, sdkVersion))
 			r.Header.Set("Content-Type", "application/x-sentry-envelope")
@@ -151,6 +155,7 @@ type SyncTransport struct {
 	transport http.RoundTripper
 	recorder  report.ClientReportRecorder
 	provider  report.ClientReportProvider
+	sdkInfo   func() *protocol.SdkInfo
 
 	mu     sync.Mutex
 	limits ratelimit.Map
@@ -180,6 +185,7 @@ func NewSyncTransport(options TransportOptions) protocol.TelemetryTransport {
 		dsn:      dsn,
 		recorder: recorder,
 		provider: provider,
+		sdkInfo:  options.SdkInfo,
 	}
 
 	if options.HTTPTransport != nil {
@@ -288,6 +294,7 @@ type AsyncTransport struct {
 	transport http.RoundTripper
 	recorder  report.ClientReportRecorder
 	provider  report.ClientReportProvider
+	sdkInfo   func() *protocol.SdkInfo
 
 	queue chan *protocol.Envelope
 
@@ -298,6 +305,8 @@ type AsyncTransport struct {
 	wg   sync.WaitGroup
 
 	flushRequest chan chan struct{}
+
+	closeMu sync.RWMutex
 
 	QueueSize int
 	Timeout   time.Duration
@@ -330,6 +339,7 @@ func NewAsyncTransport(options TransportOptions) protocol.TelemetryTransport {
 		dsn:       dsn,
 		recorder:  recorder,
 		provider:  provider,
+		sdkInfo:   options.SdkInfo,
 	}
 
 	transport.queue = make(chan *protocol.Envelope, transport.QueueSize)
@@ -384,6 +394,9 @@ func (t *AsyncTransport) HasCapacity() bool {
 }
 
 func (t *AsyncTransport) SendEnvelope(envelope *protocol.Envelope) error {
+	t.closeMu.RLock()
+	defer t.closeMu.RUnlock()
+
 	select {
 	case <-t.done:
 		return ErrTransportClosed
@@ -403,6 +416,8 @@ func (t *AsyncTransport) SendEnvelope(envelope *protocol.Envelope) error {
 	identifier := util.EnvelopeIdentifier(envelope)
 
 	select {
+	case <-t.done:
+		return ErrTransportClosed
 	case t.queue <- envelope:
 		debuglog.Printf(
 			"Sending %s to %s project: %s",
@@ -424,8 +439,14 @@ func (t *AsyncTransport) Flush(timeout time.Duration) bool {
 }
 
 func (t *AsyncTransport) FlushWithContext(ctx context.Context) bool {
+	t.closeMu.RLock()
+	defer t.closeMu.RUnlock()
+
 	flushResponse := make(chan struct{})
 	select {
+	case <-t.done:
+		debuglog.Println("Failed to flush, transport is closed.")
+		return false
 	case t.flushRequest <- flushResponse:
 		select {
 		case <-flushResponse:
@@ -443,15 +464,23 @@ func (t *AsyncTransport) FlushWithContext(ctx context.Context) bool {
 
 func (t *AsyncTransport) Close() {
 	t.closeOnce.Do(func() {
+		t.closeMu.Lock()
+		defer t.closeMu.Unlock()
+
 		close(t.done)
-		close(t.queue)
-		close(t.flushRequest)
 		t.wg.Wait()
 	})
 }
 
 func (t *AsyncTransport) IsRateLimited(category ratelimit.Category) bool {
 	return t.isRateLimited(category)
+}
+
+func (t *AsyncTransport) resolveSdkInfo() *protocol.SdkInfo {
+	if t.sdkInfo == nil {
+		return &protocol.SdkInfo{}
+	}
+	return t.sdkInfo()
 }
 
 func (t *AsyncTransport) worker() {
@@ -494,7 +523,8 @@ func (t *AsyncTransport) sendClientReport() {
 	}
 	header := &protocol.EnvelopeHeader{
 		SentAt: time.Now(),
-		Dsn:    t.dsn.String(),
+		Dsn:    t.dsn,
+		Sdk:    t.resolveSdkInfo(),
 	}
 	envelope := protocol.NewEnvelope(header)
 	envelope.AddItem(item)

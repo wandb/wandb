@@ -5,25 +5,22 @@ This module provides classes for interacting with W&B integrations.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, ClassVar, Union
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from typing_extensions import override
-from wandb_gql import gql
 
 from wandb.apis.paginator import RelayPaginator
 
 if TYPE_CHECKING:
-    from wandb_graphql.language.ast import Document
-
     from wandb._pydantic import Connection
-    from wandb.apis.public.api import RetryingClient
+    from wandb.apis.public.service_api import ServiceApi
     from wandb.automations import Integration, SlackIntegration, WebhookIntegration
     from wandb.automations._generated import (
         SlackIntegrationFields,
         WebhookIntegrationFields,
     )
 
-    IntegrationFields = Union[SlackIntegrationFields, WebhookIntegrationFields]
+    IntegrationFields = SlackIntegrationFields | WebhookIntegrationFields
 
 
 class Integrations(RelayPaginator["IntegrationFields", "Integration"]):
@@ -32,21 +29,24 @@ class Integrations(RelayPaginator["IntegrationFields", "Integration"]):
     <!-- lazydoc-ignore-class: internal -->
     """
 
-    QUERY: ClassVar[Document | None] = None
+    QUERY: ClassVar[str | None] = None
     last_response: Connection[IntegrationFields] | None
 
     def __init__(
         self,
-        client: RetryingClient,
+        service_api: ServiceApi,
         variables: dict[str, Any],
         per_page: int = 50,
+        start: str | None = None,
     ):
         if self.QUERY is None:
             from wandb.automations._generated import INTEGRATIONS_BY_ENTITY_GQL
 
-            type(self).QUERY = gql(INTEGRATIONS_BY_ENTITY_GQL)
+            type(self).QUERY = INTEGRATIONS_BY_ENTITY_GQL
 
-        super().__init__(client, variables=variables, per_page=per_page)
+        super().__init__(
+            service_api, variables=variables, per_page=per_page, start=start
+        )
 
     @override
     def _update_response(self) -> None:
@@ -54,7 +54,7 @@ class Integrations(RelayPaginator["IntegrationFields", "Integration"]):
         from wandb._pydantic import Connection
         from wandb.automations._generated import IntegrationsByEntity
 
-        data = self.client.execute(self.QUERY, variable_values=self.variables)
+        data = self._service_api.execute_graphql(self.QUERY, variables=self.variables)
         result = IntegrationsByEntity.model_validate(data)
         if not ((entity := result.entity) and (conn := entity.integrations)):
             raise ValueError("Unexpected response data")

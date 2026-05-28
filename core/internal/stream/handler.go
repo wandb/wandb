@@ -217,6 +217,7 @@ func (h *Handler) handleRecord(record *spb.Record, request *runwork.Request) {
 	case *spb.Record_History:
 	case *spb.Record_Output:
 	case *spb.Record_OutputRaw:
+	case *spb.Record_OutputLogger:
 	case *spb.Record_Preempting:
 	case *spb.Record_Stats:
 	case *spb.Record_Telemetry:
@@ -309,15 +310,13 @@ func (h *Handler) handleRequest(
 	case *spb.Request_GetSystemMetrics:
 		h.handleRequestGetSystemMetrics(record, request)
 	case *spb.Request_InternalMessages:
-		h.handleRequestInternalMessages(record, request)
+		h.handleRequestInternalMessages(x.InternalMessages, request)
 	case *spb.Request_SyncFinish:
 		h.handleRequestSyncFinish(record, request)
 	case *spb.Request_SenderRead:
 		// TODO: implement this
 	case *spb.Request_JobInput:
 		h.handleRequestJobInput(record, request)
-	case *spb.Request_RunFinishWithoutExit:
-		h.handleRequestRunFinishWithoutExit(record, request)
 	case *spb.Request_Operations:
 		h.handleRequestOperations(record, request)
 	case *spb.Request_ProbeSystemInfo:
@@ -698,17 +697,6 @@ func (h *Handler) handleRequestResume() {
 	h.systemMonitor.Resume()
 }
 
-func (h *Handler) handleRequestRunFinishWithoutExit(
-	record *spb.Record,
-	request *runwork.Request,
-) {
-	h.runTimer.Stop()
-	h.updateRunTiming()
-	h.systemMonitor.Finish()
-	h.flushPartialHistory(true, h.partialHistoryStep+1)
-	h.fwdRecord(record, request)
-}
-
 func (h *Handler) handleExit(
 	record *spb.Record,
 	exit *spb.RunExitRecord,
@@ -798,10 +786,28 @@ func (h *Handler) handleRequestGetSystemMetrics(
 }
 
 func (h *Handler) handleRequestInternalMessages(
-	record *spb.Record,
+	record *spb.InternalMessagesRequest,
 	request *runwork.Request,
 ) {
-	messages := h.terminalPrinter.Read()
+	if request == nil {
+		return
+	}
+
+	go h.popInternalMessages(record, request)
+}
+
+// popInternalMessages responds to the internal messages request,
+// possibly blocking until messages are available.
+func (h *Handler) popInternalMessages(
+	record *spb.InternalMessagesRequest,
+	request *runwork.Request,
+) {
+	var messages []observability.PrinterMessage
+	if record.Wait {
+		messages = h.terminalPrinter.ReadWait(request.Context())
+	} else {
+		messages = h.terminalPrinter.Read()
+	}
 
 	// TODO: Respect message severity in the InternalMessages request.
 	messageContents := make([]string, 0, len(messages))

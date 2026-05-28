@@ -29,7 +29,7 @@ import os
 import pathlib
 import sys
 import threading
-from typing import TYPE_CHECKING, Any, Union
+from typing import TYPE_CHECKING, Any
 
 import wandb
 import wandb.integration.sagemaker as sagemaker
@@ -83,7 +83,7 @@ class _EarlyLogger:
             new_logger.exception(msg, *args, **kwargs)
 
 
-Logger = Union[logging.Logger, _EarlyLogger]
+Logger = logging.Logger | _EarlyLogger
 
 
 class _WandbSetup:

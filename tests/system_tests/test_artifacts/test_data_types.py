@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Callable
+from collections.abc import Callable
+from typing import TYPE_CHECKING, TypeAlias
 
 import matplotlib
 import numpy as np
 import wandb
 from pytest import MonkeyPatch, fixture, mark, raises
-from typing_extensions import TypeAlias
 from wandb import Api
 from wandb.data_types import Table, WBValue
 from wandb.sdk.data_types._dtypes import TypedDictType

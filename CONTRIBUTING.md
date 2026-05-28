@@ -1,6 +1,5 @@
 <p align="center">
-  <img src="./assets/logo-dark.svg#gh-dark-mode-only" width="600" alt="Weights & Biases" />
-  <img src="./assets/logo-light.svg#gh-light-mode-only" width="600" alt="Weights & Biases" />
+  <img src="./assets/logo.svg" width="600" alt="Weights & Biases" />
 </p>
 
 # Contributing to `wandb`
@@ -36,6 +35,8 @@ Please make sure to update the ToC when you update this page!
 - [Testing](#testing)
   - [Using pytest](#using-pytest)
   - [Running `system_tests` locally (internal-only)](#running-system_tests-locally-internal-only)
+- [Troubleshooting](#troubleshooting)
+  - [golangci-lint version mismatch](#golangci-lint-version-mismatch)
 
 ## Development workflow
 
@@ -219,7 +220,7 @@ uv pip install nox
 
 ### Setting up Go
 
-Install Go version `1.26.1` following the instructions [here](https://go.dev/doc/install) or using your package manager, for example:
+Install Go version `1.26.3` following the instructions [here](https://go.dev/doc/install) or using your package manager, for example:
 
 ```shell
 brew install go@1.26
@@ -375,3 +376,20 @@ When you're done, shut it down:
 ```shell
 python tools/local_wandb_server.py stop
 ```
+
+## Troubleshooting
+
+### golangci-lint version mismatch
+
+Example:
+
+`Error: can't load config: the Go language version (go1.25) used to build golangci-lint is lower than the targeted Go version (1.26.2)`\
+`The command is terminated due to an error: can't load config: the Go language version (go1.25) used to build golangci-lint is lower than the targeted Go version (1.26.2)`
+
+Try:
+
+```shell
+prek cache clean
+```
+
+This will rebuild `golangci-lint` and may solve the issue.

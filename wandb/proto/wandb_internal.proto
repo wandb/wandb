@@ -21,9 +21,16 @@ option go_package = "core/pkg/service_go_proto";
  * Records and Results
  ************************/
 
-/*
- * Record: joined record for message passing and persistence
- */
+// A sequence of Records fully defines a run.
+//
+// Records make up a run's transaction log, which can be replayed to reupload
+// the run or upload it for the first time in offline mode.
+//
+// Since Records are persistent, and a new `wandb` version can be used to
+// sync an older transaction log, it is important to follow proper protobuf
+// versioning practices: https://protobuf.dev/best-practices/
+//
+// Next ID: 28
 message Record {
   int64 num = 1;
   oneof record_type {
@@ -51,6 +58,7 @@ message Record {
     google.protobuf.Empty noop_link_artifact = 24;
     UseArtifactRecord use_artifact = 25;
     EnvironmentRecord environment = 26;
+    OutputLoggerRecord output_logger = 27;
 
     // request field does not belong here longterm
     Request request = 100;
@@ -190,16 +198,48 @@ message ErrorInfo {
   ErrorCode code = 2;
 }
 
-/*
- * RunExitRecord: exit status of process
- */
+// Complete the run and wait for it to upload.
+//
+// This record is special because it is written to the transaction log
+// but also requires a response, unlike other record types. It plays an
+// important role in finishing a run: First, after sending this, the client
+// guarantees not to send any more run-modifying records (but can still query
+// things like OperationStats). Second, a response to this record means
+// that all of the run's data has been uploaded.
+//
+// After getting a response to this record, the client may make some final
+// queries and must end with an "inform_finish" request to allow the internal
+// service to clean up.
 message RunExitRecord {
+  // Whether to mark the run successful (if zero) or failed (if nonzero).
+  //
+  // Ignored if not_complete
   int32 exit_code = 1;
+
+  // If set, keeps the run in the Running state instead of transitioning it
+  // to a completed state.
+  //
+  // If not set, the value of the x_update_finish_state setting is used.
+  // Prefer to rely on the setting instead of this field.
+  //
+  // This is used in "shared" mode by secondary nodes. Only the primary node
+  // for a run sets its completion state.
+  bool not_complete = 3;
+
   int32 runtime = 2;
+
   _RecordInfo _info = 200;
 }
 
-message RunExitResult {}
+message RunExitResult {
+  // If true, the run's data may not have been fully uploaded due to
+  // a configured timeout.
+  //
+  // Clients should raise an error of some kind when this occurs
+  // to allow users to decide how to proceed (whether to ignore
+  // the error, print a message, or stop their script).
+  bool timed_out = 1;
+}
 
 /*
  * RunPreemptingRecord: run being preempted
@@ -268,7 +308,7 @@ message OutputRecord {
 message OutputResult {}
 
 /*
- * OutputRawRecord: raw console output
+ * OutputRawRecord: raw console output from stderr and stout.
  */
 message OutputRawRecord {
   enum OutputType {
@@ -282,6 +322,13 @@ message OutputRawRecord {
 }
 
 message OutputRawResult {}
+
+/*
+ * OutputLoggerRecord: log output from run.write_logs for the Logs tab.
+ */
+message OutputLoggerRecord {
+  string line = 1;
+}
 
 /*
  * MetricRecord: wandb/sdk/wandb_metric/Metric
@@ -577,11 +624,18 @@ message AlertResult {}
  * Requests and Responses
  ************************/
 
-/*
- * Request: all non persistent messages
- */
+// Runtime communication that's not part of a run's transaction log.
+//
+// Unlike Records, Requests are not necessary to recreate a run and are not
+// stored in its transaction log. They are generally used to either get
+// information about a run (like whether it stopped, or if there are
+// warnings) or to control the logging process (like to add to the current
+// step with a PartialHistoryRequest, which produces artificial Records
+// when a step is committed).
+//
+// Next ID: 84
 message Request {
-  reserved 18, 22, 75, 76, 80;
+  reserved 18, 22, 75, 76, 79, 80;
 
   oneof request_type {
     StopStatusRequest stop_status = 1;
@@ -616,7 +670,6 @@ message Request {
     GetSystemMetricsRequest get_system_metrics = 74;
     JobInputRequest job_input = 77;
     LinkArtifactRequest link_artifact = 78;
-    RunFinishWithoutExitRequest run_finish_without_exit = 79;
     SyncFinishRequest sync_finish = 81;
 
     // Requests information about tasks the service is performing.
@@ -633,7 +686,7 @@ message Request {
  * Response: all non persistent responses to Requests
  */
 message Response {
-  reserved 32, 73;
+  reserved 32, 72, 73;
 
   oneof response_type {
     KeepaliveResponse keepalive_response = 18;
@@ -658,7 +711,6 @@ message Response {
     GetSystemMetricsResponse get_system_metrics_response = 69;
     LinkArtifactResponse link_artifact_response = 71;
     SyncResponse sync_response = 70;
-    RunFinishWithoutExitResponse run_finish_without_exit_response = 72;
     OperationStatsResponse operations_response = 74;
     TestInjectResponse test_inject_response = 1000;
   }
@@ -784,6 +836,13 @@ message HttpResponse {
  * InternalMessagesRequest:
  */
 message InternalMessagesRequest {
+  // If true, block until there are messages or the run ends.
+  //
+  // The response is empty if and only if the run is over.
+  // The request can be cancelled via the usual ServerCancelRequest
+  // mechanism.
+  bool wait = 1;
+
   _RequestInfo _info = 200;
 }
 
@@ -1095,15 +1154,6 @@ message RunStartRequest {
 }
 
 message RunStartResponse {}
-
-/*
- * RunFinishWithoutExitRequest: finish the run without updating the exit status on the server
- */
-message RunFinishWithoutExitRequest {
-  _RequestInfo _info = 200;
-}
-
-message RunFinishWithoutExitResponse {}
 
 /*
  * CheckVersion:
@@ -1519,4 +1569,34 @@ enum ServerFeature {
   // Indicates that the server supports both the artifact id and the birth artifact id in the artifact file download
   // url.
   ARTIFACT_V2_DOWNLOAD_HANDLER_SUPPORTS_ARTIFACT_ID = 18;
+
+  // Indicates that the server supports automation event RUN_METRIC_ZSCORE.
+  AUTOMATION_EVENT_RUN_METRIC_ZSCORE = 19;
+
+  // Indicates that the server supports automation event RUN_STATE.
+  AUTOMATION_EVENT_RUN_STATE = 20;
+
+  // Indicates that the server supports automation action PUSH_NOTIFICATION.
+  AUTOMATION_ACTION_PUSH_NOTIFICATION = 21;
+
+  // Indicates that the server supports automation event ADD_ARTIFACT_TAG.
+  AUTOMATION_EVENT_ADD_ARTIFACT_TAG = 22;
+
+  // Indicates that the server supports automation event ADD_COLLECTION_TAG.
+  AUTOMATION_EVENT_ADD_COLLECTION_TAG = 23;
+
+  // Indicates that the server supports automation event REMOVE_ARTIFACT_TAG.
+  AUTOMATION_EVENT_REMOVE_ARTIFACT_TAG = 24;
+
+  // Indicates that the server supports automation event REMOVE_COLLECTION_TAG.
+  AUTOMATION_EVENT_REMOVE_COLLECTION_TAG = 25;
+
+  // Indicates that the server supports automation event UNLINK_ARTIFACT.
+  AUTOMATION_EVENT_UNLINK_ARTIFACT = 26;
+
+  // Indicates that the server supports User.triggers.
+  AUTOMATIONS_ON_USER = 27;
+
+  // Indicates that the server supports Trigger.lastExecutedAt.
+  AUTOMATION_LAST_EXECUTED_AT = 28;
 }

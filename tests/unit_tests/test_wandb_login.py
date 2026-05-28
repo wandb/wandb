@@ -10,6 +10,19 @@ from wandb.sdk import wandb_login, wandb_setup
 from wandb.sdk.lib.credentials import _expires_at_fmt
 
 
+@pytest.fixture(autouse=True)
+def suppress_logged_in_message(monkeypatch: pytest.MonkeyPatch) -> None:
+    # HACK: Prevent the test from attempting to connect to the fake URLs.
+    #
+    # The banner fetches viewer info; keep login unit tests focused on prompt
+    # and config behavior instead of network-backed account lookups.
+    monkeypatch.setattr(
+        wandb_login,
+        "_print_logged_in_message",
+        lambda *args, **kwargs: None,
+    )
+
+
 def test_login_timeout(emulated_terminal):
     emulated_terminal.queue_input("junk")
     emulated_terminal.queue_input("more")
@@ -86,14 +99,7 @@ def test_login(test_settings):
     "local_settings",
     "skip_verify_login",
 )
-def test_login_sets_api_base_url(monkeypatch: pytest.MonkeyPatch):
-    # HACK: Prevent the test from attempting to connect to the fake URLs.
-    monkeypatch.setattr(
-        wandb_login,
-        "_print_logged_in_message",
-        lambda *args, **kwargs: None,
-    )
-
+def test_login_sets_api_base_url():
     base_url = "https://api.test.host.ai"
     wandb.login(key="test" * 10, host=base_url)
     assert wandb_setup.singleton().settings.base_url == base_url

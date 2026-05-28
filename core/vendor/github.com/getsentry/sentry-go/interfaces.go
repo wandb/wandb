@@ -247,11 +247,11 @@ type Request struct {
 	Env         map[string]string `json:"env,omitempty"`
 }
 
-// NewRequest returns a new Sentry Request from the given http.Request.
-//
-// NewRequest avoids operations that depend on network access. In particular, it
-// does not read r.Body.
-func NewRequest(r *http.Request) *Request {
+func sendDefaultPIIEnabled(client *Client) bool {
+	return client != nil && client.options.SendDefaultPII
+}
+
+func newRequest(r *http.Request, sendDefaultPII bool) *Request {
 	prot := protocol.SchemeHTTP
 	if r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" {
 		prot = protocol.SchemeHTTPS
@@ -262,7 +262,7 @@ func NewRequest(r *http.Request) *Request {
 	var env map[string]string
 	headers := map[string]string{}
 
-	if client := CurrentHub().Client(); client != nil && client.options.SendDefaultPII {
+	if sendDefaultPII {
 		// We read only the first Cookie header because of the specification:
 		// https://tools.ietf.org/html/rfc6265#section-5.4
 		// When the user agent generates an HTTP request, the user agent MUST NOT
@@ -295,6 +295,14 @@ func NewRequest(r *http.Request) *Request {
 		Headers:     headers,
 		Env:         env,
 	}
+}
+
+// NewRequest returns a new Sentry Request from the given http.Request.
+//
+// NewRequest avoids operations that depend on network access. In particular, it
+// does not read r.Body.
+func NewRequest(r *http.Request) *Request {
+	return newRequest(r, sendDefaultPIIEnabled(CurrentHub().Client()))
 }
 
 // Mechanism is the mechanism by which an exception was generated and handled.
@@ -373,30 +381,29 @@ type Context = map[string]interface{}
 
 // Event is the fundamental data structure that is sent to Sentry.
 type Event struct {
-	Breadcrumbs []*Breadcrumb          `json:"breadcrumbs,omitempty"`
-	Contexts    map[string]Context     `json:"contexts,omitempty"`
-	Dist        string                 `json:"dist,omitempty"`
-	Environment string                 `json:"environment,omitempty"`
-	EventID     EventID                `json:"event_id,omitempty"`
-	Extra       map[string]interface{} `json:"extra,omitempty"`
-	Fingerprint []string               `json:"fingerprint,omitempty"`
-	Level       Level                  `json:"level,omitempty"`
-	Message     string                 `json:"message,omitempty"`
-	Platform    string                 `json:"platform,omitempty"`
-	Release     string                 `json:"release,omitempty"`
-	Sdk         SdkInfo                `json:"sdk,omitempty"`
-	ServerName  string                 `json:"server_name,omitempty"`
-	Threads     []Thread               `json:"threads,omitempty"`
-	Tags        map[string]string      `json:"tags,omitempty"`
-	Timestamp   time.Time              `json:"timestamp,omitzero"`
-	Transaction string                 `json:"transaction,omitempty"`
-	User        User                   `json:"user,omitempty"`
-	Logger      string                 `json:"logger,omitempty"`
-	Modules     map[string]string      `json:"modules,omitempty"`
-	Request     *Request               `json:"request,omitempty"`
-	Exception   []Exception            `json:"exception,omitempty"`
-	DebugMeta   *DebugMeta             `json:"debug_meta,omitempty"`
-	Attachments []*Attachment          `json:"-"`
+	Breadcrumbs []*Breadcrumb      `json:"breadcrumbs,omitempty"`
+	Contexts    map[string]Context `json:"contexts,omitempty"`
+	Dist        string             `json:"dist,omitempty"`
+	Environment string             `json:"environment,omitempty"`
+	EventID     EventID            `json:"event_id,omitempty"`
+	Fingerprint []string           `json:"fingerprint,omitempty"`
+	Level       Level              `json:"level,omitempty"`
+	Message     string             `json:"message,omitempty"`
+	Platform    string             `json:"platform,omitempty"`
+	Release     string             `json:"release,omitempty"`
+	Sdk         SdkInfo            `json:"sdk,omitempty"`
+	ServerName  string             `json:"server_name,omitempty"`
+	Threads     []Thread           `json:"threads,omitempty"`
+	Tags        map[string]string  `json:"tags,omitempty"`
+	Timestamp   time.Time          `json:"timestamp,omitzero"`
+	Transaction string             `json:"transaction,omitempty"`
+	User        User               `json:"user,omitempty"`
+	Logger      string             `json:"logger,omitempty"`
+	Modules     map[string]string  `json:"modules,omitempty"`
+	Request     *Request           `json:"request,omitempty"`
+	Exception   []Exception        `json:"exception,omitempty"`
+	DebugMeta   *DebugMeta         `json:"debug_meta,omitempty"`
+	Attachments []*Attachment      `json:"-"`
 
 	// The fields below are only relevant for transactions.
 
@@ -421,11 +428,12 @@ type Event struct {
 	sdkMetaData SDKMetaData
 
 	// Pre-serialized copies of mutable fields, set by MakeSerializationSafe.
-	serializedExtra       json.RawMessage
+	serializedTags        json.RawMessage
 	serializedContexts    json.RawMessage
 	serializedBreadcrumbs json.RawMessage
 	serializedException   json.RawMessage
 	serializedUser        json.RawMessage
+	serializationSafe     bool
 }
 
 // SetException appends the unwrapped errors to the event's exception list.
@@ -463,28 +471,7 @@ func (e *Event) safeMarshal() (b []byte, err error) {
 func (e *Event) ToEnvelopeItem() (item *protocol.EnvelopeItem, err error) {
 	eventBody, err := e.safeMarshal()
 	if err != nil {
-		// Try fallback: remove problematic fields and retry.
-		// Clear both original and pre-serialized versions.
-		e.Breadcrumbs = nil
-		e.serializedBreadcrumbs = nil
-		e.Contexts = nil
-		e.serializedContexts = nil
-		e.serializedException = nil
-		e.serializedUser = nil
-		e.serializedExtra = nil
-		e.Extra = map[string]interface{}{
-			"info": fmt.Sprintf("Could not encode original event as JSON. "+
-				"Succeeded by removing Breadcrumbs, Contexts and Extra. "+
-				"Please verify the data you attach to the scope. "+
-				"Error: %s", err),
-		}
-
-		eventBody, err = json.Marshal(e)
-		if err != nil {
-			return nil, fmt.Errorf("event could not be marshaled even with fallback: %w", err)
-		}
-
-		DebugLogger.Printf("Event marshaling succeeded with fallback after removing problematic fields")
+		return nil, fmt.Errorf("could not encode event as JSON, skipping delivery: %w", err)
 	}
 
 	// TODO: all event types should be abstracted to implement EnvelopeItemConvertible and convert themselves.
@@ -502,6 +489,24 @@ func (e *Event) ToEnvelopeItem() (item *protocol.EnvelopeItem, err error) {
 	}
 
 	return item, nil
+}
+
+// ToEnvelope converts the Event to a Sentry envelope.
+func (e *Event) ToEnvelope(header *protocol.EnvelopeHeader) (*protocol.Envelope, error) {
+	item, err := e.ToEnvelopeItem()
+	if err != nil {
+		return nil, err
+	}
+
+	envelope := protocol.NewEnvelope(header)
+	envelope.AddItem(item)
+
+	for _, attachment := range e.Attachments {
+		attachmentItem := protocol.NewAttachmentItem(attachment.Filename, attachment.ContentType, attachment.Payload)
+		envelope.AddItem(attachmentItem)
+	}
+
+	return envelope, nil
 }
 
 // GetCategory returns the rate limit category for this event.
@@ -618,11 +623,7 @@ func (e *Event) defaultMarshalJSON() ([]byte, error) {
 }
 
 func (e *Event) hasPreSerializedFields() bool {
-	return e.serializedExtra != nil ||
-		e.serializedContexts != nil ||
-		e.serializedBreadcrumbs != nil ||
-		e.serializedException != nil ||
-		e.serializedUser != nil
+	return e.serializationSafe
 }
 
 // preSerializedMarshalJSON handles marshaling when MakeSerializationSafe has
@@ -634,7 +635,7 @@ func (e *Event) preSerializedMarshalJSON() ([]byte, error) {
 	if e.Type == transactionType {
 		type safeTransaction struct {
 			*event
-			Extra       json.RawMessage `json:"extra,omitempty"`
+			Tags        json.RawMessage `json:"tags,omitempty"`
 			Contexts    json.RawMessage `json:"contexts,omitempty"`
 			Breadcrumbs json.RawMessage `json:"breadcrumbs,omitempty"`
 			Exception   json.RawMessage `json:"exception,omitempty"`
@@ -642,7 +643,7 @@ func (e *Event) preSerializedMarshalJSON() ([]byte, error) {
 		}
 		return json.Marshal(safeTransaction{
 			event:       (*event)(e),
-			Extra:       e.serializedExtra,
+			Tags:        e.serializedTags,
 			Contexts:    e.serializedContexts,
 			Breadcrumbs: e.serializedBreadcrumbs,
 			Exception:   e.serializedException,
@@ -653,7 +654,7 @@ func (e *Event) preSerializedMarshalJSON() ([]byte, error) {
 	// Error event: also shadow transaction-only fields to exclude them.
 	type safeErrorEvent struct {
 		*event
-		Extra           json.RawMessage `json:"extra,omitempty"`
+		Tags            json.RawMessage `json:"tags,omitempty"`
 		Contexts        json.RawMessage `json:"contexts,omitempty"`
 		Breadcrumbs     json.RawMessage `json:"breadcrumbs,omitempty"`
 		Exception       json.RawMessage `json:"exception,omitempty"`
@@ -665,7 +666,7 @@ func (e *Event) preSerializedMarshalJSON() ([]byte, error) {
 	}
 	return json.Marshal(safeErrorEvent{
 		event:       (*event)(e),
-		Extra:       e.serializedExtra,
+		Tags:        e.serializedTags,
 		Contexts:    e.serializedContexts,
 		Breadcrumbs: e.serializedBreadcrumbs,
 		Exception:   e.serializedException,
@@ -719,7 +720,6 @@ func (e *Event) toCategory() ratelimit.Category {
 func NewEvent() *Event {
 	return &Event{
 		Contexts: make(map[string]Context),
-		Extra:    make(map[string]interface{}),
 		Tags:     make(map[string]string),
 		Modules:  make(map[string]string),
 	}
@@ -897,9 +897,9 @@ func (v MetricValue) MarshalJSON() ([]byte, error) {
 // MakeSerializationSafe pre-serializes all fields containing user mutable data to json.RawMessage, preventing race
 // conditions when the event is later serialized on a background goroutine.
 func (e *Event) MakeSerializationSafe() {
-	if len(e.Extra) > 0 {
-		if b, err := json.Marshal(e.Extra); err == nil {
-			e.serializedExtra = b
+	if len(e.Tags) > 0 {
+		if b, err := json.Marshal(e.Tags); err == nil {
+			e.serializedTags = b
 		}
 	}
 
@@ -926,4 +926,10 @@ func (e *Event) MakeSerializationSafe() {
 			e.serializedUser = b
 		}
 	}
+
+	for _, span := range e.Spans {
+		span.makeSerializationSafe()
+	}
+
+	e.serializationSafe = true
 }

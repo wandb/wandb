@@ -30,16 +30,14 @@ type TelemetryRecord struct {
 	PythonVersion      string                 `protobuf:"bytes,4,opt,name=python_version,json=pythonVersion,proto3" json:"python_version,omitempty"`
 	CliVersion         string                 `protobuf:"bytes,5,opt,name=cli_version,json=cliVersion,proto3" json:"cli_version,omitempty"`
 	HuggingfaceVersion string                 `protobuf:"bytes,6,opt,name=huggingface_version,json=huggingfaceVersion,proto3" json:"huggingface_version,omitempty"`
-	// string  framework = 7;
-	Env           *Env         `protobuf:"bytes,8,opt,name=env,proto3" json:"env,omitempty"`
-	Label         *Labels      `protobuf:"bytes,9,opt,name=label,proto3" json:"label,omitempty"`
-	Deprecated    *Deprecated  `protobuf:"bytes,10,opt,name=deprecated,proto3" json:"deprecated,omitempty"`
-	Issues        *Issues      `protobuf:"bytes,11,opt,name=issues,proto3" json:"issues,omitempty"`
-	CoreVersion   string       `protobuf:"bytes,12,opt,name=core_version,json=coreVersion,proto3" json:"core_version,omitempty"`
-	Platform      string       `protobuf:"bytes,13,opt,name=platform,proto3" json:"platform,omitempty"`
-	XInfo         *XRecordInfo `protobuf:"bytes,200,opt,name=_info,json=Info,proto3" json:"_info,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Env                *Env                   `protobuf:"bytes,8,opt,name=env,proto3" json:"env,omitempty"`
+	Label              *Labels                `protobuf:"bytes,9,opt,name=label,proto3" json:"label,omitempty"`
+	Deprecated         *Deprecated            `protobuf:"bytes,10,opt,name=deprecated,proto3" json:"deprecated,omitempty"`
+	CoreVersion        string                 `protobuf:"bytes,12,opt,name=core_version,json=coreVersion,proto3" json:"core_version,omitempty"`
+	Platform           string                 `protobuf:"bytes,13,opt,name=platform,proto3" json:"platform,omitempty"`
+	XInfo              *XRecordInfo           `protobuf:"bytes,200,opt,name=_info,json=Info,proto3" json:"_info,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *TelemetryRecord) Reset() {
@@ -131,13 +129,6 @@ func (x *TelemetryRecord) GetLabel() *Labels {
 func (x *TelemetryRecord) GetDeprecated() *Deprecated {
 	if x != nil {
 		return x.Deprecated
-	}
-	return nil
-}
-
-func (x *TelemetryRecord) GetIssues() *Issues {
-	if x != nil {
-		return x.Issues
 	}
 	return nil
 }
@@ -1019,27 +1010,30 @@ func (x *Imports) GetDspy() bool {
 	return false
 }
 
+// Next ID: 76
 type Feature struct {
 	state               protoimpl.MessageState `protogen:"open.v1"`
-	Watch               bool                   `protobuf:"varint,1,opt,name=watch,proto3" json:"watch,omitempty"`                                                         // wandb.watch() called
-	Finish              bool                   `protobuf:"varint,2,opt,name=finish,proto3" json:"finish,omitempty"`                                                       // wandb.finish() called
-	Save                bool                   `protobuf:"varint,3,opt,name=save,proto3" json:"save,omitempty"`                                                           // wandb.save() called
-	Offline             bool                   `protobuf:"varint,4,opt,name=offline,proto3" json:"offline,omitempty"`                                                     // offline run was synced
-	Resumed             bool                   `protobuf:"varint,5,opt,name=resumed,proto3" json:"resumed,omitempty"`                                                     // run was resumed
-	Grpc                bool                   `protobuf:"varint,6,opt,name=grpc,proto3" json:"grpc,omitempty"`                                                           // grpc-server (java integration)
-	Metric              bool                   `protobuf:"varint,7,opt,name=metric,proto3" json:"metric,omitempty"`                                                       // define_metric() called
-	Keras               bool                   `protobuf:"varint,8,opt,name=keras,proto3" json:"keras,omitempty"`                                                         // Keras WandbCallback used
-	Sagemaker           bool                   `protobuf:"varint,9,opt,name=sagemaker,proto3" json:"sagemaker,omitempty"`                                                 // User is using sagemaker
-	ArtifactIncremental bool                   `protobuf:"varint,10,opt,name=artifact_incremental,json=artifactIncremental,proto3" json:"artifact_incremental,omitempty"` // Artifact(incremental=True) used
-	Metaflow            bool                   `protobuf:"varint,11,opt,name=metaflow,proto3" json:"metaflow,omitempty"`                                                  // Using metaflow integration
-	Prodigy             bool                   `protobuf:"varint,12,opt,name=prodigy,proto3" json:"prodigy,omitempty"`                                                    // Using prodigy integration
-	SetInitName         bool                   `protobuf:"varint,13,opt,name=set_init_name,json=setInitName,proto3" json:"set_init_name,omitempty"`                       // users set run name from wandb.init
-	SetInitId           bool                   `protobuf:"varint,14,opt,name=set_init_id,json=setInitId,proto3" json:"set_init_id,omitempty"`                             // users set run id from wandb.init
-	SetInitTags         bool                   `protobuf:"varint,15,opt,name=set_init_tags,json=setInitTags,proto3" json:"set_init_tags,omitempty"`                       // users set tags within wandb.init
-	SetInitConfig       bool                   `protobuf:"varint,16,opt,name=set_init_config,json=setInitConfig,proto3" json:"set_init_config,omitempty"`                 // users set run config in wandb.init
-	SetRunName          bool                   `protobuf:"varint,17,opt,name=set_run_name,json=setRunName,proto3" json:"set_run_name,omitempty"`                          // user sets run name via wandb.run.name = ...
-	SetRunTags          bool                   `protobuf:"varint,18,opt,name=set_run_tags,json=setRunTags,proto3" json:"set_run_tags,omitempty"`                          // user sets run name via wandb.run.tags = ...
-	SetConfigItem       bool                   `protobuf:"varint,19,opt,name=set_config_item,json=setConfigItem,proto3" json:"set_config_item,omitempty"`                 // users set key in run config via run.config.key
+	Watch               bool                   `protobuf:"varint,1,opt,name=watch,proto3" json:"watch,omitempty"`                                                           // wandb.watch() called
+	Finish              bool                   `protobuf:"varint,2,opt,name=finish,proto3" json:"finish,omitempty"`                                                         // wandb.finish() called
+	FinishTimeout       bool                   `protobuf:"varint,74,opt,name=finish_timeout,json=finishTimeout,proto3" json:"finish_timeout,omitempty"`                     // finish_timeout setting enabled
+	FinishTimeoutRaises bool                   `protobuf:"varint,75,opt,name=finish_timeout_raises,json=finishTimeoutRaises,proto3" json:"finish_timeout_raises,omitempty"` // finish_timeout_raises setting enabled
+	Save                bool                   `protobuf:"varint,3,opt,name=save,proto3" json:"save,omitempty"`                                                             // wandb.save() called
+	Offline             bool                   `protobuf:"varint,4,opt,name=offline,proto3" json:"offline,omitempty"`                                                       // offline run was synced
+	Resumed             bool                   `protobuf:"varint,5,opt,name=resumed,proto3" json:"resumed,omitempty"`                                                       // run was resumed
+	Grpc                bool                   `protobuf:"varint,6,opt,name=grpc,proto3" json:"grpc,omitempty"`                                                             // grpc-server (java integration)
+	Metric              bool                   `protobuf:"varint,7,opt,name=metric,proto3" json:"metric,omitempty"`                                                         // define_metric() called
+	Keras               bool                   `protobuf:"varint,8,opt,name=keras,proto3" json:"keras,omitempty"`                                                           // Keras WandbCallback used
+	Sagemaker           bool                   `protobuf:"varint,9,opt,name=sagemaker,proto3" json:"sagemaker,omitempty"`                                                   // User is using sagemaker
+	ArtifactIncremental bool                   `protobuf:"varint,10,opt,name=artifact_incremental,json=artifactIncremental,proto3" json:"artifact_incremental,omitempty"`   // Artifact(incremental=True) used
+	Metaflow            bool                   `protobuf:"varint,11,opt,name=metaflow,proto3" json:"metaflow,omitempty"`                                                    // Using metaflow integration
+	Prodigy             bool                   `protobuf:"varint,12,opt,name=prodigy,proto3" json:"prodigy,omitempty"`                                                      // Using prodigy integration
+	SetInitName         bool                   `protobuf:"varint,13,opt,name=set_init_name,json=setInitName,proto3" json:"set_init_name,omitempty"`                         // users set run name from wandb.init
+	SetInitId           bool                   `protobuf:"varint,14,opt,name=set_init_id,json=setInitId,proto3" json:"set_init_id,omitempty"`                               // users set run id from wandb.init
+	SetInitTags         bool                   `protobuf:"varint,15,opt,name=set_init_tags,json=setInitTags,proto3" json:"set_init_tags,omitempty"`                         // users set tags within wandb.init
+	SetInitConfig       bool                   `protobuf:"varint,16,opt,name=set_init_config,json=setInitConfig,proto3" json:"set_init_config,omitempty"`                   // users set run config in wandb.init
+	SetRunName          bool                   `protobuf:"varint,17,opt,name=set_run_name,json=setRunName,proto3" json:"set_run_name,omitempty"`                            // user sets run name via wandb.run.name = ...
+	SetRunTags          bool                   `protobuf:"varint,18,opt,name=set_run_tags,json=setRunTags,proto3" json:"set_run_tags,omitempty"`                            // user sets run name via wandb.run.tags = ...
+	SetConfigItem       bool                   `protobuf:"varint,19,opt,name=set_config_item,json=setConfigItem,proto3" json:"set_config_item,omitempty"`                   // users set key in run config via run.config.key
 	// or run.config["key"]
 	Launch                   bool `protobuf:"varint,20,opt,name=launch,proto3" json:"launch,omitempty"`                                                                         // run is created through wandb launch
 	TorchProfilerTrace       bool `protobuf:"varint,21,opt,name=torch_profiler_trace,json=torchProfilerTrace,proto3" json:"torch_profiler_trace,omitempty"`                     // wandb.profiler.torch_trace_handler() called
@@ -1136,6 +1130,20 @@ func (x *Feature) GetWatch() bool {
 func (x *Feature) GetFinish() bool {
 	if x != nil {
 		return x.Finish
+	}
+	return false
+}
+
+func (x *Feature) GetFinishTimeout() bool {
+	if x != nil {
+		return x.FinishTimeout
+	}
+	return false
+}
+
+func (x *Feature) GetFinishTimeoutRaises() bool {
+	if x != nil {
+		return x.FinishTimeoutRaises
 	}
 	return false
 }
@@ -1794,12 +1802,9 @@ func (x *Labels) GetCodeVersion() string {
 
 type Deprecated struct {
 	state                      protoimpl.MessageState `protogen:"open.v1"`
-	KerasCallback_DataType     bool                   `protobuf:"varint,1,opt,name=keras_callback__data_type,json=kerasCallbackDataType,proto3" json:"keras_callback__data_type,omitempty"`          // wandb.integration.keras.WandbCallback(data_type=...) called
 	Plots                      bool                   `protobuf:"varint,5,opt,name=plots,proto3" json:"plots,omitempty"`                                                                             // wandb.plots.* called
 	Init_ConfigIncludeKeys     bool                   `protobuf:"varint,7,opt,name=init__config_include_keys,json=initConfigIncludeKeys,proto3" json:"init__config_include_keys,omitempty"`          // wandb.init(config_include_keys=...) called
 	Init_ConfigExcludeKeys     bool                   `protobuf:"varint,8,opt,name=init__config_exclude_keys,json=initConfigExcludeKeys,proto3" json:"init__config_exclude_keys,omitempty"`          // wandb.init(config_exclude_keys=...) called
-	KerasCallback_SaveModel    bool                   `protobuf:"varint,9,opt,name=keras_callback__save_model,json=kerasCallbackSaveModel,proto3" json:"keras_callback__save_model,omitempty"`       // wandb.integration.keras.WandbCallback(save_model=True) called
-	LangchainTracer            bool                   `protobuf:"varint,10,opt,name=langchain_tracer,json=langchainTracer,proto3" json:"langchain_tracer,omitempty"`                                 // wandb.integration.langchain.WandbTracer called
 	Artifact_GetPath           bool                   `protobuf:"varint,11,opt,name=artifact__get_path,json=artifactGetPath,proto3" json:"artifact__get_path,omitempty"`                             // wandb.sdk.artifacts.artifact.Artifact.get_path(...) called
 	Artifactmanifestentry_Name bool                   `protobuf:"varint,12,opt,name=artifactmanifestentry__name,json=artifactmanifestentryName,proto3" json:"artifactmanifestentry__name,omitempty"` // wandb.sdk.artifacts.artifact_manifest_entry.ArtifactManifestEntry.name() called
 	Api_ArtifactVersions       bool                   `protobuf:"varint,13,opt,name=api__artifact_versions,json=apiArtifactVersions,proto3" json:"api__artifact_versions,omitempty"`                 // wandb.Api().artifact_versions(...) called
@@ -1807,23 +1812,19 @@ type Deprecated struct {
 	ArtifactCollection_ChangeType bool `protobuf:"varint,14,opt,name=artifact_collection__change_type,json=artifactCollectionChangeType,proto3" json:"artifact_collection__change_type,omitempty"`
 	// wandb.run.define_metric() called with summary="copy"
 	Run_DefineMetricCopy bool `protobuf:"varint,15,opt,name=run__define_metric_copy,json=runDefineMetricCopy,proto3" json:"run__define_metric_copy,omitempty"`
-	RunDisabled          bool `protobuf:"varint,16,opt,name=run_disabled,json=runDisabled,proto3" json:"run_disabled,omitempty"`       // wandb.sdk.lib.disabled.RunDisabled used
-	KerasCallback        bool `protobuf:"varint,17,opt,name=keras_callback,json=kerasCallback,proto3" json:"keras_callback,omitempty"` // wandb.integration.keras.WandbCallback used
+	RunDisabled          bool `protobuf:"varint,16,opt,name=run_disabled,json=runDisabled,proto3" json:"run_disabled,omitempty"` // wandb.sdk.lib.disabled.RunDisabled used
 	// wandb.run.define_metric() called with summary="best" and goal="maximize/minimize"
 	Run_DefineMetricBestGoal bool `protobuf:"varint,18,opt,name=run__define_metric_best_goal,json=runDefineMetricBestGoal,proto3" json:"run__define_metric_best_goal,omitempty"`
-	Run_FinishQuiet          bool `protobuf:"varint,19,opt,name=run__finish_quiet,json=runFinishQuiet,proto3" json:"run__finish_quiet,omitempty"`                             // wandb.run.finish(quiet=...) called
-	Run_ReinitBool           bool `protobuf:"varint,20,opt,name=run__reinit_bool,json=runReinitBool,proto3" json:"run__reinit_bool,omitempty"`                                // reinit setting set to a boolean value
-	Run_GetUrl               bool `protobuf:"varint,21,opt,name=run__get_url,json=runGetUrl,proto3" json:"run__get_url,omitempty"`                                            // wandb.run.get_url() called
-	Run_ProjectName          bool `protobuf:"varint,22,opt,name=run__project_name,json=runProjectName,proto3" json:"run__project_name,omitempty"`                             // wandb.run.project_name() called
-	Run_GetProjectUrl        bool `protobuf:"varint,23,opt,name=run__get_project_url,json=runGetProjectUrl,proto3" json:"run__get_project_url,omitempty"`                     // wandb.run.get_project_url() called
-	Run_GetSweepUrl          bool `protobuf:"varint,24,opt,name=run__get_sweep_url,json=runGetSweepUrl,proto3" json:"run__get_sweep_url,omitempty"`                           // wandb.run.get_sweep_url() called
-	Run_UseArtifactUseAs     bool `protobuf:"varint,25,opt,name=run__use_artifact_use_as,json=runUseArtifactUseAs,proto3" json:"run__use_artifact_use_as,omitempty"`          // wandb.run.use_artifact(use_as=...) called
-	Artifact_UseAs           bool `protobuf:"varint,26,opt,name=artifact__use_as,json=artifactUseAs,proto3" json:"artifact__use_as,omitempty"`                                // wandb.sdk.artifacts.artifact.Artifact.use_as() called
-	Artifact_InitUseAs       bool `protobuf:"varint,27,opt,name=artifact__init_use_as,json=artifactInitUseAs,proto3" json:"artifact__init_use_as,omitempty"`                  // wandb.sdk.artifacts.artifact.Artifact(use_as=...) called
-	Beta_Workflows_LogModel  bool `protobuf:"varint,28,opt,name=beta__workflows__log_model,json=betaWorkflowsLogModel,proto3" json:"beta__workflows__log_model,omitempty"`    // wandb.beta.workflows.log_model() called
-	Beta_Workflows_UseModel  bool `protobuf:"varint,29,opt,name=beta__workflows__use_model,json=betaWorkflowsUseModel,proto3" json:"beta__workflows__use_model,omitempty"`    // wandb.beta.workflows.use_model() called
-	Beta_Workflows_LinkModel bool `protobuf:"varint,30,opt,name=beta__workflows__link_model,json=betaWorkflowsLinkModel,proto3" json:"beta__workflows__link_model,omitempty"` // wandb.beta.workflows.link_model() called
-	KfpV1WandbLog            bool `protobuf:"varint,31,opt,name=kfp_v1_wandb_log,json=kfpV1WandbLog,proto3" json:"kfp_v1_wandb_log,omitempty"`                                // wandb.integration.kfp.wandb_log used with kfp<2.0.0
+	Run_FinishQuiet          bool `protobuf:"varint,19,opt,name=run__finish_quiet,json=runFinishQuiet,proto3" json:"run__finish_quiet,omitempty"`                    // wandb.run.finish(quiet=...) called
+	Run_ReinitBool           bool `protobuf:"varint,20,opt,name=run__reinit_bool,json=runReinitBool,proto3" json:"run__reinit_bool,omitempty"`                       // reinit setting set to a boolean value
+	Run_GetUrl               bool `protobuf:"varint,21,opt,name=run__get_url,json=runGetUrl,proto3" json:"run__get_url,omitempty"`                                   // wandb.run.get_url() called
+	Run_ProjectName          bool `protobuf:"varint,22,opt,name=run__project_name,json=runProjectName,proto3" json:"run__project_name,omitempty"`                    // wandb.run.project_name() called
+	Run_GetProjectUrl        bool `protobuf:"varint,23,opt,name=run__get_project_url,json=runGetProjectUrl,proto3" json:"run__get_project_url,omitempty"`            // wandb.run.get_project_url() called
+	Run_GetSweepUrl          bool `protobuf:"varint,24,opt,name=run__get_sweep_url,json=runGetSweepUrl,proto3" json:"run__get_sweep_url,omitempty"`                  // wandb.run.get_sweep_url() called
+	Run_UseArtifactUseAs     bool `protobuf:"varint,25,opt,name=run__use_artifact_use_as,json=runUseArtifactUseAs,proto3" json:"run__use_artifact_use_as,omitempty"` // wandb.run.use_artifact(use_as=...) called
+	Artifact_UseAs           bool `protobuf:"varint,26,opt,name=artifact__use_as,json=artifactUseAs,proto3" json:"artifact__use_as,omitempty"`                       // wandb.sdk.artifacts.artifact.Artifact.use_as() called
+	Artifact_InitUseAs       bool `protobuf:"varint,27,opt,name=artifact__init_use_as,json=artifactInitUseAs,proto3" json:"artifact__init_use_as,omitempty"`         // wandb.sdk.artifacts.artifact.Artifact(use_as=...) called
+	KfpV1WandbLog            bool `protobuf:"varint,31,opt,name=kfp_v1_wandb_log,json=kfpV1WandbLog,proto3" json:"kfp_v1_wandb_log,omitempty"`                       // wandb.integration.kfp.wandb_log used with kfp<2.0.0
 	unknownFields            protoimpl.UnknownFields
 	sizeCache                protoimpl.SizeCache
 }
@@ -1858,13 +1859,6 @@ func (*Deprecated) Descriptor() ([]byte, []int) {
 	return file_wandb_proto_wandb_telemetry_proto_rawDescGZIP(), []int{6}
 }
 
-func (x *Deprecated) GetKerasCallback_DataType() bool {
-	if x != nil {
-		return x.KerasCallback_DataType
-	}
-	return false
-}
-
 func (x *Deprecated) GetPlots() bool {
 	if x != nil {
 		return x.Plots
@@ -1882,20 +1876,6 @@ func (x *Deprecated) GetInit_ConfigIncludeKeys() bool {
 func (x *Deprecated) GetInit_ConfigExcludeKeys() bool {
 	if x != nil {
 		return x.Init_ConfigExcludeKeys
-	}
-	return false
-}
-
-func (x *Deprecated) GetKerasCallback_SaveModel() bool {
-	if x != nil {
-		return x.KerasCallback_SaveModel
-	}
-	return false
-}
-
-func (x *Deprecated) GetLangchainTracer() bool {
-	if x != nil {
-		return x.LangchainTracer
 	}
 	return false
 }
@@ -1938,13 +1918,6 @@ func (x *Deprecated) GetRun_DefineMetricCopy() bool {
 func (x *Deprecated) GetRunDisabled() bool {
 	if x != nil {
 		return x.RunDisabled
-	}
-	return false
-}
-
-func (x *Deprecated) GetKerasCallback() bool {
-	if x != nil {
-		return x.KerasCallback
 	}
 	return false
 }
@@ -2019,90 +1992,9 @@ func (x *Deprecated) GetArtifact_InitUseAs() bool {
 	return false
 }
 
-func (x *Deprecated) GetBeta_Workflows_LogModel() bool {
-	if x != nil {
-		return x.Beta_Workflows_LogModel
-	}
-	return false
-}
-
-func (x *Deprecated) GetBeta_Workflows_UseModel() bool {
-	if x != nil {
-		return x.Beta_Workflows_UseModel
-	}
-	return false
-}
-
-func (x *Deprecated) GetBeta_Workflows_LinkModel() bool {
-	if x != nil {
-		return x.Beta_Workflows_LinkModel
-	}
-	return false
-}
-
 func (x *Deprecated) GetKfpV1WandbLog() bool {
 	if x != nil {
 		return x.KfpV1WandbLog
-	}
-	return false
-}
-
-type Issues struct {
-	state                          protoimpl.MessageState `protogen:"open.v1"`
-	Settings_ValidationWarnings    bool                   `protobuf:"varint,1,opt,name=settings__validation_warnings,json=settingsValidationWarnings,proto3" json:"settings__validation_warnings,omitempty"`          // validation warnings for settings
-	Settings_UnexpectedArgs        bool                   `protobuf:"varint,2,opt,name=settings__unexpected_args,json=settingsUnexpectedArgs,proto3" json:"settings__unexpected_args,omitempty"`                      // unexpected settings init args
-	Settings_PreprocessingWarnings bool                   `protobuf:"varint,3,opt,name=settings__preprocessing_warnings,json=settingsPreprocessingWarnings,proto3" json:"settings__preprocessing_warnings,omitempty"` // settings preprocessing warnings
-	unknownFields                  protoimpl.UnknownFields
-	sizeCache                      protoimpl.SizeCache
-}
-
-func (x *Issues) Reset() {
-	*x = Issues{}
-	mi := &file_wandb_proto_wandb_telemetry_proto_msgTypes[7]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *Issues) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*Issues) ProtoMessage() {}
-
-func (x *Issues) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_telemetry_proto_msgTypes[7]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use Issues.ProtoReflect.Descriptor instead.
-func (*Issues) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_telemetry_proto_rawDescGZIP(), []int{7}
-}
-
-func (x *Issues) GetSettings_ValidationWarnings() bool {
-	if x != nil {
-		return x.Settings_ValidationWarnings
-	}
-	return false
-}
-
-func (x *Issues) GetSettings_UnexpectedArgs() bool {
-	if x != nil {
-		return x.Settings_UnexpectedArgs
-	}
-	return false
-}
-
-func (x *Issues) GetSettings_PreprocessingWarnings() bool {
-	if x != nil {
-		return x.Settings_PreprocessingWarnings
 	}
 	return false
 }
@@ -2111,7 +2003,7 @@ var File_wandb_proto_wandb_telemetry_proto protoreflect.FileDescriptor
 
 const file_wandb_proto_wandb_telemetry_proto_rawDesc = "" +
 	"\n" +
-	"!wandb/proto/wandb_telemetry.proto\x12\x0ewandb_internal\x1a\x1cwandb/proto/wandb_base.proto\"\xec\x04\n" +
+	"!wandb/proto/wandb_telemetry.proto\x12\x0ewandb_internal\x1a\x1cwandb/proto/wandb_base.proto\"\xc8\x04\n" +
 	"\x0fTelemetryRecord\x12:\n" +
 	"\fimports_init\x18\x01 \x01(\v2\x17.wandb_internal.ImportsR\vimportsInit\x12>\n" +
 	"\x0eimports_finish\x18\x02 \x01(\v2\x17.wandb_internal.ImportsR\rimportsFinish\x121\n" +
@@ -2125,11 +2017,10 @@ const file_wandb_proto_wandb_telemetry_proto_rawDesc = "" +
 	"\n" +
 	"deprecated\x18\n" +
 	" \x01(\v2\x1a.wandb_internal.DeprecatedR\n" +
-	"deprecated\x12.\n" +
-	"\x06issues\x18\v \x01(\v2\x16.wandb_internal.IssuesR\x06issues\x12!\n" +
+	"deprecated\x12!\n" +
 	"\fcore_version\x18\f \x01(\tR\vcoreVersion\x12\x1a\n" +
 	"\bplatform\x18\r \x01(\tR\bplatform\x121\n" +
-	"\x05_info\x18\xc8\x01 \x01(\v2\x1b.wandb_internal._RecordInfoR\x04Info\"\x11\n" +
+	"\x05_info\x18\xc8\x01 \x01(\v2\x1b.wandb_internal._RecordInfoR\x04InfoJ\x04\b\a\x10\bJ\x04\b\v\x10\f\"\x11\n" +
 	"\x0fTelemetryResult\"\xf4\x15\n" +
 	"\aImports\x12\x14\n" +
 	"\x05torch\x18\x01 \x01(\bR\x05torch\x12\x14\n" +
@@ -2243,10 +2134,12 @@ const file_wandb_proto_wandb_telemetry_proto_rawDesc = "" +
 	"\x14curated_transformers\x18h \x01(\bR\x13curatedTransformers\x12\x16\n" +
 	"\x06orjson\x18i \x01(\bR\x06orjson\x12\x1c\n" +
 	"\tlightning\x18j \x01(\bR\tlightning\x12\x12\n" +
-	"\x04dspy\x18k \x01(\bR\x04dspyJ\x04\b\x11\x10\x12J\x04\b\x13\x10\x14J\x04\b\x14\x10\x15J\x04\b\x17\x10\x18J\x04\b\x18\x10\x19J\x04\b\x19\x10\x1aJ\x04\b\x1a\x10\x1bJ\x04\b\x1b\x10\x1cJ\x04\b7\x108\"\xb5\x15\n" +
+	"\x04dspy\x18k \x01(\bR\x04dspyJ\x04\b\x11\x10\x12J\x04\b\x13\x10\x14J\x04\b\x14\x10\x15J\x04\b\x17\x10\x18J\x04\b\x18\x10\x19J\x04\b\x19\x10\x1aJ\x04\b\x1a\x10\x1bJ\x04\b\x1b\x10\x1cJ\x04\b7\x108\"\x90\x16\n" +
 	"\aFeature\x12\x14\n" +
 	"\x05watch\x18\x01 \x01(\bR\x05watch\x12\x16\n" +
-	"\x06finish\x18\x02 \x01(\bR\x06finish\x12\x12\n" +
+	"\x06finish\x18\x02 \x01(\bR\x06finish\x12%\n" +
+	"\x0efinish_timeout\x18J \x01(\bR\rfinishTimeout\x122\n" +
+	"\x15finish_timeout_raises\x18K \x01(\bR\x13finishTimeoutRaises\x12\x12\n" +
 	"\x04save\x18\x03 \x01(\bR\x04save\x12\x18\n" +
 	"\aoffline\x18\x04 \x01(\bR\aoffline\x12\x18\n" +
 	"\aresumed\x18\x05 \x01(\bR\aresumed\x12\x12\n" +
@@ -2342,24 +2235,18 @@ const file_wandb_proto_wandb_telemetry_proto_rawDesc = "" +
 	"codeString\x12\x1f\n" +
 	"\vrepo_string\x18\x02 \x01(\tR\n" +
 	"repoString\x12!\n" +
-	"\fcode_version\x18\x03 \x01(\tR\vcodeVersion\"\xe2\n" +
+	"\fcode_version\x18\x03 \x01(\tR\vcodeVersion\"\x91\b\n" +
 	"\n" +
-	"\n" +
-	"Deprecated\x128\n" +
-	"\x19keras_callback__data_type\x18\x01 \x01(\bR\x15kerasCallbackDataType\x12\x14\n" +
+	"Deprecated\x12\x14\n" +
 	"\x05plots\x18\x05 \x01(\bR\x05plots\x128\n" +
 	"\x19init__config_include_keys\x18\a \x01(\bR\x15initConfigIncludeKeys\x128\n" +
-	"\x19init__config_exclude_keys\x18\b \x01(\bR\x15initConfigExcludeKeys\x12:\n" +
-	"\x1akeras_callback__save_model\x18\t \x01(\bR\x16kerasCallbackSaveModel\x12)\n" +
-	"\x10langchain_tracer\x18\n" +
-	" \x01(\bR\x0flangchainTracer\x12+\n" +
+	"\x19init__config_exclude_keys\x18\b \x01(\bR\x15initConfigExcludeKeys\x12+\n" +
 	"\x12artifact__get_path\x18\v \x01(\bR\x0fartifactGetPath\x12>\n" +
 	"\x1bartifactmanifestentry__name\x18\f \x01(\bR\x19artifactmanifestentryName\x123\n" +
 	"\x16api__artifact_versions\x18\r \x01(\bR\x13apiArtifactVersions\x12F\n" +
 	" artifact_collection__change_type\x18\x0e \x01(\bR\x1cartifactCollectionChangeType\x124\n" +
 	"\x17run__define_metric_copy\x18\x0f \x01(\bR\x13runDefineMetricCopy\x12!\n" +
-	"\frun_disabled\x18\x10 \x01(\bR\vrunDisabled\x12%\n" +
-	"\x0ekeras_callback\x18\x11 \x01(\bR\rkerasCallback\x12=\n" +
+	"\frun_disabled\x18\x10 \x01(\bR\vrunDisabled\x12=\n" +
 	"\x1crun__define_metric_best_goal\x18\x12 \x01(\bR\x17runDefineMetricBestGoal\x12)\n" +
 	"\x11run__finish_quiet\x18\x13 \x01(\bR\x0erunFinishQuiet\x12'\n" +
 	"\x10run__reinit_bool\x18\x14 \x01(\bR\rrunReinitBool\x12\x1f\n" +
@@ -2369,15 +2256,10 @@ const file_wandb_proto_wandb_telemetry_proto_rawDesc = "" +
 	"\x12run__get_sweep_url\x18\x18 \x01(\bR\x0erunGetSweepUrl\x125\n" +
 	"\x18run__use_artifact_use_as\x18\x19 \x01(\bR\x13runUseArtifactUseAs\x12'\n" +
 	"\x10artifact__use_as\x18\x1a \x01(\bR\rartifactUseAs\x120\n" +
-	"\x15artifact__init_use_as\x18\x1b \x01(\bR\x11artifactInitUseAs\x129\n" +
-	"\x1abeta__workflows__log_model\x18\x1c \x01(\bR\x15betaWorkflowsLogModel\x129\n" +
-	"\x1abeta__workflows__use_model\x18\x1d \x01(\bR\x15betaWorkflowsUseModel\x12;\n" +
-	"\x1bbeta__workflows__link_model\x18\x1e \x01(\bR\x16betaWorkflowsLinkModel\x12'\n" +
-	"\x10kfp_v1_wandb_log\x18\x1f \x01(\bR\rkfpV1WandbLogJ\x04\b\x02\x10\x03J\x04\b\x03\x10\x04J\x04\b\x04\x10\x05J\x04\b\x06\x10\a\"\xcf\x01\n" +
-	"\x06Issues\x12A\n" +
-	"\x1dsettings__validation_warnings\x18\x01 \x01(\bR\x1asettingsValidationWarnings\x129\n" +
-	"\x19settings__unexpected_args\x18\x02 \x01(\bR\x16settingsUnexpectedArgs\x12G\n" +
-	" settings__preprocessing_warnings\x18\x03 \x01(\bR\x1dsettingsPreprocessingWarningsB\x1bZ\x19core/pkg/service_go_protob\x06proto3"
+	"\x15artifact__init_use_as\x18\x1b \x01(\bR\x11artifactInitUseAs\x12'\n" +
+	"\x10kfp_v1_wandb_log\x18\x1f \x01(\bR\rkfpV1WandbLogJ\x04\b\x01\x10\x02J\x04\b\x02\x10\x03J\x04\b\x03\x10\x04J\x04\b\x04\x10\x05J\x04\b\x06\x10\aJ\x04\b\t\x10\n" +
+	"J\x04\b\n" +
+	"\x10\vJ\x04\b\x11\x10\x12J\x04\b\x1c\x10\x1dJ\x04\b\x1d\x10\x1eJ\x04\b\x1e\x10\x1fB\x1bZ\x19core/pkg/service_go_protob\x06proto3"
 
 var (
 	file_wandb_proto_wandb_telemetry_proto_rawDescOnce sync.Once
@@ -2391,7 +2273,7 @@ func file_wandb_proto_wandb_telemetry_proto_rawDescGZIP() []byte {
 	return file_wandb_proto_wandb_telemetry_proto_rawDescData
 }
 
-var file_wandb_proto_wandb_telemetry_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
+var file_wandb_proto_wandb_telemetry_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
 var file_wandb_proto_wandb_telemetry_proto_goTypes = []any{
 	(*TelemetryRecord)(nil), // 0: wandb_internal.TelemetryRecord
 	(*TelemetryResult)(nil), // 1: wandb_internal.TelemetryResult
@@ -2400,8 +2282,7 @@ var file_wandb_proto_wandb_telemetry_proto_goTypes = []any{
 	(*Env)(nil),             // 4: wandb_internal.Env
 	(*Labels)(nil),          // 5: wandb_internal.Labels
 	(*Deprecated)(nil),      // 6: wandb_internal.Deprecated
-	(*Issues)(nil),          // 7: wandb_internal.Issues
-	(*XRecordInfo)(nil),     // 8: wandb_internal._RecordInfo
+	(*XRecordInfo)(nil),     // 7: wandb_internal._RecordInfo
 }
 var file_wandb_proto_wandb_telemetry_proto_depIdxs = []int32{
 	2, // 0: wandb_internal.TelemetryRecord.imports_init:type_name -> wandb_internal.Imports
@@ -2410,13 +2291,12 @@ var file_wandb_proto_wandb_telemetry_proto_depIdxs = []int32{
 	4, // 3: wandb_internal.TelemetryRecord.env:type_name -> wandb_internal.Env
 	5, // 4: wandb_internal.TelemetryRecord.label:type_name -> wandb_internal.Labels
 	6, // 5: wandb_internal.TelemetryRecord.deprecated:type_name -> wandb_internal.Deprecated
-	7, // 6: wandb_internal.TelemetryRecord.issues:type_name -> wandb_internal.Issues
-	8, // 7: wandb_internal.TelemetryRecord._info:type_name -> wandb_internal._RecordInfo
-	8, // [8:8] is the sub-list for method output_type
-	8, // [8:8] is the sub-list for method input_type
-	8, // [8:8] is the sub-list for extension type_name
-	8, // [8:8] is the sub-list for extension extendee
-	0, // [0:8] is the sub-list for field type_name
+	7, // 6: wandb_internal.TelemetryRecord._info:type_name -> wandb_internal._RecordInfo
+	7, // [7:7] is the sub-list for method output_type
+	7, // [7:7] is the sub-list for method input_type
+	7, // [7:7] is the sub-list for extension type_name
+	7, // [7:7] is the sub-list for extension extendee
+	0, // [0:7] is the sub-list for field type_name
 }
 
 func init() { file_wandb_proto_wandb_telemetry_proto_init() }
@@ -2431,7 +2311,7 @@ func file_wandb_proto_wandb_telemetry_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_wandb_proto_wandb_telemetry_proto_rawDesc), len(file_wandb_proto_wandb_telemetry_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   8,
+			NumMessages:   7,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

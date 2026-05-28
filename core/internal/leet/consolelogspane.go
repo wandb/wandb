@@ -415,6 +415,14 @@ func (c *ConsoleLogsPane) ScrollToEnd() {
 	c.scrollToEnd()
 }
 
+// ScrollToStart snaps the viewport to the first log entry and
+// disables auto-scroll.
+func (c *ConsoleLogsPane) ScrollToStart() {
+	c.cursor = 0
+	c.top = 0
+	c.autoScroll = len(c.logs) == 0
+}
+
 // ---- Internal scrolling ----
 
 // updateAutoScroll enables auto-scroll when the cursor is on the last
