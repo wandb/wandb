@@ -46,13 +46,26 @@ def mock_eval_logger(monkeypatch):
     atexit_handlers: list = []
     mock_evaluation_logger_cls.atexit_handlers = atexit_handlers
 
-    monkeypatch.setattr(
-        "wandb.sdk.data_types.eval_table._get_evaluation_logger_cls",
-        lambda run: mock_evaluation_logger_cls,
+    weave_module = types.ModuleType("weave")
+    weave_module.__path__ = []
+    weave_module.__version__ = "999.0.0"
+    evaluation_module = types.ModuleType("weave.evaluation")
+    evaluation_module.__path__ = []
+    eval_imperative_module = types.ModuleType("weave.evaluation.eval_imperative")
+    eval_imperative_module.EvaluationLogger = mock_evaluation_logger_cls
+    weave_module.evaluation = evaluation_module
+    evaluation_module.eval_imperative = eval_imperative_module
+
+    monkeypatch.setitem(sys.modules, "weave", weave_module)
+    monkeypatch.setitem(sys.modules, "weave.evaluation", evaluation_module)
+    monkeypatch.setitem(
+        sys.modules,
+        "weave.evaluation.eval_imperative",
+        eval_imperative_module,
     )
     monkeypatch.setattr(
-        "wandb.sdk.data_types.eval_table.setup_with_import",
-        lambda *a, **kw: True,
+        "wandb.sdk.data_types.eval_table._setup_weave_for_eval_table",
+        lambda run: None,
     )
     monkeypatch.setattr(
         "wandb.sdk.data_types.eval_table.atexit",
@@ -126,6 +139,20 @@ def test_eval_table_rewrites_setup_with_import_import_error(monkeypatch, mock_ru
 
     assert str(exc_info.value) == eval_table_module._EVAL_TABLE_WEAVE_DEP_MSG
     assert exc_info.value.__cause__ is setup_error
+
+
+def test_eval_table_disabled_weave_raises(monkeypatch, mock_run):
+    run = mock_run(settings={"entity": "e", "project": "p", "mode": "online"})
+
+    monkeypatch.setattr(
+        "wandb.sdk.data_types.eval_table.setup_with_import",
+        lambda *args, **kwargs: False,
+    )
+
+    et = wandb.EvalTable(columns=["input", "output"], data=[["x", "y"]])
+
+    with pytest.raises(RuntimeError, match="Weave logging is disabled"):
+        run.log({"my_eval": et})
 
 
 def test_eval_table_imports_evaluation_logger_after_setup(monkeypatch, run):
@@ -797,7 +824,7 @@ def test_incremental_add_data_and_run_log_after_finish_raises(mock_eval_logger, 
         run.log({"my_eval": et})
 
     with pytest.raises(UsageError, match="after finish\\(\\) has been called"):
-        et._log_to_weave(run, "my_eval")
+        et._log_to_weave("my_eval")
 
     assert ev.log_example.call_count == 1
     ev.log_summary.assert_called_once_with(None, auto_summarize=True)

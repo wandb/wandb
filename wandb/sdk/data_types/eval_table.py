@@ -15,37 +15,11 @@ from wandb.integration.weave.weave import setup_with_import
 from wandb.sdk.data_types.table import Table
 
 if TYPE_CHECKING:
-    from typing import Protocol
+    from weave.evaluation.eval_imperative import (  # type: ignore[import-not-found]
+        EvaluationLogger as _EvaluationLoggerT,
+    )
 
     from wandb.sdk.wandb_run import Run as LocalRun
-
-    class _EvaluateCall(Protocol):
-        id: str
-
-    class _EvaluationLogger(Protocol):
-        _evaluate_call: _EvaluateCall
-
-        def log_example(
-            self,
-            inputs: dict[str, Any],
-            output: Any,
-            scores: dict[str, float | bool | dict],
-        ) -> None: ...
-
-        def log_summary(
-            self,
-            summary: dict[str, Any] | None = None,
-            auto_summarize: bool = True,
-        ) -> None: ...
-
-    class _EvaluationLoggerCls(Protocol):
-        def _create_with_meta(
-            self,
-            eval_meta: dict[str, Any],
-            *,
-            name: str | None = None,
-            **kwargs: Any,
-        ) -> _EvaluationLogger: ...
 
 
 EVAL_TABLE_MARKER = {"wandb_eval_table": True}
@@ -59,18 +33,9 @@ _EVAL_TABLE_WEAVE_DEP_MSG = (
 )
 
 
-def _get_evaluation_logger_cls(run: LocalRun) -> _EvaluationLoggerCls:
+def _setup_weave_for_eval_table(run: LocalRun) -> None:
     try:
-        entity = run.entity
-    except AttributeError:
-        entity = None
-    try:
-        project = run.project
-    except AttributeError:
-        project = None
-
-    try:
-        if not setup_with_import(entity, project):
+        if not setup_with_import(run.entity, run.project):
             raise RuntimeError(
                 "Weave logging is disabled (WANDB_DISABLE_WEAVE is set). "
                 "Unset it or use run.log() with a regular Table to suppress this."
@@ -91,15 +56,6 @@ def _get_evaluation_logger_cls(run: LocalRun) -> _EvaluationLoggerCls:
             "Install it with "
             '`pip install wandb["eval-table"]`.'
         )
-
-    try:
-        from weave.evaluation.eval_imperative import (  # type: ignore[import-not-found]
-            EvaluationLogger,
-        )
-    except Exception as e:
-        raise ImportError(_EVAL_TABLE_WEAVE_DEP_MSG) from e
-
-    return cast("_EvaluationLoggerCls", EvaluationLogger)
 
 
 class EvalTable(Table):
@@ -232,7 +188,7 @@ class EvalTable(Table):
         # eval. It does not trigger any of the artifact-related code in normal tables,
         # including in table_decorators::allow_incremental_logging_after_append().
         # IMMUTABLE/MUTABLE use local loggers and only persist call ids.
-        self._incremental_eval_logger: _EvaluationLogger | None = None
+        self._incremental_eval_logger: _EvaluationLoggerT | None = None
         self._immutable_evaluate_call_id: str | None = None
         # Track separately from self._last_logged_idx used by normal INCREMENTAL tables
         # to avoid conflating our somewhat different semantics.
@@ -309,7 +265,9 @@ class EvalTable(Table):
         # Run context: route to Weave EvaluationLogger.
         if self._run_log_key is None:
             raise UsageError("EvalTable must be logged with run.log().")
-        evaluate_call_id = self._log_to_weave(run, self._run_log_key)
+
+        _setup_weave_for_eval_table(run)
+        evaluate_call_id = self._log_to_weave(self._run_log_key)
 
         return {
             "_type": "eval-table",
@@ -462,31 +420,29 @@ class EvalTable(Table):
                 for col, val in zip(cols, row, strict=True)
             }
 
-    def _create_weave_eval_logger(
-        self, run: LocalRun, eval_name: str
-    ) -> _EvaluationLogger:
+    def _create_weave_eval_logger(self, eval_name: str) -> _EvaluationLoggerT:
+        # Assumes _setup_weave_for_eval_table has already imported weave
+        from weave.evaluation.eval_imperative import (  # type: ignore[import-not-found]
+            EvaluationLogger,
+        )
+
         self._validate_column_mappings(
             self._input_columns, self._output_columns, self._score_columns
         )
 
-        # Verify weave is installed AND new enough for EvalTable's needs before
-        # attempting to use it. Catches both missing-install and version-skew
-        # cases with a single, EvalTable-attributed error.
-        evaluation_logger_cls = _get_evaluation_logger_cls(run)
-
-        return evaluation_logger_cls._create_with_meta(
+        return EvaluationLogger._create_with_meta(
             EVAL_TABLE_MARKER,
             name=eval_name,
         )
 
     def _setup_incremental_weave_eval_logger(
-        self, run: LocalRun, eval_name: str
-    ) -> _EvaluationLogger:
+        self, eval_name: str
+    ) -> _EvaluationLoggerT:
         """Build the INCREMENTAL EvaluationLogger on first use."""
         if self._incremental_eval_logger is not None:
             return self._incremental_eval_logger
 
-        self._incremental_eval_logger = self._create_weave_eval_logger(run, eval_name)
+        self._incremental_eval_logger = self._create_weave_eval_logger(eval_name)
 
         # INCREMENTAL evals defer summary/finalization until `finish()` or
         # process exit. Register an atexit handler that fires before weave's
@@ -526,7 +482,7 @@ class EvalTable(Table):
             return len(self.data)
         return max(0, len(self.data) - self._last_weave_logged_idx - 1)
 
-    def _log_to_weave(self, run: LocalRun, eval_name: str) -> str:
+    def _log_to_weave(self, eval_name: str) -> str:
         if self._is_incremental_finished:
             raise UsageError("Cannot log an EvalTable after finish() has been called.")
 
@@ -546,9 +502,9 @@ class EvalTable(Table):
             return self._immutable_evaluate_call_id
 
         if self.log_mode == "INCREMENTAL":
-            ev = self._setup_incremental_weave_eval_logger(run, eval_name)
+            ev = self._setup_incremental_weave_eval_logger(eval_name)
         else:
-            ev = self._create_weave_eval_logger(run, eval_name)
+            ev = self._create_weave_eval_logger(eval_name)
 
         # Any column not listed in a role defaults to an output column.
         assigned = (
