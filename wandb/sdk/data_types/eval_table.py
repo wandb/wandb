@@ -1,14 +1,18 @@
 from __future__ import annotations
 
 import atexit
+import importlib
+import sys
 import warnings
 from collections.abc import Iterator
 from typing import TYPE_CHECKING, Any, Literal, cast
 
+from packaging.version import parse as parse_version
 from typing_extensions import override
 
 import wandb
 from wandb.errors import UsageError
+from wandb.integration.weave.weave import setup_with_import
 from wandb.sdk.data_types.table import Table
 
 if TYPE_CHECKING:

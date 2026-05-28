@@ -76,13 +76,21 @@ def test_setup_with_import_disabled(
     weave_init.assert_not_called()
 
 
-def test_setup_with_import_without_project(
+def test_setup_with_import_without_project_raises(
     monkeypatch: pytest.MonkeyPatch,
 ):
     weave_init = MagicMock()
+    import_module = MagicMock()
     monkeypatch.setattr(wandb_weave_integration, "_weave_init", weave_init)
+    monkeypatch.setattr(
+        wandb_weave_integration.importlib,
+        "import_module",
+        import_module,
+    )
 
-    assert wandb_weave_integration.setup_with_import("test-entity", None) is True
+    with pytest.raises(ValueError, match="requires a project"):
+        wandb_weave_integration.setup_with_import("test-entity", None)
+    import_module.assert_not_called()
     weave_init.assert_not_called()
 
 
@@ -90,7 +98,9 @@ def test_setup_with_import_initializes_project(
     monkeypatch: pytest.MonkeyPatch,
 ):
     weave_init = MagicMock()
+    fake_weave = types.ModuleType("weave")
     monkeypatch.setattr(wandb_weave_integration, "_weave_init", weave_init)
+    monkeypatch.setitem(sys.modules, "weave", fake_weave)
 
     assert (
         wandb_weave_integration.setup_with_import("test-entity", "test-project") is True
