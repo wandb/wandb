@@ -117,7 +117,6 @@ def test_run_urls(mock_run):
         settings=wandb.Settings(
             base_url=base_url,
             entity=entity,
-            mode="online",
             project=project,
             run_id=run_id,
         )
