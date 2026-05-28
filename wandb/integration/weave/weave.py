@@ -88,8 +88,8 @@ def setup(entity: str | None, project: str | None) -> None:
 def setup_with_import(entity: str | None, project: str | None) -> bool:
     """Init Weave, importing weave if not yet imported (e.g. for eval logging).
 
-    Unlike setup(), always attempts to import and init weave rather than
-    skipping when weave has not been imported yet.
+    Unlike setup(), always imports and initializes weave rather than skipping
+    when weave has not been imported yet.
 
     Returns:
         False if WANDB_DISABLE_WEAVE is set (caller should surface this).
@@ -97,13 +97,15 @@ def setup_with_import(entity: str | None, project: str | None) -> bool:
 
     Raises:
         ImportError: If weave is not installed.
+        ValueError: If no project is available.
     """
     if _is_weave_disabled():
         return False
     project_path = _build_project_path(entity, project)
     if not project_path:
-        return True
+        raise ValueError("setup_with_import requires a project to initialize weave.")
     try:
+        importlib.import_module(_WEAVE_PACKAGE_NAME)
         _weave_init(project_path)
     except ModuleNotFoundError as e:
         raise ImportError(
