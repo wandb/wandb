@@ -1,16 +1,14 @@
 from __future__ import annotations
 
-import sys
 import warnings
 from collections.abc import Iterator
 from typing import TYPE_CHECKING, Any, Literal, cast
 
-from packaging.version import parse as parse_version
 from typing_extensions import override
 
 import wandb
+import wandb.integration.weave as weave_integration
 from wandb.errors import UsageError
-from wandb.integration.weave.weave import setup_with_import
 from wandb.sdk.data_types.table import Table
 
 if TYPE_CHECKING:
@@ -28,29 +26,36 @@ _EVAL_TABLE_WEAVE_DEP_MSG = (
 )
 
 
-def _setup_weave_for_eval_table(run: LocalRun) -> None:
+def _ensure_weave_version() -> None:
     try:
-        if not setup_with_import(run.entity, run.project):
+        weave = weave_integration.import_weave()
+    except ImportError as e:
+        raise ImportError(_EVAL_TABLE_WEAVE_DEP_MSG) from e
+
+    weave_integration.check_weave_version(
+        weave,
+        _MIN_WEAVE_VERSION,
+        feature_name="`wandb.EvalTable`",
+        install_hint='Install it with `pip install wandb["eval-table"]`.',
+    )
+
+
+def _init_weave_for_run(run: LocalRun) -> None:
+    try:
+        if not weave_integration.init_weave(
+            run.entity,
+            run.project,
+        ):
             raise RuntimeError(
                 "Weave logging is disabled (WANDB_DISABLE_WEAVE is set). "
                 "Unset it or use run.log() with a regular Table to suppress this."
             )
     except ImportError as e:
         raise ImportError(_EVAL_TABLE_WEAVE_DEP_MSG) from e
-
-    weave = sys.modules["weave"]
-    try:
-        weave_version = weave.__version__
-    except AttributeError as e:
-        raise ImportError(_EVAL_TABLE_WEAVE_DEP_MSG) from e
-
-    if parse_version(weave_version) < parse_version(_MIN_WEAVE_VERSION):
-        raise ImportError(
-            "`wandb.EvalTable` requires "
-            f"weave>={_MIN_WEAVE_VERSION}; found weave=={weave_version}. "
-            "Install it with "
-            '`pip install wandb["eval-table"]`.'
-        )
+    except ValueError as e:
+        # Raised when Weave is initialized for a different project, or when
+        # the W&B run does not have a project.
+        raise UsageError(str(e)) from e
 
 
 class EvalTable(Table):
@@ -157,6 +162,8 @@ class EvalTable(Table):
         if log_mode != "IMMUTABLE":
             raise UsageError("EvalTable currently only supports log_mode='IMMUTABLE'.")
 
+        _ensure_weave_version()
+
         self._input_columns: list[str] = list(input_columns or [])
         self._output_columns: list[str] = list(output_columns or [])
         self._score_columns: list[str] = list(score_columns or [])
@@ -207,7 +214,9 @@ class EvalTable(Table):
 
         <!-- lazydoc-ignore: internal -->
         """
-        # Store context for to_json; skip the file-copy that Table.bind_to_run does.
+        # Now that we have run context, initialize/validate Weave for this project.
+        # Skip the file-copy that Table.bind_to_run does.
+        _init_weave_for_run(run)
         self._run = run
         self._run_log_key = str(key)
 
@@ -233,11 +242,17 @@ class EvalTable(Table):
         if self._run_log_key is None:
             raise UsageError("EvalTable must be logged with run.log().")
 
+        # This check also ensures that we've initialized Weave via bind_to_run.
+        if self._run is not run:
+            raise UsageError(
+                "EvalTable cannot be serialized for a different run than it was "
+                "bound to."
+            )
+
         if self._immutable_logged_json is not None:
             self._warn_immutable_already_logged()
             return dict(self._immutable_logged_json)
 
-        _setup_weave_for_eval_table(run)
         evaluate_call_id = self._log_to_weave(self._run_log_key)
 
         json_dict = {
@@ -332,7 +347,6 @@ class EvalTable(Table):
             }
 
     def _create_weave_eval_logger(self, eval_name: str) -> Any:
-        # Assumes _setup_weave_for_eval_table has already imported weave
         from weave.evaluation.eval_imperative import (  # type: ignore[import-not-found]
             EvaluationLogger,
         )

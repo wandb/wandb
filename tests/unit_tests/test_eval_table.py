@@ -59,7 +59,7 @@ def mock_eval_logger(monkeypatch):
         eval_imperative_module,
     )
     monkeypatch.setattr(
-        "wandb.sdk.data_types.eval_table._setup_weave_for_eval_table",
+        "wandb.sdk.data_types.eval_table._init_weave_for_run",
         lambda run: None,
     )
     return mock_evaluation_logger_cls
@@ -73,6 +73,7 @@ def run(mock_run):
 def _install_fake_weave(monkeypatch, **attrs):
     module = types.ModuleType("weave")
     module.__path__ = []
+    module.__version__ = "999.0.0"
     for name, value in attrs.items():
         setattr(module, name, value)
     monkeypatch.setitem(sys.modules, "weave", module)
@@ -111,32 +112,30 @@ def test_eval_table_offline_run_fails_fast(mock_eval_logger, mock_run):
     mock_eval_logger._create_with_meta.assert_not_called()
 
 
-def test_eval_table_rewrites_setup_with_import_import_error(monkeypatch, mock_run):
-    run = mock_run(settings={"entity": "e", "project": "p", "mode": "online"})
-    setup_error = ImportError("weave is not installed")
+def test_eval_table_rewrites_weave_import_error(monkeypatch):
+    import_error = ImportError("weave is not installed")
 
-    def fail_setup_with_import(*args, **kwargs):
-        raise setup_error
+    def fail_import_weave():
+        raise import_error
 
     monkeypatch.setattr(
-        "wandb.sdk.data_types.eval_table.setup_with_import",
-        fail_setup_with_import,
+        "wandb.sdk.data_types.eval_table.weave_integration.import_weave",
+        fail_import_weave,
     )
 
-    et = wandb.EvalTable(columns=["input", "output"], data=[["x", "y"]])
-
     with pytest.raises(ImportError) as exc_info:
-        run.log({"my_eval": et})
+        wandb.EvalTable(columns=["input", "output"], data=[["x", "y"]])
 
     assert str(exc_info.value) == eval_table_module._EVAL_TABLE_WEAVE_DEP_MSG
-    assert exc_info.value.__cause__ is setup_error
+    assert exc_info.value.__cause__ is import_error
 
 
 def test_eval_table_disabled_weave_raises(monkeypatch, mock_run):
     run = mock_run(settings={"entity": "e", "project": "p", "mode": "online"})
+    _install_fake_weave(monkeypatch, __version__="999.0.0")
 
     monkeypatch.setattr(
-        "wandb.sdk.data_types.eval_table.setup_with_import",
+        "wandb.sdk.data_types.eval_table.weave_integration.init_weave",
         lambda *args, **kwargs: False,
     )
 
@@ -146,7 +145,7 @@ def test_eval_table_disabled_weave_raises(monkeypatch, mock_run):
         run.log({"my_eval": et})
 
 
-def test_eval_table_imports_evaluation_logger_after_setup(monkeypatch, run):
+def test_eval_table_imports_evaluation_logger_after_weave_init(monkeypatch, run):
     for module_name in (
         "weave",
         "weave.evaluation",
@@ -164,58 +163,87 @@ def test_eval_table_imports_evaluation_logger_after_setup(monkeypatch, run):
             logger._evaluate_call.id = "eval-1"
             return logger
 
-    def setup_with_import(*args, **kwargs):
-        order.append("setup")
-        weave_module = types.ModuleType("weave")
-        weave_module.__path__ = []
-        weave_module.__version__ = "999.0.0"
-        evaluation_module = types.ModuleType("weave.evaluation")
-        evaluation_module.__path__ = []
-        eval_imperative_module = types.ModuleType("weave.evaluation.eval_imperative")
-        eval_imperative_module.EvaluationLogger = FakeEvaluationLogger
-        weave_module.evaluation = evaluation_module
-        evaluation_module.eval_imperative = eval_imperative_module
-        monkeypatch.setitem(sys.modules, "weave", weave_module)
-        monkeypatch.setitem(sys.modules, "weave.evaluation", evaluation_module)
-        monkeypatch.setitem(
-            sys.modules,
-            "weave.evaluation.eval_imperative",
-            eval_imperative_module,
-        )
+    weave_module = types.ModuleType("weave")
+    weave_module.__path__ = []
+    weave_module.__version__ = "999.0.0"
+    evaluation_module = types.ModuleType("weave.evaluation")
+    evaluation_module.__path__ = []
+    eval_imperative_module = types.ModuleType("weave.evaluation.eval_imperative")
+    eval_imperative_module.EvaluationLogger = FakeEvaluationLogger
+    weave_module.evaluation = evaluation_module
+    evaluation_module.eval_imperative = eval_imperative_module
+    monkeypatch.setitem(sys.modules, "weave", weave_module)
+    monkeypatch.setitem(sys.modules, "weave.evaluation", evaluation_module)
+    monkeypatch.setitem(
+        sys.modules,
+        "weave.evaluation.eval_imperative",
+        eval_imperative_module,
+    )
+
+    def init_weave(*args, **kwargs):
+        order.append("init")
         return True
 
     monkeypatch.setattr(
-        "wandb.sdk.data_types.eval_table.setup_with_import",
-        setup_with_import,
+        "wandb.sdk.data_types.eval_table.weave_integration.init_weave",
+        init_weave,
     )
 
     et = wandb.EvalTable(columns=["input", "output"], data=[["x", "y"]])
     et.bind_to_run(run, "eval", 0)
 
     assert et.to_json(run)["evaluate_call_id"] == "eval-1"
-    assert order == ["setup", "evaluation_logger"]
+    assert order == ["init", "evaluation_logger"]
 
 
-def test_eval_table_version_mismatch_error_includes_actual_version(monkeypatch, run):
-    monkeypatch.delitem(sys.modules, "weave", raising=False)
-
-    def setup_with_import(*args, **kwargs):
-        weave_module = types.ModuleType("weave")
-        weave_module.__path__ = []
-        weave_module.__version__ = "0.1.0"
-        monkeypatch.setitem(sys.modules, "weave", weave_module)
-        return True
-
+def test_eval_table_bind_initializes_weave_for_run(monkeypatch, mock_run):
+    _install_fake_weave(monkeypatch)
+    init_weave = MagicMock(return_value=True)
     monkeypatch.setattr(
-        "wandb.sdk.data_types.eval_table.setup_with_import",
-        setup_with_import,
+        "wandb.sdk.data_types.eval_table.weave_integration.init_weave",
+        init_weave,
+    )
+    run = mock_run(
+        settings={"entity": "entity", "project": "project", "mode": "online"}
     )
 
     et = wandb.EvalTable(columns=["input", "output"], data=[["x", "y"]])
     et.bind_to_run(run, "eval", 0)
 
+    init_weave.assert_called_once_with("entity", "project")
+
+
+def test_eval_table_rejects_rebind_to_different_project(monkeypatch, mock_run):
+    _install_fake_weave(monkeypatch)
+
+    def init_weave(entity, project):
+        if project == "p2":
+            raise ValueError(
+                "Weave is already initialized for 'e/p1'; cannot initialize "
+                "it for 'e/p2'."
+            )
+        return True
+
+    monkeypatch.setattr(
+        "wandb.sdk.data_types.eval_table.weave_integration.init_weave",
+        init_weave,
+    )
+    run1 = mock_run(settings={"entity": "e", "project": "p1", "mode": "online"})
+    run2 = mock_run(settings={"entity": "e", "project": "p2", "mode": "online"})
+
+    et = wandb.EvalTable(columns=["input", "output"], data=[["x", "y"]])
+    et.bind_to_run(run1, "eval", 0)
+
+    with pytest.raises(UsageError, match="already initialized"):
+        et.bind_to_run(run2, "eval", 0)
+
+
+def test_eval_table_version_mismatch_error_includes_actual_version(monkeypatch):
+    monkeypatch.delitem(sys.modules, "weave", raising=False)
+    _install_fake_weave(monkeypatch, __version__="0.1.0")
+
     with pytest.raises(ImportError) as exc_info:
-        et.to_json(run)
+        wandb.EvalTable(columns=["input", "output"], data=[["x", "y"]])
 
     message = str(exc_info.value)
     assert f"weave>={eval_table_module._MIN_WEAVE_VERSION}" in message
@@ -224,10 +252,10 @@ def test_eval_table_version_mismatch_error_includes_actual_version(monkeypatch, 
 
 # Standard case: 6 columns, 2 each of input/output/score; second log no-op.
 def test_standard_immutable_log(mock_eval_logger, mock_wandb_log, run, monkeypatch):
-    setup_weave = MagicMock()
+    init_weave = MagicMock()
     monkeypatch.setattr(
-        "wandb.sdk.data_types.eval_table._setup_weave_for_eval_table",
-        setup_weave,
+        "wandb.sdk.data_types.eval_table._init_weave_for_run",
+        init_weave,
     )
 
     et = wandb.EvalTable(
@@ -266,7 +294,7 @@ def test_standard_immutable_log(mock_eval_logger, mock_wandb_log, run, monkeypat
     # Second log on IMMUTABLE table is a no-op.
     run.log({"my_eval": et})
     assert mock_eval_logger._create_with_meta.call_count == 1
-    assert setup_weave.call_count == 1
+    assert init_weave.call_count == 1
     assert ev.log_example.call_count == 2
     assert ev.log_summary.call_count == 1
     mock_wandb_log.assert_warned(
@@ -301,13 +329,14 @@ def test_mutation_after_failed_log_does_not_warn_as_already_logged(
     monkeypatch, mock_wandb_log, mock_run
 ):
     run = mock_run(settings={"entity": "e", "project": "p", "mode": "online"})
+    _install_fake_weave(monkeypatch, __version__="999.0.0")
 
-    def fail_setup_with_import(*args, **kwargs):
+    def fail_init_weave(*args, **kwargs):
         raise ImportError("weave is not installed")
 
     monkeypatch.setattr(
-        "wandb.sdk.data_types.eval_table.setup_with_import",
-        fail_setup_with_import,
+        "wandb.sdk.data_types.eval_table._init_weave_for_run",
+        fail_init_weave,
     )
 
     et = wandb.EvalTable(columns=["out"], data=[["x"]])
@@ -341,6 +370,17 @@ def test_immutable_relog_returns_original_json_after_mutation(
     mock_wandb_log.assert_warned(
         "EvalTable with log_mode='IMMUTABLE' has already been logged"
     )
+
+
+def test_to_json_rejects_different_run_after_first_log(mock_eval_logger, mock_run, run):
+    other_run = mock_run(settings={"entity": "e", "project": "other", "mode": "online"})
+    et = wandb.EvalTable(columns=["out"], data=[["x"]])
+    run.log({"my_eval": et})
+
+    with pytest.raises(UsageError, match="different run"):
+        et.to_json(other_run)
+
+    assert mock_eval_logger._create_with_meta.call_count == 1
 
 
 # set_summary with auto_summarize=False.
@@ -509,6 +549,7 @@ def test_dataframe_input(mock_eval_logger, run, monkeypatch):
     )
 
 
+@pytest.mark.usefixtures("mock_eval_logger")
 def test_dataframe_nested_table_cell_raises(monkeypatch):
     inner = wandb.Table(columns=["x"], data=[["v"]])
     df = _fake_dataframe(monkeypatch, columns=["t", "n"], rows=[[inner, 1]])
@@ -556,6 +597,7 @@ def test_duplicate_role_columns_warn(mock_eval_logger, run):
 
 
 # Nested Table inside an EvalTable cell: rejected at insertion time.
+@pytest.mark.usefixtures("mock_eval_logger")
 def test_nested_table_cell_raises_from_constructor():
     inner = wandb.Table(columns=["x"], data=[["v"]])
 
@@ -563,6 +605,7 @@ def test_nested_table_cell_raises_from_constructor():
         wandb.EvalTable(columns=["t", "n"], data=[[inner, 1]])
 
 
+@pytest.mark.usefixtures("mock_eval_logger")
 def test_add_data_nested_table_cell_raises():
     inner = wandb.Table(columns=["x"], data=[["v"]])
     et = wandb.EvalTable(columns=["t", "n"])
@@ -573,6 +616,7 @@ def test_add_data_nested_table_cell_raises():
     assert et.data == []
 
 
+@pytest.mark.usefixtures("mock_eval_logger")
 def test_add_column_nested_table_cell_raises():
     inner = wandb.Table(columns=["x"], data=[["v"]])
     et = wandb.EvalTable(columns=["n"], data=[[1]])
@@ -584,6 +628,7 @@ def test_add_column_nested_table_cell_raises():
     assert et.data == [[1]]
 
 
+@pytest.mark.usefixtures("mock_eval_logger")
 def test_unsupported_wandb_media_cell_raises_from_constructor():
     html = wandb.Html("<p>hi</p>")
 
@@ -593,6 +638,7 @@ def test_unsupported_wandb_media_cell_raises_from_constructor():
     assert "unsupported_media_mode='stub'" in str(exc_info.value)
 
 
+@pytest.mark.usefixtures("mock_eval_logger")
 def test_add_data_unsupported_wandb_value_cell_raises():
     histogram = wandb.Histogram([1, 2, 3])
     et = wandb.EvalTable(columns=["histogram"])
@@ -605,6 +651,7 @@ def test_add_data_unsupported_wandb_value_cell_raises():
     assert et.data == []
 
 
+@pytest.mark.usefixtures("mock_eval_logger")
 def test_unsupported_media_mode_rejects_unknown_mode():
     with pytest.raises(ValueError, match="unsupported_media_mode"):
         wandb.EvalTable(columns=["x"], unsupported_media_mode="ignore")

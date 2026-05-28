@@ -62,53 +62,7 @@ def test_import_weave_disabled(
     fake_weave_init.assert_not_called()
 
 
-def test_setup_with_import_disabled(
-    monkeypatch: pytest.MonkeyPatch,
-):
-    weave_init = MagicMock()
-    monkeypatch.setattr(wandb_weave_integration, "_weave_init", weave_init)
-    monkeypatch.setenv("WANDB_DISABLE_WEAVE", "1")
-
-    assert (
-        wandb_weave_integration.setup_with_import("test-entity", "test-project")
-        is False
-    )
-    weave_init.assert_not_called()
-
-
-def test_setup_with_import_without_project_raises(
-    monkeypatch: pytest.MonkeyPatch,
-):
-    weave_init = MagicMock()
-    import_module = MagicMock()
-    monkeypatch.setattr(wandb_weave_integration, "_weave_init", weave_init)
-    monkeypatch.setattr(
-        wandb_weave_integration.importlib,
-        "import_module",
-        import_module,
-    )
-
-    with pytest.raises(ValueError, match="requires a project"):
-        wandb_weave_integration.setup_with_import("test-entity", None)
-    import_module.assert_not_called()
-    weave_init.assert_not_called()
-
-
-def test_setup_with_import_initializes_project(
-    monkeypatch: pytest.MonkeyPatch,
-):
-    weave_init = MagicMock()
-    fake_weave = types.ModuleType("weave")
-    monkeypatch.setattr(wandb_weave_integration, "_weave_init", weave_init)
-    monkeypatch.setitem(sys.modules, "weave", fake_weave)
-
-    assert (
-        wandb_weave_integration.setup_with_import("test-entity", "test-project") is True
-    )
-    weave_init.assert_called_once_with("test-entity/test-project")
-
-
-def test_setup_with_import_translates_missing_weave(
+def test_import_weave_translates_missing_weave(
     monkeypatch: pytest.MonkeyPatch,
 ):
     monkeypatch.delitem(sys.modules, "weave", raising=False)
@@ -124,19 +78,49 @@ def test_setup_with_import_translates_missing_weave(
     )
 
     with pytest.raises(ImportError, match="weave is not installed"):
-        wandb_weave_integration.setup_with_import("test-entity", "test-project")
+        wandb_weave_integration.import_weave()
 
 
-def test_setup_with_import_translates_weave_init_missing_weave(
+def test_init_weave_disabled(
     monkeypatch: pytest.MonkeyPatch,
 ):
-    fake_weave = types.ModuleType("weave")
+    weave_init = MagicMock()
+    monkeypatch.setattr(wandb_weave_integration, "_weave_init", weave_init)
+    monkeypatch.setenv("WANDB_DISABLE_WEAVE", "1")
+
+    assert wandb_weave_integration.init_weave("test-entity", "test-project") is False
+    weave_init.assert_not_called()
+
+
+def test_init_weave_without_project_raises(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    weave_init = MagicMock()
+    monkeypatch.setattr(wandb_weave_integration, "_weave_init", weave_init)
+
+    with pytest.raises(ValueError, match="requires a project"):
+        wandb_weave_integration.init_weave("test-entity", None)
+    weave_init.assert_not_called()
+
+
+def test_init_weave_initializes_project(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    weave_init = MagicMock()
+    monkeypatch.setattr(wandb_weave_integration, "_weave_init", weave_init)
+
+    assert wandb_weave_integration.init_weave("test-entity", "test-project") is True
+    weave_init.assert_called_once_with("test-entity/test-project")
+
+
+def test_init_weave_translates_weave_init_missing_weave(
+    monkeypatch: pytest.MonkeyPatch,
+):
     weave_init = MagicMock(side_effect=ModuleNotFoundError("No module named 'weave'"))
-    monkeypatch.setitem(sys.modules, "weave", fake_weave)
     monkeypatch.setattr(wandb_weave_integration, "_weave_init", weave_init)
 
     with pytest.raises(ImportError, match="weave is not installed"):
-        wandb_weave_integration.setup_with_import("test-entity", "test-project")
+        wandb_weave_integration.init_weave("test-entity", "test-project")
 
 
 def test_weave_init_skips_matching_active_client(monkeypatch: pytest.MonkeyPatch):
@@ -175,3 +159,24 @@ def test_weave_init_reinitializes_when_matching_client_did_not_ensure_project_ex
 
     fake_weave.get_client.assert_called_once_with()
     fake_weave.init.assert_called_once_with("test-entity/test-project")
+
+
+def test_weave_init_rejects_different_active_client(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    fake_weave = types.ModuleType("weave")
+    fake_weave.init = MagicMock()
+    fake_weave.get_client = MagicMock(
+        return_value=types.SimpleNamespace(
+            entity="old-entity",
+            project="old-project",
+            ensure_project_exists=True,
+        )
+    )
+    monkeypatch.setitem(sys.modules, "weave", fake_weave)
+
+    with pytest.raises(ValueError, match="already initialized"):
+        wandb_weave_integration._weave_init("new-entity/new-project")
+
+    fake_weave.get_client.assert_called_once_with()
+    fake_weave.init.assert_not_called()

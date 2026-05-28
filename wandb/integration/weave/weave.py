@@ -14,6 +14,9 @@ import importlib.util
 import os
 import sys
 import threading
+from types import ModuleType
+
+from packaging.version import parse as parse_version
 
 import wandb
 
@@ -27,7 +30,7 @@ def _is_weave_disabled() -> bool:
     return bool(os.getenv(_DISABLE_WEAVE))
 
 
-def _build_project_path(entity: str | None, project: str | None) -> str | None:
+def build_project_path(entity: str | None, project: str | None) -> str | None:
     if not project:
         return None
     return f"{entity}/{project}" if entity else project
@@ -59,15 +62,16 @@ _AVAILABLE_WEAVE_INTEGRATIONS = [
 ]
 
 
-def setup(entity: str | None, project: str | None) -> None:
-    """Set up automatic Weave initialization for the current W&B run.
+def init_weave_if_imported(entity: str | None, project: str | None) -> None:
+    """Initialize Weave for the current W&B run if weave is already imported.
 
     Args:
+        entity: The W&B entity name to use for Weave initialization.
         project: The W&B project name to use for Weave initialization.
     """
     if _is_weave_disabled():
         return
-    project_path = _build_project_path(entity, project)
+    project_path = build_project_path(entity, project)
     if not project_path:
         return
 
@@ -85,11 +89,45 @@ def setup(entity: str | None, project: str | None) -> None:
         wandb.termwarn(f"Failed to automatically initialize weave: {e}")
 
 
-def setup_with_import(entity: str | None, project: str | None) -> bool:
-    """Init Weave, importing weave if not yet imported (e.g. for eval logging).
+def import_weave() -> ModuleType:
+    """Import weave, translating missing-package errors for W&B callers."""
+    try:
+        return importlib.import_module(_WEAVE_PACKAGE_NAME)
+    except ModuleNotFoundError as e:
+        raise ImportError(
+            "weave is not installed. Install it with: pip install weave"
+        ) from e
 
-    Unlike setup(), always imports and initializes weave rather than skipping
-    when weave has not been imported yet.
+
+def check_weave_version(
+    weave: ModuleType,
+    min_version: str,
+    *,
+    feature_name: str = "This integration",
+    install_hint: str = "Install it with: pip install weave",
+) -> str:
+    """Raise if the imported weave module is older than min_version."""
+    try:
+        weave_version = weave.__version__
+    except AttributeError as e:
+        raise ImportError(
+            f"{feature_name} requires weave>={min_version}, but the imported "
+            f"weave package has no __version__. {install_hint}"
+        ) from e
+
+    if parse_version(weave_version) < parse_version(min_version):
+        raise ImportError(
+            f"{feature_name} requires weave>={min_version}; "
+            f"found weave=={weave_version}. {install_hint}"
+        )
+    return weave_version
+
+
+def init_weave(
+    entity: str | None,
+    project: str | None,
+) -> bool:
+    """Initialize weave for a W&B entity/project.
 
     Returns:
         False if WANDB_DISABLE_WEAVE is set (caller should surface this).
@@ -97,15 +135,17 @@ def setup_with_import(entity: str | None, project: str | None) -> bool:
 
     Raises:
         ImportError: If weave is not installed.
-        ValueError: If no project is available.
+        ValueError: If no project is available, or if weave is already initialized
+            for a different project.
     """
     if _is_weave_disabled():
         return False
-    project_path = _build_project_path(entity, project)
+
+    project_path = build_project_path(entity, project)
     if not project_path:
-        raise ValueError("setup_with_import requires a project to initialize weave.")
+        raise ValueError("init_weave requires a project to initialize weave.")
+
     try:
-        importlib.import_module(_WEAVE_PACKAGE_NAME)
         _weave_init(project_path)
     except ModuleNotFoundError as e:
         raise ImportError(
@@ -158,12 +198,16 @@ def _weave_init(project_path: str) -> None:
         # required dependency.
         try:
             client = weave.get_client()
-            if (
-                client is not None
-                and client.ensure_project_exists
-                and f"{client.entity}/{client.project}" == project_path
-            ):
-                return
+            if client is not None:
+                client_project_path = build_project_path(client.entity, client.project)
+                if client.ensure_project_exists and client_project_path == project_path:
+                    return
+                if client_project_path != project_path:
+                    raise ValueError(
+                        "Weave is already initialized for "
+                        f"{client_project_path!r}; cannot initialize it for "
+                        f"{project_path!r}."
+                    )
         except AttributeError:
             pass
 
