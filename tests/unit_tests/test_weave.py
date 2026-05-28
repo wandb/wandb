@@ -76,13 +76,21 @@ def test_setup_with_import_disabled(
     weave_init.assert_not_called()
 
 
-def test_setup_with_import_without_project(
+def test_setup_with_import_without_project_raises(
     monkeypatch: pytest.MonkeyPatch,
 ):
     weave_init = MagicMock()
+    import_module = MagicMock()
     monkeypatch.setattr(wandb_weave_integration, "_weave_init", weave_init)
+    monkeypatch.setattr(
+        wandb_weave_integration.importlib,
+        "import_module",
+        import_module,
+    )
 
-    assert wandb_weave_integration.setup_with_import("test-entity", None) is True
+    with pytest.raises(ValueError, match="requires a project"):
+        wandb_weave_integration.setup_with_import("test-entity", None)
+    import_module.assert_not_called()
     weave_init.assert_not_called()
 
 
@@ -90,7 +98,9 @@ def test_setup_with_import_initializes_project(
     monkeypatch: pytest.MonkeyPatch,
 ):
     weave_init = MagicMock()
+    fake_weave = types.ModuleType("weave")
     monkeypatch.setattr(wandb_weave_integration, "_weave_init", weave_init)
+    monkeypatch.setitem(sys.modules, "weave", fake_weave)
 
     assert (
         wandb_weave_integration.setup_with_import("test-entity", "test-project") is True
@@ -101,7 +111,28 @@ def test_setup_with_import_initializes_project(
 def test_setup_with_import_translates_missing_weave(
     monkeypatch: pytest.MonkeyPatch,
 ):
+    monkeypatch.delitem(sys.modules, "weave", raising=False)
+
+    def fail_import_module(name):
+        assert name == "weave"
+        raise ModuleNotFoundError("No module named 'weave'")
+
+    monkeypatch.setattr(
+        wandb_weave_integration.importlib,
+        "import_module",
+        fail_import_module,
+    )
+
+    with pytest.raises(ImportError, match="weave is not installed"):
+        wandb_weave_integration.setup_with_import("test-entity", "test-project")
+
+
+def test_setup_with_import_translates_weave_init_missing_weave(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    fake_weave = types.ModuleType("weave")
     weave_init = MagicMock(side_effect=ModuleNotFoundError("No module named 'weave'"))
+    monkeypatch.setitem(sys.modules, "weave", fake_weave)
     monkeypatch.setattr(wandb_weave_integration, "_weave_init", weave_init)
 
     with pytest.raises(ImportError, match="weave is not installed"):

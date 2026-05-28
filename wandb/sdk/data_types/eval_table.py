@@ -1,14 +1,18 @@
 from __future__ import annotations
 
 import atexit
+import importlib
+import sys
 import warnings
 from collections.abc import Iterator
 from typing import TYPE_CHECKING, Any, Literal, cast
 
+from packaging.version import parse as parse_version
 from typing_extensions import override
 
 import wandb
 from wandb.errors import UsageError
+from wandb.integration.weave.weave import setup_with_import
 from wandb.sdk.data_types.table import Table
 
 if TYPE_CHECKING:
@@ -16,18 +20,23 @@ if TYPE_CHECKING:
 
     from wandb.sdk.wandb_run import Run as LocalRun
 
-    class _EvaluationCall(Protocol):
+    class _EvaluateCall(Protocol):
         id: str
 
     class _EvaluationLogger(Protocol):
-        _evaluate_call: _EvaluationCall
+        _evaluate_call: _EvaluateCall
 
         def log_example(
-            self, inputs: dict[str, Any], output: Any, scores: dict[str, Any]
+            self,
+            inputs: dict[str, Any],
+            output: Any,
+            scores: dict[str, float | bool | dict],
         ) -> None: ...
 
         def log_summary(
-            self, summary: dict[str, Any] | None = None, auto_summarize: bool = True
+            self,
+            summary: dict[str, Any] | None = None,
+            auto_summarize: bool = True,
         ) -> None: ...
 
     class _EvaluationLoggerCls(Protocol):
@@ -39,32 +48,19 @@ if TYPE_CHECKING:
             **kwargs: Any,
         ) -> _EvaluationLogger: ...
 
-else:
-    _EvaluationLogger = Any
-    _EvaluationLoggerCls = Any
-
 
 EVAL_TABLE_MARKER = {"wandb_eval_table": True}
 
 EVAL_TABLE_ROW_INDEX_KEY = "row"
 
+_MIN_WEAVE_VERSION = "0.52.41"
 _EVAL_TABLE_WEAVE_DEP_MSG = (
     "`wandb.EvalTable` is missing weave dependency. "
     'Install it with `pip install wandb["eval-table"]`.'
 )
 
 
-# This function can be patched for testing to mock out calls to weave..
-#
-# TODO: If/when wandb adds a required dep on weave, return the real EvaluationLogger
-# type instead of the typing.Protocol version and let mypy check calls against weave's
-# implementation.
-def _get_evaluation_logger_cls(
-    run: LocalRun,
-) -> _EvaluationLoggerCls:  # pragma: no cover
-    """Import and return weave's EvaluationLogger, verifying it's new enough."""
-    from wandb.integration.weave.weave import setup_with_import
-
+def _get_evaluation_logger_cls(run: LocalRun) -> _EvaluationLoggerCls:
     try:
         entity = run.entity
     except AttributeError:
@@ -75,32 +71,34 @@ def _get_evaluation_logger_cls(
         project = None
 
     try:
-        weave_is_enabled = setup_with_import(entity, project)
+        if not setup_with_import(entity, project):
+            raise RuntimeError(
+                "Weave logging is disabled (WANDB_DISABLE_WEAVE is set). "
+                "Unset it or use run.log() with a regular Table to suppress this."
+            )
     except ImportError as e:
         raise ImportError(_EVAL_TABLE_WEAVE_DEP_MSG) from e
 
-    if not weave_is_enabled:
-        raise RuntimeError(
-            "Weave logging is disabled (WANDB_DISABLE_WEAVE is set). "
-            "Unset it or use run.log() with a regular Table to suppress this."
-        )
-
-    # TODO: Remove this once we add a required dep from wandb to weave.
+    weave = sys.modules["weave"]
     try:
-        from weave.evaluation.eval_imperative import (  # type: ignore[import-not-found]
-            EvaluationLogger,
-        )
-    except ModuleNotFoundError as e:
-        raise ImportError(_EVAL_TABLE_WEAVE_DEP_MSG) from e
-
-    try:
-        create_with_meta = EvaluationLogger._create_with_meta
+        weave_version = weave.__version__
     except AttributeError as e:
         raise ImportError(_EVAL_TABLE_WEAVE_DEP_MSG) from e
-    if not callable(create_with_meta):
-        raise TypeError(_EVAL_TABLE_WEAVE_DEP_MSG)
 
-    return cast(_EvaluationLoggerCls, EvaluationLogger)
+    if parse_version(weave_version) < parse_version(_MIN_WEAVE_VERSION):
+        raise ImportError(
+            "`wandb.EvalTable` requires "
+            f"weave>={_MIN_WEAVE_VERSION}; found weave=={weave_version}. "
+            "Install it with "
+            '`pip install wandb["eval-table"]`.'
+        )
+
+    try:
+        eval_imperative = importlib.import_module("weave.evaluation.eval_imperative")
+    except Exception as e:
+        raise ImportError(_EVAL_TABLE_WEAVE_DEP_MSG) from e
+
+    return cast("_EvaluationLoggerCls", eval_imperative.EvaluationLogger)
 
 
 class EvalTable(Table):
