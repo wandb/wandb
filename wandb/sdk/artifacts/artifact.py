@@ -1225,6 +1225,40 @@ class Artifact:
         self._save_handle = save_handle
         self._client = client
 
+        # Schedule a watcher coroutine on the asyncer that already runs the
+        # mailbox loop. When wandb-core delivers the LogArtifactResponse, the
+        # watcher inspects its error_message field and surfaces it as a
+        # termwarn so failures are visible even when the caller never calls
+        # .wait(). The watcher runs on the existing asyncio event loop — no
+        # new thread is spawned.
+        #
+        # Note: if the caller does call .wait(), they'll see the existing
+        # ValueError on error AND this warning. Same message twice, on
+        # different channels. We accept the minor noise because suppressing
+        # it requires racy flag bookkeeping; the silent-failure path
+        # (no-wait callers, e.g. WandbLogger) is the actual bug we're
+        # fixing here.
+        artifact_name = self.name
+
+        async def _surface_error_if_any() -> None:
+            try:
+                result = await save_handle.wait_async(timeout=None)
+            except Exception:
+                # Mailbox was shut down or the handle abandoned. Nothing to
+                # surface; don't crash the asyncer loop.
+                return
+            response = result.response.log_artifact_response
+            if response.error_message:
+                wandb.termwarn(
+                    f"Artifact '{artifact_name}' failed to upload: "
+                    f"{response.error_message}"
+                )
+
+        save_handle.asyncer.run_soon(
+            _surface_error_if_any,
+            name=f"surface-artifact-error/{artifact_name}",
+        )
+
     def wait(self, timeout: int | None = None) -> Artifact:
         """If needed, wait for this artifact to finish logging.
 
