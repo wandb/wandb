@@ -18,23 +18,8 @@ R = TypeVar("R")
 def _placement_override_error(fields: Sequence[str]) -> UsageError:
     fields_display = ", ".join(fields)
     return UsageError(
-        "wandb.sandbox does not support placement overrides "
-        f"({fields_display}). Omit these arguments; W&B Serverless selects the runner and profile."
-    )
-
-
-def _gpu_resources_error() -> UsageError:
-    return UsageError(
-        "wandb.sandbox does not support GPU resources. "
-        "Omit resources.gpu; W&B Serverless currently supports CPU and memory resources."
-    )
-
-
-def _egress_mode_error(egress_mode: Any) -> UsageError:
-    modes_display = ", ".join(_SUPPORTED_EGRESS_MODES)
-    return UsageError(
-        "wandb.sandbox supports only egress modes "
-        f"({modes_display}). Got {egress_mode!r}."
+        "W&B Serverless automatically selects the runner and profile. "
+        f"Remove ({fields_display})."
     )
 
 
@@ -68,7 +53,10 @@ def _reject_gpu_resources(
     resources: ResourceOptions | Mapping[str, Any] | None,
 ) -> None:
     if _resources_include_gpu(resources):
-        raise _gpu_resources_error()
+        raise UsageError(
+            "W&B Serverless currently supports only CPU and memory resources. "
+            "Remove resources.gpu."
+        )
 
 
 def _reject_unsupported_egress_mode(
@@ -85,7 +73,11 @@ def _reject_unsupported_egress_mode(
         return
 
     if egress_mode is not None and egress_mode not in _SUPPORTED_EGRESS_MODES:
-        raise _egress_mode_error(egress_mode)
+        modes_display = ", ".join(_SUPPORTED_EGRESS_MODES)
+        raise UsageError(
+            "wandb.sandbox supports only egress modes "
+            f"({modes_display}). Got {egress_mode!r}."
+        )
 
 
 def _reject_invalid_kwargs(kwargs: Mapping[str, Any]) -> None:

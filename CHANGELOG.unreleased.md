@@ -31,4 +31,4 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ### Fixed
 
-- `wandb.sandbox` now rejects unsupported placement overrides
+- `wandb.sandbox` now rejects invalid argument values for placement, gpu, and egress
