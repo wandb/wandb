@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import atexit
-import importlib
 import sys
 import warnings
 from collections.abc import Iterator
@@ -94,11 +93,13 @@ def _get_evaluation_logger_cls(run: LocalRun) -> _EvaluationLoggerCls:
         )
 
     try:
-        eval_imperative = importlib.import_module("weave.evaluation.eval_imperative")
+        from weave.evaluation.eval_imperative import (  # type: ignore[import-not-found]
+            EvaluationLogger,
+        )
     except Exception as e:
         raise ImportError(_EVAL_TABLE_WEAVE_DEP_MSG) from e
 
-    return cast("_EvaluationLoggerCls", eval_imperative.EvaluationLogger)
+    return cast("_EvaluationLoggerCls", EvaluationLogger)
 
 
 class EvalTable(Table):
@@ -271,9 +272,9 @@ class EvalTable(Table):
     def bind_to_run(
         self,
         run: LocalRun,
-        key: str,
-        step: int,
-        id_: int | None = None,
+        key: int | str,
+        step: int | str,
+        id_: int | str | None = None,
         ignore_copy_err: bool | None = None,
     ) -> None:
         """Bind this object to a run.
@@ -282,7 +283,7 @@ class EvalTable(Table):
         """
         # Store context for to_json; skip the file-copy that Table.bind_to_run does.
         self._run = run
-        self._run_log_key = key
+        self._run_log_key = str(key)
 
     @override
     def to_json(self, run_or_artifact: Any) -> dict:
@@ -471,9 +472,9 @@ class EvalTable(Table):
         # Verify weave is installed AND new enough for EvalTable's needs before
         # attempting to use it. Catches both missing-install and version-skew
         # cases with a single, EvalTable-attributed error.
-        EvaluationLogger = _get_evaluation_logger_cls(run)  # noqa: N806
+        evaluation_logger_cls = _get_evaluation_logger_cls(run)
 
-        return EvaluationLogger._create_with_meta(
+        return evaluation_logger_cls._create_with_meta(
             EVAL_TABLE_MARKER,
             name=eval_name,
         )
