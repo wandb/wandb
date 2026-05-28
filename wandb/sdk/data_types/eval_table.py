@@ -347,9 +347,7 @@ class EvalTable(Table):
             }
 
     def _create_weave_eval_logger(self, eval_name: str) -> Any:
-        from weave.evaluation.eval_imperative import (  # type: ignore[import-not-found]
-            EvaluationLogger,
-        )
+        from weave.evaluation.eval_imperative import EvaluationLogger
 
         self._validate_column_mappings(
             self._input_columns, self._output_columns, self._score_columns
