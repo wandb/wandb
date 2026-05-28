@@ -979,9 +979,11 @@ def test_wandb_video_path_cell_uses_moviepy_video_file_clip(
         pass
 
     moviepy = types.ModuleType("moviepy")
-    moviepy.VideoClip = FakeVideoClip
-    moviepy.VideoFileClip = FakeVideoFileClip
+    editor = types.ModuleType("moviepy.editor")
+    editor.VideoClip = FakeVideoClip
+    editor.VideoFileClip = FakeVideoFileClip
     monkeypatch.setitem(sys.modules, "moviepy", moviepy)
+    monkeypatch.setitem(sys.modules, "moviepy.editor", editor)
 
     video_path = tmp_path / "sample.mp4"
     video_path.write_bytes(b"fake-video")
@@ -993,9 +995,33 @@ def test_wandb_video_path_cell_uses_moviepy_video_file_clip(
     output = ev.log_example.call_args.kwargs["output"]
     assert isinstance(output["video"], FakeVideoFileClip)
     assert output["video"].path == str(video_path)
-    assert sys.modules["moviepy.editor"].VideoClip is FakeVideoClip
-    assert sys.modules["moviepy.editor"].VideoFileClip is FakeVideoFileClip
     ensure_video_registered.assert_called_once_with()
+
+
+def test_wandb_video_path_cell_requires_moviepy_editor(
+    mock_eval_logger, run, monkeypatch, tmp_path
+):
+    _install_fake_weave_video_handler(monkeypatch)
+
+    class FakeVideoFileClip:
+        pass
+
+    class FakeVideoClip:
+        pass
+
+    moviepy = types.ModuleType("moviepy")
+    moviepy.VideoClip = FakeVideoClip
+    moviepy.VideoFileClip = FakeVideoFileClip
+    monkeypatch.setitem(sys.modules, "moviepy", moviepy)
+    monkeypatch.delitem(sys.modules, "moviepy.editor", raising=False)
+
+    video_path = tmp_path / "sample.mp4"
+    video_path.write_bytes(b"fake-video")
+
+    et = wandb.EvalTable(columns=["video"], data=[[wandb.Video(str(video_path))]])
+
+    with pytest.raises(ImportError, match="moviepy.editor"):
+        run.log({"my_eval": et})
 
 
 def test_wandb_video_bytes_cell_uses_moviepy_video_file_clip(

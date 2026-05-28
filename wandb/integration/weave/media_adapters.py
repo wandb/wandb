@@ -5,8 +5,6 @@ from __future__ import annotations
 import hashlib
 import importlib
 import json
-import sys
-import types
 import warnings
 from collections.abc import Callable
 from pathlib import Path
@@ -118,15 +116,20 @@ def _unwrap_video(val: wandb.Video, column: str, warned: set[type]) -> Any:
 def _moviepy_video_file_clip_class() -> Any:
     try:
         editor = importlib.import_module("moviepy.editor")
-    except ImportError:
-        editor = _install_moviepy_editor_compat()
+    except ImportError as e:
+        raise ImportError(
+            "`wandb.EvalTable` requires a moviepy version that provides "
+            "`moviepy.editor` to convert wandb.Video. Install it with "
+            "`pip install moviepy<2` or `pip install wandb[media]`."
+        ) from e
 
     try:
         return editor.VideoFileClip
     except AttributeError as e:
         raise ImportError(
-            "`wandb.EvalTable` requires moviepy to convert wandb.Video. "
-            "Install it with `pip install moviepy` or `pip install wandb[media]`."
+            "`wandb.EvalTable` requires a moviepy version that provides "
+            "`moviepy.editor.VideoFileClip` to convert wandb.Video. Install it with "
+            "`pip install moviepy<2` or `pip install wandb[media]`."
         ) from e
 
 
@@ -142,23 +145,6 @@ def _ensure_weave_video_serializer_registered() -> None:
         ) from e
 
     weave_video._ensure_registered()
-
-
-def _install_moviepy_editor_compat() -> types.ModuleType:
-    """Provide moviepy.editor for Weave when MoviePy exposes v2 top-level APIs."""
-    try:
-        moviepy = importlib.import_module("moviepy")
-        editor = types.ModuleType("moviepy.editor")
-        editor.VideoClip = moviepy.VideoClip
-        editor.VideoFileClip = moviepy.VideoFileClip
-    except (ImportError, AttributeError) as e:
-        raise ImportError(
-            "`wandb.EvalTable` requires moviepy to convert wandb.Video. "
-            "Install it with `pip install moviepy` or `pip install wandb[media]`."
-        ) from e
-
-    sys.modules["moviepy.editor"] = editor
-    return editor
 
 
 def _public_wandb_type_name(value_type: type) -> str:
