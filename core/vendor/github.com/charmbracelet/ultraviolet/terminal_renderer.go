@@ -678,7 +678,7 @@ func (s *TerminalRenderer) putRange(newbuf *RenderBuffer, oldLine, newLine Line,
 		var j, same int
 		for j, same = start, 0; j <= end; j++ {
 			oldCell, newCell := oldLine.At(j), newLine.At(j)
-			if same == 0 && oldCell != nil && oldCell.IsZero() {
+			if same == 0 && oldCell != nil && oldCell.IsZero() && newCell.IsZero() {
 				continue
 			}
 			if cellEqual(oldCell, newCell) {
