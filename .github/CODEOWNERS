@@ -80,6 +80,12 @@
 /tests/unit_tests/test_sandbox/       @wandb/launch-reviewers @wandb/sdk-team
 
 # Sweeps
-/wandb/sdk/wandb_agent.py                        @wandb/sweeps-launch-team @wandb/sdk-team
-/tests/system_tests/test_sweep/                  @wandb/sweeps-launch-team @wandb/sdk-team
-/tests/unit_tests/test_wandb_agent_teardown.py   @wandb/sweeps-launch-team @wandb/sdk-team
+/wandb/agents/                                   @wandb/sweeps-reviewers @wandb/sdk-team
+/wandb/sdk/wandb_agent.py                        @wandb/sweeps-reviewers @wandb/sdk-team
+/tests/system_tests/test_sweep/                  @wandb/sweeps-reviewers @wandb/sdk-team
+/tests/unit_tests/test_wandb_agent_teardown.py   @wandb/sweeps-reviewers @wandb/sdk-team
+
+# Tables
+/wandb/sdk/data_types/table*                     @wandb/tables-reviewers @wandb/sdk-team
+/wandb/sdk/internal/incremental_table_util.py    @wandb/tables-reviewers @wandb/sdk-team
+/tests/unit_tests/test_tables*                   @wandb/tables-reviewers @wandb/sdk-team
