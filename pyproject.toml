@@ -104,6 +104,9 @@ launch = [
 models = ["cloudpickle"]
 workspaces = ["wandb-workspaces"]
 sandbox = ["cwsandbox[cli]>=0.20.0"]
+eval-table = [  # wandb.EvalTable support (private testing only)
+    "weave>=0.52.41",
+]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
