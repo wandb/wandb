@@ -11,32 +11,6 @@ import wandb
 from wandb.integration.weave.media_adapters import unwrap_value
 
 
-def test_media_adapter_image_value_unwrapped_to_pil():
-    from PIL import Image as PILImage
-
-    pil_in = PILImage.new("RGB", (2, 2), color="red")
-    image = wandb.Image(pil_in)
-
-    with pytest.warns(UserWarning, match="wandb.Image values"):
-        result = unwrap_value(image, "img", set())
-
-    assert isinstance(result, PILImage.Image)
-    assert result.size == (2, 2)
-
-
-def test_media_adapter_rejects_external_image_reference():
-    image = wandb.Image("https://example.com/image.png")
-
-    with (
-        pytest.warns(UserWarning, match="wandb.Image values"),
-        pytest.raises(
-            TypeError,
-            match="Unsupported external media reference",
-        ),
-    ):
-        unwrap_value(image, "img", set())
-
-
 def test_media_adapter_rejects_unsupported_wandb_media():
     html = wandb.Html("<p>hi</p>")
 
@@ -95,6 +69,32 @@ def test_media_adapter_stubs_unsupported_wandb_value_without_natural_hash():
 def test_media_adapter_rejects_unknown_unsupported_media_mode():
     with pytest.raises(ValueError, match="unsupported_media_mode"):
         unwrap_value("plain text", "text", set(), unsupported_media_mode="ignore")
+
+
+def test_media_adapter_image_value_unwrapped_to_pil():
+    from PIL import Image as PILImage
+
+    pil_in = PILImage.new("RGB", (2, 2), color="red")
+    image = wandb.Image(pil_in)
+
+    with pytest.warns(UserWarning, match="wandb.Image values"):
+        result = unwrap_value(image, "img", set())
+
+    assert isinstance(result, PILImage.Image)
+    assert result.size == (2, 2)
+
+
+def test_media_adapter_rejects_external_image_reference():
+    image = wandb.Image("https://example.com/image.png")
+
+    with (
+        pytest.warns(UserWarning, match="wandb.Image values"),
+        pytest.raises(
+            TypeError,
+            match="Unsupported external media reference",
+        ),
+    ):
+        unwrap_value(image, "img", set())
 
 
 def test_media_adapter_rejects_external_audio_reference(monkeypatch):
