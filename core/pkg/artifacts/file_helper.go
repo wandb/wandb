@@ -14,7 +14,7 @@ import (
 // legacy behavior. If that fails — e.g. because $TMPDIR points to a missing
 // path on HPC setups where the job script never created it — and fallbackDir
 // is non-empty, the call is retried with fallbackDir. Pass a wandb-controlled
-// location (e.g. an artifact's stagingDir) so manifest writes don't silently
+// location (e.g. an artifact's stagingDir) so file writes don't silently
 // fail when the host $TMPDIR is broken. An empty fallbackDir disables the
 // retry and preserves the original legacy semantics.
 //
