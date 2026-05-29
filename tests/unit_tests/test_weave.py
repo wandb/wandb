@@ -65,17 +65,7 @@ def test_import_weave_disabled(
 def test_import_weave_translates_missing_weave(
     monkeypatch: pytest.MonkeyPatch,
 ):
-    monkeypatch.delitem(sys.modules, "weave", raising=False)
-
-    def fail_import_module(name):
-        assert name == "weave"
-        raise ModuleNotFoundError("No module named 'weave'")
-
-    monkeypatch.setattr(
-        wandb_weave_integration.importlib,
-        "import_module",
-        fail_import_module,
-    )
+    monkeypatch.setitem(sys.modules, "weave", None)
 
     with pytest.raises(ImportError, match="weave is not installed"):
         wandb_weave_integration.import_weave()

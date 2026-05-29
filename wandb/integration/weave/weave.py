@@ -92,33 +92,29 @@ def init_weave_if_imported(entity: str | None, project: str | None) -> None:
 def import_weave() -> ModuleType:
     """Import weave, translating missing-package errors for W&B callers."""
     try:
-        return importlib.import_module(_WEAVE_PACKAGE_NAME)
+        import weave
     except ModuleNotFoundError as e:
         raise ImportError(
             "weave is not installed. Install it with: pip install weave"
         ) from e
+    return weave
 
 
 def check_weave_version(
     weave: ModuleType,
     min_version: str,
-    *,
-    feature_name: str = "This integration",
-    install_hint: str = "Install it with: pip install weave",
 ) -> str:
-    """Raise if the imported weave module is older than min_version."""
+    """Raise if the given weave module is older than min_version."""
     try:
         weave_version = weave.__version__
     except AttributeError as e:
         raise ImportError(
-            f"{feature_name} requires weave>={min_version}, but the imported "
-            f"weave package has no __version__. {install_hint}"
+            f"weave>={min_version}, but the imported weave package has no __version__"
         ) from e
 
     if parse_version(weave_version) < parse_version(min_version):
         raise ImportError(
-            f"{feature_name} requires weave>={min_version}; "
-            f"found weave=={weave_version}. {install_hint}"
+            f"weave>={min_version}; found weave=={weave_version}"
         )
     return weave_version
 

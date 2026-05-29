@@ -20,9 +20,9 @@ EVAL_TABLE_MARKER = {"wandb_eval_table": True}
 EVAL_TABLE_ROW_INDEX_KEY = "row"
 
 _MIN_WEAVE_VERSION = "0.52.41"
+_EVAL_TABLE_WEAVE_INSTALL_HINT = 'Install it with `pip install wandb["eval-table"]`.'
 _EVAL_TABLE_WEAVE_DEP_MSG = (
-    "`wandb.EvalTable` is missing weave dependency. "
-    'Install it with `pip install wandb["eval-table"]`.'
+    f"`wandb.EvalTable` is missing weave dependency. {_EVAL_TABLE_WEAVE_INSTALL_HINT}"
 )
 
 
@@ -32,12 +32,12 @@ def _ensure_weave_version() -> None:
     except ImportError as e:
         raise ImportError(_EVAL_TABLE_WEAVE_DEP_MSG) from e
 
-    weave_integration.check_weave_version(
-        weave,
-        _MIN_WEAVE_VERSION,
-        feature_name="`wandb.EvalTable`",
-        install_hint='Install it with `pip install wandb["eval-table"]`.',
-    )
+    try:
+        weave_integration.check_weave_version(weave, _MIN_WEAVE_VERSION)
+    except ImportError as e:
+        raise ImportError(
+            f"`wandb.EvalTable` requires {e}. {_EVAL_TABLE_WEAVE_INSTALL_HINT}"
+        ) from e
 
 
 def _init_weave_for_run(run: LocalRun) -> None:
