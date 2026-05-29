@@ -618,7 +618,7 @@ func (h *Handler) handlePatchSave() {
 		return
 	}
 
-	git := gitops.New(h.settings.GetRootDir(), h.logger)
+	git := gitops.New(h.settings.GetGitRoot(), h.logger)
 	if !git.IsAvailable() {
 		return
 	}
