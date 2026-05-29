@@ -12,7 +12,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v1.7.0
 	github.com/Khan/genqlient v0.8.1
 	github.com/NimbleMarkets/ntcharts/v2 v2.0.1
-	github.com/aws/aws-sdk-go-v2 v1.41.7
+	github.com/aws/aws-sdk-go-v2 v1.41.8
 	github.com/aws/aws-sdk-go-v2/config v1.32.18
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.102.0
 	github.com/ebitengine/purego v0.10.1
