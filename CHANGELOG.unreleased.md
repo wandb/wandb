@@ -32,3 +32,4 @@ Section headings should be at level 3 (e.g. `### Added`).
 ### Fixed
 
 - Logging an artifact (whether via WandbLogger or run.log_artifact) now falls back to using the staging directory for the manifest file too if $TMPDIR is unavailable. (@ibindlish in https://github.com/wandb/wandb/pull/11958)
+
