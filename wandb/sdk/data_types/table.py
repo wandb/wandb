@@ -295,6 +295,9 @@ class Table(Media):
             f"Invalid log_mode: {log_mode}. Must be one of {_SUPPORTED_LOGGING_MODES}"
         )
 
+    def _has_been_logged(self) -> bool:
+        return self._run is not None or self._artifact_target is not None
+
     @staticmethod
     def _assert_valid_columns(columns):
         valid_col_types = [str, int]
