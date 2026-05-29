@@ -114,10 +114,10 @@ class EvalTable(Table):
 
         Examples:
             et1 = wandb.EvalTable(
-                input_columns=["prompt"],
+                input_columns=["input_text"],
                 output_columns=["prediction"],
                 score_columns=["score"],
-                data=[["What is 2+2?", "4", 0.5]],
+                data=[["example text", "class_a", 0.91]],
             )
             run.log({"my_eval_1": et1})
             # If you don't specify columns or dataframe, but specify input, output,
@@ -125,10 +125,10 @@ class EvalTable(Table):
             # output, and score columns, in that order.
 
             et2 = wandb.EvalTable(
-                columns=["prompt", "prediction", "score"],
-                input_columns=["prompt"],
+                columns=["input_text", "prediction", "score"],
+                input_columns=["input_text"],
                 score_columns=["score"],
-                data=[["What is 2+2?", "4", 0.5]],
+                data=[["example text", "class_a", 0.91]],
             )
             run.log({"my_eval_2": et2})
             # If you specify columns or dataframe, you can assign roles for those
@@ -136,8 +136,8 @@ class EvalTable(Table):
             # column (e.g. "prediction" in this case).
 
             et3 = wandb.EvalTable(
-                columns=["prompt", "prediction", "score"],
-                data=[["What is 2+2?", "4", 0.5]],
+                columns=["input_text", "prediction", "score"],
+                data=[["example text", "class_a", 0.91]],
             )
             run.log({"my_eval_3": et3})
             # If you don't assign any input columns, we will auto-inject a numeric
@@ -145,10 +145,10 @@ class EvalTable(Table):
             # index. All columns will be treated as outputs.
 
             et4 = wandb.EvalTable(
-                input_columns=["prompt"],
+                input_columns=["input_text"],
                 output_columns=["prediction"],
                 score_columns=["score"],
-                data=[["What is 2+2?", "4", 0.5]],
+                data=[["example text", "class_a", 0.91]],
             )
             et4.set_summary({"val_loss": 0.3})
             run.log({"my_eval_4": et4})
