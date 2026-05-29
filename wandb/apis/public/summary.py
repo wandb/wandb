@@ -1,4 +1,3 @@
-import json
 import os
 import time
 
@@ -6,18 +5,16 @@ import wandb
 from wandb import util
 from wandb.apis.internal import Api
 from wandb.sdk.data_types.utils import val_to_json
-from wandb.sdk.lib import filenames
 
 DEEP_SUMMARY_FNAME = "wandb.h5"
 H5_TYPES = ("numpy.ndarray", "tensorflow.Tensor", "torch.Tensor")
 h5py = util.get_module("h5py")
-np = util.get_module("numpy")
 
 
 class SummarySubDict:
-    """Nested dict-like object that proxies read and write operations through a root object.
+    """Nested dict-like object.
 
-    This lets us do synchronous serialization and lazy loading of large values.
+    Enables synchronous serialization and lazy loading of large values.
     """
 
     def __init__(self, root=None, path=()):
@@ -307,18 +304,17 @@ class Summary(SummarySubDict):
             A new tree of dict's with large objects replaced with dictionaries
             with "_type" entries that say which type the original data was.
         """
-
         # Constructs a new `dict` tree in `json_value` that discards and/or
         # encodes objects that aren't JSON serializable.
 
         if isinstance(value, dict):
             json_value = {}
-            for key, value in value.items():
-                json_value[key] = self._encode(value, path_from_root + (key,))
+            for key, nested_value in value.items():
+                json_value[key] = self._encode(nested_value, path_from_root + (key,))
             return json_value
         else:
             path = ".".join(path_from_root)
-            friendly_value, converted = util.json_friendly(
+            friendly_value, _ = util.json_friendly(
                 val_to_json(self._run, path, value, namespace="summary")
             )
             json_value, compressed = util.maybe_compress_summary(
@@ -352,31 +348,6 @@ def upload_h5(file, run_id, entity=None, project=None):
         api.push(
             {os.path.basename(file): f}, run=run_id, project=project, entity=entity
         )
-
-
-class FileSummary(Summary):
-    def __init__(self, run):
-        super().__init__(run)
-        self._fname = os.path.join(run.dir, filenames.SUMMARY_FNAME)
-        self.load()
-
-    def load(self):
-        try:
-            with open(self._fname) as f:
-                self._json_dict = json.load(f)
-        except (OSError, ValueError):
-            self._json_dict = {}
-
-    def _write(self, commit=False):
-        # TODO: we just ignore commit to ensure backward capability
-        with open(self._fname, "w") as f:
-            f.write(util.json_dumps_safer(self._json_dict))
-            f.write("\n")
-            f.flush()
-            os.fsync(f.fileno())
-        if self._h5:
-            self._h5.close()
-            self._h5 = None
 
 
 class HTTPSummary(Summary):
