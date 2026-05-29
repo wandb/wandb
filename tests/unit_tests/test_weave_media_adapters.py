@@ -11,6 +11,19 @@ import wandb
 from wandb.integration.weave.media_adapters import unwrap_value
 
 
+def _install_fake_weave(monkeypatch, **attrs):
+    module = types.ModuleType("weave")
+    module.__path__ = []
+    module.__version__ = "999.0.0"
+    for name, value in attrs.items():
+        setattr(module, name, value)
+    monkeypatch.setitem(sys.modules, "weave", module)
+    return module
+
+
+# Unsupported wandb values
+
+
 def test_media_adapter_rejects_unsupported_wandb_media():
     html = wandb.Html("<p>hi</p>")
 
@@ -19,7 +32,7 @@ def test_media_adapter_rejects_unsupported_wandb_media():
 
     message = str(exc_info.value)
     assert "unsupported wandb media type 'Html'" in message
-    assert "Only wandb.Image is currently supported" in message
+    assert "Only wandb.Image, wandb.Audio, and wandb.Video" in message
 
 
 def test_media_adapter_rejects_unsupported_wandb_value():
@@ -30,7 +43,7 @@ def test_media_adapter_rejects_unsupported_wandb_value():
 
     message = str(exc_info.value)
     assert "unsupported wandb value type 'Histogram'" in message
-    assert "Only wandb.Image is currently supported" in message
+    assert "Only wandb.Image, wandb.Audio, and wandb.Video" in message
 
 
 def test_media_adapter_stubs_unsupported_wandb_media():
@@ -71,6 +84,9 @@ def test_media_adapter_rejects_unknown_unsupported_media_mode():
         unwrap_value("plain text", "text", set(), unsupported_media_mode="ignore")
 
 
+# Image
+
+
 def test_media_adapter_image_value_unwrapped_to_pil():
     from PIL import Image as PILImage
 
@@ -95,6 +111,66 @@ def test_media_adapter_rejects_external_image_reference():
         ),
     ):
         unwrap_value(image, "img", set())
+
+
+# Audio
+
+
+def test_media_adapter_audio_path_uses_weave_audio_from_path(monkeypatch, tmp_path):
+    class FakeWeaveAudio:
+        calls = []
+
+        @classmethod
+        def from_path(cls, path):
+            cls.calls.append(("from_path", path))
+            return {"kind": "audio-path", "path": path}
+
+    _install_fake_weave(monkeypatch, Audio=FakeWeaveAudio)
+    audio_path = tmp_path / "sample.wav"
+    audio_path.write_bytes(b"RIFFfake-wave")
+    audio = wandb.Audio(str(audio_path))
+
+    with pytest.warns(UserWarning, match="wandb.Audio values"):
+        result = unwrap_value(audio, "audio", set())
+
+    assert result == {"kind": "audio-path", "path": audio_path}
+    assert FakeWeaveAudio.calls == [("from_path", audio_path)]
+
+
+def test_media_adapter_audio_data_uses_weave_audio_from_path(monkeypatch):
+    from wandb.sdk.data_types import audio as audio_module
+
+    class FakeSoundFile:
+        @staticmethod
+        def write(path, data, sample_rate):
+            with open(path, "wb") as f:
+                f.write(b"RIFFfake-wave")
+
+    original_get_module = audio_module.util.get_module
+
+    def fake_get_module(name, required=None):
+        if name == "soundfile":
+            return FakeSoundFile
+        return original_get_module(name, required=required)
+
+    class FakeWeaveAudio:
+        calls = []
+
+        @classmethod
+        def from_path(cls, path):
+            cls.calls.append(("from_path", path))
+            return {"kind": "audio-path", "path": path}
+
+    monkeypatch.setattr(audio_module.util, "get_module", fake_get_module)
+    _install_fake_weave(monkeypatch, Audio=FakeWeaveAudio)
+    audio = wandb.Audio([0.0, 0.1], sample_rate=2)
+
+    with pytest.warns(UserWarning, match="wandb.Audio values"):
+        result = unwrap_value(audio, "audio", set())
+
+    assert result["kind"] == "audio-path"
+    assert result["path"].suffix == ".wav"
+    assert FakeWeaveAudio.calls == [("from_path", result["path"])]
 
 
 def test_media_adapter_rejects_external_audio_reference(monkeypatch):
@@ -157,95 +233,7 @@ def test_media_adapter_rethrows_weave_audio_value_error(monkeypatch, tmp_path):
         unwrap_value(audio, "audio", set())
 
 
-def test_media_adapter_audio_path_uses_weave_audio_from_path(monkeypatch, tmp_path):
-    class FakeWeaveAudio:
-        calls = []
-
-        @classmethod
-        def from_path(cls, path):
-            cls.calls.append(("from_path", path))
-            return {"kind": "audio-path", "path": path}
-
-    _install_fake_weave(monkeypatch, Audio=FakeWeaveAudio)
-    audio_path = tmp_path / "sample.wav"
-    audio_path.write_bytes(b"RIFFfake-wave")
-    audio = wandb.Audio(str(audio_path))
-
-    with pytest.warns(UserWarning, match="wandb.Audio values"):
-        result = unwrap_value(audio, "audio", set())
-
-    assert result == {"kind": "audio-path", "path": audio_path}
-    assert FakeWeaveAudio.calls == [("from_path", audio_path)]
-
-
-def test_media_adapter_audio_data_uses_weave_audio_from_path(monkeypatch):
-    from wandb.sdk.data_types import audio as audio_module
-
-    class FakeSoundFile:
-        @staticmethod
-        def write(path, data, sample_rate):
-            with open(path, "wb") as f:
-                f.write(b"RIFFfake-wave")
-
-    original_get_module = audio_module.util.get_module
-
-    def fake_get_module(name, required=None):
-        if name == "soundfile":
-            return FakeSoundFile
-        return original_get_module(name, required=required)
-
-    class FakeWeaveAudio:
-        calls = []
-
-        @classmethod
-        def from_path(cls, path):
-            cls.calls.append(("from_path", path))
-            return {"kind": "audio-path", "path": path}
-
-    monkeypatch.setattr(audio_module.util, "get_module", fake_get_module)
-    _install_fake_weave(monkeypatch, Audio=FakeWeaveAudio)
-    audio = wandb.Audio([0.0, 0.1], sample_rate=2)
-
-    with pytest.warns(UserWarning, match="wandb.Audio values"):
-        result = unwrap_value(audio, "audio", set())
-
-    assert result["kind"] == "audio-path"
-    assert result["path"].suffix == ".wav"
-    assert FakeWeaveAudio.calls == [("from_path", result["path"])]
-
-
-def _install_fake_weave(monkeypatch, **attrs):
-    module = types.ModuleType("weave")
-    module.__path__ = []
-    module.__version__ = "999.0.0"
-    for name, value in attrs.items():
-        setattr(module, name, value)
-    monkeypatch.setitem(sys.modules, "weave", module)
-    return module
-
-
-def _install_fake_weave_video_handler(monkeypatch):
-    from unittest.mock import MagicMock
-
-    ensure_registered = MagicMock()
-
-    weave_module = _install_fake_weave(monkeypatch)
-    type_handlers_module = types.ModuleType("weave.type_handlers")
-    type_handlers_module.__path__ = []
-    video_package = types.ModuleType("weave.type_handlers.Video")
-    video_package.__path__ = []
-    video_module = types.ModuleType("weave.type_handlers.Video.video")
-    video_module._ensure_registered = ensure_registered
-
-    weave_module.type_handlers = type_handlers_module
-    type_handlers_module.Video = video_package
-    video_package.video = video_module
-
-    monkeypatch.setitem(sys.modules, "weave.type_handlers", type_handlers_module)
-    monkeypatch.setitem(sys.modules, "weave.type_handlers.Video", video_package)
-    monkeypatch.setitem(sys.modules, "weave.type_handlers.Video.video", video_module)
-
-    return ensure_registered
+# Video
 
 
 def _install_fake_moviepy_editor(monkeypatch, video_file_clip_cls):
@@ -261,8 +249,6 @@ def _install_fake_moviepy_editor(monkeypatch, video_file_clip_cls):
 
 
 def test_media_adapter_video_path_uses_moviepy_video_file_clip(monkeypatch, tmp_path):
-    ensure_video_registered = _install_fake_weave_video_handler(monkeypatch)
-
     class FakeVideoFileClip:
         def __init__(self, path):
             self.path = path
@@ -278,12 +264,9 @@ def test_media_adapter_video_path_uses_moviepy_video_file_clip(monkeypatch, tmp_
 
     assert isinstance(result, FakeVideoFileClip)
     assert result.path == str(video_path)
-    ensure_video_registered.assert_called_once_with()
 
 
 def test_media_adapter_video_path_requires_moviepy_editor(monkeypatch, tmp_path):
-    _install_fake_weave_video_handler(monkeypatch)
-
     class FakeVideoFileClip:
         pass
 
@@ -302,14 +285,16 @@ def test_media_adapter_video_path_requires_moviepy_editor(monkeypatch, tmp_path)
 
     with (
         pytest.warns(UserWarning, match="wandb.Video values"),
-        pytest.raises(ImportError, match="moviepy.editor"),
+        pytest.raises(ImportError) as exc_info,
     ):
         unwrap_value(video, "video", set())
 
+    message = str(exc_info.value)
+    assert "moviepy.editor" in message
+    assert 'wandb["eval-table-video-support"]' in message
+
 
 def test_media_adapter_video_bytes_uses_moviepy_video_file_clip(monkeypatch):
-    ensure_video_registered = _install_fake_weave_video_handler(monkeypatch)
-
     class FakeVideoFileClip:
         def __init__(self, path):
             self.path = path
@@ -323,13 +308,10 @@ def test_media_adapter_video_bytes_uses_moviepy_video_file_clip(monkeypatch):
 
     assert isinstance(result, FakeVideoFileClip)
     assert result.path.endswith(".mp4")
-    ensure_video_registered.assert_called_once_with()
 
 
 def test_media_adapter_video_data_uses_moviepy_video_file_clip(monkeypatch):
     from wandb.sdk.data_types import video as video_module
-
-    ensure_video_registered = _install_fake_weave_video_handler(monkeypatch)
 
     np = pytest.importorskip("numpy")
 
@@ -364,4 +346,3 @@ def test_media_adapter_video_data_uses_moviepy_video_file_clip(monkeypatch):
 
     assert isinstance(result, FakeVideoFileClip)
     assert result.path.endswith(".mp4")
-    ensure_video_registered.assert_called_once_with()

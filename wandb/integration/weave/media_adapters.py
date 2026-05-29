@@ -17,6 +17,9 @@ from wandb.sdk.data_types.table import Table
 
 UnsupportedMediaMode = Literal["raise", "stub"]
 _UNSUPPORTED_MEDIA_MODES = get_args(UnsupportedMediaMode)
+_MOVIEPY_EDITOR_INSTALL_HINT = (
+    'Install it with `pip install wandb["eval-table-video-support"]`'
+)
 
 
 def _warn_once(media_type: type, warned: set[type], message: str) -> None:
@@ -80,13 +83,7 @@ def _unwrap_audio(val: wandb.Audio, column: str, warned: set[type]) -> Any:
         "Caption and other metadata are discarded.",
     )
 
-    try:
-        from weave import Audio as WeaveAudio  # type: ignore[import-not-found]
-    except ImportError as e:
-        raise ImportError(
-            "`wandb.EvalTable` requires the `weave` package to convert wandb.Audio. "
-            "Install it with `pip install weave`."
-        ) from e
+    from weave import Audio as WeaveAudio
 
     path = _path_for_local_media(val, column)
     try:
@@ -108,8 +105,6 @@ def _unwrap_video(val: wandb.Video, column: str, warned: set[type]) -> Any:
     path = _path_for_local_media(val, column)
 
     VideoFileClip = _moviepy_video_file_clip_class()  # noqa: N806
-    _ensure_weave_video_serializer_registered()
-
     return VideoFileClip(str(path))
 
 
@@ -119,8 +114,7 @@ def _moviepy_video_file_clip_class() -> Any:
     except ImportError as e:
         raise ImportError(
             "`wandb.EvalTable` requires a moviepy version that provides "
-            "`moviepy.editor` to convert wandb.Video. Install it with "
-            "`pip install moviepy<2` or `pip install wandb[media]`."
+            f"`moviepy.editor` to convert wandb.Video. {_MOVIEPY_EDITOR_INSTALL_HINT}"
         ) from e
 
     try:
@@ -128,23 +122,9 @@ def _moviepy_video_file_clip_class() -> Any:
     except AttributeError as e:
         raise ImportError(
             "`wandb.EvalTable` requires a moviepy version that provides "
-            "`moviepy.editor.VideoFileClip` to convert wandb.Video. Install it with "
-            "`pip install moviepy<2` or `pip install wandb[media]`."
+            "`moviepy.editor.VideoFileClip` to convert wandb.Video. "
+            f"{_MOVIEPY_EDITOR_INSTALL_HINT}"
         ) from e
-
-
-def _ensure_weave_video_serializer_registered() -> None:
-    try:
-        from weave.type_handlers.Video import (  # type: ignore[import-not-found]
-            video as weave_video,
-        )
-    except ImportError as e:
-        raise ImportError(
-            "`wandb.EvalTable` requires the `weave` package to convert wandb.Video. "
-            "Install it with `pip install weave`."
-        ) from e
-
-    weave_video._ensure_registered()
 
 
 def _public_wandb_type_name(value_type: type) -> str:
