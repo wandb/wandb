@@ -26,7 +26,10 @@ type ArtifactBuilder struct {
 	fallbackTempDir string
 }
 
-func NewArtifactBuilder(artifactRecord *spb.ArtifactRecord, fallbackTempDir string) *ArtifactBuilder {
+func NewArtifactBuilder(
+	artifactRecord *spb.ArtifactRecord,
+	fallbackTempDir string,
+) *ArtifactBuilder {
 	artifactClone := proto.Clone(artifactRecord).(*spb.ArtifactRecord)
 	builder := &ArtifactBuilder{
 		artifactRecord:  artifactClone,

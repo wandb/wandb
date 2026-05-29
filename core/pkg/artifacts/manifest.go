@@ -185,7 +185,9 @@ func ManifestContentsFromFile(path string) (map[string]ManifestEntry, error) {
 // (e.g. host $TMPDIR points to a missing path). Pass a wandb-controlled
 // directory like the artifact's stagingDir so manifest writes don't silently
 // fail. See WriteJSONToTempFileWithMetadata for the rationale.
-func (m *Manifest) WriteToFile(fallbackDir string) (filename, digest string, size int64, rerr error) {
+func (m *Manifest) WriteToFile(
+	fallbackDir string,
+) (filename, digest string, size int64, rerr error) {
 	return WriteJSONToTempFileWithMetadata(m, fallbackDir)
 }
 
