@@ -19,12 +19,11 @@ from wandb.apis.public.runs import Run
 def test_create_run_with_string_attrs(field, value, expected):
     api = wandb.Api()
     run = wandb.apis.public.Run(
-        client=api.client,
+        service_api=api._service_api,
         entity="test",
         project="test",
         run_id="test",
         attrs={field: value},
-        service_api=mock.MagicMock(),
     )
     assert getattr(run, field) == expected
 
@@ -43,12 +42,11 @@ def test_create_run_with_dictionary_attrs_already_parsed(field, value):
     with mock.patch.object(wandb, "login", mock.MagicMock()):
         api = wandb.Api()
         run = wandb.apis.public.Run(
-            client=api.client,
+            service_api=api._service_api,
             entity="test",
             project="test",
             run_id="test",
             attrs={field: value},
-            service_api=mock.MagicMock(),
         )
         assert getattr(run, field) == value
 
@@ -68,14 +66,13 @@ def test_create_run_with_dictionary__throws_type_error(field, value):
         api = wandb.Api()
         with pytest.raises(wandb.errors.CommError):
             wandb.apis.public.Run(
-                client=api.client,
+                service_api=api._service_api,
                 entity="test",
                 project="test",
                 run_id="test",
                 attrs={
                     field: value,
                 },
-                service_api=mock.MagicMock(),
             )
 
 
@@ -93,12 +90,11 @@ def test_create_run_with_control_characters(field, value, expected):
     with mock.patch.object(wandb, "login", mock.MagicMock()):
         api = wandb.Api()
         run = wandb.apis.public.Run(
-            client=api.client,
+            service_api=api._service_api,
             entity="test",
             project="test",
             run_id="test",
             attrs={field: value},
-            service_api=mock.MagicMock(),
         )
         assert getattr(run, field) == expected
 
@@ -149,19 +145,17 @@ def _make_full_response(lightweight_attrs):
 @pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
 def test_lazy_run_config_triggers_full_load():
     """run.config on a lazy run should trigger load_full_data and return config."""
-    client = mock.MagicMock()
     service_api = mock.MagicMock()
     lightweight = _make_lightweight_attrs()
     service_api.execute_graphql.return_value = _make_full_response(lightweight)
 
     run = Run(
-        client=client,
+        service_api=service_api,
         entity="test-entity",
         project="test-project",
         run_id="run-abc123",
         attrs=dict(lightweight),
         lazy=True,
-        service_api=service_api,
     )
 
     assert run._lazy is True
@@ -179,18 +173,16 @@ def test_lazy_run_config_triggers_full_load():
 @pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
 def test_lazy_run_user_accessible_without_full_load():
     """run.user should work on lazy runs without triggering a full data load."""
-    client = mock.MagicMock()
     service_api = mock.MagicMock()
     lightweight = _make_lightweight_attrs()
 
     run = Run(
-        client=client,
+        service_api=service_api,
         entity="test-entity",
         project="test-project",
         run_id="run-abc123",
         attrs=dict(lightweight),
         lazy=True,
-        service_api=service_api,
     )
 
     assert run._full_data_loaded is False
@@ -200,16 +192,15 @@ def test_lazy_run_user_accessible_without_full_load():
 
 
 def test_run_url_encodes_spaces_in_project_name():
-    client = mock.MagicMock()
-    client.app_url = "https://wandb.ai/"
+    service_api = mock.MagicMock()
+    service_api.app_url = "https://wandb.ai/"
 
     run = Run(
-        client=client,
+        service_api=service_api,
         entity="my-entity",
         project="My Project",
         run_id="12345",
         attrs={"name": "test"},
-        service_api=mock.MagicMock(),
     )
 
     assert run.url == "https://wandb.ai/my-entity/My%20Project/runs/12345"

@@ -456,8 +456,6 @@ module = [
     "tensorboard.*",
     "grpc.*",
     "ultralytics.*",
-    "wandb_gql.*",
-    "wandb_graphql.*",
     "wandb.vendor.*",
 ]
 ignore_missing_imports = true
