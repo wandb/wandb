@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import importlib
 import json
 import warnings
 from collections.abc import Callable
@@ -23,6 +24,21 @@ def _warn_once(media_type: type, warned: set[type], message: str) -> None:
         return
     warnings.warn(message, stacklevel=4)
     warned.add(media_type)
+
+
+def _path_for_local_media(val: Media, column: str) -> Path:
+    path = val._path
+    if val.path_is_reference(path):
+        raise TypeError(
+            f"Unsupported external media reference {path!r} in column {column!r}. "
+            "EvalTable currently supports local files and in-memory media only."
+        )
+    if path is None:
+        raise TypeError(
+            f"Cannot convert {type(val).__name__} in column {column!r}: "
+            "media object does not have a local file path."
+        )
+    return Path(path)
 
 
 def _unwrap_image(val: wandb.Image, column: str, warned: set[type]) -> Any:
@@ -56,6 +72,81 @@ def _unwrap_image(val: wandb.Image, column: str, warned: set[type]) -> Any:
     )
 
 
+def _unwrap_audio(val: wandb.Audio, column: str, warned: set[type]) -> Any:
+    _warn_once(
+        wandb.Audio,
+        warned,
+        "wandb.Audio values are converted to weave.Audio for Weave logging. "
+        "Caption and other metadata are discarded.",
+    )
+
+    try:
+        from weave import Audio as WeaveAudio  # type: ignore[import-not-found]
+    except ImportError as e:
+        raise ImportError(
+            "`wandb.EvalTable` requires the `weave` package to convert wandb.Audio. "
+            "Install it with `pip install weave`."
+        ) from e
+
+    path = _path_for_local_media(val, column)
+    try:
+        return WeaveAudio.from_path(path)
+    except ValueError as e:
+        raise TypeError(
+            f"Cannot convert wandb.Audio in column {column!r} for Weave logging: {e}"
+        ) from e
+
+
+def _unwrap_video(val: wandb.Video, column: str, warned: set[type]) -> Any:
+    _warn_once(
+        wandb.Video,
+        warned,
+        "wandb.Video values are converted to Weave-native video values. "
+        "Caption and other metadata are discarded.",
+    )
+
+    path = _path_for_local_media(val, column)
+
+    VideoFileClip = _moviepy_video_file_clip_class()  # noqa: N806
+    _ensure_weave_video_serializer_registered()
+
+    return VideoFileClip(str(path))
+
+
+def _moviepy_video_file_clip_class() -> Any:
+    try:
+        editor = importlib.import_module("moviepy.editor")
+    except ImportError as e:
+        raise ImportError(
+            "`wandb.EvalTable` requires a moviepy version that provides "
+            "`moviepy.editor` to convert wandb.Video. Install it with "
+            "`pip install moviepy<2` or `pip install wandb[media]`."
+        ) from e
+
+    try:
+        return editor.VideoFileClip
+    except AttributeError as e:
+        raise ImportError(
+            "`wandb.EvalTable` requires a moviepy version that provides "
+            "`moviepy.editor.VideoFileClip` to convert wandb.Video. Install it with "
+            "`pip install moviepy<2` or `pip install wandb[media]`."
+        ) from e
+
+
+def _ensure_weave_video_serializer_registered() -> None:
+    try:
+        from weave.type_handlers.Video import (  # type: ignore[import-not-found]
+            video as weave_video,
+        )
+    except ImportError as e:
+        raise ImportError(
+            "`wandb.EvalTable` requires the `weave` package to convert wandb.Video. "
+            "Install it with `pip install weave`."
+        ) from e
+
+    weave_video._ensure_registered()
+
+
 def _public_wandb_type_name(value_type: type) -> str:
     for name, public_value in vars(wandb).items():
         if public_value is value_type:
@@ -74,6 +165,8 @@ def _format_type_list(value_types: tuple[type, ...]) -> str:
 
 _SUPPORTED_WANDB_VALUE_ADAPTERS: dict[type, Callable[[Any, str, set[type]], Any]] = {
     wandb.Image: _unwrap_image,
+    wandb.Audio: _unwrap_audio,
+    wandb.Video: _unwrap_video,
 }
 _SUPPORTED_WANDB_VALUE_TYPES = tuple(_SUPPORTED_WANDB_VALUE_ADAPTERS)
 _SUPPORTED_WANDB_VALUE_TYPES_MSG = _format_type_list(_SUPPORTED_WANDB_VALUE_TYPES)
@@ -126,7 +219,7 @@ def validate_supported_value(
         raise TypeError(
             f"{location} contains unsupported wandb media type "
             f"{type(val).__name__!r}. "
-            f"Only {_SUPPORTED_WANDB_VALUE_TYPES_MSG} is currently supported. "
+            f"Only {_SUPPORTED_WANDB_VALUE_TYPES_MSG} are currently supported. "
             f"{_unsupported_media_mode_hint()}"
         )
 
@@ -136,7 +229,7 @@ def validate_supported_value(
         raise TypeError(
             f"{location} contains unsupported wandb value type "
             f"{type(val).__name__!r}. "
-            f"Only {_SUPPORTED_WANDB_VALUE_TYPES_MSG} is currently supported. "
+            f"Only {_SUPPORTED_WANDB_VALUE_TYPES_MSG} are currently supported. "
             f"{_unsupported_media_mode_hint()}"
         )
 
@@ -228,7 +321,7 @@ def unwrap_value(
     warned: set[type],
     unsupported_media_mode: UnsupportedMediaMode = "raise",
 ) -> Any:
-    """Convert a wandb cell value to an appropriate type for Weave logging.
+    """Convert a wandb media cell value to an appropriate type for Weave logging.
 
     Args:
         val: Cell value to convert.
@@ -236,14 +329,19 @@ def unwrap_value(
         warned: Set of wandb types already warned about (mutated in-place).
 
     Returns:
-        PIL.Image.Image for wandb.Image, placeholder strings for unsupported
-        wandb values when unsupported_media_mode is "stub", and val unchanged
-        for non-wandb value types.
+        PIL.Image.Image for wandb.Image, weave.Audio for supported wandb.Audio
+        values, MoviePy VideoFileClip for wandb.Video, placeholder strings for
+        unsupported wandb values when unsupported_media_mode is "stub", and val
+        unchanged for non-wandb value types.
 
     Raises:
         ImportError: If the conversion requires an unavailable optional dependency.
         TypeError: If val is an unsupported wandb value type.
     """
+    # TODO: Temporarily support wandb.Image, wandb.Audio, and wandb.Video by just
+    # converting the data to what weave supports. In the near future, we will instead
+    # directly support these types, including all metadata, by registering weave type
+    # handlers.
     validate_supported_value(
         val,
         column,
