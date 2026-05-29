@@ -330,8 +330,7 @@ def test_normal_run_after_agent_does_not_overwrite_sweep_run(user, runner, monke
 
     with runner.isolated_filesystem():
         project_name = "test-normal-run-after-agent"
-        public_api = Api()
-        public_api.create_project(project_name, user)
+        Api().create_project(project_name, user)
 
         sweep_run_ids = []
 
@@ -367,6 +366,9 @@ def test_normal_run_after_agent_does_not_overwrite_sweep_run(user, runner, monke
             assert run.id == normal_run_id, "Normal run should keep the explicit id"
             assert run.sweep_id is None, "Normal run must not be part of the sweep"
             # Sweep run must still exist and be unchanged (not overwritten).
+            # The agent's internal wandb.teardown() between jobs invalidates
+            # any wandb.Api() held from before, so create a fresh one here.
+            public_api = Api()
             sweep_runs = list(
                 public_api.runs(f"{user}/{project_name}", {"sweep": sweep_id})
             )

@@ -37,7 +37,7 @@ func (f *RunSyncOperationFactory) New(
 	globalSettings *spb.Settings,
 ) *RunSyncOperation {
 	op := &RunSyncOperation{
-		printer: observability.NewPrinter(),
+		printer: observability.NewPrinter(printerBufferSize),
 	}
 
 	logFile, err := OpenDebugSyncLogFile(settings.From(globalSettings))
@@ -76,7 +76,10 @@ func (op *RunSyncOperation) Do(
 	ctx context.Context,
 	parallelism int,
 ) *spb.ServerSyncResponse {
-	defer op.logFile.Close()
+	defer func() {
+		op.logFile.Close()
+		op.printer.Close()
+	}()
 
 	plan, err := op.initAndPlan(ctx)
 

@@ -622,6 +622,9 @@ func (s *Sender) finishRunSync(
 	// printing `run.finish()` progress, and it was necessary to "close"
 	// the progress bar shown in Jupyter. Yes, that was the only purpose.
 	s.fileTransferStats.SetDone()
+
+	// Unblock any printer reads.
+	s.printer.Close()
 }
 
 // respondExit constructs and sends a response to an exit request.

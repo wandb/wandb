@@ -47,7 +47,7 @@ func TestSaveGraphQLRequest(t *testing.T) {
 	ftm.ShouldCompleteImmediately = true
 	saver := NewArtifactSaveManager(
 		observabilitytest.NewTestLogger(t),
-		observability.NewPrinter(),
+		observability.NewPrinter(0),
 		mockGQL,
 		ftm,
 		true,

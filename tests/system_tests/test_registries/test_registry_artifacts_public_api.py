@@ -110,7 +110,8 @@ def test_fetch_migrated_registry_artifact(
     mock_membership_rsp_data: dict[str, Any],
 ):
     server_supports_artifact_via_membership = server_supports(
-        api.client, ServerFeature.PROJECT_ARTIFACT_COLLECTION_MEMBERSHIP
+        api._service_api,
+        ServerFeature.PROJECT_ARTIFACT_COLLECTION_MEMBERSHIP,
     )
 
     mocker.patch("wandb.sdk.artifacts.artifact.Artifact._from_attrs")
