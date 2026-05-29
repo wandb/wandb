@@ -615,15 +615,78 @@ def test_add_column_nested_table_cell_raises():
 
 
 @pytest.mark.usefixtures("mock_eval_logger")
-def test_media_cell_raises_from_constructor():
+def test_unsupported_wandb_media_cell_raises_from_constructor():
     html = wandb.Html("<p>hi</p>")
 
     with pytest.raises(TypeError) as exc_info:
         wandb.EvalTable(columns=["html"], data=[[html]])
+    assert "unsupported wandb media type 'Html'" in str(exc_info.value)
+    assert "unsupported_media_mode='stub'" in str(exc_info.value)
 
-    message = str(exc_info.value)
-    assert "unsupported wandb media type 'Html'" in message
-    assert "does not support wandb media values yet" in message
+
+@pytest.mark.usefixtures("mock_eval_logger")
+def test_add_data_unsupported_wandb_value_cell_raises():
+    histogram = wandb.Histogram([1, 2, 3])
+    et = wandb.EvalTable(columns=["histogram"])
+
+    with pytest.raises(TypeError) as exc_info:
+        et.add_data(histogram)
+    assert "unsupported wandb value type 'Histogram'" in str(exc_info.value)
+    assert "unsupported_media_mode='stub'" in str(exc_info.value)
+
+    assert et.data == []
+
+
+@pytest.mark.usefixtures("mock_eval_logger")
+def test_unsupported_media_mode_rejects_unknown_mode():
+    with pytest.raises(ValueError, match="unsupported_media_mode"):
+        wandb.EvalTable(columns=["x"], unsupported_media_mode="ignore")
+
+
+def test_unsupported_wandb_media_stubbed_on_log(mock_eval_logger, run):
+    html = wandb.Html("<p>hi</p>", inject=False)
+    assert html._sha256 is not None
+    expected_stub = f"[wandb.Html unsupported: {html._sha256[:8]}]"
+
+    et = wandb.EvalTable(
+        columns=["html", "label"],
+        data=[[html, "ok"]],
+        input_columns=["html"],
+        output_columns=["label"],
+        unsupported_media_mode="stub",
+    )
+
+    with pytest.warns(UserWarning, match="wandb.Html values are not supported"):
+        run.log({"my_eval": et})
+
+    ev = mock_eval_logger.created_loggers[0]
+    ev.log_example.assert_called_once_with(
+        inputs={"html": expected_stub},
+        output={"label": "ok"},
+        scores={},
+    )
+
+
+def test_unsupported_wandb_value_without_natural_hash_stubbed_on_log(
+    mock_eval_logger, run
+):
+    histogram = wandb.Histogram([1, 2, 3])
+    et = wandb.EvalTable(
+        columns=["histogram"],
+        data=[[histogram]],
+        unsupported_media_mode="stub",
+    )
+
+    with pytest.warns(UserWarning, match="wandb.Histogram values are not supported"):
+        run.log({"my_eval": et})
+
+    ev = mock_eval_logger.created_loggers[0]
+    output = ev.log_example.call_args.kwargs["output"]
+    stub = output["histogram"]
+    assert stub.startswith("[wandb.Histogram unsupported: ")
+    assert stub.endswith("]")
+    digest = stub.removeprefix("[wandb.Histogram unsupported: ").removesuffix("]")
+    assert len(digest) == 8
 
 
 # Logging an EvalTable to an Artifact: rejected.
@@ -645,3 +708,33 @@ def test_parent_table_rejects_evaltable_cell():
 
     with pytest.raises(TypeError, match="cannot be logged to a wandb.Artifact"):
         parent.to_json(fake_artifact)
+
+
+# wandb.Image cell values are unwrapped to PIL.Image before being
+# passed to log_example, so weave can use its image type handler.
+def test_wandb_image_cell_unwrapped_to_pil(mock_eval_logger, run):
+    from PIL import Image as PILImage
+
+    pil_in = PILImage.new("RGB", (2, 2), color="red")
+    wb_img = wandb.Image(pil_in)
+
+    et = wandb.EvalTable(
+        columns=["img"],
+        data=[[wb_img]],
+    )
+    run.log({"my_eval": et})
+
+    ev = mock_eval_logger.created_loggers[0]
+    ev.log_example.assert_called_once()
+    call_kwargs = ev.log_example.call_args.kwargs
+
+    output = call_kwargs["output"]
+    # Single-column output is still wrapped in a dict, keyed by column name.
+    assert isinstance(output, dict)
+    img = output["img"]
+    assert isinstance(img, PILImage.Image), (
+        f"expected PIL.Image.Image, got {type(img).__name__}"
+    )
+    # And it's the same image content (round-tripped through wandb.Image).
+    assert img.size == (2, 2)
+    assert call_kwargs["inputs"] == {"row": 1}

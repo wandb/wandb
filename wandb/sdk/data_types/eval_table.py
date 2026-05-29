@@ -9,7 +9,6 @@ from typing_extensions import override
 import wandb
 import wandb.integration.weave as weave_integration
 from wandb.errors import UsageError
-from wandb.sdk.data_types.base_types.media import Media
 from wandb.sdk.data_types.table import Table
 
 if TYPE_CHECKING:
@@ -87,6 +86,7 @@ class EvalTable(Table):
         input_columns: list[str] | None = None,
         output_columns: list[str] | None = None,
         score_columns: list[str] | None = None,
+        unsupported_media_mode: Literal["raise", "stub"] = "raise",
     ) -> None:
         """Initializes an EvalTable object.
 
@@ -111,13 +111,18 @@ class EvalTable(Table):
             score_columns: (List[str]) Names of the score columns.
                 These represent derived scores for the outputs. By default, we will
                 auto-summarize any numeric and boolean scores.
+            unsupported_media_mode: How to handle unsupported wandb media/value types.
+                - "raise" (default): fail fast when unsupported values are added.
+                - "stub": log unsupported values as short placeholder strings
+                  like "[wandb.Html unsupported: abc12345]". (This is a temporary flag
+                  for use during development.)
 
         Examples:
             et1 = wandb.EvalTable(
-                input_columns=["input_text"],
+                input_columns=["image"],
                 output_columns=["prediction"],
                 score_columns=["score"],
-                data=[["example text", "class_a", 0.91]],
+                data=[[pil_image, "4", 0.5]],
             )
             run.log({"my_eval_1": et1})
             # If you don't specify columns or dataframe, but specify input, output,
@@ -125,10 +130,10 @@ class EvalTable(Table):
             # output, and score columns, in that order.
 
             et2 = wandb.EvalTable(
-                columns=["input_text", "prediction", "score"],
-                input_columns=["input_text"],
+                columns=["image", "prediction", "score"],
+                input_columns=["image"],
                 score_columns=["score"],
-                data=[["example text", "class_a", 0.91]],
+                data=[[pil_image, "4", 0.5]],
             )
             run.log({"my_eval_2": et2})
             # If you specify columns or dataframe, you can assign roles for those
@@ -136,8 +141,8 @@ class EvalTable(Table):
             # column (e.g. "prediction" in this case).
 
             et3 = wandb.EvalTable(
-                columns=["input_text", "prediction", "score"],
-                data=[["example text", "class_a", 0.91]],
+                columns=["image", "prediction", "score"],
+                data=[[pil_image, "4", 0.5]],
             )
             run.log({"my_eval_3": et3})
             # If you don't assign any input columns, we will auto-inject a numeric
@@ -145,10 +150,10 @@ class EvalTable(Table):
             # index. All columns will be treated as outputs.
 
             et4 = wandb.EvalTable(
-                input_columns=["input_text"],
+                input_columns=["image"],
                 output_columns=["prediction"],
                 score_columns=["score"],
-                data=[["example text", "class_a", 0.91]],
+                data=[[pil_image, "4", 0.5]],
             )
             et4.set_summary({"val_loss": 0.3})
             run.log({"my_eval_4": et4})
@@ -167,6 +172,12 @@ class EvalTable(Table):
         self._immutable_evaluate_call_id: str | None = None
         self._immutable_logged_json: dict[str, Any] | None = None
         self._run_log_key: str | None = None
+        from wandb.integration.weave.media_adapters import (
+            validate_unsupported_media_mode,
+        )
+
+        validate_unsupported_media_mode(unsupported_media_mode)
+        self._unsupported_media_mode = unsupported_media_mode
 
         # Derive columns from role lists if columns arg omitted, so users
         # don't have to double-name columns when they've already listed
@@ -258,18 +269,14 @@ class EvalTable(Table):
         return self._immutable_evaluate_call_id is not None
 
     def _validate_cell_value(self, val: Any, row_idx: int, col: str | int) -> None:
-        if isinstance(val, Table):
-            raise TypeError(
-                f"Cell at row {row_idx}, column {col!r} contains a "
-                f"{type(val).__name__}; EvalTable does not support nested Tables "
-                "(or EvalTables) as cell values."
-            )
-        if isinstance(val, Media):
-            raise TypeError(
-                f"Cell at row {row_idx}, column {col!r} contains unsupported "
-                f"wandb media type {type(val).__name__!r}. EvalTable does not "
-                "support wandb media values yet."
-            )
+        from wandb.integration.weave.media_adapters import validate_supported_value
+
+        validate_supported_value(
+            val,
+            col,
+            row_idx=row_idx,
+            unsupported_media_mode=self._unsupported_media_mode,
+        )
 
     @override
     def add_data(self, *data: Any) -> None:
@@ -322,10 +329,21 @@ class EvalTable(Table):
         self._summary = summary
         self._auto_summarize = auto_summarize
 
-    def _iter_rows(self, start: int = 0) -> Iterator[dict[str, Any]]:
+    def _iter_unwrapped_rows(self, start: int = 0) -> Iterator[dict[str, Any]]:
+        from wandb.integration.weave.media_adapters import unwrap_value
+
         cols = self.columns
+        warned: set[type] = set()
         for row in self.data[start:]:
-            yield {col: val for col, val in zip(cols, row, strict=True)}
+            yield {
+                col: unwrap_value(
+                    val,
+                    col,
+                    warned,
+                    unsupported_media_mode=self._unsupported_media_mode,
+                )
+                for col, val in zip(cols, row, strict=True)
+            }
 
     def _create_weave_eval_logger(self, eval_name: str) -> Any:
         from weave.evaluation.eval_imperative import EvaluationLogger
@@ -377,7 +395,7 @@ class EvalTable(Table):
 
         start_idx = 0
 
-        for offset, row in enumerate(self._iter_rows(start=start_idx)):
+        for offset, row in enumerate(self._iter_unwrapped_rows(start=start_idx)):
             row_idx = start_idx + offset + 1  # 1-indexed cumulative
             if inject_row_index:
                 inputs: dict[str, Any] = {EVAL_TABLE_ROW_INDEX_KEY: row_idx}
