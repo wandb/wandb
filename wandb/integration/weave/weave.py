@@ -113,9 +113,7 @@ def check_weave_version(
         ) from e
 
     if parse_version(weave_version) < parse_version(min_version):
-        raise ImportError(
-            f"weave>={min_version}; found weave=={weave_version}"
-        )
+        raise ImportError(f"weave>={min_version}; found weave=={weave_version}")
     return weave_version
 
 
