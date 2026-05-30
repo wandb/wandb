@@ -17,6 +17,8 @@ Section headings should be at level 3 (e.g. `### Added`).
 ### Changed
 
 - `wandb.Api` GraphQL operations are routed through the wandb-core service instead of the legacy Python GraphQL client. Failures from these operations now raise `WandbApiFailedError` instead of `requests` HTTP exceptions, and customizations made by patching `requests` no longer affect these GraphQL calls (@dmitryduev in https://github.com/wandb/wandb/pull/11818)
+- `Run.scan_history()` now reads from exported parquet history when available, which can significantly improve throughput for runs with large history (@jacobromero in https://github.com/wandb/wandb/pull/11797)
+    - This was introduced under `beta_scan_history` in `v0.23.1`
 
 ### Removed
 
@@ -24,12 +26,6 @@ Section headings should be at level 3 (e.g. `### Added`).
 - Removed stale OpenAI, Cohere, and LangChain LLM integrations, including legacy autologging and tracing APIs (@dmitryduev in https://github.com/wandb/wandb/pull/11925)
 - Removed the deprecated Keras `WandbCallback` and the legacy `wandb.integration.yolov8` callback package (@dmitryduev in https://github.com/wandb/wandb/pull/11926)
 
-### Changed
-
-- `Run.scan_history()` now reads from exported parquet history when available, which can significantly improve throughput for runs with large history (@jacobromero in https://github.com/wandb/wandb/pull/11797)
-    - This was introduced under `beta_scan_history` in `v0.23.1`
- 
 ### Fixed
 
-- Logging an artifact (whether via WandbLogger or run.log_artifact) now falls back to using the staging directory for the manifest file too if $TMPDIR is unavailable. (@ibindlish in https://github.com/wandb/wandb/pull/11958)
-
+- Logging an artifact (whether via `WandbLogger` or `run.log_artifact`) now falls back to the staging directory for the manifest file when `$TMPDIR` is unavailable (@ibindlish in https://github.com/wandb/wandb/pull/11958)
