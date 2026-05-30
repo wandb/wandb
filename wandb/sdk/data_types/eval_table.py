@@ -89,6 +89,9 @@ class EvalTable(Table):
 
         # TODO: Add column mapping support
 
+        self._input_columns: list[str] = list(input_columns or [])
+        self._output_columns: list[str] = list(output_columns or [])
+        self._score_columns: list[str] = list(score_columns or [])
         self._run_log_key: str | None = None
 
         super().__init__(
