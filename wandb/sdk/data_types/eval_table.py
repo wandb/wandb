@@ -73,6 +73,10 @@ class EvalTable(Table):
         optional=True,
         allow_mixed_types=False,
         log_mode: Literal["IMMUTABLE"] = "IMMUTABLE",
+        *,
+        input_columns: list[str] | None = None,
+        output_columns: list[str] | None = None,
+        score_columns: list[str] | None = None,
     ) -> None:
         """Initializes an EvalTable object.
 
