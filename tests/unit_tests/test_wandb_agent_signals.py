@@ -78,9 +78,6 @@ def test_agent_process_forwards_command_signal_on_posix(monkeypatch):
     monkeypatch.setattr(signal, "getsignal", fake_getsignal)
     monkeypatch.setattr(wandb_agent.subprocess, "Popen", fake_popen)
     monkeypatch.setattr(wandb_agent.platform, "system", lambda: "Linux")
-    # _forward_signal re-delivers SIGTERM to ourselves under SIG_DFL after
-    # forwarding; stub os.kill so the test process isn't actually killed.
-    monkeypatch.setattr(os, "kill", lambda *args, **kwargs: None)
 
     wandb_agent.AgentProcess(
         env={},
@@ -89,7 +86,10 @@ def test_agent_process_forwards_command_signal_on_posix(monkeypatch):
     )
 
     handler = handlers[signal.SIGTERM]
-    handler(signal.SIGTERM, None)
+    # _forward_signal raises _ShutdownSignal after forwarding SIGTERM so
+    # Agent.run's cleanup cascade runs; assert forwarding happened first.
+    with pytest.raises(wandb_agent._ShutdownSignal):
+        handler(signal.SIGTERM, None)
     assert dummy_holder["popen"].sent == [signal.SIGTERM]
 
 
@@ -139,9 +139,6 @@ def test_agent_process_forwards_to_function_process(monkeypatch):
     monkeypatch.setattr(signal, "getsignal", fake_getsignal)
     monkeypatch.setattr(wandb_agent.subprocess, "Popen", _DummyPopen)
     monkeypatch.setattr(wandb_agent.platform, "system", lambda: "Linux")
-    # _forward_signal re-delivers SIGTERM to ourselves under SIG_DFL after
-    # forwarding; stub os.kill so the test process isn't actually killed.
-    monkeypatch.setattr(os, "kill", lambda *args, **kwargs: None)
 
     proc = wandb_agent.AgentProcess(
         env={},
@@ -153,7 +150,10 @@ def test_agent_process_forwards_to_function_process(monkeypatch):
     proc._popen = None
 
     handler = handlers[signal.SIGTERM]
-    handler(signal.SIGTERM, None)
+    # _forward_signal raises _ShutdownSignal after forwarding SIGTERM so
+    # Agent.run's cleanup cascade runs; assert forwarding happened first.
+    with pytest.raises(wandb_agent._ShutdownSignal):
+        handler(signal.SIGTERM, None)
     mock_proc.send_signal.assert_called_once_with(signal.SIGTERM)
 
 

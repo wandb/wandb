@@ -26,10 +26,10 @@ logger = logging.getLogger(__name__)
 # Signals whose kernel default action is "terminate the process" and that
 # orchestrators / shells use to request graceful shutdown. When the agent
 # receives one of these via _forward_signal with no callable original
-# handler captured, we forward to the run subprocess and then re-deliver
-# the signal to ourselves under SIG_DFL so the kernel terminates the
-# agent immediately — no agent-side wait/terminate/kill of the child,
-# and no further heartbeat that could re-pop a requeued run.
+# handler captured, we forward to the run subprocess and then raise
+# _ShutdownSignal so Agent.run's wait/terminate/kill cascade runs, giving
+# the child a chance to clean up while preventing the heartbeat loop from
+# re-popping a requeued run.
 # SIGHUP/SIGQUIT are POSIX-only; getattr keeps this portable on Windows.
 _TERMINATING_SIGNALS = frozenset(
     s
@@ -40,6 +40,16 @@ _TERMINATING_SIGNALS = frozenset(
     )
     if s is not None
 )
+
+
+class _ShutdownSignal(BaseException):
+    """Raised from _forward_signal to drive Agent.run's shutdown cascade.
+
+    Inherits from BaseException (not Exception) so generic `except
+    Exception:` blocks elsewhere in the loop body don't swallow it — same
+    design as KeyboardInterrupt, which this exception parallels for
+    SIGTERM/SIGHUP/SIGQUIT.
+    """
 
 
 class AgentError(Exception):
@@ -152,17 +162,12 @@ class AgentProcess:
         if original_handler and callable(original_handler):
             original_handler(signum, frame)
         elif signum in _TERMINATING_SIGNALS:
-            # These signals' default disposition is SIG_DFL (terminate). The
-            # child run subprocess has already received the forwarded signal
-            # above and is in its own process group; it will handle the signal
-            # on its own. Restore the kernel default for this signal and
-            # re-deliver it to ourselves so the kernel terminates the agent
-            # without any Python-level cleanup running (no wait, no terminate,
-            # no kill, no further heartbeat). Equivalent to what would have
-            # happened if forward_signals had been False, except the child has
-            # already received the signal.
-            signal.signal(signum, signal.SIG_DFL)
-            os.kill(os.getpid(), signum)
+            # These signals' default disposition is SIG_DFL (terminate), which
+            # would fall through silently here and let the heartbeat loop pull
+            # the next (often requeued) run. Raise _ShutdownSignal so
+            # Agent.run's wait/terminate/kill cascade runs, mirroring SIGINT
+            # behavior and giving the forwarded child a chance to clean up.
+            raise _ShutdownSignal
 
     def _start(self, finished_q, env, function, run_id, in_jupyter):
         if env:
@@ -401,14 +406,14 @@ class Agent:
                 for command in commands:
                     self._server_responses.append(self._process_command(command))
 
-        except KeyboardInterrupt:
+        except (KeyboardInterrupt, _ShutdownSignal):
             try:
                 wandb.termlog(
                     "Ctrl-c pressed. Waiting for runs to end. Press ctrl-c again to terminate them."
                 )
                 for _, run_process in self._run_processes.items():
                     run_process.wait()
-            except KeyboardInterrupt:
+            except (KeyboardInterrupt, _ShutdownSignal):
                 pass
         finally:
             try:
@@ -421,7 +426,7 @@ class Agent:
                         pass  # if process is already dead
                 for _, run_process in self._run_processes.items():
                     run_process.wait()
-            except KeyboardInterrupt:
+            except (KeyboardInterrupt, _ShutdownSignal):
                 wandb.termlog("Killing runs and quitting.")
                 for _, run_process in self._run_processes.items():
                     try:
