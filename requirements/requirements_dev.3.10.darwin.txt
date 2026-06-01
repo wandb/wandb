@@ -248,7 +248,6 @@ gitdb==4.0.12
 gitpython==3.1.50
     # via
     #   mlflow-skinny
-    #   wandb
 google-api-core==2.30.3
     # via
     #   google-cloud-aiplatform

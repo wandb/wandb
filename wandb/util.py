@@ -1448,7 +1448,7 @@ def auto_project_name(program: str | None) -> str:
     # if we're in git, set project name to git repo name + relative path within repo
     from wandb.sdk.lib.gitlib import GitRepo
 
-    root_dir = GitRepo().root_dir
+    root_dir = GitRepo().repo
     if root_dir is None:
         return "uncategorized"
     # On windows, GitRepo returns paths in unix style, but os.path is windows

@@ -4,11 +4,33 @@
 
 from __future__ import annotations
 
+import subprocess
 from collections.abc import Generator
 
-import git
 import pytest
 from wandb.sdk.lib.gitlib import GitRepo
+
+
+def run_git(cwd: str, *args: str) -> str:
+    return subprocess.check_output(["git", *args], cwd=cwd, text=True).strip()
+
+
+def init_git_repo(path: str) -> None:
+    subprocess.run(["git", "init", path], check=True, stdout=subprocess.DEVNULL)
+    run_git(path, "config", "user.name", "test")
+    run_git(path, "config", "user.email", "test@test.com")
+
+
+def add_remote(path: str, name: str, url: str) -> None:
+    run_git(path, "remote", "add", name, url)
+
+
+def commit_empty(path: str, message: str) -> None:
+    run_git(path, "commit", "--allow-empty", "-m", message)
+
+
+def stage_file(path: str, file_name: str) -> None:
+    run_git(path, "add", file_name)
 
 
 @pytest.fixture
@@ -19,12 +41,12 @@ def git_repo_fn() -> Generator:
         remote_url: str | None = "https://foo:bar@github.com/FooTest/Foo.git",
         commit_msg: str | None = None,
     ):
-        with git.Repo.init(path) as repo:
-            if remote_url is not None:
-                repo.create_remote(remote_name, remote_url)
-            if commit_msg is not None:
-                repo.index.commit(commit_msg)
-            return GitRepo(lazy=False)
+        init_git_repo(path)
+        if remote_url is not None:
+            add_remote(path, remote_name, remote_url)
+        if commit_msg is not None:
+            commit_empty(path, commit_msg)
+        return GitRepo(lazy=False)
 
     yield git_repo_fn_helper
 
@@ -38,7 +60,8 @@ class TestGitRepo:
         git_repo = git_repo_fn()
         assert not git_repo.dirty
         open("foo.txt", "wb").close()
-        git_repo.repo.index.add(["foo.txt"])
+        assert git_repo.root is not None
+        stage_file(git_repo.root, "foo.txt")
         assert git_repo.dirty
 
     def test_remote_url(self, git_repo_fn):

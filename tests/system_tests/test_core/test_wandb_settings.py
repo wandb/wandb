@@ -2,9 +2,9 @@
 
 import os
 import platform
+import subprocess
 from unittest import mock
 
-import git
 import pytest
 import wandb
 from wandb import env
@@ -120,13 +120,33 @@ def test_git_root(runner, wandb_backend_spy):
     path = "./foo"
     remote_url = "https://foo:@github.com/FooTest/Foo.git"
     with runner.isolated_filesystem():
-        with git.Repo.init(path) as repo:
-            repo.create_remote("origin", remote_url)
-            repo.index.commit("initial commit")
+        subprocess.run(["git", "init", path], check=True, stdout=subprocess.DEVNULL)
+        subprocess.run(["git", "config", "user.name", "test"], cwd=path, check=True)
+        subprocess.run(
+            ["git", "config", "user.email", "test@test.com"],
+            cwd=path,
+            check=True,
+        )
+        subprocess.run(
+            ["git", "remote", "add", "origin", remote_url],
+            cwd=path,
+            check=True,
+        )
+        subprocess.run(
+            ["git", "commit", "--allow-empty", "-m", "initial commit"],
+            cwd=path,
+            check=True,
+            stdout=subprocess.DEVNULL,
+        )
+        commit = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"],
+            cwd=path,
+            text=True,
+        ).strip()
         with mock.patch.dict(os.environ, {env.GIT_ROOT: path}):
             with wandb.init() as run:
                 pass
 
         with wandb_backend_spy.freeze() as snapshot:
-            assert snapshot.remote(run_id=run.id) == repo.remote().url
-            assert snapshot.commit(run_id=run.id) == repo.head.commit.hexsha
+            assert snapshot.remote(run_id=run.id) == remote_url
+            assert snapshot.commit(run_id=run.id) == commit

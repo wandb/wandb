@@ -2208,7 +2208,7 @@ class Settings(BaseModel, validate_assignment=True):
 
         try:
             root = (
-                GitRepo().root or os.getcwd() if not self.disable_git else os.getcwd()
+                GitRepo().repo or os.getcwd() if not self.disable_git else os.getcwd()
             )
         except Exception:
             # if the git command fails, fall back to the current working directory

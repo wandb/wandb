@@ -12,7 +12,6 @@ license = { file = "LICENSE" }
 requires-python = ">=3.10"
 dependencies = [
     "Click>=8.2.0",
-    "GitPython>=1.0.0,!=3.1.29",
     "requests>=2.0.0,<3",
     "sentry-sdk>=2.0.0",
     "protobuf>4.21.0,!=5.28.0,!=5.29.0,<8",
