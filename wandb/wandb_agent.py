@@ -232,6 +232,7 @@ class Agent:
         self._in_jupyter = in_jupyter
         self._log = []
         self._running = True
+        self._start_time = time.time()
         self._last_report_time = None
         self._function = function
         self._report_interval = wandb.env.get_agent_report_interval(
@@ -262,7 +263,7 @@ class Agent:
         """
         if os.getenv(wandb.env.AGENT_DISABLE_FLAPPING) == "true":
             return False
-        if time.time() < wandb.START_TIME + self.FLAPPING_MAX_SECONDS:
+        if time.time() < self._start_time + self.FLAPPING_MAX_SECONDS:
             return self._failed >= self.FLAPPING_MAX_FAILURES
 
     def is_failing(self):
