@@ -24,6 +24,13 @@ class GitTag:
     name: str
 
 
+@dataclass(frozen=True, order=True)
+class GitVersion:
+    major: int
+    minor: int
+    patch: int
+
+
 def git_error_output(error: subprocess.CalledProcessError) -> str:
     return error.stderr.decode(errors="replace")
 
@@ -148,12 +155,16 @@ class GitRepo:
         else:
             return True
 
-    def git_version(self) -> tuple[int, int, int] | None:
+    def git_version(self) -> GitVersion | None:
         output = self.run_git("--version")
         match = re.search(r"(\d+)\.(\d+)\.(\d+)", output)
         if match is None:
             return None
-        return tuple(int(part) for part in match.groups())
+        return GitVersion(
+            major=int(match.group(1)),
+            minor=int(match.group(2)),
+            patch=int(match.group(3)),
+        )
 
     def is_detached_head(self) -> bool:
         try:
@@ -265,7 +276,7 @@ class GitRepo:
             version = self.git_version()
         except GitCommandError:
             return False
-        return version is not None and version >= (2, 11, 0)
+        return version is not None and version >= GitVersion(2, 11, 0)
 
     @property
     def remote_url(self) -> Any:

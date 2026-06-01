@@ -4,11 +4,12 @@
 
 from __future__ import annotations
 
+import os
 import subprocess
 from collections.abc import Generator
 
 import pytest
-from wandb.sdk.lib.gitlib import GitRepo
+from wandb.sdk.lib.gitlib import GitCommandError, GitRepo, GitVersion
 
 
 def run_git(cwd: str, *args: str) -> str:
@@ -31,6 +32,17 @@ def commit_empty(path: str, message: str) -> None:
 
 def stage_file(path: str, file_name: str) -> None:
     run_git(path, "add", file_name)
+
+
+def initialized_git_repo(root: str = "/repo") -> GitRepo:
+    git_repo = GitRepo(root=root)
+    git_repo._repo = root
+    git_repo._repo_initialized = True
+    return git_repo
+
+
+def raise_git_error(*args, **kwargs):
+    raise GitCommandError("git failed")
 
 
 @pytest.fixture
@@ -60,8 +72,8 @@ class TestGitRepo:
         git_repo = git_repo_fn()
         assert not git_repo.dirty
         open("foo.txt", "wb").close()
-        assert git_repo.root is not None
-        stage_file(git_repo.root, "foo.txt")
+        assert git_repo.repo is not None
+        stage_file(git_repo.repo, "foo.txt")
         assert git_repo.dirty
 
     def test_remote_url(self, git_repo_fn):
@@ -108,3 +120,212 @@ class TestGitRepo:
     def test_root_doesnt_exist(self):
         git_repo = GitRepo(root="/tmp/foo")
         assert git_repo.repo is None and git_repo._repo_initialized is True
+
+    def test_git_version(self, monkeypatch):
+        git_repo = GitRepo(remote=None)
+        monkeypatch.setattr(
+            git_repo,
+            "run_git",
+            lambda *args, **kwargs: "git version 2.50.1 (Apple Git-155)",
+        )
+
+        assert git_repo.git_version() == GitVersion(2, 50, 1)
+
+    def test_git_version_unparseable(self, monkeypatch):
+        git_repo = GitRepo(remote=None)
+        monkeypatch.setattr(git_repo, "run_git", lambda *args, **kwargs: "git")
+
+        assert git_repo.git_version() is None
+
+    def test_run_git_requires_repo(self):
+        with pytest.raises(GitCommandError, match="git repository is unavailable"):
+            GitRepo(remote=None).run_git("status")
+
+    def test_run_git_raises_command_error(self, tmp_path):
+        with pytest.raises(GitCommandError, match="not-a-git-command"):
+            GitRepo().run_git("not-a-git-command", cwd=str(tmp_path))
+
+    def test_init_repo_without_git(self):
+        git_repo = GitRepo(lazy=False, _git_executable="git-not-found")
+
+        assert git_repo.repo is None
+
+    def test_init_repo_invalid_current_directory(self, monkeypatch):
+        def getcwd():
+            raise FileNotFoundError()
+
+        monkeypatch.setattr(os, "getcwd", getcwd)
+
+        assert GitRepo(lazy=False).repo is None
+
+    def test_init_repo_invalid_git_repository(self, tmp_path):
+        git_repo = GitRepo(root=str(tmp_path), lazy=False)
+
+        assert git_repo.repo is None
+
+    def test_git_command_helpers(self, monkeypatch):
+        git_repo = initialized_git_repo()
+        commands = []
+        outputs = {
+            ("rev-parse", "--show-toplevel"): "/repo\n",
+            ("ls-files", "--others", "--exclude-standard", "--", "*.py"): (
+                "a.py\n\nb.py\n"
+            ),
+            ("status", "--porcelain", "--untracked-files=no"): " M file.py\n",
+            ("config", "--get", "user.email"): "test@example.com\n",
+            ("config", "--get", "missing"): "\n",
+            ("rev-parse", "--verify", "HEAD"): "abc123\n",
+            ("symbolic-ref", "--short", "HEAD"): "main\n",
+            ("remote", "get-url", "origin"): "https://github.com/wandb/wandb.git\n",
+            ("--version",): "git version 2.50.1\n",
+            ("symbolic-ref", "HEAD"): "refs/heads/main\n",
+            ("rev-parse", "--abbrev-ref", "@{upstream}"): "origin/main\n",
+            (
+                "for-each-ref",
+                "--format=%(upstream:short)",
+                "refs/heads/",
+            ): "origin/main\n\norigin/main\norigin/dev\n",
+            ("merge-base", "HEAD", "origin/main"): "base123\n",
+        }
+
+        def fake_run_git(*args, **kwargs):
+            commands.append(args)
+            return outputs.get(args, "")
+
+        monkeypatch.setattr(git_repo, "run_git", fake_run_git)
+
+        assert git_repo.repo_root_for("/repo") == "/repo"
+        assert git_repo.untracked_files("*.py") == ["a.py", "b.py"]
+        assert git_repo.is_untracked("*.py")
+        assert git_repo.has_tracked_changes()
+        assert git_repo.config_value("user.email") == "test@example.com"
+        assert git_repo.config_value("missing") is None
+        assert git_repo.commit_for_ref("HEAD") == "abc123"
+        assert git_repo.current_branch() == "main"
+        assert git_repo.remote_url_for("origin") == "https://github.com/wandb/wandb.git"
+        assert git_repo.remote_exists("origin")
+        assert git_repo.email == "test@example.com"
+        assert git_repo.last_commit == "abc123"
+        assert git_repo.branch == "main"
+        assert git_repo.remote == "origin"
+        assert git_repo.remote_url == "https://github.com/wandb/wandb.git"
+        assert git_repo.has_submodule_diff
+        assert not git_repo.is_detached_head()
+        assert git_repo.current_tracking_branch() == "origin/main"
+        assert git_repo.tracking_branches() == ["origin/main", "origin/dev"]
+        assert git_repo.merge_base("HEAD", "origin/main") == "base123"
+        assert git_repo.is_ancestor("base", "HEAD")
+        assert git_repo.has_commit("abc123")
+        assert git_repo.has_branch("main")
+
+        git_repo.fetch_all()
+        git_repo.create_tag("wandb/with-message", "message")
+        git_repo.create_tag("wandb/no-message", None)
+        git_repo.checkout("main")
+        git_repo.checkout_new_branch("feature", "main")
+        assert git_repo.push("name") == ""
+
+        assert ("fetch", "--all") in commands
+        assert ("tag", "-f", "-m", "message", "wandb/with-message") in commands
+        assert ("tag", "-f", "wandb/no-message") in commands
+        assert ("checkout", "main") in commands
+        assert ("checkout", "-b", "feature", "main") in commands
+        assert ("push", "origin", "wandb/name", "--force") in commands
+
+    def test_git_command_helpers_handle_errors(self, monkeypatch):
+        git_repo = initialized_git_repo()
+        monkeypatch.setattr(git_repo, "run_git", raise_git_error)
+
+        assert not git_repo.remote_exists("origin")
+        assert git_repo.is_detached_head()
+        assert not git_repo.is_ancestor("base", "HEAD")
+        assert not git_repo.has_commit("abc123")
+        assert not git_repo.has_branch("main")
+
+    def test_git_state_properties_handle_errors(self, monkeypatch):
+        git_repo = initialized_git_repo()
+
+        monkeypatch.setattr(git_repo, "untracked_files", raise_git_error)
+        assert git_repo.is_untracked("file.py") is None
+
+        monkeypatch.setattr(git_repo, "has_tracked_changes", raise_git_error)
+        assert not git_repo.dirty
+
+        monkeypatch.setattr(git_repo, "config_value", raise_git_error)
+        assert git_repo.email is None
+
+        monkeypatch.setattr(git_repo, "commit_for_ref", raise_git_error)
+        assert git_repo.last_commit is None
+
+        monkeypatch.setattr(git_repo, "current_branch", raise_git_error)
+        assert git_repo.branch is None
+
+        monkeypatch.setattr(git_repo, "remote_exists", lambda *args: False)
+        assert git_repo.remote is None
+
+        monkeypatch.setattr(git_repo, "git_version", raise_git_error)
+        assert not git_repo.has_submodule_diff
+
+        monkeypatch.setattr(git_repo, "remote_url_for", raise_git_error)
+        assert git_repo.remote_url is None
+
+        monkeypatch.setattr(git_repo, "create_tag", raise_git_error)
+        assert git_repo.tag("name", "message") is None
+
+        monkeypatch.setattr(git_repo, "remote_exists", lambda *args: True)
+        monkeypatch.setattr(git_repo, "run_git", raise_git_error)
+        assert git_repo.push("name") is None
+
+    def test_has_submodule_diff(self, monkeypatch):
+        git_repo = initialized_git_repo()
+
+        monkeypatch.setattr(git_repo, "git_version", lambda: GitVersion(2, 10, 9))
+        assert not git_repo.has_submodule_diff
+
+        monkeypatch.setattr(git_repo, "git_version", lambda: GitVersion(2, 11, 0))
+        assert git_repo.has_submodule_diff
+
+    def test_get_upstream_fork_point_uses_tracking_branch(self, monkeypatch):
+        git_repo = initialized_git_repo()
+        monkeypatch.setattr(git_repo, "is_detached_head", lambda: False)
+        monkeypatch.setattr(git_repo, "current_tracking_branch", lambda: "origin/main")
+        monkeypatch.setattr(git_repo, "merge_base", lambda *args: "base123")
+
+        assert git_repo.get_upstream_fork_point() == "base123"
+
+    def test_get_upstream_fork_point_searches_tracking_branches(self, monkeypatch):
+        git_repo = initialized_git_repo()
+        ancestors = {"origin/old": "old123", "origin/new": "new123"}
+        monkeypatch.setattr(git_repo, "is_detached_head", lambda: False)
+        monkeypatch.setattr(git_repo, "current_tracking_branch", raise_git_error)
+        monkeypatch.setattr(
+            git_repo,
+            "tracking_branches",
+            lambda: ["origin/bad", "origin/old", "origin/new"],
+        )
+
+        def merge_base(head, branch):
+            if branch == "origin/bad":
+                raise GitCommandError("no merge base")
+            return ancestors[branch]
+
+        monkeypatch.setattr(git_repo, "merge_base", merge_base)
+        monkeypatch.setattr(
+            git_repo,
+            "is_ancestor",
+            lambda older, newer: older == "old123" and newer == "new123",
+        )
+
+        assert git_repo.get_upstream_fork_point() == "new123"
+
+    def test_get_upstream_fork_point_detached(self, monkeypatch):
+        git_repo = initialized_git_repo()
+        monkeypatch.setattr(git_repo, "is_detached_head", lambda: True)
+
+        assert git_repo.get_upstream_fork_point() is None
+
+    def test_get_upstream_fork_point_handles_git_error(self, monkeypatch):
+        git_repo = initialized_git_repo()
+        monkeypatch.setattr(git_repo, "is_detached_head", raise_git_error)
+
+        assert git_repo.get_upstream_fork_point() is None
