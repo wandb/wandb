@@ -86,7 +86,10 @@ class ServiceApi:
         """
         session = self._get_api_session()
         request.api_id = session.api_id
-        return session.connection.api_request(request, timeout=timeout)
+        return session.connection.api_request(
+            request,
+            timeout=timeout if timeout is not None else self._timeout,
+        )
 
     def execute_graphql(
         self,

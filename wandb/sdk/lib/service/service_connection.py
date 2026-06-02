@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import asyncio
 import atexit
+import logging
 import pathlib
+import subprocess
 from collections.abc import Callable
 
 from wandb.proto import wandb_api_pb2, wandb_settings_pb2, wandb_sync_pb2
@@ -16,6 +19,13 @@ from wandb.sdk.mailbox import HandleAbandonedError, MailboxClosedError
 from wandb.sdk.mailbox.mailbox_handle import MailboxHandle
 
 from . import service_process, service_token
+
+_logger = logging.getLogger(__name__)
+
+_SERVICE_CONNECTION_TEARDOWN_TIMEOUT = 10
+_SERVICE_CONNECTION_CLOSE_TIMEOUT = 10
+_SERVICE_PROCESS_TEARDOWN_TIMEOUT = 90
+_SERVICE_PROCESS_TERMINATE_TIMEOUT = 30
 
 
 class WandbAttachFailedError(Exception):
@@ -181,7 +191,7 @@ class ServiceConnection:
                 "Failed to initialize API resources:"
                 + " the service process is not running.",
             ) from None
-        except TimeoutError:
+        except (asyncio.TimeoutError, TimeoutError):
             raise WandbApiFailedError(
                 "Failed to initialize API resources:"
                 + " the service process is busy and did not respond in time.",
@@ -363,15 +373,47 @@ class ServiceConnection:
         service_token.clear_service_in_env()
 
         async def publish_teardown_and_close() -> None:
-            await self._client.publish(
-                spb.ServerRequest(
-                    inform_teardown=spb.ServerInformTeardownRequest(
-                        exit_code=exit_code,
-                    )
-                ),
+            try:
+                await asyncio.wait_for(
+                    self._client.publish(
+                        spb.ServerRequest(
+                            inform_teardown=spb.ServerInformTeardownRequest(
+                                exit_code=exit_code,
+                            )
+                        ),
+                    ),
+                    timeout=_SERVICE_CONNECTION_TEARDOWN_TIMEOUT,
+                )
+            finally:
+                await asyncio.wait_for(
+                    self._client.close(),
+                    timeout=_SERVICE_CONNECTION_CLOSE_TIMEOUT,
+                )
+
+        teardown_sent = True
+        try:
+            self._asyncer.run(publish_teardown_and_close)
+        except TimeoutError:
+            teardown_sent = False
+            _logger.warning("Timed out sending teardown to wandb-core; terminating it.")
+
+        if teardown_sent:
+            try:
+                return self._proc.join(timeout=_SERVICE_PROCESS_TEARDOWN_TIMEOUT)
+            except subprocess.TimeoutExpired:
+                _logger.warning(
+                    "wandb-core did not shut down within %s seconds; terminating it.",
+                    _SERVICE_PROCESS_TEARDOWN_TIMEOUT,
+                )
+
+        self._proc.terminate()
+        try:
+            return self._proc.join(timeout=_SERVICE_PROCESS_TERMINATE_TIMEOUT)
+        except subprocess.TimeoutExpired:
+            _logger.warning(
+                "wandb-core did not terminate within %s seconds; killing it.",
+                _SERVICE_PROCESS_TERMINATE_TIMEOUT,
             )
-            await self._client.close()
 
-        self._asyncer.run(publish_teardown_and_close)
-
+        self._proc.kill()
         return self._proc.join()

@@ -98,9 +98,17 @@ class ServiceProcess:
         """A token for connecting to the process."""
         return self._token
 
-    def join(self) -> int:
+    def join(self, timeout: float | None = None) -> int:
         """Wait for the process to end and return its exit code."""
-        return self._process.wait()
+        return self._process.wait(timeout=timeout)
+
+    def terminate(self) -> None:
+        """Terminate the process."""
+        self._process.terminate()
+
+    def kill(self) -> None:
+        """Kill the process."""
+        self._process.kill()
 
 
 def _launch_server(
