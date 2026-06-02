@@ -9,13 +9,10 @@ aiohttp==3.13.5
     #   fsspec
     #   kubernetes-asyncio
     #   litellm
-    #   mlflow
 aiosignal==1.4.0
     # via aiohttp
 alembic==1.18.4
-    # via
-    #   mlflow
-    #   optuna
+    # via optuna
 annotated-doc==0.0.4
     # via typer
 annotated-types==0.7.0
@@ -93,10 +90,7 @@ botocore==1.43.6
     #   s3transfer
     #   wandb
 cachetools==7.1.1
-    # via
-    #   dspy
-    #   mlflow-skinny
-    #   mlflow-tracing
+    # via dspy
 catboost==1.2.10
     # via -r requirements/requirements_dev.txt
 certifi==2026.4.22
@@ -126,7 +120,6 @@ click==8.3.3
     #   flask
     #   kfp
     #   litellm
-    #   mlflow-skinny
     #   typer
     #   uvicorn
     #   wandb
@@ -137,7 +130,6 @@ cloudpickle==3.1.2
     #   -r requirements/requirements_dev.txt
     #   dspy
     #   gymnasium
-    #   mlflow-skinny
     #   stable-baselines3
 colorama==0.4.6
     # via awscli
@@ -160,15 +152,10 @@ cryptography==46.0.7
     #   azure-identity
     #   azure-storage-blob
     #   google-auth
-    #   mlflow
     #   msal
     #   pyjwt
 cycler==0.12.1
     # via matplotlib
-databricks-sdk==0.106.0
-    # via
-    #   mlflow-skinny
-    #   mlflow-tracing
 debugpy==1.8.20
     # via ipykernel
 decorator==4.4.2
@@ -177,16 +164,12 @@ decorator==4.4.2
     #   moviepy
 defusedxml==0.7.1
     # via nbconvert
-deprecated==1.3.1
-    # via opentelemetry-api
 diskcache==5.6.3
     # via dspy
 distro==1.9.0
     # via openai
 docker==7.1.0
-    # via
-    #   -r requirements/requirements_dev.txt
-    #   mlflow
+    # via -r requirements/requirements_dev.txt
 docstring-parser==0.18.0
     # via
     #   google-cloud-aiplatform
@@ -208,9 +191,7 @@ executing==2.2.1
 farama-notifications==0.0.6
     # via gymnasium
 fastapi==0.115.14
-    # via
-    #   -r requirements/requirements_test.txt
-    #   mlflow-skinny
+    # via -r requirements/requirements_test.txt
 fastjsonschema==2.21.2
     # via nbformat
 fastuuid==0.14.0
@@ -221,12 +202,7 @@ filelock==3.29.0
     #   huggingface-hub
     #   torch
 flask==2.3.3
-    # via
-    #   -r requirements/requirements_test.txt
-    #   flask-cors
-    #   mlflow
-flask-cors==6.0.2
-    # via mlflow
+    # via -r requirements/requirements_test.txt
 fonttools==4.62.1
     # via matplotlib
 fqdn==1.5.1
@@ -246,9 +222,7 @@ gepa==0.0.27
 gitdb==4.0.12
     # via gitpython
 gitpython==3.1.50
-    # via
-    #   mlflow-skinny
-    #   wandb
+    # via wandb
 google-api-core==2.30.3
     # via
     #   google-cloud-aiplatform
@@ -261,7 +235,6 @@ google-api-core==2.30.3
     #   kfp
 google-auth==2.52.0
     # via
-    #   databricks-sdk
     #   google-api-core
     #   google-cloud-aiplatform
     #   google-cloud-artifact-registry
@@ -310,15 +283,8 @@ googleapis-common-protos==1.75.0
     #   google-api-core
     #   grpc-google-iam-v1
     #   grpcio-status
-graphene==3.4.3
-    # via mlflow
 graphql-core==3.2.8
-    # via
-    #   ariadne-codegen
-    #   graphene
-    #   graphql-relay
-graphql-relay==3.2.0
-    # via graphene
+    # via ariadne-codegen
 graphviz==0.21
     # via catboost
 grpc-google-iam-v1==0.14.4
@@ -337,8 +303,6 @@ grpcio==1.80.0
     #   tensorboard
 grpcio-status==1.80.0
     # via google-api-core
-gunicorn==25.3.0
-    # via mlflow
 gymnasium==1.2.3
     # via
     #   -r requirements/requirements_dev.txt
@@ -359,8 +323,6 @@ httpx==0.27.2
     #   jupyterlab
     #   litellm
     #   openai
-huey==2.6.0
-    # via mlflow
 huggingface-hub==1.14.0
     # via tokenizers
 hypothesis==6.152.4
@@ -385,9 +347,7 @@ imageio-ffmpeg==0.6.0
     #   imageio
     #   moviepy
 importlib-metadata==9.0.0
-    # via
-    #   litellm
-    #   mlflow-skinny
+    # via litellm
 iniconfig==2.3.0
     # via pytest
 ipykernel==7.2.0
@@ -545,7 +505,6 @@ matplotlib==3.10.9
     # via
     #   -r requirements/requirements_dev.txt
     #   catboost
-    #   mlflow
     #   stable-baselines3
 matplotlib-inline==0.2.2
     # via
@@ -561,12 +520,6 @@ ml-dtypes==0.5.4
     # via
     #   jax
     #   jaxlib
-mlflow==3.12.0
-    # via -r requirements/requirements_dev.txt
-mlflow-skinny==3.12.0
-    # via mlflow
-mlflow-tracing==3.12.0
-    # via mlflow
 moviepy==1.0.3
     # via -r requirements/requirements_dev.txt
 mpmath==1.3.0
@@ -627,7 +580,6 @@ numpy==1.26.4
     #   lightgbm
     #   matplotlib
     #   ml-dtypes
-    #   mlflow
     #   moviepy
     #   optuna
     #   pandas
@@ -635,7 +587,6 @@ numpy==1.26.4
     #   scikit-learn
     #   scipy
     #   shapely
-    #   skops
     #   soundfile
     #   stable-baselines3
     #   tensorboard
@@ -652,21 +603,6 @@ openai==2.36.0
     #   -r requirements/requirements_dev.txt
     #   dspy
     #   litellm
-opentelemetry-api==1.16.0
-    # via
-    #   mlflow-skinny
-    #   mlflow-tracing
-    #   opentelemetry-sdk
-opentelemetry-proto==1.41.1
-    # via
-    #   mlflow-skinny
-    #   mlflow-tracing
-opentelemetry-sdk==1.16.0
-    # via
-    #   mlflow-skinny
-    #   mlflow-tracing
-opentelemetry-semantic-conventions==0.37b0
-    # via opentelemetry-sdk
 opt-einsum==3.4.0
     # via jax
 optuna==4.8.0
@@ -681,7 +617,6 @@ packaging==26.2
     #   bokeh
     #   google-cloud-aiplatform
     #   google-cloud-bigquery
-    #   gunicorn
     #   huggingface-hub
     #   ipykernel
     #   jupyter-events
@@ -691,14 +626,11 @@ packaging==26.2
     #   lightning
     #   lightning-utilities
     #   matplotlib
-    #   mlflow-skinny
-    #   mlflow-tracing
     #   nbconvert
     #   optuna
     #   plotly
     #   pytest
     #   pytorch-lightning
-    #   skops
     #   tensorboard
     #   tensorboardx
     #   torchmetrics
@@ -707,7 +639,6 @@ pandas==1.5.3
     # via
     #   -r requirements/requirements_test.txt
     #   catboost
-    #   mlflow
     #   stable-baselines3
 pandocfilters==1.5.1
     # via nbconvert
@@ -745,8 +676,6 @@ polars==1.40.1
     # via -r requirements/requirements_dev.txt
 polars-runtime-32==1.40.1
     # via polars
-prettytable==3.17.0
-    # via skops
 proglog==0.1.12
     # via moviepy
 prometheus-client==0.25.0
@@ -770,7 +699,6 @@ proto-plus==1.28.0
     #   google-cloud-resource-manager
 protobuf==6.33.6
     # via
-    #   databricks-sdk
     #   google-api-core
     #   google-cloud-aiplatform
     #   google-cloud-artifact-registry
@@ -781,9 +709,6 @@ protobuf==6.33.6
     #   grpcio-status
     #   kfp
     #   kfp-pipeline-spec
-    #   mlflow-skinny
-    #   mlflow-tracing
-    #   opentelemetry-proto
     #   proto-plus
     #   tensorboard
     #   tensorboardx
@@ -799,9 +724,7 @@ ptyprocess==0.7.0
 pure-eval==0.2.3
     # via stack-data
 pyarrow==23.0.1
-    # via
-    #   -r requirements/requirements_dev.txt
-    #   mlflow
+    # via -r requirements/requirements_dev.txt
 pyasn1==0.6.3
     # via
     #   pyasn1-modules
@@ -819,8 +742,6 @@ pydantic==2.13.4
     #   google-cloud-aiplatform
     #   google-genai
     #   litellm
-    #   mlflow-skinny
-    #   mlflow-tracing
     #   openai
     #   wandb
 pydantic-core==2.46.4
@@ -871,7 +792,6 @@ python-dateutil==2.9.0.post0
     #   arrow
     #   botocore
     #   google-cloud-bigquery
-    #   graphene
     #   jupyter-client
     #   kfp-server-api
     #   kubernetes
@@ -879,9 +799,7 @@ python-dateutil==2.9.0.post0
     #   matplotlib
     #   pandas
 python-dotenv==1.2.2
-    # via
-    #   litellm
-    #   mlflow-skinny
+    # via litellm
 python-json-logger==4.1.0
     # via jupyter-events
 pytokens==0.4.1
@@ -900,7 +818,6 @@ pyyaml==6.0.3
     #   kubernetes
     #   kubernetes-asyncio
     #   lightning
-    #   mlflow-skinny
     #   optuna
     #   pytorch-lightning
     #   responses
@@ -926,7 +843,6 @@ requests==2.33.1
     # via
     #   -r requirements/requirements_dev.txt
     #   azure-core
-    #   databricks-sdk
     #   docker
     #   dspy
     #   google-api-core
@@ -936,7 +852,6 @@ requests==2.33.1
     #   jupyterlab-server
     #   kubernetes
     #   metaflow
-    #   mlflow-skinny
     #   moviepy
     #   msal
     #   requests-oauthlib
@@ -975,19 +890,14 @@ s3transfer==0.17.0
     #   awscli
     #   boto3
 scikit-learn==1.7.2
-    # via
-    #   -r requirements/requirements_dev.txt
-    #   mlflow
-    #   skops
+    # via -r requirements/requirements_dev.txt
 scipy==1.15.3
     # via
     #   catboost
     #   jax
     #   jaxlib
     #   lightgbm
-    #   mlflow
     #   scikit-learn
-    #   skops
     #   xgboost
 send2trash==2.1.0
     # via jupyter-server
@@ -996,8 +906,6 @@ sentry-sdk==2.59.0
 setuptools==81.0.0
     # via
     #   jupyterlab
-    #   opentelemetry-api
-    #   opentelemetry-sdk
     #   tensorboard
     #   torch
 shapely==2.1.2
@@ -1012,8 +920,6 @@ six==1.17.0
     #   kubernetes-asyncio
     #   python-dateutil
     #   rfc3339-validator
-skops==0.14.0
-    # via mlflow
 smmap==5.0.3
     # via gitdb
 sniffio==1.3.1
@@ -1029,18 +935,13 @@ soupsieve==2.8.3
 sqlalchemy==2.0.49
     # via
     #   alembic
-    #   mlflow
     #   optuna
-sqlparse==0.5.5
-    # via mlflow-skinny
 stable-baselines3==2.8.0
     # via -r requirements/requirements_dev.txt
 stack-data==0.6.3
     # via ipython
 starlette==0.46.2
-    # via
-    #   fastapi
-    #   mlflow-skinny
+    # via fastapi
 sympy==1.14.0
     # via torch
 tabulate==0.10.0
@@ -1150,7 +1051,6 @@ typing-extensions==4.15.0
     #   fastapi
     #   google-cloud-aiplatform
     #   google-genai
-    #   graphene
     #   grpcio
     #   gymnasium
     #   huggingface-hub
@@ -1158,10 +1058,8 @@ typing-extensions==4.15.0
     #   lightning
     #   lightning-utilities
     #   mistune
-    #   mlflow-skinny
     #   multidict
     #   openai
-    #   opentelemetry-sdk
     #   pydantic
     #   pydantic-core
     #   pyjwt
@@ -1193,14 +1091,11 @@ urllib3==2.7.0
     #   responses
     #   sentry-sdk
 uvicorn==0.32.1
-    # via
-    #   -r requirements/requirements_test.txt
-    #   mlflow-skinny
+    # via -r requirements/requirements_test.txt
 .
     # via -r requirements/requirements_dev.txt
 wcwidth==0.7.0
     # via
-    #   prettytable
     #   prompt-toolkit
     #   pyte
 webcolors==25.10.0
@@ -1218,12 +1113,9 @@ websockets==14.2
 werkzeug==3.1.8
     # via
     #   flask
-    #   flask-cors
     #   tensorboard
 widgetsnbextension==4.0.15
     # via ipywidgets
-wrapt==2.1.2
-    # via deprecated
 xgboost==3.2.0
     # via -r requirements/requirements_dev.txt
 xxhash==3.7.0

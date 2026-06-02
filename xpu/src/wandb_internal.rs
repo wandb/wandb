@@ -399,9 +399,6 @@ pub struct Feature {
     /// Ultralytics YOLOv8 integration callbacks used
     #[prost(bool, tag = "47")]
     pub ultralytics_yolov8: bool,
-    /// Using Import API for MLFlow
-    #[prost(bool, tag = "48")]
-    pub importer_mlflow: bool,
     /// Using wandb sync for tfevent files
     #[prost(bool, tag = "49")]
     pub sync_tfevents: bool,
