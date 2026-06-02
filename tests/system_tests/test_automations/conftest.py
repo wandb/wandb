@@ -225,53 +225,53 @@ def scope(request: FixtureRequest, scope_type: ScopeType) -> ScopableWandbType:
 # ------------------------------------------------------------------------------
 # (Input) event fixtures
 @fixture
-def artifact_filter() -> FilterExpr:
+def alias_filter() -> FilterExpr:
     return ArtifactEvent.alias.matches_regex("^my-artifact.*")
 
 
 @fixture
-def artifact_tag_filter() -> FilterExpr:
+def tag_filter() -> FilterExpr:
     return ArtifactEvent.tag.matches_regex("^my-tag.*")
 
 
 @fixture
-def on_create_artifact(scope, artifact_filter) -> OnCreateArtifact:
-    return OnCreateArtifact(scope=scope, filter=artifact_filter)
+def on_create_artifact(scope, alias_filter) -> OnCreateArtifact:
+    return OnCreateArtifact(scope=scope, filter=alias_filter)
 
 
 @fixture
-def on_link_artifact(scope, artifact_filter) -> OnLinkArtifact:
-    return OnLinkArtifact(scope=scope, filter=artifact_filter)
+def on_link_artifact(scope, alias_filter) -> OnLinkArtifact:
+    return OnLinkArtifact(scope=scope, filter=alias_filter)
 
 
 @fixture
-def on_unlink_artifact(scope, artifact_filter) -> OnUnlinkArtifact:
-    return OnUnlinkArtifact(scope=scope, filter=artifact_filter)
+def on_unlink_artifact(scope, alias_filter) -> OnUnlinkArtifact:
+    return OnUnlinkArtifact(scope=scope, filter=alias_filter)
 
 
 @fixture
-def on_add_artifact_alias(scope, artifact_filter) -> OnAddArtifactAlias:
-    return OnAddArtifactAlias(scope=scope, filter=artifact_filter)
+def on_add_artifact_alias(scope, alias_filter) -> OnAddArtifactAlias:
+    return OnAddArtifactAlias(scope=scope, filter=alias_filter)
 
 
 @fixture
-def on_add_artifact_tag(scope, artifact_tag_filter) -> OnAddArtifactTag:
-    return OnAddArtifactTag(scope=scope, filter=artifact_tag_filter)
+def on_add_artifact_tag(scope, tag_filter) -> OnAddArtifactTag:
+    return OnAddArtifactTag(scope=scope, filter=tag_filter)
 
 
 @fixture
-def on_remove_artifact_tag(scope, artifact_tag_filter) -> OnRemoveArtifactTag:
-    return OnRemoveArtifactTag(scope=scope, filter=artifact_tag_filter)
+def on_remove_artifact_tag(scope, tag_filter) -> OnRemoveArtifactTag:
+    return OnRemoveArtifactTag(scope=scope, filter=tag_filter)
 
 
 @fixture
-def on_add_collection_tag(scope, artifact_tag_filter) -> OnAddCollectionTag:
-    return OnAddCollectionTag(scope=scope, filter=artifact_tag_filter)
+def on_add_collection_tag(scope, tag_filter) -> OnAddCollectionTag:
+    return OnAddCollectionTag(scope=scope, filter=tag_filter)
 
 
 @fixture
-def on_remove_collection_tag(scope, artifact_tag_filter) -> OnRemoveCollectionTag:
-    return OnRemoveCollectionTag(scope=scope, filter=artifact_tag_filter)
+def on_remove_collection_tag(scope, tag_filter) -> OnRemoveCollectionTag:
+    return OnRemoveCollectionTag(scope=scope, filter=tag_filter)
 
 
 @fixture
