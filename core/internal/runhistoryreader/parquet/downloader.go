@@ -126,10 +126,21 @@ func extractStepValuesFromLiveData(liveData []any) ([]int64, error) {
 }
 
 func GetFileSize(
+	ctx context.Context,
 	fileUrl string,
 	httpClient *retryablehttp.Client,
 ) (int64, error) {
-	resp, err := httpClient.Head(fileUrl)
+	req, err := retryablehttp.NewRequestWithContext(
+		ctx,
+		http.MethodHead,
+		fileUrl,
+		nil,
+	)
+	if err != nil {
+		return 0, err
+	}
+
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return 0, err
 	}
@@ -215,7 +226,7 @@ func (d *RunHistoryDownloadOperation) createDownloadTasks(
 			i,
 		)
 		filePath := filepath.Join(d.downloadDir, fileName)
-		fileSize, err := GetFileSize(url, d.httpClient)
+		fileSize, err := GetFileSize(ctx, url, d.httpClient)
 		if err != nil {
 			return nil, err
 		}
@@ -250,9 +261,11 @@ func (d *RunHistoryDownloadOperation) createDownloadTasks(
 }
 
 // StartDownloads begins all the download tasks for the files.
-func (d *RunHistoryDownloadOperation) StartDownloads() ([]string, map[string]error) {
+func (d *RunHistoryDownloadOperation) StartDownloads(
+	ctx context.Context,
+) ([]string, map[string]error) {
 	parentOperation := d.operations.New("Downloading run history")
-	operationCtx := parentOperation.Context(context.Background())
+	operationCtx := parentOperation.Context(ctx)
 	defer parentOperation.Finish()
 
 	fileTransferStats := filetransfer.NewFileTransferStats()

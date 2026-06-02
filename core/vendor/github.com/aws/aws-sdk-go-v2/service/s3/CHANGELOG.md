@@ -1,3 +1,17 @@
+# v1.102.2 (2026-05-29)
+
+* **Dependency Update**: Update to smithy-go v1.26.0.
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.102.1 (2026-05-28)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.102.0 (2026-05-27)
+
+* **Feature**: Add SHA-512 support for s3 operations
+* **Dependency Update**: Updated to the latest SDK module versions
+
 # v1.101.0 (2026-05-06)
 
 * **Feature**: Validate outpost access point resource name

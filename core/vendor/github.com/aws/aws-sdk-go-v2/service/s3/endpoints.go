@@ -240,6 +240,8 @@ func bindRegion(region string) (*string, error) {
 	return aws.String(endpoints.MapFIPSRegion(region)), nil
 }
 
+var _ = rulesfn.StringSlice(nil)
+
 // EndpointParameters provides the parameters that influence how endpoints are
 // resolved.
 type EndpointParameters struct {
@@ -431,17 +433,6 @@ func (p EndpointParameters) WithDefaults() EndpointParameters {
 	return p
 }
 
-type stringSlice []string
-
-func (s stringSlice) Get(i int) *string {
-	if i < 0 || i >= len(s) {
-		return nil
-	}
-
-	v := s[i]
-	return &v
-}
-
 // EndpointResolverV2 provides the interface for resolving service endpoints.
 type EndpointResolverV2 interface {
 	// ResolveEndpoint attempts to resolve the endpoint with the provided options,
@@ -567,7 +558,7 @@ func (r *resolver) ResolveEndpoint(
 												out.Set("backend", "S3Express")
 												smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 													{
-														SchemeID: "aws.auth#sigv4",
+														SchemeID: "sigv4",
 														SignerProperties: func() smithy.Properties {
 															var sp smithy.Properties
 															smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -609,7 +600,7 @@ func (r *resolver) ResolveEndpoint(
 												out.Set("backend", "S3Express")
 												smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 													{
-														SchemeID: "aws.auth#sigv4",
+														SchemeID: "sigv4",
 														SignerProperties: func() smithy.Properties {
 															var sp smithy.Properties
 															smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -754,7 +745,7 @@ func (r *resolver) ResolveEndpoint(
 													out.Set("backend", "S3Express")
 													smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 														{
-															SchemeID: "aws.auth#sigv4",
+															SchemeID: "sigv4",
 															SignerProperties: func() smithy.Properties {
 																var sp smithy.Properties
 																smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -798,7 +789,7 @@ func (r *resolver) ResolveEndpoint(
 													out.Set("backend", "S3Express")
 													smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 														{
-															SchemeID: "aws.auth#sigv4",
+															SchemeID: "sigv4",
 															SignerProperties: func() smithy.Properties {
 																var sp smithy.Properties
 																smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -842,7 +833,7 @@ func (r *resolver) ResolveEndpoint(
 													out.Set("backend", "S3Express")
 													smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 														{
-															SchemeID: "aws.auth#sigv4",
+															SchemeID: "sigv4",
 															SignerProperties: func() smithy.Properties {
 																var sp smithy.Properties
 																smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -886,7 +877,7 @@ func (r *resolver) ResolveEndpoint(
 													out.Set("backend", "S3Express")
 													smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 														{
-															SchemeID: "aws.auth#sigv4",
+															SchemeID: "sigv4",
 															SignerProperties: func() smithy.Properties {
 																var sp smithy.Properties
 																smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -954,7 +945,7 @@ func (r *resolver) ResolveEndpoint(
 																out.Set("backend", "S3Express")
 																smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 																	{
-																		SchemeID: "aws.auth#sigv4",
+																		SchemeID: "sigv4",
 																		SignerProperties: func() smithy.Properties {
 																			var sp smithy.Properties
 																			smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -1000,7 +991,7 @@ func (r *resolver) ResolveEndpoint(
 																out.Set("backend", "S3Express")
 																smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 																	{
-																		SchemeID: "aws.auth#sigv4",
+																		SchemeID: "sigv4",
 																		SignerProperties: func() smithy.Properties {
 																			var sp smithy.Properties
 																			smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -1046,7 +1037,7 @@ func (r *resolver) ResolveEndpoint(
 																out.Set("backend", "S3Express")
 																smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 																	{
-																		SchemeID: "aws.auth#sigv4",
+																		SchemeID: "sigv4",
 																		SignerProperties: func() smithy.Properties {
 																			var sp smithy.Properties
 																			smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -1092,7 +1083,7 @@ func (r *resolver) ResolveEndpoint(
 																out.Set("backend", "S3Express")
 																smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 																	{
-																		SchemeID: "aws.auth#sigv4",
+																		SchemeID: "sigv4",
 																		SignerProperties: func() smithy.Properties {
 																			var sp smithy.Properties
 																			smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -1149,7 +1140,7 @@ func (r *resolver) ResolveEndpoint(
 																out.Set("backend", "S3Express")
 																smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 																	{
-																		SchemeID: "aws.auth#sigv4",
+																		SchemeID: "sigv4",
 																		SignerProperties: func() smithy.Properties {
 																			var sp smithy.Properties
 																			smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -1195,7 +1186,7 @@ func (r *resolver) ResolveEndpoint(
 																out.Set("backend", "S3Express")
 																smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 																	{
-																		SchemeID: "aws.auth#sigv4",
+																		SchemeID: "sigv4",
 																		SignerProperties: func() smithy.Properties {
 																			var sp smithy.Properties
 																			smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -1241,7 +1232,7 @@ func (r *resolver) ResolveEndpoint(
 																out.Set("backend", "S3Express")
 																smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 																	{
-																		SchemeID: "aws.auth#sigv4",
+																		SchemeID: "sigv4",
 																		SignerProperties: func() smithy.Properties {
 																			var sp smithy.Properties
 																			smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -1287,7 +1278,7 @@ func (r *resolver) ResolveEndpoint(
 																out.Set("backend", "S3Express")
 																smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 																	{
-																		SchemeID: "aws.auth#sigv4",
+																		SchemeID: "sigv4",
 																		SignerProperties: func() smithy.Properties {
 																			var sp smithy.Properties
 																			smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -1344,7 +1335,7 @@ func (r *resolver) ResolveEndpoint(
 																out.Set("backend", "S3Express")
 																smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 																	{
-																		SchemeID: "aws.auth#sigv4",
+																		SchemeID: "sigv4",
 																		SignerProperties: func() smithy.Properties {
 																			var sp smithy.Properties
 																			smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -1390,7 +1381,7 @@ func (r *resolver) ResolveEndpoint(
 																out.Set("backend", "S3Express")
 																smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 																	{
-																		SchemeID: "aws.auth#sigv4",
+																		SchemeID: "sigv4",
 																		SignerProperties: func() smithy.Properties {
 																			var sp smithy.Properties
 																			smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -1436,7 +1427,7 @@ func (r *resolver) ResolveEndpoint(
 																out.Set("backend", "S3Express")
 																smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 																	{
-																		SchemeID: "aws.auth#sigv4",
+																		SchemeID: "sigv4",
 																		SignerProperties: func() smithy.Properties {
 																			var sp smithy.Properties
 																			smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -1482,7 +1473,7 @@ func (r *resolver) ResolveEndpoint(
 																out.Set("backend", "S3Express")
 																smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 																	{
-																		SchemeID: "aws.auth#sigv4",
+																		SchemeID: "sigv4",
 																		SignerProperties: func() smithy.Properties {
 																			var sp smithy.Properties
 																			smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -1539,7 +1530,7 @@ func (r *resolver) ResolveEndpoint(
 																out.Set("backend", "S3Express")
 																smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 																	{
-																		SchemeID: "aws.auth#sigv4",
+																		SchemeID: "sigv4",
 																		SignerProperties: func() smithy.Properties {
 																			var sp smithy.Properties
 																			smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -1585,7 +1576,7 @@ func (r *resolver) ResolveEndpoint(
 																out.Set("backend", "S3Express")
 																smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 																	{
-																		SchemeID: "aws.auth#sigv4",
+																		SchemeID: "sigv4",
 																		SignerProperties: func() smithy.Properties {
 																			var sp smithy.Properties
 																			smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -1631,7 +1622,7 @@ func (r *resolver) ResolveEndpoint(
 																out.Set("backend", "S3Express")
 																smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 																	{
-																		SchemeID: "aws.auth#sigv4",
+																		SchemeID: "sigv4",
 																		SignerProperties: func() smithy.Properties {
 																			var sp smithy.Properties
 																			smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -1677,7 +1668,7 @@ func (r *resolver) ResolveEndpoint(
 																out.Set("backend", "S3Express")
 																smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 																	{
-																		SchemeID: "aws.auth#sigv4",
+																		SchemeID: "sigv4",
 																		SignerProperties: func() smithy.Properties {
 																			var sp smithy.Properties
 																			smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -1734,7 +1725,7 @@ func (r *resolver) ResolveEndpoint(
 																out.Set("backend", "S3Express")
 																smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 																	{
-																		SchemeID: "aws.auth#sigv4",
+																		SchemeID: "sigv4",
 																		SignerProperties: func() smithy.Properties {
 																			var sp smithy.Properties
 																			smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -1780,7 +1771,7 @@ func (r *resolver) ResolveEndpoint(
 																out.Set("backend", "S3Express")
 																smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 																	{
-																		SchemeID: "aws.auth#sigv4",
+																		SchemeID: "sigv4",
 																		SignerProperties: func() smithy.Properties {
 																			var sp smithy.Properties
 																			smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -1826,7 +1817,7 @@ func (r *resolver) ResolveEndpoint(
 																out.Set("backend", "S3Express")
 																smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 																	{
-																		SchemeID: "aws.auth#sigv4",
+																		SchemeID: "sigv4",
 																		SignerProperties: func() smithy.Properties {
 																			var sp smithy.Properties
 																			smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -1872,7 +1863,7 @@ func (r *resolver) ResolveEndpoint(
 																out.Set("backend", "S3Express")
 																smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 																	{
-																		SchemeID: "aws.auth#sigv4",
+																		SchemeID: "sigv4",
 																		SignerProperties: func() smithy.Properties {
 																			var sp smithy.Properties
 																			smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -2927,7 +2918,7 @@ func (r *resolver) ResolveEndpoint(
 												out.Set("backend", "S3Express")
 												smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 													{
-														SchemeID: "aws.auth#sigv4",
+														SchemeID: "sigv4",
 														SignerProperties: func() smithy.Properties {
 															var sp smithy.Properties
 															smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -2969,7 +2960,7 @@ func (r *resolver) ResolveEndpoint(
 												out.Set("backend", "S3Express")
 												smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 													{
-														SchemeID: "aws.auth#sigv4",
+														SchemeID: "sigv4",
 														SignerProperties: func() smithy.Properties {
 															var sp smithy.Properties
 															smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -3121,7 +3112,7 @@ func (r *resolver) ResolveEndpoint(
 																out.Set("backend", "S3Express")
 																smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 																	{
-																		SchemeID: "aws.auth#sigv4",
+																		SchemeID: "sigv4",
 																		SignerProperties: func() smithy.Properties {
 																			var sp smithy.Properties
 																			smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -3167,7 +3158,7 @@ func (r *resolver) ResolveEndpoint(
 																out.Set("backend", "S3Express")
 																smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 																	{
-																		SchemeID: "aws.auth#sigv4",
+																		SchemeID: "sigv4",
 																		SignerProperties: func() smithy.Properties {
 																			var sp smithy.Properties
 																			smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -3213,7 +3204,7 @@ func (r *resolver) ResolveEndpoint(
 																out.Set("backend", "S3Express")
 																smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 																	{
-																		SchemeID: "aws.auth#sigv4",
+																		SchemeID: "sigv4",
 																		SignerProperties: func() smithy.Properties {
 																			var sp smithy.Properties
 																			smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -3259,7 +3250,7 @@ func (r *resolver) ResolveEndpoint(
 																out.Set("backend", "S3Express")
 																smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 																	{
-																		SchemeID: "aws.auth#sigv4",
+																		SchemeID: "sigv4",
 																		SignerProperties: func() smithy.Properties {
 																			var sp smithy.Properties
 																			smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -3316,7 +3307,7 @@ func (r *resolver) ResolveEndpoint(
 																out.Set("backend", "S3Express")
 																smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 																	{
-																		SchemeID: "aws.auth#sigv4",
+																		SchemeID: "sigv4",
 																		SignerProperties: func() smithy.Properties {
 																			var sp smithy.Properties
 																			smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -3362,7 +3353,7 @@ func (r *resolver) ResolveEndpoint(
 																out.Set("backend", "S3Express")
 																smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 																	{
-																		SchemeID: "aws.auth#sigv4",
+																		SchemeID: "sigv4",
 																		SignerProperties: func() smithy.Properties {
 																			var sp smithy.Properties
 																			smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -3408,7 +3399,7 @@ func (r *resolver) ResolveEndpoint(
 																out.Set("backend", "S3Express")
 																smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 																	{
-																		SchemeID: "aws.auth#sigv4",
+																		SchemeID: "sigv4",
 																		SignerProperties: func() smithy.Properties {
 																			var sp smithy.Properties
 																			smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -3454,7 +3445,7 @@ func (r *resolver) ResolveEndpoint(
 																out.Set("backend", "S3Express")
 																smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 																	{
-																		SchemeID: "aws.auth#sigv4",
+																		SchemeID: "sigv4",
 																		SignerProperties: func() smithy.Properties {
 																			var sp smithy.Properties
 																			smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -3511,7 +3502,7 @@ func (r *resolver) ResolveEndpoint(
 																out.Set("backend", "S3Express")
 																smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 																	{
-																		SchemeID: "aws.auth#sigv4",
+																		SchemeID: "sigv4",
 																		SignerProperties: func() smithy.Properties {
 																			var sp smithy.Properties
 																			smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -3557,7 +3548,7 @@ func (r *resolver) ResolveEndpoint(
 																out.Set("backend", "S3Express")
 																smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 																	{
-																		SchemeID: "aws.auth#sigv4",
+																		SchemeID: "sigv4",
 																		SignerProperties: func() smithy.Properties {
 																			var sp smithy.Properties
 																			smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -3603,7 +3594,7 @@ func (r *resolver) ResolveEndpoint(
 																out.Set("backend", "S3Express")
 																smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 																	{
-																		SchemeID: "aws.auth#sigv4",
+																		SchemeID: "sigv4",
 																		SignerProperties: func() smithy.Properties {
 																			var sp smithy.Properties
 																			smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -3649,7 +3640,7 @@ func (r *resolver) ResolveEndpoint(
 																out.Set("backend", "S3Express")
 																smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 																	{
-																		SchemeID: "aws.auth#sigv4",
+																		SchemeID: "sigv4",
 																		SignerProperties: func() smithy.Properties {
 																			var sp smithy.Properties
 																			smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -3706,7 +3697,7 @@ func (r *resolver) ResolveEndpoint(
 																out.Set("backend", "S3Express")
 																smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 																	{
-																		SchemeID: "aws.auth#sigv4",
+																		SchemeID: "sigv4",
 																		SignerProperties: func() smithy.Properties {
 																			var sp smithy.Properties
 																			smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -3752,7 +3743,7 @@ func (r *resolver) ResolveEndpoint(
 																out.Set("backend", "S3Express")
 																smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 																	{
-																		SchemeID: "aws.auth#sigv4",
+																		SchemeID: "sigv4",
 																		SignerProperties: func() smithy.Properties {
 																			var sp smithy.Properties
 																			smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -3798,7 +3789,7 @@ func (r *resolver) ResolveEndpoint(
 																out.Set("backend", "S3Express")
 																smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 																	{
-																		SchemeID: "aws.auth#sigv4",
+																		SchemeID: "sigv4",
 																		SignerProperties: func() smithy.Properties {
 																			var sp smithy.Properties
 																			smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -3844,7 +3835,7 @@ func (r *resolver) ResolveEndpoint(
 																out.Set("backend", "S3Express")
 																smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 																	{
-																		SchemeID: "aws.auth#sigv4",
+																		SchemeID: "sigv4",
 																		SignerProperties: func() smithy.Properties {
 																			var sp smithy.Properties
 																			smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -3901,7 +3892,7 @@ func (r *resolver) ResolveEndpoint(
 																out.Set("backend", "S3Express")
 																smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 																	{
-																		SchemeID: "aws.auth#sigv4",
+																		SchemeID: "sigv4",
 																		SignerProperties: func() smithy.Properties {
 																			var sp smithy.Properties
 																			smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -3947,7 +3938,7 @@ func (r *resolver) ResolveEndpoint(
 																out.Set("backend", "S3Express")
 																smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 																	{
-																		SchemeID: "aws.auth#sigv4",
+																		SchemeID: "sigv4",
 																		SignerProperties: func() smithy.Properties {
 																			var sp smithy.Properties
 																			smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -3993,7 +3984,7 @@ func (r *resolver) ResolveEndpoint(
 																out.Set("backend", "S3Express")
 																smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 																	{
-																		SchemeID: "aws.auth#sigv4",
+																		SchemeID: "sigv4",
 																		SignerProperties: func() smithy.Properties {
 																			var sp smithy.Properties
 																			smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -4039,7 +4030,7 @@ func (r *resolver) ResolveEndpoint(
 																out.Set("backend", "S3Express")
 																smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 																	{
-																		SchemeID: "aws.auth#sigv4",
+																		SchemeID: "sigv4",
 																		SignerProperties: func() smithy.Properties {
 																			var sp smithy.Properties
 																			smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -5083,7 +5074,7 @@ func (r *resolver) ResolveEndpoint(
 										out.Set("backend", "S3Express")
 										smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 											{
-												SchemeID: "aws.auth#sigv4",
+												SchemeID: "sigv4",
 												SignerProperties: func() smithy.Properties {
 													var sp smithy.Properties
 													smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -5125,7 +5116,7 @@ func (r *resolver) ResolveEndpoint(
 										out.Set("backend", "S3Express")
 										smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 											{
-												SchemeID: "aws.auth#sigv4",
+												SchemeID: "sigv4",
 												SignerProperties: func() smithy.Properties {
 													var sp smithy.Properties
 													smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -5167,7 +5158,7 @@ func (r *resolver) ResolveEndpoint(
 										out.Set("backend", "S3Express")
 										smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 											{
-												SchemeID: "aws.auth#sigv4",
+												SchemeID: "sigv4",
 												SignerProperties: func() smithy.Properties {
 													var sp smithy.Properties
 													smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -5209,7 +5200,7 @@ func (r *resolver) ResolveEndpoint(
 										out.Set("backend", "S3Express")
 										smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 											{
-												SchemeID: "aws.auth#sigv4",
+												SchemeID: "sigv4",
 												SignerProperties: func() smithy.Properties {
 													var sp smithy.Properties
 													smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -5251,7 +5242,7 @@ func (r *resolver) ResolveEndpoint(
 										out.Set("backend", "S3Express")
 										smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 											{
-												SchemeID: "aws.auth#sigv4",
+												SchemeID: "sigv4",
 												SignerProperties: func() smithy.Properties {
 													var sp smithy.Properties
 													smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -5328,7 +5319,7 @@ func (r *resolver) ResolveEndpoint(
 																	var out smithy.Properties
 																	smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 																		{
-																			SchemeID: "aws.auth#sigv4a",
+																			SchemeID: "sigv4a",
 																			SignerProperties: func() smithy.Properties {
 																				var sp smithy.Properties
 																				smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -5341,7 +5332,7 @@ func (r *resolver) ResolveEndpoint(
 																			}(),
 																		},
 																		{
-																			SchemeID: "aws.auth#sigv4",
+																			SchemeID: "sigv4",
 																			SignerProperties: func() smithy.Properties {
 																				var sp smithy.Properties
 																				smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -5384,7 +5375,7 @@ func (r *resolver) ResolveEndpoint(
 														var out smithy.Properties
 														smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 															{
-																SchemeID: "aws.auth#sigv4a",
+																SchemeID: "sigv4a",
 																SignerProperties: func() smithy.Properties {
 																	var sp smithy.Properties
 																	smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -5397,7 +5388,7 @@ func (r *resolver) ResolveEndpoint(
 																}(),
 															},
 															{
-																SchemeID: "aws.auth#sigv4",
+																SchemeID: "sigv4",
 																SignerProperties: func() smithy.Properties {
 																	var sp smithy.Properties
 																	smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -5448,7 +5439,7 @@ func (r *resolver) ResolveEndpoint(
 																	var out smithy.Properties
 																	smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 																		{
-																			SchemeID: "aws.auth#sigv4a",
+																			SchemeID: "sigv4a",
 																			SignerProperties: func() smithy.Properties {
 																				var sp smithy.Properties
 																				smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -5461,7 +5452,7 @@ func (r *resolver) ResolveEndpoint(
 																			}(),
 																		},
 																		{
-																			SchemeID: "aws.auth#sigv4",
+																			SchemeID: "sigv4",
 																			SignerProperties: func() smithy.Properties {
 																				var sp smithy.Properties
 																				smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -5506,7 +5497,7 @@ func (r *resolver) ResolveEndpoint(
 														var out smithy.Properties
 														smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 															{
-																SchemeID: "aws.auth#sigv4a",
+																SchemeID: "sigv4a",
 																SignerProperties: func() smithy.Properties {
 																	var sp smithy.Properties
 																	smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -5519,7 +5510,7 @@ func (r *resolver) ResolveEndpoint(
 																}(),
 															},
 															{
-																SchemeID: "aws.auth#sigv4",
+																SchemeID: "sigv4",
 																SignerProperties: func() smithy.Properties {
 																	var sp smithy.Properties
 																	smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -5607,7 +5598,7 @@ func (r *resolver) ResolveEndpoint(
 														var out smithy.Properties
 														smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 															{
-																SchemeID: "aws.auth#sigv4",
+																SchemeID: "sigv4",
 																SignerProperties: func() smithy.Properties {
 																	var sp smithy.Properties
 																	smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -5657,7 +5648,7 @@ func (r *resolver) ResolveEndpoint(
 															var out smithy.Properties
 															smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 																{
-																	SchemeID: "aws.auth#sigv4",
+																	SchemeID: "sigv4",
 																	SignerProperties: func() smithy.Properties {
 																		var sp smithy.Properties
 																		smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -5708,7 +5699,7 @@ func (r *resolver) ResolveEndpoint(
 															var out smithy.Properties
 															smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 																{
-																	SchemeID: "aws.auth#sigv4",
+																	SchemeID: "sigv4",
 																	SignerProperties: func() smithy.Properties {
 																		var sp smithy.Properties
 																		smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -5756,7 +5747,7 @@ func (r *resolver) ResolveEndpoint(
 														var out smithy.Properties
 														smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 															{
-																SchemeID: "aws.auth#sigv4",
+																SchemeID: "sigv4",
 																SignerProperties: func() smithy.Properties {
 																	var sp smithy.Properties
 																	smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -5806,7 +5797,7 @@ func (r *resolver) ResolveEndpoint(
 															var out smithy.Properties
 															smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 																{
-																	SchemeID: "aws.auth#sigv4",
+																	SchemeID: "sigv4",
 																	SignerProperties: func() smithy.Properties {
 																		var sp smithy.Properties
 																		smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -5857,7 +5848,7 @@ func (r *resolver) ResolveEndpoint(
 															var out smithy.Properties
 															smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 																{
-																	SchemeID: "aws.auth#sigv4",
+																	SchemeID: "sigv4",
 																	SignerProperties: func() smithy.Properties {
 																		var sp smithy.Properties
 																		smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -5905,7 +5896,7 @@ func (r *resolver) ResolveEndpoint(
 														var out smithy.Properties
 														smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 															{
-																SchemeID: "aws.auth#sigv4",
+																SchemeID: "sigv4",
 																SignerProperties: func() smithy.Properties {
 																	var sp smithy.Properties
 																	smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -5953,7 +5944,7 @@ func (r *resolver) ResolveEndpoint(
 															var out smithy.Properties
 															smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 																{
-																	SchemeID: "aws.auth#sigv4",
+																	SchemeID: "sigv4",
 																	SignerProperties: func() smithy.Properties {
 																		var sp smithy.Properties
 																		smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -6002,7 +5993,7 @@ func (r *resolver) ResolveEndpoint(
 															var out smithy.Properties
 															smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 																{
-																	SchemeID: "aws.auth#sigv4",
+																	SchemeID: "sigv4",
 																	SignerProperties: func() smithy.Properties {
 																		var sp smithy.Properties
 																		smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -6050,7 +6041,7 @@ func (r *resolver) ResolveEndpoint(
 														var out smithy.Properties
 														smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 															{
-																SchemeID: "aws.auth#sigv4",
+																SchemeID: "sigv4",
 																SignerProperties: func() smithy.Properties {
 																	var sp smithy.Properties
 																	smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -6100,7 +6091,7 @@ func (r *resolver) ResolveEndpoint(
 															var out smithy.Properties
 															smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 																{
-																	SchemeID: "aws.auth#sigv4",
+																	SchemeID: "sigv4",
 																	SignerProperties: func() smithy.Properties {
 																		var sp smithy.Properties
 																		smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -6151,7 +6142,7 @@ func (r *resolver) ResolveEndpoint(
 															var out smithy.Properties
 															smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 																{
-																	SchemeID: "aws.auth#sigv4",
+																	SchemeID: "sigv4",
 																	SignerProperties: func() smithy.Properties {
 																		var sp smithy.Properties
 																		smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -6206,7 +6197,7 @@ func (r *resolver) ResolveEndpoint(
 																var out smithy.Properties
 																smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 																	{
-																		SchemeID: "aws.auth#sigv4",
+																		SchemeID: "sigv4",
 																		SignerProperties: func() smithy.Properties {
 																			var sp smithy.Properties
 																			smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -6263,7 +6254,7 @@ func (r *resolver) ResolveEndpoint(
 																var out smithy.Properties
 																smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 																	{
-																		SchemeID: "aws.auth#sigv4",
+																		SchemeID: "sigv4",
 																		SignerProperties: func() smithy.Properties {
 																			var sp smithy.Properties
 																			smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -6321,7 +6312,7 @@ func (r *resolver) ResolveEndpoint(
 																		var out smithy.Properties
 																		smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 																			{
-																				SchemeID: "aws.auth#sigv4",
+																				SchemeID: "sigv4",
 																				SignerProperties: func() smithy.Properties {
 																					var sp smithy.Properties
 																					smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -6360,7 +6351,7 @@ func (r *resolver) ResolveEndpoint(
 																	var out smithy.Properties
 																	smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 																		{
-																			SchemeID: "aws.auth#sigv4",
+																			SchemeID: "sigv4",
 																			SignerProperties: func() smithy.Properties {
 																				var sp smithy.Properties
 																				smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -6420,7 +6411,7 @@ func (r *resolver) ResolveEndpoint(
 																		var out smithy.Properties
 																		smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 																			{
-																				SchemeID: "aws.auth#sigv4",
+																				SchemeID: "sigv4",
 																				SignerProperties: func() smithy.Properties {
 																					var sp smithy.Properties
 																					smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -6460,7 +6451,7 @@ func (r *resolver) ResolveEndpoint(
 																	var out smithy.Properties
 																	smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 																		{
-																			SchemeID: "aws.auth#sigv4",
+																			SchemeID: "sigv4",
 																			SignerProperties: func() smithy.Properties {
 																				var sp smithy.Properties
 																				smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -6518,7 +6509,7 @@ func (r *resolver) ResolveEndpoint(
 																	var out smithy.Properties
 																	smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 																		{
-																			SchemeID: "aws.auth#sigv4",
+																			SchemeID: "sigv4",
 																			SignerProperties: func() smithy.Properties {
 																				var sp smithy.Properties
 																				smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -6577,7 +6568,7 @@ func (r *resolver) ResolveEndpoint(
 																	var out smithy.Properties
 																	smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 																		{
-																			SchemeID: "aws.auth#sigv4",
+																			SchemeID: "sigv4",
 																			SignerProperties: func() smithy.Properties {
 																				var sp smithy.Properties
 																				smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -6627,7 +6618,7 @@ func (r *resolver) ResolveEndpoint(
 														var out smithy.Properties
 														smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 															{
-																SchemeID: "aws.auth#sigv4",
+																SchemeID: "sigv4",
 																SignerProperties: func() smithy.Properties {
 																	var sp smithy.Properties
 																	smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -6676,7 +6667,7 @@ func (r *resolver) ResolveEndpoint(
 																var out smithy.Properties
 																smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 																	{
-																		SchemeID: "aws.auth#sigv4",
+																		SchemeID: "sigv4",
 																		SignerProperties: func() smithy.Properties {
 																			var sp smithy.Properties
 																			smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -6714,7 +6705,7 @@ func (r *resolver) ResolveEndpoint(
 															var out smithy.Properties
 															smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 																{
-																	SchemeID: "aws.auth#sigv4",
+																	SchemeID: "sigv4",
 																	SignerProperties: func() smithy.Properties {
 																		var sp smithy.Properties
 																		smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -6763,7 +6754,7 @@ func (r *resolver) ResolveEndpoint(
 															var out smithy.Properties
 															smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 																{
-																	SchemeID: "aws.auth#sigv4",
+																	SchemeID: "sigv4",
 																	SignerProperties: func() smithy.Properties {
 																		var sp smithy.Properties
 																		smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -6811,7 +6802,7 @@ func (r *resolver) ResolveEndpoint(
 														var out smithy.Properties
 														smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 															{
-																SchemeID: "aws.auth#sigv4",
+																SchemeID: "sigv4",
 																SignerProperties: func() smithy.Properties {
 																	var sp smithy.Properties
 																	smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -6860,7 +6851,7 @@ func (r *resolver) ResolveEndpoint(
 																var out smithy.Properties
 																smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 																	{
-																		SchemeID: "aws.auth#sigv4",
+																		SchemeID: "sigv4",
 																		SignerProperties: func() smithy.Properties {
 																			var sp smithy.Properties
 																			smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -6900,7 +6891,7 @@ func (r *resolver) ResolveEndpoint(
 															var out smithy.Properties
 															smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 																{
-																	SchemeID: "aws.auth#sigv4",
+																	SchemeID: "sigv4",
 																	SignerProperties: func() smithy.Properties {
 																		var sp smithy.Properties
 																		smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -6951,7 +6942,7 @@ func (r *resolver) ResolveEndpoint(
 															var out smithy.Properties
 															smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 																{
-																	SchemeID: "aws.auth#sigv4",
+																	SchemeID: "sigv4",
 																	SignerProperties: func() smithy.Properties {
 																		var sp smithy.Properties
 																		smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -7019,7 +7010,7 @@ func (r *resolver) ResolveEndpoint(
 															var out smithy.Properties
 															smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 																{
-																	SchemeID: "aws.auth#sigv4",
+																	SchemeID: "sigv4",
 																	SignerProperties: func() smithy.Properties {
 																		var sp smithy.Properties
 																		smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -7137,7 +7128,7 @@ func (r *resolver) ResolveEndpoint(
 																							var out smithy.Properties
 																							smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 																								{
-																									SchemeID: "aws.auth#sigv4",
+																									SchemeID: "sigv4",
 																									SignerProperties: func() smithy.Properties {
 																										var sp smithy.Properties
 																										smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -7181,7 +7172,7 @@ func (r *resolver) ResolveEndpoint(
 																						var out smithy.Properties
 																						smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 																							{
-																								SchemeID: "aws.auth#sigv4",
+																								SchemeID: "sigv4",
 																								SignerProperties: func() smithy.Properties {
 																									var sp smithy.Properties
 																									smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -7223,7 +7214,7 @@ func (r *resolver) ResolveEndpoint(
 																					var out smithy.Properties
 																					smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 																						{
-																							SchemeID: "aws.auth#sigv4",
+																							SchemeID: "sigv4",
 																							SignerProperties: func() smithy.Properties {
 																								var sp smithy.Properties
 																								smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -7369,7 +7360,7 @@ func (r *resolver) ResolveEndpoint(
 																									var out smithy.Properties
 																									smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 																										{
-																											SchemeID: "aws.auth#sigv4",
+																											SchemeID: "sigv4",
 																											SignerProperties: func() smithy.Properties {
 																												var sp smithy.Properties
 																												smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -7414,7 +7405,7 @@ func (r *resolver) ResolveEndpoint(
 																									var out smithy.Properties
 																									smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 																										{
-																											SchemeID: "aws.auth#sigv4",
+																											SchemeID: "sigv4",
 																											SignerProperties: func() smithy.Properties {
 																												var sp smithy.Properties
 																												smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -7459,7 +7450,7 @@ func (r *resolver) ResolveEndpoint(
 																									var out smithy.Properties
 																									smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 																										{
-																											SchemeID: "aws.auth#sigv4",
+																											SchemeID: "sigv4",
 																											SignerProperties: func() smithy.Properties {
 																												var sp smithy.Properties
 																												smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -7510,7 +7501,7 @@ func (r *resolver) ResolveEndpoint(
 																											var out smithy.Properties
 																											smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 																												{
-																													SchemeID: "aws.auth#sigv4",
+																													SchemeID: "sigv4",
 																													SignerProperties: func() smithy.Properties {
 																														var sp smithy.Properties
 																														smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -7557,7 +7548,7 @@ func (r *resolver) ResolveEndpoint(
 																									var out smithy.Properties
 																									smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 																										{
-																											SchemeID: "aws.auth#sigv4",
+																											SchemeID: "sigv4",
 																											SignerProperties: func() smithy.Properties {
 																												var sp smithy.Properties
 																												smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -7668,7 +7659,7 @@ func (r *resolver) ResolveEndpoint(
 															var out smithy.Properties
 															smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 																{
-																	SchemeID: "aws.auth#sigv4a",
+																	SchemeID: "sigv4a",
 																	SignerProperties: func() smithy.Properties {
 																		var sp smithy.Properties
 																		smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -7786,7 +7777,7 @@ func (r *resolver) ResolveEndpoint(
 																							var out smithy.Properties
 																							smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 																								{
-																									SchemeID: "aws.auth#sigv4a",
+																									SchemeID: "sigv4a",
 																									SignerProperties: func() smithy.Properties {
 																										var sp smithy.Properties
 																										smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -7799,7 +7790,7 @@ func (r *resolver) ResolveEndpoint(
 																									}(),
 																								},
 																								{
-																									SchemeID: "aws.auth#sigv4",
+																									SchemeID: "sigv4",
 																									SignerProperties: func() smithy.Properties {
 																										var sp smithy.Properties
 																										smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -7844,7 +7835,7 @@ func (r *resolver) ResolveEndpoint(
 																					var out smithy.Properties
 																					smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 																						{
-																							SchemeID: "aws.auth#sigv4a",
+																							SchemeID: "sigv4a",
 																							SignerProperties: func() smithy.Properties {
 																								var sp smithy.Properties
 																								smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -7857,7 +7848,7 @@ func (r *resolver) ResolveEndpoint(
 																							}(),
 																						},
 																						{
-																							SchemeID: "aws.auth#sigv4",
+																							SchemeID: "sigv4",
 																							SignerProperties: func() smithy.Properties {
 																								var sp smithy.Properties
 																								smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -8002,7 +7993,7 @@ func (r *resolver) ResolveEndpoint(
 											var out smithy.Properties
 											smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 												{
-													SchemeID: "aws.auth#sigv4",
+													SchemeID: "sigv4",
 													SignerProperties: func() smithy.Properties {
 														var sp smithy.Properties
 														smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -8050,7 +8041,7 @@ func (r *resolver) ResolveEndpoint(
 												var out smithy.Properties
 												smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 													{
-														SchemeID: "aws.auth#sigv4",
+														SchemeID: "sigv4",
 														SignerProperties: func() smithy.Properties {
 															var sp smithy.Properties
 															smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -8099,7 +8090,7 @@ func (r *resolver) ResolveEndpoint(
 												var out smithy.Properties
 												smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 													{
-														SchemeID: "aws.auth#sigv4",
+														SchemeID: "sigv4",
 														SignerProperties: func() smithy.Properties {
 															var sp smithy.Properties
 															smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -8145,7 +8136,7 @@ func (r *resolver) ResolveEndpoint(
 											var out smithy.Properties
 											smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 												{
-													SchemeID: "aws.auth#sigv4",
+													SchemeID: "sigv4",
 													SignerProperties: func() smithy.Properties {
 														var sp smithy.Properties
 														smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -8193,7 +8184,7 @@ func (r *resolver) ResolveEndpoint(
 												var out smithy.Properties
 												smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 													{
-														SchemeID: "aws.auth#sigv4",
+														SchemeID: "sigv4",
 														SignerProperties: func() smithy.Properties {
 															var sp smithy.Properties
 															smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -8242,7 +8233,7 @@ func (r *resolver) ResolveEndpoint(
 												var out smithy.Properties
 												smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 													{
-														SchemeID: "aws.auth#sigv4",
+														SchemeID: "sigv4",
 														SignerProperties: func() smithy.Properties {
 															var sp smithy.Properties
 															smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -8288,7 +8279,7 @@ func (r *resolver) ResolveEndpoint(
 											var out smithy.Properties
 											smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 												{
-													SchemeID: "aws.auth#sigv4",
+													SchemeID: "sigv4",
 													SignerProperties: func() smithy.Properties {
 														var sp smithy.Properties
 														smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -8336,7 +8327,7 @@ func (r *resolver) ResolveEndpoint(
 												var out smithy.Properties
 												smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 													{
-														SchemeID: "aws.auth#sigv4",
+														SchemeID: "sigv4",
 														SignerProperties: func() smithy.Properties {
 															var sp smithy.Properties
 															smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -8385,7 +8376,7 @@ func (r *resolver) ResolveEndpoint(
 												var out smithy.Properties
 												smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 													{
-														SchemeID: "aws.auth#sigv4",
+														SchemeID: "sigv4",
 														SignerProperties: func() smithy.Properties {
 															var sp smithy.Properties
 															smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -8437,7 +8428,7 @@ func (r *resolver) ResolveEndpoint(
 												var out smithy.Properties
 												smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 													{
-														SchemeID: "aws.auth#sigv4",
+														SchemeID: "sigv4",
 														SignerProperties: func() smithy.Properties {
 															var sp smithy.Properties
 															smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -8491,7 +8482,7 @@ func (r *resolver) ResolveEndpoint(
 														var out smithy.Properties
 														smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 															{
-																SchemeID: "aws.auth#sigv4",
+																SchemeID: "sigv4",
 																SignerProperties: func() smithy.Properties {
 																	var sp smithy.Properties
 																	smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -8530,7 +8521,7 @@ func (r *resolver) ResolveEndpoint(
 													var out smithy.Properties
 													smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 														{
-															SchemeID: "aws.auth#sigv4",
+															SchemeID: "sigv4",
 															SignerProperties: func() smithy.Properties {
 																var sp smithy.Properties
 																smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -8584,7 +8575,7 @@ func (r *resolver) ResolveEndpoint(
 													var out smithy.Properties
 													smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 														{
-															SchemeID: "aws.auth#sigv4",
+															SchemeID: "sigv4",
 															SignerProperties: func() smithy.Properties {
 																var sp smithy.Properties
 																smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -8631,7 +8622,7 @@ func (r *resolver) ResolveEndpoint(
 											var out smithy.Properties
 											smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 												{
-													SchemeID: "aws.auth#sigv4",
+													SchemeID: "sigv4",
 													SignerProperties: func() smithy.Properties {
 														var sp smithy.Properties
 														smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -8678,7 +8669,7 @@ func (r *resolver) ResolveEndpoint(
 													var out smithy.Properties
 													smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 														{
-															SchemeID: "aws.auth#sigv4",
+															SchemeID: "sigv4",
 															SignerProperties: func() smithy.Properties {
 																var sp smithy.Properties
 																smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -8718,7 +8709,7 @@ func (r *resolver) ResolveEndpoint(
 												var out smithy.Properties
 												smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 													{
-														SchemeID: "aws.auth#sigv4",
+														SchemeID: "sigv4",
 														SignerProperties: func() smithy.Properties {
 															var sp smithy.Properties
 															smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -8767,7 +8758,7 @@ func (r *resolver) ResolveEndpoint(
 												var out smithy.Properties
 												smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 													{
-														SchemeID: "aws.auth#sigv4",
+														SchemeID: "sigv4",
 														SignerProperties: func() smithy.Properties {
 															var sp smithy.Properties
 															smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -8835,7 +8826,7 @@ func (r *resolver) ResolveEndpoint(
 										var out smithy.Properties
 										smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 											{
-												SchemeID: "aws.auth#sigv4",
+												SchemeID: "sigv4",
 												SignerProperties: func() smithy.Properties {
 													var sp smithy.Properties
 													smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -8875,7 +8866,7 @@ func (r *resolver) ResolveEndpoint(
 									var out smithy.Properties
 									smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 										{
-											SchemeID: "aws.auth#sigv4",
+											SchemeID: "sigv4",
 											SignerProperties: func() smithy.Properties {
 												var sp smithy.Properties
 												smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -8913,7 +8904,7 @@ func (r *resolver) ResolveEndpoint(
 								var out smithy.Properties
 								smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 									{
-										SchemeID: "aws.auth#sigv4",
+										SchemeID: "sigv4",
 										SignerProperties: func() smithy.Properties {
 											var sp smithy.Properties
 											smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -8963,7 +8954,7 @@ func (r *resolver) ResolveEndpoint(
 											var out smithy.Properties
 											smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 												{
-													SchemeID: "aws.auth#sigv4",
+													SchemeID: "sigv4",
 													SignerProperties: func() smithy.Properties {
 														var sp smithy.Properties
 														smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -9009,7 +9000,7 @@ func (r *resolver) ResolveEndpoint(
 												var out smithy.Properties
 												smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 													{
-														SchemeID: "aws.auth#sigv4",
+														SchemeID: "sigv4",
 														SignerProperties: func() smithy.Properties {
 															var sp smithy.Properties
 															smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -9056,7 +9047,7 @@ func (r *resolver) ResolveEndpoint(
 												var out smithy.Properties
 												smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 													{
-														SchemeID: "aws.auth#sigv4",
+														SchemeID: "sigv4",
 														SignerProperties: func() smithy.Properties {
 															var sp smithy.Properties
 															smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -9100,7 +9091,7 @@ func (r *resolver) ResolveEndpoint(
 											var out smithy.Properties
 											smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 												{
-													SchemeID: "aws.auth#sigv4",
+													SchemeID: "sigv4",
 													SignerProperties: func() smithy.Properties {
 														var sp smithy.Properties
 														smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -9146,7 +9137,7 @@ func (r *resolver) ResolveEndpoint(
 												var out smithy.Properties
 												smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 													{
-														SchemeID: "aws.auth#sigv4",
+														SchemeID: "sigv4",
 														SignerProperties: func() smithy.Properties {
 															var sp smithy.Properties
 															smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -9193,7 +9184,7 @@ func (r *resolver) ResolveEndpoint(
 												var out smithy.Properties
 												smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 													{
-														SchemeID: "aws.auth#sigv4",
+														SchemeID: "sigv4",
 														SignerProperties: func() smithy.Properties {
 															var sp smithy.Properties
 															smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -9237,7 +9228,7 @@ func (r *resolver) ResolveEndpoint(
 											var out smithy.Properties
 											smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 												{
-													SchemeID: "aws.auth#sigv4",
+													SchemeID: "sigv4",
 													SignerProperties: func() smithy.Properties {
 														var sp smithy.Properties
 														smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -9283,7 +9274,7 @@ func (r *resolver) ResolveEndpoint(
 												var out smithy.Properties
 												smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 													{
-														SchemeID: "aws.auth#sigv4",
+														SchemeID: "sigv4",
 														SignerProperties: func() smithy.Properties {
 															var sp smithy.Properties
 															smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -9330,7 +9321,7 @@ func (r *resolver) ResolveEndpoint(
 												var out smithy.Properties
 												smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 													{
-														SchemeID: "aws.auth#sigv4",
+														SchemeID: "sigv4",
 														SignerProperties: func() smithy.Properties {
 															var sp smithy.Properties
 															smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -9381,7 +9372,7 @@ func (r *resolver) ResolveEndpoint(
 												var out smithy.Properties
 												smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 													{
-														SchemeID: "aws.auth#sigv4",
+														SchemeID: "sigv4",
 														SignerProperties: func() smithy.Properties {
 															var sp smithy.Properties
 															smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -9434,7 +9425,7 @@ func (r *resolver) ResolveEndpoint(
 														var out smithy.Properties
 														smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 															{
-																SchemeID: "aws.auth#sigv4",
+																SchemeID: "sigv4",
 																SignerProperties: func() smithy.Properties {
 																	var sp smithy.Properties
 																	smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -9472,7 +9463,7 @@ func (r *resolver) ResolveEndpoint(
 													var out smithy.Properties
 													smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 														{
-															SchemeID: "aws.auth#sigv4",
+															SchemeID: "sigv4",
 															SignerProperties: func() smithy.Properties {
 																var sp smithy.Properties
 																smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -9525,7 +9516,7 @@ func (r *resolver) ResolveEndpoint(
 													var out smithy.Properties
 													smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 														{
-															SchemeID: "aws.auth#sigv4",
+															SchemeID: "sigv4",
 															SignerProperties: func() smithy.Properties {
 																var sp smithy.Properties
 																smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -9570,7 +9561,7 @@ func (r *resolver) ResolveEndpoint(
 											var out smithy.Properties
 											smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 												{
-													SchemeID: "aws.auth#sigv4",
+													SchemeID: "sigv4",
 													SignerProperties: func() smithy.Properties {
 														var sp smithy.Properties
 														smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -9615,7 +9606,7 @@ func (r *resolver) ResolveEndpoint(
 													var out smithy.Properties
 													smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 														{
-															SchemeID: "aws.auth#sigv4",
+															SchemeID: "sigv4",
 															SignerProperties: func() smithy.Properties {
 																var sp smithy.Properties
 																smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -9653,7 +9644,7 @@ func (r *resolver) ResolveEndpoint(
 												var out smithy.Properties
 												smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 													{
-														SchemeID: "aws.auth#sigv4",
+														SchemeID: "sigv4",
 														SignerProperties: func() smithy.Properties {
 															var sp smithy.Properties
 															smithyhttp.SetDisableDoubleEncoding(&sp, true)
@@ -9700,7 +9691,7 @@ func (r *resolver) ResolveEndpoint(
 												var out smithy.Properties
 												smithyauth.SetAuthOptions(&out, []*smithyauth.Option{
 													{
-														SchemeID: "aws.auth#sigv4",
+														SchemeID: "sigv4",
 														SignerProperties: func() smithy.Properties {
 															var sp smithy.Properties
 															smithyhttp.SetDisableDoubleEncoding(&sp, true)
