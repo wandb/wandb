@@ -1384,6 +1384,7 @@ class Api:
         self,
         project_name: str,
         type_name: str,
+        order: str | None = None,
         per_page: int = 50,
         start: str | None = None,
     ) -> ArtifactCollections:
@@ -1418,6 +1419,7 @@ class Api:
             entity,
             project,
             type_name,
+            order=order,
             per_page=per_page,
             start=start,
         )
@@ -1502,6 +1504,7 @@ class Api:
         self,
         type_name: str,
         name: str,
+        order: str | None = None,
         per_page: int = 50,
         tags: list[str] | None = None,
         start: str | None = None,
@@ -1583,6 +1586,7 @@ class Api:
             project,
             collection_name,
             type_name,
+            order=order,
             per_page=per_page,
             tags=tags,
             start=start,
@@ -1875,6 +1879,7 @@ class Api:
         self,
         organization: str | None = None,
         filter: dict[str, Any] | None = None,
+        order: str | None = None,
         per_page: int = 100,
         start: str | None = None,
     ) -> Registries:
@@ -1967,6 +1972,7 @@ class Api:
             self._service_api,
             organization=organization,
             filter=filter,
+            order=order,
             per_page=per_page,
             start=start,
         )

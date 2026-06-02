@@ -41,6 +41,7 @@ class Registries(RelayPaginator["RegistryFragment", "Registry"]):
         service_api: ServiceApi,
         organization: str,
         filter: dict[str, Any] | None = None,
+        order: str | None = None,
         per_page: PositiveInt = 100,
         start: str | None = None,
     ):
@@ -53,7 +54,11 @@ class Registries(RelayPaginator["RegistryFragment", "Registry"]):
         self.filter = ensure_registry_prefix_on_names(filter or {})
         self._service_api = service_api
 
-        variables = {"organization": organization, "filters": json.dumps(self.filter)}
+        variables = {
+            "organization": organization,
+            "filters": json.dumps(self.filter),
+            "order": order,
+        }
         super().__init__(
             service_api, variables=variables, per_page=per_page, start=start
         )
@@ -70,6 +75,7 @@ class Registries(RelayPaginator["RegistryFragment", "Registry"]):
     def collections(
         self,
         filter: dict[str, Any] | None = None,
+        order: str | None = None,
         per_page: PositiveInt = 100,
         start: str | None = None,
     ) -> Collections:
@@ -78,6 +84,7 @@ class Registries(RelayPaginator["RegistryFragment", "Registry"]):
             organization=self.organization,
             registry_filter=self.filter,
             collection_filter=filter,
+            order=order,
             per_page=per_page,
             start=start,
         )
@@ -86,6 +93,7 @@ class Registries(RelayPaginator["RegistryFragment", "Registry"]):
     def versions(
         self,
         filter: dict[str, Any] | None = None,
+        order: str | None = None,
         per_page: PositiveInt = 100,
         start: str | None = None,
     ) -> Versions:
@@ -95,6 +103,7 @@ class Registries(RelayPaginator["RegistryFragment", "Registry"]):
             registry_filter=self.filter,
             collection_filter=None,
             artifact_filter=filter,
+            order=order,
             per_page=per_page,
             start=start,
         )
@@ -150,6 +159,7 @@ class Collections(
         organization: str,
         registry_filter: dict[str, Any] | None = None,
         collection_filter: dict[str, Any] | None = None,
+        order: str | None = None,
         per_page: PositiveInt = 100,
         start: str | None = None,
     ):
@@ -167,6 +177,7 @@ class Collections(
             "registryFilter": json.dumps(f) if (f := registry_filter) else None,
             "collectionFilter": json.dumps(f) if (f := collection_filter) else None,
             "organization": organization,
+            "order": order,
             "perPage": per_page,
         }
         super().__init__(
@@ -185,6 +196,7 @@ class Collections(
     def versions(
         self,
         filter: dict[str, Any] | None = None,
+        order: str | None = None,
         per_page: PositiveInt = 100,
         start: str | None = None,
     ) -> Versions:
@@ -194,6 +206,7 @@ class Collections(
             registry_filter=self.registry_filter,
             collection_filter=self.collection_filter,
             artifact_filter=filter,
+            order=order,
             per_page=per_page,
             start=start,
         )
@@ -252,6 +265,7 @@ class Versions(RelayPaginator["ArtifactMembershipFragment", "Artifact"]):
         registry_filter: dict[str, Any] | None = None,
         collection_filter: dict[str, Any] | None = None,
         artifact_filter: dict[str, Any] | None = None,
+        order: str | None = None,
         per_page: PositiveInt = 100,
         start: str | None = None,
     ):
@@ -270,6 +284,7 @@ class Versions(RelayPaginator["ArtifactMembershipFragment", "Artifact"]):
             "collectionFilter": json.dumps(f) if (f := collection_filter) else None,
             "artifactFilter": json.dumps(f) if (f := artifact_filter) else None,
             "organization": organization,
+            "order": order,
         }
         super().__init__(
             service_api, variables=variables, per_page=per_page, start=start

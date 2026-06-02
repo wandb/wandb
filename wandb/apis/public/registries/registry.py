@@ -195,6 +195,7 @@ class Registry:
     def collections(
         self,
         filter: dict[str, Any] | None = None,
+        order: str | None = None,
         per_page: PositiveInt = 100,
         start: str | None = None,
     ) -> Collections:
@@ -204,6 +205,7 @@ class Registry:
             organization=self.organization,
             registry_filter={"name": self.full_name},
             collection_filter=filter,
+            order=order,
             per_page=per_page,
             start=start,
         )
@@ -212,6 +214,7 @@ class Registry:
     def versions(
         self,
         filter: dict[str, Any] | None = None,
+        order: str | None = None,
         per_page: PositiveInt = 100,
         start: str | None = None,
     ) -> Versions:
@@ -221,6 +224,7 @@ class Registry:
             organization=self.organization,
             registry_filter={"name": self.full_name},
             collection_filter=None,
+            order=order,
             artifact_filter=filter,
             per_page=per_page,
             start=start,
