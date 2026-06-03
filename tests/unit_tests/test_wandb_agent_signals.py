@@ -182,6 +182,32 @@ def test_agent_process_kills_function_process_on_sigkill(monkeypatch):
     mock_proc.kill.assert_called_once()
 
 
+def test_agent_run_exits_without_further_heartbeat_on_shutdown_signal(monkeypatch):
+    """_ShutdownSignal raised inside the loop must stop the heartbeat and
+    run the wait/terminate cleanup cascade on active run processes."""
+    api = mock.Mock()
+    api.sweep.return_value = {"config": ""}
+    api.register_agent.return_value = {"id": "agent-1"}
+    api.agent_heartbeat.side_effect = wandb_agent._ShutdownSignal
+
+    monkeypatch.setattr(
+        wandb_agent.util, "read_many_from_queue", lambda *a, **kw: []
+    )
+
+    agent = wandb_agent.Agent(api=api, queue=mock.Mock(), sweep_id="sweep-1")
+
+    run_process = mock.Mock()
+    run_process.poll.return_value = None
+    agent._run_processes["run-1"] = run_process
+
+    # _ShutdownSignal must be caught inside Agent.run, not escape.
+    agent.run()
+
+    assert api.agent_heartbeat.call_count == 1
+    run_process.wait.assert_called()
+    run_process.terminate.assert_called()
+
+
 @pytest.mark.skipif(os.name == "nt", reason="POSIX-only signal registration path")
 def test_agent_process_continues_when_signal_registration_fails(monkeypatch):
     bad_signal = 9999
