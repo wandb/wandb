@@ -79,12 +79,10 @@ bokeh==3.9.0
     # via -r requirements/requirements_dev.txt
 boto3==1.43.6
     # via
-    #   -r requirements/requirements_dev.txt
     #   metaflow
     #   wandb
 botocore==1.43.6
     # via
-    #   -r requirements/requirements_dev.txt
     #   awscli
     #   boto3
     #   s3transfer
@@ -113,7 +111,6 @@ charset-normalizer==3.4.7
     # via requests
 click==8.3.3
     # via
-    #   -r requirements/requirements_dev.txt
     #   ariadne-codegen
     #   black
     #   click-option-group
@@ -248,9 +245,7 @@ google-auth==2.52.0
     #   kubernetes
     #   wandb
 google-cloud-aiplatform==1.115.0
-    # via
-    #   -r requirements/requirements_dev.txt
-    #   wandb
+    # via wandb
 google-cloud-artifact-registry==1.21.0
     # via wandb
 google-cloud-bigquery==3.41.0
@@ -679,9 +674,7 @@ polars-runtime-32==1.40.1
 proglog==0.1.12
     # via moviepy
 prometheus-client==0.25.0
-    # via
-    #   -r requirements/requirements_dev.txt
-    #   jupyter-server
+    # via jupyter-server
 prompt-toolkit==3.0.52
     # via
     #   ipython
@@ -735,7 +728,6 @@ pycparser==3.0
     # via cffi
 pydantic==2.13.4
     # via
-    #   -r requirements/requirements_dev.txt
     #   ariadne-codegen
     #   dspy
     #   fastapi
@@ -841,7 +833,6 @@ regex==2026.4.4
     #   tiktoken
 requests==2.33.1
     # via
-    #   -r requirements/requirements_dev.txt
     #   azure-core
     #   docker
     #   dspy
