@@ -2194,6 +2194,9 @@ def agent(ctx, project, entity, count, forward_signals, sweep_id):
         )
     # TODO: handle other errors with correct exit codes
     except SweepNotFoundError:
+        # The agent loop has already printed the "Sweep was deleted or agent was
+        # not found" error to the terminal before re-raising, so here we only
+        # need to translate it into a non-zero exit code.
         sys.exit(1)
 
     # you can send local commands like so:

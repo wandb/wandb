@@ -13,6 +13,7 @@ import sys
 import threading
 import time
 import traceback
+from typing import Any
 
 import wandb
 from wandb.apis import InternalApi
@@ -158,9 +159,37 @@ class Agent:
         self._exit_flag = True
         # _terminate_thread(self._main_thread)
 
-    def _has_in_flight_work_after_sweep_removed(self) -> bool:
+    def _has_running_thread(self) -> bool:
         """True while an in-process trial thread is still running."""
         return any(t.is_alive() for t in self._run_threads.values())
+
+    def _heartbeat_commands(self, run_status: dict) -> list[dict[str, Any]]:
+        """Fetch the next batch of agent commands from the server."""
+        if self._sweep_not_found:
+            # The sweep was deleted; stop heartbeating but let the in-process
+            # run finish before we shut the agent down.
+            return []
+
+        try:
+            with self._api_lock:
+                return self._api.agent_heartbeat(self._agent_id, {}, run_status)
+        except SweepNotFoundError:
+            self._sweep_not_found = True
+            if self._has_running_thread():
+                wandb.termerror(
+                    "Sweep was deleted or agent was not found. "
+                    "Waiting for the in-process run to finish."
+                )
+            return []
+
+    def _stop_if_deleted_sweep_drained(self) -> bool:
+        """Stop the agent once a deleted sweep has no in-process run left."""
+        if not self._sweep_not_found or self._has_running_thread():
+            return False
+
+        wandb.termerror("Sweep was deleted or agent was not found. Stopping sweep.")
+        self._exit_flag = True
+        return True
 
     def _heartbeat(self):
         while True:
@@ -173,26 +202,7 @@ class Agent:
                 for run, status in self._run_status.items()
                 if status in (RunStatus.QUEUED, RunStatus.RUNNING)
             }
-            if self._sweep_not_found:
-                # avoid sending heartbeat if the sweep was deleted
-                # allow the agent to finish the in-process run
-                commands = []
-            else:
-                try:
-                    with self._api_lock:
-                        commands = self._api.agent_heartbeat(
-                            self._agent_id,
-                            {},
-                            run_status,
-                        )
-                except SweepNotFoundError:
-                    self._sweep_not_found = True
-                    commands = []
-                    if self._has_in_flight_work_after_sweep_removed():
-                        wandb.termerror(
-                            "Sweep was deleted or agent was not found. "
-                            "Waiting for the in-process run to finish."
-                        )
+            commands = self._heartbeat_commands(run_status)
             if commands:
                 job = Job(commands[0])
                 logger.debug(f"Job received: {job}")
@@ -204,14 +214,7 @@ class Agent:
                 elif job.type == "exit":
                     self._exit()
                     return
-            if (
-                self._sweep_not_found
-                and not self._has_in_flight_work_after_sweep_removed()
-            ):
-                wandb.termerror(
-                    "Sweep was deleted or agent was not found. Stopping sweep."
-                )
-                self._exit_flag = True
+            if self._stop_if_deleted_sweep_drained():
                 continue  # skip sleep
             time.sleep(self.HEARTBEAT_SLEEP_SECONDS)
 
