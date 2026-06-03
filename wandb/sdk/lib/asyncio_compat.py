@@ -25,10 +25,9 @@ def run(fn: Callable[[], Coroutine[Any, Any, _T]]) -> _T:
     """
     with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
         runner = CancellableRunner()
-        future = executor.submit(runner.run, fn)
 
         try:
-            return future.result()
+            return executor.submit(runner.run, fn).result()
 
         finally:
             runner.cancel()
