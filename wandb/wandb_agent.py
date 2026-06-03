@@ -267,6 +267,7 @@ class Agent:
         self._in_jupyter = in_jupyter
         self._log = []
         self._running = True
+        self._start_time = time.time()
         self._last_report_time = None
         self._function = function
         self._report_interval = wandb.env.get_agent_report_interval(
@@ -297,7 +298,7 @@ class Agent:
         """
         if os.getenv(wandb.env.AGENT_DISABLE_FLAPPING) == "true":
             return False
-        if time.time() < wandb.START_TIME + self.FLAPPING_MAX_SECONDS:
+        if time.time() < self._start_time + self.FLAPPING_MAX_SECONDS:
             return self._failed >= self.FLAPPING_MAX_FAILURES
 
     def is_failing(self):
@@ -384,12 +385,18 @@ class Agent:
                     # the run should be marked complete.  This however could require
                     # inform_finish on every run created by this process.
                     if hasattr(wandb, "teardown"):
+                        from wandb.apis import InternalApi
+
                         exit_code = 0
                         if isinstance(poll_result, int):
                             exit_code = poll_result
                         elif isinstance(poll_result, bool):
                             exit_code = -1
                         wandb.teardown(exit_code)
+                        # The agent outlives user jobs, but teardown closes
+                        # the service-backed API resources used for the
+                        # subsequent heartbeats.
+                        self._api = InternalApi()
 
                     del self._run_processes[run_id]
                     self._last_report_time = None
@@ -511,7 +518,13 @@ class Agent:
 
         if self._function:
             # make sure that each run regenerates setup singleton
+            from wandb.apis import InternalApi
+
             wandb.teardown()
+            # The agent outlives user jobs, but teardown closes the
+            # service-backed API resources used for the subsequent
+            # heartbeats.
+            self._api = InternalApi()
             proc = AgentProcess(
                 function=self._function,
                 env=env,

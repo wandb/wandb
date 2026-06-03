@@ -29,7 +29,6 @@ from wandb import Config, Error, env, util, wandb_agent
 from wandb.analytics import get_sentry
 from wandb.apis import InternalApi, PublicApi
 from wandb.errors.links import url_registry
-from wandb.old import core as old_core
 from wandb.sdk import wandb_setup, wandb_sweep
 from wandb.sdk.artifacts._validators import is_artifact_registry_project
 from wandb.sdk.artifacts.artifact_file_cache import get_artifact_file_cache
@@ -45,8 +44,28 @@ from wandb.sync import SyncManager, get_run_from_path, get_runs
 
 from .beta import beta
 
+
+def _get_wandb_dir(root_dir: str | None = None) -> str:
+    if root_dir is None or root_dir == "":
+        try:
+            cwd = os.getcwd()
+        except OSError:
+            wandb.termwarn("os.getcwd() no longer exists, using system temp directory")
+            cwd = tempfile.gettempdir()
+        root_dir = env.get_dir(cwd)
+
+    dirname = ".wandb" if os.path.exists(os.path.join(root_dir, ".wandb")) else "wandb"
+    path = os.path.join(root_dir, dirname)
+    if not os.access(root_dir, os.W_OK):
+        wandb.termwarn(
+            f"Path {path} wasn't writable, using system temp directory", repeat=False
+        )
+        path = os.path.join(tempfile.gettempdir(), dirname)
+    return path
+
+
 # Send cli logs to wandb/debug-cli.<username>.log by default and fallback to a temp dir.
-_wandb_dir = old_core.wandb_dir(env.get_dir())
+_wandb_dir = _get_wandb_dir(env.get_dir())
 if not os.path.exists(_wandb_dir) or not os.access(_wandb_dir, os.W_OK):
     _wandb_dir = tempfile.gettempdir()
 
@@ -3229,7 +3248,6 @@ def restore(ctx, run, no_git, branch, project, entity):
 
         $ wandb restore other-team/their-project:abcd1234
     """
-    from wandb.old.core import wandb_dir
     from wandb.sdk.lib.gitlib import GitRepo
 
     api = _get_cling_api()
@@ -3291,7 +3309,7 @@ Run `git clone {repo}` and restore from there or pass the --no-git flag."""
                 raise ClickException(restore_message)
         else:
             if patch_content:
-                patch_path = os.path.join(wandb_dir(), "diff.patch")
+                patch_path = os.path.join(_get_wandb_dir(), "diff.patch")
                 with open(patch_path, "w") as f:
                     f.write(patch_content)
             else:
@@ -3327,8 +3345,9 @@ Run `git clone {repo}` and restore from there or pass the --no-git flag."""
                     "Failed to apply patch, try un-staging any un-committed changes"
                 )
 
-    filesystem.mkdir_exists_ok(wandb_dir())
-    config_path = os.path.join(wandb_dir(), "config.yaml")
+    wandb_dir = _get_wandb_dir()
+    filesystem.mkdir_exists_ok(wandb_dir)
+    config_path = os.path.join(wandb_dir, "config.yaml")
     config = Config()
     for k, v in json_config.items():
         if k not in ("_wandb", "wandb_version"):

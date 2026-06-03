@@ -93,6 +93,7 @@ class Agent:
         # loc_config = 'wandb/settings'
         # files = (glob_config, loc_config)
         self._api = InternalApi()
+        self._api_lock = threading.Lock()
         self._agent_id = None
         self._max_initial_failures = wandb.env.get_agent_max_initial_failures(
             self.MAX_INITIAL_FAILURES
@@ -166,7 +167,12 @@ class Agent:
                 if status in (RunStatus.QUEUED, RunStatus.RUNNING)
             }
             try:
-                commands = self._api.agent_heartbeat(self._agent_id, {}, run_status)
+                with self._api_lock:
+                    commands = self._api.agent_heartbeat(
+                        self._agent_id,
+                        {},
+                        run_status,
+                    )
             except SweepNotFoundError:
                 wandb.termerror(
                     "Sweep was deleted or agent was not found. Stopping sweep."
@@ -294,7 +300,11 @@ class Agent:
             os.environ[wandb.env.SWEEP_PARAM_PATH] = sweep_param_path
             config_util.save_config_file_from_dict(sweep_param_path, job.config)
             os.environ[wandb.env.SWEEP_ID] = self._sweep_id
-            wandb.teardown()
+            with self._api_lock:
+                wandb.teardown()
+                # The agent outlives user jobs, but teardown closes the
+                # service-backed API resources used for heartbeats.
+                self._api = InternalApi()
 
             wandb.termlog(f"Agent Starting Run: {run_id} with config:")
             for k, v in job.config.items():

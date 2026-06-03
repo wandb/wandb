@@ -17,9 +17,14 @@ from wandb.automations import (
     DoNothing,
     EventType,
     OnAddArtifactAlias,
+    OnAddArtifactTag,
+    OnAddCollectionTag,
     OnCreateArtifact,
     OnLinkArtifact,
+    OnRemoveArtifactTag,
+    OnRemoveCollectionTag,
     OnRunMetric,
+    OnUnlinkArtifact,
     RunEvent,
     ScopeType,
     SendNotification,
@@ -80,9 +85,9 @@ def automation_id() -> str:
 @fixture(scope="session")
 def mock_client(session_mocker: MockerFixture) -> Mock:
     """A mocked wandb client to prevent real API calls."""
-    from wandb.apis.public import RetryingClient
+    from wandb.apis.public.service_api import ServiceApi
 
-    return session_mocker.Mock(spec=RetryingClient)
+    return session_mocker.Mock(spec=ServiceApi)
 
 
 @fixture(scope="session")
@@ -100,7 +105,7 @@ def artifact_collection(mock_client: Mock) -> ArtifactCollection:
     entity_name = "test-entity"
     collection_type = "dataset"
     collection = ArtifactCollection(
-        client=mock_client,
+        service_api=mock_client,
         entity=entity_name,
         project=project_name,
         name=collection_name,
@@ -137,13 +142,12 @@ def project(mock_client: Mock) -> Project:
     Tests relying on real `wandb.Api` calls should live in system tests.
     """
     return Project(
-        client=mock_client,
+        service_api=mock_client,
         entity="test-entity",
         project="test-project",
         attrs={
             "id": make_graphql_id(prefix="Project"),
         },
-        service_api=Mock(),
     )
 
 
@@ -228,11 +232,48 @@ def on_add_artifact_alias(scope: ScopableWandbType) -> OnAddArtifactAlias:
 
 
 @fixture
+def on_add_artifact_tag(scope: ScopableWandbType) -> OnAddArtifactTag:
+    return OnAddArtifactTag(
+        scope=scope,
+        filter=ArtifactEvent.tag.matches_regex("^prod-.*"),
+    )
+
+
+@fixture
+def on_remove_artifact_tag(scope: ScopableWandbType) -> OnRemoveArtifactTag:
+    return OnRemoveArtifactTag(
+        scope=scope,
+        filter=ArtifactEvent.tag.matches_regex("^prod-.*"),
+    )
+
+
+@fixture
+def on_add_collection_tag(scope: ScopableWandbType) -> OnAddCollectionTag:
+    return OnAddCollectionTag(
+        scope=scope,
+        filter=ArtifactEvent.tag.matches_regex("^prod-.*"),
+    )
+
+
+@fixture
+def on_remove_collection_tag(scope: ScopableWandbType) -> OnRemoveCollectionTag:
+    return OnRemoveCollectionTag(
+        scope=scope,
+        filter=ArtifactEvent.tag.matches_regex("^prod-.*"),
+    )
+
+
+@fixture
 def on_link_artifact(scope: ScopableWandbType) -> OnLinkArtifact:
     return OnLinkArtifact(
         scope=scope,
         filter=ArtifactEvent.alias.matches_regex("^prod-.*"),
     )
+
+
+@fixture
+def on_unlink_artifact(scope: ScopableWandbType) -> OnUnlinkArtifact:
+    return OnUnlinkArtifact(scope=scope)
 
 
 @fixture
@@ -281,7 +322,12 @@ def input_event(request: FixtureRequest, event_type: EventType) -> InputEvent:
     event2fixture: dict[EventType, str] = {
         EventType.CREATE_ARTIFACT: on_create_artifact.__name__,
         EventType.ADD_ARTIFACT_ALIAS: on_add_artifact_alias.__name__,
+        EventType.ADD_ARTIFACT_TAG: on_add_artifact_tag.__name__,
+        EventType.REMOVE_ARTIFACT_TAG: on_remove_artifact_tag.__name__,
+        EventType.ADD_COLLECTION_TAG: on_add_collection_tag.__name__,
+        EventType.REMOVE_COLLECTION_TAG: on_remove_collection_tag.__name__,
         EventType.LINK_ARTIFACT: on_link_artifact.__name__,
+        EventType.UNLINK_ARTIFACT: on_unlink_artifact.__name__,
         EventType.RUN_METRIC_THRESHOLD: on_run_metric_threshold.__name__,
         EventType.RUN_METRIC_CHANGE: on_run_metric_change.__name__,
         EventType.RUN_METRIC_ZSCORE: on_run_metric_zscore.__name__,
@@ -292,8 +338,13 @@ def input_event(request: FixtureRequest, event_type: EventType) -> InputEvent:
 
 _MUTATION_EVENT_TYPES = (
     EventType.ADD_ARTIFACT_ALIAS,
+    EventType.ADD_ARTIFACT_TAG,
+    EventType.ADD_COLLECTION_TAG,
     EventType.LINK_ARTIFACT,
+    EventType.REMOVE_ARTIFACT_TAG,
+    EventType.REMOVE_COLLECTION_TAG,
     EventType.CREATE_ARTIFACT,
+    EventType.UNLINK_ARTIFACT,
 )
 
 

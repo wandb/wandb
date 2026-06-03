@@ -21,11 +21,12 @@ def test_agent_basic(user):
     sweep_ids = []
     sweep_configs = []
     sweep_resumed = []
+    project = "test-agent-basic"
 
     sweep_config = {
-        "name": "My Sweep",
+        "name": "test-agent-basic",
         "method": "grid",
-        "parameters": {"a": {"values": [1, 2, 3]}},
+        "parameters": {"a": {"values": [1]}},
     }
 
     def train():
@@ -35,9 +36,9 @@ def test_agent_basic(user):
         sweep_resumed.append(run.resumed)
         run.finish()
 
-    sweep_id = wandb.sweep(sweep_config)
+    sweep_id = wandb.sweep(sweep_config, entity=user, project=project)
 
-    wandb.agent(sweep_id, function=train, count=1)
+    wandb.agent(sweep_id, function=train, count=1, entity=user, project=project)
 
     assert len(sweep_ids) == len(sweep_configs) == 1
     assert sweep_ids[0] == sweep_id
@@ -47,6 +48,7 @@ def test_agent_basic(user):
 
 def test_agent_config_merge(user, monkeypatch):
     sweep_configs = []
+    project = "test-agent-config-merge"
 
     def train():
         run = wandb.init(config={"extra": 2})
@@ -54,14 +56,14 @@ def test_agent_config_merge(user, monkeypatch):
         run.finish()
 
     sweep_config = {
-        "name": "My Sweep",
+        "name": "test-agent-config-merge",
         "method": "grid",
-        "parameters": {"a": {"values": [1, 2, 3]}},
+        "parameters": {"a": {"values": [1]}},
     }
 
     monkeypatch.setenv("WANDB_CONSOLE", "off")
-    sweep_id = wandb.sweep(sweep_config)
-    wandb.agent(sweep_id, function=train, count=1)
+    sweep_id = wandb.sweep(sweep_config, entity=user, project=project)
+    wandb.agent(sweep_id, function=train, count=1, entity=user, project=project)
 
     assert len(sweep_configs) == 1
     assert sweep_configs[0] == {"a": 1, "extra": 2}
@@ -69,6 +71,7 @@ def test_agent_config_merge(user, monkeypatch):
 
 def test_agent_config_whitespace_py_agent(user, monkeypatch):
     ran = False
+    project = "test-agent-config-whitespace-py-agent"
 
     def train():
         nonlocal ran
@@ -80,7 +83,7 @@ def test_agent_config_whitespace_py_agent(user, monkeypatch):
         ran = True
 
     sweep_config = {
-        "name": "My Sweep",
+        "name": "test-agent-config-whitespace-py-agent",
         "method": "grid",
         "parameters": {
             "a": {"values": ["one two"]},
@@ -90,8 +93,8 @@ def test_agent_config_whitespace_py_agent(user, monkeypatch):
     }
 
     monkeypatch.setenv("WANDB_CONSOLE", "off")
-    sweep_id = wandb.sweep(sweep_config)
-    wandb.agent(sweep_id, function=train, count=1)
+    sweep_id = wandb.sweep(sweep_config, entity=user, project=project)
+    wandb.agent(sweep_id, function=train, count=1, entity=user, project=project)
     assert ran
 
 
@@ -124,6 +127,7 @@ def test_agent_config_whitespace_cli_agent(runner, user):
 
 def test_agent_config_ignore(user):
     sweep_configs = []
+    project = "test-agent-config-ignore"
 
     def train():
         run = wandb.init(config={"a": "ignored", "extra": 2})
@@ -131,13 +135,13 @@ def test_agent_config_ignore(user):
         run.finish()
 
     sweep_config = {
-        "name": "My Sweep",
+        "name": "test-agent-config-ignore",
         "method": "grid",
-        "parameters": {"a": {"values": [1, 2, 3]}},
+        "parameters": {"a": {"values": [1]}},
     }
 
-    sweep_id = wandb.sweep(sweep_config)
-    wandb.agent(sweep_id, function=train, count=1)
+    sweep_id = wandb.sweep(sweep_config, entity=user, project=project)
+    wandb.agent(sweep_id, function=train, count=1, entity=user, project=project)
 
     assert len(sweep_configs) == 1
     assert sweep_configs[0] == {"a": 1, "extra": 2}
@@ -148,7 +152,7 @@ def test_agent_ignore_project_entity_run_id(user):
     sweep_projects = []
     sweep_run_ids = []
 
-    project_name = "actual"
+    project_name = "test-agent-ignore-project-entity-run-id"
     public_api = Api()
     public_api.create_project(project_name, user)
 
@@ -160,22 +164,23 @@ def test_agent_ignore_project_entity_run_id(user):
         run.finish()
 
     sweep_config = {
-        "name": "My Sweep",
+        "name": "test-agent-ignore-project-entity-run-id",
         "method": "grid",
         "parameters": {"a": {"values": [1, 2, 3]}},
     }
-    sweep_id = wandb.sweep(sweep_config, project=project_name)
-    wandb.agent(sweep_id, function=train, count=1, project=project_name)
+    sweep_id = wandb.sweep(sweep_config, entity=user, project=project_name)
+    wandb.agent(sweep_id, function=train, count=1, entity=user, project=project_name)
 
     assert len(sweep_projects) == len(sweep_entities) == 1
-    assert sweep_projects[0] == "actual"
+    assert sweep_projects[0] == project_name
     assert sweep_entities[0] == user
     assert sweep_run_ids[0] != "also_ignored"
 
 
 def test_agent_exception(user):
+    project = "test-agent-exception"
     sweep_config = {
-        "name": "My Sweep",
+        "name": "test-agent-exception",
         "method": "grid",
         "parameters": {"a": {"values": [1, 2, 3]}},
     }
@@ -184,11 +189,11 @@ def test_agent_exception(user):
         wandb.init()
         raise Exception("Unexpected error")
 
-    sweep_id = wandb.sweep(sweep_config)
+    sweep_id = wandb.sweep(sweep_config, entity=user, project=project)
 
     captured_stderr = io.StringIO()
     with contextlib.redirect_stderr(captured_stderr):
-        wandb.agent(sweep_id, function=train, count=1)
+        wandb.agent(sweep_id, function=train, count=1, entity=user, project=project)
 
     stderr_lines = captured_stderr.getvalue().splitlines()
 
@@ -234,13 +239,14 @@ def test_agent_subprocess_with_import_readline(user, monkeypatch):
 
 def test_agent_sweep_deleted(user):
     """Test that agent exits gracefully when sweep is deleted (404)."""
+    project = "test-agent-sweep-deleted"
     sweep_config = {
-        "name": "My Sweep",
+        "name": "test-agent-sweep-deleted",
         "method": "grid",
         "parameters": {"a": {"values": [1, 2, 3]}},
     }
 
-    sweep_id = wandb.sweep(sweep_config)
+    sweep_id = wandb.sweep(sweep_config, entity=user, project=project)
 
     captured_stderr = io.StringIO()
     with contextlib.redirect_stderr(captured_stderr):
@@ -248,7 +254,9 @@ def test_agent_sweep_deleted(user):
             "wandb.sdk.internal.internal_api.Api.agent_heartbeat",
             side_effect=SweepNotFoundError("Sweep not found"),
         ):
-            wandb.agent(sweep_id, function=lambda: None, count=1)
+            wandb.agent(
+                sweep_id, function=lambda: None, count=1, entity=user, project=project
+            )
 
     stderr_output = captured_stderr.getvalue()
     assert "Sweep was deleted or agent was not found" in stderr_output
@@ -256,7 +264,7 @@ def test_agent_sweep_deleted(user):
 
 def test_public_api_sweep_agent_retrieves_running_agent(user):
     """While a sweep agent is blocked in user code, Api().sweep().agent() returns it."""
-    project = "test"
+    project = "test-public-api-sweep-agent-retrieves-running-agent"
     sweep_id = wandb.sweep(SWEEP_CONFIG_GRID, entity=user, project=project)
 
     agent_id_queue = queue.Queue()
@@ -293,7 +301,7 @@ def test_public_api_sweep_agent_retrieves_running_agent(user):
 
 def test_public_api_sweep_agent_runs_lists_finished_run(user):
     """After three sweep runs finish, Agent.runs(per_page=2) returns all three (paginated)."""
-    project = "test"
+    project = "test-public-api-sweep-agent-runs-lists-finished-run"
     sweep_id = wandb.sweep(SWEEP_CONFIG_GRID, entity=user, project=project)
 
     def train():
@@ -330,8 +338,7 @@ def test_normal_run_after_agent_does_not_overwrite_sweep_run(user, runner, monke
 
     with runner.isolated_filesystem():
         project_name = "test-normal-run-after-agent"
-        public_api = Api()
-        public_api.create_project(project_name, user)
+        Api().create_project(project_name, user)
 
         sweep_run_ids = []
 
@@ -367,6 +374,9 @@ def test_normal_run_after_agent_does_not_overwrite_sweep_run(user, runner, monke
             assert run.id == normal_run_id, "Normal run should keep the explicit id"
             assert run.sweep_id is None, "Normal run must not be part of the sweep"
             # Sweep run must still exist and be unchanged (not overwritten).
+            # The agent's internal wandb.teardown() between jobs invalidates
+            # any wandb.Api() held from before, so create a fresh one here.
+            public_api = Api()
             sweep_runs = list(
                 public_api.runs(f"{user}/{project_name}", {"sweep": sweep_id})
             )

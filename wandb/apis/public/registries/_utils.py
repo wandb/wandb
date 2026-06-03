@@ -5,12 +5,10 @@ from enum import Enum
 from functools import lru_cache, partial
 from typing import TYPE_CHECKING, Any
 
-from wandb_gql import gql
-
 from wandb._strutils import ensureprefix
 
 if TYPE_CHECKING:
-    from wandb.apis.public.api import RetryingClient
+    from wandb.apis.public.service_api import ServiceApi
 
 
 class Visibility(str, Enum):
@@ -95,12 +93,12 @@ def ensure_registry_prefix_on_names(query: Any, in_name: bool = False) -> Any:
 
 @lru_cache(maxsize=10)
 def fetch_org_entity_from_organization(
-    client: RetryingClient, organization: str
+    service_api: ServiceApi, organization: str
 ) -> str:
     """Fetch the org entity from the organization.
 
     Args:
-        client (Client): Graphql client.
+        service_api: The service API instance to use for querying W&B.
         organization (str): The organization to fetch the org entity for.
     """
     from wandb.sdk.artifacts._generated import (
@@ -108,9 +106,11 @@ def fetch_org_entity_from_organization(
         FetchOrgEntityFromOrganization,
     )
 
-    gql_op = gql(FETCH_ORG_ENTITY_FROM_ORGANIZATION_GQL)
+    gql_op = FETCH_ORG_ENTITY_FROM_ORGANIZATION_GQL
     try:
-        data = client.execute(gql_op, variable_values={"organization": organization})
+        data = service_api.execute_graphql(
+            gql_op, variables={"organization": organization}
+        )
     except Exception as e:
         msg = f"Error fetching org entity for organization: {organization!r}"
         raise ValueError(msg) from e
