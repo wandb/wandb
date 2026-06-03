@@ -369,32 +369,14 @@ class Agent:
                     self._last_report_time = None
                     self._finished += 1
 
-                if self._sweep_not_found and not self._run_processes:
-                    self._running = False
+                if self._stop_if_deleted_sweep_drained():
                     continue
 
                 if self._count and self._finished >= self._count or not self._running:
                     self._running = False
                     continue
 
-                if self._sweep_not_found:
-                    commands = []
-                else:
-                    try:
-                        commands = self._api.agent_heartbeat(agent_id, {}, run_status)
-                    except SweepNotFoundError:
-                        if self._run_processes:
-                            wandb.termerror(
-                                "Sweep was deleted or agent was not found. "
-                                "Waiting for active runs to finish."
-                            )
-                            self._sweep_not_found = True
-                            commands = []
-                        else:
-                            wandb.termerror(
-                                "Sweep was deleted or agent was not found. Stopping agent."
-                            )
-                            raise
+                commands = self._heartbeat_commands(agent_id, run_status)
 
                 # TODO: send _server_responses
                 self._server_responses = []
@@ -428,6 +410,38 @@ class Agent:
                         run_process.kill()
                     except OSError:
                         pass  # if process is already dead
+
+    def _heartbeat_commands(
+        self, agent_id: str, run_status: dict
+    ) -> list[dict[str, Any]]:
+        """Fetch the next batch of agent commands from the server."""
+        if self._sweep_not_found:
+            # The sweep was deleted; stop heartbeating but let the in-process
+            # run finish before we shut the agent down.
+            return []
+
+        try:
+            return self._api.agent_heartbeat(agent_id, {}, run_status)
+        except SweepNotFoundError:
+            if not self._run_processes:
+                wandb.termerror(
+                    "Sweep was deleted or agent was not found. Stopping agent."
+                )
+                raise
+            wandb.termerror(
+                "Sweep was deleted or agent was not found. "
+                "Waiting for active runs to finish."
+            )
+            self._sweep_not_found = True
+            return []
+
+    def _stop_if_deleted_sweep_drained(self) -> bool:
+        """Stop the run loop once a deleted sweep has no active child runs left."""
+        if not self._sweep_not_found or self._run_processes:
+            return False
+
+        self._running = False
+        return True
 
     def _process_command(self, command):
         logger.info("Agent received command: {}".format(command.get("type", "Unknown")))
