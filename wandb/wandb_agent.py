@@ -23,14 +23,8 @@ from wandb.sdk.lib import config_util, ipython
 
 logger = logging.getLogger(__name__)
 
-# Signals whose kernel default action is "terminate the process" and that
-# orchestrators / shells use to request graceful shutdown. When the agent
-# receives one of these via _forward_signal with no callable original
-# handler captured, we forward to the run subprocess and then raise
-# ShutdownSignal so Agent.run's wait/terminate/kill cascade runs, giving
-# the child a chance to clean up while preventing the heartbeat loop from
-# re-popping a requeued run.
-# SIGHUP/SIGQUIT are POSIX-only; getattr keeps this portable on Windows.
+# Signals whose kernel default is "terminate" and that orchestrators use to
+# request graceful shutdown.
 _TERMINATING_SIGNALS = frozenset(
     s
     for s in (
@@ -50,6 +44,8 @@ class ShutdownSignal(BaseException):
     generic `except Exception:` blocks elsewhere in the loop body don't
     swallow it — same design as KeyboardInterrupt, which this exception
     parallels for SIGTERM/SIGHUP/SIGQUIT.
+
+    See: https://docs.wandb.ai/models/sweeps/signal-handling-sweep-runs
     """
 
     def __init__(self, signum: int) -> None:
