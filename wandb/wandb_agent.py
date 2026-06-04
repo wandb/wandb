@@ -413,11 +413,16 @@ class Agent:
                 for command in commands:
                     self._server_responses.append(self._process_command(command))
 
-        except (KeyboardInterrupt, _ShutdownSignal):
+        except (KeyboardInterrupt, _ShutdownSignal) as exc:
             try:
-                wandb.termlog(
-                    "Ctrl-c pressed. Waiting for runs to end. Press ctrl-c again to terminate them."
-                )
+                if isinstance(exc, _ShutdownSignal):
+                    wandb.termlog(
+                        "Shutdown signal received. Waiting for runs to end. Send shutdown signal again to terminate immediately"
+                    )
+                else:
+                    wandb.termlog(
+                        "Ctrl-c pressed. Waiting for runs to end. Press ctrl-c again to terminate them."
+                    )
                 for _, run_process in self._run_processes.items():
                     run_process.wait()
             except (KeyboardInterrupt, _ShutdownSignal):
