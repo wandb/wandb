@@ -27,7 +27,10 @@ from wandb.analytics import _otlp_json
         (7, {"intValue": "7"}),  # 64-bit ints are JSON strings
         (1.5, {"doubleValue": 1.5}),
         (None, {}),
-        ([1, "a"], {"arrayValue": {"values": [{"intValue": "1"}, {"stringValue": "a"}]}}),
+        (
+            [1, "a"],
+            {"arrayValue": {"values": [{"intValue": "1"}, {"stringValue": "a"}]}},
+        ),
         (
             {"k": 2},
             {"kvlistValue": {"values": [{"key": "k", "value": {"intValue": "2"}}]}},
@@ -101,9 +104,7 @@ def test_encode_logs_roundtrip():
     record = payload["resourceLogs"][0]["scopeLogs"][0]["logRecords"][0]
     assert record["body"] == {"stringValue": "boom"}
     assert record["severityNumber"] == SeverityNumber.ERROR.value
-    assert record["attributes"] == [
-        {"key": "run_id", "value": {"stringValue": "abc"}}
-    ]
+    assert record["attributes"] == [{"key": "run_id", "value": {"stringValue": "abc"}}]
 
 
 # --------------------------------------------------------------------------- #
