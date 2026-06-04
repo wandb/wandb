@@ -2014,6 +2014,9 @@ class Settings(BaseModel, validate_assignment=True):
 
         # proceed if not in CLI mode
         if self.x_cli_only_mode:
+            if self.git_root is None:
+                self.git_root = self.root_dir
+
             return
 
         program = self.program or self._get_program()
@@ -2022,6 +2025,12 @@ class Settings(BaseModel, validate_assignment=True):
             self._setup_code_paths(program)
         else:
             program = "<python with no main file>"
+
+        if self.git_root is None:
+            if self.program_abspath is not None:
+                self.git_root = os.path.dirname(self.program_abspath)
+            else:
+                self.git_root = self.root_dir
 
         self.program = program
 
