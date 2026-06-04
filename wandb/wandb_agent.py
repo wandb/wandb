@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 # orchestrators / shells use to request graceful shutdown. When the agent
 # receives one of these via _forward_signal with no callable original
 # handler captured, we forward to the run subprocess and then raise
-# _ShutdownSignal so Agent.run's wait/terminate/kill cascade runs, giving
+# ShutdownSignal so Agent.run's wait/terminate/kill cascade runs, giving
 # the child a chance to clean up while preventing the heartbeat loop from
 # re-popping a requeued run.
 # SIGHUP/SIGQUIT are POSIX-only; getattr keeps this portable on Windows.
@@ -42,14 +42,29 @@ _TERMINATING_SIGNALS = frozenset(
 )
 
 
-class _ShutdownSignal(BaseException):
+class ShutdownSignal(BaseException):
     """Raised from _forward_signal to drive Agent.run's shutdown cascade.
 
-    Inherits from BaseException (not Exception) so generic `except
-    Exception:` blocks elsewhere in the loop body don't swallow it — same
-    design as KeyboardInterrupt, which this exception parallels for
-    SIGTERM/SIGHUP/SIGQUIT.
+    Carries the originating signal number so the cascade can name it in
+    user-facing messages. Subclasses BaseException (not Exception) so
+    generic `except Exception:` blocks elsewhere in the loop body don't
+    swallow it — same design as KeyboardInterrupt, which this exception
+    parallels for SIGTERM/SIGHUP/SIGQUIT.
     """
+
+    def __init__(self, signum: int) -> None:
+        super().__init__()
+        self.signum = signum
+
+    @property
+    def label(self) -> str:
+        """Human-readable label for the originating signal."""
+        if self.signum == signal.SIGINT:
+            return "Ctrl-c"
+        try:
+            return signal.Signals(self.signum).name
+        except ValueError:
+            return f"signal {self.signum}"
 
 
 class AgentError(Exception):
@@ -164,10 +179,10 @@ class AgentProcess:
         elif signum in _TERMINATING_SIGNALS:
             # These signals' default disposition is SIG_DFL (terminate), which
             # would fall through silently here and let the heartbeat loop pull
-            # the next (often requeued) run. Raise _ShutdownSignal so
+            # the next (often requeued) run. Raise ShutdownSignal so
             # Agent.run's wait/terminate/kill cascade runs, mirroring SIGINT
             # behavior and giving the forwarded child a chance to clean up.
-            raise _ShutdownSignal
+            raise ShutdownSignal(signum)
 
     def _start(self, finished_q, env, function, run_id, in_jupyter):
         if env:
@@ -413,9 +428,9 @@ class Agent:
                 for command in commands:
                     self._server_responses.append(self._process_command(command))
 
-        except (KeyboardInterrupt, _ShutdownSignal) as exc:
+        except (KeyboardInterrupt, ShutdownSignal) as exc:
             try:
-                if isinstance(exc, _ShutdownSignal):
+                if isinstance(exc, ShutdownSignal):
                     wandb.termlog(
                         "Shutdown signal received. Waiting for runs to end. Send shutdown signal again to terminate immediately"
                     )
@@ -425,7 +440,7 @@ class Agent:
                     )
                 for _, run_process in self._run_processes.items():
                     run_process.wait()
-            except (KeyboardInterrupt, _ShutdownSignal):
+            except (KeyboardInterrupt, ShutdownSignal):
                 pass
         finally:
             try:
@@ -438,7 +453,7 @@ class Agent:
                         pass  # if process is already dead
                 for _, run_process in self._run_processes.items():
                     run_process.wait()
-            except (KeyboardInterrupt, _ShutdownSignal):
+            except (KeyboardInterrupt, ShutdownSignal):
                 wandb.termlog("Killing runs and quitting.")
                 for _, run_process in self._run_processes.items():
                     try:

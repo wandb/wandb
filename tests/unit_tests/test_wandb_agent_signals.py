@@ -86,10 +86,11 @@ def test_agent_process_forwards_command_signal_on_posix(monkeypatch):
     )
 
     handler = handlers[signal.SIGTERM]
-    # _forward_signal raises _ShutdownSignal after forwarding SIGTERM so
+    # _forward_signal raises ShutdownSignal after forwarding SIGTERM so
     # Agent.run's cleanup cascade runs; assert forwarding happened first.
-    with pytest.raises(wandb_agent._ShutdownSignal):
+    with pytest.raises(wandb_agent.ShutdownSignal) as excinfo:
         handler(signal.SIGTERM, None)
+    assert excinfo.value.signum == signal.SIGTERM
     assert dummy_holder["popen"].sent == [signal.SIGTERM]
 
 
@@ -150,10 +151,11 @@ def test_agent_process_forwards_to_function_process(monkeypatch):
     proc._popen = None
 
     handler = handlers[signal.SIGTERM]
-    # _forward_signal raises _ShutdownSignal after forwarding SIGTERM so
+    # _forward_signal raises ShutdownSignal after forwarding SIGTERM so
     # Agent.run's cleanup cascade runs; assert forwarding happened first.
-    with pytest.raises(wandb_agent._ShutdownSignal):
+    with pytest.raises(wandb_agent.ShutdownSignal) as excinfo:
         handler(signal.SIGTERM, None)
+    assert excinfo.value.signum == signal.SIGTERM
     mock_proc.send_signal.assert_called_once_with(signal.SIGTERM)
 
 
@@ -183,12 +185,12 @@ def test_agent_process_kills_function_process_on_sigkill(monkeypatch):
 
 
 def test_agent_run_exits_without_further_heartbeat_on_shutdown_signal(monkeypatch):
-    """_ShutdownSignal raised inside the loop must stop the heartbeat and
+    """ShutdownSignal raised inside the loop must stop the heartbeat and
     run the wait/terminate cleanup cascade on active run processes."""
     api = mock.Mock()
     api.sweep.return_value = {"config": ""}
     api.register_agent.return_value = {"id": "agent-1"}
-    api.agent_heartbeat.side_effect = wandb_agent._ShutdownSignal
+    api.agent_heartbeat.side_effect = wandb_agent.ShutdownSignal(signal.SIGTERM)
 
     monkeypatch.setattr(wandb_agent.util, "read_many_from_queue", lambda *a, **kw: [])
 
@@ -198,7 +200,7 @@ def test_agent_run_exits_without_further_heartbeat_on_shutdown_signal(monkeypatc
     run_process.poll.return_value = None
     agent._run_processes["run-1"] = run_process
 
-    # _ShutdownSignal must be caught inside Agent.run, not escape.
+    # ShutdownSignal must be caught inside Agent.run, not escape.
     agent.run()
 
     assert api.agent_heartbeat.call_count == 1
