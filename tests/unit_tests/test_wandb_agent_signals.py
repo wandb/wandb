@@ -208,6 +208,62 @@ def test_agent_run_exits_without_further_heartbeat_on_shutdown_signal(monkeypatc
     run_process.terminate.assert_called()
 
 
+def test_agent_run_second_shutdown_signal_escalates_to_terminate(monkeypatch):
+    """A second ShutdownSignal during Tier 1 wait() must escalate to Tier 2:
+    terminate() the run process, then wait() again."""
+    api = mock.Mock()
+    api.sweep.return_value = {"config": ""}
+    api.register_agent.return_value = {"id": "agent-1"}
+    api.agent_heartbeat.side_effect = wandb_agent.ShutdownSignal(signal.SIGTERM)
+
+    monkeypatch.setattr(wandb_agent.util, "read_many_from_queue", lambda *a, **kw: [])
+
+    agent = wandb_agent.Agent(api=api, queue=mock.Mock(), sweep_id="sweep-1")
+
+    run_process = mock.Mock()
+    run_process.poll.return_value = None
+    # Tier 1's wait() is interrupted by a second signal; Tier 2's wait() (after
+    # terminate()) returns normally.
+    run_process.wait.side_effect = [
+        wandb_agent.ShutdownSignal(signal.SIGTERM),
+        None,
+    ]
+    agent._run_processes["run-1"] = run_process
+
+    agent.run()
+
+    assert run_process.wait.call_count == 2
+    run_process.terminate.assert_called_once()
+    run_process.kill.assert_not_called()
+
+
+def test_agent_run_third_shutdown_signal_escalates_to_kill(monkeypatch):
+    """A third ShutdownSignal (interrupting Tier 2's wait()) must escalate to
+    Tier 3: kill() the run process."""
+    api = mock.Mock()
+    api.sweep.return_value = {"config": ""}
+    api.register_agent.return_value = {"id": "agent-1"}
+    api.agent_heartbeat.side_effect = wandb_agent.ShutdownSignal(signal.SIGTERM)
+
+    monkeypatch.setattr(wandb_agent.util, "read_many_from_queue", lambda *a, **kw: [])
+
+    agent = wandb_agent.Agent(api=api, queue=mock.Mock(), sweep_id="sweep-1")
+
+    run_process = mock.Mock()
+    run_process.poll.return_value = None
+    # Both Tier 1's wait() and Tier 2's wait() are interrupted by signals.
+    run_process.wait.side_effect = [
+        wandb_agent.ShutdownSignal(signal.SIGTERM),
+        wandb_agent.ShutdownSignal(signal.SIGTERM),
+    ]
+    agent._run_processes["run-1"] = run_process
+
+    agent.run()
+
+    run_process.terminate.assert_called_once()
+    run_process.kill.assert_called_once()
+
+
 @pytest.mark.skipif(os.name == "nt", reason="POSIX-only signal registration path")
 def test_agent_process_continues_when_signal_registration_fails(monkeypatch):
     bad_signal = 9999
