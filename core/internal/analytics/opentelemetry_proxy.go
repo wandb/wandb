@@ -40,17 +40,17 @@ const (
 // These are emitted as metric dimensions,
 // so their values must come from a small, bounded set.
 const (
-	tagGoVersion       = "go_version"
-	tagWandbVersion    = "wandb_version"
-	tagOperatingSystem = "operating_system"
-	tagExceptionType   = "exception.type"
+	attributeGoVersion       = "go_version"
+	attributeWandbVersion    = "wandb_version"
+	attributeOperatingSystem = "operating_system"
+	attributeExceptionType   = "exception.type"
 )
 
 var allowedLowCardinalityKeys = map[string]struct{}{
-	tagGoVersion:       {},
-	tagWandbVersion:    {},
-	tagOperatingSystem: {},
-	tagExceptionType:   {},
+	attributeGoVersion:       {},
+	attributeWandbVersion:    {},
+	attributeOperatingSystem: {},
+	attributeExceptionType:   {},
 }
 
 // enabled gates OpenTelemetryProxy in this process.
@@ -70,7 +70,7 @@ func SetEnabled(v bool) {
 
 // TelemetryContext holds persistent attributes added to all telemetry records.
 //
-// Tags are split into two buckets:
+// Attributes are split into two buckets:
 //
 //   - Low-cardinality attributes are a small, bounded set of values
 //     (e.g. wandb_version, go_version, operating_system).
@@ -88,9 +88,9 @@ type TelemetryContext struct {
 func newTelemetryContext() *TelemetryContext {
 	return &TelemetryContext{
 		lowCardinalityAttributes: map[string]string{
-			tagWandbVersion:    version.Version,
-			tagGoVersion:       runtime.Version(),
-			tagOperatingSystem: runtime.GOOS,
+			attributeWandbVersion:    version.Version,
+			attributeGoVersion:       runtime.Version(),
+			attributeOperatingSystem: runtime.GOOS,
 		},
 		highCardinalityAttributes: map[string]string{},
 	}
@@ -116,8 +116,8 @@ func (s *TelemetryContext) AddLowCardinalityAttributes(
 	}
 }
 
-// AddHighCardinalityAttributes merges caller-supplied high-cardinality tags into the
-// scope.
+// AddHighCardinalityAttributes merges caller-supplied high-cardinality attributes
+// into the context.
 func (s *TelemetryContext) AddHighCardinalityAttributes(
 	attributes map[string]string,
 ) {
@@ -438,7 +438,7 @@ func (o *OpenTelemetryProxyImpl) Exception(message string, err error) {
 type noopOpenTelemetryProxy struct{}
 
 // Start implements OpenTelemetryProxy.Start.
-func (noopOpenTelemetryProxy) Start(context.Context) error    { return nil }
+func (noopOpenTelemetryProxy) Start(context.Context) error { return nil }
 
 // Shutdown implements OpenTelemetryProxy.Shutdown.
 func (noopOpenTelemetryProxy) Shutdown(context.Context) error { return nil }
