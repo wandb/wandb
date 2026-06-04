@@ -158,10 +158,14 @@ def valid_input_events() -> list[EventType]:
 
 
 def valid_input_actions() -> list[ActionType]:
-    return sorted(set(ActionType) - set(INVALID_INPUT_ACTIONS))
+    # Slack integrations are not configured for these system tests, so
+    # notification actions are only exercised by tests that request them
+    # explicitly.
+    unsupported_test_actions = {ActionType.NOTIFICATION}
+    return sorted(set(ActionType) - set(INVALID_INPUT_ACTIONS) - unsupported_test_actions)
 
 
-# Invalid (event, scope) combinations that should be skipped
+# Invalid (event, scope) combinations that should not produce runnable cases.
 @lru_cache
 def invalid_events_and_scopes() -> set[tuple[EventType, ScopeType]]:
     return {
@@ -171,6 +175,30 @@ def invalid_events_and_scopes() -> set[tuple[EventType, ScopeType]]:
         (EventType.RUN_METRIC_ZSCORE, ScopeType.ARTIFACT_COLLECTION),
         (EventType.RUN_STATE, ScopeType.ARTIFACT_COLLECTION),
     }
+
+
+def pytest_collection_modifyitems(config, items):
+    deselected = []
+    selected = []
+    invalid_pairs = invalid_events_and_scopes()
+
+    for item in items:
+        callspec = getattr(item, "callspec", None)
+        if callspec is None:
+            selected.append(item)
+            continue
+
+        event = callspec.params.get("event_type")
+        scope = callspec.params.get("scope_type")
+        if event is not None and scope is not None and (event, scope) in invalid_pairs:
+            deselected.append(item)
+            continue
+
+        selected.append(item)
+
+    if deselected:
+        config.hook.pytest_deselected(items=deselected)
+        items[:] = selected
 
 
 @fixture(params=valid_input_scopes(), ids=lambda x: f"scope={x.value}")
