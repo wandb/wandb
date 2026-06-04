@@ -16,10 +16,15 @@ from wandb.automations import (
     DoNothing,
     EventType,
     OnAddArtifactAlias,
+    OnAddArtifactTag,
+    OnAddCollectionTag,
     OnCreateArtifact,
     OnLinkArtifact,
+    OnRemoveArtifactTag,
+    OnRemoveCollectionTag,
     OnRunMetric,
     OnRunState,
+    OnUnlinkArtifact,
     RunEvent,
     ScopeType,
     SendWebhook,
@@ -220,23 +225,53 @@ def scope(request: FixtureRequest, scope_type: ScopeType) -> ScopableWandbType:
 # ------------------------------------------------------------------------------
 # (Input) event fixtures
 @fixture
-def artifact_filter() -> FilterExpr:
+def alias_filter() -> FilterExpr:
     return ArtifactEvent.alias.matches_regex("^my-artifact.*")
 
 
 @fixture
-def on_create_artifact(scope, artifact_filter) -> OnCreateArtifact:
-    return OnCreateArtifact(scope=scope, filter=artifact_filter)
+def tag_filter() -> FilterExpr:
+    return ArtifactEvent.tag.matches_regex("^my-tag.*")
 
 
 @fixture
-def on_link_artifact(scope, artifact_filter) -> OnLinkArtifact:
-    return OnLinkArtifact(scope=scope, filter=artifact_filter)
+def on_create_artifact(scope, alias_filter) -> OnCreateArtifact:
+    return OnCreateArtifact(scope=scope, filter=alias_filter)
 
 
 @fixture
-def on_add_artifact_alias(scope, artifact_filter) -> OnAddArtifactAlias:
-    return OnAddArtifactAlias(scope=scope, filter=artifact_filter)
+def on_link_artifact(scope, alias_filter) -> OnLinkArtifact:
+    return OnLinkArtifact(scope=scope, filter=alias_filter)
+
+
+@fixture
+def on_unlink_artifact(scope, alias_filter) -> OnUnlinkArtifact:
+    return OnUnlinkArtifact(scope=scope, filter=alias_filter)
+
+
+@fixture
+def on_add_artifact_alias(scope, alias_filter) -> OnAddArtifactAlias:
+    return OnAddArtifactAlias(scope=scope, filter=alias_filter)
+
+
+@fixture
+def on_add_artifact_tag(scope, tag_filter) -> OnAddArtifactTag:
+    return OnAddArtifactTag(scope=scope, filter=tag_filter)
+
+
+@fixture
+def on_remove_artifact_tag(scope, tag_filter) -> OnRemoveArtifactTag:
+    return OnRemoveArtifactTag(scope=scope, filter=tag_filter)
+
+
+@fixture
+def on_add_collection_tag(scope, tag_filter) -> OnAddCollectionTag:
+    return OnAddCollectionTag(scope=scope, filter=tag_filter)
+
+
+@fixture
+def on_remove_collection_tag(scope, tag_filter) -> OnRemoveCollectionTag:
+    return OnRemoveCollectionTag(scope=scope, filter=tag_filter)
 
 
 @fixture
@@ -281,7 +316,12 @@ def event(request: FixtureRequest, event_type: EventType) -> InputEvent:
     event2fixture: dict[EventType, str] = {
         EventType.CREATE_ARTIFACT: on_create_artifact.__name__,
         EventType.ADD_ARTIFACT_ALIAS: on_add_artifact_alias.__name__,
+        EventType.ADD_ARTIFACT_TAG: on_add_artifact_tag.__name__,
+        EventType.ADD_COLLECTION_TAG: on_add_collection_tag.__name__,
         EventType.LINK_ARTIFACT: on_link_artifact.__name__,
+        EventType.REMOVE_ARTIFACT_TAG: on_remove_artifact_tag.__name__,
+        EventType.REMOVE_COLLECTION_TAG: on_remove_collection_tag.__name__,
+        EventType.UNLINK_ARTIFACT: on_unlink_artifact.__name__,
         EventType.RUN_METRIC_THRESHOLD: on_run_metric_threshold.__name__,
         EventType.RUN_METRIC_CHANGE: on_run_metric_change.__name__,
         EventType.RUN_METRIC_ZSCORE: on_run_metric_zscore.__name__,

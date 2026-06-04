@@ -7,10 +7,15 @@ from .events import (
     MetricThresholdFilter,
     MetricZScoreFilter,
     OnAddArtifactAlias,
+    OnAddArtifactTag,
+    OnAddCollectionTag,
     OnCreateArtifact,
     OnLinkArtifact,
+    OnRemoveArtifactTag,
+    OnRemoveCollectionTag,
     OnRunMetric,
     OnRunState,
+    OnUnlinkArtifact,
     RunEvent,
     RunStateFilter,
 )
@@ -25,10 +30,15 @@ __all__ = [
     # Events
     "EventType",  # doc:exclude
     "OnAddArtifactAlias",
+    "OnAddArtifactTag",
+    "OnAddCollectionTag",
     "OnCreateArtifact",
     "OnLinkArtifact",
+    "OnRemoveArtifactTag",
+    "OnRemoveCollectionTag",
     "OnRunMetric",
     "OnRunState",
+    "OnUnlinkArtifact",
     "ArtifactEvent",  # doc:exclude
     "RunEvent",  # doc:exclude
     "MetricThresholdFilter",
