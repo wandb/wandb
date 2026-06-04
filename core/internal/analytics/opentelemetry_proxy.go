@@ -4,7 +4,6 @@ package analytics
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
 	"maps"
 	"net/http"
@@ -229,12 +228,6 @@ func NewOpenTelemetryProxy(endpoint string) OpenTelemetryProxy {
 		telemetryContext: newTelemetryContext(),
 		httpClient: &http.Client{
 			Timeout: defaultTimeout,
-			Transport: &http.Transport{
-				TLSClientConfig: &tls.Config{
-					// TODO: remove/configure this with settings
-					InsecureSkipVerify: true, //nolint:gosec
-				},
-			},
 		},
 	}
 }
@@ -272,10 +265,6 @@ func (o *OpenTelemetryProxyImpl) setupMetrics(
 		otlpmetrichttp.WithEndpoint(o.endpoint),
 		otlpmetrichttp.WithURLPath(metricsPath),
 		otlpmetrichttp.WithTemporalitySelector(metric.DeltaTemporalitySelector),
-		otlpmetrichttp.WithTLSClientConfig(&tls.Config{
-			// TODO: remove/configure this with settings
-			InsecureSkipVerify: true, //nolint:gosec
-		}),
 	)
 	if err != nil {
 		return fmt.Errorf("create metric exporter: %w", err)
@@ -301,10 +290,6 @@ func (o *OpenTelemetryProxyImpl) setupLogs(
 	exporter, err := otlploghttp.New(ctx,
 		otlploghttp.WithEndpoint(o.endpoint),
 		otlploghttp.WithURLPath(logsPath),
-		// TODO: remove/configure this with settings
-		otlploghttp.WithTLSClientConfig(&tls.Config{
-			InsecureSkipVerify: true, //nolint:gosec
-		}),
 	)
 	if err != nil {
 		return fmt.Errorf("create log exporter: %w", err)
