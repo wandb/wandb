@@ -190,9 +190,7 @@ def test_agent_run_exits_without_further_heartbeat_on_shutdown_signal(monkeypatc
     api.register_agent.return_value = {"id": "agent-1"}
     api.agent_heartbeat.side_effect = wandb_agent._ShutdownSignal
 
-    monkeypatch.setattr(
-        wandb_agent.util, "read_many_from_queue", lambda *a, **kw: []
-    )
+    monkeypatch.setattr(wandb_agent.util, "read_many_from_queue", lambda *a, **kw: [])
 
     agent = wandb_agent.Agent(api=api, queue=mock.Mock(), sweep_id="sweep-1")
 
