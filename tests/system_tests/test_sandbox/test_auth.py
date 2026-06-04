@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+import cwsandbox
 import cwsandbox._sandbox as cwsandbox_sandbox
 import pytest
 import wandb
@@ -77,6 +78,18 @@ def _patch_sandbox_stub(
     return calls
 
 
+def _client_version_headers() -> dict[str, str]:
+    """The client-version headers every request carries, with live versions.
+
+    Derived from the installed package versions (the same source the client
+    reads) so the assertions stay exact without breaking on version bumps.
+    """
+    return {
+        "x-wandb-sdk-version": wandb.__version__,
+        "x-cwsandbox-client-version": cwsandbox.__version__,
+    }
+
+
 def test_sandbox_run_uses_settings_entity_project(
     user,
     monkeypatch,
@@ -93,6 +106,7 @@ def test_sandbox_run_uses_settings_entity_project(
         "x-wandb-api-key": user,
         "x-entity-id": "entity-from-settings",
         "x-project-name": "project-from-settings",
+        **_client_version_headers(),
     }
     assert len(calls.start) == 1
     assert dict(calls.start[0]["metadata"]) == expected_headers
@@ -113,6 +127,7 @@ def test_sandbox_run_ignore_run_override(
     expected_headers = {
         "x-wandb-api-key": user,
         "x-entity-id": user,
+        **_client_version_headers(),
     }
     assert len(calls.start) == 1
     assert dict(calls.start[0]["metadata"]) == expected_headers
@@ -132,7 +147,8 @@ def test_sandbox_run_without_entity_or_project(
     with Sandbox.run("sleep", "infinity") as sandbox:
         assert sandbox.sandbox_id == "sb-system-test"
 
+    expected_headers = {"x-wandb-api-key": user, **_client_version_headers()}
     assert len(calls.start) == 1
-    assert dict(calls.start[0]["metadata"]) == {"x-wandb-api-key": user}
+    assert dict(calls.start[0]["metadata"]) == expected_headers
     assert len(calls.stop) == 1
-    assert dict(calls.stop[0]["metadata"]) == {"x-wandb-api-key": user}
+    assert dict(calls.stop[0]["metadata"]) == expected_headers
