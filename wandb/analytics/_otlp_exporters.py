@@ -23,10 +23,7 @@ from ._otlp_json import encode_logs, encode_metrics
 
 if TYPE_CHECKING:
     import requests
-    from opentelemetry.sdk.metrics.export import (
-        AggregationTemporality,
-        MetricsData,
-    )
+    from opentelemetry.sdk.metrics.export import AggregationTemporality, MetricsData
     from opentelemetry.sdk.metrics.view import Aggregation
 
 _logger = logging.getLogger(__name__)
@@ -84,7 +81,8 @@ class JSONMetricExporter(MetricExporter):
                 return MetricExportResult.SUCCESS
             if _post_json(self._session, self._endpoint, payload, self._timeout):
                 return MetricExportResult.SUCCESS
-            return MetricExportResult.FAILURE
+            else:
+                return MetricExportResult.FAILURE
         except Exception:
             _logger.debug("otel metric export failed", exc_info=True)
             return MetricExportResult.FAILURE
@@ -116,7 +114,8 @@ class JSONLogExporter(LogExporter):
                 return _LogResult.SUCCESS
             if _post_json(self._session, self._endpoint, payload, self._timeout):
                 return _LogResult.SUCCESS
-            return _LogResult.FAILURE
+            else:
+                return _LogResult.FAILURE
         except Exception:
             _logger.debug("otel log export failed", exc_info=True)
             return _LogResult.FAILURE
