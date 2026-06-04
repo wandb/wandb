@@ -617,7 +617,7 @@ workflows:
           name: system-tests-linux-<<matrix.python>>
           session: system_tests
           codecov_flags: system
-          parallelism: 6
+          parallelism: 8
           executor_name: local-testcontainer
 
           filters:

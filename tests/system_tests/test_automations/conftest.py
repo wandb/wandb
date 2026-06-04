@@ -162,7 +162,9 @@ def valid_input_actions() -> list[ActionType]:
     # notification actions are only exercised by tests that request them
     # explicitly.
     unsupported_test_actions = {ActionType.NOTIFICATION}
-    return sorted(set(ActionType) - set(INVALID_INPUT_ACTIONS) - unsupported_test_actions)
+    return sorted(
+        set(ActionType) - set(INVALID_INPUT_ACTIONS) - unsupported_test_actions
+    )
 
 
 # Invalid (event, scope) combinations that should not produce runnable cases.
