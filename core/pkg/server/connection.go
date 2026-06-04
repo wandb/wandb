@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/url"
 	"sync"
+	"time"
 
 	"github.com/Khan/genqlient/graphql"
 
@@ -314,10 +315,8 @@ func (nc *Connection) handleIncomingRequests() {
 
 	slog.Debug("handleIncomingRequests: started", "id", nc.id)
 
-	// Before exiting, wait for async operations to complete so that they
-	// can send responses.
 	wg := &sync.WaitGroup{}
-	defer wg.Wait()
+	defer nc.waitForAsyncRequests(wg, shutdownAsyncRequestTimeout)
 
 	for msg := range nc.inChan {
 		slog.Debug("handleIncomingRequests: processing message", "msg", msg, "id", nc.id)
@@ -368,6 +367,39 @@ func (nc *Connection) handleIncomingRequests() {
 	}
 
 	slog.Debug("handleIncomingRequests: finishing", "id", nc.id)
+}
+
+// shutdownAsyncRequestTimeout bounds how long connection shutdown waits for
+// in-flight async request handlers after we stop accepting requests.
+//
+// The timeout firing does not identify the cause. The handler may be blocked in
+// uncancellable work, slow to observe cancellation, or doing lengthy cleanup;
+// after this point we stop waiting so wandb-core can continue shutting down.
+const shutdownAsyncRequestTimeout = 60 * time.Second
+
+// waitForAsyncRequests waits for in-flight async operations to finish.
+//
+// If the timeout elapses, any remaining operations are abandoned so shutdown
+// can continue.
+func (nc *Connection) waitForAsyncRequests(
+	wg *sync.WaitGroup,
+	timeout time.Duration,
+) {
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(timeout):
+		slog.Error(
+			"connection: timed out waiting for in-flight requests during shutdown",
+			"id", nc.id,
+			"timeout", timeout,
+		)
+	}
 }
 
 // handleCancel cancels the work of a previous server request.
