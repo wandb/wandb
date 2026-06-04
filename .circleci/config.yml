@@ -478,7 +478,6 @@ jobs:
           command: |
             sudo apt-get update
       - install_go
-
       - load-go-cache
       - run:
           name: Run wandb core's Go tests and collect coverage
@@ -486,7 +485,6 @@ jobs:
             cd core
             go test -count=1 -race -coverprofile=coverage.txt -covermode=atomic ./...
       - save-go-cache
-
       - codecov/upload: { flags: unit }
 
   unit-tests-rust:
@@ -500,7 +498,6 @@ jobs:
           command: |
             sudo apt-get update
       - install_rust
-
       - load-cargo-cache
       - run:
           name: Run Rust tests for parquet-rust-wrapper
