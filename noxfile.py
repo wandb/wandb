@@ -245,7 +245,7 @@ def system_tests(session: nox.Session) -> None:
         session,
         paths=paths,
         # TODO: consider relaxing this once the test memory usage is under control.
-        opts={"n": "8"},
+        opts={"n": "6"},
     )
 
 
