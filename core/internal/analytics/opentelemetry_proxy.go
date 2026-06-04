@@ -185,7 +185,7 @@ type OpenTelemetryProxy interface {
 
 var (
 	_ OpenTelemetryProxy = (*OpenTelemetryProxyImpl)(nil)
-	_ OpenTelemetryProxy = noopOpenTelemetryProxy{}
+	_ OpenTelemetryProxy = NoopOpenTelemetryProxy{}
 )
 
 // OpenTelemetryProxyImpl sends metrics, logs events through the W&B
@@ -220,7 +220,7 @@ type OpenTelemetryProxyImpl struct {
 // no providers are created and nothing is recorded.
 func NewOpenTelemetryProxy(endpoint string) OpenTelemetryProxy {
 	if !enabled.Load() {
-		return noopOpenTelemetryProxy{}
+		return NoopOpenTelemetryProxy{}
 	}
 
 	return &OpenTelemetryProxyImpl{
@@ -262,7 +262,7 @@ func (o *OpenTelemetryProxyImpl) setupMetrics(
 	res *resource.Resource,
 ) error {
 	exporter, err := otlpmetrichttp.New(ctx,
-		otlpmetrichttp.WithEndpoint(o.endpoint),
+		otlpmetrichttp.WithEndpointURL(o.endpoint),
 		otlpmetrichttp.WithURLPath(metricsPath),
 		otlpmetrichttp.WithTemporalitySelector(metric.DeltaTemporalitySelector),
 	)
@@ -288,7 +288,7 @@ func (o *OpenTelemetryProxyImpl) setupLogs(
 	res *resource.Resource,
 ) error {
 	exporter, err := otlploghttp.New(ctx,
-		otlploghttp.WithEndpoint(o.endpoint),
+		otlploghttp.WithEndpointURL(o.endpoint),
 		otlploghttp.WithURLPath(logsPath),
 	)
 	if err != nil {
@@ -435,22 +435,22 @@ func (o *OpenTelemetryProxyImpl) Exception(message string, err error) {
 }
 
 // noopOpenTelemetryProxy is a OpenTelemetryProxy that does nothing.
-type noopOpenTelemetryProxy struct{}
+type NoopOpenTelemetryProxy struct{}
 
 // Start implements OpenTelemetryProxy.Start.
-func (noopOpenTelemetryProxy) Start(context.Context) error { return nil }
+func (NoopOpenTelemetryProxy) Start(context.Context) error { return nil }
 
 // Shutdown implements OpenTelemetryProxy.Shutdown.
-func (noopOpenTelemetryProxy) Shutdown(context.Context) error { return nil }
+func (NoopOpenTelemetryProxy) Shutdown(context.Context) error { return nil }
 
 // RecordLog implements OpenTelemetryProxy.RecordLog.
-func (noopOpenTelemetryProxy) RecordLog(string, map[string]string, otellogapi.Severity) {}
+func (NoopOpenTelemetryProxy) RecordLog(string, map[string]string, otellogapi.Severity) {}
 
 // RecordMetricAndLogEvent implements OpenTelemetryProxy.RecordMetricAndLogEvent.
-func (noopOpenTelemetryProxy) RecordMetricAndLogEvent(string, map[string]string) {}
+func (NoopOpenTelemetryProxy) RecordMetricAndLogEvent(string, map[string]string) {}
 
 // Exception implements OpenTelemetryProxy.Exception.
-func (noopOpenTelemetryProxy) Exception(string, error) {}
+func (NoopOpenTelemetryProxy) Exception(string, error) {}
 
 // captureStacktrace returns a formatted stack trace of the calling goroutine,
 // starting at the caller of Exception.
