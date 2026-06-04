@@ -5,6 +5,7 @@ package analytics
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"maps"
 	"net/http"
 	"runtime"
@@ -238,6 +239,14 @@ func NewOpenTelemetryProxy(endpoint string) OpenTelemetryProxy {
 func (o *OpenTelemetryProxyImpl) Start(ctx context.Context) error {
 	o.mu.Lock()
 	defer o.mu.Unlock()
+
+	otel.SetErrorHandler(otel.ErrorHandlerFunc(func(err error) {
+		slog.Error(
+			"analytics: failed to send telemetry to backend proxy",
+			"error", err,
+			"endpoint", o.endpoint,
+		)
+	}))
 
 	res, err := resource.New(
 		ctx,
