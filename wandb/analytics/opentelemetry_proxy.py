@@ -212,7 +212,6 @@ class OtelProvider:
                 self._logger = self._logger_provider.get_logger("wandb.sdk")
 
                 self._booted = True
-                return True
             except Exception:
                 _logger.debug("OtelProvider boot failed", exc_info=True)
                 self._enabled = False
@@ -221,6 +220,8 @@ class OtelProvider:
                 self._logger = None
                 self._logger_provider = None
                 return False
+
+            return True
 
     @_guard
     def configure_context(

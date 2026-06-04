@@ -20,12 +20,7 @@ import base64
 from collections.abc import Mapping, Sequence
 from typing import Any
 
-from opentelemetry.sdk.metrics.export import (
-    Gauge,
-    Histogram,
-    MetricsData,
-    Sum,
-)
+from opentelemetry.sdk.metrics.export import Gauge, Histogram, MetricsData, Sum
 
 
 def _enum_int(value: Any) -> int:
