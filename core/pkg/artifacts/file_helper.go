@@ -16,7 +16,8 @@ import (
 // The OS default temp dir ($TMPDIR / os.TempDir()) is intentionally NOT used:
 // on HPC setups $TMPDIR often points to a path the job never created, which
 // made these writes fail silently. Writing into a wandb-controlled dir avoids
-// that. (If dir is empty, os.CreateTemp falls back to the OS default temp dir.)
+// that, and a missing or unwritable dir surfaces a loud error rather than
+// silently succeeding somewhere the caller didn't intend.
 //
 // Returns the path to the temporary file, the Base64-encoded MD5 digest of the JSON data,
 // the size of the file, and an error if something goes wrong during the process.

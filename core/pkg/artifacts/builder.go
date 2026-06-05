@@ -22,7 +22,7 @@ type ArtifactBuilder struct {
 	// files into. Pass a wandb-controlled directory: the OS default temp dir
 	// (os.TempDir() / $TMPDIR) is intentionally not used because it can point
 	// to a missing/unwritable path in HPC environments, causing silent
-	// failures. Empty falls back to the OS default temp dir via os.CreateTemp.
+	// failures.
 	tempDir string
 }
 
