@@ -8,28 +8,25 @@ import (
 	"github.com/wandb/wandb/core/internal/hashencode"
 )
 
-// WriteJSONToTempFileWithMetadata writes the provided data as JSON to a temporary file.
+// WriteJSONToTempFileWithMetadata writes the provided data as JSON to a
+// uniquely named temporary file inside dir.
 //
-// The OS default temp directory (typically $TMPDIR) is tried first to preserve
-// legacy behavior. If that fails — e.g. because $TMPDIR points to a missing
-// path on HPC setups where the job script never created it — and fallbackDir
-// is non-empty, the call is retried with fallbackDir. Pass a wandb-controlled
-// location (e.g. an artifact's stagingDir) so file writes don't silently
-// fail when the host $TMPDIR is broken. An empty fallbackDir disables the
-// retry and preserves the original legacy semantics.
+// dir should be a wandb-controlled location (e.g. an artifact's stagingDir or
+// the run's files directory) that the SDK guarantees exists and is writable.
+// The OS default temp dir ($TMPDIR / os.TempDir()) is intentionally NOT used:
+// on HPC setups $TMPDIR often points to a path the job never created, which
+// made these writes fail silently. Writing into a wandb-controlled dir avoids
+// that. (If dir is empty, os.CreateTemp falls back to the OS default temp dir.)
 //
 // Returns the path to the temporary file, the Base64-encoded MD5 digest of the JSON data,
 // the size of the file, and an error if something goes wrong during the process.
 func WriteJSONToTempFileWithMetadata(
 	data any,
-	fallbackDir string,
+	dir string,
 ) (filename, digest string, size int64, err error) {
-	// Try the OS default temp dir first (legacy behavior). If that errors and
-	// the caller supplied a wandb-controlled fallback, retry there.
-	f, err := os.CreateTemp("", "tmpfile-")
-	if err != nil && fallbackDir != "" {
-		f, err = os.CreateTemp(fallbackDir, "tmpfile-")
-	}
+	// Write into the caller-supplied, wandb-controlled dir rather than the OS
+	// default temp dir, which can be missing or unwritable on HPC hosts.
+	f, err := os.CreateTemp(dir, "tmpfile-")
 	if err != nil {
 		return "", "", 0, fmt.Errorf("unable to create temporary file: %w", err)
 	}

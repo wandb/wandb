@@ -28,4 +28,4 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ### Fixed
 
-- Logging an artifact (whether via `WandbLogger` or `run.log_artifact`) now falls back to the staging directory for the manifest file when `$TMPDIR` is unavailable (@ibindlish in https://github.com/wandb/wandb/pull/11958)
+- Logging an artifact (whether via `WandbLogger` or `run.log_artifact`) now writes the manifest file to the artifact's staging directory instead of the OS temp dir (`$TMPDIR`), avoiding silent failures when `$TMPDIR` is missing or unwritable (@ibindlish in https://github.com/wandb/wandb/pull/11958)

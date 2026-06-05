@@ -18,22 +18,22 @@ type ArtifactBuilder struct {
 	artifactRecord   *spb.ArtifactRecord
 	isDigestUpToDate bool
 
-	// fallbackTempDir is used by AddData when the OS default temp dir
-	// (os.TempDir() / $TMPDIR) fails. Pass a wandb-controlled directory so
-	// AddData doesn't silently fail in HPC environments where $TMPDIR points
-	// to a path the job never created. Empty disables the fallback (legacy
-	// behavior).
-	fallbackTempDir string
+	// tempDir is the directory AddData writes its temporary manifest-entry
+	// files into. Pass a wandb-controlled directory: the OS default temp dir
+	// (os.TempDir() / $TMPDIR) is intentionally not used because it can point
+	// to a missing/unwritable path in HPC environments, causing silent
+	// failures. Empty falls back to the OS default temp dir via os.CreateTemp.
+	tempDir string
 }
 
 func NewArtifactBuilder(
 	artifactRecord *spb.ArtifactRecord,
-	fallbackTempDir string,
+	tempDir string,
 ) *ArtifactBuilder {
 	artifactClone := proto.Clone(artifactRecord).(*spb.ArtifactRecord)
 	builder := &ArtifactBuilder{
-		artifactRecord:  artifactClone,
-		fallbackTempDir: fallbackTempDir,
+		artifactRecord: artifactClone,
+		tempDir:        tempDir,
 	}
 	builder.initDefaultManifest()
 	return builder
@@ -54,7 +54,7 @@ func (b *ArtifactBuilder) initDefaultManifest() {
 }
 
 func (b *ArtifactBuilder) AddData(name string, data any) error {
-	filename, digest, size, err := WriteJSONToTempFileWithMetadata(data, b.fallbackTempDir)
+	filename, digest, size, err := WriteJSONToTempFileWithMetadata(data, b.tempDir)
 	if err != nil {
 		return err
 	}

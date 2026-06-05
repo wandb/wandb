@@ -180,15 +180,14 @@ func ManifestContentsFromFile(path string) (map[string]ManifestEntry, error) {
 	return contents, nil
 }
 
-// WriteToFile serializes the manifest to a temporary file. The OS default
-// temp directory is tried first; fallbackDir is used only if that fails
-// (e.g. host $TMPDIR points to a missing path). Pass a wandb-controlled
-// directory like the artifact's stagingDir so manifest writes don't silently
-// fail. See WriteJSONToTempFileWithMetadata for the rationale.
+// WriteToFile serializes the manifest to a temporary file inside dir. Pass a
+// wandb-controlled directory like the artifact's stagingDir; the OS default
+// temp dir ($TMPDIR) is intentionally not used so manifest writes don't fail
+// silently when it's missing. See WriteJSONToTempFileWithMetadata.
 func (m *Manifest) WriteToFile(
-	fallbackDir string,
+	dir string,
 ) (filename, digest string, size int64, rerr error) {
-	return WriteJSONToTempFileWithMetadata(m, fallbackDir)
+	return WriteJSONToTempFileWithMetadata(m, dir)
 }
 
 func (m *Manifest) GetManifestEntryFromArtifactFilePath(path string) (ManifestEntry, error) {

@@ -694,8 +694,8 @@ func (j *JobBuilder) buildArtifact(
 	sourceType SourceType,
 ) (*spb.ArtifactRecord, error) {
 	// fileDir is the run's files directory — guaranteed to exist and be
-	// writable by the SDK contract. Used as a fallback for temp-file writes
-	// when the host's $TMPDIR is missing.
+	// writable by the SDK contract. AddData writes temp files here instead of
+	// the OS default temp dir ($TMPDIR), which can be missing on HPC hosts.
 	artifactBuilder := artifacts.NewArtifactBuilder(baseArtifact, fileDir)
 
 	err := artifactBuilder.AddFile(
