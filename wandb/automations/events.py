@@ -43,16 +43,24 @@ class EventType(LenientStrEnum):
 
     CREATE_ARTIFACT = "CREATE_ARTIFACT"
     ADD_ARTIFACT_ALIAS = "ADD_ARTIFACT_ALIAS"
-    LINK_ARTIFACT = "LINK_MODEL"
+
+    ADD_ARTIFACT_TAG = "ADD_ARTIFACT_TAG"
+    REMOVE_ARTIFACT_TAG = "REMOVE_ARTIFACT_TAG"
+
+    ADD_COLLECTION_TAG = "ADD_COLLECTION_TAG"
+    REMOVE_COLLECTION_TAG = "REMOVE_COLLECTION_TAG"
+
     # Note: "LINK_MODEL" is the (legacy) value expected by the backend, but we
     # name it "LINK_ARTIFACT" here in the public API for clarity and consistency.
+    LINK_ARTIFACT = "LINK_MODEL"
+    UNLINK_ARTIFACT = "UNLINK_ARTIFACT"
 
     # ---------------------------------------------------------------------------
-    # Events triggered by Run conditions
+    # Events triggered by run conditions
     RUN_METRIC_THRESHOLD = "RUN_METRIC"
     RUN_METRIC_CHANGE = "RUN_METRIC_CHANGE"
-    RUN_STATE = "RUN_STATE"
     RUN_METRIC_ZSCORE = "RUN_METRIC_ZSCORE"
+    RUN_STATE = "RUN_STATE"
 
 
 # ------------------------------------------------------------------------------
@@ -251,6 +259,12 @@ class OnLinkArtifact(_BaseMutationEventInput):
     event_type: Literal[EventType.LINK_ARTIFACT] = EventType.LINK_ARTIFACT
 
 
+class OnUnlinkArtifact(_BaseMutationEventInput):
+    """An artifact version is unlinked from a collection."""
+
+    event_type: Literal[EventType.UNLINK_ARTIFACT] = EventType.UNLINK_ARTIFACT
+
+
 class OnAddArtifactAlias(_BaseMutationEventInput):
     """A new alias is assigned to an artifact.
 
@@ -273,6 +287,50 @@ class OnAddArtifactAlias(_BaseMutationEventInput):
     """
 
     event_type: Literal[EventType.ADD_ARTIFACT_ALIAS] = EventType.ADD_ARTIFACT_ALIAS
+
+
+class OnAddArtifactTag(_BaseMutationEventInput):
+    """A new tag is assigned to an artifact version.
+
+    Examples:
+    Define an event that triggers whenever the tag "prod" is assigned to
+    any artifact version in the collection "my-collection":
+
+    ```python
+    from wandb import Api
+    from wandb.automations import OnAddArtifactTag, ArtifactEvent
+
+    api = Api()
+    collection = api.artifact_collection(name="my-collection", type_name="model")
+
+    event = OnAddArtifactTag(
+        scope=collection,
+        filter=ArtifactEvent.tag.eq("prod"),
+    )
+    ```
+    """
+
+    event_type: Literal[EventType.ADD_ARTIFACT_TAG] = EventType.ADD_ARTIFACT_TAG
+
+
+class OnRemoveArtifactTag(_BaseMutationEventInput):
+    """A tag is removed from an artifact version."""
+
+    event_type: Literal[EventType.REMOVE_ARTIFACT_TAG] = EventType.REMOVE_ARTIFACT_TAG
+
+
+class OnAddCollectionTag(_BaseMutationEventInput):
+    """A new tag is assigned to an artifact collection."""
+
+    event_type: Literal[EventType.ADD_COLLECTION_TAG] = EventType.ADD_COLLECTION_TAG
+
+
+class OnRemoveCollectionTag(_BaseMutationEventInput):
+    """A tag is removed from an artifact collection."""
+
+    event_type: Literal[EventType.REMOVE_COLLECTION_TAG] = (
+        EventType.REMOVE_COLLECTION_TAG
+    )
 
 
 class OnCreateArtifact(_BaseMutationEventInput):
@@ -382,7 +440,16 @@ class OnRunState(_BaseRunEventInput):
 
 # for type annotations
 InputEvent = Annotated[
-    OnLinkArtifact | OnAddArtifactAlias | OnCreateArtifact | OnRunMetric | OnRunState,
+    OnLinkArtifact
+    | OnAddArtifactAlias
+    | OnAddArtifactTag
+    | OnRemoveArtifactTag
+    | OnAddCollectionTag
+    | OnRemoveCollectionTag
+    | OnCreateArtifact
+    | OnUnlinkArtifact
+    | OnRunMetric
+    | OnRunState,
     Field(discriminator="event_type"),
 ]
 # for runtime type checks
@@ -408,6 +475,7 @@ class RunEvent:
 
 class ArtifactEvent:
     alias = FilterableField()
+    tag = FilterableField()
 
 
 __all__ = [
