@@ -237,6 +237,32 @@ def test_agent_run_second_shutdown_signal_escalates_to_terminate(monkeypatch):
     run_process.kill.assert_not_called()
 
 
+def test_agent_run_skips_tier2_when_runs_already_exited(monkeypatch):
+    """When Tier 1's wait() returns cleanly (child exited gracefully on the
+    forwarded signal), the finally block must skip Tier-2 messaging and
+    operations rather than misleadingly claim it is terminating runs."""
+    api = mock.Mock()
+    api.sweep.return_value = {"config": ""}
+    api.register_agent.return_value = {"id": "agent-1"}
+    api.agent_heartbeat.side_effect = wandb_agent.ShutdownSignal(signal.SIGTERM)
+
+    monkeypatch.setattr(wandb_agent.util, "read_many_from_queue", lambda *a, **kw: [])
+
+    agent = wandb_agent.Agent(api=api, queue=mock.Mock(), sweep_id="sweep-1")
+
+    run_process = mock.Mock()
+    # Alive during the main-loop poll, exited by the time the finally
+    # block probes for still-running processes.
+    run_process.poll.side_effect = [None, 0]
+    agent._run_processes["run-1"] = run_process
+
+    agent.run()
+
+    run_process.wait.assert_called()  # Tier 1 ran
+    run_process.terminate.assert_not_called()  # Tier 2 skipped
+    run_process.kill.assert_not_called()  # Tier 3 not reached
+
+
 def test_agent_run_third_shutdown_signal_escalates_to_kill(monkeypatch):
     """A third ShutdownSignal (interrupting Tier 2's wait()) must escalate to
     Tier 3: kill() the run process."""

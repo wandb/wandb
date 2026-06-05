@@ -456,17 +456,21 @@ class Agent:
         finally:
             try:
                 try:
-                    if not self._in_jupyter:
-                        wandb.termlog(
-                            "Terminating and syncing runs. Send shutdown signal again to kill."
-                        )
-                    for _, run_process in self._run_processes.items():
-                        try:
-                            run_process.terminate()
-                        except OSError:
-                            pass  # if process is already dead
-                    for _, run_process in self._run_processes.items():
-                        run_process.wait()
+                    # If Tier 1's wait() returned cleanly, the runs have
+                    # already exited and there's nothing to terminate. Skip
+                    # Tier 2 messaging and operations.
+                    if any(p.poll() is None for p in self._run_processes.values()):
+                        if not self._in_jupyter:
+                            wandb.termlog(
+                                "Terminating and syncing runs. Send shutdown signal again to kill."
+                            )
+                        for _, run_process in self._run_processes.items():
+                            try:
+                                run_process.terminate()
+                            except OSError:
+                                pass  # if process is already dead
+                        for _, run_process in self._run_processes.items():
+                            run_process.wait()
                 except KeyboardInterrupt as kb:
                     raise ShutdownSignal(signal.SIGINT) from kb
             except ShutdownSignal:
