@@ -727,6 +727,27 @@ func (as *ArtifactSaver) manifestStagingDir() (string, error) {
 	return dir, nil
 }
 
+// writeManifest serializes the manifest to a temporary file and returns its
+// path and digest.
+//
+// When the python process passes a staging dir with the LogArtifactRequest,
+// the manifest is written there (under a dedicated artifact_manifests subdir,
+// see manifestStagingDir) instead of the OS default temp dir ($TMPDIR /
+// os.TempDir()), which can be missing or unwritable on HPC hosts and caused
+// silent failures. When no staging dir was provided (e.g. internal artifact
+// paths), it falls back to the OS default temp dir.
+func (as *ArtifactSaver) writeManifest(manifest *Manifest) (file, digest string, rerr error) {
+	dir, err := as.manifestStagingDir()
+	if err != nil {
+		return "", "", err
+	}
+	file, digest, _, err = manifest.WriteToFile(dir)
+	if err != nil {
+		return "", "", err
+	}
+	return file, digest, nil
+}
+
 // Save performs the upload operation, blocking until it completes.
 func (as *ArtifactSaver) Save() (artifactID string, rerr error) {
 	manifest, err := NewManifestFromProto(as.artifact.Manifest)
@@ -805,17 +826,7 @@ func (as *ArtifactSaver) Save() (artifactID string, rerr error) {
 		return "", fmt.Errorf("ArtifactSaver.resolveClientIDReferences: %w", err)
 	}
 	// TODO: check if size is needed
-	// When the python process passes a staging dir with the LogArtifactRequest, write the
-	// manifest there (under a dedicated artifact_manifests subdir) instead of
-	// the OS default temp dir ($TMPDIR / os.TempDir()), which can be missing or
-	// unwritable on HPC hosts and caused silent failures. The SDK guarantees
-	// the staging dir exists. When no staging dir was provided (e.g. internal
-	// artifact paths), manifestDir is empty and WriteToFile uses the OS default.
-	manifestDir, err := as.manifestStagingDir()
-	if err != nil {
-		return "", fmt.Errorf("ArtifactSaver.writeManifest: %w", err)
-	}
-	manifestFile, manifestDigest, _, err := manifest.WriteToFile(manifestDir)
+	manifestFile, manifestDigest, err := as.writeManifest(&manifest)
 	if err != nil {
 		return "", fmt.Errorf("ArtifactSaver.writeManifest: %w", err)
 	}
