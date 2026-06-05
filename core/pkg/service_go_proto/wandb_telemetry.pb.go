@@ -1061,7 +1061,6 @@ type Feature struct {
 	FlowControlCustom        bool `protobuf:"varint,44,opt,name=flow_control_custom,json=flowControlCustom,proto3" json:"flow_control_custom,omitempty"`                        // Flow control customized by user
 	OpenMetrics              bool `protobuf:"varint,46,opt,name=open_metrics,json=openMetrics,proto3" json:"open_metrics,omitempty"`                                            // Consuming metrics from an OpenMetrics endpoint
 	UltralyticsYolov8        bool `protobuf:"varint,47,opt,name=ultralytics_yolov8,json=ultralyticsYolov8,proto3" json:"ultralytics_yolov8,omitempty"`                          // Ultralytics YOLOv8 integration callbacks used
-	ImporterMlflow           bool `protobuf:"varint,48,opt,name=importer_mlflow,json=importerMlflow,proto3" json:"importer_mlflow,omitempty"`                                   // Using Import API for MLFlow
 	SyncTfevents             bool `protobuf:"varint,49,opt,name=sync_tfevents,json=syncTfevents,proto3" json:"sync_tfevents,omitempty"`                                         // Using wandb sync for tfevent files
 	AsyncUploads             bool `protobuf:"varint,50,opt,name=async_uploads,json=asyncUploads,proto3" json:"async_uploads,omitempty"`                                         // Async file uploads enabled by user
 	OpenaiAutolog            bool `protobuf:"varint,51,opt,name=openai_autolog,json=openaiAutolog,proto3" json:"openai_autolog,omitempty"`                                      // OpenAI autolog used
@@ -1445,13 +1444,6 @@ func (x *Feature) GetOpenMetrics() bool {
 func (x *Feature) GetUltralyticsYolov8() bool {
 	if x != nil {
 		return x.UltralyticsYolov8
-	}
-	return false
-}
-
-func (x *Feature) GetImporterMlflow() bool {
-	if x != nil {
-		return x.ImporterMlflow
 	}
 	return false
 }
@@ -2134,7 +2126,7 @@ const file_wandb_proto_wandb_telemetry_proto_rawDesc = "" +
 	"\x14curated_transformers\x18h \x01(\bR\x13curatedTransformers\x12\x16\n" +
 	"\x06orjson\x18i \x01(\bR\x06orjson\x12\x1c\n" +
 	"\tlightning\x18j \x01(\bR\tlightning\x12\x12\n" +
-	"\x04dspy\x18k \x01(\bR\x04dspyJ\x04\b\x11\x10\x12J\x04\b\x13\x10\x14J\x04\b\x14\x10\x15J\x04\b\x17\x10\x18J\x04\b\x18\x10\x19J\x04\b\x19\x10\x1aJ\x04\b\x1a\x10\x1bJ\x04\b\x1b\x10\x1cJ\x04\b7\x108\"\x90\x16\n" +
+	"\x04dspy\x18k \x01(\bR\x04dspyJ\x04\b\x11\x10\x12J\x04\b\x13\x10\x14J\x04\b\x14\x10\x15J\x04\b\x17\x10\x18J\x04\b\x18\x10\x19J\x04\b\x19\x10\x1aJ\x04\b\x1a\x10\x1bJ\x04\b\x1b\x10\x1cJ\x04\b7\x108\"\xed\x15\n" +
 	"\aFeature\x12\x14\n" +
 	"\x05watch\x18\x01 \x01(\bR\x05watch\x12\x16\n" +
 	"\x06finish\x18\x02 \x01(\bR\x06finish\x12%\n" +
@@ -2185,8 +2177,7 @@ const file_wandb_proto_wandb_telemetry_proto_rawDesc = "" +
 	"\x15flow_control_disabled\x18+ \x01(\bR\x13flowControlDisabled\x12.\n" +
 	"\x13flow_control_custom\x18, \x01(\bR\x11flowControlCustom\x12!\n" +
 	"\fopen_metrics\x18. \x01(\bR\vopenMetrics\x12-\n" +
-	"\x12ultralytics_yolov8\x18/ \x01(\bR\x11ultralyticsYolov8\x12'\n" +
-	"\x0fimporter_mlflow\x180 \x01(\bR\x0eimporterMlflow\x12#\n" +
+	"\x12ultralytics_yolov8\x18/ \x01(\bR\x11ultralyticsYolov8\x12#\n" +
 	"\rsync_tfevents\x181 \x01(\bR\fsyncTfevents\x12#\n" +
 	"\rasync_uploads\x182 \x01(\bR\fasyncUploads\x12%\n" +
 	"\x0eopenai_autolog\x183 \x01(\bR\ropenaiAutolog\x12)\n" +
@@ -2215,7 +2206,7 @@ const file_wandb_proto_wandb_telemetry_proto_rawDesc = "" +
 	"\tfork_mode\x18G \x01(\bR\bforkMode\x12\x1f\n" +
 	"\vrewind_mode\x18H \x01(\bR\n" +
 	"rewindMode\x12#\n" +
-	"\rdspy_callback\x18I \x01(\bR\fdspyCallbackJ\x04\b\x17\x10\x18J\x04\b-\x10.J\x04\b7\x108\"\x9c\x02\n" +
+	"\rdspy_callback\x18I \x01(\bR\fdspyCallbackJ\x04\b\x17\x10\x18J\x04\b-\x10.J\x04\b0\x101J\x04\b7\x108\"\x9c\x02\n" +
 	"\x03Env\x12\x18\n" +
 	"\ajupyter\x18\x01 \x01(\bR\ajupyter\x12\x16\n" +
 	"\x06kaggle\x18\x02 \x01(\bR\x06kaggle\x12\x18\n" +
