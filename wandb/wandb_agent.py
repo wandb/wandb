@@ -173,11 +173,6 @@ class AgentProcess:
         if original_handler and callable(original_handler):
             original_handler(signum, frame)
         elif signum in _TERMINATING_SIGNALS:
-            # These signals' default disposition is SIG_DFL (terminate), which
-            # would fall through silently here and let the heartbeat loop pull
-            # the next (often requeued) run. Raise ShutdownSignal so
-            # Agent.run's wait/terminate/kill cascade runs, mirroring SIGINT
-            # behavior and giving the forwarded child a chance to clean up.
             raise ShutdownSignal(signum)
 
     def _start(self, finished_q, env, function, run_id, in_jupyter):
