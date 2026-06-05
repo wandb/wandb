@@ -13,3 +13,7 @@ sections:
 Section headings should be at level 3 (e.g. `### Added`).
 
 ## Unreleased
+
+### Fixed
+
+- `Run.scan_history()` no longer returns duplicate or missing steps when getting run history (@jacobromero in https://github.com/wandb/wandb/pull/12010)
