@@ -96,7 +96,7 @@ func (h *HistoryReader) getLiveDataForSpecificKeys(
 	spec := map[string]any{
 		"keys":    keys,
 		"minStep": minStep,
-		"maxStep": maxStep,
+		"maxStep": maxStep - 1,
 		"samples": maxStep - minStep,
 	}
 	specJSON, err := simplejsonext.MarshalToString(spec)
