@@ -1612,12 +1612,12 @@ pub struct AlertResult {}
 /// step with a PartialHistoryRequest, which produces artificial Records
 /// when a step is committed).
 ///
-/// Next ID: 84
+/// Next ID: 85
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Request {
     #[prost(
         oneof = "request::RequestType",
-        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 17, 20, 21, 23, 24, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 77, 78, 81, 82, 83, 1000"
+        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 84, 11, 12, 13, 14, 17, 20, 21, 23, 24, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 77, 78, 81, 82, 83, 1000"
     )]
     pub request_type: ::core::option::Option<request::RequestType>,
 }
@@ -1645,6 +1645,8 @@ pub mod request {
         SampledHistory(super::SampledHistoryRequest),
         #[prost(message, tag = "10")]
         PartialHistory(super::PartialHistoryRequest),
+        #[prost(message, tag = "84")]
+        HistoryStep(super::HistoryStepRequest),
         #[prost(message, tag = "11")]
         RunStart(super::RunStartRequest),
         #[prost(message, tag = "12")]
@@ -1702,11 +1704,13 @@ pub mod request {
     }
 }
 /// Response: all non persistent responses to Requests
+///
+/// Next ID: 75
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Response {
     #[prost(
         oneof = "response::ResponseType",
-        tags = "18, 19, 20, 24, 25, 26, 27, 28, 29, 30, 31, 35, 36, 37, 64, 65, 66, 67, 68, 69, 71, 70, 74, 1000"
+        tags = "18, 19, 20, 24, 25, 26, 27, 75, 28, 29, 30, 31, 35, 36, 37, 64, 65, 66, 67, 68, 69, 71, 70, 74, 1000"
     )]
     pub response_type: ::core::option::Option<response::ResponseType>,
 }
@@ -1728,6 +1732,8 @@ pub mod response {
         PollExitResponse(super::PollExitResponse),
         #[prost(message, tag = "27")]
         SampledHistoryResponse(super::SampledHistoryResponse),
+        #[prost(message, tag = "75")]
+        HistoryStepResponse(super::HistoryStepResponse),
         #[prost(message, tag = "28")]
         RunStartResponse(super::RunStartResponse),
         #[prost(message, tag = "29")]
@@ -2314,6 +2320,20 @@ pub struct PartialHistoryRequest {
 }
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct PartialHistoryResponse {}
+/// Get the run's current W&B step number (the step of the next `log()` call).
+///
+/// Returns a ServerErrorResponse in shared mode.
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct HistoryStepRequest {}
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct HistoryStepResponse {
+    /// The step of the next `log()` call.
+    ///
+    /// This is 0 before anything is logged, 1 after the first `log()` call,
+    /// and so on. Corresponds to the artificial `_step` metric.
+    #[prost(int64, tag = "1")]
+    pub step: i64,
+}
 /// SampledHistoryRequest:
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct SampledHistoryRequest {
