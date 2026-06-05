@@ -2,6 +2,8 @@ package artifacts
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -72,4 +74,36 @@ func TestSaveGraphQLRequest(t *testing.T) {
 	gqlmock.AssertVariables(t,
 		createArtifactRequest,
 		gqlmock.GQLVar("input.entityName", gomock.Eq("test-entity")))
+}
+
+func TestManifestStagingDir_UsesStagingSubdir(t *testing.T) {
+	staging := t.TempDir()
+	as := &ArtifactSaver{stagingDir: staging}
+
+	dir, err := as.manifestStagingDir()
+
+	assert.NoError(t, err)
+	assert.Equal(t, filepath.Join(staging, "artifact_manifests"), dir)
+	assert.DirExists(t, dir)
+}
+
+func TestManifestStagingDir_EmptyWhenNoStagingDir(t *testing.T) {
+	as := &ArtifactSaver{stagingDir: ""}
+
+	dir, err := as.manifestStagingDir()
+
+	assert.NoError(t, err)
+	assert.Empty(t, dir)
+}
+
+func TestManifestStagingDir_ErrorsWhenStagingDirUnwritable(t *testing.T) {
+	// A file (not a dir) where the staging dir should be: MkdirAll fails.
+	parent := t.TempDir()
+	notADir := filepath.Join(parent, "staging-is-a-file")
+	assert.NoError(t, os.WriteFile(notADir, []byte("x"), 0o600))
+	as := &ArtifactSaver{stagingDir: notADir}
+
+	_, err := as.manifestStagingDir()
+
+	assert.Error(t, err)
 }

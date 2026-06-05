@@ -54,7 +54,7 @@ func TestArtifactBuilder(t *testing.T) {
 		SequenceClientId: sequenceClientId,
 	}
 
-	builder := NewArtifactBuilder(baseArtifact, t.TempDir())
+	builder := NewArtifactBuilder(baseArtifact)
 	err = builder.AddData("obj.object.json", weaveObjectData)
 	assert.Nil(t, err)
 	err = builder.AddData("obj.type.json", weaveTypeData)

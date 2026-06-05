@@ -11,13 +11,10 @@ import (
 // WriteJSONToTempFileWithMetadata writes the provided data as JSON to a
 // uniquely named temporary file inside dir.
 //
-// dir should be a wandb-controlled location (e.g. an artifact's stagingDir or
-// the run's files directory) that the SDK guarantees exists and is writable.
-// The OS default temp dir ($TMPDIR / os.TempDir()) is intentionally NOT used:
-// on HPC setups $TMPDIR often points to a path the job never created, which
-// made these writes fail silently. Writing into a wandb-controlled dir avoids
-// that, and a missing or unwritable dir surfaces a loud error rather than
-// silently succeeding somewhere the caller didn't intend.
+// dir is passed straight through to os.CreateTemp: an empty dir uses the OS
+// default temp directory, while a non-empty dir must already exist and be
+// writable (otherwise the call fails). Callers choose dir; this helper encodes
+// no policy about where temp files should live.
 //
 // Returns the path to the temporary file, the Base64-encoded MD5 digest of the JSON data,
 // the size of the file, and an error if something goes wrong during the process.
@@ -25,8 +22,6 @@ func WriteJSONToTempFileWithMetadata(
 	data any,
 	dir string,
 ) (filename, digest string, size int64, err error) {
-	// Write into the caller-supplied, wandb-controlled dir rather than the OS
-	// default temp dir, which can be missing or unwritable on HPC hosts.
 	f, err := os.CreateTemp(dir, "tmpfile-")
 	if err != nil {
 		return "", "", 0, fmt.Errorf("unable to create temporary file: %w", err)

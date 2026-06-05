@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -708,6 +709,24 @@ func (as *ArtifactSaver) deleteStagingFiles(manifest *Manifest) {
 	}
 }
 
+// manifestStagingDir returns the directory the manifest temp file should be
+// written into, creating it if necessary.
+//
+// When the SDK supplied a staging dir, manifests go in an artifact_manifests
+// subdir of it so they're kept separate from staged artifact content files.
+// When no staging dir was provided, it returns "" so WriteToFile falls back to
+// the OS default temp dir.
+func (as *ArtifactSaver) manifestStagingDir() (string, error) {
+	if as.stagingDir == "" {
+		return "", nil
+	}
+	dir := filepath.Join(as.stagingDir, "artifact_manifests")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return "", fmt.Errorf("creating manifest staging dir: %w", err)
+	}
+	return dir, nil
+}
+
 // Save performs the upload operation, blocking until it completes.
 func (as *ArtifactSaver) Save() (artifactID string, rerr error) {
 	manifest, err := NewManifestFromProto(as.artifact.Manifest)
@@ -786,12 +805,17 @@ func (as *ArtifactSaver) Save() (artifactID string, rerr error) {
 		return "", fmt.Errorf("ArtifactSaver.resolveClientIDReferences: %w", err)
 	}
 	// TODO: check if size is needed
-	// Write the manifest into stagingDir, a wandb-controlled directory, rather
-	// than the OS default temp dir ($TMPDIR / os.TempDir()), which can be
-	// missing or unwritable on HPC hosts and caused silent failures. The Python
-	// SDK guarantees stagingDir exists before sending the LogArtifactRequest, so
-	// it's a safe write location.
-	manifestFile, manifestDigest, _, err := manifest.WriteToFile(as.stagingDir)
+	// When the python process passes a staging dir with the LogArtifactRequest, write the
+	// manifest there (under a dedicated artifact_manifests subdir) instead of
+	// the OS default temp dir ($TMPDIR / os.TempDir()), which can be missing or
+	// unwritable on HPC hosts and caused silent failures. The SDK guarantees
+	// the staging dir exists. When no staging dir was provided (e.g. internal
+	// artifact paths), manifestDir is empty and WriteToFile uses the OS default.
+	manifestDir, err := as.manifestStagingDir()
+	if err != nil {
+		return "", fmt.Errorf("ArtifactSaver.writeManifest: %w", err)
+	}
+	manifestFile, manifestDigest, _, err := manifest.WriteToFile(manifestDir)
 	if err != nil {
 		return "", fmt.Errorf("ArtifactSaver.writeManifest: %w", err)
 	}

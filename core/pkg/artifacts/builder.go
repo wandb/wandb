@@ -17,23 +17,12 @@ import (
 type ArtifactBuilder struct {
 	artifactRecord   *spb.ArtifactRecord
 	isDigestUpToDate bool
-
-	// tempDir is the directory AddData writes its temporary manifest-entry
-	// files into. Pass a wandb-controlled directory: the OS default temp dir
-	// (os.TempDir() / $TMPDIR) is intentionally not used because it can point
-	// to a missing/unwritable path in HPC environments, causing silent
-	// failures.
-	tempDir string
 }
 
-func NewArtifactBuilder(
-	artifactRecord *spb.ArtifactRecord,
-	tempDir string,
-) *ArtifactBuilder {
+func NewArtifactBuilder(artifactRecord *spb.ArtifactRecord) *ArtifactBuilder {
 	artifactClone := proto.Clone(artifactRecord).(*spb.ArtifactRecord)
 	builder := &ArtifactBuilder{
 		artifactRecord: artifactClone,
-		tempDir:        tempDir,
 	}
 	builder.initDefaultManifest()
 	return builder
@@ -54,7 +43,7 @@ func (b *ArtifactBuilder) initDefaultManifest() {
 }
 
 func (b *ArtifactBuilder) AddData(name string, data any) error {
-	filename, digest, size, err := WriteJSONToTempFileWithMetadata(data, b.tempDir)
+	filename, digest, size, err := WriteJSONToTempFileWithMetadata(data, "")
 	if err != nil {
 		return err
 	}
