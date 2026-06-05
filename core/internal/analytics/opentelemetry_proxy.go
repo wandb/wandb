@@ -86,7 +86,7 @@ type TelemetryContext struct {
 	highCardinalityAttributes map[string]string
 }
 
-func newTelemetryContext() *TelemetryContext {
+func NewTelemetryContext() *TelemetryContext {
 	return &TelemetryContext{
 		lowCardinalityAttributes: map[string]string{
 			attributeWandbVersion:    version.Version,
@@ -131,13 +131,13 @@ func (s *TelemetryContext) AddHighCardinalityAttributes(
 	maps.Copy(s.highCardinalityAttributes, attributes)
 }
 
-// lowCardinalitySnapshot returns a snapshot of the context's low-cardinality attributes
+// LowCardinalitySnapshot returns a snapshot of the context's low-cardinality attributes
 // merged with the provided attributes. Keys in the provided attributes override
 // the context's attributes.
 //
 // The provided attributes are checked against the low-cardinality allow-list.
 // Any key not in the allow-list is silently dropped.
-func (s *TelemetryContext) lowCardinalitySnapshot(
+func (s *TelemetryContext) LowCardinalitySnapshot(
 	attributes map[string]string,
 ) map[string]string {
 	s.mu.RLock()
@@ -158,9 +158,9 @@ func (s *TelemetryContext) lowCardinalitySnapshot(
 	return out
 }
 
-// highCardinalitySnapshot returns a snapshot of the context's high-cardinality attributes
+// HighCardinalitySnapshot returns a snapshot of the context's high-cardinality attributes
 // merged with the provided attributes.
-func (s *TelemetryContext) highCardinalitySnapshot(
+func (s *TelemetryContext) HighCardinalitySnapshot(
 	attributes map[string]string,
 ) map[string]string {
 	s.mu.RLock()
@@ -226,7 +226,7 @@ func NewOpenTelemetryProxy(endpoint string) OpenTelemetryProxy {
 
 	return &OpenTelemetryProxyImpl{
 		endpoint:         endpoint,
-		telemetryContext: newTelemetryContext(),
+		telemetryContext: NewTelemetryContext(),
 		httpClient: &http.Client{
 			Timeout: defaultTimeout,
 		},
@@ -363,7 +363,7 @@ func (o *OpenTelemetryProxyImpl) recordCount(
 	counter.Add(
 		context.Background(),
 		1,
-		toOTelAttrs(o.telemetryContext.lowCardinalitySnapshot(attributes)),
+		toOTelAttrs(o.telemetryContext.LowCardinalitySnapshot(attributes)),
 	)
 }
 
@@ -386,8 +386,8 @@ func (o *OpenTelemetryProxyImpl) RecordLog(
 	record.SetBody(otellogapi.StringValue(body))
 	record.SetSeverity(severity)
 
-	attrs := o.telemetryContext.lowCardinalitySnapshot(nil)
-	maps.Copy(attrs, o.telemetryContext.highCardinalitySnapshot(attributes))
+	attrs := o.telemetryContext.LowCardinalitySnapshot(nil)
+	maps.Copy(attrs, o.telemetryContext.HighCardinalitySnapshot(attributes))
 	if len(attrs) > 0 {
 		kvs := make([]otellogapi.KeyValue, 0, len(attrs))
 		for k, v := range attrs {
