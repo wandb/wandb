@@ -11,6 +11,12 @@ Unreleased changes are in [CHANGELOG.unreleased.md](CHANGELOG.unreleased.md).
 
 <!-- tools/changelog.py: insert here -->
 
+## [0.27.2] - 2026-06-06
+
+### Fixed
+
+- `Run.scan_history()` no longer returns duplicate or missing steps when getting run history (@jacobromero in https://github.com/wandb/wandb/pull/12010)
+
 ## [0.27.1] - 2026-06-04
 
 ### Added
