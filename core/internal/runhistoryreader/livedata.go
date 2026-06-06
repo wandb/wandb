@@ -96,8 +96,13 @@ func (h *HistoryReader) getLiveDataForSpecificKeys(
 	spec := map[string]any{
 		"keys":    keys,
 		"minStep": minStep,
-		"maxStep": maxStep,
 		"samples": maxStep - minStep,
+
+		// SampledHistory marks the max step as inclusive,
+		// This affects the sample window size, causing 1 data point to be dropped.
+		// To keep this inline with the HistoryPage query,
+		// we subtract 1 from the max step to make it exclusive.
+		"maxStep": maxStep - 1,
 	}
 	specJSON, err := simplejsonext.MarshalToString(spec)
 	if err != nil {
