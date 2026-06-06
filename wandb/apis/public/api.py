@@ -169,9 +169,13 @@ class Api:
         wbauth.set_auth_settings(settings, self._auth)
         settings.base_url = base_url
         extra_headers = dict(settings.x_extra_http_headers or {})
-        # Preserve the legacy admin-capable Public API transport behavior while
-        # routing GraphQL through wandb-core.
+        # Preserve the legacy Public API transport behavior while routing
+        # GraphQL through wandb-core. The backend gates admin-capable access
+        # and first-party fields (e.g. a user's `apiKeys`) on a recognized
+        # "W&B Public Client" User-Agent; wandb-core's default "wandb-core"
+        # User-Agent would otherwise be rejected with "relogin required".
         extra_headers["Use-Admin-Privileges"] = "true"
+        extra_headers["User-Agent"] = f"W&B Public Client {wandb.__version__}"
         settings.x_extra_http_headers = extra_headers
         if http_proxy := proxies.get("http"):
             settings.http_proxy = http_proxy
@@ -692,24 +696,7 @@ class Api:
         from .users import User
 
         if self._viewer is None:
-            try:
-                data = self._service_api.execute_graphql(GET_VIEWER_GQL)
-            except WandbApiFailedError as e:
-                if _api_error_status(e) != HTTPStatus.UNAUTHORIZED.value:
-                    raise
-
-                # Service-account keys can read viewer data but cannot list
-                # apiKeys. SaaS returns partial data with HTTP 401 for that
-                # field, which wandb-core treats as an error.
-                data = self._service_api.execute_graphql(
-                    GET_VIEWER_GQL,
-                    omit_fields={"apiKeys"},
-                )
-                if isinstance(data, dict) and isinstance(
-                    viewer := data.get("viewer"),
-                    dict,
-                ):
-                    viewer["apiKeys"] = None
+            data = self._service_api.execute_graphql(GET_VIEWER_GQL)
             result = GetViewer.model_validate(data)
             if (viewer := result.viewer) is None:
                 msg = "Unable to fetch user data from W&B, please verify your API key is valid."
@@ -1045,11 +1032,14 @@ class Api:
         Returns:
             A `User` object or None if a user is not found.
         """
-        from wandb.apis._generated import SearchUsers
+        from wandb.apis._generated import SEARCH_USERS_GQL, SearchUsers
 
         from .users import User
 
-        data = self._search_users_data(username_or_email)
+        data = self._service_api.execute_graphql(
+            SEARCH_USERS_GQL,
+            {"query": username_or_email},
+        )
         result = SearchUsers.model_validate(data)
         if not (conn := result.users) or not (edges := conn.edges):
             return None
@@ -1070,11 +1060,14 @@ class Api:
         Returns:
             An array of `User` objects.
         """
-        from wandb.apis._generated import SearchUsers
+        from wandb.apis._generated import SEARCH_USERS_GQL, SearchUsers
 
         from .users import User
 
-        data = self._search_users_data(username_or_email)
+        data = self._service_api.execute_graphql(
+            SEARCH_USERS_GQL,
+            {"query": username_or_email},
+        )
         result = SearchUsers.model_validate(data)
         if not ((conn := result.users) and (edges := conn.edges)):
             return []
@@ -1082,40 +1075,6 @@ class Api:
             User(self._service_api, edge.node.model_dump(), api_key=self.api_key)
             for edge in edges
         ]
-
-    def _search_users_data(self, query: str) -> Any:
-        from wandb.apis._generated import SEARCH_USERS_GQL
-
-        variables = {"query": query}
-        try:
-            return self._service_api.execute_graphql(SEARCH_USERS_GQL, variables)
-        except WandbApiFailedError as e:
-            if _api_error_status(e) != HTTPStatus.UNAUTHORIZED.value:
-                raise
-
-            # Service-account keys can search users but cannot list apiKeys.
-            # SaaS returns partial data with HTTP 401 for that field, which
-            # wandb-core treats as an error.
-            data = self._service_api.execute_graphql(
-                SEARCH_USERS_GQL,
-                variables,
-                omit_fields={"apiKeys"},
-            )
-            if not isinstance(data, dict):
-                return data
-            users = data.get("users")
-            if not isinstance(users, dict):
-                return data
-            edges = users.get("edges")
-            if not isinstance(edges, list):
-                return data
-            for edge in edges:
-                if isinstance(edge, dict) and isinstance(
-                    node := edge.get("node"),
-                    dict,
-                ):
-                    node["apiKeys"] = None
-            return data
 
     def runs(
         self,

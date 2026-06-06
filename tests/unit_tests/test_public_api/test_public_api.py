@@ -160,109 +160,19 @@ def test_direct_specification_of_api_key():
     # test_settings has a different API key
     api = Api(api_key="abcd" * 10)
     assert api.api_key == "abcd" * 10
+    # The key must reach the settings wandb-core receives, not just the Api.
     assert api._service_api._settings.api_key == "abcd" * 10
     assert api._service_api._settings.to_proto().api_key.value == "abcd" * 10
 
 
-@pytest.mark.usefixtures("skip_verify_login")
-def test_viewer_retries_without_api_keys_on_unauthorized_api_keys(
-    monkeypatch: pytest.MonkeyPatch,
-):
-    from wandb.apis._generated import GET_VIEWER_GQL
-
-    monkeypatch.setattr(Api, "_configure_sentry", lambda self: None)
-
-    error_response = apb.ApiErrorResponse(
-        message="relogin required",
-        http_status=401,
-    )
-    execute_graphql = MagicMock(
-        side_effect=[
-            WandbApiFailedError(error_response.message, error_response),
-            {
-                "viewer": {
-                    "id": "test-id",
-                    "name": "Test User",
-                    "username": "test-user",
-                    "email": "test@example.com",
-                    "admin": False,
-                    "flags": "",
-                    "entity": "test-entity",
-                    "deletedAt": None,
-                    "teams": None,
-                }
-            },
-        ]
-    )
-    monkeypatch.setattr(
-        wandb.apis.public.api.ServiceApi,
-        "execute_graphql",
-        execute_graphql,
-    )
-
-    api = Api(api_key="abcd" * 10)
-
-    assert api.viewer.entity == "test-entity"
-    assert api.viewer.api_keys == []
-    assert execute_graphql.call_args_list == [
-        mock.call(GET_VIEWER_GQL),
-        mock.call(GET_VIEWER_GQL, omit_fields={"apiKeys"}),
-    ]
-
-
-@pytest.mark.parametrize("method_name", ["user", "users"])
-@pytest.mark.usefixtures("skip_verify_login")
-def test_user_search_retries_without_api_keys_on_unauthorized_api_keys(
-    monkeypatch: pytest.MonkeyPatch,
-    method_name: str,
-):
-    from wandb.apis._generated import SEARCH_USERS_GQL
-
-    monkeypatch.setattr(Api, "_configure_sentry", lambda self: None)
-
-    error_response = apb.ApiErrorResponse(
-        message="relogin required",
-        http_status=401,
-    )
-    execute_graphql = MagicMock(
-        side_effect=[
-            WandbApiFailedError(error_response.message, error_response),
-            {
-                "users": {
-                    "edges": [
-                        {
-                            "node": {
-                                "id": "test-id",
-                                "name": "Test User",
-                                "username": "test-user",
-                                "email": "test@example.com",
-                                "admin": False,
-                                "flags": "",
-                                "entity": "test-entity",
-                                "deletedAt": None,
-                                "teams": None,
-                            }
-                        }
-                    ]
-                }
-            },
-        ]
-    )
-    monkeypatch.setattr(
-        wandb.apis.public.api.ServiceApi,
-        "execute_graphql",
-        execute_graphql,
-    )
-
-    result = getattr(Api(api_key="abcd" * 10), method_name)("test-user")
-
-    user = result[0] if method_name == "users" else result
-    assert user.entity == "test-entity"
-    assert user.api_keys == []
-    assert execute_graphql.call_args_list == [
-        mock.call(SEARCH_USERS_GQL, {"query": "test-user"}),
-        mock.call(SEARCH_USERS_GQL, {"query": "test-user"}, omit_fields={"apiKeys"}),
-    ]
+@pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
+def test_public_api_sends_first_party_user_agent():
+    # The backend gates first-party fields (e.g. a user's apiKeys) on a
+    # recognized W&B client User-Agent, so the Public API must set it when
+    # routing GraphQL through wandb-core (whose default User-Agent is rejected).
+    headers = Api()._service_api._settings.x_extra_http_headers
+    assert headers["User-Agent"] == f"W&B Public Client {wandb.__version__}"
+    assert headers["Use-Admin-Privileges"] == "true"
 
 
 @pytest.mark.parametrize(
