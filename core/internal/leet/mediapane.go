@@ -41,6 +41,9 @@ const (
 	mediaTileFooterLines = 1
 	mediaPaneMinHeight   = mediaPaneHeaderLines + mediaTileMinHeight
 
+	// Kitty graphics image IDs live in a terminal-wide namespace. Start media
+	// thumbnails well above ntcharts' default ID so independently-created
+	// picture models do not overwrite each other.
 	mediaKittyIDBase = 10_000
 )
 
