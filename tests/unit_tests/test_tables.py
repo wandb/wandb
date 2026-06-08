@@ -1,4 +1,5 @@
 import datetime
+import json
 
 import numpy as np
 import pytest
@@ -266,75 +267,129 @@ def test_table_logging_mode_validation():
         wandb.Table(log_mode="INVALID_MODE")
 
 
-def test_table_logging_mode_mutable():
-    """Test that MUTABLE mode allows re-logging after mutations."""
-    t = wandb.Table(columns=["a", "b"], log_mode="MUTABLE")
-    t._run = "dummy_run"
-    t._artifact_target = "dummy_target"
-    t._path = "dummy_path"
-    t._sha256 = "dummy_sha"
-
-    t.add_data(1, 2)
-
-    assert t._run is None
-    assert t._artifact_target is None
-    assert t._path is None
-    assert t._sha256 is None
+def _logged_tables(parse_records, record_q):
+    parsed = parse_records(record_q)
+    history = parsed.history or parsed.partial_history
+    return [json.loads(item["table"]) for item in history if "table" in item]
 
 
-def test_table_logging_mode_immutable(mock_wandb_log):
-    """Test that IMMUTABLE mode preserves state after mutations."""
-    t = wandb.Table(columns=["a", "b"], log_mode="IMMUTABLE")
-    t._run = "dummy_run"
-    t._artifact_target = "dummy_target"
-    t._path = "dummy_path"
-    t._sha256 = "dummy_sha"
+def _assert_logged_table(logged_table, **expected):
+    assert {key: logged_table[key] for key in expected} == expected
 
-    t.add_data(1, 2)
 
-    assert t._run == "dummy_run"
-    assert t._artifact_target == "dummy_target"
-    assert t._path == "dummy_path"
-    assert t._sha256 == "dummy_sha"
+def _logged_artifact_table_data(log_artifact, call_index):
+    artifact = log_artifact.call_args_list[call_index].args[0]
+    [entry] = artifact.manifest.entries.values()
+    assert entry.local_path is not None
+    with open(entry.local_path, encoding="utf-8") as f:
+        return json.load(f)["data"]
+
+
+def test_table_logging_mode_immutable_logs_table_artifact_once(
+    mocker, mock_run, mock_wandb_log, parse_records, record_q
+):
+    """Test that mutating a logged IMMUTABLE table does not log a new artifact."""
+    run = mock_run()
+    log_artifact = mocker.patch.object(run, "log_artifact")
+    t = wandb.Table(columns=["a"], data=[[1]], log_mode="IMMUTABLE")
+
+    run.log({"table": t})
+    t.add_data(2)
+    run.log({"table": t})
+
     mock_wandb_log.assert_warned(
         "You are mutating a Table with log_mode='IMMUTABLE' that has been "
         "logged already. Subsequent log() calls will have no effect. "
         "Set log_mode='MUTABLE' to enable re-logging after mutations"
     )
 
+    logged_tables = _logged_tables(parse_records, record_q)
+    assert len(logged_tables) == 2
+    _assert_logged_table(
+        logged_tables[0],
+        _type="table-file",
+        log_mode="IMMUTABLE",
+        nrows=1,
+    )
+    _assert_logged_table(
+        logged_tables[1],
+        _type="table-file",
+        log_mode="IMMUTABLE",
+    )
+    assert logged_tables[1]["path"] == logged_tables[0]["path"]
+    assert log_artifact.call_count == 1
 
-def test_table_logging_mode_incremental():
+
+def test_table_logging_mode_mutable_relogs_after_mutation(
+    mocker, mock_run, parse_records, record_q
+):
+    """Test that MUTABLE mode allows re-logging after mutations."""
+    run = mock_run()
+    log_artifact = mocker.patch.object(run, "log_artifact")
+    t = wandb.Table(columns=["a"], data=[[1]], log_mode="MUTABLE")
+
+    run.log({"table": t})
+    t.add_data(2)
+    run.log({"table": t})
+
+    logged_tables = _logged_tables(parse_records, record_q)
+    assert len(logged_tables) == 2
+    _assert_logged_table(
+        logged_tables[0],
+        _type="table-file",
+        log_mode="MUTABLE",
+        nrows=1,
+    )
+    _assert_logged_table(
+        logged_tables[1],
+        _type="table-file",
+        log_mode="MUTABLE",
+        nrows=2,  # Second table has 2 rows
+    )
+    assert logged_tables[1]["path"] != logged_tables[0]["path"]
+    assert _logged_artifact_table_data(log_artifact, 0) == [[1]]
+    assert _logged_artifact_table_data(log_artifact, 1) == [[1], [2]]
+    assert log_artifact.call_count == 2
+
+
+def test_table_logging_mode_incremental_relogs_after_mutation(
+    mocker, mock_run, parse_records, record_q
+):
     """Test that INCREMENTAL mode handles partial logging correctly."""
-    t = wandb.Table(columns=["a", "b"], log_mode="INCREMENTAL")
+    run = mock_run()
+    log_artifact = mocker.patch.object(run, "log_artifact")
+    t = wandb.Table(columns=["a"], data=[[1]], log_mode="INCREMENTAL")
 
-    assert hasattr(t, "_increment_num")
-    assert t._increment_num is None
+    run.log({"table": t})
+    t.add_data(2)
+    run.log({"table": t})
 
-    t.add_data("Yes", "No")
+    logged_tables = _logged_tables(parse_records, record_q)
+    assert len(logged_tables) == 2
+    _assert_logged_table(
+        logged_tables[0],
+        _type="incremental-table-file",
+        log_mode="INCREMENTAL",
+        increment_num=0,
+        nrows=1,
+    )
+    _assert_logged_table(
+        logged_tables[1],
+        _type="incremental-table-file",
+        log_mode="INCREMENTAL",
+        increment_num=1,
+        nrows=2,
+    )
+    assert logged_tables[1]["path"] != logged_tables[0]["path"]
+    assert _logged_artifact_table_data(log_artifact, 0) == [[1]]
+    assert _logged_artifact_table_data(log_artifact, 1) == [[2]]
+    assert log_artifact.call_count == 2
 
-    assert t._increment_num is None
 
-    # simulate logging
-    t._run = "dummy_run"
-    t._path = "dummy_path"
-    t._sha256 = "dummy_sha"
-    t._set_artifact_target(wandb.Artifact("dummy_art", "placeholder"), "dummy_art")
-    t._increment_num = 0
-
-    t.add_data("Yes", "No")
-
-    assert t._increment_num == 1
-    assert t._artifact_target is None
-    assert t._run is None
-    assert t._path is None
-    assert t._sha256 is None
-
-
-def test_table_logging_mode_incremental_operations(mock_wandb_log):
+def test_table_logging_mode_incremental_operations():
     """Test that INCREMENTAL mode correctly handles unsupported operations."""
     t = wandb.Table(columns=["a", "b"], log_mode="INCREMENTAL")
 
-    # Test that add_column is not supported
     with pytest.raises(wandb.Error) as e:
         t.add_column("c", [1, 2])
 
@@ -343,29 +398,31 @@ def test_table_logging_mode_incremental_operations(mock_wandb_log):
         " log_mode='INCREMENTAL'. Use a different log mode like 'MUTABLE' or 'IMMUTABLE'."
     ) in str(e)
 
-    # Test that add_computed_columns is not supported
     def compute_fn(ndx, row):
         return {"c": row["a"] + 1}
 
     with pytest.raises(wandb.Error) as e:
         t.add_computed_columns(compute_fn)
 
-        assert (
-            "Operation 'add_computed_columns' is not supported for tables with"
-            " log_mode='INCREMENTAL'. Use a different log mode like 'MUTABLE' or 'IMMUTABLE'."
-        ) in str(e)
+    assert (
+        "Operation 'add_computed_columns' is not supported for tables with"
+        " log_mode='INCREMENTAL'. Use a different log mode like 'MUTABLE' or 'IMMUTABLE'."
+    ) in str(e)
 
 
-def test_table_logging_mode_incremental_warnings(mock_wandb_log):
-    """Test that INCREMENTAL mode shows warning when exceeding 100 increments"""
+def test_table_logging_mode_incremental_warns_after_100_increments(
+    mocker, mock_run, mock_wandb_log
+):
+    """Test that INCREMENTAL mode warns when exceeding 100 increments."""
+    run = mock_run()
+    mocker.patch.object(run, "log_artifact")
+    t = wandb.Table(columns=["a"], data=[[0]], log_mode="INCREMENTAL")
 
-    t = wandb.Table(columns=["a", "b"], log_mode="INCREMENTAL")
-
-    # Test warning for max increments
-    t._increment_num = 99
-    t._set_artifact_target(wandb.Artifact("dummy_art", "placeholder"), "dummy_art")
-
-    t.add_data("test", "test")
+    run.log({"table": t})
+    for i in range(1, 101):
+        t.add_data(i)
+        if i < 100:
+            run.log({"table": t})
 
     mock_wandb_log.assert_warned(
         "You have exceeded 100 increments for this table. "
