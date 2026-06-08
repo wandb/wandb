@@ -1613,7 +1613,7 @@ def test_add_obj_wbtable_images(im_path: str, artifact: Artifact):
             "digest": "L1pBeGPxG+6XVRQk4WuvdQ==",
             "size": 71,
         },
-        "my-table.table.json": {"digest": "UN1SfxHpRdt/OOy7TrjvdQ==", "size": 1315},
+        "my-table.table.json": {"digest": "4cthfS5X+SxpFwajjuhrMw==", "size": 1476},
     }
 
 
@@ -1643,7 +1643,7 @@ def test_add_obj_wbtable_images_duplicate_name(assets_path, artifact):
             "digest": "pQVvBBgcuG+jTN0Xo97eZQ==",
             "size": 8837,
         },
-        "my-table.table.json": {"digest": "rkNgqyX3yGEQ1UxM7hsGjQ==", "size": 1006},
+        "my-table.table.json": {"digest": "uuw1nKn7THwjEBDbxXvmfQ==", "size": 1167},
     }
 
 
