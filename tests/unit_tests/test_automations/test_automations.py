@@ -11,9 +11,14 @@ from wandb.automations import (
     EventType,
     NewAutomation,
     OnAddArtifactAlias,
+    OnAddArtifactTag,
+    OnAddCollectionTag,
     OnCreateArtifact,
     OnLinkArtifact,
+    OnRemoveArtifactTag,
+    OnRemoveCollectionTag,
     OnRunMetric,
+    OnUnlinkArtifact,
     RunEvent,
 )
 from wandb.automations._utils import (
@@ -205,7 +210,12 @@ class TestPrepareToCreate:
         [
             EventType.CREATE_ARTIFACT,
             EventType.ADD_ARTIFACT_ALIAS,
+            EventType.ADD_ARTIFACT_TAG,
+            EventType.ADD_COLLECTION_TAG,
             EventType.LINK_ARTIFACT,
+            EventType.REMOVE_ARTIFACT_TAG,
+            EventType.REMOVE_COLLECTION_TAG,
+            EventType.UNLINK_ARTIFACT,
         ],
         indirect=True,
     )
@@ -264,9 +274,14 @@ class TestPrepareToUpdate:
     """Checks on the internal helper that prepares the GraphQL input for UpdateFilterTrigger mutations."""
 
     MUTATION_EVENT_CLASSES: dict[EventType, type[InputEvent]] = {
+        EventType.CREATE_ARTIFACT: OnCreateArtifact,
         EventType.ADD_ARTIFACT_ALIAS: OnAddArtifactAlias,
         EventType.LINK_ARTIFACT: OnLinkArtifact,
-        EventType.CREATE_ARTIFACT: OnCreateArtifact,
+        EventType.UNLINK_ARTIFACT: OnUnlinkArtifact,
+        EventType.ADD_ARTIFACT_TAG: OnAddArtifactTag,
+        EventType.REMOVE_ARTIFACT_TAG: OnRemoveArtifactTag,
+        EventType.ADD_COLLECTION_TAG: OnAddCollectionTag,
+        EventType.REMOVE_COLLECTION_TAG: OnRemoveCollectionTag,
     }
 
     def test_update_event_preserves_mutation_filter(
