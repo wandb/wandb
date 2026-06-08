@@ -76,46 +76,42 @@ def test_eval_table_public_imports():
     assert wandb_data_types.EvalTable is eval_table_module.EvalTable
 
 
-def test_eval_table_offline_run_fails_fast(mock_eval_logger, mock_run):
+def test_eval_table_offline_run_fails_fast(monkeypatch, mock_eval_logger, mock_run):
     run = mock_run(settings={"entity": "e", "project": "p", "mode": "offline"})
     et = wandb.EvalTable(columns=["input", "output"], data=[["x", "y"]])
+    init_weave_for_run = MagicMock()
+    monkeypatch.setattr(
+        "wandb.sdk.data_types.eval_table._init_weave_for_run",
+        init_weave_for_run,
+    )
 
     with pytest.raises(UsageError, match="offline mode"):
         run.log({"my_eval": et})
 
+    init_weave_for_run.assert_not_called()
     mock_eval_logger._create_with_meta.assert_not_called()
 
 
 def test_eval_table_rewrites_weave_import_error(monkeypatch):
-    import_error = ImportError("weave is not installed")
-
-    def fail_import_weave():
-        raise import_error
-
-    monkeypatch.setattr(
-        "wandb.sdk.data_types.eval_table.weave_integration.import_weave",
-        fail_import_weave,
-    )
+    monkeypatch.setitem(sys.modules, "weave", None)
 
     with pytest.raises(ImportError) as exc_info:
         wandb.EvalTable(columns=["input", "output"], data=[["x", "y"]])
 
-    assert str(exc_info.value) == eval_table_module._EVAL_TABLE_WEAVE_DEP_MSG
-    assert exc_info.value.__cause__ is import_error
+    message = str(exc_info.value)
+    assert "EvalTable dependency error" in message
+    assert "pip install" in message
+    assert isinstance(exc_info.value.__cause__, ModuleNotFoundError)
 
 
 def test_eval_table_disabled_weave_raises(monkeypatch, mock_run):
     run = mock_run(settings={"entity": "e", "project": "p", "mode": "online"})
     _install_fake_weave(monkeypatch, __version__="999.0.0")
-
-    monkeypatch.setattr(
-        "wandb.sdk.data_types.eval_table.weave_integration.init_weave",
-        lambda *args, **kwargs: False,
-    )
+    monkeypatch.setenv("WANDB_DISABLE_WEAVE", "1")
 
     et = wandb.EvalTable(columns=["input", "output"], data=[["x", "y"]])
 
-    with pytest.raises(RuntimeError, match="Weave logging is disabled"):
+    with pytest.raises(UsageError, match="WANDB_DISABLE_WEAVE"):
         run.log({"my_eval": et})
 
 
@@ -159,7 +155,6 @@ def test_eval_table_imports_evaluation_logger_after_weave_init(monkeypatch, run)
 
     def init_weave(*args, **kwargs):
         order.append("init")
-        return True
 
     monkeypatch.setattr(
         "wandb.sdk.data_types.eval_table.weave_integration.init_weave",
@@ -178,7 +173,7 @@ def test_eval_table_imports_evaluation_logger_after_weave_init(monkeypatch, run)
 
 def test_eval_table_bind_initializes_weave_for_run(monkeypatch, mock_run):
     _install_fake_weave(monkeypatch)
-    init_weave = MagicMock(return_value=True)
+    init_weave = MagicMock()
     monkeypatch.setattr(
         "wandb.sdk.data_types.eval_table.weave_integration.init_weave",
         init_weave,
@@ -202,7 +197,6 @@ def test_eval_table_rejects_rebind_to_different_project(monkeypatch, mock_run):
                 "Weave is already initialized for 'e/p1'; cannot initialize "
                 "it for 'e/p2'."
             )
-        return True
 
     monkeypatch.setattr(
         "wandb.sdk.data_types.eval_table.weave_integration.init_weave",
@@ -226,7 +220,7 @@ def test_eval_table_version_mismatch_error_includes_actual_version(monkeypatch):
         wandb.EvalTable(columns=["input", "output"], data=[["x", "y"]])
 
     message = str(exc_info.value)
-    assert f"weave>={eval_table_module._MIN_WEAVE_VERSION}" in message
+    assert message.startswith("EvalTable dependency error")
     assert "found weave==0.1.0" in message
 
 
