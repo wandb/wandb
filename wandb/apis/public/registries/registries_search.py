@@ -7,7 +7,6 @@ from typing import TYPE_CHECKING, Any, ClassVar
 
 from pydantic import PositiveInt, ValidationError
 from typing_extensions import override
-from wandb_gql import gql
 
 from wandb._analytics import tracked
 from wandb.apis.paginator import RelayPaginator, SizedRelayPaginator
@@ -15,10 +14,9 @@ from wandb.apis.paginator import RelayPaginator, SizedRelayPaginator
 from ._utils import ensure_registry_prefix_on_names
 
 if TYPE_CHECKING:
-    from wandb_graphql.language.ast import Document
-
-    from wandb.apis.public import ArtifactCollection, RetryingClient
+    from wandb.apis.public import ArtifactCollection
     from wandb.apis.public.registries.registry import Registry
+    from wandb.apis.public.service_api import ServiceApi
     from wandb.sdk.artifacts._generated import (
         ArtifactMembershipFragment,
         RegistryCollectionFragment,
@@ -35,12 +33,12 @@ if TYPE_CHECKING:
 class Registries(RelayPaginator["RegistryFragment", "Registry"]):
     """A lazy iterator of `Registry` objects."""
 
-    QUERY: ClassVar[Document | None] = None
+    QUERY: ClassVar[str | None] = None
     last_response: RegistryConnection | None
 
     def __init__(
         self,
-        client: RetryingClient,
+        service_api: ServiceApi,
         organization: str,
         filter: dict[str, Any] | None = None,
         per_page: PositiveInt = 100,
@@ -49,14 +47,16 @@ class Registries(RelayPaginator["RegistryFragment", "Registry"]):
         if self.QUERY is None:
             from wandb.sdk.artifacts._generated import FETCH_REGISTRIES_GQL
 
-            type(self).QUERY = gql(FETCH_REGISTRIES_GQL)
+            type(self).QUERY = FETCH_REGISTRIES_GQL
 
-        self.client = client
         self.organization = organization
         self.filter = ensure_registry_prefix_on_names(filter or {})
+        self._service_api = service_api
 
         variables = {"organization": organization, "filters": json.dumps(self.filter)}
-        super().__init__(client, variables=variables, per_page=per_page, start=start)
+        super().__init__(
+            service_api, variables=variables, per_page=per_page, start=start
+        )
 
     def __next__(self):
         # Implement custom next since its possible to load empty pages because of auth
@@ -74,7 +74,7 @@ class Registries(RelayPaginator["RegistryFragment", "Registry"]):
         start: str | None = None,
     ) -> Collections:
         return Collections(
-            client=self.client,
+            service_api=self._service_api,
             organization=self.organization,
             registry_filter=self.filter,
             collection_filter=filter,
@@ -90,7 +90,7 @@ class Registries(RelayPaginator["RegistryFragment", "Registry"]):
         start: str | None = None,
     ) -> Versions:
         return Versions(
-            client=self.client,
+            service_api=self._service_api,
             organization=self.organization,
             registry_filter=self.filter,
             collection_filter=None,
@@ -110,7 +110,7 @@ class Registries(RelayPaginator["RegistryFragment", "Registry"]):
         from wandb.sdk.artifacts._generated import FetchRegistries
         from wandb.sdk.artifacts._models.pagination import RegistryConnection
 
-        data = self.client.execute(self.QUERY, variable_values=self.variables)
+        data = self._service_api.execute_graphql(self.QUERY, variables=self.variables)
         result = FetchRegistries.model_validate(data)
         if not ((org := result.organization) and (org_entity := org.org_entity)):
             raise ValueError(
@@ -128,7 +128,7 @@ class Registries(RelayPaginator["RegistryFragment", "Registry"]):
         from wandb.sdk.artifacts._validators import remove_registry_prefix
 
         return Registry(
-            client=self.client,
+            service_api=self._service_api,
             organization=self.organization,
             entity=node.entity.name,
             name=remove_registry_prefix(node.name),
@@ -141,12 +141,12 @@ class Collections(
 ):
     """An lazy iterator of `ArtifactCollection` objects in a Registry."""
 
-    QUERY: ClassVar[Document | None] = None
+    QUERY: ClassVar[str | None] = None
     last_response: RegistryCollectionConnection | None
 
     def __init__(
         self,
-        client: RetryingClient,
+        service_api: ServiceApi,
         organization: str,
         registry_filter: dict[str, Any] | None = None,
         collection_filter: dict[str, Any] | None = None,
@@ -156,12 +156,12 @@ class Collections(
         if self.QUERY is None:
             from wandb.sdk.artifacts._generated import REGISTRY_COLLECTIONS_GQL
 
-            type(self).QUERY = gql(REGISTRY_COLLECTIONS_GQL)
+            type(self).QUERY = REGISTRY_COLLECTIONS_GQL
 
-        self.client = client
         self.organization = organization
         self.registry_filter = registry_filter
         self.collection_filter = collection_filter or {}
+        self._service_api = service_api
 
         variables = {
             "registryFilter": json.dumps(f) if (f := registry_filter) else None,
@@ -169,7 +169,9 @@ class Collections(
             "organization": organization,
             "perPage": per_page,
         }
-        super().__init__(client, variables=variables, per_page=per_page, start=start)
+        super().__init__(
+            service_api, variables=variables, per_page=per_page, start=start
+        )
 
     def __next__(self):
         # Implement custom next since its possible to load empty pages because of auth
@@ -187,7 +189,7 @@ class Collections(
         start: str | None = None,
     ) -> Versions:
         return Versions(
-            client=self.client,
+            service_api=self._service_api,
             organization=self.organization,
             registry_filter=self.registry_filter,
             collection_filter=self.collection_filter,
@@ -201,7 +203,7 @@ class Collections(
         from wandb.sdk.artifacts._generated import RegistryCollections
         from wandb.sdk.artifacts._models.pagination import RegistryCollectionConnection
 
-        data = self.client.execute(self.QUERY, variable_values=self.variables)
+        data = self._service_api.execute_graphql(self.QUERY, variables=self.variables)
         result = RegistryCollections.model_validate(data)
         if not ((org := result.organization) and (org_entity := org.org_entity)):
             raise ValueError(
@@ -227,7 +229,7 @@ class Collections(
         ):
             return None
         return ArtifactCollection(
-            client=self.client,
+            service_api=self._service_api,
             entity=node.project.entity.name,
             project=node.project.name,
             name=node.name,
@@ -240,12 +242,12 @@ class Collections(
 class Versions(RelayPaginator["ArtifactMembershipFragment", "Artifact"]):
     """An lazy iterator of `Artifact` objects in a Registry."""
 
-    QUERY: Document  # Must be set per-instance
+    QUERY: str  # Must be set per-instance
     last_response: ArtifactMembershipConnection | None
 
     def __init__(
         self,
-        client: RetryingClient,
+        service_api: ServiceApi,
         organization: str,
         registry_filter: dict[str, Any] | None = None,
         collection_filter: dict[str, Any] | None = None,
@@ -255,13 +257,13 @@ class Versions(RelayPaginator["ArtifactMembershipFragment", "Artifact"]):
     ):
         from wandb.sdk.artifacts._generated import REGISTRY_VERSIONS_GQL
 
-        self.QUERY = gql(REGISTRY_VERSIONS_GQL)
+        self.QUERY = REGISTRY_VERSIONS_GQL
 
-        self.client = client
         self.organization = organization
         self.registry_filter = registry_filter
         self.collection_filter = collection_filter
         self.artifact_filter = artifact_filter or {}
+        self._service_api = service_api
 
         variables = {
             "registryFilter": json.dumps(f) if (f := registry_filter) else None,
@@ -269,7 +271,9 @@ class Versions(RelayPaginator["ArtifactMembershipFragment", "Artifact"]):
             "artifactFilter": json.dumps(f) if (f := artifact_filter) else None,
             "organization": organization,
         }
-        super().__init__(client, variables=variables, per_page=per_page, start=start)
+        super().__init__(
+            service_api, variables=variables, per_page=per_page, start=start
+        )
 
     @override
     def __next__(self):
@@ -291,7 +295,7 @@ class Versions(RelayPaginator["ArtifactMembershipFragment", "Artifact"]):
         from wandb.sdk.artifacts._generated import RegistryVersions
         from wandb.sdk.artifacts._models.pagination import ArtifactMembershipConnection
 
-        data = self.client.execute(self.QUERY, variable_values=self.variables)
+        data = self._service_api.execute_graphql(self.QUERY, variables=self.variables)
         result = RegistryVersions.model_validate(data)
         if not ((org := result.organization) and (org_entity := org.org_entity)):
             raise ValueError(
@@ -322,5 +326,5 @@ class Versions(RelayPaginator["ArtifactMembershipFragment", "Artifact"]):
                 project=project.name,
                 name=f"{collection.name}:v{version_idx}",
             ),
-            client=self.client,
+            service_api=self._service_api,
         )

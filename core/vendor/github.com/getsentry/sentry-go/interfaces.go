@@ -491,6 +491,24 @@ func (e *Event) ToEnvelopeItem() (item *protocol.EnvelopeItem, err error) {
 	return item, nil
 }
 
+// ToEnvelope converts the Event to a Sentry envelope.
+func (e *Event) ToEnvelope(header *protocol.EnvelopeHeader) (*protocol.Envelope, error) {
+	item, err := e.ToEnvelopeItem()
+	if err != nil {
+		return nil, err
+	}
+
+	envelope := protocol.NewEnvelope(header)
+	envelope.AddItem(item)
+
+	for _, attachment := range e.Attachments {
+		attachmentItem := protocol.NewAttachmentItem(attachment.Filename, attachment.ContentType, attachment.Payload)
+		envelope.AddItem(attachmentItem)
+	}
+
+	return envelope, nil
+}
+
 // GetCategory returns the rate limit category for this event.
 func (e *Event) GetCategory() ratelimit.Category {
 	return e.toCategory()

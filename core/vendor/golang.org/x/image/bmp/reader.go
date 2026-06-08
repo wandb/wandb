@@ -18,6 +18,8 @@ import (
 // feature.
 var ErrUnsupported = errors.New("bmp: unsupported BMP image")
 
+var errInvalidPaletteIndex = errors.New("bmp: invalid palette index")
+
 func readUint16(b []byte) uint16 {
 	return uint16(b[0]) | uint16(b[1])<<8
 }
@@ -29,7 +31,8 @@ func readUint32(b []byte) uint32 {
 // decodePaletted reads a 1, 2, 4 or 8 bit-per-pixel BMP image from r.
 // If topDown is false, the image rows will be read bottom-up.
 func decodePaletted(r io.Reader, c image.Config, topDown bool, bpp int) (image.Image, error) {
-	paletted := image.NewPaletted(image.Rect(0, 0, c.Width, c.Height), c.ColorModel.(color.Palette))
+	palette := c.ColorModel.(color.Palette)
+	paletted := image.NewPaletted(image.Rect(0, 0, c.Width, c.Height), palette)
 	if c.Width == 0 || c.Height == 0 {
 		return paletted, nil
 	}
@@ -51,7 +54,11 @@ func decodePaletted(r io.Reader, c image.Config, topDown bool, bpp int) (image.I
 		byteIndex, bitIndex, mask := 0, 8, byte((1<<bpp)-1)
 		for pixIndex := 0; pixIndex < c.Width; pixIndex++ {
 			bitIndex -= bpp
-			p[pixIndex] = (b[byteIndex]) >> bitIndex & mask
+			paletteIndex := (b[byteIndex]) >> bitIndex & mask
+			if int(paletteIndex) >= len(palette) {
+				return nil, errInvalidPaletteIndex
+			}
+			p[pixIndex] = paletteIndex
 			if bitIndex == 0 {
 				byteIndex++
 				bitIndex = 8

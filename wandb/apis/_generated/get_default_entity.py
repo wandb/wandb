@@ -3,18 +3,16 @@
 
 from __future__ import annotations
 
-from typing import Optional
-
 from wandb._pydantic import GQLId, GQLResult
 
 
 class GetDefaultEntity(GQLResult):
-    viewer: Optional[GetDefaultEntityViewer]
+    viewer: GetDefaultEntityViewer | None
 
 
 class GetDefaultEntityViewer(GQLResult):
     id: GQLId
-    entity: Optional[str]
+    entity: str | None
 
 
 GetDefaultEntity.model_rebuild()

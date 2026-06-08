@@ -7,16 +7,26 @@ import dataclasses
 import json
 import re
 import threading
+from typing import TypeAlias
 
 import fastapi
-from typing_extensions import Any, TypeAlias, override
+from typing_extensions import Any, override
 
-# Matches queries containing a line in one of the following forms:
-#   mutation OpName(
-#   mutation OpName{
-#   query OpName(
-#   query OpName{
-_GQL_OPNAME_RE = re.compile(r"(?m)^(mutation|query)\s+(\w+)\s*[\(\{]")
+# Matches queries containing an operation line, ignoring whitespace and
+# GraphQL comments that may precede it.
+_GQL_OPNAME_RE = re.compile(
+    r"""
+    ^
+    (?:                         # Leading whitespace or GraphQL comments.
+        \s+
+        | \# [^\n]* (?: \n | $ )
+    )*
+    (mutation|query) \s+        # Operation type.
+    (\w+) \s*                   # Operation name.
+    [({]                        # Variable list or selection set.
+    """,
+    re.MULTILINE | re.VERBOSE,
+)
 
 
 # NOTE: In Python 3.12+, this would be done with a `type` statement.

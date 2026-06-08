@@ -34,8 +34,6 @@ from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any, ClassVar
 
 from typing_extensions import override
-from wandb_gql import gql
-from wandb_graphql.language.ast import Document
 
 import wandb
 from wandb import util
@@ -47,8 +45,9 @@ from wandb.sdk.lib import ipython
 
 if TYPE_CHECKING:
     from wandb.apis._generated import GetSweeps
-    from wandb.apis.public.api import RetryingClient
+    from wandb.apis.public.api import Api
     from wandb.apis.public.runs import AgentRuns
+    from wandb.apis.public.service_api import ServiceApi
 
 
 class Sweeps(SizedPaginator["Sweep"]):
@@ -69,12 +68,12 @@ class Sweeps(SizedPaginator["Sweep"]):
     ```
     """
 
-    QUERY: ClassVar[Document | None] = None
+    QUERY: ClassVar[str | None] = None
     last_response: GetSweeps | None
 
     def __init__(
         self,
-        client: RetryingClient,
+        service_api: ServiceApi,
         entity: str,
         project: str,
         per_page: int = 50,
@@ -82,7 +81,7 @@ class Sweeps(SizedPaginator["Sweep"]):
         """An iterable collection of `Sweep` objects.
 
         Args:
-            client: The API client used to query W&B.
+            service_api: The service API used to query W&B.
             entity: The entity which owns the sweeps.
             project: The project which contains the sweeps.
             per_page: The number of sweeps to fetch per request to the API.
@@ -90,19 +89,20 @@ class Sweeps(SizedPaginator["Sweep"]):
         if self.QUERY is None:
             from wandb.apis._generated import GET_SWEEPS_GQL
 
-            type(self).QUERY = gql(GET_SWEEPS_GQL)
+            type(self).QUERY = GET_SWEEPS_GQL
 
         self.entity = entity
         self.project = project
+        self._service_api = service_api
         variables = {"project": self.project, "entity": self.entity}
-        super().__init__(client, variables, per_page)
+        super().__init__(service_api, variables, per_page)
 
     @override
     def _update_response(self) -> None:
         """Fetch and validate the response data for the current page."""
         from wandb.apis._generated import GetSweeps
 
-        data = self.client.execute(self.QUERY, variable_values=self.variables)
+        data = self._service_api.execute_graphql(self.QUERY, variables=self.variables)
         self.last_response = GetSweeps.model_validate(data)
 
     @property
@@ -171,7 +171,7 @@ class Sweeps(SizedPaginator["Sweep"]):
             return []
         return [
             Sweep(
-                self.client,
+                self._service_api,
                 self.entity,
                 self.project,
                 node.name,
@@ -181,6 +181,58 @@ class Sweeps(SizedPaginator["Sweep"]):
 
     def __repr__(self):
         return f"<Sweeps {self.entity}/{self.project}>"
+
+
+def _get_sweep(
+    service_api: ServiceApi,
+    entity: str | None = None,
+    project: str | None = None,
+    sid: str | None = None,
+    order: str | None = None,
+    query: str | None = None,
+    **kwargs: Any,
+) -> Sweep | None:
+    """Fetch a sweep using an already-owned service API."""
+    from wandb.apis._generated import GET_SWEEP_GQL, GET_SWEEP_LEGACY_GQL
+
+    if not order:
+        order = "+created_at"
+
+    variables = {"entity": entity, "project": project, "name": sid, **kwargs}
+    if query is None:
+        query = GET_SWEEP_GQL
+    try:
+        data = service_api.execute_graphql(query, variables=variables)
+    except Exception:
+        # Don't handle exception, rely on legacy query
+        # TODO(gst): Implement updated introspection workaround
+        query = GET_SWEEP_LEGACY_GQL
+        data = service_api.execute_graphql(query, variables=variables)
+
+    # FIXME: looks like this method allows passing arbitrary GQL queries, so for now
+    # we'll have to skip trying to validate the result with a generated pydantic model.
+    if not (
+        data
+        and (proj_dict := data.get("project"))
+        and (sweep_dict := proj_dict.get("sweep"))
+    ):
+        return None
+    sweep = Sweep(
+        service_api,
+        entity,
+        project,
+        sid,
+        attrs=sweep_dict,
+    )
+    sweep.runs = public.Runs(
+        service_api,
+        entity,
+        project,
+        order=order,
+        per_page=10,
+        filters={"$and": [{"sweep": sweep.id}]},
+    )
+    return sweep
 
 
 class Sweep(Attrs):
@@ -198,7 +250,7 @@ class Sweep(Attrs):
 
     def __init__(
         self,
-        client: RetryingClient,
+        service_api: ServiceApi,
         entity: str,
         project: str,
         sweep_id: str,
@@ -206,10 +258,10 @@ class Sweep(Attrs):
     ):
         # TODO: Add agents / flesh this out.
         super().__init__(dict(attrs or {}))
-        self.client = client
         self._entity = entity
         self.project = project
         self.id = sweep_id
+        self._service_api = service_api
         self.runs = []
 
         self.load(force=not attrs)
@@ -236,7 +288,14 @@ class Sweep(Attrs):
         <!-- lazydoc-ignore: internal -->
         """
         if force or not self._attrs:
-            if not (sweep := self.get(self.client, self.entity, self.project, self.id)):
+            if not (
+                sweep := _get_sweep(
+                    self._service_api,
+                    self.entity,
+                    self.project,
+                    self.id,
+                )
+            ):
                 raise ValueError(f"Could not find sweep {self!r}")
             self._attrs = sweep._attrs
             self.runs = sweep.runs
@@ -268,7 +327,7 @@ class Sweep(Attrs):
         filters = {"$and": [{"sweep": self.id}]}
         try:
             return public.Runs(
-                self.client,
+                self._service_api,
                 self.entity,
                 self.project,
                 order=order,
@@ -305,7 +364,7 @@ class Sweep(Attrs):
         """
         path = self.path
         path.insert(2, "sweeps")
-        return self.client.app_url + "/".join(path)
+        return self._service_api.app_url + "/".join(path)
 
     @property
     def name(self):
@@ -322,18 +381,18 @@ class Sweep(Attrs):
     @classmethod
     def get(
         cls,
-        client: RetryingClient,
+        api: Api,
         entity: str | None = None,
         project: str | None = None,
         sid: str | None = None,
         order: str | None = None,
-        query: Document | None = None,
+        query: str | None = None,
         **kwargs,
     ):
         """Execute a query against the cloud backend.
 
         Args:
-            client: The client to use to execute the query.
+            api: The W&B API instance.
             entity: The entity (username or team) that owns the project.
             project: The name of the project to fetch sweep from.
             sid: The sweep ID to query.
@@ -341,46 +400,20 @@ class Sweep(Attrs):
             query: The query to use to execute the query.
             **kwargs: Additional keyword arguments to pass to the query.
         """
-        from wandb.apis._generated import GET_SWEEP_GQL, GET_SWEEP_LEGACY_GQL
-
-        if not order:
-            order = "+created_at"
-
-        variables = {"entity": entity, "project": project, "name": sid, **kwargs}
-        if query is None:
-            query = gql(GET_SWEEP_GQL)
-        try:
-            data = client.execute(query, variable_values=variables)
-        except Exception:
-            # Don't handle exception, rely on legacy query
-            # TODO(gst): Implement updated introspection workaround
-            query = gql(GET_SWEEP_LEGACY_GQL)
-            data = client.execute(query, variable_values=variables)
-
-        # FIXME: looks like this method allows passing arbitrary GQL queries, so for now
-        # we'll have to skip trying to validate the result with a generated pydantic model.
-        if not (
-            data
-            and (proj_dict := data.get("project"))
-            and (sweep_dict := proj_dict.get("sweep"))
-        ):
-            return None
-        sweep = cls(client, entity, project, sid, attrs=sweep_dict)
-        sweep.runs = public.Runs(
-            client,
+        return api._get_sweep(
             entity,
             project,
+            sid,
             order=order,
-            per_page=10,
-            filters={"$and": [{"sweep": sweep.id}]},
+            query=query,
+            **kwargs,
         )
-        return sweep
 
     def _make_sweep_agent(self, attrs: Mapping[str, Any]) -> Agent:
         """Construct `Agent` from API payload."""
         try:
             return Agent(
-                self.client,
+                self._service_api,
                 attrs=attrs,
                 entity=self.entity,
                 project=self.project,
@@ -406,7 +439,10 @@ class Sweep(Attrs):
             "entity": self.entity,
             "project": self.project,
         }
-        data = self.client.execute(gql(GET_SWEEP_AGENT_GQL), variable_values=variables)
+        data = self._service_api.execute_graphql(
+            GET_SWEEP_AGENT_GQL,
+            variables=variables,
+        )
         return self._make_sweep_agent(data["project"]["sweep"]["agent"])
 
     def agents(self) -> list[Agent]:
@@ -418,7 +454,10 @@ class Sweep(Attrs):
             "entity": self.entity,
             "project": self.project,
         }
-        data = self.client.execute(gql(GET_SWEEP_AGENTS_GQL), variable_values=variables)
+        data = self._service_api.execute_graphql(
+            GET_SWEEP_AGENTS_GQL,
+            variables=variables,
+        )
         parsed = GetSweepAgents.model_validate(data)
         if not parsed.project or not parsed.project.sweep:
             return []
@@ -449,17 +488,17 @@ class Sweep(Attrs):
 class Agent(Attrs):
     def __init__(
         self,
-        client: RetryingClient,
+        service_api: ServiceApi,
         attrs: Mapping[str, Any],
         entity: str,
         project: str,
         sweep_id: str,
     ) -> None:
         super().__init__(dict(attrs or {}))
-        self._client = client
         self._entity = entity
         self._project = project
         self._sweep_id = sweep_id
+        self._service_api = service_api
 
         if self._entity is None:
             raise ValueError(
@@ -493,7 +532,7 @@ class Agent(Attrs):
 
         total_runs = int(self._attrs.get("totalRuns") or 0)
         return AgentRuns(
-            self._client,
+            self._service_api,
             entity=self._entity,
             project=self._project,
             sweep_id=self._sweep_id,

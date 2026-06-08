@@ -292,6 +292,10 @@ type Options struct {
 func Encode(w io.Writer, m image.Image, opt *Options) error {
 	d := m.Bounds().Size()
 
+	if d.X == 0 || d.Y == 0 {
+		return errors.New("tiff: zero-size image")
+	}
+
 	compression := uint32(cNone)
 	predictor := false
 	if opt != nil {

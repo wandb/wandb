@@ -39,6 +39,7 @@ def test_override_sandbox_entity_restores_after_exit(
 ) -> None:
     singleton = _singleton()
     monkeypatch.setattr(sandbox_auth.wandb_setup, "singleton", lambda: singleton)
+    monkeypatch.setattr(sandbox_auth, "_client_version_headers", list)
     monkeypatch.setattr(
         sandbox_auth.wbauth,
         "authenticate_session",
@@ -50,13 +51,13 @@ def test_override_sandbox_entity_restores_after_exit(
 
     with sandbox_auth.override_sandbox_entity(entity="override-entity"):
         assert sandbox_auth._resolve_wandb_sdk_auth().headers == {
-            "x-api-key": _VALID_API_KEY,
+            "x-wandb-api-key": _VALID_API_KEY,
             "x-entity-id": "override-entity",
             "x-project-name": "default-project",
         }
 
     assert sandbox_auth._resolve_wandb_sdk_auth().headers == {
-        "x-api-key": _VALID_API_KEY,
+        "x-wandb-api-key": _VALID_API_KEY,
         "x-entity-id": "default-entity",
         "x-project-name": "default-project",
     }
@@ -68,6 +69,7 @@ def test_resolve_wandb_sdk_auth_delegates_to_authenticate_session(
     singleton = _singleton(api_key=_SETTINGS_API_KEY)
     auth_calls: list[dict[str, object]] = []
     monkeypatch.setattr(sandbox_auth.wandb_setup, "singleton", lambda: singleton)
+    monkeypatch.setattr(sandbox_auth, "_client_version_headers", list)
     monkeypatch.setattr(
         sandbox_auth.wbauth,
         "authenticate_session",
@@ -90,7 +92,7 @@ def test_resolve_wandb_sdk_auth_delegates_to_authenticate_session(
     assert auth_calls[0]["no_offline"] is True
     assert headers.strategy == "wandb_api_key"
     assert headers.headers == {
-        "x-api-key": _VALID_API_KEY,
+        "x-wandb-api-key": _VALID_API_KEY,
         "x-entity-id": "default-entity",
         "x-project-name": "default-project",
     }
@@ -101,6 +103,7 @@ def test_resolve_wandb_sdk_auth_omits_optional_metadata_when_unset(
 ) -> None:
     singleton = _singleton(entity=None, project=None)
     monkeypatch.setattr(sandbox_auth.wandb_setup, "singleton", lambda: singleton)
+    monkeypatch.setattr(sandbox_auth, "_client_version_headers", list)
     monkeypatch.setattr(
         sandbox_auth.wbauth,
         "authenticate_session",
@@ -112,7 +115,47 @@ def test_resolve_wandb_sdk_auth_omits_optional_metadata_when_unset(
 
     headers = sandbox_auth._resolve_wandb_sdk_auth()
 
-    assert headers.headers == {"x-api-key": _VALID_API_KEY}
+    assert headers.headers == {"x-wandb-api-key": _VALID_API_KEY}
+
+
+def test_resolve_wandb_sdk_auth_appends_client_version_headers(
+    monkeypatch,
+) -> None:
+    singleton = _singleton()
+    monkeypatch.setattr(sandbox_auth.wandb_setup, "singleton", lambda: singleton)
+    monkeypatch.setattr(
+        sandbox_auth,
+        "_client_version_headers",
+        lambda: [
+            ("x-wandb-sdk-version", "1.2.3"),
+            ("x-cwsandbox-client-version", "0.20.0"),
+        ],
+    )
+    monkeypatch.setattr(
+        sandbox_auth.wbauth,
+        "authenticate_session",
+        lambda **kwargs: sandbox_auth.wbauth.AuthApiKey(
+            host=kwargs["host"],
+            api_key=_VALID_API_KEY,
+        ),
+    )
+
+    headers = sandbox_auth._resolve_wandb_sdk_auth().headers
+
+    assert headers["x-wandb-sdk-version"] == "1.2.3"
+    assert headers["x-cwsandbox-client-version"] == "0.20.0"
+    # Existing auth headers are unaffected.
+    assert headers["x-wandb-api-key"] == _VALID_API_KEY
+
+
+def test_client_version_headers_includes_sdk_versions() -> None:
+    headers = dict(sandbox_auth._client_version_headers())
+
+    # wandb is always importable in the test env; cwsandbox is a hard dependency.
+    assert "x-wandb-sdk-version" in headers
+    assert headers["x-wandb-sdk-version"]
+    assert "x-cwsandbox-client-version" in headers
+    assert headers["x-cwsandbox-client-version"]
 
 
 def test_resolve_wandb_sdk_auth_rejects_non_api_key_credentials(

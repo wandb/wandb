@@ -937,20 +937,13 @@ func (a *internalAsyncTransportAdapter) SendEvent(event *Event) {
 	if header.EventID == "" {
 		header.EventID = protocol.GenerateEventID()
 	}
-	envelope := protocol.NewEnvelope(header)
-	item, err := event.ToEnvelopeItem()
+	envelope, err := event.ToEnvelope(header)
 	if err != nil {
-		debuglog.Printf("Failed to convert event to envelope item, skipping delivery. %s: %v", eventDebugContext(event), err)
+		debuglog.Printf("Failed to convert event to envelope, skipping delivery. %s: %v", eventDebugContext(event), err)
 		if a.recorder != nil {
 			recordForEvent(a.recorder, report.ReasonInternalError, event)
 		}
 		return
-	}
-	envelope.AddItem(item)
-
-	for _, attachment := range event.Attachments {
-		attachmentItem := protocol.NewAttachmentItem(attachment.Filename, attachment.ContentType, attachment.Payload)
-		envelope.AddItem(attachmentItem)
 	}
 
 	if err := a.transport.SendEnvelope(envelope); err != nil {

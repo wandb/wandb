@@ -13,8 +13,8 @@ def test_no_root_dir_access__uses_temp_dir(tmp_path, monkeypatch):
     monkeypatch.setattr(
         os,
         "access",
-        lambda path, mode: not (
-            mode == (os.R_OK | os.W_OK) and str(path) == str(root_dir)
+        lambda path, mode: (
+            not (mode == (os.R_OK | os.W_OK) and str(path) == str(root_dir))
         ),
     )
 
@@ -31,8 +31,8 @@ def test_no_temp_dir_access__throws_error(monkeypatch):
     monkeypatch.setattr(
         os,
         "access",
-        lambda path, mode: not (
-            mode == (os.R_OK | os.W_OK) and str(path) == str(temp_dir)
+        lambda path, mode: (
+            not (mode == (os.R_OK | os.W_OK) and str(path) == str(temp_dir))
         ),
     )
 

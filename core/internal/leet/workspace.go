@@ -211,22 +211,22 @@ func (w *Workspace) Init() tea.Cmd {
 }
 
 func (w *Workspace) Update(msg tea.Msg) tea.Cmd {
-	switch msg := msg.(type) {
-	case picture.KittyFrameMsg:
-		return w.mediaPane.handleKittyFrame(msg)
+	if picture.IsPictureMsg(msg) {
+		return w.mediaPane.handlePictureMsg(msg)
+	}
 
+	switch t := msg.(type) {
 	case mediaPanePrepareMsg:
 		return w.mediaPane.handlePrepareMsg()
 
 	case tea.WindowSizeMsg:
-		w.handleWindowResize(msg.Width, msg.Height)
-		return nil
+		w.handleWindowResize(t.Width, t.Height)
 
 	case tea.KeyPressMsg:
-		return w.handleKeyPressMsg(msg)
+		return w.handleKeyPressMsg(t)
 
 	case tea.MouseMsg:
-		return w.handleMouse(msg)
+		return w.handleMouse(t)
 
 	case WorkspaceRunsAnimationMsg:
 		return w.handleRunsAnimation()
@@ -247,25 +247,25 @@ func (w *Workspace) Update(msg tea.Msg) tea.Cmd {
 		return w.handleSystemMetricsPaneAnimation(time.Now())
 
 	case WorkspaceRunInitMsg:
-		return w.handleWorkspaceRunInit(msg)
+		return w.handleWorkspaceRunInit(t)
 
 	case WorkspaceInitErrMsg:
-		return w.handleWorkspaceInitErr(msg)
+		return w.handleWorkspaceInitErr(t)
 
 	case WorkspaceRunDirsMsg:
-		return w.handleWorkspaceRunDirs(msg)
+		return w.handleWorkspaceRunDirs(t)
 
 	case WorkspaceRunOverviewPreloadedMsg:
-		return w.handleWorkspaceRunOverviewPreloaded(msg)
+		return w.handleWorkspaceRunOverviewPreloaded(t)
 
 	case WorkspaceChunkedBatchMsg:
-		return w.handleWorkspaceChunkedBatch(msg)
+		return w.handleWorkspaceChunkedBatch(t)
 
 	case WorkspaceBatchedRecordsMsg:
-		return w.handleWorkspaceBatchedRecords(msg)
+		return w.handleWorkspaceBatchedRecords(t)
 
 	case WorkspaceFileChangedMsg:
-		return w.handleWorkspaceFileChanged(msg)
+		return w.handleWorkspaceFileChanged(t)
 
 	case HeartbeatMsg:
 		return w.handleHeartbeat()

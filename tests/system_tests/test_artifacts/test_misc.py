@@ -80,13 +80,13 @@ def test_artifact_run_lookup_apis(user):
         a1 = run_d.use_artifact(f"{artifact_1_name}:latest")
         a1_used_by = sorted(a1.used_by(), key=attrgetter("id"))
         assert len(a1_used_by) == 2
-        for expected_run, actual_run in zip(expected_used_by, a1_used_by):
+        for expected_run, actual_run in zip(expected_used_by, a1_used_by, strict=False):
             assert_eq_runs(expected_run, actual_run)
 
         a2 = run_d.use_artifact(f"{artifact_2_name}:latest")
         a2_used_by = sorted(a2.used_by(), key=attrgetter("id"))
         assert len(a2_used_by) == 2
-        for expected_run, actual_run in zip(expected_used_by, a2_used_by):
+        for expected_run, actual_run in zip(expected_used_by, a2_used_by, strict=False):
             assert_eq_runs(expected_run, actual_run)
 
 

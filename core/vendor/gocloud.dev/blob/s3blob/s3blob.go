@@ -49,7 +49,7 @@
 //   - ReaderOptions.BeforeRead: *s3.GetObjectInput or *[]func(*s3.Options)
 //   - Attributes: s3.HeadObjectOutput
 //   - CopyOptions.BeforeCopy: s3.CopyObjectInput
-//   - WriterOptions.BeforeWrite: *s3.PutObjectInput, *s3manager.Uploader
+//   - WriterOptions.BeforeWrite: *transfermanager.UploadObjectInput, *transfermanager.Client
 //   - SignedURLOptions.BeforeSign: *s3.GetObjectInput, when Options.Method == http.MethodGet, or
 //       *s3.PutObjectInput, when Options.Method == http.MethodPut
 
@@ -57,7 +57,6 @@ package s3blob // import "gocloud.dev/blob/s3blob"
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -69,7 +68,8 @@ import (
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	s3manager "github.com/aws/aws-sdk-go-v2/feature/s3/manager"
+	"github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager"
+	tmtypes "github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager/types"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/aws/smithy-go"
@@ -311,9 +311,9 @@ type writer struct {
 	// used to upload data.
 	upload bool
 
-	ctx      context.Context
-	uploader *s3manager.Uploader
-	req      *s3.PutObjectInput
+	ctx context.Context
+	tm  *transfermanager.Client
+	req *transfermanager.UploadObjectInput
 
 	donec chan struct{} // closed when done writing
 	// The following fields will be written before donec closes:
@@ -358,7 +358,7 @@ func (w *writer) open(r io.Reader, closePipeOnError bool) {
 		}
 		var err error
 		w.req.Body = r
-		_, err = w.uploader.Upload(w.ctx, w.req)
+		_, err = w.tm.UploadObject(w.ctx, w.req)
 		if err != nil {
 			if closePipeOnError {
 				w.pr.CloseWithError(err)
@@ -738,15 +738,13 @@ func unescapeKey(key string) string {
 // NewTypedWriter implements driver.NewTypedWriter.
 func (b *bucket) NewTypedWriter(ctx context.Context, key, contentType string, opts *driver.WriterOptions) (driver.Writer, error) {
 	key = escapeKey(key)
-	uploader := s3manager.NewUploader(b.client, func(u *s3manager.Uploader) {
+	tm := transfermanager.New(b.client, func(o *transfermanager.Options) {
 		if opts.BufferSize != 0 {
-			u.PartSize = int64(opts.BufferSize)
+			o.PartSizeBytes = int64(opts.BufferSize)
 		}
 		if opts.MaxConcurrency != 0 {
-			u.Concurrency = opts.MaxConcurrency
+			o.Concurrency = opts.MaxConcurrency
 		}
-
-		u.RequestChecksumCalculation = b.requestChecksumCalculation
 	})
 	md := make(map[string]string, len(opts.Metadata))
 	for k, v := range opts.Metadata {
@@ -758,7 +756,7 @@ func (b *bucket) NewTypedWriter(ctx context.Context, key, contentType string, op
 		})
 		md[k] = url.PathEscape(v)
 	}
-	req := &s3.PutObjectInput{
+	req := &transfermanager.UploadObjectInput{
 		Bucket:      aws.String(b.name),
 		ContentType: aws.String(contentType),
 		Key:         aws.String(key),
@@ -781,32 +779,29 @@ func (b *bucket) NewTypedWriter(ctx context.Context, key, contentType string, op
 	if opts.ContentLanguage != "" {
 		req.ContentLanguage = aws.String(opts.ContentLanguage)
 	}
-	if len(opts.ContentMD5) > 0 {
-		req.ContentMD5 = aws.String(base64.StdEncoding.EncodeToString(opts.ContentMD5))
-	}
+	// S3 doesn't support ContentMD5 validation anymore.
 	if b.encryptionType != "" {
-		req.ServerSideEncryption = b.encryptionType
+		req.ServerSideEncryption = tmtypes.ServerSideEncryption(b.encryptionType)
 	}
 	if b.kmsKeyId != "" {
-		req.SSEKMSKeyId = aws.String(b.kmsKeyId)
+		req.SSEKMSKeyID = aws.String(b.kmsKeyId)
 	}
 	if opts.BeforeWrite != nil {
 		asFunc := func(i any) bool {
 			// Note that since the Go CDK Blob
 			// abstraction does not expose AWS's
-			// Uploader concept, there does not
+			// Transfer Manager concept, there does not
 			// appear to be any utility in
 			// exposing the options list to the v2
-			// Uploader's Upload() method.
+			// Transfer Manager's UploadObject() method.
 			// Instead, applications can
-			// manipulate the exposed *Uploader
-			// directly, including by setting
-			// ClientOptions if needed.
-			if p, ok := i.(**s3manager.Uploader); ok {
-				*p = uploader
+			// manipulate the exposed *Client
+			// directly.
+			if p, ok := i.(**transfermanager.Client); ok {
+				*p = tm
 				return true
 			}
-			if p, ok := i.(**s3.PutObjectInput); ok {
+			if p, ok := i.(**transfermanager.UploadObjectInput); ok {
 				*p = req
 				return true
 			}
@@ -817,10 +812,10 @@ func (b *bucket) NewTypedWriter(ctx context.Context, key, contentType string, op
 		}
 	}
 	return &writer{
-		ctx:      ctx,
-		uploader: uploader,
-		req:      req,
-		donec:    make(chan struct{}),
+		ctx:   ctx,
+		tm:    tm,
+		req:   req,
+		donec: make(chan struct{}),
 	}, nil
 }
 

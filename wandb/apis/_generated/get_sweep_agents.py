@@ -3,19 +3,17 @@
 
 from __future__ import annotations
 
-from typing import List, Optional
-
 from wandb._pydantic import GQLResult
 
 from .fragments import AgentFragment
 
 
 class GetSweepAgents(GQLResult):
-    project: Optional[GetSweepAgentsProject]
+    project: GetSweepAgentsProject | None
 
 
 class GetSweepAgentsProject(GQLResult):
-    sweep: Optional[GetSweepAgentsProjectSweep]
+    sweep: GetSweepAgentsProjectSweep | None
 
 
 class GetSweepAgentsProjectSweep(GQLResult):
@@ -23,7 +21,7 @@ class GetSweepAgentsProjectSweep(GQLResult):
 
 
 class GetSweepAgentsProjectSweepAgents(GQLResult):
-    edges: List[GetSweepAgentsProjectSweepAgentsEdges]
+    edges: list[GetSweepAgentsProjectSweepAgentsEdges]
 
 
 class GetSweepAgentsProjectSweepAgentsEdges(GQLResult):

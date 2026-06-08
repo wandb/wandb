@@ -10,6 +10,7 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/NimbleMarkets/ntcharts/v2/picture"
 	"github.com/stretchr/testify/require"
 
 	"github.com/wandb/wandb/core/internal/leet"
@@ -37,11 +38,17 @@ func testMediaPaneWithGrid(t *testing.T, rows, cols int) (*leet.MediaPane, *leet
 	return pane, store
 }
 
-func mediaKeyMsg(t *testing.T, intent leet.MediaKeyIntent) tea.KeyPressMsg {
+func mediaKeyMsg(t *testing.T, key string) tea.KeyPressMsg {
 	t.Helper()
-	keys := leet.MediaKeysFor(intent)
-	require.NotEmpty(t, keys, "intent %d should have keys", intent)
-	return mediaBindingMsg(t, keys[0])
+
+	switch key {
+	case "enter":
+		return tea.KeyPressMsg{Code: tea.KeyEnter}
+	case "esc":
+		return tea.KeyPressMsg{Code: tea.KeyEsc}
+	default:
+		return navBindingMsg(t, key)
+	}
 }
 
 func setKittyGraphicsEnv(t *testing.T, supported bool) {
@@ -58,8 +65,10 @@ func setKittyGraphicsEnv(t *testing.T, supported bool) {
 	}
 	if supported {
 		t.Setenv("TERM", "xterm-kitty")
+		picture.ForceKittyCapability(picture.KittyCapabilitySupported)
 	} else {
 		t.Setenv("TERM", "xterm-256color")
+		picture.ForceKittyCapability(picture.KittyCapabilityUnsupported)
 	}
 }
 
@@ -230,32 +239,32 @@ func TestMediaPane_HandleKeyScrubBindings(t *testing.T) {
 	pane.SetActive(true)
 	pane.ScrubToStart()
 
-	handled, cmd := pane.HandleKey(mediaKeyMsg(t, leet.MediaKeyScrubForward))
+	handled, cmd := pane.HandleKey(mediaKeyMsg(t, "right"))
 	require.True(t, handled)
 	require.Nil(t, cmd)
 	require.Contains(t, pane.StatusLabel(), "X=_step 1")
 
-	handled, cmd = pane.HandleKey(mediaKeyMsg(t, leet.MediaKeyScrubJumpForward))
+	handled, cmd = pane.HandleKey(mediaKeyMsg(t, "down"))
 	require.True(t, handled)
 	require.Nil(t, cmd)
 	require.Contains(t, pane.StatusLabel(), "X=_step 11")
 
-	handled, cmd = pane.HandleKey(mediaKeyMsg(t, leet.MediaKeyScrubBackward))
+	handled, cmd = pane.HandleKey(mediaKeyMsg(t, "left"))
 	require.True(t, handled)
 	require.Nil(t, cmd)
 	require.Contains(t, pane.StatusLabel(), "X=_step 10")
 
-	handled, cmd = pane.HandleKey(mediaKeyMsg(t, leet.MediaKeyScrubJumpBackward))
+	handled, cmd = pane.HandleKey(mediaKeyMsg(t, "up"))
 	require.True(t, handled)
 	require.Nil(t, cmd)
 	require.Contains(t, pane.StatusLabel(), "X=_step 0")
 
-	handled, cmd = pane.HandleKey(mediaKeyMsg(t, leet.MediaKeyScrubEnd))
+	handled, cmd = pane.HandleKey(mediaKeyMsg(t, "end"))
 	require.True(t, handled)
 	require.Nil(t, cmd)
 	require.Contains(t, pane.StatusLabel(), "X=_step 11")
 
-	handled, cmd = pane.HandleKey(mediaKeyMsg(t, leet.MediaKeyScrubStart))
+	handled, cmd = pane.HandleKey(mediaKeyMsg(t, "home"))
 	require.True(t, handled)
 	require.Nil(t, cmd)
 	require.Contains(t, pane.StatusLabel(), "X=_step 0")
@@ -320,12 +329,12 @@ func TestMediaPane_HandleKeyToggleFullscreenBinding(t *testing.T) {
 	pane.SetStore(store)
 	pane.SetActive(true)
 
-	handled, cmd := pane.HandleKey(mediaKeyMsg(t, leet.MediaKeyToggleFullscreen))
+	handled, cmd := pane.HandleKey(mediaKeyMsg(t, "enter"))
 	require.True(t, handled)
 	require.Nil(t, cmd)
 	require.True(t, pane.IsFullscreen())
 
-	handled, cmd = pane.HandleKey(mediaKeyMsg(t, leet.MediaKeyToggleFullscreen))
+	handled, cmd = pane.HandleKey(mediaKeyMsg(t, "enter"))
 	require.True(t, handled)
 	require.Nil(t, cmd)
 	require.False(t, pane.IsFullscreen())
@@ -409,32 +418,32 @@ func TestMediaPane_HandleKeySelectionAndPageBindings(t *testing.T) {
 	pane.SetActive(true)
 	_ = pane.View(90, 22, "", "")
 
-	handled, cmd := pane.HandleKey(mediaKeyMsg(t, leet.MediaKeySelectionRight))
+	handled, cmd := pane.HandleKey(mediaKeyMsg(t, "d"))
 	require.True(t, handled)
 	require.Nil(t, cmd)
 	require.Contains(t, pane.StatusLabel(), "Media: b")
 
-	handled, cmd = pane.HandleKey(mediaKeyMsg(t, leet.MediaKeySelectionDown))
+	handled, cmd = pane.HandleKey(mediaKeyMsg(t, "s"))
 	require.True(t, handled)
 	require.Nil(t, cmd)
 	require.Contains(t, pane.StatusLabel(), "Media: d")
 
-	handled, cmd = pane.HandleKey(mediaKeyMsg(t, leet.MediaKeySelectionLeft))
+	handled, cmd = pane.HandleKey(mediaKeyMsg(t, "a"))
 	require.True(t, handled)
 	require.Nil(t, cmd)
 	require.Contains(t, pane.StatusLabel(), "Media: c")
 
-	handled, cmd = pane.HandleKey(mediaKeyMsg(t, leet.MediaKeySelectionUp))
+	handled, cmd = pane.HandleKey(mediaKeyMsg(t, "w"))
 	require.True(t, handled)
 	require.Nil(t, cmd)
 	require.Contains(t, pane.StatusLabel(), "Media: a")
 
-	handled, cmd = pane.HandleKey(mediaKeyMsg(t, leet.MediaKeyPageNext))
+	handled, cmd = pane.HandleKey(mediaKeyMsg(t, "pgdown"))
 	require.True(t, handled)
 	require.Nil(t, cmd)
 	require.Contains(t, pane.StatusLabel(), "Media: e")
 
-	handled, cmd = pane.HandleKey(mediaKeyMsg(t, leet.MediaKeyPagePrevious))
+	handled, cmd = pane.HandleKey(mediaKeyMsg(t, "pgup"))
 	require.True(t, handled)
 	require.Nil(t, cmd)
 	require.Contains(t, pane.StatusLabel(), "Media: a")

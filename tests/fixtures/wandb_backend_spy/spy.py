@@ -4,7 +4,7 @@ import contextlib
 import dataclasses
 import json
 import threading
-from collections.abc import Iterator
+from collections.abc import Generator
 from typing import Any
 
 import fastapi
@@ -23,7 +23,7 @@ class WandbBackendSpy:
         self._filestream_stubs: list[_FileStreamResponse] = []
 
     @contextlib.contextmanager
-    def freeze(self) -> Iterator[WandbBackendSnapshot]:
+    def freeze(self) -> Generator[WandbBackendSnapshot]:
         """A context manager in which the spied state can be queried.
 
         Usage:

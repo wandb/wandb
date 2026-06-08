@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import ast
 import sys
+from collections.abc import Callable
 from functools import wraps
-from typing import Callable, TypeVar
-
-from wandb_gql.client import RetryError
+from typing import TypeVar
 
 from wandb import env
 from wandb.errors import CommError, Error
+from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 from wandb.util import parse_backend_error_messages
 
 _F = TypeVar("_F", bound=Callable)
@@ -26,6 +26,15 @@ def normalize_exceptions(func: _F) -> _F:
         message = "Whoa, you found a bug."
         try:
             return func(*args, **kwargs)
+
+        except WandbApiFailedError as err:
+            if err.response is not None and err.response.message:
+                message = err.response.message
+            else:
+                message = str(err) or message
+            if env.is_debug():
+                raise
+            raise CommError(message, err) from err
 
         except requests.HTTPError as error:
             errors = parse_backend_error_messages(error.response)
@@ -44,30 +53,9 @@ def normalize_exceptions(func: _F) -> _F:
 
             raise CommError(message, error)
 
-        except RetryError as err:
-            if (
-                "response" in dir(err.last_exception)
-                and err.last_exception.response is not None
-            ):
-                try:
-                    message = err.last_exception.response.json().get(
-                        "errors", [{"message": message}]
-                    )[0]["message"]
-                except ValueError:
-                    message = err.last_exception.response.text
-            else:
-                message = err.last_exception
-
-            if env.is_debug():
-                raise err.last_exception.with_traceback(sys.exc_info()[2])
-            else:
-                raise CommError(message, err.last_exception).with_traceback(
-                    sys.exc_info()[2]
-                )
         except Error:
             raise
         except Exception as err:
-            # gql raises server errors with dict's as strings...
             if len(err.args) > 0:
                 payload = err.args[0]
             else:

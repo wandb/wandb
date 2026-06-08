@@ -1,11 +1,13 @@
 from __future__ import annotations
 
-from collections.abc import Iterator
+from collections.abc import Generator
 from contextlib import contextmanager
 from contextvars import ContextVar
 
+import cwsandbox
 from cwsandbox import AuthHeaders, CWSandboxAuthenticationError, set_auth_mode
 
+import wandb
 from wandb.errors import UsageError
 from wandb.sdk import wandb_setup
 from wandb.sdk.lib import wbauth
@@ -29,10 +31,10 @@ def _set_wandb_auth_mode() -> None:
 @contextmanager
 def override_sandbox_entity(
     entity: str | None = None,
-) -> Iterator[None]:
+) -> Generator[None]:
     """Temporarily override the sandbox entity for sandbox auth.
 
-    Passing ``None`` means using the default resolve logic from run
+    Passing `None` means using the default resolve logic from run
     and setting. Only used by the cli to set entity via --entity.
     """
     if entity is None:
@@ -46,6 +48,18 @@ def override_sandbox_entity(
         _entity_override.reset(entity_token)
 
 
+def _client_version_headers() -> list[tuple[str, str]]:
+    """Version headers identifying this client to the sandbox gateway (WB-34958).
+
+    The gateway records these for SDK-adoption tracking.
+    """
+    return [
+        ("x-wandb-sdk-version", wandb.__version__),
+        # Included in case the cwsandbox transport doesn't report its own version.
+        ("x-cwsandbox-client-version", cwsandbox.__version__),
+    ]
+
+
 def _resolve_wandb_sdk_auth() -> AuthHeaders:
     settings = wandb_setup.singleton().settings
     host = wbauth.HostUrl(settings.base_url, app_url=settings.app_url)
@@ -57,7 +71,7 @@ def _resolve_wandb_sdk_auth() -> AuthHeaders:
     if not isinstance(auth, wbauth.AuthApiKey):
         raise UsageError("wandb.sandbox currently supports only W&B user API-key auth.")
 
-    metadata: list[tuple[str, str]] = [("x-api-key", auth.api_key)]
+    metadata: list[tuple[str, str]] = [("x-wandb-api-key", auth.api_key)]
     # Both entity and project are optional.
     # entity will use the default entity user set in web UI.
     # project will use/create 'sandbox' project automatically.
@@ -70,6 +84,8 @@ def _resolve_wandb_sdk_auth() -> AuthHeaders:
         metadata.append(("x-entity-id", entity))
     if settings.project:
         metadata.append(("x-project-name", settings.project))
+
+    metadata.extend(_client_version_headers())
 
     return AuthHeaders(
         headers={key: value for key, value in metadata},

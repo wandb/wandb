@@ -75,12 +75,15 @@ def parse_scope(v: Any) -> Any:
 
     from .scopes import ProjectScope, _ArtifactPortfolioScope, _ArtifactSequenceScope
 
-    if isinstance(v, Project):
-        return ProjectScope.model_validate(v)
-    if isinstance(v, ArtifactCollection):
-        typ = _ArtifactSequenceScope if v.is_sequence() else _ArtifactPortfolioScope
-        return typ.model_validate(v)
-    return v
+    match v:
+        case Project():
+            return ProjectScope.model_validate(v)
+        case ArtifactCollection() if v.is_sequence():
+            return _ArtifactSequenceScope.model_validate(v)
+        case ArtifactCollection():
+            return _ArtifactPortfolioScope.model_validate(v)
+        case _:
+            return v
 
 
 def parse_saved_action(v: Any) -> Any:
@@ -94,17 +97,15 @@ def parse_saved_action(v: Any) -> Any:
         SendWebhook,
     )
 
-    if isinstance(v, SendNotification):
-        return SavedNotificationAction(
-            integration={"id": v.integration_id}, **v.model_dump()
-        )
-    if isinstance(v, SendWebhook):
-        return SavedWebhookAction(
-            integration={"id": v.integration_id}, **v.model_dump()
-        )
-    if isinstance(v, DoNothing):
-        return SavedNoOpAction(**v.model_dump())
-    return v
+    match v:
+        case SendNotification(integration_id=id_):
+            return SavedNotificationAction(integration={"id": id_}, **v.model_dump())
+        case SendWebhook(integration_id=id_):
+            return SavedWebhookAction(integration={"id": id_}, **v.model_dump())
+        case DoNothing():
+            return SavedNoOpAction(**v.model_dump())
+        case _:
+            return v
 
 
 def parse_input_action(v: Any) -> Any:
@@ -118,18 +119,20 @@ def parse_input_action(v: Any) -> Any:
         SendWebhook,
     )
 
-    if isinstance(v, SavedNotificationAction):
-        return SendNotification(integration_id=v.integration.id, **v.model_dump())
-    if isinstance(v, SavedWebhookAction):
-        return SendWebhook(integration_id=v.integration.id, **v.model_dump())
-    if isinstance(v, SavedNoOpAction):
-        return DoNothing(**v.model_dump())
-    return v
+    match v:
+        case SavedNotificationAction(integration=integration):
+            return SendNotification(integration_id=integration.id, **v.model_dump())
+        case SavedWebhookAction(integration=integration):
+            return SendWebhook(integration_id=integration.id, **v.model_dump())
+        case SavedNoOpAction():
+            return DoNothing(**v.model_dump())
+        case _:
+            return v
 
 
 # ----------------------------------------------------------------------------
-def wrap_run_event_run_filter(f: MongoLikeFilter) -> MongoLikeFilter:
-    """Wrap a run filter in an `And` operator if it's not already.
+def wrap_run_filter(f: MongoLikeFilter) -> MongoLikeFilter:
+    """Wrap a run filter for a run event in an `And` operator if it's not already.
 
     This is a necessary constraint imposed elsewhere by backend/frontend code.
     """

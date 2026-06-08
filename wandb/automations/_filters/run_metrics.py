@@ -1,16 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import (
-    TYPE_CHECKING,
-    Annotated,
-    Any,
-    Final,
-    Literal,
-    Optional,
-    Union,
-    overload,
-)
+from typing import TYPE_CHECKING, Annotated, Any, Final, Literal, TypeAlias, overload
 
 from pydantic import (
     Field,
@@ -20,7 +11,7 @@ from pydantic import (
     StrictInt,
     field_validator,
 )
-from typing_extensions import TypeAlias, override
+from typing_extensions import override
 
 from wandb._pydantic import GQLBase
 from wandb.automations._validators import LenientStrEnum
@@ -44,7 +35,7 @@ MONGO2PY_OPS: Final[dict[str, str]] = {
 PY2MONGO_OPS: Final[dict[str, str]] = {v: k for k, v in MONGO2PY_OPS.items()}
 
 # Type hint for positive numbers (int or float)
-PosNum: TypeAlias = Union[PositiveInt, PositiveFloat]
+PosNum: TypeAlias = PositiveInt | PositiveFloat
 
 
 class Agg(LenientStrEnum):  # from: Aggregation
@@ -89,18 +80,18 @@ class BaseMetricFilter(GQLBase, ABC, extra="forbid"):
     name: str
     """Name of the observed metric."""
 
-    agg: Optional[Agg]
+    agg: Agg | None
     """Aggregate operation, if any, to apply over the window size."""
 
     window: PositiveInt
     """Size of the metric aggregation window (ignored if `agg` is ``None``)."""
 
     # ------------------------------------------------------------------------------
-    cmp: Optional[str]
-    """Comparison operator between the metric expression (left) vs. the threshold or target (right)."""  # noqa: W505
+    cmp: str | None
+    """Comparison operator between the metric (left) vs. threshold (right) values."""
 
     # ------------------------------------------------------------------------------
-    threshold: Union[StrictInt, StrictFloat]
+    threshold: StrictInt | StrictFloat
     """Threshold value to compare against."""
 
     def __and__(self, other: Any) -> RunMetricFilter:
@@ -140,13 +131,13 @@ class MetricThresholdFilter(BaseMetricFilter):  # from: RunMetricThresholdFilter
     """
 
     name: str
-    agg: Annotated[Optional[Agg], Field(alias="agg_op")] = None
+    agg: Annotated[Agg | None, Field(alias="agg_op")] = None
     window: Annotated[PositiveInt, Field(alias="window_size")] = 1
 
     cmp: Annotated[Literal["$gte", "$gt", "$lt", "$lte"], Field(alias="cmp_op")]
     """Comparison operator between the metric value (left) vs. the threshold (right)."""
 
-    threshold: Union[StrictInt, StrictFloat]
+    threshold: StrictInt | StrictFloat
 
     @field_validator("cmp", mode="before")
     def _validate_cmp(cls, v: Any) -> Any:
@@ -167,7 +158,7 @@ class MetricChangeFilter(BaseMetricFilter):  # from: RunMetricChangeFilter
     """
 
     name: str
-    agg: Annotated[Optional[Agg], Field(alias="agg_op")] = None
+    agg: Annotated[Agg | None, Field(alias="agg_op")] = None
     window: Annotated[PositiveInt, Field(alias="current_window_size")] = 1
 
     # `prior_window` is only for `RUN_METRIC_CHANGE` events
@@ -206,6 +197,56 @@ class MetricChangeFilter(BaseMetricFilter):  # from: RunMetricChangeFilter
         fmt_spec = ".2%" if (self.change_type is ChangeType.REL) else ""
         amt = f"{self.threshold:{fmt_spec}}"
         return repr(rf"{metric} {verb} {amt}")
+
+
+class MetricZScoreFilter(GQLBase, extra="forbid"):
+    """Filter that compares a metric's z-score against a user-defined threshold."""
+
+    name: str
+    """Name of the observed metric."""
+
+    window: Annotated[PositiveInt, Field(alias="window_size")] = 30
+    """Size of the window to calculate the metric mean and standard deviation over."""
+
+    threshold: PosNum = 3.0
+    """Threshold for the z-score."""
+
+    change_dir: ChangeDir = ChangeDir.ANY
+    """Direction of the z-score change to watch for."""
+
+    def __and__(self, other: Any) -> RunMetricFilter:
+        """Returns `(metric_filter & run_filter)` as a `RunMetricFilter`."""
+        from wandb.automations.events import RunMetricFilter
+
+        if isinstance(run_filter := other, (BaseOp, FilterExpr)):
+            # Treat `other` as a run filter and build a RunMetricEvent. Let the
+            # metric filter validators wrap or nest as appropriate.
+            return RunMetricFilter(run=run_filter, metric=self)
+        return NotImplemented
+
+    def __rand__(self, other: BaseOp | FilterExpr) -> RunMetricFilter:
+        """Ensures `&` is commutative for run and metric filters.
+
+        I.e. `(run_filter & metric_filter) == (metric_filter & run_filter)`.
+        """
+        return self.__and__(other)
+
+    def __repr__(self) -> str:
+        match self.change_dir:
+            case ChangeDir.ANY:
+                return repr(rf"abs(zscore({self.name!r})) > {self.threshold}")
+            case ChangeDir.DECREASE:
+                return repr(rf"zscore({self.name!r}) < -{self.threshold}")
+            case ChangeDir.INCREASE:
+                return repr(rf"zscore({self.name!r}) > +{self.threshold}")
+            case _:
+                raise ValueError(f"Unexpected change direction: {self.change_dir!r}")
+
+    @override
+    def __rich_repr__(self) -> RichReprResult:
+        """Returns the `rich` pretty-print representation of the metric filter."""
+        # See: https://rich.readthedocs.io/en/stable/pretty.html#rich-repr-protocol
+        yield None, repr(self)
 
 
 class BaseMetricOperand(GQLBase, ABC, extra="forbid"):
@@ -279,23 +320,25 @@ class BaseMetricOperand(GQLBase, ABC, extra="forbid"):
                 metric. Must be positive. For example, `frac=0.1` denotes a 10% relative
                 increase or decrease.
         """
-        if (
+        match diff, frac:
             # Enforce mutually exclusive keyword args
-            ((frac is None) and (diff is None))
-            or ((frac is not None) and (diff is not None))
-        ):
-            raise ValueError("Must provide exactly one of `frac` or `diff`")
+            case (None, None) | (int() | float(), int() | float()):
+                raise ValueError("Must provide exactly one of `frac` or `diff`")
 
-        # Enforce positive values
-        if (frac is not None) and (frac <= 0):
-            raise ValueError(f"Expected positive threshold, got: {frac=}")
-        if (diff is not None) and (diff <= 0):
-            raise ValueError(f"Expected positive threshold, got: {diff=}")
+            # Enforce positive values
+            case (None, int() | float()) if frac <= 0:
+                raise ValueError(f"Expected positive threshold, got: {frac=}")
+            case (int() | float(), None) if diff <= 0:
+                raise ValueError(f"Expected positive threshold, got: {diff=}")
 
-        if diff is None:
-            kws = dict(change_dir=_dir, change_type=ChangeType.REL, threshold=frac)
-        else:
-            kws = dict(change_dir=_dir, change_type=ChangeType.ABS, threshold=diff)
+            case (int() | float(), None):
+                kws = dict(change_dir=_dir, change_type=ChangeType.ABS, threshold=diff)
+            case (None, int() | float()):
+                kws = dict(change_dir=_dir, change_type=ChangeType.REL, threshold=frac)
+            case _:
+                msg = f"Expected numeric `diff` or `frac`, got: {diff=}, {frac=}"
+                raise TypeError(msg)
+
         return MetricChangeFilter(**dict(self), **kws)
 
     @overload
@@ -468,50 +511,3 @@ class ZScoreMetricOperand(GQLBase, extra="forbid"):
         Allows using either `abs(zscore)` or `zscore.abs()`.
         """
         return self.__abs__()
-
-
-class MetricZScoreFilter(GQLBase, extra="forbid"):
-    """Filter that compares a metric's z-score against a user-defined threshold."""
-
-    name: str
-    """Name of the observed metric."""
-
-    window: Annotated[PositiveInt, Field(alias="window_size")] = 30
-    """Size of the window to calculate the metric mean and standard deviation over."""
-
-    threshold: PosNum = 3.0
-    """Threshold for the z-score."""
-
-    change_dir: ChangeDir = ChangeDir.ANY
-    """Direction of the z-score change to watch for."""
-
-    def __and__(self, other: Any) -> RunMetricFilter:
-        """Returns `(metric_filter & run_filter)` as a `RunMetricFilter`."""
-        from wandb.automations.events import RunMetricFilter
-
-        if isinstance(run_filter := other, (BaseOp, FilterExpr)):
-            # Treat `other` as a run filter and build a RunMetricEvent. Let the
-            # metric filter validators wrap or nest as appropriate.
-            return RunMetricFilter(run=run_filter, metric=self)
-        return NotImplemented
-
-    def __rand__(self, other: BaseOp | FilterExpr) -> RunMetricFilter:
-        """Ensures `&` is commutative for run and metric filters.
-
-        I.e. `(run_filter & metric_filter) == (metric_filter & run_filter)`.
-        """
-        return self.__and__(other)
-
-    def __repr__(self) -> str:
-        if self.change_dir is ChangeDir.ANY:
-            return repr(rf"abs(zscore({self.name!r})) > {self.threshold}")
-        elif self.change_dir is ChangeDir.DECREASE:
-            return repr(rf"zscore({self.name!r}) < -{self.threshold}")
-        else:  # ChangeDir.INCREASE
-            return repr(rf"zscore({self.name!r}) > +{self.threshold}")
-
-    @override
-    def __rich_repr__(self) -> RichReprResult:
-        """Returns the `rich` pretty-print representation of the metric filter."""
-        # See: https://rich.readthedocs.io/en/stable/pretty.html#rich-repr-protocol
-        yield None, repr(self)

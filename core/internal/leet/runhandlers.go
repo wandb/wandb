@@ -422,6 +422,8 @@ func (r *Run) handlePrevPage(msg tea.KeyPressMsg) tea.Cmd {
 		r.metricsGrid.Navigate(-1)
 	case FocusTargetSystemMetrics:
 		r.rightSidebar.metricsGrid.Navigate(-1)
+	case FocusTargetMedia:
+		r.mediaPane.NavigatePage(-1)
 	case FocusTargetOverview:
 		r.leftSidebar.navigatePageUp()
 	case FocusTargetConsoleLogs:
@@ -436,6 +438,8 @@ func (r *Run) handleNextPage(msg tea.KeyPressMsg) tea.Cmd {
 		r.metricsGrid.Navigate(1)
 	case FocusTargetSystemMetrics:
 		r.rightSidebar.metricsGrid.Navigate(1)
+	case FocusTargetMedia:
+		r.mediaPane.NavigatePage(1)
 	case FocusTargetOverview:
 		r.leftSidebar.navigatePageDown()
 	case FocusTargetConsoleLogs:
@@ -450,6 +454,8 @@ func (r *Run) handleNavHome(msg tea.KeyPressMsg) tea.Cmd {
 		r.metricsGrid.NavigateHome()
 	case FocusTargetSystemMetrics:
 		r.rightSidebar.metricsGrid.NavigateHome()
+	case FocusTargetMedia:
+		r.mediaPane.ScrubToStart()
 	case FocusTargetOverview:
 		r.leftSidebar.navigateHome()
 	case FocusTargetConsoleLogs:
@@ -464,6 +470,8 @@ func (r *Run) handleNavEnd(msg tea.KeyPressMsg) tea.Cmd {
 		r.metricsGrid.NavigateEnd()
 	case FocusTargetSystemMetrics:
 		r.rightSidebar.metricsGrid.NavigateEnd()
+	case FocusTargetMedia:
+		r.mediaPane.ScrubToEnd()
 	case FocusTargetOverview:
 		r.leftSidebar.navigateEnd()
 	case FocusTargetConsoleLogs:
@@ -961,6 +969,13 @@ func (r *Run) handleSidebarTabNav(msg tea.KeyPressMsg) tea.Cmd {
 func (r *Run) handleSidebarVerticalNav(msg tea.KeyPressMsg) tea.Cmd {
 	up := DecodeNav(msg) == NavIntentUp
 	switch r.focusMgr.Current() {
+	case FocusTargetMedia:
+		// Media pane keeps arrow-vs-letter distinction: arrows scrub by 10.
+		if up {
+			r.mediaPane.Scrub(-10)
+		} else {
+			r.mediaPane.Scrub(10)
+		}
 	case FocusTargetConsoleLogs:
 		if up {
 			r.consoleLogsPane.Up()
@@ -982,6 +997,13 @@ func (r *Run) handleSidebarVerticalNav(msg tea.KeyPressMsg) tea.Cmd {
 func (r *Run) handleSidebarPageNav(msg tea.KeyPressMsg) tea.Cmd {
 	left := DecodeNav(msg) == NavIntentLeft
 	switch r.focusMgr.Current() {
+	case FocusTargetMedia:
+		// Media pane keeps arrow-vs-letter distinction: arrows scrub by 1.
+		if left {
+			r.mediaPane.Scrub(-1)
+		} else {
+			r.mediaPane.Scrub(1)
+		}
 	case FocusTargetConsoleLogs:
 		if left {
 			r.consoleLogsPane.PageUp()

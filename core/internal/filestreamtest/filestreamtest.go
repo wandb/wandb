@@ -42,7 +42,7 @@ func (fs *FakeFileStream) GetRequest(
 
 			Settings: s,
 			Logger:   observability.NewNoOpLogger(),
-			Printer:  observability.NewPrinter(),
+			Printer:  observability.NewPrinter(0),
 		})
 	}
 

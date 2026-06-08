@@ -11,6 +11,7 @@ import (
 	"bytes"
 	"compress/zlib"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"image"
 	"image/color"
@@ -500,6 +501,9 @@ func newDecoder(r io.Reader) (*decoder, error) {
 
 	d.config.Width = int(d.firstVal(tImageWidth))
 	d.config.Height = int(d.firstVal(tImageLength))
+	if d.config.Width == 0 || d.config.Height == 0 {
+		return nil, errors.New("tiff: zero-size image")
+	}
 
 	if _, ok := d.features[tBitsPerSample]; !ok {
 		// Default is 1 per specification.
@@ -752,7 +756,7 @@ func Decode(r io.Reader) (img image.Image, err error) {
 				d.buf, err = readBuf(r, d.buf, blockMaxDataSize)
 				r.Close()
 			case cPackBits:
-				d.buf, err = unpackBits(io.NewSectionReader(d.r, offset, n))
+				d.buf, err = unpackBits(io.NewSectionReader(d.r, offset, n), blockMaxDataSize)
 			default:
 				err = UnsupportedError(fmt.Sprintf("compression value %d", d.firstVal(tCompression)))
 			}

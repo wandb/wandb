@@ -3,7 +3,6 @@ package leet
 import (
 	"fmt"
 	"image"
-	"image/color"
 	_ "image/gif"
 	_ "image/jpeg"
 	_ "image/png"
@@ -17,7 +16,6 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/NimbleMarkets/ntcharts/v2/picture"
-	imagedraw "golang.org/x/image/draw"
 )
 
 const (
@@ -103,8 +101,7 @@ type MediaPane struct {
 	xIndices    map[string]int
 	autoFollows map[string]bool
 
-	nav    GridNavigator
-	keyMap map[string]KeyBinding[MediaPane]
+	nav GridNavigator
 
 	renderMu   sync.RWMutex
 	renderKeys []mediaRenderKey
@@ -120,7 +117,6 @@ func NewMediaPane(animState *AnimatedValue, gridConfig func() (rows, cols int)) 
 		autoFollows: make(map[string]bool),
 		pageRows:    1,
 		pageCols:    1,
-		keyMap:      buildKeyBindingMap(MediaPaneKeyBindings()),
 		prepareCh:   make(chan struct{}, 1),
 	}
 }
@@ -146,7 +142,7 @@ func (p *MediaPane) UpdateExpandedHeight(maxTerminalHeight int) {
 
 // Init starts the media pane's internal prepare loop.
 func (p *MediaPane) Init() tea.Cmd {
-	return p.waitForPrepare()
+	return batchCmds(p.waitForPrepare(), picture.QueryKittySupport())
 }
 
 func (p *MediaPane) SetStore(store *MediaStore) {
@@ -169,7 +165,7 @@ func (p *MediaPane) togglePictureMode() tea.Cmd {
 	return p.renderer.ToggleMode()
 }
 
-func (p *MediaPane) handleKittyFrame(msg picture.KittyFrameMsg) tea.Cmd {
+func (p *MediaPane) handlePictureMsg(msg tea.Msg) tea.Cmd {
 	return p.renderer.Update(msg)
 }
 
@@ -400,95 +396,64 @@ func (p *MediaPane) HandleKey(msg tea.KeyPressMsg) (bool, tea.Cmd) {
 		return false, nil
 	}
 
-	binding, ok := p.keyMap[normalizeKey(msg.String())]
-	if !ok {
-		return false, nil
-	}
-	if binding.Enabled != nil && !binding.Enabled(p, msg) {
-		return false, nil
-	}
-	return true, binding.Handler(p, msg)
-}
-
-func (p *MediaPane) handleToggleFullscreenKey(tea.KeyPressMsg) tea.Cmd {
-	if p.HasData() {
-		p.ToggleFullscreen()
-	}
-	return nil
-}
-
-func (p *MediaPane) handleExitFullscreenKey(tea.KeyPressMsg) tea.Cmd {
-	p.ExitFullscreen()
-	return nil
-}
-
-func (p *MediaPane) handleTogglePictureModeKey(tea.KeyPressMsg) tea.Cmd {
-	if !p.HasData() {
-		return nil
-	}
-	cmd := p.togglePictureMode()
-	p.requestRenderedMediaPrepare()
-	return cmd
-}
-
-func (p *MediaPane) handleScrubStepKey(msg tea.KeyPressMsg) tea.Cmd {
-	switch DecodeMediaKey(msg) {
-	case MediaKeyScrubBackward:
+	switch normalizeKey(msg.String()) {
+	case "enter":
+		if p.HasData() {
+			p.ToggleFullscreen()
+		}
+		return true, nil
+	case "esc":
+		if !p.fullscreen {
+			return false, nil
+		}
+		p.ExitFullscreen()
+		return true, nil
+	case "k":
+		if !p.HasData() {
+			return true, nil
+		}
+		cmd := p.togglePictureMode()
+		p.requestRenderedMediaPrepare()
+		return true, cmd
+	case "left":
 		p.Scrub(-1)
-	case MediaKeyScrubForward:
+		return true, nil
+	case "right":
 		p.Scrub(1)
-	}
-	return nil
-}
-
-func (p *MediaPane) handleScrubJumpKey(msg tea.KeyPressMsg) tea.Cmd {
-	switch DecodeMediaKey(msg) {
-	case MediaKeyScrubJumpBackward:
+		return true, nil
+	case "up":
 		p.Scrub(-10)
-	case MediaKeyScrubJumpForward:
+		return true, nil
+	case "down":
 		p.Scrub(10)
-	}
-	return nil
-}
-
-func (p *MediaPane) handleScrubBoundaryKey(msg tea.KeyPressMsg) tea.Cmd {
-	switch DecodeMediaKey(msg) {
-	case MediaKeyScrubStart:
+		return true, nil
+	case "home":
 		p.ScrubToStart()
-	case MediaKeyScrubEnd:
+		return true, nil
+	case "end":
 		p.ScrubToEnd()
-	}
-	return nil
-}
-
-func (p *MediaPane) handleSelectionColumnKey(msg tea.KeyPressMsg) tea.Cmd {
-	switch DecodeMediaKey(msg) {
-	case MediaKeySelectionLeft:
+		return true, nil
+	case "a":
 		p.MoveSelection(-1, 0)
-	case MediaKeySelectionRight:
+		return true, nil
+	case "d":
 		p.MoveSelection(1, 0)
-	}
-	return nil
-}
-
-func (p *MediaPane) handleSelectionRowKey(msg tea.KeyPressMsg) tea.Cmd {
-	switch DecodeMediaKey(msg) {
-	case MediaKeySelectionUp:
+		return true, nil
+	case "w":
 		p.MoveSelection(0, -1)
-	case MediaKeySelectionDown:
+		return true, nil
+	case "s":
 		p.MoveSelection(0, 1)
-	}
-	return nil
-}
-
-func (p *MediaPane) handlePageKey(msg tea.KeyPressMsg) tea.Cmd {
-	switch DecodeMediaKey(msg) {
-	case MediaKeyPagePrevious:
+		return true, nil
+	case "pgup":
 		p.NavigatePage(-1)
-	case MediaKeyPageNext:
+		return true, nil
+	case "pgdown":
 		p.NavigatePage(1)
+		return true, nil
+	default:
+		return false, nil
 	}
-	return nil
 }
 
 func (p *MediaPane) MoveSelection(dx, dy int) {
@@ -1064,49 +1029,41 @@ func (r *mediaImageRenderer) ToggleMode() tea.Cmd {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	if !terminalSupportsKittyGraphics() {
-		return nil
-	}
-
 	if r.mode == picture.PictureGlyph {
+		if picture.KittySupported() != picture.KittyCapabilitySupported {
+			return nil
+		}
 		r.mode = picture.PictureKitty
-		return nil
+		cmds := make([]tea.Cmd, 0, len(r.pictures))
+		for _, pic := range r.pictures {
+			if pic.model.Mode() == picture.PictureKitty {
+				continue
+			}
+			if cmd := pic.model.Toggle(); cmd != nil {
+				cmds = append(cmds, cmd)
+			}
+		}
+		return batchCmds(cmds...)
 	}
 
 	r.mode = picture.PictureGlyph
 	cmds := make([]tea.Cmd, 0, len(r.pictures))
 	for key, pic := range r.pictures {
-		if cmd := pic.model.SetImage(nil); cmd != nil {
+		var cmd tea.Cmd
+		if pic.model.Mode() == picture.PictureKitty {
+			cmd = pic.model.Toggle()
+		} else {
+			cmd = pic.model.SetImage(nil)
+		}
+		if cmd != nil {
 			cmds = append(cmds, cmd)
 		}
 		delete(r.pictures, key)
 	}
-	return tea.Batch(cmds...)
+	return batchCmds(cmds...)
 }
 
-func terminalSupportsKittyGraphics() bool {
-	// TODO: come up with a more robust way to check.
-	if os.Getenv("KITTY_WINDOW_ID") != "" ||
-		os.Getenv("WEZTERM_EXECUTABLE") != "" ||
-		os.Getenv("WEZTERM_PANE") != "" ||
-		os.Getenv("GHOSTTY_BIN_DIR") != "" ||
-		os.Getenv("GHOSTTY_RESOURCES_DIR") != "" {
-		return true
-	}
-
-	switch strings.ToLower(os.Getenv("TERM_PROGRAM")) {
-	case "kitty", "wezterm", "ghostty":
-		return true
-	}
-
-	switch strings.ToLower(os.Getenv("TERM")) {
-	case "xterm-kitty", "xterm-ghostty":
-		return true
-	}
-	return false
-}
-
-func (r *mediaImageRenderer) Update(msg picture.KittyFrameMsg) tea.Cmd {
+func (r *mediaImageRenderer) Update(msg tea.Msg) tea.Cmd {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -1116,7 +1073,7 @@ func (r *mediaImageRenderer) Update(msg picture.KittyFrameMsg) tea.Cmd {
 			cmds = append(cmds, cmd)
 		}
 	}
-	return tea.Batch(cmds...)
+	return batchCmds(cmds...)
 }
 
 func (r *mediaImageRenderer) PrepareVisible(keys []mediaRenderKey) tea.Cmd {
@@ -1161,7 +1118,7 @@ func (r *mediaImageRenderer) PrepareVisible(keys []mediaRenderKey) tea.Cmd {
 	}
 	r.mu.Unlock()
 
-	return tea.Batch(cmds...)
+	return batchCmds(cmds...)
 }
 
 func (r *mediaImageRenderer) Park(keys []mediaRenderKey) {
@@ -1266,6 +1223,8 @@ func (r *mediaImageRenderer) renderGlyph(path string, width, height int) string 
 }
 
 func (r *mediaImageRenderer) preparePictureLocked(key mediaRenderKey, img image.Image) tea.Cmd {
+	var cmds []tea.Cmd
+
 	pic := r.pictures[key]
 	if pic == nil {
 		model := picture.NewWithConfig(picture.Config{
@@ -1275,11 +1234,12 @@ func (r *mediaImageRenderer) preparePictureLocked(key mediaRenderKey, img image.
 		pic = &mediaPicture{model: model}
 		r.pictures[key] = pic
 		if r.mode == picture.PictureKitty {
-			pic.model.Toggle()
+			if cmd := pic.model.Toggle(); cmd != nil {
+				cmds = append(cmds, cmd)
+			}
 		}
 	}
 
-	var cmds []tea.Cmd
 	if cmd := pic.model.SetSize(key.width, key.height); cmd != nil {
 		cmds = append(cmds, cmd)
 	}
@@ -1289,7 +1249,7 @@ func (r *mediaImageRenderer) preparePictureLocked(key mediaRenderKey, img image.
 			cmds = append(cmds, cmd)
 		}
 	}
-	return tea.Batch(cmds...)
+	return batchCmds(cmds...)
 }
 
 func loadMediaImage(path string) (image.Image, error) {
@@ -1314,96 +1274,12 @@ func renderPictureGlyph(img image.Image, width, height int) string {
 		return renderMediaPlaceholder(width, height, "Empty image")
 	}
 
-	view := renderHalfBlockImage(scaleImageToFitCells(img, width, height))
+	model := picture.New()
+	model.SetSize(width, height)
+	model.SetImage(img)
+	view := model.View().Content
 	if view == "" {
 		return renderMediaPlaceholder(width, height, "Empty image")
 	}
-	return lipgloss.Place(width, height, lipgloss.Center, lipgloss.Center, view)
-}
-
-func renderHalfBlockImage(img image.Image) string {
-	bounds := img.Bounds()
-	if bounds.Empty() {
-		return ""
-	}
-
-	var b strings.Builder
-	for y := bounds.Min.Y; y < bounds.Max.Y; y += 2 {
-		if y > bounds.Min.Y {
-			b.WriteByte('\n')
-		}
-		for x := bounds.Min.X; x < bounds.Max.X; x++ {
-			upper := colorToRGBA(img.At(x, y))
-			lower := rgbaColor{}
-			if y+1 < bounds.Max.Y {
-				lower = colorToRGBA(img.At(x, y+1))
-			}
-			writeHalfBlockCell(&b, upper, lower)
-		}
-		b.WriteString("\x1b[0m")
-	}
-	return b.String()
-}
-
-type rgbaColor struct {
-	r, g, b, a uint8
-}
-
-func colorToRGBA(c color.Color) rgbaColor {
-	r, g, b, a := c.RGBA()
-	return rgbaColor{
-		r: uint8(r >> 8),
-		g: uint8(g >> 8),
-		b: uint8(b >> 8),
-		a: uint8(a >> 8),
-	}
-}
-
-func writeHalfBlockCell(b *strings.Builder, upper, lower rgbaColor) {
-	const (
-		lowerHalfBlock = "▄"
-		upperHalfBlock = "▀"
-	)
-
-	switch {
-	case upper.a == 0 && lower.a == 0:
-		b.WriteString("\x1b[0m ")
-	case upper.a == 0:
-		fmt.Fprintf(b, "\x1b[0m\x1b[38;2;%d;%d;%dm%s", lower.r, lower.g, lower.b, lowerHalfBlock)
-	case lower.a == 0:
-		fmt.Fprintf(b, "\x1b[0m\x1b[38;2;%d;%d;%dm%s", upper.r, upper.g, upper.b, upperHalfBlock)
-	default:
-		fmt.Fprintf(
-			b,
-			"\x1b[48;2;%d;%d;%dm\x1b[38;2;%d;%d;%dm%s",
-			upper.r, upper.g, upper.b,
-			lower.r, lower.g, lower.b,
-			lowerHalfBlock,
-		)
-	}
-}
-
-func scaleImageToFitCells(img image.Image, cols, rows int) image.Image {
-	bounds := img.Bounds()
-	srcW, srcH := bounds.Dx(), bounds.Dy()
-	if srcW <= 0 || srcH <= 0 || cols <= 0 || rows <= 0 {
-		return img
-	}
-
-	targetW := cols
-	targetH := rows * 2
-	scale := math.Min(float64(targetW)/float64(srcW), float64(targetH)/float64(srcH))
-	if scale <= 0 {
-		return img
-	}
-
-	dstW := max(int(math.Round(float64(srcW)*scale)), 1)
-	dstH := max(int(math.Round(float64(srcH)*scale)), 1)
-	if dstW == srcW && dstH == srcH {
-		return img
-	}
-
-	dst := image.NewRGBA(image.Rect(0, 0, dstW, dstH))
-	imagedraw.CatmullRom.Scale(dst, dst.Bounds(), img, bounds, imagedraw.Over, nil)
-	return dst
+	return view
 }

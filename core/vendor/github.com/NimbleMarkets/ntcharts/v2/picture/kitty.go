@@ -9,6 +9,11 @@ import (
 	"github.com/charmbracelet/x/ansi/kitty"
 )
 
+// buildKittyAPC encodes img as a Kitty graphics APC sequence at the given
+// (cols, rows) cell rectangle. The caller is responsible for sizing img to
+// (cols*cellPixelW × rows*cellPixelH) — do that via prepareSource. Kitty
+// places the image into the cell rectangle preserving source AR, which is
+// a no-op when source AR matches cell-rect AR.
 func buildKittyAPC(img image.Image, id, cols, rows int) string {
 	var buf bytes.Buffer
 	opts := &kitty.Options{

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.46.2
+
+### Bug Fixes 🐛
+
+- Add attachments to new event path by @giortzisg in [#1295](https://github.com/getsentry/sentry-go/pull/1295)
+
 ## 0.46.1
 
 ### Bug Fixes 🐛

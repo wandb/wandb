@@ -490,7 +490,10 @@ class WandbLogger(Logger):
         kwarg_list = [{k: kwargs[k][i] for k in kwargs} for i in range(n)]
 
         metrics = {
-            key: [wandb.Html(html, **kwarg) for html, kwarg in zip(htmls, kwarg_list)]
+            key: [
+                wandb.Html(html, **kwarg)
+                for html, kwarg in zip(htmls, kwarg_list, strict=False)
+            ]
         }
         self.log_metrics(metrics, step)  # type: ignore[arg-type]
 
@@ -512,7 +515,10 @@ class WandbLogger(Logger):
         kwarg_list = [{k: kwargs[k][i] for k in kwargs} for i in range(n)]
 
         metrics = {
-            key: [wandb.Image(img, **kwarg) for img, kwarg in zip(images, kwarg_list)]
+            key: [
+                wandb.Image(img, **kwarg)
+                for img, kwarg in zip(images, kwarg_list, strict=False)
+            ]
         }
         self.log_metrics(metrics, step)  # type: ignore[arg-type]
 
@@ -541,7 +547,8 @@ class WandbLogger(Logger):
 
         metrics = {
             key: [
-                wandb.Audio(audio, **kwarg) for audio, kwarg in zip(audios, kwarg_list)
+                wandb.Audio(audio, **kwarg)
+                for audio, kwarg in zip(audios, kwarg_list, strict=False)
             ]
         }
         self.log_metrics(metrics, step)  # type: ignore[arg-type]
@@ -571,7 +578,8 @@ class WandbLogger(Logger):
 
         metrics = {
             key: [
-                wandb.Video(video, **kwarg) for video, kwarg in zip(videos, kwarg_list)
+                wandb.Video(video, **kwarg)
+                for video, kwarg in zip(videos, kwarg_list, strict=False)
             ]
         }
         self.log_metrics(metrics, step)  # type: ignore[arg-type]

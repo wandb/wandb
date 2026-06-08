@@ -604,6 +604,11 @@ func (s *Settings) GetStatsTrackProcessTree() bool {
 	return s.Proto.XStatsTrackProcessTree.GetValue()
 }
 
+// Whether to skip cgroup resource limits for system metric percentages.
+func (s *Settings) GetStatsNoCgroup() bool {
+	return s.Proto.XStatsNoCgroup.GetValue()
+}
+
 // The label for the run namespacing for console output and system metrics.
 func (s *Settings) GetLabel() string {
 	return s.Proto.XLabel.GetValue()

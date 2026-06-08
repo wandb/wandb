@@ -66,7 +66,6 @@ SYMBOLS_ROOT_OTHER = {
     "Error",
     "InternalApi",
     "PublicApi",
-    "START_TIME",
     "Settings",
     "UsageError",
     "absolute_import",
@@ -90,7 +89,6 @@ SYMBOLS_ROOT_OTHER = {
     "jupyter",
     "keras",
     "lightgbm",
-    "old",
     "patched",
     "plot",
     "plot_table",
@@ -207,6 +205,7 @@ SYMBOLS_RUN = {
     "display",
     "settings",
     "status",
+    "write_logs",
 }
 
 # symbols having to do with resuming, we should clean this up

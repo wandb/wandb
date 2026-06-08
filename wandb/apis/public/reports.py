@@ -12,8 +12,6 @@ import re
 import urllib
 from typing import TYPE_CHECKING, Any
 
-from wandb_gql import gql
-
 import wandb
 from wandb._strutils import nameof
 from wandb.apis import public
@@ -22,15 +20,16 @@ from wandb.apis.paginator import SizedPaginator
 from wandb.sdk.lib import ipython
 
 if TYPE_CHECKING:
-    from .api import RetryingClient
     from .projects import Project
+    from .service_api import ServiceApi
 
 
 class Reports(SizedPaginator["BetaReport"]):
     """Reports is a lazy iterator of `BetaReport` objects.
 
     Args:
-        client (`wandb.apis.internal.Api`): The API client instance to use.
+        service_api: Interface to the wandb-core service that performs
+            W&B API calls for this collection.
         project (`wandb.sdk.internal.Project`): The project to fetch reports from.
         name (str, optional): The name of the report to filter by. If `None`,
             fetches all reports.
@@ -39,8 +38,7 @@ class Reports(SizedPaginator["BetaReport"]):
         per_page (int): Number of reports to fetch per page (default is 50).
     """
 
-    QUERY = gql(
-        """
+    QUERY = """
         query ProjectViews($project: String!, $entity: String!, $reportCursor: String,
             $reportLimit: Int!, $viewType: String = "runs", $viewName: String) {
             project(name: $project, entityName: $entity) {
@@ -72,11 +70,10 @@ class Reports(SizedPaginator["BetaReport"]):
             }
         }
         """
-    )
 
     def __init__(
         self,
-        client: RetryingClient,
+        service_api: ServiceApi,
         project: Project,
         name: str | None = None,
         entity: str | None = None,
@@ -84,12 +81,13 @@ class Reports(SizedPaginator["BetaReport"]):
     ):
         self.project = project
         self.name = name
+        self._service_api = service_api
         variables = {
             "project": project.name,
             "entity": project.entity,
             "viewName": self.name,
         }
-        super().__init__(client, variables, per_page)
+        super().__init__(service_api, variables, per_page)
 
     @property
     def _length(self) -> int | None:
@@ -157,7 +155,7 @@ class Reports(SizedPaginator["BetaReport"]):
 
         return [
             BetaReport(
-                self.client,
+                self._service_api,
                 r["node"],
                 entity=self.project.entity,
                 project=self.project.name,
@@ -191,12 +189,12 @@ class BetaReport(Attrs):
 
     def __init__(
         self,
-        client: RetryingClient,
+        service_api: ServiceApi,
         attrs: dict,
         entity: str | None = None,
         project: str | None = None,
     ):
-        self.client = client
+        self._service_api = service_api
         self.project = project
         self.entity = entity
         self.query_generator = public.QueryGenerator()
@@ -238,7 +236,7 @@ class BetaReport(Attrs):
                 {"name": {"$in": run_set["selections"]["tree"]}}
             )
         return public.Runs(
-            self.client,
+            self._service_api,
             self.entity,
             self.project,
             filters=filters,
@@ -277,14 +275,14 @@ class BetaReport(Attrs):
     @property
     def url(self) -> str | None:
         if (
-            not self.client
+            not self._service_api
             or not self.entity
             or not self.project
             or not self.display_name
             or not self.id
         ):
             return None
-        return self.client.app_url + "/".join(
+        return self._service_api.app_url + "/".join(
             [
                 self.entity,
                 self.project,
@@ -401,7 +399,7 @@ class PythonMongoishQueryGenerator:
 
     def _replace_numeric_dots(self, s):
         numeric_dots = []
-        for i, (left, mid, right) in enumerate(zip(s, s[1:], s[2:]), 1):
+        for i, (left, mid, right) in enumerate(zip(s, s[1:], s[2:], strict=False), 1):
             if mid == "." and (
                 left.isdigit()
                 and right.isdigit()  # 1.2
@@ -417,7 +415,7 @@ class PythonMongoishQueryGenerator:
         numeric_dots = [-1] + numeric_dots + [len(s)]
 
         substrs = []
-        for start, stop in zip(numeric_dots, numeric_dots[1:]):
+        for start, stop in zip(numeric_dots, numeric_dots[1:], strict=False):
             substrs.append(s[start + 1 : stop])
             substrs.append(self.DECIMAL_SPACER)
         substrs = substrs[:-1]

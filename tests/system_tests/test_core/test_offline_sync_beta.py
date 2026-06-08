@@ -3,8 +3,10 @@ from __future__ import annotations
 import asyncio
 import pathlib
 import re
-from typing import Callable
+from collections.abc import Callable
+from typing import cast
 
+import looptime
 import pytest
 import wandb
 from click.testing import CliRunner
@@ -165,14 +167,6 @@ class _Tester:
             self._cond.notify_all()
 
         return handle.map(to_response)
-
-
-@pytest.fixture
-def skip_asyncio_sleep(monkeypatch: pytest.MonkeyPatch):
-    async def do_nothing(duration: float) -> None:
-        _ = duration
-
-    monkeypatch.setattr(beta_sync, "_SLEEP", do_nothing)
 
 
 def _unauthenticate_for_test() -> None:
@@ -463,7 +457,6 @@ def test_prints_relative_paths(
     ]
 
 
-@pytest.mark.usefixtures("skip_asyncio_sleep")
 def test_prints_status_updates(
     tmp_path: pathlib.Path,
     emulated_terminal: EmulatedTerminal,
@@ -498,6 +491,10 @@ def test_prints_status_updates(
         await tester.respond_sync_status(new_infos=[], new_errors=[])
 
     async def do_test():
+        # Enable looptime to fast-forward any sleeping.
+        loop = asyncio.get_running_loop()
+        looptime.patch_event_loop(cast(asyncio.BaseEventLoop, loop))
+
         tester: Any = _Tester(mailbox=mailbox)
 
         async with asyncio_compat.open_task_group(exit_timeout=5) as group:

@@ -3,43 +3,41 @@
 
 from __future__ import annotations
 
-from typing import List, Optional
-
 from pydantic import Field
 
 from wandb._pydantic import GQLId, GQLResult
 
 
 class GetTeamEntity(GQLResult):
-    entity: Optional[GetTeamEntityEntity]
+    entity: GetTeamEntityEntity | None
 
 
 class GetTeamEntityEntity(GQLResult):
     id: GQLId
     name: str
-    available: Optional[bool]
-    photo_url: Optional[str] = Field(alias="photoUrl")
-    read_only: Optional[bool] = Field(alias="readOnly")
+    available: bool | None
+    photo_url: str | None = Field(alias="photoUrl")
+    read_only: bool | None = Field(alias="readOnly")
     read_only_admin: bool = Field(alias="readOnlyAdmin")
     is_team: bool = Field(alias="isTeam")
     private_only: bool = Field(alias="privateOnly")
     storage_bytes: int = Field(alias="storageBytes")
     code_saving_enabled: bool = Field(alias="codeSavingEnabled")
     default_access: str = Field(alias="defaultAccess")
-    is_paid: Optional[bool] = Field(alias="isPaid")
-    members: List[GetTeamEntityEntityMembers]
+    is_paid: bool | None = Field(alias="isPaid")
+    members: list[GetTeamEntityEntityMembers]
 
 
 class GetTeamEntityEntityMembers(GQLResult):
-    id: Optional[str]
-    admin: Optional[bool]
-    pending: Optional[bool]
-    email: Optional[str]
-    username: Optional[str]
+    id: str | None
+    admin: bool | None
+    pending: bool | None
+    email: str | None
+    username: str | None
     name: str
-    photo_url: Optional[str] = Field(alias="photoUrl")
-    account_type: Optional[str] = Field(alias="accountType")
-    api_key: Optional[str] = Field(alias="apiKey")
+    photo_url: str | None = Field(alias="photoUrl")
+    account_type: str | None = Field(alias="accountType")
+    api_key: str | None = Field(alias="apiKey")
 
 
 GetTeamEntity.model_rebuild()

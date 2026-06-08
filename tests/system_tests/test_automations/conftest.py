@@ -1,14 +1,13 @@
 from __future__ import annotations
 
 import secrets
-from collections.abc import Iterator
+from collections.abc import Callable, Generator
 from functools import lru_cache
 from string import ascii_lowercase, digits
-from typing import Callable, Union
+from typing import TypeAlias
 
 import wandb
 from pytest import FixtureRequest, fixture, skip
-from typing_extensions import TypeAlias
 from wandb import Artifact
 from wandb.apis.public import ArtifactCollection, Project
 from wandb.automations import (
@@ -17,10 +16,15 @@ from wandb.automations import (
     DoNothing,
     EventType,
     OnAddArtifactAlias,
+    OnAddArtifactTag,
+    OnAddCollectionTag,
     OnCreateArtifact,
     OnLinkArtifact,
+    OnRemoveArtifactTag,
+    OnRemoveCollectionTag,
     OnRunMetric,
     OnRunState,
+    OnUnlinkArtifact,
     RunEvent,
     ScopeType,
     SendWebhook,
@@ -33,9 +37,8 @@ from wandb.automations._generated import (
 )
 from wandb.automations._utils import INVALID_INPUT_ACTIONS, INVALID_INPUT_EVENTS
 from wandb.automations.events import InputEvent
-from wandb_gql import gql
 
-ScopableWandbType: TypeAlias = Union[ArtifactCollection, Project]
+ScopableWandbType: TypeAlias = ArtifactCollection | Project
 
 
 def random_string(chars: str = ascii_lowercase + digits, n: int = 12) -> str:
@@ -69,7 +72,10 @@ def project(
     name = make_name("test-project")
     api = make_module_api()
     api.create_project(name=name, entity=module_user)
-    return api.project(name=name, entity=module_user)
+    project = api.project(name=name, entity=module_user)
+    # This fixture is module-scoped; load attrs before per-test teardown invalidates the API.
+    _ = project.id
+    return project
 
 
 @fixture(scope="module")
@@ -113,10 +119,10 @@ def make_webhook_integration(
         gql_input = CreateGenericWebhookIntegrationInput(
             name=name, entity_name=entity, url_endpoint=url
         )
-        gql_op = gql(CREATE_GENERIC_WEBHOOK_INTEGRATION_GQL)
+        gql_op = CREATE_GENERIC_WEBHOOK_INTEGRATION_GQL
         gql_vars = {"input": gql_input.model_dump()}
         api = make_module_api()
-        data = api.client.execute(gql_op, variable_values=gql_vars)
+        data = api._service_api.execute_graphql(gql_op, variables=gql_vars)
 
         result = CreateGenericWebhookIntegration(**data)
         integration = result.create_generic_webhook_integration.integration
@@ -130,7 +136,7 @@ def webhook(
     make_module_api: Callable[[], wandb.Api],
     make_webhook_integration: Callable[[str, str, str], WebhookIntegration],
     make_name: Callable[[str], str],
-) -> Iterator[WebhookIntegration]:
+) -> Generator[WebhookIntegration]:
     """A "registered" webhook integration for automation system tests."""
     name = make_name("test-webhook")
     entity = make_module_api().default_entity
@@ -152,10 +158,16 @@ def valid_input_events() -> list[EventType]:
 
 
 def valid_input_actions() -> list[ActionType]:
-    return sorted(set(ActionType) - set(INVALID_INPUT_ACTIONS))
+    # Slack integrations are not configured for these system tests, so
+    # notification actions are only exercised by tests that request them
+    # explicitly.
+    unsupported_test_actions = {ActionType.NOTIFICATION}
+    return sorted(
+        set(ActionType) - set(INVALID_INPUT_ACTIONS) - unsupported_test_actions
+    )
 
 
-# Invalid (event, scope) combinations that should be skipped
+# Invalid (event, scope) combinations that should not produce runnable cases.
 @lru_cache
 def invalid_events_and_scopes() -> set[tuple[EventType, ScopeType]]:
     return {
@@ -165,6 +177,30 @@ def invalid_events_and_scopes() -> set[tuple[EventType, ScopeType]]:
         (EventType.RUN_METRIC_ZSCORE, ScopeType.ARTIFACT_COLLECTION),
         (EventType.RUN_STATE, ScopeType.ARTIFACT_COLLECTION),
     }
+
+
+def pytest_collection_modifyitems(config, items):
+    deselected = []
+    selected = []
+    invalid_pairs = invalid_events_and_scopes()
+
+    for item in items:
+        callspec = getattr(item, "callspec", None)
+        if callspec is None:
+            selected.append(item)
+            continue
+
+        event = callspec.params.get("event_type")
+        scope = callspec.params.get("scope_type")
+        if event is not None and scope is not None and (event, scope) in invalid_pairs:
+            deselected.append(item)
+            continue
+
+        selected.append(item)
+
+    if deselected:
+        config.hook.pytest_deselected(items=deselected)
+        items[:] = selected
 
 
 @fixture(params=valid_input_scopes(), ids=lambda x: f"scope={x.value}")
@@ -219,23 +255,53 @@ def scope(request: FixtureRequest, scope_type: ScopeType) -> ScopableWandbType:
 # ------------------------------------------------------------------------------
 # (Input) event fixtures
 @fixture
-def artifact_filter() -> FilterExpr:
+def alias_filter() -> FilterExpr:
     return ArtifactEvent.alias.matches_regex("^my-artifact.*")
 
 
 @fixture
-def on_create_artifact(scope, artifact_filter) -> OnCreateArtifact:
-    return OnCreateArtifact(scope=scope, filter=artifact_filter)
+def tag_filter() -> FilterExpr:
+    return ArtifactEvent.tag.matches_regex("^my-tag.*")
 
 
 @fixture
-def on_link_artifact(scope, artifact_filter) -> OnLinkArtifact:
-    return OnLinkArtifact(scope=scope, filter=artifact_filter)
+def on_create_artifact(scope, alias_filter) -> OnCreateArtifact:
+    return OnCreateArtifact(scope=scope, filter=alias_filter)
 
 
 @fixture
-def on_add_artifact_alias(scope, artifact_filter) -> OnAddArtifactAlias:
-    return OnAddArtifactAlias(scope=scope, filter=artifact_filter)
+def on_link_artifact(scope, alias_filter) -> OnLinkArtifact:
+    return OnLinkArtifact(scope=scope, filter=alias_filter)
+
+
+@fixture
+def on_unlink_artifact(scope, alias_filter) -> OnUnlinkArtifact:
+    return OnUnlinkArtifact(scope=scope, filter=alias_filter)
+
+
+@fixture
+def on_add_artifact_alias(scope, alias_filter) -> OnAddArtifactAlias:
+    return OnAddArtifactAlias(scope=scope, filter=alias_filter)
+
+
+@fixture
+def on_add_artifact_tag(scope, tag_filter) -> OnAddArtifactTag:
+    return OnAddArtifactTag(scope=scope, filter=tag_filter)
+
+
+@fixture
+def on_remove_artifact_tag(scope, tag_filter) -> OnRemoveArtifactTag:
+    return OnRemoveArtifactTag(scope=scope, filter=tag_filter)
+
+
+@fixture
+def on_add_collection_tag(scope, tag_filter) -> OnAddCollectionTag:
+    return OnAddCollectionTag(scope=scope, filter=tag_filter)
+
+
+@fixture
+def on_remove_collection_tag(scope, tag_filter) -> OnRemoveCollectionTag:
+    return OnRemoveCollectionTag(scope=scope, filter=tag_filter)
 
 
 @fixture
@@ -280,7 +346,12 @@ def event(request: FixtureRequest, event_type: EventType) -> InputEvent:
     event2fixture: dict[EventType, str] = {
         EventType.CREATE_ARTIFACT: on_create_artifact.__name__,
         EventType.ADD_ARTIFACT_ALIAS: on_add_artifact_alias.__name__,
+        EventType.ADD_ARTIFACT_TAG: on_add_artifact_tag.__name__,
+        EventType.ADD_COLLECTION_TAG: on_add_collection_tag.__name__,
         EventType.LINK_ARTIFACT: on_link_artifact.__name__,
+        EventType.REMOVE_ARTIFACT_TAG: on_remove_artifact_tag.__name__,
+        EventType.REMOVE_COLLECTION_TAG: on_remove_collection_tag.__name__,
+        EventType.UNLINK_ARTIFACT: on_unlink_artifact.__name__,
         EventType.RUN_METRIC_THRESHOLD: on_run_metric_threshold.__name__,
         EventType.RUN_METRIC_CHANGE: on_run_metric_change.__name__,
         EventType.RUN_METRIC_ZSCORE: on_run_metric_zscore.__name__,

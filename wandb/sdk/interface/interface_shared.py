@@ -78,6 +78,17 @@ class InterfaceShared(InterfaceBase, abc.ABC):
         rec.output_raw.CopyFrom(outdata)
         self._publish(rec, nowait=nowait)
 
+    @override
+    def _publish_output_logger(
+        self,
+        outdata: pb.OutputLoggerRecord,
+        *,
+        nowait: bool = False,
+    ) -> None:
+        rec = pb.Record()
+        rec.output_logger.CopyFrom(outdata)
+        self._publish(rec, nowait=nowait)
+
     def _publish_cancel(self, cancel: pb.CancelRequest) -> None:
         rec = self._make_request(cancel=cancel)
         self._publish(rec)
@@ -85,6 +96,12 @@ class InterfaceShared(InterfaceBase, abc.ABC):
     def _publish_tbdata(self, tbrecord: pb.TBRecord) -> None:
         rec = self._make_record(tbrecord=tbrecord)
         self._publish(rec)
+
+    @override
+    def deliver_history_step(self) -> MailboxHandle[pb.HistoryStepResponse]:
+        rec = pb.Record()
+        rec.request.history_step.SetInParent()
+        return self._deliver(rec).map(lambda r: r.response.history_step_response)
 
     def _publish_partial_history(
         self, partial_history: pb.PartialHistoryRequest
@@ -130,8 +147,6 @@ class InterfaceShared(InterfaceBase, abc.ABC):
         pause: pb.PauseRequest | None = None,
         resume: pb.ResumeRequest | None = None,
         status: pb.StatusRequest | None = None,
-        stop_status: pb.StopStatusRequest | None = None,
-        internal_messages: pb.InternalMessagesRequest | None = None,
         network_status: pb.NetworkStatusRequest | None = None,
         poll_exit: pb.PollExitRequest | None = None,
         partial_history: pb.PartialHistoryRequest | None = None,
@@ -167,10 +182,6 @@ class InterfaceShared(InterfaceBase, abc.ABC):
             request.resume.CopyFrom(resume)
         elif status:
             request.status.CopyFrom(status)
-        elif stop_status:
-            request.stop_status.CopyFrom(stop_status)
-        elif internal_messages:
-            request.internal_messages.CopyFrom(internal_messages)
         elif network_status:
             request.network_status.CopyFrom(network_status)
         elif poll_exit:
@@ -461,13 +472,6 @@ class InterfaceShared(InterfaceBase, abc.ABC):
         record = self._make_request(poll_exit=poll_exit)
         return self._deliver(record)
 
-    def _deliver_stop_status(
-        self,
-        stop_status: pb.StopStatusRequest,
-    ) -> MailboxHandle[pb.Result]:
-        record = self._make_request(stop_status=stop_status)
-        return self._deliver(record)
-
     def _deliver_attach(
         self,
         attach: pb.AttachRequest,
@@ -479,12 +483,6 @@ class InterfaceShared(InterfaceBase, abc.ABC):
         self, network_status: pb.NetworkStatusRequest
     ) -> MailboxHandle[pb.Result]:
         record = self._make_request(network_status=network_status)
-        return self._deliver(record)
-
-    def _deliver_internal_messages(
-        self, internal_message: pb.InternalMessagesRequest
-    ) -> MailboxHandle[pb.Result]:
-        record = self._make_request(internal_messages=internal_message)
         return self._deliver(record)
 
     def _deliver_request_sampled_history(

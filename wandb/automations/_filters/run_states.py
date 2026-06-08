@@ -3,10 +3,10 @@ from __future__ import annotations
 from collections.abc import Iterable
 from typing import TYPE_CHECKING, Annotated, Any
 
-from pydantic import BeforeValidator
+from pydantic import BeforeValidator, field_validator
 
 from wandb._iterutils import always_list
-from wandb._pydantic import GQLBase, field_validator
+from wandb._pydantic import GQLBase
 from wandb.automations._validators import LenientStrEnum
 
 from .expressions import FilterExpr
@@ -16,7 +16,7 @@ if TYPE_CHECKING:
     from wandb.automations.events import EventType, RunStateFilter
 
 
-class ReportedRunState(LenientStrEnum):  # from: StateToReport
+class ReportedRunState(LenientStrEnum):  # from: CoarseRunState
     RUNNING = "RUNNING"
     FINISHED = "FINISHED"
     FAILED = "FAILED"
@@ -56,10 +56,7 @@ class StateFilter(GQLBase):  # from: RunStateFilter
         return NotImplemented
 
     def __rand__(self, other: BaseOp | FilterExpr) -> RunStateFilter:
-        """Ensures `&` is commutative for run and state filters.
-
-        I.e. `(run_filter & state_filter) == (state_filter & run_filter)`.
-        """
+        """Ensures `&` is commutative, i.e. `(A & B) == (B & A)`."""
         return self.__and__(other)
 
 
@@ -80,7 +77,7 @@ class StateOperand(GQLBase):
         """Returns a filter that watches for `run_state in states`."""
         return StateFilter(states=states)
 
-    def __eq__(self, other: Any) -> StateFilter:
+    def __eq__(self, other: Any) -> StateFilter:  # type: ignore[override]
         if isinstance(other, (str, ReportedRunState)):
             return self.eq(other)
         raise TypeError(f"Invalid operand type in run state filter: {type(other)!r}")

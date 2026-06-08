@@ -28,16 +28,16 @@ import threading
 import time
 import types
 import urllib
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import asdict, is_dataclass
 from datetime import date, datetime, timedelta
 from gzip import GzipFile
 from importlib import import_module
 from sys import getsizeof
 from types import ModuleType
-from typing import IO, TYPE_CHECKING, Callable, TextIO, Union
+from typing import IO, TYPE_CHECKING, TextIO, TypeGuard
 
-from typing_extensions import Any, Generator, TypeGuard, TypeVar, deprecated
+from typing_extensions import Any, Generator, TypeVar, deprecated
 
 import wandb
 import wandb.env
@@ -57,12 +57,12 @@ if TYPE_CHECKING:
 
     from wandb.sdk.artifacts.artifact import Artifact
 
-CheckRetryFnType = Callable[[Exception], Union[bool, timedelta]]
+CheckRetryFnType = Callable[[Exception], bool | timedelta]
 T = TypeVar("T")
 
 
 logger = logging.getLogger(__name__)
-_not_importable = set()
+_not_importable: set[str] = set()
 
 LAUNCH_JOB_ARTIFACT_SLOT_NAME = "_wandb_job"
 
@@ -123,12 +123,7 @@ def vendor_setup() -> Callable:
 
     parent_dir = os.path.abspath(os.path.dirname(__file__))
     vendor_dir = os.path.join(parent_dir, "vendor")
-    vendor_packages = (
-        "gql-0.2.0",
-        "graphql-core-1.1",
-        "watchdog_0_9_0",
-        "promise-2.3.0",
-    )
+    vendor_packages = ("watchdog_0_9_0",)
     package_dirs = [os.path.join(vendor_dir, p) for p in vendor_packages]
     for p in [vendor_dir] + package_dirs:
         if p not in sys.path:

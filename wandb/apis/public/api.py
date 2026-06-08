@@ -19,15 +19,13 @@ import os
 import urllib
 from collections.abc import Iterator
 from http import HTTPStatus
-from typing import TYPE_CHECKING, Any, Callable, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from pydantic import ValidationError
 from typing_extensions import Unpack, overload
-from wandb_gql import Client, gql
-from wandb_gql.client import RetryError
 
 import wandb
-from wandb import env, util
+from wandb import env
 from wandb._analytics import tracked
 from wandb._iterutils import one
 from wandb._strutils import nameof
@@ -40,7 +38,6 @@ from wandb.apis.public.service_api import ServiceApi
 from wandb.apis.public.utils import (
     PathType,
     fetch_org_from_settings_or_entity,
-    gql_compat,
     parse_org_from_registry_path,
 )
 from wandb.errors import UsageError
@@ -50,9 +47,9 @@ from wandb.sdk import wandb_login, wandb_setup
 from wandb.sdk.artifacts._gqlutils import resolve_org_entity_name
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT
-from wandb.sdk.lib import retry, runid, wbauth
+from wandb.sdk.lib import runid, wbauth
 from wandb.sdk.lib.deprecation import warn_and_record_deprecation
-from wandb.sdk.lib.gql_request import GraphQLSession
+from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 
 if TYPE_CHECKING:
     from wandb.automations import (
@@ -80,78 +77,27 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class RetryingClient:
-    """A GraphQL client that retries requests on failure.
+def _api_error_status(error: WandbApiFailedError) -> int | None:
+    if error.response is None or not error.response.http_status:
+        return None
+    return error.response.http_status
 
-    <!-- lazydoc-ignore-class: internal -->
+
+def _is_service_api_transport_error(error: BaseException | None) -> bool:
+    """Whether the error is a transport failure (timeout or no HTTP response).
+
+    Existence checks should re-raise these instead of returning False, since
+    the caller never got an authoritative answer about whether the resource
+    exists.
     """
-
-    INFO_QUERY = gql(
-        """
-        query ServerInfo{
-            serverInfo {
-                cliVersionInfo
-                latestLocalVersionInfo {
-                    outOfDate
-                    latestVersionString
-                    versionOnThisInstanceString
-                }
-            }
-        }
-        """
-    )
-
-    def __init__(self, client: Client):
-        self._server_info = None
-        self._client = client
-        self._execute_decorated: Callable[..., Any] | None = None
-
-    def execute(self, *args, **kwargs):
-        if self._execute_decorated is None:
-            self._execute_decorated = self._build_execute_wrapper()
-        return self._execute_decorated(*args, **kwargs)
-
-    def _build_execute_wrapper(self) -> Callable[..., Any]:
-        import requests
-
-        @retry.retriable(
-            retry_timedelta=RETRY_TIMEDELTA,
-            check_retry_fn=util.no_retry_auth,
-            retryable_exceptions=(RetryError, requests.RequestException),
-        )
-        def _wrapped(*args, **kwargs):
-            try:
-                return self._client.execute(*args, **kwargs)
-            except requests.exceptions.ReadTimeout:
-                if "timeout" not in kwargs:
-                    timeout = self._client.transport.default_timeout
-                    wandb.termwarn(
-                        f"A graphql request initiated by the public wandb API timed out (timeout={timeout} sec). "
-                        f"Create a new API with an integer timeout larger than {timeout}, e.g., "
-                        f"`api = wandb.Api(timeout={timeout + 10})` to increase the graphql timeout."
-                    )
-                raise
-
-        return _wrapped
-
-    @property
-    def app_url(self):
-        return util.app_url(self._client.transport.url.replace("/graphql", "")) + "/"
-
-    @property
-    def server_info(self):
-        if self._server_info is None:
-            self._server_info = self.execute(self.INFO_QUERY).get("serverInfo")
-        return self._server_info
-
-    def version_supported(
-        self, min_version: str
-    ) -> bool:  # User not encouraged to use this class directly
-        from packaging.version import parse
-
-        return parse(min_version) <= parse(
-            self.server_info["cliVersionInfo"]["max_cli_version"]
-        )
+    if not isinstance(error, WandbApiFailedError):
+        return False
+    status = _api_error_status(error)
+    return status in {
+        None,
+        HTTPStatus.REQUEST_TIMEOUT.value,
+        HTTPStatus.GATEWAY_TIMEOUT.value,
+    }
 
 
 class Api:
@@ -209,8 +155,6 @@ class Api:
         else:
             self.api_key = None
 
-        session_auth = self._auth.as_requests_auth()
-
         self._viewer = None
         self._projects = {}
         self._runs = {}
@@ -221,29 +165,28 @@ class Api:
         proxies = self.settings.get("_proxies") or json.loads(
             os.environ.get("WANDB__PROXIES", "{}")
         )
-        self._base_client = Client(
-            transport=GraphQLSession(
-                headers={
-                    "User-Agent": self.user_agent,
-                    "Use-Admin-Privileges": "true",
-                },
-                use_json=True,
-                # this timeout won't apply when the DNS lookup fails. in that case, it will be 60s
-                # https://bugs.python.org/issue22889
-                timeout=self._timeout,
-                auth=session_auth,
-                url="{}/graphql".format(base_url),
-                proxies=proxies,
-            )
+        settings = wandb_setup.singleton().settings.model_copy()
+        wbauth.set_auth_settings(settings, self._auth)
+        settings.base_url = base_url
+        extra_headers = dict(settings.x_extra_http_headers or {})
+        # Preserve the legacy Public API transport behavior while routing
+        # GraphQL through wandb-core. The backend gates admin-capable access
+        # and first-party fields (e.g. a user's `apiKeys`) on a recognized
+        # "W&B Public Client" User-Agent; wandb-core's default "wandb-core"
+        # User-Agent would otherwise be rejected with "relogin required".
+        extra_headers["Use-Admin-Privileges"] = "true"
+        extra_headers["User-Agent"] = f"W&B Public Client {wandb.__version__}"
+        settings.x_extra_http_headers = extra_headers
+        if http_proxy := proxies.get("http"):
+            settings.http_proxy = http_proxy
+        if https_proxy := proxies.get("https"):
+            settings.https_proxy = https_proxy
+        self._service_api: ServiceApi = ServiceApi(
+            settings=settings,
+            timeout=self._timeout,
         )
-        self._client = RetryingClient(self._base_client)
         self._sentry = wandb.analytics.sentry.Sentry(pid=os.getpid())
         self._configure_sentry()
-
-        settings = wandb_setup.singleton().settings.model_copy()
-        settings.base_url = base_url
-        settings.api_key = self.api_key or ""
-        self._service_api = ServiceApi(settings=settings)
 
     def _load_auth(self, base_url: str) -> wbauth.Auth:
         """Load or prompt for authentication credentials."""
@@ -265,11 +208,9 @@ class Api:
         if not env.error_reporting_enabled():
             return
 
-        import requests
-
         try:
             viewer = self.viewer
-        except (ValueError, requests.RequestException):
+        except (ValueError, WandbApiFailedError):
             # we need the viewer to configure the entity, and user email
             return
 
@@ -283,6 +224,18 @@ class Api:
             },
         )
 
+    def _resolve_org_entity_name(
+        self,
+        *,
+        non_org_entity: str | None,
+        org_or_entity: str | None = None,
+    ) -> str:
+        return resolve_org_entity_name(
+            self._service_api,
+            non_org_entity=non_org_entity,
+            org_or_entity=org_or_entity,
+        )
+
     def create_project(self, name: str, entity: str) -> None:
         """Create a new project.
 
@@ -293,7 +246,10 @@ class Api:
         from wandb.apis._generated import CREATE_PROJECT_GQL, UpsertModelInput
 
         gql_input = UpsertModelInput(name=name, entity_name=entity)
-        self.client.execute(gql(CREATE_PROJECT_GQL), {"input": gql_input.model_dump()})
+        self._service_api.execute_graphql(
+            CREATE_PROJECT_GQL,
+            {"input": gql_input.model_dump()},
+        )
 
     def create_run(
         self,
@@ -317,7 +273,63 @@ class Api:
         """
         if entity is None:
             entity = self.default_entity
-        return public.Run.create(self, run_id=run_id, project=project, entity=entity)
+        return self._create_run(run_id=run_id, project=project, entity=entity)
+
+    def _create_run(
+        self,
+        *,
+        run_id: str | None = None,
+        project: str | None = None,
+        entity: str | None = None,
+        state: Literal["running", "pending"] = "running",
+    ) -> public.Run:
+        self._sentry.message("Invoking Run.create", level="info")
+        run_id = run_id or runid.generate_id()
+        project = project or self.settings.get("project") or "uncategorized"
+        mutation = """
+        mutation UpsertBucket($project: String, $entity: String, $name: String!, $state: String) {
+            upsertBucket(input: {modelName: $project, entityName: $entity, name: $name, state: $state}) {
+                bucket {
+                    project {
+                        name
+                        entity { name }
+                    }
+                    id
+                    name
+                }
+                inserted
+            }
+        }
+        """
+        variables = {
+            "entity": entity,
+            "project": project,
+            "name": run_id,
+            "state": state,
+        }
+        res = self._service_api.execute_graphql(
+            mutation,
+            variables,
+        )
+        res = res["upsertBucket"]["bucket"]
+        return public.Run(
+            self._service_api,
+            res["project"]["entity"]["name"],
+            res["project"]["name"],
+            res["name"],
+            {
+                "id": res["id"],
+                "config": "{}",
+                "systemMetrics": "{}",
+                "summaryMetrics": "{}",
+                "tags": [],
+                "description": None,
+                "notes": None,
+                "state": state,
+            },
+            lazy=False,  # Created runs should have full data available immediately
+            api_key=self.api_key,
+        )
 
     def create_run_queue(
         self,
@@ -417,13 +429,14 @@ class Api:
             raise wandb.Error("failed to create run queue")
 
         return public.RunQueue(
-            client=self.client,
+            self._service_api,
             name=name,
             entity=entity,
             prioritization_mode=prioritization_mode,
             _access="PROJECT",
             _default_resource_config_id=config_id,
             _default_resource_config=config,
+            api_key=self.api_key,
         )
 
     def create_custom_chart(
@@ -609,9 +622,10 @@ class Api:
             wandb.termwarn(f"resource config validation: {error}")
 
         return public.RunQueue(
-            client=self.client,
+            self._service_api,
             name=name,
             entity=entity,
+            api_key=self.api_key,
         )
 
     def create_user(self, email: str, admin: bool | None = False) -> User:
@@ -641,7 +655,7 @@ class Api:
             entity=entity,
             run_id=run_id,
             mark_synced=False,
-            app_url=self.client.app_url,
+            app_url=self._service_api.app_url,
             view=False,
             verbose=False,
             sync_tensorboard=True,
@@ -651,11 +665,6 @@ class Api:
         while not sm.is_done():
             _ = sm.poll()
         return self.run("/".join([entity, project, run_id]))
-
-    @property
-    def client(self) -> RetryingClient:
-        """Returns the client object."""
-        return self._client
 
     @property
     def user_agent(self) -> str:
@@ -668,7 +677,7 @@ class Api:
         from wandb.apis._generated import GET_DEFAULT_ENTITY_GQL, GetDefaultEntity
 
         if self._default_entity is None:
-            data = self._client.execute(gql(GET_DEFAULT_ENTITY_GQL))
+            data = self._service_api.execute_graphql(GET_DEFAULT_ENTITY_GQL)
             result = GetDefaultEntity.model_validate(data)
             if (viewer := result.viewer) and (entity := viewer.entity):
                 self._default_entity = entity
@@ -680,19 +689,21 @@ class Api:
 
         Raises:
             ValueError: If viewer data is not able to be fetched from W&B.
-            requests.RequestException: If an error occurs while making the graphql request.
+            WandbApiFailedError: If an error occurs while making the GraphQL request.
         """
         from wandb.apis._generated import GET_VIEWER_GQL, GetViewer
 
         from .users import User
 
         if self._viewer is None:
-            data = self._client.execute(gql(GET_VIEWER_GQL))
+            data = self._service_api.execute_graphql(GET_VIEWER_GQL)
             result = GetViewer.model_validate(data)
             if (viewer := result.viewer) is None:
                 msg = "Unable to fetch user data from W&B, please verify your API key is valid."
                 raise ValueError(msg)
-            self._viewer = User(self._client, viewer.model_dump(), api_key=self.api_key)
+            self._viewer = User(
+                self._service_api, viewer.model_dump(), api_key=self.api_key
+            )
             self._default_entity = self._viewer.entity
         return self._viewer
 
@@ -756,7 +767,7 @@ class Api:
                         parts[-1] = "--" + parts[-1]
                 name, id = parts[-1].split("--")
                 return public.BetaReport(
-                    self.client,
+                    self._service_api,
                     {
                         "displayName": urllib.parse.unquote(name.replace("-", " ")),
                         "id": id,
@@ -897,7 +908,9 @@ class Api:
                 )
         if entity not in self._projects:
             self._projects[entity] = public.Projects(
-                self.client, entity, per_page=per_page
+                self._service_api,
+                entity,
+                per_page=per_page,
             )
         return self._projects[entity]
 
@@ -924,10 +937,11 @@ class Api:
         # For registry artifacts, resolve org-based entity
         if is_artifact_registry_project(name):
             settings_entity = self.settings["entity"] or self.default_entity
-            entity = resolve_org_entity_name(
-                self.client, non_org_entity=settings_entity, org_or_entity=org
+            entity = self._resolve_org_entity_name(
+                non_org_entity=settings_entity,
+                org_or_entity=org,
             )
-        return public.Project(self.client, entity, name, {})
+        return public.Project(self._service_api, entity, name, {})
 
     def reports(
         self, path: str = "", name: str | None = None, per_page: int = 50
@@ -966,8 +980,13 @@ class Api:
 
         if key not in self._reports:
             self._reports[key] = public.Reports(
-                self.client,
-                public.Project(self.client, entity, project, {}),
+                self._service_api,
+                public.Project(
+                    self._service_api,
+                    entity,
+                    project,
+                    {},
+                ),
                 name=name,
                 per_page=per_page,
             )
@@ -999,7 +1018,7 @@ class Api:
         """
         from .teams import Team
 
-        return Team(self.client, team)
+        return Team(self._service_api, team)
 
     def user(self, username_or_email: str) -> User | None:
         """Return a user from a username or email address.
@@ -1017,14 +1036,17 @@ class Api:
 
         from .users import User
 
-        data = self._client.execute(gql(SEARCH_USERS_GQL), {"query": username_or_email})
+        data = self._service_api.execute_graphql(
+            SEARCH_USERS_GQL,
+            {"query": username_or_email},
+        )
         result = SearchUsers.model_validate(data)
         if not (conn := result.users) or not (edges := conn.edges):
             return None
         if len(edges) > 1:
             msg = f"Found multiple users, returning the first user matching {username_or_email!r}"
             wandb.termwarn(msg)
-        return User(self._client, edges[0].node.model_dump(), api_key=self.api_key)
+        return User(self._service_api, edges[0].node.model_dump(), api_key=self.api_key)
 
     def users(self, username_or_email: str) -> list[User]:
         """Return all users from a partial username or email address query.
@@ -1042,12 +1064,15 @@ class Api:
 
         from .users import User
 
-        data = self._client.execute(gql(SEARCH_USERS_GQL), {"query": username_or_email})
+        data = self._service_api.execute_graphql(
+            SEARCH_USERS_GQL,
+            {"query": username_or_email},
+        )
         result = SearchUsers.model_validate(data)
         if not ((conn := result.users) and (edges := conn.edges)):
             return []
         return [
-            User(self._client, edge.node.model_dump(), api_key=self.api_key)
+            User(self._service_api, edge.node.model_dump(), api_key=self.api_key)
             for edge in edges
         ]
 
@@ -1174,15 +1199,15 @@ class Api:
 
         # Create new Runs object
         self._runs[key] = public.Runs(
-            self.client,
+            self._service_api,
             entity,
             project,
-            service_api=self._service_api,
             filters=filters,
             order=order,
             per_page=per_page,
             include_sweeps=include_sweeps,
             lazy=lazy,
+            api_key=self.api_key,
         )
         return self._runs[key]
 
@@ -1202,12 +1227,12 @@ class Api:
         if not self._runs.get(path):
             # Individual runs should load full data by default
             self._runs[path] = public.Run(
-                self.client,
+                self._service_api,
                 entity,
                 project,
                 run_id,
-                service_api=self._service_api,
                 lazy=False,
+                api_key=self.api_key,
             )
         return self._runs[path]
 
@@ -1225,13 +1250,14 @@ class Api:
         Parses paths of the form `entity/project/queue_id/run_queue_item_id`.
         """
         return public.QueuedRun(
-            self.client,
+            self._service_api,
             entity,
             project,
             queue_name,
             run_queue_item_id,
             project_queue=project_queue,
             priority=priority,
+            api_key=self.api_key,
         )
 
     def run_queue(
@@ -1244,9 +1270,10 @@ class Api:
         See `Api.create_run_queue` for more information on how to create a run queue.
         """
         return public.RunQueue(
-            self.client,
+            self._service_api,
             name,
             entity,
+            api_key=self.api_key,
         )
 
     @normalize_exceptions
@@ -1264,8 +1291,34 @@ class Api:
         """
         entity, project, sweep_id = self._parse_path(path)
         if not self._sweeps.get(path):
-            self._sweeps[path] = public.Sweep(self.client, entity, project, sweep_id)
+            self._sweeps[path] = public.Sweep(
+                self._service_api,
+                entity,
+                project,
+                sweep_id,
+            )
         return self._sweeps[path]
+
+    def _get_sweep(
+        self,
+        entity: str | None = None,
+        project: str | None = None,
+        sweep_id: str | None = None,
+        order: str | None = None,
+        query: Any | None = None,
+        **kwargs: Any,
+    ) -> public.Sweep | None:
+        from .sweeps import _get_sweep
+
+        return _get_sweep(
+            self._service_api,
+            entity,
+            project,
+            sweep_id,
+            order=order,
+            query=query,
+            **kwargs,
+        )
 
     @normalize_exceptions
     def artifact_types(
@@ -1293,10 +1346,11 @@ class Api:
         if is_artifact_registry_project(project):
             settings_entity = self.settings["entity"] or self.default_entity
             org = parse_org_from_registry_path(project_path, PathType.PROJECT)
-            entity = resolve_org_entity_name(
-                self.client, non_org_entity=settings_entity, org_or_entity=org
+            entity = self._resolve_org_entity_name(
+                non_org_entity=settings_entity,
+                org_or_entity=org,
             )
-        return ArtifactTypes(self.client, entity, project, start=start)
+        return ArtifactTypes(self._service_api, entity, project, start=start)
 
     @normalize_exceptions
     def artifact_type(self, type_name: str, project: str | None = None) -> ArtifactType:
@@ -1319,10 +1373,11 @@ class Api:
         if is_artifact_registry_project(project):
             org = parse_org_from_registry_path(project_path, PathType.PROJECT)
             settings_entity = self.settings["entity"] or self.default_entity
-            entity = resolve_org_entity_name(
-                self.client, non_org_entity=settings_entity, org_or_entity=org
+            entity = self._resolve_org_entity_name(
+                non_org_entity=settings_entity,
+                org_or_entity=org,
             )
-        return ArtifactType(self.client, entity, project, type_name)
+        return ArtifactType(self._service_api, entity, project, type_name)
 
     @normalize_exceptions
     def artifact_collections(
@@ -1354,11 +1409,17 @@ class Api:
         if is_artifact_registry_project(project):
             org = parse_org_from_registry_path(project_name, PathType.PROJECT)
             settings_entity = self.settings["entity"] or self.default_entity
-            entity = resolve_org_entity_name(
-                self.client, non_org_entity=settings_entity, org_or_entity=org
+            entity = self._resolve_org_entity_name(
+                non_org_entity=settings_entity,
+                org_or_entity=org,
             )
         return ArtifactCollections(
-            self.client, entity, project, type_name, per_page=per_page, start=start
+            self._service_api,
+            entity,
+            project,
+            type_name,
+            per_page=per_page,
+            start=start,
         )
 
     @normalize_exceptions
@@ -1406,8 +1467,9 @@ class Api:
         if is_artifact_registry_project(project):
             org = parse_org_from_registry_path(name, PathType.ARTIFACT)
             settings_entity = self.settings["entity"] or self.default_entity
-            entity = resolve_org_entity_name(
-                self.client, non_org_entity=settings_entity, org_or_entity=org
+            entity = self._resolve_org_entity_name(
+                non_org_entity=settings_entity,
+                org_or_entity=org,
             )
 
         if entity is None:
@@ -1416,7 +1478,11 @@ class Api:
             )
 
         return ArtifactCollection(
-            self.client, entity, project, collection_name, type_name
+            self._service_api,
+            entity,
+            project,
+            collection_name,
+            type_name,
         )
 
     @normalize_exceptions
@@ -1507,11 +1573,12 @@ class Api:
         if is_artifact_registry_project(project):
             org = parse_org_from_registry_path(name, PathType.ARTIFACT)
             settings_entity = self.settings["entity"] or self.default_entity
-            entity = resolve_org_entity_name(
-                self.client, non_org_entity=settings_entity, org_or_entity=org
+            entity = self._resolve_org_entity_name(
+                non_org_entity=settings_entity,
+                org_or_entity=org,
             )
         return Artifacts(
-            self.client,
+            self._service_api,
             entity,
             project,
             collection_name,
@@ -1546,8 +1613,9 @@ class Api:
             settings_entity = self.settings["entity"] or self.default_entity
             # Registry artifacts are under the org entity. Because we offer a shorthand and alias for this path,
             # we need to fetch the org entity to for the user behind the scenes.
-            entity = resolve_org_entity_name(
-                self.client, non_org_entity=settings_entity, org_or_entity=organization
+            entity = self._resolve_org_entity_name(
+                non_org_entity=settings_entity,
+                org_or_entity=organization,
             )
 
         if entity is None:
@@ -1558,7 +1626,7 @@ class Api:
         path = FullArtifactPath(prefix=entity, project=project, name=artifact_name)
         artifact = Artifact._from_name(
             path=path,
-            client=self.client,
+            service_api=self._service_api,
             enable_tracking=enable_tracking,
         )
         if type is not None and artifact.type != type:
@@ -1566,6 +1634,25 @@ class Api:
                 f"type {type} specified but this artifact is of type {artifact.type}"
             )
         return artifact
+
+    def _artifact_from_id(self, artifact_id: str) -> Artifact | None:
+        from wandb.sdk.artifacts.artifact import Artifact
+
+        return Artifact._from_id(artifact_id, self._service_api)
+
+    def _set_artifact_save_handle(self, artifact: Artifact, handle: Any) -> None:
+        artifact._set_save_handle(handle, self._service_api)
+
+    def _expected_artifact_type(
+        self,
+        *,
+        entity: str,
+        project: str,
+        name: str,
+    ) -> str | None:
+        from wandb.sdk.artifacts.artifact import Artifact
+
+        return Artifact._expected_type(entity, project, name, self._service_api)
 
     @normalize_exceptions
     def artifact(self, name: str, type: str | None = None):
@@ -1633,7 +1720,7 @@ class Api:
             raise ValueError(
                 "Invalid job specification. A job must be of the form: <entity>/<project>/<job-name>:<alias-or-version>"
             )
-        return public.Job(self, name, path)
+        return public.Job(self, name, path, service_api=self._service_api)
 
     @normalize_exceptions
     def list_jobs(self, entity: str, project: str) -> list[dict[str, Any]]:
@@ -1646,15 +1733,12 @@ class Api:
         Returns:
             A list of matching jobs.
         """
-        import requests
-
         if entity is None:
             raise ValueError("Specify an entity when listing jobs")
         if project is None:
             raise ValueError("Specify a project when listing jobs")
 
-        query = gql(
-            """
+        query = """
         query ArtifactOfType(
             $entityName: String!,
             $projectName: String!,
@@ -1686,10 +1770,9 @@ class Api:
             }
         }
         """
-        )
 
         try:
-            artifact_query = self._client.execute(
+            artifact_query = self._service_api.execute_graphql(
                 query,
                 {
                     "projectName": project,
@@ -1712,7 +1795,7 @@ class Api:
             ]["edges"]
 
             return [x["node"]["artifacts"] for x in artifacts]
-        except requests.exceptions.HTTPError:
+        except WandbApiFailedError:
             return False
 
     @normalize_exceptions
@@ -1745,12 +1828,10 @@ class Api:
         ```
 
         """
-        import requests
-
         try:
             self._artifact(name, type)
         except wandb.errors.CommError as e:
-            if isinstance(e.exc, requests.Timeout):
+            if _is_service_api_transport_error(e.exc):
                 raise
             return False
         return True
@@ -1781,12 +1862,10 @@ class Api:
         wandb.Api.artifact_collection_exists(type="type", name="collection_name")
         ```
         """
-        import requests
-
         try:
             self.artifact_collection(type, name)
         except wandb.errors.CommError as e:
-            if isinstance(e.exc, requests.Timeout):
+            if _is_service_api_transport_error(e.exc):
                 raise
             return False
         return True
@@ -1885,7 +1964,7 @@ class Api:
             self.settings, self.default_entity
         )
         return Registries(
-            self.client,
+            self._service_api,
             organization=organization,
             filter=filter,
             per_page=per_page,
@@ -1928,8 +2007,16 @@ class Api:
         organization = organization or fetch_org_from_settings_or_entity(
             self.settings, self.default_entity
         )
-        org_entity = fetch_org_entity_from_organization(self.client, organization)
-        registry = Registry(self.client, organization, org_entity, name)
+        org_entity = fetch_org_entity_from_organization(
+            self._service_api,
+            organization,
+        )
+        registry = Registry(
+            self._service_api,
+            organization,
+            org_entity,
+            name,
+        )
         registry.load()
         return registry
 
@@ -2001,7 +2088,7 @@ class Api:
             )
 
         return Registry.create(
-            self.client,
+            self,
             organization,
             name,
             visibility,
@@ -2033,7 +2120,7 @@ class Api:
 
         variables = {"entity": entity or self.default_entity}
         return Integrations(
-            self.client, variables=variables, per_page=per_page, start=start
+            self._service_api, variables=variables, per_page=per_page, start=start
         )
 
     @tracked
@@ -2077,7 +2164,7 @@ class Api:
 
         variables = {"entity": entity or self.default_entity}
         return WebhookIntegrations(
-            self.client, variables=variables, per_page=per_page, start=start
+            self._service_api, variables=variables, per_page=per_page, start=start
         )
 
     @tracked
@@ -2121,7 +2208,7 @@ class Api:
 
         variables = {"entity": entity or self.default_entity}
         return SlackIntegrations(
-            self.client, variables=variables, per_page=per_page, start=start
+            self._service_api, variables=variables, per_page=per_page, start=start
         )
 
     def _supports_automation(
@@ -2283,14 +2370,13 @@ class Api:
             gql_str = GET_AUTOMATIONS_BY_ENTITY_GQL  # Automations for entity
 
         # If needed, rewrite the GraphQL field selection set to omit unsupported fields/fragments/types
-        omit_fragments = self._omitted_automation_fragments()
-        query = gql_compat(gql_str, omit_fragments=omit_fragments)
         iterator = Automations(
-            self.client,
+            self._service_api,
             variables=variables,
             per_page=per_page,
             start=start,
-            _query=query,
+            _query=gql_str,
+            omit_fragments=self._omitted_automation_fragments(),
         )
 
         # FIXME: this is crude, move this client-side filtering logic into backend
@@ -2357,8 +2443,6 @@ class Api:
         )
         ```
         """
-        import requests
-
         from wandb.automations import Automation
         from wandb.automations._generated import CREATE_AUTOMATION_GQL, CreateAutomation
         from wandb.automations._utils import prepare_to_create
@@ -2376,17 +2460,19 @@ class Api:
                 "support@wandb.com."
             )
 
-        # If needed, rewrite the GraphQL field selection set to omit unsupported fields/fragments/types
         omit_fragments = self._omitted_automation_fragments()
-        mutation = gql_compat(CREATE_AUTOMATION_GQL, omit_fragments=omit_fragments)
         variables = {"input": gql_input.model_dump()}
 
         name = gql_input.name
         try:
-            data = self.client.execute(mutation, variable_values=variables)
-        except requests.HTTPError as e:
-            status = HTTPStatus(e.response.status_code)
-            if status is HTTPStatus.CONFLICT:  # 409
+            data = self._service_api.execute_graphql(
+                CREATE_AUTOMATION_GQL,
+                variables=variables,
+                omit_fragments=omit_fragments,
+            )
+        except WandbApiFailedError as e:
+            status = _api_error_status(e)
+            if status == HTTPStatus.CONFLICT.value:
                 if fetch_existing:
                     wandb.termlog(f"Automation {name!r} exists. Fetching it instead.")
                     return self.automation(name=name)
@@ -2468,8 +2554,6 @@ class Api:
         )
         ```
         """
-        import requests
-
         from wandb.automations import ActionType, Automation
         from wandb.automations._generated import UPDATE_AUTOMATION_GQL, UpdateAutomation
         from wandb.automations._utils import prepare_to_update
@@ -2498,17 +2582,18 @@ class Api:
                 "support@wandb.com."
             )
 
-        # If needed, rewrite the GraphQL field selection set to omit unsupported fields/fragments/types
-        omit_fragments = self._omitted_automation_fragments()
-        mutation = gql_compat(UPDATE_AUTOMATION_GQL, omit_fragments=omit_fragments)
         variables = {"input": gql_input.model_dump()}
 
         name = gql_input.name
         try:
-            data = self.client.execute(mutation, variable_values=variables)
-        except requests.HTTPError as e:
-            status = HTTPStatus(e.response.status_code)
-            if status is HTTPStatus.NOT_FOUND:  # 404
+            data = self._service_api.execute_graphql(
+                UPDATE_AUTOMATION_GQL,
+                variables=variables,
+                omit_fragments=self._omitted_automation_fragments(),
+            )
+        except WandbApiFailedError as e:
+            status = _api_error_status(e)
+            if status == HTTPStatus.NOT_FOUND.value:
                 if create_missing:
                     wandb.termlog(f"Automation {name!r} not found. Creating it.")
                     return self.create_automation(obj)
@@ -2517,8 +2602,8 @@ class Api:
                     f"Automation {name!r} not found. Unable to edit it."
                 ) from e
 
-            # Not a (known) recoverable HTTP error
-            wandb.termerror(f"Got response status {status!r}: {e.response.text!r}")
+            # Not a (known) recoverable API error
+            wandb.termerror(f"Got API error: {e}")
             raise
 
         try:
@@ -2548,10 +2633,10 @@ class Api:
         from wandb.automations._utils import extract_id
 
         id_ = extract_id(obj)
-        mutation = gql(DELETE_AUTOMATION_GQL)
+        mutation = DELETE_AUTOMATION_GQL
         variables = {"id": id_}
 
-        data = self.client.execute(mutation, variable_values=variables)
+        data = self._service_api.execute_graphql(mutation, variables=variables)
 
         try:
             result = DeleteAutomation.model_validate(data).result

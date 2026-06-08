@@ -21,10 +21,10 @@ import platform
 import sys
 import tempfile
 import time
-from collections.abc import Iterable, Iterator, Sequence
-from typing import TYPE_CHECKING
+from collections.abc import Generator, Iterable, Sequence
+from typing import TYPE_CHECKING, Literal
 
-from typing_extensions import Any, Literal, Protocol, Self
+from typing_extensions import Any, Protocol
 
 import wandb
 import wandb.env
@@ -36,12 +36,12 @@ from wandb.errors.util import ProtobufErrorHandler
 from wandb.integration import sagemaker, weave
 from wandb.proto.wandb_telemetry_pb2 import Deprecated
 from wandb.sdk.lib import ipython as wb_ipython
-from wandb.sdk.lib import progress, runid, wb_logging
+from wandb.sdk.lib import noop_run, progress, runid, wb_logging
 from wandb.sdk.lib.paths import StrPath
 from wandb.util import _is_artifact_representation
 
 from . import wandb_login, wandb_setup
-from .lib import SummaryDisabled, filesystem, module, paths, printer, telemetry
+from .lib import filesystem, module, paths, printer, telemetry
 from .lib.deprecation import UNSET, DoNotSet, warn_and_record_deprecation
 from .mailbox import wait_with_progress
 from .wandb_helper import parse_config
@@ -659,7 +659,7 @@ class _WandbInit:
         ipython.display_pub.publish = publish
 
     @contextlib.contextmanager
-    def setup_run_log_directory(self, settings: Settings) -> Iterator[None]:
+    def setup_run_log_directory(self, settings: Settings) -> Generator[None]:
         """Set up the run's log directory.
 
         This is a context manager that closes and unregisters the log handler
@@ -742,7 +742,7 @@ class _WandbInit:
         are no-op versions that don't perform any actual logging or communication.
         """
         run_id = runid.generate_id()
-        drun = Run(
+        return noop_run.init_noop_run(
             settings=Settings(
                 mode="disabled",
                 root_dir=tempfile.gettempdir(),
@@ -753,93 +753,9 @@ class _WandbInit:
                 run_name=f"dummy-{run_id}",
                 project="dummy",
                 entity="dummy",
-            )
+            ),
+            config={**config.base_no_artifacts, **config.sweep_no_artifacts},
         )
-        # config, summary, and metadata objects
-        drun._config = wandb.sdk.wandb_config.Config()
-        drun._config.update(config.sweep_no_artifacts)
-        drun._config.update(config.base_no_artifacts)
-        drun.summary = SummaryDisabled()  # type: ignore
-
-        # methods
-        drun.log = lambda data, *_, **__: drun.summary.update(data)  # type: ignore[method-assign]
-        drun.finish = lambda *_, **__: module.unset_globals()  # type: ignore[method-assign]
-        drun.join = drun.finish  # type: ignore[method-assign]
-        drun.define_metric = lambda *_, **__: wandb.sdk.wandb_metric.Metric("dummy")  # type: ignore[method-assign]
-        drun.save = lambda *_, **__: False  # type: ignore[method-assign]
-        for symbol in (
-            "alert",
-            "finish_artifact",
-            "get_project_url",
-            "get_sweep_url",
-            "get_url",
-            "link_artifact",
-            "link_model",
-            "use_artifact",
-            "log_code",
-            "log_model",
-            "use_model",
-            "mark_preempting",
-            "restore",
-            "status",
-            "watch",
-            "unwatch",
-            "upsert_artifact",
-            "_finish",
-        ):
-            setattr(drun, symbol, lambda *_, **__: None)  # type: ignore
-
-        # set properties to None
-        for attr in ("url", "project_url", "sweep_url"):
-            setattr(type(drun), attr, property(lambda _: None))
-
-        class _ChainableNoOp:
-            """An object that allows chaining arbitrary attributes and method calls."""
-
-            def __getattr__(self, _: str) -> Self:
-                return self
-
-            def __call__(self, *_: Any, **__: Any) -> Self:
-                return self
-
-        class _ChainableNoOpField:
-            # This is used to chain arbitrary attributes and method calls.
-            # For example, `run.log_artifact().state` will work in disabled mode.
-            def __init__(self) -> None:
-                self._value = None
-
-            def __set__(self, instance: Any, value: Any) -> None:
-                self._value = value
-
-            def __get__(self, instance: Any, owner: type) -> Any:
-                return _ChainableNoOp() if (self._value is None) else self._value
-
-            def __call__(self, *args: Any, **kwargs: Any) -> _ChainableNoOp:
-                return _ChainableNoOp()
-
-        drun.log_artifact = _ChainableNoOpField()  # type: ignore
-        # attributes
-        drun._start_time = time.time()
-        drun._starting_step = 0
-        drun._step = 0
-        drun._attach_id = None
-        drun._interface = None
-
-        # set the disabled run as the global run
-        module.set_global(
-            run=drun,
-            config=drun.config,
-            log=drun.log,
-            summary=drun.summary,
-            save=drun.save,
-            use_artifact=drun.use_artifact,
-            log_artifact=drun.log_artifact,
-            define_metric=drun.define_metric,
-            alert=drun.alert,
-            watch=drun.watch,
-            unwatch=drun.unwatch,
-        )
-        return drun
 
     def init(  # noqa: C901
         self,
@@ -1556,6 +1472,7 @@ def init(  # noqa: C901
             init_telemetry.feature.rewind_mode = True
 
         wi.set_run_id(run_settings)
+        try_create_root_dir(run_settings)
         wi.set_sync_dir_suffix(run_settings)
         run_printer = printer.new_printer(run_settings)
         show_warnings(run_printer)
@@ -1573,7 +1490,6 @@ def init(  # noqa: C901
             if run_settings._noop:
                 return wi.make_disabled_run(run_config)
 
-            try_create_root_dir(run_settings)
             exit_stack.enter_context(wi.setup_run_log_directory(run_settings))
 
             if run_settings._jupyter:

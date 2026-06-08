@@ -184,11 +184,13 @@ func (r *Run) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 
+	if picture.IsPictureMsg(msg) {
+		cmds = append(cmds, r.mediaPane.handlePictureMsg(msg))
+		return r, tea.Batch(cmds...)
+	}
+
 	// Route message to appropriate handler.
 	switch t := msg.(type) {
-	case picture.KittyFrameMsg:
-		return r, r.mediaPane.handleKittyFrame(t)
-
 	case mediaPanePrepareMsg:
 		return r, r.mediaPane.handlePrepareMsg()
 
@@ -196,42 +198,22 @@ func (r *Run) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if c := r.handleKeyPressMsg(t); c != nil {
 			cmds = append(cmds, c)
 		}
-		return r, batchCmds(cmds...)
+		return r, tea.Batch(cmds...)
 
 	case tea.MouseMsg:
 		newM, c := r.handleMouseMsg(t)
 		if c != nil {
 			cmds = append(cmds, c)
 		}
-		return newM, batchCmds(cmds...)
+		return newM, tea.Batch(cmds...)
 
 	case tea.WindowSizeMsg:
 		r.handleWindowResize(t)
-		return r, batchCmds(cmds...)
-
-	case LeftSidebarAnimationMsg, RightSidebarAnimationMsg:
-		cmds = append(cmds, r.handleSidebarAnimation(t)...)
-		return r, batchCmds(cmds...)
-
-	case ConsoleLogsPaneAnimationMsg:
-		cmds = append(cmds, r.handleConsoleLogsPaneAnimation()...)
-		return r, batchCmds(cmds...)
-
-	case MediaPaneAnimationMsg:
-		cmds = append(cmds, r.handleMediaPaneAnimation()...)
-		return r, batchCmds(cmds...)
-
-	case MetricsGridAnimationMsg:
-		cmds = append(cmds, r.handleMetricsGridAnimation()...)
-		return r, batchCmds(cmds...)
-
-	case RunMsg, HistoryMsg, ChunkedBatchMsg, BatchedRecordsMsg:
-		cmds = append(cmds, r.dispatch(t)...)
-		return r, batchCmds(cmds...)
+		return r, tea.Batch(cmds...)
 
 	default:
 		cmds = append(cmds, r.dispatch(msg)...)
-		return r, batchCmds(cmds...)
+		return r, tea.Batch(cmds...)
 	}
 }
 

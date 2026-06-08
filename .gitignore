@@ -45,13 +45,6 @@ xpu/target/
 tools/local_wandb_server.state.lock
 tools/local_wandb_server.state
 
-# Ignore orjson build artifacts.
-wandb/vendor/wandb_orjson/__init__.py
-wandb/vendor/wandb_orjson/__init__.pyi
-wandb/vendor/wandb_orjson/py.typed
-wandb/vendor/wandb_orjson/orjson.so
-wandb/vendor/wandb_orjson/orjson.pyd
-
 # Cached protoc binaries downloaded by wandb/proto/generate-proto.sh.
 .protoc/
 

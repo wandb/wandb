@@ -15,11 +15,12 @@ type byteReader interface {
 }
 
 // unpackBits decodes the PackBits-compressed data in src and returns the
-// uncompressed data.
+// uncompressed data. The output size is limited to lim bytes to prevent
+// decompression bombs.
 //
 // The PackBits compression format is described in section 9 (p. 42)
 // of the TIFF spec.
-func unpackBits(r io.Reader) ([]byte, error) {
+func unpackBits(r io.Reader, lim int64) ([]byte, error) {
 	buf := make([]byte, 128)
 	dst := make([]byte, 0, 1024)
 	br, ok := r.(byteReader)
@@ -53,6 +54,9 @@ func unpackBits(r io.Reader) ([]byte, error) {
 				buf[j] = b
 			}
 			dst = append(dst, buf[:1-code]...)
+		}
+		if int64(len(dst)) > lim {
+			return nil, FormatError("PackBits: decompressed data too large")
 		}
 	}
 }

@@ -5,8 +5,9 @@ from __future__ import annotations
 import os
 import shutil
 from collections import deque
+from collections.abc import Callable
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING
 from urllib.parse import ParseResult
 
 from wandb.errors.term import termlog
