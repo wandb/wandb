@@ -10,7 +10,7 @@ For reference documentation, see https://docs.wandb.ai/models/ref/python.
 """
 from __future__ import annotations
 
-__version__ = "0.27.3.dev1"
+__version__ = "0.27.3.dev12012"
 
 
 from wandb.errors import Error
