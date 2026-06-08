@@ -1003,16 +1003,10 @@ class _ImageFileType(_dtypes.Type):
                 # Union of keys; within a key, union of class IDs, preferring
                 # self's name on collision (mirrors `class_map` above).
                 merged: dict = {}
-                for key in set(list(self_map.keys()) + list(other_map.keys())):
-                    self_labels = self_map.get(key, {})
-                    other_labels = other_map.get(key, {})
+                for key in self_map.keys() | other_map.keys():
+                    labels = {**other_map.get(key, {}), **self_map.get(key, {})}
                     merged[str(key)] = {
-                        str(class_id): self_labels.get(
-                            class_id, other_labels.get(class_id, None)
-                        )
-                        for class_id in set(
-                            list(self_labels.keys()) + list(other_labels.keys())
-                        )
+                        str(class_id): name for class_id, name in labels.items()
                     }
                 return merged
 
