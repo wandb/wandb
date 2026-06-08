@@ -266,6 +266,75 @@ def test_image_accepts_masks_without_class_labels(
     assert os.path.exists(os.path.join(run.dir, path))
 
 
+def test_image_box_type_schema_carries_per_box_class_maps(image):
+    """``_ImageFileType.box_class_maps`` carries per-box ``class_labels`` so
+    the frontend can render distinct legends per box-set even when IDs collide.
+    """
+    img = wandb.Image(
+        image,
+        boxes={
+            "box_set_1": {
+                "box_data": [
+                    {
+                        "position": {
+                            "minX": 0.1,
+                            "maxX": 0.2,
+                            "minY": 0.1,
+                            "maxY": 0.2,
+                        },
+                        "class_id": 1,
+                    }
+                ],
+                "class_labels": {1: "Box Label A"},
+            },
+            "box_set_2": {
+                "box_data": [
+                    {
+                        "position": {
+                            "minX": 0.3,
+                            "maxX": 0.4,
+                            "minY": 0.3,
+                            "maxY": 0.4,
+                        },
+                        "class_id": 1,
+                    }
+                ],
+                "class_labels": {1: "Different Box Label"},
+            },
+        },
+    )
+    img_type = _dtypes.TypeRegistry.type_of(img)
+    box_class_maps = img_type.params["box_class_maps"]._params["val"]
+    assert box_class_maps["box_set_1"] == {"1": "Box Label A"}
+    assert box_class_maps["box_set_2"] == {"1": "Different Box Label"}
+
+
+def test_image_mask_type_schema_carries_per_mask_class_maps(image):
+    """``_ImageFileType`` exposes per-mask class labels so a Table's
+    column_types schema carries them, separate from the merged ``class_map``."""
+    img = wandb.Image(
+        image,
+        masks={
+            "ground_truth": {
+                "mask_data": np.array([[1, 2], [2, 1]]),
+                "class_labels": {1: "Ignored", 2: "Text"},
+            },
+            "predictions": {
+                "mask_data": np.array([[1, 2], [3, 1]]),
+                "class_labels": {1: "Incorrect", 2: "Correct", 3: "FP"},
+            },
+        },
+    )
+    img_type = _dtypes.TypeRegistry.type_of(img)
+    mask_class_maps = img_type.params["mask_class_maps"]._params["val"]
+    assert mask_class_maps["ground_truth"] == {"1": "Ignored", "2": "Text"}
+    assert mask_class_maps["predictions"] == {
+        "1": "Incorrect",
+        "2": "Correct",
+        "3": "FP",
+    }
+
+
 @pytest.mark.usefixtures("patch_max_cli_version")
 def test_image_seq_to_json(
     mock_run,
