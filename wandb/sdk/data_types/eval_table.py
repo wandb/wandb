@@ -254,7 +254,7 @@ class EvalTable(Table):
         return json_dict
 
     @override
-    def _has_been_logged(self) -> bool:
+    def has_been_logged(self) -> bool:
         return self._immutable_evaluate_call_id is not None
 
     def _validate_cell_value(self, val: Any, row_idx: int, col: str | int) -> None:
