@@ -3,15 +3,18 @@ from __future__ import annotations
 import contextlib
 import json
 import logging
+import re
 import weakref
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
+from wandb._analytics import tracked_func
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto.wandb_api_pb2 import (
     ApiRequest,
     ApiResponse,
+    ErrorType,
     FeaturesRequest,
     GraphQLRequest,
 )
@@ -23,6 +26,55 @@ from wandb.sdk.lib.service.service_connection import (
 from wandb.sdk.mailbox.mailbox_handle import MailboxHandle
 
 _logger = logging.getLogger(__name__)
+
+if TYPE_CHECKING:
+    from wandb.analytics.sentry import Sentry
+
+
+_GRAPHQL_OPERATION_RE = re.compile(r"\b(?:query|mutation)\s+([_A-Za-z][_0-9A-Za-z]*)")
+
+
+def _api_request_failure_tags(
+    error: WandbApiFailedError,
+    request: ApiRequest,
+) -> dict[str, str]:
+    request_type = request.WhichOneof("request") or "unknown"
+    tags = {
+        "wandb_api_request_type": request_type,
+    }
+
+    if request_type == "graphql_request":
+        operation_name = _graphql_operation_name(request.graphql_request.query)
+        if operation_name:
+            tags["graphql_operation"] = operation_name
+
+    if error.response is None:
+        tags["wandb_api_http_status"] = "none"
+    else:
+        tags["wandb_api_http_status"] = str(error.response.http_status)
+        if error.response.HasField("error_type"):
+            tags["wandb_api_error_type"] = _api_error_type_name(
+                error.response.error_type
+            )
+
+    if tracked := tracked_func():
+        tags["wandb_python_func"] = tracked.func
+
+    return tags
+
+
+def _graphql_operation_name(query: str) -> str | None:
+    match = _GRAPHQL_OPERATION_RE.search(query)
+    if match is None:
+        return None
+    return match.group(1)
+
+
+def _api_error_type_name(error_type: int) -> str:
+    try:
+        return ErrorType.Name(error_type)
+    except ValueError:
+        return str(error_type)
 
 
 def _cleanup(connection: ServiceConnection, api_id: str) -> None:
@@ -44,9 +96,11 @@ class ServiceApi:
         self,
         settings: wandb_settings.Settings,
         timeout: float | None = None,
+        sentry: Sentry | None = None,
     ):
         self._settings = settings
         self._timeout = timeout
+        self._sentry = sentry
         self._api_session: _ServiceApiSession | None = None
 
     @property
@@ -84,9 +138,29 @@ class ServiceApi:
 
         Creates the backend service connection if it has not been created yet.
         """
-        session = self._get_api_session()
-        request.api_id = session.api_id
-        return session.connection.api_request(request, timeout=timeout)
+        try:
+            session = self._get_api_session()
+            request.api_id = session.api_id
+            return session.connection.api_request(request, timeout=timeout)
+        except WandbApiFailedError as e:
+            self._report_api_request_failure(e, request)
+            raise
+
+    def _report_api_request_failure(
+        self,
+        error: WandbApiFailedError,
+        request: ApiRequest,
+    ) -> None:
+        """Report a failed wandb-core API request to Sentry."""
+        sentry = self._sentry
+        if sentry is None:
+            from wandb.analytics import get_sentry
+
+            sentry = get_sentry()
+
+        tags = _api_request_failure_tags(error, request)
+        with contextlib.suppress(Exception):
+            sentry.exception(error, handled=True, tags=tags)
 
     def execute_graphql(
         self,
