@@ -4,9 +4,12 @@ orbs:
   go: circleci/go@3.0.4
   slack: circleci/slack@4.12.5
   gcloud: circleci/gcp-cli@3.1.1
-  codecov: codecov/codecov@5.0.0
+  codecov: codecov/codecov@6.0.0
 
 parameters:
+  codecov_cli_version:
+    type: string
+    default: "11.2.8"
   go_version:
     type: string
     default: "1.26.4"
@@ -149,7 +152,10 @@ commands:
           command: >
             nox -s "<<parameters.session>>" --python <<parameters.python>> --verbose
 
-      - codecov/upload: { flags: <<parameters.codecov_flags>> }
+      - codecov/upload:
+          flags: <<parameters.codecov_flags>>
+          use_pypi: true
+          version: << pipeline.parameters.codecov_cli_version >>
       - save-test-results
 
   local-wandb-server-deps:
@@ -477,6 +483,7 @@ jobs:
           name: Install system deps
           command: |
             sudo apt-get update
+            sudo apt-get install -y python3-pip
       - install_go
       - load-go-cache
       - run:
@@ -485,7 +492,10 @@ jobs:
             cd core
             go test -count=1 -race -coverprofile=coverage.txt -covermode=atomic ./...
       - save-go-cache
-      - codecov/upload: { flags: unit }
+      - codecov/upload:
+          flags: unit
+          use_pypi: true
+          version: << pipeline.parameters.codecov_cli_version >>
 
   unit-tests-rust:
     resource_class: wandb/docker-builder
