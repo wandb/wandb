@@ -7,6 +7,7 @@ from unittest.mock import MagicMock
 import pytest
 import wandb
 import wandb.integration.weave.weave as wandb_weave_integration
+from wandb.errors import UsageError
 
 from tests.fixtures.mock_wandb_log import MockWandbLog
 
@@ -62,13 +63,55 @@ def test_import_weave_disabled(
     fake_weave_init.assert_not_called()
 
 
-def test_import_weave_translates_missing_weave(
+def test_ensure_version_uses_default_missing_weave_message(
     monkeypatch: pytest.MonkeyPatch,
 ):
     monkeypatch.setitem(sys.modules, "weave", None)
 
-    with pytest.raises(ImportError, match="weave is not installed"):
-        wandb_weave_integration.import_weave()
+    with pytest.raises(ImportError, match="weave>=1.2.3 required"):
+        wandb_weave_integration.ensure_version("1.2.3")
+
+
+def test_ensure_version_uses_custom_missing_weave_message(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setitem(sys.modules, "weave", None)
+
+    with pytest.raises(ImportError, match="custom weave message"):
+        wandb_weave_integration.ensure_version("1.2.3", "custom weave message")
+
+
+def test_ensure_version_uses_custom_missing_version_message(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setitem(sys.modules, "weave", types.ModuleType("weave"))
+
+    with pytest.raises(ImportError, match="custom weave message"):
+        wandb_weave_integration.ensure_version("1.2.3", "custom weave message")
+
+
+def test_ensure_version_uses_default_old_weave_message(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    fake_weave = types.ModuleType("weave")
+    fake_weave.__version__ = "1.0.0"
+    monkeypatch.setitem(sys.modules, "weave", fake_weave)
+
+    with pytest.raises(
+        ImportError, match="weave>=1.2.3 required; found weave==1.0.0"
+    ):
+        wandb_weave_integration.ensure_version("1.2.3")
+
+
+def test_ensure_version_uses_custom_old_weave_message(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    fake_weave = types.ModuleType("weave")
+    fake_weave.__version__ = "1.0.0"
+    monkeypatch.setitem(sys.modules, "weave", fake_weave)
+
+    with pytest.raises(ImportError, match="custom weave message; found weave==1.0.0"):
+        wandb_weave_integration.ensure_version("1.2.3", "custom weave message")
 
 
 def test_init_weave_disabled(
@@ -78,7 +121,9 @@ def test_init_weave_disabled(
     monkeypatch.setattr(wandb_weave_integration, "_weave_init", weave_init)
     monkeypatch.setenv("WANDB_DISABLE_WEAVE", "1")
 
-    assert wandb_weave_integration.init_weave("test-entity", "test-project") is False
+    with pytest.raises(UsageError, match="WANDB_DISABLE_WEAVE"):
+        wandb_weave_integration.init_weave("test-entity", "test-project")
+
     weave_init.assert_not_called()
 
 
@@ -99,22 +144,24 @@ def test_init_weave_initializes_project(
     weave_init = MagicMock()
     monkeypatch.setattr(wandb_weave_integration, "_weave_init", weave_init)
 
-    assert wandb_weave_integration.init_weave("test-entity", "test-project") is True
+    wandb_weave_integration.init_weave("test-entity", "test-project")
+
     weave_init.assert_called_once_with("test-entity/test-project")
 
 
-def test_init_weave_translates_weave_init_missing_weave(
+def test_init_weave_passes_through_weave_init_import_error(
     monkeypatch: pytest.MonkeyPatch,
 ):
     weave_init = MagicMock(side_effect=ModuleNotFoundError("No module named 'weave'"))
     monkeypatch.setattr(wandb_weave_integration, "_weave_init", weave_init)
 
-    with pytest.raises(ImportError, match="weave is not installed"):
+    with pytest.raises(ModuleNotFoundError, match="No module named 'weave'"):
         wandb_weave_integration.init_weave("test-entity", "test-project")
 
 
 def test_weave_init_skips_matching_active_client(monkeypatch: pytest.MonkeyPatch):
     fake_weave = types.ModuleType("weave")
+    fake_weave.__version__ = "999.0.0"
     fake_weave.init = MagicMock()
     fake_weave.get_client = MagicMock(
         return_value=types.SimpleNamespace(
@@ -135,6 +182,7 @@ def test_weave_init_reinitializes_when_matching_client_did_not_ensure_project_ex
     monkeypatch: pytest.MonkeyPatch,
 ):
     fake_weave = types.ModuleType("weave")
+    fake_weave.__version__ = "999.0.0"
     fake_weave.init = MagicMock()
     fake_weave.get_client = MagicMock(
         return_value=types.SimpleNamespace(
@@ -155,6 +203,7 @@ def test_weave_init_rejects_different_active_client(
     monkeypatch: pytest.MonkeyPatch,
 ):
     fake_weave = types.ModuleType("weave")
+    fake_weave.__version__ = "999.0.0"
     fake_weave.init = MagicMock()
     fake_weave.get_client = MagicMock(
         return_value=types.SimpleNamespace(
