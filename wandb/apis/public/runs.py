@@ -69,7 +69,7 @@ if TYPE_CHECKING:
     import polars as pl
     from typing_extensions import Self
 
-    from wandb.old.summary import HTTPSummary
+    from wandb.apis.public.summary import HTTPSummary
 
 WANDB_INTERNAL_KEYS = {"_wandb", "wandb_version"}
 
@@ -1476,7 +1476,7 @@ class Run(Attrs):
         ):
             self.load_full_data()
         if self._summary is None:
-            from wandb.old.summary import HTTPSummary
+            from wandb.apis.public.summary import HTTPSummary
 
             # TODO: fix the outdir issue
             self._summary = HTTPSummary(
