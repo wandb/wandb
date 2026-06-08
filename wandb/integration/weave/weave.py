@@ -33,8 +33,10 @@ def _is_weave_disabled() -> bool:
 def build_project_path(entity: str | None, project: str | None) -> str | None:
     if not project:
         return None
-    return f"{entity}/{project}" if entity else project
+    if not entity:
+        return project
 
+    return f"{entity}/{project}"
 
 # This list is adapted from https://github.com/wandb/weave/blob/master/weave/integrations/__init__.py
 _AVAILABLE_WEAVE_INTEGRATIONS = [
