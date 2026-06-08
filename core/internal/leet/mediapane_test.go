@@ -55,6 +55,7 @@ func setKittyGraphicsEnv(t *testing.T, supported bool) {
 	t.Helper()
 	for _, key := range []string{
 		"KITTY_WINDOW_ID",
+		"KITTY_INSTALLATION_DIR",
 		"WEZTERM_EXECUTABLE",
 		"WEZTERM_PANE",
 		"GHOSTTY_BIN_DIR",
@@ -578,6 +579,33 @@ func TestMediaPane_ToggleRendererModeTitle(t *testing.T) {
 	view = pane.View(80, 20, "", "")
 	require.Contains(t, view, "[ansi]")
 	require.NotContains(t, pane.StatusLabel(), "kitty")
+}
+
+func TestMediaPane_ToggleRendererModeUsesTerminalEnvFallback(t *testing.T) {
+	setKittyGraphicsEnv(t, false)
+	t.Setenv("GHOSTTY_BIN_DIR", "/tmp/ghostty")
+	picture.ForceKittyCapability(picture.KittyCapabilityUnsupported)
+
+	pane, store := testMediaPane(t)
+	path := writeTestImage(t)
+	store.ProcessHistory(leet.HistoryMsg{
+		Media: map[string][]leet.MediaPoint{
+			"s": {{X: 0, FilePath: path}},
+		},
+	})
+	pane.SetStore(store)
+	pane.SetActive(true)
+
+	view := pane.View(80, 20, "", "")
+	require.Contains(t, view, "[ansi]")
+
+	handled, toggleCmd := pane.HandleKey(tea.KeyPressMsg{Code: 'k', Text: "k"})
+	require.True(t, handled)
+	require.Nil(t, toggleCmd)
+
+	view = pane.View(80, 20, "", "")
+	require.Contains(t, view, "[full-res]")
+	require.Equal(t, picture.KittyCapabilitySupported, picture.KittySupported())
 }
 
 func TestMediaPane_ToggleRendererModeUnsupportedTerminalStaysANSI(t *testing.T) {

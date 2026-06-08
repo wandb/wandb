@@ -101,7 +101,8 @@ type MediaPane struct {
 	xIndices    map[string]int
 	autoFollows map[string]bool
 
-	nav GridNavigator
+	nav    GridNavigator
+	keyMap map[string]func(*MediaPane, tea.KeyPressMsg) tea.Cmd
 
 	renderMu   sync.RWMutex
 	renderKeys []mediaRenderKey
@@ -117,6 +118,7 @@ func NewMediaPane(animState *AnimatedValue, gridConfig func() (rows, cols int)) 
 		autoFollows: make(map[string]bool),
 		pageRows:    1,
 		pageCols:    1,
+		keyMap:      buildKeyMap(MediaPaneKeyBindings()),
 		prepareCh:   make(chan struct{}, 1),
 	}
 }
@@ -396,64 +398,18 @@ func (p *MediaPane) HandleKey(msg tea.KeyPressMsg) (bool, tea.Cmd) {
 		return false, nil
 	}
 
-	switch normalizeKey(msg.String()) {
-	case "enter":
-		if p.HasData() {
-			p.ToggleFullscreen()
-		}
-		return true, nil
-	case "esc":
+	key := normalizeKey(msg.String())
+	if key == "esc" {
 		if !p.fullscreen {
 			return false, nil
 		}
-		p.ExitFullscreen()
-		return true, nil
-	case "k":
-		if !p.HasData() {
-			return true, nil
-		}
-		cmd := p.togglePictureMode()
-		p.requestRenderedMediaPrepare()
-		return true, cmd
-	case "left":
-		p.Scrub(-1)
-		return true, nil
-	case "right":
-		p.Scrub(1)
-		return true, nil
-	case "up":
-		p.Scrub(-10)
-		return true, nil
-	case "down":
-		p.Scrub(10)
-		return true, nil
-	case "home":
-		p.ScrubToStart()
-		return true, nil
-	case "end":
-		p.ScrubToEnd()
-		return true, nil
-	case "a":
-		p.MoveSelection(-1, 0)
-		return true, nil
-	case "d":
-		p.MoveSelection(1, 0)
-		return true, nil
-	case "w":
-		p.MoveSelection(0, -1)
-		return true, nil
-	case "s":
-		p.MoveSelection(0, 1)
-		return true, nil
-	case "pgup":
-		p.NavigatePage(-1)
-		return true, nil
-	case "pgdown":
-		p.NavigatePage(1)
-		return true, nil
-	default:
+	}
+
+	handler, ok := p.keyMap[key]
+	if !ok {
 		return false, nil
 	}
+	return true, handler(p, msg)
 }
 
 func (p *MediaPane) MoveSelection(dx, dy int) {
@@ -1030,7 +986,7 @@ func (r *mediaImageRenderer) ToggleMode() tea.Cmd {
 	defer r.mu.Unlock()
 
 	if r.mode == picture.PictureGlyph {
-		if picture.KittySupported() != picture.KittyCapabilitySupported {
+		if !ensureKittyGraphicsEnabled() {
 			return nil
 		}
 		r.mode = picture.PictureKitty
@@ -1061,6 +1017,39 @@ func (r *mediaImageRenderer) ToggleMode() tea.Cmd {
 		delete(r.pictures, key)
 	}
 	return batchCmds(cmds...)
+}
+
+func ensureKittyGraphicsEnabled() bool {
+	if picture.KittySupported() == picture.KittyCapabilitySupported {
+		return true
+	}
+	if !terminalSignalsKittyGraphics() {
+		return false
+	}
+	picture.ForceKittyCapability(picture.KittyCapabilitySupported)
+	return true
+}
+
+func terminalSignalsKittyGraphics() bool {
+	if os.Getenv("KITTY_WINDOW_ID") != "" ||
+		os.Getenv("KITTY_INSTALLATION_DIR") != "" ||
+		os.Getenv("WEZTERM_EXECUTABLE") != "" ||
+		os.Getenv("WEZTERM_PANE") != "" ||
+		os.Getenv("GHOSTTY_BIN_DIR") != "" ||
+		os.Getenv("GHOSTTY_RESOURCES_DIR") != "" {
+		return true
+	}
+
+	switch strings.ToLower(os.Getenv("TERM_PROGRAM")) {
+	case "ghostty", "iterm.app", "kitty", "wezterm":
+		return true
+	}
+
+	switch strings.ToLower(os.Getenv("TERM")) {
+	case "xterm-ghostty", "xterm-kitty":
+		return true
+	}
+	return false
 }
 
 func (r *mediaImageRenderer) Update(msg tea.Msg) tea.Cmd {
