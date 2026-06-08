@@ -178,7 +178,7 @@ def test_weave_init_skips_matching_active_client(monkeypatch: pytest.MonkeyPatch
     fake_weave.init.assert_not_called()
 
 
-def test_weave_init_reinitializes_when_matching_client_did_not_ensure_project_exists(
+def test_weave_init_ensure_project_exists_false(
     monkeypatch: pytest.MonkeyPatch,
 ):
     fake_weave = types.ModuleType("weave")
@@ -195,6 +195,8 @@ def test_weave_init_reinitializes_when_matching_client_did_not_ensure_project_ex
 
     wandb_weave_integration._weave_init("test-entity/test-project")
 
+    # If weave client flag ensure_project_exists is false, reinit even when active
+    # client matches.
     fake_weave.get_client.assert_called_once_with()
     fake_weave.init.assert_called_once_with("test-entity/test-project")
 
