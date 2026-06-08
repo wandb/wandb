@@ -435,7 +435,7 @@ func (b *bucket) ErrorCode(err error) gcerrors.ErrorCode {
 			return gcerrors.ResourceExhausted
 		}
 	}
-	return gcerrors.Unknown
+	return gcerr.GRPCCode(err)
 }
 
 func (b *bucket) Close() error {

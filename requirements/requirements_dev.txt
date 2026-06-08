@@ -1,12 +1,7 @@
 -r requirements_test.txt
 
 cloudpickle
-click
 filelock
-pydantic
-
-# For Pydantic to work with modern type annotations in older Pythons:
-eval-type-backport; python_version < '3.10'
 
 Pillow
 polars
@@ -37,15 +32,13 @@ scikit-learn
 torch
 torchvision
 jax[cpu]
-lightning==2.6.0; python_version < '3.10'
-lightning==2.6.1; python_version >= '3.10'
+lightning
 
 pyarrow
 kfp
 metaflow
 xgboost
 lightgbm
-mlflow
 urllib3
 docker
 catboost
@@ -54,24 +47,13 @@ gymnasium
 stable_baselines3
 dspy
 
-requests
 responses
-prometheus_client
-google-cloud-aiplatform
-
-# See:
-# - https://github.com/boto/botocore/pull/1107
-# - https://github.com/boto/botocore/pull/1230
-boto3
-botocore>=1.5.76
 
 # `ariadne-codegen` is a dev-only dependency used for GraphQL codegen.
 ariadne-codegen
 
-awscli; sys_platform == 'win32'
 .[launch]
 .[sweeps] ; sys_platform != 'darwin' or (sys_platform == 'darwin' and platform.machine != 'arm64')
-.[azure]
 
 # Sandbox tests need the upstream client, but it only supports Python 3.11+.
 cwsandbox[cli]>=0.20.0; python_version >= '3.11'

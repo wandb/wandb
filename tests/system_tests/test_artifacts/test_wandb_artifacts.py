@@ -9,6 +9,7 @@ from concurrent.futures import ThreadPoolExecutor
 from contextlib import nullcontext
 from datetime import datetime, timedelta, timezone
 from pathlib import Path, PurePosixPath, PureWindowsPath
+from threading import Barrier
 from urllib.parse import quote
 
 import numpy as np
@@ -408,16 +409,28 @@ def test_add_dir_again_after_edit(merge, artifact, tmp_path_factory):
     assert len(artifact.manifest.to_manifest_json()["contents"]) == 2
 
 
-def test_multi_add(artifact):
-    size = 2**27  # 128MB, large enough that it takes >1ms to add.
+def test_multi_add(artifact, monkeypatch):
+    size = 1024
     filename = "data.bin"
     with open(filename, "wb") as f:
         f.truncate(size)
 
-    # Add 8 copies simultaneously.
-    with ThreadPoolExecutor(max_workers=8) as e:
-        for _ in range(8):
-            e.submit(artifact.add_file, filename)
+    workers = 8
+    add_entry_barrier = Barrier(workers)
+    add_entry = type(artifact.manifest).add_entry
+
+    def add_entry_concurrently(manifest, entry, overwrite=False):
+        add_entry_barrier.wait(timeout=10)
+        return add_entry(manifest, entry, overwrite=overwrite)
+
+    monkeypatch.setattr(type(artifact.manifest), "add_entry", add_entry_concurrently)
+
+    # Add the same file from multiple threads, forcing all writes to reach the
+    # manifest update concurrently.
+    with ThreadPoolExecutor(max_workers=workers) as e:
+        futures = [e.submit(artifact.add_file, filename) for _ in range(workers)]
+        for future in futures:
+            future.result()
 
     # There should be only one file in the artifact.
     manifest_contents = artifact.manifest.to_manifest_json()["contents"]
