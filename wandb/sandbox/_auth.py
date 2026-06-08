@@ -4,8 +4,10 @@ from collections.abc import Generator
 from contextlib import contextmanager
 from contextvars import ContextVar
 
+import cwsandbox
 from cwsandbox import AuthHeaders, CWSandboxAuthenticationError, set_auth_mode
 
+import wandb
 from wandb.errors import UsageError
 from wandb.sdk import wandb_setup
 from wandb.sdk.lib import wbauth
@@ -46,6 +48,18 @@ def override_sandbox_entity(
         _entity_override.reset(entity_token)
 
 
+def _client_version_headers() -> list[tuple[str, str]]:
+    """Version headers identifying this client to the sandbox gateway (WB-34958).
+
+    The gateway records these for SDK-adoption tracking.
+    """
+    return [
+        ("x-wandb-sdk-version", wandb.__version__),
+        # Included in case the cwsandbox transport doesn't report its own version.
+        ("x-cwsandbox-client-version", cwsandbox.__version__),
+    ]
+
+
 def _resolve_wandb_sdk_auth() -> AuthHeaders:
     settings = wandb_setup.singleton().settings
     host = wbauth.HostUrl(settings.base_url, app_url=settings.app_url)
@@ -70,6 +84,8 @@ def _resolve_wandb_sdk_auth() -> AuthHeaders:
         metadata.append(("x-entity-id", entity))
     if settings.project:
         metadata.append(("x-project-name", settings.project))
+
+    metadata.extend(_client_version_headers())
 
     return AuthHeaders(
         headers={key: value for key, value in metadata},
