@@ -413,6 +413,7 @@ func newLeetLogger(logLevel int) (*observability.CoreLogger, func(), error) {
 			&slog.HandlerOptions{Level: slog.Level(logLevel)},
 		)),
 		observability.NewSentryContext(sentry.CurrentHub()),
+		nil,
 	)
 	return logger, closeLogWriter, nil
 }
