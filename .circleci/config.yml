@@ -149,9 +149,7 @@ commands:
           command: >
             nox -s "<<parameters.session>>" --python <<parameters.python>> --verbose
 
-      - codecov/upload:
-          flags: <<parameters.codecov_flags>>
-          use_pypi: true
+      - codecov/upload: { flags: <<parameters.codecov_flags>> }
       - save-test-results
 
   local-wandb-server-deps:
@@ -479,7 +477,6 @@ jobs:
           name: Install system deps
           command: |
             sudo apt-get update
-            sudo apt-get install -y python3-pip
       - install_go
       - load-go-cache
       - run:
@@ -488,9 +485,7 @@ jobs:
             cd core
             go test -count=1 -race -coverprofile=coverage.txt -covermode=atomic ./...
       - save-go-cache
-      - codecov/upload:
-          flags: unit
-          use_pypi: true
+      - codecov/upload: { flags: unit }
 
   unit-tests-rust:
     resource_class: wandb/docker-builder
