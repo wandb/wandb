@@ -87,29 +87,43 @@ var (
 
 // MediaPane is a collapsible, animated pane that renders wandb.Image media.
 type MediaPane struct {
-	animState  *AnimatedValue
+	// animState controls the pane's animated height and visibility.
+	animState *AnimatedValue
+	// gridConfig returns the requested media grid shape from the surrounding UI.
 	gridConfig func() (rows, cols int)
-	renderer   *mediaImageRenderer
+	// renderer owns image decoding plus ANSI/Kitty rendering caches.
+	renderer *mediaImageRenderer
 
+	// store provides the media series and points rendered by this pane.
 	store *MediaStore
 
-	active     bool
+	// active allows the pane to consume media navigation keys.
+	active bool
+	// fullscreen expands the selected image inside the pane and keeps keys local.
 	fullscreen bool
 
+	// selectedIndex is the selected series index within store.SeriesKeys().
 	selectedIndex int
-	pageRows      int
-	pageCols      int
+	// pageRows/pageCols are the effective grid dimensions for the last viewport.
+	pageRows int
+	pageCols int
 
-	// Per-series X-axis state. Keys are series names.
-	xIndices    map[string]int
+	// xIndices stores the selected X-value index for each media series.
+	xIndices map[string]int
+	// autoFollows records which series should stay pinned to their latest X value.
 	autoFollows map[string]bool
 
-	nav    GridNavigator
+	// nav tracks paged movement through the media grid.
+	nav GridNavigator
+	// keyMap dispatches normalized key names to handlers defined in keybindings.go.
 	keyMap map[string]func(*MediaPane, tea.KeyPressMsg) tea.Cmd
 
-	renderMu   sync.RWMutex
+	// renderMu guards renderKeys because Kitty image preparation runs async.
+	renderMu sync.RWMutex
+	// renderKeys are the currently visible media placements prepared for Kitty.
 	renderKeys []mediaRenderKey
-	prepareCh  chan struct{}
+	// prepareCh wakes the Bubble Tea command that prepares visible Kitty images.
+	prepareCh chan struct{}
 }
 
 func NewMediaPane(animState *AnimatedValue, gridConfig func() (rows, cols int)) *MediaPane {
