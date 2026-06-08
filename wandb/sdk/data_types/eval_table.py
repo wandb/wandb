@@ -47,13 +47,13 @@ class EvalTable(Table):
 
     def __init__(
         self,
-        columns=None,
-        data=None,
-        rows=None,
-        dataframe=None,
-        dtype=None,
-        optional=True,
-        allow_mixed_types=False,
+        columns: list[str] | None = None,
+        data: Any | None = None,
+        rows: Any | None = None,
+        dataframe: Any | None = None,
+        dtype: Any | None = None,
+        optional: bool | list[bool] = True,
+        allow_mixed_types: bool = False,
         log_mode: Literal["IMMUTABLE"] = "IMMUTABLE",
         *,
         input_columns: list[str] | None = None,
@@ -66,22 +66,22 @@ class EvalTable(Table):
         Supports arguments of parent Table class except where noted below.
 
         Args:
-            columns: (List[str]) Names of the columns in the table.
+            columns: Names of the columns in the table.
                 If unset, but input_columns, output_columns, or score_columns are set,
                 then we'll just set columns to the union of those, in that order.
-            log_mode: (str) Controls how the table is logged when the same EvalTable
-                is passed to ``run.log()`` more than once.
-                - "IMMUTABLE" (default): full table logged on first ``run.log()``;
-                  subsequent ``run.log()`` calls are no-ops.
+            log_mode: Controls how the table is logged when the same EvalTable
+                is passed to `run.log()` more than once.
+                - "IMMUTABLE" (default): full table logged on first `run.log()`;
+                  subsequent `run.log()` calls are no-ops.
                 - "MUTABLE" and "INCREMENTAL": not currently supported for EvalTable.
-            input_columns: (List[str]) Names of the input columns.
+            input_columns: Names of the input columns.
                 If set, designates these columns as inputs. Eval comparisons will match
                 rows based on matching values from input columns. If unset, we will
                 inject a "row" index input column so comparisons can match against that.
-            output_columns: (List[str]) Names of the output columns.
+            output_columns: Names of the output columns.
                 These represents the values to be compared. Any columns not designated
                 as input, output, or score will default to being output columns.
-            score_columns: (List[str]) Names of the score columns.
+            score_columns: Names of the score columns.
                 These represent derived scores for the outputs. By default, we will
                 auto-summarize any numeric and boolean scores.
             unsupported_media_mode: How to handle unsupported wandb media/value types.
