@@ -193,13 +193,13 @@ def _weave_init(project_path: str) -> None:
             client = weave.get_client()
             if client is not None:
                 client_project_path = build_project_path(client.entity, client.project)
-                if client.ensure_project_exists and client_project_path == project_path:
-                    return
                 if client_project_path != project_path:
                     raise ValueError(
                         "Weave is already initialized for "
                         f"{client_project_path!r}; cannot initialize it for "
                         f"{project_path!r}."
                     )
+                if client.ensure_project_exists:
+                    return
 
         weave.init(project_path)
