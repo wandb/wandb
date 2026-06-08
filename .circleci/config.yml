@@ -7,9 +7,6 @@ orbs:
   codecov: codecov/codecov@6.0.0
 
 parameters:
-  codecov_cli_version:
-    type: string
-    default: "11.2.8"
   go_version:
     type: string
     default: "1.26.4"
@@ -155,7 +152,6 @@ commands:
       - codecov/upload:
           flags: <<parameters.codecov_flags>>
           use_pypi: true
-          version: << pipeline.parameters.codecov_cli_version >>
       - save-test-results
 
   local-wandb-server-deps:
@@ -495,7 +491,6 @@ jobs:
       - codecov/upload:
           flags: unit
           use_pypi: true
-          version: << pipeline.parameters.codecov_cli_version >>
 
   unit-tests-rust:
     resource_class: wandb/docker-builder
