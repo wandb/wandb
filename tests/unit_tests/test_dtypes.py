@@ -356,6 +356,7 @@ def test_image_type(assets_path):
     # OK to assign Images with disjoint class set
     assert wb_type_annotated.assign(image_simple) == wb_type_annotated
     # Merge when disjoint
+    per_key_labels = {"1": "tree", "2": "car", "3": "road"}
     assert wb_type_annotated.assign(image_annotated_differently) == _ImageFileType(
         box_layers={"box_predictions": {1, 2, 3}, "box_ground_truth": {1, 2, 3}},
         box_score_keys={"loss", "acc"},
@@ -363,6 +364,19 @@ def test_image_type(assets_path):
             "mask_ground_truth_2": set(),
             "mask_ground_truth": set(),
             "mask_predictions": {1, 2, 3},
+        },
+        box_class_maps={
+            "box_predictions": per_key_labels,
+            "box_ground_truth": per_key_labels,
+        },
+        mask_class_maps={
+            "mask_predictions": per_key_labels,
+            # TODO: `mask_ground_truth` / `mask_ground_truth_2` should also
+            # have per-mask labels here — the caller passed `class_labels` for
+            # both — but `ImageMask.__init__`'s path branch silently drops
+            # them (only the `mask_data` branch stores them on `_val`), so
+            # `from_obj` has nothing to put in `mask_class_maps`. Fix by
+            # preserving `class_labels` on the path branch too.
         },
         class_map={"1": "tree", "2": "car", "3": "road"},
     )
