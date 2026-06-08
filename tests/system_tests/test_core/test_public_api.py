@@ -13,8 +13,8 @@ import wandb.util
 from wandb import Api
 from wandb.apis._generated import ProjectFragment, UserFragment
 from wandb.apis._generated.generate_api_key import GenerateApiKey
+from wandb.apis.public.summary import Summary
 from wandb.errors.errors import CommError
-from wandb.old.summary import Summary
 from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 
 
