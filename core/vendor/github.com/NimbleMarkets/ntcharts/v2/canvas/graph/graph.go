@@ -16,6 +16,12 @@ import (
 	"charm.land/lipgloss/v2"
 )
 
+// DefaultMaxPoints is the global sanity limit for point interpolation.
+// It is set high enough to cover massive terminals but low enough to
+// prevent OOM crashes on scaling errors or malformed data.
+// Apps may override this at init() time before constructing models.
+var DefaultMaxPoints = 10000
+
 // BrailleGrid wraps a runes.PatternDotsGrid
 // to implements a 2D grid with (X, Y) floating point coordinates
 // used to display Braille Pattern runes.
@@ -593,12 +599,33 @@ func abs(i int) int {
 
 // GetFullCirclePoints returns a []canvas.Point containing points
 // that approximates a filled circle of radius r for center Point c.
-func GetFullCirclePoints(c canvas.Point, r int) (p []canvas.Point) {
+// If more than DefaultMaxPoints are produced, nil is returned.
+func GetFullCirclePoints(c canvas.Point, r int) []canvas.Point {
+	return GetFullCirclePointsWithLimit(c, r, DefaultMaxPoints)
+}
+
+// GetFullCirclePointsWithLimit returns a []canvas.Point containing points
+// that approximates a filled circle of radius r for center Point c.
+// If limit is <= 0, DefaultMaxPoints is used. Returns nil if limit is exceeded.
+func GetFullCirclePointsWithLimit(c canvas.Point, r int, limit int) (p []canvas.Point) {
 	if r <= 0 {
 		return
 	}
+	if limit <= 0 {
+		limit = DefaultMaxPoints
+	}
+
+	// Fast fail: area of a circle is approx pi * r^2.
+	// Using 3 * r^2 as a conservative lower bound for the check.
+	if 3*r*r > limit {
+		return nil
+	}
+
 	// sort points
-	cPoints := GetCirclePoints(c, r)
+	cPoints := GetCirclePointsWithLimit(c, r, limit)
+	if cPoints == nil {
+		return nil
+	}
 	sort.Slice(cPoints, func(i, j int) bool {
 		a := cPoints[i]
 		b := cPoints[j]
@@ -614,11 +641,17 @@ func GetFullCirclePoints(c canvas.Point, r int) (p []canvas.Point) {
 		// if new row, draw line between previous row first and last points
 		if v.Y != l.Y {
 			for i := f.X; i < l.X; i++ {
+				if len(p) >= limit {
+					return nil
+				}
 				p = append(p, canvas.Point{X: i, Y: l.Y})
 			}
 			f = v
 		}
 		l = v
+		if len(p) >= limit {
+			return nil
+		}
 		p = append(p, v)
 	}
 	return
@@ -626,23 +659,48 @@ func GetFullCirclePoints(c canvas.Point, r int) (p []canvas.Point) {
 
 // GetCirclePoints returns a []canvas.Point containing points
 // that approximates a circle of radius r for center Point c.
-func GetCirclePoints(c canvas.Point, r int) (p []canvas.Point) {
+// If more than DefaultMaxPoints are produced, nil is returned.
+func GetCirclePoints(c canvas.Point, r int) []canvas.Point {
+	return GetCirclePointsWithLimit(c, r, DefaultMaxPoints)
+}
+
+// GetCirclePointsWithLimit returns a []canvas.Point containing points
+// that approximates a circle of radius r for center Point c.
+// If limit is <= 0, DefaultMaxPoints is used. Returns nil if limit is exceeded.
+func GetCirclePointsWithLimit(c canvas.Point, r int, limit int) (p []canvas.Point) {
 	if r <= 0 {
 		return
 	}
+	if limit <= 0 {
+		limit = DefaultMaxPoints
+	}
+
+	// Fast fail: Bresenham's 8-way symmetry produces ~5.66*r points
+	// (8 per iteration over ~r/sqrt(2) iterations). 4*r is a conservative
+	// lower bound on the actual count, so if it already exceeds the limit
+	// the real output certainly will.
+	if 4*r > limit {
+		return nil
+	}
+
 	t1 := r / 16
 	t2 := 0
 	x := r
 	y := 0
 	for x >= y {
-		p = append(p, c.Add(canvas.Point{X: x, Y: y}))
-		p = append(p, c.Add(canvas.Point{X: x, Y: -y}))
-		p = append(p, c.Add(canvas.Point{X: -x, Y: y}))
-		p = append(p, c.Add(canvas.Point{X: -x, Y: -y}))
-		p = append(p, c.Add(canvas.Point{X: y, Y: x}))
-		p = append(p, c.Add(canvas.Point{X: y, Y: -x}))
-		p = append(p, c.Add(canvas.Point{X: -y, Y: x}))
-		p = append(p, c.Add(canvas.Point{X: -y, Y: -x}))
+		if len(p)+8 > limit {
+			return nil
+		}
+		p = append(p,
+			c.Add(canvas.Point{X: x, Y: y}),
+			c.Add(canvas.Point{X: x, Y: -y}),
+			c.Add(canvas.Point{X: -x, Y: y}),
+			c.Add(canvas.Point{X: -x, Y: -y}),
+			c.Add(canvas.Point{X: y, Y: x}),
+			c.Add(canvas.Point{X: y, Y: -x}),
+			c.Add(canvas.Point{X: -y, Y: x}),
+			c.Add(canvas.Point{X: -y, Y: -x}),
+		)
 		y++
 		t1 += y
 		t2 = t1 - x
@@ -656,8 +714,32 @@ func GetCirclePoints(c canvas.Point, r int) (p []canvas.Point) {
 
 // GetLinePoints returns a []canvas.Point containing points
 // that approximates a line between points p1 and p2.
+// If more than DefaultMaxPoints are produced, nil is returned.
 func GetLinePoints(p1 canvas.Point, p2 canvas.Point) []canvas.Point {
-	if abs(p2.Y-p1.Y) < abs(p2.X-p1.X) {
+	return GetLinePointsWithLimit(p1, p2, DefaultMaxPoints)
+}
+
+// GetLinePointsWithLimit returns a []canvas.Point containing points
+// that approximates a line between points p1 and p2.
+// If limit is <= 0, DefaultMaxPoints is used. Returns nil if limit is exceeded.
+func GetLinePointsWithLimit(p1 canvas.Point, p2 canvas.Point, limit int) []canvas.Point {
+	if limit <= 0 {
+		limit = DefaultMaxPoints
+	}
+
+	// Fast fail: Bresenham's line algorithm produces exactly one point
+	// per unit of the longest axis.
+	dx := abs(p2.X - p1.X)
+	dy := abs(p2.Y - p1.Y)
+	count := dx
+	if dy > dx {
+		count = dy
+	}
+	if count+1 > limit {
+		return nil
+	}
+
+	if dy < dx {
 		if p1.X > p2.X {
 			return getLinePointsLow(p2, p1)
 		} else {

@@ -160,6 +160,19 @@ def test_direct_specification_of_api_key():
     # test_settings has a different API key
     api = Api(api_key="abcd" * 10)
     assert api.api_key == "abcd" * 10
+    # The key must reach the settings wandb-core receives, not just the Api.
+    assert api._service_api._settings.api_key == "abcd" * 10
+    assert api._service_api._settings.to_proto().api_key.value == "abcd" * 10
+
+
+@pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
+def test_public_api_sends_first_party_user_agent():
+    # The backend gates first-party fields (e.g. a user's apiKeys) on a
+    # recognized W&B client User-Agent, so the Public API must set it when
+    # routing GraphQL through wandb-core (whose default User-Agent is rejected).
+    headers = Api()._service_api._settings.x_extra_http_headers
+    assert headers["User-Agent"] == f"W&B Public Client {wandb.__version__}"
+    assert headers["Use-Admin-Privileges"] == "true"
 
 
 @pytest.mark.parametrize(

@@ -387,3 +387,21 @@ def test_pin_config_keys_empty_list(wandb_backend_spy: WandbBackendSpy):
     with wandb_backend_spy.freeze() as snapshot:
         config = snapshot.config(run_id=run.id)
         assert config["_wandb"]["value"]["pinned_keys"] == []
+
+
+def test_step__returns_the_current_step():
+    with wandb.init(mode="offline") as run:
+        assert run.step == 0
+
+        run.log({"x": 1})
+        assert run.step == 1
+
+        run.log({"x": 2}, step=3)
+        assert run.step == 3
+
+
+@pytest.mark.usefixtures("user")
+def test_step__raises_in_shared_mode():
+    with wandb.init(mode="shared") as run:
+        with pytest.raises(match="Cannot read the W&B step in shared mode"):
+            _ = run.step

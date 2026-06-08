@@ -26,10 +26,11 @@
 // The errors returned from this package can be inspected in several ways:
 //
 // The Code function from gocloud.dev/gcerrors will return an error code, also
-// defined in that package, when invoked on an error.
+// defined in that package, when invoked on an error. Alternatively, errors.Is
+// can be used with the code-specific errors from the same package (e.g., ErrInternal).
 //
 // The Bucket.ErrorAs method can retrieve the driver error underlying the returned
-// error.
+// error. Alternatively, errors.As can be used in the same way.
 //
 // # OpenTelemetry Integration
 //
