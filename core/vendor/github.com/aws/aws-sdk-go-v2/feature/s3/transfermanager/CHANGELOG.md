@@ -1,3 +1,20 @@
+# v0.2.9 (2026-06-08)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v0.2.8 (2026-06-05.2)
+
+* **Bug Fix**: Fix the concurrent reader to return cached read error instead of panic when called again
+
+# v0.2.7 (2026-06-05)
+
+* **Bug Fix**: Fix upload object flaky test to avoid repeat closing test ctx channel
+
+# v0.2.6 (2026-06-04)
+
+* **Dependency Update**: Update to smithy-go v1.27.1 to fix several union-related deserialization bugs in schema-serde-enabled services.
+* **Dependency Update**: Updated to the latest SDK module versions
+
 # v0.2.5 (2026-06-03)
 
 * **Dependency Update**: Updated to the latest SDK module versions
