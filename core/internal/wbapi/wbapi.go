@@ -90,8 +90,17 @@ func (p *WandbAPI) HandleRequest(
 	id string,
 	request *spb.ApiRequest,
 ) *spb.ApiResponse {
-	// block until until we are able to process more requests
-	p.semaphore <- struct{}{}
+	if err := ctx.Err(); err != nil {
+		return apiErrorResponse(err.Error(), 0)
+	}
+
+	// Block until we are able to process more requests, unless the client is
+	// tearing down and the request context is cancelled first.
+	select {
+	case p.semaphore <- struct{}{}:
+	case <-ctx.Done():
+		return apiErrorResponse(ctx.Err().Error(), 0)
+	}
 	defer func() { <-p.semaphore }()
 
 	switch req := request.Request.(type) {
@@ -100,8 +109,7 @@ func (p *WandbAPI) HandleRequest(
 	case *spb.ApiRequest_GraphqlRequest:
 		return p.graphqlHandler.HandleRequest(ctx, req.GraphqlRequest)
 	case *spb.ApiRequest_ReadRunHistoryRequest:
-		// TODO: Propagate ctx here.
-		return p.runHistoryApiHandler.HandleRequest(req.ReadRunHistoryRequest)
+		return p.runHistoryApiHandler.HandleRequest(ctx, req.ReadRunHistoryRequest)
 	}
 
 	return nil

@@ -26,6 +26,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws/ratelimit"
 	"github.com/aws/aws-sdk-go-v2/aws/retry"
 	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 )
 
 const (
@@ -78,6 +80,7 @@ func NewDefaultV2Config(ctx context.Context) (aws.Config, error) {
 //   - region: The AWS region for requests; sets WithRegion.
 //   - anonymous: A value of "true" forces use of anonymous credentials.
 //   - profile: The shared config profile to use; sets SharedConfigProfile.
+//   - role: An IAM role ARN to assume via STS.
 //   - endpoint: The AWS service endpoint to send HTTP request.
 //   - hostname_immutable: Make the hostname immutable, only works if endpoint is also set.
 //   - dualstack: A value of "true" enables dual stack (IPv4 and IPv6) endpoints.
@@ -136,6 +139,22 @@ func V2ConfigFromURLParams(ctx context.Context, q url.Values) (aws.Config, error
 			}
 			if anon {
 				opts = append(opts, config.WithCredentialsProvider(aws.AnonymousCredentials{}))
+			}
+		case "role":
+			if !strings.HasPrefix(value, "arn:") {
+				return aws.Config{}, fmt.Errorf("invalid value for role: must be a valid ARN (starts with 'arn:'): %s", value)
+			}
+			baseConfig, err := config.LoadDefaultConfig(ctx, opts...)
+			if err != nil {
+				return aws.Config{}, fmt.Errorf("failed to load default AWS config: %w", err)
+			}
+			stsClient := sts.NewFromConfig(baseConfig)
+			provider := stscreds.NewAssumeRoleProvider(stsClient, value)
+			opts = []func(*config.LoadOptions) error{
+				config.WithCredentialsProvider(provider),
+			}
+			if baseConfig.Region != "" {
+				opts = append(opts, config.WithRegion(baseConfig.Region))
 			}
 		case requestChecksumCalculationParamKey:
 			value, err := parseRequestChecksumCalculation(value)

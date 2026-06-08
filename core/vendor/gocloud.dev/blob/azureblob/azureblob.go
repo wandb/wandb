@@ -110,7 +110,6 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blockblob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/container"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/sas"
-	"github.com/Azure/go-autorest/autorest/to"
 	"github.com/google/wire"
 	"gocloud.dev/blob"
 	"gocloud.dev/blob/driver"
@@ -126,6 +125,14 @@ const (
 	defaultUploadBuffers   = 5               // configure the number of rotating buffers that are used when uploading (for degree of parallelism)
 	defaultUploadBlockSize = 8 * 1024 * 1024 // configure the upload buffer size
 )
+
+// ptrVal returns the value pointed to by p, or the zero value if p is nil.
+func ptrVal[T any](p *T) (v T) {
+	if p != nil {
+		v = *p
+	}
+	return
+}
 
 func init() {
 	blob.DefaultURLMux().RegisterBucket(Scheme, new(lazyOpener))
@@ -590,8 +597,8 @@ func (b *bucket) NewRangeReader(ctx context.Context, key string, offset, length 
 		return nil, err
 	}
 	attrs := driver.ReaderAttributes{
-		ContentType: to.String(blobDownloadResponse.ContentType),
-		Size:        getSize(blobDownloadResponse.ContentLength, to.String(blobDownloadResponse.ContentRange)),
+		ContentType: ptrVal(blobDownloadResponse.ContentType),
+		Size:        getSize(blobDownloadResponse.ContentLength, ptrVal(blobDownloadResponse.ContentRange)),
 		ModTime:     *blobDownloadResponse.LastModified,
 	}
 	var body io.ReadCloser
@@ -700,12 +707,12 @@ func (b *bucket) Attributes(ctx context.Context, key string) (*driver.Attributes
 		eTag = string(*blobPropertiesResponse.ETag)
 	}
 	return &driver.Attributes{
-		CacheControl:       to.String(blobPropertiesResponse.CacheControl),
-		ContentDisposition: to.String(blobPropertiesResponse.ContentDisposition),
-		ContentEncoding:    to.String(blobPropertiesResponse.ContentEncoding),
-		ContentLanguage:    to.String(blobPropertiesResponse.ContentLanguage),
-		ContentType:        to.String(blobPropertiesResponse.ContentType),
-		Size:               to.Int64(blobPropertiesResponse.ContentLength),
+		CacheControl:       ptrVal(blobPropertiesResponse.CacheControl),
+		ContentDisposition: ptrVal(blobPropertiesResponse.ContentDisposition),
+		ContentEncoding:    ptrVal(blobPropertiesResponse.ContentEncoding),
+		ContentLanguage:    ptrVal(blobPropertiesResponse.ContentLanguage),
+		ContentType:        ptrVal(blobPropertiesResponse.ContentType),
+		Size:               ptrVal(blobPropertiesResponse.ContentLength),
 		CreateTime:         *blobPropertiesResponse.CreationTime,
 		ModTime:            *blobPropertiesResponse.LastModified,
 		MD5:                blobPropertiesResponse.ContentMD5,
@@ -765,7 +772,7 @@ func (b *bucket) ListPaged(ctx context.Context, opts *driver.ListOptions) (*driv
 	segment := resp.ListBlobsHierarchySegmentResponse.Segment
 	for _, blobPrefix := range segment.BlobPrefixes {
 		page.Objects = append(page.Objects, &driver.ListObject{
-			Key:   unescapeKey(to.String(blobPrefix.Name)),
+			Key:   unescapeKey(ptrVal(blobPrefix.Name)),
 			Size:  0,
 			IsDir: true,
 			AsFunc: func(i any) bool {
@@ -779,7 +786,7 @@ func (b *bucket) ListPaged(ctx context.Context, opts *driver.ListOptions) (*driv
 	}
 	for _, blobInfo := range segment.BlobItems {
 		page.Objects = append(page.Objects, &driver.ListObject{
-			Key:     unescapeKey(to.String(blobInfo.Name)),
+			Key:     unescapeKey(ptrVal(blobInfo.Name)),
 			ModTime: *blobInfo.Properties.LastModified,
 			Size:    *blobInfo.Properties.ContentLength,
 			MD5:     blobInfo.Properties.ContentMD5,
