@@ -14,11 +14,11 @@ import importlib.util
 import os
 import sys
 import threading
-from types import ModuleType
 
 from packaging.version import parse as parse_version
 
 import wandb
+from wandb.errors import UsageError
 
 _weave_init_lock = threading.Lock()
 
@@ -91,65 +91,6 @@ def init_weave_if_imported(entity: str | None, project: str | None) -> None:
         wandb.termwarn(f"Failed to automatically initialize weave: {e}")
 
 
-def import_weave() -> ModuleType:
-    """Import weave, translating missing-package errors for W&B callers."""
-    try:
-        import weave
-    except ModuleNotFoundError as e:
-        raise ImportError(
-            "weave is not installed. Install it with: pip install weave"
-        ) from e
-    return weave
-
-
-def check_weave_version(
-    weave: ModuleType,
-    min_version: str,
-) -> str:
-    """Raise if the given weave module is older than min_version."""
-    try:
-        weave_version = weave.__version__
-    except AttributeError as e:
-        raise ImportError(
-            f"weave>={min_version}, but the imported weave package has no __version__"
-        ) from e
-
-    if parse_version(weave_version) < parse_version(min_version):
-        raise ImportError(f"weave>={min_version}; found weave=={weave_version}")
-    return weave_version
-
-
-def init_weave(
-    entity: str | None,
-    project: str | None,
-) -> bool:
-    """Initialize weave for a W&B entity/project.
-
-    Returns:
-        False if WANDB_DISABLE_WEAVE is set (caller should surface this).
-        True otherwise.
-
-    Raises:
-        ImportError: If weave is not installed.
-        ValueError: If no project is available, or if weave is already initialized
-            for a different project.
-    """
-    if _is_weave_disabled():
-        return False
-
-    project_path = build_project_path(entity, project)
-    if not project_path:
-        raise ValueError("init_weave requires a project to initialize weave.")
-
-    try:
-        _weave_init(project_path)
-    except ModuleNotFoundError as e:
-        raise ImportError(
-            "weave is not installed. Install it with: pip install weave"
-        ) from e
-    return True
-
-
 def _maybe_suggest_weave_installation() -> None:
     """Suggest Weave installation or import if any target library is imported."""
     imported_libs = [lib for lib in _AVAILABLE_WEAVE_INTEGRATIONS if lib in sys.modules]
@@ -178,6 +119,57 @@ def _maybe_suggest_weave_installation() -> None:
     )
 
 
+def ensure_version(
+    min_version: str,
+    error_msg: str | None = None,
+) -> None:
+    """Imports weave and raises if it's not at least the provided version.
+
+    Args:
+        min_version: Must import weave with at least this version.
+        error_msg: Custom error message if we fail to import min_version.
+
+    Raises:
+        ImportError: If we did not successfully import at least min_version.
+    """
+    message = error_msg or f"weave>={min_version} required"
+
+    try:
+        import weave
+
+        weave_version = weave.__version__
+    except ModuleNotFoundError as e:
+        raise ImportError(message) from e
+    except AttributeError as e:
+        raise ImportError(message) from e
+
+    if parse_version(weave_version) < parse_version(min_version):
+        raise ImportError(f"{message}; found weave=={weave_version}")
+
+
+def init_weave(
+    entity: str | None,
+    project: str | None,
+) -> None:
+    """Initialize weave for a W&B entity/project.
+
+    Raises:
+        ValueError: If no project is available, or if weave is already initialized
+            for a different project.
+        UsageError: If WANDB_DISABLE_WEAVE is set.
+    """
+    if _is_weave_disabled():
+        raise UsageError("weave is required, but WANDB_DISABLE_WEAVE is true.")
+
+    project_path = build_project_path(entity, project)
+    if not project_path:
+        raise ValueError("init_weave requires a project to initialize weave.")
+
+    # Assumes you've already called ensure_version as needed, so any exceptions will
+    # just pass through.
+    _weave_init(project_path)
+
+
 def _weave_init(project_path: str) -> None:
     """Call weave.init(). May trigger the first import of weave.
 
@@ -187,12 +179,17 @@ def _weave_init(project_path: str) -> None:
     with _weave_init_lock:
         import weave
 
-        # Skip re-init if the user already called weave.init() for this project.
-        # get_client landed in weave 0.51.54; fall through on older versions.
-        #
-        # TODO: Remove the AttributeError guard once we set a minimum weave version as a
-        # required dependency.
+        has_get_client = False
         try:
+            min_get_client_version = "0.51.54"
+            ensure_version(min_get_client_version)
+            has_get_client = True
+        except ImportError:
+            pass
+
+        if has_get_client:
+            # Skip re-init if the user already called weave.init() for this project.
+            # get_client landed in weave 0.51.54; fall through on older versions.
             client = weave.get_client()
             if client is not None:
                 client_project_path = build_project_path(client.entity, client.project)
@@ -204,7 +201,5 @@ def _weave_init(project_path: str) -> None:
                         f"{client_project_path!r}; cannot initialize it for "
                         f"{project_path!r}."
                     )
-        except AttributeError:
-            pass
 
         weave.init(project_path)
