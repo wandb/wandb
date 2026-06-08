@@ -30,7 +30,7 @@ def allow_relogging_after_mutation(
             self._artifact_target = None
             self._path = None
             self._sha256 = None
-        elif self.log_mode == "IMMUTABLE" and self._has_been_logged():
+        elif self.log_mode == "IMMUTABLE" and self.has_been_logged():
             wandb.termwarn(
                 "You are mutating a Table with log_mode='IMMUTABLE' that has been "
                 "logged already. Subsequent log() calls will have no effect. "

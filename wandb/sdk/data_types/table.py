@@ -295,7 +295,16 @@ class Table(Media):
             f"Invalid log_mode: {log_mode}. Must be one of {_SUPPORTED_LOGGING_MODES}"
         )
 
-    def _has_been_logged(self) -> bool:
+    def has_been_logged(self) -> bool:
+        """Marks a table as having been logged.
+
+        Once logged, IMMUTABLE tables cannot be logged again.
+
+        Should be overridden by subclasses if they implement different logic to
+        determine whether a table has been logged.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         return self._run is not None or self._artifact_target is not None
 
     @staticmethod
