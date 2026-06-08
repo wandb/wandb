@@ -20,38 +20,11 @@ EVAL_TABLE_MARKER = {"wandb_eval_table": True}
 EVAL_TABLE_ROW_INDEX_KEY = "row"
 
 _MIN_WEAVE_VERSION = "0.52.41"
-_EVAL_TABLE_WEAVE_INSTALL_HINT = 'Install it with `pip install wandb["eval-table"]`.'
-_EVAL_TABLE_WEAVE_DEP_MSG = (
-    f"`wandb.EvalTable` is missing weave dependency. {_EVAL_TABLE_WEAVE_INSTALL_HINT}"
-)
-
-
-def _ensure_weave_version() -> None:
-    try:
-        weave = weave_integration.import_weave()
-    except ImportError as e:
-        raise ImportError(_EVAL_TABLE_WEAVE_DEP_MSG) from e
-
-    try:
-        weave_integration.check_weave_version(weave, _MIN_WEAVE_VERSION)
-    except ImportError as e:
-        raise ImportError(
-            f"`wandb.EvalTable` requires {e}. {_EVAL_TABLE_WEAVE_INSTALL_HINT}"
-        ) from e
 
 
 def _init_weave_for_run(run: LocalRun) -> None:
     try:
-        if not weave_integration.init_weave(
-            run.entity,
-            run.project,
-        ):
-            raise RuntimeError(
-                "Weave logging is disabled (WANDB_DISABLE_WEAVE is set). "
-                "Unset it or use run.log() with a regular Table to suppress this."
-            )
-    except ImportError as e:
-        raise ImportError(_EVAL_TABLE_WEAVE_DEP_MSG) from e
+        weave_integration.init_weave(run.entity, run.project)
     except ValueError as e:
         # Raised when Weave is initialized for a different project, or when
         # the W&B run does not have a project.
@@ -162,11 +135,14 @@ class EvalTable(Table):
         if log_mode != "IMMUTABLE":
             raise UsageError("EvalTable currently only supports log_mode='IMMUTABLE'.")
 
-        _ensure_weave_version()
+        weave_integration.ensure_version(
+            _MIN_WEAVE_VERSION,
+            'EvalTable dependency error. Fix with: `pip install wandb["eval-table"]`.',
+        )
 
-        self._input_columns: list[str] = list(input_columns or [])
-        self._output_columns: list[str] = list(output_columns or [])
-        self._score_columns: list[str] = list(score_columns or [])
+        self._input_columns = list(input_columns or [])
+        self._output_columns = list(output_columns or [])
+        self._score_columns = list(score_columns or [])
         self._summary: dict | None = None
         self._auto_summarize: bool = True
         self._immutable_evaluate_call_id: str | None = None
@@ -214,6 +190,13 @@ class EvalTable(Table):
 
         <!-- lazydoc-ignore: internal -->
         """
+        # TODO: Remove when weave adds support for offline mode
+        if run.offline:
+            raise UsageError(
+                "EvalTable does not support offline mode yet. "
+                "Use wandb.init(mode='online') or unset WANDB_MODE."
+            )
+
         # Now that we have run context, initialize/validate Weave for this project.
         # Skip the file-copy that Table.bind_to_run does.
         _init_weave_for_run(run)
@@ -230,13 +213,6 @@ class EvalTable(Table):
             raise TypeError("EvalTable cannot be logged to a wandb.Artifact.")
 
         run = cast("LocalRun", run_or_artifact)
-
-        # TODO: Remove when weave adds support for offline mode
-        if run.offline:
-            raise UsageError(
-                "EvalTable does not support offline mode yet. "
-                "Use wandb.init(mode='online') or unset WANDB_MODE."
-            )
 
         if self._run_log_key is None:
             raise UsageError("EvalTable must be logged with run.log().")
@@ -325,7 +301,11 @@ class EvalTable(Table):
     def set_summary(
         self, summary: dict | None = None, auto_summarize: bool = True
     ) -> None:
-        """Set the summary passed to EvaluationLogger.log_summary when logged."""
+        """Sets key/value pairs to be logged at the eval level.
+
+        Args:
+            auto_summarize: If true (default), auto-generate summaries for all score columns.
+        """
         self._summary = summary
         self._auto_summarize = auto_summarize
 
