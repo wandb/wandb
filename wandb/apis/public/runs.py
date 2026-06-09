@@ -670,7 +670,19 @@ class Run(Attrs):
 
     @property
     def state(self) -> str:
-        """The state of the run. Can be one of: Finished, Failed, Crashed, or Running."""
+        """The state of the run.
+
+        The following table describes the possible states a run can be in:
+
+        | State    | Description |
+        | -------- | ----------- |
+        | Crashed  | Run stopped sending heartbeats in the internal process, which can happen if the machine crashes. |
+        | Failed   | Run ended with a non-zero exit status. |
+        | Finished | Run ended and fully synced data, or called `wandb.Run.finish()`. |
+        | Killed   | Run was forcibly stopped before it could finish. |
+        | Running  | Run is still running and has recently sent a heartbeat. |
+        | Pending  | Run is scheduled but not yet started (common in sweeps and Launch jobs). |
+        """
         return self._state
 
     @property
@@ -988,13 +1000,21 @@ class Run(Attrs):
         self.update()
 
     @normalize_exceptions
-    def update_state(self, state: Literal["pending"]) -> bool:
+    def update_state(self, state: str) -> bool:
         """Update the state of a run.
 
-        Allows transitioning runs from 'failed' or 'crashed' to 'pending'.
+        Supported transitions:
+            - to `"pending"` from `running`, `failed`, `crashed`, or `preempted`
+              (e.g. to requeue a terminated or in-progress run)
+            - to `"failed"` from `pending` or `running`
+              (e.g. to mark a preempted or lost run as failed)
+
+        Sweep runs cannot have their state updated.
+
+        See `Run.state` for the list of possible run states.
 
         Args:
-            state: The target run state. Only `"pending"` is supported.
+            state: The target run state. One of `"pending"` or `"failed"`.
 
         Returns:
             `True` if the state was successfully updated.
@@ -1011,31 +1031,15 @@ class Run(Attrs):
             }
             """
 
-        try:
-            result = self._service_api.execute_graphql(
-                mutation,
-                {
-                    "input": {
-                        "id": self.storage_id,
-                        "state": state,
-                    }
-                },
-            )
-        except Exception as e:
-            error_msg = str(e)
-            if "UpdateRunStateInput" in error_msg or "updateRunState" in error_msg:
-                raise wandb.Error(
-                    "The server does not support the update_state operation. "
-                    "Please ensure your W&B server is updated to a version that "
-                    "supports run state transitions."
-                ) from e
-            if "invalid state transition" in error_msg.lower():
-                raise wandb.Error(
-                    f"Invalid state transition: cannot change run from '{self.state}' "
-                    f"to '{state}'. Only runs in 'failed' or 'crashed' state can be "
-                    "transitioned to 'pending'."
-                ) from e
-            raise
+        result = self._service_api.execute_graphql(
+            mutation,
+            {
+                "input": {
+                    "id": self.storage_id,
+                    "state": state,
+                }
+            },
+        )
 
         if result.get("updateRunState", {}).get("success"):
             self._attrs["state"] = state
