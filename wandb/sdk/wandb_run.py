@@ -3350,7 +3350,7 @@ class Run:
                     artifact,
                     aliases,
                     tags,
-                    self.step,
+                    self.step if not self._settings._shared else 0,
                     finalize=finalize,
                     is_user_created=is_user_created,
                     use_after_commit=use_after_commit,
