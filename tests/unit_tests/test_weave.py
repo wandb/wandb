@@ -97,9 +97,7 @@ def test_ensure_version_uses_default_old_weave_message(
     fake_weave.__version__ = "1.0.0"
     monkeypatch.setitem(sys.modules, "weave", fake_weave)
 
-    with pytest.raises(
-        ImportError, match="weave>=1.2.3 required; found weave==1.0.0"
-    ):
+    with pytest.raises(ImportError, match="weave>=1.2.3 required; found weave==1.0.0"):
         wandb_weave_integration.ensure_version("1.2.3")
 
 
