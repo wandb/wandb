@@ -324,7 +324,7 @@ class EvalTable(Table):
         self._summary = summary
         self._auto_summarize = auto_summarize
 
-    def _iter_unwrapped_rows(self, start: int = 0) -> Iterator[dict[str, Any]]:
+    def _iterrows_for_weave(self, start: int = 0) -> Iterator[dict[str, Any]]:
         str_columns = self._string_columns()
         warned: set[type] = set()
         for row in self.data[start:]:
@@ -394,7 +394,7 @@ class EvalTable(Table):
 
         start_idx = 0
 
-        for offset, row in enumerate(self._iter_unwrapped_rows(start=start_idx)):
+        for offset, row in enumerate(self._iterrows_for_weave(start=start_idx)):
             row_idx = start_idx + offset + 1  # 1-indexed cumulative
             if inject_row_index:
                 inputs: dict[str, Any] = {EVAL_TABLE_ROW_INDEX_KEY: row_idx}
