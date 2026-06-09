@@ -171,7 +171,7 @@ def test_init_weave_without_project_raises(
     weave_init = MagicMock()
     monkeypatch.setattr(wandb_weave_integration, "_weave_init", weave_init)
 
-    with pytest.raises(ValueError, match="requires a project"):
+    with pytest.raises(UsageError, match="requires a project"):
         wandb_weave_integration.init_weave("test-entity", None)
     weave_init.assert_not_called()
 
@@ -254,7 +254,7 @@ def test_weave_init_rejects_different_active_client(
     )
     monkeypatch.setitem(sys.modules, "weave", fake_weave)
 
-    with pytest.raises(ValueError, match="already initialized"):
+    with pytest.raises(UsageError, match="already initialized"):
         wandb_weave_integration._weave_init("new-entity/new-project")
 
     fake_weave.get_client.assert_called_once_with()
