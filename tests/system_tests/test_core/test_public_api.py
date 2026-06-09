@@ -342,7 +342,6 @@ def test_run_update_state_success(wandb_backend_spy):
     seed_run = Api().create_run()
     run = Api().run(f"{seed_run.entity}/{seed_run.project}/{seed_run.id}")
 
-    # A freshly created run is "running"; "running" -> "pending" is allowed.
     result = run.update_state("failed")
 
     assert result is True
@@ -357,11 +356,9 @@ def test_run_update_state_failure(wandb_backend_spy):
     seed_run = Api().create_run()
     run = Api().run(f"{seed_run.entity}/{seed_run.project}/{seed_run.id}")
 
-    # A freshly created run is "running"; mark it "failed" (an allowed transition).
     assert run.update_state("failed") is True
     assert run.state == "failed"
 
-    # "failed" -> "failed" is not a supported transition, so the server rejects it.
     with pytest.raises(wandb.Error):
         run.update_state("failed")
 
