@@ -279,7 +279,7 @@ class EvalTable(Table):
         score_cols: list[str],
     ) -> None:
         all_assigned = set(input_cols) | set(output_cols) | set(score_cols)
-        table_cols = set(self.columns)
+        table_cols = set(self._string_columns())
 
         unknown = all_assigned - table_cols
         if unknown:
@@ -299,6 +299,17 @@ class EvalTable(Table):
                 )
             seen.add(col)
 
+    def _string_columns(self) -> list[str]:
+        # Table supports both string and int column names; canonicalize to string
+        columns = [str(col) for col in self.columns]
+        duplicates = sorted({col for col in columns if columns.count(col) > 1})
+        if duplicates:
+            raise ValueError(
+                "EvalTable column names must be unique after converting to strings "
+                f"for Weave logging. Duplicate column name(s): {duplicates}."
+            )
+        return columns
+
     def set_summary(
         self, summary: dict | None = None, auto_summarize: bool = True
     ) -> None:
@@ -311,7 +322,7 @@ class EvalTable(Table):
         self._auto_summarize = auto_summarize
 
     def _iter_rows(self, start: int = 0) -> Iterator[dict[str, Any]]:
-        cols = self.columns
+        cols = self._string_columns()
         for row in self.data[start:]:
             yield {col: val for col, val in zip(cols, row, strict=True)}
 
@@ -348,13 +359,14 @@ class EvalTable(Table):
         ev = self._create_weave_eval_logger(eval_name)
 
         # Any column not listed in a role defaults to an output column.
+        str_columns = self._string_columns()
         assigned = (
             set(self._input_columns)
             | set(self._output_columns)
             | set(self._score_columns)
         )
         output_cols = self._output_columns + [
-            c for c in self.columns if c not in assigned
+            col for col in str_columns if col not in assigned
         ]
 
         # When no input columns are designated, inject a synthetic 1-indexed `row`

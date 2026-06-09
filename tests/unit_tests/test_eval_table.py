@@ -420,6 +420,50 @@ def test_no_input_with_score_columns(mock_eval_logger, run):
     )
 
 
+def test_int_columns_match_role_columns_as_strings(mock_eval_logger, run):
+    et = wandb.EvalTable(
+        columns=[1, 2, 3],
+        data=[["in-val", "out-val", 0.9]],
+        input_columns=["1"],
+        output_columns=["2"],
+        score_columns=["3"],
+    )
+    run.log({"my_eval": et})
+
+    ev = mock_eval_logger.created_loggers[0]
+    ev.log_example.assert_called_once_with(
+        inputs={"1": "in-val"},
+        output={"2": "out-val"},
+        scores={"3": 0.9},
+    )
+
+
+def test_int_columns_default_to_string_output_columns(mock_eval_logger, run):
+    et = wandb.EvalTable(
+        columns=[1, 2],
+        data=[["x", 1]],
+    )
+    run.log({"my_eval": et})
+
+    ev = mock_eval_logger.created_loggers[0]
+    ev.log_example.assert_called_once_with(
+        inputs={"row": 1},
+        output={"1": "x", "2": 1},
+        scores={},
+    )
+
+
+@pytest.mark.usefixtures("mock_eval_logger")
+def test_stringified_duplicate_columns_raise(run):
+    et = wandb.EvalTable(
+        columns=[1, "1"],
+        data=[["x", "y"]],
+    )
+
+    with pytest.raises(ValueError, match="unique after converting to strings"):
+        run.log({"my_eval": et})
+
+
 # All columns assigned to input/score roles: no output payload is logged.
 def test_no_output_columns_logs_none_output(mock_eval_logger, run):
     et = wandb.EvalTable(
