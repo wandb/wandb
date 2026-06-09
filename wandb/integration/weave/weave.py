@@ -14,8 +14,13 @@ import importlib.util
 import os
 import sys
 import threading
+from json import JSONDecodeError
+
+import requests
+from requests import RequestException
 
 import wandb
+from wandb.sdk.lib.retry import Retry
 
 _weave_init_lock = threading.Lock()
 
@@ -48,16 +53,57 @@ _AVAILABLE_WEAVE_INTEGRATIONS = [
 ]
 
 
-def setup(entity: str | None, project: str | None) -> None:
+def _weave_trace_server_url(base_url: str) -> str:
+    # Adapted from https://github.com/wandb/weave/blame/master/weave/trace/env.py#L58
+    default = "https://trace.wandb.ai"
+    if base_url != "https://api.wandb.ai":
+        default = f"{base_url}/traces"
+    return os.getenv("WF_TRACE_SERVER_URL", default)
+
+
+def _weave_is_available_on_server(base_url: str) -> bool:
+    retryable_exceptions = (RequestException, JSONDecodeError)
+    url = _weave_trace_server_url(base_url)
+
+    def _get_server_info_internal():
+        resp = requests.get(f"{url}/server_info")
+        return resp.json()
+
+    _get_server_info = Retry(
+        _get_server_info_internal,
+        num_retries=3,
+        retryable_exceptions=retryable_exceptions,
+        error_prefix="Failed to confirm Weave server availability",
+    )
+
+    try:
+        _get_server_info()
+    except retryable_exceptions:
+        # Server is not available
+        return False
+    return True
+
+
+def setup(
+    entity: str | None, project: str | None, base_url: str, offline: bool = False
+) -> None:
     """Set up automatic Weave initialization for the current W&B run.
 
     Args:
+        entity: The W&B entity name.
         project: The W&B project name to use for Weave initialization.
+        base_url: The W&B base URL.
+        offline: Whether the run is in offline mode.
     """
     # We can't or shouldn't init weave; return
     if os.getenv(_DISABLE_WEAVE):
         return
     if not project:
+        return
+
+    # Check if weave is available on the server
+    if not offline and not _weave_is_available_on_server(base_url):
+        wandb.termwarn("Weave is not available on the server.  Please contact support.")
         return
 
     # Use entity/project when available; otherwise fall back to project only
