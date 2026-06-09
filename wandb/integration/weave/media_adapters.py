@@ -16,7 +16,7 @@ from wandb.sdk.data_types.table import Table
 
 UnsupportedMediaMode = Literal["raise", "stub"]
 _UNSUPPORTED_MEDIA_MODES = get_args(UnsupportedMediaMode)
-_UnwrapValueFn = Callable[[Any, str, set[type]], Any]
+_UnwrapValueFn = Callable[[Any, str | int, set[type]], Any]
 _SupportedValueAdapter = tuple[str, _UnwrapValueFn]
 
 
@@ -27,7 +27,7 @@ def _warn_once(media_type: type, warned: set[type], message: str) -> None:
     warned.add(media_type)
 
 
-def _unwrap_image(val: Image, column: str, warned: set[type]) -> Any:
+def _unwrap_image(val: Image, column: str | int, warned: set[type]) -> Any:
     _warn_once(
         Image,
         warned,
@@ -220,7 +220,7 @@ def _stub_unsupported_wandb_value(val: WBValue, warned: set[type]) -> str:
 
 def unwrap_value(
     val: Any,
-    column: str,
+    column: str | int,
     warned: set[type],
     unsupported_media_mode: UnsupportedMediaMode = "raise",
 ) -> Any:

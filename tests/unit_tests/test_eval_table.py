@@ -464,6 +464,36 @@ def test_stringified_duplicate_columns_raise(run):
         run.log({"my_eval": et})
 
 
+def test_int_columns_pass_original_column_to_media_adapter(
+    monkeypatch, mock_eval_logger, run
+):
+    adapter_columns = []
+
+    def unwrap_value(val, column, warned, unsupported_media_mode="raise"):
+        adapter_columns.append(column)
+        return f"unwrapped:{val}"
+
+    monkeypatch.setattr(
+        eval_table_module.media_adapters,
+        "unwrap_value",
+        unwrap_value,
+    )
+
+    et = wandb.EvalTable(
+        columns=[1],
+        data=[["x"]],
+    )
+    run.log({"my_eval": et})
+
+    assert adapter_columns == [1]
+    ev = mock_eval_logger.created_loggers[0]
+    ev.log_example.assert_called_once_with(
+        inputs={"row": 1},
+        output={"1": "unwrapped:x"},
+        scores={},
+    )
+
+
 # All columns assigned to input/score roles: no output payload is logged.
 def test_no_output_columns_logs_none_output(mock_eval_logger, run):
     et = wandb.EvalTable(

@@ -91,3 +91,17 @@ def test_media_adapter_rejects_external_image_reference():
         ),
     ):
         unwrap_value(image, "img", set())
+
+
+def test_media_adapter_uses_int_column_in_error_message():
+    image = wandb.Image("https://example.com/image.png")
+
+    with (
+        pytest.warns(UserWarning, match="wandb.Image values"),
+        pytest.raises(TypeError) as exc_info,
+    ):
+        unwrap_value(image, 1, set())
+
+    message = str(exc_info.value)
+    assert "column 1" in message
+    assert "column '1'" not in message

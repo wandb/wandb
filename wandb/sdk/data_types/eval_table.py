@@ -265,7 +265,7 @@ class EvalTable(Table):
     @override
     def add_column(
         self,
-        name: str,
+        name: str | int,
         data: list[Any] | np.ndarray,
         optional: bool = False,
     ) -> None:
@@ -325,17 +325,22 @@ class EvalTable(Table):
         self._auto_summarize = auto_summarize
 
     def _iter_unwrapped_rows(self, start: int = 0) -> Iterator[dict[str, Any]]:
-        cols = self._string_columns()
+        str_columns = self._string_columns()
         warned: set[type] = set()
         for row in self.data[start:]:
             yield {
-                col: media_adapters.unwrap_value(
+                str_col: media_adapters.unwrap_value(
                     val,
                     col,
                     warned,
                     unsupported_media_mode=self._unsupported_media_mode,
                 )
-                for col, val in zip(cols, row, strict=True)
+                for col, str_col, val in zip(
+                    self.columns,
+                    str_columns,
+                    row,
+                    strict=True,
+                )
             }
 
     def _create_weave_eval_logger(self, eval_name: str) -> Any:
