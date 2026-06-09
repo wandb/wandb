@@ -151,15 +151,20 @@ class EvalTable(Table):
         # don't have to double-name columns when they've already listed
         # them in input/output/score_columns. Skip if a dataframe is given
         # — Table infers columns from the dataframe and ignores `columns`.
+        table_columns: list[str | int] | None = columns
         if (
             columns is None
             and dataframe is None
             and (self._input_columns or self._output_columns or self._score_columns)
         ):
-            columns = self._input_columns + self._output_columns + self._score_columns
+            table_columns = [
+                *self._input_columns,
+                *self._output_columns,
+                *self._score_columns,
+            ]
 
         super().__init__(
-            columns=columns,
+            columns=table_columns,
             data=data,
             rows=rows,
             dataframe=dataframe,
