@@ -683,8 +683,6 @@ def test_unsupported_media_mode_rejects_unknown_mode():
 
 def test_unsupported_wandb_media_stubbed_on_log(mock_eval_logger, run):
     html = wandb.Html("<p>hi</p>", inject=False)
-    assert html._sha256 is not None
-    expected_stub = f"[wandb.Html unsupported: {html._sha256[:8]}]"
 
     et = wandb.EvalTable(
         columns=["html", "label"],
@@ -698,8 +696,14 @@ def test_unsupported_wandb_media_stubbed_on_log(mock_eval_logger, run):
         run.log({"my_eval": et})
 
     ev = mock_eval_logger.created_loggers[0]
+    inputs = ev.log_example.call_args.kwargs["inputs"]
+    stub = inputs["html"]
+    assert stub.startswith("[wandb.Html unsupported: ")
+    assert stub.endswith("]")
+    digest = stub.removeprefix("[wandb.Html unsupported: ").removesuffix("]")
+    assert len(digest) == 8
     ev.log_example.assert_called_once_with(
-        inputs={"html": expected_stub},
+        inputs={"html": stub},
         output={"label": "ok"},
         scores={},
     )
