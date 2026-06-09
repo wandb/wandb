@@ -117,6 +117,11 @@ class NoopRun(wandb_run.Run):
 
     @property
     @override
+    def step(self) -> int:
+        return 0
+
+    @property
+    @override
     def url(self) -> None:
         return None
 

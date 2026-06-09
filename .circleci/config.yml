@@ -4,7 +4,7 @@ orbs:
   go: circleci/go@3.0.4
   slack: circleci/slack@4.12.5
   gcloud: circleci/gcp-cli@3.1.1
-  codecov: codecov/codecov@5.0.0
+  codecov: codecov/codecov@6.0.0
 
 parameters:
   go_version:

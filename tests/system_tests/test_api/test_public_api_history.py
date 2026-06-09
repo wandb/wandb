@@ -415,3 +415,25 @@ def test_run_download_history_exports__require_complete_history_raises_error(
             download_dir=download_dir,
             require_complete_history=True,
         )
+
+
+def test_run_scan_history__with_live_data(
+    wandb_backend_spy,
+    parquet_file_server,
+    monkeypatch,
+):
+    monkeypatch.setenv("WANDB_CACHE_DIR", tempfile.mkdtemp())
+
+    with wandb.init() as run:
+        for i in range(10):
+            run.log({"acc": i})
+
+    run = wandb.Api().run(
+        f"{run.entity}/{run.project}/{run.id}",
+    )
+
+    scan = run.scan_history(page_size=2, keys=["acc"])
+    history = [row for row in scan]
+    expected_history = [{"_step": i, "acc": i} for i in range(10)]
+    assert len(history) == len(expected_history)
+    assert history == expected_history
