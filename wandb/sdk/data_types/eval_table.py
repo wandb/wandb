@@ -26,7 +26,6 @@ EVAL_TABLE_ROW_INDEX_KEY = "row"
 _MIN_WEAVE_VERSION = "0.52.41"
 
 
-
 class EvalTable(Table):
     """A Table subclass that routes run.log() to the new Eval Tables experience.
 
