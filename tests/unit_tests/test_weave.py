@@ -63,6 +63,46 @@ def test_import_weave_disabled(
     fake_weave_init.assert_not_called()
 
 
+def test_import_weave_not_disabled_by_false(
+    weave_imported,
+    fake_weave_init: MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    _ = weave_imported
+    monkeypatch.setenv("WANDB_DISABLE_WEAVE", "false")
+
+    wandb.init(project="test-project", mode="offline")
+
+    fake_weave_init.assert_called_once()
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("1", True),
+        ("true", True),
+        ("TRUE", True),
+        ("yes", True),
+        ("on", True),
+        ("0", False),
+        ("false", False),
+        ("FALSE", False),
+        ("no", False),
+        ("off", False),
+        ("", False),
+        ("maybe", False),
+    ],
+)
+def test_is_weave_disabled_parses_boolean_env(
+    value: str,
+    expected: bool,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setenv("WANDB_DISABLE_WEAVE", value)
+
+    assert wandb_weave_integration._is_weave_disabled() is expected
+
+
 def test_ensure_version_uses_default_missing_weave_message(
     monkeypatch: pytest.MonkeyPatch,
 ):
