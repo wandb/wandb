@@ -16,7 +16,7 @@ if TYPE_CHECKING:
     from wandb.automations.events import EventType, RunStateFilter
 
 
-class ReportedRunState(LenientStrEnum):  # from: StateToReport
+class ReportedRunState(LenientStrEnum):  # from: CoarseRunState
     RUNNING = "RUNNING"
     FINISHED = "FINISHED"
     FAILED = "FAILED"
@@ -56,10 +56,7 @@ class StateFilter(GQLBase):  # from: RunStateFilter
         return NotImplemented
 
     def __rand__(self, other: BaseOp | FilterExpr) -> RunStateFilter:
-        """Ensures `&` is commutative for run and state filters.
-
-        I.e. `(run_filter & state_filter) == (state_filter & run_filter)`.
-        """
+        """Ensures `&` is commutative, i.e. `(A & B) == (B & A)`."""
         return self.__and__(other)
 
 

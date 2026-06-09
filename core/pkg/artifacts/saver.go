@@ -786,7 +786,14 @@ func (as *ArtifactSaver) Save() (artifactID string, rerr error) {
 		return "", fmt.Errorf("ArtifactSaver.resolveClientIDReferences: %w", err)
 	}
 	// TODO: check if size is needed
-	manifestFile, manifestDigest, _, err := manifest.WriteToFile()
+	// Write the manifest into the staging dir the SDK sent with the
+	// LogArtifactRequest — a wandb-controlled dir that's guaranteed to exist —
+	// rather than the OS default temp dir ($TMPDIR / os.TempDir()), which can be
+	// missing or unwritable on HPC hosts and caused silent failures. The temp
+	// file is removed below after upload, so the staging dir is left clean. When
+	// no staging dir was provided (e.g. internal artifact paths), stagingDir is
+	// empty and WriteToFile uses the OS default temp dir.
+	manifestFile, manifestDigest, _, err := manifest.WriteToFile(as.stagingDir)
 	if err != nil {
 		return "", fmt.Errorf("ArtifactSaver.writeManifest: %w", err)
 	}

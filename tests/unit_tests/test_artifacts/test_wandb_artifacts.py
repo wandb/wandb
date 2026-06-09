@@ -11,11 +11,11 @@ from string import ascii_letters, digits
 from typing import TYPE_CHECKING, Any
 from unittest.mock import Mock
 
-import pytest
 import requests
 import responses
 from hypothesis import given
 from hypothesis.strategies import from_regex, text
+from pytest import CaptureFixture, MonkeyPatch, fail, fixture, mark, raises
 from wandb.filesync.step_prepare import ResponsePrepare, StepPrepare
 from wandb.sdk.artifacts._validators import NAME_MAXLEN
 from wandb.sdk.artifacts.artifact import Artifact
@@ -119,11 +119,11 @@ class TestStoreFile:
         """Runs store_file to completion."""
         return policy.store_file(**TestStoreFile._fixture_kwargs_to_kwargs(**kwargs))
 
-    @pytest.fixture(params=["sync", "async"])
+    @fixture(params=["sync", "async"])
     def store_file_mode(self, request) -> str:
         return request.param
 
-    @pytest.fixture
+    @fixture
     def store_file(self) -> StoreFileFixture:
         """Fixture to run prepare and return the result.
 
@@ -135,7 +135,7 @@ class TestStoreFile:
         """
         return TestStoreFile._store_file
 
-    @pytest.fixture
+    @fixture
     def api(self):
         """Fixture to give a mock `internal_api.Api` object, with properly-functioning upload methods."""
         upload_file_retry = Mock()
@@ -188,7 +188,7 @@ class TestStoreFile:
             "x-my-header": "my-header-val"
         }
 
-    @pytest.mark.parametrize(
+    @mark.parametrize(
         ["upload_url", "expect_upload", "expect_deduped"],
         [
             ("http://wandb-test/dst", True, False),
@@ -219,7 +219,7 @@ class TestStoreFile:
         else:
             api.upload_file_retry.assert_not_called()
 
-    @pytest.mark.parametrize(
+    @mark.parametrize(
         ["has_local_path", "expect_upload"],
         [
             (True, True),
@@ -247,7 +247,7 @@ class TestStoreFile:
         else:
             api.upload_file_retry.assert_not_called()
 
-    @pytest.mark.parametrize("err", [None, Exception("some error")])
+    @mark.parametrize("err", [None, Exception("some error")])
     def test_caches_result_on_success(
         self,
         store_file: StoreFileFixture,
@@ -269,11 +269,11 @@ class TestStoreFile:
             store()
             assert is_cache_hit(artifact_file_cache, "my-digest", size)
         else:
-            with pytest.raises(Exception, match=err.args[0]):
+            with raises(Exception, match=err.args[0]):
                 store()
             assert not is_cache_hit(artifact_file_cache, "my-digest", size)
 
-    @pytest.mark.parametrize(
+    @mark.parametrize(
         [
             "upload_url",
             "multipart_upload_urls",
@@ -385,9 +385,9 @@ class TestStoreFile:
                 assert etag["hexMD5"] == hex_digests[etag["partNumber"]]
 
 
-@pytest.mark.parametrize("invalid_type", ["job", "wandb-history", "wandb-foo"])
+@mark.parametrize("invalid_type", ["job", "wandb-history", "wandb-foo"])
 def test_invalid_artifact_type(invalid_type):
-    with pytest.raises(ValueError, match="reserved for internal use"):
+    with raises(ValueError, match="reserved for internal use"):
         Artifact("foo", type=invalid_type)
 
 
@@ -405,11 +405,11 @@ def test_invalid_artifact_type(invalid_type):
 )
 def test_invalid_artifact_name(invalid_name):
     """Prevent users from instantiating an artifact with an invalid name."""
-    with pytest.raises(ValueError):
+    with raises(ValueError):
         _ = Artifact(invalid_name, type="any")
 
 
-@pytest.mark.parametrize(
+@mark.parametrize(
     "property",
     [
         "entity",
@@ -429,11 +429,11 @@ def test_invalid_artifact_name(invalid_name):
 def test_unlogged_artifact_property_errors(property):
     art = Artifact("foo", type="any")
     error_message = f"'Artifact.{property}' used prior to logging artifact"
-    with pytest.raises(ArtifactNotLoggedError, match=error_message):
+    with raises(ArtifactNotLoggedError, match=error_message):
         getattr(art, property)
 
 
-@pytest.mark.parametrize(
+@mark.parametrize(
     "method",
     [
         "new_draft",
@@ -451,20 +451,22 @@ def test_unlogged_artifact_property_errors(property):
 def test_unlogged_artifact_basic_method_errors(method):
     art = Artifact("foo", type="any")
     error_message = f"'Artifact.{method}' used prior to logging artifact"
-    with pytest.raises(ArtifactNotLoggedError, match=error_message):
+    with raises(ArtifactNotLoggedError, match=error_message):
         getattr(art, method)()
 
 
 def test_unlogged_artifact_other_method_errors():
     art = Artifact("foo", type="any")
-    with pytest.raises(ArtifactNotLoggedError, match="Artifact.get_entry"):
+    with raises(ArtifactNotLoggedError, match="Artifact.get_entry"):
         art.get_entry("pathname")
 
-    with pytest.raises(ArtifactNotLoggedError, match="Artifact.get"):
+    with raises(ArtifactNotLoggedError, match="Artifact.get"):
         art["obj_name"]
 
 
-def test_cache_write_failure_is_ignored(monkeypatch, capsys):
+def test_cache_write_failure_is_ignored(
+    monkeypatch: MonkeyPatch, capsys: CaptureFixture[str]
+):
     def bad_write(*args, **kwargs):
         raise FileNotFoundError("unable to copy from source file")
 
@@ -498,6 +500,43 @@ def test_artifact_manifest_length():
     assert len(artifact.manifest) == 2
 
 
+def test_new_file_accepts_nested_relative_path():
+    artifact = Artifact("test-artifact", "test-type")
+
+    with artifact.new_file("nested/test.txt", "w") as f:
+        f.write("test")
+
+    assert list(artifact.manifest.entries) == ["nested/test.txt"]
+    assert artifact.manifest.entries["nested/test.txt"].size == 4
+
+
+@mark.parametrize("invalid_name", ["../test.txt", "/test.txt", r"C:\test.txt"])
+def test_add_file_rejects_invalid_artifact_path(tmp_path, invalid_name):
+    artifact = Artifact("test-artifact", "test-type")
+    local_file = tmp_path / "test.txt"
+    local_file.write_text("hello")
+
+    with raises(ValueError, match="Invalid artifact path"):
+        artifact.add_file(str(local_file), name=invalid_name)
+
+
+@mark.parametrize("invalid_name", ["../test.txt", "/test.txt", r"C:\test.txt"])
+def test_new_file_rejects_invalid_artifact_path(invalid_name):
+    artifact = Artifact("test-artifact", "test-type")
+
+    with raises(ValueError, match="Invalid artifact path"):
+        with artifact.new_file(invalid_name, "w") as f:
+            f.write("test")
+
+
+def test_manifest_add_entry_rejects_invalid_artifact_path():
+    artifact = Artifact("test-artifact", "test-type")
+    entry = ArtifactManifestEntry(path="../test.txt", digest="digest")
+
+    with raises(ValueError, match="Invalid artifact path"):
+        artifact.manifest.add_entry(entry)
+
+
 def test_download_with_pathlib_root(monkeypatch):
     artifact = Artifact("test-artifact", "test-type")
     artifact._state = ArtifactState.COMMITTED
@@ -509,6 +548,16 @@ def test_download_with_pathlib_root(monkeypatch):
     root = list(artifact._download_roots)[0]
     path_parts = custom_path.parts
     assert Path(root).parts[-len(path_parts) :] == path_parts
+
+
+def test_verify_rejects_invalid_artifact_path(tmp_path):
+    artifact = Artifact("test-artifact", "test-type")
+    artifact._state = ArtifactState.COMMITTED
+    bad_entry = ArtifactManifestEntry(path="../test.txt", digest="digest")
+    artifact.manifest.entries[bad_entry.path] = bad_entry
+
+    with raises(ValueError, match="Invalid artifact path"):
+        artifact.verify(root=str(tmp_path))
 
 
 def test_artifact_multipart_download_threshold():
@@ -534,7 +583,7 @@ def test_artifact_multipart_download_network_error():
     )
 
     opener = mock.mock_open()
-    with pytest.raises(requests.exceptions.ConnectionError):
+    with raises(requests.exceptions.ConnectionError):
         with ThreadPoolExecutor(max_workers=2) as executor:
             multipart_download(
                 executor,
@@ -557,7 +606,7 @@ def test_artifact_multipart_download_disk_error():
 
     opener = mock.mock_open()
     opener.return_value.write.side_effect = OSError("I/O operation on closed file")
-    with pytest.raises(OSError):
+    with raises(OSError):
         with ThreadPoolExecutor(max_workers=2) as executor:
             multipart_download(
                 executor,
@@ -642,7 +691,7 @@ def test_artifact_multipart_download_max_refresh_attempts_exceeded():
 
     opener = mock.mock_open()
 
-    with pytest.raises(requests.HTTPError):
+    with raises(requests.HTTPError):
         with ThreadPoolExecutor(max_workers=2) as executor:
             multipart_download(
                 executor,
@@ -688,6 +737,4 @@ def test_artifact_multipart_download_writer_not_on_shared_executor():
         # Add a timeout to the future to avoid hanging the test.
         future.result(timeout=5)
     except TimeoutError:
-        pytest.fail(
-            "multipart_download deadlocked: writer likely sharing the chunk executor"
-        )
+        fail("multipart_download deadlocked: writer likely sharing the chunk executor")

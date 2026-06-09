@@ -169,9 +169,13 @@ class Api:
         wbauth.set_auth_settings(settings, self._auth)
         settings.base_url = base_url
         extra_headers = dict(settings.x_extra_http_headers or {})
-        # Preserve the legacy admin-capable Public API transport behavior while
-        # routing GraphQL through wandb-core.
+        # Preserve the legacy Public API transport behavior while routing
+        # GraphQL through wandb-core. The backend gates admin-capable access
+        # and first-party fields (e.g. a user's `apiKeys`) on a recognized
+        # "W&B Public Client" User-Agent; wandb-core's default "wandb-core"
+        # User-Agent would otherwise be rejected with "relogin required".
         extra_headers["Use-Admin-Privileges"] = "true"
+        extra_headers["User-Agent"] = f"W&B Public Client {wandb.__version__}"
         settings.x_extra_http_headers = extra_headers
         if http_proxy := proxies.get("http"):
             settings.http_proxy = http_proxy
