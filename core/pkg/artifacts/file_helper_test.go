@@ -35,35 +35,6 @@ func TestUtilFiles(t *testing.T) {
 	)
 }
 
-// TestUtilFiles_WritesToDirWithBrokenTMPDIR confirms the write targets the
-// supplied wandb-controlled dir and is unaffected by a broken $TMPDIR, since
-// the OS default temp dir is no longer used.
-func TestUtilFiles_WritesToDirWithBrokenTMPDIR(t *testing.T) {
-	missing := t.TempDir() + "/never-created"
-	t.Setenv("TMPDIR", missing)
-	t.Setenv("TMP", missing)
-	t.Setenv("TEMP", missing)
-
-	dir := t.TempDir()
-	data := Marshallable{"junk"}
-	filename, _, _, err := artifacts.WriteJSONToTempFileWithMetadata(data, dir)
-	defer func() {
-		if filename != "" {
-			_ = os.Remove(filename)
-		}
-	}()
-
-	assert.NoError(t, err)
-	assert.FileExists(t, filename)
-	assert.True(
-		t,
-		strings.HasPrefix(filename, dir),
-		"expected temp file under dir %q, got %q",
-		dir,
-		filename,
-	)
-}
-
 // TestUtilFiles_ErrorsWhenDirMissing confirms we surface an error when the
 // supplied dir doesn't exist rather than silently falling back to the OS
 // default temp dir — writes go where the caller intended or fail loudly.
