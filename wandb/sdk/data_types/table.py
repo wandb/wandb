@@ -288,7 +288,8 @@ class Table(Media):
                         data = cast("pd.DataFrame", data)
                     self._init_from_dataframe(data, columns, optional, dtype)
                 else:
-                    data = cast("list[Iterable[Any]]", data)
+                    if TYPE_CHECKING:
+                        data = cast("list[Iterable[Any]]", data)
                     self._init_from_list(data, columns, optional, dtype)
 
             # legacy
@@ -360,7 +361,8 @@ class Table(Media):
         self.data = []
         columns = list(dataframe.columns)
         self._assert_valid_columns(columns)
-        columns = cast("list[str | int]", columns)
+        if TYPE_CHECKING:
+            columns = cast("list[str | int]", columns)
         self.columns = columns
         self._make_column_types(dtype, optional)
         for row in range(len(dataframe)):
