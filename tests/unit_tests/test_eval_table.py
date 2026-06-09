@@ -420,6 +420,50 @@ def test_no_input_with_score_columns(mock_eval_logger, run):
     )
 
 
+def test_int_columns_match_role_columns_as_strings(mock_eval_logger, run):
+    et = wandb.EvalTable(
+        columns=[1, 2, 3],
+        data=[["in-val", "out-val", 0.9]],
+        input_columns=["1"],
+        output_columns=["2"],
+        score_columns=["3"],
+    )
+    run.log({"my_eval": et})
+
+    ev = mock_eval_logger.created_loggers[0]
+    ev.log_example.assert_called_once_with(
+        inputs={"1": "in-val"},
+        output={"2": "out-val"},
+        scores={"3": 0.9},
+    )
+
+
+def test_int_columns_default_to_string_output_columns(mock_eval_logger, run):
+    et = wandb.EvalTable(
+        columns=[1, 2],
+        data=[["x", 1]],
+    )
+    run.log({"my_eval": et})
+
+    ev = mock_eval_logger.created_loggers[0]
+    ev.log_example.assert_called_once_with(
+        inputs={"row": 1},
+        output={"1": "x", "2": 1},
+        scores={},
+    )
+
+
+@pytest.mark.usefixtures("mock_eval_logger")
+def test_stringified_duplicate_columns_raise(run):
+    et = wandb.EvalTable(
+        columns=[1, "1"],
+        data=[["x", "y"]],
+    )
+
+    with pytest.raises(ValueError, match="unique after converting to strings"):
+        run.log({"my_eval": et})
+
+
 # All columns assigned to input/score roles: no output payload is logged.
 def test_no_output_columns_logs_none_output(mock_eval_logger, run):
     et = wandb.EvalTable(
@@ -731,4 +775,28 @@ def test_wandb_image_cell_unwrapped_to_pil(mock_eval_logger, run):
     )
     # And it's the same image content (round-tripped through wandb.Image).
     assert img.size == (2, 2)
+    assert call_kwargs["inputs"] == {"row": 1}
+
+
+def test_wandb_image_with_int_column_unwrapped_to_pil(mock_eval_logger, run):
+    from PIL import Image as PILImage
+
+    pil_in = PILImage.new("RGB", (2, 2), color="red")
+    wb_img = wandb.Image(pil_in)
+
+    et = wandb.EvalTable(
+        columns=[1],
+        data=[[wb_img]],
+    )
+    run.log({"my_eval": et})
+
+    ev = mock_eval_logger.created_loggers[0]
+    ev.log_example.assert_called_once()
+    call_kwargs = ev.log_example.call_args.kwargs
+
+    output = call_kwargs["output"]
+    assert isinstance(output, dict)
+    assert set(output) == {"1"}
+    assert isinstance(output["1"], PILImage.Image)
+    assert output["1"].size == (2, 2)
     assert call_kwargs["inputs"] == {"row": 1}

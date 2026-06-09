@@ -13,6 +13,9 @@ from wandb.errors import UsageError
 from wandb.sdk.data_types.table import Table
 
 if TYPE_CHECKING:
+    import numpy as np
+    import pandas as pd
+
     from wandb.sdk.wandb_run import Run as LocalRun
 
 
@@ -48,11 +51,11 @@ class EvalTable(Table):
 
     def __init__(
         self,
-        columns: list[str] | None = None,
-        data: Any | None = None,
-        rows: Any | None = None,
-        dataframe: Any | None = None,
-        dtype: Any | None = None,
+        columns: list[str | int] | None = None,
+        data: list[list[Any]] | np.ndarray | pd.DataFrame | None = None,
+        rows: list[list[Any]] | None = None,
+        dataframe: pd.DataFrame | None = None,
+        dtype: Any = None,
         optional: bool | list[bool] = True,
         allow_mixed_types: bool = False,
         log_mode: Literal["IMMUTABLE"] = "IMMUTABLE",
@@ -202,7 +205,7 @@ class EvalTable(Table):
         self._run_log_key = str(key)
 
     @override
-    def to_json(self, run_or_artifact: Any) -> dict:
+    def to_json(self, run_or_artifact: Any) -> dict[str, Any]:
         """Returns the JSON representation expected by the backend.
 
         <!-- lazydoc-ignore: internal -->
@@ -260,7 +263,12 @@ class EvalTable(Table):
         super().add_data(*data)
 
     @override
-    def add_column(self, name: Any, data: Any, optional: bool = False) -> None:
+    def add_column(
+        self,
+        name: str | int,
+        data: list[Any] | np.ndarray,
+        optional: bool = False,
+    ) -> None:
         if isinstance(data, list) or wandb.util.is_numpy_array(data):
             for row_idx, val in enumerate(data):
                 self._validate_cell_value(val, row_idx, name)
@@ -274,7 +282,7 @@ class EvalTable(Table):
         score_cols: list[str],
     ) -> None:
         all_assigned = set(input_cols) | set(output_cols) | set(score_cols)
-        table_cols = set(self.columns)
+        table_cols = set(self._string_columns())
 
         unknown = all_assigned - table_cols
         if unknown:
@@ -294,6 +302,17 @@ class EvalTable(Table):
                 )
             seen.add(col)
 
+    def _string_columns(self) -> list[str]:
+        # Table supports both string and int column names; canonicalize to string
+        columns = [str(col) for col in self.columns]
+        duplicates = sorted({col for col in columns if columns.count(col) > 1})
+        if duplicates:
+            raise ValueError(
+                "EvalTable column names must be unique after converting to strings "
+                f"for Weave logging. Duplicate column name(s): {duplicates}."
+            )
+        return columns
+
     def set_summary(
         self, summary: dict | None = None, auto_summarize: bool = True
     ) -> None:
@@ -306,17 +325,22 @@ class EvalTable(Table):
         self._auto_summarize = auto_summarize
 
     def _iter_unwrapped_rows(self, start: int = 0) -> Iterator[dict[str, Any]]:
-        cols = self.columns
+        str_columns = self._string_columns()
         warned: set[type] = set()
         for row in self.data[start:]:
             yield {
-                col: media_adapters.unwrap_value(
+                str_col: media_adapters.unwrap_value(
                     val,
                     col,
                     warned,
                     unsupported_media_mode=self._unsupported_media_mode,
                 )
-                for col, val in zip(cols, row, strict=True)
+                for col, str_col, val in zip(
+                    self.columns,
+                    str_columns,
+                    row,
+                    strict=True,
+                )
             }
 
     def _create_weave_eval_logger(self, eval_name: str) -> Any:
@@ -352,13 +376,14 @@ class EvalTable(Table):
         ev = self._create_weave_eval_logger(eval_name)
 
         # Any column not listed in a role defaults to an output column.
+        str_columns = self._string_columns()
         assigned = (
             set(self._input_columns)
             | set(self._output_columns)
             | set(self._score_columns)
         )
         output_cols = self._output_columns + [
-            c for c in self.columns if c not in assigned
+            col for col in str_columns if col not in assigned
         ]
 
         # When no input columns are designated, inject a synthetic 1-indexed `row`

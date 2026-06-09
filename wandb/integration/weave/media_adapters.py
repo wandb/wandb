@@ -19,7 +19,7 @@ from wandb.sdk.data_types.video import Video
 
 UnsupportedMediaMode = Literal["raise", "stub"]
 _UNSUPPORTED_MEDIA_MODES = get_args(UnsupportedMediaMode)
-_UnwrapValueFn = Callable[[Any, str, set[type]], Any]
+_UnwrapValueFn = Callable[[Any, str | int, set[type]], Any]
 _SupportedValueAdapter = tuple[str, _UnwrapValueFn]
 _MOVIEPY_EDITOR_INSTALL_HINT = (
     'Install it with `pip install wandb["eval-table-video-support"]`'
@@ -33,7 +33,7 @@ def _warn_once(media_type: type, warned: set[type], message: str) -> None:
     warned.add(media_type)
 
 
-def _path_for_local_media(val: Media, column: str) -> Path:
+def _path_for_local_media(val: Media, column: str | int) -> Path:
     path = val._path
     if val.path_is_reference(path):
         raise TypeError(
@@ -48,7 +48,7 @@ def _path_for_local_media(val: Media, column: str) -> Path:
     return Path(path)
 
 
-def _unwrap_image(val: Image, column: str, warned: set[type]) -> Any:
+def _unwrap_image(val: Image, column: str | int, warned: set[type]) -> Any:
     _warn_once(
         Image,
         warned,
@@ -79,7 +79,7 @@ def _unwrap_image(val: Image, column: str, warned: set[type]) -> Any:
     )
 
 
-def _unwrap_audio(val: Audio, column: str, warned: set[type]) -> Any:
+def _unwrap_audio(val: Audio, column: str | int, warned: set[type]) -> Any:
     _warn_once(
         Audio,
         warned,
@@ -98,7 +98,7 @@ def _unwrap_audio(val: Audio, column: str, warned: set[type]) -> Any:
         ) from e
 
 
-def _unwrap_video(val: Video, column: str, warned: set[type]) -> Any:
+def _unwrap_video(val: Video, column: str | int, warned: set[type]) -> Any:
     _warn_once(
         Video,
         warned,
@@ -295,7 +295,7 @@ def _stub_unsupported_wandb_value(val: WBValue, warned: set[type]) -> str:
 
 def unwrap_value(
     val: Any,
-    column: str,
+    column: str | int,
     warned: set[type],
     unsupported_media_mode: UnsupportedMediaMode = "raise",
 ) -> Any:
