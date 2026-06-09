@@ -7,7 +7,7 @@ import datetime
 import json
 import logging
 import os
-from collections.abc import Callable, Iterator, Sequence
+from collections.abc import Callable, Iterable, Iterator, Sequence
 from typing import TYPE_CHECKING, Any, Literal, cast, overload
 
 import wandb
@@ -219,8 +219,8 @@ class Table(Media):
     def __init__(
         self,
         columns: list[str | int] | None = None,
-        data: list[list[Any]] | np.ndarray | pd.DataFrame | None = None,
-        rows: list[list[Any]] | None = None,
+        data: (list[Iterable[Any]] | np.ndarray | pd.DataFrame | None) = None,
+        rows: list[Iterable[Any]] | None = None,
         dataframe: pd.DataFrame | None = None,
         dtype: Any = None,
         optional: bool | list[bool] = True,
@@ -288,8 +288,7 @@ class Table(Media):
                         data = cast("pd.DataFrame", data)
                     self._init_from_dataframe(data, columns, optional, dtype)
                 else:
-                    if TYPE_CHECKING:
-                        data = cast("list[list[Any]]", data)
+                    data = cast("list[Iterable[Any]]", data)
                     self._init_from_list(data, columns, optional, dtype)
 
             # legacy
@@ -318,7 +317,7 @@ class Table(Media):
 
     def _init_from_list(
         self,
-        data: list[list[Any]],
+        data: list[Iterable[Any]],
         columns: list[str | int],
         optional: bool | list[bool] = True,
         dtype: Any = None,
@@ -361,8 +360,7 @@ class Table(Media):
         self.data = []
         columns = list(dataframe.columns)
         self._assert_valid_columns(columns)
-        if TYPE_CHECKING:
-            columns = cast("list[str | int]", columns)
+        columns = cast("list[str | int]", columns)
         self.columns = columns
         self._make_column_types(dtype, optional)
         for row in range(len(dataframe)):
@@ -1081,7 +1079,9 @@ class Table(Media):
             col = np.array(col)
         return col
 
-    def get_index(self) -> list[_TableIndex]:
+    # TODO: This returns list[_TableIndex], but we need to decide if/how to
+    # expose _TableIndex as a public type.
+    def get_index(self):
         """Returns an array of row indexes for use in other tables to create links."""
         ndxs = []
         for ndx in range(len(self.data)):
@@ -1112,19 +1112,32 @@ class Table(Media):
     @allow_relogging_after_mutation
     def add_computed_columns(
         self,
-        fn: Callable[[int, dict[str | int, Any]], dict[str, Any]],
+        fn: Callable[
+            [int, dict[str | int, Any]],
+            dict[str, Any],
+        ],
     ) -> None:
         """Adds one or more computed columns based on existing data.
 
         Args:
             fn: A function which accepts an index and row dict, and returns a dict
                 representing new columns for that row, keyed by the new column names.
+
+        Example:
+            table = wandb.Table(columns=["x", "y"], data=[[3, 1], [4, 6]])
+            table.add_computed_columns(
+                lambda ndx, row: {"diff": row["x"] - row["y"]}
+            )
+
+            In the callback:
             - `ndx` is an integer representing the index of the row.
             - `row` is a dictionary keyed by existing columns.
         """
-        new_columns = {}
+        new_columns: dict[str, list[Any]] = {}
         for ndx, row in self.iterrows():
-            row_dict = {self.columns[i]: row[i] for i in range(len(self.columns))}
+            row_dict: dict[str | int, Any] = {
+                self.columns[i]: row[i] for i in range(len(self.columns))
+            }
             new_row_dict = fn(ndx, row_dict)
             assert isinstance(new_row_dict, dict)
             for key in new_row_dict:
