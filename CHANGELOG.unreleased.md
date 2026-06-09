@@ -14,6 +14,9 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ## Unreleased
 
+### Changed
+- Added type annotations to `wandb.Table` based on existing runtime checks. No runtime behavior change. (@kelu-wandb in https://github.com/wandb/wandb/pull/12016)
+
 ### Fixed
 
 - `wandb.Api().viewer` (and `Api().user()` / `Api().users()`) no longer fail with `WandbApiFailedError: relogin required` for some API keys, a regression in `0.27.1` (@dmitryduev in https://github.com/wandb/wandb/pull/12009)
