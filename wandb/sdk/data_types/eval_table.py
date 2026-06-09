@@ -13,6 +13,9 @@ from wandb.sdk.data_types.base_types.media import Media
 from wandb.sdk.data_types.table import Table
 
 if TYPE_CHECKING:
+    import numpy as np
+    import pandas as pd
+
     from wandb.sdk.wandb_run import Run as LocalRun
 
 
@@ -48,11 +51,11 @@ class EvalTable(Table):
 
     def __init__(
         self,
-        columns: list[str] | None = None,
-        data: Any | None = None,
-        rows: Any | None = None,
-        dataframe: Any | None = None,
-        dtype: Any | None = None,
+        columns: list[str | int] | None = None,
+        data: list[list[Any]] | np.ndarray | pd.DataFrame | None = None,
+        rows: list[list[Any]] | None = None,
+        dataframe: pd.DataFrame | None = None,
+        dtype: Any = None,
         optional: bool | list[bool] = True,
         allow_mixed_types: bool = False,
         log_mode: Literal["IMMUTABLE"] = "IMMUTABLE",
@@ -193,7 +196,7 @@ class EvalTable(Table):
         self._run_log_key = str(key)
 
     @override
-    def to_json(self, run_or_artifact: Any) -> dict:
+    def to_json(self, run_or_artifact: Any) -> dict[str, Any]:
         """Returns the JSON representation expected by the backend.
 
         <!-- lazydoc-ignore: internal -->
@@ -257,7 +260,12 @@ class EvalTable(Table):
         super().add_data(*data)
 
     @override
-    def add_column(self, name: Any, data: Any, optional: bool = False) -> None:
+    def add_column(
+        self,
+        name: str,
+        data: list[Any] | np.ndarray,
+        optional: bool = False,
+    ) -> None:
         if isinstance(data, list) or wandb.util.is_numpy_array(data):
             for row_idx, val in enumerate(data):
                 self._validate_cell_value(val, row_idx, name)
