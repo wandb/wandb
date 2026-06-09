@@ -1,3 +1,7 @@
+# v1.7.13 (2026-06-04)
+
+* **Dependency Update**: Update to smithy-go v1.27.1 to fix several union-related deserialization bugs in schema-serde-enabled services.
+
 # v1.7.12 (2026-06-03)
 
 * No change notes available for this release.
