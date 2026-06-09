@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import warnings
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 from typing import TYPE_CHECKING, Any, Literal, cast
 
 from typing_extensions import override
@@ -52,8 +52,8 @@ class EvalTable(Table):
     def __init__(
         self,
         columns: list[str | int] | None = None,
-        data: list[list[Any]] | np.ndarray | pd.DataFrame | None = None,
-        rows: list[list[Any]] | None = None,
+        data: list[Iterable[Any]] | np.ndarray | pd.DataFrame | None = None,
+        rows: list[Iterable[Any]] | None = None,
         dataframe: pd.DataFrame | None = None,
         dtype: Any = None,
         optional: bool | list[bool] = True,
