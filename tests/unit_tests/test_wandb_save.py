@@ -208,6 +208,26 @@ def test_save_s3_path_warns(mock_run, capsys):
     assert "cloud storage url, can't save" in capsys.readouterr().err
 
 
+def test_save_bracket_in_base_path(
+    tmp_path: pathlib.Path,
+    mock_run,
+    parse_records,
+    record_q,
+):
+    """Brackets in base_path must not be treated as glob character classes."""
+    bracket_dir = tmp_path / "run_[0]"
+    bracket_dir.mkdir()
+    (bracket_dir / "checkpoint.pt").write_text("weights")
+
+    run = mock_run()
+    run.save(str(bracket_dir / "checkpoint.pt"), base_path=str(bracket_dir), policy="now")
+
+    assert pathlib.Path(run.dir, "checkpoint.pt").exists()
+    parsed = parse_records(record_q)
+    file_record = parsed.files[0].files[0]
+    assert file_record.path == "checkpoint.pt"
+
+
 def test_save_hardlink_fallback_when_symlink_fails(
     monkeypatch,
     mock_run,
