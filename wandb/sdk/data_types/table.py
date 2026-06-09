@@ -257,6 +257,9 @@ class Table(Media):
                 a new artifact entry containing the new data since the last log.
         """
         super().__init__()
+        self.data: list[list[Any]]
+        self.columns: list[str | int]
+        self._column_types: _dtypes.Type
         self._validate_log_mode(log_mode)
         self.log_mode = log_mode
         if self.log_mode == "INCREMENTAL":
@@ -361,8 +364,6 @@ class Table(Media):
         self.data = []
         columns = list(dataframe.columns)
         self._assert_valid_columns(columns)
-        if TYPE_CHECKING:
-            columns = cast("list[str | int]", columns)
         self.columns = columns
         self._make_column_types(dtype, optional)
         for row in range(len(dataframe)):
@@ -377,13 +378,26 @@ class Table(Media):
             dtype = _dtypes.UnknownType()
 
         if optional.__class__ is not list:
-            optional = [optional for _ in range(len(self.columns))]
+            if TYPE_CHECKING:
+                optional_bool = cast(bool, optional)
+            else:
+                optional_bool = optional
+            optional_list = [optional_bool for _ in range(len(self.columns))]
+        else:
+            optional_list = optional
 
         if dtype.__class__ is not list:
-            dtype = [dtype for _ in range(len(self.columns))]
+            dtype_list = [dtype for _ in range(len(self.columns))]
+        else:
+            dtype_list = dtype
 
         self._column_types = _dtypes.TypedDictType({})
-        for col_name, opt, dt in zip(self.columns, optional, dtype, strict=False):
+        for col_name, opt, dt in zip(
+            self.columns,
+            optional_list,
+            dtype_list,
+            strict=False,
+        ):
             self.cast(col_name, dt, opt)
 
     def _load_incremental_table_state_from_resumed_run(self, run: LocalRun, key: str):
@@ -574,11 +588,8 @@ class Table(Media):
         result_type = self._get_updated_result_type(data)
         self._column_types = result_type
 
-        # rows need to be mutable
-        if isinstance(data, tuple):
-            data = list(data)
-        # Add the new data
-        self.data.append(data)
+        # Varargs arrive as a tuple; stored rows need to be mutable.
+        self.data.append(list(data))
 
         # Update the wrapper values if needed
         self._update_keys(force_last=True)
@@ -672,7 +683,7 @@ class Table(Media):
 
         <!-- lazydoc-ignore-classmethod: internal -->
         """
-        data = []
+        data: list[Iterable[Any]] = []
         column_types = None
         np_deserialized_columns = {}
         timestamp_column_indices = set()
@@ -816,6 +827,7 @@ class Table(Media):
                     <= self._MAX_EMBEDDING_DIMENSIONS
                 )
                 if is_1d_array:
+                    assert ndarray_type is not None
                     self._column_types.params["type_map"][col_name] = _dtypes.ListType(
                         _dtypes.NumberType, ndarray_type._params["shape"][0]
                     )
@@ -839,7 +851,7 @@ class Table(Media):
                     ndarray_col_ndxs.add(col_ndx)
 
             for row in data:
-                mapped_row = []
+                mapped_row: list[Any] = []
                 for ndx, v in enumerate(row):
                     if ndx in ndarray_col_ndxs:
                         mapped_row.append(None)
@@ -1067,10 +1079,10 @@ class Table(Media):
         assert name in self.columns
         assert convert_to is None or convert_to == "numpy"
         if convert_to == "numpy":
-            np = util.get_module(
+            np_module = util.get_module(
                 "numpy", required="Converting to NumPy requires installing NumPy"
             )
-        col: list[Any] | np.ndarray = []
+        col: list[Any] = []
         col_ndx = self.columns.index(name)
         for row in self.data:
             item = row[col_ndx]
@@ -1078,7 +1090,7 @@ class Table(Media):
                 item = item.to_data_array()
             col.append(item)
         if convert_to == "numpy":
-            col = np.array(col)
+            return np_module.array(col)
         return col
 
     # TODO: This returns list[_TableIndex], but we need to decide if/how to
