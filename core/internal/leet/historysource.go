@@ -67,6 +67,7 @@ func concatenateHistory(messages []HistoryMsg, runPath string) HistoryMsg {
 	h := HistoryMsg{
 		RunPath: runPath,
 		Metrics: make(map[string]MetricData),
+		Media:   make(map[string][]MediaPoint),
 	}
 	for _, msg := range messages {
 		for metricName, data := range msg.Metrics {
@@ -75,7 +76,18 @@ func concatenateHistory(messages []HistoryMsg, runPath string) HistoryMsg {
 			existing.Y = append(existing.Y, data.Y...)
 			h.Metrics[metricName] = existing
 		}
+		for mediaKey, points := range msg.Media {
+			h.Media[mediaKey] = append(h.Media[mediaKey], points...)
+		}
 	}
+
+	if len(h.Metrics) == 0 {
+		h.Metrics = nil
+	}
+	if len(h.Media) == 0 {
+		h.Media = nil
+	}
+
 	return h
 }
 
