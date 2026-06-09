@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import warnings
 from collections.abc import Iterable, Iterator
-from typing import TYPE_CHECKING, Any, Literal, cast
+from typing import TYPE_CHECKING, Any, Literal
 
 from typing_extensions import override
 
@@ -25,14 +25,6 @@ EVAL_TABLE_ROW_INDEX_KEY = "row"
 
 _MIN_WEAVE_VERSION = "0.52.41"
 
-
-def _init_weave_for_run(run: LocalRun) -> None:
-    try:
-        weave_integration.init_weave(run.entity, run.project)
-    except ValueError as e:
-        # Raised when Weave is initialized for a different project, or when
-        # the W&B run does not have a project.
-        raise UsageError(str(e)) from e
 
 
 class EvalTable(Table):
@@ -205,7 +197,7 @@ class EvalTable(Table):
 
         # Now that we have run context, initialize/validate Weave for this project.
         # Skip the file-copy that Table.bind_to_run does.
-        _init_weave_for_run(run)
+        weave_integration.init_weave(run.entity, run.project)
         self._run = run
         self._run_log_key = str(key)
 
@@ -217,8 +209,10 @@ class EvalTable(Table):
         """
         if isinstance(run_or_artifact, wandb.Artifact):
             raise TypeError("EvalTable cannot be logged to a wandb.Artifact.")
+        if not isinstance(run_or_artifact, wandb.Run):
+            raise TypeError("EvalTable can only be serialized for a wandb.Run.")
 
-        run = cast("LocalRun", run_or_artifact)
+        run = run_or_artifact
 
         if self._run_log_key is None:
             raise UsageError("EvalTable must be logged with run.log().")
