@@ -1,48 +1,32 @@
 import asyncio
-from unittest.mock import AsyncMock, MagicMock, Mock
+from unittest.mock import AsyncMock, Mock
 
 import pytest
+import pytest_asyncio
+from looptime import LoopTimeProxy
 from wandb.proto import wandb_internal_pb2 as pb
-from wandb.sdk.lib import asyncio_manager, run_messages
+from wandb.sdk.lib import asyncio_compat, run_messages
 
 from tests.fixtures.mock_wandb_log import MockWandbLog
 
 
-@pytest.fixture(autouse=True)
-def fake_now(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
-    """Patched time.monotonic() that returns 0 by default."""
-    now = MagicMock()
-    now.return_value = 0
-    monkeypatch.setattr(run_messages, "_NOW", now)
-    return now
+@pytest_asyncio.fixture
+async def fake_messages() -> asyncio.Queue[pb.Result]:
+    """The queue of internal message responses to return in tests."""
+    return asyncio.Queue()
 
 
-@pytest.fixture(autouse=True)
-def fake_sleep(monkeypatch: pytest.MonkeyPatch) -> AsyncMock:
-    """Patched asyncio.sleep() that blocks forever by default."""
-
-    async def block(duration: float) -> None:
-        _ = duration
-        await asyncio.Event().wait()
-
-    sleep = AsyncMock()
-    sleep.side_effect = block
-    monkeypatch.setattr(run_messages, "_SLEEP", sleep)
-
-    return sleep
-
-
-@pytest.fixture
-def fake_messages() -> AsyncMock:
-    """Patched MailboxHandle.wait_async() that returns an empty Result."""
-    return AsyncMock(return_value=pb.Result())
-
-
-@pytest.fixture
-def fake_interface(fake_messages: AsyncMock) -> Mock:
+@pytest_asyncio.fixture
+async def fake_interface(fake_messages: asyncio.Queue[pb.Result]) -> Mock:
     """Mock interface that returns fake_messages from deliver_async."""
+
+    async def next_message(*, timeout: float) -> pb.Result:
+        result = await asyncio.wait_for(fake_messages.get(), timeout=timeout)
+        fake_messages.task_done()  # needed for join() in tests
+        return result
+
     handle = Mock()
-    handle.wait_async = fake_messages
+    handle.wait_async = next_message
 
     interface = Mock()
     interface.deliver_async = AsyncMock(return_value=handle)
@@ -50,113 +34,70 @@ def fake_interface(fake_messages: AsyncMock) -> Mock:
     return interface
 
 
-@pytest.fixture(scope="module")
-def asyncer():
-    asyncer = asyncio_manager.AsyncioManager()
-    asyncer.start()
-
-    try:
-        yield asyncer
-    finally:
-        asyncer.join()
-
-
-def _make_messages_result(*warnings: str) -> pb.Result:
+def _result(*warnings: str) -> pb.Result:
     result = pb.Result()
     result.response.internal_messages_response.messages.warning.extend(warnings)
     return result
 
 
-def test_prints_warnings(
-    asyncer: asyncio_manager.AsyncioManager,
-    fake_messages: AsyncMock,
+@pytest.mark.looptime
+async def test_prints_warnings(
+    looptime: LoopTimeProxy,
+    fake_messages: asyncio.Queue[pb.Result],
     fake_interface: Mock,
     mock_wandb_log: MockWandbLog,
 ):
-    fake_messages.side_effect = [
-        _make_messages_result("warning 1", "warning 2", "warning 3"),
-        _make_messages_result(),
-    ]
+    rm = run_messages._RunMessagesImpl(fake_interface)
 
-    rm = run_messages.RunMessages(asyncer, fake_interface)
-    rm.start()
-    rm.stop(timeout=5)
+    async with asyncio_compat.open_task_group() as group:
+        group.start_soon(rm.loop())
+
+        # Pretend first message batch happens at 1 second,
+        # then the run exits immediately after.
+        await asyncio.sleep(1)
+        fake_messages.put_nowait(_result("warning 1", "warning 2", "warning 3"))
+        fake_messages.put_nowait(_result())
+
+        await rm.stop(timeout=5)
 
     mock_wandb_log.assert_warned("warning 1")
     mock_wandb_log.assert_warned("warning 2")
     mock_wandb_log.assert_warned("warning 3")
+    assert looptime == 1  # no extra sleeping
 
 
-def test_stop_does_final_poll(
-    asyncer: asyncio_manager.AsyncioManager,
-    fake_messages: AsyncMock,
-    fake_interface: Mock,
-    mock_wandb_log: MockWandbLog,
-):
-    fake_messages.side_effect = [
-        _make_messages_result(),
-        _make_messages_result("final warning"),
-    ]
-
-    rm = run_messages.RunMessages(asyncer, fake_interface)
-    rm.start()
-    rm.stop(timeout=5)
-
-    mock_wandb_log.assert_warned("final warning")
-
-
-def test_stop_warns_on_loop_timeout(
-    asyncer: asyncio_manager.AsyncioManager,
-    fake_messages: AsyncMock,
+@pytest.mark.looptime
+async def test_stop_warns_on_timeout(
+    looptime: LoopTimeProxy,
     fake_interface: Mock,
     wandb_caplog: pytest.LogCaptureFixture,
 ):
-    fake_messages.side_effect = [
-        _make_messages_result(),
-        _make_messages_result(),
-    ]
+    rm = run_messages._RunMessagesImpl(fake_interface)
 
-    rm = run_messages.RunMessages(asyncer, fake_interface)
-    rm.start()
-    rm.stop(timeout=-1)  # time out immediately
+    async with asyncio_compat.open_task_group() as group:
+        group.start_soon(rm.loop())
+        await rm.stop(timeout=10)
 
     assert "Timed out waiting for messages" in wandb_caplog.text
+    assert looptime == 10
 
 
-def test_stop_warns_on_handle_timeout(
-    asyncer: asyncio_manager.AsyncioManager,
-    fake_messages: AsyncMock,
-    fake_interface: Mock,
-    wandb_caplog: pytest.LogCaptureFixture,
-):
-    fake_messages.side_effect = [
-        _make_messages_result(),
-        TimeoutError(),
-    ]
-
-    rm = run_messages.RunMessages(asyncer, fake_interface)
-    rm.start()
-    rm.stop(timeout=5)
-
-    assert "Timed out waiting for messages" in wandb_caplog.text
-
-
-def test_sleeps_for_remaining_interval(
-    asyncer: asyncio_manager.AsyncioManager,
-    fake_sleep: AsyncMock,
-    fake_now: MagicMock,
-    fake_messages: AsyncMock,
+@pytest.mark.looptime
+async def test_rate_limits(
+    looptime: LoopTimeProxy,
+    fake_messages: asyncio.Queue[pb.Result],
     fake_interface: Mock,
 ):
-    fake_now.side_effect = [0, 3]  # pretend 3 seconds pass waiting for messages
-    fake_messages.side_effect = [
-        _make_messages_result(),
-        _make_messages_result(),
-    ]
+    rm = run_messages._RunMessagesImpl(fake_interface)
 
-    rm = run_messages.RunMessages(asyncer, fake_interface, poll_interval=10)
-    rm.start()
-    rm.stop(timeout=5)
+    async with asyncio_compat.open_task_group() as group:
+        group.start_soon(rm.loop())
 
-    # Polling interval is 10, and 3 seconds passed, so 7 remain.
-    fake_sleep.assert_called_once_with(7)
+        fake_messages.put_nowait(_result("message 1"))  # immediate
+        fake_messages.put_nowait(_result("message 2"))  # after 0.1s
+        fake_messages.put_nowait(_result("message 3"))  # after 0.2s
+        fake_messages.put_nowait(_result())  # after 0.3s
+
+        await rm.stop(timeout=5)
+
+    assert looptime == 0.3

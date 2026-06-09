@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import contextlib
-from collections.abc import Callable, Generator, Iterator
+from collections.abc import Callable, Generator
 from dataclasses import dataclass
 
 import pytest
@@ -30,15 +30,6 @@ def local_wandb_backend() -> LocalWandbBackendAddress:
 
 
 @pytest.fixture(scope="session")
-def local_wandb_backend_importers() -> LocalWandbBackendAddress:
-    """Fixture that starts up or connects to a second local-testcontainer.
-
-    This is used by importer tests, to move data between two backends.
-    """
-    return connect_to_local_wandb_backend(name="wandb-local-testcontainer-importers")
-
-
-@pytest.fixture(scope="session")
 def use_local_wandb_backend(
     local_wandb_backend: LocalWandbBackendAddress,
 ) -> Generator[None, None, None]:
@@ -60,16 +51,6 @@ def backend_fixture_factory(
 ) -> Generator[BackendFixtureFactory, None, None]:
     _ = use_local_wandb_backend
     base_url = local_wandb_backend.fixture_service_url
-    with BackendFixtureFactory(base_url, worker_id=worker_id) as factory:
-        yield factory
-
-
-@pytest.fixture(scope="session")
-def backend_importers_fixture_factory(
-    worker_id: str,
-    local_wandb_backend_importers: LocalWandbBackendAddress,
-) -> Generator[BackendFixtureFactory, None, None]:
-    base_url = local_wandb_backend_importers.fixture_service_url
     with BackendFixtureFactory(base_url, worker_id=worker_id) as factory:
         yield factory
 
@@ -97,7 +78,7 @@ def wandb_verbose(request):
 def user(
     request: pytest.FixtureRequest,
     backend_fixture_factory: BackendFixtureFactory,
-) -> Iterator[str]:
+) -> Generator[str]:
     """A user created for the duration of a test.
 
     This cannot be used together with module_user. If module_user is also
@@ -115,8 +96,9 @@ def user(
 
 @pytest.fixture(scope="module")
 def module_user(
+    request: pytest.FixtureRequest,
     backend_fixture_factory: BackendFixtureFactory,
-) -> Iterator[str]:
+) -> Generator[str]:
     """A new user shared by all tests in a module.
 
     Just like `user`, but is shared by multiple tests.
@@ -125,12 +107,16 @@ def module_user(
     test user's data does not affect correctness, and creating a user for
     each test is slow.
     """
+    if "user" in request.fixturenames:
+        message = "Cannot use `user` and `module_user` fixtures together."
+        raise AssertionError(message)
+
     with _user(backend_fixture_factory) as user:
         yield user
 
 
 @contextlib.contextmanager
-def _user(backend_fixture_factory: BackendFixtureFactory) -> Iterator[str]:
+def _user(backend_fixture_factory: BackendFixtureFactory) -> Generator[str]:
     username = backend_fixture_factory.make_user()
 
     with pytest.MonkeyPatch.context() as monkeypatch:
@@ -185,7 +171,7 @@ class UserOrg:
 def user_in_orgs_factory(
     backend_fixture_factory: BackendFixtureFactory,
     user: str,
-) -> Iterator[Callable[[int], UserOrg]]:
+) -> Generator[Callable[[int], UserOrg]]:
     """Fixture that provides a factory function to create a user and associated orgs.
 
     Usage in a test:

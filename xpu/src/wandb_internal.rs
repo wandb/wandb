@@ -33,15 +33,12 @@ pub struct TelemetryRecord {
     pub cli_version: ::prost::alloc::string::String,
     #[prost(string, tag = "6")]
     pub huggingface_version: ::prost::alloc::string::String,
-    /// string  framework = 7;
     #[prost(message, optional, tag = "8")]
     pub env: ::core::option::Option<Env>,
     #[prost(message, optional, tag = "9")]
     pub label: ::core::option::Option<Labels>,
     #[prost(message, optional, tag = "10")]
     pub deprecated: ::core::option::Option<Deprecated>,
-    #[prost(message, optional, tag = "11")]
-    pub issues: ::core::option::Option<Issues>,
     #[prost(string, tag = "12")]
     pub core_version: ::prost::alloc::string::String,
     #[prost(string, tag = "13")]
@@ -402,9 +399,6 @@ pub struct Feature {
     /// Ultralytics YOLOv8 integration callbacks used
     #[prost(bool, tag = "47")]
     pub ultralytics_yolov8: bool,
-    /// Using Import API for MLFlow
-    #[prost(bool, tag = "48")]
-    pub importer_mlflow: bool,
     /// Using wandb sync for tfevent files
     #[prost(bool, tag = "49")]
     pub sync_tfevents: bool,
@@ -525,9 +519,6 @@ pub struct Labels {
 }
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct Deprecated {
-    /// wandb.integration.keras.WandbCallback(data_type=...) called
-    #[prost(bool, tag = "1")]
-    pub keras_callback_data_type: bool,
     /// wandb.plots.\* called
     #[prost(bool, tag = "5")]
     pub plots: bool,
@@ -537,12 +528,6 @@ pub struct Deprecated {
     /// wandb.init(config_exclude_keys=...) called
     #[prost(bool, tag = "8")]
     pub init_config_exclude_keys: bool,
-    /// wandb.integration.keras.WandbCallback(save_model=True) called
-    #[prost(bool, tag = "9")]
-    pub keras_callback_save_model: bool,
-    /// wandb.integration.langchain.WandbTracer called
-    #[prost(bool, tag = "10")]
-    pub langchain_tracer: bool,
     /// wandb.sdk.artifacts.artifact.Artifact.get_path(...) called
     #[prost(bool, tag = "11")]
     pub artifact_get_path: bool,
@@ -561,9 +546,6 @@ pub struct Deprecated {
     /// wandb.sdk.lib.disabled.RunDisabled used
     #[prost(bool, tag = "16")]
     pub run_disabled: bool,
-    /// wandb.integration.keras.WandbCallback used
-    #[prost(bool, tag = "17")]
-    pub keras_callback: bool,
     /// wandb.run.define_metric() called with summary="best" and goal="maximize/minimize"
     #[prost(bool, tag = "18")]
     pub run_define_metric_best_goal: bool,
@@ -594,32 +576,20 @@ pub struct Deprecated {
     /// wandb.sdk.artifacts.artifact.Artifact(use_as=...) called
     #[prost(bool, tag = "27")]
     pub artifact_init_use_as: bool,
-    /// wandb.beta.workflows.log_model() called
-    #[prost(bool, tag = "28")]
-    pub beta_workflows_log_model: bool,
-    /// wandb.beta.workflows.use_model() called
-    #[prost(bool, tag = "29")]
-    pub beta_workflows_use_model: bool,
-    /// wandb.beta.workflows.link_model() called
-    #[prost(bool, tag = "30")]
-    pub beta_workflows_link_model: bool,
     /// wandb.integration.kfp.wandb_log used with kfp\<2.0.0
     #[prost(bool, tag = "31")]
     pub kfp_v1_wandb_log: bool,
 }
-#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
-pub struct Issues {
-    /// validation warnings for settings
-    #[prost(bool, tag = "1")]
-    pub settings_validation_warnings: bool,
-    /// unexpected settings init args
-    #[prost(bool, tag = "2")]
-    pub settings_unexpected_args: bool,
-    /// settings preprocessing warnings
-    #[prost(bool, tag = "3")]
-    pub settings_preprocessing_warnings: bool,
-}
-/// Record: joined record for message passing and persistence
+/// A sequence of Records fully defines a run.
+///
+/// Records make up a run's transaction log, which can be replayed to reupload
+/// the run or upload it for the first time in offline mode.
+///
+/// Since Records are persistent, and a new `wandb` version can be used to
+/// sync an older transaction log, it is important to follow proper protobuf
+/// versioning practices: <https://protobuf.dev/best-practices/>
+///
+/// Next ID: 28
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Record {
     #[prost(int64, tag = "1")]
@@ -1125,15 +1095,9 @@ pub struct OutputRawResult {}
 /// OutputLoggerRecord: log output from run.write_logs for the Logs tab.
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct OutputLoggerRecord {
-    #[prost(message, optional, tag = "1")]
-    pub timestamp: ::core::option::Option<::prost_types::Timestamp>,
-    #[prost(string, tag = "2")]
+    #[prost(string, tag = "1")]
     pub line: ::prost::alloc::string::String,
-    #[prost(message, optional, tag = "200")]
-    pub info: ::core::option::Option<RecordInfo>,
 }
-#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
-pub struct OutputLoggerResult {}
 /// MetricRecord: wandb/sdk/wandb_metric/Metric
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct MetricRecord {
@@ -1639,12 +1603,21 @@ pub struct AlertRecord {
 }
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct AlertResult {}
-/// Request: all non persistent messages
+/// Runtime communication that's not part of a run's transaction log.
+///
+/// Unlike Records, Requests are not necessary to recreate a run and are not
+/// stored in its transaction log. They are generally used to either get
+/// information about a run (like whether it stopped, or if there are
+/// warnings) or to control the logging process (like to add to the current
+/// step with a PartialHistoryRequest, which produces artificial Records
+/// when a step is committed).
+///
+/// Next ID: 85
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Request {
     #[prost(
         oneof = "request::RequestType",
-        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 17, 20, 21, 23, 24, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 77, 78, 81, 82, 83, 1000"
+        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 84, 11, 12, 13, 14, 17, 20, 21, 23, 24, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 77, 78, 81, 82, 83, 1000"
     )]
     pub request_type: ::core::option::Option<request::RequestType>,
 }
@@ -1672,6 +1645,8 @@ pub mod request {
         SampledHistory(super::SampledHistoryRequest),
         #[prost(message, tag = "10")]
         PartialHistory(super::PartialHistoryRequest),
+        #[prost(message, tag = "84")]
+        HistoryStep(super::HistoryStepRequest),
         #[prost(message, tag = "11")]
         RunStart(super::RunStartRequest),
         #[prost(message, tag = "12")]
@@ -1729,11 +1704,13 @@ pub mod request {
     }
 }
 /// Response: all non persistent responses to Requests
+///
+/// Next ID: 75
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Response {
     #[prost(
         oneof = "response::ResponseType",
-        tags = "18, 19, 20, 24, 25, 26, 27, 28, 29, 30, 31, 35, 36, 37, 64, 65, 66, 67, 68, 69, 71, 70, 74, 1000"
+        tags = "18, 19, 20, 24, 25, 26, 27, 75, 28, 29, 30, 31, 35, 36, 37, 64, 65, 66, 67, 68, 69, 71, 70, 74, 1000"
     )]
     pub response_type: ::core::option::Option<response::ResponseType>,
 }
@@ -1755,6 +1732,8 @@ pub mod response {
         PollExitResponse(super::PollExitResponse),
         #[prost(message, tag = "27")]
         SampledHistoryResponse(super::SampledHistoryResponse),
+        #[prost(message, tag = "75")]
+        HistoryStepResponse(super::HistoryStepResponse),
         #[prost(message, tag = "28")]
         RunStartResponse(super::RunStartResponse),
         #[prost(message, tag = "29")]
@@ -1983,6 +1962,13 @@ pub struct HttpResponse {
 /// InternalMessagesRequest:
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct InternalMessagesRequest {
+    /// If true, block until there are messages or the run ends.
+    ///
+    /// The response is empty if and only if the run is over.
+    /// The request can be cancelled via the usual ServerCancelRequest
+    /// mechanism.
+    #[prost(bool, tag = "1")]
+    pub wait: bool,
     #[prost(message, optional, tag = "200")]
     pub info: ::core::option::Option<RequestInfo>,
 }
@@ -2334,6 +2320,20 @@ pub struct PartialHistoryRequest {
 }
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct PartialHistoryResponse {}
+/// Get the run's current W&B step number (the step of the next `log()` call).
+///
+/// Returns a ServerErrorResponse in shared mode.
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct HistoryStepRequest {}
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct HistoryStepResponse {
+    /// The step of the next `log()` call.
+    ///
+    /// This is 0 before anything is logged, 1 after the first `log()` call,
+    /// and so on. Corresponds to the artificial `_step` metric.
+    #[prost(int64, tag = "1")]
+    pub step: i64,
+}
 /// SampledHistoryRequest:
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct SampledHistoryRequest {
@@ -2916,6 +2916,26 @@ pub enum ServerFeature {
     /// Indicates that the server supports both the artifact id and the birth artifact id in the artifact file download
     /// url.
     ArtifactV2DownloadHandlerSupportsArtifactId = 18,
+    /// Indicates that the server supports automation event RUN_METRIC_ZSCORE.
+    AutomationEventRunMetricZscore = 19,
+    /// Indicates that the server supports automation event RUN_STATE.
+    AutomationEventRunState = 20,
+    /// Indicates that the server supports automation action PUSH_NOTIFICATION.
+    AutomationActionPushNotification = 21,
+    /// Indicates that the server supports automation event ADD_ARTIFACT_TAG.
+    AutomationEventAddArtifactTag = 22,
+    /// Indicates that the server supports automation event ADD_COLLECTION_TAG.
+    AutomationEventAddCollectionTag = 23,
+    /// Indicates that the server supports automation event REMOVE_ARTIFACT_TAG.
+    AutomationEventRemoveArtifactTag = 24,
+    /// Indicates that the server supports automation event REMOVE_COLLECTION_TAG.
+    AutomationEventRemoveCollectionTag = 25,
+    /// Indicates that the server supports automation event UNLINK_ARTIFACT.
+    AutomationEventUnlinkArtifact = 26,
+    /// Indicates that the server supports User.triggers.
+    AutomationsOnUser = 27,
+    /// Indicates that the server supports Trigger.lastExecutedAt.
+    AutomationLastExecutedAt = 28,
 }
 impl ServerFeature {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -2959,6 +2979,24 @@ impl ServerFeature {
             Self::ArtifactV2DownloadHandlerSupportsArtifactId => {
                 "ARTIFACT_V2_DOWNLOAD_HANDLER_SUPPORTS_ARTIFACT_ID"
             }
+            Self::AutomationEventRunMetricZscore => "AUTOMATION_EVENT_RUN_METRIC_ZSCORE",
+            Self::AutomationEventRunState => "AUTOMATION_EVENT_RUN_STATE",
+            Self::AutomationActionPushNotification => {
+                "AUTOMATION_ACTION_PUSH_NOTIFICATION"
+            }
+            Self::AutomationEventAddArtifactTag => "AUTOMATION_EVENT_ADD_ARTIFACT_TAG",
+            Self::AutomationEventAddCollectionTag => {
+                "AUTOMATION_EVENT_ADD_COLLECTION_TAG"
+            }
+            Self::AutomationEventRemoveArtifactTag => {
+                "AUTOMATION_EVENT_REMOVE_ARTIFACT_TAG"
+            }
+            Self::AutomationEventRemoveCollectionTag => {
+                "AUTOMATION_EVENT_REMOVE_COLLECTION_TAG"
+            }
+            Self::AutomationEventUnlinkArtifact => "AUTOMATION_EVENT_UNLINK_ARTIFACT",
+            Self::AutomationsOnUser => "AUTOMATIONS_ON_USER",
+            Self::AutomationLastExecutedAt => "AUTOMATION_LAST_EXECUTED_AT",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -3001,6 +3039,30 @@ impl ServerFeature {
             "ARTIFACT_V2_DOWNLOAD_HANDLER_SUPPORTS_ARTIFACT_ID" => {
                 Some(Self::ArtifactV2DownloadHandlerSupportsArtifactId)
             }
+            "AUTOMATION_EVENT_RUN_METRIC_ZSCORE" => {
+                Some(Self::AutomationEventRunMetricZscore)
+            }
+            "AUTOMATION_EVENT_RUN_STATE" => Some(Self::AutomationEventRunState),
+            "AUTOMATION_ACTION_PUSH_NOTIFICATION" => {
+                Some(Self::AutomationActionPushNotification)
+            }
+            "AUTOMATION_EVENT_ADD_ARTIFACT_TAG" => {
+                Some(Self::AutomationEventAddArtifactTag)
+            }
+            "AUTOMATION_EVENT_ADD_COLLECTION_TAG" => {
+                Some(Self::AutomationEventAddCollectionTag)
+            }
+            "AUTOMATION_EVENT_REMOVE_ARTIFACT_TAG" => {
+                Some(Self::AutomationEventRemoveArtifactTag)
+            }
+            "AUTOMATION_EVENT_REMOVE_COLLECTION_TAG" => {
+                Some(Self::AutomationEventRemoveCollectionTag)
+            }
+            "AUTOMATION_EVENT_UNLINK_ARTIFACT" => {
+                Some(Self::AutomationEventUnlinkArtifact)
+            }
+            "AUTOMATIONS_ON_USER" => Some(Self::AutomationsOnUser),
+            "AUTOMATION_LAST_EXECUTED_AT" => Some(Self::AutomationLastExecutedAt),
             _ => None,
         }
     }

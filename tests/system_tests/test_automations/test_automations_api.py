@@ -739,7 +739,7 @@ class TestUpdateAutomation:
             old_automation.scope = artifact_collection
             module_api.update_automation(old_automation)
 
-    MUTATION_EVENT_TYPE_TO_CLASS = {
+    MUTATION_EVENT_CLASSES = {
         EventType.ADD_ARTIFACT_ALIAS: OnAddArtifactAlias,
         EventType.LINK_ARTIFACT: OnLinkArtifact,
         EventType.CREATE_ARTIFACT: OnCreateArtifact,
@@ -747,7 +747,7 @@ class TestUpdateAutomation:
 
     @mark.parametrize(
         "event_type",
-        sorted(MUTATION_EVENT_TYPE_TO_CLASS.keys()),
+        sorted(MUTATION_EVENT_CLASSES.keys()),
         indirect=True,
         ids=lambda x: f"event={x.value}",
     )
@@ -759,7 +759,7 @@ class TestUpdateAutomation:
         artifact_collection: ArtifactCollection,
     ):
         """Updating an automation with a new InputEvent must preserve the alias filter."""
-        event_cls = self.MUTATION_EVENT_TYPE_TO_CLASS[event_type]
+        event_cls = self.MUTATION_EVENT_CLASSES[event_type]
         new_event = event_cls(
             scope=artifact_collection,
             filter=ArtifactEvent.alias == "prod",
@@ -921,8 +921,8 @@ class TestPaginatedAutomations:
         num_projects,
         page_size,
     ):
-        # Spy on the client method that makes the GQL request.  Not ideal, but it may have to do for now
-        client_spy = mocker.spy(module_api.client, "execute")
+        # Spy on the service method that makes the GQL request.
+        client_spy = mocker.spy(module_api._service_api, "execute_graphql")
 
         # Fetch the automations
         list(module_api.automations(entity=module_user, per_page=page_size))

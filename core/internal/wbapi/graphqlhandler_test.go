@@ -106,6 +106,7 @@ func TestGraphQLHandlerReturnsHTTPGraphQLErrorMessage(t *testing.T) {
 		"[first GraphQL error; second GraphQL error]",
 		response.GetApiErrorResponse().GetMessage(),
 	)
+	assert.Equal(t, int32(400), response.GetApiErrorResponse().GetHttpStatus())
 }
 
 func TestGraphQLHandlerFallsBackForHTTPErrorWithoutGraphQLErrors(t *testing.T) {
@@ -119,4 +120,18 @@ func TestGraphQLHandlerFallsBackForHTTPErrorWithoutGraphQLErrors(t *testing.T) {
 
 	require.NotNil(t, response.GetApiErrorResponse())
 	assert.Contains(t, response.GetApiErrorResponse().GetMessage(), "returned error 500")
+	assert.Equal(t, int32(500), response.GetApiErrorResponse().GetHttpStatus())
+}
+
+func TestGraphQLHandlerLeavesHttpStatusZeroForNonHTTPError(t *testing.T) {
+	handler := wbapi.NewGraphQLHandler(&recordingGraphQLClient{
+		err: errors.New("server unavailable"),
+	})
+
+	response := handler.HandleRequest(context.Background(), &spb.GraphQLRequest{
+		Query: "query Viewer { viewer { id } }",
+	})
+
+	require.NotNil(t, response.GetApiErrorResponse())
+	assert.Equal(t, int32(0), response.GetApiErrorResponse().GetHttpStatus())
 }

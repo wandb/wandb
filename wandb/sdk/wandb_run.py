@@ -542,7 +542,14 @@ class Run:
         )
         self.summary._set_update_callback(self._summary_update_callback)
 
-        self._step = 0
+        # A step-like value derived from counting `log()` calls that is used for
+        # namespacing filenames when logging media (for example, an image logged
+        # at step 5 will include "5" in its filename).
+        #
+        # It is incorrect in shared mode or for "attached" runs (run objects
+        # shared through multiprocessing).
+        self._local_step = 0
+
         self._starting_step = 0
         self._start_runtime = 0
         # TODO: eventually would be nice to make this configurable using self._settings._start_time
@@ -903,13 +910,20 @@ class Run:
     @_log_to_run
     @_attach
     def step(self) -> int:
-        """Current value of the step.
+        """The W&B step of the next `log()` call.
 
-        This counter is incremented by `wandb.Run.log()`.
-
-        <!-- lazydoc-ignore: internal -->
+        Raises an error in mode="shared" runs.
         """
-        return self._step
+        assert self._interface
+        handle = self._interface.deliver_history_step()
+
+        # The timeout can only happen under heavy load (or a bug), and generally
+        # this operation is expected to be very fast.
+        #
+        # Since step is a property, we can't accept a customizable timeout.
+        response = handle.wait_or(timeout=30)
+
+        return response.step
 
     @property
     @_log_to_run
@@ -1526,7 +1540,7 @@ class Run:
         self._interface.publish_partial_history(
             self,
             data,
-            user_step=self._step,
+            user_step=self._local_step,
             step=step,
             flush=commit,
             publish_step=not_using_tensorboard,
@@ -1576,7 +1590,7 @@ class Run:
     def _set_run_obj(self, run_obj: RunRecord) -> None:  # noqa: C901
         if run_obj.starting_step:
             self._starting_step = run_obj.starting_step
-            self._step = run_obj.starting_step
+            self._local_step = run_obj.starting_step
 
         if run_obj.start_time:
             self._start_time = run_obj.start_time.ToMicroseconds() / 1e6
@@ -1712,11 +1726,11 @@ class Run:
                     "to log your step values.",
                     repeat=False,
                 )
-            if step > self._step:
-                self._step = step
+            if step > self._local_step:
+                self._local_step = step
 
         if (step is None and commit is None) or commit:
-            self._step += 1
+            self._local_step += 1
 
     @_log_to_run
     @_raise_if_finished
@@ -3341,7 +3355,7 @@ class Run:
                     is_user_created=is_user_created,
                     use_after_commit=use_after_commit,
                 )
-                artifact._set_save_handle(handle, self._public_api().client)
+                self._public_api()._set_artifact_save_handle(artifact, handle)
             else:
                 self._interface.publish_artifact(
                     self,
@@ -3382,9 +3396,7 @@ class Run:
 
     # TODO(jhr): annotate this
     def _assert_can_log_artifact(self, artifact) -> None:  # type: ignore
-        import requests
-
-        from wandb.sdk.artifacts.artifact import Artifact
+        from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 
         if self._settings._offline:
             return
@@ -3392,11 +3404,13 @@ class Run:
             public_api = self._public_api()
             entity = public_api.settings["entity"]
             project = public_api.settings["project"]
-            expected_type = Artifact._expected_type(
-                entity, project, artifact.name, public_api.client
+            expected_type = public_api._expected_artifact_type(
+                entity=entity,
+                project=project,
+                name=artifact.name,
             )
-        except requests.exceptions.RequestException:
-            # Just return early if there is a network error. This is
+        except WandbApiFailedError:
+            # Just return early if the API request fails. This is
             # ok, as this function is intended to help catch an invalid
             # type early, but not a hard requirement for valid operation.
             return

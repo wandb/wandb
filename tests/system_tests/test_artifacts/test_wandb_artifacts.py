@@ -4,11 +4,12 @@ import filecmp
 import os
 import shutil
 import unittest.mock
-from collections.abc import Callable, Iterator, Mapping
+from collections.abc import Callable, Generator, Mapping
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import nullcontext
 from datetime import datetime, timedelta, timezone
 from pathlib import Path, PurePosixPath, PureWindowsPath
+from threading import Barrier
 from urllib.parse import quote
 
 import numpy as np
@@ -408,16 +409,28 @@ def test_add_dir_again_after_edit(merge, artifact, tmp_path_factory):
     assert len(artifact.manifest.to_manifest_json()["contents"]) == 2
 
 
-def test_multi_add(artifact):
-    size = 2**27  # 128MB, large enough that it takes >1ms to add.
+def test_multi_add(artifact, monkeypatch):
+    size = 1024
     filename = "data.bin"
     with open(filename, "wb") as f:
         f.truncate(size)
 
-    # Add 8 copies simultaneously.
-    with ThreadPoolExecutor(max_workers=8) as e:
-        for _ in range(8):
-            e.submit(artifact.add_file, filename)
+    workers = 8
+    add_entry_barrier = Barrier(workers)
+    add_entry = type(artifact.manifest).add_entry
+
+    def add_entry_concurrently(manifest, entry, overwrite=False):
+        add_entry_barrier.wait(timeout=10)
+        return add_entry(manifest, entry, overwrite=overwrite)
+
+    monkeypatch.setattr(type(artifact.manifest), "add_entry", add_entry_concurrently)
+
+    # Add the same file from multiple threads, forcing all writes to reach the
+    # manifest update concurrently.
+    with ThreadPoolExecutor(max_workers=workers) as e:
+        futures = [e.submit(artifact.add_file, filename) for _ in range(workers)]
+        for future in futures:
+            future.result()
 
     # There should be only one file in the artifact.
     manifest_contents = artifact.manifest.to_manifest_json()["contents"]
@@ -476,7 +489,7 @@ def test_add_reference_local_file_no_checksum(tmp_path, artifact):
 
 class TestAddReferenceLocalFileNoChecksumTwice:
     @fixture
-    def run(self, user) -> Iterator[wandb.Run]:
+    def run(self, user) -> Generator[wandb.Run]:
         with wandb.init() as run:
             yield run
 
@@ -1600,7 +1613,7 @@ def test_add_obj_wbtable_images(im_path: str, artifact: Artifact):
             "digest": "L1pBeGPxG+6XVRQk4WuvdQ==",
             "size": 71,
         },
-        "my-table.table.json": {"digest": "UN1SfxHpRdt/OOy7TrjvdQ==", "size": 1315},
+        "my-table.table.json": {"digest": "4cthfS5X+SxpFwajjuhrMw==", "size": 1476},
     }
 
 
@@ -1630,7 +1643,7 @@ def test_add_obj_wbtable_images_duplicate_name(assets_path, artifact):
             "digest": "pQVvBBgcuG+jTN0Xo97eZQ==",
             "size": 8837,
         },
-        "my-table.table.json": {"digest": "rkNgqyX3yGEQ1UxM7hsGjQ==", "size": 1006},
+        "my-table.table.json": {"digest": "uuw1nKn7THwjEBDbxXvmfQ==", "size": 1167},
     }
 
 

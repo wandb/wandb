@@ -12,6 +12,7 @@ from cwsandbox import __all__ as cwsandbox_all
 
 # wandb specific overrides
 from ._auth import _set_wandb_auth_mode
+from ._sandbox import Sandbox, Session
 from ._secret import Secret
 
 _set_wandb_auth_mode()

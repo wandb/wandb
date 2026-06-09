@@ -19,8 +19,6 @@ logger = logging.getLogger(__name__)
 # - Base64Str: https://docs.pydantic.dev/latest/api/types/#pydantic.types.Base64Str
 # - a custom EncodedStr + Encoder impl: https://docs.pydantic.dev/latest/api/types/#pydantic.types.EncodedStr
 #
-# Note that so long as we continue to support Pydantic v1, the options above will require a compatible shim/backport
-# implementation, since those types are not in Pydantic v1.
 ETag: TypeAlias = str
 HexMD5: TypeAlias = str
 B64MD5: TypeAlias = str

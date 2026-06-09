@@ -1,11 +1,13 @@
 from __future__ import annotations
 
-from collections.abc import Iterator
+from collections.abc import Generator
 from contextlib import contextmanager
 from contextvars import ContextVar
 
+import cwsandbox
 from cwsandbox import AuthHeaders, CWSandboxAuthenticationError, set_auth_mode
 
+import wandb
 from wandb.errors import UsageError
 from wandb.sdk import wandb_setup
 from wandb.sdk.lib import wbauth
@@ -29,7 +31,7 @@ def _set_wandb_auth_mode() -> None:
 @contextmanager
 def override_sandbox_entity(
     entity: str | None = None,
-) -> Iterator[None]:
+) -> Generator[None]:
     """Temporarily override the sandbox entity for sandbox auth.
 
     Passing `None` means using the default resolve logic from run
@@ -44,6 +46,18 @@ def override_sandbox_entity(
         yield
     finally:
         _entity_override.reset(entity_token)
+
+
+def _client_version_headers() -> list[tuple[str, str]]:
+    """Version headers identifying this client to the sandbox gateway (WB-34958).
+
+    The gateway records these for SDK-adoption tracking.
+    """
+    return [
+        ("x-wandb-sdk-version", wandb.__version__),
+        # Included in case the cwsandbox transport doesn't report its own version.
+        ("x-cwsandbox-client-version", cwsandbox.__version__),
+    ]
 
 
 def _resolve_wandb_sdk_auth() -> AuthHeaders:
@@ -70,6 +84,8 @@ def _resolve_wandb_sdk_auth() -> AuthHeaders:
         metadata.append(("x-entity-id", entity))
     if settings.project:
         metadata.append(("x-project-name", settings.project))
+
+    metadata.extend(_client_version_headers())
 
     return AuthHeaders(
         headers={key: value for key, value in metadata},

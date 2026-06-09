@@ -43,6 +43,18 @@ def test_feature_flags(wandb_backend_spy: WandbBackendSpy):
     assert enabled
 
 
+def test_feature_flags_by_string_name(wandb_backend_spy: WandbBackendSpy):
+    stub_server_features_query(
+        wandb_backend_spy,
+        enabled=[pb.ServerFeature.CLIENT_IDS],
+    )
+
+    api = ServiceApi(wandb_setup.singleton().settings)
+    enabled = api.feature_enabled("CLIENT_IDS")
+
+    assert enabled
+
+
 def test_feature_flags_timeout(wandb_backend_spy: WandbBackendSpy):
     stub_server_features_query(
         wandb_backend_spy,
