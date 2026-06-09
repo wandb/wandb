@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
-from typing import TYPE_CHECKING, Any, Literal, cast
+from typing import TYPE_CHECKING, Any, Literal
 
 from typing_extensions import override
 
@@ -19,14 +19,6 @@ if TYPE_CHECKING:
 
 _MIN_WEAVE_VERSION = "0.52.41"
 
-
-def _init_weave_for_run(run: LocalRun) -> None:
-    try:
-        weave_integration.init_weave(run.entity, run.project)
-    except ValueError as e:
-        # init_weave raises ValueError when the W&B run has no project, or when
-        # Weave is already initialized for a different entity/project.
-        raise UsageError(str(e)) from e
 
 
 class EvalTable(Table):
@@ -112,7 +104,7 @@ class EvalTable(Table):
 
         # Now that we have run context, initialize/validate Weave for this project.
         # Skip the file-copy that Table.bind_to_run does.
-        _init_weave_for_run(run)
+        weave_integration.init_weave(run.entity, run.project)
         self._run = run
         self._run_log_key = str(key)
 
@@ -126,8 +118,10 @@ class EvalTable(Table):
         """
         if isinstance(run_or_artifact, wandb.Artifact):
             raise TypeError("EvalTable cannot be logged to a wandb.Artifact.")
+        if not isinstance(run_or_artifact, wandb.Run):
+            raise TypeError("EvalTable can only be serialized for a wandb.Run.")
 
-        run = cast("LocalRun", run_or_artifact)
+        run = run_or_artifact
 
         if self._run_log_key is None:
             raise UsageError("EvalTable must be logged with run.log().")
@@ -166,7 +160,7 @@ class EvalTable(Table):
 
         # TODO: In a later PR, create an EvaluationLogger and log rows to Weave.
         _ = EvaluationLogger
-        raise UsageError("EvalTable logging is not implemented yet.")
+        raise NotImplementedError("EvalTable logging is not implemented yet.")
 
     def _log_to_weave(self) -> str:
         ev = self._create_weave_eval_logger()
