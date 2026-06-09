@@ -210,7 +210,7 @@ class Runs(SizedPaginator["Run"]):
         filters: dict[str, Any] | None = None,
         order: str = "+created_at",
         per_page: int = 50,
-        include_sweeps: bool = True,
+        include_sweeps: bool = False,
         lazy: bool = True,
         api_key: str | None = None,
     ):
@@ -633,7 +633,7 @@ class Run(Attrs):
         project: str,
         run_id: str,
         attrs: Mapping | None = None,
-        include_sweeps: bool = True,
+        include_sweeps: bool = False,
         lazy: bool = True,
         api_key: str | None = None,
     ):
