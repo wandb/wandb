@@ -464,36 +464,6 @@ def test_stringified_duplicate_columns_raise(run):
         run.log({"my_eval": et})
 
 
-def test_int_columns_pass_original_column_to_media_adapter(
-    monkeypatch, mock_eval_logger, run
-):
-    adapter_columns = []
-
-    def unwrap_value(val, column, warned, unsupported_media_mode="raise"):
-        adapter_columns.append(column)
-        return f"unwrapped:{val}"
-
-    monkeypatch.setattr(
-        eval_table_module.media_adapters,
-        "unwrap_value",
-        unwrap_value,
-    )
-
-    et = wandb.EvalTable(
-        columns=[1],
-        data=[["x"]],
-    )
-    run.log({"my_eval": et})
-
-    assert adapter_columns == [1]
-    ev = mock_eval_logger.created_loggers[0]
-    ev.log_example.assert_called_once_with(
-        inputs={"row": 1},
-        output={"1": "unwrapped:x"},
-        scores={},
-    )
-
-
 # All columns assigned to input/score roles: no output payload is logged.
 def test_no_output_columns_logs_none_output(mock_eval_logger, run):
     et = wandb.EvalTable(
@@ -805,4 +775,28 @@ def test_wandb_image_cell_unwrapped_to_pil(mock_eval_logger, run):
     )
     # And it's the same image content (round-tripped through wandb.Image).
     assert img.size == (2, 2)
+    assert call_kwargs["inputs"] == {"row": 1}
+
+
+def test_wandb_image_with_int_column_unwrapped_to_pil(mock_eval_logger, run):
+    from PIL import Image as PILImage
+
+    pil_in = PILImage.new("RGB", (2, 2), color="red")
+    wb_img = wandb.Image(pil_in)
+
+    et = wandb.EvalTable(
+        columns=[1],
+        data=[[wb_img]],
+    )
+    run.log({"my_eval": et})
+
+    ev = mock_eval_logger.created_loggers[0]
+    ev.log_example.assert_called_once()
+    call_kwargs = ev.log_example.call_args.kwargs
+
+    output = call_kwargs["output"]
+    assert isinstance(output, dict)
+    assert set(output) == {"1"}
+    assert isinstance(output["1"], PILImage.Image)
+    assert output["1"].size == (2, 2)
     assert call_kwargs["inputs"] == {"row": 1}
