@@ -5,7 +5,8 @@ This module provides automatic initialization of Weave when:
 2. A W&B run is active with a project
 3. Weave is imported (init-on-import)
 
-The integration can be disabled by setting the WANDB_DISABLE_WEAVE environment variable.
+The integration can be disabled by setting the WANDB_DISABLE_WEAVE environment variable
+to a truthy value.
 """
 
 from __future__ import annotations
@@ -18,6 +19,7 @@ import threading
 from packaging.version import parse as parse_version
 
 import wandb
+from wandb.env import strtobool
 from wandb.errors import UsageError
 
 _weave_init_lock = threading.Lock()
@@ -27,7 +29,13 @@ _WEAVE_PACKAGE_NAME = "weave"
 
 
 def _is_weave_disabled() -> bool:
-    return bool(os.getenv(_DISABLE_WEAVE))
+    value = os.getenv(_DISABLE_WEAVE)
+    if value is None:
+        return False
+    try:
+        return strtobool(value)
+    except ValueError:
+        return False
 
 
 def build_project_path(entity: str | None, project: str | None) -> str | None:
@@ -128,7 +136,8 @@ def ensure_version(
 
     Args:
         min_version: Must import weave with at least this version.
-        error_msg: Custom error message if we fail to import min_version.
+        error_msg: Custom error message if we fail to import min_version. Should be
+            capitalized but not end in punctuation.
 
     Raises:
         ImportError: If we did not successfully import at least min_version.
@@ -155,20 +164,49 @@ def init_weave(
     """Initialize weave for a W&B entity/project.
 
     Raises:
-        ValueError: If no project is available, or if weave is already initialized
-            for a different project.
-        UsageError: If WANDB_DISABLE_WEAVE is set.
+        UsageError: If no project is available, if weave is already initialized
+            for a different project, or If WANDB_DISABLE_WEAVE is set.
     """
     if _is_weave_disabled():
         raise UsageError("weave is required, but WANDB_DISABLE_WEAVE is true.")
 
     project_path = build_project_path(entity, project)
     if not project_path:
-        raise ValueError("init_weave requires a project to initialize weave.")
+        raise UsageError("init_weave requires a project to initialize weave.")
 
     # Assumes you've already called ensure_version as needed, so any exceptions will
     # just pass through.
     _weave_init(project_path)
+
+
+def _should_init_weave(project_path: str) -> bool:
+    import weave
+
+    try:
+        ensure_version("0.51.54")
+    except ImportError:
+        has_get_client = False
+    else:
+        has_get_client = True
+
+    # get_client landed in weave 0.51.54; fall through and try initializing on older
+    # versions.
+    if has_get_client:
+        # Skip re-init if the user already called weave.init() for this project.
+        client = weave.get_client()
+        if client is not None:
+            client_project_path = build_project_path(client.entity, client.project)
+            if client_project_path != project_path:
+                raise UsageError(
+                    "Weave is already initialized for "
+                    f"{client_project_path!r}; cannot initialize it for "
+                    f"{project_path!r}."
+                )
+            if client.ensure_project_exists:
+                # Already initialized. No-op.
+                return False
+
+    return True
 
 
 def _weave_init(project_path: str) -> None:
@@ -180,27 +218,5 @@ def _weave_init(project_path: str) -> None:
     with _weave_init_lock:
         import weave
 
-        has_get_client = False
-        try:
-            min_get_client_version = "0.51.54"
-            ensure_version(min_get_client_version)
-            has_get_client = True
-        except ImportError:
-            pass
-
-        if has_get_client:
-            # Skip re-init if the user already called weave.init() for this project.
-            # get_client landed in weave 0.51.54; fall through on older versions.
-            client = weave.get_client()
-            if client is not None:
-                client_project_path = build_project_path(client.entity, client.project)
-                if client_project_path != project_path:
-                    raise ValueError(
-                        "Weave is already initialized for "
-                        f"{client_project_path!r}; cannot initialize it for "
-                        f"{project_path!r}."
-                    )
-                if client.ensure_project_exists:
-                    return
-
-        weave.init(project_path)
+        if _should_init_weave(project_path):
+            weave.init(project_path)
