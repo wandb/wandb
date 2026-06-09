@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import importlib
 import json
 import warnings
@@ -16,6 +15,7 @@ from wandb.sdk.data_types.base_types.wb_value import WBValue
 from wandb.sdk.data_types.image import Image
 from wandb.sdk.data_types.table import Table
 from wandb.sdk.data_types.video import Video
+from wandb.sdk.lib.hashutil import md5_file_b64, md5_string
 
 UnsupportedMediaMode = Literal["raise", "stub"]
 _UNSUPPORTED_MEDIA_MODES = get_args(UnsupportedMediaMode)
@@ -212,74 +212,50 @@ def validate_supported_value(
         )
 
 
-def _json_safe_value(val: Any) -> Any:
-    if isinstance(val, (str, int, float, bool)) or val is None:
-        return val
-    if isinstance(val, (list, tuple)):
-        return [_json_safe_value(item) for item in val]
-    if isinstance(val, dict):
-        return {str(key): _json_safe_value(value) for key, value in val.items()}
-    try:
-        tolist = val.tolist
-    except AttributeError:
-        pass
-    else:
-        try:
-            return _json_safe_value(tolist())
-        except Exception:
-            pass
-    return f"<{type(val).__module__}.{type(val).__qualname__}>"
-
-
-def _json_digest(payload: Any) -> str:
+def _stable_digest(payload: Any) -> str:
     json_payload = json.dumps(
-        _json_safe_value(payload),
+        payload,
+        default=str,
         sort_keys=True,
         separators=(",", ":"),
     )
-    return hashlib.sha256(json_payload.encode("utf-8")).hexdigest()
+    return md5_string(json_payload)
+
+
+_UNSUPPORTED_WANDB_VALUE_DIGEST_IGNORED_FIELDS = {
+    "_artifact_source",
+    "_artifact_target",
+    "_run",
+}
+
+
+def _unsupported_wandb_value_payload(val: WBValue) -> dict[str, Any]:
+    try:
+        payload = vars(val).copy()
+    except TypeError:
+        payload = {}
+
+    for key in _UNSUPPORTED_WANDB_VALUE_DIGEST_IGNORED_FIELDS:
+        payload.pop(key, None)
+
+    if isinstance(val, Media):
+        path = payload.get("_path")
+        if isinstance(path, str) and path and not val.path_is_reference(path):
+            path_obj = Path(path)
+            if path_obj.is_file():
+                payload["_file_digest"] = md5_file_b64(path_obj)
+                payload.pop("_path", None)
+
+    return payload
 
 
 def _unsupported_wandb_value_digest(val: WBValue) -> str:
-    if isinstance(val, Media):
-        try:
-            sha256 = val._sha256
-        except AttributeError:
-            sha256 = None
-        if isinstance(sha256, str) and sha256:
-            return sha256
-
-        try:
-            path = val._path
-        except AttributeError:
-            path = None
-        if isinstance(path, str) and path:
-            if val.path_is_reference(path):
-                return _json_digest({"type": type(val).__name__, "ref": path})
-            path_obj = Path(path)
-            if path_obj.is_file():
-                hasher = hashlib.sha256()
-                with path_obj.open("rb") as f:
-                    for chunk in iter(lambda: f.read(1024 * 1024), b""):
-                        hasher.update(chunk)
-                return hasher.hexdigest()
-
-    try:
-        payload = val.to_json(None)  # type: ignore[arg-type]
-    except Exception:
-        payload = {
-            key: value
-            for key, value in vars(val).items()
-            if key
-            not in {
-                "_artifact_source",
-                "_artifact_target",
-                "_run",
-                "_path",
-            }
-        }
-
-    return _json_digest({"type": type(val).__name__, "value": payload})
+    # Unsupported WBValue stubs are a temporary fallback. Digest the object's
+    # JSON-safe fields without calling to_json(), since many WBValue serializers
+    # require a real Run or Artifact.
+    return _stable_digest(
+        {"type": type(val).__name__, "value": _unsupported_wandb_value_payload(val)}
+    )
 
 
 def _stub_unsupported_wandb_value(val: WBValue, warned: set[type]) -> str:

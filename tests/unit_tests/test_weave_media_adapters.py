@@ -48,8 +48,6 @@ def test_media_adapter_rejects_unsupported_wandb_value():
 
 def test_media_adapter_stubs_unsupported_wandb_media():
     html = wandb.Html("<p>hi</p>", inject=False)
-    assert html._sha256 is not None
-    expected_stub = f"[wandb.Html unsupported: {html._sha256[:8]}]"
 
     with pytest.warns(UserWarning, match="wandb.Html values are not supported"):
         result = unwrap_value(
@@ -59,7 +57,41 @@ def test_media_adapter_stubs_unsupported_wandb_media():
             unsupported_media_mode="stub",
         )
 
-    assert result == expected_stub
+    assert result.startswith("[wandb.Html unsupported: ")
+    assert result.endswith("]")
+    digest = result.removeprefix("[wandb.Html unsupported: ").removesuffix("]")
+    assert len(digest) == 8
+
+
+def test_media_adapter_stubs_same_embedded_media_consistently():
+    html = wandb.Html("<p>hi</p>", inject=False)
+    same_html = wandb.Html("<p>hi</p>", inject=False)
+    different_html = wandb.Html("<p>bye</p>", inject=False)
+
+    with pytest.warns(UserWarning, match="wandb.Html values are not supported"):
+        result = unwrap_value(
+            html,
+            "html",
+            set(),
+            unsupported_media_mode="stub",
+        )
+    with pytest.warns(UserWarning, match="wandb.Html values are not supported"):
+        same_result = unwrap_value(
+            same_html,
+            "html",
+            set(),
+            unsupported_media_mode="stub",
+        )
+    with pytest.warns(UserWarning, match="wandb.Html values are not supported"):
+        different_result = unwrap_value(
+            different_html,
+            "html",
+            set(),
+            unsupported_media_mode="stub",
+        )
+
+    assert result == same_result
+    assert result != different_result
 
 
 def test_media_adapter_stubs_unsupported_wandb_value_without_natural_hash():
