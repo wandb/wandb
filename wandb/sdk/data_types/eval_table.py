@@ -10,6 +10,9 @@ from wandb.errors import UsageError
 from wandb.sdk.data_types.table import Table
 
 if TYPE_CHECKING:
+    import numpy as np
+    import pandas as pd
+
     from wandb.sdk.wandb_run import Run as LocalRun
 
 
@@ -41,13 +44,13 @@ class EvalTable(Table):
 
     def __init__(
         self,
-        columns=None,
-        data=None,
-        rows=None,
-        dataframe=None,
-        dtype=None,
-        optional=True,
-        allow_mixed_types=False,
+        columns: list[str | int] | None = None,
+        data: list[list[Any]] | np.ndarray | pd.DataFrame | None = None,
+        rows: list[list[Any]] | None = None,
+        dataframe: pd.DataFrame | None = None,
+        dtype: Any = None,
+        optional: bool | list[bool] = True,
+        allow_mixed_types: bool = False,
         log_mode: Literal["IMMUTABLE"] = "IMMUTABLE",
         *,
         input_columns: list[str] | None = None,
@@ -113,7 +116,7 @@ class EvalTable(Table):
         self._run_log_key = str(key)
 
     @override
-    def to_json(self, run_or_artifact: Any) -> dict:
+    def to_json(self, run_or_artifact: Any) -> dict[str, Any]:
         """Returns the JSON representation expected by the backend.
 
         TODO: Incomplete stub. Missing bulk of implementation.
