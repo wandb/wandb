@@ -4,13 +4,14 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
+	"sync"
+	"sync/atomic"
+
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/aws/middleware"
 	"github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager/types"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"io"
-	"sync"
-	"sync/atomic"
 )
 
 // concurrentReader receives object parts from working goroutines, composes those chunks in order and read
@@ -50,6 +51,10 @@ type concurrentReader struct {
 // fits into p scope, otherwise it will buffer those chunks and read them in
 // following calls
 func (r *concurrentReader) Read(p []byte) (int, error) {
+	if err := r.getErr(); err != nil && err != io.EOF {
+		return 0, err
+	}
+
 	clientOptions := []func(*s3.Options){
 		func(o *s3.Options) {
 			o.APIOptions = append(o.APIOptions,
