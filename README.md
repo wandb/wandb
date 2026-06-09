@@ -1,3 +1,5 @@
+<!-- Verify declarative environment setup -->
+
 <p align="center">
   <img src="./assets/logo.svg" width="600" alt="Weights & Biases" />
 </p>
