@@ -91,7 +91,12 @@ func forceRepaint(tm *teatest.TestModel, w, h int) {
 func TestLoadingScreenAndQuit(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
-	tm := newTestModel(t, cfg, "no/such/file.wandb", 100, 30)
+	tmp, err := os.CreateTemp(t.TempDir(), "loading-*.wandb")
+	require.NoError(t, err)
+	writer := leveldb.NewWriterExt(tmp, leveldb.CRCAlgoIEEE, 0)
+	t.Cleanup(func() { _ = writer.Close() })
+
+	tm := newTestModel(t, cfg, tmp.Name(), 100, 30)
 
 	// Wait for loading screen text.
 	waitForContent(t, tm.Output(),

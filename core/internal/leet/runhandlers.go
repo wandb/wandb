@@ -22,6 +22,7 @@ func (r *Run) handleRecordMsg(msg tea.Msg) (*Run, tea.Cmd) { // TODO: return jus
 	switch msg := msg.(type) {
 	case RunMsg:
 		r.logger.Debug("model: processing RunMsg")
+		r.lastError = ""
 		r.runOverview.ProcessRunMsg(msg)
 		r.leftSidebar.Sync()
 		r.runState = RunStateRunning
@@ -81,6 +82,11 @@ func (r *Run) handleRecordMsg(msg tea.Msg) (*Run, tea.Cmd) { // TODO: return jus
 
 	case ErrorMsg:
 		r.logger.Debug(fmt.Sprintf("model: processing ErrorMsg: %v", msg.Err))
+		r.isLoading = false
+		r.lastError = "unknown error"
+		if msg.Err != nil {
+			r.lastError = msg.Err.Error()
+		}
 		r.runState = RunStateFailed
 		r.syncLiveRunning()
 		r.runOverview.SetRunState(r.runState)

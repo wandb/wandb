@@ -91,6 +91,7 @@ type Run struct {
 	// Loading progress.
 	recordsLoaded int
 	loadStartTime time.Time
+	lastError     string
 
 	// Coalesce expensive redraws during batch processing.
 	suppressDraw bool
@@ -471,6 +472,9 @@ func (r *Run) buildStatusText() string {
 	}
 	if r.config.IsAwaitingGridConfig() {
 		return r.config.GridConfigStatus()
+	}
+	if r.lastError != "" {
+		return "Error: " + r.lastError
 	}
 	if r.isLoading {
 		return r.buildLoadingStatus()

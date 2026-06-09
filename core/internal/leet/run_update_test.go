@@ -1,6 +1,7 @@
 package leet_test
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -53,6 +54,26 @@ func TestProcessRecordMsg_Run_Summary_System_FileComplete(t *testing.T) {
 
 	model.TestHandleRecordMsg(leet.FileCompleteMsg{ExitCode: 0})
 	require.Equal(t, leet.RunStateFinished, model.TestRunState())
+}
+
+func TestProcessRecordMsg_ErrorStopsLoading(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+	runParams := &leet.RunParams{
+		LocalRunParams: &leet.LocalRunParams{
+			RunFile: "dummy",
+		},
+	}
+	var m tea.Model = leet.NewRun(runParams, cfg, logger)
+	m, _ = m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+
+	model := m.(*leet.Run)
+	model.TestHandleRecordMsg(leet.ErrorMsg{Err: errors.New("remote init failed")})
+
+	require.Equal(t, leet.RunStateFailed, model.TestRunState())
+	view := stripANSI(model.View().Content)
+	require.NotContains(t, view, "Loading data...")
+	require.Contains(t, view, "Error: remote init failed")
 }
 
 func TestFocus_Clicks_SetClear(t *testing.T) {
