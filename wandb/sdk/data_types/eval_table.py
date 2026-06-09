@@ -8,6 +8,7 @@ from typing_extensions import override
 
 import wandb
 import wandb.integration.weave as weave_integration
+import wandb.integration.weave.media_adapters as media_adapters
 from wandb.errors import UsageError
 from wandb.sdk.data_types.table import Table
 
@@ -59,7 +60,7 @@ class EvalTable(Table):
         input_columns: list[str] | None = None,
         output_columns: list[str] | None = None,
         score_columns: list[str] | None = None,
-        unsupported_media_mode: Literal["raise", "stub"] = "raise",
+        unsupported_media_mode: media_adapters.UnsupportedMediaMode = "raise",
     ) -> None:
         """Initializes an EvalTable object.
 
@@ -148,11 +149,8 @@ class EvalTable(Table):
         self._immutable_evaluate_call_id: str | None = None
         self._immutable_logged_json: dict[str, Any] | None = None
         self._run_log_key: str | None = None
-        from wandb.integration.weave.media_adapters import (
-            validate_unsupported_media_mode,
-        )
 
-        validate_unsupported_media_mode(unsupported_media_mode)
+        media_adapters.validate_unsupported_media_mode(unsupported_media_mode)
         self._unsupported_media_mode = unsupported_media_mode
 
         # Derive columns from role lists if columns arg omitted, so users
@@ -245,9 +243,7 @@ class EvalTable(Table):
         return self._immutable_evaluate_call_id is not None
 
     def _validate_cell_value(self, val: Any, row_idx: int, col: str | int) -> None:
-        from wandb.integration.weave.media_adapters import validate_supported_value
-
-        validate_supported_value(
+        media_adapters.validate_supported_value(
             val,
             col,
             row_idx=row_idx,
@@ -310,13 +306,11 @@ class EvalTable(Table):
         self._auto_summarize = auto_summarize
 
     def _iter_unwrapped_rows(self, start: int = 0) -> Iterator[dict[str, Any]]:
-        from wandb.integration.weave.media_adapters import unwrap_value
-
         cols = self.columns
         warned: set[type] = set()
         for row in self.data[start:]:
             yield {
-                col: unwrap_value(
+                col: media_adapters.unwrap_value(
                     val,
                     col,
                     warned,

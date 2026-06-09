@@ -10,13 +10,17 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any, Literal, get_args
 
-import wandb
+from wandb.sdk.data_types.audio import Audio
 from wandb.sdk.data_types.base_types.media import Media
 from wandb.sdk.data_types.base_types.wb_value import WBValue
+from wandb.sdk.data_types.image import Image
 from wandb.sdk.data_types.table import Table
+from wandb.sdk.data_types.video import Video
 
 UnsupportedMediaMode = Literal["raise", "stub"]
 _UNSUPPORTED_MEDIA_MODES = get_args(UnsupportedMediaMode)
+_UnwrapValueFn = Callable[[Any, str, set[type]], Any]
+_SupportedValueAdapter = tuple[str, _UnwrapValueFn]
 _MOVIEPY_EDITOR_INSTALL_HINT = (
     'Install it with `pip install wandb["eval-table-video-support"]`'
 )
@@ -44,9 +48,9 @@ def _path_for_local_media(val: Media, column: str) -> Path:
     return Path(path)
 
 
-def _unwrap_image(val: wandb.Image, column: str, warned: set[type]) -> Any:
+def _unwrap_image(val: Image, column: str, warned: set[type]) -> Any:
     _warn_once(
-        wandb.Image,
+        Image,
         warned,
         "wandb.Image values are converted to PIL.Image for Weave logging. "
         "Caption and other metadata are discarded.",
@@ -75,9 +79,9 @@ def _unwrap_image(val: wandb.Image, column: str, warned: set[type]) -> Any:
     )
 
 
-def _unwrap_audio(val: wandb.Audio, column: str, warned: set[type]) -> Any:
+def _unwrap_audio(val: Audio, column: str, warned: set[type]) -> Any:
     _warn_once(
-        wandb.Audio,
+        Audio,
         warned,
         "wandb.Audio values are converted to weave.Audio for Weave logging. "
         "Caption and other metadata are discarded.",
@@ -94,9 +98,9 @@ def _unwrap_audio(val: wandb.Audio, column: str, warned: set[type]) -> Any:
         ) from e
 
 
-def _unwrap_video(val: wandb.Video, column: str, warned: set[type]) -> Any:
+def _unwrap_video(val: Video, column: str, warned: set[type]) -> Any:
     _warn_once(
-        wandb.Video,
+        Video,
         warned,
         "wandb.Video values are converted to Weave-native video values. "
         "Caption and other metadata are discarded.",
@@ -127,15 +131,7 @@ def _moviepy_video_file_clip_class() -> Any:
         ) from e
 
 
-def _public_wandb_type_name(value_type: type) -> str:
-    for name, public_value in vars(wandb).items():
-        if public_value is value_type:
-            return f"wandb.{name}"
-    return f"{value_type.__module__}.{value_type.__qualname__}"
-
-
-def _format_type_list(value_types: tuple[type, ...]) -> str:
-    names = [_public_wandb_type_name(value_type) for value_type in value_types]
+def _format_type_list(names: list[str]) -> str:
     if len(names) <= 1:
         return "".join(names)
     if len(names) == 2:
@@ -143,13 +139,15 @@ def _format_type_list(value_types: tuple[type, ...]) -> str:
     return f"{', '.join(names[:-1])}, and {names[-1]}"
 
 
-_SUPPORTED_WANDB_VALUE_ADAPTERS: dict[type, Callable[[Any, str, set[type]], Any]] = {
-    wandb.Image: _unwrap_image,
-    wandb.Audio: _unwrap_audio,
-    wandb.Video: _unwrap_video,
+_SUPPORTED_WANDB_VALUE_ADAPTERS: dict[type, _SupportedValueAdapter] = {
+    Image: ("wandb.Image", _unwrap_image),
+    Audio: ("wandb.Audio", _unwrap_audio),
+    Video: ("wandb.Video", _unwrap_video),
 }
 _SUPPORTED_WANDB_VALUE_TYPES = tuple(_SUPPORTED_WANDB_VALUE_ADAPTERS)
-_SUPPORTED_WANDB_VALUE_TYPES_MSG = _format_type_list(_SUPPORTED_WANDB_VALUE_TYPES)
+_SUPPORTED_WANDB_VALUE_TYPES_MSG = _format_type_list(
+    [display_name for display_name, _ in _SUPPORTED_WANDB_VALUE_ADAPTERS.values()]
+)
 
 
 def _cell_location(column: str | int, row_idx: int | None = None) -> str:
@@ -328,7 +326,7 @@ def unwrap_value(
         unsupported_media_mode=unsupported_media_mode,
     )
 
-    for value_type, adapter in _SUPPORTED_WANDB_VALUE_ADAPTERS.items():
+    for value_type, (_, adapter) in _SUPPORTED_WANDB_VALUE_ADAPTERS.items():
         if isinstance(val, value_type):
             return adapter(val, column, warned)
 
