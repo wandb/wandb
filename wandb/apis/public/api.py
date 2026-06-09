@@ -1132,7 +1132,7 @@ class Api:
                 If you prepend order with a - order is descending.
                 The default order is run.created_at from oldest to newest.
             per_page: (int) Sets the page size for query pagination.
-            include_sweeps: (bool) Whether to fetch the sweep object in each run result.
+            include_sweeps: (bool) Whether to eagerly fetch the sweep object in each run result.
             lazy: (bool) Whether to use lazy loading for faster performance.
                 When True (default), only essential run metadata is loaded initially.
                 Heavy fields like config, summaryMetrics, and systemMetrics are loaded
