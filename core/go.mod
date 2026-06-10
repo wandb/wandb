@@ -38,7 +38,7 @@ require (
 	gocloud.dev v0.46.0
 	golang.org/x/sync v0.21.0
 	golang.org/x/time v0.15.0
-	google.golang.org/api v0.283.0
+	google.golang.org/api v0.284.0
 	google.golang.org/grpc v1.81.1
 	google.golang.org/protobuf v1.36.11
 	gopkg.in/yaml.v3 v3.0.1
