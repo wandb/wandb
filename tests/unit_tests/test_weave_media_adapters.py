@@ -28,7 +28,7 @@ def test_media_adapter_rejects_unsupported_wandb_media():
     html = wandb.Html("<p>hi</p>")
 
     with pytest.raises(TypeError) as exc_info:
-        unwrap_value(html, "html", set())
+        unwrap_value(html, "html", unsupported_media_mode="raise")
 
     message = str(exc_info.value)
     assert "unsupported wandb media type 'Html'" in message
@@ -39,72 +39,67 @@ def test_media_adapter_rejects_unsupported_wandb_value():
     histogram = wandb.Histogram([1, 2, 3])
 
     with pytest.raises(TypeError) as exc_info:
-        unwrap_value(histogram, "histogram", set())
+        unwrap_value(histogram, "histogram", unsupported_media_mode="raise")
 
     message = str(exc_info.value)
     assert "unsupported wandb value type 'Histogram'" in message
     assert "Only wandb.Image, wandb.Audio, and wandb.Video" in message
 
 
-def test_media_adapter_stubs_unsupported_wandb_media():
+def test_media_adapter_stubs_unsupported_wandb_media(mock_wandb_log):
     html = wandb.Html("<p>hi</p>", inject=False)
 
-    with pytest.warns(UserWarning, match="wandb.Html values are not supported"):
-        result = unwrap_value(
-            html,
-            "html",
-            set(),
-            unsupported_media_mode="stub",
-        )
+    result = unwrap_value(
+        html,
+        "html",
+        unsupported_media_mode="stub",
+    )
 
+    mock_wandb_log.assert_warned("wandb.Html values are not supported")
     assert result.startswith("[wandb.Html unsupported: ")
     assert result.endswith("]")
     digest = result.removeprefix("[wandb.Html unsupported: ").removesuffix("]")
     assert len(digest) == 8
 
 
-def test_media_adapter_stubs_same_embedded_media_consistently():
+def test_media_adapter_stubs_same_embedded_media_consistently(mock_wandb_log):
     html = wandb.Html("<p>hi</p>", inject=False)
     same_html = wandb.Html("<p>hi</p>", inject=False)
     different_html = wandb.Html("<p>bye</p>", inject=False)
 
-    with pytest.warns(UserWarning, match="wandb.Html values are not supported"):
-        result = unwrap_value(
-            html,
-            "html",
-            set(),
-            unsupported_media_mode="stub",
-        )
-    with pytest.warns(UserWarning, match="wandb.Html values are not supported"):
-        same_result = unwrap_value(
-            same_html,
-            "html",
-            set(),
-            unsupported_media_mode="stub",
-        )
-    with pytest.warns(UserWarning, match="wandb.Html values are not supported"):
-        different_result = unwrap_value(
-            different_html,
-            "html",
-            set(),
-            unsupported_media_mode="stub",
-        )
+    result = unwrap_value(
+        html,
+        "html",
+        unsupported_media_mode="stub",
+    )
+    same_result = unwrap_value(
+        same_html,
+        "html",
+        unsupported_media_mode="stub",
+    )
+    different_result = unwrap_value(
+        different_html,
+        "html",
+        unsupported_media_mode="stub",
+    )
 
+    mock_wandb_log.assert_warned("wandb.Html values are not supported")
     assert result == same_result
     assert result != different_result
 
 
-def test_media_adapter_stubs_unsupported_wandb_value_without_natural_hash():
+def test_media_adapter_stubs_unsupported_wandb_value_without_natural_hash(
+    mock_wandb_log,
+):
     histogram = wandb.Histogram([1, 2, 3])
 
-    with pytest.warns(UserWarning, match="wandb.Histogram values are not supported"):
-        result = unwrap_value(
-            histogram,
-            "histogram",
-            set(),
-            unsupported_media_mode="stub",
-        )
+    result = unwrap_value(
+        histogram,
+        "histogram",
+        unsupported_media_mode="stub",
+    )
 
+    mock_wandb_log.assert_warned("wandb.Histogram values are not supported")
     assert result.startswith("[wandb.Histogram unsupported: ")
     assert result.endswith("]")
     digest = result.removeprefix("[wandb.Histogram unsupported: ").removesuffix("]")
@@ -113,42 +108,45 @@ def test_media_adapter_stubs_unsupported_wandb_value_without_natural_hash():
 
 def test_media_adapter_rejects_unknown_unsupported_media_mode():
     with pytest.raises(ValueError, match="unsupported_media_mode"):
-        unwrap_value("plain text", "text", set(), unsupported_media_mode="ignore")
+        unwrap_value("plain text", "text", unsupported_media_mode="ignore")
 
 
 # Image
 
 
-def test_media_adapter_image_value_unwrapped_to_pil():
+def test_media_adapter_image_value_unwrapped_to_pil(mock_wandb_log):
     from PIL import Image as PILImage
 
     pil_in = PILImage.new("RGB", (2, 2), color="red")
     image = wandb.Image(pil_in)
 
-    with pytest.warns(UserWarning, match="wandb.Image values"):
-        result = unwrap_value(image, "img", set())
+    result = unwrap_value(image, "img", unsupported_media_mode="raise")
 
+    mock_wandb_log.assert_warned("wandb.Image values")
     assert isinstance(result, PILImage.Image)
     assert result.size == (2, 2)
 
 
-def test_media_adapter_rejects_external_image_reference():
+def test_media_adapter_rejects_external_image_reference(mock_wandb_log):
     image = wandb.Image("https://example.com/image.png")
 
-    with (
-        pytest.warns(UserWarning, match="wandb.Image values"),
-        pytest.raises(
-            TypeError,
-            match="Unsupported external media reference",
-        ),
+    with pytest.raises(
+        TypeError,
+        match="Unsupported external media reference",
     ):
-        unwrap_value(image, "img", set())
+        unwrap_value(image, "img", unsupported_media_mode="raise")
+
+    mock_wandb_log.assert_warned("wandb.Image values")
 
 
 # Audio
 
 
-def test_media_adapter_audio_path_uses_weave_audio_from_path(monkeypatch, tmp_path):
+def test_media_adapter_audio_path_uses_weave_audio_from_path(
+    monkeypatch,
+    mock_wandb_log,
+    tmp_path,
+):
     class FakeWeaveAudio:
         calls = []
 
@@ -162,14 +160,17 @@ def test_media_adapter_audio_path_uses_weave_audio_from_path(monkeypatch, tmp_pa
     audio_path.write_bytes(b"RIFFfake-wave")
     audio = wandb.Audio(str(audio_path))
 
-    with pytest.warns(UserWarning, match="wandb.Audio values"):
-        result = unwrap_value(audio, "audio", set())
+    result = unwrap_value(audio, "audio", unsupported_media_mode="raise")
 
+    mock_wandb_log.assert_warned("wandb.Audio values")
     assert result == {"kind": "audio-path", "path": audio_path}
     assert FakeWeaveAudio.calls == [("from_path", audio_path)]
 
 
-def test_media_adapter_audio_data_uses_weave_audio_from_path(monkeypatch):
+def test_media_adapter_audio_data_uses_weave_audio_from_path(
+    monkeypatch,
+    mock_wandb_log,
+):
     from wandb.sdk.data_types import audio as audio_module
 
     class FakeSoundFile:
@@ -197,15 +198,15 @@ def test_media_adapter_audio_data_uses_weave_audio_from_path(monkeypatch):
     _install_fake_weave(monkeypatch, Audio=FakeWeaveAudio)
     audio = wandb.Audio([0.0, 0.1], sample_rate=2)
 
-    with pytest.warns(UserWarning, match="wandb.Audio values"):
-        result = unwrap_value(audio, "audio", set())
+    result = unwrap_value(audio, "audio", unsupported_media_mode="raise")
 
+    mock_wandb_log.assert_warned("wandb.Audio values")
     assert result["kind"] == "audio-path"
     assert result["path"].suffix == ".wav"
     assert FakeWeaveAudio.calls == [("from_path", result["path"])]
 
 
-def test_media_adapter_rejects_external_audio_reference(monkeypatch):
+def test_media_adapter_rejects_external_audio_reference(monkeypatch, mock_wandb_log):
     class FakeWeaveAudio:
         @classmethod
         def from_path(cls, path):
@@ -214,17 +215,16 @@ def test_media_adapter_rejects_external_audio_reference(monkeypatch):
     _install_fake_weave(monkeypatch, Audio=FakeWeaveAudio)
     audio = wandb.Audio("https://example.com/audio.wav")
 
-    with (
-        pytest.warns(UserWarning, match="wandb.Audio values"),
-        pytest.raises(
-            TypeError,
-            match="Unsupported external media reference",
-        ),
+    with pytest.raises(
+        TypeError,
+        match="Unsupported external media reference",
     ):
-        unwrap_value(audio, "audio", set())
+        unwrap_value(audio, "audio", unsupported_media_mode="raise")
+
+    mock_wandb_log.assert_warned("wandb.Audio values")
 
 
-def test_media_adapter_rejects_media_without_local_path(monkeypatch):
+def test_media_adapter_rejects_media_without_local_path(monkeypatch, mock_wandb_log):
     class FakeWeaveAudio:
         @classmethod
         def from_path(cls, path):
@@ -234,17 +234,20 @@ def test_media_adapter_rejects_media_without_local_path(monkeypatch):
     audio = object.__new__(wandb.Audio)
     audio._path = None
 
-    with (
-        pytest.warns(UserWarning, match="wandb.Audio values"),
-        pytest.raises(
-            TypeError,
-            match="does not have a local file path",
-        ),
+    with pytest.raises(
+        TypeError,
+        match="does not have a local file path",
     ):
-        unwrap_value(audio, "audio", set())
+        unwrap_value(audio, "audio", unsupported_media_mode="raise")
+
+    mock_wandb_log.assert_warned("wandb.Audio values")
 
 
-def test_media_adapter_rethrows_weave_audio_value_error(monkeypatch, tmp_path):
+def test_media_adapter_rethrows_weave_audio_value_error(
+    monkeypatch,
+    mock_wandb_log,
+    tmp_path,
+):
     class FakeWeaveAudio:
         @classmethod
         def from_path(cls, path):
@@ -255,14 +258,13 @@ def test_media_adapter_rethrows_weave_audio_value_error(monkeypatch, tmp_path):
     audio_path.write_bytes(b"RIFFfake-wave")
     audio = wandb.Audio(str(audio_path))
 
-    with (
-        pytest.warns(UserWarning, match="wandb.Audio values"),
-        pytest.raises(
-            TypeError,
-            match="Cannot convert wandb.Audio in column 'audio' for Weave logging",
-        ),
+    with pytest.raises(
+        TypeError,
+        match="Cannot convert wandb.Audio in column 'audio' for Weave logging",
     ):
-        unwrap_value(audio, "audio", set())
+        unwrap_value(audio, "audio", unsupported_media_mode="raise")
+
+    mock_wandb_log.assert_warned("wandb.Audio values")
 
 
 # Video
@@ -280,7 +282,11 @@ def _install_fake_moviepy_editor(monkeypatch, video_file_clip_cls):
     monkeypatch.setitem(sys.modules, "moviepy.editor", editor)
 
 
-def test_media_adapter_video_path_uses_moviepy_video_file_clip(monkeypatch, tmp_path):
+def test_media_adapter_video_path_uses_moviepy_video_file_clip(
+    monkeypatch,
+    mock_wandb_log,
+    tmp_path,
+):
     class FakeVideoFileClip:
         def __init__(self, path):
             self.path = path
@@ -291,14 +297,18 @@ def test_media_adapter_video_path_uses_moviepy_video_file_clip(monkeypatch, tmp_
     video_path.write_bytes(b"fake-video")
     video = wandb.Video(str(video_path))
 
-    with pytest.warns(UserWarning, match="wandb.Video values"):
-        result = unwrap_value(video, "video", set())
+    result = unwrap_value(video, "video", unsupported_media_mode="raise")
 
+    mock_wandb_log.assert_warned("wandb.Video values")
     assert isinstance(result, FakeVideoFileClip)
     assert result.path == str(video_path)
 
 
-def test_media_adapter_video_path_requires_moviepy_editor(monkeypatch, tmp_path):
+def test_media_adapter_video_path_requires_moviepy_editor(
+    monkeypatch,
+    mock_wandb_log,
+    tmp_path,
+):
     class FakeVideoFileClip:
         pass
 
@@ -315,18 +325,19 @@ def test_media_adapter_video_path_requires_moviepy_editor(monkeypatch, tmp_path)
     video_path.write_bytes(b"fake-video")
     video = wandb.Video(str(video_path))
 
-    with (
-        pytest.warns(UserWarning, match="wandb.Video values"),
-        pytest.raises(ImportError) as exc_info,
-    ):
-        unwrap_value(video, "video", set())
+    with pytest.raises(ImportError) as exc_info:
+        unwrap_value(video, "video", unsupported_media_mode="raise")
 
+    mock_wandb_log.assert_warned("wandb.Video values")
     message = str(exc_info.value)
     assert "moviepy.editor" in message
     assert 'wandb["eval-table-video-support"]' in message
 
 
-def test_media_adapter_video_bytes_uses_moviepy_video_file_clip(monkeypatch):
+def test_media_adapter_video_bytes_uses_moviepy_video_file_clip(
+    monkeypatch,
+    mock_wandb_log,
+):
     class FakeVideoFileClip:
         def __init__(self, path):
             self.path = path
@@ -335,14 +346,17 @@ def test_media_adapter_video_bytes_uses_moviepy_video_file_clip(monkeypatch):
 
     video = wandb.Video(BytesIO(b"fake-video"), format="mp4")
 
-    with pytest.warns(UserWarning, match="wandb.Video values"):
-        result = unwrap_value(video, "video", set())
+    result = unwrap_value(video, "video", unsupported_media_mode="raise")
 
+    mock_wandb_log.assert_warned("wandb.Video values")
     assert isinstance(result, FakeVideoFileClip)
     assert result.path.endswith(".mp4")
 
 
-def test_media_adapter_video_data_uses_moviepy_video_file_clip(monkeypatch):
+def test_media_adapter_video_data_uses_moviepy_video_file_clip(
+    monkeypatch,
+    mock_wandb_log,
+):
     from wandb.sdk.data_types import video as video_module
 
     np = pytest.importorskip("numpy")
@@ -373,8 +387,8 @@ def test_media_adapter_video_data_uses_moviepy_video_file_clip(monkeypatch):
     frames = np.zeros((2, 3, 4, 4), dtype=np.uint8)
     video = wandb.Video(frames, format="mp4", fps=7)
 
-    with pytest.warns(UserWarning, match="wandb.Video values"):
-        result = unwrap_value(video, "video", set())
+    result = unwrap_value(video, "video", unsupported_media_mode="raise")
 
+    mock_wandb_log.assert_warned("wandb.Video values")
     assert isinstance(result, FakeVideoFileClip)
     assert result.path.endswith(".mp4")

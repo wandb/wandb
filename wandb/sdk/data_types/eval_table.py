@@ -53,7 +53,7 @@ class EvalTable(Table):
         input_columns: list[str] | None = None,
         output_columns: list[str] | None = None,
         score_columns: list[str] | None = None,
-        unsupported_media_mode: media_adapters.UnsupportedMediaMode = "raise",
+        unsupported_media_mode: media_adapters.UnsupportedMediaMode = "stub",
     ) -> None:
         """Initializes an EvalTable object.
 
@@ -79,11 +79,10 @@ class EvalTable(Table):
                 These represent derived scores for the outputs. By default, we will
                 auto-summarize any numeric and boolean scores.
             unsupported_media_mode: How to handle unsupported wandb media/value types.
-                - "raise" (default): fail fast when unsupported wandb value types
-                  are added.
-                - "stub": log unsupported values as short placeholder strings
+                - "stub" (default): log unsupported values as short placeholder strings
                   like "[wandb.Html unsupported: abc12345]". (This is a temporary flag
                   for use during development.)
+                - "raise": fail fast when unsupported wandb value types are added.
 
         Examples:
             et1 = wandb.EvalTable(
@@ -231,20 +230,18 @@ class EvalTable(Table):
     def has_been_logged(self) -> bool:
         return self._immutable_evaluate_call_id is not None
 
-    def _validate_cell_value(self, val: Any, row_idx: int, col: str | int) -> None:
+    def _validate_cell_value(self, val: Any, col: str | int) -> None:
         media_adapters.validate_supported_value(
             val,
             col,
-            row_idx=row_idx,
             unsupported_media_mode=self._unsupported_media_mode,
         )
 
     @override
     def add_data(self, *data: Any) -> None:
         if len(data) == len(self.columns):
-            row_idx = len(self.data)
             for col, val in zip(self.columns, data, strict=True):
-                self._validate_cell_value(val, row_idx, col)
+                self._validate_cell_value(val, col)
 
         super().add_data(*data)
 
@@ -256,8 +253,8 @@ class EvalTable(Table):
         optional: bool = False,
     ) -> None:
         if isinstance(data, list) or wandb.util.is_numpy_array(data):
-            for row_idx, val in enumerate(data):
-                self._validate_cell_value(val, row_idx, name)
+            for val in data:
+                self._validate_cell_value(val, name)
 
         super().add_column(name, data, optional=optional)
 
@@ -301,13 +298,11 @@ class EvalTable(Table):
 
     def _iterrows_for_weave(self, start: int = 0) -> Iterator[dict[str, Any]]:
         str_columns = self._string_columns()
-        warned: set[type] = set()
         for row in self.data[start:]:
             yield {
                 str_col: media_adapters.unwrap_value(
                     val,
                     col,
-                    warned,
                     unsupported_media_mode=self._unsupported_media_mode,
                 )
                 for col, str_col, val in zip(
@@ -387,7 +382,7 @@ class EvalTable(Table):
 
             ev.log_example(inputs=inputs, output=output, scores=scores)
 
-        ev.log_summary()  # Triggers auto-summarize
+        ev.log_summary()
         # TODO: We should work with Weave on exposing a public evaluate_call_id()
         # instead of relying on this private field.
         self._immutable_evaluate_call_id = ev._evaluate_call.id
