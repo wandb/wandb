@@ -193,11 +193,11 @@ class OtelProvider:
                     metric_exporter,
                     export_interval_millis=export_interval_ms,
                 )
-                self._provider = MeterProvider(
+                self._meter_provider = MeterProvider(
                     resource=resource,
                     metric_readers=[reader],
                 )
-                self._meter = self._provider.get_meter("wandb.sdk")
+                self._meter = self._meter_provider.get_meter("wandb.sdk")
 
                 # Setup logs exporter
                 log_exporter = JSONLogExporter(
