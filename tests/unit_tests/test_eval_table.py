@@ -234,7 +234,7 @@ def test_eval_table_version_mismatch_error_includes_actual_version(monkeypatch):
 def test_standard_immutable_log(mock_eval_logger, mock_wandb_log, run, monkeypatch):
     init_weave = MagicMock()
     monkeypatch.setattr(
-        "wandb.sdk.data_types.eval_table._init_weave_for_run",
+        "wandb.sdk.data_types.eval_table.weave_integration.init_weave",
         init_weave,
     )
 
@@ -315,7 +315,7 @@ def test_mutation_after_failed_log_does_not_warn_as_already_logged(
         raise ImportError("weave is not installed")
 
     monkeypatch.setattr(
-        "wandb.sdk.data_types.eval_table._init_weave_for_run",
+        "wandb.sdk.data_types.eval_table.weave_integration.init_weave",
         fail_init_weave,
     )
 
