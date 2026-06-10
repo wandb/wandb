@@ -268,7 +268,7 @@ def test_standard_immutable_log(mock_eval_logger, mock_wandb_log, run, monkeypat
         output={"out1": "out1-val2", "out2": "out2-val2"},
         scores={"score1": 0.6, "score2": 0.8},
     )
-    ev.log_summary.assert_called_once_with(None, auto_summarize=True)
+    ev.log_summary.assert_called_once_with()
     assert et._immutable_evaluate_call_id == "eval-1"
 
     # Second log on IMMUTABLE table is a no-op.
@@ -361,24 +361,6 @@ def test_to_json_rejects_different_run_after_first_log(mock_eval_logger, mock_ru
         et.to_json(other_run)
 
     assert mock_eval_logger._create_with_meta.call_count == 1
-
-
-# set_summary with auto_summarize=False.
-def test_custom_summary(mock_eval_logger, run):
-    et = wandb.EvalTable(
-        columns=["in", "out"],
-        data=[["in-val", "out-val"]],
-        input_columns=["in"],
-    )
-    et.set_summary({"val_loss": 0.3}, auto_summarize=False)
-    run.log({"my_eval": et})
-
-    mock_eval_logger._create_with_meta.assert_called_once_with(
-        {"wandb_eval_table": True},
-        name="my_eval",
-    )
-    ev = mock_eval_logger.created_loggers[0]
-    ev.log_summary.assert_called_once_with({"val_loss": 0.3}, auto_summarize=False)
 
 
 # No input/output/score categorization: row index injected, all default to output.
@@ -600,7 +582,7 @@ def test_column_role_mismatch_raises(run):
         run.log({"my_eval": et})
 
 
-def test_duplicate_role_columns_warn(mock_eval_logger, run):
+def test_duplicate_role_columns_warn(mock_eval_logger, mock_wandb_log, run):
     et = wandb.EvalTable(
         columns=["shared", "score"],
         data=[["x", 0.9]],
@@ -609,8 +591,8 @@ def test_duplicate_role_columns_warn(mock_eval_logger, run):
         score_columns=["score"],
     )
 
-    with pytest.warns(UserWarning, match="appears in more than one role list"):
-        run.log({"my_eval": et})
+    run.log({"my_eval": et})
+    mock_wandb_log.assert_warned("appears in more than one role list")
 
     ev = mock_eval_logger.created_loggers[0]
     ev.log_example.assert_called_once_with(
