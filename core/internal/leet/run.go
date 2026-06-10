@@ -10,6 +10,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/NimbleMarkets/ntcharts/v2/picture"
 
 	"github.com/wandb/wandb/core/internal/observability"
 )
@@ -156,6 +157,7 @@ func (r *Run) Init() tea.Cmd {
 	return tea.Batch(
 		source,
 		r.watcherMgr.WaitForMsg,
+		r.mediaPane.Init(),
 	)
 }
 
@@ -182,8 +184,19 @@ func (r *Run) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 
+	if picture.IsPictureMsg(msg) {
+		cmds = append(cmds, r.mediaPane.handlePictureMsg(msg))
+		return r, tea.Batch(cmds...)
+	}
+
 	// Route message to appropriate handler.
 	switch t := msg.(type) {
+	case mediaPanePrepareMsg:
+		if t.pane != r.mediaPane {
+			return r, nil
+		}
+		return r, r.mediaPane.handlePrepareMsg()
+
 	case tea.KeyPressMsg:
 		if c := r.handleKeyPressMsg(t); c != nil {
 			cmds = append(cmds, c)
@@ -318,6 +331,8 @@ func (r *Run) renderMainView() string {
 
 		if layout.mediaHeight > 0 {
 			sections = append(sections, r.mediaPane.View(w, layout.mediaHeight, "", ""))
+		} else {
+			r.mediaPane.Park()
 		}
 		if layout.consoleLogsHeight > 0 {
 			r.consoleLogsPane.SetConsoleLogs(r.consoleLogs.Items())
