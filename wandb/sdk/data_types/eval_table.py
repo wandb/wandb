@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import warnings
 from collections.abc import Iterable, Iterator
 from typing import TYPE_CHECKING, Any, Literal
 
@@ -278,10 +277,10 @@ class EvalTable(Table):
         seen: set[str] = set()
         for col in input_cols + output_cols + score_cols:
             if col in seen:
-                warnings.warn(
+                wandb.termwarn(
                     f"Column {col!r} appears in more than one role list; "
                     "it will be included in all matching dicts.",
-                    stacklevel=3,
+                    repeat=False,
                 )
             seen.add(col)
 
