@@ -66,8 +66,6 @@ class EvalTable(Table):
         self._input_columns = list(input_columns or [])
         self._output_columns = list(output_columns or [])
         self._score_columns = list(score_columns or [])
-        self._summary: dict | None = None
-        self._auto_summarize: bool = True
         self._run_log_key: str | None = None
 
         super().__init__(
@@ -142,17 +140,6 @@ class EvalTable(Table):
             "evaluate_call_id": evaluate_call_id,
         }
         return json_dict
-
-    def set_summary(
-        self, summary: dict | None = None, auto_summarize: bool = True
-    ) -> None:
-        """Sets key/value pairs to be logged at the eval level.
-
-        Args:
-            auto_summarize: If true (default), auto-generate summaries for all score columns.
-        """
-        self._summary = summary
-        self._auto_summarize = auto_summarize
 
     def _create_weave_eval_logger(self) -> Any:
         from weave.evaluation.eval_imperative import EvaluationLogger
