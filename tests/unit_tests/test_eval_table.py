@@ -635,19 +635,23 @@ def test_add_column_nested_table_cell_raises():
 
 
 @pytest.mark.usefixtures("mock_eval_logger")
-def test_unsupported_wandb_media_cell_raises_from_constructor():
+def test_unsupported_wandb_media_cell_raises_in_raise_mode():
     html = wandb.Html("<p>hi</p>")
 
     with pytest.raises(TypeError) as exc_info:
-        wandb.EvalTable(columns=["html"], data=[[html]])
+        wandb.EvalTable(
+            columns=["html"],
+            data=[[html]],
+            unsupported_media_mode="raise",
+        )
     assert "unsupported wandb media type 'Html'" in str(exc_info.value)
     assert "unsupported_media_mode='stub'" in str(exc_info.value)
 
 
 @pytest.mark.usefixtures("mock_eval_logger")
-def test_add_data_unsupported_wandb_value_cell_raises():
+def test_add_data_unsupported_wandb_value_cell_raises_in_raise_mode():
     histogram = wandb.Histogram([1, 2, 3])
-    et = wandb.EvalTable(columns=["histogram"])
+    et = wandb.EvalTable(columns=["histogram"], unsupported_media_mode="raise")
 
     with pytest.raises(TypeError) as exc_info:
         et.add_data(histogram)
@@ -663,7 +667,11 @@ def test_unsupported_media_mode_rejects_unknown_mode():
         wandb.EvalTable(columns=["x"], unsupported_media_mode="ignore")
 
 
-def test_unsupported_wandb_media_stubbed_on_log(mock_eval_logger, run):
+def test_unsupported_wandb_media_stubbed_on_log(
+    mock_eval_logger,
+    mock_wandb_log,
+    run,
+):
     html = wandb.Html("<p>hi</p>", inject=False)
 
     et = wandb.EvalTable(
@@ -671,11 +679,10 @@ def test_unsupported_wandb_media_stubbed_on_log(mock_eval_logger, run):
         data=[[html, "ok"]],
         input_columns=["html"],
         output_columns=["label"],
-        unsupported_media_mode="stub",
     )
 
-    with pytest.warns(UserWarning, match="wandb.Html values are not supported"):
-        run.log({"my_eval": et})
+    run.log({"my_eval": et})
+    mock_wandb_log.assert_warned("wandb.Html values are not supported")
 
     ev = mock_eval_logger.created_loggers[0]
     inputs = ev.log_example.call_args.kwargs["inputs"]
@@ -692,17 +699,18 @@ def test_unsupported_wandb_media_stubbed_on_log(mock_eval_logger, run):
 
 
 def test_unsupported_wandb_value_without_natural_hash_stubbed_on_log(
-    mock_eval_logger, run
+    mock_eval_logger,
+    mock_wandb_log,
+    run,
 ):
     histogram = wandb.Histogram([1, 2, 3])
     et = wandb.EvalTable(
         columns=["histogram"],
         data=[[histogram]],
-        unsupported_media_mode="stub",
     )
 
-    with pytest.warns(UserWarning, match="wandb.Histogram values are not supported"):
-        run.log({"my_eval": et})
+    run.log({"my_eval": et})
+    mock_wandb_log.assert_warned("wandb.Histogram values are not supported")
 
     ev = mock_eval_logger.created_loggers[0]
     output = ev.log_example.call_args.kwargs["output"]

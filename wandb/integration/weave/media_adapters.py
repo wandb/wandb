@@ -3,36 +3,28 @@
 from __future__ import annotations
 
 import json
-import warnings
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any, Literal, get_args
 
+import wandb
 from wandb.sdk.data_types.base_types.media import Media
 from wandb.sdk.data_types.base_types.wb_value import WBValue
 from wandb.sdk.data_types.image import Image
 from wandb.sdk.data_types.table import Table
 from wandb.sdk.lib.hashutil import md5_file_b64, md5_string
 
-UnsupportedMediaMode = Literal["raise", "stub"]
+UnsupportedMediaMode = Literal["stub", "raise"]
 _UNSUPPORTED_MEDIA_MODES = get_args(UnsupportedMediaMode)
-_UnwrapValueFn = Callable[[Any, str | int, set[type]], Any]
+_UnwrapValueFn = Callable[[Any, str | int], Any]
 _SupportedValueAdapter = tuple[str, _UnwrapValueFn]
 
 
-def _warn_once(media_type: type, warned: set[type], message: str) -> None:
-    if media_type in warned:
-        return
-    warnings.warn(message, stacklevel=4)
-    warned.add(media_type)
-
-
-def _unwrap_image(val: Image, column: str | int, warned: set[type]) -> Any:
-    _warn_once(
-        Image,
-        warned,
+def _unwrap_image(val: Image, column: str | int) -> Any:
+    wandb.termwarn(
         "wandb.Image values are converted to PIL.Image for Weave logging. "
         "Caption and other metadata are discarded.",
+        repeat=False,
     )
 
     if val.path_is_reference(val._path):
@@ -75,12 +67,6 @@ _SUPPORTED_WANDB_VALUE_TYPES_MSG = _format_type_list(
 )
 
 
-def _cell_location(column: str | int, row_idx: int | None = None) -> str:
-    if row_idx is None:
-        return f"Column {column!r}"
-    return f"Cell at row {row_idx}, column {column!r}"
-
-
 def _unsupported_media_mode_hint() -> str:
     return (
         "To temporarily log hash placeholders instead, pass "
@@ -99,8 +85,7 @@ def validate_unsupported_media_mode(mode: str) -> None:
 def validate_supported_value(
     val: Any,
     column: str | int,
-    row_idx: int | None = None,
-    unsupported_media_mode: UnsupportedMediaMode = "raise",
+    unsupported_media_mode: UnsupportedMediaMode,
 ) -> None:
     """Raise if a wandb value is not supported by EvalTable's Weave adapter."""
     validate_unsupported_media_mode(unsupported_media_mode)
@@ -108,7 +93,7 @@ def validate_supported_value(
     if isinstance(val, _SUPPORTED_WANDB_VALUE_TYPES):
         return
 
-    location = _cell_location(column, row_idx)
+    location = f"Column {column!r}"
 
     if isinstance(val, Table):
         raise TypeError(
@@ -183,12 +168,11 @@ def _unsupported_wandb_value_digest(val: WBValue) -> str:
     )
 
 
-def _stub_unsupported_wandb_value(val: WBValue, warned: set[type]) -> str:
-    _warn_once(
-        type(val),
-        warned,
+def _stub_unsupported_wandb_value(val: WBValue) -> str:
+    wandb.termwarn(
         f"wandb.{type(val).__name__} values are not supported by EvalTable yet. "
         "They will be logged as placeholder strings.",
+        repeat=False,
     )
     digest = _unsupported_wandb_value_digest(val)[:8]
     return f"[wandb.{type(val).__name__} unsupported: {digest}]"
@@ -197,15 +181,14 @@ def _stub_unsupported_wandb_value(val: WBValue, warned: set[type]) -> str:
 def unwrap_value(
     val: Any,
     column: str | int,
-    warned: set[type],
-    unsupported_media_mode: UnsupportedMediaMode = "raise",
+    unsupported_media_mode: UnsupportedMediaMode,
 ) -> Any:
     """Convert a wandb cell value to an appropriate type for Weave logging.
 
     Args:
         val: Cell value to convert.
         column: Column name used in error/warning messages.
-        warned: Set of wandb types already warned about (mutated in-place).
+        unsupported_media_mode: How to handle unsupported wandb media/value types.
 
     Returns:
         PIL.Image.Image for wandb.Image, placeholder strings for unsupported
@@ -224,9 +207,9 @@ def unwrap_value(
 
     for value_type, (_, adapter) in _SUPPORTED_WANDB_VALUE_ADAPTERS.items():
         if isinstance(val, value_type):
-            return adapter(val, column, warned)
+            return adapter(val, column)
 
     if isinstance(val, WBValue):
-        return _stub_unsupported_wandb_value(val, warned)
+        return _stub_unsupported_wandb_value(val)
 
     return val
