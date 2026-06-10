@@ -403,11 +403,11 @@ func (r *Run) buildMainViewWithSidebars(
 }
 
 // logPanic logs panics to the logger before re-panicking.
-func (m *Run) logPanic(context string) {
+func (m *Run) logPanic(ctx string) {
 	if r := recover(); r != nil {
 		stackTrace := string(debug.Stack())
 		m.logger.CaptureError(
-			fmt.Errorf("PANIC in %s: %v\nStack trace:\n%s", context, r, stackTrace),
+			fmt.Errorf("PANIC in %s: %v\nStack trace:\n%s", ctx, r, stackTrace),
 		)
 		panic(r)
 	}
