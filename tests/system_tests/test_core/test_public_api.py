@@ -335,8 +335,7 @@ def test_run_update_state_success(wandb_backend_spy):
     update_state_spy = gql.Capture()
 
     wandb_backend_spy.stub_gql(
-        gql.Matcher(operation="UpdateRunState"),
-        update_state_spy,
+        gql.Matcher(operation="UpdateRunState"), update_state_spy
     )
 
     seed_run = Api().create_run()
@@ -351,7 +350,8 @@ def test_run_update_state_success(wandb_backend_spy):
     assert update_state_spy.requests[0].variables["input"]["id"] == run.storage_id
 
 
-def test_run_update_state_failure(wandb_backend_spy):
+@pytest.mark.usefixtures("user")
+def test_run_update_state_failure():
     """Test that update_state raises when the server rejects the transition."""
     seed_run = Api().create_run()
     run = Api().run(f"{seed_run.entity}/{seed_run.project}/{seed_run.id}")
@@ -359,7 +359,7 @@ def test_run_update_state_failure(wandb_backend_spy):
     assert run.update_state("failed") is True
     assert run.state == "failed"
 
-    with pytest.raises(wandb.Error):
+    with pytest.raises(wandb.Error, match="invalid state transition"):
         run.update_state("failed")
 
 

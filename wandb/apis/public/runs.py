@@ -1004,9 +1004,9 @@ class Run(Attrs):
         """Update the state of a run.
 
         Supported transitions:
-            - to `"pending"` from `running`, `failed`, `crashed`, or `preempted`
+            - to `pending` from `running`, `failed`, `crashed`, or `preempted`
               (e.g. to requeue a terminated or in-progress run)
-            - to `"failed"` from `pending` or `running`
+            - to `failed` from `pending` or `running`
               (e.g. to mark a preempted or lost run as failed)
 
         Sweep runs cannot have their state updated.
