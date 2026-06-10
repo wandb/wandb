@@ -15,6 +15,7 @@ require (
 	github.com/aws/aws-sdk-go-v2 v1.42.0
 	github.com/aws/aws-sdk-go-v2/config v1.32.24
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.103.3
+	github.com/charmbracelet/ultraviolet v0.0.0-20260608091853-35bcb7319efa
 	github.com/ebitengine/purego v0.10.1
 	github.com/getsentry/sentry-go v0.46.2
 	github.com/go-git/go-git/v5 v5.19.1
@@ -84,7 +85,6 @@ require (
 	github.com/bmatcuk/doublestar/v4 v4.10.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/charmbracelet/colorprofile v0.4.3 // indirect
-	github.com/charmbracelet/ultraviolet v0.0.0-20260608091853-35bcb7319efa // indirect
 	github.com/charmbracelet/x/ansi v0.11.7 // indirect
 	github.com/charmbracelet/x/term v0.2.2 // indirect
 	github.com/charmbracelet/x/termios v0.1.1 // indirect

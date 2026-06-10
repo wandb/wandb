@@ -194,6 +194,10 @@ func RunKeyBindings() []BindingCategory[Run] {
 					Description: "Page next (list) / chart focus right (grid) / scrub +1 in media (arrow only)",
 					Handler:     (*Run).handleSidebarPageNav,
 				},
+				{
+					Keys:        []string{"k"},
+					Description: "Toggle media image renderer: ANSI ↔ full-res (media pane focused)",
+				},
 			},
 		},
 
@@ -409,147 +413,14 @@ func WorkspaceKeyBindings() []BindingCategory[Workspace] {
 					Description: "Pin/unpin selected run",
 					Handler:     (*Workspace).handlePinRunKey,
 				},
+				{
+					Keys:        []string{"k"},
+					Description: "Toggle media image renderer: ANSI ↔ full-res (media pane focused)",
+				},
 			},
 		},
 
 		mouseCategory[Workspace](),
-	}
-}
-
-// MediaPaneKeyBindings returns key bindings local to the media pane.
-func MediaPaneKeyBindings() []BindingCategory[MediaPane] {
-	return []BindingCategory[MediaPane]{
-		{
-			Name: "Media",
-			Bindings: []KeyBinding[MediaPane]{
-				{
-					Keys:        []string{"enter"},
-					Description: "Toggle fullscreen",
-					Handler: func(p *MediaPane, _ tea.KeyPressMsg) tea.Cmd {
-						if p.HasData() {
-							p.ToggleFullscreen()
-						}
-						return nil
-					},
-				},
-				{
-					Keys:        []string{"esc"},
-					Description: "Exit fullscreen",
-					Handler: func(p *MediaPane, _ tea.KeyPressMsg) tea.Cmd {
-						p.ExitFullscreen()
-						return nil
-					},
-				},
-				{
-					Keys:        []string{"k"},
-					Description: "Toggle image renderer",
-					Handler: func(p *MediaPane, _ tea.KeyPressMsg) tea.Cmd {
-						if !p.HasData() {
-							return nil
-						}
-						cmd := p.togglePictureMode()
-						p.requestRenderedMediaPrepare()
-						return cmd
-					},
-				},
-				{
-					Keys:        []string{"left"},
-					Description: "Scrub one step backward",
-					Handler: func(p *MediaPane, _ tea.KeyPressMsg) tea.Cmd {
-						p.Scrub(-1)
-						return nil
-					},
-				},
-				{
-					Keys:        []string{"right"},
-					Description: "Scrub one step forward",
-					Handler: func(p *MediaPane, _ tea.KeyPressMsg) tea.Cmd {
-						p.Scrub(1)
-						return nil
-					},
-				},
-				{
-					Keys:        []string{"up"},
-					Description: "Scrub ten steps backward",
-					Handler: func(p *MediaPane, _ tea.KeyPressMsg) tea.Cmd {
-						p.Scrub(-10)
-						return nil
-					},
-				},
-				{
-					Keys:        []string{"down"},
-					Description: "Scrub ten steps forward",
-					Handler: func(p *MediaPane, _ tea.KeyPressMsg) tea.Cmd {
-						p.Scrub(10)
-						return nil
-					},
-				},
-				{
-					Keys:        []string{"home"},
-					Description: "Scrub to first step",
-					Handler: func(p *MediaPane, _ tea.KeyPressMsg) tea.Cmd {
-						p.ScrubToStart()
-						return nil
-					},
-				},
-				{
-					Keys:        []string{"end"},
-					Description: "Scrub to last step",
-					Handler: func(p *MediaPane, _ tea.KeyPressMsg) tea.Cmd {
-						p.ScrubToEnd()
-						return nil
-					},
-				},
-				{
-					Keys:        []string{"a"},
-					Description: "Move selection left",
-					Handler: func(p *MediaPane, _ tea.KeyPressMsg) tea.Cmd {
-						p.MoveSelection(-1, 0)
-						return nil
-					},
-				},
-				{
-					Keys:        []string{"d"},
-					Description: "Move selection right",
-					Handler: func(p *MediaPane, _ tea.KeyPressMsg) tea.Cmd {
-						p.MoveSelection(1, 0)
-						return nil
-					},
-				},
-				{
-					Keys:        []string{"w"},
-					Description: "Move selection up",
-					Handler: func(p *MediaPane, _ tea.KeyPressMsg) tea.Cmd {
-						p.MoveSelection(0, -1)
-						return nil
-					},
-				},
-				{
-					Keys:        []string{"s"},
-					Description: "Move selection down",
-					Handler: func(p *MediaPane, _ tea.KeyPressMsg) tea.Cmd {
-						p.MoveSelection(0, 1)
-						return nil
-					},
-				},
-				{
-					Keys:        []string{"pgup"},
-					Description: "Previous series page",
-					Handler: func(p *MediaPane, _ tea.KeyPressMsg) tea.Cmd {
-						p.NavigatePage(-1)
-						return nil
-					},
-				},
-				{
-					Keys:        []string{"pgdown"},
-					Description: "Next series page",
-					Handler: func(p *MediaPane, _ tea.KeyPressMsg) tea.Cmd {
-						p.NavigatePage(1)
-						return nil
-					},
-				},
-			},
-		},
 	}
 }
 

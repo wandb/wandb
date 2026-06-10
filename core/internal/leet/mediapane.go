@@ -9,13 +9,16 @@ import (
 	"maps"
 	"math"
 	"os"
+	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/NimbleMarkets/ntcharts/v2/picture"
+	uv "github.com/charmbracelet/ultraviolet"
 )
 
 const (
@@ -41,11 +44,19 @@ const (
 	mediaTileFooterLines = 1
 	mediaPaneMinHeight   = mediaPaneHeaderLines + mediaTileMinHeight
 
-	// Kitty graphics image IDs live in a terminal-wide namespace. Start media
-	// thumbnails well above ntcharts' default ID so independently-created
-	// picture models do not overwrite each other.
+	// Kitty graphics image IDs live in a terminal-wide namespace. Media
+	// thumbnail IDs are allocated from a process-wide counter starting well
+	// above ntcharts' default ID so picture models never overwrite each
+	// other, including across the workspace and single-run media panes.
 	mediaKittyIDBase = 10_000
 )
+
+// mediaKittyIDCounter backs nextMediaKittyID.
+var mediaKittyIDCounter atomic.Int64
+
+func nextMediaKittyID() int {
+	return mediaKittyIDBase + int(mediaKittyIDCounter.Add(1))
+}
 
 var (
 	mediaPaneStyle = lipgloss.NewStyle().
@@ -115,12 +126,9 @@ type MediaPane struct {
 
 	// nav tracks paged movement through the media grid.
 	nav GridNavigator
-	// keyMap dispatches normalized key names to handlers defined in keybindings.go.
-	keyMap map[string]func(*MediaPane, tea.KeyPressMsg) tea.Cmd
 
-	// renderMu guards renderKeys because Kitty image preparation runs async.
-	renderMu sync.RWMutex
-	// renderKeys are the currently visible media placements prepared for Kitty.
+	// renderKeys are the currently visible media placements, recorded at
+	// render time and consumed by the Kitty prepare loop.
 	renderKeys []mediaRenderKey
 	// prepareCh wakes the Bubble Tea command that prepares visible Kitty images.
 	prepareCh chan struct{}
@@ -135,7 +143,6 @@ func NewMediaPane(animState *AnimatedValue, gridConfig func() (rows, cols int)) 
 		autoFollows: make(map[string]bool),
 		pageRows:    1,
 		pageCols:    1,
-		keyMap:      buildKeyMap(MediaPaneKeyBindings()),
 		prepareCh:   make(chan struct{}, 1),
 	}
 }
@@ -159,9 +166,15 @@ func (p *MediaPane) UpdateExpandedHeight(maxTerminalHeight int) {
 	p.SetExpandedHeight(maxHeight)
 }
 
-// Init starts the media pane's internal prepare loop.
+// Init starts the media pane's internal prepare loop and asks the terminal
+// for what Kitty rendering needs: its cell pixel size (so images are encoded
+// at the display's true resolution) and Kitty graphics support.
 func (p *MediaPane) Init() tea.Cmd {
-	return batchCmds(p.waitForPrepare(), picture.QueryKittySupport())
+	return batchCmds(
+		p.waitForPrepare(),
+		picture.RequestCellSize(),
+		picture.QueryKittySupport(),
+	)
 }
 
 func (p *MediaPane) SetStore(store *MediaStore) {
@@ -180,26 +193,19 @@ func (p *MediaPane) ToggleFullscreen() {
 	}
 }
 
-func (p *MediaPane) togglePictureMode() tea.Cmd {
-	return p.renderer.ToggleMode()
-}
-
 func (p *MediaPane) handlePictureMsg(msg tea.Msg) tea.Cmd {
 	return p.renderer.Update(msg)
 }
 
 func (p *MediaPane) waitForPrepare() tea.Cmd {
-	if p.prepareCh == nil {
-		return nil
-	}
 	return func() tea.Msg {
 		<-p.prepareCh
-		return mediaPanePrepareMsg{}
+		return mediaPanePrepareMsg{pane: p}
 	}
 }
 
 func (p *MediaPane) requestRenderedMediaPrepare() {
-	if p.renderer.Mode() != picture.PictureKitty || p.prepareCh == nil {
+	if p.renderer.Mode() != picture.PictureKitty {
 		return
 	}
 	select {
@@ -209,11 +215,7 @@ func (p *MediaPane) requestRenderedMediaPrepare() {
 }
 
 func (p *MediaPane) handlePrepareMsg() tea.Cmd {
-	return batchCmds(p.prepareRenderedMedia(), p.waitForPrepare())
-}
-
-func (p *MediaPane) prepareRenderedMedia() tea.Cmd {
-	return p.renderer.PrepareVisible(p.renderedMedia())
+	return batchCmds(p.renderer.PrepareVisible(p.renderKeys), p.waitForPrepare())
 }
 
 // Park releases rendered media for images that are not currently visible.
@@ -224,35 +226,19 @@ func (p *MediaPane) Park() {
 func (p *MediaPane) setRenderedMedia(keys []mediaRenderKey) {
 	p.renderer.Park(keys)
 
-	p.renderMu.Lock()
-	changed := len(p.renderKeys) != len(keys)
-	if !changed {
-		for i := range keys {
-			if p.renderKeys[i] != keys[i] {
-				changed = true
-				break
-			}
-		}
+	if slices.Equal(p.renderKeys, keys) {
+		return
 	}
-
 	p.renderKeys = append(p.renderKeys[:0], keys...)
-	p.renderMu.Unlock()
-
-	if changed {
-		p.requestRenderedMediaPrepare()
-	}
+	p.requestRenderedMediaPrepare()
 }
 
-func (p *MediaPane) renderedMedia() []mediaRenderKey {
-	p.renderMu.RLock()
-	defer p.renderMu.RUnlock()
-
-	keys := make([]mediaRenderKey, len(p.renderKeys))
-	copy(keys, p.renderKeys)
-	return keys
+// mediaPanePrepareMsg wakes the Kitty prepare loop. It carries the owning
+// pane: the workspace and single-run media panes both see every message, and
+// each must act on (and re-arm) only its own prepare loop.
+type mediaPanePrepareMsg struct {
+	pane *MediaPane
 }
-
-type mediaPanePrepareMsg struct{}
 
 // MediaPaneViewState captures the navigable state of a MediaPane so it can
 // be saved and restored across Run view transitions.
@@ -408,25 +394,71 @@ func (p *MediaPane) StatusLabel() string {
 	return strings.Join(parts, " • ")
 }
 
-// HandleKey handles media-pane-local navigation. It returns whether the key was
-// consumed and any command needed to render media.
+// HandleKey handles media-pane-local navigation. It returns whether the key
+// was consumed and any command needed to render media.
 func (p *MediaPane) HandleKey(msg tea.KeyPressMsg) (bool, tea.Cmd) {
 	if !p.active && !p.fullscreen {
 		return false, nil
 	}
 
-	key := normalizeKey(msg.String())
-	if key == "esc" {
-		if !p.fullscreen {
-			return false, nil
+	switch normalizeKey(msg.String()) {
+	case "enter":
+		if p.HasData() {
+			p.ToggleFullscreen()
 		}
-	}
-
-	handler, ok := p.keyMap[key]
-	if !ok {
+		return true, nil
+	case "esc":
+		if p.fullscreen {
+			p.ExitFullscreen()
+			return true, nil
+		}
+		return false, nil
+	case "k":
+		var cmd tea.Cmd
+		if p.HasData() {
+			cmd = p.renderer.ToggleMode()
+			p.requestRenderedMediaPrepare()
+		}
+		return true, cmd
+	case "left":
+		p.Scrub(-1)
+		return true, nil
+	case "right":
+		p.Scrub(1)
+		return true, nil
+	case "up":
+		p.Scrub(-10)
+		return true, nil
+	case "down":
+		p.Scrub(10)
+		return true, nil
+	case "home":
+		p.ScrubToStart()
+		return true, nil
+	case "end":
+		p.ScrubToEnd()
+		return true, nil
+	case "a":
+		p.MoveSelection(-1, 0)
+		return true, nil
+	case "d":
+		p.MoveSelection(1, 0)
+		return true, nil
+	case "w":
+		p.MoveSelection(0, -1)
+		return true, nil
+	case "s":
+		p.MoveSelection(0, 1)
+		return true, nil
+	case "pgup":
+		p.NavigatePage(-1)
+		return true, nil
+	case "pgdown":
+		p.NavigatePage(1)
+		return true, nil
+	default:
 		return false, nil
 	}
-	return true, handler(p, msg)
 }
 
 func (p *MediaPane) MoveSelection(dx, dy int) {
@@ -671,7 +703,8 @@ func (p *MediaPane) renderHeader(width int, runLabel string, fullscreen bool) st
 	left := titleLabel
 	if runLabel != "" {
 		sep := " • "
-		maxRunWidth := width - lipgloss.Width(titleLabel) - lipgloss.Width(navInfo) - len(sep)
+		maxRunWidth := width -
+			lipgloss.Width(titleLabel) - lipgloss.Width(navInfo) - lipgloss.Width(sep)
 		if maxRunWidth > 0 {
 			left = lipgloss.JoinHorizontal(
 				lipgloss.Left,
@@ -973,22 +1006,24 @@ type mediaPicture struct {
 type mediaImageRenderer struct {
 	mu   sync.RWMutex
 	mode picture.PictureMode
-	// Kitty image IDs share the terminal namespace. Allocate one per visible
-	// placement so multiple thumbnails do not overwrite each other.
-	nextKittyID int
-	decoded     map[string]image.Image
-	errors      map[string]mediaRenderError
-	rendered    map[mediaRenderKey]string
-	pictures    map[mediaRenderKey]*mediaPicture
+	// cellPixelW/H are the terminal's cell pixel dimensions (its reply to
+	// picture.RequestCellSize), used so Kitty images are encoded at the
+	// display's true resolution. Zero until the reply arrives; the picture
+	// package's defaults apply then.
+	cellPixelW int
+	cellPixelH int
+	decoded    map[string]image.Image
+	errors     map[string]mediaRenderError
+	rendered   map[mediaRenderKey]string
+	pictures   map[mediaRenderKey]*mediaPicture
 }
 
 func newMediaImageRenderer() *mediaImageRenderer {
 	return &mediaImageRenderer{
-		nextKittyID: mediaKittyIDBase,
-		decoded:     make(map[string]image.Image),
-		errors:      make(map[string]mediaRenderError),
-		rendered:    make(map[mediaRenderKey]string),
-		pictures:    make(map[mediaRenderKey]*mediaPicture),
+		decoded:  make(map[string]image.Image),
+		errors:   make(map[string]mediaRenderError),
+		rendered: make(map[mediaRenderKey]string),
+		pictures: make(map[mediaRenderKey]*mediaPicture),
 	}
 }
 
@@ -1006,33 +1041,22 @@ func (r *mediaImageRenderer) ToggleMode() tea.Cmd {
 		if !ensureKittyGraphicsEnabled() {
 			return nil
 		}
+		// Pictures are created lazily by PrepareVisible once the mode is
+		// Kitty; in Glyph mode there are none to update.
 		r.mode = picture.PictureKitty
-		cmds := make([]tea.Cmd, 0, len(r.pictures))
-		for _, pic := range r.pictures {
-			if pic.model.Mode() == picture.PictureKitty {
-				continue
-			}
-			if cmd := pic.model.Toggle(); cmd != nil {
-				cmds = append(cmds, cmd)
-			}
-		}
-		return batchCmds(cmds...)
+		return nil
 	}
 
 	r.mode = picture.PictureGlyph
 	cmds := make([]tea.Cmd, 0, len(r.pictures))
-	for key, pic := range r.pictures {
-		var cmd tea.Cmd
-		if pic.model.Mode() == picture.PictureKitty {
-			cmd = pic.model.Toggle()
-		} else {
-			cmd = pic.model.SetImage(nil)
-		}
-		if cmd != nil {
+	for _, pic := range r.pictures {
+		// Every model in pictures is in Kitty mode; Toggle emits the Kitty
+		// delete sequence that frees the on-terminal image.
+		if cmd := pic.model.Toggle(); cmd != nil {
 			cmds = append(cmds, cmd)
 		}
-		delete(r.pictures, key)
 	}
+	clear(r.pictures)
 	return batchCmds(cmds...)
 }
 
@@ -1073,6 +1097,12 @@ func (r *mediaImageRenderer) Update(msg tea.Msg) tea.Cmd {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
+	// Remember the terminal's cell pixel size for pictures created later;
+	// existing pictures pick it up through the forwarding loop below.
+	if ev, ok := msg.(uv.CellSizeEvent); ok {
+		r.cellPixelW, r.cellPixelH = ev.Width, ev.Height
+	}
+
 	cmds := make([]tea.Cmd, 0, 1)
 	for _, pic := range r.pictures {
 		if cmd := pic.model.Update(msg); cmd != nil {
@@ -1083,8 +1113,6 @@ func (r *mediaImageRenderer) Update(msg tea.Msg) tea.Cmd {
 }
 
 func (r *mediaImageRenderer) PrepareVisible(keys []mediaRenderKey) tea.Cmd {
-	r.Park(keys)
-
 	r.mu.RLock()
 	mode := r.mode
 	r.mu.RUnlock()
@@ -1169,13 +1197,14 @@ func (r *mediaImageRenderer) Render(path string, width, height int) string {
 	key := mediaRenderKey{path: path, width: width, height: height}
 	r.mu.RLock()
 	if r.mode == picture.PictureKitty {
-		if pic := r.pictures[key]; pic != nil {
+		pic := r.pictures[key]
+		r.mu.RUnlock()
+		// View mutates the model's render cache, so call it outside the lock.
+		if pic != nil {
 			if view := pic.model.View().Content; view != "" {
-				r.mu.RUnlock()
 				return view
 			}
 		}
-		r.mu.RUnlock()
 		return r.renderGlyph(path, width, height)
 	}
 
@@ -1234,15 +1263,16 @@ func (r *mediaImageRenderer) preparePictureLocked(key mediaRenderKey, img image.
 	pic := r.pictures[key]
 	if pic == nil {
 		model := picture.NewWithConfig(picture.Config{
-			KittyID: r.nextKittyID,
+			KittyID:         nextMediaKittyID(),
+			CellPixelWidth:  r.cellPixelW,
+			CellPixelHeight: r.cellPixelH,
 		})
-		r.nextKittyID++
 		pic = &mediaPicture{model: model}
 		r.pictures[key] = pic
-		if r.mode == picture.PictureKitty {
-			if cmd := pic.model.Toggle(); cmd != nil {
-				cmds = append(cmds, cmd)
-			}
+		// New models start in Glyph mode and this only runs in Kitty mode,
+		// so switch them over.
+		if cmd := pic.model.Toggle(); cmd != nil {
+			cmds = append(cmds, cmd)
 		}
 	}
 

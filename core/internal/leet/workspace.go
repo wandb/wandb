@@ -217,6 +217,9 @@ func (w *Workspace) Update(msg tea.Msg) tea.Cmd {
 
 	switch t := msg.(type) {
 	case mediaPanePrepareMsg:
+		if t.pane != w.mediaPane {
+			return nil
+		}
 		return w.mediaPane.handlePrepareMsg()
 
 	case tea.WindowSizeMsg:

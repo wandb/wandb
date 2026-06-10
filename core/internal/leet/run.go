@@ -192,6 +192,9 @@ func (r *Run) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// Route message to appropriate handler.
 	switch t := msg.(type) {
 	case mediaPanePrepareMsg:
+		if t.pane != r.mediaPane {
+			return r, nil
+		}
 		return r, r.mediaPane.handlePrepareMsg()
 
 	case tea.KeyPressMsg:
