@@ -688,7 +688,6 @@ func (p *MediaPane) renderHeader(width int, runLabel string, fullscreen bool) st
 	if p.active || p.fullscreen {
 		headerStyle = mediaPaneActiveHeaderStyle
 	}
-	titleLabel := headerStyle.Render(title)
 
 	keys := p.seriesKeys()
 	itemsPerPage := p.itemsPerPage()
@@ -700,6 +699,7 @@ func (p *MediaPane) renderHeader(width int, runLabel string, fullscreen bool) st
 			fmt.Sprintf(" [%d-%d of %d]", startIdx+1, endIdx, len(keys)))
 	}
 
+	titleLabel := headerStyle.Render(title)
 	left := titleLabel
 	if runLabel != "" {
 		sep := " • "
