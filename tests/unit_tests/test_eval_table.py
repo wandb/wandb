@@ -50,8 +50,8 @@ def mock_eval_logger(monkeypatch):
         eval_imperative_module,
     )
     monkeypatch.setattr(
-        "wandb.sdk.data_types.eval_table._init_weave_for_run",
-        lambda run: None,
+        "wandb.sdk.data_types.eval_table.weave_integration.init_weave",
+        lambda entity, project: None,
     )
     return mock_evaluation_logger_cls
 
@@ -81,7 +81,7 @@ def test_eval_table_offline_run_fails_fast(monkeypatch, mock_eval_logger, mock_r
     et = wandb.EvalTable(columns=["input", "output"], data=[["x", "y"]])
     init_weave_for_run = MagicMock()
     monkeypatch.setattr(
-        "wandb.sdk.data_types.eval_table._init_weave_for_run",
+        "wandb.sdk.data_types.eval_table.weave_integration.init_weave",
         init_weave_for_run,
     )
 
@@ -164,7 +164,7 @@ def test_eval_table_imports_evaluation_logger_after_weave_init(monkeypatch, run)
     et = wandb.EvalTable(columns=["input", "output"], data=[["x", "y"]])
     et.bind_to_run(run, "eval", 0)
 
-    with pytest.raises(UsageError, match="not implemented yet"):
+    with pytest.raises(NotImplementedError, match="not implemented yet"):
         et.to_json(run)
 
     assert order == ["init", "evaluation_logger_import"]
@@ -193,7 +193,7 @@ def test_eval_table_rejects_rebind_to_different_project(monkeypatch, mock_run):
 
     def init_weave(entity, project):
         if project == "p2":
-            raise ValueError(
+            raise UsageError(
                 "Weave is already initialized for 'e/p1'; cannot initialize "
                 "it for 'e/p2'."
             )
