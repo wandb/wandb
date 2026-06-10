@@ -498,6 +498,7 @@ module = [
     "grpc.*",
     "ultralytics.*",
     "wandb.vendor.*",
+    "opentelemetry.*",
 ]
 ignore_missing_imports = true
 

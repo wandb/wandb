@@ -150,17 +150,22 @@ class _CaptureServer:
         return self._httpd.captured  # type: ignore[attr-defined]
 
 
-def test_proxy_emits_otlp_json_without_protobuf():
+def test_proxy_emits_otlp_json_without_protobuf(monkeypatch):
+    import os
+
+    import wandb.env
     from wandb.analytics.opentelemetry_proxy import OtelProvider
 
+    monkeypatch.setenv(wandb.env.ERROR_REPORTING, "true")
     with _CaptureServer() as server:
-        otel = OtelProvider(pid=__import__("os").getpid())
-        assert otel._boot(endpoint=server.url, export_interval_ms=100)
+        otel = OtelProvider(endpoint=server.url, pid=os.getpid())
+        assert otel._boot()
 
         otel.record_metric_and_log_event("wandb.test.event", {"foo": "bar"})
 
-        otel._provider.force_flush()
-        otel._logger_provider.force_flush()
+        otel._meter_provider.force_flush()
+        if otel._logger_provider is not None:
+            otel._logger_provider.force_flush()
 
         # Give the daemon HTTP handler threads a moment to record.
         deadline = time.time() + 5
