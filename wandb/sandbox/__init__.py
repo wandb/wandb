@@ -14,7 +14,9 @@ from cwsandbox import __all__ as cwsandbox_all
 from ._auth import _set_wandb_auth_mode
 from ._sandbox import Sandbox, Session
 from ._secret import Secret
+from ._version import warn_if_unsupported_cwsandbox_version
 
+warn_if_unsupported_cwsandbox_version(cwsandbox.__version__)
 _set_wandb_auth_mode()
 
 _HIDDEN = {"AuthHeaders", "set_auth_mode"}

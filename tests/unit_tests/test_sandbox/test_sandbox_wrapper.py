@@ -2,6 +2,7 @@ import cwsandbox
 import pytest
 import wandb.sandbox as wandb_sandbox
 import wandb.sandbox._sandbox as sandbox_module
+import wandb.sandbox._version as version_module
 from wandb.errors import UsageError
 from wandb.sandbox import Secret
 from wandb.sandbox._secret import WANDB_SECRET_STORE
@@ -49,6 +50,56 @@ def test_sandbox_wrapper_uses_wandb_secret_override() -> None:
 
     secret = Secret(store="not-default-store", name="MY_SECRET")
     assert secret.store == "not-default-store"
+
+
+def test_sandbox_wrapper_warns_for_unsupported_cwsandbox_version(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    warnings = []
+
+    monkeypatch.setattr(version_module, "_WARNED", False)
+    monkeypatch.setattr(
+        version_module.importlib_metadata,
+        "requires",
+        lambda _package_name: ["cwsandbox[cli]>=0.25,<0.26; extra == 'sandbox'"],
+    )
+    monkeypatch.setattr(
+        version_module,
+        "termwarn",
+        lambda message, **_: warnings.append(message),
+    )
+
+    # Called twice to assert the warning is emitted only once per process.
+    version_module.warn_if_unsupported_cwsandbox_version("0.26.0")
+    version_module.warn_if_unsupported_cwsandbox_version("0.26.0")
+
+    assert len(warnings) == 1
+    assert "cwsandbox-client 0.26.0" in warnings[0]
+    assert ">=0.25" in warnings[0]
+    assert "<0.26" in warnings[0]
+    assert "manual cwsandbox upgrade" in warnings[0]
+
+
+def test_sandbox_wrapper_skips_warning_for_supported_cwsandbox_version(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    warnings = []
+
+    monkeypatch.setattr(version_module, "_WARNED", False)
+    monkeypatch.setattr(
+        version_module.importlib_metadata,
+        "requires",
+        lambda _package_name: ["cwsandbox[cli]>=0.25,<0.26; extra == 'sandbox'"],
+    )
+    monkeypatch.setattr(
+        version_module,
+        "termwarn",
+        lambda message, **_: warnings.append(message),
+    )
+
+    version_module.warn_if_unsupported_cwsandbox_version("0.25.0")
+
+    assert warnings == []
 
 
 @pytest.mark.parametrize("field", _PLACEMENT_OVERRIDE_FIELDS)
