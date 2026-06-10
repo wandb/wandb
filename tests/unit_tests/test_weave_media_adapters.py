@@ -127,16 +127,24 @@ def test_media_adapter_image_value_unwrapped_to_pil(mock_wandb_log):
     assert result.size == (2, 2)
 
 
-def test_media_adapter_rejects_external_image_reference(mock_wandb_log):
+def test_media_adapter_rejects_external_image_reference():
     image = wandb.Image("https://example.com/image.png")
 
     with pytest.raises(
         TypeError,
-        match="Unsupported external media reference",
+        match="does not support external media references",
     ):
         unwrap_value(image, "img", unsupported_media_mode="raise")
 
-    mock_wandb_log.assert_warned("wandb.Image values")
+
+def test_media_adapter_stubs_external_image_reference(mock_wandb_log):
+    image = wandb.Image("https://example.com/image.png")
+
+    result = unwrap_value(image, "img", unsupported_media_mode="stub")
+
+    mock_wandb_log.assert_warned("wandb.Image values are not supported")
+    assert result.startswith("[wandb.Image unsupported: ")
+    assert result.endswith("]")
 
 
 # Audio
@@ -206,7 +214,50 @@ def test_media_adapter_audio_data_uses_weave_audio_from_path(
     assert FakeWeaveAudio.calls == [("from_path", result["path"])]
 
 
-def test_media_adapter_rejects_external_audio_reference(monkeypatch, mock_wandb_log):
+def test_media_adapter_audio_numpy_array_uses_weave_audio_from_path(
+    monkeypatch,
+    mock_wandb_log,
+):
+    from wandb.sdk.data_types import audio as audio_module
+
+    np = pytest.importorskip("numpy")
+
+    class FakeSoundFile:
+        @staticmethod
+        def write(path, data, sample_rate):
+            assert data.shape == (2,)
+            assert sample_rate == 2
+            with open(path, "wb") as f:
+                f.write(b"RIFFfake-wave")
+
+    original_get_module = audio_module.util.get_module
+
+    def fake_get_module(name, required=None):
+        if name == "soundfile":
+            return FakeSoundFile
+        return original_get_module(name, required=required)
+
+    class FakeWeaveAudio:
+        calls = []
+
+        @classmethod
+        def from_path(cls, path):
+            cls.calls.append(("from_path", path))
+            return {"kind": "audio-path", "path": path}
+
+    monkeypatch.setattr(audio_module.util, "get_module", fake_get_module)
+    _install_fake_weave(monkeypatch, Audio=FakeWeaveAudio)
+    audio = wandb.Audio(np.array([0.0, 0.1]), sample_rate=2)
+
+    result = unwrap_value(audio, "audio", unsupported_media_mode="raise")
+
+    mock_wandb_log.assert_warned("wandb.Audio values")
+    assert result["kind"] == "audio-path"
+    assert result["path"].suffix == ".wav"
+    assert FakeWeaveAudio.calls == [("from_path", result["path"])]
+
+
+def test_media_adapter_rejects_external_audio_reference(monkeypatch):
     class FakeWeaveAudio:
         @classmethod
         def from_path(cls, path):
@@ -217,14 +268,28 @@ def test_media_adapter_rejects_external_audio_reference(monkeypatch, mock_wandb_
 
     with pytest.raises(
         TypeError,
-        match="Unsupported external media reference",
+        match="does not support external media references",
     ):
         unwrap_value(audio, "audio", unsupported_media_mode="raise")
 
-    mock_wandb_log.assert_warned("wandb.Audio values")
+
+def test_media_adapter_stubs_external_audio_reference(monkeypatch, mock_wandb_log):
+    class FakeWeaveAudio:
+        @classmethod
+        def from_path(cls, path):
+            return {"path": path}
+
+    _install_fake_weave(monkeypatch, Audio=FakeWeaveAudio)
+    audio = wandb.Audio("https://example.com/audio.wav")
+
+    result = unwrap_value(audio, "audio", unsupported_media_mode="stub")
+
+    mock_wandb_log.assert_warned("wandb.Audio values are not supported")
+    assert result.startswith("[wandb.Audio unsupported: ")
+    assert result.endswith("]")
 
 
-def test_media_adapter_rejects_media_without_local_path(monkeypatch, mock_wandb_log):
+def test_media_adapter_rejects_media_without_local_path(monkeypatch):
     class FakeWeaveAudio:
         @classmethod
         def from_path(cls, path):
@@ -240,7 +305,22 @@ def test_media_adapter_rejects_media_without_local_path(monkeypatch, mock_wandb_
     ):
         unwrap_value(audio, "audio", unsupported_media_mode="raise")
 
-    mock_wandb_log.assert_warned("wandb.Audio values")
+
+def test_media_adapter_stubs_media_without_local_path(monkeypatch, mock_wandb_log):
+    class FakeWeaveAudio:
+        @classmethod
+        def from_path(cls, path):
+            return {"path": path}
+
+    _install_fake_weave(monkeypatch, Audio=FakeWeaveAudio)
+    audio = object.__new__(wandb.Audio)
+    audio._path = None
+
+    result = unwrap_value(audio, "audio", unsupported_media_mode="stub")
+
+    mock_wandb_log.assert_warned("wandb.Audio values are not supported")
+    assert result.startswith("[wandb.Audio unsupported: ")
+    assert result.endswith("]")
 
 
 def test_media_adapter_rethrows_weave_audio_value_error(
@@ -386,6 +466,54 @@ def test_media_adapter_video_data_uses_moviepy_video_file_clip(
 
     frames = np.zeros((2, 3, 4, 4), dtype=np.uint8)
     video = wandb.Video(frames, format="mp4", fps=7)
+
+    result = unwrap_value(video, "video", unsupported_media_mode="raise")
+
+    mock_wandb_log.assert_warned("wandb.Video values")
+    assert isinstance(result, FakeVideoFileClip)
+    assert result.path.endswith(".mp4")
+
+
+def test_media_adapter_video_tensor_uses_moviepy_video_file_clip(
+    monkeypatch,
+    mock_wandb_log,
+):
+    from wandb.sdk.data_types import video as video_module
+
+    np = pytest.importorskip("numpy")
+
+    class FakeTensor:
+        def __init__(self, data):
+            self._data = data
+
+        def numpy(self):
+            return self._data
+
+    class FakeWandbImageSequenceClip:
+        def __init__(self, frames, fps):
+            self.frames = frames
+            self.fps = fps
+
+        def write_videofile(self, path, logger=None):
+            with open(path, "wb") as f:
+                f.write(b"fake-encoded-video")
+
+    original_get_module = video_module.util.get_module
+
+    def fake_get_module(name, required=None):
+        if name == "moviepy.video.io.ImageSequenceClip":
+            return types.SimpleNamespace(ImageSequenceClip=FakeWandbImageSequenceClip)
+        return original_get_module(name, required=required)
+
+    class FakeVideoFileClip:
+        def __init__(self, path):
+            self.path = path
+
+    monkeypatch.setattr(video_module.util, "get_module", fake_get_module)
+    _install_fake_moviepy_editor(monkeypatch, FakeVideoFileClip)
+
+    frames = np.zeros((2, 3, 4, 4), dtype=np.uint8)
+    video = wandb.Video(FakeTensor(frames), format="mp4", fps=7)
 
     result = unwrap_value(video, "video", unsupported_media_mode="raise")
 

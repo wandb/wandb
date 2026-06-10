@@ -26,33 +26,39 @@ _MOVIEPY_EDITOR_INSTALL_HINT = (
 )
 
 
+class _UnsupportedMediaVariantError(TypeError):
+    """Raised when EvalTable supports a media type but not this representation."""
+
+
 def _path_for_local_media(val: Media, column: str | int) -> Path:
     path = val._path
     if val.path_is_reference(path):
-        raise TypeError(
-            f"Unsupported external media reference {path!r} in column {column!r}. "
+        raise _UnsupportedMediaVariantError(
+            f"EvalTable does not support external media references for "
+            f"wandb.{type(val).__name__} in column {column!r}: {path!r}. "
             "EvalTable currently supports local files and in-memory media only."
         )
     if path is None:
-        raise TypeError(
-            f"Cannot convert {type(val).__name__} in column {column!r}: "
+        raise _UnsupportedMediaVariantError(
+            f"Cannot convert wandb.{type(val).__name__} in column {column!r}: "
             "media object does not have a local file path."
         )
     return Path(path)
 
 
 def _unwrap_image(val: Image, column: str | int) -> Any:
+    if val.path_is_reference(val._path):
+        raise _UnsupportedMediaVariantError(
+            f"EvalTable does not support external media references for "
+            f"wandb.Image in column {column!r}: {val._path!r}. "
+            "EvalTable currently supports local files and in-memory media only."
+        )
+
     wandb.termwarn(
         "wandb.Image values are converted to PIL.Image for Weave logging. "
         "Caption and other metadata are discarded.",
         repeat=False,
     )
-
-    if val.path_is_reference(val._path):
-        raise TypeError(
-            f"Unsupported external media reference {val._path!r} in column {column!r}. "
-            "EvalTable currently supports local files and in-memory media only."
-        )
 
     try:
         from PIL import Image as _PILImage
@@ -72,6 +78,8 @@ def _unwrap_image(val: Image, column: str | int) -> Any:
 
 
 def _unwrap_audio(val: Audio, column: str | int) -> Any:
+    path = _path_for_local_media(val, column)
+
     wandb.termwarn(
         "wandb.Audio values are converted to weave.Audio for Weave logging. "
         "Caption and other metadata are discarded.",
@@ -80,7 +88,6 @@ def _unwrap_audio(val: Audio, column: str | int) -> Any:
 
     from weave import Audio as WeaveAudio
 
-    path = _path_for_local_media(val, column)
     try:
         return WeaveAudio.from_path(path)
     except ValueError as e:
@@ -90,13 +97,13 @@ def _unwrap_audio(val: Audio, column: str | int) -> Any:
 
 
 def _unwrap_video(val: Video, column: str | int) -> Any:
+    path = _path_for_local_media(val, column)
+
     wandb.termwarn(
         "wandb.Video values are converted to Weave-native video values. "
         "Caption and other metadata are discarded.",
         repeat=False,
     )
-
-    path = _path_for_local_media(val, column)
 
     VideoFileClip = _moviepy_video_file_clip_class()  # noqa: N806
     return VideoFileClip(str(path))
@@ -285,7 +292,12 @@ def unwrap_value(
 
     for value_type, (_, adapter) in _SUPPORTED_WANDB_VALUE_ADAPTERS.items():
         if isinstance(val, value_type):
-            return adapter(val, column)
+            try:
+                return adapter(val, column)
+            except _UnsupportedMediaVariantError:
+                if unsupported_media_mode == "stub":
+                    return _stub_unsupported_wandb_value(val)
+                raise
 
     if isinstance(val, WBValue):
         return _stub_unsupported_wandb_value(val)
