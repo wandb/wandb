@@ -165,6 +165,10 @@ github.com/NimbleMarkets/ntcharts/v2/canvas
 github.com/NimbleMarkets/ntcharts/v2/canvas/graph
 github.com/NimbleMarkets/ntcharts/v2/canvas/runes
 github.com/NimbleMarkets/ntcharts/v2/linechart
+github.com/NimbleMarkets/ntcharts/v2/picture
+# github.com/NimbleMarkets/pixterm v0.0.0-20260501211346-dc18ac6c1a0f
+## explicit; go 1.25.0
+github.com/NimbleMarkets/pixterm/pkg/ansimage
 # github.com/ProtonMail/go-crypto v1.4.1
 ## explicit; go 1.23.0
 github.com/ProtonMail/go-crypto/bitcurves
@@ -364,7 +368,7 @@ github.com/charmbracelet/x/ansi/parser
 # github.com/charmbracelet/x/exp/golden v0.0.0-20251109135125-8916d276318f
 ## explicit; go 1.24.0
 github.com/charmbracelet/x/exp/golden
-# github.com/charmbracelet/x/exp/teatest/v2 v2.0.0-20260511125431-fe5d686e0c99
+# github.com/charmbracelet/x/exp/teatest/v2 v2.0.0-20260608090822-c3ad58c6c9e5
 ## explicit; go 1.24.2
 github.com/charmbracelet/x/exp/teatest/v2
 # github.com/charmbracelet/x/term v0.2.2
@@ -413,6 +417,9 @@ github.com/cyphar/filepath-securejoin/internal/consts
 # github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 ## explicit
 github.com/davecgh/go-spew/spew
+# github.com/disintegration/imaging v1.6.2
+## explicit
+github.com/disintegration/imaging
 # github.com/ebitengine/purego v0.10.1
 ## explicit; go 1.18
 github.com/ebitengine/purego
@@ -908,6 +915,18 @@ golang.org/x/crypto/ssh
 golang.org/x/crypto/ssh/agent
 golang.org/x/crypto/ssh/internal/bcrypt_pbkdf
 golang.org/x/crypto/ssh/knownhosts
+# golang.org/x/image v0.41.0
+## explicit; go 1.25.0
+golang.org/x/image/bmp
+golang.org/x/image/ccitt
+golang.org/x/image/draw
+golang.org/x/image/math/f64
+golang.org/x/image/riff
+golang.org/x/image/tiff
+golang.org/x/image/tiff/lzw
+golang.org/x/image/vp8
+golang.org/x/image/vp8l
+golang.org/x/image/webp
 # golang.org/x/mod v0.37.0
 ## explicit; go 1.25.0
 golang.org/x/mod/internal/lazyregexp

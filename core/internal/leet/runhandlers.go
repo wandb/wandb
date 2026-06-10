@@ -322,8 +322,8 @@ func (r *Run) handleKeyPressMsg(msg tea.KeyPressMsg) tea.Cmd {
 			return cmd
 		}
 	case FocusTargetMedia:
-		if r.mediaPane.HandleKey(msg) {
-			return nil
+		if handled, cmd := r.mediaPane.HandleKey(msg); handled {
+			return cmd
 		}
 	}
 

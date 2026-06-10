@@ -15,7 +15,8 @@ require (
 	github.com/aws/aws-sdk-go-v2 v1.42.0
 	github.com/aws/aws-sdk-go-v2/config v1.32.24
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.103.3
-	github.com/charmbracelet/x/exp/teatest/v2 v2.0.0-20260511125431-fe5d686e0c99
+	github.com/charmbracelet/ultraviolet v0.0.0-20260608091853-35bcb7319efa
+	github.com/charmbracelet/x/exp/teatest/v2 v2.0.0-20260608090822-c3ad58c6c9e5
 	github.com/ebitengine/purego v0.10.1
 	github.com/getsentry/sentry-go v0.46.2
 	github.com/go-git/go-git/v5 v5.19.1
@@ -59,6 +60,7 @@ require (
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric v0.57.0 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping v0.57.0 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
+	github.com/NimbleMarkets/pixterm v0.0.0-20260501211346-dc18ac6c1a0f // indirect
 	github.com/ProtonMail/go-crypto v1.4.1 // indirect
 	github.com/agnivade/levenshtein v1.2.1 // indirect
 	github.com/alexflint/go-arg v1.6.1 // indirect
@@ -85,7 +87,6 @@ require (
 	github.com/bmatcuk/doublestar/v4 v4.10.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/charmbracelet/colorprofile v0.4.3 // indirect
-	github.com/charmbracelet/ultraviolet v0.0.0-20260608091853-35bcb7319efa // indirect
 	github.com/charmbracelet/x/ansi v0.11.7 // indirect
 	github.com/charmbracelet/x/exp/golden v0.0.0-20251109135125-8916d276318f // indirect
 	github.com/charmbracelet/x/term v0.2.2 // indirect
@@ -97,6 +98,7 @@ require (
 	github.com/cncf/xds/go v0.0.0-20260202195803-dba9d589def2 // indirect
 	github.com/cyphar/filepath-securejoin v0.6.1 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
+	github.com/disintegration/imaging v1.6.2 // indirect
 	github.com/emirpasic/gods v1.18.1 // indirect
 	github.com/envoyproxy/go-control-plane/envoy v1.37.0 // indirect
 	github.com/envoyproxy/protoc-gen-validate v1.3.3 // indirect
@@ -158,6 +160,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.44.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
 	golang.org/x/crypto v0.53.0 // indirect
+	golang.org/x/image v0.41.0 // indirect
 	golang.org/x/mod v0.37.0 // indirect
 	golang.org/x/net v0.55.0 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect

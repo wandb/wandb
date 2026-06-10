@@ -16,8 +16,8 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ### Added
 
-- Basic remote-run support in W&B LEET TUI (`wandb beta leet <run-url>` command) (@jacobromero
- in https://github.com/wandb/wandb/pull/11261)
+- High-resolution image rendering in terminals supporting the Kitty protocol with ANSI fallback in the W&B LEET TUI media pane (`wandb beta leet` command) (@dmitryduev in https://github.com/wandb/wandb/pull/11806)
+- High-resolution image rendering in terminals supporting the Kitty protocol with ANSI fallback in the W&B LEET TUI media pane (`wandb beta leet` command) (@dmitryduev in https://github.com/wandb/wandb/pull/11806)
 
 ### Fixed
 
