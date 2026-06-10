@@ -110,16 +110,6 @@ class EvalTable(Table):
             # If you don't assign any input columns, we will auto-inject a numeric
             # "row" index as the input column, and comparisons will match by row
             # index. All columns will be treated as outputs.
-
-            et4 = wandb.EvalTable(
-                input_columns=["input_text"],
-                output_columns=["prediction"],
-                score_columns=["score"],
-                data=[["example text", "class_a", 0.91]],
-            )
-            et4.set_summary({"val_loss": 0.3})
-            run.log({"my_eval_4": et4})
-            # You can set eval-level summary scores.
         """
         if log_mode != "IMMUTABLE":
             raise UsageError("EvalTable currently only supports log_mode='IMMUTABLE'.")
@@ -132,8 +122,6 @@ class EvalTable(Table):
         self._input_columns = list(input_columns or [])
         self._output_columns = list(output_columns or [])
         self._score_columns = list(score_columns or [])
-        self._summary: dict | None = None
-        self._auto_summarize: bool = True
         self._immutable_evaluate_call_id: str | None = None
         self._immutable_logged_json: dict[str, Any] | None = None
         self._run_log_key: str | None = None
@@ -308,17 +296,6 @@ class EvalTable(Table):
             )
         return columns
 
-    def set_summary(
-        self, summary: dict | None = None, auto_summarize: bool = True
-    ) -> None:
-        """Sets key/value pairs to be logged at the eval level.
-
-        Args:
-            auto_summarize: If true (default), auto-generate summaries for all score columns.
-        """
-        self._summary = summary
-        self._auto_summarize = auto_summarize
-
     def _iterrows_for_weave(self, start: int = 0) -> Iterator[dict[str, Any]]:
         cols = self._string_columns()
         for row in self.data[start:]:
@@ -393,7 +370,7 @@ class EvalTable(Table):
 
             ev.log_example(inputs=inputs, output=output, scores=scores)
 
-        ev.log_summary(self._summary, auto_summarize=self._auto_summarize)
+        ev.log_summary()  # Triggers auto-summarize
         # TODO: We should work with Weave on exposing a public evaluate_call_id()
         # instead of relying on this private field.
         self._immutable_evaluate_call_id = ev._evaluate_call.id
