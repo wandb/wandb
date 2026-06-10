@@ -27,9 +27,7 @@ func TestProcessRecordMsg_Run_Summary_System_FileComplete(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 	runParams := &leet.RunParams{
-		LocalRunParams: &leet.LocalRunParams{
-			RunFile: "dummy",
-		},
+		RunFile: "dummy",
 	}
 	var m tea.Model = leet.NewRun(runParams, cfg, logger)
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 140, Height: 50})
@@ -60,9 +58,7 @@ func TestProcessRecordMsg_ErrorStopsLoading(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 	runParams := &leet.RunParams{
-		LocalRunParams: &leet.LocalRunParams{
-			RunFile: "dummy",
-		},
+		RunFile: "dummy",
 	}
 	var m tea.Model = leet.NewRun(runParams, cfg, logger)
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
@@ -76,13 +72,40 @@ func TestProcessRecordMsg_ErrorStopsLoading(t *testing.T) {
 	require.Contains(t, view, "Error: remote init failed")
 }
 
+func TestRemoteRun_DoesNotStartLocalWatcherAfterBootLoad(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+	runParams := &leet.RunParams{
+		Remote: &leet.RemoteRunParams{
+			BaseURL: "https://api.wandb.ai",
+			Entity:  "entity",
+			Project: "project",
+			RunID:   "run-id",
+		},
+	}
+	var m tea.Model = leet.NewRun(runParams, cfg, logger)
+	m, _ = m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+
+	m, _ = m.Update(leet.ChunkedBatchMsg{
+		Msgs: []tea.Msg{
+			leet.RunMsg{
+				RunPath:     "entity/project/run-id",
+				ID:          "run-id",
+				Project:     "project",
+				DisplayName: "remote-run",
+			},
+		},
+		HasMore: false,
+	})
+
+	require.Equal(t, leet.RunStateRunning, m.(*leet.Run).TestRunState())
+}
+
 func TestFocus_Clicks_SetClear(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 	runParams := &leet.RunParams{
-		LocalRunParams: &leet.LocalRunParams{
-			RunFile: "dummy",
-		},
+		RunFile: "dummy",
 	}
 	var m tea.Model = leet.NewRun(runParams, cfg, logger)
 
@@ -121,9 +144,7 @@ func TestHandleOverviewFilter_TypingSpaceBackspaceEnterEsc(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 	runParams := &leet.RunParams{
-		LocalRunParams: &leet.LocalRunParams{
-			RunFile: "dummy",
-		},
+		RunFile: "dummy",
 	}
 	var m tea.Model = leet.NewRun(runParams, cfg, logger)
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 180, Height: 60})
@@ -159,9 +180,7 @@ func TestHandleKeyMsg_VariousPaths(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 	runParams := &leet.RunParams{
-		LocalRunParams: &leet.LocalRunParams{
-			RunFile: "dummy",
-		},
+		RunFile: "dummy",
 	}
 	var m tea.Model = leet.NewRun(runParams, cfg, logger)
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 180, Height: 50})
@@ -237,9 +256,7 @@ func TestHeartbeat_LiveRun(t *testing.T) {
 
 	// Create model
 	runParams := &leet.RunParams{
-		LocalRunParams: &leet.LocalRunParams{
-			RunFile: path,
-		},
+		RunFile: path,
 	}
 	m := leet.NewRun(runParams, cfg, logger)
 
@@ -372,9 +389,7 @@ func TestHeartbeat_ResetsOnDataReceived(t *testing.T) {
 
 	// Create model
 	runParams := &leet.RunParams{
-		LocalRunParams: &leet.LocalRunParams{
-			RunFile: path,
-		},
+		RunFile: path,
 	}
 	m := leet.NewRun(runParams, cfg, logger)
 
@@ -439,9 +454,7 @@ func TestModel_HandleMouseMsg(t *testing.T) {
 		require.NoError(t, cfg.SetRightSidebarVisible(true))
 
 		runParams := &leet.RunParams{
-			LocalRunParams: &leet.LocalRunParams{
-				RunFile: "dummy",
-			},
+			RunFile: "dummy",
 		}
 		m := leet.NewRun(runParams, cfg, logger)
 

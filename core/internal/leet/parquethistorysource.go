@@ -6,8 +6,8 @@ import (
 	"io"
 	"os"
 	"reflect"
-	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -32,6 +32,7 @@ const (
 	unknownMaxStep       = -1
 )
 
+// RunInfo is the run metadata fetched from the W&B backend.
 type RunInfo struct {
 	// entity is the entity name who the run belongs to.
 	entity string
@@ -49,25 +50,18 @@ type RunInfo struct {
 	displayName string
 }
 
-// NewRunInfo creates a new RunInfo.
+// historyStepReader pages through a remote run's exported history.
 //
-// Exported for testing.
-func NewRunInfo(
-	entity string,
-	project string,
-	runId string,
-	runSummary map[string]any,
-	displayName string,
-) *RunInfo {
-	return &RunInfo{
-		entity:      entity,
-		project:     project,
-		runId:       runId,
-		runSummary:  runSummary,
-		displayName: displayName,
-	}
+// Implemented by *runhistoryreader.HistoryReader.
+type historyStepReader interface {
+	GetHistorySteps(ctx context.Context, minStep, maxStep int64) ([]parquet.KeyValueList, error)
+	Release()
 }
 
+// ParquetHistorySource reads a remote run's history from its parquet
+// exports on the W&B backend.
+//
+// Implements HistorySource.
 type ParquetHistorySource struct {
 	logger *observability.CoreLogger
 
@@ -75,12 +69,13 @@ type ParquetHistorySource struct {
 	// and prevent reads after shutdown.
 	ctx    context.Context
 	cancel context.CancelFunc
+	close  sync.Once
 
 	// readerDone is a flag to indicate if the reader is done.
 	readerDone bool
 
-	// runhistoryreader is the reader for the run history's parquet files.
-	runhistoryreader *runhistoryreader.HistoryReader
+	// reader is the reader for the run history's parquet files.
+	reader historyStepReader
 
 	// runPath identifies the remote run in messages.
 	runPath string
@@ -94,90 +89,77 @@ type ParquetHistorySource struct {
 	// summary did not provide a bound.
 	maxKnownStep int64
 
-	// runInfo is the information about the run.
+	// runInfo is the information about the run. Never nil.
 	runInfo *RunInfo
 }
 
-// NewParquetHistorySource creates a new ParquetHistorySource.
-func NewParquetHistorySource(
+// newParquetHistorySource creates a new ParquetHistorySource.
+//
+// runInfo must be non-nil.
+func newParquetHistorySource(
 	ctx context.Context,
-	entity string,
-	project string,
-	runId string,
-	graphqlClient graphql.Client,
-	httpClient api.RetryableClient,
 	runInfo *RunInfo,
+	reader historyStepReader,
 	logger *observability.CoreLogger,
-	rustArrowWrapper *ffi.RustArrowWrapper,
-) (*ParquetHistorySource, error) {
+) *ParquetHistorySource {
 	ctx, cancel := context.WithCancel(ctx)
 
-	historyReader, err := runhistoryreader.New(
-		ctx,
-		entity,
-		project,
-		runId,
-		graphqlClient,
-		httpClient,
-		[]string{}, // keys
-		false,      // useCache
-		rustArrowWrapper,
-	)
-	if err != nil {
-		cancel()
-		return nil, err
-	}
-
 	return &ParquetHistorySource{
-		logger:           logger,
-		ctx:              ctx,
-		cancel:           cancel,
-		runPath:          remoteRunPath(entity, project, runId),
-		currentStep:      0,
-		maxKnownStep:     maxStepFromSummary(runInfo),
-		runInfo:          runInfo,
-		runhistoryreader: historyReader,
-	}, nil
+		logger:       logger,
+		ctx:          ctx,
+		cancel:       cancel,
+		runPath:      fmt.Sprintf("%s/%s/%s", runInfo.entity, runInfo.project, runInfo.runId),
+		maxKnownStep: maxStepFromSummary(runInfo.runSummary),
+		runInfo:      runInfo,
+		reader:       reader,
+	}
 }
 
 // InitializeParquetHistorySource returns a tea.Cmd that initializes a
 // ParquetHistorySource for a remote run.
 func InitializeParquetHistorySource(
+	ctx context.Context,
 	runParams *RemoteRunParams,
 	logger *observability.CoreLogger,
 ) tea.Cmd {
 	return func() tea.Msg {
-		entity := runParams.Entity
-		project := runParams.Project
-		runId := runParams.RunId
-
-		// Read the api key from the netrc file for the given base url.
+		// Read the API key passed by the Python wrapper.
 		apiKey := os.Getenv("WANDB_API_KEY")
 		if apiKey == "" {
 			return ErrorMsg{Err: fmt.Errorf("WANDB_API_KEY is not set")}
 		}
 
-		settingsProto := &spb.Settings{
+		s := settings.From(&spb.Settings{
 			ApiKey:  wrapperspb.String(apiKey),
 			BaseUrl: wrapperspb.String(runParams.BaseURL),
-		}
-		s := settings.From(settingsProto)
+		})
+		baseURL := stream.BaseURLFromSettings(logger, s)
+		credentialProvider := stream.CredentialsFromSettings(logger, s)
 
-		graphqlClient := initGraphQLClient(s, logger)
+		graphqlClient := stream.NewGraphQLClient(
+			baseURL,
+			"", /*clientID*/
+			credentialProvider,
+			logger,
+			&observability.Peeker{},
+			s,
+		)
 		httpClient := api.NewClient(api.ClientOptions{
-			BaseURL:            stream.BaseURLFromSettings(logger, s),
+			BaseURL:            baseURL,
 			RetryMax:           3,
 			RetryWaitMin:       1 * time.Second,
 			RetryWaitMax:       10 * time.Second,
 			NonRetryTimeout:    10 * time.Second,
-			CredentialProvider: stream.CredentialsFromSettings(logger, s),
+			CredentialProvider: credentialProvider,
 			Logger:             logger.Logger,
 		})
+
 		runInfo, err := loadRunInfo(
+			ctx,
 			graphqlClient,
-			entity,
-			project,
-			runId,
+			runParams.Entity,
+			runParams.Project,
+			runParams.RunID,
 		)
 		if err != nil {
 			return ErrorMsg{Err: err}
@@ -188,22 +170,23 @@ func InitializeParquetHistorySource(
 			return ErrorMsg{Err: err}
 		}
 
-		source, err := NewParquetHistorySource(
-			context.Background(),
-			entity,
-			project,
-			runId,
+		reader, err := runhistoryreader.New(
+			ctx,
+			runInfo.entity,
+			runInfo.project,
+			runInfo.runId,
 			graphqlClient,
 			httpClient,
-			runInfo,
-			logger,
+			[]string{}, // keys
+			false,      // useCache
 			rustArrowWrapper,
 		)
 		if err != nil {
 			return ErrorMsg{Err: err}
 		}
+
 		return InitMsg{
-			Source: source,
+			Source: newParquetHistorySource(ctx, runInfo, reader, logger),
 		}
 	}
 }
@@ -227,18 +210,16 @@ func (s *ParquetHistorySource) Read(
 	numMsgs := 0
 
 	if s.currentStep == 0 {
-		if s.runInfo != nil {
-			msgs = append(msgs,
-				RunMsg{
-					RunPath:     s.runPath,
-					ID:          s.runInfo.runId,
-					Project:     s.runInfo.project,
-					DisplayName: s.runInfo.displayName,
-					Config:      nil,
-				},
-				s.processRunSummary(),
-			)
-		}
+		msgs = append(msgs,
+			RunMsg{
+				RunPath:     s.runPath,
+				ID:          s.runInfo.runId,
+				Project:     s.runInfo.project,
+				DisplayName: s.runInfo.displayName,
+				Config:      nil,
+			},
+			s.summaryMsg(),
+		)
 	}
 
 	for time.Since(startTime) < maxTimePerChunk && numMsgs < chunkSize {
@@ -249,11 +230,7 @@ func (s *ParquetHistorySource) Read(
 		}
 
 		nextStep := s.currentStep + int64(parquetBatchScanSize)
-		historySteps, err := s.runhistoryreader.GetHistorySteps(
-			s.ctx,
-			s.currentStep,
-			nextStep,
-		)
+		historySteps, err := s.reader.GetHistorySteps(s.ctx, s.currentStep, nextStep)
 		if err != nil {
 			return nil, err
 		}
@@ -274,8 +251,7 @@ func (s *ParquetHistorySource) Read(
 		} else {
 			s.currentStep = maxStep + 1
 		}
-		historyMsg := ParseParquetHistorySteps(historySteps, s.logger)
-		histories = append(histories, historyMsg)
+		histories = append(histories, parseParquetHistorySteps(historySteps, s.logger))
 		numMsgs += len(historySteps)
 
 		if s.maxKnownStep >= 0 && s.currentStep > s.maxKnownStep {
@@ -302,12 +278,14 @@ func (s *ParquetHistorySource) Read(
 
 // Close implements HistorySource.Close.
 func (s *ParquetHistorySource) Close() {
-	s.cancel()
-	s.runhistoryreader.Release()
+	s.close.Do(func() {
+		s.cancel()
+		s.reader.Release()
+	})
 }
 
-// ParseParquetHistorySteps converts a list of iterator.KeyValueList to a HistoryMsg.
-func ParseParquetHistorySteps(
+// parseParquetHistorySteps converts a list of parquet.KeyValueList to a HistoryMsg.
+func parseParquetHistorySteps(
 	historySteps []parquet.KeyValueList,
 	logger *observability.CoreLogger,
 ) HistoryMsg {
@@ -338,6 +316,8 @@ func ParseParquetHistorySteps(
 				value = v
 			case int64:
 				value = float64(v)
+			case uint64:
+				value = float64(v)
 			default:
 				logger.Warn(
 					"parquet history source: got unexpected value type",
@@ -347,26 +327,18 @@ func ParseParquetHistorySteps(
 				continue
 			}
 
-			h.Metrics[keyValue.Key] = MetricData{
-				X: slices.Concat(existing.X, []float64{currentStep}),
-				Y: slices.Concat(existing.Y, []float64{value}),
-			}
+			existing.X = append(existing.X, currentStep)
+			existing.Y = append(existing.Y, value)
+			h.Metrics[keyValue.Key] = existing
 		}
 	}
 	return h
 }
 
 // maxStepFromSummary extracts the "_step" value from the run summary.
-// It returns unknownMaxStep if the summary is nil or doesn't contain "_step".
-func maxStepFromSummary(runInfo *RunInfo) int64 {
-	if runInfo == nil {
-		return unknownMaxStep
-	}
-	v, ok := runInfo.runSummary["_step"]
-	if !ok {
-		return unknownMaxStep
-	}
-	switch n := v.(type) {
+// It returns unknownMaxStep if the summary doesn't contain "_step".
+func maxStepFromSummary(runSummary map[string]any) int64 {
+	switch n := runSummary["_step"].(type) {
 	case float64:
 		return int64(n)
 	case int64:
@@ -386,6 +358,8 @@ func getStepFromMetricsList(historySteps parquet.KeyValueList) (float64, error) 
 				return v, nil
 			case int64:
 				return float64(v), nil
+			case uint64:
+				return float64(v), nil
 			default:
 				return -1.0, fmt.Errorf(
 					"unexpected value type: %T",
@@ -397,20 +371,25 @@ func getStepFromMetricsList(historySteps parquet.KeyValueList) (float64, error) 
 	return -1.0, fmt.Errorf("step key not found")
 }
 
-// processRunSummary converts the run's summary from the backend to a SummaryMsg.
-func (s *ParquetHistorySource) processRunSummary() tea.Msg {
-	summaryItems := make([]*spb.SummaryItem, 0)
-	if s.runInfo != nil {
-		for key, value := range s.runInfo.runSummary {
-			valueString, err := simplejsonext.MarshalToString(value)
-			if err != nil {
-				return ErrorMsg{Err: err}
-			}
-			summaryItems = append(summaryItems, &spb.SummaryItem{
-				Key:       key,
-				ValueJson: valueString,
-			})
+// summaryMsg converts the run's summary from the backend to a SummaryMsg.
+//
+// Values that cannot be serialized are logged and skipped.
+func (s *ParquetHistorySource) summaryMsg() SummaryMsg {
+	summaryItems := make([]*spb.SummaryItem, 0, len(s.runInfo.runSummary))
+	for key, value := range s.runInfo.runSummary {
+		valueString, err := simplejsonext.MarshalToString(value)
+		if err != nil {
+			s.logger.Warn(
+				"parquet history source: failed to serialize summary value",
+				"key", key,
+				"error", err,
+			)
+			continue
 		}
+		summaryItems = append(summaryItems, &spb.SummaryItem{
+			Key:       key,
+			ValueJson: valueString,
+		})
 	}
 
 	return SummaryMsg{
@@ -423,38 +402,16 @@ func (s *ParquetHistorySource) processRunSummary() tea.Msg {
 	}
 }
 
-func initGraphQLClient(
-	s *settings.Settings,
-	logger *observability.CoreLogger,
-) graphql.Client {
-	baseURL := stream.BaseURLFromSettings(
-		logger,
-		s,
-	)
-	credentialProvider := stream.CredentialsFromSettings(
-		logger,
-		s,
-	)
-
-	return stream.NewGraphQLClient(
-		baseURL,
-		"", /*clientID*/
-		credentialProvider,
-		logger,
-		&observability.Peeker{},
-		s,
-	)
-}
-
 // loadRunInfo loads information about the run from the backend.
 func loadRunInfo(
+	ctx context.Context,
 	graphqlClient graphql.Client,
 	entity string,
 	project string,
 	runId string,
 ) (*RunInfo, error) {
 	response, err := gql.QueryRunInfo(
-		context.Background(),
+		ctx,
 		graphqlClient,
 		entity,
 		project,
@@ -464,10 +421,7 @@ func loadRunInfo(
 		return nil, err
 	}
 
-	if response == nil {
-		return nil, fmt.Errorf("run %q not found in %s/%s", runId, entity, project)
-	}
-	if response.Project == nil {
+	if response == nil || response.Project == nil {
 		return nil, fmt.Errorf("project %q not found for entity %q", project, entity)
 	}
 	if response.Project.Run == nil {
@@ -479,10 +433,9 @@ func loadRunInfo(
 		displayName = *response.Project.Run.DisplayName
 	}
 
-	runSummaryString := response.Project.Run.SummaryMetrics
-	var runSummaryJson map[string]any
-	if runSummaryString != nil {
-		runSummaryJson, err = simplejsonext.UnmarshalObjectString(*runSummaryString)
+	var runSummary map[string]any
+	if summaryJSON := response.Project.Run.SummaryMetrics; summaryJSON != nil {
+		runSummary, err = simplejsonext.UnmarshalObjectString(*summaryJSON)
 		if err != nil {
 			return nil, err
 		}
@@ -493,10 +446,6 @@ func loadRunInfo(
 		entity:      entity,
 		project:     project,
 		runId:       runId,
-		runSummary:  runSummaryJson,
+		runSummary:  runSummary,
 	}, nil
-}
-
-func remoteRunPath(entity, project, runId string) string {
-	return fmt.Sprintf("%s/%s/%s", entity, project, runId)
 }

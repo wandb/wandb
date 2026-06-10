@@ -14,7 +14,7 @@ func TestRunHandleRecordMsg_DoesNotArmHeartbeatBeforeWatcherStarts(t *testing.T)
 	logger := observability.NewNoOpLogger()
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 	run := leet.NewRun(&leet.RunParams{
-		LocalRunParams: &leet.LocalRunParams{RunFile: "dummy"},
+		RunFile: "dummy",
 	}, cfg, logger)
 
 	_, _ = run.TestHandleRecordMsg(leet.RunMsg{ID: "run-1", DisplayName: "test"})
@@ -31,7 +31,7 @@ func TestRunHandleRecordMsg_ArmsHeartbeatAfterWatcherStarts(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 	run := leet.NewRun(&leet.RunParams{
-		LocalRunParams: &leet.LocalRunParams{RunFile: "dummy"},
+		RunFile: "dummy",
 	}, cfg, logger)
 
 	_, _ = run.TestHandleRecordMsg(leet.RunMsg{ID: "run-1", DisplayName: "test"})

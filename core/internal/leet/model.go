@@ -96,11 +96,7 @@ func NewModel(params ModelParams) *Model {
 			params.Logger.Error(fmt.Sprintf("model: failed to find latest run: %v", err))
 		}
 		if latest != "" {
-			params.RunParams = &RunParams{
-				LocalRunParams: &LocalRunParams{
-					RunFile: latest,
-				},
-			}
+			params.RunParams = &RunParams{RunFile: latest}
 		}
 	}
 
@@ -122,14 +118,14 @@ func NewModel(params ModelParams) *Model {
 
 // Init returns the initial commands for the top-level model.
 //
-// The workspace is always initialized (directory polling, heartbeat listener)
-// regardless of the starting mode. If starting in single-run mode, the run's
-// reader and watcher commands are also started.
+// The workspace is initialized unless LEET starts in remote single-run mode.
+// If starting in single-run mode, the run's reader and watcher commands are
+// also started.
 func (m *Model) Init() tea.Cmd {
 	cmds := []tea.Cmd{tea.RequestBackgroundColor}
 
 	// Workspace always exists; initialize its long‑running commands.
-	if m.workspace != nil {
+	if m.workspace != nil && !m.isRemoteRunMode() {
 		if cmd := m.workspace.Init(); cmd != nil {
 			cmds = append(cmds, cmd)
 		}
@@ -187,7 +183,7 @@ func (m *Model) updateSubComponents(msg tea.Msg) []tea.Cmd {
 	case viewModeRun:
 		// Keep the workspace's background tasks (watchers/heartbeats) alive
 		// while we're in the single-run view while omitting user input.
-		if !isUserInputMsg(msg) {
+		if !m.run.IsRemote() && !isUserInputMsg(msg) {
 			if cmd := m.workspace.Update(msg); cmd != nil {
 				cmds = append(cmds, cmd)
 			}
@@ -256,6 +252,10 @@ func (m *Model) View() tea.View {
 // ShouldRestart reports whether the application should perform a full restart.
 func (m *Model) ShouldRestart() bool {
 	return m.shouldRestart
+}
+
+func (m *Model) isRemoteRunMode() bool {
+	return m.mode == viewModeRun && m.run != nil && m.run.IsRemote()
 }
 
 // --------------------------------------------------------------------
@@ -365,12 +365,7 @@ func (m *Model) enterRunView() tea.Cmd {
 		return nil
 	}
 
-	runParams := &RunParams{
-		LocalRunParams: &LocalRunParams{
-			RunFile: wandbFile,
-		},
-	}
-	m.run = NewRun(runParams, m.config, m.logger)
+	m.run = NewRun(&RunParams{RunFile: wandbFile}, m.config, m.logger)
 	m.mode = viewModeRun
 
 	// Share the workspace's media store so data persists across transitions.
@@ -395,7 +390,7 @@ func (m *Model) enterRunView() tea.Cmd {
 // exitRunView returns to the workspace view.
 func (m *Model) exitRunView() tea.Cmd {
 	// Do not exit to workspace view for remote projects.
-	if m.run.IsRemote() {
+	if m.run != nil && m.run.IsRemote() {
 		return nil
 	}
 

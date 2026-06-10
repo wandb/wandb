@@ -31,11 +31,11 @@ class LocalLaunchConfig(LaunchConfig):
 
 @dataclasses.dataclass(frozen=True)
 class RemoteLaunchConfig(LaunchConfig):
-    """Configuration for launching LEET against a remote run/project.
+    """Configuration for launching LEET against a remote run.
 
-    The URL is the single source of truth — its path is parsed both here
-    (for early validation) and again on the Go side to derive entity,
-    project, and optional run id.
+    The URL is the single source of truth: it is parsed here for early
+    validation and host canonicalization, and again by wandb-core to
+    derive the entity, project, and run ID.
     """
 
     remote_url: str
@@ -183,12 +183,7 @@ def _get_remote_launch_args(config: RemoteLaunchConfig) -> list[str]:
 
 def _create_remote_launch_config(path: str) -> RemoteLaunchConfig:
     """Create a LEET launch configuration for a remote run."""
-    parsed_url = urllib.parse.urlparse(path)
-    _validate_remote_path(parsed_url.path, original=path)
-
-    netloc = "api.wandb.ai" if parsed_url.netloc == "wandb.ai" else parsed_url.netloc
-    base_url = f"{parsed_url.scheme}://{netloc}"
-    canonical_url = f"{base_url}{parsed_url.path}"
+    base_url, remote_url = _parse_remote_url(path)
 
     auth = wbauth.authenticate_session(
         host=base_url,
@@ -196,17 +191,34 @@ def _create_remote_launch_config(path: str) -> RemoteLaunchConfig:
         no_offline=True,
         input_timeout=wandb_setup.singleton().settings.login_timeout,
     )
-    assert isinstance(auth, wbauth.AuthApiKey)
+    if not isinstance(auth, wbauth.AuthApiKey):
+        _fatal("LEET remote runs require API key authentication.")
 
-    return RemoteLaunchConfig(remote_url=canonical_url, api_key=auth.api_key)
+    return RemoteLaunchConfig(remote_url=remote_url, api_key=auth.api_key)
 
 
-def _validate_remote_path(path: str, *, original: str) -> None:
-    """Reject malformed remote paths early so we don't fork wandb-core for nothing."""
-    normalized = path.replace("/runs/", "/").replace("/sweeps/", "/").strip("/")
-    parts = normalized.split("/")
-    if len(parts) != 3:
-        raise ValueError(
-            f"Invalid path: {original!r}."
-            " Expected format: https://<base_url>/<entity>/<project>/<run_id>"
+def _parse_remote_url(path: str) -> tuple[str, str]:
+    """Validate a W&B run URL and return (base_url, canonical_url).
+
+    Canonicalization rewrites the wandb.ai host to api.wandb.ai and drops
+    any query string or fragment.
+    """
+    parsed_url = urllib.parse.urlparse(path)
+    if parsed_url.scheme not in {"http", "https"} or not parsed_url.netloc:
+        _fatal(
+            f"Invalid remote URL: {path!r}."
+            " Expected format: https://<host>/<entity>/<project>/runs/<run_id>"
         )
+
+    parts = parsed_url.path.strip("/").split("/")
+    if len(parts) == 4 and parts[2] == "runs":
+        parts = [parts[0], parts[1], parts[3]]
+    if len(parts) != 3 or not all(parts):
+        _fatal(
+            f"Invalid remote URL: {path!r}."
+            " Expected format: https://<host>/<entity>/<project>/runs/<run_id>"
+        )
+
+    netloc = "api.wandb.ai" if parsed_url.netloc == "wandb.ai" else parsed_url.netloc
+    base_url = f"{parsed_url.scheme}://{netloc}"
+    return base_url, f"{base_url}{parsed_url.path}"

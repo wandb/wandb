@@ -247,10 +247,13 @@ type leetOptions struct {
 	symonInterval    time.Duration
 	wandbDir         string
 
-	// remoteURL is the full canonical W&B URL of the run/project to open
-	// (e.g. https://api.wandb.ai/<entity>/<project>/<run-id>). Non-empty
-	// means we are in remote mode.
+	// remoteURL is the W&B URL of the run to open
+	// (e.g. https://api.wandb.ai/<entity>/<project>/runs/<run-id>).
+	// Non-empty means we are in remote mode.
 	remoteURL string
+
+	// remoteRun is the parsed remoteURL. Set during validation.
+	remoteRun *leet.RemoteRunParams
 }
 
 func parseLeetOptions(args []string) (leetOptions, error) {
@@ -311,7 +314,7 @@ func bindLeetFlags(fs *flag.FlagSet, opts *leetOptions) {
 		"remote-url",
 		"",
 		"URL of a W&B run to open"+
-			" (e.g. https://wandb.ai/<entity>/<project>/runs/<run-id>).",
+			" (e.g. https://api.wandb.ai/<entity>/<project>/runs/<run-id>).",
 	)
 }
 
@@ -331,22 +334,41 @@ Arguments:
 
 Options:
   -h, --help         Show this help message
+
 Flags:
 `)
 	fs.PrintDefaults()
 }
 
 func validateLeetOptions(fs *flag.FlagSet, opts *leetOptions) error {
+	if opts.remoteURL != "" {
+		remote, err := leet.ParseRemoteURL(opts.remoteURL)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "Error:", err)
+			fs.Usage()
+			return err
+		}
+		opts.remoteRun = remote
+	}
+
 	switch {
 	case opts.symonInterval <= 0:
 		fmt.Fprintln(os.Stderr, "Error: --interval must be > 0")
 		fs.Usage()
 		return fmt.Errorf("invalid interval %v", opts.symonInterval)
+	case opts.remoteRun != nil && opts.runFile != "":
+		fmt.Fprintln(os.Stderr, "Error: --run-file cannot be used with --remote-url")
+		fs.Usage()
+		return fmt.Errorf("--run-file cannot be used with --remote-url")
+	case opts.remoteRun != nil && opts.wandbDir != "":
+		fmt.Fprintln(os.Stderr, "Error: --remote-url does not take a wandb directory")
+		fs.Usage()
+		return fmt.Errorf("unexpected wandb directory %q in remote mode", fs.Arg(0))
 	case opts.symonMode && fs.NArg() != 0:
 		fmt.Fprintln(os.Stderr, "Error: --symon does not take a wandb directory")
 		fs.Usage()
 		return fmt.Errorf("unexpected wandb directory %q in symon mode", fs.Arg(0))
-	case !opts.editConfig && !opts.symonMode && opts.wandbDir == "" && opts.remoteURL == "":
+	case !opts.editConfig && !opts.symonMode && opts.wandbDir == "" && opts.remoteRun == nil:
 		fmt.Fprintln(os.Stderr, "Error: wandb directory path or --remote-url required")
 		fs.Usage()
 		return fmt.Errorf("wandb directory path or --remote-url required")
@@ -474,25 +496,10 @@ func runSymon(opts *leetOptions, logger *observability.CoreLogger) int {
 
 func runLeetWorkspace(opts *leetOptions, logger *observability.CoreLogger) int {
 	var runParams *leet.RunParams
-	wandbDir := opts.wandbDir
-	if opts.remoteURL != "" {
-		remote, err := leet.ParseRemoteURL(opts.remoteURL)
-		if err != nil {
-			fmt.Fprintln(os.Stderr, "Error:", err)
-			return exitCodeErrorArgs
-		}
-		runParams = &leet.RunParams{RemoteRunParams: remote}
+	if opts.remoteRun != nil {
+		runParams = &leet.RunParams{Remote: opts.remoteRun}
 	} else if opts.runFile != "" {
-		runParams = &leet.RunParams{
-			LocalRunParams: &leet.LocalRunParams{
-				RunFile: opts.runFile,
-			},
-		}
-
-		if wandbDir == "" {
-			fmt.Fprintln(os.Stderr, "Error: wandb directory path required")
-			return exitCodeErrorArgs
-		}
+		runParams = &leet.RunParams{RunFile: opts.runFile}
 	}
 
 	for {

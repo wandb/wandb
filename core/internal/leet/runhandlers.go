@@ -335,6 +335,10 @@ func (r *Run) handleKeyPressMsg(msg tea.KeyPressMsg) tea.Cmd {
 }
 
 func (r *Run) cleanup() {
+	if r.initCancel != nil {
+		r.initCancel()
+		r.initCancel = nil
+	}
 	if r.historySource != nil {
 		r.historySource.Close()
 	}
@@ -899,7 +903,7 @@ func (r *Run) handleChunkedBatch(msg ChunkedBatchMsg) []tea.Cmd {
 	}
 
 	// Boot load complete -> begin live mode once.
-	if r.runState == RunStateRunning && !r.watcherMgr.IsStarted() {
+	if !r.IsRemote() && r.runState == RunStateRunning && !r.watcherMgr.IsStarted() {
 		if err := r.watcherMgr.Start(r.runParams.RunFile); err != nil {
 			r.logger.CaptureError(fmt.Errorf("model: error starting watcher: %v", err))
 		} else {

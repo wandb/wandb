@@ -1,6 +1,7 @@
 package leet
 
 import (
+	"context"
 	"fmt"
 	"runtime/debug"
 	"strings"
@@ -14,20 +15,25 @@ import (
 	"github.com/wandb/wandb/core/internal/observability"
 )
 
+// RunParams identifies the run LEET displays.
+//
+// Exactly one of RunFile or Remote is set.
 type RunParams struct {
-	*RemoteRunParams
-	*LocalRunParams
-}
-type RemoteRunParams struct {
-	BaseURL string
-	Entity  string
-	Project string
-	RunId   string
+	// RunFile is the path to a local .wandb transaction log.
+	RunFile string
+
+	// Remote identifies a run stored on a W&B server.
+	Remote *RemoteRunParams
 }
 
-type LocalRunParams struct {
-	RunFile  string
-	WandbDir string
+// RemoteRunParams identifies a run stored on a W&B server.
+type RemoteRunParams struct {
+	// BaseURL is the W&B API base URL (e.g. https://api.wandb.ai).
+	BaseURL string
+
+	Entity  string
+	Project string
+	RunID   string
 }
 
 // Run holds data/state related to a single W&B run.
@@ -64,6 +70,7 @@ type Run struct {
 
 	// Data reader.
 	historySource HistorySource
+	initCancel    context.CancelFunc
 
 	// Transaction log (.wandb file) watch and heartbeat management.
 	watcherMgr   *WatcherManager
@@ -168,16 +175,12 @@ func (r *Run) Init() tea.Cmd {
 	r.logger.Debug("run: Init called")
 	var source tea.Cmd
 
-	if r.runParams.RemoteRunParams != nil {
-		source = InitializeParquetHistorySource(
-			r.runParams.RemoteRunParams,
-			r.logger,
-		)
+	if r.IsRemote() {
+		ctx, cancel := context.WithCancel(context.Background())
+		r.initCancel = cancel
+		source = InitializeParquetHistorySource(ctx, r.runParams.Remote, r.logger)
 	} else {
-		source = InitializeLevelDBHistorySource(
-			r.runParams.LocalRunParams,
-			r.logger,
-		)
+		source = InitializeLevelDBHistorySource(r.runParams.RunFile, r.logger)
 	}
 
 	return tea.Batch(
@@ -675,7 +678,7 @@ func (r *Run) updateBottomPaneHeights(mediaVisible, logsVisible bool) {
 }
 
 func (r *Run) IsRemote() bool {
-	return r.runParams.RemoteRunParams != nil
+	return r.runParams != nil && r.runParams.Remote != nil
 }
 
 // Layout represents the computed layout dimensions for the main UI.
@@ -766,6 +769,10 @@ func (r *Run) Cleanup() {
 	}
 	if r.watcherMgr != nil {
 		r.watcherMgr.Finish()
+	}
+	if r.initCancel != nil {
+		r.initCancel()
+		r.initCancel = nil
 	}
 	if r.historySource != nil {
 		r.historySource.Close()

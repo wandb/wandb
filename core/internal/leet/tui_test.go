@@ -57,9 +57,7 @@ func newTestModel(
 	logger := observability.NewNoOpLogger()
 	m := leet.NewModel(leet.ModelParams{
 		RunParams: &leet.RunParams{
-			LocalRunParams: &leet.LocalRunParams{
-				RunFile: runPath,
-			},
+			RunFile: runPath,
 		},
 		Config: cfg,
 		Logger: logger,

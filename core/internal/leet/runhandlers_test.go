@@ -24,9 +24,7 @@ func newRunForHandlerTest(t *testing.T) *leet.Run {
 	_ = cfg.SetRightSidebarVisible(true)
 
 	runParams := &leet.RunParams{
-		LocalRunParams: &leet.LocalRunParams{
-			RunFile: "testdata/fake.wandb",
-		},
+		RunFile: "testdata/fake.wandb",
 	}
 	r := leet.NewRun(runParams, cfg, logger)
 	r.Update(tea.WindowSizeMsg{Width: 200, Height: 60})
@@ -131,7 +129,7 @@ func TestRun_InitialFocus_PicksFirstAvailablePane(t *testing.T) {
 	_ = cfg.SetConsoleLogsVisible(true)
 
 	r := leet.NewRun(&leet.RunParams{
-		LocalRunParams: &leet.LocalRunParams{RunFile: "testdata/fake.wandb"},
+		RunFile: "testdata/fake.wandb",
 	}, cfg, logger)
 	r.Update(tea.WindowSizeMsg{Width: 200, Height: 60})
 
@@ -147,7 +145,7 @@ func TestRun_OverviewUpdatesPreserveTabContext(t *testing.T) {
 	_ = cfg.SetLeftSidebarVisible(true)
 
 	r := leet.NewRun(&leet.RunParams{
-		LocalRunParams: &leet.LocalRunParams{RunFile: "testdata/fake.wandb"},
+		RunFile: "testdata/fake.wandb",
 	}, cfg, logger)
 	r.Update(tea.WindowSizeMsg{Width: 200, Height: 60})
 

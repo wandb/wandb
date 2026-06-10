@@ -9,81 +9,76 @@ import (
 	"github.com/wandb/wandb/core/internal/leet"
 )
 
-func TestParseRemoteURL_HappyPath(t *testing.T) {
-	cases := []struct {
+func TestParseRemoteURL(t *testing.T) {
+	tests := []struct {
 		name string
-		in   string
-		want leet.RemoteRunParams
+		url  string
+		want *leet.RemoteRunParams
 	}{
 		{
-			name: "with /runs/",
-			in:   "https://wandb.ai/team/proj/runs/abc123",
-			want: leet.RemoteRunParams{
+			name: "run URL with runs segment",
+			url:  "https://wandb.ai/my-entity/my-project/runs/abc123",
+			want: &leet.RemoteRunParams{
 				BaseURL: "https://wandb.ai",
-				Entity:  "team",
-				Project: "proj",
-				RunId:   "abc123",
+				Entity:  "my-entity",
+				Project: "my-project",
+				RunID:   "abc123",
 			},
 		},
 		{
-			name: "without /runs/",
-			in:   "https://wandb.ai/team/proj/abc123",
-			want: leet.RemoteRunParams{
-				BaseURL: "https://wandb.ai",
-				Entity:  "team",
-				Project: "proj",
-				RunId:   "abc123",
+			name: "run URL without runs segment",
+			url:  "https://api.wandb.ai/my-entity/my-project/abc123",
+			want: &leet.RemoteRunParams{
+				BaseURL: "https://api.wandb.ai",
+				Entity:  "my-entity",
+				Project: "my-project",
+				RunID:   "abc123",
 			},
 		},
 		{
-			name: "with /sweeps/",
-			in:   "https://wandb.ai/team/proj/sweeps/sw1",
-			want: leet.RemoteRunParams{
+			name: "entity named runs",
+			url:  "https://wandb.ai/runs/my-project/runs/abc123",
+			want: &leet.RemoteRunParams{
 				BaseURL: "https://wandb.ai",
-				Entity:  "team",
-				Project: "proj",
-				RunId:   "sw1",
+				Entity:  "runs",
+				Project: "my-project",
+				RunID:   "abc123",
 			},
 		},
 		{
-			name: "custom host with port and http",
-			in:   "http://wandb.local:8080/team/proj/runs/r1",
-			want: leet.RemoteRunParams{
-				BaseURL: "http://wandb.local:8080",
-				Entity:  "team",
-				Project: "proj",
-				RunId:   "r1",
+			name: "trailing slash",
+			url:  "http://localhost:8080/my-entity/my-project/runs/abc123/",
+			want: &leet.RemoteRunParams{
+				BaseURL: "http://localhost:8080",
+				Entity:  "my-entity",
+				Project: "my-project",
+				RunID:   "abc123",
 			},
 		},
 	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			got, err := leet.ParseRemoteURL(tc.in)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := leet.ParseRemoteURL(tt.url)
 			require.NoError(t, err)
-			assert.Equal(t, tc.want, *got)
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }
 
-func TestParseRemoteURL_Rejects(t *testing.T) {
-	cases := []struct {
-		name string
-		in   string
-	}{
-		{"empty", ""},
-		{"non-http scheme", "ftp://wandb.ai/team/proj/r1"},
-		{"missing host", "https:///team/proj/r1"},
-		{"too few segments", "https://wandb.ai/team/proj"},
-		{"too many segments", "https://wandb.ai/team/proj/runs/r1/extra"},
-		{"empty entity", "https://wandb.ai//proj/r1"},
-		{"unparseable", "not a url at all\n://"},
+func TestParseRemoteURL_Errors(t *testing.T) {
+	urls := []string{
+		"ftp://wandb.ai/entity/project/runs/abc123",
+		"wandb.ai/entity/project/runs/abc123",
+		"https:///entity/project/runs/abc123",
+		"https://wandb.ai/entity/project",
+		"https://wandb.ai/entity/project/sweeps/abc123",
+		"https://wandb.ai/entity/project/runs/abc123/extra",
+		"https://wandb.ai",
 	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			_, err := leet.ParseRemoteURL(tc.in)
-			assert.Error(t, err)
+	for _, url := range urls {
+		t.Run(url, func(t *testing.T) {
+			_, err := leet.ParseRemoteURL(url)
+			require.Error(t, err)
 		})
 	}
 }

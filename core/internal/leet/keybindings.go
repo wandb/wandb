@@ -60,7 +60,7 @@ func RunKeyBindings() []BindingCategory[Run] {
 					Handler:     (*Run).handleToggleLeftSidebar,
 				},
 				{
-					Keys:        []string{"]", "2"},
+					Keys:        []string{"]"},
 					Description: "Toggle right sidebar with system metrics",
 					Handler:     (*Run).handleToggleRightSidebar,
 				},

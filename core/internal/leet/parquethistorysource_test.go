@@ -1,214 +1,153 @@
-// These tests mock Rust FFI calls by creating Go-allocated memory and converting
-// pointers to uintptr. The race detector's checkptr instrumentation correctly
-// identifies this as potentially unsafe (Go's GC can move memory, invalidating
-// the uintptr). Since the real production code uses actual Rust-allocated memory
-// (which doesn't move), this is only a limitation of the test mock, not the
-// production code. These tests are excluded when building with -race.
-
-//go:build !race
-
-package leet_test
+package leet
 
 import (
-	"encoding/binary"
-	"encoding/json"
+	"context"
 	"fmt"
-	"math"
-	"net/http"
-	"net/http/httptest"
+	"io"
 	"testing"
 	"time"
-	"unsafe"
 
-	"github.com/hashicorp/go-retryablehttp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/wandb/wandb/core/internal/gqlmock"
-	"github.com/wandb/wandb/core/internal/leet"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runhistoryreader/parquet"
-	"github.com/wandb/wandb/core/internal/runhistoryreader/parquet/ffi"
 )
 
-// mockDataStore keeps binary-encoded data alive so FFI pointers remain valid.
-type mockDataStore struct {
-	data [][]byte
+// fakeStepReader is an in-memory historyStepReader.
+type fakeStepReader struct {
+	steps    []parquet.KeyValueList
+	released int
 }
 
-func (m *mockDataStore) store(data []byte) (uintptr, uintptr) {
-	dataCopy := make([]byte, len(data))
-	copy(dataCopy, data)
-	m.data = append(m.data, dataCopy)
-
-	if len(dataCopy) == 0 {
-		return 0, 0
+func (f *fakeStepReader) GetHistorySteps(
+	ctx context.Context,
+	minStep int64,
+	maxStep int64,
+) ([]parquet.KeyValueList, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
 	}
-
-	storedSlice := m.data[len(m.data)-1]
-	ptr := uintptr(unsafe.Pointer(&storedSlice[0]))
-	return ptr, ptr
-}
-
-type testColumnDef struct {
-	name    string
-	colType string // "int64" or "float64"
-}
-
-// buildKVBinaryStream encodes test data into the binary format returned
-// by the Rust FFI scanStepRange function.
-func buildKVBinaryStream(
-	columns []testColumnDef,
-	data []map[string]any,
-) []byte {
-	buf := make([]byte, 0, 256)
-
-	buf = binary.LittleEndian.AppendUint32(buf, uint32(len(columns)))
-	for _, col := range columns {
-		nameBytes := []byte(col.name)
-		buf = binary.LittleEndian.AppendUint32(buf, uint32(len(nameBytes)))
-		buf = append(buf, nameBytes...)
-	}
-
-	buf = binary.LittleEndian.AppendUint32(buf, uint32(len(data)))
-	for _, row := range data {
-		for _, col := range columns {
-			value, exists := row[col.name]
-			if !exists || value == nil {
-				buf = append(buf, 0)
-				continue
-			}
-
-			switch col.colType {
-			case "int64":
-				buf = append(buf, 1)
-				var v int64
-				switch tv := value.(type) {
-				case int64:
-					v = tv
-				case float64:
-					v = int64(tv)
-				case int:
-					v = int64(tv)
-				}
-				buf = binary.LittleEndian.AppendUint64(buf, uint64(v))
-
-			case "float64":
-				buf = append(buf, 3)
-				var v float64
-				switch tv := value.(type) {
-				case float64:
-					v = tv
-				case int64:
-					v = float64(tv)
-				case int:
-					v = float64(tv)
-				}
-				buf = binary.LittleEndian.AppendUint64(buf, math.Float64bits(v))
-
-			default:
-				buf = append(buf, 0)
-			}
+	var out []parquet.KeyValueList
+	for _, step := range f.steps {
+		if v := step.StepValue(); v >= minStep && v < maxStep {
+			out = append(out, step)
 		}
 	}
-
-	return buf
+	return out, nil
 }
 
-// createTestRustArrowWrapper builds a mock FFI wrapper that returns
-// the given dataset when scanStepRange is called.
-func createTestRustArrowWrapper(
-	columns []testColumnDef,
-	dataset []map[string]any,
-) *ffi.RustArrowWrapper {
-	dataStore := &mockDataStore{data: make([][]byte, 0)}
-	allocatedPointers := make([]*uintptr, 0)
+func (f *fakeStepReader) Release() { f.released++ }
 
-	return ffi.RustArrowWrapperTester(
-		func(
-			filePath *byte,
-			columnNames **byte,
-			numColumns int,
-			outError **byte,
-		) unsafe.Pointer {
-			id := new(uintptr)
-			*id = 1
-			allocatedPointers = append(allocatedPointers, id)
-			return unsafe.Pointer(id)
-		},
-		func(
-			readerPtr unsafe.Pointer,
-			minStep int64,
-			maxStep int64,
-			outResult *ffi.StepScanResult,
-		) *byte {
-			filtered := []map[string]any{}
-			for _, row := range dataset {
-				step := row["_step"].(int64)
-				if step >= minStep && step < maxStep {
-					filtered = append(filtered, row)
-				}
-			}
-
-			kvBytes := buildKVBinaryStream(columns, filtered)
-			vecPtr, dataPtr := dataStore.store(kvBytes)
-			outResult.VecPtr = vecPtr
-			outResult.DataPtr = dataPtr
-			outResult.DataLen = uint64(len(kvBytes))
-			outResult.NumRowsReturned = uint64(len(filtered))
-			return nil
-		},
-	)
+func lossRow(step int64, loss float64) parquet.KeyValueList {
+	return parquet.KeyValueList{
+		{Key: parquet.StepKey, Value: step},
+		{Key: "loss", Value: loss},
+	}
 }
 
-func serveDummyParquet(t *testing.T) *httptest.Server {
-	t.Helper()
-	content := []byte("dummy-parquet-content")
-	server := httptest.NewServer(http.HandlerFunc(
-		func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("Accept-Ranges", "bytes")
-			_, err := w.Write(content)
-			require.NoError(t, err)
-		},
-	))
-	t.Cleanup(server.Close)
-	return server
+func testRunInfo(runSummary map[string]any) *RunInfo {
+	return &RunInfo{
+		entity:      "entity",
+		project:     "project",
+		runId:       "run-id",
+		runSummary:  runSummary,
+		displayName: "run_display_name",
+	}
 }
 
-func mockGraphQLForParquetSource(
-	urls []string,
-	displayName string,
-	summaryMetrics string,
-) *gqlmock.MockClient {
-	mockGQL := gqlmock.NewMockClient()
-
-	mockGQL.StubMatchOnce(
-		gqlmock.WithOpName("QueryRunInfo"),
-		fmt.Sprintf(`{
-			"project": {
-				"run": {
-					"displayName": %q,
-					"summaryMetrics": %q
-				}
-			}
-		}`, displayName, summaryMetrics),
+func TestParquetHistorySource_Read(t *testing.T) {
+	reader := &fakeStepReader{
+		steps: []parquet.KeyValueList{
+			lossRow(0, 1.0),
+			lossRow(50, 0.5),
+			lossRow(1000, 0.1),
+		},
+	}
+	source := newParquetHistorySource(
+		t.Context(),
+		testRunInfo(map[string]any{"_step": int64(1000), "loss": 0.1}),
+		reader,
+		observability.NewNoOpLogger(),
 	)
 
-	urlsJSON, _ := json.Marshal(urls)
-	mockGQL.StubMatchOnce(
-		gqlmock.WithOpName("RunParquetHistory"),
-		`{
-			"project": {
-				"run": {
-					"parquetHistory": {
-						"parquetUrls": `+string(urlsJSON)+`
-					}
-				}
-			}
-		}`,
+	msg, err := source.Read(100, 10*time.Second)
+	require.NoError(t, err)
+
+	batch, ok := msg.(ChunkedBatchMsg)
+	require.True(t, ok)
+	require.False(t, batch.HasMore)
+	require.Len(t, batch.Msgs, 4)
+
+	runMsg, ok := batch.Msgs[0].(RunMsg)
+	require.True(t, ok)
+	assert.Equal(t, "entity/project/run-id", runMsg.RunPath)
+	assert.Equal(t, "run-id", runMsg.ID)
+	assert.Equal(t, "project", runMsg.Project)
+	assert.Equal(t, "run_display_name", runMsg.DisplayName)
+	assert.Nil(t, runMsg.Config)
+
+	summaryMsg, ok := batch.Msgs[1].(SummaryMsg)
+	require.True(t, ok)
+	require.Len(t, summaryMsg.Summary, 1)
+	assert.Len(t, summaryMsg.Summary[0].Update, 2)
+
+	historyMsg, ok := batch.Msgs[2].(HistoryMsg)
+	require.True(t, ok)
+	assert.Equal(t, "entity/project/run-id", historyMsg.RunPath)
+	assert.Equal(t, []float64{0, 50, 1000}, historyMsg.Metrics["loss"].X)
+	assert.Equal(t, []float64{1.0, 0.5, 0.1}, historyMsg.Metrics["loss"].Y)
+
+	require.IsType(t, FileCompleteMsg{}, batch.Msgs[3])
+
+	// The source is exhausted.
+	_, err = source.Read(100, 10*time.Second)
+	require.ErrorIs(t, err, io.EOF)
+}
+
+func TestParquetHistorySource_Read_WithoutSummaryStepStopsAtEmptyWindow(t *testing.T) {
+	reader := &fakeStepReader{
+		steps: []parquet.KeyValueList{
+			lossRow(0, 1.0),
+			lossRow(99, 0.1),
+		},
+	}
+	source := newParquetHistorySource(
+		t.Context(),
+		testRunInfo(map[string]any{"loss": 0.1}), // no "_step" bound
+		reader,
+		observability.NewNoOpLogger(),
 	)
 
-	return mockGQL
+	msg, err := source.Read(100, 10*time.Second)
+	require.NoError(t, err)
+
+	batch, ok := msg.(ChunkedBatchMsg)
+	require.True(t, ok)
+	require.False(t, batch.HasMore)
+
+	historyMsg, ok := batch.Msgs[2].(HistoryMsg)
+	require.True(t, ok)
+	assert.Equal(t, []float64{0, 99}, historyMsg.Metrics["loss"].X)
+	assert.Equal(t, []float64{1.0, 0.1}, historyMsg.Metrics["loss"].Y)
+}
+
+func TestParquetHistorySource_Close(t *testing.T) {
+	reader := &fakeStepReader{steps: []parquet.KeyValueList{lossRow(0, 1.0)}}
+	source := newParquetHistorySource(
+		t.Context(),
+		testRunInfo(nil),
+		reader,
+		observability.NewNoOpLogger(),
+	)
+
+	source.Close()
+	source.Close()
+	assert.Equal(t, 1, reader.released)
+
+	_, err := source.Read(100, 10*time.Second)
+	require.ErrorIs(t, err, io.EOF)
 }
 
 func TestParseParquetHistorySteps(t *testing.T) {
@@ -227,211 +166,51 @@ func TestParseParquetHistorySteps(t *testing.T) {
 		{
 			{Key: parquet.StepKey, Value: float64(2)},
 			{Key: "loss", Value: float64(0.6)},
+			{Key: "tokens", Value: uint64(42)},
 		},
 	}
 
-	result := leet.ParseParquetHistorySteps(historySteps, logger)
+	result := parseParquetHistorySteps(historySteps, logger)
 
-	require.NotNil(t, result)
 	require.NotNil(t, result.Metrics)
-	assert.Len(t, result.Metrics, 1)
-	assert.Contains(t, result.Metrics, "loss")
+	assert.Len(t, result.Metrics, 2)
 	assert.Equal(t, []float64{0, 1, 2}, result.Metrics["loss"].X)
 	assert.Equal(t, []float64{1.0, 0.8, 0.6}, result.Metrics["loss"].Y)
+	assert.Equal(t, []float64{2}, result.Metrics["tokens"].X)
+	assert.Equal(t, []float64{42}, result.Metrics["tokens"].Y)
 }
 
-func TestReadRecords_SparseSteps(t *testing.T) {
-	tempDir := t.TempDir()
-	t.Setenv("WANDB_CACHE_DIR", tempDir)
-
-	logger := observability.NewNoOpLogger()
-
-	columns := []testColumnDef{
-		{name: "_step", colType: "int64"},
-		{name: "loss", colType: "float64"},
-	}
-	data := []map[string]any{
-		{"_step": int64(0), "loss": 1.0},
-		{"_step": int64(50), "loss": 0.5},
-		{"_step": int64(1000), "loss": 0.1},
-	}
-
-	server := serveDummyParquet(t)
-	mockGQL := mockGraphQLForParquetSource(
-		[]string{server.URL + "/test.parquet"},
-		"run_display_name",
-		`{\"_step\":1000,\"loss\":0.1}`,
+func TestLoadRunInfo(t *testing.T) {
+	mockGQL := gqlmock.NewMockClient()
+	mockGQL.StubMatchOnce(
+		gqlmock.WithOpName("QueryRunInfo"),
+		fmt.Sprintf(`{
+			"project": {
+				"run": {
+					"displayName": "run_display_name",
+					"summaryMetrics": %q
+				}
+			}
+		}`, `{"_step":1000,"loss":0.1}`),
 	)
-	rustWrapper := createTestRustArrowWrapper(columns, data)
 
-	runInfo := leet.NewRunInfo(
-		"entity",
-		"project",
-		"run-id",
-		map[string]any{"_step": int64(1000), "loss": 0.1},
-		"run_display_name",
-	)
-	source, err := leet.NewParquetHistorySource(
-		t.Context(),
-		"test-entity",
-		"test-project",
-		"test-run-id",
-		mockGQL,
-		retryablehttp.NewClient(),
-		runInfo,
-		logger,
-		rustWrapper,
-	)
+	runInfo, err := loadRunInfo(t.Context(), mockGQL, "entity", "project", "run-id")
 	require.NoError(t, err)
 
-	msg, err := source.Read(100, 10*time.Second)
-	require.NoError(t, err)
-
-	chunkedBatchMsg, ok := msg.(leet.ChunkedBatchMsg)
-	require.True(t, ok)
-	require.False(t, chunkedBatchMsg.HasMore)
-	require.Len(t, chunkedBatchMsg.Msgs, 4)
-
-	historyMsg, ok := chunkedBatchMsg.Msgs[2].(leet.HistoryMsg)
-	require.True(t, ok)
-	assert.Equal(t, []float64{0, 50, 1000}, historyMsg.Metrics["loss"].X)
-	assert.Equal(t, []float64{1.0, 0.5, 0.1}, historyMsg.Metrics["loss"].Y)
-	assert.Equal(t, "test-entity/test-project/test-run-id", historyMsg.RunPath)
-
-	_, ok = chunkedBatchMsg.Msgs[3].(leet.FileCompleteMsg)
-	require.True(t, ok)
+	assert.Equal(t, "entity", runInfo.entity)
+	assert.Equal(t, "project", runInfo.project)
+	assert.Equal(t, "run-id", runInfo.runId)
+	assert.Equal(t, "run_display_name", runInfo.displayName)
+	assert.Equal(t, int64(1000), maxStepFromSummary(runInfo.runSummary))
 }
 
-func TestReadRecords_WithoutSummaryStepReadsUntilEmptyWindow(t *testing.T) {
-	tempDir := t.TempDir()
-	t.Setenv("WANDB_CACHE_DIR", tempDir)
-
-	logger := observability.NewNoOpLogger()
-
-	columns := []testColumnDef{
-		{name: "_step", colType: "int64"},
-		{name: "loss", colType: "float64"},
-	}
-	data := []map[string]any{
-		{"_step": int64(0), "loss": 1.0},
-		{"_step": int64(100), "loss": 0.1},
-	}
-
-	server := serveDummyParquet(t)
-	mockGQL := mockGraphQLForParquetSource(
-		[]string{server.URL + "/test.parquet"},
-		"run_display_name",
-		`{\"loss\":0.1}`,
+func TestLoadRunInfo_RunNotFound(t *testing.T) {
+	mockGQL := gqlmock.NewMockClient()
+	mockGQL.StubMatchOnce(
+		gqlmock.WithOpName("QueryRunInfo"),
+		`{"project": {"run": null}}`,
 	)
-	rustWrapper := createTestRustArrowWrapper(columns, data)
 
-	runInfo := leet.NewRunInfo(
-		"entity",
-		"project",
-		"run-id",
-		map[string]any{"loss": 0.1},
-		"run_display_name",
-	)
-	source, err := leet.NewParquetHistorySource(
-		t.Context(),
-		"test-entity",
-		"test-project",
-		"test-run-id",
-		mockGQL,
-		retryablehttp.NewClient(),
-		runInfo,
-		logger,
-		rustWrapper,
-	)
-	require.NoError(t, err)
-
-	msg, err := source.Read(100, 10*time.Second)
-	require.NoError(t, err)
-
-	chunkedBatchMsg, ok := msg.(leet.ChunkedBatchMsg)
-	require.True(t, ok)
-	require.False(t, chunkedBatchMsg.HasMore)
-
-	historyMsg, ok := chunkedBatchMsg.Msgs[2].(leet.HistoryMsg)
-	require.True(t, ok)
-	assert.Equal(t, []float64{0, 100}, historyMsg.Metrics["loss"].X)
-	assert.Equal(t, []float64{1.0, 0.1}, historyMsg.Metrics["loss"].Y)
-}
-
-func TestReadRecords_ThenExit(t *testing.T) {
-	tempDir := t.TempDir()
-	t.Setenv("WANDB_CACHE_DIR", tempDir)
-
-	logger := observability.NewNoOpLogger()
-
-	columns := []testColumnDef{
-		{name: "_step", colType: "int64"},
-		{name: "loss", colType: "float64"},
-	}
-	data := []map[string]any{
-		{"_step": int64(0), "loss": 1.0},
-		{"_step": int64(1), "loss": 0.8},
-		{"_step": int64(2), "loss": 0.6},
-	}
-
-	server := serveDummyParquet(t)
-	summaryJSON := `{\"loss\":0.6}`
-	mockGQL := mockGraphQLForParquetSource(
-		[]string{server.URL + "/test.parquet"},
-		"run_display_name",
-		summaryJSON,
-	)
-	rustWrapper := createTestRustArrowWrapper(columns, data)
-
-	runInfo := leet.NewRunInfo(
-		"entity",
-		"project",
-		"run-id",
-		map[string]any{"loss": 0.6},
-		"run_display_name",
-	)
-	source, err := leet.NewParquetHistorySource(
-		t.Context(),
-		"test-entity",
-		"test-project",
-		"test-run-id",
-		mockGQL,
-		retryablehttp.NewClient(),
-		runInfo,
-		logger,
-		rustWrapper,
-	)
-	require.NoError(t, err)
-
-	msg, err := source.Read(100, 10*time.Second)
-	require.NoError(t, err)
-	require.NotNil(t, msg)
-	assert.IsType(t, leet.ChunkedBatchMsg{}, msg)
-	chunkedBatchMsg := msg.(leet.ChunkedBatchMsg)
-	require.NotNil(t, chunkedBatchMsg.Msgs)
-	assert.Len(t, chunkedBatchMsg.Msgs, 4)
-
-	assert.IsType(t, leet.RunMsg{}, chunkedBatchMsg.Msgs[0])
-	runMsg := chunkedBatchMsg.Msgs[0].(leet.RunMsg)
-	assert.Equal(t, "run-id", runMsg.ID)
-	assert.Equal(t, "project", runMsg.Project)
-	assert.Equal(t, "run_display_name", runMsg.DisplayName)
-	assert.Nil(t, runMsg.Config)
-
-	assert.IsType(t, leet.SummaryMsg{}, chunkedBatchMsg.Msgs[1])
-	summaryMsg := chunkedBatchMsg.Msgs[1].(leet.SummaryMsg)
-	assert.NotNil(t, summaryMsg.Summary)
-	assert.Len(t, summaryMsg.Summary, 1)
-	assert.Equal(t, "loss", summaryMsg.Summary[0].Update[0].Key)
-	assert.Equal(t, "0.6", summaryMsg.Summary[0].Update[0].ValueJson)
-
-	assert.IsType(t, leet.HistoryMsg{}, chunkedBatchMsg.Msgs[2])
-	historyMsg := chunkedBatchMsg.Msgs[2].(leet.HistoryMsg)
-	assert.Contains(t, historyMsg.Metrics, "loss")
-	assert.Equal(t, []float64{0, 1, 2}, historyMsg.Metrics["loss"].X)
-	assert.Equal(t, []float64{1.0, 0.8, 0.6}, historyMsg.Metrics["loss"].Y)
-
-	assert.IsType(t, leet.FileCompleteMsg{}, chunkedBatchMsg.Msgs[3])
-	fileCompleteMsg := chunkedBatchMsg.Msgs[3].(leet.FileCompleteMsg)
-	assert.Equal(t, int32(0), fileCompleteMsg.ExitCode)
+	_, err := loadRunInfo(t.Context(), mockGQL, "entity", "project", "run-id")
+	require.ErrorContains(t, err, `run "run-id" not found in entity/project`)
 }

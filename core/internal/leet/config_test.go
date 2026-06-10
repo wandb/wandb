@@ -16,9 +16,7 @@ func TestConfigHotkeys_UpdateGridDimensions(t *testing.T) {
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 
 	runParams := &leet.RunParams{
-		LocalRunParams: &leet.LocalRunParams{
-			RunFile: "dummy",
-		},
+		RunFile: "dummy",
 	}
 	run := leet.NewRun(runParams, cfg, logger)
 	var m tea.Model = run
@@ -75,9 +73,7 @@ func TestConfig_SetLeftSidebarVisible_AffectsModelOnStartup(t *testing.T) {
 	require.NoError(t, err)
 
 	runParams := &leet.RunParams{
-		LocalRunParams: &leet.LocalRunParams{
-			RunFile: "dummy",
-		},
+		RunFile: "dummy",
 	}
 	m := leet.NewRun(runParams, cfg, logger)
 	var tm tea.Model = m
