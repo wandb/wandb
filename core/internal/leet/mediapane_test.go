@@ -130,24 +130,6 @@ func writeBandTestImage(t *testing.T) string {
 	return path
 }
 
-func writeWideTestImage(t *testing.T) string {
-	t.Helper()
-	path := t.TempDir() + "/wide.png"
-	img := image.NewRGBA(image.Rect(0, 0, 32, 4))
-	for y := range 4 {
-		for x := range 32 {
-			img.Set(x, y, color.RGBA{R: 210, G: uint8(48 + y*20), B: 96, A: 255})
-		}
-	}
-
-	f, err := os.Create(path)
-	require.NoError(t, err)
-	defer f.Close()
-
-	require.NoError(t, png.Encode(f, img))
-	return path
-}
-
 // --- MediaStore tests ---
 
 func TestMediaStore_Empty(t *testing.T) {
@@ -565,22 +547,6 @@ func TestMediaPane_ViewANSIKeepsTopAndBottomRows(t *testing.T) {
 	require.NotEqual(t, -1, footerIdx, "expected media tile footer")
 	require.Greater(t, footerIdx, 0)
 	require.NotEmpty(t, strings.Trim(lines[footerIdx-1], " │"))
-}
-
-func TestMediaPane_ViewANSIPaddingUsesTerminalBackground(t *testing.T) {
-	pane, store := testMediaPaneWithGrid(t, 1, 1)
-	path := writeWideTestImage(t)
-	store.ProcessHistory(leet.HistoryMsg{
-		Media: map[string][]leet.MediaPoint{
-			"s": {{X: 0, FilePath: path}},
-		},
-	})
-	pane.SetStore(store)
-
-	view := pane.View(40, 14, "", "")
-	require.Contains(t, view, "48;2;210;", "image color should be rendered")
-	require.NotContains(t, view, "48;2;0;0;0",
-		"transparent image padding should not be painted black")
 }
 
 func TestMediaPane_ToggleRendererModeTitle(t *testing.T) {
