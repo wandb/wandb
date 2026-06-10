@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Any, TypeVar
 from opentelemetry.sdk._logs.export import LogRecordExporter, LogRecordExportResult
 from opentelemetry.sdk.metrics.export import MetricExporter, MetricExportResult
 
-from ._otlp_json import encode_logs, encode_metrics
+from .otlp_json_helpers import encode_logs, encode_metrics
 
 if TYPE_CHECKING:
     import requests

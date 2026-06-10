@@ -24,7 +24,7 @@ from opentelemetry.sdk.metrics.export import (
 from opentelemetry.sdk.resources import Resource
 from typing_extensions import Never
 
-from ._otlp_exporters import JSONLogExporter, JSONMetricExporter
+from .otlp_json_exporter import JSONLogExporter, JSONMetricExporter
 
 _P = ParamSpec("_P")
 _R = TypeVar("_R")
@@ -151,7 +151,6 @@ class OtelProvider:
         self._booted = False
         self._boot_lock = threading.Lock()
         self._meter: metrics.Meter | None = None
-        self._logger_provider: LoggerProvider | None = None
         self._logger: OTelLogger | None = None
 
     def _boot(
@@ -175,7 +174,7 @@ class OtelProvider:
                 resource = Resource.create({"service.name": _OTEL_SERVICE_NAME})
 
                 # Custom OTLP/JSON exporters keep the OTel SDK protobuf-free;
-                # see wandb/analytics/_otlp_exporters.py.
+                # see wandb/analytics/opentelemetry/otlp_json_exporter.py.
                 session = requests.Session()
 
                 # Setup metrics exporter
@@ -218,7 +217,6 @@ class OtelProvider:
                 self._booted = False
                 self._meter = None
                 self._logger = None
-                self._logger_provider = None
                 return False
 
             return True

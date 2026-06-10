@@ -1,6 +1,5 @@
-"""Serialize OpenTelemetry SDK data to OTLP JSON dicts.
+"""Serialize OpenTelemetry SDK data to OTLP compatible JSON dicts.
 
-Converts the OpenTelemetry SDK's data into the OTLP/HTTP JSON shape.
 This avoids `opentelemetry-proto`, which pins `protobuf<7`.
 """
 
@@ -13,7 +12,7 @@ from typing import Any
 from opentelemetry.sdk.metrics.export import Gauge, Histogram, MetricsData, Sum
 
 
-def _enum_int(value: Any) -> int:
+def enum_int(value: Any) -> int:
     """Return the integer value of an Enum or a plain int."""
     return value.value if hasattr(value, "value") else int(value)
 
@@ -146,7 +145,7 @@ def _encode_metric(metric: Any) -> dict[str, Any] | None:
     if isinstance(data, Sum):
         result["sum"] = {
             "dataPoints": [_encode_number_data_point(dp) for dp in data.data_points],
-            "aggregationTemporality": _enum_int(data.aggregation_temporality),
+            "aggregationTemporality": enum_int(data.aggregation_temporality),
             "isMonotonic": bool(data.is_monotonic),
         }
     elif isinstance(data, Gauge):
@@ -156,7 +155,7 @@ def _encode_metric(metric: Any) -> dict[str, Any] | None:
     elif isinstance(data, Histogram):
         result["histogram"] = {
             "dataPoints": [_encode_histogram_data_point(dp) for dp in data.data_points],
-            "aggregationTemporality": _enum_int(data.aggregation_temporality),
+            "aggregationTemporality": enum_int(data.aggregation_temporality),
         }
     # Unsupported metric type
     else:
@@ -221,7 +220,7 @@ def _encode_log_record(record: Any) -> dict[str, Any]:
 
     severity = getattr(record, "severity_number", None)
     if severity is not None:
-        result["severityNumber"] = _enum_int(severity)
+        result["severityNumber"] = enum_int(severity)
 
     severity_text = getattr(record, "severity_text", None)
     if severity_text:
