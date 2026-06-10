@@ -1,6 +1,7 @@
 package leet
 
 import (
+	"context"
 	"fmt"
 	"runtime/debug"
 	"strings"
@@ -14,6 +15,27 @@ import (
 
 	"github.com/wandb/wandb/core/internal/observability"
 )
+
+// RunParams identifies the run LEET displays.
+//
+// Exactly one of RunFile or Remote is set.
+type RunParams struct {
+	// RunFile is the path to a local .wandb transaction log.
+	RunFile string
+
+	// Remote identifies a run stored on a W&B server.
+	Remote *RemoteRunParams
+}
+
+// RemoteRunParams identifies a run stored on a W&B server.
+type RemoteRunParams struct {
+	// BaseURL is the W&B API base URL (e.g. https://api.wandb.ai).
+	BaseURL string
+
+	Entity  string
+	Project string
+	RunID   string
+}
 
 // Run holds data/state related to a single W&B run.
 //
@@ -30,8 +52,8 @@ type Run struct {
 	// Terminal dimensions.
 	width, height int
 
-	// Run file path.
-	runPath string
+	// runParams contains the information about the run.
+	runParams *RunParams
 
 	// Run state tracking.
 	runState RunState
@@ -49,6 +71,7 @@ type Run struct {
 
 	// Data reader.
 	historySource HistorySource
+	initCancel    context.CancelFunc
 
 	// Transaction log (.wandb file) watch and heartbeat management.
 	watcherMgr   *WatcherManager
@@ -76,6 +99,7 @@ type Run struct {
 	// Loading progress.
 	recordsLoaded int
 	loadStartTime time.Time
+	lastError     string
 
 	// Coalesce expensive redraws during batch processing.
 	suppressDraw bool
@@ -85,12 +109,10 @@ type Run struct {
 }
 
 func NewRun(
-	runPath string,
+	runParams *RunParams,
 	cfg *ConfigManager,
 	logger *observability.CoreLogger,
 ) *Run {
-	logger.Info(fmt.Sprintf("run: creating new run model for runPath: %s", runPath))
-
 	if cfg == nil {
 		cfg = NewConfigManager(leetConfigPath(), logger)
 	}
@@ -123,7 +145,7 @@ func NewRun(
 		keyMap:               buildKeyMap(RunKeyBindings()),
 		focus:                focus,
 		isLoading:            true,
-		runPath:              runPath,
+		runParams:            runParams,
 		metricsGridAnimState: metricsGridAnimState,
 		metricsGrid:          metricsGrid,
 		runOverview:          ro,
@@ -152,7 +174,15 @@ func (r *Run) SetMediaStore(store *MediaStore) {
 // Implements tea.Model.Init.
 func (r *Run) Init() tea.Cmd {
 	r.logger.Debug("run: Init called")
-	source := InitializeLevelDBHistorySource(r.runPath, r.logger)
+	var source tea.Cmd
+
+	if r.IsRemote() {
+		ctx, cancel := context.WithCancel(context.Background())
+		r.initCancel = cancel
+		source = InitializeParquetHistorySource(ctx, r.runParams.Remote, r.logger)
+	} else {
+		source = InitializeLevelDBHistorySource(r.runParams.RunFile, r.logger)
+	}
 
 	return tea.Batch(
 		source,
@@ -388,11 +418,11 @@ func (r *Run) buildMainViewWithSidebars(
 }
 
 // logPanic logs panics to the logger before re-panicking.
-func (m *Run) logPanic(context string) {
+func (m *Run) logPanic(ctx string) {
 	if r := recover(); r != nil {
 		stackTrace := string(debug.Stack())
 		m.logger.CaptureError(
-			fmt.Errorf("PANIC in %s: %v\nStack trace:\n%s", context, r, stackTrace),
+			fmt.Errorf("PANIC in %s: %v\nStack trace:\n%s", ctx, r, stackTrace),
 		)
 		panic(r)
 	}
@@ -460,6 +490,9 @@ func (r *Run) buildStatusText() string {
 	}
 	if r.config.IsAwaitingGridConfig() {
 		return r.config.GridConfigStatus()
+	}
+	if r.lastError != "" {
+		return "Error: " + r.lastError
 	}
 	if r.isLoading {
 		return r.buildLoadingStatus()
@@ -659,6 +692,10 @@ func (r *Run) updateBottomPaneHeights(mediaVisible, logsVisible bool) {
 	}
 }
 
+func (r *Run) IsRemote() bool {
+	return r.runParams != nil && r.runParams.Remote != nil
+}
+
 // Layout represents the computed layout dimensions for the main UI.
 type Layout struct {
 	leftSidebarWidth       int
@@ -747,6 +784,10 @@ func (r *Run) Cleanup() {
 	}
 	if r.watcherMgr != nil {
 		r.watcherMgr.Finish()
+	}
+	if r.initCancel != nil {
+		r.initCancel()
+		r.initCancel = nil
 	}
 	if r.historySource != nil {
 		r.historySource.Close()

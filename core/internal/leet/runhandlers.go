@@ -22,6 +22,7 @@ func (r *Run) handleRecordMsg(msg tea.Msg) (*Run, tea.Cmd) { // TODO: return jus
 	switch msg := msg.(type) {
 	case RunMsg:
 		r.logger.Debug("model: processing RunMsg")
+		r.lastError = ""
 		r.runOverview.ProcessRunMsg(msg)
 		r.leftSidebar.Sync()
 		r.runState = RunStateRunning
@@ -81,6 +82,11 @@ func (r *Run) handleRecordMsg(msg tea.Msg) (*Run, tea.Cmd) { // TODO: return jus
 
 	case ErrorMsg:
 		r.logger.Debug(fmt.Sprintf("model: processing ErrorMsg: %v", msg.Err))
+		r.isLoading = false
+		r.lastError = "unknown error"
+		if msg.Err != nil {
+			r.lastError = msg.Err.Error()
+		}
 		r.runState = RunStateFailed
 		r.syncLiveRunning()
 		r.runOverview.SetRunState(r.runState)
@@ -329,6 +335,10 @@ func (r *Run) handleKeyPressMsg(msg tea.KeyPressMsg) tea.Cmd {
 }
 
 func (r *Run) cleanup() {
+	if r.initCancel != nil {
+		r.initCancel()
+		r.initCancel = nil
+	}
 	if r.historySource != nil {
 		r.historySource.Close()
 	}
@@ -893,8 +903,8 @@ func (r *Run) handleChunkedBatch(msg ChunkedBatchMsg) []tea.Cmd {
 	}
 
 	// Boot load complete -> begin live mode once.
-	if r.runState == RunStateRunning && !r.watcherMgr.IsStarted() {
-		if err := r.watcherMgr.Start(r.runPath); err != nil {
+	if !r.IsRemote() && r.runState == RunStateRunning && !r.watcherMgr.IsStarted() {
+		if err := r.watcherMgr.Start(r.runParams.RunFile); err != nil {
 			r.logger.CaptureError(fmt.Errorf("model: error starting watcher: %v", err))
 		} else {
 			r.logger.Info("model: watcher started successfully")

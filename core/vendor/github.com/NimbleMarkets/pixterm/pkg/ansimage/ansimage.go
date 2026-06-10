@@ -37,7 +37,6 @@ import (
 // Unicode Block Element character used to represent lower pixel in terminal row.
 // INFO: https://en.wikipedia.org/wiki/Block_Elements
 const lowerHalfBlock = "\u2584"
-const upperHalfBlock = "\u2580"
 
 // Unicode Block Element characters used to represent dithering in terminal row.
 // INFO: https://en.wikipedia.org/wiki/Block_Elements
@@ -101,14 +100,14 @@ type DitheringMode uint8
 // ANSIpixel represents a pixel of an ANSImage.
 type ANSIpixel struct {
 	Brightness uint8
-	R, G, B, A uint8
+	R, G, B    uint8
 	upper      bool
 	source     *ANSImage
 }
 
 type ansiPixelData struct {
 	Brightness uint8
-	R, G, B, A uint8
+	R, G, B    uint8
 }
 
 // ANSImage represents an image encoded in ANSI escape codes.
@@ -118,7 +117,6 @@ type ANSImage struct {
 	bgR       uint8
 	bgG       uint8
 	bgB       uint8
-	bgA       uint8
 	dithering DitheringMode
 	pixmap    []ansiPixelData
 }
@@ -150,7 +148,6 @@ func appendANSIPixel(buf []byte, ap *ANSIpixel, backslash033 string, disableBgCo
 		R:          ap.R,
 		G:          ap.G,
 		B:          ap.B,
-		A:          ap.A,
 	}, ap.source, ap.upper, backslash033, disableBgColor)
 }
 
@@ -246,11 +243,6 @@ func appendReset(buf []byte, backslash033, backslashN string) []byte {
 	return append(buf, backslashN...)
 }
 
-func appendResetAttrs(buf []byte, backslash033 string) []byte {
-	buf = append(buf, backslash033...)
-	return append(buf, "[0m"...)
-}
-
 func appendGoPrintStart(buf []byte) []byte {
 	return append(buf, `fmt.Print("`...)
 }
@@ -326,7 +318,6 @@ func (ai *ANSImage) SetAt(y, x int, r, g, b, brightness uint8) error {
 		p.R = r
 		p.G = g
 		p.B = b
-		p.A = 0xff
 		p.Brightness = brightness
 		return nil
 	}
@@ -341,7 +332,6 @@ func (ai *ANSImage) GetAt(y, x int) (*ANSIpixel, error) {
 				R:          p.R,
 				G:          p.G,
 				B:          p.B,
-				A:          p.A,
 				Brightness: p.Brightness,
 				upper:      (ai.dithering == NoDithering) && (y%2 == 0),
 				source:     ai,
@@ -485,9 +475,11 @@ func (ai *ANSImage) appendRow(buf []byte, r int, renderGoCode, disableBgColor bo
 	return buf
 }
 
-// appendNoDitheringRow writes one half-block row, deduplicating SGR escapes.
-// Fully transparent source pixels leave that half-cell on the terminal
-// background instead of painting it black.
+// appendNoDitheringRow writes one half-block row, deduplicating SGR escapes:
+// the row's leading [0m reset (from the previous row) clears all attributes,
+// so the first cell must emit both bg (upper-pixel color) and fg (lower-pixel
+// color); subsequent cells skip whichever SGR matches the previously emitted
+// one.
 func (ai *ANSImage) appendNoDitheringRow(buf []byte, r int, backslash033, backslashN string) []byte {
 	py := 2 * r
 	upperRow := py * ai.w
@@ -500,35 +492,6 @@ func (ai *ANSImage) appendNoDitheringRow(buf []byte, r int, backslash033, backsl
 	for x := 0; x < ai.w; x++ {
 		u := ai.pixmap[upperRow+x]
 		l := ai.pixmap[lowerRow+x]
-		upperVisible := u.A != 0
-		lowerVisible := l.A != 0
-
-		if !upperVisible || !lowerVisible {
-			if haveBg {
-				buf = appendResetAttrs(buf, backslash033)
-				haveBg, haveFg = false, false
-			}
-
-			switch {
-			case upperVisible:
-				if !haveFg || u.R != prevFgR || u.G != prevFgG || u.B != prevFgB {
-					buf = appendANSIColor(buf, backslash033, "38", u.R, u.G, u.B)
-					prevFgR, prevFgG, prevFgB = u.R, u.G, u.B
-					haveFg = true
-				}
-				buf = append(buf, upperHalfBlock...)
-			case lowerVisible:
-				if !haveFg || l.R != prevFgR || l.G != prevFgG || l.B != prevFgB {
-					buf = appendANSIColor(buf, backslash033, "38", l.R, l.G, l.B)
-					prevFgR, prevFgG, prevFgB = l.R, l.G, l.B
-					haveFg = true
-				}
-				buf = append(buf, lowerHalfBlock...)
-			default:
-				buf = append(buf, ' ')
-			}
-			continue
-		}
 
 		if !haveBg || u.R != prevBgR || u.G != prevBgG || u.B != prevBgB {
 			buf = appendANSIColor(buf, backslash033, "48", u.R, u.G, u.B)
@@ -593,14 +556,13 @@ func New(h, w int, bg color.Color, dm DitheringMode) (*ANSImage, error) {
 		return nil, ErrInvalidBoundsMoT
 	}
 
-	r, g, b, a := bg.RGBA()
+	r, g, b, _ := bg.RGBA()
 	ansimage := &ANSImage{
 		h: h, w: w,
 		maxprocs:  1,
 		bgR:       uint8(r),
 		bgG:       uint8(g),
 		bgB:       uint8(b),
-		bgA:       uint8(a),
 		dithering: dm,
 		pixmap:    make([]ansiPixelData, h*w),
 	}
@@ -787,20 +749,10 @@ func createANSImage(img image.Image, bg color.Color, dm DitheringMode) (*ANSImag
 			if yMin+y < yMax {
 				srcOffset := rgbaOut.PixOffset(xMin, yMin+y)
 				for x := 0; x < w; x++ {
-					r := rgbaOut.Pix[srcOffset]
-					g := rgbaOut.Pix[srcOffset+1]
-					b := rgbaOut.Pix[srcOffset+2]
-					a := rgbaOut.Pix[srcOffset+3]
-					if a != 0xff {
-						r = rgbaComponent(r, a)
-						g = rgbaComponent(g, a)
-						b = rgbaComponent(b, a)
-					}
 					ansimage.pixmap[dstOffset+x] = ansiPixelData{
-						R: r,
-						G: g,
-						B: b,
-						A: a,
+						R: rgbaOut.Pix[srcOffset],
+						G: rgbaOut.Pix[srcOffset+1],
+						B: rgbaOut.Pix[srcOffset+2],
 					}
 					srcOffset += 4
 				}
@@ -811,7 +763,6 @@ func createANSImage(img image.Image, bg color.Color, dm DitheringMode) (*ANSImag
 						R: ansimage.bgR,
 						G: ansimage.bgG,
 						B: ansimage.bgB,
-						A: ansimage.bgA,
 					}
 				}
 			}
