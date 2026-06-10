@@ -26,4 +26,4 @@ Section headings should be at level 3 (e.g. `### Added`).
 - Artifact file operations now consistently require normalized relative paths (@tonyyli-wandb in https://github.com/wandb/wandb/pull/11735)
 - Logging an artifact (whether via `WandbLogger` or `run.log_artifact`) now writes the manifest file to the artifact's staging directory instead of the OS temp dir (`$TMPDIR`), avoiding silent failures when `$TMPDIR` is missing or unwritable (@ibindlish in https://github.com/wandb/wandb/pull/11958)
 - Logging artifacts in shared mode works again, and in particular, `wandb.init(mode="shared")` with code-saving enabled no longer raises an error (@timoffex in https://github.com/wandb/wandb/pull/12017)
-- `wandb[sandbox]` now pins `cwsandbox-client` to 0.25.x; `import wandb.sandbox` warns if the installed client is outside that range
+- `wandb[sandbox]` now caps the `cwsandbox` client at 0.25.x. Users can override the pin (e.g. `pip install "cwsandbox[cli]==<version>"`) in their own project to use a newer upstream client, but that combination is not verified by W&B (@nicholaspun-wandb in https://github.com/wandb/wandb/pull/12026)
