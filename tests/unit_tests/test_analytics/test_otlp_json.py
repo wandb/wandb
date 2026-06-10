@@ -38,11 +38,11 @@ from wandb.analytics import _otlp_json
     ],
 )
 def test_any_value_encoding(value, expected):
-    assert _otlp_json._any_value(value) == expected
+    assert _otlp_json._encode_any_value(value) == expected
 
 
 def test_attributes_encoding():
-    assert _otlp_json._attributes({"a": "x", "n": 3}) == [
+    assert _otlp_json._encode_attributes({"a": "x", "n": 3}) == [
         {"key": "a", "value": {"stringValue": "x"}},
         {"key": "n", "value": {"intValue": "3"}},
     ]
