@@ -119,4 +119,13 @@ def test_media_adapter_rejects_external_image_reference(mock_wandb_log):
     ):
         unwrap_value(image, "img", unsupported_media_mode="raise")
 
-    mock_wandb_log.assert_warned("wandb.Image values")
+
+def test_media_adapter_stubs_external_image_reference(mock_wandb_log):
+    image = wandb.Image("https://example.com/image.png")
+
+    result = unwrap_value(image, "img", unsupported_media_mode="stub")
+
+    mock_wandb_log.assert_warned(
+        "External media references for wandb.Image are not yet supported"
+    )
+    assert result == "[wandb.Image external reference not yet supported]"

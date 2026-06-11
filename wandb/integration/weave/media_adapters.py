@@ -20,20 +20,34 @@ _UnwrapValueFn = Callable[[Any, str | int], Any]
 _SupportedValueAdapter = tuple[str, _UnwrapValueFn]
 
 
-def _unwrap_image(val: Image, column: str | int) -> PILImage:
-    wandb.termwarn(
-        "wandb.Image values are converted to PIL.Image for Weave logging. "
-        "Caption and other metadata are discarded.",
-        repeat=False,
-    )
+class _UnsupportedMediaVariantError(TypeError):
+    """Raised when EvalTable supports a media type but not this representation."""
 
+    def __init__(self, message: str, *, stub_warning: str, stub_value: str) -> None:
+        super().__init__(message)
+        self.stub_warning = stub_warning
+        self.stub_value = stub_value
+
+
+def _unwrap_image(val: Image, column: str | int) -> PILImage:
     image = val.image  # loads from memory or local path
     if image is not None:
+        wandb.termwarn(
+            "wandb.Image values are converted to PIL.Image for Weave logging. "
+            "Caption and other metadata are discarded.",
+            repeat=False,
+        )
         return image
 
-    raise TypeError(
+    raise _UnsupportedMediaVariantError(
         f"Unsupported external media reference in column {column!r}. "
-        "EvalTable currently supports local files and in-memory media only."
+        "EvalTable currently supports local files and in-memory media only. "
+        f"{_unsupported_media_mode_hint()}",
+        stub_warning=(
+            "External media references for wandb.Image are not yet supported by "
+            "EvalTable. They will be logged as placeholder strings."
+        ),
+        stub_value="[wandb.Image external reference not yet supported]",
     )
 
 
@@ -116,6 +130,11 @@ def _stub_unsupported_wandb_value(val: WBValue) -> str:
     return f"[wandb.{type(val).__name__} not yet supported]"
 
 
+def _stub_unsupported_media_variant(error: _UnsupportedMediaVariantError, val: WBValue) -> str:
+    wandb.termwarn(error.stub_warning, repeat=False)
+    return error.stub_value
+
+
 def unwrap_value(
     val: Any,
     column: str | int,
@@ -145,7 +164,12 @@ def unwrap_value(
 
     for value_type, (_, adapter) in _SUPPORTED_WANDB_VALUE_ADAPTERS.items():
         if isinstance(val, value_type):
-            return adapter(val, column)
+            try:
+                return adapter(val, column)
+            except _UnsupportedMediaVariantError as e:
+                if unsupported_media_mode == "stub":
+                    return _stub_unsupported_media_variant(e, val)
+                raise
 
     if isinstance(val, WBValue):
         return _stub_unsupported_wandb_value(val)
