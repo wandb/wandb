@@ -135,7 +135,7 @@ class WandbStoragePolicy(StoragePolicy):
             manifest_entry.digest,
             size=manifest_entry.size or 0,
         )
-        if hit:
+        if hit and manifest_entry._cache_hit_integrity_matches(path):
             return path
 
         if url := manifest_entry._download_url:
@@ -195,6 +195,8 @@ class WandbStoragePolicy(StoragePolicy):
         with cache_open(mode="wb") as file:
             for data in response.iter_content(chunk_size=16 * KiB):
                 file.write(data)
+        if not manifest_entry._local_file_digest_matches(path):
+            raise ValueError(f"Digest mismatch for file: {manifest_entry.path}")
         return path
 
     def store_reference(

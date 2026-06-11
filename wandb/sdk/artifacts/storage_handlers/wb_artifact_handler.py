@@ -126,5 +126,6 @@ class WBArtifactHandler(StorageHandler):
                 ref=path,
                 size=0,
                 digest=entry.digest,
+                extra=entry.extra,
             )
         ]

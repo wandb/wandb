@@ -78,5 +78,6 @@ class WBLocalArtifactHandler(StorageHandler):
                 ref=path,
                 size=0,
                 digest=target_entry.digest,
+                extra=target_entry.extra,
             )
         ]
