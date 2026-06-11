@@ -30,38 +30,61 @@ _MOVIEPY_EDITOR_INSTALL_HINT = (
 class _UnsupportedMediaVariantError(TypeError):
     """Raised when EvalTable supports a media type but not this representation."""
 
+    def __init__(self, message: str, *, stub_warning: str, stub_value: str) -> None:
+        super().__init__(message)
+        self.stub_warning = stub_warning
+        self.stub_value = stub_value
+
 
 def _path_for_local_media(val: Media, column: str | int) -> Path:
     path = val._path
-    if val.path_is_reference(path):
+    if Media.path_is_reference(path):
+        type_name = type(val).__name__
         raise _UnsupportedMediaVariantError(
             f"EvalTable does not support external media references for "
             f"wandb.{type(val).__name__} in column {column!r}: {path!r}. "
-            "EvalTable currently supports local files and in-memory media only."
+            "EvalTable currently supports local files and in-memory media only. "
+            f"{_unsupported_media_mode_hint()}",
+            stub_warning=(
+                f"External media references for wandb.{type_name} are not yet "
+                "supported by EvalTable. They will be logged as placeholder strings."
+            ),
+            stub_value=f"[wandb.{type_name} external reference not yet supported]",
         )
     if path is None:
+        type_name = type(val).__name__
         raise _UnsupportedMediaVariantError(
             f"Cannot convert wandb.{type(val).__name__} in column {column!r}: "
-            "media object does not have a local file path."
+            "media object does not have a local file path. "
+            f"{_unsupported_media_mode_hint()}",
+            stub_warning=(
+                f"wandb.{type_name} values without local file paths are not yet "
+                "supported by EvalTable. They will be logged as placeholder strings."
+            ),
+            stub_value=f"[wandb.{type_name} without local path not yet supported]",
         )
     return Path(path)
 
 
 def _unwrap_image(val: Image, column: str | int) -> PILImage:
-    wandb.termwarn(
-        "wandb.Image values are converted to PIL.Image for Weave logging. "
-        "Caption and other metadata are discarded.",
-        repeat=False,
-    )
-
     image = val.image  # loads from memory or local path
     if image is not None:
+        wandb.termwarn(
+            "wandb.Image values are converted to PIL.Image for Weave logging. "
+            "Caption and other metadata are discarded.",
+            repeat=False,
+        )
         return image
 
     raise _UnsupportedMediaVariantError(
-        f"EvalTable does not support external media references for "
-        f"wandb.Image in column {column!r}. "
-        "EvalTable currently supports local files and in-memory media only."
+        f"Unsupported external media reference in column {column!r}. "
+        "EvalTable currently supports local files and in-memory media only. "
+        f"{_unsupported_media_mode_hint()}",
+        stub_warning=(
+            "External media references for wandb.Image are not yet supported by "
+            "EvalTable. They will be logged as placeholder strings."
+        ),
+        stub_value="[wandb.Image external reference not yet supported]",
     )
 
 
@@ -197,6 +220,14 @@ def _stub_unsupported_wandb_value(val: WBValue) -> str:
     return f"[wandb.{type(val).__name__} not yet supported]"
 
 
+def _stub_unsupported_media_variant(
+    error: _UnsupportedMediaVariantError,
+    val: WBValue,
+) -> str:
+    wandb.termwarn(error.stub_warning, repeat=False)
+    return error.stub_value
+
+
 def unwrap_value(
     val: Any,
     column: str | int,
@@ -233,9 +264,9 @@ def unwrap_value(
         if isinstance(val, value_type):
             try:
                 return adapter(val, column)
-            except _UnsupportedMediaVariantError:
+            except _UnsupportedMediaVariantError as e:
                 if unsupported_media_mode == "stub":
-                    return _stub_unsupported_wandb_value(val)
+                    return _stub_unsupported_media_variant(e, val)
                 raise
 
     if isinstance(val, WBValue):

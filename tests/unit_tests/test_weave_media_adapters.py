@@ -135,11 +135,9 @@ def test_media_adapter_rejects_external_image_reference(mock_wandb_log):
 
     with pytest.raises(
         TypeError,
-        match="does not support external media references",
+        match="Unsupported external media reference",
     ):
         unwrap_value(image, "img", unsupported_media_mode="raise")
-
-    mock_wandb_log.assert_warned("wandb.Image values")
 
 
 def test_media_adapter_stubs_external_image_reference(mock_wandb_log):
@@ -147,8 +145,10 @@ def test_media_adapter_stubs_external_image_reference(mock_wandb_log):
 
     result = unwrap_value(image, "img", unsupported_media_mode="stub")
 
-    mock_wandb_log.assert_warned("wandb.Image values are not yet supported")
-    assert result == "[wandb.Image not yet supported]"
+    mock_wandb_log.assert_warned(
+        "External media references for wandb.Image are not yet supported"
+    )
+    assert result == "[wandb.Image external reference not yet supported]"
 
 
 # Audio
@@ -288,8 +288,10 @@ def test_media_adapter_stubs_external_audio_reference(monkeypatch, mock_wandb_lo
 
     result = unwrap_value(audio, "audio", unsupported_media_mode="stub")
 
-    mock_wandb_log.assert_warned("wandb.Audio values are not yet supported")
-    assert result == "[wandb.Audio not yet supported]"
+    mock_wandb_log.assert_warned(
+        "External media references for wandb.Audio are not yet supported"
+    )
+    assert result == "[wandb.Audio external reference not yet supported]"
 
 
 def test_media_adapter_rejects_media_without_local_path(monkeypatch):
@@ -321,8 +323,10 @@ def test_media_adapter_stubs_media_without_local_path(monkeypatch, mock_wandb_lo
 
     result = unwrap_value(audio, "audio", unsupported_media_mode="stub")
 
-    mock_wandb_log.assert_warned("wandb.Audio values are not yet supported")
-    assert result == "[wandb.Audio not yet supported]"
+    mock_wandb_log.assert_warned(
+        "wandb.Audio values without local file paths are not yet supported"
+    )
+    assert result == "[wandb.Audio without local path not yet supported]"
 
 
 def test_media_adapter_rethrows_weave_audio_value_error(

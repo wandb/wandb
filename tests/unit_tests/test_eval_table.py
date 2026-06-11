@@ -695,6 +695,36 @@ def test_unsupported_wandb_media_stubbed_on_log(
     )
 
 
+def test_external_image_reference_stubbed_on_log(
+    mock_eval_logger,
+    mock_wandb_log,
+    run,
+):
+    image = wandb.Image("https://example.com/image.png")
+
+    et = wandb.EvalTable(
+        columns=["img", "label"],
+        data=[[image, "ok"]],
+        input_columns=["img"],
+        output_columns=["label"],
+    )
+
+    run.log({"my_eval": et})
+    mock_wandb_log.assert_warned(
+        "External media references for wandb.Image are not yet supported"
+    )
+
+    ev = mock_eval_logger.created_loggers[0]
+    inputs = ev.log_example.call_args.kwargs["inputs"]
+    stub = inputs["img"]
+    assert stub == "[wandb.Image external reference not yet supported]"
+    ev.log_example.assert_called_once_with(
+        inputs={"img": stub},
+        output={"label": "ok"},
+        scores={},
+    )
+
+
 def test_unsupported_wandb_value_without_natural_hash_stubbed_on_log(
     mock_eval_logger,
     mock_wandb_log,
