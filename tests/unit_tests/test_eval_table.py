@@ -682,15 +682,12 @@ def test_unsupported_wandb_media_stubbed_on_log(
     )
 
     run.log({"my_eval": et})
-    mock_wandb_log.assert_warned("wandb.Html values are not supported")
+    mock_wandb_log.assert_warned("wandb.Html values are not yet supported")
 
     ev = mock_eval_logger.created_loggers[0]
     inputs = ev.log_example.call_args.kwargs["inputs"]
     stub = inputs["html"]
-    assert stub.startswith("[wandb.Html unsupported: ")
-    assert stub.endswith("]")
-    digest = stub.removeprefix("[wandb.Html unsupported: ").removesuffix("]")
-    assert len(digest) == 8
+    assert stub == "[wandb.Html not yet supported]"
     ev.log_example.assert_called_once_with(
         inputs={"html": stub},
         output={"label": "ok"},
@@ -710,15 +707,12 @@ def test_unsupported_wandb_value_without_natural_hash_stubbed_on_log(
     )
 
     run.log({"my_eval": et})
-    mock_wandb_log.assert_warned("wandb.Histogram values are not supported")
+    mock_wandb_log.assert_warned("wandb.Histogram values are not yet supported")
 
     ev = mock_eval_logger.created_loggers[0]
     output = ev.log_example.call_args.kwargs["output"]
     stub = output["histogram"]
-    assert stub.startswith("[wandb.Histogram unsupported: ")
-    assert stub.endswith("]")
-    digest = stub.removeprefix("[wandb.Histogram unsupported: ").removesuffix("]")
-    assert len(digest) == 8
+    assert stub == "[wandb.Histogram not yet supported]"
 
 
 # Logging an EvalTable to an Artifact: rejected.

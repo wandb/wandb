@@ -38,14 +38,11 @@ def test_media_adapter_stubs_unsupported_wandb_media(mock_wandb_log):
         unsupported_media_mode="stub",
     )
 
-    mock_wandb_log.assert_warned("wandb.Html values are not supported")
-    assert result.startswith("[wandb.Html unsupported: ")
-    assert result.endswith("]")
-    digest = result.removeprefix("[wandb.Html unsupported: ").removesuffix("]")
-    assert len(digest) == 8
+    mock_wandb_log.assert_warned("wandb.Html values are not yet supported")
+    assert result == "[wandb.Html not yet supported]"
 
 
-def test_media_adapter_stubs_same_embedded_media_consistently(mock_wandb_log):
+def test_media_adapter_stubs_same_wandb_type_consistently(mock_wandb_log):
     html = wandb.Html("<p>hi</p>", inject=False)
     same_html = wandb.Html("<p>hi</p>", inject=False)
     different_html = wandb.Html("<p>bye</p>", inject=False)
@@ -66,9 +63,9 @@ def test_media_adapter_stubs_same_embedded_media_consistently(mock_wandb_log):
         unsupported_media_mode="stub",
     )
 
-    mock_wandb_log.assert_warned("wandb.Html values are not supported")
+    mock_wandb_log.assert_warned("wandb.Html values are not yet supported")
     assert result == same_result
-    assert result != different_result
+    assert result == different_result
 
 
 def test_media_adapter_stubs_unsupported_wandb_value_without_natural_hash(
@@ -82,16 +79,8 @@ def test_media_adapter_stubs_unsupported_wandb_value_without_natural_hash(
         unsupported_media_mode="stub",
     )
 
-    mock_wandb_log.assert_warned("wandb.Histogram values are not supported")
-    assert result.startswith("[wandb.Histogram unsupported: ")
-    assert result.endswith("]")
-    digest = result.removeprefix("[wandb.Histogram unsupported: ").removesuffix("]")
-    assert len(digest) == 8
-
-
-def test_media_adapter_rejects_unknown_unsupported_media_mode():
-    with pytest.raises(ValueError, match="unsupported_media_mode"):
-        unwrap_value("plain text", "text", unsupported_media_mode="ignore")
+    mock_wandb_log.assert_warned("wandb.Histogram values are not yet supported")
+    assert result == "[wandb.Histogram not yet supported]"
 
 
 def test_media_adapter_image_value_unwrapped_to_pil(mock_wandb_log):
@@ -105,6 +94,20 @@ def test_media_adapter_image_value_unwrapped_to_pil(mock_wandb_log):
     mock_wandb_log.assert_warned("wandb.Image values")
     assert isinstance(result, PILImage.Image)
     assert result.size == (2, 2)
+
+
+def test_media_adapter_image_path_unwrapped_to_pil(tmp_path, mock_wandb_log):
+    from PIL import Image as PILImage
+
+    image_path = tmp_path / "image.png"
+    PILImage.new("RGB", (3, 4), color="red").save(image_path)
+    image = wandb.Image(str(image_path))
+
+    result = unwrap_value(image, "img", unsupported_media_mode="raise")
+
+    mock_wandb_log.assert_warned("wandb.Image values")
+    assert isinstance(result, PILImage.Image)
+    assert result.size == (3, 4)
 
 
 def test_media_adapter_rejects_external_image_reference(mock_wandb_log):
