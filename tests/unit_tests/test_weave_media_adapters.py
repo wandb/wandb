@@ -311,7 +311,7 @@ def test_media_adapter_rejects_media_without_local_path(monkeypatch):
         unwrap_value(audio, "audio", unsupported_media_mode="raise")
 
 
-def test_media_adapter_stubs_media_without_local_path(monkeypatch, mock_wandb_log):
+def test_media_adapter_rejects_media_without_local_path_in_stub_mode(monkeypatch):
     class FakeWeaveAudio:
         @classmethod
         def from_path(cls, path):
@@ -321,12 +321,11 @@ def test_media_adapter_stubs_media_without_local_path(monkeypatch, mock_wandb_lo
     audio = object.__new__(wandb.Audio)
     audio._path = None
 
-    result = unwrap_value(audio, "audio", unsupported_media_mode="stub")
-
-    mock_wandb_log.assert_warned(
-        "wandb.Audio values without local file paths are not yet supported"
-    )
-    assert result == "[wandb.Audio without local path not yet supported]"
+    with pytest.raises(
+        TypeError,
+        match="does not have a local file path",
+    ):
+        unwrap_value(audio, "audio", unsupported_media_mode="stub")
 
 
 def test_media_adapter_rethrows_weave_audio_value_error(

@@ -51,16 +51,9 @@ def _path_for_local_media(val: Media, column: str | int) -> Path:
             stub_value=f"[wandb.{type_name} external reference not yet supported]",
         )
     if path is None:
-        type_name = type(val).__name__
-        raise _UnsupportedMediaVariantError(
+        raise TypeError(
             f"Cannot convert wandb.{type(val).__name__} in column {column!r}: "
-            "media object does not have a local file path. "
-            f"{_unsupported_media_mode_hint()}",
-            stub_warning=(
-                f"wandb.{type_name} values without local file paths are not yet "
-                "supported by EvalTable. They will be logged as placeholder strings."
-            ),
-            stub_value=f"[wandb.{type_name} without local path not yet supported]",
+            "media object does not have a local file path."
         )
     return Path(path)
 
