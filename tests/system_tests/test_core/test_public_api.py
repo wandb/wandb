@@ -335,46 +335,32 @@ def test_run_update_state_success(wandb_backend_spy):
     update_state_spy = gql.Capture()
 
     wandb_backend_spy.stub_gql(
-        gql.Matcher(operation="UpdateRunState"),
-        gql.Constant(content={"data": {"updateRunState": {"success": True}}}),
-    )
-    wandb_backend_spy.stub_gql(
-        gql.Matcher(operation="UpdateRunState"),
-        update_state_spy,
+        gql.Matcher(operation="UpdateRunState"), update_state_spy
     )
 
     seed_run = Api().create_run()
     run = Api().run(f"{seed_run.entity}/{seed_run.project}/{seed_run.id}")
-    run._attrs["state"] = "failed"
-    run._state = "failed"
 
-    result = run.update_state("pending")
+    result = run.update_state("failed")
 
     assert result is True
-    assert run.state == "pending"
+    assert run.state == "failed"
     assert update_state_spy.total_calls == 1
-    assert update_state_spy.requests[0].variables["input"]["state"] == "pending"
+    assert update_state_spy.requests[0].variables["input"]["state"] == "failed"
     assert update_state_spy.requests[0].variables["input"]["id"] == run.storage_id
 
 
-def test_run_update_state_failure(wandb_backend_spy):
-    """Test that update_state returns False when server rejects transition."""
-    gql = wandb_backend_spy.gql
-
-    wandb_backend_spy.stub_gql(
-        gql.Matcher(operation="UpdateRunState"),
-        gql.Constant(content={"data": {"updateRunState": {"success": False}}}),
-    )
-
+@pytest.mark.usefixtures("user")
+def test_run_update_state_failure():
+    """Test that update_state raises when the server rejects the transition."""
     seed_run = Api().create_run()
     run = Api().run(f"{seed_run.entity}/{seed_run.project}/{seed_run.id}")
-    run._attrs["state"] = "running"
-    run._state = "running"
 
-    result = run.update_state("pending")
+    assert run.update_state("failed") is True
+    assert run.state == "failed"
 
-    assert result is False
-    assert run.state == "running"
+    with pytest.raises(wandb.Error, match="invalid state transition"):
+        run.update_state("failed")
 
 
 def test_run_file_direct(

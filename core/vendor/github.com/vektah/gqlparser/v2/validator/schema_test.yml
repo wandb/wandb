@@ -445,6 +445,26 @@ enums:
     error:
       message: 'ENUM InvalidEnum2: must define one or more unique enum values.'
       locations: [{line: 6, column: 6}]
+  - name: cannot be duplicated enum value at same definition
+    input: |
+      enum A {
+        FOO
+        FOO
+      }
+    error:
+      message: "Enum value A.FOO can only be defined once."
+      locations: [{line: 3, column: 3}]
+  - name: cannot be duplicated enum value across extension
+    input: |
+      enum A {
+        FOO
+      }
+      extend enum A {
+        FOO
+      }
+    error:
+      message: "Enum value A.FOO can only be defined once."
+      locations: [{line: 5, column: 3}]
   - name: check reserved names on type name
     input: |
       enum __FooBar {
@@ -570,6 +590,45 @@ directives:
     error:
       message: "Directive A cannot refer to itself."
       locations: [{line: 1, column: 25}]
+
+  - name: non-repeatable directive cannot be used more than once per location
+    input: |
+      directive @A on FIELD_DEFINITION
+      type User {
+        name: String @A @A
+      }
+    error:
+      message: "The directive A can only be used once at this location."
+      locations: [{line: 3, column: 20}]
+  - name: non-repeatable directive cannot be used more than once on an enum value
+    input: |
+      directive @A on ENUM_VALUE
+      enum E {
+        FOO @A @A
+      }
+    error:
+      message: "The directive A can only be used once at this location."
+      locations: [{line: 3, column: 11}]
+  - name: repeatable directive can be used more than once per location
+    input: |
+      directive @A repeatable on FIELD_DEFINITION
+      type User {
+        name: String @A @A
+      }
+  - name: non-repeatable directive can be used on distinct locations
+    input: |
+      directive @A on FIELD_DEFINITION
+      type User {
+        a: String @A
+        b: String @A
+      }
+  - name: non-repeatable directive can be used on a type and its extension
+    input: |
+      directive @A on OBJECT
+      type User @A {
+        name: String
+      }
+      extend type User @A
   - name: check reserved names on type name
     input: |
       directive @__A on FIELD_DEFINITION
