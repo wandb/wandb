@@ -195,8 +195,8 @@ func RunKeyBindings() []BindingCategory[Run] {
 					Handler:     (*Run).handleSidebarPageNav,
 				},
 				{
-					Keys:        []string{"alt+↑/↓/←/→", "alt+home/end"},
-					Description: "Scrub all media series in sync (media pane focused)",
+					Keys:        []string{"l"},
+					Description: "Link scrubbing: arrow keys scrub all media series in sync (media pane focused)",
 				},
 				{
 					Keys:        []string{"k"},
@@ -418,8 +418,8 @@ func WorkspaceKeyBindings() []BindingCategory[Workspace] {
 					Handler:     (*Workspace).handlePinRunKey,
 				},
 				{
-					Keys:        []string{"alt+↑/↓/←/→", "alt+home/end"},
-					Description: "Scrub all media series in sync (media pane focused)",
+					Keys:        []string{"l"},
+					Description: "Link scrubbing: arrow keys scrub all media series in sync (media pane focused)",
 				},
 				{
 					Keys:        []string{"k"},

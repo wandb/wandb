@@ -112,6 +112,13 @@ type MediaPane struct {
 	active bool
 	// fullscreen expands the selected image inside the pane and keeps keys local.
 	fullscreen bool
+	// linkedScrub makes the scrub keys move all media series in sync by
+	// driving a single shared cursor over the union X timeline.
+	linkedScrub bool
+	// linkedXIndex is the shared cursor's index into store.XValues().
+	linkedXIndex int
+	// linkedAutoFollow keeps the shared cursor pinned to the latest X value.
+	linkedAutoFollow bool
 
 	// selectedIndex is the selected series index within store.SeriesKeys().
 	selectedIndex int
@@ -246,6 +253,8 @@ type MediaPaneViewState struct {
 	SelectedIndex int
 	XIndices      map[string]int
 	AutoFollows   map[string]bool
+	LinkedScrub   bool
+	LinkedXIndex  int
 }
 
 func (p *MediaPane) SaveViewState() MediaPaneViewState {
@@ -257,6 +266,8 @@ func (p *MediaPane) SaveViewState() MediaPaneViewState {
 		SelectedIndex: p.selectedIndex,
 		XIndices:      xi,
 		AutoFollows:   af,
+		LinkedScrub:   p.linkedScrub,
+		LinkedXIndex:  p.linkedXIndex,
 	}
 }
 
@@ -266,6 +277,10 @@ func (p *MediaPane) RestoreViewState(s MediaPaneViewState) {
 	maps.Copy(p.xIndices, s.XIndices)
 	clear(p.autoFollows)
 	maps.Copy(p.autoFollows, s.AutoFollows)
+	p.linkedScrub = s.LinkedScrub
+	p.linkedXIndex = s.LinkedXIndex
+	xs := p.unionXValues()
+	p.linkedAutoFollow = len(xs) > 0 && s.LinkedXIndex >= len(xs)-1
 	p.fullscreen = false
 	p.syncState()
 }
@@ -274,6 +289,9 @@ func (p *MediaPane) ResetViewState() {
 	p.selectedIndex = 0
 	clear(p.xIndices)
 	clear(p.autoFollows)
+	p.linkedScrub = false
+	p.linkedXIndex = 0
+	p.linkedAutoFollow = false
 	p.nav.currentPage = 0
 	p.fullscreen = false
 	p.syncState()
@@ -309,6 +327,16 @@ func (p *MediaPane) syncState() {
 		default:
 			p.xIndices[key] = clamp(p.xIndices[key], 0, len(xs)-1)
 		}
+	}
+
+	// Maintain the shared linked cursor against the union timeline.
+	switch xs := p.unionXValues(); {
+	case len(xs) == 0:
+		p.linkedXIndex = 0
+	case p.linkedAutoFollow:
+		p.linkedXIndex = len(xs) - 1
+	default:
+		p.linkedXIndex = clamp(p.linkedXIndex, 0, len(xs)-1)
 	}
 
 	itemsPerPage := p.itemsPerPage()
@@ -362,7 +390,7 @@ func (p *MediaPane) currentSelection() (string, MediaPoint, bool) {
 	}
 	idx := clamp(p.selectedIndex, 0, len(keys)-1)
 	key := keys[idx]
-	x, ok := p.currentXForSeries(key)
+	x, ok := p.scrubX(key)
 	if !ok || p.store == nil {
 		return key, MediaPoint{}, false
 	}
@@ -380,13 +408,21 @@ func (p *MediaPane) StatusLabel() string {
 		return ""
 	}
 
-	x, hasX := p.currentXForSeries(key)
+	// Show the resolved sample's step; fall back to the scrub position when
+	// the series has no sample there yet.
+	x, hasX := p.scrubX(key)
+	if ok {
+		x, hasX = point.X, true
+	}
 	parts := []string{fmt.Sprintf("Media: %s", key)}
 	if hasX {
 		parts = append(parts, fmt.Sprintf("X=_step %s", formatMediaAxisValue(x)))
 	}
 	if ok && point.Caption != "" {
 		parts = append(parts, truncateValue(point.Caption, 48))
+	}
+	if p.linkedScrub {
+		parts = append(parts, "sync")
 	}
 	if p.fullscreen {
 		parts = append(parts, "fullscreen")
@@ -396,6 +432,8 @@ func (p *MediaPane) StatusLabel() string {
 
 // HandleKey handles media-pane-local navigation. It returns whether the key
 // was consumed and any command needed to render media.
+//
+//gocyclo:ignore
 func (p *MediaPane) HandleKey(msg tea.KeyPressMsg) (bool, tea.Cmd) {
 	if !p.active && !p.fullscreen {
 		return false, nil
@@ -420,6 +458,11 @@ func (p *MediaPane) HandleKey(msg tea.KeyPressMsg) (bool, tea.Cmd) {
 			p.requestRenderedMediaPrepare()
 		}
 		return true, cmd
+	case "l":
+		if p.HasData() {
+			p.toggleLinkedScrub()
+		}
+		return true, nil
 	case "left":
 		p.Scrub(-1)
 		return true, nil
@@ -437,24 +480,6 @@ func (p *MediaPane) HandleKey(msg tea.KeyPressMsg) (bool, tea.Cmd) {
 		return true, nil
 	case "end":
 		p.ScrubToEnd()
-		return true, nil
-	case "alt+left":
-		p.ScrubAll(-1)
-		return true, nil
-	case "alt+right":
-		p.ScrubAll(1)
-		return true, nil
-	case "alt+up":
-		p.ScrubAll(-10)
-		return true, nil
-	case "alt+down":
-		p.ScrubAll(10)
-		return true, nil
-	case "alt+home":
-		p.ScrubAllToStart()
-		return true, nil
-	case "alt+end":
-		p.ScrubAllToEnd()
 		return true, nil
 	case "a":
 		p.MoveSelection(-1, 0)
@@ -537,7 +562,19 @@ func (p *MediaPane) selectedKey() string {
 	return keys[clamp(p.selectedIndex, 0, len(keys)-1)]
 }
 
+// Scrub moves the scrub position by delta samples: the shared cursor over
+// the union timeline when scrubbing is linked, the selected series otherwise.
 func (p *MediaPane) Scrub(delta int) {
+	if p.linkedScrub {
+		xs := p.unionXValues()
+		if len(xs) == 0 {
+			return
+		}
+		p.linkedXIndex = clamp(p.linkedXIndex+delta, 0, len(xs)-1)
+		p.linkedAutoFollow = p.linkedXIndex == len(xs)-1
+		return
+	}
+
 	key := p.selectedKey()
 	if key == "" {
 		return
@@ -551,6 +588,12 @@ func (p *MediaPane) Scrub(delta int) {
 }
 
 func (p *MediaPane) ScrubToStart() {
+	if p.linkedScrub {
+		p.linkedXIndex = 0
+		p.linkedAutoFollow = false
+		return
+	}
+
 	key := p.selectedKey()
 	if key == "" {
 		return
@@ -560,6 +603,14 @@ func (p *MediaPane) ScrubToStart() {
 }
 
 func (p *MediaPane) ScrubToEnd() {
+	if p.linkedScrub {
+		if xs := p.unionXValues(); len(xs) > 0 {
+			p.linkedXIndex = len(xs) - 1
+		}
+		p.linkedAutoFollow = true
+		return
+	}
+
 	key := p.selectedKey()
 	if key == "" {
 		return
@@ -572,18 +623,23 @@ func (p *MediaPane) ScrubToEnd() {
 	p.autoFollows[key] = true
 }
 
-// ScrubAll scrubs every media series in sync: it moves a shared cursor along
-// the union X timeline and aligns each series to it.
-func (p *MediaPane) ScrubAll(delta int) {
-	if p.store == nil {
-		return
-	}
-	union := p.store.XValues()
-	if len(union) == 0 {
+// toggleLinkedScrub switches between linked and per-series scrubbing.
+//
+// Linking starts the shared cursor at the most advanced series position so
+// the view doesn't jump; unlinking writes the cursor back into each series'
+// own scrub position so tiles keep showing the same samples.
+func (p *MediaPane) toggleLinkedScrub() {
+	if p.linkedScrub {
+		if x, ok := p.linkedX(); ok {
+			for _, key := range p.seriesKeys() {
+				p.alignSeriesTo(key, x)
+			}
+		}
+		p.linkedScrub = false
 		return
 	}
 
-	// The most advanced series defines the cursor on the union timeline.
+	union := p.unionXValues()
 	cursor := 0
 	for _, key := range p.seriesKeys() {
 		if x, ok := p.currentXForSeries(key); ok {
@@ -592,11 +648,9 @@ func (p *MediaPane) ScrubAll(delta int) {
 			}
 		}
 	}
-
-	target := union[clamp(cursor+delta, 0, len(union)-1)]
-	for _, key := range p.seriesKeys() {
-		p.alignSeriesTo(key, target)
-	}
+	p.linkedXIndex = cursor
+	p.linkedAutoFollow = cursor == len(union)-1
+	p.linkedScrub = true
 }
 
 // alignSeriesTo moves a series' scrub position to its latest sample at or
@@ -614,22 +668,29 @@ func (p *MediaPane) alignSeriesTo(key string, x float64) {
 	p.autoFollows[key] = idx == len(xs)-1
 }
 
-func (p *MediaPane) ScrubAllToStart() {
-	for _, key := range p.seriesKeys() {
-		p.xIndices[key] = 0
-		p.autoFollows[key] = false
+func (p *MediaPane) unionXValues() []float64 {
+	if p.store == nil {
+		return nil
 	}
+	return p.store.XValues()
 }
 
-func (p *MediaPane) ScrubAllToEnd() {
-	for _, key := range p.seriesKeys() {
-		xs := p.seriesXValues(key)
-		if len(xs) == 0 {
-			continue
-		}
-		p.xIndices[key] = len(xs) - 1
-		p.autoFollows[key] = true
+// linkedX returns the shared cursor's X value on the union timeline.
+func (p *MediaPane) linkedX() (float64, bool) {
+	xs := p.unionXValues()
+	if len(xs) == 0 {
+		return 0, false
 	}
+	return xs[clamp(p.linkedXIndex, 0, len(xs)-1)], true
+}
+
+// scrubX returns the X position a series' tile resolves against: the shared
+// cursor when scrubbing is linked, the series' own position otherwise.
+func (p *MediaPane) scrubX(key string) (float64, bool) {
+	if p.linkedScrub {
+		return p.linkedX()
+	}
+	return p.currentXForSeries(key)
 }
 
 func (p *MediaPane) syncGridLayoutForViewport(width, height int) {
@@ -798,16 +859,11 @@ func (p *MediaPane) renderHeader(width int, runLabel string, fullscreen bool) st
 }
 
 func (p *MediaPane) renderSlider(width int) string {
-	key := p.selectedKey()
-	if key == "" {
-		return mediaPaneSliderStyle.Width(width).Render("X: _step —")
-	}
-	xs := p.seriesXValues(key)
+	xs, idx := p.sliderPosition()
 	if len(xs) == 0 {
 		return mediaPaneSliderStyle.Width(width).Render("X: _step —")
 	}
 
-	idx := clamp(p.xIndices[key], 0, len(xs)-1)
 	barWidth := clamp(width-24, 8, 48)
 	pos := 0
 	if len(xs) > 1 {
@@ -833,7 +889,25 @@ func (p *MediaPane) renderSlider(width int) string {
 		idx+1,
 		len(xs),
 	)
+	if p.linkedScrub {
+		text += "  [sync]"
+	}
 	return mediaPaneSliderStyle.Width(width).Render(truncateValue(text, width))
+}
+
+// sliderPosition returns the timeline and cursor index the slider displays:
+// the union timeline when scrubbing is linked, the selected series otherwise.
+func (p *MediaPane) sliderPosition() ([]float64, int) {
+	if p.linkedScrub {
+		xs := p.unionXValues()
+		return xs, clamp(p.linkedXIndex, 0, max(len(xs)-1, 0))
+	}
+	key := p.selectedKey()
+	if key == "" {
+		return nil, 0
+	}
+	xs := p.seriesXValues(key)
+	return xs, clamp(p.xIndices[key], 0, max(len(xs)-1, 0))
 }
 
 func (p *MediaPane) renderGrid(width, height int, hint string) string {
@@ -857,7 +931,7 @@ func (p *MediaPane) renderGrid(width, height int, hint string) string {
 	renderKeys := make([]mediaRenderKey, 0, endIdx-startIdx)
 	for idx := startIdx; idx < endIdx; idx++ {
 		key := keys[idx]
-		x, hasX := p.currentXForSeries(key)
+		x, hasX := p.scrubX(key)
 		point, ok := MediaPoint{}, false
 		if hasX && p.store != nil {
 			point, ok = p.store.ResolveAt(key, x)
@@ -971,7 +1045,12 @@ func mediaTileLayout(slotW, slotH int) (innerW, innerH, imageH, footerLines int)
 }
 
 func (p *MediaPane) tileFooter(key string, point MediaPoint, ok bool, width int) string {
-	x, hasX := p.currentXForSeries(key)
+	// Show the resolved sample's step; fall back to the scrub position when
+	// the series has no sample there yet.
+	x, hasX := p.scrubX(key)
+	if ok {
+		x, hasX = point.X, true
+	}
 	stepLabel := ""
 	if hasX {
 		stepLabel = "X=_step " + formatMediaAxisValue(x)
@@ -1006,9 +1085,7 @@ func (p *MediaPane) fullscreenFooter(point MediaPoint, width int) string {
 	if point.Format != "" {
 		parts = append(parts, strings.ToUpper(point.Format))
 	}
-	if x, ok := p.currentXForSeries(p.selectedKey()); ok {
-		parts = append(parts, "X=_step "+formatMediaAxisValue(x))
-	}
+	parts = append(parts, "X=_step "+formatMediaAxisValue(point.X))
 	if len(parts) == 0 {
 		return ""
 	}

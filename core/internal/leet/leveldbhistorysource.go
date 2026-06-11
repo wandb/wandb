@@ -251,6 +251,39 @@ func ParseHistory(runPath string, history *spb.HistoryRecord) tea.Msg {
 		}
 	}
 
+	media := parseHistoryMedia(runPath, step, mediaFieldsByKey)
+
+	if len(metrics) == 0 && len(media) == 0 {
+		return nil
+	}
+
+	msg := HistoryMsg{RunPath: runPath}
+	if len(metrics) > 0 {
+		msg.Metrics = metrics
+	}
+	if len(media) > 0 {
+		msg.Media = media
+	}
+	return msg
+}
+
+func trimJSONString(v string) string {
+	if v == "" {
+		return ""
+	}
+	if unquoted, err := strconv.Unquote(v); err == nil {
+		return unquoted
+	}
+	return v
+}
+
+// parseHistoryMedia builds media series from the per-key media fields of a
+// history record.
+func parseHistoryMedia(
+	runPath string,
+	step int,
+	mediaFieldsByKey map[string]map[string]string,
+) map[string][]MediaPoint {
 	media := make(map[string][]MediaPoint)
 	for mediaKey, fields := range mediaFieldsByKey {
 		switch fields["_type"] {
@@ -293,29 +326,7 @@ func ParseHistory(runPath string, history *spb.HistoryRecord) tea.Msg {
 			}
 		}
 	}
-
-	if len(metrics) == 0 && len(media) == 0 {
-		return nil
-	}
-
-	msg := HistoryMsg{RunPath: runPath}
-	if len(metrics) > 0 {
-		msg.Metrics = metrics
-	}
-	if len(media) > 0 {
-		msg.Media = media
-	}
-	return msg
-}
-
-func trimJSONString(v string) string {
-	if v == "" {
-		return ""
-	}
-	if unquoted, err := strconv.Unquote(v); err == nil {
-		return unquoted
-	}
-	return v
+	return media
 }
 
 // parseJSONStringArray decodes a JSON array of strings, returning nil on

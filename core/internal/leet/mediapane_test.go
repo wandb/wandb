@@ -271,71 +271,95 @@ func TestMediaPane_HandleKeyScrubBindings(t *testing.T) {
 	require.Contains(t, pane.StatusLabel(), "X=_step 0")
 }
 
-func TestMediaPane_ScrubAll(t *testing.T) {
+func TestMediaPane_LinkedScrub_SharedCursor(t *testing.T) {
 	pane, store := testMediaPane(t)
 	feedImages(store, "a", 0, 1, 2, 3, 4)
 	feedImages(store, "b", 0, 2, 4)
 	pane.SetStore(store)
+	pane.SetActive(true)
 
-	// Auto-follow starts both series at their last sample (X=4). Scrubbing
-	// back one step on the union timeline aligns "b" to its sample at 2.
-	pane.ScrubAll(-1)
+	// Linking starts the shared cursor at the most advanced position (X=4).
+	_, _ = pane.HandleKey(mediaKeyMsg(t, "l"))
+	require.Contains(t, pane.StatusLabel(), "X=_step 4")
+
+	// One press moves the cursor by one union step; each tile resolves to
+	// its latest sample at or before the cursor.
+	_, _ = pane.HandleKey(mediaKeyMsg(t, "left"))
 	require.Contains(t, pane.StatusLabel(), "Media: a")
 	require.Contains(t, pane.StatusLabel(), "X=_step 3")
-	pane.NavigatePage(1) // select "b"
+	pane.NavigatePage(1) // select "b": latest sample ≤ 3 is 2
 	require.Contains(t, pane.StatusLabel(), "Media: b")
 	require.Contains(t, pane.StatusLabel(), "X=_step 2")
 	pane.NavigatePage(-1)
 
-	// The most advanced series ("a" at 3) carries the cursor: 3 → 2.
-	pane.ScrubAll(-1)
-	require.Contains(t, pane.StatusLabel(), "X=_step 2")
-
-	// Scrubbing past the start clamps every series to its first sample.
-	pane.ScrubAll(-100)
+	// Scrubbing past the start clamps the cursor to the first union step.
+	_, _ = pane.HandleKey(mediaKeyMsg(t, "up"))
 	require.Contains(t, pane.StatusLabel(), "X=_step 0")
 
-	pane.ScrubAllToEnd()
+	_, _ = pane.HandleKey(mediaKeyMsg(t, "end"))
 	require.Contains(t, pane.StatusLabel(), "X=_step 4")
 	pane.NavigatePage(1)
 	require.Contains(t, pane.StatusLabel(), "X=_step 4")
 
-	pane.ScrubAllToStart()
+	_, _ = pane.HandleKey(mediaKeyMsg(t, "home"))
 	require.Contains(t, pane.StatusLabel(), "X=_step 0")
 	pane.NavigatePage(-1)
 	require.Contains(t, pane.StatusLabel(), "X=_step 0")
 }
 
-func TestMediaPane_ScrubAll_EmptyStore(t *testing.T) {
-	pane, _ := testMediaPane(t)
-	// Should not panic on empty store.
-	pane.ScrubAll(1)
-	pane.ScrubAllToStart()
-	pane.ScrubAllToEnd()
+func TestMediaPane_LinkedScrub_MixedCadence(t *testing.T) {
+	pane, store := testMediaPane(t)
+	feedImages(store, "a", 0, 1, 2, 3, 4)
+	feedImages(store, "b", 3, 4) // starts later
+	pane.SetStore(store)
+	pane.SetActive(true)
+
+	_, _ = pane.HandleKey(mediaKeyMsg(t, "l"))
+	_, _ = pane.HandleKey(mediaKeyMsg(t, "home"))
+	require.Contains(t, pane.StatusLabel(), "X=_step 0")
+
+	// One press moves the shared cursor by exactly one union step, even
+	// though "b" has no sample there.
+	_, _ = pane.HandleKey(mediaKeyMsg(t, "right"))
+	require.Contains(t, pane.StatusLabel(), "X=_step 1")
+
+	// "b" has no sample at or before the cursor: its tile shows a
+	// placeholder rather than a "future" image.
+	pane.NavigatePage(1)
+	require.Contains(t, pane.StatusLabel(), "Media: b")
+	require.Contains(t, pane.StatusLabel(), "X=_step 1")
+	require.Contains(t, pane.View(40, 14, "", ""), "No image at X")
+
+	// Once the cursor reaches b's first sample, the tile resolves.
+	_, _ = pane.HandleKey(mediaKeyMsg(t, "right"))
+	_, _ = pane.HandleKey(mediaKeyMsg(t, "right"))
+	require.Contains(t, pane.StatusLabel(), "X=_step 3")
 }
 
-func TestMediaPane_HandleKeySyncScrubBindings(t *testing.T) {
+func TestMediaPane_HandleKeyLinkedScrubBindings(t *testing.T) {
 	pane, store := testMediaPane(t)
 	feedImages(store, "a", 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11)
 	feedImages(store, "b", 0, 10)
 	pane.SetStore(store)
 	pane.SetActive(true)
 
-	altKey := func(code rune) tea.KeyPressMsg {
-		return tea.KeyPressMsg{Code: code, Mod: tea.ModAlt}
-	}
+	// "l" links scrubbing across all series.
+	handled, cmd := pane.HandleKey(mediaKeyMsg(t, "l"))
+	require.True(t, handled)
+	require.Nil(t, cmd)
+	require.Contains(t, pane.StatusLabel(), "sync")
 
-	handled, cmd := pane.HandleKey(altKey(tea.KeyHome))
+	handled, cmd = pane.HandleKey(mediaKeyMsg(t, "home"))
 	require.True(t, handled)
 	require.Nil(t, cmd)
 	require.Contains(t, pane.StatusLabel(), "X=_step 0")
 
-	handled, cmd = pane.HandleKey(altKey(tea.KeyRight))
+	handled, cmd = pane.HandleKey(mediaKeyMsg(t, "right"))
 	require.True(t, handled)
 	require.Nil(t, cmd)
 	require.Contains(t, pane.StatusLabel(), "X=_step 1")
 
-	handled, cmd = pane.HandleKey(altKey(tea.KeyDown))
+	handled, cmd = pane.HandleKey(mediaKeyMsg(t, "down"))
 	require.True(t, handled)
 	require.Nil(t, cmd)
 	require.Contains(t, pane.StatusLabel(), "X=_step 11")
@@ -344,20 +368,36 @@ func TestMediaPane_HandleKeySyncScrubBindings(t *testing.T) {
 	require.Contains(t, pane.StatusLabel(), "X=_step 10")
 	pane.NavigatePage(-1)
 
-	handled, cmd = pane.HandleKey(altKey(tea.KeyUp))
+	handled, cmd = pane.HandleKey(mediaKeyMsg(t, "up"))
 	require.True(t, handled)
 	require.Nil(t, cmd)
 	require.Contains(t, pane.StatusLabel(), "X=_step 1")
 
-	handled, cmd = pane.HandleKey(altKey(tea.KeyLeft))
+	handled, cmd = pane.HandleKey(mediaKeyMsg(t, "left"))
 	require.True(t, handled)
 	require.Nil(t, cmd)
 	require.Contains(t, pane.StatusLabel(), "X=_step 0")
 
-	handled, cmd = pane.HandleKey(altKey(tea.KeyEnd))
+	handled, cmd = pane.HandleKey(mediaKeyMsg(t, "end"))
 	require.True(t, handled)
 	require.Nil(t, cmd)
 	require.Contains(t, pane.StatusLabel(), "X=_step 11")
+	pane.NavigatePage(1)
+	require.Contains(t, pane.StatusLabel(), "X=_step 10")
+	pane.NavigatePage(-1)
+
+	// "l" again unlinks: plain scrubbing only moves the selected series.
+	handled, _ = pane.HandleKey(mediaKeyMsg(t, "l"))
+	require.True(t, handled)
+	require.NotContains(t, pane.StatusLabel(), "sync")
+
+	handled, _ = pane.HandleKey(mediaKeyMsg(t, "left"))
+	require.True(t, handled)
+	require.Contains(t, pane.StatusLabel(), "X=_step 10")
+	_, _ = pane.HandleKey(mediaKeyMsg(t, "left"))
+	require.Contains(t, pane.StatusLabel(), "X=_step 9")
+	pane.NavigatePage(1) // "b" stays at its last sample
+	require.Contains(t, pane.StatusLabel(), "X=_step 10")
 }
 
 // --- MediaPane view state save/restore ---
@@ -381,6 +421,33 @@ func TestMediaPane_ViewState_SaveRestore(t *testing.T) {
 
 	// Restore brings it back.
 	pane.RestoreViewState(state)
+	require.Contains(t, pane.StatusLabel(), "X=_step 1")
+}
+
+func TestMediaPane_ViewState_LinkedScrub(t *testing.T) {
+	pane, store := testMediaPane(t)
+	feedImages(store, "a", 0, 1, 2, 3)
+	feedImages(store, "b", 0, 1, 2)
+	pane.SetStore(store)
+	pane.SetActive(true)
+
+	// Link and move the shared cursor to X=1.
+	_, _ = pane.HandleKey(mediaKeyMsg(t, "l"))
+	_, _ = pane.HandleKey(mediaKeyMsg(t, "home"))
+	_, _ = pane.HandleKey(mediaKeyMsg(t, "right"))
+	require.Contains(t, pane.StatusLabel(), "sync")
+	require.Contains(t, pane.StatusLabel(), "X=_step 1")
+
+	state := pane.SaveViewState()
+
+	// Reset unlinks and destroys the cursor.
+	pane.ResetViewState()
+	require.NotContains(t, pane.StatusLabel(), "sync")
+	require.Contains(t, pane.StatusLabel(), "X=_step 3")
+
+	// Restore brings both back.
+	pane.RestoreViewState(state)
+	require.Contains(t, pane.StatusLabel(), "sync")
 	require.Contains(t, pane.StatusLabel(), "X=_step 1")
 }
 
