@@ -145,6 +145,7 @@ func ValidateSchemaDocument(sd *SchemaDocument) (*Schema, error) {
 			sd.Schema[0].Directives,
 			LocationSchema,
 			nil,
+			true,
 		); err != nil {
 			return nil, err
 		}
@@ -171,7 +172,13 @@ func ValidateSchemaDocument(sd *SchemaDocument) (*Schema, error) {
 				schema.Subscription = def
 			}
 		}
-		if err := validateDirectives(&schema, ext.Directives, LocationSchema, nil); err != nil {
+		if err := validateDirectives(
+			&schema,
+			ext.Directives,
+			LocationSchema,
+			nil,
+			true,
+		); err != nil {
 			return nil, err
 		}
 		schema.SchemaDirectives = append(schema.SchemaDirectives, ext.Directives...)
@@ -277,7 +284,13 @@ func validateDefinition(schema *Schema, def *Definition) *gqlerror.Error {
 		if def.Kind == InputObject {
 			wantDirLocation = LocationInputFieldDefinition
 		}
-		if err := validateDirectives(schema, field.Directives, wantDirLocation, nil); err != nil {
+		if err := validateDirectives(
+			schema,
+			field.Directives,
+			wantDirLocation,
+			nil,
+			true,
+		); err != nil {
 			return err
 		}
 	}
@@ -353,6 +366,7 @@ func validateDefinition(schema *Schema, def *Definition) *gqlerror.Error {
 				value.Directives,
 				LocationEnumValue,
 				nil,
+				true,
 			); err != nil {
 				return err
 			}
@@ -394,6 +408,19 @@ func validateDefinition(schema *Schema, def *Definition) *gqlerror.Error {
 		}
 	}
 
+	for idx, value1 := range def.EnumValues {
+		for _, value2 := range def.EnumValues[idx+1:] {
+			if value1.Name == value2.Name {
+				return gqlerror.ErrorPosf(
+					value2.Position,
+					"Enum value %s.%s can only be defined once.",
+					def.Name,
+					value2.Name,
+				)
+			}
+		}
+	}
+
 	if !def.BuiltIn {
 		// GraphQL spec has reserved type names a lot!
 		err := validateName(def.Position, def.Name)
@@ -402,7 +429,9 @@ func validateDefinition(schema *Schema, def *Definition) *gqlerror.Error {
 		}
 	}
 
-	return validateDirectives(schema, def.Directives, DirectiveLocation(def.Kind), nil)
+	// def.Directives is merged across the base definition and all extensions,
+	// which are distinct locations, so uniqueness is not enforced here.
+	return validateDirectives(schema, def.Directives, DirectiveLocation(def.Kind), nil, false)
 }
 
 func validateTypeRef(schema *Schema, typ *Type) *gqlerror.Error {
@@ -440,6 +469,7 @@ func validateArgs(
 			arg.Directives,
 			LocationArgumentDefinition,
 			currentDirective,
+			true,
 		); err != nil {
 			return err
 		}
@@ -452,7 +482,15 @@ func validateDirectives(
 	dirs DirectiveList,
 	location DirectiveLocation,
 	currentDirective *DirectiveDefinition,
+	// singleLocation is true when dirs come from a single authored location
+	// (one field, enum value, argument, or schema/extension node). A type's
+	// own directives are merged across its base definition and every extension
+	// (see the def.Directives append in LoadSchema), which the spec treats as
+	// distinct locations, so the non-repeatable check is skipped for that
+	// merged list to avoid rejecting a directive used once per location.
+	singleLocation bool,
 ) *gqlerror.Error {
+	seen := make(map[string]bool, len(dirs))
 	for _, dir := range dirs {
 		if err := validateName(dir.Position, dir.Name); err != nil {
 			// now, GraphQL spec doesn't have reserved directive name
@@ -468,6 +506,16 @@ func validateDirectives(
 		dirDefinition := schema.Directives[dir.Name]
 		if dirDefinition == nil {
 			return gqlerror.ErrorPosf(dir.Position, "Undefined directive %s.", dir.Name)
+		}
+		if singleLocation {
+			if seen[dir.Name] && !dirDefinition.IsRepeatable {
+				return gqlerror.ErrorPosf(
+					dir.Position,
+					"The directive %s can only be used once at this location.",
+					dir.Name,
+				)
+			}
+			seen[dir.Name] = true
 		}
 		validKind := slices.Contains(dirDefinition.Locations, location)
 		if !validKind {
