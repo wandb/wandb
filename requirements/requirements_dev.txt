@@ -56,4 +56,4 @@ ariadne-codegen
 .[sweeps] ; sys_platform != 'darwin' or (sys_platform == 'darwin' and platform.machine != 'arm64')
 
 # Sandbox tests need the upstream client, but it only supports Python 3.11+.
-cwsandbox[cli]>=0.20.0; python_version >= '3.11'
+cwsandbox[cli]>=0.26,<0.27; python_version >= '3.11'

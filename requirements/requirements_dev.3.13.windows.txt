@@ -157,7 +157,7 @@ cryptography==46.0.6
     #   google-auth
     #   msal
     #   pyjwt
-cwsandbox==0.20.0
+cwsandbox==0.26.0
     # via -r requirements/requirements_dev.txt
 cycler==0.12.1
     # via matplotlib
@@ -766,7 +766,6 @@ pycparser==3.0
 pydantic==2.12.5
     # via
     #   ariadne-codegen
-    #   cwsandbox
     #   dspy
     #   fastapi
     #   google-cloud-aiplatform
