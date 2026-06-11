@@ -149,7 +149,8 @@ commands:
           command: >
             nox -s "<<parameters.session>>" --python <<parameters.python>> --verbose
 
-      - codecov/upload: { flags: <<parameters.codecov_flags>> }
+      # TODO[WB-35582]: Temporarily disable codecov because brew install broke it.
+      # - codecov/upload: { flags: <<parameters.codecov_flags>> }
       - save-test-results
 
   local-wandb-server-deps:
@@ -485,7 +486,8 @@ jobs:
             cd core
             go test -count=1 -race -coverprofile=coverage.txt -covermode=atomic ./...
       - save-go-cache
-      - codecov/upload: { flags: unit }
+      # TODO[WB-35582]: Temporarily disable codecov because brew install broke it.
+      # - codecov/upload: { flags: unit }
 
   unit-tests-rust:
     resource_class: wandb/docker-builder
