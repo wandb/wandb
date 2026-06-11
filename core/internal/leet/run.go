@@ -1,6 +1,7 @@
 package leet
 
 import (
+	"context"
 	"fmt"
 	"runtime/debug"
 	"strings"
@@ -10,9 +11,31 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/NimbleMarkets/ntcharts/v2/picture"
 
 	"github.com/wandb/wandb/core/internal/observability"
 )
+
+// RunParams identifies the run LEET displays.
+//
+// Exactly one of RunFile or Remote is set.
+type RunParams struct {
+	// RunFile is the path to a local .wandb transaction log.
+	RunFile string
+
+	// Remote identifies a run stored on a W&B server.
+	Remote *RemoteRunParams
+}
+
+// RemoteRunParams identifies a run stored on a W&B server.
+type RemoteRunParams struct {
+	// BaseURL is the W&B API base URL (e.g. https://api.wandb.ai).
+	BaseURL string
+
+	Entity  string
+	Project string
+	RunID   string
+}
 
 // Run holds data/state related to a single W&B run.
 //
@@ -29,8 +52,8 @@ type Run struct {
 	// Terminal dimensions.
 	width, height int
 
-	// Run file path.
-	runPath string
+	// runParams contains the information about the run.
+	runParams *RunParams
 
 	// Run state tracking.
 	runState RunState
@@ -48,6 +71,7 @@ type Run struct {
 
 	// Data reader.
 	historySource HistorySource
+	initCancel    context.CancelFunc
 
 	// Transaction log (.wandb file) watch and heartbeat management.
 	watcherMgr   *WatcherManager
@@ -75,6 +99,7 @@ type Run struct {
 	// Loading progress.
 	recordsLoaded int
 	loadStartTime time.Time
+	lastError     string
 
 	// Coalesce expensive redraws during batch processing.
 	suppressDraw bool
@@ -84,12 +109,10 @@ type Run struct {
 }
 
 func NewRun(
-	runPath string,
+	runParams *RunParams,
 	cfg *ConfigManager,
 	logger *observability.CoreLogger,
 ) *Run {
-	logger.Info(fmt.Sprintf("run: creating new run model for runPath: %s", runPath))
-
 	if cfg == nil {
 		cfg = NewConfigManager(leetConfigPath(), logger)
 	}
@@ -122,7 +145,7 @@ func NewRun(
 		keyMap:               buildKeyMap(RunKeyBindings()),
 		focus:                focus,
 		isLoading:            true,
-		runPath:              runPath,
+		runParams:            runParams,
 		metricsGridAnimState: metricsGridAnimState,
 		metricsGrid:          metricsGrid,
 		runOverview:          ro,
@@ -148,14 +171,25 @@ func (r *Run) SetMediaStore(store *MediaStore) {
 
 // Init initializes the model and returns the initial command.
 //
+// The watcher/heartbeat message pump is not started here: it starts
+// together with the watcher once the boot load completes for a live run.
+//
 // Implements tea.Model.Init.
 func (r *Run) Init() tea.Cmd {
 	r.logger.Debug("run: Init called")
-	source := InitializeLevelDBHistorySource(r.runPath, r.logger)
+	var source tea.Cmd
+
+	if r.IsRemote() {
+		ctx, cancel := context.WithCancel(context.Background())
+		r.initCancel = cancel
+		source = InitializeParquetHistorySource(ctx, r.runParams.Remote, r.logger)
+	} else {
+		source = InitializeLevelDBHistorySource(r.runParams.RunFile, r.logger)
+	}
 
 	return tea.Batch(
 		source,
-		r.watcherMgr.WaitForMsg,
+		r.mediaPane.Init(),
 	)
 }
 
@@ -182,8 +216,19 @@ func (r *Run) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 
+	if picture.IsPictureMsg(msg) {
+		cmds = append(cmds, r.mediaPane.handlePictureMsg(msg))
+		return r, tea.Batch(cmds...)
+	}
+
 	// Route message to appropriate handler.
 	switch t := msg.(type) {
+	case mediaPanePrepareMsg:
+		if t.pane != r.mediaPane {
+			return r, nil
+		}
+		return r, r.mediaPane.handlePrepareMsg()
+
 	case tea.KeyPressMsg:
 		if c := r.handleKeyPressMsg(t); c != nil {
 			cmds = append(cmds, c)
@@ -191,11 +236,10 @@ func (r *Run) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return r, tea.Batch(cmds...)
 
 	case tea.MouseMsg:
-		newM, c := r.handleMouseMsg(t)
-		if c != nil {
+		if c := r.handleMouseMsg(t); c != nil {
 			cmds = append(cmds, c)
 		}
-		return newM, tea.Batch(cmds...)
+		return r, tea.Batch(cmds...)
 
 	case tea.WindowSizeMsg:
 		r.handleWindowResize(t)
@@ -259,7 +303,7 @@ func (r *Run) dispatch(msg tea.Msg) []tea.Cmd {
 		return r.handleMetricsGridAnimation()
 	default:
 		// History/Run/Summary/Stats/SystemInfo/FileComplete/Error
-		if _, cmd := r.handleRecordMsg(msg); cmd != nil {
+		if cmd := r.handleRecordMsg(msg); cmd != nil {
 			return []tea.Cmd{cmd}
 		}
 	}
@@ -297,7 +341,6 @@ func (r *Run) View() tea.View {
 // renderMainView renders the main application view.
 func (r *Run) renderMainView() string {
 	layout := r.computeViewports()
-	r.mediaPane.SetStore(r.mediaStore)
 
 	w := layout.mainContentAreaWidth
 	centralColumn := ""
@@ -318,6 +361,8 @@ func (r *Run) renderMainView() string {
 
 		if layout.mediaHeight > 0 {
 			sections = append(sections, r.mediaPane.View(w, layout.mediaHeight, "", ""))
+		} else {
+			r.mediaPane.Park()
 		}
 		if layout.consoleLogsHeight > 0 {
 			r.consoleLogsPane.SetConsoleLogs(r.consoleLogs.Items())
@@ -373,11 +418,11 @@ func (r *Run) buildMainViewWithSidebars(
 }
 
 // logPanic logs panics to the logger before re-panicking.
-func (m *Run) logPanic(context string) {
+func (m *Run) logPanic(ctx string) {
 	if r := recover(); r != nil {
 		stackTrace := string(debug.Stack())
 		m.logger.CaptureError(
-			fmt.Errorf("PANIC in %s: %v\nStack trace:\n%s", context, r, stackTrace),
+			fmt.Errorf("PANIC in %s: %v\nStack trace:\n%s", ctx, r, stackTrace),
 		)
 		panic(r)
 	}
@@ -445,6 +490,9 @@ func (r *Run) buildStatusText() string {
 	}
 	if r.config.IsAwaitingGridConfig() {
 		return r.config.GridConfigStatus()
+	}
+	if r.lastError != "" {
+		return "Error: " + r.lastError
 	}
 	if r.isLoading {
 		return r.buildLoadingStatus()
@@ -644,6 +692,10 @@ func (r *Run) updateBottomPaneHeights(mediaVisible, logsVisible bool) {
 	}
 }
 
+func (r *Run) IsRemote() bool {
+	return r.runParams != nil && r.runParams.Remote != nil
+}
+
 // Layout represents the computed layout dimensions for the main UI.
 type Layout struct {
 	leftSidebarWidth       int
@@ -727,15 +779,7 @@ func (r *Run) Cleanup() {
 	r.stateMu.Lock()
 	defer r.stateMu.Unlock()
 
-	if r.heartbeatMgr != nil {
-		r.heartbeatMgr.Stop()
-	}
-	if r.watcherMgr != nil {
-		r.watcherMgr.Finish()
-	}
-	if r.historySource != nil {
-		r.historySource.Close()
-	}
+	r.cleanup()
 }
 
 // timeit logs a debug timing line on exit for the given scope.
