@@ -4,6 +4,7 @@ import pathlib
 
 import pytest
 from wandb.cli import cli, leet
+from wandb.errors import WandbCoreNotAvailableError
 
 
 @pytest.fixture
@@ -19,11 +20,44 @@ def core_calls(monkeypatch) -> list[list[str]]:
     return calls
 
 
-def test_leet_help_shows_run_command(runner):
-    result = runner.invoke(cli.cli, ["leet", "--help"])
+@pytest.fixture
+def core_unavailable(monkeypatch) -> None:
+    """Make wandb-core resolution fail as on an unsupported platform."""
+
+    def raise_unavailable() -> str:
+        raise WandbCoreNotAvailableError("wandb-core not found")
+
+    monkeypatch.setattr(leet, "get_core_path", raise_unavailable)
+
+
+@pytest.mark.parametrize("help_flag", ["--help", "-h"])
+def test_leet_help_shows_group_help(runner, core_unavailable, help_flag):
+    """Group help lists all subcommands and works without wandb-core."""
+    result = runner.invoke(cli.cli, ["leet", help_flag])
+
+    assert result.exit_code == 0
+    assert "Lightweight Experiment Exploration Tool" in result.output
+    assert "Launch the LEET TUI" in result.output
+    assert "Launch the standalone system monitor" in result.output
+    assert "Edit LEET configuration" in result.output
+    assert "wandb-core not found" not in result.output
+
+
+def test_leet_run_help_shows_run_command(runner):
+    result = runner.invoke(cli.cli, ["leet", "run", "--help"])
 
     assert result.exit_code == 0
     assert "Launch the LEET TUI" in result.output
+
+
+def test_leet_fails_cleanly_without_core(runner, core_unavailable, tmp_path):
+    wandb_dir = tmp_path / "wandb"
+    wandb_dir.mkdir()
+
+    result = runner.invoke(cli.cli, ["leet", str(wandb_dir)])
+
+    assert result.exit_code == 1
+    assert "Error: wandb-core not found" in result.stderr
 
 
 def test_leet_defaults_to_run_command(runner, core_calls, tmp_path: pathlib.Path):

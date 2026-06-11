@@ -28,10 +28,10 @@ from wandb.util import get_core_path
 class DefaultCommandGroup(click.Group):
     """A click Group that falls through to a default command.
 
-    If the first argument isn't a recognized subcommand, the default
-    command is invoked with all arguments passed through. This allows
-    backward-compatible CLIs where `cmd [path]` and `cmd run [path]`
-    are equivalent.
+    If the first argument isn't a recognized subcommand or a help flag,
+    the default command is invoked with all arguments passed through.
+    This allows backward-compatible CLIs where `cmd [path]` and
+    `cmd run [path]` are equivalent.
     """
 
     def __init__(self, *args: Any, default_cmd: str = "run", **kwargs: Any) -> None:
@@ -39,6 +39,8 @@ class DefaultCommandGroup(click.Group):
         self.default_cmd = default_cmd
 
     def parse_args(self, ctx: click.Context, args: list[str]) -> list[str]:
+        if args and args[0] in ctx.help_option_names:
+            return super().parse_args(ctx, args)
         if not args or args[0].startswith("-") or args[0] not in self.commands:
             args = [self.default_cmd, *args]
         return super().parse_args(ctx, args)
@@ -47,23 +49,24 @@ class DefaultCommandGroup(click.Group):
         formatter.write_usage(ctx.command_path, "[PATH] | COMMAND [ARGS]...")
 
 
-@click.group(cls=DefaultCommandGroup, default_cmd="run", invoke_without_command=True)
+@click.group(
+    cls=DefaultCommandGroup,
+    default_cmd="run",
+    invoke_without_command=True,
+    context_settings={"help_option_names": ["-h", "--help"]},
+)
 def leet() -> None:
     """W&B LEET: the Lightweight Experiment Exploration Tool.
 
     A terminal UI for viewing your W&B runs locally.
 
+    \b
     Examples:
         wandb leet                    View the latest run
         wandb leet ./wandb            Browse runs in a wandb directory
         wandb leet <run-url>          View a remote W&B run
         wandb leet symon              View live local system metrics
-    """
-    try:
-        get_core_path()
-    except WandbCoreNotAvailableError as e:
-        get_sentry().exception(f"using `wandb leet`. failed with {e}")
-        click.secho(str(e), fg="red", err=True)
+    """  # noqa: D301 -- the \b escape is click's marker to not rewrap Examples.
 
 
 @leet.command()
@@ -190,7 +193,13 @@ def _resolve_path(path: str | None) -> LaunchConfig:
 
 def _base_args() -> list[str]:
     """Build the common base arguments for wandb-core leet commands."""
-    args = [get_core_path(), "leet"]
+    try:
+        core_path = get_core_path()
+    except WandbCoreNotAvailableError as e:
+        get_sentry().exception(f"using `wandb leet`. failed with {e}")
+        _fatal(str(e))
+
+    args = [core_path, "leet"]
 
     if not error_reporting_enabled():
         args.append("--no-observability")
