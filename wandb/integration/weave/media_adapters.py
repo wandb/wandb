@@ -130,7 +130,9 @@ def _stub_unsupported_wandb_value(val: WBValue) -> str:
     return f"[wandb.{type(val).__name__} not yet supported]"
 
 
-def _stub_unsupported_media_variant(error: _UnsupportedMediaVariantError, val: WBValue) -> str:
+def _stub_unsupported_media_variant(
+    error: _UnsupportedMediaVariantError, val: WBValue
+) -> str:
     wandb.termwarn(error.stub_warning, repeat=False)
     return error.stub_value
 
