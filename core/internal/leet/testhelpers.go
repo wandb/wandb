@@ -54,7 +54,7 @@ func (r *Run) TestGetLeftSidebar() *RunOverviewSidebar {
 }
 
 // TestHandleRecordMsg processes a record message
-func (r *Run) TestHandleRecordMsg(msg tea.Msg) (*Run, tea.Cmd) {
+func (r *Run) TestHandleRecordMsg(msg tea.Msg) tea.Cmd {
 	return r.handleRecordMsg(msg)
 }
 

@@ -1,7 +1,9 @@
 package leet
 
 import (
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"time"
 
@@ -89,8 +91,8 @@ func (w *Workspace) handleKeyPressMsg(msg tea.KeyPressMsg) tea.Cmd {
 			return cmd
 		}
 	case FocusTargetMedia:
-		if w.mediaPane.HandleKey(msg) {
-			return nil
+		if handled, cmd := w.mediaPane.HandleKey(msg); handled {
+			return cmd
 		}
 	}
 
@@ -464,7 +466,7 @@ func (w *Workspace) readAllChunkCmd(run *WorkspaceRun) tea.Cmd {
 
 	return func() tea.Msg {
 		msg, err := reader.Read(BootLoadChunkSize, BootLoadMaxTime)
-		if err != nil {
+		if err != nil && !errors.Is(err, io.EOF) {
 			return ErrorMsg{Err: err}
 		}
 		if msg == nil {
@@ -491,7 +493,7 @@ func (w *Workspace) ReadAvailableCmd(run *WorkspaceRun) tea.Cmd {
 
 	return func() tea.Msg {
 		msg, err := reader.Read(LiveMonitorChunkSize, LiveMonitorMaxTime)
-		if err != nil {
+		if err != nil && !errors.Is(err, io.EOF) {
 			return ErrorMsg{Err: err}
 		}
 		if msg == nil {
