@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 import importlib
-import json
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Literal, get_args
+from typing import TYPE_CHECKING, Any, Literal, get_args
 
 import wandb
 from wandb.sdk.data_types.audio import Audio
@@ -15,7 +14,9 @@ from wandb.sdk.data_types.base_types.wb_value import WBValue
 from wandb.sdk.data_types.image import Image
 from wandb.sdk.data_types.table import Table
 from wandb.sdk.data_types.video import Video
-from wandb.sdk.lib.hashutil import md5_file_b64, md5_string
+
+if TYPE_CHECKING:
+    from PIL.Image import Image as PILImage
 
 UnsupportedMediaMode = Literal["stub", "raise"]
 _UNSUPPORTED_MEDIA_MODES = get_args(UnsupportedMediaMode)
@@ -46,34 +47,21 @@ def _path_for_local_media(val: Media, column: str | int) -> Path:
     return Path(path)
 
 
-def _unwrap_image(val: Image, column: str | int) -> Any:
-    if val.path_is_reference(val._path):
-        raise _UnsupportedMediaVariantError(
-            f"EvalTable does not support external media references for "
-            f"wandb.Image in column {column!r}: {val._path!r}. "
-            "EvalTable currently supports local files and in-memory media only."
-        )
-
+def _unwrap_image(val: Image, column: str | int) -> PILImage:
     wandb.termwarn(
         "wandb.Image values are converted to PIL.Image for Weave logging. "
         "Caption and other metadata are discarded.",
         repeat=False,
     )
 
-    try:
-        from PIL import Image as _PILImage
+    image = val.image  # loads from memory or local path
+    if image is not None:
+        return image
 
-        pil = val.image
-        if pil is not None:
-            return pil
-        if val._path is not None:
-            return _PILImage.open(val._path)
-    except ImportError:
-        pass
-
-    raise ImportError(
-        f"Cannot convert wandb.Image in column {column!r} for Weave logging: "
-        "install Pillow with `pip install pillow` or `pip install wandb[media]`."
+    raise _UnsupportedMediaVariantError(
+        f"EvalTable does not support external media references for "
+        f"wandb.Image in column {column!r}. "
+        "EvalTable currently supports local files and in-memory media only."
     )
 
 
@@ -149,7 +137,7 @@ _SUPPORTED_WANDB_VALUE_TYPES_MSG = _format_type_list(
 
 def _unsupported_media_mode_hint() -> str:
     return (
-        "To temporarily log hash placeholders instead, pass "
+        "To temporarily log placeholder strings instead, pass "
         "unsupported_media_mode='stub' to wandb.EvalTable constructor"
     )
 
@@ -168,8 +156,6 @@ def validate_supported_value(
     unsupported_media_mode: UnsupportedMediaMode,
 ) -> None:
     """Raise if a wandb value is not supported by EvalTable's Weave adapter."""
-    validate_unsupported_media_mode(unsupported_media_mode)
-
     if isinstance(val, _SUPPORTED_WANDB_VALUE_TYPES):
         return
 
@@ -202,60 +188,13 @@ def validate_supported_value(
         )
 
 
-def _stable_digest(payload: Any) -> str:
-    json_payload = json.dumps(
-        payload,
-        default=str,
-        sort_keys=True,
-        separators=(",", ":"),
-    )
-    return md5_string(json_payload)
-
-
-_UNSUPPORTED_WANDB_VALUE_DIGEST_IGNORED_FIELDS = {
-    "_artifact_source",
-    "_artifact_target",
-    "_run",
-}
-
-
-def _unsupported_wandb_value_payload(val: WBValue) -> dict[str, Any]:
-    try:
-        payload = vars(val).copy()
-    except TypeError:
-        payload = {}
-
-    for key in _UNSUPPORTED_WANDB_VALUE_DIGEST_IGNORED_FIELDS:
-        payload.pop(key, None)
-
-    if isinstance(val, Media):
-        path = payload.get("_path")
-        if isinstance(path, str) and path and not val.path_is_reference(path):
-            path_obj = Path(path)
-            if path_obj.is_file():
-                payload["_file_digest"] = md5_file_b64(path_obj)
-                payload.pop("_path", None)
-
-    return payload
-
-
-def _unsupported_wandb_value_digest(val: WBValue) -> str:
-    # Unsupported WBValue stubs are a temporary fallback. Digest the object's
-    # JSON-safe fields without calling to_json(), since many WBValue serializers
-    # require a real Run or Artifact.
-    return _stable_digest(
-        {"type": type(val).__name__, "value": _unsupported_wandb_value_payload(val)}
-    )
-
-
 def _stub_unsupported_wandb_value(val: WBValue) -> str:
     wandb.termwarn(
-        f"wandb.{type(val).__name__} values are not supported by EvalTable yet. "
+        f"wandb.{type(val).__name__} values are not yet supported by EvalTable. "
         "They will be logged as placeholder strings.",
         repeat=False,
     )
-    digest = _unsupported_wandb_value_digest(val)[:8]
-    return f"[wandb.{type(val).__name__} unsupported: {digest}]"
+    return f"[wandb.{type(val).__name__} not yet supported]"
 
 
 def unwrap_value(

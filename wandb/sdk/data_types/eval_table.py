@@ -83,7 +83,7 @@ class EvalTable(Table):
                 auto-summarize any numeric and boolean scores.
             unsupported_media_mode: How to handle unsupported wandb media/value types.
                 - "stub" (default): log unsupported values as short placeholder strings
-                  like "[wandb.Html unsupported: abc12345]". (This is a temporary flag
+                  like "[wandb.Html not yet supported]". (This is a temporary flag
                   for use during development.)
                 - "raise": fail fast when unsupported wandb value types are added.
 
