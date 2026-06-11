@@ -210,6 +210,7 @@ func (w *Workspace) Init() tea.Cmd {
 	return tea.Batch(cmds...)
 }
 
+//gocyclo:ignore
 func (w *Workspace) Update(msg tea.Msg) tea.Cmd {
 	if picture.IsPictureMsg(msg) {
 		return w.mediaPane.handlePictureMsg(msg)
@@ -272,6 +273,11 @@ func (w *Workspace) Update(msg tea.Msg) tea.Cmd {
 
 	case HeartbeatMsg:
 		return w.handleHeartbeat()
+
+	case ErrorMsg:
+		// Read errors from per-run commands; the affected run simply stops
+		// streaming, so surface the error in the logs.
+		w.logger.CaptureError(fmt.Errorf("workspace: run read failed: %v", t.Err))
 	}
 
 	return nil
@@ -873,6 +879,7 @@ func (w *Workspace) dropRun(runKey string) {
 		delete(w.consoleLogs, runKey)
 		delete(w.systemMetrics, runKey)
 		delete(w.media, runKey)
+		delete(w.mediaPaneStates, runKey)
 	}
 
 	w.syncLiveRunState()
