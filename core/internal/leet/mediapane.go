@@ -438,6 +438,24 @@ func (p *MediaPane) HandleKey(msg tea.KeyPressMsg) (bool, tea.Cmd) {
 	case "end":
 		p.ScrubToEnd()
 		return true, nil
+	case "alt+left":
+		p.ScrubAll(-1)
+		return true, nil
+	case "alt+right":
+		p.ScrubAll(1)
+		return true, nil
+	case "alt+up":
+		p.ScrubAll(-10)
+		return true, nil
+	case "alt+down":
+		p.ScrubAll(10)
+		return true, nil
+	case "alt+home":
+		p.ScrubAllToStart()
+		return true, nil
+	case "alt+end":
+		p.ScrubAllToEnd()
+		return true, nil
 	case "a":
 		p.MoveSelection(-1, 0)
 		return true, nil
@@ -552,6 +570,66 @@ func (p *MediaPane) ScrubToEnd() {
 	}
 	p.xIndices[key] = len(xs) - 1
 	p.autoFollows[key] = true
+}
+
+// ScrubAll scrubs every media series in sync: it moves a shared cursor along
+// the union X timeline and aligns each series to it.
+func (p *MediaPane) ScrubAll(delta int) {
+	if p.store == nil {
+		return
+	}
+	union := p.store.XValues()
+	if len(union) == 0 {
+		return
+	}
+
+	// The most advanced series defines the cursor on the union timeline.
+	cursor := 0
+	for _, key := range p.seriesKeys() {
+		if x, ok := p.currentXForSeries(key); ok {
+			if idx, found := slices.BinarySearch(union, x); found {
+				cursor = max(cursor, idx)
+			}
+		}
+	}
+
+	target := union[clamp(cursor+delta, 0, len(union)-1)]
+	for _, key := range p.seriesKeys() {
+		p.alignSeriesTo(key, target)
+	}
+}
+
+// alignSeriesTo moves a series' scrub position to its latest sample at or
+// before x, or to its first sample when none exists yet.
+func (p *MediaPane) alignSeriesTo(key string, x float64) {
+	xs := p.seriesXValues(key)
+	if len(xs) == 0 {
+		return
+	}
+	idx, found := slices.BinarySearch(xs, x)
+	if !found {
+		idx = max(idx-1, 0)
+	}
+	p.xIndices[key] = idx
+	p.autoFollows[key] = idx == len(xs)-1
+}
+
+func (p *MediaPane) ScrubAllToStart() {
+	for _, key := range p.seriesKeys() {
+		p.xIndices[key] = 0
+		p.autoFollows[key] = false
+	}
+}
+
+func (p *MediaPane) ScrubAllToEnd() {
+	for _, key := range p.seriesKeys() {
+		xs := p.seriesXValues(key)
+		if len(xs) == 0 {
+			continue
+		}
+		p.xIndices[key] = len(xs) - 1
+		p.autoFollows[key] = true
+	}
 }
 
 func (p *MediaPane) syncGridLayoutForViewport(width, height int) {

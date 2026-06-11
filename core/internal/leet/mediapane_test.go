@@ -271,6 +271,95 @@ func TestMediaPane_HandleKeyScrubBindings(t *testing.T) {
 	require.Contains(t, pane.StatusLabel(), "X=_step 0")
 }
 
+func TestMediaPane_ScrubAll(t *testing.T) {
+	pane, store := testMediaPane(t)
+	feedImages(store, "a", 0, 1, 2, 3, 4)
+	feedImages(store, "b", 0, 2, 4)
+	pane.SetStore(store)
+
+	// Auto-follow starts both series at their last sample (X=4). Scrubbing
+	// back one step on the union timeline aligns "b" to its sample at 2.
+	pane.ScrubAll(-1)
+	require.Contains(t, pane.StatusLabel(), "Media: a")
+	require.Contains(t, pane.StatusLabel(), "X=_step 3")
+	pane.NavigatePage(1) // select "b"
+	require.Contains(t, pane.StatusLabel(), "Media: b")
+	require.Contains(t, pane.StatusLabel(), "X=_step 2")
+	pane.NavigatePage(-1)
+
+	// The most advanced series ("a" at 3) carries the cursor: 3 → 2.
+	pane.ScrubAll(-1)
+	require.Contains(t, pane.StatusLabel(), "X=_step 2")
+
+	// Scrubbing past the start clamps every series to its first sample.
+	pane.ScrubAll(-100)
+	require.Contains(t, pane.StatusLabel(), "X=_step 0")
+
+	pane.ScrubAllToEnd()
+	require.Contains(t, pane.StatusLabel(), "X=_step 4")
+	pane.NavigatePage(1)
+	require.Contains(t, pane.StatusLabel(), "X=_step 4")
+
+	pane.ScrubAllToStart()
+	require.Contains(t, pane.StatusLabel(), "X=_step 0")
+	pane.NavigatePage(-1)
+	require.Contains(t, pane.StatusLabel(), "X=_step 0")
+}
+
+func TestMediaPane_ScrubAll_EmptyStore(t *testing.T) {
+	pane, _ := testMediaPane(t)
+	// Should not panic on empty store.
+	pane.ScrubAll(1)
+	pane.ScrubAllToStart()
+	pane.ScrubAllToEnd()
+}
+
+func TestMediaPane_HandleKeySyncScrubBindings(t *testing.T) {
+	pane, store := testMediaPane(t)
+	feedImages(store, "a", 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11)
+	feedImages(store, "b", 0, 10)
+	pane.SetStore(store)
+	pane.SetActive(true)
+
+	altKey := func(code rune) tea.KeyPressMsg {
+		return tea.KeyPressMsg{Code: code, Mod: tea.ModAlt}
+	}
+
+	handled, cmd := pane.HandleKey(altKey(tea.KeyHome))
+	require.True(t, handled)
+	require.Nil(t, cmd)
+	require.Contains(t, pane.StatusLabel(), "X=_step 0")
+
+	handled, cmd = pane.HandleKey(altKey(tea.KeyRight))
+	require.True(t, handled)
+	require.Nil(t, cmd)
+	require.Contains(t, pane.StatusLabel(), "X=_step 1")
+
+	handled, cmd = pane.HandleKey(altKey(tea.KeyDown))
+	require.True(t, handled)
+	require.Nil(t, cmd)
+	require.Contains(t, pane.StatusLabel(), "X=_step 11")
+	pane.NavigatePage(1) // "b" aligned to its latest sample ≤ 11
+	require.Contains(t, pane.StatusLabel(), "Media: b")
+	require.Contains(t, pane.StatusLabel(), "X=_step 10")
+	pane.NavigatePage(-1)
+
+	handled, cmd = pane.HandleKey(altKey(tea.KeyUp))
+	require.True(t, handled)
+	require.Nil(t, cmd)
+	require.Contains(t, pane.StatusLabel(), "X=_step 1")
+
+	handled, cmd = pane.HandleKey(altKey(tea.KeyLeft))
+	require.True(t, handled)
+	require.Nil(t, cmd)
+	require.Contains(t, pane.StatusLabel(), "X=_step 0")
+
+	handled, cmd = pane.HandleKey(altKey(tea.KeyEnd))
+	require.True(t, handled)
+	require.Nil(t, cmd)
+	require.Contains(t, pane.StatusLabel(), "X=_step 11")
+}
+
 // --- MediaPane view state save/restore ---
 
 func TestMediaPane_ViewState_SaveRestore(t *testing.T) {

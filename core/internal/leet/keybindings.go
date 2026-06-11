@@ -195,6 +195,10 @@ func RunKeyBindings() []BindingCategory[Run] {
 					Handler:     (*Run).handleSidebarPageNav,
 				},
 				{
+					Keys:        []string{"alt+↑/↓/←/→", "alt+home/end"},
+					Description: "Scrub all media series in sync (media pane focused)",
+				},
+				{
 					Keys:        []string{"k"},
 					Description: "Toggle media image renderer: ANSI ↔ full-res (media pane focused)",
 				},
@@ -412,6 +416,10 @@ func WorkspaceKeyBindings() []BindingCategory[Workspace] {
 					Keys:        []string{"p"},
 					Description: "Pin/unpin selected run",
 					Handler:     (*Workspace).handlePinRunKey,
+				},
+				{
+					Keys:        []string{"alt+↑/↓/←/→", "alt+home/end"},
+					Description: "Scrub all media series in sync (media pane focused)",
 				},
 				{
 					Keys:        []string{"k"},
