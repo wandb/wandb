@@ -272,7 +272,7 @@ func (s *ParquetHistorySource) Read(
 	return ChunkedBatchMsg{
 		Msgs:     msgs,
 		HasMore:  hasMore,
-		Progress: int(s.currentStep),
+		Progress: numMsgs,
 	}, nil
 }
 

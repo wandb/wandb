@@ -10,7 +10,7 @@ import (
 )
 
 // handleRecordMsg handles messages that carry data from the .wandb file.
-func (r *Run) handleRecordMsg(msg tea.Msg) (*Run, tea.Cmd) { // TODO: return just tea.Cmd
+func (r *Run) handleRecordMsg(msg tea.Msg) tea.Cmd {
 	defer r.logPanic("processRecordMsg")
 
 	start := time.Now()
@@ -28,14 +28,13 @@ func (r *Run) handleRecordMsg(msg tea.Msg) (*Run, tea.Cmd) { // TODO: return jus
 		r.runState = RunStateRunning
 		r.syncLiveRunning()
 		r.isLoading = false
-		return r, nil
 
 	case HistoryMsg:
 		r.logger.Debug("model: processing HistoryMsg")
 		if r.shouldResetLiveHeartbeat() {
 			r.heartbeatMgr.Reset(r.isRunning)
 		}
-		return r.handleHistoryMsg(msg)
+		r.handleHistoryMsg(msg)
 
 	case StatsMsg:
 		r.logger.Debug(fmt.Sprintf("model: processing StatsMsg with timestamp %d", msg.Timestamp))
@@ -43,24 +42,20 @@ func (r *Run) handleRecordMsg(msg tea.Msg) (*Run, tea.Cmd) { // TODO: return jus
 			r.heartbeatMgr.Reset(r.isRunning)
 		}
 		r.rightSidebar.ProcessStatsMsg(msg)
-		return r, nil
 
 	case SystemInfoMsg:
 		r.logger.Debug("model: processing SystemInfoMsg")
 		r.runOverview.ProcessSystemInfoMsg(msg.Record)
 		r.leftSidebar.Sync()
-		return r, nil
 
 	case SummaryMsg:
 		r.logger.Debug("model: processing SummaryMsg")
 		r.runOverview.ProcessSummaryMsg(msg.Summary)
 		r.leftSidebar.Sync()
-		return r, nil
 
 	case ConsoleLogMsg:
 		r.logger.Debug("model: processing ConsoleLogMsg")
 		r.consoleLogs.ProcessRaw(msg.Text, msg.IsStderr, msg.Time)
-		return r, nil
 
 	case FileCompleteMsg:
 		r.logger.Debug("model: processing FileCompleteMsg - file is complete!")
@@ -78,8 +73,6 @@ func (r *Run) handleRecordMsg(msg tea.Msg) (*Run, tea.Cmd) { // TODO: return jus
 		r.heartbeatMgr.Stop()
 		r.watcherMgr.Finish()
 
-		return r, nil
-
 	case ErrorMsg:
 		r.logger.Debug(fmt.Sprintf("model: processing ErrorMsg: %v", msg.Err))
 		r.isLoading = false
@@ -93,14 +86,13 @@ func (r *Run) handleRecordMsg(msg tea.Msg) (*Run, tea.Cmd) { // TODO: return jus
 		r.logger.Debug("model: stopping heartbeats and finishing watcher due to error")
 		r.heartbeatMgr.Stop()
 		r.watcherMgr.Finish()
-		return r, nil
 	}
 
-	return r, nil
+	return nil
 }
 
 // handleHistoryMsg processes new history data.
-func (r *Run) handleHistoryMsg(msg HistoryMsg) (*Run, tea.Cmd) {
+func (r *Run) handleHistoryMsg(msg HistoryMsg) {
 	defer timeit(r.logger, "Model.handleHistoryMsg")()
 
 	shouldDraw := r.metricsGrid.ProcessHistory(msg)
@@ -110,11 +102,10 @@ func (r *Run) handleHistoryMsg(msg HistoryMsg) (*Run, tea.Cmd) {
 	if shouldDraw && !r.suppressDraw {
 		r.metricsGrid.drawVisible()
 	}
-	return r, nil
 }
 
 // handleMouseMsg processes mouse events, routing by region.
-func (r *Run) handleMouseMsg(msg tea.MouseMsg) (*Run, tea.Cmd) {
+func (r *Run) handleMouseMsg(msg tea.MouseMsg) tea.Cmd {
 	defer timeit(r.logger, "Model.handleMouseMsg")()
 
 	layout := r.computeViewports()
@@ -144,10 +135,10 @@ func (r *Run) isInRightSidebar(msg tea.MouseMsg, layout Layout) bool {
 }
 
 // handleLeftSidebarMouse handles mouse events in the left sidebar.
-func (r *Run) handleLeftSidebarMouse() (*Run, tea.Cmd) {
+func (r *Run) handleLeftSidebarMouse() tea.Cmd {
 	r.metricsGrid.clearFocus()
 	r.rightSidebar.ClearFocus()
-	return r, nil
+	return nil
 }
 
 func (r *Run) adoptChartMouseFocus() {
@@ -159,7 +150,7 @@ func (r *Run) adoptChartMouseFocus() {
 	}
 }
 
-func (r *Run) handleMediaMouse(msg tea.MouseMsg, layout Layout) (*Run, tea.Cmd) {
+func (r *Run) handleMediaMouse(msg tea.MouseMsg, layout Layout) tea.Cmd {
 	mouse := msg.Mouse()
 	localX := mouse.X - layout.leftSidebarWidth
 	localY := mouse.Y - layout.mediaY
@@ -175,11 +166,11 @@ func (r *Run) handleMediaMouse(msg tea.MouseMsg, layout Layout) (*Run, tea.Cmd) 
 		}
 	}
 
-	return r, nil
+	return nil
 }
 
 // handleRightSidebarMouse handles mouse events in the right sidebar.
-func (r *Run) handleRightSidebarMouse(msg tea.MouseMsg, layout Layout) (*Run, tea.Cmd) {
+func (r *Run) handleRightSidebarMouse(msg tea.MouseMsg, layout Layout) tea.Cmd {
 	mouse := msg.Mouse()
 	alt := mouse.Mod == tea.ModAlt
 
@@ -218,13 +209,13 @@ func (r *Run) handleRightSidebarMouse(msg tea.MouseMsg, layout Layout) (*Run, te
 		r.adoptChartMouseFocus()
 	}
 
-	return r, nil
+	return nil
 }
 
 // handleMainContentMouse handles mouse events in the main content area.
-func (r *Run) handleMainContentMouse(msg tea.MouseMsg, layout Layout) (*Run, tea.Cmd) {
+func (r *Run) handleMainContentMouse(msg tea.MouseMsg, layout Layout) tea.Cmd {
 	if r.mediaPane.IsFullscreen() {
-		return r, nil
+		return nil
 	}
 
 	mouse := msg.Mouse()
@@ -243,7 +234,7 @@ func (r *Run) handleMainContentMouse(msg tea.MouseMsg, layout Layout) (*Run, tea
 	if adjustedX < 0 || adjustedY < 0 || adjustedY >= layout.height {
 		r.metricsGrid.clearFocus()
 		r.rightSidebar.ClearFocus()
-		return r, nil
+		return nil
 	}
 
 	dims := r.metricsGrid.CalculateChartDimensions(
@@ -253,7 +244,7 @@ func (r *Run) handleMainContentMouse(msg tea.MouseMsg, layout Layout) (*Run, tea
 
 	// Grid too small to interact with (e.g. tiny terminal).
 	if dims.CellHWithPadding == 0 || dims.CellWWithPadding == 0 {
-		return r, nil
+		return nil
 	}
 
 	// Chart 2D indices on the grid.
@@ -291,7 +282,7 @@ func (r *Run) handleMainContentMouse(msg tea.MouseMsg, layout Layout) (*Run, tea
 		r.adoptChartMouseFocus()
 	}
 
-	return r, nil
+	return nil
 }
 
 // handleKeyPressMsg processes keyboard events using the centralized key bindings.
@@ -334,19 +325,24 @@ func (r *Run) handleKeyPressMsg(msg tea.KeyPressMsg) tea.Cmd {
 	return nil
 }
 
+// cleanup releases the run's data-loading resources: it stops the heartbeat
+// and watcher first so they stop producing reads, then cancels any in-flight
+// initialization and closes the history source.
+//
+// The caller must hold stateMu.
 func (r *Run) cleanup() {
+	if r.heartbeatMgr != nil {
+		r.heartbeatMgr.Stop()
+	}
+	if r.watcherMgr != nil {
+		r.watcherMgr.Finish()
+	}
 	if r.initCancel != nil {
 		r.initCancel()
 		r.initCancel = nil
 	}
 	if r.historySource != nil {
 		r.historySource.Close()
-	}
-	if r.heartbeatMgr != nil {
-		r.heartbeatMgr.Stop()
-	}
-	if r.watcherMgr != nil {
-		r.watcherMgr.Finish()
 	}
 }
 
@@ -856,9 +852,7 @@ func (r *Run) handleRecordsBatch(subMsgs []tea.Msg, suppressRedraw bool) []tea.C
 	prev := r.suppressDraw
 	r.suppressDraw = suppressRedraw
 	for _, subMsg := range subMsgs {
-		var cmd tea.Cmd
-		r, cmd = r.handleRecordMsg(subMsg)
-		if cmd != nil {
+		if cmd := r.handleRecordMsg(subMsg); cmd != nil {
 			cmds = append(cmds, cmd)
 		}
 	}
@@ -902,13 +896,16 @@ func (r *Run) handleChunkedBatch(msg ChunkedBatchMsg) []tea.Cmd {
 		return cmds
 	}
 
-	// Boot load complete -> begin live mode once.
+	// Boot load complete -> begin live mode once. The WaitForMsg pump is
+	// started alongside the watcher so it only runs while the watcher and
+	// heartbeat can produce messages; WatcherManager.Finish unblocks it.
 	if !r.IsRemote() && r.runState == RunStateRunning && !r.watcherMgr.IsStarted() {
 		if err := r.watcherMgr.Start(r.runParams.RunFile); err != nil {
 			r.logger.CaptureError(fmt.Errorf("model: error starting watcher: %v", err))
 		} else {
 			r.logger.Info("model: watcher started successfully")
 			r.heartbeatMgr.Start(r.isRunning)
+			cmds = append(cmds, r.watcherMgr.WaitForMsg)
 		}
 	}
 	return cmds
