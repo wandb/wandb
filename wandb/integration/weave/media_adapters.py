@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import importlib
 from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, get_args
@@ -122,7 +121,7 @@ def _unwrap_video(val: Video, column: str | int) -> Any:
 
 def _moviepy_video_file_clip_class() -> Any:
     try:
-        editor = importlib.import_module("moviepy.editor")
+        import moviepy.editor as editor
     except ImportError as e:
         raise ImportError(
             "`wandb.EvalTable` requires a moviepy version that provides "
