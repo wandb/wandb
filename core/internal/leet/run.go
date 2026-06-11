@@ -171,6 +171,9 @@ func (r *Run) SetMediaStore(store *MediaStore) {
 
 // Init initializes the model and returns the initial command.
 //
+// The watcher/heartbeat message pump is not started here: it starts
+// together with the watcher once the boot load completes for a live run.
+//
 // Implements tea.Model.Init.
 func (r *Run) Init() tea.Cmd {
 	r.logger.Debug("run: Init called")
@@ -186,7 +189,6 @@ func (r *Run) Init() tea.Cmd {
 
 	return tea.Batch(
 		source,
-		r.watcherMgr.WaitForMsg,
 		r.mediaPane.Init(),
 	)
 }
@@ -234,11 +236,10 @@ func (r *Run) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return r, tea.Batch(cmds...)
 
 	case tea.MouseMsg:
-		newM, c := r.handleMouseMsg(t)
-		if c != nil {
+		if c := r.handleMouseMsg(t); c != nil {
 			cmds = append(cmds, c)
 		}
-		return newM, tea.Batch(cmds...)
+		return r, tea.Batch(cmds...)
 
 	case tea.WindowSizeMsg:
 		r.handleWindowResize(t)
@@ -302,7 +303,7 @@ func (r *Run) dispatch(msg tea.Msg) []tea.Cmd {
 		return r.handleMetricsGridAnimation()
 	default:
 		// History/Run/Summary/Stats/SystemInfo/FileComplete/Error
-		if _, cmd := r.handleRecordMsg(msg); cmd != nil {
+		if cmd := r.handleRecordMsg(msg); cmd != nil {
 			return []tea.Cmd{cmd}
 		}
 	}
@@ -340,7 +341,6 @@ func (r *Run) View() tea.View {
 // renderMainView renders the main application view.
 func (r *Run) renderMainView() string {
 	layout := r.computeViewports()
-	r.mediaPane.SetStore(r.mediaStore)
 
 	w := layout.mainContentAreaWidth
 	centralColumn := ""
@@ -779,19 +779,7 @@ func (r *Run) Cleanup() {
 	r.stateMu.Lock()
 	defer r.stateMu.Unlock()
 
-	if r.heartbeatMgr != nil {
-		r.heartbeatMgr.Stop()
-	}
-	if r.watcherMgr != nil {
-		r.watcherMgr.Finish()
-	}
-	if r.initCancel != nil {
-		r.initCancel()
-		r.initCancel = nil
-	}
-	if r.historySource != nil {
-		r.historySource.Close()
-	}
+	r.cleanup()
 }
 
 // timeit logs a debug timing line on exit for the given scope.

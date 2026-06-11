@@ -141,8 +141,8 @@ func (s *Symon) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return s, cmd
 
 	case StatsMsg:
+		// ProcessStats handles pagination and redraw when the chart set changes.
 		s.grid.ProcessStats(msg)
-		s.resizeGrid()
 		cmd := s.sampleLaterCmd()
 		return s, cmd
 
@@ -196,8 +196,8 @@ func (s *Symon) handleHelp(msg tea.Msg) (bool, tea.Cmd) {
 		return false, nil
 	}
 
+	// The help mode is fixed to viewModeSymon at construction.
 	if km, ok := msg.(tea.KeyPressMsg); ok {
-		s.help.SetMode(viewModeSymon)
 		switch km.Code {
 		case 'h', '?':
 			s.help.Toggle()

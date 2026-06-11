@@ -107,20 +107,24 @@ func NewSeries(name string, palette []AdaptiveColor) *Series {
 }
 
 // updateBounds extends the series bounds with the given data batch.
+//
+// Non-finite samples (NaN/Inf, e.g. a diverged loss) are excluded so they
+// cannot poison the bounds; they still render as gaps in the series line.
 func (s *Series) updateBounds(xs, ys []float64) {
-	if len(xs) == 0 || len(ys) == 0 {
-		return
+	for _, x := range xs {
+		if !isFinite(x) {
+			continue
+		}
+		s.xMin = min(s.xMin, x)
+		s.xMax = max(s.xMax, x)
 	}
 
-	xMin, xMax := slices.Min(xs), slices.Max(xs)
-	yMin, yMax := slices.Min(ys), slices.Max(ys)
-
-	s.xMin = min(s.xMin, xMin)
-	s.xMax = max(s.xMax, xMax)
-	s.yMin = min(s.yMin, yMin)
-	s.yMax = max(s.yMax, yMax)
-
 	for _, y := range ys {
+		if !isFinite(y) {
+			continue
+		}
+		s.yMin = min(s.yMin, y)
+		s.yMax = max(s.yMax, y)
 		if y > 0 {
 			s.yMinPositive = min(s.yMinPositive, y)
 		}
@@ -136,12 +140,16 @@ func (s *Series) Bounds() (xMin, xMax, yMin, yMax float64) {
 func (s *Series) AddPoint(x, y float64) {
 	s.X = append(s.X, x)
 	s.Y = append(s.Y, y)
-	s.xMin = min(s.xMin, x)
-	s.xMax = max(s.xMax, x)
-	s.yMin = min(s.yMin, y)
-	s.yMax = max(s.yMax, y)
-	if y > 0 {
-		s.yMinPositive = min(s.yMinPositive, y)
+	if isFinite(x) {
+		s.xMin = min(s.xMin, x)
+		s.xMax = max(s.xMax, x)
+	}
+	if isFinite(y) {
+		s.yMin = min(s.yMin, y)
+		s.yMax = max(s.yMax, y)
+		if y > 0 {
+			s.yMinPositive = min(s.yMinPositive, y)
+		}
 	}
 }
 
@@ -429,6 +437,11 @@ func (c *EpochLineChart) computeYRange() (minY, maxY float64, ok bool) {
 		}
 		minY, maxY = c.calculateLogRange(minPositive, maxPositive)
 		return minY, maxY, true
+	}
+
+	// No finite samples yet (e.g. only NaN/Inf values logged so far).
+	if !isFinite(c.yMin) || !isFinite(c.yMax) {
+		return 0, 0, false
 	}
 
 	minY, maxY = c.calculateLinearRange()
