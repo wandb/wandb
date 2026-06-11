@@ -103,7 +103,7 @@ launch = [
 ]
 models = ["cloudpickle"]
 workspaces = ["wandb-workspaces"]
-sandbox = ["cwsandbox[cli]>=0.25,<0.26"]
+sandbox = ["cwsandbox[cli]>=0.26,<0.27"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
