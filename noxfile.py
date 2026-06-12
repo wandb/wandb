@@ -5,10 +5,12 @@ import pathlib
 import platform
 import re
 import shutil
+import subprocess
 import textwrap
 import time
 from collections.abc import Callable
 from contextlib import contextmanager
+from typing import Any
 
 import nox
 
@@ -325,6 +327,131 @@ def experimental_tests(session: nox.Session):
         # TODO: increase as more tests are added
         opts={"n": "1"},
     )
+
+
+@nox.session(python=False, name="local-testcontainer-registry")
+def local_testcontainer_registry(session: nox.Session) -> None:
+    """Ensure we collect and store the latest local-testcontainer in the registry.
+
+    This will find the latest released version (tag) of wandb/core,
+    find associated commit hash, and then pull the local-testcontainer
+    image with the same commit hash from
+    us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer
+    and push it to the SDK's registry with the release tag,
+    if it doesn't already exist there.
+
+    To run locally, authenticate gcloud with permission to read
+    wandb-production/images/local-testcontainer and write
+    wandb-client-cicd/images/local-testcontainer, and set:
+    - GITHUB_ACCESS_TOKEN: a GitHub personal access token with the repo scope
+
+    To run this for a specific release tag, use:
+    nox -s local-testcontainer-registry -- <release_tag>
+    """
+    tags: list[str] = session.posargs or []
+
+    def query_github(payload: dict[str, Any]) -> dict[str, Any]:
+        import json
+
+        import requests
+
+        headers = {
+            "Authorization": f"bearer {os.environ['GITHUB_ACCESS_TOKEN']}",
+            "Content-Type": "application/json",
+        }
+
+        url = "https://api.github.com/graphql"
+        response = requests.post(url, headers=headers, data=json.dumps(payload))
+        data = response.json()
+
+        return data
+
+    def get_release_tag_and_commit_hash(tags: list[str]):
+        if not tags:
+            query = """
+            {
+            repository(owner: "wandb", name: "core") {
+                latestRelease {
+                tagName
+                tagCommit {
+                    oid
+                }
+                }
+            }
+            }
+            """
+
+            data = query_github({"query": query})
+
+            return (
+                data["data"]["repository"]["latestRelease"]["tagName"],
+                data["data"]["repository"]["latestRelease"]["tagCommit"]["oid"],
+            )
+
+        query = """
+        query($owner: String!, $repo: String!, $tag: String!) {
+        repository(owner: $owner, name: $repo) {
+            ref(qualifiedName: $tag) {
+            target {
+                oid
+            }
+            }
+        }
+        }
+        """
+
+        data = query_github(
+            {
+                "query": query,
+                "variables": {
+                    "owner": "wandb",
+                    "repo": "core",
+                    "tag": tags[0],
+                },
+            }
+        )
+
+        return tags[0], data["data"]["repository"]["ref"]["target"]["oid"]
+
+    local_release_tag, commit_hash = get_release_tag_and_commit_hash(tags)
+
+    release_tag = local_release_tag.removeprefix("server/v")
+    session.log(f"Release tag: {release_tag}")
+    session.log(f"Commit hash: {commit_hash}")
+
+    if not release_tag or not commit_hash:
+        session.error("Failed to get release tag or commit hash.")
+
+    subprocess.check_call(["gcloud", "config", "set", "project", "wandb-client-cicd"])
+
+    images = (
+        subprocess.Popen(
+            [
+                "gcloud",
+                "artifacts",
+                "docker",
+                "tags",
+                "list",
+                "us-central1-docker.pkg.dev/wandb-client-cicd/images/local-testcontainer",
+            ],
+            stdout=subprocess.PIPE,
+        )
+        .communicate()[0]
+        .decode()
+        .split("\n")
+    )
+    images = [img for img in images if img]
+
+    if any(release_tag in img for img in images):
+        session.warn(f"Image with tag {release_tag} already exists.")
+        return
+
+    source_image = f"us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer:{commit_hash}"
+    target_image = f"us-central1-docker.pkg.dev/wandb-client-cicd/images/local-testcontainer:{release_tag}"
+
+    subprocess.check_call(["gcrane", "cp", source_image, target_image])
+
+    session.log(f"Successfully copied image {target_image}")
 
 
 @nox.session(python="3.13", name="codegen-check")

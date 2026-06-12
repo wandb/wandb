@@ -293,16 +293,18 @@ commands:
         type: string
         default: "us-central1-docker.pkg.dev"
     steps:
+      - gcloud/setup:
+          use_oidc: true
+          google_project_id: GOOGLE_PROJECT_ID
+          google_project_number: GOOGLE_PROJECT_NUMBER
+          service_account_email: OIDC_SERVICE_ACCOUNT_EMAIL
+          workload_identity_pool_id: OIDC_WIP_ID
+          workload_identity_pool_provider_id: OIDC_WIP_PROVIDER_ID
       - run:
-          name: "Setup gcloud and kubectl"
-          # gcloud --quiet components update
+          name: "Install gcloud components and configure Docker"
           command: |
-            echo $GCLOUD_SERVICE_KEY > ${HOME}/gcloud-service-key.json
             gcloud --quiet components install gke-gcloud-auth-plugin
             gcloud --quiet components install kubectl
-            gcloud auth activate-service-account --key-file=${HOME}/gcloud-service-key.json
-            gcloud --quiet config set project $GOOGLE_PROJECT_ID
-            gcloud --quiet config set compute/zone $GOOGLE_COMPUTE_ZONE
             gcloud auth configure-docker --quiet << parameters.container_registry >>
 
 jobs:
@@ -515,6 +517,36 @@ jobs:
             cargo test --verbose
       - save-cargo-cache
 
+  # Download the local-testcontainer image corresponding to the latest server release
+  # and store it in wandb-client-cicd/images/local-testcontainer.
+  # No-op if already stored.
+  store-local-testcontainer:
+    docker:
+      - image: "python:3.11"
+    resource_class: small
+    working_directory: /mnt/ramdisk
+    environment:
+      GOOGLE_PROJECT_ID: wandb-client-cicd
+      GOOGLE_PROJECT_NUMBER: "709166110075"
+      OIDC_SERVICE_ACCOUNT_EMAIL: wandb-client-cicd@appspot.gserviceaccount.com
+      OIDC_WIP_ID: wandb-client-cicd-circleci
+      OIDC_WIP_PROVIDER_ID: circleci
+    steps:
+      - checkout
+      - run:
+          name: Install system deps
+          command: |
+            apt-get update
+      - install_go
+      - setup_gcloud
+      - run:
+          name: Store local-testcontainer image
+          command: |
+            go install github.com/google/go-containerregistry/cmd/gcrane@latest
+            python -m pip install -U pip nox requests uv
+            nox -s local-testcontainer-registry
+          no_output_timeout: 5m
+
 workflows:
   main:
     jobs:
@@ -522,6 +554,15 @@ workflows:
       # Linting
       #
       - code-check
+
+      #
+      # Store latest local-testcontainer
+      #
+      - store-local-testcontainer:
+          filters:
+            branches:
+              only:
+                - main
 
       #
       # Unit tests with Go on Linux
@@ -613,13 +654,11 @@ workflows:
           matrix:
             parameters:
               python: ["3.13"]
-              # local/v0.63.0 in wandb/core. Use the source production
-              # image because container-agent pulls sidecars via GKE kubelet.
               server_image:
                 [
-                  "us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer",
+                  "us-central1-docker.pkg.dev/wandb-client-cicd/images/local-testcontainer",
                 ]
-              server_image_tag: ["4e96edb6246657896bde6da938ef7325c4973b4a"]
+              server_image_tag: ["0.63.0"]
 
       - nox-tests-linux:
           name: notebook-tests-linux-<<matrix.python>>
