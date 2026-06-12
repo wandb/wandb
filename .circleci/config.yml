@@ -515,31 +515,6 @@ jobs:
             cargo test --verbose
       - save-cargo-cache
 
-  # Download the local-testcontainer image corresponding to the latest server release
-  # and store it in wandb-client-cicd/images/local-testcontainer.
-  # No-op if already stored.
-  store-local-testcontainer:
-    docker:
-      - image: "python:3.11"
-    resource_class: small
-    working_directory: /mnt/ramdisk
-    steps:
-      - checkout
-      - run:
-          name: Install system deps
-          command: |
-            apt-get update
-      - install_go
-      - gcloud/install
-      - setup_gcloud
-      - run:
-          name:
-          command: |
-            go install github.com/google/go-containerregistry/cmd/gcrane@latest
-            python -m pip install -U pip nox requests uv
-            nox -s local-testcontainer-registry
-          no_output_timeout: 5m
-
 workflows:
   main:
     jobs:
@@ -647,11 +622,13 @@ workflows:
           matrix:
             parameters:
               python: ["3.13"]
+              # local/v0.63.0 in wandb/core. Use the source production
+              # image because container-agent pulls sidecars via GKE kubelet.
               server_image:
                 [
-                  "us-central1-docker.pkg.dev/wandb-client-cicd/images/local-testcontainer",
+                  "us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer",
                 ]
-              server_image_tag: ["0.63.0"]
+              server_image_tag: ["4e96edb6246657896bde6da938ef7325c4973b4a"]
 
       - nox-tests-linux:
           name: notebook-tests-linux-<<matrix.python>>
