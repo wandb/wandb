@@ -631,7 +631,8 @@ workflows:
             parameters:
               python: ["3.10", "3.13"]
 
-      # TODO[WB-35584]: Temporarily disable due to auth issues
+      # TODO[WB-35584]: Temporarily disable due to auth issues. Re-enable when
+      # we figure that out.
       # - nox-tests-linux:
       #     name: system-tests-min-server-version-linux-<<matrix.python>>
       #     session: system_tests
