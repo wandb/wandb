@@ -524,15 +524,6 @@ workflows:
       - code-check
 
       #
-      # Store latest local-testcontainer
-      #
-      - store-local-testcontainer:
-          filters:
-            branches:
-              only:
-                - main
-
-      #
       # Unit tests with Go on Linux
       #
       - unit-tests-go
