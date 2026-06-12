@@ -635,15 +635,114 @@ def test_add_column_nested_table_cell_raises():
 
 
 @pytest.mark.usefixtures("mock_eval_logger")
-def test_media_cell_raises_from_constructor():
+def test_unsupported_wandb_media_cell_raises_in_raise_mode():
     html = wandb.Html("<p>hi</p>")
 
     with pytest.raises(TypeError) as exc_info:
-        wandb.EvalTable(columns=["html"], data=[[html]])
+        wandb.EvalTable(
+            columns=["html"],
+            data=[[html]],
+            unsupported_media_mode="raise",
+        )
+    assert "unsupported wandb media type 'Html'" in str(exc_info.value)
+    assert "unsupported_media_mode='stub'" in str(exc_info.value)
 
-    message = str(exc_info.value)
-    assert "unsupported wandb media type 'Html'" in message
-    assert "does not support wandb media values yet" in message
+
+@pytest.mark.usefixtures("mock_eval_logger")
+def test_add_data_unsupported_wandb_value_cell_raises_in_raise_mode():
+    histogram = wandb.Histogram([1, 2, 3])
+    et = wandb.EvalTable(columns=["histogram"], unsupported_media_mode="raise")
+
+    with pytest.raises(TypeError) as exc_info:
+        et.add_data(histogram)
+    assert "unsupported wandb value type 'Histogram'" in str(exc_info.value)
+    assert "unsupported_media_mode='stub'" in str(exc_info.value)
+
+    assert et.data == []
+
+
+@pytest.mark.usefixtures("mock_eval_logger")
+def test_unsupported_media_mode_rejects_unknown_mode():
+    with pytest.raises(ValueError, match="unsupported_media_mode"):
+        wandb.EvalTable(columns=["x"], unsupported_media_mode="ignore")
+
+
+def test_unsupported_wandb_media_stubbed_on_log(
+    mock_eval_logger,
+    mock_wandb_log,
+    run,
+):
+    html = wandb.Html("<p>hi</p>", inject=False)
+
+    et = wandb.EvalTable(
+        columns=["html", "label"],
+        data=[[html, "ok"]],
+        input_columns=["html"],
+        output_columns=["label"],
+    )
+
+    run.log({"my_eval": et})
+    mock_wandb_log.assert_warned("wandb.Html values are not yet supported")
+
+    ev = mock_eval_logger.created_loggers[0]
+    inputs = ev.log_example.call_args.kwargs["inputs"]
+    stub = inputs["html"]
+    assert stub == "[wandb.Html not yet supported]"
+    ev.log_example.assert_called_once_with(
+        inputs={"html": stub},
+        output={"label": "ok"},
+        scores={},
+    )
+
+
+def test_external_image_reference_stubbed_on_log(
+    mock_eval_logger,
+    mock_wandb_log,
+    run,
+):
+    image = wandb.Image("https://example.com/image.png")
+
+    et = wandb.EvalTable(
+        columns=["img", "label"],
+        data=[[image, "ok"]],
+        input_columns=["img"],
+        output_columns=["label"],
+    )
+
+    run.log({"my_eval": et})
+    mock_wandb_log.assert_warned(
+        "External media references for wandb.Image are not yet supported"
+    )
+
+    ev = mock_eval_logger.created_loggers[0]
+    inputs = ev.log_example.call_args.kwargs["inputs"]
+    stub = inputs["img"]
+    assert stub == "[wandb.Image external reference not yet supported]"
+    ev.log_example.assert_called_once_with(
+        inputs={"img": stub},
+        output={"label": "ok"},
+        scores={},
+    )
+
+
+def test_unsupported_wandb_value_without_natural_hash_stubbed_on_log(
+    mock_eval_logger,
+    mock_wandb_log,
+    run,
+):
+    histogram = wandb.Histogram([1, 2, 3])
+    et = wandb.EvalTable(
+        columns=["histogram"],
+        data=[[histogram]],
+    )
+
+    run.log({"my_eval": et})
+    mock_wandb_log.assert_warned("wandb.Histogram values are not yet supported")
+
+    ev = mock_eval_logger.created_loggers[0]
+    output = ev.log_example.call_args.kwargs["output"]
+    stub = output["histogram"]
+    assert stub == "[wandb.Histogram not yet supported]"
 
 
 # Logging an EvalTable to an Artifact: rejected.
@@ -665,3 +764,57 @@ def test_parent_table_rejects_evaltable_cell():
 
     with pytest.raises(TypeError, match="cannot be logged to a wandb.Artifact"):
         parent.to_json(fake_artifact)
+
+
+# wandb.Image cell values are unwrapped to PIL.Image before being
+# passed to log_example, so weave can use its image type handler.
+def test_wandb_image_cell_unwrapped_to_pil(mock_eval_logger, run):
+    from PIL import Image as PILImage
+
+    pil_in = PILImage.new("RGB", (2, 2), color="red")
+    wb_img = wandb.Image(pil_in)
+
+    et = wandb.EvalTable(
+        columns=["img"],
+        data=[[wb_img]],
+    )
+    run.log({"my_eval": et})
+
+    ev = mock_eval_logger.created_loggers[0]
+    ev.log_example.assert_called_once()
+    call_kwargs = ev.log_example.call_args.kwargs
+
+    output = call_kwargs["output"]
+    # Single-column output is still wrapped in a dict, keyed by column name.
+    assert isinstance(output, dict)
+    img = output["img"]
+    assert isinstance(img, PILImage.Image), (
+        f"expected PIL.Image.Image, got {type(img).__name__}"
+    )
+    # And it's the same image content (round-tripped through wandb.Image).
+    assert img.size == (2, 2)
+    assert call_kwargs["inputs"] == {"row": 1}
+
+
+def test_wandb_image_with_int_column_unwrapped_to_pil(mock_eval_logger, run):
+    from PIL import Image as PILImage
+
+    pil_in = PILImage.new("RGB", (2, 2), color="red")
+    wb_img = wandb.Image(pil_in)
+
+    et = wandb.EvalTable(
+        columns=[1],
+        data=[[wb_img]],
+    )
+    run.log({"my_eval": et})
+
+    ev = mock_eval_logger.created_loggers[0]
+    ev.log_example.assert_called_once()
+    call_kwargs = ev.log_example.call_args.kwargs
+
+    output = call_kwargs["output"]
+    assert isinstance(output, dict)
+    assert set(output) == {"1"}
+    assert isinstance(output["1"], PILImage.Image)
+    assert output["1"].size == (2, 2)
+    assert call_kwargs["inputs"] == {"row": 1}
