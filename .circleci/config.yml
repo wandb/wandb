@@ -3,7 +3,6 @@ version: 2.1
 orbs:
   go: circleci/go@3.0.4
   slack: circleci/slack@4.12.5
-  gcloud: circleci/gcp-cli@3.1.1
   codecov: codecov/codecov@6.0.0
 
 parameters:
@@ -286,27 +285,6 @@ commands:
                   echo 'export PATH="$HOME/.dotnet:$PATH"' >> "$BASH_ENV"
                 no_output_timeout: 5m
 
-  setup_gcloud:
-    parameters:
-      container_registry:
-        description: "Container registry to authenticate with"
-        type: string
-        default: "us-central1-docker.pkg.dev"
-    steps:
-      - gcloud/setup:
-          use_oidc: true
-          google_project_id: GOOGLE_PROJECT_ID
-          google_project_number: GOOGLE_PROJECT_NUMBER
-          service_account_email: OIDC_SERVICE_ACCOUNT_EMAIL
-          workload_identity_pool_id: OIDC_WIP_ID
-          workload_identity_pool_provider_id: OIDC_WIP_PROVIDER_ID
-      - run:
-          name: "Install gcloud components and configure Docker"
-          command: |
-            gcloud --quiet components install gke-gcloud-auth-plugin
-            gcloud --quiet components install kubectl
-            gcloud auth configure-docker --quiet << parameters.container_registry >>
-
 jobs:
   nox-tests-linux:
     parameters:
@@ -517,36 +495,6 @@ jobs:
             cargo test --verbose
       - save-cargo-cache
 
-  # Download the local-testcontainer image corresponding to the latest server release
-  # and store it in wandb-client-cicd/images/local-testcontainer.
-  # No-op if already stored.
-  store-local-testcontainer:
-    docker:
-      - image: "python:3.11"
-    resource_class: small
-    working_directory: /mnt/ramdisk
-    environment:
-      GOOGLE_PROJECT_ID: wandb-client-cicd
-      GOOGLE_PROJECT_NUMBER: "709166110075"
-      OIDC_SERVICE_ACCOUNT_EMAIL: wandb-client-cicd@appspot.gserviceaccount.com
-      OIDC_WIP_ID: wandb-client-cicd-circleci
-      OIDC_WIP_PROVIDER_ID: circleci
-    steps:
-      - checkout
-      - run:
-          name: Install system deps
-          command: |
-            apt-get update
-      - install_go
-      - setup_gcloud
-      - run:
-          name: Store local-testcontainer image
-          command: |
-            go install github.com/google/go-containerregistry/cmd/gcrane@latest
-            python -m pip install -U pip nox requests uv
-            nox -s local-testcontainer-registry
-          no_output_timeout: 5m
-
 workflows:
   main:
     jobs:
@@ -554,15 +502,6 @@ workflows:
       # Linting
       #
       - code-check
-
-      #
-      # Store latest local-testcontainer
-      #
-      - store-local-testcontainer:
-          filters:
-            branches:
-              only:
-                - main
 
       #
       # Unit tests with Go on Linux

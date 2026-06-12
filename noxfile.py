@@ -331,22 +331,34 @@ def experimental_tests(session: nox.Session):
 
 @nox.session(python=False, name="local-testcontainer-registry")
 def local_testcontainer_registry(session: nox.Session) -> None:
-    """Ensure we collect and store the latest local-testcontainer in the registry.
+    """Archive the local-testcontainer image for a wandb/core server release.
 
-    This will find the latest released version (tag) of wandb/core,
-    find associated commit hash, and then pull the local-testcontainer
-    image with the same commit hash from
+    Finds the requested release (tag) of wandb/core (latest by default)
+    and its commit hash, then copies the local-testcontainer image with
+    that commit hash from
     us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer
-    and push it to the SDK's registry with the release tag,
-    if it doesn't already exist there.
+    to us-central1-docker.pkg.dev/wandb-client-cicd/images/local-testcontainer
+    tagged with the release version. No-op if the tag is already archived.
 
-    To run locally, authenticate gcloud with permission to read
-    wandb-production/images/local-testcontainer and write
-    wandb-client-cicd/images/local-testcontainer, and set:
-    - GITHUB_ACCESS_TOKEN: a GitHub personal access token with the repo scope
+    The wandb-production registry only retains images for recent commits,
+    so this archive is what allows testing the SDK against older server
+    releases (e.g. the system-tests-min-server-version CI jobs). It is
+    run manually by maintainers about once a month; see "Archiving server
+    images" in CONTRIBUTING.md.
 
-    To run this for a specific release tag, use:
-    nox -s local-testcontainer-registry -- <release_tag>
+    Prerequisites:
+    - gcloud authenticated with an account that can read
+      wandb-production/images/local-testcontainer and write
+      wandb-client-cicd/images/local-testcontainer
+    - gcrane: go install github.com/google/go-containerregistry/cmd/gcrane@latest
+    - GITHUB_ACCESS_TOKEN: a GitHub token that can read wandb/core,
+      e.g. GITHUB_ACCESS_TOKEN=$(gh auth token)
+
+    To archive the latest release:
+        nox -s local-testcontainer-registry
+
+    To archive a specific release:
+        nox -s local-testcontainer-registry -- server/v0.81.3
     """
     tags: list[str] = session.posargs or []
 

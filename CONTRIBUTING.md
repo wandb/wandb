@@ -35,6 +35,7 @@ Please make sure to update the ToC when you update this page!
 - [Testing](#testing)
   - [Using pytest](#using-pytest)
   - [Running `system_tests` locally (internal-only)](#running-system_tests-locally-internal-only)
+  - [Archiving server images (internal-only)](#archiving-server-images-internal-only)
 - [Troubleshooting](#troubleshooting)
   - [golangci-lint version mismatch](#golangci-lint-version-mismatch)
 
@@ -376,6 +377,34 @@ When you're done, shut it down:
 ```shell
 python tools/local_wandb_server.py stop
 ```
+
+### Archiving server images (internal-only)
+
+The `system-tests-min-server-version` CI jobs test the SDK against the oldest
+supported W&B server release. The `local-testcontainer` images for released
+server versions are archived in
+`us-central1-docker.pkg.dev/wandb-client-cicd/images/local-testcontainer`,
+because the source registry (`wandb-production`) only retains images for
+recent commits.
+
+The archive is updated manually. Whenever you need a release that is not yet archived, run:
+
+```shell
+go install github.com/google/go-containerregistry/cmd/gcrane@latest
+GITHUB_ACCESS_TOKEN=$(gh auth token) nox -s local-testcontainer-registry
+```
+
+This archives the image for the latest `wandb/core` server release and is a
+no-op if it is already archived. To archive a specific release instead, pass
+its tag:
+
+```shell
+GITHUB_ACCESS_TOKEN=$(gh auth token) nox -s local-testcontainer-registry -- server/v0.81.3
+```
+
+You will need `gcloud` authenticated with an account that can read
+`wandb-production/images/local-testcontainer` and write
+`wandb-client-cicd/images/local-testcontainer`.
 
 ## Troubleshooting
 
