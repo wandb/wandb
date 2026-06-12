@@ -1082,7 +1082,7 @@ class Api:
         filters: dict[str, Any] | None = None,
         order: str = "+created_at",
         per_page: int = 50,
-        include_sweeps: bool = True,
+        include_sweeps: bool = False,
         lazy: bool = True,
     ):
         """Returns a `Runs` object, which lazily iterates over `Run` objects.
@@ -1132,7 +1132,7 @@ class Api:
                 If you prepend order with a - order is descending.
                 The default order is run.created_at from oldest to newest.
             per_page: (int) Sets the page size for query pagination.
-            include_sweeps: (bool) Whether to include the sweep runs in the results.
+            include_sweeps: (bool) Whether to eagerly fetch the sweep object in each run result.
             lazy: (bool) Whether to use lazy loading for faster performance.
                 When True (default), only essential run metadata is loaded initially.
                 Heavy fields like config, summaryMetrics, and systemMetrics are loaded
