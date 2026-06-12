@@ -133,7 +133,16 @@ def test_git_root(runner, wandb_backend_spy):
             check=True,
         )
         subprocess.run(
-            ["git", "commit", "--allow-empty", "-m", "initial commit"],
+            # Skip hooks and signing so the user's git config can't break tests.
+            [
+                "git",
+                "commit",
+                "--no-verify",
+                "--no-gpg-sign",
+                "--allow-empty",
+                "-m",
+                "initial commit",
+            ],
             cwd=path,
             check=True,
             stdout=subprocess.DEVNULL,

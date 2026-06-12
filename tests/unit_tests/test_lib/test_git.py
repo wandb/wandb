@@ -27,7 +27,10 @@ def add_remote(path: str, name: str, url: str) -> None:
 
 
 def commit_empty(path: str, message: str) -> None:
-    run_git(path, "commit", "--allow-empty", "-m", message)
+    # Skip hooks and signing so the user's git config can't break tests.
+    run_git(
+        path, "commit", "--no-verify", "--no-gpg-sign", "--allow-empty", "-m", message
+    )
 
 
 def stage_file(path: str, file_name: str) -> None:
@@ -36,8 +39,8 @@ def stage_file(path: str, file_name: str) -> None:
 
 def initialized_git_repo(root: str = "/repo") -> GitRepo:
     git_repo = GitRepo(root=root)
-    git_repo._repo = root
-    git_repo._repo_initialized = True
+    git_repo._root_dir = root
+    git_repo._root_dir_initialized = True
     return git_repo
 
 
@@ -72,8 +75,8 @@ class TestGitRepo:
         git_repo = git_repo_fn()
         assert not git_repo.dirty
         open("foo.txt", "wb").close()
-        assert git_repo.repo is not None
-        stage_file(git_repo.repo, "foo.txt")
+        assert git_repo.root_dir is not None
+        stage_file(git_repo.root_dir, "foo.txt")
         assert git_repo.dirty
 
     def test_remote_url(self, git_repo_fn):
@@ -84,7 +87,7 @@ class TestGitRepo:
         # TODO: assert git / not git
         git_repo = git_repo_fn()
         tag = git_repo.tag("foo", "My great tag")
-        assert tag is None or tag.name == "wandb/foo"
+        assert tag is None or tag == "wandb/foo"
 
     def test_no_repo(self):
         assert not GitRepo(root="/tmp").enabled
@@ -117,9 +120,9 @@ class TestGitRepo:
         git_repo = git_repo_fn(remote_url=remote_url)
         assert git_repo.remote_url == remote_url
 
-    def test_root_doesnt_exist(self):
-        git_repo = GitRepo(root="/tmp/foo")
-        assert git_repo.repo is None and git_repo._repo_initialized is True
+    def test_root_doesnt_exist(self, tmp_path):
+        git_repo = GitRepo(root=str(tmp_path / "nonexistent"))
+        assert git_repo.root_dir is None and git_repo._root_dir_initialized is True
 
     def test_git_version(self, monkeypatch):
         git_repo = GitRepo(remote=None)
@@ -148,7 +151,7 @@ class TestGitRepo:
     def test_init_repo_without_git(self):
         git_repo = GitRepo(lazy=False, _git_executable="git-not-found")
 
-        assert git_repo.repo is None
+        assert git_repo.root_dir is None
 
     def test_init_repo_invalid_current_directory(self, monkeypatch):
         def getcwd():
@@ -156,12 +159,12 @@ class TestGitRepo:
 
         monkeypatch.setattr(os, "getcwd", getcwd)
 
-        assert GitRepo(lazy=False).repo is None
+        assert GitRepo(lazy=False).root_dir is None
 
     def test_init_repo_invalid_git_repository(self, tmp_path):
         git_repo = GitRepo(root=str(tmp_path), lazy=False)
 
-        assert git_repo.repo is None
+        assert git_repo.root_dir is None
 
     def test_git_command_helpers(self, monkeypatch):
         git_repo = initialized_git_repo()
@@ -176,7 +179,11 @@ class TestGitRepo:
             ("config", "--get", "missing"): "\n",
             ("rev-parse", "--verify", "HEAD"): "abc123\n",
             ("symbolic-ref", "--short", "HEAD"): "main\n",
-            ("remote", "get-url", "origin"): "https://github.com/wandb/wandb.git\n",
+            (
+                "config",
+                "--get",
+                "remote.origin.url",
+            ): "https://github.com/wandb/wandb.git\n",
             ("--version",): "git version 2.50.1\n",
             ("symbolic-ref", "HEAD"): "refs/heads/main\n",
             ("rev-parse", "--abbrev-ref", "@{upstream}"): "origin/main\n",

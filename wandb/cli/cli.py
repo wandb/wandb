@@ -3293,10 +3293,9 @@ Run `git clone {repo}` and restore from there or pass the --no-git flag."""
                     ".patch"
                 ):
                     commit = filename[len("upstream_diff_") : -len(".patch")]
-                    if not git.has_commit(commit):
-                        commit = None
-                    if commit:
+                    if git.has_commit(commit):
                         break
+                    commit = None
 
             if commit:
                 wandb.termlog(f"Falling back to upstream commit: {commit}")
@@ -3327,7 +3326,7 @@ Run `git clone {repo}` and restore from there or pass the --no-git flag."""
         if patch_path:
             # we apply the patch from the repository root so git doesn't exclude
             # things outside the current directory
-            root = git.repo
+            root = git.root_dir
             patch_rel_path = os.path.relpath(patch_path, start=root)
             # --reject is necessary or else this fails any time a binary file
             # occurs in the diff

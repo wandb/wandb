@@ -224,7 +224,8 @@ def git_repo(runner):
         open("README", "wb").close()
         subprocess.run(["git", "add", "README"], check=True)
         subprocess.run(
-            ["git", "commit", "-m", "Initial commit"],
+            # Skip hooks and signing so the user's git config can't break tests.
+            ["git", "commit", "--no-verify", "--no-gpg-sign", "-m", "Initial commit"],
             check=True,
             stdout=subprocess.DEVNULL,
         )

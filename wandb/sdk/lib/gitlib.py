@@ -3,25 +3,22 @@ from __future__ import annotations
 import logging
 import os
 import re
+import shutil
 import subprocess
 from dataclasses import dataclass
-from typing import Any
 from urllib.parse import urlparse, urlunparse
 
 import wandb
 
 logger = logging.getLogger(__name__)
 
+# The environment variable GitPython used for locating the git executable,
+# honored for backwards compatibility now that GitPython is gone.
 GIT_EXECUTABLE_ENV = "GIT_PYTHON_GIT_EXECUTABLE"
 
 
 class GitCommandError(Exception):
     pass
-
-
-@dataclass(frozen=True)
-class GitTag:
-    name: str
 
 
 @dataclass(frozen=True, order=True)
@@ -31,8 +28,37 @@ class GitVersion:
     patch: int
 
 
-def git_error_output(error: subprocess.CalledProcessError) -> str:
-    return error.stderr.decode(errors="replace")
+def run_git(
+    *args: str,
+    cwd: str | None = None,
+    executable: str | None = None,
+) -> str:
+    """Run a git command and return its standard output.
+
+    Args:
+        args: Arguments to pass to git.
+        cwd: Directory to run git in. Defaults to the current directory.
+        executable: The git executable to use. Defaults to the
+            GIT_PYTHON_GIT_EXECUTABLE environment variable or "git".
+
+    Raises:
+        GitCommandError: If git exits with a non-zero status.
+    """
+    git = executable or os.environ.get(GIT_EXECUTABLE_ENV) or "git"
+    try:
+        proc = subprocess.run(
+            [git, *args],
+            cwd=cwd,
+            check=True,
+            capture_output=True,
+        )
+    except subprocess.CalledProcessError as e:
+        stderr = e.stderr.decode(errors="replace")
+        raise GitCommandError(
+            f"git {' '.join(args)} exited with {e.returncode}: {stderr}"
+        ) from e
+
+    return proc.stdout.decode(errors="replace")
 
 
 def remote_url_without_password(url: str) -> str:
@@ -67,20 +93,20 @@ class GitRepo:
         self._git_executable = (
             _git_executable or os.environ.get(GIT_EXECUTABLE_ENV) or "git"
         )
-        self._repo: str | None = None
-        self._repo_initialized = False
+        self._root_dir: str | None = None
+        self._root_dir_initialized = False
         if not lazy:
-            self._repo = self._init_repo()
+            self._root_dir = self._find_root_dir()
 
-    def _init_repo(self) -> str | None:
-        self._repo_initialized = True
+    def _find_root_dir(self) -> str | None:
+        self._root_dir_initialized = True
         if self.remote_name is None:
             return None
 
         try:
             return self.repo_root_for(self._root or os.getcwd())
-        except FileNotFoundError as e:
-            if e.filename == self._git_executable:
+        except (FileNotFoundError, NotADirectoryError):
+            if shutil.which(self._git_executable) is None:
                 logger.debug("git executable not found")
             elif self._root:
                 wandb.termwarn(f"git root {self._root} does not exist")
@@ -93,28 +119,19 @@ class GitRepo:
         return None
 
     @property
-    def repo(self) -> str | None:
-        if not self._repo_initialized:
-            self._repo = self._init_repo()
-        return self._repo
+    def root_dir(self) -> str | None:
+        """The repository's top-level directory, or None if not in a repository."""
+        if not self._root_dir_initialized:
+            self._root_dir = self._find_root_dir()
+        return self._root_dir
 
     def run_git(self, *args: str, cwd: str | None = None) -> str:
         if cwd is None:
-            cwd = self.repo
+            cwd = self.root_dir
             if cwd is None:
                 raise GitCommandError("git repository is unavailable")
 
-        try:
-            proc = subprocess.run(
-                [self._git_executable, *args],
-                cwd=cwd,
-                check=True,
-                capture_output=True,
-            )
-        except subprocess.CalledProcessError as e:
-            raise GitCommandError(git_error_output(e)) from e
-
-        return proc.stdout.decode(errors="replace")
+        return run_git(*args, cwd=cwd, executable=self._git_executable)
 
     def repo_root_for(self, cwd: str) -> str:
         return self.run_git("rev-parse", "--show-toplevel", cwd=cwd).strip()
@@ -145,7 +162,9 @@ class GitRepo:
         return self.run_git("symbolic-ref", "--short", "HEAD").strip()
 
     def remote_url_for(self, remote_name: str) -> str:
-        return self.run_git("remote", "get-url", remote_name).strip()
+        # Read the configured URL directly; unlike `git remote get-url`,
+        # this does not apply url.<base>.insteadOf rewrites.
+        return self.run_git("config", "--get", f"remote.{remote_name}.url").strip()
 
     def remote_exists(self, remote_name: str) -> bool:
         try:
@@ -208,7 +227,7 @@ class GitRepo:
         return self._remote_url is None
 
     def is_untracked(self, file_name: str) -> bool | None:
-        if not self.repo:
+        if not self.root_dir:
             return True
         try:
             return bool(self.untracked_files(file_name))
@@ -217,11 +236,11 @@ class GitRepo:
 
     @property
     def enabled(self) -> bool:
-        return bool(self.repo)
+        return bool(self.root_dir)
 
     @property
-    def dirty(self) -> Any:
-        if not self.repo:
+    def dirty(self) -> bool:
+        if not self.root_dir:
             return False
         try:
             return self.has_tracked_changes()
@@ -230,7 +249,7 @@ class GitRepo:
 
     @property
     def email(self) -> str | None:
-        if not self.repo:
+        if not self.root_dir:
             return None
         try:
             return self.config_value("user.email")
@@ -238,10 +257,10 @@ class GitRepo:
             return None
 
     @property
-    def last_commit(self) -> Any:
+    def last_commit(self) -> str | None:
         if self._commit:
             return self._commit
-        if not self.repo:
+        if not self.root_dir:
             return None
         try:
             return self.commit_for_ref("HEAD")
@@ -250,8 +269,8 @@ class GitRepo:
             return None
 
     @property
-    def branch(self) -> Any:
-        if not self.repo:
+    def branch(self) -> str | None:
+        if not self.root_dir:
             return None
         try:
             return self.current_branch()
@@ -259,8 +278,8 @@ class GitRepo:
             return None
 
     @property
-    def remote(self) -> Any:
-        if not self.repo or not self.remote_name:
+    def remote(self) -> str | None:
+        if not self.root_dir or not self.remote_name:
             return None
         if not self.remote_exists(self.remote_name):
             return None
@@ -270,7 +289,7 @@ class GitRepo:
     # https://stackoverflow.com/questions/10757091/git-list-of-all-changed-files-including-those-in-submodules
     @property
     def has_submodule_diff(self) -> bool:
-        if not self.repo:
+        if not self.root_dir:
             return False
         try:
             version = self.git_version()
@@ -279,17 +298,17 @@ class GitRepo:
         return version is not None and version >= GitVersion(2, 11, 0)
 
     @property
-    def remote_url(self) -> Any:
+    def remote_url(self) -> str | None:
         if self._remote_url:
             return self._remote_url
-        if not self.repo or not self.remote_name:
+        if not self.root_dir or not self.remote_name:
             return None
         try:
             return remote_url_without_password(self.remote_url_for(self.remote_name))
         except GitCommandError:
             return None
 
-    def get_upstream_fork_point(self) -> Any:
+    def get_upstream_fork_point(self) -> str | None:
         """Get the most recent ancestor of HEAD that occurs on an upstream branch.
 
         First looks at the current branch's tracking branch, if applicable. If
@@ -300,7 +319,7 @@ class GitRepo:
             Commit hash string or None
         """
         try:
-            if not self.repo:
+            if not self.root_dir:
                 return None
             if self.is_detached_head():
                 logger.debug("git is in a detached head state")
@@ -362,18 +381,19 @@ class GitRepo:
     def checkout_new_branch(self, branch_name: str, start_point: str) -> None:
         self.run_git("checkout", "-b", branch_name, start_point)
 
-    def tag(self, name: str, message: str | None) -> Any:
-        if not self.repo:
+    def tag(self, name: str, message: str | None) -> str | None:
+        """Create the tag wandb/<name> and return it, or None on failure."""
+        if not self.root_dir:
             return None
         tag_name = f"wandb/{name}"
         try:
             self.create_tag(tag_name, message)
-            return GitTag(tag_name)
         except GitCommandError:
             logger.debug("Failed to tag repository.")
             return None
+        return tag_name
 
-    def push(self, name: str) -> Any:
+    def push(self, name: str) -> str | None:
         if not self.remote:
             return None
         try:
