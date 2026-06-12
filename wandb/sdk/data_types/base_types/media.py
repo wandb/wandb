@@ -258,7 +258,7 @@ class Media(WBValue):
                         # Add this image as a reference
                         path = self._artifact_source.artifact.get_entry(name)
                         artifact.add_reference(path.ref_url(), name=name)
-                    elif (isinstance(self, (Audio, Image))) and self.path_is_reference(
+                    elif (isinstance(self, (Audio, Image))) and Media.path_is_reference(
                         self._path
                     ):
                         artifact.add_reference(self._path, name=name)
