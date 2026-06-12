@@ -45,11 +45,11 @@ executors:
       server_image_tag: { type: string }
     docker:
       - image: "python:<< parameters.python >>"
+      # This image is pulled by the kubelet on the self-hosted runners
+      # (ci-cluster), authenticated via the GKE node service account.
+      # That account must have artifactregistry.reader on the registry
+      # hosting the image; CircleCI-side auth config has no effect there.
       - image: << parameters.server_image >>:<< parameters.server_image_tag >>
-        gcp_auth:
-          oidc_service_account: wandb-client-cicd@appspot.gserviceaccount.com
-          workload_identity_pool: projects/709166110075/locations/global/workloadIdentityPools/wandb-client-cicd-circleci
-          workload_identity_provider: circleci
         environment:
           CI: 1
           WANDB_ENABLE_TEST_CONTAINER: true
