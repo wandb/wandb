@@ -59,6 +59,9 @@ class EvalTable(Table):
 
         Supports arguments of parent Table class except where noted below.
 
+        Warning: Media suport is only partially implemented. We may not save all
+        metadata, and media types not yet supported will be replaced with stubs for now.
+
         Args:
             columns: Names of the columns in the table.
                 If unset, but input_columns, output_columns, or score_columns are set,
