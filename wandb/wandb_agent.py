@@ -54,13 +54,8 @@ class ShutdownSignal(BaseException):
 
     @property
     def label(self) -> str:
-        """Human-readable label for the originating signal."""
-        if self.signum == signal.SIGINT:
-            return "Ctrl-c"
-        try:
-            return signal.Signals(self.signum).name
-        except ValueError:
-            return f"signal {self.signum}"
+        """Name of the originating signal (e.g. "SIGTERM")."""
+        return signal.Signals(self.signum).name
 
 
 class AgentError(Exception):
