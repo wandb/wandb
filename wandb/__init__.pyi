@@ -33,6 +33,7 @@ __all__ = (
     "Video",
     "Audio",
     "Table",
+    "EvalTable",
     "Html",
     "box3d",
     "Object3D",
@@ -70,6 +71,7 @@ from wandb.apis import InternalApi
 from wandb.apis import PublicApi as Api
 from wandb.data_types import (
     Audio,
+    EvalTable,
     Graph,
     Histogram,
     Html,
@@ -97,7 +99,7 @@ if TYPE_CHECKING:
     import wandb
     from wandb.plot import CustomChart
 
-__version__: str = "0.27.1.dev1"
+__version__: str = "0.27.3.dev1"
 
 run: Run | None
 config: wandb_config.Config

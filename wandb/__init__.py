@@ -10,7 +10,7 @@ For reference documentation, see https://docs.wandb.ai/models/ref/python.
 """
 from __future__ import annotations
 
-__version__ = "0.27.1.dev1"
+__version__ = "0.27.3.dev1"
 
 
 from wandb.errors import Error
@@ -62,6 +62,7 @@ from wandb.data_types import Plotly
 from wandb.data_types import Video
 from wandb.data_types import Audio
 from wandb.data_types import Table
+from wandb.data_types import EvalTable
 from wandb.data_types import Html
 from wandb.data_types import box3d
 from wandb.data_types import Object3D

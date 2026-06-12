@@ -4,12 +4,12 @@ orbs:
   go: circleci/go@3.0.4
   slack: circleci/slack@4.12.5
   gcloud: circleci/gcp-cli@3.1.1
-  codecov: codecov/codecov@5.0.0
+  codecov: codecov/codecov@6.0.0
 
 parameters:
   go_version:
     type: string
-    default: "1.26.3"
+    default: "1.26.4"
   server_image:
     type: string
     default: "us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer"
@@ -149,7 +149,8 @@ commands:
           command: >
             nox -s "<<parameters.session>>" --python <<parameters.python>> --verbose
 
-      - codecov/upload: { flags: <<parameters.codecov_flags>> }
+      # TODO[WB-35582]: Temporarily disable codecov because brew install broke it.
+      # - codecov/upload: { flags: <<parameters.codecov_flags>> }
       - save-test-results
 
   local-wandb-server-deps:
@@ -375,7 +376,7 @@ jobs:
       - checkout
       - run:
           name: Install system deps
-          command: brew install ffmpeg python@<<parameters.python>>
+          command: brew install --no-ask ffmpeg python@<<parameters.python>>
       - install_go
       - install_rust
 
@@ -478,7 +479,6 @@ jobs:
           command: |
             sudo apt-get update
       - install_go
-
       - load-go-cache
       - run:
           name: Run wandb core's Go tests and collect coverage
@@ -486,8 +486,8 @@ jobs:
             cd core
             go test -count=1 -race -coverprofile=coverage.txt -covermode=atomic ./...
       - save-go-cache
-
-      - codecov/upload: { flags: unit }
+      # TODO[WB-35582]: Temporarily disable codecov because brew install broke it.
+      # - codecov/upload: { flags: unit }
 
   unit-tests-rust:
     resource_class: wandb/docker-builder
@@ -500,7 +500,6 @@ jobs:
           command: |
             sudo apt-get update
       - install_rust
-
       - load-cargo-cache
       - run:
           name: Run Rust tests for parquet-rust-wrapper

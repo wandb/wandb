@@ -169,9 +169,13 @@ class Api:
         wbauth.set_auth_settings(settings, self._auth)
         settings.base_url = base_url
         extra_headers = dict(settings.x_extra_http_headers or {})
-        # Preserve the legacy admin-capable Public API transport behavior while
-        # routing GraphQL through wandb-core.
+        # Preserve the legacy Public API transport behavior while routing
+        # GraphQL through wandb-core. The backend gates admin-capable access
+        # and first-party fields (e.g. a user's `apiKeys`) on a recognized
+        # "W&B Public Client" User-Agent; wandb-core's default "wandb-core"
+        # User-Agent would otherwise be rejected with "relogin required".
         extra_headers["Use-Admin-Privileges"] = "true"
+        extra_headers["User-Agent"] = f"W&B Public Client {wandb.__version__}"
         settings.x_extra_http_headers = extra_headers
         if http_proxy := proxies.get("http"):
             settings.http_proxy = http_proxy
@@ -1078,7 +1082,7 @@ class Api:
         filters: dict[str, Any] | None = None,
         order: str = "+created_at",
         per_page: int = 50,
-        include_sweeps: bool = True,
+        include_sweeps: bool = False,
         lazy: bool = True,
     ):
         """Returns a `Runs` object, which lazily iterates over `Run` objects.
@@ -1128,7 +1132,7 @@ class Api:
                 If you prepend order with a - order is descending.
                 The default order is run.created_at from oldest to newest.
             per_page: (int) Sets the page size for query pagination.
-            include_sweeps: (bool) Whether to include the sweep runs in the results.
+            include_sweeps: (bool) Whether to eagerly fetch the sweep object in each run result.
             lazy: (bool) Whether to use lazy loading for faster performance.
                 When True (default), only essential run metadata is loaded initially.
                 Heavy fields like config, summaryMetrics, and systemMetrics are loaded

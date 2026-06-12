@@ -281,6 +281,8 @@ func (h *Handler) handleRequest(
 		h.handleRequestGetSummary(record, request)
 	case *spb.Request_NetworkStatus:
 		h.handleRequestNetworkStatus(record, request)
+	case *spb.Request_HistoryStep:
+		h.handleHistoryStepRequest(x.HistoryStep, request)
 	case *spb.Request_PartialHistory:
 		h.handleRequestPartialHistory(record, x.PartialHistory)
 	case *spb.Request_PollExit:
@@ -887,6 +889,31 @@ func (h *Handler) handleRequestNetworkStatus(
 	request *runwork.Request,
 ) {
 	h.fwdRecord(record, request)
+}
+
+// handleHistoryStepRequest responds with the current W&B step.
+func (h *Handler) handleHistoryStepRequest(
+	_ *spb.HistoryStepRequest, // proves 'request' is a history step request
+	request *runwork.Request,
+) {
+	if h.settings.IsSharedMode() {
+		request.Respond(&spb.ServerResponse{
+			ServerResponseType: &spb.ServerResponse_ErrorResponse{
+				ErrorResponse: &spb.ServerErrorResponse{
+					Message: "Cannot read the W&B step in shared mode.",
+				},
+			},
+		})
+		return
+	}
+
+	h.respond(request, &spb.Response{
+		ResponseType: &spb.Response_HistoryStepResponse{
+			HistoryStepResponse: &spb.HistoryStepResponse{
+				Step: h.partialHistoryStep,
+			},
+		},
+	})
 }
 
 // handleRequestPartialHistory updates the run history, flushing data for

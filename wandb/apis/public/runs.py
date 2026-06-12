@@ -210,7 +210,7 @@ class Runs(SizedPaginator["Run"]):
         filters: dict[str, Any] | None = None,
         order: str = "+created_at",
         per_page: int = 50,
-        include_sweeps: bool = True,
+        include_sweeps: bool = False,
         lazy: bool = True,
         api_key: str | None = None,
     ):
@@ -333,7 +333,7 @@ class Runs(SizedPaginator["Run"]):
 
                 if sweep is None:
                     continue
-                run.sweep = sweep
+                run._sweep = sweep
 
         return objs
 
@@ -633,7 +633,7 @@ class Run(Attrs):
         project: str,
         run_id: str,
         attrs: Mapping | None = None,
-        include_sweeps: bool = True,
+        include_sweeps: bool = False,
         lazy: bool = True,
         api_key: str | None = None,
     ):
@@ -649,7 +649,7 @@ class Run(Attrs):
         self._files = {}
         self._base_dir = env.get_dir(tempfile.gettempdir())
         self.id = run_id
-        self.sweep = None
+        self._sweep: public.Sweep | None = None
         self._include_sweeps = include_sweeps
         self._lazy = lazy
         self._full_data_loaded = False  # Track if we've loaded full data
@@ -668,9 +668,24 @@ class Run(Attrs):
 
         self.load(force=not _attrs)
 
+        if self._include_sweeps:
+            self._load_sweep()
+
     @property
     def state(self) -> str:
-        """The state of the run. Can be one of: Finished, Failed, Crashed, or Running."""
+        """The state of the run.
+
+        The following table describes the possible states a run can be in:
+
+        | State    | Description |
+        | -------- | ----------- |
+        | Crashed  | Run stopped sending heartbeats in the internal process, which can happen if the machine crashes. |
+        | Failed   | Run ended with a non-zero exit status. |
+        | Finished | Run ended and fully synced data, or called `wandb.Run.finish()`. |
+        | Killed   | Run was forcibly stopped before it could finish. |
+        | Running  | Run is still running and has recently sent a heartbeat. |
+        | Pending  | Run is scheduled but not yet started (common in sweeps and Launch jobs). |
+        """
         return self._state
 
     @property
@@ -801,19 +816,6 @@ class Run(Attrs):
             if self._attrs.get("user"):
                 self.user = public.User(self._service_api, self._attrs["user"])
 
-            if self._include_sweeps and self.sweep_name and not self.sweep:
-                # There may be a lot of runs. Don't bother pulling them all
-                # just for the sake of this one.
-                from wandb.apis.public.sweeps import _get_sweep
-
-                self.sweep = _get_sweep(
-                    self._service_api,
-                    self.entity,
-                    self.project,
-                    self.sweep_name,
-                    withRuns=False,
-                )
-
         if not self._is_loaded or force:
             # Always set _project_internal_id if projectId is available, regardless of fragment type
             if "projectId" in self._attrs:
@@ -851,19 +853,6 @@ class Run(Attrs):
         if "systemMetrics" in self._attrs:
             self._attrs["systemMetrics"] = _convert_to_dict(
                 self._attrs.get("systemMetrics")
-            )
-
-        # Only check for sweeps if sweep_name is available (not in lazy mode or if it exists)
-        if self._include_sweeps and self._attrs.get("sweepName") and not self.sweep:
-            # There may be a lot of runs. Don't bother pulling them all
-            from wandb.apis.public.sweeps import _get_sweep
-
-            self.sweep = _get_sweep(
-                self._service_api,
-                self.entity,
-                self.project,
-                self._attrs["sweepName"],
-                withRuns=False,
             )
 
         config_user, config_raw = {}, {}
@@ -988,13 +977,21 @@ class Run(Attrs):
         self.update()
 
     @normalize_exceptions
-    def update_state(self, state: Literal["pending"]) -> bool:
+    def update_state(self, state: str) -> bool:
         """Update the state of a run.
 
-        Allows transitioning runs from 'failed' or 'crashed' to 'pending'.
+        Supported transitions:
+            - to `pending` from `running`, `failed`, `crashed`, or `preempted`
+              (e.g. to requeue a terminated or in-progress run)
+            - to `failed` from `pending` or `running`
+              (e.g. to mark a preempted or lost run as failed)
+
+        Sweep runs cannot have their state updated.
+
+        See `Run.state` for the list of possible run states.
 
         Args:
-            state: The target run state. Only `"pending"` is supported.
+            state: The target run state. One of `"pending"` or `"failed"`.
 
         Returns:
             `True` if the state was successfully updated.
@@ -1011,31 +1008,15 @@ class Run(Attrs):
             }
             """
 
-        try:
-            result = self._service_api.execute_graphql(
-                mutation,
-                {
-                    "input": {
-                        "id": self.storage_id,
-                        "state": state,
-                    }
-                },
-            )
-        except Exception as e:
-            error_msg = str(e)
-            if "UpdateRunStateInput" in error_msg or "updateRunState" in error_msg:
-                raise wandb.Error(
-                    "The server does not support the update_state operation. "
-                    "Please ensure your W&B server is updated to a version that "
-                    "supports run state transitions."
-                ) from e
-            if "invalid state transition" in error_msg.lower():
-                raise wandb.Error(
-                    f"Invalid state transition: cannot change run from '{self.state}' "
-                    f"to '{state}'. Only runs in 'failed' or 'crashed' state can be "
-                    "transitioned to 'pending'."
-                ) from e
-            raise
+        result = self._service_api.execute_graphql(
+            mutation,
+            {
+                "input": {
+                    "id": self.storage_id,
+                    "state": state,
+                }
+            },
+        )
 
         if result.get("updateRunState", {}).get("success"):
             self._attrs["state"] = state
@@ -1532,6 +1513,29 @@ class Run(Attrs):
         """Get sweep name. Always available since sweepName is in lightweight fragment."""
         # sweepName is included in lightweight fragment, so no need to load full data
         return self._attrs.get("sweepName")
+
+    @property
+    def sweep(self) -> public.Sweep | None:
+        """The sweep associated with this run. Loads sweep data if include_sweeps is False."""
+        if self._sweep is None and self.sweep_name:
+            self._load_sweep()
+        return self._sweep
+
+    def _load_sweep(self) -> None:
+        """Load sweep metadata for this run without fetching all sweep runs."""
+        if not self.sweep_name:
+            return
+
+        # There may be a lot of runs. Don't bother pulling them all.
+        from wandb.apis.public.sweeps import _get_sweep
+
+        self._sweep = _get_sweep(
+            self._service_api,
+            self.entity,
+            self.project,
+            self.sweep_name,
+            withRuns=False,
+        )
 
     @property
     def path(self) -> list[str]:
