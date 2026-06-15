@@ -43,6 +43,7 @@ from wandb.sdk.lib import filesystem, settings_file
 from wandb.sync import SyncManager, get_run_from_path, get_runs
 
 from .beta import beta
+from .leet import leet
 
 
 def _get_wandb_dir(root_dir: str | None = None) -> str:
@@ -3684,3 +3685,4 @@ def purge_cache(
 
 
 cli.add_command(beta)
+cli.add_command(leet)
