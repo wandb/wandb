@@ -2014,9 +2014,6 @@ class Settings(BaseModel, validate_assignment=True):
 
         # proceed if not in CLI mode
         if self.x_cli_only_mode:
-            if self.git_root is None:
-                self.git_root = self.root_dir
-
             return
 
         program = self.program or self._get_program()
