@@ -376,7 +376,7 @@ jobs:
       - checkout
       - run:
           name: Install system deps
-          command: brew install --no-ask ffmpeg python@<<parameters.python>>
+          command: brew install ffmpeg python@<<parameters.python>>
       - install_go
       - install_rust
 
