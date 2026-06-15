@@ -4,6 +4,7 @@ from unittest import mock
 import pytest
 import wandb
 from wandb.apis.public.runs import Run
+from wandb.apis.public.sweeps import Sweep
 
 
 @pytest.mark.parametrize(
@@ -204,3 +205,47 @@ def test_run_url_encodes_spaces_in_project_name():
     )
 
     assert run.url == "https://wandb.ai/my-entity/My%20Project/runs/12345"
+
+
+def _make_sweep_graphql_response(sweep_name: str) -> dict:
+    return {
+        "project": {
+            "sweep": {
+                "name": sweep_name,
+                "state": "RUNNING",
+                "config": "method: grid\n",
+            }
+        }
+    }
+
+
+@pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
+def test_sweep_property_loads_from_api():
+    """Accessing run.sweep should fetch and return a Sweep from the API."""
+    service_api = mock.MagicMock()
+    lightweight = _make_lightweight_attrs()
+    sweep_name = "test-sweep"
+    lightweight["sweepName"] = sweep_name
+    service_api.execute_graphql.return_value = _make_sweep_graphql_response(sweep_name)
+
+    run = Run(
+        service_api=service_api,
+        entity="test-entity",
+        project="test-project",
+        run_id="run-abc123",
+        attrs=dict(lightweight),
+        lazy=True,
+    )
+
+    service_api.execute_graphql.assert_not_called()
+
+    sweep = run.sweep
+
+    assert isinstance(sweep, Sweep)
+    assert sweep.name == sweep_name
+    assert sweep.entity == "test-entity"
+    assert sweep.project == "test-project"
+    service_api.execute_graphql.assert_called_once()
+    assert (
+        service_api.execute_graphql.call_args.kwargs["variables"]["name"] == sweep_name
+    )
