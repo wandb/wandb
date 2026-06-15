@@ -1,8 +1,6 @@
 # W&B SDK Architecture Docs
 
-Last audited: 2026-06-10.
-
-This directory is a current, code-grounded onboarding path for engineers and agents working on the W&B SDK. It intentionally treats older decks and Notion pages as historical context. The source of truth is the code in this repository.
+This directory is meant as a current, code-grounded onboarding path for engineers and agents working on the W&B SDK. However the source of truth is the code in this repository.
 
 ## Format
 
