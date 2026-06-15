@@ -6,7 +6,6 @@ These commands are experimental and may change or be removed in future versions.
 from __future__ import annotations
 
 import pathlib
-from typing import Any
 
 import click
 
@@ -14,31 +13,12 @@ from wandb.analytics import get_sentry
 from wandb.errors import WandbCoreNotAvailableError
 from wandb.util import get_core_path
 
-
-class DefaultCommandGroup(click.Group):
-    """A click Group that falls through to a default command.
-
-    If the first argument isn't a recognized subcommand, the default
-    command is invoked with all arguments passed through. This allows
-    backward-compatible CLIs where `cmd [path]` and `cmd run [path]`
-    are equivalent.
-    """
-
-    def __init__(self, *args: Any, default_cmd: str = "run", **kwargs: Any) -> None:
-        super().__init__(*args, **kwargs)
-        self.default_cmd = default_cmd
-
-    def parse_args(self, ctx: click.Context, args: list[str]) -> list[str]:
-        if not args or args[0].startswith("-") or args[0] not in self.commands:
-            args = [self.default_cmd, *args]
-        return super().parse_args(ctx, args)
-
-    def format_usage(self, ctx: click.Context, formatter: click.HelpFormatter) -> None:
-        formatter.write_usage(ctx.command_path, "[PATH] | COMMAND [ARGS]...")
+from .leet import leet
 
 
 @click.group()
-def beta() -> None:
+@click.pass_context
+def beta(ctx: click.Context) -> None:
     """Beta versions of wandb CLI commands.
 
     These commands may change or even completely break in any release of wandb.
@@ -54,73 +34,18 @@ def beta() -> None:
             err=True,
         )
 
-
-@beta.group(cls=DefaultCommandGroup, default_cmd="run", invoke_without_command=True)
-@click.pass_context
-def leet(ctx: click.Context) -> None:
-    """W&B LEET: the Lightweight Experiment Exploration Tool.
-
-    A terminal UI for viewing your W&B runs locally.
-
-    Examples:
-        wandb beta leet                    View the latest run
-        wandb beta leet ./wandb            Browse runs in a wandb directory
-        wandb beta leet <run-url>          View a remote W&B run
-        wandb beta leet symon              View live local system metrics
-    """
-    pass
+    if ctx.invoked_subcommand == "leet":
+        click.secho(
+            "LEET is now generally available as `wandb leet`;"
+            " `wandb beta leet` is kept as an alias.",
+            fg="yellow",
+            err=True,
+        )
 
 
-@leet.command()
-@click.argument("path", nargs=1, type=click.STRING, required=False)
-@click.option(
-    "--pprof",
-    default="",
-    hidden=True,
-    help="Serve /debug/pprof/* on this address (e.g. 127.0.0.1:6060).",
-)
-@click.help_option("-h", "--help")
-def run(path: str | None = None, pprof: str = "") -> None:
-    """Launch the LEET TUI.
-
-    LEET is a terminal UI for viewing a W&B run specified by an optional PATH.
-
-    PATH can include a .wandb file, a run directory containing a .wandb file,
-    or a W&B run URL.
-    If PATH is not provided, the command will look for the latest run.
-    """
-    from . import beta_leet
-
-    beta_leet.launch(path, pprof)
-
-
-@leet.command()
-@click.option(
-    "--pprof",
-    default="",
-    hidden=True,
-    help="Serve /debug/pprof/* on this address (e.g. 127.0.0.1:6060).",
-)
-@click.option(
-    "--interval",
-    default="",
-    metavar="DURATION",
-    help="Sampling interval for system metrics (e.g. 500ms, 2s, 1m).",
-)
-@click.help_option("-h", "--help")
-def symon(pprof: str = "", interval: str = "") -> None:
-    """Launch the standalone system monitor."""
-    from . import beta_leet
-
-    beta_leet.launch_symon(pprof=pprof, interval=interval)
-
-
-@leet.command()
-def config() -> None:
-    """Edit LEET configuration."""
-    from . import beta_leet
-
-    beta_leet.launch_config()
+# LEET graduated from beta; `wandb beta leet` is kept as an alias for
+# `wandb leet` to avoid breaking existing users.
+beta.add_command(leet)
 
 
 @beta.command()
