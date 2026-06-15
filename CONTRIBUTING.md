@@ -78,10 +78,12 @@ Please make sure to update the ToC when you update this page!
     git add changed-file.py tests/test-changed-file.py
     git commit -m "feat(integrations): Add integration with the `awesomepyml` library"
     ```
+    - Be sure to read through the best practices and style guidelines in [docs/](./docs).
     - [Test](#testing) and [lint](#linting-the-code) your code! Please see below for a detailed discussion.
     - Ensure compliance with [conventional commits](https://www.conventionalcommits.org/en/v1.0.0/),
       see [below](#conventional-commits). This is enforced by the CI and will prevent your PR from
       being merged if not followed.
+
 4.  Proposed changes are contributed through
     [GitHub Pull Requests](https://help.github.com/en/github/collaborating-with-issues-and-pull-requests/about-pull-requests).
 
