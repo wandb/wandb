@@ -60,7 +60,7 @@ func RunKeyBindings() []BindingCategory[Run] {
 					Handler:     (*Run).handleToggleLeftSidebar,
 				},
 				{
-					Keys:        []string{"]"},
+					Keys:        []string{"]", "2"},
 					Description: "Toggle right sidebar with system metrics",
 					Handler:     (*Run).handleToggleRightSidebar,
 				},
@@ -193,6 +193,10 @@ func RunKeyBindings() []BindingCategory[Run] {
 					Keys:        NavKeysFor(NavIntentRight),
 					Description: "Page next (list) / chart focus right (grid) / scrub +1 in media (arrow only)",
 					Handler:     (*Run).handleSidebarPageNav,
+				},
+				{
+					Keys:        []string{"l"},
+					Description: "Link scrubbing: arrow keys scrub all media series in sync (media pane focused)",
 				},
 				{
 					Keys:        []string{"k"},
@@ -412,6 +416,10 @@ func WorkspaceKeyBindings() []BindingCategory[Workspace] {
 					Keys:        []string{"p"},
 					Description: "Pin/unpin selected run",
 					Handler:     (*Workspace).handlePinRunKey,
+				},
+				{
+					Keys:        []string{"l"},
+					Description: "Link scrubbing: arrow keys scrub all media series in sync (media pane focused)",
 				},
 				{
 					Keys:        []string{"k"},

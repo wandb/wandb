@@ -1,7 +1,9 @@
 package leet
 
 import (
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"time"
 
@@ -464,7 +466,7 @@ func (w *Workspace) readAllChunkCmd(run *WorkspaceRun) tea.Cmd {
 
 	return func() tea.Msg {
 		msg, err := reader.Read(BootLoadChunkSize, BootLoadMaxTime)
-		if err != nil {
+		if err != nil && !errors.Is(err, io.EOF) {
 			return ErrorMsg{Err: err}
 		}
 		if msg == nil {
@@ -491,7 +493,7 @@ func (w *Workspace) ReadAvailableCmd(run *WorkspaceRun) tea.Cmd {
 
 	return func() tea.Msg {
 		msg, err := reader.Read(LiveMonitorChunkSize, LiveMonitorMaxTime)
-		if err != nil {
+		if err != nil && !errors.Is(err, io.EOF) {
 			return ErrorMsg{Err: err}
 		}
 		if msg == nil {
