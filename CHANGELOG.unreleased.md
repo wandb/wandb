@@ -19,8 +19,10 @@ Section headings should be at level 3 (e.g. `### Added`).
 - High-resolution image rendering in terminals supporting the Kitty protocol with ANSI fallback in the W&B LEET TUI media pane (`wandb beta leet` command) (@dmitryduev in https://github.com/wandb/wandb/pull/11806)
 - Basic remote-run support in W&B LEET TUI (`wandb beta leet <run-url>` command) (@jacobromero in https://github.com/wandb/wandb/pull/11261)
 
-### Fixed
+### Changed
+- `wandb.Api().runs()` no longer loads Sweeps for each run by default to improve query performance. Sweep data is loaded on first access of the `sweep` property (@kmikowicz-wandb in https://github.com/wandb/wandb/pull/12019)
 
+### Fixed
 - `wandb.Api().viewer` (and `Api().user()` / `Api().users()`) no longer fail with `WandbApiFailedError: relogin required` for some API keys, a regression in `0.27.1` (@dmitryduev in https://github.com/wandb/wandb/pull/12009)
 - sweep agents will now allow the in-progress run to complete before exiting when the sweep is deleted or Api() returns 404 (@kmikowicz-wandb in https://github.com/wandb/wandb/pull/11880)
 - When a `wandb.Image` carrying multiple `box` or `mask` layers with distinct `class_labels` is logged inside a `wandb.Table`, each layer's labels are now preserved in new `box_class_maps` / `mask_class_maps` fields in the `table.json`. Previously, there was only as single `class_map` that got incorrectly clobbered by each set of class labels. The next server release will contain a corresponding frontend fix that reads these per-layer fields. Legacy servers will retain the current behavior. (@kelu-wandb in https://github.com/wandb/wandb/pull/11901)
