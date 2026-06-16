@@ -32,13 +32,7 @@
   "python.analysis.autoImportCompletions": false,
   "python.analysis.typeCheckingMode": "off",
   "go.testFlags": [
-      "-race",
-      "-covermode=atomic"
-  ],
-  "cursorpyright.analysis.autoImportCompletions": false,
-  "cursorpyright.analysis.extraPaths": [
-    "./wandb/vendor/gql-0.2.0",
-    "./wandb/vendor/graphql-core-1.1"
-  ],
-  "cursorpyright.analysis.typeCheckingMode": "off"
+    "-race",
+    "-covermode=atomic"
+  ]
 }
