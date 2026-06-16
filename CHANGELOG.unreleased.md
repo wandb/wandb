@@ -37,4 +37,4 @@ This version drops compatibility with server versions older than 0.65.0.
 - Artifact file operations now consistently require normalized relative paths (@tonyyli-wandb in https://github.com/wandb/wandb/pull/11735)
 - Logging an artifact (whether via `WandbLogger` or `run.log_artifact`) now writes the manifest file to the artifact's staging directory instead of the OS temp dir (`$TMPDIR`), avoiding silent failures when `$TMPDIR` is missing or unwritable (@ibindlish in https://github.com/wandb/wandb/pull/11958)
 - Logging artifacts in shared mode works again, and in particular, `wandb.init(mode="shared")` with code-saving enabled no longer raises an error (@timoffex in https://github.com/wandb/wandb/pull/12017)
-- `git_root` setting is now respected for creating the `diff.patch` file. Previously, the `root_dir` setting determined where the git diff was performed.
+- `git_root` setting is now preferred for creating the `diff.patch` file, the `root_dir` setting is now used as a fallback (@TomSiegl in https://github.com/wandb/wandb/pull/11967)
