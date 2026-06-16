@@ -8,6 +8,7 @@ import pytest
 import wandb
 from wandb.apis.public import DownloadHistoryResult, IncompleteRunHistoryError, Run
 from wandb.errors import CommError
+from wandb.sdk.artifacts._gqlutils import server_supports
 
 
 def stub_run_parquet_history(
@@ -428,7 +429,11 @@ def test_run_scan_history__with_live_data(
         for i in range(10):
             run.log({"acc": i})
 
-    run = wandb.Api().run(
+    api = wandb.Api()
+    if not server_supports(api._service_api, "RUN_SCAN_HISTORY_LIVE_DATA"):
+        pytest.skip("Server doesn't support live data in run scan_history")
+
+    run = api.run(
         f"{run.entity}/{run.project}/{run.id}",
     )
 
