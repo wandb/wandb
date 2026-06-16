@@ -165,19 +165,6 @@ class ArtifactTypes(RelayPaginator["ArtifactTypeFragment", "ArtifactType"]):
 
         self.last_response = result.connection
 
-        # result = ProjectArtifactTypes.model_validate(data)
-
-        # # Extract the inner `*Connection` result for faster/easier access.
-        # if (proj := result.project) is None:
-        #     msg = f"project {self.project!r} not found in entity {self.entity!r}"
-        #     raise ValueError(msg)
-        # if (conn := proj.artifact_types) is None:
-        #     err_path = f"{self.entity}/{self.project}"
-        #     msg = f"unexpected empty response for artifact types in {err_path!r}"
-        #     raise ValueError(msg)
-
-        # self.last_response = ArtifactTypeConnection.model_validate(conn)
-
     def _convert(self, node: ArtifactTypeFragment) -> ArtifactType:
         return ArtifactType(
             service_api=self._service_api,
@@ -381,42 +368,21 @@ class ArtifactCollections(
         try:
             result = ProjectArtifactTypeArtifactCollectionsResult.model_validate(data)
         except ValidationError as e:
-            entity, project, type_name = self.entity, self.project, self.type_name
+            entity, project, art_type = self.entity, self.project, self.type_name
             entity_project = f"{entity}/{project}"
 
             match data:
                 case {"project": None}:
                     msg = f"project {project!r} not found in entity {entity!r}"
-
                 case {"project": {"artifactType": None}}:
-                    msg = f"artifact type {type_name!r} not found in {entity_project!r}"
-
+                    msg = f"artifact type {art_type!r} not found in {entity_project!r}"
                 case {"project": {"artifactType": {"artifactCollections": None}}}:
-                    msg = f"unexpected empty response for artifact collections in {entity_project!r}, type {type_name!r}"
-
+                    msg = f"unexpected empty response for artifact collections in {entity_project!r}, type {art_type!r}"
                 case _:
                     msg = f"Unable to parse {nameof(type(self))!r} response data: {e}"
-
             raise ValueError(msg)
 
         self.last_response = result.connection
-
-        # result = ArtifactTypeArtifactCollections.model_validate(data)
-
-        # # Extract the inner `*Connection` result for faster/easier access.
-        # if (proj := result.project) is None:
-        #     msg = f"project {self.project!r} not found in entity {self.entity!r}"
-        #     raise ValueError(msg)
-        # if (artifact_type := proj.artifact_type) is None:
-        #     err_path = f"{self.entity}/{self.project}"
-        #     msg = f"artifact type {self.type_name!r} not found in {err_path!r}"
-        #     raise ValueError(msg)
-        # if (conn := artifact_type.artifact_collections) is None:
-        #     err_path = f"{self.entity}/{self.project}"
-        #     msg = f"unexpected empty response for artifact collections in {err_path!r}, type {self.type_name!r}"  # noqa: W505
-        #     raise ValueError(msg)
-
-        # self.last_response = ArtifactCollectionConnection.model_validate(conn)
 
     def _convert(self, node: ArtifactCollectionFragment) -> ArtifactCollection | None:
         if not node.project:
@@ -522,19 +488,6 @@ class ProjectArtifactCollections(
             raise ValueError(msg)
 
         self.last_response = result.connection
-
-        # result = ProjectArtifactCollections.model_validate(data)
-
-        # # Extract the inner `*Connection` result for faster/easier access.
-        # if (proj := result.project) is None:
-        #     msg = f"project {self.project!r} not found in entity {self.entity!r}"
-        #     raise ValueError(msg)
-        # if (conn := proj.artifact_collections) is None:
-        #     err_path = f"{self.entity}/{self.project}"
-        #     msg = f"unexpected empty response for artifact collections in {err_path!r}"
-        #     raise ValueError(msg)
-
-        # self.last_response = ProjectArtifactCollectionConnection.model_validate(conn)
 
     def _convert(self, node: ArtifactCollectionFragment) -> ArtifactCollection | None:
         if not node.project:
