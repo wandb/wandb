@@ -126,7 +126,7 @@ func (a *Aggregator) RecordForEnvelope(reason DiscardReason, envelope *protocol.
 
 // RecordItem records outcomes for a telemetry item, including supplementary
 // categories (span outcomes for transactions, byte size for logs).
-func (a *Aggregator) RecordItem(reason DiscardReason, item protocol.TelemetryItem) {
+func (a *Aggregator) RecordItem(reason DiscardReason, item ReportableItem) {
 	category := item.GetCategory()
 	a.RecordOne(reason, category)
 
