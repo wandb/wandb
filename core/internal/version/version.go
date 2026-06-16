@@ -4,7 +4,7 @@ import "strings"
 
 const Version = "0.27.3.dev1"
 
-const MinServerVersion = "0.40.0"
+const MinServerVersion = "0.63.0"
 
 var Environment string
 
