@@ -163,10 +163,10 @@ fragment CreatedProjectFragment on Project {
 """
 
 GET_SWEEPS_GQL = """
-query GetSweeps($project: String!, $entity: String!, $cursor: String, $perPage: Int = 50) {
+query GetSweeps($project: String!, $entity: String!, $filters: JSONString!, $cursor: String, $perPage: Int = 50) {
   project(name: $project, entityName: $entity) {
     totalSweeps
-    sweeps(after: $cursor, first: $perPage) {
+    sweeps(after: $cursor, first: $perPage, filters: $filters) {
       pageInfo {
         ...PageInfoFragment
       }
