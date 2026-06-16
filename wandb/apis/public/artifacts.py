@@ -10,13 +10,12 @@ import json
 from collections.abc import Collection, Iterable, Mapping, Sequence
 from copy import copy
 from functools import lru_cache
-from typing import TYPE_CHECKING, Any, ClassVar, List, Literal, TypeVar  # noqa: UP035
+from typing import TYPE_CHECKING, Any, ClassVar, Literal
 
 from pydantic import ValidationError
 from typing_extensions import override
 
 from wandb._iterutils import always_list
-from wandb._pydantic import Connection, ConnectionWithTotal, Edge
 from wandb._strutils import nameof
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.paginator import RelayPaginator, SizedRelayPaginator
@@ -31,6 +30,7 @@ from wandb.sdk.lib.deprecation import warn_and_record_deprecation
 from .files import File
 
 if TYPE_CHECKING:
+    from wandb._pydantic import Connection, ConnectionWithTotal
     from wandb.apis.public.service_api import ServiceApi
     from wandb.sdk.artifacts._generated import (
         ArtifactAliasFragment,
@@ -40,16 +40,13 @@ if TYPE_CHECKING:
         FileFragment,
     )
     from wandb.sdk.artifacts._models.pagination import (
-        ArtifactCollectionConnection,
         ArtifactFileConnection,
-        ArtifactTypeConnection,
+        ProjectArtifactConnection,
+        VersionedArtifactEdge,
     )
     from wandb.sdk.artifacts.artifact import Artifact
 
     from . import Run
-
-
-TNode = TypeVar("TNode")
 
 
 @lru_cache(maxsize=1)
@@ -94,6 +91,7 @@ class _ArtifactCollectionAliases(RelayPaginator["ArtifactAliasFragment", str]):
         )
 
     def _update_response(self) -> None:
+        from wandb._pydantic import Connection
         from wandb.sdk.artifacts._generated import (
             ArtifactAliasFragment,
             ArtifactCollectionAliases,
@@ -119,7 +117,7 @@ class ArtifactTypes(RelayPaginator["ArtifactTypeFragment", "ArtifactType"]):
     """
 
     QUERY: ClassVar[str | None] = None
-    last_response: ArtifactTypeConnection | None
+    last_response: Connection[ArtifactTypeFragment] | None
 
     def __init__(
         self,
@@ -151,13 +149,13 @@ class ArtifactTypes(RelayPaginator["ArtifactTypeFragment", "ArtifactType"]):
         try:
             result = ProjectArtifactTypesResult.model_validate(data)
         except ValidationError as e:
-            entity, project = self.entity, self.project
-            entity_project = f"{entity}/{project}"
+            project, entity = self.project, self.entity
             match data:
                 case {"project": None}:
-                    msg = f"project {project!r} not found in entity {entity!r}"
+                    msg = f"Project {project!r} not found in entity {entity!r}"
                 case {"project": {"artifactTypes": None}}:
-                    msg = f"unexpected empty response for artifact types in {entity_project!r}"
+                    path = f"{entity}/{project}"
+                    msg = f"Unexpected empty response for artifact types in {path!r}"
                 case _:
                     msg = f"Unable to parse {nameof(type(self))!r} response data: {e}"
 
@@ -311,7 +309,7 @@ class ArtifactCollections(
     """
 
     QUERY: ClassVar[str | None] = None
-    last_response: ArtifactCollectionConnection | None
+    last_response: ConnectionWithTotal[ArtifactCollectionFragment] | None
 
     def __init__(
         self,
@@ -369,15 +367,15 @@ class ArtifactCollections(
             result = ProjectArtifactTypeArtifactCollectionsResult.model_validate(data)
         except ValidationError as e:
             entity, project, art_type = self.entity, self.project, self.type_name
-            entity_project = f"{entity}/{project}"
+            proj_path = f"{entity}/{project}"
 
             match data:
                 case {"project": None}:
-                    msg = f"project {project!r} not found in entity {entity!r}"
+                    msg = f"Project {project!r} not found in entity {entity!r}"
                 case {"project": {"artifactType": None}}:
-                    msg = f"artifact type {art_type!r} not found in {entity_project!r}"
+                    msg = f"Artifact type {art_type!r} not found in {proj_path!r}"
                 case {"project": {"artifactType": {"artifactCollections": None}}}:
-                    msg = f"unexpected empty response for artifact collections in {entity_project!r}, type {art_type!r}"
+                    msg = f"Unexpected empty response for artifact collections in {proj_path!r}, type {art_type!r}"
                 case _:
                     msg = f"Unable to parse {nameof(type(self))!r} response data: {e}"
             raise ValueError(msg)
@@ -417,7 +415,7 @@ class ProjectArtifactCollections(
     """
 
     QUERY: str | None
-    last_response: ArtifactCollectionConnection | None
+    last_response: ConnectionWithTotal[ArtifactCollectionFragment] | None
 
     def __init__(
         self,
@@ -476,13 +474,13 @@ class ProjectArtifactCollections(
             result = ProjectArtifactCollectionsResult.model_validate(data)
         except ValidationError as e:
             entity, project = self.entity, self.project
-            entity_project = f"{entity}/{project}"
+            proj_path = f"{entity}/{project}"
 
             match data:
                 case {"project": None}:
-                    msg = f"project {project!r} not found in entity {entity!r}"
+                    msg = f"Project {project!r} not found in entity {entity!r}"
                 case {"project": {"artifactCollections": None}}:
-                    msg = f"unexpected empty response for artifact collections in {entity_project!r}"
+                    msg = f"Unexpected empty response for artifact collections in {proj_path!r}"
                 case _:
                     msg = f"Unable to parse {nameof(type(self))!r} response data: {e}"
             raise ValueError(msg)
@@ -861,14 +859,6 @@ class ArtifactCollection:
         return f"<ArtifactCollection {self.name} ({self.type})>"
 
 
-class _ArtifactEdgeGeneric(Edge[TNode]):
-    version: str  # Extra field defined only on VersionedArtifactEdge
-
-
-class _ArtifactConnectionGeneric(ConnectionWithTotal[TNode]):
-    edges: List[_ArtifactEdgeGeneric]  # noqa: UP006
-
-
 class Artifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
     """An iterable collection of artifact versions associated with a project.
 
@@ -892,8 +882,7 @@ class Artifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
 
     QUERY: str  # Must be set per-instance
 
-    # Loosely-annotated to avoid importing heavy types at module import time.
-    last_response: _ArtifactConnectionGeneric | None
+    last_response: ProjectArtifactConnection | None
 
     def __init__(
         self,
@@ -934,34 +923,36 @@ class Artifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
 
     @override
     def _update_response(self) -> None:
-        from wandb.sdk.artifacts._generated import ArtifactFragment, ProjectArtifacts
+        from wandb.sdk.artifacts._models.pagination import ProjectArtifactsResult
 
         data = self._service_api.execute_graphql(self.QUERY, variables=self.variables)
-        result = ProjectArtifacts.model_validate(data)
 
-        # Extract the inner `*Connection` result for faster/easier access.
-        # At the time of writing, the server returns HTTP 200 with `null` at
-        # any level for an invalid path or access-denied, so provide a specific
-        # message at the first missing level.
-        if (proj := result.project) is None:
-            msg = f"project {self.project!r} not found in entity {self.entity!r}"
-            raise ValueError(msg)
-        if (type_ := proj.artifact_type) is None:
-            err_path = f"{self.entity}/{self.project}"
-            msg = f"artifact type {self.type!r} not found in {err_path!r}"
-            raise ValueError(msg)
-        if (collection := type_.artifact_collection) is None:
-            err_path = f"{self.entity}/{self.project}"
-            msg = f"artifact collection {self.collection_name!r} not found in {err_path!r}"
-            raise ValueError(msg)
-        if (conn := collection.artifacts) is None:
-            err_path = f"{self.entity}/{self.project}/{self.collection_name}"
-            msg = f"unexpected empty response for artifacts in {err_path!r}"
+        try:
+            result = ProjectArtifactsResult.model_validate(data)
+        except ValidationError as e:
+            entity, project = self.entity, self.project
+            coll, art_type = self.collection_name, self.type
+            proj_path = f"{entity}/{project}"
+
+            match data:
+                case {"project": None}:
+                    msg = f"Project {project!r} not found in entity {entity!r}"
+                case {"project": {"artifactType": None}}:
+                    msg = f"Artifact type {art_type!r} not found in {proj_path!r}"
+                case {"project": {"artifactType": {"artifactCollection": None}}}:
+                    msg = f"Artifact collection {coll!r} not found in {proj_path!r}"
+                case {
+                    "project": {
+                        "artifactType": {"artifactCollection": {"artifacts": None}}
+                    }
+                }:
+                    coll_path = f"{proj_path}/{coll}"
+                    msg = f"Unexpected empty response for artifacts in {coll_path!r}"
+                case _:
+                    msg = f"Unable to parse {nameof(type(self))!r} response data: {e}"
             raise ValueError(msg)
 
-        self.last_response = _ArtifactConnectionGeneric[
-            ArtifactFragment
-        ].model_validate(conn)
+        self.last_response = result.connection
 
     # FIXME: For now, we deliberately override the signatures of:
     # - `_convert()`
@@ -972,7 +963,7 @@ class Artifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
     # In the future, we should move to fetching artifacts via (GQL) artifactMemberships,
     # not (GQL) artifacts, so we don't have to deal with this hack.
     @override
-    def _convert(self, edge: _ArtifactEdgeGeneric[ArtifactFragment]) -> Artifact:
+    def _convert(self, edge: VersionedArtifactEdge) -> Artifact:
         from wandb.sdk.artifacts._validators import FullArtifactPath
         from wandb.sdk.artifacts.artifact import Artifact
 
@@ -1119,56 +1110,67 @@ class ArtifactFiles(SizedRelayPaginator["FileFragment", "File"]):
 
     @override
     def _update_response(self) -> None:
-        from wandb.sdk.artifacts._generated import (
-            GetArtifactFiles,
-            GetArtifactMembershipFiles,
+        from wandb.sdk.artifacts._models.pagination import (
+            ProjectArtifactFilesResult,
+            ProjectArtifactMembershipFilesResult,
         )
-        from wandb.sdk.artifacts._models.pagination import ArtifactFileConnection
 
         data = self._execute_query()
 
-        # Extract the inner `*Connection` result for faster/easier access.
-        # At the time of writing, the server returns HTTP 200 with `null` at
-        # any level for an invalid path or access-denied, so provide a specific
-        # message at the first missing level.
         art = self.artifact
         if self.query_via_membership:
-            result = GetArtifactMembershipFiles.model_validate(data)
-            if (proj := result.project) is None:
-                msg = f"project {art.project!r} not found in entity {art.entity!r}"
-                raise ValueError(msg)
-            if (coll := proj.artifact_collection) is None:
+            try:
+                result = ProjectArtifactMembershipFilesResult.model_validate(data)
+            except ValidationError as e:
+                entity, project = art.entity, art.project
+                proj_path = f"{entity}/{project}"
                 coll_name = art.name.split(":")[0]
-                err_path = f"{art.entity}/{art.project}"
-                msg = f"artifact collection {coll_name!r} not found in {err_path!r}"
-                raise ValueError(msg)
-            if (membership := coll.artifact_membership) is None:
-                err_path = f"{art.entity}/{art.project}"
-                msg = f"member artifact {art.name!r} not found in {err_path!r}"
-                raise ValueError(msg)
-            if (conn := membership.files) is None:
-                err_path = f"{art.entity}/{art.project}"
-                msg = f"unexpected empty response for files of artifact {art.name!r} in {err_path!r}"
+
+                match data:
+                    case {"project": None}:
+                        msg = f"Project {project!r} not found in entity {entity!r}"
+                    case {"project": {"artifactCollection": None}}:
+                        msg = f"Artifact collection {coll_name!r} not found in {proj_path!r}"
+                    case {
+                        "project": {"artifactCollection": {"artifactMembership": None}}
+                    }:
+                        msg = f"Member artifact {art.name!r} not found in {proj_path!r}"
+                    case {
+                        "project": {
+                            "artifactCollection": {
+                                "artifactMembership": {"files": None}
+                            }
+                        }
+                    }:
+                        msg = f"Unexpected empty response for files of artifact {art.name!r} in {proj_path!r}"
+                    case _:
+                        msg = (
+                            f"Unable to parse {nameof(type(self))!r} response data: {e}"
+                        )
                 raise ValueError(msg)
         else:
-            result = GetArtifactFiles.model_validate(data)
-            if (proj := result.project) is None:
-                msg = f"project {art.source_project!r} not found in entity {art.source_entity!r}"
-                raise ValueError(msg)
-            if (atype := proj.artifact_type) is None:
-                err_path = f"{art.source_entity}/{art.source_project}"
-                msg = f"artifact type {art.type!r} not found in {err_path!r}"
-                raise ValueError(msg)
-            if (artifact := atype.artifact) is None:
-                err_path = f"{art.source_entity}/{art.source_project}"
-                msg = f"artifact {art.source_name!r} not found in {err_path!r}"
-                raise ValueError(msg)
-            if (conn := artifact.files) is None:
-                err_path = f"{art.source_entity}/{art.source_project}"
-                msg = f"unexpected empty response for files of artifact {art.source_name!r} in {err_path!r}"
+            try:
+                result = ProjectArtifactFilesResult.model_validate(data)
+            except ValidationError as e:
+                entity, project = art.source_entity, art.source_project
+                proj_path = f"{entity}/{project}"
+
+                match data:
+                    case {"project": None}:
+                        msg = f"Project {project!r} not found in entity {entity!r}"
+                    case {"project": {"artifactType": None}}:
+                        msg = f"Artifact type {art.type!r} not found in {proj_path!r}"
+                    case {"project": {"artifactType": {"artifact": None}}}:
+                        msg = f"Artifact {art.source_name!r} not found in {proj_path!r}"
+                    case {"project": {"artifactType": {"artifact": {"files": None}}}}:
+                        msg = f"Unexpected empty response for files of artifact {art.source_name!r} in {proj_path!r}"
+                    case _:
+                        msg = (
+                            f"Unable to parse {nameof(type(self))!r} response data: {e}"
+                        )
                 raise ValueError(msg)
 
-        self.last_response = ArtifactFileConnection.model_validate(conn)
+        self.last_response = result.connection
 
     @property
     def path(self) -> list[str]:

@@ -4,7 +4,7 @@ from typing import Annotated
 
 from pydantic import AliasPath, Field
 
-from wandb._pydantic import Connection, ConnectionWithTotal, GQLResult
+from wandb._pydantic import Connection, ConnectionWithTotal, Edge, GQLResult
 
 from .._generated.fragments import (
     ArtifactCollectionFragment,
@@ -17,35 +17,47 @@ from .._generated.fragments import (
     RegistryFragment,
 )
 
-ArtifactTypeConnection = Connection[ArtifactTypeFragment]
-
 
 class ProjectArtifactTypesResult(GQLResult):
     connection: Annotated[
-        ArtifactTypeConnection,
+        Connection[ArtifactTypeFragment],
         Field(validation_alias=AliasPath("project", "artifactTypes")),
     ]
 
 
-ArtifactCollectionConnection = ConnectionWithTotal[ArtifactCollectionFragment]
-
-
 class ProjectArtifactTypeArtifactCollectionsResult(GQLResult):
     connection: Annotated[
-        ArtifactCollectionConnection,
+        ConnectionWithTotal[ArtifactCollectionFragment],
         Field(
             validation_alias=AliasPath("project", "artifactType", "artifactCollections")
         ),
     ]
 
 
-ProjectArtifactCollectionConnection = Connection[ArtifactCollectionFragment]
-
-
 class ProjectArtifactCollectionsResult(GQLResult):
     connection: Annotated[
-        ProjectArtifactCollectionConnection,
+        Connection[ArtifactCollectionFragment],
         Field(validation_alias=AliasPath("project", "artifactCollections")),
+    ]
+
+
+class VersionedArtifactEdge(Edge[ArtifactFragment]):
+    # The artifact `version` is read from the GraphQL edge, not the node.
+    version: str
+
+
+class ProjectArtifactConnection(ConnectionWithTotal[ArtifactFragment]):
+    edges: list[VersionedArtifactEdge]
+
+
+class ProjectArtifactsResult(GQLResult):
+    connection: Annotated[
+        ProjectArtifactConnection,
+        Field(
+            validation_alias=AliasPath(
+                "project", "artifactType", "artifactCollection", "artifacts"
+            )
+        ),
     ]
 
 
@@ -54,6 +66,27 @@ ArtifactMembershipConnection = Connection[ArtifactMembershipFragment]
 FileWithUrlConnection = Connection[FileWithUrlFragment]
 
 ArtifactFileConnection = Connection[FileFragment]
+
+
+class ProjectArtifactFilesResult(GQLResult):
+    connection: Annotated[
+        ArtifactFileConnection,
+        Field(
+            validation_alias=AliasPath("project", "artifactType", "artifact", "files")
+        ),
+    ]
+
+
+class ProjectArtifactMembershipFilesResult(GQLResult):
+    connection: Annotated[
+        ArtifactFileConnection,
+        Field(
+            validation_alias=AliasPath(
+                "project", "artifactCollection", "artifactMembership", "files"
+            )
+        ),
+    ]
+
 
 RunArtifactConnection = ConnectionWithTotal[ArtifactFragment]
 
