@@ -5,6 +5,7 @@ import os
 import re
 import time
 from pathlib import Path
+from typing import Any
 
 import responses
 import wandb
@@ -12,6 +13,8 @@ from pytest import mark, raises
 from wandb import Api
 from wandb.errors import CommError
 from wandb.sdk.artifacts.artifact import Artifact
+
+from tests.fixtures.wandb_backend_spy import WandbBackendSpy
 
 
 def _fetch_artifact_with_tags(
@@ -631,42 +634,48 @@ def test_artifact_download_http_headers(user, monkeypatch, tmp_path):
             assert custom_headers.items() <= req.headers.items()
 
 
-# ------------------------------------------------------------------------------
-# Test for error messages on invalid path / inaccessible resource.
-#
-# `Api.artifacts(...)` and other paginators in `wandb.apis.public.artifacts`
-# previously raised a generic `Unable to parse '<Class>' response data` ValueError
-# whenever the GraphQL response had a `null` at any level (which the server
-# returns with HTTP 200 for invalid path or access-denied). These tests pin down
-# specific, user-actionable messages identifying the missing path component.
+@mark.parametrize(
+    ("data", "expected_message"),
+    [
+        (
+            {"project": None},
+            "Project 'project' not found in entity 'entity'",
+        ),
+        (
+            {"project": {"artifactType": None}},
+            "Artifact type 'type' not found in 'entity/project'",
+        ),
+        (
+            {"project": {"artifactType": {"artifactCollection": None}}},
+            "Artifact collection 'collection' not found in 'entity/project'",
+        ),
+        (
+            {
+                "project": {
+                    "artifactType": {
+                        "artifactCollection": {"artifacts": None},
+                    }
+                }
+            },
+            "Unable to parse 'Artifacts' response data",
+        ),
+    ],
+    ids=("project", "type", "collection", "connection"),
+)
+def test_artifacts_invalid_response(
+    wandb_backend_spy: WandbBackendSpy,
+    api: Api,
+    data: dict[str, Any],
+    expected_message: str,
+):
+    gql = wandb_backend_spy.gql
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="ProjectArtifacts"),
+        gql.Constant(content={"data": data}),
+    )
 
-
-def test_artifacts_invalid_project(logged_artifact: Artifact, api: Api):
-    artifact_type = logged_artifact.type
-
-    entity = logged_artifact.entity
-    invalid_project = "nonexistent_project"
-    collection = logged_artifact.name.split(":")[0]
-    path = f"{entity}/{invalid_project}/{collection}"
-
-    expected_message = rf"{invalid_project}.*not found"
-
-    with raises(ValueError, match=expected_message):
-        list(api.artifacts(type_name=artifact_type, name=path))
-
-
-def test_artifacts_invalid_type(logged_artifact: Artifact, api: Api):
-    invalid_artifact_type = "nonexistent_type"
-
-    entity = logged_artifact.entity
-    project = logged_artifact.project
-    collection = logged_artifact.name.split(":")[0]
-    path = f"{entity}/{project}/{collection}"
-
-    expected_message = rf"{invalid_artifact_type}.*not found"
-
-    with raises(ValueError, match=expected_message):
-        list(api.artifacts(type_name=invalid_artifact_type, name=path))
+    with raises(ValueError, match=re.escape(expected_message)):
+        list(api.artifacts(type_name="type", name="entity/project/collection"))
 
 
 def test_project_collections_invalid_project(logged_artifact: Artifact, api: Api):
