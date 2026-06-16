@@ -259,11 +259,14 @@ class Project(Attrs):
         )
 
     @normalize_exceptions
-    def sweeps(self, per_page: int = 50) -> Sweeps:
+    def sweeps(
+        self, per_page: int = 50, filters: dict[str, Any] | None = None
+    ) -> Sweeps:
         """Return a paginated collection of sweeps in this project.
 
         Args:
             per_page: The number of sweeps to fetch per request to the API.
+            filters: (dict) queries for specific sweeps using the MongoDB query language.
 
         Returns:
             A `Sweeps` object, which is an iterable collection of `Sweep` objects.
@@ -273,6 +276,7 @@ class Project(Attrs):
             self.entity,
             self.name,
             per_page=per_page,
+            filters=filters,
         )
 
     @property

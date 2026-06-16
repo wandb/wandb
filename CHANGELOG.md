@@ -380,7 +380,7 @@ This version removes support of MacOS 10.
 This version raises errors that would previously have been suppressed during calls to `Artifact.link()` or `Run.link_artifact()`. While this prevents undetected failures in those methods, it is also a breaking change.
 
 ### Added
-
+- New filters parameter to `Api().project().sweeps()` matching the runs filter format (@kmikowicz-wandb in https://github.com/wandb/wandb/pull/12059)
 - New settings for `max_end_of_run_history_metrics` and `max_end_of_run_summary_metrics` (@timoffex in https://github.com/wandb/wandb/pull/10351)
 - New `wandb.integration.weave` module for automatically initializing Weave when a W&B run is active and `weave` is imported (@andrewtruong in https://github.com/wandb/wandb/pull/10389)
 
