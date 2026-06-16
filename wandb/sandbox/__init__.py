@@ -15,7 +15,6 @@ from ._auth import _set_wandb_auth_mode, set_integration_metadata
 from ._sandbox import Sandbox, Session
 from ._secret import Secret
 
-
 _set_wandb_auth_mode()
 
 _HIDDEN = {"AuthHeaders", "set_auth_mode"}
