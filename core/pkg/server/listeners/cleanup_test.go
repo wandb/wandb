@@ -170,6 +170,7 @@ func TestCleanupUnixSocketDir_LogsWhenRemoveAllFails(t *testing.T) {
 
 func TestIsWandbUnixSocketDir(t *testing.T) {
 	tempDir := filepath.Clean(os.TempDir())
+	slashTmpDir := filepath.Clean("/tmp")
 
 	tests := []struct {
 		name string
@@ -183,7 +184,7 @@ func TestIsWandbUnixSocketDir(t *testing.T) {
 		},
 		{
 			name: "valid under /tmp",
-			dir:  filepath.Join("/tmp", "wandb-9-10-xyz"),
+			dir:  filepath.Join(slashTmpDir, "wandb-9-10-xyz"),
 			want: true,
 		},
 		{

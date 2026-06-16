@@ -73,21 +73,34 @@ def test_temp_dir_cleanup_on_finish():
 
     def list_paths():
         t = tempfile.gettempdir()
-        pats = sorted(glob.glob(os.path.join(t, 'wandb*')))
+        pats = sorted(glob.glob(os.path.join(t, "wandb*")))
         out = []
         for p in pats:
             try:
                 st = os.lstat(p)
-                kind = 'socket' if stat.S_ISSOCK(st.st_mode) else ('dir' if stat.S_ISDIR(st.st_mode) else ('file' if stat.S_ISREG(st.st_mode) else 'other'))
-                out.append({'path': p, 'kind': kind, 'size': st.st_size})
+                kind = (
+                    "socket"
+                    if stat.S_ISSOCK(st.st_mode)
+                    else (
+                        "dir"
+                        if stat.S_ISDIR(st.st_mode)
+                        else ("file" if stat.S_ISREG(st.st_mode) else "other")
+                    )
+                )
+                out.append({"path": p, "kind": kind, "size": st.st_size})
             except FileNotFoundError:
                 pass
         return out
 
     before = list_paths()
 
-    run = wandb.init(id='temp-dir-cleanup-test', mode='offline', tags=['repro','temp-sock','cleanup','offline'], config={'seed': 0})
-    run.log({'step': 0})
+    run = wandb.init(
+        id="temp-dir-cleanup-test",
+        mode="offline",
+        tags=["repro", "temp-sock", "cleanup", "offline"],
+        config={"seed": 0},
+    )
+    run.log({"step": 0})
     run.finish()
     wandb.teardown()
     time.sleep(0.2)
@@ -95,4 +108,6 @@ def test_temp_dir_cleanup_on_finish():
     after = list_paths()
 
     new_items = [it for it in after if it not in before]
-    assert len(new_items) == 0, f'New items detected in temp directory after run.finish() and wandb.teardown(): {[f["path"] for f in new_items]}.'
+    assert len(new_items) == 0, (
+        f"New items detected in temp directory after run.finish() and wandb.teardown(): {[f['path'] for f in new_items]}."
+    )
