@@ -6,6 +6,7 @@ use (
 	./echo
 	./fasthttp
 	./fiber
+	./fiberv3
 	./gin
 	./grpc
 	./iris
@@ -14,6 +15,7 @@ use (
 	./otel
 	./otel/otlp
 	./slog
+	./sql
 	./zap
 	./zerolog
 )

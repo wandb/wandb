@@ -8,17 +8,17 @@ require (
 	charm.land/lipgloss/v2 v2.0.4
 	cloud.google.com/go/storage v1.62.3
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.22.0
-	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.13.1
-	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v1.7.0
+	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.14.0
+	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v1.8.0
 	github.com/Khan/genqlient v0.8.1
 	github.com/NimbleMarkets/ntcharts/v2 v2.2.0
 	github.com/aws/aws-sdk-go-v2 v1.42.0
 	github.com/aws/aws-sdk-go-v2/config v1.32.25
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.103.3
-	github.com/charmbracelet/ultraviolet v0.0.0-20260608091853-35bcb7319efa
-	github.com/charmbracelet/x/exp/teatest/v2 v2.0.0-20260608090822-c3ad58c6c9e5
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.104.0
+	github.com/charmbracelet/ultraviolet v0.0.0-20260615092913-2399af76d5b1
+	github.com/charmbracelet/x/exp/teatest/v2 v2.0.0-20260615092313-b57e5e6d29bb
 	github.com/ebitengine/purego v0.10.1
-	github.com/getsentry/sentry-go v0.46.2
+	github.com/getsentry/sentry-go v0.47.0
 	github.com/go-git/go-git/v5 v5.19.1
 	github.com/google/wire v0.7.0
 	github.com/googleapis/gax-go/v2 v2.22.0
@@ -39,7 +39,7 @@ require (
 	gocloud.dev v0.46.0
 	golang.org/x/sync v0.21.0
 	golang.org/x/time v0.15.0
-	google.golang.org/api v0.284.0
+	google.golang.org/api v0.285.0
 	google.golang.org/grpc v1.81.1
 	google.golang.org/protobuf v1.36.11
 	gopkg.in/yaml.v3 v3.0.1
@@ -68,7 +68,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.13 // indirect
 	github.com/aws/aws-sdk-go-v2/credentials v1.19.24 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.18.29 // indirect
-	github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager v0.2.10 // indirect
+	github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager v0.2.11 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.29 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.29 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/v4a v1.4.30 // indirect
@@ -88,7 +88,7 @@ require (
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/charmbracelet/colorprofile v0.4.3 // indirect
 	github.com/charmbracelet/x/ansi v0.11.7 // indirect
-	github.com/charmbracelet/x/exp/golden v0.0.0-20251109135125-8916d276318f // indirect
+	github.com/charmbracelet/x/exp/golden v0.0.0-20260615092313-b57e5e6d29bb // indirect
 	github.com/charmbracelet/x/term v0.2.2 // indirect
 	github.com/charmbracelet/x/termios v0.1.1 // indirect
 	github.com/charmbracelet/x/windows v0.2.2 // indirect
@@ -103,7 +103,7 @@ require (
 	github.com/envoyproxy/go-control-plane/envoy v1.37.0 // indirect
 	github.com/envoyproxy/protoc-gen-validate v1.3.3 // indirect
 	github.com/fatih/color v1.19.0 // indirect
-	github.com/felixge/httpsnoop v1.0.4 // indirect
+	github.com/felixge/httpsnoop v1.1.0 // indirect
 	github.com/go-git/gcfg v1.5.1-0.20230307220236-3a3c6141e376 // indirect
 	github.com/go-git/go-billy/v5 v5.9.0 // indirect
 	github.com/go-jose/go-jose/v4 v4.1.4 // indirect
@@ -133,7 +133,7 @@ require (
 	github.com/muesli/cancelreader v0.2.2 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f // indirect
-	github.com/onsi/gomega v1.41.0 // indirect
+	github.com/onsi/gomega v1.42.0 // indirect
 	github.com/pjbgf/sha1cd v0.6.0 // indirect
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c // indirect
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
@@ -166,11 +166,11 @@ require (
 	golang.org/x/oauth2 v0.36.0 // indirect
 	golang.org/x/sys v0.46.0 // indirect
 	golang.org/x/text v0.38.0 // indirect
-	golang.org/x/tools v0.45.0 // indirect
+	golang.org/x/tools v0.46.0 // indirect
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da // indirect
-	google.golang.org/genproto v0.0.0-20260608224507-4308a22a1bab // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20260608224507-4308a22a1bab // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260608224507-4308a22a1bab // indirect
+	google.golang.org/genproto v0.0.0-20260615183401-62b3387ff324 // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20260615183401-62b3387ff324 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260615183401-62b3387ff324 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
