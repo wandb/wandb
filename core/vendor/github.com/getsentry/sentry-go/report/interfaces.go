@@ -5,12 +5,17 @@ import (
 	"github.com/getsentry/sentry-go/internal/ratelimit"
 )
 
+// ReportableItem is the minimal surface needed for client report accounting.
+type ReportableItem interface {
+	GetCategory() ratelimit.Category
+}
+
 // ClientReportRecorder is used by components that need to record lost/discarded events.
 type ClientReportRecorder interface {
 	Record(reason DiscardReason, category ratelimit.Category, quantity int64)
 	RecordOne(reason DiscardReason, category ratelimit.Category)
 	RecordForEnvelope(reason DiscardReason, envelope *protocol.Envelope)
-	RecordItem(reason DiscardReason, item protocol.TelemetryItem)
+	RecordItem(reason DiscardReason, item ReportableItem)
 }
 
 // ClientReportProvider is used by the single component responsible for sending client reports.
@@ -25,7 +30,7 @@ type noopRecorder struct{}
 func (noopRecorder) Record(DiscardReason, ratelimit.Category, int64)     {}
 func (noopRecorder) RecordOne(DiscardReason, ratelimit.Category)         {}
 func (noopRecorder) RecordForEnvelope(DiscardReason, *protocol.Envelope) {}
-func (noopRecorder) RecordItem(DiscardReason, protocol.TelemetryItem)    {}
+func (noopRecorder) RecordItem(DiscardReason, ReportableItem)            {}
 
 // noopProvider is a no-op implementation of ClientReportProvider.
 type noopProvider struct{}
