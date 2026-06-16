@@ -33,6 +33,11 @@ def _singleton(
     }
     return Mock(spec_set=tuple(singleton), **singleton)
 
+@pytest.fixture(autouse=True)
+def reset_integration_metadata():
+    sandbox_auth.set_integration_metadata("")
+    yield
+    sandbox_auth.set_integration_metadata("")
 
 def test_override_sandbox_entity_restores_after_exit(
     monkeypatch,
@@ -196,3 +201,16 @@ def test_resolve_wandb_sdk_auth_raises_when_login_does_not_resolve_credentials(
         match="wandb.sandbox could not resolve W&B credentials for sandbox auth.",
     ):
         sandbox_auth._resolve_wandb_sdk_auth()
+
+
+def test_client_version_headers_omits_integration_by_default() -> None:
+    headers = dict(sandbox_auth._client_version_headers())
+
+    assert sandbox_auth._INTEGRATION_METADATA_KEY not in headers
+
+
+def test_client_version_headers_includes_integration_when_set() -> None:
+    sandbox_auth.set_integration_metadata("some-integration")
+    headers = dict(sandbox_auth._client_version_headers())
+    assert headers[sandbox_auth._INTEGRATION_METADATA_KEY] == "some-integration"
+

@@ -11,9 +11,10 @@ from cwsandbox import *  # noqa: F403
 from cwsandbox import __all__ as cwsandbox_all
 
 # wandb specific overrides
-from ._auth import _set_wandb_auth_mode
+from ._auth import _set_wandb_auth_mode, set_integration_metadata
 from ._sandbox import Sandbox, Session
 from ._secret import Secret
+
 
 _set_wandb_auth_mode()
 

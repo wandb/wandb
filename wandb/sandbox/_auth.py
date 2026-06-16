@@ -13,12 +13,17 @@ from wandb.sdk import wandb_setup
 from wandb.sdk.lib import wbauth
 
 _AUTH_MODE_NAME = "wandb"
+_INTEGRATION_METADATA_KEY = "x-sandbox-integration"
+_INTEGRATION_METADATA_VALUE = ""
 _OVERRIDE_UNSET = object()
 _entity_override: ContextVar[object | str] = ContextVar(
     "wandb_sandbox_entity_override",
     default=_OVERRIDE_UNSET,
 )
 
+def set_integration_metadata(integration: str) -> None:
+    global _INTEGRATION_METADATA_VALUE
+    _INTEGRATION_METADATA_VALUE = integration
 
 def _set_wandb_auth_mode() -> None:
     """Install W&B as the active cwsandbox auth mode for this process.
@@ -53,12 +58,14 @@ def _client_version_headers() -> list[tuple[str, str]]:
 
     The gateway records these for SDK-adoption tracking.
     """
-    return [
+    headers =  [
         ("x-wandb-sdk-version", wandb.__version__),
         # Included in case the cwsandbox transport doesn't report its own version.
         ("x-cwsandbox-client-version", cwsandbox.__version__),
     ]
-
+    if _INTEGRATION_METADATA_VALUE:
+        headers.append((_INTEGRATION_METADATA_KEY, _INTEGRATION_METADATA_VALUE))
+    return headers
 
 def _resolve_wandb_sdk_auth() -> AuthHeaders:
     settings = wandb_setup.singleton().settings
