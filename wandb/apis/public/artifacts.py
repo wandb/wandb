@@ -42,7 +42,7 @@ if TYPE_CHECKING:
     from wandb.sdk.artifacts._models.pagination import (
         ArtifactFileConnection,
         ProjectArtifactConnection,
-        VersionedArtifactEdge,
+        _VersionedEdge,
     )
     from wandb.sdk.artifacts.artifact import Artifact
 
@@ -963,7 +963,7 @@ class Artifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
     # In the future, we should move to fetching artifacts via (GQL) artifactMemberships,
     # not (GQL) artifacts, so we don't have to deal with this hack.
     @override
-    def _convert(self, edge: VersionedArtifactEdge) -> Artifact:
+    def _convert(self, edge: _VersionedEdge) -> Artifact:
         from wandb.sdk.artifacts._validators import FullArtifactPath
         from wandb.sdk.artifacts.artifact import Artifact
 

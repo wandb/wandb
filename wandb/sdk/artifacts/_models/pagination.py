@@ -1,6 +1,6 @@
 """Artifacts-specific data models for handling paginated results from GraphQL queries."""
 
-from typing import Annotated
+from typing import Annotated, TypeVar
 
 from pydantic import AliasPath, Field
 
@@ -16,6 +16,8 @@ from .._generated.fragments import (
     RegistryCollectionFragment,
     RegistryFragment,
 )
+
+NodeT = TypeVar("NodeT")
 
 
 class ProjectArtifactTypesResult(GQLResult):
@@ -41,13 +43,12 @@ class ProjectArtifactCollectionsResult(GQLResult):
     ]
 
 
-class VersionedArtifactEdge(Edge[ArtifactFragment]):
-    # The artifact `version` is read from the GraphQL edge, not the node.
-    version: str
+class _VersionedEdge(Edge[NodeT]):
+    version: str  # The artifact `version` is on the GraphQL edge, not node.
 
 
-class ProjectArtifactConnection(ConnectionWithTotal[ArtifactFragment]):
-    edges: list[VersionedArtifactEdge]
+class ProjectArtifactConnection(ConnectionWithTotal[NodeT]):
+    edges: list[_VersionedEdge[ArtifactFragment]]  # type: ignore[assignment]
 
 
 class ProjectArtifactsResult(GQLResult):
