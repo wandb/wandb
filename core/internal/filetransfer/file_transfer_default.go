@@ -152,22 +152,16 @@ func (ft *DefaultFileTransfer) Download(task *DefaultDownloadTask) error {
 		return err
 	}
 	task.Response = resp
+
+	// Close the body on every return path, including the non-2xx case below.
+	defer resp.Body.Close()
+
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
 		return attachErrorResponseBody(
 			"file transfer: download: failed to download: status: "+resp.Status,
 			resp,
 		)
 	}
-
-	defer func(file io.ReadCloser) {
-		if err := file.Close(); err != nil {
-			ft.logger.CaptureError(
-				fmt.Errorf(
-					"file transfer: download: error closing response reader: %v",
-					err,
-				))
-		}
-	}(resp.Body)
 
 	// open the file for writing and defer closing it
 	file, err := os.Create(task.Path)
