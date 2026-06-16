@@ -132,7 +132,7 @@ func (s *Server) exitWhenParentIsGone() {
 
 	// The user process has exited, so there's no need to sync
 	// uncommitted data, and we can quit immediately.
-	os.Exit(1)
+	s.stopServer()
 }
 
 func (s *Server) Serve(portFile string) error {
@@ -178,6 +178,8 @@ func (s *Server) Serve(portFile string) error {
 
 	// Wait for asynchronous work to finish.
 	s.wg.Wait()
+
+	listeners.CleanupUnixSocketDir(portInfo.UnixPath)
 
 	slog.Info("server is closed")
 	return nil
