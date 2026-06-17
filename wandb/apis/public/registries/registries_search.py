@@ -105,7 +105,6 @@ class Registries(RelayPaginator["RegistryFragment", "Registry"]):
     def versions(
         self,
         filter: dict[str, Any] | None = None,
-        order: str | None = None,
         per_page: PositiveInt = 100,
         start: str | None = None,
     ) -> Versions:
@@ -113,9 +112,6 @@ class Registries(RelayPaginator["RegistryFragment", "Registry"]):
 
         Args:
             filter: Optional mapping of filters to apply to the artifact versions query.
-            order: Optional string to specify the order of the results.
-                If prefixed with '+', sorts ascending (default).
-                If prefixed with '-', sorts descending.
             per_page: The number of results to fetch per page.
                 Usually there is no reason to change this.
             start: Pagination cursor for resuming a past query, captured
@@ -127,7 +123,6 @@ class Registries(RelayPaginator["RegistryFragment", "Registry"]):
             registry_filter=self.filter,
             collection_filter=None,
             artifact_filter=filter,
-            order=order,
             per_page=per_page,
             start=start,
         )
@@ -220,7 +215,6 @@ class Collections(
     def versions(
         self,
         filter: dict[str, Any] | None = None,
-        order: str | None = None,
         per_page: PositiveInt = 100,
         start: str | None = None,
     ) -> Versions:
@@ -228,9 +222,6 @@ class Collections(
 
         Args:
             filter: Optional mapping of filters to apply to the artifact versions query.
-            order: Optional string to specify the order of the results.
-                If prefixed with '+', sorts ascending (default).
-                If prefixed with '-', sorts descending.
             per_page: The number of results to fetch per page.
                 Usually there is no reason to change this.
             start: Pagination cursor for resuming a past query, captured
@@ -242,7 +233,6 @@ class Collections(
             registry_filter=self.registry_filter,
             collection_filter=self.collection_filter,
             artifact_filter=filter,
-            order=order,
             per_page=per_page,
             start=start,
         )
@@ -301,7 +291,6 @@ class Versions(RelayPaginator["ArtifactMembershipFragment", "Artifact"]):
         registry_filter: dict[str, Any] | None = None,
         collection_filter: dict[str, Any] | None = None,
         artifact_filter: dict[str, Any] | None = None,
-        order: str | None = None,
         per_page: PositiveInt = 100,
         start: str | None = None,
     ):
@@ -320,7 +309,6 @@ class Versions(RelayPaginator["ArtifactMembershipFragment", "Artifact"]):
             "collectionFilter": json.dumps(f) if (f := collection_filter) else None,
             "artifactFilter": json.dumps(f) if (f := artifact_filter) else None,
             "organization": organization,
-            "order": order,
         }
         super().__init__(
             service_api, variables=variables, per_page=per_page, start=start
