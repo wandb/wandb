@@ -82,11 +82,11 @@ fn calc_freq(item: CFDictionaryRef, freqs: &[u32]) -> (u32, f32) {
     let items = cfio_get_residencies(item); // (ns, freq)
     let (len1, len2) = (items.len(), freqs.len());
 
-    // Bail out gracefully on unexpected data shapes. 
-    // `freqs` may be empty for clusters whose pmgr DVFS table we couldn't read 
-    // (e.g. the efficiency cores on Apple M5); 
-    // `len1 > len2` is required because residencies carry extra leading 
-    // IDLE/DOWN/OFF states that the indexing below skips.
+    // Bail out gracefully on unexpected data shapes:
+    // - `freqs` may be empty for clusters whose pmgr DVFS table we couldn't read
+    //   (e.g. the efficiency cores on Apple M5);
+    // - `len1 > len2` is required because residencies carry extra leading
+    //   IDLE/DOWN/OFF states that the indexing below skips.
     if len2 == 0 || len1 <= len2 {
         return (0, 0.0);
     }
@@ -694,9 +694,9 @@ fn sampler_thread(receiver: Receiver<SamplerCommand>) {
             SamplerCommand::GetMetrics(response) => {
                 // Catch panics from a single sample so one bad reading can't
                 // permanently kill the sampler thread (and with it all metrics).
-                let result = match std::panic::catch_unwind(std::panic::AssertUnwindSafe(
-                    || sampler.get_metrics(1),
-                )) {
+                let result = match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    sampler.get_metrics(1)
+                })) {
                     Ok(result) => result.map_err(|e| SamplerError(e.to_string())),
                     Err(_) => Err(SamplerError("panic while sampling Apple metrics".into())),
                 };
