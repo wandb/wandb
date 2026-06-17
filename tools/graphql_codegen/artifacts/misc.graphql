@@ -43,3 +43,11 @@ query FetchOrgEntityFromOrganization($organization: String!) {
     }
   }
 }
+
+query OrganizationRegistryAdvancedSearch($organization: String!) {
+  organization(name: $organization) {
+    advancedRegistryFeatures {
+      advancedSearch
+    }
+  }
+}

@@ -30,6 +30,7 @@ __all__ = [
     "GET_ARTIFACT_MEMBERSHIP_FILES_GQL",
     "GET_ARTIFACT_MEMBERSHIP_FILE_URLS_GQL",
     "LINK_ARTIFACT_GQL",
+    "ORGANIZATION_REGISTRY_ADVANCED_SEARCH_GQL",
     "PROJECT_ARTIFACTS_GQL",
     "PROJECT_ARTIFACT_COLLECTIONS_GQL",
     "PROJECT_ARTIFACT_COLLECTION_GQL",
@@ -86,6 +87,7 @@ __all__ = [
     "UnlinkArtifact",
     "FetchOrgInfoFromEntity",
     "FetchOrgEntityFromOrganization",
+    "OrganizationRegistryAdvancedSearch",
     "RegistryVersions",
     "RegistryCollections",
     "FetchRegistry",
@@ -261,6 +263,7 @@ from .operations import (
     GET_ARTIFACT_MEMBERSHIP_FILE_URLS_GQL,
     GET_ARTIFACT_MEMBERSHIP_FILES_GQL,
     LINK_ARTIFACT_GQL,
+    ORGANIZATION_REGISTRY_ADVANCED_SEARCH_GQL,
     PROJECT_ARTIFACT_COLLECTION_GQL,
     PROJECT_ARTIFACT_COLLECTIONS_GQL,
     PROJECT_ARTIFACT_TYPE_GQL,
@@ -282,6 +285,7 @@ from .operations import (
     UPDATE_USER_REGISTRY_ROLE_GQL,
     UPSERT_REGISTRY_GQL,
 )
+from .organization_registry_advanced_search import OrganizationRegistryAdvancedSearch
 from .project_artifact_collection import ProjectArtifactCollection
 from .project_artifact_collections import ProjectArtifactCollections
 from .project_artifact_type import ProjectArtifactType

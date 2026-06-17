@@ -69,6 +69,29 @@ def server_supports(service_api: ServiceApi, feature: str | int) -> bool:
     return _server_features(service_api).get(name) or False
 
 
+@lru_cache(maxsize=16)
+def advanced_registry_search_enabled(service_api: ServiceApi, org: str) -> bool:
+    """Whether the server supports advanced registry search for the org."""
+    from ._generated import (
+        ORGANIZATION_REGISTRY_ADVANCED_SEARCH_GQL,
+        OrganizationRegistryAdvancedSearch,
+    )
+
+    data = service_api.execute_graphql(
+        ORGANIZATION_REGISTRY_ADVANCED_SEARCH_GQL,
+        variables={"organization": org},
+    )
+    result = OrganizationRegistryAdvancedSearch.model_validate(data)
+    return bool(
+        (org := result.organization)
+        and (feats := org.advanced_registry_features)
+        and feats.advanced_search
+    )
+    if (org := result.organization) and (feats := org.advanced_registry_features):
+        return feats.advanced_search
+    return False
+
+
 @dataclass(frozen=True)
 class OrgInfo:
     org_name: str
