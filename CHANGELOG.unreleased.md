@@ -39,3 +39,4 @@ This version drops compatibility with server versions older than 0.65.0.
 - Logging artifacts in shared mode works again, and in particular, `wandb.init(mode="shared")` with code-saving enabled no longer raises an error (@timoffex in https://github.com/wandb/wandb/pull/12017)
 - `git_root` setting is now preferred for creating the `diff.patch` file, the `root_dir` setting is now used as a fallback (@TomSiegl in https://github.com/wandb/wandb/pull/11967)
 - Apple system metrics (GPU, CPU, power, and temperature) are now collected on Apple M5 Macs (@dmitryduev in https://github.com/wandb/wandb/pull/12061)
+- file download progress is now shown when using `wandb.Api().run(...).download_history_exports` (@jacobromero in https://github.com/wandb/wandb/pull/12063)

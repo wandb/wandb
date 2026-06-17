@@ -383,11 +383,15 @@ func (f *RunHistoryAPIHandler) handleDownloadRunHistory(
 	ctx context.Context,
 	request *spb.DownloadRunHistory,
 ) *spb.ApiResponse {
+	// Cleanup the download operation after the request is handled.
+	defer func() {
+		f.mu.Lock()
+		defer f.mu.Unlock()
+		delete(f.downloadOperations, request.GetRequestId())
+	}()
+
 	f.mu.Lock()
 	downloadOperation, ok := f.downloadOperations[request.GetRequestId()]
-	if ok {
-		delete(f.downloadOperations, request.GetRequestId())
-	}
 	f.mu.Unlock()
 
 	if !ok || downloadOperation == nil {
