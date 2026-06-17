@@ -14,10 +14,21 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ## Unreleased
 
+### Notable Changes
+
+This version drops compatibility with server versions older than 0.65.0.
+
 ### Added
 
-- High-resolution image rendering in terminals supporting the Kitty protocol with ANSI fallback in the W&B LEET TUI media pane (`wandb beta leet` command) (@dmitryduev in https://github.com/wandb/wandb/pull/11806)
-- Basic remote-run support in W&B LEET TUI (`wandb beta leet <run-url>` command) (@jacobromero in https://github.com/wandb/wandb/pull/11261)
+- High-resolution image rendering in terminals supporting the Kitty protocol with ANSI fallback in the W&B LEET TUI media pane (`wandb leet` command) (@dmitryduev in https://github.com/wandb/wandb/pull/11806)
+- Synced scrubbing in the W&B LEET media pane: press `l` to link scrubbing, then the scrub keys (`←/→/↑/↓/home/end`) move a shared cursor over the union step timeline and every image tile follows it (@dmitryduev in https://github.com/wandb/wandb/pull/12033)
+- Basic remote-run support in W&B LEET TUI (`wandb leet <run-url>` command) (@jacobromero in https://github.com/wandb/wandb/pull/11261)
+
+### Changed
+
+- W&B LEET, the terminal UI for viewing W&B runs, is now generally available as `wandb leet`; `wandb beta leet` is kept as an alias (@dmitryduev in https://github.com/wandb/wandb/pull/12028)
+- `wandb.Api().runs()` no longer loads Sweeps for each run by default to improve query performance. Sweep data is loaded on first access of the `sweep` property (@kmikowicz-wandb in https://github.com/wandb/wandb/pull/12019)
+- Lists of images logged under a single key are now displayed in the W&B LEET media pane, one tile per image (@dmitryduev in https://github.com/wandb/wandb/pull/12033)
 
 ### Changed
 - Added type annotations to `wandb.Table` based on existing runtime checks. No runtime behavior change. (@kelu-wandb in https://github.com/wandb/wandb/pull/12016)
@@ -29,3 +40,5 @@ Section headings should be at level 3 (e.g. `### Added`).
 - Artifact file operations now consistently require normalized relative paths (@tonyyli-wandb in https://github.com/wandb/wandb/pull/11735)
 - Logging an artifact (whether via `WandbLogger` or `run.log_artifact`) now writes the manifest file to the artifact's staging directory instead of the OS temp dir (`$TMPDIR`), avoiding silent failures when `$TMPDIR` is missing or unwritable (@ibindlish in https://github.com/wandb/wandb/pull/11958)
 - Logging artifacts in shared mode works again, and in particular, `wandb.init(mode="shared")` with code-saving enabled no longer raises an error (@timoffex in https://github.com/wandb/wandb/pull/12017)
+- `git_root` setting is now preferred for creating the `diff.patch` file, the `root_dir` setting is now used as a fallback (@TomSiegl in https://github.com/wandb/wandb/pull/11967)
+- Apple system metrics (GPU, CPU, power, and temperature) are now collected on Apple M5 Macs (@dmitryduev in https://github.com/wandb/wandb/pull/12061)

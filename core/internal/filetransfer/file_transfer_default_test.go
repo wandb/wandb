@@ -86,6 +86,28 @@ func TestDefaultFileTransfer_Download(t *testing.T) {
 	assert.Equal(t, task.Response.StatusCode, http.StatusOK)
 }
 
+func TestDefaultFileTransfer_DownloadHTTPError(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "test-file.txt")
+	testURL := runServer(t, func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		_, err := w.Write([]byte("missing"))
+		assert.NoError(t, err)
+	})
+
+	task := &filetransfer.DefaultDownloadTask{
+		Path: path,
+		Url:  testURL,
+	}
+	err := newFileTransfer(t).Download(task)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to download: status: 404 Not Found")
+	assert.Contains(t, err.Error(), "body: missing")
+	assert.Equal(t, http.StatusNotFound, task.Response.StatusCode)
+	_, statErr := os.Stat(path)
+	assert.True(t, os.IsNotExist(statErr))
+}
+
 func TestDefaultFileTransfer_Upload(t *testing.T) {
 	expectedContent := []byte("test content for upload")
 	path := writeTempFile(t, expectedContent)

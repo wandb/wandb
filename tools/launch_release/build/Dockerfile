@@ -1,4 +1,4 @@
-FROM us-central1-docker.pkg.dev/wandb-production/chainguard-pull-through/coreweave/chainguard-base@sha256:663d01ea0921b7b8b3a0ccce76a646935d86ddec1424299d8c537e40dce27463 AS builder
+FROM us-central1-docker.pkg.dev/wandb-production/chainguard-pull-through/coreweave/chainguard-base@sha256:d82fe5f4a032723764b990f7febe8bd93ec5b19d577d9950c5700fb20e2d7dc6 AS builder
 LABEL maintainer='Weights & Biases <support@wandb.com>'
 
 ARG TARGETARCH
@@ -6,7 +6,7 @@ ARG TARGETARCH
 RUN apk add --no-cache python3 git py3-pip gcc python3-dev curl openssl-dev pkgconf \
     && ln -sf /usr/bin/pkgconf /usr/bin/pkg-config
 
-ARG GO_VERSION=1.26.3
+ARG GO_VERSION=1.26.4
 RUN if [ "$TARGETARCH" = "amd64" ]; then \
     curl -L https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz | tar -C /usr/local -xzf -; \
     elif [ "$TARGETARCH" = "arm64" ]; then \
@@ -32,7 +32,7 @@ RUN pip3 install --upgrade pip \
     && pip3 install --no-cache-dir "wandb[launch] @ git+https://github.com/wandb/wandb.git@$REF"
 
 # --- Final image: no Go toolchain, no build tools ---
-FROM us-central1-docker.pkg.dev/wandb-production/chainguard-pull-through/coreweave/chainguard-base@sha256:663d01ea0921b7b8b3a0ccce76a646935d86ddec1424299d8c537e40dce27463
+FROM us-central1-docker.pkg.dev/wandb-production/chainguard-pull-through/coreweave/chainguard-base@sha256:d82fe5f4a032723764b990f7febe8bd93ec5b19d577d9950c5700fb20e2d7dc6
 LABEL maintainer='Weights & Biases <support@wandb.com>'
 
 # Suppress RequestsDependencyWarning (pip-resolved urllib3/charset_normalizer often trigger it)

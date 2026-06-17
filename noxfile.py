@@ -331,22 +331,34 @@ def experimental_tests(session: nox.Session):
 
 @nox.session(python=False, name="local-testcontainer-registry")
 def local_testcontainer_registry(session: nox.Session) -> None:
-    """Ensure we collect and store the latest local-testcontainer in the registry.
+    """Archive the local-testcontainer image for a wandb/core server release.
 
-    This will find the latest released version (tag) of wandb/core,
-    find associated commit hash, and then pull the local-testcontainer
-    image with the same commit hash from
+    Finds the requested release (tag) of wandb/core (latest by default)
+    and its commit hash, then copies the local-testcontainer image with
+    that commit hash from
     us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer
-    and push it to the SDK's registry with the release tag,
-    if it doesn't already exist there.
+    to us-central1-docker.pkg.dev/wandb-client-cicd/images/local-testcontainer
+    tagged with the release version. No-op if the tag is already archived.
 
-    To run locally, you must have the following environment variables set:
-    - GITHUB_ACCESS_TOKEN: a GitHub personal access token with the repo scope
-    - GOOGLE_APPLICATION_CREDENTIALS: path to a service account key file
-      or a JSON string containing the key file contents
+    The wandb-production registry only retains images for recent commits,
+    so this archive is what allows testing the SDK against older server
+    releases (e.g. the system-tests-min-server-version CI jobs). It is
+    run manually by maintainers about once a month; see "Archiving server
+    images" in CONTRIBUTING.md.
 
-    To run this for a specific release tag, use:
-    nox -s local-testcontainer-registry -- <release_tag>
+    Prerequisites:
+    - gcloud authenticated with an account that can read
+      wandb-production/images/local-testcontainer and write
+      wandb-client-cicd/images/local-testcontainer
+    - gcrane: go install github.com/google/go-containerregistry/cmd/gcrane@latest
+    - GITHUB_ACCESS_TOKEN: a GitHub token that can read wandb/core,
+      e.g. GITHUB_ACCESS_TOKEN=$(gh auth token)
+
+    To archive the latest release:
+        nox -s local-testcontainer-registry
+
+    To archive a specific release:
+        nox -s local-testcontainer-registry -- server/v0.81.3
     """
     tags: list[str] = session.posargs or []
 
@@ -368,7 +380,6 @@ def local_testcontainer_registry(session: nox.Session) -> None:
 
     def get_release_tag_and_commit_hash(tags: list[str]):
         if not tags:
-            # Get the latest release tag and commit hash
             query = """
             {
             repository(owner: "wandb", name: "core") {
@@ -388,32 +399,31 @@ def local_testcontainer_registry(session: nox.Session) -> None:
                 data["data"]["repository"]["latestRelease"]["tagName"],
                 data["data"]["repository"]["latestRelease"]["tagCommit"]["oid"],
             )
-        else:
-            # Get the commit hash for the given release tag
-            query = """
-            query($owner: String!, $repo: String!, $tag: String!) {
-            repository(owner: $owner, name: $repo) {
-                ref(qualifiedName: $tag) {
-                target {
-                    oid
-                }
-                }
+
+        query = """
+        query($owner: String!, $repo: String!, $tag: String!) {
+        repository(owner: $owner, name: $repo) {
+            ref(qualifiedName: $tag) {
+            target {
+                oid
             }
             }
-            """
+        }
+        }
+        """
 
-            data = query_github(
-                {
-                    "query": query,
-                    "variables": {
-                        "owner": "wandb",
-                        "repo": "core",
-                        "tag": tags[0],
-                    },
-                }
-            )
+        data = query_github(
+            {
+                "query": query,
+                "variables": {
+                    "owner": "wandb",
+                    "repo": "core",
+                    "tag": tags[0],
+                },
+            }
+        )
 
-            return tags[0], data["data"]["repository"]["ref"]["target"]["oid"]
+        return tags[0], data["data"]["repository"]["ref"]["target"]["oid"]
 
     local_release_tag, commit_hash = get_release_tag_and_commit_hash(tags)
 
@@ -426,7 +436,6 @@ def local_testcontainer_registry(session: nox.Session) -> None:
 
     subprocess.check_call(["gcloud", "config", "set", "project", "wandb-client-cicd"])
 
-    # Check if image with tag already exists in the SDK's Artifact registry
     images = (
         subprocess.Popen(
             [
@@ -452,7 +461,6 @@ def local_testcontainer_registry(session: nox.Session) -> None:
     source_image = f"us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer:{commit_hash}"
     target_image = f"us-central1-docker.pkg.dev/wandb-client-cicd/images/local-testcontainer:{release_tag}"
 
-    # install gcrane: `go install github.com/google/go-containerregistry/cmd/gcrane@latest`
     subprocess.check_call(["gcrane", "cp", source_image, target_image])
 
     session.log(f"Successfully copied image {target_image}")
