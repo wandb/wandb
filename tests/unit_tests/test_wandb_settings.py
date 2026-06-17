@@ -705,7 +705,7 @@ def test_infer_git_root_finds_repo(tmp_path):
     s = Settings(root_dir=str(subdir))
     s.infer_git_root()
 
-    assert s.git_root == str(git_root)
+    assert pathlib.Path(s.git_root) == git_root
 
 
 def test_infer_git_root_no_repo(tmp_path):
