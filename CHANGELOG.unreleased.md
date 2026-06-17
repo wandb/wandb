@@ -23,7 +23,7 @@ This version drops compatibility with server versions older than 0.65.0.
 - High-resolution image rendering in terminals supporting the Kitty protocol with ANSI fallback in the W&B LEET TUI media pane (`wandb leet` command) (@dmitryduev in https://github.com/wandb/wandb/pull/11806)
 - Synced scrubbing in the W&B LEET media pane: press `l` to link scrubbing, then the scrub keys (`←/→/↑/↓/home/end`) move a shared cursor over the union step timeline and every image tile follows it (@dmitryduev in https://github.com/wandb/wandb/pull/12033)
 - Basic remote-run support in W&B LEET TUI (`wandb leet <run-url>` command) (@jacobromero in https://github.com/wandb/wandb/pull/11261)
-- Paginated artifacts and registry API methods (e.g. `Api.artifacts()`, `Api.artifact_collections()`, `Api.registries()`, `Registry.collections()`) now accept an optional `order` string as a keyword arg (@tonyyli-wandb in https://github.com/wandb/wandb/pull/11990)
+- The following paginated artifacts and registry API methods now accept an optional `order` string as a keyword argument: `Api.artifacts()`, `Api.artifact_collections()`, `Api.registries()`, `Api.registries().collections()`, `Registry.collections()` (@tonyyli-wandb in https://github.com/wandb/wandb/pull/11990)
 
 ### Changed
 
