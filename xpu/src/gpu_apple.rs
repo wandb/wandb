@@ -81,13 +81,24 @@ pub fn zero_div<T: core::ops::Div<Output = T> + Default + PartialEq>(a: T, b: T)
 fn calc_freq(item: CFDictionaryRef, freqs: &[u32]) -> (u32, f32) {
     let items = cfio_get_residencies(item); // (ns, freq)
     let (len1, len2) = (items.len(), freqs.len());
-    assert!(len1 > len2, "cacl_freq invalid data: {} vs {}", len1, len2); // todo?
+
+    // Bail out gracefully on unexpected data shapes. 
+    // `freqs` may be empty for clusters whose pmgr DVFS table we couldn't read 
+    // (e.g. the efficiency cores on Apple M5); 
+    // `len1 > len2` is required because residencies carry extra leading 
+    // IDLE/DOWN/OFF states that the indexing below skips.
+    if len2 == 0 || len1 <= len2 {
+        return (0, 0.0);
+    }
 
     // IDLE / DOWN for CPU; OFF for GPU; DOWN only on M2?/M3 Max Chips
-    let offset = items
+    let offset = match items
         .iter()
         .position(|x| x.0 != "IDLE" && x.0 != "DOWN" && x.0 != "OFF")
-        .unwrap();
+    {
+        Some(offset) => offset,
+        None => return (0, 0.0), // fully idle: no active residency states
+    };
 
     let usage = items.iter().map(|x| x.1 as f64).skip(offset).sum::<f64>();
     let total = items.iter().map(|x| x.1 as f64).sum::<f64>();
@@ -95,6 +106,9 @@ fn calc_freq(item: CFDictionaryRef, freqs: &[u32]) -> (u32, f32) {
 
     let mut avg_freq = 0f64;
     for i in 0..count {
+        if i + offset >= items.len() {
+            break;
+        }
         let percent = zero_div(items[i + offset].1 as _, usage);
         avg_freq += percent * freqs[i] as f64;
     }
@@ -110,7 +124,9 @@ fn calc_freq(item: CFDictionaryRef, freqs: &[u32]) -> (u32, f32) {
 fn calc_freq_final(items: &[(u32, f32)], freqs: &[u32]) -> (u32, f32) {
     let avg_freq = zero_div(items.iter().map(|x| x.0 as f32).sum(), items.len() as f32);
     let avg_perc = zero_div(items.iter().map(|x| x.1).sum(), items.len() as f32);
-    let min_freq = *freqs.first().unwrap() as f32;
+    // `freqs` can be empty when a cluster's DVFS table is unavailable (e.g. the
+    // efficiency cores on Apple M5); fall back to 0 instead of panicking.
+    let min_freq = freqs.first().copied().unwrap_or(0) as f32;
 
     (avg_freq.max(min_freq) as u32, avg_perc)
 }
@@ -300,7 +316,10 @@ impl Sampler {
 
                 if x.group == "GPU Stats" && x.subgroup == GPU_FREQ_DICE_SUBG {
                     match x.channel.as_str() {
-                        "GPUPH" => rs.gpu_usage = calc_freq(x.item, &self.soc.gpu_freqs[1..]),
+                        // Guard the `[1..]` slice: indexing an empty table panics.
+                        "GPUPH" if !self.soc.gpu_freqs.is_empty() => {
+                            rs.gpu_usage = calc_freq(x.item, &self.soc.gpu_freqs[1..])
+                        }
                         _ => {}
                     }
                 }
@@ -655,10 +674,17 @@ impl Drop for ThreadSafeSampler {
 }
 
 fn sampler_thread(receiver: Receiver<SamplerCommand>) {
-    let mut sampler = match Sampler::new() {
-        Ok(s) => s,
-        Err(e) => {
+    // Catch panics during construction. Without this, a panic here kills the
+    // thread before it ever serves a request, so every `get_metrics()` call sees
+    // "channel closed" with no indication of the real cause.
+    let mut sampler = match std::panic::catch_unwind(Sampler::new) {
+        Ok(Ok(s)) => s,
+        Ok(Err(e)) => {
             warn!("Failed to create Sampler: {}", e);
+            return;
+        }
+        Err(_) => {
+            warn!("Panic while creating Apple sampler; Apple metrics disabled");
             return;
         }
     };
@@ -666,9 +692,14 @@ fn sampler_thread(receiver: Receiver<SamplerCommand>) {
     for cmd in receiver {
         match cmd {
             SamplerCommand::GetMetrics(response) => {
-                let result = sampler
-                    .get_metrics(1)
-                    .map_err(|e| SamplerError(e.to_string()));
+                // Catch panics from a single sample so one bad reading can't
+                // permanently kill the sampler thread (and with it all metrics).
+                let result = match std::panic::catch_unwind(std::panic::AssertUnwindSafe(
+                    || sampler.get_metrics(1),
+                )) {
+                    Ok(result) => result.map_err(|e| SamplerError(e.to_string())),
+                    Err(_) => Err(SamplerError("panic while sampling Apple metrics".into())),
+                };
                 let _ = response.send(result);
             }
             SamplerCommand::GetSockInfo(response) => {
