@@ -48,6 +48,7 @@ use core_foundation::{
         CFStringCreateWithBytesNoCopy, CFStringGetCString, CFStringRef, kCFStringEncodingUTF8,
     },
 };
+use log::warn;
 use serde::Serialize;
 
 pub type WithError<T> = Result<T, Box<dyn std::error::Error>>;
@@ -442,7 +443,13 @@ impl SocInfo {
 // dynamic voltage and frequency scaling
 pub fn get_dvfs_mhz(dict: CFDictionaryRef, key: &str) -> (Vec<u32>, Vec<u32>) {
     unsafe {
-        let obj = cfdict_get_val(dict, key).unwrap() as CFDataRef;
+        // Some chips do not expose every `voltage-states*` key that earlier
+        // generations did. Apple M5, for instance, dropped `voltage-states1-sram`
+        // (the efficiency-core DVFS table). Treat a missing key as "no data".
+        let obj = match cfdict_get_val(dict, key) {
+            Some(obj) => obj as CFDataRef,
+            None => return (vec![], vec![]),
+        };
         let obj_len = CFDataGetLength(obj);
         let obj_val = vec![0u8; obj_len as usize];
         CFDataGetBytes(obj, CFRange::init(0, obj_len), obj_val.as_ptr() as *mut u8);
@@ -553,7 +560,17 @@ pub fn get_soc_info() -> WithError<SocInfo> {
     }
 
     if info.ecpu_freqs.is_empty() || info.pcpu_freqs.is_empty() {
-        return Err("No CPU frequencies found".into());
+        // Don't abort. A missing CPU DVFS table (seen on Apple M5, whose pmgr no
+        // longer exposes `voltage-states1-sram` for the efficiency cluster) must
+        // not disable GPU, power, temperature and memory metrics. Only the
+        // affected CPU frequency/utilization metrics are omitted.
+        warn!(
+            "Incomplete CPU frequency tables for '{}' (ecpu states: {}, pcpu states: {}); \
+             some CPU metrics will be unavailable",
+            info.chip_name,
+            info.ecpu_freqs.len(),
+            info.pcpu_freqs.len(),
+        );
     }
 
     Ok(info)
