@@ -1393,6 +1393,9 @@ class Api:
         Args:
             project_name: The name of the project to filter on.
             type_name: The name of the artifact type to filter on.
+            order: Optional string to specify the order of the results.
+                If prefixed with '+', sorts ascending (default).
+                If prefixed with '-', sorts descending.
             per_page: Sets the page size for query pagination.
                 Usually there is no reason to change this.
             start: Pagination cursor for resuming a past query, captured
@@ -1516,6 +1519,9 @@ class Api:
             name: The artifact's collection name. Optionally append the
                 entity that logged the artifact as a prefix followed by
                 a forward slash.
+            order: Optional string to specify the order of the results.
+                If prefixed with '+', sorts ascending (default).
+                If prefixed with '-', sorts descending.
             per_page: Sets the page size for query pagination. Usually
                 there is no reason to change this.
             tags: Only return artifacts with all of these tags.
@@ -1889,15 +1895,18 @@ class Api:
         or artifact versions across your organization's registry.
 
         Args:
-            organization: (str, optional) The organization of the registry to fetch.
+            organization: The organization of the registry to fetch.
                 If not specified, use the organization specified in the user's settings.
-            filter: (dict, optional) MongoDB-style filter to apply to each object in the lazy registry iterator.
+            filter: Optional MongoDB-style filter to apply to each object in the lazy registry iterator.
                 Fields available to filter for registries are
                     `name`, `description`, `created_at`, `updated_at`.
                 Fields available to filter for collections are
                     `name`, `tag`, `description`, `created_at`, `updated_at`
                 Fields available to filter for versions are
                     `tag`, `alias`, `created_at`, `updated_at`, `metadata`
+            order: Optional string to specify the order of the results.
+                If prefixed with '+', sorts ascending (default).
+                If prefixed with '-', sorts descending.
             per_page: Sets the page size for query pagination.
             start: Pagination cursor for resuming a past query, captured
                 from a previous paginator's `.cursor` attribute.
