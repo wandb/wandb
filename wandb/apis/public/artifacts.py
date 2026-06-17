@@ -244,8 +244,8 @@ class ArtifactType:
         Args:
             filters (dict): Optional mapping of filters to apply to the query.
             order (str): Optional string to specify the order of the results.
-                If you prepend order with a + order is ascending (default).
-                If you prepend order with a - order is descending.
+                If prefixed with '+', sorts ascending (default).
+                If prefixed with '-', sorts descending.
                 The default order is the collection ID in descending order.
             per_page (int): The number of artifact collections to fetch per page.
                 Default is 50.
@@ -294,8 +294,8 @@ class ArtifactCollections(
         type_name: The name of the artifact type for which to fetch collections.
         filters: Optional mapping of filters to apply to the query.
         order: Optional string to specify the order of the results.
-            If you prepend order with a + order is ascending (default).
-            If you prepend order with a - order is descending.
+            If prefixed with '+', sorts ascending (default).
+            If prefixed with '-', sorts descending.
         per_page: The number of artifact collections to fetch per page. Default is 50.
 
     <!-- lazydoc-ignore-init: internal -->
@@ -391,8 +391,8 @@ class ProjectArtifactCollections(
         project: The name of the project to query for artifact collections.
         filters: Optional mapping of filters to apply to the query.
         order: Optional string to specify the order of the results.
-            If you prepend order with a + order is ascending (default).
-            If you prepend order with a - order is descending.
+            If prefixed with '+', sorts ascending (default).
+            If prefixed with '-', sorts descending.
         per_page: The number of artifact collections to fetch per page. Default is 50.
 
     <!-- lazydoc-ignore-init: internal -->
@@ -857,6 +857,8 @@ class Artifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
             "dataset" or "model".
         filters: Optional mapping of filters to apply to the query.
         order: Optional string to specify the order of the results.
+            If prefixed with '+', sorts ascending (default).
+            If prefixed with '-', sorts descending.
         per_page: The number of artifact versions to fetch per page. Default is 50.
         tags: Optional string or list of strings to filter artifacts by tags.
 
