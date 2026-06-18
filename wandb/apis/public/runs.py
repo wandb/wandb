@@ -1567,9 +1567,9 @@ class Run(Attrs):
         if self._metadata is None:
             try:
                 f = self.file("wandb-metadata.json")
-                contents = util.download_file_into_memory(
-                    f.url,
-                    api_key=self._api_key,
+                contents = self._service_api.download_file_into_memory(
+                    url=f.url,
+                    size=f.size,
                 )
                 self._metadata = json_util.loads(contents)
             except:  # noqa: E722

@@ -36,7 +36,6 @@ from __future__ import annotations
 
 import io
 import os
-from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 import wandb
@@ -45,10 +44,8 @@ from wandb.apis.attrs import Attrs
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.paginator import SizedPaginator
 from wandb.apis.public import utils
-from wandb.apis.public.const import RETRY_TIMEDELTA
 from wandb.apis.public.runs import Run
-from wandb.sdk.lib import retry
-from wandb.util import POW_2_BYTES, download_file_from_url, no_retry_auth, to_human_size
+from wandb.util import POW_2_BYTES, to_human_size
 
 if TYPE_CHECKING:
     from wandb.apis.public import Api
@@ -283,7 +280,6 @@ class File(Attrs):
         self._service_api = service_api
         self._attrs = attrs
         self.run = run
-        self._download_decorated: Callable[..., Any] | None = None
         super().__init__(dict(attrs))
 
     @property
@@ -316,37 +312,6 @@ class File(Attrs):
             wandb.termwarn("path_uri is only available for files stored in S3")
             return ""
 
-    def _build_download_wrapper(self) -> Callable[..., io.TextIOWrapper]:
-        import requests
-
-        @retry.retriable(
-            retry_timedelta=RETRY_TIMEDELTA,
-            check_retry_fn=no_retry_auth,
-            retryable_exceptions=(requests.RequestException,),
-        )
-        def _impl(
-            root: str = ".",
-            replace: bool = False,
-            exist_ok: bool = False,
-            api: Api | None = None,
-        ) -> io.TextIOWrapper:
-            if api is None:
-                api = wandb.Api()
-
-            path = os.path.join(root, self.name)
-            if os.path.exists(path) and not replace:
-                if exist_ok:
-                    return open(path)
-                raise ValueError(
-                    "File already exists, pass replace=True to overwrite "
-                    "or exist_ok=True to leave it as is and don't error."
-                )
-
-            download_file_from_url(path, self.url, api.api_key)
-            return open(path)
-
-        return _impl
-
     @normalize_exceptions
     def download(
         self,
@@ -371,9 +336,18 @@ class File(Attrs):
             `ValueError` if file already exists, `replace=False` and
             `exist_ok=False`.
         """
-        if self._download_decorated is None:
-            self._download_decorated = self._build_download_wrapper()
-        return self._download_decorated(root, replace, exist_ok, api)
+        path = os.path.join(root, self.name)
+        if os.path.exists(path) and not replace:
+            if exist_ok:
+                return open(path)
+            raise ValueError(
+                "File already exists, pass replace=True to overwrite "
+                "or exist_ok=True to leave it as is and don't error."
+            )
+
+        service_api = api._service_api if api is not None else self._service_api
+        service_api.download_file(path=path, url=self.url, size=self.size)
+        return open(path)
 
     @normalize_exceptions
     def delete(self) -> None:

@@ -3,6 +3,8 @@ from __future__ import annotations
 import contextlib
 import json
 import logging
+import os
+import tempfile
 import weakref
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
@@ -12,6 +14,7 @@ from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto.wandb_api_pb2 import (
     ApiRequest,
     ApiResponse,
+    DownloadFileRequest,
     FeaturesRequest,
     GraphQLRequest,
 )
@@ -146,6 +149,37 @@ class ServiceApi:
             timeout=timeout if timeout is not None else self._timeout,
         )
         return json.loads(response.graphql_response.data_json)
+
+    def download_file(self, *, path: str, url: str, size: int = 0) -> None:
+        """Download a file from a URL through the wandb-core sidecar.
+
+        wandb-core performs the network round-trip and writes the file to
+        the given local path. Retries and timeouts are governed by its file
+        transfer settings, so this blocks without a deadline of its own.
+
+        Args:
+            path: The local path to write the file to.
+            url: The URL to download the file from.
+            size: The expected file size in bytes if known, used for
+                progress reporting.
+
+        Raises:
+            WandbApiFailedError: The download failed for any reason,
+                including transport errors and non-successful HTTP status
+                codes.
+        """
+        request = ApiRequest(
+            download_file_request=DownloadFileRequest(path=path, url=url, size=size)
+        )
+        self.send_api_request(request)
+
+    def download_file_into_memory(self, *, url: str, size: int = 0) -> bytes:
+        """Download a file through the wandb-core sidecar, returning its contents."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, "download")
+            self.download_file(path=path, url=url, size=size)
+            with open(path, "rb") as f:
+                return f.read()
 
     async def send_api_request_async(
         self,

@@ -52,6 +52,26 @@ def test_create_run_with_dictionary_attrs_already_parsed(field, value):
         assert getattr(run, field) == value
 
 
+def test_run_metadata_downloads_through_service_api(mocker):
+    service_api = mocker.MagicMock()
+    run = Run(
+        service_api=service_api,
+        entity="entity",
+        project="project",
+        run_id="run-id",
+        attrs={"name": "run-id", "state": "finished"},
+    )
+    file = mocker.MagicMock(url="https://files.example/wandb-metadata.json", size=17)
+    mocker.patch.object(run, "file", return_value=file)
+    service_api.download_file_into_memory.return_value = b'{"os":"Linux"}'
+
+    assert run.metadata == {"os": "Linux"}
+    service_api.download_file_into_memory.assert_called_once_with(
+        url="https://files.example/wandb-metadata.json",
+        size=17,
+    )
+
+
 @pytest.mark.parametrize(
     "field,value",
     [
