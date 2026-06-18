@@ -251,7 +251,7 @@ class EvalTable(Table):
     @override
     def add_column(
         self,
-        name: ColumnKey,
+        name: str,
         data: list[Any] | np.ndarray,
         optional: bool = False,
     ) -> None:
