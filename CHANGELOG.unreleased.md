@@ -30,9 +30,6 @@ This version drops compatibility with server versions older than 0.65.0.
 - `wandb.Api().runs()` no longer loads Sweeps for each run by default to improve query performance. Sweep data is loaded on first access of the `sweep` property (@kmikowicz-wandb in https://github.com/wandb/wandb/pull/12019)
 - Lists of images logged under a single key are now displayed in the W&B LEET media pane, one tile per image (@dmitryduev in https://github.com/wandb/wandb/pull/12033)
 
-### Changed
-- Added type annotations to `wandb.Table` based on existing runtime checks. No runtime behavior change. (@kelu-wandb in https://github.com/wandb/wandb/pull/12016)
-
 ### Fixed
 
 - `wandb.Api().viewer` (and `Api().user()` / `Api().users()`) no longer fail with `WandbApiFailedError: relogin required` for some API keys, a regression in `0.27.1` (@dmitryduev in https://github.com/wandb/wandb/pull/12009)
