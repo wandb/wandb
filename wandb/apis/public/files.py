@@ -45,6 +45,7 @@ from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.paginator import SizedPaginator
 from wandb.apis.public import utils
 from wandb.apis.public.runs import Run
+from wandb.proto.wandb_api_pb2 import ApiRequest, DownloadFileRequest
 from wandb.util import POW_2_BYTES, to_human_size
 
 if TYPE_CHECKING:
@@ -346,7 +347,13 @@ class File(Attrs):
             )
 
         service_api = api._service_api if api is not None else self._service_api
-        service_api.download_file(path=path, url=self.url, size=self.size)
+        service_api.send_api_request(
+            ApiRequest(
+                download_file_request=DownloadFileRequest(
+                    path=path, url=self.url, size=self.size
+                )
+            )
+        )
         return open(path)
 
     @normalize_exceptions

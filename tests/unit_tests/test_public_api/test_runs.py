@@ -5,6 +5,7 @@ import pytest
 import wandb
 from wandb.apis.public.runs import Run
 from wandb.apis.public.sweeps import Sweep
+from wandb.proto import wandb_api_pb2 as apb
 
 
 @pytest.mark.parametrize(
@@ -63,13 +64,18 @@ def test_run_metadata_downloads_through_service_api(mocker):
     )
     file = mocker.MagicMock(url="https://files.example/wandb-metadata.json", size=17)
     mocker.patch.object(run, "file", return_value=file)
-    service_api.download_file_into_memory.return_value = b'{"os":"Linux"}'
+
+    def send_api_request(request: apb.ApiRequest) -> apb.ApiResponse:
+        with open(request.download_file_request.path, "wb") as f:
+            f.write(b'{"os":"Linux"}')
+        return apb.ApiResponse(download_file_response=apb.DownloadFileResponse())
+
+    service_api.send_api_request.side_effect = send_api_request
 
     assert run.metadata == {"os": "Linux"}
-    service_api.download_file_into_memory.assert_called_once_with(
-        url="https://files.example/wandb-metadata.json",
-        size=17,
-    )
+    request = service_api.send_api_request.call_args.args[0].download_file_request
+    assert request.url == "https://files.example/wandb-metadata.json"
+    assert request.size == 17
 
 
 @pytest.mark.parametrize(

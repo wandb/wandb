@@ -1567,10 +1567,17 @@ class Run(Attrs):
         if self._metadata is None:
             try:
                 f = self.file("wandb-metadata.json")
-                contents = self._service_api.download_file_into_memory(
-                    url=f.url,
-                    size=f.size,
-                )
+                with tempfile.TemporaryDirectory() as tmpdir:
+                    path = os.path.join(tmpdir, "wandb-metadata.json")
+                    self._service_api.send_api_request(
+                        apb.ApiRequest(
+                            download_file_request=apb.DownloadFileRequest(
+                                path=path, url=f.url, size=f.size
+                            )
+                        )
+                    )
+                    with open(path, "rb") as metadata_file:
+                        contents = metadata_file.read()
                 self._metadata = json_util.loads(contents)
             except:  # noqa: E722
                 # file doesn't exist, or can't be downloaded, or can't be parsed
