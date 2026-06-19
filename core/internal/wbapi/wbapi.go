@@ -13,7 +13,9 @@ import (
 	"github.com/hashicorp/go-retryablehttp"
 
 	"github.com/wandb/wandb/core/internal/api"
+	"github.com/wandb/wandb/core/internal/clients"
 	"github.com/wandb/wandb/core/internal/featurechecker"
+	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/settings"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
@@ -33,6 +35,7 @@ type WandbAPI struct {
 	settings *settings.Settings
 
 	featuresHandler      *FeaturesHandler
+	fileTransferHandler  *FileTransferHandler
 	graphqlHandler       *GraphQLHandler
 	runHistoryApiHandler *RunHistoryAPIHandler
 }
@@ -69,6 +72,25 @@ func New(
 	httpClient.HTTPClient.Timeout = s.GetFileTransferTimeout()
 	httpClient.Logger = logger
 
+	fileTransferClient := newFileTransferClient(
+		baseURL,
+		credentialProvider,
+		logger,
+		s,
+	)
+	fileTransferStats := filetransfer.NewFileTransferStats()
+	fileTransfers := filetransfer.NewFileTransfers(
+		fileTransferClient,
+		logger,
+		fileTransferStats,
+	)
+	fileTransferManager := filetransfer.NewFileTransferManager(
+		filetransfer.FileTransferManagerOptions{
+			Logger:            logger,
+			FileTransfers:     fileTransfers,
+			FileTransferStats: fileTransferStats,
+		},
+	)
 	featureProvider := featurechecker.New(graphqlClient, logger)
 
 	return &WandbAPI{
@@ -76,9 +98,52 @@ func New(
 		settings:  s,
 
 		featuresHandler:      NewFeaturesHandler(featureProvider),
+		fileTransferHandler:  NewFileTransferHandler(fileTransferManager),
 		graphqlHandler:       NewGraphQLHandler(graphqlClient),
 		runHistoryApiHandler: NewRunHistoryAPIHandler(graphqlClient, httpClient),
 	}, nil
+}
+
+func newFileTransferClient(
+	baseURL *url.URL,
+	credentialProvider api.CredentialProvider,
+	logger *observability.CoreLogger,
+	s *settings.Settings,
+) api.RetryableClient {
+	httpOpts := api.ClientOptions{
+		BaseURL:     baseURL,
+		RetryPolicy: filetransfer.FileTransferRetryPolicy,
+		Logger:      logger.Logger,
+
+		RetryMax:        filetransfer.DefaultRetryMax,
+		RetryWaitMin:    filetransfer.DefaultRetryWaitMin,
+		RetryWaitMax:    filetransfer.DefaultRetryWaitMax,
+		NonRetryTimeout: filetransfer.DefaultNonRetryTimeout,
+
+		Proxy: clients.ProxyFn(
+			s.GetHTTPProxy(),
+			s.GetHTTPSProxy(),
+		),
+
+		InsecureDisableSSL: s.IsInsecureDisableSSL(),
+		ExtraHeaders:       s.GetExtraHTTPHeaders(),
+		CredentialProvider: credentialProvider,
+	}
+
+	if retryMax := s.GetFileTransferMaxRetries(); retryMax > 0 {
+		httpOpts.RetryMax = int(retryMax)
+	}
+	if retryWaitMin := s.GetFileTransferRetryWaitMin(); retryWaitMin > 0 {
+		httpOpts.RetryWaitMin = retryWaitMin
+	}
+	if retryWaitMax := s.GetFileTransferRetryWaitMax(); retryWaitMax > 0 {
+		httpOpts.RetryWaitMax = retryWaitMax
+	}
+	if timeout := s.GetFileTransferTimeout(); timeout > 0 {
+		httpOpts.NonRetryTimeout = timeout
+	}
+
+	return api.NewClient(httpOpts)
 }
 
 // HandleRequest handles an API request and returns an API response,
@@ -106,6 +171,8 @@ func (p *WandbAPI) HandleRequest(
 	switch req := request.Request.(type) {
 	case *spb.ApiRequest_FeaturesRequest:
 		return p.featuresHandler.HandleRequest(ctx, req.FeaturesRequest)
+	case *spb.ApiRequest_DownloadFileRequest:
+		return p.fileTransferHandler.HandleDownloadFile(ctx, req.DownloadFileRequest)
 	case *spb.ApiRequest_GraphqlRequest:
 		return p.graphqlHandler.HandleRequest(ctx, req.GraphqlRequest)
 	case *spb.ApiRequest_ReadRunHistoryRequest:
