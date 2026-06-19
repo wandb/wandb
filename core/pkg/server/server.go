@@ -23,6 +23,10 @@ const (
 	IntervalCheckParentPidMilliseconds = 100
 )
 
+// ErrForcedShutdown is returned from Serve when the server shuts down without
+// waiting for in-flight work to finish.
+var ErrForcedShutdown = errors.New("forced shutdown")
+
 // Server is the top-level object for the wandb-core process.
 type Server struct {
 	// connNumber is the number of the last connection created.
@@ -35,6 +39,16 @@ type Server struct {
 
 	// stopServer cancels serverLifetimeCtx.
 	stopServer context.CancelFunc
+
+	// forceStopCtx is cancelled when the server should shut down immediately
+	// without waiting for in-flight work to finish.
+	forceStopCtx context.Context
+
+	// forceStopCancelFunc cancels forceStopCtx.
+	forceStopCancelFunc context.CancelFunc
+
+	// forceStopOnce ensures forced stop is only triggered once.
+	forceStopOnce sync.Once
 
 	// streamMux maps stream IDs to streams.
 	streamMux *stream.StreamMux
@@ -88,6 +102,18 @@ type Server struct {
 	logLevel slog.Level
 }
 
+// Stop forces the server to shut down without waiting for in-flight work.
+func (s *Server) Stop() {
+	s.forceStop()
+}
+
+func (s *Server) forceStop() {
+	s.forceStopOnce.Do(func() {
+		s.forceStopCancelFunc()
+		s.stopServer()
+	})
+}
+
 type ServerParams struct {
 	Commit              string
 	EnableDCGMProfiling bool
@@ -101,22 +127,24 @@ type ServerParams struct {
 
 func NewServer(params ServerParams) *Server {
 	serverLifetimeCtx, stopServer := context.WithCancel(context.Background())
+	forceStopCtx, forceStopCancelFunc := context.WithCancel(context.Background())
 
 	return &Server{
-		serverLifetimeCtx: serverLifetimeCtx,
-		stopServer:        stopServer,
-		streamMux:         stream.NewStreamMux(),
-		runSyncManager:    runsync.NewRunSyncManager(),
-		xpuResourceManager: monitor.NewXPUResourceManager(
-			params.EnableDCGMProfiling),
-		wg:                sync.WaitGroup{},
-		parentPID:         params.ParentPID,
-		detached:          params.Detached,
-		idleTimeout:       params.IdleTimeout,
-		commit:            params.Commit,
-		listenOnLocalhost: params.ListenOnLocalhost,
-		loggerPath:        params.LoggerPath,
-		logLevel:          params.LogLevel,
+		serverLifetimeCtx:   serverLifetimeCtx,
+		stopServer:          stopServer,
+		forceStopCtx:        forceStopCtx,
+		forceStopCancelFunc: forceStopCancelFunc,
+		streamMux:           stream.NewStreamMux(),
+		runSyncManager:      runsync.NewRunSyncManager(),
+		xpuResourceManager:  monitor.NewXPUResourceManager(params.EnableDCGMProfiling),
+		wg:                  sync.WaitGroup{},
+		parentPID:           params.ParentPID,
+		detached:            params.Detached,
+		idleTimeout:         params.IdleTimeout,
+		commit:              params.Commit,
+		listenOnLocalhost:   params.ListenOnLocalhost,
+		loggerPath:          params.LoggerPath,
+		logLevel:            params.LogLevel,
 	}
 }
 
@@ -132,7 +160,15 @@ func (s *Server) exitWhenParentIsGone() {
 
 	// The user process has exited, so there's no need to sync
 	// uncommitted data, and we can quit immediately.
-	s.stopServer()
+	s.forceStop()
+}
+
+func cleanupListeners(listenerList []net.Listener) {
+	for idx, listener := range listenerList {
+		if err := listener.Close(); err != nil {
+			slog.Error("failed to Close listener", "index", idx, "error", err)
+		}
+	}
 }
 
 func (s *Server) Serve(portFile string) error {
@@ -140,6 +176,13 @@ func (s *Server) Serve(portFile string) error {
 		ParentPID:         s.parentPID,
 		ListenOnLocalhost: s.listenOnLocalhost,
 	}.MakeListeners()
+
+	var cleanupOnce sync.Once
+	cleanup := func() {
+		cleanupOnce.Do(func() { cleanupListeners(listenerList) })
+	}
+	defer cleanup()
+
 	if err != nil {
 		return err
 	}
@@ -170,19 +213,21 @@ func (s *Server) Serve(portFile string) error {
 	s.stopIdleTimer()
 
 	// Stop accepting new connections.
-	for idx, listener := range listenerList {
-		if err := listener.Close(); err != nil {
-			slog.Error("failed to Close listener", "index", idx, "error", err)
-		}
+	cleanup()
+
+	wgDone := make(chan struct{})
+	go func() {
+		s.wg.Wait()
+		close(wgDone)
+	}()
+
+	select {
+	case <-s.forceStopCtx.Done():
+		return ErrForcedShutdown
+	case <-wgDone:
+		slog.Info("server is closed")
+		return nil
 	}
-
-	// Wait for asynchronous work to finish.
-	s.wg.Wait()
-
-	listeners.CleanupUnixSocketDir(portInfo.UnixPath)
-
-	slog.Info("server is closed")
-	return nil
 }
 
 // acceptConnections accepts incoming connections on the listener.

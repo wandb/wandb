@@ -2,10 +2,30 @@ package listeners
 
 import (
 	"fmt"
+	"log/slog"
 	"net"
 	"os"
 	"path/filepath"
 )
+
+// unixSocketListener wraps a Unix domain socket listener and removes the
+// temporary directory that holds the socket file when closed.
+type unixSocketListener struct {
+	net.Listener
+	sockDir string
+}
+
+func (l *unixSocketListener) Close() error {
+	err := l.Listener.Close()
+	if rmErr := os.RemoveAll(l.sockDir); rmErr != nil {
+		slog.Warn(
+			"server/listeners: failed to remove Unix socket directory",
+			"dir", l.sockDir,
+			"error", rmErr,
+		)
+	}
+	return err
+}
 
 // listenInTempDir attempts to listen on a path constructed from os.TempDir().
 //
@@ -23,7 +43,7 @@ func listenInTempDir(
 			"server/listeners: failed to make tempdir for Unix socket: %v", err)
 	}
 
-	return listenUnix(filepath.Join(sockDir, "socket"), portInfo)
+	return listenUnix(sockDir, filepath.Join(sockDir, "socket"), portInfo)
 }
 
 // makeUniqueDir creates a unique directory as os.MkdirTemp().
@@ -41,15 +61,22 @@ func makeUniqueDir(dir, namePattern string) (string, error) {
 }
 
 // listenUnix attempts to listen on a Unix socket with the given path.
-func listenUnix(path string, portInfo *PortInfo) (net.Listener, error) {
+func listenUnix(sockDir, path string, portInfo *PortInfo) (net.Listener, error) {
 	listener, err := net.Listen("unix", path)
 
 	if err != nil {
+		if rmErr := os.RemoveAll(sockDir); rmErr != nil {
+			slog.Warn(
+				"server/listeners: failed to remove Unix socket directory",
+				"dir", sockDir,
+				"error", rmErr,
+			)
+		}
 		return nil, fmt.Errorf(
 			"server/listeners: failed to open Unix socket on %q: %v",
 			path, err)
 	}
 
 	portInfo.UnixPath = path
-	return listener, nil
+	return &unixSocketListener{Listener: listener, sockDir: sockDir}, nil
 }

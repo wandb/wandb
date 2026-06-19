@@ -13,6 +13,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -192,18 +193,28 @@ func serviceMain() int {
 	srvCh := make(chan error, 1)
 	go func() { srvCh <- srv.Serve(*portFilename) }()
 
-	select {
-	case err := <-srvCh:
-		if err != nil {
-			slog.Error("main: Serve() returned error", "error", err)
-			return exitCodeErrorInternal
-		} else {
-			return exitCodeSuccess
-		}
+	for {
+		select {
+		case err := <-srvCh:
+			if errors.Is(err, server.ErrForcedShutdown) {
+				slog.Error("main: server forced shutdown, exiting")
+				return exitCodeErrorInternal
+			} else if err != nil {
+				slog.Error("main: Serve() returned error", "error", err)
+				return exitCodeErrorInternal
+			} else {
+				return exitCodeSuccess
+			}
 
-	case sig := <-signalCh:
-		slog.Info("main: received shutdown signal", "signal", sig)
-		return exitCodeSignal
+		case sig := <-signalCh:
+			slog.Info("main: received shutdown signal", "signal", sig)
+			srv.Stop()
+			err := <-srvCh
+			if err != nil && !errors.Is(err, server.ErrForcedShutdown) {
+				slog.Error("main: Serve() returned error", "error", err)
+			}
+			return exitCodeSignal
+		}
 	}
 }
 

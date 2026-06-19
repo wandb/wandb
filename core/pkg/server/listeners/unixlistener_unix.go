@@ -44,5 +44,5 @@ func listenInTmp(namePattern string, portInfo *PortInfo) (net.Listener, error) {
 		)
 	}
 
-	return listenUnix(filepath.Join(sockDir, "socket"), portInfo)
+	return listenUnix(sockDir, filepath.Join(sockDir, "socket"), portInfo)
 }
