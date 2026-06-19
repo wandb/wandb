@@ -30,6 +30,7 @@ This version drops compatibility with server versions older than 0.65.0.
 - W&B LEET, the terminal UI for viewing W&B runs, is now generally available as `wandb leet`; `wandb beta leet` is kept as an alias (@dmitryduev in https://github.com/wandb/wandb/pull/12028)
 - `wandb.Api().runs()` no longer loads Sweeps for each run by default to improve query performance. Sweep data is loaded on first access of the `sweep` property (@kmikowicz-wandb in https://github.com/wandb/wandb/pull/12019)
 - Lists of images logged under a single key are now displayed in the W&B LEET media pane, one tile per image (@dmitryduev in https://github.com/wandb/wandb/pull/12033)
+- More informative errors are raised from `Api.artifacts()` and related artifact paginators when the artifact path is invalid or inaccessible (@tonyyli-wandb in https://github.com/wandb/wandb/pull/11813)
 
 ### Fixed
 
