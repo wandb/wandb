@@ -5,6 +5,7 @@ import io
 import pathlib
 import queue
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
 from unittest import mock
 
@@ -262,6 +263,87 @@ def test_agent_sweep_deleted(user):
     assert "Sweep was deleted or agent was not found" in stderr_output
 
 
+def test_agent_sweep_deleted_waits_for_in_flight_run(user, monkeypatch):
+    """A 404 on heartbeat must not stop the agent while a trial thread is still running.
+
+    The trial deliberately stays in user code until the agent has handled the 404
+    and logged the "Waiting for the in-process run to finish" message. That message
+    is emitted (from the heartbeat thread) only after the agent confirms a trial
+    thread is still alive, so the trial is provably in flight across the 404 check.
+
+    The trial does not call ``wandb.init()``: the agent's 404 handling only checks
+    whether the trial thread is alive (``_has_running_thread``), so a real run is
+    unnecessary, and creating one is racy under the agent's concurrent teardown and
+    heartbeat (it intermittently failed with "user is not logged in" on CI).
+    Coordination uses a ``wandb.termerror`` spy rather than capturing stderr.
+    """
+    project = "test-agent-sweep-deleted-waits-for-in-flight-run"
+    sweep_config = {
+        "name": "test-agent-sweep-deleted-waits-for-in-flight-run",
+        "method": "grid",
+        "parameters": {"a": {"values": [1, 2, 3]}},
+    }
+    sweep_id = wandb.sweep(sweep_config, entity=user, project=project)
+
+    wait_msg = "Waiting for the in-process run to finish"
+
+    first_heartbeat_done = threading.Event()
+    trial_in_user_code = threading.Event()
+    waited_for_in_flight_run = threading.Event()
+    termerrors: list[str] = []
+
+    # Use a short (non-zero) heartbeat interval: fast enough to keep the test
+    # snappy, but without a hot spin that hammers the shared API lock.
+    monkeypatch.setattr(pyagent.Agent, "HEARTBEAT_SLEEP_SECONDS", 0.05)
+
+    real_termerror = wandb.termerror
+
+    def termerror_spy(message, *args, **kwargs):
+        termerrors.append(message)
+        if wait_msg in message:
+            waited_for_in_flight_run.set()
+        return real_termerror(message, *args, **kwargs)
+
+    monkeypatch.setattr(wandb, "termerror", termerror_spy)
+
+    def train():
+        # Announce that the trial is in user code, then stay here until the
+        # agent has logged that it is waiting for the in-flight run. The agent
+        # only logs that after confirming this thread is still alive, so the
+        # trial stays provably in flight across the 404 check.
+        trial_in_user_code.set()
+        assert waited_for_in_flight_run.wait(timeout=30), (
+            "agent did not log the in-flight wait message before timeout"
+        )
+
+    def agent_heartbeat_mock(agent_id, metrics, run_states):
+        if not first_heartbeat_done.is_set():
+            first_heartbeat_done.set()
+            return [
+                {
+                    "type": "run",
+                    "run_id": "sweep-deleted-wait-run",
+                    "args": {"a": {"value": 1}},
+                    "program": "train.py",
+                }
+            ]
+        # Only raise the 404 once the trial is actually executing user code.
+        # Return an empty command list (rather than blocking) until then: the
+        # agent calls this under `Agent._api_lock`, and the run thread needs that
+        # same lock to start the trial, so blocking here would deadlock.
+        if not trial_in_user_code.is_set():
+            return []
+        raise SweepNotFoundError("Sweep not found")
+
+    with mock.patch(
+        "wandb.sdk.internal.internal_api.Api.agent_heartbeat",
+        side_effect=agent_heartbeat_mock,
+    ):
+        wandb.agent(sweep_id, function=train, count=1, entity=user, project=project)
+
+    assert any(wait_msg in message for message in termerrors)
+
+
 def test_public_api_sweep_agent_retrieves_running_agent(user):
     """While a sweep agent is blocked in user code, Api().sweep().agent() returns it."""
     project = "test-public-api-sweep-agent-retrieves-running-agent"
@@ -334,7 +416,6 @@ def test_normal_run_after_agent_does_not_overwrite_sweep_run(user, runner, monke
     with an explicit id. The normal run must be separate and must not overwrite
     the sweep run.
     """
-    import time
 
     with runner.isolated_filesystem():
         project_name = "test-normal-run-after-agent"
