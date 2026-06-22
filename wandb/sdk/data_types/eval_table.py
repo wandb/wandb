@@ -33,7 +33,7 @@ def _is_numpy_datetime64(val: Any) -> bool:
     return np is not None and isinstance(val, np.datetime64)
 
 
-def _datetime_for_weave(val: Any) -> datetime.datetime | None:
+def _normalize_datetime(val: Any) -> datetime.datetime | None:
     if isinstance(val, datetime.datetime):
         return val
     if isinstance(val, datetime.date):
@@ -67,30 +67,28 @@ def _datetime_for_weave(val: Any) -> datetime.datetime | None:
     return None
 
 
-def _normalize_plain_value_for_weave(val: Any) -> Any:
-    datetime_val = _datetime_for_weave(val)
+def _normalize_non_media_value(val: Any) -> Any:
+    datetime_val = _normalize_datetime(val)
     if datetime_val is not None:
         return datetime_val
 
     val = _numpy_arrays_to_lists(val)
 
-    datetime_val = _datetime_for_weave(val)
+    datetime_val = _normalize_datetime(val)
     if datetime_val is not None:
         return datetime_val
 
     val, _ = wandb.util.json_friendly(val)
 
     if isinstance(val, dict):
-        return {
-            key: _normalize_plain_value_for_weave(value) for key, value in val.items()
-        }
+        return {key: _normalize_non_media_value(value) for key, value in val.items()}
     if isinstance(val, (list, tuple)):
-        return [_normalize_plain_value_for_weave(item) for item in val]
+        return [_normalize_non_media_value(item) for item in val]
 
     return val
 
 
-def _normalize_value_for_weave(
+def _normalize_value(
     val: Any,
     col: str | int,
     *,
@@ -106,7 +104,7 @@ def _normalize_value_for_weave(
         col,
         unsupported_media_mode,
     )
-    return _normalize_plain_value_for_weave(val)
+    return _normalize_non_media_value(val)
 
 
 class EvalTable(Table):
@@ -387,7 +385,7 @@ class EvalTable(Table):
         str_columns = self._string_columns()
         for row in self.data[start:]:
             yield {
-                str_col: _normalize_value_for_weave(
+                str_col: _normalize_value(
                     val,
                     col,
                     unsupported_media_mode=self._unsupported_media_mode,
