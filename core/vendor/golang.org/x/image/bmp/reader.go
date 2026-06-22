@@ -12,6 +12,8 @@ import (
 	"image"
 	"image/color"
 	"io"
+
+	"golang.org/x/image/internal/safemath"
 )
 
 // ErrUnsupported means that the input BMP image uses a valid but unsupported
@@ -188,6 +190,16 @@ func decodeConfig(r io.Reader) (config image.Config, bitsPerPixel int, topDown b
 		height, topDown = -height, true
 	}
 	if width < 0 || height < 0 {
+		return image.Config{}, 0, false, false, ErrUnsupported
+	}
+	if (width == 0) != (height == 0) {
+		// We'll take 0x0, but Nx0 or 0xN is suspicious.
+		return image.Config{}, 0, false, false, ErrUnsupported
+	}
+	// Check that the image fits in memory.
+	// This conservatively assumes 4 bytes per pixel,
+	// rather than using the actual pixel size.
+	if _, ok := safemath.Mul3(width, height, 4); !ok {
 		return image.Config{}, 0, false, false, ErrUnsupported
 	}
 	// We only support 1 plane and 8, 24 or 32 bits per pixel and no
