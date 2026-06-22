@@ -68,9 +68,10 @@ def _wait_until_temp_clean(
         after = list_wandb_temp_entries(temp_root)
         try:
             assert_no_new_wandb_entries(before, after, kinds={"dir"})
-            return
         except AssertionError:
             time.sleep(POLL_INTERVAL)
+        else:
+            return
     after = list_wandb_temp_entries(temp_root)
     assert_no_new_wandb_entries(before, after, kinds={"dir"})
 
