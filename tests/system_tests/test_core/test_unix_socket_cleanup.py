@@ -27,9 +27,9 @@ CHILD_SCRIPT = (
     pathlib.Path(__file__).parent / "scripts" / "unix_socket_cleanup_child.py"
 )
 POLL_INTERVAL = 0.05
-# Generous upper bound for the polling loops below. This is only a guard
-# against a hung process, not an assertion about how fast cleanup is.
-DEFAULT_TIMEOUT = 30.0
+# Upper bound for the polling loops below. This is only a guard against a hung
+# process, not an assertion about how fast cleanup should be.
+DEFAULT_TIMEOUT = 10.0
 
 
 def _start_child(temp_root: pathlib.Path) -> subprocess.Popen[str]:

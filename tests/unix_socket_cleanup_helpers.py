@@ -9,6 +9,8 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
+import psutil
+
 
 def isolate_temp_dir(
     temp_root: Path,
@@ -78,10 +80,16 @@ def assert_no_new_wandb_entries(
 
 
 def process_is_running(pid: int) -> bool:
+    """Report whether the process has not yet terminated.
+
+    In a CI environment, the init process may be non-reaping, so it the child
+    process may linger as a zombie. Treat zombies as not running so we observe
+    the real termination.
+    """
     try:
-        os.kill(pid, 0)
-    except ProcessLookupError:
+        status = psutil.Process(pid).status()
+    except psutil.NoSuchProcess:
         return False
-    except PermissionError:
+    except psutil.AccessDenied:
         return True
-    return True
+    return status != psutil.STATUS_ZOMBIE
