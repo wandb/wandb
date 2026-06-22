@@ -23,7 +23,9 @@ pytestmark = pytest.mark.skipif(
     reason="Unix socket temp-dir cleanup is not supported on Windows",
 )
 
-CHILD_SCRIPT = pathlib.Path(__file__).parent / "scripts" / "unix_socket_cleanup_child.py"
+CHILD_SCRIPT = (
+    pathlib.Path(__file__).parent / "scripts" / "unix_socket_cleanup_child.py"
+)
 POLL_INTERVAL = 0.05
 DEFAULT_TIMEOUT = 5.0
 

@@ -54,7 +54,11 @@ def list_wandb_temp_entries(temp_root: Path) -> list[dict[str, Any]]:
 
 def list_wandb_temp_dirs(temp_root: Path) -> list[str]:
     """Return paths of wandb-* directories directly under temp_root."""
-    return [entry["path"] for entry in list_wandb_temp_entries(temp_root) if entry["kind"] == "dir"]
+    return [
+        entry["path"]
+        for entry in list_wandb_temp_entries(temp_root)
+        if entry["kind"] == "dir"
+    ]
 
 
 def assert_no_new_wandb_entries(
@@ -69,8 +73,7 @@ def assert_no_new_wandb_entries(
     if kinds is not None:
         new_items = [entry for entry in new_items if entry["kind"] in kinds]
     assert not new_items, (
-        "New wandb temp entries detected: "
-        f"{[entry['path'] for entry in new_items]}"
+        f"New wandb temp entries detected: {[entry['path'] for entry in new_items]}"
     )
 
 
