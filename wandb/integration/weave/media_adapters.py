@@ -212,12 +212,88 @@ def _stub_unsupported_wandb_value(val: WBValue) -> str:
     return f"[wandb.{type(val).__name__} not yet supported]"
 
 
+def _stub_unsupported_nested_wandb_value(val: WBValue) -> str:
+    type_name = type(val).__name__
+    wandb.termwarn(
+        f"Nested wandb.{type_name} values are not yet supported by EvalTable. "
+        "They will be logged as placeholder strings.",
+        repeat=False,
+    )
+    return f"[wandb.{type_name} nested value not yet supported]"
+
+
+def _raise_unsupported_nested_wandb_value(
+    val: WBValue,
+    column: str | int,
+) -> None:
+    raise TypeError(
+        f"Column {column!r} contains nested wandb value type "
+        f"{type(val).__name__!r}. EvalTable does not yet support wandb "
+        "media/value types inside lists or tuples. "
+        f"{_unsupported_media_mode_hint()}"
+    )
+
+
 def _stub_unsupported_media_variant(
     error: _UnsupportedMediaVariantError,
     val: WBValue,
 ) -> str:
     wandb.termwarn(error.stub_warning, repeat=False)
     return error.stub_value
+
+
+def handle_nested_wandb_values(
+    val: Any,
+    column: str | int,
+    unsupported_media_mode: UnsupportedMediaMode,
+    *,
+    nested: bool = False,
+    inside_sequence: bool = False,
+) -> Any:
+    # TODO: Add first-class support for wandb values nested inside lists/tuples
+    # once Weave and the frontend support rendering them inside sequence values.
+    if nested and isinstance(val, Table):
+        raise TypeError(
+            f"Column {column!r} contains a nested {type(val).__name__}; "
+            "EvalTable does not support nested Tables (or EvalTables) inside "
+            "container values."
+        )
+
+    if nested and isinstance(val, WBValue):
+        if not inside_sequence:
+            return unwrap_value(
+                val,
+                column,
+                unsupported_media_mode=unsupported_media_mode,
+            )
+        if unsupported_media_mode == "stub":
+            return _stub_unsupported_nested_wandb_value(val)
+        _raise_unsupported_nested_wandb_value(val, column)
+
+    if isinstance(val, dict):
+        return {
+            key: handle_nested_wandb_values(
+                value,
+                column,
+                unsupported_media_mode,
+                nested=True,
+                inside_sequence=inside_sequence,
+            )
+            for key, value in val.items()
+        }
+    if isinstance(val, (list, tuple)):
+        return [
+            handle_nested_wandb_values(
+                item,
+                column,
+                unsupported_media_mode,
+                nested=True,
+                inside_sequence=True,
+            )
+            for item in val
+        ]
+
+    return val
 
 
 def unwrap_value(

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import datetime
 from collections.abc import Iterable, Iterator
 from typing import TYPE_CHECKING, Any, Literal
 
@@ -9,6 +10,7 @@ import wandb
 import wandb.integration.weave as weave_integration
 import wandb.integration.weave.media_adapters as media_adapters
 from wandb.errors import UsageError
+from wandb.sdk.data_types.base_types.media import _numpy_arrays_to_lists
 from wandb.sdk.data_types.table import Table
 
 if TYPE_CHECKING:
@@ -23,6 +25,89 @@ EVAL_TABLE_MARKER = {"wandb_eval_table": True}
 EVAL_TABLE_ROW_INDEX_KEY = "row"
 
 _MIN_WEAVE_VERSION = "0.52.41"
+
+
+def _is_numpy_datetime64(val: Any) -> bool:
+    # Optional import: only imports numpy if it is already installed.
+    np = wandb.util.np
+    return np is not None and isinstance(val, np.datetime64)
+
+
+def _datetime_for_weave(val: Any) -> datetime.datetime | None:
+    if isinstance(val, datetime.datetime):
+        return val
+    if isinstance(val, datetime.date):
+        return datetime.datetime(
+            val.year,
+            val.month,
+            val.day,
+            tzinfo=datetime.timezone.utc,
+        )
+
+    if not _is_numpy_datetime64(val):
+        return None
+
+    val, _ = wandb.util.json_friendly(val)
+    if isinstance(val, datetime.datetime):
+        return val
+    if isinstance(val, datetime.date):
+        return datetime.datetime(
+            val.year,
+            val.month,
+            val.day,
+            tzinfo=datetime.timezone.utc,
+        )
+    if isinstance(val, int):
+        # numpy datetime64[ns].item()/tolist() returns nanoseconds since epoch.
+        return datetime.datetime.fromtimestamp(
+            val / 1e9,
+            tz=datetime.timezone.utc,
+        )
+
+    return None
+
+
+def _normalize_plain_value_for_weave(val: Any) -> Any:
+    datetime_val = _datetime_for_weave(val)
+    if datetime_val is not None:
+        return datetime_val
+
+    val = _numpy_arrays_to_lists(val)
+
+    datetime_val = _datetime_for_weave(val)
+    if datetime_val is not None:
+        return datetime_val
+
+    val, _ = wandb.util.json_friendly(val)
+
+    if isinstance(val, dict):
+        return {
+            key: _normalize_plain_value_for_weave(value)
+            for key, value in val.items()
+        }
+    if isinstance(val, (list, tuple)):
+        return [_normalize_plain_value_for_weave(item) for item in val]
+
+    return val
+
+
+def _normalize_value_for_weave(
+    val: Any,
+    col: str | int,
+    *,
+    unsupported_media_mode: media_adapters.UnsupportedMediaMode,
+) -> Any:
+    val = media_adapters.unwrap_value(
+        val,
+        col,
+        unsupported_media_mode=unsupported_media_mode,
+    )
+    val = media_adapters.handle_nested_wandb_values(
+        val,
+        col,
+        unsupported_media_mode,
+    )
+    return _normalize_plain_value_for_weave(val)
 
 
 class EvalTable(Table):
@@ -303,7 +388,7 @@ class EvalTable(Table):
         str_columns = self._string_columns()
         for row in self.data[start:]:
             yield {
-                str_col: media_adapters.unwrap_value(
+                str_col: _normalize_value_for_weave(
                     val,
                     col,
                     unsupported_media_mode=self._unsupported_media_mode,

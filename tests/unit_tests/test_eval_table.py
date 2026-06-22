@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import datetime
 import sys
 import types
 from unittest.mock import MagicMock
@@ -553,6 +554,143 @@ def test_dataframe_input(mock_eval_logger, run, monkeypatch):
     ev.log_example.assert_any_call(
         inputs={"in": "in2"}, output={"out": "out2"}, scores={"score": 0.6}
     )
+
+
+def test_dataframe_numpy_values_normalized_for_weave(
+    mock_eval_logger, run, monkeypatch
+):
+    np = pytest.importorskip("numpy")
+    df = _fake_dataframe(
+        monkeypatch,
+        columns=["in", "out", "score"],
+        rows=[[np.int64(1), np.float64(np.nan), np.bool_(True)]],
+    )
+    et = wandb.EvalTable(
+        dataframe=df,
+        input_columns=["in"],
+        output_columns=["out"],
+        score_columns=["score"],
+    )
+
+    run.log({"my_eval": et})
+
+    ev = mock_eval_logger.created_loggers[0]
+    ev.log_example.assert_called_once_with(
+        inputs={"in": 1},
+        output={"out": None},
+        scores={"score": True},
+    )
+
+
+def test_numpy_array_values_normalized_for_weave(mock_eval_logger, run):
+    np = pytest.importorskip("numpy")
+    array_value = np.arange(40)
+    et = wandb.EvalTable(
+        columns=["array_value"],
+        data=[[array_value]],
+        input_columns=["array_value"],
+    )
+
+    run.log({"my_eval": et})
+
+    ev = mock_eval_logger.created_loggers[0]
+    ev.log_example.assert_called_once_with(
+        inputs={"array_value": list(range(40))},
+        output=None,
+        scores={},
+    )
+
+
+def test_datetime_values_preserved_for_weave(mock_eval_logger, run):
+    np = pytest.importorskip("numpy")
+    py_datetime = datetime.datetime(
+        2024,
+        1,
+        2,
+        3,
+        4,
+        5,
+        tzinfo=datetime.timezone.utc,
+    )
+    py_date = datetime.date(2024, 1, 3)
+    py_date_as_datetime = datetime.datetime(
+        2024,
+        1,
+        3,
+        tzinfo=datetime.timezone.utc,
+    )
+    np_datetime = np.datetime64("2024-01-02T03:04:05.000000000")
+    np_date = np.datetime64("2024-01-03")
+    et = wandb.EvalTable(
+        columns=["py_datetime", "py_date", "np_datetime", "np_date"],
+        data=[[py_datetime, py_date, np_datetime, np_date]],
+        input_columns=["py_datetime", "py_date", "np_datetime", "np_date"],
+    )
+
+    run.log({"my_eval": et})
+
+    ev = mock_eval_logger.created_loggers[0]
+    ev.log_example.assert_called_once_with(
+        inputs={
+            "py_datetime": py_datetime,
+            "py_date": py_date_as_datetime,
+            "np_datetime": py_datetime,
+            "np_date": py_date_as_datetime,
+        },
+        output=None,
+        scores={},
+    )
+
+
+def test_list_dict_and_tuple_values_normalized_for_weave(mock_eval_logger, run):
+    et = wandb.EvalTable(
+        columns=["list_value", "dict_value", "tuple_value"],
+        data=[
+            [
+                [1, 2],
+                {"values": [3, 4]},
+                ("a", "b"),
+            ]
+        ],
+        input_columns=["list_value", "dict_value", "tuple_value"],
+    )
+
+    run.log({"my_eval": et})
+
+    ev = mock_eval_logger.created_loggers[0]
+    ev.log_example.assert_called_once_with(
+        inputs={
+            "list_value": [1, 2],
+            "dict_value": {"values": [3, 4]},
+            "tuple_value": ["a", "b"],
+        },
+        output=None,
+        scores={},
+    )
+
+
+def test_wandb_media_in_dict_unwrapped_on_log(
+    mock_eval_logger,
+    mock_wandb_log,
+    run,
+):
+    from PIL import Image as PILImage
+
+    image = wandb.Image(PILImage.new("RGB", (2, 2), color="red"))
+    et = wandb.EvalTable(
+        columns=["metadata"],
+        data=[[{"image": image, "label": "sample"}]],
+        input_columns=["metadata"],
+    )
+
+    run.log({"my_eval": et})
+
+    mock_wandb_log.assert_warned("wandb.Image values")
+    ev = mock_eval_logger.created_loggers[0]
+    inputs = ev.log_example.call_args.kwargs["inputs"]
+    assert inputs["metadata"]["label"] == "sample"
+    assert isinstance(inputs["metadata"]["image"], PILImage.Image)
+    assert inputs["metadata"]["image"].size == (2, 2)
 
 
 @pytest.mark.usefixtures("mock_eval_logger")
