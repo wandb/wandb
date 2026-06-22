@@ -193,14 +193,6 @@ func (h *HistoryReader) getParquetFilePaths(
 
 	if len(liveData) > 0 {
 		h.minLiveStep = slices.Min(liveData)
-	} else if len(signedUrls) == 0 {
-		// The backend returned neither exported parquet files nor live-step
-		// markers. This happens for runs whose history has not been exported to
-		// parquet (e.g. backends that don't populate parquetHistory.liveData).
-		// The full history is then only reachable through the live
-		// history/sampledHistory endpoints, so treat every step as live instead
-		// of silently returning no rows.
-		h.minLiveStep = 0
 	}
 
 	dir, err := getUserRunHistoryCacheDir()
