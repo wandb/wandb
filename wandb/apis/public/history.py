@@ -112,9 +112,9 @@ class HistoryScan(Iterator[_RowDict]):
             if self.page_offset >= self._stop_step:
                 raise StopIteration()
             # Load the next page
+            previous_page_offset = self.page_offset
             self._load_next()
-            # If no rows were returned, we've reached the end of the data
-            if len(self.rows) == 0:
+            if len(self.rows) == 0 and self.page_offset <= previous_page_offset:
                 raise StopIteration()
 
     def _load_next(self) -> None:
