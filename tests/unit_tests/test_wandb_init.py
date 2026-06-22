@@ -69,10 +69,16 @@ def test_avoids_sync_dir_conflict(mocker):
     assert run3.settings.sync_dir == run1.settings.sync_dir + "-2"
 
 
-def test_temp_dir_cleanup_on_finish():
+def test_temp_dir_cleanup_on_finish(tmp_path, monkeypatch):
+    isolated_temp = tmp_path / "temp"
+    isolated_temp.mkdir()
+    monkeypatch.setenv("TMPDIR", str(isolated_temp))
+    monkeypatch.setenv("TEMP", str(isolated_temp))
+    monkeypatch.setenv("TMP", str(isolated_temp))
+    monkeypatch.setattr(tempfile, "tempdir", str(isolated_temp))
 
     def list_paths():
-        t = tempfile.gettempdir()
+        t = str(isolated_temp)
         pats = sorted(glob.glob(os.path.join(t, "wandb*")))
         out = []
         for p in pats:
