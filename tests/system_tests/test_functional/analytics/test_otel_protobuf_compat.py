@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import os
 import subprocess
 import venv
@@ -9,14 +10,36 @@ import pytest
 
 from .conftest import CaptureServer
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
+REPO_ROOT = Path(__file__).resolve().parents[4]
 _WANDB_INSTALL_SPEC = os.environ.get("WANDB_TEST_WANDB_SPEC", str(REPO_ROOT))
 
+
+def _protoc_for_pb() -> dict[int, str]:
+    """Read the ``_PROTOC_FOR_PB`` map from the repo ``noxfile.py``.
+
+    The noxfile is the single source of truth for which protoc version
+    generates each protobuf-major's Python bindings. We parse it with ``ast``
+    rather than importing it so this test does not depend on ``nox`` being
+    importable in the environment.
+    """
+    noxfile = REPO_ROOT / "noxfile.py"
+    tree = ast.parse(noxfile.read_text())
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assign) and any(
+            isinstance(target, ast.Name) and target.id == "_PROTOC_FOR_PB"
+            for target in node.targets
+        ):
+            return ast.literal_eval(node.value)
+    raise RuntimeError(f"could not find _PROTOC_FOR_PB in {noxfile}")
+
+
+# protoc Y.Z corresponds to protobuf X.Y.Z, so the oldest protoc in a major
+# series (what the noxfile generates the bindings with) gives the floor runtime
+# f"{major}.{protoc}" that the committed wandb/proto/v{major} bindings load
+# against -- the most meaningful version to exercise here.
 _PROTOBUF_MATRIX = [
-    pytest.param("4", "4.25.8", id="protobuf-4-ok"),
-    pytest.param("5", "5.29.5", id="protobuf-5-ok"),
-    pytest.param("6", "6.33.6", id="protobuf-6-ok"),
-    pytest.param("7", "7.34.1", id="protobuf-7-ok"),
+    pytest.param(str(major), f"{major}.{protoc}", id=f"protobuf-{major}-floor")
+    for major, protoc in sorted(_protoc_for_pb().items())
 ]
 
 TEST_SCRIPT = """
