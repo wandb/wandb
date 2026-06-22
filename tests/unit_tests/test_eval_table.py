@@ -601,8 +601,7 @@ def test_numpy_array_values_normalized_for_weave(mock_eval_logger, run):
     )
 
 
-def test_datetime_values_preserved_for_weave(mock_eval_logger, run):
-    np = pytest.importorskip("numpy")
+def test_python_datetime_values_preserved_for_weave(mock_eval_logger, run):
     py_datetime = datetime.datetime(
         2024,
         1,
@@ -619,12 +618,10 @@ def test_datetime_values_preserved_for_weave(mock_eval_logger, run):
         3,
         tzinfo=datetime.timezone.utc,
     )
-    np_datetime = np.datetime64("2024-01-02T03:04:05.000000000")
-    np_date = np.datetime64("2024-01-03")
     et = wandb.EvalTable(
-        columns=["py_datetime", "py_date", "np_datetime", "np_date"],
-        data=[[py_datetime, py_date, np_datetime, np_date]],
-        input_columns=["py_datetime", "py_date", "np_datetime", "np_date"],
+        columns=["py_datetime", "py_date"],
+        data=[[py_datetime, py_date]],
+        input_columns=["py_datetime", "py_date"],
     )
 
     run.log({"my_eval": et})
@@ -634,6 +631,42 @@ def test_datetime_values_preserved_for_weave(mock_eval_logger, run):
         inputs={
             "py_datetime": py_datetime,
             "py_date": py_date_as_datetime,
+        },
+        output=None,
+        scores={},
+    )
+
+
+def test_numpy_datetime_values_preserved_for_weave(mock_eval_logger, run):
+    np = pytest.importorskip("numpy")
+    py_datetime = datetime.datetime(
+        2024,
+        1,
+        2,
+        3,
+        4,
+        5,
+        tzinfo=datetime.timezone.utc,
+    )
+    py_date_as_datetime = datetime.datetime(
+        2024,
+        1,
+        3,
+        tzinfo=datetime.timezone.utc,
+    )
+    np_datetime = np.datetime64("2024-01-02T03:04:05.000000000")
+    np_date = np.datetime64("2024-01-03")
+    et = wandb.EvalTable(
+        columns=["np_datetime", "np_date"],
+        data=[[np_datetime, np_date]],
+        input_columns=["np_datetime", "np_date"],
+    )
+
+    run.log({"my_eval": et})
+
+    ev = mock_eval_logger.created_loggers[0]
+    ev.log_example.assert_called_once_with(
+        inputs={
             "np_datetime": py_datetime,
             "np_date": py_date_as_datetime,
         },
