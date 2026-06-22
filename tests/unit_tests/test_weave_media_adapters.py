@@ -114,9 +114,7 @@ def test_media_adapter_stubs_nested_wandb_value(mock_wandb_log):
         unsupported_media_mode="stub",
     )
 
-    mock_wandb_log.assert_warned(
-        "Nested wandb.Image values are not yet supported"
-    )
+    mock_wandb_log.assert_warned("Nested wandb.Image values are not yet supported")
     assert result == {"images": [["[wandb.Image nested value not yet supported]"]]}
 
 

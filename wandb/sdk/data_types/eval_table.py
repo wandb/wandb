@@ -82,8 +82,7 @@ def _normalize_plain_value_for_weave(val: Any) -> Any:
 
     if isinstance(val, dict):
         return {
-            key: _normalize_plain_value_for_weave(value)
-            for key, value in val.items()
+            key: _normalize_plain_value_for_weave(value) for key, value in val.items()
         }
     if isinstance(val, (list, tuple)):
         return [_normalize_plain_value_for_weave(item) for item in val]
