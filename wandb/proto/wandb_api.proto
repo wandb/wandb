@@ -30,7 +30,8 @@ message ApiRequest {
     ReadRunHistoryRequest read_run_history_request = 2;
     FeaturesRequest features_request = 3;
     GraphQLRequest graphql_request = 4;
-    DownloadFileRequest download_file_request = 5;
+    StartFileDownloadRequest start_file_download_request = 5;
+    FileDownloadStatusRequest file_download_status_request = 6;
   }
 }
 
@@ -39,7 +40,8 @@ message ApiResponse {
     ReadRunHistoryResponse read_run_history_response = 1;
     FeaturesResponse features_response = 3;
     GraphQLResponse graphql_response = 4;
-    DownloadFileResponse download_file_response = 5;
+    StartFileDownloadResponse start_file_download_response = 5;
+    FileDownloadStatusResponse file_download_status_response = 6;
 
     ApiErrorResponse api_error_response = 2;
   }
@@ -134,13 +136,13 @@ message GraphQLResponse {
   string data_json = 1;
 }
 
-// Download a file from a URL to a local path.
+// Start downloading a file from a URL to a local path.
 //
-// wandb-core performs the download using its file transfer subsystem,
-// whose retries and timeouts are governed by the file transfer settings.
-// A successful request returns DownloadFileResponse; failures, including
-// non-successful HTTP status codes, return ApiErrorResponse.
-message DownloadFileRequest {
+// wandb-core performs the download asynchronously using its file transfer
+// subsystem, whose retries and timeouts are governed by the file transfer
+// settings, and returns immediately with a request_id. Use
+// FileDownloadStatusRequest to poll for progress and completion.
+message StartFileDownloadRequest {
   // The local path to write the file to.
   string path = 1;
 
@@ -151,7 +153,26 @@ message DownloadFileRequest {
   int64 size = 3;
 }
 
-message DownloadFileResponse {}
+message StartFileDownloadResponse {
+  // The id used to poll the download's status.
+  int32 request_id = 1;
+}
+
+// Poll the status of a download started with StartFileDownloadRequest.
+message FileDownloadStatusRequest {
+  int32 request_id = 1;
+}
+
+message FileDownloadStatusResponse {
+  // Whether the download has finished, successfully or not.
+  bool done = 1;
+
+  // The error message if the download failed, empty otherwise.
+  string error = 2;
+
+  // Progress of the ongoing download, for display.
+  wandb_internal.OperationStats operation_stats = 3;
+}
 
 // Start of Scan run history
 

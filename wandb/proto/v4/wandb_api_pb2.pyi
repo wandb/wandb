@@ -30,32 +30,36 @@ class ServerApiInitResponse(_message.Message):
     def __init__(self, error_message: _Optional[str] = ..., api_id: _Optional[str] = ...) -> None: ...
 
 class ApiRequest(_message.Message):
-    __slots__ = ["api_id", "read_run_history_request", "features_request", "graphql_request", "download_file_request"]
+    __slots__ = ["api_id", "read_run_history_request", "features_request", "graphql_request", "start_file_download_request", "file_download_status_request"]
     API_ID_FIELD_NUMBER: _ClassVar[int]
     READ_RUN_HISTORY_REQUEST_FIELD_NUMBER: _ClassVar[int]
     FEATURES_REQUEST_FIELD_NUMBER: _ClassVar[int]
     GRAPHQL_REQUEST_FIELD_NUMBER: _ClassVar[int]
-    DOWNLOAD_FILE_REQUEST_FIELD_NUMBER: _ClassVar[int]
+    START_FILE_DOWNLOAD_REQUEST_FIELD_NUMBER: _ClassVar[int]
+    FILE_DOWNLOAD_STATUS_REQUEST_FIELD_NUMBER: _ClassVar[int]
     api_id: str
     read_run_history_request: ReadRunHistoryRequest
     features_request: FeaturesRequest
     graphql_request: GraphQLRequest
-    download_file_request: DownloadFileRequest
-    def __init__(self, api_id: _Optional[str] = ..., read_run_history_request: _Optional[_Union[ReadRunHistoryRequest, _Mapping]] = ..., features_request: _Optional[_Union[FeaturesRequest, _Mapping]] = ..., graphql_request: _Optional[_Union[GraphQLRequest, _Mapping]] = ..., download_file_request: _Optional[_Union[DownloadFileRequest, _Mapping]] = ...) -> None: ...
+    start_file_download_request: StartFileDownloadRequest
+    file_download_status_request: FileDownloadStatusRequest
+    def __init__(self, api_id: _Optional[str] = ..., read_run_history_request: _Optional[_Union[ReadRunHistoryRequest, _Mapping]] = ..., features_request: _Optional[_Union[FeaturesRequest, _Mapping]] = ..., graphql_request: _Optional[_Union[GraphQLRequest, _Mapping]] = ..., start_file_download_request: _Optional[_Union[StartFileDownloadRequest, _Mapping]] = ..., file_download_status_request: _Optional[_Union[FileDownloadStatusRequest, _Mapping]] = ...) -> None: ...
 
 class ApiResponse(_message.Message):
-    __slots__ = ["read_run_history_response", "features_response", "graphql_response", "download_file_response", "api_error_response"]
+    __slots__ = ["read_run_history_response", "features_response", "graphql_response", "start_file_download_response", "file_download_status_response", "api_error_response"]
     READ_RUN_HISTORY_RESPONSE_FIELD_NUMBER: _ClassVar[int]
     FEATURES_RESPONSE_FIELD_NUMBER: _ClassVar[int]
     GRAPHQL_RESPONSE_FIELD_NUMBER: _ClassVar[int]
-    DOWNLOAD_FILE_RESPONSE_FIELD_NUMBER: _ClassVar[int]
+    START_FILE_DOWNLOAD_RESPONSE_FIELD_NUMBER: _ClassVar[int]
+    FILE_DOWNLOAD_STATUS_RESPONSE_FIELD_NUMBER: _ClassVar[int]
     API_ERROR_RESPONSE_FIELD_NUMBER: _ClassVar[int]
     read_run_history_response: ReadRunHistoryResponse
     features_response: FeaturesResponse
     graphql_response: GraphQLResponse
-    download_file_response: DownloadFileResponse
+    start_file_download_response: StartFileDownloadResponse
+    file_download_status_response: FileDownloadStatusResponse
     api_error_response: ApiErrorResponse
-    def __init__(self, read_run_history_response: _Optional[_Union[ReadRunHistoryResponse, _Mapping]] = ..., features_response: _Optional[_Union[FeaturesResponse, _Mapping]] = ..., graphql_response: _Optional[_Union[GraphQLResponse, _Mapping]] = ..., download_file_response: _Optional[_Union[DownloadFileResponse, _Mapping]] = ..., api_error_response: _Optional[_Union[ApiErrorResponse, _Mapping]] = ...) -> None: ...
+    def __init__(self, read_run_history_response: _Optional[_Union[ReadRunHistoryResponse, _Mapping]] = ..., features_response: _Optional[_Union[FeaturesResponse, _Mapping]] = ..., graphql_response: _Optional[_Union[GraphQLResponse, _Mapping]] = ..., start_file_download_response: _Optional[_Union[StartFileDownloadResponse, _Mapping]] = ..., file_download_status_response: _Optional[_Union[FileDownloadStatusResponse, _Mapping]] = ..., api_error_response: _Optional[_Union[ApiErrorResponse, _Mapping]] = ...) -> None: ...
 
 class ApiErrorResponse(_message.Message):
     __slots__ = ["message", "error_type", "http_status"]
@@ -114,7 +118,7 @@ class GraphQLResponse(_message.Message):
     data_json: str
     def __init__(self, data_json: _Optional[str] = ...) -> None: ...
 
-class DownloadFileRequest(_message.Message):
+class StartFileDownloadRequest(_message.Message):
     __slots__ = ["path", "url", "size"]
     PATH_FIELD_NUMBER: _ClassVar[int]
     URL_FIELD_NUMBER: _ClassVar[int]
@@ -124,9 +128,27 @@ class DownloadFileRequest(_message.Message):
     size: int
     def __init__(self, path: _Optional[str] = ..., url: _Optional[str] = ..., size: _Optional[int] = ...) -> None: ...
 
-class DownloadFileResponse(_message.Message):
-    __slots__ = []
-    def __init__(self) -> None: ...
+class StartFileDownloadResponse(_message.Message):
+    __slots__ = ["request_id"]
+    REQUEST_ID_FIELD_NUMBER: _ClassVar[int]
+    request_id: int
+    def __init__(self, request_id: _Optional[int] = ...) -> None: ...
+
+class FileDownloadStatusRequest(_message.Message):
+    __slots__ = ["request_id"]
+    REQUEST_ID_FIELD_NUMBER: _ClassVar[int]
+    request_id: int
+    def __init__(self, request_id: _Optional[int] = ...) -> None: ...
+
+class FileDownloadStatusResponse(_message.Message):
+    __slots__ = ["done", "error", "operation_stats"]
+    DONE_FIELD_NUMBER: _ClassVar[int]
+    ERROR_FIELD_NUMBER: _ClassVar[int]
+    OPERATION_STATS_FIELD_NUMBER: _ClassVar[int]
+    done: bool
+    error: str
+    operation_stats: _wandb_internal_pb2.OperationStats
+    def __init__(self, done: bool = ..., error: _Optional[str] = ..., operation_stats: _Optional[_Union[_wandb_internal_pb2.OperationStats, _Mapping]] = ...) -> None: ...
 
 class ReadRunHistoryRequest(_message.Message):
     __slots__ = ["scan_run_history_init", "scan_run_history", "scan_run_history_cleanup", "download_run_history_init", "download_run_history", "download_run_history_status"]

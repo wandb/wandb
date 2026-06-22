@@ -1,7 +1,6 @@
 package wbapi_test
 
 import (
-	"context"
 	"errors"
 	"net/http"
 	"os"
@@ -16,10 +15,12 @@ import (
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
-// fakeFileTransferManager completes each task using the given callback.
+// fakeFileTransferManager records tasks and, unless deferComplete is set,
+// completes each one as soon as it is added.
 type fakeFileTransferManager struct {
-	tasks []filetransfer.Task
-	run   func(*filetransfer.DefaultDownloadTask)
+	tasks         []filetransfer.Task
+	run           func(*filetransfer.DefaultDownloadTask)
+	deferComplete bool
 }
 
 func (m *fakeFileTransferManager) AddTask(task filetransfer.Task) {
@@ -27,12 +28,33 @@ func (m *fakeFileTransferManager) AddTask(task filetransfer.Task) {
 	if m.run != nil {
 		m.run(task.(*filetransfer.DefaultDownloadTask))
 	}
-	task.Complete(nil)
+	if !m.deferComplete {
+		task.Complete(nil)
+	}
 }
 
 func (m *fakeFileTransferManager) Close() {}
 
-func TestDownloadFileWritesFile(t *testing.T) {
+func (m *fakeFileTransferManager) completeAll() {
+	for _, task := range m.tasks {
+		task.Complete(nil)
+	}
+}
+
+// startDownload starts a download and returns its request id.
+func startDownload(
+	t *testing.T,
+	handler *wbapi.FileTransferHandler,
+	request *spb.StartFileDownloadRequest,
+) int32 {
+	t.Helper()
+	response := handler.HandleStartFileDownload(request)
+	started := response.GetStartFileDownloadResponse()
+	require.NotNil(t, started)
+	return started.GetRequestId()
+}
+
+func TestStartFileDownloadWritesFile(t *testing.T) {
 	content := []byte("downloaded")
 	path := filepath.Join(t.TempDir(), "model.bin")
 	manager := &fakeFileTransferManager{
@@ -42,27 +64,56 @@ func TestDownloadFileWritesFile(t *testing.T) {
 	}
 	handler := wbapi.NewFileTransferHandler(manager)
 
-	response := handler.HandleDownloadFile(
-		context.Background(),
-		&spb.DownloadFileRequest{
-			Path: path,
-			Url:  "https://files.example/model.bin",
-			Size: 42,
-		},
-	)
+	requestID := startDownload(t, handler, &spb.StartFileDownloadRequest{
+		Path: path,
+		Url:  "https://files.example/model.bin",
+		Size: 42,
+	})
 
-	require.NotNil(t, response.GetDownloadFileResponse())
-	data, err := os.ReadFile(path)
-	require.NoError(t, err)
-	assert.Equal(t, content, data)
 	require.Len(t, manager.tasks, 1)
 	task := manager.tasks[0].(*filetransfer.DefaultDownloadTask)
 	assert.Equal(t, path, task.Path)
 	assert.Equal(t, "https://files.example/model.bin", task.Url)
 	assert.Equal(t, int64(42), task.Size)
+
+	status := handler.HandleFileDownloadStatus(
+		&spb.FileDownloadStatusRequest{RequestId: requestID},
+	).GetFileDownloadStatusResponse()
+	require.NotNil(t, status)
+	assert.True(t, status.GetDone())
+	assert.Empty(t, status.GetError())
+
+	data, err := os.ReadFile(path)
+	require.NoError(t, err)
+	assert.Equal(t, content, data)
 }
 
-func TestDownloadFileReturnsTaskHTTPError(t *testing.T) {
+func TestFileDownloadStatusReportsInProgressThenDone(t *testing.T) {
+	manager := &fakeFileTransferManager{deferComplete: true}
+	handler := wbapi.NewFileTransferHandler(manager)
+
+	requestID := startDownload(t, handler, &spb.StartFileDownloadRequest{
+		Path: filepath.Join(t.TempDir(), "model.bin"),
+		Url:  "https://files.example/model.bin",
+	})
+
+	inProgress := handler.HandleFileDownloadStatus(
+		&spb.FileDownloadStatusRequest{RequestId: requestID},
+	).GetFileDownloadStatusResponse()
+	require.NotNil(t, inProgress)
+	assert.False(t, inProgress.GetDone())
+
+	manager.completeAll()
+
+	done := handler.HandleFileDownloadStatus(
+		&spb.FileDownloadStatusRequest{RequestId: requestID},
+	).GetFileDownloadStatusResponse()
+	require.NotNil(t, done)
+	assert.True(t, done.GetDone())
+	assert.Empty(t, done.GetError())
+}
+
+func TestFileDownloadStatusReturnsTaskError(t *testing.T) {
 	manager := &fakeFileTransferManager{
 		run: func(task *filetransfer.DefaultDownloadTask) {
 			task.Response = &http.Response{StatusCode: http.StatusNotFound}
@@ -71,16 +122,49 @@ func TestDownloadFileReturnsTaskHTTPError(t *testing.T) {
 	}
 	handler := wbapi.NewFileTransferHandler(manager)
 
-	response := handler.HandleDownloadFile(
-		context.Background(),
-		&spb.DownloadFileRequest{
-			Path: filepath.Join(t.TempDir(), "model.bin"),
-			Url:  "https://files.example/model.bin",
-		},
+	requestID := startDownload(t, handler, &spb.StartFileDownloadRequest{
+		Path: filepath.Join(t.TempDir(), "model.bin"),
+		Url:  "https://files.example/model.bin",
+	})
+
+	status := handler.HandleFileDownloadStatus(
+		&spb.FileDownloadStatusRequest{RequestId: requestID},
+	).GetFileDownloadStatusResponse()
+	require.NotNil(t, status)
+	assert.True(t, status.GetDone())
+	assert.Contains(t, status.GetError(), "404 Not Found")
+}
+
+func TestFileDownloadStatusForgetsCompletedDownload(t *testing.T) {
+	manager := &fakeFileTransferManager{}
+	handler := wbapi.NewFileTransferHandler(manager)
+
+	requestID := startDownload(t, handler, &spb.StartFileDownloadRequest{
+		Path: filepath.Join(t.TempDir(), "model.bin"),
+		Url:  "https://files.example/model.bin",
+	})
+
+	first := handler.HandleFileDownloadStatus(
+		&spb.FileDownloadStatusRequest{RequestId: requestID},
+	).GetFileDownloadStatusResponse()
+	require.NotNil(t, first)
+	assert.True(t, first.GetDone())
+
+	// A finished download is forgotten, so polling again is an error.
+	second := handler.HandleFileDownloadStatus(
+		&spb.FileDownloadStatusRequest{RequestId: requestID},
+	)
+	require.NotNil(t, second.GetApiErrorResponse())
+}
+
+func TestFileDownloadStatusUnknownRequestID(t *testing.T) {
+	handler := wbapi.NewFileTransferHandler(&fakeFileTransferManager{})
+
+	response := handler.HandleFileDownloadStatus(
+		&spb.FileDownloadStatusRequest{RequestId: 123},
 	)
 
 	apiError := response.GetApiErrorResponse()
 	require.NotNil(t, apiError)
-	assert.Equal(t, int32(http.StatusNotFound), apiError.GetHttpStatus())
-	assert.Contains(t, apiError.GetMessage(), "404 Not Found")
+	assert.Contains(t, apiError.GetMessage(), "not found")
 }

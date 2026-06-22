@@ -46,6 +46,7 @@ from typing import TYPE_CHECKING, Any, Literal
 from typing_extensions import override
 
 import wandb
+import wandb.apis.public._download as _download
 import wandb.apis.public.runhistory as runhistory
 from wandb import env, util
 from wandb._strutils import nameof
@@ -1567,17 +1568,11 @@ class Run(Attrs):
         if self._metadata is None:
             try:
                 f = self.file("wandb-metadata.json")
-                with tempfile.TemporaryDirectory() as tmpdir:
-                    path = os.path.join(tmpdir, "wandb-metadata.json")
-                    self._service_api.send_api_request(
-                        apb.ApiRequest(
-                            download_file_request=apb.DownloadFileRequest(
-                                path=path, url=f.url, size=f.size
-                            )
-                        )
-                    )
-                    with open(path, "rb") as metadata_file:
-                        contents = metadata_file.read()
+                contents = _download.download_file_into_memory(
+                    self._service_api,
+                    url=f.url,
+                    size=f.size,
+                )
                 self._metadata = json_util.loads(contents)
             except:  # noqa: E722
                 # file doesn't exist, or can't be downloaded, or can't be parsed

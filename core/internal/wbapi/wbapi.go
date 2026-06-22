@@ -171,8 +171,10 @@ func (p *WandbAPI) HandleRequest(
 	switch req := request.Request.(type) {
 	case *spb.ApiRequest_FeaturesRequest:
 		return p.featuresHandler.HandleRequest(ctx, req.FeaturesRequest)
-	case *spb.ApiRequest_DownloadFileRequest:
-		return p.fileTransferHandler.HandleDownloadFile(ctx, req.DownloadFileRequest)
+	case *spb.ApiRequest_StartFileDownloadRequest:
+		return p.fileTransferHandler.HandleStartFileDownload(req.StartFileDownloadRequest)
+	case *spb.ApiRequest_FileDownloadStatusRequest:
+		return p.fileTransferHandler.HandleFileDownloadStatus(req.FileDownloadStatusRequest)
 	case *spb.ApiRequest_GraphqlRequest:
 		return p.graphqlHandler.HandleRequest(ctx, req.GraphqlRequest)
 	case *spb.ApiRequest_ReadRunHistoryRequest:
