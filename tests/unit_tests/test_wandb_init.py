@@ -1,11 +1,15 @@
-import glob
 import os
-import stat
 import tempfile
 import time
 
 import pytest
 import wandb
+
+from tests.unix_socket_cleanup_helpers import (
+    assert_no_new_wandb_entries,
+    isolate_temp_dir,
+    list_wandb_temp_entries,
+)
 
 
 def test_no_root_dir_access__uses_temp_dir(tmp_path, monkeypatch):
@@ -69,36 +73,11 @@ def test_avoids_sync_dir_conflict(mocker):
     assert run3.settings.sync_dir == run1.settings.sync_dir + "-2"
 
 
-def test_temp_dir_cleanup_on_finish(tmp_path, monkeypatch):
+def test_temp_dir_cleanup_on_graceful_teardown(tmp_path, monkeypatch):
     isolated_temp = tmp_path / "temp"
-    isolated_temp.mkdir()
-    monkeypatch.setenv("TMPDIR", str(isolated_temp))
-    monkeypatch.setenv("TEMP", str(isolated_temp))
-    monkeypatch.setenv("TMP", str(isolated_temp))
-    monkeypatch.setattr(tempfile, "tempdir", str(isolated_temp))
+    isolate_temp_dir(isolated_temp, monkeypatch)
 
-    def list_paths():
-        t = str(isolated_temp)
-        pats = sorted(glob.glob(os.path.join(t, "wandb*")))
-        out = []
-        for p in pats:
-            try:
-                st = os.lstat(p)
-                kind = (
-                    "socket"
-                    if stat.S_ISSOCK(st.st_mode)
-                    else (
-                        "dir"
-                        if stat.S_ISDIR(st.st_mode)
-                        else ("file" if stat.S_ISREG(st.st_mode) else "other")
-                    )
-                )
-                out.append({"path": p, "kind": kind, "size": st.st_size})
-            except FileNotFoundError:
-                pass
-        return out
-
-    before = list_paths()
+    before = list_wandb_temp_entries(isolated_temp)
 
     run = wandb.init(
         id="temp-dir-cleanup-test",
@@ -111,9 +90,5 @@ def test_temp_dir_cleanup_on_finish(tmp_path, monkeypatch):
     wandb.teardown()
     time.sleep(0.2)
 
-    after = list_paths()
-
-    new_items = [it for it in after if it not in before]
-    assert len(new_items) == 0, (
-        f"New items detected in temp directory after run.finish() and wandb.teardown(): {[f['path'] for f in new_items]}."
-    )
+    after = list_wandb_temp_entries(isolated_temp)
+    assert_no_new_wandb_entries(before, after, kinds={"dir"})
