@@ -1321,26 +1321,49 @@ class Artifact:
         self._delete_aliases(old_aliases - new_aliases, target=target)
         self._saved_aliases = copy(self.aliases)
 
-        old_tags, new_tags = set(self._saved_tags), set(self.tags)
+        skip_update_artifact = self.is_link and not self._can_write_to_source_project()
+        if not skip_update_artifact:
+            old_tags, new_tags = set(self._saved_tags), set(self.tags)
 
-        gql_op = UPDATE_ARTIFACT_GQL
-        gql_input = UpdateArtifactInput(
-            artifact_id=self.id,
-            description=self.description,
-            metadata=json_dumps_safer(self.metadata),
-            ttl_duration_seconds=self._ttl_duration_seconds_to_gql(),
-            tags_to_add=[{"tagName": t} for t in validate_tags(new_tags - old_tags)],
-            tags_to_delete=[{"tagName": t} for t in validate_tags(old_tags - new_tags)],
-        )
-        gql_vars = {"input": gql_input.model_dump()}
+            gql_op = UPDATE_ARTIFACT_GQL
+            gql_input = UpdateArtifactInput(
+                artifact_id=self.id,
+                description=self.description,
+                metadata=json_dumps_safer(self.metadata),
+                ttl_duration_seconds=self._ttl_duration_seconds_to_gql(),
+                tags_to_add=[
+                    {"tagName": t} for t in validate_tags(new_tags - old_tags)
+                ],
+                tags_to_delete=[
+                    {"tagName": t} for t in validate_tags(old_tags - new_tags)
+                ],
+            )
+            gql_vars = {"input": gql_input.model_dump()}
+            data = client.execute_graphql(gql_op, variables=gql_vars)
+
+            result = UpdateArtifact.model_validate(data).result
+            if not (result and (artifact := result.artifact)):
+                raise ValueError("Unable to parse updateArtifact response")
+            self._assign_attrs(artifact)
+
+            self._ttl_changed = False  # Reset after updating artifact
+
+    def _can_write_to_source_project(self) -> bool:
+        from wandb.apis._generated import IS_PROJECT_READ_ONLY_GQL, IsProjectReadOnly
+
+        if self.source_entity == "" or self.source_project == "":
+            return False
+
+        if (client := self._service_api) is None:
+            raise RuntimeError("Client not initialized for artifact mutations")
+
+        gql_op = IS_PROJECT_READ_ONLY_GQL
+        gql_vars = {"entity": self.source_entity, "project": self.source_project}
         data = client.execute_graphql(gql_op, variables=gql_vars)
-
-        result = UpdateArtifact.model_validate(data).result
-        if not (result and (artifact := result.artifact)):
-            raise ValueError("Unable to parse updateArtifact response")
-        self._assign_attrs(artifact)
-
-        self._ttl_changed = False  # Reset after updating artifact
+        result = IsProjectReadOnly.model_validate(data)
+        if not (result and (project := result.project)):
+            return False
+        return not project.read_only
 
     def _add_aliases(self, alias_names: set[str], target: FullArtifactPath) -> None:
         from ._generated import ADD_ALIASES_GQL, AddAliasesInput
