@@ -1,5 +1,75 @@
 # Changelog
 
+## 0.47.0
+
+### Breaking Changes 🛠
+
+- Fix `transaction_info` source getting set incorrectly across HTTP middleware integrations (http, fasthttp, fiber). Users should now expect traces to properly get grouped with their parameterized path. Transactions in affected integrations may regroup after upgrading. by @giortzisg in [#1325](https://github.com/getsentry/sentry-go/pull/1325)
+- remove deprecated`otel.NewSentrySpanProcessor`. Users should now use the `sentryotlp.NewTraceExporter` instead by @giortzisg in [#1307](https://github.com/getsentry/sentry-go/pull/1307)
+  ```go
+  // Before
+  sentry.Init(sentry.ClientOptions{Dsn: dsn, EnableTracing: true, TracesSampleRate: 1.0})
+  
+  tp := sdktrace.NewTracerProvider(
+  	sdktrace.WithSpanProcessor(sentryotel.NewSentrySpanProcessor()),
+  )
+  otel.SetTextMapPropagator(sentryotel.NewSentryPropagator())
+  otel.SetTracerProvider(tp)
+  
+  // After:
+  sentry.Init(sentry.ClientOptions{
+  	Dsn: dsn, EnableTracing: true, TracesSampleRate: 1.0,
+  	Integrations: func(i []sentry.Integration) []sentry.Integration {
+  		return append(i, sentryotel.NewOtelIntegration())
+  	},
+  })
+  
+  exporter, _ := sentryotlp.NewTraceExporter(ctx, dsn)
+  tp := sdktrace.NewTracerProvider(sdktrace.WithBatcher(exporter))
+  otel.SetTracerProvider(tp)
+  ```
+- Enable logs by default to skip double allow behavior. Enabling logs now happens once when setting up either `sentry.NewLogger` or any supported integration. Also the EnableLogs flag changes to DisableLogs for a global override switch by @giortzisg in [#1306](https://github.com/getsentry/sentry-go/pull/1306)
+- Remove the `ContextifyFrames` integration. The recommended way to add source context is [SCM](https://docs.sentry.io/integrations/source-code-mgmt/source-context/) by @giortzisg in [#1302](https://github.com/getsentry/sentry-go/pull/1302)
+
+### New Features ✨
+
+- Add fiber v3 integration by @giortzisg in [#1324](https://github.com/getsentry/sentry-go/pull/1324)
+- Bump fasthttp from 1.51.0 to 1.71.0 by @giortzisg in [#1324](https://github.com/getsentry/sentry-go/pull/1324)
+- Add sentrysql SQL tracing integration by @giortzisg in [#1305](https://github.com/getsentry/sentry-go/pull/1305)
+  - Supports multiple integration paths depending on how your app opens database connections: `sentrysql.Open(...)`, `sentrysql.OpenDB(...)`, and wrapped drivers/connectors for custom setups.
+  - Database metadata is not inferred in every setup. If the database name is not discoverable automatically, pass `sentrysql.WithDatabaseName(...)` so spans are populated correctly.
+  - Example:
+  ```go
+   // Simple driver-based setup
+   db, err := sentrysql.Open("sqlite", ":memory:",
+       sentrysql.WithDatabaseSystem(sentrysql.SystemSQLite),
+       sentrysql.WithDatabaseName("main"),
+   )
+  ```
+
+### Internal Changes 🔧
+
+#### Deps
+
+- Sync go.work by @giortzisg in [#1326](https://github.com/getsentry/sentry-go/pull/1326)
+- Bump github.com/stretchr/testify from 1.8.4 to 1.11.1 by @giortzisg in [#1326](https://github.com/getsentry/sentry-go/pull/1326)
+- Bump github.com/google/go-cmp from 0.5.9 to 0.7.0 by @giortzisg in [#1326](https://github.com/getsentry/sentry-go/pull/1326)
+- Bump getsentry/github-workflows from 71588ddf95134f804e82c5970a8098588e2eaecd to c802283cd9075b7a2b7a32655019c21c21676e34 by @dependabot in [#1314](https://github.com/getsentry/sentry-go/pull/1314)
+- Bump actions/create-github-app-token from 3.0.0 to 3.2.0 by @dependabot in [#1316](https://github.com/getsentry/sentry-go/pull/1316)
+- Bump actions/checkout from 6.0.2 to 6.0.3 by @dependabot in [#1313](https://github.com/getsentry/sentry-go/pull/1313)
+- Bump getsentry/craft/.github/workflows/changelog-preview.yml from 2.26.2 to 2.26.6 by @dependabot in [#1317](https://github.com/getsentry/sentry-go/pull/1317)
+- Bump getsentry/craft from 2.26.2 to 2.26.6 by @dependabot in [#1318](https://github.com/getsentry/sentry-go/pull/1318)
+- Bump golangci/golangci-lint-action from 9.2.0 to 9.2.1 by @dependabot in [#1315](https://github.com/getsentry/sentry-go/pull/1315)
+- Bump github.com/gofiber/fiber/v2 from 2.52.12 to 2.52.13 in /fiber by @dependabot in [#1300](https://github.com/getsentry/sentry-go/pull/1300)
+- Bump github.com/gofiber/fiber/v2 from 2.52.12 to 2.52.13 in /crosstest by @dependabot in [#1301](https://github.com/getsentry/sentry-go/pull/1301)
+- Bump getsentry/craft from 2.25.2 to 2.26.2 by @dependabot in [#1293](https://github.com/getsentry/sentry-go/pull/1293)
+- Bump getsentry/craft/.github/workflows/changelog-preview.yml from 2.25.2 to 2.26.2 by @dependabot in [#1294](https://github.com/getsentry/sentry-go/pull/1294)
+
+#### Other
+
+- (otel) Remove unused semconv helpers by @giortzisg in [#1321](https://github.com/getsentry/sentry-go/pull/1321)
+- Update bump-version script to also bump crosstest by @giortzisg in [#1327](https://github.com/getsentry/sentry-go/pull/1327)
+
 ## 0.46.2
 
 ### Bug Fixes 🐛

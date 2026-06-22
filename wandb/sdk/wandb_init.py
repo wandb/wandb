@@ -311,6 +311,8 @@ class _WandbInit:
         if save_code_pre_user_settings is False:
             settings.save_code = False
 
+        settings.infer_git_root()
+
         # TODO: remove this once we refactor the client. This is a temporary
         # fix to make sure that we use the same project name for wandb-core.
         # The reason this is not going through the settings object is to
@@ -1510,8 +1512,8 @@ def init(  # noqa: C901
 
             run = wi.init(run_settings, run_config, run_printer)
 
-            # Set up automatic Weave integration if Weave is installed
-            weave.setup(run_settings.entity, run_settings.project)
+            # Set up automatic Weave integration if Weave is already imported
+            weave.init_weave_if_imported(run_settings.entity, run_settings.project)
 
             return run
 

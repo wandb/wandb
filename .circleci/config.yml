@@ -3,7 +3,6 @@ version: 2.1
 orbs:
   go: circleci/go@3.0.4
   slack: circleci/slack@4.12.5
-  gcloud: circleci/gcp-cli@3.1.1
   codecov: codecov/codecov@6.0.0
 
 parameters:
@@ -45,10 +44,11 @@ executors:
       server_image_tag: { type: string }
     docker:
       - image: "python:<< parameters.python >>"
+      # This image is pulled by the kubelet on the self-hosted runners
+      # (ci-cluster), authenticated via the GKE node service account.
+      # That account must have artifactregistry.reader on the registry
+      # hosting the image; CircleCI-side auth config has no effect there.
       - image: << parameters.server_image >>:<< parameters.server_image_tag >>
-        auth:
-          username: _json_key
-          password: $GCP_SERVICE_ACCOUNT_JSON_DECODED
         environment:
           CI: 1
           WANDB_ENABLE_TEST_CONTAINER: true
@@ -149,7 +149,8 @@ commands:
           command: >
             nox -s "<<parameters.session>>" --python <<parameters.python>> --verbose
 
-      - codecov/upload: { flags: <<parameters.codecov_flags>> }
+      # TODO[WB-35582]: Temporarily disable codecov because brew install broke it.
+      # - codecov/upload: { flags: <<parameters.codecov_flags>> }
       - save-test-results
 
   local-wandb-server-deps:
@@ -283,25 +284,6 @@ commands:
                   ./dotnet-install.sh --channel 9.0
                   echo 'export PATH="$HOME/.dotnet:$PATH"' >> "$BASH_ENV"
                 no_output_timeout: 5m
-
-  setup_gcloud:
-    parameters:
-      container_registry:
-        description: "Container registry to authenticate with"
-        type: string
-        default: "us-central1-docker.pkg.dev"
-    steps:
-      - run:
-          name: "Setup gcloud and kubectl"
-          # gcloud --quiet components update
-          command: |
-            echo $GCLOUD_SERVICE_KEY > ${HOME}/gcloud-service-key.json
-            gcloud --quiet components install gke-gcloud-auth-plugin
-            gcloud --quiet components install kubectl
-            gcloud auth activate-service-account --key-file=${HOME}/gcloud-service-key.json
-            gcloud --quiet config set project $GOOGLE_PROJECT_ID
-            gcloud --quiet config set compute/zone $GOOGLE_COMPUTE_ZONE
-            gcloud auth configure-docker --quiet << parameters.container_registry >>
 
 jobs:
   nox-tests-linux:
@@ -485,7 +467,8 @@ jobs:
             cd core
             go test -count=1 -race -coverprofile=coverage.txt -covermode=atomic ./...
       - save-go-cache
-      - codecov/upload: { flags: unit }
+      # TODO[WB-35582]: Temporarily disable codecov because brew install broke it.
+      # - codecov/upload: { flags: unit }
 
   unit-tests-rust:
     resource_class: wandb/docker-builder
@@ -512,31 +495,6 @@ jobs:
             cargo test --verbose
       - save-cargo-cache
 
-  # Download the local-testcontainer image corresponding to the latest server release
-  # and store it in wandb-client-cicd/images/local-testcontainer.
-  # No-op if already stored.
-  store-local-testcontainer:
-    docker:
-      - image: "python:3.11"
-    resource_class: small
-    working_directory: /mnt/ramdisk
-    steps:
-      - checkout
-      - run:
-          name: Install system deps
-          command: |
-            apt-get update
-      - install_go
-      - gcloud/install
-      - setup_gcloud
-      - run:
-          name:
-          command: |
-            go install github.com/google/go-containerregistry/cmd/gcrane@latest
-            python -m pip install -U pip nox requests uv
-            nox -s local-testcontainer-registry
-          no_output_timeout: 5m
-
 workflows:
   main:
     jobs:
@@ -544,15 +502,6 @@ workflows:
       # Linting
       #
       - code-check
-
-      #
-      # Store latest local-testcontainer
-      #
-      - store-local-testcontainer:
-          filters:
-            branches:
-              only:
-                - main
 
       #
       # Unit tests with Go on Linux
@@ -648,7 +597,7 @@ workflows:
                 [
                   "us-central1-docker.pkg.dev/wandb-client-cicd/images/local-testcontainer",
                 ]
-              server_image_tag: ["0.63.0"]
+              server_image_tag: ["0.65.0"]
 
       - nox-tests-linux:
           name: notebook-tests-linux-<<matrix.python>>

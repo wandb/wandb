@@ -4,6 +4,8 @@ from unittest import mock
 import pytest
 import wandb
 from wandb.apis.public.runs import Run
+from wandb.apis.public.sweeps import Sweep
+from wandb.proto import wandb_api_pb2 as apb
 
 
 @pytest.mark.parametrize(
@@ -49,6 +51,31 @@ def test_create_run_with_dictionary_attrs_already_parsed(field, value):
             attrs={field: value},
         )
         assert getattr(run, field) == value
+
+
+def test_run_metadata_downloads_through_service_api(mocker):
+    service_api = mocker.MagicMock()
+    run = Run(
+        service_api=service_api,
+        entity="entity",
+        project="project",
+        run_id="run-id",
+        attrs={"name": "run-id", "state": "finished"},
+    )
+    file = mocker.MagicMock(url="https://files.example/wandb-metadata.json", size=17)
+    mocker.patch.object(run, "file", return_value=file)
+
+    def send_api_request(request: apb.ApiRequest) -> apb.ApiResponse:
+        with open(request.download_file_request.path, "wb") as f:
+            f.write(b'{"os":"Linux"}')
+        return apb.ApiResponse(download_file_response=apb.DownloadFileResponse())
+
+    service_api.send_api_request.side_effect = send_api_request
+
+    assert run.metadata == {"os": "Linux"}
+    request = service_api.send_api_request.call_args.args[0].download_file_request
+    assert request.url == "https://files.example/wandb-metadata.json"
+    assert request.size == 17
 
 
 @pytest.mark.parametrize(
@@ -204,3 +231,47 @@ def test_run_url_encodes_spaces_in_project_name():
     )
 
     assert run.url == "https://wandb.ai/my-entity/My%20Project/runs/12345"
+
+
+def _make_sweep_graphql_response(sweep_name: str) -> dict:
+    return {
+        "project": {
+            "sweep": {
+                "name": sweep_name,
+                "state": "RUNNING",
+                "config": "method: grid\n",
+            }
+        }
+    }
+
+
+@pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
+def test_sweep_property_loads_from_api():
+    """Accessing run.sweep should fetch and return a Sweep from the API."""
+    service_api = mock.MagicMock()
+    lightweight = _make_lightweight_attrs()
+    sweep_name = "test-sweep"
+    lightweight["sweepName"] = sweep_name
+    service_api.execute_graphql.return_value = _make_sweep_graphql_response(sweep_name)
+
+    run = Run(
+        service_api=service_api,
+        entity="test-entity",
+        project="test-project",
+        run_id="run-abc123",
+        attrs=dict(lightweight),
+        lazy=True,
+    )
+
+    service_api.execute_graphql.assert_not_called()
+
+    sweep = run.sweep
+
+    assert isinstance(sweep, Sweep)
+    assert sweep.name == sweep_name
+    assert sweep.entity == "test-entity"
+    assert sweep.project == "test-project"
+    service_api.execute_graphql.assert_called_once()
+    assert (
+        service_api.execute_graphql.call_args.kwargs["variables"]["name"] == sweep_name
+    )

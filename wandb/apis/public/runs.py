@@ -210,7 +210,7 @@ class Runs(SizedPaginator["Run"]):
         filters: dict[str, Any] | None = None,
         order: str = "+created_at",
         per_page: int = 50,
-        include_sweeps: bool = True,
+        include_sweeps: bool = False,
         lazy: bool = True,
         api_key: str | None = None,
     ):
@@ -333,7 +333,7 @@ class Runs(SizedPaginator["Run"]):
 
                 if sweep is None:
                     continue
-                run.sweep = sweep
+                run._sweep = sweep
 
         return objs
 
@@ -633,7 +633,7 @@ class Run(Attrs):
         project: str,
         run_id: str,
         attrs: Mapping | None = None,
-        include_sweeps: bool = True,
+        include_sweeps: bool = False,
         lazy: bool = True,
         api_key: str | None = None,
     ):
@@ -649,7 +649,7 @@ class Run(Attrs):
         self._files = {}
         self._base_dir = env.get_dir(tempfile.gettempdir())
         self.id = run_id
-        self.sweep = None
+        self._sweep: public.Sweep | None = None
         self._include_sweeps = include_sweeps
         self._lazy = lazy
         self._full_data_loaded = False  # Track if we've loaded full data
@@ -667,6 +667,9 @@ class Run(Attrs):
         self._api_key = api_key
 
         self.load(force=not _attrs)
+
+        if self._include_sweeps:
+            self._load_sweep()
 
     @property
     def state(self) -> str:
@@ -813,19 +816,6 @@ class Run(Attrs):
             if self._attrs.get("user"):
                 self.user = public.User(self._service_api, self._attrs["user"])
 
-            if self._include_sweeps and self.sweep_name and not self.sweep:
-                # There may be a lot of runs. Don't bother pulling them all
-                # just for the sake of this one.
-                from wandb.apis.public.sweeps import _get_sweep
-
-                self.sweep = _get_sweep(
-                    self._service_api,
-                    self.entity,
-                    self.project,
-                    self.sweep_name,
-                    withRuns=False,
-                )
-
         if not self._is_loaded or force:
             # Always set _project_internal_id if projectId is available, regardless of fragment type
             if "projectId" in self._attrs:
@@ -863,19 +853,6 @@ class Run(Attrs):
         if "systemMetrics" in self._attrs:
             self._attrs["systemMetrics"] = _convert_to_dict(
                 self._attrs.get("systemMetrics")
-            )
-
-        # Only check for sweeps if sweep_name is available (not in lazy mode or if it exists)
-        if self._include_sweeps and self._attrs.get("sweepName") and not self.sweep:
-            # There may be a lot of runs. Don't bother pulling them all
-            from wandb.apis.public.sweeps import _get_sweep
-
-            self.sweep = _get_sweep(
-                self._service_api,
-                self.entity,
-                self.project,
-                self._attrs["sweepName"],
-                withRuns=False,
             )
 
         config_user, config_raw = {}, {}
@@ -1538,6 +1515,29 @@ class Run(Attrs):
         return self._attrs.get("sweepName")
 
     @property
+    def sweep(self) -> public.Sweep | None:
+        """The sweep associated with this run. Loads sweep data if include_sweeps is False."""
+        if self._sweep is None and self.sweep_name:
+            self._load_sweep()
+        return self._sweep
+
+    def _load_sweep(self) -> None:
+        """Load sweep metadata for this run without fetching all sweep runs."""
+        if not self.sweep_name:
+            return
+
+        # There may be a lot of runs. Don't bother pulling them all.
+        from wandb.apis.public.sweeps import _get_sweep
+
+        self._sweep = _get_sweep(
+            self._service_api,
+            self.entity,
+            self.project,
+            self.sweep_name,
+            withRuns=False,
+        )
+
+    @property
     def path(self) -> list[str]:
         """The path of the run. The path is a list containing the entity, project, and run_id."""
         return [
@@ -1567,10 +1567,17 @@ class Run(Attrs):
         if self._metadata is None:
             try:
                 f = self.file("wandb-metadata.json")
-                contents = util.download_file_into_memory(
-                    f.url,
-                    api_key=self._api_key,
-                )
+                with tempfile.TemporaryDirectory() as tmpdir:
+                    path = os.path.join(tmpdir, "wandb-metadata.json")
+                    self._service_api.send_api_request(
+                        apb.ApiRequest(
+                            download_file_request=apb.DownloadFileRequest(
+                                path=path, url=f.url, size=f.size
+                            )
+                        )
+                    )
+                    with open(path, "rb") as metadata_file:
+                        contents = metadata_file.read()
                 self._metadata = json_util.loads(contents)
             except:  # noqa: E722
                 # file doesn't exist, or can't be downloaded, or can't be parsed

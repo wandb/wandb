@@ -30,6 +30,7 @@ message ApiRequest {
     ReadRunHistoryRequest read_run_history_request = 2;
     FeaturesRequest features_request = 3;
     GraphQLRequest graphql_request = 4;
+    DownloadFileRequest download_file_request = 5;
   }
 }
 
@@ -38,6 +39,7 @@ message ApiResponse {
     ReadRunHistoryResponse read_run_history_response = 1;
     FeaturesResponse features_response = 3;
     GraphQLResponse graphql_response = 4;
+    DownloadFileResponse download_file_response = 5;
 
     ApiErrorResponse api_error_response = 2;
   }
@@ -131,6 +133,25 @@ message GraphQLRequest {
 message GraphQLResponse {
   string data_json = 1;
 }
+
+// Download a file from a URL to a local path.
+//
+// wandb-core performs the download using its file transfer subsystem,
+// whose retries and timeouts are governed by the file transfer settings.
+// A successful request returns DownloadFileResponse; failures, including
+// non-successful HTTP status codes, return ApiErrorResponse.
+message DownloadFileRequest {
+  // The local path to write the file to.
+  string path = 1;
+
+  // The URL to download the file from.
+  string url = 2;
+
+  // The expected file size in bytes if known, used for progress reporting.
+  int64 size = 3;
+}
+
+message DownloadFileResponse {}
 
 // Start of Scan run history
 

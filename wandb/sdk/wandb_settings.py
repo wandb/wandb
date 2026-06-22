@@ -2025,6 +2025,24 @@ class Settings(BaseModel, validate_assignment=True):
 
         self.program = program
 
+    def infer_git_root(self) -> None:
+        """Infer the git root from the root_dir setting using GitRepo.
+
+        <!-- lazydoc-ignore: internal -->
+        """
+        if self.git_root is not None or self.disable_git:
+            return
+
+        from .lib.gitlib import GitRepo
+
+        try:
+            git_root = GitRepo(root=self.root_dir).root
+        except Exception:
+            return
+
+        if git_root is not None:
+            self.git_root = str(git_root)
+
     def update_from_dict(self, settings: dict[str, Any]) -> None:
         """Update settings from a dictionary.
 

@@ -1082,7 +1082,7 @@ class Api:
         filters: dict[str, Any] | None = None,
         order: str = "+created_at",
         per_page: int = 50,
-        include_sweeps: bool = True,
+        include_sweeps: bool = False,
         lazy: bool = True,
     ):
         """Returns a `Runs` object, which lazily iterates over `Run` objects.
@@ -1132,7 +1132,7 @@ class Api:
                 If you prepend order with a - order is descending.
                 The default order is run.created_at from oldest to newest.
             per_page: (int) Sets the page size for query pagination.
-            include_sweeps: (bool) Whether to include the sweep runs in the results.
+            include_sweeps: (bool) Whether to eagerly fetch the sweep object in each run result.
             lazy: (bool) Whether to use lazy loading for faster performance.
                 When True (default), only essential run metadata is loaded initially.
                 Heavy fields like config, summaryMetrics, and systemMetrics are loaded
@@ -1384,6 +1384,7 @@ class Api:
         self,
         project_name: str,
         type_name: str,
+        order: str | None = None,
         per_page: int = 50,
         start: str | None = None,
     ) -> ArtifactCollections:
@@ -1392,6 +1393,9 @@ class Api:
         Args:
             project_name: The name of the project to filter on.
             type_name: The name of the artifact type to filter on.
+            order: Optional string to specify the order of the results.
+                If prefixed with '+', sorts ascending (default).
+                If prefixed with '-', sorts descending.
             per_page: Sets the page size for query pagination.
                 Usually there is no reason to change this.
             start: Pagination cursor for resuming a past query, captured
@@ -1418,6 +1422,7 @@ class Api:
             entity,
             project,
             type_name,
+            order=order,
             per_page=per_page,
             start=start,
         )
@@ -1502,6 +1507,7 @@ class Api:
         self,
         type_name: str,
         name: str,
+        order: str | None = None,
         per_page: int = 50,
         tags: list[str] | None = None,
         start: str | None = None,
@@ -1513,6 +1519,9 @@ class Api:
             name: The artifact's collection name. Optionally append the
                 entity that logged the artifact as a prefix followed by
                 a forward slash.
+            order: Optional string to specify the order of the results.
+                If prefixed with '+', sorts ascending (default).
+                If prefixed with '-', sorts descending.
             per_page: Sets the page size for query pagination. Usually
                 there is no reason to change this.
             tags: Only return artifacts with all of these tags.
@@ -1583,6 +1592,7 @@ class Api:
             project,
             collection_name,
             type_name,
+            order=order,
             per_page=per_page,
             tags=tags,
             start=start,
@@ -1875,6 +1885,7 @@ class Api:
         self,
         organization: str | None = None,
         filter: dict[str, Any] | None = None,
+        order: str | None = None,
         per_page: int = 100,
         start: str | None = None,
     ) -> Registries:
@@ -1884,15 +1895,18 @@ class Api:
         or artifact versions across your organization's registry.
 
         Args:
-            organization: (str, optional) The organization of the registry to fetch.
+            organization: The organization of the registry to fetch.
                 If not specified, use the organization specified in the user's settings.
-            filter: (dict, optional) MongoDB-style filter to apply to each object in the lazy registry iterator.
+            filter: Optional MongoDB-style filter to apply to each object in the lazy registry iterator.
                 Fields available to filter for registries are
                     `name`, `description`, `created_at`, `updated_at`.
                 Fields available to filter for collections are
                     `name`, `tag`, `description`, `created_at`, `updated_at`
                 Fields available to filter for versions are
                     `tag`, `alias`, `created_at`, `updated_at`, `metadata`
+            order: Optional string to specify the order of the results.
+                If prefixed with '+', sorts ascending (default).
+                If prefixed with '-', sorts descending.
             per_page: Sets the page size for query pagination.
             start: Pagination cursor for resuming a past query, captured
                 from a previous paginator's `.cursor` attribute.
@@ -1967,6 +1981,7 @@ class Api:
             self._service_api,
             organization=organization,
             filter=filter,
+            order=order,
             per_page=per_page,
             start=start,
         )

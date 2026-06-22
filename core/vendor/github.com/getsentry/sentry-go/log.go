@@ -60,7 +60,7 @@ func NewLogger(ctx context.Context) Logger { // nolint: dupl
 	}
 
 	client := hub.Client()
-	if client != nil && client.options.EnableLogs {
+	if client != nil && !client.options.DisableLogs {
 		// Build default attrs
 		serverAddr := client.options.ServerName
 		if serverAddr == "" {
@@ -91,7 +91,7 @@ func NewLogger(ctx context.Context) Logger { // nolint: dupl
 		}
 	}
 
-	debuglog.Println("fallback to noopLogger: enableLogs disabled")
+	debuglog.Println("fallback to noopLogger: SDK not initialized or logs disabled")
 	return &noopLogger{}
 }
 
