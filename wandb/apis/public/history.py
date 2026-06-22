@@ -111,11 +111,11 @@ class HistoryScan(Iterator[_RowDict]):
                 return row
             if self.page_offset >= self._stop_step:
                 raise StopIteration()
-            # Load the next page
-            previous_page_offset = self.page_offset
+            # Load the next page. An empty page does not terminate the scan: a
+            # step range may have no rows while later steps do (e.g. a gap
+            # between exported parquet data and the live tail). Iteration ends
+            # only once page_offset reaches _stop_step (checked above).
             self._load_next()
-            if len(self.rows) == 0 and self.page_offset <= previous_page_offset:
-                raise StopIteration()
 
     def _load_next(self) -> None:
         from wandb.proto import wandb_api_pb2 as pb
