@@ -9,7 +9,8 @@ from wandb import Api, Artifact
 from wandb.apis.public.registries.registry import Registry
 from wandb.sdk.artifacts._gqlutils import is_project_read_only
 
-from ..backend_fixtures import BackendFixtureFactory
+if TYPE_CHECKING:
+    from ..backend_fixtures import BackendFixtureFactory
 
 
 @fixture(
