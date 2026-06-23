@@ -2,16 +2,16 @@
 
 from __future__ import annotations
 
-import json
-from typing import TYPE_CHECKING, Any, ClassVar
+from typing import TYPE_CHECKING, Annotated, Any, ClassVar, TypeAlias
 
-from pydantic import PositiveInt, ValidationError
+from pydantic import AfterValidator, BaseModel, PositiveInt, ValidationError
 from typing_extensions import override
 
 from wandb._analytics import tracked
+from wandb._pydantic import to_json
 from wandb.apis.paginator import RelayPaginator, SizedRelayPaginator
 
-from ._utils import ensure_registry_prefix_on_names
+from ._utils import OrderValidator, ensure_registry_prefix_on_names
 
 if TYPE_CHECKING:
     from wandb.apis.public import ArtifactCollection
@@ -30,6 +30,75 @@ if TYPE_CHECKING:
     from wandb.sdk.artifacts.artifact import Artifact
 
 
+# Type annotations for `filter` arguments.
+# TODO: Recursively validate allowed filter field names, see e.g. existing mongo filter types in automations.
+_RegistryFilter: TypeAlias = Annotated[
+    dict[str, Any] | None,
+    AfterValidator(ensure_registry_prefix_on_names),
+]
+_RegistryCollectionFilter: TypeAlias = dict[str, Any] | None
+_RegistryVersionFilter: TypeAlias = dict[str, Any] | None
+
+# Type annotations for `order` arguments.
+_RegistriesOrder: TypeAlias = Annotated[
+    str | None,
+    OrderValidator(allowed=("name", "created_at", "updated_at")),
+]
+_CollectionsOrder: TypeAlias = Annotated[
+    str | None,
+    OrderValidator(allowed=("name", "created_at", "updated_at")),
+]
+
+
+class _RegistriesKwargs(BaseModel):
+    """Validated arguments for instantiating a `Registries` class.
+
+    Note:
+        Ideally, Registries itself would just be a pydantic model, but we would
+        want to refactor the base paginator classes into pydantic models first,
+        which has a larger blast radius.  This is an intermediate solution that
+        avoids unexpected side effects from defining a pydantic model
+        as a subclass of a non-pydantic parent class.
+
+        Long term, consider making Registries and other Paginator types directly into
+        pydantic models to automatically validate their arguments at runtime.
+    """
+
+    organization: str
+    filter: _RegistryFilter = None
+    order: _RegistriesOrder = None
+    per_page: PositiveInt = 100
+    start: str | None = None
+
+
+class _CollectionsKwargs(BaseModel):
+    """Validated arguments for instantiating a `Collections` class.
+
+    See `_RegistriesKwargs` for more details.
+    """
+
+    organization: str
+    registry_filter: _RegistryFilter = None
+    collection_filter: _RegistryCollectionFilter = None
+    order: _CollectionsOrder = None
+    per_page: PositiveInt = 100
+    start: str | None = None
+
+
+class _VersionsKwargs(BaseModel):
+    """Validated arguments for instantiating a `Versions` class.
+
+    See `_RegistriesKwargs` for more details.
+    """
+
+    organization: str
+    registry_filter: _RegistryFilter = None
+    collection_filter: _RegistryCollectionFilter = None
+    artifact_filter: _RegistryVersionFilter = None
+    per_page: PositiveInt = 100
+    start: str | None = None
+
+
 class Registries(RelayPaginator["RegistryFragment", "Registry"]):
     """A lazy iterator of `Registry` objects."""
 
@@ -40,27 +109,35 @@ class Registries(RelayPaginator["RegistryFragment", "Registry"]):
         self,
         service_api: ServiceApi,
         organization: str,
-        filter: dict[str, Any] | None = None,
-        order: str | None = None,
+        filter: _RegistryFilter = None,
+        order: _RegistriesOrder = None,
         per_page: PositiveInt = 100,
         start: str | None = None,
     ):
+
         if self.QUERY is None:
             from wandb.sdk.artifacts._generated import FETCH_REGISTRIES_GQL
 
             type(self).QUERY = FETCH_REGISTRIES_GQL
 
-        self.organization = organization
-        self.filter = ensure_registry_prefix_on_names(filter or {})
-        self._service_api = service_api
+        args = _RegistriesKwargs(
+            organization=organization,
+            filter=filter,
+            order=order,
+            per_page=per_page,
+            start=start,
+        )
+
+        self.organization = args.organization
+        self.filter = args.filter
 
         variables = {
-            "organization": organization,
-            "filters": json.dumps(self.filter),
-            "order": order,
+            "organization": args.organization,
+            "filters": to_json(f) if (f := args.filter) else None,
+            "order": args.order,
         }
         super().__init__(
-            service_api, variables=variables, per_page=per_page, start=start
+            service_api, variables=variables, per_page=args.per_page, start=args.start
         )
 
     def __next__(self):
@@ -176,31 +253,40 @@ class Collections(
         self,
         service_api: ServiceApi,
         organization: str,
-        registry_filter: dict[str, Any] | None = None,
-        collection_filter: dict[str, Any] | None = None,
-        order: str | None = None,
+        registry_filter: _RegistryFilter = None,
+        collection_filter: _RegistryCollectionFilter = None,
+        order: _CollectionsOrder = None,
         per_page: PositiveInt = 100,
         start: str | None = None,
     ):
+
         if self.QUERY is None:
             from wandb.sdk.artifacts._generated import REGISTRY_COLLECTIONS_GQL
 
             type(self).QUERY = REGISTRY_COLLECTIONS_GQL
 
-        self.organization = organization
-        self.registry_filter = registry_filter
-        self.collection_filter = collection_filter or {}
-        self._service_api = service_api
+        args = _CollectionsKwargs(
+            organization=organization,
+            registry_filter=registry_filter,
+            collection_filter=collection_filter,
+            order=order,
+            per_page=per_page,
+            start=start,
+        )
+
+        self.organization = args.organization
+        self.registry_filter = args.registry_filter
+        self.collection_filter = args.collection_filter
 
         variables = {
-            "registryFilter": json.dumps(f) if (f := registry_filter) else None,
-            "collectionFilter": json.dumps(f) if (f := collection_filter) else None,
-            "organization": organization,
-            "order": order,
-            "perPage": per_page,
+            "registryFilter": to_json(f) if (f := args.registry_filter) else None,
+            "collectionFilter": to_json(f) if (f := args.collection_filter) else None,
+            "organization": args.organization,
+            "order": args.order,
+            "perPage": args.per_page,
         }
         super().__init__(
-            service_api, variables=variables, per_page=per_page, start=start
+            service_api, variables=variables, per_page=args.per_page, start=args.start
         )
 
     def __next__(self):
@@ -288,9 +374,9 @@ class Versions(RelayPaginator["ArtifactMembershipFragment", "Artifact"]):
         self,
         service_api: ServiceApi,
         organization: str,
-        registry_filter: dict[str, Any] | None = None,
-        collection_filter: dict[str, Any] | None = None,
-        artifact_filter: dict[str, Any] | None = None,
+        registry_filter: _RegistryFilter = None,
+        collection_filter: _RegistryCollectionFilter = None,
+        artifact_filter: _RegistryVersionFilter = None,
         per_page: PositiveInt = 100,
         start: str | None = None,
     ):
@@ -298,20 +384,28 @@ class Versions(RelayPaginator["ArtifactMembershipFragment", "Artifact"]):
 
         self.QUERY = REGISTRY_VERSIONS_GQL
 
-        self.organization = organization
-        self.registry_filter = registry_filter
-        self.collection_filter = collection_filter
-        self.artifact_filter = artifact_filter or {}
-        self._service_api = service_api
+        args = _VersionsKwargs(
+            organization=organization,
+            registry_filter=registry_filter,
+            collection_filter=collection_filter,
+            artifact_filter=artifact_filter,
+            per_page=per_page,
+            start=start,
+        )
+
+        self.organization = args.organization
+        self.registry_filter = args.registry_filter
+        self.collection_filter = args.collection_filter
+        self.artifact_filter = args.artifact_filter
 
         variables = {
-            "registryFilter": json.dumps(f) if (f := registry_filter) else None,
-            "collectionFilter": json.dumps(f) if (f := collection_filter) else None,
-            "artifactFilter": json.dumps(f) if (f := artifact_filter) else None,
-            "organization": organization,
+            "registryFilter": to_json(f) if (f := args.registry_filter) else None,
+            "collectionFilter": to_json(f) if (f := args.collection_filter) else None,
+            "artifactFilter": to_json(f) if (f := args.artifact_filter) else None,
+            "organization": args.organization,
         }
         super().__init__(
-            service_api, variables=variables, per_page=per_page, start=start
+            service_api, variables=variables, per_page=args.per_page, start=args.start
         )
 
     @override

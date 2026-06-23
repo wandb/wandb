@@ -1,9 +1,15 @@
 from __future__ import annotations
 
+import re
 from collections.abc import Collection
+from dataclasses import dataclass
 from enum import Enum
 from functools import lru_cache, partial
 from typing import TYPE_CHECKING, Any, TypeVar, overload
+
+from pydantic import GetCoreSchemaHandler
+from pydantic_core import CoreSchema
+from pydantic_core.core_schema import no_info_after_validator_function
 
 from wandb._strutils import ensureprefix
 
@@ -12,6 +18,37 @@ if TYPE_CHECKING:
 
 
 T = TypeVar("T")
+
+
+ORDER_REGEX: re.Pattern[str] = re.compile(r"^(\+|\-)?(\w+)$", flags=re.ASCII)
+
+
+@dataclass(frozen=True, slots=True)
+class OrderValidator:
+    """A validator for `order` strings that can optionally restrict allowed fields."""
+
+    allowed: frozenset[str] | None = None
+
+    def validate(self, arg: str | None) -> str | None:
+        if arg is None:
+            return None
+
+        # Parse the raw `order` string into its components
+        if (m := ORDER_REGEX.match(arg)) is None:
+            raise ValueError(f"Invalid order field: {arg!r}")
+        sign, name = m.groups()
+
+        # Check if the field name is allowed
+        if (self.allowed is not None) and (name not in self.allowed):
+            msg = f"Invalid ordering field {name!r}, must be one of: {', '.join(map(repr, sorted(self.allowed)))}"
+            raise ValueError(msg)
+
+        return f"{sign or '+'}{name}"
+
+    def __get_pydantic_core_schema__(
+        self, source_type: Any, handler: GetCoreSchemaHandler
+    ) -> CoreSchema:
+        return no_info_after_validator_function(self.validate, handler(source_type))
 
 
 class Visibility(str, Enum):
