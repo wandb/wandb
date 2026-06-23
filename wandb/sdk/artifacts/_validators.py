@@ -16,7 +16,7 @@ from typing_extensions import ParamSpec, Self
 
 from wandb._iterutils import always_list, unique_list
 from wandb._pydantic import from_json
-from wandb._strutils import nameof
+from wandb._strutils import nameof, repr_join
 from wandb.sdk.lib.paths import FilePathStr, LogicalPath, StrPath
 from wandb.util import json_friendly_val
 
@@ -107,7 +107,7 @@ def validate_artifact_name(name: str) -> str:
     if INVALID_ARTIFACT_NAME_CHARS.intersection(name):
         raise ValueError(
             "Artifact names must not contain any of the following characters: "
-            f"{', '.join(sorted(INVALID_ARTIFACT_NAME_CHARS))}.  Got: {name!r}"
+            f"{repr_join(sorted(INVALID_ARTIFACT_NAME_CHARS))}.  Got: {name!r}"
         )
 
     return name
@@ -139,7 +139,7 @@ def validate_project_name(name: str) -> str:
     # Find the first occurrence of any invalid character
     if invalid_chars := set(INVALID_URL_CHARS).intersection(name):
         error_name = registry_name or name
-        invalid_chars_repr = ", ".join(sorted(map(repr, invalid_chars)))
+        invalid_chars_repr = repr_join(sorted(invalid_chars))
         raise ValueError(
             f"Invalid project/registry name {error_name!r}, cannot contain characters: {invalid_chars_repr!s}"
         )
@@ -154,7 +154,7 @@ def validate_aliases(aliases: Iterable[str] | str) -> list[str]:
     """
     aliases_list = always_list(aliases)
     if any(ARTIFACT_SEP_CHARS.intersection(name) for name in aliases_list):
-        invalid_chars = ", ".join(sorted(map(repr, ARTIFACT_SEP_CHARS)))
+        invalid_chars = repr_join(sorted(ARTIFACT_SEP_CHARS))
         raise ValueError(
             f"Aliases must not contain any of the following characters: {invalid_chars}"
         )
@@ -165,7 +165,7 @@ def validate_artifact_types(types: Iterable[str] | str) -> list[str]:
     """Validate the artifact type names and return them as a list."""
     types_list = always_list(types)
     if any(ARTIFACT_SEP_CHARS.intersection(name) for name in types_list):
-        invalid_chars = ", ".join(sorted(map(repr, ARTIFACT_SEP_CHARS)))
+        invalid_chars = repr_join(sorted(ARTIFACT_SEP_CHARS))
         raise ValueError(
             f"Artifact types must not contain any of the following characters: {invalid_chars}"
         )

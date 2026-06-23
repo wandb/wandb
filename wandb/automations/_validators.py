@@ -4,7 +4,6 @@ from enum import Enum
 from typing import Annotated, Any, TypeVar
 
 from pydantic import BeforeValidator, Json, PlainSerializer
-from pydantic_core import PydanticUseDefault
 
 from wandb._filters import And, MongoLikeFilter, Or, simplify_expr
 from wandb._pydantic import to_json
@@ -50,16 +49,6 @@ class LenientStrEnum(str, Enum):
             v = value.lower()
             return next((e for e in cls if e.value.lower() == v), None)
         return None
-
-
-def default_if_none(v: Any) -> Any:
-    """A "before"-mode field validator that coerces `None` to the field default.
-
-    See: https://docs.pydantic.dev/2.11/api/pydantic_core/#pydantic_core.PydanticUseDefault
-    """
-    if v is None:
-        raise PydanticUseDefault
-    return v
 
 
 def upper_if_str(v: Any) -> Any:
