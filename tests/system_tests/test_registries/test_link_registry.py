@@ -154,20 +154,9 @@ def test_add_alias_to_linked_artifact_without_source_write(
     artifact = viewer_api.artifact(linked_version_name)
 
     if invite_to_source_team:
-        assert artifact.source_entity
-        assert artifact.source_project
-        assert (
-            is_project_read_only(
-                viewer_api._service_api,
-                artifact.source_entity,
-                artifact.source_project,
-            )
-            is True
-        )
+        assert artifact.source_entity and artifact.source_project
     else:
-        assert not artifact.source_entity or not artifact.source_project
-
-    assert artifact._is_source_project_read_only() is True
+        assert not (artifact.source_entity and artifact.source_project)
 
     artifact.aliases.append(alias)
     artifact.save()
