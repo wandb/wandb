@@ -79,9 +79,6 @@ def _normalize_non_media_value(val: Any) -> Any:
 
     val = _numpy_arrays_to_lists(val)
 
-    datetime_val = _normalize_datetime(val)
-    if datetime_val is not None:
-        return datetime_val
 
     # Normalize scalar NumPy values and other simple values like Table does.
     val, _ = wandb.util.json_friendly(val)
