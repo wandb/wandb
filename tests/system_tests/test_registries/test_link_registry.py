@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Literal
+from typing import Literal, TYPE_CHECKING
 
 import wandb
 from pytest import FixtureRequest, MonkeyPatch, fixture, mark, param
