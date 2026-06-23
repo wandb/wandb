@@ -319,7 +319,10 @@ def _is_online(path: pathlib.Path) -> bool:
     Online run directories are named like "run-..." and offline runs
     are named like "offline-run-...".
     """
-    return not path.parent.name.startswith("offline-")
+    try:
+        return not path.parent.resolve().name.startswith("offline-")
+    except OSError:
+        return False
 
 
 def _print_sorted_paths(
