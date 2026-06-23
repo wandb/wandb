@@ -10,6 +10,7 @@ import os
 import re
 import socket
 import sys
+import tempfile
 import threading
 from collections.abc import Callable, Iterable, Mapping, MutableMapping, Sequence
 from copy import deepcopy
@@ -24,6 +25,7 @@ from wandb.analytics import get_sentry
 from wandb.apis.normalize import normalize_exceptions
 from wandb.errors import AuthenticationError, CommError, UsageError
 from wandb.integration.sagemaker import parse_sm_secrets
+from wandb.proto.wandb_api_pb2 import ApiRequest, DownloadFileRequest
 from wandb.proto.wandb_internal_pb2 import ServerFeature
 from wandb.sdk import wandb_setup
 from wandb.sdk.internal import settings_static
@@ -343,6 +345,13 @@ class Api:
 
     def execute(self, *args: Any, **kwargs: Any) -> _Response:
         return self._service_api.execute_graphql(*args, **kwargs)  # type: ignore[return-value]
+
+    @normalize_exceptions
+    def download_file(self, url: str, path: str) -> None:
+        """Download the file at `url` to `path` via wandb-core's file transfer subsystem."""
+        self._service_api.send_api_request(
+            ApiRequest(download_file_request=DownloadFileRequest(url=url, path=path))
+        )
 
     @property
     def request_auth(self) -> tuple[str, str] | None:
@@ -908,10 +917,6 @@ class Api:
             run (str, optional): The run to download
             entity (str, optional): The entity to scope this project to.
         """
-        import requests
-
-        check_httpclient_logger_handler()
-
         query = """
         query RunConfigs(
             $name: String!,
@@ -962,27 +967,30 @@ class Api:
         #
         # Unfortunately we're unable to construct a single pattern that matches
         # our 2 files, we would need something like regex for that.
-        for filename in [DIFF_FNAME, METADATA_FNAME]:
-            variables["pattern"] = filename
-            response = self.execute(query, variables=variables)
-            if response["model"] is None:
-                raise CommError(f"Run {entity}/{project}/{run} not found")
-            run_obj: dict = response["model"]["bucket"]
-            # we only need to fetch this config once
-            if variables["includeConfig"]:
-                commit = run_obj["commit"]
-                config = json.loads(run_obj["config"] or "{}")
-                variables["includeConfig"] = False
-            if run_obj["files"] is not None:
-                for file_edge in run_obj["files"]["edges"]:
-                    name = file_edge["node"]["name"]
-                    url = file_edge["node"]["directUrl"]
-                    res = requests.get(url)
-                    res.raise_for_status()
-                    if name == METADATA_FNAME:
-                        metadata = res.json()
-                    elif name == DIFF_FNAME:
-                        patch = res.text
+        with tempfile.TemporaryDirectory() as tmpdir:
+            for filename in [DIFF_FNAME, METADATA_FNAME]:
+                variables["pattern"] = filename
+                response = self.execute(query, variables=variables)
+                if response["model"] is None:
+                    raise CommError(f"Run {entity}/{project}/{run} not found")
+                run_obj: dict = response["model"]["bucket"]
+                # we only need to fetch this config once
+                if variables["includeConfig"]:
+                    commit = run_obj["commit"]
+                    config = json.loads(run_obj["config"] or "{}")
+                    variables["includeConfig"] = False
+                if run_obj["files"] is not None:
+                    for file_edge in run_obj["files"]["edges"]:
+                        name = file_edge["node"]["name"]
+                        url = file_edge["node"]["directUrl"]
+                        path = os.path.join(tmpdir, name)
+                        self.download_file(url, path)
+                        if name == METADATA_FNAME:
+                            with open(path, encoding="utf-8") as file:
+                                metadata = json.load(file)
+                        elif name == DIFF_FNAME:
+                            with open(path, encoding="utf-8") as file:
+                                patch = file.read()
 
         return commit, config, patch, metadata
 
@@ -2285,42 +2293,11 @@ class Api:
             return None
 
     @normalize_exceptions
-    def download_file(self, url: str) -> tuple[int, requests.Response]:
-        """Initiate a streaming download.
-
-        Args:
-            url (str): The url to download
-
-        Returns:
-            A tuple of the content length and the streaming response
-        """
-        import requests
-
-        check_httpclient_logger_handler()
-
-        http_headers = {}
-
-        auth = None
-        if self.access_token is not None:
-            http_headers["Authorization"] = f"Bearer {self.access_token}"
-        else:
-            auth = ("api", self.api_key or "")
-
-        response = requests.get(
-            url,
-            auth=auth,
-            headers=http_headers,
-            stream=True,
-        )
-        response.raise_for_status()
-        return int(response.headers.get("content-length", 0)), response
-
-    @normalize_exceptions
     def download_write_file(
         self,
         metadata: dict[str, str],
         out_dir: str | None = None,
-    ) -> tuple[str, requests.Response | None]:
+    ) -> tuple[str, bool]:
         """Download a file from a run and write it to wandb/.
 
         Args:
@@ -2328,21 +2305,15 @@ class Api:
             out_dir (str, optional): The directory to write the file to. Defaults to wandb/
 
         Returns:
-            A tuple of the file's local path and the streaming response. The streaming response is None if the file
-            already existed and was up-to-date.
+            A tuple of the file's local path and whether it was downloaded.
         """
         filename = metadata["name"]
         path = os.path.join(out_dir or self.settings("wandb_dir"), filename)
-        if self.file_current(filename, B64MD5(metadata["md5"])):
-            return path, None
+        if self.file_current(path, B64MD5(metadata["md5"])):
+            return path, False
 
-        size, response = self.download_file(metadata["url"])
-
-        with util.fsync_open(path, "wb") as file:
-            for data in response.iter_content(chunk_size=1024):
-                file.write(data)
-
-        return path, response
+        self.download_file(metadata["url"], path)
+        return path, True
 
     def upload_file_azure(
         self, url: str, file: Any, extra_headers: dict[str, str]
@@ -2853,7 +2824,7 @@ class Api:
     @normalize_exceptions
     def pull(
         self, project: str, run: str | None = None, entity: str | None = None
-    ) -> list[requests.Response]:
+    ) -> list[str]:
         """Download files from W&B.
 
         Args:
@@ -2862,17 +2833,17 @@ class Api:
             entity (str, optional): The entity to scope this project to.  Defaults to wandb models
 
         Returns:
-            The `requests` library response object
+            A list of downloaded file paths.
         """
         project, run = self.parse_slug(project, run=run)
         urls = self.download_urls(project, run, entity)
-        responses = []
+        downloaded_paths = []
         for filename in urls:
-            _, response = self.download_write_file(urls[filename])
-            if response:
-                responses.append(response)
+            path, downloaded = self.download_write_file(urls[filename])
+            if downloaded:
+                downloaded_paths.append(path)
 
-        return responses
+        return downloaded_paths
 
     def get_project(self) -> str:
         project: str = self.default_settings.get("project") or self.settings("project")

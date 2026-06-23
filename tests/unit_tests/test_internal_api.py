@@ -114,7 +114,6 @@ def test_execute_propagates_service_api_errors(mocker: MockerFixture):
     ],
 )
 def test_download_write_file_fetches_iff_file_checksum_mismatched(
-    mock_responses: RequestsMock,
     existing_contents: str | None,
     expect_download: bool,
 ):
@@ -123,14 +122,22 @@ def test_download_write_file_fetches_iff_file_checksum_mismatched(
     with tempfile.TemporaryDirectory() as tmpdir:
         filepath = os.path.join(tmpdir, "file.txt")
 
-        if expect_download:
-            mock_responses.get(url, body=current_contents)
-
         if existing_contents is not None:
             with open(filepath, "w") as f:
                 f.write(existing_contents)
 
-        _, response = internal.InternalApi().download_write_file(
+        api = internal.InternalApi()
+
+        def download_file(request):
+            download = request.download_file_request
+            assert download.url == url
+            assert download.path == filepath
+            with open(download.path, "w") as f:
+                f.write(current_contents)
+
+        api._service_api.send_api_request = Mock(side_effect=download_file)
+
+        _, downloaded = api.download_write_file(
             metadata={
                 "name": filepath,
                 "md5": base64.b64encode(
@@ -142,9 +149,11 @@ def test_download_write_file_fetches_iff_file_checksum_mismatched(
         )
 
         if expect_download:
-            assert response is not None
+            assert downloaded
+            api._service_api.send_api_request.assert_called_once()
         else:
-            assert response is None
+            assert not downloaded
+            api._service_api.send_api_request.assert_not_called()
 
 
 def test_internal_api_with_no_write_global_config_dir(
