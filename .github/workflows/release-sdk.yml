@@ -27,7 +27,7 @@ jobs:
     name: Prepare release (${{ inputs.version }})
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Set up Python
         uses: actions/setup-python@v6
@@ -103,7 +103,7 @@ jobs:
             before_all_extra: "apk add binutils patchelf gcc musl-dev"
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: release-${{ github.event.inputs.version }}
 
@@ -141,7 +141,7 @@ jobs:
           - macos-14
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: release-${{ github.event.inputs.version }}
 
@@ -193,7 +193,7 @@ jobs:
     needs: prepare-release
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: release-${{ github.event.inputs.version }}
 
@@ -312,7 +312,7 @@ jobs:
           python-version: "3.12"
 
       - name: Checkout only go files for dependency installation
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           sparse-checkout: |
             core/go.mod
@@ -372,7 +372,7 @@ jobs:
     runs-on: ubuntu-latest
     if: ${{ inputs.mode == 'release' }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: release-${{ github.event.inputs.version }}
           fetch-depth: 0
@@ -420,7 +420,7 @@ jobs:
     if: ${{ inputs.mode == 'release' }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: release-${{ github.event.inputs.version }}
       - name: Create Source Archives
