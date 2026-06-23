@@ -2,12 +2,12 @@ package server
 
 import (
 	"context"
-	"errors"
 	"path/filepath"
 	"testing"
 	"testing/synctest"
 	"time"
 
+	"github.com/stretchr/testify/require"
 	"github.com/wandb/wandb/core/internal/stream"
 )
 
@@ -121,9 +121,7 @@ func TestServe_ForcStopShutsDownServer(t *testing.T) {
 
 	select {
 	case err := <-srvCh:
-		if !errors.Is(err, ErrForcedShutdown) {
-			t.Fatalf("Serve() = %v, want ErrForcedShutdown", err)
-		}
+		require.ErrorIs(t, err, ErrForcedShutdown)
 	case <-time.After(5 * time.Second):
 		t.Fatal("timed out waiting for Serve() to return")
 	}

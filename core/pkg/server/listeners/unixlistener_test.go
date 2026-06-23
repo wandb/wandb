@@ -17,9 +17,7 @@ func TestUnixSocketListener_CloseRemovesDir(t *testing.T) {
 	var portInfo PortInfo
 
 	listener, err := listenInTempDir("wandb-test-*", &portInfo)
-	if err != nil {
-		t.Fatalf("listenInTempDir() returned error: %v", err)
-	}
+	require.NoError(t, err)
 
 	sockDir := filepath.Dir(portInfo.UnixPath)
 	require.NoError(t, listener.Close())
@@ -31,9 +29,7 @@ func TestUnixSocketListener_CloseRemovesDir(t *testing.T) {
 func TestMakeUnixListener_SetsPortInfoUnixPath(t *testing.T) {
 	var portInfo PortInfo
 	listener, err := makeUnixListener(os.Getpid(), &portInfo)
-	if err != nil {
-		t.Fatalf("makeUnixListener() returned error: %v", err)
-	}
+	require.NoError(t, err)
 	t.Cleanup(func() { _ = listener.Close() })
 
 	sockDir := filepath.Dir(portInfo.UnixPath)
