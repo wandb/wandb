@@ -265,7 +265,11 @@ def test_syncs_resumed_run(
     run3_dir = run3.settings.sync_dir
     new_id = f"{run1.id}-copy"
 
-    runner.invoke(cli.beta, f"sync --id {new_id} {run3_dir} {run1_dir} {run2_dir}")
+    # Use --no-skip-online since resuming offline runs is unsupported.
+    runner.invoke(
+        cli.beta,
+        f"sync --no-skip-online --id {new_id} {run3_dir} {run1_dir} {run2_dir}",
+    )
 
     with wandb_backend_spy.freeze() as snapshot:
         history = snapshot.history(run_id=new_id)
@@ -334,10 +338,14 @@ def test_skip_synced(
     runner: CliRunner,
     skip_synced: bool,
 ):
-    (tmp_path / "run-1.wandb").touch()
-    (tmp_path / "run-2.wandb").touch()
-    (tmp_path / "run-2.wandb.synced").touch()
-    (tmp_path / "run-3.wandb").touch()
+    for path in (
+        tmp_path / "offline-run-1" / "run-1.wandb",
+        tmp_path / "offline-run-2" / "run-2.wandb",
+        tmp_path / "offline-run-2" / "run-2.wandb.synced",
+        tmp_path / "offline-run-3" / "run-3.wandb",
+    ):
+        path.parent.mkdir(exist_ok=True)
+        path.touch()
 
     skip = "--skip-synced" if skip_synced else "--no-skip-synced"
     result = runner.invoke(cli.beta, f"sync --dry-run {skip} {tmp_path}")
@@ -351,37 +359,64 @@ def test_skip_synced(
         assert "run-2.wandb" in result.output
 
 
+@pytest.mark.parametrize("skip_online", (True, False))
+def test_skip_online(
+    tmp_path: pathlib.Path,
+    runner: CliRunner,
+    skip_online: bool,
+):
+    for path in (
+        tmp_path / "offline-run-20260402_123456-abc" / "run-abc.wandb",
+        tmp_path / "run-20260402_123456-xyz" / "run-xyz.wandb",
+        tmp_path / "offline-run-20260402_123456-def" / "run-def.wandb",
+    ):
+        path.parent.mkdir()
+        path.touch()
+
+    skip = "--skip-online" if skip_online else "--no-skip-online"
+    result = runner.invoke(cli.beta, f"sync --dry-run {skip} {tmp_path}")
+
+    assert "run-abc.wandb" in result.output
+    assert "run-def.wandb" in result.output
+
+    if skip_online:
+        assert "run-xyz.wandb" not in result.output
+    else:
+        assert "run-xyz.wandb" in result.output
+
+
 def test_merges_symlinks(
     tmp_path: pathlib.Path,
     monkeypatch: pytest.MonkeyPatch,
     runner: CliRunner,
 ):
-    (tmp_path / "actual-run").mkdir()
-    (tmp_path / "actual-run/run.wandb").touch()
-    (tmp_path / "latest-run").symlink_to(tmp_path / "actual-run")
+    (tmp_path / "offline-actual-run").mkdir()
+    (tmp_path / "offline-actual-run/run.wandb").touch()
+    (tmp_path / "latest-run").symlink_to(tmp_path / "offline-actual-run")
     monkeypatch.chdir(tmp_path)
 
     result = runner.invoke(cli.beta, "sync --dry-run .")
 
     assert result.output.splitlines() == [
         "wandb: Would sync 1 run(s):",
-        "wandb:   actual-run/run.wandb",
+        "wandb:   offline-actual-run/run.wandb",
     ]
 
 
 def test_sync_wandb_file(tmp_path: pathlib.Path, runner: CliRunner):
-    file = tmp_path / "run.wandb"
+    file = tmp_path / "offline-run-abc" / "run-abc.wandb"
+    file.parent.mkdir()
     file.touch()
 
     result = runner.invoke(cli.beta, f"sync --dry-run {file}")
 
     lines = result.output.splitlines()
     assert lines[0] == "wandb: Would sync 1 run(s):"
-    assert lines[1].endswith("run.wandb")
+    assert lines[1].endswith("run-abc.wandb")
 
 
 def test_sync_run_directory(tmp_path: pathlib.Path, runner: CliRunner):
-    run_dir = tmp_path / "some-run"
+    run_dir = tmp_path / "offline-run"
     run_dir.mkdir()
     (run_dir / "run.wandb").touch()
 
@@ -394,8 +429,8 @@ def test_sync_run_directory(tmp_path: pathlib.Path, runner: CliRunner):
 
 def test_sync_wandb_directory(tmp_path: pathlib.Path, runner: CliRunner):
     wandb_dir = tmp_path / "wandb-dir"
-    run1_dir = wandb_dir / "run-1"
-    run2_dir = wandb_dir / "run-2"
+    run1_dir = wandb_dir / "offline-run-1"
+    run2_dir = wandb_dir / "offline-run-2"
 
     wandb_dir.mkdir()
     run1_dir.mkdir()
@@ -417,8 +452,9 @@ def test_truncates_printed_paths(
     runner: CliRunner,
 ):
     monkeypatch.setattr(beta_sync, "_MAX_LIST_LINES", 5)
-    files = list((tmp_path / f"run-{i}.wandb") for i in range(20))
+    files = list((tmp_path / f"offline-run-{i}" / "run.wandb") for i in range(20))
     for file in files:
+        file.parent.mkdir()
         file.touch()
 
     result = runner.invoke(cli.beta, f"sync --dry-run {tmp_path}")
@@ -426,7 +462,7 @@ def test_truncates_printed_paths(
     lines = result.output.splitlines()
     assert lines[0] == "wandb: Would sync 20 run(s):"
     for line in lines[1:6]:
-        assert re.fullmatch(r"wandb:   .+/run-\d+\.wandb", line)
+        assert re.fullmatch(r"wandb:   .+/offline-run-\d+/run\.wandb", line)
     assert lines[6] == "wandb:   +15 more (pass --verbose to see all)"
 
 
@@ -441,17 +477,21 @@ def test_prints_relative_paths(
     dir2_not.mkdir()
     monkeypatch.chdir(dir1_cwd)
 
-    (dir1_cwd / "run-relative.wandb").touch()
-    (dir2_not / "run-absolute.wandb").touch()
+    for path in (
+        dir1_cwd / "offline-run-1" / "run-relative.wandb",
+        dir2_not / "offline-run-2" / "run-absolute.wandb",
+    ):
+        path.parent.mkdir()
+        path.touch()
 
-    result = runner.invoke(cli.beta, f"sync --dry-run {tmp_path}")
+    result = runner.invoke(cli.beta, f"sync --dry-run {dir1_cwd} {dir2_not}")
 
     assert result.output.splitlines() == [
         "wandb: Would sync 2 run(s):",
         *sorted(
             [
-                "wandb:   run-relative.wandb",
-                f"wandb:   {dir2_not / 'run-absolute.wandb'}",
+                "wandb:   offline-run-1/run-relative.wandb",
+                f"wandb:   {dir2_not / 'offline-run-2' / 'run-absolute.wandb'}",
             ]
         ),
     ]

@@ -6,7 +6,6 @@ import asyncio
 import contextlib
 import pathlib
 from collections.abc import Iterable, Iterator
-from itertools import filterfalse
 
 import wandb
 from wandb.errors import term
@@ -33,6 +32,7 @@ def sync(
     replace_tags: str,
     dry_run: bool,
     skip_synced: bool,
+    skip_online: bool,
     verbose: bool,
     parallelism: int,
 ) -> None:
@@ -52,6 +52,7 @@ def sync(
         dry_run: If true, just prints what it would do and exits.
         skip_synced: If true, skips files that have already been synced
             as indicated by a .wandb.synced marker file in the same directory.
+        skip_online: If true, skips online runs (determined by folder name).
         verbose: Verbose mode for printing more info.
         parallelism: Max number of runs to sync at a time.
     """
@@ -73,7 +74,11 @@ def sync(
         (
             wandb_file
             for path in paths
-            for wandb_file in _find_wandb_files(path, skip_synced=skip_synced)
+            for wandb_file in _find_wandb_files(
+                path,
+                skip_synced=skip_synced,
+                skip_online=skip_online,
+            )
         ),
         verbose=verbose,
     )
@@ -271,12 +276,15 @@ def _find_wandb_files(
     path: pathlib.Path,
     *,
     skip_synced: bool,
+    skip_online: bool,
 ) -> Iterator[pathlib.Path]:
     """Returns paths to the .wandb files to sync."""
-    if skip_synced:
-        yield from filterfalse(_is_synced, _expand_wandb_files(path))
-    else:
-        yield from _expand_wandb_files(path)
+    for file in _expand_wandb_files(path):
+        if skip_synced and _is_synced(file):
+            continue
+        if skip_online and _is_online(file):
+            continue
+        yield file
 
 
 def _expand_wandb_files(
@@ -303,6 +311,15 @@ def _expand_wandb_files(
 def _is_synced(path: pathlib.Path) -> bool:
     """Returns whether the .wandb file is synced."""
     return path.with_suffix(".wandb.synced").exists()
+
+
+def _is_online(path: pathlib.Path) -> bool:
+    """Returns whether the .wandb file is for an online run.
+
+    Online run directories are named like "run-..." and offline runs
+    are named like "offline-run-...".
+    """
+    return not path.parent.name.startswith("offline-")
 
 
 def _print_sorted_paths(
