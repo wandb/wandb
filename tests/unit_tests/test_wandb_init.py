@@ -7,6 +7,7 @@ import time
 import pytest
 import wandb
 
+
 def test_no_root_dir_access__uses_temp_dir(tmp_path, monkeypatch):
     temp_dir = tempfile.gettempdir()
     root_dir = tmp_path / "create_dir_test"
@@ -109,3 +110,10 @@ def test_temp_dir_cleanup_on_exit(tmp_path, monkeypatch):
     run.finish()
     wandb.teardown()
     time.sleep(0.2)
+
+    after = list_paths()
+
+    new_items = [it for it in after if it not in before]
+    assert len(new_items) == 0, (
+        f"New items detected in temp directory after run.finish() and wandb.teardown(): {[f['path'] for f in new_items]}."
+    )
