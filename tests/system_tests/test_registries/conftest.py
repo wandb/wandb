@@ -80,10 +80,9 @@ def registry(
 def _remove_from_team(api: Api, team: str, username: str) -> None:
     team_obj = api.team(team)
     team_obj.load(force=True)
-    for member in team_obj.members:
-        if member.username == username:
-            member.delete()
-            return
+    matches = (m for m in team_obj.members if m.username == username)
+    if member := next(matches, None):
+        member.delete()
 
 
 @fixture
