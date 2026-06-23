@@ -44,4 +44,3 @@ This version drops compatibility with server versions older than 0.65.0.
 - file download progress is now shown when using `wandb.Api().run(...).download_history_exports` (@jacobromero in https://github.com/wandb/wandb/pull/12063)
 - `Run.scan_history()` no longer returns no rows for a run whose history exists but has not been exported to parquet (e.g. an active run; a regression in `0.27.1`) (@dmitryduev in https://github.com/wandb/wandb/issues/12073)
 - Saving a linked registry artifact (for example, when adding an alias) no longer fails when the caller lacks write access to the source project (@ibindlish in https://github.com/wandb/wandb/pull/12075)
-

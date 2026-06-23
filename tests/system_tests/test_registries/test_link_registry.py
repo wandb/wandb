@@ -105,11 +105,6 @@ def test_artifact_link_to_registry_collection(
     assert expected_linked_full_name == linked.qualified_name
 
 
-# ---------------------------------------------------------------------------
-# Linked-artifact saves when the caller lacks source-project write access
-# ---------------------------------------------------------------------------
-
-
 def _add_org_user(
     backend_fixture_factory: BackendFixtureFactory,
     org: str,
