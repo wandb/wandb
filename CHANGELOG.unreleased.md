@@ -13,3 +13,7 @@ sections:
 Section headings should be at level 3 (e.g. `### Added`).
 
 ## Unreleased
+
+### Changed
+
+- remove temporary unix socket files and directories on shutdown (@geoffhardy in https://github.com/wandb/wandb/pull/12058)
