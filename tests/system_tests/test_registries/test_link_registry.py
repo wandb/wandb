@@ -9,8 +9,6 @@ from wandb import Api, Artifact
 from wandb.apis.public.registries.registry import Registry
 from wandb.sdk.artifacts._gqlutils import is_project_read_only
 
-from ..backend_fixtures import BackendFixtureFactory
-
 
 @fixture(
     params=[
@@ -129,23 +127,23 @@ def linked_version_name(
 )
 def test_add_alias_to_linked_artifact_without_source_write(
     monkeypatch: MonkeyPatch,
-    backend_fixture_factory: BackendFixtureFactory,
+    add_org_user_with_registry_access,
     org: str,
     team: str,
     registry: Registry,
-    api: Api,
     linked_version_name: str,
     org_role: Literal["member", "viewer"],
     invite_to_source_team: bool,
     alias: str,
 ):
     """Users without source-project write access can still add aliases to linked artifacts."""
-    username = backend_fixture_factory.add_org_user(org, role=org_role)
-    user = api.user(username)
-    assert user is not None
-    backend_fixture_factory.add_registry_member(registry, user, role="member")
-    if invite_to_source_team:
-        backend_fixture_factory.invite_team_member(api, team, username)
+    username, _user = add_org_user_with_registry_access(
+        org=org,
+        org_role=org_role,
+        registry=registry,
+        team=team,
+        invite_to_source_team=invite_to_source_team,
+    )
 
     monkeypatch.setenv("WANDB_API_KEY", username)
     monkeypatch.setenv("WANDB_ENTITY", username)

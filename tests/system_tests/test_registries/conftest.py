@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 from collections.abc import Callable
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 import wandb
 from pytest import FixtureRequest, fixture, skip
@@ -10,6 +10,7 @@ from pytest_mock import MockerFixture
 from wandb import Api, Artifact
 from wandb.apis.public.registries._utils import fetch_org_entity_from_organization
 from wandb.apis.public.registries.registry import Registry
+from wandb.apis.public.users import User
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.artifacts._gqlutils import server_supports
 from wandb.util import random_string
@@ -74,6 +75,57 @@ def registry(
     worker_id: str,
 ) -> Registry:
     return make_registry(name="model", visibility="organization", organization=org)
+
+
+def _remove_from_team(api: Api, team: str, username: str) -> None:
+    team_obj = api.team(team)
+    team_obj.load(force=True)
+    for member in team_obj.members:
+        if member.username == username:
+            member.delete()
+            return
+
+
+@fixture
+def add_org_user_with_registry_access(
+    request: FixtureRequest,
+    backend_fixture_factory: BackendFixtureFactory,
+    api: Api,
+) -> Callable[..., tuple[str, User]]:
+    """Create an org user with registry membership and optional source-team access.
+
+    Uses the public API for steps that the fixture service does not support
+    (registry project_members, team invites). Registers per-test finalizers to
+    remove those rows before session teardown deletes the user.
+    """
+
+    def _add(
+        *,
+        org: str,
+        org_role: Literal["admin", "member", "viewer"],
+        registry: Registry,
+        team: str,
+        invite_to_source_team: bool,
+        registry_role: Literal[
+            "admin", "member", "viewer", "restricted_viewer"
+        ] = "member",
+    ) -> tuple[str, User]:
+        username = backend_fixture_factory.add_org_user(org, role=org_role)
+        user = api.user(username)
+        assert user is not None
+
+        registry.add_members(user).update_member(user, role=registry_role)
+        request.addfinalizer(lambda: registry.remove_members(user))
+
+        if invite_to_source_team:
+            assert api.team(team).invite(username)
+            request.addfinalizer(
+                lambda: _remove_from_team(api, team, username),
+            )
+
+        return username, user
+
+    return _add
 
 
 @fixture

@@ -1347,6 +1347,10 @@ class Artifact:
             self._assign_attrs(artifact)
 
             self._ttl_changed = False  # Reset after updating artifact
+        else:
+            wandb.termwarn(
+                "Skipping non-alias updates due to insufficient permissions on the source artifact."
+            )
 
     def _is_source_project_read_only(self) -> bool:
         from ._gqlutils import is_project_read_only

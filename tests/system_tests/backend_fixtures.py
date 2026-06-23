@@ -5,16 +5,10 @@ import secrets
 import subprocess
 import sys
 from collections import deque
-from collections.abc import Callable
 from dataclasses import InitVar, asdict, dataclass, field
 from pathlib import Path
 from string import ascii_lowercase, digits
-from typing import TYPE_CHECKING, Any, ClassVar, Final, Literal
-
-if TYPE_CHECKING:
-    from wandb.apis.public.api import Api
-    from wandb.apis.public.registries.registry import Registry
-    from wandb.apis.public.users import User
+from typing import Any, ClassVar, Final, Literal
 
 import httpx
 
@@ -158,10 +152,7 @@ class BackendFixtureFactory:
     worker_id: str  #: Identifies the current worker in pytest-xdist parallel runs.
 
     _client: httpx.Client = field(init=False)
-    _cleanup_stack: deque[FixtureCmd | Callable[[], None]] = field(
-        default_factory=deque,
-        init=False,
-    )
+    _cleanup_stack: deque[FixtureCmd] = field(default_factory=deque, init=False)
 
     def __post_init__(self, service_url: str):
         self._client = httpx.Client(
@@ -224,39 +215,6 @@ class BackendFixtureFactory:
         )
         return username
 
-    def add_registry_member(
-        self,
-        registry: Registry,
-        member: User,
-        *,
-        role: Literal["admin", "member", "viewer", "restricted_viewer"] = "member",
-    ) -> None:
-        """Add a user to a registry and register API cleanup for the project_members row."""
-        registry.add_members(member).update_member(member, role=role)
-
-        def _remove_registry_member() -> None:
-            registry.remove_members(member)
-
-        self._register_api_cleanup(_remove_registry_member)
-
-    def invite_team_member(self, api: Api, team: str, username: str) -> None:
-        """Invite a user to a team and register API cleanup for the project_members row."""
-        if not api.team(team).invite(username):
-            raise AssertionError(f"Failed to invite {username!r} to team {team!r}")
-
-        def _remove_team_member() -> None:
-            team_obj = api.team(team)
-            team_obj.load(force=True)
-            for team_member in team_obj.members:
-                if team_member.username == username:
-                    team_member.delete()
-                    return
-
-        self._register_api_cleanup(_remove_team_member)
-
-    def _register_api_cleanup(self, cleanup: Callable[[], None]) -> None:
-        self._cleanup_stack.append(cleanup)
-
     def make_team(
         self,
         name: str | None = None,
@@ -310,21 +268,11 @@ class BackendFixtureFactory:
             # FIXME: Figure out how SDK team preferences/conventions for replacing print statements
             print(e.response.text, file=sys.stderr)
 
-    def _run_api_cleanup(self, cleanup: Callable[[], None]) -> None:
-        try:
-            cleanup()
-        except Exception as e:
-            # FIXME: Figure out how SDK team preferences/conventions for replacing print statements
-            print(f"API cleanup failed: {e!r}", file=sys.stderr)
-
     def cleanup(self) -> None:
         while True:
             try:
-                item = self._cleanup_stack.pop()
+                cmd = self._cleanup_stack.pop()
             except IndexError:
                 break
             else:
-                if callable(item):
-                    self._run_api_cleanup(item)
-                else:
-                    self._send(item.path, data=asdict(item))
+                self._send(cmd.path, data=asdict(cmd))
