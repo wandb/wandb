@@ -143,9 +143,9 @@ def test_add_alias_to_linked_artifact_without_source_write(
     username = backend_fixture_factory.add_org_user(org, role=org_role)
     user = api.user(username)
     assert user is not None
-    registry.add_members(user).update_member(user, role="member")
+    backend_fixture_factory.add_registry_member(registry, user, role="member")
     if invite_to_source_team:
-        assert api.team(team).invite(username)
+        backend_fixture_factory.invite_team_member(api, team, username)
 
     monkeypatch.setenv("WANDB_API_KEY", username)
     monkeypatch.setenv("WANDB_ENTITY", username)
