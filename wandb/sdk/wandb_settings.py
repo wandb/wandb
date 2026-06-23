@@ -83,11 +83,14 @@ class Settings(BaseModel, validate_assignment=True):
     2. Configuration files (`~/.config/wandb/settings`, or the `settings` file in
        the directory named by the `WANDB_CONFIG_DIR` environment variable).
     3. Environment variables (those prefixed with `WANDB_`, e.g. `WANDB_MODE`).
-    4. Settings inferred from the system environment.
+    4. Values detected from the runtime environment, such as the hostname, the
+       running program/script path, the Python executable, the Docker image, and
+       Jupyter notebook details.
     5. SageMaker settings, when running in an Amazon SageMaker environment.
-    6. Settings passed programmatically, such as the `settings` argument to
-       `wandb.setup()` and `wandb.init()`, and the explicit keyword arguments to
-       `wandb.init()` (for example `mode=`).
+    6. The `settings` parameter of `wandb.setup()`.
+    7. The `settings` parameter of `wandb.init()`.
+    8. Certain `wandb.init()` parameters (for example, `mode=` overrides the
+       `mode` setting).
     """
 
     # Pydantic Model configuration.
