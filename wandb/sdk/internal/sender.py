@@ -18,8 +18,6 @@ from datetime import datetime
 from queue import Queue
 from typing import TYPE_CHECKING, Any, Literal
 
-import requests
-
 import wandb
 from wandb import util
 from wandb.analytics import get_sentry
@@ -800,25 +798,6 @@ class SendManager:
         config_path = os.path.join(self._settings.files_dir, "config.yaml")
         config_util.save_config_file_from_dict(config_path, config_value_dict)
 
-    def _sync_spell(self) -> None:
-        """Sync this run with spell."""
-        if not self._run:
-            return
-        try:
-            env = os.environ
-            self._interface.publish_config(
-                key=("_wandb", "spell_url"), val=env.get("SPELL_RUN_URL")
-            )
-            url = f"{self._api.app_url}/{self._run.entity}/{self._run.project}/runs/{self._run.run_id}"
-            requests.put(
-                env.get("SPELL_API_URL", "https://api.spell.run") + "/wandb_url",
-                json={"access_token": env.get("WANDB_ACCESS_TOKEN"), "url": url},
-                timeout=2,
-            )
-        except requests.RequestException:
-            pass
-        # TODO: do something if sync spell is not successful?
-
     def _setup_fork(self, server_run: dict):
         assert self._run
         assert self._run.branch_point
@@ -1080,8 +1059,6 @@ class SendManager:
         sweep_id = server_run.get("sweepName")
         if sweep_id:
             self._run.sweep_id = sweep_id
-        if os.getenv("SPELL_RUN_URL"):
-            self._sync_spell()
         return server_run
 
     def _start_run_threads(self, file_dir: str | None = None) -> None:
