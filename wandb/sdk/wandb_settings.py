@@ -74,6 +74,20 @@ class Settings(BaseModel, validate_assignment=True):
        versions.
     3. Computed settings: Read-only settings that are automatically derived from other settings or
        the environment.
+
+    Settings are loaded from multiple sources. When the same setting is supplied
+    by more than one source, the source listed later wins. From lowest to highest
+    precedence:
+
+    1. Default values defined on this `Settings` model.
+    2. Configuration files (`~/.config/wandb/settings`, or the `settings` file in
+       the directory named by the `WANDB_CONFIG_DIR` environment variable).
+    3. Environment variables (those prefixed with `WANDB_`, e.g. `WANDB_MODE`).
+    4. Settings inferred from the system environment.
+    5. SageMaker settings, when running in an Amazon SageMaker environment.
+    6. Settings passed programmatically, such as the `settings` argument to
+       `wandb.setup()` and `wandb.init()`, and the explicit keyword arguments to
+       `wandb.init()` (for example `mode=`).
     """
 
     # Pydantic Model configuration.
