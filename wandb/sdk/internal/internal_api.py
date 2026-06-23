@@ -24,6 +24,7 @@ from wandb.analytics import get_sentry
 from wandb.apis.normalize import normalize_exceptions
 from wandb.errors import AuthenticationError, CommError, UsageError
 from wandb.integration.sagemaker import parse_sm_secrets
+from wandb.proto.wandb_api_pb2 import ApiRequest, UploadFileRequest
 from wandb.proto.wandb_internal_pb2 import ServerFeature
 from wandb.sdk import wandb_setup
 from wandb.sdk.internal import settings_static
@@ -2441,30 +2442,44 @@ class Api:
         """Upload a file to W&B with failure resumption.
 
         Args:
-            url: The url to download
-            file: The path to the file you want to upload
-            callback: A callback which is passed the number of
-            bytes uploaded since the last time it was called, used to report progress
-            extra_headers: A dictionary of extra headers to send with the request
+            url: The destination URL.
+            file: An open file object for the file to upload.
+            callback: A callback passed the number of bytes uploaded since
+                the last call, used to report progress. Only honored for
+                Azure uploads.
+            extra_headers: A dictionary of extra headers to send with the request.
 
         Returns:
-            The `requests` library response object
+            The `requests` response for Azure uploads, otherwise None.
         """
+        extra_headers = extra_headers.copy() if extra_headers else {}
+
+        # Non-Azure uploads go through wandb-core's file transfer subsystem.
+        if "x-ms-blob-type" not in extra_headers:
+            self._service_api.send_api_request(
+                ApiRequest(
+                    upload_file_request=UploadFileRequest(
+                        url=url, path=file.name, headers=extra_headers
+                    )
+                )
+            )
+            return None
+
+        # Azure uploads stay on the azure SDK, or a direct PUT for blobs
+        # small enough not to require it.
         import requests
 
         check_httpclient_logger_handler()
-        extra_headers = extra_headers.copy() if extra_headers else {}
         response: requests.Response | None = None
         progress = Progress(file, callback=callback)
         try:
-            if "x-ms-blob-type" in extra_headers and self._azure_blob_module:
+            if self._azure_blob_module:
                 self.upload_file_azure(url, progress, extra_headers)
             else:
-                if "x-ms-blob-type" in extra_headers:
-                    wandb.termwarn(
-                        "Azure uploads over 256MB require the azure SDK, install with pip install wandb[azure]",
-                        repeat=False,
-                    )
+                wandb.termwarn(
+                    "Azure uploads over 256MB require the azure SDK, install with pip install wandb[azure]",
+                    repeat=False,
+                )
                 if env.is_debug(env=self._environ):
                     logger.debug("upload_file: %s", url)
                 response = self._upload_file_session.put(
