@@ -9,12 +9,7 @@ from wandb import Api, Artifact
 from wandb.apis._generated import IS_PROJECT_READ_ONLY_GQL, IsProjectReadOnly
 from wandb.apis.public.registries.registry import Registry
 
-from ..backend_fixtures import (
-    BackendFixtureFactory,
-    OrgCmd,
-    OrgMemberState,
-    OrgState,
-)
+from ..backend_fixtures import BackendFixtureFactory, OrgCmd, OrgMemberState, OrgState
 
 
 @fixture(
