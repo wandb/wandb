@@ -28,6 +28,7 @@ import wandb.sdk.verify.verify as wandb_verify
 from wandb import Config, Error, env, util, wandb_agent
 from wandb.analytics import get_sentry
 from wandb.apis import InternalApi, PublicApi
+from wandb.cli import beta_sync
 from wandb.errors.links import url_registry
 from wandb.sdk import wandb_setup, wandb_sweep
 from wandb.sdk.artifacts._validators import is_artifact_registry_project
@@ -40,7 +41,7 @@ from wandb.sdk.launch.sweeps import SweepNotFoundError
 from wandb.sdk.launch.sweeps import utils as sweep_utils
 from wandb.sdk.launch.sweeps.scheduler import Scheduler
 from wandb.sdk.lib import filesystem, settings_file
-from wandb.sync import SyncManager, get_run_from_path, get_runs
+from wandb.sync import TFEVENT_SUBSTRING, SyncManager, get_run_from_path, get_runs
 
 from .beta import beta
 from .leet import leet
@@ -668,6 +669,11 @@ def init(ctx, project, entity, reset, mode):
     "--replace-tags",
     help="Rename tags during sync. Use 'old=new' pairs separated by commas.",
 )
+@click.option(
+    "--legacy",
+    is_flag=True,
+    help="Force legacy behavior instead of rerouting to `wandb beta sync`.",
+)
 @display_error
 def sync(
     ctx: click.Context,
@@ -694,6 +700,7 @@ def sync(
     append: bool,
     skip_console: bool,
     replace_tags: str | None,
+    legacy: bool,
 ):
     """Upload existing local W&B run data to the cloud.
 
@@ -745,6 +752,44 @@ def sync(
 
         $ wandb sync --clean --clean-old-hours 48 --clean-force
     """
+    if (
+        not legacy
+        and len(path) >= 1  # slightly different behavior when no paths
+        and not any(TFEVENT_SUBSTRING in p for p in path)  # no tfevents support
+        and not view
+        # verbose, run_id, project, entity, job_type OK
+        and not sync_tensorboard
+        and not include_globs
+        and not exclude_globs
+        # include_online OK
+        and include_offline is not False  # True and None OK
+        # include_synced OK
+        and mark_synced
+        and not sync_all
+        # ignore, show OK (unused)
+        and not clean
+        # clean_old_hours, clean_force OK (no-op without clean)
+        and not append
+        and not skip_console
+        # replace_tags OK
+    ):
+        wandb.termlog("Using wandb beta sync. Turn this off with --legacy.")
+        beta_sync.sync(
+            [pathlib.Path(p) for p in path],
+            live=False,
+            entity=entity or "",
+            project=project or "",
+            run_id=run_id or "",
+            job_type=job_type or "",
+            replace_tags=replace_tags or "",
+            dry_run=False,
+            skip_synced=not include_synced,
+            skip_online=not include_online,
+            verbose=verbose,
+            parallelism=5,  # same default as wandb beta sync
+        )
+        return
+
     api = _get_cling_api()
     if not api.is_authenticated:
         wandb.termlog("Login to W&B to sync runs")
