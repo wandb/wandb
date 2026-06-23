@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+
 	"github.com/wandb/wandb/core/internal/stream"
 )
 
