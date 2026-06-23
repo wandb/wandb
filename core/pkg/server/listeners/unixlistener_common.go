@@ -18,8 +18,6 @@ type unixSocketListener struct {
 func (l *unixSocketListener) Close() error {
 	sockDir := filepath.Dir(l.sockPath)
 
-	closeErr := l.Listener.Close()
-
 	// Best-effort cleanup of the socket file and its parent directory.
 	if err := os.Remove(l.sockPath); err != nil && !os.IsNotExist(err) {
 		slog.Warn(
@@ -37,7 +35,7 @@ func (l *unixSocketListener) Close() error {
 		)
 	}
 
-	return closeErr
+	return l.Listener.Close()
 }
 
 // listenInTempDir attempts to listen on a path constructed from os.TempDir().
