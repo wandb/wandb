@@ -196,6 +196,25 @@ class BackendFixtureFactory:
         )
         return name
 
+    def add_org_user(
+        self,
+        org: str,
+        *,
+        role: Literal["admin", "member", "viewer"],
+    ) -> str:
+        """Create a user and add them to an existing org with the given role."""
+        username = self.make_user()
+        self.send_cmds(
+            OrgCmd(
+                "add_members",
+                orgName=org,
+                fixtureData=OrgState(
+                    members=[OrgMemberState(username=username, role=role)]
+                ),
+            ),
+        )
+        return username
+
     def make_team(
         self,
         name: str | None = None,

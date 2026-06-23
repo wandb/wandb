@@ -157,3 +157,20 @@ def resolve_org_entity_name(
             )
 
     raise ValueError(f"Unable to find organization for entity {non_org_entity!r}.")
+
+
+@lru_cache(maxsize=16)
+def is_project_read_only(
+    service_api: ServiceApi, entity: str, project: str
+) -> bool | None:
+    """Return whether *project* is read-only for the caller, or None if invisible."""
+    from wandb.apis._generated import IS_PROJECT_READ_ONLY_GQL, IsProjectReadOnly
+
+    data = service_api.execute_graphql(
+        IS_PROJECT_READ_ONLY_GQL,
+        variables={"entity": entity, "project": project},
+    )
+    result = IsProjectReadOnly.model_validate(data)
+    if not (result and (proj := result.project)):
+        return None
+    return proj.read_only

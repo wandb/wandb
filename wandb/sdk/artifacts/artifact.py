@@ -1321,7 +1321,7 @@ class Artifact:
         self._delete_aliases(old_aliases - new_aliases, target=target)
         self._saved_aliases = copy(self.aliases)
 
-        skip_update_artifact = self.is_link and not self._can_write_to_source_project()
+        skip_update_artifact = self.is_link and self._is_source_project_read_only()
         if not skip_update_artifact:
             old_tags, new_tags = set(self._saved_tags), set(self.tags)
 
@@ -1348,22 +1348,21 @@ class Artifact:
 
             self._ttl_changed = False  # Reset after updating artifact
 
-    def _can_write_to_source_project(self) -> bool:
-        from wandb.apis._generated import IS_PROJECT_READ_ONLY_GQL, IsProjectReadOnly
+    def _is_source_project_read_only(self) -> bool:
+        from ._gqlutils import is_project_read_only
 
-        if self.source_entity == "" or self.source_project == "":
-            return False
+        if not (self.source_entity and self.source_project):
+            # This actually implies that the source project is invisible (no access).
+            return True
 
         if (client := self._service_api) is None:
             raise RuntimeError("Client not initialized for artifact mutations")
 
-        gql_op = IS_PROJECT_READ_ONLY_GQL
-        gql_vars = {"entity": self.source_entity, "project": self.source_project}
-        data = client.execute_graphql(gql_op, variables=gql_vars)
-        result = IsProjectReadOnly.model_validate(data)
-        if not (result and (project := result.project)):
-            return False
-        return not project.read_only
+        read_only = is_project_read_only(
+            client, self.source_entity, self.source_project
+        )
+        # Treat invisible projects as read-only (no write access).
+        return read_only is None or read_only
 
     def _add_aliases(self, alias_names: set[str], target: FullArtifactPath) -> None:
         from ._generated import ADD_ALIASES_GQL, AddAliasesInput
