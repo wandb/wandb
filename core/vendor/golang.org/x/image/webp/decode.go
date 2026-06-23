@@ -82,6 +82,9 @@ func decode(r io.Reader, configOnly bool) (image.Image, image.Config, error) {
 			if err != nil {
 				return nil, image.Config{}, err
 			}
+			if seenVP8X && (fh.Width != int(widthMinusOne)+1 || fh.Height != int(heightMinusOne)+1) {
+				return nil, image.Config{}, errInvalidFormat
+			}
 			if configOnly {
 				return nil, image.Config{
 					ColorModel: color.YCbCrModel,
@@ -111,7 +114,16 @@ func decode(r io.Reader, configOnly bool) (image.Image, image.Config, error) {
 				return nil, c, err
 			}
 			m, err := vp8l.Decode(chunkData)
-			return m, image.Config{}, err
+			if err != nil {
+				return nil, image.Config{}, err
+			}
+			if seenVP8X {
+				bounds := m.Bounds()
+				if bounds.Dx() != int(widthMinusOne)+1 || bounds.Dy() != int(heightMinusOne)+1 {
+					return nil, image.Config{}, errInvalidFormat
+				}
+			}
+			return m, image.Config{}, nil
 
 		case fccVP8X:
 			if seenVP8X {
