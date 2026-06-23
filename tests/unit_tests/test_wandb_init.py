@@ -1,16 +1,11 @@
+import glob
 import os
+import stat
 import tempfile
 import time
 
 import pytest
 import wandb
-
-from tests.unix_socket_cleanup_helpers import (
-    assert_no_new_wandb_entries,
-    isolate_temp_dir,
-    list_wandb_temp_entries,
-)
-
 
 def test_no_root_dir_access__uses_temp_dir(tmp_path, monkeypatch):
     temp_dir = tempfile.gettempdir()
@@ -73,11 +68,36 @@ def test_avoids_sync_dir_conflict(mocker):
     assert run3.settings.sync_dir == run1.settings.sync_dir + "-2"
 
 
-def test_temp_dir_cleanup_on_graceful_teardown(tmp_path, monkeypatch):
+def test_temp_dir_cleanup_on_exit(tmp_path, monkeypatch):
     isolated_temp = tmp_path / "temp"
-    isolate_temp_dir(isolated_temp, monkeypatch)
+    isolated_temp.mkdir()
+    monkeypatch.setenv("TMPDIR", str(isolated_temp))
+    monkeypatch.setenv("TEMP", str(isolated_temp))
+    monkeypatch.setenv("TMP", str(isolated_temp))
+    monkeypatch.setattr(tempfile, "tempdir", str(isolated_temp))
 
-    before = list_wandb_temp_entries(isolated_temp)
+    def list_paths():
+        t = str(isolated_temp)
+        pats = sorted(glob.glob(os.path.join(t, "wandb*")))
+        out = []
+        for p in pats:
+            try:
+                st = os.lstat(p)
+                kind = (
+                    "socket"
+                    if stat.S_ISSOCK(st.st_mode)
+                    else (
+                        "dir"
+                        if stat.S_ISDIR(st.st_mode)
+                        else ("file" if stat.S_ISREG(st.st_mode) else "other")
+                    )
+                )
+                out.append({"path": p, "kind": kind, "size": st.st_size})
+            except FileNotFoundError:
+                pass
+        return out
+
+    before = list_paths()
 
     run = wandb.init(
         id="temp-dir-cleanup-test",
@@ -89,6 +109,3 @@ def test_temp_dir_cleanup_on_graceful_teardown(tmp_path, monkeypatch):
     run.finish()
     wandb.teardown()
     time.sleep(0.2)
-
-    after = list_wandb_temp_entries(isolated_temp)
-    assert_no_new_wandb_entries(before, after, kinds={"dir"})

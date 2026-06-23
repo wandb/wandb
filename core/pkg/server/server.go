@@ -47,9 +47,6 @@ type Server struct {
 	// forceStopCancelFunc cancels forceStopCtx.
 	forceStopCancelFunc context.CancelFunc
 
-	// forceStopOnce ensures forced stop is only triggered once.
-	forceStopOnce sync.Once
-
 	// streamMux maps stream IDs to streams.
 	streamMux *stream.StreamMux
 
@@ -59,9 +56,9 @@ type Server struct {
 	// xpuResourceManager manages costly resources for accelerator system metrics.
 	xpuResourceManager *monitor.XPUResourceManager
 
-	// wg is the WaitGroup to wait for all connections to finish
+	// connectionsWG is the WaitGroup to wait for all connections to finish
 	// and for the serve goroutine to finish
-	wg sync.WaitGroup
+	connectionsWG sync.WaitGroup
 
 	// parentPID is parent process's ID.
 	//
@@ -103,15 +100,9 @@ type Server struct {
 }
 
 // Stop forces the server to shut down without waiting for in-flight work.
-func (s *Server) Stop() {
-	s.forceStop()
-}
-
-func (s *Server) forceStop() {
-	s.forceStopOnce.Do(func() {
-		s.forceStopCancelFunc()
-		s.stopServer()
-	})
+func (s *Server) ForceStop() {
+	s.forceStopCancelFunc()
+	s.stopServer()
 }
 
 type ServerParams struct {
@@ -137,7 +128,7 @@ func NewServer(params ServerParams) *Server {
 		streamMux:           stream.NewStreamMux(),
 		runSyncManager:      runsync.NewRunSyncManager(),
 		xpuResourceManager:  monitor.NewXPUResourceManager(params.EnableDCGMProfiling),
-		wg:                  sync.WaitGroup{},
+		connectionsWG:       sync.WaitGroup{},
 		parentPID:           params.ParentPID,
 		detached:            params.Detached,
 		idleTimeout:         params.IdleTimeout,
@@ -160,13 +151,13 @@ func (s *Server) exitWhenParentIsGone() {
 
 	// The user process has exited, so there's no need to sync
 	// uncommitted data, and we can quit immediately.
-	s.forceStop()
+	s.ForceStop()
 }
 
-func cleanupListeners(listenerList []net.Listener) {
+func closeAll(listenerList []net.Listener) {
 	for idx, listener := range listenerList {
 		if err := listener.Close(); err != nil {
-			slog.Error("failed to Close listener", "index", idx, "error", err)
+			slog.Error("server: failed to close listener", "index", idx, "error", err)
 		}
 	}
 }
@@ -177,15 +168,15 @@ func (s *Server) Serve(portFile string) error {
 		ListenOnLocalhost: s.listenOnLocalhost,
 	}.MakeListeners()
 
-	var cleanupOnce sync.Once
-	cleanup := func() {
-		cleanupOnce.Do(func() { cleanupListeners(listenerList) })
-	}
-	defer cleanup()
-
 	if err != nil {
 		return err
 	}
+
+	var closeAllOnce sync.Once
+	closeListeners := func() {
+		closeAllOnce.Do(func() { closeAll(listenerList) })
+	}
+	defer closeListeners()
 
 	if err := portInfo.WriteToFile(portFile); err != nil {
 		return err
@@ -201,33 +192,38 @@ func (s *Server) Serve(portFile string) error {
 	}
 
 	for _, listener := range listenerList {
-		s.wg.Go(func() {
+		s.connectionsWG.Go(func() {
 			s.acceptConnections(listener)
 		})
 	}
 
 	// Wait for the signal to shut down.
 	<-s.serverLifetimeCtx.Done()
-	slog.Info("server is shutting down")
+	slog.Info("server: is shutting down")
 
 	s.stopIdleTimer()
 
 	// Stop accepting new connections.
-	cleanup()
-
-	wgDone := make(chan struct{})
-	go func() {
-		s.wg.Wait()
-		close(wgDone)
-	}()
+	closeListeners()
 
 	select {
 	case <-s.forceStopCtx.Done():
+		slog.Info("server: forced shutdown")
 		return ErrForcedShutdown
-	case <-wgDone:
-		slog.Info("server is closed")
+	case <-s.waitForConnectionsToFinish():
+		slog.Info("server: all connections closed")
 		return nil
 	}
+}
+
+func (s *Server) waitForConnectionsToFinish() chan struct{} {
+	done := make(chan struct{})
+	go func() {
+		s.connectionsWG.Wait()
+		close(done)
+	}()
+
+	return done
 }
 
 // acceptConnections accepts incoming connections on the listener.
@@ -272,7 +268,7 @@ func (s *Server) acceptConnections(listener net.Listener) {
 			return
 		}
 
-		s.wg.Go(func() {
+		s.connectionsWG.Go(func() {
 			s.onConnectionStart()
 			defer s.onConnectionEnd()
 			s.handleConnection(conn)

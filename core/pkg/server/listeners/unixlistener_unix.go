@@ -44,5 +44,16 @@ func listenInTmp(namePattern string, portInfo *PortInfo) (net.Listener, error) {
 		)
 	}
 
-	return listenUnix(sockDir, filepath.Join(sockDir, "socket"), portInfo)
+	listener, err := listenUnix(filepath.Join(sockDir, "socket"), portInfo)
+	if err != nil {
+		if rmErr := os.Remove(sockDir); rmErr != nil {
+			slog.Warn(
+				"server/listeners: failed to remove Unix socket directory",
+				"dir", sockDir,
+				"error", rmErr,
+			)
+		}
+		return nil, err
+	}
+	return listener, err
 }

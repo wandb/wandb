@@ -197,9 +197,6 @@ func serviceMain() int {
 		select {
 		case err := <-srvCh:
 			switch {
-			case errors.Is(err, server.ErrForcedShutdown):
-				slog.Error("main: server forced shutdown, exiting")
-				return exitCodeErrorInternal
 			case err != nil:
 				slog.Error("main: Serve() returned error", "error", err)
 				return exitCodeErrorInternal
@@ -208,7 +205,7 @@ func serviceMain() int {
 			}
 		case sig := <-signalCh:
 			slog.Info("main: received shutdown signal", "signal", sig)
-			srv.Stop()
+			srv.ForceStop()
 			err := <-srvCh
 			if err != nil && !errors.Is(err, server.ErrForcedShutdown) {
 				slog.Error("main: Serve() returned error", "error", err)

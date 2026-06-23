@@ -12,19 +12,32 @@ import (
 // temporary directory that holds the socket file when closed.
 type unixSocketListener struct {
 	net.Listener
-	sockDir string
+	sockPath string
 }
 
 func (l *unixSocketListener) Close() error {
-	err := l.Listener.Close()
-	if rmErr := os.RemoveAll(l.sockDir); rmErr != nil {
+	sockDir := filepath.Dir(l.sockPath)
+
+	closeErr := l.Listener.Close()
+
+	// Best-effort cleanup of the socket file and its parent directory.
+	if err := os.Remove(l.sockPath); err != nil && !os.IsNotExist(err) {
 		slog.Warn(
-			"server/listeners: failed to remove Unix socket directory",
-			"dir", l.sockDir,
-			"error", rmErr,
+			"server/listeners: failed to remove Unix socket file",
+			"path", l.sockPath,
+			"error", err,
 		)
 	}
-	return err
+
+	if err := os.Remove(sockDir); err != nil && !os.IsNotExist(err) {
+		slog.Warn(
+			"server/listeners: failed to remove Unix socket directory",
+			"dir", sockDir,
+			"error", err,
+		)
+	}
+
+	return closeErr
 }
 
 // listenInTempDir attempts to listen on a path constructed from os.TempDir().
@@ -43,7 +56,17 @@ func listenInTempDir(
 			"server/listeners: failed to make tempdir for Unix socket: %v", err)
 	}
 
-	return listenUnix(sockDir, filepath.Join(sockDir, "socket"), portInfo)
+	listener, err := listenUnix(filepath.Join(sockDir, "socket"), portInfo)
+	if err != nil {
+		if rmErr := os.Remove(sockDir); rmErr != nil {
+			slog.Warn(
+				"server/listeners: failed to remove Unix socket directory",
+				"dir", sockDir,
+				"error", rmErr,
+			)
+		}
+	}
+	return listener, err
 }
 
 // makeUniqueDir creates a unique directory as os.MkdirTemp().
@@ -61,22 +84,14 @@ func makeUniqueDir(dir, namePattern string) (string, error) {
 }
 
 // listenUnix attempts to listen on a Unix socket with the given path.
-func listenUnix(sockDir, path string, portInfo *PortInfo) (net.Listener, error) {
+func listenUnix(path string, portInfo *PortInfo) (net.Listener, error) {
 	listener, err := net.Listen("unix", path)
-
 	if err != nil {
-		if rmErr := os.RemoveAll(sockDir); rmErr != nil {
-			slog.Warn(
-				"server/listeners: failed to remove Unix socket directory",
-				"dir", sockDir,
-				"error", rmErr,
-			)
-		}
 		return nil, fmt.Errorf(
 			"server/listeners: failed to open Unix socket on %q: %v",
 			path, err)
 	}
 
 	portInfo.UnixPath = path
-	return &unixSocketListener{Listener: listener, sockDir: sockDir}, nil
+	return &unixSocketListener{Listener: listener, sockPath: path}, nil
 }

@@ -2,6 +2,8 @@ package server
 
 import (
 	"context"
+	"errors"
+	"path/filepath"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -101,4 +103,28 @@ func TestServer_IdleTimerStopsServerAfterTimeout(t *testing.T) {
 			)
 		}
 	})
+}
+
+func TestServe_ForcStopShutsDownServer(t *testing.T) {
+	tempRoot := t.TempDir()
+	t.Setenv("TMPDIR", tempRoot)
+
+	portFile := filepath.Join(tempRoot, "port.txt")
+	s := NewServer(ServerParams{
+		ParentPID: 0,
+		Detached:  true,
+	})
+
+	srvCh := make(chan error, 1)
+	go func() { srvCh <- s.Serve(portFile) }()
+	s.ForceStop()
+
+	select {
+	case err := <-srvCh:
+		if !errors.Is(err, ErrForcedShutdown) {
+			t.Fatalf("Serve() = %v, want ErrForcedShutdown", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for Serve() to return")
+	}
 }
