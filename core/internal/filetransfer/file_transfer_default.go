@@ -6,7 +6,7 @@ import (
 	"math"
 	"net/http"
 	"os"
-	"path"
+	"path/filepath"
 	"strings"
 
 	"github.com/hashicorp/go-retryablehttp"
@@ -126,7 +126,7 @@ func (ft *DefaultFileTransfer) Download(task *DefaultDownloadTask) error {
 		"path", task.Path,
 		"url", task.Url,
 	)
-	dir := path.Dir(task.Path)
+	dir := filepath.Dir(task.Path)
 
 	// Check if the directory already exists
 	if _, err := os.Stat(dir); os.IsNotExist(err) {

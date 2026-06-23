@@ -1545,7 +1545,7 @@ query FetchOrgEntityFromOrganization($organization: String!) {
 """
 
 REGISTRY_VERSIONS_GQL = """
-query RegistryVersions($organization: String!, $registryFilter: JSONString, $collectionFilter: JSONString, $artifactFilter: JSONString, $cursor: String, $perPage: Int, $includeAliases: Boolean = false) {
+query RegistryVersions($organization: String!, $registryFilter: JSONString, $collectionFilter: JSONString, $artifactFilter: JSONString, $cursor: String, $perPage: Int, $order: String, $includeAliases: Boolean = false) {
   organization(name: $organization) {
     orgEntity {
       name
@@ -1555,6 +1555,7 @@ query RegistryVersions($organization: String!, $registryFilter: JSONString, $col
         filters: $artifactFilter
         after: $cursor
         first: $perPage
+        order: $order
       ) {
         pageInfo {
           ...PageInfoFragment
@@ -1660,7 +1661,7 @@ fragment TagFragment on Tag {
 """
 
 REGISTRY_COLLECTIONS_GQL = """
-query RegistryCollections($organization: String!, $registryFilter: JSONString, $collectionFilter: JSONString, $collectionTypes: [ArtifactCollectionType!] = [PORTFOLIO], $cursor: String, $perPage: Int) {
+query RegistryCollections($organization: String!, $registryFilter: JSONString, $collectionFilter: JSONString, $collectionTypes: [ArtifactCollectionType!] = [PORTFOLIO], $cursor: String, $perPage: Int, $order: String) {
   organization(name: $organization) {
     orgEntity {
       name
@@ -1670,6 +1671,7 @@ query RegistryCollections($organization: String!, $registryFilter: JSONString, $
         collectionTypes: $collectionTypes
         after: $cursor
         first: $perPage
+        order: $order
       ) {
         totalCount
         pageInfo {
@@ -1763,10 +1765,10 @@ fragment RegistryFragment on Project {
 """
 
 FETCH_REGISTRIES_GQL = """
-query FetchRegistries($organization: String!, $filters: JSONString, $cursor: String, $perPage: Int) {
+query FetchRegistries($organization: String!, $filters: JSONString, $cursor: String, $perPage: Int, $order: String) {
   organization(name: $organization) {
     orgEntity {
-      projects(filters: $filters, after: $cursor, first: $perPage) {
+      projects(filters: $filters, after: $cursor, first: $perPage, order: $order) {
         pageInfo {
           ...PageInfoFragment
         }
