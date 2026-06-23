@@ -159,7 +159,6 @@ def resolve_org_entity_name(
     raise ValueError(f"Unable to find organization for entity {non_org_entity!r}.")
 
 
-@lru_cache(maxsize=16)
 def is_project_read_only(
     service_api: ServiceApi, entity: str, project: str
 ) -> bool | None:
