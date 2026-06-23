@@ -19,4 +19,5 @@ Section headings should be at level 3 (e.g. `### Added`).
 - remove temporary unix socket files and directories on shutdown (@geoffhardy in https://github.com/wandb/wandb/pull/12058)
 
 ### Fixed
+- `wandb beta sync` now skips online runs by default like `wandb sync` (@timoffex in https://github.com/wandb/wandb/pull/12087)
 - Saving a linked registry artifact (for example, when adding an alias) no longer fails when the caller lacks write access to the source project (@ibindlish in https://github.com/wandb/wandb/pull/12075)

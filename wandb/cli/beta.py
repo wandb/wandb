@@ -100,6 +100,12 @@ beta.add_command(leet)
     help="Skip runs that have already been synced with this command.",
 )
 @click.option(
+    "--skip-online/--no-skip-online",
+    is_flag=True,
+    default=True,
+    help="Skip online runs.",
+)
+@click.option(
     "--dry-run",
     is_flag=True,
     default=False,
@@ -132,6 +138,7 @@ def sync(
     job_type: str,
     replace_tags: str,
     skip_synced: bool,
+    skip_online: bool,
     dry_run: bool,
     verbose: bool,
     n: int,
@@ -169,6 +176,7 @@ def sync(
         replace_tags=replace_tags,
         dry_run=dry_run,
         skip_synced=skip_synced,
+        skip_online=skip_online,
         verbose=verbose,
         parallelism=n,
     )
