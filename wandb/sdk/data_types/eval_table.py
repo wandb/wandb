@@ -33,38 +33,43 @@ def _is_numpy_datetime64(val: Any) -> bool:
     return np is not None and isinstance(val, np.datetime64)
 
 
-def _normalize_datetime(val: Any) -> datetime.datetime | None:
-    if isinstance(val, datetime.datetime):
-        return val
-    if isinstance(val, datetime.date):
-        return datetime.datetime(
-            val.year,
-            val.month,
-            val.day,
-            tzinfo=datetime.timezone.utc,
-        )
-
+def _normalize_numpy_datetime64(val: Any) -> datetime.datetime | None:
+    """Return a datetime for numpy datetime64, or None if it's not a datetime64."""
     if not _is_numpy_datetime64(val):
         return None
 
-    val, _ = wandb.util.json_friendly(val)
+    # Cast to microseconds before tolist() so NumPy does unit-aware conversion
+    # to Python datetime instead of returning raw int offsets for ns/finer units.
+    py_val = val.astype("datetime64[us]").tolist()
+    if py_val is None:
+        return None
+    if isinstance(py_val, datetime.datetime):
+        return py_val.replace(tzinfo=datetime.timezone.utc)
+    if isinstance(py_val, datetime.date):
+        return datetime.datetime(
+            py_val.year,
+            py_val.month,
+            py_val.day,
+            tzinfo=datetime.timezone.utc,
+        )
+
+    raise TypeError(f"Unexpected numpy.datetime64 conversion result: {py_val!r}")
+
+
+def _normalize_datetime(val: Any) -> datetime.datetime | None:
+    """Return a normalized datetime, or None if it's not a datetime."""
     if isinstance(val, datetime.datetime):
         return val
     if isinstance(val, datetime.date):
+        # Weave handles datetime.datetime but not datetime.date, so normalize.
         return datetime.datetime(
             val.year,
             val.month,
             val.day,
             tzinfo=datetime.timezone.utc,
         )
-    if isinstance(val, int):
-        # numpy datetime64[ns].item()/tolist() returns nanoseconds since epoch.
-        return datetime.datetime.fromtimestamp(
-            val / 1e9,
-            tz=datetime.timezone.utc,
-        )
 
-    return None
+    return _normalize_numpy_datetime64(val)
 
 
 def _normalize_non_media_value(val: Any) -> Any:
@@ -78,6 +83,7 @@ def _normalize_non_media_value(val: Any) -> Any:
     if datetime_val is not None:
         return datetime_val
 
+    # Normalize scalar NumPy values and other simple values like Table does.
     val, _ = wandb.util.json_friendly(val)
 
     if isinstance(val, dict):

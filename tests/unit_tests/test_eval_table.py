@@ -656,10 +656,35 @@ def test_numpy_datetime_values_preserved_for_weave(mock_eval_logger, run):
     )
     np_datetime = np.datetime64("2024-01-02T03:04:05.000000000")
     np_date = np.datetime64("2024-01-03")
+    np_picosecond_datetime = np.datetime64(
+        "1970-01-01T00:00:00.123456789123",
+        "ps",
+    )
+    np_picosecond_datetime_as_datetime = datetime.datetime(
+        1970,
+        1,
+        1,
+        0,
+        0,
+        0,
+        123456,
+        tzinfo=datetime.timezone.utc,
+    )
+    np_nat = np.datetime64("NaT")
     et = wandb.EvalTable(
-        columns=["np_datetime", "np_date"],
-        data=[[np_datetime, np_date]],
-        input_columns=["np_datetime", "np_date"],
+        columns=[
+            "np_datetime",
+            "np_date",
+            "np_picosecond_datetime",
+            "np_nat",
+        ],
+        data=[[np_datetime, np_date, np_picosecond_datetime, np_nat]],
+        input_columns=[
+            "np_datetime",
+            "np_date",
+            "np_picosecond_datetime",
+            "np_nat",
+        ],
     )
 
     run.log({"my_eval": et})
@@ -669,6 +694,8 @@ def test_numpy_datetime_values_preserved_for_weave(mock_eval_logger, run):
         inputs={
             "np_datetime": py_datetime,
             "np_date": py_date_as_datetime,
+            "np_picosecond_datetime": np_picosecond_datetime_as_datetime,
+            "np_nat": None,
         },
         output=None,
         scores={},
