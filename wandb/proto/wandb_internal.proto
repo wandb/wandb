@@ -1620,4 +1620,8 @@ enum ServerFeature {
 
   // Indicates that the server supports Trigger.lastExecutedAt.
   AUTOMATION_LAST_EXECUTED_AT = 28;
+
+  // Indicates that the server supports the enqueueSweepRun mutation, used by
+  // the local sweep scheduler to enqueue runs.
+  SWEEPS_LOCAL_SCHEDULER = 29;
 }

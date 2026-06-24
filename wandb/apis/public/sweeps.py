@@ -29,6 +29,7 @@ Note:
 
 from __future__ import annotations
 
+import json
 import urllib
 from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any, ClassVar
@@ -40,7 +41,8 @@ from wandb import util
 from wandb.apis import public
 from wandb.apis.attrs import Attrs
 from wandb.apis.paginator import SizedPaginator
-from wandb.errors import Error
+from wandb.errors import Error, UnsupportedError
+from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.lib import ipython
 
 if TYPE_CHECKING:
@@ -465,6 +467,60 @@ class Sweep(Attrs):
             self._make_sweep_agent(edge.node.model_dump(by_alias=True))
             for edge in parsed.project.sweep.agents.edges
         ]
+
+    def enqueue_run(self, config: dict, display_name: str | None = None) -> str:
+        """Enqueue a run for the sweep.
+
+        Args:
+            config: The config for the run.
+            display_name: The optional display name for the run.
+
+        Returns:
+            The id of the run (not the run queue item).
+
+        Raises:
+            UnsupportedError: If the server doesn't support enqueuing sweep runs.
+        """
+        if not self._service_api.feature_enabled(
+            pb.ServerFeature.SWEEPS_LOCAL_SCHEDULER
+        ):
+            raise UnsupportedError(
+                "Enqueuing sweep runs is not supported on this wandb server "
+                "version. Please upgrade your server version or contact "
+                "support at support@wandb.com."
+            )
+
+        mutation = """
+        mutation EnqueueSweepRun(
+            $config: JSONString!,
+            $displayName: String,
+            $entityName: String,
+            $projectName: String,
+            $sweepName: String!,
+        ) {
+            enqueueSweepRun(input: {
+                config: $config,
+                displayName: $displayName,
+                entityName: $entityName,
+                projectName: $projectName,
+                sweepName: $sweepName,
+            }) {
+                id
+                runQueueItemId
+            }
+        }
+        """
+        data = self._service_api.execute_graphql(
+            mutation,
+            variables={
+                "config": json.dumps(config),
+                "displayName": display_name,
+                "entityName": self.entity,
+                "projectName": self.project,
+                "sweepName": self.id,
+            },
+        )
+        return data["enqueueSweepRun"]["id"]
 
     def to_html(self, height: int = 420, hidden: bool = False) -> str:
         """Generate HTML containing an iframe displaying this sweep."""
