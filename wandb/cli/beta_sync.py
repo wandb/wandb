@@ -31,6 +31,7 @@ def sync(
     job_type: str,
     replace_tags: str,
     dry_run: bool,
+    skip_confirmation: bool,
     skip_synced: bool,
     skip_online: bool,
     verbose: bool,
@@ -51,6 +52,7 @@ def sync(
         replace_tags: A string in the form 'old1=new1,old2=new2' that defines
             how to rename run tags.
         dry_run: If true, just prints what it would do and exits.
+        skip_confirmation: If true, don't ask for confirmation.
         skip_synced: If true, skips files that have already been synced
             as indicated by a .wandb.synced marker file in the same directory.
         skip_online: If true, skips online runs (determined by folder name).
@@ -69,7 +71,7 @@ def sync(
     ask_for_confirmation = False
     if not paths:
         paths = [pathlib.Path(singleton.settings.wandb_dir)]
-        ask_for_confirmation = True
+        ask_for_confirmation = not skip_confirmation
 
     wandb_files, skipped = _find_wandb_files(
         paths,

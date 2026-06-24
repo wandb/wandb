@@ -783,6 +783,7 @@ def sync(
             job_type=job_type or "",
             replace_tags=replace_tags or "",
             dry_run=False,
+            skip_confirmation=False,
             skip_synced=not include_synced,
             skip_online=not include_online,
             verbose=verbose,
