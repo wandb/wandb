@@ -70,29 +70,24 @@ def sync(
         paths = [pathlib.Path(singleton.settings.wandb_dir)]
         ask_for_confirmation = True
 
-    wandb_files = _to_unique_files(
-        (
-            wandb_file
-            for path in paths
-            for wandb_file in _find_wandb_files(
-                path,
-                skip_synced=skip_synced,
-                skip_online=skip_online,
-            )
-        ),
+    wandb_files, skipped = _find_wandb_files(
+        paths,
+        skip_synced=skip_synced,
+        skip_online=skip_online,
         verbose=verbose,
     )
+    skipped_str = f"({skipped} skipped)"
 
     if not wandb_files:
-        term.termlog("No runs to sync.")
+        term.termlog(f"No runs to sync {skipped_str}.")
         return
 
     if dry_run:
-        term.termlog(f"Would sync {len(wandb_files)} run(s):")
+        term.termlog(f"Would sync {len(wandb_files)} run(s) {skipped_str}:")
         _print_sorted_paths(wandb_files, verbose=verbose, root=cwd)
         return
 
-    term.termlog(f"Syncing {len(wandb_files)} run(s):")
+    term.termlog(f"Syncing {len(wandb_files)} run(s) {skipped_str}:")
     _print_sorted_paths(wandb_files, verbose=verbose, root=cwd)
 
     if ask_for_confirmation and not term.confirm("Sync the listed runs?"):
@@ -144,36 +139,6 @@ def _parse_replace_tags(replace_tags: str) -> dict[str, str]:
         tag_replacements[old_tag.strip()] = new_tag.strip()
 
     return tag_replacements
-
-
-def _to_unique_files(
-    paths: Iterator[pathlib.Path],
-    *,
-    verbose: bool,
-) -> set[pathlib.Path]:
-    """Returns paths with duplicates removed.
-
-    Determines file equality the same way as os.path.samefile().
-    """
-    id_to_path: dict[tuple[int, int], pathlib.Path] = dict()
-
-    # Sort in reverse so that the last path written to the map is
-    # alphabetically earliest.
-    for path in sorted(paths, reverse=True):
-        try:
-            stat = path.stat()
-        except OSError as e:
-            term.termerror(f"Failed to stat {path}: {e}")
-            continue
-
-        id = (stat.st_ino, stat.st_dev)
-
-        if verbose and (other_path := id_to_path.get(id)):
-            term.termlog(f"{path} is the same as {other_path}")
-
-        id_to_path[id] = path
-
-    return set(id_to_path.values())
 
 
 async def _do_sync(
@@ -273,18 +238,66 @@ class _SyncStatusLoop:
 
 
 def _find_wandb_files(
-    path: pathlib.Path,
+    paths: Iterable[pathlib.Path],
     *,
     skip_synced: bool,
     skip_online: bool,
-) -> Iterator[pathlib.Path]:
-    """Returns paths to the .wandb files to sync."""
-    for file in _expand_wandb_files(path):
+    verbose: bool,
+) -> tuple[set[pathlib.Path], int]:
+    """Finds all unique .wandb files selected by the paths.
+
+    Returns:
+        The .wandb files to sync and the number of files that were filtered out.
+    """
+    unique_files = _to_unique_files(
+        [file for path in paths for file in _expand_wandb_files(path)],
+        verbose=verbose,
+    )
+
+    filtered_files: set[pathlib.Path] = set()
+    skipped = 0
+
+    for file in unique_files:
         if skip_synced and _is_synced(file):
+            skipped += 1
             continue
         if skip_online and _is_online(file):
+            skipped += 1
             continue
-        yield file
+
+        filtered_files.add(file)
+
+    return filtered_files, skipped
+
+
+def _to_unique_files(
+    paths: list[pathlib.Path],
+    *,
+    verbose: bool,
+) -> set[pathlib.Path]:
+    """Returns paths with duplicates removed.
+
+    Determines file equality the same way as os.path.samefile().
+    """
+    id_to_path: dict[tuple[int, int], pathlib.Path] = dict()
+
+    # Sort in reverse so that the last path written to the map is
+    # alphabetically earliest.
+    for path in sorted(paths, reverse=True):
+        try:
+            stat = path.stat()
+        except OSError as e:
+            term.termerror(f"Failed to stat {path}: {e}")
+            continue
+
+        id = (stat.st_ino, stat.st_dev)
+
+        if verbose and (other_path := id_to_path.get(id)):
+            term.termlog(f"{path} is the same as {other_path}")
+
+        id_to_path[id] = path
+
+    return set(id_to_path.values())
 
 
 def _expand_wandb_files(
