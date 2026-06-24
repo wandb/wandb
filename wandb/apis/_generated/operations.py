@@ -199,6 +199,7 @@ fragment SweepFragment on Sweep {
   id
   name
   displayName
+  controllerRunName
   method
   state
   description
@@ -225,6 +226,7 @@ fragment SweepFragment on Sweep {
   id
   name
   displayName
+  controllerRunName
   method
   state
   description
