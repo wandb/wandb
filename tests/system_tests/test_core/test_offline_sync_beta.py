@@ -399,7 +399,7 @@ def test_merges_symlinks(
 
     assert result.output.splitlines() == [
         "wandb: Would sync 1 run(s):",
-        "wandb:   offline-actual-run/run.wandb",
+        "wandb:   latest-run/run.wandb",
     ]
 
 
