@@ -39,6 +39,9 @@ def sync(
     """Replay one or more .wandb files.
 
     Args:
+        paths: Zero or more .wandb files, run directories containing
+            .wandb files, and wandb directories containing run directories.
+            If no paths given, uses the wandb_dir setting.
         live: Whether to enable 'live' mode, which indefinitely retries reading
             incomplete transaction logs.
         entity: The entity override for all paths, or an empty string.
@@ -47,8 +50,6 @@ def sync(
         job_type: An override for the job type for all runs, or an empty string.
         replace_tags: A string in the form 'old1=new1,old2=new2' that defines
             how to rename run tags.
-        paths: One or more .wandb files, run directories containing
-            .wandb files, and wandb directories containing run directories.
         dry_run: If true, just prints what it would do and exits.
         skip_synced: If true, skips files that have already been synced
             as indicated by a .wandb.synced marker file in the same directory.
@@ -312,13 +313,12 @@ def _expand_wandb_files(
     try:
         first_file = next(files_in_run_directory)
     except StopIteration:
-        pass
+        # The path looks like a wandb/ directory containing runs.
+        yield from path.glob("*/*.wandb")
     else:
+        # The path looks like a run directory.
         yield first_file
         yield from files_in_run_directory
-        return
-
-    yield from path.glob("*/*.wandb")
 
 
 def _is_synced(path: pathlib.Path) -> bool:
