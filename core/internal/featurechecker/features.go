@@ -2,6 +2,7 @@ package featurechecker
 
 import (
 	"context"
+	"time"
 
 	"github.com/Khan/genqlient/graphql"
 
@@ -9,6 +10,17 @@ import (
 	"github.com/wandb/wandb/core/internal/observability"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
+
+// featureLoadTimeout bounds the server feature-flags query.
+//
+// The query is made synchronously from wandb-core's connection request loop
+// during stream creation (handleInformInit). With an unbounded context it can
+// retry against a slow or overloaded server for minutes (the GraphQL client
+// allows up to ~20 retries at 30s each), wedging the loop so it never gets to
+// the queued inform_teardown. That stalls the connection's shutdown and hangs
+// the client's wandb.teardown() indefinitely. Feature checks fail open, so cap
+// the query rather than letting it block the loop.
+const featureLoadTimeout = 30 * time.Second
 
 // FeatureProvider fetches the values of server features.
 //
@@ -77,7 +89,13 @@ func (fp *FeatureProvider) lockedLoadFeatures(ctx context.Context) {
 		return
 	}
 
-	resp, err := gql.ServerFeaturesQuery(ctx, fp.graphqlClient)
+	// Bound the query so a slow/unresponsive server can't block the caller
+	// (notably wandb-core's connection request loop) for minutes. Derived from
+	// ctx, so caller cancellation still applies.
+	queryCtx, cancel := context.WithTimeout(ctx, featureLoadTimeout)
+	defer cancel()
+
+	resp, err := gql.ServerFeaturesQuery(queryCtx, fp.graphqlClient)
 	if err != nil {
 		fp.logger.Error(
 			"featurechecker: failed to load features, all will be disabled",
