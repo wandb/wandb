@@ -618,8 +618,8 @@ func (as *ArtifactSaver) uploadMultipart(
 
 func getContentType(headers []string) string {
 	for _, h := range headers {
-		if strings.HasPrefix(h, "Content-Type:") {
-			return strings.TrimPrefix(h, "Content-Type:")
+		if after, ok := strings.CutPrefix(h, "Content-Type:"); ok {
+			return after
 		}
 	}
 	return ""
