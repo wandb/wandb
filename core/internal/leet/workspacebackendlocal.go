@@ -104,9 +104,7 @@ func (b *LocalWorkspaceBackend) RunParams(runKey string) *RunParams {
 		return nil
 	}
 	return &RunParams{
-		LocalRunParams: &LocalRunParams{
-			RunFile: wandbFile,
-		},
+		RunFile: wandbFile,
 	}
 }
 

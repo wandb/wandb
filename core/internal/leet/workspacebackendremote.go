@@ -16,6 +16,7 @@ import (
 	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/runhistoryreader"
 	"github.com/wandb/wandb/core/internal/runhistoryreader/parquet/ffi"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/stream"
@@ -68,15 +69,24 @@ func NewRemoteWorkspaceBackend(
 		BaseUrl: wrapperspb.String(baseURL),
 	}
 	s := settings.From(settingsProto)
+	apiBaseURL := stream.BaseURLFromSettings(logger, s)
+	credentialProvider := stream.CredentialsFromSettings(logger, s)
 
-	graphqlClient := initGraphQLClient(s, logger)
+	graphqlClient := stream.NewGraphQLClient(
+		apiBaseURL,
+		"", /*clientID*/
+		credentialProvider,
+		logger,
+		&observability.Peeker{},
+		s,
+	)
 	httpClient := api.NewClient(api.ClientOptions{
-		BaseURL:            stream.BaseURLFromSettings(logger, s),
+		BaseURL:            apiBaseURL,
 		RetryMax:           3,
 		RetryWaitMin:       1 * time.Second,
 		RetryWaitMax:       10 * time.Second,
 		NonRetryTimeout:    10 * time.Second,
-		CredentialProvider: stream.CredentialsFromSettings(logger, s),
+		CredentialProvider: credentialProvider,
 		Logger:             logger.Logger,
 	})
 
@@ -149,13 +159,13 @@ func (b *RemoteWorkspaceBackend) DiscoverRunsCmd(delay time.Duration) tea.Cmd {
 			}
 
 			b.runIds = append(b.runIds, runKey)
-			b.runInfos[runKey] = NewRunInfo(
-				entity,
-				project,
-				runKey,
-				runSummary,
-				displayName,
-			)
+			b.runInfos[runKey] = &RunInfo{
+				entity:      entity,
+				project:     project,
+				runId:       runKey,
+				runSummary:  runSummary,
+				displayName: displayName,
+			}
 		}
 
 		return WorkspaceRunDiscoveryMsg{RunKeys: b.runIds}
@@ -180,6 +190,13 @@ func (b *RemoteWorkspaceBackend) InitReaderCmd(runKey string) tea.Cmd {
 	project := b.project
 
 	return func() tea.Msg {
+		if info == nil {
+			return WorkspaceInitErrMsg{
+				RunKey: runKey,
+				Err:    ErrRunNotFound,
+			}
+		}
+
 		rustArrowWrapper, err := ffi.NewRustArrowWrapper()
 		if err != nil {
 			return WorkspaceInitErrMsg{
@@ -188,15 +205,15 @@ func (b *RemoteWorkspaceBackend) InitReaderCmd(runKey string) tea.Cmd {
 			}
 		}
 
-		source, err := NewParquetHistorySource(
+		reader, err := runhistoryreader.New(
 			context.Background(),
 			entity,
 			project,
 			runKey,
 			graphqlClient,
 			httpClient,
-			info,
-			logger,
+			[]string{}, // keys
+			false,      // useCache
 			rustArrowWrapper,
 		)
 		if err != nil {
@@ -207,7 +224,12 @@ func (b *RemoteWorkspaceBackend) InitReaderCmd(runKey string) tea.Cmd {
 		}
 		return WorkspaceRunInitMsg{
 			RunKey: runKey,
-			Reader: source,
+			Reader: newParquetHistorySource(
+				context.Background(),
+				info,
+				reader,
+				logger,
+			),
 		}
 	}
 }
@@ -234,17 +256,17 @@ func (b *RemoteWorkspaceBackend) PreloadOverviewCmd(runKey string) tea.Cmd {
 
 func (b *RemoteWorkspaceBackend) RunParams(runKey string) *RunParams {
 	return &RunParams{
-		RemoteRunParams: &RemoteRunParams{
+		Remote: &RemoteRunParams{
 			BaseURL: b.baseURL,
 			Entity:  b.entity,
 			Project: b.project,
-			RunId:   runKey,
+			RunID:   runKey,
 		},
 	}
 }
 
 func (b *RemoteWorkspaceBackend) SeriesKey(runKey string) string {
-	return runKey
+	return b.entity + "/" + b.project + "/" + runKey
 }
 
 func (b *RemoteWorkspaceBackend) DisplayLabel() string {
