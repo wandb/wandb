@@ -196,6 +196,37 @@ def test_local_container_allows_safe_resource_args(mock_launch_project, test_api
     )
 
 
+def test_populate_docker_args_does_not_mutate_submitter_resource_args(
+    mock_launch_project, test_api
+):
+    docker_args = {"command": "echo hello world"}
+    mock_launch_project.fill_macros.return_value = {"local-container": docker_args}
+    mock_launch_project.job_base_image = "test-base-image"
+    mock_launch_project.resolved_working_dir = "/mnt/wandb"
+    test_api.settings = MagicMock(return_value="http://localhost:8080")
+    runner = LocalContainerRunner(
+        test_api, {"SYNCHRONOUS": False}, MagicMock(), MagicMock()
+    )
+
+    first = runner._populate_docker_args(mock_launch_project, "test-image")
+    second = runner._populate_docker_args(mock_launch_project, "test-image")
+
+    network_arg = "net" if local_container.sys.platform == "win32" else "network"
+    mount_string = f"{mock_launch_project.project_dir}:{local_container.CODE_MOUNT_DIR}"
+    for populated_args in (first, second):
+        assert populated_args["command"] == "echo hello world"
+        assert populated_args[network_arg] == "host"
+        if local_container.sys.platform in ("linux", "linux2"):
+            assert populated_args["add-host"] == "host.docker.internal:host-gateway"
+        assert populated_args["volume"] == [mount_string]
+        assert populated_args["workdir"] == "/mnt/wandb"
+
+    assert first["volume"] is not second["volume"]
+    assert docker_args == {"command": "echo hello world"}
+    for injected_arg in ("network", "net", "add-host", "volume", "workdir"):
+        assert injected_arg not in docker_args
+
+
 def test_get_docker_command_serializes_allowed_values():
     command = local_container.get_docker_command(
         "test-image",

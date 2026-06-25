@@ -116,10 +116,11 @@ class LocalContainerRunner(AbstractRunner):
     def _populate_docker_args(
         self, launch_project: LaunchProject, image_uri: str
     ) -> dict[str, Any]:
-        docker_args: dict[str, Any] = launch_project.fill_macros(image_uri).get(
-            "local-container", {}
-        )
-        validate_local_container_resource_args(docker_args)
+        submitter_docker_args: dict[str, Any] = launch_project.fill_macros(
+            image_uri
+        ).get("local-container", {})
+        validate_local_container_resource_args(submitter_docker_args)
+        docker_args = dict(submitter_docker_args)
         if _is_wandb_local_uri(self._api.settings("base_url")):
             if sys.platform == "win32":
                 docker_args["net"] = "host"
@@ -132,6 +133,8 @@ class LocalContainerRunner(AbstractRunner):
             # Mount code into the container and set the working directory.
             if "volume" not in docker_args:
                 docker_args["volume"] = []
+            else:
+                docker_args["volume"] = list(docker_args["volume"])
             docker_args["volume"].append(
                 f"{launch_project.project_dir}:{CODE_MOUNT_DIR}"
             )

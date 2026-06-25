@@ -33,6 +33,7 @@ from wandb.sdk.launch.runner.kubernetes_runner import (
     ensure_api_key_secret,
     maybe_create_imagepull_secret,
 )
+from wandb.sdk.launch.utils import K8S_RESTRICTED_SECURITY_CONTEXT
 
 from .conftest import MockDict
 
@@ -167,12 +168,7 @@ async def test_kubernetes_runner_injects_restricted_security_context(
 
     containers = job["spec"]["template"]["spec"]["containers"]
     for cont in containers:
-        assert cont["securityContext"] == {
-            "allowPrivilegeEscalation": False,
-            "capabilities": {"drop": ["ALL"]},
-            "seccompProfile": {"type": "RuntimeDefault"},
-            "runAsNonRoot": True,
-        }
+        assert cont["securityContext"] == K8S_RESTRICTED_SECURITY_CONTEXT
 
 
 @pytest.fixture
@@ -590,12 +586,7 @@ async def test_launch_crd_injects_restricted_security_context(
     await runner.run(project, MagicMock())
 
     submitted_body = mock_custom_api.jobs["test-job"]
-    expected = {
-        "allowPrivilegeEscalation": False,
-        "capabilities": {"drop": ["ALL"]},
-        "seccompProfile": {"type": "RuntimeDefault"},
-        "runAsNonRoot": True,
-    }
+    expected = K8S_RESTRICTED_SECURITY_CONTEXT
     containers = submitted_body["tasks"][0]["template"]["spec"]["containers"]
     assert containers, "expected the custom resource to expose a pod spec"
     for cont in containers:
@@ -661,12 +652,7 @@ async def test_launch_cronjob_injects_restricted_security_context(
     # The CronJob flows through the standard Job path (batch/v1) and is submitted
     # via create_from_dict.
     submitted_job = mock_create_from_dict.call_args_list[0][0][1]
-    expected = {
-        "allowPrivilegeEscalation": False,
-        "capabilities": {"drop": ["ALL"]},
-        "seccompProfile": {"type": "RuntimeDefault"},
-        "runAsNonRoot": True,
-    }
+    expected = K8S_RESTRICTED_SECURITY_CONTEXT
     pod_spec = submitted_job["spec"]["jobTemplate"]["spec"]["template"]["spec"]
     containers = pod_spec["containers"]
     assert containers, "expected the CronJob jobTemplate to expose containers"
