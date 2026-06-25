@@ -3,7 +3,7 @@ import base64
 import json
 import platform
 import shlex
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 import wandb
@@ -84,6 +84,141 @@ def test_add_entrypoint_args_overrides(manifest):
     assert manifest["spec"]["template"]["spec"]["containers"][1]["command"] == [
         "test_entry"
     ]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "pod_spec_patch,expected_field",
+    [
+        ({"hostPID": True}, "hostPID"),
+        ({"hostIPC": True}, "hostIPC"),
+        ({"hostNetwork": True}, "hostNetwork"),
+        (
+            {"volumes": [{"name": "host-root", "hostPath": {"path": "/"}}]},
+            "hostPath",
+        ),
+        ({"serviceAccountName": "cluster-admin"}, "serviceAccountName"),
+        ({"serviceAccount": "cluster-admin"}, "serviceAccount"),
+        ({"automountServiceAccountToken": True}, "automountServiceAccountToken"),
+        (
+            {"containers": [{"securityContext": {"privileged": True}}]},
+            "securityContext",
+        ),
+        (
+            {
+                "containers": [
+                    {"securityContext": {"capabilities": {"add": ["SYS_ADMIN"]}}}
+                ]
+            },
+            "securityContext",
+        ),
+        (
+            {"containers": [{"ports": [{"hostPort": 8080}]}]},
+            "hostPort",
+        ),
+        (
+            {
+                "volumes": [
+                    {
+                        "name": "kube-api",
+                        "projected": {
+                            "sources": [{"serviceAccountToken": {"path": "token"}}]
+                        },
+                    }
+                ]
+            },
+            "serviceAccountToken",
+        ),
+    ],
+)
+async def test_kubernetes_runner_rejects_unsafe_resource_args(
+    test_api, pod_spec_patch, expected_field
+):
+    manifest = {
+        "kind": "Job",
+        "spec": {
+            "template": {
+                "spec": {
+                    "restartPolicy": "Never",
+                    **pod_spec_patch,
+                }
+            }
+        },
+    }
+    project = MagicMock()
+    project.fill_macros.return_value = {"kubernetes": manifest}
+    runner = KubernetesRunner(
+        test_api, {"SYNCHRONOUS": False}, MagicMock(), MagicMock()
+    )
+
+    with pytest.raises(
+        LaunchError,
+        match=f"Unsafe resource_args.kubernetes option '{expected_field}'",
+    ):
+        await runner.run(project, "test-image")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "submitted_security_context",
+    [
+        None,  # submitter supplies nothing
+        {},  # submitter supplies an empty securityContext
+        {"runAsUser": 1234},  # submitter supplies a partial securityContext
+    ],
+)
+async def test_kubernetes_runner_injects_restricted_security_context(
+    test_api, submitted_security_context
+):
+    container = {"name": "main", "image": "test-image"}
+    # A submitter-supplied securityContext is refused by validation, but
+    # _inject_defaults must always set the restricted context regardless of what
+    # arrives, so we exercise it directly here.
+    if submitted_security_context is not None:
+        container["securityContext"] = submitted_security_context
+    resource_args = {
+        "spec": {"template": {"spec": {"containers": [container]}}},
+    }
+
+    project = MagicMock()
+    project.fill_macros.return_value = {"kubernetes": resource_args}
+    project.run_id = "test-run-id"
+    project.target_entity = "test-entity"
+    project.target_project = "test-project"
+    project.override_args = []
+    project.override_entrypoint = None
+    project.job_base_image = None
+    project.docker_image = "test-image"
+    project.get_job_entry_point.return_value = MagicMock(command=["echo", "hi"])
+    project.get_env_vars_dict.return_value = {}
+
+    runner = KubernetesRunner(
+        test_api, {"SYNCHRONOUS": False}, MagicMock(), MagicMock()
+    )
+
+    async def _no_secret(*args, **kwargs):
+        return None
+
+    with patch(
+        "wandb.sdk.launch.runner.kubernetes_runner.maybe_create_imagepull_secret",
+        new=_no_secret,
+    ):
+        job, _ = await runner._inject_defaults(
+            resource_args,
+            project,
+            "test-image",
+            "wandb",
+            MagicMock(),
+        )
+
+    containers = job["spec"]["template"]["spec"]["containers"]
+    for cont in containers:
+        assert cont["securityContext"] == {
+            "allowPrivilegeEscalation": False,
+            "capabilities": {"drop": ["ALL"]},
+            "seccompProfile": {"type": "RuntimeDefault"},
+            "runAsNonRoot": True,
+        }
 
 
 @pytest.fixture

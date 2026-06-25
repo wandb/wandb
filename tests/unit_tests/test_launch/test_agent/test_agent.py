@@ -116,14 +116,73 @@ async def test_run_job_secure_mode(mocker, clean_agent):
         {"runSpec": {"overrides": {"entry_point": ["some", "code"]}}},
     ]
     errors = [
-        'This agent is configured to lock "hostPID" in pod spec but the job specification attempts to override it.',
-        'This agent is configured to lock "command" in container spec but the job specification attempts to override it.',
-        'This agent is configured to lock the "entrypoint" override but the job specification attempts to override it.',
+        (
+            LaunchError,
+            "Unsafe resource_args.kubernetes option 'hostPID' is not allowed",
+        ),
+        (
+            ValueError,
+            'This agent is configured to lock "command" in container spec '
+            "but the job specification attempts to override it.",
+        ),
+        (
+            ValueError,
+            'This agent is configured to lock the "entrypoint" override '
+            "but the job specification attempts to override it.",
+        ),
     ]
     mock_file_saver = MagicMock()
-    for job, error in zip(jobs, errors, strict=False):
-        with pytest.raises(ValueError, match=error):
+    for job, (exception_type, error) in zip(jobs, errors, strict=False):
+        with pytest.raises(exception_type, match=error):
             await agent.run_job(job, "test-queue", mock_file_saver)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "resource_args,expected_field",
+    [
+        (
+            {"local-container": {"privileged": True}},
+            "Unsupported resource_args.local-container option 'privileged'",
+        ),
+        (
+            {
+                "kubernetes": {
+                    "spec": {
+                        "template": {
+                            "spec": {
+                                "containers": [
+                                    {"securityContext": {"privileged": True}}
+                                ]
+                            }
+                        }
+                    }
+                }
+            },
+            "Unsafe resource_args.kubernetes option 'securityContext'",
+        ),
+    ],
+)
+async def test_run_job_rejects_unsafe_resource_args_without_secure_mode(
+    mocker, clean_agent, resource_args, expected_field
+):
+    _setup(mocker)
+    mock_config = {
+        "entity": "test-entity",
+        "project": "test-project",
+    }
+    agent = LaunchAgent(api=mocker.api, config=mock_config)
+    mock_file_saver = MagicMock()
+
+    with pytest.raises(
+        LaunchError,
+        match=expected_field,
+    ):
+        await agent.run_job(
+            {"runSpec": {"resource_args": resource_args}},
+            "test-queue",
+            mock_file_saver,
+        )
 
 
 def _setup_requeue(mocker):

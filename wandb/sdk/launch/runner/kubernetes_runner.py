@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import copy
 import datetime
 import json
 import logging
@@ -43,12 +44,14 @@ from .._project_spec import EntryPoint, LaunchProject
 from ..errors import LaunchError
 from ..utils import (
     CODE_MOUNT_DIR,
+    K8S_RESTRICTED_SECURITY_CONTEXT,
     LOG_PREFIX,
     MAX_ENV_LENGTHS,
     PROJECT_SYNCHRONOUS,
     get_kube_context_and_api_client,
     make_k8s_label_safe,
     make_name_dns_safe,
+    validate_kubernetes_resource_args,
 )
 from .abstract import AbstractRun, AbstractRunner
 
@@ -342,6 +345,27 @@ class CrdSubmittedRun(AbstractRun):
             await asyncio.sleep(5)
 
 
+def _enforce_restricted_security_context(
+    pod_spec: dict[str, Any], containers: list[dict[str, Any]]
+) -> None:
+    """Always set the agent's restricted securityContext on every container.
+
+    Submitter-supplied securityContext is refused upstream by
+    ``validate_kubernetes_resource_args``, so the agent's safe values always win.
+    ``initContainers``/``ephemeralContainers`` are covered too for defense in
+    depth.
+    """
+    for container_key in ("containers", "initContainers", "ephemeralContainers"):
+        container_list = (
+            containers
+            if container_key == "containers"
+            else pod_spec.get(container_key, [])
+        )
+        for cont in container_list:
+            if isinstance(cont, dict):
+                cont["securityContext"] = copy.deepcopy(K8S_RESTRICTED_SECURITY_CONTEXT)
+
+
 class KubernetesRunner(AbstractRunner):
     """Launches runs onto kubernetes."""
 
@@ -440,12 +464,8 @@ class KubernetesRunner(AbstractRunner):
         for i, cont in enumerate(containers):
             if "name" not in cont:
                 cont["name"] = cont.get("name", "launch" + str(i))
-            if "securityContext" not in cont:
-                cont["securityContext"] = {
-                    "allowPrivilegeEscalation": False,
-                    "capabilities": {"drop": ["ALL"]},
-                    "seccompProfile": {"type": "RuntimeDefault"},
-                }
+
+        _enforce_restricted_security_context(pod_spec, containers)
 
         entry_point = (
             launch_project.override_entrypoint or launch_project.get_job_entry_point()
@@ -802,8 +822,9 @@ class KubernetesRunner(AbstractRunner):
         Returns:
             The run object if the run was successful, otherwise None.
         """
-        await LaunchKubernetesMonitor.ensure_initialized()
         resource_args = launch_project.fill_macros(image_uri).get("kubernetes", {})
+        validate_kubernetes_resource_args(resource_args)
+        await LaunchKubernetesMonitor.ensure_initialized()
         if not resource_args:
             wandb.termlog(
                 f"{LOG_PREFIX}Note: no resource args specified. Add a "

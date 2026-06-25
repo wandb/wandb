@@ -27,6 +27,7 @@ from ..utils import (
     event_loop_thread_exec,
     pull_docker_image,
     sanitize_wandb_api_key,
+    validate_local_container_resource_args,
 )
 from .abstract import AbstractRun, AbstractRunner, Status
 
@@ -118,6 +119,7 @@ class LocalContainerRunner(AbstractRunner):
         docker_args: dict[str, Any] = launch_project.fill_macros(image_uri).get(
             "local-container", {}
         )
+        validate_local_container_resource_args(docker_args)
         if _is_wandb_local_uri(self._api.settings("base_url")):
             if sys.platform == "win32":
                 docker_args["net"] = "host"
@@ -294,7 +296,16 @@ def get_docker_command(
                 prefix = "-" + shlex.quote(name)
             else:
                 prefix = "--" + shlex.quote(name)
-            if isinstance(value, list):
+            # Submitter-supplied flags are validated upstream by
+            # validate_local_container_resource_args; this is a defense-in-depth
+            # guard so a value can never smuggle a second option or an unexpected
+            # shape into the command. Each flag emits exactly `--flag value`
+            # (repeated once per item for list-valued flags).
+            if isinstance(value, dict):
+                raise LaunchError(
+                    f"Invalid docker argument '{name}': mapping values are not supported."
+                )
+            if isinstance(value, (list, tuple)):
                 for v in value:
                     cmd += [prefix, shlex.quote(str(v))]
             elif isinstance(value, bool) and value:
