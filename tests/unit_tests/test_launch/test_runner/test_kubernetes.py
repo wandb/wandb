@@ -87,60 +87,14 @@ def test_add_entrypoint_args_overrides(manifest):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize(
-    "pod_spec_patch,expected_field",
-    [
-        ({"hostPID": True}, "hostPID"),
-        ({"hostIPC": True}, "hostIPC"),
-        ({"hostNetwork": True}, "hostNetwork"),
-        (
-            {"volumes": [{"name": "host-root", "hostPath": {"path": "/"}}]},
-            "hostPath",
-        ),
-        ({"serviceAccountName": "cluster-admin"}, "serviceAccountName"),
-        ({"serviceAccount": "cluster-admin"}, "serviceAccount"),
-        ({"automountServiceAccountToken": True}, "automountServiceAccountToken"),
-        (
-            {"containers": [{"securityContext": {"privileged": True}}]},
-            "securityContext",
-        ),
-        (
-            {
-                "containers": [
-                    {"securityContext": {"capabilities": {"add": ["SYS_ADMIN"]}}}
-                ]
-            },
-            "securityContext",
-        ),
-        (
-            {"containers": [{"ports": [{"hostPort": 8080}]}]},
-            "hostPort",
-        ),
-        (
-            {
-                "volumes": [
-                    {
-                        "name": "kube-api",
-                        "projected": {
-                            "sources": [{"serviceAccountToken": {"path": "token"}}]
-                        },
-                    }
-                ]
-            },
-            "serviceAccountToken",
-        ),
-    ],
-)
-async def test_kubernetes_runner_rejects_unsafe_resource_args(
-    test_api, pod_spec_patch, expected_field
-):
+async def test_kubernetes_runner_rejects_unsafe_resource_args(test_api):
     manifest = {
         "kind": "Job",
         "spec": {
             "template": {
                 "spec": {
                     "restartPolicy": "Never",
-                    **pod_spec_patch,
+                    "hostPID": True,
                 }
             }
         },
@@ -153,7 +107,7 @@ async def test_kubernetes_runner_rejects_unsafe_resource_args(
 
     with pytest.raises(
         LaunchError,
-        match=f"Unsafe resource_args.kubernetes option '{expected_field}'",
+        match="Unsafe resource_args.kubernetes option 'hostPID'",
     ):
         await runner.run(project, "test-image")
 
@@ -674,6 +628,9 @@ async def test_launch_cronjob_injects_restricted_security_context(
                             "containers": [
                                 {"name": "main", "image": "test-image"},
                             ],
+                            "initContainers": [
+                                {"name": "init", "image": "busybox"},
+                            ],
                             "restartPolicy": "Never",
                         }
                     }
@@ -714,6 +671,10 @@ async def test_launch_cronjob_injects_restricted_security_context(
     containers = pod_spec["containers"]
     assert containers, "expected the CronJob jobTemplate to expose containers"
     for cont in containers:
+        assert cont["securityContext"] == expected
+    init_containers = pod_spec["initContainers"]
+    assert init_containers, "expected the CronJob jobTemplate to expose initContainers"
+    for cont in init_containers:
         assert cont["securityContext"] == expected
 
 

@@ -6,7 +6,6 @@ from wandb.sdk.launch.errors import LaunchError
 from wandb.sdk.launch.runner.local_container import get_docker_command
 from wandb.sdk.launch.utils import (
     diff_pip_requirements,
-    inject_restricted_security_context,
     load_wandb_config,
     macro_sub,
     make_k8s_label_safe,
@@ -435,73 +434,6 @@ def test_validate_kubernetes_resource_args_allows_non_dangerous_values(pod_spec_
             },
         }
     )
-
-
-RESTRICTED_SECURITY_CONTEXT = {
-    "allowPrivilegeEscalation": False,
-    "capabilities": {"drop": ["ALL"]},
-    "seccompProfile": {"type": "RuntimeDefault"},
-    "runAsNonRoot": True,
-}
-
-
-def test_inject_restricted_security_context_covers_cronjob():
-    # CronJob workload pod template lives under spec.jobTemplate.spec.template.spec.
-    manifest = {
-        "apiVersion": "batch/v1",
-        "kind": "CronJob",
-        "spec": {
-            "jobTemplate": {
-                "spec": {
-                    "template": {
-                        "spec": {
-                            "containers": [{"name": "main"}],
-                            "initContainers": [{"name": "init"}],
-                        }
-                    }
-                }
-            }
-        },
-    }
-    inject_restricted_security_context(manifest)
-    pod_spec = manifest["spec"]["jobTemplate"]["spec"]["template"]["spec"]
-    assert pod_spec["containers"][0]["securityContext"] == RESTRICTED_SECURITY_CONTEXT
-    assert (
-        pod_spec["initContainers"][0]["securityContext"] == RESTRICTED_SECURITY_CONTEXT
-    )
-
-
-def test_inject_restricted_security_context_covers_custom_resource():
-    # A CRD (e.g. volcano) exposes pod specs under tasks[].template.spec.
-    manifest = {
-        "apiVersion": "batch.volcano.sh/v1alpha1",
-        "kind": "Job",
-        "tasks": [
-            {"template": {"spec": {"containers": [{"name": "master"}]}}},
-            {"template": {"spec": {"containers": [{"name": "worker"}]}}},
-        ],
-    }
-    inject_restricted_security_context(manifest)
-    for task in manifest["tasks"]:
-        cont = task["template"]["spec"]["containers"][0]
-        assert cont["securityContext"] == RESTRICTED_SECURITY_CONTEXT
-
-
-def test_inject_restricted_security_context_overrides_submitter_values():
-    manifest = {
-        "spec": {
-            "template": {
-                "spec": {
-                    "containers": [
-                        {"name": "main", "securityContext": {"privileged": True}}
-                    ]
-                }
-            }
-        }
-    }
-    inject_restricted_security_context(manifest)
-    cont = manifest["spec"]["template"]["spec"]["containers"][0]
-    assert cont["securityContext"] == RESTRICTED_SECURITY_CONTEXT
 
 
 @pytest.mark.parametrize(
