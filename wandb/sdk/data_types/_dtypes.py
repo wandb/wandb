@@ -79,10 +79,10 @@ class TypeRegistry:
     ) -> Type:
         wb_type = json_dict.get("wb_type")
         if wb_type is None:
-            TypeError("json_dict must contain `wb_type` key")
+            raise TypeError("json_dict must contain `wb_type` key")
         _type = TypeRegistry.types_by_name().get(wb_type)
         if _type is None:
-            TypeError(f"missing type handler for {wb_type}")
+            raise TypeError(f"missing type handler for {wb_type}")
         return _type.from_json(json_dict, artifact)
 
     @staticmethod
@@ -440,7 +440,7 @@ class ConstType(Type):
 
     def __init__(self, val: t.Any | None = None, is_set: bool | None = False):
         if val.__class__ not in [str, int, float, bool, set, list, None.__class__]:
-            TypeError(
+            raise TypeError(
                 f"ConstType only supports str, int, float, bool, set, list, and None types. Found {val}"
             )
         if is_set or isinstance(val, set):
@@ -795,7 +795,7 @@ class TypedDictType(Type):
     @classmethod
     def from_obj(cls, py_obj: t.Any | None = None) -> TypedDictType:
         if not isinstance(py_obj, dict):
-            TypeError("TypedDictType.from_obj expects a dictionary")
+            raise TypeError("TypedDictType.from_obj expects a dictionary")
 
         assert isinstance(py_obj, dict)  # helps mypy type checker
         return cls({key: TypeRegistry.type_of(py_obj[key]) for key in py_obj})
