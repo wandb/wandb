@@ -45,7 +45,7 @@ type ArtifactSaveManager struct {
 	graphqlClient                graphql.Client
 	fileTransferManager          filetransfer.FileTransferManager
 	fileCache                    Cache
-	useArtifactProjectEntityInfo bool
+	useArtifactProjectEntityInfo func() bool
 
 	// uploadsByName ensures that uploads for the same artifact name happen
 	// serially, so that version numbers are assigned deterministically.
@@ -57,7 +57,7 @@ func NewArtifactSaveManager(
 	printer *observability.Printer,
 	graphqlClient graphql.Client,
 	fileTransferManager filetransfer.FileTransferManager,
-	useArtifactProjectEntityInfo bool,
+	useArtifactProjectEntityInfo func() bool,
 ) *ArtifactSaveManager {
 	workerPool := &errgroup.Group{}
 	workerPool.SetLimit(maxSimultaneousUploads)
@@ -116,7 +116,7 @@ func (as *ArtifactSaveManager) Save(
 			stagingDir:                   stagingDir,
 			maxActiveBatches:             5,
 			resultChan:                   resultChan,
-			useArtifactProjectEntityInfo: as.useArtifactProjectEntityInfo,
+			useArtifactProjectEntityInfo: as.useArtifactProjectEntityInfo(),
 		},
 	)
 
