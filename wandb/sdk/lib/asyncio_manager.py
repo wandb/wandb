@@ -139,7 +139,12 @@ class AsyncioManager:
         except concurrent.futures.CancelledError:
             raise RunCancelledError from None
 
-        except KeyboardInterrupt:
+        except:
+            # This is primarily for KeyboardInterrupt and any other exception
+            # that can be raised "out of thin air". For instance, pytest-timeout
+            # calls `pytest.fail()` inside a SIGALRM handler, which raises
+            # a special exception that pytest catches.
+            #
             # If we're interrupted here, we only cancel this task rather than
             # cancelling all tasks like in join(). This only matters if the
             # interrupt is then suppressed (or delayed) in which case we
