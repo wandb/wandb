@@ -184,8 +184,9 @@ def test_sync_wandb_run_and_tensorboard(runner, wandb_backend_spy, user, copy_as
             uploaded_files = snapshot.uploaded_files(run_id="g9dvvkua")
             assert "code/standalone_tests/code-toad.py" in uploaded_files
 
-        # Check we marked the run as synced
-        result = runner.invoke(cli.sync, [run_dir])
+        # Check we marked the run as synced.
+        # Pass --legacy for the warning below.
+        result = runner.invoke(cli.sync, [run_dir, "--legacy"])
         assert result.exit_code == 0
         assert (
             "WARNING Found .wandb file, not streaming tensorboard metrics"

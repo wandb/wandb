@@ -112,6 +112,13 @@ beta.add_command(leet)
     help="Print what would happen without uploading anything.",
 )
 @click.option(
+    "--yes",
+    "skip_confirmation",
+    is_flag=True,
+    default=False,
+    help="Skip confirmation.",
+)
+@click.option(
     "-v",
     "--verbose",
     is_flag=True,
@@ -140,14 +147,14 @@ def sync(
     skip_synced: bool,
     skip_online: bool,
     dry_run: bool,
+    skip_confirmation: bool,
     verbose: bool,
     n: int,
 ) -> None:
     """Upload .wandb files specified by PATHS.
 
-    This is a beta re-implementation of `wandb sync`.
-    It is not feature complete, not guaranteed to work, and may change
-    in backward-incompatible ways in any release of wandb.
+    This is an improvement on `wandb sync` with additional features and better
+    UX and performance. It will eventually be absorbed into `wandb sync`.
 
     PATHS can include .wandb files, run directories containing .wandb files,
     and "wandb" directories containing run directories.
@@ -175,6 +182,7 @@ def sync(
         job_type=job_type,
         replace_tags=replace_tags,
         dry_run=dry_run,
+        skip_confirmation=skip_confirmation,
         skip_synced=skip_synced,
         skip_online=skip_online,
         verbose=verbose,
