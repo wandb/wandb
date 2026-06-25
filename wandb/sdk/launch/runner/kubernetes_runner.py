@@ -13,9 +13,8 @@ import time
 from collections.abc import Iterator
 from typing import Any
 
-import yaml
-
 import wandb
+import yaml
 from wandb.apis.internal import Api
 from wandb.sdk.launch.agent.agent import LaunchAgent
 from wandb.sdk.launch.environment.abstract import AbstractEnvironment
@@ -776,6 +775,9 @@ class KubernetesRunner(AbstractRunner):
                     }
                 )
                 cont["env"] = env
+
+        validate_kubernetes_resource_args(config)
+        inject_restricted_security_context(config)
 
         try:
             sanitize_identifiers_for_k8s(config)
