@@ -743,7 +743,6 @@ platformdirs==4.9.6
     # via
     #   black
     #   jupyter-core
-    #   wandb
 plotly==6.7.0
     # via
     #   -r requirements/requirements_dev.txt

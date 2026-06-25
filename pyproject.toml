@@ -17,7 +17,6 @@ dependencies = [
     "sentry-sdk>=2.0.0",
     "protobuf>4.21.0,!=5.28.0,!=5.29.0,<8",
     "PyYAML",
-    "platformdirs",
     "typing_extensions>=4.8,<5",
     "pydantic>=2.6,<3",
     "packaging",
