@@ -30,32 +30,36 @@ class ServerApiInitResponse(_message.Message):
     def __init__(self, error_message: _Optional[str] = ..., api_id: _Optional[str] = ...) -> None: ...
 
 class ApiRequest(_message.Message):
-    __slots__ = ("api_id", "read_run_history_request", "features_request", "graphql_request", "download_file_request")
+    __slots__ = ("api_id", "read_run_history_request", "features_request", "graphql_request", "download_file_request", "upload_file_request")
     API_ID_FIELD_NUMBER: _ClassVar[int]
     READ_RUN_HISTORY_REQUEST_FIELD_NUMBER: _ClassVar[int]
     FEATURES_REQUEST_FIELD_NUMBER: _ClassVar[int]
     GRAPHQL_REQUEST_FIELD_NUMBER: _ClassVar[int]
     DOWNLOAD_FILE_REQUEST_FIELD_NUMBER: _ClassVar[int]
+    UPLOAD_FILE_REQUEST_FIELD_NUMBER: _ClassVar[int]
     api_id: str
     read_run_history_request: ReadRunHistoryRequest
     features_request: FeaturesRequest
     graphql_request: GraphQLRequest
     download_file_request: DownloadFileRequest
-    def __init__(self, api_id: _Optional[str] = ..., read_run_history_request: _Optional[_Union[ReadRunHistoryRequest, _Mapping]] = ..., features_request: _Optional[_Union[FeaturesRequest, _Mapping]] = ..., graphql_request: _Optional[_Union[GraphQLRequest, _Mapping]] = ..., download_file_request: _Optional[_Union[DownloadFileRequest, _Mapping]] = ...) -> None: ...
+    upload_file_request: UploadFileRequest
+    def __init__(self, api_id: _Optional[str] = ..., read_run_history_request: _Optional[_Union[ReadRunHistoryRequest, _Mapping]] = ..., features_request: _Optional[_Union[FeaturesRequest, _Mapping]] = ..., graphql_request: _Optional[_Union[GraphQLRequest, _Mapping]] = ..., download_file_request: _Optional[_Union[DownloadFileRequest, _Mapping]] = ..., upload_file_request: _Optional[_Union[UploadFileRequest, _Mapping]] = ...) -> None: ...
 
 class ApiResponse(_message.Message):
-    __slots__ = ("read_run_history_response", "features_response", "graphql_response", "download_file_response", "api_error_response")
+    __slots__ = ("read_run_history_response", "features_response", "graphql_response", "download_file_response", "upload_file_response", "api_error_response")
     READ_RUN_HISTORY_RESPONSE_FIELD_NUMBER: _ClassVar[int]
     FEATURES_RESPONSE_FIELD_NUMBER: _ClassVar[int]
     GRAPHQL_RESPONSE_FIELD_NUMBER: _ClassVar[int]
     DOWNLOAD_FILE_RESPONSE_FIELD_NUMBER: _ClassVar[int]
+    UPLOAD_FILE_RESPONSE_FIELD_NUMBER: _ClassVar[int]
     API_ERROR_RESPONSE_FIELD_NUMBER: _ClassVar[int]
     read_run_history_response: ReadRunHistoryResponse
     features_response: FeaturesResponse
     graphql_response: GraphQLResponse
     download_file_response: DownloadFileResponse
+    upload_file_response: UploadFileResponse
     api_error_response: ApiErrorResponse
-    def __init__(self, read_run_history_response: _Optional[_Union[ReadRunHistoryResponse, _Mapping]] = ..., features_response: _Optional[_Union[FeaturesResponse, _Mapping]] = ..., graphql_response: _Optional[_Union[GraphQLResponse, _Mapping]] = ..., download_file_response: _Optional[_Union[DownloadFileResponse, _Mapping]] = ..., api_error_response: _Optional[_Union[ApiErrorResponse, _Mapping]] = ...) -> None: ...
+    def __init__(self, read_run_history_response: _Optional[_Union[ReadRunHistoryResponse, _Mapping]] = ..., features_response: _Optional[_Union[FeaturesResponse, _Mapping]] = ..., graphql_response: _Optional[_Union[GraphQLResponse, _Mapping]] = ..., download_file_response: _Optional[_Union[DownloadFileResponse, _Mapping]] = ..., upload_file_response: _Optional[_Union[UploadFileResponse, _Mapping]] = ..., api_error_response: _Optional[_Union[ApiErrorResponse, _Mapping]] = ...) -> None: ...
 
 class ApiErrorResponse(_message.Message):
     __slots__ = ("message", "error_type", "http_status")
@@ -125,6 +129,27 @@ class DownloadFileRequest(_message.Message):
     def __init__(self, path: _Optional[str] = ..., url: _Optional[str] = ..., size: _Optional[int] = ...) -> None: ...
 
 class DownloadFileResponse(_message.Message):
+    __slots__ = ()
+    def __init__(self) -> None: ...
+
+class UploadFileRequest(_message.Message):
+    __slots__ = ("path", "url", "headers")
+    class HeadersEntry(_message.Message):
+        __slots__ = ("key", "value")
+        KEY_FIELD_NUMBER: _ClassVar[int]
+        VALUE_FIELD_NUMBER: _ClassVar[int]
+        key: str
+        value: str
+        def __init__(self, key: _Optional[str] = ..., value: _Optional[str] = ...) -> None: ...
+    PATH_FIELD_NUMBER: _ClassVar[int]
+    URL_FIELD_NUMBER: _ClassVar[int]
+    HEADERS_FIELD_NUMBER: _ClassVar[int]
+    path: str
+    url: str
+    headers: _containers.ScalarMap[str, str]
+    def __init__(self, path: _Optional[str] = ..., url: _Optional[str] = ..., headers: _Optional[_Mapping[str, str]] = ...) -> None: ...
+
+class UploadFileResponse(_message.Message):
     __slots__ = ()
     def __init__(self) -> None: ...
 
