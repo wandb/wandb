@@ -777,6 +777,9 @@ class KubernetesRunner(AbstractRunner):
                 )
                 cont["env"] = env
 
+        validate_kubernetes_resource_args(config)
+        inject_restricted_security_context(config)
+
         try:
             sanitize_identifiers_for_k8s(config)
 

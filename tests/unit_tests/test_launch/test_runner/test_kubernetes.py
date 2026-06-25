@@ -1583,6 +1583,15 @@ async def test_launch_additional_services(
         .get("name")
         == expected_pod_name
     )
+    assert (
+        additional_service_call[0][1]
+        .get("spec")
+        .get("template")
+        .get("spec")
+        .get("containers")[0]
+        .get("securityContext")
+        == K8S_RESTRICTED_SECURITY_CONTEXT
+    )
 
     labels = additional_service_call[0][1].get("metadata").get("labels")
     assert "wandb.ai/label" in labels
@@ -1591,6 +1600,102 @@ async def test_launch_additional_services(
     assert (
         labels[WANDB_K8S_LABEL_AUXILIARY_RESOURCE] == expected_auxiliary_resource_label
     )
+
+
+@pytest.mark.asyncio
+async def test_launch_additional_services_rejects_unsafe_config(
+    mock_event_streams,
+    mock_batch_api,
+    mock_kube_context_and_api_client,
+    mock_maybe_create_image_pullsecret,
+    mock_create_from_dict,
+    test_api,
+    manifest,
+    clean_monitor,
+    clean_agent,
+):
+    unsafe_additional_service = {
+        "apiVersion": "v1",
+        "kind": "Pod",
+        "metadata": {"name": "unsafe-pod"},
+        "spec": {
+            "hostPID": True,
+            "containers": [{"name": "unsafe", "image": "test_image"}],
+        },
+    }
+
+    project = LaunchProject(
+        docker_config={"docker_image": "test_image"},
+        target_entity="test_entity",
+        target_project="test_project",
+        resource_args={"kubernetes": manifest},
+        launch_spec={
+            "additional_services": [
+                {
+                    "config": unsafe_additional_service,
+                    "name": "unsafe_additional_service",
+                }
+            ]
+        },
+        overrides={},
+        resource="kubernetes",
+        api=test_api,
+        git_info={},
+        job="",
+        uri="https://wandb.ai/test_entity/test_project/runs/test_run_id",
+        run_id="test_run_id",
+        name="test_run",
+    )
+    runner = KubernetesRunner(
+        test_api, {"SYNCHRONOUS": False}, MagicMock(), MagicMock()
+    )
+
+    with pytest.raises(
+        LaunchError,
+        match="Unsafe resource_args.kubernetes option 'hostPID'",
+    ):
+        await runner.run(project, "test_image")
+
+    mock_create_from_dict.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_launch_without_additional_services_still_creates_job(
+    mock_event_streams,
+    mock_batch_api,
+    mock_kube_context_and_api_client,
+    mock_maybe_create_image_pullsecret,
+    mock_create_from_dict,
+    test_api,
+    manifest,
+    clean_monitor,
+    clean_agent,
+):
+    project = LaunchProject(
+        docker_config={"docker_image": "test_image"},
+        target_entity="test_entity",
+        target_project="test_project",
+        resource_args={"kubernetes": manifest},
+        launch_spec={},
+        overrides={},
+        resource="kubernetes",
+        api=test_api,
+        git_info={},
+        job="",
+        uri="https://wandb.ai/test_entity/test_project/runs/test_run_id",
+        run_id="test_run_id",
+        name="test_run",
+    )
+    runner = KubernetesRunner(
+        test_api, {"SYNCHRONOUS": False}, MagicMock(), MagicMock()
+    )
+
+    submitted_run = await runner.run(project, "test_image")
+
+    assert submitted_run.id == "test-job"
+    assert mock_create_from_dict.call_count == 1
+    submitted_manifest = mock_create_from_dict.call_args_list[0][0][1]
+    assert submitted_manifest.get("kind") == "Job"
 
 
 def _make_emptydir_manifest(
