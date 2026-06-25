@@ -105,7 +105,7 @@ func TestUploadFileSendsTask(t *testing.T) {
 	task := manager.tasks[0].(*filetransfer.DefaultUploadTask)
 	assert.Equal(t, "/tmp/model.bin", task.Path)
 	assert.Equal(t, "https://files.example/model.bin", task.Url)
-	assert.Equal(t, []string{"X-Test:value"}, task.Headers)
+	assert.Equal(t, http.Header{"X-Test": {"value"}}, task.Headers)
 }
 
 func TestUploadFileReturnsTaskHTTPError(t *testing.T) {

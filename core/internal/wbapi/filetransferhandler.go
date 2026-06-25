@@ -2,7 +2,7 @@ package wbapi
 
 import (
 	"context"
-	"fmt"
+	"net/http"
 
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
@@ -61,9 +61,9 @@ func (h *FileTransferHandler) HandleUploadFile(
 	ctx context.Context,
 	request *spb.UploadFileRequest,
 ) *spb.ApiResponse {
-	headers := make([]string, 0, len(request.GetHeaders()))
+	headers := make(http.Header, len(request.GetHeaders()))
 	for key, value := range request.GetHeaders() {
-		headers = append(headers, fmt.Sprintf("%s:%s", key, value))
+		headers.Set(key, value)
 	}
 
 	done := make(chan struct{})
