@@ -14,10 +14,6 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ## Unreleased
 
-### Security
-
-- harden launch agent `resource_args` handling so queue submitters can no longer request privileged containers, host mounts, or host/cluster access (VULNMGMT-2137)
-
 ### Changed
 
 - remove temporary unix socket files and directories on shutdown (@geoffhardy in https://github.com/wandb/wandb/pull/12058)

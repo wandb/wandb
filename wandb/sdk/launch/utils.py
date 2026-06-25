@@ -358,15 +358,15 @@ _DOCKER_ALLOWED_RESOURCE_ARGS = {
 # may arrive as a list of scalar values (e.g. ``--env A=1 --env B=2``).
 _DOCKER_REPEATABLE_RESOURCE_ARGS = {"e", "env", "ulimit"}
 
-# Restricted securityContext the Kubernetes runner always injects. Submitters
-# cannot override it (see ``validate_kubernetes_resource_args`` which refuses any
-# submitter-supplied securityContext, and ``_inject_defaults`` which always sets
-# this on every container).
+# SecurityContext the Kubernetes runner always injects. This preserves the
+# existing launch defaults while making sure submitters cannot override them
+# (see ``validate_kubernetes_resource_args`` which refuses any submitter-supplied
+# securityContext, and ``_inject_defaults`` which always sets this on every
+# container).
 K8S_RESTRICTED_SECURITY_CONTEXT: dict[str, Any] = {
     "allowPrivilegeEscalation": False,
     "capabilities": {"drop": ["ALL"]},
     "seccompProfile": {"type": "RuntimeDefault"},
-    "runAsNonRoot": True,
 }
 
 # Submitter-supplied keys we refuse anywhere in a Kubernetes manifest because
