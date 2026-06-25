@@ -929,7 +929,7 @@ func (*DownloadFileResponse) Descriptor() ([]byte, []int) {
 	return file_wandb_proto_wandb_api_proto_rawDescGZIP(), []int{11}
 }
 
-// Upload a local file to a URL.
+// Upload a local file to a URL with an HTTP PUT request.
 //
 // wandb-core performs the upload using its file transfer subsystem,
 // whose retries and timeouts are governed by the file transfer settings.
@@ -937,11 +937,11 @@ func (*DownloadFileResponse) Descriptor() ([]byte, []int) {
 // non-successful HTTP status codes, return ApiErrorResponse.
 type UploadFileRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// The local path of the file to upload.
+	// The absolute local path of the file to upload.
 	Path string `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`
 	// The URL to upload the file to.
 	Url string `protobuf:"bytes,2,opt,name=url,proto3" json:"url,omitempty"`
-	// Extra HTTP headers to send with the upload request.
+	// Extra HTTP headers to send with the PUT request.
 	Headers       map[string]string `protobuf:"bytes,3,rep,name=headers,proto3" json:"headers,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache

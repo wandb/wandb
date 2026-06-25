@@ -456,7 +456,7 @@ class TestUploadFile:
         request = api._service_api.send_api_request.call_args[0][0]
         upload = request.upload_file_request
         assert upload.url == "http://example.com/upload-dst"
-        assert upload.path == str(example_file)
+        assert upload.path == str(example_file.resolve())
         assert upload.headers["X-Test"] == "test"
 
     def test_propagates_core_errors(self, example_file: Path):

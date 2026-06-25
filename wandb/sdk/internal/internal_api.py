@@ -2459,7 +2459,9 @@ class Api:
             self._service_api.send_api_request(
                 ApiRequest(
                     upload_file_request=UploadFileRequest(
-                        url=url, path=file.name, headers=extra_headers
+                        url=url,
+                        path=str(Path(file.name).resolve()),
+                        headers=extra_headers,
                     )
                 )
             )

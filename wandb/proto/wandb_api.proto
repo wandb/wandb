@@ -155,20 +155,20 @@ message DownloadFileRequest {
 
 message DownloadFileResponse {}
 
-// Upload a local file to a URL.
+// Upload a local file to a URL with an HTTP PUT request.
 //
 // wandb-core performs the upload using its file transfer subsystem,
 // whose retries and timeouts are governed by the file transfer settings.
 // A successful request returns UploadFileResponse; failures, including
 // non-successful HTTP status codes, return ApiErrorResponse.
 message UploadFileRequest {
-  // The local path of the file to upload.
+  // The absolute local path of the file to upload.
   string path = 1;
 
   // The URL to upload the file to.
   string url = 2;
 
-  // Extra HTTP headers to send with the upload request.
+  // Extra HTTP headers to send with the PUT request.
   map<string, string> headers = 3;
 }
 
