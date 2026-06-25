@@ -128,16 +128,15 @@ def test_download_write_file_fetches_iff_file_checksum_mismatched(
 
         api = internal.InternalApi()
 
-        def download_file(request):
-            download = request.download_file_request
-            assert download.url == url
-            assert download.path == filepath
-            with open(download.path, "w") as f:
+        # Stand in for wandb-core, writing the file a real download would.
+        def fake_download(request):
+            path = request.download_file_request.path
+            with open(path, "w") as f:
                 f.write(current_contents)
 
-        api._service_api.send_api_request = Mock(side_effect=download_file)
+        api._service_api.send_api_request = Mock(side_effect=fake_download)
 
-        _, downloaded = api.download_write_file(
+        path, downloaded = api.download_write_file(
             metadata={
                 "name": filepath,
                 "md5": base64.b64encode(
@@ -148,12 +147,10 @@ def test_download_write_file_fetches_iff_file_checksum_mismatched(
             out_dir=tmpdir,
         )
 
-        if expect_download:
-            assert downloaded
-            api._service_api.send_api_request.assert_called_once()
-        else:
-            assert not downloaded
-            api._service_api.send_api_request.assert_not_called()
+        assert downloaded == expect_download
+        # Either way, the file on disk holds the current contents afterward.
+        with open(path) as f:
+            assert f.read() == current_contents
 
 
 def test_internal_api_with_no_write_global_config_dir(

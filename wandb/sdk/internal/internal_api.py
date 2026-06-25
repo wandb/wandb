@@ -983,14 +983,13 @@ class Api:
                     for file_edge in run_obj["files"]["edges"]:
                         name = file_edge["node"]["name"]
                         url = file_edge["node"]["directUrl"]
-                        path = os.path.join(tmpdir, name)
-                        self.download_file(url, path)
+                        path = Path(tmpdir, name)
+                        self.download_file(url, str(path))
                         if name == METADATA_FNAME:
-                            with open(path, encoding="utf-8") as file:
+                            with path.open(encoding="utf-8") as file:
                                 metadata = json.load(file)
                         elif name == DIFF_FNAME:
-                            with open(path, encoding="utf-8") as file:
-                                patch = file.read()
+                            patch = path.read_text(encoding="utf-8")
 
         return commit, config, patch, metadata
 
