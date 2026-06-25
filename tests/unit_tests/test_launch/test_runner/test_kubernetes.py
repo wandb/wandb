@@ -649,6 +649,75 @@ async def test_launch_crd_injects_restricted_security_context(
 
 
 @pytest.mark.asyncio
+async def test_launch_cronjob_injects_restricted_security_context(
+    monkeypatch,
+    mock_event_streams,
+    mock_batch_api,
+    mock_kube_context_and_api_client,
+    mock_maybe_create_image_pullsecret,
+    mock_create_from_dict,
+    test_api,
+    clean_monitor,
+    clean_agent,
+):
+    """A batch/v1 CronJob's jobTemplate pod containers must get the context."""
+    cronjob = {
+        "apiVersion": "batch/v1",
+        "kind": "CronJob",
+        "metadata": {"name": "test-job"},
+        "spec": {
+            "schedule": "* * * * *",
+            "jobTemplate": {
+                "spec": {
+                    "template": {
+                        "spec": {
+                            "containers": [
+                                {"name": "main", "image": "test-image"},
+                            ],
+                            "restartPolicy": "Never",
+                        }
+                    }
+                }
+            },
+        },
+    }
+    project = LaunchProject(
+        docker_config={"docker_image": "test_image"},
+        target_entity="test_entity",
+        target_project="test_project",
+        resource_args={"kubernetes": cronjob},
+        launch_spec={},
+        overrides={},
+        resource="kubernetes",
+        api=test_api,
+        git_info={},
+        job="",
+        uri="https://wandb.ai/test_entity/test_project/runs/test_run",
+        run_id="test_run_id",
+        name="test_run",
+    )
+    runner = KubernetesRunner(
+        test_api, {"SYNCHRONOUS": False}, MagicMock(), MagicMock()
+    )
+    await runner.run(project, "test-image")
+
+    # The CronJob flows through the standard Job path (batch/v1) and is submitted
+    # via create_from_dict.
+    submitted_job = mock_create_from_dict.call_args_list[0][0][1]
+    expected = {
+        "allowPrivilegeEscalation": False,
+        "capabilities": {"drop": ["ALL"]},
+        "seccompProfile": {"type": "RuntimeDefault"},
+        "runAsNonRoot": True,
+    }
+    pod_spec = submitted_job["spec"]["jobTemplate"]["spec"]["template"]["spec"]
+    containers = pod_spec["containers"]
+    assert containers, "expected the CronJob jobTemplate to expose containers"
+    for cont in containers:
+        assert cont["securityContext"] == expected
+
+
+@pytest.mark.asyncio
 async def test_launch_crd_pod_schedule_warning(
     monkeypatch,
     mock_event_streams,
