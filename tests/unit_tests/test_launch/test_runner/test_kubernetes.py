@@ -597,6 +597,58 @@ async def test_launch_crd_works(
 
 
 @pytest.mark.asyncio
+async def test_launch_crd_injects_restricted_security_context(
+    monkeypatch,
+    mock_event_streams,
+    mock_batch_api,
+    mock_custom_api,
+    mock_kube_context_and_api_client,
+    mock_create_from_dict,
+    test_api,
+    volcano_spec,
+    clean_monitor,
+    clean_agent,
+):
+    """The custom-resource path must inject the restricted securityContext."""
+    monkeypatch.setattr(
+        "wandb.sdk.launch.runner.kubernetes_runner.maybe_create_imagepull_secret",
+        lambda *args, **kwargs: None,
+    )
+    mock_batch_api.jobs = {"test-job": MockDict(volcano_spec)}
+    project = LaunchProject(
+        docker_config={"docker_image": "test_image"},
+        target_entity="test_entity",
+        target_project="test_project",
+        resource_args={"kubernetes": volcano_spec},
+        launch_spec={},
+        overrides={},
+        resource="kubernetes",
+        api=test_api,
+        git_info={},
+        job="",
+        uri="https://wandb.ai/test_entity/test_project/runs/test_run",
+        run_id="test_run_id",
+        name="test_run",
+    )
+    runner = KubernetesRunner(
+        test_api, {"SYNCHRONOUS": False}, MagicMock(), MagicMock()
+    )
+    await runner.run(project, MagicMock())
+
+    submitted_body = mock_custom_api.jobs["test-job"]
+    expected = {
+        "allowPrivilegeEscalation": False,
+        "capabilities": {"drop": ["ALL"]},
+        "seccompProfile": {"type": "RuntimeDefault"},
+        "runAsNonRoot": True,
+    }
+    containers = submitted_body["tasks"][0]["template"]["spec"]["containers"]
+    assert containers, "expected the custom resource to expose a pod spec"
+    for cont in containers:
+        assert cont["securityContext"] == expected
+
+
+@pytest.mark.asyncio
 async def test_launch_crd_pod_schedule_warning(
     monkeypatch,
     mock_event_streams,

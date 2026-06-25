@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import base64
-import copy
 import datetime
 import json
 import logging
@@ -44,11 +43,11 @@ from .._project_spec import EntryPoint, LaunchProject
 from ..errors import LaunchError
 from ..utils import (
     CODE_MOUNT_DIR,
-    K8S_RESTRICTED_SECURITY_CONTEXT,
     LOG_PREFIX,
     MAX_ENV_LENGTHS,
     PROJECT_SYNCHRONOUS,
     get_kube_context_and_api_client,
+    inject_restricted_security_context,
     make_k8s_label_safe,
     make_name_dns_safe,
     validate_kubernetes_resource_args,
@@ -345,27 +344,6 @@ class CrdSubmittedRun(AbstractRun):
             await asyncio.sleep(5)
 
 
-def _enforce_restricted_security_context(
-    pod_spec: dict[str, Any], containers: list[dict[str, Any]]
-) -> None:
-    """Always set the agent's restricted securityContext on every container.
-
-    Submitter-supplied securityContext is refused upstream by
-    ``validate_kubernetes_resource_args``, so the agent's safe values always win.
-    ``initContainers``/``ephemeralContainers`` are covered too for defense in
-    depth.
-    """
-    for container_key in ("containers", "initContainers", "ephemeralContainers"):
-        container_list = (
-            containers
-            if container_key == "containers"
-            else pod_spec.get(container_key, [])
-        )
-        for cont in container_list:
-            if isinstance(cont, dict):
-                cont["securityContext"] = copy.deepcopy(K8S_RESTRICTED_SECURITY_CONTEXT)
-
-
 class KubernetesRunner(AbstractRunner):
     """Launches runs onto kubernetes."""
 
@@ -464,8 +442,6 @@ class KubernetesRunner(AbstractRunner):
         for i, cont in enumerate(containers):
             if "name" not in cont:
                 cont["name"] = cont.get("name", "launch" + str(i))
-
-        _enforce_restricted_security_context(pod_spec, containers)
 
         entry_point = (
             launch_project.override_entrypoint or launch_project.get_job_entry_point()
@@ -583,6 +559,12 @@ class KubernetesRunner(AbstractRunner):
                 WANDB_K8S_LABEL_AGENT,
                 LaunchAgent.name(),
             )
+
+        # Force the restricted securityContext onto every pod spec in the
+        # assembled job (standard template, and any CronJob jobTemplate). This
+        # is symmetric with validate_kubernetes_resource_args, which refuses
+        # submitter-supplied securityContext anywhere in the manifest.
+        inject_restricted_security_context(job)
 
         return job, api_key_secret
 
@@ -903,6 +885,12 @@ class KubernetesRunner(AbstractRunner):
                 resource_args,
                 overrides,
             )
+
+            # Custom resources never go through _inject_defaults, so harden any
+            # pod spec they expose here. Matches the standard Job path and is
+            # symmetric with validate_kubernetes_resource_args.
+            inject_restricted_security_context(resource_args)
+
             api = client.CustomObjectsApi(api_client)
             # Infer the attributes of a custom object from the apiVersion and/or
             # a kind: attribute in the resource args.

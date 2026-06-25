@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import copy
 import json
 import logging
 import os
@@ -558,6 +559,48 @@ def validate_kubernetes_resource_args(resource_args: dict[str, Any]) -> None:
 
     _scan_kubernetes_annotations(resource_args)
     _scan_kubernetes_node(resource_args)
+
+
+# Keys whose value is a list of containers within a pod spec.
+_K8S_CONTAINER_KEYS = ("containers", "initContainers", "ephemeralContainers")
+
+
+def yield_kubernetes_pod_specs(manifest: Any) -> Iterator[dict[str, Any]]:
+    """Yield every pod spec found anywhere in a Kubernetes manifest.
+
+    A pod spec is recognized by carrying a container list (``containers``,
+    ``initContainers`` or ``ephemeralContainers``). This locates the workload
+    pod template no matter where it lives — Job ``spec.template.spec``, CronJob
+    ``spec.jobTemplate.spec.template.spec``, or a custom resource that exposes a
+    recognizable pod spec — so security hardening can be applied symmetrically
+    with ``validate_kubernetes_resource_args`` (which scans the whole manifest).
+    """
+    if isinstance(manifest, dict):
+        if any(isinstance(manifest.get(key), list) for key in _K8S_CONTAINER_KEYS):
+            yield manifest
+        for value in manifest.values():
+            yield from yield_kubernetes_pod_specs(value)
+    elif isinstance(manifest, list):
+        for item in manifest:
+            yield from yield_kubernetes_pod_specs(item)
+
+
+def inject_restricted_security_context(manifest: Any) -> None:
+    """Force the agent's restricted securityContext onto every container.
+
+    Applied to every container/initContainer/ephemeralContainer in every pod
+    spec found anywhere in ``manifest``. Submitter-supplied securityContext is
+    already refused by ``validate_kubernetes_resource_args``, so always setting
+    the restricted context here is safe and guarantees the agent's values win,
+    regardless of the workload shape (Job, CronJob, or custom resource).
+    """
+    for pod_spec in yield_kubernetes_pod_specs(manifest):
+        for container_key in _K8S_CONTAINER_KEYS:
+            for container in pod_spec.get(container_key) or []:
+                if isinstance(container, dict):
+                    container["securityContext"] = copy.deepcopy(
+                        K8S_RESTRICTED_SECURITY_CONTEXT
+                    )
 
 
 def validate_launch_resource_args(resource_args: dict[str, Any]) -> None:
