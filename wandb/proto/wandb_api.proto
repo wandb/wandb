@@ -31,6 +31,7 @@ message ApiRequest {
     FeaturesRequest features_request = 3;
     GraphQLRequest graphql_request = 4;
     DownloadFileRequest download_file_request = 5;
+    UploadFileRequest upload_file_request = 6;
   }
 }
 
@@ -40,6 +41,7 @@ message ApiResponse {
     FeaturesResponse features_response = 3;
     GraphQLResponse graphql_response = 4;
     DownloadFileResponse download_file_response = 5;
+    UploadFileResponse upload_file_response = 6;
 
     ApiErrorResponse api_error_response = 2;
   }
@@ -152,6 +154,25 @@ message DownloadFileRequest {
 }
 
 message DownloadFileResponse {}
+
+// Upload a local file to a URL with an HTTP PUT request.
+//
+// wandb-core performs the upload using its file transfer subsystem,
+// whose retries and timeouts are governed by the file transfer settings.
+// A successful request returns UploadFileResponse; failures, including
+// non-successful HTTP status codes, return ApiErrorResponse.
+message UploadFileRequest {
+  // The absolute local path of the file to upload.
+  string path = 1;
+
+  // The URL to upload the file to.
+  string url = 2;
+
+  // Extra HTTP headers to send with the PUT request.
+  map<string, string> headers = 3;
+}
+
+message UploadFileResponse {}
 
 // Start of Scan run history
 

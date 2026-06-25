@@ -19,13 +19,13 @@ import (
 // fakeFileTransferManager completes each task using the given callback.
 type fakeFileTransferManager struct {
 	tasks []filetransfer.Task
-	run   func(*filetransfer.DefaultDownloadTask)
+	run   func(filetransfer.Task)
 }
 
 func (m *fakeFileTransferManager) AddTask(task filetransfer.Task) {
 	m.tasks = append(m.tasks, task)
 	if m.run != nil {
-		m.run(task.(*filetransfer.DefaultDownloadTask))
+		m.run(task)
 	}
 	task.Complete(nil)
 }
@@ -36,8 +36,9 @@ func TestDownloadFileWritesFile(t *testing.T) {
 	content := []byte("downloaded")
 	path := filepath.Join(t.TempDir(), "model.bin")
 	manager := &fakeFileTransferManager{
-		run: func(task *filetransfer.DefaultDownloadTask) {
-			require.NoError(t, os.WriteFile(task.Path, content, 0o600))
+		run: func(task filetransfer.Task) {
+			downloadTask := task.(*filetransfer.DefaultDownloadTask)
+			require.NoError(t, os.WriteFile(downloadTask.Path, content, 0o600))
 		},
 	}
 	handler := wbapi.NewFileTransferHandler(manager)
@@ -64,9 +65,10 @@ func TestDownloadFileWritesFile(t *testing.T) {
 
 func TestDownloadFileReturnsTaskHTTPError(t *testing.T) {
 	manager := &fakeFileTransferManager{
-		run: func(task *filetransfer.DefaultDownloadTask) {
-			task.Response = &http.Response{StatusCode: http.StatusNotFound}
-			task.SetError(errors.New("failed to download: status: 404 Not Found"))
+		run: func(task filetransfer.Task) {
+			downloadTask := task.(*filetransfer.DefaultDownloadTask)
+			downloadTask.Response = &http.Response{StatusCode: http.StatusNotFound}
+			downloadTask.SetError(errors.New("failed to download: status: 404 Not Found"))
 		},
 	}
 	handler := wbapi.NewFileTransferHandler(manager)
@@ -83,4 +85,49 @@ func TestDownloadFileReturnsTaskHTTPError(t *testing.T) {
 	require.NotNil(t, apiError)
 	assert.Equal(t, int32(http.StatusNotFound), apiError.GetHttpStatus())
 	assert.Contains(t, apiError.GetMessage(), "404 Not Found")
+}
+
+func TestUploadFileSendsTask(t *testing.T) {
+	manager := &fakeFileTransferManager{}
+	handler := wbapi.NewFileTransferHandler(manager)
+
+	response := handler.HandleUploadFile(
+		context.Background(),
+		&spb.UploadFileRequest{
+			Path:    "/tmp/model.bin",
+			Url:     "https://files.example/model.bin",
+			Headers: map[string]string{"X-Test": "value"},
+		},
+	)
+
+	require.NotNil(t, response.GetUploadFileResponse())
+	require.Len(t, manager.tasks, 1)
+	task := manager.tasks[0].(*filetransfer.DefaultUploadTask)
+	assert.Equal(t, "/tmp/model.bin", task.Path)
+	assert.Equal(t, "https://files.example/model.bin", task.Url)
+	assert.Equal(t, []string{"X-Test:value"}, task.Headers)
+}
+
+func TestUploadFileReturnsTaskHTTPError(t *testing.T) {
+	manager := &fakeFileTransferManager{
+		run: func(task filetransfer.Task) {
+			uploadTask := task.(*filetransfer.DefaultUploadTask)
+			uploadTask.Response = &http.Response{StatusCode: http.StatusForbidden}
+			uploadTask.SetError(errors.New("failed to upload: status: 403 Forbidden"))
+		},
+	}
+	handler := wbapi.NewFileTransferHandler(manager)
+
+	response := handler.HandleUploadFile(
+		context.Background(),
+		&spb.UploadFileRequest{
+			Path: "/tmp/model.bin",
+			Url:  "https://files.example/model.bin",
+		},
+	)
+
+	apiError := response.GetApiErrorResponse()
+	require.NotNil(t, apiError)
+	assert.Equal(t, int32(http.StatusForbidden), apiError.GetHttpStatus())
+	assert.Contains(t, apiError.GetMessage(), "403 Forbidden")
 }
