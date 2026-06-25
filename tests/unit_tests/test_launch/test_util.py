@@ -12,7 +12,9 @@ from wandb.sdk.launch.utils import (
     pull_docker_image,
     recursive_macro_sub,
     sanitize_identifiers_for_k8s,
+    validate_kubernetes_resource_args,
     validate_launch_spec_source,
+    validate_local_container_resource_args,
     yield_containers,
 )
 
@@ -203,6 +205,214 @@ def test_validate_launch_spec_source(spec, valid):
     else:
         with pytest.raises(LaunchError):
             validate_launch_spec_source(spec)
+
+
+@pytest.mark.parametrize(
+    "pod_spec_patch,expected_field",
+    [
+        ({"hostPID": True}, "hostPID"),
+        ({"hostIPC": True}, "hostIPC"),
+        ({"hostNetwork": True}, "hostNetwork"),
+        ({"shareProcessNamespace": True}, "shareProcessNamespace"),
+        ({"hostUsers": True}, "hostUsers"),
+        (
+            {"volumes": [{"name": "host-root", "hostPath": {"path": "/"}}]},
+            "hostPath",
+        ),
+        ({"serviceAccountName": "cluster-admin"}, "serviceAccountName"),
+        # A submitter cannot use the deprecated alias to dodge the refusal.
+        ({"serviceAccount": "cluster-admin"}, "serviceAccount"),
+        ({"automountServiceAccountToken": True}, "automountServiceAccountToken"),
+        # Pod-level securityContext is refused outright (agent injects its own).
+        ({"securityContext": {"runAsUser": 0}}, "securityContext"),
+        # Container-level securityContext is refused outright too, no matter the
+        # value (privileged, capabilities, ...).
+        (
+            {"containers": [{"securityContext": {"privileged": True}}]},
+            "securityContext",
+        ),
+        (
+            {
+                "containers": [
+                    {"securityContext": {"capabilities": {"add": ["SYS_ADMIN"]}}}
+                ]
+            },
+            "securityContext",
+        ),
+        # initContainers / ephemeralContainers are covered too.
+        (
+            {"initContainers": [{"securityContext": {"privileged": True}}]},
+            "securityContext",
+        ),
+        (
+            {"ephemeralContainers": [{"securityContext": {"privileged": True}}]},
+            "securityContext",
+        ),
+        # hostPort binding is refused.
+        (
+            {"containers": [{"ports": [{"hostPort": 8080}]}]},
+            "hostPort",
+        ),
+        # Bidirectional mount propagation can escape to the host mount namespace.
+        (
+            {
+                "containers": [
+                    {
+                        "volumeMounts": [
+                            {
+                                "name": "x",
+                                "mountPath": "/x",
+                                "mountPropagation": "Bidirectional",
+                            }
+                        ]
+                    }
+                ]
+            },
+            "mountPropagation",
+        ),
+        # A projected service-account-token volume is refused.
+        (
+            {
+                "volumes": [
+                    {
+                        "name": "kube-api",
+                        "projected": {
+                            "sources": [{"serviceAccountToken": {"path": "token"}}]
+                        },
+                    }
+                ]
+            },
+            "serviceAccountToken",
+        ),
+    ],
+)
+def test_validate_kubernetes_resource_args_rejects_unsafe_pod_specs(
+    pod_spec_patch, expected_field
+):
+    manifest = {
+        "kind": "Job",
+        "spec": {"template": {"spec": {"restartPolicy": "Never", **pod_spec_patch}}},
+    }
+
+    with pytest.raises(
+        LaunchError,
+        match=f"Unsafe resource_args.kubernetes option '{expected_field}'",
+    ):
+        validate_kubernetes_resource_args(manifest)
+
+
+@pytest.mark.parametrize(
+    "annotation_key",
+    [
+        "container.apparmor.security.beta.kubernetes.io/launch",
+        "seccomp.security.alpha.kubernetes.io/pod",
+    ],
+)
+def test_validate_kubernetes_resource_args_rejects_unconfined_annotations(
+    annotation_key,
+):
+    manifest = {
+        "spec": {
+            "template": {
+                "metadata": {"annotations": {annotation_key: "unconfined"}},
+                "spec": {"containers": [{}]},
+            }
+        }
+    }
+
+    with pytest.raises(
+        LaunchError,
+        match="metadata.annotations",
+    ):
+        validate_kubernetes_resource_args(manifest)
+
+
+def test_validate_kubernetes_resource_args_allows_benign_pod_spec():
+    # A benign manifest with no submitter-managed security keys passes. The agent
+    # injects the restricted securityContext itself, so submitters omit it.
+    validate_kubernetes_resource_args(
+        {
+            "kind": "Job",
+            "spec": {
+                "template": {
+                    "spec": {
+                        "containers": [
+                            {
+                                "name": "main",
+                                "resources": {"limits": {"cpu": "2"}},
+                            }
+                        ],
+                        "volumes": [{"name": "scratch", "emptyDir": {}}],
+                    }
+                }
+            },
+        }
+    )
+
+
+@pytest.mark.parametrize(
+    "raw_name",
+    [
+        "privileged",
+        "privileged=true",
+        "v",  # short alias for --volume
+        "volume",
+        "Volume",
+        "p",  # short alias for --publish
+        "pid",
+        "userns",
+        "cap-add",
+        "cap_add",
+        "capAdd",
+        "device",
+        "security-opt",
+        "security_opt",
+        "network",
+        "net",
+        "ipc",
+        "sysctl",
+        "add-host",
+    ],
+)
+def test_validate_local_container_resource_args_rejects_unsafe_flags(raw_name):
+    with pytest.raises(
+        LaunchError,
+        match="Unsupported resource_args.local-container option",
+    ):
+        validate_local_container_resource_args({raw_name: "anything"})
+
+
+@pytest.mark.parametrize(
+    "docker_args",
+    [
+        # Non-repeatable flag may not be a list (arity smuggling).
+        {"cpus": ["2", "--privileged"]},
+        # Mapping values are never allowed.
+        {"memory": {"x": "y"}},
+        # Bare boolean for a value-taking flag is rejected.
+        {"cpu": True},
+        # Repeatable flag with a non-scalar item is rejected.
+        {"env": ["FOO=bar", {"x": "y"}]},
+        # Repeatable flag with an empty list is rejected.
+        {"env": []},
+    ],
+)
+def test_validate_local_container_resource_args_rejects_bad_values(docker_args):
+    with pytest.raises(LaunchError):
+        validate_local_container_resource_args(docker_args)
+
+
+def test_validate_local_container_resource_args_allows_safe_flags():
+    validate_local_container_resource_args(
+        {
+            "cpu": 2,
+            "memory": "2g",
+            "gpus": "all",
+            "env": ["FOO=bar", "BAZ=qux"],
+            "ulimit": "nofile=1024:1024",
+            "workdir": "/workspace",
+        }
+    )
 
 
 @pytest.mark.parametrize(

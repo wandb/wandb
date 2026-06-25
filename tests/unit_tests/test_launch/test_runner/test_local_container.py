@@ -151,6 +151,123 @@ def test_get_docker_command_quotes_user_controlled_args_for_shell():
     assert split_command[-2:] == [payload, payload]
 
 
+@pytest.mark.parametrize(
+    "docker_args,expected_field",
+    [
+        ({"privileged": True}, "privileged"),
+        ({"volume": ["/:/host:rw"]}, "volume"),
+        ({"mount": "type=bind,source=/,target=/host"}, "mount"),
+        ({"pid": "host"}, "pid"),
+        ({"userns": "host"}, "userns"),
+        ({"cap-add": ["SYS_ADMIN"]}, "cap-add"),
+        ({"device": ["/dev/kmsg"]}, "device"),
+        ({"security-opt": ["apparmor=unconfined"]}, "security-opt"),
+    ],
+)
+def test_local_container_rejects_unsafe_resource_args(
+    mock_launch_project, test_api, docker_args, expected_field
+):
+    mock_launch_project.fill_macros.return_value = {"local-container": docker_args}
+    mock_launch_project.job_base_image = None
+    runner = LocalContainerRunner(
+        test_api, {"SYNCHRONOUS": False}, MagicMock(), MagicMock()
+    )
+
+    with pytest.raises(
+        LaunchError,
+        match=f"Unsupported resource_args.local-container option '{expected_field}'",
+    ):
+        runner._populate_docker_args(mock_launch_project, "test-image")
+
+
+@pytest.mark.parametrize(
+    "raw_name",
+    [
+        "v",  # short alias for --volume
+        "p",  # short alias for --publish
+        "Privileged",  # case variant
+        "cap_add",  # underscore variant
+        "security_opt",
+        "privileged=true",  # equals form
+    ],
+)
+def test_local_container_rejects_alias_and_equals_forms(
+    mock_launch_project, test_api, raw_name
+):
+    mock_launch_project.fill_macros.return_value = {"local-container": {raw_name: "x"}}
+    mock_launch_project.job_base_image = None
+    runner = LocalContainerRunner(
+        test_api, {"SYNCHRONOUS": False}, MagicMock(), MagicMock()
+    )
+
+    with pytest.raises(
+        LaunchError,
+        match="Unsupported resource_args.local-container option",
+    ):
+        runner._populate_docker_args(mock_launch_project, "test-image")
+
+
+@pytest.mark.parametrize(
+    "docker_args",
+    [
+        {"cpus": ["2", "--privileged"]},  # arity smuggling via list
+        {"memory": {"x": "y"}},  # mapping value
+        {"cpu": True},  # bare boolean for a value-taking flag
+    ],
+)
+def test_local_container_rejects_value_smuggling(
+    mock_launch_project, test_api, docker_args
+):
+    mock_launch_project.fill_macros.return_value = {"local-container": docker_args}
+    mock_launch_project.job_base_image = None
+    runner = LocalContainerRunner(
+        test_api, {"SYNCHRONOUS": False}, MagicMock(), MagicMock()
+    )
+
+    with pytest.raises(LaunchError):
+        runner._populate_docker_args(mock_launch_project, "test-image")
+
+
+def test_local_container_allows_safe_resource_args(mock_launch_project, test_api):
+    docker_args = {
+        "cpu": 2,
+        "env": ["FOO=bar"],
+        "memory": "2g",
+        "workdir": "/workspace",
+    }
+    mock_launch_project.fill_macros.return_value = {"local-container": docker_args}
+    mock_launch_project.job_base_image = None
+    runner = LocalContainerRunner(
+        test_api, {"SYNCHRONOUS": False}, MagicMock(), MagicMock()
+    )
+
+    assert (
+        runner._populate_docker_args(mock_launch_project, "test-image") == docker_args
+    )
+
+
+def test_get_docker_command_serializes_allowed_values():
+    command = local_container.get_docker_command(
+        "test-image",
+        {},
+        docker_args={"cpu": 2, "memory": "2g", "env": ["FOO=bar", "BAZ=qux"]},
+    )
+    joined = " ".join(command)
+    assert "--cpu 2" in joined
+    assert "--memory 2g" in joined
+    # Each list item becomes its own `--env value`; no item is dropped or merged.
+    assert joined.count("--env") == 2
+    assert "--env FOO=bar" in joined
+    assert "--env BAZ=qux" in joined
+
+
+def test_get_docker_command_rejects_mapping_values():
+    with pytest.raises(LaunchError, match="mapping values are not supported"):
+        local_container.get_docker_command(
+            "test-image", {}, docker_args={"label": {"a": "b"}}
+        )
+
+
 @pytest.mark.asyncio
 @pytest.mark.skipif(os.name == "nt", reason="POSIX shell selection test")
 async def test_local_container_runner_uses_sh_when_bash_missing(
