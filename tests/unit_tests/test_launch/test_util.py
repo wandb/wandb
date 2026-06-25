@@ -3,8 +3,10 @@ import random
 import pytest
 from wandb.docker import DockerError
 from wandb.sdk.launch.errors import LaunchError
+from wandb.sdk.launch.runner.local_container import get_docker_command
 from wandb.sdk.launch.utils import (
     diff_pip_requirements,
+    inject_restricted_security_context,
     load_wandb_config,
     macro_sub,
     make_k8s_label_safe,
@@ -413,6 +415,112 @@ def test_validate_local_container_resource_args_allows_safe_flags():
             "workdir": "/workspace",
         }
     )
+
+
+@pytest.mark.parametrize(
+    "pod_spec_patch",
+    [
+        # Only the dangerous (truthy) forms are refused; these benign forms must
+        # not be over-blocked.
+        {"hostUsers": False},
+        {"containers": [{"ports": [{"hostPort": 0}]}]},
+    ],
+)
+def test_validate_kubernetes_resource_args_allows_non_dangerous_values(pod_spec_patch):
+    validate_kubernetes_resource_args(
+        {
+            "kind": "Job",
+            "spec": {
+                "template": {"spec": {"restartPolicy": "Never", **pod_spec_patch}}
+            },
+        }
+    )
+
+
+RESTRICTED_SECURITY_CONTEXT = {
+    "allowPrivilegeEscalation": False,
+    "capabilities": {"drop": ["ALL"]},
+    "seccompProfile": {"type": "RuntimeDefault"},
+    "runAsNonRoot": True,
+}
+
+
+def test_inject_restricted_security_context_covers_cronjob():
+    # CronJob workload pod template lives under spec.jobTemplate.spec.template.spec.
+    manifest = {
+        "apiVersion": "batch/v1",
+        "kind": "CronJob",
+        "spec": {
+            "jobTemplate": {
+                "spec": {
+                    "template": {
+                        "spec": {
+                            "containers": [{"name": "main"}],
+                            "initContainers": [{"name": "init"}],
+                        }
+                    }
+                }
+            }
+        },
+    }
+    inject_restricted_security_context(manifest)
+    pod_spec = manifest["spec"]["jobTemplate"]["spec"]["template"]["spec"]
+    assert pod_spec["containers"][0]["securityContext"] == RESTRICTED_SECURITY_CONTEXT
+    assert (
+        pod_spec["initContainers"][0]["securityContext"] == RESTRICTED_SECURITY_CONTEXT
+    )
+
+
+def test_inject_restricted_security_context_covers_custom_resource():
+    # A CRD (e.g. volcano) exposes pod specs under tasks[].template.spec.
+    manifest = {
+        "apiVersion": "batch.volcano.sh/v1alpha1",
+        "kind": "Job",
+        "tasks": [
+            {"template": {"spec": {"containers": [{"name": "master"}]}}},
+            {"template": {"spec": {"containers": [{"name": "worker"}]}}},
+        ],
+    }
+    inject_restricted_security_context(manifest)
+    for task in manifest["tasks"]:
+        cont = task["template"]["spec"]["containers"][0]
+        assert cont["securityContext"] == RESTRICTED_SECURITY_CONTEXT
+
+
+def test_inject_restricted_security_context_overrides_submitter_values():
+    manifest = {
+        "spec": {
+            "template": {
+                "spec": {
+                    "containers": [
+                        {"name": "main", "securityContext": {"privileged": True}}
+                    ]
+                }
+            }
+        }
+    }
+    inject_restricted_security_context(manifest)
+    cont = manifest["spec"]["template"]["spec"]["containers"][0]
+    assert cont["securityContext"] == RESTRICTED_SECURITY_CONTEXT
+
+
+@pytest.mark.parametrize(
+    "docker_args,flag,value",
+    [
+        ({"cpus": "--privileged"}, "--cpus", "--privileged"),
+        ({"env": ["--privileged"]}, "--env", "--privileged"),
+    ],
+)
+def test_get_docker_command_dash_token_is_consumed_as_value(docker_args, flag, value):
+    # A dash-prefixed value token must be emitted as the VALUE of its allowed
+    # flag (a single flag+value pair), never as a standalone docker option.
+    validate_local_container_resource_args(docker_args)
+    command = get_docker_command("test-image", {}, docker_args=docker_args)
+    # The token only ever appears immediately after its flag.
+    indices = [i for i, tok in enumerate(command) if tok == value]
+    assert indices, f"{value} not found in {command}"
+    for i in indices:
+        assert command[i - 1] == flag
 
 
 @pytest.mark.parametrize(
