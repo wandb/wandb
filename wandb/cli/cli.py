@@ -775,6 +775,7 @@ def sync(
 
         $ wandb sync --clean --clean-old-hours 48 --clean-force
     """
+    # Use `wandb beta sync` if possible.
     if (
         not legacy
         and not any(TFEVENT_SUBSTRING in p for p in path)  # no tfevents support
@@ -813,6 +814,28 @@ def sync(
         )
         return
 
+    # Print out deprecations for legacy options, especially if they prevent
+    # us from rerouting through `wandb beta sync`.
+    if view:
+        wandb.termwarn("--view is deprecated. Consider using `wandb leet`.")
+    if include_globs or exclude_globs:
+        wandb.termwarn(
+            "--include-globs and --exclude-globs are deprecated."
+            + " Provide explicit paths instead."
+        )
+    if include_offline is False:
+        wandb.termwarn("--no-include-offline is deprecated and will be removed.")
+    if not mark_synced:
+        wandb.termwarn("--no-mark-synced is deprecated and will be removed.")
+    if sync_all:
+        wandb.termwarn(
+            "--sync-all is deprecated. It is equivalent to"
+            + " `wandb sync --yes --include-online`."
+        )
+    if skip_console:
+        wandb.termwarn("--skip-console is deprecated and will be removed.")
+
+    # Fail if any beta options are provided in legacy mode.
     bad_options: list[str] = []
     if skip_confirmation:
         bad_options.append("--yes")
