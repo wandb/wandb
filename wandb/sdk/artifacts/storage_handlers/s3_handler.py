@@ -214,14 +214,16 @@ class S3Handler(StorageHandler):
                     f'Generating checksum for up to {max_objects} objects in "{bucket}/{key}"... ',
                     newline=False,
                 )
+                # Fetch one more than the cap so we can detect (and reject)
+                # references that exceed it, rather than silently truncating.
                 if key != "":
                     objs = (
                         self._s3.Bucket(bucket)
                         .objects.filter(Prefix=key)
-                        .limit(max_objects)
+                        .limit(max_objects + 1)
                     )
                 else:
-                    objs = self._s3.Bucket(bucket).objects.limit(max_objects)
+                    objs = self._s3.Bucket(bucket).objects.limit(max_objects + 1)
             # Weird iterator scoping makes us assign this to a local function
             size = self._size_from_obj
             entries = [
