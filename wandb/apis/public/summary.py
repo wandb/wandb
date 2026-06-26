@@ -337,7 +337,7 @@ def download_h5(run_id, entity=None, project=None, out_dir=None):
     if meta and "md5" in meta and meta["md5"] is not None:
         # TODO: make this non-blocking
         wandb.termlog("Downloading summary data...")
-        path, res = api.download_write_file(meta, out_dir=out_dir)
+        path, _ = api.download_write_file(meta, out_dir=out_dir)
         return path
 
 
