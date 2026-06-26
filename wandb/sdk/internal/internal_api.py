@@ -2836,30 +2836,6 @@ class Api:
         """Checksum a file and compare the md5 with the known md5."""
         return os.path.isfile(fname) and md5_file_b64(fname) == md5
 
-    @normalize_exceptions
-    def pull(
-        self, project: str, run: str | None = None, entity: str | None = None
-    ) -> list[str]:
-        """Download files from W&B.
-
-        Args:
-            project (str): The project to download
-            run (str, optional): The run to upload to
-            entity (str, optional): The entity to scope this project to.  Defaults to wandb models
-
-        Returns:
-            A list of downloaded file paths.
-        """
-        project, run = self.parse_slug(project, run=run)
-        urls = self.download_urls(project, run, entity)
-        downloaded_paths = []
-        for filename in urls:
-            path, downloaded = self.download_write_file(urls[filename])
-            if downloaded:
-                downloaded_paths.append(path)
-
-        return downloaded_paths
-
     def get_project(self) -> str:
         project: str = self.default_settings.get("project") or self.settings("project")
         return project
