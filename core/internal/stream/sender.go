@@ -2,7 +2,6 @@ package stream
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -779,38 +778,11 @@ func (s *Sender) sendHistory(record *spb.HistoryRecord) {
 	s.fileStream.StreamUpdate(&fs.HistoryUpdate{Record: record})
 }
 
-// #region agent log
-func agentDebugLog(location, message, hypothesisID string, data map[string]any) {
-	f, err := os.OpenFile(
-		"/Users/ghardy/code/wandb/.cursor/debug-d9b64b.log",
-		os.O_APPEND|os.O_CREATE|os.O_WRONLY,
-		0o644,
-	)
-	if err != nil {
-		return
-	}
-	defer f.Close()
-
-	payload, err := json.Marshal(map[string]any{
-		"sessionId":    "d9b64b",
-		"timestamp":    time.Now().UnixMilli(),
-		"location":     location,
-		"message":      message,
-		"hypothesisId": hypothesisID,
-		"data":         data,
-	})
-	if err != nil {
-		return
-	}
-	_, _ = f.Write(append(payload, '\n'))
-}
-
-// #endregion
-
 // ensureHistoryStep adds _step to history rows that do not already have it.
 //
-// Existing _step values are preserved. The legacy handler and user code can
-// both produce explicit _step values, and those are authoritative.
+// Existing _step values are preserved unless they are below the run's starting
+// step, which can happen when syncing an offline resumed segment that logged
+// with local step numbers.
 func (s *Sender) ensureHistoryStep(record *spb.HistoryRecord) {
 	if record == nil {
 		return
@@ -819,46 +791,13 @@ func (s *Sender) ensureHistoryStep(record *spb.HistoryRecord) {
 		return
 	}
 
-	startingStep := int64(0)
-	if upserter, err := s.runHandle.Upserter(); err == nil {
-		run := &spb.RunRecord{}
-		upserter.FillRunRecord(run)
-		startingStep = run.GetStartingStep()
-	}
-
 	if step, ok := explicitHistoryStepItem(record); ok {
 		s.initializeHistoryStep()
-		// #region agent log
-		agentDebugLog(
-			"sender.go:ensureHistoryStep",
-			"explicit history step before advance",
-			"C",
-			map[string]any{
-				"explicitStep":           step,
-				"startingStep":           startingStep,
-				"historyStep":            s.historyStep,
-				"historyStepInitialized": s.historyStepInitialized,
-			},
-		)
-		// #endregion
 		if step < s.historyStep {
 			setExplicitHistoryStep(record, s.historyStep)
 			step = s.historyStep
 		}
 		s.advanceHistoryStepPast(step)
-		// #region agent log
-		finalStep, _ := explicitHistoryStepItem(record)
-		agentDebugLog(
-			"sender.go:ensureHistoryStep",
-			"explicit history step after advance",
-			"C",
-			map[string]any{
-				"finalStep":    finalStep,
-				"startingStep": startingStep,
-				"historyStep":  s.historyStep,
-			},
-		)
-		// #endregion
 		return
 	}
 
