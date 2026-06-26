@@ -14,12 +14,17 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ## Unreleased
 
+### Notable Changes
+
+This version drops support for protobuf v4, and requires protobuf v5 or newer.
+
 ### Changed
 
 - Remove temporary Unix socket files and directories on shutdown (@geoffhardy in https://github.com/wandb/wandb/pull/12058)
 - `wandb beta sync` now skips online runs by default like `wandb sync` (@timoffex in https://github.com/wandb/wandb/pull/12087)
 - `wandb sync` now routes to `wandb beta sync` for supported parameter sets (@timoffex in https://github.com/wandb/wandb/pull/12093)
   - Restore original behavior with `--legacy`
+- Dropped support for protobuf v4 (@jacobromero in https://github.com/wandb/wandb/pull/12115)
 
 ### Fixed
 
