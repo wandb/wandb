@@ -3,8 +3,10 @@ package runupserter
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"slices"
 	"sync"
 	"time"
@@ -173,13 +175,49 @@ func InitRun(
 	// must use the updated config returned by the backend on the first
 	// UpsertBucket request.
 	branchPoint := runRecord.BranchPoint
+	resumeMode := runRecord.GetResumeMode()
+	if resumeMode == "" {
+		resumeMode = params.Settings.GetResume()
+	}
 	switch {
-	case params.Settings.GetResume() != "":
-		err := upserter.updateMetadataForResume(ctx, params.Settings.GetResume())
+	case resumeMode != "":
+		err := upserter.updateMetadataForResume(ctx, resumeMode)
 
 		if err != nil {
 			return nil, ToRunUpdateError(err)
 		}
+
+		// #region agent log
+		func() {
+			f, logErr := os.OpenFile(
+				"/Users/ghardy/code/wandb/.cursor/debug-d9b64b.log",
+				os.O_APPEND|os.O_CREATE|os.O_WRONLY,
+				0o644,
+			)
+			if logErr != nil {
+				return
+			}
+			defer f.Close()
+			payload, logErr := json.Marshal(map[string]any{
+				"sessionId":    "d9b64b",
+				"timestamp":    time.Now().UnixMilli(),
+				"location":     "runupserter.go:InitRun",
+				"message":      "after updateMetadataForResume",
+				"hypothesisId": "B",
+				"data": map[string]any{
+					"resumeMode":   resumeMode,
+					"runID":        runRecord.GetRunId(),
+					"startingStep": upserter.params.StartingStep,
+					"resumed":      upserter.params.Resumed,
+					"historyLineCount": upserter.params.FileStreamOffset[filestream.HistoryChunk],
+				},
+			})
+			if logErr != nil {
+				return
+			}
+			_, _ = f.Write(append(payload, '\n'))
+		}()
+		// #endregion
 
 	case branchPoint != nil && branchPoint.GetRun() == runRecord.RunId:
 		// Branching a run from an earlier point in its history is rewinding.

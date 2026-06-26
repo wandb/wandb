@@ -2,10 +2,12 @@ package stream
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -109,6 +111,11 @@ type Sender struct {
 
 	// runSummary is the full summary for the run
 	runSummary *runsummary.RunSummary
+
+	// historyStep is the next _step value to assign to history rows that don't
+	// already contain one.
+	historyStep            int64
+	historyStepInitialized bool
 
 	// receivedExit is true once the Sender receives an Exit record.
 	receivedExit bool
@@ -763,11 +770,170 @@ func (s *Sender) sendHistory(record *spb.HistoryRecord) {
 		return
 	}
 
+	s.ensureHistoryStep(record)
+
 	if s.fileStream == nil {
 		return
 	}
 
 	s.fileStream.StreamUpdate(&fs.HistoryUpdate{Record: record})
+}
+
+// #region agent log
+func agentDebugLog(location, message, hypothesisID string, data map[string]any) {
+	f, err := os.OpenFile(
+		"/Users/ghardy/code/wandb/.cursor/debug-d9b64b.log",
+		os.O_APPEND|os.O_CREATE|os.O_WRONLY,
+		0o644,
+	)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+
+	payload, err := json.Marshal(map[string]any{
+		"sessionId":    "d9b64b",
+		"timestamp":    time.Now().UnixMilli(),
+		"location":     location,
+		"message":      message,
+		"hypothesisId": hypothesisID,
+		"data":         data,
+	})
+	if err != nil {
+		return
+	}
+	_, _ = f.Write(append(payload, '\n'))
+}
+
+// #endregion
+
+// ensureHistoryStep adds _step to history rows that do not already have it.
+//
+// Existing _step values are preserved. The legacy handler and user code can
+// both produce explicit _step values, and those are authoritative.
+func (s *Sender) ensureHistoryStep(record *spb.HistoryRecord) {
+	if record == nil {
+		return
+	}
+	if s.settings.IsSharedMode() {
+		return
+	}
+
+	startingStep := int64(0)
+	if upserter, err := s.runHandle.Upserter(); err == nil {
+		run := &spb.RunRecord{}
+		upserter.FillRunRecord(run)
+		startingStep = run.GetStartingStep()
+	}
+
+	if step, ok := explicitHistoryStepItem(record); ok {
+		s.initializeHistoryStep()
+		// #region agent log
+		agentDebugLog(
+			"sender.go:ensureHistoryStep",
+			"explicit history step before advance",
+			"C",
+			map[string]any{
+				"explicitStep":           step,
+				"startingStep":           startingStep,
+				"historyStep":            s.historyStep,
+				"historyStepInitialized": s.historyStepInitialized,
+			},
+		)
+		// #endregion
+		if step < s.historyStep {
+			setExplicitHistoryStep(record, s.historyStep)
+			step = s.historyStep
+		}
+		s.advanceHistoryStepPast(step)
+		// #region agent log
+		finalStep, _ := explicitHistoryStepItem(record)
+		agentDebugLog(
+			"sender.go:ensureHistoryStep",
+			"explicit history step after advance",
+			"C",
+			map[string]any{
+				"finalStep":    finalStep,
+				"startingStep": startingStep,
+				"historyStep":  s.historyStep,
+			},
+		)
+		// #endregion
+		return
+	}
+
+	if record.GetStep() != nil {
+		step := record.GetStep().GetNum()
+		record.Item = append(record.Item, &spb.HistoryItem{
+			NestedKey: []string{"_step"},
+			ValueJson: strconv.FormatInt(step, 10),
+		})
+		s.advanceHistoryStepPast(step)
+		return
+	}
+
+	s.initializeHistoryStep()
+
+	step := s.historyStep
+	record.Item = append(record.Item, &spb.HistoryItem{
+		NestedKey: []string{"_step"},
+		ValueJson: strconv.FormatInt(step, 10),
+	})
+	s.historyStep++
+}
+
+func (s *Sender) initializeHistoryStep() {
+	if s.historyStepInitialized {
+		return
+	}
+
+	if upserter, err := s.runHandle.Upserter(); err == nil {
+		run := &spb.RunRecord{}
+		upserter.FillRunRecord(run)
+		s.historyStep = run.GetStartingStep()
+	}
+
+	s.historyStepInitialized = true
+}
+
+func (s *Sender) advanceHistoryStepPast(step int64) {
+	s.initializeHistoryStep()
+	if step >= s.historyStep {
+		s.historyStep = step + 1
+	}
+}
+
+func explicitHistoryStepItem(record *spb.HistoryRecord) (int64, bool) {
+	for _, item := range record.GetItem() {
+		if item.GetKey() != "_step" &&
+			!(len(item.GetNestedKey()) == 1 && item.GetNestedKey()[0] == "_step") {
+			continue
+		}
+
+		step, err := strconv.ParseInt(item.GetValueJson(), 10, 64)
+		if err != nil {
+			return 0, true
+		}
+		return step, true
+	}
+
+	return 0, false
+}
+
+func setExplicitHistoryStep(record *spb.HistoryRecord, step int64) {
+	stepStr := strconv.FormatInt(step, 10)
+	for _, item := range record.GetItem() {
+		if item.GetKey() == "_step" ||
+			(len(item.GetNestedKey()) == 1 && item.GetNestedKey()[0] == "_step") {
+			item.ValueJson = stepStr
+			return
+		}
+	}
+
+	record.Item = append(record.Item, &spb.HistoryItem{
+		NestedKey: []string{"_step"},
+		ValueJson: stepStr,
+	})
 }
 
 func (s *Sender) sendSummary(_ *spb.Record, summary *spb.SummaryRecord) {

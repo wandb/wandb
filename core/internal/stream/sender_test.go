@@ -6,6 +6,7 @@ import (
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
@@ -18,6 +19,7 @@ import (
 	"github.com/wandb/wandb/core/internal/observabilitytest"
 	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/runhandle"
+	"github.com/wandb/wandb/core/internal/runupsertertest"
 	"github.com/wandb/wandb/core/internal/runworktest"
 	wbsettings "github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/stream"
@@ -87,6 +89,89 @@ func makeSender(t *testing.T, client graphql.Client) testFixtures {
 		Settings:  settings,
 		Logger:    logger,
 	}
+}
+
+func TestSendHistory_AssignsMissingStep(t *testing.T) {
+	x := makeSender(t, gqlmock.NewMockClient())
+
+	history := &spb.HistoryRecord{
+		Item: []*spb.HistoryItem{{
+			NestedKey: []string{"loss"},
+			ValueJson: "1.23",
+		}},
+	}
+
+	x.Sender.SendRecord(&spb.Record{
+		RecordType: &spb.Record_History{History: history},
+	}, nil)
+
+	assert.Equal(t, []*spb.HistoryItem{
+		{NestedKey: []string{"loss"}, ValueJson: "1.23"},
+		{NestedKey: []string{"_step"}, ValueJson: "0"},
+	}, history.Item)
+}
+
+func TestSendHistory_PreservesExistingStep(t *testing.T) {
+	x := makeSender(t, gqlmock.NewMockClient())
+
+	history := &spb.HistoryRecord{
+		Item: []*spb.HistoryItem{
+			{NestedKey: []string{"loss"}, ValueJson: "1.23"},
+			{NestedKey: []string{"_step"}, ValueJson: "7"},
+		},
+	}
+
+	x.Sender.SendRecord(&spb.Record{
+		RecordType: &spb.Record_History{History: history},
+	}, nil)
+
+	assert.Equal(t, []*spb.HistoryItem{
+		{NestedKey: []string{"loss"}, ValueJson: "1.23"},
+		{NestedKey: []string{"_step"}, ValueJson: "7"},
+	}, history.Item)
+}
+
+func TestSendHistory_RewritesStepBelowStartingStep(t *testing.T) {
+	x := makeSender(t, gqlmock.NewMockClient())
+
+	upserter := runupsertertest.NewOfflineUpserter(t)
+	upserter.Update(&spb.RunRecord{StartingStep: 2})
+	require.NoError(t, x.RunHandle.Init(upserter))
+	defer upserter.Finish()
+
+	history := &spb.HistoryRecord{
+		Item: []*spb.HistoryItem{
+			{NestedKey: []string{"loss"}, ValueJson: "0.6"},
+			{NestedKey: []string{"_step"}, ValueJson: "0"},
+		},
+	}
+
+	x.Sender.SendRecord(&spb.Record{
+		RecordType: &spb.Record_History{History: history},
+	}, nil)
+
+	assert.Equal(t, "2", history.Item[1].ValueJson)
+}
+
+func TestSendHistory_MaterializesRecordStep(t *testing.T) {
+	x := makeSender(t, gqlmock.NewMockClient())
+
+	history := &spb.HistoryRecord{
+		Item: []*spb.HistoryItem{{
+			NestedKey: []string{"loss"},
+			ValueJson: "1.23",
+		}},
+		Step: &spb.HistoryStep{Num: 5},
+	}
+
+	x.Sender.SendRecord(&spb.Record{
+		RecordType: &spb.Record_History{History: history},
+	}, nil)
+
+	assert.Equal(t, []*spb.HistoryItem{
+		{NestedKey: []string{"loss"}, ValueJson: "1.23"},
+		{NestedKey: []string{"_step"}, ValueJson: "5"},
+	}, history.Item)
 }
 
 // Verify that arguments are properly passed through to graphql
