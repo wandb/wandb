@@ -17,7 +17,6 @@ from wandb.errors import CommError, UnsupportedError
 from wandb.proto import wandb_api_pb2
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.artifacts._generated import (
-    ArtifactByName,
     ArtifactFragment,
     ArtifactMembershipByName,
     ArtifactMembershipFragment,
@@ -641,11 +640,6 @@ def test_fetch_registry_artifact(
 ):
     from tests.fixtures.wandb_backend_spy.gql_match import Constant, Matcher
 
-    server_supports_artifact_via_membership = server_supports(
-        api._service_api,
-        pb.PROJECT_ARTIFACT_COLLECTION_MEMBERSHIP,
-    )
-
     mocker.patch("wandb.sdk.artifacts.artifact.Artifact._from_attrs")
 
     # Stub the query for orgEntity name(s)
@@ -712,14 +706,6 @@ def test_fetch_registry_artifact(
 
     mock_empty_rsp_data = {"data": {"project": {}}}
 
-    mock_artifact_rsp_data = {
-        "data": {
-            "project": {
-                "artifact": mock_artifact_fragment_data,
-            }
-        }
-    }
-
     mock_membership_rsp_data = {
         "data": {
             "project": {
@@ -729,14 +715,9 @@ def test_fetch_registry_artifact(
         }
     }
 
-    # Set up the mock response for the appropriate GQL operation
-    # Return equivalent payload for either membership or by-name fetches
-    if server_supports_artifact_via_membership:
-        op_name = nameof(ArtifactMembershipByName)
-        mock_rsp = mock_membership_rsp_data
-    else:
-        op_name = nameof(ArtifactByName)
-        mock_rsp = mock_artifact_rsp_data
+    # Artifacts are always fetched via the membership-by-name query.
+    op_name = nameof(ArtifactMembershipByName)
+    mock_rsp = mock_membership_rsp_data
 
     # If we aren't simulating a successfully-fetched artifact, override the mock response with an empty one
     if not expected_artifact_fetched:

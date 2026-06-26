@@ -8,14 +8,11 @@ from pytest import fixture
 from wandb import Api, Artifact
 from wandb._strutils import nameof
 from wandb.apis.public.registries.registry import Registry
-from wandb.proto.wandb_internal_pb2 import ServerFeature
 from wandb.sdk.artifacts._generated import (
-    ArtifactByName,
     ArtifactFragment,
     ArtifactMembershipByName,
     ArtifactMembershipFragment,
 )
-from wandb.sdk.artifacts._gqlutils import server_supports
 
 
 @fixture
@@ -73,20 +70,6 @@ def mock_membership_fragment_data(
 
 
 @fixture
-def mock_artifact_rsp_data(
-    mock_artifact_fragment_data: dict[str, Any],
-) -> dict[str, Any]:
-    """Return the mocked response for the GQL ArtifactByName query."""
-    return {
-        "data": {
-            "project": {
-                "artifact": mock_artifact_fragment_data,
-            }
-        }
-    }
-
-
-@fixture
 def mock_membership_rsp_data(
     mock_membership_fragment_data: dict[str, Any],
 ) -> dict[str, Any]:
@@ -106,24 +89,14 @@ def test_fetch_migrated_registry_artifact(
     api,
     mocker,
     capsys,
-    mock_artifact_rsp_data: dict[str, Any],
     mock_membership_rsp_data: dict[str, Any],
 ):
-    server_supports_artifact_via_membership = server_supports(
-        api._service_api,
-        ServerFeature.PROJECT_ARTIFACT_COLLECTION_MEMBERSHIP,
-    )
-
     mocker.patch("wandb.sdk.artifacts.artifact.Artifact._from_attrs")
 
-    # Setup: Stub the appropriate GQL response (depending on server version)
-    # to return the artifact in the new org registry
-    if server_supports_artifact_via_membership:
-        op_name = nameof(ArtifactMembershipByName)
-        mock_rsp = wandb_backend_spy.gql.Constant(content=mock_membership_rsp_data)
-    else:
-        op_name = nameof(ArtifactByName)
-        mock_rsp = wandb_backend_spy.gql.Constant(content=mock_artifact_rsp_data)
+    # Setup: Stub the membership-by-name GQL response to return the artifact
+    # in the new org registry
+    op_name = nameof(ArtifactMembershipByName)
+    mock_rsp = wandb_backend_spy.gql.Constant(content=mock_membership_rsp_data)
 
     wandb_backend_spy.stub_gql(
         match=wandb_backend_spy.gql.Matcher(operation=op_name),
@@ -136,11 +109,9 @@ def test_fetch_migrated_registry_artifact(
     assert mock_rsp.total_calls == 1
 
     captured = capsys.readouterr()
-    if server_supports_artifact_via_membership:
-        assert (
-            "This model registry has been migrated and will be discontinued"
-            in captured.err
-        )
+    assert (
+        "This model registry has been migrated and will be discontinued" in captured.err
+    )
 
 
 def test_registry_artifact_url(
