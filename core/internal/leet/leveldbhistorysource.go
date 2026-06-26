@@ -1,6 +1,7 @@
 package leet
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -28,6 +29,8 @@ type LevelDBHistorySource struct {
 	exitSeen bool
 	// exitCode is the exit code of the run if the exit record has been seen.
 	exitCode int32
+	// fileCompleteEmitted is true after the terminal FileCompleteMsg has been emitted.
+	fileCompleteEmitted bool
 }
 
 func NewLevelDBHistorySource(
@@ -79,15 +82,21 @@ func (hs *LevelDBHistorySource) Read(
 			HasMore: false,
 		}, nil
 	}
+	if hs.exitSeen && hs.fileCompleteEmitted {
+		return ChunkedBatchMsg{
+			Msgs:    []tea.Msg{},
+			HasMore: false,
+		}, io.EOF
+	}
 
 	var msgs []tea.Msg
 	var histories []HistoryMsg
 	var summaries []SummaryMsg
-	recordCount := 0
+	scannedCount := 0
 	startTime := time.Now()
 	var err error
 
-	for recordCount < chunkSize && time.Since(startTime) < maxTimePerChunk {
+	for scannedCount < chunkSize && time.Since(startTime) < maxTimePerChunk {
 		record, readErr := hs.store.Read()
 		if readErr != nil {
 			if errors.Is(readErr, io.EOF) {
@@ -104,6 +113,7 @@ func (hs *LevelDBHistorySource) Read(
 		if record == nil {
 			continue
 		}
+		scannedCount++
 
 		// Handle exit record first to avoid double FileComplete.
 		if exit, ok := record.RecordType.(*spb.Record_Exit); ok && exit.Exit != nil {
@@ -121,67 +131,30 @@ func (hs *LevelDBHistorySource) Read(
 			default:
 				msgs = append(msgs, msg)
 			}
-			recordCount++
 		}
 	}
 
 	if len(histories) > 0 {
-		msgs = append(msgs, hs.concatenateHistory(histories))
+		msgs = append(msgs, concatenateHistory(histories, hs.runPath))
 	}
 	if len(summaries) > 0 {
-		msgs = append(msgs, hs.concatenateSummary(summaries))
+		msgs = append(msgs, concatenateSummary(summaries, hs.runPath))
 	}
 
-	if hs.exitSeen {
+	if hs.exitSeen && !hs.fileCompleteEmitted {
 		msgs = append(msgs, FileCompleteMsg{ExitCode: hs.exitCode})
+		hs.fileCompleteEmitted = true
 	}
 
 	// Determine if there's more to read,
 	// i.e. whether we have records and didn't hit EOF, there might be more.
-	hasMore := !hs.exitSeen && recordCount > 0
+	hasMore := !hs.exitSeen && scannedCount > 0
 
 	return ChunkedBatchMsg{
 		Msgs:     msgs,
 		HasMore:  hasMore,
-		Progress: recordCount,
+		Progress: scannedCount,
 	}, err
-}
-
-// concatenateHistory merges a slice of HistoryMsg into a single HistoryMsg.
-//
-// Assumes that the history messages are ordered.
-func (hs *LevelDBHistorySource) concatenateHistory(messages []HistoryMsg) HistoryMsg {
-	h := HistoryMsg{
-		RunPath: hs.runPath,
-		Metrics: make(map[string]MetricData),
-	}
-
-	for _, msg := range messages {
-		for metricName, data := range msg.Metrics {
-			existing := h.Metrics[metricName]
-			existing.X = append(existing.X, data.X...)
-			existing.Y = append(existing.Y, data.Y...)
-			h.Metrics[metricName] = existing
-		}
-	}
-
-	return h
-}
-
-// ConcatenateHistory merges a slice of SummaryMsg into a single SummaryMsg.
-//
-// Assumes that the summary messages are ordered.
-func (hs *LevelDBHistorySource) concatenateSummary(messages []SummaryMsg) SummaryMsg {
-	s := SummaryMsg{
-		RunPath: hs.runPath,
-		Summary: make([]*spb.SummaryRecord, 0),
-	}
-
-	for _, msg := range messages {
-		s.Summary = append(s.Summary, msg.Summary...)
-	}
-
-	return s
 }
 
 // recordToMsg converts a record to the appropriate message type.
@@ -222,7 +195,7 @@ func (hs *LevelDBHistorySource) Close() {
 	}
 }
 
-// ParseHistory extracts metrics from a history record.
+// ParseHistory extracts metrics and media from a history record.
 func ParseHistory(runPath string, history *spb.HistoryRecord) tea.Msg {
 	if history == nil {
 		return nil
@@ -230,8 +203,23 @@ func ParseHistory(runPath string, history *spb.HistoryRecord) tea.Msg {
 
 	step := int(history.GetStep().GetNum())
 	values := make(map[string]float64, len(history.GetItem()))
+	mediaFieldsByKey := make(map[string]map[string]string)
 
 	for _, item := range history.GetItem() {
+		if item == nil {
+			continue
+		}
+
+		if mediaKey, field, ok := historyMediaField(item); ok {
+			fields := mediaFieldsByKey[mediaKey]
+			if fields == nil {
+				fields = make(map[string]string)
+				mediaFieldsByKey[mediaKey] = fields
+			}
+			fields[field] = trimJSONString(item.ValueJson)
+			continue
+		}
+
 		key := strings.Join(item.GetNestedKey(), ".")
 		if key == "" {
 			key = item.GetKey()
@@ -240,11 +228,7 @@ func ParseHistory(runPath string, history *spb.HistoryRecord) tea.Msg {
 			continue
 		}
 
-		v := item.ValueJson
-		if n := len(v); n >= 2 && v[0] == '"' && v[n-1] == '"' {
-			v = v[1 : n-1]
-		}
-
+		v := trimJSONString(item.ValueJson)
 		if key == "_step" {
 			if s, err := strconv.Atoi(v); err == nil {
 				step = s
@@ -259,16 +243,127 @@ func ParseHistory(runPath string, history *spb.HistoryRecord) tea.Msg {
 		}
 	}
 
-	if len(values) == 0 {
+	metrics := make(map[string]MetricData, len(values))
+	if len(values) > 0 {
+		x := []float64{float64(step)}
+		for k, y := range values {
+			metrics[k] = MetricData{X: x, Y: []float64{y}}
+		}
+	}
+
+	media := parseHistoryMedia(runPath, step, mediaFieldsByKey)
+
+	if len(metrics) == 0 && len(media) == 0 {
 		return nil
 	}
 
-	x := []float64{float64(step)}
-	metrics := make(map[string]MetricData, len(values))
-	for k, y := range values {
-		metrics[k] = MetricData{X: x, Y: []float64{y}}
+	msg := HistoryMsg{RunPath: runPath}
+	if len(metrics) > 0 {
+		msg.Metrics = metrics
 	}
-	return HistoryMsg{RunPath: runPath, Metrics: metrics}
+	if len(media) > 0 {
+		msg.Media = media
+	}
+	return msg
+}
+
+func trimJSONString(v string) string {
+	if v == "" {
+		return ""
+	}
+	if unquoted, err := strconv.Unquote(v); err == nil {
+		return unquoted
+	}
+	return v
+}
+
+// parseHistoryMedia builds media series from the per-key media fields of a
+// history record.
+func parseHistoryMedia(
+	runPath string,
+	step int,
+	mediaFieldsByKey map[string]map[string]string,
+) map[string][]MediaPoint {
+	media := make(map[string][]MediaPoint)
+	for mediaKey, fields := range mediaFieldsByKey {
+		switch fields["_type"] {
+		case "image-file":
+			relPath := fields["path"]
+			if relPath == "" {
+				continue
+			}
+			media[mediaKey] = append(media[mediaKey], MediaPoint{
+				X:            float64(step),
+				FilePath:     resolveMediaPath(runPath, relPath),
+				RelativePath: relPath,
+				Caption:      fields["caption"],
+				Format:       fields["format"],
+				Width:        parseHistoryInt(fields["width"]),
+				Height:       parseHistoryInt(fields["height"]),
+				SHA256:       fields["sha256"],
+			})
+		case "images/separated":
+			// A list of wandb.Image logged under one key: fan each image
+			// out into its own "key[i]" series so every image gets a tile.
+			captions := parseJSONStringArray(fields["captions"])
+			for i, relPath := range parseJSONStringArray(fields["filenames"]) {
+				if relPath == "" {
+					continue
+				}
+				point := MediaPoint{
+					X:            float64(step),
+					FilePath:     resolveMediaPath(runPath, relPath),
+					RelativePath: relPath,
+					Format:       fields["format"],
+					Width:        parseHistoryInt(fields["width"]),
+					Height:       parseHistoryInt(fields["height"]),
+				}
+				if i < len(captions) {
+					point.Caption = captions[i]
+				}
+				indexedKey := fmt.Sprintf("%s[%d]", mediaKey, i)
+				media[indexedKey] = append(media[indexedKey], point)
+			}
+		}
+	}
+	return media
+}
+
+// parseJSONStringArray decodes a JSON array of strings, returning nil on
+// malformed input.
+func parseJSONStringArray(v string) []string {
+	var out []string
+	if json.Unmarshal([]byte(v), &out) != nil {
+		return nil
+	}
+	return out
+}
+
+func parseHistoryInt(v string) int {
+	i, err := strconv.Atoi(v)
+	if err == nil {
+		return i
+	}
+	return 0
+}
+
+func historyMediaField(item *spb.HistoryItem) (mediaKey, field string, ok bool) {
+	parts := item.GetNestedKey()
+	if len(parts) < 2 {
+		return "", "", false
+	}
+	field = parts[len(parts)-1]
+	switch field {
+	case "_type", "path", "caption", "format", "width", "height", "sha256", "size",
+		"count", "filenames", "captions":
+	default:
+		return "", "", false
+	}
+	mediaKey = strings.Join(parts[:len(parts)-1], ".")
+	if mediaKey == "" {
+		return "", "", false
+	}
+	return mediaKey, field, true
 }
 
 // ParseStats extracts metrics from a stats record.

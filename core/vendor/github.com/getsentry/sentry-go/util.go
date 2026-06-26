@@ -41,7 +41,8 @@ func defaultRelease() (release string) {
 	// Return first non-empty environment variable known to hold release info, if any.
 	envs := []string{
 		"SENTRY_RELEASE",
-		"HEROKU_SLUG_COMMIT",
+		"HEROKU_BUILD_COMMIT",
+		"HEROKU_SLUG_COMMIT", // Deprecated, kept for backwards compatibility
 		"SOURCE_VERSION",
 		"CODEBUILD_RESOLVED_SOURCE_VERSION",
 		"CIRCLE_SHA1",
@@ -108,6 +109,45 @@ func revisionFromBuildInfo(info *debug.BuildInfo) string {
 
 func Pointer[T any](v T) *T {
 	return &v
+}
+
+var sensitiveHeaders = map[string]struct{}{
+	"_csrf":               {},
+	"_csrf_token":         {},
+	"_session":            {},
+	"_xsrf":               {},
+	"api-key":             {},
+	"apikey":              {},
+	"auth":                {},
+	"authorization":       {},
+	"cookie":              {},
+	"credentials":         {},
+	"csrf":                {},
+	"csrf-token":          {},
+	"csrftoken":           {},
+	"ip-address":          {},
+	"passwd":              {},
+	"password":            {},
+	"private-key":         {},
+	"privatekey":          {},
+	"proxy-authorization": {},
+	"remote-addr":         {},
+	"secret":              {},
+	"session":             {},
+	"sessionid":           {},
+	"token":               {},
+	"user-session":        {},
+	"x-api-key":           {},
+	"x-csrftoken":         {},
+	"x-forwarded-for":     {},
+	"x-real-ip":           {},
+	"xsrf-token":          {},
+}
+
+// IsSensitiveHeader reports whether a header or metadata key should be treated as sensitive.
+func IsSensitiveHeader(key string) bool {
+	_, ok := sensitiveHeaders[strings.ToLower(key)]
+	return ok
 }
 
 // eventIdentifier returns a human-readable identifier for the event to be used in log messages.

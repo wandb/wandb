@@ -1,6 +1,6 @@
 """Artifact manifest entry."""
 
-# Older-style type annotations required for Pydantic v1 / python 3.8 compatibility.
+# Keep older-style type annotations in this legacy model.
 # ruff: noqa: UP006, UP007, UP035, UP045
 
 from __future__ import annotations
@@ -14,10 +14,9 @@ from os.path import getsize
 from typing import TYPE_CHECKING, Annotated, Any, Dict, Final, Optional, Union
 from urllib.parse import urlparse
 
-from pydantic import Field, NonNegativeInt
+from pydantic import Field, NonNegativeInt, field_validator, model_validator
 from typing_extensions import Self
 
-from wandb._pydantic import field_validator, model_validator
 from wandb._strutils import nameof
 from wandb.proto.wandb_telemetry_pb2 import Deprecated
 from wandb.sdk.lib.deprecation import warn_and_record_deprecation
@@ -32,6 +31,7 @@ from wandb.sdk.lib.hashutil import (
 from wandb.sdk.lib.paths import FilePathStr, LogicalPath, URIStr
 
 from ._models.base_model import ArtifactsBase
+from ._validators import validate_fspath
 
 if TYPE_CHECKING:
     from .artifact import Artifact
@@ -111,9 +111,8 @@ class ArtifactManifestEntry(ArtifactsBase):
     def _validate_path(cls, v: Any) -> LogicalPath:
         """Coerce `path` to a LogicalPath.
 
-        LogicalPath does not implement its own pydantic validator, and adding
-        one for both pydantic V1 and V2 would add excessive boilerplate. Until
-        we drop V1 support, coerce to LogicalPath in this field validator.
+        LogicalPath does not implement its own pydantic validator, so coerce
+        to LogicalPath in this field validator.
         """
         return LogicalPath(v)
 
@@ -171,7 +170,7 @@ class ArtifactManifestEntry(ArtifactsBase):
         """
         artifact = self.parent_artifact()
         rootdir = artifact._add_download_root(root)
-        dest_path = os.path.join(rootdir, self.path)
+        dest_path = validate_fspath(rootdir, self.path)
 
         # Skip checking the cache (and possibly downloading) if the file already exists
         # and has the digest we're expecting.

@@ -9,9 +9,9 @@ description = "A CLI and library for interacting with the Weights & Biases API."
 authors = [{ name = "Weights & Biases", email = "support@wandb.com" }]
 readme = "package_readme.md"
 license = { file = "LICENSE" }
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 dependencies = [
-    "Click>=8.0.1",
+    "Click>=8.2.0",
     "GitPython>=1.0.0,!=3.1.29",
     "requests>=2.0.0,<3",
     "sentry-sdk>=2.0.0",
@@ -19,8 +19,7 @@ dependencies = [
     "PyYAML",
     "platformdirs",
     "typing_extensions>=4.8,<5",
-    "pydantic<3",
-    "eval_type_backport; python_version < '3.10'",
+    "pydantic>=2.6,<3",
     "packaging",
 ]
 classifiers = [
@@ -30,7 +29,6 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Natural Language :: English",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
@@ -38,6 +36,7 @@ classifiers = [
     "Programming Language :: Python :: 3.14",
     "Programming Language :: Python :: 3 :: Only",
     "Programming Language :: Go",
+    "Programming Language :: Rust",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Topic :: System :: Logging",
@@ -100,11 +99,22 @@ launch = [
     "typing_extensions",
     "tomli",
     "PyYAML>=6.0.0",
-    "tornado>=6.5.0;python_version>='3.9'",
+    "tornado>=6.5.0",
 ]
 models = ["cloudpickle"]
-importers = ["polars<=1.2.1", "rich", "filelock", "mlflow", "tenacity"]
 workspaces = ["wandb-workspaces"]
+sandbox = ["cwsandbox[cli]>=0.20.0"]
+eval-table = [  # wandb.EvalTable support (private testing only)
+    "weave>=0.52.41",
+]
+
+# wandb.EvalTable wandb.Video support
+# TODO: Currently, wandb[media] requires moviepy>=1.0.0, while
+# weave[video_support] requires moviepy<=1.0.3. We should reconcile these
+# dependencies (and probably make weave support moviepy>=2).
+eval-table-video-support = [
+    "weave[video_support]>=0.52.41",
+]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
@@ -161,7 +171,7 @@ extend-exclude = [
     "wandb/vendor/**",
     "wandb/proto/**",
 ]
-target-version = "py39"
+target-version = "py310"
 
 [tool.ruff.format]
 docstring-code-format = true
@@ -198,7 +208,6 @@ select = [
     "SIM910", # dict-get-with-none-default
     "SIM911", # zip-dict-keys-and-values
 
-
     # tryceratops
     "TRY004", # type-check-without-type-error
     "TRY201", # verbose-raise
@@ -228,10 +237,8 @@ split-on-trailing-comma = false
 
 [tool.ruff.lint.pep8-naming]
 classmethod-decorators = [
-    # Allow Pydantic's `@field_validator` to trigger classmethod treatment,
-    # as well as the internal compat implementation.
+    # Allow Pydantic's `@field_validator` to trigger classmethod treatment.
     "pydantic.field_validator",
-    "wandb._pydantic.field_validator",
 ]
 
 [tool.ruff.lint.pycodestyle]
@@ -279,17 +286,9 @@ ignore-decorators = [
 # TODO: Unignore this lint and add symbols to __all__ instead.
 "**/__init__.py" = ["F401"]
 
-# TODO: Fix UP006, UP007, UP045 in wandb_run.py, then remove ignores here.
 "wandb/__init__.py" = ["I001"]
-"wandb/__init__.pyi" = ["UP006", "UP007", "UP035", "UP045", "W505"]
-"wandb/__init__.template.pyi" = [
-    "UP006",
-    "UP007",
-    "UP035",
-    "UP045",
-    "D415",
-    "N999",
-]
+"wandb/__init__.pyi" = ["W505"]
+"wandb/__init__.template.pyi" = ["D415", "N999"]
 
 # TODO: Use f-strings in wandb/apis/public/ for GraphQL statements.
 #   To preserve GraphQL syntax highlighting, add #graphql at the start of
@@ -298,7 +297,7 @@ ignore-decorators = [
 "wandb/apis/public/**" = ["UP032"]
 
 # TODO: Fix these lints and remove the ignores.
-"gpu_stats/hatch.py" = ["W505"]
+"xpu/hatch.py" = ["W505"]
 "noxfile.py" = ["W505"]
 "wandb/cli/cli.py" = ["C901", "W505"]
 "wandb/integration/metaflow/metaflow.py" = ["F811"]
@@ -321,7 +320,6 @@ ignore-decorators = [
 "wandb/wandb_torch.py" = ["C901", "D", "E741", "F841"]
 "wandb/agents/**" = ["W505"]
 "wandb/analytics/**" = ["W505"]
-"wandb/apis/importers/**" = ["W505"]
 "wandb/apis/paginator.py" = ["W505"]
 "wandb/apis/public/api.py" = ["W505"]
 "wandb/apis/public/files.py" = ["W505"]
@@ -352,30 +350,8 @@ ignore-decorators = [
 # See: https://docs.python.org/3/library/ast.html#ast.NodeTransformer
 "tools/graphql_codegen/**" = ["N802"]
 
-# Ignore lints on generated code.
-"wandb/**/_generated/**/*.py" = [
-    # Generated code names may not respect PEP8.
-    "N8",
-
-    # Standard library generics (list[...]) can cause issues with older
-    # Pydantic versions.
-    "UP006",
-
-    # The `X | Y` syntax can cause issues with older python + pydantic versions:
-    # - if `eval_type_backport` is installed, with pydantic < 2.0
-    # - if `eval_type_backport` is not installed, with pydantic < 2.6
-    "UP007",
-    "UP035",
-    "UP045",
-]
-
-# Pydantic code requires an older style for type annotations.
-"wandb/sdk/wandb_settings.py" = ["UP006", "UP007", "UP035", "UP045"]
-"wandb/sdk/wandb_metadata.py" = ["UP006", "UP007", "UP035", "UP045"]
-"wandb/sdk/lib/run_moment.py" = ["UP006", "UP007", "UP035", "UP045"]
-"wandb/automations/**" = ["UP006", "UP007", "UP035", "UP045"]
-"wandb/sdk/artifacts/_models/**" = ["UP006", "UP007", "UP035", "UP045"]
-"wandb/_pydantic/**" = ["UP006", "UP007", "UP035", "UP045"]
+# Generated code names may not respect PEP8.
+"wandb/**/_generated/**/*.py" = ["N8"]
 
 # TODO: Remove the landfill/ directory.
 "landfill/**" = ["F405", "N806", "D415"]
@@ -398,10 +374,6 @@ module = [
     "wandb.integration.*",
     "wandb.apis",
     "wandb.apis.internal",
-    "wandb.apis.importers.internals.internal",
-    "wandb.apis.importers.mlflow",
-    "wandb.apis.importers.validation",
-    "wandb.apis.importers.wandb",
     "wandb.apis.normalize",
     "wandb.apis.paginator",
     "wandb.apis.public.api",
@@ -492,15 +464,13 @@ module = [
     "tensorboard.*",
     "grpc.*",
     "ultralytics.*",
-    "wandb_gql.*",
-    "wandb_graphql.*",
     "wandb.vendor.*",
 ]
 ignore_missing_imports = true
 
 
 [tool.basedpyright]
-pythonVersion = "3.9"
+pythonVersion = "3.10"
 pythonPlatform = "All"
 
 # We use implicit string concatenation quite a lot, so don't yell too loud.
@@ -526,3 +496,11 @@ reportUnusedCallResult = false
 # Any is frequently unavoidable when forwarding an argument with a generic type
 # to a library function that didn't specify the generic type parameters.
 reportExplicitAny = "hint"
+
+[tool.cibuildwheel.linux]
+environment = { PATH = "$PATH:/usr/local/go/bin:/root/.cargo/bin" }
+
+[[tool.cibuildwheel.overrides]]
+select = "*-musllinux*"
+inherit.environment = "append"
+environment = { WANDB_ENABLE_CGO = "true" }

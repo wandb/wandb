@@ -7,24 +7,24 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/getsentry/sentry-go/internal/debuglog"
 	"github.com/getsentry/sentry-go/internal/protocol"
 	"github.com/getsentry/sentry-go/internal/ratelimit"
 	"github.com/getsentry/sentry-go/internal/util"
+	"github.com/getsentry/sentry-go/report"
 )
 
 const (
 	apiVersion = 7
 
-	defaultTimeout   = time.Second * 30
-	defaultQueueSize = 1000
+	defaultTimeout           = time.Second * 30
+	defaultQueueSize         = 1000
+	defaultClientReportsTick = time.Second * 30
 )
 
 var (
@@ -40,6 +40,9 @@ type TransportOptions struct {
 	HTTPProxy     string
 	HTTPSProxy    string
 	CaCerts       *x509.CertPool
+	Recorder      report.ClientReportRecorder
+	Provider      report.ClientReportProvider
+	SdkInfo       func() *protocol.SdkInfo
 }
 
 func getProxyConfig(options TransportOptions) func(*http.Request) (*url.URL, error) {
@@ -72,8 +75,11 @@ func getTLSConfig(options TransportOptions) *tls.Config {
 func getSentryRequestFromEnvelope(ctx context.Context, dsn *protocol.Dsn, envelope *protocol.Envelope) (r *http.Request, err error) {
 	defer func() {
 		if r != nil {
-			sdkName := envelope.Header.Sdk.Name
-			sdkVersion := envelope.Header.Sdk.Version
+			var sdkName, sdkVersion string
+			if envelope.Header.Sdk != nil {
+				sdkVersion = envelope.Header.Sdk.Version
+				sdkName = envelope.Header.Sdk.Name
+			}
 
 			r.Header.Set("User-Agent", fmt.Sprintf("%s/%s", sdkName, sdkVersion))
 			r.Header.Set("Content-Type", "application/x-sentry-envelope")
@@ -147,6 +153,9 @@ type SyncTransport struct {
 	dsn       *protocol.Dsn
 	client    *http.Client
 	transport http.RoundTripper
+	recorder  report.ClientReportRecorder
+	provider  report.ClientReportProvider
+	sdkInfo   func() *protocol.SdkInfo
 
 	mu     sync.Mutex
 	limits ratelimit.Map
@@ -161,10 +170,22 @@ func NewSyncTransport(options TransportOptions) protocol.TelemetryTransport {
 		return NewNoopTransport()
 	}
 
+	recorder := options.Recorder
+	if recorder == nil {
+		recorder = report.NoopRecorder()
+	}
+	provider := options.Provider
+	if provider == nil {
+		provider = report.NoopProvider()
+	}
+
 	transport := &SyncTransport{
-		Timeout: defaultTimeout,
-		limits:  make(ratelimit.Map),
-		dsn:     dsn,
+		Timeout:  defaultTimeout,
+		limits:   make(ratelimit.Map),
+		dsn:      dsn,
+		recorder: recorder,
+		provider: provider,
+		sdkInfo:  options.SdkInfo,
 	}
 
 	if options.HTTPTransport != nil {
@@ -207,12 +228,16 @@ func (t *SyncTransport) SendEnvelopeWithContext(ctx context.Context, envelope *p
 
 	category := categoryFromEnvelope(envelope)
 	if t.disabled(category) {
+		t.recorder.RecordForEnvelope(report.ReasonRateLimitBackoff, envelope)
 		return nil
 	}
+	// the sync transport needs to attach client reports when available
+	t.provider.AttachToEnvelope(envelope)
 
 	request, err := getSentryRequestFromEnvelope(ctx, t.dsn, envelope)
 	if err != nil {
 		debuglog.Printf("There was an issue creating the request: %v", err)
+		t.recorder.RecordForEnvelope(report.ReasonInternalError, envelope)
 		return err
 	}
 	identifier := util.EnvelopeIdentifier(envelope)
@@ -223,22 +248,21 @@ func (t *SyncTransport) SendEnvelopeWithContext(ctx context.Context, envelope *p
 		t.dsn.GetProjectID(),
 	)
 
-	response, err := t.client.Do(request)
+	result, err := util.DoSendRequest(t.client, request, identifier)
 	if err != nil {
 		debuglog.Printf("There was an issue with sending an event: %v", err)
+		t.recorder.RecordForEnvelope(report.ReasonNetworkError, envelope)
 		return err
 	}
-	util.HandleHTTPResponse(response, identifier)
+	if result.IsSendError() {
+		t.recorder.RecordForEnvelope(report.ReasonSendError, envelope)
+	}
 
 	t.mu.Lock()
-	if t.limits == nil {
-		t.limits = make(ratelimit.Map)
-	}
-	t.limits.Merge(ratelimit.FromResponse(response))
+	t.limits.Merge(result.Limits)
 	t.mu.Unlock()
 
-	_, _ = io.CopyN(io.Discard, response.Body, util.MaxDrainResponseBytes)
-	return response.Body.Close()
+	return nil
 }
 
 func (t *SyncTransport) Flush(_ time.Duration) bool {
@@ -268,6 +292,9 @@ type AsyncTransport struct {
 	dsn       *protocol.Dsn
 	client    *http.Client
 	transport http.RoundTripper
+	recorder  report.ClientReportRecorder
+	provider  report.ClientReportProvider
+	sdkInfo   func() *protocol.SdkInfo
 
 	queue chan *protocol.Envelope
 
@@ -279,9 +306,7 @@ type AsyncTransport struct {
 
 	flushRequest chan chan struct{}
 
-	sentCount    int64
-	droppedCount int64
-	errorCount   int64
+	closeMu sync.RWMutex
 
 	QueueSize int
 	Timeout   time.Duration
@@ -297,12 +322,24 @@ func NewAsyncTransport(options TransportOptions) protocol.TelemetryTransport {
 		return NewNoopTransport()
 	}
 
+	recorder := options.Recorder
+	if recorder == nil {
+		recorder = report.NoopRecorder()
+	}
+	provider := options.Provider
+	if provider == nil {
+		provider = report.NoopProvider()
+	}
+
 	transport := &AsyncTransport{
 		QueueSize: defaultQueueSize,
 		Timeout:   defaultTimeout,
 		done:      make(chan struct{}),
 		limits:    make(ratelimit.Map),
 		dsn:       dsn,
+		recorder:  recorder,
+		provider:  provider,
+		sdkInfo:   options.SdkInfo,
 	}
 
 	transport.queue = make(chan *protocol.Envelope, transport.QueueSize)
@@ -332,6 +369,12 @@ func NewAsyncTransport(options TransportOptions) protocol.TelemetryTransport {
 
 func (t *AsyncTransport) start() {
 	t.startOnce.Do(func() {
+		if t.recorder == nil {
+			t.recorder = report.NoopRecorder()
+		}
+		if t.provider == nil {
+			t.provider = report.NoopProvider()
+		}
 		t.wg.Add(1)
 		go t.worker()
 	})
@@ -351,6 +394,9 @@ func (t *AsyncTransport) HasCapacity() bool {
 }
 
 func (t *AsyncTransport) SendEnvelope(envelope *protocol.Envelope) error {
+	t.closeMu.RLock()
+	defer t.closeMu.RUnlock()
+
 	select {
 	case <-t.done:
 		return ErrTransportClosed
@@ -363,12 +409,16 @@ func (t *AsyncTransport) SendEnvelope(envelope *protocol.Envelope) error {
 
 	category := categoryFromEnvelope(envelope)
 	if t.isRateLimited(category) {
+		t.recorder.RecordForEnvelope(report.ReasonRateLimitBackoff, envelope)
 		return nil
 	}
 
+	identifier := util.EnvelopeIdentifier(envelope)
+
 	select {
+	case <-t.done:
+		return ErrTransportClosed
 	case t.queue <- envelope:
-		identifier := util.EnvelopeIdentifier(envelope)
 		debuglog.Printf(
 			"Sending %s to %s project: %s",
 			identifier,
@@ -377,7 +427,7 @@ func (t *AsyncTransport) SendEnvelope(envelope *protocol.Envelope) error {
 		)
 		return nil
 	default:
-		atomic.AddInt64(&t.droppedCount, 1)
+		t.recorder.RecordForEnvelope(report.ReasonQueueOverflow, envelope)
 		return ErrTransportQueueFull
 	}
 }
@@ -389,8 +439,14 @@ func (t *AsyncTransport) Flush(timeout time.Duration) bool {
 }
 
 func (t *AsyncTransport) FlushWithContext(ctx context.Context) bool {
+	t.closeMu.RLock()
+	defer t.closeMu.RUnlock()
+
 	flushResponse := make(chan struct{})
 	select {
+	case <-t.done:
+		debuglog.Println("Failed to flush, transport is closed.")
+		return false
 	case t.flushRequest <- flushResponse:
 		select {
 		case <-flushResponse:
@@ -408,9 +464,10 @@ func (t *AsyncTransport) FlushWithContext(ctx context.Context) bool {
 
 func (t *AsyncTransport) Close() {
 	t.closeOnce.Do(func() {
+		t.closeMu.Lock()
+		defer t.closeMu.Unlock()
+
 		close(t.done)
-		close(t.queue)
-		close(t.flushRequest)
 		t.wg.Wait()
 	})
 }
@@ -419,18 +476,30 @@ func (t *AsyncTransport) IsRateLimited(category ratelimit.Category) bool {
 	return t.isRateLimited(category)
 }
 
+func (t *AsyncTransport) resolveSdkInfo() *protocol.SdkInfo {
+	if t.sdkInfo == nil {
+		return &protocol.SdkInfo{}
+	}
+	return t.sdkInfo()
+}
+
 func (t *AsyncTransport) worker() {
 	defer t.wg.Done()
+
+	crTicker := time.NewTicker(defaultClientReportsTick)
+	defer crTicker.Stop()
 
 	for {
 		select {
 		case <-t.done:
 			return
+		case <-crTicker.C:
+			t.sendClientReport()
 		case envelope, open := <-t.queue:
 			if !open {
 				return
 			}
-			t.processEnvelope(envelope)
+			t.sendEnvelopeHTTP(envelope)
 		case flushResponse, open := <-t.flushRequest:
 			if !open {
 				return
@@ -441,6 +510,44 @@ func (t *AsyncTransport) worker() {
 	}
 }
 
+// sendClientReport sends a standalone envelope containing only a client report.
+func (t *AsyncTransport) sendClientReport() {
+	r := t.provider.TakeReport()
+	if r == nil {
+		return
+	}
+	item, err := r.ToEnvelopeItem()
+	if err != nil {
+		debuglog.Printf("Failed to serialize client report: %v", err)
+		return
+	}
+	header := &protocol.EnvelopeHeader{
+		SentAt: time.Now(),
+		Dsn:    t.dsn,
+		Sdk:    t.resolveSdkInfo(),
+	}
+	envelope := protocol.NewEnvelope(header)
+	envelope.AddItem(item)
+
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	defer cancel()
+
+	request, err := getSentryRequestFromEnvelope(ctx, t.dsn, envelope)
+	if err != nil {
+		debuglog.Printf("Failed to create client report request: %v", err)
+		return
+	}
+	result, err := util.DoSendRequest(t.client, request, "client report")
+	if err != nil {
+		debuglog.Printf("Failed to send client report: %v", err)
+		return
+	}
+
+	t.mu.Lock()
+	t.limits.Merge(result.Limits)
+	t.mu.Unlock()
+}
+
 func (t *AsyncTransport) drainQueue() {
 	for {
 		select {
@@ -448,26 +555,21 @@ func (t *AsyncTransport) drainQueue() {
 			if !open {
 				return
 			}
-			t.processEnvelope(envelope)
+			t.sendEnvelopeHTTP(envelope)
 		default:
 			return
 		}
 	}
 }
 
-func (t *AsyncTransport) processEnvelope(envelope *protocol.Envelope) {
-	if t.sendEnvelopeHTTP(envelope) {
-		atomic.AddInt64(&t.sentCount, 1)
-	} else {
-		atomic.AddInt64(&t.errorCount, 1)
-	}
-}
-
-func (t *AsyncTransport) sendEnvelopeHTTP(envelope *protocol.Envelope) bool {
+func (t *AsyncTransport) sendEnvelopeHTTP(envelope *protocol.Envelope) bool { //nolint: unparam
 	category := categoryFromEnvelope(envelope)
 	if t.isRateLimited(category) {
+		t.recorder.RecordForEnvelope(report.ReasonRateLimitBackoff, envelope)
 		return false
 	}
+	// attach to envelope after rate-limit check
+	t.provider.AttachToEnvelope(envelope)
 
 	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	defer cancel()
@@ -475,28 +577,26 @@ func (t *AsyncTransport) sendEnvelopeHTTP(envelope *protocol.Envelope) bool {
 	request, err := getSentryRequestFromEnvelope(ctx, t.dsn, envelope)
 	if err != nil {
 		debuglog.Printf("Failed to create request from envelope: %v", err)
+		t.recorder.RecordForEnvelope(report.ReasonInternalError, envelope)
 		return false
 	}
-
-	response, err := t.client.Do(request)
-	if err != nil {
-		debuglog.Printf("HTTP request failed: %v", err)
-		return false
-	}
-	defer response.Body.Close()
 
 	identifier := util.EnvelopeIdentifier(envelope)
-	success := util.HandleHTTPResponse(response, identifier)
+	result, err := util.DoSendRequest(t.client, request, identifier)
+	if err != nil {
+		debuglog.Printf("HTTP request failed: %v", err)
+		t.recorder.RecordForEnvelope(report.ReasonNetworkError, envelope)
+		return false
+	}
+	if result.IsSendError() {
+		t.recorder.RecordForEnvelope(report.ReasonSendError, envelope)
+	}
 
 	t.mu.Lock()
-	if t.limits == nil {
-		t.limits = make(ratelimit.Map)
-	}
-	t.limits.Merge(ratelimit.FromResponse(response))
+	t.limits.Merge(result.Limits)
 	t.mu.Unlock()
 
-	_, _ = io.CopyN(io.Discard, response.Body, util.MaxDrainResponseBytes)
-	return success
+	return result.Success
 }
 
 func (t *AsyncTransport) isRateLimited(category ratelimit.Category) bool {

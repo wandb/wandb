@@ -221,21 +221,14 @@ namespace Wandb
         public async Task Finish(bool markFinished = true)
         {
             // TODO: get timeout from settings
-            if (markFinished)
+            Result deliverExitResult = await _interface.DeliverExit(
+                timeoutMilliseconds: 600000,
+                markComplete: markFinished
+            ).ConfigureAwait(false);
+
+            if (deliverExitResult.ExitResult == null)
             {
-                Result deliverExitResult = await _interface.DeliverExit(timeoutMilliseconds: 600000).ConfigureAwait(false);
-                if (deliverExitResult.ExitResult == null)
-                {
-                    throw new Exception("Failed to deliver exit");
-                }
-            }
-            else
-            {
-                Result deliverFinishWithoutExitResult = await _interface.DeliverFinishWithoutExit(timeoutMilliseconds: 600000).ConfigureAwait(false);
-                if (deliverFinishWithoutExitResult.Response.RunFinishWithoutExitResponse == null)
-                {
-                    throw new Exception("Failed to deliver finish without exit");
-                }
+                throw new Exception("Failed to deliver exit");
             }
 
             // Send finish command

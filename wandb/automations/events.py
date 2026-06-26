@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Annotated, Any, Literal, Optional, Union
+from typing import TYPE_CHECKING, Annotated, Any, Literal, get_args
 
 from pydantic import AfterValidator, Field
-from typing_extensions import get_args
 
 from wandb._pydantic import GQLBase, model_validator, pydantic_isinstance
 from wandb._strutils import nameof
@@ -25,7 +24,7 @@ from ._validators import (
     LenientStrEnum,
     ensure_json,
     wrap_mutation_event_filter,
-    wrap_run_event_run_filter,
+    wrap_run_filter,
 )
 from .actions import InputAction, InputActionTypes, SavedActionTypes
 from .scopes import ArtifactCollectionScope, AutomationScope, ProjectScope
@@ -44,16 +43,24 @@ class EventType(LenientStrEnum):
 
     CREATE_ARTIFACT = "CREATE_ARTIFACT"
     ADD_ARTIFACT_ALIAS = "ADD_ARTIFACT_ALIAS"
-    LINK_ARTIFACT = "LINK_MODEL"
+
+    ADD_ARTIFACT_TAG = "ADD_ARTIFACT_TAG"
+    REMOVE_ARTIFACT_TAG = "REMOVE_ARTIFACT_TAG"
+
+    ADD_COLLECTION_TAG = "ADD_COLLECTION_TAG"
+    REMOVE_COLLECTION_TAG = "REMOVE_COLLECTION_TAG"
+
     # Note: "LINK_MODEL" is the (legacy) value expected by the backend, but we
     # name it "LINK_ARTIFACT" here in the public API for clarity and consistency.
+    LINK_ARTIFACT = "LINK_MODEL"
+    UNLINK_ARTIFACT = "UNLINK_ARTIFACT"
 
     # ---------------------------------------------------------------------------
-    # Events triggered by Run conditions
+    # Events triggered by run conditions
     RUN_METRIC_THRESHOLD = "RUN_METRIC"
     RUN_METRIC_CHANGE = "RUN_METRIC_CHANGE"
-    RUN_STATE = "RUN_STATE"
     RUN_METRIC_ZSCORE = "RUN_METRIC_ZSCORE"
+    RUN_STATE = "RUN_STATE"
 
 
 # ------------------------------------------------------------------------------
@@ -62,11 +69,11 @@ class EventType(LenientStrEnum):
 
 # Note: In GQL responses containing saved automation data, the filter is wrapped
 # in an extra `filter` key.
-class _WrappedSavedEventFilter(GQLBase):  # from: TriggeringFilterEvent
+class _WrappedSavedEventFilter(GQLBase):  # from: FilterEventSpec
     filter: JsonEncoded[MongoLikeFilter] = And()
 
 
-class _WrappedMetricThresholdFilter(GQLBase):  # from: RunMetricFilter
+class _WrappedMetricThresholdFilter(GQLBase):  # from: MetricFilterChoice
     event_type: Annotated[
         Literal[EventType.RUN_METRIC_THRESHOLD],
         Field(exclude=True, repr=False),
@@ -83,7 +90,7 @@ class _WrappedMetricThresholdFilter(GQLBase):  # from: RunMetricFilter
         return v
 
 
-class _WrappedMetricChangeFilter(GQLBase):  # from: RunMetricFilter
+class _WrappedMetricChangeFilter(GQLBase):  # from: MetricFilterChoice
     event_type: Annotated[
         Literal[EventType.RUN_METRIC_CHANGE],
         Field(exclude=True, repr=False),
@@ -100,7 +107,7 @@ class _WrappedMetricChangeFilter(GQLBase):  # from: RunMetricFilter
         return v
 
 
-class _WrappedMetricZScoreFilter(GQLBase):  # from: RunMetricFilter
+class _WrappedMetricZScoreFilter(GQLBase):  # from: MetricFilterChoice
     event_type: Annotated[
         Literal[EventType.RUN_METRIC_ZSCORE],
         Field(exclude=True, repr=False),
@@ -116,27 +123,25 @@ class _WrappedMetricZScoreFilter(GQLBase):  # from: RunMetricFilter
         return v
 
 
-class RunMetricFilter(GQLBase):  # from: TriggeringRunMetricEvent
+class RunMetricFilter(GQLBase):  # from: RunMetricEventSpec
     run: Annotated[
         JsonEncoded[MongoLikeFilter],
-        AfterValidator(wrap_run_event_run_filter),
+        AfterValidator(wrap_run_filter),
         Field(alias="run_filter"),
     ] = And()
     """Filters that must match any runs that will trigger this event."""
 
     metric: Annotated[
-        Union[
-            _WrappedMetricThresholdFilter,
-            _WrappedMetricChangeFilter,
-            _WrappedMetricZScoreFilter,
-        ],
+        _WrappedMetricThresholdFilter
+        | _WrappedMetricChangeFilter
+        | _WrappedMetricZScoreFilter,
         Field(alias="run_metric_filter"),
     ]
     """Metric condition(s) that must be satisfied for this event to trigger."""
 
     # ------------------------------------------------------------------------------
     legacy_metric_filter: Annotated[
-        Optional[JsonEncoded[MetricThresholdFilter]],
+        JsonEncoded[MetricThresholdFilter] | None,
         Field(alias="metric_filter", deprecated=True),
     ] = None
     """Deprecated legacy field for defining run metric threshold events.
@@ -156,12 +161,12 @@ class RunMetricFilter(GQLBase):  # from: TriggeringRunMetricEvent
         return v
 
 
-class RunStateFilter(GQLBase):  # from: TriggeringRunStateEvent
+class RunStateFilter(GQLBase):  # from: RunStateEventSpec
     """Represents a filter for triggering events based on changes in run states."""
 
     run: Annotated[
         JsonEncoded[MongoLikeFilter],
-        AfterValidator(wrap_run_event_run_filter),
+        AfterValidator(wrap_run_filter),
         Field(alias="run_filter"),
     ] = And()
     """Filters that must match any runs that will trigger this event."""
@@ -186,8 +191,8 @@ class SavedEvent(FilterEventFields):  # from: FilterEventTriggeringCondition
 
     # We override the type of the `filter` field in order to enforce the expected
     # structure for the JSON data when validating and serializing.
-    filter: JsonEncoded[
-        Union[_WrappedSavedEventFilter, RunMetricFilter, RunStateFilter]
+    filter: JsonEncoded[  # type: ignore[assignment]
+        _WrappedSavedEventFilter | RunMetricFilter | RunStateFilter
     ]
     """The condition(s) under which this event triggers an automation."""
 
@@ -254,6 +259,12 @@ class OnLinkArtifact(_BaseMutationEventInput):
     event_type: Literal[EventType.LINK_ARTIFACT] = EventType.LINK_ARTIFACT
 
 
+class OnUnlinkArtifact(_BaseMutationEventInput):
+    """An artifact version is unlinked from a collection."""
+
+    event_type: Literal[EventType.UNLINK_ARTIFACT] = EventType.UNLINK_ARTIFACT
+
+
 class OnAddArtifactAlias(_BaseMutationEventInput):
     """A new alias is assigned to an artifact.
 
@@ -276,6 +287,50 @@ class OnAddArtifactAlias(_BaseMutationEventInput):
     """
 
     event_type: Literal[EventType.ADD_ARTIFACT_ALIAS] = EventType.ADD_ARTIFACT_ALIAS
+
+
+class OnAddArtifactTag(_BaseMutationEventInput):
+    """A new tag is assigned to an artifact version.
+
+    Examples:
+    Define an event that triggers whenever the tag "prod" is assigned to
+    any artifact version in the collection "my-collection":
+
+    ```python
+    from wandb import Api
+    from wandb.automations import OnAddArtifactTag, ArtifactEvent
+
+    api = Api()
+    collection = api.artifact_collection(name="my-collection", type_name="model")
+
+    event = OnAddArtifactTag(
+        scope=collection,
+        filter=ArtifactEvent.tag.eq("prod"),
+    )
+    ```
+    """
+
+    event_type: Literal[EventType.ADD_ARTIFACT_TAG] = EventType.ADD_ARTIFACT_TAG
+
+
+class OnRemoveArtifactTag(_BaseMutationEventInput):
+    """A tag is removed from an artifact version."""
+
+    event_type: Literal[EventType.REMOVE_ARTIFACT_TAG] = EventType.REMOVE_ARTIFACT_TAG
+
+
+class OnAddCollectionTag(_BaseMutationEventInput):
+    """A new tag is assigned to an artifact collection."""
+
+    event_type: Literal[EventType.ADD_COLLECTION_TAG] = EventType.ADD_COLLECTION_TAG
+
+
+class OnRemoveCollectionTag(_BaseMutationEventInput):
+    """A tag is removed from an artifact collection."""
+
+    event_type: Literal[EventType.REMOVE_COLLECTION_TAG] = (
+        EventType.REMOVE_COLLECTION_TAG
+    )
 
 
 class OnCreateArtifact(_BaseMutationEventInput):
@@ -347,12 +402,13 @@ class OnRunMetric(_BaseRunEventInput):
         This supports both "threshold" and "change" metric filters, which can
         only be determined after parsing and validating the inner JSON data.
         """
-        if isinstance(data, dict) and (raw_filter := data.get("filter")):
-            # At this point, `raw_filter` may or may not be JSON-serialized
-            parsed_filter = RunMetricFilter.model_validate_json(ensure_json(raw_filter))
-            return {**data, "event_type": parsed_filter.metric.event_type}
-
-        return data
+        match data:
+            case {"filter": raw}:
+                # At this point, `raw_filter` may or may not be JSON-serialized
+                filter_ = RunMetricFilter.model_validate_json(ensure_json(raw))
+                return {**data, "event_type": filter_.metric.event_type}
+            case _:
+                return data
 
 
 class OnRunState(_BaseRunEventInput):
@@ -384,13 +440,16 @@ class OnRunState(_BaseRunEventInput):
 
 # for type annotations
 InputEvent = Annotated[
-    Union[
-        OnLinkArtifact,
-        OnAddArtifactAlias,
-        OnCreateArtifact,
-        OnRunMetric,
-        OnRunState,
-    ],
+    OnLinkArtifact
+    | OnAddArtifactAlias
+    | OnAddArtifactTag
+    | OnRemoveArtifactTag
+    | OnAddCollectionTag
+    | OnRemoveCollectionTag
+    | OnCreateArtifact
+    | OnUnlinkArtifact
+    | OnRunMetric
+    | OnRunState,
     Field(discriminator="event_type"),
 ]
 # for runtime type checks
@@ -416,16 +475,8 @@ class RunEvent:
 
 class ArtifactEvent:
     alias = FilterableField()
+    tag = FilterableField()
 
-
-MetricThresholdFilter.model_rebuild()
-RunMetricFilter.model_rebuild()
-_WrappedSavedEventFilter.model_rebuild()
-
-OnLinkArtifact.model_rebuild()
-OnAddArtifactAlias.model_rebuild()
-OnCreateArtifact.model_rebuild()
-OnRunMetric.model_rebuild()
 
 __all__ = [
     "EventType",

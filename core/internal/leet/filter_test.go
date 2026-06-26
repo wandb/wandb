@@ -1,16 +1,16 @@
-// core/internal/leet/filter_test.go
-
-package leet
+package leet_test
 
 import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/stretchr/testify/require"
+
+	"github.com/wandb/wandb/core/internal/leet"
 )
 
 func TestFilter_HandleKey_BackspaceIsRuneSafe(t *testing.T) {
-	f := NewFilter()
+	f := leet.NewFilter()
 	f.Activate()
 
 	require.True(t, f.HandleKey(tea.KeyPressMsg{Text: "é"}))
@@ -21,7 +21,7 @@ func TestFilter_HandleKey_BackspaceIsRuneSafe(t *testing.T) {
 }
 
 func TestFilter_HandleKey_NavigationKeyIsNoOp(t *testing.T) {
-	f := NewFilter()
+	f := leet.NewFilter()
 	f.Activate()
 
 	require.False(t, f.HandleKey(tea.KeyPressMsg{Code: tea.KeyUp}))

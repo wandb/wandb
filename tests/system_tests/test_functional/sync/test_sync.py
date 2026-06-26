@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-import multiprocessing as mp
+import concurrent.futures
+import queue
 import subprocess
 import time
-from multiprocessing.connection import Connection
 
 import wandb
 from tests.fixtures.wandb_backend_spy import WandbBackendSpy
@@ -13,13 +13,13 @@ _TIMEOUT_NORMAL = 1  # Timeout for operations that are probably not too slow.
 
 
 def test_live_sync(wandb_backend_spy: WandbBackendSpy):
-    pipe_parent, pipe_child = mp.Pipe()
+    logger_inputs = queue.Queue[str]()
+    logger_outputs = queue.Queue[str]()
 
-    with mp.Pool() as pool:
+    with concurrent.futures.ThreadPoolExecutor() as executor:
         # Start the logging subprocess and get the sync directory.
-        log_result = pool.apply_async(_log_run, (pipe_child,))
-        assert pipe_parent.poll(timeout=_TIMEOUT_SLOW)
-        sync_dir = pipe_parent.recv()
+        executor.submit(_log_run, inputs=logger_inputs, outputs=logger_outputs)
+        sync_dir = logger_outputs.get(timeout=_TIMEOUT_SLOW)
 
         # Start live syncing.
         sync_proc = subprocess.Popen(["wandb", "beta", "sync", "--live", sync_dir])
@@ -35,10 +35,9 @@ def test_live_sync(wandb_backend_spy: WandbBackendSpy):
             raise AssertionError("Didn't start uploading.")
 
         # Stop logging.
-        pipe_parent.send("done")
+        logger_inputs.put("done")
 
-        # Wait for logging and syncing to finish successfully.
-        log_result.get(timeout=_TIMEOUT_NORMAL)
+        # Wait for syncing to finish successfully.
         assert sync_proc.wait(timeout=_TIMEOUT_SLOW) == 0
 
     # Spot-check that all data was uploaded.
@@ -51,16 +50,16 @@ def test_live_sync(wandb_backend_spy: WandbBackendSpy):
         assert summary["final_value"] == "done"
 
 
-def _log_run(pipe: Connection[str, str]) -> None:
+def _log_run(inputs: queue.Queue[str], outputs: queue.Queue[str]) -> None:
     """Log to an offline run for up to 10 seconds.
 
-    Puts the run's sync directory on the pipe once the run is initialized,
-    then logs until any value is received on the pipe, storing that as the
-    "final_value" key in the run's summary.
+    Puts the run's sync directory on the outputs queue once the run is
+    initialized, then logs until any value is received on the inputs queue,
+    storing that as the "final_value" key in the run's summary.
     """
 
     with wandb.init(mode="offline") as run:
-        pipe.send(run.settings.sync_dir)
+        outputs.put(run.settings.sync_dir)
 
         # Force the run to flush to disk, so that syncing may start.
         run.log({"lots_of_data": "a" * 32 * 1024})
@@ -68,8 +67,13 @@ def _log_run(pipe: Connection[str, str]) -> None:
         # Log for up to 10 seconds and return once the end signal is received.
         for i in range(100):
             run.log({"i": i})
-            if pipe.poll(timeout=0.1):
-                run.summary["final_value"] = pipe.recv()
+
+            try:
+                final_value = inputs.get(timeout=0.1)
+            except queue.Empty:
+                continue
+            else:
+                run.summary["final_value"] = final_value
                 return
 
         raise AssertionError("Did not receive finish signal.")

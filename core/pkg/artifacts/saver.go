@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"net/url"
 	"os"
-	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -45,7 +45,7 @@ type ArtifactSaveManager struct {
 	graphqlClient                graphql.Client
 	fileTransferManager          filetransfer.FileTransferManager
 	fileCache                    Cache
-	useArtifactProjectEntityInfo bool
+	useArtifactProjectEntityInfo func() bool
 
 	// uploadsByName ensures that uploads for the same artifact name happen
 	// serially, so that version numbers are assigned deterministically.
@@ -57,7 +57,7 @@ func NewArtifactSaveManager(
 	printer *observability.Printer,
 	graphqlClient graphql.Client,
 	fileTransferManager filetransfer.FileTransferManager,
-	useArtifactProjectEntityInfo bool,
+	useArtifactProjectEntityInfo func() bool,
 ) *ArtifactSaveManager {
 	workerPool := &errgroup.Group{}
 	workerPool.SetLimit(maxSimultaneousUploads)
@@ -116,7 +116,7 @@ func (as *ArtifactSaveManager) Save(
 			stagingDir:                   stagingDir,
 			maxActiveBatches:             5,
 			resultChan:                   resultChan,
-			useArtifactProjectEntityInfo: as.useArtifactProjectEntityInfo,
+			useArtifactProjectEntityInfo: as.useArtifactProjectEntityInfo(),
 		},
 	)
 
@@ -185,20 +185,13 @@ func (as *ArtifactSaver) createArtifact(manifest *Manifest) (
 		runId = &as.artifact.RunId
 	}
 
-	// Check which fields are actually supported on the input
-	inputFieldNames, err := GetGraphQLInputFields(as.ctx, as.graphqlClient, "CreateArtifactInput")
-	if err != nil {
-		return gql.CreatedArtifactArtifact{}, err
-	}
-
 	// Note: if tags are empty, `omitempty` ensures they're nulled out
 	// (effectively omitted) in the prepare GraphQL request
 	var tags []gql.TagInput
-	if slices.Contains(inputFieldNames, "tags") {
-		for _, tag := range as.artifact.Tags {
-			tags = append(tags, gql.TagInput{TagName: tag})
-		}
+	for _, tag := range as.artifact.Tags {
+		tags = append(tags, gql.TagInput{TagName: tag})
 	}
+
 	as.logger.Debug("createArtifact: manifest", "storagePolicyConfig", manifest.StoragePolicyConfig)
 	input := gql.CreateArtifactInput{
 		EntityName:                as.artifact.Entity,
@@ -409,7 +402,11 @@ func (as *ArtifactSaver) processFiles(
 				}()
 			} else {
 				suboperation := wboperation.Get(as.ctx).Subtask(fileInfo.name)
-				task := newUploadTask(fileInfo, *entry.LocalPath)
+				headers, err := filetransfer.ParseHeaders(fileInfo.uploadHeaders)
+				if err != nil {
+					as.logger.Warn("artifacts: upload: error parsing headers", "error", err)
+				}
+				task := newUploadTask(fileInfo, *entry.LocalPath, headers)
 				task.Context = suboperation.Context(as.ctx)
 				task.OnComplete = func() {
 					suboperation.Finish()
@@ -492,13 +489,14 @@ func (as *ArtifactSaver) batchSize() int {
 func newUploadTask(
 	fileInfo serverFileResponse,
 	localPath string,
+	headers http.Header,
 ) *filetransfer.DefaultUploadTask {
 	return &filetransfer.DefaultUploadTask{
 		FileKind: filetransfer.RunFileKindArtifact,
 		Path:     localPath,
 		Name:     fileInfo.name,
 		Url:      *fileInfo.uploadUrl,
-		Headers:  fileInfo.uploadHeaders,
+		Headers:  headers,
 	}
 }
 
@@ -534,7 +532,8 @@ func (as *ArtifactSaver) uploadMultipart(
 				"%s (%d/%d)",
 				fileInfo.name, i+1, len(partInfo),
 			))
-		task := newUploadTask(fileInfo, path)
+		// Headers are set per-part below, so none are passed here.
+		task := newUploadTask(fileInfo, path, nil)
 		task.Context = suboperation.Context(as.ctx)
 		task.Url = part.UploadUrl
 		task.Offset = int64(i) * chunkSize
@@ -544,10 +543,10 @@ func (as *ArtifactSaver) uploadMultipart(
 		if err != nil {
 			return uploadResult{name: fileInfo.name, err: err}
 		}
-		task.Headers = []string{
-			"Content-Md5:" + b64md5,
-			"Content-Length:" + strconv.FormatInt(task.Size, 10),
-			"Content-Type:" + contentType,
+		task.Headers = http.Header{
+			"Content-Md5":    {b64md5},
+			"Content-Length": {strconv.FormatInt(task.Size, 10)},
+			"Content-Type":   {contentType},
 		}
 		task.OnComplete = func() {
 			suboperation.Finish()
@@ -619,8 +618,8 @@ func (as *ArtifactSaver) uploadMultipart(
 
 func getContentType(headers []string) string {
 	for _, h := range headers {
-		if strings.HasPrefix(h, "Content-Type:") {
-			return strings.TrimPrefix(h, "Content-Type:")
+		if after, ok := strings.CutPrefix(h, "Content-Type:"); ok {
+			return after
 		}
 	}
 	return ""
@@ -683,12 +682,17 @@ func (as *ArtifactSaver) uploadManifest(
 		return errors.New("nil uploadURL")
 	}
 
+	parsedHeaders, err := filetransfer.ParseHeaders(uploadHeaders)
+	if err != nil {
+		as.logger.Warn("artifacts: upload: error parsing headers", "error", err)
+	}
+
 	resultChan := make(chan *filetransfer.DefaultUploadTask, 1)
 	task := &filetransfer.DefaultUploadTask{
 		FileKind: filetransfer.RunFileKindArtifact,
 		Path:     manifestFile,
 		Url:      *uploadURL,
-		Headers:  uploadHeaders,
+		Headers:  parsedHeaders,
 	}
 	task.OnComplete = func() { resultChan <- task }
 
@@ -794,7 +798,14 @@ func (as *ArtifactSaver) Save() (artifactID string, rerr error) {
 		return "", fmt.Errorf("ArtifactSaver.resolveClientIDReferences: %w", err)
 	}
 	// TODO: check if size is needed
-	manifestFile, manifestDigest, _, err := manifest.WriteToFile()
+	// Write the manifest into the staging dir the SDK sent with the
+	// LogArtifactRequest — a wandb-controlled dir that's guaranteed to exist —
+	// rather than the OS default temp dir ($TMPDIR / os.TempDir()), which can be
+	// missing or unwritable on HPC hosts and caused silent failures. The temp
+	// file is removed below after upload, so the staging dir is left clean. When
+	// no staging dir was provided (e.g. internal artifact paths), stagingDir is
+	// empty and WriteToFile uses the OS default temp dir.
+	manifestFile, manifestDigest, _, err := manifest.WriteToFile(as.stagingDir)
 	if err != nil {
 		return "", fmt.Errorf("ArtifactSaver.writeManifest: %w", err)
 	}

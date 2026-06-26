@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"charm.land/lipgloss/v2"
-	"charm.land/lipgloss/v2/compat"
 )
 
 const (
@@ -33,12 +32,12 @@ type TimeSeriesLineChart struct {
 	series map[string]struct{}
 
 	// seriesColors stores the assigned color for each underlying series key.
-	seriesColors map[string]compat.AdaptiveColor
-	baseColor    compat.AdaptiveColor
+	seriesColors map[string]AdaptiveColor
+	baseColor    AdaptiveColor
 
 	// colorProvider yields the next color for additional series on this chart.
 	// It is anchored to the chart's base color so multi-series colors are stable per chart.
-	colorProvider func() compat.AdaptiveColor
+	colorProvider func() AdaptiveColor
 
 	tailWindow time.Duration
 	viewWindow time.Duration
@@ -54,8 +53,8 @@ type TimeSeriesLineChart struct {
 type TimeSeriesLineChartParams struct {
 	Width, Height int
 	Def           *MetricDef
-	BaseColor     compat.AdaptiveColor
-	ColorProvider func() compat.AdaptiveColor
+	BaseColor     AdaptiveColor
+	ColorProvider func() AdaptiveColor
 	Now           time.Time
 }
 
@@ -69,7 +68,7 @@ func NewTimeSeriesLineChart(params *TimeSeriesLineChartParams) *TimeSeriesLineCh
 		EpochLineChart: baseChart,
 		def:            params.Def,
 		series:         make(map[string]struct{}),
-		seriesColors:   make(map[string]compat.AdaptiveColor),
+		seriesColors:   make(map[string]AdaptiveColor),
 		baseColor:      params.BaseColor,
 		colorProvider:  params.ColorProvider,
 		tailWindow:     tailWindow,
@@ -118,6 +117,11 @@ func (c *TimeSeriesLineChart) AddDataPoint(seriesName string, timestamp int64, v
 		c.SetSeriesStyle(seriesKey, &style)
 	}
 	c.applyRanges()
+}
+
+// Park minimizes canvas memory for off-screen charts.
+func (c *TimeSeriesLineChart) Park() {
+	c.EpochLineChart.Park()
 }
 
 // Resize updates the underlying chart size and reapplies the current view policy.
@@ -178,6 +182,47 @@ func (c *TimeSeriesLineChart) ViewModeLabel() string {
 	return "frozen " + compactDuration(window)
 }
 
+// TitleDetail returns the compact suffix rendered next to the chart title.
+func (c *TimeSeriesLineChart) TitleDetail() string {
+	if len(c.series) <= 1 {
+		return ""
+	}
+	return fmt.Sprintf("[%d]", len(c.series))
+}
+
+// GraphStartX returns the first graph column inside the rendered chart view.
+func (c *TimeSeriesLineChart) GraphStartX() int {
+	startX := 1
+	if c.YStep() > 0 {
+		startX += c.Origin().X + 1
+	}
+	return startX
+}
+
+// GraphStartY returns the first graph row inside the rendered chart cell.
+func (c *TimeSeriesLineChart) GraphStartY() int {
+	return 1 + ChartTitleHeight
+}
+
+// StartInspectionAt begins inspection at the given graph-local mouse position.
+func (c *TimeSeriesLineChart) StartInspectionAt(mouseX, _ int) {
+	c.StartInspection(mouseX)
+}
+
+// UpdateInspectionAt moves the inspection cursor.
+func (c *TimeSeriesLineChart) UpdateInspectionAt(mouseX, _ int) {
+	c.UpdateInspection(mouseX)
+}
+
+// SupportsHeatmap reports whether this chart can toggle into heatmap mode.
+func (c *TimeSeriesLineChart) SupportsHeatmap() bool { return false }
+
+// ToggleHeatmapMode is unsupported for plain line charts.
+func (c *TimeSeriesLineChart) ToggleHeatmapMode() bool { return false }
+
+// IsHeatmapMode reports whether the chart is currently rendering as a heatmap.
+func (c *TimeSeriesLineChart) IsHeatmapMode() bool { return false }
+
 // LastUpdate returns the timestamp of the most recent sample seen.
 func (c *TimeSeriesLineChart) LastUpdate() time.Time { return c.lastUpdate }
 
@@ -222,7 +267,7 @@ func (c *TimeSeriesLineChart) addPoint(seriesKey string, x, y float64) {
 	c.dirty = true
 }
 
-func (c *TimeSeriesLineChart) nextSeriesColor() compat.AdaptiveColor {
+func (c *TimeSeriesLineChart) nextSeriesColor() AdaptiveColor {
 	if c.colorProvider == nil {
 		return c.baseColor
 	}

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Collection
-from typing import Annotated, Any, Final, Optional, Protocol, TypedDict
+from typing import Annotated, Any, Final, Protocol, TypedDict
 
 from pydantic import Field
 from typing_extensions import Self, Unpack
@@ -25,7 +25,14 @@ from .actions import (
     SendWebhook,
 )
 from .automations import Automation, NewAutomation
-from .events import EventType, InputEvent, RunMetricFilter, _WrappedSavedEventFilter
+from .events import (
+    EventType,
+    InputEvent,
+    RunMetricFilter,
+    RunStateFilter,
+    SavedEvent,
+    _WrappedSavedEventFilter,
+)
 from .scopes import AutomationScope, ScopeType
 
 INVALID_INPUT_EVENTS: Final[Collection[EventType]] = (EventType.UPDATE_ARTIFACT_ALIAS,)
@@ -35,7 +42,10 @@ While we forbid new/edited automations from assigning these event types,
 they're defined so that we can still parse existing automations that may use them.
 """
 
-INVALID_INPUT_ACTIONS: Final[Collection[ActionType]] = (ActionType.QUEUE_JOB,)
+INVALID_INPUT_ACTIONS: Final[Collection[ActionType]] = (
+    ActionType.QUEUE_JOB,
+    ActionType.PUSH_NOTIFICATION,
+)
 """Action types that should NOT be allowed as new values on new or edited automations.
 
 While we forbid new/edited automations from assigning these action types,
@@ -69,41 +79,43 @@ def extract_id(obj: HasId | str) -> str:
 
 
 # ---------------------------------------------------------------------------
-ACTION_CONFIG_KEYS: dict[ActionType, str] = {
-    ActionType.NOTIFICATION: "notification_action_input",
-    ActionType.GENERIC_WEBHOOK: "generic_webhook_action_input",
-    ActionType.NO_OP: "no_op_action_input",
-    ActionType.QUEUE_JOB: "queue_job_action_input",
-}
 
 
-class InputActionConfig(TriggeredActionConfig):
-    """Prepares action configuration data for saving an automation."""
+class ActionSpecInput(TriggeredActionConfig):
+    """Input action spec for saving an automation."""
 
     # NOTE: `QueueJobActionInput` for defining a Launch job is deprecated,
     # so while it's allowed here to update EXISTING mutations, we don't
     # currently expose it through the public API to create NEW automations.
-    queue_job_action_input: Optional[QueueJobActionInput] = None
+    queue_job_action_input: QueueJobActionInput | None = None
 
-    notification_action_input: Optional[SendNotification] = None
-    generic_webhook_action_input: Optional[SendWebhook] = None
-    no_op_action_input: Optional[DoNothing] = None
+    notification_action_input: SendNotification | None = None
+    generic_webhook_action_input: SendWebhook | None = None
+    no_op_action_input: DoNothing | None = None
 
+    @classmethod
+    def from_action(cls, obj: SavedAction | InputAction) -> Self:
+        """Nests the action input under the correct key for `TriggeredActionConfig`.
 
-def prepare_action_config_input(obj: SavedAction | InputAction) -> dict[str, Any]:
-    """Nests the action input under the correct key for `TriggeredActionConfig`.
-
-    This is necessary to conform to the schemas for:
-    - `CreateFilterTriggerInput`
-    - `UpdateFilterTriggerInput`
-    """
-    # Delegate to inner validators to convert SavedAction -> InputAction types, if needed.
-    obj = parse_input_action(obj)
-    return InputActionConfig(**{ACTION_CONFIG_KEYS[obj.action_type]: obj}).model_dump()
+        This is necessary to conform to the schemas for:
+        - `CreateFilterTriggerInput`
+        - `UpdateFilterTriggerInput`
+        """
+        match (parsed := parse_input_action(obj)).action_type:
+            case ActionType.NOTIFICATION:
+                return cls(notification_action_input=parsed)
+            case ActionType.GENERIC_WEBHOOK:
+                return cls(generic_webhook_action_input=parsed)
+            case ActionType.NO_OP:
+                return cls(no_op_action_input=parsed)
+            case ActionType.QUEUE_JOB:
+                return cls(queue_job_action_input=parsed)
+            case _:
+                return cls.model_validate(parsed)
 
 
 def prepare_event_filter_input(
-    obj: _WrappedSavedEventFilter | MongoLikeFilter | RunMetricFilter,
+    obj: _WrappedSavedEventFilter | MongoLikeFilter | RunMetricFilter | RunStateFilter,
 ) -> str:
     """Unnests (if needed) and serializes an `EventFilter` input to JSON.
 
@@ -139,7 +151,7 @@ class ValidatedCreateInput(GQLInput, extra="forbid", frozen=True):
     """
 
     name: str
-    description: Optional[str] = None
+    description: str | None = None
     enabled: bool = True
 
     # ------------------------------------------------------------------------------
@@ -172,9 +184,75 @@ class ValidatedCreateInput(GQLInput, extra="forbid", frozen=True):
 
     @computed_field
     def triggered_action_config(self) -> dict[str, Any]:
-        return prepare_action_config_input(self.action)
+        # model_dump() serializes inner JSON fields like `requestPayload` correctly.
+        return ActionSpecInput.from_action(self.action).model_dump()
 
     # ------------------------------------------------------------------------------
+    # Custom validation
+    @model_validator(mode="after")
+    def _forbid_legacy_event_types(self) -> Self:
+        if (type_ := self.event.event_type) in INVALID_INPUT_EVENTS:
+            raise ValueError(f"{type_!r} events cannot be assigned to automations.")
+        return self
+
+    @model_validator(mode="after")
+    def _forbid_legacy_action_types(self) -> Self:
+        if (type_ := self.action.action_type) in INVALID_INPUT_ACTIONS:
+            raise ValueError(f"{type_!r} actions cannot be assigned to automations.")
+        return self
+
+
+class ValidatedUpdateInput(GQLInput, extra="ignore", frozen=True):
+    """Validated automation parameters, prepared for updating an existing automation.
+
+    Accepts both InputEvent/InputAction (user-supplied for the update) and
+    SavedEvent/SavedAction (carried over from the existing saved automation).
+    This avoids the coercion bug where routing through Automation(event: SavedEvent)
+    silently drops InputEvent filters.
+
+    Uses extra="ignore" (rather than "forbid") because dict(Automation) includes
+    fields like typename__, created_at, updated_at that are not relevant for the
+    update payload.
+    """
+
+    id: GQLId
+
+    name: str | None = None
+    description: str | None = None
+    enabled: bool | None = None
+
+    event: Annotated[InputEvent | SavedEvent, Field(exclude=True)]
+    action: Annotated[InputAction | SavedAction, Field(exclude=True)]
+    scope: Annotated[AutomationScope, Field(exclude=True)]
+
+    # --------------------------------------------------------------------------
+    # Derived fields to match the input schemas
+    @computed_field
+    def scope_type(self) -> ScopeType:
+        return self.scope.scope_type
+
+    @computed_field
+    def scope_id(self) -> GQLId:
+        return self.scope.id
+
+    @computed_field
+    def triggering_event_type(self) -> EventType:
+        return self.event.event_type
+
+    @computed_field
+    def event_filter(self) -> str:
+        return prepare_event_filter_input(self.event.filter)
+
+    @computed_field
+    def triggered_action_type(self) -> ActionType:
+        return self.action.action_type
+
+    @computed_field
+    def triggered_action_config(self) -> dict[str, Any]:
+        # model_dump() serializes inner JSON fields like `requestPayload` correctly.
+        return ActionSpecInput.from_action(self.action).model_dump()
+
+    # --------------------------------------------------------------------------
     # Custom validation
     @model_validator(mode="after")
     def _forbid_legacy_event_types(self) -> Self:
@@ -198,7 +276,7 @@ def prepare_to_create(
     # Validate all input variables, and prepare as expected by the GraphQL request.
     # - if an object is provided, override its fields with any keyword args
     # - otherwise, instantiate from the keyword args
-    obj_dict = {**obj.model_dump(), **kwargs} if obj else kwargs
+    obj_dict = (obj.model_dump() | kwargs) if obj else kwargs
     vobj = ValidatedCreateInput(**obj_dict)
     return CreateFilterTriggerInput.model_validate(vobj)
 
@@ -209,19 +287,9 @@ def prepare_to_update(
     **kwargs: Unpack[WriteAutomationsKwargs],
 ) -> UpdateFilterTriggerInput:
     """Prepares the payload to update an automation in a GraphQL request."""
-    # Validate all values:
+    # Validate all input variables, and prepare as expected by the GraphQL request.
     # - if an object is provided, override its fields with any keyword args
     # - otherwise, instantiate from the keyword args
-    vobj = Automation(**{**dict(obj or {}), **kwargs})
-    return UpdateFilterTriggerInput(
-        id=vobj.id,
-        name=vobj.name,
-        description=vobj.description,
-        enabled=vobj.enabled,
-        scope_type=vobj.scope.scope_type,
-        scope_id=vobj.scope.id,
-        triggering_event_type=vobj.event.event_type,
-        event_filter=prepare_event_filter_input(vobj.event.filter),
-        triggered_action_type=vobj.action.action_type,
-        triggered_action_config=prepare_action_config_input(vobj.action),
-    )
+    obj_dict = dict(obj or {}) | kwargs
+    vobj = ValidatedUpdateInput(**obj_dict)
+    return UpdateFilterTriggerInput.model_validate(vobj)

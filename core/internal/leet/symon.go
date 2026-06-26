@@ -98,7 +98,7 @@ func NewSymon(params SymonParams) *Symon {
 
 // Init starts the initial sampling pass.
 func (s *Symon) Init() tea.Cmd {
-	return s.sampleNowCmd()
+	return tea.Batch(tea.RequestBackgroundColor, s.sampleNowCmd())
 }
 
 // Update handles resize events, help/restart shortcuts, user input, and live
@@ -108,6 +108,10 @@ func (s *Symon) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		s.width, s.height = ws.Width, ws.Height
 		s.help.SetSize(ws.Width, ws.Height)
 		s.resizeGrid()
+	}
+
+	if bgMsg, ok := msg.(tea.BackgroundColorMsg); ok {
+		SetDarkBackground(bgMsg.IsDark())
 	}
 
 	if handled, cmd := s.handleHelp(msg); handled {
@@ -137,10 +141,8 @@ func (s *Symon) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return s, cmd
 
 	case StatsMsg:
-		for metricName, value := range msg.Metrics {
-			s.grid.AddDataPoint(metricName, msg.Timestamp, value)
-		}
-		s.resizeGrid()
+		// ProcessStats handles pagination and redraw when the chart set changes.
+		s.grid.ProcessStats(msg)
 		cmd := s.sampleLaterCmd()
 		return s, cmd
 
@@ -194,8 +196,8 @@ func (s *Symon) handleHelp(msg tea.Msg) (bool, tea.Cmd) {
 		return false, nil
 	}
 
+	// The help mode is fixed to viewModeSymon at construction.
 	if km, ok := msg.(tea.KeyPressMsg); ok {
-		s.help.SetMode(viewModeSymon)
 		switch km.Code {
 		case 'h', '?':
 			s.help.Toggle()
@@ -240,9 +242,39 @@ func (s *Symon) handleNextPage(tea.KeyPressMsg) tea.Cmd {
 	return nil
 }
 
-func (s *Symon) handleToggleFocusedChartLogY(tea.KeyPressMsg) tea.Cmd {
-	s.grid.toggleFocusedChartLogY()
+func (s *Symon) handleNavHome(tea.KeyPressMsg) tea.Cmd {
+	s.grid.NavigateHome()
 	return nil
+}
+
+func (s *Symon) handleNavEnd(tea.KeyPressMsg) tea.Cmd {
+	s.grid.NavigateEnd()
+	return nil
+}
+
+func (s *Symon) handleGridNav(msg tea.KeyPressMsg) tea.Cmd {
+	// Symon binds page/home/end to their own handlers via the key map;
+	// here we only handle chart-focus motion.
+	switch DecodeNav(msg) {
+	case NavIntentUp:
+		s.grid.NavigateFocus(-1, 0)
+	case NavIntentDown:
+		s.grid.NavigateFocus(1, 0)
+	case NavIntentLeft:
+		s.grid.NavigateFocus(0, -1)
+	case NavIntentRight:
+		s.grid.NavigateFocus(0, 1)
+	}
+	return nil
+}
+
+func (s *Symon) handleCycleFocusedChartMode(tea.KeyPressMsg) tea.Cmd {
+	s.grid.cycleFocusedChartMode()
+	return nil
+}
+
+func (s *Symon) handleToggleFocusedChartLogY(msg tea.KeyPressMsg) tea.Cmd {
+	return s.handleCycleFocusedChartMode(msg)
 }
 
 func (s *Symon) handleEnterSystemMetricsFilter(tea.KeyPressMsg) tea.Cmd {
@@ -255,9 +287,7 @@ func (s *Symon) handleClearSystemMetricsFilter(tea.KeyPressMsg) tea.Cmd {
 	if s.grid.FilterQuery() != "" {
 		s.grid.ClearFilter()
 	}
-	if s.focus.Type == FocusSystemChart {
-		s.focus.Reset()
-	}
+	s.grid.NavigateFocus(0, 0)
 	return nil
 }
 
@@ -304,13 +334,16 @@ func (s *Symon) handleMouse(msg tea.MouseMsg) tea.Cmd {
 		return nil
 	}
 
-	adjustedX := mouse.X
+	adjustedX := mouse.X - ContentPadding
 	adjustedY := mouse.Y - symonHeaderLines
 	if adjustedX < 0 || adjustedY < 0 {
 		return nil
 	}
 
 	dims := s.grid.calculateChartDimensions()
+	if dims.CellHWithPadding == 0 || dims.CellWWithPadding == 0 {
+		return nil
+	}
 	row := adjustedY / dims.CellHWithPadding
 	col := adjustedX / dims.CellWWithPadding
 
@@ -320,11 +353,11 @@ func (s *Symon) handleMouse(msg tea.MouseMsg) tea.Cmd {
 		case tea.MouseLeft:
 			s.grid.HandleMouseClick(row, col)
 		case tea.MouseRight:
-			s.grid.StartInspection(adjustedX, row, col, dims, alt)
+			s.grid.StartInspection(adjustedX, adjustedY, row, col, dims, alt)
 		}
 	case tea.MouseMotionMsg:
 		if m.Button == tea.MouseRight {
-			s.grid.UpdateInspection(adjustedX, row, col, dims)
+			s.grid.UpdateInspection(adjustedX, adjustedY, row, col, dims)
 		}
 	case tea.MouseReleaseMsg:
 		if m.Button == tea.MouseRight {
@@ -347,11 +380,12 @@ func (s *Symon) handleMouse(msg tea.MouseMsg) tea.Cmd {
 
 // renderMainView renders the header, system metrics grid, and status bar.
 func (s *Symon) renderMainView() string {
+	innerW := max(s.width-ContentPaddingCols, 0)
 	header := symonContainerStyle.Render(
-		renderSystemMetricsHeader(s.width-symonContainerLeftPadding, "System Metrics", "", s.grid))
+		renderSystemMetricsHeader(innerW, "System Metrics", "", s.grid))
 	bodyHeight := max(s.height-StatusBarHeight-symonHeaderLines, 0)
 	body := symonContainerStyle.Render(renderSystemMetricsBody(
-		s.width-symonContainerLeftPadding,
+		innerW,
 		bodyHeight,
 		s.grid,
 		"Collecting system metrics...",
@@ -459,7 +493,10 @@ func (s *Symon) resizeGrid() {
 	if s.width <= 0 || s.height <= 0 {
 		return
 	}
-	s.grid.Resize(s.width, max(s.height-StatusBarHeight-symonHeaderLines, 1))
+	s.grid.Resize(
+		max(s.width-ContentPaddingCols, 0),
+		max(s.height-StatusBarHeight-symonHeaderLines, 1),
+	)
 }
 
 // isAwaitingUserInput reports whether a child component currently owns free-form

@@ -107,7 +107,7 @@ def test_fails_if_no_known_connection_method(tmp_path, running_process):
 def test_times_out_if_file_never_created(tmp_path, running_process):
     with pytest.raises(
         service_port_file.ServicePollForTokenError,
-        match="Failed to read port info after 30 seconds.",
+        match="Failed to read port info after 30 seconds",
     ):
         service_port_file.poll_for_token(
             tmp_path / "ports",
@@ -122,7 +122,7 @@ def test_times_out_if_file_incomplete(tmp_path, running_process):
 
     with pytest.raises(
         service_port_file.ServicePollForTokenError,
-        match="Failed to read port info after 30 seconds.",
+        match="Failed to read port info after 30 seconds",
     ):
         service_port_file.poll_for_token(
             port_file,

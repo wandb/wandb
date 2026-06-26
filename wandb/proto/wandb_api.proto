@@ -29,6 +29,9 @@ message ApiRequest {
   oneof request {
     ReadRunHistoryRequest read_run_history_request = 2;
     FeaturesRequest features_request = 3;
+    GraphQLRequest graphql_request = 4;
+    DownloadFileRequest download_file_request = 5;
+    UploadFileRequest upload_file_request = 6;
   }
 }
 
@@ -36,6 +39,9 @@ message ApiResponse {
   oneof response {
     ReadRunHistoryResponse read_run_history_response = 1;
     FeaturesResponse features_response = 3;
+    GraphQLResponse graphql_response = 4;
+    DownloadFileResponse download_file_response = 5;
+    UploadFileResponse upload_file_response = 6;
 
     ApiErrorResponse api_error_response = 2;
   }
@@ -44,6 +50,11 @@ message ApiResponse {
 message ApiErrorResponse {
   string message = 1;
   optional ErrorType error_type = 2;
+
+  // HTTP status code from the upstream W&B backend, if the failure originated
+  // from an HTTP response. 0 if the failure had no HTTP status (transport
+  // error, GraphQL `errors` without an associated HTTP error, etc.).
+  int32 http_status = 3;
 }
 
 enum ErrorType {
@@ -94,6 +105,74 @@ message FeaturesResponse {
   // Names of enabled boolean features.
   repeated ServerFeature enabled = 1;
 }
+
+// Execute a raw GraphQL document.
+//
+// A successful request returns GraphQLResponse with the JSON-encoded `data`
+// field from the GraphQL response. Invalid input, transport failures, and
+// non-successful HTTP status codes return ApiErrorResponse. For HTTP responses
+// that include GraphQL `errors`, ApiErrorResponse.message is derived from
+// those error messages.
+//
+// The optional omit_* and rename_fields fields rewrite the query
+// before it is sent upstream. They strip parts of generated queries that are
+// not supported by the deployed W&B server (decided client-side based on
+// feature flags) without reproducing a GraphQL parser in Python.
+message GraphQLRequest {
+  string query = 1;
+  string variables_json = 2;
+
+  // Variable names ($var) to remove from variable definitions and usages.
+  repeated string omit_variables = 3;
+  // Fragment names to remove (both definitions and `...spreads`).
+  repeated string omit_fragments = 4;
+  // Field names to remove from selection sets.
+  repeated string omit_fields = 5;
+  // Field renames applied to selection sets: { old_name: new_name }.
+  map<string, string> rename_fields = 6;
+}
+
+message GraphQLResponse {
+  string data_json = 1;
+}
+
+// Download a file from a URL to a local path.
+//
+// wandb-core performs the download using its file transfer subsystem,
+// whose retries and timeouts are governed by the file transfer settings.
+// A successful request returns DownloadFileResponse; failures, including
+// non-successful HTTP status codes, return ApiErrorResponse.
+message DownloadFileRequest {
+  // The local path to write the file to.
+  string path = 1;
+
+  // The URL to download the file from.
+  string url = 2;
+
+  // The expected file size in bytes if known, used for progress reporting.
+  int64 size = 3;
+}
+
+message DownloadFileResponse {}
+
+// Upload a local file to a URL with an HTTP PUT request.
+//
+// wandb-core performs the upload using its file transfer subsystem,
+// whose retries and timeouts are governed by the file transfer settings.
+// A successful request returns UploadFileResponse; failures, including
+// non-successful HTTP status codes, return ApiErrorResponse.
+message UploadFileRequest {
+  // The absolute local path of the file to upload.
+  string path = 1;
+
+  // The URL to upload the file to.
+  string url = 2;
+
+  // Extra HTTP headers to send with the PUT request.
+  map<string, string> headers = 3;
+}
+
+message UploadFileResponse {}
 
 // Start of Scan run history
 

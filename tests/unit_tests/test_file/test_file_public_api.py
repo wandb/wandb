@@ -3,6 +3,7 @@ from unittest import mock
 import wandb
 from pytest import fixture
 from wandb.apis.public.files import File
+from wandb.proto import wandb_api_pb2 as apb
 
 
 @fixture
@@ -82,3 +83,55 @@ def test_path_uri_with_reference_file(mock_client, termwarn_spy):
 
     assert file.path_uri == "s3://my-bucket/wandb-artifacts/my-artifact.txt"
     termwarn_spy.assert_not_called()
+
+
+def test_download_uses_file_service_api(mock_client, tmp_path):
+    attrs = {
+        "name": "model.bin",
+        "url": "https://files.example/model.bin",
+        "sizeBytes": 42,
+    }
+    file = File(mock_client, attrs)
+    path = tmp_path / "model.bin"
+
+    def send_api_request(request: apb.ApiRequest) -> apb.ApiResponse:
+        with open(request.download_file_request.path, "w") as f:
+            f.write("downloaded")
+        return apb.ApiResponse(download_file_response=apb.DownloadFileResponse())
+
+    mock_client.send_api_request.side_effect = send_api_request
+
+    with file.download(root=str(tmp_path)) as f:
+        assert f.read() == "downloaded"
+
+    request = mock_client.send_api_request.call_args.args[0].download_file_request
+    assert request.path == str(path)
+    assert request.url == "https://files.example/model.bin"
+    assert request.size == 42
+
+
+def test_download_uses_explicit_api_service_api(mock_client, tmp_path):
+    attrs = {
+        "name": "model.bin",
+        "url": "https://files.example/model.bin",
+        "sizeBytes": 42,
+    }
+    file = File(mock_client, attrs)
+    api = mock.MagicMock()
+    path = tmp_path / "model.bin"
+
+    def send_api_request(request: apb.ApiRequest) -> apb.ApiResponse:
+        with open(request.download_file_request.path, "w") as f:
+            f.write("downloaded")
+        return apb.ApiResponse(download_file_response=apb.DownloadFileResponse())
+
+    api._service_api.send_api_request.side_effect = send_api_request
+
+    with file.download(root=str(tmp_path), api=api) as f:
+        assert f.read() == "downloaded"
+
+    mock_client.send_api_request.assert_not_called()
+    request = api._service_api.send_api_request.call_args.args[0].download_file_request
+    assert request.path == str(path)
+    assert request.url == "https://files.example/model.bin"
+    assert request.size == 42

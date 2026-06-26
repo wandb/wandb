@@ -50,7 +50,7 @@ message RunMoment {
 //
 // Some fields such as `run_id` only make sense at the run level.
 //
-// Next ID: 203
+// Next ID: 208
 message Settings {
   reserved 3, 6, 8, 9, 12, 19, 36, 43, 44, 45, 50, 51, 54, 70, 91, 94, 100, 136, 137, 173, 176, 180;
 
@@ -98,6 +98,11 @@ message Settings {
 
   // The W&B organization.
   google.protobuf.StringValue organization = 188;
+
+  // A timeout in seconds for processing a run's exit record.
+  //
+  // If not set to a positive number, there is no timeout.
+  google.protobuf.DoubleValue finish_timeout = 206;
 
   // The start time of the run in seconds since the Unix epoch.
   google.protobuf.DoubleValue x_start_time = 41;
@@ -284,8 +289,14 @@ message Settings {
   // Whether to save the code used to create the run.
   google.protobuf.BoolValue save_code = 115;
 
+  // Whether to stop the run after an error that prevents further uploads.
+  google.protobuf.BoolValue stop_on_fatal_error = 205;
+
   // Whether to disable git capture and diff generation.
   google.protobuf.BoolValue disable_git = 63;
+
+  // Whether to disable finding fork point from remote branches
+  google.protobuf.BoolValue disable_git_fork_point = 203;
 
   // Whether to disable machine info collection, such as hostname and hardware
   // specs.
@@ -353,6 +364,9 @@ message Settings {
   // from the process with PID `x_stats_pid` and all of its descendants.
   // This can have a performance overhead and is disabled by default.
   google.protobuf.BoolValue x_stats_track_process_tree = 198;
+
+  // Whether to skip cgroup CPU and memory limits for system metric percentages.
+  google.protobuf.BoolValue x_stats_no_cgroup = 207;
 
   // Label to assign to system metrics and console logs collected for the run
   // to group by on the frontend. Can be used to distinguish data from different
@@ -458,6 +472,7 @@ message Settings {
   google.protobuf.StringValue _start_datetime = 40;
   google.protobuf.StringValue _tmp_code_dir = 49;
   google.protobuf.BoolValue _windows = 52;
+  google.protobuf.BoolValue allow_media_symlink = 204;
   google.protobuf.BoolValue allow_val_change = 53;
   MapStringKeyStringValue azure_account_url_to_access_key = 56;
   google.protobuf.StringValue code_dir = 58;

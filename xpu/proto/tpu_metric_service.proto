@@ -1,0 +1,131 @@
+// Subset of the TPU RuntimeMetricService proto for metric collection.
+// Stripped of tpu_telemetry dependency and GetTpuRuntimeStatus RPC.
+// Source: https://github.com/AI-Hypercomputer/cloud-accelerator-diagnostics
+
+syntax = "proto3";
+
+package tpu.monitoring.runtime;
+
+import "google/protobuf/timestamp.proto";
+
+message Distribution {
+  int64 count = 1;
+  double mean = 2;
+  double min = 3;
+  double max = 4;
+  double sum_of_squared_deviation = 5;
+
+  message BucketOptions {
+    oneof options {
+      Exponential exponential_buckets = 2;
+      Explicit explicit_buckets = 3;
+      Linear linear_buckets = 4;
+    }
+    message Exponential {
+      int32 num_finite_buckets = 1;
+      double growth_factor = 2;
+      double scale = 3;
+    }
+    message Linear {
+      int32 num_finite_buckets = 1;
+      double width = 2;
+      double offset = 3;
+    }
+    message Explicit {
+      repeated double bounds = 1;
+    }
+  }
+
+  BucketOptions bucket_options = 6;
+  repeated int64 bucket_counts = 7;
+}
+
+message Gauge {
+  oneof value {
+    double as_double = 1;
+    int64 as_int = 2;
+    string as_string = 3;
+    bool as_bool = 4;
+  }
+}
+
+message Counter {
+  oneof value {
+    double as_double = 1;
+    uint64 as_int = 2;
+  }
+}
+
+message Quantile {
+  double quantile = 1;
+  double value = 2;
+}
+
+message Summary {
+  uint64 sample_count = 1;
+  double sample_sum = 2;
+  repeated Quantile quantile = 3;
+}
+
+message AttrValue {
+  oneof attr {
+    string string_attr = 1;
+    bool bool_attr = 2;
+    int64 int_attr = 3;
+    double double_attr = 4;
+    KeyValueList kvlist_attr = 6;
+  }
+}
+
+message KeyValueList {
+  repeated Attribute attributes = 1;
+}
+
+message Attribute {
+  string key = 1;
+  AttrValue value = 2;
+}
+
+message Metric {
+  Attribute attribute = 1;
+  google.protobuf.Timestamp start_timestamp = 7;
+  google.protobuf.Timestamp timestamp = 2;
+  oneof measure {
+    Gauge gauge = 3;
+    Counter counter = 4;
+    Distribution distribution = 5;
+    Summary summary = 6;
+  }
+}
+
+message TPUMetric {
+  string name = 1;
+  string description = 2;
+  repeated Metric metrics = 3;
+}
+
+message MetricRequest {
+  string metric_name = 1;
+  bool skip_node_aggregation = 2;
+}
+
+message MetricResponse {
+  TPUMetric metric = 1;
+}
+
+message ListSupportedMetricsRequest {
+  string filter = 1;
+}
+
+message SupportedMetric {
+  string metric_name = 1;
+}
+
+message ListSupportedMetricsResponse {
+  repeated SupportedMetric supported_metric = 1;
+}
+
+service RuntimeMetricService {
+  rpc GetRuntimeMetric(MetricRequest) returns (MetricResponse);
+  rpc ListSupportedMetrics(ListSupportedMetricsRequest) returns (ListSupportedMetricsResponse);
+}

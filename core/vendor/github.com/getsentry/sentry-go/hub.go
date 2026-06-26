@@ -212,11 +212,16 @@ func (hub *Hub) ConfigureScope(f func(scope *Scope)) {
 // passing it a top-level Scope.
 // Returns EventID if successfully, or nil if there's no Scope or Client available.
 func (hub *Hub) CaptureEvent(event *Event) *EventID {
+	return hub.CaptureEventWithHint(event, nil)
+}
+
+// CaptureEventWithHint is like CaptureEvent but additionally accepts an EventHint.
+func (hub *Hub) CaptureEventWithHint(event *Event, hint *EventHint) *EventID {
 	client, scope := hub.Client(), hub.Scope()
 	if client == nil || scope == nil {
 		return nil
 	}
-	eventID := client.CaptureEvent(event, nil, scope)
+	eventID := client.CaptureEvent(event, hint, scope)
 
 	if event.Type != transactionType && eventID != nil {
 		hub.mu.Lock()
@@ -385,23 +390,22 @@ func (hub *Hub) FlushWithContext(ctx context.Context) bool {
 // on the current span, or the scope's propagation context.
 func (hub *Hub) GetTraceparent() string {
 	scope := hub.Scope()
-
-	if scope.span != nil {
-		return scope.span.ToSentryTrace()
+	if span := scope.GetSpan(); span != nil {
+		return span.ToSentryTrace()
 	}
-
-	return fmt.Sprintf("%s-%s", scope.propagationContext.TraceID, scope.propagationContext.SpanID)
+	propagationContext := scope.propagationContextSnapshot()
+	return fmt.Sprintf("%s-%s", propagationContext.TraceID, propagationContext.SpanID)
 }
 
 // GetTraceparentW3C returns the current traceparent string in W3C format.
 // This is intended for propagation to downstream services that expect the W3C header.
 func (hub *Hub) GetTraceparentW3C() string {
 	scope := hub.Scope()
-	if scope.span != nil {
-		return scope.span.ToTraceparent()
+	if span := scope.GetSpan(); span != nil {
+		return span.ToTraceparent()
 	}
-
-	return fmt.Sprintf("00-%s-%s-00", scope.propagationContext.TraceID, scope.propagationContext.SpanID)
+	propagationContext := scope.propagationContextSnapshot()
+	return fmt.Sprintf("00-%s-%s-00", propagationContext.TraceID, propagationContext.SpanID)
 }
 
 // GetBaggage returns the current Sentry baggage string, to be used as a HTTP header value
@@ -410,12 +414,10 @@ func (hub *Hub) GetTraceparentW3C() string {
 // on the current span or the scope's propagation context.
 func (hub *Hub) GetBaggage() string {
 	scope := hub.Scope()
-
-	if scope.span != nil {
-		return scope.span.ToBaggage()
+	if span := scope.GetSpan(); span != nil {
+		return span.ToBaggage()
 	}
-
-	return scope.propagationContext.DynamicSamplingContext.String()
+	return scope.propagationContextSnapshot().DynamicSamplingContext.String()
 }
 
 // HasHubOnContext checks whether Hub instance is bound to a given Context struct.

@@ -43,7 +43,6 @@ __all__ = [
     "RENAME_REGISTRY_GQL",
     "RUN_INPUT_ARTIFACTS_GQL",
     "RUN_OUTPUT_ARTIFACTS_GQL",
-    "TYPE_INFO_GQL",
     "UNLINK_ARTIFACT_GQL",
     "UPDATE_ARTIFACT_GQL",
     "UPDATE_ARTIFACT_PORTFOLIO_GQL",
@@ -1513,27 +1512,6 @@ mutation UnlinkArtifact($input: UnlinkArtifactInput!) {
 }
 """
 
-TYPE_INFO_GQL = """
-query TypeInfo($name: String!) {
-  __type(name: $name) {
-    ...TypeInfoFragment
-  }
-}
-
-fragment TypeInfoFragment on __Type {
-  name
-  fields {
-    name
-    args {
-      name
-    }
-  }
-  inputFields {
-    name
-  }
-}
-"""
-
 FETCH_ORG_INFO_FROM_ENTITY_GQL = """
 query FetchOrgInfoFromEntity($entity: String!) {
   entity(name: $entity) {
@@ -1567,7 +1545,7 @@ query FetchOrgEntityFromOrganization($organization: String!) {
 """
 
 REGISTRY_VERSIONS_GQL = """
-query RegistryVersions($organization: String!, $registryFilter: JSONString, $collectionFilter: JSONString, $artifactFilter: JSONString, $cursor: String, $perPage: Int, $includeAliases: Boolean = false) {
+query RegistryVersions($organization: String!, $registryFilter: JSONString, $collectionFilter: JSONString, $artifactFilter: JSONString, $cursor: String, $perPage: Int, $order: String, $includeAliases: Boolean = false) {
   organization(name: $organization) {
     orgEntity {
       name
@@ -1577,6 +1555,7 @@ query RegistryVersions($organization: String!, $registryFilter: JSONString, $col
         filters: $artifactFilter
         after: $cursor
         first: $perPage
+        order: $order
       ) {
         pageInfo {
           ...PageInfoFragment
@@ -1682,7 +1661,7 @@ fragment TagFragment on Tag {
 """
 
 REGISTRY_COLLECTIONS_GQL = """
-query RegistryCollections($organization: String!, $registryFilter: JSONString, $collectionFilter: JSONString, $collectionTypes: [ArtifactCollectionType!] = [PORTFOLIO], $cursor: String, $perPage: Int) {
+query RegistryCollections($organization: String!, $registryFilter: JSONString, $collectionFilter: JSONString, $collectionTypes: [ArtifactCollectionType!] = [PORTFOLIO], $cursor: String, $perPage: Int, $order: String) {
   organization(name: $organization) {
     orgEntity {
       name
@@ -1692,6 +1671,7 @@ query RegistryCollections($organization: String!, $registryFilter: JSONString, $
         collectionTypes: $collectionTypes
         after: $cursor
         first: $perPage
+        order: $order
       ) {
         totalCount
         pageInfo {
@@ -1785,10 +1765,10 @@ fragment RegistryFragment on Project {
 """
 
 FETCH_REGISTRIES_GQL = """
-query FetchRegistries($organization: String!, $filters: JSONString, $cursor: String, $perPage: Int) {
+query FetchRegistries($organization: String!, $filters: JSONString, $cursor: String, $perPage: Int, $order: String) {
   organization(name: $organization) {
     orgEntity {
-      projects(filters: $filters, after: $cursor, first: $perPage) {
+      projects(filters: $filters, after: $cursor, first: $perPage, order: $order) {
         pageInfo {
           ...PageInfoFragment
         }

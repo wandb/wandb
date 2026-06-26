@@ -1,14 +1,14 @@
 version: 2.1
 
 orbs:
+  go: circleci/go@3.0.4
   slack: circleci/slack@4.12.5
-  gcloud: circleci/gcp-cli@3.1.1
-  codecov: codecov/codecov@5.0.0
+  codecov: codecov/codecov@6.0.0
 
 parameters:
   go_version:
     type: string
-    default: "1.26.1"
+    default: "1.26.4"
   server_image:
     type: string
     default: "us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer"
@@ -23,7 +23,7 @@ executors:
     resource_class: m4pro.medium
 
   windows:
-    resource_class: windows.xlarge
+    resource_class: windows.large
     machine:
       image: windows-server-2022-gui:current
       shell: bash.exe
@@ -35,7 +35,7 @@ executors:
       server_image_tag: { type: string }
     docker:
       - image: python:<<parameters.python>>
-    resource_class: xlarge
+    resource_class: wandb/docker-builder
 
   local-testcontainer:
     parameters:
@@ -44,47 +44,79 @@ executors:
       server_image_tag: { type: string }
     docker:
       - image: "python:<< parameters.python >>"
+      # This image is pulled by the kubelet on the self-hosted runners
+      # (ci-cluster), authenticated via the GKE node service account.
+      # That account must have artifactregistry.reader on the registry
+      # hosting the image; CircleCI-side auth config has no effect there.
       - image: << parameters.server_image >>:<< parameters.server_image_tag >>
-        auth:
-          username: _json_key
-          password: $GCP_SERVICE_ACCOUNT_JSON_DECODED
         environment:
           CI: 1
           WANDB_ENABLE_TEST_CONTAINER: true
-    resource_class: xlarge
-
-  local-testcontainer-importers:
-    parameters:
-      python: { type: string }
-      server_image: { type: string }
-      server_image_tag: { type: string }
-      dst_server_name:
-        type: string
-        default: localhost-wandb-2
-    docker:
-      - image: "python:<<parameters.python>>"
-      # the src server
-      - image: <<parameters.server_image>>:<<parameters.server_image_tag>>
-        auth:
-          username: _json_key
-          password: $GCP_SERVICE_ACCOUNT_JSON_DECODED
-        environment:
-          CI: 1
-          WANDB_ENABLE_TEST_CONTAINER: true
-      # the dst server
-      - image: <<parameters.server_image>>:<<parameters.server_image_tag>>
-        auth:
-          username: _json_key
-          password: $GCP_SERVICE_ACCOUNT_JSON_DECODED
-        environment:
-          CI: 1
-          WANDB_ENABLE_TEST_CONTAINER: true
-        name: << parameters.dst_server_name >>
-    environment:
-      WANDB_TEST_SERVER_URL2: http://<< parameters.dst_server_name >>
-    resource_class: xlarge
+    resource_class: wandb/docker-builder
 
 commands:
+  print-pod-stats-link:
+    description: Print a Datadog link to this job's K8s pod resource stats.
+    steps:
+      - run:
+          name: Pod resource stats (Datadog)
+          command: |
+            POD_NAME="$HOSTNAME"
+            echo "Datadog pod stats:"
+            echo "https://us5.datadoghq.com/orchestration/explorer/pod?query=kube_cluster_name%3Aci-cluster%20pod_name%3A${POD_NAME}"
+
+  save-go-cache:
+    description: Save the wandb-core Go build and mod caches for faster compilation.
+    steps:
+      - go/save-build-cache:
+          checksum: &go-checksum '{{ checksum "core/go.sum" }}'
+
+  load-go-cache:
+    description: Restore the wandb-core Go caches.
+    steps:
+      - go/load-build-cache:
+          checksum: *go-checksum
+
+  save-cargo-cache:
+    description: Save the Cargo cache.
+    steps:
+      - save_cache:
+          name: Saving Rust/Cargo cache
+          key: &cargo-checksum >-
+            v1-cargo-{{ .Environment.CIRCLE_JOB }}-{{ arch }}-{{
+              checksum "parquet-rust-wrapper/Cargo.lock" }}-{{
+              checksum "xpu/Cargo.lock" }}-{{
+              epoch | round "72h" }}
+          paths:
+            - parquet-rust-wrapper/target
+            - xpu/target
+            # https://doc.rust-lang.org/cargo/guide/cargo-home.html
+            - ~/.cargo/.crates.toml
+            - ~/.cargo/.crates2.json
+            - ~/.cargo/bin
+            - ~/.cargo/registry/index
+            - ~/.cargo/registry/cache
+            - ~/.cargo/git/db
+
+  load-cargo-cache:
+    description: Restore the Cargo cache.
+    steps:
+      - restore_cache:
+          name: Restoring Rust/Cargo cache
+          keys: [*cargo-checksum]
+
+  save-all-caches:
+    description: Save all caches for building wandb.
+    steps:
+      - save-go-cache
+      - save-cargo-cache
+
+  load-all-caches:
+    description: Restore all caches for building wandb.
+    steps:
+      - load-go-cache
+      - load-cargo-cache
+
   save-test-results:
     description: "Save test results"
     steps:
@@ -117,7 +149,8 @@ commands:
           command: >
             nox -s "<<parameters.session>>" --python <<parameters.python>> --verbose
 
-      - codecov/upload: { flags: <<parameters.codecov_flags>> }
+      # TODO[WB-35582]: Temporarily disable codecov because brew install broke it.
+      # - codecov/upload: { flags: <<parameters.codecov_flags>> }
       - save-test-results
 
   local-wandb-server-deps:
@@ -143,18 +176,6 @@ commands:
           command: |
             python tools/local_wandb_server.py start \
               --hostname localhost \
-              --base-port 8080 \
-              --fixture-port 9015
-
-  connect-to-local-testcontainer-importers:
-    description: Make importer tests use a running local-testcontainer.
-    steps:
-      - run:
-          name: Connect to local-testcontainer-importers
-          command: |
-            python tools/local_wandb_server.py start \
-              --name wandb-local-testcontainer-importers \
-              --hostname localhost-wandb-2 \
               --base-port 8080 \
               --fixture-port 9015
 
@@ -233,6 +254,12 @@ commands:
           command: |
             curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain <<parameters.version>>
             echo 'export PATH="$HOME/.cargo/bin:$PATH"' >> "$BASH_ENV"
+            # In MSYS2/Git Bash on Windows, rustup defaults to the GNU host
+            # toolchain. Add the MSVC target so builds targeting
+            # x86_64-pc-windows-msvc have the correct standard library.
+            case "$(uname -s)" in
+              MINGW*|MSYS*) $HOME/.cargo/bin/rustup target add x86_64-pc-windows-msvc ;;
+            esac
             $HOME/.cargo/bin/rustup --version
             $HOME/.cargo/bin/cargo --version
           no_output_timeout: 1m
@@ -257,25 +284,6 @@ commands:
                   ./dotnet-install.sh --channel 9.0
                   echo 'export PATH="$HOME/.dotnet:$PATH"' >> "$BASH_ENV"
                 no_output_timeout: 5m
-
-  setup_gcloud:
-    parameters:
-      container_registry:
-        description: "Container registry to authenticate with"
-        type: string
-        default: "us-central1-docker.pkg.dev"
-    steps:
-      - run:
-          name: "Setup gcloud and kubectl"
-          # gcloud --quiet components update
-          command: |
-            echo $GCLOUD_SERVICE_KEY > ${HOME}/gcloud-service-key.json
-            gcloud --quiet components install gke-gcloud-auth-plugin
-            gcloud --quiet components install kubectl
-            gcloud auth activate-service-account --key-file=${HOME}/gcloud-service-key.json
-            gcloud --quiet config set project $GOOGLE_PROJECT_ID
-            gcloud --quiet config set compute/zone $GOOGLE_COMPUTE_ZONE
-            gcloud auth configure-docker --quiet << parameters.container_registry >>
 
 jobs:
   nox-tests-linux:
@@ -310,6 +318,7 @@ jobs:
 
     steps:
       - checkout
+      - print-pod-stats-link
       - run:
           name: Install system deps
           command: apt-get update && apt-get install -y libsndfile1 ffmpeg git
@@ -318,25 +327,21 @@ jobs:
       - install_extras:
           enabled: <<parameters.install_extras>>
 
+      - load-all-caches
+
       - when:
           condition:
             equal: ["local-testcontainer", <<parameters.executor_name>>]
           steps:
             - local-wandb-server-deps: { python: <<parameters.python>> }
             - connect-to-local-testcontainer
-      - when:
-          condition:
-            equal:
-              ["local-testcontainer-importers", <<parameters.executor_name>>]
-          steps:
-            - local-wandb-server-deps: { python: <<parameters.python>> }
-            - connect-to-local-testcontainer
-            - connect-to-local-testcontainer-importers
 
       - run-nox-tests:
           codecov_flags: <<parameters.codecov_flags>>
           python: <<parameters.python>>
           session: <<parameters.session>>
+
+      - save-all-caches
 
   nox-tests-macos:
     parameters:
@@ -355,10 +360,15 @@ jobs:
           command: brew install ffmpeg python@<<parameters.python>>
       - install_go
       - install_rust
+
+      - load-all-caches
+
       - run-nox-tests:
           codecov_flags: <<parameters.codecov_flags>>
           python: <<parameters.python>>
           session: <<parameters.session>>
+
+      - save-all-caches
 
   nox-tests-win:
     parameters:
@@ -393,14 +403,20 @@ jobs:
 
       - install_go
       - install_rust
+
+      - load-all-caches
+
       - run-nox-tests:
           codecov_flags: <<parameters.codecov_flags>>
           python: <<parameters.python>>
           session: <<parameters.session>>
 
+      - save-all-caches
+
   code-check:
+    resource_class: wandb/docker-builder
     docker:
-      - image: "python:3.10"
+      - image: "python:3.13"
     steps:
       - checkout
       - install_go
@@ -414,11 +430,7 @@ jobs:
           command: nox -vt proto-check
       - run:
           name: Automatically generate code and check for changes
-          command: |
-            uv venv .venv-codegen
-            source .venv-codegen/bin/activate
-            uv pip install ruff .
-            python tools/generate-tool.py --generate --check
+          command: nox -vs codegen-check
       - run:
           name: Run mypy and report results
           command: nox -vs mypy-report
@@ -438,6 +450,7 @@ jobs:
       - save-test-results
 
   unit-tests-go:
+    resource_class: wandb/docker-builder
     docker:
       - image: cimg/base:current
     steps:
@@ -447,37 +460,40 @@ jobs:
           command: |
             sudo apt-get update
       - install_go
+      - load-go-cache
       - run:
           name: Run wandb core's Go tests and collect coverage
           command: |
             cd core
-            go test -race -coverprofile=coverage.txt -covermode=atomic ./...
-      - codecov/upload: { flags: unit }
+            go test -count=1 -race -coverprofile=coverage.txt -covermode=atomic ./...
+      - save-go-cache
+      # TODO[WB-35582]: Temporarily disable codecov because brew install broke it.
+      # - codecov/upload: { flags: unit }
 
-  # Download the local-testcontainer image corresponding to the latest server release
-  # and store it in wandb-client-cicd/images/local-testcontainer.
-  # No-op if already stored.
-  store-local-testcontainer:
+  unit-tests-rust:
+    resource_class: wandb/docker-builder
     docker:
-      - image: "python:3.11"
-    resource_class: small
-    working_directory: /mnt/ramdisk
+      - image: cimg/base:current
     steps:
       - checkout
       - run:
           name: Install system deps
           command: |
-            apt-get update
-      - install_go
-      - gcloud/install
-      - setup_gcloud
+            sudo apt-get update
+      - install_rust
+      - load-cargo-cache
       - run:
-          name:
+          name: Run Rust tests for parquet-rust-wrapper
           command: |
-            go install github.com/google/go-containerregistry/cmd/gcrane@latest
-            python -m pip install -U pip nox requests uv
-            nox -s local-testcontainer-registry
-          no_output_timeout: 5m
+            cd parquet-rust-wrapper
+            cargo test --verbose
+      - run:
+          name: Run Rust tests for wandb-xpu
+          command: |
+            sudo apt-get install -y -qq python3-pip >/dev/null
+            cd xpu
+            cargo test --verbose
+      - save-cargo-cache
 
 workflows:
   main:
@@ -488,18 +504,14 @@ workflows:
       - code-check
 
       #
-      # Store latest local-testcontainer
-      #
-      - store-local-testcontainer:
-          filters:
-            branches:
-              only:
-                - main
-
-      #
       # Unit tests with Go on Linux
       #
       - unit-tests-go
+
+      #
+      # Unit tests with Rust on Linux
+      #
+      - unit-tests-rust
 
       #
       # Unit tests with pytest on Linux
@@ -512,17 +524,7 @@ workflows:
 
           matrix:
             parameters:
-              python: ["3.9", "3.13"]
-
-      - nox-tests-linux:
-          name: unit-tests-pydantic-v1-linux-<<matrix.python>>
-          session: unit_tests_pydantic_v1
-          codecov_flags: unit
-          parallelism: 2
-
-          matrix:
-            parameters:
-              python: ["3.9", "3.13"]
+              python: ["3.10", "3.13"]
 
       #
       # Unit tests with pytest on macOS
@@ -535,7 +537,7 @@ workflows:
 
           matrix:
             parameters:
-              python: ["3.9", "3.13"]
+              python: ["3.10", "3.13"]
 
       #
       # Unit tests with pytest on Windows
@@ -555,7 +557,7 @@ workflows:
 
           matrix:
             parameters:
-              python: ["3.9", "3.13"]
+              python: ["3.10", "3.13"]
 
       #
       # System tests on Linux
@@ -574,7 +576,7 @@ workflows:
 
           matrix:
             parameters:
-              python: ["3.9", "3.13"]
+              python: ["3.10", "3.13"]
 
       - nox-tests-linux:
           name: system-tests-min-server-version-linux-<<matrix.python>>
@@ -595,7 +597,7 @@ workflows:
                 [
                   "us-central1-docker.pkg.dev/wandb-client-cicd/images/local-testcontainer",
                 ]
-              server_image_tag: ["0.63.0"]
+              server_image_tag: ["0.65.0"]
 
       - nox-tests-linux:
           name: notebook-tests-linux-<<matrix.python>>
@@ -606,7 +608,7 @@ workflows:
 
           matrix:
             parameters:
-              python: ["3.9", "3.13"]
+              python: ["3.10", "3.13"]
 
       #
       # Functional tests with pytest on Linux
@@ -646,22 +648,3 @@ workflows:
           matrix:
             parameters:
               python: ["3.13"]
-
-      #
-      # W&B Importer tests on Linux, using 2 real wandb servers
-      #
-      - nox-tests-linux:
-          name: system-tests-linux-importers-wandb
-          session: importer_tests-3.9(importer='wandb')
-          codecov_flags: system
-          parallelism: 1
-          executor_name: local-testcontainer-importers
-          python: "3.9"
-      # FIXME: mlflow importer requires pydantic<2
-      # - nox-tests-linux:
-      #     name: system-tests-linux-importers-mlflow
-      #     session: importer_tests-3.9(importer='mlflow')
-      #     codecov_flags: system
-      #     parallelism: 1
-      #     executor_name: local-testcontainer-importers
-      #     python: "3.9"

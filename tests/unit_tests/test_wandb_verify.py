@@ -2,6 +2,8 @@ import unittest.mock
 
 import wandb
 import wandb.sdk.verify.verify as wandb_verify
+from wandb.proto import wandb_api_pb2 as apb
+from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 
 
 def test_print_results(capsys):
@@ -46,6 +48,36 @@ def test_check_cors_configuration(capsys, monkeypatch):
 
         captured = capsys.readouterr().out
         assert "does not have a valid CORs configuration" in captured
+
+
+def test_check_large_post_uses_service_api(monkeypatch):
+    public_api = unittest.mock.Mock()
+    monkeypatch.setattr(wandb_verify.wandb, "Api", lambda: public_api)
+    monkeypatch.setattr(wandb_verify.getpass, "getuser", lambda: "test-user")
+
+    assert wandb_verify.check_large_post()
+
+    execute_graphql = public_api._service_api.execute_graphql
+    execute_graphql.assert_called_once()
+    _, kwargs = execute_graphql.call_args
+    assert kwargs["variables"]["entity"] == "test-user"
+    assert kwargs["timeout"] == 60
+
+
+def test_check_large_post_reports_core_413(monkeypatch, capsys):
+    error_response = apb.ApiErrorResponse(message="too large", http_status=413)
+    public_api = unittest.mock.Mock()
+    public_api._service_api.execute_graphql.side_effect = WandbApiFailedError(
+        error_response.message,
+        error_response,
+    )
+    monkeypatch.setattr(wandb_verify.wandb, "Api", lambda: public_api)
+    monkeypatch.setattr(wandb_verify.getpass, "getuser", lambda: "test-user")
+
+    assert not wandb_verify.check_large_post()
+
+    captured = capsys.readouterr().out
+    assert "proxy-body-size" in captured
 
 
 def test_check_wandb_version(capsys):

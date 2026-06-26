@@ -1,6 +1,5 @@
 <p align="center">
-  <img src="./assets/logo-dark.svg#gh-dark-mode-only" width="600" alt="Weights & Biases" />
-  <img src="./assets/logo-light.svg#gh-light-mode-only" width="600" alt="Weights & Biases" />
+  <img src="./assets/logo.svg" width="600" alt="Weights & Biases" />
 </p>
 
 # Contributing to `wandb`
@@ -36,6 +35,9 @@ Please make sure to update the ToC when you update this page!
 - [Testing](#testing)
   - [Using pytest](#using-pytest)
   - [Running `system_tests` locally (internal-only)](#running-system_tests-locally-internal-only)
+  - [Archiving server images (internal-only)](#archiving-server-images-internal-only)
+- [Troubleshooting](#troubleshooting)
+  - [golangci-lint version mismatch](#golangci-lint-version-mismatch)
 
 ## Development workflow
 
@@ -77,10 +79,12 @@ Please make sure to update the ToC when you update this page!
     git add changed-file.py tests/test-changed-file.py
     git commit -m "feat(integrations): Add integration with the `awesomepyml` library"
     ```
+    - Be sure to read through the best practices and style guidelines in [docs/](./docs).
     - [Test](#testing) and [lint](#linting-the-code) your code! Please see below for a detailed discussion.
     - Ensure compliance with [conventional commits](https://www.conventionalcommits.org/en/v1.0.0/),
       see [below](#conventional-commits). This is enforced by the CI and will prevent your PR from
       being merged if not followed.
+
 4.  Proposed changes are contributed through
     [GitHub Pull Requests](https://help.github.com/en/github/collaborating-with-issues-and-pull-requests/about-pull-requests).
 
@@ -219,7 +223,7 @@ uv pip install nox
 
 ### Setting up Go
 
-Install Go version `1.26.1` following the instructions [here](https://go.dev/doc/install) or using your package manager, for example:
+Install Go version `1.26.4` following the instructions [here](https://go.dev/doc/install) or using your package manager, for example:
 
 ```shell
 brew install go@1.26
@@ -227,7 +231,8 @@ brew install go@1.26
 
 ### Setting up Rust
 
-You will need the Rust toolchain to build the `gpu_stats` binary used to monitor Nvidia, AMD and Apple Arm GPUs.
+You will need the Rust toolchain to build the `wandb-xpu` binary used to monitor hardware accelerators
+including Nvidia, AMD and Apple Arm GPU, as well as Google TPU.
 Refer to the official Rust [docs](https://www.rust-lang.org/tools/install) and install it by running:
 
 ```shell
@@ -374,3 +379,48 @@ When you're done, shut it down:
 ```shell
 python tools/local_wandb_server.py stop
 ```
+
+### Archiving server images (internal-only)
+
+The `system-tests-min-server-version` CI jobs test the SDK against the oldest
+supported W&B server release. The `local-testcontainer` images for released
+server versions are archived in
+`us-central1-docker.pkg.dev/wandb-client-cicd/images/local-testcontainer`,
+because the source registry (`wandb-production`) only retains images for
+recent commits.
+
+The archive is updated manually. Whenever you need a release that is not yet archived, run:
+
+```shell
+go install github.com/google/go-containerregistry/cmd/gcrane@latest
+GITHUB_ACCESS_TOKEN=$(gh auth token) nox -s local-testcontainer-registry
+```
+
+This archives the image for the latest `wandb/core` server release and is a
+no-op if it is already archived. To archive a specific release instead, pass
+its tag:
+
+```shell
+GITHUB_ACCESS_TOKEN=$(gh auth token) nox -s local-testcontainer-registry -- server/v0.81.3
+```
+
+You will need `gcloud` authenticated with an account that can read
+`wandb-production/images/local-testcontainer` and write
+`wandb-client-cicd/images/local-testcontainer`.
+
+## Troubleshooting
+
+### golangci-lint version mismatch
+
+Example:
+
+`Error: can't load config: the Go language version (go1.25) used to build golangci-lint is lower than the targeted Go version (1.26.2)`\
+`The command is terminated due to an error: can't load config: the Go language version (go1.25) used to build golangci-lint is lower than the targeted Go version (1.26.2)`
+
+Try:
+
+```shell
+prek cache clean
+```
+
+This will rebuild `golangci-lint` and may solve the issue.

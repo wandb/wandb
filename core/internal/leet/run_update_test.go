@@ -1,6 +1,7 @@
 package leet_test
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -25,7 +26,10 @@ func keyPressMsg(r rune) tea.KeyPressMsg {
 func TestProcessRecordMsg_Run_Summary_System_FileComplete(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
-	var m tea.Model = leet.NewRun("dummy", cfg, logger)
+	runParams := &leet.RunParams{
+		RunFile: "dummy",
+	}
+	var m tea.Model = leet.NewRun(runParams, cfg, logger)
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 140, Height: 50})
 
 	model := m.(*leet.Run)
@@ -50,10 +54,60 @@ func TestProcessRecordMsg_Run_Summary_System_FileComplete(t *testing.T) {
 	require.Equal(t, leet.RunStateFinished, model.TestRunState())
 }
 
+func TestProcessRecordMsg_ErrorStopsLoading(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+	runParams := &leet.RunParams{
+		RunFile: "dummy",
+	}
+	var m tea.Model = leet.NewRun(runParams, cfg, logger)
+	m, _ = m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+
+	model := m.(*leet.Run)
+	model.TestHandleRecordMsg(leet.ErrorMsg{Err: errors.New("remote init failed")})
+
+	require.Equal(t, leet.RunStateFailed, model.TestRunState())
+	view := stripANSI(model.View().Content)
+	require.NotContains(t, view, "Loading data...")
+	require.Contains(t, view, "Error: remote init failed")
+}
+
+func TestRemoteRun_DoesNotStartLocalWatcherAfterBootLoad(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+	runParams := &leet.RunParams{
+		Remote: &leet.RemoteRunParams{
+			BaseURL: "https://api.wandb.ai",
+			Entity:  "entity",
+			Project: "project",
+			RunID:   "run-id",
+		},
+	}
+	var m tea.Model = leet.NewRun(runParams, cfg, logger)
+	m, _ = m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+
+	m, _ = m.Update(leet.ChunkedBatchMsg{
+		Msgs: []tea.Msg{
+			leet.RunMsg{
+				RunPath:     "entity/project/run-id",
+				ID:          "run-id",
+				Project:     "project",
+				DisplayName: "remote-run",
+			},
+		},
+		HasMore: false,
+	})
+
+	require.Equal(t, leet.RunStateRunning, m.(*leet.Run).TestRunState())
+}
+
 func TestFocus_Clicks_SetClear(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
-	var m tea.Model = leet.NewRun("dummy", cfg, logger)
+	runParams := &leet.RunParams{
+		RunFile: "dummy",
+	}
+	var m tea.Model = leet.NewRun(runParams, cfg, logger)
 
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 180, Height: 60})
 	d := map[string]leet.MetricData{
@@ -89,7 +143,10 @@ func TestFocus_Clicks_SetClear(t *testing.T) {
 func TestHandleOverviewFilter_TypingSpaceBackspaceEnterEsc(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
-	var m tea.Model = leet.NewRun("dummy", cfg, logger)
+	runParams := &leet.RunParams{
+		RunFile: "dummy",
+	}
+	var m tea.Model = leet.NewRun(runParams, cfg, logger)
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 180, Height: 60})
 
 	// Enter overview filter mode
@@ -122,7 +179,10 @@ func TestHandleOverviewFilter_TypingSpaceBackspaceEnterEsc(t *testing.T) {
 func TestHandleKeyMsg_VariousPaths(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
-	var m tea.Model = leet.NewRun("dummy", cfg, logger)
+	runParams := &leet.RunParams{
+		RunFile: "dummy",
+	}
+	var m tea.Model = leet.NewRun(runParams, cfg, logger)
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 180, Height: 50})
 
 	// Toggle left sidebar
@@ -195,7 +255,10 @@ func TestHeartbeat_LiveRun(t *testing.T) {
 	w.Close()
 
 	// Create model
-	m := leet.NewRun(path, cfg, logger)
+	runParams := &leet.RunParams{
+		RunFile: path,
+	}
+	m := leet.NewRun(runParams, cfg, logger)
 
 	// Track heartbeat messages
 	heartbeatCount := 0
@@ -325,7 +388,10 @@ func TestHeartbeat_ResetsOnDataReceived(t *testing.T) {
 	w.Close()
 
 	// Create model
-	m := leet.NewRun(path, cfg, logger)
+	runParams := &leet.RunParams{
+		RunFile: path,
+	}
+	m := leet.NewRun(runParams, cfg, logger)
 
 	var model tea.Model = m
 	model, _ = model.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
@@ -387,7 +453,10 @@ func TestModel_HandleMouseMsg(t *testing.T) {
 		require.NoError(t, cfg.SetLeftSidebarVisible(true))
 		require.NoError(t, cfg.SetRightSidebarVisible(true))
 
-		m := leet.NewRun("dummy", cfg, logger)
+		runParams := &leet.RunParams{
+			RunFile: "dummy",
+		}
+		m := leet.NewRun(runParams, cfg, logger)
 
 		var model tea.Model = m
 		model, _ = model.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
@@ -453,6 +522,9 @@ func TestModel_HandleMouseMsg(t *testing.T) {
 		},
 		{
 			name: "click_in_main_grid_focuses_and_unfocuses_chart",
+			setup: func(m *leet.Run) {
+				m.TestClearMainChartFocus()
+			},
 			events: []tea.Msg{
 				tea.MouseClickMsg{X: 60, Y: 15, Button: tea.MouseLeft},
 			},

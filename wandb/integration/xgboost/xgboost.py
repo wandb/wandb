@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import json
 import warnings
+from collections.abc import Callable
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable, NamedTuple, Union, cast
+from typing import TYPE_CHECKING, NamedTuple, TypeAlias, cast
 
 import xgboost as xgb
 import xgboost.callback
-from typing_extensions import TypeAlias, override
+from typing_extensions import override
 
 import wandb
 from wandb.sdk.lib import telemetry as wb_telemetry
@@ -35,7 +36,7 @@ if TYPE_CHECKING:
         evaluation_result_list: list
 
     # Copied from xgboost's source code. These types are not exported.
-    _ScoreList = Union[list[float], list[tuple[float, float]]]
+    _ScoreList = list[float] | list[tuple[float, float]]
     _EvalsLog: TypeAlias = dict[str, dict[str, _ScoreList]]
 
 

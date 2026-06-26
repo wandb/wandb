@@ -164,6 +164,7 @@ def test_captions(
     assert wandb.Image.all_captions([wbone, wbtwo]) == ["Cool", "Nice"]
 
 
+@pytest.mark.usefixtures("patch_max_cli_version")
 def test_bind_image(
     mock_run,
     image,
@@ -179,6 +180,7 @@ def test_image_accepts_other_images():
     assert image_a == image_b
 
 
+@pytest.mark.usefixtures("patch_max_cli_version")
 def test_image_accepts_bounding_boxes(
     mock_run,
     image,
@@ -199,6 +201,7 @@ def test_image_accepts_bounding_boxes(
     assert os.path.exists(os.path.join(run.dir, path))
 
 
+@pytest.mark.usefixtures("patch_max_cli_version")
 def test_image_accepts_bounding_boxes_optional_args(
     mock_run,
     image,
@@ -224,6 +227,7 @@ def test_image_accepts_bounding_boxes_optional_args(
     assert os.path.exists(os.path.join(run.dir, path))
 
 
+@pytest.mark.usefixtures("patch_max_cli_version")
 def test_image_accepts_masks(
     mock_run,
     image,
@@ -242,6 +246,7 @@ def test_image_accepts_masks(
     assert os.path.exists(os.path.join(run.dir, path))
 
 
+@pytest.mark.usefixtures("patch_max_cli_version")
 def test_image_accepts_masks_without_class_labels(
     mock_run,
     image,
@@ -261,6 +266,76 @@ def test_image_accepts_masks_without_class_labels(
     assert os.path.exists(os.path.join(run.dir, path))
 
 
+def test_image_box_type_schema_carries_per_box_class_maps(image):
+    """``_ImageFileType.box_class_maps`` carries per-box ``class_labels`` so
+    the frontend can render distinct legends per box-set even when IDs collide.
+    """
+    img = wandb.Image(
+        image,
+        boxes={
+            "box_set_1": {
+                "box_data": [
+                    {
+                        "position": {
+                            "minX": 0.1,
+                            "maxX": 0.2,
+                            "minY": 0.1,
+                            "maxY": 0.2,
+                        },
+                        "class_id": 1,
+                    }
+                ],
+                "class_labels": {1: "Box Label A"},
+            },
+            "box_set_2": {
+                "box_data": [
+                    {
+                        "position": {
+                            "minX": 0.3,
+                            "maxX": 0.4,
+                            "minY": 0.3,
+                            "maxY": 0.4,
+                        },
+                        "class_id": 1,
+                    }
+                ],
+                "class_labels": {1: "Different Box Label"},
+            },
+        },
+    )
+    img_type = _dtypes.TypeRegistry.type_of(img)
+    box_class_maps = img_type.params["box_class_maps"]._params["val"]
+    assert box_class_maps["box_set_1"] == {"1": "Box Label A"}
+    assert box_class_maps["box_set_2"] == {"1": "Different Box Label"}
+
+
+def test_image_mask_type_schema_carries_per_mask_class_maps(image):
+    """``_ImageFileType`` exposes per-mask class labels so a Table's
+    column_types schema carries them, separate from the merged ``class_map``."""
+    img = wandb.Image(
+        image,
+        masks={
+            "ground_truth": {
+                "mask_data": np.array([[1, 2], [2, 1]]),
+                "class_labels": {1: "Ignored", 2: "Text"},
+            },
+            "predictions": {
+                "mask_data": np.array([[1, 2], [3, 1]]),
+                "class_labels": {1: "Incorrect", 2: "Correct", 3: "FP"},
+            },
+        },
+    )
+    img_type = _dtypes.TypeRegistry.type_of(img)
+    mask_class_maps = img_type.params["mask_class_maps"]._params["val"]
+    assert mask_class_maps["ground_truth"] == {"1": "Ignored", "2": "Text"}
+    assert mask_class_maps["predictions"] == {
+        "1": "Incorrect",
+        "2": "Correct",
+        "3": "FP",
+    }
+
+
+@pytest.mark.usefixtures("patch_max_cli_version")
 def test_image_seq_to_json(
     mock_run,
     image,
@@ -272,6 +347,7 @@ def test_image_seq_to_json(
     assert os.path.exists(os.path.join(run.dir, "media", "images", "test_0_0.png"))
 
 
+@pytest.mark.usefixtures("patch_max_cli_version")
 def test_max_images(mock_run):
     run = mock_run()
     large_image = np.random.randint(255, size=(10, 10))
@@ -386,6 +462,7 @@ def test_image_from_matplotlib_with_image():
 @pytest.mark.skipif(
     platform.system() != "Windows", reason="Failure case is only happening on Windows"
 )
+@pytest.mark.usefixtures("patch_max_cli_version")
 def test_fail_to_make_file(
     mock_run,
     image,

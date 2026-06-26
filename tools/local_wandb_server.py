@@ -13,7 +13,7 @@ import subprocess
 import sys
 import time
 import traceback
-from collections.abc import Iterator
+from collections.abc import Generator
 
 import click
 import filelock
@@ -152,7 +152,7 @@ def _start_interactively(name: str) -> None:
         _start_container(name=name).apply_ports(server)
 
         try:
-            server.wait_until_healthy(timeout=30)
+            server.wait_until_healthy(timeout=120)
         except TimeoutError:
             _echo_bad(f"Server {name!r} did not become healthy in time.")
             sys.exit(1)
@@ -180,7 +180,7 @@ def _start_external(
         info.servers[name] = server
 
         try:
-            server.wait_until_healthy(timeout=30)
+            server.wait_until_healthy(timeout=120)
         except TimeoutError:
             _echo_bad(f"Server {name!r} did not become healthy in time.")
             sys.exit(1)
@@ -252,7 +252,7 @@ def _resources(suffix: str) -> pathlib.Path:
 
 
 @contextlib.contextmanager
-def _info_file() -> Iterator[_InfoFile]:
+def _info_file() -> Generator[_InfoFile]:
     with filelock.FileLock(_resources(".state.lock")):
         with open(_resources(".state"), "a+") as f:
             f.seek(0)

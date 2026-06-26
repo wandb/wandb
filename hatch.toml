@@ -12,15 +12,12 @@ include = [
     "wandb/**/*.py",
     "wandb/**/*.sh",
 ]
-exclude = [
-    "wandb/vendor/wandb_orjson",
-]
 
 [build.targets.sdist]
 include = [
     "core",
-    "gpu_stats",
-    "wandb/vendor/wandb_orjson",
+    "xpu",
+    "parquet-rust-wrapper",
     "wandb/py.typed",
     "package_readme.md",
     "wandb/__init__.pyi",

@@ -50,7 +50,7 @@ func makeSender(t *testing.T, client graphql.Client) testFixtures {
 	credentialProvider := stream.CredentialsFromSettings(logger, settings)
 	fileStreamFactory := &filestream.FileStreamFactory{
 		Logger:   logger,
-		Printer:  observability.NewPrinter(),
+		Printer:  observability.NewPrinter(0),
 		Settings: settings,
 	}
 	fileTransferManager := stream.NewFileTransferManager(
@@ -118,8 +118,9 @@ func TestSendLinkArtifact(t *testing.T) {
 		gqlmock.WithOpName("LinkArtifact"),
 		validLinkArtifactResponse,
 	)
-	x.Sender.SendRecord(linkArtifact)
-	<-x.Sender.ResponseChan()
+	request, outputs := runworktest.SimpleRequest(t, "test-id")
+	x.Sender.SendRecord(linkArtifact, request)
+	<-outputs
 
 	requests := mockGQL.AllRequests()
 	assert.Len(t, requests, 1)
@@ -152,8 +153,9 @@ func TestSendLinkArtifact(t *testing.T) {
 		gqlmock.WithOpName("LinkArtifact"),
 		validLinkArtifactResponse,
 	)
-	x.Sender.SendRecord(linkArtifact)
-	<-x.Sender.ResponseChan()
+	request, outputs = runworktest.SimpleRequest(t, "test-id")
+	x.Sender.SendRecord(linkArtifact, request)
+	<-outputs
 
 	requests = mockGQL.AllRequests()
 	assert.Len(t, requests, 2)
@@ -186,8 +188,9 @@ func TestSendLinkArtifact(t *testing.T) {
 		gqlmock.WithOpName("LinkArtifact"),
 		validLinkArtifactResponse,
 	)
-	x.Sender.SendRecord(linkArtifact)
-	<-x.Sender.ResponseChan()
+	request, outputs = runworktest.SimpleRequest(t, "test-id")
+	x.Sender.SendRecord(linkArtifact, request)
+	<-outputs
 
 	requests = mockGQL.AllRequests()
 	assert.Len(t, requests, 3)
@@ -215,7 +218,7 @@ func TestSendUseArtifact(t *testing.T) {
 		},
 	}
 	// verify doesn't panic if used job artifact
-	x.Sender.SendRecord(useArtifact)
+	x.Sender.SendRecord(useArtifact, nil)
 
 	// verify doesn't panic if partial job is broken
 	useArtifact = &spb.Record{
@@ -241,7 +244,7 @@ func TestSendUseArtifact(t *testing.T) {
 			},
 		},
 	}
-	x.Sender.SendRecord(useArtifact)
+	x.Sender.SendRecord(useArtifact, nil)
 }
 
 var validFetchOrgEntityFromEntityResponse = `{
@@ -262,36 +265,19 @@ func TestLinkRegistryArtifact(t *testing.T) {
 	testCases := []struct {
 		name              string
 		inputOrganization string
-		isOldServer       bool
 		errorMessage      string
 	}{
-		{"Link registry artifact with orgName updated server", "orgName", false, ""},
+		{"Link registry artifact with orgName", "orgName", ""},
 		{
-			"Link registry artifact with orgName old server",
-			"orgName",
-			true,
-			expectLinkArtifactFailure,
-		},
-		{
-			"Link registry artifact with orgEntity name updated server",
+			"Link registry artifact with orgEntity name",
 			"orgEntityName_123",
-			false,
 			"",
 		},
-		{"Link registry artifact with orgEntity name old server", "orgEntityName_123", true, ""},
-		{"Link registry artifact with short hand path updated server", "", false, ""},
-		{"Link registry artifact with short hand path old server", "", true, "unsupported"},
+		{"Link registry artifact with short hand path", "", ""},
 		{
-			"Link with wrong org/orgEntity name with updated server",
+			"Link with wrong org/orgEntity name",
 			"potato",
-			false,
 			"update the target path",
-		},
-		{
-			"Link with wrong org/orgEntity name with updated server",
-			"potato",
-			true,
-			expectLinkArtifactFailure,
 		},
 	}
 	for _, tc := range testCases {
@@ -305,13 +291,7 @@ func TestLinkRegistryArtifact(t *testing.T) {
 			}
 		}
 
-		// If user is on old server, we can't fetch the org entity name so just directly call link artifact
-		numExpectedRequests := 3
-		if tc.isOldServer {
-			numExpectedRequests = 2
-		}
-
-		t.Run("Link registry artifact with orgName updated server", func(t *testing.T) {
+		t.Run("Link registry artifact with orgName", func(t *testing.T) {
 			req := &spb.LinkArtifactRequest{
 				ClientId:              "clientId123",
 				PortfolioName:         "portfolioName",
@@ -320,21 +300,6 @@ func TestLinkRegistryArtifact(t *testing.T) {
 				PortfolioAliases:      nil,
 				PortfolioOrganization: tc.inputOrganization,
 			}
-
-			var validTypeFieldsResponse string
-			if tc.isOldServer {
-				validTypeFieldsResponse = `{"TypeInfo": {"fields": []}}`
-			} else {
-				validTypeFieldsResponse = `{
-		"TypeInfo": {
-			"fields": [{"name": "orgEntity"}]
-		}
-	}`
-			}
-			mockGQL.StubMatchOnce(
-				gqlmock.WithOpName("TypeFields"),
-				validTypeFieldsResponse,
-			)
 
 			mockGQL.StubMatchOnce(
 				gqlmock.WithOpName("LinkArtifact"),
@@ -361,11 +326,11 @@ func TestLinkRegistryArtifact(t *testing.T) {
 			// is wrong so we know the query will fail.
 			if tc.errorMessage == expectLinkArtifactFailure {
 				requests := mockGQL.AllRequests()
-				assert.Len(t, requests, numExpectedRequests)
+				assert.Len(t, requests, 2)
 
 				// Confirms that the request is incorrectly put into link artifact graphql request
 				gqlmock.AssertVariables(t,
-					requests[numExpectedRequests-1],
+					requests[1],
 					gqlmock.GQLVar("projectName", gomock.Eq(registryProject)),
 					// Here the entity name is not orgEntityName_123 and this will fail if actually called
 					gqlmock.GQLVar("entityName", gomock.Not(gomock.Eq("orgEntityName_123"))),
@@ -377,10 +342,10 @@ func TestLinkRegistryArtifact(t *testing.T) {
 				assert.Empty(t, tc.errorMessage)
 				assert.NoError(t, err)
 				requests := mockGQL.AllRequests()
-				assert.Len(t, requests, numExpectedRequests)
+				assert.Len(t, requests, 2)
 
 				gqlmock.AssertVariables(t,
-					requests[numExpectedRequests-1],
+					requests[1],
 					gqlmock.GQLVar("projectName", gomock.Eq(registryProject)),
 					gqlmock.GQLVar("entityName", gomock.Eq("orgEntityName_123")),
 					gqlmock.GQLVar("artifactPortfolioName", gomock.Eq("portfolioName")),

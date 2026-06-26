@@ -3,8 +3,7 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Sequence
-from typing import Callable
+from collections.abc import Callable, Sequence
 
 from wandb.proto import wandb_internal_pb2 as pb
 

@@ -8,10 +8,8 @@ import wandb
 from wandb._strutils import nameof
 
 if TYPE_CHECKING:
-    from wandb_graphql.language.ast import Document
-
     from wandb._pydantic import Connection
-    from wandb.apis.public.api import RetryingClient
+    from wandb.apis.public.service_api import ServiceApi
 
 _WandbT = TypeVar("_WandbT")
 """Generic type variable for a W&B object."""
@@ -23,15 +21,20 @@ _NodeT = TypeVar("_NodeT")
 class Paginator(Iterator[_WandbT], ABC):
     """An iterator for paginated objects from GraphQL requests."""
 
-    QUERY: Document | ClassVar[Document | None]
+    QUERY: str | ClassVar[str | None]
 
     def __init__(
         self,
-        client: RetryingClient,
+        service_api: ServiceApi,
         variables: Mapping[str, Any],
         per_page: int = 50,  # We don't allow unbounded paging
+        *,
+        omit_variables: Iterable[str] | None = None,
+        omit_fragments: Iterable[str] | None = None,
+        omit_fields: Iterable[str] | None = None,
+        rename_fields: Mapping[str, str] | None = None,
     ):
-        self.client = client
+        self._service_api = service_api
 
         # shallow copy partly guards against mutating the original input
         self.variables: dict[str, Any] = dict(variables)
@@ -39,7 +42,15 @@ class Paginator(Iterator[_WandbT], ABC):
         self.per_page: int = per_page
         self.objects: list[_WandbT] = []
         self.index: int = -1
-        self.last_response: object | None = None
+        self.last_response: Any | None = None
+
+        # GraphQL-document rewrites applied server-side on each page fetch.
+        # Used to strip parts of the generated query the deployed W&B server
+        # version does not support.
+        self._omit_variables = list(omit_variables) if omit_variables else None
+        self._omit_fragments = list(omit_fragments) if omit_fragments else None
+        self._omit_fields = list(omit_fields) if omit_fields else None
+        self._rename_fields = dict(rename_fields) if rename_fields else None
 
     def __iter__(self) -> Iterator[_WandbT]:
         self.index = -1
@@ -66,11 +77,20 @@ class Paginator(Iterator[_WandbT], ABC):
         """Update the query variables for the next page fetch."""
         self.variables.update({"perPage": self.per_page, "cursor": self.cursor})
 
+    def _execute_query(self) -> Any:
+        """Run self.QUERY with the paginator's compat options."""
+        return self._service_api.execute_graphql(
+            self.QUERY,
+            variables=self.variables,
+            omit_variables=self._omit_variables,
+            omit_fragments=self._omit_fragments,
+            omit_fields=self._omit_fields,
+            rename_fields=self._rename_fields,
+        )
+
     def _update_response(self) -> None:
         """Fetch and store the response data for the next page."""
-        self.last_response = self.client.execute(
-            self.QUERY, variable_values=self.variables
-        )
+        self.last_response = self._execute_query()
 
     def _load_page(self) -> bool:
         """Fetch the next page, if any, returning True and storing the response if there was one."""
@@ -108,6 +128,8 @@ class Paginator(Iterator[_WandbT], ABC):
 class SizedPaginator(Paginator[_WandbT], Sized, ABC):
     """A Paginator for objects with a known total count."""
 
+    last_response: dict[str, Any] | None = None
+
     @property
     def length(self) -> int | None:
         wandb.termwarn(
@@ -140,13 +162,47 @@ class RelayPaginator(Paginator[_WandbT], Generic[_NodeT, _WandbT], ABC):
 
     last_response: Connection[_NodeT] | None
 
+    _start: str | None
+    """Optional, opaque cursor used to "resume" pagination from a previous query.
+
+    If present, this is only used to fetch the first page.
+    """
+
+    def __init__(
+        self,
+        service_api: ServiceApi,
+        variables: Mapping[str, Any],
+        per_page: int = 50,
+        start: str | None = None,
+        *,
+        omit_variables: Iterable[str] | None = None,
+        omit_fragments: Iterable[str] | None = None,
+        omit_fields: Iterable[str] | None = None,
+        rename_fields: Mapping[str, str] | None = None,
+    ):
+        super().__init__(
+            service_api,
+            variables,
+            per_page,
+            omit_variables=omit_variables,
+            omit_fragments=omit_fragments,
+            omit_fields=omit_fields,
+            rename_fields=rename_fields,
+        )
+        self._start = start
+
     @property
     def more(self) -> bool:
         return (conn := self.last_response) is None or conn.has_next
 
     @property
     def cursor(self) -> str | None:
-        return conn.next_cursor if (conn := self.last_response) else None
+        """An opaque cursor that marks the start of the next page to fetch.
+
+        This value may be saved and passed as `start=` to a later paginated query
+        to resume iteration from where this paginator left off.
+        """
+        return conn.next_cursor if (conn := self.last_response) else self._start
 
     @abstractmethod
     def _convert(self, node: _NodeT) -> _WandbT | Any:

@@ -7,16 +7,16 @@ from typing import Any
 from unittest import mock
 
 import pytest
-import requests
 import wandb
 import wandb.apis.public
 import wandb.util
 from wandb import Api
 from wandb.apis._generated import ProjectFragment, UserFragment
 from wandb.apis._generated.generate_api_key import GenerateApiKey
-from wandb.apis.public import File
+from wandb.apis.public.summary import Summary
 from wandb.errors.errors import CommError
-from wandb.old.summary import Summary
+from wandb.sdk.artifacts._gqlutils import server_supports
+from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 
 
 @pytest.mark.parametrize(
@@ -253,12 +253,6 @@ def test_run_history_keys_bad_arg(stub_run_gql_once, mock_wandb_log):
     run.history(keys=[["acc"]], pandas=False)
     mock_wandb_log.assert_errored("keys argument must be a list of strings")
 
-    run.scan_history(keys="acc")
-    mock_wandb_log.assert_errored("keys must be specified in a list")
-
-    run.scan_history(keys=[["acc"]])
-    mock_wandb_log.assert_errored("keys argument must be a list of strings")
-
 
 def test_run_summary(wandb_backend_spy):
     seed_run = Api().create_run()
@@ -338,50 +332,44 @@ def test_run_delete(wandb_backend_spy):
 
 def test_run_update_state_success(wandb_backend_spy):
     """Test successful state transition to pending."""
+    api = Api()
+    if not server_supports(api._service_api, "UPDATE_RUN_STATE"):
+        pytest.skip("Server doesn't support updateRunState")
+
     gql = wandb_backend_spy.gql
     update_state_spy = gql.Capture()
 
     wandb_backend_spy.stub_gql(
-        gql.Matcher(operation="UpdateRunState"),
-        gql.Constant(content={"data": {"updateRunState": {"success": True}}}),
-    )
-    wandb_backend_spy.stub_gql(
-        gql.Matcher(operation="UpdateRunState"),
-        update_state_spy,
+        gql.Matcher(operation="UpdateRunState"), update_state_spy
     )
 
-    seed_run = Api().create_run()
-    run = Api().run(f"{seed_run.entity}/{seed_run.project}/{seed_run.id}")
-    run._attrs["state"] = "failed"
-    run._state = "failed"
+    seed_run = api.create_run()
+    run = api.run(f"{seed_run.entity}/{seed_run.project}/{seed_run.id}")
 
-    result = run.update_state("pending")
+    result = run.update_state("failed")
 
     assert result is True
-    assert run.state == "pending"
+    assert run.state == "failed"
     assert update_state_spy.total_calls == 1
-    assert update_state_spy.requests[0].variables["input"]["state"] == "pending"
+    assert update_state_spy.requests[0].variables["input"]["state"] == "failed"
     assert update_state_spy.requests[0].variables["input"]["id"] == run.storage_id
 
 
-def test_run_update_state_failure(wandb_backend_spy):
-    """Test that update_state returns False when server rejects transition."""
-    gql = wandb_backend_spy.gql
+@pytest.mark.usefixtures("user")
+def test_run_update_state_failure():
+    """Test that update_state raises when the server rejects the transition."""
+    api = Api()
+    if not server_supports(api._service_api, "UPDATE_RUN_STATE"):
+        pytest.skip("Server doesn't support updateRunState")
 
-    wandb_backend_spy.stub_gql(
-        gql.Matcher(operation="UpdateRunState"),
-        gql.Constant(content={"data": {"updateRunState": {"success": False}}}),
-    )
+    seed_run = api.create_run()
+    run = api.run(f"{seed_run.entity}/{seed_run.project}/{seed_run.id}")
 
-    seed_run = Api().create_run()
-    run = Api().run(f"{seed_run.entity}/{seed_run.project}/{seed_run.id}")
-    run._attrs["state"] = "running"
-    run._state = "running"
+    assert run.update_state("failed") is True
+    assert run.state == "failed"
 
-    result = run.update_state("pending")
-
-    assert result is False
-    assert run.state == "running"
+    with pytest.raises(wandb.Error, match="invalid state transition"):
+        run.update_state("failed")
 
 
 def test_run_file_direct(
@@ -978,16 +966,12 @@ def test_delete_files_for_multiple_runs(
         file = run.files()[0]
         file.delete()
 
-        expected_variables = {
+        assert "projectId" in delete_spy.requests[0].variables
+        assert "projectId" in delete_spy.requests[0].query
+        assert delete_spy.requests[0].variables == {
             "files": [file.id],
+            "projectId": runs[0]._project_internal_id,
         }
-        # For system tests on newer server version, the projectId is provided
-        if file._server_accepts_project_id_for_delete_file():
-            assert "projectId" in delete_spy.requests[0].variables
-            assert "projectId" in delete_spy.requests[0].query
-            expected_variables["projectId"] = runs[0]._project_internal_id
-
-        assert delete_spy.requests[0].variables == expected_variables
 
 
 def test_delete_file(
@@ -1030,28 +1014,17 @@ def test_delete_file(
     file = run.files()[0]
     file.delete()
 
-    # For system tests on newer server version, the projectId is provided
-    if file._server_accepts_project_id_for_delete_file():
-        assert "projectId" in delete_spy.requests[0].variables
-        assert "projectId" in delete_spy.requests[0].query
-        assert delete_spy.requests[0].variables == {
-            "files": [file.id],
-            "projectId": run._project_internal_id,
-        }
-    # For some older server versions, the projectId is not provided
-    else:
-        assert "projectId" not in delete_spy.requests[0].variables
-        assert "projectId" not in delete_spy.requests[0].query
-        assert delete_spy.requests[0].variables == {
-            "files": [file.id],
-        }
+    assert "projectId" in delete_spy.requests[0].variables
+    assert "projectId" in delete_spy.requests[0].query
+    assert delete_spy.requests[0].variables == {
+        "files": [file.id],
+        "projectId": run._project_internal_id,
+    }
 
 
 def test_run_parses_run_project_id(user, stub_run_gql_once):
     stub_run_gql_once(project_id="123")
     api = Api()
-    if not File(api.client, {})._server_accepts_project_id_for_delete_file():
-        pytest.skip("Server does not support project_id for deletion")
 
     with wandb.init(project="test") as run:
         run.log({"scalar": 1})
@@ -1065,8 +1038,6 @@ def test_run_parses_run_project_id(user, stub_run_gql_once):
 def test_run_fails_parse_run_project_id(user, stub_run_gql_once):
     stub_run_gql_once(project_id="Unparseable")
     api = Api()
-    if not File(api.client, {})._server_accepts_project_id_for_delete_file():
-        pytest.skip("Server does not support project_id for deletion")
 
     with wandb.init(project="test") as run:
         run.log({"scalar": 1})
@@ -1119,7 +1090,7 @@ def test_create_team_exists(wandb_backend_spy):
         gql.Constant(content={"error": "resource already exists"}, status=409),
     )
 
-    with pytest.raises(requests.exceptions.HTTPError):
+    with pytest.raises(WandbApiFailedError):
         Api().create_team("test")
 
 
@@ -1314,6 +1285,23 @@ def test_generate_api_key_failure(
     user = api.user(email)
 
     assert user.generate_api_key("conflict") is None
+
+
+def test_user_api_uses_propagated_key(
+    stub_search_users,
+    skip_verify_login,
+):
+    _ = skip_verify_login  # Don't verify user API keys.
+    email = "test@test.com"
+    api_key = {"name": "X" * 40, "id": "QXBpS2V5OjE4MzA=", "description": None}
+    stub_search_users(email=email, api_keys=[api_key], teams=[])
+
+    fake_key = "A" * 92
+    api = Api(api_key=fake_key)
+    user = api.user(email)
+
+    assert user.user_api is not None
+    assert user.user_api.api_key == fake_key
 
 
 def test_runs_histories(

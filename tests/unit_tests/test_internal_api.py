@@ -5,11 +5,11 @@ import hashlib
 import os
 import pathlib
 import tempfile
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping
 from itertools import chain
 from pathlib import Path
-from typing import Callable, TypeVar, Union
-from unittest.mock import Mock, call, patch
+from typing import TypeVar
+from unittest.mock import Mock, patch
 
 import pytest
 import requests
@@ -20,6 +20,7 @@ from pytest_mock import MockerFixture
 from responses import RequestsMock
 from wandb.apis import internal
 from wandb.errors import CommError
+from wandb.proto import wandb_api_pb2 as apb
 from wandb.proto.wandb_internal_pb2 import ServerFeature
 from wandb.sdk.internal.internal_api import (
     _match_org_with_fetched_org_entities,
@@ -27,6 +28,7 @@ from wandb.sdk.internal.internal_api import (
 )
 from wandb.sdk.launch.sweeps import SweepNotFoundError
 from wandb.sdk.lib import retry
+from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 
 from .test_retry import MockTime, mock_time  # noqa: F401
 
@@ -49,13 +51,10 @@ def test_agent_heartbeat_raises_sweep_not_found_on_404():
     """Test that agent_heartbeat raises SweepNotFoundError on 404."""
     a = internal.Api()
 
-    mock_response = Mock()
-    mock_response.status_code = 404
+    error_response = apb.ApiErrorResponse(message="not found", http_status=404)
+    error = WandbApiFailedError(error_response.message, error_response)
 
-    http_error = requests.exceptions.HTTPError()
-    http_error.response = mock_response
-
-    with patch.object(a.api, "gql", side_effect=http_error):
+    with patch.object(a.api, "execute", side_effect=error):
         with pytest.raises(SweepNotFoundError):
             a.agent_heartbeat("test-agent-id", {}, {})
 
@@ -64,13 +63,10 @@ def test_agent_heartbeat_returns_empty_on_non_404_error():
     """Test that non-404 HTTP errors return empty list instead of raising."""
     a = internal.Api()
 
-    mock_response = Mock()
-    mock_response.status_code = 500
+    error_response = apb.ApiErrorResponse(message="server error", http_status=500)
+    error = WandbApiFailedError(error_response.message, error_response)
 
-    http_error = requests.exceptions.HTTPError()
-    http_error.response = mock_response
-
-    with patch.object(a.api, "gql", side_effect=http_error):
+    with patch.object(a.api, "execute", side_effect=error):
         result = a.agent_heartbeat("test-agent-id", {}, {})
         assert result == []
 
@@ -79,13 +75,34 @@ def test_get_run_state_invalid_kwargs():
     with pytest.raises(CommError) as e:
         _api = internal.Api()
 
-        def _mock_gql(*args, **kwargs):
+        def _mock_execute(*args, **kwargs):
             return dict()
 
-        _api.api.gql = _mock_gql
+        _api.api.execute = _mock_execute
         _api.get_run_state("test_entity", None, "test_run")
 
     assert "Error fetching run state" in str(e.value)
+
+
+def test_execute_propagates_service_api_errors(mocker: MockerFixture):
+    service_api = mocker.Mock()
+    error_response = apb.ApiErrorResponse(message="server unavailable")
+    service_api.execute_graphql.side_effect = WandbApiFailedError(
+        error_response.message,
+        error_response,
+    )
+    mocker.patch(
+        "wandb.sdk.internal.internal_api.Api._new_service_api",
+        return_value=service_api,
+    )
+    api = internal.InternalApi()
+
+    with pytest.raises(WandbApiFailedError):
+        api.execute("query Viewer { viewer { id } }")
+
+    service_api.execute_graphql.assert_called_once_with(
+        "query Viewer { viewer { id } }"
+    )
 
 
 @pytest.mark.parametrize(
@@ -97,7 +114,6 @@ def test_get_run_state_invalid_kwargs():
     ],
 )
 def test_download_write_file_fetches_iff_file_checksum_mismatched(
-    mock_responses: RequestsMock,
     existing_contents: str | None,
     expect_download: bool,
 ):
@@ -106,14 +122,21 @@ def test_download_write_file_fetches_iff_file_checksum_mismatched(
     with tempfile.TemporaryDirectory() as tmpdir:
         filepath = os.path.join(tmpdir, "file.txt")
 
-        if expect_download:
-            mock_responses.get(url, body=current_contents)
-
         if existing_contents is not None:
             with open(filepath, "w") as f:
                 f.write(existing_contents)
 
-        _, response = internal.InternalApi().download_write_file(
+        api = internal.InternalApi()
+
+        # Stand in for wandb-core, writing the file a real download would.
+        def fake_download(request):
+            path = request.download_file_request.path
+            with open(path, "w") as f:
+                f.write(current_contents)
+
+        api._service_api.send_api_request = Mock(side_effect=fake_download)
+
+        path, downloaded = api.download_write_file(
             metadata={
                 "name": filepath,
                 "md5": base64.b64encode(
@@ -124,10 +147,10 @@ def test_download_write_file_fetches_iff_file_checksum_mismatched(
             out_dir=tmpdir,
         )
 
-        if expect_download:
-            assert response is not None
-        else:
-            assert response is None
+        assert downloaded == expect_download
+        # Either way, the file on disk holds the current contents afterward.
+        with open(path) as f:
+            assert f.read() == current_contents
 
 
 def test_internal_api_with_no_write_global_config_dir(
@@ -146,7 +169,7 @@ def test_internal_api_with_no_write_global_config_dir(
 
 @pytest.fixture
 def mock_gql():
-    with patch("wandb.sdk.internal.internal_api.Api.gql") as mock:
+    with patch("wandb.sdk.internal.internal_api.Api.execute") as mock:
         mock.return_value = None
         yield mock
 
@@ -323,7 +346,6 @@ def test_match_org_multiple_orgs_no_match():
 @pytest.fixture
 def api_with_single_org():
     api = internal.InternalApi()
-    api.server_organization_type_introspection = Mock(return_value=["orgEntity"])
     api._fetch_orgs_and_org_entities_from_entity = Mock(
         return_value=[_OrgNames(entity_name="org-entity", display_name="org-display")]
     )
@@ -369,7 +391,6 @@ def test_resolve_org_entity_name_with_single_org_errors(
 @pytest.fixture
 def api_with_multiple_orgs():
     api = internal.InternalApi()
-    api.server_organization_type_introspection = Mock(return_value=["orgEntity"])
     api._fetch_orgs_and_org_entities_from_entity = Mock(
         return_value=[
             _OrgNames(entity_name="org1-entity", display_name="org1-display"),
@@ -414,255 +435,61 @@ def test_resolve_org_entity_name_with_multiple_orgs_invalid_org(api_with_multipl
         api_with_multiple_orgs._resolve_org_entity_name("entity", "potato-org")
 
 
-def test_resolve_org_entity_name_with_old_server():
-    api = internal.InternalApi()
-    api.server_organization_type_introspection = Mock(return_value=[])
-
-    # Should error without organization
-    with pytest.raises(ValueError, match="unavailable for your server version"):
-        api._resolve_org_entity_name("entity")
-
-    # Should return organization as-is when specified
-    assert api._resolve_org_entity_name("entity", "org-name-input") == "org-name-input"
-
-
-MockResponseOrException = Union[Exception, tuple[int, Mapping[int, int], str]]
+MockResponseOrException = Exception | tuple[int, Mapping[int, int], str]
 
 
 class TestUploadFile:
     """Tests `upload_file`."""
 
-    class TestSimple:
-        def test_adds_headers_to_request(
-            self, mock_responses: RequestsMock, example_file: Path
-        ):
-            response_callback = Mock(return_value=(200, {}, "success!"))
-            mock_responses.add_callback(
-                "PUT", "http://example.com/upload-dst", response_callback
-            )
-            internal.InternalApi().upload_file(
+    def test_routes_non_azure_uploads_through_core(self, example_file: Path):
+        """Non-Azure uploads are sent to wandb-core as an UploadFileRequest.
+
+        Retries, timeouts, and the AWS-specific transient-error handling that
+        used to live here are now owned by wandb-core's file transfer subsystem.
+        """
+        api = internal.InternalApi()
+        api._service_api.send_api_request = Mock()
+
+        with example_file.open("rb") as file:
+            result = api.upload_file(
                 "http://example.com/upload-dst",
-                example_file.open("rb"),
+                file,
                 extra_headers={"X-Test": "test"},
             )
-            assert response_callback.call_args[0][0].headers["X-Test"] == "test"
 
-        def test_returns_response_on_success(
-            self, mock_responses: RequestsMock, example_file: Path
-        ):
-            mock_responses.put(
-                "http://example.com/upload-dst", status=200, body="success!"
-            )
-            resp = internal.InternalApi().upload_file(
-                "http://example.com/upload-dst", example_file.open("rb")
-            )
-            assert resp.content == b"success!"
+        assert result is None
+        api._service_api.send_api_request.assert_called_once()
+        request = api._service_api.send_api_request.call_args[0][0]
+        upload = request.upload_file_request
+        assert upload.url == "http://example.com/upload-dst"
+        assert upload.path == str(example_file.resolve())
+        assert upload.headers["X-Test"] == "test"
 
-        # test_async_returns_response_on_success: doesn't exist,
-        # because `upload_file_async` doesn't return the response.
-
-        @pytest.mark.parametrize(
-            "response,expected_errtype",
-            [
-                ((400, {}, ""), requests.exceptions.HTTPError),
-                ((500, {}, ""), retry.TransientError),
-                ((502, {}, ""), retry.TransientError),
-                (requests.exceptions.ConnectionError(), retry.TransientError),
-                (requests.exceptions.Timeout(), retry.TransientError),
-                (RuntimeError("oh no"), RuntimeError),
-            ],
+    def test_propagates_core_errors(self, example_file: Path):
+        """Failures from wandb-core propagate to the caller."""
+        api = internal.InternalApi()
+        api._service_api.send_api_request = Mock(
+            side_effect=WandbApiFailedError("upload failed")
         )
-        def test_returns_transienterror_on_transient_issues(
-            self,
-            mock_responses: RequestsMock,
-            example_file: Path,
-            response: MockResponseOrException,
-            expected_errtype: type[Exception],
-        ):
-            mock_responses.add_callback(
-                "PUT",
-                "http://example.com/upload-dst",
-                Mock(return_value=response),
-            )
-            with pytest.raises(expected_errtype):
-                internal.InternalApi().upload_file(
-                    "http://example.com/upload-dst", example_file.open("rb")
-                )
 
-    class TestProgressCallback:
-        def test_smoke(self, mock_responses: RequestsMock, example_file: Path):
-            file_contents = "some text"
-            example_file.write_text(file_contents)
-
-            def response_callback(request: requests.models.PreparedRequest):
-                assert request.body.read() == file_contents.encode()
-                return (200, {}, "success!")
-
-            mock_responses.add_callback(
-                "PUT", "http://example.com/upload-dst", response_callback
-            )
-
-            progress_callback = Mock()
-            internal.InternalApi().upload_file(
-                "http://example.com/upload-dst",
-                example_file.open("rb"),
-                callback=progress_callback,
-            )
-
-            assert progress_callback.call_args_list == [
-                call(len(file_contents), len(file_contents))
-            ]
-
-        def test_handles_multiple_calls(
-            self, mock_responses: RequestsMock, example_file: Path
-        ):
-            example_file.write_text("12345")
-
-            def response_callback(request: requests.models.PreparedRequest):
-                assert request.body.read(2) == b"12"
-                assert request.body.read(2) == b"34"
-                assert request.body.read() == b"5"
-                assert request.body.read() == b""
-                return (200, {}, "success!")
-
-            mock_responses.add_callback(
-                "PUT", "http://example.com/upload-dst", response_callback
-            )
-
-            progress_callback = Mock()
-            internal.InternalApi().upload_file(
-                "http://example.com/upload-dst",
-                example_file.open("rb"),
-                callback=progress_callback,
-            )
-
-            assert progress_callback.call_args_list == [
-                call(2, 2),
-                call(2, 4),
-                call(1, 5),
-                call(0, 5),
-            ]
-
-        @pytest.mark.parametrize(
-            "failure",
-            [
-                requests.exceptions.Timeout(),
-                requests.exceptions.ConnectionError(),
-                (400, {}, ""),
-                (500, {}, ""),
-            ],
-        )
-        def test_rewinds_on_failure(
-            self,
-            mock_responses: RequestsMock,
-            example_file: Path,
-            failure: MockResponseOrException,
-        ):
-            example_file.write_text("1234567")
-
-            def response_callback(request: requests.models.PreparedRequest):
-                assert request.body.read(2) == b"12"
-                assert request.body.read(2) == b"34"
-                return failure
-
-            mock_responses.add_callback(
-                "PUT", "http://example.com/upload-dst", response_callback
-            )
-
-            progress_callback = Mock()
-            with pytest.raises((retry.TransientError, requests.RequestException)):
-                internal.InternalApi().upload_file(
-                    "http://example.com/upload-dst",
-                    example_file.open("rb"),
-                    callback=progress_callback,
-                )
-
-            assert progress_callback.call_args_list == [
-                call(2, 2),
-                call(2, 4),
-                call(-4, 0),
-            ]
-
-    @pytest.mark.parametrize(
-        "request_headers,response,expected_errtype",
-        [
-            (
-                {"x-amz-meta-md5": "1234"},
-                (400, {}, "blah blah RequestTimeout blah blah"),
-                retry.TransientError,
-            ),
-            (
-                {"x-amz-meta-md5": "1234"},
-                (400, {}, "non-timeout-related error message"),
-                requests.RequestException,
-            ),
-            (
-                {"x-amz-meta-md5": "1234"},
-                requests.exceptions.ConnectionError(),
-                retry.TransientError,
-            ),
-            (
-                {},
-                (400, {}, "blah blah RequestTimeout blah blah"),
-                requests.RequestException,
-            ),
-        ],
-    )
-    def test_transient_failure_on_special_aws_request_timeout(
-        self,
-        mock_responses: RequestsMock,
-        example_file: Path,
-        request_headers: Mapping[str, str],
-        response,
-        expected_errtype: type[Exception],
-    ):
-        mock_responses.add_callback(
-            "PUT", "http://example.com/upload-dst", Mock(return_value=response)
-        )
-        with pytest.raises(expected_errtype):
-            internal.InternalApi().upload_file(
-                "http://example.com/upload-dst",
-                example_file.open("rb"),
-                extra_headers=request_headers,
-            )
-
-    # test_async_transient_failure_on_special_aws_request_timeout: see
-    # `test_async_retries_on_special_aws_request_timeout` on TestUploadRetry.
+        with example_file.open("rb") as file:
+            with pytest.raises(WandbApiFailedError):
+                api.upload_file("http://example.com/upload-dst", file)
 
     class TestAzure:
         MAGIC_HEADERS = {"x-ms-blob-type": "SomeBlobType"}
 
-        @pytest.mark.parametrize(
-            "request_headers,uses_azure_lib",
-            [
-                ({}, False),
-                (MAGIC_HEADERS, True),
-            ],
-        )
-        def test_uses_azure_lib_if_available(
-            self,
-            mock_responses: RequestsMock,
-            example_file: Path,
-            request_headers: Mapping[str, str],
-            uses_azure_lib: bool,
-        ):
+        def test_uses_azure_lib_if_available(self, example_file: Path):
             api = internal.InternalApi()
-
-            if uses_azure_lib:
-                api._azure_blob_module = Mock()
-            else:
-                mock_responses.put("http://example.com/upload-dst")
+            api._azure_blob_module = Mock()
 
             api.upload_file(
                 "http://example.com/upload-dst",
                 example_file.open("rb"),
-                extra_headers=request_headers,
+                extra_headers=self.MAGIC_HEADERS,
             )
 
-            if uses_azure_lib:
-                api._azure_blob_module.BlobClient.from_blob_url().upload_blob.assert_called_once()
-            else:
-                assert len(mock_responses.calls) == 1
+            api._azure_blob_module.BlobClient.from_blob_url().upload_blob.assert_called_once()
 
         @pytest.mark.parametrize(
             "response,expected_errtype,check_err",
@@ -708,72 +535,6 @@ class TestUploadFile:
             assert check_err(e.value), e.value
 
 
-class TestUploadFileRetry:
-    """Test the retry logic of upload_file_retry.
-
-    Testing the file-upload logic itself is done in TestUploadFile, above;
-    this class just tests the retry logic (though it does make a couple
-    assumptions about status codes, like "400 isn't retriable, 500 is.")
-    """
-
-    @pytest.mark.parametrize(
-        ["schedule", "num_requests"],
-        [
-            ([200, 0], 1),
-            ([500, 500, 200, 0], 3),
-        ],
-    )
-    def test_stops_after_success(
-        self,
-        example_file: Path,
-        mock_responses: RequestsMock,
-        schedule: Sequence[int],
-        num_requests: int,
-    ):
-        handler = Mock(side_effect=[(status, {}, "") for status in schedule])
-        mock_responses.add_callback("PUT", "http://example.com/upload-dst", handler)
-
-        internal.InternalApi().upload_file_retry(
-            "http://example.com/upload-dst",
-            example_file.open("rb"),
-        )
-
-        assert handler.call_count == num_requests
-
-    def test_stops_after_bad_status(
-        self,
-        example_file: Path,
-        mock_responses: RequestsMock,
-    ):
-        handler = Mock(side_effect=[(400, {}, "")])
-        mock_responses.add_callback("PUT", "http://example.com/upload-dst", handler)
-
-        with pytest.raises(wandb.errors.CommError):
-            internal.InternalApi().upload_file_retry(
-                "http://example.com/upload-dst",
-                example_file.open("rb"),
-            )
-        assert handler.call_count == 1
-
-    def test_stops_after_retry_limit_exceeded(
-        self,
-        example_file: Path,
-        mock_responses: RequestsMock,
-    ):
-        num_retries = 8
-        handler = Mock(return_value=(500, {}, ""))
-        mock_responses.add_callback("PUT", "http://example.com/upload-dst", handler)
-
-        with pytest.raises(wandb.errors.CommError):
-            internal.InternalApi().upload_file_retry(
-                "http://example.com/upload-dst",
-                example_file.open("rb"),
-                num_retries=num_retries,
-            )
-
-        assert handler.call_count == num_retries + 1
-
-
 ENABLED_FEATURE_RESPONSE = {
     "serverInfo": {
         "features": [
@@ -785,39 +546,42 @@ ENABLED_FEATURE_RESPONSE = {
 
 
 @pytest.fixture
-def mock_client(mocker: MockerFixture):
-    mock = mocker.patch("wandb.sdk.internal.internal_api.Client")
-    mock.return_value = mocker.Mock()
-    yield mock.return_value
+def mock_service_api(mocker: MockerFixture):
+    mock = mocker.Mock()
+    mocker.patch(
+        "wandb.sdk.internal.internal_api.Api._new_service_api",
+        return_value=mock,
+    )
+    yield mock
 
 
 @pytest.fixture
-def mock_client_with_enabled_features(mock_client):
-    mock_client.execute.return_value = ENABLED_FEATURE_RESPONSE
-    yield mock_client
+def mock_service_api_with_enabled_features(mock_service_api):
+    mock_service_api.execute_graphql.return_value = ENABLED_FEATURE_RESPONSE
+    yield mock_service_api
 
 
 NO_FEATURES_RESPONSE = {"serverInfo": {"features": []}}
 
 
 @pytest.fixture
-def mock_client_with_no_features(mock_client):
-    mock_client.execute.return_value = NO_FEATURES_RESPONSE
-    yield mock_client
+def mock_service_api_with_no_features(mock_service_api):
+    mock_service_api.execute_graphql.return_value = NO_FEATURES_RESPONSE
+    yield mock_service_api
 
 
 @pytest.fixture
-def mock_client_with_error_no_field(mock_client):
+def mock_service_api_with_error_no_field(mock_service_api):
     error_msg = 'Cannot query field "features" on type "ServerInfo".'
-    mock_client.execute.side_effect = Exception(error_msg)
-    yield mock_client
+    mock_service_api.execute_graphql.side_effect = Exception(error_msg)
+    yield mock_service_api
 
 
 @pytest.fixture
-def mock_client_with_random_error(mock_client):
+def mock_service_api_with_random_error(mock_service_api):
     error_msg = "Some random error"
-    mock_client.execute.side_effect = Exception(error_msg)
-    yield mock_client
+    mock_service_api.execute_graphql.side_effect = Exception(error_msg)
+    yield mock_service_api
 
 
 @pytest.mark.parametrize(
@@ -825,42 +589,42 @@ def mock_client_with_random_error(mock_client):
     [
         (
             # Test enabled features
-            mock_client_with_enabled_features.__name__,
+            mock_service_api_with_enabled_features.__name__,
             ServerFeature.LARGE_FILENAMES,
             True,
             False,
         ),
         (
             # Test disabled features
-            mock_client_with_enabled_features.__name__,
+            mock_service_api_with_enabled_features.__name__,
             ServerFeature.ARTIFACT_TAGS,
             False,
             False,
         ),
         (
             # Test features not in response
-            mock_client_with_enabled_features.__name__,
+            mock_service_api_with_enabled_features.__name__,
             ServerFeature.ARTIFACT_REGISTRY_SEARCH,
             False,
             False,
         ),
         (
             # Test empty features list
-            mock_client_with_no_features.__name__,
+            mock_service_api_with_no_features.__name__,
             ServerFeature.LARGE_FILENAMES,
             False,
             False,
         ),
         (
             # Test server not supporting features
-            mock_client_with_error_no_field.__name__,
+            mock_service_api_with_error_no_field.__name__,
             ServerFeature.LARGE_FILENAMES,
             False,
             False,
         ),
         (
             # Test other server errors
-            mock_client_with_random_error.__name__,
+            mock_service_api_with_random_error.__name__,
             ServerFeature.LARGE_FILENAMES,
             False,
             True,
@@ -892,13 +656,6 @@ def test_construct_use_artifact_query_with_every_field(mocker: MockerFixture):
     api = internal.InternalApi()
 
     mocker.patch.object(api, "settings", side_effect=lambda x: "default-" + x)
-
-    # Mock the server introspection methods
-    mocker.patch.object(
-        api,
-        "server_use_artifact_input_introspection",
-        return_value={"usedAs": "String"},
-    )
 
     # Simulate server support for ALL known features
     mock_server_features = dict.fromkeys(
@@ -966,9 +723,6 @@ def test_construct_use_artifact_query_without_entity_project():
     api.settings = Mock(side_effect=lambda x: "default-" + x)
 
     # Mock methods to return False for entity/project support
-    api.server_use_artifact_input_introspection = Mock(
-        return_value={"usedAs": "String"}
-    )
     api._server_features = Mock(return_value={})
 
     query, variables = api._construct_use_artifact_query(
@@ -990,12 +744,10 @@ def test_construct_use_artifact_query_without_entity_project():
 
 
 def test_construct_use_artifact_query_without_used_as():
-    # Test when server doesn't support usedAs field
+    # Test when no use_as value is provided.
     api = internal.InternalApi()
     api.settings = Mock(side_effect=lambda x: "default-" + x)
 
-    # Mock methods to return empty dict for introspection
-    api.server_use_artifact_input_introspection = Mock(return_value={})
     # Simulate server support for ALL known features
     mock_server_features = dict.fromkeys(
         chain(ServerFeature.keys(), ServerFeature.values()),
@@ -1008,13 +760,13 @@ def test_construct_use_artifact_query_without_used_as():
         project_name="test-project",
         run_name="test-run",
         artifact_id="test-artifact-id",
-        use_as="test-use-as",
+        use_as=None,
         artifact_entity_name="test-artifact-entity",
         artifact_project_name="test-artifact-project",
     )
     query_str = str(query)
 
-    # Verify usedAs is still in variables but not in query
+    # Verify usedAs is still in variables but not in query.
     assert "usedAs" in variables
     assert "usedAs:" not in query_str
 
@@ -1057,7 +809,7 @@ class TestJWTAuth:
         )
 
         fetch_mock.assert_not_called()
-        assert api.client.transport.session.auth == ("api", "a" * 40)
+        assert api.request_auth == ("api", "a" * 40)
 
     def test_access_token_returns_none_without_token_file(self):
         api = internal.InternalApi(environ={})

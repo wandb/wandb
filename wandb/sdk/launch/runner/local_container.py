@@ -27,6 +27,7 @@ from ..utils import (
     event_loop_thread_exec,
     pull_docker_image,
     sanitize_wandb_api_key,
+    validate_local_container_resource_args,
 )
 from .abstract import AbstractRun, AbstractRunner, Status
 
@@ -115,9 +116,11 @@ class LocalContainerRunner(AbstractRunner):
     def _populate_docker_args(
         self, launch_project: LaunchProject, image_uri: str
     ) -> dict[str, Any]:
-        docker_args: dict[str, Any] = launch_project.fill_macros(image_uri).get(
-            "local-container", {}
-        )
+        submitter_docker_args: dict[str, Any] = launch_project.fill_macros(
+            image_uri
+        ).get("local-container", {})
+        validate_local_container_resource_args(submitter_docker_args)
+        docker_args = dict(submitter_docker_args)
         if _is_wandb_local_uri(self._api.settings("base_url")):
             if sys.platform == "win32":
                 docker_args["net"] = "host"
@@ -130,10 +133,12 @@ class LocalContainerRunner(AbstractRunner):
             # Mount code into the container and set the working directory.
             if "volume" not in docker_args:
                 docker_args["volume"] = []
+            else:
+                docker_args["volume"] = list(docker_args["volume"])
             docker_args["volume"].append(
                 f"{launch_project.project_dir}:{CODE_MOUNT_DIR}"
             )
-            docker_args["workdir"] = CODE_MOUNT_DIR
+            docker_args["workdir"] = launch_project.resolved_working_dir
         return docker_args
 
     async def run(
@@ -294,7 +299,16 @@ def get_docker_command(
                 prefix = "-" + shlex.quote(name)
             else:
                 prefix = "--" + shlex.quote(name)
-            if isinstance(value, list):
+            # Submitter-supplied flags are validated upstream by
+            # validate_local_container_resource_args; this is a defense-in-depth
+            # guard so a value can never smuggle a second option or an unexpected
+            # shape into the command. Each flag emits exactly `--flag value`
+            # (repeated once per item for list-valued flags).
+            if isinstance(value, dict):
+                raise LaunchError(
+                    f"Invalid docker argument '{name}': mapping values are not supported."
+                )
+            if isinstance(value, (list, tuple)):
                 for v in value:
                     cmd += [prefix, shlex.quote(str(v))]
             elif isinstance(value, bool) and value:
@@ -303,12 +317,12 @@ def get_docker_command(
                 cmd += [prefix, shlex.quote(str(value))]
 
     if entry_cmd:
-        cmd += ["--entrypoint", entry_cmd[0]]
+        cmd += ["--entrypoint", shlex.quote(str(entry_cmd[0]))]
     cmd += [shlex.quote(image)]
     if entry_cmd and len(entry_cmd) > 1:
-        cmd += entry_cmd[1:]
+        cmd += [shlex.quote(str(arg)) for arg in entry_cmd[1:]]
     if additional_args:
-        cmd += additional_args
+        cmd += [shlex.quote(str(arg)) for arg in additional_args]
     return cmd
 
 

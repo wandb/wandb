@@ -50,44 +50,58 @@ func RunKeyBindings() []BindingCategory[Run] {
 			Name: "Panels",
 			Bindings: []KeyBinding[Run]{
 				{
+					Keys:        []string{"1"},
+					Description: "Toggle metrics grid",
+					Handler:     (*Run).handleToggleMetricsGrid,
+				},
+				{
 					Keys:        []string{"["},
 					Description: "Toggle left sidebar with run overview",
 					Handler:     (*Run).handleToggleLeftSidebar,
 				},
 				{
-					Keys:        []string{"]"},
+					Keys:        []string{"]", "2"},
 					Description: "Toggle right sidebar with system metrics",
 					Handler:     (*Run).handleToggleRightSidebar,
 				},
 				{
-					Keys:        []string{"l"},
+					Keys:        []string{"3"},
+					Description: "Toggle media pane",
+					Handler:     (*Run).handleToggleMediaPane,
+				},
+				{
+					Keys:        []string{"4"},
 					Description: "Toggle console logs panel",
 					Handler:     (*Run).handleToggleConsoleLogsPane,
 				},
 			},
 		},
 		{
-			Name: "Navigation",
+			Name: "Navigation (focused pane)",
 			Bindings: []KeyBinding[Run]{
 				{
-					Keys:        []string{"N", "pgup"},
-					Description: "Previous chart page",
+					Keys:        []string{"w/s/a/d", "↑/↓/←/→"},
+					Description: "Move within focused pane (chart focus on grids, item nav on lists)",
+				},
+				{
+					Keys:        NavKeysFor(NavIntentPageUp),
+					Description: "Previous page / previous series page in media",
 					Handler:     (*Run).handlePrevPage,
 				},
 				{
-					Keys:        []string{"n", "pgdown"},
-					Description: "Next chart page",
+					Keys:        NavKeysFor(NavIntentPageDown),
+					Description: "Next page / next series page in media",
 					Handler:     (*Run).handleNextPage,
 				},
 				{
-					Keys:        []string{"M", "alt+N", "alt+pgup"},
-					Description: "Previous system metrics page",
-					Handler:     (*Run).handlePrevSystemPage,
+					Keys:        NavKeysFor(NavIntentHome),
+					Description: "Jump to first item / first page / scrub to start",
+					Handler:     (*Run).handleNavHome,
 				},
 				{
-					Keys:        []string{"m", "alt+n", "alt+pgdown"},
-					Description: "Next system metrics page",
-					Handler:     (*Run).handleNextSystemPage,
+					Keys:        NavKeysFor(NavIntentEnd),
+					Description: "Jump to last item / last page / scrub to end",
+					Handler:     (*Run).handleNavEnd,
 				},
 			},
 		},
@@ -96,8 +110,8 @@ func RunKeyBindings() []BindingCategory[Run] {
 			Bindings: []KeyBinding[Run]{
 				{
 					Keys:        []string{"y"},
-					Description: "Toggle log Y on focused chart",
-					Handler:     (*Run).handleToggleFocusedChartLogY,
+					Description: "Cycle focused chart mode (log Y / heatmap)",
+					Handler:     (*Run).handleCycleFocusedChartMode,
 				},
 				{
 					Keys:        []string{"/"},
@@ -141,44 +155,52 @@ func RunKeyBindings() []BindingCategory[Run] {
 			Bindings: []KeyBinding[Run]{
 				{
 					Keys:        []string{"c"},
-					Description: "Set metrics grid columns",
-					Handler:     (*Run).handleConfigMetricsCols,
+					Description: "Set grid columns (focused pane)",
+					Handler:     (*Run).handleConfigFocusedCols,
 				},
 				{
 					Keys:        []string{"r"},
-					Description: "Set metrics grid rows",
-					Handler:     (*Run).handleConfigMetricsRows,
-				},
-				{
-					Keys:        []string{"C"},
-					Description: "Set system grid columns (Shift+c)",
-					Handler:     (*Run).handleConfigSystemCols,
-				},
-				{
-					Keys:        []string{"R"},
-					Description: "Set system grid rows (Shift+r)",
-					Handler:     (*Run).handleConfigSystemRows,
+					Description: "Set grid rows (focused pane)",
+					Handler:     (*Run).handleConfigFocusedRows,
 				},
 			},
 		},
 
 		{
-			Name: "Sidebars (when open)",
+			Name: "Focusable panes (when open)",
 			Bindings: []KeyBinding[Run]{
 				{
 					Keys:        []string{"tab", "shift+tab"},
-					Description: "Cycle focus: overview ↔ logs (overview cycles sections)",
+					Description: "Cycle focus: overview ↔ metrics ↔ media ↔ logs ↔ system",
 					Handler:     (*Run).handleSidebarTabNav,
 				},
 				{
-					Keys:        []string{"up", "down"},
-					Description: "Navigate focused sidebar/list",
+					Keys:        NavKeysFor(NavIntentUp),
+					Description: "Item up (list) / chart focus up (grid) / scrub -10 in media (arrow only)",
 					Handler:     (*Run).handleSidebarVerticalNav,
 				},
 				{
-					Keys:        []string{"left", "right"},
-					Description: "Page in focused sidebar/list",
+					Keys:        NavKeysFor(NavIntentDown),
+					Description: "Item down (list) / chart focus down (grid) / scrub +10 in media (arrow only)",
+					Handler:     (*Run).handleSidebarVerticalNav,
+				},
+				{
+					Keys:        NavKeysFor(NavIntentLeft),
+					Description: "Page prev (list) / chart focus left (grid) / scrub -1 in media (arrow only)",
 					Handler:     (*Run).handleSidebarPageNav,
+				},
+				{
+					Keys:        NavKeysFor(NavIntentRight),
+					Description: "Page next (list) / chart focus right (grid) / scrub +1 in media (arrow only)",
+					Handler:     (*Run).handleSidebarPageNav,
+				},
+				{
+					Keys:        []string{"l"},
+					Description: "Link scrubbing: arrow keys scrub all media series in sync (media pane focused)",
+				},
+				{
+					Keys:        []string{"k"},
+					Description: "Toggle media image renderer: ANSI ↔ full-res (media pane focused)",
 				},
 			},
 		},
@@ -221,12 +243,17 @@ func WorkspaceKeyBindings() []BindingCategory[Workspace] {
 			Name: "Panels",
 			Bindings: []KeyBinding[Workspace]{
 				{
+					Keys:        []string{"1"},
+					Description: "Toggle metrics grid",
+					Handler:     (*Workspace).handleToggleMetricsGrid,
+				},
+				{
 					Keys:        []string{"["},
 					Description: "Toggle runs sidebar",
 					Handler:     (*Workspace).handleToggleRunsSidebar,
 				},
 				{
-					Keys:        []string{"s"},
+					Keys:        []string{"2"},
 					Description: "Toggle system metrics panel",
 					Handler:     (*Workspace).handleToggleSystemMetricsPane,
 				},
@@ -236,34 +263,43 @@ func WorkspaceKeyBindings() []BindingCategory[Workspace] {
 					Handler:     (*Workspace).handleToggleOverviewSidebar,
 				},
 				{
-					Keys:        []string{"l"},
+					Keys:        []string{"3"},
+					Description: "Toggle media pane",
+					Handler:     (*Workspace).handleToggleMediaPane,
+				},
+				{
+					Keys:        []string{"4"},
 					Description: "Toggle console logs panel",
 					Handler:     (*Workspace).handleToggleConsoleLogsPane,
 				},
 			},
 		},
 		{
-			Name: "Navigation",
+			Name: "Navigation (focused pane)",
 			Bindings: []KeyBinding[Workspace]{
 				{
-					Keys:        []string{"N", "pgup"},
-					Description: "Previous chart page",
+					Keys:        []string{"w/s/a/d", "↑/↓/←/→"},
+					Description: "Move within focused pane (chart focus on grids, item nav on lists)",
+				},
+				{
+					Keys:        NavKeysFor(NavIntentPageUp),
+					Description: "Previous page / previous series page in media",
 					Handler:     (*Workspace).handlePrevPage,
 				},
 				{
-					Keys:        []string{"n", "pgdown"},
-					Description: "Next chart page",
+					Keys:        NavKeysFor(NavIntentPageDown),
+					Description: "Next page / next series page in media",
 					Handler:     (*Workspace).handleNextPage,
 				},
 				{
-					Keys:        []string{"M"},
-					Description: "Previous system metrics page",
-					Handler:     (*Workspace).handlePrevSystemMetricsPage,
+					Keys:        NavKeysFor(NavIntentHome),
+					Description: "Jump to first item / first page / scrub to start",
+					Handler:     (*Workspace).handleNavHome,
 				},
 				{
-					Keys:        []string{"m"},
-					Description: "Next system metrics page",
-					Handler:     (*Workspace).handleNextSystemMetricsPage,
+					Keys:        NavKeysFor(NavIntentEnd),
+					Description: "Jump to last item / last page / scrub to end",
+					Handler:     (*Workspace).handleNavEnd,
 				},
 			},
 		},
@@ -287,8 +323,8 @@ func WorkspaceKeyBindings() []BindingCategory[Workspace] {
 			Bindings: []KeyBinding[Workspace]{
 				{
 					Keys:        []string{"y"},
-					Description: "Toggle log Y on focused chart",
-					Handler:     (*Workspace).handleToggleFocusedChartLogY,
+					Description: "Cycle focused chart mode (log Y / heatmap)",
+					Handler:     (*Workspace).handleCycleFocusedChartMode,
 				},
 				{
 					Keys:        []string{"/"},
@@ -333,48 +369,43 @@ func WorkspaceKeyBindings() []BindingCategory[Workspace] {
 			Bindings: []KeyBinding[Workspace]{
 				{
 					Keys:        []string{"c"},
-					Description: "Set metrics grid columns",
-					Handler:     (*Workspace).handleConfigMetricsCols,
+					Description: "Set grid columns (focused pane)",
+					Handler:     (*Workspace).handleConfigFocusedCols,
 				},
 				{
 					Keys:        []string{"r"},
-					Description: "Set metrics grid rows",
-					Handler:     (*Workspace).handleConfigMetricsRows,
-				},
-				{
-					Keys:        []string{"C"},
-					Description: "Set system grid columns (Shift+c)",
-					Handler:     (*Workspace).handleConfigSystemCols,
-				},
-				{
-					Keys:        []string{"R"},
-					Description: "Set system grid rows (Shift+r)",
-					Handler:     (*Workspace).handleConfigSystemRows,
+					Description: "Set grid rows (focused pane)",
+					Handler:     (*Workspace).handleConfigFocusedRows,
 				},
 			},
 		},
 		{
-			Name: "Sidebars (when open)",
+			Name: "Focusable panes (when open)",
 			Bindings: []KeyBinding[Workspace]{
 				{
 					Keys:        []string{"tab", "shift+tab"},
-					Description: "Cycle focus between runs, overview, and console logs",
+					Description: "Cycle focus: runs ↔ metrics ↔ system ↔ media ↔ logs ↔ overview",
 					Handler:     (*Workspace).handleSidebarTabNav,
 				},
 				{
-					Keys:        []string{"up", "down"},
-					Description: "Navigate focused sidebar list",
+					Keys:        NavKeysFor(NavIntentUp),
+					Description: "Item up (list) / chart focus up (grid) / scrub -10 in media (arrow only)",
 					Handler:     (*Workspace).handleRunsVerticalNav,
 				},
 				{
-					Keys:        []string{"left", "right"},
-					Description: "Navigate pages in focused sidebar list",
+					Keys:        NavKeysFor(NavIntentDown),
+					Description: "Item down (list) / chart focus down (grid) / scrub +10 in media (arrow only)",
+					Handler:     (*Workspace).handleRunsVerticalNav,
+				},
+				{
+					Keys:        NavKeysFor(NavIntentLeft),
+					Description: "Page prev (list) / chart focus left (grid) / scrub -1 in media (arrow only)",
 					Handler:     (*Workspace).handleRunsPageNav,
 				},
 				{
-					Keys:        []string{"home"},
-					Description: "Jump to first run",
-					Handler:     (*Workspace).handleRunsHome,
+					Keys:        NavKeysFor(NavIntentRight),
+					Description: "Page next (list) / chart focus right (grid) / scrub +1 in media (arrow only)",
+					Handler:     (*Workspace).handleRunsPageNav,
 				},
 				{
 					Keys:        []string{"space"},
@@ -385,6 +416,14 @@ func WorkspaceKeyBindings() []BindingCategory[Workspace] {
 					Keys:        []string{"p"},
 					Description: "Pin/unpin selected run",
 					Handler:     (*Workspace).handlePinRunKey,
+				},
+				{
+					Keys:        []string{"l"},
+					Description: "Link scrubbing: arrow keys scrub all media series in sync (media pane focused)",
+				},
+				{
+					Keys:        []string{"k"},
+					Description: "Toggle media image renderer: ANSI ↔ full-res (media pane focused)",
 				},
 			},
 		},
@@ -418,14 +457,32 @@ func SymonKeyBindings() []BindingCategory[Symon] {
 			Name: "Navigation",
 			Bindings: []KeyBinding[Symon]{
 				{
-					Keys:        []string{"N", "pgup"},
+					Keys: concatKeys(
+						NavKeysFor(NavIntentUp), NavKeysFor(NavIntentDown),
+						NavKeysFor(NavIntentLeft), NavKeysFor(NavIntentRight),
+					),
+					Description: "Navigate chart focus within page",
+					Handler:     (*Symon).handleGridNav,
+				},
+				{
+					Keys:        NavKeysFor(NavIntentPageUp),
 					Description: "Previous chart page",
 					Handler:     (*Symon).handlePrevPage,
 				},
 				{
-					Keys:        []string{"n", "pgdown"},
+					Keys:        NavKeysFor(NavIntentPageDown),
 					Description: "Next chart page",
 					Handler:     (*Symon).handleNextPage,
+				},
+				{
+					Keys:        NavKeysFor(NavIntentHome),
+					Description: "Jump to first chart page",
+					Handler:     (*Symon).handleNavHome,
+				},
+				{
+					Keys:        NavKeysFor(NavIntentEnd),
+					Description: "Jump to last chart page",
+					Handler:     (*Symon).handleNavEnd,
 				},
 			},
 		},

@@ -87,7 +87,6 @@ LAUNCH_QUEUE_NAME = "WANDB_LAUNCH_QUEUE_NAME"
 LAUNCH_QUEUE_ENTITY = "WANDB_LAUNCH_QUEUE_ENTITY"
 LAUNCH_TRACE_ID = "WANDB_LAUNCH_TRACE_ID"
 ENABLE_DCGM_PROFILING = "WANDB_ENABLE_DCGM_PROFILING"
-DISABLE_ORJSON = "WANDB_DISABLE_ORJSON"
 
 # For testing, to be removed in future version
 USE_V1_ARTIFACTS = "_WANDB_USE_V1_ARTIFACTS"
@@ -482,7 +481,7 @@ def should_save_code() -> bool:
 def disable_git(env: MutableMapping | None = None) -> bool:
     if env is None:
         env = os.environ
-    val = env.get(DISABLE_GIT, default="False")
+    val = env.get(DISABLE_GIT, "False")
     if isinstance(val, str):
         val = val.lower() != "false"
     return val

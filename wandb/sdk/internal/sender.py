@@ -18,8 +18,6 @@ from datetime import datetime
 from queue import Queue
 from typing import TYPE_CHECKING, Any, Literal
 
-import requests
-
 import wandb
 from wandb import util
 from wandb.analytics import get_sentry
@@ -219,7 +217,6 @@ class SendManager:
     _rewind_response: dict[str, Any] | None
     _cached_server_info: dict[str, Any]
     _cached_viewer: dict[str, Any]
-    _server_messages: list[dict[str, Any]]
     _ds: datastore.DataStore | None
     _output_raw_streams: dict[StreamLiterals, _OutputRawStream]
     _output_raw_file: filesystem.CRDedupedFile | None
@@ -273,7 +270,6 @@ class SendManager:
 
         self._cached_server_info = dict()
         self._cached_viewer = dict()
-        self._server_messages = []
 
         # State updated by resuming
         self._resume_state = ResumeState()
@@ -802,25 +798,6 @@ class SendManager:
         config_path = os.path.join(self._settings.files_dir, "config.yaml")
         config_util.save_config_file_from_dict(config_path, config_value_dict)
 
-    def _sync_spell(self) -> None:
-        """Sync this run with spell."""
-        if not self._run:
-            return
-        try:
-            env = os.environ
-            self._interface.publish_config(
-                key=("_wandb", "spell_url"), val=env.get("SPELL_RUN_URL")
-            )
-            url = f"{self._api.app_url}/{self._run.entity}/{self._run.project}/runs/{self._run.run_id}"
-            requests.put(
-                env.get("SPELL_API_URL", "https://api.spell.run") + "/wandb_url",
-                json={"access_token": env.get("WANDB_ACCESS_TOKEN"), "url": url},
-                timeout=2,
-            )
-        except requests.RequestException:
-            pass
-        # TODO: do something if sync spell is not successful?
-
     def _setup_fork(self, server_run: dict):
         assert self._run
         assert self._run.branch_point
@@ -1010,10 +987,9 @@ class SendManager:
         if is_rewinding:
             assert self._rewind_response
             server_run = self._rewind_response
-            server_messages = None
             inserted = True
         else:
-            server_run, inserted, server_messages = self._api.upsert_run(
+            server_run, inserted = self._api.upsert_run(
                 name=run.run_id,
                 entity=run.entity or None,
                 project=run.project or None,
@@ -1035,7 +1011,6 @@ class SendManager:
         if run.sweep_id:
             self._job_builder.disable = True
 
-        self._server_messages = server_messages or []
         self._run = run
 
         if self._resume_state.resumed and is_rewinding:
@@ -1084,8 +1059,6 @@ class SendManager:
         sweep_id = server_run.get("sweepName")
         if sweep_id:
             self._run.sweep_id = sweep_id
-        if os.getenv("SPELL_RUN_URL"):
-            self._sync_spell()
         return server_run
 
     def _start_run_threads(self, file_dir: str | None = None) -> None:

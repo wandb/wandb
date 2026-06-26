@@ -43,7 +43,12 @@ def test_report_properties_full():
         "createdAt": "2023-01-01T00:00:00Z",
     }
 
-    report = BetaReport(mock_client, attrs, "test-entity", "test-project")
+    report = BetaReport(
+        mock_client,
+        attrs,
+        "test-entity",
+        "test-project",
+    )
 
     assert report.id == "test-id"
     assert report.name == "Test Report"
@@ -67,7 +72,12 @@ def test_report_properties_missing_attributes():
         "displayName": "Test Display Name",
     }
 
-    report = BetaReport(None, attrs, "test-entity", "test-project")
+    report = BetaReport(
+        mock.MagicMock(),
+        attrs,
+        "test-entity",
+        "test-project",
+    )
 
     assert report.id == "test-id"
     assert report.display_name == "Test Display Name"
@@ -87,7 +97,12 @@ def test_report_user_property_access():
         "user": {"username": "testuser", "email": "test@example.com"},
     }
 
-    report = BetaReport(None, attrs, "test-entity", "test-project")
+    report = BetaReport(
+        mock.MagicMock(),
+        attrs,
+        "test-entity",
+        "test-project",
+    )
 
     assert report.user["username"] == "testuser"
     assert report.user["email"] == "test@example.com"
@@ -100,7 +115,12 @@ def test_report_user_property_missing():
         "id": "test-id",
     }
 
-    report = BetaReport(None, attrs, "test-entity", "test-project")
+    report = BetaReport(
+        mock.MagicMock(),
+        attrs,
+        "test-entity",
+        "test-project",
+    )
 
     assert report.user is None
 
@@ -118,7 +138,12 @@ def test_report_url_creation():
         "displayName": "Test Timestamp (25/05/01 09:28:29)",
     }
 
-    report = BetaReport(mock_client, attrs, test_entity, test_project)
+    report = BetaReport(
+        mock_client,
+        attrs,
+        test_entity,
+        test_project,
+    )
 
     assert (
         report.url

@@ -42,7 +42,6 @@ __all__ = [
     "RENAME_REGISTRY_GQL",
     "RUN_INPUT_ARTIFACTS_GQL",
     "RUN_OUTPUT_ARTIFACTS_GQL",
-    "TYPE_INFO_GQL",
     "UNLINK_ARTIFACT_GQL",
     "UPDATE_ARTIFACT_GQL",
     "UPDATE_ARTIFACT_PORTFOLIO_GQL",
@@ -85,7 +84,6 @@ __all__ = [
     "DeleteArtifact",
     "LinkArtifact",
     "UnlinkArtifact",
-    "TypeInfo",
     "FetchOrgInfoFromEntity",
     "FetchOrgEntityFromOrganization",
     "RegistryVersions",
@@ -147,7 +145,6 @@ __all__ = [
     "TeamFragment",
     "TeamMemberFragment",
     "TeamRegistryMemberFragment",
-    "TypeInfoFragment",
     "UserRegistryMemberFragment",
     "ArtifactCollectionState",
     "ArtifactCollectionType",
@@ -202,7 +199,6 @@ from .fragments import (
     TeamFragment,
     TeamMemberFragment,
     TeamRegistryMemberFragment,
-    TypeInfoFragment,
     UserRegistryMemberFragment,
 )
 from .get_artifact_file_urls import GetArtifactFileUrls
@@ -277,7 +273,6 @@ from .operations import (
     RENAME_REGISTRY_GQL,
     RUN_INPUT_ARTIFACTS_GQL,
     RUN_OUTPUT_ARTIFACTS_GQL,
-    TYPE_INFO_GQL,
     UNLINK_ARTIFACT_GQL,
     UPDATE_ARTIFACT_GQL,
     UPDATE_ARTIFACT_PORTFOLIO_GQL,
@@ -299,7 +294,6 @@ from .registry_versions import RegistryVersions
 from .rename_registry import RenameRegistry
 from .run_input_artifacts import RunInputArtifacts
 from .run_output_artifacts import RunOutputArtifacts
-from .type_info import TypeInfo
 from .unlink_artifact import UnlinkArtifact
 from .update_artifact import UpdateArtifact
 from .update_artifact_portfolio import UpdateArtifactPortfolio

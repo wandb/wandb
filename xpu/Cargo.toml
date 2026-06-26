@@ -1,0 +1,50 @@
+[package]
+name = "wandb-xpu"
+version = "0.7.0"
+edition = "2024"
+rust-version = "1.85"
+
+[[bin]]
+name = "build_proto"
+path = "tools/build_proto.rs"
+
+[dependencies]
+log = "0.4"
+env_logger = { version = "0.11", features = ["auto-color"] }
+nvml-wrapper = "0.12.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+clap = { version = "4.6", features = ["derive"] }
+sentry = { version = "0.47", default-features = false, features = [
+    "backtrace",
+    "contexts",
+    "panic",
+    "reqwest",
+    "rustls",
+] }
+prost = "0.14.3"
+prost-types = "0.14.3"
+tonic = "0.14.5"
+tonic-prost = "0.14.5"
+tonic-reflection = "0.14.5"
+tokio = { version = "1.50", features = ["full"] }
+tokio-stream = "0.1.18"
+chrono = "0.4"
+
+tonic-prost-build = "0.14.5"
+tempfile = "3.27.0"
+
+libloading = "0.9"
+async-trait = "0.1"
+glob = "0.3"
+
+[dev-dependencies]
+zip = { version = "8.5.0", default-features = false, features = ["deflate"] }
+
+[target.'cfg(not(all(target_family = "wasm", target_os = "unknown")))'.dependencies]
+which = "8.0.2"
+
+[target.'cfg(unix)'.dependencies]
+nix = { version = "0.31", features = ["process"] }
+core-foundation = "0.10.1"
+libc = "0.2.172"

@@ -496,6 +496,45 @@ def unlink_path(path: Path) -> None:
             path.unlink()
 
 
+def link_or_copy(
+    settings: Settings,
+    src: Path,
+    dst: Path,
+) -> Literal["symlink", "hardlink", "copy"]:
+    """Link or copy a file using the best available method.
+
+    Tries strategies in order: symlink -> hardlink -> copy.
+
+    Args:
+        src: Source file path (should be resolved/absolute).
+        dst: Destination file path.
+        allow_symlink: Whether to attempt symlinks before hardlinks.
+
+    Returns:
+        The strategy that succeeded.
+    """
+    if settings.symlink:
+        try:
+            dst.symlink_to(src, target_is_directory=src.is_dir())
+        except (OSError, NotImplementedError):
+            pass
+        else:
+            return "symlink"
+
+    if are_paths_on_same_drive(src, dst.parent):
+        try:
+            os.link(str(src), str(dst))
+        except OSError:
+            pass
+        else:
+            return "hardlink"
+
+    tmp = dst.with_name(dst.name + ".tmp~wandb")
+    shutil.copy2(str(src), str(tmp))
+    os.replace(str(tmp), str(dst))
+    return "copy"
+
+
 def link_or_copy_with_policy(
     settings: Settings,
     src: Path,
@@ -518,32 +557,13 @@ def link_or_copy_with_policy(
     Returns:
         Effective policy after any necessary downgrade.
     """
-    # Strategy 1: Symlink (if allowed by settings)
-    if settings.symlink:
-        try:
-            dst.symlink_to(src, target_is_directory=src.is_dir())
-            stats.record("symlink")
-        except (OSError, NotImplementedError):
-            pass
-        else:
-            return requested_policy
+    mode = link_or_copy(settings, src, dst)
 
-    # Strategy 2: Hardlink (same volume)
-    if are_paths_on_same_drive(src, dst.parent):
-        try:
-            os.link(str(src), str(dst))
-            stats.record("hardlink")
-        except OSError:
-            pass
-        else:
-            return requested_policy
+    effective_policy = requested_policy
+    downgraded = False
+    if mode == "copy" and requested_policy == "live":
+        downgraded = True
+        effective_policy = "now"
 
-    # Strategy 3: Copy (atomic via temp file)
-    tmp = dst.with_name(dst.name + ".tmp~wandb")
-    shutil.copy2(str(src), str(tmp))
-    os.replace(str(tmp), str(dst))
-
-    # Downgrade live->now for copied files since changes won't propagate
-    effective = "now" if requested_policy == "live" else requested_policy
-    stats.record("copy", downgraded=(requested_policy == "live"))
-    return effective
+    stats.record(mode, downgraded=downgraded)
+    return effective_policy

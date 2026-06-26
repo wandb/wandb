@@ -43,49 +43,6 @@ var fakeManifest = Manifest{
 	},
 }
 
-var filesResult = `{
-	"artifact": {
-		"files": {
-			"pageInfo": {
-				"hasNextPage": false,
-				"endCursor": "cursor1"
-			},
-			"edges": [
-				{
-					"node": {
-						"name": "file1",
-						"directUrl": "url1"
-					}
-				},
-				{
-					"node": {
-						"name": "file2",
-						"directUrl": "url2"
-					}
-				},
-				{
-					"node": {
-						"name": "ref",
-						"directUrl": "refUrl"
-					}
-				}
-			]
-		}
-	}
-}`
-
-var noFilesResult = `{
-	"artifact": {
-		"files": {
-			"pageInfo": {
-				"hasNextPage": false,
-				"endCursor": "cursor"
-			},
-			"edges": []
-		}
-	}
-}`
-
 var filesByManifestEntriesResult = `{
 	"artifact": {
 		"filesByManifestEntries": {
@@ -146,10 +103,6 @@ func getFakeArtifactDownloader(
 
 func TestDownload(t *testing.T) {
 	mockGQL := gqlmock.NewMockClient()
-	mockGQL.StubMatchOnce(
-		gqlmock.WithOpName("TypeFields"),
-		`{"TypeInfo": {"fields": [{"name": "files"}, {"name": "filesByManifestEntries"}]}}`,
-	)
 
 	mockGQL.StubMatchOnce(
 		gqlmock.WithOpName("ArtifactFileURLsByManifestEntries"),
@@ -159,47 +112,6 @@ func TestDownload(t *testing.T) {
 	mockGQL.StubMatchOnce(
 		gqlmock.WithOpName("ArtifactFileURLsByManifestEntries"),
 		noFilesByManifestEntriesResult,
-	)
-
-	ftm := filetransfertest.NewFakeFileTransferManager()
-	ftm.ShouldCompleteImmediately = true
-	downloader := getFakeArtifactDownloader(t, mockGQL, ftm)
-
-	err := downloader.downloadFiles(fakeArtifactID, fakeManifest)
-
-	assert.Nil(t, err)
-
-	addedTasks := ftm.Tasks()
-	assert.Len(t, addedTasks, 2)
-
-	addedTasksInfo := []string{addedTasks[0].String(), addedTasks[1].String()}
-	assert.Contains(
-		t,
-		addedTasksInfo,
-		`DefaultDownloadTask{FileKind: 2, Path: file1, Name: , Url: url1, Size: 1}`,
-	)
-	assert.Contains(
-		t,
-		addedTasksInfo,
-		`DefaultDownloadTask{FileKind: 2, Path: file2, Name: , Url: url2, Size: 1}`,
-	)
-}
-
-func TestDownloadLegacyQuery(t *testing.T) {
-	mockGQL := gqlmock.NewMockClient()
-	mockGQL.StubMatchOnce(
-		gqlmock.WithOpName("TypeFields"),
-		`{"TypeInfo": {"fields": [{"name": "files"}]}}`,
-	)
-
-	mockGQL.StubMatchOnce(
-		gqlmock.WithOpName("ArtifactFileURLs"),
-		filesResult,
-	)
-
-	mockGQL.StubMatchOnce(
-		gqlmock.WithOpName("ArtifactFileURLs"),
-		noFilesResult,
 	)
 
 	ftm := filetransfertest.NewFakeFileTransferManager()

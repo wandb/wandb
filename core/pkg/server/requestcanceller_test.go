@@ -33,7 +33,7 @@ func TestRequestCanceller_WarnsAtEachThreshold(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		logs := captureSlog(t)
 
-		rc := server.NewRequestCanceller()
+		rc := server.NewRequestCanceller(t.Context())
 		rc.SetWarnInterval(2)
 
 		_, cancel1 := rc.Context("1")

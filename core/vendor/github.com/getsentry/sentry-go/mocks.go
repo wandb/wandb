@@ -53,6 +53,26 @@ type MockLogEntry struct {
 	Attributes map[string]any
 }
 
+func (m *MockLogEntry) StringSlice(key string, value []string) LogEntry {
+	m.Attributes[key] = value
+	return m
+}
+
+func (m *MockLogEntry) Int64Slice(key string, value []int64) LogEntry {
+	m.Attributes[key] = value
+	return m
+}
+
+func (m *MockLogEntry) Float64Slice(key string, value []float64) LogEntry {
+	m.Attributes[key] = value
+	return m
+}
+
+func (m *MockLogEntry) BoolSlice(key string, value []bool) LogEntry {
+	m.Attributes[key] = value
+	return m
+}
+
 func NewMockLogEntry() *MockLogEntry {
 	return &MockLogEntry{Attributes: make(map[string]any)}
 }

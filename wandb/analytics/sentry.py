@@ -7,11 +7,12 @@ import os
 import pathlib
 import sys
 import threading
+from collections.abc import Callable
 from types import TracebackType
-from typing import Any, Callable, Literal, TypeVar
+from typing import Any, Concatenate, Literal, TypeVar
 from urllib.parse import quote
 
-from typing_extensions import Concatenate, Never, ParamSpec
+from typing_extensions import Never, ParamSpec
 
 _P = ParamSpec("_P")
 _T = TypeVar("_T")

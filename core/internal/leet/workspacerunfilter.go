@@ -152,13 +152,17 @@ func normalizeRunFilterTags(tags []string) []string {
 		return nil
 	}
 
+	seen := make(map[string]struct{}, len(tags))
 	out := make([]string, 0, len(tags))
 	for _, tag := range tags {
 		tag = strings.TrimSpace(tag)
 		if tag == "" {
 			continue
 		}
-		out = append(out, tag)
+		if _, dup := seen[tag]; !dup {
+			seen[tag] = struct{}{}
+			out = append(out, tag)
+		}
 	}
 
 	if len(out) == 0 {

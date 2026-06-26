@@ -1,15 +1,19 @@
-minVersion: 2.14.0
+minVersion: 2.24.1
 changelog:
   policy: auto
 versioning:
   policy: auto
 artifactProvider:
   name: none
+preReleaseCommand: bash scripts/bump-version.sh
 targets:
   - name: github
     tagPrefix: v
   - name: github
     tagPrefix: otel/v
+    tagOnly: true
+  - name: github
+    tagPrefix: otel/otlp/v
     tagOnly: true
   - name: github
     tagPrefix: echo/v
@@ -21,7 +25,13 @@ targets:
     tagPrefix: fiber/v
     tagOnly: true
   - name: github
+    tagPrefix: fiberv3/v
+    tagOnly: true
+  - name: github
     tagPrefix: gin/v
+    tagOnly: true
+  - name: github
+    tagPrefix: grpc/v
     tagOnly: true
   - name: github
     tagPrefix: iris/v
@@ -34,6 +44,9 @@ targets:
     tagOnly: true
   - name: github
     tagPrefix: slog/v
+    tagOnly: true
+  - name: github
+    tagPrefix: sql/v
     tagOnly: true
   - name: github
     tagPrefix: zerolog/v

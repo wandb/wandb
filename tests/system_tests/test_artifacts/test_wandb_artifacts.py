@@ -3,13 +3,12 @@ from __future__ import annotations
 import filecmp
 import os
 import shutil
-import unittest.mock
-from collections.abc import Iterator, Mapping
+from collections.abc import Callable, Generator, Mapping
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import nullcontext
 from datetime import datetime, timedelta, timezone
 from pathlib import Path, PurePosixPath, PureWindowsPath
-from typing import Callable
+from threading import Barrier
 from urllib.parse import quote
 
 import numpy as np
@@ -28,15 +27,10 @@ from wandb.sdk.artifacts.artifact_file_cache import (
     get_artifact_file_cache,
 )
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
-from wandb.sdk.artifacts.artifact_state import ArtifactState
 from wandb.sdk.artifacts.artifact_ttl import ArtifactTTL
 from wandb.sdk.artifacts.exceptions import (
     ArtifactFinalizedError,
     ArtifactNotLoggedError,
-)
-from wandb.sdk.artifacts.storage_handlers.gcs_handler import (
-    GCSHandler,
-    _GCSIsADirectoryError,
 )
 from wandb.sdk.artifacts.storage_handlers.http_handler import HTTPHandler
 from wandb.sdk.artifacts.storage_handlers.s3_handler import S3Handler
@@ -118,161 +112,6 @@ def mock_boto(artifact, path=False, content_type=None, version_id="1"):
             handler._botocore = util.get_module("botocore")
             handler._botocore.exceptions = util.get_module("botocore.exceptions")
     return mock
-
-
-def mock_gcs(artifact, override_blob_name="my_object.pb", path=False, hash=True):
-    class Blob:
-        def __init__(self, name=override_blob_name, metadata=None, generation=None):
-            self.md5_hash = "1234567890abcde" if hash else None
-            self.etag = "1234567890abcde"
-            self.generation = generation or "1"
-            self.name = name
-            self.size = 10
-
-    class GSBucket:
-        def __init__(self):
-            self.versioning_enabled = True
-
-        def reload(self, *args, **kwargs):
-            return
-
-        def get_blob(self, key=override_blob_name, *args, **kwargs):
-            return (
-                None
-                if path or key != override_blob_name
-                else Blob(generation=kwargs.get("generation"))
-            )
-
-        def list_blobs(self, *args, **kwargs):
-            if override_blob_name.endswith("/"):
-                return [
-                    Blob(name=override_blob_name),
-                    Blob(name=os.path.join(override_blob_name, "my_other_object.pb")),
-                ]
-            else:
-                return [
-                    Blob(name=override_blob_name),
-                    Blob(name="my_other_object.pb"),
-                ]
-
-    class GSClient:
-        def bucket(self, bucket):
-            return GSBucket()
-
-    mock = GSClient()
-    for handler in artifact.manifest.storage_policy._handler._handlers:
-        if isinstance(handler, GCSHandler):
-            handler._client = mock
-    return mock
-
-
-@fixture
-def mock_azure_handler():  # noqa: C901
-    class BlobServiceClient:
-        def __init__(self, account_url, credential):
-            pass
-
-        def get_container_client(self, container):
-            return ContainerClient()
-
-        def get_blob_client(self, container, blob):
-            return BlobClient(blob)
-
-    class ContainerClient:
-        def list_blobs(self, name_starts_with):
-            return [
-                blob_properties
-                for blob_properties in blobs
-                if blob_properties.name.startswith(name_starts_with)
-            ]
-
-    class BlobClient:
-        def __init__(self, name):
-            self.name = name
-
-        def exists(self, version_id=None):
-            for blob_properties in blobs:
-                if (
-                    blob_properties.name == self.name
-                    and blob_properties.version_id == version_id
-                ):
-                    return True
-            return False
-
-        def get_blob_properties(self, version_id=None):
-            for blob_properties in blobs:
-                if (
-                    blob_properties.name == self.name
-                    and blob_properties.version_id == version_id
-                ):
-                    return blob_properties
-            raise Exception("Blob does not exist")
-
-    class BlobProperties:
-        def __init__(self, name, version_id, etag, size, metadata):
-            self.name = name
-            self.version_id = version_id
-            self.etag = etag
-            self.size = size
-            self.metadata = metadata
-
-        def has_key(self, k):
-            return k in self.__dict__
-
-    blobs = [
-        BlobProperties(
-            "my-blob",
-            version_id=None,
-            etag="my-blob version None",
-            size=42,
-            metadata={},
-        ),
-        BlobProperties(
-            "my-blob", version_id="v2", etag="my-blob version v2", size=42, metadata={}
-        ),
-        BlobProperties(
-            "my-dir/a",
-            version_id=None,
-            etag="my-dir/a version None",
-            size=42,
-            metadata={},
-        ),
-        BlobProperties(
-            "my-dir/b",
-            version_id=None,
-            etag="my-dir/b version None",
-            size=42,
-            metadata={},
-        ),
-        BlobProperties(
-            "my-dir",
-            version_id=None,
-            etag="my-dir version None",
-            size=0,
-            metadata={"hdi_isfolder": "true"},
-        ),
-    ]
-
-    class AzureStorageBlobModule:
-        def __init__(self):
-            self.BlobServiceClient = BlobServiceClient
-
-    class AzureIdentityModule:
-        def __init__(self):
-            self.DefaultAzureCredential = lambda: None
-
-    def _get_module(self, name):
-        if name == "azure.storage.blob":
-            return AzureStorageBlobModule()
-        if name == "azure.identity":
-            return AzureIdentityModule()
-        raise NotImplementedError
-
-    with unittest.mock.patch(
-        "wandb.sdk.artifacts.storage_handlers.azure_handler.AzureHandler._get_module",
-        new=_get_module,
-    ):
-        yield
 
 
 @fixture
@@ -409,16 +248,28 @@ def test_add_dir_again_after_edit(merge, artifact, tmp_path_factory):
     assert len(artifact.manifest.to_manifest_json()["contents"]) == 2
 
 
-def test_multi_add(artifact):
-    size = 2**27  # 128MB, large enough that it takes >1ms to add.
+def test_multi_add(artifact, monkeypatch):
+    size = 1024
     filename = "data.bin"
     with open(filename, "wb") as f:
         f.truncate(size)
 
-    # Add 8 copies simultaneously.
-    with ThreadPoolExecutor(max_workers=8) as e:
-        for _ in range(8):
-            e.submit(artifact.add_file, filename)
+    workers = 8
+    add_entry_barrier = Barrier(workers)
+    add_entry = type(artifact.manifest).add_entry
+
+    def add_entry_concurrently(manifest, entry, overwrite=False):
+        add_entry_barrier.wait(timeout=10)
+        return add_entry(manifest, entry, overwrite=overwrite)
+
+    monkeypatch.setattr(type(artifact.manifest), "add_entry", add_entry_concurrently)
+
+    # Add the same file from multiple threads, forcing all writes to reach the
+    # manifest update concurrently.
+    with ThreadPoolExecutor(max_workers=workers) as e:
+        futures = [e.submit(artifact.add_file, filename) for _ in range(workers)]
+        for future in futures:
+            future.result()
 
     # There should be only one file in the artifact.
     manifest_contents = artifact.manifest.to_manifest_json()["contents"]
@@ -477,7 +328,7 @@ def test_add_reference_local_file_no_checksum(tmp_path, artifact):
 
 class TestAddReferenceLocalFileNoChecksumTwice:
     @fixture
-    def run(self, user) -> Iterator[wandb.Run]:
+    def run(self, user) -> Generator[wandb.Run]:
         with wandb.init() as run:
             yield run
 
@@ -870,300 +721,6 @@ def test_add_reference_s3_no_checksum(artifact):
             "ref": "s3://my_bucket/file1.txt",
         }
     }
-
-
-def test_add_gs_reference_object(artifact):
-    mock_gcs(artifact)
-    artifact.add_reference("gs://my-bucket/my_object.pb")
-
-    assert artifact.digest == "8aec0d6978da8c2b0bf5662b3fd043a4"
-    manifest_contents = artifact.manifest.to_manifest_json()["contents"]
-    assert manifest_contents == {
-        "my_object.pb": {
-            "digest": "1234567890abcde",
-            "ref": "gs://my-bucket/my_object.pb",
-            "extra": {"versionID": "1"},
-            "size": 10,
-        },
-    }
-
-
-def test_load_gs_reference_object_without_generation_and_mismatched_etag(
-    artifact,
-):
-    mock_gcs(artifact)
-    artifact.add_reference("gs://my-bucket/my_object.pb")
-    artifact._state = ArtifactState.COMMITTED
-    entry = artifact.get_entry("my_object.pb")
-    entry.extra = {}
-    entry.digest = "abad0"
-
-    with raises(ValueError, match="Digest mismatch"):
-        entry.download()
-
-
-def test_add_gs_reference_object_with_version(artifact):
-    mock_gcs(artifact)
-    artifact.add_reference("gs://my-bucket/my_object.pb#2")
-
-    assert artifact.digest == "8aec0d6978da8c2b0bf5662b3fd043a4"
-    manifest_contents = artifact.manifest.to_manifest_json()["contents"]
-    assert manifest_contents == {
-        "my_object.pb": {
-            "digest": "1234567890abcde",
-            "ref": "gs://my-bucket/my_object.pb",
-            "extra": {"versionID": "2"},
-            "size": 10,
-        },
-    }
-
-
-def test_add_gs_reference_object_with_name(artifact):
-    mock_gcs(artifact)
-    artifact.add_reference("gs://my-bucket/my_object.pb", name="renamed.pb")
-
-    assert artifact.digest == "bd85fe009dc9e408a5ed9b55c95f47b2"
-    manifest_contents = artifact.manifest.to_manifest_json()["contents"]
-    assert manifest_contents == {
-        "renamed.pb": {
-            "digest": "1234567890abcde",
-            "ref": "gs://my-bucket/my_object.pb",
-            "extra": {"versionID": "1"},
-            "size": 10,
-        },
-    }
-
-
-def test_add_gs_reference_path(capsys, artifact):
-    mock_gcs(artifact, path=True)
-    artifact.add_reference("gs://my-bucket/")
-
-    assert artifact.digest == "17955d00a20e1074c3bc96c74b724bfe"
-    manifest_contents = artifact.manifest.to_manifest_json()["contents"]
-    assert manifest_contents == {
-        "my_object.pb": {
-            "digest": "1234567890abcde",
-            "ref": "gs://my-bucket/my_object.pb",
-            "extra": {"versionID": "1"},
-            "size": 10,
-        },
-        "my_other_object.pb": {
-            "digest": "1234567890abcde",
-            "ref": "gs://my-bucket/my_other_object.pb",
-            "extra": {"versionID": "1"},
-            "size": 10,
-        },
-    }
-    _, err = capsys.readouterr()
-    assert "Generating checksum" in err
-
-
-def test_add_gs_reference_object_no_md5(artifact):
-    mock_gcs(artifact, hash=False)
-    artifact.add_reference("gs://my-bucket/my_object.pb")
-
-    assert artifact.digest == "8aec0d6978da8c2b0bf5662b3fd043a4"
-    manifest_contents = artifact.manifest.to_manifest_json()["contents"]
-    assert manifest_contents == {
-        "my_object.pb": {
-            "digest": "1234567890abcde",
-            "ref": "gs://my-bucket/my_object.pb",
-            "extra": {"versionID": "1"},
-            "size": 10,
-        },
-    }
-
-
-def test_add_gs_reference_with_dir_paths(artifact):
-    mock_gcs(artifact, override_blob_name="my_folder/")
-    artifact.add_reference("gs://my-bucket/my_folder/")
-
-    # uploading a reference to a folder path should add entries for
-    # everything returned by the list_blobs call
-    assert len(artifact.manifest.entries) == 1
-    manifest_contents = artifact.manifest.to_manifest_json()["contents"]
-    assert manifest_contents == {
-        "my_other_object.pb": {
-            "digest": "1234567890abcde",
-            "ref": "gs://my-bucket/my_folder/my_other_object.pb",
-            "extra": {"versionID": "1"},
-            "size": 10,
-        },
-    }
-
-
-def test_load_gs_reference_with_dir_paths(artifact):
-    mock = mock_gcs(artifact, override_blob_name="my_folder/")
-    artifact.add_reference("gs://my-bucket/my_folder/")
-
-    gcs_handler = GCSHandler()
-    gcs_handler._client = mock
-
-    # simple case where ref ends with "/"
-    simple_entry = ArtifactManifestEntry(
-        path="my-bucket/my_folder",
-        ref="gs://my-bucket/my_folder/",
-        digest="1234567890abcde",
-        size=0,
-        extra={"versionID": 1},
-    )
-    with raises(_GCSIsADirectoryError):
-        gcs_handler.load_path(simple_entry, local=True)
-
-    # case where we didn't store "/" and have to use get_blob
-    entry = ArtifactManifestEntry(
-        path="my-bucket/my_folder",
-        ref="gs://my-bucket/my_folder",
-        digest="1234567890abcde",
-        size=0,
-        extra={"versionID": 1},
-    )
-    with raises(_GCSIsADirectoryError):
-        gcs_handler.load_path(entry, local=True)
-
-
-@fixture
-def my_artifact() -> Artifact:
-    """A test artifact with a custom type."""
-    return Artifact("my_artifact", type="my_type")
-
-
-@mark.parametrize("name", [None, "my-name"])
-@mark.parametrize("version_id", [None, "v2"])
-def test_add_azure_reference_no_checksum(
-    mock_azure_handler, my_artifact, name, version_id
-):
-    uri = "https://myaccount.blob.core.windows.net/my-container/nonexistent-blob"
-
-    if version_id and name:
-        entries = my_artifact.add_reference(
-            f"{uri}?versionId={version_id}", name=name, checksum=False
-        )
-    elif version_id and not name:
-        entries = my_artifact.add_reference(
-            f"{uri}?versionId={version_id}", checksum=False
-        )
-    elif (not version_id) and name:
-        entries = my_artifact.add_reference(uri, name=name, checksum=False)
-    else:
-        entries = my_artifact.add_reference(uri, checksum=False)
-
-    assert len(entries) == 1
-    entry = entries[0]
-    assert entry.path == "nonexistent-blob" if (name is None) else name
-    assert entry.ref == uri
-    assert entry.digest == uri
-    assert entry.size is None
-    assert entry.extra == {}
-
-
-@mark.parametrize("name", [None, "my-name"])
-@mark.parametrize("version_id", [None, "v2"])
-def test_add_azure_reference(mock_azure_handler, my_artifact, name, version_id):
-    uri = "https://myaccount.blob.core.windows.net/my-container/my-blob"
-
-    if version_id and name:
-        entries = my_artifact.add_reference(f"{uri}?versionId={version_id}", name=name)
-    elif version_id and not name:
-        entries = my_artifact.add_reference(f"{uri}?versionId={version_id}")
-    elif (not version_id) and name:
-        entries = my_artifact.add_reference(uri, name=name)
-    else:
-        entries = my_artifact.add_reference(uri)
-
-    assert len(entries) == 1
-    entry = entries[0]
-
-    if name is None:
-        assert entry.path == "my-blob"
-    else:
-        assert entry.path == name
-
-    if version_id is None:
-        assert entry.digest == "my-blob version None"
-        assert entry.extra == {"etag": "my-blob version None"}
-    else:
-        assert entry.digest == f"my-blob version {version_id}"
-        assert entry.extra == {
-            "etag": f"my-blob version {version_id}",
-            "versionID": version_id,
-        }
-
-    assert entry.ref == uri
-    assert entry.size == 42
-
-
-def test_add_azure_reference_directory(mock_azure_handler):
-    artifact = Artifact("my_artifact", type="my_type")
-    entries = artifact.add_reference(
-        "https://myaccount.blob.core.windows.net/my-container/my-dir"
-    )
-    assert len(entries) == 2
-    assert entries[0].path == "a"
-    assert (
-        entries[0].ref
-        == "https://myaccount.blob.core.windows.net/my-container/my-dir/a"
-    )
-    assert entries[0].digest == "my-dir/a version None"
-    assert entries[0].size == 42
-    assert entries[0].extra == {"etag": "my-dir/a version None"}
-    assert entries[1].path == "b"
-    assert (
-        entries[1].ref
-        == "https://myaccount.blob.core.windows.net/my-container/my-dir/b"
-    )
-    assert entries[1].digest == "my-dir/b version None"
-    assert entries[1].size == 42
-    assert entries[1].extra == {"etag": "my-dir/b version None"}
-
-    # with name
-    artifact = Artifact("my_artifact", type="my_type")
-    entries = artifact.add_reference(
-        "https://myaccount.blob.core.windows.net/my-container/my-dir", name="my-name"
-    )
-    assert len(entries) == 2
-    assert entries[0].path == "my-name/a"
-    assert (
-        entries[0].ref
-        == "https://myaccount.blob.core.windows.net/my-container/my-dir/a"
-    )
-    assert entries[0].digest == "my-dir/a version None"
-    assert entries[0].size == 42
-    assert entries[0].extra == {"etag": "my-dir/a version None"}
-    assert entries[1].path == "my-name/b"
-    assert (
-        entries[1].ref
-        == "https://myaccount.blob.core.windows.net/my-container/my-dir/b"
-    )
-    assert entries[1].digest == "my-dir/b version None"
-    assert entries[1].size == 42
-    assert entries[1].extra == {"etag": "my-dir/b version None"}
-
-
-def test_add_azure_reference_max_objects(mock_azure_handler):
-    artifact = Artifact("my_artifact", type="my_type")
-    entries = artifact.add_reference(
-        "https://myaccount.blob.core.windows.net/my-container/my-dir",
-        max_objects=1,
-    )
-    assert len(entries) == 1
-    assert entries[0].path == "a" or entries[0].path == "b"
-    if entries[0].path == "a":
-        assert (
-            entries[0].ref
-            == "https://myaccount.blob.core.windows.net/my-container/my-dir/a"
-        )
-        assert entries[0].digest == "my-dir/a version None"
-        assert entries[0].size == 42
-        assert entries[0].extra == {"etag": "my-dir/a version None"}
-    else:
-        assert (
-            entries[1].ref
-            == "https://myaccount.blob.core.windows.net/my-container/my-dir/b"
-        )
-        assert entries[1].digest == "my-dir/b version None"
-        assert entries[1].size == 42
-        assert entries[1].extra == {"etag": "my-dir/b version None"}
 
 
 @responses.activate
@@ -1601,7 +1158,7 @@ def test_add_obj_wbtable_images(im_path: str, artifact: Artifact):
             "digest": "L1pBeGPxG+6XVRQk4WuvdQ==",
             "size": 71,
         },
-        "my-table.table.json": {"digest": "UN1SfxHpRdt/OOy7TrjvdQ==", "size": 1315},
+        "my-table.table.json": {"digest": "4cthfS5X+SxpFwajjuhrMw==", "size": 1476},
     }
 
 
@@ -1631,7 +1188,7 @@ def test_add_obj_wbtable_images_duplicate_name(assets_path, artifact):
             "digest": "pQVvBBgcuG+jTN0Xo97eZQ==",
             "size": 8837,
         },
-        "my-table.table.json": {"digest": "rkNgqyX3yGEQ1UxM7hsGjQ==", "size": 1006},
+        "my-table.table.json": {"digest": "uuw1nKn7THwjEBDbxXvmfQ==", "size": 1167},
     }
 
 

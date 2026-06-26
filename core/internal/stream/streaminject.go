@@ -25,7 +25,7 @@ import (
 // InjectStream returns a new Stream.
 func InjectStream(
 	commit GitCommitHash,
-	gpuResourceManager *monitor.GPUResourceManager,
+	xpuResourceManager *monitor.XPUResourceManager,
 	debugCorePath DebugCorePath,
 	logLevel slog.Level,
 	settings *settings.Settings,
@@ -49,8 +49,8 @@ var streamProviders = wire.NewSet(
 	monitor.SystemMonitorProviders,
 	NewFileTransferManager,
 	NewGraphQLClient,
-	observability.NewPrinter,
 	provideFileWatcher,
+	providePrinter,
 	RecordParserProviders,
 	runfiles.UploaderProviders,
 	runhandle.New,
@@ -61,6 +61,10 @@ var streamProviders = wire.NewSet(
 	wboperation.NewOperations,
 	WriterProviders,
 )
+
+func providePrinter() *observability.Printer {
+	return observability.NewPrinter(printerBufferSize)
+}
 
 func provideFileWatcher(logger *observability.CoreLogger) watcher.Watcher {
 	return watcher.New(watcher.Params{Logger: logger})

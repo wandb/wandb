@@ -112,8 +112,8 @@ func (fs *fileStream) startProcessingFeedback(
 
 		for res := range feedback {
 			if v, ok := res["stopped"]; ok {
-				if b, ok := v.(bool); ok {
-					fs.stopState.CompareAndSwap(false, b)
+				if stopped, ok := v.(bool); ok && stopped {
+					fs.stopState.Store(true)
 				}
 			}
 		}

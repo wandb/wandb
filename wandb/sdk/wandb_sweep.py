@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import urllib.parse
-from typing import TYPE_CHECKING, Callable
+from collections.abc import Callable
+from typing import TYPE_CHECKING
 
 import wandb
 from wandb import env

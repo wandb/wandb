@@ -6,6 +6,7 @@ import (
 
 	"github.com/getsentry/sentry-go/internal/protocol"
 	"github.com/getsentry/sentry-go/internal/ratelimit"
+	"github.com/getsentry/sentry-go/report"
 )
 
 // Processor is the top-level object that wraps the scheduler and buffers.
@@ -18,9 +19,10 @@ func NewProcessor(
 	buffers map[ratelimit.Category]Buffer[protocol.TelemetryItem],
 	transport protocol.TelemetryTransport,
 	dsn *protocol.Dsn,
-	sdkInfo *protocol.SdkInfo,
+	sdkInfo func() *protocol.SdkInfo,
+	recorder report.ClientReportRecorder,
 ) *Processor {
-	scheduler := NewScheduler(buffers, transport, dsn, sdkInfo)
+	scheduler := NewScheduler(buffers, transport, dsn, sdkInfo, recorder)
 	scheduler.Start()
 
 	return &Processor{
@@ -29,7 +31,11 @@ func NewProcessor(
 }
 
 // Add adds a TelemetryItem to the appropriate buffer based on its category.
+//
+// The processor should call MakeSerializationSafe to eliminate any race on user mutable fields,
+// since the serialization happens on a background goroutine.
 func (b *Processor) Add(item protocol.TelemetryItem) bool {
+	item.MakeSerializationSafe()
 	return b.scheduler.Add(item)
 }
 

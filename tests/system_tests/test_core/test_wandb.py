@@ -15,7 +15,6 @@ from unittest import mock
 
 import numpy as np
 import pytest
-import requests
 import wandb
 from wandb.sdk.lib import filesystem
 
@@ -464,20 +463,15 @@ def test_log_empty_string(wandb_backend_spy):
         assert history[0]["cool"] == ""
 
 
-def test_log_table_offline_no_network(user, monkeypatch):
-    num_network_calls_made = 0
-    original_request = requests.Session.request
+def test_log_table_offline_no_network(wandb_backend_spy):
+    graphql_spy = wandb_backend_spy.gql.Capture()
+    wandb_backend_spy.stub_gql(wandb_backend_spy.gql.any(), graphql_spy)
 
-    def mock_request(self, *args, **kwargs):
-        nonlocal num_network_calls_made
-        num_network_calls_made += 1
-        return original_request(self, *args, **kwargs)
-
-    monkeypatch.setattr(requests.Session, "request", mock_request)
     run = wandb.init(mode="offline")
     run.log({"table": wandb.Table()})
     run.finish()
-    assert num_network_calls_made == 0
+
+    assert graphql_spy.total_calls == 0
     assert run.offline is True
 
 

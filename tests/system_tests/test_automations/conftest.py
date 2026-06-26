@@ -1,14 +1,13 @@
 from __future__ import annotations
 
 import secrets
-from collections.abc import Iterator
+from collections.abc import Callable, Generator
 from functools import lru_cache
 from string import ascii_lowercase, digits
-from typing import Callable, Union
+from typing import TypeAlias
 
 import wandb
-from pytest import FixtureRequest, MonkeyPatch, fixture, skip
-from typing_extensions import TypeAlias
+from pytest import FixtureRequest, fixture, skip
 from wandb import Artifact
 from wandb.apis.public import ArtifactCollection, Project
 from wandb.automations import (
@@ -17,10 +16,15 @@ from wandb.automations import (
     DoNothing,
     EventType,
     OnAddArtifactAlias,
+    OnAddArtifactTag,
+    OnAddCollectionTag,
     OnCreateArtifact,
     OnLinkArtifact,
+    OnRemoveArtifactTag,
+    OnRemoveCollectionTag,
     OnRunMetric,
     OnRunState,
+    OnUnlinkArtifact,
     RunEvent,
     ScopeType,
     SendWebhook,
@@ -33,9 +37,8 @@ from wandb.automations._generated import (
 )
 from wandb.automations._utils import INVALID_INPUT_ACTIONS, INVALID_INPUT_EVENTS
 from wandb.automations.events import InputEvent
-from wandb_gql import gql
 
-ScopableWandbType: TypeAlias = Union[ArtifactCollection, Project]
+ScopableWandbType: TypeAlias = ArtifactCollection | Project
 
 
 def random_string(chars: str = ascii_lowercase + digits, n: int = 12) -> str:
@@ -59,61 +62,50 @@ def make_name(worker_id: str) -> Callable[[str], str]:
 
 
 @fixture(scope="module")
-def user(backend_fixture_factory) -> Iterator[str]:
-    """A module-scoped user that overrides the default `user` fixture from the root-level `conftest.py`."""
-    username = backend_fixture_factory.make_user(admin=True)
-
-    # The `monkeypatch` fixture is strictly function-scoped, so we use a
-    # context manager to patch for this module-scoped fixture
-    envvars = dict.fromkeys(
-        ("WANDB_API_KEY", "WANDB_ENTITY", "WANDB_USERNAME"), username
-    )
-    with MonkeyPatch.context() as mpatch:
-        for k, v in envvars.items():
-            mpatch.setenv(k, v)
-        yield username
-
-
-# Request the `user` fixture to ensure env variables are set
-@fixture(scope="module")
-def api(user: str) -> wandb.Api:
-    """A redefined, module-scoped `Api` fixture for tests in this module.
-
-    Note that this overrides the default `api` fixture from the root-level
-    `conftest.py`.  This is necessary for any tests in these subfolders,
-    since the default `api` fixture is function-scoped, meaning it does not
-    play well with other module-scoped fixtures.
-    """
-    return wandb.Api(api_key=user)
-
-
-@fixture(scope="module")
-def project(user, api, make_name) -> Project:
+def project(
+    module_user: str,
+    make_module_api: Callable[[], wandb.Api],
+    make_name,
+) -> Project:
     """A wandb Project for tests in this module."""
     # Create the project first if it doesn't exist yet
     name = make_name("test-project")
-    api.create_project(name=name, entity=user)
-    return api.project(name=name, entity=user)
+    api = make_module_api()
+    api.create_project(name=name, entity=module_user)
+    project = api.project(name=name, entity=module_user)
+    # This fixture is module-scoped; load attrs before per-test teardown invalidates the API.
+    _ = project.id
+    return project
 
 
 @fixture(scope="module")
-def artifact(user, project, make_name) -> Artifact:
+def artifact(module_user: str, project: Project, make_name) -> Artifact:
     name = make_name("test-artifact")
-    with wandb.init(entity=user, project=project.name) as run:
+    with wandb.init(entity=module_user, project=project.name) as run:
         artifact = Artifact(name, "dataset")
         logged_artifact = run.log_artifact(artifact)
         return logged_artifact.wait()
 
 
 @fixture(scope="module")
-def artifact_collection(artifact, api) -> ArtifactCollection:
+def artifact_collection(
+    artifact: Artifact,
+    make_module_api: Callable[[], wandb.Api],
+) -> ArtifactCollection:
     """A test ArtifactCollection for tests in this module."""
-    return api.artifact(name=artifact.qualified_name, type=artifact.type).collection
+    return (
+        make_module_api()
+        .artifact(
+            name=artifact.qualified_name,
+            type=artifact.type,
+        )
+        .collection
+    )
 
 
 @fixture(scope="module")
 def make_webhook_integration(
-    api: wandb.Api,
+    make_module_api: Callable[[], wandb.Api],
 ) -> Callable[[str, str, str], WebhookIntegration]:
     """A module-scoped factory for creating WebhookIntegrations."""
     from wandb.automations._generated import CreateGenericWebhookIntegrationInput
@@ -127,9 +119,10 @@ def make_webhook_integration(
         gql_input = CreateGenericWebhookIntegrationInput(
             name=name, entity_name=entity, url_endpoint=url
         )
-        gql_op = gql(CREATE_GENERIC_WEBHOOK_INTEGRATION_GQL)
+        gql_op = CREATE_GENERIC_WEBHOOK_INTEGRATION_GQL
         gql_vars = {"input": gql_input.model_dump()}
-        data = api.client.execute(gql_op, variable_values=gql_vars)
+        api = make_module_api()
+        data = api._service_api.execute_graphql(gql_op, variables=gql_vars)
 
         result = CreateGenericWebhookIntegration(**data)
         integration = result.create_generic_webhook_integration.integration
@@ -140,13 +133,13 @@ def make_webhook_integration(
 
 @fixture(scope="module")
 def webhook(
-    api,
+    make_module_api: Callable[[], wandb.Api],
     make_webhook_integration: Callable[[str, str, str], WebhookIntegration],
     make_name: Callable[[str], str],
-) -> Iterator[WebhookIntegration]:
+) -> Generator[WebhookIntegration]:
     """A "registered" webhook integration for automation system tests."""
     name = make_name("test-webhook")
-    entity = api.default_entity
+    entity = make_module_api().default_entity
     yield make_webhook_integration(
         name=name,
         entity=entity,
@@ -165,10 +158,16 @@ def valid_input_events() -> list[EventType]:
 
 
 def valid_input_actions() -> list[ActionType]:
-    return sorted(set(ActionType) - set(INVALID_INPUT_ACTIONS))
+    # Slack integrations are not configured for these system tests, so
+    # notification actions are only exercised by tests that request them
+    # explicitly.
+    unsupported_test_actions = {ActionType.NOTIFICATION}
+    return sorted(
+        set(ActionType) - set(INVALID_INPUT_ACTIONS) - unsupported_test_actions
+    )
 
 
-# Invalid (event, scope) combinations that should be skipped
+# Invalid (event, scope) combinations that should not produce runnable cases.
 @lru_cache
 def invalid_events_and_scopes() -> set[tuple[EventType, ScopeType]]:
     return {
@@ -180,6 +179,30 @@ def invalid_events_and_scopes() -> set[tuple[EventType, ScopeType]]:
     }
 
 
+def pytest_collection_modifyitems(config, items):
+    deselected = []
+    selected = []
+    invalid_pairs = invalid_events_and_scopes()
+
+    for item in items:
+        callspec = getattr(item, "callspec", None)
+        if callspec is None:
+            selected.append(item)
+            continue
+
+        event = callspec.params.get("event_type")
+        scope = callspec.params.get("scope_type")
+        if event is not None and scope is not None and (event, scope) in invalid_pairs:
+            deselected.append(item)
+            continue
+
+        selected.append(item)
+
+    if deselected:
+        config.hook.pytest_deselected(items=deselected)
+        items[:] = selected
+
+
 @fixture(params=valid_input_scopes(), ids=lambda x: f"scope={x.value}")
 def scope_type(request: FixtureRequest) -> ScopeType:
     """A fixture that parametrizes over all valid scope types."""
@@ -188,13 +211,15 @@ def scope_type(request: FixtureRequest) -> ScopeType:
 
 @fixture(params=valid_input_events(), ids=lambda x: f"event={x.value}")
 def event_type(
-    request: FixtureRequest, scope_type: ScopeType, api: wandb.Api
+    request: FixtureRequest,
+    scope_type: ScopeType,
+    module_api: wandb.Api,
 ) -> EventType:
     """A fixture that parametrizes over all valid event types."""
 
     event_type = request.param
 
-    if not api._supports_automation(event=event_type):
+    if not module_api._supports_automation(event=event_type):
         skip(f"Server does not support event type: {event_type!r}")
 
     if (event_type, scope_type) in invalid_events_and_scopes():
@@ -204,11 +229,14 @@ def event_type(
 
 
 @fixture(params=valid_input_actions(), ids=lambda x: f"action={x.value}")
-def action_type(request: type[FixtureRequest], api: wandb.Api) -> ActionType:
+def action_type(
+    request: type[FixtureRequest],
+    module_api: wandb.Api,
+) -> ActionType:
     """A fixture that parametrizes over all valid action types."""
     action_type = request.param
 
-    if not api._supports_automation(action=action_type):
+    if not module_api._supports_automation(action=action_type):
         skip(f"Server does not support action type: {action_type!r}")
 
     return action_type
@@ -227,23 +255,53 @@ def scope(request: FixtureRequest, scope_type: ScopeType) -> ScopableWandbType:
 # ------------------------------------------------------------------------------
 # (Input) event fixtures
 @fixture
-def artifact_filter() -> FilterExpr:
+def alias_filter() -> FilterExpr:
     return ArtifactEvent.alias.matches_regex("^my-artifact.*")
 
 
 @fixture
-def on_create_artifact(scope, artifact_filter) -> OnCreateArtifact:
-    return OnCreateArtifact(scope=scope, filter=artifact_filter)
+def tag_filter() -> FilterExpr:
+    return ArtifactEvent.tag.matches_regex("^my-tag.*")
 
 
 @fixture
-def on_link_artifact(scope, artifact_filter) -> OnLinkArtifact:
-    return OnLinkArtifact(scope=scope, filter=artifact_filter)
+def on_create_artifact(scope, alias_filter) -> OnCreateArtifact:
+    return OnCreateArtifact(scope=scope, filter=alias_filter)
 
 
 @fixture
-def on_add_artifact_alias(scope, artifact_filter) -> OnAddArtifactAlias:
-    return OnAddArtifactAlias(scope=scope, filter=artifact_filter)
+def on_link_artifact(scope, alias_filter) -> OnLinkArtifact:
+    return OnLinkArtifact(scope=scope, filter=alias_filter)
+
+
+@fixture
+def on_unlink_artifact(scope, alias_filter) -> OnUnlinkArtifact:
+    return OnUnlinkArtifact(scope=scope, filter=alias_filter)
+
+
+@fixture
+def on_add_artifact_alias(scope, alias_filter) -> OnAddArtifactAlias:
+    return OnAddArtifactAlias(scope=scope, filter=alias_filter)
+
+
+@fixture
+def on_add_artifact_tag(scope, tag_filter) -> OnAddArtifactTag:
+    return OnAddArtifactTag(scope=scope, filter=tag_filter)
+
+
+@fixture
+def on_remove_artifact_tag(scope, tag_filter) -> OnRemoveArtifactTag:
+    return OnRemoveArtifactTag(scope=scope, filter=tag_filter)
+
+
+@fixture
+def on_add_collection_tag(scope, tag_filter) -> OnAddCollectionTag:
+    return OnAddCollectionTag(scope=scope, filter=tag_filter)
+
+
+@fixture
+def on_remove_collection_tag(scope, tag_filter) -> OnRemoveCollectionTag:
+    return OnRemoveCollectionTag(scope=scope, filter=tag_filter)
 
 
 @fixture
@@ -288,7 +346,12 @@ def event(request: FixtureRequest, event_type: EventType) -> InputEvent:
     event2fixture: dict[EventType, str] = {
         EventType.CREATE_ARTIFACT: on_create_artifact.__name__,
         EventType.ADD_ARTIFACT_ALIAS: on_add_artifact_alias.__name__,
+        EventType.ADD_ARTIFACT_TAG: on_add_artifact_tag.__name__,
+        EventType.ADD_COLLECTION_TAG: on_add_collection_tag.__name__,
         EventType.LINK_ARTIFACT: on_link_artifact.__name__,
+        EventType.REMOVE_ARTIFACT_TAG: on_remove_artifact_tag.__name__,
+        EventType.REMOVE_COLLECTION_TAG: on_remove_collection_tag.__name__,
+        EventType.UNLINK_ARTIFACT: on_unlink_artifact.__name__,
         EventType.RUN_METRIC_THRESHOLD: on_run_metric_threshold.__name__,
         EventType.RUN_METRIC_CHANGE: on_run_metric_change.__name__,
         EventType.RUN_METRIC_ZSCORE: on_run_metric_zscore.__name__,

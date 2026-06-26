@@ -36,6 +36,7 @@ REFERENCE_ATTRIBUTES = set(
         "notes",
         "offline",
         "path",
+        "pin_config_keys",
         "project",
         "project_name",
         "project_url",
@@ -58,27 +59,28 @@ REFERENCE_ATTRIBUTES = set(
         "use_artifact",
         "use_model",
         "watch",
+        "write_logs",
     ]
 )
 
 
-def test_run_step_property(mock_run):
-    run = mock_run()
-    run.log(dict(this=1))
-    run.log(dict(this=2))
-    assert run.step == 2
+def test_run_step_property():
+    with wandb.init(mode="offline") as run:
+        run.log(dict(this=1))
+        run.log(dict(this=2))
+        assert run.step == 2
 
 
-def test_log_avoids_mutation(mock_run):
-    run = mock_run()
-    d = dict(this=1)
-    run.log(d)
-    assert d == dict(this=1)
+def test_log_avoids_mutation():
+    with wandb.init(mode="offline") as run:
+        d = dict(this=1)
+        run.log(d)
+        assert d == dict(this=1)
 
 
-def test_display(mock_run):
-    run = mock_run(settings=wandb.Settings(mode="offline"))
-    assert run.display() is False
+def test_display():
+    with wandb.init(mode="offline") as run:
+        assert run.display() is False
 
 
 @pytest.mark.parametrize(

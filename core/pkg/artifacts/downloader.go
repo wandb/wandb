@@ -9,7 +9,6 @@ import (
 	"maps"
 	"net/http"
 	"path/filepath"
-	"slices"
 	"strconv"
 	"time"
 
@@ -255,59 +254,6 @@ func (ad *ArtifactDownloader) addEntriesToBatch(
 	return entries, numSkipped, hasNextPage, nil
 }
 
-// addEntriesToBatchLegacy is the legacy implementation of addEntriesToBatch.
-// It fetches file urls for the entries in entriesToFetch and returns the formatted manifest entries to
-// download in the current batch, the number of entries skipped, a boolean indicating if there are more pages to fetch,
-// and the cursor for the next page.
-func (ad *ArtifactDownloader) addEntriesToBatchLegacy(
-	artifactID string,
-	manifest Manifest,
-	manifestEntriesCopy map[string]ManifestEntry,
-	nameToScheduledTime map[string]time.Time,
-	cursor *string,
-) (entries []ManifestEntry, numSkipped int, hasNextPage bool, cur *string, err error) {
-	batchSize := BATCH_SIZE
-	numSkipped = 0
-	now := time.Now()
-	entries = []ManifestEntry{}
-	response, err := gql.ArtifactFileURLs(
-		ad.Ctx,
-		ad.GraphqlClient,
-		artifactID,
-		cursor,
-		&batchSize,
-	)
-	if err != nil {
-		return nil, 0, false, nil, err
-	}
-	hasNextPage = response.Artifact.Files.PageInfo.HasNextPage
-	cursor = response.Artifact.Files.PageInfo.EndCursor
-	for _, edge := range response.GetArtifact().GetFiles().Edges {
-		filePath := edge.GetNode().Name
-		entry, err := manifest.GetManifestEntryFromArtifactFilePath(filePath)
-		if err != nil {
-			return nil, 0, false, nil, err
-		}
-		if _, ok := nameToScheduledTime[filePath]; ok {
-			continue
-		}
-		// Reference artifacts will temporarily be handled by the python user process
-		if entry.Ref != nil {
-			numSkipped++
-			continue
-		}
-		node := edge.GetNode()
-		if node == nil {
-			return nil, 0, false, nil, fmt.Errorf("error reading entry from fetched file urls")
-		}
-		entry.DownloadURL = &node.DirectUrl
-		entry.LocalPath = &filePath
-		nameToScheduledTime[*entry.LocalPath] = now
-		entries = append(entries, entry)
-	}
-	return entries, numSkipped, hasNextPage, cursor, nil
-}
-
 func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifest Manifest) error {
 	// retrieve from "WANDB_ARTIFACT_FETCH_FILE_URL_BATCH_SIZE"?
 	batchSize := BATCH_SIZE
@@ -327,14 +273,7 @@ func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifest Manifest
 	manifestEntriesCopy := map[string]ManifestEntry{}
 	maps.Copy(manifestEntriesCopy, manifestEntries)
 
-	artifactFieldNames, err := GetGraphQLFields(ad.Ctx, ad.GraphqlClient, "Artifact")
-	if err != nil {
-		return err
-	}
-	canFetchFilesByManifestEntry := slices.Contains(artifactFieldNames, "filesByManifestEntries")
-
 	for numDone < len(manifestEntries) {
-		var cursor *string
 		hasNextPage := true
 		for hasNextPage {
 			// Prepare a batch
@@ -343,22 +282,12 @@ func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifest Manifest
 			var entries []ManifestEntry
 			var numSkipped int
 			var err error
-			if canFetchFilesByManifestEntry {
-				entries, numSkipped, hasNextPage, err = ad.addEntriesToBatch(
-					artifactID,
-					manifest,
-					manifestEntriesCopy,
-					nameToScheduledTime,
-				)
-			} else {
-				entries, numSkipped, hasNextPage, cursor, err = ad.addEntriesToBatchLegacy(
-					artifactID,
-					manifest,
-					manifestEntriesCopy,
-					nameToScheduledTime,
-					cursor,
-				)
-			}
+			entries, numSkipped, hasNextPage, err = ad.addEntriesToBatch(
+				artifactID,
+				manifest,
+				manifestEntriesCopy,
+				nameToScheduledTime,
+			)
 			if err != nil {
 				return err
 			}

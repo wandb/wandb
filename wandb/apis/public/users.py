@@ -13,13 +13,14 @@ from collections.abc import MutableMapping
 from typing import TYPE_CHECKING, Any
 
 from typing_extensions import Self
-from wandb_gql import gql
 
 import wandb
 from wandb.apis.attrs import Attrs
+from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 
 if TYPE_CHECKING:
-    from .api import Api, RetryingClient
+    from .api import Api
+    from .service_api import ServiceApi
 
 
 class User(Attrs):
@@ -30,26 +31,32 @@ class User(Attrs):
     user.
 
     Args:
-        client: The GraphQL client to use for network operations.
+        service_api: The service API instance to use for querying W&B.
         attrs: A subset of the User type in the GraphQL schema.
 
     <!-- lazydoc-ignore-init: internal -->
     """
 
-    def __init__(self, client: RetryingClient, attrs: MutableMapping[str, Any]):
+    def __init__(
+        self,
+        service_api: ServiceApi,
+        attrs: MutableMapping[str, Any],
+        api_key: str | None = None,
+    ):
         super().__init__(attrs)
-        self._client = client
+        self._service_api = service_api
+        self._api_key = api_key
         self._user_api: Api | None = None
 
     @property
     def user_api(self) -> Api | None:
         """A `wandb.Api` instance using the user's credentials."""
-        if self._user_api is None and self.api_keys:
-            self._user_api = wandb.Api(api_key=self.api_keys[0])
+        if self._user_api is None and self._api_key:
+            self._user_api = wandb.Api(api_key=self._api_key)
         return self._user_api
 
     @classmethod
-    def create(cls, api: Api, email: str, admin: bool = False) -> Self:
+    def create(cls, api: Api, email: str, admin: bool | None = False) -> Self:
         """Create a new user.
 
         This is an internal method. Use the `create_user()` method of
@@ -70,10 +77,14 @@ class User(Attrs):
             CreateUserFromAdmin,
         )
 
-        gql_op = gql(CREATE_USER_FROM_ADMIN_GQL)
-        data = api.client.execute(gql_op, {"email": email, "admin": admin})
-        user = CreateUserFromAdmin.model_validate(data).result.user
-        return cls(api.client, user.model_dump())
+        data = api._service_api.execute_graphql(
+            CREATE_USER_FROM_ADMIN_GQL,
+            {"email": email, "admin": admin},
+        )
+        result = CreateUserFromAdmin.model_validate(data).result
+        if not (result and (user := result.user)):
+            raise ValueError(f"Failed to create user {email!r}.")
+        return cls(api._service_api, user.model_dump(), api_key=api.api_key)
 
     @property
     def api_keys(self) -> list[str]:
@@ -113,15 +124,16 @@ class User(Attrs):
         Returns:
             True on success, false on failure.
         """
-        from requests import HTTPError
-
         from wandb.apis._generated import DELETE_API_KEY_GQL
 
         idx = self.api_keys.index(api_key)
         api_key_id = self._attrs["apiKeys"]["edges"][idx]["node"]["id"]
         try:
-            self._client.execute(gql(DELETE_API_KEY_GQL), {"id": api_key_id})
-        except HTTPError:
+            self._service_api.execute_graphql(
+                DELETE_API_KEY_GQL,
+                {"id": api_key_id},
+            )
+        except WandbApiFailedError:
             return False
         return True
 
@@ -136,17 +148,18 @@ class User(Attrs):
             The generated API key (the full secret, not just the name), or
             None on failure.
         """
-        from requests import HTTPError
-
         from wandb.apis._generated import GENERATE_API_KEY_GQL, GenerateApiKey
 
         try:
             # We must make this call using credentials from the original user
-            gql_op = gql(GENERATE_API_KEY_GQL)
-            data = self.user_api.client.execute(gql_op, {"description": description})
+            gql_op = GENERATE_API_KEY_GQL
+            data = self._service_api.execute_graphql(
+                gql_op,
+                {"description": description},
+            )
             key_fragment = GenerateApiKey.model_validate(data).result.api_key
             self._attrs["apiKeys"]["edges"].append({"node": key_fragment.model_dump()})
-        except (HTTPError, AttributeError):
+        except (WandbApiFailedError, AttributeError):
             return None
         else:
             return key_fragment.name

@@ -11,7 +11,6 @@ from unittest import mock
 
 import pytest
 import wandb
-from pydantic.version import VERSION as PYDANTIC_VERSION
 from wandb import Settings
 from wandb.errors import UsageError
 from wandb.sdk.lib.credentials import DEFAULT_WANDB_CREDENTIALS_FILE
@@ -19,10 +18,7 @@ from wandb.sdk.lib.run_moment import RunMoment
 
 from tests.fixtures.mock_wandb_log import MockWandbLog
 
-is_pydantic_v1 = int(PYDANTIC_VERSION[0]) == 1
 
-
-@pytest.mark.skipif(is_pydantic_v1, reason="Pydantic v1 allows extra fields")
 def test_unexpected_arguments():
     with pytest.raises(ValueError):
         Settings(lol=False)
@@ -39,7 +35,6 @@ def test_is_local():
     assert s.is_local is False
 
 
-@pytest.mark.skipif(is_pydantic_v1, reason="Pydantic v1 does type coercion")
 def test_invalid_field_type():
     with pytest.raises(ValueError):
         Settings(api_key=271828)  # must be a string
@@ -698,3 +693,46 @@ def test_reports_invalid_system_settings(
         mock_wandb_log.assert_errored_re(
             rf"^Failed to load settings from {re.escape(str(settings_file))}$",
         )
+
+
+def test_infer_git_root_finds_repo(tmp_path):
+    git_root = tmp_path / "repo"
+    git_root.mkdir()
+    subprocess.run(["git", "init", str(git_root)], check=True, capture_output=True)
+    subdir = git_root / "subdir"
+    subdir.mkdir()
+
+    s = Settings(root_dir=str(subdir))
+    s.infer_git_root()
+
+    assert pathlib.Path(s.git_root) == git_root
+
+
+def test_infer_git_root_no_repo(tmp_path):
+    s = Settings(root_dir=str(tmp_path))
+    s.infer_git_root()
+
+    assert s.git_root is None
+
+
+def test_infer_git_root_skips_if_already_set(tmp_path):
+    git_root = tmp_path / "repo"
+    git_root.mkdir()
+    subprocess.run(["git", "init", str(git_root)], check=True, capture_output=True)
+
+    preset = "/some/other/path"
+    s = Settings(root_dir=str(git_root), git_root=preset)
+    s.infer_git_root()
+
+    assert s.git_root == preset
+
+
+def test_infer_git_root_skips_if_disable_git(tmp_path):
+    git_root = tmp_path / "repo"
+    git_root.mkdir()
+    subprocess.run(["git", "init", str(git_root)], check=True, capture_output=True)
+
+    s = Settings(root_dir=str(git_root), disable_git=True)
+    s.infer_git_root()
+
+    assert s.git_root is None

@@ -28,7 +28,7 @@ import (
 
 func InjectRunSyncerFactory(settings2 *settings.Settings, logger *observability.CoreLogger) *RunSyncerFactory {
 	wandbOperations := wboperation.NewOperations()
-	printer := observability.NewPrinter()
+	printer := providePrinter()
 	wbBaseURL := stream.BaseURLFromSettings(logger, settings2)
 	clientID := sharedmode.RandomClientID()
 	credentialProvider := stream.CredentialsFromSettings(logger, settings2)
@@ -84,6 +84,7 @@ func InjectRunSyncerFactory(settings2 *settings.Settings, logger *observability.
 		RunfilesUploaderFactory: uploaderFactory,
 		GraphqlClient:           client,
 		Peeker:                  peeker,
+		Printer:                 printer,
 		RunHandle:               runHandle,
 		Mailbox:                 mailboxMailbox,
 	}
@@ -107,9 +108,14 @@ func InjectRunSyncerFactory(settings2 *settings.Settings, logger *observability.
 
 // wire.go:
 
-var runSyncerFactoryBindings = wire.NewSet(wire.Bind(new(api.Peeker), new(*observability.Peeker)), wire.Struct(new(observability.Peeker)), featurechecker.New, filestream.FileStreamProviders, filetransfer.NewFileTransferStats, mailbox.New, observability.NewPrinter, provideFileWatcher, runfiles.UploaderProviders, runhandle.New, runReaderProviders,
+var runSyncerFactoryBindings = wire.NewSet(wire.Bind(new(api.Peeker), new(*observability.Peeker)), wire.Struct(new(observability.Peeker)), featurechecker.New, filestream.FileStreamProviders, filetransfer.NewFileTransferStats, mailbox.New, provideFileWatcher,
+	providePrinter, runfiles.UploaderProviders, runhandle.New, runReaderProviders,
 	runSyncerProviders, sharedmode.RandomClientID, stream.BaseURLFromSettings, stream.CredentialsFromSettings, stream.NewFileTransferManager, stream.NewGraphQLClient, stream.RecordParserProviders, stream.SenderProviders, tensorboard.TBHandlerProviders, wboperation.NewOperations,
 )
+
+func providePrinter() *observability.Printer {
+	return observability.NewPrinter(printerBufferSize)
+}
 
 func provideFileWatcher(logger *observability.CoreLogger) watcher.Watcher {
 	return watcher.New(watcher.Params{Logger: logger})

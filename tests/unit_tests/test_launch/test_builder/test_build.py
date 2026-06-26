@@ -1,5 +1,6 @@
 import hashlib
 import json
+import re
 from unittest.mock import MagicMock
 
 import pytest
@@ -10,6 +11,7 @@ from wandb.sdk.launch.builder.abstract import registry_from_uri
 from wandb.sdk.launch.builder.context_manager import get_requirements_section
 from wandb.sdk.launch.builder.templates.dockerfile import PIP_TEMPLATE
 from wandb.sdk.launch.create_job import _configure_job_builder_for_partial
+from wandb.sdk.launch.errors import LaunchError
 
 
 def _read_wandb_job_json_from_artifact(artifact: Artifact) -> dict:
@@ -88,10 +90,67 @@ def mock_launch_project(mocker):
         override_config={},
         override_args=[],
         override_artifacts={},
-        python_version="3.9.11",
+        python_version="3.10.13",
     )
     launch_project.get_job_entry_point = lambda: launch_project.entry_point
     return launch_project
+
+
+@pytest.mark.parametrize(
+    "base_image",
+    [
+        "ubuntu:22.04",
+        "nvidia/cuda:12.4.1-runtime-ubuntu22.04",
+        "registry.example.com:5000/team/image:tag",
+        f"ubuntu@sha256:{'a' * 64}",
+    ],
+)
+def test_get_base_setup_accepts_accelerator_base_image_refs(base_image):
+    launch_project = MagicMock()
+    launch_project.accelerator_base_image = base_image
+
+    dockerfile = build.get_base_setup(launch_project, "3.10", "3")
+
+    assert f"FROM {base_image} as base" in dockerfile
+
+
+@pytest.mark.parametrize(
+    "base_image,expected_error",
+    [
+        (
+            "ubuntu:22.04\nRUN echo PROOF > /proof.txt\n#",
+            "Docker image references cannot contain whitespace or '#'.",
+        ),
+        (
+            "ubuntu:22.04 # comment",
+            "Docker image references cannot contain whitespace or '#'.",
+        ),
+        (
+            "ubuntu:22.04 as base",
+            "Docker image references cannot contain whitespace or '#'.",
+        ),
+        (
+            "ubuntu:22.04\n",
+            "Docker image references cannot contain whitespace or '#'.",
+        ),
+        (
+            "ubuntu:22.04@sha256:not-a-digest",
+            "Expected digest to match sha256:<64 hex characters>.",
+        ),
+        (
+            "Ubuntu:22.04",
+            "Expected a valid Docker image reference name.",
+        ),
+    ],
+)
+def test_get_base_setup_rejects_invalid_accelerator_base_image_refs(
+    base_image, expected_error
+):
+    launch_project = MagicMock()
+    launch_project.accelerator_base_image = base_image
+
+    with pytest.raises(LaunchError, match=re.escape(expected_error)):
+        build.get_base_setup(launch_project, "3.10", "3")
 
 
 def _setup(mocker):
@@ -243,7 +302,7 @@ def test_get_requirements_section_pyproject(
 
 def test_job_builder_includes_services_in_wandb_job_json(tmp_path):
     metadata = {
-        "python": "3.9",
+        "python": "3.10",
         "codePath": "main.py",
         "entrypoint": ["python", "main.py"],
         "docker": "my-image:latest",
@@ -264,7 +323,7 @@ def test_job_builder_includes_services_in_wandb_job_json(tmp_path):
 def test_job_builder_excludes_services_in_wandb_job_json(tmp_path):
     """Test that JobBuilder.build excludes services key when no services are set."""
     metadata = {
-        "python": "3.9",
+        "python": "3.10",
         "codePath": "main.py",
         "entrypoint": ["python", "main.py"],
         "docker": "my-image:latest",

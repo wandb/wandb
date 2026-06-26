@@ -1,14 +1,14 @@
 from __future__ import annotations
 
+import json
 import secrets
 from functools import cache
-from typing import Union
+from typing import TypeAlias
 from unittest.mock import Mock
 
 from hypothesis import settings
 from pytest import FixtureRequest, fixture, skip
 from pytest_mock import MockerFixture
-from typing_extensions import TypeAlias
 from wandb._strutils import b64encode_ascii
 from wandb.apis.public import ArtifactCollection, Project
 from wandb.automations import (
@@ -17,16 +17,28 @@ from wandb.automations import (
     DoNothing,
     EventType,
     OnAddArtifactAlias,
+    OnAddArtifactTag,
+    OnAddCollectionTag,
     OnCreateArtifact,
     OnLinkArtifact,
+    OnRemoveArtifactTag,
+    OnRemoveCollectionTag,
     OnRunMetric,
+    OnUnlinkArtifact,
     RunEvent,
     ScopeType,
     SendNotification,
     SendWebhook,
 )
 from wandb.automations._utils import INVALID_INPUT_ACTIONS, INVALID_INPUT_EVENTS
-from wandb.automations.actions import InputAction, SavedAction, SavedNoOpAction
+from wandb.automations.actions import (
+    InputAction,
+    SavedAction,
+    SavedNoOpAction,
+    SavedNotificationAction,
+    SavedWebhookAction,
+)
+from wandb.automations.automations import Automation
 from wandb.automations.events import InputEvent, OnRunState, SavedEvent
 from wandb.sdk.artifacts._generated import ArtifactCollectionFragment
 
@@ -35,7 +47,7 @@ settings.register_profile("default", max_examples=100)
 settings.load_profile("default")
 
 
-ScopableWandbType: TypeAlias = Union[ArtifactCollection, Project]
+ScopableWandbType: TypeAlias = ArtifactCollection | Project
 
 
 # ---------------------------------------------------------------------------
@@ -73,9 +85,9 @@ def automation_id() -> str:
 @fixture(scope="session")
 def mock_client(session_mocker: MockerFixture) -> Mock:
     """A mocked wandb client to prevent real API calls."""
-    from wandb.apis.public import RetryingClient
+    from wandb.apis.public.service_api import ServiceApi
 
-    return session_mocker.Mock(spec=RetryingClient)
+    return session_mocker.Mock(spec=ServiceApi)
 
 
 @fixture(scope="session")
@@ -93,7 +105,7 @@ def artifact_collection(mock_client: Mock) -> ArtifactCollection:
     entity_name = "test-entity"
     collection_type = "dataset"
     collection = ArtifactCollection(
-        client=mock_client,
+        service_api=mock_client,
         entity=entity_name,
         project=project_name,
         name=collection_name,
@@ -130,7 +142,7 @@ def project(mock_client: Mock) -> Project:
     Tests relying on real `wandb.Api` calls should live in system tests.
     """
     return Project(
-        client=mock_client,
+        service_api=mock_client,
         entity="test-entity",
         project="test-project",
         attrs={
@@ -220,11 +232,48 @@ def on_add_artifact_alias(scope: ScopableWandbType) -> OnAddArtifactAlias:
 
 
 @fixture
+def on_add_artifact_tag(scope: ScopableWandbType) -> OnAddArtifactTag:
+    return OnAddArtifactTag(
+        scope=scope,
+        filter=ArtifactEvent.tag.matches_regex("^prod-.*"),
+    )
+
+
+@fixture
+def on_remove_artifact_tag(scope: ScopableWandbType) -> OnRemoveArtifactTag:
+    return OnRemoveArtifactTag(
+        scope=scope,
+        filter=ArtifactEvent.tag.matches_regex("^prod-.*"),
+    )
+
+
+@fixture
+def on_add_collection_tag(scope: ScopableWandbType) -> OnAddCollectionTag:
+    return OnAddCollectionTag(
+        scope=scope,
+        filter=ArtifactEvent.tag.matches_regex("^prod-.*"),
+    )
+
+
+@fixture
+def on_remove_collection_tag(scope: ScopableWandbType) -> OnRemoveCollectionTag:
+    return OnRemoveCollectionTag(
+        scope=scope,
+        filter=ArtifactEvent.tag.matches_regex("^prod-.*"),
+    )
+
+
+@fixture
 def on_link_artifact(scope: ScopableWandbType) -> OnLinkArtifact:
     return OnLinkArtifact(
         scope=scope,
         filter=ArtifactEvent.alias.matches_regex("^prod-.*"),
     )
+
+
+@fixture
+def on_unlink_artifact(scope: ScopableWandbType) -> OnUnlinkArtifact:
+    return OnUnlinkArtifact(scope=scope)
 
 
 @fixture
@@ -273,7 +322,12 @@ def input_event(request: FixtureRequest, event_type: EventType) -> InputEvent:
     event2fixture: dict[EventType, str] = {
         EventType.CREATE_ARTIFACT: on_create_artifact.__name__,
         EventType.ADD_ARTIFACT_ALIAS: on_add_artifact_alias.__name__,
+        EventType.ADD_ARTIFACT_TAG: on_add_artifact_tag.__name__,
+        EventType.REMOVE_ARTIFACT_TAG: on_remove_artifact_tag.__name__,
+        EventType.ADD_COLLECTION_TAG: on_add_collection_tag.__name__,
+        EventType.REMOVE_COLLECTION_TAG: on_remove_collection_tag.__name__,
         EventType.LINK_ARTIFACT: on_link_artifact.__name__,
+        EventType.UNLINK_ARTIFACT: on_unlink_artifact.__name__,
         EventType.RUN_METRIC_THRESHOLD: on_run_metric_threshold.__name__,
         EventType.RUN_METRIC_CHANGE: on_run_metric_change.__name__,
         EventType.RUN_METRIC_ZSCORE: on_run_metric_zscore.__name__,
@@ -282,12 +336,34 @@ def input_event(request: FixtureRequest, event_type: EventType) -> InputEvent:
     return request.getfixturevalue(event2fixture[event_type])
 
 
+_MUTATION_EVENT_TYPES = (
+    EventType.ADD_ARTIFACT_ALIAS,
+    EventType.ADD_ARTIFACT_TAG,
+    EventType.ADD_COLLECTION_TAG,
+    EventType.LINK_ARTIFACT,
+    EventType.REMOVE_ARTIFACT_TAG,
+    EventType.REMOVE_COLLECTION_TAG,
+    EventType.CREATE_ARTIFACT,
+    EventType.UNLINK_ARTIFACT,
+)
+
+
+@fixture(
+    params=_MUTATION_EVENT_TYPES,
+    ids=lambda x: f"mutation_event={x.value}",
+)
+def mutation_event_type(request: FixtureRequest) -> EventType:
+    """A mutation-based event type."""
+    return request.param
+
+
 @fixture
-def saved_event() -> SavedEvent:
-    # PLACEHOLDER
+def saved_event(mutation_event_type: EventType) -> SavedEvent:
+    """A realistic SavedEvent with a non-empty wrapped filter."""
+    wrapped_filter = {"filter": {"$or": [{"$and": [{"alias": {"$eq": "latest"}}]}]}}
     return SavedEvent(
-        event_type=EventType.LINK_ARTIFACT,
-        filter={"filter": {"$or": [{"$and": []}]}},
+        event_type=mutation_event_type,
+        filter=json.dumps(wrapped_filter),
     )
 
 
@@ -326,7 +402,131 @@ def input_action(request: FixtureRequest, action_type: ActionType) -> InputActio
     return request.getfixturevalue(action2fixture[action_type])
 
 
+@fixture(params=valid_input_actions())
+def saved_action(request: FixtureRequest) -> SavedAction:
+    match action_type := request.param:
+        case ActionType.NO_OP:
+            return SavedNoOpAction()
+        case ActionType.NOTIFICATION:
+            return SavedNotificationAction(
+                integration={"id": "PLACEHOLDER"},
+                title=None,
+                message=None,
+                severity=None,
+            )
+        case ActionType.GENERIC_WEBHOOK:
+            return SavedWebhookAction(
+                integration={"id": "PLACEHOLDER"},
+                request_payload=None,
+            )
+        case _:
+            raise ValueError(f"Unsupported saved action type: {action_type!r}")
+
+
 @fixture
-def saved_action() -> SavedAction:
-    # PLACEHOLDER
-    return SavedNoOpAction()
+def saved_automation(
+    automation_id: str,
+    saved_event: SavedEvent,
+    saved_action: SavedAction,
+    artifact_collection: ArtifactCollection,
+) -> Automation:
+    """An Automation object mimicking what the server returns, for unit-testing prepare_to_update()."""
+    return Automation(
+        id=automation_id,
+        created_at="2024-01-01T00:00:00Z",
+        updated_at=None,
+        name="test-automation",
+        description="test description",
+        enabled=True,
+        scope=artifact_collection,
+        event=saved_event,
+        action=saved_action,
+    )
+
+
+RUN_EVENT_TYPES = (
+    EventType.RUN_METRIC_THRESHOLD,
+    EventType.RUN_STATE,
+)
+
+
+@fixture(
+    params=RUN_EVENT_TYPES,
+    ids=lambda x: f"run_event={x.value}",
+)
+def run_event_type(request: FixtureRequest) -> EventType:
+    """A run-based event type."""
+    return request.param
+
+
+@fixture
+def run_event_filter_json(run_event_type: EventType) -> str:
+    """A realistic JSON-serialized filter string for a run event type."""
+    run_filter = json.dumps({"$and": [{"display_name": {"$contains": "my-run"}}]})
+
+    match run_event_type:
+        case EventType.RUN_METRIC_THRESHOLD:
+            extra_filter = {
+                "run_metric_filter": {
+                    "threshold_filter": {
+                        "name": "my-metric",
+                        "agg_op": "AVERAGE",
+                        "window_size": 5,
+                        "cmp_op": "$gt",
+                        "threshold": 0,
+                    }
+                }
+            }
+        case EventType.RUN_METRIC_CHANGE:
+            extra_filter = {
+                "run_metric_filter": {
+                    "change_filter": {
+                        "name": "my-metric",
+                        "agg_op": "AVERAGE",
+                        "window_size": 5,
+                        "prior_window_size": 5,
+                        "change_dir": "ANY",
+                        "change_type": "RELATIVE",
+                        "change_amount": 123.45,
+                    }
+                }
+            }
+        case EventType.RUN_METRIC_ZSCORE:
+            extra_filter = {
+                "run_metric_filter": {
+                    "zscore_filter": {
+                        "name": "my-metric",
+                        "window_size": 5,
+                        "threshold": 3.0,
+                        "change_dir": "ANY",
+                    }
+                }
+            }
+        case EventType.RUN_STATE:
+            extra_filter = {"run_state_filter": {"states": ["FAILED"]}}
+        case _:
+            raise ValueError(f"Unsupported run event type: {run_event_type!r}")
+
+    return json.dumps({"run_filter": run_filter} | extra_filter)
+
+
+@fixture
+def saved_run_automation(
+    automation_id: str,
+    run_event_type: EventType,
+    run_event_filter_json: str,
+    saved_action: SavedAction,
+    project: Project,
+) -> Automation:
+    """A run-event Automation mimicking what the server returns."""
+    return Automation(
+        id=automation_id,
+        created_at="2024-01-01T00:00:00Z",
+        updated_at=None,
+        name="test-run-automation",
+        description="test run event description",
+        enabled=True,
+        scope=project,
+        event=SavedEvent(event_type=run_event_type, filter=run_event_filter_json),
+        action=saved_action,
+    )

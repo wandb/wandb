@@ -8,14 +8,29 @@ import shutil
 import subprocess
 import textwrap
 import time
+from collections.abc import Callable
 from contextlib import contextmanager
-from typing import Any, Callable
+from typing import Any
 
 import nox
 
 nox.options.default_venv_backend = "uv"
 
-_SUPPORTED_PYTHONS = ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
+_SUPPORTED_PYTHONS = ["3.10", "3.11", "3.12", "3.13", "3.14"]
+
+# Protobuf Python bindings.
+#
+# Each entry is the OLDEST protoc version in the corresponding Python runtime
+# major series. Using the oldest keeps the runtime-version check embedded in
+# the gencode permissive, so the bindings load against any protobuf X.y.z
+# runtime in the same major. Protobuf X.Y.Z corresponds to protoc Y.Z; see
+# https://protobuf.dev/support/version-support/.
+_PROTOC_FOR_PB = {
+    4: "23.4",
+    5: "26.0",
+    6: "30.0",
+    7: "34.0",
+}
 
 # Directories in which to create temporary per-session directories
 # containing test results and pytest/Go coverage.
@@ -82,7 +97,7 @@ def _requirements_file(python_version: str) -> str:
     Uses the current platform as the platform tag.
 
     Args:
-        python_version: Python version string, like "3.9", "3.13".
+        python_version: Python version string, like "3.10", "3.13".
     """
     platform_tag = platform.system().lower()
 
@@ -129,10 +144,6 @@ def run_pytest(
         # which uses auth information from the home directory.
         "HOME": os.environ.get("HOME"),
         "CI": os.environ.get("CI"),
-        # Required for the importers tests
-        "WANDB_TEST_SERVER_URL2": os.environ.get("WANDB_TEST_SERVER_URL2"),
-        # Required for functional tests with openai
-        "OPENAI_API_KEY": os.environ.get("OPENAI_API_KEY"),
     }
 
     # Print 20 slowest tests.
@@ -145,6 +156,10 @@ def run_pytest(
 
     # (pytest-timeout) Per-test timeout.
     pytest_opts.append(f"--timeout={opts.get('timeout', 60)}")
+
+    # (pytest-timeout) Use the 'thread' method to shut down more reliably
+    # to help debug hangs.
+    pytest_opts.append(f"--timeout-method={opts.get('timeout_method', 'thread')}")
 
     # (pytest-xdist) Run tests in parallel.
     pytest_opts.append(f"-n={opts.get('n', 'auto')}")
@@ -185,7 +200,15 @@ def unit_tests(session: nox.Session) -> None:
     By default this runs all unit tests, but specific tests can be selected
     by passing them via positional arguments.
     """
-    install_wandb(session)
+    is_windows = platform.system() == "Windows"
+
+    if is_windows:
+        # Linux already exercises the heavier Go race/coverage build path.
+        # Skipping it on Windows keeps this job focused on Python compatibility
+        # and avoids multi-minute rebuilds.
+        session.env["WANDB_BUILD_SKIP_WANDB_XPU"] = "true"
+
+    install_wandb(session, dev=not is_windows)
 
     install_timed(
         session,
@@ -201,32 +224,7 @@ def unit_tests(session: nox.Session) -> None:
         session,
         paths=paths,
         # TODO: consider relaxing this once the test memory usage is under control.
-        opts={"n": "8"},
-    )
-
-
-@nox.session(python=_SUPPORTED_PYTHONS)
-def unit_tests_pydantic_v1(session: nox.Session) -> None:
-    """Runs a subset of Python unit tests with pydantic v1."""
-    install_wandb(session)
-    install_timed(
-        session,
-        "-r",
-        _requirements_file(session.python),
-    )
-    # force-downgrade pydantic to v1
-    install_timed(session, "pydantic<2")
-
-    run_pytest(
-        session,
-        paths=session.posargs
-        or [
-            "tests/unit_tests/test_wandb_settings.py",
-            "tests/unit_tests/test_wandb_run.py",
-            "tests/unit_tests/test_pydantic_v1_compat.py",
-            "tests/unit_tests/test_artifacts",
-        ],
-        opts={"n": "4"},
+        opts={"n": "4" if is_windows else "8"},
     )
 
 
@@ -242,7 +240,6 @@ def system_tests(session: nox.Session) -> None:
 
     paths = session.posargs or [
         "tests/system_tests",
-        "--ignore=tests/system_tests/test_importers",
         "--ignore=tests/system_tests/test_notebooks",
         "--ignore=tests/system_tests/test_functional",
         "--ignore=tests/system_tests/test_experimental",
@@ -307,7 +304,14 @@ def functional_tests(session: nox.Session):
         # based on the number of detected CPUs in the system, and doesn't
         # take into account the number of available CPUs in the container,
         # which results in OOM errors.
-        opts={"n": "4"},
+        opts={
+            "n": "4",
+            # Functional tests run heavy workloads (DDP training, metaflow
+            # pipelines, ray tune) that need more than the default 60s.
+            # Metaflow tests spawn multiple subprocesses with ~30s import
+            # overhead each, so they need a generous timeout.
+            "timeout": "300",
+        },
     )
 
 
@@ -331,22 +335,34 @@ def experimental_tests(session: nox.Session):
 
 @nox.session(python=False, name="local-testcontainer-registry")
 def local_testcontainer_registry(session: nox.Session) -> None:
-    """Ensure we collect and store the latest local-testcontainer in the registry.
+    """Archive the local-testcontainer image for a wandb/core server release.
 
-    This will find the latest released version (tag) of wandb/core,
-    find associated commit hash, and then pull the local-testcontainer
-    image with the same commit hash from
+    Finds the requested release (tag) of wandb/core (latest by default)
+    and its commit hash, then copies the local-testcontainer image with
+    that commit hash from
     us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer
-    and push it to the SDK's registry with the release tag,
-    if it doesn't already exist there.
+    to us-central1-docker.pkg.dev/wandb-client-cicd/images/local-testcontainer
+    tagged with the release version. No-op if the tag is already archived.
 
-    To run locally, you must have the following environment variables set:
-    - GITHUB_ACCESS_TOKEN: a GitHub personal access token with the repo scope
-    - GOOGLE_APPLICATION_CREDENTIALS: path to a service account key file
-      or a JSON string containing the key file contents
+    The wandb-production registry only retains images for recent commits,
+    so this archive is what allows testing the SDK against older server
+    releases (e.g. the system-tests-min-server-version CI jobs). It is
+    run manually by maintainers about once a month; see "Archiving server
+    images" in CONTRIBUTING.md.
 
-    To run this for a specific release tag, use:
-    nox -s local-testcontainer-registry -- <release_tag>
+    Prerequisites:
+    - gcloud authenticated with an account that can read
+      wandb-production/images/local-testcontainer and write
+      wandb-client-cicd/images/local-testcontainer
+    - gcrane: go install github.com/google/go-containerregistry/cmd/gcrane@latest
+    - GITHUB_ACCESS_TOKEN: a GitHub token that can read wandb/core,
+      e.g. GITHUB_ACCESS_TOKEN=$(gh auth token)
+
+    To archive the latest release:
+        nox -s local-testcontainer-registry
+
+    To archive a specific release:
+        nox -s local-testcontainer-registry -- server/v0.81.3
     """
     tags: list[str] = session.posargs or []
 
@@ -368,7 +384,6 @@ def local_testcontainer_registry(session: nox.Session) -> None:
 
     def get_release_tag_and_commit_hash(tags: list[str]):
         if not tags:
-            # Get the latest release tag and commit hash
             query = """
             {
             repository(owner: "wandb", name: "core") {
@@ -388,36 +403,35 @@ def local_testcontainer_registry(session: nox.Session) -> None:
                 data["data"]["repository"]["latestRelease"]["tagName"],
                 data["data"]["repository"]["latestRelease"]["tagCommit"]["oid"],
             )
-        else:
-            # Get the commit hash for the given release tag
-            query = """
-            query($owner: String!, $repo: String!, $tag: String!) {
-            repository(owner: $owner, name: $repo) {
-                ref(qualifiedName: $tag) {
-                target {
-                    oid
-                }
-                }
+
+        query = """
+        query($owner: String!, $repo: String!, $tag: String!) {
+        repository(owner: $owner, name: $repo) {
+            ref(qualifiedName: $tag) {
+            target {
+                oid
             }
             }
-            """
+        }
+        }
+        """
 
-            data = query_github(
-                {
-                    "query": query,
-                    "variables": {
-                        "owner": "wandb",
-                        "repo": "core",
-                        "tag": tags[0],
-                    },
-                }
-            )
+        data = query_github(
+            {
+                "query": query,
+                "variables": {
+                    "owner": "wandb",
+                    "repo": "core",
+                    "tag": tags[0],
+                },
+            }
+        )
 
-            return tags[0], data["data"]["repository"]["ref"]["target"]["oid"]
+        return tags[0], data["data"]["repository"]["ref"]["target"]["oid"]
 
     local_release_tag, commit_hash = get_release_tag_and_commit_hash(tags)
 
-    release_tag = local_release_tag.removeprefix("local/v")
+    release_tag = local_release_tag.removeprefix("server/v")
     session.log(f"Release tag: {release_tag}")
     session.log(f"Commit hash: {commit_hash}")
 
@@ -426,7 +440,6 @@ def local_testcontainer_registry(session: nox.Session) -> None:
 
     subprocess.check_call(["gcloud", "config", "set", "project", "wandb-client-cicd"])
 
-    # Check if image with tag already exists in the SDK's Artifact registry
     images = (
         subprocess.Popen(
             [
@@ -452,10 +465,27 @@ def local_testcontainer_registry(session: nox.Session) -> None:
     source_image = f"us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer:{commit_hash}"
     target_image = f"us-central1-docker.pkg.dev/wandb-client-cicd/images/local-testcontainer:{release_tag}"
 
-    # install gcrane: `go install github.com/google/go-containerregistry/cmd/gcrane@latest`
     subprocess.check_call(["gcrane", "cp", source_image, target_image])
 
     session.log(f"Successfully copied image {target_image}")
+
+
+@nox.session(python="3.13", name="codegen-check")
+def codegen_check(session: nox.Session) -> None:
+    """Generate code and ensure nothing changed."""
+    install_timed(
+        session,
+        "-r",
+        _requirements_file(session.python),
+        "ruff",  # tools/graphql_codegen/plugin.py shells out to Ruff after generation
+    )
+    session.run(
+        "python",
+        "tools/generate-tool.py",
+        "--generate",
+        "--check",
+        env={"PYTHONPATH": "."},
+    )
 
 
 @nox.session(name="gql-codegen", tags=["graphql"], python="3.10")
@@ -473,8 +503,8 @@ def gql_codegen(session: nox.Session) -> None:
 @nox.session(python=False, name="proto-rust", tags=["proto"])
 def proto_rust(session: nox.Session) -> None:
     """Generate Rust bindings for protobufs."""
-    session.run("./core/api/proto/install-protoc.sh", "23.4", external=True)
-    session.run("./gpu_stats/tools/generate-proto.sh", external=True)
+    session.run("./core/api/proto/install-protoc.sh", "34.1", external=True)
+    session.run("./xpu/tools/generate-proto.sh", external=True)
 
 
 @nox.session(python=False, name="proto-go", tags=["proto"])
@@ -487,57 +517,30 @@ def _generate_proto_go(session: nox.Session) -> None:
     session.run("./core/api/proto/generate-proto.sh", external=True)
 
 
-@nox.session(name="proto-python", tags=["proto"], python="3.10")
-@nox.parametrize("pb", [4, 5, 6, 7])
-def proto_python(session: nox.Session, pb: int) -> None:
+@nox.session(python=False, name="proto-python", tags=["proto"])
+def proto_python(session: nox.Session) -> None:
     """Generate Python bindings for protobufs.
 
-    The pb argument is the major version of the protobuf package to use.
-
-    Tested with Python 3.10 on a Mac with an M1 chip.
+    Pass specific major versions as positional args, or omit to generate all:
+        nox -s proto-python -- 5 7
     """
-    _generate_proto_python(session, pb=pb)
+    targets = (
+        [int(v) for v in session.posargs] if session.posargs else sorted(_PROTOC_FOR_PB)
+    )
 
+    for pb in targets:
+        protoc_ver = _PROTOC_FOR_PB.get(pb)
+        if not protoc_ver:
+            session.error(
+                f"Unknown protobuf major version: {pb}. Supported: {sorted(_PROTOC_FOR_PB)}"
+            )
 
-def _generate_proto_python(session: nox.Session, pb: int) -> None:
-    if pb == 4:
-        session.install(
-            "protobuf~=4.23.4",
-            "mypy-protobuf~=3.5.0",
-            "grpcio~=1.51.0",
-            "grpcio-tools~=1.51.0",
-            "packaging",
-            "setuptools<70",  # provides pkg_resources for grpcio-tools
+        session.run(
+            "./wandb/proto/generate-proto.sh",
+            protoc_ver,
+            f"wandb/proto/v{pb}",
+            external=True,
         )
-    elif pb == 5:
-        session.install(
-            "protobuf~=5.27.0",
-            "mypy-protobuf~=3.6.0",
-            "grpcio~=1.64.1",
-            "grpcio-tools~=1.64.1",
-            "packaging",
-        )
-    elif pb == 6:
-        session.install(
-            "protobuf~=6.32.1",
-            "mypy-protobuf~=3.6.0",
-            "grpcio~=1.75.0",
-            "grpcio-tools~=1.75.0",
-            "packaging",
-        )
-    elif pb == 7:
-        session.install(
-            "protobuf~=7.34.0",
-            "mypy-protobuf~=5.0.0",
-            "grpcio==1.80.0rc1",
-            "grpcio-tools==1.80.0rc1",
-            "packaging",
-        )
-    else:
-        session.error("Invalid protobuf version given. `pb` must be 4, 5, 6, or 7.")
-
-    with session.chdir("wandb/proto"):
-        session.run("python", "wandb_generate_proto.py")
 
 
 def _ensure_no_diff(
@@ -553,13 +556,18 @@ def _ensure_no_diff(
     session.run("rm", "-rf", saved, external=True)
 
 
-@nox.session(name="proto-check-python", tags=["proto-check"])
-@nox.parametrize("pb", [5, 6])
+@nox.session(python=False, name="proto-check-python", tags=["proto-check"])
+@nox.parametrize("pb", [4, 5, 6, 7])
 def proto_check_python(session: nox.Session, pb: int) -> None:
     """Regenerates Python protobuf files and ensures nothing changed."""
     _ensure_no_diff(
         session,
-        after=lambda: _generate_proto_python(session, pb=pb),
+        after=lambda: session.run(
+            "./wandb/proto/generate-proto.sh",
+            _PROTOC_FOR_PB[pb],
+            f"wandb/proto/v{pb}",
+            external=True,
+        ),
         in_directory=f"wandb/proto/v{pb}/.",
     )
 
@@ -583,6 +591,8 @@ def mypy_report(session: nox.Session) -> None:
     """
     session.install(
         "bokeh",
+        # wandb.sandbox imports typed symbols from the optional cwsandbox package.
+        "cwsandbox[cli]",
         "ipython",
         "lxml",
         # https://github.com/python/mypy/issues/17166
@@ -605,6 +615,7 @@ def mypy_report(session: nox.Session) -> None:
         "types-requests",
         "types-six",
         "types-tqdm",
+        "-e .[eval-table]",
     )
 
     path = "mypy-results"
@@ -748,31 +759,6 @@ def combine_test_results(session: nox.Session) -> None:
     )
 
     shutil.rmtree(_NOX_PYTEST_RESULTS_DIR, ignore_errors=True)
-
-
-@nox.session(python=_SUPPORTED_PYTHONS)
-@nox.parametrize("importer", ["wandb", "mlflow"])
-def importer_tests(session: nox.Session, importer: str):
-    """Run importer tests for wandb->wandb and mlflow->wandb."""
-    install_wandb(session)
-    session.install("-r", _requirements_file(session.python))
-    if importer == "wandb":
-        session.install(".[workspaces]", "pydantic>=2")
-    elif importer == "mlflow":
-        session.install("pydantic<2")
-    session.install(
-        "polyfactory",
-        "polars<=1.2.1",
-        "rich",
-        "filelock",
-    )
-
-    run_pytest(
-        session,
-        paths=(
-            session.posargs or [f"tests/system_tests/test_importers/test_{importer}"]
-        ),
-    )
 
 
 @nox.session(name="wandb-core-size-check", python="3.12")

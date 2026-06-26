@@ -145,10 +145,7 @@ func TestSystemMetricsGrid_NavigateWithPowerMetrics(t *testing.T) {
 		grid.LoadCurrentPage()
 	}
 
-	// Verify focus is cleared after navigation
-	grid.HandleMouseClick(0, 0) // Focus a chart
-	require.NotEmpty(t, grid.FocusedChartTitle(), "chart should be focused before navigation")
-
+	// Navigate auto-focuses the first chart on the new page.
 	grid.Navigate(1)
-	require.Empty(t, grid.FocusedChartTitle(), "focus should be cleared after navigation")
+	require.NotEmpty(t, grid.FocusedChartTitle(), "first chart should be focused after navigation")
 }

@@ -1,0 +1,38 @@
+version = 1
+agents = ["claude", "codex"]
+
+[trust]
+github_orgs = [ "getsentry" ]
+
+
+[[skills]]
+name = "dotagents"
+source = "getsentry/dotagents"
+
+[[skills]]
+name = "find-bugs"
+source = "getsentry/skills"
+
+[[skills]]
+name = "code-review"
+source = "getsentry/skills"
+
+[[skills]]
+name = "commit"
+source = "getsentry/skills"
+
+[[skills]]
+name = "create-pr"
+source = "getsentry/skills"
+
+[[skills]]
+name = "code-simplifier"
+source = "getsentry/skills"
+
+[[skills]]
+name = "iterate-pr"
+source = "getsentry/skills"
+
+[[skills]]
+name = "security-review"
+source = "getsentry/skills"

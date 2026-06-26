@@ -53,7 +53,7 @@ def create_job(
         name (Optional[str]): Name of the job.
         description (Optional[str]): Description of the job.
         aliases (Optional[List[str]]): Aliases for the job.
-        runtime (Optional[str]): Python runtime of the job, like 3.9.
+        runtime (Optional[str]): Python runtime of the job, like 3.10.
         entrypoint (Optional[str]): Entrypoint of the job. If build_context is
             provided, path is relative to build_context.
         git_hash (Optional[str]): Git hash of a specific commit, when using git type jobs.
@@ -75,7 +75,7 @@ def create_job(
             name="my-train-job",
             description="My training job",
             aliases=["train"],
-            runtime="3.9",
+            runtime="3.10",
             entrypoint="train.py",
         )
         # then run the newly created job
@@ -132,7 +132,7 @@ def _create_job(
     if runtime is not None and not re.match(r"^3\.\d+$", runtime):
         wandb.termerror(
             f"Runtime (-r, --runtime) must be a minor version of Python 3, "
-            f"e.g. 3.9 or 3.10, received {runtime}"
+            f"e.g. 3.10 or 3.11, received {runtime}"
         )
         return None, "", []
     aliases = aliases or []

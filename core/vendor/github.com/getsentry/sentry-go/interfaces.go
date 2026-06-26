@@ -111,14 +111,22 @@ type Logger interface {
 type LogEntry interface {
 	// WithCtx creates a new LogEntry with the specified context without overwriting the previous one.
 	WithCtx(ctx context.Context) LogEntry
+	// StringSlice adds a string slice attribute to the LogEntry.
+	StringSlice(key string, value []string) LogEntry
 	// String adds a string attribute to the LogEntry.
 	String(key, value string) LogEntry
 	// Int adds an int attribute to the LogEntry.
 	Int(key string, value int) LogEntry
+	// Int64Slice adds an int64 slice attribute to the LogEntry.
+	Int64Slice(key string, value []int64) LogEntry
 	// Int64 adds an int64 attribute to the LogEntry.
 	Int64(key string, value int64) LogEntry
+	// Float64Slice adds a float64 slice attribute to the LogEntry.
+	Float64Slice(key string, value []float64) LogEntry
 	// Float64 adds a float64 attribute to the LogEntry.
 	Float64(key string, value float64) LogEntry
+	// BoolSlice adds a bool slice attribute to the LogEntry.
+	BoolSlice(key string, value []bool) LogEntry
 	// Bool adds a bool attribute to the LogEntry.
 	Bool(key string, value bool) LogEntry
 	// Emit emits the LogEntry with the provided arguments.
@@ -239,44 +247,11 @@ type Request struct {
 	Env         map[string]string `json:"env,omitempty"`
 }
 
-var sensitiveHeaders = map[string]struct{}{
-	"_csrf":               {},
-	"_csrf_token":         {},
-	"_session":            {},
-	"_xsrf":               {},
-	"Api-Key":             {},
-	"Apikey":              {},
-	"Auth":                {},
-	"Authorization":       {},
-	"Cookie":              {},
-	"Credentials":         {},
-	"Csrf":                {},
-	"Csrf-Token":          {},
-	"Csrftoken":           {},
-	"Ip-Address":          {},
-	"Passwd":              {},
-	"Password":            {},
-	"Private-Key":         {},
-	"Privatekey":          {},
-	"Proxy-Authorization": {},
-	"Remote-Addr":         {},
-	"Secret":              {},
-	"Session":             {},
-	"Sessionid":           {},
-	"Token":               {},
-	"User-Session":        {},
-	"X-Api-Key":           {},
-	"X-Csrftoken":         {},
-	"X-Forwarded-For":     {},
-	"X-Real-Ip":           {},
-	"XSRF-TOKEN":          {},
+func sendDefaultPIIEnabled(client *Client) bool {
+	return client != nil && client.options.SendDefaultPII
 }
 
-// NewRequest returns a new Sentry Request from the given http.Request.
-//
-// NewRequest avoids operations that depend on network access. In particular, it
-// does not read r.Body.
-func NewRequest(r *http.Request) *Request {
+func newRequest(r *http.Request, sendDefaultPII bool) *Request {
 	prot := protocol.SchemeHTTP
 	if r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" {
 		prot = protocol.SchemeHTTPS
@@ -287,7 +262,7 @@ func NewRequest(r *http.Request) *Request {
 	var env map[string]string
 	headers := map[string]string{}
 
-	if client := CurrentHub().Client(); client != nil && client.options.SendDefaultPII {
+	if sendDefaultPII {
 		// We read only the first Cookie header because of the specification:
 		// https://tools.ietf.org/html/rfc6265#section-5.4
 		// When the user agent generates an HTTP request, the user agent MUST NOT
@@ -304,7 +279,7 @@ func NewRequest(r *http.Request) *Request {
 		}
 	} else {
 		for k, v := range r.Header {
-			if _, ok := sensitiveHeaders[k]; !ok {
+			if !IsSensitiveHeader(k) {
 				headers[k] = strings.Join(v, ",")
 			}
 		}
@@ -320,6 +295,14 @@ func NewRequest(r *http.Request) *Request {
 		Headers:     headers,
 		Env:         env,
 	}
+}
+
+// NewRequest returns a new Sentry Request from the given http.Request.
+//
+// NewRequest avoids operations that depend on network access. In particular, it
+// does not read r.Body.
+func NewRequest(r *http.Request) *Request {
+	return newRequest(r, sendDefaultPIIEnabled(CurrentHub().Client()))
 }
 
 // Mechanism is the mechanism by which an exception was generated and handled.
@@ -398,30 +381,29 @@ type Context = map[string]interface{}
 
 // Event is the fundamental data structure that is sent to Sentry.
 type Event struct {
-	Breadcrumbs []*Breadcrumb          `json:"breadcrumbs,omitempty"`
-	Contexts    map[string]Context     `json:"contexts,omitempty"`
-	Dist        string                 `json:"dist,omitempty"`
-	Environment string                 `json:"environment,omitempty"`
-	EventID     EventID                `json:"event_id,omitempty"`
-	Extra       map[string]interface{} `json:"extra,omitempty"`
-	Fingerprint []string               `json:"fingerprint,omitempty"`
-	Level       Level                  `json:"level,omitempty"`
-	Message     string                 `json:"message,omitempty"`
-	Platform    string                 `json:"platform,omitempty"`
-	Release     string                 `json:"release,omitempty"`
-	Sdk         SdkInfo                `json:"sdk,omitempty"`
-	ServerName  string                 `json:"server_name,omitempty"`
-	Threads     []Thread               `json:"threads,omitempty"`
-	Tags        map[string]string      `json:"tags,omitempty"`
-	Timestamp   time.Time              `json:"timestamp,omitzero"`
-	Transaction string                 `json:"transaction,omitempty"`
-	User        User                   `json:"user,omitempty"`
-	Logger      string                 `json:"logger,omitempty"`
-	Modules     map[string]string      `json:"modules,omitempty"`
-	Request     *Request               `json:"request,omitempty"`
-	Exception   []Exception            `json:"exception,omitempty"`
-	DebugMeta   *DebugMeta             `json:"debug_meta,omitempty"`
-	Attachments []*Attachment          `json:"-"`
+	Breadcrumbs []*Breadcrumb      `json:"breadcrumbs,omitempty"`
+	Contexts    map[string]Context `json:"contexts,omitempty"`
+	Dist        string             `json:"dist,omitempty"`
+	Environment string             `json:"environment,omitempty"`
+	EventID     EventID            `json:"event_id,omitempty"`
+	Fingerprint []string           `json:"fingerprint,omitempty"`
+	Level       Level              `json:"level,omitempty"`
+	Message     string             `json:"message,omitempty"`
+	Platform    string             `json:"platform,omitempty"`
+	Release     string             `json:"release,omitempty"`
+	Sdk         SdkInfo            `json:"sdk,omitempty"`
+	ServerName  string             `json:"server_name,omitempty"`
+	Threads     []Thread           `json:"threads,omitempty"`
+	Tags        map[string]string  `json:"tags,omitempty"`
+	Timestamp   time.Time          `json:"timestamp,omitzero"`
+	Transaction string             `json:"transaction,omitempty"`
+	User        User               `json:"user,omitempty"`
+	Logger      string             `json:"logger,omitempty"`
+	Modules     map[string]string  `json:"modules,omitempty"`
+	Request     *Request           `json:"request,omitempty"`
+	Exception   []Exception        `json:"exception,omitempty"`
+	DebugMeta   *DebugMeta         `json:"debug_meta,omitempty"`
+	Attachments []*Attachment      `json:"-"`
 
 	// The fields below are only relevant for transactions.
 
@@ -444,6 +426,14 @@ type Event struct {
 	// The fields below are not part of the final JSON payload.
 
 	sdkMetaData SDKMetaData
+
+	// Pre-serialized copies of mutable fields, set by MakeSerializationSafe.
+	serializedTags        json.RawMessage
+	serializedContexts    json.RawMessage
+	serializedBreadcrumbs json.RawMessage
+	serializedException   json.RawMessage
+	serializedUser        json.RawMessage
+	serializationSafe     bool
 }
 
 // SetException appends the unwrapped errors to the event's exception list.
@@ -464,33 +454,29 @@ func (e *Event) SetException(exception error, maxErrorDepth int) {
 	e.Exception = exceptions
 }
 
+// safeMarshal wraps json.Marshal with a recover guard.
+//
+// we shouldn't panic since we already pre serialized all user mutable fields, but using this just to be safe.
+func (e *Event) safeMarshal() (b []byte, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			b = nil
+			err = fmt.Errorf("panic during event marshaling: %v", r)
+		}
+	}()
+	return json.Marshal(e)
+}
+
 // ToEnvelopeItem converts the Event to a Sentry envelope item.
-func (e *Event) ToEnvelopeItem() (*protocol.EnvelopeItem, error) {
-	eventBody, err := json.Marshal(e)
+func (e *Event) ToEnvelopeItem() (item *protocol.EnvelopeItem, err error) {
+	eventBody, err := e.safeMarshal()
 	if err != nil {
-		// Try fallback: remove problematic fields and retry
-		e.Breadcrumbs = nil
-		e.Contexts = nil
-		e.Extra = map[string]interface{}{
-			"info": fmt.Sprintf("Could not encode original event as JSON. "+
-				"Succeeded by removing Breadcrumbs, Contexts and Extra. "+
-				"Please verify the data you attach to the scope. "+
-				"Error: %s", err),
-		}
-
-		eventBody, err = json.Marshal(e)
-		if err != nil {
-			return nil, fmt.Errorf("event could not be marshaled even with fallback: %w", err)
-		}
-
-		DebugLogger.Printf("Event marshaling succeeded with fallback after removing problematic fields")
+		return nil, fmt.Errorf("could not encode event as JSON, skipping delivery: %w", err)
 	}
 
-	// TODO: all event types should be abstracted to implement EnvelopeItemConvertible and convert themselves.
-	var item *protocol.EnvelopeItem
 	switch e.Type {
 	case transactionType:
-		item = protocol.NewEnvelopeItem(protocol.EnvelopeItemTypeTransaction, eventBody)
+		item = protocol.NewTransactionItem(e.GetSpanCount(), eventBody)
 	case checkInType:
 		item = protocol.NewEnvelopeItem(protocol.EnvelopeItemTypeCheckIn, eventBody)
 	case logEvent.Type:
@@ -502,6 +488,21 @@ func (e *Event) ToEnvelopeItem() (*protocol.EnvelopeItem, error) {
 	}
 
 	return item, nil
+}
+
+// ToEnvelope converts the Event to a Sentry envelope.
+func (e *Event) ToEnvelope(header *protocol.EnvelopeHeader) (*protocol.Envelope, error) {
+	item, err := e.ToEnvelopeItem()
+	if err != nil {
+		return nil, err
+	}
+
+	envelope := protocol.NewEnvelope(header, item)
+	for _, attachment := range e.Attachments {
+		attachmentItem := protocol.NewAttachmentItem(attachment.Filename, attachment.ContentType, attachment.Payload)
+		envelope.AddItem(attachmentItem)
+	}
+	return envelope, nil
 }
 
 // GetCategory returns the rate limit category for this event.
@@ -530,6 +531,28 @@ func (e *Event) GetDynamicSamplingContext() map[string]string {
 	return trace
 }
 
+// GetSpanCount returns the number of spans in the transaction including the transaction itself. It is used for client
+// reports. Returns 0 for non-transaction events.
+func (e *Event) GetSpanCount() int {
+	if e.Type != transactionType {
+		return 0
+	}
+	return len(e.Spans) + 1
+}
+
+// GetLogByteSize returns the approximate total byte size of all logs in the event. It is used for client
+// reports. Returns 0 for non-log events.
+func (e *Event) GetLogByteSize() int {
+	if e.Type != logEvent.Type {
+		return 0
+	}
+	var size int
+	for i := range e.Logs {
+		size += e.Logs[i].ApproximateSize()
+	}
+	return size
+}
+
 // TODO: Event.Contexts map[string]interface{} => map[string]EventContext,
 // to prevent accidentally storing T when we mean *T.
 // For example, the TraceContext must be stored as *TraceContext to pick up the
@@ -548,6 +571,11 @@ func (e *Event) defaultMarshalJSON() ([]byte, error) {
 	// event aliases Event to allow calling json.Marshal without an infinite
 	// loop. It preserves all fields while none of the attached methods.
 	type event Event
+
+	// Use pre-serialized bytes for fields that contain user mutable data.
+	if e.hasPreSerializedFields() {
+		return e.preSerializedMarshalJSON()
+	}
 
 	if e.Type == transactionType {
 		return json.Marshal(struct{ *event }{(*event)(e)})
@@ -588,6 +616,58 @@ func (e *Event) defaultMarshalJSON() ([]byte, error) {
 
 	x := errorEvent{event: (*event)(e)}
 	return json.Marshal(x)
+}
+
+func (e *Event) hasPreSerializedFields() bool {
+	return e.serializationSafe
+}
+
+// preSerializedMarshalJSON handles marshaling when MakeSerializationSafe has
+// pre-serialized mutable fields. Shadow structs ensure the json.RawMessage
+// bytes are emitted directly, overriding the original fields.
+func (e *Event) preSerializedMarshalJSON() ([]byte, error) {
+	type event Event
+
+	if e.Type == transactionType {
+		type safeTransaction struct {
+			*event
+			Tags        json.RawMessage `json:"tags,omitempty"`
+			Contexts    json.RawMessage `json:"contexts,omitempty"`
+			Breadcrumbs json.RawMessage `json:"breadcrumbs,omitempty"`
+			Exception   json.RawMessage `json:"exception,omitempty"`
+			User        json.RawMessage `json:"user,omitempty"`
+		}
+		return json.Marshal(safeTransaction{
+			event:       (*event)(e),
+			Tags:        e.serializedTags,
+			Contexts:    e.serializedContexts,
+			Breadcrumbs: e.serializedBreadcrumbs,
+			Exception:   e.serializedException,
+			User:        e.serializedUser,
+		})
+	}
+
+	// Error event: also shadow transaction-only fields to exclude them.
+	type safeErrorEvent struct {
+		*event
+		Tags            json.RawMessage `json:"tags,omitempty"`
+		Contexts        json.RawMessage `json:"contexts,omitempty"`
+		Breadcrumbs     json.RawMessage `json:"breadcrumbs,omitempty"`
+		Exception       json.RawMessage `json:"exception,omitempty"`
+		User            json.RawMessage `json:"user,omitempty"`
+		Type            json.RawMessage `json:"type,omitempty"`
+		StartTime       json.RawMessage `json:"start_timestamp,omitempty"`
+		Spans           json.RawMessage `json:"spans,omitempty"`
+		TransactionInfo json.RawMessage `json:"transaction_info,omitempty"`
+	}
+	return json.Marshal(safeErrorEvent{
+		event:       (*event)(e),
+		Tags:        e.serializedTags,
+		Contexts:    e.serializedContexts,
+		Breadcrumbs: e.serializedBreadcrumbs,
+		Exception:   e.serializedException,
+		User:        e.serializedUser,
+	})
 }
 
 func (e *Event) checkInMarshalJSON() ([]byte, error) {
@@ -636,7 +716,6 @@ func (e *Event) toCategory() ratelimit.Category {
 func NewEvent() *Event {
 	return &Event{
 		Contexts: make(map[string]Context),
-		Extra:    make(map[string]interface{}),
 		Tags:     make(map[string]string),
 		Modules:  make(map[string]string),
 	}
@@ -670,26 +749,35 @@ type Log struct {
 	Severity   int                        `json:"severity_number,omitempty"`
 	Body       string                     `json:"body"`
 	Attributes map[string]attribute.Value `json:"attributes,omitempty"`
+
+	// approximateSize is the pre-computed approximate size in bytes.
+	approximateSize int
 }
+
+// ApproximateSize returns the pre-computed approximate serialized size in bytes.
+func (l *Log) ApproximateSize() int {
+	return l.approximateSize
+}
+
+// computeLogSize estimates the serialized JSON size of a log entry.
+func computeLogSize(l *Log) int {
+	// Base overhead: timestamp, trace_id, level, severity, JSON structure
+	size := len(l.Body) + 60
+	for k, v := range l.Attributes {
+		// Key + type/value JSON overhead
+		size += len(k) + 20
+		s := fmt.Sprint(v.AsInterface())
+		size += len(s)
+	}
+	return size
+}
+
+// MakeSerializationSafe is a no-op for Log, all fields are passed from the safe attribute API.
+func (l *Log) MakeSerializationSafe() {}
 
 // GetCategory returns the rate limit category for logs.
 func (l *Log) GetCategory() ratelimit.Category {
 	return ratelimit.CategoryLog
-}
-
-// GetEventID returns empty string (event ID set when batching).
-func (l *Log) GetEventID() string {
-	return ""
-}
-
-// GetSdkInfo returns nil (SDK info set when batching).
-func (l *Log) GetSdkInfo() *protocol.SdkInfo {
-	return nil
-}
-
-// GetDynamicSamplingContext returns nil (trace context set when batching).
-func (l *Log) GetDynamicSamplingContext() map[string]string {
-	return nil
 }
 
 type MetricType string
@@ -712,24 +800,12 @@ type Metric struct {
 	Attributes map[string]attribute.Value `json:"attributes,omitempty"`
 }
 
+// MakeSerializationSafe is a no-op for Metric, all fields are passed from the safe attribute API.
+func (m *Metric) MakeSerializationSafe() {}
+
 // GetCategory returns the rate limit category for metrics.
 func (m *Metric) GetCategory() ratelimit.Category {
 	return ratelimit.CategoryTraceMetric
-}
-
-// GetEventID returns empty string (event ID set when batching).
-func (m *Metric) GetEventID() string {
-	return ""
-}
-
-// GetSdkInfo returns nil (SDK info set when batching).
-func (m *Metric) GetSdkInfo() *protocol.SdkInfo {
-	return nil
-}
-
-// GetDynamicSamplingContext returns nil (trace context set when batching).
-func (m *Metric) GetDynamicSamplingContext() map[string]string {
-	return nil
 }
 
 // MetricValue stores metric values with full precision.
@@ -782,4 +858,44 @@ func (v MetricValue) AsInterface() any {
 // MarshalJSON serializes the value as a bare number.
 func (v MetricValue) MarshalJSON() ([]byte, error) {
 	return json.Marshal(v.value.AsInterface())
+}
+
+// MakeSerializationSafe pre-serializes all fields containing user mutable data to json.RawMessage, preventing race
+// conditions when the event is later serialized on a background goroutine.
+func (e *Event) MakeSerializationSafe() {
+	if len(e.Tags) > 0 {
+		if b, err := json.Marshal(e.Tags); err == nil {
+			e.serializedTags = b
+		}
+	}
+
+	if len(e.Contexts) > 0 {
+		if b, err := json.Marshal(e.Contexts); err == nil {
+			e.serializedContexts = b
+		}
+	}
+
+	if len(e.Breadcrumbs) > 0 {
+		if b, err := json.Marshal(e.Breadcrumbs); err == nil {
+			e.serializedBreadcrumbs = b
+		}
+	}
+
+	if len(e.Exception) > 0 {
+		if b, err := json.Marshal(e.Exception); err == nil {
+			e.serializedException = b
+		}
+	}
+
+	if !e.User.IsEmpty() {
+		if b, err := json.Marshal(e.User); err == nil {
+			e.serializedUser = b
+		}
+	}
+
+	for _, span := range e.Spans {
+		span.makeSerializationSafe()
+	}
+
+	e.serializationSafe = true
 }

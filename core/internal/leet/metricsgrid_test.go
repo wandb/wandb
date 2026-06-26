@@ -121,7 +121,34 @@ func TestMetricsGrid_Navigate_ClearsMainChartFocus(t *testing.T) {
 	f.Title = "alpha"
 
 	grid.Navigate(1)
-	require.Equal(t, leet.FocusNone, f.Type, "focus should be cleared after navigation")
+	require.Equal(t, leet.FocusMainChart, f.Type, "first chart should be focused after navigation")
+	require.Equal(t, 0, f.Row)
+	require.Equal(t, 0, f.Col)
+}
+
+func TestMetricsGrid_NavigateHomeEnd(t *testing.T) {
+	// 1x1 grid so each chart lives on its own page.
+	w, h := 120, 20
+	grid := newMetricsGrid(t, 1, 1, w, h, nil)
+
+	grid.ProcessHistory(leet.HistoryMsg{Metrics: map[string]leet.MetricData{
+		"alpha": {X: []float64{1}, Y: []float64{1}},
+		"beta":  {X: []float64{1}, Y: []float64{2}},
+		"gamma": {X: []float64{1}, Y: []float64{3}},
+	}})
+	grid.UpdateDimensions(w, h)
+
+	// Nav forward: page 0 -> 1 -> 2.
+	grid.Navigate(1)
+	grid.Navigate(1)
+	dims := grid.CalculateChartDimensions(w, h)
+	require.Contains(t, grid.View(dims), "[3-3 of 3]", "navigated to last page")
+
+	grid.NavigateHome()
+	require.Contains(t, grid.View(dims), "[1-1 of 3]", "NavigateHome returns to first page")
+
+	grid.NavigateEnd()
+	require.Contains(t, grid.View(dims), "[3-3 of 3]", "NavigateEnd jumps to last page")
 }
 
 func TestMetricsGrid_PreservesFocusAcrossHistoryUpdates(t *testing.T) {

@@ -15,7 +15,7 @@ import (
 func TestWritesStructuredFormat(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		fileStream := filestreamtest.NewFakeFileStream()
-		w := NewFileStreamWriter(true, fileStream)
+		w := NewFileStreamWriter(func() bool { return true }, fileStream)
 
 		line1 := RunLogsLineForTest("content 1")
 		line1Str, err := line1.StructuredFormat()
@@ -41,7 +41,7 @@ func TestWritesStructuredFormat(t *testing.T) {
 func TestWritesLegacyFormat(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		fileStream := filestreamtest.NewFakeFileStream()
-		w := NewFileStreamWriter(false, fileStream)
+		w := NewFileStreamWriter(func() bool { return false }, fileStream)
 
 		line1 := RunLogsLineForTest("content 1")
 		line1Str := line1.LegacyFormat()

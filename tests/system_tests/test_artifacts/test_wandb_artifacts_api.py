@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import time
 from pathlib import Path
 
 import responses
@@ -12,7 +13,39 @@ from wandb import Api
 from wandb.errors import CommError
 from wandb.sdk.artifacts._validators import FullArtifactPath
 from wandb.sdk.artifacts.artifact import Artifact
-from wandb.sdk.lib.hashutil import md5_file_hex
+
+
+def _fetch_artifact_with_tags(
+    api: Api,
+    name: str,
+    artifact_type: str,
+    expected_tags: set[str],
+    timeout_seconds: float = 20,
+) -> Artifact:
+    """Fetch an artifact once the backend exposes the expected tag state."""
+    deadline = time.monotonic() + timeout_seconds
+    expected = sorted(expected_tags)
+    last_tags = None
+    last_error = None
+
+    while True:
+        try:
+            artifact = api.artifact(name=name, type=artifact_type)
+            last_tags = sorted(artifact.tags)
+            if last_tags == expected:
+                return artifact
+        except (CommError, ValueError) as e:
+            last_error = e
+
+        if time.monotonic() >= deadline:
+            break
+
+        time.sleep(0.25)
+
+    message = f"Expected artifact tags {expected!r}, last saw {last_tags!r}."
+    if last_error:
+        message += f" Last fetch error: {last_error!r}."
+    raise AssertionError(message)
 
 
 def test_fetching_artifact_files(user: str, api: Api):
@@ -104,11 +137,15 @@ def test_save_tags_after_logging_artifact(
         run.log_artifact(artifact, tags=orig_tags)
         artifact.wait()
 
-    # Add new tags after and outside the run
-    fetched_artifact = api.artifact(name=artifact_fullname, type=artifact_type)
-
-    # Order-agnostic comparison that checks uniqueness (since tagCategories are currently unused/ignored)
-    assert sorted(fetched_artifact.tags) == sorted(set(orig_tags))
+    # Add new tags after and outside the run.  The local backend can expose the
+    # artifact before tag state is visible under load, so poll the public API
+    # fetch until the expected tag state is readable.
+    fetched_artifact = _fetch_artifact_with_tags(
+        api,
+        name=artifact_fullname,
+        artifact_type=artifact_type,
+        expected_tags=set(orig_tags),
+    )
 
     curr_tags = fetched_artifact.tags
     if edit_tags_inplace:
@@ -131,11 +168,18 @@ def test_save_tags_after_logging_artifact(
 
     fetched_artifact.save()
 
-    # fetch the final artifact and verify its tags
-    final_tags = api.artifact(name=artifact_fullname, type=artifact_type).tags
+    expected_final_tags = {*orig_tags, *tags_to_add} - {*tags_to_delete}
 
-    # Order-agnostic comparison that checks uniqueness (since tagCategories are currently unused/ignored)
-    assert sorted(final_tags) == sorted({*orig_tags, *tags_to_add} - {*tags_to_delete})
+    # The update response should refresh the artifact object immediately.
+    assert sorted(fetched_artifact.tags) == sorted(expected_final_tags)
+
+    # Refetch the final artifact and verify the persisted tag state.
+    _fetch_artifact_with_tags(
+        api,
+        name=artifact_fullname,
+        artifact_type=artifact_type,
+        expected_tags=expected_final_tags,
+    )
 
 
 INVALID_TAGS = (
@@ -152,7 +196,10 @@ INVALID_TAG_LISTS = (
     # Given an invalid + valid tag
     *([bad, "good-tag"] for bad in INVALID_TAGS),
     # Given pairs of invalid tags
-    *([bad1, bad2] for bad1, bad2 in zip(INVALID_TAGS[:-1], INVALID_TAGS[1:])),
+    *(
+        [bad1, bad2]
+        for bad1, bad2 in zip(INVALID_TAGS[:-1], INVALID_TAGS[1:], strict=False)
+    ),
 )
 
 
@@ -497,7 +544,7 @@ def test_artifact_enable_tracking_flag(user: str, api: Api, mocker):
 
     from_name_spy.assert_called_once_with(
         path=artifact_path_obj,
-        client=api.client,
+        service_api=api._service_api,
         enable_tracking=True,
     )
 
@@ -507,7 +554,7 @@ def test_artifact_enable_tracking_flag(user: str, api: Api, mocker):
 
     from_name_spy.assert_called_once_with(
         path=artifact_path_obj,
-        client=api.client,
+        service_api=api._service_api,
         enable_tracking=False,
     )
 
@@ -534,17 +581,11 @@ def test_artifact_history_step(user: str, api: Api):
     assert artifact.history_step == 0
 
 
-def test_artifact_multipart_download(user: str, api: Api):
-    """Test download large artifact with multipart download."""
-    # Create file with all 1 as 101MB
-    file_path = "101mb.bin"
-    one_mb = b"\x01" * 1024 * 1024
-    with open(file_path, "wb") as f:
-        for _ in range(101):
-            f.write(one_mb)
-
-    # Hard coded because the file content never changes
-    md5_value = "01fedd4cfd8547c8ef960bc041c30523"
+def test_artifact_multipart_download(user: str, api: Api, tmp_path: Path):
+    """Test artifact download through the multipart download path."""
+    file_path = tmp_path / "multipart.bin"
+    payload = b"\x01" * 1024
+    file_path.write_bytes(payload)
 
     entity = user
     project = "test-project"
@@ -556,13 +597,9 @@ def test_artifact_multipart_download(user: str, api: Api):
         art.add_file(file_path)
         run.log_artifact(art)
 
-    # Download artifact
     artifact = api.artifact(name=f"{entity}/{project}/{artifact_name}:v0")
-    # Force multipart download because the file is too small
     stored_folder = artifact.download(multipart=True, skip_cache=True)
-    # Verify checksum
-    downloaded_md5 = md5_file_hex(os.path.join(stored_folder, file_path))
-    assert downloaded_md5 == md5_value
+    assert (Path(stored_folder) / file_path.name).read_bytes() == payload
 
 
 def test_artifact_download_http_headers(user, monkeypatch, tmp_path):

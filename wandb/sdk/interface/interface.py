@@ -40,7 +40,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger("wandb")
 
 
-def file_policy_to_enum(policy: PolicyName) -> pb.FilesItem.PolicyType.V:
+def file_policy_to_enum(policy: PolicyName) -> pb.FilesItem.PolicyType:
     if policy == "now":
         enum = pb.FilesItem.PolicyType.NOW
     elif policy == "end":
@@ -50,7 +50,7 @@ def file_policy_to_enum(policy: PolicyName) -> pb.FilesItem.PolicyType.V:
     return enum
 
 
-def file_enum_to_policy(enum: pb.FilesItem.PolicyType.V) -> PolicyName:
+def file_enum_to_policy(enum: pb.FilesItem.PolicyType) -> PolicyName:
     if enum == pb.FilesItem.PolicyType.NOW:
         policy: PolicyName = "now"
     elif enum == pb.FilesItem.PolicyType.END:
@@ -678,6 +678,10 @@ class InterfaceBase(abc.ABC):
     def _publish_environment(self, environment: pb.EnvironmentRecord) -> None:
         raise NotImplementedError
 
+    @abc.abstractmethod
+    def deliver_history_step(self) -> MailboxHandle[pb.HistoryStepResponse]:
+        """Get the W&B step number of the next `log()` call."""
+
     def publish_partial_history(
         self,
         run: Run,
@@ -799,6 +803,24 @@ class InterfaceBase(abc.ABC):
     ) -> None:
         raise NotImplementedError
 
+    def publish_output_logger(
+        self,
+        line: str,
+        *,
+        nowait: bool = False,
+    ) -> None:
+        o = pb.OutputLoggerRecord(line=line)
+        self._publish_output_logger(o, nowait=nowait)
+
+    @abc.abstractmethod
+    def _publish_output_logger(
+        self,
+        outdata: pb.OutputLoggerRecord,
+        *,
+        nowait: bool,
+    ) -> None:
+        raise NotImplementedError
+
     def publish_pause(self) -> None:
         pause = pb.PauseRequest()
         self._publish_pause(pause)
@@ -834,14 +856,6 @@ class InterfaceBase(abc.ABC):
         if exit_code is not None:
             exit.exit_code = exit_code
         return exit
-
-    def publish_exit(self, exit_code: int | None) -> None:
-        exit_data = self._make_exit(exit_code)
-        self._publish_exit(exit_data)
-
-    @abc.abstractmethod
-    def _publish_exit(self, exit_data: pb.RunExitRecord) -> None:
-        raise NotImplementedError
 
     def publish_keepalive(self) -> None:
         keepalive = pb.KeepaliveRequest()
@@ -981,17 +995,6 @@ class InterfaceBase(abc.ABC):
     ) -> MailboxHandle[pb.Result]:
         raise NotImplementedError
 
-    def deliver_stop_status(self) -> MailboxHandle[pb.Result]:
-        status = pb.StopStatusRequest()
-        return self._deliver_stop_status(status)
-
-    @abc.abstractmethod
-    def _deliver_stop_status(
-        self,
-        status: pb.StopStatusRequest,
-    ) -> MailboxHandle[pb.Result]:
-        raise NotImplementedError
-
     def deliver_network_status(self) -> MailboxHandle[pb.Result]:
         status = pb.NetworkStatusRequest()
         return self._deliver_network_status(status)
@@ -1000,16 +1003,6 @@ class InterfaceBase(abc.ABC):
     def _deliver_network_status(
         self,
         status: pb.NetworkStatusRequest,
-    ) -> MailboxHandle[pb.Result]:
-        raise NotImplementedError
-
-    def deliver_internal_messages(self) -> MailboxHandle[pb.Result]:
-        internal_message = pb.InternalMessagesRequest()
-        return self._deliver_internal_messages(internal_message)
-
-    @abc.abstractmethod
-    def _deliver_internal_messages(
-        self, internal_message: pb.InternalMessagesRequest
     ) -> MailboxHandle[pb.Result]:
         raise NotImplementedError
 
@@ -1053,16 +1046,6 @@ class InterfaceBase(abc.ABC):
     def _deliver_poll_exit(
         self,
         poll_exit: pb.PollExitRequest,
-    ) -> MailboxHandle[pb.Result]:
-        raise NotImplementedError
-
-    def deliver_finish_without_exit(self) -> MailboxHandle[pb.Result]:
-        run_finish_without_exit = pb.RunFinishWithoutExitRequest()
-        return self._deliver_finish_without_exit(run_finish_without_exit)
-
-    @abc.abstractmethod
-    def _deliver_finish_without_exit(
-        self, run_finish_without_exit: pb.RunFinishWithoutExitRequest
     ) -> MailboxHandle[pb.Result]:
         raise NotImplementedError
 

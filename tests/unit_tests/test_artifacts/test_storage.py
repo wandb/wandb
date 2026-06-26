@@ -256,24 +256,34 @@ def test_artifact_file_cache_cleanup(artifact_file_cache):
 
     path_1 = os.path.join(cache_root, "aa")
     os.makedirs(path_1)
-    with open(os.path.join(path_1, "aardvark"), "w") as f:
+    file_1 = os.path.join(path_1, "aardvark")
+    with open(file_1, "w") as f:
         f.truncate(5000)
         f.flush()
         os.fsync(f)
 
     path_2 = os.path.join(cache_root, "ab")
     os.makedirs(path_2)
-    with open(os.path.join(path_2, "absolute"), "w") as f:
+    file_2 = os.path.join(path_2, "absolute")
+    with open(file_2, "w") as f:
         f.truncate(2000)
         f.flush()
         os.fsync(f)
 
     path_3 = os.path.join(cache_root, "ac")
     os.makedirs(path_3)
-    with open(os.path.join(path_3, "accelerate"), "w") as f:
+    file_3 = os.path.join(path_3, "accelerate")
+    with open(file_3, "w") as f:
         f.truncate(1000)
         f.flush()
         os.fsync(f)
+
+    # Set explicit access times so cleanup order is deterministic.
+    # On filesystems mounted with noatime, all files would otherwise
+    # have the same atime, making the LRU sort order unpredictable.
+    os.utime(file_1, (1000, 1000))  # oldest access → deleted first
+    os.utime(file_2, (2000, 2000))
+    os.utime(file_3, (3000, 3000))  # newest access → kept
 
     reclaimed_bytes = artifact_file_cache.cleanup(5000)
 
@@ -466,15 +476,23 @@ def test_cache_add_cleans_up_tmp_when_write_fails(artifact_file_cache, monkeypat
 
 
 class FakePublicApi:
+    service_api = object()
+
     @property
     def client(self):
         return None
 
+    def _artifact_from_id(self, _artifact_id: str) -> Artifact | None:
+        artifact = wandb.Artifact("test", type="dataset")
+        artifact.get_entry = lambda _: artifact
+        artifact.ref_target = lambda: "wandb-artifact://deadbeef/path/to/file.json"
+        artifact.download = lambda: "foo/bar"
+        return artifact
 
-def test_wbartifact_handler_load_path_nonlocal(monkeypatch):
+
+def test_wbartifact_handler_load_path_nonlocal():
     path = "foo/bar"
     uri = "wandb-artifact://deadbeef/path/to/file.json"
-    artifact = wandb.Artifact("test", type="dataset")
     manifest_entry = ArtifactManifestEntry(
         path=path,
         ref=uri,
@@ -484,18 +502,14 @@ def test_wbartifact_handler_load_path_nonlocal(monkeypatch):
 
     handler = WBArtifactHandler()
     handler._client = FakePublicApi()
-    monkeypatch.setattr(Artifact, "_from_id", lambda _1, _2: artifact)
-    artifact.get_entry = lambda _: artifact
-    artifact.ref_target = lambda: uri
 
     local_path = handler.load_path(manifest_entry)
     assert local_path == uri
 
 
-def test_wbartifact_handler_load_path_local(monkeypatch):
+def test_wbartifact_handler_load_path_local():
     path = "foo/bar"
     uri = "wandb-artifact://deadbeef/path/to/file.json"
-    artifact = wandb.Artifact("test", type="dataset")
     manifest_entry = ArtifactManifestEntry(
         path=path,
         ref=uri,
@@ -505,9 +519,6 @@ def test_wbartifact_handler_load_path_local(monkeypatch):
 
     handler = WBArtifactHandler()
     handler._client = FakePublicApi()
-    monkeypatch.setattr(Artifact, "_from_id", lambda _1, _2: artifact)
-    artifact.get_entry = lambda _: artifact
-    artifact.download = lambda: path
 
     local_path = handler.load_path(manifest_entry, local=True)
     assert local_path == path

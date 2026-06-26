@@ -10,14 +10,18 @@ __all__ = [
     "DELETE_API_KEY_GQL",
     "DELETE_INVITE_GQL",
     "GENERATE_API_KEY_GQL",
+    "GET_AGENT_RUNS_GQL",
     "GET_DEFAULT_ENTITY_GQL",
     "GET_PROJECTS_GQL",
     "GET_PROJECT_GQL",
     "GET_SWEEPS_GQL",
+    "GET_SWEEP_AGENTS_GQL",
+    "GET_SWEEP_AGENT_GQL",
     "GET_SWEEP_GQL",
     "GET_SWEEP_LEGACY_GQL",
     "GET_TEAM_ENTITY_GQL",
     "GET_VIEWER_GQL",
+    "IS_PROJECT_READ_ONLY_GQL",
     "SEARCH_USERS_GQL",
 ]
 
@@ -159,6 +163,14 @@ fragment CreatedProjectFragment on Project {
 }
 """
 
+IS_PROJECT_READ_ONLY_GQL = """
+query IsProjectReadOnly($entity: String!, $project: String!) {
+  project(entityName: $entity, name: $project) {
+    readOnly
+  }
+}
+"""
+
 GET_SWEEPS_GQL = """
 query GetSweeps($project: String!, $entity: String!, $cursor: String, $perPage: Int = 50) {
   project(name: $project, entityName: $entity) {
@@ -241,6 +253,104 @@ fragment LegacySweepFragment on Sweep {
   state
   bestLoss
   config
+}
+"""
+
+GET_SWEEP_AGENT_GQL = """
+query GetSweepAgent($agentID: String!, $sweep: String!, $entity: String, $project: String) {
+  project(name: $project, entityName: $entity) {
+    sweep(sweepName: $sweep) {
+      agent(agentName: $agentID) {
+        ...AgentFragment
+      }
+    }
+  }
+}
+
+fragment AgentFragment on Agent {
+  id
+  name
+  host
+  state
+  totalRuns
+  createdAt
+  heartbeatAt
+}
+"""
+
+GET_SWEEP_AGENTS_GQL = """
+query GetSweepAgents($sweep: String!, $entity: String, $project: String) {
+  project(name: $project, entityName: $entity) {
+    sweep(sweepName: $sweep) {
+      agents {
+        edges {
+          node {
+            ...AgentFragment
+          }
+        }
+      }
+    }
+  }
+}
+
+fragment AgentFragment on Agent {
+  id
+  name
+  host
+  state
+  totalRuns
+  createdAt
+  heartbeatAt
+}
+"""
+
+GET_AGENT_RUNS_GQL = """
+query GetAgentRuns($agentID: String!, $sweep: String!, $entity: String, $project: String, $after: String, $before: String, $first: Int, $last: Int, $order: String) {
+  project(name: $project, entityName: $entity) {
+    sweep(sweepName: $sweep) {
+      agent(agentName: $agentID) {
+        runs(after: $after, before: $before, first: $first, last: $last, order: $order) {
+          pageInfo {
+            ...PageInfoFragment
+          }
+          edges {
+            cursor
+            node {
+              ...LightweightRunFragment
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+fragment LightweightRunFragment on Run {
+  id
+  tags
+  name
+  displayName
+  sweepName
+  state
+  group
+  jobType
+  commit
+  readOnly
+  createdAt
+  heartbeatAt
+  description
+  notes
+  historyLineCount
+  user {
+    name
+    username
+  }
+}
+
+fragment PageInfoFragment on PageInfo {
+  __typename
+  endCursor
+  hasNextPage
 }
 """
 

@@ -58,10 +58,6 @@ func NewBuffer(maxSize int32) *Buffer {
 
 // Push adds the metrics from a StatsRecord to the buffer.
 func (mb *Buffer) Push(metrics *spb.StatsRecord) {
-	if mb == nil {
-		return
-	}
-
 	for _, item := range metrics.Item {
 		k := item.Key
 		ts := metrics.Timestamp

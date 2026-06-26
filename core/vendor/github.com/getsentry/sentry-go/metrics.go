@@ -118,7 +118,7 @@ func (m *sentryMeter) emit(ctx context.Context, metricType MetricType, name stri
 	if customScope != nil {
 		scope = customScope
 	}
-	traceID, spanID := resolveTrace(scope, ctx, m.ctx)
+	traceID, spanID := resolveTrace(scope, client, ctx, m.ctx)
 
 	// Pre-allocate with capacity hint to avoid map growth reallocations
 	estimatedCap := len(m.defaultAttributes) + len(attributes) + 8 // scope ~3 + call-specific ~5

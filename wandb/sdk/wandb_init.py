@@ -21,9 +21,10 @@ import platform
 import sys
 import tempfile
 import time
-from collections.abc import Iterable, Iterator, Sequence
+from collections.abc import Generator, Iterable, Sequence
+from typing import TYPE_CHECKING, Literal
 
-from typing_extensions import Any, Literal, Protocol, Self
+from typing_extensions import Any, Protocol
 
 import wandb
 import wandb.env
@@ -35,18 +36,20 @@ from wandb.errors.util import ProtobufErrorHandler
 from wandb.integration import sagemaker, weave
 from wandb.proto.wandb_telemetry_pb2 import Deprecated
 from wandb.sdk.lib import ipython as wb_ipython
-from wandb.sdk.lib import progress, runid, wb_logging
+from wandb.sdk.lib import noop_run, progress, runid, wb_logging
 from wandb.sdk.lib.paths import StrPath
 from wandb.util import _is_artifact_representation
 
 from . import wandb_login, wandb_setup
-from .backend.backend import Backend
-from .lib import SummaryDisabled, filesystem, module, paths, printer, telemetry
+from .lib import filesystem, module, paths, printer, telemetry
 from .lib.deprecation import UNSET, DoNotSet, warn_and_record_deprecation
 from .mailbox import wait_with_progress
 from .wandb_helper import parse_config
 from .wandb_run import Run, TeardownHook, TeardownStage
 from .wandb_settings import Settings
+
+if TYPE_CHECKING:
+    from .interface.interface import InterfaceBase
 
 # Used to avoid printing the same notice repeatedly
 # for multiple runs in the same process.
@@ -157,7 +160,7 @@ class _WandbInit:
 
         self.kwargs = None
         self.run: Run | None = None
-        self.backend: Backend | None = None
+        self._interface: InterfaceBase | None = None
 
         self._teardown_hooks: list[TeardownHook] = []
         self.notebook: wandb.jupyter.Notebook | None = None
@@ -307,6 +310,8 @@ class _WandbInit:
         # if user explicitly set these to false in UI
         if save_code_pre_user_settings is False:
             settings.save_code = False
+
+        settings.infer_git_root()
 
         # TODO: remove this once we refactor the client. This is a temporary
         # fix to make sure that we use the same project name for wandb-core.
@@ -587,7 +592,7 @@ class _WandbInit:
         This pauses a run, preventing system metrics from being collected
         the run's runtime from increasing. It also uploads the notebook's code.
         """
-        if not self.backend:
+        if not self._interface:
             return
 
         if self.notebook and self.notebook.save_ipynb():
@@ -595,20 +600,19 @@ class _WandbInit:
             res = self.run.log_code(root=None)
             self._logger.info("saved code: %s", res)
 
-        if self.backend.interface is not None:
-            self._logger.info("pausing backend")
-            self.backend.interface.publish_pause()
+        self._logger.info("pausing backend")
+        self._interface.publish_pause()
 
     def _post_run_cell_hook(self, *args, **kwargs) -> None:
         """Hook for the IPython post_run_cell event.
 
         Resumes collection of system metrics and the run's timer.
         """
-        if self.backend is None or self.backend.interface is None:
+        if self._interface is None:
             return
 
         self._logger.info("resuming backend")
-        self.backend.interface.publish_resume()
+        self._interface.publish_resume()
 
     def _jupyter_teardown(self) -> None:
         """Teardown hooks and display saving, called with wandb.finish."""
@@ -657,7 +661,7 @@ class _WandbInit:
         ipython.display_pub.publish = publish
 
     @contextlib.contextmanager
-    def setup_run_log_directory(self, settings: Settings) -> Iterator[None]:
+    def setup_run_log_directory(self, settings: Settings) -> Generator[None]:
         """Set up the run's log directory.
 
         This is a context manager that closes and unregisters the log handler
@@ -740,7 +744,7 @@ class _WandbInit:
         are no-op versions that don't perform any actual logging or communication.
         """
         run_id = runid.generate_id()
-        drun = Run(
+        return noop_run.init_noop_run(
             settings=Settings(
                 mode="disabled",
                 root_dir=tempfile.gettempdir(),
@@ -751,93 +755,9 @@ class _WandbInit:
                 run_name=f"dummy-{run_id}",
                 project="dummy",
                 entity="dummy",
-            )
+            ),
+            config={**config.base_no_artifacts, **config.sweep_no_artifacts},
         )
-        # config, summary, and metadata objects
-        drun._config = wandb.sdk.wandb_config.Config()
-        drun._config.update(config.sweep_no_artifacts)
-        drun._config.update(config.base_no_artifacts)
-        drun.summary = SummaryDisabled()  # type: ignore
-
-        # methods
-        drun.log = lambda data, *_, **__: drun.summary.update(data)  # type: ignore[method-assign]
-        drun.finish = lambda *_, **__: module.unset_globals()  # type: ignore[method-assign]
-        drun.join = drun.finish  # type: ignore[method-assign]
-        drun.define_metric = lambda *_, **__: wandb.sdk.wandb_metric.Metric("dummy")  # type: ignore[method-assign]
-        drun.save = lambda *_, **__: False  # type: ignore[method-assign]
-        for symbol in (
-            "alert",
-            "finish_artifact",
-            "get_project_url",
-            "get_sweep_url",
-            "get_url",
-            "link_artifact",
-            "link_model",
-            "use_artifact",
-            "log_code",
-            "log_model",
-            "use_model",
-            "mark_preempting",
-            "restore",
-            "status",
-            "watch",
-            "unwatch",
-            "upsert_artifact",
-            "_finish",
-        ):
-            setattr(drun, symbol, lambda *_, **__: None)  # type: ignore
-
-        # set properties to None
-        for attr in ("url", "project_url", "sweep_url"):
-            setattr(type(drun), attr, property(lambda _: None))
-
-        class _ChainableNoOp:
-            """An object that allows chaining arbitrary attributes and method calls."""
-
-            def __getattr__(self, _: str) -> Self:
-                return self
-
-            def __call__(self, *_: Any, **__: Any) -> Self:
-                return self
-
-        class _ChainableNoOpField:
-            # This is used to chain arbitrary attributes and method calls.
-            # For example, `run.log_artifact().state` will work in disabled mode.
-            def __init__(self) -> None:
-                self._value = None
-
-            def __set__(self, instance: Any, value: Any) -> None:
-                self._value = value
-
-            def __get__(self, instance: Any, owner: type) -> Any:
-                return _ChainableNoOp() if (self._value is None) else self._value
-
-            def __call__(self, *args: Any, **kwargs: Any) -> _ChainableNoOp:
-                return _ChainableNoOp()
-
-        drun.log_artifact = _ChainableNoOpField()  # type: ignore
-        # attributes
-        drun._start_time = time.time()
-        drun._starting_step = 0
-        drun._step = 0
-        drun._attach_id = None
-        drun._backend = None
-
-        # set the disabled run as the global run
-        module.set_global(
-            run=drun,
-            config=drun.config,
-            log=drun.log,
-            summary=drun.summary,
-            save=drun.save,
-            use_artifact=drun.use_artifact,
-            log_artifact=drun.log_artifact,
-            define_metric=drun.define_metric,
-            alert=drun.alert,
-            watch=drun.watch,
-            unwatch=drun.unwatch,
-        )
-        return drun
 
     def init(  # noqa: C901
         self,
@@ -909,13 +829,10 @@ class _WandbInit:
                 _shared_service_notice_shown = True
 
         self._logger.info("sending inform_init request")
-        service.inform_init(
+        interface = service.inform_init(
             settings=settings.to_proto(),
             run_id=settings.run_id,  # type: ignore
         )
-
-        backend = Backend(settings=settings, service=service)
-        backend.ensure_launched()
         self._logger.info("backend started and connected")
 
         run = Run(
@@ -989,11 +906,10 @@ class _WandbInit:
         self._logger.info("updated telemetry")
 
         run._set_library(self._wl)
-        run._set_backend(backend)
+        run._set_backend(interface)
         run._set_teardown_hooks(self._teardown_hooks)
 
-        assert backend.interface
-        backend.interface.publish_header()
+        interface.publish_header()
 
         # Using GitRepo() blocks & can be slow, depending on user's current git setup.
         # We don't want to block run initialization/start request, so populate run's git
@@ -1014,7 +930,7 @@ class _WandbInit:
             f"communicating run to backend with {timeout} second timeout",
         )
 
-        run_init_handle = backend.interface.deliver_run(run)
+        run_init_handle = interface.deliver_run(run)
 
         try:
             with progress.progress_printer(
@@ -1027,7 +943,7 @@ class _WandbInit:
                     display_progress=functools.partial(
                         progress.loop_printing_operation_stats,
                         progress_printer,
-                        backend.interface,
+                        interface,
                     ),
                 )
 
@@ -1057,16 +973,14 @@ class _WandbInit:
 
         self._logger.info("starting run threads in backend")
 
-        assert backend.interface
-
-        run_start_handle = backend.interface.deliver_run_start(run)
+        run_start_handle = interface.deliver_run_start(run)
         try:
             # TODO: add progress to let user know we are doing something
             run_start_handle.wait_or(timeout=30)
         except TimeoutError:
             pass
 
-        backend.interface.publish_probe_system_info()
+        interface.publish_probe_system_info()
 
         assert self._wl is not None
         self.run = run
@@ -1089,7 +1003,7 @@ class _WandbInit:
         if job_artifact:
             run.use_artifact(job_artifact)
 
-        self.backend = backend
+        self._interface = interface
 
         if settings.reinit != "create_new":
             _set_global_run(run)
@@ -1130,7 +1044,7 @@ def _attach(
     service = _wl.ensure_service()
 
     try:
-        attach_settings = service.inform_attach(attach_id=attach_id)
+        attach_settings, interface = service.inform_attach(attach_id=attach_id)
     except Exception as e:
         raise UsageError(f"Unable to attach to run {attach_id}") from e
 
@@ -1143,9 +1057,6 @@ def _attach(
         }
     )
 
-    # TODO: consolidate this codepath with wandb.init()
-    backend = Backend(settings=settings, service=service)
-    backend.ensure_launched()
     logger.info("attach backend started and connected")
 
     if run is None:
@@ -1153,10 +1064,9 @@ def _attach(
     else:
         run._init(settings=settings)
     run._set_library(_wl)
-    run._set_backend(backend)
-    assert backend.interface
+    run._set_backend(interface)
 
-    attach_handle = backend.interface.deliver_attach(attach_id)
+    attach_handle = interface.deliver_attach(attach_id)
     try:
         # TODO: add progress to let user know we are doing something
         attach_result = attach_handle.wait_or(timeout=30)
@@ -1309,7 +1219,12 @@ def init(  # noqa: C901
 
     `wandb.init()` spawns a new background process to log data to a run, and it
     also syncs data to https://wandb.ai by default, so you can see your results
-    in real-time. When you're done logging data, call `wandb.Run.finish()` to end the run.
+    in real-time. When you're done logging data, call `run.finish()` to
+    end the run, or use the run as a context manager to call it automatically:
+
+        with wandb.init() as run:
+            ...  # run.finish() executes at the end of the block
+
     If you don't call `run.finish()`, the run will end when your script exits.
 
     Run IDs must not contain any of the following special characters `/ \ # ? % :`
@@ -1547,6 +1462,10 @@ def init(  # noqa: C901
             init_telemetry.feature.set_init_name = True
         if run_settings.run_tags is not None:
             init_telemetry.feature.set_init_tags = True
+        if run_settings.finish_timeout > 0:
+            init_telemetry.feature.finish_timeout = True
+        if run_settings.finish_timeout_raises:
+            init_telemetry.feature.finish_timeout_raises = True
         if run_settings._offline:
             init_telemetry.feature.offline = True
         if run_settings.fork_from is not None:
@@ -1555,6 +1474,7 @@ def init(  # noqa: C901
             init_telemetry.feature.rewind_mode = True
 
         wi.set_run_id(run_settings)
+        try_create_root_dir(run_settings)
         wi.set_sync_dir_suffix(run_settings)
         run_printer = printer.new_printer(run_settings)
         show_warnings(run_printer)
@@ -1572,7 +1492,6 @@ def init(  # noqa: C901
             if run_settings._noop:
                 return wi.make_disabled_run(run_config)
 
-            try_create_root_dir(run_settings)
             exit_stack.enter_context(wi.setup_run_log_directory(run_settings))
 
             if run_settings._jupyter:
@@ -1593,8 +1512,8 @@ def init(  # noqa: C901
 
             run = wi.init(run_settings, run_config, run_printer)
 
-            # Set up automatic Weave integration if Weave is installed
-            weave.setup(run_settings.entity, run_settings.project)
+            # Set up automatic Weave integration if Weave is already imported
+            weave.init_weave_if_imported(run_settings.entity, run_settings.project)
 
             return run
 

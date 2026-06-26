@@ -20,7 +20,7 @@ from wandb.util import logger
 from ._timing import TimedIf
 
 if TYPE_CHECKING:
-    from google.cloud import storage  # type: ignore[import-not-found]
+    from google.cloud import storage  # type: ignore[import-not-found, import-untyped]
 
     from wandb.sdk.artifacts.artifact import Artifact
     from wandb.sdk.artifacts.artifact_file_cache import ArtifactFileCache

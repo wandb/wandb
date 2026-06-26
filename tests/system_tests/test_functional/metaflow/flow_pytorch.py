@@ -1,7 +1,6 @@
 """Test Metaflow Flow integration"""
 
 import os
-from pathlib import Path
 
 import torch
 import torch.nn as nn
@@ -33,51 +32,35 @@ class WandbPyTorchFlow(FlowSpec):
     @step
     def start(self):
         self.use_cuda = not self.no_cuda and torch.cuda.is_available()
-
         torch.manual_seed(self.seed)
-
         self.train_kwargs = {"batch_size": self.batch_size}
         self.test_kwargs = {"batch_size": self.test_batch_size}
         if self.use_cuda:
             self.cuda_kwargs = {"num_workers": 1, "pin_memory": True, "shuffle": True}
             self.train_kwargs.update(self.cuda_kwargs)
             self.test_kwargs.update(self.cuda_kwargs)
+        self.next(self.train)
 
-        self.mnist_dir = Path("../data")
-        self.next(self.setup_data)
-
-    @wandb_log(datasets=False, models=False, others=False)
     @step
-    def setup_data(self):
+    def train(self):
         transform = transforms.Compose(
             [transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))]
         )
-        self.dataset1 = datasets.FakeData(
+        train_dataset = datasets.FakeData(
             size=100,
             image_size=(1, 28, 28),
             num_classes=10,
             transform=transform,
         )
-        self.dataset2 = datasets.FakeData(
+        test_dataset = datasets.FakeData(
             size=100,
             image_size=(1, 28, 28),
             num_classes=10,
             transform=transform,
         )
-        self.next(self.setup_dataloaders)
+        train_loader = torch.utils.data.DataLoader(train_dataset, **self.train_kwargs)
+        test_loader = torch.utils.data.DataLoader(test_dataset, **self.test_kwargs)
 
-    @step
-    def setup_dataloaders(self):
-        self.train_loader = torch.utils.data.DataLoader(
-            self.dataset1, **self.train_kwargs
-        )
-        self.test_loader = torch.utils.data.DataLoader(
-            self.dataset2, **self.test_kwargs
-        )
-        self.next(self.train_model)
-
-    @step
-    def train_model(self):
         torch.manual_seed(self.seed)
         device = torch.device("cuda" if self.use_cuda else "cpu")
 
@@ -87,15 +70,15 @@ class WandbPyTorchFlow(FlowSpec):
 
         scheduler = StepLR(optimizer, step_size=1, gamma=self.gamma)
         for epoch in range(1, self.epochs + 1):
-            train(
+            train_epoch(
                 self.model,
                 device,
-                self.train_loader,
+                train_loader,
                 optimizer,
                 epoch,
                 self.log_interval,
             )
-            test(self.model, device, self.test_loader)
+            test_epoch(self.model, device, test_loader)
             scheduler.step()
 
         if self.save_model:
@@ -123,7 +106,7 @@ class Net(nn.Module):
         return output
 
 
-def train(model, device, train_loader, optimizer, epoch, log_interval):
+def train_epoch(model, device, train_loader, optimizer, epoch, log_interval):
     model.train()
     for batch_idx, (data, target) in enumerate(train_loader):
         data, target = data.to(device), target.to(device)
@@ -138,7 +121,7 @@ def train(model, device, train_loader, optimizer, epoch, log_interval):
             )
 
 
-def test(model, device, test_loader):
+def test_epoch(model, device, test_loader):
     model.eval()
     test_loss = 0
     correct = 0

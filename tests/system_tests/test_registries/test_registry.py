@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Iterator
-from typing import Callable
+from collections.abc import Callable, Generator
 from unittest.mock import patch
 
 import wandb
@@ -13,7 +12,7 @@ from wandb.sdk.artifacts._validators import REGISTRY_PREFIX
 
 
 @fixture
-def default_organization(user_in_orgs_factory) -> Iterator[str]:
+def default_organization(user_in_orgs_factory) -> Generator[str]:
     """Provides the name of the single default organization."""
     user_in_orgs = user_in_orgs_factory()
     yield user_in_orgs.organization_names[0]
@@ -371,6 +370,22 @@ def test_fetch_registries(team: str, org: str, org_entity: str, api: Api):
             visibility="organization",
         )
 
+    all_registry_names = [
+        registry.name for registry in api.registries(organization=org, per_page=1)
+    ]
+    paged_registries = api.registries(organization=org, per_page=1)
+    first_page_name = next(paged_registries).name
+    saved_cursor = paged_registries.cursor
+
+    assert saved_cursor is not None
+
+    remaining_names = [
+        registry.name
+        for registry in api.registries(organization=org, per_page=1, start=saved_cursor)
+    ]
+
+    assert all_registry_names == [first_page_name, *remaining_names]
+
     # Sort the registries by name for predictable assertions
     registries = sorted(api.registries(organization=org), key=lambda r: r.name)
 
@@ -382,6 +397,15 @@ def test_fetch_registries(team: str, org: str, org_entity: str, api: Api):
         assert registry.full_name == f"wandb-registry-test-{i}"
         assert registry.full_name == f"{REGISTRY_PREFIX}test-{i}"
         assert registry.visibility == "organization"
+
+    # `order` sorts server-side rather than relying on the Python sort above.
+    expected_asc_names = ["test-0", "test-1", "test-2"]
+    expected_desc_names = expected_asc_names[::-1]
+
+    ascending = [r.name for r in api.registries(organization=org, order="name")]
+    descending = [r.name for r in api.registries(organization=org, order="-name")]
+    assert ascending == expected_asc_names
+    assert descending == expected_desc_names
 
 
 @fixture
@@ -409,15 +433,50 @@ def test_registries_collections(
     for i, artifact in enumerate(source_artifacts):
         artifact.link(f"{org}/{target_registry.full_name}/reg-collection-{i}")
 
-    registries = api.registries(organization=org)
+    registries = api.registries(
+        organization=org,
+        filter={"name": target_registry.full_name},
+    )
+
+    all_collection_names = [c.name for c in registries.collections(per_page=1)]
+    paged_collections = registries.collections(per_page=1)
+    first_page_name = next(paged_collections).name
+    saved_cursor = paged_collections.cursor
+
+    assert saved_cursor is not None
+
+    remaining_names_via_registry = [
+        c.name for c in target_registry.collections(per_page=1, start=saved_cursor)
+    ]
+    remaining_names_via_search = [
+        c.name for c in registries.collections(per_page=1, start=saved_cursor)
+    ]
+
+    assert remaining_names_via_search == remaining_names_via_registry
+    assert all_collection_names == [first_page_name, *remaining_names_via_search]
 
     collections = sorted(registries.collections(), key=lambda c: c.name)
     assert len(collections) == len(source_artifacts)
 
     # Check that we have the correct registry collections
-    for i, collection in enumerate(collections):
-        assert collection.name == f"reg-collection-{i}"
-        assert collection.type == "test-type"
+    expected_ordered_names = [f"reg-collection-{i}" for i in range(len(collections))]
+    assert [c.name for c in collections] == expected_ordered_names
+    assert [c.type for c in collections] == ["test-type"] * len(collections)
+
+    # `order` sorts server-side rather than relying on the Python sort above.
+    expected_asc_names = expected_ordered_names
+    expected_desc_names = expected_ordered_names[::-1]
+
+    ascending = [c.name for c in registries.collections(order="name")]
+    descending = [c.name for c in registries.collections(order="-name")]
+    assert ascending == expected_asc_names
+    assert descending == expected_desc_names
+
+    # `order` is also honored when accessed directly from a single Registry.
+    asc_via_registry = [c.name for c in target_registry.collections(order="name")]
+    desc_via_registry = [c.name for c in target_registry.collections(order="-name")]
+    assert asc_via_registry == expected_asc_names
+    assert desc_via_registry == expected_desc_names
 
 
 def test_registries_versions(
@@ -432,7 +491,28 @@ def test_registries_versions(
     for artifact in source_artifacts:
         artifact.link(f"{org}/{target_registry.full_name}/reg-collection")
 
-    registries = api.registries(organization=org)
+    registries = api.registries(
+        organization=org,
+        filter={"name": target_registry.full_name},
+    )
+
+    all_version_names = [version.name for version in registries.versions(per_page=1)]
+    paged_versions = registries.versions(per_page=1)
+    first_page_name = next(paged_versions).name
+    saved_cursor = paged_versions.cursor
+
+    assert saved_cursor is not None
+
+    remaining_names_via_registry = [
+        version.name
+        for version in target_registry.versions(per_page=1, start=saved_cursor)
+    ]
+    remaining_names_via_search = [
+        version.name for version in registries.versions(per_page=1, start=saved_cursor)
+    ]
+
+    assert remaining_names_via_search == remaining_names_via_registry
+    assert all_version_names == [first_page_name, *remaining_names_via_search]
 
     versions = sorted(registries.versions(), key=lambda v: v.name)
     assert len(versions) == len(source_artifacts)

@@ -118,6 +118,17 @@ func (s *Settings) GetDisplayName() string {
 	return s.Proto.RunName.GetValue()
 }
 
+// The timeout for finishing a run after receiving an exit record.
+//
+// If not positive, there is no timeout.
+func (s *Settings) GetFinishTimeout() time.Duration {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	timeoutMs := int64(s.Proto.FinishTimeout.GetValue() * 1000)
+	return time.Duration(timeoutMs) * time.Millisecond
+}
+
 // The start time of the run in microseconds since the Unix epoch.
 func (s *Settings) GetStartTime() time.Time {
 	seconds := s.Proto.XStartTime.GetValue()
@@ -158,6 +169,11 @@ func (s *Settings) GetInternalLogFile() string {
 func (s *Settings) GetFilesDir() string {
 	// Must match the logic in the Python wandb.Settings.
 	return filepath.Join(s.GetSyncDir(), "files")
+}
+
+// The root directory of the Git repository.
+func (s *Settings) GetGitRoot() string {
+	return s.Proto.GitRoot.GetValue()
 }
 
 // Unix glob patterns relative to `files_dir` to not upload.
@@ -441,9 +457,26 @@ func (s *Settings) IsSaveCode() bool {
 	return s.Proto.SaveCode.GetValue()
 }
 
+// Whether to stop the run after an error that prevents further uploads.
+func (s *Settings) IsStopOnFatalError() bool {
+	return s.Proto.StopOnFatalError.GetValue()
+}
+
 // Whether to disable git capture and diff generation.
 func (s *Settings) IsDisableGit() bool {
 	return s.Proto.DisableGit.GetValue()
+}
+
+// Whether to disable finding fork point from remote branches.
+//
+// When set to True, the SDK will use the latest commit from the upstream
+// branch, if one is set. Otherwise skip generating the diff patch.
+//
+// When set to False, the SDK will try to find the closest commit from all
+// remote branches. This may impact performance for repos with many upstream
+// branches.
+func (s *Settings) IsDisableGitForkPoint() bool {
+	return s.Proto.DisableGitForkPoint.GetValue()
 }
 
 // Whether to disable machine info collection, such as hostname and hardware
@@ -471,6 +504,20 @@ func (s *Settings) IsEnableServerSideExpandGlobMetrics() bool {
 // when only system metrics and logs are needed, as the primary process handles the main logging.
 func (s *Settings) IsPrimary() bool {
 	return s.Proto.XPrimary.GetValue()
+}
+
+// Controls whether this process can update the run's final state
+// (finished/failed) on the server.
+//
+// Set to False in distributed training when only the main process should
+// determine the final state.
+func (s *Settings) ShouldUpdateFinishState() bool {
+	wrapper := s.Proto.XUpdateFinishState
+
+	// If the client does not set this at all (like the C# client),
+	// we treat it as true. This is a regrettable design; usually the default
+	// behavior corresponds to a false value to avoid confusion.
+	return wrapper == nil || wrapper.Value
 }
 
 // The size of the buffer for system metrics.
@@ -560,6 +607,11 @@ func (s *Settings) GetStatsGpuType() string {
 // Whether to track the process-specific metrics for the entire process tree.
 func (s *Settings) GetStatsTrackProcessTree() bool {
 	return s.Proto.XStatsTrackProcessTree.GetValue()
+}
+
+// Whether to skip cgroup resource limits for system metric percentages.
+func (s *Settings) GetStatsNoCgroup() bool {
+	return s.Proto.XStatsNoCgroup.GetValue()
 }
 
 // The label for the run namespacing for console output and system metrics.

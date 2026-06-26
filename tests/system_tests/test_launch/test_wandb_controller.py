@@ -1,3 +1,4 @@
+import pytest
 import sweeps
 import wandb
 
@@ -57,6 +58,9 @@ def test_controller_existing(user):
     assert c.sweep_config == SWEEP_CONFIGURATION
 
 
+@pytest.mark.skip(
+    "Run queues are not yet compatible with sweeps run through the local controller"
+)
 def test_controller_new(user):
     tuner = wandb.controller(
         {

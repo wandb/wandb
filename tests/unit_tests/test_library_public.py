@@ -19,6 +19,7 @@ SYMBOLS_ROOT_DATATYPES = {
     "Video",
     "Audio",
     "Table",
+    "EvalTable",
     "Html",
     "box3d",
     "Object3D",
@@ -51,6 +52,7 @@ SYMBOLS_ROOT_SDK = {
     "controller",
     "sweep",
     "mark_preempting",
+    "pin_config_keys",
     "require",
     "profiler",
 }
@@ -65,7 +67,6 @@ SYMBOLS_ROOT_OTHER = {
     "Error",
     "InternalApi",
     "PublicApi",
-    "START_TIME",
     "Settings",
     "UsageError",
     "absolute_import",
@@ -89,7 +90,6 @@ SYMBOLS_ROOT_OTHER = {
     "jupyter",
     "keras",
     "lightgbm",
-    "old",
     "patched",
     "plot",
     "plot_table",
@@ -100,6 +100,7 @@ SYMBOLS_ROOT_OTHER = {
     "run",
     "sacred",
     "sagemaker_auth",
+    "sandbox",
     "save",
     "sdk",
     "set_trace",
@@ -192,6 +193,7 @@ SYMBOLS_RUN = {
     "log_code",
     "alert",
     "define_metric",
+    "pin_config_keys",
     # "summary",   # really this should be here
     "disabled",
     "offline",
@@ -204,6 +206,7 @@ SYMBOLS_RUN = {
     "display",
     "settings",
     "status",
+    "write_logs",
 }
 
 # symbols having to do with resuming, we should clean this up

@@ -28,7 +28,7 @@ import (
 // Injectors from streaminject.go:
 
 // InjectStream returns a new Stream.
-func InjectStream(commit GitCommitHash, gpuResourceManager *monitor.GPUResourceManager, debugCorePath DebugCorePath, logLevel slog.Level, settings2 *settings.Settings) *Stream {
+func InjectStream(commit GitCommitHash, xpuResourceManager *monitor.XPUResourceManager, debugCorePath DebugCorePath, logLevel slog.Level, settings2 *settings.Settings) *Stream {
 	clientID := sharedmode.RandomClientID()
 	streamStreamLoggerFile := openStreamLoggerFile(settings2)
 	sentryContext := streamSentryContext(settings2)
@@ -50,11 +50,11 @@ func InjectStream(commit GitCommitHash, gpuResourceManager *monitor.GPUResourceM
 		Logger:             coreLogger,
 		RunHandle:          runHandle,
 		Settings:           settings2,
-		GpuResourceManager: gpuResourceManager,
+		XPUResourceManager: xpuResourceManager,
 		GraphqlClient:      client,
 		WriterID:           clientID,
 	}
-	printer := observability.NewPrinter()
+	printer := providePrinter()
 	handlerFactory := &HandlerFactory{
 		Commit:               commit,
 		FileTransferStats:    fileTransferStats,
@@ -107,6 +107,7 @@ func InjectStream(commit GitCommitHash, gpuResourceManager *monitor.GPUResourceM
 		RunfilesUploaderFactory: uploaderFactory,
 		GraphqlClient:           client,
 		Peeker:                  peeker,
+		Printer:                 printer,
 		RunHandle:               runHandle,
 		Mailbox:                 mailboxMailbox,
 	}
@@ -128,9 +129,15 @@ var streamProviders = wire.NewSet(
 	NewStream, wire.Bind(new(api.Peeker), new(*observability.Peeker)), wire.Struct(new(observability.Peeker)), BaseURLFromSettings,
 	CredentialsFromSettings, featurechecker.New, filestream.FileStreamProviders, filetransfer.NewFileTransferStats, flowControlProviders,
 	handlerProviders, mailbox.New, monitor.SystemMonitorProviders, NewFileTransferManager,
-	NewGraphQLClient, observability.NewPrinter, provideFileWatcher,
+	NewGraphQLClient,
+	provideFileWatcher,
+	providePrinter,
 	RecordParserProviders, runfiles.UploaderProviders, runhandle.New, SenderProviders, sharedmode.RandomClientID, streamLoggerProviders, tensorboard.TBHandlerProviders, wboperation.NewOperations, WriterProviders,
 )
+
+func providePrinter() *observability.Printer {
+	return observability.NewPrinter(printerBufferSize)
+}
 
 func provideFileWatcher(logger *observability.CoreLogger) watcher.Watcher {
 	return watcher.New(watcher.Params{Logger: logger})

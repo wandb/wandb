@@ -1,9 +1,0 @@
-query InputFields (
-    $typeName: String!
-) {
-    TypeInfo: __type(name: $typeName) {
-        inputFields {
-            name
-        }
-    }
-}

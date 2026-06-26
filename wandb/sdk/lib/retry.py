@@ -9,8 +9,8 @@ import os
 import random
 import threading
 import time
-from collections.abc import Awaitable
-from typing import Any, Callable, Generic, TypeVar
+from collections.abc import Awaitable, Callable
+from typing import Any, Generic, TypeVar
 
 import wandb
 import wandb.errors

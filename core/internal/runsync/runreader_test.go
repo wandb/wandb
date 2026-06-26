@@ -37,7 +37,6 @@ func setup(t *testing.T) testFixtures {
 	transactionLog := filepath.Join(t.TempDir(), "test-run.wandb")
 
 	fakeRunWork := runworktest.New()
-	fakeRunWork.SetDone() // so that Close() doesn't block
 
 	mockCtrl := gomock.NewController(t)
 	mockRecordParser := streamtest.NewMockRecordParser(mockCtrl)
@@ -189,6 +188,7 @@ func Test_TurnsAllRecordsIntoWork(t *testing.T) {
 		&spb.Record{Num: 2},
 		exitRecord(0),
 	)
+	x.FakeRunWork.QueueResponse(&spb.ServerResponse{}) // for the exit record
 	work1 := &testWork{ID: 1}
 	work2 := &testWork{ID: 2}
 	exitWork := &testWork{ID: 3}
@@ -209,6 +209,7 @@ func Test_TurnsAllRecordsIntoWork(t *testing.T) {
 func Test_CreatesExitRecordIfNotSeen(t *testing.T) {
 	x := setup(t)
 	wandbFileWithRecords(t, x.TransactionLog, &spb.Record{Num: 1})
+	x.FakeRunWork.QueueResponse(&spb.ServerResponse{}) // for the exit record
 	work1 := &testWork{ID: 1}
 	exitWork := &testWork{ID: 2}
 	gomock.InOrder(
@@ -222,6 +223,57 @@ func Test_CreatesExitRecordIfNotSeen(t *testing.T) {
 	assert.Equal(t,
 		[]runwork.WorkImpl{work1, exitWork},
 		x.FakeRunWork.AllWorkImpls())
+}
+
+func Test_ParsesInitFailure(t *testing.T) {
+	testCases := []struct {
+		Name     string
+		ErrMsg   string
+		Response *spb.ServerResponse
+	}{
+		{"ServerErrorResponse", "Generic error!", &spb.ServerResponse{
+			ServerResponseType: &spb.ServerResponse_ErrorResponse{
+				ErrorResponse: &spb.ServerErrorResponse{
+					Message: "Generic error!",
+				},
+			},
+		}},
+
+		{"RunResult", "Run init error!", &spb.ServerResponse{
+			ServerResponseType: &spb.ServerResponse_ResultCommunicate{
+				ResultCommunicate: &spb.Result{
+					ResultType: &spb.Result_RunResult{
+						RunResult: &spb.RunUpdateResult{
+							Error: &spb.ErrorInfo{
+								Message: "Run init error!",
+							},
+						},
+					},
+				},
+			},
+		}},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.Name, func(t *testing.T) {
+			x := setup(t)
+			wandbFileWithRecords(t,
+				x.TransactionLog,
+				&spb.Record{
+					Num:        1,
+					RecordType: &spb.Record_Run{Run: &spb.RunRecord{}},
+				})
+			x.FakeRunWork.QueueResponse(tc.Response)
+			x.MockRecordParser.EXPECT().
+				Parse(gomock.Any()).
+				Times(2). // Run then Exit (no RunStart due to error)
+				Return(&testWork{})
+
+			err := x.RunReader.ProcessTransactionLog(t.Context())
+
+			assert.ErrorContains(t, err, tc.ErrMsg)
+		})
+	}
 }
 
 func Test_CreatesRunStartRequest(t *testing.T) {
@@ -241,6 +293,9 @@ func Test_CreatesRunStartRequest(t *testing.T) {
 		x.MockRecordParser.EXPECT().Parse(isRunStartRequest()).Return(runStartWork),
 		x.MockRecordParser.EXPECT().Parse(isExitRecord(1)).Return(exitWork),
 	)
+	// The Run and Exit records require a response.
+	x.FakeRunWork.QueueResponse(&spb.ServerResponse{})
+	x.FakeRunWork.QueueResponse(&spb.ServerResponse{})
 
 	err := x.RunReader.ProcessTransactionLog(context.Background())
 	require.NoError(t, err)
@@ -252,7 +307,6 @@ func Test_CreatesRunStartRequest(t *testing.T) {
 
 func Test_FileNotFoundError(t *testing.T) {
 	x := setup(t)
-	x.MockRecordParser.EXPECT().Parse(isExitRecord(1)).Return(&testWork{})
 
 	err := x.RunReader.ProcessTransactionLog(context.Background())
 
@@ -270,7 +324,6 @@ func Test_FilePermissionError(t *testing.T) {
 	wandbFileWithRecords(t, x.TransactionLog)
 	err := os.Chmod(x.TransactionLog, 0o200) // write-only
 	require.NoError(t, err)
-	x.MockRecordParser.EXPECT().Parse(isExitRecord(1)).Return(&testWork{})
 
 	err = x.RunReader.ProcessTransactionLog(context.Background())
 
@@ -288,6 +341,7 @@ func Test_FilePermissionError(t *testing.T) {
 func Test_CorruptFileError(t *testing.T) {
 	x := setup(t)
 	wandbFileWithRecords(t, x.TransactionLog)
+	x.FakeRunWork.QueueResponse(&spb.ServerResponse{}) // for the exit record
 	x.MockRecordParser.EXPECT().Parse(isExitRecord(1)).Return(&testWork{})
 
 	// Add data to the file that doesn't follow the LevelDB format.

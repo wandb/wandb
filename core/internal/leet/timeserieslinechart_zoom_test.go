@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"charm.land/lipgloss/v2"
-	"charm.land/lipgloss/v2/compat"
 	"github.com/stretchr/testify/require"
 
 	"github.com/wandb/wandb/core/internal/leet"
@@ -28,7 +27,7 @@ func TestTimeSeriesLineChart_AutoTrailFreezeAndShowAll(t *testing.T) {
 		80,
 		20,
 		def,
-		compat.AdaptiveColor{Light: lipgloss.Color("#FF00FF"), Dark: lipgloss.Color("#FF00FF")},
+		leet.AdaptiveColor{Light: lipgloss.Color("#FF00FF"), Dark: lipgloss.Color("#FF00FF")},
 		stubColorProvider("#00FF00"),
 		start,
 	})
@@ -169,7 +168,7 @@ func TestSystemMetricsGrid_Inspection_Synchronized(t *testing.T) {
 	))
 	adjX := computeSystemAdjustedX(t, first, dims.CellWWithPadding, 0, relPX)
 
-	grid.StartInspection(adjX, 0, 0, dims, true)
+	grid.StartInspection(adjX, 0, 0, 0, dims, true)
 	require.True(t, grid.TestSyncInspectActive())
 
 	xA, _, aActive := first.InspectionData()
@@ -185,7 +184,7 @@ func TestSystemMetricsGrid_Inspection_Synchronized(t *testing.T) {
 			float64(first.GraphWidth()),
 	))
 	adjX = computeSystemAdjustedX(t, first, dims.CellWWithPadding, 0, relPX)
-	grid.UpdateInspection(adjX, 0, 0, dims)
+	grid.UpdateInspection(adjX, 0, 0, 0, dims)
 
 	xA, _, _ = first.InspectionData()
 	xB, _, _ = second.InspectionData()

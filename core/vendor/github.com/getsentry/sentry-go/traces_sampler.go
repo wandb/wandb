@@ -7,7 +7,14 @@ package sentry
 // user-provided data.
 type SamplingContext struct {
 	Span   *Span // The current span, always non-nil.
-	Parent *Span // The parent span, may be nil.
+	Parent *Span // The local parent span, non-nil only when the parent exists in the same process.
+	// ParentSampled is the sampling decision of the parent span.
+	//
+	// For a remote span, Parent is nil but ParentSampled reflects the upstream decision.
+	// For a local span, ParentSampled mirrors Parent.Sampled.
+	ParentSampled Sampled
+	// ParentSampleRate is the sample rate used by the parent transaction.
+	ParentSampleRate *float64
 }
 
 // The TracesSample type is an adapter to allow the use of ordinary

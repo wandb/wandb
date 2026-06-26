@@ -11,6 +11,149 @@ Unreleased changes are in [CHANGELOG.unreleased.md](CHANGELOG.unreleased.md).
 
 <!-- tools/changelog.py: insert here -->
 
+## [0.28.0] - 2026-06-22
+
+### Notable Changes
+
+This version drops compatibility with server versions older than 0.65.0.
+
+### Added
+
+- High-resolution image rendering in terminals supporting the Kitty protocol with ANSI fallback in the W&B LEET TUI media pane (`wandb leet` command) (@dmitryduev in https://github.com/wandb/wandb/pull/11806)
+- Synced scrubbing in the W&B LEET media pane: press `l` to link scrubbing, then the scrub keys (`←/→/↑/↓/home/end`) move a shared cursor over the union step timeline and every image tile follows it (@dmitryduev in https://github.com/wandb/wandb/pull/12033)
+- Basic remote-run support in W&B LEET TUI (`wandb leet <run-url>` command) (@jacobromero in https://github.com/wandb/wandb/pull/11261)
+- The following paginated artifacts and registry API methods now accept an optional `order` string as a keyword argument: `Api.artifacts()`, `Api.artifact_collections()`, `Api.registries()`, `Api.registries().collections()`, `Registry.collections()` (@tonyyli-wandb in https://github.com/wandb/wandb/pull/11990)
+
+### Changed
+
+- W&B LEET, the terminal UI for viewing W&B runs, is now generally available as `wandb leet`; `wandb beta leet` is kept as an alias (@dmitryduev in https://github.com/wandb/wandb/pull/12028)
+- `wandb.Api().runs()` no longer loads Sweeps for each run by default to improve query performance. Sweep data is loaded on first access of the `sweep` property (@kmikowicz-wandb in https://github.com/wandb/wandb/pull/12019)
+- Lists of images logged under a single key are now displayed in the W&B LEET media pane, one tile per image (@dmitryduev in https://github.com/wandb/wandb/pull/12033)
+
+### Fixed
+
+- `File.download()` no longer fails after a hardcoded 5-second timeout; downloads go through wandb-core and respect the file transfer settings (@dmitryduev in https://github.com/wandb/wandb/pull/12039)
+- `wandb.Api().viewer` (and `Api().user()` / `Api().users()`) no longer fail with `WandbApiFailedError: relogin required` for some API keys, a regression in `0.27.1` (@dmitryduev in https://github.com/wandb/wandb/pull/12009)
+- When a `wandb.Image` carrying multiple `box` or `mask` layers with distinct `class_labels` is logged inside a `wandb.Table`, each layer's labels are now preserved in new `box_class_maps` / `mask_class_maps` fields in the `table.json`. Previously, there was only as single `class_map` that got incorrectly clobbered by each set of class labels. The next server release will contain a corresponding frontend fix that reads these per-layer fields. Legacy servers will retain the current behavior. (@kelu-wandb in https://github.com/wandb/wandb/pull/11901)
+- Artifact file operations now consistently require normalized relative paths (@tonyyli-wandb in https://github.com/wandb/wandb/pull/11735)
+- Logging an artifact (whether via `WandbLogger` or `run.log_artifact`) now writes the manifest file to the artifact's staging directory instead of the OS temp dir (`$TMPDIR`), avoiding silent failures when `$TMPDIR` is missing or unwritable (@ibindlish in https://github.com/wandb/wandb/pull/11958)
+- Logging artifacts in shared mode works again, and in particular, `wandb.init(mode="shared")` with code-saving enabled no longer raises an error (@timoffex in https://github.com/wandb/wandb/pull/12017)
+- `git_root` setting is now preferred for creating the `diff.patch` file, the `root_dir` setting is now used as a fallback (@TomSiegl in https://github.com/wandb/wandb/pull/11967)
+- Apple system metrics (GPU, CPU, power, and temperature) are now collected on Apple M5 Macs (@dmitryduev in https://github.com/wandb/wandb/pull/12061)
+- file download progress is now shown when using `wandb.Api().run(...).download_history_exports` (@jacobromero in https://github.com/wandb/wandb/pull/12063)
+- `Run.scan_history()` no longer returns no rows for a run whose history exists but has not been exported to parquet (e.g. an active run; a regression in `0.27.1`) (@dmitryduev in https://github.com/wandb/wandb/issues/12073)
+
+## [0.27.2] - 2026-06-06
+
+### Fixed
+
+- `Run.scan_history()` no longer returns duplicate or missing steps when getting run history (@jacobromero in https://github.com/wandb/wandb/pull/12010)
+
+## [0.27.1] - 2026-06-04
+
+### Added
+
+- The automations API now supports artifact tag, collection tag, and artifact unlinking events (@tonyyli-wandb in https://github.com/wandb/wandb/pull/11922)
+
+### Changed
+
+- `wandb.Api` GraphQL operations are routed through the wandb-core service instead of the legacy Python GraphQL client. Failures from these operations now raise `WandbApiFailedError` instead of `requests` HTTP exceptions, and customizations made by patching `requests` no longer affect these GraphQL calls (@dmitryduev in https://github.com/wandb/wandb/pull/11818)
+
+### Removed
+
+- Removed the unsupported `wandb.apis.importers` API (@dmitryduev in https://github.com/wandb/wandb/pull/11923)
+- Removed stale OpenAI, Cohere, and LangChain LLM integrations, including legacy autologging and tracing APIs (@dmitryduev in https://github.com/wandb/wandb/pull/11925)
+- Removed the deprecated Keras `WandbCallback` and the legacy `wandb.integration.yolov8` callback package (@dmitryduev in https://github.com/wandb/wandb/pull/11926)
+
+### Changed
+
+- `Run.scan_history()` now reads from exported parquet history when available, which can significantly improve throughput for runs with large history (@jacobromero in https://github.com/wandb/wandb/pull/11797)
+    - This was introduced under `beta_scan_history` in `v0.23.1`
+
+### Fixed
+
+- `wandb.sandbox` now rejects invalid argument values for placement, gpu, and egress
+
+## [0.27.0] - 2026-05-14
+
+### Notable Changes
+
+This version drops support for Python 3.9 and Pydantic v1. Pydantic v2.6 or newer is now required.
+
+### Added
+
+- The `stop_on_fatal_error` setting to stop a run (using `stop_fn`) after a fatal error that prevents it from uploading metrics (@timoffex in https://github.com/wandb/wandb/pull/11774)
+- New `wandb.sandbox` package and the `wandb beta sandbox` cli for using wandb sandbox (@pingleiwandb in https://github.com/wandb/wandb/pull/11606)
+- The `finish_timeout` and `finish_timeout_raises` settings (@timoffex in https://github.com/wandb/wandb/pull/11737)
+- The `run.write_logs()` method to write text directly to the Logs tab (@itstania in https://github.com/wandb/wandb/pull/11702)
+- The `capture_loggers` setting to automatically capture `logging.Logger` logs using `write_logs()` (@itstania in https://github.com/wandb/wandb/pull/11702)
+
+### Changed
+
+- Changed CPU and memory system metric percentages in Linux containers to use cgroup v2 resource limits instead of host node totals. Set the private `x_stats_no_cgroup` setting to `True` to opt out (@dmitryduev in https://github.com/wandb/wandb/pull/11796)
+- Python 3.9 is no longer supported (@dmitryduev in https://github.com/wandb/wandb/pull/11841)
+
+### Removed
+
+- Pydantic v1 is no longer supported; `pydantic >= 2.6` is required. The vendored `wandb_orjson` extension and its `WANDB_DISABLE_ORJSON` / `WANDB_BUILD_SKIP_ORJSON` environment variables removed (@dmitryduev in https://github.com/wandb/wandb/pull/11869)
+
+## [0.26.1] - 2026-04-23
+
+### Added
+
+- `Api` methods returning artifacts, registries, automations, and related paginators now accept an optional `start` argument to resume iteration from a saved cursor (@tonyyli-wandb in https://github.com/wandb/wandb/pull/11651)
+- The `stop_fn` setting to customize how a run is stopped (@timoffex in https://github.com/wandb/wandb/pull/11773)
+  - Allows overriding the default of sending a SIGINT to the Python process
+
+### Changed
+
+- Unified keyboard navigation in W&B LEET TUI (`wandb beta leet` command): `wasd` and arrow keys are now interchangeable within each focused pane (chart focus in grids, item/page nav in lists), and `Home`/`End`/`PgUp`/`PgDn` work universally; the media pane retains its deliberate split where arrows scrub and `wasd` selects tiles (@dmitryduev in https://github.com/wandb/wandb/pull/11756)
+
+### Fixed
+
+- Made `wandb.init(id=run_id, reinit="create_new")` raise an error when another run in the same script with the same `run_id` is still running (@timoffex in https://github.com/wandb/wandb/pull/11759)
+- `wandb.Api` no longer raises an error for some api operations when offline mode is enabled via the `WANDB_MODE` environment variable or the `mode` setting. (@jacobromero in https://github.com/wandb/wandb/pull/11762)
+
+## [0.26.0] - 2026-04-13
+
+### Notable Changes
+
+This version drops compatibility with server versions older than 0.63.0 (for Dedicated Cloud and Self-Managed W&B deployments).
+
+### Added
+
+- `wandb beta core start|stop` commands to run a detached `wandb-core` service and reuse it across multiple processes via the `WANDB_SERVICE` env var (@dmitryduev in https://github.com/wandb/wandb/pull/11418)
+- Run filtering by metadata in multi-run workspace mode in W&B LEET TUI (`wandb beta leet` command, activate with `f`) (@dmitryduev in https://github.com/wandb/wandb/pull/11497 and https://github.com/wandb/wandb/pull/11534)
+- Run overview displays tags and notes in W&B LEET TUI (`wandb beta leet` command) (@dmitryduev in https://github.com/wandb/wandb/pull/11523)
+- Per-chart log-scale (Y-axis) support in W&B LEET TUI (`wandb beta leet` command, toggle on a selected chart with `y`) (@dmitryduev in https://github.com/wandb/wandb/pull/11537)
+- Standalone system monitor mode in W&B LEET TUI (`wandb beta leet symon` command) (@dmitryduev in https://github.com/wandb/wandb/pull/11559)
+- Bucketed heatmap chart mode for system metrics expressed as percentages (e.g. GPU utilization) in W&B LEET TUI (`wandb beta leet` command, cycle chart mode on a selected chart with `y`) (@dmitryduev in https://github.com/wandb/wandb/pull/11568 and https://github.com/wandb/wandb/pull/11607)
+- Colorblind-friendly `dusk-shore` (gradient) and `clear-signal` (cycle) color schemes in W&B LEET TUI (`wandb beta leet` command, configure with `wandb beta leet config`) (@dmitryduev in https://github.com/wandb/wandb/pull/11577)
+- `disable_git_fork_point` to prevent calculating git diff patch files closest ancestor commit when no upstream branch is set (@jacobromero in https://github.com/wandb/wandb/pull/10132)
+- Media pane for displaying `wandb.Image` data as ANSI thumbnails in W&B LEET TUI (`wandb beta leet` command), with grid layout, X-axis scrubbing, fullscreen mode, and keyboard/mouse navigation (@dmitryduev in
+  https://github.com/wandb/wandb/pull/11630)
+- Kubeflow Pipelines v2 (`kfp>=2.0.0`) support for the `@wandb_log` decorator (@ayulockin in https://github.com/wandb/wandb/pull/11423)
+- `allow_media_symlink` setting to symlink or hardlink media files to the run directory instead of copying, improving logging performance and reducing disk usage (@jacobromero in https://github.com/wandb/wandb/pull/11544)
+- `run.pin_config_keys(keys)` to programmatically pin specific config keys for display in a References section on the Run Overview page (@acasey-wandb in https://github.com/wandb/wandb/pull/11639)
+- Direct TPU metric collection via `libtpu.so` FFI, capturing `tensorcore_util` (SDK-only, unavailable via gRPC), `duty_cycle_pct`, `hbm_capacity_total`, `hbm_capacity_usage`, and latency distributions (@dmitryduev in https://github.com/wandb/wandb/pull/11528)
+- NVML GPM (GPU Performance Monitoring) profiling metrics for Hopper+ GPUs (H100 and newer), providing SM utilization, tensor/FP pipeline activity, DRAM bandwidth, and PCIe/NVLink throughput without requiring the DCGM daemon (@dmitryduev in https://github.com/wandb/wandb/pull/11622)
+- `.runs()` on the `Agent` class to query run status for a given sweep agent (@kmikowicz-wandb in https://github.com/wandb/wandb/pull/11558)
+- `.agent()` and `.agents()` on the `Sweep` class to query active agents for a given sweep (@kmikowicz-wandb in https://github.com/wandb/wandb/pull/11558)
+
+### Changed
+
+- JSON serialization and deserialization now use `orjson` for improved performance (@jacobromero in https://github.com/wandb/wandb/pull/11163)
+- Improved system metrics UX with multi-series overlays, inspection, and live/history zoom in W&B LEET TUI (`wandb beta leet` command) (@dmitryduev in https://github.com/wandb/wandb/pull/11512)
+- Prevent run base color collisions in W&B LEET TUI's workspace (`wandb beta leet` command) (@dmitryduev in https://github.com/wandb/wandb/pull/11567)
+
+### Fixed
+
+- Fixed `update_automation()` silently dropping event filters (e.g. alias conditions on `OnAddArtifactAlias`) when a new event is provided (@matthoare117-wandb in https://github.com/wandb/wandb/pull/11613)
+- Fixed artifact client ID collisions in forked child processes by reseeding the fast ID generator after `fork()` (@tonyyli-wandb in https://github.com/wandb/wandb/pull/11491)
+- Fixed `WANDB__EXTRA_HTTP_HEADERS` not being applied to presigned object-store upload and download requests (@pingleiwandb in https://github.com/wandb/wandb/pull/11620)
+- Fixed deadlock in `artifact.download()` for artifacts with many large files. (@amusipatla-wandb in https://github.com/wandb/wandb/pull/11615)
+- Fixed `User.generate_api_key()` failing for users with hashed API keys by using the existing authenticated client instead of querying non-secret key names (@ArtsiomWB in https://github.com/wandb/wandb/pull/11663)
+
 ## [0.25.1] - 2026-03-10
 
 ### Added

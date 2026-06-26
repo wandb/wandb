@@ -5,49 +5,37 @@ from dataclasses import dataclass
 from functools import lru_cache
 from typing import TYPE_CHECKING
 
-from wandb_gql import gql
-
 from wandb._iterutils import one
 from wandb.proto.wandb_internal_pb2 import ServerFeature
 from wandb.sdk.internal._generated import SERVER_FEATURES_QUERY_GQL, ServerFeaturesQuery
 
 if TYPE_CHECKING:
-    from wandb.apis.public import RetryingClient
-    from wandb.sdk.artifacts._generated import TypeInfoFragment
+    from wandb.apis.public.service_api import ServiceApi
     from wandb.sdk.artifacts._generated.fetch_org_info_from_entity import (
         FetchOrgInfoFromEntityEntity,
     )
 
 
 @lru_cache(maxsize=16)
-def type_info(client: RetryingClient, typename: str) -> TypeInfoFragment | None:
-    """Returns the type info for a given GraphQL type."""
-    from ._generated import TYPE_INFO_GQL, TypeInfo
-
-    data = client.execute(gql(TYPE_INFO_GQL), variable_values={"name": typename})
-    return TypeInfo.model_validate(data).type
-
-
-@lru_cache(maxsize=16)
 def org_info_from_entity(
-    client: RetryingClient, entity: str
+    service_api: ServiceApi, entity: str
 ) -> FetchOrgInfoFromEntityEntity | None:
     """Returns the organization info for a given entity."""
     from ._generated import FETCH_ORG_INFO_FROM_ENTITY_GQL, FetchOrgInfoFromEntity
 
-    gql_op = gql(FETCH_ORG_INFO_FROM_ENTITY_GQL)
-    data = client.execute(gql_op, variable_values={"entity": entity})
+    gql_op = FETCH_ORG_INFO_FROM_ENTITY_GQL
+    data = service_api.execute_graphql(gql_op, variables={"entity": entity})
     return FetchOrgInfoFromEntity.model_validate(data).entity
 
 
 @lru_cache(maxsize=16)
-def server_features(client: RetryingClient) -> dict[str, bool]:
+def _server_features(service_api: ServiceApi) -> dict[str, bool]:
     """Returns a mapping of `{server_feature_name (str) -> is_enabled (bool)}`.
 
-    Results are cached per client instance.
+    Results are cached per service API instance.
     """
     try:
-        response = client.execute(gql(SERVER_FEATURES_QUERY_GQL))
+        response = service_api.execute_graphql(SERVER_FEATURES_QUERY_GQL)
     except Exception as e:
         # Unfortunately we currently have to match on the text of the error message,
         # as the `gql` client raises `Exception` rather than a more specific error.
@@ -61,8 +49,11 @@ def server_features(client: RetryingClient) -> dict[str, bool]:
     return {}
 
 
-def server_supports(client: RetryingClient, feature: str | int) -> bool:
+def server_supports(service_api: ServiceApi, feature: str | int) -> bool:
     """Return whether the current server supports the given feature.
+
+    NOTE: This is deprecated. Please use `ServiceApi.feature_enabled()` when
+    possible, like in all public API code.
 
     Good to use for features that have a fallback mechanism for older servers.
     """
@@ -75,13 +66,7 @@ def server_supports(client: RetryingClient, feature: str | int) -> bool:
         name = ServerFeature.Name(feature) if isinstance(feature, int) else feature
     except ValueError:
         return False  # Invalid int-like value, assume unsupported
-    return server_features(client).get(name) or False
-
-
-def allowed_fields(client: RetryingClient, typename: str) -> set[str]:
-    """Returns the allowed field names for a given GraphQL type."""
-    typ = type_info(client, typename)
-    return {f.name for f in typ.fields} if (typ and typ.fields) else set()
+    return _server_features(service_api).get(name) or False
 
 
 @dataclass(frozen=True)
@@ -94,7 +79,7 @@ class OrgInfo:
 
 
 def resolve_org_entity_name(
-    client: RetryingClient,
+    service_api: ServiceApi,
     non_org_entity: str | None,
     org_or_entity: str | None = None,
 ) -> str:
@@ -111,7 +96,7 @@ def resolve_org_entity_name(
         raise ValueError("Entity name is required to resolve org entity name.")
 
     # Fetch candidate orgs to verify or identify the correct orgEntity name.
-    entity = org_info_from_entity(client, non_org_entity)
+    entity = org_info_from_entity(service_api, non_org_entity)
 
     # Parse possible organization(s) from the response...
     # ----------------------------------------------------------------------------
@@ -172,3 +157,19 @@ def resolve_org_entity_name(
             )
 
     raise ValueError(f"Unable to find organization for entity {non_org_entity!r}.")
+
+
+def is_project_read_only(
+    service_api: ServiceApi, entity: str, project: str
+) -> bool | None:
+    """Return whether *project* is read-only for the caller, or None if invisible."""
+    from wandb.apis._generated import IS_PROJECT_READ_ONLY_GQL, IsProjectReadOnly
+
+    data = service_api.execute_graphql(
+        IS_PROJECT_READ_ONLY_GQL,
+        variables={"entity": entity, "project": project},
+    )
+    result = IsProjectReadOnly.model_validate(data)
+    if not (result and (proj := result.project)):
+        return None
+    return proj.read_only

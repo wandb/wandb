@@ -5,7 +5,7 @@ import contextlib
 import socket
 import threading
 import time
-from collections.abc import Iterator
+from collections.abc import Generator
 
 import fastapi
 import httpx
@@ -18,7 +18,7 @@ from .spy import WandbBackendSpy
 def spy_proxy(
     target_host: str,
     target_port: int,
-) -> Iterator[WandbBackendProxy]:
+) -> Generator[WandbBackendProxy]:
     """A context manager that proxies a W&B backend.
 
     The proxy server will be available at 127.0.0.1 on a port chosen by the
@@ -119,7 +119,7 @@ class WandbBackendProxy:
         self.port = local_port
 
     @contextlib.contextmanager
-    def spy(self) -> Iterator[WandbBackendSpy]:
+    def spy(self) -> Generator[WandbBackendSpy]:
         """A context manager for intercepting W&B requests.
 
         Args:
@@ -216,7 +216,10 @@ class WandbBackendProxy:
         if not response:
             response = await self._relay(request)
 
-        if spy:
+        # Match post_graphql: only record spied state when the HTTP response
+        # succeeded. Otherwise failed filestream uploads would still append
+        # request payload to the spy (e.g. wandb-history.jsonl on 404).
+        if spy and 200 <= response.status_code < 300:
             spy.post_file_stream(
                 await request.body(),
                 response.body,

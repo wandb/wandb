@@ -22,7 +22,7 @@ from wandb.sdk.launch.utils import get_entrypoint_file
 from wandb.sdk.lib.runid import generate_id
 
 from .errors import LaunchError
-from .utils import LOG_PREFIX, recursive_macro_sub
+from .utils import CODE_MOUNT_DIR, LOG_PREFIX, recursive_macro_sub
 
 if TYPE_CHECKING:
     from wandb.sdk.artifacts.artifact import Artifact
@@ -34,6 +34,27 @@ _logger = logging.getLogger(__name__)
 # that let users create artifacts and access input data
 RESOURCE_UID_MAP = {"local": 1000, "sagemaker": 0}
 IMAGE_TAG_MAX_LENGTH = 32
+
+
+def _get_accelerator_base_image(
+    resource_args_build: dict[str, Any],
+) -> str | None:
+    """Return configured accelerator base image from raw builder resource args."""
+    for accelerator_key in ("accelerator", "cuda"):
+        base_image = resource_args_build.get(accelerator_key, {}).get("base_image")
+        if base_image is None or base_image == "":
+            continue
+
+        if not isinstance(base_image, str):
+            raise LaunchError(
+                "Invalid accelerator base image. Expected "
+                f"builder.{accelerator_key}.base_image to be a string Docker "
+                f"image reference, got {type(base_image).__name__}."
+            )
+
+        return base_image
+
+    return None
 
 
 class LaunchSource(enum.IntEnum):
@@ -108,7 +129,9 @@ class LaunchProject:
         # but these resource_args are then passed to the appropriate
         # runner, so we need to pop the builder key out
         resource_args_copy = deepcopy(resource_args)
-        resource_args_build = resource_args_copy.get(resource, {}).pop("builder", {})
+        self._resource_args_build = resource_args_copy.get(resource, {}).pop(
+            "builder", {}
+        )
         self.resource = resource
         self.resource_args = resource_args_copy
         self.sweep_id = sweep_id
@@ -117,9 +140,9 @@ class LaunchProject:
         self._job_dockerfile: str | None = None
         self._job_build_context: str | None = None
         self._job_base_image: str | None = None
-        self.accelerator_base_image: str | None = resource_args_build.get(
-            "accelerator", {}
-        ).get("base_image") or resource_args_build.get("cuda", {}).get("base_image")
+        self.accelerator_base_image: str | None = _get_accelerator_base_image(
+            self._resource_args_build
+        )
         self.docker_image: str | None = docker_config.get(
             "docker_image"
         ) or launch_spec.get("image_uri")  # type: ignore [assignment]
@@ -136,6 +159,9 @@ class LaunchProject:
         self._queue_name: str | None = None
         self._queue_entity: str | None = None
         self._run_queue_item_id: str | None = None
+        self._job_source_type: str | None = None
+        self._job_source_info: dict[str, Any] = {}
+        self._auto_default_base_image: bool = False
 
     def init_source(self) -> None:
         if self.docker_image is not None:
@@ -184,6 +210,12 @@ class LaunchProject:
                 name=get_entrypoint_file(override_entrypoint),
                 command=override_entrypoint,
             )
+        override_working_dir = overrides.get("working_dir")
+        self.resolved_working_dir: str = (
+            f"{CODE_MOUNT_DIR}/{override_working_dir}"
+            if override_working_dir
+            else CODE_MOUNT_DIR
+        )
 
     def __repr__(self) -> str:
         """String representation of LaunchProject."""
@@ -282,6 +314,20 @@ class LaunchProject:
     @run_queue_item_id.setter
     def run_queue_item_id(self, value: str) -> None:
         self._run_queue_item_id = value
+
+    @property
+    def job_source_type(self) -> str | None:
+        return self._job_source_type
+
+    def set_job_source_type(self, source_type: str) -> None:
+        self._job_source_type = source_type
+
+    @property
+    def job_source_info(self) -> dict[str, Any]:
+        return self._job_source_info
+
+    def set_job_source_info(self, source_info: dict[str, Any]) -> None:
+        self._job_source_info = source_info
 
     def fill_macros(self, image: str) -> dict[str, Any]:
         """Substitute values for macros in resource arguments.

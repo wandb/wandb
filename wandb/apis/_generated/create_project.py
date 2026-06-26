@@ -3,21 +3,19 @@
 
 from __future__ import annotations
 
-from typing import Optional
-
 from wandb._pydantic import GQLResult
 
 from .fragments import CreatedProjectFragment
 
 
 class CreateProject(GQLResult):
-    result: Optional[CreateProjectResult]
+    result: CreateProjectResult | None
 
 
 class CreateProjectResult(GQLResult):
-    project: Optional[CreatedProjectFragment]
-    model: Optional[CreatedProjectFragment]
-    inserted: Optional[bool]
+    project: CreatedProjectFragment | None
+    model: CreatedProjectFragment | None
+    inserted: bool | None
 
 
 CreateProject.model_rebuild()

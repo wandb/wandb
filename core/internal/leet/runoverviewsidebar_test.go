@@ -332,7 +332,7 @@ func TestSidebar_View_StaysWithinRequestedBounds(t *testing.T) {
 
 	const innerHeight = 24
 	view := stripANSI(s.View(innerHeight).Content)
-	require.Equal(t, innerHeight+1, lipgloss.Height(view))
+	require.Equal(t, innerHeight, lipgloss.Height(view))
 
 	for line := range strings.SplitSeq(view, "\n") {
 		require.LessOrEqual(t, lipgloss.Width(line), s.Width())

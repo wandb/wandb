@@ -28,16 +28,16 @@ import threading
 import time
 import types
 import urllib
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import asdict, is_dataclass
 from datetime import date, datetime, timedelta
 from gzip import GzipFile
 from importlib import import_module
 from sys import getsizeof
 from types import ModuleType
-from typing import IO, TYPE_CHECKING, Callable, TextIO, Union
+from typing import IO, TYPE_CHECKING, TextIO, TypeGuard
 
-from typing_extensions import Any, Generator, TypeGuard, TypeVar, deprecated
+from typing_extensions import Any, Generator, TypeVar, deprecated
 
 import wandb
 import wandb.env
@@ -48,7 +48,7 @@ from wandb.errors import (
     WandbCoreNotAvailableError,
 )
 from wandb.errors.term import terminput
-from wandb.sdk.lib import filesystem, runid
+from wandb.sdk.lib import runid
 from wandb.sdk.lib.json_util import dump, dumps
 from wandb.sdk.lib.paths import FilePathStr, StrPath
 
@@ -57,12 +57,12 @@ if TYPE_CHECKING:
 
     from wandb.sdk.artifacts.artifact import Artifact
 
-CheckRetryFnType = Callable[[Exception], Union[bool, timedelta]]
+CheckRetryFnType = Callable[[Exception], bool | timedelta]
 T = TypeVar("T")
 
 
 logger = logging.getLogger(__name__)
-_not_importable = set()
+_not_importable: set[str] = set()
 
 LAUNCH_JOB_ARTIFACT_SLOT_NAME = "_wandb_job"
 
@@ -123,12 +123,7 @@ def vendor_setup() -> Callable:
 
     parent_dir = os.path.abspath(os.path.dirname(__file__))
     vendor_dir = os.path.join(parent_dir, "vendor")
-    vendor_packages = (
-        "gql-0.2.0",
-        "graphql-core-1.1",
-        "watchdog_0_9_0",
-        "promise-2.3.0",
-    )
+    vendor_packages = ("watchdog_0_9_0",)
     package_dirs = [os.path.join(vendor_dir, p) for p in vendor_packages]
     for p in [vendor_dir] + package_dirs:
         if p not in sys.path:
@@ -1381,41 +1376,6 @@ def guess_data_type(shape: Sequence[int], risky: bool = False) -> str | None:
             # (samples, height, width, logits)
             return "segmentation_mask"
     return None
-
-
-def download_file_from_url(
-    dest_path: str, source_url: str, api_key: str | None = None
-) -> None:
-    import requests
-
-    auth = ("api", api_key or "")
-    response = requests.get(
-        source_url,
-        auth=auth,
-        stream=True,
-        timeout=5,
-    )
-    response.raise_for_status()
-
-    if os.sep in dest_path:
-        filesystem.mkdir_exists_ok(os.path.dirname(dest_path))
-    with fsync_open(dest_path, "wb") as file:
-        for data in response.iter_content(chunk_size=1024):
-            file.write(data)
-
-
-def download_file_into_memory(source_url: str, api_key: str | None = None) -> bytes:
-    import requests
-
-    auth = ("api", api_key or "")
-    response = requests.get(
-        source_url,
-        auth=auth,
-        stream=True,
-        timeout=5,
-    )
-    response.raise_for_status()
-    return response.content
 
 
 def isatty(ob: IO) -> bool:

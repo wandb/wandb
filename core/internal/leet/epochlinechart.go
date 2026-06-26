@@ -10,7 +10,6 @@ import (
 	"sync/atomic"
 
 	"charm.land/lipgloss/v2"
-	"charm.land/lipgloss/v2/compat"
 	"github.com/NimbleMarkets/ntcharts/v2/canvas"
 	"github.com/NimbleMarkets/ntcharts/v2/canvas/graph"
 	"github.com/NimbleMarkets/ntcharts/v2/canvas/runes"
@@ -81,7 +80,7 @@ type Series struct {
 	yMinPositive float64
 }
 
-func NewSeries(name string, palette []compat.AdaptiveColor) *Series {
+func NewSeries(name string, palette []AdaptiveColor) *Series {
 	md := MetricData{
 		X: make([]float64, 0, initDataSliceCap),
 		Y: make([]float64, 0, initDataSliceCap),
@@ -108,20 +107,24 @@ func NewSeries(name string, palette []compat.AdaptiveColor) *Series {
 }
 
 // updateBounds extends the series bounds with the given data batch.
+//
+// Non-finite samples (NaN/Inf, e.g. a diverged loss) are excluded so they
+// cannot poison the bounds; they still render as gaps in the series line.
 func (s *Series) updateBounds(xs, ys []float64) {
-	if len(xs) == 0 || len(ys) == 0 {
-		return
+	for _, x := range xs {
+		if !isFinite(x) {
+			continue
+		}
+		s.xMin = min(s.xMin, x)
+		s.xMax = max(s.xMax, x)
 	}
 
-	xMin, xMax := slices.Min(xs), slices.Max(xs)
-	yMin, yMax := slices.Min(ys), slices.Max(ys)
-
-	s.xMin = min(s.xMin, xMin)
-	s.xMax = max(s.xMax, xMax)
-	s.yMin = min(s.yMin, yMin)
-	s.yMax = max(s.yMax, yMax)
-
 	for _, y := range ys {
+		if !isFinite(y) {
+			continue
+		}
+		s.yMin = min(s.yMin, y)
+		s.yMax = max(s.yMax, y)
 		if y > 0 {
 			s.yMinPositive = min(s.yMinPositive, y)
 		}
@@ -137,12 +140,16 @@ func (s *Series) Bounds() (xMin, xMax, yMin, yMax float64) {
 func (s *Series) AddPoint(x, y float64) {
 	s.X = append(s.X, x)
 	s.Y = append(s.Y, y)
-	s.xMin = min(s.xMin, x)
-	s.xMax = max(s.xMax, x)
-	s.yMin = min(s.yMin, y)
-	s.yMax = max(s.yMax, y)
-	if y > 0 {
-		s.yMinPositive = min(s.yMinPositive, y)
+	if isFinite(x) {
+		s.xMin = min(s.xMin, x)
+		s.xMax = max(s.xMax, x)
+	}
+	if isFinite(y) {
+		s.yMin = min(s.yMin, y)
+		s.yMax = max(s.yMax, y)
+		if y > 0 {
+			s.yMinPositive = min(s.yMinPositive, y)
+		}
 	}
 }
 
@@ -168,7 +175,7 @@ type EpochLineChart struct {
 	order []string
 
 	// palette provides colors for new series added to this chart.
-	palette []compat.AdaptiveColor
+	palette []AdaptiveColor
 
 	// focused indicates whether this chart has input focus in the grid.
 	focused bool
@@ -331,7 +338,7 @@ func (c *EpochLineChart) maxXLabelWidth() int {
 
 // SetPalette updates the color palette for new series.
 // Existing series retain their current colors.
-func (c *EpochLineChart) SetPalette(colors []compat.AdaptiveColor) {
+func (c *EpochLineChart) SetPalette(colors []AdaptiveColor) {
 	if len(colors) == 0 {
 		colors = GraphColors(DefaultColorScheme)
 	}
@@ -430,6 +437,11 @@ func (c *EpochLineChart) computeYRange() (minY, maxY float64, ok bool) {
 		}
 		minY, maxY = c.calculateLogRange(minPositive, maxPositive)
 		return minY, maxY, true
+	}
+
+	// No finite samples yet (e.g. only NaN/Inf values logged so far).
+	if !isFinite(c.yMin) || !isFinite(c.yMax) {
+		return 0, 0, false
 	}
 
 	minY, maxY = c.calculateLinearRange()
@@ -561,7 +573,16 @@ func (c *EpochLineChart) HandleZoom(direction string, mouseX int) {
 // Draw renders all series using Braille patterns.
 func (c *EpochLineChart) Draw() {
 	c.Clear()
+
+	// Draw axes and X labels via ntcharts, but suppress its Y labels and
+	// draw our own. ntcharts v2.0.1 forces a label at graphHeight, which
+	// stacks on top of the previous tick when graphHeight is just above a
+	// multiple of yStep (e.g. "4.86" sitting on row y=6 and "4.05" on y=5).
+	origYFmter := c.YLabelFormatter
+	c.YLabelFormatter = func(int, float64) string { return "" }
 	c.DrawXYAxisAndLabel()
+	c.YLabelFormatter = origYFmter
+	c.drawYLabels()
 
 	if c.GraphWidth() <= 0 || c.GraphHeight() <= 0 {
 		c.dirty = false
@@ -579,6 +600,47 @@ func (c *EpochLineChart) Draw() {
 
 	c.drawInspectionOverlay(startX)
 	c.dirty = false
+}
+
+// drawYLabels draws Y-axis tick labels at positions i = 0, yStep, 2*yStep, ...
+// and optionally at graphHeight when there's enough gap above the previous
+// tick. Replaces ntcharts' drawYLabel, which in v2.0.1 unconditionally draws
+// a label at graphHeight and stacks it onto the previous tick when graphHeight
+// mod yStep is small.
+func (c *EpochLineChart) drawYLabels() {
+	yStep := c.YStep()
+	graphH := c.GraphHeight()
+	if yStep <= 0 || graphH <= 0 {
+		return
+	}
+	viewMinY, viewMaxY := c.ViewMinY(), c.ViewMaxY()
+	increment := (viewMaxY - viewMinY) / float64(graphH)
+	origin := c.Origin()
+
+	draw := func(i int, lastVal string) string {
+		v := viewMinY + increment*float64(i)
+		s := c.YLabelFormatter(i, v)
+		if s == "" || s == lastVal {
+			return lastVal
+		}
+		c.Canvas.SetStringWithStyle(
+			canvas.Point{X: origin.X - len(s), Y: origin.Y - i},
+			s, c.LabelStyle,
+		)
+		return s
+	}
+
+	var lastVal string
+	lastI := 0
+	for i := 0; i <= graphH; i += yStep {
+		lastVal = draw(i, lastVal)
+		lastI = i
+	}
+	// Add a top tick when the last stepped tick fell short of graphHeight
+	// and there's room for a non-adjacent label.
+	if lastI < graphH && graphH-lastI >= (yStep+1)/2 {
+		draw(graphH, lastVal)
+	}
 }
 
 // drawSeries renders a single series onto the canvas.

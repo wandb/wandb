@@ -66,10 +66,10 @@ type ModelParams struct {
 	// that contains run directories and the "latest-run" symlink.
 	WandbDir string
 
-	// RunFile, if non-empty, LEET launches directly into the single-run
-	// view for the specified .wandb file. When empty, LEET starts in
-	// Config.StartupMode.
-	RunFile string
+	// RunParams contains information about the run to load.
+	//
+	// When RunParams is nil, LEET starts in Config.StartupMode.
+	RunParams *RunParams
 
 	Config *ConfigManager
 	Logger *observability.CoreLogger
@@ -90,13 +90,13 @@ func NewModel(params ModelParams) *Model {
 		params.Config = NewConfigManager(leetConfigPath(), params.Logger)
 	}
 
-	if params.RunFile == "" && params.Config.StartupMode() == StartupModeSingleRunLatest {
+	if params.RunParams == nil && params.Config.StartupMode() == StartupModeSingleRunLatest {
 		latest, err := wandbFileFromLatestRunLink(params.WandbDir)
 		if err != nil {
 			params.Logger.Error(fmt.Sprintf("model: failed to find latest run: %v", err))
 		}
 		if latest != "" {
-			params.RunFile = latest
+			params.RunParams = &RunParams{RunFile: latest}
 		}
 	}
 
@@ -108,8 +108,8 @@ func NewModel(params ModelParams) *Model {
 		logger:    params.Logger,
 	}
 
-	if params.RunFile != "" {
-		m.run = NewRun(params.RunFile, params.Config, params.Logger)
+	if params.RunParams != nil {
+		m.run = NewRun(params.RunParams, params.Config, params.Logger)
 		m.mode = viewModeRun
 	}
 
@@ -118,14 +118,14 @@ func NewModel(params ModelParams) *Model {
 
 // Init returns the initial commands for the top-level model.
 //
-// The workspace is always initialized (directory polling, heartbeat listener)
-// regardless of the starting mode. If starting in single-run mode, the run's
-// reader and watcher commands are also started.
+// The workspace is initialized unless LEET starts in remote single-run mode.
+// If starting in single-run mode, the run's reader and watcher commands are
+// also started.
 func (m *Model) Init() tea.Cmd {
-	cmds := []tea.Cmd{}
+	cmds := []tea.Cmd{tea.RequestBackgroundColor}
 
 	// Workspace always exists; initialize its long‑running commands.
-	if m.workspace != nil {
+	if m.workspace != nil && !m.isRemoteRunMode() {
 		if cmd := m.workspace.Init(); cmd != nil {
 			cmds = append(cmds, cmd)
 		}
@@ -147,6 +147,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.help.SetSize(wsMsg.Width, wsMsg.Height)
 	}
 
+	if bgMsg, ok := msg.(tea.BackgroundColorMsg); ok {
+		SetDarkBackground(bgMsg.IsDark())
+	}
+
 	if handled, cmd := m.handleHelp(msg); handled {
 		return m, cmd
 	}
@@ -155,12 +159,22 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 	}
 
-	// Snapshot input state before sub-models see this key.
-	awaitingUserInput := m.isAwaitingUserInput()
+	// Snapshot before sub-models consume the key — a filter's Enter
+	// exits filter mode, so checking after would miss it.
+	awaitingInput := m.isAwaitingUserInput()
 
+	cmds := m.updateSubComponents(msg)
+
+	if cmd := m.handleModeSwitch(msg, awaitingInput); cmd != nil {
+		return m, cmd
+	}
+
+	return m, tea.Batch(cmds...)
+}
+
+// updateSubComponents forwards the message to the active sub-models.
+func (m *Model) updateSubComponents(msg tea.Msg) []tea.Cmd {
 	var cmds []tea.Cmd
-
-	// Handle sub-component updates.
 	switch m.mode {
 	case viewModeWorkspace:
 		if cmd := m.workspace.Update(msg); cmd != nil {
@@ -169,7 +183,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case viewModeRun:
 		// Keep the workspace's background tasks (watchers/heartbeats) alive
 		// while we're in the single-run view while omitting user input.
-		if !isUserInputMsg(msg) {
+		if !m.run.IsRemote() && !isUserInputMsg(msg) {
 			if cmd := m.workspace.Update(msg); cmd != nil {
 				cmds = append(cmds, cmd)
 			}
@@ -178,26 +192,35 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			cmds = append(cmds, cmd)
 		}
 	}
+	return cmds
+}
 
-	// Handle mode switching.
-	if keyMsg, ok := msg.(tea.KeyPressMsg); ok {
-		switch m.mode {
-		case viewModeWorkspace:
-			if keyMsg.Code == tea.KeyEnter &&
-				!awaitingUserInput &&
-				m.workspace.RunSelectorActive() {
-				cmd := m.enterRunView()
-				return m, cmd
-			}
-		case viewModeRun:
-			if keyMsg.Code == tea.KeyEsc && !awaitingUserInput {
-				cmd := m.exitRunView()
-				return m, cmd
-			}
-		}
+// handleModeSwitch checks for Enter/Esc and transitions between views.
+//
+// awaitingInput must be snapshotted before sub-components process the
+// message, because an Enter in filter mode exits the filter and would
+// otherwise fall through to a view switch.
+func (m *Model) handleModeSwitch(msg tea.Msg, awaitingInput bool) tea.Cmd {
+	keyMsg, ok := msg.(tea.KeyPressMsg)
+	if !ok {
+		return nil
 	}
 
-	return m, tea.Batch(cmds...)
+	switch m.mode {
+	case viewModeWorkspace:
+		if keyMsg.Code == tea.KeyEnter &&
+			!awaitingInput &&
+			m.workspace.RunSelectorActive() {
+			return m.enterRunView()
+		}
+	case viewModeRun:
+		runCapturesEsc := m.run != nil && m.run.MediaFullscreen()
+		if keyMsg.Code == tea.KeyEsc &&
+			!awaitingInput && !runCapturesEsc {
+			return m.exitRunView()
+		}
+	}
+	return nil
 }
 
 // View renders the UI based on the data in the model.
@@ -229,6 +252,10 @@ func (m *Model) View() tea.View {
 // ShouldRestart reports whether the application should perform a full restart.
 func (m *Model) ShouldRestart() bool {
 	return m.shouldRestart
+}
+
+func (m *Model) isRemoteRunMode() bool {
+	return m.mode == viewModeRun && m.run != nil && m.run.IsRemote()
 }
 
 // --------------------------------------------------------------------
@@ -338,8 +365,18 @@ func (m *Model) enterRunView() tea.Cmd {
 		return nil
 	}
 
-	m.run = NewRun(wandbFile, m.config, m.logger)
+	m.run = NewRun(&RunParams{RunFile: wandbFile}, m.config, m.logger)
 	m.mode = viewModeRun
+
+	// Share the workspace's media store so data persists across transitions.
+	runKey := m.workspace.SelectedRunKey()
+	if store := m.workspace.MediaStoreForRun(runKey); store != nil {
+		m.run.SetMediaStore(store)
+	}
+	// Restore saved media pane view state (scroll position, selection).
+	if state := m.workspace.LoadMediaPaneState(runKey); state != nil {
+		m.run.mediaPane.RestoreViewState(*state)
+	}
 
 	// Initialize with current dimensions and start loading.
 	return tea.Batch(
@@ -352,8 +389,19 @@ func (m *Model) enterRunView() tea.Cmd {
 
 // exitRunView returns to the workspace view.
 func (m *Model) exitRunView() tea.Cmd {
-	// TODO: add caching?
+	// Do not exit to workspace view for remote projects.
+	if m.run != nil && m.run.IsRemote() {
+		return nil
+	}
+
 	if m.run != nil {
+		// Save media pane view state for later restoration.
+		runKey := m.workspace.SelectedRunKey()
+		if runKey != "" {
+			m.workspace.SaveMediaPaneState(runKey, m.run.mediaPane.SaveViewState())
+			// Force the workspace pane to re-sync from the saved per-run state on return.
+			m.workspace.currentMediaRunKey = ""
+		}
 		m.run.Cleanup()
 		m.run = nil
 	}

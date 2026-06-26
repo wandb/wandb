@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-import os
-from collections.abc import Generator, Iterator
+import contextlib
+from collections.abc import Callable, Generator
 from dataclasses import dataclass
-from typing import Callable
 
 import pytest
+import wandb
 
 from tests.fixtures.wandb_backend_spy import (
     WandbBackendProxy,
@@ -27,15 +27,6 @@ def local_wandb_backend() -> LocalWandbBackendAddress:
     This does not patch WANDB_BASE_URL! Use `use_local_wandb_backend` instead.
     """
     return connect_to_local_wandb_backend(name="wandb-local-testcontainer")
-
-
-@pytest.fixture(scope="session")
-def local_wandb_backend_importers() -> LocalWandbBackendAddress:
-    """Fixture that starts up or connects to a second local-testcontainer.
-
-    This is used by importer tests, to move data between two backends.
-    """
-    return connect_to_local_wandb_backend(name="wandb-local-testcontainer-importers")
 
 
 @pytest.fixture(scope="session")
@@ -64,16 +55,6 @@ def backend_fixture_factory(
         yield factory
 
 
-@pytest.fixture(scope="session")
-def backend_importers_fixture_factory(
-    worker_id: str,
-    local_wandb_backend_importers: LocalWandbBackendAddress,
-) -> Generator[BackendFixtureFactory, None, None]:
-    base_url = local_wandb_backend_importers.fixture_service_url
-    with BackendFixtureFactory(base_url, worker_id=worker_id) as factory:
-        yield factory
-
-
 # --------------------------------
 # Fixtures for full test point
 # --------------------------------
@@ -94,15 +75,90 @@ def wandb_verbose(request):
 
 
 @pytest.fixture
-def user(mocker, backend_fixture_factory) -> Iterator[str]:
+def user(
+    request: pytest.FixtureRequest,
+    backend_fixture_factory: BackendFixtureFactory,
+) -> Generator[str]:
+    """A user created for the duration of a test.
+
+    This cannot be used together with module_user. If module_user is also
+    requested by the test or one of its fixtures, this raises an error.
+
+    Sets login-related environment variables.
+    """
+    if "module_user" in request.fixturenames:
+        message = "Cannot use `user` and `module_user` fixtures together."
+        raise AssertionError(message)
+
+    with _user(backend_fixture_factory) as user:
+        yield user
+
+
+@pytest.fixture(scope="module")
+def module_user(
+    request: pytest.FixtureRequest,
+    backend_fixture_factory: BackendFixtureFactory,
+) -> Generator[str]:
+    """A new user shared by all tests in a module.
+
+    Just like `user`, but is shared by multiple tests.
+
+    This is used in some test files with many tests where mutating the same
+    test user's data does not affect correctness, and creating a user for
+    each test is slow.
+    """
+    if "user" in request.fixturenames:
+        message = "Cannot use `user` and `module_user` fixtures together."
+        raise AssertionError(message)
+
+    with _user(backend_fixture_factory) as user:
+        yield user
+
+
+@contextlib.contextmanager
+def _user(backend_fixture_factory: BackendFixtureFactory) -> Generator[str]:
     username = backend_fixture_factory.make_user()
-    envvars = {
-        "WANDB_API_KEY": username,
-        "WANDB_ENTITY": username,
-        "WANDB_USERNAME": username,
-    }
-    mocker.patch.dict(os.environ, envvars)
-    yield username
+
+    with pytest.MonkeyPatch.context() as monkeypatch:
+        monkeypatch.setenv("WANDB_API_KEY", username)
+        monkeypatch.setenv("WANDB_ENTITY", username)
+        monkeypatch.setenv("WANDB_USERNAME", username)
+
+        yield username
+
+
+@pytest.fixture
+@pytest.mark.usefixtures("skip_verify_login")
+def api(user: str) -> wandb.Api:
+    """A wandb.Api that can be used for the duration of a test."""
+    return wandb.Api(api_key=user)
+
+
+@pytest.fixture
+def module_api(make_module_api: Callable[[], wandb.Api]) -> wandb.Api:
+    """A wandb.Api using the `module_user` fixture.
+
+    Despite the name, this is function-scoped and exists only to force tests
+    to be explicit when they rely on `module_user`.
+
+    Module-scoped fixtures should use `make_module_api` directly.
+    """
+    return make_module_api()
+
+
+@pytest.fixture(scope="module")
+@pytest.mark.usefixtures("skip_verify_login")
+def make_module_api(module_user: str) -> Callable[[], wandb.Api]:
+    """A callback that creates a wandb.Api using the `module_user` fixture.
+
+    The returned object becomes invalid after `wandb.teardown()`, which is
+    called between tests.
+    """
+
+    def callback() -> wandb.Api:
+        return wandb.Api(api_key=module_user)
+
+    return callback
 
 
 @dataclass
@@ -115,7 +171,7 @@ class UserOrg:
 def user_in_orgs_factory(
     backend_fixture_factory: BackendFixtureFactory,
     user: str,
-) -> Iterator[Callable[[int], UserOrg]]:
+) -> Generator[Callable[[int], UserOrg]]:
     """Fixture that provides a factory function to create a user and associated orgs.
 
     Usage in a test:

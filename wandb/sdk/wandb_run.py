@@ -13,14 +13,14 @@ import sys
 import threading
 import time
 import traceback
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from enum import IntEnum
 from types import TracebackType
-from typing import TYPE_CHECKING, Callable, TextIO, TypeVar
+from typing import TYPE_CHECKING, Concatenate, Literal, TextIO, TypeVar
 
-from typing_extensions import Any, Concatenate, Literal, NamedTuple, ParamSpec
+from typing_extensions import Any, NamedTuple, ParamSpec
 
 import wandb
 import wandb.env
@@ -38,7 +38,13 @@ from wandb.proto.wandb_internal_pb2 import (
     RunRecord,
 )
 from wandb.proto.wandb_telemetry_pb2 import Deprecated
-from wandb.sdk.lib import wb_logging
+from wandb.sdk.lib import (
+    asyncio_manager,
+    logger_capture,
+    run_messages,
+    run_stopping,
+    wb_logging,
+)
 from wandb.sdk.lib.filesystem import (
     FilesDict,
     GlobStr,
@@ -99,12 +105,10 @@ if TYPE_CHECKING:
     from wandb.apis.public import Api as PublicApi
     from wandb.proto.wandb_internal_pb2 import (
         GetSummaryResponse,
-        InternalMessagesResponse,
         SampledHistoryResponse,
     )
 
     from .artifacts.artifact import Artifact
-    from .backend.backend import Backend
     from .interface.interface_queue import InterfaceQueue
     from .wandb_settings import Settings
 
@@ -156,38 +160,25 @@ class RunStatusChecker:
     - check the run sync status.
     """
 
-    _stop_status_lock: threading.Lock
-    _stop_status_handle: MailboxHandle[Result] | None
     _network_status_lock: threading.Lock
     _network_status_handle: MailboxHandle[Result] | None
-    _internal_messages_lock: threading.Lock
-    _internal_messages_handle: MailboxHandle[Result] | None
 
     def __init__(
         self,
         run_id: str,
+        asyncer: asyncio_manager.AsyncioManager,
         interface: InterfaceBase,
         settings: Settings,
-        stop_polling_interval: int = 15,
         retry_polling_interval: int = 5,
         internal_messages_polling_interval: int = 10,
     ) -> None:
         self._run_id = run_id
         self._interface = interface
-        self._stop_polling_interval = stop_polling_interval
         self._retry_polling_interval = retry_polling_interval
         self._internal_messages_polling_interval = internal_messages_polling_interval
         self._settings = settings
 
         self._join_event = threading.Event()
-
-        self._stop_status_lock = threading.Lock()
-        self._stop_status_handle = None
-        self._stop_thread = threading.Thread(
-            target=self.check_stop_status,
-            name="ChkStopThr",
-            daemon=True,
-        )
 
         self._network_status_lock = threading.Lock()
         self._network_status_handle = None
@@ -197,18 +188,17 @@ class RunStatusChecker:
             daemon=True,
         )
 
-        self._internal_messages_lock = threading.Lock()
-        self._internal_messages_handle = None
-        self._internal_messages_thread = threading.Thread(
-            target=self.check_internal_messages,
-            name="IntMsgThr",
-            daemon=True,
+        self._stop_checker = run_stopping.RunStopChecker(
+            asyncer,
+            interface,
+            settings.stop_fn or interrupt.interrupt_main,
         )
+        self._internal_messages = run_messages.RunMessages(asyncer, interface)
 
     def start(self) -> None:
-        self._stop_thread.start()
+        self._stop_checker.start()
         self._network_status_thread.start()
-        self._internal_messages_thread.start()
+        self._internal_messages.start()
 
     @staticmethod
     def _abandon_status_check(
@@ -292,79 +282,19 @@ class RunStatusChecker:
                     self._network_status_handle,
                 )
 
-    def check_stop_status(self) -> None:
-        def _process_stop_status(result: Result) -> None:
-            from wandb.agents import pyagent
-
-            stop_status = result.response.stop_status_response
-            if stop_status.run_should_stop and not pyagent.is_running():  # type: ignore
-                # TODO(frz): This check is required
-                # until WB-3606 is resolved on server side.
-                interrupt.interrupt_main()
-                return
-
-        with wb_logging.log_to_run(self._run_id):
-            try:
-                self._loop_check_status(
-                    lock=self._stop_status_lock,
-                    set_handle=lambda x: setattr(self, "_stop_status_handle", x),
-                    timeout=self._stop_polling_interval,
-                    request=self._interface.deliver_stop_status,
-                    process=_process_stop_status,
-                )
-            except BrokenPipeError:
-                self._abandon_status_check(
-                    self._stop_status_lock,
-                    self._stop_status_handle,
-                )
-
-    def check_internal_messages(self) -> None:
-        def _process_internal_messages(result: Result) -> None:
-            if (
-                not self._settings.show_warnings
-                or self._settings.quiet
-                or self._settings.silent
-            ):
-                return
-            internal_messages = result.response.internal_messages_response
-            for msg in internal_messages.messages.warning:
-                wandb.termwarn(msg, repeat=False)
-
-        with wb_logging.log_to_run(self._run_id):
-            try:
-                self._loop_check_status(
-                    lock=self._internal_messages_lock,
-                    set_handle=lambda x: setattr(self, "_internal_messages_handle", x),
-                    timeout=self._internal_messages_polling_interval,
-                    request=self._interface.deliver_internal_messages,
-                    process=_process_internal_messages,
-                )
-            except BrokenPipeError:
-                self._abandon_status_check(
-                    self._internal_messages_lock,
-                    self._internal_messages_handle,
-                )
-
     def stop(self) -> None:
         self._join_event.set()
-        self._abandon_status_check(
-            self._stop_status_lock,
-            self._stop_status_handle,
-        )
         self._abandon_status_check(
             self._network_status_lock,
             self._network_status_handle,
         )
-        self._abandon_status_check(
-            self._internal_messages_lock,
-            self._internal_messages_handle,
-        )
 
     def join(self) -> None:
         self.stop()
-        self._stop_thread.join()
+
+        self._stop_checker.stop_soon()
         self._network_status_thread.join()
-        self._internal_messages_thread.join()
+        self._internal_messages.stop(timeout=5)  # TODO: use finish timeout
 
 
 _P = ParamSpec("_P")
@@ -525,7 +455,7 @@ class Run:
 
     _teardown_hooks: list[TeardownHook]
 
-    _backend: Backend | None
+    _interface: InterfaceBase | None
     _internal_run_interface: InterfaceQueue | None
     _wl: _WandbSetup | None
 
@@ -545,7 +475,6 @@ class Run:
     _final_summary: GetSummaryResponse | None
     _poll_exit_handle: MailboxHandle[Result] | None
     _poll_exit_response: PollExitResponse | None
-    _internal_messages_response: InternalMessagesResponse | None
 
     _stdout_slave_fd: int | None
     _stderr_slave_fd: int | None
@@ -613,7 +542,14 @@ class Run:
         )
         self.summary._set_update_callback(self._summary_update_callback)
 
-        self._step = 0
+        # A step-like value derived from counting `log()` calls that is used for
+        # namespacing filenames when logging media (for example, an image logged
+        # at step 5 will include "5" in its filename).
+        #
+        # It is incorrect in shared mode or for "attached" runs (run objects
+        # shared through multiprocessing).
+        self._local_step = 0
+
         self._starting_step = 0
         self._start_runtime = 0
         # TODO: eventually would be nice to make this configurable using self._settings._start_time
@@ -625,7 +561,7 @@ class Run:
 
         self._torch_history: wandb_torch.TorchHistory | None = None  # type: ignore
 
-        self._backend = None
+        self._interface = None
         self._internal_run_interface = None
         self._wl = None
         # Avoid calling wandb.Api() repeatedly in _public_api()
@@ -650,8 +586,8 @@ class Run:
         self._sampled_history = None
         self._final_summary = None
         self._poll_exit_response = None
-        self._internal_messages_response = None
         self._poll_exit_handle = None
+        self._finish_timed_out = False
 
         # Initialize telemetry object
         self._telemetry_obj = telemetry.TelemetryRecord()
@@ -757,11 +693,11 @@ class Run:
             return
         if not self._telemetry_obj_dirty:
             return
-        if self._backend and self._backend.interface:
+        if self._interface:
             serialized = self._telemetry_obj.SerializeToString()
             if serialized == self._telemetry_obj_flushed:
                 return
-            self._backend.interface._publish_telemetry(self._telemetry_obj)
+            self._interface._publish_telemetry(self._telemetry_obj)
             self._telemetry_obj_flushed = serialized
             self._telemetry_obj_dirty = False
 
@@ -858,8 +794,8 @@ class Run:
         with telemetry.context(run=self) as tel:
             tel.feature.set_run_name = True
         self._settings.run_name = name
-        if self._backend and self._backend.interface:
-            self._backend.interface.publish_run(self)
+        if self._interface:
+            self._interface.publish_run(self)
 
     @property
     @_log_to_run
@@ -877,8 +813,8 @@ class Run:
     @_raise_if_finished
     def notes(self, notes: str) -> None:
         self._settings.run_notes = notes
-        if self._backend and self._backend.interface:
-            self._backend.interface.publish_run(self)
+        if self._interface:
+            self._interface.publish_run(self)
 
     @property
     @_log_to_run
@@ -906,8 +842,8 @@ class Run:
             wandb.termwarn(f"Invalid tag detected: {error_msg} Tags not updated.")
             return
 
-        if self._backend and self._backend.interface:
-            self._backend.interface.publish_run(self)
+        if self._interface:
+            self._interface.publish_run(self)
 
     @property
     @_log_to_run
@@ -974,13 +910,20 @@ class Run:
     @_log_to_run
     @_attach
     def step(self) -> int:
-        """Current value of the step.
+        """The W&B step of the next `log()` call.
 
-        This counter is incremented by `wandb.Run.log()`.
-
-        <!-- lazydoc-ignore: internal -->
+        Raises an error in mode="shared" runs.
         """
-        return self._step
+        assert self._interface
+        handle = self._interface.deliver_history_step()
+
+        # The timeout can only happen under heavy load (or a bug), and generally
+        # this operation is expected to be very fast.
+        #
+        # Since step is a property, we can't accept a customizable timeout.
+        response = handle.wait_or(timeout=30)
+
+        return response.step
 
     @property
     @_log_to_run
@@ -1401,15 +1344,14 @@ class Run:
         data: dict[str, object] | None = None,
     ) -> None:
         logger.info(f"config_cb {key} {val} {data}")
-        if self._backend and self._backend.interface:
-            self._backend.interface.publish_config(key=key, val=val, data=data)
+        if self._interface:
+            self._interface.publish_config(key=key, val=val, data=data)
 
     @_log_to_run
     def _config_artifact_callback(
         self, key: str, val: str | Artifact | dict
     ) -> Artifact:
         from wandb.apis import public
-        from wandb.sdk.artifacts.artifact import Artifact
 
         # artifacts can look like dicts as they are passed into the run config
         # since the run config stores them on the backend as a dict with fields shown
@@ -1417,7 +1359,7 @@ class Run:
         if _is_artifact_version_weave_dict(val):
             assert isinstance(val, dict)
             public_api = self._public_api()
-            artifact = Artifact._from_id(val["id"], public_api.client)
+            artifact = public_api._artifact_from_id(val["id"])
 
             assert artifact
             return self.use_artifact(artifact)
@@ -1432,7 +1374,7 @@ class Run:
             else:
                 public_api = self._public_api()
             if is_id:
-                artifact = Artifact._from_id(artifact_string, public_api._client)
+                artifact = public_api._artifact_from_id(artifact_string)
             else:
                 artifact = public_api._artifact(name=artifact_string)
             # in the future we'll need to support using artifacts from
@@ -1452,11 +1394,29 @@ class Run:
 
     @_log_to_run
     @_raise_if_finished
+    @_attach
+    def pin_config_keys(self, keys: Sequence[str] = ()) -> None:
+        """Pin config keys to display in the References section on Run Overview.
+
+        Pinned keys appear prominently above Notes on the Run Overview page.
+        String values are rendered as markdown; non-strings are rendered as
+        plain text. Calling this again replaces the previously pinned list.
+
+        Args:
+            keys: Config key names to pin, matching keys set via
+                ``run.config``. These are exact key strings (dots and
+                slashes are treated literally, not as path separators).
+                Order is preserved and determines display order.
+        """
+        self._set_config_wandb("pinned_keys", list(keys))
+
+    @_log_to_run
+    @_raise_if_finished
     def _summary_update_callback(self, summary_record: SummaryRecord) -> None:
         with telemetry.context(run=self) as tel:
             tel.feature.set_summary = True
-        if self._backend and self._backend.interface:
-            self._backend.interface.publish_summary(self, summary_record)
+        if self._interface:
+            self._interface.publish_summary(self, summary_record)
 
     @_log_to_run
     def _summary_get_current_summary_callback(self) -> dict[str, Any]:
@@ -1464,9 +1424,9 @@ class Run:
             # TODO: WB-18420: fetch summary from backend and stage it before run is finished
             wandb.termwarn("Summary data not available in finished run")
             return {}
-        if not self._backend or not self._backend.interface:
+        if not self._interface:
             return {}
-        handle = self._backend.interface.deliver_get_summary()
+        handle = self._interface.deliver_get_summary()
 
         try:
             result = handle.wait_or(timeout=self._settings.summary_timeout)
@@ -1478,8 +1438,8 @@ class Run:
 
     @_log_to_run
     def _metric_callback(self, metric_record: MetricRecord) -> None:
-        if self._backend and self._backend.interface:
-            self._backend.interface._publish_metric(metric_record)
+        if self._interface:
+            self._interface._publish_metric(metric_record)
 
     @_log_to_run
     def _publish_file(self, fname: str) -> None:
@@ -1492,10 +1452,10 @@ class Run:
             fname: The path to the file in the run's files directory, relative
                 to the run's files directory.
         """
-        if not self._backend or not self._backend.interface:
+        if not self._interface:
             return
         files: FilesDict = dict(files=[(GlobStr(fname), "now")])
-        self._backend.interface.publish_files(files)
+        self._interface.publish_files(files)
 
     def _pop_all_charts(
         self,
@@ -1568,7 +1528,7 @@ class Run:
         step: int | None = None,
         commit: bool | None = None,
     ) -> None:
-        if not (self._backend and self._backend.interface):
+        if not self._interface:
             return
 
         data = data.copy()  # avoid modifying the original data
@@ -1577,10 +1537,10 @@ class Run:
         data = self._serialize_custom_charts(data)
 
         not_using_tensorboard = len(wandb.patched["tensorboard"]) == 0
-        self._backend.interface.publish_partial_history(
+        self._interface.publish_partial_history(
             self,
             data,
-            user_step=self._step,
+            user_step=self._local_step,
             step=step,
             flush=commit,
             publish_step=not_using_tensorboard,
@@ -1588,9 +1548,9 @@ class Run:
 
     @_log_to_run
     def _console_callback(self, name: str, data: str) -> None:
-        if self._backend and self._backend.interface:
+        if self._interface:
             # nowait=True so that this can be called from an asyncio context.
-            self._backend.interface.publish_output(name, data, nowait=True)
+            self._interface.publish_output(name, data, nowait=True)
 
     @_log_to_run
     @_raise_if_finished
@@ -1603,23 +1563,23 @@ class Run:
         if console_pid != os.getpid():
             return
 
-        if self._backend and self._backend.interface:
+        if self._interface:
             # nowait=True so that this can be called from an asyncio context.
-            self._backend.interface.publish_output_raw(name, data, nowait=True)
+            self._interface.publish_output_raw(name, data, nowait=True)
 
     @_log_to_run
     def _tensorboard_callback(
         self, logdir: str, save: bool = True, root_logdir: str = ""
     ) -> None:
         logger.info("tensorboard callback: %s, %s", logdir, save)
-        if self._backend and self._backend.interface:
-            self._backend.interface.publish_tbdata(logdir, save, root_logdir)
+        if self._interface:
+            self._interface.publish_tbdata(logdir, save, root_logdir)
 
     def _set_library(self, library: _WandbSetup) -> None:
         self._wl = library
 
-    def _set_backend(self, backend: Backend) -> None:
-        self._backend = backend
+    def _set_backend(self, backend: InterfaceBase) -> None:
+        self._interface = backend
 
     def _set_internal_run_interface(self, interface: InterfaceQueue) -> None:
         self._internal_run_interface = interface
@@ -1630,7 +1590,7 @@ class Run:
     def _set_run_obj(self, run_obj: RunRecord) -> None:  # noqa: C901
         if run_obj.starting_step:
             self._starting_step = run_obj.starting_step
-            self._step = run_obj.starting_step
+            self._local_step = run_obj.starting_step
 
         if run_obj.start_time:
             self._start_time = run_obj.start_time.ToMicroseconds() / 1e6
@@ -1766,11 +1726,11 @@ class Run:
                     "to log your step values.",
                     repeat=False,
                 )
-            if step > self._step:
-                self._step = step
+            if step > self._local_step:
+                self._local_step = step
 
         if (step is None and commit is None) or commit:
-            self._step += 1
+            self._local_step += 1
 
     @_log_to_run
     @_raise_if_finished
@@ -2038,6 +1998,33 @@ class Run:
         self._log(data=data, step=step, commit=commit)
 
     @_log_to_run
+    @_attach
+    def write_logs(self, text: str) -> None:
+        """Write text to the run's Logs tab.
+
+        Use `write_logs` to directly write text to the Logs tab instead of
+        relying on automatic stdout/stderr capture. Calls after the run has
+        finished are silently ignored.
+
+        Consider using the `capture_loggers` setting which integrates with
+        Python's `logging` module.
+
+        Args:
+            text: The text to write. A trailing newline is added if not present.
+        """
+        if self._is_finished or not self._interface:
+            return
+
+        if not text.endswith("\n"):
+            text += "\n"
+
+        # nowait=True is needed because we may be in the asyncio thread.
+        #
+        # write_logs() is called by LoggerHandler, which could be attached
+        # to the root logger, which may get logs in an asyncio context.
+        self._interface.publish_output_logger(text, nowait=True)
+
+    @_log_to_run
     @_raise_if_finished
     @_attach
     def save(
@@ -2221,8 +2208,8 @@ class Run:
         stats.emit_warnings()
 
         files_dict: FilesDict = {"files": publish_entries}
-        if self._backend and self._backend.interface:
-            self._backend.interface.publish_files(files_dict)
+        if self._interface:
+            self._interface.publish_files(files_dict)
 
         abs_targets = {files_root / pathlib.Path(g) for (g, _pol) in publish_entries}
         return [str(p) for p in sorted(abs_targets)]
@@ -2276,13 +2263,20 @@ class Run:
                 ),
                 run=self,
             )
-        return self._finish(exit_code)
+
+        self._finish(exit_code)
 
     @_log_to_run
     def _finish(
         self,
         exit_code: int | None = None,
     ) -> None:
+        """Finish the run and clean up all its resources.
+
+        Raises:
+            TimeoutError: If a finish timeout was set and the run timed out
+                before uploading fully.
+        """
         if self._is_finished:
             return
 
@@ -2325,6 +2319,12 @@ class Run:
                 module.unset_globals()
             get_sentry().end_session()
 
+        if self._finish_timed_out and self.settings.finish_timeout_raises:
+            # NOTE: A timeout is theoretically possible in offline mode, so
+            # it's best not to assume what it implies (like "didn't finish
+            # uploading data").
+            raise TimeoutError("Timed out finishing run.")
+
     @_log_to_run
     @_raise_if_finished
     @_attach
@@ -2332,10 +2332,10 @@ class Run:
         self,
     ) -> RunStatus:
         """Get sync info from the internal backend, about the current run's sync status."""
-        if not self._backend or not self._backend.interface:
+        if not self._interface:
             return RunStatus()
 
-        handle_run_status = self._backend.interface.deliver_request_run_status()
+        handle_run_status = self._interface.deliver_request_run_status()
         result = handle_run_status.wait_or(timeout=None)
         sync_data = result.response.run_status_response
 
@@ -2478,7 +2478,7 @@ class Run:
         logger.info("restore done")
 
     def _atexit_cleanup(self, exit_code: int | None = None) -> None:
-        if self._backend is None:
+        if self._interface is None:
             logger.warning("process exited without backend configured")
             return
         if self._atexit_cleanup_called:
@@ -2515,7 +2515,6 @@ class Run:
             sampled_history=self._sampled_history,
             final_summary=self._final_summary,
             poll_exit_response=self._poll_exit_response,
-            internal_messages_response=self._internal_messages_response,
             settings=self._settings,
             printer=self._printer,
         )
@@ -2532,34 +2531,58 @@ class Run:
             self._output_writer.close()
             self._output_writer = None
 
+    def _begin_capturing_loggers(self) -> None:
+        """Begin capturing logger output if configured."""
+        capture_loggers = self._settings.capture_loggers
+        if not capture_loggers:
+            return
+
+        for name, level in capture_loggers.items():
+            handler = logger_capture.LoggerHandler(self, level)
+            logger = logging.getLogger(name)
+            logger.addHandler(handler)
+
+            def unregister(
+                logger: logging.Logger = logger,
+                handler: logging.Handler = handler,
+            ) -> None:
+                logger.removeHandler(handler)
+
+            self._teardown_hooks.append(
+                TeardownHook(
+                    call=unregister,
+                    stage=TeardownStage.EARLY,
+                )
+            )
+
     def _on_start(self) -> None:
+        assert self._wl
+
         self._header()
 
         if self._settings.save_code and self._settings.code_dir is not None:
             self.log_code(self._settings.code_dir)
 
-        if (
-            self._settings.x_save_requirements
-            and self._backend
-            and self._backend.interface
-        ):
+        if self._settings.x_save_requirements and self._interface:
             from wandb.util import working_set
 
             logger.debug(
                 "Saving list of pip packages installed into the current environment"
             )
-            self._backend.interface.publish_python_packages(working_set())
+            self._interface.publish_python_packages(working_set())
 
-        if self._backend and self._backend.interface and not self._settings._offline:
+        if self._interface and not self._settings._offline:
             assert self._settings.run_id
             self._run_status_checker = RunStatusChecker(
                 self._settings.run_id,
-                interface=self._backend.interface,
+                asyncer=self._wl.asyncer,
+                interface=self._interface,
                 settings=self._settings,
             )
             self._run_status_checker.start()
 
         self._console_start()
+        self._begin_capturing_loggers()
         self._on_ready()
 
     def _on_attach(self) -> None:
@@ -2703,6 +2726,19 @@ class Run:
             return artifact
 
     def _on_finish(self) -> None:
+        """Shut down the run.
+
+        This sends and waits for an exit record to mark the run complete.
+        It also shuts down the run status checker, fetches some final
+        info like the run summary and any messages (storing the results
+        as attributes), and unregisters telemetry import hooks.
+
+        Sets `_finish_timed_out` if a finish timeout was set and the run
+        timed out before uploading completely.
+
+        TODO: Refactor this method, it does too much and not enough (some
+        shutdown steps happen outside it).
+        """
         trigger.call("on_finished")
 
         if self._run_status_checker is not None:
@@ -2710,42 +2746,35 @@ class Run:
 
         self._console_stop()  # TODO: there's a race here with jupyter console logging
 
-        assert self._backend and self._backend.interface
+        assert self._interface
 
-        if self._settings.x_update_finish_state:
-            exit_handle = self._backend.interface.deliver_exit(self._exit_code)
-        else:
-            exit_handle = self._backend.interface.deliver_finish_without_exit()
+        exit_handle = self._interface.deliver_exit(self._exit_code)
 
         with progress.progress_printer(
             self._printer,
             default_text="Finishing up...",
         ) as progress_printer:
             # Wait for the run to complete.
-            wait_with_progress(
+            result = wait_with_progress(
                 exit_handle,
                 timeout=None,
                 display_progress=functools.partial(
                     progress.loop_printing_operation_stats,
                     progress_printer,
-                    self._backend.interface,
+                    self._interface,
                 ),
             )
 
-        poll_exit_handle = self._backend.interface.deliver_poll_exit()
+        self._finish_timed_out = result.exit_result.timed_out
+
+        poll_exit_handle = self._interface.deliver_poll_exit()
         result = poll_exit_handle.wait_or(timeout=None)
         self._poll_exit_response = result.response.poll_exit_response
 
-        internal_messages_handle = self._backend.interface.deliver_internal_messages()
-        result = internal_messages_handle.wait_or(timeout=None)
-        self._internal_messages_response = result.response.internal_messages_response
-
         # dispatch all our final requests
 
-        final_summary_handle = self._backend.interface.deliver_get_summary()
-        sampled_history_handle = (
-            self._backend.interface.deliver_request_sampled_history()
-        )
+        final_summary_handle = self._interface.deliver_get_summary()
+        sampled_history_handle = self._interface.deliver_request_sampled_history()
 
         result = sampled_history_handle.wait_or(timeout=None)
         self._sampled_history = result.response.sampled_history_response
@@ -2753,8 +2782,8 @@ class Run:
         result = final_summary_handle.wait_or(timeout=None)
         self._final_summary = result.response.get_summary_response
 
-        if self._backend:
-            self._backend.cleanup()
+        if self._interface:
+            self._interface.join()
 
         if self._run_status_checker:
             self._run_status_checker.join()
@@ -3129,8 +3158,8 @@ class Run:
                     'You must pass an artifact name (e.g. "pedestrian-dataset:v1"), '
                     "an instance of `wandb.Artifact`, or `wandb.Api().artifact()` to `use_artifact`"
                 )
-        if self._backend and self._backend.interface:
-            self._backend.interface.publish_use_artifact(artifact)
+        if self._interface:
+            self._interface.publish_use_artifact(artifact)
         return artifact
 
     @_log_to_run
@@ -3314,21 +3343,21 @@ class Run:
 
         artifact.distributed_id = distributed_id
         self._assert_can_log_artifact(artifact)
-        if self._backend and self._backend.interface:
+        if self._interface:
             if not self._settings._offline:
-                handle = self._backend.interface.deliver_artifact(
+                handle = self._interface.deliver_artifact(
                     self,
                     artifact,
                     aliases,
                     tags,
-                    self.step,
+                    self.step if not self._settings._shared else 0,
                     finalize=finalize,
                     is_user_created=is_user_created,
                     use_after_commit=use_after_commit,
                 )
-                artifact._set_save_handle(handle, self._public_api().client)
+                self._public_api()._set_artifact_save_handle(artifact, handle)
             else:
-                self._backend.interface.publish_artifact(
+                self._interface.publish_artifact(
                     self,
                     artifact,
                     aliases,
@@ -3367,9 +3396,7 @@ class Run:
 
     # TODO(jhr): annotate this
     def _assert_can_log_artifact(self, artifact) -> None:  # type: ignore
-        import requests
-
-        from wandb.sdk.artifacts.artifact import Artifact
+        from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 
         if self._settings._offline:
             return
@@ -3377,11 +3404,13 @@ class Run:
             public_api = self._public_api()
             entity = public_api.settings["entity"]
             project = public_api.settings["project"]
-            expected_type = Artifact._expected_type(
-                entity, project, artifact.name, public_api.client
+            expected_type = public_api._expected_artifact_type(
+                entity=entity,
+                project=project,
+                name=artifact.name,
             )
-        except requests.exceptions.RequestException:
-            # Just return early if there is a network error. This is
+        except WandbApiFailedError:
+            # Just return early if the API request fails. This is
             # ok, as this function is intended to help catch an invalid
             # type early, but not a hard requirement for valid operation.
             return
@@ -3629,8 +3658,8 @@ class Run:
             )
         wait_duration = int(wait_duration.total_seconds() * 1000)
 
-        if self._backend and self._backend.interface:
-            self._backend.interface.publish_alert(title, text, level_str, wait_duration)
+        if self._interface:
+            self._interface.publish_alert(title, text, level_str, wait_duration)
 
     def __enter__(self) -> Run:
         return self
@@ -3640,13 +3669,13 @@ class Run:
         exc_type: type[BaseException] | None,
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
-    ) -> bool:
+    ) -> None:
         exception_raised = exc_type is not None
         if exception_raised:
             traceback.print_exception(exc_type, exc_val, exc_tb)
         exit_code = 1 if exception_raised else 0
+
         self._finish(exit_code=exit_code)
-        return not exception_raised
 
     @_log_to_run
     @_raise_if_finished
@@ -3656,8 +3685,8 @@ class Run:
 
         Also tells the internal process to immediately report this to server.
         """
-        if self._backend and self._backend.interface:
-            self._backend.interface.publish_preempting()
+        if self._interface:
+            self._interface.publish_preempting()
 
     @property
     @_log_to_run
@@ -3691,10 +3720,10 @@ class Run:
 
             return res
 
-        if not self._backend or not self._backend.interface:
+        if not self._interface:
             return {}
 
-        handle = self._backend.interface.deliver_get_system_metrics()
+        handle = self._interface.deliver_get_system_metrics()
 
         try:
             result = handle.wait_or(timeout=1)
@@ -3733,7 +3762,11 @@ class Run:
                 f"or set {self._printer.code('WANDB_MODE=online')} "
                 "to enable cloud syncing."
             )
-            self._printer.display([offline_warning, sync_location_msg])
+            leet_hint = (
+                "View this run in the terminal with "
+                f"{self._printer.code('`wandb leet`')}"
+            )
+            self._printer.display([offline_warning, sync_location_msg, leet_hint])
         else:
             messages = [sync_location_msg]
 
@@ -3811,7 +3844,6 @@ class Run:
         sampled_history: SampledHistoryResponse | None = None,
         final_summary: GetSummaryResponse | None = None,
         poll_exit_response: PollExitResponse | None = None,
-        internal_messages_response: InternalMessagesResponse | None = None,
         *,
         settings: Settings,
         printer: printer.Printer,
@@ -3829,11 +3861,6 @@ class Run:
             printer=printer,
         )
         Run._footer_log_dir_info(settings=settings, printer=printer)
-        Run._footer_internal_messages(
-            internal_messages_response=internal_messages_response,
-            settings=settings,
-            printer=printer,
-        )
 
     @staticmethod
     def _footer_sync_info(
@@ -3995,22 +4022,6 @@ class Run:
             summary_rows.append([f"+{remaining:,d}", "..."])
 
         return printer.grid(summary_rows, "Run summary:")
-
-    @staticmethod
-    def _footer_internal_messages(
-        internal_messages_response: InternalMessagesResponse | None = None,
-        *,
-        settings: Settings,
-        printer: printer.Printer,
-    ) -> None:
-        if settings.quiet or settings.silent:
-            return
-
-        if not internal_messages_response:
-            return
-
-        for message in internal_messages_response.messages.warning:
-            printer.display(message, level="warn")
 
 
 # We define this outside of the run context to support restoring before init

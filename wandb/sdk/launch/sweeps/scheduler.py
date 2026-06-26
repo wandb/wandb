@@ -621,19 +621,17 @@ class Scheduler(ABC):
     def _create_run(self) -> dict[str, Any]:
         """Use the public api to create a blank run."""
         try:
-            run: list[dict[str, Any]] = self._api.upsert_run(
+            server_run, inserted = self._api.upsert_run(
                 project=self._project,
                 entity=self._entity,
                 sweep_name=self._sweep_id,
             )
-            if run:
-                return run[0]
+            return server_run
         except Exception as e:
             _logger.debug(f"[_create_run] {e}")
             raise SchedulerError(
                 "Error creating run from scheduler, check API connection and CLI version."
             )
-        return {}
 
     def _set_sweep_state(self, state: str) -> None:
         wandb.termlog(f"{LOG_PREFIX}Updating sweep state to: {state.lower()}")

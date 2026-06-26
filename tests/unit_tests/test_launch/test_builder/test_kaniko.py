@@ -7,6 +7,7 @@ import pytest
 import wandb
 from google.cloud import storage
 from wandb.sdk.launch._project_spec import EntryPoint, LaunchProject
+from wandb.sdk.launch.builder import kaniko_builder
 from wandb.sdk.launch.builder.kaniko_builder import (
     KanikoBuilder,
     _wait_for_completion,
@@ -19,6 +20,17 @@ from wandb.sdk.launch.registry.azure_container_registry import AzureContainerReg
 from wandb.sdk.launch.registry.elastic_container_registry import (
     ElasticContainerRegistry,
 )
+
+
+@pytest.fixture(autouse=True)
+def _mock_kaniko_namespace(monkeypatch):
+    """Pin NAMESPACE to 'wandb' so tests don't depend on the runner environment.
+
+    The module-level NAMESPACE is read at import time from
+    /var/run/secrets/kubernetes.io/serviceaccount/namespace if it exists
+    (e.g. on self-hosted Kubernetes runners), which would break assertions.
+    """
+    monkeypatch.setattr(kaniko_builder, "NAMESPACE", "wandb")
 
 
 class AsyncMock(MagicMock):

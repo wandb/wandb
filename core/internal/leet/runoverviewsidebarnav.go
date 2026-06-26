@@ -263,6 +263,26 @@ func (s *RunOverviewSidebar) navigatePageDown() {
 	section.PageDown()
 }
 
+// navigateHome jumps to the first item of the active section.
+func (s *RunOverviewSidebar) navigateHome() {
+	if !s.isValidActiveSection() {
+		return
+	}
+
+	section := &s.sections[s.activeSection]
+	section.Home()
+}
+
+// navigateEnd jumps to the last item of the active section.
+func (s *RunOverviewSidebar) navigateEnd() {
+	if !s.isValidActiveSection() {
+		return
+	}
+
+	section := &s.sections[s.activeSection]
+	section.End()
+}
+
 // selectFirstAvailableItem selects the first item in the first non-empty section.
 func (s *RunOverviewSidebar) selectFirstAvailableItem() {
 	// Find first non-empty section.

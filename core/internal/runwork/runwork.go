@@ -23,11 +23,15 @@ type ExtraWork interface {
 	//
 	// This may only be called before the end of the run---see the comment
 	// on BeforeEndCtx. If called after the end of the run, the work is
-	// ignored and an error is logged and captured.
+	// ignored, its request (if any) gets an error response, and an error is
+	// logged and captured.
 	AddWork(work Work)
 
 	// AddWorkOrCancel is like AddWork but exits early if the 'done'
 	// channel is closed.
+	//
+	// If the work has a request and the done channel is closed,
+	// the request gets an error response.
 	AddWorkOrCancel(done <-chan struct{}, work Work)
 
 	// BeforeEndCtx is cancelled when the run is finished or aborted.
@@ -51,18 +55,18 @@ type RunWork interface {
 	// This cancels the run's context, causing any current or future upload
 	// operations to fail immediately.
 	//
-	// SetDone and Close still need to be called. In practice, this means an
-	// Exit record must be generated after a call to Abort to trigger SetDone.
+	// Close still needs to be called to close the channel.
 	Abort()
 
-	// SetDone indicates that the run is done, unblocking Close().
-	//
-	// It does not close the channel or cancel any work.
-	SetDone()
-
-	// Close blocks until SetDone() is called and closes the output channel.
+	// Close closes the channel and cancels BeforeEndCtx.
 	//
 	// It is safe to call concurrently or multiple times.
+	// Any ongoing or future AddWork() calls discard their work and return
+	// immediately.
+	//
+	// Calling Close means that (1) all uploads have completed and (2) there
+	// will be no more queries (like OperationStats requests). In other words,
+	// wandb-core can forget about the run and cancel any remaining operations.
 	Close()
 }
 
@@ -72,9 +76,6 @@ type runWork struct {
 
 	closedMu sync.Mutex    // locked for closing `closed`
 	closed   chan struct{} // closed on Close()
-
-	doneMu sync.Mutex    // locked for closing `done`
-	done   chan struct{} // closed on SetDone()
 
 	internalWork chan Work
 	endCtx       context.Context
@@ -89,7 +90,6 @@ func New(bufferSize int, logger *observability.CoreLogger) RunWork {
 	return &runWork{
 		addWorkCV:    sync.NewCond(&sync.Mutex{}),
 		closed:       make(chan struct{}),
-		done:         make(chan struct{}),
 		internalWork: make(chan Work, bufferSize),
 		endCtx:       endCtx,
 		endCtxCancel: endCtxCancel,
@@ -129,12 +129,14 @@ func (rw *runWork) AddWorkOrCancel(
 
 	select {
 	case <-cancel:
+		work.Request.WillNotRespond()
 		return
 
 	case <-rw.closed:
 		// Here, internalWork is closed or about to be closed,
 		// so we should drop the record.
 		rw.logger.Warn(errRecordAfterClose.Error(), "work", work)
+		work.Request.WillNotRespond()
 		return
 
 	default:
@@ -168,9 +170,11 @@ func (rw *runWork) AddWorkOrCancel(
 		case <-rw.closed:
 			// Here, Close() must have been called, so we should drop the record.
 			rw.logger.CaptureError(errRecordAfterClose, "work", work)
+			work.Request.WillNotRespond()
 			return
 
 		case <-cancel:
+			work.Request.WillNotRespond()
 			return
 
 		case rw.internalWork <- work:
@@ -199,21 +203,7 @@ func (rw *runWork) Abort() {
 	rw.endCtxCancel()
 }
 
-func (rw *runWork) SetDone() {
-	rw.doneMu.Lock()
-	defer rw.doneMu.Unlock()
-
-	select {
-	case <-rw.done:
-		// No-op, already closed.
-	default:
-		close(rw.done)
-	}
-}
-
 func (rw *runWork) Close() {
-	<-rw.done
-
 	rw.closedMu.Lock()
 
 	select {

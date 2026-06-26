@@ -10,7 +10,7 @@ For reference documentation, see https://docs.wandb.ai/models/ref/python.
 """
 from __future__ import annotations
 
-__version__ = "0.25.2.dev1"
+__version__ = "0.28.1.dev1"
 
 
 from wandb.errors import Error
@@ -62,6 +62,7 @@ from wandb.data_types import Plotly
 from wandb.data_types import Video
 from wandb.data_types import Audio
 from wandb.data_types import Table
+from wandb.data_types import EvalTable
 from wandb.data_types import Html
 from wandb.data_types import box3d
 from wandb.data_types import Object3D
@@ -116,6 +117,9 @@ mark_preempting = _preinit.PreInitCallable(
 )
 
 alert = _preinit.PreInitCallable("wandb.alert", Run.alert)  # type: ignore
+pin_config_keys = _preinit.PreInitCallable(
+    "wandb.pin_config_keys", Run.pin_config_keys  # type: ignore
+)
 
 # record of patched libraries
 patched = {"tensorboard": [], "keras": [], "gym": []}  # type: ignore

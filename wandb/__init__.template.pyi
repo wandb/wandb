@@ -33,6 +33,7 @@ __all__ = (
     "Video",
     "Audio",
     "Table",
+    "EvalTable",
     "Html",
     "box3d",
     "Object3D",
@@ -62,14 +63,15 @@ __all__ = (
 )
 
 import os
-from collections.abc import Iterable, Sequence
-from typing import TYPE_CHECKING, Any, Callable, Literal, TextIO
+from collections.abc import Callable, Iterable, Sequence
+from typing import TYPE_CHECKING, Any, Literal, TextIO
 
 import wandb.plot as plot
 from wandb.apis import InternalApi
 from wandb.apis import PublicApi as Api
 from wandb.data_types import (
     Audio,
+    EvalTable,
     Graph,
     Histogram,
     Html,
@@ -97,7 +99,7 @@ if TYPE_CHECKING:
     import wandb
     from wandb.plot import CustomChart
 
-__version__: str = "0.25.2.dev1"
+__version__: str = "0.28.1.dev1"
 
 run: Run | None
 config: wandb_config.Config

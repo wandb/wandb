@@ -20,7 +20,7 @@ def _setup_agent(monkeypatch, pop_func):
 
     monkeypatch.setattr(
         "wandb.sdk.internal.internal_api.Api.create_launch_agent",
-        lambda c, e, p, q, a, v, g: {"launchAgentId": "mock_agent_id"},
+        lambda c, e, p, q, a, v: {"launchAgentId": "mock_agent_id"},
     )
 
 
@@ -33,11 +33,11 @@ def test_agent_stop_polling(runner, monkeypatch, user, test_settings):
 
     monkeypatch.setattr(
         "wandb.sdk.internal.internal_api.Api.get_launch_agent",
-        lambda c, i, g: {"id": "mock_agent_id", "name": "blah", "stopPolling": True},
+        lambda c, i: {"id": "mock_agent_id", "name": "blah", "stopPolling": True},
     )
     monkeypatch.setattr(
         "wandb.sdk.internal.internal_api.Api.update_launch_agent_status",
-        lambda c, i, s, g: {"success": True},
+        lambda c, i, s: {"success": True},
     )
 
     args = ["--entity", user, "--queue", "default"]
@@ -62,11 +62,11 @@ def test_agent_update_failed(runner, monkeypatch, user, test_settings):
 
     monkeypatch.setattr(
         "wandb.sdk.internal.internal_api.Api.get_launch_agent",
-        lambda c, i, g: {"id": "mock_agent_id", "name": "blah", "stopPolling": False},
+        lambda c, i: {"id": "mock_agent_id", "name": "blah", "stopPolling": False},
     )
     monkeypatch.setattr(
         "wandb.sdk.internal.internal_api.Api.update_launch_agent_status",
-        lambda c, i, s, g: {"success": False},
+        lambda c, i, s: {"success": False},
     )
 
     with runner.isolated_filesystem():
@@ -99,12 +99,12 @@ def test_launch_agent_launch_error_continue(runner, monkeypatch, user, test_sett
 
     monkeypatch.setattr(
         "wandb.sdk.internal.internal_api.Api.get_launch_agent",
-        lambda c, i, g: {"id": "mock_agent_id", "name": "blah", "stopPolling": False},
+        lambda c, i: {"id": "mock_agent_id", "name": "blah", "stopPolling": False},
     )
 
     monkeypatch.setattr(
         "wandb.sdk.internal.internal_api.Api.update_launch_agent_status",
-        lambda c, i, s, g: {"success": True},
+        lambda c, i, s: {"success": True},
     )
 
     with runner.isolated_filesystem():
@@ -163,6 +163,7 @@ def patched_run_run_entry(cmd, dir):
     return mock_run
 
 
+@pytest.mark.usefixtures("user")
 def test_launch_supplied_docker_image(
     runner,
     monkeypatch,
@@ -218,11 +219,11 @@ def test_launch_supplied_logfile(runner, monkeypatch, wandb_caplog, user):
 
     monkeypatch.setattr(
         "wandb.sdk.internal.internal_api.Api.get_launch_agent",
-        lambda c, i, g: {"id": "mock_agent_id", "name": "blah", "stopPolling": True},
+        lambda c, i: {"id": "mock_agent_id", "name": "blah", "stopPolling": True},
     )
     monkeypatch.setattr(
         "wandb.sdk.internal.internal_api.Api.update_launch_agent_status",
-        lambda c, i, s, g: {"success": True},
+        lambda c, i, s: {"success": True},
     )
 
     with runner.isolated_filesystem():
@@ -307,6 +308,7 @@ def test_launch_supplied_logfile(runner, monkeypatch, wandb_caplog, user):
         ),
     ],
 )
+@pytest.mark.usefixtures("user")
 def test_launch_template_vars(command_inputs, expected_error, runner, monkeypatch):
     mock_template_variables = [
         {"name": "test_str", "schema": json.dumps({"type": "string"})},
@@ -325,8 +327,16 @@ def test_launch_template_vars(command_inputs, expected_error, runner, monkeypatc
         patched_launch_add,
     )
 
+    def patched_run_queue(*args, **kwargs):
+        mock_rq = Mock()
+        mock_rq.template_variables = mock_template_variables
+        mock_rq.name = "test-queue"
+        return mock_rq
+
     def patched_public_api(*args, **kwargs):
-        return Mock()
+        mock_api = Mock()
+        mock_api.run_queue.side_effect = patched_run_queue
+        return mock_api
 
     monkeypatch.setattr(
         "wandb.cli.cli.PublicApi",
@@ -334,17 +344,6 @@ def test_launch_template_vars(command_inputs, expected_error, runner, monkeypatc
     )
 
     monkeypatch.setattr("wandb.cli.cli.launch_utils.check_logged_in", lambda _: None)
-
-    def patched_run_queue(*args, **kwargs):
-        mock_rq = Mock()
-        mock_rq.template_variables = mock_template_variables
-        mock_rq.name = "test-queue"
-        return mock_rq
-
-    monkeypatch.setattr(
-        "wandb.cli.cli.RunQueue",
-        patched_run_queue,
-    )
 
     result = "none"
     with runner.isolated_filesystem():

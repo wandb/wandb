@@ -12,10 +12,10 @@ import (
 	"github.com/Khan/genqlient/graphql"
 	"github.com/hashicorp/go-retryablehttp"
 
+	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/observability"
-	"github.com/wandb/wandb/core/internal/runhistoryreader/parquet/iterator"
 	"github.com/wandb/wandb/core/internal/wboperation"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
@@ -38,7 +38,7 @@ func GetSignedUrlsWithLiveSteps(
 		entity,
 		project,
 		runId,
-		[]string{iterator.StepKey},
+		[]string{StepKey},
 	)
 	if err != nil {
 		return nil, nil, err
@@ -65,7 +65,7 @@ func GetSignedUrlsWithLiveSteps(
 // calling this function.
 func DownloadRunHistoryFile(
 	ctx context.Context,
-	httpClient *retryablehttp.Client,
+	httpClient api.RetryableClient,
 	fileUrl string,
 	filePath string,
 ) (err error) {
@@ -109,7 +109,7 @@ func extractStepValuesFromLiveData(liveData []any) ([]int64, error) {
 		if !ok {
 			return nil, fmt.Errorf("expected LiveData to be map[string]any")
 		}
-		step, ok := liveDataMap[iterator.StepKey]
+		step, ok := liveDataMap[StepKey]
 		if !ok {
 			return nil, fmt.Errorf("expected LiveData to contain step key")
 		}
@@ -126,10 +126,21 @@ func extractStepValuesFromLiveData(liveData []any) ([]int64, error) {
 }
 
 func GetFileSize(
+	ctx context.Context,
 	fileUrl string,
 	httpClient *retryablehttp.Client,
 ) (int64, error) {
-	resp, err := httpClient.Head(fileUrl)
+	req, err := retryablehttp.NewRequestWithContext(
+		ctx,
+		http.MethodHead,
+		fileUrl,
+		nil,
+	)
+	if err != nil {
+		return 0, err
+	}
+
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return 0, err
 	}
@@ -215,7 +226,7 @@ func (d *RunHistoryDownloadOperation) createDownloadTasks(
 			i,
 		)
 		filePath := filepath.Join(d.downloadDir, fileName)
-		fileSize, err := GetFileSize(url, d.httpClient)
+		fileSize, err := GetFileSize(ctx, url, d.httpClient)
 		if err != nil {
 			return nil, err
 		}
@@ -250,9 +261,11 @@ func (d *RunHistoryDownloadOperation) createDownloadTasks(
 }
 
 // StartDownloads begins all the download tasks for the files.
-func (d *RunHistoryDownloadOperation) StartDownloads() ([]string, map[string]error) {
+func (d *RunHistoryDownloadOperation) StartDownloads(
+	ctx context.Context,
+) ([]string, map[string]error) {
 	parentOperation := d.operations.New("Downloading run history")
-	operationCtx := parentOperation.Context(context.Background())
+	operationCtx := parentOperation.Context(ctx)
 	defer parentOperation.Finish()
 
 	fileTransferStats := filetransfer.NewFileTransferStats()

@@ -1,11 +1,10 @@
 package httplayers
 
-import (
-	"maps"
-	"net/http"
-)
+import "net/http"
 
-// ExtraHeaders copies the given headers to every request.
+// ExtraHeaders adds default headers to every request.
+//
+// Headers already present on the request are preserved.
 func ExtraHeaders(headers http.Header) HTTPWrapper {
 	return extraHeaders{headers}
 }
@@ -16,8 +15,21 @@ type extraHeaders struct {
 
 // WrapHTTP implements HTTPWrapper.WrapHTTP.
 func (h extraHeaders) WrapHTTP(send HTTPDoFunc) HTTPDoFunc {
+	if len(h.headers) == 0 {
+		return send
+	}
+
 	return func(req *http.Request) (*http.Response, error) {
-		maps.Copy(req.Header, h.headers)
+		if req.Header == nil {
+			req.Header = make(http.Header)
+		}
+
+		for key, values := range h.headers {
+			if _, isSet := req.Header[key]; !isSet {
+				req.Header[key] = values
+			}
+		}
+
 		return send(req)
 	}
 }

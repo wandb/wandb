@@ -2,11 +2,11 @@ package leet_test
 
 import (
 	"math"
+	"strings"
 	"testing"
 	"time"
 
 	"charm.land/lipgloss/v2"
-	"charm.land/lipgloss/v2/compat"
 	"github.com/stretchr/testify/require"
 
 	leet "github.com/wandb/wandb/core/internal/leet"
@@ -35,6 +35,27 @@ func TestEpochLineChart_Range(t *testing.T) {
 	// Expecting view range to be [0, 30].
 	require.NotEqual(t, c.ViewMinX(), 0)
 	require.LessOrEqual(t, math.Abs(c.ViewMaxX()-30), 1e-9)
+}
+
+func TestEpochLineChart_NonFiniteValuesDoNotPoisonRange(t *testing.T) {
+	m := "loss"
+	c := leet.NewEpochLineChart(m)
+	c.Resize(100, 10)
+
+	// A diverged loss logs NaN/Inf mid-run; the Y range must stay finite
+	// and continue tracking the finite samples.
+	c.AddData(m, leet.MetricData{
+		X: []float64{0, 1, 2, 3},
+		Y: []float64{0.5, math.NaN(), math.Inf(1), 2.0},
+	})
+
+	require.True(t, c.ViewMinY() < 0.5 && !math.IsNaN(c.ViewMinY()))
+	require.True(t, c.ViewMaxY() > 2.0 && !math.IsInf(c.ViewMaxY(), 1))
+
+	// Later finite samples keep extending the range as usual.
+	c.AddData(m, leet.MetricData{X: []float64{4}, Y: []float64{3.0}})
+	require.Greater(t, c.ViewMaxY(), 3.0)
+	require.False(t, math.IsNaN(c.ViewMinY()))
 }
 
 func TestEpochLineChart_ZoomClampsAndAnchors(t *testing.T) {
@@ -112,6 +133,107 @@ func TestEpochLineChart_ZoomNearRightAnchorsToTail(t *testing.T) {
 
 	// Expect the right edge to be close to the last data point (~39).
 	require.Less(t, math.Abs(c.ViewMaxX()-39.0), 1.0)
+}
+
+// TestEpochLineChart_YLabelsDoNotStack guards against the ntcharts v2.0.1
+// regression where drawYLabel forces a label at graphHeight, stacking it
+// directly above the previous tick when graphHeight mod yStep is small.
+//
+// At height 8 the chart has graphHeight=6 and yStep=5, so the buggy
+// behavior places labels on rows i=5 and i=6 (adjacent). After the fix
+// only rows i=0 and i=5 carry labels.
+func TestEpochLineChart_YLabelsDoNotStack(t *testing.T) {
+	m := "loss"
+	c := leet.NewEpochLineChart(m)
+	c.Resize(80, 8)
+	c.AddData(m, leet.MetricData{
+		X: []float64{0, 1, 2, 3, 4, 5},
+		Y: []float64{4.86, 4.0, 3.0, 2.0, 1.0, 0.5},
+	})
+	c.Draw()
+
+	lines := strings.Split(stripANSI(c.View()), "\n")
+	require.GreaterOrEqual(t, len(lines), 7,
+		"expected chart to be at least 7 rows tall")
+
+	// Locate the Y-axis column ('│' for axis, '└' for the bottom-left corner).
+	axisCol := -1
+	for _, line := range lines {
+		if i := strings.IndexAny(line, "│└"); i >= 0 {
+			axisCol = i
+			break
+		}
+	}
+	require.GreaterOrEqual(t, axisCol, 0, "expected to find Y-axis column")
+
+	// Collect plot rows that carry a non-blank Y label (text left of axis).
+	var labeledRows []int
+	for r, line := range lines {
+		// Skip the X-axis label row, which lives below the axis line and
+		// has no Y label of its own.
+		if !strings.ContainsAny(line, "│└") {
+			continue
+		}
+		if axisCol > len(line) {
+			continue
+		}
+		if strings.TrimSpace(line[:axisCol]) != "" {
+			labeledRows = append(labeledRows, r)
+		}
+	}
+	require.GreaterOrEqual(t, len(labeledRows), 1, "expected at least one Y label")
+
+	for i := 1; i < len(labeledRows); i++ {
+		require.Greater(t, labeledRows[i]-labeledRows[i-1], 1,
+			"Y labels stacked on adjacent rows %d and %d:\n%s",
+			labeledRows[i-1], labeledRows[i], strings.Join(lines, "\n"))
+	}
+}
+
+// TestEpochLineChart_YLabelsKeepTopTickWhenSpaced verifies that we still
+// draw a label at graphHeight when the gap above the previous stepped tick
+// is large enough to avoid stacking. Height 13 → graphHeight=11; ticks at
+// i=0,5,10 leave a 1-row gap to graphHeight=11 (no top tick), so we test a
+// height where the gap >= yStep/2 instead.
+func TestEpochLineChart_YLabelsKeepTopTickWhenSpaced(t *testing.T) {
+	m := "loss"
+	c := leet.NewEpochLineChart(m)
+	// Height 10 → graphHeight=8; stepped ticks at i=0,5; gap to top = 3 >= 3,
+	// so a top tick at i=8 is added.
+	c.Resize(80, 10)
+	c.AddData(m, leet.MetricData{
+		X: []float64{0, 1, 2, 3, 4, 5},
+		Y: []float64{10, 8, 6, 4, 2, 0},
+	})
+	c.Draw()
+
+	lines := strings.Split(stripANSI(c.View()), "\n")
+	axisCol := -1
+	for _, line := range lines {
+		if i := strings.IndexAny(line, "│└"); i >= 0 {
+			axisCol = i
+			break
+		}
+	}
+	require.GreaterOrEqual(t, axisCol, 0)
+
+	var labeledRows []int
+	for r, line := range lines {
+		if !strings.ContainsAny(line, "│└") {
+			continue
+		}
+		if axisCol <= len(line) && strings.TrimSpace(line[:axisCol]) != "" {
+			labeledRows = append(labeledRows, r)
+		}
+	}
+	require.GreaterOrEqual(t, len(labeledRows), 3,
+		"expected at least 3 Y labels (top + middle + bottom):\n%s",
+		strings.Join(lines, "\n"))
+	// And still no stacking.
+	for i := 1; i < len(labeledRows); i++ {
+		require.Greater(t, labeledRows[i]-labeledRows[i-1], 1,
+			"Y labels stacked on rows %d and %d", labeledRows[i-1], labeledRows[i])
+	}
 }
 
 func TestTruncateTitle(t *testing.T) {
@@ -270,7 +392,7 @@ func TestTimeSeriesLineChart_LogY_FormatsTicksWithMetricUnits(t *testing.T) {
 		Width:  80,
 		Height: 20,
 		Def:    def,
-		BaseColor: compat.AdaptiveColor{
+		BaseColor: leet.AdaptiveColor{
 			Light: lipgloss.Color("#FF00FF"),
 			Dark:  lipgloss.Color("#FF00FF"),
 		},

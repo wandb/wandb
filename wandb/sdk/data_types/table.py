@@ -295,6 +295,18 @@ class Table(Media):
             f"Invalid log_mode: {log_mode}. Must be one of {_SUPPORTED_LOGGING_MODES}"
         )
 
+    def has_been_logged(self) -> bool:
+        """Marks a table as having been logged.
+
+        Once logged, IMMUTABLE tables cannot be logged again.
+
+        Should be overridden by subclasses if they implement different logic to
+        determine whether a table has been logged.
+
+        <!-- lazydoc-ignore: internal -->
+        """
+        return self._run is not None or self._artifact_target is not None
+
     @staticmethod
     def _assert_valid_columns(columns):
         valid_col_types = [str, int]
@@ -346,7 +358,7 @@ class Table(Media):
             dtype = [dtype for _ in range(len(self.columns))]
 
         self._column_types = _dtypes.TypedDictType({})
-        for col_name, opt, dt in zip(self.columns, optional, dtype):
+        for col_name, opt, dt in zip(self.columns, optional, dtype, strict=False):
             self.cast(col_name, dt, opt)
 
     def _load_incremental_table_state_from_resumed_run(self, run: LocalRun, key: str):

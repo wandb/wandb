@@ -3,7 +3,6 @@ import wandb
 from wandb import Api
 from wandb.apis.public.sweeps import Sweep
 from wandb.sdk.internal.internal_api import Api as InternalApi
-from wandb_gql import gql
 
 from .test_wandb_sweep import (
     SWEEP_CONFIG_BAYES,
@@ -14,8 +13,7 @@ from .test_wandb_sweep import (
     VALID_SWEEP_CONFIGS_MINIMAL,
 )
 
-SWEEP_QUERY = gql(
-    """
+SWEEP_QUERY = """
 query Sweep($project: String, $entity: String, $name: String!) {
     project(name: $project, entityName: $entity) {
         sweep(sweepName: $name) {
@@ -37,7 +35,6 @@ query Sweep($project: String, $entity: String, $name: String!) {
     }
 }
 """
-)
 
 
 @pytest.mark.parametrize(
@@ -70,8 +67,15 @@ def test_sweep_api_expected_run_count(
         )
 
     api = Api()
-    sweep = Sweep.get(api.client, user, _project, sweep_id, query=SWEEP_QUERY)
+    sweep = Sweep.get(
+        api,
+        user,
+        _project,
+        sweep_id,
+        query=SWEEP_QUERY,
+    )
 
+    assert sweep is not None
     assert sweep.expected_run_count == expected_run_count
     assert len(sweep._attrs["priorRuns"]["edges"]) == 1
     assert sweep._attrs["priorRuns"]["edges"][0]["node"]["name"] == run_id
