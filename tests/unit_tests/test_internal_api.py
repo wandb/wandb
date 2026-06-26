@@ -114,7 +114,6 @@ def test_execute_propagates_service_api_errors(mocker: MockerFixture):
     ],
 )
 def test_download_write_file_fetches_iff_file_checksum_mismatched(
-    mock_responses: RequestsMock,
     existing_contents: str | None,
     expect_download: bool,
 ):
@@ -123,14 +122,21 @@ def test_download_write_file_fetches_iff_file_checksum_mismatched(
     with tempfile.TemporaryDirectory() as tmpdir:
         filepath = os.path.join(tmpdir, "file.txt")
 
-        if expect_download:
-            mock_responses.get(url, body=current_contents)
-
         if existing_contents is not None:
             with open(filepath, "w") as f:
                 f.write(existing_contents)
 
-        _, response = internal.InternalApi().download_write_file(
+        api = internal.InternalApi()
+
+        # Stand in for wandb-core, writing the file a real download would.
+        def fake_download(request):
+            path = request.download_file_request.path
+            with open(path, "w") as f:
+                f.write(current_contents)
+
+        api._service_api.send_api_request = Mock(side_effect=fake_download)
+
+        path, downloaded = api.download_write_file(
             metadata={
                 "name": filepath,
                 "md5": base64.b64encode(
@@ -141,10 +147,10 @@ def test_download_write_file_fetches_iff_file_checksum_mismatched(
             out_dir=tmpdir,
         )
 
-        if expect_download:
-            assert response is not None
-        else:
-            assert response is None
+        assert downloaded == expect_download
+        # Either way, the file on disk holds the current contents afterward.
+        with open(path) as f:
+            assert f.read() == current_contents
 
 
 def test_internal_api_with_no_write_global_config_dir(

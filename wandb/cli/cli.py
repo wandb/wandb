@@ -3258,21 +3258,8 @@ def pull(run, project, entity):
         if api.file_current(name, urls[name]["md5"]):
             click.echo(f"File {name} is up to date")
         else:
-            length, response = api.download_file(urls[name]["url"])
-            # TODO: I had to add this because some versions in CI broke click.progressbar
-            sys.stdout.write(f"File {name}\r")
-            dirname = os.path.dirname(name)
-            if dirname != "":
-                filesystem.mkdir_exists_ok(dirname)
-            with click.progressbar(
-                length=length,
-                label=f"File {name}",
-                fill_char=click.style("&", fg="green"),
-            ) as bar:
-                with open(name, "wb") as f:
-                    for data in response.iter_content(chunk_size=4096):
-                        f.write(data)
-                        bar.update(len(data))
+            api.download_file(urls[name]["url"], name)
+            click.echo(f"File {name}")
 
 
 @cli.command(context_settings=CONTEXT)
