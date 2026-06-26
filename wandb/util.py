@@ -542,9 +542,12 @@ def matplotlib_contains_images(obj: Any) -> bool:
     return any(len(ax.images) > 0 for ax in obj.axes)
 
 
-def _numpy_generic_convert(obj: Any) -> Any:
+def _numpy_generic_convert(obj: Any, *, preserve_nan: bool = False) -> Any:
     obj = obj.item()
-    if isinstance(obj, float) and math.isnan(obj):
+    # JSON encoders pass preserve_nan=True so NaN stays a float and the JSON
+    # serializer emits "NaN" for it, matching how native floats and np.float64 (a
+    # float subclass that bypasses this conversion) are serialized (WB-32475).
+    if isinstance(obj, float) and math.isnan(obj) and not preserve_nan:
         obj = None
     elif isinstance(obj, np.generic) and (
         obj.dtype.kind == "f" or obj.dtype == "bfloat16"
@@ -597,6 +600,8 @@ def _sanitize_numpy_keys(
 
 def json_friendly(  # noqa: C901
     obj: Any,
+    *,
+    preserve_numpy_nan: bool = False,
 ) -> tuple[Any, bool] | tuple[None | str | float, bool]:
     """Convert an object into something that's more becoming of JSON."""
     converted = True
@@ -634,7 +639,7 @@ def json_friendly(  # noqa: C901
         elif obj.size <= 32:
             obj = obj.tolist()
     elif np and isinstance(obj, np.generic):
-        obj = _numpy_generic_convert(obj)
+        obj = _numpy_generic_convert(obj, preserve_nan=preserve_numpy_nan)
     elif isinstance(obj, bytes):
         obj = obj.decode("utf-8")
     elif isinstance(obj, (datetime, date)):
@@ -788,7 +793,7 @@ class WandBJSONEncoder(json.JSONEncoder):
             return obj.json_encode()
         # if hasattr(obj, 'to_json'):
         #     return obj.to_json()
-        tmp_obj, converted = json_friendly(obj)
+        tmp_obj, converted = json_friendly(obj, preserve_numpy_nan=True)
         if converted:
             return tmp_obj
         return json.JSONEncoder.default(self, obj)
@@ -812,7 +817,7 @@ class WandBHistoryJSONEncoder(json.JSONEncoder):
     """
 
     def default(self, obj: Any) -> Any:
-        obj, converted = json_friendly(obj)
+        obj, converted = json_friendly(obj, preserve_numpy_nan=True)
         obj, compressed = maybe_compress_history(obj)
         if converted:
             return obj
