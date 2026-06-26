@@ -404,7 +404,7 @@ func (as *ArtifactSaver) processFiles(
 				suboperation := wboperation.Get(as.ctx).Subtask(fileInfo.name)
 				headers, err := filetransfer.ParseHeaders(fileInfo.uploadHeaders)
 				if err != nil {
-					as.logger.Warn("artifacts: upload: skipping malformed header(s)", "error", err)
+					as.logger.Warn("artifacts: upload: error parsing headers", "error", err)
 				}
 				task := newUploadTask(fileInfo, *entry.LocalPath, headers)
 				task.Context = suboperation.Context(as.ctx)
@@ -684,7 +684,7 @@ func (as *ArtifactSaver) uploadManifest(
 
 	parsedHeaders, err := filetransfer.ParseHeaders(uploadHeaders)
 	if err != nil {
-		as.logger.Warn("artifacts: upload: skipping malformed manifest header(s)", "error", err)
+		as.logger.Warn("artifacts: upload: error parsing headers", "error", err)
 	}
 
 	resultChan := make(chan *filetransfer.DefaultUploadTask, 1)

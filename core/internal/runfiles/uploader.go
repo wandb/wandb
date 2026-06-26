@@ -420,7 +420,7 @@ func (u *uploader) scheduleUploadTask(
 
 	parsedHeaders, err := filetransfer.ParseHeaders(headers)
 	if err != nil {
-		u.logger.Warn("runfiles: upload: skipping malformed header(s)", "error", err)
+		u.logger.Warn("runfiles: upload: error parsing headers", "error", err)
 	}
 	u.knownFile(runPath).Upload(uploadURL, parsedHeaders)
 	u.uploadWG.Done()
