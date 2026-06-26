@@ -3,6 +3,7 @@ from __future__ import annotations
 import contextlib
 import json
 import logging
+import os
 import weakref
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
@@ -25,8 +26,15 @@ from wandb.sdk.mailbox.mailbox_handle import MailboxHandle
 _logger = logging.getLogger(__name__)
 
 
-def _cleanup(connection: ServiceConnection, api_id: str) -> None:
+def _cleanup(connection: ServiceConnection, api_id: str, owner_pid: int) -> None:
     """Clean up the api resources associated with the api id."""
+    # Skip cleanup in a forked child: it inherits this finalizer but not the
+    # asyncio thread that the cleanup request blocks on, so running it here
+    # would deadlock the child. See
+    # https://github.com/wandb/wandb/issues/12079.
+    if os.getpid() != owner_pid:
+        return
+
     with contextlib.suppress(Exception):
         connection.api_cleanup_request(api_id)
 
@@ -71,6 +79,7 @@ class ServiceApi:
             _cleanup,
             session.connection,
             session.api_id,
+            os.getpid(),
         )
 
         return session
