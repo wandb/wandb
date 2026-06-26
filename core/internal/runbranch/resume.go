@@ -251,8 +251,14 @@ func processResponse(
 	}
 
 	// if we are resuming, we need to update the starting step
-	if params.FileStreamOffset[filestream.HistoryChunk] > 0 {
-		params.StartingStep += 1
+	if historyCount := params.FileStreamOffset[filestream.HistoryChunk]; historyCount > 0 {
+		nextFromStep := params.StartingStep + 1
+		nextFromCount := int64(historyCount)
+		if nextFromStep > nextFromCount {
+			params.StartingStep = nextFromStep
+		} else {
+			params.StartingStep = nextFromCount
+		}
 	}
 
 	// If the user provided tags when initializing, use them. Otherwise,
