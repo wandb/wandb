@@ -81,7 +81,57 @@ async def test_loop_capture_stack_trace(mocker, clean_agent):
 
 
 @pytest.mark.asyncio
-async def test_run_job_secure_mode(mocker, clean_agent):
+@pytest.mark.parametrize(
+    "job,exception_type,error",
+    [
+        pytest.param(
+            {
+                "runSpec": {
+                    "resource_args": {
+                        "kubernetes": {
+                            "spec": {"template": {"spec": {"hostPID": True}}}
+                        }
+                    }
+                }
+            },
+            LaunchError,
+            "Unsafe resource_args.kubernetes option 'hostPID' is not allowed",
+            id="reject-host-pid",
+        ),
+        pytest.param(
+            {
+                "runSpec": {
+                    "resource_args": {
+                        "kubernetes": {
+                            "spec": {
+                                "template": {
+                                    "spec": {
+                                        "containers": [
+                                            {},
+                                            {"command": ["some", "code"]},
+                                        ]
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            ValueError,
+            'This agent is configured to lock "command" in container spec '
+            "but the job specification attempts to override it.",
+            id="reject-container-command",
+        ),
+        pytest.param(
+            {"runSpec": {"overrides": {"entry_point": ["some", "code"]}}},
+            ValueError,
+            'This agent is configured to lock the "entrypoint" override '
+            "but the job specification attempts to override it.",
+            id="reject-entrypoint-override",
+        ),
+    ],
+)
+async def test_run_job_secure_mode(mocker, clean_agent, job, exception_type, error):
     _setup(mocker)
     mock_config = {
         "entity": "test-entity",
@@ -90,51 +140,9 @@ async def test_run_job_secure_mode(mocker, clean_agent):
     }
     agent = LaunchAgent(api=mocker.api, config=mock_config)
 
-    jobs = [
-        {
-            "runSpec": {
-                "resource_args": {
-                    "kubernetes": {"spec": {"template": {"spec": {"hostPID": True}}}}
-                }
-            }
-        },
-        {
-            "runSpec": {
-                "resource_args": {
-                    "kubernetes": {
-                        "spec": {
-                            "template": {
-                                "spec": {
-                                    "containers": [{}, {"command": ["some", "code"]}]
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        {"runSpec": {"overrides": {"entry_point": ["some", "code"]}}},
-    ]
-    errors = [
-        (
-            LaunchError,
-            "Unsafe resource_args.kubernetes option 'hostPID' is not allowed",
-        ),
-        (
-            ValueError,
-            'This agent is configured to lock "command" in container spec '
-            "but the job specification attempts to override it.",
-        ),
-        (
-            ValueError,
-            'This agent is configured to lock the "entrypoint" override '
-            "but the job specification attempts to override it.",
-        ),
-    ]
     mock_file_saver = MagicMock()
-    for job, (exception_type, error) in zip(jobs, errors, strict=False):
-        with pytest.raises(exception_type, match=error):
-            await agent.run_job(job, "test-queue", mock_file_saver)
+    with pytest.raises(exception_type, match=error):
+        await agent.run_job(job, "test-queue", mock_file_saver)
 
 
 @pytest.mark.asyncio
