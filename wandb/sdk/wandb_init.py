@@ -386,7 +386,11 @@ class _WandbInit:
             settings: The run's settings derived from the environment
                 and explicit values passed to `wandb.init()`.
         """
-        if settings.resume == "auto" and not settings._offline and settings.resume_fname:
+        if (
+            settings.resume == "auto"
+            and not settings._offline
+            and settings.resume_fname
+        ):
             resume_path = pathlib.Path(settings.resume_fname)
         else:
             resume_path = None

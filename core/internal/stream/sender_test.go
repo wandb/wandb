@@ -19,6 +19,7 @@ import (
 	"github.com/wandb/wandb/core/internal/observabilitytest"
 	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/runhandle"
+	"github.com/wandb/wandb/core/internal/runupserter"
 	"github.com/wandb/wandb/core/internal/runupsertertest"
 	"github.com/wandb/wandb/core/internal/runworktest"
 	wbsettings "github.com/wandb/wandb/core/internal/settings"
@@ -151,6 +152,92 @@ func TestSendHistory_RewritesStepBelowStartingStep(t *testing.T) {
 	}, nil)
 
 	assert.Equal(t, "2", history.Item[1].ValueJson)
+}
+
+// staleResumeStatusResponse mimics RunResumeStatus after syncing an offline
+// segment that logged two history rows but left summary _step at 0.
+const staleResumeStatusResponse = `{
+	"model": {
+		"bucket": {
+			"name": "run1",
+			"id": "storage-id",
+			"historyLineCount": 2,
+			"eventsLineCount": 0,
+			"logLineCount": 0,
+			"historyTail": "[\"{\\\"_step\\\":0,\\\"loss\\\":0.9}\", \"{\\\"_step\\\":1,\\\"loss\\\":0.7}\"]",
+			"summaryMetrics": "{\"loss\": 0.9, \"_step\": 0}",
+			"config": "{}",
+			"eventsTail": "[]",
+			"wandbConfig": "{\"t\": 1}"
+		}
+	}
+}`
+
+func TestSendHistory_OfflineResumedSegmentRewritesSteps(t *testing.T) {
+	mockGQL := gqlmock.NewMockClient()
+	mockGQL.StubMatchOnce(
+		gqlmock.WithOpName("RunResumeStatus"),
+		staleResumeStatusResponse,
+	)
+	runupsertertest.StubUpsertBucket(t, mockGQL)
+
+	x := makeSender(t, mockGQL)
+
+	upserter, err := runupserter.InitRun(
+		&spb.Record{RecordType: &spb.Record_Run{Run: &spb.RunRecord{
+			Entity:     "entity",
+			Project:    "project",
+			RunId:      "run1",
+			ResumeMode: "allow",
+		}}},
+		runupserter.RunUpserterParams{
+			GraphqlClientOrNil: mockGQL,
+			BeforeRunEndCtx:    context.Background(),
+			Logger:             x.Logger,
+			ClientID:           "test-client",
+			FeatureProvider:    featurechecker.New(nil, x.Logger),
+			Settings: wbsettings.From(&spb.Settings{
+				Resume: wrapperspb.String("never"),
+			}),
+		},
+	)
+	require.NoError(t, err)
+	defer upserter.Finish()
+	require.NoError(t, x.RunHandle.Init(upserter))
+
+	run := &spb.RunRecord{}
+	upserter.FillRunRecord(run)
+	assert.Equal(t, int64(2), run.StartingStep)
+
+	for _, tc := range []struct {
+		localStep string
+		loss      string
+		wantStep  string
+	}{
+		{localStep: "0", loss: "0.6", wantStep: "2"},
+		{localStep: "1", loss: "0.4", wantStep: "3"},
+	} {
+		history := &spb.HistoryRecord{
+			Item: []*spb.HistoryItem{
+				{NestedKey: []string{"loss"}, ValueJson: tc.loss},
+				{NestedKey: []string{"_step"}, ValueJson: tc.localStep},
+			},
+		}
+		x.Sender.SendRecord(&spb.Record{
+			RecordType: &spb.Record_History{History: history},
+		}, nil)
+		assert.Equal(t, tc.wantStep, historyStepValue(history))
+	}
+}
+
+func historyStepValue(record *spb.HistoryRecord) string {
+	for _, item := range record.Item {
+		if item.GetKey() == "_step" ||
+			(len(item.GetNestedKey()) == 1 && item.GetNestedKey()[0] == "_step") {
+			return item.ValueJson
+		}
+	}
+	return ""
 }
 
 func TestSendHistory_MaterializesRecordStep(t *testing.T) {

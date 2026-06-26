@@ -844,8 +844,9 @@ func (s *Sender) advanceHistoryStepPast(step int64) {
 
 func explicitHistoryStepItem(record *spb.HistoryRecord) (int64, bool) {
 	for _, item := range record.GetItem() {
+		nestedKey := item.GetNestedKey()
 		if item.GetKey() != "_step" &&
-			!(len(item.GetNestedKey()) == 1 && item.GetNestedKey()[0] == "_step") {
+			(len(nestedKey) != 1 || nestedKey[0] != "_step") {
 			continue
 		}
 
