@@ -374,6 +374,50 @@ func TestMustResumeHistoryTailStepZero(t *testing.T) {
 	assert.Nil(t, err, "GetUpdates should not return an error")
 }
 
+func TestMustResumeStaleSummaryStepUsesHistoryLineCount(t *testing.T) {
+	mockGQL := gqlmock.NewMockClient()
+
+	historyLineCount := 2
+	eventsLineCount := 0
+	logLineCount := 0
+	history := `["{\"_step\":0,\"loss\":0.9}", "{\"_step\":1,\"loss\":0.7}"]`
+	config := "{}"
+	summary := `{"loss": 0.9, "_step": 0}`
+	rr := ResumeResponse{
+		Model: Model{
+			Bucket: Bucket{
+				Name:             "FakeName",
+				HistoryLineCount: &historyLineCount,
+				EventsLineCount:  &eventsLineCount,
+				LogLineCount:     &logLineCount,
+				HistoryTail:      &history,
+				SummaryMetrics:   &summary,
+				Config:           &config,
+				EventsTail:       "[]",
+				WandbConfig:      `{"t": 1}`,
+			},
+		},
+	}
+
+	jsonData, err := json.MarshalIndent(rr, "", "    ")
+	assert.Nil(t, err, "Failed to marshal json data")
+
+	mockGQL.StubMatchOnce(
+		gqlmock.WithOpName("RunResumeStatus"),
+		string(jsonData),
+	)
+	resumeState := runbranch.NewResumeBranch(
+		context.Background(),
+		mockGQL,
+		"must")
+
+	params := &runbranch.RunParams{}
+	err = resumeState.UpdateForResume(params, runconfig.New())
+	assert.Equal(t, int64(2), params.StartingStep)
+	assert.True(t, params.Resumed)
+	assert.Nil(t, err)
+}
+
 func TestMustResumeValidSummary(t *testing.T) {
 	mockGQL := gqlmock.NewMockClient()
 
