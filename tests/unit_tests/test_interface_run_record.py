@@ -15,11 +15,11 @@ def test_make_run_records_offline_resume_mode():
     run: Any = SimpleNamespace(
         _settings=settings,
         _start_time=None,
-            _starting_step=None,
-            _forked=False,
-            _config=None,
-            _telemetry_obj=None,
-            _start_runtime=None,
+        _starting_step=None,
+        _forked=False,
+        _config=None,
+        _telemetry_obj=None,
+        _start_runtime=None,
     )
 
     record = interface._make_run(run)
