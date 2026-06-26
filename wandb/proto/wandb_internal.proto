@@ -1620,4 +1620,7 @@ enum ServerFeature {
 
   // Indicates that the server supports Trigger.lastExecutedAt.
   AUTOMATION_LAST_EXECUTED_AT = 28;
+
+  // Indicates that the server supports filtering sweeps when querying on a project.
+  SWEEPS_QUERY_FILTERING = 29;
 }
