@@ -535,6 +535,79 @@ class TestUploadFile:
             assert check_err(e.value), e.value
 
 
+class TestPush:
+    """Tests `push`."""
+
+    def test_notifies_core_of_uploaded_files(
+        self,
+        mocker: MockerFixture,
+        example_file: Path,
+    ):
+        """After uploading, push tells wandb-core which run files completed."""
+        api = internal.InternalApi(
+            default_settings={"entity": "test-entity", "project": "test-project"}
+        )
+        api.set_current_run_id("test-run")
+        mocker.patch.object(
+            api,
+            "upload_urls",
+            return_value=(
+                "test-run-id",
+                [],
+                {"test.txt": {"uploadUrl": "https://storage.example.test/upload"}},
+            ),
+        )
+        upload_file = mocker.patch.object(api, "upload_file_retry", return_value=None)
+        send_api_request = mocker.patch.object(api._service_api, "send_api_request")
+
+        with example_file.open("rb") as file:
+            api.push({"test.txt": file})
+
+        upload_file.assert_called_once()
+        send_api_request.assert_called_once()
+        request = send_api_request.call_args[0][0]
+        assert request.WhichOneof("request") == "mark_run_files_uploaded_request"
+        notify = request.mark_run_files_uploaded_request
+        assert notify.entity == "test-entity"
+        assert notify.project == "test-project"
+        assert notify.run_id == "test-run"
+        assert list(notify.files) == ["test.txt"]
+
+    def test_propagates_notify_errors(
+        self,
+        mocker: MockerFixture,
+        example_file: Path,
+    ):
+        """A failed notification surfaces to the caller.
+
+        `push` is wrapped by `normalize_exceptions`, which re-raises
+        `WandbApiFailedError` from wandb-core as `CommError`.
+        """
+        api = internal.InternalApi(
+            default_settings={"entity": "test-entity", "project": "test-project"}
+        )
+        api.set_current_run_id("test-run")
+        mocker.patch.object(
+            api,
+            "upload_urls",
+            return_value=(
+                "test-run-id",
+                [],
+                {"test.txt": {"uploadUrl": "https://storage.example.test/upload"}},
+            ),
+        )
+        mocker.patch.object(api, "upload_file_retry", return_value=None)
+        mocker.patch.object(
+            api._service_api,
+            "send_api_request",
+            side_effect=WandbApiFailedError("notify failed"),
+        )
+
+        with example_file.open("rb") as file:
+            with pytest.raises(CommError):
+                api.push({"test.txt": file})
+
+
 ENABLED_FEATURE_RESPONSE = {
     "serverInfo": {
         "features": [
