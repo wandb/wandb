@@ -277,22 +277,15 @@ func (ft *AzureFileTransfer) uploadBlob(
 		HTTPHeaders: &blob.HTTPHeaders{},
 	}
 
-	for _, header := range task.Headers {
-		parts := strings.SplitN(header, ":", 2)
-		if len(parts) != 2 {
-			ft.logger.Error("file transfer: upload: invalid header", "header", header)
-			continue
+	if md5b64 := task.Headers.Get("Content-MD5"); md5b64 != "" {
+		md5, err := base64.StdEncoding.DecodeString(md5b64)
+		if err != nil {
+			return nil, err
 		}
-		switch parts[0] {
-		case "Content-MD5":
-			md5, err := base64.StdEncoding.DecodeString(parts[1])
-			if err != nil {
-				return nil, err
-			}
-			uploadOptions.HTTPHeaders.BlobContentMD5 = md5
-		case "Content-Type":
-			uploadOptions.HTTPHeaders.BlobContentType = &parts[1]
-		}
+		uploadOptions.HTTPHeaders.BlobContentMD5 = md5
+	}
+	if contentType := task.Headers.Get("Content-Type"); contentType != "" {
+		uploadOptions.HTTPHeaders.BlobContentType = &contentType
 	}
 
 	resp, err := blockBlobClient.UploadStream(context.Background(), requestBody, &uploadOptions)

@@ -119,7 +119,7 @@ func NewConnection(
 	return &Connection{
 		connLifetimeCtx:    connLifetimeCtx,
 		stopConnection:     stopConnection,
-		requestCanceller:   NewRequestCanceller(connLifetimeCtx),
+		requestCanceller:   NewRequestCanceller(connLifetimeCtx, slog.Default()),
 		stopServer:         stopServer,
 		streamMux:          params.StreamMux,
 		runSyncManager:     params.RunSyncManager,
