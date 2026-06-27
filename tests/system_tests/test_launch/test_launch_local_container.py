@@ -42,7 +42,11 @@ async def test_local_container_entrypoint(use_local_wandb_backend, monkeypatch):
     # test with user provided image
     project = MagicMock()
     entrypoint = EntryPoint("blah", entry_command)
-    project.resource_args = {"local_container": {}}
+    project.resource_args = {"local-container": {}}
+    # Stub fill_macros like the sibling system tests so resource_args flow
+    # through as a real dict (the runner reads the "local-container" key).
+    project.fill_macros = lambda _: project.resource_args
+    project.job_base_image = None
     project.target_entity = entity_name
     project.target_project = project_name
     project.name = None

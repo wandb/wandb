@@ -86,6 +86,30 @@ func TestDefaultFileTransfer_Download(t *testing.T) {
 	assert.Equal(t, task.Response.StatusCode, http.StatusOK)
 }
 
+func TestDefaultFileTransfer_DownloadCreatesParentDir(t *testing.T) {
+	// The destination's parent directory does not exist yet, so the download
+	// must create it. The path is built with filepath.Join so that on Windows
+	// it uses backslash separators, which the slash-only path.Dir would fail
+	// to handle (returning "." and leaving the directory uncreated).
+	path := filepath.Join(t.TempDir(), "subdir", "nested", "test-file.txt")
+	contentExpected := []byte("test content for download")
+	testURL := runServer(t, func(w http.ResponseWriter, r *http.Request) {
+		_, err := w.Write(contentExpected)
+		assert.NoError(t, err)
+	})
+
+	task := &filetransfer.DefaultDownloadTask{
+		Path: path,
+		Url:  testURL,
+	}
+	err := newFileTransfer(t).Download(task)
+
+	require.NoError(t, err)
+	content, err := os.ReadFile(path)
+	assert.NoError(t, err)
+	assert.Equal(t, contentExpected, content)
+}
+
 func TestDefaultFileTransfer_DownloadHTTPError(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "test-file.txt")
 	testURL := runServer(t, func(w http.ResponseWriter, r *http.Request) {
@@ -111,28 +135,23 @@ func TestDefaultFileTransfer_DownloadHTTPError(t *testing.T) {
 func TestDefaultFileTransfer_Upload(t *testing.T) {
 	expectedContent := []byte("test content for upload")
 	path := writeTempFile(t, expectedContent)
-	expectedHeaders := []string{
-		"X-Test-1:x:: test",
-		"X-Test-2:",
-		"X-Test-3",
-		"X-Test-4: test",
-	}
 	testURL := runServer(t, func(w http.ResponseWriter, r *http.Request) {
 		body, err := io.ReadAll(r.Body)
 		require.NoError(t, err)
 
 		assert.Equal(t, expectedContent, body)
 		assert.Equal(t, r.Method, http.MethodPut)
-		assert.Equal(t, r.Header.Get("X-Test-1"), "x:: test")
-		assert.Equal(t, r.Header.Get("X-Test-2"), "")
-		assert.Equal(t, r.Header.Get("X-Test-3"), "")
-		assert.Equal(t, r.Header.Get("X-Test-4"), "test")
+		assert.Equal(t, r.Header.Get("X-Test-1"), "value-with:colon")
+		assert.Equal(t, r.Header.Get("X-Test-2"), "value")
 	})
 
 	task := &filetransfer.DefaultUploadTask{
-		Path:    path,
-		Url:     testURL,
-		Headers: expectedHeaders,
+		Path: path,
+		Url:  testURL,
+		Headers: http.Header{
+			"X-Test-1": {"value-with:colon"},
+			"X-Test-2": {"value"},
+		},
 	}
 	err := newFileTransfer(t).Upload(task)
 
