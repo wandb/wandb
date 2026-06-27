@@ -25,7 +25,12 @@ from wandb.analytics import get_sentry
 from wandb.apis.normalize import normalize_exceptions
 from wandb.errors import AuthenticationError, CommError, UsageError
 from wandb.integration.sagemaker import parse_sm_secrets
-from wandb.proto.wandb_api_pb2 import ApiRequest, DownloadFileRequest, UploadFileRequest
+from wandb.proto.wandb_api_pb2 import (
+    ApiRequest,
+    DownloadFileRequest,
+    MarkRunFilesUploadedRequest,
+    UploadFileRequest,
+)
 from wandb.proto.wandb_internal_pb2 import ServerFeature
 from wandb.sdk import wandb_setup
 from wandb.sdk.internal import settings_static
@@ -2840,6 +2845,37 @@ class Api:
         project: str = self.default_settings.get("project") or self.settings("project")
         return project
 
+    def _notify_run_files_uploaded(
+        self,
+        entity: str,
+        project: str,
+        run: str,
+        files: Sequence[str],
+    ) -> None:
+        """Tell the backend that direct run-file uploads have completed.
+
+        Uploading to the (presigned) destination URL only writes the bytes to
+        the object store; the backend must still be told each file is committed
+        before it appears on the run. wandb-core sends this filestream signal
+        for every file uploaded during a live run; this performs the same
+        notification for files uploaded through the public API (e.g.
+        `Run.upload_file()`). SaaS additionally finalizes files via object-store
+        notifications, but self-hosted deployments generally lack that pipeline
+        and would otherwise never register the file.
+        """
+        if not files:
+            return
+        self._service_api.send_api_request(
+            ApiRequest(
+                mark_run_files_uploaded_request=MarkRunFilesUploadedRequest(
+                    entity=entity,
+                    project=project,
+                    run_id=run,
+                    files=list(files),
+                )
+            )
+        )
+
     @normalize_exceptions
     def push(
         self,
@@ -2872,6 +2908,7 @@ class Api:
             raise CommError("No project configured.")
         if run is None:
             run = self.current_run_id
+        resolved_entity = entity or self.settings("entity")
 
         # TODO(adrian): we use a retriable version of self.upload_file() so
         # will never retry self.upload_urls() here. Instead, maybe we should
@@ -2880,13 +2917,14 @@ class Api:
             project,
             files,
             run,
-            entity,
+            resolved_entity,
         )
         extra_headers = {}
         for upload_header in upload_headers:
             key, val = upload_header.split(":", 1)
             extra_headers[key] = val
         responses = []
+        uploaded = []
         for file_name, file_info in result.items():
             file_url = file_info["uploadUrl"]
 
@@ -2910,7 +2948,7 @@ class Api:
             if progress is False:
                 responses.append(
                     self.upload_file_retry(
-                        file_info["uploadUrl"], open_file, extra_headers=extra_headers
+                        file_url, open_file, extra_headers=extra_headers
                     )
                 )
             else:
@@ -2937,6 +2975,14 @@ class Api:
                             )
                         )
             open_file.close()
+            uploaded.append(file_name)
+        if run is not None and resolved_entity is not None:
+            self._notify_run_files_uploaded(
+                resolved_entity,
+                project,
+                run,
+                uploaded,
+            )
         return responses
 
     def link_artifact(

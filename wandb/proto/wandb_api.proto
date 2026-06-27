@@ -32,6 +32,7 @@ message ApiRequest {
     GraphQLRequest graphql_request = 4;
     DownloadFileRequest download_file_request = 5;
     UploadFileRequest upload_file_request = 6;
+    MarkRunFilesUploadedRequest mark_run_files_uploaded_request = 7;
   }
 }
 
@@ -42,6 +43,7 @@ message ApiResponse {
     GraphQLResponse graphql_response = 4;
     DownloadFileResponse download_file_response = 5;
     UploadFileResponse upload_file_response = 6;
+    MarkRunFilesUploadedResponse mark_run_files_uploaded_response = 7;
 
     ApiErrorResponse api_error_response = 2;
   }
@@ -173,6 +175,34 @@ message UploadFileRequest {
 }
 
 message UploadFileResponse {}
+
+// Notify the W&B backend that run files have finished uploading.
+//
+// Uploading a file to its (presigned) destination URL only writes the bytes to
+// the object store; the backend must still be told the file is committed before
+// it appears on the run. During a live run, wandb-core sends this signal as the
+// filestream "uploaded" field. This request performs the same notification for
+// files uploaded outside a live run, such as `wandb.Api().run(...).upload_file()`.
+//
+// Always safe to send: it is the same idempotent signal the backend processes for
+// every live run, on both SaaS and self-hosted deployments. A successful request
+// returns MarkRunFilesUploadedResponse; failures, including non-successful HTTP
+// status codes, return ApiErrorResponse.
+message MarkRunFilesUploadedRequest {
+  // The entity that owns the run.
+  string entity = 1;
+
+  // The project that the run belongs to.
+  string project = 2;
+
+  // The ID of the run.
+  string run_id = 3;
+
+  // The save-names of the files that finished uploading.
+  repeated string files = 4;
+}
+
+message MarkRunFilesUploadedResponse {}
 
 // Start of Scan run history
 
