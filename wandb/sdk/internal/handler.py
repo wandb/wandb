@@ -6,22 +6,17 @@ import json
 import logging
 import math
 import numbers
-import time
 from collections import defaultdict
 from collections.abc import Callable, Sequence
 from queue import Queue
 from threading import Event
 from typing import TYPE_CHECKING, Any, cast
 
-from wandb.errors.links import url_registry
 from wandb.proto.wandb_internal_pb2 import (
     HistoryRecord,
-    InternalMessages,
     MetricRecord,
     Record,
     Result,
-    RunRecord,
-    SummaryItem,
     SummaryRecord,
     SummaryRecordRequest,
 )
@@ -67,8 +62,6 @@ def _dict_nested_set(target: dict[str, Any], key_list: Sequence[str], v: Any) ->
 
 class HandleManager:
     _consolidated_summary: SummaryDict
-    _partial_history: dict[str, Any]
-    _run_proto: RunRecord | None
     _settings: SettingsStatic
     _record_q: Queue[Record]
     _result_q: Queue[Result]
@@ -80,8 +73,6 @@ class HandleManager:
     _metric_globs: dict[str, MetricRecord]
     _metric_track: dict[tuple[str, ...], float]
     _metric_copy: dict[tuple[str, ...], Any]
-    _track_time: float | None
-    _accumulate_time: float
     _run_start_time: float | None
 
     def __init__(
@@ -103,21 +94,14 @@ class HandleManager:
         self._tb_watcher = None
         self._step = 0
 
-        self._track_time = None
-        self._accumulate_time = 0
         self._run_start_time = None
 
         # keep track of summary from key/val updates
         self._consolidated_summary = dict()
-        self._run_proto = None
-        self._partial_history = dict()
         self._metric_defines = defaultdict(MetricRecord)
         self._metric_globs = defaultdict(MetricRecord)
         self._metric_track = dict()
         self._metric_copy = dict()
-        self._internal_messages = InternalMessages()
-
-        self._dropped_history = False
 
     def __len__(self) -> int:
         return self._record_q.qsize()
@@ -130,16 +114,6 @@ class HandleManager:
         assert handler, f"unknown handle: {handler_str}"  # type: ignore
         handler(record)
 
-    def handle_request(self, record: Record) -> None:
-        request_type = record.request.WhichOneof("request_type")
-        assert request_type
-        handler_str = "handle_request_" + request_type
-        handler: Callable[[Record], None] = getattr(self, handler_str, None)  # type: ignore
-        if request_type != "network_status":
-            logger.debug(f"handle_request: {request_type}")
-        assert handler, f"unknown handle: {handler_str}"  # type: ignore
-        handler(record)
-
     def _dispatch_record(self, record: Record, always_send: bool = False) -> None:
         if always_send:
             record.control.always_send = True
@@ -148,66 +122,10 @@ class HandleManager:
     def _respond_result(self, result: Result) -> None:
         self._result_q.put(result)
 
-    def debounce(self) -> None:
-        pass
-
-    def handle_request_cancel(self, record: Record) -> None:
-        self._dispatch_record(record)
-
-    def handle_request_defer(self, record: Record) -> None:
-        defer = record.request.defer
-        state = defer.state
-
-        logger.info(f"handle defer: {state}")
-        if state == defer.FLUSH_TB:
-            if self._tb_watcher:
-                # shutdown tensorboard workers so we get all metrics flushed
-                self._tb_watcher.finish()
-                self._tb_watcher = None
-        elif state == defer.FLUSH_PARTIAL_HISTORY:
-            self._flush_partial_history()
-        elif state == defer.FLUSH_SUM:
-            self._save_summary(self._consolidated_summary, flush=True)
-
-        # defer is used to drive the sender finish state machine
-        self._dispatch_record(record, always_send=True)
-
-    def handle_request_python_packages(self, record: Record) -> None:
-        self._dispatch_record(record)
-
-    def handle_run(self, record: Record) -> None:
-        if self._settings._offline:
-            self._run_proto = record.run
-            result = proto_util._result_from_record(record)
-            result.run_result.run.CopyFrom(record.run)
-            self._respond_result(result)
-        self._dispatch_record(record)
-
-    def handle_stats(self, record: Record) -> None:
-        self._dispatch_record(record)
-
     def handle_config(self, record: Record) -> None:
         self._dispatch_record(record)
 
-    def handle_output(self, record: Record) -> None:
-        self._dispatch_record(record)
-
-    def handle_output_raw(self, record: Record) -> None:
-        self._dispatch_record(record)
-
     def handle_files(self, record: Record) -> None:
-        self._dispatch_record(record)
-
-    def handle_request_link_artifact(self, record: Record) -> None:
-        self._dispatch_record(record)
-
-    def handle_use_artifact(self, record: Record) -> None:
-        self._dispatch_record(record)
-
-    def handle_artifact(self, record: Record) -> None:
-        self._dispatch_record(record)
-
-    def handle_alert(self, record: Record) -> None:
         self._dispatch_record(record)
 
     def _save_summary(self, summary_dict: SummaryDict, flush: bool = False) -> None:
@@ -490,215 +408,6 @@ class HandleManager:
             updated_items = {k: self._consolidated_summary[k] for k in updated_keys}
             self._save_summary(updated_items)
 
-    def _flush_partial_history(
-        self,
-        step: int | None = None,
-    ) -> None:
-        if not self._partial_history:
-            return
-
-        history = HistoryRecord()
-        for k, v in self._partial_history.items():
-            item = history.item.add()
-            item.key = k
-            item.value_json = json.dumps(v)
-        if step is not None:
-            history.step.num = step
-        self.handle_history(Record(history=history))
-        self._partial_history = {}
-
-    def handle_request_sender_mark_report(self, record: Record) -> None:
-        self._dispatch_record(record, always_send=True)
-
-    def handle_request_status_report(self, record: Record) -> None:
-        self._dispatch_record(record, always_send=True)
-
-    def handle_request_partial_history(self, record: Record) -> None:
-        partial_history = record.request.partial_history
-
-        flush = None
-        if partial_history.HasField("action"):
-            flush = partial_history.action.flush
-
-        step = None
-        if partial_history.HasField("step"):
-            step = partial_history.step.num
-
-        history_dict = proto_util.dict_from_proto_list(partial_history.item)
-        if step is not None:
-            if step < self._step:
-                if not self._dropped_history:
-                    message = (
-                        "Step only supports monotonically increasing values, use define_metric to set a custom x "
-                        f"axis. For details see: {url_registry.url('define-metric')}"
-                    )
-                    self._internal_messages.warning.append(message)
-                    self._dropped_history = True
-                message = (
-                    f"(User provided step: {step} is less than current step: {self._step}. "
-                    f"Dropping entry: {history_dict})."
-                )
-                self._internal_messages.warning.append(message)
-                return
-            elif step > self._step:
-                self._flush_partial_history()
-                self._step = step
-        elif flush is None:
-            flush = True
-
-        self._partial_history.update(history_dict)
-
-        if flush:
-            self._flush_partial_history(self._step)
-
-    def handle_summary(self, record: Record) -> None:
-        summary = record.summary
-        for item in summary.update:
-            if len(item.nested_key) > 0:
-                # we use either key or nested_key -- not both
-                assert item.key == ""
-                key = tuple(item.nested_key)
-            else:
-                # no counter-assertion here, because technically
-                # summary[""] is valid
-                key = (item.key,)
-
-            target = self._consolidated_summary
-
-            # recurse down the dictionary structure:
-            for prop in key[:-1]:
-                target = target[prop]
-
-            # use the last element of the key to write the leaf:
-            target[key[-1]] = json.loads(item.value_json)
-
-        for item in summary.remove:
-            if len(item.nested_key) > 0:
-                # we use either key or nested_key -- not both
-                assert item.key == ""
-                key = tuple(item.nested_key)
-            else:
-                # no counter-assertion here, because technically
-                # summary[""] is valid
-                key = (item.key,)
-
-            target = self._consolidated_summary
-
-            # recurse down the dictionary structure:
-            for prop in key[:-1]:
-                target = target[prop]
-
-            # use the last element of the key to erase the leaf:
-            del target[key[-1]]
-
-        self._save_summary(self._consolidated_summary)
-
-    def handle_exit(self, record: Record) -> None:
-        if self._track_time is not None:
-            self._accumulate_time += time.time() - self._track_time
-        record.exit.runtime = int(self._accumulate_time)
-        self._dispatch_record(record, always_send=True)
-
-    def handle_final(self, record: Record) -> None:
-        self._dispatch_record(record, always_send=True)
-
-    def handle_preempting(self, record: Record) -> None:
-        self._dispatch_record(record)
-
-    def handle_header(self, record: Record) -> None:
-        self._dispatch_record(record)
-
-    def handle_footer(self, record: Record) -> None:
-        self._dispatch_record(record)
-
-    def handle_metadata(self, record: Record) -> None:
-        self._dispatch_record(record)
-
-    def handle_request_attach(self, record: Record) -> None:
-        result = proto_util._result_from_record(record)
-        attach_id = record.request.attach.attach_id
-        assert attach_id
-        assert self._run_proto
-        result.response.attach_response.run.CopyFrom(self._run_proto)
-        self._respond_result(result)
-
-    def handle_request_log_artifact(self, record: Record) -> None:
-        self._dispatch_record(record)
-
-    def handle_telemetry(self, record: Record) -> None:
-        self._dispatch_record(record)
-
-    def handle_request_run_start(self, record: Record) -> None:
-        run_start = record.request.run_start
-        assert run_start
-        assert run_start.run
-
-        self._run_proto = run_start.run
-
-        self._run_start_time = run_start.run.start_time.ToMicroseconds() / 1e6
-
-        self._track_time = time.time()
-        if run_start.run.resumed and run_start.run.runtime:
-            self._accumulate_time = run_start.run.runtime
-        else:
-            self._accumulate_time = 0
-
-        self._tb_watcher = tb_watcher.TBWatcher(
-            self._settings, interface=self._interface, run_proto=run_start.run
-        )
-
-        if run_start.run.resumed or run_start.run.forked:
-            self._step = run_start.run.starting_step
-        result = proto_util._result_from_record(record)
-        self._respond_result(result)
-
-    def handle_request_resume(self, record: Record) -> None:
-        if self._track_time is not None:
-            self._accumulate_time += time.time() - self._track_time
-        self._track_time = time.time()
-
-    def handle_request_pause(self, record: Record) -> None:
-        if self._track_time is not None:
-            self._accumulate_time += time.time() - self._track_time
-            self._track_time = None
-
-    def handle_request_poll_exit(self, record: Record) -> None:
-        self._dispatch_record(record, always_send=True)
-
-    def handle_request_stop_status(self, record: Record) -> None:
-        self._dispatch_record(record)
-
-    def handle_request_network_status(self, record: Record) -> None:
-        self._dispatch_record(record)
-
-    def handle_request_internal_messages(self, record: Record) -> None:
-        result = proto_util._result_from_record(record)
-        result.response.internal_messages_response.messages.CopyFrom(
-            self._internal_messages
-        )
-        self._internal_messages.Clear()
-        self._respond_result(result)
-
-    def handle_request_status(self, record: Record) -> None:
-        result = proto_util._result_from_record(record)
-        self._respond_result(result)
-
-    def handle_request_get_summary(self, record: Record) -> None:
-        result = proto_util._result_from_record(record)
-        for key, value in self._consolidated_summary.items():
-            item = SummaryItem()
-            item.key = key
-            item.value_json = json.dumps(value)
-            result.response.get_summary_response.item.append(item)
-        self._respond_result(result)
-
-    def handle_tbrecord(self, record: Record) -> None:
-        logger.info("handling tbrecord: %s", record)
-        if self._tb_watcher:
-            tbrecord = record.tbrecord
-            self._tb_watcher.add(tbrecord.log_dir, tbrecord.save, tbrecord.root_dir)
-        self._dispatch_record(record)
-
     def _handle_defined_metric(self, record: Record) -> None:
         metric = record.metric
         if metric._control.overwrite:
@@ -755,29 +464,6 @@ class HandleManager:
             self._handle_defined_metric(record)
         elif record.metric.glob_name:
             self._handle_glob_metric(record)
-
-    def handle_request_sampled_history(self, record: Record) -> None:
-        result = proto_util._result_from_record(record)
-        self._respond_result(result)
-
-    def handle_request_keepalive(self, record: Record) -> None:
-        """Handle a keepalive request.
-
-        Keepalive is a noop, we just want to verify transport is alive.
-        """
-
-    def handle_request_run_status(self, record: Record) -> None:
-        self._dispatch_record(record, always_send=True)
-
-    def handle_request_shutdown(self, record: Record) -> None:
-        # TODO(jhr): should we drain things and stop new requests from coming in?
-        result = proto_util._result_from_record(record)
-        self._respond_result(result)
-        self._stopped.set()
-
-    def handle_request_operations(self, record: Record) -> None:
-        """No-op. Not implemented for the legacy-service."""
-        self._respond_result(proto_util._result_from_record(record))
 
     def finish(self) -> None:
         logger.info("shutting down handler")
