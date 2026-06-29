@@ -1599,9 +1599,7 @@ class Api:
         )
 
     @normalize_exceptions
-    def _artifact(
-        self, name: str, type: str | None = None, enable_tracking: bool = False
-    ) -> Artifact:
+    def _artifact(self, name: str, type: str | None = None) -> Artifact:
         from wandb.sdk.artifacts._validators import (
             FullArtifactPath,
             is_artifact_registry_project,
@@ -1634,11 +1632,7 @@ class Api:
             )
 
         path = FullArtifactPath(prefix=entity, project=project, name=artifact_name)
-        artifact = Artifact._from_name(
-            path=path,
-            service_api=self._service_api,
-            enable_tracking=enable_tracking,
-        )
+        artifact = Artifact._from_name(path=path, service_api=self._service_api)
         if type is not None and artifact.type != type:
             raise ValueError(
                 f"type {type} specified but this artifact is of type {artifact.type}"
@@ -1711,7 +1705,7 @@ class Api:
         Note:
         This method is intended for external use only. Do not call `api.artifact()` within the wandb repository code.
         """
-        return self._artifact(name=name, type=type, enable_tracking=True)
+        return self._artifact(name=name, type=type)
 
     @normalize_exceptions
     def job(self, name: str | None, path: str | None = None) -> public.Job:

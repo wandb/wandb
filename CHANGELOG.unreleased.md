@@ -17,7 +17,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 ### Notable Changes
 
 This version drops support for protobuf v4, and requires protobuf v5 or newer.
-This version drops compatibility with server versions older than 0.67.0.
+This version drops compatibility with server versions older than 0.70.0.
 
 ### Changed
 
@@ -30,7 +30,7 @@ This version drops compatibility with server versions older than 0.67.0.
 ### Removed
 
 - Removed legacy support for listing and downloading artifact files on W&B Server releases older than `v0.67.0`, which are past EOL. This affects `Artifact.files()` and `Artifact.download()` for any artifact, as well as `Artifact.get_entry()` / `Artifact.get_path()` file downloads for non-reference artifacts. To keep using these operations, upgrade your W&B Server to `v0.67.0` or newer. (@tonyyli-wandb in https://github.com/wandb/wandb/pull/12109)
-- Removed legacy support for fetching an artifact by name on W&B Server releases older than `v0.70.0`, which are past EOL. This affects `wandb.Api().artifact(...)` and any other lookup of an artifact by its entity/project/name path. (@tonyyli-wandb in https://github.com/wandb/wandb/pull/12112)
+- Removed legacy support for fetching an artifact by name on W&B Server releases older than `v0.70.0`, which are past EOL. This affects `wandb.Api().artifact(...)` and other artifact lookups by path. To keep using these operations, upgrade your W&B Server to `v0.70.0` or newer. (@tonyyli-wandb in https://github.com/wandb/wandb/pull/12112)
 
 ### Fixed
 

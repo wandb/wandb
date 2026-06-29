@@ -288,16 +288,7 @@ class Artifact:
         return type(self)._from_id(artifact_id, self._get_service_api())
 
     @classmethod
-    def _from_name(
-        cls,
-        *,
-        path: FullArtifactPath,
-        service_api: ServiceApi,
-        enable_tracking: bool = False,
-    ) -> Artifact:
-        # `enable_tracking` is accepted for caller/signature compatibility but is not
-        # forwarded: the membership-by-name query has no tracking variable, and modern
-        # servers have always resolved this path via membership (ignoring tracking).
+    def _from_name(cls, *, path: FullArtifactPath, service_api: ServiceApi) -> Artifact:
         from ._generated import (
             ARTIFACT_MEMBERSHIP_BY_NAME_GQL,
             ArtifactMembershipByName,
@@ -317,11 +308,7 @@ class Artifact:
             msg = f"artifact membership {path.name!r} not found in {entity_project!r}"
             raise ValueError(msg)
 
-        return cls._from_membership(
-            membership,
-            target=path,
-            service_api=service_api,
-        )
+        return cls._from_membership(membership, target=path, service_api=service_api)
 
     @classmethod
     def _from_membership(
