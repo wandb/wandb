@@ -33,12 +33,6 @@ def artifact() -> Artifact:
 
 
 @fixture
-def bucket_name() -> str:
-    """The single bucket name shared by the buckets and references under test."""
-    return "my-bucket"
-
-
-@fixture
 def aws_credentials(monkeypatch: MonkeyPatch) -> None:
     """Point boto3 at fake credentials so it never reaches real AWS."""
     monkeypatch.setenv("AWS_ACCESS_KEY_ID", "testing")
@@ -60,21 +54,21 @@ def s3(aws_credentials: None) -> Iterator[BaseClient]:
 
 
 @fixture
-def bucket(s3: BaseClient, bucket_name: str) -> str:
+def bucket(s3: BaseClient) -> str:
     """Create an empty, unversioned bucket and return its name."""
-    s3.create_bucket(Bucket=bucket_name)
-    return bucket_name
+    name = "test-bucket"  # Single bucket name shared by all tests
+    s3.create_bucket(Bucket=name)
+    return name
 
 
 @fixture
-def versioned_bucket(s3: BaseClient, bucket_name: str) -> str:
+def versioned_bucket(s3: BaseClient, bucket: str) -> str:
     """Create an empty, version-enabled bucket and return its name."""
-    s3.create_bucket(Bucket=bucket_name)
     s3.put_bucket_versioning(
-        Bucket=bucket_name,
+        Bucket=bucket,
         VersioningConfiguration={"Status": "Enabled"},
     )
-    return bucket_name
+    return bucket
 
 
 def test_add_s3_reference_object(
@@ -84,15 +78,12 @@ def test_add_s3_reference_object(
     expected_etag,
     artifact,
 ):
-    version_id = s3.put_object(
-        Bucket=versioned_bucket,
-        Key="my_object.pb",
-        Body=mock_body,
-    )["VersionId"]
+    obj = s3.put_object(Bucket=versioned_bucket, Key="my_object.pb", Body=mock_body)
+    version_id = obj["VersionId"]
 
     artifact.add_reference(f"s3://{versioned_bucket}/my_object.pb")
 
-    assert artifact.manifest.to_manifest_json()["contents"] == {
+    assert artifact.manifest.to_manifest_json().get("contents") == {
         "my_object.pb": {
             "digest": expected_etag,
             "ref": f"s3://{versioned_bucket}/my_object.pb",
@@ -113,7 +104,7 @@ def test_add_s3_reference_object_no_version(
 
     artifact.add_reference(f"s3://{bucket}/my_object.pb")
 
-    assert artifact.manifest.to_manifest_json()["contents"] == {
+    assert artifact.manifest.to_manifest_json().get("contents") == {
         "my_object.pb": {
             "digest": expected_etag,
             "ref": f"s3://{bucket}/my_object.pb",
@@ -130,17 +121,14 @@ def test_add_s3_reference_object_with_version(
     expected_etag,
     artifact,
 ):
-    version_id = s3.put_object(
-        Bucket=versioned_bucket,
-        Key="my_object.pb",
-        Body=mock_body,
-    )["VersionId"]
+    obj = s3.put_object(Bucket=versioned_bucket, Key="my_object.pb", Body=mock_body)
+    version_id = obj["VersionId"]
 
     artifact.add_reference(
         f"s3://{versioned_bucket}/my_object.pb?versionId={version_id}"
     )
 
-    assert artifact.manifest.to_manifest_json()["contents"] == {
+    assert artifact.manifest.to_manifest_json().get("contents") == {
         "my_object.pb": {
             "digest": expected_etag,
             "ref": f"s3://{versioned_bucket}/my_object.pb",
@@ -157,15 +145,12 @@ def test_add_s3_reference_object_with_name(
     expected_etag,
     artifact,
 ):
-    version_id = s3.put_object(
-        Bucket=versioned_bucket,
-        Key="my_object.pb",
-        Body=mock_body,
-    )["VersionId"]
+    obj = s3.put_object(Bucket=versioned_bucket, Key="my_object.pb", Body=mock_body)
+    version_id = obj["VersionId"]
 
     artifact.add_reference(f"s3://{versioned_bucket}/my_object.pb", name="renamed.pb")
 
-    assert artifact.manifest.to_manifest_json()["contents"] == {
+    assert artifact.manifest.to_manifest_json().get("contents") == {
         "renamed.pb": {
             "digest": expected_etag,
             "ref": f"s3://{versioned_bucket}/my_object.pb",
@@ -187,7 +172,7 @@ def test_add_s3_reference_object_directory(
 
     artifact.add_reference(f"s3://{bucket}/my_dir/")
 
-    assert artifact.manifest.to_manifest_json()["contents"] == {
+    assert artifact.manifest.to_manifest_json().get("contents") == {
         "my_object.pb": {
             "digest": expected_etag,
             "ref": f"s3://{bucket}/my_dir/my_object.pb",
@@ -217,7 +202,7 @@ def test_add_s3_reference_path(
 
     artifact.add_reference(f"s3://{bucket}/")
 
-    assert artifact.manifest.to_manifest_json()["contents"] == {
+    assert artifact.manifest.to_manifest_json().get("contents") == {
         "my_object.pb": {
             "digest": expected_etag,
             "ref": f"s3://{bucket}/my_object.pb",
@@ -256,7 +241,7 @@ def test_add_s3_reference_path_with_content_type(
 
     artifact.add_reference(f"s3://{bucket}/my_dir")
 
-    assert artifact.manifest.to_manifest_json()["contents"] == {
+    assert artifact.manifest.to_manifest_json().get("contents") == {
         "my_object.pb": {
             "digest": expected_etag,
             "ref": f"s3://{bucket}/my_dir/my_object.pb",
@@ -294,7 +279,7 @@ def test_add_reference_s3_no_checksum(s3, artifact):
     # touching S3, so the bucket need not exist.
     artifact.add_reference("s3://my_bucket/file1.txt", checksum=False)
 
-    assert artifact.manifest.to_manifest_json()["contents"] == {
+    assert artifact.manifest.to_manifest_json().get("contents") == {
         "file1.txt": {
             "digest": "s3://my_bucket/file1.txt",
             "ref": "s3://my_bucket/file1.txt",
