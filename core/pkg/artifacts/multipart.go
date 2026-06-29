@@ -17,10 +17,11 @@ import (
 )
 
 const (
-	S3MinMultiUploadSize = 2 << 30   // 2 GiB, the threshold we've chosen to switch to multipart
-	S3MaxMultiUploadSize = 5 << 40   // 5 TiB, maximum possible object size
-	S3DefaultChunkSize   = 100 << 20 // 100 MiB
-	S3MaxParts           = 10000
+	S3MinMultiUploadSize         = 2 << 30   // 2 GiB, the threshold we've chosen to switch to multipart
+	S3MaxMultiUploadSize         = 5 << 40   // 5 TiB, maximum possible object size
+	S3DefaultChunkSize           = 100 << 20 // 100 MiB
+	S3MinMultipartUploadPartSize = 5 << 20   // 5 MiB, the minimum S3 multipart part size except for the final part
+	S3MaxParts                   = 10000
 )
 
 // createMultiPartRequest checks if the file size is large enough to use multipart upload.
@@ -29,6 +30,8 @@ const (
 func createMultiPartRequest(
 	logger *observability.CoreLogger,
 	path string,
+	thresholdBytes int64,
+	partSizeBytes int64,
 ) ([]gql.UploadPartsInput, error) {
 	fileInfo, err := os.Stat(path)
 	if err != nil {
@@ -37,7 +40,8 @@ func createMultiPartRequest(
 	fileSize := fileInfo.Size()
 
 	// Small or empty file. Empty file is supported by artifact and should NOT trigger multipart.
-	if fileSize < S3MinMultiUploadSize {
+	threshold := normalizeMultipartUploadThreshold(thresholdBytes)
+	if fileSize < threshold {
 		// We don't need to use multipart for small files.
 		return nil, nil
 	}
@@ -45,12 +49,36 @@ func createMultiPartRequest(
 		return nil, fmt.Errorf("file size exceeds maximum S3 object size: %v", fileSize)
 	}
 
-	return computeMultipartHashes(logger, path, fileSize, getChunkSize(fileSize), runtime.NumCPU())
+	return computeMultipartHashes(
+		logger,
+		path,
+		fileSize,
+		getChunkSize(fileSize, partSizeBytes),
+		runtime.NumCPU(),
+	)
 }
 
-func getChunkSize(fileSize int64) int64 {
-	if fileSize < S3DefaultChunkSize*S3MaxParts {
+func normalizeMultipartUploadThreshold(thresholdBytes int64) int64 {
+	if thresholdBytes <= 0 {
+		return S3MinMultiUploadSize
+	}
+	return thresholdBytes
+}
+
+func normalizeMultipartUploadPartSize(partSizeBytes int64) int64 {
+	if partSizeBytes <= 0 {
 		return S3DefaultChunkSize
+	}
+	return max(partSizeBytes, S3MinMultipartUploadPartSize)
+}
+
+func getChunkSize(fileSize, partSizeBytes int64) int64 {
+	partSize := normalizeMultipartUploadPartSize(partSizeBytes)
+	if fileSize < partSize {
+		return fileSize
+	}
+	if fileSize < partSize*S3MaxParts {
+		return partSize
 	}
 	// Use a larger chunk size if we would need more than 10,000 chunks.
 	chunkSize := int64(math.Ceil(float64(fileSize) / float64(S3MaxParts)))

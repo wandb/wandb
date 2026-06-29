@@ -40,12 +40,14 @@ const (
 
 // ArtifactSaveManager manages artifact uploads.
 type ArtifactSaveManager struct {
-	logger                       *observability.CoreLogger
-	printer                      *observability.Printer
-	graphqlClient                graphql.Client
-	fileTransferManager          filetransfer.FileTransferManager
-	fileCache                    Cache
-	useArtifactProjectEntityInfo func() bool
+	logger                        *observability.CoreLogger
+	printer                       *observability.Printer
+	graphqlClient                 graphql.Client
+	fileTransferManager           filetransfer.FileTransferManager
+	fileCache                     Cache
+	useArtifactProjectEntityInfo  func() bool
+	multipartUploadThresholdBytes int64
+	multipartUploadPartSizeBytes  int64
 
 	// uploadsByName ensures that uploads for the same artifact name happen
 	// serially, so that version numbers are assigned deterministically.
@@ -58,17 +60,21 @@ func NewArtifactSaveManager(
 	graphqlClient graphql.Client,
 	fileTransferManager filetransfer.FileTransferManager,
 	useArtifactProjectEntityInfo func() bool,
+	multipartUploadThresholdBytes int64,
+	multipartUploadPartSizeBytes int64,
 ) *ArtifactSaveManager {
 	workerPool := &errgroup.Group{}
 	workerPool.SetLimit(maxSimultaneousUploads)
 
 	return &ArtifactSaveManager{
-		logger:                       logger,
-		printer:                      printer,
-		graphqlClient:                graphqlClient,
-		fileTransferManager:          fileTransferManager,
-		fileCache:                    NewFileCache(UserCacheDir()),
-		useArtifactProjectEntityInfo: useArtifactProjectEntityInfo,
+		logger:                        logger,
+		printer:                       printer,
+		graphqlClient:                 graphqlClient,
+		fileTransferManager:           fileTransferManager,
+		fileCache:                     NewFileCache(UserCacheDir()),
+		useArtifactProjectEntityInfo:  useArtifactProjectEntityInfo,
+		multipartUploadThresholdBytes: multipartUploadThresholdBytes,
+		multipartUploadPartSizeBytes:  multipartUploadPartSizeBytes,
 		uploadsByName: namedgoroutines.New(
 			uploadBufferPerArtifactName,
 			workerPool,
@@ -105,18 +111,20 @@ func (as *ArtifactSaveManager) Save(
 	as.uploadsByName.Go(
 		artifact.Name,
 		&ArtifactSaver{
-			ctx:                          ctx,
-			logger:                       as.logger,
-			printer:                      as.printer,
-			graphqlClient:                as.graphqlClient,
-			fileTransferManager:          as.fileTransferManager,
-			fileCache:                    as.fileCache,
-			artifact:                     artifact,
-			historyStep:                  historyStep,
-			stagingDir:                   stagingDir,
-			maxActiveBatches:             5,
-			resultChan:                   resultChan,
-			useArtifactProjectEntityInfo: as.useArtifactProjectEntityInfo(),
+			ctx:                           ctx,
+			logger:                        as.logger,
+			printer:                       as.printer,
+			graphqlClient:                 as.graphqlClient,
+			fileTransferManager:           as.fileTransferManager,
+			fileCache:                     as.fileCache,
+			artifact:                      artifact,
+			historyStep:                   historyStep,
+			stagingDir:                    stagingDir,
+			maxActiveBatches:              5,
+			resultChan:                    resultChan,
+			useArtifactProjectEntityInfo:  as.useArtifactProjectEntityInfo(),
+			multipartUploadThresholdBytes: as.multipartUploadThresholdBytes,
+			multipartUploadPartSizeBytes:  as.multipartUploadPartSizeBytes,
 		},
 	)
 
@@ -135,14 +143,16 @@ type ArtifactSaver struct {
 	resultChan          chan<- ArtifactSaveResult
 
 	// Input.
-	artifact                     *spb.ArtifactRecord
-	historyStep                  int64
-	stagingDir                   string
-	maxActiveBatches             int
-	numTotal                     int
-	numDone                      int
-	startTime                    time.Time
-	useArtifactProjectEntityInfo bool
+	artifact                      *spb.ArtifactRecord
+	historyStep                   int64
+	stagingDir                    string
+	maxActiveBatches              int
+	numTotal                      int
+	numDone                       int
+	startTime                     time.Time
+	useArtifactProjectEntityInfo  bool
+	multipartUploadThresholdBytes int64
+	multipartUploadPartSizeBytes  int64
 }
 
 type multipartUploadInfo = []gql.CreateArtifactFilesCreateArtifactFilesCreateArtifactFilesPayloadFilesFileConnectionEdgesFileEdgeNodeFileUploadMultipartUrlsUploadUrlPartsUploadUrlPart
@@ -315,7 +325,12 @@ func (as *ArtifactSaver) uploadFiles(
 		if entry.LocalPath == nil {
 			continue
 		}
-		parts, err := createMultiPartRequest(as.logger, *entry.LocalPath)
+		parts, err := createMultiPartRequest(
+			as.logger,
+			*entry.LocalPath,
+			as.multipartUploadThresholdBytes,
+			as.multipartUploadPartSizeBytes,
+		)
 		if err != nil {
 			return err
 		}
@@ -509,7 +524,7 @@ func (as *ArtifactSaver) uploadMultipart(
 	if err != nil {
 		return uploadResult{name: fileInfo.name, err: err}
 	}
-	chunkSize := getChunkSize(statInfo.Size())
+	chunkSize := getChunkSize(statInfo.Size(), as.multipartUploadPartSizeBytes)
 
 	type partResponse struct {
 		partNumber int64

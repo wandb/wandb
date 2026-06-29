@@ -602,6 +602,66 @@ def test_artifact_multipart_download(user: str, api: Api, tmp_path: Path):
     assert (Path(stored_folder) / file_path.name).read_bytes() == payload
 
 
+def test_artifact_multipart_upload(
+    user: str, wandb_backend_spy, api: Api, tmp_path: Path
+):
+    """Test artifact upload through the Go core multipart upload path."""
+    gql = wandb_backend_spy.gql
+    create_artifact_files_spy = gql.Capture()
+    complete_multipart_spy = gql.Capture()
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="CreateArtifactFiles"),
+        create_artifact_files_spy,
+    )
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="CompleteMultipartUploadArtifact"),
+        complete_multipart_spy,
+    )
+
+    part_size = 5 * 1024 * 1024
+    marker = b"multipart upload marker\n"
+    file_path = tmp_path / "multipart-upload.bin"
+    with file_path.open("wb") as f:
+        f.truncate(part_size + 1024 * 1024)
+        f.seek(0)
+        f.write(marker)
+
+    entity = user
+    project = "test-project"
+    artifact_name = "test-multipart-upload-artifact"
+    artifact_type = "test-type"
+
+    settings = wandb.Settings(
+        x_artifact_multipart_upload_threshold_bytes=part_size,
+        x_artifact_multipart_upload_part_size_bytes=part_size,
+    )
+    with wandb.init(entity=entity, project=project, settings=settings):
+        art = wandb.Artifact(artifact_name, artifact_type)
+        art.add_file(file_path)
+        art.save()
+        art.wait()
+
+    upload_specs = [
+        spec
+        for request in create_artifact_files_spy.requests
+        for spec in request.variables.get("artifactFiles", [])
+        if spec.get("name") == file_path.name
+    ]
+    assert upload_specs, [
+        request.variables for request in create_artifact_files_spy.requests
+    ]
+    upload_parts = upload_specs[-1].get("uploadPartsInput")
+    assert [part["partNumber"] for part in upload_parts] == [1, 2]
+    assert all(part["hexMD5"] for part in upload_parts)
+    assert complete_multipart_spy.total_calls == 1
+
+    artifact = api.artifact(name=f"{entity}/{project}/{artifact_name}:v0")
+    stored_folder = artifact.download(skip_cache=True)
+    downloaded = Path(stored_folder) / file_path.name
+    assert downloaded.stat().st_size == file_path.stat().st_size
+    assert downloaded.read_bytes().startswith(marker)
+
+
 def test_artifact_download_http_headers(user, monkeypatch, tmp_path):
     """Test custom HTTP headers are included in full artifact and single entry download requests."""
     custom_headers = {

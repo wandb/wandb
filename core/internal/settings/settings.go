@@ -263,6 +263,20 @@ func (s *Settings) GetFileTransferTimeout() time.Duration {
 		s.Proto.XFileTransferTimeoutSeconds.GetValue())
 }
 
+// Minimum artifact file size, in bytes, that triggers multipart upload.
+//
+// Returns zero when unset; callers should apply the production default.
+func (s *Settings) GetArtifactMultipartUploadThresholdBytes() int64 {
+	return s.Proto.XArtifactMultipartUploadThresholdBytes.GetValue()
+}
+
+// Requested multipart artifact upload part size, in bytes.
+//
+// Returns zero when unset; callers should apply the production default.
+func (s *Settings) GetArtifactMultipartUploadPartSizeBytes() int64 {
+	return s.Proto.XArtifactMultipartUploadPartSizeBytes.GetValue()
+}
+
 // Maximum number of retries for GraphQL operations.
 func (s *Settings) GetGraphQLMaxRetries() int32 {
 	return s.Proto.XGraphqlRetryMax.GetValue()

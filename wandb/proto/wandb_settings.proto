@@ -50,7 +50,7 @@ message RunMoment {
 //
 // Some fields such as `run_id` only make sense at the run level.
 //
-// Next ID: 208
+// Next ID: 210
 message Settings {
   reserved 3, 6, 8, 9, 12, 19, 36, 43, 44, 45, 50, 51, 54, 70, 91, 94, 100, 136, 137, 173, 176, 180;
 
@@ -172,6 +172,18 @@ message Settings {
   google.protobuf.DoubleValue x_file_transfer_retry_wait_max_seconds = 152;
   // Per-retry timeout for file upload/download operations.
   google.protobuf.DoubleValue x_file_transfer_timeout_seconds = 153;
+
+  // Minimum artifact file size, in bytes, that triggers multipart upload.
+  //
+  // Internal test/debug setting. Unset or non-positive values mean use the
+  // production default threshold in Go core.
+  google.protobuf.Int64Value x_artifact_multipart_upload_threshold_bytes = 208;
+
+  // Requested multipart artifact upload part size, in bytes.
+  //
+  // Internal test/debug setting. Unset or non-positive values mean use the
+  // production default part size in Go core.
+  google.protobuf.Int64Value x_artifact_multipart_upload_part_size_bytes = 209;
 
   // Maximum number of retries for GraphQL operations.
   google.protobuf.Int32Value x_graphql_retry_max = 154;
