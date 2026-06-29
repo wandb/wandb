@@ -53,6 +53,7 @@ responses
 ariadne-codegen
 
 .[launch]
+.[optuna]
 .[sweeps] ; sys_platform != 'darwin' or (sys_platform == 'darwin' and platform.machine != 'arm64')
 
 # Sandbox tests need the upstream client, but it only supports Python 3.11+.

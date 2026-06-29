@@ -32,6 +32,7 @@ from __future__ import annotations
 import json
 import urllib
 from collections.abc import Mapping
+from enum import Enum
 from typing import TYPE_CHECKING, Any, ClassVar
 
 from typing_extensions import override
@@ -50,6 +51,32 @@ if TYPE_CHECKING:
     from wandb.apis.public.api import Api
     from wandb.apis.public.runs import AgentRuns
     from wandb.apis.public.service_api import ServiceApi
+
+
+class SweepState(str, Enum):
+    """The state of a sweep as a `str` enum"""
+
+    PENDING = "PENDING"
+    RUNNING = "RUNNING"
+    PAUSED = "PAUSED"
+    FINISHED = "FINISHED"
+    CANCELED = "CANCELED"
+    FAILED = "FAILED"
+    CRASHED = "CRASHED"
+    UNKNOWN = "UNKNOWN"
+
+    @classmethod
+    def _missing_(cls, value: object) -> SweepState:
+        """Resolve values case-insensitively, falling back to `UNKNOWN`."""
+        if isinstance(value, str):
+            normalized = value.strip().upper()
+            for member in cls:
+                if member.value == normalized:
+                    return member
+            # The backend spells this with two L's in some places.
+            if normalized == "CANCELLED":
+                return cls.CANCELED
+        return cls.UNKNOWN
 
 
 class Sweeps(SizedPaginator["Sweep"]):
@@ -245,8 +272,7 @@ class Sweep(Attrs):
         id (str): Sweep ID
         project (str): The name of the project the sweep belongs to
         config (dict): Dictionary containing the sweep configuration
-        state (str): The state of the sweep. Can be "Finished", "Failed",
-            "Crashed", or "Running".
+        state (SweepState): The state of the sweep.
         expected_run_count (int): The number of expected runs for the sweep
     """
 
@@ -379,6 +405,12 @@ class Sweep(Attrs):
         3. Sweep ID
         """
         return self._attrs.get("displayName") or self.config.get("name") or self.id
+
+    @property
+    def state(self) -> SweepState:
+        """The state of the sweep."""
+        self.load(force=True)  # reading a changing property
+        return SweepState(self._attrs.get("state"))
 
     @classmethod
     def get(
