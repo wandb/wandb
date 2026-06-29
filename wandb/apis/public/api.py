@@ -181,11 +181,12 @@ class Api:
             settings.http_proxy = http_proxy
         if https_proxy := proxies.get("https"):
             settings.https_proxy = https_proxy
+        self._sentry = wandb.analytics.sentry.Sentry(pid=os.getpid())
         self._service_api: ServiceApi = ServiceApi(
             settings=settings,
             timeout=self._timeout,
+            sentry=self._sentry,
         )
-        self._sentry = wandb.analytics.sentry.Sentry(pid=os.getpid())
         self._configure_sentry()
 
     def _load_auth(self, base_url: str) -> wbauth.Auth:

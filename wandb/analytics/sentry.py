@@ -155,6 +155,7 @@ class Sentry:
         | None,
         handled: bool = False,
         status: SessionStatus | None = None,
+        tags: dict[str, Any] | None = None,
     ) -> str | None:
         if isinstance(exc, str):
             exc_info = self._sdk.utils.exc_info_from_error(Exception(exc))  # type: ignore
@@ -168,6 +169,9 @@ class Sentry:
             client_options=self.scope.get_client().options,  # type: ignore
             mechanism={"type": "generic", "handled": handled},
         )
+        if tags:
+            event_tags = event.setdefault("tags", {})
+            event_tags.update({k: str(v) for k, v in tags.items()})
         event_id = None
         with contextlib.suppress(Exception):
             with self._sdk.scope.use_isolation_scope(self.scope):  # type: ignore
