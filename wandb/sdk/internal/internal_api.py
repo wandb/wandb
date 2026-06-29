@@ -11,7 +11,6 @@ import re
 import socket
 import sys
 import tempfile
-import threading
 from collections.abc import Callable, Iterable, Mapping, MutableMapping, Sequence
 from copy import deepcopy
 from pathlib import Path
@@ -40,7 +39,6 @@ from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 
 from ..lib import retry, wbauth
 from ..lib.filenames import DIFF_FNAME, METADATA_FNAME
-from . import context
 from .progress import Progress
 
 logger = logging.getLogger(__name__)
@@ -145,13 +143,6 @@ def check_httpclient_logger_handler() -> None:
         httpclient_logger.addHandler(root_logger.handlers[0])
 
 
-class _ThreadLocalData(threading.local):
-    context: context.Context | None
-
-    def __init__(self) -> None:
-        self.context = None
-
-
 class _OrgNames(NamedTuple):
     entity_name: str
     display_name: str
@@ -208,8 +199,6 @@ class Api:
 
     HTTP_TIMEOUT = env.get_http_timeout(20)
     FILE_PUSHER_TIMEOUT = env.get_file_pusher_timeout()
-    _global_context: context.Context
-    _local_data: _ThreadLocalData
 
     def __init__(
         self,
@@ -228,8 +217,6 @@ class Api:
         import requests
 
         self._environ = environ
-        self._global_context = context.Context()
-        self._local_data = _ThreadLocalData()
 
         default_overrides: dict[str, Any] = (
             dict(default_settings) if default_settings else {}
@@ -328,16 +315,6 @@ class Api:
         self._max_cli_version: str | None = None
 
         self._server_features_cache: dict[str, bool] | None = None
-
-    def set_local_context(self, api_context: context.Context | None) -> None:
-        self._local_data.context = api_context
-
-    def clear_local_context(self) -> None:
-        self._local_data.context = None
-
-    @property
-    def context(self) -> context.Context:
-        return self._local_data.context or self._global_context
 
     def reauth(self) -> None:
         """Ensure the current api key is set on the service API."""
