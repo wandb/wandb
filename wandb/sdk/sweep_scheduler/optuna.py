@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from wandb.sdk.sweep_scheduler.optimizer import StatefulOptimizer, RunSuggestion, RunData, scheduler_sweep_config, terminal_state
+from wandb.sdk.sweep_scheduler.optimizer import StatefulOptimizer, RunSuggestion, RunData, scheduler_sweep_config, terminal_state, Executor
 from wandb.apis.public import Sweep
 from wandb import util, sweep as wandb_sweep, Api
 from typing import Any, Callable, Iterable, TypeAlias
@@ -191,8 +191,15 @@ def sweep_from_study(
 
 
 class OptunaOptimizer(StatefulOptimizer):
-    def __init__(self, study: optuna.Study, sweep: Sweep, poll_interval_s: float, batch_size: int):
-        super().__init__(sweep, poll_interval_s, batch_size)
+    def __init__(
+        self,
+        study: optuna.Study,
+        sweep: Sweep,
+        poll_interval_s: float,
+        batch_size: int,
+        executor: Executor | None = None,
+    ):
+        super().__init__(sweep, poll_interval_s, batch_size, executor)
         self.study = study
         # Live ask()'d trials kept by trial.number. The study only stores frozen
         # trials, which lack report()/should_prune(), so we must hold the live
@@ -264,9 +271,10 @@ class OptunaDeclarativeOptimizer(OptunaOptimizer):
         sweep: Sweep,
         poll_interval_s: float,
         batch_size: int,
+        executor: Executor | None = None,
     ):
         self.distributions = distributions
-        super().__init__(study, sweep, poll_interval_s, batch_size)
+        super().__init__(study, sweep, poll_interval_s, batch_size, executor)
 
     def next_n_runs(self, n: int) -> Iterable[RunSuggestion]:
         suggestions = []
@@ -322,9 +330,10 @@ class OptunaImperativeOptimizer(OptunaOptimizer):
         sweep: Sweep,
         poll_interval_s: float,
         batch_size: int,
+        executor: Executor | None = None,
     ):
         self.trial_constructor = trial_constructor
-        super().__init__(study, sweep, poll_interval_s, batch_size)
+        super().__init__(study, sweep, poll_interval_s, batch_size, executor)
 
     def next_n_runs(self, n: int) -> Iterable[RunSuggestion]:
         suggestions = []
@@ -394,17 +403,22 @@ def _make_optimizer(
     trial_constructor: TrialConstructor | None,
     poll_interval_s: float,
     batch_size: int,
+    executor: Callable[[Sweep], Executor] | None = None,
 ) -> OptunaOptimizer:
     if (distributions is None) == (trial_constructor is None):
         raise ValueError(
             "provide exactly one of `distributions` or `trial_constructor`"
         )
+    # `executor` is a factory taking the (just created/fetched) sweep, since a
+    # backend like SLURM needs the sweep to scope/create runs. None -> the
+    # optimizer defaults to enqueuing into the sweep's run queue.
+    executor_instance = executor(sweep) if executor is not None else None
     if distributions is not None:
         return OptunaDeclarativeOptimizer(
-            study, distributions, sweep, poll_interval_s, batch_size
+            study, distributions, sweep, poll_interval_s, batch_size, executor_instance
         )
     return OptunaImperativeOptimizer(
-        study, trial_constructor, sweep, poll_interval_s, batch_size
+        study, trial_constructor, sweep, poll_interval_s, batch_size, executor_instance
     )
 
 
@@ -416,17 +430,21 @@ def resume_sweep(
     trial_constructor: TrialConstructor | None = None,
     poll_interval_s: float = 5.0,
     batch_size: int = 1,
+    executor: Callable[[Sweep], Executor] | None = None,
 ) -> OptunaOptimizer:
     """Attach a scheduler to a sweep that already exists.
 
     `sweep` may be a `Sweep` or an "entity/project/sweep_id" path string. Pass
     exactly one of `distributions` (define-and-run) or `trial_constructor`
-    (define-by-run) to choose how the study samples.
+    (define-by-run) to choose how the study samples. `executor` is a factory taking
+    the resolved sweep and returning the backend that schedules runs (defaults to
+    the W&B run queue).
     """
     if isinstance(sweep, str):
         sweep = Api().sweep(sweep)
     return _make_optimizer(
-        study, sweep, distributions, trial_constructor, poll_interval_s, batch_size
+        study, sweep, distributions, trial_constructor, poll_interval_s, batch_size,
+        executor,
     )
 
 
@@ -441,12 +459,14 @@ def create_sweep(
     poll_interval_s: float = 5.0,
     batch_size: int = 1,
     program_path: str | None = None,
+    executor: Callable[[Sweep], Executor] | None = None,
 ) -> OptunaOptimizer:
     """Create a new sweep from the study's search space, then attach a scheduler.
 
     Pass exactly one of `distributions` (define-and-run) or `trial_constructor`
     (define-by-run); the latter's search space is discovered by running it once to
-    build the sweep.
+    build the sweep. `executor` is a factory taking the created sweep and returning
+    the backend that schedules runs (defaults to the W&B run queue).
     """
     if (distributions is None) == (trial_constructor is None):
         raise ValueError(
@@ -461,7 +481,8 @@ def create_sweep(
         study, search_space, entity, project, metric_name, program_path
     )
     return _make_optimizer(
-        study, sweep, distributions, trial_constructor, poll_interval_s, batch_size
+        study, sweep, distributions, trial_constructor, poll_interval_s, batch_size,
+        executor,
     )
 
 
@@ -473,13 +494,16 @@ def create_sweep_from_config(
     study: optuna.Study | None = None,
     poll_interval_s: float = 5.0,
     batch_size: int = 1,
+    executor: Callable[[Sweep], Executor] | None = None,
 ) -> OptunaOptimizer:
     """Create the study, the sweep and a scheduler from a sweep config alone.
 
     The search space is derived from `config["parameters"]` and, when no study is
     supplied, the study's direction from `config["metric"]["goal"]`, so the caller
     only needs a sweep config. The local scheduler requires a custom method, so
-    `scheduler_sweep_config` is merged in (overriding `method`).
+    `scheduler_sweep_config` is merged in (overriding `method`). `executor` is a
+    factory taking the created sweep and returning the backend that schedules runs
+    (defaults to the W&B run queue).
     """
     distributions = search_space_from_sweep_config(config.get("parameters", {}))
     if study is None:
@@ -490,5 +514,10 @@ def create_sweep_from_config(
     )
     sweep = Api().sweep(f"{entity}/{project}/{sweep_id}")
     return OptunaDeclarativeOptimizer(
-        study, distributions, sweep, poll_interval_s, batch_size
+        study,
+        distributions,
+        sweep,
+        poll_interval_s,
+        batch_size,
+        executor(sweep) if executor is not None else None,
     )

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from abc import ABC, abstractmethod
 from typing import Iterable, Any, List
 from dataclasses import dataclass
 from wandb import termerror, termlog, termwarn
@@ -47,21 +48,69 @@ def terminal_state(state: RunState) -> RunState | None:
     return None
 
 
+class Executor(ABC):
+    @abstractmethod
+    def schedule(self, suggestion: RunSuggestion) -> str:
+        """Start or queue a run for `suggestion`; return its W&B run id."""
+        ...
+
+    def reap(self, run_ids: Iterable[str]) -> set[str]:
+        """Return the subset of `run_ids` whose backend jobs are no longer alive.
+
+        The optimizer calls this each poll with the runs W&B still considers
+        in-flight, to catch jobs that died before `wandb.init` ran (rejected,
+        preempted, crashed at startup) and left their W&B run stuck PENDING.
+        Returned ids are finalized as failed and dropped from the in-flight set,
+        freeing capacity.
+
+        Must not mutate `run_ids`. The default returns an empty set: for the queue
+        / W&B-agent backend the W&B run state is authoritative and the agent owns
+        the run lifecycle, so there is nothing extra to reconcile. Direct backends
+        (SLURM, Volcano, ...) override this to consult their scheduler (squeue /
+        sacct, the K8s API, ...).
+        """
+        return set()
+
+
+class WBAgentExecutor(Executor):
+    """Default executor: enqueue the run into the W&B sweep's run queue.
+
+    A W&B agent (`wandb agent <sweep>`) pulls the queued run and executes it. The
+    server creates the run PENDING, associated with the sweep, and returns its id.
+    """
+
+    def __init__(self, sweep: Sweep):
+        self._sweep = sweep
+
+    def schedule(self, suggestion: RunSuggestion) -> str:
+        # The agent reads each param as {"value": <v>} and the server forwards the
+        # enqueued config to it verbatim, so wrap the flat suggestion config.
+        run_config = {
+            param: {"value": value}
+            for param, value in suggestion.config.items()
+        }
+        return self._sweep.enqueue_run(run_config)
+
+
 class StatefulOptimizer:
     """Interact with an external optimizer that supports an
     ask-tell interface."""
     
     def __init__(self, sweep: Sweep,
         poll_interval_s: float,
-        batch_size: int):
+        batch_size: int,
+        executor: Executor | None = None):
         """sweep: the sweep to interact with
         poll_interval_s: the interval in seconds to poll the sweep for new runs
         batch_size: the number of runs to suggest at a time
+        executor: backend that schedules each suggested run and returns its W&B
+            run id. Defaults to enqueuing into the sweep's run queue.
         """
         self._sweep = sweep
         self._poll_interval_s = poll_interval_s
         self._batch_size = batch_size
         self._api = Api()
+        self._executor = executor or WBAgentExecutor(sweep)
         # Key: wandb run id, Value: external optimizer run id
         self._run_id_mapping: dict[str, Any] = {}
         # Runs we've enqueued that haven't reached a terminal state yet. Bounded
@@ -155,6 +204,43 @@ class StatefulOptimizer:
         self._run_id_mapping[wandb_run_id] = optimizer_run_id
         self._unreported_runs.add(wandb_run_id)
 
+    def _reap_dead_runs(self) -> None:
+        """Fail and drain in-flight runs whose backend job is no longer alive.
+
+        A direct executor (e.g. SLURM/Volcano) may schedule a job that never
+        reaches `wandb.init` (rejected, preempted, crashed at startup), leaving
+        its W&B run stuck PENDING and pinned in-flight forever. Ask the executor
+        which tracked runs it can no longer find and finalize them as failed so
+        the optimizer learns the outcome and capacity frees up. No-op for the
+        default queue/agent executor (its `reap` returns nothing).
+        """
+        if not self._unreported_runs:
+            return
+        for run_id in self._executor.reap(self._unreported_runs):
+            optimizer_run_id = self._run_id_mapping.get(run_id)
+            if optimizer_run_id is None:
+                continue
+            termwarn(
+                f"Run {run_id} in sweep {self._sweep.name} is no longer alive at "
+                f"the executor but never reached a terminal W&B state; marking it "
+                f"failed."
+            )
+            data = RunData(
+                config={},
+                state=RunState.FAILED,
+                wandb_run_id=run_id,
+                summary_metrics={},
+                history_metrics=[],
+            )
+            try:
+                self.tell_run(optimizer_run_id, data)
+            except Exception as e:
+                termerror(
+                    f"Error telling reaped run {run_id} in sweep "
+                    f"{self._sweep.name}: {e}"
+                )
+            self._unreported_runs.discard(run_id)
+
     def metric_value(self, metrics: dict[str, Any]) -> Any:
         """Return the objective value for the sweep's configured metric.
 
@@ -225,6 +311,10 @@ class StatefulOptimizer:
                         if InternalApi().stop_run(run.storage_id):
                             self._unreported_runs.discard(run.id)
 
+                # Reconcile against the executor's backend: drop runs whose job
+                # died before reporting to W&B (otherwise they'd pin capacity).
+                self._reap_dead_runs()
+
                 # Keep at most `batch_size` runs in flight. `_unreported_runs` is
                 # populated on enqueue/adoption and drained above when a run goes
                 # terminal, so it is the in-flight count. Unlike a backend query it
@@ -236,14 +326,10 @@ class StatefulOptimizer:
 
                 suggestions = self.next_n_runs(n_to_enqueue)
                 for suggestion in suggestions:
-                    run_config = {
-                        param: {"value": value}
-                        for param, value in suggestion.config.items()
-                    }
-                    wandb_run_id = self._sweep.enqueue_run(run_config)
+                    wandb_run_id = self._executor.schedule(suggestion)
                     self._track_run(wandb_run_id, suggestion.run_id)
                     termlog(
-                        f"Enqueued run {wandb_run_id} (optimizer run "
+                        f"Scheduled run {wandb_run_id} (optimizer run "
                         f"{suggestion.run_id}) in sweep {self._sweep.name} "
                         f"with config {suggestion.config}"
                     )
