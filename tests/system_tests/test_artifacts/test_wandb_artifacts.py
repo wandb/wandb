@@ -61,6 +61,14 @@ def s3(aws_credentials: None) -> Generator[BaseClient, None, None]:
 
 
 @fixture
+def s3_bucket(s3: BaseClient) -> str:
+    """Create an empty bucket and return its name."""
+    name = "test-bucket"  # Single bucket name shared by all tests
+    s3.create_bucket(Bucket=name)
+    return name
+
+
+@fixture
 def artifact() -> Artifact:
     return Artifact(type="dataset", name="data-artifact")
 
@@ -1029,23 +1037,21 @@ def test_http_storage_handler_uses_etag_for_digest(
         assert entry.digest == expected_digest
 
 
-def test_s3_storage_handler_load_path_missing_reference(s3, user, artifact):
+def test_s3_storage_handler_load_path_missing_reference(s3, s3_bucket, user, artifact):
     # Reference an S3 object that exists when the reference is added.
-    s3.create_bucket(Bucket="my-bucket")
-    s3.put_object(Bucket="my-bucket", Key="my_object.pb", Body=b"0123456789")
+    s3.put_object(Bucket=s3_bucket, Key="my_object.pb", Body=b"0123456789")
 
-    artifact.add_reference("s3://my-bucket/my_object.pb")
+    artifact.add_reference(f"s3://{s3_bucket}/my_object.pb")
 
     with wandb.init(project="test") as run:
         run.log_artifact(artifact)
     artifact.wait()
 
     # Delete the referenced object so the handler hits a real 404 on download.
-    s3.delete_object(Bucket="my-bucket", Key="my_object.pb")
+    s3.delete_object(Bucket=s3_bucket, Key="my_object.pb")
 
-    with wandb.init(project="test") as run:
-        with raises(FileNotFoundError, match="Unable to find"):
-            artifact.download()
+    with raises(FileNotFoundError, match="Unable to find"):
+        artifact.download()
 
 
 def test_change_artifact_collection_type(user):
@@ -1285,23 +1291,19 @@ def test_artifact_collection_aliases(user: str, api: Api, logged_artifact: Artif
 
 
 def test_s3_storage_handler_load_path_missing_reference_allowed(
-    s3, user, capsys, artifact
+    s3, s3_bucket, user, artifact, capsys
 ):
-    # Reference an S3 object that exists when the reference is added.
-    s3.create_bucket(Bucket="my-bucket")
-    s3.put_object(Bucket="my-bucket", Key="my_object.pb", Body=b"0123456789")
+    # Reference an S3 object that exists when the reference is added, but is deleted before download.
+    s3.put_object(Bucket=s3_bucket, Key="my_object.pb", Body=b"0123456789")
 
-    artifact.add_reference("s3://my-bucket/my_object.pb")
-
-    with wandb.init(project="test") as run:
-        run.log_artifact(artifact)
+    artifact.add_reference(f"s3://{s3_bucket}/my_object.pb")
+    artifact.save()
     artifact.wait()
 
-    # Delete the referenced object so the handler hits a real 404 on download.
-    s3.delete_object(Bucket="my-bucket", Key="my_object.pb")
+    # Delete the referenced object so the handler hits a 404 on download.
+    s3.delete_object(Bucket=s3_bucket, Key="my_object.pb")
 
-    with wandb.init(project="test") as run:
-        artifact.download(allow_missing_references=True)
+    artifact.download(allow_missing_references=True)
 
     # It should still log a warning about skipping the missing reference.
     assert "Unable to find my_object.pb" in capsys.readouterr().err
