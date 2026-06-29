@@ -1038,20 +1038,36 @@ def test_http_storage_handler_uses_etag_for_digest(
 
 
 def test_s3_storage_handler_load_path_missing_reference(s3, s3_bucket, user, artifact):
-    # Reference an S3 object that exists when the reference is added.
+    # Reference an S3 object that exists when added, but is deleted before download.
     s3.put_object(Bucket=s3_bucket, Key="my_object.pb", Body=b"0123456789")
 
     artifact.add_reference(f"s3://{s3_bucket}/my_object.pb")
-
-    with wandb.init(project="test") as run:
-        run.log_artifact(artifact)
+    artifact.save()
     artifact.wait()
 
-    # Delete the referenced object so the handler hits a real 404 on download.
+    # Delete the referenced object so the handler hits a 404 on download.
     s3.delete_object(Bucket=s3_bucket, Key="my_object.pb")
 
     with raises(FileNotFoundError, match="Unable to find"):
         artifact.download()
+
+
+def test_s3_storage_handler_load_path_missing_reference_allowed(
+    s3, s3_bucket, user, artifact, capsys
+):
+    # Reference an S3 object that exists when added, but is deleted before download.
+    s3.put_object(Bucket=s3_bucket, Key="my_object.pb", Body=b"0123456789")
+
+    artifact.add_reference(f"s3://{s3_bucket}/my_object.pb")
+    artifact.save()
+    artifact.wait()
+
+    # Delete the referenced object so the handler hits a 404 on download.
+    s3.delete_object(Bucket=s3_bucket, Key="my_object.pb")
+
+    # It should still log a warning about skipping the missing reference.
+    artifact.download(allow_missing_references=True)
+    assert "Unable to find" in capsys.readouterr().err
 
 
 def test_change_artifact_collection_type(user):
@@ -1288,25 +1304,6 @@ def test_artifact_collection_aliases(user: str, api: Api, logged_artifact: Artif
     assert sorted(src_collection1.aliases) == sorted(expected_src_aliases1)
     src_collection2 = api.artifact_collection(name="test-artifact-2", type_name="data")
     assert sorted(src_collection2.aliases) == sorted(expected_src_aliases2)
-
-
-def test_s3_storage_handler_load_path_missing_reference_allowed(
-    s3, s3_bucket, user, artifact, capsys
-):
-    # Reference an S3 object that exists when the reference is added, but is deleted before download.
-    s3.put_object(Bucket=s3_bucket, Key="my_object.pb", Body=b"0123456789")
-
-    artifact.add_reference(f"s3://{s3_bucket}/my_object.pb")
-    artifact.save()
-    artifact.wait()
-
-    # Delete the referenced object so the handler hits a 404 on download.
-    s3.delete_object(Bucket=s3_bucket, Key="my_object.pb")
-
-    artifact.download(allow_missing_references=True)
-
-    # It should still log a warning about skipping the missing reference.
-    assert "Unable to find my_object.pb" in capsys.readouterr().err
 
 
 def test_s3_storage_handler_load_path_uses_cache(tmp_path):
