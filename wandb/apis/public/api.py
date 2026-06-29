@@ -282,13 +282,14 @@ class Api:
         project: str | None = None,
         entity: str | None = None,
         state: Literal["running", "pending"] = "running",
+        sweep: str | None = None,
     ) -> public.Run:
         self._sentry.message("Invoking Run.create", level="info")
         run_id = run_id or runid.generate_id()
         project = project or self.settings.get("project") or "uncategorized"
         mutation = """
         mutation UpsertBucket($project: String, $entity: String, $name: String!, $state: String) {
-            upsertBucket(input: {modelName: $project, entityName: $entity, name: $name, state: $state}) {
+            upsertBucket(input: {modelName: $project, entityName: $entity, name: $name, state: $state, sweep: $sweep}) {
                 bucket {
                     project {
                         name
@@ -306,27 +307,32 @@ class Api:
             "project": project,
             "name": run_id,
             "state": state,
+            "sweep": sweep,
         }
         res = self._service_api.execute_graphql(
             mutation,
             variables,
         )
         res = res["upsertBucket"]["bucket"]
+        attrs = {
+            "id": res["id"],
+            "config": "{}",
+            "systemMetrics": "{}",
+            "summaryMetrics": "{}",
+            "tags": [],
+            "description": None,
+            "notes": None,
+            "state": state,
+        }
+        if sweep:
+            attrs["sweepName"] = sweep
+
         return public.Run(
             self._service_api,
             res["project"]["entity"]["name"],
             res["project"]["name"],
             res["name"],
-            {
-                "id": res["id"],
-                "config": "{}",
-                "systemMetrics": "{}",
-                "summaryMetrics": "{}",
-                "tags": [],
-                "description": None,
-                "notes": None,
-                "state": state,
-            },
+            attrs,
             lazy=False,  # Created runs should have full data available immediately
             api_key=self.api_key,
         )
