@@ -63,12 +63,12 @@ class Settings(BaseModel, validate_assignment=True):
     This class manages configuration settings for the W&B SDK,
     ensuring type safety and validation of all settings. Settings are accessible
     as attributes and can be initialized programmatically, through environment
-    variables (`WANDB_ prefix`), and with configuration files.
+    variables (`WANDB_` prefix), and with configuration files.
 
     The settings are organized into three categories:
     1. Public settings: Core configuration options that users can safely modify to customize
        W&B's behavior for their specific needs.
-    2. Internal settings: Settings prefixed with 'x_' that handle low-level SDK behavior.
+    2. Internal settings: Settings prefixed with `x_` that handle low-level SDK behavior.
        These settings are primarily for internal use and debugging. While they can be modified,
        they are not considered part of the public API and may change without notice in future
        versions.
