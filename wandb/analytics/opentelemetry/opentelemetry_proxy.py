@@ -14,17 +14,15 @@ import requests
 from opentelemetry import metrics
 from opentelemetry._logs import Logger as OTelLogger
 from opentelemetry._logs import SeverityNumber
+from opentelemetry.exporter.otlp.proto.http._log_exporter import OTLPLogExporter
+from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExporter
 from opentelemetry.sdk._logs import LoggerProvider
 from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
-from opentelemetry.sdk.metrics import Counter, Histogram, MeterProvider, UpDownCounter
-from opentelemetry.sdk.metrics.export import (
-    AggregationTemporality,
-    PeriodicExportingMetricReader,
-)
+from opentelemetry.sdk.metrics import MeterProvider
+from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
 from opentelemetry.sdk.resources import Resource
+from requests import auth as requests_auth
 from typing_extensions import Never
-
-from .otlp_json_exporter import JSONLogExporter, JSONMetricExporter
 
 _P = ParamSpec("_P")
 _R = TypeVar("_R")
@@ -34,11 +32,11 @@ _logger = logging.getLogger(__name__)
 _OTEL_SERVICE_NAME = "wandb-sdk"
 _DEFAULT_ENDPOINT = "https://api.wandb.ai"
 _DEFAULT_EXPORT_INTERVAL_MS = 500
+_OTLP_HTTP_EXPORTER_LOGGERS = (
+    "opentelemetry.exporter.otlp.proto.http._log_exporter",
+    "opentelemetry.exporter.otlp.proto.http.metric_exporter",
+)
 
-# TODO: revisit this timeout and verify failure mode, e.g. server not reachable
-# Per-request HTTP timeout for the OTLP exporters, in seconds. Analytics
-# telemetry should never block the user's thread on a slow or unreachable
-# collector, so we fail fast.
 _OTLP_HTTP_TIMEOUT_SECONDS = 1
 
 
@@ -136,20 +134,22 @@ class OtelProvider:
         self,
         *,
         endpoint: str | None = None,
+        api_key: str | None = None,
         pid: int,
     ) -> None:
         from wandb import env as _env
 
         self._enabled = bool(_env.error_reporting_enabled())
         self._pid = pid
+        self._api_key = api_key
         self.scope = TelemetryContext()
 
-        if endpoint is None:
-            endpoint = os.environ.get(_env.TELEMETRY_ENDPOINT, _DEFAULT_ENDPOINT)
-        self._base_url = endpoint.rstrip("/") + "/sdk/otel/v1"
+        self._endpoint = _otel_endpoint(endpoint)
+        self._base_url = self._endpoint + "/sdk/otel/v1"
 
         self._booted = False
         self._boot_lock = threading.Lock()
+        self._session: requests.Session | None = None
         self._meter: metrics.Meter | None = None
         self._logger: OTelLogger | None = None
 
@@ -173,20 +173,15 @@ class OtelProvider:
             try:
                 resource = Resource.create({"service.name": _OTEL_SERVICE_NAME})
 
-                # Custom OTLP/JSON exporters keep the OTel SDK protobuf-free;
-                # see wandb/analytics/opentelemetry/otlp_json_exporter.py.
-                session = requests.Session()
+                _redirect_otlp_http_exporter_logs()
+                self._session = requests.Session()
+                _configure_session_auth(self._session, self._api_key)
 
                 # Setup metrics exporter
-                metric_exporter = JSONMetricExporter(
+                metric_exporter = OTLPMetricExporter(
                     endpoint=f"{self._base_url}/metrics",
-                    session=session,
+                    session=self._session,
                     timeout=_OTLP_HTTP_TIMEOUT_SECONDS,
-                    preferred_temporality={
-                        Counter: AggregationTemporality.DELTA,
-                        UpDownCounter: AggregationTemporality.DELTA,
-                        Histogram: AggregationTemporality.DELTA,
-                    },
                 )
                 reader = PeriodicExportingMetricReader(
                     metric_exporter,
@@ -199,9 +194,9 @@ class OtelProvider:
                 self._meter = self._meter_provider.get_meter("wandb.sdk")
 
                 # Setup logs exporter
-                log_exporter = JSONLogExporter(
+                log_exporter = OTLPLogExporter(
                     endpoint=f"{self._base_url}/logs",
-                    session=session,
+                    session=self._session,
                     timeout=_OTLP_HTTP_TIMEOUT_SECONDS,
                 )
                 self._logger_provider = LoggerProvider(resource=resource)
@@ -215,11 +210,18 @@ class OtelProvider:
                 _logger.debug("OtelProvider boot failed", exc_info=True)
                 self._enabled = False
                 self._booted = False
+                self._session = None
                 self._meter = None
                 self._logger = None
                 return False
 
             return True
+
+    def set_api_key(self, api_key: str | None) -> None:
+        """Sets or updates the API key for the OTel provider."""
+        self._api_key = api_key
+        if self._session is not None:
+            _configure_session_auth(self._session, api_key)
 
     @_guard
     def configure_context(
@@ -337,16 +339,70 @@ _singleton: OtelProvider | None = None
 _singleton_lock = threading.Lock()
 
 
-def get_otel() -> OtelProvider:
+def get_otel(
+    *,
+    api_key: str | None = None,
+) -> OtelProvider:
     global _singleton
     pid = os.getpid()
     with _singleton_lock:
+        # If the singleton already exists and belongs to the current process,
+        # return existing instance and update the API key if provided.
         if _singleton is not None and _singleton._pid == pid:
+            if api_key is not None:
+                _singleton.set_api_key(api_key)
             return _singleton
+
+        # If the singleton does not exist or belongs to a different process,
+        # create a new instance.
         if _singleton is None or _singleton._pid != pid:
-            _singleton = OtelProvider(pid=pid)
+            _singleton = OtelProvider(
+                api_key=api_key,
+                pid=pid,
+            )
         return _singleton
 
 
 def _exception_stacktrace(exc: Exception) -> str:
     return "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
+
+
+def _otel_endpoint(endpoint: str | None) -> str:
+    from wandb import env as _env
+
+    if endpoint is None:
+        endpoint = (
+            os.environ.get(_env.TELEMETRY_ENDPOINT)
+            or os.environ.get(_env.BASE_URL)
+            or _DEFAULT_ENDPOINT
+        )
+    return endpoint.rstrip("/")
+
+
+class _WandbLoggerForwardingHandler(logging.Handler):
+    def __init__(self, wandb_logger: logging.Logger) -> None:
+        super().__init__()
+        self._wandb_logger = wandb_logger
+
+    def emit(self, record: logging.LogRecord) -> None:
+        try:
+            if self._wandb_logger.isEnabledFor(record.levelno):
+                self._wandb_logger.handle(record)
+        except Exception:
+            # Ignore errors from the logger.
+            pass
+
+
+def _redirect_otlp_http_exporter_logs() -> None:
+    """Redirect OTLP HTTP exporter logs to W&B's internal logger."""
+    wandb_logger = logging.getLogger("wandb")
+
+    for logger_name in _OTLP_HTTP_EXPORTER_LOGGERS:
+        exporter_logger = logging.getLogger(logger_name)
+        exporter_logger.addHandler(_WandbLoggerForwardingHandler(wandb_logger))
+        exporter_logger.propagate = False
+        exporter_logger.setLevel(logging.NOTSET)
+
+
+def _configure_session_auth(session: requests.Session, api_key: str | None) -> None:
+    session.auth = requests_auth.HTTPBasicAuth("api", api_key) if api_key else None
