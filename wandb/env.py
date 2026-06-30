@@ -150,32 +150,96 @@ def _env_as_bool(
 
 
 def is_debug(default: str | None = None, env: MutableMapping | None = None) -> bool:
+    """Return ``True`` if the W&B debug mode is enabled via the ``WANDB_DEBUG`` environment variable.
+
+    Args:
+        default: Fallback value used when the environment variable is not set.
+        env: Mapping to read from; defaults to ``os.environ``.
+
+    Returns:
+        ``True`` when debug mode is active, ``False`` otherwise.
+    """
     return _env_as_bool(DEBUG, default=default, env=env)
 
 
 def is_offline(env: MutableMapping | None = None) -> bool:
+    """Return ``True`` if W&B is configured to run in offline mode.
+
+    Offline mode is enabled by setting ``WANDB_MODE=offline`` in the
+    environment.  In this mode no data is synced to the W&B servers during
+    the run.
+
+    Args:
+        env: Mapping to read from; defaults to ``os.environ``.
+
+    Returns:
+        ``True`` when ``WANDB_MODE`` equals ``"offline"``, ``False`` otherwise.
+    """
     if env is None:
         env = os.environ
     return env.get(MODE) == "offline"
 
 
 def is_quiet() -> bool:
+    """Return ``True`` if W&B quiet mode is enabled via ``WANDB_QUIET``.
+
+    In quiet mode W&B suppresses most terminal output so only warnings
+    and errors are printed.
+
+    Returns:
+        ``True`` when ``WANDB_QUIET`` is set to a truthy value, ``False`` otherwise.
+    """
     return _env_as_bool(QUIET, default="false")
 
 
 def is_silent() -> bool:
+    """Return ``True`` if W&B silent mode is enabled via ``WANDB_SILENT``.
+
+    In silent mode W&B suppresses *all* terminal output, including warnings.
+
+    Returns:
+        ``True`` when ``WANDB_SILENT`` is set to a truthy value, ``False`` otherwise.
+    """
     return _env_as_bool(SILENT, default="false")
 
 
 def error_reporting_enabled() -> bool:
+    """Return ``True`` if automatic error reporting to W&B is enabled.
+
+    Controlled by the ``WANDB_ERROR_REPORTING`` environment variable.
+    Error reporting is on by default and can be disabled by setting the
+    variable to a falsy value (e.g. ``"false"`` or ``"0"``).
+
+    Returns:
+        ``True`` when error reporting is active, ``False`` otherwise.
+    """
     return _env_as_bool(ERROR_REPORTING, default="True")
 
 
 def core_debug(default: str | None = None) -> bool:
+    """Return ``True`` if W&B core debug logging is enabled.
+
+    Checks ``WANDB_CORE_DEBUG`` first; falls back to :func:`is_debug` so
+    that enabling the general debug flag also enables core debug output.
+
+    Args:
+        default: Fallback value used when ``WANDB_CORE_DEBUG`` is not set.
+
+    Returns:
+        ``True`` when core debug mode is active, ``False`` otherwise.
+    """
     return _env_as_bool(CORE_DEBUG, default=default) or is_debug()
 
 
 def ssl_disabled() -> bool:
+    """Return ``True`` if SSL certificate verification is disabled via ``WANDB_DISABLE_SSL``.
+
+    Disabling SSL verification is not recommended in production but can be
+    useful when connecting through self-signed certificate proxies.
+
+    Returns:
+        ``True`` when ``WANDB_DISABLE_SSL`` is set to a truthy value, ``False`` otherwise.
+    """
     return _env_as_bool(DISABLE_SSL, default="False")
 
 
