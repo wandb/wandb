@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from collections.abc import Iterable, Iterator
-from typing import TYPE_CHECKING, Any, Literal
+from collections.abc import Iterator
+from typing import TYPE_CHECKING, Any
 
 from typing_extensions import override
 
@@ -9,7 +9,7 @@ import wandb
 import wandb.integration.weave as weave_integration
 import wandb.integration.weave.media_adapters as media_adapters
 from wandb.errors import UsageError
-from wandb.sdk.data_types.table import Table
+from wandb.sdk.data_types.table import ColumnKey, InputRow, LogMode, Table
 
 if TYPE_CHECKING:
     import numpy as np
@@ -41,14 +41,14 @@ class EvalTable(Table):
 
     def __init__(
         self,
-        columns: list[str | int] | None = None,
-        data: list[Iterable[Any]] | np.ndarray | pd.DataFrame | None = None,
-        rows: list[Iterable[Any]] | None = None,
+        columns: list[ColumnKey] | None = None,
+        data: list[InputRow] | np.ndarray | pd.DataFrame | None = None,
+        rows: list[InputRow] | None = None,
         dataframe: pd.DataFrame | None = None,
         dtype: Any = None,
         optional: bool | list[bool] = True,
         allow_mixed_types: bool = False,
-        log_mode: Literal["IMMUTABLE"] = "IMMUTABLE",
+        log_mode: LogMode = "IMMUTABLE",
         *,
         input_columns: list[str] | None = None,
         output_columns: list[str] | None = None,
@@ -141,7 +141,7 @@ class EvalTable(Table):
         # don't have to double-name columns when they've already listed
         # them in input/output/score_columns. Skip if a dataframe is given
         # — Table infers columns from the dataframe and ignores `columns`.
-        table_columns: list[str | int] | None = columns
+        table_columns: list[ColumnKey] | None = columns
         if (
             columns is None
             and dataframe is None
@@ -233,7 +233,7 @@ class EvalTable(Table):
     def has_been_logged(self) -> bool:
         return self._immutable_evaluate_call_id is not None
 
-    def _validate_cell_value(self, val: Any, col: str | int) -> None:
+    def _validate_cell_value(self, val: Any, col: ColumnKey) -> None:
         media_adapters.validate_supported_value(
             val,
             col,
@@ -251,7 +251,7 @@ class EvalTable(Table):
     @override
     def add_column(
         self,
-        name: str | int,
+        name: str,
         data: list[Any] | np.ndarray,
         optional: bool = False,
     ) -> None:
