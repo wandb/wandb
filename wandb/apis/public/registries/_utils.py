@@ -26,17 +26,6 @@ class Visibility(str, Enum):
         return cls.__members__.get(value)
 
     @classmethod
-    def from_gql(cls, value: str) -> Visibility:
-        """Convert a GraphQL `visibility` value to a Visibility enum."""
-        try:
-            return cls(value)
-        except ValueError:
-            expected = ",".join(repr(e.value) for e in cls)
-            raise ValueError(
-                f"Invalid visibility {value!r} from backend. Expected one of: {expected}"
-            ) from None
-
-    @classmethod
     def from_python(cls, name: str) -> Visibility:
         """Convert a visibility string to a `Visibility` enum."""
         try:
