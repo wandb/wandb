@@ -33,11 +33,11 @@ def _is_numpy_datetime64(val: Any) -> bool:
     return np is not None and isinstance(val, np.datetime64)
 
 
-def _normalize_numpy_datetime64(val: Any) -> datetime.datetime | None:
-    """Return a datetime for numpy datetime64, or None if it's not a datetime64."""
-    if not _is_numpy_datetime64(val):
-        return None
+def _is_datetime_like(val: Any) -> bool:
+    return isinstance(val, datetime.date) or _is_numpy_datetime64(val)
 
+
+def _normalize_numpy_datetime64(val: Any) -> datetime.datetime | None:
     # Cast to microseconds before tolist() so NumPy does unit-aware conversion
     # to Python datetime instead of returning raw int offsets for ns/finer units.
     py_val = val.astype("datetime64[us]").tolist()
@@ -57,7 +57,7 @@ def _normalize_numpy_datetime64(val: Any) -> datetime.datetime | None:
 
 
 def _normalize_datetime(val: Any) -> datetime.datetime | None:
-    """Return a normalized datetime, or None if it's not a datetime."""
+    """Normalize datetime-like values for Weave; numpy NaT becomes None."""
     if isinstance(val, datetime.datetime):
         return val
     if isinstance(val, datetime.date):
@@ -73,9 +73,8 @@ def _normalize_datetime(val: Any) -> datetime.datetime | None:
 
 
 def _normalize_non_media_value(val: Any) -> Any:
-    datetime_val = _normalize_datetime(val)
-    if datetime_val is not None:
-        return datetime_val
+    if _is_datetime_like(val):
+        return _normalize_datetime(val)
 
     val = _numpy_arrays_to_lists(val)
 
@@ -96,6 +95,14 @@ def _normalize_value(
     *,
     unsupported_media_mode: media_adapters.UnsupportedMediaMode,
 ) -> Any:
+    """Normalize a cell value into the Python value passed to Weave.
+
+    This first adapts or stubs wandb media/value types, then applies Table-like
+    normalization for plain values such as NumPy scalars, datetimes, and
+    containers.
+
+    TODO: The stubbing of wandb media types is temporary until we add full support.
+    """
     val = media_adapters.unwrap_value(
         val,
         col,
