@@ -185,7 +185,7 @@ message UploadFileResponse {}
 // files uploaded outside a live run, such as `wandb.Api().run(...).upload_file()`,
 // without disturbing the run's state.
 //
-// A successful request returns MarkRunFilesUploadedResponse; 
+// A successful request returns MarkRunFilesUploadedResponse;
 // failures return ApiErrorResponse.
 message MarkRunFilesUploadedRequest {
   // The entity that owns the run.
