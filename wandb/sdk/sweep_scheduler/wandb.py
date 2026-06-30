@@ -11,13 +11,18 @@ from wandb import sweep as wandb_sweep
 from wandb.apis.public import Sweep
 from wandb.sdk.launch.sweeps.scheduler import RunState
 from wandb.sdk.sweep_scheduler.optimizer import (
-    Executor,
+    Optimizer,
+    Run,
     RunConfig,
-    RunData,
+    RunEnriched,
     RunSuggestion,
-    StatefulOptimizer,
-    scheduler_sweep_config,
     terminal_state,
+)
+from wandb.sdk.sweep_scheduler.scheduler import (
+    Executor,
+    InMemoryScheduler,
+    Scheduler,
+    scheduler_sweep_config,
 )
 
 sweeps = util.get_module(
@@ -35,24 +40,16 @@ def _to_sweeps_state(state: RunState) -> Any:
         return sweeps.RunState.pending
 
 
-class WandbOptimizer(StatefulOptimizer):
-    """`StatefulOptimizer` driven by the `sweeps` search algorithms.
+class WandbOptimizer(Optimizer):
+    """`Optimizer` driven by the `sweeps` search algorithms.
 
     The `sweeps` search functions (``grid``/``random``/``bayes`` and the hyperband
     early-terminator) are *stateless*. Thus this class must maintain the full list
     of sweep runs in memory.
     """
 
-    def __init__(
-        self,
-        search_config: dict[str, Any],
-        sweep: Sweep,
-        poll_interval_s: float,
-        batch_size: int,
-        executor: Executor | None = None,
-    ):
-        """Build the optimizer."""
-        super().__init__(sweep, poll_interval_s, batch_size, executor)
+    def __init__(self, search_config: dict[str, Any], sweep: Sweep):
+        super().__init__(sweep)
         self._search_config = search_config
         # key: run id, value: the SweepRun we hold for it
         self._runs: dict[str, Any] = {}
@@ -63,11 +60,11 @@ class WandbOptimizer(StatefulOptimizer):
         self._run_counter += 1
         return run_id
 
-    def _record(self, run_id: str, data: RunData) -> Any:
+    def _record(self, run_id: str, data: RunEnriched) -> Any:
         """Create and store a SweepRun for `run_id` from `data`."""
         sweep_run = sweeps.SweepRun(
             name=run_id,
-            # SweepRun.config is the wire form ({param: {"value": v}}); RunData
+            # SweepRun.config is the wire form ({param: {"value": v}}); RunEnriched
             # carries the flat resolved config, so wrap it via RunConfig.
             config=RunConfig.from_values(data.config).model_dump(),
             state=_to_sweeps_state(data.state),
@@ -97,7 +94,7 @@ class WandbOptimizer(StatefulOptimizer):
             )
         return suggestions
 
-    def tell_run(self, run_id: Any, data: RunData) -> None:
+    def tell_run(self, run_id: Any, data: RunEnriched) -> None:
         # "Save to memory" = update the SweepRun the search reads next time. Keep
         # the config we suggested — `data.config` may be empty (e.g. a reaped run)
         # — only the outcome (state, metrics, history) is new here.
@@ -109,7 +106,7 @@ class WandbOptimizer(StatefulOptimizer):
         sweep_run.summary_metrics = data.summary_metrics or {}
         sweep_run.history = list(data.history_metrics)
 
-    def prune_run(self, run_id: Any, data: RunData) -> bool:
+    def prune_run(self, run_id: Any, data: RunEnriched) -> bool:
         # Hyperband early-termination, when the search config asks for it.
         if "early_terminate" not in self._search_config:
             return False
@@ -119,18 +116,23 @@ class WandbOptimizer(StatefulOptimizer):
             return False
         return any(run.name == run_id for run in to_stop)
 
-    def tell_existing_finished_run(self, data: RunData) -> None:
+    def tell_existing_finished_run(self, data: RunEnriched) -> None:
         # Warm-start: a terminal run that predates this optimizer. Add it to memory
         # so the search treats it as a completed sample.
         if terminal_state(data.state) is None:
             return
         self._record(self._new_run_id(), data)
 
-    def tell_existing_active_run(self, data: RunData) -> Any:
-        # Adopt an in-flight run that predates this optimizer: record it so the
-        # search counts it as in flight and the loop keeps driving it.
+    def tell_existing_active_run(self, data: Run) -> Any:
+        # Adopt an in-flight run that predates this optimizer: store its config so
+        # the search counts it as in flight. The next poll refreshes its metrics
+        # via tell_run before any suggestion reads them.
         run_id = self._new_run_id()
-        self._record(run_id, data)
+        self._runs[run_id] = sweeps.SweepRun(
+            name=run_id,
+            config=RunConfig.from_values(data.config).model_dump(),
+            state=_to_sweeps_state(data.state),
+        )
         return run_id
 
 
@@ -138,7 +140,7 @@ class WandbOptimizer(StatefulOptimizer):
 # Public entry points.
 #
 # These free functions are the supported way to build a scheduler; callers
-# should not instantiate `WandbOptimizer` directly. Each returns an optimizer
+# should not instantiate `WandbOptimizer` directly. Each returns a scheduler
 # whose `.loop()` drives the sweep.
 # ---------------------------------------------------------------------------
 
@@ -151,7 +153,7 @@ def create_sweep_from_config(
     poll_interval_s: float = 5.0,
     batch_size: int = 1,
     executor: Callable[[Sweep], Executor] | None = None,
-) -> WandbOptimizer:
+) -> Scheduler:
     """Create a W&B sweep from `config` and attach a reference scheduler.
 
     `config` is an ordinary sweep config with a `method` of ``grid``/``random``/
@@ -166,8 +168,9 @@ def create_sweep_from_config(
         {**config, **scheduler_sweep_config}, entity=entity, project=project
     )
     sweep = Api().sweep(f"{entity}/{project}/{sweep_id}")
-    return WandbOptimizer(
-        search_config,
+    optimizer = WandbOptimizer(search_config, sweep)
+    return InMemoryScheduler(
+        optimizer,
         sweep,
         poll_interval_s,
         batch_size,
@@ -182,7 +185,7 @@ def resume_sweep(
     poll_interval_s: float = 5.0,
     batch_size: int = 1,
     executor: Callable[[Sweep], Executor] | None = None,
-) -> WandbOptimizer:
+) -> Scheduler:
     """Attach a reference scheduler to a sweep that already exists.
 
     `sweep` may be a `Sweep` or an ``"entity/project/sweep_id"`` path string. The
@@ -192,8 +195,9 @@ def resume_sweep(
     that schedules runs (defaults to the W&B run queue).
     """
     resolved: Sweep = Api().sweep(sweep) if isinstance(sweep, str) else sweep
-    return WandbOptimizer(
-        search_config,
+    optimizer = WandbOptimizer(search_config, resolved)
+    return InMemoryScheduler(
+        optimizer,
         resolved,
         poll_interval_s,
         batch_size,
