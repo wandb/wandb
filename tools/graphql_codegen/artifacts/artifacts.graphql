@@ -191,9 +191,14 @@ query FetchArtifactManifest($id: ID!) {
   }
 }
 
-query ArtifactByID($id: ID!, $includeAliases: Boolean = true) {
+query ArtifactMembershipByID(
+  $id: ID!
+  $includeAliases: Boolean = false # True includes ALL aliases from the source artifact, and we want only aliases for this membership
+) {
   artifact(id: $id) {
-    ...ArtifactFragment
+    artifactMembership: artifactSequenceMembership {
+      ...ArtifactMembershipFragment
+    }
   }
 }
 

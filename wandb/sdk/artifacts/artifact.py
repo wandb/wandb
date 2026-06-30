@@ -261,28 +261,36 @@ class Artifact:
 
     @classmethod
     def _from_id(cls, artifact_id: str, service_api: ServiceApi) -> Artifact | None:
-        from ._generated import ARTIFACT_BY_ID_GQL, ArtifactByID
+        from ._generated import ARTIFACT_MEMBERSHIP_BY_ID_GQL, ArtifactMembershipByID
         from ._validators import FullArtifactPath
 
         if cached_artifact := artifact_instance_cache.get(artifact_id):
             return cached_artifact
 
         data = service_api.execute_graphql(
-            ARTIFACT_BY_ID_GQL,
+            ARTIFACT_MEMBERSHIP_BY_ID_GQL,
             variables={"id": artifact_id},
         )
-        result = ArtifactByID.model_validate(data)
-        if (artifact := result.artifact) is None:
+        result = ArtifactMembershipByID.model_validate(data)
+        if (artifact_node := result.artifact) is None:
             return None
 
-        src_collection = artifact.artifact_sequence
-        src_project = src_collection.project
-        entity_name = src_project.entity.name if src_project else ""
-        project_name = src_project.name if src_project else ""
-        name = f"{src_collection.name}:v{artifact.version_index}"
+        membership = artifact_node.artifact_membership
+        if not (
+            (collection := membership.artifact_collection)
+            and (project := collection.project)
+            and (version_index := membership.version_index) is not None
+        ):
+            raise ValueError(
+                "Missing collection/version in artifact membership response"
+            )
 
-        path = FullArtifactPath(prefix=entity_name, project=project_name, name=name)
-        return cls._from_attrs(path, artifact, service_api)
+        path = FullArtifactPath(
+            prefix=project.entity.name,
+            project=project.name,
+            name=f"{collection.name}:v{version_index}",
+        )
+        return cls._from_membership(membership, target=path, service_api=service_api)
 
     def _referenced_artifact_from_id(self, artifact_id: str) -> Artifact | None:
         return type(self)._from_id(artifact_id, self._get_service_api())
@@ -1230,23 +1238,25 @@ class Artifact:
         return self
 
     def _populate_after_save(self, artifact_id: str) -> None:
-        from ._generated import ARTIFACT_BY_ID_GQL, ArtifactByID
+        from ._generated import ARTIFACT_MEMBERSHIP_BY_ID_GQL, ArtifactMembershipByID
 
         if (client := self._service_api) is None:
             raise RuntimeError("Client not initialized for artifact queries")
 
-        gql_op = ARTIFACT_BY_ID_GQL
+        gql_op = ARTIFACT_MEMBERSHIP_BY_ID_GQL
         data = client.execute_graphql(gql_op, variables={"id": artifact_id})
-        result = ArtifactByID.model_validate(data)
+        result = ArtifactMembershipByID.model_validate(data)
 
-        if not (artifact := result.artifact):
+        if not (artifact_node := result.artifact):
             raise ValueError(f"Unable to fetch artifact with id: {artifact_id!r}")
 
-        # _populate_after_save is only called on source artifacts, not linked artifacts
-        # We have to manually set is_link because we aren't fetching the collection
-        # the artifact. That requires greater refactoring for commitArtifact to return
-        # the artifact collection type.
-        self._assign_attrs(artifact, is_link=False)
+        membership = artifact_node.artifact_membership
+        if (src_art := membership.artifact) is None:
+            raise ValueError(f"Unable to fetch artifact with id: {artifact_id!r}")
+
+        # Only called on freshly saved source artifacts, never links. Aliases/version
+        # come from the membership since the source artifact node omits aliases here.
+        self._assign_attrs(src_art, membership=membership, is_link=False)
 
     @normalize_exceptions
     def _update(self) -> None:

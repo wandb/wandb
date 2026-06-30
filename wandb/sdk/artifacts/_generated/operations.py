@@ -4,9 +4,9 @@
 __all__ = [
     "ADD_ALIASES_GQL",
     "ADD_ARTIFACT_COLLECTION_TAGS_GQL",
-    "ARTIFACT_BY_ID_GQL",
     "ARTIFACT_COLLECTION_ALIASES_GQL",
     "ARTIFACT_CREATED_BY_GQL",
+    "ARTIFACT_MEMBERSHIP_BY_ID_GQL",
     "ARTIFACT_MEMBERSHIP_BY_NAME_GQL",
     "ARTIFACT_MEMBERSHIP_FILES_GQL",
     "ARTIFACT_TYPE_ARTIFACT_COLLECTIONS_GQL",
@@ -914,10 +914,12 @@ fragment DeferredManifestFragment on ArtifactManifest {
 }
 """
 
-ARTIFACT_BY_ID_GQL = """
-query ArtifactByID($id: ID!, $includeAliases: Boolean = true) {
+ARTIFACT_MEMBERSHIP_BY_ID_GQL = """
+query ArtifactMembershipByID($id: ID!, $includeAliases: Boolean = false) {
   artifact(id: $id) {
-    ...ArtifactFragment
+    artifactMembership: artifactSequenceMembership {
+      ...ArtifactMembershipFragment
+    }
   }
 }
 
@@ -957,6 +959,21 @@ fragment ArtifactFragment on Artifact {
       ...CollectionInfoFragment
     }
     ...ArtifactAliasFragment
+  }
+}
+
+fragment ArtifactMembershipFragment on ArtifactCollectionMembership {
+  __typename
+  id
+  versionIndex
+  aliases {
+    ...ArtifactAliasFragment
+  }
+  artifactCollection {
+    ...CollectionInfoFragment
+  }
+  artifact {
+    ...ArtifactFragment
   }
 }
 
