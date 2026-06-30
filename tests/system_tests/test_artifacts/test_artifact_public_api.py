@@ -715,7 +715,7 @@ def test_fetch_registry_artifact(
         }
     }
 
-    # Artifacts are always fetched via the membership-by-name query.
+
     op_name = nameof(ArtifactMembershipByName)
     mock_rsp = mock_membership_rsp_data
 
