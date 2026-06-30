@@ -3,6 +3,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Iterable, Any, List
 from dataclasses import dataclass
+from pydantic import BaseModel, RootModel
 from wandb import termerror, termlog, termwarn
 from wandb.apis.public import Api, Sweep, SweepState
 from wandb.apis.internal import InternalApi
@@ -18,10 +19,39 @@ scheduler_sweep_config = {
     "controller": {"type": "scheduler"},
 }
 
+
+class ConfigValue(BaseModel):
+    """One hyperparameter in the server's wrapped form: ``{"value": <v>}``."""
+
+    value: Any
+
+
+class RunConfig(RootModel[dict[str, ConfigValue]]):
+    """A run's hyperparameters in the W&B sweep wire format: ``{param: {"value": v}}``.
+
+    This is exactly the structure the sweep agent reads each parameter from and the
+    server forwards to it verbatim, so a `RunSuggestion` carries it unmodified and
+    the executor enqueues ``model_dump()`` directly. Build one from a flat
+    ``{param: value}`` mapping with `from_values`, and read that flat mapping back
+    via `values`.
+    """
+
+    @classmethod
+    def from_values(cls, values: dict[str, Any]) -> RunConfig:
+        """Build a `RunConfig` from a flat ``{param: value}`` mapping."""
+        return cls({name: ConfigValue(value=value) for name, value in values.items()})
+
+    @property
+    def values(self) -> dict[str, Any]:
+        """The flat ``{param: value}`` mapping."""
+        return {name: cv.value for name, cv in self.root.items()}
+
+
 @dataclass
 class RunSuggestion:
-    config: dict
+    config: RunConfig
     run_id: str
+
 
 @dataclass
 class RunData:
@@ -83,13 +113,7 @@ class WBAgentExecutor(Executor):
         self._sweep = sweep
 
     def schedule(self, suggestion: RunSuggestion) -> str:
-        # The agent reads each param as {"value": <v>} and the server forwards the
-        # enqueued config to it verbatim, so wrap the flat suggestion config.
-        run_config = {
-            param: {"value": value}
-            for param, value in suggestion.config.items()
-        }
-        return self._sweep.enqueue_run(run_config)
+        return self._sweep.enqueue_run(suggestion.config.model_dump())
 
 
 class StatefulOptimizer:
@@ -331,7 +355,7 @@ class StatefulOptimizer:
                     termlog(
                         f"Scheduled run {wandb_run_id} (optimizer run "
                         f"{suggestion.run_id}) in sweep {self._sweep.name} "
-                        f"with config {suggestion.config}"
+                        f"with config {suggestion.config.values}"
                     )
             except Exception as e:
                 termerror(f"Error in optimizer loop for sweep {self._sweep.name}: {e}")

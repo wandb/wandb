@@ -12,6 +12,7 @@ from wandb.apis.public import Sweep
 from wandb.sdk.launch.sweeps.scheduler import RunState
 from wandb.sdk.sweep_scheduler.optimizer import (
     Executor,
+    RunConfig,
     RunData,
     RunSuggestion,
     StatefulOptimizer,
@@ -24,29 +25,6 @@ sweeps = util.get_module(
     required="wandb[sweeps] is required to use the wandb sweep scheduler. "
     "Please run `pip install wandb[sweeps]`.",
 )
-
-
-def _wrap_config(config: dict[str, Any]) -> dict[str, Any]:
-    """Wrap a flat run config into the `sweeps` ``{param: {"value": v}}`` form.
-
-    Mirrors how `WBAgentExecutor` enqueues a suggestion, and matches the shape the
-    search algorithms read parameters out of (`config[param]["value"]`).
-    """
-    return {name: {"value": value} for name, value in config.items()}
-
-
-def _unwrap_config(config: dict[str, Any]) -> dict[str, Any]:
-    """Turn a `SweepRun` config back into a `RunSuggestion`'s flat ``{param: value}``.
-
-    Inverse of `_wrap_config`; the executor re-wraps the flat form before enqueuing.
-    """
-    flat: dict[str, Any] = {}
-    for name, spec in config.items():
-        if isinstance(spec, dict) and "value" in spec:
-            flat[name] = spec["value"]
-        else:
-            flat[name] = spec
-    return flat
 
 
 def _to_sweeps_state(state: RunState) -> Any:
@@ -89,7 +67,9 @@ class WandbOptimizer(StatefulOptimizer):
         """Create and store a SweepRun for `run_id` from `data`."""
         sweep_run = sweeps.SweepRun(
             name=run_id,
-            config=_wrap_config(data.config),
+            # SweepRun.config is the wire form ({param: {"value": v}}); RunData
+            # carries the flat resolved config, so wrap it via RunConfig.
+            config=RunConfig.from_values(data.config).model_dump(),
             state=_to_sweeps_state(data.state),
             summary_metrics=data.summary_metrics or {},
             history=list(data.history_metrics),
@@ -98,9 +78,6 @@ class WandbOptimizer(StatefulOptimizer):
         return sweep_run
 
     def next_n_runs(self, n: int) -> Iterable[RunSuggestion]:
-        # Stateless search: hand it every run we know about. In-flight (pending/
-        # running) runs are included too, so e.g. bayes treats them as samples in
-        # flight (and fantasizes their outcome) and grid won't re-propose them.
         suggested = sweeps.next_runs(
             self._search_config, list(self._runs.values()), n=n
         )
@@ -114,8 +91,9 @@ class WandbOptimizer(StatefulOptimizer):
             # Record it (state defaults to pending) so the next search call and
             # tell_run can find it.
             self._runs[run_id] = sweep_run
+            # sweep_run.config is already the wire form RunConfig expects.
             suggestions.append(
-                RunSuggestion(config=_unwrap_config(sweep_run.config), run_id=run_id)
+                RunSuggestion(config=RunConfig(sweep_run.config), run_id=run_id)
             )
         return suggestions
 

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from wandb.sdk.sweep_scheduler.optimizer import StatefulOptimizer, RunSuggestion, RunData, scheduler_sweep_config, terminal_state, Executor
+from wandb.sdk.sweep_scheduler.optimizer import StatefulOptimizer, RunConfig, RunSuggestion, RunData, scheduler_sweep_config, terminal_state, Executor
 from wandb.apis.public import Sweep
 from wandb import util, sweep as wandb_sweep, Api
 from typing import Any, Callable, Iterable, TypeAlias
@@ -282,7 +282,9 @@ class OptunaDeclarativeOptimizer(OptunaOptimizer):
             trial = self.study.ask(self.distributions)
             self.trials[trial.number] = trial
             suggestions.append(
-                RunSuggestion(config=trial.params, run_id=trial.number)
+                RunSuggestion(
+                    config=RunConfig.from_values(trial.params), run_id=trial.number
+                )
             )
         return suggestions
 
