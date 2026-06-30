@@ -8,6 +8,51 @@ from wandb.apis.public.sweeps import Sweep
 from wandb.proto import wandb_api_pb2 as apb
 
 
+def _make_upload_run(mocker, *, feature_enabled: bool):
+    service_api = mocker.MagicMock()
+    service_api.feature_enabled.return_value = feature_enabled
+    run = Run(
+        service_api=service_api,
+        entity="entity",
+        project="project",
+        run_id="run-id",
+        attrs={"name": "run-id", "state": "finished"},
+    )
+    # Stub the byte-upload (InternalApi.push) and the returned File lookup.
+    mocker.patch("wandb.apis.public.runs.InternalApi")
+    mocker.patch("wandb.apis.public.runs.public.Files", return_value=["file-obj"])
+    return service_api, run
+
+
+def test_upload_file_marks_file_uploaded_when_supported(mocker, tmp_path):
+    """upload_file sends a MarkRunFilesUploadedRequest when the server supports it."""
+    service_api, run = _make_upload_run(mocker, feature_enabled=True)
+
+    f = tmp_path / "model.bin"
+    f.write_text("hello")
+    run.upload_file(str(f), root=str(tmp_path))
+
+    service_api.send_api_request.assert_called_once()
+    request = service_api.send_api_request.call_args.args[0]
+    assert request.WhichOneof("request") == "mark_run_files_uploaded_request"
+    notify = request.mark_run_files_uploaded_request
+    assert notify.entity == "entity"
+    assert notify.project == "project"
+    assert notify.run_id == "run-id"
+    assert list(notify.files) == ["model.bin"]
+
+
+def test_upload_file_skips_notification_when_unsupported(mocker, tmp_path):
+    """Without the MARK_RUN_FILES_UPLOADED feature, no notification is sent."""
+    service_api, run = _make_upload_run(mocker, feature_enabled=False)
+
+    f = tmp_path / "model.bin"
+    f.write_text("hello")
+    run.upload_file(str(f), root=str(tmp_path))
+
+    service_api.send_api_request.assert_not_called()
+
+
 @pytest.mark.parametrize(
     "field,value,expected",
     [

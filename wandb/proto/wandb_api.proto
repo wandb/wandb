@@ -180,14 +180,13 @@ message UploadFileResponse {}
 //
 // Uploading a file to its (presigned) destination URL only writes the bytes to
 // the object store; the backend must still be told the file is committed before
-// it appears on the run. During a live run, wandb-core sends this signal as the
+// it appears on the run. During a live run, wandb-core sends this signal via the
 // filestream "uploaded" field. This request performs the same notification for
-// files uploaded outside a live run, such as `wandb.Api().run(...).upload_file()`.
+// files uploaded outside a live run, such as `wandb.Api().run(...).upload_file()`,
+// without disturbing the run's state.
 //
-// Always safe to send: it is the same idempotent signal the backend processes for
-// every live run, on both SaaS and self-hosted deployments. A successful request
-// returns MarkRunFilesUploadedResponse; failures, including non-successful HTTP
-// status codes, return ApiErrorResponse.
+// A successful request returns MarkRunFilesUploadedResponse; 
+// failures return ApiErrorResponse.
 message MarkRunFilesUploadedRequest {
   // The entity that owns the run.
   string entity = 1;
