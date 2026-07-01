@@ -1620,4 +1620,8 @@ enum ServerFeature {
 
   // Indicates that the server supports Trigger.lastExecutedAt.
   AUTOMATION_LAST_EXECUTED_AT = 28;
+
+  // Indicates that the server supports the markRunFilesUploaded mutation, used
+  // to commit files uploaded outside a live run (e.g. Run.upload_file).
+  MARK_RUN_FILES_UPLOADED = 29;
 }
