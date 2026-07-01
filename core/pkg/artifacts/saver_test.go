@@ -52,6 +52,8 @@ func TestSaveGraphQLRequest(t *testing.T) {
 		mockGQL,
 		ftm,
 		func() bool { return true },
+		0,
+		0,
 	)
 
 	result := <-saver.Save(
@@ -115,6 +117,8 @@ func TestSave_CleansUpManifestFileInStagingDir(t *testing.T) {
 		mockGQL,
 		ftm,
 		func() bool { return true },
+		0,
+		0,
 	)
 
 	stagingDir := t.TempDir()

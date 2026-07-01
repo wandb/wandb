@@ -23,20 +23,60 @@ func TestCreateMultiPartRequest_EmptyFile(t *testing.T) {
 	parts, err := createMultiPartRequest(
 		observabilitytest.NewTestLogger(t),
 		tempFile.Name(),
+		0,
+		0,
 	)
 	require.NoError(t, err)
 	assert.Nil(t, parts)
 }
 
+func TestCreateMultiPartRequest_WithOverrides(t *testing.T) {
+	tempFile, err := os.CreateTemp("", "test_multipart_*")
+	require.NoError(t, err)
+	defer os.Remove(tempFile.Name())
+	defer tempFile.Close()
+
+	partSize := int64(5 * 1024 * 1024)
+	fileSize := partSize + 1024*1024
+	require.NoError(t, tempFile.Truncate(fileSize))
+	require.NoError(t, tempFile.Close())
+
+	parts, err := createMultiPartRequest(
+		observabilitytest.NewTestLogger(t),
+		tempFile.Name(),
+		partSize,
+		partSize,
+	)
+	require.NoError(t, err)
+	require.Len(t, parts, 2)
+
+	assert.Equal(t, int64(1), parts[0].PartNumber)
+	assert.Equal(t, int64(2), parts[1].PartNumber)
+	assert.Len(t, parts[0].HexMD5, 32)
+	assert.Len(t, parts[1].HexMD5, 32)
+}
+
 func TestGetChunkSize(t *testing.T) {
 	defaultChunkSize := int64(100 * 1024 * 1024)
+	assert.Equal(t, defaultChunkSize/100, getChunkSize(defaultChunkSize/100, 0))
 
 	fileSizes := []int64{
 		// Uses the default chunk size
-		defaultChunkSize / 100,
 		defaultChunkSize,
 		defaultChunkSize + 1,
 		10000 * defaultChunkSize,
+	}
+
+	for _, fileSize := range fileSizes {
+		chunkSize := getChunkSize(fileSize, 0)
+		assert.GreaterOrEqual(t, chunkSize, defaultChunkSize)
+		// Chunk size should always be a multiple of 4096.
+		assert.True(t, chunkSize%4096 == 0)
+		// Chunk size is always sufficient to upload the file in no more than S3MaxParts chunks.
+		assert.True(t, chunkSize*S3MaxParts >= fileSize)
+	}
+
+	largeFileSizes := []int64{
 		// Uses the next largest chunk size (+4096)
 		10000*defaultChunkSize + 1,
 		10000 * (defaultChunkSize + 4096),
@@ -44,8 +84,8 @@ func TestGetChunkSize(t *testing.T) {
 		10000*(defaultChunkSize+4096) + 1,
 	}
 
-	for _, fileSize := range fileSizes {
-		chunkSize := getChunkSize(fileSize)
+	for _, fileSize := range largeFileSizes {
+		chunkSize := getChunkSize(fileSize, 0)
 		assert.GreaterOrEqual(t, chunkSize, defaultChunkSize)
 		// Chunk size should always be a multiple of 4096.
 		assert.True(t, chunkSize%4096 == 0)
@@ -57,6 +97,12 @@ func TestGetChunkSize(t *testing.T) {
 			assert.Equal(t, S3MaxParts, chunksUsed)
 		}
 	}
+
+	assert.Equal(t, int64(5*1024*1024), getChunkSize(6*1024*1024, 5*1024*1024))
+	assert.Equal(t, int64(6*1024*1024), getChunkSize(6*1024*1024, 100*1024*1024))
+	assert.Equal(
+		t, int64(S3MinMultipartUploadPartSize), getChunkSize(6*1024*1024, 1),
+	)
 }
 
 func TestComputeMultipartHashes(t *testing.T) {

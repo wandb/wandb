@@ -202,6 +202,8 @@ func (f *SenderFactory) New(runWork runwork.RunWork) *Sender {
 			f.GraphqlClient,
 			f.FileTransferManager,
 			useArtifactProjectEntityInfo,
+			f.Settings.GetArtifactMultipartUploadThresholdBytes(),
+			f.Settings.GetArtifactMultipartUploadPartSizeBytes(),
 		),
 		networkPeeker:     f.Peeker,
 		printer:           f.Printer,
