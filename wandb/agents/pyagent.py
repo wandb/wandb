@@ -292,7 +292,7 @@ class Agent:
             run_id = job.run_id
 
             config_file = os.path.join(
-                "wandb", "sweep-" + self._sweep_id, "config-" + run_id + ".yaml"
+                "wandb", f"sweep-{self._sweep_id}", f"config-{run_id}.yaml"
             )
             os.environ[wandb.env.RUN_ID] = run_id
             base_dir = os.environ.get(wandb.env.DIR, "")
