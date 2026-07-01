@@ -25,6 +25,7 @@ import (
 	"github.com/wandb/wandb/core/internal/runconsolelogs"
 	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/runhandle"
+	"github.com/wandb/wandb/core/internal/runhistory"
 	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
@@ -770,12 +771,44 @@ func (s *Sender) sendHistory(record *spb.HistoryRecord) {
 	}
 
 	s.ensureHistoryStep(record)
+	s.streamDerivedSummary(record)
 
 	if s.fileStream == nil {
 		return
 	}
 
 	s.fileStream.StreamUpdate(&fs.HistoryUpdate{Record: record})
+}
+
+func (s *Sender) streamDerivedSummary(record *spb.HistoryRecord) {
+	if record == nil {
+		return
+	}
+	if s.settings.IsSharedMode() || s.settings.IsEnableServerSideDerivedSummary() {
+		return
+	}
+
+	history := runhistory.New()
+	for _, item := range record.GetItem() {
+		if err := history.SetFromRecord(item); err != nil {
+			s.logger.CaptureError(
+				fmt.Errorf("sender: failed to parse history for summary: %v", err),
+				"item", item)
+		}
+	}
+
+	updates, err := s.runSummary.UpdateSummaries(history)
+	if err != nil {
+		s.logger.CaptureError(
+			fmt.Errorf("sender: error updating summary from history: %v", err))
+	}
+	if len(updates) == 0 || s.fileStream == nil {
+		return
+	}
+
+	s.fileStream.StreamUpdate(&fs.SummaryUpdate{
+		Updates: runsummary.FromProto(&spb.SummaryRecord{Update: updates}),
+	})
 }
 
 // ensureHistoryStep adds _step to history rows that do not already have it.
@@ -797,6 +830,7 @@ func (s *Sender) ensureHistoryStep(record *spb.HistoryRecord) {
 			setExplicitHistoryStep(record, s.historyStep)
 			step = s.historyStep
 		}
+		record.Step = &spb.HistoryStep{Num: step}
 		s.advanceHistoryStepPast(step)
 		return
 	}
@@ -814,6 +848,7 @@ func (s *Sender) ensureHistoryStep(record *spb.HistoryRecord) {
 	s.initializeHistoryStep()
 
 	step := s.historyStep
+	record.Step = &spb.HistoryStep{Num: step}
 	record.Item = append(record.Item, &spb.HistoryItem{
 		NestedKey: []string{"_step"},
 		ValueJson: strconv.FormatInt(step, 10),

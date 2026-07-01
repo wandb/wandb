@@ -110,6 +110,7 @@ func TestSendHistory_AssignsMissingStep(t *testing.T) {
 		{NestedKey: []string{"loss"}, ValueJson: "1.23"},
 		{NestedKey: []string{"_step"}, ValueJson: "0"},
 	}, history.Item)
+	assert.Equal(t, int64(0), history.GetStep().GetNum())
 }
 
 func TestSendHistory_PreservesExistingStep(t *testing.T) {

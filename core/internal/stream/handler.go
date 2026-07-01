@@ -87,6 +87,10 @@ type Handler struct {
 	// when not running in shared mode.
 	partialHistoryStep int64
 
+	// partialHistoryHasExplicitStep is true when the current partial-history
+	// batch was opened by a user-provided PartialHistoryRequest.Step.
+	partialHistoryHasExplicitStep bool
+
 	// pollExitLogRateLimit limits log messages when handling PollExit requests
 	pollExitLogRateLimit *rate.Limiter
 
@@ -718,9 +722,13 @@ func (h *Handler) handleExit(
 	// Flush any history data---any further history records must
 	// be configured to flush.
 	if h.settings.IsSharedMode() {
-		h.flushPartialHistory(false, 0)
+		h.flushPartialHistory(false, 0, false)
 	} else {
-		h.flushPartialHistory(true, h.partialHistoryStep+1)
+		h.flushPartialHistory(
+			true,
+			h.partialHistoryStep+1,
+			h.partialHistoryHasExplicitStep,
+		)
 	}
 
 	if record.Control == nil {
@@ -746,12 +754,49 @@ func (h *Handler) handleRequestGetSummary(
 			fmt.Errorf("handler: error flattening run summary: %v", err))
 	}
 
+	if !h.settings.IsSharedMode() {
+		items = appendSyntheticSummaryStep(items, h.summaryStepForResponse())
+	}
+
 	response.ResponseType = &spb.Response_GetSummaryResponse{
 		GetSummaryResponse: &spb.GetSummaryResponse{
 			Item: items,
 		},
 	}
 	h.respond(request, response)
+}
+
+func (h *Handler) summaryStepForResponse() int64 {
+	historyInProgress := h.partialHistory != nil && !h.partialHistory.IsEmpty()
+	passedStartingStep := h.partialHistoryStep > h.runRecord.GetStartingStep()
+
+	// no in-progress history record and advanced past the starting step
+	// so use the last completed step
+	if passedStartingStep && !historyInProgress {
+		return h.partialHistoryStep - 1
+	}
+
+	// use the current step if one of the following is true:
+	//  - building a history record
+	//  - at the starting step
+	//  - uninitialized partial history cursor
+	return h.partialHistoryStep
+}
+
+func appendSyntheticSummaryStep(
+	items []*spb.SummaryItem,
+	step int64,
+) []*spb.SummaryItem {
+	for _, item := range items {
+		if isSummaryStepItem(item) {
+			return items
+		}
+	}
+
+	return append(items, &spb.SummaryItem{
+		Key:       "_step",
+		ValueJson: strconv.FormatInt(step, 10),
+	})
 }
 
 func (h *Handler) handleRequestGetSystemMetrics(
@@ -954,7 +999,7 @@ func (h *Handler) handlePartialHistoryAsync(request *spb.PartialHistoryRequest) 
 	}
 
 	if request.GetAction() == nil || request.Action.GetFlush() {
-		h.flushPartialHistory(false, 0)
+		h.flushPartialHistory(false, 0, false)
 	}
 }
 
@@ -973,7 +1018,12 @@ func (h *Handler) handlePartialHistorySync(request *spb.PartialHistoryRequest) {
 		step := request.Step.GetNum()
 		current := h.partialHistoryStep
 		if step > current {
-			h.flushPartialHistory(true, step)
+			h.flushPartialHistory(
+				true,
+				step,
+				h.partialHistoryHasExplicitStep,
+			)
+			h.partialHistoryHasExplicitStep = true
 		} else if step < current {
 			h.logger.Warn(
 				"handler: ignoring partial history record",
@@ -991,6 +1041,7 @@ func (h *Handler) handlePartialHistorySync(request *spb.PartialHistoryRequest) {
 			)
 			return
 		}
+		h.partialHistoryHasExplicitStep = true
 	}
 
 	for _, item := range request.GetItem() {
@@ -1013,18 +1064,26 @@ func (h *Handler) handlePartialHistorySync(request *spb.PartialHistoryRequest) {
 		return
 	}
 
-	h.flushPartialHistory(true, h.partialHistoryStep+1)
+	h.flushPartialHistory(
+		true,
+		h.partialHistoryStep+1,
+		h.partialHistoryHasExplicitStep,
+	)
 }
 
 // flushPartialHistory finalizes and resets the accumulated run history.
 //
-// If useStep is true, then the emitted history record has an explicit
-// step, and partialHistoryStep is updated to nextStep. Otherwise,
-// nextStep is ignored.
-func (h *Handler) flushPartialHistory(useStep bool, nextStep int64) {
+// If advanceStep is true, partialHistoryStep is updated to nextStep after
+// flushing. If emitExplicitStep is true, the emitted history record includes
+// HistoryRecord.Step for the current batch.
+func (h *Handler) flushPartialHistory(
+	advanceStep bool,
+	nextStep int64,
+	emitExplicitStep bool,
+) {
 	// Don't log anything if there are no metrics.
 	if h.partialHistory == nil || h.partialHistory.IsEmpty() {
-		if useStep {
+		if advanceStep {
 			h.partialHistoryStep = nextStep
 		}
 
@@ -1035,13 +1094,6 @@ func (h *Handler) flushPartialHistory(useStep bool, nextStep int64) {
 		pathtree.PathOf("_runtime"),
 		h.runTimer.Elapsed().Seconds(),
 	)
-
-	if !h.settings.IsSharedMode() && useStep {
-		h.partialHistory.SetInt(
-			pathtree.PathOf("_step"),
-			h.partialHistoryStep,
-		)
-	}
 
 	newMetricDefs := h.metricHandler.UpdateMetrics(h.partialHistory)
 	for _, newMetric := range newMetricDefs {
@@ -1061,14 +1113,15 @@ func (h *Handler) flushPartialHistory(useStep bool, nextStep int64) {
 	// Update the summary if server-side derived summaries are disabled.
 	if !h.settings.IsEnableServerSideDerivedSummary() {
 		h.updateRunTiming()
-		h.updateSummary()
+		h.updateSummary(emitExplicitStep, h.partialHistoryStep)
 	}
 
 	items, err := h.partialHistory.ToRecords()
 	currentStep := h.partialHistoryStep
 
 	h.partialHistory = runhistory.New()
-	if useStep {
+	h.partialHistoryHasExplicitStep = false
+	if advanceStep {
 		h.partialHistoryStep = nextStep
 	}
 
@@ -1084,7 +1137,7 @@ func (h *Handler) flushPartialHistory(useStep bool, nextStep int64) {
 	}
 
 	historyRecord := &spb.HistoryRecord{Item: items}
-	if useStep {
+	if !h.settings.IsSharedMode() && emitExplicitStep {
 		historyRecord.Step = &spb.HistoryStep{Num: currentStep}
 	}
 	h.fwdRecord(&spb.Record{
@@ -1094,10 +1147,12 @@ func (h *Handler) flushPartialHistory(useStep bool, nextStep int64) {
 	}, nil)
 }
 
-// updateSummary updates the summary based on the current history step.
+// updateSummary updates the local summary and forwards non-step derived
+// summary updates to the transaction log for local readers such as leet.
 //
-// This emits a summary record that is written to the transaction log.
-func (h *Handler) updateSummary() {
+// Auto-generated _step summary values are omitted; user-provided steps may
+// include _step. Upload-facing _step summaries are materialized by the sender.
+func (h *Handler) updateSummary(emitExplicitStep bool, currentStep int64) {
 	updates, err := h.runSummary.UpdateSummaries(h.partialHistory)
 
 	// We continue despite errors to update as much of the summary as we can.
@@ -1106,12 +1161,11 @@ func (h *Handler) updateSummary() {
 			fmt.Errorf("handler: error updating summary: %v", err))
 	}
 
+	updates = filterSummaryStepUpdates(updates, emitExplicitStep, currentStep)
 	if len(updates) == 0 {
 		return
 	}
 
-	// We must forward these changes to the Sender which uses them to build
-	// its own summary.
 	h.fwdRecord(&spb.Record{
 		RecordType: &spb.Record_Summary{
 			Summary: &spb.SummaryRecord{
@@ -1119,6 +1173,49 @@ func (h *Handler) updateSummary() {
 			},
 		},
 	}, nil)
+}
+
+func filterSummaryStepUpdates(
+	updates []*spb.SummaryItem,
+	emitExplicitStep bool,
+	currentStep int64,
+) []*spb.SummaryItem {
+	if len(updates) == 0 && !emitExplicitStep {
+		return nil
+	}
+
+	filtered := make([]*spb.SummaryItem, 0, len(updates)+1)
+	hasStep := false
+	for _, item := range updates {
+		if isSummaryStepItem(item) {
+			hasStep = true
+			if emitExplicitStep {
+				filtered = append(filtered, item)
+			}
+			continue
+		}
+		filtered = append(filtered, item)
+	}
+
+	if emitExplicitStep && !hasStep {
+		filtered = append(filtered, &spb.SummaryItem{
+			Key:       "_step",
+			ValueJson: strconv.FormatInt(currentStep, 10),
+		})
+	}
+
+	return filtered
+}
+
+func isSummaryStepItem(item *spb.SummaryItem) bool {
+	if item == nil {
+		return false
+	}
+	if item.GetKey() == "_step" {
+		return true
+	}
+	nestedKey := item.GetNestedKey()
+	return len(nestedKey) == 1 && nestedKey[0] == "_step"
 }
 
 // samples history items and updates the history record with the sampled values
