@@ -25,7 +25,6 @@ from typing import (  # noqa: UP035 (can't use `type` - shadows `Artifact.type`)
     IO,
     TYPE_CHECKING,
     Any,
-    Callable,
     Final,
     Literal,
     Type,
@@ -243,8 +242,6 @@ class Artifact:
         self._final: bool = False
         self._history_step: int | None = None
         self._linked_artifacts: list[Artifact] = []
-
-        self._fetch_file_urls_decorated: Callable[..., Any] | None = None
 
         # Cache.
         artifact_instance_cache_by_client_id[self._client_id] = self
@@ -2204,18 +2201,20 @@ class Artifact:
             )
         return FilePathStr(root)
 
-    def _build_fetch_file_urls_wrapper(self) -> Callable[..., Any]:
+    def _fetch_file_urls(
+        self, cursor: str | None, per_page: int = 5000
+    ) -> FileWithUrlConnection:
         import requests
 
+        # `requests` and the generated pydantic models are imported lazily (here and
+        # below) to keep them off the module-level import path, which is expensive.
         @retry.retriable(
             retry_timedelta=timedelta(minutes=3),
             retryable_exceptions=(requests.RequestException),
         )
-        def _impl(cursor: str | None, per_page: int = 5000) -> FileWithUrlConnection:
+        def _fetch() -> FileWithUrlConnection:
             from ._generated import (
-                GET_ARTIFACT_FILE_URLS_GQL,
                 GET_ARTIFACT_MEMBERSHIP_FILE_URLS_GQL,
-                GetArtifactFileUrls,
                 GetArtifactMembershipFileUrls,
             )
             from ._models.pagination import FileWithUrlConnection
@@ -2223,58 +2222,30 @@ class Artifact:
             if self._service_api is None:
                 raise RuntimeError("Client not initialized")
 
-            if server_supports(
-                self._service_api, pb.ARTIFACT_COLLECTION_MEMBERSHIP_FILES
+            query = GET_ARTIFACT_MEMBERSHIP_FILE_URLS_GQL
+            gql_vars = {
+                "entity": self.entity,
+                "project": self.project,
+                "collection": self.name.split(":")[0],
+                "alias": self.version,
+                "cursor": cursor,
+                "perPage": per_page,
+            }
+            data = self._service_api.execute_graphql(
+                query, variables=gql_vars, timeout=60
+            )
+            membership_result = GetArtifactMembershipFileUrls.model_validate(data)
+
+            if not (
+                (project := membership_result.project)
+                and (collection := project.artifact_collection)
+                and (membership := collection.artifact_membership)
+                and (membership_files := membership.files)
             ):
-                query = GET_ARTIFACT_MEMBERSHIP_FILE_URLS_GQL
-                gql_vars = {
-                    "entity": self.entity,
-                    "project": self.project,
-                    "collection": self.name.split(":")[0],
-                    "alias": self.version,
-                    "cursor": cursor,
-                    "perPage": per_page,
-                }
-                data = self._service_api.execute_graphql(
-                    query, variables=gql_vars, timeout=60
-                )
-                membership_result = GetArtifactMembershipFileUrls.model_validate(data)
+                raise ValueError(f"Unable to fetch files for artifact: {self.name!r}")
+            return FileWithUrlConnection.model_validate(membership_files)
 
-                if not (
-                    (project := membership_result.project)
-                    and (collection := project.artifact_collection)
-                    and (membership := collection.artifact_membership)
-                    and (membership_files := membership.files)
-                ):
-                    raise ValueError(
-                        f"Unable to fetch files for artifact: {self.name!r}"
-                    )
-                return FileWithUrlConnection.model_validate(membership_files)
-            else:
-                query = GET_ARTIFACT_FILE_URLS_GQL
-                gql_vars = {"id": self.id, "cursor": cursor, "perPage": per_page}
-                data = self._service_api.execute_graphql(
-                    query, variables=gql_vars, timeout=60
-                )
-                file_result = GetArtifactFileUrls.model_validate(data)
-
-                if not (
-                    (artifact := file_result.artifact)
-                    and (artifact_files := artifact.files)
-                ):
-                    raise ValueError(
-                        f"Unable to fetch files for artifact: {self.name!r}"
-                    )
-                return FileWithUrlConnection.model_validate(artifact_files)
-
-        return _impl
-
-    def _fetch_file_urls(
-        self, cursor: str | None, per_page: int = 5000
-    ) -> FileWithUrlConnection:
-        if self._fetch_file_urls_decorated is None:
-            self._fetch_file_urls_decorated = self._build_fetch_file_urls_wrapper()
-        return self._fetch_file_urls_decorated(cursor, per_page)
+        return _fetch()
 
     @ensure_logged
     def checkout(self, root: str | None = None) -> str:
