@@ -25,7 +25,6 @@ import (
 	"github.com/wandb/wandb/core/internal/runconsolelogs"
 	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/runhandle"
-	"github.com/wandb/wandb/core/internal/runhistory"
 	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
@@ -771,7 +770,7 @@ func (s *Sender) sendHistory(record *spb.HistoryRecord) {
 	}
 
 	s.ensureHistoryStep(record)
-	s.streamDerivedSummary(record)
+	s.streamSummaryStep(record)
 
 	if s.fileStream == nil {
 		return
@@ -780,42 +779,46 @@ func (s *Sender) sendHistory(record *spb.HistoryRecord) {
 	s.fileStream.StreamUpdate(&fs.HistoryUpdate{Record: record})
 }
 
-func (s *Sender) streamDerivedSummary(record *spb.HistoryRecord) {
+// streamSummaryStep materializes the upload-facing summary _step.
+//
+// The handler omits the auto-generated _step from its summary updates because
+// the sender owns step assignment (see ensureHistoryStep, which may rebase the
+// step forward on offline resume). Metric aggregations are derived by the
+// handler and forwarded as SummaryRecords, so we only emit _step here and must
+// not re-derive other metrics, which would clobber define_metric aggregations.
+func (s *Sender) streamSummaryStep(record *spb.HistoryRecord) {
 	if record == nil {
 		return
 	}
 	if s.settings.IsSharedMode() || s.settings.IsEnableServerSideDerivedSummary() {
 		return
 	}
-
-	history := runhistory.New()
-	for _, item := range record.GetItem() {
-		if err := history.SetFromRecord(item); err != nil {
-			s.logger.CaptureError(
-				fmt.Errorf("sender: failed to parse history for summary: %v", err),
-				"item", item)
-		}
-	}
-
-	updates, err := s.runSummary.UpdateSummaries(history)
-	if err != nil {
-		s.logger.CaptureError(
-			fmt.Errorf("sender: error updating summary from history: %v", err))
-	}
-	if len(updates) == 0 || s.fileStream == nil {
+	if record.GetStep() == nil {
 		return
 	}
 
-	s.fileStream.StreamUpdate(&fs.SummaryUpdate{
-		Updates: runsummary.FromProto(&spb.SummaryRecord{Update: updates}),
-	})
+	updates := runsummary.FromProto(&spb.SummaryRecord{Update: []*spb.SummaryItem{{
+		Key:       "_step",
+		ValueJson: strconv.FormatInt(record.GetStep().GetNum(), 10),
+	}}})
+	if err := updates.Apply(s.runSummary); err != nil {
+		s.logger.CaptureError(
+			fmt.Errorf("sender: error updating summary step: %v", err))
+	}
+
+	if s.fileStream != nil {
+		s.fileStream.StreamUpdate(&fs.SummaryUpdate{Updates: updates})
+	}
 }
 
 // ensureHistoryStep adds _step to history rows that do not already have it.
 //
-// Existing _step values are preserved unless they are below the run's starting
-// step, which can happen when syncing an offline resumed segment that logged
-// with local step numbers.
+// Existing _step values are preserved unless they fall behind the sender's
+// running step counter, which would break the monotonic ordering the
+// filestream requires. This can happen when syncing an offline resumed segment
+// that logged with local step numbers. When a value is clamped, the original
+// user-provided step is dropped, so we log a warning rather than renumber
+// silently.
 func (s *Sender) ensureHistoryStep(record *spb.HistoryRecord) {
 	if record == nil {
 		return
@@ -827,6 +830,11 @@ func (s *Sender) ensureHistoryStep(record *spb.HistoryRecord) {
 	if step, ok := explicitHistoryStepItem(record); ok {
 		s.initializeHistoryStep()
 		if step < s.historyStep {
+			s.logger.CaptureWarn(
+				"sender: history _step behind running step, renumbering to keep steps monotonic",
+				"provided_step", step,
+				"assigned_step", s.historyStep,
+			)
 			setExplicitHistoryStep(record, s.historyStep)
 			step = s.historyStep
 		}
@@ -909,6 +917,13 @@ func setExplicitHistoryStep(record *spb.HistoryRecord, step int64) {
 		NestedKey: []string{"_step"},
 		ValueJson: stepStr,
 	})
+}
+
+// SummaryForTest returns the sender's derived run summary as records.
+//
+// This is for testing purposes only.
+func (s *Sender) SummaryForTest() ([]*spb.SummaryItem, error) {
+	return s.runSummary.ToRecords()
 }
 
 func (s *Sender) sendSummary(_ *spb.Record, summary *spb.SummaryRecord) {

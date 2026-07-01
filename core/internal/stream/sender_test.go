@@ -41,6 +41,10 @@ type testFixtures struct {
 }
 
 func makeSender(t *testing.T, client graphql.Client) testFixtures {
+	return makeSenderWithMode(t, client, false /*shared*/)
+}
+
+func makeSenderWithMode(t *testing.T, client graphql.Client, shared bool) testFixtures {
 	t.Helper()
 	runWork := runworktest.New()
 	logger := observabilitytest.NewTestLogger(t)
@@ -48,6 +52,7 @@ func makeSender(t *testing.T, client graphql.Client) testFixtures {
 		RunId:   &wrapperspb.StringValue{Value: "run1"},
 		Console: &wrapperspb.StringValue{Value: "off"},
 		ApiKey:  &wrapperspb.StringValue{Value: "test-api-key"},
+		XShared: &wrapperspb.BoolValue{Value: shared},
 	})
 	baseURL := stream.BaseURLFromSettings(logger, settings)
 	credentialProvider := stream.CredentialsFromSettings(logger, settings)
@@ -260,6 +265,126 @@ func TestSendHistory_MaterializesRecordStep(t *testing.T) {
 		{NestedKey: []string{"loss"}, ValueJson: "1.23"},
 		{NestedKey: []string{"_step"}, ValueJson: "5"},
 	}, history.Item)
+}
+
+func TestSendHistory_DerivesSummaryStep(t *testing.T) {
+	x := makeSender(t, gqlmock.NewMockClient())
+
+	history := &spb.HistoryRecord{
+		Item: []*spb.HistoryItem{{
+			NestedKey: []string{"loss"},
+			ValueJson: "1.23",
+		}},
+	}
+
+	x.Sender.SendRecord(&spb.Record{
+		RecordType: &spb.Record_History{History: history},
+	}, nil)
+
+	summary, err := x.Sender.SummaryForTest()
+	require.NoError(t, err)
+
+	var stepValue string
+	for _, item := range summary {
+		if item.GetKey() == "_step" {
+			stepValue = item.GetValueJson()
+		}
+	}
+	assert.Equal(t, "0", stepValue)
+}
+
+func TestSendHistory_SharedModeSkipsSummaryStep(t *testing.T) {
+	x := makeSenderWithMode(t, gqlmock.NewMockClient(), true /*shared*/)
+
+	history := &spb.HistoryRecord{
+		Item: []*spb.HistoryItem{{
+			NestedKey: []string{"loss"},
+			ValueJson: "1.23",
+		}},
+	}
+
+	x.Sender.SendRecord(&spb.Record{
+		RecordType: &spb.Record_History{History: history},
+	}, nil)
+
+	summary, err := x.Sender.SummaryForTest()
+	require.NoError(t, err)
+	for _, item := range summary {
+		assert.NotEqual(t, "_step", item.GetKey())
+	}
+}
+
+func TestSendHistory_PreservesForwardedAggregation(t *testing.T) {
+	x := makeSender(t, gqlmock.NewMockClient())
+
+	// Simulate the handler forwarding a define_metric("acc", summary="max")
+	// aggregation of 0.9, which the sender applies to its runSummary.
+	x.Sender.SendRecord(&spb.Record{
+		RecordType: &spb.Record_Summary{Summary: &spb.SummaryRecord{
+			Update: []*spb.SummaryItem{{
+				Key:       "acc",
+				ValueJson: "0.9",
+			}},
+		}},
+	}, nil)
+
+	// A later history row logs a lower value; the sender must not re-derive
+	// acc from raw history and clobber the forwarded max.
+	x.Sender.SendRecord(&spb.Record{
+		RecordType: &spb.Record_History{History: &spb.HistoryRecord{
+			Item: []*spb.HistoryItem{{
+				NestedKey: []string{"acc"},
+				ValueJson: "0.4",
+			}},
+		}},
+	}, nil)
+
+	summary, err := x.Sender.SummaryForTest()
+	require.NoError(t, err)
+
+	var accValue, stepValue string
+	for _, item := range summary {
+		switch item.GetKey() {
+		case "acc":
+			accValue = item.GetValueJson()
+		case "_step":
+			stepValue = item.GetValueJson()
+		}
+	}
+	assert.Equal(t, "0.9", accValue)
+	assert.Equal(t, "0", stepValue)
+}
+
+func TestSendHistory_RebasedStepMaterializesSummaryStep(t *testing.T) {
+	x := makeSender(t, gqlmock.NewMockClient())
+
+	upserter := runupsertertest.NewOfflineUpserter(t)
+	upserter.Update(&spb.RunRecord{StartingStep: 2})
+	require.NoError(t, x.RunHandle.Init(upserter))
+	defer upserter.Finish()
+
+	// An offline-resumed row logged with a local step of 0 is rebased forward
+	// to the run's starting step; the summary _step must track the rebased
+	// value, not the stale local one.
+	x.Sender.SendRecord(&spb.Record{
+		RecordType: &spb.Record_History{History: &spb.HistoryRecord{
+			Item: []*spb.HistoryItem{
+				{NestedKey: []string{"loss"}, ValueJson: "0.6"},
+				{NestedKey: []string{"_step"}, ValueJson: "0"},
+			},
+		}},
+	}, nil)
+
+	summary, err := x.Sender.SummaryForTest()
+	require.NoError(t, err)
+
+	var stepValue string
+	for _, item := range summary {
+		if item.GetKey() == "_step" {
+			stepValue = item.GetValueJson()
+		}
+	}
+	assert.Equal(t, "2", stepValue)
 }
 
 // Verify that arguments are properly passed through to graphql

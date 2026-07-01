@@ -423,11 +423,15 @@ func (upserter *RunUpserter) updateMetadataForResume(
 	resumeSetting string,
 ) error {
 	if upserter.graphqlClientOrNil == nil {
-		// Ignore the resume mode when offline.
+		// Offline: we can't query the backend to reconcile resume state, so
+		// just record the user's resume intent on the RunRecord. Actual
+		// reconciliation (starting step, summary, config, etc.) is deferred
+		// to `wandb sync`, which can reach the backend.
 		//
 		// A warning is printed by the client during wandb.init().
 		//
 		// resume="auto" is always OK and is handled by the client.
+		upserter.params.ResumeMode = resumeSetting
 		return nil
 	}
 
