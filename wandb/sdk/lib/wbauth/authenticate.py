@@ -4,6 +4,7 @@ import os
 import threading
 
 from wandb import env
+from wandb.analytics import get_otel
 from wandb.errors import AuthenticationError, UsageError, term
 from wandb.sdk import wandb_setup
 
@@ -44,6 +45,11 @@ def _locked_set_session_auth(
     """
     global _session_auth
     _session_auth = auth
+
+    if auth is None:
+        get_otel().set_api_key(None)
+    elif isinstance(auth, AuthApiKey):
+        get_otel().set_api_key(auth.api_key)
 
     if update_settings:
         set_auth_settings(wandb_setup.singleton().settings, auth)
