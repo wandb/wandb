@@ -174,10 +174,12 @@ func (r *RunParams) SetOnProto(record *spb.RunRecord) {
 //
 // The record may be partially filled, in which case only non-empty fields are
 // used.
+//
+//nolint:gocyclo // this updates most fields in a mechanical way; splitting would make it harder to read
 func (r *RunParams) Update(
 	record *spb.RunRecord,
 	runSettings *settings.Settings,
-) { // nolint: gocyclo
+) {
 	// NOTE: Fields are organized the same as on the struct.
 
 	if record.StorageId != "" {
