@@ -166,7 +166,11 @@ func (hs *LevelDBHistorySource) Read(
 func (hs *LevelDBHistorySource) recordToMsg(record *spb.Record) tea.Msg {
 	switch rec := record.RecordType.(type) {
 	case *spb.Record_Run:
-		if rec.Run.GetStartingStep() > 0 || !hs.historyStepInitialized {
+		// Only the first Run record seeds the auto-step counter. A resumed run
+		// emits a second Run record (with StartingStep>0) when run.name/notes/tags
+		// are set mid-run; re-seeding here would rewind the display counter and
+		// collide the X-axis in the TUI.
+		if !hs.historyStepInitialized {
 			hs.nextHistoryStep = rec.Run.GetStartingStep()
 			hs.historyStepInitialized = true
 		}
