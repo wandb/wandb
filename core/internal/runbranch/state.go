@@ -177,7 +177,7 @@ func (r *RunParams) SetOnProto(record *spb.RunRecord) {
 func (r *RunParams) Update(
 	record *spb.RunRecord,
 	runSettings *settings.Settings,
-) {
+) { // nolint: gocyclo
 	// NOTE: Fields are organized the same as on the struct.
 
 	if record.StorageId != "" {
