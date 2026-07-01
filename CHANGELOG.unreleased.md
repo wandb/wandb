@@ -17,6 +17,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 ### Notable Changes
 
 This version drops support for protobuf v4, and requires protobuf v5 or newer.
+This version drops compatibility with server versions older than 0.67.0.
 
 ### Changed
 
@@ -25,6 +26,10 @@ This version drops support for protobuf v4, and requires protobuf v5 or newer.
 - `wandb sync` now routes to `wandb beta sync` for supported parameter sets (@timoffex in https://github.com/wandb/wandb/pull/12093)
   - Restore original behavior with `--legacy`
 - Dropped support for protobuf v4 (@jacobromero in https://github.com/wandb/wandb/pull/12115)
+
+### Removed
+
+- Removed legacy support for listing and downloading artifact files on W&B Server releases older than `v0.67.0`, which are past EOL. This affects `Artifact.files()` and `Artifact.download()` for any artifact, as well as `Artifact.get_entry()` / `Artifact.get_path()` file downloads for non-reference artifacts. To keep using these operations, upgrade your W&B Server to `v0.67.0` or newer. (@tonyyli-wandb in https://github.com/wandb/wandb/pull/12109)
 
 ### Fixed
 
