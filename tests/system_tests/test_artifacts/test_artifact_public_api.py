@@ -715,7 +715,6 @@ def test_fetch_registry_artifact(
         }
     }
 
-
     op_name = nameof(ArtifactMembershipByName)
     mock_rsp = mock_membership_rsp_data
 

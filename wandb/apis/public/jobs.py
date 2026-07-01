@@ -52,7 +52,7 @@ class Job:
         service_api: ServiceApi | None = None,
     ) -> None:
         try:
-            self._job_artifact = api._artifact(name, type="job")
+            self._job_artifact = api._artifact_from_name(name, type="job")
         except CommError:
             raise CommError(f"Job artifact {name} not found")
         if path:
@@ -105,7 +105,9 @@ class Job:
         if is_id:
             code_artifact = self._api._artifact_from_id(artifact_string)
         else:
-            code_artifact = self._api._artifact(name=artifact_string, type="code")
+            code_artifact = self._api._artifact_from_name(
+                name=artifact_string, type="code"
+            )
         if code_artifact is None:
             raise LaunchError("No code artifact found")
         if code_artifact.state == ArtifactState.DELETED:

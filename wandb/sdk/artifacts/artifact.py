@@ -2489,7 +2489,9 @@ class Artifact:
             raise ValueError("Unable to parse linked artifact version from response")
 
         link_name = f"{target.to_str()}:v{version_idx}"
-        return Api(overrides={"entity": self.source_entity})._artifact(link_name)
+        return Api(overrides={"entity": self.source_entity})._artifact_from_name(
+            link_name
+        )
 
     @ensure_logged
     def unlink(self) -> None:

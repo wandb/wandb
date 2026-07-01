@@ -1599,7 +1599,7 @@ class Api:
         )
 
     @normalize_exceptions
-    def _artifact(self, name: str, type: str | None = None) -> Artifact:
+    def _artifact_from_name(self, name: str, type: str | None = None) -> Artifact:
         from wandb.sdk.artifacts._validators import (
             FullArtifactPath,
             is_artifact_registry_project,
@@ -1627,16 +1627,14 @@ class Api:
             )
 
         if entity is None:
-            raise ValueError(
-                "Could not determine entity. Please include the entity as part of the artifact name path."
-            )
+            msg = "Could not determine entity. Please include the entity as part of the artifact name path."
+            raise ValueError(msg)
 
         path = FullArtifactPath(prefix=entity, project=project, name=artifact_name)
         artifact = Artifact._from_name(path=path, service_api=self._service_api)
         if type is not None and artifact.type != type:
-            raise ValueError(
-                f"type {type} specified but this artifact is of type {artifact.type}"
-            )
+            msg = f"type {type!r} specified but this artifact is of type {artifact.type!r}"
+            raise ValueError(msg)
         return artifact
 
     def _artifact_from_id(self, artifact_id: str) -> Artifact | None:
@@ -1702,10 +1700,8 @@ class Api:
         wandb.Api().artifact(name="entity/project/artifact:version")
         ```
 
-        Note:
-        This method is intended for external use only. Do not call `api.artifact()` within the wandb repository code.
         """
-        return self._artifact(name=name, type=type)
+        return self._artifact_from_name(name=name, type=type)
 
     @normalize_exceptions
     def job(self, name: str | None, path: str | None = None) -> public.Job:
@@ -1833,7 +1829,7 @@ class Api:
 
         """
         try:
-            self._artifact(name, type)
+            self._artifact_from_name(name, type)
         except wandb.errors.CommError as e:
             if _is_service_api_transport_error(e.exc):
                 raise
