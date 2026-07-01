@@ -2,14 +2,6 @@
 
 This directory is meant as a current, code-grounded onboarding path for engineers and agents working on the W&B SDK. However, the source of truth is always the code in this repository.
 
-## Format
-
-These docs are plain GitHub-flavored Markdown:
-
-- Code references are relative links into this repository, without pinning to a commit hash. GitHub renders them as hyperlinks against the ref you are browsing, editors make them clickable, and agents can read the target path directly from a checkout.
-- Diagrams are Mermaid fences and hand-maintained SVGs, both rendered natively by GitHub.
-- References use file paths and symbol names rather than line numbers, since symbols survive refactors. To trace a symbol, search for it in the linked file.
-
 This is intentionally separate from the public W&B docs site. It is for SDK maintainers, contributors, and agents that need an architecture reference tied to the repo.
 
 ## Start here
@@ -34,7 +26,7 @@ The docs use maintainable SVG illustrations for the main mental models, then Mer
 The SDK is split into two cooperating halves:
 
 - The Python package owns the user-facing API: `wandb.init()`, `Run`, settings, config, data type serialization, integration hooks, console capture, and user ergonomics.
-- The `wandb-core` sidecar owns the durable and blocking work: run upsert, transaction logging, flow control, file streaming, file transfer, artifact work, system metrics, sync, and newer Public API network calls.
+- The `wandb-core` sidecar owns the durable and blocking work: run upsert, transaction logging, flow control, data streaming, file transfer, artifact work, system metrics, sync, and newer Public API network calls.
 
 ![W&B SDK architecture map](images/sdk-architecture-map.svg)
 
@@ -56,8 +48,8 @@ flowchart LR
 Why a separate process? Keeping `run.log()` off the network hot path only takes background threads, so that alone would not justify a sidecar. The process split buys things a thread cannot:
 
 - One `wandb-core` can serve many client processes. Distributed and multiprocessing workloads can share a single service instead of each spawning their own uploader.
-- Work in the sidecar does not compete with training for the Python interpreter. Background threads in pure Python steal GIL time from the hot loop; serialization, checksumming, and retry bookkeeping in a separate process do not.
-- The boundary is a protobuf protocol over a socket. An SDK in another language can get the same upload, retry, and durability behavior by speaking the protocol instead of reimplementing it. Today only the Python SDK does, so treat this one as a bet on the future.
+- Work in the sidecar does not compete with training for the Python interpreter. Background threads in pure Python could steal GIL time from the hot loop; serialization, checksumming, and retry bookkeeping in a separate process do not.
+- The boundary is a protobuf protocol over a socket. An SDK in another language can get the same upload, retry, and durability behavior by speaking the protocol instead of reimplementing it. Today only the Python SDK does, so treat this one as a bet on the future, however we do have experimental SDKs in C#, Go, and Rust.
 
 Go was chosen for the sidecar because it is convenient for concurrent, server-shaped code: many runs, uploads, and retries map naturally onto goroutines.
 
