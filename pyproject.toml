@@ -360,7 +360,7 @@ python-version = "3.10"
 
 [tool.ty.src]
 include = ["wandb"]
-exclude = ["wandb/vendor"]
+exclude = ["wandb/vendor", "wandb/proto"]
 
 [tool.ty.rules]
 unresolved-attribute = "ignore"
