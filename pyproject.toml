@@ -387,8 +387,6 @@ invalid-frozen-dataclass-subclass = "ignore"
 call-top-callable = "ignore"
 invalid-explicit-override = "ignore"
 redundant-cast = "ignore"
-subclass-of-final-class = "ignore"
-invalid-parameter-default = "ignore"
 
 [tool.mypy]
 plugins = ["pydantic.mypy"]
