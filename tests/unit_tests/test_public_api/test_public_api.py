@@ -360,7 +360,10 @@ def test_api_artifact_from_id_uses_service_api(monkeypatch):
 
 
 def test_artifact_from_id_uses_service_api(monkeypatch):
-    from wandb.sdk.artifacts._generated import ARTIFACT_BY_ID_GQL, ArtifactByID
+    from wandb.sdk.artifacts._generated import (
+        ARTIFACT_MEMBERSHIP_BY_ID_GQL,
+        ArtifactMembershipByID,
+    )
     from wandb.sdk.artifacts.artifact import Artifact
     from wandb.sdk.artifacts.artifact_instance_cache import artifact_instance_cache
 
@@ -368,8 +371,12 @@ def test_artifact_from_id_uses_service_api(monkeypatch):
     artifact_instance_cache.pop(artifact_id, None)
     service_api = MagicMock()
     service_api.execute_graphql.return_value = {}
-    artifact = SimpleNamespace(
-        artifact_sequence=SimpleNamespace(
+
+    # The query now returns the artifact's source-sequence membership, which wraps
+    # both the source artifact and the collection/version used to build the path.
+    src_art = SimpleNamespace()
+    membership = SimpleNamespace(
+        artifact_collection=SimpleNamespace(
             name="dataset",
             project=SimpleNamespace(
                 name="project",
@@ -377,11 +384,13 @@ def test_artifact_from_id_uses_service_api(monkeypatch):
             ),
         ),
         version_index=3,
+        artifact=src_art,
     )
+    artifact_node = SimpleNamespace(artifact_membership=membership)
     monkeypatch.setattr(
-        ArtifactByID,
+        ArtifactMembershipByID,
         "model_validate",
-        MagicMock(return_value=SimpleNamespace(artifact=artifact)),
+        MagicMock(return_value=SimpleNamespace(artifact=artifact_node)),
     )
     from_attrs = MagicMock(return_value="artifact")
     monkeypatch.setattr(Artifact, "_from_attrs", from_attrs)
@@ -389,13 +398,14 @@ def test_artifact_from_id_uses_service_api(monkeypatch):
     assert Artifact._from_id(artifact_id, service_api) == "artifact"
 
     service_api.execute_graphql.assert_called_once_with(
-        ARTIFACT_BY_ID_GQL,
+        ARTIFACT_MEMBERSHIP_BY_ID_GQL,
         variables={"id": artifact_id},
     )
-    path, src_art, actual_service_api = from_attrs.call_args.args
+    path, actual_src_art, actual_service_api = from_attrs.call_args.args
     assert path.to_str() == "entity/project/dataset:v3"
-    assert src_art is artifact
+    assert actual_src_art is src_art
     assert actual_service_api is service_api
+    assert from_attrs.call_args.kwargs["membership"] is membership
 
 
 @pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
