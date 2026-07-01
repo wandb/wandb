@@ -26,6 +26,7 @@ This version drops compatibility with server versions older than 0.67.0.
 - `wandb sync` now routes to `wandb beta sync` for supported parameter sets (@timoffex in https://github.com/wandb/wandb/pull/12093)
   - Restore original behavior with `--legacy`
 - Dropped support for protobuf v4 (@jacobromero in https://github.com/wandb/wandb/pull/12115)
+- `wandb.sandbox` now defaults serverless sandboxes to a 12-hour max lifetime (`max_lifetime_seconds=43200`); override per sandbox with `max_lifetime_seconds` or via `SandboxDefaults` (@nicholaspun-wandb in https://github.com/wandb/wandb/pull/12136)
 
 ### Removed
 
