@@ -21,6 +21,10 @@ import click
 import wandb
 from wandb import env, util
 from wandb.analytics import get_otel, get_sentry
+from wandb.analytics.opentelemetry.opentelemetry_proxy import (
+    TelemetryRecorder,
+    setup_otel,
+)
 from wandb.apis.normalize import normalize_exceptions
 from wandb.errors import AuthenticationError, CommError, UsageError
 from wandb.integration.sagemaker import parse_sm_secrets
@@ -266,6 +270,7 @@ class Api:
         api_key = api_key or self.default_settings.get("api_key")
         if api_key:
             auth = ("api", api_key)
+            setup_otel(api_key=api_key)
         elif token_file := self._environ.get(env.IDENTITY_TOKEN_FILE):
             # Federated identity: wandb-core exchanges the identity token
             # for an access token and authenticates its requests with it.
@@ -2272,7 +2277,7 @@ class Api:
                 raise _e.with_traceback(sys.exc_info()[2])
             else:
                 # TODO: change to get_otel().reraise() once sentry is removed
-                get_otel().exception(str(e), e)
+                TelemetryRecorder(root=get_otel()).exception(str(e), e)
                 get_sentry().reraise(e)
         return response
 
@@ -2359,7 +2364,7 @@ class Api:
                 raise _e.with_traceback(sys.exc_info()[2])
             else:
                 # TODO: change to get_otel().reraise() once sentry is removed
-                get_otel().exception(str(e), e)
+                TelemetryRecorder(root=get_otel()).exception(str(e), e)
                 get_sentry().reraise(e)
 
         return response
