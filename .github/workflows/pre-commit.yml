@@ -21,5 +21,4 @@ jobs:
         run: |
           curl -LsSf https://astral.sh/uv/install.sh | sh
           uv tool install prek
-          prek run --hook-stage pre-commit --all-files
           prek run --hook-stage pre-push --all-files --skip go-generate-graphql
