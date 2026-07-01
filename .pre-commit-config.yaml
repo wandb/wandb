@@ -13,6 +13,14 @@ repos:
       - id: ruff-check
         args: [--fix]
       - id: ruff-format
+  - repo: https://github.com/astral-sh/ty-pre-commit
+    rev: "v0.0.56"
+    hooks:
+      # Type-check with ty on every commit.
+      # ty's coverage and rule config live in [tool.ty] in pyproject.toml.
+      - id: ty
+        args: ["--isolated"] # --isolated stops `uv check` from writing a uv.lock.
+        stages: [pre-commit]
   - repo: https://github.com/pre-commit/mirrors-clang-format
     rev: v22.1.5
     hooks:
