@@ -4,14 +4,15 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Annotated, Any, ClassVar, TypeAlias
 
-from pydantic import AfterValidator, BaseModel, PositiveInt, ValidationError
+from pydantic import AfterValidator, PositiveInt, ValidationError
+from pydantic.dataclasses import dataclass as pydantic_dataclass
 from typing_extensions import override
 
 from wandb._analytics import tracked
 from wandb._pydantic import to_json
 from wandb.apis.paginator import RelayPaginator, SizedRelayPaginator
 
-from ._utils import OrderValidator, ensure_registry_prefix_on_names
+from ._utils import OrderValidator, validate_registry_filter
 
 if TYPE_CHECKING:
     from wandb.apis.public import ArtifactCollection
@@ -34,70 +35,65 @@ if TYPE_CHECKING:
 # TODO: Recursively validate allowed filter field names, see e.g. existing mongo filter types in automations.
 _RegistryFilter: TypeAlias = Annotated[
     dict[str, Any] | None,
-    AfterValidator(ensure_registry_prefix_on_names),
+    AfterValidator(validate_registry_filter),
 ]
-_RegistryCollectionFilter: TypeAlias = dict[str, Any] | None
-_RegistryVersionFilter: TypeAlias = dict[str, Any] | None
+_CollectionFilter: TypeAlias = dict[str, Any] | None
+_VersionFilter: TypeAlias = dict[str, Any] | None
 
 # Type annotations for `order` arguments.
-_RegistriesOrder: TypeAlias = Annotated[
+_RegistryOrder: TypeAlias = Annotated[
     str | None,
     OrderValidator(allowed=("name", "created_at", "updated_at")),
 ]
-_CollectionsOrder: TypeAlias = Annotated[
+_CollectionOrder: TypeAlias = Annotated[
     str | None,
     OrderValidator(allowed=("name", "created_at", "updated_at")),
 ]
 
 
-class _RegistriesKwargs(BaseModel):
-    """Validated arguments for instantiating a `Registries` class.
-
-    Note:
-        Ideally, Registries itself would just be a pydantic model, but we would
-        want to refactor the base paginator classes into pydantic models first,
-        which has a larger blast radius.  This is an intermediate solution that
-        avoids unexpected side effects from defining a pydantic model
-        as a subclass of a non-pydantic parent class.
-
-        Long term, consider making Registries and other Paginator types directly into
-        pydantic models to automatically validate their arguments at runtime.
-
-        Also, using the `@validate_call` decorator does not work at the time of writing,
-        since it would require an eager import of `ServiceApi`, causing an import cycle.
-    """
+# Note on the validated args classes below:
+#
+# Ideally, `Registries` itself would just be a pydantic model, but we would
+# want to refactor the paginator base types into pydantic models first, which has
+# a larger blast radius. This is an intermediate solution that avoids unexpected
+# side effects from subclassing a pydantic model from a non-pydantic parent class.
+#
+# Long term, consider making `Registries` and other paginator types directly into
+# pydantic models to automatically validate their arguments at runtime.
+#
+# Also, using the `@validate_call` decorator does not work at the time of writing,
+# since it would require an eager import of `ServiceApi`, causing an import cycle.
+@pydantic_dataclass(frozen=True, slots=True)
+class _RegistriesVars:
+    """Validated arguments for instantiating a `Registries` paginator."""
 
     organization: str
     filter: _RegistryFilter = None
-    order: _RegistriesOrder = None
+    order: _RegistryOrder = None
     per_page: PositiveInt = 100
     start: str | None = None
 
 
-class _CollectionsKwargs(BaseModel):
-    """Validated arguments for instantiating a `Collections` class.
-
-    See `_RegistriesKwargs` for more details.
-    """
+@pydantic_dataclass(frozen=True, slots=True)
+class _CollectionsVars:
+    """Validated arguments for instantiating a `Collections` paginator."""
 
     organization: str
     registry_filter: _RegistryFilter = None
-    collection_filter: _RegistryCollectionFilter = None
-    order: _CollectionsOrder = None
+    collection_filter: _CollectionFilter = None
+    order: _CollectionOrder = None
     per_page: PositiveInt = 100
     start: str | None = None
 
 
-class _VersionsKwargs(BaseModel):
-    """Validated arguments for instantiating a `Versions` class.
-
-    See `_RegistriesKwargs` for more details.
-    """
+@pydantic_dataclass(frozen=True, slots=True)
+class _VersionsVars:
+    """Validated arguments for instantiating a `Versions` paginator."""
 
     organization: str
     registry_filter: _RegistryFilter = None
-    collection_filter: _RegistryCollectionFilter = None
-    artifact_filter: _RegistryVersionFilter = None
+    collection_filter: _CollectionFilter = None
+    artifact_filter: _VersionFilter = None
     per_page: PositiveInt = 100
     start: str | None = None
 
@@ -113,7 +109,7 @@ class Registries(RelayPaginator["RegistryFragment", "Registry"]):
         service_api: ServiceApi,
         organization: str,
         filter: _RegistryFilter = None,
-        order: _RegistriesOrder = None,
+        order: _RegistryOrder = None,
         per_page: PositiveInt = 100,
         start: str | None = None,
     ):
@@ -123,7 +119,7 @@ class Registries(RelayPaginator["RegistryFragment", "Registry"]):
 
             type(self).QUERY = FETCH_REGISTRIES_GQL
 
-        args = _RegistriesKwargs(
+        args = _RegistriesVars(
             organization=organization,
             filter=filter,
             order=order,
@@ -257,8 +253,8 @@ class Collections(
         service_api: ServiceApi,
         organization: str,
         registry_filter: _RegistryFilter = None,
-        collection_filter: _RegistryCollectionFilter = None,
-        order: _CollectionsOrder = None,
+        collection_filter: _CollectionFilter = None,
+        order: _CollectionOrder = None,
         per_page: PositiveInt = 100,
         start: str | None = None,
     ):
@@ -268,7 +264,7 @@ class Collections(
 
             type(self).QUERY = REGISTRY_COLLECTIONS_GQL
 
-        args = _CollectionsKwargs(
+        args = _CollectionsVars(
             organization=organization,
             registry_filter=registry_filter,
             collection_filter=collection_filter,
@@ -370,7 +366,7 @@ class Collections(
 class Versions(RelayPaginator["ArtifactMembershipFragment", "Artifact"]):
     """An lazy iterator of `Artifact` objects in a Registry."""
 
-    QUERY: str  # Must be set per-instance
+    QUERY: ClassVar[str | None] = None
     last_response: ArtifactMembershipConnection | None
 
     def __init__(
@@ -378,16 +374,17 @@ class Versions(RelayPaginator["ArtifactMembershipFragment", "Artifact"]):
         service_api: ServiceApi,
         organization: str,
         registry_filter: _RegistryFilter = None,
-        collection_filter: _RegistryCollectionFilter = None,
-        artifact_filter: _RegistryVersionFilter = None,
+        collection_filter: _CollectionFilter = None,
+        artifact_filter: _VersionFilter = None,
         per_page: PositiveInt = 100,
         start: str | None = None,
     ):
-        from wandb.sdk.artifacts._generated import REGISTRY_VERSIONS_GQL
+        if self.QUERY is None:
+            from wandb.sdk.artifacts._generated import REGISTRY_VERSIONS_GQL
 
-        self.QUERY = REGISTRY_VERSIONS_GQL
+            type(self).QUERY = REGISTRY_VERSIONS_GQL
 
-        args = _VersionsKwargs(
+        args = _VersionsVars(
             organization=organization,
             registry_filter=registry_filter,
             collection_filter=collection_filter,

@@ -4,8 +4,8 @@ from typing import TYPE_CHECKING
 
 from pytest import fixture, mark, raises
 from wandb.apis.public.registries._utils import (
-    ensure_registry_prefix_on_names,
     prepare_artifact_types_input,
+    validate_registry_filter,
 )
 from wandb.apis.public.registries.registries_search import Collections, Registries
 from wandb.sdk.artifacts._validators import REGISTRY_PREFIX
@@ -57,11 +57,11 @@ def test_format_gql_artifact_types_input_error(artifact_types):
 def test_simple_name_transform():
     query = {"name": "model"}
     expected = {"name": f"{REGISTRY_PREFIX}model"}
-    assert ensure_registry_prefix_on_names(query) == expected
+    assert validate_registry_filter(query) == expected
 
     query = {"name": f"{REGISTRY_PREFIX}model"}
     expected = {"name": f"{REGISTRY_PREFIX}model"}
-    assert ensure_registry_prefix_on_names(query) == expected
+    assert validate_registry_filter(query) == expected
 
 
 def test_list_handling():
@@ -72,12 +72,12 @@ def test_list_handling():
             {"tag": "prod"},
         ]
     }
-    assert ensure_registry_prefix_on_names(query) == expected
+    assert validate_registry_filter(query) == expected
 
 
 def test_regex_skip_transform():
     query = {"name": {"$regex": "model.*"}}
-    assert ensure_registry_prefix_on_names(query) == query
+    assert validate_registry_filter(query) == query
 
 
 def test_mixed_types():
@@ -87,7 +87,7 @@ def test_mixed_types():
         "name": f"{REGISTRY_PREFIX}model",
         "description": None,
     }
-    assert ensure_registry_prefix_on_names(query) == expected
+    assert validate_registry_filter(query) == expected
 
 
 @mark.parametrize(
@@ -95,7 +95,7 @@ def test_mixed_types():
     ["string", {}, 123, None, True],
 )
 def test_empty_or_non_dict_input(bad_filter):
-    assert ensure_registry_prefix_on_names(bad_filter) == bad_filter
+    assert validate_registry_filter(bad_filter) == bad_filter
 
 
 def test_nested_structure():
@@ -117,7 +117,7 @@ def test_nested_structure():
             ]
         }
     }
-    assert ensure_registry_prefix_on_names(query) == expected
+    assert validate_registry_filter(query) == expected
 
 
 @fixture

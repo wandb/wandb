@@ -4,7 +4,7 @@ import re
 from collections.abc import Collection
 from dataclasses import dataclass
 from enum import Enum
-from functools import lru_cache, partial
+from functools import lru_cache
 from typing import TYPE_CHECKING, Any, TypeVar, overload
 
 from pydantic import GetCoreSchemaHandler
@@ -104,47 +104,49 @@ def prepare_artifact_types_input(
 
 
 @overload
-def ensure_registry_prefix_on_names(query: str, in_name: bool = ...) -> str: ...
+def validate_registry_filter(query: str) -> str: ...
 @overload
-def ensure_registry_prefix_on_names(
-    query: dict[str, Any], in_name: bool = ...
-) -> dict[str, Any]: ...
+def validate_registry_filter(query: dict[str, Any]) -> dict[str, Any]: ...
 @overload
-def ensure_registry_prefix_on_names(
-    query: list[T] | tuple[T], in_name: bool = ...
-) -> list[T]: ...
+def validate_registry_filter(query: list[T] | tuple[T]) -> list[T]: ...
 @overload
-def ensure_registry_prefix_on_names(query: T, in_name: bool = ...) -> T: ...
+def validate_registry_filter(query: T) -> T: ...
 
 
-def ensure_registry_prefix_on_names(query: Any, in_name: bool = False) -> Any:
+def validate_registry_filter(query: Any) -> Any:
     """Recursively prepend the registry prefix under "name" keys, excluding regex ops.
-
-    - in_name: True if we are under a "name" key (or propagating from one).
 
     EX: {"name": "model"} -> {"name": "wandb-registry-model"}
     """
+    match query:
+        case dict() as dct:
+            return {
+                k: (
+                    _prefix_reg_names(v) if k == "name" else validate_registry_filter(v)
+                )
+                for k, v in dct.items()
+            }
+        case list() | tuple() as seq:
+            return list(map(validate_registry_filter, seq))
+        case _:
+            return query
+
+
+def _prefix_reg_names(query: Any) -> Any:
+    """Under a "name" key, prefix names with 'wandb-registry-', skipping $regex ops."""
     from wandb.sdk.artifacts._validators import REGISTRY_PREFIX
 
     match query:
         case str() as txt:
-            return ensureprefix(txt, REGISTRY_PREFIX) if in_name else txt
+            return ensureprefix(txt, REGISTRY_PREFIX)
         case dict() as dct:
-            new_dict = {}
-            for k, v in dct.items():
-                if k == "$regex":
-                    # For regex operator, we skip transformation of its value.
-                    new_dict[k] = v
-                else:
-                    # Enforce prefix on "name" keys, otherwise propagate flags as-is.
-                    new_dict[k] = ensure_registry_prefix_on_names(
-                        v, in_name=(k == "name") or in_name
-                    )
-            return new_dict
+            # For regex operator, we skip transformation of its value.
+            return {
+                k: (v if k == "$regex" else _prefix_reg_names(v))
+                for k, v in dct.items()
+            }
         case list() | tuple() as seq:
-            return list(
-                map(partial(ensure_registry_prefix_on_names, in_name=in_name), seq)
-            )
+            return list(map(_prefix_reg_names, seq))
         case _:
             return query
 
