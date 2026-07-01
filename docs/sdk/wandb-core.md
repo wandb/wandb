@@ -112,7 +112,7 @@ flowchart LR
 
 `Stream.maybeSavingToTransactionLog()` inserts two stages between `Handler` and `Sender` unless settings skip the log: a `transactionlog` writer that persists every record to the `.wandb` file as it passes through, and a `FlowControl` buffer that forwards work to the sender.
 
-The important subtlety: work normally flows to the sender in memory. The disk write is a side effect, not a round trip. `FlowControl` holds a small in-memory buffer (see `FlowControlParams` in `stream.go`); only when the sender falls behind and the buffer fills does it discard saved work from memory and re-read it from the log later, re-parsing records through `RecordParser`.
+The important subtlety: work normally flows to the sender in memory. The disk write is a side effect, not a round trip. `FlowControl` holds a small in-memory buffer (see `FlowControlParams` in `flowcontrolbuffer.go`, sized in `stream.go`); only when the sender falls behind and the buffer fills does it discard saved work from memory and re-read it from the log later, re-parsing records through `RecordParser`.
 
 Why this exists:
 
@@ -229,7 +229,7 @@ Primary code:
 - [`core/internal/wbapi`](../../core/internal/wbapi)
 - `handleApiInit`, `handleApi`, and `handleApiCleanup` in [`core/pkg/server/connection.go`](../../core/pkg/server/connection.go)
 
-The API failures surface as `WandbApiFailedError` (and not as raw `requests` exceptions).
+API failures surface as `WandbApiFailedError` rather than raw `requests` exceptions.
 
 ## Debugging checklist
 

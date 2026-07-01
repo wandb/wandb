@@ -37,9 +37,9 @@
     <path d="M256 130L154 154V106Z" fill="#e2a947"/>
     <path d="M130 256L106 154H154Z" fill="#70ba7a"/>
     <path d="M4 130L106 106V154Z" fill="#d96c5f"/>
-    <text x="89" y="119" class="center">User-visible</text>
-    <text x="80" y="141" class="center">behavior</text>
-    <text x="72" y="168" class="centerSmall">trace before editing</text>
+    <text x="130" y="122" class="center" text-anchor="middle">User-visible</text>
+    <text x="130" y="144" class="center" text-anchor="middle">behavior</text>
+    <text x="130" y="170" class="centerSmall" text-anchor="middle">trace before editing</text>
   </g>
 
   <g transform="translate(72 162)">

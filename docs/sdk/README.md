@@ -1,14 +1,14 @@
 # W&B SDK Architecture Docs
 
-This directory is meant as a current, code-grounded onboarding path for engineers and agents working on the W&B SDK. However the source of truth is the code in this repository.
+This directory is meant as a current, code-grounded onboarding path for engineers and agents working on the W&B SDK. However, the source of truth is always the code in this repository.
 
 ## Format
 
-These docs are plain GitHub-flavored Markdown. That is a deliberate choice, not a placeholder:
+These docs are plain GitHub-flavored Markdown:
 
-- Code references are relative links into this repository. GitHub renders them as hyperlinks to the code at the same ref you are browsing, editors make them clickable, and agents can read the target path directly from a checkout. No build step, no link rot against a frozen commit hash.
+- Code references are relative links into this repository, without pinning to a commit hash. GitHub renders them as hyperlinks against the ref you are browsing, editors make them clickable, and agents can read the target path directly from a checkout.
 - Diagrams are Mermaid fences and hand-maintained SVGs, both rendered natively by GitHub.
-- References use file paths and symbol names, never line numbers. Symbols survive refactors; line numbers do not. To trace a symbol, search for it in the linked file.
+- References use file paths and symbol names rather than line numbers, since symbols survive refactors. To trace a symbol, search for it in the linked file.
 
 This is intentionally separate from the public W&B docs site. It is for SDK maintainers, contributors, and agents that need an architecture reference tied to the repo.
 
@@ -53,19 +53,20 @@ flowchart LR
     Handler --> Metrics["History, summary, system metrics"]
 ```
 
-The split exists for product reasons, not just implementation taste:
+Why a separate process? Keeping `run.log()` off the network hot path only takes background threads, so that alone would not justify a sidecar. The process split buys things a thread cannot:
 
-- User code should not block on slow network and file work for common operations.
-- Resource-heavy work should live outside the user process when possible.
-- The backend implementation can support more SDK languages through a stable protobuf protocol.
-- Operational behavior such as retries, flow control, transaction logs, upload progress, and system metrics can be owned centrally.
+- One `wandb-core` can serve many client processes. Distributed and multiprocessing workloads can share a single service instead of each spawning their own uploader.
+- Work in the sidecar does not compete with training for the Python interpreter. Background threads in pure Python steal GIL time from the hot loop; serialization, checksumming, and retry bookkeeping in a separate process do not.
+- The boundary is a protobuf protocol over a socket. An SDK in another language can get the same upload, retry, and durability behavior by speaking the protocol instead of reimplementing it. Today only the Python SDK does, so treat this one as a bet on the future.
+
+Go was chosen for the sidecar because it is convenient for concurrent, server-shaped code: many runs, uploads, and retries map naturally onto goroutines.
 
 ## What changed from historical docs
 
 Older architecture material uses names like "frontend/backend", "internal process", and "wandb-service". The current repo still has similar concepts, but the implementation changed substantially:
 
-- `wandb-core` is the default sidecar and is written in Go.
-- The old Python service implementation is gone.
+- `wandb-core`, written in Go, is the only service implementation. You will still hear it called "the internal service" or just "the service" in conversation and older material.
+- The old Python service implementation ("the legacy service") is gone. `wandb-core` became the default in 0.18.0 (September 2024) and the legacy path was removed in 0.21.0 (July 2025).
 - The user process talks to `wandb-core` through `wandb/sdk/lib/service/` and `wandb/sdk/interface/`.
 - Go stream processing lives under `core/internal/stream/`.
 - Run data persistence uses a transaction log and flow control in `wandb-core`.

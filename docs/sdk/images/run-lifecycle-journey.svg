@@ -142,7 +142,7 @@
   <path d="M598 379C651 408 684 414 716 440" stroke="#296f9e" stroke-width="2.25" stroke-linecap="round" fill="none" marker-end="url(#arrow)"/>
   <path d="M1010 379C1002 405 990 417 970 440" stroke="#296f9e" stroke-width="2.25" stroke-linecap="round" fill="none" marker-end="url(#arrow)"/>
 
-  <g transform="translate(182 612)">
+  <g transform="translate(210 612)">
     <path d="M0 18C0 7 176 7 176 18v56c0 11-176 11-176 0z" fill="#fff6df" stroke="#d8a448" stroke-width="1.5" filter="url(#shadow)"/>
     <path d="M0 18c0 11 176 11 176 0" fill="none" stroke="#d8a448" stroke-width="1.5"/>
     <text x="25" y="49" class="stepTitle">transaction log</text>

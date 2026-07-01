@@ -73,7 +73,7 @@ flowchart TB
 
 | Area | Python | Go core | Rust |
 | --- | --- | --- | --- |
-| Public API | `wandb.init`, `Run`, `Config`, `Summary`, media/data types | none | none |
+| User-facing API | `wandb.init`, `Run`, `Config`, `Summary`, media/data types | none | none |
 | Settings | Parse public settings, env vars, config files | Convert proto settings to core settings | none |
 | IPC | Start/connect to core, frame protobuf messages, wait for responses | Listen, parse frames, route requests | none |
 | Run lifecycle | Construct `Run`, send run/init/start/exit records, print progress | Upsert run, manage stream, finish upload work | none |
@@ -109,8 +109,9 @@ sequenceDiagram
 
     U->>I: wandb.init(config=...)
     I->>S: singleton settings and active-run checks
-    I->>C: ensure_service()
-    C->>G: start or connect using WANDB_SERVICE
+    I->>S: ensure_service()
+    S->>C: connect_to_service()
+    C->>G: spawn or connect using WANDB_SERVICE
     I->>C: inform_init(settings, run_id)
     C->>G: ServerInformInitRequest
     G->>G: create Stream, Handler, Sender
