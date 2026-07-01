@@ -360,7 +360,7 @@ python-version = "3.10"
 
 [tool.ty.src]
 include = ["wandb"]
-exclude = ["wandb/vendor", "wandb/proto"]
+exclude = ["wandb/vendor", "wandb/proto", "wandb/integration"]
 
 [tool.ty.rules]
 unresolved-attribute = "ignore"
@@ -382,10 +382,8 @@ invalid-type-form = "ignore"
 invalid-key = "ignore"
 not-iterable = "ignore"
 unresolved-reference = "ignore"
-unsupported-operator = "ignore"
 invalid-frozen-dataclass-subclass = "ignore"
 call-top-callable = "ignore"
-invalid-explicit-override = "ignore"
 redundant-cast = "ignore"
 
 [tool.mypy]
