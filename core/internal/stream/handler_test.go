@@ -49,11 +49,11 @@ func makeHandler(
 }
 
 type data struct {
-	items    map[string]string
-	step     int64
-	flush    bool
-	stepNil  bool
-	flushNil bool
+	items         map[string]string
+	step          int64
+	flush         bool
+	stepNil       bool
+	flushNil      bool
 	expectStepNil bool
 }
 
@@ -139,8 +139,8 @@ func makeOutput(record *spb.Record) data {
 			items[strings.Join(item.NestedKey, ".")] = item.ValueJson
 		}
 		return data{
-			items: items,
-			step:  history.GetStep().GetNum(),
+			items:   items,
+			step:    history.GetStep().GetNum(),
 			stepNil: history.GetStep() == nil,
 		}
 	default:

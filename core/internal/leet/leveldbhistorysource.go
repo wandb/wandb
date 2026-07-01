@@ -34,8 +34,8 @@ type LevelDBHistorySource struct {
 
 	// nextHistoryStep is the next auto step to assign for display when raw
 	// offline logs omit HistoryRecord.Step and _step.
-	nextHistoryStep            int64
-	historyStepInitialized     bool
+	nextHistoryStep        int64
+	historyStepInitialized bool
 }
 
 func NewLevelDBHistorySource(
