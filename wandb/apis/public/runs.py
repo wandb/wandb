@@ -59,6 +59,7 @@ from wandb.apis.paginator import SizedPaginator
 from wandb.apis.public.const import RETRY_TIMEDELTA
 from wandb.apis.public.service_api import ServiceApi
 from wandb.proto import wandb_api_pb2 as apb
+from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk import wandb_setup
 from wandb.sdk.lib import ipython, json_util
 from wandb.sdk.lib.paths import LogicalPath
@@ -1146,6 +1147,28 @@ class Run(Attrs):
         upload_path = util.make_file_path_upload_safe(name)
         with open(os.path.join(root, name), "rb") as f:
             api.push({LogicalPath(upload_path): f})
+
+        # Uploading the bytes to the (presigned) destination URL doesn't notify
+        # the backend that the file is committed. SaaS finalizes it via native
+        # object-store notifications, but self-hosted deployments don't, so the
+        # file never registers on the run. wandb-core runs the markRunFilesUploaded
+        # mutation to commit it, without disturbing the run's state.
+        #
+        # Gated on the server feature: older servers lack the mutation, and the
+        # only other way to commit the file there (the filestream "uploaded"
+        # path) resurrects the run, so we skip the notification rather than
+        # regress run state.
+        if self._service_api.feature_enabled(pb.MARK_RUN_FILES_UPLOADED):
+            self._service_api.send_api_request(
+                apb.ApiRequest(
+                    mark_run_files_uploaded_request=apb.MarkRunFilesUploadedRequest(
+                        entity=self.entity,
+                        project=self.project,
+                        run_id=self.id,
+                        files=[str(upload_path)],
+                    )
+                )
+            )
         return public.Files(self._service_api, self, [name])[0]
 
     @normalize_exceptions
@@ -1567,10 +1590,17 @@ class Run(Attrs):
         if self._metadata is None:
             try:
                 f = self.file("wandb-metadata.json")
-                contents = util.download_file_into_memory(
-                    f.url,
-                    api_key=self._api_key,
-                )
+                with tempfile.TemporaryDirectory() as tmpdir:
+                    path = os.path.join(tmpdir, "wandb-metadata.json")
+                    self._service_api.send_api_request(
+                        apb.ApiRequest(
+                            download_file_request=apb.DownloadFileRequest(
+                                path=path, url=f.url, size=f.size
+                            )
+                        )
+                    )
+                    with open(path, "rb") as metadata_file:
+                        contents = metadata_file.read()
                 self._metadata = json_util.loads(contents)
             except:  # noqa: E722
                 # file doesn't exist, or can't be downloaded, or can't be parsed

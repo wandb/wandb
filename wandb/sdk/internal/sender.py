@@ -18,8 +18,6 @@ from datetime import datetime
 from queue import Queue
 from typing import TYPE_CHECKING, Any, Literal
 
-import requests
-
 import wandb
 from wandb import util
 from wandb.analytics import get_sentry
@@ -30,13 +28,7 @@ from wandb.proto import wandb_internal_pb2
 from wandb.sdk.artifacts.artifact_saver import ArtifactSaver
 from wandb.sdk.interface import interface
 from wandb.sdk.interface.interface_queue import InterfaceQueue
-from wandb.sdk.internal import (
-    context,
-    datastore,
-    file_stream,
-    internal_api,
-    sender_config,
-)
+from wandb.sdk.internal import datastore, file_stream, internal_api, sender_config
 from wandb.sdk.internal.file_pusher import FilePusher
 from wandb.sdk.internal.job_builder import JobBuilder
 from wandb.sdk.internal.settings_static import SettingsStatic
@@ -203,7 +195,6 @@ class SendManager:
     _interface: InterfaceQueue
     _api_settings: dict[str, str]
     _partial_output: dict[str, str]
-    _context_keeper: context.ContextKeeper
 
     _telemetry_obj: telemetry.TelemetryRecord
     _environment_obj: EnvironmentRecord
@@ -233,13 +224,11 @@ class SendManager:
         record_q: Queue[Record],
         result_q: Queue[Result],
         interface: InterfaceQueue,
-        context_keeper: context.ContextKeeper,
     ) -> None:
         self._settings = settings
         self._record_q = record_q
         self._result_q = result_q
         self._interface = interface
-        self._context_keeper = context_keeper
 
         self._ds = None
         self._send_record_num = 0
@@ -335,13 +324,11 @@ class SendManager:
         record_q: Queue[Record] = queue.Queue()
         result_q: Queue[Result] = queue.Queue()
         publish_interface = InterfaceQueue(record_q=record_q)
-        context_keeper = context.ContextKeeper()
         return SendManager(
             settings=SettingsStatic(dict(settings)),
             record_q=record_q,
             result_q=result_q,
             interface=publish_interface,
-            context_keeper=context_keeper,
         )
 
     def __len__(self) -> int:
@@ -381,16 +368,10 @@ class SendManager:
             logger.debug(f"send: {record_type}")
         assert send_handler, f"unknown send handler: {handler_str}"
 
-        context_id = context.context_id_from_record(record)
-        api_context = self._context_keeper.get(context_id)
         try:
-            self._api.set_local_context(api_context)
             send_handler(record)
         except retry.RetryCancelledError:
             logger.debug(f"Record cancelled: {record_type}")
-            self._context_keeper.release(context_id)
-        finally:
-            self._api.clear_local_context()
 
     def send_preempting(self, _: Record) -> None:
         if self._fs:
@@ -410,8 +391,6 @@ class SendManager:
         send_handler(record)
 
     def _respond_result(self, result: Result) -> None:
-        context_id = context.context_id_from_result(result)
-        self._context_keeper.release(context_id)
         self._result_q.put(result)
 
     def _flatten(self, dictionary: dict) -> None:
@@ -800,25 +779,6 @@ class SendManager:
         config_path = os.path.join(self._settings.files_dir, "config.yaml")
         config_util.save_config_file_from_dict(config_path, config_value_dict)
 
-    def _sync_spell(self) -> None:
-        """Sync this run with spell."""
-        if not self._run:
-            return
-        try:
-            env = os.environ
-            self._interface.publish_config(
-                key=("_wandb", "spell_url"), val=env.get("SPELL_RUN_URL")
-            )
-            url = f"{self._api.app_url}/{self._run.entity}/{self._run.project}/runs/{self._run.run_id}"
-            requests.put(
-                env.get("SPELL_API_URL", "https://api.spell.run") + "/wandb_url",
-                json={"access_token": env.get("WANDB_ACCESS_TOKEN"), "url": url},
-                timeout=2,
-            )
-        except requests.RequestException:
-            pass
-        # TODO: do something if sync spell is not successful?
-
     def _setup_fork(self, server_run: dict):
         assert self._run
         assert self._run.branch_point
@@ -1080,8 +1040,6 @@ class SendManager:
         sweep_id = server_run.get("sweepName")
         if sweep_id:
             self._run.sweep_id = sweep_id
-        if os.getenv("SPELL_RUN_URL"):
-            self._sync_spell()
         return server_run
 
     def _start_run_threads(self, file_dir: str | None = None) -> None:

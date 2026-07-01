@@ -25,6 +25,9 @@ targets:
     tagPrefix: fiber/v
     tagOnly: true
   - name: github
+    tagPrefix: fiberv3/v
+    tagOnly: true
+  - name: github
     tagPrefix: gin/v
     tagOnly: true
   - name: github
@@ -41,6 +44,9 @@ targets:
     tagOnly: true
   - name: github
     tagPrefix: slog/v
+    tagOnly: true
+  - name: github
+    tagPrefix: sql/v
     tagOnly: true
   - name: github
     tagPrefix: zerolog/v

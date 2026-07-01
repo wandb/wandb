@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"math"
 	"slices"
 
 	"github.com/wandb/simplejsonext"
@@ -20,7 +21,15 @@ func (h *HistoryReader) getLiveData(
 	maxStep int64,
 	selectAllKeys bool,
 ) ([]parquet.KeyValueList, error) {
-	requireLiveDataQuery := minStep >= h.minLiveStep || maxStep > h.minLiveStep
+	// A page must be served from the live endpoints when it extends past the
+	// boundary where exported parquet data ends. The fallback case covers runs
+	// whose history exists but the backend reported neither a live-step boundary
+	// nor any exported parquet files: the data is then only reachable live, so
+	// query it instead of silently returning no rows.
+	hasLiveRangeBoundary := h.minLiveStep != math.MaxInt64
+	hasExportedData := len(h.parquetReaders) > 0
+	requireLiveDataQuery := maxStep > h.minLiveStep ||
+		(!hasLiveRangeBoundary && !hasExportedData)
 	if !requireLiveDataQuery {
 		return []parquet.KeyValueList{}, nil
 	}

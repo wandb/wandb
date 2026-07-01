@@ -11,7 +11,6 @@ import (
 	"bytes"
 	"compress/zlib"
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"image"
 	"image/color"
@@ -19,6 +18,7 @@ import (
 	"math"
 
 	"golang.org/x/image/ccitt"
+	"golang.org/x/image/internal/safemath"
 	"golang.org/x/image/tiff/lzw"
 )
 
@@ -95,6 +95,7 @@ type decoder struct {
 	mode      imageMode
 	bpp       uint
 	features  map[int][]uint
+	ifd       map[int][ifdLen]byte
 	palette   []color.Color
 
 	buf   []byte
@@ -113,9 +114,23 @@ func (d *decoder) firstVal(tag int) uint {
 	return f[0]
 }
 
+// firstIntVal returns the first int of the features entry with the given tag,
+// or 0 if the tag does not exist.
+// If the tag overflows an int, it returns an error.
+func (d *decoder) firstIntVal(tag int) (int, error) {
+	v := d.firstVal(tag)
+	if v > math.MaxInt {
+		return 0, FormatError("IFD value too large")
+	}
+	return int(v), nil
+}
+
 // ifdUint decodes the IFD entry in p, which must be of the Byte, Short
 // or Long type, and returns the decoded uint values.
-func (d *decoder) ifdUint(p []byte) (u []uint, err error) {
+//
+// maxCount limits the number of values.
+// If the entry contains more than maxCount values, only the first maxCount are parsed.
+func (d *decoder) ifdUint(p []byte, maxCount int) (u []uint, err error) {
 	var raw []byte
 	if len(p) < ifdLen {
 		return nil, FormatError("bad IFD entry")
@@ -130,9 +145,11 @@ func (d *decoder) ifdUint(p []byte) (u []uint, err error) {
 	if count > math.MaxInt32/lengths[datatype] {
 		return nil, FormatError("IFD data too large")
 	}
+	truncatedCount := min(int(count), maxCount)
 	if datalen := lengths[datatype] * count; datalen > 4 {
+		truncatedLen := uint64(lengths[datatype]) * uint64(truncatedCount)
 		// The IFD contains a pointer to the real value.
-		raw, err = safeReadAt(d.r, uint64(datalen), int64(d.byteOrder.Uint32(p[8:12])))
+		raw, err = safeReadAt(d.r, truncatedLen, int64(d.byteOrder.Uint32(p[8:12])))
 	} else {
 		raw = p[8 : 8+datalen]
 	}
@@ -140,18 +157,18 @@ func (d *decoder) ifdUint(p []byte) (u []uint, err error) {
 		return nil, err
 	}
 
-	u = make([]uint, count)
+	u = make([]uint, truncatedCount)
 	switch datatype {
 	case dtByte:
-		for i := uint32(0); i < count; i++ {
+		for i := range u {
 			u[i] = uint(raw[i])
 		}
 	case dtShort:
-		for i := uint32(0); i < count; i++ {
+		for i := range u {
 			u[i] = uint(d.byteOrder.Uint16(raw[2*i : 2*(i+1)]))
 		}
 	case dtLong:
-		for i := uint32(0); i < count; i++ {
+		for i := range u {
 			u[i] = uint(d.byteOrder.Uint32(raw[4*i : 4*(i+1)]))
 		}
 	default:
@@ -160,10 +177,30 @@ func (d *decoder) ifdUint(p []byte) (u []uint, err error) {
 	return u, nil
 }
 
+// parseIFDOffsets parses an IFD entry stored in d.ifd using ifdUint.
+// For IFD entries which can be large, we delay reading and parsing the entry
+// until we know the image size, which lets us set reasonable bounds on the IFD entry.
+func (d *decoder) parseIFDOffsets(tag int, maxCount int) (u []uint, err error) {
+	p, ok := d.ifd[tag]
+	if !ok {
+		return nil, nil
+	}
+	return d.ifdUint(p[:], maxCount)
+}
+
 // parseIFD decides whether the IFD entry in p is "interesting" and
 // stows away the data in the decoder. It returns the tag number of the
 // entry and an error, if any.
 func (d *decoder) parseIFD(p []byte) (int, error) {
+	// smallEntryMaxCount is the limit to use for parsed IFD entries that
+	// don't scale with the image size.
+	//
+	// We could be more precise and limit the number of entries to exactly the
+	// correct limit (for example, tTileWidth should always have exactly one value),
+	// but 16 is small enough to prevent excessive allocation and large enough to
+	// allow for any multi-value entry.
+	const smallEntryMaxCount = 16
+
 	tag := d.byteOrder.Uint16(p[0:2])
 	switch tag {
 	case tBitsPerSample,
@@ -171,30 +208,36 @@ func (d *decoder) parseIFD(p []byte) (int, error) {
 		tPhotometricInterpretation,
 		tCompression,
 		tPredictor,
-		tStripOffsets,
-		tStripByteCounts,
 		tRowsPerStrip,
 		tTileWidth,
 		tTileLength,
-		tTileOffsets,
-		tTileByteCounts,
 		tImageLength,
 		tImageWidth,
 		tFillOrder,
 		tT4Options,
 		tT6Options:
-		val, err := d.ifdUint(p)
+		val, err := d.ifdUint(p, smallEntryMaxCount)
 		if err != nil {
 			return 0, err
 		}
 		d.features[int(tag)] = val
+	case tStripOffsets,
+		tStripByteCounts,
+		tTileOffsets,
+		tTileByteCounts:
+		// These keys may contain many values.
+		// Stash the IFD entry for later parsing.
+		var v [ifdLen]byte
+		copy(v[:], p)
+		d.ifd[int(tag)] = v
 	case tColorMap:
-		val, err := d.ifdUint(p)
+		const maxColors = 256
+		val, err := d.ifdUint(p, (3*maxColors)+1)
 		if err != nil {
 			return 0, err
 		}
 		numcolors := len(val) / 3
-		if len(val)%3 != 0 || numcolors <= 0 || numcolors > 256 {
+		if len(val)%3 != 0 || numcolors <= 0 || numcolors > maxColors {
 			return 0, FormatError("bad ColorMap length")
 		}
 		d.palette = make([]color.Color, numcolors)
@@ -211,7 +254,7 @@ func (d *decoder) parseIFD(p []byte) (int, error) {
 		// the value is not 1 [= unsigned integer data], a Baseline
 		// TIFF reader that cannot handle the SampleFormat value
 		// must terminate the import process gracefully.
-		val, err := d.ifdUint(p)
+		val, err := d.ifdUint(p, smallEntryMaxCount)
 		if err != nil {
 			return 0, err
 		}
@@ -450,10 +493,15 @@ func (d *decoder) decode(dst image.Image, xmin, ymin, xmax, ymax int) error {
 	return nil
 }
 
+// maxBytesPerPixel is the maximum possible bytes-per-pixel,
+// used for conservative bounds checking.
+const maxBytesPerPixel = 8
+
 func newDecoder(r io.Reader) (*decoder, error) {
 	d := &decoder{
 		r:        newReaderAt(r),
 		features: make(map[int][]uint),
+		ifd:      make(map[int][ifdLen]byte),
 	}
 
 	p := make([]byte, 8)
@@ -499,10 +547,20 @@ func newDecoder(r io.Reader) (*decoder, error) {
 		prevTag = tag
 	}
 
-	d.config.Width = int(d.firstVal(tImageWidth))
-	d.config.Height = int(d.firstVal(tImageLength))
+	if d.config.Width, err = d.firstIntVal(tImageWidth); err != nil {
+		return nil, err
+	}
+	if d.config.Height, err = d.firstIntVal(tImageLength); err != nil {
+		return nil, err
+	}
 	if d.config.Width == 0 || d.config.Height == 0 {
-		return nil, errors.New("tiff: zero-size image")
+		return nil, FormatError("zero-size image")
+	}
+	// Check that the image fits in memory.
+	// This conservatively assumes 8 bytes per pixel,
+	// rather than using the actual pixel size.
+	if _, ok := safemath.Mul3(d.config.Width, d.config.Height, maxBytesPerPixel); !ok {
+		return nil, FormatError("image too large")
 	}
 
 	if _, ok := d.features[tBitsPerSample]; !ok {
@@ -640,11 +698,15 @@ func Decode(r io.Reader) (img image.Image, err error) {
 
 	var blockOffsets, blockCounts []uint
 
-	if int(d.firstVal(tTileWidth)) != 0 {
+	if d.firstVal(tTileWidth) != 0 {
 		blockPadding = true
 
-		blockWidth = int(d.firstVal(tTileWidth))
-		blockHeight = int(d.firstVal(tTileLength))
+		if blockWidth, err = d.firstIntVal(tTileWidth); err != nil {
+			return nil, err
+		}
+		if blockHeight, err = d.firstIntVal(tTileLength); err != nil {
+			return nil, err
+		}
 
 		// The specification says that tile widths and lengths must be a multiple of 16.
 		// We currently permit invalid sizes, but reject anything too small to limit the
@@ -652,7 +714,30 @@ func Decode(r io.Reader) (img image.Image, err error) {
 		if blockWidth < 8 || blockHeight < 8 {
 			return nil, FormatError("tile size is too small")
 		}
-
+		// Same conservative assumption on bytes-per-pixel as for the image dimensions.
+		if _, ok := safemath.Mul3(blockWidth, blockHeight, maxBytesPerPixel); !ok {
+			return nil, FormatError("tile size is too large")
+		}
+		if blockWidth-d.config.Width > 16 || blockHeight-d.config.Height > 16 {
+			// Tiles may be padded to the nearest multiple of 16, but one of
+			// the dimensions of the tile exceeds the image dimension by more
+			// than padding would require.
+			//
+			// Typical TIFF tiles are 256x256, but 1024x1024 appears to be
+			// in occasional use. If the tile is both larger than the image
+			// and has more than 1024 pixels in one dimension, it's
+			// probably malicious input.
+			//
+			// Note that this still permits very large tiles,
+			// so long as the tile is smaller than the image dimensions.
+			// A gigapixel image with a 2048x2048 tile size
+			// (used in some GIS applications)
+			// will be valid because the image dimensions are much larger
+			// than the tile size.
+			if blockWidth > 1024 || blockHeight > 1024 {
+				return nil, FormatError("tile size exceeds image size")
+			}
+		}
 		if blockWidth != 0 {
 			blocksAcross = (d.config.Width + blockWidth - 1) / blockWidth
 		}
@@ -660,20 +745,34 @@ func Decode(r io.Reader) (img image.Image, err error) {
 			blocksDown = (d.config.Height + blockHeight - 1) / blockHeight
 		}
 
-		blockCounts = d.features[tTileByteCounts]
-		blockOffsets = d.features[tTileOffsets]
-
+		blockOffsets, err = d.parseIFDOffsets(tTileOffsets, blocksAcross*blocksDown)
+		if err != nil {
+			return nil, err
+		}
+		blockCounts, err = d.parseIFDOffsets(tTileByteCounts, blocksAcross*blocksDown)
+		if err != nil {
+			return nil, err
+		}
 	} else {
-		if int(d.firstVal(tRowsPerStrip)) != 0 {
-			blockHeight = int(d.firstVal(tRowsPerStrip))
+
+		if v := d.firstVal(tRowsPerStrip); v > 0 && v < uint(blockHeight) {
+			blockHeight = int(v)
 		}
 
 		if blockHeight != 0 {
+			// This can't overflow: We require that w*h*8 not overflow and
+			// blockHeight is no more than d.config.Height.
 			blocksDown = (d.config.Height + blockHeight - 1) / blockHeight
 		}
 
-		blockOffsets = d.features[tStripOffsets]
-		blockCounts = d.features[tStripByteCounts]
+		blockOffsets, err = d.parseIFDOffsets(tStripOffsets, blocksDown)
+		if err != nil {
+			return nil, err
+		}
+		blockCounts, err = d.parseIFDOffsets(tStripByteCounts, blocksDown)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// Check if we have the right number of strips/tiles, offsets and counts.
@@ -728,8 +827,11 @@ func Decode(r io.Reader) (img image.Image, err error) {
 			// but some tools interpret a missing Compression value as none, so we do
 			// the same.
 			case cNone, 0:
+				if n > blockMaxDataSize {
+					return nil, FormatError("block data size too large")
+				}
 				if b, ok := d.r.(*buffer); ok {
-					d.buf, err = b.Slice(int(offset), int(n))
+					d.buf, err = b.Slice(offset, n)
 				} else {
 					d.buf, err = safeReadAt(d.r, uint64(n), offset)
 				}

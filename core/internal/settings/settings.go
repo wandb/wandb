@@ -171,6 +171,11 @@ func (s *Settings) GetFilesDir() string {
 	return filepath.Join(s.GetSyncDir(), "files")
 }
 
+// The root directory of the Git repository.
+func (s *Settings) GetGitRoot() string {
+	return s.Proto.GitRoot.GetValue()
+}
+
 // Unix glob patterns relative to `files_dir` to not upload.
 func (s *Settings) GetIgnoreGlobs() []string {
 	return s.Proto.IgnoreGlobs.GetValue()

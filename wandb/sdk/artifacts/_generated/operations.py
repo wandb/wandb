@@ -9,6 +9,7 @@ __all__ = [
     "ARTIFACT_COLLECTION_ALIASES_GQL",
     "ARTIFACT_CREATED_BY_GQL",
     "ARTIFACT_MEMBERSHIP_BY_NAME_GQL",
+    "ARTIFACT_MEMBERSHIP_FILES_GQL",
     "ARTIFACT_TYPE_ARTIFACT_COLLECTIONS_GQL",
     "ARTIFACT_TYPE_GQL",
     "ARTIFACT_USED_BY_GQL",
@@ -26,9 +27,6 @@ __all__ = [
     "FETCH_ORG_INFO_FROM_ENTITY_GQL",
     "FETCH_REGISTRIES_GQL",
     "FETCH_REGISTRY_GQL",
-    "GET_ARTIFACT_FILES_GQL",
-    "GET_ARTIFACT_FILE_URLS_GQL",
-    "GET_ARTIFACT_MEMBERSHIP_FILES_GQL",
     "GET_ARTIFACT_MEMBERSHIP_FILE_URLS_GQL",
     "LINK_ARTIFACT_GQL",
     "PROJECT_ARTIFACTS_GQL",
@@ -447,50 +445,8 @@ fragment PageInfoFragment on PageInfo {
 }
 """
 
-GET_ARTIFACT_FILES_GQL = """
-query GetArtifactFiles($entity: String!, $project: String!, $type: String!, $name: String!, $fileNames: [String!], $cursor: String, $perPage: Int = 50) {
-  project(name: $project, entityName: $entity) {
-    artifactType(name: $type) {
-      artifact(name: $name) {
-        files(names: $fileNames, after: $cursor, first: $perPage) {
-          totalCount @include(if: true)
-          pageInfo {
-            ...PageInfoFragment
-          }
-          edges {
-            node {
-              ...FileFragment
-            }
-          }
-        }
-      }
-    }
-  }
-}
-
-fragment FileFragment on File {
-  __typename
-  id
-  name: displayName
-  url
-  sizeBytes
-  storagePath
-  mimetype
-  updatedAt
-  digest
-  md5
-  directUrl
-}
-
-fragment PageInfoFragment on PageInfo {
-  __typename
-  endCursor
-  hasNextPage
-}
-"""
-
-GET_ARTIFACT_MEMBERSHIP_FILES_GQL = """
-query GetArtifactMembershipFiles($entity: String!, $project: String!, $collection: String!, $alias: String!, $fileNames: [String!], $cursor: String, $perPage: Int = 50) {
+ARTIFACT_MEMBERSHIP_FILES_GQL = """
+query ArtifactMembershipFiles($entity: String!, $project: String!, $collection: String!, $alias: String!, $fileNames: [String!], $cursor: String, $perPage: Int = 50) {
   project(name: $project, entityName: $entity) {
     artifactCollection(name: $collection) {
       __typename
@@ -522,35 +478,6 @@ fragment FileFragment on File {
   updatedAt
   digest
   md5
-  directUrl
-}
-
-fragment PageInfoFragment on PageInfo {
-  __typename
-  endCursor
-  hasNextPage
-}
-"""
-
-GET_ARTIFACT_FILE_URLS_GQL = """
-query GetArtifactFileUrls($id: ID!, $cursor: String, $perPage: Int) {
-  artifact(id: $id) {
-    files(after: $cursor, first: $perPage) {
-      pageInfo {
-        ...PageInfoFragment
-      }
-      edges {
-        node {
-          ...FileWithUrlFragment
-        }
-      }
-    }
-  }
-}
-
-fragment FileWithUrlFragment on File {
-  __typename
-  name
   directUrl
 }
 
@@ -1545,7 +1472,7 @@ query FetchOrgEntityFromOrganization($organization: String!) {
 """
 
 REGISTRY_VERSIONS_GQL = """
-query RegistryVersions($organization: String!, $registryFilter: JSONString, $collectionFilter: JSONString, $artifactFilter: JSONString, $cursor: String, $perPage: Int, $includeAliases: Boolean = false) {
+query RegistryVersions($organization: String!, $registryFilter: JSONString, $collectionFilter: JSONString, $artifactFilter: JSONString, $cursor: String, $perPage: Int, $order: String, $includeAliases: Boolean = false) {
   organization(name: $organization) {
     orgEntity {
       name
@@ -1555,6 +1482,7 @@ query RegistryVersions($organization: String!, $registryFilter: JSONString, $col
         filters: $artifactFilter
         after: $cursor
         first: $perPage
+        order: $order
       ) {
         pageInfo {
           ...PageInfoFragment
@@ -1660,7 +1588,7 @@ fragment TagFragment on Tag {
 """
 
 REGISTRY_COLLECTIONS_GQL = """
-query RegistryCollections($organization: String!, $registryFilter: JSONString, $collectionFilter: JSONString, $collectionTypes: [ArtifactCollectionType!] = [PORTFOLIO], $cursor: String, $perPage: Int) {
+query RegistryCollections($organization: String!, $registryFilter: JSONString, $collectionFilter: JSONString, $collectionTypes: [ArtifactCollectionType!] = [PORTFOLIO], $cursor: String, $perPage: Int, $order: String) {
   organization(name: $organization) {
     orgEntity {
       name
@@ -1670,6 +1598,7 @@ query RegistryCollections($organization: String!, $registryFilter: JSONString, $
         collectionTypes: $collectionTypes
         after: $cursor
         first: $perPage
+        order: $order
       ) {
         totalCount
         pageInfo {
@@ -1763,10 +1692,10 @@ fragment RegistryFragment on Project {
 """
 
 FETCH_REGISTRIES_GQL = """
-query FetchRegistries($organization: String!, $filters: JSONString, $cursor: String, $perPage: Int) {
+query FetchRegistries($organization: String!, $filters: JSONString, $cursor: String, $perPage: Int, $order: String) {
   organization(name: $organization) {
     orgEntity {
-      projects(filters: $filters, after: $cursor, first: $perPage) {
+      projects(filters: $filters, after: $cursor, first: $perPage, order: $order) {
         pageInfo {
           ...PageInfoFragment
         }

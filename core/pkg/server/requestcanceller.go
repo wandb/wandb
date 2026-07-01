@@ -14,7 +14,8 @@ const requestCountWarnInterval = 100
 
 // RequestCanceller manages contexts for cancellable requests to wandb-core.
 type RequestCanceller struct {
-	mu sync.Mutex
+	mu     sync.Mutex
+	logger *slog.Logger
 
 	// ctx is the parent context for all requests.
 	ctx context.Context
@@ -30,8 +31,12 @@ type RequestCanceller struct {
 	warnInterval, lastWarnCount int
 }
 
-func NewRequestCanceller(ctx context.Context) *RequestCanceller {
+func NewRequestCanceller(
+	ctx context.Context,
+	logger *slog.Logger,
+) *RequestCanceller {
 	return &RequestCanceller{
+		logger:           logger,
 		ctx:              ctx,
 		requestCtxCancel: make(map[string]func()),
 		warnInterval:     requestCountWarnInterval,
@@ -66,7 +71,7 @@ func (rc *RequestCanceller) Context(id string) (context.Context, func()) {
 	defer rc.mu.Unlock()
 
 	if _, exists := rc.requestCtxCancel[id]; exists {
-		slog.Error("requestcanceller: request ID already exists", "id", id)
+		rc.logger.Error("requestcanceller: request ID already exists", "id", id)
 		return rc.ctx, func() {}
 	}
 
@@ -86,7 +91,7 @@ func (rc *RequestCanceller) Context(id string) (context.Context, func()) {
 		rc.lastWarnCount = count
 
 		message := "server: requestcanceller: many unfinished requests"
-		slog.Warn(message, "count", count)
+		rc.logger.Warn(message, "count", count)
 
 		sentry.WithScope(func(scope *sentry.Scope) {
 			scope.SetTag("count", fmt.Sprintf("%d", count))

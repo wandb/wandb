@@ -261,8 +261,9 @@ type ClientOptions struct {
 	MaxErrorDepth int
 	// Default event tags. These are overridden by tags set on a scope.
 	Tags map[string]string
-	// EnableLogs controls when logs should be emitted.
-	EnableLogs bool
+	// DisableLogs controls whether logs should be emitted.
+	// By default, logs are enabled. Set to true to disable log emission.
+	DisableLogs bool
 	// DisableMetrics controls when metrics should be emitted.
 	DisableMetrics bool
 	// DisableClientReports controls when client reports should be emitted.
@@ -429,7 +430,7 @@ func NewClient(options ClientOptions) (*Client, error) {
 		}
 		client.setupTransport()
 
-		if options.EnableLogs {
+		if !options.DisableLogs {
 			client.batchLogger = newLogBatchProcessor(&client)
 			client.batchLogger.Start()
 		}
@@ -517,7 +518,6 @@ func (client *Client) setupTelemetryProcessor() {
 
 func (client *Client) setupIntegrations() {
 	integrations := []Integration{
-		new(contextifyFramesIntegration),
 		new(environmentIntegration),
 		new(modulesIntegration),
 		new(ignoreErrorsIntegration),
