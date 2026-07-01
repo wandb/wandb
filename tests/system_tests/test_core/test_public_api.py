@@ -15,6 +15,7 @@ from wandb.apis._generated import ProjectFragment, UserFragment
 from wandb.apis._generated.generate_api_key import GenerateApiKey
 from wandb.apis.public.summary import Summary
 from wandb.errors.errors import CommError
+from wandb.sdk.artifacts._gqlutils import server_supports
 from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 
 
@@ -331,6 +332,10 @@ def test_run_delete(wandb_backend_spy):
 
 def test_run_update_state_success(wandb_backend_spy):
     """Test successful state transition to pending."""
+    api = Api()
+    if not server_supports(api._service_api, "UPDATE_RUN_STATE"):
+        pytest.skip("Server doesn't support updateRunState")
+
     gql = wandb_backend_spy.gql
     update_state_spy = gql.Capture()
 
@@ -338,8 +343,8 @@ def test_run_update_state_success(wandb_backend_spy):
         gql.Matcher(operation="UpdateRunState"), update_state_spy
     )
 
-    seed_run = Api().create_run()
-    run = Api().run(f"{seed_run.entity}/{seed_run.project}/{seed_run.id}")
+    seed_run = api.create_run()
+    run = api.run(f"{seed_run.entity}/{seed_run.project}/{seed_run.id}")
 
     result = run.update_state("failed")
 
@@ -353,8 +358,12 @@ def test_run_update_state_success(wandb_backend_spy):
 @pytest.mark.usefixtures("user")
 def test_run_update_state_failure():
     """Test that update_state raises when the server rejects the transition."""
-    seed_run = Api().create_run()
-    run = Api().run(f"{seed_run.entity}/{seed_run.project}/{seed_run.id}")
+    api = Api()
+    if not server_supports(api._service_api, "UPDATE_RUN_STATE"):
+        pytest.skip("Server doesn't support updateRunState")
+
+    seed_run = api.create_run()
+    run = api.run(f"{seed_run.entity}/{seed_run.project}/{seed_run.id}")
 
     assert run.update_state("failed") is True
     assert run.state == "failed"

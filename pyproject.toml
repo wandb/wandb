@@ -15,7 +15,7 @@ dependencies = [
     "GitPython>=1.0.0,!=3.1.29",
     "requests>=2.0.0,<3",
     "sentry-sdk>=2.0.0",
-    "protobuf>4.21.0,!=5.28.0,!=5.29.0,<8",
+    "protobuf>=5,!=5.28.0,!=5.29.0,<8",
     "PyYAML",
     "platformdirs",
     "typing_extensions>=4.8,<5",
@@ -103,8 +103,9 @@ launch = [
 ]
 models = ["cloudpickle"]
 workspaces = ["wandb-workspaces"]
-sandbox = ["cwsandbox[cli]>=0.20.0"]
-eval-table = [  # wandb.EvalTable support (private testing only)
+# cwsandbox requires Python >=3.11, so this extra is unavailable on 3.10.
+sandbox = ["cwsandbox[cli]>=0.20.0; python_version >= '3.11'"]
+eval-table = [ # wandb.EvalTable support (private testing only)
     "weave>=0.52.41",
 ]
 
@@ -112,9 +113,7 @@ eval-table = [  # wandb.EvalTable support (private testing only)
 # TODO: Currently, wandb[media] requires moviepy>=1.0.0, while
 # weave[video_support] requires moviepy<=1.0.3. We should reconcile these
 # dependencies (and probably make weave support moviepy>=2).
-eval-table-video-support = [
-    "weave[video_support]>=0.52.41",
-]
+eval-table-video-support = ["weave[video_support]>=0.52.41"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
@@ -355,6 +354,37 @@ ignore-decorators = [
 
 # TODO: Remove the landfill/ directory.
 "landfill/**" = ["F405", "N806", "D415"]
+
+[tool.ty.environment]
+python-version = "3.10"
+
+[tool.ty.src]
+include = ["wandb"]
+exclude = ["wandb/vendor", "wandb/proto", "wandb/integration"]
+
+[tool.ty.rules]
+unresolved-attribute = "ignore"
+invalid-argument-type = "ignore"
+unused-type-ignore-comment = "ignore"
+possibly-missing-submodule = "ignore"
+unknown-argument = "ignore"
+unresolved-import = "ignore"
+invalid-assignment = "ignore"
+invalid-method-override = "ignore"
+invalid-return-type = "ignore"
+missing-argument = "ignore"
+call-non-callable = "ignore"
+not-subscriptable = "ignore"
+deprecated = "ignore"
+no-matching-overload = "ignore"
+invalid-attribute-override = "ignore"
+invalid-type-form = "ignore"
+invalid-key = "ignore"
+not-iterable = "ignore"
+unresolved-reference = "ignore"
+invalid-frozen-dataclass-subclass = "ignore"
+call-top-callable = "ignore"
+redundant-cast = "ignore"
 
 [tool.mypy]
 plugins = ["pydantic.mypy"]

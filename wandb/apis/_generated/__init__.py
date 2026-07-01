@@ -20,10 +20,12 @@ __all__ = [
     "GET_SWEEP_LEGACY_GQL",
     "GET_TEAM_ENTITY_GQL",
     "GET_VIEWER_GQL",
+    "IS_PROJECT_READ_ONLY_GQL",
     "SEARCH_USERS_GQL",
     "GetProjects",
     "GetProject",
     "CreateProject",
+    "IsProjectReadOnly",
     "GetSweeps",
     "GetSweep",
     "GetSweepLegacy",
@@ -93,6 +95,7 @@ from .input_types import (
     RateLimitsInput,
     UpsertModelInput,
 )
+from .is_project_read_only import IsProjectReadOnly
 from .operations import (
     CREATE_INVITE_GQL,
     CREATE_PROJECT_GQL,
@@ -113,6 +116,7 @@ from .operations import (
     GET_SWEEPS_GQL,
     GET_TEAM_ENTITY_GQL,
     GET_VIEWER_GQL,
+    IS_PROJECT_READ_ONLY_GQL,
     SEARCH_USERS_GQL,
 )
 from .search_users import SearchUsers

@@ -5,6 +5,52 @@ import pytest
 import wandb
 from wandb.apis.public.runs import Run
 from wandb.apis.public.sweeps import Sweep
+from wandb.proto import wandb_api_pb2 as apb
+
+
+def _make_upload_run(mocker, *, feature_enabled: bool):
+    service_api = mocker.MagicMock()
+    service_api.feature_enabled.return_value = feature_enabled
+    run = Run(
+        service_api=service_api,
+        entity="entity",
+        project="project",
+        run_id="run-id",
+        attrs={"name": "run-id", "state": "finished"},
+    )
+    # Stub the byte-upload (InternalApi.push) and the returned File lookup.
+    mocker.patch("wandb.apis.public.runs.InternalApi")
+    mocker.patch("wandb.apis.public.runs.public.Files", return_value=["file-obj"])
+    return service_api, run
+
+
+def test_upload_file_marks_file_uploaded_when_supported(mocker, tmp_path):
+    """upload_file sends a MarkRunFilesUploadedRequest when the server supports it."""
+    service_api, run = _make_upload_run(mocker, feature_enabled=True)
+
+    f = tmp_path / "model.bin"
+    f.write_text("hello")
+    run.upload_file(str(f), root=str(tmp_path))
+
+    service_api.send_api_request.assert_called_once()
+    request = service_api.send_api_request.call_args.args[0]
+    assert request.WhichOneof("request") == "mark_run_files_uploaded_request"
+    notify = request.mark_run_files_uploaded_request
+    assert notify.entity == "entity"
+    assert notify.project == "project"
+    assert notify.run_id == "run-id"
+    assert list(notify.files) == ["model.bin"]
+
+
+def test_upload_file_skips_notification_when_unsupported(mocker, tmp_path):
+    """Without the MARK_RUN_FILES_UPLOADED feature, no notification is sent."""
+    service_api, run = _make_upload_run(mocker, feature_enabled=False)
+
+    f = tmp_path / "model.bin"
+    f.write_text("hello")
+    run.upload_file(str(f), root=str(tmp_path))
+
+    service_api.send_api_request.assert_not_called()
 
 
 @pytest.mark.parametrize(
@@ -50,6 +96,31 @@ def test_create_run_with_dictionary_attrs_already_parsed(field, value):
             attrs={field: value},
         )
         assert getattr(run, field) == value
+
+
+def test_run_metadata_downloads_through_service_api(mocker):
+    service_api = mocker.MagicMock()
+    run = Run(
+        service_api=service_api,
+        entity="entity",
+        project="project",
+        run_id="run-id",
+        attrs={"name": "run-id", "state": "finished"},
+    )
+    file = mocker.MagicMock(url="https://files.example/wandb-metadata.json", size=17)
+    mocker.patch.object(run, "file", return_value=file)
+
+    def send_api_request(request: apb.ApiRequest) -> apb.ApiResponse:
+        with open(request.download_file_request.path, "wb") as f:
+            f.write(b'{"os":"Linux"}')
+        return apb.ApiResponse(download_file_response=apb.DownloadFileResponse())
+
+    service_api.send_api_request.side_effect = send_api_request
+
+    assert run.metadata == {"os": "Linux"}
+    request = service_api.send_api_request.call_args.args[0].download_file_request
+    assert request.url == "https://files.example/wandb-metadata.json"
+    assert request.size == 17
 
 
 @pytest.mark.parametrize(

@@ -208,7 +208,7 @@ def _log_table_artifact(val: Media, key: str, run: LocalRun) -> None:
 def _prune_max_seq(seq: Sequence[BatchableMedia]) -> Sequence[BatchableMedia]:
     # If media type has a max respect it
     items = seq
-    if hasattr(seq[0], "MAX_ITEMS") and seq[0].MAX_ITEMS < len(seq):
+    if hasattr(seq[0], "MAX_ITEMS") and seq[0].MAX_ITEMS < len(seq):  # ty: ignore[unsupported-operator]
         logging.warning(
             f"Only {seq[0].MAX_ITEMS} {seq[0].__class__.__name__} will be uploaded."
         )

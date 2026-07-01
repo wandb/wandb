@@ -474,7 +474,6 @@ func (e *Event) ToEnvelopeItem() (item *protocol.EnvelopeItem, err error) {
 		return nil, fmt.Errorf("could not encode event as JSON, skipping delivery: %w", err)
 	}
 
-	// TODO: all event types should be abstracted to implement EnvelopeItemConvertible and convert themselves.
 	switch e.Type {
 	case transactionType:
 		item = protocol.NewTransactionItem(e.GetSpanCount(), eventBody)
@@ -498,14 +497,11 @@ func (e *Event) ToEnvelope(header *protocol.EnvelopeHeader) (*protocol.Envelope,
 		return nil, err
 	}
 
-	envelope := protocol.NewEnvelope(header)
-	envelope.AddItem(item)
-
+	envelope := protocol.NewEnvelope(header, item)
 	for _, attachment := range e.Attachments {
 		attachmentItem := protocol.NewAttachmentItem(attachment.Filename, attachment.ContentType, attachment.Payload)
 		envelope.AddItem(attachmentItem)
 	}
-
 	return envelope, nil
 }
 
@@ -784,21 +780,6 @@ func (l *Log) GetCategory() ratelimit.Category {
 	return ratelimit.CategoryLog
 }
 
-// GetEventID returns empty string (event ID set when batching).
-func (l *Log) GetEventID() string {
-	return ""
-}
-
-// GetSdkInfo returns nil (SDK info set when batching).
-func (l *Log) GetSdkInfo() *protocol.SdkInfo {
-	return nil
-}
-
-// GetDynamicSamplingContext returns nil (trace context set when batching).
-func (l *Log) GetDynamicSamplingContext() map[string]string {
-	return nil
-}
-
 type MetricType string
 
 const (
@@ -825,21 +806,6 @@ func (m *Metric) MakeSerializationSafe() {}
 // GetCategory returns the rate limit category for metrics.
 func (m *Metric) GetCategory() ratelimit.Category {
 	return ratelimit.CategoryTraceMetric
-}
-
-// GetEventID returns empty string (event ID set when batching).
-func (m *Metric) GetEventID() string {
-	return ""
-}
-
-// GetSdkInfo returns nil (SDK info set when batching).
-func (m *Metric) GetSdkInfo() *protocol.SdkInfo {
-	return nil
-}
-
-// GetDynamicSamplingContext returns nil (trace context set when batching).
-func (m *Metric) GetDynamicSamplingContext() map[string]string {
-	return nil
 }
 
 // MetricValue stores metric values with full precision.

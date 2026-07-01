@@ -90,6 +90,32 @@ def test_artifact_versions_start(api: Api):
 
 
 @mark.usefixtures("sample_data")
+@mark.parametrize(
+    ("order", "expected_names"),
+    (
+        (
+            # ascending (implicit default)
+            "version_index",
+            ["mnist:v0", "mnist:v1"],
+        ),
+        (
+            # ascending
+            "+version_index",
+            ["mnist:v0", "mnist:v1"],
+        ),
+        (
+            # descending
+            "-version_index",
+            ["mnist:v1", "mnist:v0"],
+        ),
+    ),
+)
+def test_artifacts_order(api: Api, order: str, expected_names: list[str]):
+    names = [a.name for a in api.artifacts("dataset", "mnist", order=order)]
+    assert names == expected_names
+
+
+@mark.usefixtures("sample_data")
 def test_artifact_type(api: Api):
     atype = api.artifact_type("dataset")
     assert atype.name == "dataset"
@@ -108,7 +134,7 @@ def test_artifact_type_collections(api: Api):
         f.write("test")
     artifact.save()
     artifact.wait()
-    project_path = f"{artifact.entity}/{artifact.project}"
+    proj_path = f"{artifact.entity}/{artifact.project}"
 
     cols = atype.collections()
     assert len(cols) == 2
@@ -128,7 +154,7 @@ def test_artifact_type_collections(api: Api):
     remaining_names_via_api = [
         coll.name
         for coll in api.artifact_collections(
-            project_path,
+            proj_path,
             atype.name,
             per_page=1,
             start=saved_cursor,
@@ -139,22 +165,28 @@ def test_artifact_type_collections(api: Api):
     assert all_collection_names == [first_name, *remaining_names_via_api]
 
     if server_supports(api._service_api, pb.ARTIFACT_COLLECTIONS_FILTERING_SORTING):
-        cols = atype.collections(filters={"name": "mnist"})
-        assert len(cols) == 1 and cols[0].name == "mnist"
-        cols = atype.collections(order="name")
-        assert len(cols) == 2
-        assert cols[0].name == "another-collection" and cols[1].name == "mnist"
+        filtered_collections = atype.collections(filters={"name": "mnist"})
+        assert len(filtered_collections) == 1
+        assert [c.name for c in filtered_collections] == ["mnist"]
+
+        ordered_collections = atype.collections(order="name")
+        assert len(ordered_collections) == 2
+        assert [c.name for c in ordered_collections] == ["another-collection", "mnist"]
+
+        # The same ordering is reachable through the top-level Api method.
+        api_collections = api.artifact_collections(proj_path, atype.name, order="name")
+        assert [c.name for c in api_collections] == ["another-collection", "mnist"]
     else:
-        with raises(
-            UnsupportedError,
-            match="Filtering and ordering of artifact collections is not supported on this wandb server version.",
-        ):
+        err_msg = "Filtering and ordering of artifact collections is not supported on this wandb server version."
+
+        with raises(UnsupportedError, match=err_msg):
             atype.collections(filters={"name": "mnist"})
-        with raises(
-            UnsupportedError,
-            match="Filtering and ordering of artifact collections is not supported on this wandb server version.",
-        ):
+
+        with raises(UnsupportedError, match=err_msg):
             atype.collections(order="name")
+
+        with raises(UnsupportedError, match=err_msg):
+            api.artifact_collections(proj_path, atype.name, order="name")
 
 
 @mark.usefixtures("sample_data")

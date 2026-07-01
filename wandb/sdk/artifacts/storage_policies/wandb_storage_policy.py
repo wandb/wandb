@@ -239,17 +239,13 @@ class WandbStoragePolicy(StoragePolicy):
 
         if layout is StorageLayout.V2:
             birth_artifact_id = entry.birth_artifact_id or ""
-            artifact_id = artifact.id or ""
             if api._server_supports(
                 pb.ARTIFACT_V2_DOWNLOAD_HANDLER_SUPPORTS_ARTIFACT_ID
             ):
+                artifact_id = artifact.id or ""
                 return f"{base_url}/artifactsV2/{region}/{quote(entity)}/{quote(project)}/{quote(collection)}/{quote(artifact_id)}/{quote(birth_artifact_id)}/{hexhash}/{entry.path.name}"
-            if api._server_supports(
-                pb.ARTIFACT_COLLECTION_MEMBERSHIP_FILE_DOWNLOAD_HANDLER
-            ):
-                return f"{base_url}/artifactsV2/{region}/{quote(entity)}/{quote(project)}/{quote(collection)}/{quote(birth_artifact_id)}/{hexhash}/{entry.path.name}"
 
-            return f"{base_url}/artifactsV2/{region}/{quote(entity)}/{quote(birth_artifact_id)}/{hexhash}"
+            return f"{base_url}/artifactsV2/{region}/{quote(entity)}/{quote(project)}/{quote(collection)}/{quote(birth_artifact_id)}/{hexhash}/{entry.path.name}"
 
         assert_never(layout)
 

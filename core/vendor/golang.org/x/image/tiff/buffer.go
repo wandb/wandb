@@ -5,7 +5,9 @@
 package tiff
 
 import (
+	"fmt"
 	"io"
+	"math"
 	"slices"
 )
 
@@ -35,22 +37,34 @@ func (b *buffer) fill(end int) error {
 }
 
 func (b *buffer) ReadAt(p []byte, off int64) (int, error) {
-	o := int(off)
-	end := o + len(p)
-	if int64(end) != off+int64(len(p)) {
+	if off < 0 {
+		// Impossible in correct usage, but check for safety.
+		return 0, fmt.Errorf("invalid ReadAt offset %v (bug)", off)
+	}
+	end64 := off + int64(len(p))
+	if end64 < off || end64 > math.MaxInt {
 		return 0, io.ErrUnexpectedEOF
 	}
+	end := int(end64)
 
 	err := b.fill(end)
 	end = min(end, len(b.buf))
-	return copy(p, b.buf[min(o, end):end]), err
+	return copy(p, b.buf[min(int(off), end):end]), err
 }
 
 // Slice returns a slice of the underlying buffer. The slice contains
 // n bytes starting at offset off.
-func (b *buffer) Slice(off, n int) ([]byte, error) {
+func (b *buffer) Slice(off, n int64) ([]byte, error) {
+	if off < 0 || n < 0 {
+		// Impossible in correct usage, but check for safety.
+		return nil, fmt.Errorf("invalid negative input to Slice(%v, %v) (bug)", off, n)
+	}
 	end := off + n
-	if err := b.fill(end); err != nil {
+	if end < 0 || end > math.MaxInt {
+		// end is too large. Treat this as a read error.
+		return nil, io.ErrUnexpectedEOF
+	}
+	if err := b.fill(int(end)); err != nil {
 		return nil, err
 	}
 	return b.buf[off:end], nil

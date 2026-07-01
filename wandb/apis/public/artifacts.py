@@ -244,8 +244,8 @@ class ArtifactType:
         Args:
             filters (dict): Optional mapping of filters to apply to the query.
             order (str): Optional string to specify the order of the results.
-                If you prepend order with a + order is ascending (default).
-                If you prepend order with a - order is descending.
+                If prefixed with '+', sorts ascending (default).
+                If prefixed with '-', sorts descending.
                 The default order is the collection ID in descending order.
             per_page (int): The number of artifact collections to fetch per page.
                 Default is 50.
@@ -294,8 +294,8 @@ class ArtifactCollections(
         type_name: The name of the artifact type for which to fetch collections.
         filters: Optional mapping of filters to apply to the query.
         order: Optional string to specify the order of the results.
-            If you prepend order with a + order is ascending (default).
-            If you prepend order with a - order is descending.
+            If prefixed with '+', sorts ascending (default).
+            If prefixed with '-', sorts descending.
         per_page: The number of artifact collections to fetch per page. Default is 50.
 
     <!-- lazydoc-ignore-init: internal -->
@@ -391,8 +391,8 @@ class ProjectArtifactCollections(
         project: The name of the project to query for artifact collections.
         filters: Optional mapping of filters to apply to the query.
         order: Optional string to specify the order of the results.
-            If you prepend order with a + order is ascending (default).
-            If you prepend order with a - order is descending.
+            If prefixed with '+', sorts ascending (default).
+            If prefixed with '-', sorts descending.
         per_page: The number of artifact collections to fetch per page. Default is 50.
 
     <!-- lazydoc-ignore-init: internal -->
@@ -857,6 +857,8 @@ class Artifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
             "dataset" or "model".
         filters: Optional mapping of filters to apply to the query.
         order: Optional string to specify the order of the results.
+            If prefixed with '+', sorts ascending (default).
+            If prefixed with '-', sorts descending.
         per_page: The number of artifact versions to fetch per page. Default is 50.
         tags: Optional string or list of strings to filter artifacts by tags.
 
@@ -1025,7 +1027,7 @@ class ArtifactFiles(SizedRelayPaginator["FileFragment", "File"]):
     <!-- lazydoc-ignore-init: internal -->
     """
 
-    QUERY: str  # Must be set per-instance
+    QUERY: ClassVar[str | None] = None
     last_response: ArtifactFileConnection | None
 
     def __init__(
@@ -1036,37 +1038,22 @@ class ArtifactFiles(SizedRelayPaginator["FileFragment", "File"]):
         per_page: int = 50,
         start: str | None = None,
     ):
-        from wandb.sdk.artifacts._generated import (
-            GET_ARTIFACT_FILES_GQL,
-            GET_ARTIFACT_MEMBERSHIP_FILES_GQL,
-        )
         from wandb.sdk.artifacts._gqlutils import server_supports
 
-        self.query_via_membership = server_supports(
-            service_api, pb.ARTIFACT_COLLECTION_MEMBERSHIP_FILES
-        )
+        if self.QUERY is None:
+            from wandb.sdk.artifacts._generated import ARTIFACT_MEMBERSHIP_FILES_GQL
+
+            type(self).QUERY = ARTIFACT_MEMBERSHIP_FILES_GQL
+
         self.artifact = artifact
 
-        if self.query_via_membership:
-            query_str = GET_ARTIFACT_MEMBERSHIP_FILES_GQL
-            variables = {
-                "entity": artifact.entity,
-                "project": artifact.project,
-                "collection": artifact.name.split(":")[0],
-                "alias": artifact.version,
-                "fileNames": names,
-            }
-        else:
-            query_str = GET_ARTIFACT_FILES_GQL
-            variables = {
-                "entity": artifact.source_entity,
-                "project": artifact.source_project,
-                "name": artifact.source_name,
-                "type": artifact.type,
-                "fileNames": names,
-            }
-
-        self.QUERY = query_str
+        variables = {
+            "entity": artifact.entity,
+            "project": artifact.project,
+            "collection": artifact.name.split(":")[0],
+            "alias": artifact.version,
+            "fileNames": names,
+        }
         super().__init__(
             service_api,
             variables=variables,
@@ -1081,21 +1068,14 @@ class ArtifactFiles(SizedRelayPaginator["FileFragment", "File"]):
 
     @override
     def _update_response(self) -> None:
-        from wandb.sdk.artifacts._generated import (
-            GetArtifactFiles,
-            GetArtifactMembershipFiles,
-        )
+        from wandb.sdk.artifacts._generated import ArtifactMembershipFiles
         from wandb.sdk.artifacts._models.pagination import ArtifactFileConnection
 
         data = self._execute_query()
 
         # Extract the inner `*Connection` result for faster/easier access.
-        if self.query_via_membership:
-            result = GetArtifactMembershipFiles.model_validate(data)
-            conn = result.project.artifact_collection.artifact_membership.files
-        else:
-            result = GetArtifactFiles.model_validate(data)
-            conn = result.project.artifact_type.artifact.files
+        result = ArtifactMembershipFiles.model_validate(data)
+        conn = result.project.artifact_collection.artifact_membership.files
 
         if conn is None:
             raise ValueError(f"Unable to parse {nameof(type(self))!r} response data")

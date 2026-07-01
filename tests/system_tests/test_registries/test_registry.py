@@ -398,6 +398,15 @@ def test_fetch_registries(team: str, org: str, org_entity: str, api: Api):
         assert registry.full_name == f"{REGISTRY_PREFIX}test-{i}"
         assert registry.visibility == "organization"
 
+    # `order` sorts server-side rather than relying on the Python sort above.
+    expected_asc_names = ["test-0", "test-1", "test-2"]
+    expected_desc_names = expected_asc_names[::-1]
+
+    ascending = [r.name for r in api.registries(organization=org, order="name")]
+    descending = [r.name for r in api.registries(organization=org, order="-name")]
+    assert ascending == expected_asc_names
+    assert descending == expected_desc_names
+
 
 @fixture
 def source_artifacts(team: str):
@@ -429,9 +438,7 @@ def test_registries_collections(
         filter={"name": target_registry.full_name},
     )
 
-    all_collection_names = [
-        collection.name for collection in registries.collections(per_page=1)
-    ]
+    all_collection_names = [c.name for c in registries.collections(per_page=1)]
     paged_collections = registries.collections(per_page=1)
     first_page_name = next(paged_collections).name
     saved_cursor = paged_collections.cursor
@@ -439,12 +446,10 @@ def test_registries_collections(
     assert saved_cursor is not None
 
     remaining_names_via_registry = [
-        collection.name
-        for collection in target_registry.collections(per_page=1, start=saved_cursor)
+        c.name for c in target_registry.collections(per_page=1, start=saved_cursor)
     ]
     remaining_names_via_search = [
-        collection.name
-        for collection in registries.collections(per_page=1, start=saved_cursor)
+        c.name for c in registries.collections(per_page=1, start=saved_cursor)
     ]
 
     assert remaining_names_via_search == remaining_names_via_registry
@@ -454,9 +459,24 @@ def test_registries_collections(
     assert len(collections) == len(source_artifacts)
 
     # Check that we have the correct registry collections
-    for i, collection in enumerate(collections):
-        assert collection.name == f"reg-collection-{i}"
-        assert collection.type == "test-type"
+    expected_ordered_names = [f"reg-collection-{i}" for i in range(len(collections))]
+    assert [c.name for c in collections] == expected_ordered_names
+    assert [c.type for c in collections] == ["test-type"] * len(collections)
+
+    # `order` sorts server-side rather than relying on the Python sort above.
+    expected_asc_names = expected_ordered_names
+    expected_desc_names = expected_ordered_names[::-1]
+
+    ascending = [c.name for c in registries.collections(order="name")]
+    descending = [c.name for c in registries.collections(order="-name")]
+    assert ascending == expected_asc_names
+    assert descending == expected_desc_names
+
+    # `order` is also honored when accessed directly from a single Registry.
+    asc_via_registry = [c.name for c in target_registry.collections(order="name")]
+    desc_via_registry = [c.name for c in target_registry.collections(order="-name")]
+    assert asc_via_registry == expected_asc_names
+    assert desc_via_registry == expected_desc_names
 
 
 def test_registries_versions(

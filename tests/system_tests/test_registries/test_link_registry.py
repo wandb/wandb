@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Literal
 
 import wandb
-from pytest import FixtureRequest, fixture, mark
+from pytest import FixtureRequest, MonkeyPatch, fixture, mark, param
 from typing_extensions import assert_never
 from wandb import Api, Artifact
 from wandb.apis.public.registries.registry import Registry
@@ -100,3 +100,63 @@ def test_artifact_link_to_registry_collection(
         f"{org_entity}/{registry.full_name}/{target_collection_name}:{linked.version}"
     )
     assert expected_linked_full_name == linked.qualified_name
+
+
+@fixture
+def linked_version_name(
+    source_artifact: Artifact,
+    registry: Registry,
+    target_collection_name: str,
+) -> str:
+    """Link the source artifact into a registry collection (as the owning admin)."""
+    target_path = f"{registry.full_name}/{target_collection_name}"
+    linked = source_artifact.link(target_path)
+    source_artifact.wait()
+    assert linked is not None  # precondition: link succeeded
+    return linked.qualified_name
+
+
+@mark.usefixtures("skip_verify_login")
+@mark.parametrize(
+    ("org_role", "invite_to_source_team", "alias"),
+    [
+        param("member", False, "member-added-alias", id="org-member"),
+        param("viewer", True, "viewer-registry-member-alias", id="org-viewer"),
+    ],
+)
+def test_add_alias_to_linked_artifact_without_source_write(
+    monkeypatch: MonkeyPatch,
+    add_org_user_with_registry_access,
+    org: str,
+    team: str,
+    registry: Registry,
+    linked_version_name: str,
+    org_role: Literal["member", "viewer"],
+    invite_to_source_team: bool,
+    alias: str,
+):
+    """Users without source-project write access can still add aliases to linked artifacts."""
+    username, _user = add_org_user_with_registry_access(
+        org=org,
+        org_role=org_role,
+        registry=registry,
+        team=team,
+        invite_to_source_team=invite_to_source_team,
+    )
+
+    monkeypatch.setenv("WANDB_API_KEY", username)
+    monkeypatch.setenv("WANDB_ENTITY", username)
+
+    viewer_api = Api(api_key=username)
+    artifact = viewer_api.artifact(linked_version_name)
+
+    if invite_to_source_team:
+        assert artifact.source_entity and artifact.source_project
+    else:
+        assert not (artifact.source_entity and artifact.source_project)
+
+    artifact.aliases.append(alias)
+    artifact.save()
+
+    reloaded = viewer_api.artifact(linked_version_name)
+    assert alias in reloaded.aliases
