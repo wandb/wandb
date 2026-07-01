@@ -62,6 +62,9 @@ class _RegistriesKwargs(BaseModel):
 
         Long term, consider making Registries and other Paginator types directly into
         pydantic models to automatically validate their arguments at runtime.
+
+        Also, using the `@validate_call` decorator does not work at the time of writing,
+        since it would require an eager import of `ServiceApi`, causing an import cycle.
     """
 
     organization: str
