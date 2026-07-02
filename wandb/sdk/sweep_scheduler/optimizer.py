@@ -42,6 +42,15 @@ class RunSuggestion:
     config: RunConfig
     run_id: str
 
+    def __post_init__(self) -> None:
+        # A define-by-run `trial_constructor` naturally returns the flat
+        # ``{param: value}`` mapping from ``trial.params``; accept that and
+        # normalize it to a `RunConfig` here so every suggestion the executor
+        # sees can be serialized the same way (``config.model_dump()``),
+        # regardless of which optimizer (or user constructor) built it.
+        if not isinstance(self.config, RunConfig):
+            self.config = RunConfig.from_values(self.config)
+
 
 @dataclass
 class Run:

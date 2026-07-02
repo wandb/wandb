@@ -2186,6 +2186,167 @@ def scheduler(
         raise
 
 
+def _load_attr(ref: str) -> Any:
+    """Resolve a ``"module.path:attribute"`` reference to a Python object."""
+    import importlib
+
+    if ":" not in ref:
+        raise ClickException(
+            f"{ref!r} must be in 'module.path:attribute' form "
+            "(e.g. 'my_pkg.optimize:make_study')."
+        )
+    module_path, _, attr = ref.partition(":")
+    cwd = os.getcwd()
+    if cwd not in sys.path:
+        sys.path.insert(0, cwd)
+    try:
+        obj: Any = importlib.import_module(module_path)
+    except ImportError as e:
+        raise ClickException(f"Could not import module {module_path!r}: {e}")
+    try:
+        for part in attr.split("."):
+            obj = getattr(obj, part)
+    except AttributeError as e:
+        raise ClickException(f"{module_path!r} has no attribute {attr!r}: {e}")
+    return obj
+
+
+@cli.command(
+    name="sweep_scheduler",
+    context_settings=CONTEXT,
+    help="Run a local scheduler that drives a sweep with an external optimizer "
+    "(Experimental).",
+)
+@click.pass_context
+@click.option(
+    "--optimizer",
+    type=click.Choice(["wandb", "optuna"]),
+    default="wandb",
+    help="Search strategy driving the sweep. Defaults to the built-in W&B optimizer.",
+)
+@click.option(
+    "--optimizer-obj",
+    default=None,
+    help="'module:attr' factory returning the optimizer's backing object, called "
+    "with no arguments. For --optimizer optuna this returns an optuna.Study; "
+    "when omitted a study is created from the sweep's metric goal.",
+)
+@click.option(
+    "--trial-constructor",
+    default=None,
+    help="'module:attr' callable defining an optuna define-by-run search space "
+    "(Trial -> RunSuggestion). Only valid with --optimizer optuna; when omitted "
+    "the search space is read from the sweep config's parameters.",
+)
+@click.option("--entity", "-e", default=None, help="Entity that owns the sweep.")
+@click.option("--project", "-p", default=None, help="Project that owns the sweep.")
+@click.option(
+    "--batch-size",
+    default=10,
+    type=int,
+    help="Number of runs to keep in flight at once.",
+)
+@click.option(
+    "--poll-interval",
+    default=5.0,
+    type=float,
+    help="Seconds to wait between polls of the sweep's runs.",
+)
+@click.argument("sweep_id")
+@display_error
+def sweep_scheduler(
+    ctx,
+    optimizer,
+    optimizer_obj,
+    trial_constructor,
+    entity,
+    project,
+    batch_size,
+    poll_interval,
+    sweep_id,
+):
+    """Drive an existing sweep from a local, in-process scheduler.
+
+    Create the sweep first with `wandb sweep sweep.yaml`; its config must set
+    `controller: {type: scheduler}` so the server leaves
+    the search to this scheduler. The scheduler proposes runs, enqueues them, and
+    polls their results to drive the optimizer.
+
+    With `--optimizer optuna` the search space is taken from the sweep config's
+    parameters, or from a define-by-run `--trial-constructor`; supply a custom
+    study via `--optimizer-obj`. With no `--optimizer` (or `--optimizer wandb`)
+    the built-in W&B search algorithms drive the sweep.
+    """
+    api = _get_cling_api()
+    if not api.is_authenticated:
+        wandb.termlog("Login to W&B to use the sweep scheduler feature")
+        ctx.invoke(login, no_offline=True)
+
+    # Resolve the sweep the user already created with `wandb sweep`.
+    if "/" in sweep_id:
+        sweep_path = sweep_id
+    elif entity and project:
+        sweep_path = f"{entity}/{project}/{sweep_id}"
+    else:
+        sweep_path = sweep_id
+    sweep = PublicApi().sweep(sweep_path)
+
+    # The local scheduler only drives sweeps that opted out of server-side search.
+    config = sweep.config or {}
+    controller_type = (config.get("controller") or {}).get("type")
+    if controller_type != "scheduler":
+        raise ClickException("The sweep scheduler requires a sweep created with a controller type of 'scheduler'.")
+
+    if optimizer == "optuna":
+        if config.get("method") != "custom":
+            raise ClickException("The sweep scheduler using optunarequires a sweep created with a method of 'custom'.")
+        # Importing the module lazily surfaces a helpful error when optuna isn't
+        # installed, and keeps the wandb path free of that dependency.
+        from wandb.sdk.sweep_scheduler import optuna as optuna_scheduler
+
+        study = _load_attr(optimizer_obj)() if optimizer_obj else None
+        ctor = _load_attr(trial_constructor) if trial_constructor else None
+        if study is None:
+            goal = (config.get("metric") or {}).get("goal", "minimize")
+            study = optuna_scheduler.optuna.create_study(direction=goal)
+        # Exactly one of distributions / trial_constructor: define-by-run when a
+        # constructor is given, otherwise the declarative space from the config.
+        distributions = (
+            None
+            if ctor is not None
+            else optuna_scheduler.search_space_from_sweep_config(
+                config.get("parameters", {})
+            )
+        )
+        scheduler = optuna_scheduler.resume_sweep(
+            study,
+            sweep,
+            distributions=distributions,
+            trial_constructor=ctor,
+            poll_interval_s=poll_interval,
+            batch_size=batch_size,
+        )
+    else:  # wandb
+        if optimizer_obj or trial_constructor:
+            raise ClickException(
+                "--optimizer-obj and --trial-constructor only apply to "
+                "--optimizer optuna."
+            )
+        from wandb.sdk.sweep_scheduler import wandb as wandb_scheduler
+
+        scheduler = wandb_scheduler.resume_sweep(
+            sweep,
+            config,
+            poll_interval_s=poll_interval,
+            batch_size=batch_size,
+        )
+
+    wandb.termlog(
+        f"Starting sweep scheduler for {sweep.name} with the {optimizer} optimizer 🧹"
+    )
+    scheduler.loop()
+
+
 @cli.group(help="Commands for managing and viewing W&B jobs.")
 def job() -> None:
     pass

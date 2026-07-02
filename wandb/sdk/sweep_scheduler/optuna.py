@@ -203,6 +203,42 @@ class OptunaOptimizer(Optimizer):
         # trials, which lack report()/should_prune(), so we must hold the live
         # ones to record intermediate values (and, next, drive pruning).
         self.trials: dict[int, "optuna.Trial"] = {}
+        self._validate_matches_sweep()
+
+    def _validate_matches_sweep(self) -> None:
+        """Fail fast if the study and the sweep disagree on the objective.
+
+        The study's optimization direction must match the sweep metric's goal,
+        and — when the study declares metric names — its objective name must match
+        the sweep metric's name. Otherwise the optimizer would silently search the
+        wrong way or against the wrong metric. The study and sweep are supplied
+        independently (e.g. via `resume_sweep` or a user-provided study factory),
+        so the two can drift; the sweep config is the source of truth.
+        """
+        if len(self.study.directions) != 1:
+            raise ValueError(
+                "OptunaOptimizer only supports single-objective studies; the "
+                f"study has {len(self.study.directions)} objectives."
+            )
+
+        metric = self._sweep.config.get("metric") or {}
+        goal = str(metric.get("goal", "minimize")).lower()
+        study_direction = self.study.direction.name.lower()
+        if study_direction != goal:
+            raise ValueError(
+                f"Study direction {study_direction!r} does not match the sweep "
+                f"metric goal {goal!r}; create the study with direction={goal!r}."
+            )
+
+        # optuna's objective names are optional metadata; validate only when set.
+        metric_names = getattr(self.study, "metric_names", None)
+        if metric_names:
+            metric_name = self.metric_key()
+            if metric_names[0] != metric_name:
+                raise ValueError(
+                    f"Study metric name {metric_names[0]!r} does not match the "
+                    f"sweep metric name {metric_name!r}."
+                )
 
     def trial_state(self, state: RunState) -> optuna.trial.TrialState:
         if state in (RunState.RUNNING, RunState.PENDING):
