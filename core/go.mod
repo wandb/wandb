@@ -12,7 +12,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v1.8.0
 	github.com/Khan/genqlient v0.8.1
 	github.com/NimbleMarkets/ntcharts/v2 v2.2.0
-	github.com/aws/aws-sdk-go-v2 v1.42.0
+	github.com/aws/aws-sdk-go-v2 v1.42.1
 	github.com/aws/aws-sdk-go-v2/config v1.32.26
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.104.1
 	github.com/charmbracelet/ultraviolet v0.0.0-20260622092850-f39628c8a989
