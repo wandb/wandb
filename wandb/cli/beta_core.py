@@ -13,7 +13,7 @@ import logging
 import click
 
 from wandb import env as wandb_env
-from wandb.analytics import get_sentry
+from wandb.analytics import get_otel, get_sentry
 from wandb.proto import wandb_server_pb2 as spb
 from wandb.sdk.lib import asyncio_manager
 from wandb.sdk.lib.service import service_process, service_token
@@ -96,6 +96,8 @@ def stop(*, exit_code: int = 0) -> None:
         ) from e
 
     except Exception as e:
+        # TODO: change to get_otel().reraise() once sentry is removed
+        get_otel().exception(str(e), e)
         get_sentry().reraise(e)
 
     finally:

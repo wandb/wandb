@@ -5,7 +5,7 @@ import os
 from typing import TYPE_CHECKING
 
 import wandb
-from wandb.analytics import get_sentry
+from wandb.analytics import get_otel, get_sentry
 from wandb.sdk.lib.paths import LogicalPath
 
 if TYPE_CHECKING:
@@ -74,6 +74,7 @@ class UploadJob:
             except Exception as e:
                 self._stats.update_failed_file(self.save_path)
                 logger.exception("Failed to upload file: %s", self.save_path)
+                get_otel().exception(str(e), e)
                 get_sentry().exception(e)
                 message = str(e)
                 # TODO: this is usually XML, but could be JSON
@@ -134,6 +135,7 @@ class UploadJob:
             except Exception as e:
                 self._stats.update_failed_file(self.save_name)
                 logger.exception("Failed to upload file: %s", self.save_path)
+                get_otel().exception(str(e), e)
                 get_sentry().exception(e)
                 if not self.silent:
                     wandb.termerror(
