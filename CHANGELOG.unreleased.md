@@ -32,6 +32,10 @@ This version drops compatibility with server versions older than 0.67.0.
 
 - Removed legacy support for listing and downloading artifact files on W&B Server releases older than `v0.67.0`, which are past EOL. This affects `Artifact.files()` and `Artifact.download()` for any artifact, as well as `Artifact.get_entry()` / `Artifact.get_path()` file downloads for non-reference artifacts. To keep using these operations, upgrade your W&B Server to `v0.67.0` or newer. (@tonyyli-wandb in https://github.com/wandb/wandb/pull/12109)
 
+### Removed
+
+- Removed the `GitPython` dependency. Git metadata is collected by invoking the `git` executable directly; the `GIT_PYTHON_GIT_EXECUTABLE` environment variable is still honored for locating it (@dmitryduev in https://github.com/wandb/wandb/pull/11983)
+
 ### Fixed
 
 - Saving a linked registry artifact (for example, when adding an alias) no longer fails when the caller lacks write access to the source project (@ibindlish in https://github.com/wandb/wandb/pull/12075)
