@@ -5,7 +5,7 @@ import itertools
 import os
 import pathlib
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, ClassVar, Literal, TextIO, TypeAlias, TypedDict
+from typing import TYPE_CHECKING, ClassVar, Literal, TextIO, TypeAlias, TypedDict, cast
 
 import wandb
 from wandb import util
@@ -230,9 +230,12 @@ def box3d(
     corners = center + (0.5 * size * unit_corners) @ rot
 
     return {
-        # Ignore the type because mypy can't infer that the list has length 8:
+        # Cast because type checkers can't infer that the tuple has length 8:
         # https://github.com/python/mypy/issues/7509
-        "corners": tuple(tuple(pt) for pt in corners),  # type: ignore
+        "corners": cast(
+            "tuple[Point3D, Point3D, Point3D, Point3D, Point3D, Point3D, Point3D, Point3D]",
+            tuple(tuple(pt) for pt in corners),
+        ),
         "color": color,
         "label": label,
         "score": score,

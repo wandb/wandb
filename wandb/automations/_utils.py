@@ -75,7 +75,7 @@ class HasId(Protocol):
 
 
 def extract_id(obj: HasId | str) -> str:
-    return obj.id if hasattr(obj, "id") else obj
+    return obj if isinstance(obj, str) else obj.id
 
 
 # ---------------------------------------------------------------------------
