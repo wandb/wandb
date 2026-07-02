@@ -942,7 +942,7 @@ class Artifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
         if self.QUERY is None:
             from wandb.sdk.artifacts._generated import PROJECT_ARTIFACTS_GQL
 
-            type(self).QUERY = PROJECT_ARTIFACTS_GQL
+            self.__class__.QUERY = PROJECT_ARTIFACTS_GQL
 
         args = _ArtifactsVars(
             entity=entity,

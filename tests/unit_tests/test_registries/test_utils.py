@@ -157,8 +157,11 @@ def test_paginator_order_defaults_to_none(
         # A field the paginator doesn't allow, with and without a sign.
         "unsupported_field",
         "-unsupported_field",
+        "+unsupported_field",
         # A valid field, but allowed-field matching is case-sensitive.
         "Name",
+        "-Name",
+        "+Name",
         # Valid fields wrapped in strings that don't match the sign+field grammar.
         "name desc",
         "++name",

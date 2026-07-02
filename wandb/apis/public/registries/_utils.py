@@ -29,13 +29,11 @@ class OrderValidator:
 
     allowed: frozenset[str] | None = None
 
-    def validate(self, arg: str | None) -> str | None:
-        if arg is None:
-            return None
-
+    def validate(self, arg: str) -> str:
         # Parse the raw `order` string into its components
         if (m := ORDER_REGEX.match(arg)) is None:
             raise ValueError(f"Invalid order field: {arg!r}")
+
         sign, name = m.groups()
 
         # Check if the field name is allowed
