@@ -247,8 +247,15 @@ def system_tests(session: nox.Session) -> None:
     run_pytest(
         session,
         paths=paths,
-        # TODO: consider relaxing this once the test memory usage is under control.
-        opts={"n": "8"},
+        # Run with fewer workers than the box has CPUs. Each worker imports
+        # heavy deps (tensorflow, torch) and holds 700MB+ resident, so at n=8
+        # the memory-capped CI pods OOM-kill workers mid-test. xdist then
+        # reports the killed worker as "node down: Not properly terminated" and
+        # fails whatever test it was running -- surfacing as flaky, unrelated
+        # failures spread across the suite. n=4 matches functional_tests, which
+        # dropped to 4 for the same reason.
+        # TODO: raise back toward n=8 once per-worker memory is under control.
+        opts={"n": "4"},
     )
 
 
