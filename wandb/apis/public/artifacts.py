@@ -6,19 +6,28 @@ collections.
 
 from __future__ import annotations
 
-import json
 from collections.abc import Collection, Iterable, Mapping, Sequence
 from copy import copy
 from functools import lru_cache
-from typing import TYPE_CHECKING, Any, ClassVar, List, Literal, TypeVar  # noqa: UP035
+from typing import (  # noqa: UP035
+    TYPE_CHECKING,
+    Annotated,
+    Any,
+    ClassVar,
+    List,
+    Literal,
+    TypeVar,
+)
 
+from pydantic import BaseModel, PositiveInt
 from typing_extensions import override
 
 from wandb._iterutils import always_list
-from wandb._pydantic import Connection, ConnectionWithTotal, Edge
+from wandb._pydantic import Connection, ConnectionWithTotal, Edge, to_json
 from wandb._strutils import nameof
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.paginator import RelayPaginator, SizedRelayPaginator
+from wandb.apis.public.registries._utils import OrderValidator
 from wandb.errors.errors import UnsupportedError
 from wandb.errors.term import termlog
 from wandb.proto import wandb_internal_pb2 as pb
@@ -125,7 +134,7 @@ class ArtifactTypes(RelayPaginator["ArtifactTypeFragment", "ArtifactType"]):
         service_api: ServiceApi,
         entity: str,
         project: str,
-        per_page: int = 50,
+        per_page: PositiveInt = 50,
         start: str | None = None,
     ):
         if self.QUERY is None:
@@ -135,7 +144,6 @@ class ArtifactTypes(RelayPaginator["ArtifactTypeFragment", "ArtifactType"]):
 
         self.entity = entity
         self.project = project
-        self._service_api = service_api
         variables = {"entity": entity, "project": project}
         super().__init__(
             service_api, variables=variables, per_page=per_page, start=start
@@ -281,6 +289,16 @@ class ArtifactType:
         return f"<ArtifactType {self.type}>"
 
 
+class _ArtifactCollectionsVars(BaseModel):
+    entity: str
+    project: str
+    type_name: str
+    filters: dict[str, Any] | None = None
+    order: Annotated[str, OrderValidator()] | None = None
+    per_page: PositiveInt = 50
+    start: str | None = None
+
+
 class ArtifactCollections(
     SizedRelayPaginator["ArtifactCollectionFragment", "ArtifactCollection"]
 ):
@@ -312,7 +330,7 @@ class ArtifactCollections(
         type_name: str,
         filters: Mapping[str, Any] | None = None,
         order: str | None = None,
-        per_page: int = 50,
+        per_page: PositiveInt = 50,
         start: str | None = None,
     ):
         if self.QUERY is None:
@@ -330,21 +348,30 @@ class ArtifactCollections(
                 "Please upgrade your server version or contact support at support@wandb.com."
             )
 
-        self.entity = entity
-        self.project = project
-        self.type_name = type_name
-        self.filters = filters
-        self.order = order
-        self._service_api = service_api
+        args = _ArtifactCollectionsVars(
+            entity=entity,
+            project=project,
+            type_name=type_name,
+            filters=filters,
+            order=order,
+            per_page=per_page,
+            start=start,
+        )
+
+        self.entity = args.entity
+        self.project = args.project
+        self.type_name = args.type_name
+        self.filters = args.filters
+        self.order = args.order
         variables = {
-            "entity": entity,
-            "project": project,
-            "type": type_name,
-            "order": order,
-            "filters": json.dumps(f) if (f := filters) else None,
+            "entity": args.entity,
+            "project": args.project,
+            "type": args.type_name,
+            "order": args.order,
+            "filters": to_json(f) if (f := args.filters) else None,
         }
         super().__init__(
-            service_api, variables=variables, per_page=per_page, start=start
+            service_api, variables=variables, per_page=args.per_page, start=args.start
         )
 
     @override
@@ -379,6 +406,15 @@ class ArtifactCollections(
         )
 
 
+class _ProjectArtifactCollectionsVars(BaseModel):
+    entity: str
+    project: str
+    filters: dict[str, Any] | None = None
+    order: Annotated[str, OrderValidator()] | None = None
+    per_page: PositiveInt = 50
+    start: str | None = None
+
+
 class ProjectArtifactCollections(
     SizedRelayPaginator["ArtifactCollectionFragment", "ArtifactCollection"]
 ):
@@ -398,7 +434,7 @@ class ProjectArtifactCollections(
     <!-- lazydoc-ignore-init: internal -->
     """
 
-    QUERY: str | None
+    QUERY: ClassVar[str | None] = None
     last_response: ArtifactCollectionConnection | None
 
     def __init__(
@@ -408,10 +444,13 @@ class ProjectArtifactCollections(
         project: str,
         filters: Mapping[str, Any] | None = None,
         order: str | None = None,
-        per_page: int = 50,
+        per_page: PositiveInt = 50,
         start: str | None = None,
     ):
-        from wandb.sdk.artifacts._generated import PROJECT_ARTIFACT_COLLECTIONS_GQL
+        if self.QUERY is None:
+            from wandb.sdk.artifacts._generated import PROJECT_ARTIFACT_COLLECTIONS_GQL
+
+            type(self).QUERY = PROJECT_ARTIFACT_COLLECTIONS_GQL
 
         supports_filtering = server_supports(
             service_api, pb.ARTIFACT_COLLECTIONS_FILTERING_SORTING
@@ -422,25 +461,30 @@ class ProjectArtifactCollections(
                 "Please upgrade your server version or contact support at support@wandb.com."
             )
 
-        self.QUERY = PROJECT_ARTIFACT_COLLECTIONS_GQL
-
-        self.entity = entity
-        self.project = project
-        self.filters = filters
-        self.order = order
-        self._service_api = service_api
+        args = _ProjectArtifactCollectionsVars(
+            entity=entity,
+            project=project,
+            filters=filters,
+            order=order,
+            per_page=per_page,
+            start=start,
+        )
+        self.entity = args.entity
+        self.project = args.project
+        self.filters = args.filters
+        self.order = args.order
         variables = {
-            "entity": entity,
-            "project": project,
-            "order": order,
-            "filters": json.dumps(f) if (f := filters) else None,
+            "entity": args.entity,
+            "project": args.project,
+            "order": args.order,
+            "filters": to_json(f) if (f := args.filters) else None,
         }
 
         super().__init__(
             service_api,
             variables=variables,
-            per_page=per_page,
-            start=start,
+            per_page=args.per_page,
+            start=args.start,
             omit_variables=None if supports_filtering else {"filters"},
             omit_fields=None if supports_filtering else {"totalCount"},
         )
@@ -842,6 +886,18 @@ class _ArtifactConnectionGeneric(ConnectionWithTotal[TNode]):
     edges: List[_ArtifactEdgeGeneric]  # noqa: UP006
 
 
+class _ArtifactsVars(BaseModel):
+    entity: str
+    project: str
+    collection_name: str
+    type: str
+    filters: dict[str, Any] | None = None
+    order: Annotated[str, OrderValidator()] | None = None
+    per_page: PositiveInt = 50
+    tags: list[str] | None = None
+    start: str | None = None
+
+
 class Artifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
     """An iterable collection of artifact versions associated with a project.
 
@@ -865,7 +921,7 @@ class Artifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
     <!-- lazydoc-ignore-init: internal -->
     """
 
-    QUERY: str  # Must be set per-instance
+    QUERY: ClassVar[str | None] = None
 
     # Loosely-annotated to avoid importing heavy types at module import time.
     last_response: _ArtifactConnectionGeneric | None
@@ -883,28 +939,39 @@ class Artifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
         tags: str | list[str] | None = None,
         start: str | None = None,
     ):
-        from wandb.sdk.artifacts._generated import PROJECT_ARTIFACTS_GQL
+        if self.QUERY is None:
+            from wandb.sdk.artifacts._generated import PROJECT_ARTIFACTS_GQL
 
-        self.QUERY = PROJECT_ARTIFACTS_GQL
+            self.__class__.QUERY = PROJECT_ARTIFACTS_GQL
 
-        self.entity = entity
-        self.collection_name = collection_name
-        self.type = type
-        self.project = project
-        self.filters = {"state": "COMMITTED"} if filters is None else filters
-        self.tags = always_list(tags or [])
-        self.order = order
-        self._service_api = service_api
+        args = _ArtifactsVars(
+            entity=entity,
+            project=project,
+            collection_name=collection_name,
+            type=type,
+            filters={"state": "COMMITTED"} if filters is None else filters,
+            order=order,
+            per_page=per_page,
+            tags=always_list(tags or []),
+            start=start,
+        )
+        self.entity = args.entity
+        self.collection_name = args.collection_name
+        self.type = args.type
+        self.project = args.project
+        self.filters = args.filters
+        self.tags = args.tags
+        self.order = args.order
         variables = {
-            "entity": self.entity,
-            "project": self.project,
-            "order": self.order,
-            "type": self.type,
-            "collection": self.collection_name,
-            "filters": json.dumps(self.filters),
+            "entity": args.entity,
+            "project": args.project,
+            "order": args.order,
+            "type": args.type,
+            "collection": args.collection_name,
+            "filters": to_json(args.filters),
         }
         super().__init__(
-            service_api, variables=variables, per_page=per_page, start=start
+            service_api, variables=variables, per_page=args.per_page, start=args.start
         )
 
     @override
@@ -988,7 +1055,6 @@ class RunArtifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
             self.QUERY = query_str
 
         self.run = run
-        self._service_api = service_api
         variables = {"entity": run.entity, "project": run.project, "run": run.id}
         super().__init__(
             service_api, variables=variables, per_page=per_page, start=start

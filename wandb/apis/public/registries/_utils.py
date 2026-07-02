@@ -1,9 +1,15 @@
 from __future__ import annotations
 
+import re
 from collections.abc import Collection
+from dataclasses import dataclass
 from enum import Enum
-from functools import lru_cache, partial
-from typing import TYPE_CHECKING, Any, TypeVar, overload
+from functools import lru_cache
+from typing import TYPE_CHECKING, Any, TypeVar
+
+from pydantic import GetCoreSchemaHandler
+from pydantic_core import CoreSchema
+from pydantic_core.core_schema import no_info_after_validator_function
 
 from wandb._strutils import ensureprefix
 
@@ -12,6 +18,35 @@ if TYPE_CHECKING:
 
 
 T = TypeVar("T")
+
+
+ORDER_REGEX: re.Pattern[str] = re.compile(r"^(\+|\-)?(\w+)$", flags=re.ASCII)
+
+
+@dataclass(frozen=True, slots=True)
+class OrderValidator:
+    """A validator for `order` strings that can optionally restrict allowed fields."""
+
+    allowed: frozenset[str] | None = None
+
+    def validate(self, arg: str) -> str:
+        # Parse the raw `order` string into its components
+        if (m := ORDER_REGEX.match(arg)) is None:
+            raise ValueError(f"Invalid order field: {arg!r}")
+
+        sign, name = m.groups()
+
+        # Check if the field name is allowed
+        if (self.allowed is not None) and (name not in self.allowed):
+            msg = f"Invalid ordering field {name!r}, must be one of: {', '.join(map(repr, sorted(self.allowed)))}"
+            raise ValueError(msg)
+
+        return f"{sign or '+'}{name}"
+
+    def __get_pydantic_core_schema__(
+        self, source_type: Any, handler: GetCoreSchemaHandler
+    ) -> CoreSchema:
+        return no_info_after_validator_function(self.validate, handler(source_type))
 
 
 class Visibility(str, Enum):
@@ -31,7 +66,7 @@ class Visibility(str, Enum):
         try:
             return cls(value)
         except ValueError:
-            expected = ",".join(repr(e.value) for e in cls)
+            expected = ", ".join(repr(e.value) for e in cls)
             raise ValueError(
                 f"Invalid visibility {value!r} from backend. Expected one of: {expected}"
             ) from None
@@ -42,7 +77,7 @@ class Visibility(str, Enum):
         try:
             return cls(name)
         except ValueError:
-            expected = ",".join(repr(e.name) for e in cls)
+            expected = ", ".join(repr(e.name) for e in cls)
             raise ValueError(
                 f"Invalid visibility {name!r}. Expected one of: {expected}"
             ) from None
@@ -66,50 +101,52 @@ def prepare_artifact_types_input(
     return None
 
 
-@overload
-def ensure_registry_prefix_on_names(query: str, in_name: bool = ...) -> str: ...
-@overload
-def ensure_registry_prefix_on_names(
-    query: dict[str, Any], in_name: bool = ...
-) -> dict[str, Any]: ...
-@overload
-def ensure_registry_prefix_on_names(
-    query: list[T] | tuple[T], in_name: bool = ...
-) -> list[T]: ...
-@overload
-def ensure_registry_prefix_on_names(query: T, in_name: bool = ...) -> T: ...
+def prepare_registry_filter(query: T) -> T:
+    """Normalize a registry filter as a JSON-serializable GraphQL input.
 
-
-def ensure_registry_prefix_on_names(query: Any, in_name: bool = False) -> Any:
-    """Recursively prepend the registry prefix under "name" keys, excluding regex ops.
-
-    - in_name: True if we are under a "name" key (or propagating from one).
+    Recursively prepend the registry prefix under "name" keys, excluding regex ops.
 
     EX: {"name": "model"} -> {"name": "wandb-registry-model"}
     """
+    match query:
+        case dict() as dct:
+            return {
+                k: (_prefix_reg_names(v) if k == "name" else prepare_registry_filter(v))
+                for k, v in dct.items()
+            }
+        case list() | tuple() as seq:
+            return list(map(prepare_registry_filter, seq))
+        case _:
+            return query
+
+
+def _prefix_reg_names(query: Any) -> Any:
+    """Under a "name" key, prefix names with 'wandb-registry-', skipping $regex ops."""
     from wandb.sdk.artifacts._validators import REGISTRY_PREFIX
 
     match query:
         case str() as txt:
-            return ensureprefix(txt, REGISTRY_PREFIX) if in_name else txt
+            return ensureprefix(txt, REGISTRY_PREFIX)
         case dict() as dct:
-            new_dict = {}
-            for k, v in dct.items():
-                if k == "$regex":
-                    # For regex operator, we skip transformation of its value.
-                    new_dict[k] = v
-                else:
-                    # Enforce prefix on "name" keys, otherwise propagate flags as-is.
-                    new_dict[k] = ensure_registry_prefix_on_names(
-                        v, in_name=(k == "name") or in_name
-                    )
-            return new_dict
+            # For regex operator, we skip transformation of its value.
+            return {
+                k: (v if k == "$regex" else _prefix_reg_names(v))
+                for k, v in dct.items()
+            }
         case list() | tuple() as seq:
-            return list(
-                map(partial(ensure_registry_prefix_on_names, in_name=in_name), seq)
-            )
+            return list(map(_prefix_reg_names, seq))
         case _:
             return query
+
+
+def prepare_collection_filter(query: T) -> T:
+    """Normalize a collection filter as a JSON-serializable GraphQL input."""
+    return query  # TODO: Add validation for allowed field names
+
+
+def prepare_version_filter(query: T) -> T:
+    """Normalize an artifact version filter as a JSON-serializable GraphQL input."""
+    return query  # TODO: Add validation for allowed field names
 
 
 @lru_cache(maxsize=10)
