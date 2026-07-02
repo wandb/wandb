@@ -24,7 +24,12 @@ class ArtifactCollectionData(ArtifactsBase):
         Note that this would be a breaking change.
     """
 
-    typename__: str = Field(alias="__typename", frozen=True, repr=False)
+    typename__: str = Field(
+        validation_alias="__typename",
+        serialization_alias="__typename",
+        frozen=True,
+        repr=False,
+    )
     """The GraphQL `__typename` for this object."""
 
     id: str = Field(frozen=True, repr=False)

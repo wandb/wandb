@@ -16,7 +16,7 @@ class UpdateArtifactSequenceType(GQLResult):
 
 class UpdateArtifactSequenceTypeResult(GQLResult):
     artifact_collection: ArtifactCollectionFragment | None = Field(
-        alias="artifactCollection"
+        validation_alias="artifactCollection", serialization_alias="artifactCollection"
     )
 
 

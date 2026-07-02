@@ -17,7 +17,9 @@ class ArtifactTypeProject(GQLResult):
 
 
 class ArtifactTypeProjectArtifact(GQLResult):
-    artifact_type: ArtifactTypeProjectArtifactArtifactType = Field(alias="artifactType")
+    artifact_type: ArtifactTypeProjectArtifactArtifactType = Field(
+        validation_alias="artifactType", serialization_alias="artifactType"
+    )
 
 
 class ArtifactTypeProjectArtifactArtifactType(GQLResult):

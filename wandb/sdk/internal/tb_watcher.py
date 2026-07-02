@@ -23,7 +23,7 @@ if TYPE_CHECKING:
     from queue import PriorityQueue
 
     from tensorboard.backend.event_processing.event_file_loader import EventFileLoader
-    from tensorboard.compat.proto.event_pb2 import ProtoEvent
+    from tensorboard.compat.proto.event_pb2 import Event as ProtoEvent
 
     from wandb.proto.wandb_internal_pb2 import RunRecord
     from wandb.sdk.lib.filesystem import FilesDict
@@ -239,7 +239,7 @@ class TBDirWatcher:
 
     def _loader(
         self, save: bool = True, namespace: str | None = None
-    ) -> EventFileLoader:
+    ) -> type[EventFileLoader]:
         """Incredibly hacky class generator to optionally save / prefix tfevent files."""
         _loader_interface = self._tbwatcher._interface
         _loader_settings = self._tbwatcher._settings

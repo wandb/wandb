@@ -483,6 +483,32 @@ class PydanticModuleRewriter(ast.NodeTransformer):
 
         return self.generic_visit(node)
 
+    def visit_Call(self, node: ast.Call) -> Any:
+        # Rewrite `Field(alias=...)` -> `Field(validation_alias=..., serialization_alias=...)`.
+        #
+        # This doesn't change runtime behavior, since the base model config already sets
+        # `validate_by_alias`, `validate_by_name`, and `serialize_by_alias`. However,
+        # type checkers that synthesize the model `__init__` from `@dataclass_transform`
+        # (e.g. `ty`) would otherwise only accept the alias -- never the field name --
+        # as the constructor keyword argument.
+        match node:
+            case ast.Call(func=ast.Name("Field"), keywords=keywords):
+                node.keywords = list(
+                    chain.from_iterable(
+                        (
+                            ast.keyword("validation_alias", kw.value),
+                            ast.keyword("serialization_alias", kw.value),
+                        )
+                        if (kw.arg == "alias")
+                        else (kw,)
+                        for kw in keywords
+                    )
+                )
+            case _:
+                pass
+
+        return self.generic_visit(node)
+
 
 class ClassReplacer(ast.NodeTransformer):
     """Removes replaced class definitions and rewrites any references to them."""

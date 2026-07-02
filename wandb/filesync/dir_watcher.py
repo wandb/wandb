@@ -15,9 +15,9 @@ from wandb.sdk.lib.filesystem import GlobStr
 from wandb.sdk.lib.paths import LogicalPath
 
 if TYPE_CHECKING:
-    import wandb.vendor.watchdog_0_9_0.observers.api as wd_api
-    import wandb.vendor.watchdog_0_9_0.observers.polling as wd_polling
-    import wandb.vendor.watchdog_0_9_0.watchdog.events as wd_events
+    import wandb.vendor.watchdog_0_9_0.wandb_watchdog.events as wd_events
+    import wandb.vendor.watchdog_0_9_0.wandb_watchdog.observers.api as wd_api
+    import wandb.vendor.watchdog_0_9_0.wandb_watchdog.observers.polling as wd_polling
     from wandb.sdk.internal.file_pusher import FilePusher
     from wandb.sdk.internal.settings_static import SettingsStatic
     from wandb.sdk.lib.filesystem import PolicyName

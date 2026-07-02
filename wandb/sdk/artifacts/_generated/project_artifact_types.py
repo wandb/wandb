@@ -16,13 +16,15 @@ class ProjectArtifactTypes(GQLResult):
 
 class ProjectArtifactTypesProject(GQLResult):
     artifact_types: ProjectArtifactTypesProjectArtifactTypes = Field(
-        alias="artifactTypes"
+        validation_alias="artifactTypes", serialization_alias="artifactTypes"
     )
 
 
 class ProjectArtifactTypesProjectArtifactTypes(GQLResult):
     edges: list[ProjectArtifactTypesProjectArtifactTypesEdges]
-    page_info: PageInfoFragment = Field(alias="pageInfo")
+    page_info: PageInfoFragment = Field(
+        validation_alias="pageInfo", serialization_alias="pageInfo"
+    )
 
 
 class ProjectArtifactTypesProjectArtifactTypesEdges(GQLResult):

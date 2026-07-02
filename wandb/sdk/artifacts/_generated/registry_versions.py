@@ -15,18 +15,25 @@ class RegistryVersions(GQLResult):
 
 
 class RegistryVersionsOrganization(GQLResult):
-    org_entity: RegistryVersionsOrganizationOrgEntity | None = Field(alias="orgEntity")
+    org_entity: RegistryVersionsOrganizationOrgEntity | None = Field(
+        validation_alias="orgEntity", serialization_alias="orgEntity"
+    )
 
 
 class RegistryVersionsOrganizationOrgEntity(GQLResult):
     name: str
     artifact_memberships: (
         RegistryVersionsOrganizationOrgEntityArtifactMemberships | None
-    ) = Field(alias="artifactMemberships")
+    ) = Field(
+        validation_alias="artifactMemberships",
+        serialization_alias="artifactMemberships",
+    )
 
 
 class RegistryVersionsOrganizationOrgEntityArtifactMemberships(GQLResult):
-    page_info: PageInfoFragment = Field(alias="pageInfo")
+    page_info: PageInfoFragment = Field(
+        validation_alias="pageInfo", serialization_alias="pageInfo"
+    )
     edges: list[RegistryVersionsOrganizationOrgEntityArtifactMembershipsEdges]
 
 

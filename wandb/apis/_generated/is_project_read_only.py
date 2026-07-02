@@ -13,7 +13,9 @@ class IsProjectReadOnly(GQLResult):
 
 
 class IsProjectReadOnlyProject(GQLResult):
-    read_only: bool | None = Field(alias="readOnly")
+    read_only: bool | None = Field(
+        validation_alias="readOnly", serialization_alias="readOnly"
+    )
 
 
 IsProjectReadOnly.model_rebuild()

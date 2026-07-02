@@ -19,46 +19,93 @@ class ProjectIconInput(GQLInput):
 
 
 class RateLimitsInput(GQLInput):
-    create_artifacts: int | None = Field(alias="createArtifacts", default=None)
+    create_artifacts: int | None = Field(
+        validation_alias="createArtifacts",
+        serialization_alias="createArtifacts",
+        default=None,
+    )
     create_artifacts_request_count: int | None = Field(
-        alias="createArtifactsRequestCount", default=None
+        validation_alias="createArtifactsRequestCount",
+        serialization_alias="createArtifactsRequestCount",
+        default=None,
     )
     create_artifacts_time_window: int | None = Field(
-        alias="createArtifactsTimeWindow", default=None
+        validation_alias="createArtifactsTimeWindow",
+        serialization_alias="createArtifactsTimeWindow",
+        default=None,
     )
-    filestream_count: float | None = Field(alias="filestreamCount", default=None)
+    filestream_count: float | None = Field(
+        validation_alias="filestreamCount",
+        serialization_alias="filestreamCount",
+        default=None,
+    )
     filestream_per_run_count: float | None = Field(
-        alias="filestreamPerRunCount", default=None
+        validation_alias="filestreamPerRunCount",
+        serialization_alias="filestreamPerRunCount",
+        default=None,
     )
-    filestream_size: int | None = Field(alias="filestreamSize", default=None)
+    filestream_size: int | None = Field(
+        validation_alias="filestreamSize",
+        serialization_alias="filestreamSize",
+        default=None,
+    )
     graphql: int | None = None
-    run_update_count: float | None = Field(alias="runUpdateCount", default=None)
-    sdk_graphql: int | None = Field(alias="sdkGraphql", default=None)
+    run_update_count: float | None = Field(
+        validation_alias="runUpdateCount",
+        serialization_alias="runUpdateCount",
+        default=None,
+    )
+    sdk_graphql: int | None = Field(
+        validation_alias="sdkGraphql", serialization_alias="sdkGraphql", default=None
+    )
     sdk_graphql_query_seconds: float | None = Field(
-        alias="sdkGraphqlQuerySeconds", default=None
+        validation_alias="sdkGraphqlQuerySeconds",
+        serialization_alias="sdkGraphqlQuerySeconds",
+        default=None,
     )
 
 
 class UpsertModelInput(GQLInput):
     access: str | None = None
     allow_all_artifact_types_in_registry: bool | None = Field(
-        alias="allowAllArtifactTypesInRegistry", default=None
+        validation_alias="allowAllArtifactTypesInRegistry",
+        serialization_alias="allowAllArtifactTypesInRegistry",
+        default=None,
     )
     artifact_types: list[ArtifactTypeInput] | None = Field(
-        alias="artifactTypes", default=None
+        validation_alias="artifactTypes",
+        serialization_alias="artifactTypes",
+        default=None,
     )
-    client_mutation_id: str | None = Field(alias="clientMutationId", default=None)
+    client_mutation_id: str | None = Field(
+        validation_alias="clientMutationId",
+        serialization_alias="clientMutationId",
+        default=None,
+    )
     description: str | None = None
-    docker_image: str | None = Field(alias="dockerImage", default=None, max_length=512)
-    entity_name: str | None = Field(alias="entityName", default=None)
+    docker_image: str | None = Field(
+        validation_alias="dockerImage",
+        serialization_alias="dockerImage",
+        default=None,
+        max_length=512,
+    )
+    entity_name: str | None = Field(
+        validation_alias="entityName", serialization_alias="entityName", default=None
+    )
     framework: str | None = None
     icon: ProjectIconInput | None = None
     id: str | None = None
-    is_benchmark: bool | None = Field(alias="isBenchmark", default=None)
-    is_published: bool | None = Field(alias="isPublished", default=None)
+    is_benchmark: bool | None = Field(
+        validation_alias="isBenchmark", serialization_alias="isBenchmark", default=None
+    )
+    is_published: bool | None = Field(
+        validation_alias="isPublished", serialization_alias="isPublished", default=None
+    )
     name: str | None = Field(default=None, max_length=128)
     owner: GQLId | None = None
-    rate_limits: RateLimitsInput | None = Field(alias="rateLimits", default=None)
+    rate_limits: RateLimitsInput | None = Field(
+        validation_alias="rateLimits", serialization_alias="rateLimits", default=None
+    )
     repo: str | None = Field(default=None, max_length=256)
     views: str | None = None
 
