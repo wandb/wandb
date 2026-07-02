@@ -1084,6 +1084,7 @@ class Api:
         per_page: int = 50,
         include_sweeps: bool = False,
         lazy: bool = True,
+        on_missing: Literal["raise", "skip"] = "raise",
     ):
         """Returns a `Runs` object, which lazily iterates over `Run` objects.
 
@@ -1137,6 +1138,15 @@ class Api:
                 When True (default), only essential run metadata is loaded initially.
                 Heavy fields like config, summaryMetrics, and systemMetrics are loaded
                 on-demand when accessed. Set to False for full data upfront.
+            on_missing: (str) What to do when a run in the collection can no
+                longer be found on the server, e.g. because it was deleted
+                after the run listing was fetched but before its full data was
+                loaded. `"raise"` (default) raises a `ValueError`. `"skip"`
+                emits a warning, marks the run's state as `"deleted"`, and
+                returns empty values for its unloaded fields (such as
+                `config`), so iteration continues uninterrupted. Runs deleted
+                mid-iteration can then be filtered with
+                `run.state == "deleted"`.
 
         Returns:
             A `Runs` object, which is an iterable collection of `Run` objects.
@@ -1208,6 +1218,7 @@ class Api:
             include_sweeps=include_sweeps,
             lazy=lazy,
             api_key=self.api_key,
+            on_missing=on_missing,
         )
         return self._runs[key]
 

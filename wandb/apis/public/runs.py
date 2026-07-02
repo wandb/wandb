@@ -125,6 +125,15 @@ LIGHTWEIGHT_RUN_FRAGMENT = """fragment LightweightRunFragment on Run {
 # Fragment name constants to avoid string parsing
 RUN_FRAGMENT_NAME = "RunFragment"
 LIGHTWEIGHT_RUN_FRAGMENT_NAME = "LightweightRunFragment"
+_ON_MISSING_VALUES = ("raise", "skip")
+
+
+def _validate_on_missing(on_missing: str) -> None:
+    if on_missing not in _ON_MISSING_VALUES:
+        raise ValueError(
+            f"Invalid on_missing value: {on_missing!r}. "
+            f"Must be one of {_ON_MISSING_VALUES}."
+        )
 
 
 def _create_runs_query(*, lazy: bool) -> str:
@@ -200,6 +209,13 @@ class Runs(SizedPaginator["Run"]):
         per_page: The number of runs to fetch per request (default is 50).
         include_sweeps: Whether to include sweep information in the runs.
             Defaults to True.
+        lazy: Whether to defer loading heavy fields (config, summaryMetrics,
+            systemMetrics) until they are accessed. Defaults to True.
+        on_missing: What to do when a run in this collection can no longer be
+            found on the server (e.g. it was deleted while iterating).
+            `"raise"` (default) raises a `ValueError`; `"skip"` emits a
+            warning, marks the run's state as `"missing"`, and returns empty
+            values for its unloaded fields.
     """
 
     def __init__(
@@ -213,9 +229,11 @@ class Runs(SizedPaginator["Run"]):
         include_sweeps: bool = False,
         lazy: bool = True,
         api_key: str | None = None,
+        on_missing: Literal["raise", "skip"] = "raise",
     ):
         if not order:
             order = "+created_at"
+        _validate_on_missing(on_missing)
 
         self.QUERY = _create_runs_query(lazy=lazy)
 
@@ -227,6 +245,7 @@ class Runs(SizedPaginator["Run"]):
         self._sweeps: dict[str, public.Sweep] = {}
         self._include_sweeps = include_sweeps
         self._lazy = lazy
+        self._on_missing = on_missing
         self._service_api = service_api
         self._api_key = api_key
         variables = {
@@ -313,6 +332,7 @@ class Runs(SizedPaginator["Run"]):
                 include_sweeps=self._include_sweeps,
                 lazy=self._lazy,
                 api_key=self._api_key,
+                on_missing=self._on_missing,
             )
             objs.append(run)
 
@@ -603,6 +623,11 @@ class Run(Attrs):
         run_id: The unique identifier for the run.
         attrs: The attributes of the run.
         include_sweeps: Whether to include sweeps in the run.
+        on_missing: What to do when the run can no longer be found on the
+            server (e.g. it was deleted while this object was held).
+            `"raise"` (default) raises a `ValueError`; `"skip"` emits a
+            warning, marks the run's state as `"missing"`, and returns empty
+            values for its unloaded fields.
 
     Attributes:
         tags ([str]): a list of tags associated with the run
@@ -636,12 +661,14 @@ class Run(Attrs):
         include_sweeps: bool = False,
         lazy: bool = True,
         api_key: str | None = None,
+        on_missing: Literal["raise", "skip"] = "raise",
     ):
         """Initialize a Run object.
 
         Run is always initialized by calling api.runs() where api is an instance of
         wandb.Api.
         """
+        _validate_on_missing(on_missing)
         _attrs = attrs or {}
         super().__init__(dict(_attrs))
         self._entity = entity
@@ -652,6 +679,7 @@ class Run(Attrs):
         self._sweep: public.Sweep | None = None
         self._include_sweeps = include_sweeps
         self._lazy = lazy
+        self._on_missing = on_missing
         self._full_data_loaded = False  # Track if we've loaded full data
         self.dir = os.path.join(self._base_dir, *self.path)
         try:
@@ -685,6 +713,7 @@ class Run(Attrs):
         | Killed   | Run was forcibly stopped before it could finish. |
         | Running  | Run is still running and has recently sent a heartbeat. |
         | Pending  | Run is scheduled but not yet started (common in sweeps and Launch jobs). |
+        | Missing  | Run can no longer be found on the server after this object was fetched. Only reported when using `on_missing="skip"`. |
         """
         return self._state
 
@@ -809,6 +838,8 @@ class Run(Attrs):
                 or response.get("project") is None
                 or response["project"].get("run") is None
             ):
+                if self._on_missing == "skip":
+                    return self._mark_missing()
                 raise ValueError("Could not find run {}".format(self))
             self._attrs = response["project"]["run"]
 
@@ -835,6 +866,21 @@ class Run(Attrs):
             if fragment_name == LIGHTWEIGHT_RUN_FRAGMENT_NAME:
                 self._is_loaded = True
 
+        return self._attrs
+
+    def _mark_missing(self) -> dict[str, Any]:
+        """Mark this run as missing, filling its fields with empty values.
+
+        This can happen when the run was deleted after it was listed.
+        """
+        self._state = "missing"
+        self._attrs["state"] = "missing"
+        self._attrs.setdefault("config", {})
+        self._attrs.setdefault("rawconfig", {})
+        self._attrs.setdefault("summaryMetrics", {})
+        self._attrs.setdefault("systemMetrics", {})
+        self._is_loaded = True
+        self._full_data_loaded = True
         return self._attrs
 
     def _load_from_attrs(self) -> dict[str, Any]:
