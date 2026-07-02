@@ -1312,10 +1312,12 @@ def stopwatch_now() -> float:
     return time.monotonic()
 
 
-def class_colors(class_count: int) -> list[list[int]]:
+def class_colors(
+    class_count: int,
+) -> list[list[int] | tuple[float, float, float]]:
     # make class 0 black, and the rest equally spaced fully saturated hues
     return [[0, 0, 0]] + [
-        colorsys.hsv_to_rgb(i / (class_count - 1.0), 1.0, 1.0)  # type: ignore
+        colorsys.hsv_to_rgb(i / (class_count - 1.0), 1.0, 1.0)
         for i in range(class_count - 1)
     ]
 
