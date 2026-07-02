@@ -670,7 +670,10 @@ func (nc *Connection) handleSyncStatus(
 func (nc *Connection) handleApiInit(id string, request *spb.ServerApiInitRequest) {
 	s := settings.From(request.GetSettings())
 
-	telemetryProxy := analytics.NewOpenTelemetryProxy(s.GetBaseURL())
+	telemetryProxy := analytics.NewOpenTelemetryProxy(
+		s.GetBaseURL(),
+		s.GetAPIKey(),
+	)
 	if err := telemetryProxy.Start(context.Background()); err != nil {
 		slog.Error("connection: failed to start telemetry proxy", "error", err)
 	}
