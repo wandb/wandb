@@ -68,7 +68,6 @@ from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 if TYPE_CHECKING:
     import pandas as pd
     import polars as pl
-    from typing_extensions import Self
 
     from wandb.apis.public.summary import HTTPSummary
 
@@ -661,7 +660,7 @@ class Run(Attrs):
             pass
         self._summary = None
         self._metadata: dict[str, Any] | None = None
-        self._state = _attrs.get("state", "not found")
+        self._state: str = _attrs.get("state", "not found")
         self.server_provides_internal_id_field: bool | None = None
         self._is_loaded: bool = False
         self._service_api = service_api
@@ -706,12 +705,12 @@ class Run(Attrs):
         # For compatibility with wandb.Run, which has storage IDs
         # in self.storage_id and names in self.id.
 
-        return self._attrs.get("id")
+        return self._attrs["id"]
 
     @property
     def id(self) -> str:
         """The unique identifier for the run."""
-        return self._attrs.get("name")
+        return self._attrs["name"]
 
     @id.setter
     def id(self, new_id: str) -> None:
@@ -736,7 +735,7 @@ class Run(Attrs):
         project: str | None = None,
         entity: str | None = None,
         state: Literal["running", "pending"] = "running",
-    ) -> Self:
+    ) -> Run:
         """Create a run for the given project.
 
         For most use cases, use `wandb.init()`. `wandb.init()` provides more robust
@@ -842,7 +841,7 @@ class Run(Attrs):
         # Snapshot before mutating: only persist config/rawconfig when the response
         # included a config field (lazy runs omit it until load_full_data()).
         had_config_field = "config" in self._attrs
-        self._state = self._attrs.get("state", None)
+        self._state = self._attrs.get("state", self._state)
 
         # Only convert fields if they exist in _attrs
         if had_config_field:
