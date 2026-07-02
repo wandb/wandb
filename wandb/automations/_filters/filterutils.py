@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from functools import singledispatch
+from typing import cast
 
 from .expressions import FilterExpr, MongoLikeFilter
 from .operators import (
@@ -61,9 +62,9 @@ def _(op: BaseVariadicLogicalOp) -> MongoLikeFilter:  # type: ignore[misc]
     if len(exprs := [simplify_expr(x) for x in flatten_inner(op, cls)]) == 1:
         return exprs[0]  # Unnest single inner expressions.
     # cls is always one of And/Or/Nor — concrete subclasses of BaseVariadicLogicalOp
-    # that *are* in the MongoLikeFilter union, but mypy can't see this through the
-    # abstract `type(op)` capture.
-    return cls(exprs=exprs)  # type: ignore[return-value]
+    # that *are* in the MongoLikeFilter union, but type checkers can't see this
+    # through the abstract `type(op)` capture.
+    return cast(MongoLikeFilter, cls(exprs=exprs))
 
 
 @simplify_expr.register
