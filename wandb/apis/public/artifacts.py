@@ -569,14 +569,14 @@ class ArtifactCollection:
     @property
     def aliases(self) -> list[str]:
         """The aliases for all artifact versions contained in this collection."""
-        if self._saved.aliases is None:
-            aliases = list(
+        if (aliases := self._saved.aliases) is None:
+            aliases = tuple(
                 _ArtifactCollectionAliases(self._service_api, collection_id=self.id)
             )
             self._saved = self._saved.model_copy(update={"aliases": aliases})
             self._current = self._current.model_copy(update={"aliases": aliases})
 
-        return list(self._saved.aliases)
+        return list(aliases)
 
     @property
     def created_at(self) -> str:

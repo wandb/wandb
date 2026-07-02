@@ -246,7 +246,7 @@ class BetaReport(Attrs):
 
     @property
     def id(self) -> str:
-        return self._attrs.get("id")
+        return self._attrs["id"]
 
     @property
     def name(self) -> str | None:

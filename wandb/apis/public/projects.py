@@ -88,7 +88,7 @@ class Projects(RelayPaginator["ProjectFragment", "Project"]):
         service_api: ServiceApi,
         entity: str,
         per_page: int = 50,
-    ) -> Projects:
+    ) -> None:
         """An iterable collection of `Project` objects.
 
         Args:
@@ -156,7 +156,7 @@ class Project(Attrs):
         entity: str,
         project: str,
         attrs: Mapping[str, Any],
-    ) -> Project:
+    ) -> None:
         """A single project associated with an entity.
 
         Args:

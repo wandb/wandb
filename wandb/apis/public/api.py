@@ -1796,7 +1796,7 @@ class Api:
 
             return [x["node"]["artifacts"] for x in artifacts]
         except WandbApiFailedError:
-            return False
+            return []
 
     @normalize_exceptions
     def artifact_exists(self, name: str, type: str | None = None) -> bool:
