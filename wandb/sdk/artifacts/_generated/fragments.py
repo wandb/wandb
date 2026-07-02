@@ -38,8 +38,12 @@ class ArtifactCollectionFragment(GQLResult):
     id: GQLId
     name: str
     description: str | None
-    created_at: str = Field(alias="createdAt")
-    updated_at: str | None = Field(alias="updatedAt")
+    created_at: str = Field(
+        validation_alias="createdAt", serialization_alias="createdAt"
+    )
+    updated_at: str | None = Field(
+        validation_alias="updatedAt", serialization_alias="updatedAt"
+    )
     project: ProjectInfoFragment | None
     type: ArtifactCollectionFragmentType
     tags: ArtifactCollectionFragmentTags
@@ -72,22 +76,42 @@ class SourceCollectionInfoFragment(GQLResult):
 class ArtifactFragment(GQLResult):
     typename__: Typename[Literal["Artifact"]] = "Artifact"
     id: GQLId
-    artifact_sequence: SourceCollectionInfoFragment = Field(alias="artifactSequence")
-    version_index: int | None = Field(alias="versionIndex")
-    artifact_type: ArtifactFragmentArtifactType = Field(alias="artifactType")
+    artifact_sequence: SourceCollectionInfoFragment = Field(
+        validation_alias="artifactSequence", serialization_alias="artifactSequence"
+    )
+    version_index: int | None = Field(
+        validation_alias="versionIndex", serialization_alias="versionIndex"
+    )
+    artifact_type: ArtifactFragmentArtifactType = Field(
+        validation_alias="artifactType", serialization_alias="artifactType"
+    )
     description: str | None
     metadata: str | None
-    ttl_duration_seconds: int = Field(alias="ttlDurationSeconds")
-    ttl_is_inherited: bool = Field(alias="ttlIsInherited")
+    ttl_duration_seconds: int = Field(
+        validation_alias="ttlDurationSeconds", serialization_alias="ttlDurationSeconds"
+    )
+    ttl_is_inherited: bool = Field(
+        validation_alias="ttlIsInherited", serialization_alias="ttlIsInherited"
+    )
     tags: list[TagFragment]
-    history_step: int | None = Field(alias="historyStep")
+    history_step: int | None = Field(
+        validation_alias="historyStep", serialization_alias="historyStep"
+    )
     state: ArtifactState
     size: int
     digest: str
-    commit_hash: str | None = Field(alias="commitHash")
-    file_count: int = Field(alias="fileCount")
-    created_at: str = Field(alias="createdAt")
-    updated_at: str | None = Field(alias="updatedAt")
+    commit_hash: str | None = Field(
+        validation_alias="commitHash", serialization_alias="commitHash"
+    )
+    file_count: int = Field(
+        validation_alias="fileCount", serialization_alias="fileCount"
+    )
+    created_at: str = Field(
+        validation_alias="createdAt", serialization_alias="createdAt"
+    )
+    updated_at: str | None = Field(
+        validation_alias="updatedAt", serialization_alias="updatedAt"
+    )
     aliases: list[ArtifactFragmentAliases] | None = None
 
 
@@ -97,7 +121,7 @@ class ArtifactFragmentArtifactType(GQLResult):
 
 class ArtifactFragmentAliases(ArtifactAliasFragment):
     artifact_collection: CollectionInfoFragment | None = Field(
-        alias="artifactCollection"
+        validation_alias="artifactCollection", serialization_alias="artifactCollection"
     )
 
 
@@ -106,10 +130,12 @@ class ArtifactMembershipFragment(GQLResult):
         "ArtifactCollectionMembership"
     )
     id: GQLId
-    version_index: int | None = Field(alias="versionIndex")
+    version_index: int | None = Field(
+        validation_alias="versionIndex", serialization_alias="versionIndex"
+    )
     aliases: list[ArtifactAliasFragment]
     artifact_collection: CollectionInfoFragment | None = Field(
-        alias="artifactCollection"
+        validation_alias="artifactCollection", serialization_alias="artifactCollection"
     )
     artifact: ArtifactFragment | None
 
@@ -131,7 +157,9 @@ class ArtifactTypeFragment(GQLResult):
     id: GQLId
     name: str
     description: str | None
-    created_at: str = Field(alias="createdAt")
+    created_at: str = Field(
+        validation_alias="createdAt", serialization_alias="createdAt"
+    )
 
 
 class DeferredManifestFragment(GQLResult):
@@ -139,7 +167,9 @@ class DeferredManifestFragment(GQLResult):
 
 
 class DeferredManifestFragmentFile(GQLResult):
-    direct_url: str = Field(alias="directUrl")
+    direct_url: str = Field(
+        validation_alias="directUrl", serialization_alias="directUrl"
+    )
 
 
 class FileFragment(GQLResult):
@@ -147,24 +177,36 @@ class FileFragment(GQLResult):
     id: GQLId
     name: str
     url: str | None
-    size_bytes: int = Field(alias="sizeBytes")
-    storage_path: str | None = Field(alias="storagePath")
+    size_bytes: int = Field(
+        validation_alias="sizeBytes", serialization_alias="sizeBytes"
+    )
+    storage_path: str | None = Field(
+        validation_alias="storagePath", serialization_alias="storagePath"
+    )
     mimetype: str | None
-    updated_at: str | None = Field(alias="updatedAt")
+    updated_at: str | None = Field(
+        validation_alias="updatedAt", serialization_alias="updatedAt"
+    )
     digest: str | None
-    md_5: str | None = Field(alias="md5")
-    direct_url: str = Field(alias="directUrl")
+    md_5: str | None = Field(validation_alias="md5", serialization_alias="md5")
+    direct_url: str = Field(
+        validation_alias="directUrl", serialization_alias="directUrl"
+    )
 
 
 class FileWithUrlFragment(GQLResult):
     typename__: Typename[Literal["File"]] = "File"
     name: str
-    direct_url: str = Field(alias="directUrl")
+    direct_url: str = Field(
+        validation_alias="directUrl", serialization_alias="directUrl"
+    )
 
 
 class OrgInfoFragment(GQLResult):
     name: str
-    org_entity: OrgInfoFragmentOrgEntity | None = Field(alias="orgEntity")
+    org_entity: OrgInfoFragmentOrgEntity | None = Field(
+        validation_alias="orgEntity", serialization_alias="orgEntity"
+    )
 
 
 class OrgInfoFragmentOrgEntity(GQLResult):
@@ -173,8 +215,12 @@ class OrgInfoFragmentOrgEntity(GQLResult):
 
 class PageInfoFragment(GQLResult):
     typename__: Typename[Literal["PageInfo"]] = "PageInfo"
-    end_cursor: str | None = Field(alias="endCursor")
-    has_next_page: bool = Field(alias="hasNextPage")
+    end_cursor: str | None = Field(
+        validation_alias="endCursor", serialization_alias="endCursor"
+    )
+    has_next_page: bool = Field(
+        validation_alias="hasNextPage", serialization_alias="hasNextPage"
+    )
 
 
 class RegistryCollectionFragment(GQLResult):
@@ -182,8 +228,12 @@ class RegistryCollectionFragment(GQLResult):
     id: GQLId
     name: str
     description: str | None
-    created_at: str = Field(alias="createdAt")
-    updated_at: str | None = Field(alias="updatedAt")
+    created_at: str = Field(
+        validation_alias="createdAt", serialization_alias="createdAt"
+    )
+    updated_at: str | None = Field(
+        validation_alias="updatedAt", serialization_alias="updatedAt"
+    )
     project: ProjectInfoFragment | None
     type: RegistryCollectionFragmentType
     tags: RegistryCollectionFragmentTags
@@ -207,11 +257,20 @@ class RegistryFragment(GQLResult):
     name: str
     entity: RegistryFragmentEntity
     description: str | None
-    created_at: str = Field(alias="createdAt")
-    updated_at: str | None = Field(alias="updatedAt")
+    created_at: str = Field(
+        validation_alias="createdAt", serialization_alias="createdAt"
+    )
+    updated_at: str | None = Field(
+        validation_alias="updatedAt", serialization_alias="updatedAt"
+    )
     access: str | None
-    allow_all_artifact_types: bool = Field(alias="allowAllArtifactTypes")
-    artifact_types: RegistryFragmentArtifactTypes = Field(alias="artifactTypes")
+    allow_all_artifact_types: bool = Field(
+        validation_alias="allowAllArtifactTypes",
+        serialization_alias="allowAllArtifactTypes",
+    )
+    artifact_types: RegistryFragmentArtifactTypes = Field(
+        validation_alias="artifactTypes", serialization_alias="artifactTypes"
+    )
 
 
 class RegistryFragmentEntity(GQLResult):
@@ -254,9 +313,13 @@ class TeamMemberFragment(GQLResult):
     email: str | None
     username: str | None
     name: str
-    photo_url: str | None = Field(alias="photoUrl")
-    account_type: str | None = Field(alias="accountType")
-    api_key: str | None = Field(alias="apiKey")
+    photo_url: str | None = Field(
+        validation_alias="photoUrl", serialization_alias="photoUrl"
+    )
+    account_type: str | None = Field(
+        validation_alias="accountType", serialization_alias="accountType"
+    )
+    api_key: str | None = Field(validation_alias="apiKey", serialization_alias="apiKey")
 
 
 class TeamFragment(GQLResult):
@@ -264,15 +327,31 @@ class TeamFragment(GQLResult):
     id: GQLId
     name: str
     available: bool | None
-    photo_url: str | None = Field(alias="photoUrl")
-    read_only: bool | None = Field(alias="readOnly")
-    read_only_admin: bool = Field(alias="readOnlyAdmin")
-    is_team: bool = Field(alias="isTeam")
-    private_only: bool = Field(alias="privateOnly")
-    storage_bytes: int = Field(alias="storageBytes")
-    code_saving_enabled: bool = Field(alias="codeSavingEnabled")
-    default_access: str = Field(alias="defaultAccess")
-    is_paid: bool | None = Field(alias="isPaid")
+    photo_url: str | None = Field(
+        validation_alias="photoUrl", serialization_alias="photoUrl"
+    )
+    read_only: bool | None = Field(
+        validation_alias="readOnly", serialization_alias="readOnly"
+    )
+    read_only_admin: bool = Field(
+        validation_alias="readOnlyAdmin", serialization_alias="readOnlyAdmin"
+    )
+    is_team: bool = Field(validation_alias="isTeam", serialization_alias="isTeam")
+    private_only: bool = Field(
+        validation_alias="privateOnly", serialization_alias="privateOnly"
+    )
+    storage_bytes: int = Field(
+        validation_alias="storageBytes", serialization_alias="storageBytes"
+    )
+    code_saving_enabled: bool = Field(
+        validation_alias="codeSavingEnabled", serialization_alias="codeSavingEnabled"
+    )
+    default_access: str = Field(
+        validation_alias="defaultAccess", serialization_alias="defaultAccess"
+    )
+    is_paid: bool | None = Field(
+        validation_alias="isPaid", serialization_alias="isPaid"
+    )
     members: list[TeamMemberFragment]
 
 

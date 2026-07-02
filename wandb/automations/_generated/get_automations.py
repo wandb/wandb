@@ -19,7 +19,9 @@ class GetAutomationsScope(GQLResult):
 
 
 class GetAutomationsScopeProjects(GQLResult):
-    page_info: PageInfoFields = Field(alias="pageInfo")
+    page_info: PageInfoFields = Field(
+        validation_alias="pageInfo", serialization_alias="pageInfo"
+    )
     edges: list[GetAutomationsScopeProjectsEdges]
 
 

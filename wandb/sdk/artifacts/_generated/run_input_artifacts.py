@@ -23,8 +23,12 @@ class RunInputArtifactsProjectRun(GQLResult):
 
 
 class RunInputArtifactsProjectRunArtifacts(GQLResult):
-    total_count: int = Field(alias="totalCount")
-    page_info: PageInfoFragment = Field(alias="pageInfo")
+    total_count: int = Field(
+        validation_alias="totalCount", serialization_alias="totalCount"
+    )
+    page_info: PageInfoFragment = Field(
+        validation_alias="pageInfo", serialization_alias="pageInfo"
+    )
     edges: list[RunInputArtifactsProjectRunArtifactsEdges]
 
 

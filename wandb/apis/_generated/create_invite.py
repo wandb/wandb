@@ -20,8 +20,12 @@ class CreateInviteResultInvite(GQLResult):
     id: GQLId
     name: str
     email: str | None
-    created_at: str | None = Field(alias="createdAt")
-    to_user: CreateInviteResultInviteToUser | None = Field(alias="toUser")
+    created_at: str | None = Field(
+        validation_alias="createdAt", serialization_alias="createdAt"
+    )
+    to_user: CreateInviteResultInviteToUser | None = Field(
+        validation_alias="toUser", serialization_alias="toUser"
+    )
 
 
 class CreateInviteResultInviteToUser(GQLResult):

@@ -15,7 +15,10 @@ from .fragments import WebhookIntegrationFields
 class CreateGenericWebhookIntegration(GQLResult):
     create_generic_webhook_integration: (
         CreateGenericWebhookIntegrationCreateGenericWebhookIntegration | None
-    ) = Field(alias="createGenericWebhookIntegration")
+    ) = Field(
+        validation_alias="createGenericWebhookIntegration",
+        serialization_alias="createGenericWebhookIntegration",
+    )
 
 
 class CreateGenericWebhookIntegrationCreateGenericWebhookIntegration(GQLResult):

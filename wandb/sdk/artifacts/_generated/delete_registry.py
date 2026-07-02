@@ -9,7 +9,9 @@ from wandb._pydantic import GQLResult
 
 
 class DeleteRegistry(GQLResult):
-    delete_model: DeleteRegistryDeleteModel | None = Field(alias="deleteModel")
+    delete_model: DeleteRegistryDeleteModel | None = Field(
+        validation_alias="deleteModel", serialization_alias="deleteModel"
+    )
 
 
 class DeleteRegistryDeleteModel(GQLResult):

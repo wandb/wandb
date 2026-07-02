@@ -15,7 +15,9 @@ class ProjectArtifactType(GQLResult):
 
 
 class ProjectArtifactTypeProject(GQLResult):
-    artifact_type: ArtifactTypeFragment | None = Field(alias="artifactType")
+    artifact_type: ArtifactTypeFragment | None = Field(
+        validation_alias="artifactType", serialization_alias="artifactType"
+    )
 
 
 ProjectArtifactType.model_rebuild()

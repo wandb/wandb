@@ -11,7 +11,9 @@ from .fragments import RegistryFragment
 
 
 class RenameRegistry(GQLResult):
-    rename_project: RenameRegistryRenameProject | None = Field(alias="renameProject")
+    rename_project: RenameRegistryRenameProject | None = Field(
+        validation_alias="renameProject", serialization_alias="renameProject"
+    )
 
 
 class RenameRegistryRenameProject(GQLResult):

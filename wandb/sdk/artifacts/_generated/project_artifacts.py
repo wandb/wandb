@@ -18,14 +18,16 @@ class ProjectArtifacts(GQLResult):
 
 class ProjectArtifactsProject(GQLResult):
     artifact_type: ProjectArtifactsProjectArtifactType | None = Field(
-        alias="artifactType"
+        validation_alias="artifactType", serialization_alias="artifactType"
     )
 
 
 class ProjectArtifactsProjectArtifactType(GQLResult):
     artifact_collection: (
         ProjectArtifactsProjectArtifactTypeArtifactCollection | None
-    ) = Field(alias="artifactCollection")
+    ) = Field(
+        validation_alias="artifactCollection", serialization_alias="artifactCollection"
+    )
 
 
 class ProjectArtifactsProjectArtifactTypeArtifactCollection(GQLResult):
@@ -36,8 +38,12 @@ class ProjectArtifactsProjectArtifactTypeArtifactCollection(GQLResult):
 
 
 class ProjectArtifactsProjectArtifactTypeArtifactCollectionArtifacts(GQLResult):
-    total_count: int = Field(alias="totalCount")
-    page_info: PageInfoFragment = Field(alias="pageInfo")
+    total_count: int = Field(
+        validation_alias="totalCount", serialization_alias="totalCount"
+    )
+    page_info: PageInfoFragment = Field(
+        validation_alias="pageInfo", serialization_alias="pageInfo"
+    )
     edges: list[ProjectArtifactsProjectArtifactTypeArtifactCollectionArtifactsEdges]
 
 

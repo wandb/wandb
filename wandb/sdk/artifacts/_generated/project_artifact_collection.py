@@ -16,13 +16,13 @@ class ProjectArtifactCollection(GQLResult):
 
 class ProjectArtifactCollectionProject(GQLResult):
     artifact_type: ProjectArtifactCollectionProjectArtifactType | None = Field(
-        alias="artifactType"
+        validation_alias="artifactType", serialization_alias="artifactType"
     )
 
 
 class ProjectArtifactCollectionProjectArtifactType(GQLResult):
     artifact_collection: ArtifactCollectionFragment | None = Field(
-        alias="artifactCollection"
+        validation_alias="artifactCollection", serialization_alias="artifactCollection"
     )
 
 

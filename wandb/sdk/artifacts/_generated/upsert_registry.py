@@ -11,7 +11,9 @@ from .fragments import RegistryFragment
 
 
 class UpsertRegistry(GQLResult):
-    upsert_model: UpsertRegistryUpsertModel | None = Field(alias="upsertModel")
+    upsert_model: UpsertRegistryUpsertModel | None = Field(
+        validation_alias="upsertModel", serialization_alias="upsertModel"
+    )
 
 
 class UpsertRegistryUpsertModel(GQLResult):

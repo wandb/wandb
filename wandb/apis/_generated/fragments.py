@@ -15,9 +15,15 @@ class AgentFragment(GQLResult):
     name: str
     host: str
     state: str | None
-    total_runs: int = Field(alias="totalRuns")
-    created_at: str = Field(alias="createdAt")
-    heartbeat_at: str | None = Field(alias="heartbeatAt")
+    total_runs: int = Field(
+        validation_alias="totalRuns", serialization_alias="totalRuns"
+    )
+    created_at: str = Field(
+        validation_alias="createdAt", serialization_alias="createdAt"
+    )
+    heartbeat_at: str | None = Field(
+        validation_alias="heartbeatAt", serialization_alias="heartbeatAt"
+    )
 
 
 class ApiKeyFragment(GQLResult):
@@ -29,7 +35,9 @@ class ApiKeyFragment(GQLResult):
 class CreatedProjectFragment(GQLResult):
     id: GQLId
     name: str
-    entity_name: str = Field(alias="entityName")
+    entity_name: str = Field(
+        validation_alias="entityName", serialization_alias="entityName"
+    )
     description: str | None
     access: str | None
     views: str | None
@@ -40,7 +48,9 @@ class LegacySweepFragment(GQLResult):
     id: GQLId
     name: str
     state: str
-    best_loss: float | None = Field(alias="bestLoss")
+    best_loss: float | None = Field(
+        validation_alias="bestLoss", serialization_alias="bestLoss"
+    )
     config: str
 
 
@@ -48,18 +58,32 @@ class LightweightRunFragment(GQLResult):
     id: GQLId
     tags: list[str] | None
     name: str
-    display_name: str | None = Field(alias="displayName")
-    sweep_name: str | None = Field(alias="sweepName")
+    display_name: str | None = Field(
+        validation_alias="displayName", serialization_alias="displayName"
+    )
+    sweep_name: str | None = Field(
+        validation_alias="sweepName", serialization_alias="sweepName"
+    )
     state: str | None
     group: str | None
-    job_type: str | None = Field(alias="jobType")
+    job_type: str | None = Field(
+        validation_alias="jobType", serialization_alias="jobType"
+    )
     commit: str | None
-    read_only: bool | None = Field(alias="readOnly")
-    created_at: str = Field(alias="createdAt")
-    heartbeat_at: str | None = Field(alias="heartbeatAt")
+    read_only: bool | None = Field(
+        validation_alias="readOnly", serialization_alias="readOnly"
+    )
+    created_at: str = Field(
+        validation_alias="createdAt", serialization_alias="createdAt"
+    )
+    heartbeat_at: str | None = Field(
+        validation_alias="heartbeatAt", serialization_alias="heartbeatAt"
+    )
     description: str | None
     notes: str | None
-    history_line_count: int | None = Field(alias="historyLineCount")
+    history_line_count: int | None = Field(
+        validation_alias="historyLineCount", serialization_alias="historyLineCount"
+    )
     user: LightweightRunFragmentUser | None
 
 
@@ -70,8 +94,12 @@ class LightweightRunFragmentUser(GQLResult):
 
 class PageInfoFragment(GQLResult):
     typename__: Typename[Literal["PageInfo"]] = "PageInfo"
-    end_cursor: str | None = Field(alias="endCursor")
-    has_next_page: bool = Field(alias="hasNextPage")
+    end_cursor: str | None = Field(
+        validation_alias="endCursor", serialization_alias="endCursor"
+    )
+    has_next_page: bool = Field(
+        validation_alias="hasNextPage", serialization_alias="hasNextPage"
+    )
 
 
 class UserFragment(GQLResult):
@@ -82,8 +110,12 @@ class UserFragment(GQLResult):
     admin: bool | None
     flags: str | None
     entity: str | None
-    deleted_at: str | None = Field(alias="deletedAt")
-    api_keys: UserFragmentApiKeys | None = Field(alias="apiKeys")
+    deleted_at: str | None = Field(
+        validation_alias="deletedAt", serialization_alias="deletedAt"
+    )
+    api_keys: UserFragmentApiKeys | None = Field(
+        validation_alias="apiKeys", serialization_alias="apiKeys"
+    )
     teams: UserFragmentTeams | None
 
 
@@ -111,9 +143,15 @@ class ProjectFragment(GQLResult):
     typename__: Typename[Literal["Project"]] = "Project"
     id: GQLId
     name: str
-    entity_name: str = Field(alias="entityName")
-    created_at: str = Field(alias="createdAt")
-    is_benchmark: bool = Field(alias="isBenchmark")
+    entity_name: str = Field(
+        validation_alias="entityName", serialization_alias="entityName"
+    )
+    created_at: str = Field(
+        validation_alias="createdAt", serialization_alias="createdAt"
+    )
+    is_benchmark: bool = Field(
+        validation_alias="isBenchmark", serialization_alias="isBenchmark"
+    )
     user: UserFragment | None
 
 
@@ -121,16 +159,26 @@ class SweepFragment(GQLResult):
     typename__: Typename[Literal["Sweep"]] = "Sweep"
     id: GQLId
     name: str
-    display_name: str | None = Field(alias="displayName")
+    display_name: str | None = Field(
+        validation_alias="displayName", serialization_alias="displayName"
+    )
     method: str
     state: str
     description: str | None
-    best_loss: float | None = Field(alias="bestLoss")
+    best_loss: float | None = Field(
+        validation_alias="bestLoss", serialization_alias="bestLoss"
+    )
     config: str
-    created_at: str = Field(alias="createdAt")
-    updated_at: str | None = Field(alias="updatedAt")
-    run_count: int = Field(alias="runCount")
-    run_count_expected: int | None = Field(alias="runCountExpected")
+    created_at: str = Field(
+        validation_alias="createdAt", serialization_alias="createdAt"
+    )
+    updated_at: str | None = Field(
+        validation_alias="updatedAt", serialization_alias="updatedAt"
+    )
+    run_count: int = Field(validation_alias="runCount", serialization_alias="runCount")
+    run_count_expected: int | None = Field(
+        validation_alias="runCountExpected", serialization_alias="runCountExpected"
+    )
 
 
 class UserInfoFragment(GQLResult):

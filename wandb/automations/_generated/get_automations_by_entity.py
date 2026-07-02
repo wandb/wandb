@@ -19,7 +19,9 @@ class GetAutomationsByEntityScope(GQLResult):
 
 
 class GetAutomationsByEntityScopeProjects(GQLResult):
-    page_info: PageInfoFields = Field(alias="pageInfo")
+    page_info: PageInfoFields = Field(
+        validation_alias="pageInfo", serialization_alias="pageInfo"
+    )
     edges: list[GetAutomationsByEntityScopeProjectsEdges]
 
 

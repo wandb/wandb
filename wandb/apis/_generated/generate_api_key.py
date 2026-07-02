@@ -15,7 +15,9 @@ class GenerateApiKey(GQLResult):
 
 
 class GenerateApiKeyResult(GQLResult):
-    api_key: ApiKeyFragment | None = Field(alias="apiKey")
+    api_key: ApiKeyFragment | None = Field(
+        validation_alias="apiKey", serialization_alias="apiKey"
+    )
 
 
 GenerateApiKey.model_rebuild()

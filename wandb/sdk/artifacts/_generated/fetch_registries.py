@@ -15,7 +15,9 @@ class FetchRegistries(GQLResult):
 
 
 class FetchRegistriesOrganization(GQLResult):
-    org_entity: FetchRegistriesOrganizationOrgEntity | None = Field(alias="orgEntity")
+    org_entity: FetchRegistriesOrganizationOrgEntity | None = Field(
+        validation_alias="orgEntity", serialization_alias="orgEntity"
+    )
 
 
 class FetchRegistriesOrganizationOrgEntity(GQLResult):
@@ -23,7 +25,9 @@ class FetchRegistriesOrganizationOrgEntity(GQLResult):
 
 
 class FetchRegistriesOrganizationOrgEntityProjects(GQLResult):
-    page_info: PageInfoFragment = Field(alias="pageInfo")
+    page_info: PageInfoFragment = Field(
+        validation_alias="pageInfo", serialization_alias="pageInfo"
+    )
     edges: list[FetchRegistriesOrganizationOrgEntityProjectsEdges]
 
 

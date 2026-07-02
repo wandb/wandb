@@ -15,7 +15,9 @@ class UpdateArtifactPortfolio(GQLResult):
 
 
 class UpdateArtifactPortfolioResult(GQLResult):
-    artifact_collection: ArtifactCollectionFragment = Field(alias="artifactCollection")
+    artifact_collection: ArtifactCollectionFragment = Field(
+        validation_alias="artifactCollection", serialization_alias="artifactCollection"
+    )
 
 
 UpdateArtifactPortfolio.model_rebuild()

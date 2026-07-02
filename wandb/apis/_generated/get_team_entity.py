@@ -16,15 +16,31 @@ class GetTeamEntityEntity(GQLResult):
     id: GQLId
     name: str
     available: bool | None
-    photo_url: str | None = Field(alias="photoUrl")
-    read_only: bool | None = Field(alias="readOnly")
-    read_only_admin: bool = Field(alias="readOnlyAdmin")
-    is_team: bool = Field(alias="isTeam")
-    private_only: bool = Field(alias="privateOnly")
-    storage_bytes: int = Field(alias="storageBytes")
-    code_saving_enabled: bool = Field(alias="codeSavingEnabled")
-    default_access: str = Field(alias="defaultAccess")
-    is_paid: bool | None = Field(alias="isPaid")
+    photo_url: str | None = Field(
+        validation_alias="photoUrl", serialization_alias="photoUrl"
+    )
+    read_only: bool | None = Field(
+        validation_alias="readOnly", serialization_alias="readOnly"
+    )
+    read_only_admin: bool = Field(
+        validation_alias="readOnlyAdmin", serialization_alias="readOnlyAdmin"
+    )
+    is_team: bool = Field(validation_alias="isTeam", serialization_alias="isTeam")
+    private_only: bool = Field(
+        validation_alias="privateOnly", serialization_alias="privateOnly"
+    )
+    storage_bytes: int = Field(
+        validation_alias="storageBytes", serialization_alias="storageBytes"
+    )
+    code_saving_enabled: bool = Field(
+        validation_alias="codeSavingEnabled", serialization_alias="codeSavingEnabled"
+    )
+    default_access: str = Field(
+        validation_alias="defaultAccess", serialization_alias="defaultAccess"
+    )
+    is_paid: bool | None = Field(
+        validation_alias="isPaid", serialization_alias="isPaid"
+    )
     members: list[GetTeamEntityEntityMembers]
 
 
@@ -35,9 +51,13 @@ class GetTeamEntityEntityMembers(GQLResult):
     email: str | None
     username: str | None
     name: str
-    photo_url: str | None = Field(alias="photoUrl")
-    account_type: str | None = Field(alias="accountType")
-    api_key: str | None = Field(alias="apiKey")
+    photo_url: str | None = Field(
+        validation_alias="photoUrl", serialization_alias="photoUrl"
+    )
+    account_type: str | None = Field(
+        validation_alias="accountType", serialization_alias="accountType"
+    )
+    api_key: str | None = Field(validation_alias="apiKey", serialization_alias="apiKey")
 
 
 GetTeamEntity.model_rebuild()

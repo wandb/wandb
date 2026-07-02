@@ -16,7 +16,7 @@ class RegistryCollections(GQLResult):
 
 class RegistryCollectionsOrganization(GQLResult):
     org_entity: RegistryCollectionsOrganizationOrgEntity | None = Field(
-        alias="orgEntity"
+        validation_alias="orgEntity", serialization_alias="orgEntity"
     )
 
 
@@ -24,12 +24,19 @@ class RegistryCollectionsOrganizationOrgEntity(GQLResult):
     name: str
     artifact_collections: (
         RegistryCollectionsOrganizationOrgEntityArtifactCollections | None
-    ) = Field(alias="artifactCollections")
+    ) = Field(
+        validation_alias="artifactCollections",
+        serialization_alias="artifactCollections",
+    )
 
 
 class RegistryCollectionsOrganizationOrgEntityArtifactCollections(GQLResult):
-    total_count: int = Field(alias="totalCount")
-    page_info: PageInfoFragment = Field(alias="pageInfo")
+    total_count: int = Field(
+        validation_alias="totalCount", serialization_alias="totalCount"
+    )
+    page_info: PageInfoFragment = Field(
+        validation_alias="pageInfo", serialization_alias="pageInfo"
+    )
     edges: list[RegistryCollectionsOrganizationOrgEntityArtifactCollectionsEdges]
 
 

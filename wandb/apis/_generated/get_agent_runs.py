@@ -27,7 +27,9 @@ class GetAgentRunsProjectSweepAgent(GQLResult):
 
 
 class GetAgentRunsProjectSweepAgentRuns(GQLResult):
-    page_info: PageInfoFragment = Field(alias="pageInfo")
+    page_info: PageInfoFragment = Field(
+        validation_alias="pageInfo", serialization_alias="pageInfo"
+    )
     edges: list[GetAgentRunsProjectSweepAgentRunsEdges]
 
 
