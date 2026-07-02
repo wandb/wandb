@@ -394,15 +394,11 @@ class GitRepo:
         return tag_name
 
     def push(self, name: str) -> str | None:
-        if not self.remote:
+        remote = self.remote
+        if not remote:
             return None
         try:
-            return self.run_git(
-                "push",
-                self.remote_name or "origin",
-                f"wandb/{name}",
-                "--force",
-            )
+            return self.run_git("push", remote, f"wandb/{name}", "--force")
         except GitCommandError:
             logger.debug("failed to push git")
             return None

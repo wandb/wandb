@@ -453,9 +453,6 @@ def _fetch_git_repo(dst_dir: str, uri: str, version: str | None) -> str | None:
     checks out commit ``version``. Assumes authentication parameters are
     specified by the environment, e.g. by a Git credential helper.
     """
-    # We defer importing git until the last moment, because the import requires that the git
-    # executable is available on the PATH, so we only want to fail if we actually need it.
-
     _logger.info("Fetching git repo")
     ref = GitReference(uri, version)
     if ref is None:
