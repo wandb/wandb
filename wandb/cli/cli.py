@@ -28,6 +28,7 @@ import wandb.sdk.verify.verify as wandb_verify
 from wandb import Config, Error, env, util, wandb_agent
 from wandb.analytics import get_sentry
 from wandb.apis import InternalApi, PublicApi
+from wandb.cli import beta_sync
 from wandb.errors.links import url_registry
 from wandb.sdk import wandb_setup, wandb_sweep
 from wandb.sdk.artifacts._validators import is_artifact_registry_project
@@ -40,9 +41,10 @@ from wandb.sdk.launch.sweeps import SweepNotFoundError
 from wandb.sdk.launch.sweeps import utils as sweep_utils
 from wandb.sdk.launch.sweeps.scheduler import Scheduler
 from wandb.sdk.lib import filesystem, settings_file
-from wandb.sync import SyncManager, get_run_from_path, get_runs
+from wandb.sync import TFEVENT_SUBSTRING, SyncManager, get_run_from_path, get_runs
 
 from .beta import beta
+from .leet import leet
 
 
 def _get_wandb_dir(root_dir: str | None = None) -> str:
@@ -564,7 +566,7 @@ def init(ctx, project, entity, reset, mode):
     "--view",
     is_flag=True,
     default=False,
-    help="View runs.",
+    help="(legacy only) View runs. Try `wandb leet` instead!",
     hidden=True,
 )
 @click.option(
@@ -573,6 +575,13 @@ def init(ctx, project, entity, reset, mode):
     default=False,
     help="Enable verbose output.",
     hidden=True,
+)
+@click.option(
+    "--yes",
+    "skip_confirmation",
+    is_flag=True,
+    default=False,
+    help="(beta only) Don't prompt for confirmation.",
 )
 @click.option("--id", "run_id", help="Upload to an existing run ID.")
 @click.option("--project", "-p", help="Set the project to upload the run to.")
@@ -586,17 +595,23 @@ def init(ctx, project, entity, reset, mode):
     "--sync-tensorboard/--no-sync-tensorboard",
     is_flag=True,
     default=None,
-    help="""Sync TensorBoard tfevent files.
+    help="""(legacy only) Sync TensorBoard tfevent files.
     On by default for specific paths,
     off for --sync-all.""",
 )
 @click.option(
     "--include-globs",
-    help="Include only runs matching these glob patterns (comma-separated).",
+    help="""
+        (legacy only) Include only runs matching these glob patterns
+        (comma-separated).
+    """,
 )
 @click.option(
     "--exclude-globs",
-    help="Exclude runs matching these glob patterns (comma-separated).",
+    help="""
+        (legacy only) Exclude runs matching these glob patterns
+        (comma-separated).
+    """,
 )
 @click.option(
     "--include-online/--no-include-online",
@@ -608,7 +623,7 @@ def init(ctx, project, entity, reset, mode):
     "--include-offline/--no-include-offline",
     is_flag=True,
     default=None,
-    help="Include runs created in offline mode.",
+    help="""(legacy only) Include runs created in offline mode.""",
 )
 @click.option(
     "--include-synced/--no-include-synced",
@@ -620,19 +635,19 @@ def init(ctx, project, entity, reset, mode):
     "--mark-synced/--no-mark-synced",
     is_flag=True,
     default=True,
-    help="Mark runs as synced after upload.",
+    help="(legacy only) Mark runs as synced after upload.",
 )
 @click.option(
     "--sync-all",
     is_flag=True,
     default=False,
-    help="Sync all unsynced runs in the local wandb directory.",
+    help="(legacy only) Sync all unsynced runs in the local wandb directory.",
 )
 @click.option(
     "--clean",
     is_flag=True,
     default=False,
-    help="Delete local data for runs that are already synced.",
+    help="(legacy only) Delete local data for runs that are already synced.",
 )
 @click.option(
     "--clean-old-hours",
@@ -649,52 +664,68 @@ def init(ctx, project, entity, reset, mode):
 )
 @click.option("--ignore", hidden=True)
 @click.option(
-    "--show", default=5, help="Set the number of runs to show in the summary."
+    "--show",
+    default=5,
+    help="Set the number of runs to show in the summary.",
 )
 @click.option(
     "--append",
     is_flag=True,
     default=False,
-    help="Append data to an existing run instead of creating a new run.",
+    help="""
+        (legacy only) Append data to an existing run instead of creating
+        a new run.
+    """,
 )
 @click.option(
     "--skip-console",
     is_flag=True,
     default=False,
-    help="Skip uploading console logs.",
+    help="(legacy only) Skip uploading console logs.",
 )
 @click.option(
     "--replace-tags",
     help="Rename tags during sync. Use 'old=new' pairs separated by commas.",
 )
+@click.option(
+    "--legacy",
+    is_flag=True,
+    help="Force legacy behavior instead of rerouting to `wandb beta sync`.",
+)
 @display_error
 def sync(
-    ctx,
-    path=None,
-    view=None,
-    verbose=None,
-    run_id=None,
-    project=None,
-    entity=None,
-    job_type=None,  # trace this back to SyncManager
-    sync_tensorboard=None,
-    include_globs=None,
-    exclude_globs=None,
-    include_online=None,
-    include_offline=None,
-    include_synced=None,
-    mark_synced=None,
-    sync_all=None,
-    ignore=None,
-    show=None,
-    clean=None,
-    clean_old_hours=24,
-    clean_force=None,
-    append=None,
-    skip_console=None,
-    replace_tags=None,
+    ctx: click.Context,
+    path: tuple[str, ...],
+    view: bool,
+    verbose: bool,
+    skip_confirmation: bool,
+    run_id: str | None,
+    project: str | None,
+    entity: str | None,
+    job_type: str | None,
+    sync_tensorboard: bool | None,
+    include_globs: str | None,
+    exclude_globs: str | None,
+    include_online: bool | None,
+    include_offline: bool | None,
+    include_synced: bool | None,
+    mark_synced: bool,
+    sync_all: bool,
+    ignore: str | None,
+    show: int,
+    clean: bool,
+    clean_old_hours: int,
+    clean_force: bool,
+    append: bool,
+    skip_console: bool,
+    replace_tags: str | None,
+    legacy: bool,
 ):
     """Upload existing local W&B run data to the cloud.
+
+    MIGRATION NOTE: This command is being gradually rerouted to
+    `wandb beta sync`. Some options are only allowed in legacy mode, and others
+    only in beta mode. See option descriptions for info.
 
     Sync offline or incomplete runs from the local `wandb` directory to
     the W&B server. If PATH is provided, sync runs at that path. If no
@@ -744,6 +775,80 @@ def sync(
 
         $ wandb sync --clean --clean-old-hours 48 --clean-force
     """
+    # Use `wandb beta sync` if possible.
+    if (
+        not legacy
+        and not any(TFEVENT_SUBSTRING in p for p in path)  # no tfevents support
+        and not view
+        # verbose, run_id, project, entity, job_type OK
+        and not sync_tensorboard
+        and not include_globs
+        and not exclude_globs
+        # include_online OK
+        and include_offline is not False  # True and None OK
+        # include_synced OK
+        and mark_synced
+        and not sync_all
+        # ignore, show OK (unused)
+        and not clean
+        # clean_old_hours, clean_force OK (no-op without clean)
+        and not append
+        and not skip_console
+        # replace_tags OK
+    ):
+        wandb.termlog("Using wandb beta sync. Turn this off with --legacy.")
+        beta_sync.sync(
+            [pathlib.Path(p) for p in path],
+            live=False,
+            entity=entity or "",
+            project=project or "",
+            run_id=run_id or "",
+            job_type=job_type or "",
+            replace_tags=replace_tags or "",
+            dry_run=False,
+            skip_confirmation=skip_confirmation,
+            skip_synced=not include_synced,
+            skip_online=not include_online,
+            verbose=verbose,
+            parallelism=5,  # same default as wandb beta sync
+        )
+        return
+
+    # Print out deprecations for legacy options, especially if they prevent
+    # us from rerouting through `wandb beta sync`.
+    if view:
+        wandb.termwarn("--view is deprecated. Consider using `wandb leet`.")
+    if include_globs or exclude_globs:
+        wandb.termwarn(
+            "--include-globs and --exclude-globs are deprecated."
+            + " Provide explicit paths instead."
+        )
+    if include_offline is False:
+        wandb.termwarn("--no-include-offline is deprecated and will be removed.")
+    if not mark_synced:
+        wandb.termwarn("--no-mark-synced is deprecated and will be removed.")
+    if sync_all:
+        wandb.termwarn(
+            "--sync-all is deprecated. It is equivalent to"
+            + " `wandb sync --yes --include-online`."
+        )
+    if skip_console:
+        wandb.termwarn("--skip-console is deprecated and will be removed.")
+
+    # Fail if any beta options are provided in legacy mode.
+    bad_options: list[str] = []
+    if skip_confirmation:
+        bad_options.append("--yes")
+    if bad_options:
+        if not legacy:
+            wandb.termlog(
+                "Legacy mode was selected due to presence of legacy options."
+                + " See --help for more info or use `wandb beta sync` directly."
+            )
+
+        bad_opts_str = ", ".join(bad_options)
+        raise ClickException(f"Not allowed in legacy mode: {bad_opts_str}")
+
     api = _get_cling_api()
     if not api.is_authenticated:
         wandb.termlog("Login to W&B to sync runs")
@@ -3153,21 +3258,8 @@ def pull(run, project, entity):
         if api.file_current(name, urls[name]["md5"]):
             click.echo(f"File {name} is up to date")
         else:
-            length, response = api.download_file(urls[name]["url"])
-            # TODO: I had to add this because some versions in CI broke click.progressbar
-            sys.stdout.write(f"File {name}\r")
-            dirname = os.path.dirname(name)
-            if dirname != "":
-                filesystem.mkdir_exists_ok(dirname)
-            with click.progressbar(
-                length=length,
-                label=f"File {name}",
-                fill_char=click.style("&", fg="green"),
-            ) as bar:
-                with open(name, "wb") as f:
-                    for data in response.iter_content(chunk_size=4096):
-                        f.write(data)
-                        bar.update(len(data))
+            api.download_file(urls[name]["url"], name)
+            click.echo(f"File {name}")
 
 
 @cli.command(context_settings=CONTEXT)
@@ -3679,3 +3771,4 @@ def purge_cache(
 
 
 cli.add_command(beta)
+cli.add_command(leet)

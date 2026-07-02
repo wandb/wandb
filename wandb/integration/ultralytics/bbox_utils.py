@@ -35,7 +35,7 @@ def scale_bounding_box_to_original_image_shape(
 
 
 def get_ground_truth_bbox_annotations(
-    img_idx: int, image_path: str, batch: dict, class_name_map: dict = None
+    img_idx: int, image_path: str, batch: dict, class_name_map: dict | None = None
 ) -> list[dict[str, Any]]:
     """Get ground truth bounding box annotation data in the form required for `wandb.Image` overlay system."""
     indices = batch["batch_idx"] == img_idx

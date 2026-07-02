@@ -76,11 +76,13 @@ bokeh==3.9.0
 boto3==1.42.78
     # via
     #   metaflow
+    #   moto
     #   wandb
 botocore==1.42.78
     # via
     #   awscli
     #   boto3
+    #   moto
     #   s3transfer
     #   wandb
 cachetools==7.0.5
@@ -146,6 +148,7 @@ cryptography==46.0.6
     #   azure-identity
     #   azure-storage-blob
     #   google-auth
+    #   moto
     #   msal
     #   pyjwt
 cwsandbox==0.20.0
@@ -508,6 +511,8 @@ ml-dtypes==0.5.4
     # via
     #   jax
     #   jaxlib
+moto==5.2.2
+    # via -r requirements/requirements_test.txt
 moviepy==1.0.3
     # via -r requirements/requirements_dev.txt
 mpmath==1.3.0
@@ -710,6 +715,8 @@ ptyprocess==0.7.0
     #   terminado
 pure-eval==0.2.3
     # via stack-data
+py-partiql-parser==0.6.3
+    # via moto
 pyarrow==23.0.1
     # via -r requirements/requirements_dev.txt
 pyasn1==0.6.3
@@ -806,6 +813,7 @@ pyyaml==6.0.3
     #   kubernetes
     #   kubernetes-asyncio
     #   lightning
+    #   moto
     #   optuna
     #   pytorch-lightning
     #   responses
@@ -839,6 +847,7 @@ requests==2.33.1
     #   jupyterlab-server
     #   kubernetes
     #   metaflow
+    #   moto
     #   moviepy
     #   msal
     #   requests-oauthlib
@@ -854,6 +863,7 @@ responses==0.23.3
     # via
     #   -r requirements/requirements_dev.txt
     #   -r requirements/requirements_test.txt
+    #   moto
 rfc3339-validator==0.1.4
     # via
     #   jsonschema
@@ -1077,11 +1087,14 @@ websockets==14.2
 werkzeug==3.1.7
     # via
     #   flask
+    #   moto
     #   tensorboard
 widgetsnbextension==4.0.15
     # via ipywidgets
 xgboost==3.2.0
     # via -r requirements/requirements_dev.txt
+xmltodict==1.0.4
+    # via moto
 xxhash==3.6.0
     # via dspy
 xyzservices==2026.3.0

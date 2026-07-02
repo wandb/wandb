@@ -32,7 +32,7 @@
   "python.analysis.autoImportCompletions": false,
   "python.analysis.typeCheckingMode": "off",
   "go.testFlags": [
-      "-race",
-      "-covermode=atomic"
+    "-race",
+    "-covermode=atomic"
   ]
 }

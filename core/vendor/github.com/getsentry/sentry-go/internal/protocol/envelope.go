@@ -80,12 +80,16 @@ type EnvelopeItem struct {
 	Payload []byte              `json:"-"`
 }
 
-// NewEnvelope creates a new envelope with the given header.
-func NewEnvelope(header *EnvelopeHeader) *Envelope {
-	return &Envelope{
+// NewEnvelope creates a new envelope with the given header and items.
+func NewEnvelope(header *EnvelopeHeader, items ...*EnvelopeItem) *Envelope {
+	envelope := &Envelope{
 		Header: header,
-		Items:  make([]*EnvelopeItem, 0),
+		Items:  make([]*EnvelopeItem, 0, len(items)),
 	}
+	for _, item := range items {
+		envelope.AddItem(item)
+	}
+	return envelope
 }
 
 // AddItem adds an item to the envelope.

@@ -3,11 +3,11 @@ package filetransfer
 import (
 	"fmt"
 	"io"
+	"maps"
 	"math"
 	"net/http"
 	"os"
-	"path"
-	"strings"
+	"path/filepath"
 
 	"github.com/hashicorp/go-retryablehttp"
 
@@ -76,17 +76,7 @@ func (ft *DefaultFileTransfer) Upload(task *DefaultUploadTask) error {
 	if err != nil {
 		return err
 	}
-	for _, header := range task.Headers {
-		parts := strings.SplitN(header, ":", 2)
-		if len(parts) != 2 {
-			ft.logger.Error(
-				"file transfer: upload: invalid header",
-				"header", header,
-			)
-			continue
-		}
-		req.Header.Set(parts[0], parts[1])
-	}
+	maps.Copy(req.Header, task.Headers)
 	if task.Context != nil {
 		req = req.WithContext(task.Context)
 	}
@@ -126,7 +116,7 @@ func (ft *DefaultFileTransfer) Download(task *DefaultDownloadTask) error {
 		"path", task.Path,
 		"url", task.Url,
 	)
-	dir := path.Dir(task.Path)
+	dir := filepath.Dir(task.Path)
 
 	// Check if the directory already exists
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
@@ -144,11 +134,24 @@ func (ft *DefaultFileTransfer) Download(task *DefaultDownloadTask) error {
 	if err != nil {
 		return err
 	}
+	if task.Context != nil {
+		req = req.WithContext(task.Context)
+	}
 	resp, err := ft.client.Do(req)
 	if err != nil {
 		return err
 	}
 	task.Response = resp
+
+	// Close the body on every return path, including the non-2xx case below.
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode > 299 {
+		return attachErrorResponseBody(
+			"file transfer: download: failed to download: status: "+resp.Status,
+			resp,
+		)
+	}
 
 	// open the file for writing and defer closing it
 	file, err := os.Create(task.Path)
@@ -165,16 +168,6 @@ func (ft *DefaultFileTransfer) Download(task *DefaultDownloadTask) error {
 				))
 		}
 	}(file)
-
-	defer func(file io.ReadCloser) {
-		if err := file.Close(); err != nil {
-			ft.logger.CaptureError(
-				fmt.Errorf(
-					"file transfer: download: error closing response reader: %v",
-					err,
-				))
-		}
-	}(resp.Body)
 
 	progress, err := wboperation.Get(task.Context).NewProgress()
 	if err != nil {

@@ -74,6 +74,23 @@ class Settings(BaseModel, validate_assignment=True):
        versions.
     3. Computed settings: Read-only settings that are automatically derived from other settings or
        the environment.
+
+    Settings are loaded from multiple sources. When the same setting is supplied
+    by more than one source, the source listed later wins. From lowest to highest
+    precedence:
+
+    1. Default values defined on this `Settings` model.
+    2. Configuration files (`~/.config/wandb/settings`, or the `settings` file in
+       the directory named by the `WANDB_CONFIG_DIR` environment variable).
+    3. Environment variables (those prefixed with `WANDB_`, e.g. `WANDB_MODE`).
+    4. Values detected from the runtime environment, such as the hostname, the
+       running program/script path, the Python executable, the Docker image, and
+       Jupyter notebook details.
+    5. SageMaker settings, when running in an Amazon SageMaker environment.
+    6. The `settings` parameter of `wandb.setup()`.
+    7. The `settings` parameter of `wandb.init()`.
+    8. Certain `wandb.init()` parameters (for example, `mode=` overrides the
+       `mode` setting).
     """
 
     # Pydantic Model configuration.
@@ -2024,6 +2041,24 @@ class Settings(BaseModel, validate_assignment=True):
             program = "<python with no main file>"
 
         self.program = program
+
+    def infer_git_root(self) -> None:
+        """Infer the git root from the root_dir setting using GitRepo.
+
+        <!-- lazydoc-ignore: internal -->
+        """
+        if self.git_root is not None or self.disable_git:
+            return
+
+        from .lib.gitlib import GitRepo
+
+        try:
+            git_root = GitRepo(root=self.root_dir).root
+        except Exception:
+            return
+
+        if git_root is not None:
+            self.git_root = str(git_root)
 
     def update_from_dict(self, settings: dict[str, Any]) -> None:
         """Update settings from a dictionary.

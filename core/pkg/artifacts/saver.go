@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"net/url"
 	"os"
 	"strconv"
@@ -44,7 +45,7 @@ type ArtifactSaveManager struct {
 	graphqlClient                graphql.Client
 	fileTransferManager          filetransfer.FileTransferManager
 	fileCache                    Cache
-	useArtifactProjectEntityInfo bool
+	useArtifactProjectEntityInfo func() bool
 
 	// uploadsByName ensures that uploads for the same artifact name happen
 	// serially, so that version numbers are assigned deterministically.
@@ -56,7 +57,7 @@ func NewArtifactSaveManager(
 	printer *observability.Printer,
 	graphqlClient graphql.Client,
 	fileTransferManager filetransfer.FileTransferManager,
-	useArtifactProjectEntityInfo bool,
+	useArtifactProjectEntityInfo func() bool,
 ) *ArtifactSaveManager {
 	workerPool := &errgroup.Group{}
 	workerPool.SetLimit(maxSimultaneousUploads)
@@ -115,7 +116,7 @@ func (as *ArtifactSaveManager) Save(
 			stagingDir:                   stagingDir,
 			maxActiveBatches:             5,
 			resultChan:                   resultChan,
-			useArtifactProjectEntityInfo: as.useArtifactProjectEntityInfo,
+			useArtifactProjectEntityInfo: as.useArtifactProjectEntityInfo(),
 		},
 	)
 
@@ -401,7 +402,11 @@ func (as *ArtifactSaver) processFiles(
 				}()
 			} else {
 				suboperation := wboperation.Get(as.ctx).Subtask(fileInfo.name)
-				task := newUploadTask(fileInfo, *entry.LocalPath)
+				headers, err := filetransfer.ParseHeaders(fileInfo.uploadHeaders)
+				if err != nil {
+					as.logger.Warn("artifacts: upload: error parsing headers", "error", err)
+				}
+				task := newUploadTask(fileInfo, *entry.LocalPath, headers)
 				task.Context = suboperation.Context(as.ctx)
 				task.OnComplete = func() {
 					suboperation.Finish()
@@ -484,13 +489,14 @@ func (as *ArtifactSaver) batchSize() int {
 func newUploadTask(
 	fileInfo serverFileResponse,
 	localPath string,
+	headers http.Header,
 ) *filetransfer.DefaultUploadTask {
 	return &filetransfer.DefaultUploadTask{
 		FileKind: filetransfer.RunFileKindArtifact,
 		Path:     localPath,
 		Name:     fileInfo.name,
 		Url:      *fileInfo.uploadUrl,
-		Headers:  fileInfo.uploadHeaders,
+		Headers:  headers,
 	}
 }
 
@@ -526,7 +532,8 @@ func (as *ArtifactSaver) uploadMultipart(
 				"%s (%d/%d)",
 				fileInfo.name, i+1, len(partInfo),
 			))
-		task := newUploadTask(fileInfo, path)
+		// Headers are set per-part below, so none are passed here.
+		task := newUploadTask(fileInfo, path, nil)
 		task.Context = suboperation.Context(as.ctx)
 		task.Url = part.UploadUrl
 		task.Offset = int64(i) * chunkSize
@@ -536,10 +543,10 @@ func (as *ArtifactSaver) uploadMultipart(
 		if err != nil {
 			return uploadResult{name: fileInfo.name, err: err}
 		}
-		task.Headers = []string{
-			"Content-Md5:" + b64md5,
-			"Content-Length:" + strconv.FormatInt(task.Size, 10),
-			"Content-Type:" + contentType,
+		task.Headers = http.Header{
+			"Content-Md5":    {b64md5},
+			"Content-Length": {strconv.FormatInt(task.Size, 10)},
+			"Content-Type":   {contentType},
 		}
 		task.OnComplete = func() {
 			suboperation.Finish()
@@ -611,8 +618,8 @@ func (as *ArtifactSaver) uploadMultipart(
 
 func getContentType(headers []string) string {
 	for _, h := range headers {
-		if strings.HasPrefix(h, "Content-Type:") {
-			return strings.TrimPrefix(h, "Content-Type:")
+		if after, ok := strings.CutPrefix(h, "Content-Type:"); ok {
+			return after
 		}
 	}
 	return ""
@@ -675,12 +682,17 @@ func (as *ArtifactSaver) uploadManifest(
 		return errors.New("nil uploadURL")
 	}
 
+	parsedHeaders, err := filetransfer.ParseHeaders(uploadHeaders)
+	if err != nil {
+		as.logger.Warn("artifacts: upload: error parsing headers", "error", err)
+	}
+
 	resultChan := make(chan *filetransfer.DefaultUploadTask, 1)
 	task := &filetransfer.DefaultUploadTask{
 		FileKind: filetransfer.RunFileKindArtifact,
 		Path:     manifestFile,
 		Url:      *uploadURL,
-		Headers:  uploadHeaders,
+		Headers:  parsedHeaders,
 	}
 	task.OnComplete = func() { resultChan <- task }
 

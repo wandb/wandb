@@ -370,12 +370,6 @@ func (w *Workspace) applyRunKeys(runKeys []string) {
 
 	w.setRunItems(runKeys)
 
-	if w.runColors != nil {
-		for _, runKey := range runKeys {
-			w.runColors.Assign(w.runPathForKey(runKey))
-		}
-	}
-
 	if prevCursorKey != "" {
 		w.restoreRunCursor(prevCursorKey)
 	}

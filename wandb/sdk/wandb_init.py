@@ -129,7 +129,11 @@ class _PrinterCallback(Protocol):
 
 def _noop_printer_callback() -> _PrinterCallback:
     """A printer callback that does not print anything."""
-    return lambda _: None
+
+    def do_nothing(run_printer: printer.Printer) -> None:
+        pass
+
+    return do_nothing
 
 
 def _concat_printer_callbacks(
@@ -310,6 +314,8 @@ class _WandbInit:
         # if user explicitly set these to false in UI
         if save_code_pre_user_settings is False:
             settings.save_code = False
+
+        settings.infer_git_root()
 
         # TODO: remove this once we refactor the client. This is a temporary
         # fix to make sure that we use the same project name for wandb-core.

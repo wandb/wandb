@@ -157,7 +157,7 @@ class Registry:
         return self._current.created_at
 
     @property
-    def updated_at(self) -> str:
+    def updated_at(self) -> str | None:
         """Timestamp of when the registry was last updated."""
         return self._current.updated_at
 
@@ -195,15 +195,28 @@ class Registry:
     def collections(
         self,
         filter: dict[str, Any] | None = None,
+        order: str | None = None,
         per_page: PositiveInt = 100,
         start: str | None = None,
     ) -> Collections:
-        """Returns the collections belonging to the registry."""
+        """Returns the collections belonging to this registry.
+
+        Args:
+            filter: Optional mapping of filters to apply to the collections query.
+            order: Optional string to specify the order of the results.
+                If prefixed with '+', sorts ascending (default).
+                If prefixed with '-', sorts descending.
+            per_page: The number of results to fetch per page.
+                Usually there is no reason to change this.
+            start: Pagination cursor for resuming a past query, captured
+                from a previous paginator's `.cursor` attribute.
+        """
         return Collections(
             service_api=self._service_api,
             organization=self.organization,
             registry_filter={"name": self.full_name},
             collection_filter=filter,
+            order=order,
             per_page=per_page,
             start=start,
         )
@@ -215,7 +228,15 @@ class Registry:
         per_page: PositiveInt = 100,
         start: str | None = None,
     ) -> Versions:
-        """Returns the versions belonging to the registry."""
+        """Returns the artifact versions belonging to this registry.
+
+        Args:
+            filter: Optional mapping of filters to apply to the artifact versions query.
+            per_page: The number of results to fetch per page.
+                Usually there is no reason to change this.
+            start: Pagination cursor for resuming a past query, captured
+                from a previous paginator's `.cursor` attribute.
+        """
         return Versions(
             service_api=self._service_api,
             organization=self.organization,

@@ -23,6 +23,40 @@ from wandb.sdk.lib import config_util, ipython
 
 logger = logging.getLogger(__name__)
 
+# Signals whose kernel default is "terminate" and that orchestrators use to
+# request graceful shutdown.
+_TERMINATING_SIGNALS = frozenset(
+    s
+    for s in (
+        getattr(signal, "SIGTERM", None),
+        getattr(signal, "SIGHUP", None),
+        getattr(signal, "SIGQUIT", None),
+    )
+    if s is not None
+)
+
+
+class ShutdownSignal(BaseException):
+    """Raised from _forward_signal to drive Agent.run's shutdown cascade.
+
+    Carries the originating signal number so the cascade can name it in
+    user-facing messages. Subclasses BaseException (not Exception) so
+    generic `except Exception:` blocks elsewhere in the loop body don't
+    swallow it — same design as KeyboardInterrupt, which this exception
+    parallels for SIGTERM/SIGHUP/SIGQUIT.
+
+    See: https://docs.wandb.ai/models/sweeps/signal-handling-sweep-runs
+    """
+
+    def __init__(self, signum: int) -> None:
+        super().__init__()
+        self.signum = signum
+
+    @property
+    def label(self) -> str:
+        """Name of the originating signal (e.g. "SIGTERM")."""
+        return signal.Signals(self.signum).name
+
 
 class AgentError(Exception):
     pass
@@ -133,6 +167,8 @@ class AgentProcess:
         original_handler = self._original_handlers.get(signum)
         if original_handler and callable(original_handler):
             original_handler(signum, frame)
+        elif signum in _TERMINATING_SIGNALS:
+            raise ShutdownSignal(signum)
 
     def _start(self, finished_q, env, function, run_id, in_jupyter):
         if env:
@@ -291,114 +327,143 @@ class Agent:
         agent_id = agent["id"]
 
         try:
-            while self._running:
-                commands = util.read_many_from_queue(
-                    self._queue, 100, self.POLL_INTERVAL
-                )
-                for command in commands:
-                    command["resp_queue"].put(self._process_command(command))
-
-                now = util.stopwatch_now()
-                if self._last_report_time is None or (
-                    self._report_interval != 0
-                    and now > self._last_report_time + self._report_interval
-                ):
-                    logger.info("Running runs: %s", list(self._run_processes.keys()))
-                    self._last_report_time = now
-                run_status = {}
-                for run_id, run_process in list(self._run_processes.items()):
-                    poll_result = run_process.poll()
-                    if poll_result is None:
-                        run_status[run_id] = True
-                        continue
-                    elif (
-                        not isinstance(poll_result, bool)
-                        and isinstance(poll_result, int)
-                        and poll_result > 0
-                    ):
-                        self._failed += 1
-                        # TODO: raise an exception
-                        if self.is_flapping():
-                            logger.error(
-                                "Detected %i failed runs in the first %i seconds, shutting down.",
-                                self.FLAPPING_MAX_FAILURES,
-                                self.FLAPPING_MAX_SECONDS,
-                            )
-                            logger.info(
-                                "To disable this check set WANDB_AGENT_DISABLE_FLAPPING=true"
-                            )
-                            self._running = False
-                            break
-                        # TODO: raise an exception
-                        if self.is_failing():
-                            logger.error(
-                                "Detected %i failed runs in a row, shutting down.",
-                                self._max_initial_failures,
-                            )
-                            logger.info(
-                                "To change this value set WANDB_AGENT_MAX_INITIAL_FAILURES=val"
-                            )
-                            self._running = False
-                            break
-                    logger.info("Cleaning up finished run: %s", run_id)
-
-                    # wandb.teardown() was added with wandb service and is a hammer to make
-                    # sure that active runs are finished before moving on to another agent run
-                    #
-                    # In the future, a lighter weight way to implement this could be to keep a
-                    # service process open for all the agent instances and inform_finish when
-                    # the run should be marked complete.  This however could require
-                    # inform_finish on every run created by this process.
-                    if hasattr(wandb, "teardown"):
-                        from wandb.apis import InternalApi
-
-                        exit_code = 0
-                        if isinstance(poll_result, int):
-                            exit_code = poll_result
-                        elif isinstance(poll_result, bool):
-                            exit_code = -1
-                        wandb.teardown(exit_code)
-                        # The agent outlives user jobs, but teardown closes
-                        # the service-backed API resources used for the
-                        # subsequent heartbeats.
-                        self._api = InternalApi()
-
-                    del self._run_processes[run_id]
-                    self._last_report_time = None
-                    self._finished += 1
-
-                if self._count and self._finished >= self._count or not self._running:
-                    self._running = False
-                    continue
-
-                commands = self._api.agent_heartbeat(agent_id, {}, run_status)
-
-                # TODO: send _server_responses
-                self._server_responses = []
-                for command in commands:
-                    self._server_responses.append(self._process_command(command))
-
-        except KeyboardInterrupt:
             try:
-                wandb.termlog(
-                    "Ctrl-c pressed. Waiting for runs to end. Press ctrl-c again to terminate them."
-                )
-                for _, run_process in self._run_processes.items():
-                    run_process.wait()
-            except KeyboardInterrupt:
+                while self._running:
+                    commands = util.read_many_from_queue(
+                        self._queue, 100, self.POLL_INTERVAL
+                    )
+                    for command in commands:
+                        command["resp_queue"].put(self._process_command(command))
+
+                    now = util.stopwatch_now()
+                    if self._last_report_time is None or (
+                        self._report_interval != 0
+                        and now > self._last_report_time + self._report_interval
+                    ):
+                        logger.info(
+                            "Running runs: %s", list(self._run_processes.keys())
+                        )
+                        self._last_report_time = now
+                    run_status = {}
+                    for run_id, run_process in list(self._run_processes.items()):
+                        poll_result = run_process.poll()
+                        if poll_result is None:
+                            run_status[run_id] = True
+                            continue
+                        elif (
+                            not isinstance(poll_result, bool)
+                            and isinstance(poll_result, int)
+                            and poll_result > 0
+                        ):
+                            self._failed += 1
+                            # TODO: raise an exception
+                            if self.is_flapping():
+                                logger.error(
+                                    "Detected %i failed runs in the first %i seconds, shutting down.",
+                                    self.FLAPPING_MAX_FAILURES,
+                                    self.FLAPPING_MAX_SECONDS,
+                                )
+                                logger.info(
+                                    "To disable this check set WANDB_AGENT_DISABLE_FLAPPING=true"
+                                )
+                                self._running = False
+                                break
+                            # TODO: raise an exception
+                            if self.is_failing():
+                                logger.error(
+                                    "Detected %i failed runs in a row, shutting down.",
+                                    self._max_initial_failures,
+                                )
+                                logger.info(
+                                    "To change this value set WANDB_AGENT_MAX_INITIAL_FAILURES=val"
+                                )
+                                self._running = False
+                                break
+                        logger.info("Cleaning up finished run: %s", run_id)
+
+                        # wandb.teardown() was added with wandb service and is a hammer to make
+                        # sure that active runs are finished before moving on to another agent run
+                        #
+                        # In the future, a lighter weight way to implement this could be to keep a
+                        # service process open for all the agent instances and inform_finish when
+                        # the run should be marked complete.  This however could require
+                        # inform_finish on every run created by this process.
+                        if hasattr(wandb, "teardown"):
+                            from wandb.apis import InternalApi
+
+                            exit_code = 0
+                            if isinstance(poll_result, int):
+                                exit_code = poll_result
+                            elif isinstance(poll_result, bool):
+                                exit_code = -1
+                            wandb.teardown(exit_code)
+                            # The agent outlives user jobs, but teardown closes
+                            # the service-backed API resources used for the
+                            # subsequent heartbeats.
+                            self._api = InternalApi()
+
+                        del self._run_processes[run_id]
+                        self._last_report_time = None
+                        self._finished += 1
+
+                    if (
+                        self._count
+                        and self._finished >= self._count
+                        or not self._running
+                    ):
+                        self._running = False
+                        continue
+
+                    commands = self._api.agent_heartbeat(agent_id, {}, run_status)
+
+                    # TODO: send _server_responses
+                    self._server_responses = []
+                    for command in commands:
+                        self._server_responses.append(self._process_command(command))
+            except KeyboardInterrupt as kb:
+                # SIGINT delivers KeyboardInterrupt via Python's
+                # default_int_handler; normalize into a ShutdownSignal so the
+                # rest of the cascade only ever has to handle one type.
+                raise ShutdownSignal(signal.SIGINT) from kb
+        except ShutdownSignal as exc:
+            try:
+                try:
+                    if exc.signum == signal.SIGINT:
+                        wandb.termlog(
+                            "Ctrl-c pressed. Waiting for runs to end. Press ctrl-c again to terminate them."
+                        )
+                    else:
+                        wandb.termlog(
+                            f"{exc.label} received. Waiting for runs to end. "
+                            f"Send {exc.label} again to terminate."
+                        )
+                    for _, run_process in self._run_processes.items():
+                        run_process.wait()
+                except KeyboardInterrupt as kb:
+                    raise ShutdownSignal(signal.SIGINT) from kb
+            except ShutdownSignal:
                 pass
         finally:
             try:
-                if not self._in_jupyter:
-                    wandb.termlog("Terminating and syncing runs. Press ctrl-c to kill.")
-                for _, run_process in self._run_processes.items():
-                    try:
-                        run_process.terminate()
-                    except OSError:
-                        pass  # if process is already dead
-                for _, run_process in self._run_processes.items():
-                    run_process.wait()
-            except KeyboardInterrupt:
+                try:
+                    # If Tier 1's wait() returned cleanly, the runs have
+                    # already exited and there's nothing to terminate. Skip
+                    # Tier 2 messaging and operations.
+                    if any(p.poll() is None for p in self._run_processes.values()):
+                        if not self._in_jupyter:
+                            wandb.termlog(
+                                "Terminating and syncing runs. Send shutdown signal again to kill."
+                            )
+                        for _, run_process in self._run_processes.items():
+                            try:
+                                run_process.terminate()
+                            except OSError:
+                                pass  # if process is already dead
+                        for _, run_process in self._run_processes.items():
+                            run_process.wait()
+                except KeyboardInterrupt as kb:
+                    raise ShutdownSignal(signal.SIGINT) from kb
+            except ShutdownSignal:
                 wandb.termlog("Killing runs and quitting.")
                 for _, run_process in self._run_processes.items():
                     try:
@@ -460,11 +525,9 @@ class Agent:
         sweep_id = os.environ.get(wandb.env.SWEEP_ID)
         # TODO(jhr): move into settings
         config_file = os.path.join(
-            "wandb", "sweep-" + sweep_id, "config-" + run_id + ".yaml"
+            "wandb", f"sweep-{sweep_id}", f"config-{run_id}.yaml"
         )
-        json_file = os.path.join(
-            "wandb", "sweep-" + sweep_id, "config-" + run_id + ".json"
-        )
+        json_file = os.path.join("wandb", f"sweep-{sweep_id}", f"config-{run_id}.json")
 
         os.environ[wandb.env.RUN_ID] = run_id
 

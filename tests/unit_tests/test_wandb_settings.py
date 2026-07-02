@@ -693,3 +693,46 @@ def test_reports_invalid_system_settings(
         mock_wandb_log.assert_errored_re(
             rf"^Failed to load settings from {re.escape(str(settings_file))}$",
         )
+
+
+def test_infer_git_root_finds_repo(tmp_path):
+    git_root = tmp_path / "repo"
+    git_root.mkdir()
+    subprocess.run(["git", "init", str(git_root)], check=True, capture_output=True)
+    subdir = git_root / "subdir"
+    subdir.mkdir()
+
+    s = Settings(root_dir=str(subdir))
+    s.infer_git_root()
+
+    assert pathlib.Path(s.git_root) == git_root
+
+
+def test_infer_git_root_no_repo(tmp_path):
+    s = Settings(root_dir=str(tmp_path))
+    s.infer_git_root()
+
+    assert s.git_root is None
+
+
+def test_infer_git_root_skips_if_already_set(tmp_path):
+    git_root = tmp_path / "repo"
+    git_root.mkdir()
+    subprocess.run(["git", "init", str(git_root)], check=True, capture_output=True)
+
+    preset = "/some/other/path"
+    s = Settings(root_dir=str(git_root), git_root=preset)
+    s.infer_git_root()
+
+    assert s.git_root == preset
+
+
+def test_infer_git_root_skips_if_disable_git(tmp_path):
+    git_root = tmp_path / "repo"
+    git_root.mkdir()
+    subprocess.run(["git", "init", str(git_root)], check=True, capture_output=True)
+
+    s = Settings(root_dir=str(git_root), disable_git=True)
+    s.infer_git_root()
+
+    assert s.git_root is None

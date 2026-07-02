@@ -1,6 +1,7 @@
 package leet
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -250,26 +251,7 @@ func ParseHistory(runPath string, history *spb.HistoryRecord) tea.Msg {
 		}
 	}
 
-	media := make(map[string][]MediaPoint)
-	for mediaKey, fields := range mediaFieldsByKey {
-		if fields["_type"] != "image-file" {
-			continue
-		}
-		relPath := fields["path"]
-		if relPath == "" {
-			continue
-		}
-		media[mediaKey] = append(media[mediaKey], MediaPoint{
-			X:            float64(step),
-			FilePath:     resolveMediaPath(runPath, relPath),
-			RelativePath: relPath,
-			Caption:      fields["caption"],
-			Format:       fields["format"],
-			Width:        parseHistoryInt(fields["width"]),
-			Height:       parseHistoryInt(fields["height"]),
-			SHA256:       fields["sha256"],
-		})
-	}
+	media := parseHistoryMedia(runPath, step, mediaFieldsByKey)
 
 	if len(metrics) == 0 && len(media) == 0 {
 		return nil
@@ -295,6 +277,68 @@ func trimJSONString(v string) string {
 	return v
 }
 
+// parseHistoryMedia builds media series from the per-key media fields of a
+// history record.
+func parseHistoryMedia(
+	runPath string,
+	step int,
+	mediaFieldsByKey map[string]map[string]string,
+) map[string][]MediaPoint {
+	media := make(map[string][]MediaPoint)
+	for mediaKey, fields := range mediaFieldsByKey {
+		switch fields["_type"] {
+		case "image-file":
+			relPath := fields["path"]
+			if relPath == "" {
+				continue
+			}
+			media[mediaKey] = append(media[mediaKey], MediaPoint{
+				X:            float64(step),
+				FilePath:     resolveMediaPath(runPath, relPath),
+				RelativePath: relPath,
+				Caption:      fields["caption"],
+				Format:       fields["format"],
+				Width:        parseHistoryInt(fields["width"]),
+				Height:       parseHistoryInt(fields["height"]),
+				SHA256:       fields["sha256"],
+			})
+		case "images/separated":
+			// A list of wandb.Image logged under one key: fan each image
+			// out into its own "key[i]" series so every image gets a tile.
+			captions := parseJSONStringArray(fields["captions"])
+			for i, relPath := range parseJSONStringArray(fields["filenames"]) {
+				if relPath == "" {
+					continue
+				}
+				point := MediaPoint{
+					X:            float64(step),
+					FilePath:     resolveMediaPath(runPath, relPath),
+					RelativePath: relPath,
+					Format:       fields["format"],
+					Width:        parseHistoryInt(fields["width"]),
+					Height:       parseHistoryInt(fields["height"]),
+				}
+				if i < len(captions) {
+					point.Caption = captions[i]
+				}
+				indexedKey := fmt.Sprintf("%s[%d]", mediaKey, i)
+				media[indexedKey] = append(media[indexedKey], point)
+			}
+		}
+	}
+	return media
+}
+
+// parseJSONStringArray decodes a JSON array of strings, returning nil on
+// malformed input.
+func parseJSONStringArray(v string) []string {
+	var out []string
+	if json.Unmarshal([]byte(v), &out) != nil {
+		return nil
+	}
+	return out
+}
+
 func parseHistoryInt(v string) int {
 	i, err := strconv.Atoi(v)
 	if err == nil {
@@ -310,7 +354,8 @@ func historyMediaField(item *spb.HistoryItem) (mediaKey, field string, ok bool) 
 	}
 	field = parts[len(parts)-1]
 	switch field {
-	case "_type", "path", "caption", "format", "width", "height", "sha256", "size":
+	case "_type", "path", "caption", "format", "width", "height", "sha256", "size",
+		"count", "filenames", "captions":
 	default:
 		return "", "", false
 	}
