@@ -2053,7 +2053,7 @@ class Settings(BaseModel, validate_assignment=True):
         from .lib.gitlib import GitRepo
 
         try:
-            git_root = GitRepo(root=self.root_dir).root
+            git_root = GitRepo(root=self.root_dir).root_dir
         except Exception:
             return
 
