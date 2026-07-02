@@ -472,10 +472,11 @@ class OrderedCollectionVersions(Versions):
                 try:
                     artifact = next(self._current_versions)
                     self.last_response = self._current_versions.last_response
-                    return artifact
                 except StopIteration:
                     self._current_versions = None
                     self.last_response = None
+                else:
+                    return artifact
 
             try:
                 collection = next(self._collections_iter)
