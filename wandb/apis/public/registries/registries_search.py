@@ -4,15 +4,19 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Annotated, Any, ClassVar, TypeAlias
 
-from pydantic import AfterValidator, PositiveInt, ValidationError
-from pydantic.dataclasses import dataclass as pydantic_dataclass
+from pydantic import AfterValidator, BaseModel, PositiveInt, ValidationError
 from typing_extensions import override
 
 from wandb._analytics import tracked
 from wandb._pydantic import to_json
 from wandb.apis.paginator import RelayPaginator, SizedRelayPaginator
 
-from ._utils import OrderValidator, validate_registry_filter
+from ._utils import (
+    OrderValidator,
+    prepare_collection_filter,
+    prepare_registry_filter,
+    prepare_version_filter,
+)
 
 if TYPE_CHECKING:
     from wandb.apis.public import ArtifactCollection
@@ -32,21 +36,26 @@ if TYPE_CHECKING:
 
 
 # Type annotations for `filter` arguments.
-# TODO: Recursively validate allowed filter field names, see e.g. existing mongo filter types in automations.
 _RegistryFilter: TypeAlias = Annotated[
-    dict[str, Any] | None,
-    AfterValidator(validate_registry_filter),
+    dict[str, Any],
+    AfterValidator(prepare_registry_filter),
 ]
-_CollectionFilter: TypeAlias = dict[str, Any] | None
-_VersionFilter: TypeAlias = dict[str, Any] | None
+_CollectionFilter: TypeAlias = Annotated[
+    dict[str, Any],
+    AfterValidator(prepare_collection_filter),
+]
+_VersionFilter: TypeAlias = Annotated[
+    dict[str, Any],
+    AfterValidator(prepare_version_filter),
+]
 
 # Type annotations for `order` arguments.
 _RegistryOrder: TypeAlias = Annotated[
-    str | None,
+    str,
     OrderValidator(allowed=("name", "created_at", "updated_at")),
 ]
 _CollectionOrder: TypeAlias = Annotated[
-    str | None,
+    str,
     OrderValidator(allowed=("name", "created_at", "updated_at")),
 ]
 
@@ -63,37 +72,34 @@ _CollectionOrder: TypeAlias = Annotated[
 #
 # Also, using the `@validate_call` decorator does not work at the time of writing,
 # since it would require an eager import of `ServiceApi`, causing an import cycle.
-@pydantic_dataclass(frozen=True, slots=True)
-class _RegistriesVars:
+class _RegistriesVars(BaseModel):
     """Validated arguments for instantiating a `Registries` paginator."""
 
     organization: str
-    filter: _RegistryFilter = None
-    order: _RegistryOrder = None
+    filter: _RegistryFilter | None = None
+    order: _RegistryOrder | None = None
     per_page: PositiveInt = 100
     start: str | None = None
 
 
-@pydantic_dataclass(frozen=True, slots=True)
-class _CollectionsVars:
+class _CollectionsVars(BaseModel):
     """Validated arguments for instantiating a `Collections` paginator."""
 
     organization: str
-    registry_filter: _RegistryFilter = None
-    collection_filter: _CollectionFilter = None
-    order: _CollectionOrder = None
+    registry_filter: _RegistryFilter | None = None
+    collection_filter: _CollectionFilter | None = None
+    order: _CollectionOrder | None = None
     per_page: PositiveInt = 100
     start: str | None = None
 
 
-@pydantic_dataclass(frozen=True, slots=True)
-class _VersionsVars:
+class _VersionsVars(BaseModel):
     """Validated arguments for instantiating a `Versions` paginator."""
 
     organization: str
-    registry_filter: _RegistryFilter = None
-    collection_filter: _CollectionFilter = None
-    artifact_filter: _VersionFilter = None
+    registry_filter: _RegistryFilter | None = None
+    collection_filter: _CollectionFilter | None = None
+    artifact_filter: _VersionFilter | None = None
     per_page: PositiveInt = 100
     start: str | None = None
 
@@ -108,8 +114,8 @@ class Registries(RelayPaginator["RegistryFragment", "Registry"]):
         self,
         service_api: ServiceApi,
         organization: str,
-        filter: _RegistryFilter = None,
-        order: _RegistryOrder = None,
+        filter: _RegistryFilter | None = None,
+        order: _RegistryOrder | None = None,
         per_page: PositiveInt = 100,
         start: str | None = None,
     ):
@@ -150,8 +156,8 @@ class Registries(RelayPaginator["RegistryFragment", "Registry"]):
     @tracked
     def collections(
         self,
-        filter: dict[str, Any] | None = None,
-        order: str | None = None,
+        filter: _CollectionFilter | None = None,
+        order: _CollectionOrder | None = None,
         per_page: PositiveInt = 100,
         start: str | None = None,
     ) -> Collections:
@@ -180,7 +186,7 @@ class Registries(RelayPaginator["RegistryFragment", "Registry"]):
     @tracked
     def versions(
         self,
-        filter: dict[str, Any] | None = None,
+        filter: _VersionFilter | None = None,
         per_page: PositiveInt = 100,
         start: str | None = None,
     ) -> Versions:
@@ -252,9 +258,9 @@ class Collections(
         self,
         service_api: ServiceApi,
         organization: str,
-        registry_filter: _RegistryFilter = None,
-        collection_filter: _CollectionFilter = None,
-        order: _CollectionOrder = None,
+        registry_filter: _RegistryFilter | None = None,
+        collection_filter: _CollectionFilter | None = None,
+        order: _CollectionOrder | None = None,
         per_page: PositiveInt = 100,
         start: str | None = None,
     ):
@@ -299,7 +305,7 @@ class Collections(
     @tracked
     def versions(
         self,
-        filter: dict[str, Any] | None = None,
+        filter: _VersionFilter | None = None,
         per_page: PositiveInt = 100,
         start: str | None = None,
     ) -> Versions:
@@ -373,9 +379,9 @@ class Versions(RelayPaginator["ArtifactMembershipFragment", "Artifact"]):
         self,
         service_api: ServiceApi,
         organization: str,
-        registry_filter: _RegistryFilter = None,
-        collection_filter: _CollectionFilter = None,
-        artifact_filter: _VersionFilter = None,
+        registry_filter: _RegistryFilter | None = None,
+        collection_filter: _CollectionFilter | None = None,
+        artifact_filter: _VersionFilter | None = None,
         per_page: PositiveInt = 100,
         start: str | None = None,
     ):

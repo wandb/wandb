@@ -5,7 +5,7 @@ from collections.abc import Collection
 from dataclasses import dataclass
 from enum import Enum
 from functools import lru_cache
-from typing import TYPE_CHECKING, Any, TypeVar, overload
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from pydantic import GetCoreSchemaHandler
 from pydantic_core import CoreSchema
@@ -68,7 +68,7 @@ class Visibility(str, Enum):
         try:
             return cls(value)
         except ValueError:
-            expected = ",".join(repr(e.value) for e in cls)
+            expected = ", ".join(repr(e.value) for e in cls)
             raise ValueError(
                 f"Invalid visibility {value!r} from backend. Expected one of: {expected}"
             ) from None
@@ -79,7 +79,7 @@ class Visibility(str, Enum):
         try:
             return cls(name)
         except ValueError:
-            expected = ",".join(repr(e.name) for e in cls)
+            expected = ", ".join(repr(e.name) for e in cls)
             raise ValueError(
                 f"Invalid visibility {name!r}. Expected one of: {expected}"
             ) from None
@@ -103,31 +103,21 @@ def prepare_artifact_types_input(
     return None
 
 
-@overload
-def validate_registry_filter(query: str) -> str: ...
-@overload
-def validate_registry_filter(query: dict[str, Any]) -> dict[str, Any]: ...
-@overload
-def validate_registry_filter(query: list[T] | tuple[T]) -> list[T]: ...
-@overload
-def validate_registry_filter(query: T) -> T: ...
+def prepare_registry_filter(query: T) -> T:
+    """Normalize a registry filter as a JSON-serializable GraphQL input.
 
-
-def validate_registry_filter(query: Any) -> Any:
-    """Recursively prepend the registry prefix under "name" keys, excluding regex ops.
+    Recursively prepend the registry prefix under "name" keys, excluding regex ops.
 
     EX: {"name": "model"} -> {"name": "wandb-registry-model"}
     """
     match query:
         case dict() as dct:
             return {
-                k: (
-                    _prefix_reg_names(v) if k == "name" else validate_registry_filter(v)
-                )
+                k: (_prefix_reg_names(v) if k == "name" else prepare_registry_filter(v))
                 for k, v in dct.items()
             }
         case list() | tuple() as seq:
-            return list(map(validate_registry_filter, seq))
+            return list(map(prepare_registry_filter, seq))
         case _:
             return query
 
@@ -149,6 +139,16 @@ def _prefix_reg_names(query: Any) -> Any:
             return list(map(_prefix_reg_names, seq))
         case _:
             return query
+
+
+def prepare_collection_filter(query: T) -> T:
+    """Normalize a collection filter as a JSON-serializable GraphQL input."""
+    return query  # TODO: Add validation for allowed field names
+
+
+def prepare_version_filter(query: T) -> T:
+    """Normalize an artifact version filter as a JSON-serializable GraphQL input."""
+    return query  # TODO: Add validation for allowed field names
 
 
 @lru_cache(maxsize=10)
