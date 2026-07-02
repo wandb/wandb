@@ -494,6 +494,37 @@ unions:
     error:
       message: "UNION type \"Baz\" must be OBJECT."
       locations: [{line: 1, column: 7}]
+  - name: cannot include same union member twice at same definition
+    input: |
+      union Foo = Bar | Bar
+      type Bar {
+        id: ID
+      }
+    error:
+      message: "Union type Foo can only include type Bar once."
+      locations: [{line: 1, column: 19}]
+  - name: cannot include same union member twice across extension
+    input: |
+      union Foo = Bar
+      extend union Foo = Bar
+      type Bar {
+        id: ID
+      }
+    error:
+      message: "Union type Foo can only include type Bar once."
+      locations: [{line: 2, column: 20}]
+  - name: reports the second occurrence among multiple members
+    input: |
+      union Foo = Bar | Baz | Bar
+      type Bar {
+        id: ID
+      }
+      type Baz {
+        id: ID
+      }
+    error:
+      message: "Union type Foo can only include type Bar once."
+      locations: [{line: 1, column: 25}]
 
   - name: unions of pure type extensions are valid
     input: |

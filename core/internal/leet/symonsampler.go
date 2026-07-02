@@ -94,6 +94,16 @@ func (s *SymonSampler) Sample() StatsMsg {
 
 	for _, resource := range s.resources {
 		g.Go(func() error {
+			// Hardware sampling paths are known to panic (see SystemMonitor).
+			// A panic here would crash the whole TUI: bubbletea's panic
+			// recovery does not cover goroutines spawned by commands.
+			defer func() {
+				if r := recover(); r != nil {
+					s.logger.CaptureError(
+						fmt.Errorf("symon: panic sampling resource: %v", r))
+				}
+			}()
+
 			record, err := resource.Sample()
 			if err != nil {
 				s.logSamplingError(err)
