@@ -4,6 +4,7 @@ import logging
 import os
 import pathlib
 import shutil
+import signal
 import sys
 import time
 import unittest.mock
@@ -19,6 +20,7 @@ os.environ["WANDB_ERROR_REPORTING"] = "false"
 
 import git
 import pytest
+import pytest_timeout
 import wandb
 import wandb.util
 from click.testing import CliRunner
@@ -54,6 +56,54 @@ def setup_wandb_env_variables() -> Generator[None]:
         monkeypatch.setenv("WANDB_BASE_URL", "https://invalid")
 
         yield
+
+
+_TIMEOUT_SETTINGS = pytest.StashKey[pytest_timeout.Settings]()
+
+
+@pytest.hookimpl(wrapper=True)
+def pytest_timeout_set_timer(
+    item: pytest.Item,
+    settings: pytest_timeout.Settings,
+) -> Generator[object]:
+    if settings.method != "signal":
+        raise ValueError("Expected --timeout-method=signal.")
+
+    res = yield
+
+    # Update the timer set by pytest-timeout to fire at an interval.
+    signal.setitimer(signal.ITIMER_REAL, settings.timeout, 15)
+
+    item.stash[_TIMEOUT_SETTINGS] = settings
+
+    return res
+
+
+@pytest.hookimpl(wrapper=True)
+def pytest_timeout_cancel_timer(item: pytest.Item) -> Generator[object]:
+    del item.stash[_TIMEOUT_SETTINGS]
+    return (yield)
+
+
+@pytest.hookimpl(wrapper=True)
+def pytest_exception_interact(
+    node: pytest.Item | pytest.Collector,
+) -> Generator[object]:
+    try:
+        settings: pytest_timeout.Settings | None = node.stash[_TIMEOUT_SETTINGS]
+    except KeyError:
+        settings = None
+
+    res = yield
+
+    # pytest-timeout<=2.4.0 incorrectly clears the timeout after a test fails,
+    # so we re-add the timeout here.
+    # https://github.com/pytest-dev/pytest-timeout/issues/196
+    if settings is not None:
+        hooks = node.config.pluginmanager.hook
+        hooks.pytest_timeout_set_timer(item=node, settings=settings)
+
+    return res
 
 
 # --------------------------------
