@@ -772,19 +772,7 @@ func (w *Workspace) handleWorkspaceFileChanged(msg WorkspaceFileChangedMsg) tea.
 
 func (w *Workspace) handleQuit(msg tea.KeyPressMsg) tea.Cmd {
 	w.logger.Debug("workspace: quit requested")
-
-	if w.heartbeatMgr != nil {
-		w.heartbeatMgr.Stop()
-	}
-	for _, run := range w.runsByKey {
-		if run == nil {
-			continue
-		}
-		w.stopWatcher(run)
-		if run.Reader != nil {
-			run.Reader.Close()
-		}
-	}
+	w.Cleanup()
 
 	return tea.Quit
 }
