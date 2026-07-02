@@ -105,6 +105,7 @@ class Registries(RelayPaginator["RegistryFragment", "Registry"]):
     def versions(
         self,
         filter: dict[str, Any] | None = None,
+        order: str | None = None,
         per_page: PositiveInt = 100,
         start: str | None = None,
     ) -> Versions:
@@ -112,6 +113,9 @@ class Registries(RelayPaginator["RegistryFragment", "Registry"]):
 
         Args:
             filter: Optional mapping of filters to apply to the artifact versions query.
+            order: Optional string to specify the order of the results.
+                If prefixed with '+', sorts ascending (default).
+                If prefixed with '-', sorts descending.
             per_page: The number of results to fetch per page.
                 Usually there is no reason to change this.
             start: Pagination cursor for resuming a past query, captured
@@ -123,6 +127,7 @@ class Registries(RelayPaginator["RegistryFragment", "Registry"]):
             registry_filter=self.filter,
             collection_filter=None,
             artifact_filter=filter,
+            order=order,
             per_page=per_page,
             start=start,
         )
@@ -215,6 +220,7 @@ class Collections(
     def versions(
         self,
         filter: dict[str, Any] | None = None,
+        order: str | None = None,
         per_page: PositiveInt = 100,
         start: str | None = None,
     ) -> Versions:
@@ -222,6 +228,9 @@ class Collections(
 
         Args:
             filter: Optional mapping of filters to apply to the artifact versions query.
+            order: Optional string to specify the order of the results.
+                If prefixed with '+', sorts ascending (default).
+                If prefixed with '-', sorts descending.
             per_page: The number of results to fetch per page.
                 Usually there is no reason to change this.
             start: Pagination cursor for resuming a past query, captured
@@ -233,6 +242,7 @@ class Collections(
             registry_filter=self.registry_filter,
             collection_filter=self.collection_filter,
             artifact_filter=filter,
+            order=order,
             per_page=per_page,
             start=start,
         )
@@ -291,6 +301,7 @@ class Versions(RelayPaginator["ArtifactMembershipFragment", "Artifact"]):
         registry_filter: dict[str, Any] | None = None,
         collection_filter: dict[str, Any] | None = None,
         artifact_filter: dict[str, Any] | None = None,
+        order: str | None = None,
         per_page: PositiveInt = 100,
         start: str | None = None,
     ):
@@ -304,15 +315,48 @@ class Versions(RelayPaginator["ArtifactMembershipFragment", "Artifact"]):
         self.artifact_filter = artifact_filter or {}
         self._service_api = service_api
 
+        if order is not None:
+            self._ensure_order_supported(service_api, organization)
+
         variables = {
             "registryFilter": json.dumps(f) if (f := registry_filter) else None,
             "collectionFilter": json.dumps(f) if (f := collection_filter) else None,
             "artifactFilter": json.dumps(f) if (f := artifact_filter) else None,
             "organization": organization,
+            "order": order,
         }
         super().__init__(
             service_api, variables=variables, per_page=per_page, start=start
         )
+
+    @staticmethod
+    def _ensure_order_supported(api: ServiceApi, org: str) -> None:
+        """Check if the server accepts `order` when querying artifact versions.
+
+        Note:
+            Older server versions may accept `order` but will silently ignore it.
+            For this reason, we currently fail closed. This means if we can't
+            confirm server support for any reason, e.g. older server,
+            network failure, GraphQL error, etc., we reject the `order`
+            argument rather than silently ignoring it.
+
+        Raises:
+            UnsupportedError: If server support for `order` is not confirmed.
+        """
+        from wandb.errors.errors import UnsupportedError
+        from wandb.sdk.artifacts._gqlutils import advanced_registry_search_enabled
+
+        unsupported_error = UnsupportedError(
+            "The `order` argument is not supported when querying registry artifact versions "
+            f"for organization {org!r} on this W&B server. Remove `order`, or "
+            "contact support at support@wandb.com."
+        )
+        try:
+            supported = advanced_registry_search_enabled(api, org)
+        except Exception as e:
+            raise unsupported_error from e
+        if not supported:
+            raise unsupported_error
 
     @override
     def __next__(self):
