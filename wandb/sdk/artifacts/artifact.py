@@ -42,7 +42,6 @@ from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.public import ArtifactCollection, ArtifactFiles, Run
 from wandb.data_types import WBValue
 from wandb.errors import CommError
-from wandb.errors.errors import UnsupportedError
 from wandb.errors.term import termerror, termlog, termwarn
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto.wandb_telemetry_pb2 import Deprecated
@@ -289,22 +288,11 @@ class Artifact:
         return type(self)._from_id(artifact_id, self._get_service_api())
 
     @classmethod
-    def _membership_from_name(
-        cls,
-        *,
-        path: FullArtifactPath,
-        service_api: ServiceApi,
-    ) -> Artifact:
+    def _from_name(cls, *, path: FullArtifactPath, service_api: ServiceApi) -> Artifact:
         from ._generated import (
             ARTIFACT_MEMBERSHIP_BY_NAME_GQL,
             ArtifactMembershipByName,
         )
-
-        if not server_supports(service_api, pb.PROJECT_ARTIFACT_COLLECTION_MEMBERSHIP):
-            raise UnsupportedError(
-                "Querying for the artifact collection membership is not supported "
-                "by this version of wandb server. Consider updating to the latest version."
-            )
 
         gql_op = ARTIFACT_MEMBERSHIP_BY_NAME_GQL
         gql_vars = {"entity": path.prefix, "project": path.project, "name": path.name}
@@ -320,48 +308,7 @@ class Artifact:
             msg = f"artifact membership {path.name!r} not found in {entity_project!r}"
             raise ValueError(msg)
 
-        return cls._from_membership(
-            membership,
-            target=path,
-            service_api=service_api,
-        )
-
-    @classmethod
-    def _from_name(
-        cls,
-        *,
-        path: FullArtifactPath,
-        service_api: ServiceApi,
-        enable_tracking: bool = False,
-    ) -> Artifact:
-        from ._generated import ARTIFACT_BY_NAME_GQL, ArtifactByName
-
-        if server_supports(service_api, pb.PROJECT_ARTIFACT_COLLECTION_MEMBERSHIP):
-            return cls._membership_from_name(
-                path=path,
-                service_api=service_api,
-            )
-
-        gql_vars = {
-            "entity": path.prefix,
-            "project": path.project,
-            "name": path.name,
-            "enableTracking": enable_tracking,
-        }
-        gql_op = ARTIFACT_BY_NAME_GQL
-        data = service_api.execute_graphql(gql_op, variables=gql_vars)
-        result = ArtifactByName.model_validate(data)
-
-        if not (project := result.project):
-            msg = f"project {path.project!r} not found in entity {path.prefix!r}"
-            raise ValueError(msg)
-
-        if not (artifact := project.artifact):
-            entity_project = f"{path.prefix}/{path.project}"
-            msg = f"artifact {path.name!r} not found in {entity_project!r}"
-            raise ValueError(msg)
-
-        return cls._from_attrs(path, artifact, service_api)
+        return cls._from_membership(membership, target=path, service_api=service_api)
 
     @classmethod
     def _from_membership(
