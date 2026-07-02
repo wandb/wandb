@@ -706,7 +706,7 @@ def test_fetch_registry_artifact(
 
     mock_empty_rsp_data = {"data": {"project": {}}}
 
-    mock_membership_rsp_data = {
+    mock_rsp = {
         "data": {
             "project": {
                 "artifact": mock_artifact_fragment_data,
@@ -716,7 +716,6 @@ def test_fetch_registry_artifact(
     }
 
     op_name = nameof(ArtifactMembershipByName)
-    mock_rsp = mock_membership_rsp_data
 
     # If we aren't simulating a successfully-fetched artifact, override the mock response with an empty one
     if not expected_artifact_fetched:

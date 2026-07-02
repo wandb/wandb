@@ -70,7 +70,7 @@ def mock_membership_fragment_data(
 
 
 @fixture
-def mock_membership_rsp_data(
+def mock_rsp_data(
     mock_membership_fragment_data: dict[str, Any],
 ) -> dict[str, Any]:
     """Return the mocked response for the GQL ArtifactMembershipByName query."""
@@ -89,14 +89,14 @@ def test_fetch_migrated_registry_artifact(
     api,
     mocker,
     capsys,
-    mock_membership_rsp_data: dict[str, Any],
+    mock_rsp_data: dict[str, Any],
 ):
     mocker.patch("wandb.sdk.artifacts.artifact.Artifact._from_attrs")
 
     # Setup: Stub the membership-by-name GQL response to return the artifact
     # in the new org registry
     op_name = nameof(ArtifactMembershipByName)
-    mock_rsp = wandb_backend_spy.gql.Constant(content=mock_membership_rsp_data)
+    mock_rsp = wandb_backend_spy.gql.Constant(content=mock_rsp_data)
 
     wandb_backend_spy.stub_gql(
         match=wandb_backend_spy.gql.Matcher(operation=op_name),
