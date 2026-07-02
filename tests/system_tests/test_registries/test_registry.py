@@ -479,6 +479,32 @@ def test_registries_collections(
     assert desc_via_registry == expected_desc_names
 
 
+def test_registries_versions_respects_collection_order(
+    org: str, api: Api, source_artifacts: list[Artifact], target_registry: Registry
+):
+    # Each version linked to a different registry collection
+    for i, artifact in enumerate(source_artifacts):
+        artifact.link(f"{org}/{target_registry.full_name}/reg-collection-{i}")
+
+    registries = api.registries(
+        organization=org,
+        filter={"name": target_registry.full_name},
+    )
+
+    expected_asc = [f"reg-collection-{i}:v0" for i in range(len(source_artifacts))]
+    expected_desc = expected_asc[::-1]
+
+    asc_versions = [
+        version.name for version in registries.collections(order="name").versions()
+    ]
+    desc_versions = [
+        version.name for version in registries.collections(order="-name").versions()
+    ]
+
+    assert asc_versions == expected_asc
+    assert desc_versions == expected_desc
+
+
 def test_registries_versions(
     org: str,
     org_entity: str,
