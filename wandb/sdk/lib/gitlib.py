@@ -16,6 +16,12 @@ logger = logging.getLogger(__name__)
 # honored for backwards compatibility now that GitPython is gone.
 GIT_EXECUTABLE_ENV = "GIT_PYTHON_GIT_EXECUTABLE"
 
+# Environment variables that redirect git away from the repository containing
+# the working directory (git exports them to hook and alias subprocesses).
+# GitPython discovered the repository from the filesystem path and ignored
+# them; scrub them for the same behavior.
+_GIT_REPO_OVERRIDE_ENV = ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE")
+
 
 class GitCommandError(Exception):
     pass
@@ -42,13 +48,16 @@ def run_git(
             GIT_PYTHON_GIT_EXECUTABLE environment variable or "git".
 
     Raises:
-        GitCommandError: If git exits with a non-zero status.
+        GitCommandError: If git exits with a non-zero status or cannot run
+            at all (missing or unusable executable, invalid cwd).
     """
     git = executable or os.environ.get(GIT_EXECUTABLE_ENV) or "git"
+    env = {k: v for k, v in os.environ.items() if k not in _GIT_REPO_OVERRIDE_ENV}
     try:
         proc = subprocess.run(
             [git, *args],
             cwd=cwd,
+            env=env,
             check=True,
             capture_output=True,
         )
@@ -57,6 +66,8 @@ def run_git(
         raise GitCommandError(
             f"git {' '.join(args)} exited with {e.returncode}: {stderr}"
         ) from e
+    except OSError as e:
+        raise GitCommandError(f"git {' '.join(args)} failed to run: {e}") from e
 
     return proc.stdout.decode(errors="replace")
 
@@ -104,18 +115,22 @@ class GitRepo:
             return None
 
         try:
-            return self.repo_root_for(self._root or os.getcwd())
-        except (FileNotFoundError, NotADirectoryError):
+            cwd = self._root or os.getcwd()
+        except FileNotFoundError:
+            wandb.termwarn("current working directory has been invalidated")
+            logger.warning("current working directory has been invalidated")
+            return None
+
+        try:
+            return self.repo_root_for(cwd)
+        except GitCommandError as e:
             if shutil.which(self._git_executable) is None:
                 logger.debug("git executable not found")
-            elif self._root:
+            elif self._root and not os.path.isdir(self._root):
                 wandb.termwarn(f"git root {self._root} does not exist")
                 logger.warning(f"git root {self._root} does not exist")
             else:
-                wandb.termwarn("current working directory has been invalidated")
-                logger.warning("current working directory has been invalidated")
-        except GitCommandError:
-            logger.debug("git repository is invalid")
+                logger.debug(f"git repository is invalid: {e}")
         return None
 
     @property

@@ -9,6 +9,7 @@ import subprocess
 from collections.abc import Generator
 
 import pytest
+from wandb.sdk.lib import gitlib
 from wandb.sdk.lib.gitlib import GitCommandError, GitRepo, GitVersion
 
 
@@ -147,6 +148,24 @@ class TestGitRepo:
     def test_run_git_raises_command_error(self, tmp_path):
         with pytest.raises(GitCommandError, match="not-a-git-command"):
             GitRepo().run_git("not-a-git-command", cwd=str(tmp_path))
+
+    def test_run_git_missing_executable_raises_command_error(self):
+        with pytest.raises(GitCommandError, match="failed to run"):
+            gitlib.run_git("--version", executable="git-not-found")
+
+    def test_run_git_unusable_executable_raises_command_error(self, tmp_path):
+        with pytest.raises(GitCommandError, match="failed to run"):
+            gitlib.run_git("--version", executable=str(tmp_path))
+
+    def test_run_git_ignores_repo_override_env(self, tmp_path, monkeypatch):
+        repo_path = str(tmp_path / "repo")
+        init_git_repo(repo_path)
+        monkeypatch.setenv("GIT_DIR", str(tmp_path / "elsewhere"))
+
+        root_dir = GitRepo(root=repo_path).root_dir
+
+        assert root_dir is not None
+        assert os.path.realpath(root_dir) == os.path.realpath(repo_path)
 
     def test_init_repo_without_git(self):
         git_repo = GitRepo(lazy=False, _git_executable="git-not-found")

@@ -77,6 +77,14 @@ def test_fetch_bad_remote_raises_launch_error(tmp_path):
         ref.fetch(str(tmp_path / "dst"))
 
 
+def test_fetch_without_git_raises_launch_error(tmp_path, monkeypatch):
+    monkeypatch.setenv("GIT_PYTHON_GIT_EXECUTABLE", "git-not-found")
+    ref = GitReference(str(tmp_path / "source"))
+
+    with pytest.raises(LaunchError, match="Unable to fetch"):
+        ref.fetch(str(tmp_path / "dst"))
+
+
 def test_fetch_no_default_branch_raises_launch_error(source_repo, tmp_path):
     run_git(source_repo, "branch", "-m", "main", "trunk")
     ref = GitReference(str(source_repo))

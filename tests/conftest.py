@@ -18,6 +18,12 @@ from wandb.sdk import wandb_setup
 # Don't write to Sentry in wandb.
 os.environ["WANDB_ERROR_REPORTING"] = "false"
 
+# Hide the developer's global and system git config from tests that run git,
+# so their hooks (core.hooksPath, init.templateDir) and signing settings
+# (commit.gpgsign, tag.gpgSign) can't break or hang test repos.
+os.environ["GIT_CONFIG_GLOBAL"] = os.devnull
+os.environ["GIT_CONFIG_NOSYSTEM"] = "1"
+
 import pytest
 import wandb
 import wandb.util
