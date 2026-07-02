@@ -525,11 +525,9 @@ class Agent:
         sweep_id = os.environ.get(wandb.env.SWEEP_ID)
         # TODO(jhr): move into settings
         config_file = os.path.join(
-            "wandb", "sweep-" + sweep_id, "config-" + run_id + ".yaml"
+            "wandb", f"sweep-{sweep_id}", f"config-{run_id}.yaml"
         )
-        json_file = os.path.join(
-            "wandb", "sweep-" + sweep_id, "config-" + run_id + ".json"
-        )
+        json_file = os.path.join("wandb", f"sweep-{sweep_id}", f"config-{run_id}.json")
 
         os.environ[wandb.env.RUN_ID] = run_id
 
