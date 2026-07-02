@@ -1599,7 +1599,7 @@ class Api:
         )
 
     @normalize_exceptions
-    def _artifact_from_name(self, name: str, type: str | None = None) -> Artifact:
+    def _artifact(self, name: str, type: str | None = None) -> Artifact:
         from wandb.sdk.artifacts._validators import (
             FullArtifactPath,
             is_artifact_registry_project,
@@ -1701,7 +1701,7 @@ class Api:
         ```
 
         """
-        return self._artifact_from_name(name=name, type=type)
+        return self._artifact(name=name, type=type)
 
     @normalize_exceptions
     def job(self, name: str | None, path: str | None = None) -> public.Job:
@@ -1829,7 +1829,7 @@ class Api:
 
         """
         try:
-            self._artifact_from_name(name, type)
+            self._artifact(name, type)
         except wandb.errors.CommError as e:
             if _is_service_api_transport_error(e.exc):
                 raise
