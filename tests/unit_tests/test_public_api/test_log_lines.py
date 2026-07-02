@@ -87,7 +87,9 @@ def test_log_line_exposes_all_fields():
 def test_len_is_log_line_count():
     service_api = mock.MagicMock()
     run = _run(service_api)
-    service_api.execute_graphql.return_value = _page(42, [_node(0, "x")], has_next=False)
+    service_api.execute_graphql.return_value = _page(
+        42, [_node(0, "x")], has_next=False
+    )
 
     assert len(run.log_lines()) == 42
 

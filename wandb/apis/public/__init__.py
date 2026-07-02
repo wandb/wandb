@@ -59,7 +59,6 @@ from wandb.apis.public.artifacts import (
 from wandb.apis.public.automations import Automations
 from wandb.apis.public.files import FILE_FRAGMENT, File, Files
 from wandb.apis.public.history import HistoryScan
-from wandb.apis.public.log_lines import LOG_LINES_FRAGMENT, LogLine, LogLines
 from wandb.apis.public.integrations import SlackIntegrations, WebhookIntegrations
 from wandb.apis.public.jobs import (
     Job,
@@ -69,6 +68,7 @@ from wandb.apis.public.jobs import (
     RunQueuePrioritizationMode,
     RunQueueResourceType,
 )
+from wandb.apis.public.log_lines import LOG_LINES_FRAGMENT, LogLine, LogLines
 from wandb.apis.public.projects import Project, Projects, Sweeps
 from wandb.apis.public.query_generator import QueryGenerator
 from wandb.apis.public.registries import Registries, Registry
