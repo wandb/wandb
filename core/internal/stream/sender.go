@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -109,6 +110,11 @@ type Sender struct {
 
 	// runSummary is the full summary for the run
 	runSummary *runsummary.RunSummary
+
+	// historyStep is the next _step value to assign to history rows that don't
+	// already contain one.
+	historyStep            int64
+	historyStepInitialized bool
 
 	// receivedExit is true once the Sender receives an Exit record.
 	receivedExit bool
@@ -775,11 +781,161 @@ func (s *Sender) sendHistory(record *spb.HistoryRecord) {
 		return
 	}
 
+	s.ensureHistoryStep(record)
+	s.streamSummaryStep(record)
+
 	if s.fileStream == nil {
 		return
 	}
 
 	s.fileStream.StreamUpdate(&fs.HistoryUpdate{Record: record})
+}
+
+// streamSummaryStep materializes the upload-facing summary _step.
+//
+// The handler omits the auto-generated _step from its summary updates because
+// the sender owns step assignment (see ensureHistoryStep, which may rebase the
+// step forward on offline resume). Metric aggregations are derived by the
+// handler and forwarded as SummaryRecords, so we only emit _step here and must
+// not re-derive other metrics, which would clobber define_metric aggregations.
+func (s *Sender) streamSummaryStep(record *spb.HistoryRecord) {
+	if record == nil {
+		return
+	}
+	if s.settings.IsSharedMode() || s.settings.IsEnableServerSideDerivedSummary() {
+		return
+	}
+	if record.GetStep() == nil {
+		return
+	}
+
+	updates := runsummary.FromProto(&spb.SummaryRecord{Update: []*spb.SummaryItem{{
+		Key:       "_step",
+		ValueJson: strconv.FormatInt(record.GetStep().GetNum(), 10),
+	}}})
+	if err := updates.Apply(s.runSummary); err != nil {
+		s.logger.CaptureError(
+			fmt.Errorf("sender: error updating summary step: %v", err))
+	}
+
+	if s.fileStream != nil {
+		s.fileStream.StreamUpdate(&fs.SummaryUpdate{Updates: updates})
+	}
+}
+
+// ensureHistoryStep adds _step to history rows that do not already have it.
+//
+// Existing _step values are preserved unless they fall behind the sender's
+// running step counter, which would break the monotonic ordering the
+// filestream requires. This can happen when syncing an offline resumed segment
+// that logged with local step numbers. When a value is clamped, the original
+// user-provided step is dropped, so we log a warning rather than renumber
+// silently.
+func (s *Sender) ensureHistoryStep(record *spb.HistoryRecord) {
+	if record == nil {
+		return
+	}
+	if s.settings.IsSharedMode() {
+		return
+	}
+
+	if step, ok := explicitHistoryStepItem(record); ok {
+		s.initializeHistoryStep()
+		if step < s.historyStep {
+			s.logger.CaptureWarn(
+				"sender: history _step behind running step, renumbering to keep steps monotonic",
+				"provided_step", step,
+				"assigned_step", s.historyStep,
+			)
+			setExplicitHistoryStep(record, s.historyStep)
+			step = s.historyStep
+		}
+		record.Step = &spb.HistoryStep{Num: step}
+		s.advanceHistoryStepPast(step)
+		return
+	}
+
+	if record.GetStep() != nil {
+		step := record.GetStep().GetNum()
+		record.Item = append(record.Item, &spb.HistoryItem{
+			NestedKey: []string{"_step"},
+			ValueJson: strconv.FormatInt(step, 10),
+		})
+		s.advanceHistoryStepPast(step)
+		return
+	}
+
+	s.initializeHistoryStep()
+
+	step := s.historyStep
+	record.Step = &spb.HistoryStep{Num: step}
+	record.Item = append(record.Item, &spb.HistoryItem{
+		NestedKey: []string{"_step"},
+		ValueJson: strconv.FormatInt(step, 10),
+	})
+	s.historyStep++
+}
+
+func (s *Sender) initializeHistoryStep() {
+	if s.historyStepInitialized {
+		return
+	}
+
+	if upserter, err := s.runHandle.Upserter(); err == nil {
+		run := &spb.RunRecord{}
+		upserter.FillRunRecord(run)
+		s.historyStep = run.GetStartingStep()
+	}
+
+	s.historyStepInitialized = true
+}
+
+func (s *Sender) advanceHistoryStepPast(step int64) {
+	s.initializeHistoryStep()
+	if step >= s.historyStep {
+		s.historyStep = step + 1
+	}
+}
+
+func explicitHistoryStepItem(record *spb.HistoryRecord) (int64, bool) {
+	for _, item := range record.GetItem() {
+		nestedKey := item.GetNestedKey()
+		if item.GetKey() != "_step" &&
+			(len(nestedKey) != 1 || nestedKey[0] != "_step") {
+			continue
+		}
+
+		step, err := strconv.ParseInt(item.GetValueJson(), 10, 64)
+		if err != nil {
+			return 0, true
+		}
+		return step, true
+	}
+
+	return 0, false
+}
+
+func setExplicitHistoryStep(record *spb.HistoryRecord, step int64) {
+	stepStr := strconv.FormatInt(step, 10)
+	for _, item := range record.GetItem() {
+		if item.GetKey() == "_step" ||
+			(len(item.GetNestedKey()) == 1 && item.GetNestedKey()[0] == "_step") {
+			item.ValueJson = stepStr
+			return
+		}
+	}
+
+	record.Item = append(record.Item, &spb.HistoryItem{
+		NestedKey: []string{"_step"},
+		ValueJson: stepStr,
+	})
+}
+
+// SummaryForTest returns the sender's derived run summary as records.
+//
+// This is for testing purposes only.
+func (s *Sender) SummaryForTest() ([]*spb.SummaryItem, error) {
+	return s.runSummary.ToRecords()
 }
 
 func (s *Sender) sendSummary(_ *spb.Record, summary *spb.SummaryRecord) {

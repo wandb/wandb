@@ -49,11 +49,12 @@ func makeHandler(
 }
 
 type data struct {
-	items    map[string]string
-	step     int64
-	flush    bool
-	stepNil  bool
-	flushNil bool
+	items         map[string]string
+	step          int64
+	flush         bool
+	stepNil       bool
+	flushNil      bool
+	expectStepNil bool
 }
 
 func makeFlushRecord() *spb.Record {
@@ -138,8 +139,9 @@ func makeOutput(record *spb.Record) data {
 			items[strings.Join(item.NestedKey, ".")] = item.ValueJson
 		}
 		return data{
-			items: items,
-			step:  history.Step.Num,
+			items:   items,
+			step:    history.GetStep().GetNum(),
+			stepNil: history.GetStep() == nil,
 		}
 	default:
 		return data{}
@@ -485,13 +487,13 @@ func TestHandlePartialHistory(t *testing.T) {
 						"key1": "1",
 						"key2": "2",
 					},
-					step: 0,
+					expectStepNil: true,
 				},
 				{
 					items: map[string]string{
 						"key2": "3",
 					},
-					step: 1,
+					expectStepNil: true,
 				},
 			},
 		},
@@ -525,14 +527,14 @@ func TestHandlePartialHistory(t *testing.T) {
 						"key1": "1",
 						"key2": "2",
 					},
-					step: 0,
+					expectStepNil: true,
 				},
 				{
 					items: map[string]string{
 						"key1": "2",
 						"key2": "3",
 					},
-					step: 1,
+					expectStepNil: true,
 				},
 			},
 		},
@@ -559,13 +561,13 @@ func TestHandlePartialHistory(t *testing.T) {
 					items: map[string]string{
 						"key1": "1",
 					},
-					step: 0,
+					expectStepNil: true,
 				},
 				{
 					items: map[string]string{
 						"key1": "2",
 					},
-					step: 1,
+					expectStepNil: true,
 				},
 			},
 		},
@@ -625,7 +627,7 @@ func TestHandlePartialHistory(t *testing.T) {
 					items: map[string]string{
 						"key1": "2",
 					},
-					step: 2,
+					expectStepNil: true,
 				},
 			},
 		},
@@ -679,13 +681,13 @@ func TestHandlePartialHistory(t *testing.T) {
 					items: map[string]string{
 						"key1": "1",
 					},
-					step: 0,
+					expectStepNil: true,
 				},
 				{
 					items: map[string]string{
 						"key1": "2",
 					},
-					step: 1,
+					expectStepNil: true,
 				},
 			},
 		},
@@ -712,7 +714,7 @@ func TestHandlePartialHistory(t *testing.T) {
 					items: map[string]string{
 						"key1": "2",
 					},
-					step: 0,
+					expectStepNil: true,
 				},
 			},
 		},
@@ -738,7 +740,16 @@ func TestHandlePartialHistory(t *testing.T) {
 			for i, d := range tc.expected {
 				record := (<-handler.OutChan()).WorkImpl.(runwork.WorkRecord).Record
 				actual := makeOutput(record)
-				assert.Equal(t, d.step, actual.step, "wrong step in record %d", i)
+				if d.expectStepNil {
+					assert.Nil(
+						t,
+						record.GetHistory().GetStep(),
+						"record %d should omit step",
+						i,
+					)
+				} else if history := record.GetHistory(); history != nil {
+					assert.Equal(t, d.step, actual.step, "wrong step in record %d", i)
+				}
 				for k, v := range d.items {
 					assert.Equal(t, v, actual.items[k], "key=%s", k)
 				}
@@ -777,7 +788,6 @@ func TestHandleHistory(t *testing.T) {
 					items: map[string]string{
 						"key1":     "1",
 						"key2":     "2",
-						"_step":    "0",
 						"_runtime": "0.000000",
 					},
 					step: 0,
@@ -785,7 +795,6 @@ func TestHandleHistory(t *testing.T) {
 				{
 					items: map[string]string{
 						"key2":     "3",
-						"_step":    "1",
 						"_runtime": "0.000000",
 					},
 					step: 1,
@@ -922,9 +931,7 @@ func TestHandleDerivedSummary(t *testing.T) {
 				makeExitRecord(),
 			},
 			expectedHistoryRecords: 1,
-			// We expect 2 summary records from the partial history record
-			// (run timing information + derived summary) and another summary
-			// record from the exit record.
+			// Derived metric summary on flush plus run timing on flush and exit.
 			expectedSummaryRecords: 3,
 			expectedExitRecords:    1,
 		},

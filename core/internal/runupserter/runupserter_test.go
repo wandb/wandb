@@ -206,6 +206,45 @@ func TestResume(t *testing.T) {
 	assert.True(t, mockClient.AllStubsUsed())
 }
 
+func TestResume_FromRunRecord(t *testing.T) {
+	mockClient := gqlmock.NewMockClient()
+	mockClient.StubMatchOnce(gqlmock.WithOpName("RunResumeStatus"), `{}`)
+	runupsertertest.StubUpsertBucket(t, mockClient)
+
+	params := testParams(t)
+	params.GraphqlClientOrNil = mockClient
+
+	upserter, err := runupserter.InitRun(
+		runRecord(&spb.RunRecord{ResumeMode: "allow"}),
+		params,
+	)
+	defer upserter.Finish()
+
+	assert.NoError(t, err)
+	assert.True(t, mockClient.AllStubsUsed())
+}
+
+func TestResume_FromRunRecordOverridesSettings(t *testing.T) {
+	mockClient := gqlmock.NewMockClient()
+	mockClient.StubMatchOnce(gqlmock.WithOpName("RunResumeStatus"), `{}`)
+	runupsertertest.StubUpsertBucket(t, mockClient)
+
+	params := testParams(t)
+	params.GraphqlClientOrNil = mockClient
+	params.Settings = settings.From(&spb.Settings{
+		Resume: wrapperspb.String("must"),
+	})
+
+	upserter, err := runupserter.InitRun(
+		runRecord(&spb.RunRecord{ResumeMode: "allow"}),
+		params,
+	)
+	defer upserter.Finish()
+
+	assert.NoError(t, err)
+	assert.True(t, mockClient.AllStubsUsed())
+}
+
 func TestResume_Offline_Succeeds(t *testing.T) {
 	params := testParams(t)
 	params.GraphqlClientOrNil = nil
