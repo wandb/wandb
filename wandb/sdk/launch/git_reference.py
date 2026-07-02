@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import re
+from dataclasses import dataclass
 from enum import IntEnum
 
 from wandb.sdk.launch.errors import LaunchError
