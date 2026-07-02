@@ -36,11 +36,17 @@ type capturedMetric struct {
 	Attributes map[string]string
 }
 
+type capturedRequest struct {
+	Path          string
+	Authorization string
+}
+
 // capturedExports accumulates the telemetry decoded from OTLP/HTTP exports.
 type capturedExports struct {
-	mu      sync.Mutex
-	logs    []capturedLog
-	metrics []capturedMetric
+	mu       sync.Mutex
+	logs     []capturedLog
+	metrics  []capturedMetric
+	requests []capturedRequest
 }
 
 func (c *capturedExports) addLogs(t *testing.T, body []byte) {
@@ -85,6 +91,21 @@ func (c *capturedExports) addMetrics(t *testing.T, body []byte) {
 	}
 }
 
+func (c *capturedExports) addRequest(r *http.Request) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.requests = append(c.requests, capturedRequest{
+		Path:          r.URL.Path,
+		Authorization: r.Header.Get("Authorization"),
+	})
+}
+
+func (c *capturedExports) requestsSnapshot() []capturedRequest {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return append([]capturedRequest(nil), c.requests...)
+}
+
 // keyValuesToMap flattens OTLP string attributes into a plain map.
 func keyValuesToMap(kvs []*commonpb.KeyValue) map[string]string {
 	out := make(map[string]string, len(kvs))
@@ -124,6 +145,7 @@ func newOTLPTestServer(t *testing.T) (baseURL string, captured *capturedExports)
 
 	srv := httptest.NewServer(http.HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
+			captured.addRequest(r)
 			body, err := io.ReadAll(r.Body)
 			if err != nil {
 				t.Errorf("read export body: %v", err)
@@ -160,11 +182,12 @@ func setProxyEnabledValueForTest(t *testing.T, v bool) {
 func startProxy(
 	t *testing.T,
 	endpoint string,
+	apiKey string,
 ) *analytics.OpenTelemetryProxyImpl {
 	t.Helper()
 	setProxyEnabledValueForTest(t, true)
 
-	proxy := analytics.NewOpenTelemetryProxy(endpoint)
+	proxy := analytics.NewOpenTelemetryProxy(endpoint, apiKey)
 	impl, ok := proxy.(*analytics.OpenTelemetryProxyImpl)
 	require.True(
 		t,
@@ -275,7 +298,7 @@ func TestTelemetryContext_SnapshotsDoesNotUpdateInternalState(t *testing.T) {
 
 func TestNewOpenTelemetryProxy_DisabledReturnsNoop(t *testing.T) {
 	setProxyEnabledValueForTest(t, false)
-	proxy := analytics.NewOpenTelemetryProxy("http://example.invalid")
+	proxy := analytics.NewOpenTelemetryProxy("http://example.invalid", "")
 
 	_, ok := proxy.(analytics.NoopOpenTelemetryProxy)
 
@@ -284,7 +307,7 @@ func TestNewOpenTelemetryProxy_DisabledReturnsNoop(t *testing.T) {
 
 func TestNewOpenTelemetryProxy_EnabledReturnsImpl(t *testing.T) {
 	setProxyEnabledValueForTest(t, true)
-	proxy := analytics.NewOpenTelemetryProxy("http://example.invalid")
+	proxy := analytics.NewOpenTelemetryProxy("http://example.invalid", "")
 
 	_, ok := proxy.(*analytics.OpenTelemetryProxyImpl)
 
@@ -293,7 +316,7 @@ func TestNewOpenTelemetryProxy_EnabledReturnsImpl(t *testing.T) {
 
 func TestOpenTelemetryProxyImpl_RecordLog(t *testing.T) {
 	url, captured := newOTLPTestServer(t)
-	impl := startProxy(t, url)
+	impl := startProxy(t, url, "test-api-key")
 
 	impl.RecordLog(
 		"hello world",
@@ -311,7 +334,7 @@ func TestOpenTelemetryProxyImpl_RecordLog(t *testing.T) {
 
 func TestOpenTelemetryProxyImpl_RecordMetricAndLogEvent(t *testing.T) {
 	url, captured := newOTLPTestServer(t)
-	impl := startProxy(t, url)
+	impl := startProxy(t, url, "test-api-key")
 
 	impl.RecordMetricAndLogEvent("an_event", map[string]string{
 		"exception.type": "X",
@@ -332,9 +355,29 @@ func TestOpenTelemetryProxyImpl_RecordMetricAndLogEvent(t *testing.T) {
 	assert.Equal(t, "value", log.Attributes["custom"])
 }
 
+func TestOpenTelemetryProxyImpl_SendsAPIKeyAuth(t *testing.T) {
+	url, captured := newOTLPTestServer(t)
+	impl := startProxy(t, url, "test-api-key")
+
+	impl.RecordMetricAndLogEvent("authenticated_event", nil)
+	require.NoError(t, impl.Shutdown(context.Background()))
+
+	requests := captured.requestsSnapshot()
+	require.NotEmpty(t, requests, "expected at least one OTLP export request")
+	for _, req := range requests {
+		assert.Equal(
+			t,
+			"Basic YXBpOnRlc3QtYXBpLWtleQ==",
+			req.Authorization,
+			"path %s",
+			req.Path,
+		)
+	}
+}
+
 func TestOpenTelemetryProxyImpl_Exception(t *testing.T) {
 	url, captured := newOTLPTestServer(t)
-	impl := startProxy(t, url)
+	impl := startProxy(t, url, "test-api-key")
 
 	impl.Exception("error-message", assert.AnError)
 	require.NoError(t, impl.Shutdown(context.Background()))
@@ -359,7 +402,7 @@ func TestOpenTelemetryProxyImpl_Exception(t *testing.T) {
 
 func TestOpenTelemetryProxyImpl_Shutdown_CalledMultipleTimes(t *testing.T) {
 	url, _ := newOTLPTestServer(t)
-	impl := startProxy(t, url)
+	impl := startProxy(t, url, "test-api-key")
 
 	require.NoError(t, impl.Shutdown(context.Background()))
 
@@ -369,7 +412,7 @@ func TestOpenTelemetryProxyImpl_Shutdown_CalledMultipleTimes(t *testing.T) {
 
 func TestOpenTelemetryProxyImpl_RecordAfterShutdown_IsNoop(t *testing.T) {
 	url, captured := newOTLPTestServer(t)
-	impl := startProxy(t, url)
+	impl := startProxy(t, url, "test-api-key")
 	require.NoError(t, impl.Shutdown(context.Background()))
 
 	impl.RecordLog("after", nil, otellogapi.SeverityInfo)

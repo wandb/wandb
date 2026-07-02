@@ -26,6 +26,8 @@ import (
 	"go.opentelemetry.io/otel/sdk/resource"
 	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
 
+	"github.com/wandb/wandb/core/internal/api"
+	"github.com/wandb/wandb/core/internal/httplayers"
 	"github.com/wandb/wandb/core/internal/version"
 )
 
@@ -217,20 +219,31 @@ type OpenTelemetryProxyImpl struct {
 
 // NewOpenTelemetryProxy returns an OpenTelemetryProxy for the given endpoint.
 //
-// When analytics is disabled (see SetEnabled), a no-op proxy is returned so
+// When analytics is disabled, a no-op proxy is returned so
 // no providers are created and nothing is recorded.
-func NewOpenTelemetryProxy(endpoint string) OpenTelemetryProxy {
-	if !enabled.Load() {
+func NewOpenTelemetryProxy(endpoint string, apiKey string) OpenTelemetryProxy {
+	if !enabled.Load() || apiKey == "" {
 		return NoopOpenTelemetryProxy{}
 	}
 
 	return &OpenTelemetryProxyImpl{
 		endpoint:         endpoint,
 		telemetryContext: NewTelemetryContext(),
-		httpClient: &http.Client{
-			Timeout: defaultTimeout,
-		},
+		httpClient:       newOTLPHTTPClient(apiKey),
 	}
+}
+
+func newOTLPHTTPClient(apiKey string) *http.Client {
+	client := &http.Client{
+		Timeout: defaultTimeout,
+	}
+	if apiKey != "" {
+		client.Transport = httplayers.WrapRoundTripper(
+			http.DefaultTransport,
+			api.NewAPIKeyCredentialProvider(apiKey),
+		)
+	}
+	return client
 }
 
 // Start implements OpenTelemetryProxy.Start.
@@ -273,6 +286,7 @@ func (o *OpenTelemetryProxyImpl) setupMetrics(
 	exporter, err := otlpmetrichttp.New(ctx,
 		otlpmetrichttp.WithEndpointURL(o.endpoint),
 		otlpmetrichttp.WithURLPath(metricsPath),
+		otlpmetrichttp.WithHTTPClient(o.httpClient),
 		otlpmetrichttp.WithTemporalitySelector(metric.DeltaTemporalitySelector),
 	)
 	if err != nil {
@@ -299,6 +313,7 @@ func (o *OpenTelemetryProxyImpl) setupLogs(
 	exporter, err := otlploghttp.New(ctx,
 		otlploghttp.WithEndpointURL(o.endpoint),
 		otlploghttp.WithURLPath(logsPath),
+		otlploghttp.WithHTTPClient(o.httpClient),
 	)
 	if err != nil {
 		return fmt.Errorf("create log exporter: %w", err)
