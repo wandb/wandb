@@ -41,6 +41,7 @@ func (m *RunSyncManager) InitSync(
 
 	m.telemetryProxy = analytics.NewOpenTelemetryProxy(
 		settings.From(request.Settings).GetBaseURL(),
+		settings.From(request.Settings).GetAPIKey(),
 	)
 	if err := m.telemetryProxy.Start(context.Background()); err != nil {
 		slog.Error("runsync: failed to start telemetry proxy", "error", err)

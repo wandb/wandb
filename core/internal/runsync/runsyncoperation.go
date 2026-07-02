@@ -42,7 +42,10 @@ func (f *RunSyncOperationFactory) New(
 	}
 
 	wandbSettings := settings.From(globalSettings)
-	telemetryProxy := analytics.NewOpenTelemetryProxy(wandbSettings.GetBaseURL())
+	telemetryProxy := analytics.NewOpenTelemetryProxy(
+		wandbSettings.GetBaseURL(),
+		wandbSettings.GetAPIKey(),
+	)
 	if err := telemetryProxy.Start(context.Background()); err != nil {
 		slog.Error("runsync: failed to start telemetry proxy", "error", err)
 	}
