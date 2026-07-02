@@ -48,7 +48,6 @@ def test_config_save_preserve_order(tmp_path, test_settings):
         record_q=MagicMock(),
         result_q=MagicMock(),
         interface=MagicMock(),
-        context_keeper=MagicMock(),
     )
 
     original_config = {"b": 1, "a": 2}

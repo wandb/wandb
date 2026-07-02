@@ -8,7 +8,10 @@ from io import BytesIO
 
 import pytest
 import wandb
-from wandb.integration.weave.media_adapters import unwrap_value
+from wandb.integration.weave.media_adapters import (
+    handle_nested_wandb_values,
+    unwrap_value,
+)
 
 
 def _install_fake_weave(monkeypatch, **attrs):
@@ -98,6 +101,68 @@ def test_media_adapter_stubs_unsupported_wandb_value_without_natural_hash(
 
     mock_wandb_log.assert_warned("wandb.Histogram values are not yet supported")
     assert result == "[wandb.Histogram not yet supported]"
+
+
+def test_media_adapter_stubs_nested_wandb_value(mock_wandb_log):
+    from PIL import Image as PILImage
+
+    image = wandb.Image(PILImage.new("RGB", (2, 2), color="red"))
+
+    result = handle_nested_wandb_values(
+        {"images": ([image],)},
+        "media",
+        unsupported_media_mode="stub",
+    )
+
+    mock_wandb_log.assert_warned("Nested wandb.Image values are not yet supported")
+    assert result == {"images": [["[wandb.Image nested value not yet supported]"]]}
+
+
+def test_media_adapter_unwraps_wandb_image_in_dict_value(mock_wandb_log):
+    from PIL import Image as PILImage
+
+    image = wandb.Image(PILImage.new("RGB", (2, 2), color="red"))
+
+    result = handle_nested_wandb_values(
+        {"metadata": {"image": image}},
+        "metadata",
+        unsupported_media_mode="raise",
+    )
+
+    mock_wandb_log.assert_warned("wandb.Image values")
+    assert isinstance(result["metadata"]["image"], PILImage.Image)
+    assert result["metadata"]["image"].size == (2, 2)
+
+
+def test_media_adapter_rejects_nested_wandb_value():
+    from PIL import Image as PILImage
+
+    image = wandb.Image(PILImage.new("RGB", (2, 2), color="red"))
+
+    with pytest.raises(TypeError) as exc_info:
+        handle_nested_wandb_values(
+            {"images": [image]},
+            "media",
+            unsupported_media_mode="raise",
+        )
+
+    message = str(exc_info.value)
+    assert "nested wandb value type 'Image'" in message
+    assert "inside lists or tuples" in message
+    assert "unsupported_media_mode='stub'" in message
+
+
+def test_media_adapter_rejects_nested_table_even_in_stub_mode():
+    table = wandb.Table(columns=["x"], data=[[1]])
+
+    with pytest.raises(TypeError) as exc_info:
+        handle_nested_wandb_values(
+            [table],
+            "media",
+            unsupported_media_mode="stub",
+        )
+
+    assert "does not support nested Tables" in str(exc_info.value)
 
 
 # Image

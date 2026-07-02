@@ -3,11 +3,11 @@ package filetransfer
 import (
 	"fmt"
 	"io"
+	"maps"
 	"math"
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/hashicorp/go-retryablehttp"
 
@@ -76,17 +76,7 @@ func (ft *DefaultFileTransfer) Upload(task *DefaultUploadTask) error {
 	if err != nil {
 		return err
 	}
-	for _, header := range task.Headers {
-		parts := strings.SplitN(header, ":", 2)
-		if len(parts) != 2 {
-			ft.logger.Error(
-				"file transfer: upload: invalid header",
-				"header", header,
-			)
-			continue
-		}
-		req.Header.Set(parts[0], parts[1])
-	}
+	maps.Copy(req.Header, task.Headers)
 	if task.Context != nil {
 		req = req.WithContext(task.Context)
 	}

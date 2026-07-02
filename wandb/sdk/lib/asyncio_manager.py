@@ -6,6 +6,7 @@ import asyncio
 import concurrent.futures
 import contextlib
 import logging
+import os
 import threading
 from collections.abc import Awaitable, Callable
 from typing import TypeVar
@@ -23,6 +24,10 @@ class RunCancelledError(Exception):
 
 class AlreadyJoinedError(Exception):
     """AsyncioManager.run() used after join()."""
+
+
+class ForkedError(Exception):
+    """AsyncioManager used in a forked process where it's not valid."""
 
 
 class AsyncioManager:
@@ -54,6 +59,7 @@ class AsyncioManager:
             name="wandb-AsyncioManager-main",
             daemon=True,
         )
+        self._pid = os.getpid()
         self._lock = threading.Lock()
 
         self._ready_event = threading.Event()
@@ -80,6 +86,8 @@ class AsyncioManager:
 
     def join(self) -> None:
         """Stop accepting new asyncio tasks and wait for the remaining ones."""
+        self._ensure_not_in_fork()
+
         try:
             with self._lock:
                 # If join() was already called, block until the thread completes
@@ -139,7 +147,12 @@ class AsyncioManager:
         except concurrent.futures.CancelledError:
             raise RunCancelledError from None
 
-        except KeyboardInterrupt:
+        except:
+            # This is primarily for KeyboardInterrupt and any other exception
+            # that can be raised "out of thin air". For instance, pytest-timeout
+            # calls `pytest.fail()` inside a SIGALRM handler, which raises
+            # a special exception that pytest catches.
+            #
             # If we're interrupted here, we only cancel this task rather than
             # cancelling all tasks like in join(). This only matters if the
             # interrupt is then suppressed (or delayed) in which case we
@@ -191,6 +204,8 @@ class AsyncioManager:
         daemon: bool,
         name: str | None = None,
     ) -> concurrent.futures.Future[_T]:
+        self._ensure_not_in_fork()
+
         # Wait for _loop to be initialized.
         self._ready_event.wait()
 
@@ -227,6 +242,24 @@ class AsyncioManager:
                     with self._lock:
                         self._remaining_tasks -= 1
                     self._task_finished_cond.notify_all()
+
+    def _ensure_not_in_fork(self) -> None:
+        """Raise an error if we're in a forked process.
+
+        Forks do not inherit threads, so submitting tasks will deadlock in
+        a forked process as these tasks will never run.
+
+        Forking a multithreaded process is generally not valid, and recent
+        Python versions warn about it, but in some cases it is hard to avoid,
+        so this check at least prevents a deadlock.
+        """
+        if (pid := os.getpid()) != self._pid:
+            raise ForkedError(
+                "This operation is not valid in a forked process."
+                + f" Original PID={self._pid}, current PID={pid}."
+                + " Avoid using os.fork() and make sure your multiprocessing"
+                + " start method is 'forkserver' or 'spawn'."
+            )
 
     def _main(self) -> None:
         """Run the asyncio loop until join() is called and all tasks finish."""

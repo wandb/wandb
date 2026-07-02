@@ -89,6 +89,9 @@ const (
 	ServerFeature_AUTOMATIONS_ON_USER ServerFeature = 27
 	// Indicates that the server supports Trigger.lastExecutedAt.
 	ServerFeature_AUTOMATION_LAST_EXECUTED_AT ServerFeature = 28
+	// Indicates that the server supports the markRunFilesUploaded mutation, used
+	// to commit files uploaded outside a live run (e.g. Run.upload_file).
+	ServerFeature_MARK_RUN_FILES_UPLOADED ServerFeature = 29
 )
 
 // Enum value maps for ServerFeature.
@@ -123,6 +126,7 @@ var (
 		26: "AUTOMATION_EVENT_UNLINK_ARTIFACT",
 		27: "AUTOMATIONS_ON_USER",
 		28: "AUTOMATION_LAST_EXECUTED_AT",
+		29: "MARK_RUN_FILES_UPLOADED",
 	}
 	ServerFeature_value = map[string]int32{
 		"SERVER_FEATURE_UNSPECIFIED":           0,
@@ -154,6 +158,7 @@ var (
 		"AUTOMATION_EVENT_UNLINK_ARTIFACT":                     26,
 		"AUTOMATIONS_ON_USER":                                  27,
 		"AUTOMATION_LAST_EXECUTED_AT":                          28,
+		"MARK_RUN_FILES_UPLOADED":                              29,
 	}
 )
 
@@ -12608,7 +12613,7 @@ const file_wandb_proto_wandb_internal_proto_rawDesc = "" +
 	"\finput_source\x18\x01 \x01(\v2\x1e.wandb_internal.JobInputSourceR\vinputSource\x12A\n" +
 	"\rinclude_paths\x18\x02 \x03(\v2\x1c.wandb_internal.JobInputPathR\fincludePaths\x12A\n" +
 	"\rexclude_paths\x18\x03 \x03(\v2\x1c.wandb_internal.JobInputPathR\fexcludePaths\x12!\n" +
-	"\finput_schema\x18\x04 \x01(\tR\vinputSchema*\xd1\b\n" +
+	"\finput_schema\x18\x04 \x01(\tR\vinputSchema*\xee\b\n" +
 	"\rServerFeature\x12\x1e\n" +
 	"\x1aSERVER_FEATURE_UNSPECIFIED\x10\x00\x12\x13\n" +
 	"\x0fLARGE_FILENAMES\x10\x11\x12\x11\n" +
@@ -12640,7 +12645,8 @@ const file_wandb_proto_wandb_internal_proto_rawDesc = "" +
 	"&AUTOMATION_EVENT_REMOVE_COLLECTION_TAG\x10\x19\x12$\n" +
 	" AUTOMATION_EVENT_UNLINK_ARTIFACT\x10\x1a\x12\x17\n" +
 	"\x13AUTOMATIONS_ON_USER\x10\x1b\x12\x1f\n" +
-	"\x1bAUTOMATION_LAST_EXECUTED_AT\x10\x1cB\x1bZ\x19core/pkg/service_go_protob\x06proto3"
+	"\x1bAUTOMATION_LAST_EXECUTED_AT\x10\x1c\x12\x1b\n" +
+	"\x17MARK_RUN_FILES_UPLOADED\x10\x1dB\x1bZ\x19core/pkg/service_go_protob\x06proto3"
 
 var (
 	file_wandb_proto_wandb_internal_proto_rawDescOnce sync.Once

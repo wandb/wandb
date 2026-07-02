@@ -37,6 +37,7 @@ type WandbAPI struct {
 	featuresHandler      *FeaturesHandler
 	fileTransferHandler  *FileTransferHandler
 	graphqlHandler       *GraphQLHandler
+	runFilesHandler      *RunFilesHandler
 	runHistoryApiHandler *RunHistoryAPIHandler
 }
 
@@ -100,6 +101,7 @@ func New(
 		featuresHandler:      NewFeaturesHandler(featureProvider),
 		fileTransferHandler:  NewFileTransferHandler(fileTransferManager),
 		graphqlHandler:       NewGraphQLHandler(graphqlClient),
+		runFilesHandler:      NewRunFilesHandler(graphqlClient),
 		runHistoryApiHandler: NewRunHistoryAPIHandler(graphqlClient, httpClient),
 	}, nil
 }
@@ -173,6 +175,10 @@ func (p *WandbAPI) HandleRequest(
 		return p.featuresHandler.HandleRequest(ctx, req.FeaturesRequest)
 	case *spb.ApiRequest_DownloadFileRequest:
 		return p.fileTransferHandler.HandleDownloadFile(ctx, req.DownloadFileRequest)
+	case *spb.ApiRequest_UploadFileRequest:
+		return p.fileTransferHandler.HandleUploadFile(ctx, req.UploadFileRequest)
+	case *spb.ApiRequest_MarkRunFilesUploadedRequest:
+		return p.runFilesHandler.HandleMarkRunFilesUploaded(ctx, req.MarkRunFilesUploadedRequest)
 	case *spb.ApiRequest_GraphqlRequest:
 		return p.graphqlHandler.HandleRequest(ctx, req.GraphqlRequest)
 	case *spb.ApiRequest_ReadRunHistoryRequest:

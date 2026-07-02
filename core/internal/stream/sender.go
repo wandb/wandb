@@ -161,6 +161,24 @@ func (f *SenderFactory) New(runWork runwork.RunWork) *Sender {
 		)
 	}
 
+	// Resolve server feature flags lazily, off the connection's request loop.
+	//
+	// SenderFactory.New runs synchronously in that loop (via handleInformInit),
+	// so querying features here would block the loop on a network round-trip.
+	featureCtx := runWork.BeforeEndCtx()
+	structuredConsoleLogs := sync.OnceValue(func() bool {
+		return f.FeatureProvider.Enabled(
+			featureCtx,
+			spb.ServerFeature_STRUCTURED_CONSOLE_LOGS,
+		)
+	})
+	useArtifactProjectEntityInfo := sync.OnceValue(func() bool {
+		return f.FeatureProvider.Enabled(
+			featureCtx,
+			spb.ServerFeature_USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION,
+		)
+	})
+
 	consoleLogsSenderParams := runconsolelogs.Params{
 		FilesDir:              f.Settings.GetFilesDir(),
 		EnableCapture:         f.Settings.IsConsoleCaptureEnabled(),
@@ -171,10 +189,7 @@ func (f *SenderFactory) New(runWork runwork.RunWork) *Sender {
 		Multipart:             f.Settings.IsConsoleMultipart(),
 		ChunkMaxBytes:         f.Settings.GetConsoleChunkMaxBytes(),
 		ChunkMaxSeconds:       f.Settings.GetConsoleChunkMaxSeconds(),
-		Structured: f.FeatureProvider.Enabled(
-			context.Background(),
-			spb.ServerFeature_STRUCTURED_CONSOLE_LOGS,
-		),
+		Structured:            structuredConsoleLogs,
 	}
 
 	s := &Sender{
@@ -192,10 +207,7 @@ func (f *SenderFactory) New(runWork runwork.RunWork) *Sender {
 			f.FileStreamFactory.Printer,
 			f.GraphqlClient,
 			f.FileTransferManager,
-			f.FeatureProvider.Enabled(
-				context.Background(),
-				spb.ServerFeature_USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION,
-			),
+			useArtifactProjectEntityInfo,
 		),
 		networkPeeker:     f.Peeker,
 		printer:           f.Printer,

@@ -907,6 +907,26 @@ func (v *LinkArtifactResponse) GetLinkArtifact() *LinkArtifactLinkArtifactLinkAr
 	return v.LinkArtifact
 }
 
+// MarkRunFilesUploadedMarkRunFilesUploadedMarkRunFilesUploadedPayload includes the requested fields of the GraphQL type MarkRunFilesUploadedPayload.
+type MarkRunFilesUploadedMarkRunFilesUploadedMarkRunFilesUploadedPayload struct {
+	Success bool `json:"success"`
+}
+
+// GetSuccess returns MarkRunFilesUploadedMarkRunFilesUploadedMarkRunFilesUploadedPayload.Success, and is useful for accessing the field via an interface.
+func (v *MarkRunFilesUploadedMarkRunFilesUploadedMarkRunFilesUploadedPayload) GetSuccess() bool {
+	return v.Success
+}
+
+// MarkRunFilesUploadedResponse is returned by MarkRunFilesUploaded on success.
+type MarkRunFilesUploadedResponse struct {
+	MarkRunFilesUploaded *MarkRunFilesUploadedMarkRunFilesUploadedMarkRunFilesUploadedPayload `json:"markRunFilesUploaded"`
+}
+
+// GetMarkRunFilesUploaded returns MarkRunFilesUploadedResponse.MarkRunFilesUploaded, and is useful for accessing the field via an interface.
+func (v *MarkRunFilesUploadedResponse) GetMarkRunFilesUploaded() *MarkRunFilesUploadedMarkRunFilesUploadedMarkRunFilesUploadedPayload {
+	return v.MarkRunFilesUploaded
+}
+
 // NotifyScriptableRunAlertNotifyScriptableRunAlertNotifyScriptableRunAlertPayload includes the requested fields of the GraphQL type NotifyScriptableRunAlertPayload.
 type NotifyScriptableRunAlertNotifyScriptableRunAlertNotifyScriptableRunAlertPayload struct {
 	Success bool `json:"success"`
@@ -1910,6 +1930,26 @@ func (v *__LinkArtifactInput) GetClientId() *string { return v.ClientId }
 // GetArtifactId returns __LinkArtifactInput.ArtifactId, and is useful for accessing the field via an interface.
 func (v *__LinkArtifactInput) GetArtifactId() *string { return v.ArtifactId }
 
+// __MarkRunFilesUploadedInput is used internally by genqlient
+type __MarkRunFilesUploadedInput struct {
+	Entity  string   `json:"entity"`
+	Project string   `json:"project"`
+	Run     string   `json:"run"`
+	Files   []string `json:"files"`
+}
+
+// GetEntity returns __MarkRunFilesUploadedInput.Entity, and is useful for accessing the field via an interface.
+func (v *__MarkRunFilesUploadedInput) GetEntity() string { return v.Entity }
+
+// GetProject returns __MarkRunFilesUploadedInput.Project, and is useful for accessing the field via an interface.
+func (v *__MarkRunFilesUploadedInput) GetProject() string { return v.Project }
+
+// GetRun returns __MarkRunFilesUploadedInput.Run, and is useful for accessing the field via an interface.
+func (v *__MarkRunFilesUploadedInput) GetRun() string { return v.Run }
+
+// GetFiles returns __MarkRunFilesUploadedInput.Files, and is useful for accessing the field via an interface.
+func (v *__MarkRunFilesUploadedInput) GetFiles() []string { return v.Files }
+
 // __NotifyScriptableRunAlertInput is used internally by genqlient
 type __NotifyScriptableRunAlertInput struct {
 	EntityName   string         `json:"entityName"`
@@ -2757,6 +2797,46 @@ func LinkArtifact(
 	}
 
 	data_ = &LinkArtifactResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
+// The mutation executed by MarkRunFilesUploaded.
+const MarkRunFilesUploaded_Operation = `
+mutation MarkRunFilesUploaded ($entity: String!, $project: String!, $run: String!, $files: [String!]!) {
+	markRunFilesUploaded(input: {entityName:$entity,projectName:$project,runName:$run,files:$files}) {
+		success
+	}
+}
+`
+
+func MarkRunFilesUploaded(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	entity string,
+	project string,
+	run string,
+	files []string,
+) (data_ *MarkRunFilesUploadedResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "MarkRunFilesUploaded",
+		Query:  MarkRunFilesUploaded_Operation,
+		Variables: &__MarkRunFilesUploadedInput{
+			Entity:  entity,
+			Project: project,
+			Run:     run,
+			Files:   files,
+		},
+	}
+
+	data_ = &MarkRunFilesUploadedResponse{}
 	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(

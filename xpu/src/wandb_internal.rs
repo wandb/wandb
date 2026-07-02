@@ -815,6 +815,11 @@ pub struct RunRecord {
     /// Information about the source if this is a fork or rewind of another run.
     #[prost(message, optional, tag = "23")]
     pub branch_point: ::core::option::Option<BranchPoint>,
+    /// The user-provided resume mode to apply when syncing an offline run.
+    ///
+    /// This is input intent, unlike `resumed`, which is a backend result.
+    #[prost(string, tag = "24")]
+    pub resume_mode: ::prost::alloc::string::String,
     #[prost(message, optional, tag = "200")]
     pub info: ::core::option::Option<RecordInfo>,
 }
@@ -2936,6 +2941,9 @@ pub enum ServerFeature {
     AutomationsOnUser = 27,
     /// Indicates that the server supports Trigger.lastExecutedAt.
     AutomationLastExecutedAt = 28,
+    /// Indicates that the server supports the markRunFilesUploaded mutation, used
+    /// to commit files uploaded outside a live run (e.g. Run.upload_file).
+    MarkRunFilesUploaded = 29,
 }
 impl ServerFeature {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -2997,6 +3005,7 @@ impl ServerFeature {
             Self::AutomationEventUnlinkArtifact => "AUTOMATION_EVENT_UNLINK_ARTIFACT",
             Self::AutomationsOnUser => "AUTOMATIONS_ON_USER",
             Self::AutomationLastExecutedAt => "AUTOMATION_LAST_EXECUTED_AT",
+            Self::MarkRunFilesUploaded => "MARK_RUN_FILES_UPLOADED",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -3063,6 +3072,7 @@ impl ServerFeature {
             }
             "AUTOMATIONS_ON_USER" => Some(Self::AutomationsOnUser),
             "AUTOMATION_LAST_EXECUTED_AT" => Some(Self::AutomationLastExecutedAt),
+            "MARK_RUN_FILES_UPLOADED" => Some(Self::MarkRunFilesUploaded),
             _ => None,
         }
     }
