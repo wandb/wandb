@@ -1271,9 +1271,7 @@ func (x *StopRunRequest) GetStorageId() string {
 }
 
 type StopRunResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// Whether the backend flagged the run to stop.
-	Success       bool `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1306,13 +1304,6 @@ func (x *StopRunResponse) ProtoReflect() protoreflect.Message {
 // Deprecated: Use StopRunResponse.ProtoReflect.Descriptor instead.
 func (*StopRunResponse) Descriptor() ([]byte, []int) {
 	return file_wandb_proto_wandb_api_proto_rawDescGZIP(), []int{17}
-}
-
-func (x *StopRunResponse) GetSuccess() bool {
-	if x != nil {
-		return x.Success
-	}
-	return false
 }
 
 type ReadRunHistoryRequest struct {
@@ -2466,9 +2457,8 @@ const file_wandb_proto_wandb_api_proto_rawDesc = "" +
 	"\x1cMarkRunFilesUploadedResponse\"/\n" +
 	"\x0eStopRunRequest\x12\x1d\n" +
 	"\n" +
-	"storage_id\x18\x01 \x01(\tR\tstorageId\"+\n" +
-	"\x0fStopRunResponse\x12\x18\n" +
-	"\asuccess\x18\x01 \x01(\bR\asuccess\"\xd1\x04\n" +
+	"storage_id\x18\x01 \x01(\tR\tstorageId\"\x11\n" +
+	"\x0fStopRunResponse\"\xd1\x04\n" +
 	"\x15ReadRunHistoryRequest\x12W\n" +
 	"\x15scan_run_history_init\x18\x01 \x01(\v2\".wandb_internal.ScanRunHistoryInitH\x00R\x12scanRunHistoryInit\x12J\n" +
 	"\x10scan_run_history\x18\x02 \x01(\v2\x1e.wandb_internal.ScanRunHistoryH\x00R\x0escanRunHistory\x12`\n" +

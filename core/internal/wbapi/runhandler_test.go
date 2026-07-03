@@ -25,7 +25,6 @@ func TestStopRunRunsMutation(t *testing.T) {
 	)
 
 	require.NotNil(t, response.GetStopRunResponse())
-	assert.True(t, response.GetStopRunResponse().GetSuccess())
 	require.True(t, client.called)
 	assert.Equal(t, "StopRun", client.gotReq.OpName)
 
@@ -35,21 +34,6 @@ func TestStopRunRunsMutation(t *testing.T) {
 	var vars map[string]any
 	require.NoError(t, json.Unmarshal(varsJSON, &vars))
 	assert.Equal(t, "run-node-id", vars["id"])
-}
-
-func TestStopRunNullPayloadIsNotSuccess(t *testing.T) {
-	client := &fakeGQLClient{
-		respMap: map[string]any{"stopRun": nil},
-	}
-	handler := wbapi.NewRunHandler(client)
-
-	response := handler.HandleStopRun(
-		context.Background(),
-		&spb.StopRunRequest{StorageId: "run-node-id"},
-	)
-
-	require.NotNil(t, response.GetStopRunResponse())
-	assert.False(t, response.GetStopRunResponse().GetSuccess())
 }
 
 func TestStopRunReturnsError(t *testing.T) {

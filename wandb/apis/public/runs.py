@@ -1025,7 +1025,7 @@ class Run(Attrs):
         return False
 
     @normalize_exceptions
-    def stop(self) -> bool:
+    def stop(self) -> None:
         """Request that this run stop gracefully.
 
         This sets the run's stop flag on the W&B backend, the same signal
@@ -1034,8 +1034,9 @@ class Run(Attrs):
         the run down gracefully, so this is safe for terminating remote runs
         (for example, runs on Kubernetes pods).
 
-        Returns:
-            `True` if the backend flagged the run to stop.
+        Stopping is asynchronous: this method returns once the backend has
+        flagged the run, not once the run terminates. Calling it again, or
+        on a run that is no longer running, has no effect.
 
         Raises:
             `wandb.Error`: If the request fails.
@@ -1048,12 +1049,11 @@ class Run(Attrs):
         run.stop()
         ```
         """
-        response = self._service_api.send_api_request(
+        self._service_api.send_api_request(
             apb.ApiRequest(
                 stop_run_request=apb.StopRunRequest(storage_id=self.storage_id)
             )
         )
-        return response.stop_run_response.success
 
     @property
     def json_config(self) -> str:

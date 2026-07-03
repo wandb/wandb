@@ -218,10 +218,7 @@ message StopRunRequest {
   string storage_id = 1;
 }
 
-message StopRunResponse {
-  // Whether the backend flagged the run to stop.
-  bool success = 1;
-}
+message StopRunResponse {}
 
 // Start of Scan run history
 

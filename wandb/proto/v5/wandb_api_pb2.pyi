@@ -184,10 +184,8 @@ class StopRunRequest(_message.Message):
     def __init__(self, storage_id: _Optional[str] = ...) -> None: ...
 
 class StopRunResponse(_message.Message):
-    __slots__ = ("success",)
-    SUCCESS_FIELD_NUMBER: _ClassVar[int]
-    success: bool
-    def __init__(self, success: bool = ...) -> None: ...
+    __slots__ = ()
+    def __init__(self) -> None: ...
 
 class ReadRunHistoryRequest(_message.Message):
     __slots__ = ("scan_run_history_init", "scan_run_history", "scan_run_history_cleanup", "download_run_history_init", "download_run_history", "download_run_history_status")

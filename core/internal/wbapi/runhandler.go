@@ -28,18 +28,15 @@ func (h *RunHandler) HandleStopRun(
 	ctx context.Context,
 	request *spb.StopRunRequest,
 ) *spb.ApiResponse {
-	data, err := gql.StopRun(ctx, h.graphqlClient, request.GetStorageId())
+	_, err := gql.StopRun(ctx, h.graphqlClient, request.GetStorageId())
 	if err != nil {
 		message, status := graphqlErrorInfo(err)
 		return apiErrorResponse(message, status)
 	}
 
-	payload := data.GetStopRun()
 	return &spb.ApiResponse{
 		Response: &spb.ApiResponse_StopRunResponse{
-			StopRunResponse: &spb.StopRunResponse{
-				Success: payload != nil && payload.GetSuccess(),
-			},
+			StopRunResponse: &spb.StopRunResponse{},
 		},
 	}
 }
