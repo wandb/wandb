@@ -506,9 +506,9 @@ def link_or_copy(
     Tries strategies in order: symlink -> hardlink -> copy.
 
     Args:
+        settings: Settings used to decide whether symlinks may be attempted.
         src: Source file path (should be resolved/absolute).
         dst: Destination file path.
-        allow_symlink: Whether to attempt symlinks before hardlinks.
 
     Returns:
         The strategy that succeeded.
