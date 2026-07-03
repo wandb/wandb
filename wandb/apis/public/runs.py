@@ -1024,6 +1024,37 @@ class Run(Attrs):
             return True
         return False
 
+    @normalize_exceptions
+    def stop(self) -> bool:
+        """Request that this run stop gracefully.
+
+        This sets the run's stop flag on the W&B backend, the same signal
+        sent by the "Stop run" button in the W&B App UI. The process running
+        the run picks the flag up through its regular heartbeat and shuts
+        the run down gracefully, so this is safe for terminating remote runs
+        (for example, runs on Kubernetes pods).
+
+        Returns:
+            `True` if the backend flagged the run to stop.
+
+        Raises:
+            `wandb.Error`: If the request fails.
+
+        Example:
+        ```python
+        import wandb
+
+        run = wandb.Api().run("entity/project/run_id")
+        run.stop()
+        ```
+        """
+        response = self._service_api.send_api_request(
+            apb.ApiRequest(
+                stop_run_request=apb.StopRunRequest(storage_id=self.storage_id)
+            )
+        )
+        return response.stop_run_response.success
+
     @property
     def json_config(self) -> str:
         """Return the run config as a JSON string.
