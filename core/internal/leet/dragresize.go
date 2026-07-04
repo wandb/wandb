@@ -1,0 +1,163 @@
+package leet
+
+import "math"
+
+// Mouse-drag pane resizing.
+//
+// A left-click exactly on a sidebar's border column or on the separator row
+// above a stacked pane latches a drag. Mouse motion resizes the pane live;
+// release persists the new proportion (a fraction of the terminal dimension)
+// to the per-view LayoutOverrides in wandb-leet.json. The "0" key resets a
+// view's overrides to the golden-ratio defaults.
+
+const (
+	// sidebarDragMinWidth is the narrowest a sidebar can be dragged to.
+	// Deliberately smaller than SidebarMinWidth so users can shrink
+	// sidebars below the default clamp.
+	sidebarDragMinWidth = 20
+
+	// mainDragMinWidth is the narrowest the main content column can be
+	// squeezed to by dragging a sidebar border.
+	mainDragMinWidth = 24
+
+	// minFlexMetricsHeight is the shortest the flex metrics section can be
+	// squeezed to by dragging the separator below it.
+	minFlexMetricsHeight = 5
+)
+
+// dragBoundary identifies a draggable layout boundary.
+type dragBoundary int
+
+const (
+	dragBoundaryNone dragBoundary = iota
+	dragBoundaryLeftSidebar
+	dragBoundaryRightSidebar
+	dragBoundarySeparator
+)
+
+// layoutDrag tracks an in-progress boundary drag.
+//
+// frac holds the latest proportion produced by the drag and is persisted
+// on mouse release. section is set for separator drags.
+type layoutDrag struct {
+	boundary dragBoundary
+	section  stackSectionID
+	frac     float64
+}
+
+func (d layoutDrag) active() bool { return d.boundary != dragBoundaryNone }
+
+// stackGeom describes one visible section of the central vertical stack.
+type stackGeom struct {
+	id   stackSectionID
+	y    int
+	h    int
+	minH int
+}
+
+// stackGeometry returns the visible central-column sections in top-to-bottom
+// order. Sections with zero height (hidden, or absent in this view) are
+// omitted, so the same code serves both the run and workspace layouts.
+func stackGeometry(layout Layout) []stackGeom {
+	all := []stackGeom{
+		{stackSectionMetrics, 0, layout.height, minFlexMetricsHeight},
+		{stackSectionSystemMetrics, layout.systemMetricsY,
+			layout.systemMetricsHeight, systemMetricsPaneMinHeight},
+		{stackSectionMedia, layout.mediaY, layout.mediaHeight, mediaPaneMinHeight},
+		{stackSectionConsoleLogs, layout.consoleLogsY,
+			layout.consoleLogsHeight, ConsoleLogsPaneMinHeight},
+	}
+	visible := all[:0]
+	for _, g := range all {
+		if g.h > 0 {
+			visible = append(visible, g)
+		}
+	}
+	return visible
+}
+
+// boundaryAt hit-tests a mouse position against the draggable boundaries:
+// the sidebars' border columns and the separator rows of the central stack.
+//
+// Sidebar borders are only draggable when the sidebar is stably expanded so
+// a drag never fights an animation.
+func boundaryAt(
+	x, y, width int,
+	layout Layout,
+	leftExpanded, rightExpanded bool,
+) (layoutDrag, bool) {
+	if y >= layout.totalContentAreaHeight {
+		return layoutDrag{}, false
+	}
+
+	if layout.leftSidebarWidth > 0 && leftExpanded &&
+		x == layout.leftSidebarWidth-1 {
+		return layoutDrag{boundary: dragBoundaryLeftSidebar}, true
+	}
+	if layout.rightSidebarWidth > 0 && rightExpanded &&
+		x == width-layout.rightSidebarWidth {
+		return layoutDrag{boundary: dragBoundaryRightSidebar}, true
+	}
+
+	// Separator rows span the central column only.
+	if x < layout.leftSidebarWidth || x >= width-layout.rightSidebarWidth {
+		return layoutDrag{}, false
+	}
+	sections := stackGeometry(layout)
+	for i := 1; i < len(sections); i++ {
+		if y == sections[i].y-1 {
+			return layoutDrag{
+				boundary: dragBoundarySeparator,
+				section:  sections[i].id,
+			}, true
+		}
+	}
+	return layoutDrag{}, false
+}
+
+// dragSeparatorHeight computes the new height for the section below the
+// separator being dragged to row y.
+//
+// The section is bottom-anchored (the flex metrics section absorbs the
+// difference), so only its own height changes. The row is clamped so both
+// the section and its upstairs neighbor keep their minimum heights.
+func dragSeparatorHeight(
+	layout Layout,
+	section stackSectionID,
+	y, terminalHeight int,
+) (newHeight int, frac float64, ok bool) {
+	sections := stackGeometry(layout)
+	for i := 1; i < len(sections); i++ {
+		if sections[i].id != section {
+			continue
+		}
+		prev, sec := sections[i-1], sections[i]
+		bottom := sec.y + sec.h
+		y = clamp(y, prev.y+prev.minH, bottom-1-sec.minH)
+		newHeight = bottom - y - 1
+		return newHeight, float64(newHeight) / float64(terminalHeight), true
+	}
+	return 0, 0, false
+}
+
+// paneHeightFor returns a stacked pane's expanded height for the given
+// override fraction of the terminal height, or the fallback default when no
+// override is set. The pane's own SetExpandedHeight enforces its minimum.
+func paneHeightFor(frac float64, terminalHeight, fallback int) int {
+	if frac <= 0 {
+		return fallback
+	}
+	return int(math.Round(float64(terminalHeight) * frac))
+}
+
+// sidebarWidthFor returns the expanded sidebar width for the given override
+// fraction of the terminal width. A zero fraction falls back to the
+// golden-ratio default.
+func sidebarWidthFor(terminalWidth int, frac float64, oppositeVisible bool) int {
+	if frac <= 0 {
+		return expandedSidebarWidth(terminalWidth, oppositeVisible)
+	}
+	maxW := max(terminalWidth-mainDragMinWidth, sidebarDragMinWidth)
+	w := int(math.Round(float64(terminalWidth) * frac))
+	return clamp(w, sidebarDragMinWidth, maxW)
+}
