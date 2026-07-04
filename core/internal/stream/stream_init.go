@@ -8,7 +8,6 @@ import (
 	"net/url"
 
 	"github.com/Khan/genqlient/graphql"
-	"golang.org/x/time/rate"
 
 	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/clients"
@@ -153,16 +152,11 @@ func NewFileStream(
 
 	fileStreamRetryClient := api.NewClient(opts)
 
-	var transmitRateLimit *rate.Limiter
-	if txInterval := s.GetFileStreamTransmitInterval(); txInterval > 0 {
-		transmitRateLimit = rate.NewLimiter(rate.Every(txInterval), 1)
-	}
-
 	return factory.New(
 		fileStreamRetryClient,
 		extraWork.BeforeEndCtx(),
 		/*heartbeatPeriod=*/ 0, // use default
-		transmitRateLimit,
+		s.GetFileStreamTransmitInterval(),
 	)
 }
 
