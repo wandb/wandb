@@ -217,7 +217,7 @@ func (s *RunOverviewSidebar) UpdateDimensions(
 	oppositeSidebarVisible bool,
 	widthFrac float64,
 ) {
-	s.animState.SetExpanded(sidebarWidthFor(terminalWidth, widthFrac, oppositeSidebarVisible))
+	s.animState.SetExpanded(expandedSidebarWidth(terminalWidth, oppositeSidebarVisible, widthFrac))
 }
 
 // Width returns the current width of the sidebar.

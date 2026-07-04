@@ -129,26 +129,20 @@ func boundaryAt(
 	return layoutDrag{}, false
 }
 
-// separatorResize is one pane's new extent produced by a separator drag.
-type separatorResize struct {
-	section stackSectionID
-	height  int
-	frac    float64
-}
-
-// dragSeparator computes the pane resizes for dragging the separator above
-// section to row y. The row is clamped so both neighbors keep their minimum
-// heights.
+// dragSeparator records in o the pane fractions for dragging the separator
+// above section to row y, clamped so both neighbors keep their minimum
+// heights. It reports whether o was updated.
 //
 // The pane below the separator keeps its bottom anchored. When the pane
-// above is another fixed pane, it is resized too so the boundary lands
-// exactly on the mouse row; when it is the flex metrics section, the flex
-// absorbs the change instead.
+// above is another fixed pane, its fraction is updated too so the boundary
+// lands exactly on the mouse row; when it is the flex metrics section, the
+// flex absorbs the change instead.
 func dragSeparator(
+	o *LayoutOverrides,
 	layout Layout,
 	section stackSectionID,
 	y, terminalHeight int,
-) []separatorResize {
+) bool {
 	sections := stackGeometry(layout)
 	for i := 1; i < len(sections); i++ {
 		if sections[i].id != section {
@@ -158,25 +152,17 @@ func dragSeparator(
 		bottom := sec.y + sec.h
 		lo, hi := prev.y+prev.minH, bottom-1-sec.minH
 		if lo > hi {
-			return nil
+			return false
 		}
 		y = clamp(y, lo, hi)
 
-		resizes := []separatorResize{{
-			section: sec.id,
-			height:  bottom - y - 1,
-			frac:    float64(bottom-y-1) / float64(terminalHeight),
-		}}
+		o.setSection(sec.id, float64(bottom-y-1)/float64(terminalHeight))
 		if prev.id != stackSectionMetrics {
-			resizes = append(resizes, separatorResize{
-				section: prev.id,
-				height:  y - prev.y,
-				frac:    float64(y-prev.y) / float64(terminalHeight),
-			})
+			o.setSection(prev.id, float64(y-prev.y)/float64(terminalHeight))
 		}
-		return resizes
+		return true
 	}
-	return nil
+	return false
 }
 
 // paneHeightFor returns a stacked pane's expanded height for the given
@@ -187,16 +173,4 @@ func paneHeightFor(frac float64, terminalHeight, fallback int) int {
 		return fallback
 	}
 	return int(math.Round(float64(terminalHeight) * frac))
-}
-
-// sidebarWidthFor returns the expanded sidebar width for the given override
-// fraction of the terminal width. A zero fraction falls back to the
-// golden-ratio default.
-func sidebarWidthFor(terminalWidth int, frac float64, oppositeVisible bool) int {
-	if frac <= 0 {
-		return expandedSidebarWidth(terminalWidth, oppositeVisible)
-	}
-	maxW := max(terminalWidth-mainDragMinWidth, sidebarDragMinWidth)
-	w := int(math.Round(float64(terminalWidth) * frac))
-	return clamp(w, sidebarDragMinWidth, maxW)
 }

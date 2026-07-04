@@ -163,38 +163,22 @@ func (r *Run) handleLayoutDrag(msg tea.MouseMsg, layout Layout) bool {
 	return false
 }
 
-// applyLayoutDrag resizes the dragged pane(s) to follow the mouse.
+// applyLayoutDrag updates the pending overrides from the mouse position and
+// re-lays the view out from them.
 func (r *Run) applyLayoutDrag(x, y int, layout Layout) {
+	o := &r.drag.overrides
 	switch r.drag.boundary {
 	case dragBoundaryLeftSidebar:
-		r.drag.overrides.LeftSidebar = float64(x+1) / float64(r.width)
-		r.leftSidebar.UpdateDimensions(
-			r.width, r.rightSidebar.animState.TargetVisible(), r.drag.overrides.LeftSidebar)
-
+		o.LeftSidebar = float64(x+1) / float64(r.width)
 	case dragBoundaryRightSidebar:
-		r.drag.overrides.RightSidebar = float64(r.width-x) / float64(r.width)
-		r.rightSidebar.UpdateDimensions(
-			r.width, r.leftSidebar.animState.TargetVisible(), r.drag.overrides.RightSidebar)
-
+		o.RightSidebar = float64(r.width-x) / float64(r.width)
 	case dragBoundarySeparator:
-		resizes := dragSeparator(layout, r.drag.section, y, r.height)
-		if len(resizes) == 0 {
+		if !dragSeparator(o, layout, r.drag.section, y, r.height) {
 			return
-		}
-		for _, rz := range resizes {
-			switch rz.section {
-			case stackSectionMedia:
-				r.mediaPane.SetExpandedHeight(rz.height)
-			case stackSectionConsoleLogs:
-				r.consoleLogsPane.SetExpandedHeight(rz.height)
-			}
-			r.drag.overrides.setSection(rz.section, rz.frac)
 		}
 	}
 	r.drag.dirty = true
-
-	resized := r.computeViewports()
-	r.metricsGrid.UpdateDimensions(resized.mainContentAreaWidth, resized.height)
+	r.applyLayoutConfig()
 }
 
 // handleResetLayout resets the view's pane proportions to the defaults.
@@ -784,7 +768,7 @@ func (r *Run) handleSidebarAnimation(msg tea.Msg) []tea.Cmd {
 
 		r.endAnimating()
 		r.rightSidebar.UpdateDimensions(
-			r.width, r.leftSidebar.animState.TargetVisible(), r.config.RunLayout().RightSidebar)
+			r.width, r.leftSidebar.animState.TargetVisible(), r.layoutOverrides().RightSidebar)
 
 	case RightSidebarAnimationMsg:
 		layout := r.computeViewports()
@@ -796,7 +780,7 @@ func (r *Run) handleSidebarAnimation(msg tea.Msg) []tea.Cmd {
 
 		r.endAnimating()
 		r.leftSidebar.UpdateDimensions(
-			r.width, r.rightSidebar.animState.TargetVisible(), r.config.RunLayout().LeftSidebar)
+			r.width, r.rightSidebar.animState.TargetVisible(), r.layoutOverrides().LeftSidebar)
 	}
 
 	return nil

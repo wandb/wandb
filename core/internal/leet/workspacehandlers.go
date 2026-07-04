@@ -189,40 +189,22 @@ func (w *Workspace) handleLayoutDrag(msg tea.MouseMsg, layout Layout) bool {
 	return false
 }
 
-// applyLayoutDrag resizes the dragged pane(s) to follow the mouse.
+// applyLayoutDrag updates the pending overrides from the mouse position and
+// re-lays the view out from them.
 func (w *Workspace) applyLayoutDrag(x, y int, layout Layout) {
+	o := &w.drag.overrides
 	switch w.drag.boundary {
 	case dragBoundaryLeftSidebar:
-		w.drag.overrides.LeftSidebar = float64(x+1) / float64(w.width)
-		w.runsAnimState.SetExpanded(sidebarWidthFor(
-			w.width, w.drag.overrides.LeftSidebar,
-			w.runOverviewSidebar.animState.TargetVisible()))
-
+		o.LeftSidebar = float64(x+1) / float64(w.width)
 	case dragBoundaryRightSidebar:
-		w.drag.overrides.RightSidebar = float64(w.width-x) / float64(w.width)
-		w.runOverviewSidebar.UpdateDimensions(
-			w.width, w.runsAnimState.TargetVisible(), w.drag.overrides.RightSidebar)
-
+		o.RightSidebar = float64(w.width-x) / float64(w.width)
 	case dragBoundarySeparator:
-		resizes := dragSeparator(layout, w.drag.section, y, w.height)
-		if len(resizes) == 0 {
+		if !dragSeparator(o, layout, w.drag.section, y, w.height) {
 			return
-		}
-		for _, rz := range resizes {
-			switch rz.section {
-			case stackSectionSystemMetrics:
-				w.systemMetricsPane.SetExpandedHeight(rz.height)
-			case stackSectionMedia:
-				w.mediaPane.SetExpandedHeight(rz.height)
-			case stackSectionConsoleLogs:
-				w.consoleLogsPane.SetExpandedHeight(rz.height)
-			}
-			w.drag.overrides.setSection(rz.section, rz.frac)
 		}
 	}
 	w.drag.dirty = true
-
-	w.recalculateLayout()
+	w.applyLayoutConfig()
 }
 
 // handleResetLayout resets the view's pane proportions to the defaults.

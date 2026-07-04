@@ -76,6 +76,10 @@ func RunKeyBindings() []BindingCategory[Run] {
 					Handler:     (*Run).handleToggleConsoleLogsPane,
 				},
 				{
+					Keys:        []string{"drag border/separator"},
+					Description: "Resize panes with the mouse",
+				},
+				{
 					Keys:        []string{"0"},
 					Description: "Reset pane sizes to defaults",
 					Handler:     (*Run).handleResetLayout,
@@ -211,7 +215,7 @@ func RunKeyBindings() []BindingCategory[Run] {
 			},
 		},
 
-		mouseCategory(paneResizeBinding[Run]()),
+		mouseCategory[Run](),
 	}
 }
 
@@ -277,6 +281,10 @@ func WorkspaceKeyBindings() []BindingCategory[Workspace] {
 					Keys:        []string{"4"},
 					Description: "Toggle console logs panel",
 					Handler:     (*Workspace).handleToggleConsoleLogsPane,
+				},
+				{
+					Keys:        []string{"drag border/separator"},
+					Description: "Resize panes with the mouse",
 				},
 				{
 					Keys:        []string{"0"},
@@ -439,7 +447,7 @@ func WorkspaceKeyBindings() []BindingCategory[Workspace] {
 			},
 		},
 
-		mouseCategory(paneResizeBinding[Workspace]()),
+		mouseCategory[Workspace](),
 	}
 }
 
@@ -565,10 +573,10 @@ func normalizeKey(key string) string {
 	return key
 }
 
-func mouseCategory[T any](extra ...KeyBinding[T]) BindingCategory[T] {
+func mouseCategory[T any]() BindingCategory[T] {
 	return BindingCategory[T]{
 		Name: "Mouse",
-		Bindings: append([]KeyBinding[T]{
+		Bindings: []KeyBinding[T]{
 			{
 				Keys:        []string{"wheel"},
 				Description: "Zoom in/out on focused chart",
@@ -585,15 +593,6 @@ func mouseCategory[T any](extra ...KeyBinding[T]) BindingCategory[T] {
 				Keys:        []string{"shift+drag"},
 				Description: "Select text",
 			},
-		}, extra...),
-	}
-}
-
-// paneResizeBinding documents mouse-drag pane resizing for views that
-// support it (run and workspace).
-func paneResizeBinding[T any]() KeyBinding[T] {
-	return KeyBinding[T]{
-		Keys:        []string{"drag border/separator"},
-		Description: "Resize panes (press 0 to reset)",
+		},
 	}
 }

@@ -84,22 +84,25 @@ func TestBoundaryAtStackSeparators(t *testing.T) {
 	require.False(t, ok)
 }
 
+// frac converts a pane height to its terminal-height fraction.
+func frac(height, terminalHeight int) float64 {
+	return float64(height) / float64(terminalHeight)
+}
+
 func TestDragSeparatorBelowFlexResizesOnePane(t *testing.T) {
 	layout := testRunLayout()
 	const termH = 63 // content + status bar
 
 	// The pane above the media separator is the flex metrics grid, so only
 	// media resizes; dragging up by 5 rows grows it by 5.
-	resizes := dragSeparator(layout, stackSectionMedia, layout.mediaY-1-5, termH)
-	require.Len(t, resizes, 1)
-	require.Equal(t, stackSectionMedia, resizes[0].section)
-	require.Equal(t, layout.mediaHeight+5, resizes[0].height)
-	require.InDelta(t, float64(resizes[0].height)/float64(termH), resizes[0].frac, 1e-9)
+	var o LayoutOverrides
+	require.True(t, dragSeparator(&o, layout, stackSectionMedia, layout.mediaY-1-5, termH))
+	require.Equal(t, LayoutOverrides{Media: frac(layout.mediaHeight+5, termH)}, o)
 
 	// Dragging down by 5 shrinks media by 5.
-	resizes = dragSeparator(layout, stackSectionMedia, layout.mediaY-1+5, termH)
-	require.Len(t, resizes, 1)
-	require.Equal(t, layout.mediaHeight-5, resizes[0].height)
+	o = LayoutOverrides{}
+	require.True(t, dragSeparator(&o, layout, stackSectionMedia, layout.mediaY-1+5, termH))
+	require.Equal(t, LayoutOverrides{Media: frac(layout.mediaHeight-5, termH)}, o)
 }
 
 func TestDragSeparatorBetweenFixedPanesResizesBoth(t *testing.T) {
@@ -108,12 +111,13 @@ func TestDragSeparatorBetweenFixedPanesResizesBoth(t *testing.T) {
 
 	// Media (fixed) sits above the console logs separator: dragging down by
 	// 3 rows grows media by 3 and shrinks logs by 3.
-	resizes := dragSeparator(layout, stackSectionConsoleLogs, layout.consoleLogsY-1+3, termH)
-	require.Len(t, resizes, 2)
-	require.Equal(t, stackSectionConsoleLogs, resizes[0].section)
-	require.Equal(t, layout.consoleLogsHeight-3, resizes[0].height)
-	require.Equal(t, stackSectionMedia, resizes[1].section)
-	require.Equal(t, layout.mediaHeight+3, resizes[1].height)
+	var o LayoutOverrides
+	require.True(t,
+		dragSeparator(&o, layout, stackSectionConsoleLogs, layout.consoleLogsY-1+3, termH))
+	require.Equal(t, LayoutOverrides{
+		Media: frac(layout.mediaHeight+3, termH),
+		Logs:  frac(layout.consoleLogsHeight-3, termH),
+	}, o)
 }
 
 func TestDragSeparatorClamps(t *testing.T) {
@@ -121,34 +125,37 @@ func TestDragSeparatorClamps(t *testing.T) {
 	const termH = 63
 
 	// Dragging far down clamps at the pane's min height.
-	resizes := dragSeparator(layout, stackSectionMedia, 1000, termH)
-	require.Len(t, resizes, 1)
-	require.Equal(t, mediaPaneMinHeight, resizes[0].height)
+	var o LayoutOverrides
+	require.True(t, dragSeparator(&o, layout, stackSectionMedia, 1000, termH))
+	require.Equal(t, LayoutOverrides{Media: frac(mediaPaneMinHeight, termH)}, o)
 
 	// Dragging far up clamps so the section above keeps its min height.
-	resizes = dragSeparator(layout, stackSectionMedia, 0, termH)
-	require.Len(t, resizes, 1)
+	o = LayoutOverrides{}
+	require.True(t, dragSeparator(&o, layout, stackSectionMedia, 0, termH))
 	mediaBottom := layout.mediaY + layout.mediaHeight
-	require.Equal(t, mediaBottom-minFlexMetricsHeight-1, resizes[0].height)
+	require.Equal(t,
+		LayoutOverrides{Media: frac(mediaBottom-minFlexMetricsHeight-1, termH)}, o)
 
 	// Unknown or top-most sections are not draggable.
-	require.Empty(t, dragSeparator(layout, stackSectionMetrics, 10, termH))
-	require.Empty(t, dragSeparator(layout, stackSectionSystemMetrics, 10, termH))
+	o = LayoutOverrides{}
+	require.False(t, dragSeparator(&o, layout, stackSectionMetrics, 10, termH))
+	require.False(t, dragSeparator(&o, layout, stackSectionSystemMetrics, 10, termH))
+	require.Equal(t, LayoutOverrides{}, o)
 }
 
-func TestSidebarWidthFor(t *testing.T) {
+func TestExpandedSidebarWidth(t *testing.T) {
 	// No override: golden-ratio default.
-	require.Equal(t, expandedSidebarWidth(200, false), sidebarWidthFor(200, 0, false))
-	require.Equal(t, expandedSidebarWidth(200, true), sidebarWidthFor(200, 0, true))
+	require.Equal(t, 76, expandedSidebarWidth(200, false, 0)) // 200 * 0.382
+	require.Equal(t, 47, expandedSidebarWidth(200, true, 0))  // 200 * 0.236
 
 	// Override fraction of terminal width.
-	require.Equal(t, 50, sidebarWidthFor(200, 0.25, false))
+	require.Equal(t, 50, expandedSidebarWidth(200, false, 0.25))
 
 	// Overrides can go below the default minimum, but not the drag minimum.
-	require.Equal(t, sidebarDragMinWidth, sidebarWidthFor(200, 0.05, false))
+	require.Equal(t, sidebarDragMinWidth, expandedSidebarWidth(200, false, 0.05))
 
 	// The main content column keeps its minimum width.
-	require.Equal(t, 200-mainDragMinWidth, sidebarWidthFor(200, 0.99, false))
+	require.Equal(t, 200-mainDragMinWidth, expandedSidebarWidth(200, false, 0.99))
 }
 
 func TestPaneHeightFor(t *testing.T) {

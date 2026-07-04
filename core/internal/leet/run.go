@@ -279,11 +279,20 @@ func (r *Run) applyLayoutConfig() {
 	r.metricsGrid.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
 }
 
+// layoutOverrides returns the live pane proportions: the in-progress drag's
+// pending values, or the persisted config.
+func (r *Run) layoutOverrides() LayoutOverrides {
+	if r.drag.active() {
+		return r.drag.overrides
+	}
+	return r.config.RunLayout()
+}
+
 // updateSidebarDimensions re-derives both sidebars' expanded widths from the
-// terminal width, the given post-toggle visibility of each side, and any
-// saved layout overrides.
+// terminal width, the given post-toggle visibility of each side, and the
+// live layout overrides.
 func (r *Run) updateSidebarDimensions(leftVisible, rightVisible bool) {
-	o := r.config.RunLayout()
+	o := r.layoutOverrides()
 	r.leftSidebar.UpdateDimensions(r.width, rightVisible, o.LeftSidebar)
 	r.rightSidebar.UpdateDimensions(r.width, leftVisible, o.RightSidebar)
 }
@@ -707,7 +716,7 @@ func (r *Run) updateBottomPaneHeights(mediaVisible, logsVisible bool) {
 		lowerTierH = maxH
 	}
 
-	o := r.config.RunLayout()
+	o := r.layoutOverrides()
 	each := lowerTierH / lowerCount
 	if mediaVisible {
 		r.mediaPane.SetExpandedHeight(paneHeightFor(o.Media, r.height, each))

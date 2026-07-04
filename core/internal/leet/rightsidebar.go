@@ -54,7 +54,7 @@ func (rs *RightSidebar) UpdateDimensions(
 	leftSidebarVisible bool,
 	widthFrac float64,
 ) {
-	rs.animState.SetExpanded(sidebarWidthFor(terminalWidth, widthFrac, leftSidebarVisible))
+	rs.animState.SetExpanded(expandedSidebarWidth(terminalWidth, leftSidebarVisible, widthFrac))
 
 	if gridWidth := sidebarContentWidth(rs.animState.Value()); gridWidth > 0 {
 		rs.metricsGrid.Resize(gridWidth, defaultSystemMetricsGridHeight)

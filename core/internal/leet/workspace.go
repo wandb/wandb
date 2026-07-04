@@ -553,12 +553,21 @@ func (w *Workspace) computeViewports() Layout {
 	}
 }
 
+// layoutOverrides returns the live pane proportions: the in-progress drag's
+// pending values, or the persisted config.
+func (w *Workspace) layoutOverrides() LayoutOverrides {
+	if w.drag.active() {
+		return w.drag.overrides
+	}
+	return w.config.WorkspaceLayout()
+}
+
 // updateSidebarDimensions tells both sidebars to recalculate their expanded
-// widths given the post-toggle visibility of each side and any saved layout
+// widths given the post-toggle visibility of each side and the live layout
 // overrides.
 func (w *Workspace) updateSidebarDimensions(leftVisible, rightVisible bool) {
-	o := w.config.WorkspaceLayout()
-	w.runsAnimState.SetExpanded(sidebarWidthFor(w.width, o.LeftSidebar, rightVisible))
+	o := w.layoutOverrides()
+	w.runsAnimState.SetExpanded(expandedSidebarWidth(w.width, rightVisible, o.LeftSidebar))
 	w.runOverviewSidebar.UpdateDimensions(w.width, leftVisible, o.RightSidebar)
 }
 
@@ -603,7 +612,7 @@ func (w *Workspace) updateBottomPaneHeights(sysVisible, mediaVisible, logsVisibl
 		lowerTierH = maxH
 	}
 
-	o := w.config.WorkspaceLayout()
+	o := w.layoutOverrides()
 	each := lowerTierH / lowerCount
 	if sysVisible {
 		w.systemMetricsPane.SetExpandedHeight(paneHeightFor(o.System, w.height, each))
