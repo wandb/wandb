@@ -17,13 +17,10 @@ const (
 type FocusRegionDef struct {
 	Target FocusTarget
 
-	// Available reports whether the region is currently focusable for normal
-	// navigation.
+	// Available reports whether the region is currently focusable: its pane
+	// is logically visible (target state, so an expanding pane counts and a
+	// collapsing one does not) and has content to interact with.
 	Available func() bool
-
-	// AvailableTarget reports whether the region should be considered focusable
-	// immediately after a visibility toggle. When nil, Available is used.
-	AvailableTarget func() bool
 
 	Activate   func(direction int)
 	Deactivate func()
@@ -31,9 +28,10 @@ type FocusRegionDef struct {
 
 // FocusManager is the single source of truth for which UI component holds focus.
 //
-// It tracks one FocusTarget at a time, supports Tab cycling through available
-// regions, and resolves focus after visibility changes. All focus state changes
-// flow through this manager.
+// It tracks one FocusTarget at a time and supports Tab cycling through
+// available regions. Focus never moves on its own: it changes only through
+// Tab, mouse adoption, or explicit SetTarget calls, and Resolve clears it
+// when the focused region disappears.
 type FocusManager struct {
 	current FocusTarget
 	regions []FocusRegionDef
@@ -143,56 +141,22 @@ func (fm *FocusManager) TabWithinOrAdvance(direction int, withinFn func(int) boo
 	fm.Tab(direction)
 }
 
-// ResolveAfterAvailabilityChange keeps the current focus when it is still
-// available. Otherwise, it activates the first currently available region.
-// If none are available, it clears focus.
-func (fm *FocusManager) ResolveAfterAvailabilityChange() {
-	fm.resolve(fm.regionAvailable)
-}
-
-// ResolveAfterVisibilityChange checks whether the current target is still
-// available under the target visibility state after a toggle. If not, it
-// activates the first region that will be available in the target state. If
-// none are available, it clears focus.
-func (fm *FocusManager) ResolveAfterVisibilityChange() {
-	fm.resolve(fm.regionAvailableForResolve)
+// Resolve clears focus when the focused region is no longer available
+// (its pane was closed, emptied, or squeezed out). It never moves focus
+// to another region.
+func (fm *FocusManager) Resolve() {
+	if fm.current == FocusTargetNone {
+		return
+	}
+	idx := fm.indexOf(fm.current)
+	if idx != -1 && fm.regionAvailable(&fm.regions[idx]) {
+		return
+	}
+	fm.ClearAll()
 }
 
 func (fm *FocusManager) regionAvailable(r *FocusRegionDef) bool {
 	return r.Available != nil && r.Available()
-}
-
-func (fm *FocusManager) regionAvailableForResolve(r *FocusRegionDef) bool {
-	if r.AvailableTarget != nil {
-		return r.AvailableTarget()
-	}
-	return fm.regionAvailable(r)
-}
-
-func (fm *FocusManager) resolve(isAvailable func(*FocusRegionDef) bool) {
-	if fm.current != FocusTargetNone {
-		for i := range fm.regions {
-			if fm.regions[i].Target != fm.current {
-				continue
-			}
-			if isAvailable(&fm.regions[i]) {
-				return
-			}
-			break
-		}
-	}
-
-	for i := range fm.regions {
-		if !isAvailable(&fm.regions[i]) {
-			continue
-		}
-		fm.deactivateAll()
-		fm.current = fm.regions[i].Target
-		fm.regions[i].Activate(1)
-		return
-	}
-
-	fm.ClearAll()
 }
 
 func (fm *FocusManager) deactivateAll() {

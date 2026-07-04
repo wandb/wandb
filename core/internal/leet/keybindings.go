@@ -42,7 +42,8 @@ func RunKeyBindings() []BindingCategory[Run] {
 				},
 				{
 					Keys:        []string{"esc"},
-					Description: "Back to workspace (when not filtering/configuring)",
+					Description: "Unfocus pane, then back to workspace",
+					Handler:     (*Run).handleEscape,
 				},
 			},
 		},
@@ -73,6 +74,11 @@ func RunKeyBindings() []BindingCategory[Run] {
 					Keys:        []string{"4"},
 					Description: "Toggle console logs panel",
 					Handler:     (*Run).handleToggleConsoleLogsPane,
+				},
+				{
+					Keys:        []string{"0"},
+					Description: "Reset pane sizes to defaults",
+					Handler:     (*Run).handleResetLayout,
 				},
 			},
 		},
@@ -205,7 +211,7 @@ func RunKeyBindings() []BindingCategory[Run] {
 			},
 		},
 
-		mouseCategory[Run](),
+		mouseCategory(paneResizeBinding[Run]()),
 	}
 }
 
@@ -271,6 +277,11 @@ func WorkspaceKeyBindings() []BindingCategory[Workspace] {
 					Keys:        []string{"4"},
 					Description: "Toggle console logs panel",
 					Handler:     (*Workspace).handleToggleConsoleLogsPane,
+				},
+				{
+					Keys:        []string{"0"},
+					Description: "Reset pane sizes to defaults",
+					Handler:     (*Workspace).handleResetLayout,
 				},
 			},
 		},
@@ -428,7 +439,7 @@ func WorkspaceKeyBindings() []BindingCategory[Workspace] {
 			},
 		},
 
-		mouseCategory[Workspace](),
+		mouseCategory(paneResizeBinding[Workspace]()),
 	}
 }
 
@@ -554,10 +565,10 @@ func normalizeKey(key string) string {
 	return key
 }
 
-func mouseCategory[T any]() BindingCategory[T] {
+func mouseCategory[T any](extra ...KeyBinding[T]) BindingCategory[T] {
 	return BindingCategory[T]{
 		Name: "Mouse",
-		Bindings: []KeyBinding[T]{
+		Bindings: append([]KeyBinding[T]{
 			{
 				Keys:        []string{"wheel"},
 				Description: "Zoom in/out on focused chart",
@@ -574,6 +585,15 @@ func mouseCategory[T any]() BindingCategory[T] {
 				Keys:        []string{"shift+drag"},
 				Description: "Select text",
 			},
-		},
+		}, extra...),
+	}
+}
+
+// paneResizeBinding documents mouse-drag pane resizing for views that
+// support it (run and workspace).
+func paneResizeBinding[T any]() KeyBinding[T] {
+	return KeyBinding[T]{
+		Keys:        []string{"drag border/separator"},
+		Description: "Resize panes (press 0 to reset)",
 	}
 }

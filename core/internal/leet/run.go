@@ -81,6 +81,13 @@ type Run struct {
 	focusMgr *FocusManager
 	focus    *Focus
 
+	// focusSeeded is set once initial focus lands on the first pane that
+	// receives data. After that, focus only ever changes on user action.
+	focusSeeded bool
+
+	// In-progress pane-boundary drag (mouse resize).
+	drag layoutDrag
+
 	// UI components.
 	metricsGridAnimState *AnimatedValue
 	metricsGrid          *MetricsGrid
@@ -254,15 +261,31 @@ func (r *Run) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // handleWindowResize handles window resize messages.
 func (r *Run) handleWindowResize(msg tea.WindowSizeMsg) {
 	r.width, r.height = msg.Width, msg.Height
+	r.applyLayoutConfig()
+	r.focusMgr.Resolve()
+}
 
-	r.leftSidebar.UpdateDimensions(msg.Width, r.rightSidebar.animState.TargetVisible())
-	r.rightSidebar.UpdateDimensions(msg.Width, r.leftSidebar.animState.TargetVisible())
+// applyLayoutConfig re-derives all pane extents from the terminal size and
+// any saved layout overrides.
+func (r *Run) applyLayoutConfig() {
+	r.updateSidebarDimensions(
+		r.leftSidebar.animState.TargetVisible(),
+		r.rightSidebar.animState.TargetVisible(),
+	)
 	r.updateBottomPaneHeights(
 		r.mediaPane.animState.TargetVisible(), r.consoleLogsPane.animState.TargetVisible())
 
 	layout := r.computeViewports()
 	r.metricsGrid.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
-	r.focusMgr.ResolveAfterAvailabilityChange()
+}
+
+// updateSidebarDimensions re-derives both sidebars' expanded widths from the
+// terminal width, the given post-toggle visibility of each side, and any
+// saved layout overrides.
+func (r *Run) updateSidebarDimensions(leftVisible, rightVisible bool) {
+	o := r.config.RunLayout()
+	r.leftSidebar.UpdateDimensions(r.width, rightVisible, o.LeftSidebar)
+	r.rightSidebar.UpdateDimensions(r.width, leftVisible, o.RightSidebar)
 }
 
 // isUIMsg returns true for messages that should flow to child view models.
@@ -683,12 +706,13 @@ func (r *Run) updateBottomPaneHeights(mediaVisible, logsVisible bool) {
 		lowerTierH = maxH
 	}
 
+	o := r.config.RunLayout()
 	each := lowerTierH / lowerCount
 	if mediaVisible {
-		r.mediaPane.SetExpandedHeight(each)
+		r.mediaPane.SetExpandedHeight(paneHeightFor(o.Media, r.height, each))
 	}
 	if logsVisible {
-		r.consoleLogsPane.SetExpandedHeight(each)
+		r.consoleLogsPane.SetExpandedHeight(paneHeightFor(o.Logs, r.height, each))
 	}
 }
 

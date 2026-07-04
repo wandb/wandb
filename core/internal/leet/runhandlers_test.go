@@ -3,6 +3,7 @@ package leet_test
 import (
 	"path/filepath"
 	"testing"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -62,11 +63,17 @@ func newRunForHandlerTest(t *testing.T) *leet.Run {
 	return r
 }
 
+// seedConsoleLog gives the console logs pane content so it is focusable.
+func seedConsoleLog(r *leet.Run) {
+	r.TestHandleRecordMsg(leet.ConsoleLogMsg{Text: "hello", Time: time.Now()})
+}
+
 // ---- handleSidebarTabNav ----
 
 func TestRun_SidebarTabNav_BothPanelsVisible_CyclesOverviewThenLogs(t *testing.T) {
 	r := newRunForHandlerTest(t)
 	r.TestForceExpandConsoleLogsPane(10)
+	seedConsoleLog(r)
 
 	// Initial state: overview section 0 should be active.
 	sidebar := r.TestGetLeftSidebar()
@@ -99,12 +106,32 @@ func TestRun_SidebarTabNav_BothPanelsVisible_CyclesOverviewThenLogs(t *testing.T
 func TestRun_SidebarTabNav_OnlyLogsVisible(t *testing.T) {
 	r := newRunForHandlerTest(t)
 	r.TestForceExpandConsoleLogsPane(10)
+	seedConsoleLog(r)
 	r.TestForceCollapseLeftSidebar()
 
 	// With overview collapsed, Tab should activate logs.
 	r.Update(tea.KeyPressMsg{Code: tea.KeyTab})
 	require.True(t, r.TestConsoleLogsPaneActive(),
 		"Tab with collapsed overview should still reach logs")
+}
+
+func TestRun_SidebarTabNav_SkipsEmptyLogsPane(t *testing.T) {
+	r := newRunForHandlerTest(t)
+	r.TestForceExpandConsoleLogsPane(10)
+
+	// The logs pane is open but has no content: Tab must skip it and
+	// keep cycling overview sections.
+	sidebar := r.TestGetLeftSidebar()
+	_, lastSec := sidebar.TestFocusableSectionBounds()
+	for r.TestLeftSidebarActiveSectionIdx() < lastSec {
+		r.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	}
+	r.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+
+	require.False(t, r.TestConsoleLogsPaneActive(),
+		"an empty logs pane must not receive focus")
+	require.True(t, r.TestLeftSidebarHasActiveSection(),
+		"focus should wrap back to the overview")
 }
 
 func TestRun_SidebarTabNav_OnlyOverviewVisible(t *testing.T) {
@@ -133,10 +160,112 @@ func TestRun_InitialFocus_PicksFirstAvailablePane(t *testing.T) {
 	}, cfg, logger)
 	r.Update(tea.WindowSizeMsg{Width: 200, Height: 60})
 
+	// Focus is seeded once the first pane gains content.
+	seedConsoleLog(r)
+
 	require.True(t, r.TestConsoleLogsPaneActive(),
 		"the first available pane should receive focus on load")
 	require.False(t, r.TestLeftSidebarHasActiveSection(),
 		"collapsed overview should not appear focused")
+}
+
+// ---- Mouse drag-resize of the sidebars ----
+
+func TestRun_DragResizesRightSidebarAndPersists(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+	_ = cfg.SetLeftSidebarVisible(true)
+	_ = cfg.SetRightSidebarVisible(true)
+
+	r := leet.NewRun(&leet.RunParams{RunFile: "testdata/fake.wandb"}, cfg, logger)
+	r.Update(tea.WindowSizeMsg{Width: 200, Height: 60})
+
+	_, right0 := r.TestLayoutWidths()
+	require.Positive(t, right0)
+
+	// Press on the right sidebar's border column, drag 10 columns left
+	// (widening the sidebar), release.
+	borderX := 200 - right0
+	r.Update(tea.MouseClickMsg{X: borderX, Y: 5, Button: tea.MouseLeft})
+	r.Update(tea.MouseMotionMsg{X: borderX - 10, Y: 5, Button: tea.MouseLeft})
+	r.Update(tea.MouseReleaseMsg{X: borderX - 10, Y: 5, Button: tea.MouseLeft})
+
+	_, right1 := r.TestLayoutWidths()
+	require.Equal(t, right0+10, right1, "drag should widen the right sidebar")
+	require.InDelta(t, float64(right0+10)/200.0, cfg.RunLayout().RightSidebar, 1e-9,
+		"released drag should persist the width as a fraction of the terminal")
+
+	// "0" resets the proportions and the persisted overrides.
+	r.Update(tea.KeyPressMsg{Code: '0'})
+	require.Equal(t, leet.LayoutOverrides{}, cfg.RunLayout())
+	_, right2 := r.TestLayoutWidths()
+	require.Equal(t, right0, right2, "reset should restore the default width")
+}
+
+// ---- Esc: unfocus pane first, exit view second ----
+
+func TestRun_EscUnfocusesPane(t *testing.T) {
+	r := newRunForHandlerTest(t)
+	require.True(t, r.HasPaneFocus(), "seeded run should start with pane focus")
+
+	r.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
+
+	require.False(t, r.HasPaneFocus(), "Esc should clear pane focus")
+	require.False(t, r.TestLeftSidebarHasActiveSection(),
+		"overview sections should be deactivated after Esc")
+}
+
+func TestRun_DataAfterEscDoesNotRestealFocus(t *testing.T) {
+	r := newRunForHandlerTest(t)
+	r.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
+	require.False(t, r.HasPaneFocus())
+
+	// More data arriving must not move focus once the user unfocused.
+	r.TestHandleRecordMsg(leet.SummaryMsg{
+		Summary: []*spb.SummaryRecord{{
+			Update: []*spb.SummaryItem{
+				{NestedKey: []string{"acc"}, ValueJson: "0.9"},
+			},
+		}},
+	})
+	require.False(t, r.HasPaneFocus(),
+		"incoming data must not re-steal focus after Esc")
+}
+
+func TestModel_EscExitsRunViewOnlyWhenUnfocused(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+
+	m := leet.NewModel(leet.ModelParams{
+		RunParams: &leet.RunParams{RunFile: "testdata/fake.wandb"},
+		Config:    cfg,
+		Logger:    logger,
+	})
+	var tm tea.Model = m
+	tm, _ = tm.Update(tea.WindowSizeMsg{Width: 200, Height: 60})
+
+	// Seed overview data so focus lands on a pane.
+	require.True(t, m.TestInRunMode())
+	m.TestRunModel().TestHandleRecordMsg(leet.RunMsg{
+		ID:      "abc123",
+		Project: "test-project",
+		Config: &spb.ConfigRecord{
+			Update: []*spb.ConfigItem{
+				{NestedKey: []string{"lr"}, ValueJson: "0.01"},
+			},
+		},
+	})
+	require.True(t, m.TestRunModel().HasPaneFocus())
+
+	// First Esc unfocuses the pane but stays in the run view.
+	tm, _ = tm.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
+	require.True(t, m.TestInRunMode(), "Esc with a focused pane must not exit the view")
+	require.False(t, m.TestRunModel().HasPaneFocus())
+
+	// Second Esc exits to the workspace.
+	tm, _ = tm.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
+	require.False(t, m.TestInRunMode(), "Esc with no pane focus should exit to workspace")
+	_ = tm
 }
 
 func TestRun_OverviewUpdatesPreserveTabContext(t *testing.T) {

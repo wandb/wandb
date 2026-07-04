@@ -46,10 +46,15 @@ func NewRightSidebar(
 	}
 }
 
-// UpdateDimensions updates the right sidebar dimensions based on terminal width
-// and the visibility of the left sidebar.
-func (rs *RightSidebar) UpdateDimensions(terminalWidth int, leftSidebarVisible bool) {
-	rs.animState.SetExpanded(expandedSidebarWidth(terminalWidth, leftSidebarVisible))
+// UpdateDimensions updates the right sidebar dimensions based on terminal
+// width, the visibility of the left sidebar, and an optional user-dragged
+// width fraction (0 = default).
+func (rs *RightSidebar) UpdateDimensions(
+	terminalWidth int,
+	leftSidebarVisible bool,
+	widthFrac float64,
+) {
+	rs.animState.SetExpanded(sidebarWidthFor(terminalWidth, widthFrac, leftSidebarVisible))
 
 	if gridWidth := sidebarContentWidth(rs.animState.Value()); gridWidth > 0 {
 		rs.metricsGrid.Resize(gridWidth, defaultSystemMetricsGridHeight)
