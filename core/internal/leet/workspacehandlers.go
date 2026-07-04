@@ -168,6 +168,7 @@ func (w *Workspace) handleLayoutDrag(msg tea.MouseMsg, layout Layout) bool {
 		if !ok || (drag.boundary == dragBoundarySeparator && w.mediaPane.IsFullscreen()) {
 			return false
 		}
+		drag.overrides = w.config.WorkspaceLayout()
 		w.drag = drag
 		return true
 
@@ -188,34 +189,38 @@ func (w *Workspace) handleLayoutDrag(msg tea.MouseMsg, layout Layout) bool {
 	return false
 }
 
-// applyLayoutDrag resizes the dragged pane to follow the mouse.
+// applyLayoutDrag resizes the dragged pane(s) to follow the mouse.
 func (w *Workspace) applyLayoutDrag(x, y int, layout Layout) {
 	switch w.drag.boundary {
 	case dragBoundaryLeftSidebar:
-		w.drag.frac = float64(x+1) / float64(w.width)
+		w.drag.overrides.LeftSidebar = float64(x+1) / float64(w.width)
 		w.runsAnimState.SetExpanded(sidebarWidthFor(
-			w.width, w.drag.frac, w.runOverviewSidebar.animState.TargetVisible()))
+			w.width, w.drag.overrides.LeftSidebar,
+			w.runOverviewSidebar.animState.TargetVisible()))
 
 	case dragBoundaryRightSidebar:
-		w.drag.frac = float64(w.width-x) / float64(w.width)
+		w.drag.overrides.RightSidebar = float64(w.width-x) / float64(w.width)
 		w.runOverviewSidebar.UpdateDimensions(
-			w.width, w.runsAnimState.TargetVisible(), w.drag.frac)
+			w.width, w.runsAnimState.TargetVisible(), w.drag.overrides.RightSidebar)
 
 	case dragBoundarySeparator:
-		newH, frac, ok := dragSeparatorHeight(layout, w.drag.section, y, w.height)
-		if !ok {
+		resizes := dragSeparator(layout, w.drag.section, y, w.height)
+		if len(resizes) == 0 {
 			return
 		}
-		w.drag.frac = frac
-		switch w.drag.section {
-		case stackSectionSystemMetrics:
-			w.systemMetricsPane.SetExpandedHeight(newH)
-		case stackSectionMedia:
-			w.mediaPane.SetExpandedHeight(newH)
-		case stackSectionConsoleLogs:
-			w.consoleLogsPane.SetExpandedHeight(newH)
+		for _, rz := range resizes {
+			switch rz.section {
+			case stackSectionSystemMetrics:
+				w.systemMetricsPane.SetExpandedHeight(rz.height)
+			case stackSectionMedia:
+				w.mediaPane.SetExpandedHeight(rz.height)
+			case stackSectionConsoleLogs:
+				w.consoleLogsPane.SetExpandedHeight(rz.height)
+			}
+			w.drag.overrides.setSection(rz.section, rz.frac)
 		}
 	}
+	w.drag.dirty = true
 
 	w.recalculateLayout()
 }
@@ -229,31 +234,14 @@ func (w *Workspace) handleResetLayout(tea.KeyPressMsg) tea.Cmd {
 	return nil
 }
 
-// finishLayoutDrag persists the dragged proportion and ends the drag.
+// finishLayoutDrag persists the dragged proportions and ends the drag.
 func (w *Workspace) finishLayoutDrag() {
 	drag := w.drag
 	w.drag = layoutDrag{}
-	if drag.frac == 0 {
+	if !drag.dirty {
 		return // Click without motion: nothing changed.
 	}
-
-	o := w.config.WorkspaceLayout()
-	switch drag.boundary {
-	case dragBoundaryLeftSidebar:
-		o.LeftSidebar = drag.frac
-	case dragBoundaryRightSidebar:
-		o.RightSidebar = drag.frac
-	case dragBoundarySeparator:
-		switch drag.section {
-		case stackSectionSystemMetrics:
-			o.System = drag.frac
-		case stackSectionMedia:
-			o.Media = drag.frac
-		case stackSectionConsoleLogs:
-			o.Logs = drag.frac
-		}
-	}
-	if err := w.config.SetWorkspaceLayout(o); err != nil {
+	if err := w.config.SetWorkspaceLayout(drag.overrides); err != nil {
 		w.logger.Error(fmt.Sprintf("workspace: failed to save layout: %v", err))
 	}
 }

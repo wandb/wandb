@@ -135,3 +135,18 @@ func placeMainColumn(width, height int, content string) string {
 	}
 	return lipgloss.Place(width, height, lipgloss.Left, lipgloss.Top, content)
 }
+
+// padStackSection pads a rendered central-column section to the height the
+// vertical stack layout reserved for it.
+//
+// Mouse hit-testing (chart cells, separator drags) maps screen rows to
+// sections via computeVerticalStackLayout, so each rendered section must
+// occupy exactly its reserved rows. The metrics grid in particular renders
+// header + rows*cellHeight lines, which integer division leaves short of
+// the section height.
+func padStackSection(content string, width, height int) string {
+	if width <= 0 || height <= 0 {
+		return content
+	}
+	return lipgloss.Place(width, height, lipgloss.Left, lipgloss.Top, content)
+}

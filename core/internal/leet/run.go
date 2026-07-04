@@ -378,7 +378,8 @@ func (r *Run) renderMainView() string {
 					renderMetricsEmptyState(w, layout.height, "No scalar metrics logged."))
 			} else {
 				dims := r.metricsGrid.CalculateChartDimensions(w, layout.height)
-				sections = append(sections, r.metricsGrid.View(dims))
+				sections = append(sections,
+					padStackSection(r.metricsGrid.View(dims), w, layout.height))
 			}
 		}
 

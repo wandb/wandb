@@ -87,6 +87,18 @@ func (w *Workspace) TestLayoutWidths() (left, right int) {
 	return l.leftSidebarWidth, l.rightSidebarWidth
 }
 
+// TestStackHeights returns the run view's central stack pane heights.
+func (r *Run) TestStackHeights() (metrics, media, logs int) {
+	l := r.computeViewports()
+	return l.height, l.mediaHeight, l.consoleLogsHeight
+}
+
+// TestStackHeights returns the workspace's central stack pane heights.
+func (w *Workspace) TestStackHeights() (metrics, system, media, logs int) {
+	l := w.computeViewports()
+	return l.height, l.systemMetricsHeight, l.mediaHeight, l.consoleLogsHeight
+}
+
 // TestInRunMode reports whether the model shows the single-run view.
 func (m *Model) TestInRunMode() bool { return m.mode == viewModeRun }
 

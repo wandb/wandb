@@ -84,42 +84,56 @@ func TestBoundaryAtStackSeparators(t *testing.T) {
 	require.False(t, ok)
 }
 
-func TestDragSeparatorHeightTracksMouse(t *testing.T) {
+func TestDragSeparatorBelowFlexResizesOnePane(t *testing.T) {
 	layout := testRunLayout()
 	const termH = 63 // content + status bar
 
-	// Dragging the media separator up by 5 rows grows media by 5.
-	newH, frac, ok := dragSeparatorHeight(layout, stackSectionMedia, layout.mediaY-1-5, termH)
-	require.True(t, ok)
-	require.Equal(t, layout.mediaHeight+5, newH)
-	require.InDelta(t, float64(newH)/float64(termH), frac, 1e-9)
+	// The pane above the media separator is the flex metrics grid, so only
+	// media resizes; dragging up by 5 rows grows it by 5.
+	resizes := dragSeparator(layout, stackSectionMedia, layout.mediaY-1-5, termH)
+	require.Len(t, resizes, 1)
+	require.Equal(t, stackSectionMedia, resizes[0].section)
+	require.Equal(t, layout.mediaHeight+5, resizes[0].height)
+	require.InDelta(t, float64(resizes[0].height)/float64(termH), resizes[0].frac, 1e-9)
 
 	// Dragging down by 5 shrinks media by 5.
-	newH, _, ok = dragSeparatorHeight(layout, stackSectionMedia, layout.mediaY-1+5, termH)
-	require.True(t, ok)
-	require.Equal(t, layout.mediaHeight-5, newH)
+	resizes = dragSeparator(layout, stackSectionMedia, layout.mediaY-1+5, termH)
+	require.Len(t, resizes, 1)
+	require.Equal(t, layout.mediaHeight-5, resizes[0].height)
 }
 
-func TestDragSeparatorHeightClamps(t *testing.T) {
+func TestDragSeparatorBetweenFixedPanesResizesBoth(t *testing.T) {
+	layout := testRunLayout()
+	const termH = 63
+
+	// Media (fixed) sits above the console logs separator: dragging down by
+	// 3 rows grows media by 3 and shrinks logs by 3.
+	resizes := dragSeparator(layout, stackSectionConsoleLogs, layout.consoleLogsY-1+3, termH)
+	require.Len(t, resizes, 2)
+	require.Equal(t, stackSectionConsoleLogs, resizes[0].section)
+	require.Equal(t, layout.consoleLogsHeight-3, resizes[0].height)
+	require.Equal(t, stackSectionMedia, resizes[1].section)
+	require.Equal(t, layout.mediaHeight+3, resizes[1].height)
+}
+
+func TestDragSeparatorClamps(t *testing.T) {
 	layout := testRunLayout()
 	const termH = 63
 
 	// Dragging far down clamps at the pane's min height.
-	newH, _, ok := dragSeparatorHeight(layout, stackSectionMedia, 1000, termH)
-	require.True(t, ok)
-	require.Equal(t, mediaPaneMinHeight, newH)
+	resizes := dragSeparator(layout, stackSectionMedia, 1000, termH)
+	require.Len(t, resizes, 1)
+	require.Equal(t, mediaPaneMinHeight, resizes[0].height)
 
 	// Dragging far up clamps so the section above keeps its min height.
-	newH, _, ok = dragSeparatorHeight(layout, stackSectionMedia, 0, termH)
-	require.True(t, ok)
+	resizes = dragSeparator(layout, stackSectionMedia, 0, termH)
+	require.Len(t, resizes, 1)
 	mediaBottom := layout.mediaY + layout.mediaHeight
-	require.Equal(t, mediaBottom-minFlexMetricsHeight-1, newH)
+	require.Equal(t, mediaBottom-minFlexMetricsHeight-1, resizes[0].height)
 
 	// Unknown or top-most sections are not draggable.
-	_, _, ok = dragSeparatorHeight(layout, stackSectionMetrics, 10, termH)
-	require.False(t, ok)
-	_, _, ok = dragSeparatorHeight(layout, stackSectionSystemMetrics, 10, termH)
-	require.False(t, ok)
+	require.Empty(t, dragSeparator(layout, stackSectionMetrics, 10, termH))
+	require.Empty(t, dragSeparator(layout, stackSectionSystemMetrics, 10, termH))
 }
 
 func TestSidebarWidthFor(t *testing.T) {

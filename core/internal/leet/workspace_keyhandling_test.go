@@ -274,6 +274,44 @@ func TestWorkspace_DragResizesRunsSidebarAndPersists(t *testing.T) {
 	require.Equal(t, left0, left2, "reset should restore the default width")
 }
 
+func TestWorkspace_DragSeparatorResizesBothFixedNeighbors(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+	_ = cfg.SetWorkspaceSystemMetricsVisible(true)
+	_ = cfg.SetWorkspaceMediaVisible(true)
+	_ = cfg.SetWorkspaceConsoleLogsVisible(true)
+
+	w := leet.NewWorkspace(t.TempDir(), cfg, logger)
+	// Tall terminal so all panes sit above their minimum heights.
+	_ = w.Update(tea.WindowSizeMsg{Width: 200, Height: 100})
+
+	metrics0, system0, media0, logs0 := w.TestStackHeights()
+	require.Positive(t, system0)
+	require.Positive(t, media0)
+
+	// The separator above media sits between two fixed panes (system above,
+	// media below). Drag it up 2 rows: system shrinks, media grows, the flex
+	// metrics grid and logs stay put.
+	left0, _ := w.TestLayoutWidths()
+	x := left0 + 5
+	sepY := metrics0 + 1 + system0 + 1 - 1 // gap row above media
+	_ = w.Update(tea.MouseClickMsg{X: x, Y: sepY, Button: tea.MouseLeft})
+	_ = w.Update(tea.MouseMotionMsg{X: x, Y: sepY - 2, Button: tea.MouseLeft})
+	_ = w.Update(tea.MouseReleaseMsg{X: x, Y: sepY - 2, Button: tea.MouseLeft})
+
+	metrics1, system1, media1, logs1 := w.TestStackHeights()
+	require.Equal(t, system0-2, system1, "pane above the separator should shrink")
+	require.Equal(t, media0+2, media1, "pane below the separator should grow")
+	require.Equal(t, metrics0, metrics1, "flex metrics grid should be untouched")
+	require.Equal(t, logs0, logs1, "logs pane should be untouched")
+
+	// Both fractions persist on release.
+	o := cfg.WorkspaceLayout()
+	require.InDelta(t, float64(system1)/100.0, o.System, 1e-9)
+	require.InDelta(t, float64(media1)/100.0, o.Media, 1e-9)
+	require.Zero(t, o.Logs, "untouched panes must not gain overrides")
+}
+
 func TestWorkspace_ClickWithoutMotionDoesNotPersist(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)

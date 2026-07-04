@@ -1051,7 +1051,7 @@ func (w *Workspace) renderMetrics(layout Layout) string {
 
 	// When we have selected runs, render the metrics grid.
 	dims := w.metricsGrid.CalculateChartDimensions(contentWidth, contentHeight)
-	return w.metricsGrid.View(dims)
+	return padStackSection(w.metricsGrid.View(dims), contentWidth, contentHeight)
 }
 
 // renderMetricsEmptyState renders a styled "Metrics" header with a hint message.

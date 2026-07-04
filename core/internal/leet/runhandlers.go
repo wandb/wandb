@@ -142,6 +142,7 @@ func (r *Run) handleLayoutDrag(msg tea.MouseMsg, layout Layout) bool {
 		if !ok || (drag.boundary == dragBoundarySeparator && r.mediaPane.IsFullscreen()) {
 			return false
 		}
+		drag.overrides = r.config.RunLayout()
 		r.drag = drag
 		return true
 
@@ -162,32 +163,35 @@ func (r *Run) handleLayoutDrag(msg tea.MouseMsg, layout Layout) bool {
 	return false
 }
 
-// applyLayoutDrag resizes the dragged pane to follow the mouse.
+// applyLayoutDrag resizes the dragged pane(s) to follow the mouse.
 func (r *Run) applyLayoutDrag(x, y int, layout Layout) {
 	switch r.drag.boundary {
 	case dragBoundaryLeftSidebar:
-		r.drag.frac = float64(x+1) / float64(r.width)
+		r.drag.overrides.LeftSidebar = float64(x+1) / float64(r.width)
 		r.leftSidebar.UpdateDimensions(
-			r.width, r.rightSidebar.animState.TargetVisible(), r.drag.frac)
+			r.width, r.rightSidebar.animState.TargetVisible(), r.drag.overrides.LeftSidebar)
 
 	case dragBoundaryRightSidebar:
-		r.drag.frac = float64(r.width-x) / float64(r.width)
+		r.drag.overrides.RightSidebar = float64(r.width-x) / float64(r.width)
 		r.rightSidebar.UpdateDimensions(
-			r.width, r.leftSidebar.animState.TargetVisible(), r.drag.frac)
+			r.width, r.leftSidebar.animState.TargetVisible(), r.drag.overrides.RightSidebar)
 
 	case dragBoundarySeparator:
-		newH, frac, ok := dragSeparatorHeight(layout, r.drag.section, y, r.height)
-		if !ok {
+		resizes := dragSeparator(layout, r.drag.section, y, r.height)
+		if len(resizes) == 0 {
 			return
 		}
-		r.drag.frac = frac
-		switch r.drag.section {
-		case stackSectionMedia:
-			r.mediaPane.SetExpandedHeight(newH)
-		case stackSectionConsoleLogs:
-			r.consoleLogsPane.SetExpandedHeight(newH)
+		for _, rz := range resizes {
+			switch rz.section {
+			case stackSectionMedia:
+				r.mediaPane.SetExpandedHeight(rz.height)
+			case stackSectionConsoleLogs:
+				r.consoleLogsPane.SetExpandedHeight(rz.height)
+			}
+			r.drag.overrides.setSection(rz.section, rz.frac)
 		}
 	}
+	r.drag.dirty = true
 
 	resized := r.computeViewports()
 	r.metricsGrid.UpdateDimensions(resized.mainContentAreaWidth, resized.height)
@@ -202,29 +206,14 @@ func (r *Run) handleResetLayout(tea.KeyPressMsg) tea.Cmd {
 	return nil
 }
 
-// finishLayoutDrag persists the dragged proportion and ends the drag.
+// finishLayoutDrag persists the dragged proportions and ends the drag.
 func (r *Run) finishLayoutDrag() {
 	drag := r.drag
 	r.drag = layoutDrag{}
-	if drag.frac == 0 {
+	if !drag.dirty {
 		return // Click without motion: nothing changed.
 	}
-
-	o := r.config.RunLayout()
-	switch drag.boundary {
-	case dragBoundaryLeftSidebar:
-		o.LeftSidebar = drag.frac
-	case dragBoundaryRightSidebar:
-		o.RightSidebar = drag.frac
-	case dragBoundarySeparator:
-		switch drag.section {
-		case stackSectionMedia:
-			o.Media = drag.frac
-		case stackSectionConsoleLogs:
-			o.Logs = drag.frac
-		}
-	}
-	if err := r.config.SetRunLayout(o); err != nil {
+	if err := r.config.SetRunLayout(drag.overrides); err != nil {
 		r.logger.Error(fmt.Sprintf("model: failed to save layout: %v", err))
 	}
 }
