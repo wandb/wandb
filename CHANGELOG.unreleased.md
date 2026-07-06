@@ -19,6 +19,10 @@ Section headings should be at level 3 (e.g. `### Added`).
 This version drops support for protobuf v4, and requires protobuf v5 or newer.
 This version drops compatibility with server versions older than 0.67.0.
 
+### Added
+
+- Added `Run.stop()` to the public API (`wandb.Api().run(...).stop()`) to programmatically request that an active run stop gracefully, like the "Stop run" button in the W&B App UI (@dmitryduev in https://github.com/wandb/wandb/pull/12159)
+
 ### Changed
 
 - Remove temporary Unix socket files and directories on shutdown (@geoffhardy in https://github.com/wandb/wandb/pull/12058)

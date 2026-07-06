@@ -53,6 +53,28 @@ def test_upload_file_skips_notification_when_unsupported(mocker, tmp_path):
     service_api.send_api_request.assert_not_called()
 
 
+def test_stop_sends_stop_run_request(mocker):
+    """stop() sends a StopRunRequest with the run's storage ID."""
+    service_api = mocker.MagicMock()
+    service_api.send_api_request.return_value = apb.ApiResponse(
+        stop_run_response=apb.StopRunResponse()
+    )
+    run = Run(
+        service_api=service_api,
+        entity="entity",
+        project="project",
+        run_id="run-id",
+        attrs={"name": "run-id", "id": "run-node-id", "state": "running"},
+    )
+
+    run.stop()
+
+    service_api.send_api_request.assert_called_once()
+    request = service_api.send_api_request.call_args.args[0]
+    assert request.WhichOneof("request") == "stop_run_request"
+    assert request.stop_run_request.storage_id == "run-node-id"
+
+
 @pytest.mark.parametrize(
     "field,value,expected",
     [
