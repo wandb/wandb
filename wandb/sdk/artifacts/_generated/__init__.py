@@ -8,6 +8,7 @@ __all__ = [
     "ARTIFACT_COLLECTION_ALIASES_GQL",
     "ARTIFACT_CREATED_BY_GQL",
     "ARTIFACT_MEMBERSHIP_BY_NAME_GQL",
+    "ARTIFACT_MEMBERSHIP_FILES_GQL",
     "ARTIFACT_TYPE_ARTIFACT_COLLECTIONS_GQL",
     "ARTIFACT_TYPE_GQL",
     "ARTIFACT_USED_BY_GQL",
@@ -25,9 +26,6 @@ __all__ = [
     "FETCH_ORG_INFO_FROM_ENTITY_GQL",
     "FETCH_REGISTRIES_GQL",
     "FETCH_REGISTRY_GQL",
-    "GET_ARTIFACT_FILES_GQL",
-    "GET_ARTIFACT_FILE_URLS_GQL",
-    "GET_ARTIFACT_MEMBERSHIP_FILES_GQL",
     "GET_ARTIFACT_MEMBERSHIP_FILE_URLS_GQL",
     "LINK_ARTIFACT_GQL",
     "PROJECT_ARTIFACTS_GQL",
@@ -61,9 +59,7 @@ __all__ = [
     "ProjectArtifactCollections",
     "ProjectArtifactCollection",
     "ArtifactCollectionAliases",
-    "GetArtifactFiles",
-    "GetArtifactMembershipFiles",
-    "GetArtifactFileUrls",
+    "ArtifactMembershipFiles",
     "GetArtifactMembershipFileUrls",
     "ProjectArtifactTypes",
     "ProjectArtifactType",
@@ -157,6 +153,7 @@ from .artifact_by_name import ArtifactByName
 from .artifact_collection_aliases import ArtifactCollectionAliases
 from .artifact_created_by import ArtifactCreatedBy
 from .artifact_membership_by_name import ArtifactMembershipByName
+from .artifact_membership_files import ArtifactMembershipFiles
 from .artifact_type import ArtifactType
 from .artifact_type_artifact_collections import ArtifactTypeArtifactCollections
 from .artifact_used_by import ArtifactUsedBy
@@ -201,10 +198,7 @@ from .fragments import (
     TeamRegistryMemberFragment,
     UserRegistryMemberFragment,
 )
-from .get_artifact_file_urls import GetArtifactFileUrls
-from .get_artifact_files import GetArtifactFiles
 from .get_artifact_membership_file_urls import GetArtifactMembershipFileUrls
-from .get_artifact_membership_files import GetArtifactMembershipFiles
 from .input_types import (
     AddAliasesInput,
     ArtifactAliasInput,
@@ -239,6 +233,7 @@ from .operations import (
     ARTIFACT_COLLECTION_ALIASES_GQL,
     ARTIFACT_CREATED_BY_GQL,
     ARTIFACT_MEMBERSHIP_BY_NAME_GQL,
+    ARTIFACT_MEMBERSHIP_FILES_GQL,
     ARTIFACT_TYPE_ARTIFACT_COLLECTIONS_GQL,
     ARTIFACT_TYPE_GQL,
     ARTIFACT_USED_BY_GQL,
@@ -256,10 +251,7 @@ from .operations import (
     FETCH_ORG_INFO_FROM_ENTITY_GQL,
     FETCH_REGISTRIES_GQL,
     FETCH_REGISTRY_GQL,
-    GET_ARTIFACT_FILE_URLS_GQL,
-    GET_ARTIFACT_FILES_GQL,
     GET_ARTIFACT_MEMBERSHIP_FILE_URLS_GQL,
-    GET_ARTIFACT_MEMBERSHIP_FILES_GQL,
     LINK_ARTIFACT_GQL,
     PROJECT_ARTIFACT_COLLECTION_GQL,
     PROJECT_ARTIFACT_COLLECTIONS_GQL,

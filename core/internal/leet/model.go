@@ -254,6 +254,20 @@ func (m *Model) ShouldRestart() bool {
 	return m.shouldRestart
 }
 
+// Cleanup releases resources held by the model's sub-views: file watchers,
+// heartbeat timers, and open .wandb readers.
+//
+// Safe to call multiple times. Called after the program exits, e.g. before
+// a full restart.
+func (m *Model) Cleanup() {
+	if m.run != nil {
+		m.run.Cleanup()
+	}
+	if m.workspace != nil {
+		m.workspace.Cleanup()
+	}
+}
+
 func (m *Model) isRemoteRunMode() bool {
 	return m.mode == viewModeRun && m.run != nil && m.run.IsRemote()
 }

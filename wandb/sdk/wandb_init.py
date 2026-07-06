@@ -129,7 +129,11 @@ class _PrinterCallback(Protocol):
 
 def _noop_printer_callback() -> _PrinterCallback:
     """A printer callback that does not print anything."""
-    return lambda _: None
+
+    def do_nothing(run_printer: printer.Printer) -> None:
+        pass
+
+    return do_nothing
 
 
 def _concat_printer_callbacks(
