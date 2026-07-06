@@ -27,7 +27,7 @@ This version drops compatibility with server versions older than 0.67.0.
   - Restore original behavior with `--legacy`
 - Dropped support for protobuf v4 (@jacobromero in https://github.com/wandb/wandb/pull/12115)
 - `wandb.sandbox` now defaults serverless sandboxes to a 12-hour max lifetime (`max_lifetime_seconds=43200`); override per sandbox with `max_lifetime_seconds` or via `SandboxDefaults` (@nicholaspun-wandb in https://github.com/wandb/wandb/pull/12136)
-- Data logged at the start of a run now appears in the UI sooner: uploads begin every 2 seconds and gradually slow to the usual interval (15 seconds by default) (@dmitryduev in https://github.com/wandb/wandb/pull/XXXXX)
+- Data logged at the start of a run now appears in the UI sooner: uploads begin every 2 seconds and gradually slow to the usual interval (15 seconds by default) (@dmitryduev in https://github.com/wandb/wandb/pull/12170)
 
 ### Removed
 
