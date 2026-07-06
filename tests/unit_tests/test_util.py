@@ -258,6 +258,24 @@ def test_json_dumps_safer_preserves_nonfinite_floats():
     assert "null" not in encoded
 
 
+@pytest.mark.parametrize(
+    "dumps", [util.json_dumps_safer, util.json_dumps_safer_history]
+)
+@pytest.mark.parametrize("dtype", [np.float16, np.float32])
+def test_json_dumps_safer_preserves_numpy_float_nan(dumps, dtype):
+    # numpy floats narrower than float64 are not float subclasses, so they reach
+    # the encoder's default(); they must serialize to "NaN" like native float and
+    # np.float64 do (WB-32475).
+    assert dumps({"nan": dtype("nan")}) == '{"nan":NaN}'
+
+
+@pytest.mark.parametrize("dtype", [np.float16, np.float32])
+def test_json_friendly_val_drops_numpy_float_nan(dtype):
+    # json_friendly_val pre-sanitizes values (no JSON serializer involved), so it
+    # keeps dropping NaN to None as it does for native float NaN.
+    assert util.json_friendly_val(dtype("nan")) is None
+
+
 def test_json_dumps_safer_supports_non_string_keys():
     assert util.json_dumps_safer({1: "one"}) == '{"1":"one"}'
 

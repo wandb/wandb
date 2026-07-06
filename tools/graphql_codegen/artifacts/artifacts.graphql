@@ -93,7 +93,12 @@ query ProjectArtifacts(
   project(entityName: $entity, name: $project) {
     artifactType(name: $type) {
       artifactCollection(name: $collection) {
-        artifacts(after: $cursor, first: $perPage, order: $order, filters: $filters) {
+        artifacts(
+          after: $cursor
+          first: $perPage
+          order: $order
+          filters: $filters
+        ) {
           totalCount
           pageInfo {
             ...PageInfoFragment
@@ -273,7 +278,10 @@ mutation DeleteAliases($input: DeleteAliasesInput!) {
   }
 }
 
-mutation UpdateArtifact($input: UpdateArtifactInput!, $includeAliases: Boolean = true) {
+mutation UpdateArtifact(
+  $input: UpdateArtifactInput!
+  $includeAliases: Boolean = true
+) {
   result: updateArtifact(input: $input) {
     artifact {
       ...ArtifactFragment
@@ -289,7 +297,10 @@ mutation DeleteArtifact($input: DeleteArtifactInput!) {
   }
 }
 
-mutation LinkArtifact($input: LinkArtifactInput!, $includeAliases: Boolean = true) {
+mutation LinkArtifact(
+  $input: LinkArtifactInput!
+  $includeAliases: Boolean = true
+) {
   result: linkArtifact(input: $input) {
     versionIndex
     artifactMembership @include(if: true) {

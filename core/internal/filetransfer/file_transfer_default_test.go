@@ -135,28 +135,23 @@ func TestDefaultFileTransfer_DownloadHTTPError(t *testing.T) {
 func TestDefaultFileTransfer_Upload(t *testing.T) {
 	expectedContent := []byte("test content for upload")
 	path := writeTempFile(t, expectedContent)
-	expectedHeaders := []string{
-		"X-Test-1:x:: test",
-		"X-Test-2:",
-		"X-Test-3",
-		"X-Test-4: test",
-	}
 	testURL := runServer(t, func(w http.ResponseWriter, r *http.Request) {
 		body, err := io.ReadAll(r.Body)
 		require.NoError(t, err)
 
 		assert.Equal(t, expectedContent, body)
 		assert.Equal(t, r.Method, http.MethodPut)
-		assert.Equal(t, r.Header.Get("X-Test-1"), "x:: test")
-		assert.Equal(t, r.Header.Get("X-Test-2"), "")
-		assert.Equal(t, r.Header.Get("X-Test-3"), "")
-		assert.Equal(t, r.Header.Get("X-Test-4"), "test")
+		assert.Equal(t, r.Header.Get("X-Test-1"), "value-with:colon")
+		assert.Equal(t, r.Header.Get("X-Test-2"), "value")
 	})
 
 	task := &filetransfer.DefaultUploadTask{
-		Path:    path,
-		Url:     testURL,
-		Headers: expectedHeaders,
+		Path: path,
+		Url:  testURL,
+		Headers: http.Header{
+			"X-Test-1": {"value-with:colon"},
+			"X-Test-2": {"value"},
+		},
 	}
 	err := newFileTransfer(t).Upload(task)
 

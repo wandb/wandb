@@ -15,6 +15,7 @@ import (
 	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/clients"
 	"github.com/wandb/wandb/core/internal/featurechecker"
+	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/settings"
@@ -35,6 +36,7 @@ type WandbAPI struct {
 	settings *settings.Settings
 
 	featuresHandler      *FeaturesHandler
+	fileStreamHandler    *FileStreamHandler
 	fileTransferHandler  *FileTransferHandler
 	graphqlHandler       *GraphQLHandler
 	runHistoryApiHandler *RunHistoryAPIHandler
@@ -93,15 +95,66 @@ func New(
 	)
 	featureProvider := featurechecker.New(graphqlClient, logger)
 
+	fileStreamClient := newFileStreamClient(
+		baseURL,
+		credentialProvider,
+		logger,
+		s,
+	)
+
 	return &WandbAPI{
 		semaphore: make(chan struct{}, maxConcurrency),
 		settings:  s,
 
 		featuresHandler:      NewFeaturesHandler(featureProvider),
+		fileStreamHandler:    NewFileStreamHandler(fileStreamClient, baseURL),
 		fileTransferHandler:  NewFileTransferHandler(fileTransferManager),
 		graphqlHandler:       NewGraphQLHandler(graphqlClient),
 		runHistoryApiHandler: NewRunHistoryAPIHandler(graphqlClient, httpClient),
 	}, nil
+}
+
+// newFileStreamClient returns a client for posting to the filestream API.
+func newFileStreamClient(
+	baseURL *url.URL,
+	credentialProvider api.CredentialProvider,
+	logger *observability.CoreLogger,
+	s *settings.Settings,
+) api.RetryableClient {
+	httpOpts := api.ClientOptions{
+		BaseURL:     baseURL,
+		RetryPolicy: clients.RetryMostFailures,
+		Logger:      logger.Logger,
+
+		RetryMax:        filestream.DefaultRetryMax,
+		RetryWaitMin:    filestream.DefaultRetryWaitMin,
+		RetryWaitMax:    filestream.DefaultRetryWaitMax,
+		NonRetryTimeout: filestream.DefaultNonRetryTimeout,
+
+		Proxy: clients.ProxyFn(
+			s.GetHTTPProxy(),
+			s.GetHTTPSProxy(),
+		),
+
+		InsecureDisableSSL: s.IsInsecureDisableSSL(),
+		ExtraHeaders:       s.GetExtraHTTPHeaders(),
+		CredentialProvider: credentialProvider,
+	}
+
+	if retryMax := s.GetFileStreamMaxRetries(); retryMax > 0 {
+		httpOpts.RetryMax = int(retryMax)
+	}
+	if retryWaitMin := s.GetFileStreamRetryWaitMin(); retryWaitMin > 0 {
+		httpOpts.RetryWaitMin = retryWaitMin
+	}
+	if retryWaitMax := s.GetFileStreamRetryWaitMax(); retryWaitMax > 0 {
+		httpOpts.RetryWaitMax = retryWaitMax
+	}
+	if timeout := s.GetFileStreamTimeout(); timeout > 0 {
+		httpOpts.NonRetryTimeout = timeout
+	}
+
+	return api.NewClient(httpOpts)
 }
 
 func newFileTransferClient(
@@ -173,6 +226,10 @@ func (p *WandbAPI) HandleRequest(
 		return p.featuresHandler.HandleRequest(ctx, req.FeaturesRequest)
 	case *spb.ApiRequest_DownloadFileRequest:
 		return p.fileTransferHandler.HandleDownloadFile(ctx, req.DownloadFileRequest)
+	case *spb.ApiRequest_UploadFileRequest:
+		return p.fileTransferHandler.HandleUploadFile(ctx, req.UploadFileRequest)
+	case *spb.ApiRequest_MarkRunFilesUploadedRequest:
+		return p.fileStreamHandler.HandleMarkRunFilesUploaded(ctx, req.MarkRunFilesUploadedRequest)
 	case *spb.ApiRequest_GraphqlRequest:
 		return p.graphqlHandler.HandleRequest(ctx, req.GraphqlRequest)
 	case *spb.ApiRequest_ReadRunHistoryRequest:
