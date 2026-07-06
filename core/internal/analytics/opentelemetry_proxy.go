@@ -221,7 +221,7 @@ type OpenTelemetryProxyImpl struct {
 //
 // When analytics is disabled, a no-op proxy is returned so
 // no providers are created and nothing is recorded.
-func NewOpenTelemetryProxy(endpoint string, apiKey string) OpenTelemetryProxy {
+func NewOpenTelemetryProxy(endpoint, apiKey string) OpenTelemetryProxy {
 	if !enabled.Load() || apiKey == "" {
 		return NoopOpenTelemetryProxy{}
 	}
