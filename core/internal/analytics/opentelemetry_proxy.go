@@ -219,8 +219,8 @@ type OpenTelemetryProxyImpl struct {
 
 // NewOpenTelemetryProxy returns an OpenTelemetryProxy for the given endpoint.
 //
-// When analytics is disabled, a no-op proxy is returned so
-// no providers are created and nothing is recorded.
+// When analytics is disabled or no API key is available, a no-op proxy is
+// returned so no providers are created and nothing is recorded.
 func NewOpenTelemetryProxy(endpoint, apiKey string) OpenTelemetryProxy {
 	if !enabled.Load() || apiKey == "" {
 		return NoopOpenTelemetryProxy{}
