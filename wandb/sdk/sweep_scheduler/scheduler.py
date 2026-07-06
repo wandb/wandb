@@ -107,6 +107,11 @@ class Scheduler(ABC):
     def in_flight_runs(self) -> MutableMapping[str, Any]:
         """The live, mutable {wandb_run_id: optimizer_run_id} map of in-flight runs."""
         ...
+    
+    @abstractmethod
+    def pop_in_flight_run(self, wandb_run_id: str) -> Any:
+        """Remove a run from the in-flight set."""
+        ...
 
     @abstractmethod
     def fetch_existing_finished_runs(self) -> Iterable[RunEnriched]:
@@ -192,7 +197,8 @@ class Scheduler(ABC):
 
     def _poll_active_runs(self) -> None:
         in_flight = self.in_flight_runs()
-        for data in self.fetch_active_runs():
+        active = self.fetch_active_runs()
+        for data in active:
             wandb_run_id = data.wandb_run_id
             if wandb_run_id not in in_flight:
                 # A run we didn't enqueue (e.g. pre-existing); ignore it.
@@ -217,14 +223,29 @@ class Scheduler(ABC):
                 raise
 
             if data.state not in [RunState.RUNNING, RunState.PENDING]:
-                in_flight.pop(wandb_run_id, None)
+                self.pop_in_flight_run(wandb_run_id)
             elif self._optimizer.prune_run(optimizer_run_id, data):
                 termlog(
                     f"Pruning run {wandb_run_id} (optimizer run {optimizer_run_id}) "
                     f"in sweep {self._sweep.name}"
                 )
                 if self.stop_run(wandb_run_id):
-                    in_flight.pop(wandb_run_id, None)
+                    self.pop_in_flight_run(wandb_run_id)
+        self._reap_deleted_runs(active)
+
+    def _reap_deleted_runs(self, active: Iterable[Run]) -> None:
+        active_set = set(run.wandb_run_id for run in active)
+        runs = list(self.in_flight_runs().keys())
+        for wandb_run_id in runs:
+            if wandb_run_id not in active_set:
+                self._optimizer.tell_run(self.in_flight_runs()[wandb_run_id], RunEnriched(
+                    config={},
+                    state=RunState.FAILED,
+                    wandb_run_id=wandb_run_id,
+                    summary_metrics={},
+                    history_metrics=[],
+                ))
+                self.pop_in_flight_run(wandb_run_id)
 
     def _reap_dead_runs(self) -> None:
         """Fail and drain in-flight runs whose backend job is no longer alive.
@@ -308,6 +329,9 @@ class InMemoryScheduler(Scheduler):
 
     def in_flight_runs(self) -> MutableMapping[str, Any]:
         return self._in_flight
+
+    def pop_in_flight_run(self, wandb_run_id: str) -> Any:
+        return self._in_flight.pop(wandb_run_id, None)
 
     def fetch_existing_finished_runs(self) -> Iterable[RunEnriched]:
         runs = self._sweep_runs(
