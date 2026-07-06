@@ -296,18 +296,18 @@ func TestTelemetryContext_SnapshotsDoesNotUpdateInternalState(t *testing.T) {
 	)
 }
 
-func TestNewOpenTelemetryProxy_DisabledReturnsNoop(t *testing.T) {
-	setProxyEnabledValueForTest(t, false)
+func TestNewOpenTelemetryProxy_NoAPIKey_ReturnsNoopProxy(t *testing.T) {
+	setProxyEnabledValueForTest(t, true)
 	proxy := analytics.NewOpenTelemetryProxy("http://example.invalid", "")
 
 	_, ok := proxy.(analytics.NoopOpenTelemetryProxy)
 
-	assert.True(t, ok, "expected NoopOpenTelemetryProxy when proxy is disabled")
+	assert.True(t, ok, "expected NoopOpenTelemetryProxy when API key is empty")
 }
 
-func TestNewOpenTelemetryProxy_EnabledReturnsImpl(t *testing.T) {
+func TestNewOpenTelemetryProxy_WithAPIKey_ReturnsImpl(t *testing.T) {
 	setProxyEnabledValueForTest(t, true)
-	proxy := analytics.NewOpenTelemetryProxy("http://example.invalid", "")
+	proxy := analytics.NewOpenTelemetryProxy("http://example.invalid", "test-api-key")
 
 	_, ok := proxy.(*analytics.OpenTelemetryProxyImpl)
 
