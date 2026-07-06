@@ -80,7 +80,10 @@ func TestUpsertBucketRetryPolicy(t *testing.T) {
 		errMsg      string
 	}{
 		{"Gone", http.StatusGone, false, "the server responded with an error. (Error 410: Gone)"},
-		{"Conflict", http.StatusConflict, true, "conflict, retrying. (Error 409: Conflict)"},
+		// A 409 on UpsertBucket can mean the run's name was reused after the
+		// run was deleted -- a permanent condition, so it must not be
+		// retried (see RetryMostFailures).
+		{"Conflict", http.StatusConflict, false, ""},
 	}
 
 	for _, tc := range testCases {
