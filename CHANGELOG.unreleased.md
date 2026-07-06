@@ -16,7 +16,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ### Added
 
-- `Api.runs()` now accepts `on_missing="raise"|"skip"` to control what happens when a run is deleted after being listed but before its full data (e.g. `run.config`) is loaded. The default `"raise"` preserves the current `ValueError`; `"skip"` emits a warning, marks the run's state as `"deleted"`, and returns empty values for its unloaded fields so iteration continues uninterrupted (@jacobromero in https://github.com/wandb/wandb/pull/12146)
+- Added `on_missing="skip"|"raise"` to `wandb.Api().runs()`: `"skip"` returns an empty run object when run data cannot be loaded, such as when the run was deleted, while `"raise"` preserves the existing behavior (@jacobromero in https://github.com/wandb/wandb/pull/12176)
 
 ### Notable Changes
 
