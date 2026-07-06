@@ -90,6 +90,10 @@ class Optimizer(ABC):
 
     def __init__(self, sweep: Sweep):
         self._sweep = sweep
+        self.validate_sweep_objective()
+
+    @abstractmethod
+    def validate_sweep_objective(self) -> None: ...
 
     @abstractmethod
     def next_n_runs(self, n: int) -> Iterable[RunSuggestion]: ...

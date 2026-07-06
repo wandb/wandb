@@ -2220,16 +2220,18 @@ def _load_attr(ref: str) -> Any:
 @click.pass_context
 @click.option(
     "--optimizer",
-    type=click.Choice(["wandb", "optuna"]),
+    type=click.Choice(["wandb", "optuna", "ax"]),
     default="wandb",
     help="Search strategy driving the sweep. Defaults to the built-in W&B optimizer.",
 )
 @click.option(
     "--optimizer-obj",
     default=None,
-    help="'module:attr' factory returning the optimizer's backing object, called "
-    "with no arguments. For --optimizer optuna this returns an optuna.Study; "
-    "when omitted a study is created from the sweep's metric goal.",
+    help="'module:attr' factory returning the optimizer's backing object. For "
+    "--optimizer optuna it is called with no arguments and returns an optuna.Study "
+    "(optional; a study is created from the sweep's metric goal when omitted). For "
+    "--optimizer ax it is called with the sweep's parameters dict and returns a "
+    "configured ax.Client (required).",
 )
 @click.option(
     "--trial-constructor",
@@ -2326,11 +2328,34 @@ def sweep_scheduler(
             poll_interval_s=poll_interval,
             batch_size=batch_size,
         )
+    elif optimizer == "ax":
+        if config.get("method") != "custom":
+            raise ClickException(
+                "The sweep scheduler using ax requires a sweep created with a "
+                "method of 'custom'."
+            )
+        if trial_constructor:
+            raise ClickException(
+                "--trial-constructor does not apply to --optimizer ax."
+            )
+        # Imported lazily so the ax dependency is only needed on this path.
+        from wandb.sdk.sweep_scheduler import ax as ax_scheduler
+
+        if optimizer_obj:
+            ax_client = _load_attr(optimizer_obj)(config)
+        else:
+            ax_client = ax_scheduler.create_default_client(config)
+        scheduler = ax_scheduler.resume_sweep(
+            ax_client,
+            sweep,
+            poll_interval_s=poll_interval,
+            batch_size=batch_size,
+        )
     else:  # wandb
         if optimizer_obj or trial_constructor:
             raise ClickException(
                 "--optimizer-obj and --trial-constructor only apply to "
-                "--optimizer optuna."
+                "--optimizer optuna or ax."
             )
         from wandb.sdk.sweep_scheduler import wandb as wandb_scheduler
 

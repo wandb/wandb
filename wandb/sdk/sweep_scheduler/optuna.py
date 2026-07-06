@@ -197,24 +197,17 @@ class OptunaOptimizer(Optimizer):
         study: optuna.Study,
         sweep: Sweep,
     ):
-        super().__init__(sweep)
         self.study = study
+
         # Live ask()'d trials kept by trial.number. The study only stores frozen
         # trials, which lack report()/should_prune(), so we must hold the live
         # ones to record intermediate values (and, next, drive pruning).
         self.trials: dict[int, "optuna.Trial"] = {}
-        self._validate_matches_sweep()
 
-    def _validate_matches_sweep(self) -> None:
-        """Fail fast if the study and the sweep disagree on the objective.
+        super().__init__(sweep)
 
-        The study's optimization direction must match the sweep metric's goal,
-        and — when the study declares metric names — its objective name must match
-        the sweep metric's name. Otherwise the optimizer would silently search the
-        wrong way or against the wrong metric. The study and sweep are supplied
-        independently (e.g. via `resume_sweep` or a user-provided study factory),
-        so the two can drift; the sweep config is the source of truth.
-        """
+    def validate_sweep_objective(self) -> None:
+        """Fail fast if the study and the sweep disagree on the objective."""
         if len(self.study.directions) != 1:
             raise ValueError(
                 "OptunaOptimizer only supports single-objective studies; the "
