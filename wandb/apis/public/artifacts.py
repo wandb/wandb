@@ -569,14 +569,14 @@ class ArtifactCollection:
     @property
     def aliases(self) -> list[str]:
         """The aliases for all artifact versions contained in this collection."""
-        if self._saved.aliases is None:
-            aliases = list(
+        if (aliases := self._saved.aliases) is None:
+            aliases = tuple(
                 _ArtifactCollectionAliases(self._service_api, collection_id=self.id)
             )
             self._saved = self._saved.model_copy(update={"aliases": aliases})
             self._current = self._current.model_copy(update={"aliases": aliases})
 
-        return list(self._saved.aliases)
+        return list(aliases)
 
     @property
     def created_at(self) -> str:
@@ -1027,7 +1027,7 @@ class ArtifactFiles(SizedRelayPaginator["FileFragment", "File"]):
     <!-- lazydoc-ignore-init: internal -->
     """
 
-    QUERY: str  # Must be set per-instance
+    QUERY: ClassVar[str | None] = None
     last_response: ArtifactFileConnection | None
 
     def __init__(
@@ -1038,37 +1038,22 @@ class ArtifactFiles(SizedRelayPaginator["FileFragment", "File"]):
         per_page: int = 50,
         start: str | None = None,
     ):
-        from wandb.sdk.artifacts._generated import (
-            GET_ARTIFACT_FILES_GQL,
-            GET_ARTIFACT_MEMBERSHIP_FILES_GQL,
-        )
         from wandb.sdk.artifacts._gqlutils import server_supports
 
-        self.query_via_membership = server_supports(
-            service_api, pb.ARTIFACT_COLLECTION_MEMBERSHIP_FILES
-        )
+        if self.QUERY is None:
+            from wandb.sdk.artifacts._generated import ARTIFACT_MEMBERSHIP_FILES_GQL
+
+            type(self).QUERY = ARTIFACT_MEMBERSHIP_FILES_GQL
+
         self.artifact = artifact
 
-        if self.query_via_membership:
-            query_str = GET_ARTIFACT_MEMBERSHIP_FILES_GQL
-            variables = {
-                "entity": artifact.entity,
-                "project": artifact.project,
-                "collection": artifact.name.split(":")[0],
-                "alias": artifact.version,
-                "fileNames": names,
-            }
-        else:
-            query_str = GET_ARTIFACT_FILES_GQL
-            variables = {
-                "entity": artifact.source_entity,
-                "project": artifact.source_project,
-                "name": artifact.source_name,
-                "type": artifact.type,
-                "fileNames": names,
-            }
-
-        self.QUERY = query_str
+        variables = {
+            "entity": artifact.entity,
+            "project": artifact.project,
+            "collection": artifact.name.split(":")[0],
+            "alias": artifact.version,
+            "fileNames": names,
+        }
         super().__init__(
             service_api,
             variables=variables,
@@ -1083,21 +1068,14 @@ class ArtifactFiles(SizedRelayPaginator["FileFragment", "File"]):
 
     @override
     def _update_response(self) -> None:
-        from wandb.sdk.artifacts._generated import (
-            GetArtifactFiles,
-            GetArtifactMembershipFiles,
-        )
+        from wandb.sdk.artifacts._generated import ArtifactMembershipFiles
         from wandb.sdk.artifacts._models.pagination import ArtifactFileConnection
 
         data = self._execute_query()
 
         # Extract the inner `*Connection` result for faster/easier access.
-        if self.query_via_membership:
-            result = GetArtifactMembershipFiles.model_validate(data)
-            conn = result.project.artifact_collection.artifact_membership.files
-        else:
-            result = GetArtifactFiles.model_validate(data)
-            conn = result.project.artifact_type.artifact.files
+        result = ArtifactMembershipFiles.model_validate(data)
+        conn = result.project.artifact_collection.artifact_membership.files
 
         if conn is None:
             raise ValueError(f"Unable to parse {nameof(type(self))!r} response data")

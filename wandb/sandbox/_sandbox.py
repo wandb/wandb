@@ -11,6 +11,7 @@ from wandb.errors import UsageError
 
 _PLACEMENT_OVERRIDE_FIELDS = ("profile_ids", "profile_names", "runner_ids")
 _SUPPORTED_EGRESS_MODES = ("internet", "none")
+_SERVERLESS_DEFAULT_MAX_LIFETIME_SECONDS = 12 * 60 * 60
 P = ParamSpec("P")
 R = TypeVar("R")
 
@@ -86,6 +87,36 @@ def _reject_invalid_kwargs(kwargs: Mapping[str, Any]) -> None:
     _reject_unsupported_egress_mode(kwargs.get("network"))
 
 
+def _with_serverless_max_lifetime_default(
+    defaults: SandboxDefaults | Mapping[str, Any] | None,
+) -> SandboxDefaults:
+    if defaults is None:
+        return SandboxDefaults(
+            max_lifetime_seconds=_SERVERLESS_DEFAULT_MAX_LIFETIME_SECONDS
+        )
+
+    if isinstance(defaults, Mapping):
+        coerced = SandboxDefaults.from_dict(defaults)
+        if coerced.max_lifetime_seconds is not None:
+            return coerced
+        return coerced.with_overrides(
+            max_lifetime_seconds=_SERVERLESS_DEFAULT_MAX_LIFETIME_SECONDS
+        )
+
+    if defaults.max_lifetime_seconds is not None:
+        return defaults
+
+    return defaults.with_overrides(
+        max_lifetime_seconds=_SERVERLESS_DEFAULT_MAX_LIFETIME_SECONDS
+    )
+
+
+def _apply_serverless_defaults_kwargs(kwargs: dict[str, Any]) -> None:
+    if kwargs.get("max_lifetime_seconds") is not None:
+        return
+    kwargs["defaults"] = _with_serverless_max_lifetime_default(kwargs.get("defaults"))
+
+
 def _reject_invalid_defaults(
     defaults: SandboxDefaults | Mapping[str, Any] | None,
 ) -> None:
@@ -133,6 +164,7 @@ class Sandbox(_BaseSandbox):
         def __init__(self, *args: Any, **kwargs: Any) -> None:
             _reject_invalid_kwargs(kwargs)
             _reject_invalid_defaults(kwargs.get("defaults"))
+            _apply_serverless_defaults_kwargs(kwargs)
             super().__init__(*args, **kwargs)
 
     @classmethod
@@ -152,7 +184,10 @@ class Session(_BaseSession):
         def __init__(self, *args: Any, **kwargs: Any) -> None:
             if args:
                 _reject_invalid_defaults(args[0])
-            _reject_invalid_defaults(kwargs.get("defaults"))
+                args = (_with_serverless_max_lifetime_default(args[0]), *args[1:])
+            else:
+                _reject_invalid_defaults(kwargs.get("defaults"))
+                _apply_serverless_defaults_kwargs(kwargs)
             super().__init__(*args, **kwargs)
 
         def sandbox(

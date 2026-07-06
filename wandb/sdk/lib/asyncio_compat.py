@@ -27,7 +27,8 @@ def run(fn: Callable[[], Coroutine[Any, Any, _T]]) -> _T:
         runner = CancellableRunner()
 
         try:
-            return executor.submit(runner.run, fn).result()
+            future: concurrent.futures.Future[_T] = executor.submit(runner.run, fn)
+            return future.result()
 
         finally:
             runner.cancel()

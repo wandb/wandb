@@ -193,7 +193,7 @@ func (s *Lexer) ReadToken() (Token, error) {
 	s.endRunes--
 
 	if r < 0x0020 && r != 0x0009 && r != 0x000a && r != 0x000d {
-		return s.makeError(`Cannot contain the invalid character "\u%04d"`, r)
+		return s.makeError(`Cannot contain the invalid character "\u%04x"`, r)
 	}
 
 	if r == '\'' {
@@ -365,7 +365,7 @@ func (s *Lexer) readString() (Token, error) {
 			break
 		}
 		if r < 0x0020 && r != '\t' {
-			return s.makeError(`Invalid character within String: "\u%04d".`, r)
+			return s.makeError(`Invalid character within String: "\u%04x".`, r)
 		}
 		switch r {
 		default:
@@ -505,7 +505,7 @@ func (s *Lexer) readBlockString() (Token, error) {
 
 		// SourceCharacter
 		if r < 0x0020 && r != '\t' && r != '\n' && r != '\r' {
-			return s.makeError(`Invalid character within String: "\u%04d".`, r)
+			return s.makeError(`Invalid character within String: "\u%04x".`, r)
 		}
 
 		switch {
