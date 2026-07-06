@@ -7,7 +7,8 @@ import datetime
 import json
 import logging
 import os
-from typing import TYPE_CHECKING, Any, Literal
+from collections.abc import Callable, Iterable, Iterator, Sequence
+from typing import TYPE_CHECKING, Any, Literal, TypeVar, cast, get_args, overload
 
 import wandb
 from wandb import util
@@ -25,9 +26,24 @@ from .table_decorators import (
 from .utils import _json_helper
 
 if TYPE_CHECKING:
+    import numpy as np
+    import pandas as pd
+
     from wandb.sdk.artifacts import artifact
 
     from ...wandb_run import Run as LocalRun
+
+
+LogMode = Literal["IMMUTABLE", "MUTABLE", "INCREMENTAL"]
+_SUPPORTED_LOGGING_MODES = list(get_args(LogMode))
+
+# A column identifier: either a string name or an integer index.
+ColumnKey = str | int
+
+# A single input row: any iterable of cell values (e.g. a list or tuple).
+InputRow = Iterable[Any]
+
+_T = TypeVar("_T")
 
 
 class _TableLinkMixin:
@@ -192,9 +208,6 @@ class _ForeignIndexType(_dtypes.Type):
         return cls(table)
 
 
-_SUPPORTED_LOGGING_MODES = ["IMMUTABLE", "MUTABLE", "INCREMENTAL"]
-
-
 class Table(Media):
     """The Table class used to display and analyze tabular data.
 
@@ -214,36 +227,45 @@ class Table(Media):
 
     def __init__(
         self,
-        columns=None,
-        data=None,
-        rows=None,
-        dataframe=None,
-        dtype=None,
-        optional=True,
-        allow_mixed_types=False,
-        log_mode: Literal["IMMUTABLE", "MUTABLE", "INCREMENTAL"] | None = "IMMUTABLE",
-    ):
+        columns: list[ColumnKey] | None = None,
+        data: (list[InputRow] | np.ndarray | pd.DataFrame | None) = None,
+        rows: list[InputRow] | None = None,
+        dataframe: pd.DataFrame | None = None,
+        dtype: Any = None,
+        optional: bool | list[bool] = True,
+        allow_mixed_types: bool = False,
+        log_mode: LogMode | None = "IMMUTABLE",
+    ) -> None:
         """Initializes a Table object.
 
         The rows is available for legacy reasons and should not be used.
         The Table class uses data to mimic the Pandas API.
 
         Args:
-            columns: (List[str]) Names of the columns in the table.
+            columns: Names of the columns in the table.
                 Defaults to ["Input", "Output", "Expected"].
-            data: (List[List[any]]) 2D row-oriented array of values.
-            dataframe: (pandas.DataFrame) DataFrame object used to create the table.
+            data: 2D row-oriented array of values, NumPy array, or pandas DataFrame.
+            dataframe: pandas DataFrame object used to create the table.
                 When set, `data` and `columns` arguments are ignored.
-            rows: (List[List[any]]) 2D row-oriented array of values.
-            optional: (Union[bool,List[bool]]) Determines if `None` values are allowed. Default to True
+            rows: 2D row-oriented array of values.
+            dtype: The expected type for the column values, used to validate the
+                data. If not set, types are inferred from the data. It can be:
+                - a single type
+                    - a Python built-in type such as `int`, `str`, `bool`, list, dict, or
+                    datetime.
+                    - a W&B Media type like `wandb.Image` declared under wandb.data_types
+                    - a const value
+                - a list of any of the above to assign a different type to each
+                  column (should be the same length as `columns`)
+            optional: Determines if `None` values are allowed. Defaults to True.
                 - If a singular bool value, then the optionality is enforced for all
                 columns specified at construction time
                 - If a list of bool values, then the optionality is applied to each
                 column - should be the same length as `columns`
                 applies to all columns. A list of bool values applies to each respective column.
-            allow_mixed_types: (bool) Determines if columns are allowed to have mixed types
+            allow_mixed_types: Determines if columns are allowed to have mixed types
                 (disables type validation). Defaults to False
-            log_mode: Optional[str] Controls how the Table is logged when mutations occur.
+            log_mode: Controls how the Table is logged when mutations occur.
                 Options:
                 - "IMMUTABLE" (default): Table can only be logged once; subsequent
                 logging attempts after the table has been mutated will be no-ops.
@@ -253,15 +275,18 @@ class Table(Media):
                 a new artifact entry containing the new data since the last log.
         """
         super().__init__()
+        self.data: list[list[Any]]
+        self.columns: list[ColumnKey]
+        self._column_types: _dtypes.Type
         self._validate_log_mode(log_mode)
-        self.log_mode = log_mode
+        self.log_mode: LogMode | None = log_mode
         if self.log_mode == "INCREMENTAL":
             self._increment_num: int | None = None
             self._last_logged_idx: int | None = None
             self._previous_increments_paths: list[str] | None = None
             self._run_target_for_increments: LocalRun | None = None
-        self._pk_col = None
-        self._fk_cols: set[str] = set()
+        self._pk_col: ColumnKey | None = None
+        self._fk_cols: set[ColumnKey] = set()
         if allow_mixed_types:
             dtype = _dtypes.AnyType
 
@@ -276,10 +301,16 @@ class Table(Media):
             # Expected pattern
             if data is not None:
                 if util.is_numpy_array(data):
+                    if TYPE_CHECKING:
+                        data = cast("np.ndarray", data)
                     self._init_from_ndarray(data, columns, optional, dtype)
                 elif util.is_pandas_data_frame(data):
+                    if TYPE_CHECKING:
+                        data = cast("pd.DataFrame", data)
                     self._init_from_dataframe(data, columns, optional, dtype)
                 else:
+                    if TYPE_CHECKING:
+                        data = cast("list[InputRow]", data)
                     self._init_from_list(data, columns, optional, dtype)
 
             # legacy
@@ -290,7 +321,10 @@ class Table(Media):
             else:
                 self._init_from_list([], columns, optional, dtype)
 
-    def _validate_log_mode(self, log_mode):
+    def _validate_log_mode(
+        self,
+        log_mode: LogMode | None,
+    ) -> None:
         assert log_mode in _SUPPORTED_LOGGING_MODES, (
             f"Invalid log_mode: {log_mode}. Must be one of {_SUPPORTED_LOGGING_MODES}"
         )
@@ -308,14 +342,20 @@ class Table(Media):
         return self._run is not None or self._artifact_target is not None
 
     @staticmethod
-    def _assert_valid_columns(columns):
+    def _assert_valid_columns(columns: list[ColumnKey]) -> None:
         valid_col_types = [str, int]
         assert isinstance(columns, list), "columns argument expects a `list` object"
         assert len(columns) == 0 or all(
             [type(col) in valid_col_types for col in columns]
         ), "columns argument expects list of strings or ints"
 
-    def _init_from_list(self, data, columns, optional=True, dtype=None):
+    def _init_from_list(
+        self,
+        data: list[InputRow],
+        columns: list[ColumnKey],
+        optional: bool | list[bool] = True,
+        dtype: Any = None,
+    ) -> None:
         assert isinstance(data, list), "data argument expects a `list` object"
         self.data = []
         self._assert_valid_columns(columns)
@@ -324,7 +364,13 @@ class Table(Media):
         for row in data:
             self.add_data(*row)
 
-    def _init_from_ndarray(self, ndarray, columns, optional=True, dtype=None):
+    def _init_from_ndarray(
+        self,
+        ndarray: np.ndarray,
+        columns: list[ColumnKey],
+        optional: bool | list[bool] = True,
+        dtype: Any = None,
+    ) -> None:
         assert util.is_numpy_array(ndarray), (
             "ndarray argument expects a `numpy.ndarray` object"
         )
@@ -335,7 +381,13 @@ class Table(Media):
         for row in ndarray:
             self.add_data(*row)
 
-    def _init_from_dataframe(self, dataframe, columns, optional=True, dtype=None):
+    def _init_from_dataframe(
+        self,
+        dataframe: pd.DataFrame,
+        columns: list[ColumnKey],
+        optional: bool | list[bool] = True,
+        dtype: Any = None,
+    ) -> None:
         assert util.is_pandas_data_frame(dataframe), (
             "dataframe argument expects a `pandas.core.frame.DataFrame` object"
         )
@@ -347,18 +399,41 @@ class Table(Media):
         for row in range(len(dataframe)):
             self.add_data(*tuple(dataframe[col].values[row] for col in self.columns))
 
-    def _make_column_types(self, dtype=None, optional=True):
+    def _to_per_column(self, value: _T | list[_T]) -> list[_T]:
+        """Canonicalizes to a list of values per column.
+
+        Args:
+            value: If a single value, return a list of num column instances of the
+                value. If already a list, just passes it through.
+        """
+        if isinstance(value, list):
+            return value
+        return [value] * len(self.columns)
+
+    def _make_column_types(
+        self,
+        dtype: Any = None,
+        optional: bool | list[bool] = True,
+    ) -> None:
+        """Casts columns to the provided types (if set).
+
+        Args:
+            dtype: Single type for all columns or list of type per column.
+            optional: Whether all columns allow `None`, or setting per column.
+        """
         if dtype is None:
             dtype = _dtypes.UnknownType()
 
-        if optional.__class__ is not list:
-            optional = [optional for _ in range(len(self.columns))]
-
-        if dtype.__class__ is not list:
-            dtype = [dtype for _ in range(len(self.columns))]
+        dtype_list = self._to_per_column(dtype)
+        optional_list = self._to_per_column(optional)
 
         self._column_types = _dtypes.TypedDictType({})
-        for col_name, opt, dt in zip(self.columns, optional, dtype, strict=False):
+        for col_name, dt, opt in zip(
+            self.columns,
+            dtype_list,
+            optional_list,
+            strict=False,
+        ):
             self.cast(col_name, dt, opt)
 
     def _load_incremental_table_state_from_resumed_run(self, run: LocalRun, key: str):
@@ -418,7 +493,12 @@ class Table(Media):
             raise AssertionError("An incremental Table can only be logged to one Run.")
 
     @allow_relogging_after_mutation
-    def cast(self, col_name, dtype, optional=False):
+    def cast(
+        self,
+        col_name: ColumnKey,
+        dtype: Any,
+        optional: bool = False,
+    ) -> _dtypes.Type:
         """Casts a column to a specific data type.
 
         This can be one of the normal python classes, an internal W&B type,
@@ -426,10 +506,9 @@ class Table(Media):
         wandb.Classes.
 
         Args:
-            col_name (str): The name of the column to cast.
-            dtype (class, wandb.wandb_sdk.interface._dtypes.Type, any): The
-                target dtype.
-            optional (bool): If the column should allow Nones.
+            col_name: The name of the column to cast.
+            dtype: The target dtype.
+            optional: If the column should allow Nones.
         """
         assert col_name in self.columns
 
@@ -511,14 +590,14 @@ class Table(Media):
         return self._eq_debug(other)
 
     @allow_relogging_after_mutation
-    def add_row(self, *row):
+    def add_row(self, *row: Any) -> None:
         """Deprecated. Use `Table.add_data` method instead."""
         logging.warning("add_row is deprecated, use add_data")
         self.add_data(*row)
 
     @allow_relogging_after_mutation
     @allow_incremental_logging_after_append
-    def add_data(self, *data):
+    def add_data(self, *data: Any) -> None:
         """Adds a new row of data to the table.
 
         The maximum amount ofrows in a table is determined by
@@ -545,16 +624,13 @@ class Table(Media):
         result_type = self._get_updated_result_type(data)
         self._column_types = result_type
 
-        # rows need to be mutable
-        if isinstance(data, tuple):
-            data = list(data)
-        # Add the new data
-        self.data.append(data)
+        # Varargs arrive as a tuple; stored rows need to be mutable.
+        self.data.append(list(data))
 
         # Update the wrapper values if needed
         self._update_keys(force_last=True)
 
-    def _get_updated_result_type(self, row):
+    def _get_updated_result_type(self, row: Sequence[Any]) -> _dtypes.Type:
         """Returns the updated result type based on the inputted row.
 
         Raises:
@@ -571,7 +647,11 @@ class Table(Media):
             )
         return result_type
 
-    def _to_table_json(self, max_rows=None, warn=True):
+    def _to_table_json(
+        self,
+        max_rows: int | None = None,
+        warn: bool = True,
+    ) -> dict[str, Any]:
         # separate this method for easier testing
         if max_rows is None:
             max_rows = Table.MAX_ROWS
@@ -630,12 +710,16 @@ class Table(Media):
         return os.path.join("media", "table")
 
     @classmethod
-    def from_json(cls, json_obj, source_artifact: artifact.Artifact):
+    def from_json(
+        cls,
+        json_obj: dict[str, Any],
+        source_artifact: artifact.Artifact,
+    ) -> Table:
         """Deserialize JSON object into it's class representation.
 
         <!-- lazydoc-ignore-classmethod: internal -->
         """
-        data = []
+        data: list[InputRow] = []
         column_types = None
         np_deserialized_columns = {}
         timestamp_column_indices = set()
@@ -717,7 +801,7 @@ class Table(Media):
         new_obj._update_keys()
         return new_obj
 
-    def to_json(self, run_or_artifact):
+    def to_json(self, run_or_artifact: Any) -> dict[str, Any]:
         """Returns the JSON representation expected by the backend.
 
         <!-- lazydoc-ignore: internal -->
@@ -779,6 +863,7 @@ class Table(Media):
                     <= self._MAX_EMBEDDING_DIMENSIONS
                 )
                 if is_1d_array:
+                    assert ndarray_type is not None
                     self._column_types.params["type_map"][col_name] = _dtypes.ListType(
                         _dtypes.NumberType, ndarray_type._params["shape"][0]
                     )
@@ -802,7 +887,7 @@ class Table(Media):
                     ndarray_col_ndxs.add(col_ndx)
 
             for row in data:
-                mapped_row = []
+                mapped_row: list[Any] = []
                 for ndx, v in enumerate(row):
                     if ndx in ndarray_col_ndxs:
                         mapped_row.append(None)
@@ -826,7 +911,7 @@ class Table(Media):
 
         return json_dict
 
-    def iterrows(self):
+    def iterrows(self) -> Iterator[tuple[_TableIndex, list[Any]]]:
         """Returns the table data by row, showing the index of the row and the relevant data.
 
         Yields:
@@ -843,7 +928,7 @@ class Table(Media):
             yield index, self.data[ndx]
 
     @allow_relogging_after_mutation
-    def set_pk(self, col_name):
+    def set_pk(self, col_name: ColumnKey) -> None:
         """Set primary key type for Table object.
 
         <!-- lazydoc-ignore: internal -->
@@ -853,7 +938,7 @@ class Table(Media):
         self.cast(col_name, _PrimaryKeyType())
 
     @allow_relogging_after_mutation
-    def set_fk(self, col_name, table, table_col):
+    def set_fk(self, col_name: ColumnKey, table: Table, table_col: str) -> None:
         """Set foreign key type for Table object.
 
         <!-- lazydoc-ignore: internal -->
@@ -863,15 +948,14 @@ class Table(Media):
         assert col_name != self._pk_col
         self.cast(col_name, _ForeignKeyType(table, table_col))
 
-    def _update_keys(self, force_last=False):
+    def _update_keys(self, force_last: bool = False) -> None:
         """Updates the known key-like columns based on current column types.
 
         If the state has been updated since the last update, wraps the data
         appropriately in the Key classes.
 
         Args:
-            force_last: (bool) Wraps the last column of data even if there
-                are no key updates.
+            force_last: Wraps the last column of data even if there are no key updates.
         """
         _pk_col = None
         _fk_cols = set()
@@ -906,7 +990,7 @@ class Table(Media):
         if has_update or force_last:
             self._apply_key_updates(not has_update)
 
-    def _apply_key_updates(self, only_last=False):
+    def _apply_key_updates(self, only_last: bool = False) -> None:
         """Appropriately wraps the underlying data in special Key classes.
 
         Args:
@@ -957,13 +1041,18 @@ class Table(Media):
 
     @ensure_not_incremental
     @allow_relogging_after_mutation
-    def add_column(self, name, data, optional=False):
+    def add_column(
+        self,
+        name: str,
+        data: list[Any] | np.ndarray,
+        optional: bool = False,
+    ) -> None:
         """Adds a column of data to the table.
 
         Args:
-            name: (str) - the unique name of the column
-            data: (list | np.array) - a column of homogeneous data
-            optional: (bool) - if null-like values are permitted
+            name: The unique name of the column.
+            data: A column of homogeneous data.
+            optional: If null-like values are permitted.
         """
         assert isinstance(name, str) and name not in self.columns
         is_np = util.is_numpy_array(data)
@@ -998,21 +1087,38 @@ class Table(Media):
                 self.columns = self.columns[:-1]
             raise
 
-    def get_column(self, name, convert_to=None):
+    @overload
+    def get_column(
+        self,
+        name: ColumnKey,
+        convert_to: None = None,
+    ) -> list[Any]: ...
+
+    @overload
+    def get_column(
+        self,
+        name: ColumnKey,
+        convert_to: Literal["numpy"],
+    ) -> np.ndarray: ...
+
+    def get_column(
+        self,
+        name: ColumnKey,
+        convert_to: Literal["numpy"] | None = None,
+    ) -> list[Any] | np.ndarray:
         """Retrieves a column from the table and optionally converts it to a NumPy object.
 
         Args:
-            name: (str) - the name of the column
-            convert_to: (str, optional)
-                - "numpy": will convert the underlying data to numpy object
+            name: The name of the column.
+            convert_to: "numpy" will convert the underlying data to a NumPy object.
         """
         assert name in self.columns
         assert convert_to is None or convert_to == "numpy"
         if convert_to == "numpy":
-            np = util.get_module(
+            np_module = util.get_module(
                 "numpy", required="Converting to NumPy requires installing NumPy"
             )
-        col = []
+        col: list[Any] = []
         col_ndx = self.columns.index(name)
         for row in self.data:
             item = row[col_ndx]
@@ -1020,9 +1126,11 @@ class Table(Media):
                 item = item.to_data_array()
             col.append(item)
         if convert_to == "numpy":
-            col = np.array(col)
+            return np_module.array(col)
         return col
 
+    # TODO: This returns list[_TableIndex], but we need to decide if/how to
+    # expose _TableIndex as a public type.
     def get_index(self):
         """Returns an array of row indexes for use in other tables to create links."""
         ndxs = []
@@ -1032,7 +1140,7 @@ class Table(Media):
             ndxs.append(index)
         return ndxs
 
-    def get_dataframe(self):
+    def get_dataframe(self) -> pd.DataFrame:
         """Returns a `pandas.DataFrame` of the table."""
         pd = util.get_module(
             "pandas",
@@ -1040,7 +1148,7 @@ class Table(Media):
         )
         return pd.DataFrame.from_records(self.data, columns=self.columns)
 
-    def index_ref(self, index):
+    def index_ref(self, index: int) -> _TableIndex:
         """Gets a reference of the index of a row in the table.
 
         <!-- lazydoc-ignore: internal -->
@@ -1052,20 +1160,34 @@ class Table(Media):
 
     @ensure_not_incremental
     @allow_relogging_after_mutation
-    def add_computed_columns(self, fn):
+    def add_computed_columns(
+        self,
+        fn: Callable[
+            [int, dict[ColumnKey, Any]],
+            dict[str, Any],
+        ],
+    ) -> None:
         """Adds one or more computed columns based on existing data.
 
         Args:
-            fn: A function which accepts one or two parameters, ndx (int) and
-                row (dict), which is expected to return a dict representing
-                new columns for that row, keyed by the new column names.
-            - `ndx` is an integer representing the index of the row. Only included if `include_ndx`
-                      is set to `True`.
-            - `row` is a dictionary keyed by existing columns
+            fn: A function which accepts an index and row dict, and returns a dict
+                representing new columns for that row, keyed by the new column names.
+
+        Example:
+            table = wandb.Table(columns=["x", "y"], data=[[3, 1], [4, 6]])
+            table.add_computed_columns(
+                lambda ndx, row: {"diff": row["x"] - row["y"]}
+            )
+
+            In the callback:
+            - `ndx` is an integer representing the index of the row.
+            - `row` is a dictionary keyed by existing columns.
         """
-        new_columns = {}
+        new_columns: dict[str, list[Any]] = {}
         for ndx, row in self.iterrows():
-            row_dict = {self.columns[i]: row[i] for i in range(len(self.columns))}
+            row_dict: dict[ColumnKey, Any] = {
+                self.columns[i]: row[i] for i in range(len(self.columns))
+            }
             new_row_dict = fn(ndx, row_dict)
             assert isinstance(new_row_dict, dict)
             for key in new_row_dict:
