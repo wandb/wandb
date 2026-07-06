@@ -1351,6 +1351,22 @@ func (v *ServerInfoServerInfoLatestLocalVersionInfo) GetVersionOnThisInstanceStr
 	return v.VersionOnThisInstanceString
 }
 
+// StopRunResponse is returned by StopRun on success.
+type StopRunResponse struct {
+	StopRun *StopRunStopRunStopRunPayload `json:"stopRun"`
+}
+
+// GetStopRun returns StopRunResponse.StopRun, and is useful for accessing the field via an interface.
+func (v *StopRunResponse) GetStopRun() *StopRunStopRunStopRunPayload { return v.StopRun }
+
+// StopRunStopRunStopRunPayload includes the requested fields of the GraphQL type StopRunPayload.
+type StopRunStopRunStopRunPayload struct {
+	Success bool `json:"success"`
+}
+
+// GetSuccess returns StopRunStopRunStopRunPayload.Success, and is useful for accessing the field via an interface.
+func (v *StopRunStopRunStopRunPayload) GetSuccess() bool { return v.Success }
+
 type TagInput struct {
 	Attributes      *string `json:"attributes"`
 	TagCategoryName *string `json:"tagCategoryName"`
@@ -2101,6 +2117,14 @@ func (v *__SampledHistoryPageInput) GetRun() string { return v.Run }
 
 // GetSpec returns __SampledHistoryPageInput.Spec, and is useful for accessing the field via an interface.
 func (v *__SampledHistoryPageInput) GetSpec() string { return v.Spec }
+
+// __StopRunInput is used internally by genqlient
+type __StopRunInput struct {
+	Id string `json:"id"`
+}
+
+// GetId returns __StopRunInput.Id, and is useful for accessing the field via an interface.
+func (v *__StopRunInput) GetId() string { return v.Id }
 
 // __UpdateArtifactInput is used internally by genqlient
 type __UpdateArtifactInput struct {
@@ -3273,6 +3297,40 @@ func ServerInfo(
 	}
 
 	data_ = &ServerInfoResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
+// The mutation executed by StopRun.
+const StopRun_Operation = `
+mutation StopRun ($id: ID!) {
+	stopRun(input: {id:$id}) {
+		success
+	}
+}
+`
+
+func StopRun(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	id string,
+) (data_ *StopRunResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "StopRun",
+		Query:  StopRun_Operation,
+		Variables: &__StopRunInput{
+			Id: id,
+		},
+	}
+
+	data_ = &StopRunResponse{}
 	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(
