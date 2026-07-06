@@ -85,6 +85,8 @@ def val_to_json(
     typename = util.get_full_typename(val)
 
     if util.is_pandas_data_frame(val):
+        if TYPE_CHECKING:
+            val = cast("pd.DataFrame", val)
         val = wandb.Table(dataframe=val)
 
     elif util.is_matplotlib_typename(typename) or util.is_plotly_typename(typename):
