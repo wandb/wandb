@@ -27,12 +27,12 @@ const (
 	defaultHeartbeatInterval = 30 * time.Second
 	defaultTransmitInterval  = 15 * time.Second
 
-	// initialTransmitInterval is the transmit interval at the start of a run,
-	// before the interval ramps up to its configured value.
+	// defaultInitialTransmitInterval is the default transmit interval at the
+	// start of a run, before the interval ramps up to its configured value.
 	//
 	// Transmitting more frequently at first makes a run's early data visible
 	// in the UI sooner.
-	initialTransmitInterval = 2 * time.Second
+	defaultInitialTransmitInterval = 2 * time.Second
 
 	// Maximum line length for filestream jsonl files, imposed by the back-end.
 	//
@@ -132,6 +132,10 @@ type fileStream struct {
 	// The steady-state time between transmissions to the backend.
 	transmitInterval time.Duration
 
+	// The time between transmissions at the start of the run, before
+	// ramping up to transmitInterval.
+	initialTransmitInterval time.Duration
+
 	// How long to wait between sending heartbeats to the backend
 	// to prove the run is still alive.
 	heartbeatPeriod time.Duration
@@ -161,12 +165,14 @@ type FileStreamFactory struct {
 
 // New returns a new FileStream.
 //
-// A zero heartbeatPeriod or transmitInterval means to use the default.
+// A zero heartbeatPeriod, transmitInterval or initialTransmitInterval
+// means to use the default.
 func (f *FileStreamFactory) New(
 	apiClient api.RetryableClient,
 	beforeRunEndCtx context.Context,
 	heartbeatPeriod time.Duration,
 	transmitInterval time.Duration,
+	initialTransmitInterval time.Duration,
 ) FileStream {
 	// Panic early to avoid surprises. These fields are required.
 	switch {
@@ -199,8 +205,16 @@ func (f *FileStreamFactory) New(
 	if fs.transmitInterval <= 0 {
 		fs.transmitInterval = defaultTransmitInterval
 	}
+
+	fs.initialTransmitInterval = initialTransmitInterval
+	if fs.initialTransmitInterval <= 0 {
+		fs.initialTransmitInterval = defaultInitialTransmitInterval
+	}
+	fs.initialTransmitInterval =
+		min(fs.initialTransmitInterval, fs.transmitInterval)
+
 	fs.transmitRateLimit = rate.NewLimiter(
-		rate.Every(min(initialTransmitInterval, fs.transmitInterval)), 1)
+		rate.Every(fs.initialTransmitInterval), 1)
 
 	return fs
 }
@@ -223,7 +237,7 @@ func (fs *fileStream) Start(
 	go rampTransmitRateLimit(
 		fs.beforeRunEndCtx,
 		fs.transmitRateLimit,
-		initialTransmitInterval,
+		fs.initialTransmitInterval,
 		fs.transmitInterval,
 	)
 

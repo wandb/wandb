@@ -157,6 +157,7 @@ func NewFileStream(
 		extraWork.BeforeEndCtx(),
 		/*heartbeatPeriod=*/ 0, // use default
 		s.GetFileStreamTransmitInterval(),
+		s.GetFileStreamTransmitIntervalInitial(),
 	)
 }
 

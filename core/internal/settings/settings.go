@@ -235,6 +235,12 @@ func (s *Settings) GetFileStreamTransmitInterval() time.Duration {
 	return time.Second * time.Duration(s.Proto.XFileStreamTransmitInterval.GetValue())
 }
 
+// Initial interval at which to transmit filestream updates, before
+// gradually slowing to GetFileStreamTransmitInterval.
+func (s *Settings) GetFileStreamTransmitIntervalInitial() time.Duration {
+	return time.Second * time.Duration(s.Proto.XFileStreamTransmitIntervalInitial.GetValue())
+}
+
 // Maximum line length for filestream jsonl files, imposed by the back-end.
 func (s *Settings) GetFileStreamMaxLineBytes() int32 {
 	return s.Proto.XFileStreamMaxLineBytes.GetValue()
