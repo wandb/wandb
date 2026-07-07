@@ -32,7 +32,7 @@ from wandb.automations import (
 from wandb.automations._run_metric_filters import Agg, ChangeDir, ChangeType
 from wandb.automations._run_state_filters import ReportedRunState
 
-from ._strategies import PRINTABLE_CHARS, ints_or_floats
+from ..test_filters._strategies import PRINTABLE_CHARS, ints_or_floats
 
 
 @composite
