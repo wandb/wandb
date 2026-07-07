@@ -14,7 +14,6 @@ def _make_sender(test_settings, **settings_kwargs) -> SendManager:
         record_q=MagicMock(),
         result_q=MagicMock(),
         interface=MagicMock(),
-        context_keeper=MagicMock(),
     )
 
 
