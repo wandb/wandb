@@ -11,6 +11,7 @@ from pydantic.alias_generators import to_camel
 from typing_extensions import Never, override
 
 from wandb._analytics import tracked
+from wandb._filters import FilterArg
 from wandb._pydantic import GQLInput, to_json
 from wandb.apis.paginator import Paginator, RelayPaginator, SizedRelayPaginator
 from wandb.errors import UnsupportedError
@@ -42,16 +43,25 @@ if TYPE_CHECKING:
 # Type annotations for `filter` arguments.
 _RegistryFilter: TypeAlias = Annotated[
     dict[str, Any],
+    AfterValidator(
+        FilterArg(allowed=("name", "description", "created_at", "updated_at"))
+    ),
     AfterValidator(prepare_registry_filter),
     PlainSerializer(to_json),
 ]
 _CollectionFilter: TypeAlias = Annotated[
     dict[str, Any],
+    AfterValidator(
+        FilterArg(allowed=("name", "tag", "description", "created_at", "updated_at"))
+    ),
     AfterValidator(prepare_collection_filter),
     PlainSerializer(to_json),
 ]
 _VersionFilter: TypeAlias = Annotated[
     dict[str, Any],
+    AfterValidator(
+        FilterArg(allowed=("tag", "alias", "created_at", "updated_at", "metadata"))
+    ),
     AfterValidator(prepare_version_filter),
     PlainSerializer(to_json),
 ]
