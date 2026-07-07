@@ -10,6 +10,7 @@ from pydantic import AfterValidator, PositiveInt, ValidationError
 from typing_extensions import Never, override
 
 from wandb._analytics import tracked
+from wandb._filters import FilterValidator
 from wandb._pydantic import FilterDict, OrderValidator, PaginatorVars
 from wandb.apis.paginator import Paginator, RelayPaginator, SizedRelayPaginator
 from wandb.errors import UnsupportedError
@@ -40,10 +41,17 @@ if TYPE_CHECKING:
 # Type annotations for `filter` arguments.
 _RegistryFilter: TypeAlias = Annotated[
     FilterDict,
+    FilterValidator(valid=("name", "description", "created_at", "updated_at")),
     AfterValidator(prepare_registry_filter),
 ]
-_CollectionFilter: TypeAlias = FilterDict
-_VersionFilter: TypeAlias = FilterDict
+_CollectionFilter: TypeAlias = Annotated[
+    FilterDict,
+    FilterValidator(valid=("name", "tag", "description", "created_at", "updated_at")),
+]
+_VersionFilter: TypeAlias = Annotated[
+    FilterDict,
+    FilterValidator(valid=("tag", "alias", "created_at", "updated_at", "metadata")),
+]
 
 # Type annotations for `order` arguments.
 _RegistryOrder: TypeAlias = Annotated[

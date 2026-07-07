@@ -1,14 +1,18 @@
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from pytest import fixture, mark, param, raises
 from wandb.apis.public.registries._utils import (
     prepare_artifact_types_input,
     prepare_registry_filter,
 )
-from wandb.apis.public.registries.registries_search import Collections, Registries
+from wandb.apis.public.registries.registries_search import (
+    Collections,
+    Registries,
+    Versions,
+)
 from wandb.sdk.artifacts._validators import REGISTRY_PREFIX
 
 if TYPE_CHECKING:
@@ -96,8 +100,12 @@ def test_format_gql_artifact_types_input_error(artifact_types):
                     "$in": [
                         "project1",
                         f"{REGISTRY_PREFIX}project2",
+                    ],
+                    "$or": [
                         {"$regex": "project3"},
-                    ]
+                        {"$eq": "project4"},
+                        {"$eq": f"{REGISTRY_PREFIX}project5"},
+                    ],
                 }
             },
             {
@@ -105,8 +113,12 @@ def test_format_gql_artifact_types_input_error(artifact_types):
                     "$in": [
                         f"{REGISTRY_PREFIX}project1",
                         f"{REGISTRY_PREFIX}project2",
+                    ],
+                    "$or": [
                         {"$regex": "project3"},
-                    ]
+                        {"$eq": f"{REGISTRY_PREFIX}project4"},
+                        {"$eq": f"{REGISTRY_PREFIX}project5"},
+                    ],
                 }
             },
             id="nested-dict",
@@ -123,16 +135,154 @@ def test_prepare_registry_filter(raw, expected):
     assert prepare_registry_filter(raw) == expected
 
 
-def test_registry_filter_is_prepared_and_serialized(service_api: MagicMock):
-    paginator = Registries(
-        service_api=service_api,
-        organization="org",
-        filter={"name": "model"},
-    )
+# TODO: Fix this, overparameterized by AI
+@mark.parametrize(
+    ("cls", "filter_arg", "filter_var", "raw", "expected"),
+    [
+        param(
+            Registries,
+            "filter",
+            "filters",
+            {
+                "name": {
+                    "$in": [
+                        "project1",
+                        f"{REGISTRY_PREFIX}project2",
+                        {"$regex": "project3"},
+                    ]
+                },
+                "description": None,
+                "created_at": 1,
+                "updated_at": {"$gte": "2021-01-01T00:00:00Z"},
+            },
+            {
+                "name": {
+                    "$in": [
+                        f"{REGISTRY_PREFIX}project1",
+                        f"{REGISTRY_PREFIX}project2",
+                        {"$regex": "project3"},
+                    ]
+                },
+                "description": None,
+                "created_at": 1,
+                "updated_at": {"$gte": "2021-01-01T00:00:00Z"},
+            },
+            id="registries-filter",
+        ),
+        param(
+            Collections,
+            "registry_filter",
+            "registryFilter",
+            {"name": "model"},
+            {"name": f"{REGISTRY_PREFIX}model"},
+            id="collections-registry-filter",
+        ),
+        param(
+            Collections,
+            "collection_filter",
+            "collectionFilter",
+            {
+                "name": "collection",
+                "tag": "prod",
+                "description": None,
+                "created_at": 1,
+                "updated_at": 2,
+            },
+            {
+                "name": "collection",
+                "tag": "prod",
+                "description": None,
+                "created_at": 1,
+                "updated_at": 2,
+            },
+            id="collections-collection-filter",
+        ),
+        param(
+            Versions,
+            "registry_filter",
+            "registryFilter",
+            {"name": "model"},
+            {"name": f"{REGISTRY_PREFIX}model"},
+            id="versions-registry-filter",
+        ),
+        param(
+            Versions,
+            "collection_filter",
+            "collectionFilter",
+            {"tag": "prod"},
+            {"tag": "prod"},
+            id="versions-collection-filter",
+        ),
+        param(
+            Versions,
+            "artifact_filter",
+            "artifactFilter",
+            {
+                "tag": "prod",
+                "alias": "latest",
+                "created_at": 1,
+                "updated_at": 2,
+                "metadata.foo": 1,
+            },
+            {
+                "tag": "prod",
+                "alias": "latest",
+                "created_at": 1,
+                "updated_at": 2,
+                "metadata.foo": 1,
+            },
+            id="versions-artifact-filter",
+        ),
+    ],
+)
+def test_paginator_with_valid_filter(
+    service_api: MagicMock,
+    cls: type[Registries | Collections | Versions],
+    filter_arg: str,
+    filter_var: str,
+    raw: dict[str, Any],
+    expected: dict[str, Any],
+):
+    paginator = cls(service_api=service_api, organization="org", **{filter_arg: raw})
+    assert json.loads(paginator.variables[filter_var]) == expected
 
-    assert json.loads(paginator.variables["filters"]) == {
-        "name": f"{REGISTRY_PREFIX}model"
-    }
+
+def test_paginators_with_invalid_filter(service_api: MagicMock):
+    bad_filter = {"not_a_valid_field": 1}
+    expected_msg = r"(?i)invalid filter field"
+
+    # Registries
+    with raises(ValueError, match=expected_msg):
+        Registries(service_api, organization="org", filter=bad_filter)
+
+    # Collections
+    with raises(ValueError, match=expected_msg):
+        Collections(service_api, organization="org", registry_filter=bad_filter)
+    with raises(ValueError, match=expected_msg):
+        Collections(service_api, organization="org", collection_filter=bad_filter)
+    with raises(ValueError, match=expected_msg):
+        Collections(
+            service_api,
+            organization="org",
+            registry_filter=bad_filter,
+            collection_filter=bad_filter,
+        )
+
+    # Versions
+    with raises(ValueError, match=expected_msg):
+        Versions(service_api, organization="org", registry_filter=bad_filter)
+    with raises(ValueError, match=expected_msg):
+        Versions(service_api, organization="org", collection_filter=bad_filter)
+    with raises(ValueError, match=expected_msg):
+        Versions(service_api, organization="org", artifact_filter=bad_filter)
+    with raises(ValueError, match=expected_msg):
+        Versions(
+            service_api,
+            organization="org",
+            registry_filter=bad_filter,
+            collection_filter=bad_filter,
+            artifact_filter=bad_filter,
+        )
 
 
 @mark.parametrize("cls", [Registries, Collections])
