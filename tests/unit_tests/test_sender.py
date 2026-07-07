@@ -64,8 +64,8 @@ def sync_sender(test_settings):
     sender = _make_sender(test_settings, x_sync=True)
     sender._fs = MagicMock()
     sender._run = pb.RunRecord(starting_step=0)
-    sender._history_step_initialized = True
-    sender._history_step = 0
+    sender._auto_step_initialized = True
+    sender._next_auto_step = 0
     return sender
 
 
@@ -101,8 +101,8 @@ def test_send_history_sync_rewrites_step_below_starting_step(test_settings):
     sender = _make_sender(test_settings, x_sync=True)
     sender._fs = MagicMock()
     sender._run = pb.RunRecord(starting_step=2)
-    sender._history_step_initialized = True
-    sender._history_step = 2
+    sender._auto_step_initialized = True
+    sender._next_auto_step = 2
 
     sender.send_history(_history_record(loss=0.4, step=0))
 
