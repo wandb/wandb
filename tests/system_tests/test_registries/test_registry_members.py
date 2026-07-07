@@ -4,7 +4,7 @@ import os
 from collections.abc import Callable, Generator
 from typing import TYPE_CHECKING
 
-from pytest import fixture, mark
+from pytest import fixture, mark, skip
 from wandb import Api
 from wandb.apis.public import Registry, Team, User
 from wandb.apis.public.registries._members import MemberKind
@@ -181,9 +181,16 @@ def test_registry_add_members_with_mixed_args(
 
 @mark.parametrize("target_role", ["admin", "member", "viewer", "restricted_viewer"])
 def test_registry_update_user_member_role(
-    admin_user: User, registry: Registry, make_wandb_users, target_role: str
+    admin_user: User,
+    registry: Registry,
+    make_wandb_users,
+    target_role: str,
+    restricted_viewer_role_enabled: bool,
 ):
     """Check that user member roles can be updated."""
+    if target_role == "restricted_viewer" and not restricted_viewer_role_enabled:
+        skip("Restricted Viewer registry role is not enabled on this server version.")
+
     # Create new non-admin users to add as registry members
     users = make_wandb_users(3)
 
@@ -214,9 +221,15 @@ def test_registry_update_user_member_role(
 
 @mark.parametrize("target_role", ["admin", "member", "viewer", "restricted_viewer"])
 def test_registry_update_team_member_role(
-    registry: Registry, make_wandb_teams, target_role: str
+    registry: Registry,
+    make_wandb_teams,
+    target_role: str,
+    restricted_viewer_role_enabled: bool,
 ):
     """Check that team member roles can be updated."""
+    if target_role == "restricted_viewer" and not restricted_viewer_role_enabled:
+        skip("Restricted Viewer registry role is not enabled on this server version.")
+
     # Create teams to add as registry members
     teams = make_wandb_teams(3)
 

@@ -69,6 +69,44 @@ def org_entity(org: str, api: Api) -> str:
 
 
 @fixture
+def restricted_viewer_role_enabled(api: Api, org: str) -> bool:
+    """Whether the server has the Restricted Viewer registry role enabled.
+
+    The role is gated by a backend ramp (`gorilla.RegistryObserverRoleUse`,
+    IDType OrgName), not a ServerFeature flag, so probe it via the generic
+    `organization.featureFlags` query. The ramp key was removed in
+    wandb/core#42174 (server v0.81.0), which hardcoded the role on -- there the
+    key is simply absent, which we treat as enabled. So: enabled unless the ramp
+    is explicitly present and disabled. This lets the guard self-clear once the
+    min server version is bumped past the point where the role is always on.
+    """
+    query = """
+    query RegistryObserverRoleRamp($org: String!) {
+      organization(name: $org) {
+        featureFlags(rampIDType: OrgName) {
+          rampKey
+          isEnabled
+        }
+      }
+    }
+    """
+    try:
+        data = api._service_api.execute_graphql(query, variables={"org": org})
+    except Exception:
+        # Newer servers (>= ~0.81) removed this ramp / may not expose the
+        # featureFlags query in the same shape. If we can't probe it, assume the
+        # role is available and let the test run rather than skip.
+        return True
+    flags = ((data or {}).get("organization") or {}).get("featureFlags") or []
+    for flag in flags:
+        if flag and flag.get("rampKey") == "gorilla.RegistryObserverRoleUse":
+            return bool(flag.get("isEnabled"))
+    # Key absent => predates the ramp (< ~0.68) or postdates its removal
+    # (>= 0.81, role hardcoded on). The min server version is well past 0.68.
+    return True
+
+
+@fixture
 def registry(
     org: str,
     make_registry,
