@@ -13,8 +13,8 @@ from pydantic import (
 )
 from typing_extensions import override
 
-from wandb._filters.expressions import FilterExpr
-from wandb._filters.operators import BaseOp, RichReprResult
+from wandb._filters import BaseOp, FilterExpr
+from wandb._filters.operators import RichReprResult
 from wandb._pydantic import GQLBase
 from wandb.automations._validators import LenientStrEnum
 

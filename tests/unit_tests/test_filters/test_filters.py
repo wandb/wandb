@@ -4,8 +4,9 @@ import json
 from typing import Any
 
 from hypothesis import given
-from hypothesis.strategies import booleans, builds, lists, sampled_from
+from hypothesis.strategies import booleans, builds, integers, lists, sampled_from
 from wandb._filters import (
+    All,
     And,
     Contains,
     Eq,
@@ -22,10 +23,12 @@ from wandb._filters import (
     NotIn,
     Or,
     Regex,
+    Size,
+    simplify_expr,
 )
-from wandb._filters.filterutils import simplify_expr
 
 from ._strategies import (
+    all_dicts,
     and_dicts,
     comparison_op_operands,
     contains_dicts,
@@ -45,6 +48,7 @@ from ._strategies import (
     or_dicts,
     printable_text,
     regex_dicts,
+    size_dicts,
 )
 
 # ----------------------------------------------------------------------------
@@ -161,6 +165,20 @@ def test_contains_from_validated_op(op: Contains):
     assert Contains.model_validate_json(op.model_dump_json()) == op
 
 
+@given(op=builds(All, val=lists(comparison_op_operands)))
+def test_all_from_validated_op(op: All):
+    assert op.model_dump().keys() == {"$all"}
+    assert All.model_validate(op.model_dump()) == op
+    assert All.model_validate_json(op.model_dump_json()) == op
+
+
+@given(op=builds(Size, val=integers()))
+def test_size_from_validated_op(op: Size):
+    assert op.model_dump().keys() == {"$size"}
+    assert Size.model_validate(op.model_dump()) == op
+    assert Size.model_validate_json(op.model_dump_json()) == op
+
+
 # ----------------------------------------------------------------------------
 # Check round-trip serialization -> deserialization
 # ...starting from *unvalidated/serialized* (dict) types.
@@ -237,6 +255,16 @@ def test_regex_from_dict(orig_dict: dict[str, Any]):
 @given(orig_dict=contains_dicts)
 def test_contains_from_dict(orig_dict: dict[str, Any]):
     assert orig_dict == Contains.model_validate(orig_dict).model_dump()
+
+
+@given(orig_dict=all_dicts)
+def test_all_from_dict(orig_dict: dict[str, Any]):
+    assert orig_dict == All.model_validate(orig_dict).model_dump()
+
+
+@given(orig_dict=size_dicts)
+def test_size_from_dict(orig_dict: dict[str, Any]):
+    assert orig_dict == Size.model_validate(orig_dict).model_dump()
 
 
 # ----------------------------------------------------------------------------

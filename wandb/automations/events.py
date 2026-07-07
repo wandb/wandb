@@ -6,8 +6,7 @@ from typing import TYPE_CHECKING, Annotated, Any, Literal, get_args
 
 from pydantic import AfterValidator, BeforeValidator, Discriminator, Field
 
-from wandb._filters import And, MongoLikeFilter
-from wandb._filters.expressions import FilterableField
+from wandb._filters import And, FilterableField, MongoLikeFilter
 from wandb._pydantic import GQLBase, model_validator, pydantic_isinstance
 from wandb._strutils import nameof
 

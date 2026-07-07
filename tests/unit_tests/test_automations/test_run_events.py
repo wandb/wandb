@@ -20,8 +20,9 @@ from wandb.automations._run_metric_filters import Agg, ChangeDir, MetricAgg, Met
 from wandb.automations._run_state_filters import ReportedRunState
 from wandb.automations.events import StateFilter
 
-from ..test_filters._strategies import ints_or_floats
-from ._automation_strategies import (
+from tests.unit_tests.test_filters._strategies import ints_or_floats
+
+from ._strategies import (
     aggs,
     cmp_keys,
     metric_change_filters,

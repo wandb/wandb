@@ -134,6 +134,12 @@ contains_dicts: SearchStrategy[dict[str, Any]] = fixed_dictionaries(
     {"$contains": printable_text}
 )
 
+# array ops, eg: {"$all": [1, 2, 3]}, {"$size": 3}, etc.
+all_dicts: SearchStrategy[dict[str, Any]] = fixed_dictionaries(
+    {"$all": lists(comparison_op_operands)}
+)
+size_dicts: SearchStrategy[dict[str, Any]] = fixed_dictionaries({"$size": integers()})
+
 
 op_dicts: SearchStrategy[dict[str, Any]] = one_of(
     # logical ops
@@ -146,6 +152,8 @@ op_dicts: SearchStrategy[dict[str, Any]] = one_of(
     exists_dicts,
     # evaluation ops
     regex_dicts | contains_dicts,
+    # array ops
+    all_dicts | size_dicts,
 )
 """Valid dicts of MongoDB operators.
 
