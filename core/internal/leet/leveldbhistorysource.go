@@ -166,14 +166,7 @@ func (hs *LevelDBHistorySource) Read(
 func (hs *LevelDBHistorySource) recordToMsg(record *spb.Record) tea.Msg {
 	switch rec := record.RecordType.(type) {
 	case *spb.Record_Run:
-		// Only the first Run record seeds the auto-step counter. A resumed run
-		// emits a second Run record (with StartingStep>0) when run.name/notes/tags
-		// are set mid-run; re-seeding here would rewind the display counter and
-		// collide the X-axis in the TUI.
-		if !hs.historyStepInitialized {
-			hs.nextHistoryStep = rec.Run.GetStartingStep()
-			hs.historyStepInitialized = true
-		}
+		hs.initializeHistoryStep(rec.Run)
 		return RunMsg{
 			RunPath:     hs.runPath,
 			ID:          rec.Run.GetRunId(),
@@ -184,7 +177,8 @@ func (hs *LevelDBHistorySource) recordToMsg(record *spb.Record) tea.Msg {
 			Config:      rec.Run.GetConfig(),
 		}
 	case *spb.Record_History:
-		return ParseHistoryAtStep(hs.runPath, rec.History, hs.canonicalHistoryStep(rec.History))
+		step := hs.canonicalHistoryStep(rec.History)
+		return ParseHistory(hs.runPath, rec.History, step)
 	case *spb.Record_Stats:
 		return ParseStats(hs.runPath, rec.Stats)
 	case *spb.Record_Summary:
@@ -208,13 +202,8 @@ func (hs *LevelDBHistorySource) Close() {
 	}
 }
 
-// ParseHistory extracts metrics and media from a history record.
-func ParseHistory(runPath string, history *spb.HistoryRecord) tea.Msg {
-	return ParseHistoryAtStep(runPath, history, resolveHistoryStep(history))
-}
-
 // ParseHistoryAtStep extracts metrics and media using the provided display step.
-func ParseHistoryAtStep(runPath string, history *spb.HistoryRecord, step int) tea.Msg {
+func ParseHistory(runPath string, history *spb.HistoryRecord, step int) tea.Msg {
 	if history == nil {
 		return nil
 	}
@@ -281,31 +270,10 @@ func ParseHistoryAtStep(runPath string, history *spb.HistoryRecord, step int) te
 	return msg
 }
 
-func resolveHistoryStep(history *spb.HistoryRecord) int {
-	step := int(history.GetStep().GetNum())
-	for _, item := range history.GetItem() {
-		if item == nil {
-			continue
-		}
-		key := strings.Join(item.GetNestedKey(), ".")
-		if key == "" {
-			key = item.GetKey()
-		}
-		if key != "_step" {
-			continue
-		}
-		if s, err := strconv.Atoi(trimJSONString(item.ValueJson)); err == nil {
-			step = s
-		}
-	}
-	return step
-}
-
 func (hs *LevelDBHistorySource) canonicalHistoryStep(history *spb.HistoryRecord) int {
 	if history == nil {
 		return 0
 	}
-
 	if step, ok := historyStepFromItem(history); ok {
 		hs.advanceHistoryStepPast(int64(step))
 		return step
@@ -317,24 +285,28 @@ func (hs *LevelDBHistorySource) canonicalHistoryStep(history *spb.HistoryRecord)
 		return step
 	}
 
-	hs.initializeHistoryStep()
+	hs.initializeHistoryStep(nil)
 	step := int(hs.nextHistoryStep)
 	hs.nextHistoryStep++
 	return step
 }
 
-func (hs *LevelDBHistorySource) initializeHistoryStep() {
+func (hs *LevelDBHistorySource) initializeHistoryStep(runRecord *spb.RunRecord) {
 	if hs.historyStepInitialized {
 		return
+	}
+	if runRecord != nil {
+		hs.nextHistoryStep = runRecord.GetStartingStep()
 	}
 	hs.historyStepInitialized = true
 }
 
-func (hs *LevelDBHistorySource) advanceHistoryStepPast(step int64) {
-	hs.initializeHistoryStep()
+func (hs *LevelDBHistorySource) advanceHistoryStepPast(step int64) int64 {
+	hs.initializeHistoryStep(nil)
 	if step >= hs.nextHistoryStep {
 		hs.nextHistoryStep = step + 1
 	}
+	return hs.nextHistoryStep
 }
 
 func historyStepFromItem(history *spb.HistoryRecord) (int, bool) {
@@ -351,7 +323,8 @@ func historyStepFromItem(history *spb.HistoryRecord) (int, bool) {
 		}
 		step, err := strconv.Atoi(trimJSONString(item.ValueJson))
 		if err != nil {
-			return 0, true
+			// Treat an unparseable _step as absent
+			return 0, false
 		}
 		return step, true
 	}

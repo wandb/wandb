@@ -839,7 +839,7 @@ func (s *Sender) ensureHistoryStep(record *spb.HistoryRecord) {
 		return
 	}
 
-	if step, ok := explicitHistoryStepItem(record); ok {
+	if step, ok := s.explicitHistoryStepItem(record); ok {
 		s.initializeHistoryStep()
 		if step < s.historyStep {
 			s.logger.CaptureWarn(
@@ -897,17 +897,36 @@ func (s *Sender) advanceHistoryStepPast(step int64) {
 	}
 }
 
-func explicitHistoryStepItem(record *spb.HistoryRecord) (int64, bool) {
+// stepKeyed is satisfied by both *spb.HistoryItem and *spb.SummaryItem, which
+// each expose a flat key plus an optional nested-key path.
+type stepKeyed interface {
+	GetKey() string
+	GetNestedKey() []string
+}
+
+// isStepItem reports whether item is the reserved "_step" key, whether it is
+// written as a flat key or a single-element nested key.
+func isStepItem(item stepKeyed) bool {
+	if item.GetKey() == "_step" {
+		return true
+	}
+	nestedKey := item.GetNestedKey()
+	return len(nestedKey) == 1 && nestedKey[0] == "_step"
+}
+
+func (s *Sender) explicitHistoryStepItem(record *spb.HistoryRecord) (int64, bool) {
 	for _, item := range record.GetItem() {
-		nestedKey := item.GetNestedKey()
-		if item.GetKey() != "_step" &&
-			(len(nestedKey) != 1 || nestedKey[0] != "_step") {
+		if !isStepItem(item) {
 			continue
 		}
 
 		step, err := strconv.ParseInt(item.GetValueJson(), 10, 64)
 		if err != nil {
-			return 0, true
+			s.logger.CaptureWarn(
+				"sender: ignoring unparseable history _step value",
+				"value", item.GetValueJson(),
+			)
+			return 0, false
 		}
 		return step, true
 	}
@@ -918,8 +937,7 @@ func explicitHistoryStepItem(record *spb.HistoryRecord) (int64, bool) {
 func setExplicitHistoryStep(record *spb.HistoryRecord, step int64) {
 	stepStr := strconv.FormatInt(step, 10)
 	for _, item := range record.GetItem() {
-		if item.GetKey() == "_step" ||
-			(len(item.GetNestedKey()) == 1 && item.GetNestedKey()[0] == "_step") {
+		if isStepItem(item) {
 			item.ValueJson = stepStr
 			return
 		}

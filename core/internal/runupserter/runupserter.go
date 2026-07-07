@@ -428,8 +428,6 @@ func (upserter *RunUpserter) updateMetadataForResume(
 		// reconciliation (starting step, summary, config, etc.) is deferred
 		// to `wandb sync`, which can reach the backend.
 		//
-		// A warning is printed by the client during wandb.init().
-		//
 		// resume="auto" is always OK and is handled by the client.
 		upserter.params.ResumeMode = resumeSetting
 		return nil
