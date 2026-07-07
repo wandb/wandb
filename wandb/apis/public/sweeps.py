@@ -104,7 +104,7 @@ class Sweeps(SizedPaginator["Sweep"]):
         self._filters = filters
 
         # Fail fast if the caller requested filtering but the
-        # server can't honor it, rather than silently returning unfiltered runs.
+        # server can't honor it, rather than silently returning unfiltered sweeps.
         self._supports_filtering = service_api.feature_enabled(
             pb.SWEEPS_QUERY_FILTERING
         )
