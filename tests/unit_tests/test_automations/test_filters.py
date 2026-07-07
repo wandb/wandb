@@ -5,7 +5,7 @@ from typing import Any
 
 from hypothesis import given
 from hypothesis.strategies import booleans, builds, lists, sampled_from
-from wandb.automations._filters import (
+from wandb._filters import (
     And,
     Contains,
     Eq,
@@ -22,8 +22,8 @@ from wandb.automations._filters import (
     NotIn,
     Or,
     Regex,
-    simplify_expr,
 )
+from wandb._filters.filterutils import simplify_expr
 
 from ._strategies import (
     and_dicts,

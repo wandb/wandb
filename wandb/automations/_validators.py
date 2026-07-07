@@ -6,9 +6,9 @@ from typing import Annotated, Any, TypeVar
 from pydantic import BeforeValidator, Json, PlainSerializer
 from pydantic_core import PydanticUseDefault
 
+from wandb._filters import And, MongoLikeFilter, Or
+from wandb._filters.filterutils import simplify_expr
 from wandb._pydantic import to_json
-
-from ._filters import And, MongoLikeFilter, Or, simplify_expr
 
 T = TypeVar("T")
 
