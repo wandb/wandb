@@ -234,6 +234,17 @@ class Contains(BaseOp):
     val: str = Field(alias="$contains")  #: The substring to match against.
 
 
+# Array operator(s)
+# https://www.mongodb.com/docs/manual/reference/operator/query/all/
+# https://www.mongodb.com/docs/manual/reference/operator/query/size/
+class All(BaseOp):
+    val: TupleOf[Scalar] = Field(default=(), alias="$all")
+
+
+class Size(BaseOp):
+    val: StrictInt = Field(alias="$size")  #: The array length to match against.
+
+
 # ------------------------------------------------------------------------------
 # Convenience helpers, constants, and utils for supported MongoDB operators
 # ------------------------------------------------------------------------------
@@ -253,6 +264,8 @@ KEY_TO_OP: dict[str, type[BaseOp]] = {
     "$exists": Exists,
     "$regex": Regex,
     "$contains": Contains,
+    "$size": Size,
+    "$all": All,
 }
 
 
@@ -273,4 +286,6 @@ Op = (
     | Exists
     | Regex
     | Contains
+    | Size
+    | All
 )

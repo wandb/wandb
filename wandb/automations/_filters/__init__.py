@@ -1,5 +1,6 @@
 from .expressions import FilterExpr, MongoLikeFilter
 from .operators import (
+    All,
     And,
     Contains,
     Eq,
@@ -16,6 +17,7 @@ from .operators import (
     Op,
     Or,
     Regex,
+    Size,
 )
 
 __all__ = [
@@ -35,6 +37,8 @@ __all__ = [
     "Contains",
     "Exists",
     "Regex",
+    "Size",
+    "All",
     "FilterExpr",
     "MongoLikeFilter",
 ]
