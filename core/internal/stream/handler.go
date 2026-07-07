@@ -804,7 +804,7 @@ func appendSyntheticSummaryStep(
 	step int64,
 ) []*spb.SummaryItem {
 	for _, item := range items {
-		if isSummaryStepItem(item) {
+		if isStepItem(item) {
 			return items
 		}
 	}
@@ -1213,7 +1213,7 @@ func filterSummaryStepUpdates(
 	filtered := make([]*spb.SummaryItem, 0, len(updates)+1)
 	hasStep := false
 	for _, item := range updates {
-		if isSummaryStepItem(item) {
+		if isStepItem(item) {
 			hasStep = true
 			if emitExplicitStep {
 				filtered = append(filtered, item)
@@ -1231,17 +1231,6 @@ func filterSummaryStepUpdates(
 	}
 
 	return filtered
-}
-
-func isSummaryStepItem(item *spb.SummaryItem) bool {
-	if item == nil {
-		return false
-	}
-	if item.GetKey() == "_step" {
-		return true
-	}
-	nestedKey := item.GetNestedKey()
-	return len(nestedKey) == 1 && nestedKey[0] == "_step"
 }
 
 // samples history items and updates the history record with the sampled values
