@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from abc import ABC
 from collections.abc import Iterable
-from typing import TYPE_CHECKING, Any, TypeAlias, TypeVar, final, get_args
+from typing import TYPE_CHECKING, Any, TypeAlias, TypeVar, final
 
 from pydantic import ConfigDict, Field, StrictBool, StrictFloat, StrictInt, StrictStr
 from typing_extensions import Self, override
@@ -16,9 +16,7 @@ if TYPE_CHECKING:
     from .expressions import FilterExpr
 
 # for type annotations
-Scalar = StrictStr | StrictInt | StrictFloat | StrictBool
-# for runtime type checks
-ScalarTypes: tuple[type, ...] = tuple(t.__origin__ for t in get_args(Scalar))
+Scalar = StrictStr | StrictInt | StrictFloat | StrictBool | None
 
 # See: https://rich.readthedocs.io/en/stable/pretty.html#rich-repr-protocol
 RichReprResult: TypeAlias = Iterable[
