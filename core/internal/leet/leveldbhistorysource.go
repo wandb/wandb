@@ -32,10 +32,10 @@ type LevelDBHistorySource struct {
 	// fileCompleteEmitted is true after the terminal FileCompleteMsg has been emitted.
 	fileCompleteEmitted bool
 
-	// nextHistoryStep is the next auto step to assign for display when raw
+	// nextAutoStep is the next auto step to assign for display when raw
 	// offline logs omit HistoryRecord.Step and _step.
-	nextHistoryStep        int64
-	historyStepInitialized bool
+	nextAutoStep        int64
+	autoStepInitialized bool
 }
 
 func NewLevelDBHistorySource(
@@ -166,7 +166,7 @@ func (hs *LevelDBHistorySource) Read(
 func (hs *LevelDBHistorySource) recordToMsg(record *spb.Record) tea.Msg {
 	switch rec := record.RecordType.(type) {
 	case *spb.Record_Run:
-		hs.initializeHistoryStep(rec.Run)
+		hs.initializeAutoStep(rec.Run)
 		return RunMsg{
 			RunPath:     hs.runPath,
 			ID:          rec.Run.GetRunId(),
@@ -202,7 +202,8 @@ func (hs *LevelDBHistorySource) Close() {
 	}
 }
 
-// ParseHistoryAtStep extracts metrics and media using the provided display step.
+// ParseHistory extracts metrics and media from a history record.
+// The `step` is provided externally because it may be auto-generated.
 func ParseHistory(runPath string, history *spb.HistoryRecord, step int) tea.Msg {
 	if history == nil {
 		return nil
@@ -236,6 +237,7 @@ func ParseHistory(runPath string, history *spb.HistoryRecord, step int) tea.Msg 
 
 		v := trimJSONString(item.ValueJson)
 		if key == "_step" {
+			// _step is handled by the caller
 			continue
 		}
 		if strings.HasPrefix(key, "_") {
@@ -274,42 +276,42 @@ func (hs *LevelDBHistorySource) canonicalHistoryStep(history *spb.HistoryRecord)
 	if history == nil {
 		return 0
 	}
-	if step, ok := historyStepFromItem(history); ok {
-		hs.advanceHistoryStepPast(int64(step))
+	if step, ok := stepFromItems(history); ok {
+		hs.advanceAutoStepPast(int64(step))
 		return step
 	}
 
 	if history.GetStep() != nil {
 		step := int(history.GetStep().GetNum())
-		hs.advanceHistoryStepPast(int64(step))
+		hs.advanceAutoStepPast(int64(step))
 		return step
 	}
 
-	hs.initializeHistoryStep(nil)
-	step := int(hs.nextHistoryStep)
-	hs.nextHistoryStep++
+	hs.initializeAutoStep(nil)
+	step := int(hs.nextAutoStep)
+	hs.nextAutoStep++
 	return step
 }
 
-func (hs *LevelDBHistorySource) initializeHistoryStep(runRecord *spb.RunRecord) {
-	if hs.historyStepInitialized {
+func (hs *LevelDBHistorySource) initializeAutoStep(runRecord *spb.RunRecord) {
+	if hs.autoStepInitialized {
 		return
 	}
 	if runRecord != nil {
-		hs.nextHistoryStep = runRecord.GetStartingStep()
+		hs.nextAutoStep = runRecord.GetStartingStep()
 	}
-	hs.historyStepInitialized = true
+	hs.autoStepInitialized = true
 }
 
-func (hs *LevelDBHistorySource) advanceHistoryStepPast(step int64) int64 {
-	hs.initializeHistoryStep(nil)
-	if step >= hs.nextHistoryStep {
-		hs.nextHistoryStep = step + 1
+func (hs *LevelDBHistorySource) advanceAutoStepPast(step int64) {
+	hs.initializeAutoStep(nil)
+	if step >= hs.nextAutoStep {
+		hs.nextAutoStep = step + 1
 	}
-	return hs.nextHistoryStep
 }
 
-func historyStepFromItem(history *spb.HistoryRecord) (int, bool) {
+// Returns the step from the first _step item in the history record, if any.
+func stepFromItems(history *spb.HistoryRecord) (int, bool) {
 	for _, item := range history.GetItem() {
 		if item == nil {
 			continue
