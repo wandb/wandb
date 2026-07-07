@@ -1147,11 +1147,9 @@ func (h *Handler) flushPartialHistory(
 	}, nil)
 }
 
-// updateSummary updates the local summary and forwards non-step derived
-// summary updates to the transaction log for local readers such as leet.
-//
-// Auto-generated _step summary values are omitted; user-provided steps may
-// include _step. Upload-facing _step summaries are materialized by the sender.
+// updateSummary updates the local summary and forwards updates to the
+// transaction log. If emitExplicitStep is true, the _step entry is included,
+// otherwise it is omitted.
 func (h *Handler) updateSummary(emitExplicitStep bool, currentStep int64) {
 	updates, err := h.runSummary.UpdateSummaries(h.partialHistory)
 
@@ -1161,7 +1159,7 @@ func (h *Handler) updateSummary(emitExplicitStep bool, currentStep int64) {
 			fmt.Errorf("handler: error updating summary: %v", err))
 	}
 
-	updates = filterSummaryStepUpdates(updates, emitExplicitStep, currentStep)
+	updates = filterOrEmitSummaryStepUpdates(updates, emitExplicitStep, currentStep)
 	if len(updates) == 0 {
 		return
 	}
@@ -1175,7 +1173,10 @@ func (h *Handler) updateSummary(emitExplicitStep bool, currentStep int64) {
 	}, nil)
 }
 
-func filterSummaryStepUpdates(
+// filterOrEmitSummaryStepUpdates filters out _step entries if emitExplicitStep is false,
+// otherwise it emits the _step entry in updates, if available. If the _step entry is not
+// available, it emits the currentStep as the _step entry.
+func filterOrEmitSummaryStepUpdates(
 	updates []*spb.SummaryItem,
 	emitExplicitStep bool,
 	currentStep int64,
