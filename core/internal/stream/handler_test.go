@@ -49,12 +49,11 @@ func makeHandler(
 }
 
 type data struct {
-	items         map[string]string
-	step          int64
-	flush         bool
-	stepNil       bool
-	flushNil      bool
-	expectStepNil bool
+	items    map[string]string
+	step     int64
+	flush    bool
+	stepNil  bool
+	flushNil bool
 }
 
 func makeFlushRecord() *spb.Record {
@@ -487,13 +486,13 @@ func TestHandlePartialHistory(t *testing.T) {
 						"key1": "1",
 						"key2": "2",
 					},
-					expectStepNil: true,
+					stepNil: true,
 				},
 				{
 					items: map[string]string{
 						"key2": "3",
 					},
-					expectStepNil: true,
+					stepNil: true,
 				},
 			},
 		},
@@ -527,14 +526,14 @@ func TestHandlePartialHistory(t *testing.T) {
 						"key1": "1",
 						"key2": "2",
 					},
-					expectStepNil: true,
+					stepNil: true,
 				},
 				{
 					items: map[string]string{
 						"key1": "2",
 						"key2": "3",
 					},
-					expectStepNil: true,
+					stepNil: true,
 				},
 			},
 		},
@@ -561,13 +560,13 @@ func TestHandlePartialHistory(t *testing.T) {
 					items: map[string]string{
 						"key1": "1",
 					},
-					expectStepNil: true,
+					stepNil: true,
 				},
 				{
 					items: map[string]string{
 						"key1": "2",
 					},
-					expectStepNil: true,
+					stepNil: true,
 				},
 			},
 		},
@@ -627,7 +626,7 @@ func TestHandlePartialHistory(t *testing.T) {
 					items: map[string]string{
 						"key1": "2",
 					},
-					expectStepNil: true,
+					stepNil: true,
 				},
 			},
 		},
@@ -681,13 +680,13 @@ func TestHandlePartialHistory(t *testing.T) {
 					items: map[string]string{
 						"key1": "1",
 					},
-					expectStepNil: true,
+					stepNil: true,
 				},
 				{
 					items: map[string]string{
 						"key1": "2",
 					},
-					expectStepNil: true,
+					stepNil: true,
 				},
 			},
 		},
@@ -714,7 +713,7 @@ func TestHandlePartialHistory(t *testing.T) {
 					items: map[string]string{
 						"key1": "2",
 					},
-					expectStepNil: true,
+					stepNil: true,
 				},
 			},
 		},
@@ -740,14 +739,8 @@ func TestHandlePartialHistory(t *testing.T) {
 			for i, d := range tc.expected {
 				record := (<-handler.OutChan()).WorkImpl.(runwork.WorkRecord).Record
 				actual := makeOutput(record)
-				if d.expectStepNil {
-					assert.Nil(
-						t,
-						record.GetHistory().GetStep(),
-						"record %d should omit step",
-						i,
-					)
-				} else if history := record.GetHistory(); history != nil {
+				assert.Equal(t, d.stepNil, actual.stepNil, "wrong stepNil in record %d", i)
+				if !d.stepNil {
 					assert.Equal(t, d.step, actual.step, "wrong step in record %d", i)
 				}
 				for k, v := range d.items {
