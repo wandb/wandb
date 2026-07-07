@@ -62,6 +62,7 @@ func ValidateSchemaDocument(sd *SchemaDocument) (*Schema, error) {
 		def.Interfaces = append(def.Interfaces, ext.Interfaces...)
 		def.Fields = append(def.Fields, ext.Fields...)
 		def.Types = append(def.Types, ext.Types...)
+		def.TypePositions = append(def.TypePositions, ext.TypePositions...)
 		def.EnumValues = append(def.EnumValues, ext.EnumValues...)
 	}
 
@@ -418,6 +419,29 @@ func validateDefinition(schema *Schema, def *Definition) *gqlerror.Error {
 					value2.Name,
 				)
 			}
+		}
+	}
+
+	// Reject duplicate union member types, pointing at the duplicate member's
+	// position when it is known. TypePositions is parallel to Types (populated by
+	// the parser); when it is absent or not aligned, fall back to the
+	// definition's own position.
+	memberPosAligned := len(def.TypePositions) == len(def.Types)
+	for i, typ1 := range def.Types {
+		for j := i + 1; j < len(def.Types); j++ {
+			if typ1 != def.Types[j] {
+				continue
+			}
+			pos := def.Position
+			if memberPosAligned && def.TypePositions[j] != nil {
+				pos = def.TypePositions[j]
+			}
+			return gqlerror.ErrorPosf(
+				pos,
+				"Union type %s can only include type %s once.",
+				def.Name,
+				def.Types[j],
+			)
 		}
 	}
 

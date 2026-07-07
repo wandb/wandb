@@ -253,7 +253,7 @@ pub struct Imports {
     #[prost(bool, tag = "107")]
     pub dspy: bool,
 }
-/// Next ID: 76
+/// Next ID: 77
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct Feature {
     /// wandb.watch() called
@@ -387,6 +387,9 @@ pub struct Feature {
     /// Run was synced with wandb sync
     #[prost(bool, tag = "42")]
     pub sync: bool,
+    /// Run was synced with wandb beta sync
+    #[prost(bool, tag = "76")]
+    pub sync2: bool,
     /// Flow control disabled by user
     #[prost(bool, tag = "43")]
     pub flow_control_disabled: bool,
