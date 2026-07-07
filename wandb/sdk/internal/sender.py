@@ -288,8 +288,10 @@ class SendManager:
         self._exit_code = 0
 
         # Auto-increment step state for legacy sync history upload.
-        self._history_step = 0
-        self._history_step_initialized = False
+        # Although legacy sync does not support resume, the go handler
+        # does not assign steps, so this legacy sender must assign them.
+        self._next_auto_step = 0
+        self._auto_step_initialized = False
 
         # internal vars for handing raw console output
         self._output_raw_streams = dict()
@@ -930,8 +932,8 @@ class SendManager:
 
         # Only spin up our threads on the first run message
         if is_wandb_init:
-            self._history_step = 0
-            self._history_step_initialized = False
+            self._next_auto_step = 0
+            self._auto_step_initialized = False
             self._start_run_threads(file_dir)
         else:
             logger.info("updated run: %s", self._run.run_id)
@@ -1089,19 +1091,19 @@ class SendManager:
             self._run.start_time.ToMicroseconds() / 1e6,
         )
 
-    def _initialize_history_step(self) -> None:
-        if self._history_step_initialized:
+    def _initialize_auto_step(self) -> None:
+        if self._auto_step_initialized:
             return
         if self._run is not None:
-            self._history_step = self._run.starting_step
+            self._next_auto_step = self._run.starting_step
         else:
-            self._history_step = 0
-        self._history_step_initialized = True
+            self._next_auto_step = 0
+        self._auto_step_initialized = True
 
-    def _advance_history_step_past(self, step: int) -> None:
-        self._initialize_history_step()
-        if step >= self._history_step:
-            self._history_step = step + 1
+    def _advance_auto_step_past(self, step: int) -> None:
+        self._initialize_auto_step()
+        if step >= self._next_auto_step:
+            self._next_auto_step = step + 1
 
     def _ensure_history_step(
         self,
@@ -1113,23 +1115,23 @@ class SendManager:
 
         if "_step" in history_dict:
             step = history_dict["_step"]
-            self._initialize_history_step()
-            if step < self._history_step:
-                history_dict["_step"] = self._history_step
-                step = self._history_step
-            self._advance_history_step_past(step)
+            self._initialize_auto_step()
+            if step < self._next_auto_step:
+                history_dict["_step"] = self._next_auto_step
+                step = self._next_auto_step
+            self._advance_auto_step_past(step)
             return
 
         if history.HasField("step"):
             step = history.step.num
             history_dict["_step"] = step
-            self._advance_history_step_past(step)
+            self._advance_auto_step_past(step)
             return
 
-        self._initialize_history_step()
-        step = self._history_step
+        self._initialize_auto_step()
+        step = self._next_auto_step
         history_dict["_step"] = step
-        self._history_step += 1
+        self._next_auto_step += 1
 
     def _save_history(self, history_dict: dict[str, Any]) -> None:
         if self._fs:

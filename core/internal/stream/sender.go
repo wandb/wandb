@@ -111,10 +111,10 @@ type Sender struct {
 	// runSummary is the full summary for the run
 	runSummary *runsummary.RunSummary
 
-	// historyStep is the next _step value to assign to history rows that don't
+	// nextAutoStep is the next _step value to assign to history rows that don't
 	// already contain one.
-	historyStep            int64
-	historyStepInitialized bool
+	nextAutoStep        int64
+	autoStepInitialized bool
 
 	// receivedExit is true once the Sender receives an Exit record.
 	receivedExit bool
@@ -774,7 +774,10 @@ func (s *Sender) sendUseArtifact(record *spb.Record) {
 }
 
 // sendHistory sends a history record to the file stream,
-// which will then send it to the server
+// which will then send it to the server.
+//
+// If the history record does not contain a _step value, this method will
+// auto-assign one. It also materializes the _step metric for the summary.
 func (s *Sender) sendHistory(record *spb.HistoryRecord) {
 	if s.receivedExit {
 		s.logCalledAfterExit("sendHistory")
@@ -791,13 +794,8 @@ func (s *Sender) sendHistory(record *spb.HistoryRecord) {
 	s.fileStream.StreamUpdate(&fs.HistoryUpdate{Record: record})
 }
 
-// streamSummaryStep materializes the upload-facing summary _step.
-//
-// The handler omits the auto-generated _step from its summary updates because
-// the sender owns step assignment (see ensureHistoryStep, which may rebase the
-// step forward on offline resume). Metric aggregations are derived by the
-// handler and forwarded as SummaryRecords, so we only emit _step here and must
-// not re-derive other metrics, which would clobber define_metric aggregations.
+// streamSummaryStep materializes the summary _step metric, if the sender is
+// not in shared mode and server-side summary derivation is not enabled.
 func (s *Sender) streamSummaryStep(record *spb.HistoryRecord) {
 	if record == nil {
 		return
@@ -827,10 +825,9 @@ func (s *Sender) streamSummaryStep(record *spb.HistoryRecord) {
 //
 // Existing _step values are preserved unless they fall behind the sender's
 // running step counter, which would break the monotonic ordering the
-// filestream requires. This can happen when syncing an offline resumed segment
-// that logged with local step numbers. When a value is clamped, the original
-// user-provided step is dropped, so we log a warning rather than renumber
-// silently.
+// filestream requires. In this case the value is clamped to the running step
+// counter, the original user-provided step is dropped, and a warning is
+// logged.
 func (s *Sender) ensureHistoryStep(record *spb.HistoryRecord) {
 	if record == nil {
 		return
@@ -840,18 +837,18 @@ func (s *Sender) ensureHistoryStep(record *spb.HistoryRecord) {
 	}
 
 	if step, ok := s.explicitHistoryStepItem(record); ok {
-		s.initializeHistoryStep()
-		if step < s.historyStep {
+		s.initializeAutoStep()
+		if step < s.nextAutoStep {
 			s.logger.CaptureWarn(
 				"sender: history _step behind running step, renumbering to keep steps monotonic",
 				"provided_step", step,
-				"assigned_step", s.historyStep,
+				"assigned_step", s.nextAutoStep,
 			)
-			setExplicitHistoryStep(record, s.historyStep)
-			step = s.historyStep
+			setExplicitHistoryStep(record, s.nextAutoStep)
+			step = s.nextAutoStep
 		}
 		record.Step = &spb.HistoryStep{Num: step}
-		s.advanceHistoryStepPast(step)
+		s.advanceAutoStepPast(step)
 		return
 	}
 
@@ -861,39 +858,39 @@ func (s *Sender) ensureHistoryStep(record *spb.HistoryRecord) {
 			NestedKey: []string{"_step"},
 			ValueJson: strconv.FormatInt(step, 10),
 		})
-		s.advanceHistoryStepPast(step)
+		s.advanceAutoStepPast(step)
 		return
 	}
 
-	s.initializeHistoryStep()
+	s.initializeAutoStep()
 
-	step := s.historyStep
+	step := s.nextAutoStep
 	record.Step = &spb.HistoryStep{Num: step}
 	record.Item = append(record.Item, &spb.HistoryItem{
 		NestedKey: []string{"_step"},
 		ValueJson: strconv.FormatInt(step, 10),
 	})
-	s.historyStep++
+	s.nextAutoStep++
 }
 
-func (s *Sender) initializeHistoryStep() {
-	if s.historyStepInitialized {
+func (s *Sender) initializeAutoStep() {
+	if s.autoStepInitialized {
 		return
 	}
 
 	if upserter, err := s.runHandle.Upserter(); err == nil {
 		run := &spb.RunRecord{}
 		upserter.FillRunRecord(run)
-		s.historyStep = run.GetStartingStep()
+		s.nextAutoStep = run.GetStartingStep()
 	}
 
-	s.historyStepInitialized = true
+	s.autoStepInitialized = true
 }
 
-func (s *Sender) advanceHistoryStepPast(step int64) {
-	s.initializeHistoryStep()
-	if step >= s.historyStep {
-		s.historyStep = step + 1
+func (s *Sender) advanceAutoStepPast(step int64) {
+	s.initializeAutoStep()
+	if step >= s.nextAutoStep {
+		s.nextAutoStep = step + 1
 	}
 }
 
