@@ -260,13 +260,17 @@ class Project(Attrs):
 
     @normalize_exceptions
     def sweeps(
-        self, per_page: int = 50, filters: dict[str, Any] | None = None
+        self,
+        per_page: int = 50,
+        filters: dict[str, Any] | None = None,
+        order: str | None = None,
     ) -> Sweeps:
         """Return a paginated collection of sweeps in this project.
 
         Args:
             per_page: The number of sweeps to fetch per request to the API.
-            filters: (dict) queries for specific sweeps using the MongoDB query language.
+            filters: (dict) queries for specific sweeps using the runs filters,
+                See wandb/apis/public/api.py:runs for more details.
 
         Returns:
             A `Sweeps` object, which is an iterable collection of `Sweep` objects.

@@ -92,6 +92,8 @@ class Sweeps(SizedPaginator["Sweep"]):
             entity: The entity which owns the sweeps.
             project: The project which contains the sweeps.
             per_page: The number of sweeps to fetch per request to the API.
+            filters: (dict) queries for specific sweeps using the runs filters,
+                See wandb/apis/public/api.py:runs for more details.
         """
         if self.QUERY is None:
             from wandb.apis._generated import GET_SWEEPS_GQL
@@ -101,13 +103,12 @@ class Sweeps(SizedPaginator["Sweep"]):
         self.entity = entity
         self.project = project
         self._service_api = service_api
-        self._filters = filters
-
-        # Fail fast if the caller requested filtering but the
-        # server can't honor it, rather than silently returning unfiltered sweeps.
         self._supports_filtering = service_api.feature_enabled(
             pb.SWEEPS_QUERY_FILTERING
         )
+
+        # Fail fast if the caller requested filtering but the
+        # server can't honor it, rather than silently returning unfiltered sweeps.
         if filters and not self._supports_filtering:
             raise UnsupportedError(
                 "Filtering sweeps is not supported on this W&B server version. "
