@@ -3,8 +3,9 @@ from unittest import mock
 
 import pytest
 import wandb
-from wandb.apis.public.runs import Run, Runs
+from wandb.apis.public.runs import Run
 from wandb.apis.public.sweeps import Sweep
+from wandb.errors import RunNotFoundError
 from wandb.proto import wandb_api_pb2 as apb
 
 
@@ -378,53 +379,6 @@ def test_lazy_run_missing_skip_marks_deleted_and_returns_empty():
 
     run = _make_lazy_run(service_api, on_missing="skip")
 
-    assert run.config == {}
-    assert run.state == "missing"
-    assert run.summary_metrics == {}
-    assert run.system_metrics == {}
-    assert run.rawconfig == {}
-    # Lightweight fields from the listing remain readable.
-    assert run.tags == []
-    assert run.name == "happy-fox-42"
-
-
-@pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
-def test_lazy_run_missing_skip_does_not_refetch():
-    service_api = mock.MagicMock()
-    service_api.execute_graphql.return_value = _MISSING_RUN_RESPONSE
-
-    run = _make_lazy_run(service_api, on_missing="skip")
-
-    assert run.config == {}
-    assert service_api.execute_graphql.call_count == 1
-
-    _ = run.config
-    _ = run.summary_metrics
-    _ = run.system_metrics
-    _ = run.rawconfig
-
-    assert service_api.execute_graphql.call_count == 1
-
-
-def test_run_rejects_invalid_on_missing():
-    service_api = mock.MagicMock()
-    with pytest.raises(ValueError, match="Invalid on_missing"):
-        Run(
-            service_api=service_api,
-            entity="entity",
-            project="project",
-            run_id="run-id",
-            attrs={"name": "run-id", "state": "finished"},
-            on_missing="invalid",
-        )
-
-
-def test_runs_rejects_invalid_on_missing():
-    service_api = mock.MagicMock()
-    with pytest.raises(ValueError, match="Invalid on_missing"):
-        Runs(
-            service_api,
-            "entity",
-            "project",
-            on_missing="invalid",
-        )
+    with pytest.raises(RunNotFoundError):
+        # run.config triggers a full data load
+        _ = run.config

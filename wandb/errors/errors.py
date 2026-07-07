@@ -38,3 +38,7 @@ class UnsupportedError(UsageError):
 
 class WandbCoreNotAvailableError(Error):
     """Raised when wandb core is not available."""
+
+
+class RunNotFoundError(ValueError):
+    """Raised when a run's data is not able to be loaded."""
