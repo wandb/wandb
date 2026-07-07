@@ -19,6 +19,7 @@ class ArtifactAliasFragment(GQLResult):
 
 
 class ProjectInfoFragment(GQLResult):
+    id: GQLId
     name: str
     entity: ProjectInfoFragmentEntity
 

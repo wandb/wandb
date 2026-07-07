@@ -106,6 +106,7 @@ fragment ArtifactCollectionFragment on ArtifactCollection {
 }
 
 fragment ProjectInfoFragment on Project {
+  id
   name
   entity {
     name
@@ -152,6 +153,7 @@ fragment ArtifactCollectionFragment on ArtifactCollection {
 }
 
 fragment ProjectInfoFragment on Project {
+  id
   name
   entity {
     name
@@ -198,6 +200,7 @@ fragment ArtifactCollectionFragment on ArtifactCollection {
 }
 
 fragment ProjectInfoFragment on Project {
+  id
   name
   entity {
     name
@@ -289,6 +292,7 @@ fragment PageInfoFragment on PageInfo {
 }
 
 fragment ProjectInfoFragment on Project {
+  id
   name
   entity {
     name
@@ -354,6 +358,7 @@ fragment PageInfoFragment on PageInfo {
 }
 
 fragment ProjectInfoFragment on Project {
+  id
   name
   entity {
     name
@@ -402,6 +407,7 @@ fragment ArtifactCollectionFragment on ArtifactCollection {
 }
 
 fragment ProjectInfoFragment on Project {
+  id
   name
   entity {
     name
@@ -648,6 +654,7 @@ fragment PageInfoFragment on PageInfo {
 }
 
 fragment ProjectInfoFragment on Project {
+  id
   name
   entity {
     name
@@ -742,6 +749,7 @@ fragment PageInfoFragment on PageInfo {
 }
 
 fragment ProjectInfoFragment on Project {
+  id
   name
   entity {
     name
@@ -836,6 +844,7 @@ fragment PageInfoFragment on PageInfo {
 }
 
 fragment ProjectInfoFragment on Project {
+  id
   name
   entity {
     name
@@ -892,6 +901,7 @@ fragment CollectionInfoFragment on ArtifactCollection {
 }
 
 fragment ProjectInfoFragment on Project {
+  id
   name
   entity {
     name
@@ -970,6 +980,7 @@ fragment CollectionInfoFragment on ArtifactCollection {
 }
 
 fragment ProjectInfoFragment on Project {
+  id
   name
   entity {
     name
@@ -1048,6 +1059,7 @@ fragment CollectionInfoFragment on ArtifactCollection {
 }
 
 fragment ProjectInfoFragment on Project {
+  id
   name
   entity {
     name
@@ -1141,6 +1153,7 @@ fragment CollectionInfoFragment on ArtifactCollection {
 }
 
 fragment ProjectInfoFragment on Project {
+  id
   name
   entity {
     name
@@ -1176,6 +1189,7 @@ query ArtifactUsedBy($id: ID!) {
 }
 
 fragment ProjectInfoFragment on Project {
+  id
   name
   entity {
     name
@@ -1205,6 +1219,7 @@ query ArtifactCreatedBy($id: ID!) {
 }
 
 fragment ProjectInfoFragment on Project {
+  id
   name
   entity {
     name
@@ -1306,6 +1321,7 @@ fragment CollectionInfoFragment on ArtifactCollection {
 }
 
 fragment ProjectInfoFragment on Project {
+  id
   name
   entity {
     name
@@ -1410,6 +1426,7 @@ fragment CollectionInfoFragment on ArtifactCollection {
 }
 
 fragment ProjectInfoFragment on Project {
+  id
   name
   entity {
     name
@@ -1566,6 +1583,7 @@ fragment PageInfoFragment on PageInfo {
 }
 
 fragment ProjectInfoFragment on Project {
+  id
   name
   entity {
     name
@@ -1622,6 +1640,7 @@ fragment PageInfoFragment on PageInfo {
 }
 
 fragment ProjectInfoFragment on Project {
+  id
   name
   entity {
     name

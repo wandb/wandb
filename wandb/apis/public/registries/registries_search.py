@@ -231,16 +231,20 @@ class Collections(
                 Not supported when ``collections()`` was called with ``order=``.
         """
         if self.order is not None:
-            return OrderedCollectionVersions(
+            if start is not None:
+                raise ValueError(
+                    "start= is not supported when querying versions from collections "
+                    "fetched with order=. Remove order= from collections() or omit start=."
+                )
+            return Versions(
                 service_api=self._service_api,
                 organization=self.organization,
                 registry_filter=self.registry_filter,
                 collection_filter=self.collection_filter,
-                order=self.order,
                 artifact_filter=filter,
                 per_page=per_page,
+                collection_order=self.order,
                 collections_per_page=self.per_page,
-                start=start,
             )
         return Versions(
             service_api=self._service_api,
@@ -308,6 +312,8 @@ class Versions(RelayPaginator["ArtifactMembershipFragment", "Artifact"]):
         artifact_filter: dict[str, Any] | None = None,
         per_page: PositiveInt = 100,
         start: str | None = None,
+        collection_order: str | None = None,
+        collections_per_page: PositiveInt | None = None,
     ):
         from wandb.sdk.artifacts._generated import REGISTRY_VERSIONS_GQL
 
@@ -317,6 +323,8 @@ class Versions(RelayPaginator["ArtifactMembershipFragment", "Artifact"]):
         self.registry_filter = registry_filter
         self.collection_filter = collection_filter
         self.artifact_filter = artifact_filter or {}
+        self.collection_order = collection_order
+        self.collections_per_page = collections_per_page
         self._service_api = service_api
 
         variables = {
@@ -330,7 +338,49 @@ class Versions(RelayPaginator["ArtifactMembershipFragment", "Artifact"]):
         )
 
     @override
-    def __next__(self):
+    def __iter__(self) -> Iterator[Artifact]:
+        if self.collection_order is not None:
+            return self._iter_by_collection_order()
+        self.index = -1
+        return self
+
+    def _versions_filter_for_collection(
+        self, collection: ArtifactCollection
+    ) -> dict[str, Any]:
+        return (self.collection_filter or {}) | {
+            "name": collection.name,
+            "id": collection.id,
+        }
+
+    def _registry_filter_for_collection(
+        self, collection: ArtifactCollection
+    ) -> dict[str, Any] | None:
+        registry_filter = dict(self.registry_filter or {})
+        if project_id := collection._project_id:
+            registry_filter["id"] = project_id
+        return registry_filter or None
+
+    def _iter_by_collection_order(self) -> Iterator[Artifact]:
+        collections = Collections(
+            service_api=self._service_api,
+            organization=self.organization,
+            registry_filter=self.registry_filter,
+            collection_filter=self.collection_filter or {},
+            order=self.collection_order,
+            per_page=self.collections_per_page or self.per_page,
+        )
+        for collection in collections:
+            yield from Versions(
+                service_api=self._service_api,
+                organization=self.organization,
+                registry_filter=self._registry_filter_for_collection(collection),
+                collection_filter=self._versions_filter_for_collection(collection),
+                artifact_filter=self.artifact_filter,
+                per_page=self.per_page,
+            )
+
+    @override
+    def __next__(self) -> Artifact:
         # Implement custom next since its possible to load empty pages because of auth
         self.index += 1
         while len(self.objects) <= self.index:
@@ -382,112 +432,3 @@ class Versions(RelayPaginator["ArtifactMembershipFragment", "Artifact"]):
             ),
             service_api=self._service_api,
         )
-
-
-class OrderedCollectionVersions(Versions):
-    """Yield artifact versions while preserving collection ordering.
-
-    When ``collections()`` is called with ``order=``, a single cross-collection
-    versions query cannot preserve that ordering. This paginator instead loads
-    collections in order, then queries versions for each collection separately.
-    """
-
-    def __init__(
-        self,
-        *,
-        service_api: ServiceApi,
-        organization: str,
-        registry_filter: dict[str, Any] | None,
-        collection_filter: dict[str, Any],
-        order: str,
-        artifact_filter: dict[str, Any] | None,
-        per_page: PositiveInt,
-        collections_per_page: PositiveInt,
-        start: str | None = None,
-    ) -> None:
-        if start is not None:
-            raise ValueError(
-                "start= is not supported when querying versions from collections "
-                "fetched with order=. Remove order= from collections() or omit start=."
-            )
-
-        super().__init__(
-            service_api=service_api,
-            organization=organization,
-            registry_filter=registry_filter,
-            collection_filter=collection_filter,
-            artifact_filter=artifact_filter,
-            per_page=per_page,
-        )
-
-        self._order = order
-        self._collections_per_page = collections_per_page
-        self._collections: Collections | None = None
-        self._collections_iter: Iterator[ArtifactCollection] | None = None
-        self._current_versions: Versions | None = None
-
-    @property
-    @override
-    def more(self) -> bool:
-        if self._current_versions is not None and self._current_versions.more:
-            return True
-        if self._collections is not None:
-            return self._collections.more
-        return True
-
-    @property
-    @override
-    def cursor(self) -> str | None:
-        if self._current_versions is not None:
-            return self._current_versions.cursor
-        if self._collections is not None:
-            return self._collections.cursor
-        return None
-
-    @override
-    def __iter__(self) -> OrderedCollectionVersions:
-        self._collections = Collections(
-            service_api=self._service_api,
-            organization=self.organization,
-            registry_filter=self.registry_filter,
-            collection_filter=self.collection_filter or {},
-            order=self._order,
-            per_page=self._collections_per_page,
-        )
-        self._collections_iter = iter(self._collections)
-        self._current_versions = None
-        self.index = -1
-        self.objects = []
-        self.last_response = None
-        return self
-
-    @override
-    def __next__(self) -> Artifact:
-        if self._collections_iter is None:
-            self.__iter__()
-        assert self._collections_iter is not None
-
-        while True:
-            if self._current_versions is not None:
-                try:
-                    artifact = next(self._current_versions)
-                    self.last_response = self._current_versions.last_response
-                except StopIteration:
-                    self._current_versions = None
-                    self.last_response = None
-                else:
-                    return artifact
-
-            try:
-                collection = next(self._collections_iter)
-            except StopIteration:
-                raise StopIteration from None
-
-            self._current_versions = Versions(
-                service_api=self._service_api,
-                organization=self.organization,
-                registry_filter=self.registry_filter,
-                collection_filter={"name": collection.name},
-                artifact_filter=self.artifact_filter,
-                per_page=self.per_page,
-            )
