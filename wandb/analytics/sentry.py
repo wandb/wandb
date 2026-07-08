@@ -64,10 +64,10 @@ def _guard(
 
 class Sentry:
     def __init__(self, *, pid: int) -> None:
-        from wandb import env as _env
+        from wandb import env as wandb_env
 
         self._pid: int = pid
-        self._enabled: bool = bool(_env.error_reporting_enabled())
+        self._enabled: bool = bool(wandb_env.error_reporting_enabled())
         self._booted: bool = False
         self._boot_lock = threading.Lock()
         self._atexit_registered: bool = False
@@ -76,7 +76,7 @@ class Sentry:
         self._sdk: Any | None = None  # will hold the sentry_sdk module after boot
         self.scope: Any | None = None
 
-        self.dsn: str | None = os.environ.get(_env.SENTRY_DSN, SENTRY_DEFAULT_DSN)
+        self.dsn: str | None = os.environ.get(wandb_env.SENTRY_DSN, SENTRY_DEFAULT_DSN)
 
     @property
     def environment(self) -> str:
