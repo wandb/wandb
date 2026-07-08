@@ -171,12 +171,6 @@ func newOTLPTestServer(t *testing.T) (baseURL string, captured *capturedExports)
 	return srv.URL, captured
 }
 
-func setProxyEnabledValueForTest(t *testing.T, v bool) {
-	t.Helper()
-	analytics.SetEnabled(v)
-	t.Cleanup(func() { analytics.SetEnabled(true) })
-}
-
 // startProxy creates and starts a real proxy against the given endpoint,
 // returning the concrete implementation for assertions on internal state.
 func startProxy(
@@ -185,7 +179,6 @@ func startProxy(
 	apiKey string,
 ) *analytics.OpenTelemetryProxyImpl {
 	t.Helper()
-	setProxyEnabledValueForTest(t, true)
 
 	proxy := analytics.NewOpenTelemetryProxy(endpoint, apiKey)
 	impl, ok := proxy.(*analytics.OpenTelemetryProxyImpl)
@@ -214,8 +207,8 @@ func TestNewTelemetryContext_Defaults(t *testing.T) {
 
 func TestTelemetryContext_AddLowCardinalityAttributes(t *testing.T) {
 	tc := analytics.NewTelemetryContext()
-	tc.SetLowCardinalityAttributes(map[string]string{
-		"exception.type": "MyError",
+	tc.SetLowCardinalityAttributes(analytics.LowCardinalityAttributes{
+		ExceptionType: "MyError",
 	})
 
 	snapshot := tc.LowCardinalitySnapshot(nil)
@@ -223,17 +216,17 @@ func TestTelemetryContext_AddLowCardinalityAttributes(t *testing.T) {
 	assert.Equal(t, "MyError", snapshot["exception.type"])
 }
 
-func TestTelemetryContext_AddLowCardinalityAttributes_DropsUnallowedKeys(
+func TestTelemetryContext_AddLowCardinalityAttributes_IgnoresEmptyFields(
 	t *testing.T,
 ) {
 	tc := analytics.NewTelemetryContext()
-	tc.SetLowCardinalityAttributes(map[string]string{
-		"not_allowed_key": "should-be-dropped",
+	before := tc.LowCardinalitySnapshot(nil)
+
+	tc.SetLowCardinalityAttributes(analytics.LowCardinalityAttributes{
+		WandbVersion: "",
 	})
 
-	snapshot := tc.LowCardinalitySnapshot(nil)
-
-	assert.NotContains(t, snapshot, "not_allowed_key")
+	assert.Equal(t, before, tc.LowCardinalitySnapshot(nil))
 }
 
 func TestTelemetryContext_AddLowCardinalityAttributes_EmptyIsNoop(
@@ -242,10 +235,7 @@ func TestTelemetryContext_AddLowCardinalityAttributes_EmptyIsNoop(
 	tc := analytics.NewTelemetryContext()
 	before := tc.LowCardinalitySnapshot(nil)
 
-	tc.SetLowCardinalityAttributes(nil)
-	assert.Equal(t, before, tc.LowCardinalitySnapshot(nil))
-
-	tc.SetLowCardinalityAttributes(map[string]string{})
+	tc.SetLowCardinalityAttributes(analytics.LowCardinalityAttributes{})
 	assert.Equal(t, before, tc.LowCardinalitySnapshot(nil))
 }
 
@@ -268,14 +258,14 @@ func TestTelemetryContext_Snapshot_ArgumentOverridesContext(t *testing.T) {
 		map[string]string{"test_key": "from-context"},
 	)
 	tc.SetLowCardinalityAttributes(
-		map[string]string{"wandb_version": "from-context"},
+		analytics.LowCardinalityAttributes{WandbVersion: "from-context"},
 	)
 
 	highCardinalitySnapshot := tc.HighCardinalitySnapshot(
 		map[string]string{"test_key": "from-argument"},
 	)
 	lowCardinalitySnapshot := tc.LowCardinalitySnapshot(
-		map[string]string{"wandb_version": "from-argument"},
+		&analytics.LowCardinalityAttributes{WandbVersion: "from-argument"},
 	)
 
 	assert.Equal(t, "from-argument", highCardinalitySnapshot["test_key"])
@@ -297,7 +287,6 @@ func TestTelemetryContext_SnapshotsDoesNotUpdateInternalState(t *testing.T) {
 }
 
 func TestNewOpenTelemetryProxy_NoAPIKey_ReturnsNoopProxy(t *testing.T) {
-	setProxyEnabledValueForTest(t, true)
 	proxy := analytics.NewOpenTelemetryProxy("http://example.invalid", "")
 
 	_, ok := proxy.(analytics.NoopOpenTelemetryProxy)
@@ -306,7 +295,6 @@ func TestNewOpenTelemetryProxy_NoAPIKey_ReturnsNoopProxy(t *testing.T) {
 }
 
 func TestNewOpenTelemetryProxy_WithAPIKey_ReturnsImpl(t *testing.T) {
-	setProxyEnabledValueForTest(t, true)
 	proxy := analytics.NewOpenTelemetryProxy("http://example.invalid", "test-api-key")
 
 	_, ok := proxy.(*analytics.OpenTelemetryProxyImpl)
@@ -322,6 +310,7 @@ func TestOpenTelemetryProxyImpl_RecordLog(t *testing.T) {
 		t.Context(),
 		"hello world",
 		map[string]string{"custom": "value"},
+		nil,
 		otellogapi.SeverityInfo,
 	)
 	require.NoError(t, impl.Shutdown(context.Background()))
@@ -337,10 +326,14 @@ func TestOpenTelemetryProxyImpl_RecordMetricAndLogEvent(t *testing.T) {
 	url, captured := newOTLPTestServer(t)
 	impl := startProxy(t, url, "test-api-key")
 
-	impl.RecordMetricAndLogEvent(t.Context(), "an_event", map[string]string{
-		"exception.type": "X",
-		"custom":         "value",
-	})
+	impl.RecordMetricAndLogEvent(
+		t.Context(),
+		"an_event",
+		map[string]string{
+			"custom": "value",
+		},
+		&analytics.LowCardinalityAttributes{ExceptionType: "X"},
+	)
 	require.NoError(t, impl.Shutdown(context.Background()))
 
 	// verify metric emitted
@@ -360,7 +353,7 @@ func TestOpenTelemetryProxyImpl_SendsAPIKeyAuth(t *testing.T) {
 	url, captured := newOTLPTestServer(t)
 	impl := startProxy(t, url, "test-api-key")
 
-	impl.RecordMetricAndLogEvent(t.Context(), "authenticated_event", nil)
+	impl.RecordMetricAndLogEvent(t.Context(), "authenticated_event", nil, nil)
 	require.NoError(t, impl.Shutdown(context.Background()))
 
 	requests := captured.requestsSnapshot()
@@ -416,7 +409,7 @@ func TestOpenTelemetryProxyImpl_RecordAfterShutdown_IsNoop(t *testing.T) {
 	impl := startProxy(t, url, "test-api-key")
 	require.NoError(t, impl.Shutdown(context.Background()))
 
-	impl.RecordLog(t.Context(), "after", nil, otellogapi.SeverityInfo)
+	impl.RecordLog(t.Context(), "after", nil, nil, otellogapi.SeverityInfo)
 
 	_, ok := findLog(captured.logs, "after")
 	assert.False(t, ok, "expected no log to be exported after shutdown")
@@ -431,12 +424,14 @@ func TestNoopOpenTelemetryProxy_AllMethodsAreSafe(t *testing.T) {
 			t.Context(),
 			"body",
 			map[string]string{"k": "v"},
+			nil,
 			otellogapi.SeverityInfo,
 		)
 		proxy.RecordMetricAndLogEvent(
 			t.Context(),
 			"event",
 			map[string]string{"k": "v"},
+			nil,
 		)
 		proxy.Exception(context.Background(), "message", assert.AnError)
 	})

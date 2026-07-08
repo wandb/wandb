@@ -49,22 +49,40 @@ const (
 	attributeExceptionType   = "exception.type"
 )
 
-var allowedLowCardinalityKeys = map[string]bool{
-	attributeGoVersion:       true,
-	attributeWandbVersion:    true,
-	attributeOperatingSystem: true,
-	attributeExceptionType:   true,
+// LowCardinalityAttributes is the fixed set of low-cardinality attributes
+// that can be added to the telemetry context.
+type LowCardinalityAttributes struct {
+	GoVersion       string `json:"go_version,omitempty"`
+	WandbVersion    string `json:"wandb_version,omitempty"`
+	OperatingSystem string `json:"operating_system,omitempty"`
+	ExceptionType   string `json:"exception.type,omitempty"`
+}
+
+func (attrs LowCardinalityAttributes) toMap() map[string]string {
+	out := make(map[string]string, 4)
+	if attrs.GoVersion != "" {
+		out[attributeGoVersion] = attrs.GoVersion
+	}
+	if attrs.WandbVersion != "" {
+		out[attributeWandbVersion] = attrs.WandbVersion
+	}
+	if attrs.OperatingSystem != "" {
+		out[attributeOperatingSystem] = attrs.OperatingSystem
+	}
+	if attrs.ExceptionType != "" {
+		out[attributeExceptionType] = attrs.ExceptionType
+	}
+	return out
 }
 
 // disabled gates OpenTelemetryProxy in this process.
 var disabled atomic.Bool
 
-// SetEnabled turns analytics on or off for the whole process.
+// Disable turns analytics off for the whole process.
 //
-// It should be called once during startup, before any OpenTelemetryProxy is
-// created, and is safe to call concurrently.
-func SetEnabled(v bool) {
-	disabled.Store(!v)
+// Once this function is called, no further telemetry will be recorded.
+func Disable() {
+	disabled.Store(true)
 }
 
 // TelemetryContext holds persistent attributes added to all telemetry records.
@@ -78,40 +96,56 @@ func SetEnabled(v bool) {
 //   - High-cardinality attributes are an unbounded set of values.
 //     These are attached to log records where high cardinality is acceptable.
 type TelemetryContext struct {
+	// mu protects reading and writing to the attribute maps.
+	// Because writing attributes should happen infrequently,
+	// we use a read-write lock to allow multiple readers simultaneously.
 	mu sync.RWMutex
 
-	lowCardinalityAttributes  map[string]string
+	// lowCardinalityAttributes is a bounded set of attributes.
+	// these attributes are added to all telemetry records.
+	lowCardinalityAttributes LowCardinalityAttributes
+
+	// highCardinalityAttributes is an unbounded set of attributes.
+	// these attributes are added to telemetry records
+	// where high cardinality is acceptable, such as log records.
 	highCardinalityAttributes map[string]string
 }
 
 func NewTelemetryContext() *TelemetryContext {
+	lowCardinalityAttributes := LowCardinalityAttributes{
+		WandbVersion:    version.Version,
+		GoVersion:       runtime.Version(),
+		OperatingSystem: runtime.GOOS,
+	}
+
 	return &TelemetryContext{
-		lowCardinalityAttributes: map[string]string{
-			attributeWandbVersion:    version.Version,
-			attributeGoVersion:       runtime.Version(),
-			attributeOperatingSystem: runtime.GOOS,
-		},
+		lowCardinalityAttributes:  lowCardinalityAttributes,
 		highCardinalityAttributes: map[string]string{},
 	}
 }
 
 // SetLowCardinalityAttributes merges the provided attributes into the context.
-//
-// Only keys in the allow-list are accepted;
-// any other keys are silently dropped.
+// Empty fields are ignored.
 func (s *TelemetryContext) SetLowCardinalityAttributes(
-	attributes map[string]string,
+	attributes LowCardinalityAttributes,
 ) {
-	if len(attributes) == 0 {
+	if attributes == (LowCardinalityAttributes{}) {
 		return
 	}
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	for k, v := range attributes {
-		if allowedLowCardinalityKeys[k] {
-			s.lowCardinalityAttributes[k] = v
-		}
+	if attributes.GoVersion != "" {
+		s.lowCardinalityAttributes.GoVersion = attributes.GoVersion
+	}
+	if attributes.WandbVersion != "" {
+		s.lowCardinalityAttributes.WandbVersion = attributes.WandbVersion
+	}
+	if attributes.OperatingSystem != "" {
+		s.lowCardinalityAttributes.OperatingSystem = attributes.OperatingSystem
+	}
+	if attributes.ExceptionType != "" {
+		s.lowCardinalityAttributes.ExceptionType = attributes.ExceptionType
 	}
 }
 
@@ -136,24 +170,18 @@ func (s *TelemetryContext) AddHighCardinalityAttributes(
 // The provided attributes are checked against the low-cardinality allow-list.
 // Any key not in the allow-list is silently dropped.
 func (s *TelemetryContext) LowCardinalitySnapshot(
-	attributes map[string]string,
+	overrides *LowCardinalityAttributes,
 ) map[string]string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	out := make(
-		map[string]string,
-		len(s.lowCardinalityAttributes)+len(attributes),
-	)
-	maps.Copy(out, s.lowCardinalityAttributes)
-
-	// Filter out any attributes not in our low-cardinality allow-list.
-	for k, v := range attributes {
-		if allowedLowCardinalityKeys[k] {
-			out[k] = v
-		}
+	snapshot := s.lowCardinalityAttributes.toMap()
+	if overrides == nil {
+		return snapshot
 	}
-	return out
+
+	maps.Copy(snapshot, overrides.toMap())
+	return snapshot
 }
 
 // HighCardinalitySnapshot returns a snapshot of the context's high-cardinality attributes
@@ -191,6 +219,7 @@ type OpenTelemetryProxy interface {
 		ctx context.Context,
 		body string,
 		attributes map[string]string,
+		lowCardinalityAttributes *LowCardinalityAttributes,
 		severity otellogapi.Severity,
 	)
 
@@ -202,6 +231,7 @@ type OpenTelemetryProxy interface {
 		ctx context.Context,
 		event string,
 		attributes map[string]string,
+		lowCardinalityAttributes *LowCardinalityAttributes,
 	)
 
 	// Exception records an error as both a counter metric and an error log.
@@ -421,7 +451,7 @@ func (o *OpenTelemetryProxyImpl) Shutdown(ctx context.Context) error {
 func (o *OpenTelemetryProxyImpl) recordCount(
 	ctx context.Context,
 	name string,
-	attributes map[string]string,
+	lowCardinalityAttributes *LowCardinalityAttributes,
 ) {
 	if o.shutdown.Load() {
 		return
@@ -433,10 +463,11 @@ func (o *OpenTelemetryProxyImpl) recordCount(
 		return
 	}
 
+	snapshot := o.telemetryContext.LowCardinalitySnapshot(lowCardinalityAttributes)
 	counter.Add(
 		ctx,
 		1,
-		toOTelAttrs(o.telemetryContext.LowCardinalitySnapshot(attributes)),
+		toOTelAttrs(snapshot),
 	)
 }
 
@@ -445,6 +476,7 @@ func (o *OpenTelemetryProxyImpl) RecordLog(
 	ctx context.Context,
 	body string,
 	attributes map[string]string,
+	lowCardinalityAttributes *LowCardinalityAttributes,
 	severity otellogapi.Severity,
 ) {
 	if o.shutdown.Load() {
@@ -456,11 +488,14 @@ func (o *OpenTelemetryProxyImpl) RecordLog(
 	record.SetBody(otellogapi.StringValue(body))
 	record.SetSeverity(severity)
 
-	attrs := o.telemetryContext.LowCardinalitySnapshot(nil)
-	maps.Copy(attrs, o.telemetryContext.HighCardinalitySnapshot(attributes))
-	if len(attrs) > 0 {
-		kvs := make([]otellogapi.KeyValue, 0, len(attrs))
-		for k, v := range attrs {
+	snapshot := o.telemetryContext.LowCardinalitySnapshot(
+		lowCardinalityAttributes,
+	)
+	logAttributes := o.telemetryContext.HighCardinalitySnapshot(snapshot)
+	maps.Copy(logAttributes, attributes)
+	if len(logAttributes) > 0 {
+		kvs := make([]otellogapi.KeyValue, 0, len(logAttributes))
+		for k, v := range logAttributes {
 			kvs = append(kvs, otellogapi.String(k, v))
 		}
 		record.AddAttributes(kvs...)
@@ -474,9 +509,16 @@ func (o *OpenTelemetryProxyImpl) RecordMetricAndLogEvent(
 	ctx context.Context,
 	event string,
 	attributes map[string]string,
+	lowCardinalityAttributes *LowCardinalityAttributes,
 ) {
-	o.recordCount(ctx, event, attributes)
-	o.RecordLog(ctx, event, attributes, otellogapi.SeverityInfo)
+	o.recordCount(ctx, event, lowCardinalityAttributes)
+	o.RecordLog(
+		ctx,
+		event,
+		attributes,
+		lowCardinalityAttributes,
+		otellogapi.SeverityInfo,
+	)
 }
 
 // Exception implements OpenTelemetryProxy.Exception.
@@ -491,17 +533,28 @@ func (o *OpenTelemetryProxyImpl) Exception(
 		exceptionType = fmt.Sprintf("%T", err)
 		exceptionMessage = err.Error()
 	}
+	lowCardinalityAttributes := &LowCardinalityAttributes{
+		ExceptionType: exceptionType,
+	}
 
-	o.recordCount(ctx, "exception", map[string]string{
-		"exception.type": exceptionType,
-	})
+	o.recordCount(
+		ctx,
+		"exception",
+		lowCardinalityAttributes,
+	)
 
 	logAttrs := map[string]string{
 		"exception.type":       exceptionType,
 		"exception.message":    exceptionMessage,
 		"exception.stacktrace": captureStacktrace(),
 	}
-	o.RecordLog(ctx, message, logAttrs, otellogapi.SeverityError)
+	o.RecordLog(
+		ctx,
+		message,
+		logAttrs,
+		lowCardinalityAttributes,
+		otellogapi.SeverityError,
+	)
 }
 
 // noopOpenTelemetryProxy is a OpenTelemetryProxy that does nothing.
@@ -518,6 +571,7 @@ func (NoopOpenTelemetryProxy) RecordLog(
 	context.Context,
 	string,
 	map[string]string,
+	*LowCardinalityAttributes,
 	otellogapi.Severity,
 ) {
 }
@@ -527,6 +581,7 @@ func (NoopOpenTelemetryProxy) RecordMetricAndLogEvent(
 	context.Context,
 	string,
 	map[string]string,
+	*LowCardinalityAttributes,
 ) {
 }
 
