@@ -48,9 +48,6 @@ class ArtifactCollectionData(ArtifactsBase):
     project: str = Field(frozen=True)
     """The name of this collection's project."""
 
-    project_id: str | None = Field(default=None, frozen=True, repr=False)
-    """The encoded GraphQL ID for this collection's project, if known."""
-
     entity: str = Field(frozen=True)
     """The name of the entity that owns this collection's project."""
 
@@ -109,7 +106,6 @@ class ArtifactCollectionData(ArtifactsBase):
             created_at=obj.created_at,
             updated_at=obj.updated_at,
             project=obj.project.name,
-            project_id=obj.project.id,
             entity=obj.project.entity.name,
             tags=[e.node.name for e in obj.tags.edges if e.node],
             aliases=None,

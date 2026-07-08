@@ -541,11 +541,6 @@ class ArtifactCollection:
         """The project that contains the artifact collection."""
         return self._current.project
 
-    @property
-    def _project_id(self) -> str | None:
-        """The encoded GraphQL ID of the collection's project, if known."""
-        return self._current.project_id
-
     @normalize_exceptions
     def artifacts(
         self,

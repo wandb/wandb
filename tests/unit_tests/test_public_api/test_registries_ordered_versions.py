@@ -3,59 +3,71 @@ from __future__ import annotations
 from unittest.mock import MagicMock
 
 import pytest
-from wandb.apis.public.registries.registries_search import Collections, Versions
+from wandb.apis.public.registries.registries_search import (
+    Collections,
+    Registries,
+    Versions,
+)
 
 
-def test_registry_filter_for_collection_pins_project_id():
+def test_registries_versions_without_order_returns_versions_paginator():
     service_api = MagicMock()
-    versions = Versions(
+    registries = Registries(
         service_api=service_api,
         organization="test-org",
-        registry_filter={"name": "wandb-registry-test"},
-        collection_order="name",
+        filter={"name": "wandb-registry-test"},
     )
-    collection = MagicMock()
-    collection._project_id = "project-id-456"
 
-    assert versions._registry_filter_for_collection(collection) == {
-        "name": "wandb-registry-test",
-        "id": "project-id-456",
-    }
+    result = registries.versions(filter={"alias": "latest"})
+
+    assert isinstance(result, Versions)
+    assert result.registry_order is None
 
 
-def test_registry_filter_for_collection_without_project_id():
+def test_registries_versions_with_order_configures_ordered_versions():
     service_api = MagicMock()
-    versions = Versions(
+    registries = Registries(
         service_api=service_api,
         organization="test-org",
-        registry_filter={"name": "wandb-registry-test"},
-        collection_order="name",
+        filter={"name": "wandb-registry-test"},
+        order="-updated_at",
     )
-    collection = MagicMock()
-    collection._project_id = None
 
-    assert versions._registry_filter_for_collection(collection) == {
-        "name": "wandb-registry-test",
-    }
+    result = registries.versions(filter={"metadata.icv_uuid": {"$ne": None}})
+
+    assert isinstance(result, Versions)
+    assert result.registry_order == "-updated_at"
+    assert result.registries_per_page == registries.per_page
 
 
-def test_versions_filter_for_collection_pins_name_and_id():
+def test_registries_versions_with_order_rejects_start():
     service_api = MagicMock()
-    versions = Versions(
+    registries = Registries(
         service_api=service_api,
         organization="test-org",
-        registry_filter={"name": "wandb-registry-test"},
-        collection_filter={"name": {"$contains": "model"}},
-        collection_order="name",
+        filter={"name": "wandb-registry-test"},
+        order="-updated_at",
     )
-    collection = MagicMock()
-    collection.name = "my-collection"
-    collection.id = "collection-id-123"
 
-    assert versions._versions_filter_for_collection(collection) == {
-        "name": "my-collection",
-        "id": "collection-id-123",
-    }
+    with pytest.raises(ValueError, match="start= is not supported"):
+        registries.versions(start="cursor")
+
+
+def test_registries_collections_passes_registry_order():
+    service_api = MagicMock()
+    registries = Registries(
+        service_api=service_api,
+        organization="test-org",
+        filter={"name": "wandb-registry-test"},
+        order="name",
+    )
+
+    result = registries.collections(order="-updated_at")
+
+    assert isinstance(result, Collections)
+    assert result.registry_order == "name"
+    assert result.order == "-updated_at"
+    assert result.registries_per_page == registries.per_page
 
 
 def test_collections_versions_without_order_returns_versions_paginator():
@@ -71,6 +83,7 @@ def test_collections_versions_without_order_returns_versions_paginator():
 
     assert isinstance(result, Versions)
     assert result.collection_order is None
+    assert result.registry_order is None
 
 
 def test_collections_versions_with_order_configures_ordered_versions():
@@ -88,6 +101,24 @@ def test_collections_versions_with_order_configures_ordered_versions():
     assert isinstance(result, Versions)
     assert result.collection_order == "-updated_at"
     assert result.collections_per_page == collections.per_page
+
+
+def test_collections_versions_with_registry_and_collection_order():
+    service_api = MagicMock()
+    collections = Collections(
+        service_api=service_api,
+        organization="test-org",
+        registry_filter={"name": "wandb-registry-test"},
+        order="name",
+        registry_order="-updated_at",
+        registries_per_page=50,
+    )
+
+    result = collections.versions()
+
+    assert result.registry_order == "-updated_at"
+    assert result.collection_order == "name"
+    assert result.registries_per_page == 50
 
 
 def test_collections_versions_with_order_rejects_start():

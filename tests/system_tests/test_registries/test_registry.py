@@ -8,7 +8,7 @@ from pytest import fixture, mark, param, raises
 from wandb import Api, Artifact
 from wandb._strutils import b64decode_ascii
 from wandb.apis.public.registries.registry import Registry
-from wandb.sdk.artifacts._validators import REGISTRY_PREFIX
+from wandb.sdk.artifacts._validators import REGISTRY_PREFIX, remove_registry_prefix
 
 
 @fixture
@@ -503,6 +503,97 @@ def test_registries_versions_respects_collection_order(
 
     assert asc_versions == expected_asc
     assert desc_versions == expected_desc
+
+
+def test_registries_versions_respects_registry_order(
+    org: str,
+    api: Api,
+    make_registry: Callable[..., Registry],
+    source_artifacts: list[Artifact],
+):
+    for i, artifact in enumerate(source_artifacts):
+        registry = make_registry(
+            organization=org,
+            name=f"order-test-reg-{i}",
+            visibility="organization",
+        )
+        artifact.link(f"{org}/{registry.full_name}/reg-collection-{i}")
+
+    registries_filter = {"name": {"$contains": "order-test-reg-"}}
+
+    expected_asc = [f"order-test-reg-{i}" for i in range(len(source_artifacts))]
+    expected_desc = expected_asc[::-1]
+
+    def _registry_and_version(version: Artifact) -> tuple[str, str]:
+        assert version.project is not None
+        return remove_registry_prefix(version.project), version.name
+
+    asc_versions = [
+        _registry_and_version(version)
+        for version in api.registries(
+            organization=org, filter=registries_filter, order="name"
+        ).versions()
+    ]
+    desc_versions = [
+        _registry_and_version(version)
+        for version in api.registries(
+            organization=org, filter=registries_filter, order="-name"
+        ).versions()
+    ]
+
+    assert [registry for registry, _ in asc_versions] == expected_asc
+    assert [registry for registry, _ in desc_versions] == expected_desc
+    assert [name for _, name in asc_versions] == [
+        f"reg-collection-{i}:v0" for i in range(len(source_artifacts))
+    ]
+    assert [name for _, name in desc_versions] == [
+        f"reg-collection-{i}:v0" for i in reversed(range(len(source_artifacts)))
+    ]
+
+
+def test_registries_versions_respects_registry_and_collection_order(
+    org: str,
+    team: str,
+    api: Api,
+    make_registry: Callable[..., Registry],
+):
+    artifacts: list[Artifact] = []
+    with wandb.init(entity=team) as run:
+        for i in range(4):
+            artifacts.append(
+                run.log_artifact(Artifact(f"order-test-artifact-{i}", type="test-type"))
+            )
+
+    for registry_idx in range(2):
+        registry = make_registry(
+            organization=org,
+            name=f"order-test-dual-{registry_idx}",
+            visibility="organization",
+        )
+        for collection_idx in range(2):
+            artifact_idx = registry_idx * 2 + collection_idx
+            artifacts[artifact_idx].link(
+                f"{org}/{registry.full_name}/reg-collection-{collection_idx}"
+            )
+
+    expected = [
+        (f"order-test-dual-{registry_idx}", f"reg-collection-{collection_idx}:v0")
+        for registry_idx in range(2)
+        for collection_idx in range(2)
+    ]
+
+    actual = [
+        (remove_registry_prefix(version.project), version.name)
+        for version in api.registries(
+            organization=org,
+            filter={"name": {"$contains": "order-test-dual-"}},
+            order="name",
+        )
+        .collections(order="name")
+        .versions()
+    ]
+
+    assert actual == expected
 
 
 def test_registries_versions(
