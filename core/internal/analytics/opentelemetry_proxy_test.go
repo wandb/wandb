@@ -319,6 +319,7 @@ func TestOpenTelemetryProxyImpl_RecordLog(t *testing.T) {
 	impl := startProxy(t, url, "test-api-key")
 
 	impl.RecordLog(
+		t.Context(),
 		"hello world",
 		map[string]string{"custom": "value"},
 		otellogapi.SeverityInfo,
@@ -336,7 +337,7 @@ func TestOpenTelemetryProxyImpl_RecordMetricAndLogEvent(t *testing.T) {
 	url, captured := newOTLPTestServer(t)
 	impl := startProxy(t, url, "test-api-key")
 
-	impl.RecordMetricAndLogEvent("an_event", map[string]string{
+	impl.RecordMetricAndLogEvent(t.Context(), "an_event", map[string]string{
 		"exception.type": "X",
 		"custom":         "value",
 	})
@@ -359,7 +360,7 @@ func TestOpenTelemetryProxyImpl_SendsAPIKeyAuth(t *testing.T) {
 	url, captured := newOTLPTestServer(t)
 	impl := startProxy(t, url, "test-api-key")
 
-	impl.RecordMetricAndLogEvent("authenticated_event", nil)
+	impl.RecordMetricAndLogEvent(t.Context(), "authenticated_event", nil)
 	require.NoError(t, impl.Shutdown(context.Background()))
 
 	requests := captured.requestsSnapshot()
@@ -379,7 +380,7 @@ func TestOpenTelemetryProxyImpl_Exception(t *testing.T) {
 	url, captured := newOTLPTestServer(t)
 	impl := startProxy(t, url, "test-api-key")
 
-	impl.Exception("error-message", assert.AnError)
+	impl.Exception(t.Context(), "error-message", assert.AnError)
 	require.NoError(t, impl.Shutdown(context.Background()))
 
 	// verify metric emitted
@@ -415,7 +416,7 @@ func TestOpenTelemetryProxyImpl_RecordAfterShutdown_IsNoop(t *testing.T) {
 	impl := startProxy(t, url, "test-api-key")
 	require.NoError(t, impl.Shutdown(context.Background()))
 
-	impl.RecordLog("after", nil, otellogapi.SeverityInfo)
+	impl.RecordLog(t.Context(), "after", nil, otellogapi.SeverityInfo)
 
 	_, ok := findLog(captured.logs, "after")
 	assert.False(t, ok, "expected no log to be exported after shutdown")
@@ -426,9 +427,18 @@ func TestNoopOpenTelemetryProxy_AllMethodsAreSafe(t *testing.T) {
 
 	require.NoError(t, proxy.Start(context.Background()))
 	assert.NotPanics(t, func() {
-		proxy.RecordLog("body", map[string]string{"k": "v"}, otellogapi.SeverityInfo)
-		proxy.RecordMetricAndLogEvent("event", map[string]string{"k": "v"})
-		proxy.Exception("message", assert.AnError)
+		proxy.RecordLog(
+			t.Context(),
+			"body",
+			map[string]string{"k": "v"},
+			otellogapi.SeverityInfo,
+		)
+		proxy.RecordMetricAndLogEvent(
+			t.Context(),
+			"event",
+			map[string]string{"k": "v"},
+		)
+		proxy.Exception(context.Background(), "message", assert.AnError)
 	})
 	require.NoError(t, proxy.Shutdown(context.Background()))
 }

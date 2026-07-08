@@ -185,26 +185,36 @@ type OpenTelemetryProxy interface {
 
 	// RecordLog emits an OpenTelemetry log record with the specified severity level.
 	//
-	// The log record contains the attributes from the current context,
+	// The log record contains the attributes from the current telemetry context,
 	// in addition to the caller-supplied attributes.
-	RecordLog(body string, attributes map[string]string, severity otellogapi.Severity)
+	RecordLog(
+		ctx context.Context,
+		body string,
+		attributes map[string]string,
+		severity otellogapi.Severity,
+	)
 
-	// RecordMetricAndLogEvent records both a counter metric with the context's
-	// low-cardinality attributes and a log record with the context's attributes
-	// plus the caller-supplied attributes under the same name.
-	RecordMetricAndLogEvent(event string, attributes map[string]string)
+	// RecordMetricAndLogEvent records both a counter metric with the telemetry
+	// context's low-cardinality attributes and a log record with the telemetry
+	// context's attributes plus the caller-supplied attributes under the same
+	// name.
+	RecordMetricAndLogEvent(
+		ctx context.Context,
+		event string,
+		attributes map[string]string,
+	)
 
 	// Exception records an error as both a counter metric and an error log.
 	//
 	// The counter metric has the name "exception" and contains
-	// the low-cardinality attributes from the current context plus an
+	// the low-cardinality attributes from the current telemetry context plus an
 	// "exception.type" attribute (the error's type) so the
 	// rate of each error type can be aggregated and graphed.
 	//
-	// The log record contains the attributes from the current context, plus
-	// "exception.type", "exception.message", and "exception.stacktrace". The
-	// stack trace is captured at the point Exception is called.
-	Exception(message string, err error)
+	// The log record contains the attributes from the current telemetry context,
+	// plus "exception.type", "exception.message", and "exception.stacktrace".
+	// The stack trace is captured at the point Exception is called.
+	Exception(ctx context.Context, message string, err error)
 }
 
 var (
@@ -377,6 +387,7 @@ func (o *OpenTelemetryProxyImpl) Shutdown(ctx context.Context) error {
 // The caller-supplied attributes are checked against the low-cardinality allow-list.
 // Any key not in the allow-list is dropped.
 func (o *OpenTelemetryProxyImpl) recordCount(
+	ctx context.Context,
 	name string,
 	attributes map[string]string,
 ) {
@@ -391,7 +402,7 @@ func (o *OpenTelemetryProxyImpl) recordCount(
 	}
 
 	counter.Add(
-		context.Background(),
+		ctx,
 		1,
 		toOTelAttrs(o.telemetryContext.LowCardinalitySnapshot(attributes)),
 	)
@@ -399,6 +410,7 @@ func (o *OpenTelemetryProxyImpl) recordCount(
 
 // RecordLog implements OpenTelemetryProxy.RecordLog.
 func (o *OpenTelemetryProxyImpl) RecordLog(
+	ctx context.Context,
 	body string,
 	attributes map[string]string,
 	severity otellogapi.Severity,
@@ -422,20 +434,25 @@ func (o *OpenTelemetryProxyImpl) RecordLog(
 		record.AddAttributes(kvs...)
 	}
 
-	logger.Emit(context.Background(), record)
+	logger.Emit(ctx, record)
 }
 
 // RecordMetricAndLogEvent implements OpenTelemetryProxy.RecordMetricAndLogEvent.
 func (o *OpenTelemetryProxyImpl) RecordMetricAndLogEvent(
+	ctx context.Context,
 	event string,
 	attributes map[string]string,
 ) {
-	o.recordCount(event, attributes)
-	o.RecordLog(event, attributes, otellogapi.SeverityInfo)
+	o.recordCount(ctx, event, attributes)
+	o.RecordLog(ctx, event, attributes, otellogapi.SeverityInfo)
 }
 
 // Exception implements OpenTelemetryProxy.Exception.
-func (o *OpenTelemetryProxyImpl) Exception(message string, err error) {
+func (o *OpenTelemetryProxyImpl) Exception(
+	ctx context.Context,
+	message string,
+	err error,
+) {
 	exceptionType := "unknown"
 	exceptionMessage := ""
 	if err != nil {
@@ -443,7 +460,7 @@ func (o *OpenTelemetryProxyImpl) Exception(message string, err error) {
 		exceptionMessage = err.Error()
 	}
 
-	o.recordCount("exception", map[string]string{
+	o.recordCount(ctx, "exception", map[string]string{
 		"exception.type": exceptionType,
 	})
 
@@ -452,7 +469,7 @@ func (o *OpenTelemetryProxyImpl) Exception(message string, err error) {
 		"exception.message":    exceptionMessage,
 		"exception.stacktrace": captureStacktrace(),
 	}
-	o.RecordLog(message, logAttrs, otellogapi.SeverityError)
+	o.RecordLog(ctx, message, logAttrs, otellogapi.SeverityError)
 }
 
 // noopOpenTelemetryProxy is a OpenTelemetryProxy that does nothing.
@@ -465,13 +482,24 @@ func (NoopOpenTelemetryProxy) Start(context.Context) error { return nil }
 func (NoopOpenTelemetryProxy) Shutdown(context.Context) error { return nil }
 
 // RecordLog implements OpenTelemetryProxy.RecordLog.
-func (NoopOpenTelemetryProxy) RecordLog(string, map[string]string, otellogapi.Severity) {}
+func (NoopOpenTelemetryProxy) RecordLog(
+	context.Context,
+	string,
+	map[string]string,
+	otellogapi.Severity,
+) {
+}
 
 // RecordMetricAndLogEvent implements OpenTelemetryProxy.RecordMetricAndLogEvent.
-func (NoopOpenTelemetryProxy) RecordMetricAndLogEvent(string, map[string]string) {}
+func (NoopOpenTelemetryProxy) RecordMetricAndLogEvent(
+	context.Context,
+	string,
+	map[string]string,
+) {
+}
 
 // Exception implements OpenTelemetryProxy.Exception.
-func (NoopOpenTelemetryProxy) Exception(string, error) {}
+func (NoopOpenTelemetryProxy) Exception(context.Context, string, error) {}
 
 // captureStacktrace returns a formatted stack trace of the calling goroutine,
 // starting at the caller of Exception.
