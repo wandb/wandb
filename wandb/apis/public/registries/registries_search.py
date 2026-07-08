@@ -223,14 +223,10 @@ class Registries(RelayPaginator["RegistryFragment", "Registry"]):
         per_page: PositiveInt,
     ) -> Iterator[Artifact]:
         for registry in self._iter_registries():
-            registry_filter = dict(self.filter or {})
-            if registry_name := registry.full_name:
-                registry_filter["name"] = registry_name
-
             yield from Versions(
                 service_api=self._service_api,
                 organization=self.organization,
-                registry_filter=registry_filter,
+                registry_filter=_registry_filter_for_registry(self.filter, registry),
                 collection_filter=None,
                 artifact_filter=artifact_filter,
                 per_page=per_page,
