@@ -17,9 +17,12 @@ import (
 	colmetricspb "go.opentelemetry.io/proto/otlp/collector/metrics/v1"
 	commonpb "go.opentelemetry.io/proto/otlp/common/v1"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	"github.com/wandb/wandb/core/internal/analytics"
+	wbsettings "github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/version"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 // capturedLog is a decoded OTLP log record received by the test server.
@@ -39,6 +42,8 @@ type capturedMetric struct {
 type capturedRequest struct {
 	Path          string
 	Authorization string
+	Headers       http.Header
+	URLHost       string
 }
 
 // capturedExports accumulates the telemetry decoded from OTLP/HTTP exports.
@@ -97,6 +102,8 @@ func (c *capturedExports) addRequest(r *http.Request) {
 	c.requests = append(c.requests, capturedRequest{
 		Path:          r.URL.Path,
 		Authorization: r.Header.Get("Authorization"),
+		Headers:       r.Header.Clone(),
+		URLHost:       r.URL.Host,
 	})
 }
 
@@ -171,6 +178,21 @@ func newOTLPTestServer(t *testing.T) (baseURL string, captured *capturedExports)
 	return srv.URL, captured
 }
 
+func newTestSettings(
+	endpoint string,
+	apiKey string,
+	configure ...func(*spb.Settings),
+) *wbsettings.Settings {
+	settingsProto := &spb.Settings{
+		BaseUrl: wrapperspb.String(endpoint),
+		ApiKey:  wrapperspb.String(apiKey),
+	}
+	for _, configure := range configure {
+		configure(settingsProto)
+	}
+	return wbsettings.From(settingsProto)
+}
+
 // startProxy creates and starts a real proxy against the given endpoint,
 // returning the concrete implementation for assertions on internal state.
 func startProxy(
@@ -180,7 +202,16 @@ func startProxy(
 ) *analytics.OpenTelemetryProxyImpl {
 	t.Helper()
 
-	proxy := analytics.NewOpenTelemetryProxy(endpoint, apiKey)
+	return startProxyWithSettings(t, newTestSettings(endpoint, apiKey))
+}
+
+func startProxyWithSettings(
+	t *testing.T,
+	settings *wbsettings.Settings,
+) *analytics.OpenTelemetryProxyImpl {
+	t.Helper()
+
+	proxy := analytics.NewOpenTelemetryProxy(settings)
 	impl, ok := proxy.(*analytics.OpenTelemetryProxyImpl)
 	require.True(
 		t,
@@ -287,7 +318,9 @@ func TestTelemetryContext_SnapshotsDoesNotUpdateInternalState(t *testing.T) {
 }
 
 func TestNewOpenTelemetryProxy_NoAPIKey_ReturnsNoopProxy(t *testing.T) {
-	proxy := analytics.NewOpenTelemetryProxy("http://example.invalid", "")
+	proxy := analytics.NewOpenTelemetryProxy(
+		newTestSettings("http://example.invalid", ""),
+	)
 
 	_, ok := proxy.(analytics.NoopOpenTelemetryProxy)
 
@@ -295,7 +328,9 @@ func TestNewOpenTelemetryProxy_NoAPIKey_ReturnsNoopProxy(t *testing.T) {
 }
 
 func TestNewOpenTelemetryProxy_WithAPIKey_ReturnsImpl(t *testing.T) {
-	proxy := analytics.NewOpenTelemetryProxy("http://example.invalid", "test-api-key")
+	proxy := analytics.NewOpenTelemetryProxy(
+		newTestSettings("http://example.invalid", "test-api-key"),
+	)
 
 	_, ok := proxy.(*analytics.OpenTelemetryProxyImpl)
 
