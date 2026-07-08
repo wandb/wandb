@@ -524,19 +524,15 @@ def test_registries_versions_respects_registry_order(
     expected_asc = [f"order-test-reg-{i}" for i in range(len(source_artifacts))]
     expected_desc = expected_asc[::-1]
 
-    def _registry_and_version(version: Artifact) -> tuple[str, str]:
-        assert version.project is not None
-        return remove_registry_prefix(version.project), version.name
-
     asc_versions = [
-        _registry_and_version(version)
-        for version in api.registries(
+        (remove_registry_prefix(v.project), v.name)
+        for v in api.registries(
             organization=org, filter=registries_filter, order="name"
         ).versions()
     ]
     desc_versions = [
-        _registry_and_version(version)
-        for version in api.registries(
+        (remove_registry_prefix(v.project), v.name)
+        for v in api.registries(
             organization=org, filter=registries_filter, order="-name"
         ).versions()
     ]
