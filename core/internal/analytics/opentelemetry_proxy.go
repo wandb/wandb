@@ -49,26 +49,22 @@ const (
 	attributeExceptionType   = "exception.type"
 )
 
-var allowedLowCardinalityKeys = map[string]struct{}{
-	attributeGoVersion:       {},
-	attributeWandbVersion:    {},
-	attributeOperatingSystem: {},
-	attributeExceptionType:   {},
+var allowedLowCardinalityKeys = map[string]bool{
+	attributeGoVersion:       true,
+	attributeWandbVersion:    true,
+	attributeOperatingSystem: true,
+	attributeExceptionType:   true,
 }
 
-// enabled gates OpenTelemetryProxy in this process.
-var enabled atomic.Bool
-
-func init() {
-	enabled.Store(true)
-}
+// disabled gates OpenTelemetryProxy in this process.
+var disabled atomic.Bool
 
 // SetEnabled turns analytics on or off for the whole process.
 //
 // It should be called once during startup, before any OpenTelemetryProxy is
 // created, and is safe to call concurrently.
 func SetEnabled(v bool) {
-	enabled.Store(v)
+	disabled.Store(!v)
 }
 
 // TelemetryContext holds persistent attributes added to all telemetry records.
@@ -99,11 +95,11 @@ func NewTelemetryContext() *TelemetryContext {
 	}
 }
 
-// AddLowCardinalityAttributes merges the provided attributes into the context.
+// SetLowCardinalityAttributes merges the provided attributes into the context.
 //
 // Only keys in the allow-list are accepted;
 // any other keys are silently dropped.
-func (s *TelemetryContext) AddLowCardinalityAttributes(
+func (s *TelemetryContext) SetLowCardinalityAttributes(
 	attributes map[string]string,
 ) {
 	if len(attributes) == 0 {
@@ -113,7 +109,7 @@ func (s *TelemetryContext) AddLowCardinalityAttributes(
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for k, v := range attributes {
-		if _, ok := allowedLowCardinalityKeys[k]; ok {
+		if allowedLowCardinalityKeys[k] {
 			s.lowCardinalityAttributes[k] = v
 		}
 	}
@@ -153,7 +149,7 @@ func (s *TelemetryContext) LowCardinalitySnapshot(
 
 	// Filter out any attributes not in our low-cardinality allow-list.
 	for k, v := range attributes {
-		if _, ok := allowedLowCardinalityKeys[k]; ok {
+		if allowedLowCardinalityKeys[k] {
 			out[k] = v
 		}
 	}
@@ -179,10 +175,35 @@ func (s *TelemetryContext) HighCardinalitySnapshot(
 
 // OpenTelemetryProxy records OpenTelemetry events (metrics and logs).
 type OpenTelemetryProxy interface {
+	// Start initializes the OpenTelemetry meter and log providers.
 	Start(ctx context.Context) error
+
+	// Shutdown flushes any pending records and shuts down all providers.
+	// It should be called once when the proxy is no longer needed.
+	// Additional calls are no-ops.
 	Shutdown(ctx context.Context) error
+
+	// RecordLog emits an OpenTelemetry log record with the specified severity level.
+	//
+	// The log record contains the attributes from the current context,
+	// in addition to the caller-supplied attributes.
 	RecordLog(body string, attributes map[string]string, severity otellogapi.Severity)
+
+	// RecordMetricAndLogEvent records both a counter metric with the context's
+	// low-cardinality attributes and a log record with the context's attributes
+	// plus the caller-supplied attributes under the same name.
 	RecordMetricAndLogEvent(event string, attributes map[string]string)
+
+	// Exception records an error as both a counter metric and an error log.
+	//
+	// The counter metric has the name "exception" and contains
+	// the low-cardinality attributes from the current context plus an
+	// "exception.type" attribute (the error's type) so the
+	// rate of each error type can be aggregated and graphed.
+	//
+	// The log record contains the attributes from the current context, plus
+	// "exception.type", "exception.message", and "exception.stacktrace". The
+	// stack trace is captured at the point Exception is called.
 	Exception(message string, err error)
 }
 
@@ -222,7 +243,7 @@ type OpenTelemetryProxyImpl struct {
 // When analytics is disabled or no API key is available, a no-op proxy is
 // returned so no providers are created and nothing is recorded.
 func NewOpenTelemetryProxy(endpoint, apiKey string) OpenTelemetryProxy {
-	if !enabled.Load() || apiKey == "" {
+	if disabled.Load() || apiKey == "" {
 		return NoopOpenTelemetryProxy{}
 	}
 
@@ -247,8 +268,6 @@ func newOTLPHTTPClient(apiKey string) *http.Client {
 }
 
 // Start implements OpenTelemetryProxy.Start.
-//
-// It initializes the OpenTelemetry meter and log providers.
 func (o *OpenTelemetryProxyImpl) Start(ctx context.Context) error {
 	o.mu.Lock()
 	defer o.mu.Unlock()
@@ -328,10 +347,6 @@ func (o *OpenTelemetryProxyImpl) setupLogs(
 }
 
 // Shutdown implements OpenTelemetryProxy.Shutdown.
-//
-// It flushes any pending records and shuts down all providers.
-// It should be called once when the proxy is no longer needed.
-// Additional calls are no-ops.
 func (o *OpenTelemetryProxyImpl) Shutdown(ctx context.Context) error {
 	if !o.shutdown.CompareAndSwap(false, true) {
 		return nil
@@ -383,10 +398,6 @@ func (o *OpenTelemetryProxyImpl) recordCount(
 }
 
 // RecordLog implements OpenTelemetryProxy.RecordLog.
-// It emits an OpenTelemetry log record with the specified severity level.
-//
-// The log record contains the attributes from the current context,
-// in addition to the caller-supplied attributes.
 func (o *OpenTelemetryProxyImpl) RecordLog(
 	body string,
 	attributes map[string]string,
@@ -415,9 +426,6 @@ func (o *OpenTelemetryProxyImpl) RecordLog(
 }
 
 // RecordMetricAndLogEvent implements OpenTelemetryProxy.RecordMetricAndLogEvent.
-// It records both a counter metric with the context's low-cardinality attributes
-// and a log record with the context's attributes
-// plus the caller-supplied attributes under the same name.
 func (o *OpenTelemetryProxyImpl) RecordMetricAndLogEvent(
 	event string,
 	attributes map[string]string,
@@ -427,17 +435,6 @@ func (o *OpenTelemetryProxyImpl) RecordMetricAndLogEvent(
 }
 
 // Exception implements OpenTelemetryProxy.Exception.
-//
-// It records an error as both a counter metric and an error log.
-//
-// The counter metric has the name "exception" and contains
-// the low-cardinality attributes from the current context plus an
-// "exception.type" attribute (the error's type) so the
-// rate of each error type can be aggregated and graphed.
-//
-// The log record contains the attributes from the current context, plus
-// "exception.type", "exception.message", and "exception.stacktrace". The
-// stack trace is captured at the point Exception is called.
 func (o *OpenTelemetryProxyImpl) Exception(message string, err error) {
 	exceptionType := "unknown"
 	exceptionMessage := ""
