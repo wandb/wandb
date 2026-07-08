@@ -411,7 +411,7 @@ class Versions(RelayPaginator["ArtifactMembershipFragment", "Artifact"]):
         )
 
     @override
-    def __next__(self) -> Artifact:
+    def __next__(self):
         # Implement custom next since its possible to load empty pages because of auth
         self.index += 1
         while len(self.objects) <= self.index:
