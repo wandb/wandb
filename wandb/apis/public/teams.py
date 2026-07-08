@@ -71,7 +71,30 @@ class Team(Attrs):
         attrs (dict): Optional dictionary of team attributes
 
     Note:
-        Team management requires appropriate permissions.
+        Do not instantiate this class directly. Use `wandb.Api().team()` to
+        look up an existing team, or `wandb.Api().create_team()` to create a
+        new one. Team management requires appropriate permissions.
+
+    Examples:
+    Look up a team and invite a member.
+
+    ```python
+    import wandb
+
+    api = wandb.Api()
+    team = api.team("my-team")
+    team.invite("user@example.com")
+    ```
+
+    Create a team and add a service account.
+
+    ```python
+    import wandb
+
+    api = wandb.Api()
+    team = api.create_team("my-team")
+    team.create_service_account("CI service account")
+    ```
     """
 
     def __init__(

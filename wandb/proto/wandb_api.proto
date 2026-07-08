@@ -33,6 +33,7 @@ message ApiRequest {
     DownloadFileRequest download_file_request = 5;
     UploadFileRequest upload_file_request = 6;
     MarkRunFilesUploadedRequest mark_run_files_uploaded_request = 7;
+    StopRunRequest stop_run_request = 8;
   }
 }
 
@@ -44,6 +45,7 @@ message ApiResponse {
     DownloadFileResponse download_file_response = 5;
     UploadFileResponse upload_file_response = 6;
     MarkRunFilesUploadedResponse mark_run_files_uploaded_response = 7;
+    StopRunResponse stop_run_response = 8;
 
     ApiErrorResponse api_error_response = 2;
   }
@@ -180,14 +182,13 @@ message UploadFileResponse {}
 //
 // Uploading a file to its (presigned) destination URL only writes the bytes to
 // the object store; the backend must still be told the file is committed before
-// it appears on the run. During a live run, wandb-core sends this signal as the
+// it appears on the run. During a live run, wandb-core sends this signal via the
 // filestream "uploaded" field. This request performs the same notification for
-// files uploaded outside a live run, such as `wandb.Api().run(...).upload_file()`.
+// files uploaded outside a live run, such as `wandb.Api().run(...).upload_file()`,
+// without disturbing the run's state.
 //
-// Always safe to send: it is the same idempotent signal the backend processes for
-// every live run, on both SaaS and self-hosted deployments. A successful request
-// returns MarkRunFilesUploadedResponse; failures, including non-successful HTTP
-// status codes, return ApiErrorResponse.
+// A successful request returns MarkRunFilesUploadedResponse;
+// failures return ApiErrorResponse.
 message MarkRunFilesUploadedRequest {
   // The entity that owns the run.
   string entity = 1;
@@ -203,6 +204,21 @@ message MarkRunFilesUploadedRequest {
 }
 
 message MarkRunFilesUploadedResponse {}
+
+// Flag a run to stop on the W&B backend.
+//
+// This is the same signal sent by the "Stop run" button in the W&B UI: the
+// backend sets the run's stopped flag, which the process running the run
+// polls during its heartbeat to shut itself down gracefully.
+//
+// A successful request returns StopRunResponse; failures return
+// ApiErrorResponse.
+message StopRunRequest {
+  // The run's storage ID (its GraphQL node ID), not the run name.
+  string storage_id = 1;
+}
+
+message StopRunResponse {}
 
 // Start of Scan run history
 

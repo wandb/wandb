@@ -77,7 +77,7 @@ class Sweeps(SizedPaginator["Sweep"]):
         entity: str,
         project: str,
         per_page: int = 50,
-    ) -> Sweeps:
+    ) -> None:
         """An iterable collection of `Sweep` objects.
 
         Args:

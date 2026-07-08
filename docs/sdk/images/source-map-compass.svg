@@ -1,0 +1,94 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="760" viewBox="0 0 1200 760" role="img" aria-labelledby="title desc">
+  <title id="title">SDK source map compass</title>
+  <desc id="desc">A compass-style illustration for locating SDK behavior across Python, protobuf, Go core, Rust native helpers, and tests.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#fafcfb"/>
+      <stop offset="1" stop-color="#f0f5ef"/>
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-20%" width="120%" height="150%">
+      <feDropShadow dx="0" dy="8" stdDeviation="8" flood-color="#17232d" flood-opacity="0.13"/>
+    </filter>
+    <marker id="arrow" markerWidth="12" markerHeight="10" refX="10.5" refY="5" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M0.5,0.5 L11,5 L0.5,9.5 L3.5,5 Z" fill="#435560"/>
+    </marker>
+    <style>
+      .bg { fill: url(#bg); }
+      .title { font-family: "Helvetica Neue", Arial, sans-serif; font-size: 31px; font-weight: 700; fill: #17232d; }
+      .subtitle { font-family: "Helvetica Neue", Arial, sans-serif; font-size: 16px; font-weight: 400; fill: #52616b; }
+      .cardTitle { font-family: "Helvetica Neue", Arial, sans-serif; font-size: 18px; font-weight: 700; fill: #17232d; }
+      .body { font-family: "Helvetica Neue", Arial, sans-serif; font-size: 12.5px; font-weight: 400; fill: #45545e; }
+      .code { font-family: Menlo, Consolas, monospace; font-size: 11.5px; font-weight: 500; fill: #53636d; }
+      .center { font-family: "Helvetica Neue", Arial, sans-serif; font-size: 17px; font-weight: 700; fill: #fff; }
+      .centerSmall { font-family: "Helvetica Neue", Arial, sans-serif; font-size: 12.5px; font-weight: 500; fill: #dfe9ee; }
+      .card { fill: #ffffff; stroke: #cad7dc; stroke-width: 1.4; filter: url(#shadow); }
+    </style>
+  </defs>
+
+  <rect class="bg" width="1200" height="760"/>
+  <text x="64" y="62" class="title">Source map compass</text>
+  <text x="64" y="91" class="subtitle">Start with the user action, then walk inward through Python, protobufs, core, native helpers, and tests.</text>
+
+  <g transform="translate(470 238)">
+    <circle cx="130" cy="130" r="128" fill="#17232d" filter="url(#shadow)"/>
+    <circle cx="130" cy="130" r="88" fill="#233441"/>
+    <circle cx="130" cy="130" r="44" fill="#2f7a58"/>
+    <path d="M130 4L154 106H106Z" fill="#67a9dd"/>
+    <path d="M256 130L154 154V106Z" fill="#e2a947"/>
+    <path d="M130 256L106 154H154Z" fill="#70ba7a"/>
+    <path d="M4 130L106 106V154Z" fill="#d96c5f"/>
+    <text x="130" y="122" class="center" text-anchor="middle">User-visible</text>
+    <text x="130" y="144" class="center" text-anchor="middle">behavior</text>
+    <text x="130" y="170" class="centerSmall" text-anchor="middle">trace before editing</text>
+  </g>
+
+  <g transform="translate(72 162)">
+    <rect class="card" x="0" y="0" width="318" height="170" rx="18"/>
+    <text x="24" y="37" class="cardTitle">Python API surface</text>
+    <text x="24" y="67" class="body">Start here for user behavior, validation,</text>
+    <text x="24" y="85" class="body">settings, serialization, integrations,</text>
+    <text x="24" y="103" class="body">and console UX.</text>
+    <text x="24" y="132" class="code">wandb/sdk/wandb_init.py</text>
+    <text x="24" y="151" class="code">wandb/sdk/wandb_run.py</text>
+  </g>
+
+  <g transform="translate(810 162)">
+    <rect class="card" x="0" y="0" width="318" height="170" rx="18"/>
+    <text x="24" y="37" class="cardTitle">Protocol boundary</text>
+    <text x="24" y="67" class="body">Records, requests, responses, settings,</text>
+    <text x="24" y="85" class="body">and generated Python / Go bindings define</text>
+    <text x="24" y="103" class="body">what the process boundary can carry.</text>
+    <text x="24" y="132" class="code">wandb/proto/*.proto</text>
+    <text x="24" y="151" class="code">core/pkg/service_go_proto</text>
+  </g>
+
+  <g transform="translate(72 428)">
+    <rect class="card" x="0" y="0" width="318" height="170" rx="18"/>
+    <text x="24" y="37" class="cardTitle">Go core behavior</text>
+    <text x="24" y="67" class="body">Look here for stream routing, run upsert,</text>
+    <text x="24" y="85" class="body">history, summary, filestream, files, sync,</text>
+    <text x="24" y="103" class="body">artifacts, and API network work.</text>
+    <text x="24" y="132" class="code">core/pkg/server</text>
+    <text x="24" y="151" class="code">core/internal/stream</text>
+  </g>
+
+  <g transform="translate(810 428)">
+    <rect class="card" x="0" y="0" width="318" height="170" rx="18"/>
+    <text x="24" y="37" class="cardTitle">Native helpers + tests</text>
+    <text x="24" y="67" class="body">Hardware metrics and columnar helpers may</text>
+    <text x="24" y="85" class="body">cross Rust/native boundaries. Choose tests</text>
+    <text x="24" y="103" class="body">at the layer that owns the guarantee.</text>
+    <text x="24" y="132" class="code">core/internal/monitor</text>
+    <text x="24" y="151" class="code">tests/system_tests</text>
+  </g>
+
+  <path d="M390 247C428 260 452 284 484 316" stroke="#435560" stroke-width="2" stroke-linecap="round" fill="none" marker-end="url(#arrow)"/>
+  <path d="M810 247C772 260 748 284 716 316" stroke="#435560" stroke-width="2" stroke-linecap="round" fill="none" marker-end="url(#arrow)"/>
+  <path d="M390 512C428 498 452 470 484 432" stroke="#435560" stroke-width="2" stroke-linecap="round" fill="none" marker-end="url(#arrow)"/>
+  <path d="M810 512C772 498 748 470 716 432" stroke="#435560" stroke-width="2" stroke-linecap="round" fill="none" marker-end="url(#arrow)"/>
+
+  <g transform="translate(238 644)">
+    <rect x="0" y="0" width="724" height="50" rx="25" fill="#17232d" opacity="0.93"/>
+    <text x="31" y="31" class="centerSmall">Debug loop: public method -> protobuf -> connection route -> handler/sender -> focused test.</text>
+  </g>
+</svg>

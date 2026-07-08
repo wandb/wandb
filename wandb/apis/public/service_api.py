@@ -1,9 +1,7 @@
 from __future__ import annotations
 
-import contextlib
 import json
 import logging
-import weakref
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from typing import Any, cast
@@ -23,12 +21,6 @@ from wandb.sdk.lib.service.service_connection import (
 from wandb.sdk.mailbox.mailbox_handle import MailboxHandle
 
 _logger = logging.getLogger(__name__)
-
-
-def _cleanup(connection: ServiceConnection, api_id: str) -> None:
-    """Clean up the api resources associated with the api id."""
-    with contextlib.suppress(Exception):
-        connection.api_cleanup_request(api_id)
 
 
 @dataclass(frozen=True)
@@ -65,13 +57,6 @@ class ServiceApi:
             api_id=response.api_id,
         )
         self._api_session = session
-
-        weakref.finalize(
-            self,
-            _cleanup,
-            session.connection,
-            session.api_id,
-        )
 
         return session
 

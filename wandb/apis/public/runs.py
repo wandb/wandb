@@ -59,6 +59,7 @@ from wandb.apis.paginator import SizedPaginator
 from wandb.apis.public.const import RETRY_TIMEDELTA
 from wandb.apis.public.service_api import ServiceApi
 from wandb.proto import wandb_api_pb2 as apb
+from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk import wandb_setup
 from wandb.sdk.lib import ipython, json_util
 from wandb.sdk.lib.paths import LogicalPath
@@ -67,7 +68,6 @@ from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 if TYPE_CHECKING:
     import pandas as pd
     import polars as pl
-    from typing_extensions import Self
 
     from wandb.apis.public.summary import HTTPSummary
 
@@ -660,7 +660,7 @@ class Run(Attrs):
             pass
         self._summary = None
         self._metadata: dict[str, Any] | None = None
-        self._state = _attrs.get("state", "not found")
+        self._state: str = _attrs.get("state", "not found")
         self.server_provides_internal_id_field: bool | None = None
         self._is_loaded: bool = False
         self._service_api = service_api
@@ -705,12 +705,12 @@ class Run(Attrs):
         # For compatibility with wandb.Run, which has storage IDs
         # in self.storage_id and names in self.id.
 
-        return self._attrs.get("id")
+        return self._attrs["id"]
 
     @property
     def id(self) -> str:
         """The unique identifier for the run."""
-        return self._attrs.get("name")
+        return self._attrs["name"]
 
     @id.setter
     def id(self, new_id: str) -> None:
@@ -735,7 +735,7 @@ class Run(Attrs):
         project: str | None = None,
         entity: str | None = None,
         state: Literal["running", "pending"] = "running",
-    ) -> Self:
+    ) -> Run:
         """Create a run for the given project.
 
         For most use cases, use `wandb.init()`. `wandb.init()` provides more robust
@@ -841,7 +841,7 @@ class Run(Attrs):
         # Snapshot before mutating: only persist config/rawconfig when the response
         # included a config field (lazy runs omit it until load_full_data()).
         had_config_field = "config" in self._attrs
-        self._state = self._attrs.get("state", None)
+        self._state = self._attrs.get("state", self._state)
 
         # Only convert fields if they exist in _attrs
         if had_config_field:
@@ -1024,6 +1024,37 @@ class Run(Attrs):
             return True
         return False
 
+    @normalize_exceptions
+    def stop(self) -> None:
+        """Request that this run stop gracefully.
+
+        This sets the run's stop flag on the W&B backend, the same signal
+        sent by the "Stop run" button in the W&B App UI. The process running
+        the run picks the flag up through its regular heartbeat and shuts
+        the run down gracefully, so this is safe for terminating remote runs
+        (for example, runs on Kubernetes pods).
+
+        Stopping is asynchronous: this method returns once the backend has
+        flagged the run, not once the run terminates. Calling it again, or
+        on a run that is no longer running, has no effect.
+
+        Raises:
+            `wandb.Error`: If the request fails.
+
+        Example:
+        ```python
+        import wandb
+
+        run = wandb.Api().run("entity/project/run_id")
+        run.stop()
+        ```
+        """
+        self._service_api.send_api_request(
+            apb.ApiRequest(
+                stop_run_request=apb.StopRunRequest(storage_id=self.storage_id)
+            )
+        )
+
     @property
     def json_config(self) -> str:
         """Return the run config as a JSON string.
@@ -1146,6 +1177,28 @@ class Run(Attrs):
         upload_path = util.make_file_path_upload_safe(name)
         with open(os.path.join(root, name), "rb") as f:
             api.push({LogicalPath(upload_path): f})
+
+        # Uploading the bytes to the (presigned) destination URL doesn't notify
+        # the backend that the file is committed. SaaS finalizes it via native
+        # object-store notifications, but self-hosted deployments don't, so the
+        # file never registers on the run. wandb-core runs the markRunFilesUploaded
+        # mutation to commit it, without disturbing the run's state.
+        #
+        # Gated on the server feature: older servers lack the mutation, and the
+        # only other way to commit the file there (the filestream "uploaded"
+        # path) resurrects the run, so we skip the notification rather than
+        # regress run state.
+        if self._service_api.feature_enabled(pb.MARK_RUN_FILES_UPLOADED):
+            self._service_api.send_api_request(
+                apb.ApiRequest(
+                    mark_run_files_uploaded_request=apb.MarkRunFilesUploadedRequest(
+                        entity=self.entity,
+                        project=self.project,
+                        run_id=self.id,
+                        files=[str(upload_path)],
+                    )
+                )
+            )
         return public.Files(self._service_api, self, [name])[0]
 
     @normalize_exceptions

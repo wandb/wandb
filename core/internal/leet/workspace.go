@@ -349,6 +349,25 @@ func (w *Workspace) View() tea.View {
 	)
 }
 
+// Cleanup stops the workspace's heartbeat, file watchers, and open readers.
+//
+// Safe to call multiple times, including after the program has exited
+// (e.g. before a full restart).
+func (w *Workspace) Cleanup() {
+	if w.heartbeatMgr != nil {
+		w.heartbeatMgr.Stop()
+	}
+	for _, run := range w.runsByKey {
+		if run == nil {
+			continue
+		}
+		w.stopWatcher(run)
+		if run.Reader != nil {
+			run.Reader.Close()
+		}
+	}
+}
+
 // IsFiltering reports whether any workspace-level filter UI is active.
 func (w *Workspace) IsFiltering() bool {
 	if w.metricsGrid.IsFilterMode() ||
