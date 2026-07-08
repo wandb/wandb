@@ -342,7 +342,7 @@ class QueuedRun:
         )
 
     @normalize_exceptions
-    def _get_run_queue_item_legacy(self) -> dict[str, Any]:
+    def _get_run_queue_item_legacy(self) -> dict[str, Any] | None:
         query = """
             query GetRunQueueItem($projectName: String!, $entityName: String!, $runQueue: String!) {
                 project(name: $projectName, entityName: $entityName) {
@@ -371,8 +371,10 @@ class QueuedRun:
             if str(item["node"]["id"]) == str(self.id):
                 return item["node"]
 
+        return None
+
     @normalize_exceptions
-    def _get_item(self) -> dict[str, Any]:
+    def _get_item(self) -> dict[str, Any] | None:
         query = """
             query GetRunQueueItem($projectName: String!, $entityName: String!, $runQueue: String!, $itemId: ID!) {
                 project(name: $projectName, entityName: $entityName) {
@@ -407,13 +409,12 @@ class QueuedRun:
     @normalize_exceptions
     def wait_until_finished(self) -> public.Run:
         """Wait for the queued run to complete and return the finished run."""
-        if not self._run:
-            self.wait_until_running()
+        run = self._run or self.wait_until_running()
 
-        self._run.wait_until_finished()
+        run.wait_until_finished()
         # refetch run to get updated summary
-        self._run.load(force=True)
-        return self._run
+        run.load(force=True)
+        return run
 
     @normalize_exceptions
     def delete(self, delete_artifacts: bool = False) -> None:
@@ -537,8 +538,8 @@ class RunQueue:
         self._access = _access
         self._default_resource_config_id = _default_resource_config_id
         self._default_resource_config = _default_resource_config
-        self._template_variables = None
-        self._type = None
+        self._template_variables: dict[str, Any] | None = None
+        self._type: RunQueueResourceType | None = None
         self._items: list[QueuedRun] | None = None
         self._id: str | None = None
         self._api_key = api_key
@@ -561,6 +562,7 @@ class RunQueue:
         """
         if self._prioritization_mode is None:
             self._get_metadata()
+        assert self._prioritization_mode is not None
         return self._prioritization_mode
 
     @property
@@ -568,6 +570,7 @@ class RunQueue:
         """The access level of the queue."""
         if self._access is None:
             self._get_metadata()
+        assert self._access is not None
         return self._access
 
     @property
@@ -584,6 +587,7 @@ class RunQueue:
             if self._default_resource_config_id is None:
                 self._get_metadata()
             self._get_default_resource_config()
+        assert self._type is not None
         return self._type
 
     @property
@@ -593,6 +597,7 @@ class RunQueue:
             if self._default_resource_config_id is None:
                 self._get_metadata()
             self._get_default_resource_config()
+        assert self._default_resource_config is not None
         return self._default_resource_config
 
     @property
@@ -602,6 +607,7 @@ class RunQueue:
             if self._default_resource_config_id is None:
                 self._get_metadata()
             self._get_default_resource_config()
+        assert self._template_variables is not None
         return self._template_variables
 
     @property
@@ -609,6 +615,7 @@ class RunQueue:
         """The id of the queue."""
         if self._id is None:
             self._get_metadata()
+        assert self._id is not None
         return self._id
 
     @property
@@ -617,6 +624,7 @@ class RunQueue:
         # TODO(np): Add a paginated interface
         if self._items is None:
             self._get_items()
+        assert self._items is not None
         return self._items
 
     @normalize_exceptions

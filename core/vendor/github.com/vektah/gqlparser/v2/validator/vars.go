@@ -86,7 +86,7 @@ func VariableValues(
 						rv = reflect.ValueOf(f)
 					}
 				}
-				if rv.Kind() == reflect.Ptr || rv.Kind() == reflect.Interface {
+				if rv.Kind() == reflect.Pointer || rv.Kind() == reflect.Interface {
 					rv = rv.Elem()
 				}
 
@@ -137,7 +137,7 @@ func (v *varValidator) validateVarType(
 			resetPath()
 			v.path = append(v.path, ast.PathIndex(i))
 			field := val.Index(i)
-			if field.Kind() == reflect.Ptr || field.Kind() == reflect.Interface {
+			if field.Kind() == reflect.Pointer || field.Kind() == reflect.Interface {
 				if typ.Elem.NonNull && field.IsNil() {
 					return val, gqlerror.ErrorPathf(v.path, "cannot be null")
 				}
@@ -248,7 +248,7 @@ func (v *varValidator) validateVarType(
 				continue
 			}
 
-			if field.Kind() == reflect.Ptr || field.Kind() == reflect.Interface {
+			if field.Kind() == reflect.Pointer || field.Kind() == reflect.Interface {
 				if fieldDef.Type.NonNull && field.IsNil() {
 					return val, gqlerror.ErrorPathf(v.path, "cannot be null")
 				}

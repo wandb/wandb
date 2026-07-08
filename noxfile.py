@@ -156,10 +156,6 @@ def run_pytest(
     # (pytest-timeout) Per-test timeout.
     pytest_opts.append(f"--timeout={opts.get('timeout', 60)}")
 
-    # (pytest-timeout) Use the 'thread' method to shut down more reliably
-    # to help debug hangs.
-    pytest_opts.append(f"--timeout-method={opts.get('timeout_method', 'thread')}")
-
     # (pytest-xdist) Run tests in parallel.
     pytest_opts.append(f"-n={opts.get('n', 'auto')}")
 

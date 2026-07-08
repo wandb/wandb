@@ -24,7 +24,7 @@ def pr_curve(
     interp_size: int = 21,
     title: str = "Precision-Recall Curve",
     split_table: bool = False,
-) -> CustomChart:
+) -> CustomChart | None:
     """Constructs a Precision-Recall (PR) curve.
 
     The Precision-Recall curve is particularly useful for evaluating classifiers

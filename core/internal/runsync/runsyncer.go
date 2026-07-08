@@ -113,6 +113,12 @@ func (rs *RunSyncer) Init(ctx context.Context) (*RunInfo, error) {
 
 // Sync uploads the .wandb file.
 func (rs *RunSyncer) Sync(ctx context.Context) error {
+	rs.runHandle.UpdateTelemetry(&spb.TelemetryRecord{
+		Feature: &spb.Feature{
+			Sync2: true,
+		},
+	})
+
 	g := &errgroup.Group{}
 
 	// Print the run's URL once we know it.
