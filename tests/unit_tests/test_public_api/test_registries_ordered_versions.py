@@ -56,7 +56,34 @@ def test_registries_versions_with_order_rejects_start(service_api):
         registries.versions(start="cursor")
 
 
-def test_registries_collections_passes_registry_order(service_api):
+@pytest.mark.parametrize(
+    ("registry_order", "collection_order"),
+    [
+        (None, "-updated_at"),
+        ("name", None),
+        ("name", "-updated_at"),
+    ],
+    ids=["without_registry_order", "with_registry_order", "with_both_orders"],
+)
+def test_registries_collections(service_api, registry_order, collection_order):
+    registries = Registries(
+        service_api=service_api,
+        organization=ORG,
+        filter=REGISTRY_FILTER,
+        order=registry_order,
+    )
+
+    result = registries.collections(order=collection_order)
+
+    if registry_order is None:
+        assert isinstance(result, Collections)
+        assert result.order == collection_order
+    else:
+        assert isinstance(result, Iterator)
+        assert not isinstance(result, Collections)
+
+
+def test_registries_collections_with_order_rejects_start(service_api):
     registries = Registries(
         service_api=service_api,
         organization=ORG,
@@ -64,12 +91,10 @@ def test_registries_collections_passes_registry_order(service_api):
         order="name",
     )
 
-    result = registries.collections(order="-updated_at")
-
-    assert isinstance(result, Collections)
-    assert result.registry_order == "name"
-    assert result.order == "-updated_at"
-    assert result.registries_per_page == registries.per_page
+    with pytest.raises(
+        ValueError, match="is not supported when querying collections from registries"
+    ):
+        registries.collections(start="cursor")
 
 
 @pytest.mark.parametrize(
@@ -80,17 +105,8 @@ def test_registries_collections_passes_registry_order(service_api):
             "collection_filter": {"name": {"$contains": "model"}},
             "order": "-updated_at",
         },
-        {
-            "order": "name",
-            "registry_order": "-updated_at",
-            "registries_per_page": 50,
-        },
     ],
-    ids=[
-        "without_order",
-        "with_collection_order",
-        "with_registry_and_collection_order",
-    ],
+    ids=["without_order", "with_collection_order"],
 )
 def test_collections_versions(service_api, kwargs):
     collections = Collections(
@@ -102,14 +118,36 @@ def test_collections_versions(service_api, kwargs):
 
     result = collections.versions()
 
-    ordered = (
-        kwargs.get("order") is not None or kwargs.get("registry_order") is not None
-    )
-    if ordered:
+    if kwargs.get("order") is None:
+        assert isinstance(result, Versions)
+    else:
         assert isinstance(result, Iterator)
         assert not isinstance(result, Versions)
-    else:
-        assert isinstance(result, Versions)
+
+
+def test_registries_collections_versions_with_registry_and_collection_order(
+    service_api,
+):
+    registries = Registries(
+        service_api=service_api,
+        organization=ORG,
+        filter=REGISTRY_FILTER,
+        order="-updated_at",
+    )
+
+    result = (
+        version
+        for collection in registries.collections(order="name")
+        for version in Collections(
+            service_api=service_api,
+            organization=ORG,
+            registry_filter={"name": collection.project},
+            collection_filter={"name": collection.name},
+        ).versions()
+    )
+
+    assert isinstance(result, Iterator)
+    assert not isinstance(result, Versions)
 
 
 def test_collections_versions_with_order_rejects_start(service_api):

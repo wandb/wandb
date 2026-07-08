@@ -8,6 +8,7 @@ import wandb
 from pytest import fixture, mark, param, raises
 from wandb import Api, Artifact
 from wandb._strutils import b64decode_ascii
+from wandb.apis.public.registries.registries_search import Collections
 from wandb.apis.public.registries.registry import Registry
 from wandb.sdk.artifacts._validators import REGISTRY_PREFIX, remove_registry_prefix
 
@@ -577,15 +578,20 @@ def test_registries_versions_respects_registry_and_collection_order(
         for registry_idx, collection_idx in product(range(2), range(2))
     ]
 
+    registries = api.registries(
+        organization=org,
+        filter={"name": {"$contains": "order-test-dual-"}},
+        order="name",
+    )
     actual = [
         (remove_registry_prefix(version.project), version.name)
-        for version in api.registries(
+        for collection in registries.collections(order="name")
+        for version in Collections(
+            service_api=registries._service_api,
             organization=org,
-            filter={"name": {"$contains": "order-test-dual-"}},
-            order="name",
-        )
-        .collections(order="name")
-        .versions()
+            registry_filter={"name": collection.project},
+            collection_filter={"name": collection.name},
+        ).versions()
     ]
 
     assert actual == expected
