@@ -18,7 +18,6 @@ fragment SourceCollectionInfoFragment on ArtifactSequence {
 
 # A fragment on Project that only includes minimal identifying fields.
 fragment ProjectInfoFragment on Project {
-  id
   name
   entity {
     name
