@@ -102,7 +102,9 @@ def test_collections_versions(service_api, kwargs):
 
     result = collections.versions()
 
-    ordered = kwargs.get("order") is not None or kwargs.get("registry_order") is not None
+    ordered = (
+        kwargs.get("order") is not None or kwargs.get("registry_order") is not None
+    )
     if ordered:
         assert isinstance(result, Iterator)
         assert not isinstance(result, Versions)
