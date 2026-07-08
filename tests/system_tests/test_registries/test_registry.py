@@ -574,8 +574,7 @@ def test_registries_versions_respects_registry_and_collection_order(
 
     expected = [
         (f"order-test-dual-{registry_idx}", f"reg-collection-{collection_idx}:v0")
-        for registry_idx in range(2)
-        for collection_idx in range(2)
+        for registry_idx, collection_idx in product(range(2), range(2))
     ]
 
     actual = [
