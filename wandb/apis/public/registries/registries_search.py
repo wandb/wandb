@@ -122,10 +122,11 @@ class Registries(RelayPaginator["RegistryFragment", "Registry"]):
                 from a previous paginator's `.cursor` attribute.
                 Not supported when ``registries()`` was called with ``order=``.
         """
-        if self.order is not None and start is not None:
+        if (order := self.order) is not None and start is not None:
             raise ValueError(
-                "start= is not supported when querying versions from registries "
-                "fetched with order=. Remove order= from registries() or omit start=."
+                f"{start=} is not supported when querying versions from registries "
+                f"fetched with {order=}. Remove either 'order' from the registries "
+                "query or 'start' from the versions query."
             )
         return Versions(
             service_api=self._service_api,
@@ -276,13 +277,21 @@ class Collections(
                 Not supported when ``collections()`` or ``registries()`` was called
                 with ``order=``.
         """
-        if start is not None and (
-            self.order is not None or self.registry_order is not None
-        ):
+        order = self.order
+        registry_order = self.registry_order
+        if start is not None and (order is not None or registry_order is not None):
+            order_parts = [
+                part
+                for part in (
+                    f"{registry_order=}" if registry_order is not None else None,
+                    f"{order=}" if order is not None else None,
+                )
+                if part is not None
+            ]
             raise ValueError(
-                "start= is not supported when querying versions from collections "
-                "fetched with order=. Remove order= from collections() or "
-                "registries(), or omit start=."
+                f"{start=} is not supported when querying versions from collections "
+                f"fetched with {', '.join(order_parts)}. Remove either 'order' from the "
+                "collections/registries query or 'start' from the versions query."
             )
         return Versions(
             service_api=self._service_api,

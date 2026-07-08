@@ -557,12 +557,11 @@ def test_registries_versions_respects_registry_and_collection_order(
     api: Api,
     make_registry: Callable[..., Registry],
 ):
-    artifacts: list[Artifact] = []
     with wandb.init(entity=team) as run:
-        for i in range(4):
-            artifacts.append(
-                run.log_artifact(Artifact(f"order-test-artifact-{i}", type="test-type"))
-            )
+        artifacts = [
+            run.log_artifact(Artifact(f"order-test-artifact-{i}", type="test-type"))
+            for i in range(4)
+        ]
 
     for registry_idx in range(2):
         registry = make_registry(
