@@ -111,7 +111,7 @@ class Registries(RelayPaginator["RegistryFragment", "Registry"]):
         filter: dict[str, Any] | None = None,
         per_page: PositiveInt = 100,
         start: str | None = None,
-    ) -> Versions:
+    ) -> Versions | Iterator[Artifact]:
         """Returns the artifact versions belonging to these registries.
 
         Args:
@@ -128,6 +128,11 @@ class Registries(RelayPaginator["RegistryFragment", "Registry"]):
                 f"fetched with {order=}. Remove either 'order' from the registries "
                 "query or 'start' from the versions query."
             )
+        if self.order is not None:
+            return self._iter_versions_by_registry_order(
+                artifact_filter=filter,
+                per_page=per_page,
+            )
         return Versions(
             service_api=self._service_api,
             organization=self.organization,
@@ -136,9 +141,26 @@ class Registries(RelayPaginator["RegistryFragment", "Registry"]):
             artifact_filter=filter,
             per_page=per_page,
             start=start,
-            registry_order=self.order,
-            registries_per_page=self.per_page,
         )
+
+    def _iter_versions_by_registry_order(
+        self,
+        artifact_filter: dict[str, Any] | None,
+        per_page: PositiveInt,
+    ) -> Iterator[Artifact]:
+        for registry in self:
+            registry_filter = self.filter
+            if registry_name := registry.full_name:
+                registry_filter["name"] = registry_name
+
+            yield from Versions(
+                service_api=self._service_api,
+                organization=self.organization,
+                registry_filter=registry_filter,
+                collection_filter=None,
+                artifact_filter=artifact_filter,
+                per_page=per_page,
+            )
 
     @property
     def length(self):
@@ -203,7 +225,7 @@ class Collections(
             type(self).QUERY = REGISTRY_COLLECTIONS_GQL
 
         self.organization = organization
-        self.registry_filter = registry_filter
+        self.registry_filter = registry_filter or {}
         self.collection_filter = collection_filter or {}
         self.order = order
         self.registry_order = registry_order
@@ -236,11 +258,6 @@ class Collections(
         self.index = -1
         return self
 
-    def _registry_filter_for_registry(self, registry: Registry) -> dict[str, Any]:
-        registry_filter = dict(self.registry_filter or {})
-        registry_filter["name"] = registry.full_name
-        return registry_filter
-
     def _iter_by_registry_order(self) -> Iterator[ArtifactCollection]:
         registries = Registries(
             service_api=self._service_api,
@@ -259,13 +276,34 @@ class Collections(
                 per_page=self.per_page,
             )
 
+    def _versions_for_collection(
+        self,
+        collection: ArtifactCollection,
+        artifact_filter: dict[str, Any] | None,
+        per_page: PositiveInt,
+    ) -> Versions:
+        collection_filter = self.collection_filter
+        if collection_name := collection.name:
+            collection_filter["name"] = collection_name
+        registry_filter = self.registry_filter
+        if registry_name := collection.project:
+            registry_filter["name"] = registry_name
+        return Versions(
+            service_api=self._service_api,
+            organization=self.organization,
+            registry_filter=registry_filter,
+            collection_filter=collection_filter,
+            artifact_filter=artifact_filter,
+            per_page=per_page,
+        )
+
     @tracked
     def versions(
         self,
         filter: dict[str, Any] | None = None,
         per_page: PositiveInt = 100,
         start: str | None = None,
-    ) -> Versions:
+    ) -> Versions | Iterator[Artifact]:
         """Returns the artifact versions belonging to these collections.
 
         Args:
@@ -293,6 +331,16 @@ class Collections(
                 f"fetched with {', '.join(order_parts)}. Remove either 'order' from the "
                 "collections/registries query or 'start' from the versions query."
             )
+        if registry_order is not None:
+            return self._iter_versions_by_registry_order(
+                artifact_filter=filter,
+                per_page=per_page,
+            )
+        if order is not None:
+            return self._iter_versions_by_collection_order(
+                artifact_filter=filter,
+                per_page=per_page,
+            )
         return Versions(
             service_api=self._service_api,
             organization=self.organization,
@@ -301,11 +349,56 @@ class Collections(
             artifact_filter=filter,
             per_page=per_page,
             start=start,
-            collection_order=self.order,
-            collections_per_page=self.per_page,
-            registry_order=self.registry_order,
-            registries_per_page=self.registries_per_page,
         )
+
+    def _iter_versions_by_registry_order(
+        self,
+        artifact_filter: dict[str, Any] | None,
+        per_page: PositiveInt,
+    ) -> Iterator[Artifact]:
+        registries = Registries(
+            service_api=self._service_api,
+            organization=self.organization,
+            filter=self.registry_filter,
+            order=self.registry_order,
+            per_page=self.registries_per_page or self.per_page,
+        )
+        for registry in registries:
+            registry_filter = self.registry_filter
+            if registry_name := registry.full_name:
+                registry_filter["name"] = registry_name
+            if self.order is not None:
+                collections = Collections(
+                    service_api=self._service_api,
+                    organization=self.organization,
+                    registry_filter=registry_filter,
+                    collection_filter=self.collection_filter,
+                    order=self.order,
+                    per_page=self.per_page,
+                )
+                for collection in collections:
+                    yield from self._versions_for_collection(
+                        collection, artifact_filter, per_page
+                    )
+            else:
+                yield from Versions(
+                    service_api=self._service_api,
+                    organization=self.organization,
+                    registry_filter=registry_filter,
+                    collection_filter=self.collection_filter,
+                    artifact_filter=artifact_filter,
+                    per_page=per_page,
+                )
+
+    def _iter_versions_by_collection_order(
+        self,
+        artifact_filter: dict[str, Any] | None,
+        per_page: PositiveInt,
+    ) -> Iterator[Artifact]:
+        for collection in self:
+            yield from self._versions_for_collection(
+                collection, artifact_filter, per_page
+            )
 
     @override
     def _update_response(self) -> None:
@@ -363,10 +456,6 @@ class Versions(RelayPaginator["ArtifactMembershipFragment", "Artifact"]):
         artifact_filter: dict[str, Any] | None = None,
         per_page: PositiveInt = 100,
         start: str | None = None,
-        collection_order: str | None = None,
-        collections_per_page: PositiveInt | None = None,
-        registry_order: str | None = None,
-        registries_per_page: PositiveInt | None = None,
     ):
         from wandb.sdk.artifacts._generated import REGISTRY_VERSIONS_GQL
 
@@ -376,10 +465,6 @@ class Versions(RelayPaginator["ArtifactMembershipFragment", "Artifact"]):
         self.registry_filter = registry_filter
         self.collection_filter = collection_filter
         self.artifact_filter = artifact_filter or {}
-        self.collection_order = collection_order
-        self.collections_per_page = collections_per_page
-        self.registry_order = registry_order
-        self.registries_per_page = registries_per_page
         self._service_api = service_api
 
         variables = {
@@ -391,65 +476,6 @@ class Versions(RelayPaginator["ArtifactMembershipFragment", "Artifact"]):
         super().__init__(
             service_api, variables=variables, per_page=per_page, start=start
         )
-
-    @override
-    def __iter__(self) -> Iterator[Artifact]:
-        if self.registry_order is not None:
-            return self._iter_by_registry_order()
-        if self.collection_order is not None:
-            return self._iter_by_collection_order()
-        self.index = -1
-        return self
-
-    def _iter_by_registry_order(self) -> Iterator[Artifact]:
-        registries = Registries(
-            service_api=self._service_api,
-            organization=self.organization,
-            filter=self.registry_filter,
-            order=self.registry_order,
-            per_page=self.registries_per_page or self.per_page,
-        )
-        for registry in registries:
-            registry_filter = self.registry_filter or {}
-            if registry_name := registry.full_name:
-                registry_filter["name"] = registry_name
-
-            yield from Versions(
-                service_api=self._service_api,
-                organization=self.organization,
-                registry_filter=registry_filter,
-                collection_filter=self.collection_filter,
-                artifact_filter=self.artifact_filter,
-                per_page=self.per_page,
-                collection_order=self.collection_order,
-                collections_per_page=self.collections_per_page,
-            )
-
-    def _iter_by_collection_order(self) -> Iterator[Artifact]:
-        collections = Collections(
-            service_api=self._service_api,
-            organization=self.organization,
-            registry_filter=self.registry_filter,
-            collection_filter=self.collection_filter or {},
-            order=self.collection_order,
-            per_page=self.collections_per_page or self.per_page,
-        )
-        for collection in collections:
-            collection_filter = self.collection_filter or {}
-            if collection_name := collection.name:
-                collection_filter["name"] = collection_name
-            registry_filter = self.registry_filter or {}
-            if registry_name := collection.project:
-                registry_filter["name"] = registry_name
-
-            yield from Versions(
-                service_api=self._service_api,
-                organization=self.organization,
-                registry_filter=registry_filter,
-                collection_filter=collection_filter,
-                artifact_filter=self.artifact_filter,
-                per_page=self.per_page,
-            )
 
     @override
     def __next__(self) -> Artifact:
