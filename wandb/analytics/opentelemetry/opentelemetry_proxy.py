@@ -138,9 +138,9 @@ class OtelProvider:
         api_key: str | None = None,
         pid: int,
     ) -> None:
-        from wandb import env as _env
+        from wandb import env as wandb_env
 
-        self._enabled = bool(_env.error_reporting_enabled())
+        self._enabled = bool(wandb_env.error_reporting_enabled())
         self._pid = pid
         self._api_key = api_key
         self.scope = TelemetryContext()
