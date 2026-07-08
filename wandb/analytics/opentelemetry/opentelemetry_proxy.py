@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import functools
 import logging
 import os
@@ -8,7 +9,7 @@ import sys
 import threading
 import traceback
 from collections.abc import Callable
-from typing import Any, Concatenate, ParamSpec, TypedDict, TypeVar
+from typing import Concatenate, ParamSpec, TypedDict, TypeVar
 
 import requests
 from opentelemetry import metrics
@@ -58,14 +59,14 @@ _ALLOWED_LOW_CARDINALITY_KEYS: frozenset[str] = frozenset(
 
 
 def _guard(
-    func: Callable[Concatenate[OtelProvider, _P], _R],
-) -> Callable[Concatenate[OtelProvider, _P], _R]:
+    func: Callable[Concatenate[OtelProvider, _P], _R | None],
+) -> Callable[Concatenate[OtelProvider, _P], _R | None]:
     @functools.wraps(func)
     def wrapper(
         self: OtelProvider,
-        *args: Any,
-        **kwargs: Any,
-    ) -> Any:
+        *args: _P.args,
+        **kwargs: _P.kwargs,
+    ) -> _R | None:
         if not self._enabled:
             return None
 
@@ -149,7 +150,8 @@ class OtelProvider:
 
         self._booted = False
         self._boot_lock = threading.Lock()
-        self._session: requests.Session | None = None
+        self._state_lock = threading.RLock()
+        self._session: requests.Session = requests.Session()
         self._meter: metrics.Meter | None = None
         self._logger: OTelLogger | None = None
 
@@ -173,9 +175,10 @@ class OtelProvider:
             try:
                 resource = Resource.create({"service.name": _OTEL_SERVICE_NAME})
 
+                with self._state_lock:
+                    _configure_session_auth(self._session, self._api_key)
+
                 _redirect_otlp_http_exporter_logs()
-                self._session = requests.Session()
-                _configure_session_auth(self._session, self._api_key)
 
                 # Setup metrics exporter
                 metric_exporter = OTLPMetricExporter(
@@ -208,19 +211,19 @@ class OtelProvider:
                 self._booted = True
             except Exception:
                 _logger.debug("OtelProvider boot failed", exc_info=True)
-                self._enabled = False
-                self._booted = False
-                self._session = None
-                self._meter = None
-                self._logger = None
+                with self._state_lock:
+                    self._enabled = False
+                    self._booted = False
+                    self._meter = None
+                    self._logger = None
                 return False
 
             return True
 
     def set_api_key(self, api_key: str | None) -> None:
         """Sets or updates the API key for the OTel provider."""
-        self._api_key = api_key
-        if self._session is not None:
+        with self._state_lock:
+            self._api_key = api_key
             _configure_session_auth(self._session, api_key)
 
     @_guard
@@ -229,8 +232,9 @@ class OtelProvider:
         low_cardinality_attrs: LowCardinalityAttributes,
         high_cardinality_attrs: dict[str, str],
     ) -> None:
-        self.scope.add_low_cardinality_attributes(low_cardinality_attrs)
-        self.scope.add_high_cardinality_attributes(high_cardinality_attrs)
+        with self._state_lock:
+            self.scope.add_low_cardinality_attributes(low_cardinality_attrs)
+            self.scope.add_high_cardinality_attributes(high_cardinality_attrs)
 
     @_guard
     def _record_count(
@@ -243,9 +247,11 @@ class OtelProvider:
         included in the metric record.
         """
         assert self._meter is not None
+        with self._state_lock:
+            low_cardinality_attributes = dict(self.scope.low_cardinality_attributes)
 
         counter = self._meter.create_counter(name, unit="Count")
-        counter.add(1, attributes=self.scope.low_cardinality_attributes)
+        counter.add(1, attributes=low_cardinality_attributes)
 
     @_guard
     def record_log(
@@ -261,11 +267,12 @@ class OtelProvider:
         """
         assert self._logger is not None
 
-        merged_attributes = {
-            **self.scope.low_cardinality_attributes,
-            **self.scope.high_cardinality_attributes,
-            **(attributes or {}),
-        }
+        with self._state_lock:
+            merged_attributes = {
+                **self.scope.low_cardinality_attributes,
+                **self.scope.high_cardinality_attributes,
+                **(attributes or {}),
+            }
         self._logger.emit(
             body=message,
             severity_number=severity,
@@ -311,19 +318,19 @@ class OtelProvider:
             name="exception",
         )
 
-        exception_attributes = {
-            "exception.type": type(exc).__name__,
-            "exception.stacktrace": _exception_stacktrace(exc),
-            **self.scope.low_cardinality_attributes,
-            **self.scope.high_cardinality_attributes,
-        }
+        with self._state_lock:
+            exception_attributes = {
+                "exception.type": type(exc).__name__,
+                "exception.stacktrace": _exception_stacktrace(exc),
+                **self.scope.low_cardinality_attributes,
+                **self.scope.high_cardinality_attributes,
+            }
         self.record_log(
             message,
             severity=SeverityNumber.ERROR,
             attributes=exception_attributes,
         )
 
-    @_guard
     def reraise(self, exc: Exception) -> Never:
         """Re-raise after logging an exception, preserving traceback."""
         try:
@@ -385,12 +392,8 @@ class _WandbLoggerForwardingHandler(logging.Handler):
         self._wandb_logger = wandb_logger
 
     def emit(self, record: logging.LogRecord) -> None:
-        try:
-            if self._wandb_logger.isEnabledFor(record.levelno):
-                self._wandb_logger.handle(record)
-        except Exception:
-            # Ignore errors from the logger.
-            pass
+        with contextlib.suppress(Exception):
+            self._wandb_logger.handle(record)
 
 
 def _redirect_otlp_http_exporter_logs() -> None:
