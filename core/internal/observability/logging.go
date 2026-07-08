@@ -175,7 +175,7 @@ func (cl *CoreLogger) CaptureInfo(msg string, args ...any) {
 // captureException uploads an error to Sentry if possible and allowed.
 func (cl *CoreLogger) captureException(err error, args ...any) {
 	if cl.telemetryProxy != nil {
-		cl.telemetryProxy.Exception(err.Error(), err)
+		cl.telemetryProxy.Exception(context.Background(), err.Error(), err)
 	}
 
 	if cl.sentryCtx == nil || !cl.captureRateLimiter.AllowCapture(err.Error()) {
@@ -196,8 +196,10 @@ func (cl *CoreLogger) captureMessage(
 ) {
 	if cl.telemetryProxy != nil {
 		cl.telemetryProxy.RecordLog(
+			context.Background(),
 			msg,
 			argsToAttributes(args...),
+			nil,
 			severity,
 		)
 	}
@@ -240,7 +242,12 @@ func (cl *CoreLogger) RecordTelemetry(
 		return
 	}
 
-	cl.telemetryProxy.RecordMetricAndLogEvent(event, attributes)
+	cl.telemetryProxy.RecordMetricAndLogEvent(
+		context.Background(),
+		event,
+		attributes,
+		nil,
+	)
 }
 
 // NewNoOpLogger returns a logger that discards all messages.
