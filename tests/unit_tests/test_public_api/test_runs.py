@@ -345,40 +345,28 @@ def test_sweep_property_loads_from_api():
     )
 
 
-_MISSING_RUN_RESPONSE = {"project": {"run": None}}
+@pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
+@pytest.mark.parametrize(
+    "expected_error",
+    [
+        pytest.param(RunNotFoundError, id="run-not-found-error"),
+        # RunNotFoundError is a subclass of ValueError
+        pytest.param(ValueError, id="value-error"),
+    ],
+)
+def test_lazy_run_missing_raises(expected_error):
+    service_api = mock.MagicMock()
+    service_api.execute_graphql.return_value = {"project": {"run": None}}
 
-
-def _make_lazy_run(service_api, **kwargs):
-    """Build a lazy Run from lightweight attrs (no fetch at construction)."""
-    return Run(
+    run = Run(
         service_api=service_api,
         entity="test-entity",
         project="test-project",
         run_id="run-abc123",
         attrs=dict(_make_lightweight_attrs()),
         lazy=True,
-        **kwargs,
     )
 
-
-@pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
-def test_lazy_run_missing_raises_by_default():
-    service_api = mock.MagicMock()
-    service_api.execute_graphql.return_value = _MISSING_RUN_RESPONSE
-
-    run = _make_lazy_run(service_api)
-
-    with pytest.raises(ValueError, match="Could not find run"):
-        _ = run.config
-
-
-@pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
-def test_lazy_run_missing_skip_marks_deleted_and_returns_empty():
-    service_api = mock.MagicMock()
-    service_api.execute_graphql.return_value = _MISSING_RUN_RESPONSE
-
-    run = _make_lazy_run(service_api, on_missing="skip")
-
-    with pytest.raises(RunNotFoundError):
+    with pytest.raises(expected_error, match="Could not find run"):
         # run.config triggers a full data load
         _ = run.config
