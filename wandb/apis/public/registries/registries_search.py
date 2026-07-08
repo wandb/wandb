@@ -107,6 +107,7 @@ class Registries(RelayPaginator["RegistryFragment", "Registry"]):
         if self.order is not None:
             return self._iter_collections_by_registry_order(
                 collection_filter=filter,
+                collection_order=order,
                 per_page=per_page,
             )
         return Collections(
@@ -122,6 +123,7 @@ class Registries(RelayPaginator["RegistryFragment", "Registry"]):
     def _iter_collections_by_registry_order(
         self,
         collection_filter: dict[str, Any] | None,
+        collection_order: str | None,
         per_page: PositiveInt,
     ) -> Iterator[ArtifactCollection]:
         for registry in self:
@@ -130,6 +132,7 @@ class Registries(RelayPaginator["RegistryFragment", "Registry"]):
                 organization=self.organization,
                 registry_filter=_registry_filter_for_registry(registry),
                 collection_filter=collection_filter,
+                order=collection_order,
                 per_page=per_page,
             )
 
