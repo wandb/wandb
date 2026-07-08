@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Generator
+from itertools import product
 from unittest.mock import patch
 
 import wandb
