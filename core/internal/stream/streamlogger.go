@@ -38,10 +38,7 @@ func streamTelemetryProxy(s *settings.Settings) analytics.OpenTelemetryProxy {
 		return analytics.NoopOpenTelemetryProxy{}
 	}
 
-	return analytics.NewOpenTelemetryProxy(
-		s.GetBaseURL(),
-		s.GetAPIKey(),
-	)
+	return analytics.NewOpenTelemetryProxy(s)
 }
 
 // symlinkDebugCore symlinks the debug-core.log file to the run's directory.
