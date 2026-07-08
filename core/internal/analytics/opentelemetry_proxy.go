@@ -279,9 +279,6 @@ func newOTLPHTTPClient(apiKey string) *http.Client {
 
 // Start implements OpenTelemetryProxy.Start.
 func (o *OpenTelemetryProxyImpl) Start(ctx context.Context) error {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-
 	otel.SetErrorHandler(otel.ErrorHandlerFunc(func(err error) {
 		slog.Error(
 			"analytics: failed to send telemetry to backend proxy",
@@ -295,15 +292,44 @@ func (o *OpenTelemetryProxyImpl) Start(ctx context.Context) error {
 		resource.WithAttributes(semconv.ServiceName(serviceName)),
 	)
 	if err != nil {
+		o.shutdown.Store(true)
 		return fmt.Errorf("create resource: %w", err)
 	}
 
-	if err := o.setupMetrics(ctx, res); err != nil {
+	meterProvider, err := o.setupMetrics(ctx, res)
+	if err != nil {
+		o.shutdown.Store(true)
 		return err
 	}
-	if err := o.setupLogs(ctx, res); err != nil {
+	logProvider, err := o.setupLogs(ctx, res)
+	if err != nil {
+		o.shutdown.Store(true)
+		if shutdownErr := shutdownTelemetryProviders(
+			context.Background(),
+			meterProvider,
+			nil,
+		); shutdownErr != nil {
+			return fmt.Errorf("%w; cleanup failed: %v", err, shutdownErr)
+		}
 		return err
 	}
+
+	o.mu.Lock()
+	if o.shutdown.Load() {
+		o.mu.Unlock()
+		return shutdownTelemetryProviders(
+			context.Background(),
+			meterProvider,
+			logProvider,
+		)
+	}
+
+	o.meterProvider = meterProvider
+	o.logProvider = logProvider
+	otel.SetMeterProvider(o.meterProvider)
+	global.SetLoggerProvider(o.logProvider)
+	o.mu.Unlock()
+
 	return nil
 }
 
@@ -311,7 +337,7 @@ func (o *OpenTelemetryProxyImpl) Start(ctx context.Context) error {
 func (o *OpenTelemetryProxyImpl) setupMetrics(
 	ctx context.Context,
 	res *resource.Resource,
-) error {
+) (*metric.MeterProvider, error) {
 	exporter, err := otlpmetrichttp.New(ctx,
 		otlpmetrichttp.WithEndpointURL(o.endpoint),
 		otlpmetrichttp.WithURLPath(metricsPath),
@@ -319,60 +345,52 @@ func (o *OpenTelemetryProxyImpl) setupMetrics(
 		otlpmetrichttp.WithTemporalitySelector(metric.DeltaTemporalitySelector),
 	)
 	if err != nil {
-		return fmt.Errorf("create metric exporter: %w", err)
+		return nil, fmt.Errorf("create metric exporter: %w", err)
 	}
 
-	o.meterProvider = metric.NewMeterProvider(
+	return metric.NewMeterProvider(
 		metric.WithResource(res),
 		metric.WithReader(
 			metric.NewPeriodicReader(exporter,
 				metric.WithInterval(defaultExportIntervalMs*time.Millisecond),
 			),
 		),
-	)
-	otel.SetMeterProvider(o.meterProvider)
-	return nil
+	), nil
 }
 
 // setupLogs sets up the OpenTelemetry log provider, used to record logs.
 func (o *OpenTelemetryProxyImpl) setupLogs(
 	ctx context.Context,
 	res *resource.Resource,
-) error {
+) (*otellog.LoggerProvider, error) {
 	exporter, err := otlploghttp.New(ctx,
 		otlploghttp.WithEndpointURL(o.endpoint),
 		otlploghttp.WithURLPath(logsPath),
 		otlploghttp.WithHTTPClient(o.httpClient),
 	)
 	if err != nil {
-		return fmt.Errorf("create log exporter: %w", err)
+		return nil, fmt.Errorf("create log exporter: %w", err)
 	}
 
-	o.logProvider = otellog.NewLoggerProvider(
+	return otellog.NewLoggerProvider(
 		otellog.WithResource(res),
 		otellog.WithProcessor(otellog.NewBatchProcessor(exporter)),
-	)
-	global.SetLoggerProvider(o.logProvider)
-	return nil
+	), nil
 }
 
-// Shutdown implements OpenTelemetryProxy.Shutdown.
-func (o *OpenTelemetryProxyImpl) Shutdown(ctx context.Context) error {
-	if !o.shutdown.CompareAndSwap(false, true) {
-		return nil
-	}
-
-	o.mu.Lock()
-	defer o.mu.Unlock()
-
+func shutdownTelemetryProviders(
+	ctx context.Context,
+	meterProvider *metric.MeterProvider,
+	logProvider *otellog.LoggerProvider,
+) error {
 	var errs []error
-	if o.meterProvider != nil {
-		if err := o.meterProvider.Shutdown(ctx); err != nil {
+	if meterProvider != nil {
+		if err := meterProvider.Shutdown(ctx); err != nil {
 			errs = append(errs, err)
 		}
 	}
-	if o.logProvider != nil {
-		if err := o.logProvider.Shutdown(ctx); err != nil {
+	if logProvider != nil {
+		if err := logProvider.Shutdown(ctx); err != nil {
 			errs = append(errs, err)
 		}
 	}
@@ -380,6 +398,20 @@ func (o *OpenTelemetryProxyImpl) Shutdown(ctx context.Context) error {
 		return fmt.Errorf("shutdown errors: %v", errs)
 	}
 	return nil
+}
+
+// Shutdown implements OpenTelemetryProxy.Shutdown.
+func (o *OpenTelemetryProxyImpl) Shutdown(ctx context.Context) error {
+	o.mu.Lock()
+	if !o.shutdown.CompareAndSwap(false, true) {
+		o.mu.Unlock()
+		return nil
+	}
+
+	meterProvider := o.meterProvider
+	logProvider := o.logProvider
+	o.mu.Unlock()
+	return shutdownTelemetryProviders(ctx, meterProvider, logProvider)
 }
 
 // recordCount increments a counter metric by 1.
