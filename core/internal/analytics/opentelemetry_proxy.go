@@ -4,6 +4,7 @@ package analytics
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"log/slog"
 	"maps"
@@ -27,7 +28,9 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
 
 	"github.com/wandb/wandb/core/internal/api"
+	"github.com/wandb/wandb/core/internal/clients"
 	"github.com/wandb/wandb/core/internal/httplayers"
+	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/version"
 )
 
@@ -282,28 +285,50 @@ type OpenTelemetryProxyImpl struct {
 //
 // When analytics is disabled or no API key is available, a no-op proxy is
 // returned so no providers are created and nothing is recorded.
-func NewOpenTelemetryProxy(endpoint, apiKey string) OpenTelemetryProxy {
-	if disabled.Load() || apiKey == "" {
+func NewOpenTelemetryProxy(wandbSettings *settings.Settings) OpenTelemetryProxy {
+	if disabled.Load() || wandbSettings.GetAPIKey() == "" {
 		return NoopOpenTelemetryProxy{}
 	}
 
 	return &OpenTelemetryProxyImpl{
-		endpoint:         endpoint,
+		endpoint:         wandbSettings.GetBaseURL(),
 		telemetryContext: NewTelemetryContext(),
-		httpClient:       newOTLPHTTPClient(apiKey),
+		httpClient:       newOTLPHTTPClient(wandbSettings),
 	}
 }
 
-func newOTLPHTTPClient(apiKey string) *http.Client {
+func newOTLPHTTPClient(wandbSettings *settings.Settings) *http.Client {
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.Proxy = clients.ProxyFn(
+		wandbSettings.GetHTTPProxy(),
+		wandbSettings.GetHTTPSProxy(),
+	)
+	if wandbSettings.IsInsecureDisableSSL() {
+		transport.TLSClientConfig = &tls.Config{
+			InsecureSkipVerify: true,
+		}
+	}
+
+	extraHeaders := make(http.Header, len(wandbSettings.GetExtraHTTPHeaders()))
+	for key, value := range wandbSettings.GetExtraHTTPHeaders() {
+		extraHeaders.Set(key, value)
+	}
+	if header := extraHeaders.Get("Proxy-Authorization"); header != "" {
+		transport.ProxyConnectHeader = http.Header{
+			"Proxy-Authorization": []string{header},
+		}
+	}
+
 	client := &http.Client{
 		Timeout: defaultTimeout,
 	}
-	if apiKey != "" {
-		client.Transport = httplayers.WrapRoundTripper(
-			http.DefaultTransport,
-			api.NewAPIKeyCredentialProvider(apiKey),
-		)
-	}
+	client.Transport = httplayers.WrapRoundTripper(
+		transport,
+		httplayers.Concat(
+			httplayers.ExtraHeaders(extraHeaders),
+			api.NewAPIKeyCredentialProvider(wandbSettings.GetAPIKey()),
+		),
+	)
 	return client
 }
 
