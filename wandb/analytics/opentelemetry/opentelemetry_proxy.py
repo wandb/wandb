@@ -391,9 +391,10 @@ class _WandbLoggerForwardingHandler(logging.Handler):
         super().__init__()
         self._wandb_logger = wandb_logger
 
-    def emit(self, record: logging.LogRecord) -> None:
+    def handle(self, record: logging.LogRecord) -> bool:
         with contextlib.suppress(Exception):
             self._wandb_logger.handle(record)
+        return True
 
 
 def _redirect_otlp_http_exporter_logs() -> None:
