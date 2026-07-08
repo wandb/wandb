@@ -77,18 +77,6 @@ class Registries(RelayPaginator["RegistryFragment", "Registry"]):
                 raise StopIteration
         return self.objects[self.index]
 
-    def _iter_registries(self) -> Iterator[Registry]:
-        saved_index = self.index
-        self.index = -1
-        try:
-            while True:
-                try:
-                    yield next(self)
-                except StopIteration:
-                    break
-        finally:
-            self.index = saved_index
-
     @tracked
     def collections(
         self,
@@ -138,7 +126,7 @@ class Registries(RelayPaginator["RegistryFragment", "Registry"]):
         collection_order: str | None,
         per_page: PositiveInt,
     ) -> Iterator[ArtifactCollection]:
-        for registry in self._iter_registries():
+        for registry in self:
             yield from Collections(
                 service_api=self._service_api,
                 organization=self.organization,
@@ -191,7 +179,7 @@ class Registries(RelayPaginator["RegistryFragment", "Registry"]):
         artifact_filter: dict[str, Any] | None,
         per_page: PositiveInt,
     ) -> Iterator[Artifact]:
-        for registry in self._iter_registries():
+        for registry in self:
             yield from Versions(
                 service_api=self._service_api,
                 organization=self.organization,
