@@ -214,7 +214,7 @@ func TestNewTelemetryContext_Defaults(t *testing.T) {
 
 func TestTelemetryContext_AddLowCardinalityAttributes(t *testing.T) {
 	tc := analytics.NewTelemetryContext()
-	tc.AddLowCardinalityAttributes(map[string]string{
+	tc.SetLowCardinalityAttributes(map[string]string{
 		"exception.type": "MyError",
 	})
 
@@ -227,7 +227,7 @@ func TestTelemetryContext_AddLowCardinalityAttributes_DropsUnallowedKeys(
 	t *testing.T,
 ) {
 	tc := analytics.NewTelemetryContext()
-	tc.AddLowCardinalityAttributes(map[string]string{
+	tc.SetLowCardinalityAttributes(map[string]string{
 		"not_allowed_key": "should-be-dropped",
 	})
 
@@ -242,10 +242,10 @@ func TestTelemetryContext_AddLowCardinalityAttributes_EmptyIsNoop(
 	tc := analytics.NewTelemetryContext()
 	before := tc.LowCardinalitySnapshot(nil)
 
-	tc.AddLowCardinalityAttributes(nil)
+	tc.SetLowCardinalityAttributes(nil)
 	assert.Equal(t, before, tc.LowCardinalitySnapshot(nil))
 
-	tc.AddLowCardinalityAttributes(map[string]string{})
+	tc.SetLowCardinalityAttributes(map[string]string{})
 	assert.Equal(t, before, tc.LowCardinalitySnapshot(nil))
 }
 
@@ -267,7 +267,7 @@ func TestTelemetryContext_Snapshot_ArgumentOverridesContext(t *testing.T) {
 	tc.AddHighCardinalityAttributes(
 		map[string]string{"test_key": "from-context"},
 	)
-	tc.AddLowCardinalityAttributes(
+	tc.SetLowCardinalityAttributes(
 		map[string]string{"wandb_version": "from-context"},
 	)
 
