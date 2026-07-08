@@ -99,7 +99,11 @@ def test_registries_collections_passes_registry_order(service_api):
             },
         ),
     ],
-    ids=["without_order", "with_collection_order", "with_registry_and_collection_order"],
+    ids=[
+        "without_order",
+        "with_collection_order",
+        "with_registry_and_collection_order",
+    ],
 )
 def test_collections_versions(service_api, kwargs, expected):
     collections = Collections(
