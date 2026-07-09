@@ -31,6 +31,7 @@ class EventTriggeringConditionType(str, Enum):
 
 class TriggerScopeType(str, Enum):
     ARTIFACT_COLLECTION = "ARTIFACT_COLLECTION"
+    ENTITY = "ENTITY"
     PROJECT = "PROJECT"
 
 

@@ -29,6 +29,7 @@ Note:
 
 from __future__ import annotations
 
+import json
 import urllib
 from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any, ClassVar
@@ -40,8 +41,13 @@ from wandb import util
 from wandb.apis import public
 from wandb.apis.attrs import Attrs
 from wandb.apis.paginator import SizedPaginator
-from wandb.errors import Error
+from wandb.errors import Error, UnsupportedError
+from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.lib import ipython
+
+# Minimum W&B server release that supports filtering sweeps via the `filters`
+# argument on the `sweeps` field.
+_SWEEP_FILTERS_MIN_SERVER_VERSION = "0.81.4"
 
 if TYPE_CHECKING:
     from wandb.apis._generated import GetSweeps
@@ -77,6 +83,7 @@ class Sweeps(SizedPaginator["Sweep"]):
         entity: str,
         project: str,
         per_page: int = 50,
+        filters: dict[str, Any] | None = None,
     ) -> None:
         """An iterable collection of `Sweep` objects.
 
@@ -85,6 +92,8 @@ class Sweeps(SizedPaginator["Sweep"]):
             entity: The entity which owns the sweeps.
             project: The project which contains the sweeps.
             per_page: The number of sweeps to fetch per request to the API.
+            filters: (dict) queries for specific sweeps using the runs filters,
+                See wandb/apis/public/api.py:runs for more details.
         """
         if self.QUERY is None:
             from wandb.apis._generated import GET_SWEEPS_GQL
@@ -94,7 +103,25 @@ class Sweeps(SizedPaginator["Sweep"]):
         self.entity = entity
         self.project = project
         self._service_api = service_api
-        variables = {"project": self.project, "entity": self.entity}
+        self._supports_filtering = service_api.feature_enabled(
+            pb.SWEEPS_QUERY_FILTERING
+        )
+
+        # Fail fast if the caller requested filtering but the
+        # server can't honor it, rather than silently returning unfiltered sweeps.
+        if filters and not self._supports_filtering:
+            raise UnsupportedError(
+                "Filtering sweeps is not supported on this W&B server version. "
+                "Please upgrade your server to release "
+                f"{_SWEEP_FILTERS_MIN_SERVER_VERSION} or later, or query sweeps "
+                "on https://wandb.ai."
+            )
+
+        variables = {
+            "project": self.project,
+            "entity": self.entity,
+            "filters": json.dumps(filters or {}),
+        }
         super().__init__(service_api, variables, per_page)
 
     @override
@@ -102,7 +129,14 @@ class Sweeps(SizedPaginator["Sweep"]):
         """Fetch and validate the response data for the current page."""
         from wandb.apis._generated import GetSweeps
 
-        data = self._service_api.execute_graphql(self.QUERY, variables=self.variables)
+        # On servers that don't support the `filters` argument, strip it from the
+        # query so that listing sweeps still works.
+        omit_variables = None if self._supports_filtering else ["filters"]
+        data = self._service_api.execute_graphql(
+            self.QUERY,
+            variables=self.variables,
+            omit_variables=omit_variables,
+        )
         self.last_response = GetSweeps.model_validate(data)
 
     @property
