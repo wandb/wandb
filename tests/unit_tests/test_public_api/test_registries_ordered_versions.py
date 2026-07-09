@@ -43,9 +43,7 @@ def _mock_advanced_search(service_api, *, enabled: bool) -> None:
     [(True, "id"), (False, "project_id")],
     ids=["clickhouse", "non_clickhouse"],
 )
-def test_registry_filter_for_registry_uses_project_id_key(
-    service_api, enabled, key
-):
+def test_registry_filter_for_registry_uses_project_id_key(service_api, enabled, key):
     _mock_advanced_search(service_api, enabled=enabled)
     registry = MagicMock()
     registry.full_name = "wandb-registry-test"

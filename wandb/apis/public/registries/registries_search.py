@@ -334,9 +334,7 @@ class Collections(
                     service_api=self._service_api,
                     organization=self.organization,
                 ),
-                collection_filter={"name": collection.name}
-                if collection.name
-                else {},
+                collection_filter={"name": collection.name} if collection.name else {},
                 artifact_filter=artifact_filter,
                 per_page=per_page,
             )
