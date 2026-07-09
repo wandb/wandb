@@ -24,11 +24,11 @@ from wandb.sdk.artifacts._generated import (
     FetchOrgInfoFromEntity,
 )
 from wandb.sdk.artifacts._gqlutils import server_supports
-
-_PROJECT_GQL_ID = b64encode_ascii("Project:1")
 from wandb.sdk.artifacts.exceptions import ArtifactFinalizedError
 from wandb.sdk.lib.paths import StrPath
 from wandb.sdk.lib.service.service_connection import WandbApiFailedError
+
+_PROJECT_GQL_ID = b64encode_ascii("Project:1")
 
 
 @fixture
