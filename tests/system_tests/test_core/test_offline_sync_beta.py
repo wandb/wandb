@@ -291,8 +291,8 @@ def test_resyncs_resumed_offline_run_keep_same_steps(
     """Re-syncing a resumed offline run's files must not shift step numbers.
 
     The starting step for a resumed offline run's history is only known
-    once `wandb sync` reaches the backend, so it saves it in a .syncstate 
-    file on first sync, so it that re-syncing the same files later would 
+    once `wandb sync` reaches the backend, so it saves it in a .syncstate
+    file on first sync, so it that re-syncing the same files later would
     not recompute the starting step and shift the step numbers for the
     same segment.
     """
