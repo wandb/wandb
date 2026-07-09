@@ -25,6 +25,8 @@ from opentelemetry.sdk.resources import Resource
 from requests import auth as requests_auth
 from typing_extensions import Never
 
+from wandb import env
+
 _P = ParamSpec("_P")
 _R = TypeVar("_R")
 
@@ -138,9 +140,7 @@ class OtelProvider:
         api_key: str | None = None,
         pid: int,
     ) -> None:
-        from wandb import env as wandb_env
-
-        self._enabled = bool(wandb_env.error_reporting_enabled())
+        self._enabled = bool(env.error_reporting_enabled())
         self._pid = pid
         self._api_key = api_key
         self._scope = TelemetryContext()
@@ -375,12 +375,10 @@ def _exception_stacktrace(exc: Exception) -> str:
 
 
 def _otel_endpoint(endpoint: str | None) -> str:
-    from wandb import env as _env
-
     if endpoint is None:
         endpoint = (
-            os.environ.get(_env.TELEMETRY_ENDPOINT)
-            or os.environ.get(_env.BASE_URL)
+            os.environ.get(env.TELEMETRY_ENDPOINT)
+            or os.environ.get(env.BASE_URL)
             or _DEFAULT_ENDPOINT
         )
     return endpoint.rstrip("/")
