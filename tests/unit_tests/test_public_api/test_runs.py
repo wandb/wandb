@@ -3,9 +3,8 @@ from unittest import mock
 
 import pytest
 import wandb
-from wandb.apis.public.runs import Run
+from wandb.apis.public.runs import Run, RunNotFoundError
 from wandb.apis.public.sweeps import Sweep
-from wandb.errors import RunNotFoundError
 from wandb.proto import wandb_api_pb2 as apb
 
 
@@ -346,15 +345,7 @@ def test_sweep_property_loads_from_api():
 
 
 @pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
-@pytest.mark.parametrize(
-    "expected_error",
-    [
-        pytest.param(RunNotFoundError, id="run-not-found-error"),
-        # RunNotFoundError is a subclass of ValueError
-        pytest.param(ValueError, id="value-error"),
-    ],
-)
-def test_lazy_run_missing_raises(expected_error):
+def test_lazy_run_missing_raises():
     service_api = mock.MagicMock()
     service_api.execute_graphql.return_value = {"project": {"run": None}}
 
@@ -367,6 +358,6 @@ def test_lazy_run_missing_raises(expected_error):
         lazy=True,
     )
 
-    with pytest.raises(expected_error, match="Could not find run"):
+    with pytest.raises(RunNotFoundError, match="Could not find run"):
         # run.config triggers a full data load
         _ = run.config

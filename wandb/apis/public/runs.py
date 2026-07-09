@@ -58,7 +58,6 @@ from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.paginator import SizedPaginator
 from wandb.apis.public.const import RETRY_TIMEDELTA
 from wandb.apis.public.service_api import ServiceApi
-from wandb.errors.errors import RunNotFoundError
 from wandb.proto import wandb_api_pb2 as apb
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk import wandb_setup
@@ -126,6 +125,10 @@ LIGHTWEIGHT_RUN_FRAGMENT = """fragment LightweightRunFragment on Run {
 # Fragment name constants to avoid string parsing
 RUN_FRAGMENT_NAME = "RunFragment"
 LIGHTWEIGHT_RUN_FRAGMENT_NAME = "LightweightRunFragment"
+
+
+class RunNotFoundError(ValueError):
+    """Raised when a run's data is not able to be loaded."""
 
 
 def _create_runs_query(*, lazy: bool) -> str:
@@ -886,7 +889,19 @@ class Run(Attrs):
         return self._attrs
 
     def load(self, force: bool = False) -> dict[str, Any]:
-        """Load run data using appropriate fragment based on lazy mode."""
+        """Load run data using appropriate fragment based on lazy mode.
+
+        Args:
+            force: If True, re-fetch the run data from the server,
+                even if it is already loaded.
+
+        Returns:
+            A dictionary of the run data.
+
+        Raises:
+            RunNotFoundError: If the run is not found,
+                or the run data can not be loaded.
+        """
         # Load any provided attrs
         if self._attrs:
             self._load_from_attrs()

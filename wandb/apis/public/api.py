@@ -1139,10 +1139,6 @@ class Api:
         Returns:
             A `Runs` object, which is an iterable collection of `Run` objects.
 
-        Raises:
-            RunNotFoundError: If a run is not found,
-                or run data is not able to be loaded during iteration.
-
         Examples:
         ```python
         import wandb
