@@ -73,12 +73,12 @@ def restricted_viewer_role_enabled(api: Api, org: str) -> bool:
     """Whether the server has the Restricted Viewer registry role enabled.
 
     The role is gated by a backend ramp (`gorilla.RegistryObserverRoleUse`,
-    IDType OrgName), not a ServerFeature flag, so probe it via the generic
-    `organization.featureFlags` query. The ramp key was removed in
-    wandb/core#42174 (server v0.81.0), which hardcoded the role on -- there the
-    key is simply absent, which we treat as enabled. So: enabled unless the ramp
-    is explicitly present and disabled. This lets the guard self-clear once the
-    min server version is bumped past the point where the role is always on.
+    IDType OrgName), not a ServerFeature flag, so we probe it with the generic
+    `organization.featureFlags` query. The ramp key was removed in wandb/core
+    #42174 (server v0.81.0), which forced the role on, so on newer servers the
+    key is absent and we treat that as enabled. In short, the role is enabled
+    unless the ramp is present and disabled. This lets the guard clear itself
+    once the min server version passes the point where the role is always on.
     """
     query = """
     query RegistryObserverRoleRamp($org: String!) {
@@ -93,17 +93,32 @@ def restricted_viewer_role_enabled(api: Api, org: str) -> bool:
     try:
         data = api._service_api.execute_graphql(query, variables={"org": org})
     except Exception:
-        # Newer servers (>= ~0.81) removed this ramp / may not expose the
-        # featureFlags query in the same shape. If we can't probe it, assume the
-        # role is available and let the test run rather than skip.
+        # Newer servers (>= ~0.81) removed this ramp and may not expose the
+        # featureFlags query. If we cannot probe it, assume the role is available
+        # and run the test rather than skip.
         return True
     flags = ((data or {}).get("organization") or {}).get("featureFlags") or []
     for flag in flags:
         if flag and flag.get("rampKey") == "gorilla.RegistryObserverRoleUse":
             return bool(flag.get("isEnabled"))
-    # Key absent => predates the ramp (< ~0.68) or postdates its removal
-    # (>= 0.81, role hardcoded on). The min server version is well past 0.68.
+    # Key absent means the server predates the ramp (< ~0.68) or postdates its
+    # removal (>= 0.81, role always on). The min server version is past 0.68.
     return True
+
+
+@fixture
+def models_viewer_registry_write_supported(api: Api) -> bool:
+    """Whether a Models-Viewer registry member can perform registry writes.
+
+    Registry write access was decoupled from the full Models seat in server
+    v0.75.0 (wandb/core #34565). No ServerFeature shipped in exactly 0.75.0, so
+    we use TOTAL_COUNT_IN_FILE_CONNECTION (first shipped in v0.76.0) as a
+    conservative version proxy for "server >= 0.75.0". It is not related to file
+    counts. When present, the decoupling exists. When absent, as on our pre-0.75
+    min-server image, the caller should skip. Revisit if the min-server pin moves
+    into the 0.75.x to 0.76 range.
+    """
+    return server_supports(api._service_api, pb.TOTAL_COUNT_IN_FILE_CONNECTION)
 
 
 @fixture
