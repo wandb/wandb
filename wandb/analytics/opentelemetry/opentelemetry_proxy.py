@@ -14,6 +14,7 @@ import requests
 from opentelemetry._logs import SeverityNumber
 from opentelemetry.exporter.otlp.proto.http._log_exporter import OTLPLogExporter
 from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExporter
+from opentelemetry.metrics import Counter
 from opentelemetry.sdk._logs import LoggerProvider
 from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
 from opentelemetry.sdk.metrics import MeterProvider
@@ -145,10 +146,10 @@ class OtelProvider:
         self._pid = pid
         self._api_key = api_key
         self._scope = TelemetryContext()
-
         self._state_lock = threading.RLock()
         self._session: requests.Session = requests.Session()
 
+        self._counters: dict[str, Counter] = {}
         self._initialize_otel_resources(endpoint, api_key)
 
     def _initialize_otel_resources(
@@ -238,6 +239,11 @@ class OtelProvider:
         assert self._meter is not None
         with self._state_lock:
             low_cardinality_attributes = dict(self._scope.low_cardinality_attributes)
+
+        counter = self._counters.get(name)
+        if counter is None:
+            counter = self._meter.create_counter(name, unit="Count")
+            self._counters[name] = counter
 
         counter = self._meter.create_counter(name, unit="Count")
         counter.add(1, attributes=low_cardinality_attributes)
