@@ -1119,8 +1119,6 @@ class Api:
         - `$exists`
         - `$regex`
 
-
-
         Args:
             path: (str) path to project, should be in the form: "entity/project"
             filters: (dict) queries for specific runs using the MongoDB query language.
@@ -1222,6 +1220,10 @@ class Api:
 
         Returns:
             A `Run` object.
+
+        Raises:
+            RunNotFoundError: If a run is not found,
+                or run data is not able to be loaded.
         """
         entity, project, run_id = self._parse_path(path)
         if not self._runs.get(path):
