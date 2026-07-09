@@ -12,8 +12,6 @@ from collections.abc import Callable
 from typing import Concatenate, ParamSpec, TypedDict, TypeVar
 
 import requests
-from opentelemetry import metrics
-from opentelemetry._logs import Logger as OTelLogger
 from opentelemetry._logs import SeverityNumber
 from opentelemetry.exporter.otlp.proto.http._log_exporter import OTLPLogExporter
 from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExporter
@@ -63,6 +61,13 @@ _ALLOWED_LOW_CARDINALITY_KEYS: frozenset[str] = frozenset(
 def _guard(
     func: Callable[Concatenate[OtelProvider, _P], _R | None],
 ) -> Callable[Concatenate[OtelProvider, _P], _R | None]:
+    """Gates `OtelProvider` methods so it only runs when it is safe to.
+
+    The provider is safe to use when:
+    - Telemetry is enabled.
+    - The provider belongs to the current process.
+    """
+
     @functools.wraps(func)
     def wrapper(
         self: OtelProvider,
@@ -75,9 +80,6 @@ def _guard(
         # If this instance belongs to a different process (fork happened),
         # do nothing; get_otel() will create a fresh instance for the child.
         if self._pid != os.getpid():
-            return None
-
-        if not self._booted and not self._boot():
             return None
 
         return func(self, *args, **kwargs)
@@ -145,80 +147,74 @@ class OtelProvider:
         self._api_key = api_key
         self._scope = TelemetryContext()
 
-        self._endpoint = _otel_endpoint(endpoint)
-        self._base_url = self._endpoint + "/sdk/otel/v1"
-
-        self._booted = False
-        self._boot_lock = threading.Lock()
         self._state_lock = threading.RLock()
         self._session: requests.Session = requests.Session()
-        self._meter: metrics.Meter | None = None
-        self._logger: OTelLogger | None = None
 
-    def _boot(
+        self._initialize_otel_resources(endpoint, api_key)
+
+    def _initialize_otel_resources(
         self,
+        endpoint: str | None,
+        api_key: str | None,
         export_interval_ms: int = _DEFAULT_EXPORT_INTERVAL_MS,
     ) -> bool:
         """Initialize the OTel providers.
 
-        Safe to call multiple times. Returns True if the providers are
-        ready (already-booted or just-booted now), False if initialization
-        failed.
+        This should only be called once during OtelProvider initialization.
         """
-        with self._boot_lock:
-            if not self._enabled:
-                return False
+        if not self._enabled:
+            return False
 
-            if self._booted:
-                return True
+        endpoint = _otel_endpoint(endpoint)
+        base_url = endpoint + "/sdk/otel/v1"
 
-            try:
-                resource = Resource.create({"service.name": _OTEL_SERVICE_NAME})
+        try:
+            resource = Resource.create({"service.name": _OTEL_SERVICE_NAME})
 
-                with self._state_lock:
-                    _configure_session_auth(self._session, self._api_key)
+            with self._state_lock:
+                _configure_session_auth(self._session, api_key)
 
-                _redirect_otlp_http_exporter_logs()
+            _redirect_otlp_http_exporter_logs()
 
-                # Setup metrics exporter
-                metric_exporter = OTLPMetricExporter(
-                    endpoint=f"{self._base_url}/metrics",
-                    session=self._session,
-                    timeout=_OTLP_HTTP_TIMEOUT_SECONDS,
-                )
-                reader = PeriodicExportingMetricReader(
-                    metric_exporter,
-                    export_interval_millis=export_interval_ms,
-                )
-                self._meter_provider = MeterProvider(
-                    resource=resource,
-                    metric_readers=[reader],
-                )
-                self._meter = self._meter_provider.get_meter("wandb.sdk")
+            # Setup metrics exporter
+            metric_exporter = OTLPMetricExporter(
+                endpoint=f"{base_url}/metrics",
+                session=self._session,
+                timeout=_OTLP_HTTP_TIMEOUT_SECONDS,
+            )
+            reader = PeriodicExportingMetricReader(
+                metric_exporter,
+                export_interval_millis=export_interval_ms,
+            )
+            self._meter_provider = MeterProvider(
+                resource=resource,
+                metric_readers=[reader],
+            )
+            self._meter = self._meter_provider.get_meter("wandb.sdk")
 
-                # Setup logs exporter
-                log_exporter = OTLPLogExporter(
-                    endpoint=f"{self._base_url}/logs",
-                    session=self._session,
-                    timeout=_OTLP_HTTP_TIMEOUT_SECONDS,
-                )
-                self._logger_provider = LoggerProvider(resource=resource)
-                self._logger_provider.add_log_record_processor(
-                    BatchLogRecordProcessor(log_exporter),
-                )
-                self._logger = self._logger_provider.get_logger("wandb.sdk")
+            # Setup logs exporter
+            log_exporter = OTLPLogExporter(
+                endpoint=f"{base_url}/logs",
+                session=self._session,
+                timeout=_OTLP_HTTP_TIMEOUT_SECONDS,
+            )
+            self._logger_provider = LoggerProvider(resource=resource)
+            self._logger_provider.add_log_record_processor(
+                BatchLogRecordProcessor(log_exporter),
+            )
+            self._logger = self._logger_provider.get_logger("wandb.sdk")
 
-                self._booted = True
-            except Exception:
-                _logger.debug("OtelProvider boot failed", exc_info=True)
-                with self._state_lock:
-                    self._enabled = False
-                    self._booted = False
-                    self._meter = None
-                    self._logger = None
-                return False
+            self._booted = True
+        except Exception:
+            _logger.debug("OtelProvider boot failed", exc_info=True)
+            with self._state_lock:
+                self._enabled = False
+                self._booted = False
+                self._meter = None
+                self._logger = None
+            return False
 
-            return True
+        return True
 
     def set_api_key(self, api_key: str | None) -> None:
         """Sets or updates the API key for the OTel provider."""
@@ -395,15 +391,40 @@ class _WandbLoggerForwardingHandler(logging.Handler):
         return True
 
 
-def _redirect_otlp_http_exporter_logs() -> None:
-    """Redirect OTLP HTTP exporter logs to W&B's internal logger."""
-    wandb_logger = logging.getLogger("wandb")
+_redirect_lock = threading.Lock()
+_redirected_pid: int | None = None
 
-    for logger_name in _OTLP_HTTP_EXPORTER_LOGGERS:
-        exporter_logger = logging.getLogger(logger_name)
-        exporter_logger.addHandler(_WandbLoggerForwardingHandler(wandb_logger))
-        exporter_logger.propagate = False
-        exporter_logger.setLevel(logging.NOTSET)
+
+def _redirect_otlp_http_exporter_logs() -> None:
+    """Redirect OTLP HTTP exporter logs to W&B's internal logger.
+
+    The OTLP exporters log through module-level loggers obtained from the
+    process-global `logging` registry, so intercepting their output
+    necessarily mutates global state. To keep that mutation contained, this
+    runs at most once per process: `_redirected_pid` tracks the process that
+    already redirected, and the guard re-arms automatically after a fork
+    (the pid changes). Any forwarding handler inherited across a fork is
+    removed before a fresh one is attached, so the handler never stacks.
+    """
+    global _redirected_pid
+    pid = os.getpid()
+
+    with _redirect_lock:
+        if _redirected_pid == pid:
+            return
+        _redirected_pid = pid
+
+        wandb_logger = logging.getLogger("wandb")
+        for logger_name in _OTLP_HTTP_EXPORTER_LOGGERS:
+            exporter_logger = logging.getLogger(logger_name)
+            exporter_logger.handlers = [
+                handler
+                for handler in exporter_logger.handlers
+                if not isinstance(handler, _WandbLoggerForwardingHandler)
+            ]
+            exporter_logger.addHandler(_WandbLoggerForwardingHandler(wandb_logger))
+            exporter_logger.propagate = False
+            exporter_logger.setLevel(logging.NOTSET)
 
 
 def _configure_session_auth(session: requests.Session, api_key: str | None) -> None:
