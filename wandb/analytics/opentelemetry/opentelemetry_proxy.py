@@ -143,7 +143,7 @@ class OtelProvider:
         self._enabled = bool(wandb_env.error_reporting_enabled())
         self._pid = pid
         self._api_key = api_key
-        self.scope = TelemetryContext()
+        self._scope = TelemetryContext()
 
         self._endpoint = _otel_endpoint(endpoint)
         self._base_url = self._endpoint + "/sdk/otel/v1"
@@ -233,8 +233,8 @@ class OtelProvider:
         high_cardinality_attrs: dict[str, str],
     ) -> None:
         with self._state_lock:
-            self.scope.add_low_cardinality_attributes(low_cardinality_attrs)
-            self.scope.add_high_cardinality_attributes(high_cardinality_attrs)
+            self._scope.add_low_cardinality_attributes(low_cardinality_attrs)
+            self._scope.add_high_cardinality_attributes(high_cardinality_attrs)
 
     @_guard
     def _record_count(
@@ -248,7 +248,7 @@ class OtelProvider:
         """
         assert self._meter is not None
         with self._state_lock:
-            low_cardinality_attributes = dict(self.scope.low_cardinality_attributes)
+            low_cardinality_attributes = dict(self._scope.low_cardinality_attributes)
 
         counter = self._meter.create_counter(name, unit="Count")
         counter.add(1, attributes=low_cardinality_attributes)
@@ -269,8 +269,8 @@ class OtelProvider:
 
         with self._state_lock:
             merged_attributes = {
-                **self.scope.low_cardinality_attributes,
-                **self.scope.high_cardinality_attributes,
+                **self._scope.low_cardinality_attributes,
+                **self._scope.high_cardinality_attributes,
                 **(attributes or {}),
             }
         self._logger.emit(
@@ -322,8 +322,8 @@ class OtelProvider:
             exception_attributes = {
                 "exception.type": type(exc).__name__,
                 "exception.stacktrace": _exception_stacktrace(exc),
-                **self.scope.low_cardinality_attributes,
-                **self.scope.high_cardinality_attributes,
+                **self._scope.low_cardinality_attributes,
+                **self._scope.high_cardinality_attributes,
             }
         self.record_log(
             message,
