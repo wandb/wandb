@@ -5,7 +5,6 @@ import functools
 import logging
 import os
 import platform
-import sys
 import threading
 import traceback
 from collections.abc import Callable
@@ -139,7 +138,7 @@ class OtelProvider:
         self,
         *,
         endpoint: str | None = None,
-        api_key: str | None = None,
+        api_key: str,
         pid: int,
     ) -> None:
         self._enabled = bool(env.error_reporting_enabled())
@@ -155,7 +154,7 @@ class OtelProvider:
     def _initialize_otel_resources(
         self,
         endpoint: str | None,
-        api_key: str | None,
+        api_key: str,
         export_interval_ms: int = _DEFAULT_EXPORT_INTERVAL_MS,
     ) -> bool:
         """Initialize the OTel providers.
@@ -216,12 +215,6 @@ class OtelProvider:
 
         return True
 
-    def set_api_key(self, api_key: str | None) -> None:
-        """Sets or updates the API key for the OTel provider."""
-        with self._state_lock:
-            self._api_key = api_key
-            _configure_session_auth(self._session, api_key)
-
     @_guard
     def configure_context(
         self,
@@ -233,7 +226,7 @@ class OtelProvider:
             self._scope.add_high_cardinality_attributes(high_cardinality_attrs)
 
     @_guard
-    def _record_count(
+    def _increment_counter(
         self,
         name: str,
     ) -> None:
@@ -276,14 +269,13 @@ class OtelProvider:
         )
 
     @_guard
-    def record_metric_and_log_event(
+    def increment_counter_and_log_event(
         self,
         name: str,
         attributes: dict[str, str] | None = None,
     ) -> None:
-        """Record a counter metric and a log event with the given name."""
-        self._record_count(name)
-
+        """Increment a counter metric by 1 and log an event with the given name."""
+        self._increment_counter(name)
         self.record_log(
             message=name,
             attributes=attributes,
@@ -310,7 +302,7 @@ class OtelProvider:
             message: The body for the log record.
             exc: The exception the occurred.
         """
-        self._record_count(
+        self._increment_counter(
             name="exception",
         )
 
@@ -328,14 +320,10 @@ class OtelProvider:
         )
 
     def reraise(self, exc: Exception) -> Never:
-        """Re-raise after logging an exception, preserving traceback."""
-        try:
+        """Log the exception to telemetry, then re-raise it."""
+        with contextlib.suppress(Exception):
             self.exception(str(exc), exc)
-        finally:
-            _, _, tb = sys.exc_info()
-            if tb is not None and hasattr(exc, "with_traceback"):
-                raise exc.with_traceback(tb)
-            raise exc
+        raise exc
 
 
 _singleton: OtelProvider | None = None
@@ -344,7 +332,7 @@ _singleton_lock = threading.Lock()
 
 def get_otel(
     *,
-    api_key: str | None = None,
+    api_key: str,
 ) -> OtelProvider:
     global _singleton
     pid = os.getpid()
@@ -352,8 +340,6 @@ def get_otel(
         # If the singleton already exists and belongs to the current process,
         # return existing instance and update the API key if provided.
         if _singleton is not None and _singleton._pid == pid:
-            if api_key is not None:
-                _singleton.set_api_key(api_key)
             return _singleton
 
         # If the singleton does not exist or belongs to a different process,
