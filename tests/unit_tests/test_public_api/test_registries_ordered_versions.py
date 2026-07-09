@@ -31,6 +31,7 @@ def clear_registry_filter_caches():
 
 
 def _mock_advanced_search(service_api, *, enabled: bool) -> None:
+    service_api.feature_enabled.return_value = True
     service_api.execute_graphql.return_value = {
         "organization": {
             "advancedRegistryFeatures": {"advancedSearch": enabled},
@@ -38,10 +39,27 @@ def _mock_advanced_search(service_api, *, enabled: bool) -> None:
     }
 
 
+def test_registry_filter_uses_project_id_when_filtering_sorting_disabled(
+    service_api,
+):
+    service_api.feature_enabled.return_value = False
+    registry = MagicMock()
+    registry.full_name = "wandb-registry-test"
+    registry.id = b64encode_ascii("Project:42")
+
+    assert registry_filter_for_registry(
+        registry, service_api=service_api, organization=ORG
+    ) == {
+        "name": "wandb-registry-test",
+        "project_id": 42,
+    }
+    service_api.execute_graphql.assert_not_called()
+
+
 @pytest.mark.parametrize(
     ("enabled", "key"),
     [(True, "id"), (False, "project_id")],
-    ids=["clickhouse", "non_clickhouse"],
+    ids=["advanced_search", "non_advanced_search"],
 )
 def test_registry_filter_for_registry_uses_project_id_key(service_api, enabled, key):
     _mock_advanced_search(service_api, enabled=enabled)
@@ -75,7 +93,9 @@ def test_registry_filter_for_collection_uses_project_id_key(service_api):
 def service_api(mocker):
     from wandb.apis.public.service_api import ServiceApi
 
-    return mocker.Mock(spec=ServiceApi)
+    mock = mocker.Mock(spec=ServiceApi)
+    mock.feature_enabled.return_value = True
+    return mock
 
 
 @pytest.mark.parametrize(

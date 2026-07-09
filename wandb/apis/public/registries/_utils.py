@@ -6,6 +6,7 @@ from functools import lru_cache, partial
 from typing import TYPE_CHECKING, Any, TypeVar, overload
 
 from wandb._strutils import b64decode_ascii, ensureprefix
+from wandb.proto import wandb_internal_pb2 as pb
 
 if TYPE_CHECKING:
     from wandb.apis.public import ArtifactCollection
@@ -164,7 +165,10 @@ def _project_id_from_gql_id(gql_id: str) -> int | None:
 
 @lru_cache(maxsize=10)
 def fetch_advanced_search_enabled(service_api: ServiceApi, organization: str) -> bool:
-    """Whether the organization has ClickHouse-backed advanced registry search."""
+    """Whether the organization has advanced registry search."""
+    if not service_api.feature_enabled(pb.ARTIFACT_COLLECTIONS_FILTERING_SORTING):
+        return False
+
     from wandb.sdk.artifacts._generated import (
         FETCH_ADVANCED_REGISTRY_FEATURES_GQL,
         FetchAdvancedRegistryFeatures,
