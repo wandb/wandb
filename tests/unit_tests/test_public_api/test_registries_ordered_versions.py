@@ -1,8 +1,16 @@
 from __future__ import annotations
 
 from collections.abc import Iterator
+from unittest.mock import MagicMock
 
 import pytest
+from wandb._strutils import b64encode_ascii
+from wandb.apis.public.registries._utils import (
+    fetch_advanced_search_enabled,
+    registry_filter_for_collection,
+    registry_filter_for_registry,
+    registry_project_id_filter_key,
+)
 from wandb.apis.public.registries.registries_search import (
     Collections,
     Registries,
@@ -11,6 +19,58 @@ from wandb.apis.public.registries.registries_search import (
 
 ORG = "test-org"
 REGISTRY_FILTER = {"name": "wandb-registry-test"}
+
+
+@pytest.fixture(autouse=True)
+def clear_registry_filter_caches():
+    fetch_advanced_search_enabled.cache_clear()
+    registry_project_id_filter_key.cache_clear()
+    yield
+    fetch_advanced_search_enabled.cache_clear()
+    registry_project_id_filter_key.cache_clear()
+
+
+def _mock_advanced_search(service_api, *, enabled: bool) -> None:
+    service_api.execute_graphql.return_value = {
+        "organization": {
+            "advancedRegistryFeatures": {"advancedSearch": enabled},
+        }
+    }
+
+
+@pytest.mark.parametrize(
+    ("enabled", "key"),
+    [(True, "id"), (False, "project_id")],
+    ids=["clickhouse", "non_clickhouse"],
+)
+def test_registry_filter_for_registry_uses_project_id_key(
+    service_api, enabled, key
+):
+    _mock_advanced_search(service_api, enabled=enabled)
+    registry = MagicMock()
+    registry.full_name = "wandb-registry-test"
+    registry.id = b64encode_ascii("Project:42")
+
+    assert registry_filter_for_registry(
+        registry, service_api=service_api, organization=ORG
+    ) == {
+        "name": "wandb-registry-test",
+        key: 42,
+    }
+
+
+def test_registry_filter_for_collection_uses_project_id_key(service_api):
+    _mock_advanced_search(service_api, enabled=True)
+    collection = MagicMock()
+    collection.project = "wandb-registry-test"
+    collection.project_gql_id = b64encode_ascii("Project:42")
+
+    assert registry_filter_for_collection(
+        collection, service_api=service_api, organization=ORG
+    ) == {
+        "name": "wandb-registry-test",
+        "id": 42,
+    }
 
 
 @pytest.fixture

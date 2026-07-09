@@ -5,9 +5,11 @@ from enum import Enum
 from functools import lru_cache, partial
 from typing import TYPE_CHECKING, Any, TypeVar, overload
 
-from wandb._strutils import ensureprefix
+from wandb._strutils import b64decode_ascii, ensureprefix
 
 if TYPE_CHECKING:
+    from wandb.apis.public import ArtifactCollection
+    from wandb.apis.public.registries.registry import Registry
     from wandb.apis.public.service_api import ServiceApi
 
 
@@ -145,3 +147,80 @@ def fetch_org_entity_from_organization(
         raise ValueError(f"Organization entity for {organization!r} not found.")
 
     return org_name
+
+
+def _project_id_from_gql_id(gql_id: str) -> int | None:
+    try:
+        kind, index = b64decode_ascii(gql_id).split(":", maxsplit=1)
+    except (ValueError, UnicodeDecodeError):
+        return None
+    if kind != "Project":
+        return None
+    try:
+        return int(index)
+    except ValueError:
+        return None
+
+
+@lru_cache(maxsize=10)
+def fetch_advanced_search_enabled(service_api: ServiceApi, organization: str) -> bool:
+    """Whether the organization has ClickHouse-backed advanced registry search."""
+    from wandb.sdk.artifacts._generated import (
+        FETCH_ADVANCED_REGISTRY_FEATURES_GQL,
+        FetchAdvancedRegistryFeatures,
+    )
+
+    try:
+        data = service_api.execute_graphql(
+            FETCH_ADVANCED_REGISTRY_FEATURES_GQL,
+            variables={"organization": organization},
+        )
+    except Exception as e:
+        msg = (
+            f"Error fetching advanced registry features for organization: "
+            f"{organization!r}"
+        )
+        raise ValueError(msg) from e
+
+    result = FetchAdvancedRegistryFeatures.model_validate(data)
+    if not (org := result.organization):
+        raise ValueError(f"Organization {organization!r} not found.")
+    return bool(
+        org.advanced_registry_features
+        and org.advanced_registry_features.advanced_search
+    )
+
+
+@lru_cache(maxsize=10)
+def registry_project_id_filter_key(service_api: ServiceApi, organization: str) -> str:
+    """Return the registry project filter key for the organization's search backend."""
+    if fetch_advanced_search_enabled(service_api, organization):
+        return "id"
+    return "project_id"
+
+
+def registry_filter_for_registry(
+    registry: Registry,
+    *,
+    service_api: ServiceApi,
+    organization: str,
+) -> dict[str, Any]:
+    filt: dict[str, Any] = {"name": registry.full_name}
+    if project_id := _project_id_from_gql_id(registry.id):
+        filt[registry_project_id_filter_key(service_api, organization)] = project_id
+    return filt
+
+
+def registry_filter_for_collection(
+    collection: ArtifactCollection,
+    *,
+    service_api: ServiceApi,
+    organization: str,
+) -> dict[str, Any]:
+    filt: dict[str, Any] = {}
+    if registry_name := collection.project:
+        filt["name"] = registry_name
+    if project_gql_id := collection.project_gql_id:
+        if project_id := _project_id_from_gql_id(project_gql_id):
+            filt[registry_project_id_filter_key(service_api, organization)] = project_id
+    return filt

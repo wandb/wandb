@@ -12,7 +12,11 @@ from typing_extensions import override
 from wandb._analytics import tracked
 from wandb.apis.paginator import RelayPaginator, SizedRelayPaginator
 
-from ._utils import ensure_registry_prefix_on_names
+from ._utils import (
+    ensure_registry_prefix_on_names,
+    registry_filter_for_collection,
+    registry_filter_for_registry,
+)
 
 if TYPE_CHECKING:
     from wandb.apis.public import ArtifactCollection
@@ -29,10 +33,6 @@ if TYPE_CHECKING:
         RegistryConnection,
     )
     from wandb.sdk.artifacts.artifact import Artifact
-
-
-def _registry_filter_for_registry(registry: Registry) -> dict[str, Any]:
-    return {"name": registry.full_name}
 
 
 class Registries(RelayPaginator["RegistryFragment", "Registry"]):
@@ -130,7 +130,11 @@ class Registries(RelayPaginator["RegistryFragment", "Registry"]):
             yield from Collections(
                 service_api=self._service_api,
                 organization=self.organization,
-                registry_filter=_registry_filter_for_registry(registry),
+                registry_filter=registry_filter_for_registry(
+                    registry,
+                    service_api=self._service_api,
+                    organization=self.organization,
+                ),
                 collection_filter=collection_filter,
                 order=collection_order,
                 per_page=per_page,
@@ -183,7 +187,11 @@ class Registries(RelayPaginator["RegistryFragment", "Registry"]):
             yield from Versions(
                 service_api=self._service_api,
                 organization=self.organization,
-                registry_filter=_registry_filter_for_registry(registry),
+                registry_filter=registry_filter_for_registry(
+                    registry,
+                    service_api=self._service_api,
+                    organization=self.organization,
+                ),
                 collection_filter=None,
                 artifact_filter=artifact_filter,
                 per_page=per_page,
@@ -318,17 +326,17 @@ class Collections(
         per_page: PositiveInt,
     ) -> Iterator[Artifact]:
         for collection in self:
-            pinned_registry_filter: dict[str, Any] = {}
-            if registry_name := collection.project:
-                pinned_registry_filter["name"] = registry_name
-            pinned_collection_filter: dict[str, Any] = {}
-            if collection_name := collection.name:
-                pinned_collection_filter["name"] = collection_name
             yield from Versions(
                 service_api=self._service_api,
                 organization=self.organization,
-                registry_filter=pinned_registry_filter,
-                collection_filter=pinned_collection_filter,
+                registry_filter=registry_filter_for_collection(
+                    collection,
+                    service_api=self._service_api,
+                    organization=self.organization,
+                ),
+                collection_filter={"name": collection.name}
+                if collection.name
+                else {},
                 artifact_filter=artifact_filter,
                 per_page=per_page,
             )

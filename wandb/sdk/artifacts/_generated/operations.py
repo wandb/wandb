@@ -23,6 +23,7 @@ __all__ = [
     "DELETE_REGISTRY_MEMBERS_GQL",
     "FETCH_ARTIFACT_MANIFEST_GQL",
     "FETCH_LINKED_ARTIFACTS_GQL",
+    "FETCH_ADVANCED_REGISTRY_FEATURES_GQL",
     "FETCH_ORG_ENTITY_FROM_ORGANIZATION_GQL",
     "FETCH_ORG_INFO_FROM_ENTITY_GQL",
     "FETCH_REGISTRIES_GQL",
@@ -106,6 +107,7 @@ fragment ArtifactCollectionFragment on ArtifactCollection {
 }
 
 fragment ProjectInfoFragment on Project {
+  id
   name
   entity {
     name
@@ -152,6 +154,7 @@ fragment ArtifactCollectionFragment on ArtifactCollection {
 }
 
 fragment ProjectInfoFragment on Project {
+  id
   name
   entity {
     name
@@ -198,6 +201,7 @@ fragment ArtifactCollectionFragment on ArtifactCollection {
 }
 
 fragment ProjectInfoFragment on Project {
+  id
   name
   entity {
     name
@@ -289,6 +293,7 @@ fragment PageInfoFragment on PageInfo {
 }
 
 fragment ProjectInfoFragment on Project {
+  id
   name
   entity {
     name
@@ -354,6 +359,7 @@ fragment PageInfoFragment on PageInfo {
 }
 
 fragment ProjectInfoFragment on Project {
+  id
   name
   entity {
     name
@@ -402,6 +408,7 @@ fragment ArtifactCollectionFragment on ArtifactCollection {
 }
 
 fragment ProjectInfoFragment on Project {
+  id
   name
   entity {
     name
@@ -648,6 +655,7 @@ fragment PageInfoFragment on PageInfo {
 }
 
 fragment ProjectInfoFragment on Project {
+  id
   name
   entity {
     name
@@ -742,6 +750,7 @@ fragment PageInfoFragment on PageInfo {
 }
 
 fragment ProjectInfoFragment on Project {
+  id
   name
   entity {
     name
@@ -836,6 +845,7 @@ fragment PageInfoFragment on PageInfo {
 }
 
 fragment ProjectInfoFragment on Project {
+  id
   name
   entity {
     name
@@ -892,6 +902,7 @@ fragment CollectionInfoFragment on ArtifactCollection {
 }
 
 fragment ProjectInfoFragment on Project {
+  id
   name
   entity {
     name
@@ -970,6 +981,7 @@ fragment CollectionInfoFragment on ArtifactCollection {
 }
 
 fragment ProjectInfoFragment on Project {
+  id
   name
   entity {
     name
@@ -1048,6 +1060,7 @@ fragment CollectionInfoFragment on ArtifactCollection {
 }
 
 fragment ProjectInfoFragment on Project {
+  id
   name
   entity {
     name
@@ -1141,6 +1154,7 @@ fragment CollectionInfoFragment on ArtifactCollection {
 }
 
 fragment ProjectInfoFragment on Project {
+  id
   name
   entity {
     name
@@ -1176,6 +1190,7 @@ query ArtifactUsedBy($id: ID!) {
 }
 
 fragment ProjectInfoFragment on Project {
+  id
   name
   entity {
     name
@@ -1205,6 +1220,7 @@ query ArtifactCreatedBy($id: ID!) {
 }
 
 fragment ProjectInfoFragment on Project {
+  id
   name
   entity {
     name
@@ -1306,6 +1322,7 @@ fragment CollectionInfoFragment on ArtifactCollection {
 }
 
 fragment ProjectInfoFragment on Project {
+  id
   name
   entity {
     name
@@ -1410,6 +1427,7 @@ fragment CollectionInfoFragment on ArtifactCollection {
 }
 
 fragment ProjectInfoFragment on Project {
+  id
   name
   entity {
     name
@@ -1457,6 +1475,16 @@ fragment OrgInfoFragment on Organization {
   name
   orgEntity {
     name
+  }
+}
+"""
+
+FETCH_ADVANCED_REGISTRY_FEATURES_GQL = """
+query FetchAdvancedRegistryFeatures($organization: String!) {
+  organization(name: $organization) {
+    advancedRegistryFeatures {
+      advancedSearch
+    }
   }
 }
 """
@@ -1566,6 +1594,7 @@ fragment PageInfoFragment on PageInfo {
 }
 
 fragment ProjectInfoFragment on Project {
+  id
   name
   entity {
     name
@@ -1622,6 +1651,7 @@ fragment PageInfoFragment on PageInfo {
 }
 
 fragment ProjectInfoFragment on Project {
+  id
   name
   entity {
     name
