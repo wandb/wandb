@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from collections.abc import Callable
+from operator import itemgetter
 from typing import TYPE_CHECKING, Literal
 
 import wandb
@@ -106,9 +107,9 @@ def restricted_viewer_role_enabled(api: Api, org: str) -> bool:
         # Absent ramp means the server predates it or removed it. Both mean on.
         return next(
             (
-                bool(f["isEnabled"])
-                for f in flags
-                if f["rampKey"] == "gorilla.RegistryObserverRoleUse"
+                bool(enabled)
+                for enabled, key in map(itemgetter("isEnabled", "rampKey"), flags)
+                if key == "gorilla.RegistryObserverRoleUse"
             ),
             True,
         )
