@@ -5,6 +5,7 @@ import pytest
 import torch
 import wandb
 from pytest_mock import MockerFixture
+from wandb._strutils import b64encode_ascii
 from wandb.apis.public.service_api import ServiceApi
 from wandb.sdk.artifacts._generated import ArtifactFragment
 from wandb.sdk.artifacts.artifact import Artifact
@@ -13,6 +14,8 @@ from wandb.sdk.data_types import saved_model
 from wandb.sdk.lib.filesystem import copy_or_overwrite_changed
 
 from . import saved_model_constructors
+
+_PROJECT_GQL_ID = b64encode_ascii("Project:1")
 
 sklearn_model = saved_model_constructors.sklearn_model
 pytorch_model = saved_model_constructors.pytorch_model
@@ -132,6 +135,7 @@ def make_local_artifact_public(art: Artifact, mocker: MockerFixture):
                     "__typename": "ArtifactSequence",
                     "name": path.name,
                     "project": {
+                        "id": _PROJECT_GQL_ID,
                         "name": path.project,
                         "entity": {"name": path.prefix},
                     },
@@ -141,6 +145,7 @@ def make_local_artifact_public(art: Artifact, mocker: MockerFixture):
         artifactSequence={
             "name": "FAKE_SEQUENCE_NAME",
             "project": {
+                "id": _PROJECT_GQL_ID,
                 "name": path.project,
                 "entity": {"name": path.prefix},
             },

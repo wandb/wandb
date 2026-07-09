@@ -6,7 +6,7 @@ from urllib.parse import quote
 import wandb
 from pytest import fixture
 from wandb import Api, Artifact
-from wandb._strutils import nameof
+from wandb._strutils import b64encode_ascii, nameof
 from wandb.apis.public.registries.registry import Registry
 from wandb.proto.wandb_internal_pb2 import ServerFeature
 from wandb.sdk.artifacts._generated import (
@@ -16,6 +16,8 @@ from wandb.sdk.artifacts._generated import (
     ArtifactMembershipFragment,
 )
 from wandb.sdk.artifacts._gqlutils import server_supports
+
+_PROJECT_GQL_ID = b64encode_ascii("Project:1")
 
 
 @fixture
@@ -27,6 +29,7 @@ def mock_artifact_fragment_data() -> dict[str, Any]:
         artifact_sequence={
             "name": "test-collection",
             "project": {
+                "id": _PROJECT_GQL_ID,
                 "name": "orig-project",
                 "entity": {"name": "test-team"},
             },
@@ -60,6 +63,7 @@ def mock_membership_fragment_data(
             "__typename": "ArtifactPortfolio",
             "name": "test-collection",  # NOTE: relevant
             "project": {
+                "id": _PROJECT_GQL_ID,
                 "name": "wandb-registry-model",  # NOTE: relevant
                 "entity": {"name": "org-entity-name"},  # NOTE: relevant
             },
