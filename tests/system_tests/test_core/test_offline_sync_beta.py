@@ -291,17 +291,10 @@ def test_resyncs_resumed_offline_run_keep_same_steps(
     """Re-syncing a resumed offline run's files must not shift step numbers.
 
     The starting step for a resumed offline run's history is only known
-    once `wandb sync` reaches the backend. Without locking it in on the
-    first sync, re-syncing the same files later would recompute a larger
-    starting step (since the backend now already has the earlier sync's
-    data), and the resumed segment's rows would land on new, larger step
-    numbers instead of the ones assigned during the first sync.
-
-    Note: forcing a re-sync of files that were already fully uploaded
-    re-uploads the same rows (a separate, accepted limitation tracked as
-    a future "sync from the middle of the file" improvement). This test
-    only checks that the *step numbers* stay put across such a re-sync,
-    not that the duplicate rows are suppressed.
+    once `wandb sync` reaches the backend, so it saves it in a .syncstate 
+    file on first sync, so it that re-syncing the same files later would 
+    not recompute the starting step and shift the step numbers for the
+    same segment.
     """
     with wandb.init(mode="offline") as run1:
         run1.log({"x": "a"})
