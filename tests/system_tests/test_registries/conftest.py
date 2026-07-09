@@ -103,12 +103,15 @@ def restricted_viewer_role_enabled(api: Api, org: str) -> bool:
     except LookupError:
         return True
     else:
-        ramp = next(
-            (f for f in flags if f["rampKey"] == "gorilla.RegistryObserverRoleUse"),
-            None,
-        )
         # Absent ramp means the server predates it or removed it. Both mean on.
-        return True if ramp is None else bool(ramp["isEnabled"])
+        return next(
+            (
+                bool(f["isEnabled"])
+                for f in flags
+                if f["rampKey"] == "gorilla.RegistryObserverRoleUse"
+            ),
+            True,
+        )
 
 
 @fixture

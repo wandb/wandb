@@ -183,7 +183,7 @@ def test_registry_add_members_with_mixed_args(
 def test_registry_update_user_member_role(
     admin_user: User,
     registry: Registry,
-    make_wandb_users,
+    make_wandb_users: Callable[[int], list[User]],
     target_role: str,
     restricted_viewer_role_enabled: bool,
 ):
@@ -222,7 +222,7 @@ def test_registry_update_user_member_role(
 @mark.parametrize("target_role", ["admin", "member", "viewer", "restricted_viewer"])
 def test_registry_update_team_member_role(
     registry: Registry,
-    make_wandb_teams,
+    make_wandb_teams: Callable[[int], list[Team]],
     target_role: str,
     restricted_viewer_role_enabled: bool,
 ):
