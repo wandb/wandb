@@ -119,7 +119,10 @@ class TriggerFields(GQLResult):
     description: str | None
     enabled: bool
     scope: (
-        ArtifactPortfolioScopeFields | ArtifactSequenceScopeFields | ProjectScopeFields
+        ArtifactPortfolioScopeFields
+        | ArtifactSequenceScopeFields
+        | TriggerFieldsScopeEntity
+        | ProjectScopeFields
     ) = Field(discriminator="typename__")
     event: FilterEventFields
     action: (
@@ -129,6 +132,10 @@ class TriggerFields(GQLResult):
         | TriggerFieldsActionPushNotificationTriggeredAction
         | QueueJobActionFields
     ) = Field(discriminator="typename__")
+
+
+class TriggerFieldsScopeEntity(GQLResult):
+    typename__: Typename[Literal["Entity"]]
 
 
 class TriggerFieldsActionPushNotificationTriggeredAction(GQLResult):
