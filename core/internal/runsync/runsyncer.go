@@ -72,7 +72,11 @@ func (f *RunSyncerFactory) New(
 		runWork,
 		/*fileReadDelay=*/ 5*time.Second,
 	)
-	recordParser := f.RecordParserFactory.New(runWork.BeforeEndCtx(), tbHandler)
+	// Pin the resumed run's starting step to this .wandb file's sync state
+	// so that re-syncing the same file doesn't shift steps forward.
+	startingStepStore := NewSyncStateStore(path)
+	recordParser := f.RecordParserFactory.New(
+		runWork.BeforeEndCtx(), tbHandler, startingStepStore)
 	runReader := f.RunReaderFactory.New(
 		path,
 		displayPath,

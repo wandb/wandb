@@ -217,6 +217,72 @@ func TestResume_Offline_Succeeds(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+// fakeStartingStepStore is a test double for runupserter.StartingStepStore.
+//
+// If startingStep is set, it's always returned regardless of the value
+// passed in, mimicking a .wandb file that was already synced once.
+// Otherwise, it remembers the passed-in value, mimicking a first sync.
+type fakeStartingStepStore struct {
+	startingStep *int64
+}
+
+func (f *fakeStartingStepStore) GetOrInitStartingStep(
+	computedStep int64,
+) (int64, error) {
+	if f.startingStep != nil {
+		return *f.startingStep, nil
+	}
+
+	f.startingStep = &computedStep
+	return computedStep, nil
+}
+
+func TestResume_StartingStepStore_InitializesStartingStep(t *testing.T) {
+	mockClient := gqlmock.NewMockClient()
+	runupsertertest.StubRunResumeStatusWithStep(t, mockClient, 5)
+	runupsertertest.StubUpsertBucket(t, mockClient)
+
+	store := &fakeStartingStepStore{}
+	params := testParams(t)
+	params.GraphqlClientOrNil = mockClient
+	params.Settings = settings.From(&spb.Settings{Resume: wrapperspb.String("allow")})
+	params.StartingStepStore = store
+
+	upserter, err := runupserter.InitRun(runRecord(&spb.RunRecord{RunId: "run"}), params)
+	require.NoError(t, err)
+	defer upserter.Finish()
+
+	run := &spb.RunRecord{}
+	upserter.FillRunRecord(run)
+	assert.EqualValues(t, 5, run.StartingStep)
+	require.NotNil(t, store.startingStep)
+	assert.EqualValues(t, 5, *store.startingStep)
+}
+
+func TestResume_StartingStepStore_ReusesStartingStep(t *testing.T) {
+	mockClient := gqlmock.NewMockClient()
+	runupsertertest.StubRunResumeStatusWithStep(t, mockClient, 99)
+	runupsertertest.StubUpsertBucket(t, mockClient)
+
+	startingStep := int64(6)
+	store := &fakeStartingStepStore{startingStep: &startingStep}
+	params := testParams(t)
+	params.GraphqlClientOrNil = mockClient
+	params.Settings = settings.From(&spb.Settings{Resume: wrapperspb.String("allow")})
+	params.StartingStepStore = store
+
+	upserter, err := runupserter.InitRun(runRecord(&spb.RunRecord{RunId: "run"}), params)
+	require.NoError(t, err)
+	defer upserter.Finish()
+
+	run := &spb.RunRecord{}
+	upserter.FillRunRecord(run)
+	// Even though the live query resolves _step=99, as if a previous sync
+	// already uploaded more history, the pre-initialized value wins so that
+	// re-syncing doesn't shift steps forward.
+	assert.EqualValues(t, 6, run.StartingStep)
+}
+
 func TestRewind(t *testing.T) {
 	// NOTE: Rewinding works offline.
 	runInitRecord := runRecord(

@@ -45,19 +45,25 @@ type RecordParserFactory struct {
 }
 
 // New returns a new RecordParser.
+//
+// startingStepStore, if non-nil, pins a resumed run's starting step
+// across repeated syncs of the same .wandb file. It should be nil for
+// live runs, which only resolve resume metadata once.
 func (f *RecordParserFactory) New(
 	beforeRunEndCtx context.Context,
 	tbHandler *tensorboard.TBHandler,
+	startingStepStore runupserter.StartingStepStore,
 ) *recordParser {
-	return &recordParser{*f, beforeRunEndCtx, tbHandler}
+	return &recordParser{*f, beforeRunEndCtx, tbHandler, startingStepStore}
 }
 
 // recordParser is the real implementation of RecordParser.
 type recordParser struct {
 	RecordParserFactory // injected fields
 
-	beforeRunEndCtx context.Context
-	tbHandler       *tensorboard.TBHandler
+	beforeRunEndCtx   context.Context
+	tbHandler         *tensorboard.TBHandler
+	startingStepStore runupserter.StartingStepStore
 }
 
 // Ensure recordParser implements RecordParser.
@@ -79,6 +85,7 @@ func (p *recordParser) Parse(record *spb.Record) runwork.WorkImpl {
 			GraphqlClientOrNil: p.GraphqlClientOrNil,
 			Logger:             p.Logger,
 			ClientID:           string(p.ClientID),
+			StartingStepStore:  p.startingStepStore,
 		}
 
 	case record.GetTbrecord() != nil:

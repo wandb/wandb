@@ -116,7 +116,9 @@ func NewStream(
 		runWork,
 		/*fileReadDelay=*/ 5*time.Second,
 	)
-	recordParser := recordParserFactory.New(runWork.BeforeEndCtx(), tbHandler)
+	// Live runs resolve resume metadata once, when the run starts, so
+	// there's no need to pin the starting step across repeated attempts.
+	recordParser := recordParserFactory.New(runWork.BeforeEndCtx(), tbHandler, nil)
 
 	stream := &Stream{
 		runWork:            runWork,

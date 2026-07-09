@@ -53,6 +53,7 @@ type RunUpdateWork struct {
 	FeatureProvider    *featurechecker.FeatureProvider
 	GraphqlClientOrNil graphql.Client
 	Logger             *observability.CoreLogger
+	StartingStepStore  StartingStepStore
 }
 
 // Accept implements WorkImpl.Accept.
@@ -98,6 +99,7 @@ func (w *RunUpdateWork) initRun(request *runwork.Request) {
 		FeatureProvider:    w.FeatureProvider,
 		GraphqlClientOrNil: w.GraphqlClientOrNil,
 		Logger:             w.Logger,
+		StartingStepStore:  w.StartingStepStore,
 	})
 
 	if err != nil {
