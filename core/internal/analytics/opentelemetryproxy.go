@@ -42,38 +42,38 @@ const (
 	logsPath                = "/sdk/otel/v1/logs"
 )
 
-// Low-cardinality attribute keys.
-// These are emitted as metric dimensions,
-// so their values must come from a small, bounded set.
-const (
-	attributeGoVersion       = "go_version"
-	attributeWandbVersion    = "wandb_version"
-	attributeOperatingSystem = "operating_system"
-	attributeExceptionType   = "exception.type"
-)
+// ConfigureOTelErrorHandler routes OpenTelemetry SDK errors to the core logger.
+func ConfigureOTelErrorHandler() {
+	otel.SetErrorHandler(otel.ErrorHandlerFunc(func(err error) {
+		slog.Error(
+			"analytics: failed to send telemetry to backend proxy",
+			"error", err,
+		)
+	}))
+}
 
 // LowCardinalityAttributes is the fixed set of low-cardinality attributes
 // that can be added to the telemetry context.
 type LowCardinalityAttributes struct {
-	GoVersion       string `json:"go_version,omitempty"`
-	WandbVersion    string `json:"wandb_version,omitempty"`
-	OperatingSystem string `json:"operating_system,omitempty"`
-	ExceptionType   string `json:"exception.type,omitempty"`
+	GoVersion       string
+	WandbVersion    string
+	OperatingSystem string
+	ErrorType       string
 }
 
 func (attrs LowCardinalityAttributes) toMap() map[string]string {
 	out := make(map[string]string, 4)
 	if attrs.GoVersion != "" {
-		out[attributeGoVersion] = attrs.GoVersion
+		out["go_version"] = attrs.GoVersion
 	}
 	if attrs.WandbVersion != "" {
-		out[attributeWandbVersion] = attrs.WandbVersion
+		out["wandb_version"] = attrs.WandbVersion
 	}
 	if attrs.OperatingSystem != "" {
-		out[attributeOperatingSystem] = attrs.OperatingSystem
+		out["operating_system"] = attrs.OperatingSystem
 	}
-	if attrs.ExceptionType != "" {
-		out[attributeExceptionType] = attrs.ExceptionType
+	if attrs.ErrorType != "" {
+		out["error.type"] = attrs.ErrorType
 	}
 	return out
 }
@@ -147,8 +147,8 @@ func (s *TelemetryContext) SetLowCardinalityAttributes(
 	if attributes.OperatingSystem != "" {
 		s.lowCardinalityAttributes.OperatingSystem = attributes.OperatingSystem
 	}
-	if attributes.ExceptionType != "" {
-		s.lowCardinalityAttributes.ExceptionType = attributes.ExceptionType
+	if attributes.ErrorType != "" {
+		s.lowCardinalityAttributes.ErrorType = attributes.ErrorType
 	}
 }
 
@@ -166,23 +166,17 @@ func (s *TelemetryContext) AddHighCardinalityAttributes(
 	maps.Copy(s.highCardinalityAttributes, attributes)
 }
 
-// LowCardinalitySnapshot returns a snapshot of the context's low-cardinality attributes
-// merged with the provided attributes. Keys in the provided attributes override
-// the context's attributes.
+// LowCardinalitySnapshot returns a snapshot of the context's low-cardinality
+// attributes merged with overrides.
 //
-// The provided attributes are checked against the low-cardinality allow-list.
-// Any key not in the allow-list is silently dropped.
+// Non-empty fields in overrides take precedence over the context's attributes.
 func (s *TelemetryContext) LowCardinalitySnapshot(
-	overrides *LowCardinalityAttributes,
+	overrides LowCardinalityAttributes,
 ) map[string]string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
 	snapshot := s.lowCardinalityAttributes.toMap()
-	if overrides == nil {
-		return snapshot
-	}
-
 	maps.Copy(snapshot, overrides.toMap())
 	return snapshot
 }
@@ -222,7 +216,7 @@ type OpenTelemetryProxy interface {
 		ctx context.Context,
 		body string,
 		attributes map[string]string,
-		lowCardinalityAttributes *LowCardinalityAttributes,
+		lowCardinalityAttributes LowCardinalityAttributes,
 		severity otellogapi.Severity,
 	)
 
@@ -234,20 +228,20 @@ type OpenTelemetryProxy interface {
 		ctx context.Context,
 		event string,
 		attributes map[string]string,
-		lowCardinalityAttributes *LowCardinalityAttributes,
+		lowCardinalityAttributes LowCardinalityAttributes,
 	)
 
-	// Exception records an error as both a counter metric and an error log.
+	// Error records an error as both a counter metric and an error log.
 	//
-	// The counter metric has the name "exception" and contains
+	// The counter metric has the name "error" and contains
 	// the low-cardinality attributes from the current telemetry context plus an
-	// "exception.type" attribute (the error's type) so the
+	// "error.type" attribute (the caller-supplied error type) so the
 	// rate of each error type can be aggregated and graphed.
 	//
 	// The log record contains the attributes from the current telemetry context,
-	// plus "exception.type", "exception.message", and "exception.stacktrace".
-	// The stack trace is captured at the point Exception is called.
-	Exception(ctx context.Context, message string, err error)
+	// plus "error.type", "error.message", and "error.stacktrace".
+	// The stack trace is captured at the point Error is called.
+	Error(ctx context.Context, message string, err error, errorType string)
 }
 
 var (
@@ -334,14 +328,6 @@ func newOTLPHTTPClient(wandbSettings *settings.Settings) *http.Client {
 
 // Start implements OpenTelemetryProxy.Start.
 func (o *OpenTelemetryProxyImpl) Start(ctx context.Context) error {
-	otel.SetErrorHandler(otel.ErrorHandlerFunc(func(err error) {
-		slog.Error(
-			"analytics: failed to send telemetry to backend proxy",
-			"error", err,
-			"endpoint", o.endpoint,
-		)
-	}))
-
 	res, err := resource.New(
 		ctx,
 		resource.WithAttributes(semconv.ServiceName(serviceName)),
@@ -476,7 +462,7 @@ func (o *OpenTelemetryProxyImpl) Shutdown(ctx context.Context) error {
 func (o *OpenTelemetryProxyImpl) recordCount(
 	ctx context.Context,
 	name string,
-	lowCardinalityAttributes *LowCardinalityAttributes,
+	lowCardinalityAttributes LowCardinalityAttributes,
 ) {
 	if o.shutdown.Load() {
 		return
@@ -501,7 +487,7 @@ func (o *OpenTelemetryProxyImpl) RecordLog(
 	ctx context.Context,
 	body string,
 	attributes map[string]string,
-	lowCardinalityAttributes *LowCardinalityAttributes,
+	lowCardinalityAttributes LowCardinalityAttributes,
 	severity otellogapi.Severity,
 ) {
 	if o.shutdown.Load() {
@@ -534,7 +520,7 @@ func (o *OpenTelemetryProxyImpl) RecordMetricAndLogEvent(
 	ctx context.Context,
 	event string,
 	attributes map[string]string,
-	lowCardinalityAttributes *LowCardinalityAttributes,
+	lowCardinalityAttributes LowCardinalityAttributes,
 ) {
 	o.recordCount(ctx, event, lowCardinalityAttributes)
 	o.RecordLog(
@@ -546,32 +532,31 @@ func (o *OpenTelemetryProxyImpl) RecordMetricAndLogEvent(
 	)
 }
 
-// Exception implements OpenTelemetryProxy.Exception.
-func (o *OpenTelemetryProxyImpl) Exception(
+// Error implements OpenTelemetryProxy.Error.
+func (o *OpenTelemetryProxyImpl) Error(
 	ctx context.Context,
 	message string,
 	err error,
+	errorType string,
 ) {
-	exceptionType := "unknown"
-	exceptionMessage := ""
+	errorMessage := ""
 	if err != nil {
-		exceptionType = fmt.Sprintf("%T", err)
-		exceptionMessage = err.Error()
+		errorMessage = err.Error()
 	}
-	lowCardinalityAttributes := &LowCardinalityAttributes{
-		ExceptionType: exceptionType,
+	lowCardinalityAttributes := LowCardinalityAttributes{
+		ErrorType: errorType,
 	}
 
 	o.recordCount(
 		ctx,
-		"exception",
+		"error",
 		lowCardinalityAttributes,
 	)
 
 	logAttrs := map[string]string{
-		"exception.type":       exceptionType,
-		"exception.message":    exceptionMessage,
-		"exception.stacktrace": captureStacktrace(),
+		"error.type":       errorType,
+		"error.message":    errorMessage,
+		"error.stacktrace": captureStacktrace(),
 	}
 	o.RecordLog(
 		ctx,
@@ -596,7 +581,7 @@ func (NoopOpenTelemetryProxy) RecordLog(
 	context.Context,
 	string,
 	map[string]string,
-	*LowCardinalityAttributes,
+	LowCardinalityAttributes,
 	otellogapi.Severity,
 ) {
 }
@@ -606,23 +591,29 @@ func (NoopOpenTelemetryProxy) RecordMetricAndLogEvent(
 	context.Context,
 	string,
 	map[string]string,
-	*LowCardinalityAttributes,
+	LowCardinalityAttributes,
 ) {
 }
 
-// Exception implements OpenTelemetryProxy.Exception.
-func (NoopOpenTelemetryProxy) Exception(context.Context, string, error) {}
+// Error implements OpenTelemetryProxy.Error.
+func (NoopOpenTelemetryProxy) Error(
+	context.Context,
+	string,
+	error,
+	string,
+) {
+}
 
 // captureStacktrace returns a formatted stack trace of the calling goroutine,
-// starting at the caller of Exception.
+// starting at the caller of Error.
 //
 // This uses only the standard library: it captures the current call stack
 // rather than the site where err was created (which Go does not record for
 // plain errors.New/fmt.Errorf values).
 func captureStacktrace() string {
 	pcs := make([]uintptr, 64)
-	// Skip runtime.Callers, captureStacktrace, and Exception so the trace
-	// starts at the code that reported the exception.
+	// Skip runtime.Callers, captureStacktrace, and Error so the trace
+	// starts at the code that reported the error.
 	n := runtime.Callers(3, pcs)
 	if n == 0 {
 		return ""
