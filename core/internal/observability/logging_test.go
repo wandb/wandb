@@ -1,14 +1,19 @@
 package observability_test
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	otellogapi "go.opentelemetry.io/otel/log"
 
+	"github.com/wandb/wandb/core/internal/analytics"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/observabilitytest"
 )
@@ -158,4 +163,79 @@ func TestLoggerHierarchy(t *testing.T) {
 		// slog only includes the attrs passed to With().
 		"attr": "attr-value",
 	}, logRecords[1])
+}
+
+// fakeTelemetryRecorder records the codeFunctionName passed to Error so tests
+// can assert how the caller is attributed.
+type fakeTelemetryRecorder struct {
+	errorCalled          bool
+	lastCodeFunctionName string
+}
+
+func (f *fakeTelemetryRecorder) RecordLog(
+	context.Context,
+	string,
+	map[string]string,
+	analytics.LowCardinalityAttributes,
+	otellogapi.Severity,
+) {
+}
+
+func (f *fakeTelemetryRecorder) IncrementCounterAndLogEvent(
+	context.Context,
+	string,
+	map[string]string,
+	analytics.LowCardinalityAttributes,
+) {
+}
+
+func (f *fakeTelemetryRecorder) Error(
+	_ context.Context,
+	_ string,
+	_ error,
+	codeFunctionName string,
+) {
+	f.errorCalled = true
+	f.lastCodeFunctionName = codeFunctionName
+}
+
+func (f *fakeTelemetryRecorder) With(
+	map[string]string,
+	analytics.LowCardinalityAttributes,
+) analytics.TelemetryRecorder {
+	return f
+}
+
+func newTelemetryTestLogger(
+	rec analytics.TelemetryRecorder,
+) *observability.CoreLogger {
+	return observability.NewCoreLogger(
+		slog.New(slog.NewJSONHandler(io.Discard, nil)),
+		nil,
+		rec,
+	)
+}
+
+func TestCaptureError_AttributesCaller(t *testing.T) {
+	rec := &fakeTelemetryRecorder{}
+	logger := newTelemetryTestLogger(rec)
+
+	logger.CaptureError(errors.New("boom"))
+	pc, _, _, _ := runtime.Caller(0)
+	want := runtime.FuncForPC(pc).Name()
+
+	require.True(t, rec.errorCalled, "expected Error to be recorded")
+	assert.Equal(t, want, rec.lastCodeFunctionName)
+}
+
+func TestCaptureFatal_AttributesCaller(t *testing.T) {
+	rec := &fakeTelemetryRecorder{}
+	logger := newTelemetryTestLogger(rec)
+
+	logger.CaptureFatal(errors.New("boom"))
+	pc, _, _, _ := runtime.Caller(0)
+	want := runtime.FuncForPC(pc).Name()
+
+	require.True(t, rec.errorCalled, "expected Error to be recorded")
+	assert.Equal(t, want, rec.lastCodeFunctionName)
 }
