@@ -13,19 +13,26 @@ import (
 	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/nullify"
+	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runconfig"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 type ResumeBranch struct {
 	ctx    context.Context
+	logger *observability.CoreLogger
 	client graphql.Client
 	mode   string
 }
 
 // NewResumeBranch creates a new ResumeBranch
-func NewResumeBranch(ctx context.Context, client graphql.Client, mode string) *ResumeBranch {
-	return &ResumeBranch{ctx: ctx, client: client, mode: mode}
+func NewResumeBranch(
+	ctx context.Context,
+	logger *observability.CoreLogger,
+	client graphql.Client,
+	mode string,
+) *ResumeBranch {
+	return &ResumeBranch{ctx: ctx, logger: logger, client: client, mode: mode}
 }
 
 // UpdateForResume modifies run metadata for resuming.
@@ -100,7 +107,7 @@ func (rb *ResumeBranch) UpdateForResume(
 
 	// if we have data and we are in the MUST or ALLOW resume mode, we can resume the run
 	if data != nil && rb.mode != "never" {
-		err := processResponse(params, config, data)
+		err := processResponse(params, config, data, rb.logger)
 
 		if err != nil && rb.mode == "must" {
 			info := &spb.ErrorInfo{
@@ -156,7 +163,11 @@ func processResponse(
 	params *RunParams,
 	config *runconfig.RunConfig,
 	data *gql.RunResumeStatusModelProjectBucketRun,
+	logger *observability.CoreLogger,
 ) error {
+	// The highest explicit _step reported by the summary or the history
+	// tail, or -1 if neither reports one.
+	lastStep := int64(-1)
 	// Get Config information
 	if oldConfig, err := processConfigResume(data.GetConfig()); err != nil {
 		return err
@@ -199,10 +210,8 @@ func processResponse(
 		}
 
 		if step, ok := summary["_step"]; ok {
-			// if we are resuming, we need to update the starting step
-			// to be the next step after the last step we ran
 			if x, ok := step.(int64); ok {
-				params.StartingStep = x
+				lastStep = max(lastStep, x)
 			}
 		}
 
@@ -234,10 +243,8 @@ func processResponse(
 		return err
 	} else if history != nil {
 		if step, ok := history["_step"]; ok {
-			// if we are resuming, we need to update the starting step
-			// to be the next step after the last step we ran
 			if x, ok := step.(int64); ok {
-				params.StartingStep = x
+				lastStep = max(lastStep, x)
 			}
 		}
 
@@ -250,16 +257,32 @@ func processResponse(
 		}
 	}
 
-	// if we are resuming, we need to update the starting step
-	if historyCount := params.FileStreamOffset[filestream.HistoryChunk]; historyCount > 0 {
-		nextFromStep := params.StartingStep + 1
-		nextFromCount := int64(historyCount)
-		if nextFromStep > nextFromCount {
-			params.StartingStep = nextFromStep
-		} else {
-			params.StartingStep = nextFromCount
-		}
+	// Compute the step the resumed run continues from.
+	//
+	// The _step values from the summary and history tail may each be stale,
+	// and since steps start at 0 and increase across history rows, a run
+	// with N rows must have reached at least step N-1. Fold the row count
+	// in as one more lower bound on the last step; each source guards
+	// against staleness in the others. For runs logged at sparse steps
+	// (e.g. 0, 5, 10) the row count undercounts, which is why an explicit
+	// _step wins over it whenever it is larger.
+	historyLineCount := int64(params.FileStreamOffset[filestream.HistoryChunk])
+
+	// A row count above lastStep+1 means the summary and history tail are
+	// stale (or rows have repeated steps). The row count wins the max
+	// below, but leave a trace so the disagreement isn't silent.
+	if lastStep >= 0 && historyLineCount > lastStep+1 {
+		logger.Warn(
+			"runbranch: resume: history line count exceeds the last "+
+				"reported step + 1; the reported step is stale, using "+
+				"the line count as the starting step",
+			"historyLineCount", historyLineCount,
+			"lastStep", lastStep,
+		)
 	}
+
+	lastStep = max(lastStep, historyLineCount-1)
+	params.StartingStep = lastStep + 1
 
 	// If the user provided tags when initializing, use them. Otherwise,
 	// initialize to the previous run's tags.

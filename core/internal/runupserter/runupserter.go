@@ -435,6 +435,7 @@ func (upserter *RunUpserter) updateMetadataForResume(
 
 	return runbranch.NewResumeBranch(
 		ctx,
+		upserter.logger,
 		upserter.graphqlClientOrNil,
 		resumeSetting,
 	).UpdateForResume(
