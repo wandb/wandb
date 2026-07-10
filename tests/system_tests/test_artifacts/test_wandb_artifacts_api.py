@@ -11,7 +11,6 @@ import wandb
 from pytest import mark, raises
 from wandb import Api
 from wandb.errors import CommError
-from wandb.sdk.artifacts._validators import FullArtifactPath
 from wandb.sdk.artifacts.artifact import Artifact
 
 
@@ -519,44 +518,6 @@ def test_run_log_artifact(user: str, api: Api):
     actual_artifacts = list(run.logged_artifacts())
     assert len(actual_artifacts) == 1
     assert actual_artifacts[0].qualified_name == artifact.qualified_name
-
-
-def test_artifact_enable_tracking_flag(user: str, api: Api, mocker):
-    """Test that enable_tracking flag is correctly passed through the API chain."""
-    entity = user
-    project = "test-project"
-    artifact_name = "test-artifact"
-    artifact_type = "test-type"
-
-    artifact_path_str = f"{entity}/{project}/{artifact_name}:v0"
-    artifact_path_obj = FullArtifactPath.from_str(artifact_path_str)
-
-    with wandb.init(entity=entity, project=project) as run:
-        art = wandb.Artifact(artifact_name, artifact_type)
-        with art.new_file("test.txt", "w") as f:
-            f.write("testing")
-        run.log_artifact(art)
-
-    from_name_spy = mocker.spy(Artifact, "_from_name")
-
-    # Test that api.artifact() calls Artifact._from_name() with enable_tracking=True
-    api.artifact(name=artifact_path_str)
-
-    from_name_spy.assert_called_once_with(
-        path=artifact_path_obj,
-        service_api=api._service_api,
-        enable_tracking=True,
-    )
-
-    # Test that internal methods, like api.artifact_exists(), call Artifact._from_name() with enable_tracking=False
-    from_name_spy.reset_mock()
-    api.artifact_exists(name=artifact_path_str)
-
-    from_name_spy.assert_called_once_with(
-        path=artifact_path_obj,
-        service_api=api._service_api,
-        enable_tracking=False,
-    )
 
 
 def test_artifact_history_step(user: str, api: Api):

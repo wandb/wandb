@@ -1,8 +1,14 @@
+import json
+
 import pytest
 import wandb
 from wandb import Api
 from wandb.apis.public.sweeps import Sweep
+from wandb.errors import UnsupportedError
+from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.internal.internal_api import Api as InternalApi
+
+from tests.fixtures.wandb_backend_spy import WandbBackendSpy
 
 from .test_wandb_sweep import (
     SWEEP_CONFIG_BAYES,
@@ -189,3 +195,67 @@ def test_to_html(user):
     sweep_id = wandb.sweep(SWEEP_CONFIG_BAYES, entity=user, project="test")
     sweep = api.from_path(f"{user}/test/sweeps/{sweep_id}")
     assert f"{user}/test/sweeps/{sweep_id}?jupyter=true" in sweep.to_html()
+
+
+def _stub_sweeps_query_filtering(spy: WandbBackendSpy, *, enabled: bool) -> None:
+    """Stub the server's reported support for the SWEEPS_QUERY_FILTERING feature."""
+    features = (
+        [{"name": pb.ServerFeature.Name(pb.SWEEPS_QUERY_FILTERING), "isEnabled": True}]
+        if enabled
+        else []
+    )
+    gql = spy.gql
+    spy.stub_gql(
+        gql.Matcher(operation="ServerFeaturesQuery"),
+        gql.Constant(content={"data": {"serverInfo": {"features": features}}}),
+    )
+
+
+def test_project_sweeps_filtering_unsupported(wandb_backend_spy, user):
+    """Filtering fails fast when the server doesn't support SWEEPS_QUERY_FILTERING."""
+    sweep_id = wandb.sweep(SWEEP_CONFIG_BAYES, entity=user, project="test")
+    _stub_sweeps_query_filtering(wandb_backend_spy, enabled=False)
+
+    project = Api().from_path(f"{user}/test")
+
+    # Listing sweeps without filters still works (the `filters` arg is omitted).
+    assert len(project.sweeps()) == 1
+
+    # Requesting filters fails fast rather than silently returning everything.
+    with pytest.raises(
+        UnsupportedError,
+        match="Filtering sweeps is not supported on this W&B server version",
+    ):
+        project.sweeps(filters={"name": sweep_id})
+
+
+def test_project_sweeps_filtering_supported(wandb_backend_spy, user):
+    """When supported, the `filters` arg is forwarded to the server."""
+    wandb.sweep(SWEEP_CONFIG_BAYES, entity=user, project="test")
+    _stub_sweeps_query_filtering(wandb_backend_spy, enabled=True)
+
+    gql = wandb_backend_spy.gql
+    get_sweeps = gql.Constant(
+        content={
+            "data": {
+                "project": {
+                    "totalSweeps": 1,
+                    "sweeps": {
+                        "pageInfo": {"hasNextPage": False, "endCursor": None},
+                        "edges": [],
+                    },
+                }
+            }
+        }
+    )
+    wandb_backend_spy.stub_gql(gql.Matcher(operation="GetSweeps"), get_sweeps)
+
+    project = Api().from_path(f"{user}/test")
+    filters = {"name": "my-sweep"}
+    assert len(project.sweeps(filters=filters)) == 1
+
+    # The filter was forwarded to the server as the `filters` argument.
+    assert get_sweeps.total_calls >= 1
+    request = get_sweeps.requests[0]
+    assert "filters" in request.query
+    assert json.loads(request.variables["filters"]) == filters

@@ -5,7 +5,6 @@ __all__ = [
     "ADD_ALIASES_GQL",
     "ADD_ARTIFACT_COLLECTION_TAGS_GQL",
     "ARTIFACT_BY_ID_GQL",
-    "ARTIFACT_BY_NAME_GQL",
     "ARTIFACT_COLLECTION_ALIASES_GQL",
     "ARTIFACT_CREATED_BY_GQL",
     "ARTIFACT_MEMBERSHIP_BY_NAME_GQL",
@@ -1003,6 +1002,7 @@ fragment TagFragment on Tag {
 }
 """
 
+<<<<<<< ibindlish/add-project-id-filters-to-registry-search
 ARTIFACT_BY_NAME_GQL = """
 query ArtifactByName($entity: String!, $project: String!, $name: String!, $enableTracking: Boolean, $includeAliases: Boolean = true) {
   project(name: $project, entityName: $entity) {
@@ -1082,6 +1082,8 @@ fragment TagFragment on Tag {
 }
 """
 
+=======
+>>>>>>> ibindlish/fix-collection-ordering-for-versions
 ARTIFACT_MEMBERSHIP_BY_NAME_GQL = """
 query ArtifactMembershipByName($entity: String!, $project: String!, $name: String!, $includeAliases: Boolean = false) {
   project(name: $project, entityName: $entity) {

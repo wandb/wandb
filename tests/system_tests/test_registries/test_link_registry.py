@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Literal
 
 import wandb
-from pytest import FixtureRequest, MonkeyPatch, fixture, mark, param
+from pytest import FixtureRequest, MonkeyPatch, fixture, mark, param, skip
 from typing_extensions import assert_never
 from wandb import Api, Artifact
 from wandb.apis.public.registries.registry import Registry
@@ -134,8 +134,15 @@ def test_add_alias_to_linked_artifact_without_source_write(
     org_role: Literal["member", "viewer"],
     invite_to_source_team: bool,
     alias: str,
+    models_viewer_registry_write_supported: bool,
 ):
     """Users without source-project write access can still add aliases to linked artifacts."""
+    if org_role == "viewer" and not models_viewer_registry_write_supported:
+        skip(
+            "Registry writes by a Models-Viewer seat need server v0.75.0 or newer. "
+            "Gated on TOTAL_COUNT_IN_FILE_CONNECTION as a version proxy."
+        )
+
     username, _user = add_org_user_with_registry_access(
         org=org,
         org_role=org_role,

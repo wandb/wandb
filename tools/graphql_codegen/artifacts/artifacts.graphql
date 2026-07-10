@@ -198,20 +198,6 @@ query ArtifactByID($id: ID!, $includeAliases: Boolean = true) {
   }
 }
 
-query ArtifactByName(
-  $entity: String!
-  $project: String!
-  $name: String!
-  $enableTracking: Boolean
-  $includeAliases: Boolean = true
-) {
-  project(name: $project, entityName: $entity) {
-    artifact(name: $name, enableTracking: $enableTracking) {
-      ...ArtifactFragment
-    }
-  }
-}
-
 query ArtifactMembershipByName(
   $entity: String!
   $project: String!
