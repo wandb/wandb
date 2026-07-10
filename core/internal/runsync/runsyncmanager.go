@@ -40,11 +40,9 @@ func (m *RunSyncManager) InitSync(
 	defer m.mu.Unlock()
 
 	m.telemetryProxy = analytics.NewOpenTelemetryProxy(
+		context.Background(),
 		settings.From(request.Settings),
 	)
-	if err := m.telemetryProxy.Start(context.Background()); err != nil {
-		slog.Error("runsync: failed to start telemetry proxy", "error", err)
-	}
 
 	id := fmt.Sprintf("sync-%d", m.nextID)
 	m.nextID++

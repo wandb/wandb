@@ -1,6 +1,7 @@
 package stream
 
 import (
+	"context"
 	"io"
 	"log/slog"
 	"os"
@@ -22,23 +23,16 @@ type streamLoggerFile *os.File
 var streamLoggerProviders = wire.NewSet(
 	openStreamLoggerFile,
 	streamSentryContext,
-	streamTelemetryProxy,
 	streamLogger,
+	streamOTelProxy,
 )
 
-// streamTelemetryProxy creates the OpenTelemetry proxy for the stream.
+// streamOTelProxy returns the OpenTelemetry proxy for the stream.
 //
-// Telemetry is sent to the W&B backend's OpenTelemetry proxy API at the run's
-// base URL. The endpoint is only known once the client's settings arrive, so
-// the proxy is constructed per-stream here rather than at server startup.
-//
-// Offline runs get a no-op proxy since there is no backend to send to.
-func streamTelemetryProxy(s *settings.Settings) analytics.OpenTelemetryProxy {
-	if s.IsOffline() {
-		return analytics.NoopOpenTelemetryProxy{}
-	}
-
-	return analytics.NewOpenTelemetryProxy(s)
+// The stream owns the proxy's lifecycle: it is shut down in Stream.Close
+// after all of the stream's work is processed.
+func streamOTelProxy(s *settings.Settings) analytics.OpenTelemetryProxy {
+	return analytics.NewOpenTelemetryProxy(context.Background(), s)
 }
 
 // symlinkDebugCore symlinks the debug-core.log file to the run's directory.
