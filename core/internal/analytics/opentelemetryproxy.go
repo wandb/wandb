@@ -12,7 +12,6 @@ import (
 	"net/http"
 	"runtime"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -107,11 +106,6 @@ func Disable() {
 //   - High-cardinality attributes are an unbounded set of values.
 //     These are attached to log records where high cardinality is acceptable.
 type TelemetryContext struct {
-	// mu protects reading and writing to the attribute maps.
-	// Because writing attributes should happen infrequently,
-	// we use a read-write lock to allow multiple readers simultaneously.
-	mu sync.RWMutex
-
 	// lowCardinalityAttributes is a bounded set of attributes.
 	// these attributes are added to all telemetry records.
 	lowCardinalityAttributes LowCardinalityAttributes
@@ -135,45 +129,34 @@ func NewTelemetryContext() *TelemetryContext {
 	}
 }
 
-// LowCardinalitySnapshot returns a snapshot of the context's low-cardinality
-// attributes merged with overrides.
+// with returns a child context that inherits this context's attributes
+// merged with the provided ones. The receiver is not modified.
 //
-// Non-empty fields in overrides take precedence over the context's attributes.
-func (s *TelemetryContext) lowCardinalitySnapshot(
-	overrides LowCardinalityAttributes,
-) map[string]string {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+// Non-empty low-cardinality fields and high-cardinality keys in the
+// arguments take precedence over the parent's attributes.
+func (s *TelemetryContext) with(
+	lowCardinalityAttributes LowCardinalityAttributes,
+	highCardinalityAttributes map[string]string,
+) *TelemetryContext {
+	low := s.lowCardinalityAttributes
+	low.merge(lowCardinalityAttributes)
 
-	snapshot := s.lowCardinalityAttributes.toMap()
-	maps.Copy(snapshot, overrides.toMap())
-	return snapshot
+	high := maps.Clone(s.highCardinalityAttributes)
+	maps.Copy(high, highCardinalityAttributes)
+
+	return &TelemetryContext{
+		lowCardinalityAttributes:  low,
+		highCardinalityAttributes: high,
+	}
 }
 
-// HighCardinalitySnapshot returns a snapshot of the context's high-cardinality attributes
-// merged with the provided attributes.
-func (s *TelemetryContext) highCardinalitySnapshot(
-	attributes map[string]string,
-) map[string]string {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	out := make(
-		map[string]string,
-		len(s.highCardinalityAttributes)+len(attributes),
-	)
-	maps.Copy(out, s.highCardinalityAttributes)
-	maps.Copy(out, attributes)
-	return out
-}
-
-// OpenTelemetryProxy records OpenTelemetry events (metrics and logs).
-type OpenTelemetryProxy interface {
-	// Shutdown flushes any pending records and shuts down all providers.
-	// It should be called once when the proxy is no longer needed.
-	// Additional calls are no-ops.
-	Shutdown(ctx context.Context) error
-
+// TelemetryRecorder records OpenTelemetry events (metrics and logs).
+//
+// Recorders form a hierarchy: With derives a child recorder with additional
+// attributes. Recorders do not own the underlying OpenTelemetry providers
+// and cannot shut them down; that is the job of the root OpenTelemetryProxy
+// returned by NewOpenTelemetryProxy.
+type TelemetryRecorder interface {
 	// RecordLog emits an OpenTelemetry log record with the specified severity level.
 	//
 	// The log record contains the attributes from the current telemetry context,
@@ -211,12 +194,29 @@ type OpenTelemetryProxy interface {
 	// The stack trace is captured at the point Error is called.
 	Error(ctx context.Context, message string, err error, errorType string)
 
-	// SetHighCardinalityAttributes merges caller-supplied high-cardinality attributes
-	// into the context.
-	SetHighCardinalityAttributes(attributes map[string]string)
+	// With returns a derived recorder whose telemetry context inherits
+	// this recorder's attributes merged with the provided ones.
+	//
+	// The receiver is unchanged: attributes added to the derived recorder
+	// never appear on records emitted through the parent or its siblings.
+	With(
+		attributes map[string]string,
+		lowCardinalityAttributes LowCardinalityAttributes,
+	) TelemetryRecorder
+}
 
-	// SetLowCardinalityAttributes merges the provided attributes into the context.
-	SetLowCardinalityAttributes(attributes LowCardinalityAttributes)
+// OpenTelemetryProxy is the root TelemetryRecorder, which owns the
+// OpenTelemetry providers and is responsible for shutting them down.
+type OpenTelemetryProxy interface {
+	TelemetryRecorder
+
+	// Shutdown flushes any pending records and shuts down all providers,
+	// after which this proxy and every recorder derived from it become
+	// no-ops.
+	//
+	// It should be called once when telemetry is no longer needed.
+	// Additional calls are no-ops.
+	Shutdown(ctx context.Context) error
 }
 
 var (
@@ -243,8 +243,7 @@ type OpenTelemetryProxyImpl struct {
 	// which are added to telemetry records.
 	telemetryContext *TelemetryContext
 
-	// shutdown is set once the providers have been shut down,
-	// after which recording methods become no-ops.
+	// shutdown guards Shutdown so the providers are only shut down once.
 	shutdown atomic.Bool
 }
 
@@ -421,7 +420,7 @@ func (o *OpenTelemetryProxyImpl) incrementCounter(
 	name string,
 	lowCardinalityAttributes LowCardinalityAttributes,
 ) {
-	if o.shutdown.Load() {
+	if o.meterProvider == nil {
 		return
 	}
 
@@ -431,15 +430,18 @@ func (o *OpenTelemetryProxyImpl) incrementCounter(
 		return
 	}
 
-	snapshot := o.telemetryContext.lowCardinalitySnapshot(lowCardinalityAttributes)
+	// Per-record attributes take precedence over the context's.
+	metricAttributes := o.telemetryContext.lowCardinalityAttributes.toMap()
+	maps.Copy(metricAttributes, lowCardinalityAttributes.toMap())
+
 	counter.Add(
 		ctx,
 		1,
-		toOTelAttrs(snapshot),
+		toOTelAttrs(metricAttributes),
 	)
 }
 
-// RecordLog implements OpenTelemetryProxy.RecordLog.
+// RecordLog implements TelemetryRecorder.RecordLog.
 func (o *OpenTelemetryProxyImpl) RecordLog(
 	ctx context.Context,
 	body string,
@@ -447,7 +449,7 @@ func (o *OpenTelemetryProxyImpl) RecordLog(
 	lowCardinalityAttributes LowCardinalityAttributes,
 	severity otellogapi.Severity,
 ) {
-	if o.shutdown.Load() {
+	if o.logProvider == nil {
 		return
 	}
 
@@ -456,10 +458,15 @@ func (o *OpenTelemetryProxyImpl) RecordLog(
 	record.SetBody(otellogapi.StringValue(body))
 	record.SetSeverity(severity)
 
-	snapshot := o.telemetryContext.lowCardinalitySnapshot(
-		lowCardinalityAttributes,
-	)
-	logAttributes := o.telemetryContext.highCardinalitySnapshot(snapshot)
+	// Copy attributes in order of precedence:
+	// 1. Context's high-cardinality attributes
+	// 2. Context's low-cardinality attributes
+	// 3. Per-record low-cardinality attributes
+	// 4. Per-record attributes
+	logAttributes := make(map[string]string)
+	maps.Copy(logAttributes, o.telemetryContext.highCardinalityAttributes)
+	maps.Copy(logAttributes, o.telemetryContext.lowCardinalityAttributes.toMap())
+	maps.Copy(logAttributes, lowCardinalityAttributes.toMap())
 	maps.Copy(logAttributes, attributes)
 	if len(logAttributes) > 0 {
 		kvs := make([]otellogapi.KeyValue, 0, len(logAttributes))
@@ -472,7 +479,7 @@ func (o *OpenTelemetryProxyImpl) RecordLog(
 	logger.Emit(ctx, record)
 }
 
-// IncrementCounterAndLogEvent implements OpenTelemetryProxy.IncrementCounterAndLogEvent.
+// IncrementCounterAndLogEvent implements TelemetryRecorder.IncrementCounterAndLogEvent.
 func (o *OpenTelemetryProxyImpl) IncrementCounterAndLogEvent(
 	ctx context.Context,
 	event string,
@@ -489,7 +496,7 @@ func (o *OpenTelemetryProxyImpl) IncrementCounterAndLogEvent(
 	)
 }
 
-// Error implements OpenTelemetryProxy.Error.
+// Error implements TelemetryRecorder.Error.
 func (o *OpenTelemetryProxyImpl) Error(
 	ctx context.Context,
 	message string,
@@ -524,18 +531,21 @@ func (o *OpenTelemetryProxyImpl) Error(
 	)
 }
 
-// SetHighCardinalityAttributes implements OpenTelemetryProxy.SetHighCardinalityAttributes.
-func (o *OpenTelemetryProxyImpl) SetHighCardinalityAttributes(attributes map[string]string) {
-	o.telemetryContext.mu.Lock()
-	defer o.telemetryContext.mu.Unlock()
-	maps.Copy(o.telemetryContext.highCardinalityAttributes, attributes)
-}
-
-// SetLowCardinalityAttributes implements OpenTelemetryProxy.SetLowCardinalityAttributes.
-func (o *OpenTelemetryProxyImpl) SetLowCardinalityAttributes(attributes LowCardinalityAttributes) {
-	o.telemetryContext.mu.Lock()
-	defer o.telemetryContext.mu.Unlock()
-	o.telemetryContext.lowCardinalityAttributes.merge(attributes)
+// With implements TelemetryRecorder.With.
+func (o *OpenTelemetryProxyImpl) With(
+	attributes map[string]string,
+	lowCardinalityAttributes LowCardinalityAttributes,
+) TelemetryRecorder {
+	return &OpenTelemetryProxyImpl{
+		endpoint:      o.endpoint,
+		logProvider:   o.logProvider,
+		meterProvider: o.meterProvider,
+		httpClient:    o.httpClient,
+		telemetryContext: o.telemetryContext.with(
+			lowCardinalityAttributes,
+			attributes,
+		),
+	}
 }
 
 // noopOpenTelemetryProxy is a OpenTelemetryProxy that does nothing.
@@ -544,7 +554,7 @@ type NoopOpenTelemetryProxy struct{}
 // Shutdown implements OpenTelemetryProxy.Shutdown.
 func (NoopOpenTelemetryProxy) Shutdown(context.Context) error { return nil }
 
-// RecordLog implements OpenTelemetryProxy.RecordLog.
+// RecordLog implements TelemetryRecorder.RecordLog.
 func (NoopOpenTelemetryProxy) RecordLog(
 	context.Context,
 	string,
@@ -554,7 +564,7 @@ func (NoopOpenTelemetryProxy) RecordLog(
 ) {
 }
 
-// IncrementCounterAndLogEvent implements OpenTelemetryProxy.IncrementCounterAndLogEvent.
+// IncrementCounterAndLogEvent implements TelemetryRecorder.IncrementCounterAndLogEvent.
 func (NoopOpenTelemetryProxy) IncrementCounterAndLogEvent(
 	context.Context,
 	string,
@@ -563,7 +573,7 @@ func (NoopOpenTelemetryProxy) IncrementCounterAndLogEvent(
 ) {
 }
 
-// Error implements OpenTelemetryProxy.Error.
+// Error implements TelemetryRecorder.Error.
 func (NoopOpenTelemetryProxy) Error(
 	context.Context,
 	string,
@@ -572,12 +582,12 @@ func (NoopOpenTelemetryProxy) Error(
 ) {
 }
 
-// SetHighCardinalityAttributes implements OpenTelemetryProxy.SetHighCardinalityAttributes.
-func (NoopOpenTelemetryProxy) SetHighCardinalityAttributes(map[string]string) {
-}
-
-// SetLowCardinalityAttributes implements OpenTelemetryProxy.SetLowCardinalityAttributes.
-func (NoopOpenTelemetryProxy) SetLowCardinalityAttributes(LowCardinalityAttributes) {
+// With implements TelemetryRecorder.With.
+func (n NoopOpenTelemetryProxy) With(
+	map[string]string,
+	LowCardinalityAttributes,
+) TelemetryRecorder {
+	return n
 }
 
 // captureStacktrace returns a formatted stack trace of the calling goroutine,
