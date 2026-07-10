@@ -390,11 +390,7 @@ class _WandbInit:
             settings: The run's settings derived from the environment
                 and explicit values passed to `wandb.init()`.
         """
-        if (
-            settings.resume == "auto"
-            and not settings._offline
-            and settings.resume_fname
-        ):
+        if settings.resume == "auto" and settings.resume_fname:
             resume_path = pathlib.Path(settings.resume_fname)
         else:
             resume_path = None
@@ -1331,6 +1327,8 @@ def init(  # noqa: C901
             unset) to always start a new run.
             If `resume` is set, `fork_from` and `resume_from` cannot be
             used. When `resume` is unset, the system will always start a new run.
+            When `mode="offline"`, only `"must"` and `"never"` are supported;
+            `"allow"` and `"auto"` raise a `UsageError`.
         resume_from: Specifies a moment in a previous run to resume a run from,
             using the format `{run_id}?_step={step}`. This allows users to truncate
             the history logged to a run at an intermediate step and resume logging

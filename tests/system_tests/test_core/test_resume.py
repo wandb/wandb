@@ -47,12 +47,18 @@ def test_resume_never__run_exists__raises(user):
             pass
 
 
-@pytest.mark.parametrize("resume", ("allow", "never", "must", True))
+@pytest.mark.parametrize("resume", ("never", "must"))
 def test_resume__offline__does_not_warn(resume, mock_wandb_log):
     with wandb.init(mode="offline", resume=resume):
         pass
 
     mock_wandb_log._termwarn.assert_not_called()
+
+
+@pytest.mark.parametrize("resume", ("allow", "auto", True))
+def test_resume__offline__unsupported_mode_raises(resume):
+    with pytest.raises(wandb.errors.UsageError):
+        wandb.init(mode="offline", resume=resume)
 
 
 def test_resume_runtime_calculation(user, wandb_backend_spy):
