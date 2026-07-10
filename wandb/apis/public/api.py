@@ -1119,8 +1119,6 @@ class Api:
         - `$exists`
         - `$regex`
 
-
-
         Args:
             path: (str) path to project, should be in the form: "entity/project"
             filters: (dict) queries for specific runs using the MongoDB query language.
@@ -1222,6 +1220,10 @@ class Api:
 
         Returns:
             A `Run` object.
+
+        Raises:
+            RunNotFoundError: If a run is not found,
+                or run data is not able to be loaded.
         """
         entity, project, run_id = self._parse_path(path)
         if not self._runs.get(path):
@@ -1599,9 +1601,7 @@ class Api:
         )
 
     @normalize_exceptions
-    def _artifact(
-        self, name: str, type: str | None = None, enable_tracking: bool = False
-    ) -> Artifact:
+    def _artifact(self, name: str, type: str | None = None) -> Artifact:
         from wandb.sdk.artifacts._validators import (
             FullArtifactPath,
             is_artifact_registry_project,
@@ -1629,20 +1629,14 @@ class Api:
             )
 
         if entity is None:
-            raise ValueError(
-                "Could not determine entity. Please include the entity as part of the artifact name path."
-            )
+            msg = "Could not determine entity. Please include the entity as part of the artifact name path."
+            raise ValueError(msg)
 
         path = FullArtifactPath(prefix=entity, project=project, name=artifact_name)
-        artifact = Artifact._from_name(
-            path=path,
-            service_api=self._service_api,
-            enable_tracking=enable_tracking,
-        )
+        artifact = Artifact._from_name(path=path, service_api=self._service_api)
         if type is not None and artifact.type != type:
-            raise ValueError(
-                f"type {type} specified but this artifact is of type {artifact.type}"
-            )
+            msg = f"type {type!r} specified but this artifact is of type {artifact.type!r}"
+            raise ValueError(msg)
         return artifact
 
     def _artifact_from_id(self, artifact_id: str) -> Artifact | None:
@@ -1708,10 +1702,8 @@ class Api:
         wandb.Api().artifact(name="entity/project/artifact:version")
         ```
 
-        Note:
-        This method is intended for external use only. Do not call `api.artifact()` within the wandb repository code.
         """
-        return self._artifact(name=name, type=type, enable_tracking=True)
+        return self._artifact(name=name, type=type)
 
     @normalize_exceptions
     def job(self, name: str | None, path: str | None = None) -> public.Job:

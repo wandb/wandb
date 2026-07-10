@@ -770,7 +770,22 @@ pub struct BranchPoint {
     #[prost(string, tag = "3")]
     pub metric: ::prost::alloc::string::String,
 }
-/// RunRecord: wandb/sdk/wandb_run/Run
+/// Information about a run.
+///
+/// When sent as a standalone record, this creates or updates a run.
+/// No other run-modifying records are allowed until the first run record
+/// is processed. Generally, only fields that correspond to values the client
+/// may know are present in this case; other fields are ignored.
+///
+/// Other fields may be included in a RunUpdateResult (like `storage_id`, which
+/// the backend returns when creating a new online run), and some fields may be
+/// updated (like `entity` and `project`, which are determined through a query
+/// if not given).
+///
+/// After creating a run, the values in RunUpdateResult must be propagated to
+/// the RunStartRequest. This is a legacy pattern that wandb-core uses to
+/// communicate with itself. The updated run record may be returned to another
+/// process that "attaches" to the run via the AttachResponse.
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct RunRecord {
     #[prost(string, tag = "1")]

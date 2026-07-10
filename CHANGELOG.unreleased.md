@@ -17,10 +17,11 @@ Section headings should be at level 3 (e.g. `### Added`).
 ### Notable Changes
 
 This version drops support for protobuf v4, and requires protobuf v5 or newer.
-This version drops compatibility with server versions older than 0.67.0.
+This version drops compatibility with server versions older than 0.70.0.
 
 ### Added
 
+- New filters parameter to `Api().project().sweeps()` matching the runs filter format (@kmikowicz-wandb in https://github.com/wandb/wandb/pull/12059)
 - Added `Run.stop()` to the public API (`wandb.Api().run(...).stop()`) to programmatically request that an active run stop gracefully, like the "Stop run" button in the W&B App UI (@dmitryduev in https://github.com/wandb/wandb/pull/12159)
 
 ### Changed
@@ -31,13 +32,21 @@ This version drops compatibility with server versions older than 0.67.0.
   - Restore original behavior with `--legacy`
 - Dropped support for protobuf v4 (@jacobromero in https://github.com/wandb/wandb/pull/12115)
 - `wandb.sandbox` now defaults serverless sandboxes to a 12-hour max lifetime (`max_lifetime_seconds=43200`); override per sandbox with `max_lifetime_seconds` or via `SandboxDefaults` (@nicholaspun-wandb in https://github.com/wandb/wandb/pull/12136)
+- `wandb.Api().runs()` now raises a `RunNotFoundError` when unable to load data for a run, such as when a run is deleted prior to fully loading run data (@jacobromero in https://app.graphite.com/github/pr/wandb/wandb/12176)
 
 ### Removed
 
-- Removed legacy support for listing and downloading artifact files on W&B Server releases older than `v0.67.0`, which are past EOL. This affects `Artifact.files()` and `Artifact.download()` for any artifact, as well as `Artifact.get_entry()` / `Artifact.get_path()` file downloads for non-reference artifacts. To keep using these operations, upgrade your W&B Server to `v0.67.0` or newer. (@tonyyli-wandb in https://github.com/wandb/wandb/pull/12109)
+- Removed legacy fallback implementations for downloading artifact files on older EOL W&B Server releases. The following will no longer work on EOL servers: `Artifact.files()` and `Artifact.download()` on any artifact, as well as `Artifact.get_entry()` / `Artifact.get_path()` file downloads on non-reference artifacts. (@tonyyli-wandb in https://github.com/wandb/wandb/pull/12109)
+  - To continue using these operations, upgrade your W&B Server to `v0.70.0` or newer.
+- Removed legacy fallback implementations for fetching an artifact by name on older EOL W&B Server releases. The following will no longer work on EOL servers: `wandb.Api().artifact(...)` and other methods that fetch artifact(s) by their path. (@tonyyli-wandb in https://github.com/wandb/wandb/pull/12112)
+  - To continue using these operations, upgrade your W&B Server to `v0.70.0` or newer.
 
 ### Removed
 
+- Removed legacy fallback implementations for downloading artifact files on older EOL W&B Server releases. The following will no longer work on EOL servers: `Artifact.files()` and `Artifact.download()` on any artifact, as well as `Artifact.get_entry()` / `Artifact.get_path()` file downloads on non-reference artifacts. (@tonyyli-wandb in https://github.com/wandb/wandb/pull/12109)
+  - To continue using these operations, upgrade your W&B Server to `v0.70.0` or newer.
+- Removed legacy fallback implementations for fetching an artifact by name on older EOL W&B Server releases. The following will no longer work on EOL servers: `wandb.Api().artifact(...)` and other methods that fetch artifact(s) by their path. (@tonyyli-wandb in https://github.com/wandb/wandb/pull/12112)
+  - To continue using these operations, upgrade your W&B Server to `v0.70.0` or newer.
 - Removed the `GitPython` dependency. Git metadata is collected by invoking the `git` executable directly; the `GIT_PYTHON_GIT_EXECUTABLE` environment variable is still honored for locating it (@dmitryduev in https://github.com/wandb/wandb/pull/11983)
 
 ### Fixed

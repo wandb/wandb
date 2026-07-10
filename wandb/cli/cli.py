@@ -615,6 +615,7 @@ def init(ctx, project, entity, reset, mode):
 )
 @click.option(
     "--include-online/--no-include-online",
+    "--no-skip-online/--skip-online",
     is_flag=True,
     default=None,
     help="Include runs created in online mode.",
@@ -627,6 +628,7 @@ def init(ctx, project, entity, reset, mode):
 )
 @click.option(
     "--include-synced/--no-include-synced",
+    "--no-skip-synced/--skip-synced",
     is_flag=True,
     default=None,
     help="Include runs that are already synced.",

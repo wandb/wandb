@@ -5,7 +5,6 @@ __all__ = [
     "ADD_ALIASES_GQL",
     "ADD_ARTIFACT_COLLECTION_TAGS_GQL",
     "ARTIFACT_BY_ID_GQL",
-    "ARTIFACT_BY_NAME_GQL",
     "ARTIFACT_COLLECTION_ALIASES_GQL",
     "ARTIFACT_CREATED_BY_GQL",
     "ARTIFACT_MEMBERSHIP_BY_NAME_GQL",
@@ -919,84 +918,6 @@ ARTIFACT_BY_ID_GQL = """
 query ArtifactByID($id: ID!, $includeAliases: Boolean = true) {
   artifact(id: $id) {
     ...ArtifactFragment
-  }
-}
-
-fragment ArtifactAliasFragment on ArtifactAlias {
-  __typename
-  id
-  alias
-}
-
-fragment ArtifactFragment on Artifact {
-  __typename
-  id
-  artifactSequence {
-    ...SourceCollectionInfoFragment
-  }
-  versionIndex
-  artifactType {
-    name
-  }
-  description
-  metadata
-  ttlDurationSeconds
-  ttlIsInherited
-  tags {
-    ...TagFragment
-  }
-  historyStep
-  state
-  size
-  digest
-  commitHash
-  fileCount
-  createdAt
-  updatedAt
-  aliases @include(if: $includeAliases) {
-    artifactCollection {
-      ...CollectionInfoFragment
-    }
-    ...ArtifactAliasFragment
-  }
-}
-
-fragment CollectionInfoFragment on ArtifactCollection {
-  __typename
-  name
-  project {
-    ...ProjectInfoFragment
-  }
-}
-
-fragment ProjectInfoFragment on Project {
-  name
-  entity {
-    name
-  }
-}
-
-fragment SourceCollectionInfoFragment on ArtifactSequence {
-  __typename
-  name
-  project {
-    ...ProjectInfoFragment
-  }
-}
-
-fragment TagFragment on Tag {
-  __typename
-  id
-  name
-}
-"""
-
-ARTIFACT_BY_NAME_GQL = """
-query ArtifactByName($entity: String!, $project: String!, $name: String!, $enableTracking: Boolean, $includeAliases: Boolean = true) {
-  project(name: $project, entityName: $entity) {
-    artifact(name: $name, enableTracking: $enableTracking) {
-      ...ArtifactFragment
-    }
   }
 }
 
