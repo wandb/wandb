@@ -41,13 +41,16 @@ BACKBLAZE_ENDPOINT_TEST_CASES = [
     ("https://s3.us-west-004.backblazeb2.com/", True),
     ("https://s3.eu-central-003.backblazeb2.com", True),
     ("s3.us-west-004.backblazeb2.com", True),  # missing scheme defaults to https
+    ("https://s3.us-west-004.backblazeb2.com:443", True),
     # Virtual-hosted-style: "<bucket>.s3.<region>.backblazeb2.com".
     ("https://my-bucket.s3.us-west-004.backblazeb2.com", True),
     ("https://my.dotted.bucket.s3.us-west-004.backblazeb2.com", True),
+    ("https://my-bucket.s3.us-west-004.backblazeb2.com:443", True),
     # Case-insensitive: hostnames + schemes must match regardless of case.
     ("HTTPS://S3.US-WEST-004.BACKBLAZEB2.COM", True),
     ("HTTPS://MY-BUCKET.S3.US-WEST-004.BACKBLAZEB2.COM", True),
     # Negatives: native b2 API, AWS, lookalikes, empty.
+    ("http://s3.us-west-004.backblazeb2.com", False),
     ("https://api.backblazeb2.com", False),
     ("https://f004.backblazeb2.com", False),
     ("https://backblazeb2.com", False),

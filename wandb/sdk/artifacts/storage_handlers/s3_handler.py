@@ -369,11 +369,17 @@ class S3Handler(StorageHandler):
         if not (url := endpoint_url.strip().rstrip("/")):
             return False
 
-        # B2's S3 endpoints are HTTPS-only. Hostnames are case-insensitive, so
-        # lowercase before matching.
-        https_url = ensureprefix(url.lower(), "https://")
-        netloc = urlparse(https_url).netloc
-        return bool(self._B2_NETLOC_REGEX.fullmatch(netloc))
+        # B2's S3 endpoints are HTTPS-only. If no scheme is given, match the
+        # CoreWeave precedent and treat it as HTTPS.
+        if "://" not in url:
+            url = f"https://{url}"
+
+        parsed = urlparse(url)
+        if parsed.scheme.lower() != "https":
+            return False
+
+        hostname = parsed.hostname
+        return bool(hostname and self._B2_NETLOC_REGEX.fullmatch(hostname))
 
     # Registry of supported S3-compatible non-AWS providers. To add a new one:
     # (1) define ``_is_<provider>_endpoint`` above with its matching logic;
