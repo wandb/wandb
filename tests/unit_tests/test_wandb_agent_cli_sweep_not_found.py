@@ -92,4 +92,4 @@ def test_cli_agent_sweep_not_found_waits_for_active_run(monkeypatch, tmp_path):
 
     err = captured.getvalue()
     assert "Sweep was deleted or agent was not found" in err
-    assert "Waiting for active runs to finish" in err
+    assert "Active runs will be allowed to finish before the agent exits" in err

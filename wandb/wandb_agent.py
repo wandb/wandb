@@ -489,13 +489,11 @@ class Agent:
             return self._api.agent_heartbeat(agent_id, {}, run_status)
         except SweepNotFoundError:
             if not self._run_processes:
-                wandb.termerror(
-                    "Sweep was deleted or agent was not found. Stopping agent."
-                )
+                wandb.termerror("Sweep was deleted or agent was not found.")
                 raise
             wandb.termerror(
                 "Sweep was deleted or agent was not found. "
-                "Waiting for active runs to finish."
+                "Active runs will be allowed to finish before the agent exits."
             )
             self._sweep_not_found = True
             return []

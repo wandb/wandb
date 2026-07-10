@@ -267,7 +267,7 @@ def test_agent_sweep_deleted_waits_for_in_flight_run(user, monkeypatch):
     """A 404 on heartbeat must not stop the agent while a trial thread is still running.
 
     The trial deliberately stays in user code until the agent has handled the 404
-    and logged the "Waiting for the in-process run to finish" message. That message
+    and logged the "in-process run will be allowed to finish" message. That message
     is emitted (from the heartbeat thread) only after the agent confirms a trial
     thread is still alive, so the trial is provably in flight across the 404 check.
 
@@ -285,7 +285,7 @@ def test_agent_sweep_deleted_waits_for_in_flight_run(user, monkeypatch):
     }
     sweep_id = wandb.sweep(sweep_config, entity=user, project=project)
 
-    wait_msg = "Waiting for the in-process run to finish"
+    wait_msg = "in-process run will be allowed to finish"
 
     first_heartbeat_done = threading.Event()
     trial_in_user_code = threading.Event()

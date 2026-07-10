@@ -178,7 +178,8 @@ class Agent:
             if self._has_running_thread():
                 wandb.termerror(
                     "Sweep was deleted or agent was not found. "
-                    "Waiting for the in-process run to finish."
+                    "The in-process run will be allowed to finish before the "
+                    "agent exits."
                 )
             return []
 
