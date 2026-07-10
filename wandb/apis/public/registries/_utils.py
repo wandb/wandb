@@ -165,7 +165,12 @@ def _project_id_from_gql_id(gql_id: str) -> int | None:
 
 @lru_cache(maxsize=10)
 def fetch_advanced_search_enabled(service_api: ServiceApi, organization: str) -> bool:
-    """Whether the organization has advanced registry search."""
+    """Whether the organization has ClickHouse-backed advanced registry search.
+
+    The ``advancedRegistryFeatures`` GQL field was added in server 0.78.x alongside
+    ``ARTIFACT_COLLECTIONS_FILTERING_SORTING``. We use that feature flag as a proxy
+    to avoid querying an endpoint that does not exist on older servers.
+    """
     if not service_api.feature_enabled(pb.ARTIFACT_COLLECTIONS_FILTERING_SORTING):
         return False
 
@@ -224,8 +229,8 @@ def registry_filter_for_collection(
     filt: dict[str, Any] = {}
     if registry_name := collection.project:
         filt["name"] = registry_name
-    if (project_gql_id := collection.project_gql_id) and (
-        project_id := _project_id_from_gql_id(project_gql_id)
+    if (encoded_project_id := collection.project_id) and (
+        project_id := _project_id_from_gql_id(encoded_project_id)
     ):
         filt[registry_project_id_filter_key(service_api, organization)] = project_id
     return filt

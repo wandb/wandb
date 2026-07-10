@@ -28,7 +28,9 @@ from wandb.sdk.artifacts.exceptions import ArtifactFinalizedError
 from wandb.sdk.lib.paths import StrPath
 from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 
-_PROJECT_GQL_ID = b64encode_ascii("Project:1")
+@pytest.fixture
+def project_gql_id() -> str:
+    return b64encode_ascii("Project:1")
 
 
 @fixture
@@ -636,6 +638,7 @@ def test_fetch_registry_artifact(
     wandb_backend_spy,
     api,
     mocker,
+    project_gql_id,
     artifact_path,
     resolve_org_entity_name,
     is_registry_project,
@@ -676,7 +679,7 @@ def test_fetch_registry_artifact(
         artifact_sequence={
             "name": "test-collection",
             "project": {
-                "id": _PROJECT_GQL_ID,
+                "id": project_gql_id,
                 "name": "orig-project",
                 "entity": {"name": "test-team"},
             },
@@ -705,7 +708,7 @@ def test_fetch_registry_artifact(
             "__typename": "ArtifactPortfolio",
             "name": "test-collection",
             "project": {
-                "id": _PROJECT_GQL_ID,
+                "id": project_gql_id,
                 "name": "wandb-registry-model",  # NOTE: relevant
                 "entity": {"name": "org-entity-name"},  # NOTE: relevant
             },

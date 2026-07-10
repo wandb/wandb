@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 from collections.abc import Iterator
-from unittest.mock import MagicMock
 
 import pytest
 from wandb._strutils import b64encode_ascii
+from wandb.apis.public.registries.registry import Registry
 from wandb.apis.public.registries._utils import (
     fetch_advanced_search_enabled,
     registry_filter_for_collection,
@@ -25,9 +25,6 @@ REGISTRY_FILTER = {"name": "wandb-registry-test"}
 def clear_registry_filter_caches():
     fetch_advanced_search_enabled.cache_clear()
     registry_project_id_filter_key.cache_clear()
-    yield
-    fetch_advanced_search_enabled.cache_clear()
-    registry_project_id_filter_key.cache_clear()
 
 
 def _mock_advanced_search(service_api, *, enabled: bool) -> None:
@@ -40,10 +37,10 @@ def _mock_advanced_search(service_api, *, enabled: bool) -> None:
 
 
 def test_registry_filter_uses_project_id_when_filtering_sorting_disabled(
-    service_api,
+    service_api, mocker
 ):
     service_api.feature_enabled.return_value = False
-    registry = MagicMock()
+    registry = mocker.Mock(spec=Registry)
     registry.full_name = "wandb-registry-test"
     registry.id = b64encode_ascii("Project:42")
 
@@ -61,9 +58,11 @@ def test_registry_filter_uses_project_id_when_filtering_sorting_disabled(
     [(True, "id"), (False, "project_id")],
     ids=["advanced_search", "non_advanced_search"],
 )
-def test_registry_filter_for_registry_uses_project_id_key(service_api, enabled, key):
+def test_registry_filter_for_registry_uses_project_id_key(
+    service_api, mocker, enabled, key
+):
     _mock_advanced_search(service_api, enabled=enabled)
-    registry = MagicMock()
+    registry = mocker.Mock(spec=Registry)
     registry.full_name = "wandb-registry-test"
     registry.id = b64encode_ascii("Project:42")
 
@@ -75,11 +74,13 @@ def test_registry_filter_for_registry_uses_project_id_key(service_api, enabled, 
     }
 
 
-def test_registry_filter_for_collection_uses_project_id_key(service_api):
+def test_registry_filter_for_collection_uses_project_id_key(service_api, mocker):
+    from wandb.apis.public import ArtifactCollection
+
     _mock_advanced_search(service_api, enabled=True)
-    collection = MagicMock()
+    collection = mocker.Mock(spec=ArtifactCollection)
     collection.project = "wandb-registry-test"
-    collection.project_gql_id = b64encode_ascii("Project:42")
+    collection.project_id = b64encode_ascii("Project:42")
 
     assert registry_filter_for_collection(
         collection, service_api=service_api, organization=ORG

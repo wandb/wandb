@@ -17,11 +17,14 @@ from wandb.sdk.artifacts._generated import (
 )
 from wandb.sdk.artifacts._gqlutils import server_supports
 
-_PROJECT_GQL_ID = b64encode_ascii("Project:1")
+
+@pytest.fixture
+def project_gql_id() -> str:
+    return b64encode_ascii("Project:1")
 
 
 @fixture
-def mock_artifact_fragment_data() -> dict[str, Any]:
+def mock_artifact_fragment_data(project_gql_id: str) -> dict[str, Any]:
     fragment = ArtifactFragment(
         name="test-collection",  # NOTE: relevant
         version_index=0,  # NOTE: relevant
@@ -29,7 +32,7 @@ def mock_artifact_fragment_data() -> dict[str, Any]:
         artifact_sequence={
             "name": "test-collection",
             "project": {
-                "id": _PROJECT_GQL_ID,
+                "id": project_gql_id,
                 "name": "orig-project",
                 "entity": {"name": "test-team"},
             },
@@ -63,7 +66,7 @@ def mock_membership_fragment_data(
             "__typename": "ArtifactPortfolio",
             "name": "test-collection",  # NOTE: relevant
             "project": {
-                "id": _PROJECT_GQL_ID,
+                "id": project_gql_id,
                 "name": "wandb-registry-model",  # NOTE: relevant
                 "entity": {"name": "org-entity-name"},  # NOTE: relevant
             },

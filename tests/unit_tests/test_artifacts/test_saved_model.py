@@ -15,8 +15,6 @@ from wandb.sdk.lib.filesystem import copy_or_overwrite_changed
 
 from . import saved_model_constructors
 
-_PROJECT_GQL_ID = b64encode_ascii("Project:1")
-
 sklearn_model = saved_model_constructors.sklearn_model
 pytorch_model = saved_model_constructors.pytorch_model
 keras_model = saved_model_constructors.keras_model
@@ -119,6 +117,7 @@ class ArtifactPatch(Artifact):
 def make_local_artifact_public(art: Artifact, mocker: MockerFixture):
     from wandb.sdk.artifacts._validators import FullArtifactPath
 
+    project_gql_id = b64encode_ascii("Project:1")
     path = FullArtifactPath(
         prefix="FAKE_ENTITY",
         project="FAKE_PROJECT",
@@ -135,7 +134,7 @@ def make_local_artifact_public(art: Artifact, mocker: MockerFixture):
                     "__typename": "ArtifactSequence",
                     "name": path.name,
                     "project": {
-                        "id": _PROJECT_GQL_ID,
+                        "id": project_gql_id,
                         "name": path.project,
                         "entity": {"name": path.prefix},
                     },
@@ -145,7 +144,7 @@ def make_local_artifact_public(art: Artifact, mocker: MockerFixture):
         artifactSequence={
             "name": "FAKE_SEQUENCE_NAME",
             "project": {
-                "id": _PROJECT_GQL_ID,
+                "id": project_gql_id,
                 "name": path.project,
                 "entity": {"name": path.prefix},
             },
