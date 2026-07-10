@@ -360,7 +360,7 @@ func TestOpenTelemetryProxyImpl_RecordMetricAndLogEvent(t *testing.T) {
 	url, captured := newOTLPTestServer(t)
 	impl := startProxy(t, url, "test-api-key")
 
-	impl.RecordMetricAndLogEvent(
+	impl.IncrementCounterAndLogEvent(
 		t.Context(),
 		"an_event",
 		map[string]string{
@@ -387,7 +387,7 @@ func TestOpenTelemetryProxyImpl_SendsAPIKeyAuth(t *testing.T) {
 	url, captured := newOTLPTestServer(t)
 	impl := startProxy(t, url, "test-api-key")
 
-	impl.RecordMetricAndLogEvent(
+	impl.IncrementCounterAndLogEvent(
 		t.Context(),
 		"authenticated_event",
 		nil,
@@ -477,7 +477,7 @@ func TestNoopOpenTelemetryProxy_AllMethodsAreSafe(t *testing.T) {
 			analytics.LowCardinalityAttributes{},
 			otellogapi.SeverityInfo,
 		)
-		proxy.RecordMetricAndLogEvent(
+		proxy.IncrementCounterAndLogEvent(
 			t.Context(),
 			"event",
 			map[string]string{"k": "v"},

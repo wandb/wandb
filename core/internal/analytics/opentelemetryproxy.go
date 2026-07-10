@@ -220,11 +220,13 @@ type OpenTelemetryProxy interface {
 		severity otellogapi.Severity,
 	)
 
-	// RecordMetricAndLogEvent records both a counter metric with the telemetry
-	// context's low-cardinality attributes and a log record with the telemetry
+	// IncrementCounterAndLogEvent increments a counter metric by 1
+	// with the telemetry context's low-cardinality attributes
+	//
+	// It additionally records a log record with the telemetry
 	// context's attributes plus the caller-supplied attributes under the same
 	// name.
-	RecordMetricAndLogEvent(
+	IncrementCounterAndLogEvent(
 		ctx context.Context,
 		event string,
 		attributes map[string]string,
@@ -455,11 +457,8 @@ func (o *OpenTelemetryProxyImpl) Shutdown(ctx context.Context) error {
 	return shutdownTelemetryProviders(ctx, meterProvider, logProvider)
 }
 
-// recordCount increments a counter metric by 1.
-//
-// The caller-supplied attributes are checked against the low-cardinality allow-list.
-// Any key not in the allow-list is dropped.
-func (o *OpenTelemetryProxyImpl) recordCount(
+// incrementCounter increments a counter metric by 1.
+func (o *OpenTelemetryProxyImpl) incrementCounter(
 	ctx context.Context,
 	name string,
 	lowCardinalityAttributes LowCardinalityAttributes,
@@ -515,14 +514,14 @@ func (o *OpenTelemetryProxyImpl) RecordLog(
 	logger.Emit(ctx, record)
 }
 
-// RecordMetricAndLogEvent implements OpenTelemetryProxy.RecordMetricAndLogEvent.
-func (o *OpenTelemetryProxyImpl) RecordMetricAndLogEvent(
+// IncrementCounterAndLogEvent implements OpenTelemetryProxy.IncrementCounterAndLogEvent.
+func (o *OpenTelemetryProxyImpl) IncrementCounterAndLogEvent(
 	ctx context.Context,
 	event string,
 	attributes map[string]string,
 	lowCardinalityAttributes LowCardinalityAttributes,
 ) {
-	o.recordCount(ctx, event, lowCardinalityAttributes)
+	o.incrementCounter(ctx, event, lowCardinalityAttributes)
 	o.RecordLog(
 		ctx,
 		event,
@@ -547,7 +546,7 @@ func (o *OpenTelemetryProxyImpl) Error(
 		ErrorType: errorType,
 	}
 
-	o.recordCount(
+	o.incrementCounter(
 		ctx,
 		"error",
 		lowCardinalityAttributes,
@@ -586,8 +585,8 @@ func (NoopOpenTelemetryProxy) RecordLog(
 ) {
 }
 
-// RecordMetricAndLogEvent implements OpenTelemetryProxy.RecordMetricAndLogEvent.
-func (NoopOpenTelemetryProxy) RecordMetricAndLogEvent(
+// IncrementCounterAndLogEvent implements OpenTelemetryProxy.IncrementCounterAndLogEvent.
+func (NoopOpenTelemetryProxy) IncrementCounterAndLogEvent(
 	context.Context,
 	string,
 	map[string]string,
