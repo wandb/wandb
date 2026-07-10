@@ -224,95 +224,167 @@ func startProxyWithSettings(
 	return impl
 }
 
-func TestNewTelemetryContext_Defaults(t *testing.T) {
-	tc := analytics.NewTelemetryContext()
+func TestOpenTelemetryProxyImpl_RecordsDefaultAttributes(t *testing.T) {
+	url, captured := newOTLPTestServer(t)
+	impl := startProxy(t, url, "test-api-key")
 
-	snapshot := tc.LowCardinalitySnapshot(analytics.LowCardinalityAttributes{})
+	impl.IncrementCounterAndLogEvent(
+		t.Context(),
+		"default_attrs_event",
+		nil,
+		analytics.LowCardinalityAttributes{},
+	)
+	require.NoError(t, impl.Shutdown(context.Background()))
 
-	assert.Equal(t, version.Version, snapshot["wandb_version"])
-	assert.Equal(t, runtime.Version(), snapshot["go_version"])
-	assert.Equal(t, runtime.GOOS, snapshot["operating_system"])
+	// Both logs and metrics carry the default low-cardinality attributes.
+	log, ok := findLog(captured.logs, "default_attrs_event")
+	require.True(t, ok, "expected a log for the event")
+	metric, ok := findMetric(captured.metrics, "default_attrs_event")
+	require.True(t, ok, "expected a metric for the event")
+	for _, attrs := range []map[string]string{log.Attributes, metric.Attributes} {
+		assert.Equal(t, version.Version, attrs["wandb_version"])
+		assert.Equal(t, runtime.Version(), attrs["go_version"])
+		assert.Equal(t, runtime.GOOS, attrs["operating_system"])
+	}
 }
 
-func TestTelemetryContext_AddLowCardinalityAttributes(t *testing.T) {
-	tc := analytics.NewTelemetryContext()
-	tc.SetLowCardinalityAttributes(analytics.LowCardinalityAttributes{
+func TestOpenTelemetryProxyImpl_SetLowCardinalityAttributes(t *testing.T) {
+	url, captured := newOTLPTestServer(t)
+	impl := startProxy(t, url, "test-api-key")
+
+	impl.SetLowCardinalityAttributes(analytics.LowCardinalityAttributes{
 		ErrorType: "MyError",
 	})
+	impl.IncrementCounterAndLogEvent(
+		t.Context(),
+		"low_card_event",
+		nil,
+		analytics.LowCardinalityAttributes{},
+	)
+	require.NoError(t, impl.Shutdown(context.Background()))
 
-	snapshot := tc.LowCardinalitySnapshot(analytics.LowCardinalityAttributes{})
+	log, ok := findLog(captured.logs, "low_card_event")
+	require.True(t, ok, "expected a log for the event")
+	assert.Equal(t, "MyError", log.Attributes["error.type"])
 
-	assert.Equal(t, "MyError", snapshot["error.type"])
+	metric, ok := findMetric(captured.metrics, "low_card_event")
+	require.True(t, ok, "expected a metric for the event")
+	assert.Equal(t, "MyError", metric.Attributes["error.type"])
 }
 
-func TestTelemetryContext_AddLowCardinalityAttributes_IgnoresEmptyFields(
+func TestOpenTelemetryProxyImpl_SetLowCardinalityAttributes_IgnoresEmptyFields(
 	t *testing.T,
 ) {
-	tc := analytics.NewTelemetryContext()
-	before := tc.LowCardinalitySnapshot(analytics.LowCardinalityAttributes{})
+	url, captured := newOTLPTestServer(t)
+	impl := startProxy(t, url, "test-api-key")
 
-	tc.SetLowCardinalityAttributes(analytics.LowCardinalityAttributes{
-		WandbVersion: "",
+	impl.SetLowCardinalityAttributes(analytics.LowCardinalityAttributes{
+		WandbVersion: "custom-version",
 	})
+	// Empty fields must not overwrite previously set or default values.
+	impl.SetLowCardinalityAttributes(analytics.LowCardinalityAttributes{})
+	impl.SetLowCardinalityAttributes(analytics.LowCardinalityAttributes{
+		ErrorType: "MyError",
+	})
+	impl.RecordLog(
+		t.Context(),
+		"empty_fields_event",
+		nil,
+		analytics.LowCardinalityAttributes{},
+		otellogapi.SeverityInfo,
+	)
+	require.NoError(t, impl.Shutdown(context.Background()))
 
-	assert.Equal(t, before, tc.LowCardinalitySnapshot(analytics.LowCardinalityAttributes{}))
+	log, ok := findLog(captured.logs, "empty_fields_event")
+	require.True(t, ok, "expected a log for the event")
+	assert.Equal(t, "custom-version", log.Attributes["wandb_version"])
+	assert.Equal(t, runtime.Version(), log.Attributes["go_version"])
+	assert.Equal(t, "MyError", log.Attributes["error.type"])
 }
 
-func TestTelemetryContext_AddLowCardinalityAttributes_EmptyIsNoop(
+func TestOpenTelemetryProxyImpl_SetHighCardinalityAttributes_LogsOnly(
 	t *testing.T,
 ) {
-	tc := analytics.NewTelemetryContext()
-	before := tc.LowCardinalitySnapshot(analytics.LowCardinalityAttributes{})
+	url, captured := newOTLPTestServer(t)
+	impl := startProxy(t, url, "test-api-key")
 
-	tc.SetLowCardinalityAttributes(analytics.LowCardinalityAttributes{})
-	assert.Equal(t, before, tc.LowCardinalitySnapshot(analytics.LowCardinalityAttributes{}))
-}
-
-func TestTelemetryContext_AddHighCardinalityAttributes_AcceptsAnyKey(
-	t *testing.T,
-) {
-	tc := analytics.NewTelemetryContext()
-	tc.AddHighCardinalityAttributes(map[string]string{
+	impl.SetHighCardinalityAttributes(map[string]string{
 		"arbitrary_key": "value",
 	})
+	impl.IncrementCounterAndLogEvent(
+		t.Context(),
+		"high_card_event",
+		nil,
+		analytics.LowCardinalityAttributes{},
+	)
+	require.NoError(t, impl.Shutdown(context.Background()))
 
-	snapshot := tc.HighCardinalitySnapshot(nil)
+	// High-cardinality attributes are attached to log records...
+	log, ok := findLog(captured.logs, "high_card_event")
+	require.True(t, ok, "expected a log for the event")
+	assert.Equal(t, "value", log.Attributes["arbitrary_key"])
 
-	assert.Equal(t, "value", snapshot["arbitrary_key"])
+	// ...but never to metrics, where they would blow up cardinality.
+	metric, ok := findMetric(captured.metrics, "high_card_event")
+	require.True(t, ok, "expected a metric for the event")
+	assert.NotContains(t, metric.Attributes, "arbitrary_key")
 }
 
-func TestTelemetryContext_Snapshot_ArgumentOverridesContext(t *testing.T) {
-	tc := analytics.NewTelemetryContext()
-	tc.AddHighCardinalityAttributes(
-		map[string]string{"test_key": "from-context"},
-	)
-	tc.SetLowCardinalityAttributes(
-		analytics.LowCardinalityAttributes{WandbVersion: "from-context"},
-	)
+func TestOpenTelemetryProxyImpl_PerRecordAttributesOverrideContext(
+	t *testing.T,
+) {
+	url, captured := newOTLPTestServer(t)
+	impl := startProxy(t, url, "test-api-key")
 
-	highCardinalitySnapshot := tc.HighCardinalitySnapshot(
+	impl.SetLowCardinalityAttributes(analytics.LowCardinalityAttributes{
+		WandbVersion: "from-context",
+	})
+	impl.SetHighCardinalityAttributes(map[string]string{
+		"test_key": "from-context",
+	})
+	impl.RecordLog(
+		t.Context(),
+		"override_event",
 		map[string]string{"test_key": "from-argument"},
-	)
-	lowCardinalitySnapshot := tc.LowCardinalitySnapshot(
 		analytics.LowCardinalityAttributes{WandbVersion: "from-argument"},
+		otellogapi.SeverityInfo,
 	)
+	require.NoError(t, impl.Shutdown(context.Background()))
 
-	assert.Equal(t, "from-argument", highCardinalitySnapshot["test_key"])
-	assert.Equal(t, "from-argument", lowCardinalitySnapshot["wandb_version"])
+	log, ok := findLog(captured.logs, "override_event")
+	require.True(t, ok, "expected a log for the event")
+	assert.Equal(t, "from-argument", log.Attributes["wandb_version"])
+	assert.Equal(t, "from-argument", log.Attributes["test_key"])
 }
 
-func TestTelemetryContext_SnapshotsDoesNotUpdateInternalState(t *testing.T) {
-	tc := analytics.NewTelemetryContext()
-	snapshot := tc.LowCardinalitySnapshot(analytics.LowCardinalityAttributes{})
+func TestOpenTelemetryProxyImpl_PerRecordAttributesDoNotPersist(
+	t *testing.T,
+) {
+	url, captured := newOTLPTestServer(t)
+	impl := startProxy(t, url, "test-api-key")
 
-	snapshot["go_version"] = "mutated"
-
-	// Mutating the returned snapshot must not affect the context.
-	assert.Equal(
-		t,
-		runtime.Version(),
-		tc.LowCardinalitySnapshot(analytics.LowCardinalityAttributes{})["go_version"],
+	impl.RecordLog(
+		t.Context(),
+		"with_overrides",
+		map[string]string{"test_key": "per-record"},
+		analytics.LowCardinalityAttributes{WandbVersion: "per-record"},
+		otellogapi.SeverityInfo,
 	)
+	impl.RecordLog(
+		t.Context(),
+		"without_overrides",
+		nil,
+		analytics.LowCardinalityAttributes{},
+		otellogapi.SeverityInfo,
+	)
+	require.NoError(t, impl.Shutdown(context.Background()))
+
+	// Per-record attributes must not leak into the telemetry context
+	// and affect subsequent records.
+	log, ok := findLog(captured.logs, "without_overrides")
+	require.True(t, ok, "expected a log for the second record")
+	assert.Equal(t, version.Version, log.Attributes["wandb_version"])
+	assert.NotContains(t, log.Attributes, "test_key")
 }
 
 func TestNewOpenTelemetryProxy_NoAPIKey_ReturnsNoopProxy(t *testing.T) {
