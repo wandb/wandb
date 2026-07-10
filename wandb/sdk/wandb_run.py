@@ -2193,9 +2193,7 @@ class Run:
             # Expand sources deterministically.
             src_paths = [
                 pathlib.Path(p).absolute()
-                for p in sorted(
-                    glob.glob(GlobStr(str(base_path / relative_glob_str)))
-                )
+                for p in sorted(glob.glob(GlobStr(str(base_path / relative_glob_str))))
             ]
             if not src_paths and os.path.lexists(base_path / relative_glob_str):
                 wandb.termwarn(
