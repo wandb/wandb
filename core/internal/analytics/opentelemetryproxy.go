@@ -21,7 +21,6 @@ import (
 	"go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp"
 	otellogapi "go.opentelemetry.io/otel/log"
-	"go.opentelemetry.io/otel/log/global"
 	otelmetric "go.opentelemetry.io/otel/metric"
 	otellog "go.opentelemetry.io/otel/sdk/log"
 	"go.opentelemetry.io/otel/sdk/metric"
@@ -335,9 +334,6 @@ func (o *OpenTelemetryProxyImpl) initializeOTelResources(ctx context.Context) er
 
 	o.meterProvider = meterProvider
 	o.logProvider = logProvider
-	otel.SetMeterProvider(o.meterProvider)
-	global.SetLoggerProvider(o.logProvider)
-
 	return nil
 }
 
@@ -429,7 +425,7 @@ func (o *OpenTelemetryProxyImpl) incrementCounter(
 		return
 	}
 
-	meter := otel.Meter(serviceName)
+	meter := o.meterProvider.Meter(serviceName)
 	counter, err := meter.Int64Counter(name)
 	if err != nil {
 		return
@@ -455,7 +451,7 @@ func (o *OpenTelemetryProxyImpl) RecordLog(
 		return
 	}
 
-	logger := global.GetLoggerProvider().Logger(serviceName)
+	logger := o.logProvider.Logger(serviceName)
 	var record otellogapi.Record
 	record.SetBody(otellogapi.StringValue(body))
 	record.SetSeverity(severity)
