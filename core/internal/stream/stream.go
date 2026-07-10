@@ -61,12 +61,11 @@ type Stream struct {
 	// logger writes debug logs for the run.
 	logger *observability.CoreLogger
 
-	// telemetryProxy sends metrics and logs to the W&B backend's
-	// OpenTelemetry proxy API.
-	telemetryProxy analytics.OpenTelemetryProxy
-
 	// loggerFile is the file (if any) to which the logger writes.
 	loggerFile *os.File
+
+	// otelProxy records open telemetry analytics for the run.
+	otelProxy analytics.OpenTelemetryProxy
 
 	// wg is the WaitGroup for the stream
 	wg sync.WaitGroup
@@ -106,7 +105,7 @@ func NewStream(
 	handlerFactory *HandlerFactory,
 	loggerFile streamLoggerFile,
 	logger *observability.CoreLogger,
-	telemetryProxy analytics.OpenTelemetryProxy,
+	otelProxy analytics.OpenTelemetryProxy,
 	operations *wboperation.WandbOperations,
 	recordParserFactory *RecordParserFactory,
 	senderFactory *SenderFactory,
@@ -131,8 +130,8 @@ func NewStream(
 		featureProvider:    featureProvider,
 		graphqlClientOrNil: graphqlClientOrNil,
 		logger:             logger,
-		telemetryProxy:     telemetryProxy,
 		loggerFile:         loggerFile,
+		otelProxy:          otelProxy,
 		settings:           s,
 		recordParser:       recordParser,
 		handler:            handlerFactory.New(runWork),
@@ -153,15 +152,6 @@ func (s *Stream) GetSettings() *settings.Settings {
 
 // Start begins processing the stream's input records and producing outputs.
 func (s *Stream) Start() {
-	if s.telemetryProxy != nil {
-		if err := s.telemetryProxy.Start(context.Background()); err != nil {
-			s.logger.Error(
-				"stream: failed to start telemetry proxy",
-				"error", err,
-			)
-		}
-	}
-
 	s.wg.Add(1)
 	go func() {
 		s.handler.Do(s.runWork.Chan())
@@ -258,19 +248,18 @@ func (s *Stream) Close() {
 	s.wg.Wait()
 	s.logger.Info("stream: all finished")
 
-	// Flush any pending telemetry and shut the proxy down.
-	if s.telemetryProxy != nil {
-		shutdownCtx, cancel := context.WithTimeout(
-			context.Background(),
-			5*time.Second,
+	// All of the stream's goroutines have finished, so no more analytics
+	// will be recorded; flush what's pending.
+	shutdownCtx, cancel := context.WithTimeout(
+		context.Background(),
+		2*time.Second,
+	)
+	defer cancel()
+	if err := s.otelProxy.Shutdown(shutdownCtx); err != nil {
+		s.logger.Error(
+			"stream: failed to shut down analytics",
+			"error", err,
 		)
-		defer cancel()
-		if err := s.telemetryProxy.Shutdown(shutdownCtx); err != nil {
-			s.logger.Error(
-				"stream: failed to shut down telemetry proxy",
-				"error", err,
-			)
-		}
 	}
 
 	if s.loggerFile != nil {

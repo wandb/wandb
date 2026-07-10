@@ -49,7 +49,7 @@ type CoreLogger struct {
 	*slog.Logger
 	sentryCtx *SentryContext // nil if Sentry is disabled
 
-	telemetryProxy analytics.OpenTelemetryProxy // nil if telemetry is disabled
+	telemetryProxy analytics.TelemetryRecorder // nil if telemetry is disabled
 
 	extraSentryTags Tags // extra Sentry tags for just this logger
 
@@ -63,7 +63,7 @@ type CoreLogger struct {
 func NewCoreLogger(
 	logger *slog.Logger,
 	sentryCtx *SentryContext,
-	telemetryProxy analytics.OpenTelemetryProxy,
+	telemetryProxy analytics.TelemetryRecorder,
 ) *CoreLogger {
 	const captureRateLimiterCacheSize = 100
 	const captureMinDuration = 5 * time.Minute
@@ -109,14 +109,26 @@ func (cl *CoreLogger) With(
 	attrs []any,
 	tags map[string]string,
 ) *CoreLogger {
+	newTags := NewTags(attrs...)
+	maps.Copy(newTags, tags)
+
 	extraSentryTags := maps.Clone(cl.extraSentryTags)
-	maps.Copy(extraSentryTags, NewTags(attrs...))
-	maps.Copy(extraSentryTags, tags)
+	maps.Copy(extraSentryTags, newTags)
+
+	// Derive a child telemetry context so the new attributes are attached
+	// to telemetry emitted through the derived logger only.
+	telemetryProxy := cl.telemetryProxy
+	if telemetryProxy != nil {
+		telemetryProxy = telemetryProxy.With(
+			newTags,
+			analytics.LowCardinalityAttributes{},
+		)
+	}
 
 	return &CoreLogger{
 		Logger:             cl.Logger.With(attrs...),
 		sentryCtx:          cl.sentryCtx,
-		telemetryProxy:     cl.telemetryProxy,
+		telemetryProxy:     telemetryProxy,
 		extraSentryTags:    extraSentryTags,
 		captureRateLimiter: cl.captureRateLimiter,
 	}
@@ -175,7 +187,7 @@ func (cl *CoreLogger) CaptureInfo(msg string, args ...any) {
 // captureException uploads an error to Sentry if possible and allowed.
 func (cl *CoreLogger) captureException(err error, args ...any) {
 	if cl.telemetryProxy != nil {
-		cl.telemetryProxy.Exception(context.Background(), err.Error(), err)
+		cl.telemetryProxy.Error(context.Background(), err.Error(), err, "error")
 	}
 
 	if cl.sentryCtx == nil || !cl.captureRateLimiter.AllowCapture(err.Error()) {
@@ -199,7 +211,7 @@ func (cl *CoreLogger) captureMessage(
 			context.Background(),
 			msg,
 			argsToAttributes(args...),
-			nil,
+			analytics.LowCardinalityAttributes{},
 			severity,
 		)
 	}
@@ -242,11 +254,11 @@ func (cl *CoreLogger) RecordTelemetry(
 		return
 	}
 
-	cl.telemetryProxy.RecordMetricAndLogEvent(
+	cl.telemetryProxy.IncrementCounterAndLogEvent(
 		context.Background(),
 		event,
 		attributes,
-		nil,
+		analytics.LowCardinalityAttributes{},
 	)
 }
 
