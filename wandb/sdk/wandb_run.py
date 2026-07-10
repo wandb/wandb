@@ -2032,6 +2032,7 @@ class Run:
         glob_str: str | os.PathLike,
         base_path: str | os.PathLike | None = None,
         policy: PolicyName = "live",
+        glob: bool = True,
     ) -> bool | list[str]:
         """Sync one or more files to W&B.
 
@@ -2040,6 +2041,16 @@ class Run:
         A Unix glob, such as "myfiles/*", is expanded at the time `save` is
         called regardless of the `policy`. In particular, new files are not
         picked up automatically.
+
+        `glob_str` is expanded using Python's `glob` module: see
+        https://docs.python.org/3/library/glob.html for the exact syntax and
+        behavior. Notably, the characters `*`, `?`, and `[]` are treated as
+        glob metacharacters, not literal characters, even if they appear in a
+        real filename (e.g. "myfile[1].txt"). If your file's name contains
+        any of these characters and you want to match it literally rather
+        than as a pattern, either escape it yourself with `glob.escape()`
+        before calling `save`, or pass `glob=False` to disable pattern
+        expansion entirely and treat `glob_str` as a literal path.
 
         A `base_path` may be provided to control the directory structure of
         uploaded files. It should be a prefix of `glob_str`, and the directory
@@ -2058,6 +2069,11 @@ class Run:
             - live: upload the file as it changes, overwriting the previous version
             - now: upload the file once now
             - end: upload file when the run ends
+            glob: Whether to treat `glob_str` as a glob pattern. Defaults to
+                `True` for backward compatibility. Set to `False` to treat
+                `glob_str` as a literal path, e.g. when its name contains
+                glob metacharacters like `[`, `]`, `*`, or `?` that you don't
+                want interpreted as a pattern.
 
         Returns:
             Paths to the symlinks created for the matched files.
@@ -2084,6 +2100,10 @@ class Run:
         run.save("files/*/saveme.txt")
         # => Saves each "saveme.txt" file in an appropriate subdirectory
         #    of "files/".
+
+        run.save("files/myfile[1].txt", glob=False)
+        # => Saves the literal file "files/myfile[1].txt" without
+        #    interpreting "[1]" as a glob character class.
 
         # Explicitly finish the run since a context manager is not used.
         run.finish()
@@ -2127,6 +2147,7 @@ class Run:
             resolved_glob_path,
             resolved_base_path,
             policy,
+            glob,
         )
 
     def _save(
@@ -2134,6 +2155,7 @@ class Run:
         glob_path: pathlib.PurePath,
         base_path: pathlib.PurePath,
         policy: PolicyName,
+        glob_enabled: bool = True,
     ) -> list[str]:
         """Materialize matched files into the run's files/ dir for syncing.
 
@@ -2143,9 +2165,12 @@ class Run:
         3) Else copy and, if requested policy == "live", downgrade those files to "now".
 
         Args:
-            glob_path: Absolute path glob pattern for files to save.
+            glob_path: Absolute path, or glob pattern if `glob_enabled`, for
+                files to save.
             base_path: Base path to determine relative directory structure.
             policy: Upload policy - "live", "now", or "end".
+            glob_enabled: Whether to treat `glob_path` as a glob pattern
+                (using Python's `glob` module) or as a literal path.
 
         Returns:
             List of absolute paths to files in the wandb run directory.
@@ -2162,13 +2187,41 @@ class Run:
             tel.feature.save = True
 
         files_root = pathlib.Path(self._settings.files_dir)
-        preexisting = set(files_root.glob(relative_glob_str))
 
-        # Expand sources deterministically.
-        src_paths = [
-            pathlib.Path(p).absolute()
-            for p in sorted(glob.glob(GlobStr(str(base_path / relative_glob_str))))
-        ]
+        if glob_enabled:
+            preexisting = set(files_root.glob(relative_glob_str))
+            # Expand sources deterministically.
+            src_paths = [
+                pathlib.Path(p).absolute()
+                for p in sorted(
+                    glob.glob(GlobStr(str(base_path / relative_glob_str)))
+                )
+            ]
+            if not src_paths and os.path.lexists(base_path / relative_glob_str):
+                wandb.termwarn(
+                    f"No files found at glob pattern {str(relative_glob_str)!r}, "
+                    "but a file exists at that literal path. If you meant to "
+                    "match it literally rather than as a glob pattern, call "
+                    "save() with glob=False.",
+                    repeat=False,
+                )
+        else:
+            literal_dst = files_root / relative_glob
+            preexisting = {literal_dst} if os.path.lexists(literal_dst) else set()
+
+            literal_src = base_path / relative_glob_str
+            if os.path.lexists(literal_src):
+                src_paths = [pathlib.Path(literal_src).absolute()]
+            else:
+                src_paths = []
+                if glob.escape(relative_glob_str) != relative_glob_str:
+                    wandb.termwarn(
+                        f"No file found at literal path {str(literal_src)!r}, "
+                        "and it looks like it contains glob metacharacters "
+                        "('*', '?', or '[]'). If you meant to use a glob "
+                        "pattern, call save() with glob=True (the default).",
+                        repeat=False,
+                    )
 
         stats = LinkStats()
         publish_entries = []
