@@ -210,7 +210,7 @@ func startProxyWithSettings(
 ) *analytics.OpenTelemetryProxyImpl {
 	t.Helper()
 
-	proxy := analytics.NewOpenTelemetryProxy(settings)
+	proxy := analytics.NewOpenTelemetryProxy(t.Context(), settings)
 	impl, ok := proxy.(*analytics.OpenTelemetryProxyImpl)
 	require.True(
 		t,
@@ -218,7 +218,6 @@ func startProxyWithSettings(
 		"expected *OpenTelemetryProxyImpl when analytics is enabled",
 	)
 
-	require.NoError(t, impl.Start(context.Background()))
 	t.Cleanup(func() {
 		require.NoError(t, impl.Shutdown(context.Background()))
 	})
@@ -318,6 +317,7 @@ func TestTelemetryContext_SnapshotsDoesNotUpdateInternalState(t *testing.T) {
 
 func TestNewOpenTelemetryProxy_NoAPIKey_ReturnsNoopProxy(t *testing.T) {
 	proxy := analytics.NewOpenTelemetryProxy(
+		t.Context(),
 		newTestSettings("http://example.invalid", ""),
 	)
 
@@ -328,6 +328,7 @@ func TestNewOpenTelemetryProxy_NoAPIKey_ReturnsNoopProxy(t *testing.T) {
 
 func TestNewOpenTelemetryProxy_WithAPIKey_ReturnsImpl(t *testing.T) {
 	proxy := analytics.NewOpenTelemetryProxy(
+		t.Context(),
 		newTestSettings("http://example.invalid", "test-api-key"),
 	)
 
@@ -468,7 +469,6 @@ func TestOpenTelemetryProxyImpl_RecordAfterShutdown_IsNoop(t *testing.T) {
 func TestNoopOpenTelemetryProxy_AllMethodsAreSafe(t *testing.T) {
 	var proxy analytics.OpenTelemetryProxy = analytics.NoopOpenTelemetryProxy{}
 
-	require.NoError(t, proxy.Start(t.Context()))
 	assert.NotPanics(t, func() {
 		proxy.RecordLog(
 			t.Context(),
