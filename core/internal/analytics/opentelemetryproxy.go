@@ -200,9 +200,6 @@ func (s *TelemetryContext) HighCardinalitySnapshot(
 
 // OpenTelemetryProxy records OpenTelemetry events (metrics and logs).
 type OpenTelemetryProxy interface {
-	// Start initializes the OpenTelemetry meter and log providers.
-	Start(ctx context.Context) error
-
 	// Shutdown flushes any pending records and shuts down all providers.
 	// It should be called once when the proxy is no longer needed.
 	// Additional calls are no-ops.
@@ -254,8 +251,6 @@ var (
 // OpenTelemetryProxyImpl sends metrics, logs events through the W&B
 // backend's OpenTelemetry proxy API.
 type OpenTelemetryProxyImpl struct {
-	mu sync.Mutex
-
 	// endpoint is the URL of the OpenTelemetry proxy API.
 	endpoint string
 
@@ -281,16 +276,23 @@ type OpenTelemetryProxyImpl struct {
 //
 // When analytics is disabled or no API key is available, a no-op proxy is
 // returned so no providers are created and nothing is recorded.
-func NewOpenTelemetryProxy(wandbSettings *settings.Settings) OpenTelemetryProxy {
+func NewOpenTelemetryProxy(
+	ctx context.Context,
+	wandbSettings *settings.Settings,
+) OpenTelemetryProxy {
 	if disabled.Load() || wandbSettings.GetAPIKey() == "" {
 		return NoopOpenTelemetryProxy{}
 	}
 
-	return &OpenTelemetryProxyImpl{
+	proxy := &OpenTelemetryProxyImpl{
 		endpoint:         wandbSettings.GetBaseURL(),
 		telemetryContext: NewTelemetryContext(),
 		httpClient:       newOTLPHTTPClient(wandbSettings),
 	}
+	if err := proxy.initializeOTelResources(ctx); err != nil {
+		return NoopOpenTelemetryProxy{}
+	}
+	return proxy
 }
 
 func newOTLPHTTPClient(wandbSettings *settings.Settings) *http.Client {
@@ -328,25 +330,22 @@ func newOTLPHTTPClient(wandbSettings *settings.Settings) *http.Client {
 	return client
 }
 
-// Start implements OpenTelemetryProxy.Start.
-func (o *OpenTelemetryProxyImpl) Start(ctx context.Context) error {
+// initializeOTelResources initializes the OpenTelemetry meter and log providers.
+func (o *OpenTelemetryProxyImpl) initializeOTelResources(ctx context.Context) error {
 	res, err := resource.New(
 		ctx,
 		resource.WithAttributes(semconv.ServiceName(serviceName)),
 	)
 	if err != nil {
-		o.shutdown.Store(true)
 		return fmt.Errorf("create resource: %w", err)
 	}
 
 	meterProvider, err := o.setupMetrics(ctx, res)
 	if err != nil {
-		o.shutdown.Store(true)
 		return err
 	}
 	logProvider, err := o.setupLogs(ctx, res)
 	if err != nil {
-		o.shutdown.Store(true)
 		if shutdownErr := shutdownTelemetryProviders(
 			context.Background(),
 			meterProvider,
@@ -357,21 +356,10 @@ func (o *OpenTelemetryProxyImpl) Start(ctx context.Context) error {
 		return err
 	}
 
-	o.mu.Lock()
-	if o.shutdown.Load() {
-		o.mu.Unlock()
-		return shutdownTelemetryProviders(
-			context.Background(),
-			meterProvider,
-			logProvider,
-		)
-	}
-
 	o.meterProvider = meterProvider
 	o.logProvider = logProvider
 	otel.SetMeterProvider(o.meterProvider)
 	global.SetLoggerProvider(o.logProvider)
-	o.mu.Unlock()
 
 	return nil
 }
@@ -445,15 +433,12 @@ func shutdownTelemetryProviders(
 
 // Shutdown implements OpenTelemetryProxy.Shutdown.
 func (o *OpenTelemetryProxyImpl) Shutdown(ctx context.Context) error {
-	o.mu.Lock()
 	if !o.shutdown.CompareAndSwap(false, true) {
-		o.mu.Unlock()
 		return nil
 	}
 
 	meterProvider := o.meterProvider
 	logProvider := o.logProvider
-	o.mu.Unlock()
 	return shutdownTelemetryProviders(ctx, meterProvider, logProvider)
 }
 
@@ -568,9 +553,6 @@ func (o *OpenTelemetryProxyImpl) Error(
 
 // noopOpenTelemetryProxy is a OpenTelemetryProxy that does nothing.
 type NoopOpenTelemetryProxy struct{}
-
-// Start implements OpenTelemetryProxy.Start.
-func (NoopOpenTelemetryProxy) Start(context.Context) error { return nil }
 
 // Shutdown implements OpenTelemetryProxy.Shutdown.
 func (NoopOpenTelemetryProxy) Shutdown(context.Context) error { return nil }
