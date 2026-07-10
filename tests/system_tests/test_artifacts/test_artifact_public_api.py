@@ -29,7 +29,7 @@ from wandb.sdk.lib.paths import StrPath
 from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 
 
-@pytest.fixture
+@fixture
 def project_gql_id() -> str:
     return b64encode_ascii("Project:1")
 

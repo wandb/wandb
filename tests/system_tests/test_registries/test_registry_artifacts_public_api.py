@@ -18,7 +18,7 @@ from wandb.sdk.artifacts._generated import (
 from wandb.sdk.artifacts._gqlutils import server_supports
 
 
-@pytest.fixture
+@fixture
 def project_gql_id() -> str:
     return b64encode_ascii("Project:1")
 
