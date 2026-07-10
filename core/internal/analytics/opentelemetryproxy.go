@@ -3,6 +3,7 @@
 package analytics
 
 import (
+	"cmp"
 	"context"
 	"crypto/tls"
 	"fmt"
@@ -59,6 +60,14 @@ type LowCardinalityAttributes struct {
 	WandbVersion    string
 	OperatingSystem string
 	ErrorType       string
+}
+
+// merge overwrites attrs with the non-empty fields of other.
+func (attrs *LowCardinalityAttributes) merge(other LowCardinalityAttributes) {
+	attrs.GoVersion = cmp.Or(other.GoVersion, attrs.GoVersion)
+	attrs.WandbVersion = cmp.Or(other.WandbVersion, attrs.WandbVersion)
+	attrs.OperatingSystem = cmp.Or(other.OperatingSystem, attrs.OperatingSystem)
+	attrs.ErrorType = cmp.Or(other.ErrorType, attrs.ErrorType)
 }
 
 func (attrs LowCardinalityAttributes) toMap() map[string]string {
@@ -127,50 +136,11 @@ func NewTelemetryContext() *TelemetryContext {
 	}
 }
 
-// SetLowCardinalityAttributes merges the provided attributes into the context.
-// Empty fields are ignored.
-func (s *TelemetryContext) SetLowCardinalityAttributes(
-	attributes LowCardinalityAttributes,
-) {
-	if attributes == (LowCardinalityAttributes{}) {
-		return
-	}
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if attributes.GoVersion != "" {
-		s.lowCardinalityAttributes.GoVersion = attributes.GoVersion
-	}
-	if attributes.WandbVersion != "" {
-		s.lowCardinalityAttributes.WandbVersion = attributes.WandbVersion
-	}
-	if attributes.OperatingSystem != "" {
-		s.lowCardinalityAttributes.OperatingSystem = attributes.OperatingSystem
-	}
-	if attributes.ErrorType != "" {
-		s.lowCardinalityAttributes.ErrorType = attributes.ErrorType
-	}
-}
-
-// AddHighCardinalityAttributes merges caller-supplied high-cardinality attributes
-// into the context.
-func (s *TelemetryContext) AddHighCardinalityAttributes(
-	attributes map[string]string,
-) {
-	if len(attributes) == 0 {
-		return
-	}
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	maps.Copy(s.highCardinalityAttributes, attributes)
-}
-
 // LowCardinalitySnapshot returns a snapshot of the context's low-cardinality
 // attributes merged with overrides.
 //
 // Non-empty fields in overrides take precedence over the context's attributes.
-func (s *TelemetryContext) LowCardinalitySnapshot(
+func (s *TelemetryContext) lowCardinalitySnapshot(
 	overrides LowCardinalityAttributes,
 ) map[string]string {
 	s.mu.RLock()
@@ -183,7 +153,7 @@ func (s *TelemetryContext) LowCardinalitySnapshot(
 
 // HighCardinalitySnapshot returns a snapshot of the context's high-cardinality attributes
 // merged with the provided attributes.
-func (s *TelemetryContext) HighCardinalitySnapshot(
+func (s *TelemetryContext) highCardinalitySnapshot(
 	attributes map[string]string,
 ) map[string]string {
 	s.mu.RLock()
@@ -241,6 +211,13 @@ type OpenTelemetryProxy interface {
 	// plus "error.type", "error.message", and "error.stacktrace".
 	// The stack trace is captured at the point Error is called.
 	Error(ctx context.Context, message string, err error, errorType string)
+
+	// SetHighCardinalityAttributes merges caller-supplied high-cardinality attributes
+	// into the context.
+	SetHighCardinalityAttributes(attributes map[string]string)
+
+	// SetLowCardinalityAttributes merges the provided attributes into the context.
+	SetLowCardinalityAttributes(attributes LowCardinalityAttributes)
 }
 
 var (
@@ -458,7 +435,7 @@ func (o *OpenTelemetryProxyImpl) incrementCounter(
 		return
 	}
 
-	snapshot := o.telemetryContext.LowCardinalitySnapshot(lowCardinalityAttributes)
+	snapshot := o.telemetryContext.lowCardinalitySnapshot(lowCardinalityAttributes)
 	counter.Add(
 		ctx,
 		1,
@@ -483,10 +460,10 @@ func (o *OpenTelemetryProxyImpl) RecordLog(
 	record.SetBody(otellogapi.StringValue(body))
 	record.SetSeverity(severity)
 
-	snapshot := o.telemetryContext.LowCardinalitySnapshot(
+	snapshot := o.telemetryContext.lowCardinalitySnapshot(
 		lowCardinalityAttributes,
 	)
-	logAttributes := o.telemetryContext.HighCardinalitySnapshot(snapshot)
+	logAttributes := o.telemetryContext.highCardinalitySnapshot(snapshot)
 	maps.Copy(logAttributes, attributes)
 	if len(logAttributes) > 0 {
 		kvs := make([]otellogapi.KeyValue, 0, len(logAttributes))
@@ -551,6 +528,20 @@ func (o *OpenTelemetryProxyImpl) Error(
 	)
 }
 
+// SetHighCardinalityAttributes implements OpenTelemetryProxy.SetHighCardinalityAttributes.
+func (o *OpenTelemetryProxyImpl) SetHighCardinalityAttributes(attributes map[string]string) {
+	o.telemetryContext.mu.Lock()
+	defer o.telemetryContext.mu.Unlock()
+	maps.Copy(o.telemetryContext.highCardinalityAttributes, attributes)
+}
+
+// SetLowCardinalityAttributes implements OpenTelemetryProxy.SetLowCardinalityAttributes.
+func (o *OpenTelemetryProxyImpl) SetLowCardinalityAttributes(attributes LowCardinalityAttributes) {
+	o.telemetryContext.mu.Lock()
+	defer o.telemetryContext.mu.Unlock()
+	o.telemetryContext.lowCardinalityAttributes.merge(attributes)
+}
+
 // noopOpenTelemetryProxy is a OpenTelemetryProxy that does nothing.
 type NoopOpenTelemetryProxy struct{}
 
@@ -583,6 +574,14 @@ func (NoopOpenTelemetryProxy) Error(
 	error,
 	string,
 ) {
+}
+
+// SetHighCardinalityAttributes implements OpenTelemetryProxy.SetHighCardinalityAttributes.
+func (NoopOpenTelemetryProxy) SetHighCardinalityAttributes(map[string]string) {
+}
+
+// SetLowCardinalityAttributes implements OpenTelemetryProxy.SetLowCardinalityAttributes.
+func (NoopOpenTelemetryProxy) SetLowCardinalityAttributes(LowCardinalityAttributes) {
 }
 
 // captureStacktrace returns a formatted stack trace of the calling goroutine,
