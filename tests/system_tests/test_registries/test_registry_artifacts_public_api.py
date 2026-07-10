@@ -58,6 +58,7 @@ def mock_artifact_fragment_data(project_gql_id: str) -> dict[str, Any]:
 @fixture
 def mock_membership_fragment_data(
     mock_artifact_fragment_data: dict[str, Any],
+    project_gql_id: str,
 ) -> dict[str, Any]:
     fragment = ArtifactMembershipFragment(
         id="PLACEHOLDER",
