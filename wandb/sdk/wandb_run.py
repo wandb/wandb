@@ -2155,7 +2155,7 @@ class Run:
         glob_path: pathlib.PurePath,
         base_path: pathlib.PurePath,
         policy: PolicyName,
-        glob_enabled: bool = True,
+        expand_glob: bool = True,
     ) -> list[str]:
         """Materialize matched files into the run's files/ dir for syncing.
 
@@ -2165,11 +2165,11 @@ class Run:
         3) Else copy and, if requested policy == "live", downgrade those files to "now".
 
         Args:
-            glob_path: Absolute path, or glob pattern if `glob_enabled`, for
+            glob_path: Absolute path, or glob pattern if `expand_glob`, for
                 files to save.
             base_path: Base path to determine relative directory structure.
             policy: Upload policy - "live", "now", or "end".
-            glob_enabled: Whether to treat `glob_path` as a glob pattern
+            expand_glob: Whether to treat `glob_path` as a glob pattern
                 (using Python's `glob` module) or as a literal path.
 
         Returns:
@@ -2181,49 +2181,103 @@ class Run:
         validate_glob_path(glob_path, base_path)
 
         relative_glob = glob_path.relative_to(base_path)
-        relative_glob_str = GlobStr(str(relative_glob))
 
         with telemetry.context(run=self) as tel:
             tel.feature.save = True
 
         files_root = pathlib.Path(self._settings.files_dir)
 
-        if glob_enabled:
-            preexisting = set(files_root.glob(relative_glob_str))
-            # Expand sources deterministically.
-            src_paths = [
-                pathlib.Path(p).absolute()
-                for p in sorted(glob.glob(GlobStr(str(base_path / relative_glob_str))))
-            ]
-            if not src_paths and os.path.lexists(base_path / relative_glob_str):
+        if expand_glob:
+            src_paths, preexisting = self._expand_glob(
+                base_path, relative_glob, files_root
+            )
+        else:
+            src_paths, preexisting = self._find_literal(
+                base_path, relative_glob, files_root
+            )
+
+        publish_entries, stats = self._materialize_saved_files(
+            src_paths, preexisting, base_path, files_root, policy
+        )
+
+        stats.emit_warnings()
+
+        files_dict: FilesDict = {"files": publish_entries}
+        if self._interface:
+            self._interface.publish_files(files_dict)
+
+        abs_targets = {files_root / pathlib.Path(g) for (g, _pol) in publish_entries}
+        return [str(p) for p in sorted(abs_targets)]
+
+    @staticmethod
+    def _expand_glob(
+        base_path: pathlib.PurePath,
+        relative_glob: pathlib.PurePath,
+        files_root: pathlib.Path,
+    ) -> tuple[list[pathlib.Path], set[pathlib.Path]]:
+        """Resolves glob-matched source paths.
+
+        Returns the matching source paths and pre-existing matches in files_root.
+        """
+        relative_glob_str = str(relative_glob)
+        preexisting = set(files_root.glob(relative_glob_str))
+        src_paths = [
+            pathlib.Path(p).absolute()
+            for p in sorted(glob.glob(str(base_path / relative_glob)))
+        ]
+        if not src_paths and os.path.lexists(base_path / relative_glob):
+            wandb.termwarn(
+                f"No files found at glob pattern {str(relative_glob)!r}, "
+                "but a file exists at that literal path. If you meant to "
+                "match it literally rather than as a glob pattern, call "
+                "save() with glob=False.",
+                repeat=False,
+            )
+        return src_paths, preexisting
+
+    @staticmethod
+    def _find_literal(
+        base_path: pathlib.PurePath,
+        relative_path: pathlib.PurePath,
+        files_root: pathlib.Path,
+    ) -> tuple[list[pathlib.Path], set[pathlib.Path]]:
+        """Resolves literal source paths matching relative_path.
+
+        Returns the matching source paths and pre-existing matches in files_root.
+        """
+        literal_dst = files_root / relative_path
+        preexisting = {literal_dst} if os.path.lexists(literal_dst) else set()
+
+        literal_src = base_path / relative_path
+        if os.path.lexists(literal_src):
+            src_paths = [pathlib.Path(literal_src).absolute()]
+        else:
+            src_paths = []
+            if glob.escape(str(relative_path)) != str(relative_path):
                 wandb.termwarn(
-                    f"No files found at glob pattern {str(relative_glob_str)!r}, "
-                    "but a file exists at that literal path. If you meant to "
-                    "match it literally rather than as a glob pattern, call "
-                    "save() with glob=False.",
+                    f"No file found at literal path {str(literal_src)!r}, "
+                    "and it looks like it contains glob metacharacters "
+                    "('*', '?', or '[]'). If you meant to use a glob "
+                    "pattern, call save() with glob=True (the default).",
                     repeat=False,
                 )
-        else:
-            literal_dst = files_root / relative_glob
-            preexisting = {literal_dst} if os.path.lexists(literal_dst) else set()
+        return src_paths, preexisting
 
-            literal_src = base_path / relative_glob_str
-            if os.path.lexists(literal_src):
-                src_paths = [pathlib.Path(literal_src).absolute()]
-            else:
-                src_paths = []
-                if glob.escape(relative_glob_str) != relative_glob_str:
-                    wandb.termwarn(
-                        f"No file found at literal path {str(literal_src)!r}, "
-                        "and it looks like it contains glob metacharacters "
-                        "('*', '?', or '[]'). If you meant to use a glob "
-                        "pattern, call save() with glob=True (the default).",
-                        repeat=False,
-                    )
+    def _materialize_saved_files(
+        self,
+        src_paths: list[pathlib.Path],
+        preexisting: set[pathlib.Path],
+        base_path: pathlib.PurePath,
+        files_root: pathlib.Path,
+        policy: PolicyName,
+    ) -> tuple[list[tuple[GlobStr, PolicyName]], LinkStats]:
+        """Link or copy each source into files_root
 
+        Returns entries to publish and link statistics.
+        """
         stats = LinkStats()
-        publish_entries = []
-        created_targets = set()
+        publish_entries: list[tuple[GlobStr, PolicyName]] = []
+        created_targets: set[pathlib.Path] = set()
 
         for src in src_paths:
             # Preserve directory structure under base_path.
@@ -2256,14 +2310,7 @@ class Run:
                     (GlobStr(str(p.relative_to(files_root))), policy)
                 )
 
-        stats.emit_warnings()
-
-        files_dict: FilesDict = {"files": publish_entries}
-        if self._interface:
-            self._interface.publish_files(files_dict)
-
-        abs_targets = {files_root / pathlib.Path(g) for (g, _pol) in publish_entries}
-        return [str(p) for p in sorted(abs_targets)]
+        return publish_entries, stats
 
     @_log_to_run
     @_attach
