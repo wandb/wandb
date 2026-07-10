@@ -450,6 +450,9 @@ class Settings(BaseModel, validate_assignment=True):
        it will result in failure.
     - "auto": Automatically resumes from the most recent failed run on the same
        machine.
+
+    When `mode` is "offline" (or "dryrun"), only "must" and "never" are
+    supported; "allow" and "auto" raise a `UsageError`.
     """
 
     resume_from: RunMoment | None = None
@@ -1067,6 +1070,19 @@ class Settings(BaseModel, validate_assignment=True):
         """
         if self._offline and self.x_skip_transaction_log:
             raise ValueError("Cannot skip transaction log in offline mode")
+        return self
+
+    @model_validator(mode="after")
+    def validate_offline_resume(self) -> Self:
+        """Only "must" and "never" are supported for resume when offline.
+
+        <!-- lazydoc-ignore: internal -->
+        """
+        if self._offline and self.resume not in (None, "must", "never"):
+            raise UsageError(
+                f"resume={self.resume!r} is not supported in offline mode; "
+                'only "must" and "never" are supported.'
+            )
         return self
 
     # Field validators.
