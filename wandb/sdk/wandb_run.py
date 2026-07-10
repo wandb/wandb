@@ -2271,7 +2271,7 @@ class Run:
         files_root: pathlib.Path,
         policy: PolicyName,
     ) -> tuple[list[tuple[GlobStr, PolicyName]], LinkStats]:
-        """Link or copy each source into files_root
+        """Link or copy each source into files_root.
 
         Returns entries to publish and link statistics.
         """
