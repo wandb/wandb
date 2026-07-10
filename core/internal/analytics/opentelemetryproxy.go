@@ -54,10 +54,10 @@ func ConfigureOTelErrorHandler() {
 // LowCardinalityAttributes is the fixed set of low-cardinality attributes
 // that can be added to the telemetry context.
 type LowCardinalityAttributes struct {
-	GoVersion       string
-	WandbVersion    string
-	OperatingSystem string
-	ErrorType       string
+	GoVersion        string
+	WandbVersion     string
+	OperatingSystem  string
+	CodeFunctionName string
 }
 
 // merge overwrites attrs with the non-empty fields of other.
@@ -65,7 +65,7 @@ func (attrs *LowCardinalityAttributes) merge(other LowCardinalityAttributes) {
 	attrs.GoVersion = cmp.Or(other.GoVersion, attrs.GoVersion)
 	attrs.WandbVersion = cmp.Or(other.WandbVersion, attrs.WandbVersion)
 	attrs.OperatingSystem = cmp.Or(other.OperatingSystem, attrs.OperatingSystem)
-	attrs.ErrorType = cmp.Or(other.ErrorType, attrs.ErrorType)
+	attrs.CodeFunctionName = cmp.Or(other.CodeFunctionName, attrs.CodeFunctionName)
 }
 
 func (attrs LowCardinalityAttributes) toMap() map[string]string {
@@ -79,8 +79,8 @@ func (attrs LowCardinalityAttributes) toMap() map[string]string {
 	if attrs.OperatingSystem != "" {
 		out["operating_system"] = attrs.OperatingSystem
 	}
-	if attrs.ErrorType != "" {
-		out["error.type"] = attrs.ErrorType
+	if attrs.CodeFunctionName != "" {
+		out["code.function.name"] = attrs.CodeFunctionName
 	}
 	return out
 }
@@ -190,9 +190,14 @@ type TelemetryRecorder interface {
 	// rate of each error type can be aggregated and graphed.
 	//
 	// The log record contains the attributes from the current telemetry context,
-	// plus "error.type", "error.message", and "error.stacktrace".
-	// The stack trace is captured at the point Error is called.
-	Error(ctx context.Context, message string, err error, errorType string)
+	// plus "error.type", "error.message", "error.stacktrace", and
+	// "code.function.name". The stack trace is captured at the point Error is
+	// called.
+	//
+	// codeFunctionName is the fully-qualified package and function name
+	// of the code the error is attributed to (following the OpenTelemetry
+	// "code.function.name" convention).
+	Error(ctx context.Context, message string, err error, codeFunctionName string)
 
 	// With returns a derived recorder whose telemetry context inherits
 	// this recorder's attributes merged with the provided ones.
@@ -501,14 +506,15 @@ func (o *OpenTelemetryProxyImpl) Error(
 	ctx context.Context,
 	message string,
 	err error,
-	errorType string,
+	codeFunctionName string,
 ) {
 	errorMessage := ""
 	if err != nil {
 		errorMessage = err.Error()
 	}
+
 	lowCardinalityAttributes := LowCardinalityAttributes{
-		ErrorType: errorType,
+		CodeFunctionName: codeFunctionName,
 	}
 
 	o.incrementCounter(
@@ -518,7 +524,6 @@ func (o *OpenTelemetryProxyImpl) Error(
 	)
 
 	logAttrs := map[string]string{
-		"error.type":       errorType,
 		"error.message":    errorMessage,
 		"error.stacktrace": captureStacktrace(),
 	}
