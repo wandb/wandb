@@ -2194,7 +2194,11 @@ def agent(ctx, project, entity, count, forward_signals, sweep_id):
         )
     # TODO: handle other errors with correct exit codes
     except SweepNotFoundError:
-        wandb.termerror("Sweep was deleted or agent was not found. Stopping agent.")
+        # The agent loop has already printed the "Sweep was deleted or agent was
+        # not found" error to the terminal before re-raising, so here we only
+        # need to report that we're stopping and translate it into a non-zero
+        # exit code.
+        wandb.termerror("Stopping agent.")
         sys.exit(1)
 
     # you can send local commands like so:
