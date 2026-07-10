@@ -88,7 +88,7 @@ class Projects(RelayPaginator["ProjectFragment", "Project"]):
         service_api: ServiceApi,
         entity: str,
         per_page: int = 50,
-    ) -> Projects:
+    ) -> None:
         """An iterable collection of `Project` objects.
 
         Args:
@@ -156,7 +156,7 @@ class Project(Attrs):
         entity: str,
         project: str,
         attrs: Mapping[str, Any],
-    ) -> Project:
+    ) -> None:
         """A single project associated with an entity.
 
         Args:
@@ -259,11 +259,18 @@ class Project(Attrs):
         )
 
     @normalize_exceptions
-    def sweeps(self, per_page: int = 50) -> Sweeps:
+    def sweeps(
+        self,
+        per_page: int = 50,
+        filters: dict[str, Any] | None = None,
+        order: str | None = None,
+    ) -> Sweeps:
         """Return a paginated collection of sweeps in this project.
 
         Args:
             per_page: The number of sweeps to fetch per request to the API.
+            filters: (dict) queries for specific sweeps using the runs filters,
+                See wandb/apis/public/api.py:runs for more details.
 
         Returns:
             A `Sweeps` object, which is an iterable collection of `Sweep` objects.
@@ -273,6 +280,7 @@ class Project(Attrs):
             self.entity,
             self.name,
             per_page=per_page,
+            filters=filters,
         )
 
     @property

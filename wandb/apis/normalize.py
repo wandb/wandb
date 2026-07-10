@@ -6,7 +6,7 @@ import ast
 import sys
 from collections.abc import Callable
 from functools import wraps
-from typing import TypeVar
+from typing import TypeVar, cast
 
 from wandb import env
 from wandb.errors import CommError, Error
@@ -69,4 +69,4 @@ def normalize_exceptions(func: _F) -> _F:
             else:
                 raise CommError(message, err).with_traceback(sys.exc_info()[2])
 
-    return wrapper
+    return cast(_F, wrapper)

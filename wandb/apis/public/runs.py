@@ -68,7 +68,6 @@ from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 if TYPE_CHECKING:
     import pandas as pd
     import polars as pl
-    from typing_extensions import Self
 
     from wandb.apis.public.summary import HTTPSummary
 
@@ -126,6 +125,10 @@ LIGHTWEIGHT_RUN_FRAGMENT = """fragment LightweightRunFragment on Run {
 # Fragment name constants to avoid string parsing
 RUN_FRAGMENT_NAME = "RunFragment"
 LIGHTWEIGHT_RUN_FRAGMENT_NAME = "LightweightRunFragment"
+
+
+class RunNotFoundError(ValueError):
+    """Raised when a run's data is not able to be loaded."""
 
 
 def _create_runs_query(*, lazy: bool) -> str:
@@ -201,6 +204,8 @@ class Runs(SizedPaginator["Run"]):
         per_page: The number of runs to fetch per request (default is 50).
         include_sweeps: Whether to include sweep information in the runs.
             Defaults to True.
+        lazy: Whether to defer loading heavy fields (config, summaryMetrics,
+            systemMetrics) until they are accessed. Defaults to True.
     """
 
     def __init__(
@@ -661,7 +666,7 @@ class Run(Attrs):
             pass
         self._summary = None
         self._metadata: dict[str, Any] | None = None
-        self._state = _attrs.get("state", "not found")
+        self._state: str = _attrs.get("state", "not found")
         self.server_provides_internal_id_field: bool | None = None
         self._is_loaded: bool = False
         self._service_api = service_api
@@ -706,12 +711,12 @@ class Run(Attrs):
         # For compatibility with wandb.Run, which has storage IDs
         # in self.storage_id and names in self.id.
 
-        return self._attrs.get("id")
+        return self._attrs["id"]
 
     @property
     def id(self) -> str:
         """The unique identifier for the run."""
-        return self._attrs.get("name")
+        return self._attrs["name"]
 
     @id.setter
     def id(self, new_id: str) -> None:
@@ -736,7 +741,7 @@ class Run(Attrs):
         project: str | None = None,
         entity: str | None = None,
         state: Literal["running", "pending"] = "running",
-    ) -> Self:
+    ) -> Run:
         """Create a run for the given project.
 
         For most use cases, use `wandb.init()`. `wandb.init()` provides more robust
@@ -788,7 +793,10 @@ class Run(Attrs):
         )
 
     def _load_with_fragment(
-        self, fragment: str, fragment_name: str, force: bool = False
+        self,
+        fragment: str,
+        fragment_name: str,
+        force: bool = False,
     ) -> dict[str, Any]:
         """Load run data using specified GraphQL fragment."""
         query = f"""#graphql
@@ -810,7 +818,7 @@ class Run(Attrs):
                 or response.get("project") is None
                 or response["project"].get("run") is None
             ):
-                raise ValueError("Could not find run {}".format(self))
+                raise RunNotFoundError(f"Could not find run {self}")
             self._attrs = response["project"]["run"]
 
             self._state = self._attrs["state"]
@@ -842,7 +850,7 @@ class Run(Attrs):
         # Snapshot before mutating: only persist config/rawconfig when the response
         # included a config field (lazy runs omit it until load_full_data()).
         had_config_field = "config" in self._attrs
-        self._state = self._attrs.get("state", None)
+        self._state = self._attrs.get("state", self._state)
 
         # Only convert fields if they exist in _attrs
         if had_config_field:
@@ -881,7 +889,19 @@ class Run(Attrs):
         return self._attrs
 
     def load(self, force: bool = False) -> dict[str, Any]:
-        """Load run data using appropriate fragment based on lazy mode."""
+        """Load run data using appropriate fragment based on lazy mode.
+
+        Args:
+            force: If True, re-fetch the run data from the server,
+                even if it is already loaded.
+
+        Returns:
+            A dictionary of the run data.
+
+        Raises:
+            RunNotFoundError: If the run is not found,
+                or the run data can not be loaded.
+        """
         # Load any provided attrs
         if self._attrs:
             self._load_from_attrs()
@@ -1024,6 +1044,37 @@ class Run(Attrs):
             self._state = state
             return True
         return False
+
+    @normalize_exceptions
+    def stop(self) -> None:
+        """Request that this run stop gracefully.
+
+        This sets the run's stop flag on the W&B backend, the same signal
+        sent by the "Stop run" button in the W&B App UI. The process running
+        the run picks the flag up through its regular heartbeat and shuts
+        the run down gracefully, so this is safe for terminating remote runs
+        (for example, runs on Kubernetes pods).
+
+        Stopping is asynchronous: this method returns once the backend has
+        flagged the run, not once the run terminates. Calling it again, or
+        on a run that is no longer running, has no effect.
+
+        Raises:
+            `wandb.Error`: If the request fails.
+
+        Example:
+        ```python
+        import wandb
+
+        run = wandb.Api().run("entity/project/run_id")
+        run.stop()
+        ```
+        """
+        self._service_api.send_api_request(
+            apb.ApiRequest(
+                stop_run_request=apb.StopRunRequest(storage_id=self.storage_id)
+            )
+        )
 
     @property
     def json_config(self) -> str:
