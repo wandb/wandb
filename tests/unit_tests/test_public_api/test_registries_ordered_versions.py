@@ -4,7 +4,6 @@ from collections.abc import Iterator
 
 import pytest
 from wandb._strutils import b64encode_ascii
-from wandb.apis.public.registries.registry import Registry
 from wandb.apis.public.registries._utils import (
     fetch_advanced_search_enabled,
     registry_filter_for_collection,
@@ -16,6 +15,7 @@ from wandb.apis.public.registries.registries_search import (
     Registries,
     Versions,
 )
+from wandb.apis.public.registries.registry import Registry
 
 ORG = "test-org"
 REGISTRY_FILTER = {"name": "wandb-registry-test"}

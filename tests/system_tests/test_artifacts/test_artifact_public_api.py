@@ -28,6 +28,7 @@ from wandb.sdk.artifacts.exceptions import ArtifactFinalizedError
 from wandb.sdk.lib.paths import StrPath
 from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 
+
 @pytest.fixture
 def project_gql_id() -> str:
     return b64encode_ascii("Project:1")
