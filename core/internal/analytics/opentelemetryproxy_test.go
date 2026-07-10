@@ -253,7 +253,7 @@ func TestOpenTelemetryProxyImpl_With_LowCardinalityAttributes(t *testing.T) {
 	impl := startProxy(t, url, "test-api-key")
 
 	derived := impl.With(nil, analytics.LowCardinalityAttributes{
-		ErrorType: "MyError",
+		CodeFunctionName: "MyFunction",
 	})
 	derived.IncrementCounterAndLogEvent(
 		t.Context(),
@@ -265,11 +265,11 @@ func TestOpenTelemetryProxyImpl_With_LowCardinalityAttributes(t *testing.T) {
 
 	log, ok := findLog(captured.logs, "low_card_event")
 	require.True(t, ok, "expected a log for the event")
-	assert.Equal(t, "MyError", log.Attributes["error.type"])
+	assert.Equal(t, "MyFunction", log.Attributes["code.function.name"])
 
 	metric, ok := findMetric(captured.metrics, "low_card_event")
 	require.True(t, ok, "expected a metric for the event")
-	assert.Equal(t, "MyError", metric.Attributes["error.type"])
+	assert.Equal(t, "MyFunction", metric.Attributes["code.function.name"])
 }
 
 func TestOpenTelemetryProxyImpl_With_InheritsAndIgnoresEmptyFields(
@@ -286,7 +286,7 @@ func TestOpenTelemetryProxyImpl_With_InheritsAndIgnoresEmptyFields(
 		}).
 		With(nil, analytics.LowCardinalityAttributes{}).
 		With(nil, analytics.LowCardinalityAttributes{
-			ErrorType: "MyError",
+			CodeFunctionName: "MyFunction",
 		})
 	derived.RecordLog(
 		t.Context(),
@@ -301,7 +301,7 @@ func TestOpenTelemetryProxyImpl_With_InheritsAndIgnoresEmptyFields(
 	require.True(t, ok, "expected a log for the event")
 	assert.Equal(t, "custom-version", log.Attributes["wandb_version"])
 	assert.Equal(t, runtime.Version(), log.Attributes["go_version"])
-	assert.Equal(t, "MyError", log.Attributes["error.type"])
+	assert.Equal(t, "MyFunction", log.Attributes["code.function.name"])
 }
 
 func TestOpenTelemetryProxyImpl_With_HighCardinalityLogsOnly(
@@ -339,7 +339,7 @@ func TestOpenTelemetryProxyImpl_With_DoesNotAffectParent(t *testing.T) {
 
 	impl.With(
 		map[string]string{"child_key": "child-value"},
-		analytics.LowCardinalityAttributes{ErrorType: "ChildError"},
+		analytics.LowCardinalityAttributes{CodeFunctionName: "ChildFunction"},
 	)
 	impl.IncrementCounterAndLogEvent(
 		t.Context(),
@@ -354,11 +354,11 @@ func TestOpenTelemetryProxyImpl_With_DoesNotAffectParent(t *testing.T) {
 	log, ok := findLog(captured.logs, "parent_event")
 	require.True(t, ok, "expected a log for the parent event")
 	assert.NotContains(t, log.Attributes, "child_key")
-	assert.NotContains(t, log.Attributes, "error.type")
+	assert.NotContains(t, log.Attributes, "code.function.name")
 
 	metric, ok := findMetric(captured.metrics, "parent_event")
 	require.True(t, ok, "expected a metric for the parent event")
-	assert.NotContains(t, metric.Attributes, "error.type")
+	assert.NotContains(t, metric.Attributes, "code.function.name")
 }
 
 func TestOpenTelemetryProxyImpl_With_SharesShutdown(t *testing.T) {
@@ -488,7 +488,7 @@ func TestOpenTelemetryProxyImpl_RecordMetricAndLogEvent(t *testing.T) {
 		map[string]string{
 			"custom": "value",
 		},
-		analytics.LowCardinalityAttributes{ErrorType: "X"},
+		analytics.LowCardinalityAttributes{CodeFunctionName: "X"},
 	)
 	require.NoError(t, impl.Shutdown(context.Background()))
 
@@ -496,7 +496,7 @@ func TestOpenTelemetryProxyImpl_RecordMetricAndLogEvent(t *testing.T) {
 	metric, ok := findMetric(captured.metrics, "an_event")
 	require.True(t, ok, "expected a metric named after the event")
 	assert.Equal(t, int64(1), metric.Value)
-	assert.Equal(t, "X", metric.Attributes["error.type"])
+	assert.Equal(t, "X", metric.Attributes["code.function.name"])
 
 	// verify log emitted
 	log, ok := findLog(captured.logs, "an_event")
@@ -534,27 +534,31 @@ func TestOpenTelemetryProxyImpl_Error(t *testing.T) {
 	url, captured := newOTLPTestServer(t)
 	impl := startProxy(t, url, "test-api-key")
 
+	const wantCodeFunctionName = "TestOpenTelemetryProxyImpl_Error"
 	impl.Error(
 		t.Context(),
 		"error-message",
 		assert.AnError,
-		"test-error-type",
+		wantCodeFunctionName,
 	)
 	require.NoError(t, impl.Shutdown(context.Background()))
 
-	// verify metric emitted
 	metric, ok := findMetric(captured.metrics, "error")
 	require.True(t, ok, "expected an error metric")
 	assert.Equal(t, int64(1), metric.Value)
-	assert.NotEmpty(t, metric.Attributes["error.type"])
+	assert.Equal(
+		t,
+		wantCodeFunctionName,
+		metric.Attributes["code.function.name"],
+	)
 
 	// verify log emitted
 	log, ok := findLog(captured.logs, "error-message")
 	require.True(t, ok, "expected an error log")
 	assert.Equal(t, otellogapi.SeverityError, log.Severity)
 	assert.Equal(t,
-		"test-error-type",
-		log.Attributes["error.type"],
+		wantCodeFunctionName,
+		log.Attributes["code.function.name"],
 	)
 	assert.Equal(t, assert.AnError.Error(), log.Attributes["error.message"])
 	assert.NotEmpty(t, log.Attributes["error.stacktrace"])
