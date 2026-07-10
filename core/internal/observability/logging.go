@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"maps"
+	"runtime"
 	"time"
 
 	"github.com/getsentry/sentry-go"
@@ -137,13 +138,25 @@ func (cl *CoreLogger) With(
 // CaptureError logs an error and sends it to Sentry.
 func (cl *CoreLogger) CaptureError(err error, args ...any) {
 	cl.Error(err.Error(), args...)
-	cl.captureException(err, args...)
+	cl.captureException(err, callerName(1), args...)
 }
 
 // CaptureFatal logs a fatal error and sends it to Sentry.
 func (cl *CoreLogger) CaptureFatal(err error, args ...any) {
+	cl.captureFatal(err, callerName(1), args...)
+}
+
+// captureFatal logs a fatal error and records a corresponding telemetry event.
+//
+// codeFunctionName is the fully-qualified name of the function the error is
+// attributed to, recorded as the telemetry "code.function.name" attribute.
+func (cl *CoreLogger) captureFatal(
+	err error,
+	codeFunctionName string,
+	args ...any,
+) {
 	cl.Log(context.Background(), LevelFatal, err.Error(), args...)
-	cl.captureException(err, args...)
+	cl.captureException(err, codeFunctionName, args...)
 }
 
 // CaptureFatalAndPanic logs a fatal error, sends it to Sentry and panics.
@@ -152,7 +165,7 @@ func (cl *CoreLogger) CaptureFatalAndPanic(err error, args ...any) {
 		err = errors.New("observability: panicked with nil error")
 	}
 
-	cl.CaptureFatal(err, args...)
+	cl.captureFatal(err, callerName(1), args...)
 
 	// Log panics to debug-core.log as well. This helps debugging if there are
 	// multiple active debug files.
@@ -185,9 +198,21 @@ func (cl *CoreLogger) CaptureInfo(msg string, args ...any) {
 }
 
 // captureException uploads an error to Sentry if possible and allowed.
-func (cl *CoreLogger) captureException(err error, args ...any) {
+//
+// codeFunctionName is the fully-qualified name of the function the error is
+// attributed to, recorded as the telemetry "code.function.name" attribute.
+func (cl *CoreLogger) captureException(
+	err error,
+	codeFunctionName string,
+	args ...any,
+) {
 	if cl.telemetryProxy != nil {
-		cl.telemetryProxy.Error(context.Background(), err.Error(), err, "error")
+		cl.telemetryProxy.Error(
+			context.Background(),
+			err.Error(),
+			err,
+			codeFunctionName,
+		)
 	}
 
 	if cl.sentryCtx == nil || !cl.captureRateLimiter.AllowCapture(err.Error()) {
@@ -271,6 +296,24 @@ func NewNoOpLogger() *CoreLogger {
 		nil,
 		nil,
 	)
+}
+
+// callerName returns the fully-qualified name of the function `skip` levels above
+// the immediate caller or "" if unknown.
+//
+// if skip == 0, the immediate caller is returned.
+//
+// "go:noinline" ensures this function's own frame is stable for the skip count.
+//
+//go:noinline
+func callerName(skip int) string {
+	var pcs [1]uintptr
+	// +2 skips runtime.Callers and callerName itself.
+	if runtime.Callers(skip+2, pcs[:]) == 0 {
+		return ""
+	}
+	frame, _ := runtime.CallersFrames(pcs[:]).Next()
+	return frame.Function
 }
 
 func argsToAttributes(args ...any) map[string]string {
