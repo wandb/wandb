@@ -78,24 +78,20 @@ class OrgInfo:
         return other in {self.org_name, self.entity_name}
 
 
-def resolve_org_entity_name(
+def _resolve_org_info(
     service_api: ServiceApi,
     non_org_entity: str | None,
     org_or_entity: str | None = None,
-) -> str:
-    # Resolve the portfolio's org entity name.
+) -> OrgInfo:
+    # Resolve an entity's organization to an `OrgInfo` (carrying both the org's
+    # display name and its org-entity name).
     #
-    # The `org_or_org_entity` parameter may be empty, an org display name, or an
-    # org entity name.
-    #
-    # If the server cannot fetch the portfolio's org name, return the provided
-    # value or raise an error if it is empty. Otherwise, return the fetched
-    # value after validating that the given organization, if provided, matches
-    # either the display or entity name.
+    # The `org_or_entity` parameter may be empty, an org display name, or an org
+    # entity name. When provided, it's validated against the entity's org(s).
     if not non_org_entity:
         raise ValueError("Entity name is required to resolve org entity name.")
 
-    # Fetch candidate orgs to verify or identify the correct orgEntity name.
+    # Fetch candidate orgs to verify or identify the correct organization.
     entity = org_info_from_entity(service_api, non_org_entity)
 
     # Parse possible organization(s) from the response...
@@ -104,10 +100,10 @@ def resolve_org_entity_name(
     # the team/org entity type.
     if entity and (org := entity.organization) and (org_entity := org.org_entity):
         # Ensure the provided name, if given, matches the org or org entity name before
-        # returning the org entity.
+        # returning the org.
         org_info = OrgInfo(org_name=org.name, entity_name=org_entity.name)
         if (not org_or_entity) or (org_or_entity in org_info):
-            return org_entity.name
+            return org_info
 
     # ----------------------------------------------------------------------------
     # If a personal entity was provided, the user may belong to multiple
@@ -120,9 +116,7 @@ def resolve_org_entity_name(
         ]
         if org_or_entity:
             with suppress(StopIteration):
-                return next(
-                    info.entity_name for info in org_infos if (org_or_entity in info)
-                )
+                return next(info for info in org_infos if (org_or_entity in info))
 
             if len(org_infos) == 1:
                 raise ValueError(
@@ -143,7 +137,7 @@ def resolve_org_entity_name(
             # - multiple orgs, because we cannot determine which one to use.
             # - no orgs, because there's nothing to use.
             return one(
-                (org.entity_name for org in org_infos),
+                org_infos,
                 too_short=ValueError(
                     f"Unable to resolve an organization associated with personal entity: {non_org_entity!r}. "
                     "This could be because its a personal entity that doesn't belong to any organizations. "
@@ -157,6 +151,24 @@ def resolve_org_entity_name(
             )
 
     raise ValueError(f"Unable to find organization for entity {non_org_entity!r}.")
+
+
+def resolve_org_entity_name(
+    service_api: ServiceApi,
+    non_org_entity: str | None,
+    org_or_entity: str | None = None,
+) -> str:
+    """Resolve an entity's organization to its org **entity** name."""
+    return _resolve_org_info(service_api, non_org_entity, org_or_entity).entity_name
+
+
+def resolve_org_name(
+    service_api: ServiceApi,
+    non_org_entity: str | None,
+    org_or_entity: str | None = None,
+) -> str:
+    """Resolve an entity's organization to its **display** name."""
+    return _resolve_org_info(service_api, non_org_entity, org_or_entity).org_name
 
 
 def is_project_read_only(
