@@ -195,6 +195,7 @@ def save(
     glob_str: str | os.PathLike,
     base_path: str | os.PathLike | None = None,
     policy: PolicyName = "live",
+    glob: bool = True,
 ) -> bool | list[str]:
     """<sdk/wandb_run.py::Run::save>"""
     ...

@@ -742,6 +742,7 @@ def save(
     glob_str: str | os.PathLike,
     base_path: str | os.PathLike | None = None,
     policy: PolicyName = "live",
+    glob: bool = True,
 ) -> bool | list[str]:
     """Sync one or more files to W&B.
 
@@ -750,6 +751,16 @@ def save(
     A Unix glob, such as "myfiles/*", is expanded at the time `save` is
     called regardless of the `policy`. In particular, new files are not
     picked up automatically.
+
+    `glob_str` is expanded using Python's `glob` module: see
+    https://docs.python.org/3/library/glob.html for the exact syntax and
+    behavior. Notably, the characters `*`, `?`, and `[]` are treated as
+    glob metacharacters, not literal characters, even if they appear in a
+    real filename (e.g. "myfile[1].txt"). If your file's name contains
+    any of these characters and you want to match it literally rather
+    than as a pattern, either escape it yourself with `glob.escape()`
+    before calling `save`, or pass `glob=False` to disable pattern
+    expansion entirely and treat `glob_str` as a literal path.
 
     A `base_path` may be provided to control the directory structure of
     uploaded files. It should be a prefix of `glob_str`, and the directory
@@ -768,6 +779,11 @@ def save(
         - live: upload the file as it changes, overwriting the previous version
         - now: upload the file once now
         - end: upload file when the run ends
+        glob: Whether to treat `glob_str` as a glob pattern. Defaults to
+            `True` for backward compatibility. Set to `False` to treat
+            `glob_str` as a literal path, e.g. when its name contains
+            glob metacharacters like `[`, `]`, `*`, or `?` that you don't
+            want interpreted as a pattern.
 
     Returns:
         Paths to the symlinks created for the matched files.
@@ -794,6 +810,10 @@ def save(
     run.save("files/*/saveme.txt")
     # => Saves each "saveme.txt" file in an appropriate subdirectory
     #    of "files/".
+
+    run.save("files/myfile[1].txt", glob=False)
+    # => Saves the literal file "files/myfile[1].txt" without
+    #    interpreting "[1]" as a glob character class.
 
     # Explicitly finish the run since a context manager is not used.
     run.finish()

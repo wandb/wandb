@@ -33,6 +33,7 @@ This version drops compatibility with server versions older than 0.70.0.
 - Dropped support for protobuf v4 (@jacobromero in https://github.com/wandb/wandb/pull/12115)
 - `wandb.sandbox` now defaults serverless sandboxes to a 12-hour max lifetime (`max_lifetime_seconds=43200`); override per sandbox with `max_lifetime_seconds` or via `SandboxDefaults` (@nicholaspun-wandb in https://github.com/wandb/wandb/pull/12136)
 - `wandb.Api().runs()` now raises a `RunNotFoundError` when unable to load data for a run, such as when a run is deleted prior to fully loading run data (@jacobromero in https://app.graphite.com/github/pr/wandb/wandb/12176)
+- `wandb.save` now has an option `glob=False` that disables glob expansion (`*`, `?`, `[...]`) for file paths; updated docs for improved explanation (@geoffhardy in https://github.com/wandb/wandb/pull/12192)
 
 ### Removed
 
