@@ -41,7 +41,7 @@
 ## 1.6.4 (2026-01-12)
 
 ### Features Added
-* Added support for the StartFrom parameter on `BlobContainerClient.listBlobs()` and `BlobContainerClient.listBlobsByHierarchy()` APIs. 
+* Added support for the StartFrom parameter on `BlobContainerClient.listBlobs()` and `BlobContainerClient.listBlobsByHierarchy()` APIs.
 * Added support for conditional headers on `BlobClientBase.getTags()` and `BlobClientBase.setTags()` APIs.
 
 ### Other Changes
@@ -156,7 +156,7 @@
 ## 1.3.0 (2024-02-12)
 
 ### Bugs Fixed
-* Fix concurrency issue while Downloading File. Fixes [#22156](https://github.com/Azure/azure-sdk-for-go/issues/22156). 
+* Fix concurrency issue while Downloading File. Fixes [#22156](https://github.com/Azure/azure-sdk-for-go/issues/22156).
 * Fix panic when nil options bag is passed to NewGetPageRangesPager. Fixes [22356](https://github.com/Azure/azure-sdk-for-go/issues/22356).
 * Fix file offset update after Download file. Fixes [#22297](https://github.com/Azure/azure-sdk-for-go/issues/22297).
 
@@ -245,10 +245,10 @@
 
 * Added [Blob Batch API](https://learn.microsoft.com/rest/api/storageservices/blob-batch).
 * Added support for bearer challenge for identity based managed disks.
-* Added support for GetAccountInfo to container and blob level clients. 
+* Added support for GetAccountInfo to container and blob level clients.
 * Added [UploadBlobFromURL API](https://learn.microsoft.com/rest/api/storageservices/put-blob-from-url).
 * Added support for CopySourceAuthorization to appendblob.AppendBlockFromURL
-* Added support for tag permission in Container SAS. 
+* Added support for tag permission in Container SAS.
 
 ### Bugs Fixed
 
