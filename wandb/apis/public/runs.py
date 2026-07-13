@@ -1162,6 +1162,46 @@ class Run(Attrs):
             per_page=per_page,
         )
 
+    def log_lines(
+        self,
+        per_page: int = 1000,
+        last: int | None = None,
+    ) -> public.LogLines:
+        """Return the run's console log lines.
+
+        For a finished or crashed run, downloading `output.log` via `files()` is
+        usually faster (a single static file). Prefer `log_lines()` for a run
+        that is still running (no file yet) or for a cheap tail.
+
+        Args:
+            per_page (int): Number of lines to fetch per page during forward
+                pagination.
+            last (int, optional): If set, fetch only the last N lines in a single
+                request (a tail) — useful for crash diagnosis or quick checks.
+
+        Returns:
+            A `LogLines` object, an iterator over `LogLine` objects
+            (fields: `number`, `timestamp`, `level`, `label`, `line`).
+
+        Raises:
+            ValueError: If the W&B server does not support structured console
+                logs. In that case read the log from files instead
+                (`run.file("output.log")` or the multipart `logs/` parts).
+        """
+        if not self._service_api.feature_enabled(pb.STRUCTURED_CONSOLE_LOGS):
+            raise ValueError(
+                "This W&B server does not support structured console logs, which "
+                "`run.log_lines()` requires. Read the run's console log from files "
+                "instead: `run.file('output.log')` (or the multipart "
+                "`logs/output_*.log` parts via `run.files()`)."
+            )
+        return public.LogLines(
+            self._service_api,
+            self,
+            per_page=per_page,
+            last=last,
+        )
+
     @normalize_exceptions
     def file(self, name: str) -> public.File:
         """Return the path of a file with a given name in the artifact.

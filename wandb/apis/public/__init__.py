@@ -13,6 +13,8 @@ __all__ = (
     "Automations",
     "File",
     "Files",
+    "LogLine",
+    "LogLines",
     "HistoryScan",  # doc:exclude
     "IncompleteRunHistoryError",
     "SlackIntegrations",  # doc:exclude
@@ -66,6 +68,7 @@ from wandb.apis.public.jobs import (
     RunQueuePrioritizationMode,
     RunQueueResourceType,
 )
+from wandb.apis.public.log_lines import LOG_LINES_FRAGMENT, LogLine, LogLines
 from wandb.apis.public.projects import Project, Projects, Sweeps
 from wandb.apis.public.query_generator import QueryGenerator
 from wandb.apis.public.registries import Registries, Registry
