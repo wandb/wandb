@@ -20,6 +20,8 @@ from typing import TYPE_CHECKING, Any, TypeAlias
 from typing_extensions import Self
 
 from wandb.proto import wandb_api_pb2 as pb
+from wandb.sdk.lib.asyncio_manager import AlreadyJoinedError
+from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 from wandb.sdk.mailbox.mailbox import MailboxClosedError
 
 if TYPE_CHECKING:
@@ -156,7 +158,12 @@ class HistoryScan(Iterator[_RowDict]):
             scan_run_history_cleanup=scan_run_history_cleanup
         )
 
-        with contextlib.suppress(ConnectionResetError, MailboxClosedError):
+        with contextlib.suppress(
+            AlreadyJoinedError,
+            ConnectionResetError,
+            MailboxClosedError,
+            WandbApiFailedError,
+        ):
             service_api.send_api_request(
                 pb.ApiRequest(read_run_history_request=scan_run_history_cleanup_request)
             )
