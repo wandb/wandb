@@ -163,12 +163,13 @@ class ArtifactFileCache:
         for entry in sorted(entries, key=lambda x: x.stat().st_atime):
             if total_size <= target_size:
                 return bytes_reclaimed
+            file_size = entry.stat().st_size
             try:
                 os.remove(entry.path)
             except OSError:
-                pass
-            total_size -= entry.stat().st_size
-            bytes_reclaimed += entry.stat().st_size
+                continue
+            total_size -= file_size
+            bytes_reclaimed += file_size
 
         if total_size > target_size:
             wandb.termerror(
