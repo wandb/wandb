@@ -364,6 +364,7 @@ query GetTeamEntity($name: String!) {
     readOnly
     readOnlyAdmin
     isTeam
+    entityType
     privateOnly
     storageBytes
     codeSavingEnabled
