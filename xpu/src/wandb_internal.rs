@@ -2962,6 +2962,8 @@ pub enum ServerFeature {
     /// Indicates that the server supports the markRunFilesUploaded mutation, used
     /// to commit files uploaded outside a live run (e.g. Run.upload_file).
     MarkRunFilesUploaded = 29,
+    /// Indicates that the server supports filtering sweeps when querying on a project.
+    SweepsQueryFiltering = 30,
 }
 impl ServerFeature {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -3024,6 +3026,7 @@ impl ServerFeature {
             Self::AutomationsOnUser => "AUTOMATIONS_ON_USER",
             Self::AutomationLastExecutedAt => "AUTOMATION_LAST_EXECUTED_AT",
             Self::MarkRunFilesUploaded => "MARK_RUN_FILES_UPLOADED",
+            Self::SweepsQueryFiltering => "SWEEPS_QUERY_FILTERING",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -3091,6 +3094,7 @@ impl ServerFeature {
             "AUTOMATIONS_ON_USER" => Some(Self::AutomationsOnUser),
             "AUTOMATION_LAST_EXECUTED_AT" => Some(Self::AutomationLastExecutedAt),
             "MARK_RUN_FILES_UPLOADED" => Some(Self::MarkRunFilesUploaded),
+            "SWEEPS_QUERY_FILTERING" => Some(Self::SweepsQueryFiltering),
             _ => None,
         }
     }
