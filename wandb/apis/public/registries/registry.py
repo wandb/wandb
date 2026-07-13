@@ -225,6 +225,7 @@ class Registry:
     def versions(
         self,
         filter: dict[str, Any] | None = None,
+        order: str | None = None,
         per_page: PositiveInt = 100,
         start: str | None = None,
     ) -> Versions:
@@ -232,6 +233,9 @@ class Registry:
 
         Args:
             filter: Optional mapping of filters to apply to the artifact versions query.
+            order: Optional string to specify the order of the results.
+                If prefixed with '+', sorts ascending (default).
+                If prefixed with '-', sorts descending.
             per_page: The number of results to fetch per page.
                 Usually there is no reason to change this.
             start: Pagination cursor for resuming a past query, captured
@@ -243,6 +247,7 @@ class Registry:
             registry_filter={"name": self.full_name},
             collection_filter=None,
             artifact_filter=filter,
+            order=order,
             per_page=per_page,
             start=start,
         )

@@ -8,6 +8,7 @@ from pytest import fixture, mark, param, raises
 from wandb import Api, Artifact
 from wandb._strutils import b64decode_ascii
 from wandb.apis.public.registries.registry import Registry
+from wandb.errors import UnsupportedError
 from wandb.sdk.artifacts._validators import REGISTRY_PREFIX
 
 
@@ -538,3 +539,27 @@ def test_registries_versions(
             assert registry_version.aliases == ["latest"]
         else:
             assert registry_version.aliases == []
+
+
+def test_registry_versions_order_unsupported(
+    org: str, api: Api, target_registry: Registry
+):
+    """Passing `order` to version search fails loudly when the server can't sort.
+
+    The local test server doesn't enable advanced registry search, so the fail-closed
+    guard raises instead of silently returning results in the default order. The guard
+    fires before any version is fetched, so no linked artifacts are needed. Ordering
+    correctness can't be exercised here (it needs a server with advanced search), so
+    only the unsupported path is asserted.
+    """
+    registries = api.registries(
+        organization=org, filter={"name": target_registry.full_name}
+    )
+
+    # Both the search-wide and single-registry entry points funnel through the
+    # same `Versions` paginator guard.
+    with raises(UnsupportedError, match="Ordering registry artifact versions"):
+        registries.versions(order="-version_index")
+
+    with raises(UnsupportedError, match="Ordering registry artifact versions"):
+        target_registry.versions(order="-version_index")

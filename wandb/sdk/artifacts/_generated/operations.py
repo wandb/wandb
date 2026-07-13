@@ -28,6 +28,7 @@ __all__ = [
     "FETCH_REGISTRY_GQL",
     "GET_ARTIFACT_MEMBERSHIP_FILE_URLS_GQL",
     "LINK_ARTIFACT_GQL",
+    "ORGANIZATION_REGISTRY_ADVANCED_SEARCH_GQL",
     "PROJECT_ARTIFACTS_GQL",
     "PROJECT_ARTIFACT_COLLECTIONS_GQL",
     "PROJECT_ARTIFACT_COLLECTION_GQL",
@@ -1387,6 +1388,16 @@ query FetchOrgEntityFromOrganization($organization: String!) {
   organization(name: $organization) {
     orgEntity {
       name
+    }
+  }
+}
+"""
+
+ORGANIZATION_REGISTRY_ADVANCED_SEARCH_GQL = """
+query OrganizationRegistryAdvancedSearch($organization: String!) {
+  organization(name: $organization) {
+    advancedRegistryFeatures {
+      advancedSearch
     }
   }
 }
