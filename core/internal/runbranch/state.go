@@ -86,7 +86,7 @@ type RunParams struct {
 	// TODO: Untangle Summary logic and remove this field.
 	Summary map[string]any
 
-	// ResumeMode is the user's resume intent (e.g. "allow", "must", "auto").
+	// ResumeMode is the user's resume intent ("allow", "must", "never","auto").
 	//
 	// This is distinct from Resumed: ResumeMode is what the user asked for,
 	// while Resumed reflects whether the backend actually resumed the run.
