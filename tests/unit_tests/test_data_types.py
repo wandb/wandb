@@ -1719,7 +1719,7 @@ def test_numpy_arrays_to_list():
 
 def test_log_uint8_image():
     pytest.importorskip("torchvision")
-    from torchvision.io import read_image
+    from torchvision.io import decode_image
 
     with open("temp.png", "wb") as temp:
         # Create and save image
@@ -1728,7 +1728,7 @@ def test_log_uint8_image():
         im.save(temp.name)
 
         # Reading with torch vision
-        image = read_image(temp.name)
+        image = decode_image(temp.name)
 
         torch_vision = wandb.Image(image)
         path_im = wandb.Image(temp.name)
