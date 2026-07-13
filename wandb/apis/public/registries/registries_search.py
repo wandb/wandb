@@ -318,17 +318,13 @@ class Collections(
         per_page: PositiveInt,
     ) -> Iterator[Artifact]:
         for collection in self:
-            pinned_registry_filter: dict[str, Any] = {}
-            if registry_name := collection.project:
-                pinned_registry_filter["name"] = registry_name
-            pinned_collection_filter: dict[str, Any] = {}
-            if collection_name := collection.name:
-                pinned_collection_filter["name"] = collection_name
+            registry_filter = {"name": name} if (name := collection.project) else {}
+            collection_filter = {"name": name} if (name := collection.name) else {}
             yield from Versions(
                 service_api=self._service_api,
                 organization=self.organization,
-                registry_filter=pinned_registry_filter,
-                collection_filter=pinned_collection_filter,
+                registry_filter=registry_filter,
+                collection_filter=collection_filter,
                 artifact_filter=artifact_filter,
                 per_page=per_page,
             )
