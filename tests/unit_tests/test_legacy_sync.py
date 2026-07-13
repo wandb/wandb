@@ -22,15 +22,15 @@ def test_legacy_sync_warns_for_resume_intent(mock_wandb_log):
     record = pb.Record(
         run=pb.RunRecord(
             run_id="run-id",
-            resume_mode="allow",
+            resume_mode="must",
         )
     )
 
     parsed, _, cont = thread._parse_pb(record.SerializeToString())
 
     assert not cont
-    assert parsed.run.resume_mode == "allow"
+    assert parsed.run.resume_mode == "must"
     mock_wandb_log.assert_warned(
-        "Ignoring offline resume option 'allow' because legacy sync does not "
+        "Ignoring offline resume option 'must' because legacy sync does not "
         "support offline resume."
     )
