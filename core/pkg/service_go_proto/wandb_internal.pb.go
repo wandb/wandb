@@ -1730,7 +1730,7 @@ type RunRecord struct {
 	Forked       bool                   `protobuf:"varint,22,opt,name=forked,proto3" json:"forked,omitempty"`
 	// Information about the source if this is a fork or rewind of another run.
 	BranchPoint *BranchPoint `protobuf:"bytes,23,opt,name=branch_point,json=branchPoint,proto3" json:"branch_point,omitempty"`
-	// The user-provided resume mode to apply when syncing an offline run.
+	// The user-provided resume mode to apply when syncing.
 	//
 	// This is input intent, unlike `resumed`, which is a backend result.
 	ResumeMode    string       `protobuf:"bytes,24,opt,name=resume_mode,json=resumeMode,proto3" json:"resume_mode,omitempty"`

@@ -359,7 +359,7 @@ message MetricRecord {
   // step metric index can be used instead of step_metric when
   // MetricRecord is encoded in a list of MetricRecords
   string step_metric = 4;
-  int32 step_metric_index = 5; // one-based array index
+  int32 step_metric_index = 5;  // one-based array index
 
   MetricOptions options = 6;
   MetricSummary summary = 7;
@@ -381,7 +381,7 @@ message MetricResult {}
 message MetricOptions {
   bool step_sync = 1;
   bool hidden = 2;
-  bool defined = 3; // metric explicitly defined (not from glob match or step metric)
+  bool defined = 3;  // metric explicitly defined (not from glob match or step metric)
 }
 
 message MetricControl {
@@ -1328,7 +1328,7 @@ message UseArtifactResult {}
  * Cancel:
  */
 message CancelRequest {
-  string cancel_slot = 1; // mailbox slot
+  string cancel_slot = 1;  // mailbox slot
   _RequestInfo _info = 200;
 }
 
