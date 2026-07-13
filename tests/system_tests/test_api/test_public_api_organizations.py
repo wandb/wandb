@@ -5,8 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
-import pytest
-from pytest import fixture
+from pytest import fixture, raises
 from wandb import CommError
 
 if TYPE_CHECKING:
@@ -41,5 +40,5 @@ def test_organization_not_found_raises(api: Api):
     The server resolves an unknown (or unreadable) org name to a null
     `organization`, which `Api.organization()` surfaces as a `ValueError`.
     """
-    with pytest.raises(CommError, match="not found"):
+    with raises(CommError, match="not found"):
         api.organization("this-org-does-not-exist-xyz")
