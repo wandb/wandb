@@ -27,11 +27,11 @@ def test_make_run_records_offline_resume_mode():
     assert record.resume_mode == "must"
 
 
-def test_make_run_omits_online_resume_mode():
+def test_make_run_records_online_resume_mode():
     interface = InterfaceQueue()
     settings = wandb.Settings(
         mode="online",
-        resume="allow",
+        resume="must",
         run_id="run-id",
     )
     run: Any = SimpleNamespace(
@@ -46,4 +46,4 @@ def test_make_run_omits_online_resume_mode():
 
     record = interface._make_run(run)
 
-    assert record.resume_mode == ""
+    assert record.resume_mode == "must"
