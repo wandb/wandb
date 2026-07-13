@@ -11,10 +11,10 @@ from collections.abc import Callable
 from typing import Concatenate, ParamSpec, TypedDict, TypeVar
 
 import requests
-from opentelemetry._logs import SeverityNumber
+from opentelemetry._logs import NoOpLogger, SeverityNumber
 from opentelemetry.exporter.otlp.proto.http._log_exporter import OTLPLogExporter
 from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExporter
-from opentelemetry.metrics import Counter
+from opentelemetry.metrics import Counter, NoOpMeter
 from opentelemetry.sdk._logs import LoggerProvider
 from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
 from opentelemetry.sdk.metrics import MeterProvider
@@ -210,8 +210,8 @@ class OtelProvider:
             with self._state_lock:
                 self._enabled = False
                 self._booted = False
-                self._meter = None
-                self._logger = None
+                self._meter = NoOpMeter("wandb.sdk")
+                self._logger = NoOpLogger("wandb.sdk")
             return False
 
         return True
