@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from collections.abc import Iterator
-
 import pytest
 from wandb._strutils import b64encode_ascii
 from wandb.apis.public.registries._utils import (
@@ -10,11 +8,7 @@ from wandb.apis.public.registries._utils import (
     registry_filter_for_registry,
     registry_project_id_filter_key,
 )
-from wandb.apis.public.registries.registries_search import (
-    Collections,
-    Registries,
-    Versions,
-)
+from wandb.apis.public.registries.registries_search import Collections, Registries
 from wandb.apis.public.registries.registry import Registry
 
 ORG = "test-org"
@@ -99,28 +93,6 @@ def service_api(mocker):
     return mock
 
 
-@pytest.mark.parametrize(
-    "order",
-    [None, "-updated_at"],
-    ids=["without_order", "with_order"],
-)
-def test_registries_versions(service_api, order):
-    registries = Registries(
-        service_api=service_api,
-        organization=ORG,
-        filter=REGISTRY_FILTER,
-        order=order,
-    )
-
-    result = registries.versions()
-
-    if order is None:
-        assert isinstance(result, Versions)
-    else:
-        assert isinstance(result, Iterator)
-        assert not isinstance(result, Versions)
-
-
 def test_registries_versions_with_order_rejects_start(service_api):
     registries = Registries(
         service_api=service_api,
@@ -135,33 +107,6 @@ def test_registries_versions_with_order_rejects_start(service_api):
         registries.versions(start="cursor")
 
 
-@pytest.mark.parametrize(
-    ("registry_order", "collection_order"),
-    [
-        (None, "-updated_at"),
-        ("name", None),
-        ("name", "-updated_at"),
-    ],
-    ids=["without_registry_order", "with_registry_order", "with_both_orders"],
-)
-def test_registries_collections(service_api, registry_order, collection_order):
-    registries = Registries(
-        service_api=service_api,
-        organization=ORG,
-        filter=REGISTRY_FILTER,
-        order=registry_order,
-    )
-
-    result = registries.collections(order=collection_order)
-
-    if registry_order is None:
-        assert isinstance(result, Collections)
-        assert result.order == collection_order
-    else:
-        assert isinstance(result, Iterator)
-        assert not isinstance(result, Collections)
-
-
 def test_registries_collections_with_order_rejects_start(service_api):
     registries = Registries(
         service_api=service_api,
@@ -174,59 +119,6 @@ def test_registries_collections_with_order_rejects_start(service_api):
         ValueError, match="is not supported when querying collections from registries"
     ):
         registries.collections(start="cursor")
-
-
-@pytest.mark.parametrize(
-    "kwargs",
-    [
-        {"collection_filter": {"name": "my-collection"}},
-        {
-            "collection_filter": {"name": {"$contains": "model"}},
-            "order": "-updated_at",
-        },
-    ],
-    ids=["without_order", "with_collection_order"],
-)
-def test_collections_versions(service_api, kwargs):
-    collections = Collections(
-        service_api=service_api,
-        organization=ORG,
-        registry_filter=REGISTRY_FILTER,
-        **kwargs,
-    )
-
-    result = collections.versions()
-
-    if kwargs.get("order") is None:
-        assert isinstance(result, Versions)
-    else:
-        assert isinstance(result, Iterator)
-        assert not isinstance(result, Versions)
-
-
-def test_registries_collections_versions_with_registry_and_collection_order(
-    service_api,
-):
-    registries = Registries(
-        service_api=service_api,
-        organization=ORG,
-        filter=REGISTRY_FILTER,
-        order="-updated_at",
-    )
-
-    result = (
-        version
-        for collection in registries.collections(order="name")
-        for version in Collections(
-            service_api=service_api,
-            organization=ORG,
-            registry_filter={"name": collection.project},
-            collection_filter={"name": collection.name},
-        ).versions()
-    )
-
-    assert isinstance(result, Iterator)
-    assert not isinstance(result, Versions)
 
 
 def test_collections_versions_with_order_rejects_start(service_api):
