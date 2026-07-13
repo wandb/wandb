@@ -23,6 +23,7 @@ This version drops compatibility with server versions older than 0.70.0.
 
 - New filters parameter to `Api().project().sweeps()` matching the runs filter format (@kmikowicz-wandb in https://github.com/wandb/wandb/pull/12059)
 - Added `Run.stop()` to the public API (`wandb.Api().run(...).stop()`) to programmatically request that an active run stop gracefully, like the "Stop run" button in the W&B App UI (@dmitryduev in https://github.com/wandb/wandb/pull/12159)
+- Recognize Backblaze B2 S3-compatible endpoints (`s3.<region>.backblazeb2.com`) and enforce virtual-hosted-style addressing for them, mirroring the existing CoreWeave handling. Also set `user_agent_extra="wandb/<version>"` on every boto3 `Config` built by the S3 storage handler (AWS or otherwise) so server-side request logs can identify the W&B SDK as the caller (@goanpeca in https://github.com/wandb/wandb/pull/11938)
 
 ### Changed
 

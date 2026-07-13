@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import os
 import re
+from collections.abc import Callable
 from pathlib import PurePosixPath
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, ClassVar
 from urllib.parse import parse_qsl, urlparse
 
+from wandb import __version__ as _wandb_version
 from wandb import util
 from wandb._strutils import ensureprefix
 from wandb.errors import CommError
@@ -61,11 +63,12 @@ class S3Handler(StorageHandler):
         from botocore.client import Config  # type: ignore
 
         s3_endpoint = os.getenv("AWS_S3_ENDPOINT_URL")
-        config = (
-            Config(s3={"addressing_style": "virtual"})
-            if s3_endpoint and self._is_coreweave_endpoint(s3_endpoint)
-            else None
-        )
+        config_kwargs: dict[str, Any] = {
+            "user_agent_extra": f"wandb/{_wandb_version}",
+        }
+        if s3_endpoint and self._resolve_s3_provider(s3_endpoint):
+            config_kwargs["s3"] = {"addressing_style": "virtual"}
+        config = Config(**config_kwargs)
         self._s3 = boto.session.Session().resource(
             "s3",
             endpoint_url=s3_endpoint,
@@ -326,6 +329,10 @@ class S3Handler(StorageHandler):
         if not (url := endpoint_url.strip().rstrip("/")):
             return False
 
+        # URL schemes and hostnames are case-insensitive; lowercase before
+        # comparing so e.g. ``HTTPS://CWOBJECT.COM`` still matches.
+        url = url.lower()
+
         # Only http://cwlota.com is supported using HTTP
         if url == "http://cwlota.com":
             return True
@@ -340,3 +347,59 @@ class S3Handler(StorageHandler):
             # Check for legacy endpoints
             self._CW_LEGACY_NETLOC_REGEX.fullmatch(netloc)
         )
+
+    _B2_NETLOC_REGEX: re.Pattern[str] = re.compile(
+        r"""
+        # Path-style S3 endpoint: "s3.<region>.backblazeb2.com"
+        s3\.[a-z0-9-]+\.backblazeb2\.com
+        |
+        # Virtual-hosted-style: "<bucket>.s3.<region>.backblazeb2.com"
+        [a-z0-9][a-z0-9.-]*\.s3\.[a-z0-9-]+\.backblazeb2\.com
+        """,
+        flags=re.VERBOSE,
+    )
+
+    def _is_backblaze_endpoint(self, endpoint_url: str) -> bool:
+        """Return True if ``endpoint_url`` points at a Backblaze B2 S3 endpoint.
+
+        B2's S3-compatible API supports virtual-hosted-style addressing, which
+        is what AWS now treats as the default; we set that explicitly so wandb
+        artifact references work without per-bucket DNS surprises.
+        """
+        if not (url := endpoint_url.strip().rstrip("/")):
+            return False
+
+        # B2's S3 endpoints are HTTPS-only. If no scheme is given, match the
+        # CoreWeave precedent and treat it as HTTPS.
+        if "://" not in url:
+            url = f"https://{url}"
+
+        parsed = urlparse(url)
+        if parsed.scheme.lower() != "https":
+            return False
+
+        hostname = parsed.hostname
+        return bool(hostname and self._B2_NETLOC_REGEX.fullmatch(hostname))
+
+    # Registry of supported S3-compatible non-AWS providers. To add a new one:
+    # (1) define ``_is_<provider>_endpoint`` above with its matching logic;
+    # (2) add the (name, detector) entry below. Call sites that need to
+    # branch on "is this any S3-compatible non-AWS endpoint?" should call
+    # ``_resolve_s3_provider`` and check that the return value is not ``None``.
+    _S3_COMPATIBLE_PROVIDER_DETECTORS: ClassVar[
+        dict[str, Callable[[S3Handler, str], bool]]
+    ] = {
+        "coreweave": _is_coreweave_endpoint,
+        "backblaze": _is_backblaze_endpoint,
+    }
+
+    def _resolve_s3_provider(self, endpoint_url: str) -> str | None:
+        """Return the matching S3-compatible provider name (or ``None``).
+
+        ``None`` means the URL is not a recognized S3-compatible non-AWS
+        endpoint (i.e. it is either AWS S3 itself or an unrecognized host).
+        """
+        for name, detector in self._S3_COMPATIBLE_PROVIDER_DETECTORS.items():
+            if detector(self, endpoint_url):
+                return name
+        return None
