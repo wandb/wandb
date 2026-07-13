@@ -29,7 +29,9 @@ class FilterEventFields(GQLResult):
     typename__: Typename[Literal["FilterEventTriggeringCondition"]] = (
         "FilterEventTriggeringCondition"
     )
-    event_type: EventTriggeringConditionType = Field(alias="eventType")
+    event_type: EventTriggeringConditionType = Field(
+        validation_alias="eventType", serialization_alias="eventType"
+    )
     filter: str
 
 
@@ -39,7 +41,9 @@ class WebhookIntegrationFields(GQLResult):
     )
     id: GQLId
     name: str
-    url_endpoint: str = Field(alias="urlEndpoint")
+    url_endpoint: str = Field(
+        validation_alias="urlEndpoint", serialization_alias="urlEndpoint"
+    )
 
 
 class GenericWebhookActionFields(GQLResult):
@@ -49,7 +53,9 @@ class GenericWebhookActionFields(GQLResult):
     integration: (
         GenericWebhookActionFieldsIntegrationIntegration | WebhookIntegrationFields
     ) = Field(discriminator="typename__")
-    request_payload: str | None = Field(alias="requestPayload")
+    request_payload: str | None = Field(
+        validation_alias="requestPayload", serialization_alias="requestPayload"
+    )
 
 
 class GenericWebhookActionFieldsIntegrationIntegration(GQLResult):
@@ -60,14 +66,16 @@ class GenericWebhookActionFieldsIntegrationIntegration(GQLResult):
 
 class NoOpActionFields(GQLResult):
     typename__: Typename[Literal["NoOpTriggeredAction"]] = "NoOpTriggeredAction"
-    no_op: bool | None = Field(alias="noOp")
+    no_op: bool | None = Field(validation_alias="noOp", serialization_alias="noOp")
 
 
 class SlackIntegrationFields(GQLResult):
     typename__: Typename[Literal["SlackIntegration"]] = "SlackIntegration"
     id: GQLId
-    team_name: str = Field(alias="teamName")
-    channel_name: str = Field(alias="channelName")
+    team_name: str = Field(validation_alias="teamName", serialization_alias="teamName")
+    channel_name: str = Field(
+        validation_alias="channelName", serialization_alias="channelName"
+    )
 
 
 class NotificationActionFields(GQLResult):
@@ -89,8 +97,12 @@ class NotificationActionFieldsIntegrationIntegration(GQLResult):
 
 
 class PageInfoFields(GQLResult):
-    end_cursor: str | None = Field(alias="endCursor")
-    has_next_page: bool = Field(alias="hasNextPage")
+    end_cursor: str | None = Field(
+        validation_alias="endCursor", serialization_alias="endCursor"
+    )
+    has_next_page: bool = Field(
+        validation_alias="hasNextPage", serialization_alias="hasNextPage"
+    )
 
 
 class ProjectScopeFields(GQLResult):
@@ -113,8 +125,12 @@ class QueueJobActionFieldsQueue(GQLResult):
 class TriggerFields(GQLResult):
     typename__: Typename[Literal["Trigger"]] = "Trigger"
     id: GQLId
-    created_at: datetime = Field(alias="createdAt")
-    updated_at: datetime | None = Field(alias="updatedAt")
+    created_at: datetime = Field(
+        validation_alias="createdAt", serialization_alias="createdAt"
+    )
+    updated_at: datetime | None = Field(
+        validation_alias="updatedAt", serialization_alias="updatedAt"
+    )
     name: str
     description: str | None
     enabled: bool

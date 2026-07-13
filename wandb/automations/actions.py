@@ -190,7 +190,9 @@ class SendWebhook(_BaseActionInput, GenericWebhookActionInput):
 
     # overrides the generated field type to parse/serialize JSON strings
     request_payload: JsonEncoded[dict[str, Any]] | None = Field(  # type: ignore[assignment]
-        default=None, alias="requestPayload"
+        default=None,
+        validation_alias="requestPayload",
+        serialization_alias="requestPayload",
     )
     """The payload, possibly with template variables, to send in the webhook request."""
 

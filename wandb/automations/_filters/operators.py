@@ -99,11 +99,15 @@ class BaseVariadicLogicalOp(BaseOp, ABC):
 # https://www.mongodb.com/docs/manual/reference/operator/query/nor/
 # https://www.mongodb.com/docs/manual/reference/operator/query/not/
 class And(BaseVariadicLogicalOp):
-    exprs: TupleOf[FilterExpr | Op] = Field(default=(), alias="$and")
+    exprs: TupleOf[FilterExpr | Op] = Field(
+        default=(), validation_alias="$and", serialization_alias="$and"
+    )
 
 
 class Or(BaseVariadicLogicalOp):
-    exprs: TupleOf[FilterExpr | Op] = Field(default=(), alias="$or")
+    exprs: TupleOf[FilterExpr | Op] = Field(
+        default=(), validation_alias="$or", serialization_alias="$or"
+    )
 
     @override
     def __invert__(self) -> Nor:
@@ -112,7 +116,9 @@ class Or(BaseVariadicLogicalOp):
 
 
 class Nor(BaseVariadicLogicalOp):
-    exprs: TupleOf[FilterExpr | Op] = Field(default=(), alias="$nor")
+    exprs: TupleOf[FilterExpr | Op] = Field(
+        default=(), validation_alias="$nor", serialization_alias="$nor"
+    )
 
     @override
     def __invert__(self) -> Or:
@@ -121,7 +127,7 @@ class Nor(BaseVariadicLogicalOp):
 
 
 class Not(BaseOp):
-    expr: FilterExpr | Op = Field(alias="$not")
+    expr: FilterExpr | Op = Field(validation_alias="$not", serialization_alias="$not")
 
     @override
     def __invert__(self) -> FilterExpr | Op:
@@ -139,7 +145,7 @@ class Not(BaseOp):
 # https://www.mongodb.com/docs/manual/reference/operator/query/in/
 # https://www.mongodb.com/docs/manual/reference/operator/query/nin/
 class Lt(BaseOp):
-    val: Scalar = Field(alias="$lt")
+    val: Scalar = Field(validation_alias="$lt", serialization_alias="$lt")
 
     @override
     def __invert__(self) -> Gte:
@@ -148,7 +154,7 @@ class Lt(BaseOp):
 
 
 class Gt(BaseOp):
-    val: Scalar = Field(alias="$gt")
+    val: Scalar = Field(validation_alias="$gt", serialization_alias="$gt")
 
     @override
     def __invert__(self) -> Lte:
@@ -157,7 +163,7 @@ class Gt(BaseOp):
 
 
 class Lte(BaseOp):
-    val: Scalar = Field(alias="$lte")
+    val: Scalar = Field(validation_alias="$lte", serialization_alias="$lte")
 
     @override
     def __invert__(self) -> Gt:
@@ -166,7 +172,7 @@ class Lte(BaseOp):
 
 
 class Gte(BaseOp):
-    val: Scalar = Field(alias="$gte")
+    val: Scalar = Field(validation_alias="$gte", serialization_alias="$gte")
 
     @override
     def __invert__(self) -> Lt:
@@ -175,7 +181,7 @@ class Gte(BaseOp):
 
 
 class Eq(BaseOp):
-    val: Scalar = Field(alias="$eq")
+    val: Scalar = Field(validation_alias="$eq", serialization_alias="$eq")
 
     @override
     def __invert__(self) -> Ne:
@@ -184,7 +190,7 @@ class Eq(BaseOp):
 
 
 class Ne(BaseOp):
-    val: Scalar = Field(alias="$ne")
+    val: Scalar = Field(validation_alias="$ne", serialization_alias="$ne")
 
     @override
     def __invert__(self) -> Eq:
@@ -193,7 +199,9 @@ class Ne(BaseOp):
 
 
 class In(BaseOp):
-    val: TupleOf[Scalar] = Field(default=(), alias="$in")
+    val: TupleOf[Scalar] = Field(
+        default=(), validation_alias="$in", serialization_alias="$in"
+    )
 
     @override
     def __invert__(self) -> NotIn:
@@ -202,7 +210,9 @@ class In(BaseOp):
 
 
 class NotIn(BaseOp):
-    val: TupleOf[Scalar] = Field(default=(), alias="$nin")
+    val: TupleOf[Scalar] = Field(
+        default=(), validation_alias="$nin", serialization_alias="$nin"
+    )
 
     @override
     def __invert__(self) -> In:
@@ -213,7 +223,7 @@ class NotIn(BaseOp):
 # Element operator(s)
 # https://www.mongodb.com/docs/manual/reference/operator/query/exists/
 class Exists(BaseOp):
-    val: bool = Field(alias="$exists")
+    val: bool = Field(validation_alias="$exists", serialization_alias="$exists")
 
     @override
     def __invert__(self) -> Exists:
@@ -227,11 +237,15 @@ class Exists(BaseOp):
 # Note: `$contains` is NOT a formal MongoDB operator, but the W&B backend
 # recognizes and executes it as a substring-match filter.
 class Regex(BaseOp):
-    val: str = Field(alias="$regex")  #: The regex expression to match against.
+    val: str = Field(
+        validation_alias="$regex", serialization_alias="$regex"
+    )  #: The regex expression to match against.
 
 
 class Contains(BaseOp):
-    val: str = Field(alias="$contains")  #: The substring to match against.
+    val: str = Field(
+        validation_alias="$contains", serialization_alias="$contains"
+    )  #: The substring to match against.
 
 
 # ------------------------------------------------------------------------------

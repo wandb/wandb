@@ -16,7 +16,8 @@ class FetchLinkedArtifacts(GQLResult):
 
 class FetchLinkedArtifactsArtifact(GQLResult):
     artifact_memberships: FetchLinkedArtifactsArtifactArtifactMemberships = Field(
-        alias="artifactMemberships"
+        validation_alias="artifactMemberships",
+        serialization_alias="artifactMemberships",
     )
 
 
@@ -29,10 +30,12 @@ class FetchLinkedArtifactsArtifactArtifactMembershipsEdges(GQLResult):
 
 
 class FetchLinkedArtifactsArtifactArtifactMembershipsEdgesNode(GQLResult):
-    version_index: int | None = Field(alias="versionIndex")
+    version_index: int | None = Field(
+        validation_alias="versionIndex", serialization_alias="versionIndex"
+    )
     aliases: list[ArtifactAliasFragment]
     artifact_collection: CollectionInfoFragment | None = Field(
-        alias="artifactCollection"
+        validation_alias="artifactCollection", serialization_alias="artifactCollection"
     )
 
 

@@ -16,42 +16,79 @@ from .enums import (
 
 
 class CreateFilterTriggerInput(GQLInput):
-    client_mutation_id: str | None = Field(alias="clientMutationId", default=None)
+    client_mutation_id: str | None = Field(
+        validation_alias="clientMutationId",
+        serialization_alias="clientMutationId",
+        default=None,
+    )
     description: str | None = None
     enabled: bool
-    event_filter: str = Field(alias="eventFilter")
-    name: str = Field(max_length=255)
-    scope_id: GQLId = Field(alias="scopeID")
-    scope_type: TriggerScopeType = Field(alias="scopeType")
-    triggered_action_config: TriggeredActionConfig = Field(
-        alias="triggeredActionConfig"
+    event_filter: str = Field(
+        validation_alias="eventFilter", serialization_alias="eventFilter"
     )
-    triggered_action_type: TriggeredActionType = Field(alias="triggeredActionType")
+    name: str = Field(max_length=255)
+    scope_id: GQLId = Field(validation_alias="scopeID", serialization_alias="scopeID")
+    scope_type: TriggerScopeType = Field(
+        validation_alias="scopeType", serialization_alias="scopeType"
+    )
+    triggered_action_config: TriggeredActionConfig = Field(
+        validation_alias="triggeredActionConfig",
+        serialization_alias="triggeredActionConfig",
+    )
+    triggered_action_type: TriggeredActionType = Field(
+        validation_alias="triggeredActionType",
+        serialization_alias="triggeredActionType",
+    )
     triggering_event_type: EventTriggeringConditionType = Field(
-        alias="triggeringEventType"
+        validation_alias="triggeringEventType",
+        serialization_alias="triggeringEventType",
     )
 
 
 class CreateGenericWebhookIntegrationInput(GQLInput):
-    access_token_ref: str | None = Field(alias="accessTokenRef", default=None)
-    client_mutation_id: str | None = Field(alias="clientMutationId", default=None)
-    entity_name: str = Field(alias="entityName")
+    access_token_ref: str | None = Field(
+        validation_alias="accessTokenRef",
+        serialization_alias="accessTokenRef",
+        default=None,
+    )
+    client_mutation_id: str | None = Field(
+        validation_alias="clientMutationId",
+        serialization_alias="clientMutationId",
+        default=None,
+    )
+    entity_name: str = Field(
+        validation_alias="entityName", serialization_alias="entityName"
+    )
     name: str = Field(max_length=64, pattern="^[-\\w]+([ ]+[-\\w]+)*$")
-    secret_ref: str | None = Field(alias="secretRef", default=None)
-    url_endpoint: str = Field(alias="urlEndpoint")
+    secret_ref: str | None = Field(
+        validation_alias="secretRef", serialization_alias="secretRef", default=None
+    )
+    url_endpoint: str = Field(
+        validation_alias="urlEndpoint", serialization_alias="urlEndpoint"
+    )
 
 
 class GenericWebhookActionInput(GQLInput):
-    integration_id: GQLId = Field(alias="integrationID")
-    request_payload: str | None = Field(alias="requestPayload", default=None)
+    integration_id: GQLId = Field(
+        validation_alias="integrationID", serialization_alias="integrationID"
+    )
+    request_payload: str | None = Field(
+        validation_alias="requestPayload",
+        serialization_alias="requestPayload",
+        default=None,
+    )
 
 
 class NoOpTriggeredActionInput(GQLInput):
-    no_op: bool | None = Field(alias="noOp", default=None)
+    no_op: bool | None = Field(
+        validation_alias="noOp", serialization_alias="noOp", default=None
+    )
 
 
 class NotificationActionInput(GQLInput):
-    integration_id: GQLId = Field(alias="integrationID")
+    integration_id: GQLId = Field(
+        validation_alias="integrationID", serialization_alias="integrationID"
+    )
     message: str | None = None
     severity: AlertSeverity | None = None
     title: str | None = None
@@ -60,49 +97,75 @@ class NotificationActionInput(GQLInput):
 class PushNotificationActionInput(GQLInput):
     body: str | None = None
     title: str | None = None
-    user_id: GQLId = Field(alias="userID")
+    user_id: GQLId = Field(validation_alias="userID", serialization_alias="userID")
 
 
 class QueueJobActionInput(GQLInput):
-    queue_id: GQLId = Field(alias="queueID")
+    queue_id: GQLId = Field(validation_alias="queueID", serialization_alias="queueID")
     template: str
 
 
 class TriggeredActionConfig(GQLInput):
     generic_webhook_action_input: GenericWebhookActionInput | None = Field(
-        alias="genericWebhookActionInput", default=None
+        validation_alias="genericWebhookActionInput",
+        serialization_alias="genericWebhookActionInput",
+        default=None,
     )
     no_op_action_input: NoOpTriggeredActionInput | None = Field(
-        alias="noOpActionInput", default=None
+        validation_alias="noOpActionInput",
+        serialization_alias="noOpActionInput",
+        default=None,
     )
     notification_action_input: NotificationActionInput | None = Field(
-        alias="notificationActionInput", default=None
+        validation_alias="notificationActionInput",
+        serialization_alias="notificationActionInput",
+        default=None,
     )
     push_notification_action_input: PushNotificationActionInput | None = Field(
-        alias="pushNotificationActionInput", default=None
+        validation_alias="pushNotificationActionInput",
+        serialization_alias="pushNotificationActionInput",
+        default=None,
     )
     queue_job_action_input: QueueJobActionInput | None = Field(
-        alias="queueJobActionInput", default=None
+        validation_alias="queueJobActionInput",
+        serialization_alias="queueJobActionInput",
+        default=None,
     )
 
 
 class UpdateFilterTriggerInput(GQLInput):
-    client_mutation_id: str | None = Field(alias="clientMutationId", default=None)
+    client_mutation_id: str | None = Field(
+        validation_alias="clientMutationId",
+        serialization_alias="clientMutationId",
+        default=None,
+    )
     description: str | None = None
     enabled: bool | None = None
-    event_filter: str | None = Field(alias="eventFilter", default=None)
+    event_filter: str | None = Field(
+        validation_alias="eventFilter", serialization_alias="eventFilter", default=None
+    )
     id: GQLId
     name: str | None = Field(default=None, max_length=255)
-    scope_id: GQLId | None = Field(alias="scopeID", default=None)
-    scope_type: TriggerScopeType | None = Field(alias="scopeType", default=None)
+    scope_id: GQLId | None = Field(
+        validation_alias="scopeID", serialization_alias="scopeID", default=None
+    )
+    scope_type: TriggerScopeType | None = Field(
+        validation_alias="scopeType", serialization_alias="scopeType", default=None
+    )
     triggered_action_config: TriggeredActionConfig | None = Field(
-        alias="triggeredActionConfig", default=None
+        validation_alias="triggeredActionConfig",
+        serialization_alias="triggeredActionConfig",
+        default=None,
     )
     triggered_action_type: TriggeredActionType | None = Field(
-        alias="triggeredActionType", default=None
+        validation_alias="triggeredActionType",
+        serialization_alias="triggeredActionType",
+        default=None,
     )
     triggering_event_type: EventTriggeringConditionType | None = Field(
-        alias="triggeringEventType", default=None
+        validation_alias="triggeringEventType",
+        serialization_alias="triggeringEventType",
+        default=None,
     )
 
 

@@ -15,7 +15,9 @@ class RegistryTeamMembers(GQLResult):
 
 
 class RegistryTeamMembersProject(GQLResult):
-    team_members: list[TeamRegistryMemberFragment] = Field(alias="teamMembers")
+    team_members: list[TeamRegistryMemberFragment] = Field(
+        validation_alias="teamMembers", serialization_alias="teamMembers"
+    )
 
 
 RegistryTeamMembers.model_rebuild()

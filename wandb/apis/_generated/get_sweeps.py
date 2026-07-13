@@ -15,12 +15,16 @@ class GetSweeps(GQLResult):
 
 
 class GetSweepsProject(GQLResult):
-    total_sweeps: int = Field(alias="totalSweeps")
+    total_sweeps: int = Field(
+        validation_alias="totalSweeps", serialization_alias="totalSweeps"
+    )
     sweeps: GetSweepsProjectSweeps | None
 
 
 class GetSweepsProjectSweeps(GQLResult):
-    page_info: PageInfoFragment = Field(alias="pageInfo")
+    page_info: PageInfoFragment = Field(
+        validation_alias="pageInfo", serialization_alias="pageInfo"
+    )
     edges: list[GetSweepsProjectSweepsEdges]
 
 

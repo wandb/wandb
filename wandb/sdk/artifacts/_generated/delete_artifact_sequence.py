@@ -18,7 +18,7 @@ class DeleteArtifactSequence(GQLResult):
 
 class DeleteArtifactSequenceResult(GQLResult):
     artifact_collection: DeleteArtifactSequenceResultArtifactCollection = Field(
-        alias="artifactCollection"
+        validation_alias="artifactCollection", serialization_alias="artifactCollection"
     )
 
 

@@ -16,7 +16,8 @@ class ArtifactMembershipByName(GQLResult):
 
 class ArtifactMembershipByNameProject(GQLResult):
     artifact_collection_membership: ArtifactMembershipFragment | None = Field(
-        alias="artifactCollectionMembership"
+        validation_alias="artifactCollectionMembership",
+        serialization_alias="artifactCollectionMembership",
     )
 
 

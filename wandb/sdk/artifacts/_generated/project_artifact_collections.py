@@ -17,12 +17,19 @@ class ProjectArtifactCollections(GQLResult):
 class ProjectArtifactCollectionsProject(GQLResult):
     artifact_collections: (
         ProjectArtifactCollectionsProjectArtifactCollections | None
-    ) = Field(alias="artifactCollections")
+    ) = Field(
+        validation_alias="artifactCollections",
+        serialization_alias="artifactCollections",
+    )
 
 
 class ProjectArtifactCollectionsProjectArtifactCollections(GQLResult):
-    total_count: int | None = Field(alias="totalCount", default=None)
-    page_info: PageInfoFragment = Field(alias="pageInfo")
+    total_count: int | None = Field(
+        validation_alias="totalCount", serialization_alias="totalCount", default=None
+    )
+    page_info: PageInfoFragment = Field(
+        validation_alias="pageInfo", serialization_alias="pageInfo"
+    )
     edges: list[ProjectArtifactCollectionsProjectArtifactCollectionsEdges]
 
 

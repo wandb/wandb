@@ -15,7 +15,9 @@ class FetchArtifactManifest(GQLResult):
 
 
 class FetchArtifactManifestArtifact(GQLResult):
-    current_manifest: DeferredManifestFragment | None = Field(alias="currentManifest")
+    current_manifest: DeferredManifestFragment | None = Field(
+        validation_alias="currentManifest", serialization_alias="currentManifest"
+    )
 
 
 FetchArtifactManifest.model_rebuild()

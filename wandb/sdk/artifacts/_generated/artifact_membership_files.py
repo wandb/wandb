@@ -18,7 +18,10 @@ class ArtifactMembershipFiles(GQLResult):
 
 class ArtifactMembershipFilesProject(GQLResult):
     artifact_collection: ArtifactMembershipFilesProjectArtifactCollection | None = (
-        Field(alias="artifactCollection")
+        Field(
+            validation_alias="artifactCollection",
+            serialization_alias="artifactCollection",
+        )
     )
 
 
@@ -28,7 +31,9 @@ class ArtifactMembershipFilesProjectArtifactCollection(GQLResult):
     ]
     artifact_membership: (
         ArtifactMembershipFilesProjectArtifactCollectionArtifactMembership | None
-    ) = Field(alias="artifactMembership")
+    ) = Field(
+        validation_alias="artifactMembership", serialization_alias="artifactMembership"
+    )
 
 
 class ArtifactMembershipFilesProjectArtifactCollectionArtifactMembership(GQLResult):
@@ -40,8 +45,12 @@ class ArtifactMembershipFilesProjectArtifactCollectionArtifactMembership(GQLResu
 class ArtifactMembershipFilesProjectArtifactCollectionArtifactMembershipFiles(
     GQLResult
 ):
-    total_count: int | None = Field(alias="totalCount", default=None)
-    page_info: PageInfoFragment = Field(alias="pageInfo")
+    total_count: int | None = Field(
+        validation_alias="totalCount", serialization_alias="totalCount", default=None
+    )
+    page_info: PageInfoFragment = Field(
+        validation_alias="pageInfo", serialization_alias="pageInfo"
+    )
     edges: list[
         ArtifactMembershipFilesProjectArtifactCollectionArtifactMembershipFilesEdges
     ]

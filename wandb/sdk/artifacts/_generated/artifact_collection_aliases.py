@@ -14,7 +14,7 @@ from .fragments import ArtifactAliasFragment, PageInfoFragment
 
 class ArtifactCollectionAliases(GQLResult):
     artifact_collection: ArtifactCollectionAliasesArtifactCollection | None = Field(
-        alias="artifactCollection"
+        validation_alias="artifactCollection", serialization_alias="artifactCollection"
     )
 
 
@@ -26,7 +26,9 @@ class ArtifactCollectionAliasesArtifactCollection(GQLResult):
 
 
 class ArtifactCollectionAliasesArtifactCollectionAliases(GQLResult):
-    page_info: PageInfoFragment = Field(alias="pageInfo")
+    page_info: PageInfoFragment = Field(
+        validation_alias="pageInfo", serialization_alias="pageInfo"
+    )
     edges: list[ArtifactCollectionAliasesArtifactCollectionAliasesEdges]
 
 

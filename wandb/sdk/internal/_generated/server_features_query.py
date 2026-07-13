@@ -9,7 +9,9 @@ from wandb._pydantic import GQLResult
 
 
 class ServerFeaturesQuery(GQLResult):
-    server_info: ServerFeaturesQueryServerInfo | None = Field(alias="serverInfo")
+    server_info: ServerFeaturesQueryServerInfo | None = Field(
+        validation_alias="serverInfo", serialization_alias="serverInfo"
+    )
 
 
 class ServerFeaturesQueryServerInfo(GQLResult):
@@ -18,7 +20,9 @@ class ServerFeaturesQueryServerInfo(GQLResult):
 
 class ServerFeaturesQueryServerInfoFeatures(GQLResult):
     name: str
-    is_enabled: bool = Field(alias="isEnabled")
+    is_enabled: bool = Field(
+        validation_alias="isEnabled", serialization_alias="isEnabled"
+    )
 
 
 ServerFeaturesQuery.model_rebuild()

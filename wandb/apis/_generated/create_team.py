@@ -20,7 +20,9 @@ class CreateTeamResultEntity(GQLResult):
     id: GQLId
     name: str
     available: bool | None
-    photo_url: str | None = Field(alias="photoUrl")
+    photo_url: str | None = Field(
+        validation_alias="photoUrl", serialization_alias="photoUrl"
+    )
     limits: str | None
 
 

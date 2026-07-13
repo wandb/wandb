@@ -23,7 +23,7 @@ class ArtifactCreatedByArtifact(GQLResult):
             Field(discriminator="typename__"),
         ]
         | None
-    ) = Field(alias="createdBy")
+    ) = Field(validation_alias="createdBy", serialization_alias="createdBy")
 
 
 class ArtifactCreatedByArtifactCreatedByUser(GQLResult):

@@ -15,7 +15,9 @@ class ArtifactUsedBy(GQLResult):
 
 
 class ArtifactUsedByArtifact(GQLResult):
-    used_by: ArtifactUsedByArtifactUsedBy = Field(alias="usedBy")
+    used_by: ArtifactUsedByArtifactUsedBy = Field(
+        validation_alias="usedBy", serialization_alias="usedBy"
+    )
 
 
 class ArtifactUsedByArtifactUsedBy(GQLResult):

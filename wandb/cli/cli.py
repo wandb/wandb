@@ -25,7 +25,7 @@ from click.exceptions import ClickException
 import wandb
 import wandb.errors
 import wandb.sdk.verify.verify as wandb_verify
-from wandb import Config, Error, env, util, wandb_agent
+from wandb import Error, env, util, wandb_agent
 from wandb.analytics import get_sentry
 from wandb.apis import InternalApi, PublicApi
 from wandb.cli import beta_sync
@@ -41,6 +41,7 @@ from wandb.sdk.launch.sweeps import SweepNotFoundError
 from wandb.sdk.launch.sweeps import utils as sweep_utils
 from wandb.sdk.launch.sweeps.scheduler import Scheduler
 from wandb.sdk.lib import filesystem, settings_file
+from wandb.sdk.wandb_config import Config
 from wandb.sync import TFEVENT_SUBSTRING, SyncManager, get_run_from_path, get_runs
 
 from .beta import beta

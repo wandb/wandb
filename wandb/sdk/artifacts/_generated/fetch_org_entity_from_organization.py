@@ -14,7 +14,7 @@ class FetchOrgEntityFromOrganization(GQLResult):
 
 class FetchOrgEntityFromOrganizationOrganization(GQLResult):
     org_entity: FetchOrgEntityFromOrganizationOrganizationOrgEntity | None = Field(
-        alias="orgEntity"
+        validation_alias="orgEntity", serialization_alias="orgEntity"
     )
 
 

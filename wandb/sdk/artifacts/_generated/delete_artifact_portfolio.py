@@ -18,7 +18,7 @@ class DeleteArtifactPortfolio(GQLResult):
 
 class DeleteArtifactPortfolioResult(GQLResult):
     artifact_collection: DeleteArtifactPortfolioResultArtifactCollection = Field(
-        alias="artifactCollection"
+        validation_alias="artifactCollection", serialization_alias="artifactCollection"
     )
 
 

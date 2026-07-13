@@ -15,9 +15,13 @@ class LinkArtifact(GQLResult):
 
 
 class LinkArtifactResult(GQLResult):
-    version_index: int | None = Field(alias="versionIndex")
+    version_index: int | None = Field(
+        validation_alias="versionIndex", serialization_alias="versionIndex"
+    )
     artifact_membership: ArtifactMembershipFragment | None = Field(
-        alias="artifactMembership", default=None
+        validation_alias="artifactMembership",
+        serialization_alias="artifactMembership",
+        default=None,
     )
 
 

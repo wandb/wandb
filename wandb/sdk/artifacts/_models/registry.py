@@ -59,7 +59,9 @@ class RegistryData(ArtifactsBase):
       registry.
     """
 
-    visibility: Visibility = Field(alias="access")
+    visibility: Visibility = Field(
+        validation_alias="access", serialization_alias="access"
+    )
     """The visibility of the registry."""
 
     @property
