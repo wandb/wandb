@@ -1119,8 +1119,6 @@ class Api:
         - `$exists`
         - `$regex`
 
-
-
         Args:
             path: (str) path to project, should be in the form: "entity/project"
             filters: (dict) queries for specific runs using the MongoDB query language.
@@ -1165,16 +1163,18 @@ class Api:
 
         ```python
         # Find runs in project where config.experiment_name matches a regex
-        # (anchors are not supported)
         Api.runs(
             path="my_entity/project",
             filters={"config.experiment_name": {"$regex": "b.*"}},
         )
         ```
 
+        Note:
+            Regular expressions use Google's RE2 syntax:
+            https://github.com/google/re2/wiki/Syntax
+
         ```python
         # Find runs in project where the run name matches a regex
-        # (anchors are not supported)
         Api.runs(
             path="my_entity/project", filters={"display_name": {"$regex": "^foo.*"}}
         )
@@ -1222,6 +1222,10 @@ class Api:
 
         Returns:
             A `Run` object.
+
+        Raises:
+            RunNotFoundError: If a run is not found,
+                or run data is not able to be loaded.
         """
         entity, project, run_id = self._parse_path(path)
         if not self._runs.get(path):
