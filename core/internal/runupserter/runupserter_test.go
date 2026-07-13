@@ -215,7 +215,7 @@ func TestResume_FromRunRecord(t *testing.T) {
 	params.GraphqlClientOrNil = mockClient
 
 	upserter, err := runupserter.InitRun(
-		runRecord(&spb.RunRecord{ResumeMode: "allow"}),
+		runRecord(&spb.RunRecord{ResumeMode: "must"}),
 		params,
 	)
 	defer upserter.Finish()
@@ -232,11 +232,11 @@ func TestResume_FromRunRecordOverridesSettings(t *testing.T) {
 	params := testParams(t)
 	params.GraphqlClientOrNil = mockClient
 	params.Settings = settings.From(&spb.Settings{
-		Resume: wrapperspb.String("must"),
+		Resume: wrapperspb.String("never"),
 	})
 
 	upserter, err := runupserter.InitRun(
-		runRecord(&spb.RunRecord{ResumeMode: "allow"}),
+		runRecord(&spb.RunRecord{ResumeMode: "must"}),
 		params,
 	)
 	defer upserter.Finish()

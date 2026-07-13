@@ -2081,9 +2081,18 @@ class Settings(BaseModel, validate_assignment=True):
 
         <!-- lazydoc-ignore: internal -->
         """
-        for key, value in dict(settings).items():
-            if value is not None:
-                setattr(self, key, value)
+        updates = {k: v for k, v in dict(settings).items() if v is not None}
+        if not updates:
+            return
+
+        # Validate the updates all at once to avoid errors when updating dependent fields.
+        updated = self.model_copy(update=updates)
+        validated = Settings.model_validate(updated)
+
+        # Copy the validated settings back to the current instance.
+        for key in Settings.model_fields:
+            object.__setattr__(self, key, getattr(validated, key))
+        self.__pydantic_fields_set__ = validated.__pydantic_fields_set__
 
     def update_from_settings(self, settings: Settings) -> None:
         """Update settings from another instance of `Settings`.

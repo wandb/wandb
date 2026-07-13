@@ -194,7 +194,7 @@ func TestSendHistory_OfflineResumedSegmentRewritesSteps(t *testing.T) {
 			Entity:     "entity",
 			Project:    "project",
 			RunId:      "run1",
-			ResumeMode: "allow",
+			ResumeMode: "must",
 		}}},
 		runupserter.RunUpserterParams{
 			GraphqlClientOrNil: mockGQL,
@@ -202,9 +202,7 @@ func TestSendHistory_OfflineResumedSegmentRewritesSteps(t *testing.T) {
 			Logger:             x.Logger,
 			ClientID:           "test-client",
 			FeatureProvider:    featurechecker.New(nil, x.Logger),
-			Settings:           wbsettings.From(&spb.Settings{
-				// Resume: wrapperspb.String("never"),
-			}),
+			Settings:           wbsettings.From(&spb.Settings{}),
 		},
 	)
 	require.NoError(t, err)

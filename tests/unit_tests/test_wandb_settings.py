@@ -127,6 +127,21 @@ def test_offline():
     assert test_settings._offline is True
 
 
+def test_offline_resume_validation():
+    s = Settings(mode="offline")
+    with pytest.raises(UsageError):
+        s.resume = "auto"
+    with pytest.raises(UsageError):
+        s.resume = "allow"
+
+    s.resume = "must"
+    assert s.resume == "must"
+    s.resume = "never"
+    assert s.resume == "never"
+    s.resume = None
+    assert s.resume is None
+
+
 def test_silent():
     s = Settings()
     s.update_from_env_vars({"WANDB_SILENT": "true"})
@@ -493,6 +508,14 @@ def test_resume_fname_run(mock_run):
     assert run._settings.resume_fname == os.path.join(
         run._settings.wandb_dir, "wandb-resume.json"
     )
+
+
+def test_update_from_dict_dependent_fields():
+    s = Settings(mode="offline")
+
+    s.update_from_dict({"resume": "auto", "mode": "online"})
+    assert s.mode == "online"
+    assert s.resume == "auto"
 
 
 def test_wandb_dir_run(mock_run):

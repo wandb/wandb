@@ -422,14 +422,11 @@ func (upserter *RunUpserter) updateMetadataForResume(
 	ctx context.Context,
 	resumeSetting string,
 ) error {
+	// Record the user's resume intent on the RunRecord.
+	upserter.params.ResumeMode = resumeSetting
 	if upserter.graphqlClientOrNil == nil {
-		// Offline: we can't query the backend to reconcile resume state, so
-		// just record the user's resume intent on the RunRecord. Actual
-		// reconciliation (starting step, summary, config, etc.) is deferred
-		// to `wandb sync`, which can reach the backend.
-		//
-		// resume="auto" is always OK and is handled by the client.
-		upserter.params.ResumeMode = resumeSetting
+		// When offline, we cannot query the backend to reconcile resume state,
+		// so resume reconciliation is deferred to `wandb sync`.
 		return nil
 	}
 
