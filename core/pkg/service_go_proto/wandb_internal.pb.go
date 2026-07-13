@@ -94,6 +94,12 @@ const (
 	ServerFeature_MARK_RUN_FILES_UPLOADED ServerFeature = 29
 	// Indicates that the server supports filtering sweeps when querying on a project.
 	ServerFeature_SWEEPS_QUERY_FILTERING ServerFeature = 30
+	// Indicates that the server supports automation scope ENTITY.
+	ServerFeature_AUTOMATION_SCOPE_ENTITY ServerFeature = 31
+	// Indicates that the server supports Entity.triggers.
+	ServerFeature_QUERY_AUTOMATIONS_ON_ENTITY ServerFeature = 32
+	// Indicates that the server supports Organization.triggers.
+	ServerFeature_AUTOMATIONS_ON_ORGANIZATION ServerFeature = 33
 )
 
 // Enum value maps for ServerFeature.
@@ -130,6 +136,9 @@ var (
 		28: "AUTOMATION_LAST_EXECUTED_AT",
 		29: "MARK_RUN_FILES_UPLOADED",
 		30: "SWEEPS_QUERY_FILTERING",
+		31: "AUTOMATION_SCOPE_ENTITY",
+		32: "QUERY_AUTOMATIONS_ON_ENTITY",
+		33: "AUTOMATIONS_ON_ORGANIZATION",
 	}
 	ServerFeature_value = map[string]int32{
 		"SERVER_FEATURE_UNSPECIFIED":           0,
@@ -163,6 +172,9 @@ var (
 		"AUTOMATION_LAST_EXECUTED_AT":                          28,
 		"MARK_RUN_FILES_UPLOADED":                              29,
 		"SWEEPS_QUERY_FILTERING":                               30,
+		"AUTOMATION_SCOPE_ENTITY":                              31,
+		"QUERY_AUTOMATIONS_ON_ENTITY":                          32,
+		"AUTOMATIONS_ON_ORGANIZATION":                          33,
 	}
 )
 
@@ -12619,7 +12631,7 @@ const file_wandb_proto_wandb_internal_proto_rawDesc = "" +
 	"\finput_source\x18\x01 \x01(\v2\x1e.wandb_internal.JobInputSourceR\vinputSource\x12A\n" +
 	"\rinclude_paths\x18\x02 \x03(\v2\x1c.wandb_internal.JobInputPathR\fincludePaths\x12A\n" +
 	"\rexclude_paths\x18\x03 \x03(\v2\x1c.wandb_internal.JobInputPathR\fexcludePaths\x12!\n" +
-	"\finput_schema\x18\x04 \x01(\tR\vinputSchema*\x8a\t\n" +
+	"\finput_schema\x18\x04 \x01(\tR\vinputSchema*\xe9\t\n" +
 	"\rServerFeature\x12\x1e\n" +
 	"\x1aSERVER_FEATURE_UNSPECIFIED\x10\x00\x12\x13\n" +
 	"\x0fLARGE_FILENAMES\x10\x11\x12\x11\n" +
@@ -12653,7 +12665,10 @@ const file_wandb_proto_wandb_internal_proto_rawDesc = "" +
 	"\x13AUTOMATIONS_ON_USER\x10\x1b\x12\x1f\n" +
 	"\x1bAUTOMATION_LAST_EXECUTED_AT\x10\x1c\x12\x1b\n" +
 	"\x17MARK_RUN_FILES_UPLOADED\x10\x1d\x12\x1a\n" +
-	"\x16SWEEPS_QUERY_FILTERING\x10\x1eB\x1bZ\x19core/pkg/service_go_protob\x06proto3"
+	"\x16SWEEPS_QUERY_FILTERING\x10\x1e\x12\x1b\n" +
+	"\x17AUTOMATION_SCOPE_ENTITY\x10\x1f\x12\x1f\n" +
+	"\x1bQUERY_AUTOMATIONS_ON_ENTITY\x10 \x12\x1f\n" +
+	"\x1bAUTOMATIONS_ON_ORGANIZATION\x10!B\x1bZ\x19core/pkg/service_go_protob\x06proto3"
 
 var (
 	file_wandb_proto_wandb_internal_proto_rawDescOnce sync.Once

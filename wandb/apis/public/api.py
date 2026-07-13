@@ -2404,16 +2404,16 @@ class Api:
         """
         from wandb.apis.public.automations import Automations
         from wandb.automations._generated import (
-            GET_AUTOMATIONS_BY_ENTITY_GQL,
-            GET_AUTOMATIONS_GQL,
+            GET_AUTOMATIONS_LEGACY_GQL,
+            GET_ENTITY_AUTOMATIONS_LEGACY_GQL,
         )
 
         # For now, we need to use different queries depending on whether entity is given
         variables = {"entity": entity}
         if entity is None:
-            gql_str = GET_AUTOMATIONS_GQL  # Automations for viewer
+            gql_str = GET_AUTOMATIONS_LEGACY_GQL  # Automations for viewer
         else:
-            gql_str = GET_AUTOMATIONS_BY_ENTITY_GQL  # Automations for entity
+            gql_str = GET_ENTITY_AUTOMATIONS_LEGACY_GQL  # Automations for entity
 
         # If needed, rewrite the GraphQL field selection set to omit unsupported fields/fragments/types
         iterator = Automations(
