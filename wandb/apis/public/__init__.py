@@ -55,7 +55,7 @@ from wandb.apis.public.artifacts import (
     RunArtifacts,
 )
 from wandb.apis.public.automations import Automations
-from wandb.apis.public.files import FILE_FRAGMENT, File, Files
+from wandb.apis.public.files import File, Files
 from wandb.apis.public.history import HistoryScan
 from wandb.apis.public.integrations import SlackIntegrations, WebhookIntegrations
 from wandb.apis.public.jobs import (

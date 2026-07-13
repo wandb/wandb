@@ -28,7 +28,7 @@ from wandb.proto import wandb_internal_pb2
 from wandb.sdk.artifacts.artifact_saver import ArtifactSaver
 from wandb.sdk.interface import interface
 from wandb.sdk.interface.interface_queue import InterfaceQueue
-from wandb.sdk.internal import datastore, file_stream, internal_api, sender_config
+from wandb.sdk.internal import file_stream, internal_api, sender_config
 from wandb.sdk.internal.file_pusher import FilePusher
 from wandb.sdk.internal.job_builder import JobBuilder
 from wandb.sdk.internal.settings_static import SettingsStatic
@@ -50,7 +50,6 @@ if TYPE_CHECKING:
         ArtifactRecord,
         EnvironmentRecord,
         HttpResponse,
-        LocalInfo,
         Record,
         Result,
         RunExitResult,
@@ -210,7 +209,6 @@ class SendManager:
     _rewind_response: dict[str, Any] | None
     _cached_server_info: dict[str, Any]
     _cached_viewer: dict[str, Any]
-    _ds: datastore.DataStore | None
     _output_raw_streams: dict[StreamLiterals, _OutputRawStream]
     _output_raw_file: filesystem.CRDedupedFile | None
     _send_record_num: int
@@ -230,7 +228,6 @@ class SendManager:
         self._result_q = result_q
         self._interface = interface
 
-        self._ds = None
         self._send_record_num = 0
         self._send_end_offset = 0
 
@@ -377,9 +374,6 @@ class SendManager:
         if self._fs:
             self._fs.enqueue_preempting()
 
-    def send_request_sender_mark(self, _: Record) -> None:
-        self._maybe_report_status(always=True)
-
     def send_request(self, record: Record) -> None:
         request_type = record.request.WhichOneof("request_type")
         assert request_type
@@ -420,49 +414,6 @@ class SendManager:
         if not end_offset:
             return
         self._send_end_offset = end_offset
-
-    def send_request_sender_read(self, record: Record) -> None:
-        if self._ds is None:
-            self._ds = datastore.DataStore()
-            self._ds.open_for_scan(self._settings.sync_file)
-
-        # TODO(cancel_paused): implement cancel_set logic
-        # The idea is that there is an active request to cancel a
-        # message that is being read from the transaction log below
-
-        start_offset = record.request.sender_read.start_offset
-        final_offset = record.request.sender_read.final_offset
-        self._ds.seek(start_offset)
-
-        current_end_offset = 0
-        while current_end_offset < final_offset:
-            data = self._ds.scan_data()
-            assert data
-            current_end_offset = self._ds.get_offset()
-
-            send_record = wandb_internal_pb2.Record()
-            send_record.ParseFromString(data)
-            self._update_end_offset(current_end_offset)
-            self.send(send_record)
-
-            # make sure we perform deferred operations
-            self.debounce()
-
-        # make sure that we always update writer for every sended read request
-        self._maybe_report_status(always=True)
-
-    def send_request_stop_status(self, record: Record) -> None:
-        result = proto_util._result_from_record(record)
-        status_resp = result.response.stop_status_response
-        status_resp.run_should_stop = False
-        if self._entity and self._project and self._run and self._run.run_id:
-            try:
-                status_resp.run_should_stop = self._api.check_stop_requested(
-                    self._project, self._entity, self._run.run_id
-                )
-            except Exception as e:
-                logger.warning("Failed to check stop requested status: %s", e)
-        self._respond_result(result)
 
     def _maybe_update_config(self, always: bool = False) -> None:
         time_now = time.monotonic()
@@ -508,18 +459,6 @@ class SendManager:
             )
         self._config_save(config_value_dict)
         self._config_needs_debounce = False
-
-    def send_request_network_status(self, record: Record) -> None:
-        result = proto_util._result_from_record(record)
-        status_resp = result.response.network_status_response
-        while True:
-            try:
-                status_resp.network_responses.append(self._retry_q.get_nowait())
-            except queue.Empty:
-                break
-            except Exception as e:
-                logger.warning(f"Error emptying retry queue: {e}")
-        self._respond_result(result)
 
     def send_exit(self, record: Record) -> None:
         # track where the exit came from
@@ -631,30 +570,6 @@ class SendManager:
             result = proto_util._result_from_record(self._record_exit)
             result.exit_result.CopyFrom(exit_result)
             self._respond_result(result)
-
-    def send_request_poll_exit(self, record: Record) -> None:
-        if not record.control.req_resp and not record.control.mailbox_slot:
-            return
-
-        result = proto_util._result_from_record(record)
-
-        if self._pusher:
-            _alive, status = self._pusher.get_status()
-            file_counts = self._pusher.file_counts_by_category()
-            resp = result.response.poll_exit_response
-            resp.pusher_stats.uploaded_bytes = status.uploaded_bytes
-            resp.pusher_stats.total_bytes = status.total_bytes
-            resp.pusher_stats.deduped_bytes = status.deduped_bytes
-            resp.file_counts.wandb_count = file_counts.wandb
-            resp.file_counts.media_count = file_counts.media
-            resp.file_counts.artifact_count = file_counts.artifact
-            resp.file_counts.other_count = file_counts.other
-
-        if self._exit_result:
-            result.response.poll_exit_response.done = True
-            result.response.poll_exit_response.exit_result.CopyFrom(self._exit_result)
-
-        self._respond_result(result)
 
     def _setup_resume(self, run: RunRecord) -> wandb_internal_pb2.ErrorInfo | None:
         """Queries the backend for a run; fail if the settings are incompatible."""
@@ -1203,17 +1118,6 @@ class SendManager:
             if self._output_raw_file:
                 self._output_raw_file.write(data.encode("utf-8"))
 
-    def send_request_python_packages(self, record: Record) -> None:
-        import os
-
-        from wandb.sdk.lib.filenames import REQUIREMENTS_FNAME
-
-        installed_packages_list = sorted(
-            f"{r.name}=={r.version}" for r in record.request.python_packages.package
-        )
-        with open(os.path.join(self._settings.files_dir, REQUIREMENTS_FNAME), "w") as f:
-            f.write("\n".join(installed_packages_list))
-
     def send_output(self, record: Record) -> None:
         if not self._fs:
             return
@@ -1339,9 +1243,6 @@ class SendManager:
     def send_telemetry(self, record: Record) -> None:
         self._update_telemetry_record(record.telemetry)
 
-    def send_request_telemetry_record(self, record: Record) -> None:
-        self._update_telemetry_record(record.request.telemetry_record.telemetry)
-
     def _save_file(
         self, fname: filesystem.GlobStr, policy: filesystem.PolicyName = "end"
     ) -> None:
@@ -1385,48 +1286,6 @@ class SendManager:
 
         self._save_file(filesystem.GlobStr(filenames.METADATA_FNAME), policy="now")
 
-    def send_request_link_artifact(self, record: Record) -> None:
-        if not (record.control.req_resp or record.control.mailbox_slot):
-            raise ValueError(
-                f"Expected either `req_resp` or `mailbox_slot`, got: {record.control!r}"
-            )
-        result = proto_util._result_from_record(record)
-        link = record.request.link_artifact
-        client_id = link.client_id
-        server_id = link.server_id
-        portfolio_name = link.portfolio_name
-        entity = link.portfolio_entity
-        project = link.portfolio_project
-        aliases = link.portfolio_aliases
-        organization = link.portfolio_organization
-        logger.debug(
-            f"link_artifact params - client_id={client_id}, server_id={server_id}, "
-            f"portfolio_name={portfolio_name}, entity={entity}, project={project}, "
-            f"organization={organization}"
-        )
-        if (client_id or server_id) and portfolio_name and entity and project:
-            try:
-                response = self._api.link_artifact(
-                    client_id,
-                    server_id,
-                    portfolio_name,
-                    entity,
-                    project,
-                    aliases,
-                    organization,
-                )
-                result.response.link_artifact_response.version_index = response[
-                    "versionIndex"
-                ]
-            except Exception as e:
-                org_or_entity = organization or entity
-                result.response.link_artifact_response.error_message = (
-                    f"error linking artifact to "
-                    f'"{org_or_entity}/{project}/{portfolio_name}"; error: {e}'
-                )
-                logger.warning("Failed to link artifact to portfolio: %s", e)
-        self._respond_result(result)
-
     def send_use_artifact(self, record: Record) -> None:
         """Pretend to send a used artifact.
 
@@ -1439,23 +1298,6 @@ class SendManager:
         elif use.partial.job_name:
             # job is partial, let job builder rebuild job, set job source dict
             self._job_builder.set_partial_source_id(use.id)
-
-    def send_request_log_artifact(self, record: Record) -> None:
-        result = proto_util._result_from_record(record)
-        artifact = record.request.log_artifact.artifact
-        history_step = record.request.log_artifact.history_step
-
-        try:
-            res = self._send_artifact(artifact, history_step)
-            assert res, "Unable to send artifact"
-            result.response.log_artifact_response.artifact_id = res["id"]
-            logger.info(f"logged artifact {artifact.name} - {res}")
-        except Exception as e:
-            result.response.log_artifact_response.error_message = (
-                f'error logging artifact "{artifact.type}/{artifact.name}": {e}'
-            )
-
-        self._respond_result(result)
 
     def send_artifact(self, record: Record) -> None:
         artifact = record.artifact
@@ -1570,42 +1412,10 @@ class SendManager:
             return
         self._cached_viewer, self._cached_server_info = self._api.viewer_server_info()
 
-    def get_viewer_info(self) -> dict[str, Any]:
-        if not self._cached_viewer:
-            self.get_viewer_server_info()
-        return self._cached_viewer
-
     def get_server_info(self) -> dict[str, Any]:
         if not self._cached_server_info:
             self.get_viewer_server_info()
         return self._cached_server_info
-
-    def get_local_info(self) -> LocalInfo:
-        """Queries the server to get the local version information.
-
-        First, we perform an introspection, if it returns empty we deduce that the
-        docker image is out-of-date. Otherwise, we use the returned values to deduce the
-        state of the local server.
-        """
-        local_info = wandb_internal_pb2.LocalInfo()
-        if self._settings._offline:
-            local_info.out_of_date = False
-            return local_info
-
-        latest_local_version = "latest"
-
-        # Assuming the query is successful if the result is empty it indicates that
-        # the backend is out of date since it doesn't have the desired field
-        server_info = self.get_server_info()
-        latest_local_version_info = server_info.get("latestLocalVersionInfo", {})
-        if latest_local_version_info is None:
-            local_info.out_of_date = False
-        else:
-            local_info.out_of_date = latest_local_version_info.get("outOfDate", True)
-            local_info.version = latest_local_version_info.get(
-                "latestVersionString", latest_local_version
-            )
-        return local_info
 
     def _flush_job(self) -> None:
         if self._job_builder.disable or self._settings._offline:

@@ -211,9 +211,6 @@ class Summary(SummarySubDict):
         if summary is not None:
             self._json_dict = summary
 
-    def _json_get(self, path):
-        pass
-
     def _root_get(self, path, child_dict):
         json_dict = self._json_dict
         for key in path[:-1]:
