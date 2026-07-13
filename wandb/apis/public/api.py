@@ -1163,16 +1163,18 @@ class Api:
 
         ```python
         # Find runs in project where config.experiment_name matches a regex
-        # (anchors are not supported)
         Api.runs(
             path="my_entity/project",
             filters={"config.experiment_name": {"$regex": "b.*"}},
         )
         ```
 
+        Note:
+            Regular expressions use Google's RE2 syntax:
+            https://github.com/google/re2/wiki/Syntax
+
         ```python
         # Find runs in project where the run name matches a regex
-        # (anchors are not supported)
         Api.runs(
             path="my_entity/project", filters={"display_name": {"$regex": "^foo.*"}}
         )

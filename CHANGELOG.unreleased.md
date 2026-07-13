@@ -33,6 +33,7 @@ This version drops compatibility with server versions older than 0.70.0.
 - Dropped support for protobuf v4 (@jacobromero in https://github.com/wandb/wandb/pull/12115)
 - `wandb.sandbox` now defaults serverless sandboxes to a 12-hour max lifetime (`max_lifetime_seconds=43200`); override per sandbox with `max_lifetime_seconds` or via `SandboxDefaults` (@nicholaspun-wandb in https://github.com/wandb/wandb/pull/12136)
 - `wandb.Api().runs()` now raises a `RunNotFoundError` when unable to load data for a run, such as when a run is deleted prior to fully loading run data (@jacobromero in https://app.graphite.com/github/pr/wandb/wandb/12176)
+- `wandb.save` now has an option `glob=False` that disables glob expansion (`*`, `?`, `[...]`) for file paths; updated docs for improved explanation (@geoffhardy in https://github.com/wandb/wandb/pull/12192)
 
 ### Removed
 
@@ -54,3 +55,4 @@ This version drops compatibility with server versions older than 0.70.0.
 - Saving a linked registry artifact (for example, when adding an alias) no longer fails when the caller lacks write access to the source project (@ibindlish in https://github.com/wandb/wandb/pull/12075)
 - `np.float16`/`np.float32` NaN values logged with `Run.log()` are now recorded as `NaN` instead of being silently dropped, matching `np.float64` and native `float` (@dmitryduev in https://github.com/wandb/wandb/pull/12116)
 - `Run.upload_file()` (via `wandb.Api().run(...)`) now registers the uploaded file with the run on self-hosted servers. Previously the file's bytes were uploaded but never committed, so the file did not appear on the run on deployments without object-store notifications (@dmitryduev in https://github.com/wandb/wandb/pull/12121)
+- Sweep agents will now allow the in-progress run to complete before exiting when the sweep is deleted or Api() returns 404 (@kmikowicz-wandb in https://github.com/wandb/wandb/pull/11880)
