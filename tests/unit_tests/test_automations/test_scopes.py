@@ -1,10 +1,24 @@
-from pydantic import BaseModel
-from pytest import mark
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+from pydantic import BaseModel, ValidationError
+from pytest import mark, raises
 from wandb._strutils import nameof
-from wandb.apis.public import ArtifactCollection, Project
-from wandb.automations import ArtifactCollectionScope, ProjectScope, ScopeType
+from wandb.apis.public import ArtifactCollection, Organization, Project, Team
+from wandb.automations import (
+    ArtifactCollectionScope,
+    EntityScope,
+    OrgScope,
+    ProjectScope,
+    ScopeType,
+    TeamScope,
+)
 from wandb.automations._generated import TriggerScopeType
 from wandb.automations.scopes import ArtifactCollectionScopeTypes, AutomationScope
+
+if TYPE_CHECKING:
+    from unittest.mock import Mock
 
 
 class HasScope(BaseModel):
@@ -17,6 +31,10 @@ class HasCollectionScope(HasScope):
 
 class HasProjectScope(HasScope):
     scope: ProjectScope
+
+
+class HasEntityScope(HasScope):
+    scope: EntityScope
 
 
 def test_public_scope_type_enum_is_subset_of_generated():
@@ -53,13 +71,91 @@ def test_scope_can_validate_from_wandb_artifact_collection(
 
 @mark.parametrize("model_cls", (HasProjectScope, HasScope), ids=nameof)
 def test_scope_can_validate_from_wandb_project(
-    project: Project,
-    model_cls: type[HasScope],
+    project: Project, model_cls: type[HasScope]
 ):
     """Check that we can parse an automation scope from a pre-existing `Project` type."""
 
     validated = model_cls(scope=project)
-    assert isinstance(validated.scope, ProjectScope)
     assert validated.scope.scope_type == ScopeType.PROJECT
     assert validated.scope.id == project.id
     assert validated.scope.name == project.name
+
+
+@mark.parametrize("model_cls", (HasEntityScope, HasScope), ids=nameof)
+def test_scope_can_validate_from_wandb_team(team: Team, model_cls: type[HasScope]):
+    """Check that we can parse an automation scope from a pre-existing `Team` (team entity)."""
+
+    validated = model_cls(scope=team)
+    assert isinstance(validated.scope, TeamScope)
+    assert validated.scope.scope_type == ScopeType.ENTITY
+    assert validated.scope.id == team.id
+    assert validated.scope.name == team.name
+    assert validated.scope.entity_type == "team"
+
+
+@mark.parametrize("model_cls", (HasEntityScope, HasScope), ids=nameof)
+def test_scope_can_validate_from_wandb_org(
+    org: Organization, model_cls: type[HasScope]
+):
+    """Check that an org-scoped automation scope resolves to the org's (non-team) entity."""
+
+    # The org's entity is inferred from the org on any field that accepts an entity scope.
+    # The actual org entity can also be passed directly (it would be weird if this didn't work).
+    for scope_arg in (org, org.org_entity):
+        validated = model_cls(scope=scope_arg)
+        assert isinstance(validated.scope, OrgScope)
+        assert validated.scope.scope_type == ScopeType.ENTITY
+        assert validated.scope.id == org.org_entity.id
+        assert validated.scope.name == org.org_entity.name
+        assert validated.scope.entity_type == "organization"
+
+
+def test_entity_scope_uses_entity_type_as_discriminator():
+    team_entity_data = {
+        "__typename": "Entity",
+        "id": "Entity:1",
+        "name": "team-entity",
+        "entityType": "team",
+    }
+    org_entity_data = {
+        "__typename": "Entity",
+        "id": "Entity:2",
+        "name": "org-entity",
+        "entityType": "organization",
+    }
+    team_scope = HasEntityScope(scope=team_entity_data).scope
+    org_scope = HasEntityScope(scope=org_entity_data).scope
+
+    assert team_scope.entity_type == "team"
+    assert org_scope.entity_type == "organization"
+
+
+@mark.parametrize("model_cls", (HasEntityScope, HasScope), ids=nameof)
+def test_personal_entity_scope_is_not_allowed(model_cls: type[HasScope]):
+    personal_entity_data = {
+        "__typename": "Entity",
+        "id": "Entity:1",
+        "name": "personal-entity",
+        "entityType": "personal",
+    }
+
+    with raises(ValidationError):
+        model_cls(scope=personal_entity_data)
+
+
+def test_organization_uses_org_entity_type_as_discriminator(mock_client: Mock):
+    org_data = {
+        "id": "Organization:1",
+        "name": "test-org",
+        "orgEntity": {
+            "__typename": "Entity",
+            "id": "Entity:1",
+            "name": "test-org",
+            "entityType": "organization",
+        },
+    }
+    org = Organization(mock_client, **org_data)
+    assert org.org_entity.entity_type == "organization"
+
+    entity_scope = HasEntityScope(scope=org).scope
+    assert entity_scope.entity_type == "organization"

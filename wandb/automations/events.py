@@ -27,7 +27,13 @@ from ._validators import (
     wrap_run_filter,
 )
 from .actions import InputAction, InputActionTypes, SavedActionTypes
-from .scopes import ArtifactCollectionScope, AutomationScope, ProjectScope
+from .scopes import (
+    ArtifactCollectionScope,
+    AutomationScope,
+    EntityScope,
+    ProjectScope,
+    ScopeField,
+)
 
 if TYPE_CHECKING:
     from .automations import NewAutomation
@@ -360,8 +366,8 @@ class OnCreateArtifact(_BaseMutationEventInput):
 # ------------------------------------------------------------------------------
 # Events that trigger on run conditions
 class _BaseRunEventInput(_BaseEventInput):
-    scope: ProjectScope
-    """The scope of the event: must be a project."""
+    scope: ScopeField[ProjectScope | EntityScope,]
+    """The scope of the event: must be a project or a team/org entity."""
 
 
 class OnRunMetric(_BaseRunEventInput):

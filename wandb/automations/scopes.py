@@ -2,15 +2,16 @@
 
 from __future__ import annotations
 
-from typing import Annotated, Literal, TypeAlias, get_args
+from typing import Annotated, Literal, TypeVar
 
-from pydantic import BeforeValidator, Field
+from pydantic import BeforeValidator, Discriminator, Field
 
 from wandb._pydantic import GQLBase
 
 from ._generated import (
     ArtifactPortfolioScopeFields,
     ArtifactSequenceScopeFields,
+    EntityScopeFields,
     ProjectScopeFields,
 )
 from ._validators import LenientStrEnum, parse_scope
@@ -22,10 +23,28 @@ class ScopeType(LenientStrEnum):
 
     PROJECT = "PROJECT"
     ARTIFACT_COLLECTION = "ARTIFACT_COLLECTION"
+    ENTITY = "ENTITY"
+
+
+class _EntityType(LenientStrEnum):
+    """The backend entity type."""
+
+    PERSONAL = "personal"
+    TEAM = "team"
+    ORGANIZATION = "organization"
 
 
 class _BaseScope(GQLBase):
     scope_type: Annotated[ScopeType, Field(frozen=True)]
+
+
+_ScopeT = TypeVar("_ScopeT", bound=_BaseScope)
+
+ScopeField = Annotated[
+    _ScopeT,
+    BeforeValidator(parse_scope),
+    Discriminator("typename__"),
+]
 
 
 class _ArtifactSequenceScope(_BaseScope, ArtifactSequenceScopeFields):
@@ -41,17 +60,11 @@ class _ArtifactPortfolioScope(_BaseScope, ArtifactPortfolioScopeFields):
 
 
 # for type annotations
-ArtifactCollectionScope = Annotated[
-    _ArtifactSequenceScope | _ArtifactPortfolioScope,
-    BeforeValidator(parse_scope),
-    Field(discriminator="typename__"),
-]
+ArtifactCollectionScope = ScopeField[_ArtifactSequenceScope | _ArtifactPortfolioScope,]
 """An automation scope defined by a specific `ArtifactCollection`."""
 
 # for runtime type checks
-ArtifactCollectionScopeTypes: tuple[type, ...] = get_args(
-    ArtifactCollectionScope.__origin__  # type: ignore[attr-defined]
-)
+ArtifactCollectionScopeTypes = ArtifactCollectionScope.__origin__  # type: ignore[attr-defined]
 
 
 class ProjectScope(_BaseScope, ProjectScopeFields):
@@ -60,17 +73,40 @@ class ProjectScope(_BaseScope, ProjectScopeFields):
     scope_type: Literal[ScopeType.PROJECT] = ScopeType.PROJECT
 
 
-# for type annotations
-AutomationScope: TypeAlias = Annotated[
-    _ArtifactSequenceScope | _ArtifactPortfolioScope | ProjectScope,
+class TeamScope(_BaseScope, EntityScopeFields):
+    """An automation scope defined by a team entity."""
+
+    scope_type: Literal[ScopeType.ENTITY] = ScopeType.ENTITY
+    entity_type: Literal[_EntityType.TEAM] = _EntityType.TEAM
+
+
+class OrgScope(_BaseScope, EntityScopeFields):
+    """An automation scope defined by an org entity."""
+
+    scope_type: Literal[ScopeType.ENTITY] = ScopeType.ENTITY
+    entity_type: Literal[_EntityType.ORGANIZATION] = _EntityType.ORGANIZATION
+
+
+EntityScope = Annotated[
+    TeamScope | OrgScope,
     BeforeValidator(parse_scope),
-    Field(discriminator="typename__"),
+    Discriminator("entity_type"),
+]
+"""An automation scope defined by a team or org `Entity`."""
+
+
+# for type annotations
+AutomationScope = ScopeField[
+    _ArtifactSequenceScope | _ArtifactPortfolioScope | ProjectScope | EntityScope,
 ]
 # for runtime type checks
-AutomationScopeTypes: tuple[type, ...] = get_args(AutomationScope.__origin__)  # type: ignore[attr-defined]
+AutomationScopeTypes = AutomationScope.__origin__  # type: ignore[attr-defined]
 
 __all__ = [
     "ScopeType",
     "ArtifactCollectionScope",
     "ProjectScope",
+    "TeamScope",
+    "OrgScope",
+    "EntityScope",
 ]
