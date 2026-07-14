@@ -42,6 +42,34 @@ def test_registries_collections_with_order_rejects_start(service_api):
         registries.collections(start="cursor")
 
 
+def test_registries_collections_with_registry_order_supports_versions_chain(service_api):
+    registries = Registries(
+        service_api=service_api,
+        organization=ORG,
+        filter=REGISTRY_FILTER,
+        order="-updated_at",
+    )
+
+    collections = registries.collections()
+    iter(collections)
+    versions = collections.versions()
+    iter(versions)
+
+
+def test_registries_collections_versions_with_registry_order_rejects_start(service_api):
+    registries = Registries(
+        service_api=service_api,
+        organization=ORG,
+        filter=REGISTRY_FILTER,
+        order="-updated_at",
+    )
+
+    with pytest.raises(
+        ValueError, match="is not supported when querying versions from registries"
+    ):
+        registries.collections().versions(start="cursor")
+
+
 def test_collections_versions_with_order_rejects_start(service_api):
     collections = Collections(
         service_api=service_api,

@@ -35,6 +35,70 @@ def _registry_filter_for_registry(registry: Registry) -> dict[str, Any]:
     return {"name": registry.full_name}
 
 
+def _iter_versions_for_collections(
+    collections: Iterator[ArtifactCollection],
+    *,
+    service_api: ServiceApi,
+    organization: str,
+    artifact_filter: dict[str, Any] | None,
+    per_page: PositiveInt,
+) -> Iterator[Artifact]:
+    for collection in collections:
+        registry_filter = {"name": name} if (name := collection.project) else {}
+        collection_filter = {"name": name} if (name := collection.name) else {}
+        yield from Versions(
+            service_api=service_api,
+            organization=organization,
+            registry_filter=registry_filter,
+            collection_filter=collection_filter,
+            artifact_filter=artifact_filter or {},
+            per_page=per_page,
+        )
+
+
+class _RegistryOrderedCollections:
+    """Iterable collections across ordered registries, with a ``versions()`` helper."""
+
+    def __init__(
+        self,
+        registries: Registries,
+        collection_filter: dict[str, Any] | None,
+        collection_order: str | None,
+        per_page: PositiveInt,
+    ):
+        self._registries = registries
+        self._collection_filter = collection_filter
+        self._collection_order = collection_order
+        self._per_page = per_page
+
+    def __iter__(self) -> Iterator[ArtifactCollection]:
+        return self._registries._iter_collections_by_registry_order(
+            collection_filter=self._collection_filter,
+            collection_order=self._collection_order,
+            per_page=self._per_page,
+        )
+
+    def versions(
+        self,
+        filter: dict[str, Any] | None = None,
+        per_page: PositiveInt = 100,
+        start: str | None = None,
+    ) -> Iterator[Artifact]:
+        if start is not None:
+            raise ValueError(
+                f"{start=} is not supported when querying versions from registries "
+                f"fetched with {self._registries.order=}. Remove either 'order' from "
+                "the registries query or 'start' from the versions query."
+            )
+        return _iter_versions_for_collections(
+            iter(self),
+            service_api=self._registries._service_api,
+            organization=self._registries.organization,
+            artifact_filter=filter,
+            per_page=per_page,
+        )
+
+
 class Registries(RelayPaginator["RegistryFragment", "Registry"]):
     """A lazy iterator of `Registry` objects."""
 
@@ -84,7 +148,7 @@ class Registries(RelayPaginator["RegistryFragment", "Registry"]):
         order: str | None = None,
         per_page: PositiveInt = 100,
         start: str | None = None,
-    ) -> Collections | Iterator[ArtifactCollection]:
+    ) -> Collections | _RegistryOrderedCollections:
         """Returns the collections belonging to these registries.
 
         Args:
@@ -105,7 +169,8 @@ class Registries(RelayPaginator["RegistryFragment", "Registry"]):
                 "registries query or 'start' from the collections query."
             )
         if self.order is not None:
-            return self._iter_collections_by_registry_order(
+            return _RegistryOrderedCollections(
+                registries=self,
                 collection_filter=filter,
                 collection_order=order,
                 per_page=per_page,
@@ -317,17 +382,13 @@ class Collections(
         artifact_filter: dict[str, Any] | None,
         per_page: PositiveInt,
     ) -> Iterator[Artifact]:
-        for collection in self:
-            registry_filter = {"name": name} if (name := collection.project) else {}
-            collection_filter = {"name": name} if (name := collection.name) else {}
-            yield from Versions(
-                service_api=self._service_api,
-                organization=self.organization,
-                registry_filter=registry_filter,
-                collection_filter=collection_filter,
-                artifact_filter=artifact_filter,
-                per_page=per_page,
-            )
+        return _iter_versions_for_collections(
+            iter(self),
+            service_api=self._service_api,
+            organization=self.organization,
+            artifact_filter=artifact_filter,
+            per_page=per_page,
+        )
 
     @override
     def _update_response(self) -> None:
