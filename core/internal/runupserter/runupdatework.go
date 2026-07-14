@@ -54,7 +54,7 @@ type RunUpdateWork struct {
 	FeatureProvider    *featurechecker.FeatureProvider
 	GraphqlClientOrNil graphql.Client
 	Logger             *observability.CoreLogger
-	SyncStateStore     runsyncstate.SyncStateStore
+	SyncStateStore     runsyncstate.Store
 }
 
 // Accept implements WorkImpl.Accept.

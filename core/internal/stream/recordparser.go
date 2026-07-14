@@ -49,7 +49,7 @@ type RecordParserFactory struct {
 func (f *RecordParserFactory) New(
 	beforeRunEndCtx context.Context,
 	tbHandler *tensorboard.TBHandler,
-	syncStateStore runsyncstate.SyncStateStore,
+	syncStateStore runsyncstate.Store,
 ) *recordParser {
 	return &recordParser{*f, beforeRunEndCtx, tbHandler, syncStateStore}
 }
@@ -60,7 +60,7 @@ type recordParser struct {
 
 	beforeRunEndCtx context.Context
 	tbHandler       *tensorboard.TBHandler
-	syncStateStore  runsyncstate.SyncStateStore
+	syncStateStore  runsyncstate.Store
 }
 
 // Ensure recordParser implements RecordParser.

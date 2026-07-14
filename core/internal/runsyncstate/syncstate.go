@@ -25,26 +25,30 @@ type syncState struct {
 	StartingStep *int64 `json:"starting_step,omitempty"`
 }
 
-type SyncStateStore interface {
+type Store interface {
 	GetOrInitStartingStep(startingStep int64) (int64, error)
 }
 
 // SyncStateStore reads and updates the sync state file for a
 // single run.
-type syncStateStore struct {
+type fileStore struct {
 	// path is the path to the sync state file.
 	path string
 }
 
-type NoopSyncStateStore struct{}
+type noopStore struct{}
 
-func (s *NoopSyncStateStore) GetOrInitStartingStep(startingStep int64) (int64, error) {
+func Noop() Store {
+	return &noopStore{}
+}
+
+func (s *noopStore) GetOrInitStartingStep(startingStep int64) (int64, error) {
 	return startingStep, nil
 }
 
-// NewSyncStateStore returns a store for a run's sync state file.
-func NewSyncStateStore(wandbFilePath string) SyncStateStore {
-	return &syncStateStore{path: wandbFilePath + syncStateSuffix}
+// File returns a store for a run's sync state file.
+func File(wandbFilePath string) Store {
+	return &fileStore{path: wandbFilePath + syncStateSuffix}
 }
 
 // GetOrInitStartingStep returns the starting step previously initialized, if any.
@@ -54,7 +58,7 @@ func NewSyncStateStore(wandbFilePath string) SyncStateStore {
 //
 // The read-check-write is performed under an exclusive file lock so that
 // concurrent syncs of the same file can't race.
-func (s *syncStateStore) GetOrInitStartingStep(
+func (s *fileStore) GetOrInitStartingStep(
 	startingStep int64,
 ) (int64, error) {
 	var state syncState

@@ -119,7 +119,7 @@ func NewStream(
 	)
 	// Live runs resolve resume metadata once, when the run starts, so
 	// there's no need to pin the starting step across repeated attempts.
-	noopStore := runsyncstate.NoopSyncStateStore{}
+	noopStore := runsyncstate.Noop()
 	recordParser := recordParserFactory.New(runWork.BeforeEndCtx(), tbHandler, &noopStore)
 
 	stream := &Stream{

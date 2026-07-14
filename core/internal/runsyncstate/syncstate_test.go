@@ -13,7 +13,7 @@ import (
 
 func TestSyncStateStore_GetOrInitStartingStep_PersistsFirstValue(t *testing.T) {
 	wandbFile := filepath.Join(t.TempDir(), "run-xyz.wandb")
-	store := runsyncstate.NewSyncStateStore(wandbFile)
+	store := runsyncstate.File(wandbFile)
 
 	step, err := store.GetOrInitStartingStep(5)
 	require.NoError(t, err)
@@ -29,11 +29,11 @@ func TestSyncStateStore_GetOrInitStartingStep_PersistsFirstValue(t *testing.T) {
 func TestSyncStateStore_GetOrInitStartingStep_PersistsAcrossStores(t *testing.T) {
 	wandbFile := filepath.Join(t.TempDir(), "run-xyz.wandb")
 
-	_, err := runsyncstate.NewSyncStateStore(wandbFile).GetOrInitStartingStep(7)
+	_, err := runsyncstate.File(wandbFile).GetOrInitStartingStep(7)
 	require.NoError(t, err)
 
 	// A fresh store instance should read the previously initialized value.
-	step, err := runsyncstate.NewSyncStateStore(wandbFile).GetOrInitStartingStep(42)
+	step, err := runsyncstate.File(wandbFile).GetOrInitStartingStep(42)
 	require.NoError(t, err)
 	assert.EqualValues(t, 7, step)
 }
@@ -47,12 +47,12 @@ func TestSyncStateStore_GetOrInitStartingStep_HandlesMissingStartingStep(t *test
 	require.NoError(t,
 		os.WriteFile(wandbFile+".syncstate", []byte("{}"), 0o666))
 
-	step, err := runsyncstate.NewSyncStateStore(wandbFile).GetOrInitStartingStep(5)
+	step, err := runsyncstate.File(wandbFile).GetOrInitStartingStep(5)
 	require.NoError(t, err)
 	assert.EqualValues(t, 5, step)
 
 	// The value should now be persisted for subsequent calls.
-	step, err = runsyncstate.NewSyncStateStore(wandbFile).GetOrInitStartingStep(999)
+	step, err = runsyncstate.File(wandbFile).GetOrInitStartingStep(999)
 	require.NoError(t, err)
 	assert.EqualValues(t, 5, step)
 }

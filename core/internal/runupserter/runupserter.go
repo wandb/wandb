@@ -46,7 +46,7 @@ type RunUpserter struct {
 	operations         *wboperation.WandbOperations
 	graphqlClientOrNil graphql.Client
 	logger             *observability.CoreLogger
-	syncStateStore     runsyncstate.SyncStateStore
+	syncStateStore     runsyncstate.Store
 
 	// done is closed when Finish is called.
 	done chan struct{}
@@ -74,7 +74,7 @@ type RunUpserterParams struct {
 	FeatureProvider    *featurechecker.FeatureProvider
 	GraphqlClientOrNil graphql.Client
 	Logger             *observability.CoreLogger
-	SyncStateStore     runsyncstate.SyncStateStore
+	SyncStateStore     runsyncstate.Store
 }
 
 func (params *RunUpserterParams) panicIfNotFilled() {
@@ -103,7 +103,7 @@ func InitRun(
 
 	syncStateStore := params.SyncStateStore
 	if syncStateStore == nil {
-		syncStateStore = &runsyncstate.NoopSyncStateStore{}
+		syncStateStore = runsyncstate.Noop()
 	}
 
 	runRecord := record.GetRun()
