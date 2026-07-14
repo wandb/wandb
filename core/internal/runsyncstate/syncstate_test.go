@@ -45,7 +45,7 @@ func TestSyncStateStore_GetOrInitStartingStep_HandlesMissingStartingStep(t *test
 	// doesn't set starting_step. This should behave like an uninitialized
 	// file.
 	require.NoError(t,
-		os.WriteFile(wandbFile+".syncstate", []byte("{}"), 0666))
+		os.WriteFile(wandbFile+".syncstate", []byte("{}"), 0o666))
 
 	step, err := runsyncstate.NewSyncStateStore(wandbFile).GetOrInitStartingStep(5)
 	require.NoError(t, err)
