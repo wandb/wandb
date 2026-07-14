@@ -100,27 +100,25 @@ def artifact_collection(mock_client: Mock) -> ArtifactCollection:
     For unit-testing purposes, this has been heavily mocked.
     Tests relying on real `wandb.Api` calls should live in system tests.
     """
-    collection_name = "test-collection"
-    project_name = "test-project"
-    entity_name = "test-entity"
-    collection_type = "dataset"
-    collection = ArtifactCollection(
+    name = "test-collection"
+    project = "test-project"
+    entity = "test-entity"
+    artifact_type = "dataset"
+    return ArtifactCollection(
         service_api=mock_client,
-        entity=entity_name,
-        project=project_name,
-        name=collection_name,
-        type=collection_type,
+        entity=entity,
+        project=project,
+        name=name,
+        type=artifact_type,
         attrs=ArtifactCollectionFragment(
             typename__="ArtifactPortfolio",
             id=make_graphql_id(prefix="ArtifactCollection"),
-            name=collection_name,
+            name=name,
             project={
-                "name": project_name,
-                "entity": {
-                    "name": entity_name,
-                },
+                "name": project,
+                "entity": {"name": entity},
             },
-            type={"name": collection_type},
+            type={"name": artifact_type},
             description="This is a fake artifact collection.",
             aliases={"edges": []},
             createdAt="2021-01-01T00:00:00Z",
@@ -128,8 +126,6 @@ def artifact_collection(mock_client: Mock) -> ArtifactCollection:
             tags={"edges": []},
         ),
     )
-
-    return collection
 
 
 @fixture(scope="session")

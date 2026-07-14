@@ -1,4 +1,6 @@
 from pydantic import BaseModel
+from pytest import mark
+from wandb._strutils import nameof
 from wandb.apis.public import ArtifactCollection, Project
 from wandb.automations import ArtifactCollectionScope, ProjectScope, ScopeType
 from wandb.automations._generated import TriggerScopeType
@@ -28,13 +30,14 @@ def test_public_scope_type_enum_is_subset_of_generated():
     assert public_enum_values.issubset(generated_enum_values)
 
 
+@mark.parametrize("model_cls", (HasCollectionScope, HasScope), ids=nameof)
 def test_scope_can_validate_from_wandb_artifact_collection(
     artifact_collection: ArtifactCollection,
+    model_cls: type[HasScope],
 ):
     """Check that we can parse an automation scope from a pre-existing `ArtifactCollection` type."""
 
-    validated = HasCollectionScope(scope=artifact_collection)
-    validated_scope = validated.scope
+    validated = model_cls(scope=artifact_collection)
 
     # ArtifactCollectionScope is defined as a Union type, so isinstance() checks won't work
     # prior to python 3.10.  We need to check against a tuple of the unioned types.
@@ -42,37 +45,21 @@ def test_scope_can_validate_from_wandb_artifact_collection(
     # - https://docs.python.org/3/library/stdtypes.html#union-type
     # - https://peps.python.org/pep-0604/
 
-    assert isinstance(validated_scope, ArtifactCollectionScopeTypes)
-    assert validated_scope.scope_type == ScopeType.ARTIFACT_COLLECTION
-    assert validated_scope.id == artifact_collection.id
-    assert validated_scope.name == artifact_collection.name
-
-    validated = HasScope(scope=artifact_collection)
-    validated_scope = validated.scope
-
-    assert isinstance(validated_scope, ArtifactCollectionScopeTypes)
-    assert validated_scope.scope_type == ScopeType.ARTIFACT_COLLECTION
-    assert validated_scope.id == artifact_collection.id
-    assert validated_scope.name == artifact_collection.name
+    assert isinstance(validated.scope, ArtifactCollectionScopeTypes)
+    assert validated.scope.scope_type == ScopeType.ARTIFACT_COLLECTION
+    assert validated.scope.id == artifact_collection.id
+    assert validated.scope.name == artifact_collection.name
 
 
+@mark.parametrize("model_cls", (HasProjectScope, HasScope), ids=nameof)
 def test_scope_can_validate_from_wandb_project(
     project: Project,
+    model_cls: type[HasScope],
 ):
     """Check that we can parse an automation scope from a pre-existing `Project` type."""
 
-    validated = HasProjectScope(scope=project)
-    validated_scope = validated.scope
-
-    assert isinstance(validated_scope, ProjectScope)
-    assert validated_scope.scope_type == ScopeType.PROJECT
-    assert validated_scope.id == project.id
-    assert validated_scope.name == project.name
-
-    validated = HasScope(scope=project)
-    validated_scope = validated.scope
-
-    assert isinstance(validated_scope, ProjectScope)
-    assert validated_scope.scope_type == ScopeType.PROJECT
-    assert validated_scope.id == project.id
-    assert validated_scope.name == project.name
+    validated = model_cls(scope=project)
+    assert isinstance(validated.scope, ProjectScope)
+    assert validated.scope.scope_type == ScopeType.PROJECT
+    assert validated.scope.id == project.id
+    assert validated.scope.name == project.name

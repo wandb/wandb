@@ -37,3 +37,7 @@ jobs:
             If CI fails because of a bug in a dependency, update
             `requirements/requirements_dev.txt` and rerun the action. Consider
             filing a bug for the dependency.
+
+            If there are security or license issues in some upgraded packages,
+            consider adding pins in `requirements/constraints.txt` and
+            rerunning the action.

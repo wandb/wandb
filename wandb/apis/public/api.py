@@ -71,6 +71,7 @@ if TYPE_CHECKING:
         ArtifactType,
         ArtifactTypes,
     )
+    from .organizations import Organization
     from .teams import Team
     from .users import User
 
@@ -1019,6 +1020,42 @@ class Api:
         from .teams import Team
 
         return Team(self._service_api, team)
+
+    @normalize_exceptions
+    def organization(self, name: str | None = None) -> Organization:
+        """Return the matching `Organization`.
+
+        Args:
+            name: The name of the organization. If omitted, this method will
+                attempt to infer and return the current default organization.
+
+        Returns:
+            An `Organization` object.
+        """
+        from wandb.sdk.artifacts._generated import (
+            FETCH_ORGANIZATION_GQL,
+            FetchOrganization,
+        )
+        from wandb.sdk.artifacts._gqlutils import resolve_org_name
+
+        from .organizations import Organization
+
+        # If needed, try to infer the default org name, following similar fallback
+        # logic already used elsewhere (eg `resolve_org_entity_name`).
+        if not (org_name := (name or self.settings.get("organization"))):
+            org_name = resolve_org_name(
+                self._service_api,
+                non_org_entity=self.settings.get("entity") or self.default_entity,
+            )
+
+        gql_op = FETCH_ORGANIZATION_GQL
+        gql_vars = {"org": org_name}
+        data = self._service_api.execute_graphql(gql_op, variables=gql_vars)
+
+        result = FetchOrganization.model_validate(data)
+        if (org := result.organization) is None:
+            raise ValueError(f"Organization {org_name!r} not found.")
+        return Organization(self._service_api, **org.model_dump())
 
     def user(self, username_or_email: str) -> User | None:
         """Return a user from a username or email address.
