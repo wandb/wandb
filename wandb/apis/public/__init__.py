@@ -39,6 +39,7 @@ __all__ = (
     "Sweep",
     "Member",
     "Team",
+    "Organization",
     "User",
 )
 
@@ -66,6 +67,7 @@ from wandb.apis.public.jobs import (
     RunQueuePrioritizationMode,
     RunQueueResourceType,
 )
+from wandb.apis.public.organizations import Organization
 from wandb.apis.public.projects import Project, Projects, Sweeps
 from wandb.apis.public.query_generator import QueryGenerator
 from wandb.apis.public.registries import Registries, Registry
