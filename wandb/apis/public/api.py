@@ -2425,28 +2425,34 @@ class Api:
         automations = api.automations(entity="my-team")
         ```
         """
-        from wandb.apis.public.automations import Automations
-        from wandb.automations._generated import (
-            GET_AUTOMATIONS_LEGACY_GQL,
-            GET_ENTITY_AUTOMATIONS_LEGACY_GQL,
+        from wandb.apis.public.automations import (
+            Automations,
+            EntityAutomations,
+            LegacyEntityAutomations,
         )
 
-        # For now, we need to use different queries depending on whether entity is given
-        variables = {"entity": entity}
-        if entity is None:
-            gql_str = GET_AUTOMATIONS_LEGACY_GQL  # Automations for viewer
-        else:
-            gql_str = GET_ENTITY_AUTOMATIONS_LEGACY_GQL  # Automations for entity
-
-        # If needed, rewrite the GraphQL field selection set to omit unsupported fields/fragments/types
-        iterator = Automations(
-            self._service_api,
-            variables=variables,
+        kwargs = dict(
+            variables={"entity": entity},
             per_page=per_page,
             start=start,
-            _query=gql_str,
             omit_fragments=self._omitted_automation_fragments(),
         )
+        iterator: Iterator[Automation]
+        if entity is None:
+            # No entity given: walk the viewer's projects for all automations
+            # the user can access.
+            iterator = Automations(self._service_api, **kwargs)
+
+        elif self._service_api.feature_enabled(pb.QUERY_AUTOMATIONS_ON_ENTITY):
+            # `Entity.triggers` returns *all* automations in and under the entity:
+            # those scoped to the entity itself as well as to any project or
+            # artifact collection beneath it.
+            iterator = EntityAutomations(self._service_api, **kwargs)
+        else:
+            # Older servers lack `Entity.triggers`, so fall back to walking the
+            # entity's projects.  (Entity-scoped automations are a newer feature
+            # and don't exist on such servers.)
+            iterator = LegacyEntityAutomations(self._service_api, **kwargs)
 
         # FIXME: this is crude, move this client-side filtering logic into backend
         if name is not None:

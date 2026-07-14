@@ -4,7 +4,7 @@ import math
 from collections import deque
 from collections.abc import Callable, Generator
 from itertools import islice
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import wandb
 from pytest import FixtureRequest, fixture, mark, raises, skip
@@ -34,6 +34,10 @@ from wandb.automations._run_state_filters import ReportedRunState, StateFilter
 from wandb.automations.actions import InputAction, SavedNoOpAction, SavedWebhookAction
 from wandb.automations.events import InputEvent, RunMetricFilter, RunStateFilter
 from wandb.errors.errors import CommError
+from wandb.proto import wandb_internal_pb2 as pb
+
+if TYPE_CHECKING:
+    from wandb.apis.public import Team
 
 
 @fixture
@@ -374,6 +378,43 @@ def test_create_automation_for_run_state_event(
         refetched = module_api.automation(name=automation_name)
         assert isinstance(refetched, Automation)
         assert refetched.event.filter == expected_filter
+
+
+@mark.usefixtures(reset_automations.__name__)
+def test_create_automation_with_team_scope(
+    module_api: wandb.Api,
+    team: Team,
+    automation_name: str,
+):
+    """Create and round-trip an entity-scoped automation (team/org entity)."""
+    if not module_api._service_api.feature_enabled(pb.AUTOMATION_SCOPE_ENTITY):
+        skip("Server does not support entity-scoped automations")
+
+    event = OnRunMetric(
+        scope=team,
+        filter=RunEvent.metric("my-metric").avg(window=5).gt(123.45),
+    )
+
+    try:
+        created = module_api.create_automation(
+            (event >> DoNothing()),
+            name=automation_name,
+            description="test entity-scoped automation",
+        )
+    except CommError as e:
+        # Entity-scoped automations are additionally gated per-organization on
+        # the backend; skip if the org isn't enabled for this feature.
+        skip(f"Entity-scoped automations not enabled for this org: {e}")
+
+    assert created.scope.scope_type is ScopeType.ENTITY
+    assert created.scope.id == team.id
+    assert created.scope.name == team.name
+
+    # An entity-scoped automation lives on the entity's `triggers` (not under any
+    # project), so fetching by the team entity exercises the entity-level listing
+    # path in `automations(entity=...)`.
+    fetched = module_api.automation(entity=team.name, name=automation_name)
+    assert fetched.scope == created.scope
 
 
 @mark.usefixtures(reset_automations.__name__)

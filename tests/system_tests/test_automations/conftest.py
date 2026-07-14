@@ -39,7 +39,10 @@ from wandb.automations._utils import INVALID_INPUT_ACTIONS, INVALID_INPUT_EVENTS
 from wandb.automations.events import InputEvent
 
 if TYPE_CHECKING:
-    from tests.system_tests.backend_fixtures import BackendFixtureFactory
+    from tests.system_tests.backend_fixtures import (
+        BackendFixtureFactory,
+        TeamAndOrgNames,
+    )
 
 ScopableWandbType: TypeAlias = ArtifactCollection | Project | Team | Organization
 
@@ -65,8 +68,34 @@ def make_name(worker_id: str) -> Callable[[str], str]:
 
 
 @fixture(scope="module")
-def project(
+def team_and_org(
     module_user: str,
+    backend_fixture_factory: BackendFixtureFactory,
+) -> TeamAndOrgNames:
+    """A test team (entity) and org.
+
+    The module user is a bare user with no organization, so it can't itself be an
+    entity scope: entity-scoped automations require an org-associated entity. We
+    therefore create a real org+team for the user and scope to the team entity.
+    """
+    return backend_fixture_factory.make_team(username=module_user)
+
+
+@fixture(scope="module")
+def team(
+    team_and_org: TeamAndOrgNames,
+    make_module_api: Callable[[], wandb.Api],
+) -> Team:
+    """A wandb Team entity for tests in this module."""
+    team = make_module_api().team(team_and_org.team)
+    # This fixture is module-scoped; load attrs before per-test teardown invalidates the API.
+    _ = team.id
+    return team
+
+
+@fixture(scope="module")
+def project(
+    team: Team,
     make_module_api: Callable[[], wandb.Api],
     make_name,
 ) -> Project:
@@ -74,17 +103,17 @@ def project(
     # Create the project first if it doesn't exist yet
     name = make_name("test-project")
     api = make_module_api()
-    api.create_project(name=name, entity=module_user)
-    project = api.project(name=name, entity=module_user)
+    api.create_project(name=name, entity=team.name)
+    project = api.project(name=name, entity=team.name)
     # This fixture is module-scoped; load attrs before per-test teardown invalidates the API.
     _ = project.id
     return project
 
 
 @fixture(scope="module")
-def artifact(module_user: str, project: Project, make_name) -> Artifact:
+def artifact(team: Team, project: Project, make_name) -> Artifact:
     name = make_name("test-artifact")
-    with wandb.init(entity=module_user, project=project.name) as run:
+    with wandb.init(entity=team.name, project=project.name) as run:
         artifact = Artifact(name, "dataset")
         logged_artifact = run.log_artifact(artifact)
         return logged_artifact.wait()
@@ -98,23 +127,9 @@ def artifact_collection(
     """A test ArtifactCollection for tests in this module."""
     return (
         make_module_api()
-        .artifact(
-            name=artifact.qualified_name,
-            type=artifact.type,
-        )
+        .artifact(name=artifact.qualified_name, type=artifact.type)
         .collection
     )
-
-
-@fixture(scope="module")
-def team(
-    backend_fixture_factory: BackendFixtureFactory,
-    module_user: str,
-    make_module_api: Callable[[], wandb.Api],
-) -> Team:
-    """A test team entity for tests in this module."""
-    name = backend_fixture_factory.make_team(username=module_user).team
-    return make_module_api().team(name)
 
 
 @fixture(scope="module")
@@ -186,6 +201,7 @@ def valid_input_actions() -> list[ActionType]:
 @lru_cache
 def invalid_events_and_scopes() -> set[tuple[EventType, ScopeType]]:
     return {
+        (EventType.CREATE_ARTIFACT, ScopeType.ENTITY),
         (EventType.CREATE_ARTIFACT, ScopeType.PROJECT),
         (EventType.RUN_METRIC_THRESHOLD, ScopeType.ARTIFACT_COLLECTION),
         (EventType.RUN_METRIC_CHANGE, ScopeType.ARTIFACT_COLLECTION),

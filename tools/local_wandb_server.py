@@ -379,6 +379,10 @@ def _start_container(*, name: str) -> _WandbContainerPorts:
         "--rm",
         "--detach",
         *["--pull", pull],
+        # ------------------------------------------------------------------------------
+        # TODO: replace with more durable solution after verifying
+        *["-e", "GORILLA_GATE_AUTOMATION_ENTITY_SCOPE=true"],
+        # ------------------------------------------------------------------------------
         *["-e", "WANDB_ENABLE_TEST_CONTAINER=true"],
         *["--name", name],
         *["--volume", f"{name}-vol:/vol"],
