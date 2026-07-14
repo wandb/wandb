@@ -11,6 +11,7 @@ from pydantic import ValidationError
 from pyfakefs.fake_filesystem import FakeFilesystem
 from pytest import mark, raises
 from wandb.sdk.artifacts.artifact import Artifact
+from wandb.sdk.artifacts.artifact_digest_algorithm import ArtifactDigestAlgorithm
 from wandb.sdk.artifacts.artifact_file_cache import ArtifactFileCache
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts.staging import get_staging_dir
@@ -19,14 +20,15 @@ from wandb.sdk.artifacts.storage_handlers.gcs_handler import GCSHandler
 from wandb.sdk.artifacts.storage_handlers.local_file_handler import LocalFileHandler
 from wandb.sdk.artifacts.storage_handlers.s3_handler import S3Handler
 from wandb.sdk.artifacts.storage_handlers.wb_artifact_handler import WBArtifactHandler
+from wandb.sdk.artifacts.storage_policies.wandb_storage_policy import WandbStoragePolicy
 from wandb.sdk.artifacts.storage_policy import StoragePolicy
-from wandb.sdk.lib.hashutil import ETag, md5_string
+from wandb.sdk.lib.hashutil import ETag, md5_string, xxh64_string
 
 example_digest = md5_string("example")
 
 
 def test_opener_rejects_append_mode(artifact_file_cache):
-    _, _, opener = artifact_file_cache.check_md5_obj_path(example_digest, 7)
+    _, _, opener = artifact_file_cache.check_digest_obj_path(example_digest, 7)
 
     with raises(ValueError):
         with opener("a"):
@@ -65,7 +67,7 @@ def test_opener_works_across_filesystem_boundaries(
     fs.create_dir(fake_cache_obj_dir)
     fs.create_dir(fake_cache_temp_dir)
 
-    cache_path, _, cache_opener = artifact_file_cache.check_md5_obj_path(
+    cache_path, _, cache_opener = artifact_file_cache.check_digest_obj_path(
         example_digest, 7
     )
     with cache_opener() as f:
@@ -85,7 +87,7 @@ def test_opener_works_across_filesystem_boundaries(
 
     # Now simulate skipping the cache
     artifact_file_cache._override_cache_path = dest_path
-    override_path, _, override_opener = artifact_file_cache.check_md5_obj_path(
+    override_path, _, override_opener = artifact_file_cache.check_digest_obj_path(
         example_digest, 7
     )
 
@@ -95,9 +97,9 @@ def test_opener_works_across_filesystem_boundaries(
     assert dest_path.read_text() == "test-abc"
 
 
-def test_check_md5_obj_path(artifact_file_cache):
+def test_check_digest_obj_path_md5(artifact_file_cache):
     md5 = md5_string("hi")
-    path, exists, opener = artifact_file_cache.check_md5_obj_path(md5, 2)
+    path, exists, opener = artifact_file_cache.check_digest_obj_path(md5, 2)
     expected_path = os.path.join(
         artifact_file_cache._cache_dir,
         "obj",
@@ -116,11 +118,30 @@ def test_check_md5_obj_path(artifact_file_cache):
     assert contents == "hi"
 
 
-def test_check_md5_obj_path_override(artifact_file_cache):
+def test_check_digest_obj_path_xxh64(artifact_file_cache):
+    digest = xxh64_string("hi")
+    path, exists, opener = artifact_file_cache.check_digest_obj_path(
+        digest, 2, algorithm=ArtifactDigestAlgorithm.MANIFEST_XXH64
+    )
+    expected_path = os.path.join(
+        artifact_file_cache._cache_dir, "obj", "xxh64", "ea", "8842e9ea2638fa"
+    )
+    assert path == expected_path
+
+    with opener() as f:
+        f.write("hi")
+    with open(path) as f:
+        contents = f.read()
+
+    assert exists is False
+    assert contents == "hi"
+
+
+def test_check_digest_obj_path_override(artifact_file_cache):
     md5 = md5_string("hi")
     override_path = os.path.join(artifact_file_cache._cache_dir, "override.cache")
     artifact_file_cache._override_cache_path = override_path
-    path, exists, _ = artifact_file_cache.check_md5_obj_path(md5, 2)
+    path, exists, _ = artifact_file_cache.check_digest_obj_path(md5, 2)
     assert path == override_path
     assert exists is False
 
@@ -317,13 +338,64 @@ def test_artifact_file_cache_cleanup_leaves_tmp_files_by_default(
     assert "Cache contains 1000.0B of temporary files" in stderr
 
 
+def test_wandb_storage_policy_load_file_uses_cache(artifact_file_cache, tmp_path):
+    file = tmp_path / "file.txt"
+    file.write_text("hello")
+    digest = "XUFAKrxLKna5cZ2REBfFkg=="
+
+    path, _, opener = artifact_file_cache.check_digest_obj_path(digest=digest, size=5)
+    with opener() as f:
+        f.write("hello")
+
+    policy = WandbStoragePolicy()
+    entry = ArtifactManifestEntry(
+        path=file,
+        digest=digest,
+        size=5,
+    )
+
+    # We need to pass an artifact, but this test doesn't actually use it
+    empty_artifact = Artifact("test", type="dataset")
+
+    local_path = policy.load_file(empty_artifact, entry)
+
+    assert local_path == path
+
+
+def test_wandb_storage_policy_load_file_uses_cache_xxh64(artifact_file_cache, tmp_path):
+    file = tmp_path / "file.txt"
+    file.write_text("hello")
+    digest = "JseCfYifbaM="
+
+    path, _, opener = artifact_file_cache.check_digest_obj_path(
+        digest=digest, size=5, algorithm=ArtifactDigestAlgorithm.MANIFEST_XXH64
+    )
+    with opener() as f:
+        f.write("hello")
+
+    policy = WandbStoragePolicy()
+    entry = ArtifactManifestEntry(
+        path=file,
+        digest=digest,
+        size=5,
+        digest_algorithm=ArtifactDigestAlgorithm.MANIFEST_XXH64,
+    )
+
+    # We need to pass an artifact, but this test doesn't actually use it
+    empty_artifact = Artifact("test", type="dataset")
+
+    local_path = policy.load_file(empty_artifact, entry)
+
+    assert local_path == path
+
+
 def test_local_file_handler_load_path_uses_cache(artifact_file_cache, tmp_path):
     file = tmp_path / "file.txt"
     file.write_text("hello")
     uri = file.as_uri()
     digest = "XUFAKrxLKna5cZ2REBfFkg=="
 
-    path, _, opener = artifact_file_cache.check_md5_obj_path(b64_md5=digest, size=5)
+    path, _, opener = artifact_file_cache.check_digest_obj_path(digest=digest, size=5)
     with opener() as f:
         f.write("hello")
 
@@ -407,7 +479,9 @@ def test_cache_add_gives_useful_error_when_out_of_space(
     mock_wandb_log,
 ):
     # Ask to create a 1 quettabyte file to ensure the cache won't find room.
-    _, _, opener = artifact_file_cache.check_md5_obj_path(example_digest, size=10**30)
+    _, _, opener = artifact_file_cache.check_digest_obj_path(
+        example_digest, size=10**30
+    )
 
     with raises(OSError, match="Insufficient free space"):
         with opener():
@@ -457,8 +531,8 @@ def test_cache_add_cleans_up_tmp_when_write_fails(artifact_file_cache, monkeypat
     def fail(*args, **kwargs):
         raise OSError
 
-    _, _, opener = artifact_file_cache.check_md5_obj_path(
-        b64_md5=example_digest, size=7
+    _, _, opener = artifact_file_cache.check_digest_obj_path(
+        digest=example_digest, size=7
     )
 
     with raises(OSError):
