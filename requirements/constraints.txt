@@ -1,0 +1,15 @@
+# This file provides constraints in addition to requirements_dev.txt
+# without directly depending on the listed packages. This is used to
+# constrain indirect dependencies that have security or licence issues.
+#
+# Add constraints here and rerun `generate.sh -U` when socket.dev reports
+# issues with a dependency upgrade.
+#
+# Try to occasionally remove these constraints to see if issues are fixed.
+
+aiohttp==3.13.5
+cryptography==46.0.7
+google-auth==2.52.0
+graphql-core==3.2.8
+polars-runtime-32==1.40.1
+pywinpty==3.0.3

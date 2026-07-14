@@ -47,6 +47,9 @@
 # GitHub configuration
 /.github @wandb/sdk-team
 
+# Python requirements in CI
+/requirements/ @wandb/sdk-team
+
 # Internal helpers: used by multiple teams, any here can approve
 /wandb/_iterutils.py @wandb/sdk-team @wandb/art-reg-team
 /wandb/_strutils.py @wandb/sdk-team @wandb/art-reg-team
