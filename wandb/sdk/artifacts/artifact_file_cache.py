@@ -18,6 +18,7 @@ from typing import IO, Protocol
 
 import wandb
 from wandb import env, util
+from wandb.sdk.artifacts.artifact_digest_algorithm import ArtifactDigestAlgorithm
 from wandb.sdk.lib.filesystem import files_in
 from wandb.sdk.lib.hashutil import B64Digest, ETag, b64_to_hex_id
 from wandb.sdk.lib.paths import FilePathStr, StrPath, URIStr
@@ -54,8 +55,13 @@ class ArtifactFileCache:
 
         self._override_cache_path: StrPath | None = None
 
-    def check_md5_obj_path(
-        self, b64_md5: B64Digest, size: int
+    _ALGORITHM_PATH_SEGMENT = {
+        ArtifactDigestAlgorithm.MANIFEST_MD5: "md5",
+        ArtifactDigestAlgorithm.MANIFEST_XXH64: "xxh64",
+    }
+
+    def check_digest_obj_path(
+        self, digest: B64Digest, size: int, algorithm: str | None = None
     ) -> tuple[FilePathStr, bool, Opener]:
         # Check if we're using vs skipping the cache
         if self._override_cache_path is not None:
@@ -63,8 +69,9 @@ class ArtifactFileCache:
             path = Path(self._override_cache_path)
         else:
             skip_cache = False
-            hex_md5 = b64_to_hex_id(b64_md5)
-            path = self._obj_dir / "md5" / hex_md5[:2] / hex_md5[2:]
+            hex_digest = b64_to_hex_id(digest)
+            path_segment = self._ALGORITHM_PATH_SEGMENT.get(algorithm, "md5")
+            path = self._obj_dir / path_segment / hex_digest[:2] / hex_digest[2:]
         return self._check_or_create(path, size, skip_cache=skip_cache)
 
     # TODO(spencerpearson): this method at least needs its signature changed.
