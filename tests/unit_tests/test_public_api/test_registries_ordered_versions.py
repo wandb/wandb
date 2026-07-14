@@ -42,7 +42,9 @@ def test_registries_collections_with_order_rejects_start(service_api):
         registries.collections(start="cursor")
 
 
-def test_registries_collections_with_registry_order_supports_versions_chain(service_api):
+def test_registries_collections_with_registry_order_supports_versions_chain(
+    service_api,
+):
     registries = Registries(
         service_api=service_api,
         organization=ORG,
