@@ -241,6 +241,8 @@ func (r *RunParams) Update(
 
 	if record.ResumeMode != "" {
 		r.ResumeMode = record.ResumeMode
+	} else if runSettings.GetResume() != "" {
+		r.ResumeMode = runSettings.GetResume()
 	}
 
 	if record.Resumed {
