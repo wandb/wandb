@@ -89,11 +89,6 @@
 /tests/unit_tests/test_wandb_agent_signals.py    @wandb/sweeps-launch-team @wandb/sdk-team
 
 # Generated Python targets
-/wandb/apis/_generated/*.py
-/wandb/automations/_generated/*.py
-/wandb/sdk/artifacts/_generated/*.py
-/wandb/sdk/internal/_generated/*.py
-/wandb/proto/*_pb2.py
-/wandb/proto/*/*_pb2.py
-/wandb/proto/*_pb2.pyi
-/wandb/proto/*/*_pb2.pyi
+/wandb/**/_generated/
+/wandb/proto/**/*_pb2.py
+/wandb/proto/**/*_pb2.pyi
