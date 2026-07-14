@@ -260,7 +260,7 @@ class Api:
         api_key = api_key or self.default_settings.get("api_key")
         if api_key:
             auth = ("api", api_key)
-            get_otel().set_api_key(api_key)
+            get_otel(api_key=api_key)
         elif (access_token := self.access_token) is not None:
             self._extra_http_headers["Authorization"] = f"Bearer {access_token}"
         else:

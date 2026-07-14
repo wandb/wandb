@@ -78,7 +78,7 @@ def _start(
             idle_timeout=idle_timeout,
         )
     except Exception as e:
-        get_otel().exception(str(e), e)
+        get_otel(api_key=settings.api_key or "").exception(str(e), e)
         get_sentry().reraise(e)
 
 
@@ -127,7 +127,7 @@ def _launch_server(
         try:
             core_path = get_core_path()
         except WandbCoreNotAvailableError as e:
-            get_otel().exception(str(e), e)
+            get_otel(api_key=settings.api_key or "").exception(str(e), e)
             get_sentry().reraise(e)
 
         service_args.append(core_path)

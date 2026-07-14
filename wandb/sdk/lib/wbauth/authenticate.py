@@ -46,10 +46,8 @@ def _locked_set_session_auth(
     global _session_auth
     _session_auth = auth
 
-    if auth is None:
-        get_otel().set_api_key(None)
-    elif isinstance(auth, AuthApiKey):
-        get_otel().set_api_key(auth.api_key)
+    if isinstance(auth, AuthApiKey):
+        get_otel(api_key=auth.api_key)
 
     if update_settings:
         set_auth_settings(wandb_setup.singleton().settings, auth)
