@@ -61,7 +61,9 @@ def test_artifact_put_with_cache_enabled(runner, user, tmp_path, api, temp_stagi
     # The file is cached
     artifact = api.artifact("test/simple:latest")
     manifest_entry = artifact.manifest.entries["random.txt"]
-    _, found, _ = cache.check_md5_obj_path(manifest_entry.digest, manifest_entry.size)
+    _, found, _ = cache.check_digest_obj_path(
+        manifest_entry.digest, manifest_entry.size
+    )
     assert found
 
 
@@ -93,5 +95,7 @@ def test_artifact_put_with_cache_disabled(
     # The file is not cached
     artifact = api.artifact("test/simple:latest")
     manifest_entry = artifact.manifest.entries["random.txt"]
-    _, found, _ = cache.check_md5_obj_path(manifest_entry.digest, manifest_entry.size)
+    _, found, _ = cache.check_digest_obj_path(
+        manifest_entry.digest, manifest_entry.size
+    )
     assert not found

@@ -131,9 +131,10 @@ class WandbStoragePolicy(StoragePolicy):
         if dest_path is not None:
             self._cache._override_cache_path = dest_path
 
-        path, hit, cache_open = self._cache.check_md5_obj_path(
+        path, hit, cache_open = self._cache.check_digest_obj_path(
             manifest_entry.digest,
             size=manifest_entry.size or 0,
+            algorithm=manifest_entry.digest_algorithm,
         )
         if hit:
             return path
@@ -365,9 +366,10 @@ class WandbStoragePolicy(StoragePolicy):
             return
 
         # Cache upon successful upload.
-        _, hit, cache_open = self._cache.check_md5_obj_path(
+        _, hit, cache_open = self._cache.check_digest_obj_path(
             entry.digest,
             size=entry.size or 0,
+            algorithm=entry.digest_algorithm,
         )
 
         staging_dir = get_staging_dir()
