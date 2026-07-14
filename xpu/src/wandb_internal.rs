@@ -842,7 +842,7 @@ pub struct RunRecord {
     /// Information about the source if this is a fork or rewind of another run.
     #[prost(message, optional, tag = "23")]
     pub branch_point: ::core::option::Option<BranchPoint>,
-    /// The user-provided resume mode to apply when syncing an offline run.
+    /// The user-provided resume mode to apply when syncing.
     ///
     /// This is input intent, unlike `resumed`, which is a backend result.
     #[prost(string, tag = "24")]
