@@ -14,6 +14,7 @@ import (
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/pfxout"
 	"github.com/wandb/wandb/core/internal/runhandle"
+	"github.com/wandb/wandb/core/internal/runsyncstate"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/sharedmode"
@@ -118,7 +119,8 @@ func NewStream(
 	)
 	// Live runs resolve resume metadata once, when the run starts, so
 	// there's no need to pin the starting step across repeated attempts.
-	recordParser := recordParserFactory.New(runWork.BeforeEndCtx(), tbHandler, nil)
+	noopStore := runsyncstate.NoopSyncStateStore{}
+	recordParser := recordParserFactory.New(runWork.BeforeEndCtx(), tbHandler, &noopStore)
 
 	stream := &Stream{
 		runWork:            runWork,

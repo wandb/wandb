@@ -23,6 +23,7 @@ import (
 	"github.com/wandb/wandb/core/internal/runconfig"
 	"github.com/wandb/wandb/core/internal/runenvironment"
 	"github.com/wandb/wandb/core/internal/runmetric"
+	"github.com/wandb/wandb/core/internal/runsyncstate"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/version"
 	"github.com/wandb/wandb/core/internal/wboperation"
@@ -45,7 +46,7 @@ type RunUpserter struct {
 	operations         *wboperation.WandbOperations
 	graphqlClientOrNil graphql.Client
 	logger             *observability.CoreLogger
-	startingStepStore  StartingStepStore
+	syncStateStore     runsyncstate.SyncStateStore
 
 	// done is closed when Finish is called.
 	done chan struct{}
@@ -73,16 +74,7 @@ type RunUpserterParams struct {
 	FeatureProvider    *featurechecker.FeatureProvider
 	GraphqlClientOrNil graphql.Client
 	Logger             *observability.CoreLogger
-	StartingStepStore  StartingStepStore
-}
-
-// StartingStepStore pins a resumed run's starting step across repeated
-// syncs of the same .wandb file.
-type StartingStepStore interface {
-	// GetOrInitStartingStep returns the starting step initialized by an
-	// earlier call, if any. Otherwise, it persists the passed-in step and
-	// returns it.
-	GetOrInitStartingStep(startingStep int64) (int64, error)
+	SyncStateStore     runsyncstate.SyncStateStore
 }
 
 func (params *RunUpserterParams) panicIfNotFilled() {
@@ -108,6 +100,11 @@ func InitRun(
 	params RunUpserterParams,
 ) (*RunUpserter, error) {
 	params.panicIfNotFilled()
+
+	syncStateStore := params.SyncStateStore
+	if syncStateStore == nil {
+		syncStateStore = &runsyncstate.NoopSyncStateStore{}
+	}
 
 	runRecord := record.GetRun()
 	if runRecord == nil {
@@ -160,7 +157,7 @@ func InitRun(
 		operations:         params.Operations,
 		graphqlClientOrNil: params.GraphqlClientOrNil,
 		logger:             params.Logger,
-		startingStepStore:  params.StartingStepStore,
+		syncStateStore:     syncStateStore,
 
 		done:  make(chan struct{}),
 		dirty: make(chan struct{}, 1),
@@ -451,15 +448,13 @@ func (upserter *RunUpserter) updateMetadataForResume(
 		return err
 	}
 
-	if upserter.startingStepStore != nil {
-		startingStep, err := upserter.startingStepStore.GetOrInitStartingStep(
-			upserter.params.StartingStep,
-		)
-		if err != nil {
-			return err
-		}
-		upserter.params.StartingStep = startingStep
+	startingStep, err := upserter.syncStateStore.GetOrInitStartingStep(
+		upserter.params.StartingStep,
+	)
+	if err != nil {
+		return err
 	}
+	upserter.params.StartingStep = startingStep
 
 	return nil
 }

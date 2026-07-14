@@ -11,6 +11,7 @@ import (
 
 	"github.com/wandb/wandb/core/internal/featurechecker"
 	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/runsyncstate"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/wboperation"
@@ -53,7 +54,7 @@ type RunUpdateWork struct {
 	FeatureProvider    *featurechecker.FeatureProvider
 	GraphqlClientOrNil graphql.Client
 	Logger             *observability.CoreLogger
-	StartingStepStore  StartingStepStore
+	SyncStateStore     runsyncstate.SyncStateStore
 }
 
 // Accept implements WorkImpl.Accept.
@@ -99,7 +100,7 @@ func (w *RunUpdateWork) initRun(request *runwork.Request) {
 		FeatureProvider:    w.FeatureProvider,
 		GraphqlClientOrNil: w.GraphqlClientOrNil,
 		Logger:             w.Logger,
-		StartingStepStore:  w.StartingStepStore,
+		SyncStateStore:     w.SyncStateStore,
 	})
 
 	if err != nil {

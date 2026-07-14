@@ -12,6 +12,7 @@ import (
 
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runhandle"
+	"github.com/wandb/wandb/core/internal/runsyncstate"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/stream"
@@ -74,9 +75,9 @@ func (f *RunSyncerFactory) New(
 	)
 	// Pin the resumed run's starting step to this .wandb file's sync state
 	// so that re-syncing the same file doesn't shift steps forward.
-	startingStepStore := NewSyncStateStore(path)
+	syncStateStore := runsyncstate.NewSyncStateStore(path)
 	recordParser := f.RecordParserFactory.New(
-		runWork.BeforeEndCtx(), tbHandler, startingStepStore)
+		runWork.BeforeEndCtx(), tbHandler, syncStateStore)
 	runReader := f.RunReaderFactory.New(
 		path,
 		displayPath,

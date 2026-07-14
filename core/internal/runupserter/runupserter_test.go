@@ -246,7 +246,7 @@ func TestResume_StartingStepStore_InitializesStartingStep(t *testing.T) {
 	params := testParams(t)
 	params.GraphqlClientOrNil = mockClient
 	params.Settings = settings.From(&spb.Settings{Resume: wrapperspb.String("allow")})
-	params.StartingStepStore = store
+	params.SyncStateStore = store
 
 	upserter, err := runupserter.InitRun(runRecord(&spb.RunRecord{RunId: "run"}), params)
 	require.NoError(t, err)
@@ -269,7 +269,7 @@ func TestResume_StartingStepStore_ReusesStartingStep(t *testing.T) {
 	params := testParams(t)
 	params.GraphqlClientOrNil = mockClient
 	params.Settings = settings.From(&spb.Settings{Resume: wrapperspb.String("allow")})
-	params.StartingStepStore = store
+	params.SyncStateStore = store
 
 	upserter, err := runupserter.InitRun(runRecord(&spb.RunRecord{RunId: "run"}), params)
 	require.NoError(t, err)
