@@ -36,7 +36,7 @@ func runCommand(command []string, dir, outFile string) error {
 func runCommandWithOutput(command []string, dir string) ([]byte, error) {
 	cmd := exec.Command(command[0], command[1:]...)
 	cmd.Dir = dir
-	// cmd.Env = filterOutGitEnv(os.Environ())
+	cmd.Env = filterOutGitEnv(os.Environ())
 	return cmd.CombinedOutput()
 }
 
@@ -46,15 +46,23 @@ func runCommandWithOutput(command []string, dir string) ([]byte, error) {
 // invoking hooks, and they'd otherwise leak into any git subprocess we
 // spawn here, causing it to operate on the wrong repository instead of
 // the one selected via cmd.Dir.
-// func filterOutGitEnv(env []string) []string {
-// 	filtered := make([]string, 0, len(env))
-// 	for _, e := range env {
-// 		if !strings.HasPrefix(e, "GIT_") {
-// 			filtered = append(filtered, e)
-// 		}
-// 	}
-// 	return filtered
-// }
+func filterOutGitEnv(env []string) []string {
+	gitEnvVars := map[string]struct{}{
+		"GIT_DIR":        {},
+		"GIT_WORK_TREE":  {},
+		"GIT_INDEX_FILE": {},
+	}
+
+	filtered := make([]string, 0, len(env))
+	for _, e := range env {
+		name, _, _ := strings.Cut(e, "=")
+		if _, excluded := gitEnvVars[name]; !excluded {
+			filtered = append(filtered, e)
+		}
+	}
+
+	return filtered
+}
 
 type Git struct {
 	path   string
