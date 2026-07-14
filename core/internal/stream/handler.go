@@ -754,49 +754,12 @@ func (h *Handler) handleRequestGetSummary(
 			fmt.Errorf("handler: error flattening run summary: %v", err))
 	}
 
-	if !h.settings.IsSharedMode() {
-		items = appendSyntheticSummaryStep(items, h.summaryStepForResponse())
-	}
-
 	response.ResponseType = &spb.Response_GetSummaryResponse{
 		GetSummaryResponse: &spb.GetSummaryResponse{
 			Item: items,
 		},
 	}
 	h.respond(request, response)
-}
-
-func (h *Handler) summaryStepForResponse() int64 {
-	historyInProgress := h.partialHistory != nil && !h.partialHistory.IsEmpty()
-	passedStartingStep := h.partialHistoryStep > h.runRecord.GetStartingStep()
-
-	// no in-progress history record and advanced past the starting step
-	// so use the last completed step
-	if passedStartingStep && !historyInProgress {
-		return h.partialHistoryStep - 1
-	}
-
-	// use the current step if one of the following is true:
-	//  - building a history record
-	//  - at the starting step
-	//  - uninitialized partial history cursor
-	return h.partialHistoryStep
-}
-
-func appendSyntheticSummaryStep(
-	items []*spb.SummaryItem,
-	step int64,
-) []*spb.SummaryItem {
-	for _, item := range items {
-		if isStepItem(item) {
-			return items
-		}
-	}
-
-	return append(items, &spb.SummaryItem{
-		Key:       "_step",
-		ValueJson: strconv.FormatInt(step, 10),
-	})
 }
 
 func (h *Handler) handleRequestGetSystemMetrics(
