@@ -48,7 +48,7 @@ class ArtifactManifest(ArtifactsBase, ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def digest(self) -> HexDigest:
+    def digest(self, digest_algorithm: str | None = None) -> HexDigest:
         raise NotImplementedError
 
     @abstractmethod

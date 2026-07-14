@@ -51,7 +51,12 @@ from wandb.sdk.data_types._dtypes import TypeRegistry
 from wandb.sdk.lib import retry, telemetry
 from wandb.sdk.lib.deprecation import warn_and_record_deprecation
 from wandb.sdk.lib.filesystem import check_exists, system_preferred_path
-from wandb.sdk.lib.hashutil import B64Digest, b64_to_hex_id, md5_file_b64
+from wandb.sdk.lib.hashutil import (
+    B64Digest,
+    b64_to_hex_id,
+    md5_file_b64,
+    xxh64_file_b64,
+)
 from wandb.sdk.lib.paths import FilePathStr, LogicalPath, StrPath, URIStr
 from wandb.sdk.lib.runid import generate_fast_id, generate_id
 from wandb.sdk.mailbox import MailboxHandle
@@ -187,6 +192,7 @@ class Artifact:
 
         # Internal.
         self._service_api: ServiceApi | None = None
+        self._digest_algorithm: str | None = None
 
         self._tmp_dir: tempfile.TemporaryDirectory | None = None
         self._added_objs: dict[int, tuple[WBValue, ArtifactManifestEntry]] = {}
@@ -554,6 +560,7 @@ class Artifact:
         artifact._manifest = ArtifactManifest.from_manifest_json(
             self.manifest.to_manifest_json()
         )
+        artifact._digest_algorithm = self.digest_algorithm
         return artifact
 
     # Properties (Python Class managed attributes).
@@ -1097,7 +1104,7 @@ class Artifact:
         return (
             self._digest
             if (self._manifest is None) and (self._digest is not None)
-            else self.manifest.digest()
+            else self.manifest.digest(self.digest_algorithm)
         )
 
     @property
@@ -1534,7 +1541,10 @@ class Artifact:
             raise ValueError(f"Path is not a file: {local_path!r}")
 
         name = LogicalPath(name or os.path.basename(local_path))
-        digest = md5_file_b64(local_path)
+
+        use_xxh64 = self.digest_algorithm == ArtifactDigestAlgorithm.MANIFEST_XXH64
+
+        digest = xxh64_file_b64(local_path) if use_xxh64 else md5_file_b64(local_path)
 
         if is_tmp:
             file_path, file_name = os.path.split(name)
@@ -1828,9 +1838,20 @@ class Artifact:
                 os.chmod(staging_path, stat.S_IRUSR)
                 upload_path = staging_path
 
+        use_xxh64 = self.digest_algorithm == ArtifactDigestAlgorithm.MANIFEST_XXH64
+
+        # Don't pass in "MANIFEST_MD5" to match previous behavior
+        entry_digest_algorithm = (
+            ArtifactDigestAlgorithm.MANIFEST_XXH64 if use_xxh64 else None
+        )
+
         entry = ArtifactManifestEntry(
             path=name,
-            digest=digest or md5_file_b64(upload_path),
+            digest=digest
+            or (
+                xxh64_file_b64(upload_path) if use_xxh64 else md5_file_b64(upload_path)
+            ),
+            digest_algorithm=entry_digest_algorithm,
             size=os.path.getsize(upload_path),
             local_path=upload_path,
             skip_cache=skip_cache,
@@ -2307,7 +2328,18 @@ class Artifact:
         ref_count = 0
         for entry in self.manifest.entries.values():
             if entry.ref is None:
-                if md5_file_b64(validate_fspath(root, entry.path)) != entry.digest:
+                if entry.digest_algorithm == ArtifactDigestAlgorithm.MANIFEST_XXH64:
+                    file_digest = xxh64_file_b64(validate_fspath(root, entry.path))
+                elif (
+                    entry.digest_algorithm == ArtifactDigestAlgorithm.MANIFEST_MD5
+                    or entry.digest_algorithm is None
+                ):
+                    file_digest = md5_file_b64(validate_fspath(root, entry.path))
+                else:
+                    raise ValueError(
+                        f"Invalid digest algorithm: {entry.digest_algorithm}"
+                    )
+                if file_digest != entry.digest:
                     raise ValueError(f"Digest mismatch for file: {entry.path}")
             else:
                 ref_count += 1
