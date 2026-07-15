@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import json
 import logging
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from typing import Any, cast
 
 from wandb.proto import wandb_internal_pb2 as pb
+from wandb.proto import wandb_server_pb2 as spb
 from wandb.proto.wandb_api_pb2 import (
     ApiRequest,
     ApiResponse,
@@ -58,6 +59,11 @@ class ServiceApi:
         )
         self._api_session = session
 
+        # Clean up service-side resources when this object is GC'ed.
+        cleanup_request = spb.ServerRequest()
+        cleanup_request.api_cleanup_request.api_id = response.api_id
+        service_connection.finalize(self, cleanup_request)
+
         return session
 
     def send_api_request(
@@ -72,6 +78,29 @@ class ServiceApi:
         session = self._get_api_session()
         request.api_id = session.api_id
         return session.connection.api_request(request, timeout=timeout)
+
+    def finalize(
+        self,
+        obj: object,
+        cleanup: ApiRequest,
+    ) -> Callable[[], None]:
+        """Send a cleanup request when the object is garbage collected.
+
+        The request must not reference the object, or else it will never be
+        garbage collected. The request is not guaranteed to be sent before
+        the connection is closed, so any resource it would clean up must also be
+        cleaned up automatically by wandb-core when this API instance is
+        cleaned up.
+
+        Returns:
+            A callback that can be used to send the cleanup request immediately.
+        """
+        session = self._get_api_session()
+
+        cleanup.api_id = session.api_id
+        request = spb.ServerRequest(api_request=cleanup)
+
+        return session.connection.finalize(obj, request)
 
     def execute_graphql(
         self,
