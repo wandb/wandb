@@ -55,7 +55,7 @@ from wandb.sdk.lib.hashutil import (
     B64Digest,
     b64_to_hex_id,
     md5_file_b64,
-    xxh64_file_b64,
+    xxh128_file_b64,
 )
 from wandb.sdk.lib.paths import FilePathStr, LogicalPath, StrPath, URIStr
 from wandb.sdk.lib.runid import generate_fast_id, generate_id
@@ -1542,9 +1542,9 @@ class Artifact:
 
         name = LogicalPath(name or os.path.basename(local_path))
 
-        use_xxh64 = self.digest_algorithm == ArtifactDigestAlgorithm.MANIFEST_XXH64
+        use_xxh128 = self.digest_algorithm == ArtifactDigestAlgorithm.MANIFEST_XXH128
 
-        digest = xxh64_file_b64(local_path) if use_xxh64 else md5_file_b64(local_path)
+        digest = xxh128_file_b64(local_path) if use_xxh128 else md5_file_b64(local_path)
 
         if is_tmp:
             file_path, file_name = os.path.split(name)
@@ -1838,18 +1838,20 @@ class Artifact:
                 os.chmod(staging_path, stat.S_IRUSR)
                 upload_path = staging_path
 
-        use_xxh64 = self.digest_algorithm == ArtifactDigestAlgorithm.MANIFEST_XXH64
+        use_xxh128 = self.digest_algorithm == ArtifactDigestAlgorithm.MANIFEST_XXH128
 
         # Don't pass in "MANIFEST_MD5" to match previous behavior
         entry_digest_algorithm = (
-            ArtifactDigestAlgorithm.MANIFEST_XXH64 if use_xxh64 else None
+            ArtifactDigestAlgorithm.MANIFEST_XXH128 if use_xxh128 else None
         )
 
         entry = ArtifactManifestEntry(
             path=name,
             digest=digest
             or (
-                xxh64_file_b64(upload_path) if use_xxh64 else md5_file_b64(upload_path)
+                xxh128_file_b64(upload_path)
+                if use_xxh128
+                else md5_file_b64(upload_path)
             ),
             digest_algorithm=entry_digest_algorithm,
             size=os.path.getsize(upload_path),
@@ -2328,8 +2330,8 @@ class Artifact:
         ref_count = 0
         for entry in self.manifest.entries.values():
             if entry.ref is None:
-                if entry.digest_algorithm == ArtifactDigestAlgorithm.MANIFEST_XXH64:
-                    file_digest = xxh64_file_b64(validate_fspath(root, entry.path))
+                if entry.digest_algorithm == ArtifactDigestAlgorithm.MANIFEST_XXH128:
+                    file_digest = xxh128_file_b64(validate_fspath(root, entry.path))
                 elif (
                     entry.digest_algorithm == ArtifactDigestAlgorithm.MANIFEST_MD5
                     or entry.digest_algorithm is None

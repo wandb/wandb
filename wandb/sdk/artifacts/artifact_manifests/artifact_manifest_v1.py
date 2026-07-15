@@ -10,7 +10,7 @@ from typing import Annotated, Any, ClassVar, Dict, Literal, final
 
 from pydantic import Field
 
-from wandb.sdk.lib.hashutil import HexDigest, _md5, _xxh64
+from wandb.sdk.lib.hashutil import HexDigest, _md5, _xxh128
 
 from .._factories import make_storage_policy
 from .._models.manifest import ArtifactManifestV1Data
@@ -64,8 +64,8 @@ class ArtifactManifestV1(ArtifactManifest):
 
     def digest(self, digest_algorithm: str | None = None) -> HexDigest:
         hasher = (
-            _xxh64(self._DIGEST_HEADER)
-            if digest_algorithm == ArtifactDigestAlgorithm.MANIFEST_XXH64
+            _xxh128(self._DIGEST_HEADER)
+            if digest_algorithm == ArtifactDigestAlgorithm.MANIFEST_XXH128
             else _md5(self._DIGEST_HEADER)
         )
         # sort by key (path)
