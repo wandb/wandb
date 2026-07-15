@@ -1063,19 +1063,6 @@ class Settings(BaseModel, validate_assignment=True):
             raise ValueError("Cannot skip transaction log in offline mode")
         return self
 
-    @model_validator(mode="after")
-    def validate_offline_resume(self) -> Self:
-        """Only "must" and "never" are supported for resume when offline.
-
-        <!-- lazydoc-ignore: internal -->
-        """
-        if self._offline and self.resume not in (None, "must", "never"):
-            raise UsageError(
-                f"resume={self.resume!r} is not supported in offline mode; "
-                'only "must" and "never" are supported.'
-            )
-        return self
-
     # Field validators.
     @field_validator("anonymous", mode="after")
     @classmethod
@@ -2081,18 +2068,9 @@ class Settings(BaseModel, validate_assignment=True):
 
         <!-- lazydoc-ignore: internal -->
         """
-        updates = {k: v for k, v in dict(settings).items() if v is not None}
-        if not updates:
-            return
-
-        # Validate the updates all at once to avoid errors when updating dependent fields.
-        updated = self.model_copy(update=updates)
-        validated = Settings.model_validate(updated)
-
-        # Copy the validated settings back to the current instance.
-        for key in Settings.model_fields:
-            object.__setattr__(self, key, getattr(validated, key))
-        self.__pydantic_fields_set__ = validated.__pydantic_fields_set__
+        for key, value in dict(settings).items():
+            if value is not None:
+                setattr(self, key, value)
 
     def update_from_settings(self, settings: Settings) -> None:
         """Update settings from another instance of `Settings`.
