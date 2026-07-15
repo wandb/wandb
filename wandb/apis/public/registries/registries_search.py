@@ -6,10 +6,10 @@ import json
 from collections import deque
 from collections.abc import Iterator
 from itertools import islice
-from typing import TYPE_CHECKING, Any, ClassVar, Generic, TypeVar, overload
+from typing import TYPE_CHECKING, Any, ClassVar, Generic, TypeVar
 
 from pydantic import PositiveInt, ValidationError
-from typing_extensions import override
+from typing_extensions import Never, override
 
 from wandb._analytics import tracked
 from wandb.apis.paginator import RelayPaginator, SizedRelayPaginator
@@ -434,7 +434,7 @@ class _GroupedCollections(Collections):
         per_page: PositiveInt = 100,
     ):
         super().__init__(
-            service_api=parents._service_api,
+            service_api=service_api,
             organization=parents.organization,
             registry_filter=parents.filter,
             collection_filter=collection_filter,
@@ -444,16 +444,19 @@ class _GroupedCollections(Collections):
 
         self.current: Collections | None = None
 
+        child_kws = dict(
+            service_api=service_api,
+            collection_filter=collection_filter,
+            order=order,
+            per_page=per_page,
+        )
         match parents:
             case Registries(organization=org):
                 self.groups = (
                     Collections(
-                        service_api=service_api,
                         organization=org,
                         registry_filter={"name": reg.full_name},
-                        collection_filter=collection_filter,
-                        order=order,
-                        per_page=per_page,
+                        **child_kws,
                     )
                     for reg in parents
                 )
@@ -467,37 +470,20 @@ class _GroupedCollections(Collections):
 
     @property
     @override
-    def cursor(self) -> str | None:
-        raise UnsupportedError(
-            "`cursor` is not supported for ordered chained registry queries. "
-        )
-
-    @property
-    def length(self) -> int | None:
-        raise UnsupportedError(
-            "`length` is not supported for ordered chained registry queries. "
-        )
+    def cursor(self) -> Never:
+        msg = "`cursor` is not supported for ordered chained registry queries."
+        raise UnsupportedError(msg)
 
     @override
-    def __len__(self) -> int:
-        raise TypeError(
-            "`len(...)` is not supported for ordered chained registry queries. "
-        )
-
-    @overload
-    def __getitem__(self, index: int) -> ArtifactCollection: ...
-    @overload
-    def __getitem__(self, index: slice) -> list[ArtifactCollection]: ...
+    def __len__(self) -> Never:
+        msg = "`len(...)` is not supported for ordered chained registry queries."
+        raise TypeError(msg)
 
     @override
-    def __getitem__(
-        self, index: int | slice
-    ) -> ArtifactCollection | list[ArtifactCollection]:
-        raise UnsupportedError(
-            "`__getitem__` is not supported for ordered chained registry queries. "
-        )
+    def __getitem__(self, index: int | slice) -> Never:
+        msg = "`__getitem__` is not supported for ordered chained registry queries."
+        raise UnsupportedError(msg)
 
-    @tracked
     def versions(
         self,
         filter: dict[str, Any] | None = None,
@@ -556,28 +542,28 @@ class _GroupedVersions(Versions, Generic[_ParentGroupsT]):
             per_page=per_page,
         )
 
+        child_kws = dict(
+            service_api=service_api,
+            artifact_filter=artifact_filter,
+            per_page=per_page,
+        )
         match parents:
             case Registries(organization=org):
                 self.groups = (
                     Versions(
-                        service_api=self._service_api,
                         organization=org,
                         registry_filter={"name": reg.full_name},
-                        collection_filter=None,
-                        artifact_filter=artifact_filter,
-                        per_page=per_page,
+                        **child_kws,
                     )
                     for reg in parents
                 )
             case Collections(organization=org):
                 self.groups = (
                     Versions(
-                        service_api=self._service_api,
                         organization=org,
                         registry_filter={"name": col.project},
                         collection_filter={"name": col.name},
-                        artifact_filter=artifact_filter,
-                        per_page=per_page,
+                        **child_kws,
                     )
                     for col in parents
                 )
@@ -593,28 +579,20 @@ class _GroupedVersions(Versions, Generic[_ParentGroupsT]):
 
     @property
     @override
-    def cursor(self) -> str | None:
-        raise UnsupportedError(
-            "`cursor` is not supported for ordered chained registry queries. "
-        )
+    def cursor(self) -> Never:
+        msg = "`cursor` is not supported for ordered chained registry queries."
+        raise UnsupportedError(msg)
 
     @property
     @override
-    def length(self) -> int | None:
-        raise UnsupportedError(
-            "`length` is not supported for ordered chained registry queries. "
-        )
-
-    @overload
-    def __getitem__(self, index: int) -> Artifact: ...
-    @overload
-    def __getitem__(self, index: slice) -> list[Artifact]: ...
+    def length(self) -> Never:
+        msg = "`length` is not supported for ordered chained registry queries."
+        raise UnsupportedError(msg)
 
     @override
-    def __getitem__(self, index: int | slice) -> Artifact | list[Artifact]:
-        raise UnsupportedError(
-            "`__getitem__` is not supported for ordered chained registry queries. "
-        )
+    def __getitem__(self, index: int | slice) -> Never:
+        msg = "`__getitem__` is not supported for ordered chained registry queries."
+        raise UnsupportedError(msg)
 
     @override
     def _load_page(self) -> bool:
