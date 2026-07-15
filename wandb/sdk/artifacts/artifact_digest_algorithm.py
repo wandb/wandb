@@ -7,4 +7,4 @@ from enum import Enum
 
 class ArtifactDigestAlgorithm(str, Enum):
     MANIFEST_MD5 = "MANIFEST_MD5"
-    MANIFEST_XXH64 = "MANIFEST_XXH64"
+    MANIFEST_XXH128 = "MANIFEST_XXH128"
