@@ -7,14 +7,15 @@ import os
 import platform
 import threading
 import traceback
+from abc import ABC, abstractmethod
 from collections.abc import Callable
 from typing import Concatenate, ParamSpec, TypedDict, TypeVar
 
 import requests
-from opentelemetry._logs import NoOpLogger, SeverityNumber
+from opentelemetry._logs import Logger, NoOpLogger, SeverityNumber
 from opentelemetry.exporter.otlp.proto.http._log_exporter import OTLPLogExporter
 from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExporter
-from opentelemetry.metrics import Counter, NoOpMeter
+from opentelemetry.metrics import Counter, Meter, NoOpMeter
 from opentelemetry.sdk._logs import LoggerProvider
 from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
 from opentelemetry.sdk.metrics import MeterProvider
@@ -59,27 +60,28 @@ _ALLOWED_LOW_CARDINALITY_KEYS: frozenset[str] = frozenset(
 
 
 def _guard(
-    func: Callable[Concatenate[OtelProvider, _P], _R | None],
-) -> Callable[Concatenate[OtelProvider, _P], _R | None]:
-    """Gates `OtelProvider` methods so it only runs when it is safe to.
+    func: Callable[Concatenate[TelemetryRecorder, _P], _R | None],
+) -> Callable[Concatenate[TelemetryRecorder, _P], _R | None]:
+    """Gates `TelemetryRecorder` methods so they only run when it is safe to.
 
-    The provider is safe to use when:
+    A recorder is safe to use when:
     - Telemetry is enabled.
-    - The provider belongs to the current process.
+    - The recorder's root provider belongs to the current process.
     """
 
     @functools.wraps(func)
     def wrapper(
-        self: OtelProvider,
+        self: TelemetryRecorder,
         *args: _P.args,
         **kwargs: _P.kwargs,
     ) -> _R | None:
-        if not self._enabled:
+        root = self._root
+        if not root._enabled:
             return None
 
-        # If this instance belongs to a different process (fork happened),
+        # If the root belongs to a different process (e.g. fork happened),
         # do nothing; get_otel() will create a fresh instance for the child.
-        if self._pid != os.getpid():
+        if root._pid != os.getpid():
             return None
 
         return func(self, *args, **kwargs)
@@ -98,133 +100,92 @@ class TelemetryContext:
     - `high_cardinality_attributes`: unbounded set of values.
        These are attached to log records where high cardinality is acceptable.
 
-    The context is mutated over the lifetime of a provider via
-    `add_low_cardinality_tags` / `add_high_cardinality_tags` (typically
-    through `OtelProvider.configure_scope`) and read back when records are
-    emitted.
+    A context is never mutated in place. New attributes are layered on via
+    `with_attributes`, which returns a derived child context; the parent is
+    left unchanged. Contexts are read back when records are emitted.
     """
 
     def __init__(self) -> None:
         from wandb import __version__
 
-        self.tags: dict[str, str] = {}
         self.low_cardinality_attributes: dict[str, str] = {
             "wandb_version": __version__,
             "python_version": platform.python_version(),
         }
         self.high_cardinality_attributes: dict[str, str] = {}
 
-    def add_low_cardinality_attributes(
-        self,
-        attributes: LowCardinalityAttributes,
-    ) -> None:
-        """Merge caller-supplied low-cardinality tags into the scope.
+    def copy(self) -> TelemetryContext:
+        """Return a shallow copy of this context with independent attributes.
 
-        Only keys declared on `LowCardinalityAttributes` are accepted; any other
-        keys are silently dropped.
+        The returned context has its own attribute dicts, so mutating them does
+        not affect this context.
         """
-        for key, value in attributes.items():
+        clone = TelemetryContext()
+        clone.low_cardinality_attributes = dict(self.low_cardinality_attributes)
+        clone.high_cardinality_attributes = dict(self.high_cardinality_attributes)
+        return clone
+
+    def with_attributes(
+        self,
+        low_cardinality_attributes: LowCardinalityAttributes,
+        high_cardinality_attributes: dict[str, str],
+    ) -> TelemetryContext:
+        """Return a child context that inherits this context's attributes.
+
+        The child's attributes are this context's attributes merged with the
+        supplied ones. When the same attribute is present in both,
+        the provided attributes take precedence.
+        This context is not modified,
+        so attributes added to the child never leak back onto the parent.
+
+        Only low-cardinality keys declared on `LowCardinalityAttributes` are
+        accepted; any other keys are silently dropped.
+        """
+        child = self.copy()
+
+        for key, value in low_cardinality_attributes.items():
             if key in _ALLOWED_LOW_CARDINALITY_KEYS and isinstance(value, str):
-                self.low_cardinality_attributes[key] = value
+                child.low_cardinality_attributes[key] = value
+        child.high_cardinality_attributes.update(high_cardinality_attributes)
 
-    def add_high_cardinality_attributes(
+        return child
+
+
+class TelemetryRecorder(ABC):
+    """Records OpenTelemetry events (metrics and logs).
+
+    Recorders form a hierarchy: `with_context` derives a child recorder with
+    additional attributes. Child recorders share the root provider's
+    OpenTelemetry providers, and therefore do not need to be shut down.
+    """
+
+    _context: TelemetryContext
+
+    @property
+    @abstractmethod
+    def _root(self) -> OtelProvider:
+        """The root provider that owns the OpenTelemetry providers."""
+
+    def with_context(
         self,
-        attributes: dict[str, str],
-    ) -> None:
-        self.high_cardinality_attributes.update(attributes)
+        low_cardinality_attributes: LowCardinalityAttributes | None = None,
+        high_cardinality_attributes: dict[str, str] | None = None,
+    ) -> TelemetryRecorder:
+        """Return a derived recorder with additional attributes.
 
-
-class OtelProvider:
-    def __init__(
-        self,
-        *,
-        endpoint: str | None = None,
-        api_key: str,
-        pid: int,
-    ) -> None:
-        self._enabled = bool(env.error_reporting_enabled())
-        self._pid = pid
-        self._api_key = api_key
-        self._scope = TelemetryContext()
-        self._state_lock = threading.RLock()
-        self._session: requests.Session = requests.Session()
-
-        self._counters: dict[str, Counter] = {}
-        self._initialize_otel_resources(endpoint, api_key)
-
-    def _initialize_otel_resources(
-        self,
-        endpoint: str | None,
-        api_key: str,
-        export_interval_ms: int = _DEFAULT_EXPORT_INTERVAL_MS,
-    ) -> bool:
-        """Initialize the OTel providers.
-
-        This should only be called once during OtelProvider initialization.
+        The derived recorder shares this recorder's root providers but carries
+        a child telemetry context that inherits this recorder's attributes
+        merged with the supplied ones. This recorder is unchanged: attributes
+        added to the derived recorder never appear on records emitted through
+        this recorder or its siblings.
         """
-        if not self._enabled:
-            return False
-
-        endpoint = _otel_endpoint(endpoint)
-        base_url = endpoint + "/sdk/otel/v1"
-
-        try:
-            resource = Resource.create({"service.name": _OTEL_SERVICE_NAME})
-
-            with self._state_lock:
-                _configure_session_auth(self._session, api_key)
-
-            _redirect_otlp_http_exporter_logs()
-
-            # Setup metrics exporter
-            metric_exporter = OTLPMetricExporter(
-                endpoint=f"{base_url}/metrics",
-                session=self._session,
-                timeout=_OTLP_HTTP_TIMEOUT_SECONDS,
-            )
-            reader = PeriodicExportingMetricReader(
-                metric_exporter,
-                export_interval_millis=export_interval_ms,
-            )
-            self._meter_provider = MeterProvider(
-                resource=resource,
-                metric_readers=[reader],
-            )
-            self._meter = self._meter_provider.get_meter("wandb")
-
-            # Setup logs exporter
-            log_exporter = OTLPLogExporter(
-                endpoint=f"{base_url}/logs",
-                session=self._session,
-                timeout=_OTLP_HTTP_TIMEOUT_SECONDS,
-            )
-            self._logger_provider = LoggerProvider(resource=resource)
-            self._logger_provider.add_log_record_processor(
-                BatchLogRecordProcessor(log_exporter),
-            )
-            self._logger = self._logger_provider.get_logger("wandb.sdk")
-
-            self._booted = True
-        except Exception:
-            _logger.exception("OtelProvider boot failed")
-            with self._state_lock:
-                self._enabled = False
-                self._booted = False
-                self._meter = NoOpMeter("wandb.sdk")
-                self._logger = NoOpLogger("wandb.sdk")
-            return False
-
-        return True
-
-    @_guard
-    def configure_context(
-        self,
-        low_cardinality_attrs: LowCardinalityAttributes,
-        high_cardinality_attrs: dict[str, str],
-    ) -> None:
-        with self._state_lock:
-            self._scope.add_low_cardinality_attributes(low_cardinality_attrs)
-            self._scope.add_high_cardinality_attributes(high_cardinality_attrs)
+        return _ChildRecorder(
+            self._root,
+            self._context.with_attributes(
+                low_cardinality_attributes or {},
+                high_cardinality_attributes or {},
+            ),
+        )
 
     @_guard
     def _increment_counter(
@@ -236,16 +197,18 @@ class OtelProvider:
         Only low-cardinality attributes from the current context are
         included in the metric record.
         """
-        assert self._meter is not None
-        with self._state_lock:
-            low_cardinality_attributes = dict(self._scope.low_cardinality_attributes)
+        root = self._root
 
-        counter = self._counters.get(name)
+        low_cardinality_attributes = dict(self._context.low_cardinality_attributes)
+
+        counter = root._counters.get(name)
         if counter is None:
-            counter = self._meter.create_counter(name, unit="Count")
-            self._counters[name] = counter
+            with root._counters_lock:
+                counter = root._counters.get(name)
+                if counter is None:
+                    counter = root._meter.create_counter(name, unit="Count")
+                    root._counters[name] = counter
 
-        counter = self._meter.create_counter(name, unit="Count")
         counter.add(1, attributes=low_cardinality_attributes)
 
     @_guard
@@ -260,15 +223,14 @@ class OtelProvider:
         The log record contains the attributes from the current context,
         in addition to the attributes passed when this method is called.
         """
-        assert self._logger is not None
+        root = self._root
 
-        with self._state_lock:
-            merged_attributes = {
-                **self._scope.low_cardinality_attributes,
-                **self._scope.high_cardinality_attributes,
-                **(attributes or {}),
-            }
-        self._logger.emit(
+        merged_attributes = {
+            **self._context.low_cardinality_attributes,
+            **self._context.high_cardinality_attributes,
+            **(attributes or {}),
+        }
+        root._logger.emit(
             body=message,
             severity_number=severity,
             attributes=merged_attributes,
@@ -312,13 +274,12 @@ class OtelProvider:
             name="exception",
         )
 
-        with self._state_lock:
-            exception_attributes = {
-                "exception.type": type(exc).__name__,
-                "exception.stacktrace": _exception_stacktrace(exc),
-                **self._scope.low_cardinality_attributes,
-                **self._scope.high_cardinality_attributes,
-            }
+        exception_attributes = {
+            "exception.type": type(exc).__name__,
+            "exception.stacktrace": _exception_stacktrace(exc),
+            **self._context.low_cardinality_attributes,
+            **self._context.high_cardinality_attributes,
+        }
         self.log(
             message,
             severity=SeverityNumber.ERROR,
@@ -332,29 +293,198 @@ class OtelProvider:
         raise exc
 
 
+class OtelProvider(TelemetryRecorder):
+    """The root `TelemetryRecorder`, which owns the OpenTelemetry providers.
+
+    The root is responsible for initializing and shutting down the underlying
+    providers. Child recorders derived via `with_context` share these providers
+    but do not own them.
+    """
+
+    def __init__(
+        self,
+        *,
+        endpoint: str | None = None,
+        api_key: str,
+        pid: int | None = None,
+    ) -> None:
+        self._enabled = bool(env.error_reporting_enabled())
+        self._pid = pid or os.getpid()
+        self._api_key = api_key
+        self._context = TelemetryContext()
+        self._session: requests.Session = requests.Session()
+
+        # Counters should be created only once per name,
+        # so we cache the counter object upon creation.
+        self._counters_lock = threading.Lock()
+        self._counters: dict[str, Counter] = {}
+
+        self._meter: Meter
+        self._logger: Logger
+        self._meter_provider: MeterProvider | None = None
+        self._logger_provider: LoggerProvider | None = None
+        self._shutdown = False
+        self._initialize_otel_resources(endpoint, api_key)
+
+    @property
+    def _root(self) -> OtelProvider:
+        return self
+
+    def _initialize_otel_resources(
+        self,
+        endpoint: str | None,
+        api_key: str,
+        export_interval_ms: int = _DEFAULT_EXPORT_INTERVAL_MS,
+    ) -> bool:
+        """Initialize the OTel providers.
+
+        This should only be called once during OtelProvider initialization.
+        """
+        if not self._enabled:
+            return False
+
+        endpoint = _otel_endpoint(endpoint)
+        base_url = endpoint + "/sdk/otel/v1"
+
+        try:
+            resource = Resource.create({"service.name": _OTEL_SERVICE_NAME})
+
+            _configure_session_auth(self._session, api_key)
+
+            _redirect_otlp_http_exporter_logs()
+
+            # Setup metrics exporter
+            metric_exporter = OTLPMetricExporter(
+                endpoint=f"{base_url}/metrics",
+                session=self._session,
+                timeout=_OTLP_HTTP_TIMEOUT_SECONDS,
+            )
+            reader = PeriodicExportingMetricReader(
+                metric_exporter,
+                export_interval_millis=export_interval_ms,
+            )
+            self._meter_provider = MeterProvider(
+                resource=resource,
+                metric_readers=[reader],
+            )
+            self._meter = self._meter_provider.get_meter("wandb")
+
+            # Setup logs exporter
+            log_exporter = OTLPLogExporter(
+                endpoint=f"{base_url}/logs",
+                session=self._session,
+                timeout=_OTLP_HTTP_TIMEOUT_SECONDS,
+            )
+            self._logger_provider = LoggerProvider(resource=resource)
+            self._logger_provider.add_log_record_processor(
+                BatchLogRecordProcessor(log_exporter),
+            )
+            self._logger = self._logger_provider.get_logger("wandb.sdk")
+
+            self._booted = True
+        except Exception:
+            _logger.exception("OtelProvider boot failed")
+            self._enabled = False
+            self._booted = False
+            self._meter = NoOpMeter("wandb.sdk")
+            self._logger = NoOpLogger("wandb.sdk")
+            return False
+
+        return True
+
+    def shutdown(self, timeout_millis: float = 30_000) -> None:
+        """Flush pending records and shut down the OpenTelemetry providers.
+
+        After shutdown this provider and every recorder derived from it become
+        no-ops. It should be called once when telemetry is no longer needed;
+        additional calls are no-ops.
+        """
+        # Best-effort guard against repeated shutdowns. A concurrent double
+        # call is harmless: the OpenTelemetry providers' own shutdown is
+        # idempotent, and any error is suppressed below.
+        if self._shutdown:
+            return
+        self._shutdown = True
+        self._enabled = False
+
+        if self._meter_provider is not None:
+            with contextlib.suppress(Exception):
+                self._meter_provider.shutdown(timeout_millis=timeout_millis)
+        if self._logger_provider is not None:
+            with contextlib.suppress(Exception):
+                self._logger_provider.shutdown()
+
+
+class NoOpOtelProvider(OtelProvider):
+    """A no-op `OtelProvider` that does nothing."""
+
+    def __init__(self) -> None:
+        self._enabled = False
+        self._pid = os.getpid()
+        self._context = TelemetryContext()
+        self._meter = NoOpMeter("wandb.sdk")
+        self._logger = NoOpLogger("wandb.sdk")
+
+    def shutdown(self, timeout_millis: float = 0) -> None:
+        pass
+
+
+class _ChildRecorder(TelemetryRecorder):
+    """A derived recorder that shares its root provider's OpenTelemetry state.
+
+    Created via `TelemetryRecorder.with_context`. A child carries its own
+    derived telemetry context but does not own any OpenTelemetry providers, so
+    it cannot be shut down; only the root `OtelProvider` can.
+    """
+
+    def __init__(self, root: OtelProvider, context: TelemetryContext) -> None:
+        self._root_provider = root
+        self._context = context
+
+    @property
+    def _root(self) -> OtelProvider:
+        return self._root_provider
+
+
 _singleton: OtelProvider | None = None
 _singleton_lock = threading.Lock()
 
 
-def get_otel(
+def setup_otel(
     *,
     api_key: str,
 ) -> OtelProvider:
     global _singleton
     pid = os.getpid()
     with _singleton_lock:
-        # If the singleton already exists and belongs to the current process,
-        # return existing instance and update the API key if provided.
         if _singleton is not None and _singleton._pid == pid:
             return _singleton
 
-        # If the singleton does not exist or belongs to a different process,
-        # create a new instance.
+        if not api_key:
+            return NoOpOtelProvider()
+
+        _singleton = OtelProvider(
+            api_key=api_key,
+            pid=pid,
+        )
+        return _singleton
+
+
+def get_otel() -> OtelProvider:
+    """Returns the global singleton `OtelProvider` instance.
+
+    This should be called after `setup_otel` has been called.
+    If `setup_otel` has not been called, this will return a no-op provider.
+    """
+    global _singleton
+    pid = os.getpid()
+    with _singleton_lock:
         if _singleton is None or _singleton._pid != pid:
-            _singleton = OtelProvider(
-                api_key=api_key,
-                pid=pid,
+            _logger.warning(
+                "OtelProvider not setup in this process,"
+                + " no telemetry will be recorded."
             )
+            return NoOpOtelProvider()
         return _singleton
 
 
@@ -391,12 +521,9 @@ def _redirect_otlp_http_exporter_logs() -> None:
     """Redirect OTLP HTTP exporter logs to W&B's internal logger.
 
     The OTLP exporters log through module-level loggers obtained from the
-    process-global `logging` registry, so intercepting their output
-    necessarily mutates global state. To keep that mutation contained, this
-    runs at most once per process: `_redirected_pid` tracks the process that
-    already redirected, and the guard re-arms automatically after a fork
-    (the pid changes). Any forwarding handler inherited across a fork is
-    removed before a fresh one is attached, so the handler never stacks.
+    process-global `logging` registry.
+    So intercepting their output needs to mutate global state.
+    To keep that mutation contained, this runs at most once per process.
     """
     global _redirected_pid
     pid = os.getpid()
