@@ -31,7 +31,7 @@ from wandb.sdk.artifacts.storage_policies._multipart import (
     should_multipart_download,
 )
 from wandb.sdk.artifacts.storage_policies.wandb_storage_policy import WandbStoragePolicy
-from wandb.sdk.lib.hashutil import _md5, md5_string
+from wandb.sdk.lib.hashutil import _md5, _xxh128, md5_string, xxh128_string
 
 if TYPE_CHECKING:
     from typing import Protocol
@@ -770,17 +770,19 @@ def test_artifact_multipart_download_writer_not_on_shared_executor():
 #     assert entry.digest_algorithm == ArtifactDigestAlgorithm.MANIFEST_XXH128
 #     assert artifact.digest_algorithm == ArtifactDigestAlgorithm.MANIFEST_XXH128
 
-# def test_manifest_digest_uses_xxh128_for_xxh128_artifact():
-#     f = Path("file.txt")
-#     f.write_text("hello")
-#     artifact = Artifact("test", type="dataset")
-#     # Force xxh128 algorithm
-#     artifact._digest_algorithm = ArtifactDigestAlgorithm.MANIFEST_XXH128
-#     artifact.add_file(str(f))
 
-#     xxh128_hasher = _xxh128(b"wandb-artifact-manifest-v1\n")
-#     xxh128_hasher.update(f"file.txt:{file_digest}\n".encode())
-#     assert artifact.digest == xxh128_hasher.hexdigest()
+def test_manifest_digest_uses_xxh128_for_xxh128_artifact():
+    f = Path("file.txt")
+    f.write_text("hello")
+    artifact = Artifact("test", type="dataset")
+    # Force xxh128 algorithm
+    artifact._digest_algorithm = ArtifactDigestAlgorithm.MANIFEST_XXH128
+    artifact.add_file(str(f))
+
+    file_digest = xxh128_string("hello")
+    xxh128_hasher = _xxh128(b"wandb-artifact-manifest-v1\n")
+    xxh128_hasher.update(f"file.txt:{file_digest}\n".encode())
+    assert artifact.digest == xxh128_hasher.hexdigest()
 
 
 def test_manifest_digest_uses_md5_for_md5_artifact():
