@@ -22,7 +22,7 @@ from wandb.sdk.artifacts.storage_handlers.s3_handler import S3Handler
 from wandb.sdk.artifacts.storage_handlers.wb_artifact_handler import WBArtifactHandler
 from wandb.sdk.artifacts.storage_policies.wandb_storage_policy import WandbStoragePolicy
 from wandb.sdk.artifacts.storage_policy import StoragePolicy
-from wandb.sdk.lib.hashutil import ETag, md5_string, xxh64_string
+from wandb.sdk.lib.hashutil import ETag, md5_string, xxh128_string
 
 example_digest = md5_string("example")
 
@@ -118,13 +118,17 @@ def test_check_digest_obj_path_md5(artifact_file_cache):
     assert contents == "hi"
 
 
-def test_check_digest_obj_path_xxh64(artifact_file_cache):
-    digest = xxh64_string("hi")
+def test_check_digest_obj_path_xxh128(artifact_file_cache):
+    digest = xxh128_string("hi")
     path, exists, opener = artifact_file_cache.check_digest_obj_path(
-        digest, 2, algorithm=ArtifactDigestAlgorithm.MANIFEST_XXH64
+        digest, 2, algorithm=ArtifactDigestAlgorithm.MANIFEST_XXH128
     )
     expected_path = os.path.join(
-        artifact_file_cache._cache_dir, "obj", "xxh64", "ea", "8842e9ea2638fa"
+        artifact_file_cache._cache_dir,
+        "obj",
+        "xxh128",
+        "7d",
+        "596ce5fcabaf622a2300bbd7ea6e9a",
     )
     assert path == expected_path
 
@@ -362,13 +366,15 @@ def test_wandb_storage_policy_load_file_uses_cache(artifact_file_cache, tmp_path
     assert local_path == path
 
 
-def test_wandb_storage_policy_load_file_uses_cache_xxh64(artifact_file_cache, tmp_path):
+def test_wandb_storage_policy_load_file_uses_cache_xxh128(
+    artifact_file_cache, tmp_path
+):
     file = tmp_path / "file.txt"
     file.write_text("hello")
     digest = "JseCfYifbaM="
 
     path, _, opener = artifact_file_cache.check_digest_obj_path(
-        digest=digest, size=5, algorithm=ArtifactDigestAlgorithm.MANIFEST_XXH64
+        digest=digest, size=5, algorithm=ArtifactDigestAlgorithm.MANIFEST_XXH128
     )
     with opener() as f:
         f.write("hello")
@@ -378,7 +384,7 @@ def test_wandb_storage_policy_load_file_uses_cache_xxh64(artifact_file_cache, tm
         path=file,
         digest=digest,
         size=5,
-        digest_algorithm=ArtifactDigestAlgorithm.MANIFEST_XXH64,
+        digest_algorithm=ArtifactDigestAlgorithm.MANIFEST_XXH128,
     )
 
     # We need to pass an artifact, but this test doesn't actually use it
