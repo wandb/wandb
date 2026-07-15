@@ -1127,6 +1127,14 @@ def _monkeypatch_tensorboard() -> None:
     tb_module.patch()
 
 
+def _validate_init_settings(init_settings: Settings) -> None:
+    if init_settings.mode == "offline" and init_settings.resume not in (None, "must", "never"):
+        raise UsageError(
+            f"resume={init_settings.resume!r} is not supported in offline mode; "
+            'only "must" and "never" are supported.'
+        )
+
+
 def try_create_root_dir(settings: Settings) -> None:
     """Try to create the root directory specified in settings.
 
@@ -1434,6 +1442,8 @@ def init(  # noqa: C901
         init_settings.fork_from = fork_from  # type: ignore
     if resume_from is not None:
         init_settings.resume_from = resume_from  # type: ignore
+
+    _validate_init_settings(init_settings)
 
     if config is not None:
         init_telemetry.feature.set_init_config = True
