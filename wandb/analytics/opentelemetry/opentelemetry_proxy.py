@@ -190,7 +190,7 @@ class OtelProvider:
                 resource=resource,
                 metric_readers=[reader],
             )
-            self._meter = self._meter_provider.get_meter("wandb.sdk")
+            self._meter = self._meter_provider.get_meter("wandb")
 
             # Setup logs exporter
             log_exporter = OTLPLogExporter(
@@ -206,7 +206,7 @@ class OtelProvider:
 
             self._booted = True
         except Exception:
-            _logger.debug("OtelProvider boot failed", exc_info=True)
+            _logger.exception("OtelProvider boot failed")
             with self._state_lock:
                 self._enabled = False
                 self._booted = False
@@ -249,7 +249,7 @@ class OtelProvider:
         counter.add(1, attributes=low_cardinality_attributes)
 
     @_guard
-    def record_log(
+    def log(
         self,
         message: str,
         attributes: dict[str, str] | None = None,
@@ -282,7 +282,7 @@ class OtelProvider:
     ) -> None:
         """Increment a counter metric by 1 and log an event with the given name."""
         self._increment_counter(name)
-        self.record_log(
+        self.log(
             message=name,
             attributes=attributes,
         )
@@ -319,7 +319,7 @@ class OtelProvider:
                 **self._scope.low_cardinality_attributes,
                 **self._scope.high_cardinality_attributes,
             }
-        self.record_log(
+        self.log(
             message,
             severity=SeverityNumber.ERROR,
             attributes=exception_attributes,
