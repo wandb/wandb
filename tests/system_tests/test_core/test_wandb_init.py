@@ -1,5 +1,6 @@
 import json
 import os
+from pathlib import Path
 from unittest import mock
 
 import pytest
@@ -151,6 +152,11 @@ def test_skip_transaction_log(user, skip_transaction_log):
     ) as run:
         pass
     assert os.path.exists(run._settings.sync_file) == (not skip_transaction_log)
+
+    syncstate_file = Path(f"{run._settings.sync_file}.syncstate")
+    assert syncstate_file.exists() == (not skip_transaction_log)
+    if not skip_transaction_log:
+        assert json.loads(syncstate_file.read_text())["starting_step"] == 0
 
 
 def test_skip_transaction_log_offline(user):

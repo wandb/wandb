@@ -117,10 +117,11 @@ func NewStream(
 		runWork,
 		/*fileReadDelay=*/ 5*time.Second,
 	)
-	// Live runs resolve resume metadata once, when the run starts, so
-	// there's no need to pin the starting step across repeated attempts.
-	noopStore := runsyncstate.Noop()
-	recordParser := recordParserFactory.New(runWork.BeforeEndCtx(), tbHandler, noopStore)
+	syncStateStore := runsyncstate.Noop()
+	if !s.IsSkipTransactionLog() {
+		syncStateStore = runsyncstate.File(s.GetTransactionLogPath())
+	}
+	recordParser := recordParserFactory.New(runWork.BeforeEndCtx(), tbHandler, syncStateStore)
 
 	stream := &Stream{
 		runWork:            runWork,
@@ -184,6 +185,10 @@ func (s *Stream) maybeSavingToTransactionLog(
 		s.logger.Error(fmt.Sprintf(
 			"stream: error opening transaction log for writing: %v", err))
 		return work
+	}
+
+	if err := runsyncstate.EnsureExists(s.settings.GetTransactionLogPath()); err != nil {
+		s.logger.Error("stream: error creating sync state file", "error", err)
 	}
 
 	r, err := transactionlog.OpenReader(

@@ -207,6 +207,14 @@ func InitRun(
 		}
 	}
 
+	startingStep, err := upserter.syncStateStore.GetOrInitStartingStep(
+		upserter.params.StartingStep,
+	)
+	if err != nil {
+		return nil, ToRunUpdateError(err)
+	}
+	upserter.params.StartingStep = startingStep
+
 	// If we're offline, skip upserting.
 	if upserter.graphqlClientOrNil == nil {
 		return upserter, nil
@@ -447,14 +455,6 @@ func (upserter *RunUpserter) updateMetadataForResume(
 	if err != nil {
 		return err
 	}
-
-	startingStep, err := upserter.syncStateStore.GetOrInitStartingStep(
-		upserter.params.StartingStep,
-	)
-	if err != nil {
-		return err
-	}
-	upserter.params.StartingStep = startingStep
 
 	return nil
 }

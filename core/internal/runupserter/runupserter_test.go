@@ -217,16 +217,16 @@ func TestResume_Offline_Succeeds(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-// fakeStartingStepStore is a test double for runupserter.StartingStepStore.
+// fakeSyncStateStore is a test double for runupserter.StartingStepStore.
 //
 // If startingStep is set, it's always returned regardless of the value
 // passed in, mimicking a .wandb file that was already synced once.
 // Otherwise, it remembers the passed-in value, mimicking a first sync.
-type fakeStartingStepStore struct {
+type fakeSyncStateStore struct {
 	startingStep *int64
 }
 
-func (f *fakeStartingStepStore) GetOrInitStartingStep(
+func (f *fakeSyncStateStore) GetOrInitStartingStep(
 	computedStep int64,
 ) (int64, error) {
 	if f.startingStep != nil {
@@ -237,12 +237,12 @@ func (f *fakeStartingStepStore) GetOrInitStartingStep(
 	return computedStep, nil
 }
 
-func TestResume_StartingStepStore_InitializesStartingStep(t *testing.T) {
+func TestResume_InitializesSyncStateStartingStep(t *testing.T) {
 	mockClient := gqlmock.NewMockClient()
 	runupsertertest.StubRunResumeStatusWithStep(t, mockClient, 5)
 	runupsertertest.StubUpsertBucket(t, mockClient)
 
-	store := &fakeStartingStepStore{}
+	store := &fakeSyncStateStore{}
 	params := testParams(t)
 	params.GraphqlClientOrNil = mockClient
 	params.Settings = settings.From(&spb.Settings{Resume: wrapperspb.String("allow")})
@@ -259,13 +259,13 @@ func TestResume_StartingStepStore_InitializesStartingStep(t *testing.T) {
 	assert.EqualValues(t, 5, *store.startingStep)
 }
 
-func TestResume_StartingStepStore_ReusesStartingStep(t *testing.T) {
+func TestResume_ReusesSyncStateStartingStep(t *testing.T) {
 	mockClient := gqlmock.NewMockClient()
 	runupsertertest.StubRunResumeStatusWithStep(t, mockClient, 99)
 	runupsertertest.StubUpsertBucket(t, mockClient)
 
 	startingStep := int64(6)
-	store := &fakeStartingStepStore{startingStep: &startingStep}
+	store := &fakeSyncStateStore{startingStep: &startingStep}
 	params := testParams(t)
 	params.GraphqlClientOrNil = mockClient
 	params.Settings = settings.From(&spb.Settings{Resume: wrapperspb.String("allow")})
@@ -283,7 +283,23 @@ func TestResume_StartingStepStore_ReusesStartingStep(t *testing.T) {
 	assert.EqualValues(t, 6, run.StartingStep)
 }
 
-func TestRewind(t *testing.T) {
+func TestNewRun_InitializesSyncStateStartingStep(t *testing.T) {
+	store := &fakeSyncStateStore{}
+	params := testParams(t)
+	params.SyncStateStore = store
+
+	upserter, err := runupserter.InitRun(runRecord(&spb.RunRecord{RunId: "run"}), params)
+	require.NoError(t, err)
+	defer upserter.Finish()
+
+	run := &spb.RunRecord{}
+	upserter.FillRunRecord(run)
+	assert.EqualValues(t, 0, run.StartingStep)
+	require.NotNil(t, store.startingStep)
+	assert.EqualValues(t, 0, *store.startingStep)
+}
+
+func TestRewind_InitializesSyncStateStartingStep(t *testing.T) {
 	// NOTE: Rewinding works offline.
 	runInitRecord := runRecord(
 		&spb.RunRecord{
@@ -295,16 +311,22 @@ func TestRewind(t *testing.T) {
 			},
 		})
 
-	upserter, err := runupserter.InitRun(runInitRecord, testParams(t))
+	store := &fakeSyncStateStore{}
+	params := testParams(t)
+	params.SyncStateStore = store
+
+	upserter, err := runupserter.InitRun(runInitRecord, params)
 	defer upserter.Finish()
 
 	assert.NoError(t, err)
 	run := &spb.RunRecord{}
 	upserter.FillRunRecord(run)
 	assert.EqualValues(t, run.StartingStep, 124)
+	require.NotNil(t, store.startingStep)
+	assert.EqualValues(t, 124, *store.startingStep)
 }
 
-func TestFork(t *testing.T) {
+func TestFork_InitializesSyncStateStartingStep(t *testing.T) {
 	// NOTE: Forking works offline.
 	runInitRecord := runRecord(
 		&spb.RunRecord{
@@ -317,13 +339,19 @@ func TestFork(t *testing.T) {
 		},
 	)
 
-	upserter, err := runupserter.InitRun(runInitRecord, testParams(t))
+	store := &fakeSyncStateStore{}
+	params := testParams(t)
+	params.SyncStateStore = store
+
+	upserter, err := runupserter.InitRun(runInitRecord, params)
 	defer upserter.Finish()
 
 	assert.NoError(t, err)
 	run := &spb.RunRecord{}
 	upserter.FillRunRecord(run)
 	assert.EqualValues(t, run.StartingStep, 11)
+	require.NotNil(t, store.startingStep)
+	assert.EqualValues(t, 11, *store.startingStep)
 }
 
 type variablesForUpdateTest struct {

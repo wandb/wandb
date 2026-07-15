@@ -47,8 +47,23 @@ func (s *noopStore) GetOrInitStartingStep(startingStep int64) (int64, error) {
 }
 
 // File returns a store for a run's sync state file.
-func File(wandbFilePath string) Store {
-	return &fileStore{path: wandbFilePath + syncStateSuffix}
+func File(transactionLogPath string) Store {
+	return &fileStore{path: transactionLogPath + syncStateSuffix}
+}
+
+// EnsureExists creates an empty sync state file if one does not exist.
+func EnsureExists(transactionLogPath string) error {
+	path := transactionLogPath + syncStateSuffix
+	err := lockedfile.Transform(path, func(data []byte) ([]byte, error) {
+		if len(data) > 0 {
+			return data, nil
+		}
+		return []byte("{}"), nil
+	})
+	if err != nil {
+		return fmt.Errorf("runsync: failed to create sync state file: %v", err)
+	}
+	return nil
 }
 
 // GetOrInitStartingStep returns the starting step previously initialized, if any.
