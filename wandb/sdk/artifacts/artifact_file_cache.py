@@ -57,7 +57,7 @@ class ArtifactFileCache:
 
     _ALGORITHM_PATH_SEGMENT = {
         ArtifactDigestAlgorithm.MANIFEST_MD5: "md5",
-        ArtifactDigestAlgorithm.MANIFEST_XXH64: "xxh64",
+        ArtifactDigestAlgorithm.MANIFEST_XXH128: "xxh128",
     }
 
     def check_digest_obj_path(

@@ -28,7 +28,7 @@ from wandb.sdk.lib.hashutil import (
     b64_to_hex_id,
     hex_to_b64_id,
     md5_file_b64,
-    xxh64_file_b64,
+    xxh128_file_b64,
 )
 from wandb.sdk.lib.paths import FilePathStr, LogicalPath, URIStr
 
@@ -185,8 +185,8 @@ class ArtifactManifestEntry(ArtifactsBase):
 
         # Fallback to computing/caching the checksum hash
         try:
-            if self.digest_algorithm == ArtifactDigestAlgorithm.MANIFEST_XXH64:
-                existing_hash = xxh64_file_b64(dest_path)
+            if self.digest_algorithm == ArtifactDigestAlgorithm.MANIFEST_XXH128:
+                existing_hash = xxh128_file_b64(dest_path)
             else:
                 existing_hash = md5_file_b64(dest_path)
         except (FileNotFoundError, IsADirectoryError):
