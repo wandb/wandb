@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from collections import deque
 from collections.abc import Iterator
 from itertools import islice
 from typing import TYPE_CHECKING, Any, ClassVar, Generic, TypeVar, overload
@@ -99,12 +100,13 @@ class Registries(RelayPaginator["RegistryFragment", "Registry"]):
         if (registry_order := self.order) is not None and start is not None:
             raise ValueError(
                 f"{start=} is not supported when querying collections from registries "
-                f"fetched with {registry_order=}. Remove either 'order' from the "
+                f"fetched with order={registry_order!r}. Remove either 'order' from the "
                 "registries query or 'start' from the collections query."
             )
-        if self.order is not None:
-            return _ChildCollections(
-                parent=self,
+        if registry_order is not None:
+            return _GroupedCollections(
+                service_api=self._service_api,
+                parents=self,
                 collection_filter=filter,
                 order=order,
                 per_page=per_page,
@@ -142,9 +144,10 @@ class Registries(RelayPaginator["RegistryFragment", "Registry"]):
                 f"fetched with {order=}. Remove either 'order' from the registries "
                 "query or 'start' from the versions query."
             )
-        if self.order is not None:
-            return _ChildVersions(
-                parent=self,
+        if order is not None:
+            return _GroupedVersions(
+                service_api=self._service_api,
+                parents=self,
                 artifact_filter=filter,
                 per_page=per_page,
             )
@@ -267,8 +270,9 @@ class Collections(
                 "query or 'start' from the versions query."
             )
         if self.order is not None:
-            return _ChildVersions(
-                parent=self,
+            return _GroupedVersions(
+                self._service_api,
+                parents=self,
                 artifact_filter=filter,
                 per_page=per_page,
             )
@@ -414,68 +418,74 @@ class Versions(RelayPaginator["ArtifactMembershipFragment", "Artifact"]):
         )
 
 
-_ParentT = TypeVar("_ParentT", Registries, Collections)
+# TODO(tonyyli): Consolidate unnecessarily duplicated boilerplate
+_ParentGroupsT = TypeVar("_ParentGroupsT", Registries, Collections)
 
 
-class _ChildCollections(Collections):
+class _GroupedCollections(Collections):
+    groups: Iterator[Collections] | None
+
     def __init__(
         self,
-        parent: Registries,
+        service_api: ServiceApi,
+        parents: Registries,
         collection_filter: dict[str, Any] | None = None,
         order: str | None = None,
         per_page: PositiveInt = 100,
     ):
         super().__init__(
-            service_api=parent._service_api,
-            organization=parent.organization,
-            registry_filter=parent.filter,
+            service_api=parents._service_api,
+            organization=parents.organization,
+            registry_filter=parents.filter,
             collection_filter=collection_filter,
             order=order,
             per_page=per_page,
         )
-        self._children: Iterator[Collections] | None = (
-            Collections(
-                service_api=self._service_api,
-                organization=self.organization,
-                registry_filter={"name": registry.full_name},
-                collection_filter=self.collection_filter,
-                order=self.order,
-                per_page=self.per_page,
-            )
-            for registry in parent
-        )
-        self._active_child: Collections | None = None
+
+        self.current: Collections | None = None
+
+        match parents:
+            case Registries(organization=org):
+                self.groups = (
+                    Collections(
+                        service_api=service_api,
+                        organization=org,
+                        registry_filter={"name": reg.full_name},
+                        collection_filter=collection_filter,
+                        order=order,
+                        per_page=per_page,
+                    )
+                    for reg in parents
+                )
+            case _:
+                raise TypeError(f"Unrecognized parent type: {type(parents)}")
 
     @property
     @override
     def more(self) -> bool:
-        return self._children is not None or self._active_child is not None
+        return self.groups is not None or self.current is not None
 
     @property
     @override
     def cursor(self) -> str | None:
         raise UnsupportedError(
             "`cursor` is not supported for ordered chained registry queries. "
-            "The result is flattened across multiple child queries, so there is no single cursor."
         )
 
     @property
     def length(self) -> int | None:
         raise UnsupportedError(
             "`length` is not supported for ordered chained registry queries. "
-            "The result is flattened across multiple child queries, so there is no single length."
         )
 
     @override
     def __len__(self) -> int:
         raise TypeError(
             "`len(...)` is not supported for ordered chained registry queries. "
-            "The result is flattened across multiple child queries, so there is no single length."
         )
 
     @overload
     def __getitem__(self, index: int) -> ArtifactCollection: ...
-
     @overload
     def __getitem__(self, index: slice) -> list[ArtifactCollection]: ...
 
@@ -485,7 +495,6 @@ class _ChildCollections(Collections):
     ) -> ArtifactCollection | list[ArtifactCollection]:
         raise UnsupportedError(
             "`__getitem__` is not supported for ordered chained registry queries. "
-            "The result is flattened across multiple child queries, so indexed access would hide cross-query pagination."
         )
 
     @tracked
@@ -501,88 +510,92 @@ class _ChildCollections(Collections):
                 "fetched with an order. Remove either 'order' from the registries "
                 "query or 'start' from the versions query."
             )
-        return _ChildVersions(
-            parent=self,
+        return _GroupedVersions(
+            service_api=self._service_api,
+            parents=self,
             artifact_filter=filter,
             per_page=per_page,
         )
 
     @override
     def _load_page(self) -> bool:
-        page: list[ArtifactCollection] = []
-        while len(page) < self.per_page:
-            if self._active_child is None:
-                if self._children is None:
+        # TODO(tonyyli): Fix this, it's bad
+        page: deque[ArtifactCollection] = deque()
+        while (remaining := (self.per_page - len(page))) > 0:
+            if self.current is None:
+                if self.groups is None:
                     break
                 try:
-                    self._active_child = next(self._children)
+                    self.current = next(self.groups)
                 except StopIteration:
-                    self._children = None
+                    self.groups = None
                     break
 
-            remaining = self.per_page - len(page)
-            page.extend(islice(self._active_child, remaining))
+            page.extend(islice(self.current, remaining))
             if len(page) < self.per_page:
-                self._active_child = None
+                self.current = None
 
         self.objects.extend(page)
         return len(page) > 0
 
 
-class _ChildVersions(Versions, Generic[_ParentT]):
+class _GroupedVersions(Versions, Generic[_ParentGroupsT]):
+    groups: Iterator[Versions] | None
+
     def __init__(
         self,
-        parent: _ParentT,
+        service_api: ServiceApi,
+        parents: _ParentGroupsT,
         artifact_filter: dict[str, Any] | None = None,
         per_page: PositiveInt = 100,
     ):
         super().__init__(
-            service_api=parent._service_api,
-            organization=parent.organization,
+            service_api=service_api,
+            organization=parents.organization,
             artifact_filter=artifact_filter,
             per_page=per_page,
         )
-        if isinstance(parent, Registries):
-            self._children: Iterator[Versions] | None = (
-                Versions(
-                    service_api=self._service_api,
-                    organization=self.organization,
-                    registry_filter={"name": registry.full_name},
-                    collection_filter=None,
-                    artifact_filter=self.artifact_filter,
-                    per_page=self.per_page,
+
+        match parents:
+            case Registries(organization=org):
+                self.groups = (
+                    Versions(
+                        service_api=self._service_api,
+                        organization=org,
+                        registry_filter={"name": reg.full_name},
+                        collection_filter=None,
+                        artifact_filter=artifact_filter,
+                        per_page=per_page,
+                    )
+                    for reg in parents
                 )
-                for registry in parent
-            )
-        else:
-            self._children = (
-                Versions(
-                    service_api=self._service_api,
-                    organization=self.organization,
-                    registry_filter={"name": collection.project}
-                    if collection.project
-                    else None,
-                    collection_filter={"name": collection.name}
-                    if collection.name
-                    else None,
-                    artifact_filter=self.artifact_filter,
-                    per_page=self.per_page,
+            case Collections(organization=org):
+                self.groups = (
+                    Versions(
+                        service_api=self._service_api,
+                        organization=org,
+                        registry_filter={"name": col.project},
+                        collection_filter={"name": col.name},
+                        artifact_filter=artifact_filter,
+                        per_page=per_page,
+                    )
+                    for col in parents
                 )
-                for collection in parent
-            )
-        self._active_child: Versions | None = None
+            case _:
+                raise TypeError(f"Unrecognized parent type: {type(parents)}")
+
+        self.current: Versions | None = None
 
     @property
     @override
     def more(self) -> bool:
-        return self._children is not None or self._active_child is not None
+        return self.groups is not None or self.current is not None
 
     @property
     @override
     def cursor(self) -> str | None:
         raise UnsupportedError(
             "`cursor` is not supported for ordered chained registry queries. "
-            "The result is flattened across multiple child queries, so there is no single cursor."
         )
 
     @property
@@ -590,18 +603,10 @@ class _ChildVersions(Versions, Generic[_ParentT]):
     def length(self) -> int | None:
         raise UnsupportedError(
             "`length` is not supported for ordered chained registry queries. "
-            "The result is flattened across multiple child queries, so there is no single length."
-        )
-
-    def __len__(self) -> int:
-        raise TypeError(
-            "`len(...)` is not supported for ordered chained registry queries. "
-            "The result is flattened across multiple child queries, so there is no single length."
         )
 
     @overload
     def __getitem__(self, index: int) -> Artifact: ...
-
     @overload
     def __getitem__(self, index: slice) -> list[Artifact]: ...
 
@@ -609,26 +614,25 @@ class _ChildVersions(Versions, Generic[_ParentT]):
     def __getitem__(self, index: int | slice) -> Artifact | list[Artifact]:
         raise UnsupportedError(
             "`__getitem__` is not supported for ordered chained registry queries. "
-            "The result is flattened across multiple child queries, so indexed access would hide cross-query pagination."
         )
 
     @override
     def _load_page(self) -> bool:
-        page: list[Artifact] = []
-        while len(page) < self.per_page:
-            if self._active_child is None:
-                if self._children is None:
+        # TODO(tonyyli): Fix this, it's bad
+        page: deque[Artifact] = deque()
+        while (remaining := (self.per_page - len(page))) > 0:
+            if self.current is None:
+                if self.groups is None:
                     break
                 try:
-                    self._active_child = next(self._children)
+                    self.current = next(self.groups)
                 except StopIteration:
-                    self._children = None
+                    self.groups = None
                     break
 
-            remaining = self.per_page - len(page)
-            page.extend(islice(self._active_child, remaining))
+            page.extend(islice(self.current, remaining))
             if len(page) < self.per_page:
-                self._active_child = None
+                self.current = None
 
         self.objects.extend(page)
         return len(page) > 0
