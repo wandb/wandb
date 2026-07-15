@@ -3,11 +3,8 @@ package runsync
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"sync"
 
-	"github.com/wandb/wandb/core/internal/analytics"
-	"github.com/wandb/wandb/core/internal/settings"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
@@ -20,8 +17,6 @@ type RunSyncManager struct {
 	ongoingSyncOps map[string]*RunSyncOperation
 
 	runSyncOperationFactory *RunSyncOperationFactory
-
-	telemetryProxy analytics.OpenTelemetryProxy
 }
 
 func NewRunSyncManager() *RunSyncManager {
@@ -38,11 +33,6 @@ func (m *RunSyncManager) InitSync(
 ) *spb.ServerInitSyncResponse {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-
-	m.telemetryProxy = analytics.NewOpenTelemetryProxy(
-		context.Background(),
-		settings.From(request.Settings),
-	)
 
 	id := fmt.Sprintf("sync-%d", m.nextID)
 	m.nextID++
@@ -85,10 +75,6 @@ func (m *RunSyncManager) DoSync(
 	m.mu.Lock()
 	delete(m.ongoingSyncOps, request.Id)
 	m.mu.Unlock()
-
-	if err := m.telemetryProxy.Shutdown(context.Background()); err != nil {
-		slog.Error("runsync: failed to shutdown telemetry proxy", "error", err)
-	}
 
 	return response
 }

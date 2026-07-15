@@ -154,7 +154,7 @@ func (h *Handler) OutChan() <-chan runwork.Work {
 //
 //gocyclo:ignore
 func (h *Handler) Do(allWork <-chan runwork.Work) {
-	defer h.logger.Reraise()
+	defer h.logger.Reraise("handler")
 	h.logger.Info("handler: started")
 	for work := range allWork {
 		h.logger.Debug("handler: got work", "work", work)
@@ -237,10 +237,14 @@ func (h *Handler) handleRecord(record *spb.Record, request *runwork.Request) {
 		h.handleSummary(x.Summary)
 	case nil:
 		h.logger.CaptureFatalAndPanic(
-			errors.New("handler: handleRecord: record type is nil"))
+			"handler",
+			errors.New("handler: handleRecord: record type is nil"),
+		)
 	default:
 		h.logger.CaptureFatalAndPanic(
-			fmt.Errorf("handler: handleRecord: unknown record type %T", x))
+			"handler",
+			fmt.Errorf("handler: handleRecord: unknown record type %T", x),
+		)
 	}
 }
 
@@ -325,10 +329,14 @@ func (h *Handler) handleRequest(
 		h.handleRequestProbeSystemInfo(record)
 	case nil:
 		h.logger.CaptureFatalAndPanic(
-			errors.New("handler: handleRequest: request type is nil"))
+			"handler.handleRequest",
+			errors.New("handler: handleRequest: request type is nil"),
+		)
 	default:
 		h.logger.CaptureFatalAndPanic(
-			fmt.Errorf("handler: handleRequest: unknown request type %T", x))
+			"handler.handleRequest",
+			fmt.Errorf("handler: handleRequest: unknown request type %T", x),
+		)
 	}
 }
 
@@ -370,14 +378,18 @@ func (h *Handler) handleMetric(record *spb.Record) {
 	metric := record.GetMetric()
 	if metric == nil {
 		h.logger.CaptureError(
-			errors.New("handler: bad record type for handleMetric"))
+			"handler",
+			errors.New("handler: bad record type for handleMetric"),
+		)
 		return
 	}
 
 	if err := h.metricHandler.ProcessRecord(metric); err != nil {
 		h.logger.CaptureError(
+			"handler",
 			fmt.Errorf("handler: cannot add metric: %v", err),
-			"metric", metric)
+			"metric", metric,
+		)
 		return
 	}
 
@@ -492,7 +504,9 @@ func (h *Handler) handleRequestRunStart(
 
 	if h.runRecord, ok = proto.Clone(run).(*spb.RunRecord); !ok {
 		h.logger.CaptureFatalAndPanic(
-			errors.New("handleRunStart: failed to clone run"))
+			"handler.handleRequestRunStart",
+			errors.New("handleRunStart: failed to clone run"),
+		)
 	}
 	h.fwdRecord(record, request)
 
@@ -743,7 +757,9 @@ func (h *Handler) handleRequestGetSummary(
 	// able to produce.
 	if err != nil {
 		h.logger.CaptureError(
-			fmt.Errorf("handler: error flattening run summary: %v", err))
+			"handler",
+			fmt.Errorf("handler: error flattening run summary: %v", err),
+		)
 	}
 
 	response.ResponseType = &spb.Response_GetSummaryResponse{
@@ -853,7 +869,9 @@ func (h *Handler) handleRequestJobInput(
 func (h *Handler) handleSummary(summary *spb.SummaryRecord) {
 	if err := runsummary.FromProto(summary).Apply(h.runSummary); err != nil {
 		h.logger.CaptureError(
-			fmt.Errorf("handler: error processing summary: %v", err))
+			"handler",
+			fmt.Errorf("handler: error processing summary: %v", err),
+		)
 	}
 }
 
@@ -948,8 +966,10 @@ func (h *Handler) handlePartialHistoryAsync(request *spb.PartialHistoryRequest) 
 
 		if err != nil {
 			h.logger.CaptureError(
+				"handler",
 				fmt.Errorf("handler: failed to set history metric: %v", err),
-				"item", item)
+				"item", item,
+			)
 		}
 	}
 
@@ -997,8 +1017,10 @@ func (h *Handler) handlePartialHistorySync(request *spb.PartialHistoryRequest) {
 		err := h.partialHistory.SetFromRecord(item)
 		if err != nil {
 			h.logger.CaptureError(
+				"handler",
 				fmt.Errorf("handler: failed to set history metric: %v", err),
-				"item", item)
+				"item", item,
+			)
 		}
 	}
 
@@ -1075,7 +1097,9 @@ func (h *Handler) flushPartialHistory(useStep bool, nextStep int64) {
 	// Report errors, but continue anyway to drop as little data as possible.
 	if err != nil {
 		h.logger.CaptureError(
-			fmt.Errorf("handler: error flattening run history: %v", err))
+			"handler",
+			fmt.Errorf("handler: error flattening run history: %v", err),
+		)
 		h.terminalPrinter.Warnf(
 			"There was an issue processing run metrics in step %d;"+
 				" some data may be missing.",
@@ -1103,7 +1127,9 @@ func (h *Handler) updateSummary() {
 	// We continue despite errors to update as much of the summary as we can.
 	if err != nil {
 		h.logger.CaptureError(
-			fmt.Errorf("handler: error updating summary: %v", err))
+			"handler",
+			fmt.Errorf("handler: error updating summary: %v", err),
+		)
 	}
 
 	if len(updates) == 0 {

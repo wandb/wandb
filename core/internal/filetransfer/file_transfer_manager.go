@@ -87,7 +87,12 @@ func (fm *fileTransferManager) AddTask(task Task) {
 		<-fm.semaphore
 
 		if err != nil {
-			fm.logger.CaptureError(err, "task", task.String())
+			fm.logger.CaptureError(
+				"FileTransferManager",
+				err,
+				"task",
+				task.String(),
+			)
 		}
 
 		// Execute the callback.

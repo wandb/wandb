@@ -126,7 +126,10 @@ func (cwm *CoreWeaveMetadata) Probe(ctx context.Context) *spb.EnvironmentRecord 
 
 	upserter, err := cwm.runHandle.Upserter()
 	if err != nil {
-		cwm.logger.CaptureError(fmt.Errorf("cwmetadata: %v", err))
+		cwm.logger.CaptureError(
+			"cwmetadata",
+			fmt.Errorf("cwmetadata: %v", err),
+		)
 		return nil
 	}
 	entity := upserter.RunPath().Entity

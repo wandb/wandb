@@ -542,8 +542,14 @@ func (w *Workspace) ensureLiveStreaming(run *WorkspaceRun) tea.Cmd {
 		run.watcher = NewWatcherManager(ch, w.logger)
 
 		if err := run.watcher.Start(run.wandbPath); err != nil {
-			w.logger.CaptureError(fmt.Errorf(
-				"workspace: failed to start watcher for %s: %v", run.Key, err))
+			w.logger.CaptureError(
+				"leet.Workspace",
+				fmt.Errorf(
+					"workspace: failed to start watcher for %s: %v",
+					run.Key,
+					err,
+				),
+			)
 			run.watcher = nil
 		} else {
 			watcherCmd = w.waitForWatcher(run.Key)
@@ -601,10 +607,15 @@ func (w *Workspace) handleWorkspaceInitErr(msg WorkspaceInitErrMsg) tea.Cmd {
 	}
 
 	if msg.Err != nil && !os.IsNotExist(msg.Err) {
-		w.logger.CaptureError(fmt.Errorf(
-			"workspace: init reader for %s (%s): %v",
-			msg.RunKey, msg.RunPath, msg.Err,
-		))
+		w.logger.CaptureError(
+			"leet.Workspace",
+			fmt.Errorf(
+				"workspace: init reader for %s (%s): %v",
+				msg.RunKey,
+				msg.RunPath,
+				msg.Err,
+			),
+		)
 	}
 	return nil
 }
@@ -1070,7 +1081,10 @@ func (w *Workspace) toggleRunSelected(runKey string) tea.Cmd {
 	wandbFile := runWandbFile(w.wandbDir, runKey)
 	if wandbFile == "" {
 		err := fmt.Errorf("workspace: unable to resolve .wandb file for run key %q", runKey)
-		w.logger.CaptureError(err)
+		w.logger.CaptureError(
+			"leet.Workspace",
+			err,
+		)
 		return nil
 	}
 

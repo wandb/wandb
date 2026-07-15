@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -92,7 +91,7 @@ func TestReraise(t *testing.T) {
 			assert.Empty(t, logs)
 		}()
 
-		defer logger.Reraise()
+		defer logger.Reraise("logging_test")
 	})
 
 	t.Run("panic with error", func(t *testing.T) {
@@ -104,7 +103,7 @@ func TestReraise(t *testing.T) {
 			assert.Contains(t, logs.String(), "test error")
 		}()
 
-		defer logger.Reraise()
+		defer logger.Reraise("logging_test")
 		panic(testErr)
 	})
 
@@ -116,7 +115,7 @@ func TestReraise(t *testing.T) {
 			assert.Contains(t, logs.String(), "test error string")
 		}()
 
-		defer logger.Reraise()
+		defer logger.Reraise("logging_test")
 		panic("test error string")
 	})
 }
@@ -128,7 +127,7 @@ func TestCaptureFatalAndPanic_Nil(t *testing.T) {
 		assert.ErrorContains(t, recover().(error), "panicked with nil error")
 	}()
 
-	logger.CaptureFatalAndPanic(nil)
+	logger.CaptureFatalAndPanic("logging_test", nil)
 }
 
 func TestLoggerHierarchy(t *testing.T) {
@@ -191,12 +190,11 @@ func (f *fakeTelemetryRecorder) IncrementCounterAndLogEvent(
 
 func (f *fakeTelemetryRecorder) Error(
 	_ context.Context,
-	_ string,
-	_ error,
-	codeFunctionName string,
+	errorOriginator string,
+	message string,
 ) {
 	f.errorCalled = true
-	f.lastCodeFunctionName = codeFunctionName
+	f.lastCodeFunctionName = errorOriginator
 }
 
 func (f *fakeTelemetryRecorder) With(
@@ -220,22 +218,18 @@ func TestCaptureError_AttributesCaller(t *testing.T) {
 	rec := &fakeTelemetryRecorder{}
 	logger := newTelemetryTestLogger(rec)
 
-	logger.CaptureError(errors.New("boom"))
-	pc, _, _, _ := runtime.Caller(0)
-	want := runtime.FuncForPC(pc).Name()
+	logger.CaptureError("logging_test", errors.New("boom"))
 
 	require.True(t, rec.errorCalled, "expected Error to be recorded")
-	assert.Equal(t, want, rec.lastCodeFunctionName)
+	assert.Equal(t, "logging_test", rec.lastCodeFunctionName)
 }
 
 func TestCaptureFatal_AttributesCaller(t *testing.T) {
 	rec := &fakeTelemetryRecorder{}
 	logger := newTelemetryTestLogger(rec)
 
-	logger.CaptureFatal(errors.New("boom"))
-	pc, _, _, _ := runtime.Caller(0)
-	want := runtime.FuncForPC(pc).Name()
+	logger.CaptureFatal("logging_test", errors.New("boom"))
 
 	require.True(t, rec.errorCalled, "expected Error to be recorded")
-	assert.Equal(t, want, rec.lastCodeFunctionName)
+	assert.Equal(t, "logging_test", rec.lastCodeFunctionName)
 }

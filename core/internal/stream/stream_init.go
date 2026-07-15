@@ -34,7 +34,9 @@ func BaseURLFromSettings(
 	baseURL, err := url.Parse(s.GetBaseURL())
 	if err != nil {
 		logger.CaptureFatalAndPanic(
-			fmt.Errorf("stream_init: BaseURLFromSettings: %v", err))
+			"stream_init",
+			fmt.Errorf("stream_init: BaseURLFromSettings: %v", err),
+		)
 	}
 
 	return baseURL
@@ -49,7 +51,9 @@ func CredentialsFromSettings(
 
 	if err != nil {
 		logger.CaptureFatalAndPanic(
-			fmt.Errorf("stream_init: NewCredentialProvider: %v", err))
+			"stream_init",
+			fmt.Errorf("stream_init: NewCredentialProvider: %v", err),
+		)
 	}
 
 	return credentialProvider

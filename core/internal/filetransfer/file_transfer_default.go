@@ -59,6 +59,7 @@ func (ft *DefaultFileTransfer) Upload(task *DefaultUploadTask) error {
 		err := file.Close()
 		if err != nil {
 			ft.logger.CaptureError(
+				"DefaultFileTransfer",
 				fmt.Errorf(
 					"file transfer: upload: error closing file %s: %v",
 					task.Path,
@@ -161,6 +162,7 @@ func (ft *DefaultFileTransfer) Download(task *DefaultDownloadTask) error {
 	defer func(file *os.File) {
 		if err := file.Close(); err != nil {
 			ft.logger.CaptureError(
+				"DefaultFileTransfer",
 				fmt.Errorf(
 					"file transfer: download: error closing file %s: %v",
 					task.Path,
@@ -171,7 +173,10 @@ func (ft *DefaultFileTransfer) Download(task *DefaultDownloadTask) error {
 
 	progress, err := wboperation.Get(task.Context).NewProgress()
 	if err != nil {
-		ft.logger.CaptureError(fmt.Errorf("file transfer: download: %v", err))
+		ft.logger.CaptureError(
+			"DefaultFileTransfer",
+			fmt.Errorf("file transfer: download: %v", err),
+		)
 	}
 
 	// If Size is not set, try to get it from Content-Length header
@@ -250,7 +255,10 @@ func getUploadRequestBody(
 
 		progress, err := wboperation.Get(task.Context).NewProgress()
 		if err != nil {
-			logger.CaptureError(fmt.Errorf("file transfer: %v", err))
+			logger.CaptureError(
+				"DefaultFileTransfer",
+				fmt.Errorf("file transfer: %v", err),
+			)
 		}
 
 		requestBody = NewProgressReader(

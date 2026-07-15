@@ -28,6 +28,8 @@ type RunSyncOperation struct {
 
 	logFile *DebugSyncLogFile
 	logger  *observability.CoreLogger
+
+	telemetryProxy analytics.OpenTelemetryProxy
 }
 
 func (f *RunSyncOperationFactory) New(
@@ -37,15 +39,16 @@ func (f *RunSyncOperationFactory) New(
 	live bool,
 	globalSettings *spb.Settings,
 ) *RunSyncOperation {
-	op := &RunSyncOperation{
-		printer: observability.NewPrinter(printerBufferSize),
-	}
-
 	wandbSettings := settings.From(globalSettings)
 	telemetryProxy := analytics.NewOpenTelemetryProxy(
 		context.Background(),
 		wandbSettings,
 	)
+
+	op := &RunSyncOperation{
+		printer:        observability.NewPrinter(printerBufferSize),
+		telemetryProxy: telemetryProxy,
+	}
 
 	logFile, err := OpenDebugSyncLogFile(wandbSettings)
 	if err != nil {
@@ -116,6 +119,10 @@ func (op *RunSyncOperation) Do(
 	}
 
 	_ = group.Wait()
+
+	if err := op.telemetryProxy.Shutdown(ctx); err != nil {
+		slog.Error("runsync: failed to shutdown telemetry proxy", "error", err)
+	}
 
 	return &spb.ServerSyncResponse{
 		Messages: op.popMessages(),
