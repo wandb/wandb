@@ -8,7 +8,6 @@ import wandb
 from pytest import fixture, mark, param, raises
 from wandb import Api, Artifact
 from wandb._strutils import b64decode_ascii
-from wandb.apis.public.registries.registries_search import Collections
 from wandb.apis.public.registries.registry import Registry
 from wandb.sdk.artifacts._validators import REGISTRY_PREFIX, remove_registry_prefix
 
@@ -585,13 +584,7 @@ def test_registries_versions_respects_registry_and_collection_order(
     )
     actual = [
         (remove_registry_prefix(version.project), version.name)
-        for collection in registries.collections(order="name")
-        for version in Collections(
-            service_api=registries._service_api,
-            organization=org,
-            registry_filter={"name": collection.project},
-            collection_filter={"name": collection.name},
-        ).versions()
+        for version in registries.collections(order="name").versions()
     ]
 
     assert actual == expected

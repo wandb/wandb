@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
+
 import pytest
 from wandb.apis.public.registries.registries_search import Collections, Registries
+from wandb.errors import UnsupportedError
 
 ORG = "test-org"
 REGISTRY_FILTER = {"name": "wandb-registry-test"}
@@ -45,6 +48,10 @@ def test_registries_collections_with_order_rejects_start(service_api):
 def test_registries_collections_with_registry_order_supports_versions_chain(
     service_api,
 ):
+    """Test that we can chain versions after collections when querying registries with an order.
+
+    Note that this deliberately only checks for iterability and chainability, not actual results.
+    """
     registries = Registries(
         service_api=service_api,
         organization=ORG,
@@ -53,9 +60,38 @@ def test_registries_collections_with_registry_order_supports_versions_chain(
     )
 
     collections = registries.collections()
-    iter(collections)
-    versions = collections.versions()
-    iter(versions)
+
+    assert isinstance(collections, Iterable)
+    assert isinstance(registries.collections(), Iterable)
+
+    assert isinstance(registries.versions(), Iterable)
+    assert isinstance(collections.versions(), Iterable)
+    assert isinstance(registries.collections().versions(), Iterable)
+
+
+def test_ordered_chained_queries_reject_cursor_and_length(service_api):
+    registries = Registries(
+        service_api=service_api,
+        organization=ORG,
+        filter=REGISTRY_FILTER,
+        order="-updated_at",
+    )
+
+    collections = registries.collections()
+    versions = registries.versions()
+
+    with pytest.raises(UnsupportedError, match="cursor"):
+        _ = collections.cursor
+    with pytest.raises(UnsupportedError, match="cursor"):
+        _ = versions.cursor
+    with pytest.raises(UnsupportedError, match="length"):
+        _ = collections.length
+    with pytest.raises(TypeError, match="len"):
+        len(collections)
+    with pytest.raises(UnsupportedError, match="__getitem__"):
+        _ = collections[0]
+    with pytest.raises(UnsupportedError, match="__getitem__"):
+        _ = versions[:1]
 
 
 def test_registries_collections_versions_with_registry_order_rejects_start(service_api):
