@@ -901,7 +901,10 @@ func (r *Run) handleChunkedBatch(msg ChunkedBatchMsg) []tea.Cmd {
 	// heartbeat can produce messages; WatcherManager.Finish unblocks it.
 	if !r.IsRemote() && r.runState == RunStateRunning && !r.watcherMgr.IsStarted() {
 		if err := r.watcherMgr.Start(r.runParams.RunFile); err != nil {
-			r.logger.CaptureError(fmt.Errorf("model: error starting watcher: %v", err))
+			r.logger.CaptureError(
+				"leet.run",
+				fmt.Errorf("model: error starting watcher: %v", err),
+			)
 		} else {
 			r.logger.Info("model: watcher started successfully")
 			r.heartbeatMgr.Start(r.isRunning)

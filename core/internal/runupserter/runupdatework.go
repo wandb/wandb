@@ -113,9 +113,12 @@ func (w *RunUpdateWork) initRun(request *runwork.Request) {
 	err = w.RunHandle.Init(upserter)
 	if err != nil {
 		w.Logger.CaptureError(
+			"runupserter",
 			fmt.Errorf(
 				"runupserter: failed to set run after initializing: %v",
-				err))
+				err,
+			),
+		)
 
 		if w.Record.Control.GetMailboxSlot() != "" {
 			respondRunUpdate(request, runInitErrorResult(err))

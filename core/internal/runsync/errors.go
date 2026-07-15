@@ -79,7 +79,7 @@ func LogSyncFailure(logger *observability.CoreLogger, err error) {
 	// If you're here from Sentry, please figure out where
 	// the error happens and wrap it in a SyncError with
 	// proper UserText. Or fix it so it can't happen.
-	logger.CaptureError(err)
+	logger.CaptureError("runsync", err)
 }
 
 // ToUserText returns user-facing text for the error, which may be a SyncError.

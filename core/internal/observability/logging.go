@@ -7,7 +7,6 @@ import (
 	"io"
 	"log/slog"
 	"maps"
-	"runtime"
 	"time"
 
 	"github.com/getsentry/sentry-go"
@@ -136,36 +135,36 @@ func (cl *CoreLogger) With(
 }
 
 // CaptureError logs an error and sends it to Sentry.
-func (cl *CoreLogger) CaptureError(err error, args ...any) {
-	cl.Error(err.Error(), args...)
-	cl.captureException(err, callerName(1), args...)
-}
-
-// CaptureFatal logs a fatal error and sends it to Sentry.
-func (cl *CoreLogger) CaptureFatal(err error, args ...any) {
-	cl.captureFatal(err, callerName(1), args...)
-}
-
-// captureFatal logs a fatal error and records a corresponding telemetry event.
-//
-// codeFunctionName is the fully-qualified name of the function the error is
-// attributed to, recorded as the telemetry "code.function.name" attribute.
-func (cl *CoreLogger) captureFatal(
+func (cl *CoreLogger) CaptureError(
+	errorOriginator string,
 	err error,
-	codeFunctionName string,
+	args ...any,
+) {
+	cl.Error(err.Error(), args...)
+	cl.captureException(errorOriginator, err, args...)
+}
+
+// CaptureFatal logs a fatal error and records a corresponding telemetry event.
+func (cl *CoreLogger) CaptureFatal(
+	errorOriginator string,
+	err error,
 	args ...any,
 ) {
 	cl.Log(context.Background(), LevelFatal, err.Error(), args...)
-	cl.captureException(err, codeFunctionName, args...)
+	cl.captureException(errorOriginator, err, args...)
 }
 
 // CaptureFatalAndPanic logs a fatal error, sends it to Sentry and panics.
-func (cl *CoreLogger) CaptureFatalAndPanic(err error, args ...any) {
+func (cl *CoreLogger) CaptureFatalAndPanic(
+	errorOriginator string,
+	err error,
+	args ...any,
+) {
 	if err == nil {
 		err = errors.New("observability: panicked with nil error")
 	}
 
-	cl.captureFatal(err, callerName(1), args...)
+	cl.CaptureFatal(errorOriginator, err, args...)
 
 	// Log panics to debug-core.log as well. This helps debugging if there are
 	// multiple active debug files.
@@ -202,16 +201,15 @@ func (cl *CoreLogger) CaptureInfo(msg string, args ...any) {
 // codeFunctionName is the fully-qualified name of the function the error is
 // attributed to, recorded as the telemetry "code.function.name" attribute.
 func (cl *CoreLogger) captureException(
+	errorOriginator string,
 	err error,
-	codeFunctionName string,
 	args ...any,
 ) {
 	if cl.telemetryProxy != nil {
 		cl.telemetryProxy.Error(
 			context.Background(),
+			errorOriginator,
 			err.Error(),
-			err,
-			codeFunctionName,
 		)
 	}
 
@@ -254,16 +252,20 @@ func (cl *CoreLogger) captureMessage(
 // Reraise logs a panic, uploads it to Sentry, and re-panics.
 //
 // It is meant to be used in a `defer` statement.
-func (cl *CoreLogger) Reraise(args ...any) {
+func (cl *CoreLogger) Reraise(errorOriginator string, args ...any) {
 	panicErr := recover()
 	if panicErr == nil { // if NO error, return
 		return
 	}
 
 	if err, ok := panicErr.(error); ok {
-		cl.CaptureFatalAndPanic(err, args...)
+		cl.CaptureFatalAndPanic(errorOriginator, err, args...)
 	} else {
-		cl.CaptureFatalAndPanic(fmt.Errorf("%v", panicErr), args...)
+		cl.CaptureFatalAndPanic(
+			errorOriginator,
+			fmt.Errorf("%v", panicErr),
+			args...,
+		)
 	}
 }
 
@@ -296,24 +298,6 @@ func NewNoOpLogger() *CoreLogger {
 		nil,
 		nil,
 	)
-}
-
-// callerName returns the fully-qualified name of the function `skip` levels above
-// the immediate caller or "" if unknown.
-//
-// if skip == 0, the immediate caller is returned.
-//
-// "go:noinline" ensures this function's own frame is stable for the skip count.
-//
-//go:noinline
-func callerName(skip int) string {
-	var pcs [1]uintptr
-	// +2 skips runtime.Callers and callerName itself.
-	if runtime.Callers(skip+2, pcs[:]) == 0 {
-		return ""
-	}
-	frame, _ := runtime.CallersFrames(pcs[:]).Next()
-	return frame.Function
 }
 
 func argsToAttributes(args ...any) map[string]string {

@@ -195,8 +195,13 @@ func (s *Stream) maybeSavingToTransactionLog(
 	if err != nil {
 		// Capture the error because if we can open for writing,
 		// why can't we open for reading?
-		s.logger.CaptureError(fmt.Errorf(
-			"stream: error opening transaction log for reading: %v", err))
+		s.logger.CaptureError(
+			"stream",
+			fmt.Errorf(
+				"stream: error opening transaction log for reading: %v",
+				err,
+			),
+		)
 		return work
 	}
 
@@ -322,7 +327,10 @@ func (s *Stream) printFooter() {
 			),
 		)
 	} else if runURL, err := s.runURL(); err != nil {
-		s.logger.CaptureError(fmt.Errorf("stream: runURL: %v", err))
+		s.logger.CaptureError(
+			"stream",
+			fmt.Errorf("stream: runURL: %v", err),
+		)
 	} else {
 		formatter.Println(
 			fmt.Sprintf(

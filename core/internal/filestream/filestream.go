@@ -218,7 +218,10 @@ func (fs *fileStream) StreamUpdate(update Update) {
 	defer fs.mu.Unlock()
 
 	if fs.isFinished {
-		fs.logger.CaptureError(fmt.Errorf("filestream: StreamUpdate after Finish"))
+		fs.logger.CaptureError(
+			"filestream",
+			fmt.Errorf("filestream: StreamUpdate after Finish"),
+		)
 		return
 	}
 
@@ -262,7 +265,10 @@ func (fs *fileStream) logFatalAndStopWorking(err error) {
 		fs.stopState.Store(true)
 	}
 
-	fs.logger.CaptureFatal(fmt.Errorf("filestream: fatal error: %v", err))
+	fs.logger.CaptureFatal(
+		"filestream",
+		fmt.Errorf("filestream: fatal error: %v", err),
+	)
 	fs.deadChanOnce.Do(func() {
 		close(fs.deadChan)
 		fs.printer.Errorf(

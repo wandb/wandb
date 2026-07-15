@@ -169,7 +169,10 @@ func (w *Workspace) handleWorkspaceRunDirs(msg WorkspaceRunDirsMsg) tea.Cmd {
 	pollCmd := w.pollWandbDirCmd(wandbDirPollInterval)
 
 	if msg.Err != nil {
-		w.logger.CaptureError(fmt.Errorf("workspace: wandb dir scan: %v", msg.Err))
+		w.logger.CaptureError(
+			"leet.Workspace",
+			fmt.Errorf("workspace: wandb dir scan: %v", msg.Err),
+		)
 		return pollCmd
 	}
 
@@ -294,7 +297,10 @@ func (w *Workspace) handleWorkspaceRunOverviewPreloaded(
 		// Best-effort logging for unexpected failures; avoid spamming for
 		// "file not ready yet" or missing run records.
 		err := fmt.Errorf("workspace: preload run overview for %s: %v", msg.RunKey, msg.Err)
-		w.logger.CaptureError(err)
+		w.logger.CaptureError(
+			"leet.Workspace",
+			err,
+		)
 	}
 
 	// Keep draining the queue.

@@ -249,7 +249,9 @@ func (upserter *RunUpserter) UpdateConfig(config *spb.ConfigRecord) {
 	upserter.config.ApplyChangeRecord(config,
 		func(err error) {
 			upserter.logger.CaptureError(
-				fmt.Errorf("runupserter: error updating config: %v", err))
+				"runupserter",
+				fmt.Errorf("runupserter: error updating config: %v", err),
+			)
 		})
 
 	upserter.isConfigDirty = true
@@ -304,7 +306,9 @@ func (upserter *RunUpserter) UpdateMetrics(metric *spb.MetricRecord) {
 	err := upserter.metrics.ProcessRecord(metric)
 	if err != nil {
 		upserter.logger.CaptureError(
-			fmt.Errorf("runupserter: failed to process metric: %v", err))
+			"runupserter",
+			fmt.Errorf("runupserter: failed to process metric: %v", err),
+		)
 		return
 	}
 
