@@ -184,6 +184,57 @@ func TestInitRun_UpsertError(t *testing.T) {
 	assert.Equal(t, "Everything is broken", runUpdateError.UserMessage)
 }
 
+func TestInitRun_InitTimeout_ReportsTimeout(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		mockClient := gqlmock.NewMockClient()
+		params := testParams(t)
+		params.GraphqlClientOrNil = mockClient
+		params.Settings = settings.From(&spb.Settings{
+			InitTimeout: wrapperspb.Double(10),
+		})
+		mockClient.StubMatchHang(gqlmock.WithOpName("UpsertBucket"))
+
+		upserter, err := runupserter.InitRun(runRecord(&spb.RunRecord{}), params)
+
+		assert.Nil(t, upserter)
+		var runUpdateError *runupserter.RunUpdateError
+		require.ErrorAs(t, err, &runUpdateError)
+		assert.Equal(t, spb.ErrorInfo_COMMUNICATION, runUpdateError.Code)
+		assert.Contains(t,
+			runUpdateError.UserMessage,
+			"Timed out while creating the run")
+	})
+}
+
+func TestInitRun_NoInitTimeout_Waits(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		mockClient := gqlmock.NewMockClient()
+		params := testParams(t)
+		params.GraphqlClientOrNil = mockClient
+		beforeRunEndCtx, cancel := context.WithCancel(context.Background())
+		params.BeforeRunEndCtx = beforeRunEndCtx
+		mockClient.StubMatchHang(gqlmock.WithOpName("UpsertBucket"))
+
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			_, _ = runupserter.InitRun(runRecord(&spb.RunRecord{}), params)
+		}()
+
+		// Without an init timeout (as during `wandb sync`), InitRun blocks
+		// on the request indefinitely rather than timing out.
+		time.Sleep(time.Hour)
+		select {
+		case <-done:
+			t.Error("InitRun returned despite no init timeout")
+		default:
+		}
+
+		cancel()
+		<-done
+	})
+}
+
 func TestInitRun_Offline(t *testing.T) {
 	params := testParams(t)
 	params.GraphqlClientOrNil = nil

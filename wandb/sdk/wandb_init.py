@@ -55,6 +55,11 @@ if TYPE_CHECKING:
 # for multiple runs in the same process.
 _shared_service_notice_shown = False
 
+# Extra time to wait for the backend to report the error that caused
+# `wandb.init()` to exceed its timeout, before giving up on it and
+# raising a generic timeout error.
+_init_timeout_grace_seconds = 10.0
+
 
 def _huggingface_version() -> str | None:
     if "transformers" in sys.modules:
@@ -941,9 +946,13 @@ class _WandbInit:
                 run_printer,
                 default_text="Waiting for wandb.init()...",
             ) as progress_printer:
+                # The backend bounds run initialization by init_timeout and
+                # is expected to respond with the error it was retrying, so
+                # wait a little longer for it. The grace period bounds how
+                # long we can hang if the backend fails to respond at all.
                 result = wait_with_progress(
                     run_init_handle,
-                    timeout=timeout,
+                    timeout=timeout + _init_timeout_grace_seconds,
                     display_progress=functools.partial(
                         progress.loop_printing_operation_stats,
                         progress_printer,
@@ -952,9 +961,10 @@ class _WandbInit:
                 )
 
         except TimeoutError:
-            # This may either be an issue with the W&B server (a CommError)
-            # or a bug in the SDK (an Error). We cannot distinguish between
-            # the two causes here.
+            # The backend didn't respond with the underlying error before
+            # the grace period expired. This may either be an issue with
+            # the W&B server (a CommError) or a bug in the SDK (an Error).
+            # We cannot distinguish between the two causes here.
             raise CommError(
                 f"Run initialization has timed out after {timeout} sec."
                 + " Please try increasing the timeout with the `init_timeout`"
