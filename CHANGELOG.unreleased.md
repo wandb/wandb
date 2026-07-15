@@ -42,13 +42,6 @@ This version drops compatibility with server versions older than 0.70.0.
   - To continue using these operations, upgrade your W&B Server to `v0.70.0` or newer.
 - Removed legacy fallback implementations for fetching an artifact by name on older EOL W&B Server releases. The following will no longer work on EOL servers: `wandb.Api().artifact(...)` and other methods that fetch artifact(s) by their path. (@tonyyli-wandb in https://github.com/wandb/wandb/pull/12112)
   - To continue using these operations, upgrade your W&B Server to `v0.70.0` or newer.
-
-### Removed
-
-- Removed legacy fallback implementations for downloading artifact files on older EOL W&B Server releases. The following will no longer work on EOL servers: `Artifact.files()` and `Artifact.download()` on any artifact, as well as `Artifact.get_entry()` / `Artifact.get_path()` file downloads on non-reference artifacts. (@tonyyli-wandb in https://github.com/wandb/wandb/pull/12109)
-  - To continue using these operations, upgrade your W&B Server to `v0.70.0` or newer.
-- Removed legacy fallback implementations for fetching an artifact by name on older EOL W&B Server releases. The following will no longer work on EOL servers: `wandb.Api().artifact(...)` and other methods that fetch artifact(s) by their path. (@tonyyli-wandb in https://github.com/wandb/wandb/pull/12112)
-  - To continue using these operations, upgrade your W&B Server to `v0.70.0` or newer.
 - Removed the `GitPython` dependency. Git metadata is collected by invoking the `git` executable directly; the `GIT_PYTHON_GIT_EXECUTABLE` environment variable is still honored for locating it (@dmitryduev in https://github.com/wandb/wandb/pull/11983)
 
 ### Fixed
@@ -57,3 +50,6 @@ This version drops compatibility with server versions older than 0.70.0.
 - `np.float16`/`np.float32` NaN values logged with `Run.log()` are now recorded as `NaN` instead of being silently dropped, matching `np.float64` and native `float` (@dmitryduev in https://github.com/wandb/wandb/pull/12116)
 - `Run.upload_file()` (via `wandb.Api().run(...)`) now registers the uploaded file with the run on self-hosted servers. Previously the file's bytes were uploaded but never committed, so the file did not appear on the run on deployments without object-store notifications (@dmitryduev in https://github.com/wandb/wandb/pull/12121)
 - Sweep agents will now allow the in-progress run to complete before exiting when the sweep is deleted or Api() returns 404 (@kmikowicz-wandb in https://github.com/wandb/wandb/pull/11880)
+- Fixed some deadlocks introduced in 0.25.1 (@timoffex in https://github.com/wandb/wandb/pull/12114 and https://github.com/wandb/wandb/pull/12159)
+  - Reported when using PyTorch with Python < 3.14 (which uses the "fork" `multiprocessing` start method by default)
+  - May have also happened during GC when using some `wandb.Api` functionality
