@@ -147,23 +147,23 @@ def test_md5_file_hashes_on_mounted_filesystem(
 # ------------------------------------------------------------------------------
 
 
-def test_xxh64_string():
-    assert hashutil.xxh64_string("") == "70bbN1HY6Zk="
-    assert hashutil.xxh64_string("foo") == "M78AqFnEuj8="
+def test_xxh128_string():
+    assert hashutil.xxh128_string("") == "maoG0wFHmNhgAcMkRo1Jfw=="
+    assert hashutil.xxh128_string("foo") == "ea75LoNFQSGrbl9kB359ig=="
 
 
-def test_xxh64_file_b64_no_files():
-    b64hash = base64.b64encode(xxhash.xxh64(b"").digest()).decode("ascii")
-    assert b64hash == hashutil.xxh64_file_b64()
+def test_xxh128_file_b64_no_files():
+    b64hash = base64.b64encode(xxhash.xxh128(b"").digest()).decode("ascii")
+    assert b64hash == hashutil.xxh128_file_b64()
 
 
-def test_xxh64_file_hex_single_file(bin_data):
+def test_xxh128_file_hex_single_file(bin_data):
     fpath = Path("binfile")
     fpath.write_bytes(bin_data)
-    assert xxhash.xxh64(bin_data).hexdigest() == hashutil.xxh64_file_hex(fpath)
+    assert xxhash.xxh128(bin_data).hexdigest() == hashutil.xxh128_file_hex(fpath)
 
 
-def test_xxh64_file_hashes_on_three_files(bin_data, txt_data, bin_data2):
+def test_xxh128_file_hashes_on_three_files(bin_data, txt_data, bin_data2):
     fpath_a = Path("a.bin")
     fpath_b = Path("b.txt")
     fpath_c = Path("c.bin")
@@ -173,12 +173,12 @@ def test_xxh64_file_hashes_on_three_files(bin_data, txt_data, bin_data2):
     fpath_c.write_bytes(bin_data2)
 
     data = bin_data + fpath_b.read_bytes() + bin_data2
-    expected_b64_hash = base64.b64encode(xxhash.xxh64(data).digest()).decode("ascii")
-    expected_hex_hash = xxhash.xxh64(data).hexdigest()
+    expected_b64_hash = base64.b64encode(xxhash.xxh128(data).digest()).decode("ascii")
+    expected_hex_hash = xxhash.xxh128(data).hexdigest()
 
     # Intentionally provide the paths out of order (check sorting).
-    assert expected_b64_hash == hashutil.xxh64_file_b64(fpath_c, fpath_a, fpath_b)
-    assert expected_hex_hash == hashutil.xxh64_file_hex(fpath_c, fpath_a, fpath_b)
+    assert expected_b64_hash == hashutil.xxh128_file_b64(fpath_c, fpath_a, fpath_b)
+    assert expected_hex_hash == hashutil.xxh128_file_hex(fpath_c, fpath_a, fpath_b)
 
 
 @pytest.mark.skipif(
@@ -192,7 +192,7 @@ def test_xxh64_file_hashes_on_three_files(bin_data, txt_data, bin_data2):
         pytest.param(50 * 1024, id="50kB"),
     ],
 )
-def test_xxh64_file_hashes_on_mounted_filesystem(
+def test_xxh128_file_hashes_on_mounted_filesystem(
     filesize,
     tmp_path,
     fs: FakeFilesystem,
@@ -211,12 +211,12 @@ def test_xxh64_file_hashes_on_mounted_filesystem(
     chunk = b"data"  # short repeated bytestring for testing
     content = chunk * (filesize // len(chunk))
 
-    expected_xxh64 = xxhash.xxh64()
-    expected_xxh64.update(content)
+    expected_xxh128 = xxhash.xxh128()
+    expected_xxh128.update(content)
     fs.create_file(fpath_large, contents=content)
 
-    expected_b64_hash = base64.b64encode(expected_xxh64.digest()).decode("ascii")
-    expected_hex_hash = expected_xxh64.hexdigest()
+    expected_b64_hash = base64.b64encode(expected_xxh128.digest()).decode("ascii")
+    expected_hex_hash = expected_xxh128.hexdigest()
 
-    assert expected_b64_hash == hashutil.xxh64_file_b64(fpath_large)
-    assert expected_hex_hash == hashutil.xxh64_file_hex(fpath_large)
+    assert expected_b64_hash == hashutil.xxh128_file_b64(fpath_large)
+    assert expected_hex_hash == hashutil.xxh128_file_hex(fpath_large)

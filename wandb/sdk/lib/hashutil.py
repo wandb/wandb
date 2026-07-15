@@ -29,12 +29,12 @@ logger = logging.getLogger(__name__)
 ETag: TypeAlias = str
 
 HexMD5: TypeAlias = str
-HexXXH64: TypeAlias = str
+HexXXH128: TypeAlias = str
 B64MD5: TypeAlias = str
-B64XXH64: TypeAlias = str
+B64XXH128: TypeAlias = str
 
-HexDigest: TypeAlias = HexMD5 | HexXXH64
-B64Digest: TypeAlias = B64MD5 | B64XXH64
+HexDigest: TypeAlias = HexMD5 | HexXXH128
+B64Digest: TypeAlias = B64MD5 | B64XXH128
 
 
 # --- Hasher constructors ---
@@ -45,9 +45,9 @@ def _md5(data: bytes = b"") -> Hasher:
     return hashlib.md5(data, usedforsecurity=False)
 
 
-def _xxh64(data: bytes = b"") -> Hasher:
-    """Create an xxHash64 hasher (hashlib-compliant interface)."""
-    return xxhash.xxh64(data)
+def _xxh128(data: bytes = b"") -> Hasher:
+    """Create an xxHash128 hasher (hashlib-compliant interface)."""
+    return xxhash.xxh128(data)
 
 
 # --- Encoding helpers  ---
@@ -96,32 +96,32 @@ def _md5_file_hasher(*paths: StrPath) -> Hasher:
     return _file_hasher(_md5(), *paths)
 
 
-# --- xxHash64 public API ---
+# --- xxHash128 public API ---
 
 
-def xxh64_string(string: str) -> B64XXH64:
-    return B64XXH64(_b64_from_hasher(_xxh64(string.encode("utf-8"))))
+def xxh128_string(string: str) -> B64XXH128:
+    return B64XXH128(_b64_from_hasher(_xxh128(string.encode("utf-8"))))
 
 
-def xxh64_file_b64(*paths: StrPath) -> B64XXH64:
+def xxh128_file_b64(*paths: StrPath) -> B64XXH128:
     start_time = time.monotonic()
-    digest = _b64_from_hasher(_xxh64_file_hasher(*paths))
+    digest = _b64_from_hasher(_xxh128_file_hasher(*paths))
     hash_time_seconds = time.monotonic() - start_time
     if hash_time_seconds > 1.0:
         logger.debug(
-            "Computed XXH64 hash for file. paths=%s, hashTimeMs=%d",
+            "Computed XXH128 hash for file. paths=%s, hashTimeMs=%d",
             paths,
             int(hash_time_seconds * 1000),
         )
-    return B64XXH64(digest)
+    return B64XXH128(digest)
 
 
-def xxh64_file_hex(*paths: StrPath) -> HexXXH64:
-    return HexXXH64(_xxh64_file_hasher(*paths).hexdigest())
+def xxh128_file_hex(*paths: StrPath) -> HexXXH128:
+    return HexXXH128(_xxh128_file_hasher(*paths).hexdigest())
 
 
-def _xxh64_file_hasher(*paths: StrPath) -> Hasher:
-    return _file_hasher(_xxh64(), *paths)
+def _xxh128_file_hasher(*paths: StrPath) -> Hasher:
+    return _file_hasher(_xxh128(), *paths)
 
 
 # --- Shared file hashing implementation ---
