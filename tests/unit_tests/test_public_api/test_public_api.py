@@ -366,8 +366,6 @@ def test_artifact_from_id_uses_service_api(monkeypatch):
 
     artifact_id = "test-artifact-id"
     artifact_instance_cache.pop(artifact_id, None)
-    service_api = MagicMock()
-    service_api.execute_graphql.return_value = {}
     artifact = SimpleNamespace(
         artifact_sequence=SimpleNamespace(
             name="dataset",
@@ -378,11 +376,10 @@ def test_artifact_from_id_uses_service_api(monkeypatch):
         ),
         version_index=3,
     )
-    monkeypatch.setattr(
-        ArtifactByID,
-        "model_validate",
-        MagicMock(return_value=SimpleNamespace(artifact=artifact)),
-    )
+    # execute_graphql now parses the response into the pydantic model itself
+    # (via parse=), so its return value is the already-parsed result.
+    service_api = MagicMock()
+    service_api.execute_graphql.return_value = SimpleNamespace(artifact=artifact)
     from_attrs = MagicMock(return_value="artifact")
     monkeypatch.setattr(Artifact, "_from_attrs", from_attrs)
 
@@ -391,6 +388,7 @@ def test_artifact_from_id_uses_service_api(monkeypatch):
     service_api.execute_graphql.assert_called_once_with(
         ARTIFACT_BY_ID_GQL,
         variables={"id": artifact_id},
+        parse=ArtifactByID.model_validate_json,
     )
     path, src_art, actual_service_api = from_attrs.call_args.args
     assert path.to_str() == "entity/project/dataset:v3"

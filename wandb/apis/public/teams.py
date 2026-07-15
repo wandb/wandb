@@ -185,11 +185,11 @@ class Team(Attrs):
         from wandb.apis._generated import GET_TEAM_ENTITY_GQL, GetTeamEntity
 
         if force or not self._attrs:
-            data = self._service_api.execute_graphql(
+            result = self._service_api.execute_graphql(
                 GET_TEAM_ENTITY_GQL,
-                {"name": self.name},
+                variables={"name": self.name},
+                parse=GetTeamEntity.model_validate_json,
             )
-            result = GetTeamEntity.model_validate(data)
             self._attrs = entity.model_dump() if (entity := result.entity) else {}
             self._attrs["members"] = [
                 Member(self._service_api, self.name, member)
