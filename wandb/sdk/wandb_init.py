@@ -1128,7 +1128,11 @@ def _monkeypatch_tensorboard() -> None:
 
 
 def _validate_init_settings(init_settings: Settings) -> None:
-    if init_settings.mode == "offline" and init_settings.resume not in (None, "must", "never"):
+    if init_settings.mode == "offline" and init_settings.resume not in (
+        None,
+        "must",
+        "never",
+    ):
         raise UsageError(
             f"resume={init_settings.resume!r} is not supported in offline mode; "
             'only "must" and "never" are supported.'
