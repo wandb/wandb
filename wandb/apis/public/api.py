@@ -212,7 +212,7 @@ class Api:
 
         from wandb.analytics import get_otel
 
-        get_otel().set_api_key(api_key)
+        get_otel(api_key=api_key)
 
         try:
             viewer = self.viewer
