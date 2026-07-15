@@ -6,6 +6,7 @@ import time
 
 import pytest
 import wandb
+from wandb.errors import UsageError
 
 
 def test_no_root_dir_access__uses_temp_dir(tmp_path, monkeypatch):
@@ -52,6 +53,28 @@ def test_makedirs_raises_oserror__uses_temp_dir(tmp_path, monkeypatch):
         run.log({"test": 1})
 
     assert run.settings.root_dir == tempfile.gettempdir()
+
+
+def test_offline_resume_must_valid():
+    with wandb.init(mode="offline", id='offline-resume-valid-must', resume="must") as run:
+        run.log({"test": 2})
+    assert run.settings.resume == "must"
+
+
+def test_offline_resume_never_valid():
+    with wandb.init(mode="offline", id='offline-resume-valid-never', resume="never") as run:
+        run.log({"test": 2})
+    assert run.settings.resume == "never"
+
+
+def test_offline_resume_allow_invalid():
+    with pytest.raises(UsageError):
+        wandb.init(mode="offline", id='offline-resume-valid-allow', resume="allow")
+
+
+def test_offline_resume_auto_invalid():
+    with pytest.raises(UsageError):
+        wandb.init(mode="offline", id='offline-resume-valid-auto', resume="auto")
 
 
 def test_avoids_sync_dir_conflict(mocker):
