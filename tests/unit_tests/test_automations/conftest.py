@@ -149,7 +149,8 @@ def project(mock_client: Mock) -> Project:
 
 # Exclude deprecated scope/event/action types from those expected to be exposed for valid behavior
 def valid_scopes() -> list[ScopeType]:
-    return sorted(set(ScopeType))
+    # return sorted(set(ScopeType))  # TODO: restore once ENTITY scope is supported
+    return sorted(set(ScopeType) - {ScopeType.ENTITY})
 
 
 def valid_input_events() -> list[EventType]:
@@ -164,6 +165,7 @@ def valid_input_actions() -> list[ActionType]:
 @cache
 def invalid_events_and_scopes() -> set[tuple[EventType, ScopeType]]:
     return {
+        (EventType.CREATE_ARTIFACT, ScopeType.ENTITY),
         (EventType.CREATE_ARTIFACT, ScopeType.PROJECT),
         (EventType.RUN_METRIC_THRESHOLD, ScopeType.ARTIFACT_COLLECTION),
         (EventType.RUN_METRIC_CHANGE, ScopeType.ARTIFACT_COLLECTION),
