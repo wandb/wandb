@@ -1442,6 +1442,7 @@ def init(  # noqa: C901
         init_settings.sweep_id is not None
         and config is None
         and init_settings.sweep_param_path is None
+        and not init_settings.launch
     ):
         raise UsageError(
             "Must specify `config` when associating a run with a sweep via "

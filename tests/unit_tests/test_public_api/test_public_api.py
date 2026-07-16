@@ -510,3 +510,13 @@ def test_init_sweep_allows_missing_config_with_sweep_param_path(tmp_path):
         mode="disabled",
     )
     run.finish()
+
+
+def test_init_sweep_allows_missing_config_when_launched():
+    # Launch-scheduled sweep runs get their config injected later via the
+    # WANDB_CONFIG env var, not the config kwarg to init().
+    run = wandb.init(
+        settings={"sweep_id": "abc123", "launch": True},
+        mode="disabled",
+    )
+    run.finish()
