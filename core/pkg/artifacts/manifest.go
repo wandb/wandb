@@ -3,13 +3,19 @@ package artifacts
 import (
 	"bufio"
 	"compress/gzip"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
+	"sort"
+	"sync"
 
+	"github.com/wandb/wandb/core/internal/gql"
+	"github.com/wandb/wandb/core/internal/hashencode"
 	"github.com/wandb/wandb/core/internal/nullify"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
+	"golang.org/x/sync/errgroup"
 )
 
 type Manifest struct {
@@ -27,6 +33,7 @@ type StoragePolicyConfig struct {
 type ManifestEntry struct {
 	// Fields from the spb.ArtifactManifestEntry proto.
 	Digest          string         `json:"digest"`
+	DigestAlgorithm *string        `json:"digestAlgorithm,omitempty"`
 	Ref             *string        `json:"ref,omitempty"`
 	Size            int64          `json:"size"`
 	LocalPath       *string        `json:"local_path,omitempty"`
@@ -83,6 +90,7 @@ func NewManifestFromProto(proto *spb.ArtifactManifest) (Manifest, error) {
 		}
 		manifest.Contents[entry.Path] = ManifestEntry{
 			Digest:          entry.Digest,
+			DigestAlgorithm: nullify.NilIfZero(entry.DigestAlgorithm),
 			Ref:             nullify.NilIfZero(entry.Ref),
 			Size:            entry.Size,
 			LocalPath:       nullify.NilIfZero(entry.LocalPath),
@@ -165,6 +173,12 @@ func ManifestContentsFromFile(path string) (map[string]ManifestEntry, error) {
 		if !ok {
 			entry.SkipCache = false
 		}
+		digestAlgorithm, ok := record["digestAlgorithm"].(string)
+		if !ok || digestAlgorithm == "" {
+			entry.DigestAlgorithm = nil
+		} else {
+			entry.DigestAlgorithm = &digestAlgorithm
+		}
 
 		// "extra" is itself a JSON object.
 		entry.Extra, ok = record["extra"].(map[string]any)
@@ -196,4 +210,74 @@ func (m *Manifest) GetManifestEntryFromArtifactFilePath(path string) (ManifestEn
 		return ManifestEntry{}, fmt.Errorf("path not contained in artifact: %s", path)
 	}
 	return manifestEntry, nil
+}
+
+// HashContentsWithMd5 hashes the contents of the manifest with MD5.
+func (m *Manifest) HashContentsWithMd5() error {
+	type pathDigest struct {
+		path   string
+		digest string
+	}
+
+	var mu sync.Mutex
+	md5DigestAlgorithm := string(gql.ArtifactDigestAlgorithmManifestMd5)
+	toHash := make([]struct {
+		path  string
+		localPath string
+	}, 0, len(m.Contents))
+
+	for path, entry := range m.Contents {
+		if entry.LocalPath == nil || entry.DigestAlgorithm == nil || *entry.DigestAlgorithm == string(gql.ArtifactDigestAlgorithmManifestMd5) {
+			continue
+		}
+		toHash = append(toHash, struct {
+			path  string
+			localPath string
+		}{path: path, localPath: *entry.LocalPath})
+	}
+
+	// Hash files in parallel.
+	g, _ := errgroup.WithContext(context.Background())
+	for _, item := range toHash {
+		g.Go(func() error {
+			md5Hash, err := hashencode.ComputeFileB64MD5(item.localPath)
+			if err != nil {
+				return fmt.Errorf("ArtifactSaver.hashArtifactWithMd5: %w", err)
+			}
+
+			mu.Lock()
+			entry := m.Contents[item.path]
+			entry.Digest = md5Hash
+			entry.DigestAlgorithm = &md5DigestAlgorithm
+			m.Contents[item.path] = entry
+			mu.Unlock()
+			return nil
+		})
+	}
+	if err := g.Wait(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (m *Manifest) ArtifactDigest(digestAlgorithm gql.ArtifactDigestAlgorithm) (string, error) {
+	if digestAlgorithm != gql.ArtifactDigestAlgorithmManifestMd5 {
+		return "", fmt.Errorf("unsupported digest algorithm: %s", digestAlgorithm)
+	}
+
+	sortedPaths := make([]string, 0, len(m.Contents))
+	for path := range m.Contents {
+		sortedPaths = append(sortedPaths, path)
+	}
+	sort.Slice(sortedPaths, func(i, j int) bool {
+		return sortedPaths[i] < sortedPaths[j]
+	})
+
+	data := []byte("wandb-artifact-manifest-v1\n")
+	for _, path := range sortedPaths {
+		entry := m.Contents[path]
+		data = append(data, []byte(path + ":" + entry.Digest + "\n")...)
+	}
+	return hashencode.ComputeHexMD5(data), nil
 }
