@@ -1730,10 +1730,10 @@ type RunRecord struct {
 	Forked       bool                   `protobuf:"varint,22,opt,name=forked,proto3" json:"forked,omitempty"`
 	// Information about the source if this is a fork or rewind of another run.
 	BranchPoint *BranchPoint `protobuf:"bytes,23,opt,name=branch_point,json=branchPoint,proto3" json:"branch_point,omitempty"`
-	// The user-provided resume mode to apply when syncing.
+	// Whether this run is expected to resume an existing run when syncing.
 	//
 	// This is input intent, unlike `resumed`, which is a backend result.
-	ResumeMode    string       `protobuf:"bytes,24,opt,name=resume_mode,json=resumeMode,proto3" json:"resume_mode,omitempty"`
+	ResumeMode    bool         `protobuf:"varint,24,opt,name=resume_mode,json=resumeMode,proto3" json:"resume_mode,omitempty"`
 	XInfo         *XRecordInfo `protobuf:"bytes,200,opt,name=_info,json=Info,proto3" json:"_info,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1923,11 +1923,11 @@ func (x *RunRecord) GetBranchPoint() *BranchPoint {
 	return nil
 }
 
-func (x *RunRecord) GetResumeMode() string {
+func (x *RunRecord) GetResumeMode() bool {
 	if x != nil {
 		return x.ResumeMode
 	}
-	return ""
+	return false
 }
 
 func (x *RunRecord) GetXInfo() *XRecordInfo {
@@ -11873,7 +11873,7 @@ const file_wandb_proto_wandb_internal_proto_rawDesc = "" +
 	"\x03git\x18\x15 \x01(\v2\x1d.wandb_internal.GitRepoRecordR\x03git\x12\x16\n" +
 	"\x06forked\x18\x16 \x01(\bR\x06forked\x12>\n" +
 	"\fbranch_point\x18\x17 \x01(\v2\x1b.wandb_internal.BranchPointR\vbranchPoint\x12\x1f\n" +
-	"\vresume_mode\x18\x18 \x01(\tR\n" +
+	"\vresume_mode\x18\x18 \x01(\bR\n" +
 	"resumeMode\x121\n" +
 	"\x05_info\x18\xc8\x01 \x01(\v2\x1b.wandb_internal._RecordInfoR\x04Info\"C\n" +
 	"\rGitRepoRecord\x12\x1a\n" +

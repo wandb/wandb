@@ -194,7 +194,7 @@ func TestSendHistory_OfflineResumedSegmentRewritesSteps(t *testing.T) {
 			Entity:     "entity",
 			Project:    "project",
 			RunId:      "run1",
-			ResumeMode: "must",
+			ResumeMode: true,
 		}}},
 		runupserter.RunUpserterParams{
 			GraphqlClientOrNil: mockGQL,

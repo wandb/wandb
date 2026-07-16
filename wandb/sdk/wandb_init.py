@@ -1127,18 +1127,6 @@ def _monkeypatch_tensorboard() -> None:
     tb_module.patch()
 
 
-def _validate_init_settings(init_settings: Settings) -> None:
-    if init_settings.mode == "offline" and init_settings.resume not in (
-        None,
-        "must",
-        "never",
-    ):
-        raise UsageError(
-            f"resume={init_settings.resume!r} is not supported in offline mode; "
-            'only "must" and "never" are supported.'
-        )
-
-
 def try_create_root_dir(settings: Settings) -> None:
     """Try to create the root directory specified in settings.
 
@@ -1339,8 +1327,6 @@ def init(  # noqa: C901
             unset) to always start a new run.
             If `resume` is set, `fork_from` and `resume_from` cannot be
             used. When `resume` is unset, the system will always start a new run.
-            When `mode="offline"`, only `"must"` and `"never"` are supported;
-            `"allow"` and `"auto"` raise a `UsageError`.
         resume_from: Specifies a moment in a previous run to resume a run from,
             using the format `{run_id}?_step={step}`. This allows users to truncate
             the history logged to a run at an intermediate step and resume logging
@@ -1447,8 +1433,6 @@ def init(  # noqa: C901
     if resume_from is not None:
         init_settings.resume_from = resume_from  # type: ignore
 
-    _validate_init_settings(init_settings)
-
     if config is not None:
         init_telemetry.feature.set_init_config = True
 
@@ -1461,7 +1445,6 @@ def init(  # noqa: C901
 
         wi.maybe_login(init_settings)
         run_settings, show_warnings = wi.make_run_settings(init_settings)
-
         if isinstance(run_settings.reinit, bool):
             wi.deprecated_features_used.append(
                 (

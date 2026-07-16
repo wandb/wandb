@@ -448,8 +448,6 @@ class Settings(BaseModel, validate_assignment=True):
     - "auto": Automatically resumes from the most recent failed run on the same
        machine.
 
-    When `mode` is "offline" (or "dryrun"), only "must" and "never" are
-    supported; "allow" and "auto" raise a `UsageError`.
     """
 
     resume_from: RunMoment | None = None

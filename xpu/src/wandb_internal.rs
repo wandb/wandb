@@ -833,11 +833,11 @@ pub struct RunRecord {
     /// Information about the source if this is a fork or rewind of another run.
     #[prost(message, optional, tag = "23")]
     pub branch_point: ::core::option::Option<BranchPoint>,
-    /// The user-provided resume mode to apply when syncing an offline run.
+    /// Whether this run is expected to resume an existing run when syncing.
     ///
     /// This is input intent, unlike `resumed`, which is a backend result.
-    #[prost(string, tag = "24")]
-    pub resume_mode: ::prost::alloc::string::String,
+    #[prost(bool, tag = "24")]
+    pub resume_mode: bool,
     #[prost(message, optional, tag = "200")]
     pub info: ::core::option::Option<RecordInfo>,
 }

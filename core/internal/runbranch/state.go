@@ -86,13 +86,13 @@ type RunParams struct {
 	// TODO: Untangle Summary logic and remove this field.
 	Summary map[string]any
 
-	// ResumeMode is the user's resume intent ("allow", "must", "never","auto").
+	// Resume is whether the run is expected to resume an existing run.
 	//
-	// This is distinct from Resumed: ResumeMode is what the user asked for,
+	// This is distinct from Resumed: Resume is what the user asked for,
 	// while Resumed reflects whether the backend actually resumed the run.
 	// It is persisted on the RunRecord so that offline runs can defer resume
 	// reconciliation to sync time.
-	ResumeMode string
+	Resume bool
 
 	Resumed bool
 	Forked  bool
@@ -162,7 +162,7 @@ func (r *RunParams) SetOnProto(record *spb.RunRecord) {
 		})
 	}
 
-	record.ResumeMode = r.ResumeMode
+	record.ResumeMode = r.Resume
 
 	record.Resumed = r.Resumed
 	record.Forked = r.Forked
@@ -239,8 +239,8 @@ func (r *RunParams) Update(
 
 	// NOTE: Summary is ignored; see comment on the field.
 
-	if record.ResumeMode != "" {
-		r.ResumeMode = record.ResumeMode
+	if record.ResumeMode {
+		r.Resume = true
 	}
 
 	if record.Resumed {

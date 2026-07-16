@@ -173,13 +173,18 @@ func InitRun(
 	// must use the updated config returned by the backend on the first
 	// UpsertBucket request.
 	branchPoint := runRecord.BranchPoint
-	resumeMode := runRecord.GetResumeMode()
-	if resumeMode == "" {
-		resumeMode = params.Settings.GetResume()
+	// A persisted false intent behaves as "never" unless the caller
+	// explicitly requests allow or must through the current settings. Apply
+	// this only to ordinary runs so rewind and fork continue to take priority.
+	resume := runParams.Resume
+	if !resume && branchPoint == nil {
+		resumeSetting := params.Settings.GetResume()
+		resume = resumeSetting == "allow" || resumeSetting == "must"
 	}
+	runParams.Resume = resume
 	switch {
-	case resumeMode != "":
-		err := upserter.updateMetadataForResume(ctx, resumeMode)
+	case resume:
+		err := upserter.updateMetadataForResume(ctx, params.Settings)
 
 		if err != nil {
 			return nil, ToRunUpdateError(err)
@@ -196,6 +201,15 @@ func InitRun(
 	case branchPoint != nil && branchPoint.GetRun() != "":
 		// Creating a new run by branching is forking.
 		err := upserter.updateMetadataForFork(branchPoint)
+
+		if err != nil {
+			return nil, ToRunUpdateError(err)
+		}
+
+	default:
+		// A false resume field means this run must not already exist. This is
+		// also the default for records written before the field was added.
+		err := upserter.updateMetadataForResume(ctx, params.Settings)
 
 		if err != nil {
 			return nil, ToRunUpdateError(err)
@@ -420,10 +434,8 @@ func (upserter *RunUpserter) signalDirty() {
 // that's being resumed.
 func (upserter *RunUpserter) updateMetadataForResume(
 	ctx context.Context,
-	resumeSetting string,
+	resumeSettings *settings.Settings,
 ) error {
-	// Record the user's resume intent on the RunRecord.
-	upserter.params.ResumeMode = resumeSetting
 	if upserter.graphqlClientOrNil == nil {
 		// When offline, we cannot query the backend to reconcile resume state,
 		// so resume reconciliation is deferred to `wandb sync`.
@@ -434,7 +446,8 @@ func (upserter *RunUpserter) updateMetadataForResume(
 		ctx,
 		upserter.logger,
 		upserter.graphqlClientOrNil,
-		resumeSetting,
+		upserter.params.Resume,
+		resumeSettings,
 	).UpdateForResume(
 		upserter.params,
 		upserter.config,
