@@ -173,9 +173,11 @@ func InitRun(
 	// must use the updated config returned by the backend on the first
 	// UpsertBucket request.
 	branchPoint := runRecord.BranchPoint
-	// A persisted false intent behaves as "never" unless the caller
-	// explicitly requests allow or must through the current settings. Apply
-	// this only to ordinary runs so rewind and fork continue to take priority.
+
+	// A persisted resume=false intent behaves as "never" unless the caller
+	// explicitly requests allow or must through the current settings.
+	// This allows users to override during manual sync.
+	// Exclude forked and rewind cases so they continue to take priority.
 	resume := runParams.Resume
 	if !resume && branchPoint == nil {
 		resumeSetting := params.Settings.GetResume()
