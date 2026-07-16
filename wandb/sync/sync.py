@@ -89,8 +89,7 @@ class SyncThread(threading.Thread):
         if record_type == "run":
             if pb.run.resume_mode:
                 wandb.termwarn(
-                    "Ignoring offline resume option "
-                    f"{pb.run.resume_mode!r} because legacy sync does not "
+                    "Ignoring offline resume intent because legacy sync does not "
                     "support offline resume. Use `wandb beta sync`."
                 )
             if self._run_id:
