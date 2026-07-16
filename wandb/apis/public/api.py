@@ -257,6 +257,7 @@ class Api:
         run_id: str | None = None,
         project: str | None = None,
         entity: str | None = None,
+        sweep: str | None = None,
     ) -> public.Run:
         """Create a new run.
 
@@ -267,13 +268,16 @@ class Api:
                 log the run to a project called "Uncategorized".
             entity: The entity that owns the project. If no entity is
                 specified, log the run to the default entity.
+            sweep: The name of an existing sweep to associate the run with.
 
         Returns:
             The newly created `Run`.
         """
         if entity is None:
             entity = self.default_entity
-        return self._create_run(run_id=run_id, project=project, entity=entity)
+        return self._create_run(
+            run_id=run_id, project=project, entity=entity, sweep=sweep
+        )
 
     def _create_run(
         self,
@@ -282,13 +286,26 @@ class Api:
         project: str | None = None,
         entity: str | None = None,
         state: Literal["running", "pending"] = "running",
+        sweep: str | None = None,
     ) -> public.Run:
         self._sentry.message("Invoking Run.create", level="info")
         run_id = run_id or runid.generate_id()
         project = project or self.settings.get("project") or "uncategorized"
         mutation = """
-        mutation UpsertBucket($project: String, $entity: String, $name: String!, $state: String) {
-            upsertBucket(input: {modelName: $project, entityName: $entity, name: $name, state: $state}) {
+        mutation UpsertBucket(
+            $project: String,
+            $entity: String,
+            $name: String!,
+            $state: String,
+            $sweep: String,
+        ) {
+            upsertBucket(input: {
+                modelName: $project,
+                entityName: $entity,
+                name: $name,
+                state: $state,
+                sweep: $sweep,
+            }) {
                 bucket {
                     project {
                         name
@@ -296,6 +313,7 @@ class Api:
                     }
                     id
                     name
+                    sweepName
                 }
                 inserted
             }
@@ -306,6 +324,7 @@ class Api:
             "project": project,
             "name": run_id,
             "state": state,
+            "sweep": sweep,
         }
         res = self._service_api.execute_graphql(
             mutation,

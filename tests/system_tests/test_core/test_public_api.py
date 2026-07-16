@@ -286,6 +286,20 @@ def test_run_create(user, wandb_backend_spy):
     assert upsert_bucket_spy.requests[0].variables["project"] == "test"
 
 
+def test_run_create_with_sweep(user, wandb_backend_spy):
+    gql = wandb_backend_spy.gql
+    upsert_bucket_spy = gql.Capture()
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="UpsertBucket"),
+        upsert_bucket_spy,
+    )
+
+    Api().create_run(project="test", sweep="abc123")
+
+    assert upsert_bucket_spy.total_calls == 1
+    assert upsert_bucket_spy.requests[0].variables["sweep"] == "abc123"
+
+
 def test_run_update(wandb_backend_spy):
     gql = wandb_backend_spy.gql
     upsert_bucket_spy = gql.Capture()
