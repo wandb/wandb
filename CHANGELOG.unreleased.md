@@ -16,4 +16,4 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ## Changed
 - Hardened argument handling in `wandb launch` for the local-process resource so that job-supplied values are always shell-quoted (@nicholaspun-wandb in https://github.com/wandb/wandb/pull/12220)
-- `wandb.init()` now honors `mode="offline"` and `resume="..."` instead of logging a warning and ignoring the `resume` option. The requested mode is reconciled against the backend when the run is later synced with `wandb beta sync`.
+- `wandb.init()` now honors `mode="offline"` and `resume="..."` instead of logging a warning and ignoring the `resume` option. The requested mode is reconciled against the backend when the run is later synced with `wandb beta sync`. (@geoffhardy in https://github.com/wandb/wandb/pull/12110)
