@@ -398,29 +398,35 @@ def test_artifact_from_id_uses_service_api(monkeypatch):
 
 @pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
 def test_project_id_lazy_load(monkeypatch):
+    from wandb.apis._generated import GetProject
+
     api = wandb.Api()
+    # execute_graphql now parses the response into the pydantic model itself
+    # (via parse=), so its return value is the already-parsed result.
     mock_execute = MagicMock(
-        return_value={
-            "project": ProjectFragment(
-                id="123",
-                name="test-project",
-                entity_name="test-entity",
-                created_at="2021-01-01T00:00:00Z",
-                is_benchmark=False,
-                user=UserFragment(
+        return_value=GetProject.model_validate(
+            {
+                "project": ProjectFragment(
                     id="123",
-                    name="test-user",
-                    username="test-user",
-                    email="test-user@example.com",
-                    admin=False,
-                    flags="",
-                    entity="test-entity",
-                    deleted_at=None,
-                    api_keys=None,
-                    teams=None,
-                ),
-            ).model_dump(),
-        }
+                    name="test-project",
+                    entity_name="test-entity",
+                    created_at="2021-01-01T00:00:00Z",
+                    is_benchmark=False,
+                    user=UserFragment(
+                        id="123",
+                        name="test-user",
+                        username="test-user",
+                        email="test-user@example.com",
+                        admin=False,
+                        flags="",
+                        entity="test-entity",
+                        deleted_at=None,
+                        api_keys=None,
+                        teams=None,
+                    ),
+                ).model_dump(),
+            }
+        )
     )
     monkeypatch.setattr(
         wandb.apis.public.api.ServiceApi,

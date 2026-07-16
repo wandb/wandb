@@ -47,12 +47,12 @@ class Member(Attrs):
             data = self._service_api.execute_graphql(
                 DELETE_INVITE_GQL,
                 {"id": self.id, "entity": self.team},
+                parse=DeleteInvite.model_validate_json,
             )
         except WandbApiFailedError:
             return False
         else:
-            result = DeleteInvite.model_validate(data).result
-            return (result is not None) and result.success
+            return ((result := data.result) is not None) and result.success
 
     def __repr__(self):
         return f"<Member {self.name} ({self.account_type})>"
