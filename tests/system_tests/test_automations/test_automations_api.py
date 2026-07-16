@@ -43,17 +43,16 @@ def automation_name(make_name: Callable[[str], str]) -> str:
 
 @fixture
 def reset_automations(module_api: wandb.Api):
-    """Request this fixture to remove any saved automations both before and after the test."""
+    """Request this fixture to clear any existing automations before a test."""
     # There has to be a better way to do this
     for automation in module_api.automations():
         module_api.delete_automation(automation)
     yield
-    for automation in module_api.automations():
-        module_api.delete_automation(automation)
 
 
 # ------------------------------------------------------------------------------
-def test_no_initial_automations(module_api: wandb.Api, reset_automations):
+@mark.usefixtures(reset_automations.__name__)
+def test_no_initial_automations(module_api: wandb.Api):
     """No automations should be fetched by the API prior to creating any."""
     assert list(module_api.automations()) == []
 

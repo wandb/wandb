@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, TypeAlias
 import wandb
 from pytest import FixtureRequest, fixture, skip
 from wandb import Artifact
-from wandb.apis.public import ArtifactCollection, Project, Team
+from wandb.apis.public import ArtifactCollection, Organization, Project, Team
 from wandb.automations import (
     ActionType,
     ArtifactEvent,
@@ -41,7 +41,7 @@ from wandb.automations.events import InputEvent
 if TYPE_CHECKING:
     from tests.system_tests.backend_fixtures import BackendFixtureFactory
 
-ScopableWandbType: TypeAlias = ArtifactCollection | Project | Team
+ScopableWandbType: TypeAlias = ArtifactCollection | Project | Team | Organization
 
 
 def random_string(chars: str = ascii_lowercase + digits, n: int = 12) -> str:
@@ -164,8 +164,8 @@ def webhook(
 # ---------------------------------------------------------------------------
 # Exclude deprecated events/actions that will not be exposed in the API for programmatic creation
 def valid_input_scopes() -> list[ScopeType]:
-    return sorted(ScopeType)
-    # return sorted(set(ScopeType) - {ScopeType.ENTITY})
+    # return sorted(ScopeType)  # TODO: restore once ENTITY scope is supported
+    return sorted(set(ScopeType) - {ScopeType.ENTITY})
 
 
 def valid_input_events() -> list[EventType]:
