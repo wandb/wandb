@@ -287,6 +287,19 @@ def test_run_create(user, wandb_backend_spy):
 
 
 def test_run_create_with_sweep(user, wandb_backend_spy):
+    project = "test"
+    sweep_id = wandb.sweep(
+        {
+            "method": "grid",
+            "parameters": {
+                "lr": {"values": [0.01, 0.1]},
+                "batch_size": {"values": [32, 64]},
+            },
+        },
+        entity=user,
+        project=project,
+    )
+
     gql = wandb_backend_spy.gql
     upsert_bucket_spy = gql.Capture()
     wandb_backend_spy.stub_gql(
@@ -295,14 +308,14 @@ def test_run_create_with_sweep(user, wandb_backend_spy):
     )
 
     Api().create_run(
-        project="test",
-        sweep="abc123",
+        project=project,
+        sweep=sweep_id,
         config={"lr": 0.01, "batch_size": 32},
     )
 
     assert upsert_bucket_spy.total_calls == 1
     request = upsert_bucket_spy.requests[0]
-    assert request.variables["sweep"] == "abc123"
+    assert request.variables["sweep"] == sweep_id
     config = json.loads(request.variables["config"])
     assert config["lr"]["value"] == 0.01
     assert config["batch_size"]["value"] == 32
