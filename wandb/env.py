@@ -15,7 +15,7 @@ import sys
 from collections.abc import MutableMapping
 from pathlib import Path
 
-import platformdirs
+from . import _platformdirs
 
 CONFIG_PATHS = "WANDB_CONFIG_PATHS"
 SWEEP_PARAM_PATH = "WANDB_SWEEP_PARAM_PATH"
@@ -412,11 +412,11 @@ def get_magic(
 
 
 def get_data_dir(env: MutableMapping | None = None) -> str:
-    default_dir = platformdirs.user_data_dir("wandb")
     if env is None:
         env = os.environ
-    val = env.get(DATA_DIR, default_dir)
-    return val
+    if DATA_DIR in env:
+        return env[DATA_DIR]
+    return _platformdirs.user_data_dir("wandb")
 
 
 def get_artifact_dir(env: MutableMapping | None = None) -> str:
@@ -436,8 +436,11 @@ def get_artifact_fetch_file_url_batch_size(env: MutableMapping | None = None) ->
 
 
 def get_cache_dir(env: MutableMapping | None = None) -> Path:
-    env = env or os.environ
-    return Path(env.get(CACHE_DIR, platformdirs.user_cache_dir("wandb")))
+    if env is None:
+        env = os.environ
+    if CACHE_DIR in env:
+        return Path(env[CACHE_DIR])
+    return Path(_platformdirs.user_cache_dir("wandb"))
 
 
 def get_use_v1_artifacts(env: MutableMapping | None = None) -> bool:
