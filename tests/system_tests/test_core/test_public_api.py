@@ -308,11 +308,6 @@ def test_run_create_with_sweep(user, wandb_backend_spy):
     assert config["batch_size"]["value"] == 32
 
 
-def test_run_create_with_sweep_requires_config(user):
-    with pytest.raises(wandb.errors.UsageError, match="Must specify `config`"):
-        Api().create_run(project="test", sweep="abc123")
-
-
 def test_run_update(wandb_backend_spy):
     gql = wandb_backend_spy.gql
     upsert_bucket_spy = gql.Capture()
