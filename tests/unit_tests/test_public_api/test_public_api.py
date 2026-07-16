@@ -486,7 +486,7 @@ def test_api_does_not_use_requests_auth(mocker: MockerFixture):
 def test_create_run_with_sweep_requires_config():
     api = Api()
     with pytest.raises(UsageError, match="Must specify `config`"):
-        api.create_run(project="test", entity="test-entity", sweep="abc123")
+        api.create_run(project="test", entity="test-entity", sweep_id="abc123")
 
 
 def test_init_sweep_requires_config():

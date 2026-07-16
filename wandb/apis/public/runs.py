@@ -741,7 +741,7 @@ class Run(Attrs):
         project: str | None = None,
         entity: str | None = None,
         state: Literal["running", "pending"] = "running",
-        sweep: str | None = None,
+        sweep_id: str | None = None,
         config: dict[str, Any] | None = None,
     ) -> Run:
         """Create a run for the given project.
@@ -764,9 +764,9 @@ class Run(Attrs):
             entity: Optional entity (user or team) name.
             state: Initial state of the run. Use "pending" for runs that will be
                 resumed later, or "running" for immediate execution.
-            sweep: The name of an existing sweep to associate the run with.
+            sweep_id: The ID of an existing sweep to associate the run with.
             config: Run hyperparameters and other config values. Required when
-                `sweep` is specified.
+                `sweep_id` is specified.
 
         Returns:
             A Run object representing the created run.
@@ -795,7 +795,7 @@ class Run(Attrs):
             project=project,
             entity=entity,
             state=state,
-            sweep=sweep,
+            sweep_id=sweep_id,
             config=config,
         )
 

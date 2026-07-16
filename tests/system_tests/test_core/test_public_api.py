@@ -309,7 +309,7 @@ def test_run_create_with_sweep(user, wandb_backend_spy):
 
     Api().create_run(
         project=project,
-        sweep=sweep_id,
+        sweep_id=sweep_id,
         config={"lr": 0.01, "batch_size": 32},
     )
 

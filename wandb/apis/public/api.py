@@ -104,10 +104,10 @@ def _is_service_api_transport_error(error: BaseException | None) -> bool:
 
 def _validate_sweep_requires_config(
     *,
-    sweep: str | None,
+    sweep_id: str | None,
     config: dict[str, Any] | None,
 ) -> None:
-    if sweep is not None and config is None:
+    if sweep_id is not None and config is None:
         raise UsageError("Must specify `config` when associating a run with a sweep.")
 
 
@@ -272,7 +272,7 @@ class Api:
         run_id: str | None = None,
         project: str | None = None,
         entity: str | None = None,
-        sweep: str | None = None,
+        sweep_id: str | None = None,
         config: dict[str, Any] | None = None,
     ) -> public.Run:
         """Create a new run.
@@ -284,9 +284,9 @@ class Api:
                 log the run to a project called "Uncategorized".
             entity: The entity that owns the project. If no entity is
                 specified, log the run to the default entity.
-            sweep: The name of an existing sweep to associate the run with.
+            sweep_id: The ID of an existing sweep to associate the run with.
             config: Run hyperparameters and other config values. Required when
-                `sweep` is specified.
+                `sweep_id` is specified.
 
         Returns:
             The newly created `Run`.
@@ -297,7 +297,7 @@ class Api:
             run_id=run_id,
             project=project,
             entity=entity,
-            sweep=sweep,
+            sweep_id=sweep_id,
             config=config,
         )
 
@@ -308,10 +308,10 @@ class Api:
         project: str | None = None,
         entity: str | None = None,
         state: Literal["running", "pending"] = "running",
-        sweep: str | None = None,
+        sweep_id: str | None = None,
         config: dict[str, Any] | None = None,
     ) -> public.Run:
-        _validate_sweep_requires_config(sweep=sweep, config=config)
+        _validate_sweep_requires_config(sweep_id=sweep_id, config=config)
         self._sentry.message("Invoking Run.create", level="info")
         run_id = run_id or runid.generate_id()
         project = project or self.settings.get("project") or "uncategorized"
@@ -351,7 +351,7 @@ class Api:
             "project": project,
             "name": run_id,
             "state": state,
-            "sweep": sweep,
+            "sweep": sweep_id,
             "config": config_json,
         }
         res = self._service_api.execute_graphql(
