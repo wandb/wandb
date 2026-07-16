@@ -108,9 +108,7 @@ def _validate_sweep_requires_config(
     config: dict[str, Any] | None,
 ) -> None:
     if sweep is not None and config is None:
-        raise UsageError(
-            "Must specify `config` when associating a run with a sweep."
-        )
+        raise UsageError("Must specify `config` when associating a run with a sweep.")
 
 
 def _config_dict_to_json(config: dict[str, Any]) -> str:
