@@ -480,3 +480,15 @@ def test_api_does_not_use_requests_auth(mocker: MockerFixture):
     Api()
 
     mock_auth.as_requests_auth.assert_not_called()
+
+
+@pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
+def test_create_run_with_sweep_requires_config():
+    api = Api()
+    with pytest.raises(UsageError, match="Must specify `config`"):
+        api.create_run(project="test", sweep="abc123")
+
+
+def test_init_sweep_requires_config():
+    with pytest.raises(UsageError, match="Must specify `config`"):
+        wandb.init(settings={"sweep_id": "abc123"}, mode="disabled")

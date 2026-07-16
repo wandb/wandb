@@ -742,6 +742,7 @@ class Run(Attrs):
         entity: str | None = None,
         state: Literal["running", "pending"] = "running",
         sweep: str | None = None,
+        config: dict[str, Any] | None = None,
     ) -> Run:
         """Create a run for the given project.
 
@@ -764,6 +765,8 @@ class Run(Attrs):
             state: Initial state of the run. Use "pending" for runs that will be
                 resumed later, or "running" for immediate execution.
             sweep: The name of an existing sweep to associate the run with.
+            config: Run hyperparameters and other config values. Required when
+                `sweep` is specified.
 
         Returns:
             A Run object representing the created run.
@@ -793,6 +796,7 @@ class Run(Attrs):
             entity=entity,
             state=state,
             sweep=sweep,
+            config=config,
         )
 
     def _load_with_fragment(

@@ -102,7 +102,10 @@ def test_sweep_api_get_sweep_run(
 
     # Create a sweep run
     with wandb.init(
-        entity=user, project=project, settings=wandb.Settings(sweep_id=sweep_id)
+        entity=user,
+        project=project,
+        settings=wandb.Settings(sweep_id=sweep_id),
+        config={"param1": 1},
     ) as sweep_run:
         sweep_run.log({"y": 2})
         sweep_run_id = sweep_run.id

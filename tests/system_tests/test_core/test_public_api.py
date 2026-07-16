@@ -294,10 +294,23 @@ def test_run_create_with_sweep(user, wandb_backend_spy):
         upsert_bucket_spy,
     )
 
-    Api().create_run(project="test", sweep="abc123")
+    Api().create_run(
+        project="test",
+        sweep="abc123",
+        config={"lr": 0.01, "batch_size": 32},
+    )
 
     assert upsert_bucket_spy.total_calls == 1
-    assert upsert_bucket_spy.requests[0].variables["sweep"] == "abc123"
+    request = upsert_bucket_spy.requests[0]
+    assert request.variables["sweep"] == "abc123"
+    config = json.loads(request.variables["config"])
+    assert config["lr"]["value"] == 0.01
+    assert config["batch_size"]["value"] == 32
+
+
+def test_run_create_with_sweep_requires_config(user):
+    with pytest.raises(wandb.errors.UsageError, match="Must specify `config`"):
+        Api().create_run(project="test", sweep="abc123")
 
 
 def test_run_update(wandb_backend_spy):
