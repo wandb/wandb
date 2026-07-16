@@ -380,6 +380,10 @@ def _start_container(*, name: str) -> _WandbContainerPorts:
         "--detach",
         *["--pull", pull],
         *["-e", "WANDB_ENABLE_TEST_CONTAINER=true"],
+        # ------------------------------------------------------------------------------
+        # TODO: replace with more durable solution after verifying
+        *["-e", "GORILLA_GATE_AUTOMATION_ENTITY_SCOPE=true"],
+        # ------------------------------------------------------------------------------
         *["--name", name],
         *["--volume", f"{name}-vol:/vol"],
         # Expose ports to the host.

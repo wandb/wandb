@@ -4,12 +4,12 @@ import secrets
 from collections.abc import Callable, Generator
 from functools import lru_cache
 from string import ascii_lowercase, digits
-from typing import TypeAlias
+from typing import TYPE_CHECKING, TypeAlias
 
 import wandb
 from pytest import FixtureRequest, fixture, skip
 from wandb import Artifact
-from wandb.apis.public import ArtifactCollection, Project
+from wandb.apis.public import ArtifactCollection, Project, Team
 from wandb.automations import (
     ActionType,
     ArtifactEvent,
@@ -38,7 +38,10 @@ from wandb.automations._generated import (
 from wandb.automations._utils import INVALID_INPUT_ACTIONS, INVALID_INPUT_EVENTS
 from wandb.automations.events import InputEvent
 
-ScopableWandbType: TypeAlias = ArtifactCollection | Project
+if TYPE_CHECKING:
+    from tests.system_tests.backend_fixtures import BackendFixtureFactory
+
+ScopableWandbType: TypeAlias = ArtifactCollection | Project | Team
 
 
 def random_string(chars: str = ascii_lowercase + digits, n: int = 12) -> str:
@@ -104,6 +107,17 @@ def artifact_collection(
 
 
 @fixture(scope="module")
+def team(
+    backend_fixture_factory: BackendFixtureFactory,
+    module_user: str,
+    make_module_api: Callable[[], wandb.Api],
+) -> Team:
+    """A test team entity for tests in this module."""
+    name = backend_fixture_factory.make_team(username=module_user).team
+    return make_module_api().team(name)
+
+
+@fixture(scope="module")
 def make_webhook_integration(
     make_module_api: Callable[[], wandb.Api],
 ) -> Callable[[str, str, str], WebhookIntegration]:
@@ -150,8 +164,8 @@ def webhook(
 # ---------------------------------------------------------------------------
 # Exclude deprecated events/actions that will not be exposed in the API for programmatic creation
 def valid_input_scopes() -> list[ScopeType]:
-    # return sorted(ScopeType)  # TODO: restore once ENTITY scope is supported
-    return sorted(set(ScopeType) - {ScopeType.ENTITY})
+    return sorted(ScopeType)
+    # return sorted(set(ScopeType) - {ScopeType.ENTITY})
 
 
 def valid_input_events() -> list[EventType]:
@@ -246,6 +260,7 @@ def scope(request: FixtureRequest, scope_type: ScopeType) -> ScopableWandbType:
     scope2fixture: dict[ScopeType, str] = {
         ScopeType.ARTIFACT_COLLECTION: artifact_collection.__name__,
         ScopeType.PROJECT: project.__name__,
+        ScopeType.ENTITY: team.__name__,
     }
     # We want to request the fixture dynamically, hence the request.getfixturevalue workaround
     return request.getfixturevalue(scope2fixture[scope_type])

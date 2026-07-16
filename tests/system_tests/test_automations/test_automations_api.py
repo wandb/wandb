@@ -33,7 +33,6 @@ from wandb.automations._filters.run_metrics import ChangeDir
 from wandb.automations._filters.run_states import ReportedRunState, StateFilter
 from wandb.automations.actions import InputAction, SavedNoOpAction, SavedWebhookAction
 from wandb.automations.events import InputEvent, RunMetricFilter, RunStateFilter
-from wandb.automations.scopes import ArtifactCollectionScopeTypes
 from wandb.errors.errors import CommError
 
 
@@ -755,7 +754,7 @@ class TestUpdateAutomation:
 
         updated_scope = new_automation.scope
 
-        assert isinstance(updated_scope, ArtifactCollectionScopeTypes)
+        assert updated_scope.scope_type is ScopeType.ARTIFACT_COLLECTION
         assert updated_scope.id == artifact_collection.id
         assert updated_scope.name == artifact_collection.name
 
