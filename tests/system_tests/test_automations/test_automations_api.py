@@ -139,20 +139,8 @@ def test_create_automation(
     )
     fetched_b = module_api.automation(name=created.name)
 
-    # NOTE: On older server versions, the ID returned returned by create_automation()
-    # seems to have an (encoded) index that's off by 1, vs. the ID returned by
-    # automation().
-    # This seems fixed on newer servers.  Use server support for the `RUN_METRIC_THRESHOLD`
-    # event to determine if this is a "newer" server.
-    assert fetched_a.id == fetched_b.id  # these should at least be the same
-
-    is_older_server = not module_api._supports_automation(
-        event=EventType.RUN_METRIC_THRESHOLD
-    )
-    exclude = {"id"} if is_older_server else None
-
-    assert fetched_a.model_dump(exclude=exclude) == created.model_dump(exclude=exclude)
-    assert fetched_b.model_dump(exclude=exclude) == created.model_dump(exclude=exclude)
+    assert fetched_a == created
+    assert fetched_b == created
 
 
 @mark.usefixtures(reset_automations.__name__)
@@ -169,19 +157,9 @@ def test_create_existing_automation_raises_by_default_if_existing(
     with raises(CommError):
         module_api.create_automation((event >> action), name=created.name)
 
-    # Fetching the automation by name should return the original automation,
-    # unchanged.
+    # Fetching the automation by name should return the original automation, unchanged.
     fetched = module_api.automation(name=created.name)
-
-    # NOTE: On older server versions, the ID returned has an encoded index that's off by 1.
-    # This seems fixed on newer servers.  Use RUN_METRIC_THRESHOLD support as a proxy for identifying
-    # newer servers.
-    is_older_server = not module_api._supports_automation(
-        event=EventType.RUN_METRIC_THRESHOLD
-    )
-    exclude = {"id"} if is_older_server else None
-
-    assert fetched.model_dump(exclude=exclude) == created.model_dump(exclude=exclude)
+    assert fetched == created
 
 
 @mark.usefixtures(reset_automations.__name__)
@@ -208,16 +186,8 @@ def test_create_existing_automation_fetches_existing_if_requested(
     # Fetch the automation by name
     fetched = module_api.automation(name=created.name)
 
-    # NOTE: On older server versions, the ID returned has an encoded index that's off by 1.
-    # This seems fixed on newer servers.  Use RUN_METRIC_THRESHOLD support as a proxy for identifying
-    # newer servers.
-    is_older_server = not module_api._supports_automation(
-        event=EventType.RUN_METRIC_THRESHOLD
-    )
-    exclude = {"id"} if is_older_server else None
-
-    assert created.model_dump(exclude=exclude) == existing.model_dump(exclude=exclude)
-    assert existing.model_dump(exclude=exclude) == fetched.model_dump(exclude=exclude)
+    assert created == existing
+    assert existing == fetched
 
     assert created.description is None
     assert existing.description is None
@@ -484,7 +454,6 @@ def created_automation(
         name=automation_name,
     )
 
-    # Fetch the automation by name (avoids the off-by-1 index issue on older servers)
     fetched = module_api.automation(name=created.name)
 
     assert created.name == fetched.name == automation_name  # Sanity check
@@ -539,18 +508,6 @@ def test_delete_automation_raises_on_invalid_id(module_api: wandb.Api):
         module_api.delete_automation("invalid-automation-id")
 
 
-@fixture
-def skip_if_edit_automations_not_supported_on_server(module_api: wandb.Api):
-    # HACK: Use NO_OP as a proxy for whether the server is "new enough"
-    #
-    # FIXME: We need a better way to check this in the absence of
-    # - a prior server feature flag
-    # - use of GraphQL introspection queries
-    if not module_api._supports_automation(action=ActionType.NO_OP):
-        skip("Server does not support editing automations")
-
-
-@mark.usefixtures(skip_if_edit_automations_not_supported_on_server.__name__)
 class TestUpdateAutomation:
     @fixture
     def action_type(self) -> ActionType:
@@ -963,9 +920,8 @@ class TestPaginatedAutomations:
                 description="test description",
             )
 
-            # Refetch (to avoid the off-by-1 index issue on older servers) and retain for later cleanup
-            refetched_id = setup_api.automation(name=created.name).id
-            created_automation_ids.append(refetched_id)
+            # Retain the automation ID for later cleanup.
+            created_automation_ids.append(created.id)
 
         yield
 
