@@ -76,6 +76,12 @@ class HistoryScan(Iterator[_RowDict]):
         self.rows: list[_RowDict] = []
         self.keys = keys
 
+        # Clean up resources when the object is GC'ed.
+        self._service_api.finalize(
+            self,
+            _scan_cleanup_request(self._scan_request_id),
+        )
+
     @property
     def max_step(self) -> int:
         """The highest step that can be yielded by this scan."""
@@ -130,3 +136,13 @@ class HistoryScan(Iterator[_RowDict]):
         return {
             item.key: json.loads(item.value_json) for item in history_row.history_items
         }
+
+
+def _scan_cleanup_request(id: int) -> pb.ApiRequest:
+    """Returns a ScanRunHistoryCleanup request for the given ID."""
+    scan_cleanup_request = pb.ScanRunHistoryCleanup(request_id=id)
+    run_history_request = pb.ReadRunHistoryRequest(
+        scan_run_history_cleanup=scan_cleanup_request,
+    )
+
+    return pb.ApiRequest(read_run_history_request=run_history_request)
