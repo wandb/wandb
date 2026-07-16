@@ -3866,6 +3866,7 @@ type ArtifactRecord struct {
 	BaseId             string                 `protobuf:"bytes,17,opt,name=base_id,json=baseId,proto3" json:"base_id,omitempty"`
 	TtlDurationSeconds int64                  `protobuf:"varint,18,opt,name=ttl_duration_seconds,json=ttlDurationSeconds,proto3" json:"ttl_duration_seconds,omitempty"`
 	Tags               []string               `protobuf:"bytes,19,rep,name=tags,proto3" json:"tags,omitempty"`
+	DigestAlgorithm    string                 `protobuf:"bytes,20,opt,name=digest_algorithm,json=digestAlgorithm,proto3" json:"digest_algorithm,omitempty"`
 	IncrementalBeta1   bool                   `protobuf:"varint,100,opt,name=incremental_beta1,json=incrementalBeta1,proto3" json:"incremental_beta1,omitempty"`
 	XInfo              *XRecordInfo           `protobuf:"bytes,200,opt,name=_info,json=Info,proto3" json:"_info,omitempty"`
 	unknownFields      protoimpl.UnknownFields
@@ -4033,6 +4034,13 @@ func (x *ArtifactRecord) GetTags() []string {
 		return x.Tags
 	}
 	return nil
+}
+
+func (x *ArtifactRecord) GetDigestAlgorithm() string {
+	if x != nil {
+		return x.DigestAlgorithm
+	}
+	return ""
 }
 
 func (x *ArtifactRecord) GetIncrementalBeta1() bool {
@@ -12041,7 +12049,7 @@ const file_wandb_proto_wandb_internal_proto_rawDesc = "" +
 	"\tStatsItem\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x1d\n" +
 	"\n" +
-	"value_json\x18\x10 \x01(\tR\tvalueJson\"\xc9\x05\n" +
+	"value_json\x18\x10 \x01(\tR\tvalueJson\"\xf4\x05\n" +
 	"\x0eArtifactRecord\x12\x15\n" +
 	"\x06run_id\x18\x01 \x01(\tR\x05runId\x12\x18\n" +
 	"\aproject\x18\x02 \x01(\tR\aproject\x12\x16\n" +
@@ -12062,7 +12070,8 @@ const file_wandb_proto_wandb_internal_proto_rawDesc = "" +
 	"\x12sequence_client_id\x18\x10 \x01(\tR\x10sequenceClientId\x12\x17\n" +
 	"\abase_id\x18\x11 \x01(\tR\x06baseId\x120\n" +
 	"\x14ttl_duration_seconds\x18\x12 \x01(\x03R\x12ttlDurationSeconds\x12\x12\n" +
-	"\x04tags\x18\x13 \x03(\tR\x04tags\x12+\n" +
+	"\x04tags\x18\x13 \x03(\tR\x04tags\x12)\n" +
+	"\x10digest_algorithm\x18\x14 \x01(\tR\x0fdigestAlgorithm\x12+\n" +
 	"\x11incremental_beta1\x18d \x01(\bR\x10incrementalBeta1\x121\n" +
 	"\x05_info\x18\xc8\x01 \x01(\v2\x1b.wandb_internal._RecordInfoR\x04Info\"\xa1\x02\n" +
 	"\x10ArtifactManifest\x12\x18\n" +
