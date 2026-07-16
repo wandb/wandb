@@ -19,3 +19,4 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ### Changed
 - Runs associated with a sweep via `Api().create_run()`, `Run.create()`, or `wandb.init(settings=Settings(sweep_id=...))` must include run config (@kmikowicz-wandb in https://github.com/wandb/wandb/pull/12223)
+- Hardened argument handling in `wandb launch` for the local-process resource so that job-supplied values are always shell-quoted (@nicholaspun-wandb in https://github.com/wandb/wandb/pull/12220)
