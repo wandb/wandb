@@ -20,7 +20,7 @@ import click
 
 import wandb
 from wandb import env, util
-from wandb.analytics import get_otel, get_sentry
+from wandb.analytics import NoOpOtelProvider, TelemetryRecorder, get_sentry
 from wandb.apis.normalize import normalize_exceptions
 from wandb.errors import AuthenticationError, CommError, UsageError
 from wandb.integration.sagemaker import parse_sm_secrets
@@ -208,8 +208,12 @@ class Api:
         environ: MutableMapping[str, str] = os.environ,
         retry_callback: Callable[[int, str], Any] | None = None,
         api_key: str | None = None,
+        telemetry_recorder: TelemetryRecorder | None = None,
     ) -> None:
         import requests
+
+        if telemetry_recorder is None:
+            telemetry_recorder = NoOpOtelProvider()
 
         self._environ = environ
 
@@ -260,11 +264,12 @@ class Api:
         api_key = api_key or self.default_settings.get("api_key")
         if api_key:
             auth = ("api", api_key)
-            get_otel(api_key=api_key)
         elif (access_token := self.access_token) is not None:
             self._extra_http_headers["Authorization"] = f"Bearer {access_token}"
         else:
             auth = ("api", self.api_key or "")
+
+        self._telemetry_recorder = telemetry_recorder
 
         proxies = self.settings("_proxies") or json.loads(
             self._environ.get("WANDB__PROXIES", "{}")
@@ -436,6 +441,10 @@ class Api:
     @property
     def default_entity(self) -> str:
         return self.viewer().get("entity")  # type: ignore
+
+    @property
+    def telemetry_recorder(self) -> TelemetryRecorder:
+        return self._telemetry_recorder
 
     @overload
     def settings(self, key: None = None) -> dict[str, Any]: ...
@@ -2376,8 +2385,8 @@ class Api:
                 _e = retry.TransientError(exc=e)
                 raise _e.with_traceback(sys.exc_info()[2])
             else:
-                # TODO: change to get_otel().reraise() once sentry is removed
-                get_otel().exception(str(e), e)
+                # TODO: change to self._otel_proxy.reraise() once sentry is removed
+                self._telemetry_recorder.exception(str(e), e)
                 get_sentry().reraise(e)
         return response
 
@@ -2463,8 +2472,8 @@ class Api:
                 _e = retry.TransientError(exc=e)
                 raise _e.with_traceback(sys.exc_info()[2])
             else:
-                # TODO: change to get_otel().reraise() once sentry is removed
-                get_otel().exception(str(e), e)
+                # TODO: change to self._otel_proxy.reraise() once sentry is removed
+                self._telemetry_recorder.exception(str(e), e)
                 get_sentry().reraise(e)
 
         return response

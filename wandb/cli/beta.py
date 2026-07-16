@@ -5,12 +5,15 @@ These commands are experimental and may change or be removed in future versions.
 
 from __future__ import annotations
 
+import os
 import pathlib
 
 import click
 
-from wandb.analytics import get_otel, get_sentry
+from wandb.analytics import OtelProvider, get_sentry
 from wandb.errors import WandbCoreNotAvailableError
+from wandb.sdk import wandb_setup
+from wandb.sdk.lib.wbauth import read_netrc_auth
 from wandb.util import get_core_path
 
 from .leet import leet
@@ -23,19 +26,28 @@ def beta(ctx: click.Context) -> None:
 
     These commands may change or even completely break in any release of wandb.
     """
+    singleton_settings = wandb_setup.singleton().settings
+    otel_proxy = OtelProvider(
+        api_key=singleton_settings.api_key
+        or read_netrc_auth(host=singleton_settings.base_url)
+        or "",
+        endpoint=singleton_settings.base_url,
+    )
     get_sentry().configure_scope(process_context="wandb_beta")
+
     try:
         get_core_path()
     except WandbCoreNotAvailableError as e:
         error_message = f"using `wandb beta`. failed with {e}"
         get_sentry().exception(error_message)
-        get_otel().exception(error_message, e)
+        otel_proxy.exception(error_message, e)
         click.secho(
             (e),
             fg="red",
             err=True,
         )
 
+    otel_proxy.shutdown()
     if ctx.invoked_subcommand == "leet":
         click.secho(
             "LEET is now generally available as `wandb leet`;"
