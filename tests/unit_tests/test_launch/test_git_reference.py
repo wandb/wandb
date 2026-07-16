@@ -30,6 +30,22 @@ def uri_recorder(monkeypatch) -> list[tuple[str, ...]]:
 
 
 @pytest.fixture
+def allow_local(monkeypatch) -> None:
+    """Let behavior tests fetch from local fixtures.
+
+    Production only allows https/ssh remotes and pins ``protocol.file.allow=never``,
+    so exercising the real fetch/checkout logic against a local repo requires
+    relaxing both the scheme allowlist and the file-transport hardening.
+    """
+    monkeypatch.setattr(git_reference_module, "_validate_uri", lambda uri: None)
+    monkeypatch.setattr(
+        git_reference_module,
+        "_PROTOCOL_HARDENING",
+        ("-c", "protocol.file.allow=always"),
+    )
+
+
+@pytest.fixture
 def source_repo(tmp_path: pathlib.Path) -> pathlib.Path:
     """A local git repo with a `main` branch and a `feature` branch."""
     path = tmp_path / "source"
@@ -52,7 +68,7 @@ def source_repo(tmp_path: pathlib.Path) -> pathlib.Path:
     return path
 
 
-def test_fetch_default_branch(source_repo, tmp_path):
+def test_fetch_default_branch(source_repo, tmp_path, allow_local):
     dst_dir = tmp_path / "dst"
     ref = GitReference(str(source_repo))
 
@@ -64,7 +80,7 @@ def test_fetch_default_branch(source_repo, tmp_path):
     assert ref.commit_hash == run_git(source_repo, "rev-parse", "main")
 
 
-def test_fetch_branch(source_repo, tmp_path):
+def test_fetch_branch(source_repo, tmp_path, allow_local):
     dst_dir = tmp_path / "dst"
     ref = GitReference(str(source_repo), "feature")
 
@@ -74,7 +90,7 @@ def test_fetch_branch(source_repo, tmp_path):
     assert (dst_dir / "feature.py").exists()
 
 
-def test_fetch_commit_hash(source_repo, tmp_path):
+def test_fetch_commit_hash(source_repo, tmp_path, allow_local):
     dst_dir = tmp_path / "dst"
     commit = run_git(source_repo, "rev-parse", "main")
     ref = GitReference(str(source_repo), commit)
@@ -85,14 +101,14 @@ def test_fetch_commit_hash(source_repo, tmp_path):
     assert not (dst_dir / "feature.py").exists()
 
 
-def test_fetch_bad_remote_raises_launch_error(tmp_path):
+def test_fetch_bad_remote_raises_launch_error(tmp_path, allow_local):
     ref = GitReference(str(tmp_path / "does-not-exist"))
 
     with pytest.raises(LaunchError, match="Unable to fetch"):
         ref.fetch(str(tmp_path / "dst"))
 
 
-def test_fetch_without_git_raises_launch_error(tmp_path, monkeypatch):
+def test_fetch_without_git_raises_launch_error(tmp_path, allow_local, monkeypatch):
     monkeypatch.setenv("GIT_PYTHON_GIT_EXECUTABLE", "git-not-found")
     ref = GitReference(str(tmp_path / "source"))
 
@@ -100,7 +116,9 @@ def test_fetch_without_git_raises_launch_error(tmp_path, monkeypatch):
         ref.fetch(str(tmp_path / "dst"))
 
 
-def test_fetch_no_default_branch_raises_launch_error(source_repo, tmp_path):
+def test_fetch_no_default_branch_raises_launch_error(
+    source_repo, tmp_path, allow_local
+):
     run_git(source_repo, "branch", "-m", "main", "trunk")
     ref = GitReference(str(source_repo))
 
@@ -111,53 +129,111 @@ def test_fetch_no_default_branch_raises_launch_error(source_repo, tmp_path):
 @pytest.mark.parametrize(
     "uri",
     [
-        "ext::sh -c 'touch /tmp/pwned'",
-        "EXT::sh -c 'touch /tmp/pwned'",
-        "fd::17/foo",
-        "file:///tmp/evil.git",
-        "-u./payload",
-        "--upload-pack=touch /tmp/pwned",
+        "https://github.com/wandb/launch-jobs",
+        "https://github.com/wandb/launch-jobs.git",
+        "ssh://git@github.com/wandb/launch-jobs.git",
+        "git@github.com:wandb/launch-jobs.git",
+        "git@host.example.com:group/sub/repo.git",
     ],
 )
-def test_fetch_rejects_dangerous_uri(uri, tmp_path):
-    """Command-executing transports and option-like remotes are refused."""
-    ref = GitReference(uri)
+def test_validate_uri_allows_supported_remotes(uri):
+    """https, ssh, and scp-like git@host:path remotes are permitted."""
+    git_reference_module._validate_uri(uri)  # does not raise
+
+
+@pytest.mark.parametrize(
+    "uri",
+    [
+        "file:///tmp/some/repo.git",
+        "ext::sh -c 'echo hi'",
+        "EXT::sh -c 'echo hi'",
+        "fd::17/foo",
+        "git://github.com/wandb/launch-jobs.git",
+        "http://github.com/wandb/launch-jobs.git",
+        "/tmp/local/repo",
+        ".",
+        "./relative/repo",
+        "-u./x",
+        "--upload-pack=echo",
+        "-x@host:path",
+    ],
+)
+def test_validate_uri_rejects_everything_else(uri):
+    """file/ext/fd/git/http, bare paths, and option-like remotes are refused."""
+    with pytest.raises(LaunchError, match="Refusing to fetch git remote"):
+        git_reference_module._validate_uri(uri)
+
+
+def test_fetch_rejected_uri_runs_no_git(uri_recorder, tmp_path):
+    """A rejected remote is refused before any git process is spawned."""
+    ref = GitReference("ext::sh -c 'echo hi'")
 
     with pytest.raises(LaunchError, match="Refusing to fetch git remote"):
-        ref.fetch(str(tmp_path / "dst"))
-
-
-def test_fetch_dangerous_uri_runs_no_git(uri_recorder, tmp_path):
-    """A rejected URI is refused before any git process is spawned."""
-    ref = GitReference("ext::sh -c 'touch /tmp/pwned'")
-
-    with pytest.raises(LaunchError):
         ref.fetch(str(tmp_path / "dst"))
 
     assert uri_recorder == []
 
 
-def test_fetch_blocked_submodule_raises_launch_error(source_repo, tmp_path):
-    """A submodule over a forbidden transport is blocked and reported cleanly."""
-    # Point a submodule at a file:// URL; our protocol allowlist refuses it.
-    evil = tmp_path / "evil"
+def test_protocol_hardening_pins_file_and_ext():
+    """The hardening applied to git commands denies the file and ext transports."""
+    assert git_reference_module._PROTOCOL_HARDENING == (
+        "-c",
+        "protocol.file.allow=never",
+        "-c",
+        "protocol.ext.allow=never",
+    )
+
+
+def test_fetch_hardens_fetch_and_submodule(monkeypatch, tmp_path):
+    """fetch() pins the protocol allowlist on both the fetch and submodule calls."""
+    monkeypatch.setattr(git_reference_module, "_validate_uri", lambda uri: None)
+    calls: list[tuple[str, ...]] = []
+    monkeypatch.setattr(
+        git_reference_module, "run_git", lambda *a, **k: calls.append(a) or ""
+    )
+
+    GitReference("https://example.com/o/r.git").fetch(str(tmp_path / "dst"))
+
+    fetch_calls = [a for a in calls if "fetch" in a]
+    submodule_calls = [a for a in calls if "submodule" in a]
+    assert fetch_calls, "expected a git fetch"
+    assert submodule_calls, "expected a git submodule update"
+    for group in (fetch_calls, submodule_calls):
+        for args in group:
+            assert "protocol.file.allow=never" in args
+            assert "protocol.ext.allow=never" in args
+
+
+def test_fetch_blocked_submodule_raises_launch_error(
+    source_repo, tmp_path, monkeypatch
+):
+    """A submodule over the file transport is blocked and reported cleanly."""
+    monkeypatch.setattr(git_reference_module, "_validate_uri", lambda uri: None)
+    # Allow the top-level local fetch (user context) while keeping the recursive
+    # submodule fetch restricted, mirroring the production file.allow=never
+    # posture for recursion.
+    monkeypatch.setattr(
+        git_reference_module, "_PROTOCOL_HARDENING", ("-c", "protocol.file.allow=user")
+    )
+
+    submodule_src = tmp_path / "submodule_src"
     subprocess.run(
-        ["git", "init", "--initial-branch", "main", evil],
+        ["git", "init", "--initial-branch", "main", submodule_src],
         check=True,
         stdout=subprocess.DEVNULL,
     )
-    run_git(evil, "config", "user.name", "test")
-    run_git(evil, "config", "user.email", "test@test.com")
-    (evil / "payload").write_text("x\n")
-    run_git(evil, "add", "payload")
-    run_git(evil, "commit", "--no-verify", "--no-gpg-sign", "-m", "evil")
+    run_git(submodule_src, "config", "user.name", "test")
+    run_git(submodule_src, "config", "user.email", "test@test.com")
+    (submodule_src / "data").write_text("x\n")
+    run_git(submodule_src, "add", "data")
+    run_git(submodule_src, "commit", "--no-verify", "--no-gpg-sign", "-m", "init")
     run_git(
         source_repo,
         "-c",
         "protocol.file.allow=always",
         "submodule",
         "add",
-        f"file://{evil}",
+        f"file://{submodule_src}",
         "sub",
     )
     run_git(
@@ -168,21 +244,3 @@ def test_fetch_blocked_submodule_raises_launch_error(source_repo, tmp_path):
 
     with pytest.raises(LaunchError, match="Unable to update submodules"):
         ref.fetch(str(tmp_path / "dst"))
-
-
-def test_fetch_hardens_transports(source_repo, tmp_path, uri_recorder):
-    """The fetch and recursive-submodule calls pin the protocol allowlist."""
-    ref = GitReference(str(source_repo))
-
-    ref.fetch(str(tmp_path / "dst"))
-
-    fetch_calls = [args for args in uri_recorder if "fetch" in args]
-    submodule_calls = [args for args in uri_recorder if "submodule" in args]
-
-    assert fetch_calls, "expected a git fetch"
-    assert all("protocol.ext.allow=never" in args for args in fetch_calls)
-
-    assert submodule_calls, "expected a git submodule update"
-    for args in submodule_calls:
-        assert "protocol.file.allow=never" in args
-        assert "protocol.ext.allow=never" in args
