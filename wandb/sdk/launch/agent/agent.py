@@ -15,7 +15,7 @@ from multiprocessing import Event
 from typing import Any
 
 import wandb
-from wandb.analytics import get_otel, get_sentry
+from wandb.analytics import NoOpOtelProvider, TelemetryRecorder, get_sentry
 from wandb.apis.internal import Api
 from wandb.errors import CommError
 from wandb.sdk.launch._launch_add import launch_add
@@ -197,16 +197,25 @@ class LaunchAgent:
         """Return whether the agent is initialized."""
         return cls._instance is not None
 
-    def __init__(self, api: Api, config: dict[str, Any]):
+    def __init__(
+        self,
+        api: Api,
+        config: dict[str, Any],
+        telemetry_recorder: TelemetryRecorder | None = None,
+    ):
         """Initialize a launch agent.
 
         Arguments:
             api: Api object to use for making requests to the backend.
             config: Config dictionary for the agent.
         """
+        if telemetry_recorder is None:
+            telemetry_recorder = NoOpOtelProvider()
+
         self._entity = config["entity"]
         self._project = LAUNCH_DEFAULT_PROJECT
         self._api = api
+        self._telemetry_recorder = api.api.telemetry_recorder
         self._base_url = self._api.settings().get("base_url")
         self._ticks = 0
         self._jobs: dict[int, JobAndRunStatusTracker] = {}
@@ -486,7 +495,7 @@ class LaunchAgent:
             self._internal_logger.info(
                 f"Finish thread id {thread_id} had no exception and no run"
             )
-            get_otel().exception(
+            self._telemetry_recorder.exception(
                 "launch agent called finish thread id on thread without run or exception",
                 Exception(),
             )
@@ -615,7 +624,7 @@ class LaunchAgent:
                             wandb.termerror(
                                 f"{LOG_PREFIX}Error running job: {traceback.format_exc()}"
                             )
-                            get_otel().exception(str(e), e)
+                            self._telemetry_recorder.exception(str(e), e)
                             get_sentry().exception(e)
 
                             # always the first phase, because we only enter phase 2 within the thread
@@ -675,17 +684,17 @@ class LaunchAgent:
                 f"{LOG_PREFIX}agent {self._name} encountered an issue while starting Docker, see above output for details."
             )
             exception = e
-            get_otel().exception(str(e), e)
+            self._telemetry_recorder.exception(str(e), e)
             get_sentry().exception(e)
         except LaunchError as e:
             wandb.termerror(f"{LOG_PREFIX}Error running job: {e}")
             exception = e
-            get_otel().exception(str(e), e)
+            self._telemetry_recorder.exception(str(e), e)
             get_sentry().exception(e)
         except Exception as e:
             wandb.termerror(f"{LOG_PREFIX}Error running job: {traceback.format_exc()}")
             exception = e
-            get_otel().exception(str(e), e)
+            self._telemetry_recorder.exception(str(e), e)
             get_sentry().exception(e)
         finally:
             await self.finish_thread_id(rqi_id, exception)
@@ -928,7 +937,7 @@ class LaunchAgent:
             _logger.info(f"Job ID: {run.id}")
             _logger.info(traceback.format_exc())
             _logger.info("---")
-            get_otel().exception(str(e), e)
+            self._telemetry_recorder.exception(str(e), e)
             get_sentry().exception(e)
         return known_error
 
