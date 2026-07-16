@@ -29,7 +29,7 @@ jobs:
           echo "WANDB_BRANCH=${REF_VALUE}" >> "$GITHUB_ENV"
           fi
 
-      - uses: wandb/docugen@v0.4.10
+      - uses: wandb/docugen@f367b095f7bab40b5867ae59bcc7ace277815007 # v0.4.10
         id: docugen
         with:
           wandb-branch: $WANDB_BRANCH

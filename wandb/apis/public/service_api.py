@@ -1,14 +1,13 @@
 from __future__ import annotations
 
-import contextlib
 import json
 import logging
-import weakref
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from typing import Any, cast
 
 from wandb.proto import wandb_internal_pb2 as pb
+from wandb.proto import wandb_server_pb2 as spb
 from wandb.proto.wandb_api_pb2 import (
     ApiRequest,
     ApiResponse,
@@ -23,12 +22,6 @@ from wandb.sdk.lib.service.service_connection import (
 from wandb.sdk.mailbox.mailbox_handle import MailboxHandle
 
 _logger = logging.getLogger(__name__)
-
-
-def _cleanup(connection: ServiceConnection, api_id: str) -> None:
-    """Clean up the api resources associated with the api id."""
-    with contextlib.suppress(Exception):
-        connection.api_cleanup_request(api_id)
 
 
 @dataclass(frozen=True)
@@ -66,12 +59,10 @@ class ServiceApi:
         )
         self._api_session = session
 
-        weakref.finalize(
-            self,
-            _cleanup,
-            session.connection,
-            session.api_id,
-        )
+        # Clean up service-side resources when this object is GC'ed.
+        cleanup_request = spb.ServerRequest()
+        cleanup_request.api_cleanup_request.api_id = response.api_id
+        service_connection.finalize(self, cleanup_request)
 
         return session
 
@@ -87,6 +78,29 @@ class ServiceApi:
         session = self._get_api_session()
         request.api_id = session.api_id
         return session.connection.api_request(request, timeout=timeout)
+
+    def finalize(
+        self,
+        obj: object,
+        cleanup: ApiRequest,
+    ) -> Callable[[], None]:
+        """Send a cleanup request when the object is garbage collected.
+
+        The request must not reference the object, or else it will never be
+        garbage collected. The request is not guaranteed to be sent before
+        the connection is closed, so any resource it would clean up must also be
+        cleaned up automatically by wandb-core when this API instance is
+        cleaned up.
+
+        Returns:
+            A callback that can be used to send the cleanup request immediately.
+        """
+        session = self._get_api_session()
+
+        cleanup.api_id = session.api_id
+        request = spb.ServerRequest(api_request=cleanup)
+
+        return session.connection.finalize(obj, request)
 
     def execute_graphql(
         self,

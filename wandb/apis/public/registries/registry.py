@@ -157,7 +157,7 @@ class Registry:
         return self._current.created_at
 
     @property
-    def updated_at(self) -> str:
+    def updated_at(self) -> str | None:
         """Timestamp of when the registry was last updated."""
         return self._current.updated_at
 

@@ -42,6 +42,11 @@ class ServerFeature(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     AUTOMATION_EVENT_UNLINK_ARTIFACT: _ClassVar[ServerFeature]
     AUTOMATIONS_ON_USER: _ClassVar[ServerFeature]
     AUTOMATION_LAST_EXECUTED_AT: _ClassVar[ServerFeature]
+    MARK_RUN_FILES_UPLOADED: _ClassVar[ServerFeature]
+    SWEEPS_QUERY_FILTERING: _ClassVar[ServerFeature]
+    AUTOMATION_SCOPE_ENTITY: _ClassVar[ServerFeature]
+    QUERY_AUTOMATIONS_ON_ENTITY: _ClassVar[ServerFeature]
+    AUTOMATIONS_ON_ORGANIZATION: _ClassVar[ServerFeature]
 SERVER_FEATURE_UNSPECIFIED: ServerFeature
 LARGE_FILENAMES: ServerFeature
 ARTIFACT_TAGS: ServerFeature
@@ -71,6 +76,11 @@ AUTOMATION_EVENT_REMOVE_COLLECTION_TAG: ServerFeature
 AUTOMATION_EVENT_UNLINK_ARTIFACT: ServerFeature
 AUTOMATIONS_ON_USER: ServerFeature
 AUTOMATION_LAST_EXECUTED_AT: ServerFeature
+MARK_RUN_FILES_UPLOADED: ServerFeature
+SWEEPS_QUERY_FILTERING: ServerFeature
+AUTOMATION_SCOPE_ENTITY: ServerFeature
+QUERY_AUTOMATIONS_ON_ENTITY: ServerFeature
+AUTOMATIONS_ON_ORGANIZATION: ServerFeature
 
 class Record(_message.Message):
     __slots__ = ("num", "history", "summary", "output", "config", "files", "stats", "artifact", "tbrecord", "alert", "telemetry", "metric", "output_raw", "run", "exit", "final", "header", "footer", "preempting", "noop_link_artifact", "use_artifact", "environment", "output_logger", "request", "control", "uuid", "_info")

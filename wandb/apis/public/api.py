@@ -58,6 +58,7 @@ if TYPE_CHECKING:
         EventType,
         Integration,
         NewAutomation,
+        ScopeType,
         SlackIntegration,
         WebhookIntegration,
     )
@@ -71,6 +72,7 @@ if TYPE_CHECKING:
         ArtifactType,
         ArtifactTypes,
     )
+    from .organizations import Organization
     from .teams import Team
     from .users import User
 
@@ -1039,6 +1041,42 @@ class Api:
 
         return Team(self._service_api, team)
 
+    @normalize_exceptions
+    def organization(self, name: str | None = None) -> Organization:
+        """Return the matching `Organization`.
+
+        Args:
+            name: The name of the organization. If omitted, this method will
+                attempt to infer and return the current default organization.
+
+        Returns:
+            An `Organization` object.
+        """
+        from wandb.sdk.artifacts._generated import (
+            FETCH_ORGANIZATION_GQL,
+            FetchOrganization,
+        )
+        from wandb.sdk.artifacts._gqlutils import resolve_org_name
+
+        from .organizations import Organization
+
+        # If needed, try to infer the default org name, following similar fallback
+        # logic already used elsewhere (eg `resolve_org_entity_name`).
+        if not (org_name := (name or self.settings.get("organization"))):
+            org_name = resolve_org_name(
+                self._service_api,
+                non_org_entity=self.settings.get("entity") or self.default_entity,
+            )
+
+        gql_op = FETCH_ORGANIZATION_GQL
+        gql_vars = {"org": org_name}
+        data = self._service_api.execute_graphql(gql_op, variables=gql_vars)
+
+        result = FetchOrganization.model_validate(data)
+        if (org := result.organization) is None:
+            raise ValueError(f"Organization {org_name!r} not found.")
+        return Organization(self._service_api, **org.model_dump())
+
     def user(self, username_or_email: str) -> User | None:
         """Return a user from a username or email address.
 
@@ -1138,8 +1176,6 @@ class Api:
         - `$exists`
         - `$regex`
 
-
-
         Args:
             path: (str) path to project, should be in the form: "entity/project"
             filters: (dict) queries for specific runs using the MongoDB query language.
@@ -1184,16 +1220,18 @@ class Api:
 
         ```python
         # Find runs in project where config.experiment_name matches a regex
-        # (anchors are not supported)
         Api.runs(
             path="my_entity/project",
             filters={"config.experiment_name": {"$regex": "b.*"}},
         )
         ```
 
+        Note:
+            Regular expressions use Google's RE2 syntax:
+            https://github.com/google/re2/wiki/Syntax
+
         ```python
         # Find runs in project where the run name matches a regex
-        # (anchors are not supported)
         Api.runs(
             path="my_entity/project", filters={"display_name": {"$regex": "^foo.*"}}
         )
@@ -1241,6 +1279,10 @@ class Api:
 
         Returns:
             A `Run` object.
+
+        Raises:
+            RunNotFoundError: If a run is not found,
+                or run data is not able to be loaded.
         """
         entity, project, run_id = self._parse_path(path)
         if not self._runs.get(path):
@@ -1618,9 +1660,7 @@ class Api:
         )
 
     @normalize_exceptions
-    def _artifact(
-        self, name: str, type: str | None = None, enable_tracking: bool = False
-    ) -> Artifact:
+    def _artifact(self, name: str, type: str | None = None) -> Artifact:
         from wandb.sdk.artifacts._validators import (
             FullArtifactPath,
             is_artifact_registry_project,
@@ -1648,20 +1688,14 @@ class Api:
             )
 
         if entity is None:
-            raise ValueError(
-                "Could not determine entity. Please include the entity as part of the artifact name path."
-            )
+            msg = "Could not determine entity. Please include the entity as part of the artifact name path."
+            raise ValueError(msg)
 
         path = FullArtifactPath(prefix=entity, project=project, name=artifact_name)
-        artifact = Artifact._from_name(
-            path=path,
-            service_api=self._service_api,
-            enable_tracking=enable_tracking,
-        )
+        artifact = Artifact._from_name(path=path, service_api=self._service_api)
         if type is not None and artifact.type != type:
-            raise ValueError(
-                f"type {type} specified but this artifact is of type {artifact.type}"
-            )
+            msg = f"type {type!r} specified but this artifact is of type {artifact.type!r}"
+            raise ValueError(msg)
         return artifact
 
     def _artifact_from_id(self, artifact_id: str) -> Artifact | None:
@@ -1727,10 +1761,8 @@ class Api:
         wandb.Api().artifact(name="entity/project/artifact:version")
         ```
 
-        Note:
-        This method is intended for external use only. Do not call `api.artifact()` within the wandb repository code.
         """
-        return self._artifact(name=name, type=type, enable_tracking=True)
+        return self._artifact(name=name, type=type)
 
     @normalize_exceptions
     def job(self, name: str | None, path: str | None = None) -> public.Job:
@@ -1825,7 +1857,7 @@ class Api:
 
             return [x["node"]["artifacts"] for x in artifacts]
         except WandbApiFailedError:
-            return False
+            return []
 
     @normalize_exceptions
     def artifact_exists(self, name: str, type: str | None = None) -> bool:
@@ -2248,6 +2280,7 @@ class Api:
     def _supports_automation(
         self,
         *,
+        scope: ScopeType | None = None,
         event: EventType | None = None,
         action: ActionType | None = None,
     ) -> bool:
@@ -2255,8 +2288,14 @@ class Api:
         from wandb.automations._utils import (
             ALWAYS_SUPPORTED_ACTIONS,
             ALWAYS_SUPPORTED_EVENTS,
+            ALWAYS_SUPPORTED_SCOPES,
         )
 
+        supports_scope = (
+            (scope is None)
+            or (scope in ALWAYS_SUPPORTED_SCOPES)
+            or self._service_api.feature_enabled(f"AUTOMATION_SCOPE_{scope.value}")
+        )
         supports_event = (
             (event is None)
             or (event in ALWAYS_SUPPORTED_EVENTS)
@@ -2267,7 +2306,7 @@ class Api:
             or (action in ALWAYS_SUPPORTED_ACTIONS)
             or self._service_api.feature_enabled(f"AUTOMATION_ACTION_{action.value}")
         )
-        return supports_event and supports_action
+        return supports_event and supports_action and supports_scope
 
     def _omitted_automation_fragments(self) -> set[str]:
         """Returns the names of unsupported automation-related fragments.
@@ -2293,8 +2332,9 @@ class Api:
                 }
                 ```
         """
-        from wandb.automations import ActionType
+        from wandb.automations import ActionType, ScopeType
         from wandb.automations._generated import (
+            EntityScopeFields,
             GenericWebhookActionFields,
             NoOpActionFields,
             NotificationActionFields,
@@ -2303,19 +2343,29 @@ class Api:
 
         # Note: we can't currently define this as a constant outside the method
         # and still keep it nearby in this module, because it relies on pydantic v2-only imports
-        fragment_names: dict[ActionType, str] = {
+        scope_fragment_names: dict[ScopeType, str] = {
+            ScopeType.ENTITY: nameof(EntityScopeFields),
+        }
+        action_fragment_names: dict[ActionType, str] = {
             ActionType.NO_OP: nameof(NoOpActionFields),
             ActionType.QUEUE_JOB: nameof(QueueJobActionFields),
             ActionType.NOTIFICATION: nameof(NotificationActionFields),
             ActionType.GENERIC_WEBHOOK: nameof(GenericWebhookActionFields),
         }
 
-        return set(
+        omitted_scope_fragments = set(
+            name
+            for scope in ScopeType
+            if (not self._supports_automation(scope=scope))
+            and (name := scope_fragment_names.get(scope))
+        )
+        omitted_action_fragments = set(
             name
             for action in ActionType
             if (not self._supports_automation(action=action))
-            and (name := fragment_names.get(action))
+            and (name := action_fragment_names.get(action))
         )
+        return omitted_scope_fragments | omitted_action_fragments
 
     @tracked
     def automation(
@@ -2392,16 +2442,16 @@ class Api:
         """
         from wandb.apis.public.automations import Automations
         from wandb.automations._generated import (
-            GET_AUTOMATIONS_BY_ENTITY_GQL,
-            GET_AUTOMATIONS_GQL,
+            GET_AUTOMATIONS_LEGACY_GQL,
+            GET_ENTITY_AUTOMATIONS_LEGACY_GQL,
         )
 
         # For now, we need to use different queries depending on whether entity is given
         variables = {"entity": entity}
         if entity is None:
-            gql_str = GET_AUTOMATIONS_GQL  # Automations for viewer
+            gql_str = GET_AUTOMATIONS_LEGACY_GQL  # Automations for viewer
         else:
-            gql_str = GET_AUTOMATIONS_BY_ENTITY_GQL  # Automations for entity
+            gql_str = GET_ENTITY_AUTOMATIONS_LEGACY_GQL  # Automations for entity
 
         # If needed, rewrite the GraphQL field selection set to omit unsupported fields/fragments/types
         iterator = Automations(

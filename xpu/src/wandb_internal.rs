@@ -253,7 +253,7 @@ pub struct Imports {
     #[prost(bool, tag = "107")]
     pub dspy: bool,
 }
-/// Next ID: 76
+/// Next ID: 77
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct Feature {
     /// wandb.watch() called
@@ -387,6 +387,9 @@ pub struct Feature {
     /// Run was synced with wandb sync
     #[prost(bool, tag = "42")]
     pub sync: bool,
+    /// Run was synced with wandb beta sync
+    #[prost(bool, tag = "76")]
+    pub sync2: bool,
     /// Flow control disabled by user
     #[prost(bool, tag = "43")]
     pub flow_control_disabled: bool,
@@ -767,7 +770,22 @@ pub struct BranchPoint {
     #[prost(string, tag = "3")]
     pub metric: ::prost::alloc::string::String,
 }
-/// RunRecord: wandb/sdk/wandb_run/Run
+/// Information about a run.
+///
+/// When sent as a standalone record, this creates or updates a run.
+/// No other run-modifying records are allowed until the first run record
+/// is processed. Generally, only fields that correspond to values the client
+/// may know are present in this case; other fields are ignored.
+///
+/// Other fields may be included in a RunUpdateResult (like `storage_id`, which
+/// the backend returns when creating a new online run), and some fields may be
+/// updated (like `entity` and `project`, which are determined through a query
+/// if not given).
+///
+/// After creating a run, the values in RunUpdateResult must be propagated to
+/// the RunStartRequest. This is a legacy pattern that wandb-core uses to
+/// communicate with itself. The updated run record may be returned to another
+/// process that "attaches" to the run via the AttachResponse.
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct RunRecord {
     #[prost(string, tag = "1")]
@@ -2936,6 +2954,17 @@ pub enum ServerFeature {
     AutomationsOnUser = 27,
     /// Indicates that the server supports Trigger.lastExecutedAt.
     AutomationLastExecutedAt = 28,
+    /// Indicates that the server supports the markRunFilesUploaded mutation, used
+    /// to commit files uploaded outside a live run (e.g. Run.upload_file).
+    MarkRunFilesUploaded = 29,
+    /// Indicates that the server supports filtering sweeps when querying on a project.
+    SweepsQueryFiltering = 30,
+    /// Indicates that the server supports automation scope ENTITY.
+    AutomationScopeEntity = 31,
+    /// Indicates that the server supports Entity.triggers.
+    QueryAutomationsOnEntity = 32,
+    /// Indicates that the server supports Organization.triggers.
+    AutomationsOnOrganization = 33,
 }
 impl ServerFeature {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -2997,6 +3026,11 @@ impl ServerFeature {
             Self::AutomationEventUnlinkArtifact => "AUTOMATION_EVENT_UNLINK_ARTIFACT",
             Self::AutomationsOnUser => "AUTOMATIONS_ON_USER",
             Self::AutomationLastExecutedAt => "AUTOMATION_LAST_EXECUTED_AT",
+            Self::MarkRunFilesUploaded => "MARK_RUN_FILES_UPLOADED",
+            Self::SweepsQueryFiltering => "SWEEPS_QUERY_FILTERING",
+            Self::AutomationScopeEntity => "AUTOMATION_SCOPE_ENTITY",
+            Self::QueryAutomationsOnEntity => "QUERY_AUTOMATIONS_ON_ENTITY",
+            Self::AutomationsOnOrganization => "AUTOMATIONS_ON_ORGANIZATION",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -3063,6 +3097,11 @@ impl ServerFeature {
             }
             "AUTOMATIONS_ON_USER" => Some(Self::AutomationsOnUser),
             "AUTOMATION_LAST_EXECUTED_AT" => Some(Self::AutomationLastExecutedAt),
+            "MARK_RUN_FILES_UPLOADED" => Some(Self::MarkRunFilesUploaded),
+            "SWEEPS_QUERY_FILTERING" => Some(Self::SweepsQueryFiltering),
+            "AUTOMATION_SCOPE_ENTITY" => Some(Self::AutomationScopeEntity),
+            "QUERY_AUTOMATIONS_ON_ENTITY" => Some(Self::QueryAutomationsOnEntity),
+            "AUTOMATIONS_ON_ORGANIZATION" => Some(Self::AutomationsOnOrganization),
             _ => None,
         }
     }

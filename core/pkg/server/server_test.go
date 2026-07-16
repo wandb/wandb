@@ -106,7 +106,7 @@ func TestServer_IdleTimerStopsServerAfterTimeout(t *testing.T) {
 	})
 }
 
-func TestServe_ForcStopShutsDownServer(t *testing.T) {
+func TestServe_ForceStopShutsDownServer(t *testing.T) {
 	tempRoot := t.TempDir()
 	t.Setenv("TMPDIR", tempRoot)
 

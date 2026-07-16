@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import copy
 import json
 import logging
 import os
@@ -328,6 +329,295 @@ def validate_launch_spec_source(launch_spec: dict[str, Any]) -> None:
         )
 
 
+_DOCKER_ALLOWED_RESOURCE_ARGS = {
+    "command",
+    "cpu",
+    "cpu-period",
+    "cpu-quota",
+    "cpu-shares",
+    "cpus",
+    "cpuset-cpus",
+    "cpuset-mems",
+    "e",
+    "env",
+    "gpus",
+    "m",
+    "memory",
+    "memory-reservation",
+    "memory-swap",
+    "name",
+    "pids-limit",
+    "platform",
+    "shm-size",
+    "ulimit",
+    "w",
+    "workdir",
+}
+
+# Allowed Docker flags that may legitimately be supplied more than once and so
+# may arrive as a list of scalar values (e.g. ``--env A=1 --env B=2``).
+_DOCKER_REPEATABLE_RESOURCE_ARGS = {"e", "env", "ulimit"}
+
+# SecurityContext the Kubernetes runner always injects. This preserves the
+# existing launch defaults while making sure submitters cannot override them
+# (see ``validate_kubernetes_resource_args`` which refuses any submitter-supplied
+# securityContext, and ``_inject_defaults`` which always sets this on every
+# container).
+K8S_RESTRICTED_SECURITY_CONTEXT: dict[str, Any] = {
+    "allowPrivilegeEscalation": False,
+    "capabilities": {"drop": ["ALL"]},
+    "seccompProfile": {"type": "RuntimeDefault"},
+}
+
+# Submitter-supplied keys we refuse anywhere in a Kubernetes manifest because
+# they grant host or cluster privileges. This list fails CLOSED: rather than
+# enumerating every dangerous *value*, we reject the security-relevant *keys*
+# outright and always inject our own restricted securityContext.
+#
+# Keys whose mere presence is refused (the agent owns these):
+_K8S_REFUSED_PRESENT_KEYS = {
+    "securityContext": "the agent manages the pod/container security context "
+    "and it cannot be overridden",
+    "hostPath": "hostPath volumes are not permitted",
+    "serviceAccountToken": "projected service account tokens are not permitted",
+}
+# Keys refused only when they carry a host/cluster-privilege-granting value:
+_K8S_REFUSED_HOST_NAMESPACE_KEYS = (
+    "hostPID",
+    "hostIPC",
+    "hostNetwork",
+    "shareProcessNamespace",
+    "hostUsers",
+)
+_K8S_REFUSED_SERVICE_ACCOUNT_KEYS = ("serviceAccountName", "serviceAccount")
+
+
+def _is_present_resource_value(value: Any) -> bool:
+    if isinstance(value, (list, tuple, set)):
+        return any(_is_present_resource_value(item) for item in value)
+    if value is None:
+        return False
+    if isinstance(value, str):
+        return bool(value.strip())
+    return True
+
+
+def _is_truthy_resource_value(value: Any) -> bool:
+    if value is True:
+        return True
+    if isinstance(value, (int, float)):
+        return value != 0
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes"}
+    return False
+
+
+def _raise_unsafe_resource_arg(resource: str, field: str, reason: str) -> None:
+    raise LaunchError(
+        f"Unsafe resource_args.{resource} option '{field}' is not allowed: {reason}"
+    )
+
+
+def _docker_arg_name(name: Any) -> str:
+    return str(name).strip().lstrip("-").replace("_", "-").lower()
+
+
+def _is_safe_docker_value(value: Any) -> bool:
+    """A docker flag value must be a single, non-boolean scalar."""
+    return isinstance(value, (str, int, float)) and not isinstance(value, bool)
+
+
+def _validate_local_container_resource_value(name: str, value: Any) -> None:
+    """Enforce fixed arity/typing for an allowed docker flag value.
+
+    Every flag in ``_DOCKER_ALLOWED_RESOURCE_ARGS`` takes a value, so we reject
+    bare booleans (which would serialize to a lone ``--flag``), dicts, and—for
+    non-repeatable flags—lists. Repeatable flags may be a list of scalars.
+    """
+    if name in _DOCKER_REPEATABLE_RESOURCE_ARGS and isinstance(value, (list, tuple)):
+        if not value:
+            raise LaunchError(
+                f"resource_args.local-container option '{name}' requires a value."
+            )
+        for item in value:
+            if not _is_safe_docker_value(item):
+                raise LaunchError(
+                    f"resource_args.local-container option '{name}' only accepts "
+                    "string or numeric values."
+                )
+        return
+    if not _is_safe_docker_value(value):
+        raise LaunchError(
+            f"resource_args.local-container option '{name}' must be a single "
+            "string or numeric value."
+        )
+
+
+def validate_local_container_resource_args(docker_args: dict[str, Any]) -> None:
+    """Accept only Docker flags W&B intentionally supports for queue submitters.
+
+    This is an allow-list of non-isolation, resource-shaping flags. Anything that
+    can affect container isolation (``--privileged``, ``--volume``, ``--pid``,
+    ``--cap-add``, ``--device``, ``--security-opt``, ...) is rejected. Flag names
+    are normalized (dashes/underscores/case, short aliases, ``=`` forms) before
+    the allow-list check, and each allowed flag's value is arity/type checked so
+    a value token cannot smuggle a second option.
+    """
+    if not isinstance(docker_args, dict):
+        raise LaunchError("resource_args.local-container must be a dictionary")
+
+    for raw_name, value in docker_args.items():
+        name = _docker_arg_name(raw_name)
+        if name not in _DOCKER_ALLOWED_RESOURCE_ARGS:
+            supported = ", ".join(sorted(_DOCKER_ALLOWED_RESOURCE_ARGS))
+            raise LaunchError(
+                f"Unsupported resource_args.local-container option '{name}'. "
+                f"Supported options are: {supported}"
+            )
+        _validate_local_container_resource_value(name, value)
+
+
+def _scan_kubernetes_annotations(node: Any) -> None:
+    """Refuse apparmor/seccomp ``=unconfined`` annotations anywhere in a manifest."""
+    if isinstance(node, dict):
+        annotations = node.get("annotations")
+        if isinstance(annotations, dict):
+            for key, value in annotations.items():
+                normalized_key = str(key).lower()
+                normalized_value = str(value).lower()
+                if (
+                    "apparmor" in normalized_key or "seccomp" in normalized_key
+                ) and "unconfined" in normalized_value:
+                    _raise_unsafe_resource_arg(
+                        "kubernetes",
+                        f"metadata.annotations.{key}",
+                        "unconfined apparmor/seccomp profiles are not permitted",
+                    )
+        for value in node.values():
+            _scan_kubernetes_annotations(value)
+    elif isinstance(node, list):
+        for item in node:
+            _scan_kubernetes_annotations(item)
+
+
+def _scan_kubernetes_node(node: Any) -> None:
+    """Recursively refuse security-relevant submitter keys anywhere in a manifest.
+
+    Failing closed on a short refuse-list (instead of enumerating dangerous
+    values) keeps maintenance bounded and covers ``initContainers`` /
+    ``ephemeralContainers`` and creative nesting for free.
+    """
+    if isinstance(node, dict):
+        for key, reason in _K8S_REFUSED_PRESENT_KEYS.items():
+            if key in node:
+                _raise_unsafe_resource_arg("kubernetes", key, reason)
+        for key in _K8S_REFUSED_HOST_NAMESPACE_KEYS:
+            if _is_truthy_resource_value(node.get(key)):
+                _raise_unsafe_resource_arg(
+                    "kubernetes", key, "host namespace sharing is not permitted"
+                )
+        for key in _K8S_REFUSED_SERVICE_ACCOUNT_KEYS:
+            if _is_present_resource_value(node.get(key)):
+                _raise_unsafe_resource_arg(
+                    "kubernetes",
+                    key,
+                    "overriding the pod service account is not permitted",
+                )
+        if _is_truthy_resource_value(node.get("automountServiceAccountToken")):
+            _raise_unsafe_resource_arg(
+                "kubernetes",
+                "automountServiceAccountToken",
+                "mounting service account tokens is not permitted",
+            )
+        if _is_truthy_resource_value(node.get("hostPort")):
+            _raise_unsafe_resource_arg(
+                "kubernetes", "hostPort", "binding host ports is not permitted"
+            )
+        if str(node.get("mountPropagation", "")).strip() == "Bidirectional":
+            _raise_unsafe_resource_arg(
+                "kubernetes",
+                "mountPropagation",
+                "bidirectional mount propagation is not permitted",
+            )
+        for value in node.values():
+            _scan_kubernetes_node(value)
+    elif isinstance(node, list):
+        for item in node:
+            _scan_kubernetes_node(item)
+
+
+def validate_kubernetes_resource_args(resource_args: dict[str, Any]) -> None:
+    """Refuse Kubernetes resource args that grant host or cluster privileges.
+
+    Rather than enumerating dangerous values, we refuse a short list of
+    security-relevant submitter keys outright (failing closed) and rely on the
+    agent always injecting a restricted securityContext that the submitter
+    cannot override (``KubernetesRunner._inject_defaults``).
+    """
+    if not isinstance(resource_args, dict):
+        raise LaunchError("resource_args.kubernetes must be a dictionary")
+
+    _scan_kubernetes_annotations(resource_args)
+    _scan_kubernetes_node(resource_args)
+
+
+# Keys whose value is a list of containers within a pod spec.
+_K8S_CONTAINER_KEYS = ("containers", "initContainers", "ephemeralContainers")
+
+
+def yield_kubernetes_pod_specs(manifest: Any) -> Iterator[dict[str, Any]]:
+    """Yield every pod spec found anywhere in a Kubernetes manifest.
+
+    A pod spec is recognized by carrying a container list (``containers``,
+    ``initContainers`` or ``ephemeralContainers``). This locates the workload
+    pod template no matter where it lives — Job ``spec.template.spec``, CronJob
+    ``spec.jobTemplate.spec.template.spec``, or a custom resource that exposes a
+    recognizable pod spec — so security hardening can be applied symmetrically
+    with ``validate_kubernetes_resource_args`` (which scans the whole manifest).
+    """
+    if isinstance(manifest, dict):
+        if any(isinstance(manifest.get(key), list) for key in _K8S_CONTAINER_KEYS):
+            yield manifest
+        for value in manifest.values():
+            yield from yield_kubernetes_pod_specs(value)
+    elif isinstance(manifest, list):
+        for item in manifest:
+            yield from yield_kubernetes_pod_specs(item)
+
+
+def inject_restricted_security_context(manifest: Any) -> None:
+    """Force the agent's restricted securityContext onto every container.
+
+    Applied to every container/initContainer/ephemeralContainer in every pod
+    spec found anywhere in ``manifest``. Submitter-supplied securityContext is
+    already refused by ``validate_kubernetes_resource_args``, so always setting
+    the restricted context here is safe and guarantees the agent's values win,
+    regardless of the workload shape (Job, CronJob, or custom resource).
+    """
+    for pod_spec in yield_kubernetes_pod_specs(manifest):
+        for container_key in _K8S_CONTAINER_KEYS:
+            for container in pod_spec.get(container_key) or []:
+                if isinstance(container, dict):
+                    container["securityContext"] = copy.deepcopy(
+                        K8S_RESTRICTED_SECURITY_CONTEXT
+                    )
+
+
+def validate_launch_resource_args(resource_args: dict[str, Any]) -> None:
+    if not resource_args:
+        return
+    if not isinstance(resource_args, dict):
+        raise LaunchError("resource_args must be a dictionary")
+
+    local_container_args = resource_args.get("local-container")
+    if local_container_args is not None:
+        validate_local_container_resource_args(local_container_args)
+
+    kubernetes_args = resource_args.get("kubernetes")
+    if kubernetes_args is not None:
+        validate_kubernetes_resource_args(kubernetes_args)
+
+
 def parse_wandb_uri(uri: str) -> tuple[str, str, str]:
     """Parse wandb uri to retrieve entity, project and run name."""
     ref = WandbReference.parse(uri)
@@ -453,9 +743,6 @@ def _fetch_git_repo(dst_dir: str, uri: str, version: str | None) -> str | None:
     checks out commit ``version``. Assumes authentication parameters are
     specified by the environment, e.g. by a Git credential helper.
     """
-    # We defer importing git until the last moment, because the import requires that the git
-    # executable is available on the PATH, so we only want to fail if we actually need it.
-
     _logger.info("Fetching git repo")
     ref = GitReference(uri, version)
     if ref is None:

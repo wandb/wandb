@@ -14,26 +14,20 @@ import (
 	"github.com/wandb/wandb/core/pkg/server"
 )
 
-// captureSlog redirects slog to a buffer for the duration of the test.
-func captureSlog(t *testing.T) *bytes.Buffer {
+// capturingLogger returns a buffer and a logger that writes to it.
+func capturingLogger(t *testing.T) (*bytes.Buffer, *slog.Logger) {
 	t.Helper()
 
-	prev := slog.Default()
-	t.Cleanup(func() { slog.SetDefault(prev) })
-
-	var logs bytes.Buffer
-	slog.SetDefault(slog.New(
-		slog.NewTextHandler(&logs, &slog.HandlerOptions{}),
-	))
-
-	return &logs
+	logs := &bytes.Buffer{}
+	logger := slog.New(slog.NewTextHandler(logs, &slog.HandlerOptions{}))
+	return logs, logger
 }
 
 func TestRequestCanceller_WarnsAtEachThreshold(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		logs := captureSlog(t)
+		logs, logger := capturingLogger(t)
 
-		rc := server.NewRequestCanceller(t.Context())
+		rc := server.NewRequestCanceller(t.Context(), logger)
 		rc.SetWarnInterval(2)
 
 		_, cancel1 := rc.Context("1")

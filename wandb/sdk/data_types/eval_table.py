@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from collections.abc import Iterable, Iterator
-from typing import TYPE_CHECKING, Any, Literal
+import datetime
+from collections.abc import Iterator
+from typing import TYPE_CHECKING, Any
 
 from typing_extensions import override
 
@@ -9,7 +10,8 @@ import wandb
 import wandb.integration.weave as weave_integration
 import wandb.integration.weave.media_adapters as media_adapters
 from wandb.errors import UsageError
-from wandb.sdk.data_types.table import Table
+from wandb.sdk.data_types.base_types.media import _numpy_arrays_to_lists
+from wandb.sdk.data_types.table import ColumnKey, InputRow, LogMode, Table
 
 if TYPE_CHECKING:
     import numpy as np
@@ -23,6 +25,95 @@ EVAL_TABLE_MARKER = {"wandb_eval_table": True}
 EVAL_TABLE_ROW_INDEX_KEY = "row"
 
 _MIN_WEAVE_VERSION = "0.52.41"
+
+
+def _is_numpy_datetime64(val: Any) -> bool:
+    # Optional import: only imports numpy if it is already installed.
+    np = wandb.util.np
+    return np is not None and isinstance(val, np.datetime64)
+
+
+def _is_datetime_like(val: Any) -> bool:
+    return isinstance(val, datetime.date) or _is_numpy_datetime64(val)
+
+
+def _normalize_numpy_datetime64(val: Any) -> datetime.datetime | None:
+    # Cast to microseconds before tolist() so NumPy does unit-aware conversion
+    # to Python datetime instead of returning raw int offsets for ns/finer units.
+    py_val = val.astype("datetime64[us]").tolist()
+    if py_val is None:
+        return None
+    if isinstance(py_val, datetime.datetime):
+        return py_val.replace(tzinfo=datetime.timezone.utc)
+    if isinstance(py_val, datetime.date):
+        return datetime.datetime(
+            py_val.year,
+            py_val.month,
+            py_val.day,
+            tzinfo=datetime.timezone.utc,
+        )
+
+    raise TypeError(f"Unexpected numpy.datetime64 conversion result: {py_val!r}")
+
+
+def _normalize_datetime(val: Any) -> datetime.datetime | None:
+    """Normalize datetime-like values for Weave; numpy NaT becomes None."""
+    if isinstance(val, datetime.datetime):
+        return val
+    if isinstance(val, datetime.date):
+        # Weave handles datetime.datetime but not datetime.date, so normalize.
+        return datetime.datetime(
+            val.year,
+            val.month,
+            val.day,
+            tzinfo=datetime.timezone.utc,
+        )
+
+    return _normalize_numpy_datetime64(val)
+
+
+def _normalize_non_media_value(val: Any) -> Any:
+    if _is_datetime_like(val):
+        return _normalize_datetime(val)
+
+    val = _numpy_arrays_to_lists(val)
+
+    # Normalize scalar NumPy values and other simple values like Table does.
+    val, _ = wandb.util.json_friendly(val)
+
+    if isinstance(val, dict):
+        return {key: _normalize_non_media_value(value) for key, value in val.items()}
+    if isinstance(val, (list, tuple)):
+        return [_normalize_non_media_value(item) for item in val]
+
+    return val
+
+
+def _normalize_value(
+    val: Any,
+    col: str | int,
+    *,
+    unsupported_media_mode: media_adapters.UnsupportedMediaMode,
+) -> Any:
+    """Normalize a cell value into the Python value passed to Weave.
+
+    This first adapts or stubs wandb media/value types, then applies Table-like
+    normalization for plain values such as NumPy scalars, datetimes, and
+    containers.
+
+    TODO: The stubbing of wandb media types is temporary until we add full support.
+    """
+    val = media_adapters.unwrap_value(
+        val,
+        col,
+        unsupported_media_mode=unsupported_media_mode,
+    )
+    val = media_adapters.handle_nested_wandb_values(
+        val,
+        col,
+        unsupported_media_mode,
+    )
+    return _normalize_non_media_value(val)
 
 
 class EvalTable(Table):
@@ -41,14 +132,14 @@ class EvalTable(Table):
 
     def __init__(
         self,
-        columns: list[str | int] | None = None,
-        data: list[Iterable[Any]] | np.ndarray | pd.DataFrame | None = None,
-        rows: list[Iterable[Any]] | None = None,
+        columns: list[ColumnKey] | None = None,
+        data: list[InputRow] | np.ndarray | pd.DataFrame | None = None,
+        rows: list[InputRow] | None = None,
         dataframe: pd.DataFrame | None = None,
         dtype: Any = None,
         optional: bool | list[bool] = True,
         allow_mixed_types: bool = False,
-        log_mode: Literal["IMMUTABLE"] = "IMMUTABLE",
+        log_mode: LogMode = "IMMUTABLE",
         *,
         input_columns: list[str] | None = None,
         output_columns: list[str] | None = None,
@@ -141,7 +232,7 @@ class EvalTable(Table):
         # don't have to double-name columns when they've already listed
         # them in input/output/score_columns. Skip if a dataframe is given
         # — Table infers columns from the dataframe and ignores `columns`.
-        table_columns: list[str | int] | None = columns
+        table_columns: list[ColumnKey] | None = columns
         if (
             columns is None
             and dataframe is None
@@ -233,7 +324,7 @@ class EvalTable(Table):
     def has_been_logged(self) -> bool:
         return self._immutable_evaluate_call_id is not None
 
-    def _validate_cell_value(self, val: Any, col: str | int) -> None:
+    def _validate_cell_value(self, val: Any, col: ColumnKey) -> None:
         media_adapters.validate_supported_value(
             val,
             col,
@@ -251,7 +342,7 @@ class EvalTable(Table):
     @override
     def add_column(
         self,
-        name: str | int,
+        name: str,
         data: list[Any] | np.ndarray,
         optional: bool = False,
     ) -> None:
@@ -303,7 +394,7 @@ class EvalTable(Table):
         str_columns = self._string_columns()
         for row in self.data[start:]:
             yield {
-                str_col: media_adapters.unwrap_value(
+                str_col: _normalize_value(
                     val,
                     col,
                     unsupported_media_mode=self._unsupported_media_mode,

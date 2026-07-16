@@ -1,3 +1,5 @@
+from typing import Any
+
 import cwsandbox
 import pytest
 import wandb.sandbox as wandb_sandbox
@@ -218,3 +220,71 @@ def test_sandbox_classmethod_session_uses_wandb_session_wrapper() -> None:
     session = wandb_sandbox.Sandbox.session()
 
     assert isinstance(session, wandb_sandbox.Session)
+
+
+def test_sandbox_applies_default_max_lifetime_seconds(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[dict[str, Any]] = []
+
+    def fake_init(self, **kwargs):
+        calls.append(kwargs)
+
+    monkeypatch.setattr(sandbox_module._BaseSandbox, "__init__", fake_init)
+
+    wandb_sandbox.Sandbox()
+
+    assert (
+        calls[0]["defaults"].max_lifetime_seconds
+        == sandbox_module._SERVERLESS_DEFAULT_MAX_LIFETIME_SECONDS
+    )
+
+
+def test_sandbox_explicit_max_lifetime_seconds_skips_default_override(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[dict[str, Any]] = []
+
+    def fake_init(self, **kwargs):
+        calls.append(kwargs)
+
+    monkeypatch.setattr(sandbox_module._BaseSandbox, "__init__", fake_init)
+
+    wandb_sandbox.Sandbox(max_lifetime_seconds=60)
+
+    assert calls[0]["max_lifetime_seconds"] == 60
+    assert "defaults" not in calls[0]
+
+
+def test_sandbox_respects_explicit_default_max_lifetime_seconds(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[dict[str, Any]] = []
+
+    def fake_init(self, **kwargs):
+        calls.append(kwargs)
+
+    monkeypatch.setattr(sandbox_module._BaseSandbox, "__init__", fake_init)
+
+    defaults = cwsandbox.SandboxDefaults(max_lifetime_seconds=7200)
+    wandb_sandbox.Sandbox(defaults=defaults)
+
+    assert calls[0]["defaults"].max_lifetime_seconds == 7200
+
+
+def test_sandbox_session_applies_default_max_lifetime_seconds(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[Any] = []
+
+    def fake_init(self, defaults=None, report_to=None):
+        calls.append(defaults)
+
+    monkeypatch.setattr(sandbox_module._BaseSession, "__init__", fake_init)
+
+    wandb_sandbox.Session()
+
+    assert (
+        calls[0].max_lifetime_seconds
+        == sandbox_module._SERVERLESS_DEFAULT_MAX_LIFETIME_SECONDS
+    )

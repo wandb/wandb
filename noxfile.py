@@ -26,7 +26,6 @@ _SUPPORTED_PYTHONS = ["3.10", "3.11", "3.12", "3.13", "3.14"]
 # runtime in the same major. Protobuf X.Y.Z corresponds to protoc Y.Z; see
 # https://protobuf.dev/support/version-support/.
 _PROTOC_FOR_PB = {
-    4: "23.4",
     5: "26.0",
     6: "30.0",
     7: "34.0",
@@ -156,10 +155,6 @@ def run_pytest(
 
     # (pytest-timeout) Per-test timeout.
     pytest_opts.append(f"--timeout={opts.get('timeout', 60)}")
-
-    # (pytest-timeout) Use the 'thread' method to shut down more reliably
-    # to help debug hangs.
-    pytest_opts.append(f"--timeout-method={opts.get('timeout_method', 'thread')}")
 
     # (pytest-xdist) Run tests in parallel.
     pytest_opts.append(f"-n={opts.get('n', 'auto')}")
@@ -557,7 +552,7 @@ def _ensure_no_diff(
 
 
 @nox.session(python=False, name="proto-check-python", tags=["proto-check"])
-@nox.parametrize("pb", [4, 5, 6, 7])
+@nox.parametrize("pb", [5, 6, 7])
 def proto_check_python(session: nox.Session, pb: int) -> None:
     """Regenerates Python protobuf files and ensures nothing changed."""
     _ensure_no_diff(
