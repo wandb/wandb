@@ -22,6 +22,7 @@ class ScopeType(LenientStrEnum):
 
     PROJECT = "PROJECT"
     ARTIFACT_COLLECTION = "ARTIFACT_COLLECTION"
+    ENTITY = "ENTITY"
 
 
 class _BaseScope(GQLBase):
