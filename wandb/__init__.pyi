@@ -350,8 +350,6 @@ def init(
             unset) to always start a new run.
             If `resume` is set, `fork_from` and `resume_from` cannot be
             used. When `resume` is unset, the system will always start a new run.
-            When `mode="offline"`, only `"must"` and `"never"` are supported;
-            `"allow"` and `"auto"` raise a `UsageError`.
         resume_from: Specifies a moment in a previous run to resume a run from,
             using the format `{run_id}?_step={step}`. This allows users to truncate
             the history logged to a run at an intermediate step and resume logging
