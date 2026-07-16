@@ -11,11 +11,12 @@ from wandb.sdk.interface.interface import InterfaceBase
 from wandb.sdk.interface.interface_sock import InterfaceSock
 from wandb.sdk.lib import asyncio_manager
 from wandb.sdk.lib.exit_hooks import ExitHooks
-from wandb.sdk.lib.service.service_client import ServiceClient
 from wandb.sdk.mailbox import HandleAbandonedError, MailboxClosedError
 from wandb.sdk.mailbox.mailbox_handle import MailboxHandle
 
 from . import service_process, service_token
+from .service_client import ServiceClient
+from .service_finalizer import ServiceFinalizer
 
 
 class WandbAttachFailedError(Exception):
@@ -107,6 +108,8 @@ class ServiceConnection:
         """
         self._asyncer = asyncer
         self._client = client
+        self._finalizer = ServiceFinalizer(asyncer, client)
+
         self._proc = proc
         self._torn_down = False
         self._cleanup = cleanup
@@ -192,13 +195,22 @@ class ServiceConnection:
 
         return response.api_init_response
 
-    def api_cleanup_request(self, api_id: str) -> None:
-        """Tells wandb-core to cleanup API resources."""
-        api_cleanup_request = wandb_api_pb2.ServerApiCleanupRequest(
-            api_id=api_id,
-        )
-        request = spb.ServerRequest(api_cleanup_request=api_cleanup_request)
-        self._asyncer.run(lambda: self._client.publish(request))
+    def finalize(
+        self,
+        obj: object,
+        cleanup: spb.ServerRequest,
+    ) -> Callable[[], None]:
+        """Send a cleanup request when the object is garbage collected.
+
+        The request must not reference the object, or else it will never be
+        garbage collected. The request is not guaranteed to be sent before
+        the connection is closed, so any resource it would clean up must also be
+        cleaned up automatically by wandb-core when this connection closes.
+
+        Returns:
+            A callback that can be used to send the cleanup request immediately.
+        """
+        return self._finalizer.finalize(obj, cleanup)
 
     async def sync_status(
         self,
@@ -372,6 +384,7 @@ class ServiceConnection:
             )
             await self._client.close()
 
+        self._finalizer.close()
         self._asyncer.run(publish_teardown_and_close)
 
         return self._proc.join()

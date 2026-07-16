@@ -2964,6 +2964,12 @@ pub enum ServerFeature {
     MarkRunFilesUploaded = 29,
     /// Indicates that the server supports filtering sweeps when querying on a project.
     SweepsQueryFiltering = 30,
+    /// Indicates that the server supports automation scope ENTITY.
+    AutomationScopeEntity = 31,
+    /// Indicates that the server supports Entity.triggers.
+    QueryAutomationsOnEntity = 32,
+    /// Indicates that the server supports Organization.triggers.
+    AutomationsOnOrganization = 33,
 }
 impl ServerFeature {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -3027,6 +3033,9 @@ impl ServerFeature {
             Self::AutomationLastExecutedAt => "AUTOMATION_LAST_EXECUTED_AT",
             Self::MarkRunFilesUploaded => "MARK_RUN_FILES_UPLOADED",
             Self::SweepsQueryFiltering => "SWEEPS_QUERY_FILTERING",
+            Self::AutomationScopeEntity => "AUTOMATION_SCOPE_ENTITY",
+            Self::QueryAutomationsOnEntity => "QUERY_AUTOMATIONS_ON_ENTITY",
+            Self::AutomationsOnOrganization => "AUTOMATIONS_ON_ORGANIZATION",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -3095,6 +3104,9 @@ impl ServerFeature {
             "AUTOMATION_LAST_EXECUTED_AT" => Some(Self::AutomationLastExecutedAt),
             "MARK_RUN_FILES_UPLOADED" => Some(Self::MarkRunFilesUploaded),
             "SWEEPS_QUERY_FILTERING" => Some(Self::SweepsQueryFiltering),
+            "AUTOMATION_SCOPE_ENTITY" => Some(Self::AutomationScopeEntity),
+            "QUERY_AUTOMATIONS_ON_ENTITY" => Some(Self::QueryAutomationsOnEntity),
+            "AUTOMATIONS_ON_ORGANIZATION" => Some(Self::AutomationsOnOrganization),
             _ => None,
         }
     }

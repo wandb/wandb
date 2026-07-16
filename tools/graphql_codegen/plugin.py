@@ -20,6 +20,7 @@ from typing import Any, ClassVar
 from collections.abc import Iterable, Iterator, Mapping
 
 from ariadne_codegen import Plugin
+from ariadne_codegen.config import get_client_settings
 from graphql import (
     ExecutableDefinitionNode,
     FieldNode,
@@ -99,10 +100,10 @@ class GraphQLCodegenPlugin(Plugin):
     def __init__(self, schema: GraphQLSchema, config_dict: dict[str, Any]) -> None:
         super().__init__(schema, config_dict)
 
-        codegen_config: dict[str, Any] = self.config_dict["tool"]["ariadne-codegen"]
+        config = get_client_settings(self.config_dict)
 
-        package_path = codegen_config["target_package_path"]
-        package_name = codegen_config["target_package_name"]
+        package_path = config.target_package_path
+        package_name = config.target_package_name
         self.package_dir = Path(package_path) / package_name
 
         self.classes_to_drop = set()
@@ -112,7 +113,7 @@ class GraphQLCodegenPlugin(Plugin):
 
         # HACK: Override the default python type that ariadne-codegen uses for GraphQL's `ID` type.
         # See: https://github.com/mirumee/ariadne-codegen/issues/316
-        if (id_name := "ID") in codegen_config["scalars"]:
+        if (id_name := "ID") in config.scalars:
             from ariadne_codegen.client_generators import constants
 
             constants.SIMPLE_TYPE_MAP.pop(id_name, None)
@@ -282,7 +283,6 @@ class GraphQLCodegenPlugin(Plugin):
         self,
         constraints: ParsedConstraints,
         ann: ast.AnnAssign,
-        # gql_field: GraphQLField | GraphQLInputField,
     ) -> ast.AnnAssign:
         """Apply any `@constraints(...)` from the GraphQL field definition to this pydantic `Field(...)`.
 

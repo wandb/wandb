@@ -1790,6 +1790,7 @@ fragment TeamFragment on Entity {
   readOnly
   readOnlyAdmin
   isTeam
+  entityType
   privateOnly
   storageBytes
   codeSavingEnabled

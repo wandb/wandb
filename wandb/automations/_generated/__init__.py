@@ -4,12 +4,16 @@ __all__ = [
     "CREATE_AUTOMATION_GQL",
     "CREATE_GENERIC_WEBHOOK_INTEGRATION_GQL",
     "DELETE_AUTOMATION_GQL",
-    "GET_AUTOMATIONS_BY_ENTITY_GQL",
-    "GET_AUTOMATIONS_GQL",
+    "GET_AUTOMATIONS_LEGACY_GQL",
+    "GET_ENTITY_AUTOMATIONS_GQL",
+    "GET_ENTITY_AUTOMATIONS_LEGACY_GQL",
+    "GET_ORG_AUTOMATIONS_GQL",
     "INTEGRATIONS_BY_ENTITY_GQL",
     "UPDATE_AUTOMATION_GQL",
-    "GetAutomations",
-    "GetAutomationsByEntity",
+    "GetAutomationsLegacy",
+    "GetEntityAutomationsLegacy",
+    "GetEntityAutomations",
+    "GetOrgAutomations",
     "CreateAutomation",
     "UpdateAutomation",
     "DeleteAutomation",
@@ -26,6 +30,7 @@ __all__ = [
     "UpdateFilterTriggerInput",
     "ArtifactPortfolioScopeFields",
     "ArtifactSequenceScopeFields",
+    "EntityScopeFields",
     "FilterEventFields",
     "GenericWebhookActionFields",
     "NoOpActionFields",
@@ -54,6 +59,7 @@ from .enums import (
 from .fragments import (
     ArtifactPortfolioScopeFields,
     ArtifactSequenceScopeFields,
+    EntityScopeFields,
     FilterEventFields,
     GenericWebhookActionFields,
     NoOpActionFields,
@@ -66,8 +72,10 @@ from .fragments import (
     TriggerFields,
     WebhookIntegrationFields,
 )
-from .get_automations import GetAutomations
-from .get_automations_by_entity import GetAutomationsByEntity
+from .get_automations_legacy import GetAutomationsLegacy
+from .get_entity_automations import GetEntityAutomations
+from .get_entity_automations_legacy import GetEntityAutomationsLegacy
+from .get_org_automations import GetOrgAutomations
 from .input_types import (
     CreateFilterTriggerInput,
     CreateGenericWebhookIntegrationInput,
@@ -84,8 +92,10 @@ from .operations import (
     CREATE_AUTOMATION_GQL,
     CREATE_GENERIC_WEBHOOK_INTEGRATION_GQL,
     DELETE_AUTOMATION_GQL,
-    GET_AUTOMATIONS_BY_ENTITY_GQL,
-    GET_AUTOMATIONS_GQL,
+    GET_AUTOMATIONS_LEGACY_GQL,
+    GET_ENTITY_AUTOMATIONS_GQL,
+    GET_ENTITY_AUTOMATIONS_LEGACY_GQL,
+    GET_ORG_AUTOMATIONS_GQL,
     INTEGRATIONS_BY_ENTITY_GQL,
     UPDATE_AUTOMATION_GQL,
 )

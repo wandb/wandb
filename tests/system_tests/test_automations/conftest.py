@@ -150,7 +150,8 @@ def webhook(
 # ---------------------------------------------------------------------------
 # Exclude deprecated events/actions that will not be exposed in the API for programmatic creation
 def valid_input_scopes() -> list[ScopeType]:
-    return sorted(ScopeType)
+    # return sorted(ScopeType)  # TODO: restore once ENTITY scope is supported
+    return sorted(set(ScopeType) - {ScopeType.ENTITY})
 
 
 def valid_input_events() -> list[EventType]:
@@ -204,9 +205,12 @@ def pytest_collection_modifyitems(config, items):
 
 
 @fixture(params=valid_input_scopes(), ids=lambda x: f"scope={x.value}")
-def scope_type(request: FixtureRequest) -> ScopeType:
+def scope_type(request: FixtureRequest, module_api: wandb.Api) -> ScopeType:
     """A fixture that parametrizes over all valid scope types."""
-    return request.param
+    if not module_api._supports_automation(scope=(scope_type := request.param)):
+        skip(f"Server does not support scope type: {scope_type!r}")
+
+    return scope_type
 
 
 @fixture(params=valid_input_events(), ids=lambda x: f"event={x.value}")
@@ -216,10 +220,7 @@ def event_type(
     module_api: wandb.Api,
 ) -> EventType:
     """A fixture that parametrizes over all valid event types."""
-
-    event_type = request.param
-
-    if not module_api._supports_automation(event=event_type):
+    if not module_api._supports_automation(event=(event_type := request.param)):
         skip(f"Server does not support event type: {event_type!r}")
 
     if (event_type, scope_type) in invalid_events_and_scopes():
@@ -234,9 +235,7 @@ def action_type(
     module_api: wandb.Api,
 ) -> ActionType:
     """A fixture that parametrizes over all valid action types."""
-    action_type = request.param
-
-    if not module_api._supports_automation(action=action_type):
+    if not module_api._supports_automation(action=(action_type := request.param)):
         skip(f"Server does not support action type: {action_type!r}")
 
     return action_type
