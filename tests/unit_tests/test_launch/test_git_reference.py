@@ -6,12 +6,27 @@ import pathlib
 import subprocess
 
 import pytest
+from wandb.sdk.launch import git_reference as git_reference_module
 from wandb.sdk.launch.errors import LaunchError
 from wandb.sdk.launch.git_reference import GitReference
 
 
 def run_git(cwd: pathlib.Path, *args: str) -> str:
     return subprocess.check_output(["git", *args], cwd=cwd, text=True).strip()
+
+
+@pytest.fixture
+def uri_recorder(monkeypatch) -> list[tuple[str, ...]]:
+    """Record the args of every ``run_git`` call while still calling through."""
+    calls: list[tuple[str, ...]] = []
+    real_run_git = git_reference_module.run_git
+
+    def spy(*args: str, **kwargs):
+        calls.append(args)
+        return real_run_git(*args, **kwargs)
+
+    monkeypatch.setattr(git_reference_module, "run_git", spy)
+    return calls
 
 
 @pytest.fixture
@@ -91,3 +106,83 @@ def test_fetch_no_default_branch_raises_launch_error(source_repo, tmp_path):
 
     with pytest.raises(LaunchError, match="Unable to determine branch or commit"):
         ref.fetch(str(tmp_path / "dst"))
+
+
+@pytest.mark.parametrize(
+    "uri",
+    [
+        "ext::sh -c 'touch /tmp/pwned'",
+        "EXT::sh -c 'touch /tmp/pwned'",
+        "fd::17/foo",
+        "file:///tmp/evil.git",
+        "-u./payload",
+        "--upload-pack=touch /tmp/pwned",
+    ],
+)
+def test_fetch_rejects_dangerous_uri(uri, tmp_path):
+    """Command-executing transports and option-like remotes are refused."""
+    ref = GitReference(uri)
+
+    with pytest.raises(LaunchError, match="Refusing to fetch git remote"):
+        ref.fetch(str(tmp_path / "dst"))
+
+
+def test_fetch_dangerous_uri_runs_no_git(uri_recorder, tmp_path):
+    """A rejected URI is refused before any git process is spawned."""
+    ref = GitReference("ext::sh -c 'touch /tmp/pwned'")
+
+    with pytest.raises(LaunchError):
+        ref.fetch(str(tmp_path / "dst"))
+
+    assert uri_recorder == []
+
+
+def test_fetch_blocked_submodule_raises_launch_error(source_repo, tmp_path):
+    """A submodule over a forbidden transport is blocked and reported cleanly."""
+    # Point a submodule at a file:// URL; our protocol allowlist refuses it.
+    evil = tmp_path / "evil"
+    subprocess.run(
+        ["git", "init", "--initial-branch", "main", evil],
+        check=True,
+        stdout=subprocess.DEVNULL,
+    )
+    run_git(evil, "config", "user.name", "test")
+    run_git(evil, "config", "user.email", "test@test.com")
+    (evil / "payload").write_text("x\n")
+    run_git(evil, "add", "payload")
+    run_git(evil, "commit", "--no-verify", "--no-gpg-sign", "-m", "evil")
+    run_git(
+        source_repo,
+        "-c",
+        "protocol.file.allow=always",
+        "submodule",
+        "add",
+        f"file://{evil}",
+        "sub",
+    )
+    run_git(
+        source_repo, "commit", "--no-verify", "--no-gpg-sign", "-m", "add submodule"
+    )
+
+    ref = GitReference(str(source_repo))
+
+    with pytest.raises(LaunchError, match="Unable to update submodules"):
+        ref.fetch(str(tmp_path / "dst"))
+
+
+def test_fetch_hardens_transports(source_repo, tmp_path, uri_recorder):
+    """The fetch and recursive-submodule calls pin the protocol allowlist."""
+    ref = GitReference(str(source_repo))
+
+    ref.fetch(str(tmp_path / "dst"))
+
+    fetch_calls = [args for args in uri_recorder if "fetch" in args]
+    submodule_calls = [args for args in uri_recorder if "submodule" in args]
+
+    assert fetch_calls, "expected a git fetch"
+    assert all("protocol.ext.allow=never" in args for args in fetch_calls)
+
+    assert submodule_calls, "expected a git submodule update"
+    for args in submodule_calls:
+        assert "protocol.file.allow=never" in args
+        assert "protocol.ext.allow=never" in args

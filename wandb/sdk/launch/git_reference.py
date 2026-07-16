@@ -16,6 +16,51 @@ SUFFIX_GIT = ".git"
 
 GIT_COMMIT_REGEX = re.compile(r"[0-9a-f]{40}")
 
+# Transports that let a remote URL execute an arbitrary command or read
+# arbitrary local files. These are never legitimate for a launch job's source
+# repository, and a remote is attacker-controlled data (it is read back from a
+# job artifact and replayed to every agent that pops the queue). Reject them
+# before any git process sees the URL.
+_DISALLOWED_URI_PREFIXES = ("ext::", "fd::", "file://")
+
+# Force git to refuse the local-file and ext transports for the fetches it
+# performs, including the recursive submodule fetches. This closes the
+# malicious-submodule RCE class (e.g. CVE-2024-32002) even on host git binaries
+# that predate the upstream default of protocol.file.allow=user, and blocks the
+# ext:: command transport as defense in depth if the prefix check above is ever
+# bypassed. `submodule update --recursive` is passed explicitly, so
+# `submodule.recurse=false` would not help here; the protocol allowlist is what
+# gates the dangerous transports.
+_FETCH_PROTOCOL_ARGS = ("-c", "protocol.ext.allow=never")
+_SUBMODULE_PROTOCOL_ARGS = (
+    "-c",
+    "protocol.file.allow=never",
+    "-c",
+    "protocol.ext.allow=never",
+)
+
+
+def _validate_uri(uri: str) -> None:
+    """Reject remote URLs that git would treat as a command or an option.
+
+    Raises:
+        LaunchError: If the URI uses a command-executing transport or looks
+            like a command-line option (argument injection).
+    """
+    stripped = uri.strip()
+    if stripped.startswith("-"):
+        raise LaunchError(
+            f"Refusing to fetch git remote that looks like a command-line "
+            f"option: {uri!r}"
+        )
+    lowered = stripped.lower()
+    for prefix in _DISALLOWED_URI_PREFIXES:
+        if lowered.startswith(prefix):
+            raise LaunchError(
+                f"Refusing to fetch git remote using a disallowed transport "
+                f"({prefix!r}): {uri!r}"
+            )
+
 
 class ReferenceType(IntEnum):
     BRANCH = 1
@@ -42,12 +87,13 @@ class GitReference:
 
     def fetch(self, dst_dir: str) -> None:
         """Fetch the repo into dst_dir and refine githubref based on what we learn."""
+        _validate_uri(self.uri)
         try:
             run_git("init", dst_dir)
             self.path = os.path.abspath(dst_dir)
-            run_git("remote", "add", "origin", self.uri, cwd=dst_dir)
+            run_git("remote", "add", "origin", "--", self.uri, cwd=dst_dir)
             # We fetch the origin so that we have branch and tag references
-            run_git("fetch", "origin", cwd=dst_dir)
+            run_git(*_FETCH_PROTOCOL_ARGS, "fetch", "origin", cwd=dst_dir)
         except GitCommandError as e:
             raise LaunchError(
                 f"Unable to fetch from git remote repository {self.url}:\n{e}"
@@ -74,7 +120,19 @@ class GitReference:
             self._checkout_branch(dst_dir, default_branch, f"origin/{default_branch}")
 
         self.commit_hash = run_git("rev-parse", "HEAD", cwd=dst_dir).strip()
-        run_git("submodule", "update", "--init", "--recursive", cwd=dst_dir)
+        try:
+            run_git(
+                *_SUBMODULE_PROTOCOL_ARGS,
+                "submodule",
+                "update",
+                "--init",
+                "--recursive",
+                cwd=dst_dir,
+            )
+        except GitCommandError as e:
+            raise LaunchError(
+                f"Unable to update submodules for git repository {self.url}:\n{e}"
+            )
 
     def _ref_exists(self, dst_dir: str, ref: str) -> bool:
         try:
