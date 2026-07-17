@@ -20,7 +20,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 import wandb
 from wandb import util
-from wandb.analytics import OtelProvider, get_sentry
+from wandb.analytics import OtelProvider, TelemetryRecorder, get_sentry
 from wandb.errors import CommError, UsageError
 from wandb.errors.util import ProtobufErrorHandler
 from wandb.filesync.dir_watcher import DirWatcher
@@ -275,10 +275,11 @@ class SendManager:
             api_key=settings.api_key or read_netrc_auth(host=settings.base_url) or "",
             endpoint=settings.base_url,
         )
+        self._telemetry_recorder = TelemetryRecorder(root=self._otel_proxy)
         self._api = internal_api.Api(
             default_settings=settings,
             retry_callback=self.retry_callback,
-            telemetry_recorder=self._otel_proxy,
+            telemetry_recorder=self._telemetry_recorder,
         )
         self._api_settings = dict()
 

@@ -15,7 +15,7 @@ from multiprocessing import Event
 from typing import Any
 
 import wandb
-from wandb.analytics import NoOpOtelProvider, TelemetryRecorder, get_sentry
+from wandb.analytics import TelemetryRecorder, get_sentry
 from wandb.apis.internal import Api
 from wandb.errors import CommError
 from wandb.sdk.launch._launch_add import launch_add
@@ -210,7 +210,7 @@ class LaunchAgent:
             config: Config dictionary for the agent.
         """
         if telemetry_recorder is None:
-            telemetry_recorder = NoOpOtelProvider()
+            telemetry_recorder = TelemetryRecorder()
 
         self._entity = config["entity"]
         self._project = LAUNCH_DEFAULT_PROJECT

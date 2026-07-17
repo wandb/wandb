@@ -15,7 +15,11 @@ def core_calls(monkeypatch) -> list[list[str]]:
     monkeypatch.setattr(leet, "get_core_path", lambda: "wandb-core")
     monkeypatch.setattr(leet, "error_reporting_enabled", lambda: True)
     monkeypatch.setattr(leet, "is_debug", lambda default: False)
-    monkeypatch.setattr(leet, "_run_core", lambda args, env=None: calls.append(args))
+    monkeypatch.setattr(
+        leet,
+        "_run_core",
+        lambda _telemetry_recorder, args, env=None: calls.append(args),
+    )
 
     return calls
 

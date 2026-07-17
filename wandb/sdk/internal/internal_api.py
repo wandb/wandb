@@ -219,7 +219,7 @@ class Api:
         import requests
 
         if telemetry_recorder is None:
-            telemetry_recorder = TelemetryRecorder(root=None)
+            telemetry_recorder = TelemetryRecorder()
 
         self._environ = environ
 

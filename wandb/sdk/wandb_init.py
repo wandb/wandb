@@ -29,7 +29,7 @@ from typing_extensions import Any, Protocol
 import wandb
 import wandb.env
 from wandb import env, trigger
-from wandb.analytics import OtelProvider, get_sentry
+from wandb.analytics import OtelProvider, TelemetryRecorder, get_sentry
 from wandb.errors import Error, UsageError
 from wandb.errors.links import url_registry
 from wandb.errors.util import ProtobufErrorHandler
@@ -1458,6 +1458,7 @@ def init(  # noqa: C901
         api_key=init_settings.api_key or "",
         endpoint=init_settings.base_url,
     )
+    telemetry_recorder = TelemetryRecorder(root=init_otel_proxy)
 
     try:
         wl = wandb_setup.singleton()
@@ -1546,6 +1547,6 @@ def init(  # noqa: C901
     except Exception as e:
         if wl:
             wl._get_logger().exception("error in wandb.init()", exc_info=e)
-        init_otel_proxy.exception(str(e), e)
+        telemetry_recorder.exception(str(e), e)
         init_otel_proxy.shutdown()
         get_sentry().reraise(e)

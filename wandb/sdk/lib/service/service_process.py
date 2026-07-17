@@ -73,6 +73,7 @@ def _start(
         api_key=settings.api_key or "",
         endpoint=settings.base_url,
     )
+    telemetry_recorder = TelemetryRecorder(root=otel_proxy)
     get_sentry().configure_scope(tags=dict(settings), process_context="service")
 
     try:
@@ -80,10 +81,10 @@ def _start(
             settings,
             detached=detached,
             idle_timeout=idle_timeout,
-            telemetry_recorder=otel_proxy,
+            telemetry_recorder=telemetry_recorder,
         )
     except Exception as e:
-        otel_proxy.exception(str(e), e)
+        telemetry_recorder.exception(str(e), e)
         get_sentry().reraise(e)
     finally:
         otel_proxy.shutdown()

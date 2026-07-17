@@ -7,7 +7,7 @@ import sys
 from typing import Any
 
 import wandb
-from wandb.analytics import NoOpOtelProvider, TelemetryRecorder
+from wandb.analytics import TelemetryRecorder
 from wandb.apis.internal import Api
 
 from . import loader
@@ -148,7 +148,7 @@ def create_and_run_agent(
     telemetry_recorder: TelemetryRecorder | None = None,
 ) -> None:
     if telemetry_recorder is None:
-        telemetry_recorder = NoOpOtelProvider()
+        telemetry_recorder = TelemetryRecorder()
 
     try:
         from wandb.sdk.launch.agent import config as agent_config
