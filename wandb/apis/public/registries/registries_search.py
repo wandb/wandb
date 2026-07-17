@@ -212,8 +212,7 @@ class Registries(RelayPaginator["RegistryFragment", "Registry"]):
         from wandb.sdk.artifacts._generated import FetchRegistries
         from wandb.sdk.artifacts._models.pagination import RegistryConnection
 
-        data = self._execute_query()
-        result = FetchRegistries.model_validate(data)
+        result = self._execute_query(parse=FetchRegistries.model_validate_json)
         if not ((org := result.organization) and (org_entity := org.org_entity)):
             raise ValueError(
                 f"Organization {self.organization!r} not found. Please verify the organization name is correct."
@@ -338,8 +337,7 @@ class Collections(
         from wandb.sdk.artifacts._generated import RegistryCollections
         from wandb.sdk.artifacts._models.pagination import RegistryCollectionConnection
 
-        data = self._execute_query()
-        result = RegistryCollections.model_validate(data)
+        result = self._execute_query(parse=RegistryCollections.model_validate_json)
         if not ((org := result.organization) and (org_entity := org.org_entity)):
             raise ValueError(
                 f"Organization {self.organization!r} not found. Please verify the organization name is correct."
@@ -430,8 +428,7 @@ class Versions(RelayPaginator["ArtifactMembershipFragment", "Artifact"]):
         from wandb.sdk.artifacts._generated import RegistryVersions
         from wandb.sdk.artifacts._models.pagination import ArtifactMembershipConnection
 
-        data = self._execute_query()
-        result = RegistryVersions.model_validate(data)
+        result = self._execute_query(parse=RegistryVersions.model_validate_json)
         if not ((org := result.organization) and (org_entity := org.org_entity)):
             raise ValueError(
                 f"Organization {self.organization!r} not found. Please verify the organization name is correct."

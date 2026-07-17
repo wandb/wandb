@@ -50,6 +50,7 @@ function compile() {
         --exclude-newer "1w" \
         --python-version "$1" \
         --python-platform "$(platform_python_name $2)" \
+        --constraints requirements/constraints.txt \
         requirements/requirements_dev.txt \
         -o "requirements/requirements_dev.$1.$2.txt" \
         >/dev/null  # https://github.com/astral-sh/uv/issues/3701

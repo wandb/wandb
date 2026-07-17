@@ -58,6 +58,7 @@ if TYPE_CHECKING:
         EventType,
         Integration,
         NewAutomation,
+        ScopeType,
         SlackIntegration,
         WebhookIntegration,
     )
@@ -71,6 +72,7 @@ if TYPE_CHECKING:
         ArtifactType,
         ArtifactTypes,
     )
+    from .organizations import Organization
     from .teams import Team
     from .users import User
 
@@ -677,8 +679,10 @@ class Api:
         from wandb.apis._generated import GET_DEFAULT_ENTITY_GQL, GetDefaultEntity
 
         if self._default_entity is None:
-            data = self._service_api.execute_graphql(GET_DEFAULT_ENTITY_GQL)
-            result = GetDefaultEntity.model_validate(data)
+            result = self._service_api.execute_graphql(
+                GET_DEFAULT_ENTITY_GQL,
+                parse=GetDefaultEntity.model_validate_json,
+            )
             if (viewer := result.viewer) and (entity := viewer.entity):
                 self._default_entity = entity
         return self._default_entity
@@ -696,8 +700,10 @@ class Api:
         from .users import User
 
         if self._viewer is None:
-            data = self._service_api.execute_graphql(GET_VIEWER_GQL)
-            result = GetViewer.model_validate(data)
+            result = self._service_api.execute_graphql(
+                GET_VIEWER_GQL,
+                parse=GetViewer.model_validate_json,
+            )
             if (viewer := result.viewer) is None:
                 msg = "Unable to fetch user data from W&B, please verify your API key is valid."
                 raise ValueError(msg)
@@ -1020,6 +1026,42 @@ class Api:
 
         return Team(self._service_api, team)
 
+    @normalize_exceptions
+    def organization(self, name: str | None = None) -> Organization:
+        """Return the matching `Organization`.
+
+        Args:
+            name: The name of the organization. If omitted, this method will
+                attempt to infer and return the current default organization.
+
+        Returns:
+            An `Organization` object.
+        """
+        from wandb.sdk.artifacts._generated import (
+            FETCH_ORGANIZATION_GQL,
+            FetchOrganization,
+        )
+        from wandb.sdk.artifacts._gqlutils import resolve_org_name
+
+        from .organizations import Organization
+
+        # If needed, try to infer the default org name, following similar fallback
+        # logic already used elsewhere (eg `resolve_org_entity_name`).
+        if not (org_name := (name or self.settings.get("organization"))):
+            org_name = resolve_org_name(
+                self._service_api,
+                non_org_entity=self.settings.get("entity") or self.default_entity,
+            )
+
+        result = self._service_api.execute_graphql(
+            FETCH_ORGANIZATION_GQL,
+            variables={"org": org_name},
+            parse=FetchOrganization.model_validate_json,
+        )
+        if (org := result.organization) is None:
+            raise ValueError(f"Organization {org_name!r} not found.")
+        return Organization(self._service_api, **org.model_dump())
+
     def user(self, username_or_email: str) -> User | None:
         """Return a user from a username or email address.
 
@@ -1036,11 +1078,11 @@ class Api:
 
         from .users import User
 
-        data = self._service_api.execute_graphql(
+        result = self._service_api.execute_graphql(
             SEARCH_USERS_GQL,
-            {"query": username_or_email},
+            variables={"query": username_or_email},
+            parse=SearchUsers.model_validate_json,
         )
-        result = SearchUsers.model_validate(data)
         if not (conn := result.users) or not (edges := conn.edges):
             return None
         if len(edges) > 1:
@@ -1064,11 +1106,11 @@ class Api:
 
         from .users import User
 
-        data = self._service_api.execute_graphql(
+        result = self._service_api.execute_graphql(
             SEARCH_USERS_GQL,
-            {"query": username_or_email},
+            variables={"query": username_or_email},
+            parse=SearchUsers.model_validate_json,
         )
-        result = SearchUsers.model_validate(data)
         if not ((conn := result.users) and (edges := conn.edges)):
             return []
         return [
@@ -2223,6 +2265,7 @@ class Api:
     def _supports_automation(
         self,
         *,
+        scope: ScopeType | None = None,
         event: EventType | None = None,
         action: ActionType | None = None,
     ) -> bool:
@@ -2230,8 +2273,14 @@ class Api:
         from wandb.automations._utils import (
             ALWAYS_SUPPORTED_ACTIONS,
             ALWAYS_SUPPORTED_EVENTS,
+            ALWAYS_SUPPORTED_SCOPES,
         )
 
+        supports_scope = (
+            (scope is None)
+            or (scope in ALWAYS_SUPPORTED_SCOPES)
+            or self._service_api.feature_enabled(f"AUTOMATION_SCOPE_{scope.value}")
+        )
         supports_event = (
             (event is None)
             or (event in ALWAYS_SUPPORTED_EVENTS)
@@ -2242,7 +2291,7 @@ class Api:
             or (action in ALWAYS_SUPPORTED_ACTIONS)
             or self._service_api.feature_enabled(f"AUTOMATION_ACTION_{action.value}")
         )
-        return supports_event and supports_action
+        return supports_event and supports_action and supports_scope
 
     def _omitted_automation_fragments(self) -> set[str]:
         """Returns the names of unsupported automation-related fragments.
@@ -2268,8 +2317,9 @@ class Api:
                 }
                 ```
         """
-        from wandb.automations import ActionType
+        from wandb.automations import ActionType, ScopeType
         from wandb.automations._generated import (
+            EntityScopeFields,
             GenericWebhookActionFields,
             NoOpActionFields,
             NotificationActionFields,
@@ -2278,19 +2328,29 @@ class Api:
 
         # Note: we can't currently define this as a constant outside the method
         # and still keep it nearby in this module, because it relies on pydantic v2-only imports
-        fragment_names: dict[ActionType, str] = {
+        scope_fragment_names: dict[ScopeType, str] = {
+            ScopeType.ENTITY: nameof(EntityScopeFields),
+        }
+        action_fragment_names: dict[ActionType, str] = {
             ActionType.NO_OP: nameof(NoOpActionFields),
             ActionType.QUEUE_JOB: nameof(QueueJobActionFields),
             ActionType.NOTIFICATION: nameof(NotificationActionFields),
             ActionType.GENERIC_WEBHOOK: nameof(GenericWebhookActionFields),
         }
 
-        return set(
+        omitted_scope_fragments = set(
+            name
+            for scope in ScopeType
+            if (not self._supports_automation(scope=scope))
+            and (name := scope_fragment_names.get(scope))
+        )
+        omitted_action_fragments = set(
             name
             for action in ActionType
             if (not self._supports_automation(action=action))
-            and (name := fragment_names.get(action))
+            and (name := action_fragment_names.get(action))
         )
+        return omitted_scope_fragments | omitted_action_fragments
 
     @tracked
     def automation(
@@ -2367,16 +2427,16 @@ class Api:
         """
         from wandb.apis.public.automations import Automations
         from wandb.automations._generated import (
-            GET_AUTOMATIONS_BY_ENTITY_GQL,
-            GET_AUTOMATIONS_GQL,
+            GET_AUTOMATIONS_LEGACY_GQL,
+            GET_ENTITY_AUTOMATIONS_LEGACY_GQL,
         )
 
         # For now, we need to use different queries depending on whether entity is given
         variables = {"entity": entity}
         if entity is None:
-            gql_str = GET_AUTOMATIONS_GQL  # Automations for viewer
+            gql_str = GET_AUTOMATIONS_LEGACY_GQL  # Automations for viewer
         else:
-            gql_str = GET_AUTOMATIONS_BY_ENTITY_GQL  # Automations for entity
+            gql_str = GET_ENTITY_AUTOMATIONS_LEGACY_GQL  # Automations for entity
 
         # If needed, rewrite the GraphQL field selection set to omit unsupported fields/fragments/types
         iterator = Automations(
@@ -2478,6 +2538,7 @@ class Api:
                 CREATE_AUTOMATION_GQL,
                 variables=variables,
                 omit_fragments=omit_fragments,
+                parse=CreateAutomation.model_validate_json,
             )
         except WandbApiFailedError as e:
             status = _api_error_status(e)
@@ -2490,18 +2551,15 @@ class Api:
                     f"Automation {name!r} exists. Unable to create another with the same name."
                 ) from None
             raise
-
-        try:
-            result = CreateAutomation.model_validate(data).result
         except ValidationError as e:
             msg = f"Invalid response while creating automation {name!r}"
             raise RuntimeError(msg) from e
 
-        if (result is None) or (result.trigger is None):
+        if not (result := data.result) or not (trigger := result.trigger):
             msg = f"Empty response while creating automation {name!r}"
             raise RuntimeError(msg)
 
-        return Automation.model_validate(result.trigger)
+        return Automation.model_validate(trigger)
 
     @normalize_exceptions
     @tracked
@@ -2599,6 +2657,7 @@ class Api:
                 UPDATE_AUTOMATION_GQL,
                 variables=variables,
                 omit_fragments=self._omitted_automation_fragments(),
+                parse=UpdateAutomation.model_validate_json,
             )
         except WandbApiFailedError as e:
             status = _api_error_status(e)
@@ -2614,18 +2673,15 @@ class Api:
             # Not a (known) recoverable API error
             wandb.termerror(f"Got API error: {e}")
             raise
-
-        try:
-            result = UpdateAutomation.model_validate(data).result
         except ValidationError as e:
             msg = f"Invalid response while updating automation {name!r}"
             raise RuntimeError(msg) from e
 
-        if (result is None) or (result.trigger is None):
+        if not (result := data.result) or not (trigger := result.trigger):
             msg = f"Empty response while updating automation {name!r}"
             raise RuntimeError(msg)
 
-        return Automation.model_validate(result.trigger)
+        return Automation.model_validate(trigger)
 
     @normalize_exceptions
     @tracked
@@ -2642,22 +2698,22 @@ class Api:
         from wandb.automations._utils import extract_id
 
         id_ = extract_id(obj)
-        mutation = DELETE_AUTOMATION_GQL
-        variables = {"id": id_}
-
-        data = self._service_api.execute_graphql(mutation, variables=variables)
 
         try:
-            result = DeleteAutomation.model_validate(data).result
+            data = self._service_api.execute_graphql(
+                DELETE_AUTOMATION_GQL,
+                variables={"id": id_},
+                parse=DeleteAutomation.model_validate_json,
+            )
         except ValidationError as e:
             msg = f"Invalid response while deleting automation {id_!r}"
             raise RuntimeError(msg) from e
 
-        if result is None:
+        if not (result := data.result):
             msg = f"Empty response while deleting automation {id_!r}"
             raise RuntimeError(msg)
 
-        if not result.success:
+        if not (success := result.success):
             raise RuntimeError(f"Failed to delete automation: {id_!r}")
 
-        return result.success
+        return success

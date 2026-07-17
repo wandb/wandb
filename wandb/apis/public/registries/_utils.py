@@ -139,21 +139,17 @@ def fetch_org_entity_from_organization(
         service_api: The service API instance to use for querying W&B.
         organization (str): The organization to fetch the org entity for.
     """
-    from wandb.sdk.artifacts._generated import (
-        FETCH_ORG_ENTITY_FROM_ORGANIZATION_GQL,
-        FetchOrgEntityFromOrganization,
-    )
+    from wandb.sdk.artifacts._generated import FETCH_ORGANIZATION_GQL, FetchOrganization
 
-    gql_op = FETCH_ORG_ENTITY_FROM_ORGANIZATION_GQL
+    gql_op = FETCH_ORGANIZATION_GQL
+    gql_vars = {"org": organization}
     try:
-        data = service_api.execute_graphql(
-            gql_op, variables={"organization": organization}
-        )
+        data = service_api.execute_graphql(gql_op, variables=gql_vars)
     except Exception as e:
         msg = f"Error fetching org entity for organization: {organization!r}"
         raise ValueError(msg) from e
 
-    result = FetchOrgEntityFromOrganization.model_validate(data)
+    result = FetchOrganization.model_validate(data)
     if (
         not (org := result.organization)
         or not (org_entity := org.org_entity)
