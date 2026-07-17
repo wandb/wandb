@@ -3,7 +3,7 @@ module github.com/wandb/wandb/core
 go 1.26.4
 
 require (
-	charm.land/bubbles/v2 v2.1.0
+	charm.land/bubbles/v2 v2.1.1
 	charm.land/bubbletea/v2 v2.0.8
 	charm.land/lipgloss/v2 v2.0.5
 	cloud.google.com/go/storage v1.63.0
