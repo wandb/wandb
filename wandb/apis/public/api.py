@@ -28,7 +28,6 @@ import wandb
 from wandb import env
 from wandb._analytics import tracked
 from wandb._iterutils import one
-from wandb._strutils import nameof
 from wandb.apis import public
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.public.const import RETRY_TIMEDELTA
@@ -41,6 +40,7 @@ from wandb.apis.public.utils import (
     parse_org_from_registry_path,
 )
 from wandb.errors import UsageError
+from wandb.errors.errors import UnsupportedError
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto.wandb_telemetry_pb2 import Deprecated
 from wandb.sdk import wandb_login, wandb_setup
@@ -53,12 +53,9 @@ from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 
 if TYPE_CHECKING:
     from wandb.automations import (
-        ActionType,
         Automation,
-        EventType,
         Integration,
         NewAutomation,
-        ScopeType,
         SlackIntegration,
         WebhookIntegration,
     )
@@ -2262,96 +2259,6 @@ class Api:
             self._service_api, variables=variables, per_page=per_page, start=start
         )
 
-    def _supports_automation(
-        self,
-        *,
-        scope: ScopeType | None = None,
-        event: EventType | None = None,
-        action: ActionType | None = None,
-    ) -> bool:
-        """Returns whether the server recognizes the automation event and/or action."""
-        from wandb.automations._utils import (
-            ALWAYS_SUPPORTED_ACTIONS,
-            ALWAYS_SUPPORTED_EVENTS,
-            ALWAYS_SUPPORTED_SCOPES,
-        )
-
-        supports_scope = (
-            (scope is None)
-            or (scope in ALWAYS_SUPPORTED_SCOPES)
-            or self._service_api.feature_enabled(f"AUTOMATION_SCOPE_{scope.value}")
-        )
-        supports_event = (
-            (event is None)
-            or (event in ALWAYS_SUPPORTED_EVENTS)
-            or self._service_api.feature_enabled(f"AUTOMATION_EVENT_{event.value}")
-        )
-        supports_action = (
-            (action is None)
-            or (action in ALWAYS_SUPPORTED_ACTIONS)
-            or self._service_api.feature_enabled(f"AUTOMATION_ACTION_{action.value}")
-        )
-        return supports_event and supports_action and supports_scope
-
-    def _omitted_automation_fragments(self) -> set[str]:
-        """Returns the names of unsupported automation-related fragments.
-
-        Older servers won't recognize newer GraphQL types, so a valid request may
-        unnecessarily error out because it won't recognize fragments defined on those types.
-
-        So e.g. if a server does not support `NO_OP` action types, then the following need to be
-        removed from the body of the GraphQL request:
-
-            - Fragment definition:
-                ```
-                fragment NoOpActionFields on NoOpTriggeredAction {
-                    noOp
-                }
-                ```
-
-            - Fragment spread in selection set:
-                ```
-                {
-                    ...NoOpActionFields
-                    # ... other fields ...
-                }
-                ```
-        """
-        from wandb.automations import ActionType, ScopeType
-        from wandb.automations._generated import (
-            EntityScopeFields,
-            GenericWebhookActionFields,
-            NoOpActionFields,
-            NotificationActionFields,
-            QueueJobActionFields,
-        )
-
-        # Note: we can't currently define this as a constant outside the method
-        # and still keep it nearby in this module, because it relies on pydantic v2-only imports
-        scope_fragment_names: dict[ScopeType, str] = {
-            ScopeType.ENTITY: nameof(EntityScopeFields),
-        }
-        action_fragment_names: dict[ActionType, str] = {
-            ActionType.NO_OP: nameof(NoOpActionFields),
-            ActionType.QUEUE_JOB: nameof(QueueJobActionFields),
-            ActionType.NOTIFICATION: nameof(NotificationActionFields),
-            ActionType.GENERIC_WEBHOOK: nameof(GenericWebhookActionFields),
-        }
-
-        omitted_scope_fragments = set(
-            name
-            for scope in ScopeType
-            if (not self._supports_automation(scope=scope))
-            and (name := scope_fragment_names.get(scope))
-        )
-        omitted_action_fragments = set(
-            name
-            for action in ActionType
-            if (not self._supports_automation(action=action))
-            and (name := action_fragment_names.get(action))
-        )
-        return omitted_scope_fragments | omitted_action_fragments
-
     @tracked
     def automation(
         self,
@@ -2431,33 +2338,28 @@ class Api:
             LegacyEntityAutomations,
         )
 
-        kwargs = dict(
-            variables={"entity": entity},
-            per_page=per_page,
-            start=start,
-            omit_fragments=self._omitted_automation_fragments(),
-        )
-        iterator: Iterator[Automation]
-        if entity is None:
-            # No entity given: walk the viewer's projects for all automations
-            # the user can access.
-            iterator = Automations(self._service_api, **kwargs)
+        kwargs = dict(per_page=per_page, start=start)
 
-        elif self._service_api.feature_enabled(pb.QUERY_AUTOMATIONS_ON_ENTITY):
-            # `Entity.triggers` returns *all* automations in and under the entity:
-            # those scoped to the entity itself as well as to any project or
-            # artifact collection beneath it.
-            iterator = EntityAutomations(self._service_api, **kwargs)
-        else:
-            # Older servers lack `Entity.triggers`, so fall back to walking the
-            # entity's projects.  (Entity-scoped automations are a newer feature
-            # and don't exist on such servers.)
-            iterator = LegacyEntityAutomations(self._service_api, **kwargs)
+        if entity and self._service_api.feature_enabled(pb.QUERY_AUTOMATIONS_ON_ENTITY):
+            return EntityAutomations(
+                self._service_api,
+                entity=entity,
+                filter={"name": name} if name else None,
+                **kwargs,
+            )
+        elif entity:
+            # Older servers lack `Entity.triggers`, so fall back to the legacy paginator
+            # that walks the entity's projects.
+            # Entity-scoped automations are a newer feature and don't exist on such servers.
+            return LegacyEntityAutomations(
+                self._service_api,
+                entity=entity,
+                name=name,
+                **kwargs,
+            )
 
-        # FIXME: this is crude, move this client-side filtering logic into backend
-        if name is not None:
-            return filter(lambda x: x.name == name, iterator)
-        return iterator
+        # Legacy implementation: walk the viewer's projects for visible automations
+        return Automations(self._service_api, name=name, **kwargs)
 
     @normalize_exceptions
     @tracked
@@ -2520,22 +2422,32 @@ class Api:
         """
         from wandb.automations import Automation
         from wandb.automations._generated import CREATE_AUTOMATION_GQL, CreateAutomation
-        from wandb.automations._utils import prepare_to_create
+        from wandb.automations._utils import (
+            action_enabled,
+            event_enabled,
+            omit_automation_fragments,
+            prepare_to_create,
+            scope_enabled,
+        )
 
         gql_input = prepare_to_create(obj, **kwargs)
 
-        if not self._supports_automation(
-            event=(event := gql_input.triggering_event_type),
-            action=(action := gql_input.triggered_action_type),
-        ):
-            raise ValueError(
-                f"Automation event or action ({event!r} -> {action!r}) "
-                "is not supported on this wandb server version. "
-                "Please upgrade your server version, or contact support at "
-                "support@wandb.com."
+        if not (
+            scope_enabled(self._service_api, (scope := gql_input.scope_type))
+            and event_enabled(
+                self._service_api, (event := gql_input.triggering_event_type)
             )
+            and action_enabled(
+                self._service_api, (action := gql_input.triggered_action_type)
+            )
+        ):
+            msg = (
+                f"Automation scope, event, and/or action ({scope.value!r}, {event.value!r}, {action.value!r}) "
+                "is not supported on this wandb server version. "
+                "Please upgrade your server version, or contact support at support@wandb.com."
+            )
+            raise UnsupportedError(msg) from None
 
-        omit_fragments = self._omitted_automation_fragments()
         variables = {"input": gql_input.model_dump()}
 
         name = gql_input.name
@@ -2543,7 +2455,7 @@ class Api:
             data = self._service_api.execute_graphql(
                 CREATE_AUTOMATION_GQL,
                 variables=variables,
-                omit_fragments=omit_fragments,
+                omit_fragments=omit_automation_fragments(self._service_api),
                 parse=CreateAutomation.model_validate_json,
             )
         except WandbApiFailedError as e:
@@ -2627,33 +2539,33 @@ class Api:
         )
         ```
         """
-        from wandb.automations import ActionType, Automation
+        from wandb.automations import Automation
         from wandb.automations._generated import UPDATE_AUTOMATION_GQL, UpdateAutomation
-        from wandb.automations._utils import prepare_to_update
-
-        # Check if the server even supports updating automations.
-        #
-        # NOTE: Unfortunately, there is no current server feature flag for this.  As a workaround,
-        # we check whether the server supports the NO_OP action, which is a reasonably safe proxy
-        # for whether it supports updating automations.
-        if not self._supports_automation(action=ActionType.NO_OP):
-            raise RuntimeError(
-                "Updating existing automations is not enabled on this wandb server version. "
-                "Please upgrade your server version, or contact support at support@wandb.com."
-            )
+        from wandb.automations._utils import (
+            action_enabled,
+            event_enabled,
+            omit_automation_fragments,
+            prepare_to_update,
+            scope_enabled,
+        )
 
         gql_input = prepare_to_update(obj, **kwargs)
 
-        if not self._supports_automation(
-            event=(event := gql_input.triggering_event_type),
-            action=(action := gql_input.triggered_action_type),
-        ):
-            raise ValueError(
-                f"Automation event or action ({event.value} -> {action.value}) "
-                "is not supported on this wandb server version. "
-                "Please upgrade your server version, or contact support at "
-                "support@wandb.com."
+        if not (
+            scope_enabled(self._service_api, (scope := gql_input.scope_type))
+            and event_enabled(
+                self._service_api, (event := gql_input.triggering_event_type)
             )
+            and action_enabled(
+                self._service_api, (action := gql_input.triggered_action_type)
+            )
+        ):
+            msg = (
+                f"Automation scope, event, and/or action ({scope.value!r}, {event.value!r}, {action.value!r}) "
+                "is not supported on this wandb server version. "
+                "Please upgrade your server version, or contact support at support@wandb.com."
+            )
+            raise UnsupportedError(msg)
 
         variables = {"input": gql_input.model_dump()}
 
@@ -2662,7 +2574,7 @@ class Api:
             data = self._service_api.execute_graphql(
                 UPDATE_AUTOMATION_GQL,
                 variables=variables,
-                omit_fragments=self._omitted_automation_fragments(),
+                omit_fragments=omit_automation_fragments(self._service_api),
                 parse=UpdateAutomation.model_validate_json,
             )
         except WandbApiFailedError as e:

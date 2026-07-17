@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Iterator, Mapping
-from typing import TYPE_CHECKING, Any, ClassVar
+from collections.abc import Iterator
+from typing import TYPE_CHECKING, Any, ClassVar, TypeAlias
 
 from pydantic import ValidationError
 from typing_extensions import override
@@ -17,7 +17,7 @@ if TYPE_CHECKING:
     from wandb.automations._generated import ProjectTriggersFields, TriggerFields
 
 
-class Automations(RelayPaginator["ProjectTriggersFields", "Automation"]):
+class LegacyAutomations(RelayPaginator["ProjectTriggersFields", "Automation"]):
     """A lazy iterator of `Automation` objects.
 
     For older servers that don't support direct queries for automations, this
@@ -33,23 +33,26 @@ class Automations(RelayPaginator["ProjectTriggersFields", "Automation"]):
     def __init__(
         self,
         service_api: ServiceApi,
-        variables: Mapping[str, Any],
         *,
+        name: str | None = None,
         per_page: int = 50,
         start: str | None = None,
-        omit_fragments: Iterable[str] | None = None,
     ):
+        from wandb.automations._utils import omit_automation_fragments
+
         if self.QUERY is None:
             from wandb.automations._generated import GET_AUTOMATIONS_LEGACY_GQL
 
             type(self).QUERY = GET_AUTOMATIONS_LEGACY_GQL
 
+        self._name = name
+
         super().__init__(
             service_api,
-            variables=variables,
+            variables={},
             per_page=per_page,
             start=start,
-            omit_fragments=omit_fragments,
+            omit_fragments=omit_automation_fragments(service_api),
         )
 
     @override
@@ -73,13 +76,20 @@ class Automations(RelayPaginator["ProjectTriggersFields", "Automation"]):
     def _convert(self, node: ProjectTriggersFields) -> Iterator[Automation]:
         from wandb.automations import Automation
 
-        yield from map(Automation.model_validate, node.triggers)
+        # Project.triggers doesn't support filters, so we have to filter client-side.
+        if name := self._name:
+            return map(
+                Automation.model_validate,
+                filter(lambda t: t.name == name, node.triggers),
+            )
+        return map(Automation.model_validate, node.triggers)
 
     @override
     def convert_objects(self) -> Iterator[Automation]:
         if conn := self.last_response:
             for node in conn.nodes():
                 yield from self._convert(node)
+
 
 class LegacyEntityAutomations(RelayPaginator["ProjectTriggersFields", "Automation"]):
     """A lazy iterator of `Automation` objects scoped directly to an entity.
@@ -97,23 +107,27 @@ class LegacyEntityAutomations(RelayPaginator["ProjectTriggersFields", "Automatio
     def __init__(
         self,
         service_api: ServiceApi,
-        variables: Mapping[str, Any],
+        entity: str,
         *,
+        name: str | None = None,
         per_page: int = 50,
         start: str | None = None,
-        omit_fragments: Iterable[str] | None = None,
     ):
+        from wandb.automations._utils import omit_automation_fragments
+
         if self.QUERY is None:
             from wandb.automations._generated import GET_ENTITY_AUTOMATIONS_LEGACY_GQL
 
             type(self).QUERY = GET_ENTITY_AUTOMATIONS_LEGACY_GQL
 
+        self._name = name
+
         super().__init__(
             service_api,
-            variables=variables,
+            variables={"entity": entity},
             per_page=per_page,
             start=start,
-            omit_fragments=omit_fragments,
+            omit_fragments=omit_automation_fragments(service_api),
         )
 
     @override
@@ -126,7 +140,9 @@ class LegacyEntityAutomations(RelayPaginator["ProjectTriggersFields", "Automatio
         )
 
         try:
-            res = self._execute_query(parse=GetEntityAutomationsLegacy.model_validate_json)
+            res = self._execute_query(
+                parse=GetEntityAutomationsLegacy.model_validate_json
+            )
             conn = Connection[ProjectTriggersFields].model_validate(res.scope.projects)  # type: ignore[union-attr]
         except (LookupError, AttributeError, ValidationError) as e:
             raise ValueError("Unexpected response data") from e
@@ -137,7 +153,13 @@ class LegacyEntityAutomations(RelayPaginator["ProjectTriggersFields", "Automatio
     def _convert(self, node: ProjectTriggersFields) -> Iterator[Automation]:
         from wandb.automations import Automation
 
-        yield from map(Automation.model_validate, node.triggers)
+        # Project.triggers doesn't support filters, so we have to filter client-side.
+        if name := self._name:
+            return map(
+                Automation.model_validate,
+                filter(lambda t: t.name == name, node.triggers),
+            )
+        return map(Automation.model_validate, node.triggers)
 
     @override
     def convert_objects(self) -> Iterator[Automation]:
@@ -147,11 +169,7 @@ class LegacyEntityAutomations(RelayPaginator["ProjectTriggersFields", "Automatio
 
 
 class EntityAutomations(RelayPaginator["TriggerFields", "Automation"]):
-    """A lazy iterator of `Automation` objects scoped directly to an entity.
-
-    Unlike `Automations` (which walks an entity's projects), this reads the
-    entity-level `Entity.triggers` connection, i.e. automations whose scope is
-    the entity (team or org) itself.
+    """A lazy iterator of `Automation` objects from an entity.
 
     <!-- lazydoc-ignore-class: internal -->
     """
@@ -162,12 +180,15 @@ class EntityAutomations(RelayPaginator["TriggerFields", "Automation"]):
     def __init__(
         self,
         service_api: ServiceApi,
-        variables: Mapping[str, Any],
+        entity: str,
         *,
+        filter: dict[str, Any] | None = None,
         per_page: int = 50,
         start: str | None = None,
-        omit_fragments: Iterable[str] | None = None,
     ):
+        from wandb._pydantic import to_json
+        from wandb.automations._utils import omit_automation_fragments
+
         if self.QUERY is None:
             from wandb.automations._generated import GET_ENTITY_AUTOMATIONS_GQL
 
@@ -175,10 +196,13 @@ class EntityAutomations(RelayPaginator["TriggerFields", "Automation"]):
 
         super().__init__(
             service_api,
-            variables=variables,
+            variables={
+                "entity": entity,
+                "filters": to_json(f) if (f := filter) else None,
+            },
             per_page=per_page,
             start=start,
-            omit_fragments=omit_fragments,
+            omit_fragments=omit_automation_fragments(service_api),
         )
 
     @override
@@ -200,3 +224,6 @@ class EntityAutomations(RelayPaginator["TriggerFields", "Automation"]):
         from wandb.automations import Automation
 
         return Automation.model_validate(node)
+
+
+Automations: TypeAlias = LegacyAutomations  # For now

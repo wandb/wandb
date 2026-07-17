@@ -35,7 +35,13 @@ from wandb.automations._generated import (
     CREATE_GENERIC_WEBHOOK_INTEGRATION_GQL,
     CreateGenericWebhookIntegration,
 )
-from wandb.automations._utils import INVALID_INPUT_ACTIONS, INVALID_INPUT_EVENTS
+from wandb.automations._utils import (
+    INVALID_INPUT_ACTIONS,
+    INVALID_INPUT_EVENTS,
+    action_enabled,
+    event_enabled,
+    scope_enabled,
+)
 from wandb.automations.events import InputEvent
 
 if TYPE_CHECKING:
@@ -237,7 +243,7 @@ def pytest_collection_modifyitems(config, items):
 @fixture(params=valid_input_scopes(), ids=lambda x: f"scope={x.value}")
 def scope_type(request: FixtureRequest, module_api: wandb.Api) -> ScopeType:
     """A fixture that parametrizes over all valid scope types."""
-    if not module_api._supports_automation(scope=(scope_type := request.param)):
+    if not scope_enabled(module_api._service_api, scope_type := request.param):
         skip(f"Server does not support scope type: {scope_type!r}")
 
     return scope_type
@@ -250,7 +256,7 @@ def event_type(
     module_api: wandb.Api,
 ) -> EventType:
     """A fixture that parametrizes over all valid event types."""
-    if not module_api._supports_automation(event=(event_type := request.param)):
+    if not event_enabled(module_api._service_api, event_type := request.param):
         skip(f"Server does not support event type: {event_type!r}")
 
     if (event_type, scope_type) in invalid_events_and_scopes():
@@ -265,7 +271,7 @@ def action_type(
     module_api: wandb.Api,
 ) -> ActionType:
     """A fixture that parametrizes over all valid action types."""
-    if not module_api._supports_automation(action=(action_type := request.param)):
+    if not action_enabled(module_api._service_api, action_type := request.param):
         skip(f"Server does not support action type: {action_type!r}")
 
     return action_type
