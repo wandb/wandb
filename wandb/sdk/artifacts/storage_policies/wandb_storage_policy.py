@@ -17,6 +17,7 @@ from typing_extensions import assert_never
 
 from wandb.errors.term import termwarn
 from wandb.proto import wandb_internal_pb2 as pb
+from wandb.sdk.artifacts._generated import ArtifactDigestAlgorithm
 from wandb.sdk.artifacts._models.storage import StoragePolicyConfig
 from wandb.sdk.artifacts.artifact_file_cache import (
     ArtifactFileCache,
@@ -134,7 +135,7 @@ class WandbStoragePolicy(StoragePolicy):
         path, hit, cache_open = self._cache.check_digest_obj_path(
             manifest_entry.digest,
             size=manifest_entry.size or 0,
-            algorithm=manifest_entry.digest_algorithm,
+            algorithm=artifact.digest_algorithm,
         )
         if hit:
             return path
@@ -361,7 +362,11 @@ class WandbStoragePolicy(StoragePolicy):
 
         return False
 
-    def _write_cache(self, entry: ArtifactManifestEntry) -> None:
+    def _write_cache(
+        self,
+        entry: ArtifactManifestEntry,
+        digest_algorithm: ArtifactDigestAlgorithm | None = None,
+    ) -> None:
         if entry.local_path is None:
             return
 
@@ -369,7 +374,7 @@ class WandbStoragePolicy(StoragePolicy):
         _, hit, cache_open = self._cache.check_digest_obj_path(
             entry.digest,
             size=entry.size or 0,
-            algorithm=entry.digest_algorithm,
+            algorithm=digest_algorithm,
         )
 
         staging_dir = get_staging_dir()

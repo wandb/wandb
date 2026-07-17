@@ -735,6 +735,8 @@ def test_draft_inherits_digest_algorithm(api: Api):
     art = Artifact("test-artifact", "test-type")
     # Simulate a committed artifact with MD5 entries
     art._digest_algorithm = ArtifactDigestAlgorithm.MANIFEST_MD5
+    art.manifest.digest_algorithm = ArtifactDigestAlgorithm.MANIFEST_MD5
+
     with art.new_file("file.txt", "w") as f:
         f.write("hello")
 

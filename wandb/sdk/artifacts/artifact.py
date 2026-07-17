@@ -192,7 +192,6 @@ class Artifact:
 
         # Internal.
         self._service_api: ServiceApi | None = None
-        self._digest_algorithm: str | None = None
 
         self._tmp_dir: tempfile.TemporaryDirectory | None = None
         self._added_objs: dict[int, tuple[WBValue, ArtifactManifestEntry]] = {}
@@ -245,12 +244,14 @@ class Artifact:
         # populated locally, it should take priority when determining these values.
         self._size: NonNegativeInt | None = None
         self._digest: str | None = None
+        # TODO: default to xxh128 once we have the fallback to md5 implemented in saver.go
         self._digest_algorithm: ArtifactDigestAlgorithm = (
             ArtifactDigestAlgorithm.MANIFEST_MD5
         )
 
         self._manifest: ArtifactManifest | None = ArtifactManifestV1(
-            storage_policy=make_storage_policy(region=storage_region)
+            storage_policy=make_storage_policy(region=storage_region),
+            digest_algorithm=self._digest_algorithm,
         )
 
         self._commit_hash: str | None = None
@@ -558,9 +559,9 @@ class Artifact:
         artifact._metadata = self.metadata
         artifact._digest_algorithm = self.digest_algorithm
         artifact._manifest = ArtifactManifest.from_manifest_json(
-            self.manifest.to_manifest_json()
+            self.manifest.to_manifest_json(),
+            self.digest_algorithm,
         )
-        artifact._digest_algorithm = self.digest_algorithm
         return artifact
 
     # Properties (Python Class managed attributes).
@@ -1086,7 +1087,9 @@ class Artifact:
             # artifacts.
             with make_http_session() as session:
                 response = session.get(manifest.file.direct_url)
-            return ArtifactManifest.from_manifest_json(from_json(response.content))
+            return ArtifactManifest.from_manifest_json(
+                from_json(response.content), self.digest_algorithm
+            )
 
         raise ValueError("Failed to fetch artifact manifest")
 
@@ -1104,7 +1107,7 @@ class Artifact:
         return (
             self._digest
             if (self._manifest is None) and (self._digest is not None)
-            else self.manifest.digest(self.digest_algorithm)
+            else self.manifest.digest()
         )
 
     @property
@@ -1542,7 +1545,7 @@ class Artifact:
 
         name = LogicalPath(name or os.path.basename(local_path))
 
-        use_xxh128 = self.digest_algorithm == ArtifactDigestAlgorithm.MANIFEST_XXH128
+        use_xxh128 = self.digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128
 
         digest = xxh128_file_b64(local_path) if use_xxh128 else md5_file_b64(local_path)
 
@@ -1838,12 +1841,7 @@ class Artifact:
                 os.chmod(staging_path, stat.S_IRUSR)
                 upload_path = staging_path
 
-        use_xxh128 = self.digest_algorithm == ArtifactDigestAlgorithm.MANIFEST_XXH128
-
-        # Don't pass in "MANIFEST_MD5" to match previous behavior
-        entry_digest_algorithm = (
-            ArtifactDigestAlgorithm.MANIFEST_XXH128 if use_xxh128 else None
-        )
+        use_xxh128 = self.digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128
 
         entry = ArtifactManifestEntry(
             path=name,
@@ -1853,7 +1851,6 @@ class Artifact:
                 if use_xxh128
                 else md5_file_b64(upload_path)
             ),
-            digest_algorithm=entry_digest_algorithm,
             size=os.path.getsize(upload_path),
             local_path=upload_path,
             skip_cache=skip_cache,
@@ -2330,16 +2327,16 @@ class Artifact:
         ref_count = 0
         for entry in self.manifest.entries.values():
             if entry.ref is None:
-                if entry.digest_algorithm == ArtifactDigestAlgorithm.MANIFEST_XXH128:
+                if self.digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128:
                     file_digest = xxh128_file_b64(validate_fspath(root, entry.path))
                 elif (
-                    entry.digest_algorithm == ArtifactDigestAlgorithm.MANIFEST_MD5
-                    or entry.digest_algorithm is None
+                    self.digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_MD5
+                    or self.digest_algorithm is None
                 ):
                     file_digest = md5_file_b64(validate_fspath(root, entry.path))
                 else:
                     raise ValueError(
-                        f"Invalid digest algorithm: {entry.digest_algorithm}"
+                        f"Invalid digest algorithm: {self.digest_algorithm}"
                     )
                 if file_digest != entry.digest:
                     raise ValueError(f"Digest mismatch for file: {entry.path}")

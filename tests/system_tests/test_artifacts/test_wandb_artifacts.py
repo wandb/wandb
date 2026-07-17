@@ -23,9 +23,9 @@ from pytest import MonkeyPatch, fixture, mark, param, raises
 from wandb import Api, Artifact
 from wandb.data_types import ImageMask, PartitionedTable
 from wandb.errors.errors import CommError
+from wandb.sdk.artifacts._generated.enums import ArtifactDigestAlgorithm
 from wandb.sdk.artifacts._internal_artifact import InternalArtifact
 from wandb.sdk.artifacts._validators import NAME_MAXLEN, RESERVED_ARTIFACT_TYPE_PREFIX
-from wandb.sdk.artifacts.artifact_digest_algorithm import ArtifactDigestAlgorithm
 from wandb.sdk.artifacts.artifact_file_cache import (
     ArtifactFileCache,
     get_artifact_file_cache,
@@ -90,20 +90,20 @@ def test_unsized_manifest_entry():
 
 @mark.parametrize(
     "digest_algorithm",
-    [ArtifactDigestAlgorithm.MANIFEST_XXH128, ArtifactDigestAlgorithm.MANIFEST_MD5],
+    ArtifactDigestAlgorithm,
 )
 def test_add_one_file(digest_algorithm, artifact):
     artifact._digest_algorithm = digest_algorithm
+    artifact.manifest.digest_algorithm = digest_algorithm
     Path("file1.txt").write_text("hello")
     artifact.add_file("file1.txt")
 
-    if digest_algorithm == ArtifactDigestAlgorithm.MANIFEST_XXH128:
+    if digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128:
         assert artifact.digest == "fe0d6c1a25b6d98451da9b04ebf6d80c"
         manifest_contents = artifact.manifest.to_manifest_json()["contents"]
         assert manifest_contents == {
             "file1.txt": {
                 "digest": "tenBrQcbPn/Hec+qXlI4GA==",
-                "digest_algorithm": "MANIFEST_XXH128",
                 "size": 5,
             }
         }
@@ -117,20 +117,20 @@ def test_add_one_file(digest_algorithm, artifact):
 
 @mark.parametrize(
     "digest_algorithm",
-    [ArtifactDigestAlgorithm.MANIFEST_XXH128, ArtifactDigestAlgorithm.MANIFEST_MD5],
+    ArtifactDigestAlgorithm,
 )
 def test_add_named_file(digest_algorithm, artifact):
     artifact._digest_algorithm = digest_algorithm
+    artifact.manifest.digest_algorithm = digest_algorithm
     Path("file1.txt").write_text("hello")
     artifact.add_file("file1.txt", name="great-file.txt")
 
-    if digest_algorithm == ArtifactDigestAlgorithm.MANIFEST_XXH128:
+    if digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128:
         assert artifact.digest == "5128bda8426a0e35a91082780b668e43"
         manifest_contents = artifact.manifest.to_manifest_json()["contents"]
         assert manifest_contents == {
             "great-file.txt": {
                 "digest": "tenBrQcbPn/Hec+qXlI4GA==",
-                "digest_algorithm": "MANIFEST_XXH128",
                 "size": 5,
             }
         }
@@ -144,20 +144,20 @@ def test_add_named_file(digest_algorithm, artifact):
 
 @mark.parametrize(
     "digest_algorithm",
-    [ArtifactDigestAlgorithm.MANIFEST_XXH128, ArtifactDigestAlgorithm.MANIFEST_MD5],
+    ArtifactDigestAlgorithm,
 )
 def test_add_new_file(digest_algorithm, artifact):
     artifact._digest_algorithm = digest_algorithm
+    artifact.manifest.digest_algorithm = digest_algorithm
     with artifact.new_file("file1.txt") as f:
         f.write("hello")
 
-    if digest_algorithm == ArtifactDigestAlgorithm.MANIFEST_XXH128:
+    if digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128:
         assert artifact.digest == "fe0d6c1a25b6d98451da9b04ebf6d80c"
         manifest_contents = artifact.manifest.to_manifest_json()["contents"]
         assert manifest_contents == {
             "file1.txt": {
                 "digest": "tenBrQcbPn/Hec+qXlI4GA==",
-                "digest_algorithm": "MANIFEST_XXH128",
                 "size": 5,
             }
         }
@@ -198,21 +198,21 @@ def test_add_file_again_after_edit(overwrite, artifact):
 
 @mark.parametrize(
     "digest_algorithm",
-    [ArtifactDigestAlgorithm.MANIFEST_XXH128, ArtifactDigestAlgorithm.MANIFEST_MD5],
+    ArtifactDigestAlgorithm,
 )
 def test_add_dir(digest_algorithm, artifact):
     artifact._digest_algorithm = digest_algorithm
+    artifact.manifest.digest_algorithm = digest_algorithm
     Path("file1.txt").write_text("hello")
 
     artifact.add_dir(".")
 
-    if digest_algorithm == ArtifactDigestAlgorithm.MANIFEST_XXH128:
+    if digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128:
         assert artifact.digest == "fe0d6c1a25b6d98451da9b04ebf6d80c"
         manifest_contents = artifact.manifest.to_manifest_json()["contents"]
         assert manifest_contents == {
             "file1.txt": {
                 "digest": "tenBrQcbPn/Hec+qXlI4GA==",
-                "digest_algorithm": "MANIFEST_XXH128",
                 "size": 5,
             }
         }
@@ -226,20 +226,20 @@ def test_add_dir(digest_algorithm, artifact):
 
 @mark.parametrize(
     "digest_algorithm",
-    [ArtifactDigestAlgorithm.MANIFEST_XXH128, ArtifactDigestAlgorithm.MANIFEST_MD5],
+    ArtifactDigestAlgorithm,
 )
 def test_add_named_dir(digest_algorithm, artifact):
     artifact._digest_algorithm = digest_algorithm
+    artifact.manifest.digest_algorithm = digest_algorithm
     Path("file1.txt").write_text("hello")
     artifact.add_dir(".", name="subdir")
 
-    if digest_algorithm == ArtifactDigestAlgorithm.MANIFEST_XXH128:
+    if digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128:
         assert artifact.digest == "90433061a33aed87ab6c0ff48c7f983c"
         manifest_contents = artifact.manifest.to_manifest_json()["contents"]
         assert manifest_contents == {
             "subdir/file1.txt": {
                 "digest": "tenBrQcbPn/Hec+qXlI4GA==",
-                "digest_algorithm": "MANIFEST_XXH128",
                 "size": 5,
             }
         }
@@ -799,33 +799,31 @@ def test_add_obj_wbimage_no_classes(im_path: str, artifact: Artifact):
 
 @mark.parametrize(
     "digest_algorithm",
-    [ArtifactDigestAlgorithm.MANIFEST_XXH128, ArtifactDigestAlgorithm.MANIFEST_MD5],
+    ArtifactDigestAlgorithm,
 )
 def test_add_obj_wbimage(digest_algorithm, im_path: str, artifact: Artifact):
     artifact._digest_algorithm = digest_algorithm
+    artifact.manifest.digest_algorithm = digest_algorithm
     wb_image = wandb.Image(
         im_path,
         classes=[{"id": 0, "name": "person"}],
     )
     artifact.add(wb_image, "my-image")
 
-    if digest_algorithm == ArtifactDigestAlgorithm.MANIFEST_XXH128:
+    if digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128:
         assert artifact.digest == "c9a97125b7449fb9a7f7890940b7cde2"
         manifest_contents = artifact.manifest.to_manifest_json()["contents"]
         assert manifest_contents == {
             "media/classes/65347c6442e21b09b198d62e080e46ce_cls.classes.json": {
                 "digest": "+xqgbLA2igrfKWtbRYuOPw==",
-                "digest_algorithm": "MANIFEST_XXH128",
                 "size": 64,
             },
             "media/images/641e917f31888a48f546/2x2.png": {
                 "digest": "A+ER///ySqfqzroxc022rA==",
-                "digest_algorithm": "MANIFEST_XXH128",
                 "size": 71,
             },
             "my-image.image-file.json": {
                 "digest": "Lz8Y3vPOzyJ+rGot+Ax+IA==",
-                "digest_algorithm": "MANIFEST_XXH128",
                 "size": 346,
             },
         }
@@ -851,12 +849,13 @@ def test_add_obj_wbimage(digest_algorithm, im_path: str, artifact: Artifact):
 @mark.parametrize("overwrite", [True, False])
 @mark.parametrize(
     "digest_algorithm",
-    [ArtifactDigestAlgorithm.MANIFEST_XXH128, ArtifactDigestAlgorithm.MANIFEST_MD5],
+    ArtifactDigestAlgorithm,
 )
 def test_add_obj_wbimage_again_after_edit(
     tmp_path, assets_path, copy_asset, overwrite, artifact, digest_algorithm
 ):
     artifact._digest_algorithm = digest_algorithm
+    artifact.manifest.digest_algorithm = digest_algorithm
     orig_path1 = assets_path("test.png")
     orig_path2 = assets_path("2x2.png")
     assert filecmp.cmp(orig_path1, orig_path2) is False  # Consistency check
@@ -875,7 +874,7 @@ def test_add_obj_wbimage_again_after_edit(
     manifest_contents1 = artifact.manifest.to_manifest_json()["contents"]
     digest1 = artifact.digest
 
-    if digest_algorithm == ArtifactDigestAlgorithm.MANIFEST_XXH128:
+    if digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128:
         assert digest1 == "1f1ca302bcc7aa196c5b4562daa88c82"
     else:
         assert digest1 == "2a7a8a7f29c929fe05b57983a2944fca"
@@ -901,10 +900,11 @@ def test_add_obj_wbimage_again_after_edit(
 
 @mark.parametrize(
     "digest_algorithm",
-    [ArtifactDigestAlgorithm.MANIFEST_XXH128, ArtifactDigestAlgorithm.MANIFEST_MD5],
+    ArtifactDigestAlgorithm,
 )
 def test_add_obj_using_brackets(digest_algorithm, im_path: str, artifact: Artifact):
     artifact._digest_algorithm = digest_algorithm
+    artifact.manifest.digest_algorithm = digest_algorithm
     wb_image = wandb.Image(
         im_path,
         classes=[{"id": 0, "name": "person"}],
@@ -912,22 +912,19 @@ def test_add_obj_using_brackets(digest_algorithm, im_path: str, artifact: Artifa
     artifact["my-image"] = wb_image
 
     manifest_contents = artifact.manifest.to_manifest_json()["contents"]
-    if digest_algorithm == ArtifactDigestAlgorithm.MANIFEST_XXH128:
+    if digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128:
         assert artifact.digest == "c9a97125b7449fb9a7f7890940b7cde2"
         assert manifest_contents == {
             "media/classes/65347c6442e21b09b198d62e080e46ce_cls.classes.json": {
                 "digest": "+xqgbLA2igrfKWtbRYuOPw==",
-                "digest_algorithm": "MANIFEST_XXH128",
                 "size": 64,
             },
             "media/images/641e917f31888a48f546/2x2.png": {
                 "digest": "A+ER///ySqfqzroxc022rA==",
-                "digest_algorithm": "MANIFEST_XXH128",
                 "size": 71,
             },
             "my-image.image-file.json": {
                 "digest": "Lz8Y3vPOzyJ+rGot+Ax+IA==",
-                "digest_algorithm": "MANIFEST_XXH128",
                 "size": 346,
             },
         }
@@ -1011,32 +1008,30 @@ def test_deduplicate_wbimagemask_from_array(artifact, add_duplicate):
 
 @mark.parametrize(
     "digest_algorithm",
-    [ArtifactDigestAlgorithm.MANIFEST_XXH128, ArtifactDigestAlgorithm.MANIFEST_MD5],
+    ArtifactDigestAlgorithm,
 )
 def test_add_obj_wbimage_classes_obj(
     digest_algorithm, im_path: str, artifact: Artifact
 ):
     artifact._digest_algorithm = digest_algorithm
+    artifact.manifest.digest_algorithm = digest_algorithm
     classes = wandb.Classes([{"id": 0, "name": "person"}])
     wb_image = wandb.Image(im_path, classes=classes)
     artifact.add(wb_image, "my-image")
 
     manifest_contents = artifact.manifest.to_manifest_json()["contents"]
-    if digest_algorithm == ArtifactDigestAlgorithm.MANIFEST_XXH128:
+    if digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128:
         assert manifest_contents == {
             "media/classes/65347c6442e21b09b198d62e080e46ce_cls.classes.json": {
                 "digest": "+xqgbLA2igrfKWtbRYuOPw==",
-                "digest_algorithm": "MANIFEST_XXH128",
                 "size": 64,
             },
             "media/images/641e917f31888a48f546/2x2.png": {
                 "digest": "A+ER///ySqfqzroxc022rA==",
-                "digest_algorithm": "MANIFEST_XXH128",
                 "size": 71,
             },
             "my-image.image-file.json": {
                 "digest": "Lz8Y3vPOzyJ+rGot+Ax+IA==",
-                "digest_algorithm": "MANIFEST_XXH128",
                 "size": 346,
             },
         }
@@ -1059,38 +1054,35 @@ def test_add_obj_wbimage_classes_obj(
 
 @mark.parametrize(
     "digest_algorithm",
-    [ArtifactDigestAlgorithm.MANIFEST_XXH128, ArtifactDigestAlgorithm.MANIFEST_MD5],
+    ArtifactDigestAlgorithm,
 )
 def test_add_obj_wbimage_classes_obj_already_added(
     digest_algorithm, im_path: str, artifact: Artifact
 ):
     artifact._digest_algorithm = digest_algorithm
+    artifact.manifest.digest_algorithm = digest_algorithm
     classes = wandb.Classes([{"id": 0, "name": "person"}])
     artifact.add(classes, "my-classes")
     wb_image = wandb.Image(im_path, classes=classes)
     artifact.add(wb_image, "my-image")
 
     manifest_contents = artifact.manifest.to_manifest_json()["contents"]
-    if digest_algorithm == ArtifactDigestAlgorithm.MANIFEST_XXH128:
+    if digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128:
         assert manifest_contents == {
             "my-classes.classes.json": {
                 "digest": "+xqgbLA2igrfKWtbRYuOPw==",
-                "digest_algorithm": "MANIFEST_XXH128",
                 "size": 64,
             },
             "media/classes/65347c6442e21b09b198d62e080e46ce_cls.classes.json": {
                 "digest": "+xqgbLA2igrfKWtbRYuOPw==",
-                "digest_algorithm": "MANIFEST_XXH128",
                 "size": 64,
             },
             "media/images/641e917f31888a48f546/2x2.png": {
                 "digest": "A+ER///ySqfqzroxc022rA==",
-                "digest_algorithm": "MANIFEST_XXH128",
                 "size": 71,
             },
             "my-image.image-file.json": {
                 "digest": "Lz8Y3vPOzyJ+rGot+Ax+IA==",
-                "digest_algorithm": "MANIFEST_XXH128",
                 "size": 346,
             },
         }
@@ -1117,32 +1109,30 @@ def test_add_obj_wbimage_classes_obj_already_added(
 
 @mark.parametrize(
     "digest_algorithm",
-    [ArtifactDigestAlgorithm.MANIFEST_XXH128, ArtifactDigestAlgorithm.MANIFEST_MD5],
+    ArtifactDigestAlgorithm,
 )
 def test_add_obj_wbimage_image_already_added(
     digest_algorithm, im_path: str, artifact: Artifact
 ):
     artifact._digest_algorithm = digest_algorithm
+    artifact.manifest.digest_algorithm = digest_algorithm
     artifact.add_file(im_path)
     wb_image = wandb.Image(im_path, classes=[{"id": 0, "name": "person"}])
     artifact.add(wb_image, "my-image")
 
     manifest_contents = artifact.manifest.to_manifest_json()["contents"]
-    if digest_algorithm == ArtifactDigestAlgorithm.MANIFEST_XXH128:
+    if digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128:
         assert manifest_contents == {
             "2x2.png": {
                 "digest": "A+ER///ySqfqzroxc022rA==",
-                "digest_algorithm": "MANIFEST_XXH128",
                 "size": 71,
             },
             "media/classes/65347c6442e21b09b198d62e080e46ce_cls.classes.json": {
                 "digest": "+xqgbLA2igrfKWtbRYuOPw==",
-                "digest_algorithm": "MANIFEST_XXH128",
                 "size": 64,
             },
             "my-image.image-file.json": {
                 "digest": "Hkgsnrh6Hhzq3OHzuDpdDA==",
-                "digest_algorithm": "MANIFEST_XXH128",
                 "size": 312,
             },
         }
@@ -1162,10 +1152,11 @@ def test_add_obj_wbimage_image_already_added(
 
 @mark.parametrize(
     "digest_algorithm",
-    [ArtifactDigestAlgorithm.MANIFEST_XXH128, ArtifactDigestAlgorithm.MANIFEST_MD5],
+    ArtifactDigestAlgorithm,
 )
 def test_add_obj_wbtable_images(digest_algorithm, im_path: str, artifact: Artifact):
     artifact._digest_algorithm = digest_algorithm
+    artifact.manifest.digest_algorithm = digest_algorithm
     wb_image = wandb.Image(im_path, classes=[{"id": 0, "name": "person"}])
     wb_table = wandb.Table(["examples"])
     wb_table.add_data(wb_image)
@@ -1173,21 +1164,18 @@ def test_add_obj_wbtable_images(digest_algorithm, im_path: str, artifact: Artifa
     artifact.add(wb_table, "my-table")
 
     manifest_contents = artifact.manifest.to_manifest_json()["contents"]
-    if digest_algorithm == ArtifactDigestAlgorithm.MANIFEST_XXH128:
+    if digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128:
         assert manifest_contents == {
             "media/classes/65347c6442e21b09b198d62e080e46ce_cls.classes.json": {
                 "digest": "+xqgbLA2igrfKWtbRYuOPw==",
-                "digest_algorithm": "MANIFEST_XXH128",
                 "size": 64,
             },
             "media/images/641e917f31888a48f546/2x2.png": {
                 "digest": "A+ER///ySqfqzroxc022rA==",
-                "digest_algorithm": "MANIFEST_XXH128",
                 "size": 71,
             },
             "my-table.table.json": {
                 "digest": "JGNyt74ECHUCdLy4T2k1Kg==",
-                "digest_algorithm": "MANIFEST_XXH128",
                 "size": 1476,
             },
         }
@@ -1207,10 +1195,11 @@ def test_add_obj_wbtable_images(digest_algorithm, im_path: str, artifact: Artifa
 
 @mark.parametrize(
     "digest_algorithm",
-    [ArtifactDigestAlgorithm.MANIFEST_XXH128, ArtifactDigestAlgorithm.MANIFEST_MD5],
+    ArtifactDigestAlgorithm,
 )
 def test_add_obj_wbtable_images_duplicate_name(digest_algorithm, assets_path, artifact):
     artifact._digest_algorithm = digest_algorithm
+    artifact.manifest.digest_algorithm = digest_algorithm
     img_1 = str(assets_path("2x2.png"))
     img_2 = str(assets_path("test2.png"))
 
@@ -1227,21 +1216,18 @@ def test_add_obj_wbtable_images_duplicate_name(digest_algorithm, assets_path, ar
     artifact.add(wb_table, "my-table")
 
     manifest_contents = artifact.manifest.to_manifest_json()["contents"]
-    if digest_algorithm == ArtifactDigestAlgorithm.MANIFEST_XXH128:
+    if digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128:
         assert manifest_contents == {
             "media/images/641e917f31888a48f546/img.png": {
                 "digest": "A+ER///ySqfqzroxc022rA==",
-                "digest_algorithm": "MANIFEST_XXH128",
                 "size": 71,
             },
             "media/images/cf37c38fd1dca3aaba6e/img.png": {
                 "digest": "AejlaOuKomIlEY8EwEalig==",
-                "digest_algorithm": "MANIFEST_XXH128",
                 "size": 8837,
             },
             "my-table.table.json": {
                 "digest": "DyOndR3vYxEdHAJG+DKX6Q==",
-                "digest_algorithm": "MANIFEST_XXH128",
                 "size": 1167,
             },
         }
@@ -1261,22 +1247,22 @@ def test_add_obj_wbtable_images_duplicate_name(digest_algorithm, assets_path, ar
 
 @mark.parametrize(
     "digest_algorithm",
-    [ArtifactDigestAlgorithm.MANIFEST_XXH128, ArtifactDigestAlgorithm.MANIFEST_MD5],
+    ArtifactDigestAlgorithm,
 )
 def test_add_partition_folder(digest_algorithm, artifact):
     artifact._digest_algorithm = digest_algorithm
+    artifact.manifest.digest_algorithm = digest_algorithm
     table_name = "dataset"
     table_parts_dir = "dataset_parts"
 
     partition_table = PartitionedTable(parts_path=table_parts_dir)
     artifact.add(partition_table, table_name)
     manifest_contents = artifact.manifest.to_manifest_json()["contents"]
-    if digest_algorithm == ArtifactDigestAlgorithm.MANIFEST_XXH128:
+    if digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128:
         assert artifact.digest == "297c4e4629f16a087c500de7e66d6d9b"
         assert manifest_contents == {
             "dataset.partitioned-table.json": {
                 "digest": "c8UvCotcfBnCM6gvoOZV1Q==",
-                "digest_algorithm": "MANIFEST_XXH128",
                 "size": 61,
             },
         }
