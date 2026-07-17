@@ -33,7 +33,6 @@ type StoragePolicyConfig struct {
 type ManifestEntry struct {
 	// Fields from the spb.ArtifactManifestEntry proto.
 	Digest          string         `json:"digest"`
-	DigestAlgorithm *string        `json:"digestAlgorithm,omitempty"`
 	Ref             *string        `json:"ref,omitempty"`
 	Size            int64          `json:"size"`
 	LocalPath       *string        `json:"local_path,omitempty"`
@@ -90,7 +89,6 @@ func NewManifestFromProto(proto *spb.ArtifactManifest) (Manifest, error) {
 		}
 		manifest.Contents[entry.Path] = ManifestEntry{
 			Digest:          entry.Digest,
-			DigestAlgorithm: nullify.NilIfZero(entry.DigestAlgorithm),
 			Ref:             nullify.NilIfZero(entry.Ref),
 			Size:            entry.Size,
 			LocalPath:       nullify.NilIfZero(entry.LocalPath),
@@ -173,12 +171,6 @@ func ManifestContentsFromFile(path string) (map[string]ManifestEntry, error) {
 		if !ok {
 			entry.SkipCache = false
 		}
-		digestAlgorithm, ok := record["digestAlgorithm"].(string)
-		if !ok || digestAlgorithm == "" {
-			entry.DigestAlgorithm = nil
-		} else {
-			entry.DigestAlgorithm = &digestAlgorithm
-		}
 
 		// "extra" is itself a JSON object.
 		entry.Extra, ok = record["extra"].(map[string]any)
@@ -220,14 +212,13 @@ func (m *Manifest) HashContentsWithMd5() error {
 	}
 
 	var mu sync.Mutex
-	md5DigestAlgorithm := string(gql.ArtifactDigestAlgorithmManifestMd5)
 	toHash := make([]struct {
 		path  string
 		localPath string
 	}, 0, len(m.Contents))
 
 	for path, entry := range m.Contents {
-		if entry.LocalPath == nil || entry.DigestAlgorithm == nil || *entry.DigestAlgorithm == string(gql.ArtifactDigestAlgorithmManifestMd5) {
+		if entry.LocalPath == nil || entry.Ref != nil {
 			continue
 		}
 		toHash = append(toHash, struct {
@@ -248,7 +239,6 @@ func (m *Manifest) HashContentsWithMd5() error {
 			mu.Lock()
 			entry := m.Contents[item.path]
 			entry.Digest = md5Hash
-			entry.DigestAlgorithm = &md5DigestAlgorithm
 			m.Contents[item.path] = entry
 			mu.Unlock()
 			return nil
