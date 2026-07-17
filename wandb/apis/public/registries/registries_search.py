@@ -129,7 +129,7 @@ class Registries(RelayPaginator["RegistryFragment", "Registry"]):
                 "registries query or 'start' from the collections query."
             )
         if registry_order is not None:
-            children = (
+            return _OrderedCollections(
                 Collections(
                     service_api=self._service_api,
                     organization=self.organization,
@@ -140,7 +140,6 @@ class Registries(RelayPaginator["RegistryFragment", "Registry"]):
                 )
                 for reg in self
             )
-            return _OrderedCollections(self._service_api, self.organization, children)
         return Collections(
             service_api=self._service_api,
             organization=self.organization,
