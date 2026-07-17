@@ -13,8 +13,8 @@ from pydantic import Field
 from wandb.sdk.lib.hashutil import HexDigest, _md5, _xxh128
 
 from .._factories import make_storage_policy
+from .._generated import ArtifactDigestAlgorithm
 from .._models.manifest import ArtifactManifestV1Data
-from ..artifact_digest_algorithm import ArtifactDigestAlgorithm
 from ..artifact_manifest import ArtifactManifest
 from ..artifact_manifest_entry import ArtifactManifestEntry
 from ..storage_policy import StoragePolicy
@@ -29,15 +29,26 @@ class ArtifactManifestV1(ArtifactManifest):
         default_factory=make_storage_policy, exclude=True, repr=False
     )
 
+    digest_algorithm: Annotated[
+        ArtifactDigestAlgorithm, Field(exclude=True, repr=False)
+    ]
+
     @classmethod
-    def from_manifest_json(cls, manifest_json: dict[str, Any]) -> ArtifactManifestV1:
+    def from_manifest_json(
+        cls,
+        manifest_json: dict[str, Any],
+        digest_algorithm: ArtifactDigestAlgorithm | None = None,
+    ) -> ArtifactManifestV1:
         data = ArtifactManifestV1Data(**manifest_json)
 
         policy_name = data.storage_policy
         policy_cfg = data.storage_policy_config
         policy = StoragePolicy.lookup_by_name(policy_name).from_config(policy_cfg)
         return cls(
-            manifest_version=data.version, entries=data.contents, storage_policy=policy
+            manifest_version=data.version,
+            entries=data.contents,
+            storage_policy=policy,
+            digest_algorithm=digest_algorithm or ArtifactDigestAlgorithm.MANIFEST_MD5,
         )
 
     def to_manifest_json(self) -> dict:
@@ -62,10 +73,10 @@ class ArtifactManifestV1(ArtifactManifest):
     _DIGEST_HEADER: ClassVar[bytes] = b"wandb-artifact-manifest-v1\n"
     """Encoded prefix/header for the ArtifactManifest digest."""
 
-    def digest(self, digest_algorithm: str | None = None) -> HexDigest:
+    def digest(self) -> HexDigest:
         hasher = (
             _xxh128(self._DIGEST_HEADER)
-            if digest_algorithm == ArtifactDigestAlgorithm.MANIFEST_XXH128
+            if self.digest_algorithm == ArtifactDigestAlgorithm.MANIFEST_XXH128
             else _md5(self._DIGEST_HEADER)
         )
         # sort by key (path)
