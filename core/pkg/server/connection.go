@@ -673,15 +673,25 @@ func (nc *Connection) handleApiInit(id string, request *spb.ServerApiInitRequest
 	telemetryProxy := analytics.NewOpenTelemetryProxy(context.Background(), s)
 	go func() {
 		<-nc.connLifetimeCtx.Done()
-		if err := telemetryProxy.Shutdown(context.Background()); err != nil {
-			slog.Error("connection: failed to shutdown telemetry proxy", "error", err)
+		if telemetryProxy != nil {
+			err := telemetryProxy.Shutdown(context.Background())
+			if err != nil {
+				slog.Error(
+					"connection: failed to shut down telemetry proxy",
+					"error",
+					err,
+				)
+			}
 		}
 	}()
 
 	logger := observability.NewCoreLogger(
 		slog.Default(),
 		nil,
-		telemetryProxy,
+		analytics.NewTelemetryRecorder(
+			telemetryProxy,
+			analytics.NewTelemetryContext(),
+		),
 	)
 	wbapiInstance, err := wbapi.New(s, logger)
 	if err != nil {

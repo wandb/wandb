@@ -459,7 +459,7 @@ func newLeetLogger(logLevel int) (*observability.CoreLogger, func(), error) {
 			&slog.HandlerOptions{Level: slog.Level(logLevel)},
 		)),
 		observability.NewSentryContext(sentry.CurrentHub()),
-		nil,
+		analytics.NewTelemetryRecorder(nil, analytics.NewTelemetryContext()),
 	)
 	return logger, closeLogWriter, nil
 }

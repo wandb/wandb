@@ -11,6 +11,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/wandb/wandb/core/internal/analytics"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/observabilitytest"
 	"github.com/wandb/wandb/core/internal/runwork"
@@ -76,7 +77,11 @@ func TestAddWorkConcurrent(t *testing.T) {
 func TestAddWorkAfterClose(t *testing.T) {
 	logs := bytes.Buffer{}
 	logger := slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{}))
-	rw := runwork.New(0, observability.NewCoreLogger(logger, nil, nil))
+	rw := runwork.New(0, observability.NewCoreLogger(
+		logger,
+		nil,
+		analytics.NewTelemetryRecorder(nil, analytics.NewTelemetryContext()),
+	))
 	req := newTestRequest(t)
 
 	rw.Close()
@@ -92,7 +97,11 @@ func TestAddWorkAfterClose(t *testing.T) {
 func TestCloseDuringAddWork(t *testing.T) {
 	logs := bytes.Buffer{}
 	logger := slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{}))
-	rw := runwork.New(0, observability.NewCoreLogger(logger, nil, nil))
+	rw := runwork.New(0, observability.NewCoreLogger(
+		logger,
+		nil,
+		analytics.NewTelemetryRecorder(nil, analytics.NewTelemetryContext()),
+	))
 	req := newTestRequest(t)
 
 	go func() {

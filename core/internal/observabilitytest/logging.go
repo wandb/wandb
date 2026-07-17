@@ -10,6 +10,7 @@ import (
 	"github.com/getsentry/sentry-go"
 	"github.com/stretchr/testify/require"
 
+	"github.com/wandb/wandb/core/internal/analytics"
 	"github.com/wandb/wandb/core/internal/observability"
 )
 
@@ -22,7 +23,7 @@ func NewTestLogger(t *testing.T) *observability.CoreLogger {
 	return observability.NewCoreLogger(
 		slog.New(slog.NewJSONHandler(t.Output(), &slog.HandlerOptions{})),
 		nil,
-		nil,
+		analytics.NewTelemetryRecorder(nil, analytics.NewTelemetryContext()),
 	)
 }
 
@@ -40,7 +41,7 @@ func NewRecordingTestLogger(t *testing.T) (
 	return observability.NewCoreLogger(
 		slog.New(slog.NewJSONHandler(writer, &slog.HandlerOptions{})),
 		nil,
-		nil,
+		analytics.NewTelemetryRecorder(nil, analytics.NewTelemetryContext()),
 	), recordedLogs
 }
 
@@ -64,7 +65,7 @@ func NewSentryTestLogger(t *testing.T) (
 	return observability.NewCoreLogger(
 		slog.New(slog.NewJSONHandler(writer, &slog.HandlerOptions{})),
 		observability.NewSentryContext(hub),
-		nil,
+		analytics.NewTelemetryRecorder(nil, analytics.NewTelemetryContext()),
 	), recordedLogs, transport
 }
 

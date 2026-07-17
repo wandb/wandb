@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/wandb/wandb/core/internal/analytics"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/observabilitytest"
 	"github.com/wandb/wandb/core/internal/pathtree"
@@ -532,7 +533,7 @@ func TestConvertImage_NotPNG(t *testing.T) {
 		observability.NewCoreLogger(
 			slog.New(slog.NewTextHandler(&logs, nil)),
 			nil,
-			nil,
+			analytics.NewTelemetryRecorder(nil, analytics.NewTelemetryContext()),
 		),
 	)
 
@@ -553,7 +554,7 @@ func TestConvertImage_BadDims(t *testing.T) {
 		observability.NewCoreLogger(
 			slog.New(slog.NewTextHandler(&logs, nil)),
 			nil,
-			nil,
+			analytics.NewTelemetryRecorder(nil, analytics.NewTelemetryContext()),
 		),
 	)
 
@@ -575,7 +576,7 @@ func TestConvertImage_UnknownTBFormat(t *testing.T) {
 		observability.NewCoreLogger(
 			slog.New(slog.NewTextHandler(&logs, nil)),
 			nil,
-			nil,
+			analytics.NewTelemetryRecorder(nil, analytics.NewTelemetryContext()),
 		),
 	)
 
