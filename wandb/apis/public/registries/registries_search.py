@@ -418,7 +418,7 @@ class Versions(RelayPaginator["ArtifactMembershipFragment", "Artifact"]):
 
 
 # TODO(tonyyli): Consolidate unnecessarily duplicated boilerplate
-_ParentGroupsT = TypeVar("_ParentGroupsT", Registries, Collections)
+_ParentPaginatorT = TypeVar("_ParentPaginatorT", bound=RelayPaginator[Any, Any])
 _T = TypeVar("_T")
 
 
@@ -438,6 +438,19 @@ def _take_from_paginator(paginator: Iterator[_T], count: int) -> list[_T]:
         except StopIteration:
             break
     return items
+
+
+# IGNORE FOR NOW
+# class _GroupedPaginators(Generic[_ParentPaginatorT, _T]):
+#     """A group of ordered child paginators that originate from the same parent paginator."""
+#     groups: Iterator[_T] | None
+#     current: _T | None
+
+#     def __init__(
+#         self,
+#         service_api: ServiceApi,
+#         parents: _ParentPaginatorT,
+#     ):
 
 
 class _GroupedCollections(Collections):
@@ -543,13 +556,13 @@ class _GroupedCollections(Collections):
         return len(page) > 0
 
 
-class _GroupedVersions(Versions, Generic[_ParentGroupsT]):
+class _GroupedVersions(Versions, Generic[_ParentPaginatorT]):
     groups: Iterator[Versions] | None
 
     def __init__(
         self,
         service_api: ServiceApi,
-        parents: _ParentGroupsT,
+        parents: _ParentPaginatorT,
         artifact_filter: dict[str, Any] | None = None,
         per_page: PositiveInt = 100,
     ):
