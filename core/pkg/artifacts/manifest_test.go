@@ -65,48 +65,6 @@ func TestNewManifestFromProto_InvalidManifestFilePath(t *testing.T) {
 	assert.Empty(t, manifest.Contents)
 }
 
-func TestNewManifestFromProto_DigestAlgorithm(t *testing.T) {
-	proto := &spb.ArtifactManifest{
-		Version: 1,
-		StoragePolicy: "policy",
-		Contents: []*spb.ArtifactManifestEntry{
-			{
-				Path: "path1",
-				Digest: "digest1",
-				DigestAlgorithm: string(gql.ArtifactDigestAlgorithmManifestMd5),
-				Size: 123,
-				Extra: []*spb.ExtraItem{
-					{Key: "key1", ValueJson: `"value1"`},
-				},
-			},
-			{
-				Path: "path2",
-				Digest: "digest2",
-				DigestAlgorithm: string(gql.ArtifactDigestAlgorithmManifestXxh128),
-				Size: 123,
-				Extra: []*spb.ExtraItem{
-					{Key: "key2", ValueJson: `"value2"`},
-				},
-			},
-			{
-				Path: "path3",
-				Digest: "digest3",
-				Size: 123,
-				Extra: []*spb.ExtraItem{
-					{Key: "key3", ValueJson: `"value3"`},
-				},
-			},
-		},
-	}
-	manifest, err := NewManifestFromProto(proto)
-	require.NoError(t, err)
-	require.NotNil(t, manifest.Contents["path1"].DigestAlgorithm)
-	assert.Equal(t, "MANIFEST_MD5", *manifest.Contents["path1"].DigestAlgorithm)
-	require.NotNil(t, manifest.Contents["path2"].DigestAlgorithm)
-	assert.Equal(t, "MANIFEST_XXH128", *manifest.Contents["path2"].DigestAlgorithm)
-	require.Nil(t, manifest.Contents["path3"].DigestAlgorithm)
-}
-
 func TestManifestContentsFromFile_MissingPath(t *testing.T) {
 	// Create a temporary gzipped file with manifest contents missing the "path" field
 	tmpFile, err := os.CreateTemp("", "manifest-*.jl.gz")
@@ -177,7 +135,6 @@ func TestManifestContentsFromFile(t *testing.T) {
 		"extra":           map[string]any{"key1": "value1", "key2": 65.0},
 		"local_path":      "local/path1",
 		"birthArtifactID": "birthArtifactID1",
-		"digestAlgorithm": string(gql.ArtifactDigestAlgorithmManifestXxh128),
 	}
 	entryJson, _ := json.Marshal(entry1)
 	_, err = writer.Write(entryJson)
@@ -207,7 +164,6 @@ func TestManifestContentsFromFile(t *testing.T) {
 	assert.Equal(t, entry1["extra"], contents["path1"].Extra)
 	assert.Equal(t, entry1["local_path"], *contents["path1"].LocalPath)
 	assert.Equal(t, entry1["birthArtifactID"], *contents["path1"].BirthArtifactID)
-	assert.Equal(t, entry1["digestAlgorithm"], *contents["path1"].DigestAlgorithm)
 	assert.False(t, contents["path1"].SkipCache)
 
 	assert.Equal(t, entry2["digest"], contents["path2"].Digest)
@@ -217,7 +173,6 @@ func TestManifestContentsFromFile(t *testing.T) {
 	assert.Nil(t, contents["path2"].LocalPath)
 	assert.Nil(t, contents["path2"].BirthArtifactID)
 	assert.True(t, contents["path2"].SkipCache)
-	assert.Nil(t, contents["path2"].DigestAlgorithm)
 }
 
 func TestManifest_WriteToFile(t *testing.T) {
@@ -303,21 +258,18 @@ func TestManifest_HashContentsWithMd5(t *testing.T) {
 				Digest: "tenBrQcbPn/Hec+qXlI4GA==",
 				Size:   int64(5),
 				LocalPath:      localPath1.Name(),
-				DigestAlgorithm: string(gql.ArtifactDigestAlgorithmManifestXxh128),
 			},
 			{
 				Path:   "file2.txt",
 				Digest: "CY9rzUYh03PK3k6DJie09g==",
 				Size:   int64(4),
 				LocalPath:      localPath2.Name(),
-				DigestAlgorithm: string(gql.ArtifactDigestAlgorithmManifestMd5),
 			},
 			{
 				Path:   "different-subdir/file.txt",
 				Digest: "fVls5fyrr2IqIwC71+pumg==",
 				Size:   int64(2),
 				LocalPath:      localPathInDir1.Name(),
-				DigestAlgorithm: string(gql.ArtifactDigestAlgorithmManifestXxh128),
 			},
 			{
 				Path:   "path4",
@@ -336,24 +288,20 @@ func TestManifest_HashContentsWithMd5(t *testing.T) {
 
 	// file1.txt should be rehashed with md5
 	assert.Equal(t, "XUFAKrxLKna5cZ2REBfFkg==", manifest.Contents["file1.txt"].Digest)
-	assert.Equal(t, string(gql.ArtifactDigestAlgorithmManifestMd5), *manifest.Contents["file1.txt"].DigestAlgorithm)
 	assert.Equal(t, localPath1.Name(), *manifest.Contents["file1.txt"].LocalPath)
 
-	// file2.txt should not be rehashed
+	// file2.txt digest should not change
 	assert.Equal(t, "CY9rzUYh03PK3k6DJie09g==", manifest.Contents["file2.txt"].Digest)
-	assert.Equal(t, string(gql.ArtifactDigestAlgorithmManifestMd5), *manifest.Contents["file2.txt"].DigestAlgorithm)
 	assert.Equal(t, localPath2.Name(), *manifest.Contents["file2.txt"].LocalPath)
 
 	// different-subdir/file.txt should be rehashed with md5
 	assert.Equal(t, "SfaKXIST7CwL9ImCHCH8Ow==", manifest.Contents["different-subdir/file.txt"].Digest)
-	assert.Equal(t, string(gql.ArtifactDigestAlgorithmManifestMd5), *manifest.Contents["different-subdir/file.txt"].DigestAlgorithm)
 	assert.Equal(t, localPathInDir1.Name(), *manifest.Contents["different-subdir/file.txt"].LocalPath)
 
 	// path4 should not be rehashed
 	assert.Equal(t, "digest4", manifest.Contents["path4"].Digest)
 	assert.Equal(t, "local/path4", *manifest.Contents["path4"].Ref)
 	assert.Nil(t, manifest.Contents["path4"].LocalPath)
-	assert.Nil(t, manifest.Contents["path4"].DigestAlgorithm)
 }
 
 func TestManifest_ArtifactDigest(t *testing.T) {
