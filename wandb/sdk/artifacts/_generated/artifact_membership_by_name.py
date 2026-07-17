@@ -7,7 +7,7 @@ from pydantic import Field
 
 from wandb._pydantic import GQLResult
 
-from .fragments import ArtifactMembershipFragment
+from .fragments import ArtifactMembershipWithDigestAlgorithmFragment
 
 
 class ArtifactMembershipByName(GQLResult):
@@ -15,9 +15,9 @@ class ArtifactMembershipByName(GQLResult):
 
 
 class ArtifactMembershipByNameProject(GQLResult):
-    artifact_collection_membership: ArtifactMembershipFragment | None = Field(
-        alias="artifactCollectionMembership"
-    )
+    artifact_collection_membership: (
+        ArtifactMembershipWithDigestAlgorithmFragment | None
+    ) = Field(alias="artifactCollectionMembership")
 
 
 ArtifactMembershipByName.model_rebuild()
