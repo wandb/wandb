@@ -177,7 +177,7 @@ class Image(BatchableMedia):
 
         When you log an image to a run, W&B saves the file under a generated
         name that includes a content hash, such as
-        `media/images/<key>_<step>_<hash>.png`, instead of the original
+        `media/images/[key]_[step]_[hash].png`, instead of the original
         filename. The final filename is not known until you log the image, so
         to reference a logged image by URL (for example, in the HTML of a W&B
         Report), log the image first and then use the generated path.
