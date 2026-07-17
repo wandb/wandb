@@ -16,6 +16,54 @@ SUFFIX_GIT = ".git"
 
 GIT_COMMIT_REGEX = re.compile(r"[0-9a-f]{40}")
 
+# Launch jobs specify their source as a git remote. Restrict that remote to the
+# transports a git repository is served over -- https://, ssh://, and the
+# scp-like git@host:path form -- via a positive allowlist. Other values
+# (file://, ext::, fd::, git://, http://, bare local paths, and values that git
+# would read as a command-line option) are rejected before the remote is handed
+# to git.
+_SCP_LIKE_REMOTE = re.compile(r"^[\w.+-]+@[\w.-]+:.+", re.ASCII)
+
+# Pin git's protocol allowlist on every fetch, including the recursive submodule
+# fetches, so only the intended transports are used -- including for submodule
+# URLs declared in .gitmodules -- even on host git that predates the upstream
+# protocol.file.allow=user default. `submodule update --recursive` is passed
+# explicitly, so `submodule.recurse=false` would not apply here; the
+# protocol.*.allow settings are what constrain the transports.
+_PROTOCOL_HARDENING = (
+    "-c",
+    "protocol.file.allow=never",
+    "-c",
+    "protocol.ext.allow=never",
+)
+
+
+def _validate_uri(uri: str) -> None:
+    """Restrict a git remote to the supported transports.
+
+    Only ``https://``, ``ssh://``, and scp-like ``git@host:path`` remotes are
+    permitted.
+
+    Raises:
+        LaunchError: If the remote is not one of the supported transports.
+    """
+    stripped = uri.strip()
+    # A leading "-" would be read by git as a command-line flag, and can also
+    # slip past the scp-like check below, so reject it explicitly.
+    if stripped.startswith("-"):
+        raise LaunchError(
+            f"Refusing to fetch git remote {uri!r}: only https://, ssh://, and "
+            f"git@host:path remotes are allowed."
+        )
+    if stripped.lower().startswith((PREFIX_HTTPS, "ssh://")) or _SCP_LIKE_REMOTE.match(
+        stripped
+    ):
+        return
+    raise LaunchError(
+        f"Refusing to fetch git remote {uri!r}: only https://, ssh://, and "
+        f"git@host:path remotes are allowed."
+    )
+
 
 class ReferenceType(IntEnum):
     BRANCH = 1
@@ -42,12 +90,13 @@ class GitReference:
 
     def fetch(self, dst_dir: str) -> None:
         """Fetch the repo into dst_dir and refine githubref based on what we learn."""
+        _validate_uri(self.uri)
         try:
             run_git("init", dst_dir)
             self.path = os.path.abspath(dst_dir)
-            run_git("remote", "add", "origin", self.uri, cwd=dst_dir)
+            run_git("remote", "add", "origin", "--", self.uri, cwd=dst_dir)
             # We fetch the origin so that we have branch and tag references
-            run_git("fetch", "origin", cwd=dst_dir)
+            run_git(*_PROTOCOL_HARDENING, "fetch", "origin", cwd=dst_dir)
         except GitCommandError as e:
             raise LaunchError(
                 f"Unable to fetch from git remote repository {self.url}:\n{e}"
@@ -74,7 +123,19 @@ class GitReference:
             self._checkout_branch(dst_dir, default_branch, f"origin/{default_branch}")
 
         self.commit_hash = run_git("rev-parse", "HEAD", cwd=dst_dir).strip()
-        run_git("submodule", "update", "--init", "--recursive", cwd=dst_dir)
+        try:
+            run_git(
+                *_PROTOCOL_HARDENING,
+                "submodule",
+                "update",
+                "--init",
+                "--recursive",
+                cwd=dst_dir,
+            )
+        except GitCommandError as e:
+            raise LaunchError(
+                f"Unable to update submodules for git repository {self.url}:\n{e}"
+            )
 
     def _ref_exists(self, dst_dir: str, ref: str) -> bool:
         try:
