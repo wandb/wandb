@@ -130,15 +130,19 @@ class Registries(RelayPaginator["RegistryFragment", "Registry"]):
             )
         if registry_order is not None:
             return _OrderedCollections(
-                Collections(
-                    service_api=self._service_api,
-                    organization=self.organization,
-                    registry_filter={"name": reg.full_name},
-                    collection_filter=filter,
-                    order=order,
-                    per_page=per_page,
-                )
-                for reg in self
+                self._service_api,
+                self.organization,
+                (
+                    Collections(
+                        service_api=self._service_api,
+                        organization=self.organization,
+                        registry_filter={"name": reg.full_name},
+                        collection_filter=filter,
+                        order=order,
+                        per_page=per_page,
+                    )
+                    for reg in self
+                ),
             )
         return Collections(
             service_api=self._service_api,
