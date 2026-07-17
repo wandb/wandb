@@ -192,13 +192,12 @@ func newTestSettings(
 	return wbsettings.From(settingsProto)
 }
 
-// startProxy creates and starts a real proxy against the given endpoint,
-// returning the concrete implementation for assertions on internal state.
+// startProxy creates a real proxy against the given endpoint.
 func startProxy(
 	t *testing.T,
 	endpoint string,
 	apiKey string,
-) *analytics.OpenTelemetryProxyImpl {
+) *analytics.OpenTelemetryProxy {
 	t.Helper()
 
 	return startProxyWithSettings(t, newTestSettings(endpoint, apiKey))
@@ -207,34 +206,33 @@ func startProxy(
 func startProxyWithSettings(
 	t *testing.T,
 	settings *wbsettings.Settings,
-) *analytics.OpenTelemetryProxyImpl {
+) *analytics.OpenTelemetryProxy {
 	t.Helper()
 
 	proxy := analytics.NewOpenTelemetryProxy(t.Context(), settings)
-	impl, ok := proxy.(*analytics.OpenTelemetryProxyImpl)
-	require.True(
-		t,
-		ok,
-		"expected *OpenTelemetryProxyImpl when analytics is enabled",
-	)
+	require.NotNil(t, proxy)
 
 	t.Cleanup(func() {
-		require.NoError(t, impl.Shutdown(context.Background()))
+		require.NoError(t, proxy.Shutdown(context.Background()))
 	})
-	return impl
+	return proxy
 }
 
-func TestOpenTelemetryProxyImpl_RecordsDefaultAttributes(t *testing.T) {
+func TestTelemetryRecorder_RecordsDefaultAttributes(t *testing.T) {
 	url, captured := newOTLPTestServer(t)
-	impl := startProxy(t, url, "test-api-key")
+	proxy := startProxy(t, url, "test-api-key")
+	recorder := analytics.NewTelemetryRecorder(
+		proxy,
+		analytics.NewTelemetryContext(),
+	)
 
-	impl.IncrementCounterAndLogEvent(
+	recorder.IncrementCounterAndLogEvent(
 		t.Context(),
 		"default_attrs_event",
 		nil,
 		analytics.LowCardinalityAttributes{},
 	)
-	require.NoError(t, impl.Shutdown(context.Background()))
+	require.NoError(t, proxy.Shutdown(context.Background()))
 
 	// Both logs and metrics carry the default low-cardinality attributes.
 	log, ok := findLog(captured.logs, "default_attrs_event")
@@ -248,71 +246,84 @@ func TestOpenTelemetryProxyImpl_RecordsDefaultAttributes(t *testing.T) {
 	}
 }
 
-func TestOpenTelemetryProxyImpl_With_LowCardinalityAttributes(t *testing.T) {
+func TestTelemetryRecorder_With_LowCardinalityAttributes(t *testing.T) {
 	url, captured := newOTLPTestServer(t)
-	impl := startProxy(t, url, "test-api-key")
+	proxy := startProxy(t, url, "test-api-key")
+	recorder := analytics.NewTelemetryRecorder(
+		proxy,
+		analytics.NewTelemetryContext(),
+	)
 
-	derived := impl.With(nil, analytics.LowCardinalityAttributes{
-		CodeFunctionName: "MyFunction",
-	})
+	derived := recorder.With(
+		analytics.LowCardinalityAttributes{ErrorOriginator: "MyFunction"},
+		nil,
+	)
 	derived.IncrementCounterAndLogEvent(
 		t.Context(),
 		"low_card_event",
 		nil,
 		analytics.LowCardinalityAttributes{},
 	)
-	require.NoError(t, impl.Shutdown(context.Background()))
+	require.NoError(t, proxy.Shutdown(context.Background()))
 
 	log, ok := findLog(captured.logs, "low_card_event")
 	require.True(t, ok, "expected a log for the event")
-	assert.Equal(t, "MyFunction", log.Attributes["code.function.name"])
+	assert.Equal(t, "MyFunction", log.Attributes["error.originator"])
 
 	metric, ok := findMetric(captured.metrics, "low_card_event")
 	require.True(t, ok, "expected a metric for the event")
-	assert.Equal(t, "MyFunction", metric.Attributes["code.function.name"])
+	assert.Equal(t, "MyFunction", metric.Attributes["error.originator"])
 }
 
-func TestOpenTelemetryProxyImpl_With_InheritsAndIgnoresEmptyFields(
+func TestTelemetryRecorder_With_InheritsAndIgnoresEmptyFields(
 	t *testing.T,
 ) {
 	url, captured := newOTLPTestServer(t)
-	impl := startProxy(t, url, "test-api-key")
+	proxy := startProxy(t, url, "test-api-key")
+	recorder := analytics.NewTelemetryRecorder(
+		proxy,
+		analytics.NewTelemetryContext(),
+	)
 
 	// Chained derivation: each child inherits its parent's attributes,
 	// and empty fields must not overwrite inherited or default values.
-	derived := impl.
-		With(nil, analytics.LowCardinalityAttributes{
-			WandbVersion: "custom-version",
-		}).
-		With(nil, analytics.LowCardinalityAttributes{}).
-		With(nil, analytics.LowCardinalityAttributes{
-			CodeFunctionName: "MyFunction",
-		})
-	derived.RecordLog(
+	derived := recorder.With(
+		analytics.LowCardinalityAttributes{WandbVersion: "custom-version"},
+		nil,
+	)
+	derived = derived.With(analytics.LowCardinalityAttributes{}, nil)
+	derived = derived.With(
+		analytics.LowCardinalityAttributes{ErrorOriginator: "MyFunction"},
+		nil,
+	)
+	derived.Log(
 		t.Context(),
 		"empty_fields_event",
 		nil,
-		analytics.LowCardinalityAttributes{},
 		otellogapi.SeverityInfo,
 	)
-	require.NoError(t, impl.Shutdown(context.Background()))
+	require.NoError(t, proxy.Shutdown(context.Background()))
 
 	log, ok := findLog(captured.logs, "empty_fields_event")
 	require.True(t, ok, "expected a log for the event")
 	assert.Equal(t, "custom-version", log.Attributes["wandb_version"])
 	assert.Equal(t, runtime.Version(), log.Attributes["go_version"])
-	assert.Equal(t, "MyFunction", log.Attributes["code.function.name"])
+	assert.Equal(t, "MyFunction", log.Attributes["error.originator"])
 }
 
-func TestOpenTelemetryProxyImpl_With_HighCardinalityLogsOnly(
+func TestTelemetryRecorder_With_HighCardinalityLogsOnly(
 	t *testing.T,
 ) {
 	url, captured := newOTLPTestServer(t)
-	impl := startProxy(t, url, "test-api-key")
+	proxy := startProxy(t, url, "test-api-key")
+	recorder := analytics.NewTelemetryRecorder(
+		proxy,
+		analytics.NewTelemetryContext(),
+	)
 
-	derived := impl.With(
-		map[string]string{"arbitrary_key": "value"},
+	derived := recorder.With(
 		analytics.LowCardinalityAttributes{},
+		map[string]string{"arbitrary_key": "value"},
 	)
 	derived.IncrementCounterAndLogEvent(
 		t.Context(),
@@ -320,7 +331,7 @@ func TestOpenTelemetryProxyImpl_With_HighCardinalityLogsOnly(
 		nil,
 		analytics.LowCardinalityAttributes{},
 	)
-	require.NoError(t, impl.Shutdown(context.Background()))
+	require.NoError(t, proxy.Shutdown(context.Background()))
 
 	// High-cardinality attributes are attached to log records...
 	log, ok := findLog(captured.logs, "high_card_event")
@@ -333,47 +344,54 @@ func TestOpenTelemetryProxyImpl_With_HighCardinalityLogsOnly(
 	assert.NotContains(t, metric.Attributes, "arbitrary_key")
 }
 
-func TestOpenTelemetryProxyImpl_With_DoesNotAffectParent(t *testing.T) {
+func TestTelemetryRecorder_With_DoesNotAffectParent(t *testing.T) {
 	url, captured := newOTLPTestServer(t)
-	impl := startProxy(t, url, "test-api-key")
-
-	impl.With(
-		map[string]string{"child_key": "child-value"},
-		analytics.LowCardinalityAttributes{CodeFunctionName: "ChildFunction"},
+	proxy := startProxy(t, url, "test-api-key")
+	recorder := analytics.NewTelemetryRecorder(
+		proxy,
+		analytics.NewTelemetryContext(),
 	)
-	impl.IncrementCounterAndLogEvent(
+
+	recorder.With(
+		analytics.LowCardinalityAttributes{ErrorOriginator: "ChildFunction"},
+		map[string]string{"child_key": "child-value"},
+	)
+	recorder.IncrementCounterAndLogEvent(
 		t.Context(),
 		"parent_event",
 		nil,
 		analytics.LowCardinalityAttributes{},
 	)
-	require.NoError(t, impl.Shutdown(context.Background()))
+	require.NoError(t, proxy.Shutdown(context.Background()))
 
 	// Records emitted through the parent must not carry the
 	// child's attributes.
 	log, ok := findLog(captured.logs, "parent_event")
 	require.True(t, ok, "expected a log for the parent event")
 	assert.NotContains(t, log.Attributes, "child_key")
-	assert.NotContains(t, log.Attributes, "code.function.name")
+	assert.NotContains(t, log.Attributes, "error.originator")
 
 	metric, ok := findMetric(captured.metrics, "parent_event")
 	require.True(t, ok, "expected a metric for the parent event")
-	assert.NotContains(t, metric.Attributes, "code.function.name")
+	assert.NotContains(t, metric.Attributes, "error.originator")
 }
 
-func TestOpenTelemetryProxyImpl_With_SharesShutdown(t *testing.T) {
+func TestTelemetryRecorder_With_SharesShutdown(t *testing.T) {
 	url, captured := newOTLPTestServer(t)
-	impl := startProxy(t, url, "test-api-key")
+	proxy := startProxy(t, url, "test-api-key")
+	recorder := analytics.NewTelemetryRecorder(
+		proxy,
+		analytics.NewTelemetryContext(),
+	)
 
-	derived := impl.With(nil, analytics.LowCardinalityAttributes{})
-	require.NoError(t, impl.Shutdown(context.Background()))
+	derived := recorder.With(analytics.LowCardinalityAttributes{}, nil)
+	require.NoError(t, proxy.Shutdown(context.Background()))
 
 	// After the root proxy shuts down, derived recorders are no-ops.
-	derived.RecordLog(
+	derived.Log(
 		t.Context(),
 		"after_shutdown",
 		nil,
-		analytics.LowCardinalityAttributes{},
 		otellogapi.SeverityInfo,
 	)
 
@@ -381,52 +399,61 @@ func TestOpenTelemetryProxyImpl_With_SharesShutdown(t *testing.T) {
 	assert.False(t, ok, "expected no log from a derived recorder after shutdown")
 }
 
-func TestOpenTelemetryProxyImpl_PerRecordAttributesOverrideContext(
+func TestTelemetryRecorder_PerRecordAttributesOverrideContext(
 	t *testing.T,
 ) {
 	url, captured := newOTLPTestServer(t)
-	impl := startProxy(t, url, "test-api-key")
-
-	derived := impl.With(
-		map[string]string{"test_key": "from-context"},
-		analytics.LowCardinalityAttributes{WandbVersion: "from-context"},
+	proxy := startProxy(t, url, "test-api-key")
+	recorder := analytics.NewTelemetryRecorder(
+		proxy,
+		analytics.NewTelemetryContext(),
 	)
-	derived.RecordLog(
+
+	derived := recorder.With(
+		analytics.LowCardinalityAttributes{WandbVersion: "from-context"},
+		map[string]string{"test_key": "from-context"},
+	)
+	derived.IncrementCounterAndLogEvent(
 		t.Context(),
 		"override_event",
 		map[string]string{"test_key": "from-argument"},
 		analytics.LowCardinalityAttributes{WandbVersion: "from-argument"},
-		otellogapi.SeverityInfo,
 	)
-	require.NoError(t, impl.Shutdown(context.Background()))
+	require.NoError(t, proxy.Shutdown(context.Background()))
 
 	log, ok := findLog(captured.logs, "override_event")
 	require.True(t, ok, "expected a log for the event")
-	assert.Equal(t, "from-argument", log.Attributes["wandb_version"])
+	assert.Equal(t, "from-context", log.Attributes["wandb_version"])
 	assert.Equal(t, "from-argument", log.Attributes["test_key"])
+
+	metric, ok := findMetric(captured.metrics, "override_event")
+	require.True(t, ok, "expected a metric for the event")
+	assert.Equal(t, "from-argument", metric.Attributes["wandb_version"])
 }
 
-func TestOpenTelemetryProxyImpl_PerRecordAttributesDoNotPersist(
+func TestTelemetryRecorder_PerRecordAttributesDoNotPersist(
 	t *testing.T,
 ) {
 	url, captured := newOTLPTestServer(t)
-	impl := startProxy(t, url, "test-api-key")
+	proxy := startProxy(t, url, "test-api-key")
+	recorder := analytics.NewTelemetryRecorder(
+		proxy,
+		analytics.NewTelemetryContext(),
+	)
 
-	impl.RecordLog(
+	recorder.IncrementCounterAndLogEvent(
 		t.Context(),
 		"with_overrides",
 		map[string]string{"test_key": "per-record"},
 		analytics.LowCardinalityAttributes{WandbVersion: "per-record"},
-		otellogapi.SeverityInfo,
 	)
-	impl.RecordLog(
+	recorder.Log(
 		t.Context(),
 		"without_overrides",
 		nil,
-		analytics.LowCardinalityAttributes{},
 		otellogapi.SeverityInfo,
 	)
-	require.NoError(t, impl.Shutdown(context.Background()))
+	require.NoError(t, proxy.Shutdown(context.Background()))
 
 	// Per-record attributes must not leak into the telemetry context
 	// and affect subsequent records.
@@ -436,40 +463,21 @@ func TestOpenTelemetryProxyImpl_PerRecordAttributesDoNotPersist(
 	assert.NotContains(t, log.Attributes, "test_key")
 }
 
-func TestNewOpenTelemetryProxy_NoAPIKey_ReturnsNoopProxy(t *testing.T) {
-	proxy := analytics.NewOpenTelemetryProxy(
-		t.Context(),
-		newTestSettings("http://example.invalid", ""),
-	)
-
-	_, ok := proxy.(analytics.NoopOpenTelemetryProxy)
-
-	assert.True(t, ok, "expected NoopOpenTelemetryProxy when API key is empty")
-}
-
-func TestNewOpenTelemetryProxy_WithAPIKey_ReturnsImpl(t *testing.T) {
-	proxy := analytics.NewOpenTelemetryProxy(
-		t.Context(),
-		newTestSettings("http://example.invalid", "test-api-key"),
-	)
-
-	_, ok := proxy.(*analytics.OpenTelemetryProxyImpl)
-
-	assert.True(t, ok, "expected *OpenTelemetryProxyImpl when proxy is enabled")
-}
-
-func TestOpenTelemetryProxyImpl_RecordLog(t *testing.T) {
+func TestTelemetryRecorder_RecordLog(t *testing.T) {
 	url, captured := newOTLPTestServer(t)
-	impl := startProxy(t, url, "test-api-key")
+	proxy := startProxy(t, url, "test-api-key")
+	recorder := analytics.NewTelemetryRecorder(
+		proxy,
+		analytics.NewTelemetryContext(),
+	)
 
-	impl.RecordLog(
+	recorder.Log(
 		t.Context(),
 		"hello world",
 		map[string]string{"custom": "value"},
-		analytics.LowCardinalityAttributes{},
 		otellogapi.SeverityInfo,
 	)
-	require.NoError(t, impl.Shutdown(context.Background()))
+	require.NoError(t, proxy.Shutdown(context.Background()))
 
 	log, ok := findLog(captured.logs, "hello world")
 	require.True(t, ok, "expected a log with the recorded body")
@@ -478,25 +486,29 @@ func TestOpenTelemetryProxyImpl_RecordLog(t *testing.T) {
 	assert.Equal(t, version.Version, log.Attributes["wandb_version"])
 }
 
-func TestOpenTelemetryProxyImpl_RecordMetricAndLogEvent(t *testing.T) {
+func TestTelemetryRecorder_RecordMetricAndLogEvent(t *testing.T) {
 	url, captured := newOTLPTestServer(t)
-	impl := startProxy(t, url, "test-api-key")
+	proxy := startProxy(t, url, "test-api-key")
+	recorder := analytics.NewTelemetryRecorder(
+		proxy,
+		analytics.NewTelemetryContext(),
+	)
 
-	impl.IncrementCounterAndLogEvent(
+	recorder.IncrementCounterAndLogEvent(
 		t.Context(),
 		"an_event",
 		map[string]string{
 			"custom": "value",
 		},
-		analytics.LowCardinalityAttributes{CodeFunctionName: "X"},
+		analytics.LowCardinalityAttributes{ErrorOriginator: "X"},
 	)
-	require.NoError(t, impl.Shutdown(context.Background()))
+	require.NoError(t, proxy.Shutdown(context.Background()))
 
 	// verify metric emitted
 	metric, ok := findMetric(captured.metrics, "an_event")
 	require.True(t, ok, "expected a metric named after the event")
 	assert.Equal(t, int64(1), metric.Value)
-	assert.Equal(t, "X", metric.Attributes["code.function.name"])
+	assert.Equal(t, "X", metric.Attributes["error.originator"])
 
 	// verify log emitted
 	log, ok := findLog(captured.logs, "an_event")
@@ -505,17 +517,21 @@ func TestOpenTelemetryProxyImpl_RecordMetricAndLogEvent(t *testing.T) {
 	assert.Equal(t, "value", log.Attributes["custom"])
 }
 
-func TestOpenTelemetryProxyImpl_SendsAPIKeyAuth(t *testing.T) {
+func TestTelemetryRecorder_SendsAPIKeyAuth(t *testing.T) {
 	url, captured := newOTLPTestServer(t)
-	impl := startProxy(t, url, "test-api-key")
+	proxy := startProxy(t, url, "test-api-key")
+	recorder := analytics.NewTelemetryRecorder(
+		proxy,
+		analytics.NewTelemetryContext(),
+	)
 
-	impl.IncrementCounterAndLogEvent(
+	recorder.IncrementCounterAndLogEvent(
 		t.Context(),
 		"authenticated_event",
 		nil,
 		analytics.LowCardinalityAttributes{},
 	)
-	require.NoError(t, impl.Shutdown(context.Background()))
+	require.NoError(t, proxy.Shutdown(context.Background()))
 
 	requests := captured.requestsSnapshot()
 	require.NotEmpty(t, requests, "expected at least one OTLP export request")
@@ -530,60 +546,72 @@ func TestOpenTelemetryProxyImpl_SendsAPIKeyAuth(t *testing.T) {
 	}
 }
 
-func TestOpenTelemetryProxyImpl_Error(t *testing.T) {
+func TestTelemetryRecorder_Error(t *testing.T) {
 	url, captured := newOTLPTestServer(t)
-	impl := startProxy(t, url, "test-api-key")
+	proxy := startProxy(t, url, "test-api-key")
+	recorder := analytics.NewTelemetryRecorder(
+		proxy,
+		analytics.NewTelemetryContext(),
+	)
+	recorder = recorder.With(
+		analytics.LowCardinalityAttributes{WandbVersion: "custom-version"},
+		map[string]string{"request_id": "test-request"},
+	)
 
-	const wantCodeFunctionName = "TestOpenTelemetryProxyImpl_Error"
-	impl.Error(
+	const wantErrorOriginator = "TestTelemetryRecorder_Error"
+	recorder.Error(
 		t.Context(),
 		"error-message",
 		assert.AnError,
-		wantCodeFunctionName,
+		wantErrorOriginator,
 	)
-	require.NoError(t, impl.Shutdown(context.Background()))
+	require.NoError(t, proxy.Shutdown(context.Background()))
 
 	metric, ok := findMetric(captured.metrics, "error")
 	require.True(t, ok, "expected an error metric")
 	assert.Equal(t, int64(1), metric.Value)
 	assert.Equal(
 		t,
-		wantCodeFunctionName,
-		metric.Attributes["code.function.name"],
+		wantErrorOriginator,
+		metric.Attributes["error.originator"],
 	)
+	assert.Equal(t, "custom-version", metric.Attributes["wandb_version"])
+	assert.NotContains(t, metric.Attributes, "request_id")
 
 	// verify log emitted
 	log, ok := findLog(captured.logs, "error-message")
 	require.True(t, ok, "expected an error log")
 	assert.Equal(t, otellogapi.SeverityError, log.Severity)
-	assert.Equal(t,
-		wantCodeFunctionName,
-		log.Attributes["code.function.name"],
-	)
+	assert.Equal(t, wantErrorOriginator, log.Attributes["error.originator"])
+	assert.Equal(t, "custom-version", log.Attributes["wandb_version"])
+	assert.Equal(t, "test-request", log.Attributes["request_id"])
 	assert.Equal(t, assert.AnError.Error(), log.Attributes["error.message"])
 	assert.NotEmpty(t, log.Attributes["error.stacktrace"])
 }
 
-func TestOpenTelemetryProxyImpl_Shutdown_CalledMultipleTimes(t *testing.T) {
+func TestOpenTelemetryProxy_Shutdown_CalledMultipleTimes(t *testing.T) {
 	url, _ := newOTLPTestServer(t)
-	impl := startProxy(t, url, "test-api-key")
+	proxy := startProxy(t, url, "test-api-key")
 
-	require.NoError(t, impl.Shutdown(context.Background()))
+	require.NoError(t, proxy.Shutdown(context.Background()))
 
 	// A second shutdown should not error.
-	require.NoError(t, impl.Shutdown(context.Background()))
+	require.NoError(t, proxy.Shutdown(context.Background()))
 }
 
-func TestOpenTelemetryProxyImpl_RecordAfterShutdown_IsNoop(t *testing.T) {
+func TestTelemetryRecorder_RecordAfterShutdown_IsNoop(t *testing.T) {
 	url, captured := newOTLPTestServer(t)
-	impl := startProxy(t, url, "test-api-key")
-	require.NoError(t, impl.Shutdown(context.Background()))
+	proxy := startProxy(t, url, "test-api-key")
+	recorder := analytics.NewTelemetryRecorder(
+		proxy,
+		analytics.NewTelemetryContext(),
+	)
+	require.NoError(t, proxy.Shutdown(context.Background()))
 
-	impl.RecordLog(
+	recorder.Log(
 		t.Context(),
 		"after",
 		nil,
-		analytics.LowCardinalityAttributes{},
 		otellogapi.SeverityInfo,
 	)
 
