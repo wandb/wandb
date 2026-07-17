@@ -483,6 +483,11 @@ class _ChainedPaginators(Iterator[_T]):
         msg = "`cursor` is not supported for ordered chained registry queries."
         raise UnsupportedError(msg)
 
+    @property
+    def length(self) -> Never:
+        msg = "`length` is not supported for ordered chained registry queries."
+        raise UnsupportedError(msg)
+
     def __len__(self) -> Never:
         msg = "`__len__` is not supported for ordered chained registry queries."
         raise TypeError(msg)
