@@ -17,9 +17,9 @@ from hypothesis import given
 from hypothesis.strategies import from_regex, text
 from pytest import CaptureFixture, MonkeyPatch, fail, fixture, mark, raises
 from wandb.filesync.step_prepare import ResponsePrepare, StepPrepare
+from wandb.sdk.artifacts._generated.enums import ArtifactDigestAlgorithm
 from wandb.sdk.artifacts._validators import NAME_MAXLEN
 from wandb.sdk.artifacts.artifact import Artifact
-from wandb.sdk.artifacts.artifact_digest_algorithm import ArtifactDigestAlgorithm
 from wandb.sdk.artifacts.artifact_file_cache import ArtifactFileCache
 from wandb.sdk.artifacts.artifact_instance_cache import artifact_instance_cache
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
@@ -752,8 +752,7 @@ def test_artifact_multipart_download_writer_not_on_shared_executor():
 
 #     artifact.add_file(str(f))
 #     entry = artifact.manifest.entries["file.txt"]
-#     assert entry.digest_algorithm == ArtifactDigestAlgorithm.MANIFEST_XXH128
-#     assert artifact.digest_algorithm == ArtifactDigestAlgorithm.MANIFEST_XXH128
+#     assert artifact.digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128
 
 # def test_digest_algorithm_with_reference_entries():
 #     artifact = Artifact("test-artifact", "test-type")
@@ -767,8 +766,7 @@ def test_artifact_multipart_download_writer_not_on_shared_executor():
 #     artifact.add_reference(f2.resolve().as_uri(), "file2.txt")
 
 #     entry = artifact.manifest.entries["file.txt"]
-#     assert entry.digest_algorithm == ArtifactDigestAlgorithm.MANIFEST_XXH128
-#     assert artifact.digest_algorithm == ArtifactDigestAlgorithm.MANIFEST_XXH128
+#     assert artifact.digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128
 
 
 def test_manifest_digest_uses_xxh128_for_xxh128_artifact():
@@ -777,6 +775,7 @@ def test_manifest_digest_uses_xxh128_for_xxh128_artifact():
     artifact = Artifact("test", type="dataset")
     # Force xxh128 algorithm
     artifact._digest_algorithm = ArtifactDigestAlgorithm.MANIFEST_XXH128
+    artifact.manifest.digest_algorithm = ArtifactDigestAlgorithm.MANIFEST_XXH128
     artifact.add_file(str(f))
 
     file_digest = xxh128_string("hello")
@@ -791,6 +790,7 @@ def test_manifest_digest_uses_md5_for_md5_artifact():
     artifact = Artifact("test", type="dataset")
     # Force MD5 algorithm
     artifact._digest_algorithm = ArtifactDigestAlgorithm.MANIFEST_MD5
+    artifact.manifest.digest_algorithm = ArtifactDigestAlgorithm.MANIFEST_MD5
     artifact.add_file(str(f))
 
     file_digest = md5_string("hello")
