@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Generator
-from itertools import product
+from itertools import islice, product
 from unittest.mock import patch
 
 import wandb
@@ -588,6 +588,94 @@ def test_registries_versions_respects_registry_and_collection_order(
     ]
 
     assert actual == expected
+
+
+def test_registries_ordered_pagination_across_pages(
+    org: str,
+    team: str,
+    api: Api,
+    make_registry: Callable[..., Registry],
+):
+    """Ordered chained queries must keep advancing across pages, not re-read the first.
+
+    With a small per_page, the grouped paginator fetches multiple pages while a child
+    paginator is still mid-iteration. If items are pulled in a way that restarts the
+    child on each page (by calling ``iter()`` on it), the child re-reads its first page
+    forever, yielding duplicates and never terminating. Iterate at per_page=1 over more
+    than one page and assert exact ordered results with no duplicates.
+    """
+    # 2 registries x 2 collections x 1 version, so at per_page=1 each child group spans
+    # multiple page fetches and stays current across them.
+    with wandb.init(entity=team) as run:
+        artifacts = [
+            run.log_artifact(Artifact(f"paginate-artifact-{i}", type="test-type"))
+            for i in range(4)
+        ]
+
+    for registry_idx in range(2):
+        registry = make_registry(
+            organization=org,
+            name=f"paginate-order-{registry_idx}",
+            visibility="organization",
+        )
+        for collection_idx in range(2):
+            artifact_idx = registry_idx * 2 + collection_idx
+            artifacts[artifact_idx].link(
+                f"{org}/{registry.full_name}/reg-collection-{collection_idx}"
+            )
+
+    registries_kwargs = dict(
+        organization=org,
+        filter={"name": {"$contains": "paginate-order-"}},
+        order="name",
+    )
+
+    expected_collections = [
+        (f"paginate-order-{registry_idx}", f"reg-collection-{collection_idx}")
+        for registry_idx, collection_idx in product(range(2), range(2))
+    ]
+    expected_versions = [
+        (registry_name, f"{collection_name}:v0")
+        for registry_name, collection_name in expected_collections
+    ]
+
+    # Cap each pull just past the expected count so a regression (which never
+    # terminates) fails on length here instead of hanging until the test timeout.
+    limit = len(expected_versions) + 1
+
+    # registries(order) -> collections(order)
+    actual_collections = [
+        (remove_registry_prefix(c.project), c.name)
+        for c in islice(
+            api.registries(**registries_kwargs).collections(order="name", per_page=1),
+            limit,
+        )
+    ]
+    assert actual_collections == expected_collections
+
+    # registries(order) -> collections(order) -> versions
+    actual_versions_by_collection = [
+        (remove_registry_prefix(v.project), v.name)
+        for v in islice(
+            api.registries(**registries_kwargs)
+            .collections(order="name", per_page=1)
+            .versions(per_page=1),
+            limit,
+        )
+    ]
+    assert actual_versions_by_collection == expected_versions
+
+    # registries(order) -> versions. Version order *within* a registry isn't guaranteed,
+    # so assert the registry grouping order plus a complete, duplicate-free set.
+    actual_versions_by_registry = [
+        (remove_registry_prefix(v.project), v.name)
+        for v in islice(api.registries(**registries_kwargs).versions(per_page=1), limit)
+    ]
+    assert len(actual_versions_by_registry) == len(expected_versions)
+    assert sorted(actual_versions_by_registry) == sorted(expected_versions)
+    assert [reg for reg, _ in actual_versions_by_registry] == [
+        reg for reg, _ in expected_versions
+    ]
 
 
 def test_registries_versions(

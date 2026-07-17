@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 from collections import deque
 from collections.abc import Iterator
-from itertools import islice
 from typing import TYPE_CHECKING, Any, ClassVar, Generic, TypeVar
 
 from pydantic import PositiveInt, ValidationError
@@ -420,6 +419,25 @@ class Versions(RelayPaginator["ArtifactMembershipFragment", "Artifact"]):
 
 # TODO(tonyyli): Consolidate unnecessarily duplicated boilerplate
 _ParentGroupsT = TypeVar("_ParentGroupsT", Registries, Collections)
+_T = TypeVar("_T")
+
+
+def _take_from_paginator(paginator: Iterator[_T], count: int) -> list[_T]:
+    """Take up to ``count`` items from ``paginator`` by calling ``next()`` directly.
+
+    These paginators are restartable iterators whose ``__iter__`` rewinds them back to
+    the start. ``islice(paginator, count)`` calls ``iter()`` on the paginator before
+    reading, so taking a chunk with ``islice`` on each page would rewind the paginator
+    and re-read its first page forever. ``next()`` never calls ``iter()``, so the
+    paginator keeps advancing from where the previous chunk left off.
+    """
+    items: list[_T] = []
+    while len(items) < count:
+        try:
+            items.append(next(paginator))
+        except StopIteration:
+            break
+    return items
 
 
 class _GroupedCollections(Collections):
@@ -505,7 +523,6 @@ class _GroupedCollections(Collections):
 
     @override
     def _load_page(self) -> bool:
-        # TODO(tonyyli): Fix this, it's bad
         page: deque[ArtifactCollection] = deque()
         while (remaining := (self.per_page - len(page))) > 0:
             if self.current is None:
@@ -517,7 +534,8 @@ class _GroupedCollections(Collections):
                     self.groups = None
                     break
 
-            page.extend(islice(self.current, remaining))
+            # page.extend(islice(self.current, remaining))
+            page.extend(_take_from_paginator(self.current, remaining))
             if len(page) < self.per_page:
                 self.current = None
 
@@ -596,7 +614,6 @@ class _GroupedVersions(Versions, Generic[_ParentGroupsT]):
 
     @override
     def _load_page(self) -> bool:
-        # TODO(tonyyli): Fix this, it's bad
         page: deque[Artifact] = deque()
         while (remaining := (self.per_page - len(page))) > 0:
             if self.current is None:
@@ -608,7 +625,8 @@ class _GroupedVersions(Versions, Generic[_ParentGroupsT]):
                     self.groups = None
                     break
 
-            page.extend(islice(self.current, remaining))
+            # page.extend(islice(self.current, remaining))
+            page.extend(_take_from_paginator(self.current, remaining))
             if len(page) < self.per_page:
                 self.current = None
 
