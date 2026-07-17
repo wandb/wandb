@@ -9,11 +9,10 @@ from io import BytesIO
 from typing import TYPE_CHECKING, Any, TypeAlias, cast
 from urllib import parse
 
-from wandb.sdk.lib._packaging_version import parse as parse_version
-
 import wandb
 from wandb import util
 from wandb.sdk.lib import hashutil, runid
+from wandb.sdk.lib._packaging_version import parse as parse_version
 from wandb.sdk.lib.paths import LogicalPath
 
 from . import _dtypes

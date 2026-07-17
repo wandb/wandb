@@ -16,11 +16,10 @@ import os
 import sys
 import threading
 
-from wandb.sdk.lib._packaging_version import parse as parse_version
-
 import wandb
 from wandb.env import strtobool
 from wandb.errors import UsageError
+from wandb.sdk.lib._packaging_version import parse as parse_version
 
 _weave_init_lock = threading.Lock()
 
