@@ -19,7 +19,7 @@ from typing_extensions import Self
 
 from wandb._strutils import nameof
 from wandb.proto.wandb_telemetry_pb2 import Deprecated
-from wandb.sdk.artifacts.artifact_digest_algorithm import ArtifactDigestAlgorithm
+from wandb.sdk.artifacts._generated import ArtifactDigestAlgorithm
 from wandb.sdk.lib.deprecation import warn_and_record_deprecation
 from wandb.sdk.lib.filesystem import copy_or_overwrite_changed
 from wandb.sdk.lib.hashutil import (
@@ -96,7 +96,6 @@ class ArtifactManifestEntry(ArtifactsBase):
     path: LogicalPath
 
     digest: Union[B64Digest, ETag, URIStr, FilePathStr]
-    digest_algorithm: Optional[ArtifactDigestAlgorithm] = None
     ref: Union[URIStr, FilePathStr, None] = None
     birth_artifact_id: Annotated[Optional[str], Field(alias="birthArtifactID")] = None
     size: Optional[NonNegativeInt] = None
@@ -185,7 +184,7 @@ class ArtifactManifestEntry(ArtifactsBase):
 
         # Fallback to computing/caching the checksum hash
         try:
-            if self.digest_algorithm == ArtifactDigestAlgorithm.MANIFEST_XXH128:
+            if artifact.digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128:
                 existing_hash = xxh128_file_b64(dest_path)
             else:
                 existing_hash = md5_file_b64(dest_path)

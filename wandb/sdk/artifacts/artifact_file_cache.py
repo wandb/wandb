@@ -18,7 +18,7 @@ from typing import IO, Protocol
 
 import wandb
 from wandb import env, util
-from wandb.sdk.artifacts.artifact_digest_algorithm import ArtifactDigestAlgorithm
+from wandb.sdk.artifacts._generated import ArtifactDigestAlgorithm
 from wandb.sdk.lib.filesystem import files_in
 from wandb.sdk.lib.hashutil import B64Digest, ETag, b64_to_hex_id
 from wandb.sdk.lib.paths import FilePathStr, StrPath, URIStr
@@ -61,7 +61,10 @@ class ArtifactFileCache:
     }
 
     def check_digest_obj_path(
-        self, digest: B64Digest, size: int, algorithm: str | None = None
+        self,
+        digest: B64Digest,
+        size: int,
+        algorithm: ArtifactDigestAlgorithm | None = None,
     ) -> tuple[FilePathStr, bool, Opener]:
         # Check if we're using vs skipping the cache
         if self._override_cache_path is not None:

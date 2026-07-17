@@ -10,8 +10,8 @@ import wandb
 from pydantic import ValidationError
 from pyfakefs.fake_filesystem import FakeFilesystem
 from pytest import mark, raises
+from wandb.sdk.artifacts._generated.enums import ArtifactDigestAlgorithm
 from wandb.sdk.artifacts.artifact import Artifact
-from wandb.sdk.artifacts.artifact_digest_algorithm import ArtifactDigestAlgorithm
 from wandb.sdk.artifacts.artifact_file_cache import ArtifactFileCache
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts.staging import get_staging_dir
@@ -384,11 +384,11 @@ def test_wandb_storage_policy_load_file_uses_cache_xxh128(
         path=file,
         digest=digest,
         size=5,
-        digest_algorithm=ArtifactDigestAlgorithm.MANIFEST_XXH128,
     )
 
-    # We need to pass an artifact, but this test doesn't actually use it
     empty_artifact = Artifact("test", type="dataset")
+    empty_artifact._digest_algorithm = ArtifactDigestAlgorithm.MANIFEST_XXH128
+    empty_artifact.manifest.digest_algorithm = ArtifactDigestAlgorithm.MANIFEST_XXH128
 
     local_path = policy.load_file(empty_artifact, entry)
 
