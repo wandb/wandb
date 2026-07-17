@@ -29,7 +29,7 @@ type RunSyncOperation struct {
 	logFile *DebugSyncLogFile
 	logger  *observability.CoreLogger
 
-	telemetryProxy analytics.OpenTelemetryProxy
+	telemetryProxy *analytics.OpenTelemetryProxy
 }
 
 func (f *RunSyncOperationFactory) New(
@@ -44,6 +44,10 @@ func (f *RunSyncOperationFactory) New(
 		context.Background(),
 		wandbSettings,
 	)
+	telemetryRecorder := analytics.NewTelemetryRecorder(
+		telemetryProxy,
+		analytics.NewTelemetryContext(),
+	)
 
 	op := &RunSyncOperation{
 		printer:        observability.NewPrinter(printerBufferSize),
@@ -55,7 +59,7 @@ func (f *RunSyncOperationFactory) New(
 		slog.Error("runsync: couldn't create log file", "error", err)
 	}
 	op.logFile = logFile
-	op.logger = NewSyncLogger(logFile, slog.LevelInfo, telemetryProxy)
+	op.logger = NewSyncLogger(logFile, slog.LevelInfo, telemetryRecorder)
 
 	for _, userPath := range paths {
 		var path string
@@ -120,8 +124,10 @@ func (op *RunSyncOperation) Do(
 
 	_ = group.Wait()
 
-	if err := op.telemetryProxy.Shutdown(ctx); err != nil {
-		slog.Error("runsync: failed to shutdown telemetry proxy", "error", err)
+	if op.telemetryProxy != nil {
+		if err := op.telemetryProxy.Shutdown(ctx); err != nil {
+			slog.Error("runsync: failed to shutdown telemetry proxy", "error", err)
+		}
 	}
 
 	return &spb.ServerSyncResponse{

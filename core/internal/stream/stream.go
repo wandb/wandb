@@ -66,7 +66,7 @@ type Stream struct {
 	loggerFile *os.File
 
 	// otelProxy records open telemetry analytics for the run.
-	otelProxy analytics.OpenTelemetryProxy
+	otelProxy *analytics.OpenTelemetryProxy
 
 	// wg is the WaitGroup for the stream
 	wg sync.WaitGroup
@@ -106,7 +106,7 @@ func NewStream(
 	handlerFactory *HandlerFactory,
 	loggerFile streamLoggerFile,
 	logger *observability.CoreLogger,
-	otelProxy analytics.OpenTelemetryProxy,
+	otelProxy *analytics.OpenTelemetryProxy,
 	operations *wboperation.WandbOperations,
 	recordParserFactory *RecordParserFactory,
 	senderFactory *SenderFactory,
@@ -269,11 +269,14 @@ func (s *Stream) Close() {
 		2*time.Second,
 	)
 	defer cancel()
-	if err := s.otelProxy.Shutdown(shutdownCtx); err != nil {
-		s.logger.Error(
-			"stream: failed to shut down analytics",
-			"error", err,
-		)
+	if s.otelProxy != nil {
+		err := s.otelProxy.Shutdown(shutdownCtx)
+		if err != nil {
+			s.logger.Error(
+				"stream: failed to shut down analytics",
+				"error", err,
+			)
+		}
 	}
 
 	if s.loggerFile != nil {

@@ -6,15 +6,21 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	otellogapi "go.opentelemetry.io/otel/log"
+	collogspb "go.opentelemetry.io/proto/otlp/collector/logs/v1"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	"github.com/wandb/wandb/core/internal/analytics"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/observabilitytest"
+	wbsettings "github.com/wandb/wandb/core/internal/settings"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 func TestNewTags(t *testing.T) {
@@ -164,72 +170,104 @@ func TestLoggerHierarchy(t *testing.T) {
 	}, logRecords[1])
 }
 
-// fakeTelemetryRecorder records the codeFunctionName passed to Error so tests
-// can assert how the caller is attributed.
-type fakeTelemetryRecorder struct {
-	errorCalled          bool
-	lastCodeFunctionName string
-}
+func captureTelemetryLog(
+	t *testing.T,
+	record func(*observability.CoreLogger),
+) map[string]string {
+	t.Helper()
 
-func (f *fakeTelemetryRecorder) RecordLog(
-	context.Context,
-	string,
-	map[string]string,
-	analytics.LowCardinalityAttributes,
-	otellogapi.Severity,
-) {
-}
+	type exportResult struct {
+		request *collogspb.ExportLogsServiceRequest
+		err     error
+	}
+	exported := make(chan exportResult, 1)
+	server := httptest.NewServer(http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path != "/sdk/otel/v1/logs" {
+				w.WriteHeader(http.StatusOK)
+				return
+			}
 
-func (f *fakeTelemetryRecorder) IncrementCounterAndLogEvent(
-	context.Context,
-	string,
-	map[string]string,
-	analytics.LowCardinalityAttributes,
-) {
-}
+			body, err := io.ReadAll(r.Body)
+			if err != nil {
+				exported <- exportResult{err: err}
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
 
-func (f *fakeTelemetryRecorder) Error(
-	_ context.Context,
-	errorOriginator string,
-	message string,
-) {
-	f.errorCalled = true
-	f.lastCodeFunctionName = errorOriginator
-}
+			request := &collogspb.ExportLogsServiceRequest{}
+			err = proto.Unmarshal(body, request)
+			exported <- exportResult{request: request, err: err}
+			w.WriteHeader(http.StatusOK)
+		},
+	))
+	t.Cleanup(server.Close)
 
-func (f *fakeTelemetryRecorder) With(
-	map[string]string,
-	analytics.LowCardinalityAttributes,
-) analytics.TelemetryRecorder {
-	return f
-}
-
-func newTelemetryTestLogger(
-	rec analytics.TelemetryRecorder,
-) *observability.CoreLogger {
-	return observability.NewCoreLogger(
+	settings := wbsettings.From(&spb.Settings{
+		BaseUrl: wrapperspb.String(server.URL),
+		ApiKey:  wrapperspb.String("test-api-key"),
+	})
+	proxy := analytics.NewOpenTelemetryProxy(t.Context(), settings)
+	require.NotNil(t, proxy)
+	recorder := analytics.NewTelemetryRecorder(
+		proxy,
+		analytics.NewTelemetryContext(),
+	)
+	logger := observability.NewCoreLogger(
 		slog.New(slog.NewJSONHandler(io.Discard, nil)),
 		nil,
-		rec,
+		recorder,
 	)
+
+	record(logger)
+	require.NoError(t, proxy.Shutdown(context.Background()))
+
+	result := <-exported
+	require.NoError(t, result.err)
+	resourceLogs := result.request.GetResourceLogs()
+	require.Len(t, resourceLogs, 1)
+	scopeLogs := resourceLogs[0].GetScopeLogs()
+	require.Len(t, scopeLogs, 1)
+	records := scopeLogs[0].GetLogRecords()
+	require.Len(t, records, 1)
+
+	attributes := make(map[string]string)
+	for _, attribute := range records[0].GetAttributes() {
+		attributes[attribute.GetKey()] = attribute.GetValue().GetStringValue()
+	}
+	return attributes
+}
+
+func TestCaptureInfo_IncludesDerivedTelemetryTags(t *testing.T) {
+	attributes := captureTelemetryLog(t, func(logger *observability.CoreLogger) {
+		logger.With(
+			[]any{"logger-attr", "attr-value"},
+			map[string]string{"logger-tag": "tag-value"},
+		).CaptureInfo(
+			"test message",
+			slog.String("call-attr", "call-value"),
+			slog.Int("call-int", 123),
+		)
+	})
+
+	assert.Equal(t, "attr-value", attributes["logger-attr"])
+	assert.Equal(t, "tag-value", attributes["logger-tag"])
+	assert.Equal(t, "call-value", attributes["call-attr"])
+	assert.Equal(t, "123", attributes["call-int"])
 }
 
 func TestCaptureError_AttributesCaller(t *testing.T) {
-	rec := &fakeTelemetryRecorder{}
-	logger := newTelemetryTestLogger(rec)
+	attributes := captureTelemetryLog(t, func(logger *observability.CoreLogger) {
+		logger.CaptureError("logging_test", assert.AnError)
+	})
 
-	logger.CaptureError("logging_test", errors.New("boom"))
-
-	require.True(t, rec.errorCalled, "expected Error to be recorded")
-	assert.Equal(t, "logging_test", rec.lastCodeFunctionName)
+	assert.Equal(t, "logging_test", attributes["error.originator"])
 }
 
 func TestCaptureFatal_AttributesCaller(t *testing.T) {
-	rec := &fakeTelemetryRecorder{}
-	logger := newTelemetryTestLogger(rec)
+	attributes := captureTelemetryLog(t, func(logger *observability.CoreLogger) {
+		logger.CaptureFatal("logging_test", assert.AnError)
+	})
 
-	logger.CaptureFatal("logging_test", errors.New("boom"))
-
-	require.True(t, rec.errorCalled, "expected Error to be recorded")
-	assert.Equal(t, "logging_test", rec.lastCodeFunctionName)
+	assert.Equal(t, "logging_test", attributes["error.originator"])
 }

@@ -49,7 +49,7 @@ type CoreLogger struct {
 	*slog.Logger
 	sentryCtx *SentryContext // nil if Sentry is disabled
 
-	telemetryProxy analytics.TelemetryRecorder // nil if telemetry is disabled
+	telemetryRecorder analytics.TelemetryRecorder
 
 	extraSentryTags Tags // extra Sentry tags for just this logger
 
@@ -63,7 +63,7 @@ type CoreLogger struct {
 func NewCoreLogger(
 	logger *slog.Logger,
 	sentryCtx *SentryContext,
-	telemetryProxy analytics.TelemetryRecorder,
+	telemetryRecorder analytics.TelemetryRecorder,
 ) *CoreLogger {
 	const captureRateLimiterCacheSize = 100
 	const captureMinDuration = 5 * time.Minute
@@ -82,7 +82,7 @@ func NewCoreLogger(
 	return &CoreLogger{
 		Logger:             logger,
 		sentryCtx:          sentryCtx,
-		telemetryProxy:     telemetryProxy,
+		telemetryRecorder:  telemetryRecorder,
 		extraSentryTags:    make(Tags),
 		captureRateLimiter: captureRateLimiter,
 	}
@@ -117,18 +117,15 @@ func (cl *CoreLogger) With(
 
 	// Derive a child telemetry context so the new attributes are attached
 	// to telemetry emitted through the derived logger only.
-	telemetryProxy := cl.telemetryProxy
-	if telemetryProxy != nil {
-		telemetryProxy = telemetryProxy.With(
-			newTags,
-			analytics.LowCardinalityAttributes{},
-		)
-	}
+	telemetryRecorder := cl.telemetryRecorder.With(
+		analytics.LowCardinalityAttributes{},
+		map[string]string(newTags),
+	)
 
 	return &CoreLogger{
 		Logger:             cl.Logger.With(attrs...),
 		sentryCtx:          cl.sentryCtx,
-		telemetryProxy:     telemetryProxy,
+		telemetryRecorder:  telemetryRecorder,
 		extraSentryTags:    extraSentryTags,
 		captureRateLimiter: cl.captureRateLimiter,
 	}
@@ -205,13 +202,12 @@ func (cl *CoreLogger) captureException(
 	err error,
 	args ...any,
 ) {
-	if cl.telemetryProxy != nil {
-		cl.telemetryProxy.Error(
-			context.Background(),
-			errorOriginator,
-			err.Error(),
-		)
-	}
+	cl.telemetryRecorder.Error(
+		context.Background(),
+		err.Error(),
+		err,
+		errorOriginator,
+	)
 
 	if cl.sentryCtx == nil || !cl.captureRateLimiter.AllowCapture(err.Error()) {
 		return
@@ -229,15 +225,12 @@ func (cl *CoreLogger) captureMessage(
 	severity otellogapi.Severity,
 	args ...any,
 ) {
-	if cl.telemetryProxy != nil {
-		cl.telemetryProxy.RecordLog(
-			context.Background(),
-			msg,
-			argsToAttributes(args...),
-			analytics.LowCardinalityAttributes{},
-			severity,
-		)
-	}
+	cl.telemetryRecorder.Log(
+		context.Background(),
+		msg,
+		argsToAttributes(args...),
+		severity,
+	)
 
 	if cl.sentryCtx == nil || !cl.captureRateLimiter.AllowCapture(msg) {
 		return
@@ -277,11 +270,7 @@ func (cl *CoreLogger) RecordTelemetry(
 	event string,
 	attributes map[string]string,
 ) {
-	if cl.telemetryProxy == nil {
-		return
-	}
-
-	cl.telemetryProxy.IncrementCounterAndLogEvent(
+	cl.telemetryRecorder.IncrementCounterAndLogEvent(
 		context.Background(),
 		event,
 		attributes,
@@ -296,7 +285,7 @@ func NewNoOpLogger() *CoreLogger {
 	return NewCoreLogger(
 		slog.New(slog.NewJSONHandler(io.Discard, nil)),
 		nil,
-		nil,
+		analytics.NewTelemetryRecorder(nil, analytics.NewTelemetryContext()),
 	)
 }
 

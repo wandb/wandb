@@ -31,7 +31,7 @@ var streamLoggerProviders = wire.NewSet(
 //
 // The stream owns the proxy's lifecycle: it is shut down in Stream.Close
 // after all of the stream's work is processed.
-func streamOTelProxy(s *settings.Settings) analytics.OpenTelemetryProxy {
+func streamOTelProxy(s *settings.Settings) *analytics.OpenTelemetryProxy {
 	return analytics.NewOpenTelemetryProxy(context.Background(), s)
 }
 
@@ -77,7 +77,7 @@ func streamSentryContext(s *settings.Settings) *observability.SentryContext {
 func streamLogger(
 	loggerFile streamLoggerFile,
 	sentryCtx *observability.SentryContext,
-	telemetryProxy analytics.OpenTelemetryProxy,
+	telemetryProxy *analytics.OpenTelemetryProxy,
 	s *settings.Settings,
 	logLevel slog.Level,
 ) *observability.CoreLogger {
@@ -98,6 +98,11 @@ func streamLogger(
 		sentryOnlyTags["sweep_url"] = s.GetSweepURL()
 	}
 
+	telemetryRecorder := analytics.NewTelemetryRecorder(
+		telemetryProxy,
+		analytics.NewTelemetryContext(),
+	)
+
 	logger := observability.NewCoreLogger(
 		slog.New(slog.NewJSONHandler(
 			writer,
@@ -107,7 +112,7 @@ func streamLogger(
 			},
 		)),
 		sentryCtx,
-		telemetryProxy,
+		telemetryRecorder,
 	).With(nil, sentryOnlyTags)
 
 	logger.CaptureInfo("wandb-core")
