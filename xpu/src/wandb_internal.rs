@@ -2965,6 +2965,8 @@ pub enum ServerFeature {
     QueryAutomationsOnEntity = 32,
     /// Indicates that the server supports Organization.triggers.
     AutomationsOnOrganization = 33,
+    /// Indicates that the server supports queries for an artifact's digest algorithm.
+    ArtifactDigestAlgorithm = 34,
 }
 impl ServerFeature {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -3031,6 +3033,7 @@ impl ServerFeature {
             Self::AutomationScopeEntity => "AUTOMATION_SCOPE_ENTITY",
             Self::QueryAutomationsOnEntity => "QUERY_AUTOMATIONS_ON_ENTITY",
             Self::AutomationsOnOrganization => "AUTOMATIONS_ON_ORGANIZATION",
+            Self::ArtifactDigestAlgorithm => "ARTIFACT_DIGEST_ALGORITHM",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -3102,6 +3105,7 @@ impl ServerFeature {
             "AUTOMATION_SCOPE_ENTITY" => Some(Self::AutomationScopeEntity),
             "QUERY_AUTOMATIONS_ON_ENTITY" => Some(Self::QueryAutomationsOnEntity),
             "AUTOMATIONS_ON_ORGANIZATION" => Some(Self::AutomationsOnOrganization),
+            "ARTIFACT_DIGEST_ALGORITHM" => Some(Self::ArtifactDigestAlgorithm),
             _ => None,
         }
     }
