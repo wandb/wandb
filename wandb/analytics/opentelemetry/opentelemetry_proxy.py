@@ -7,9 +7,9 @@ import os
 import platform
 import threading
 import traceback
-from abc import ABC, abstractmethod
 from collections.abc import Callable
-from typing import Concatenate, ParamSpec, TypedDict, TypeVar
+from dataclasses import dataclass, fields
+from typing import Concatenate, ParamSpec, TypeVar
 
 import requests
 from opentelemetry._logs import Logger, NoOpLogger, SeverityNumber
@@ -42,21 +42,29 @@ _OTLP_HTTP_EXPORTER_LOGGERS = (
 _OTLP_HTTP_TIMEOUT_SECONDS = 1
 
 
-class LowCardinalityAttributes(TypedDict, total=False):
-    """Allow-list of low-cardinality attributes emitted as metric dimensions.
+@dataclass(frozen=True)
+class LowCardinalityAttributes:
+    """Bounded set of low-cardinality attributes emitted as metric dimensions.
 
     Each declared field corresponds to a tag whose value MUST come from a
-    small, bounded set.
+    small, bounded set. Restricting the attributes to this fixed set of fields
+    keeps the number of metric dimensions bounded.
+
+    Because the attributes are the declared fields, instances are valid by
+    construction; unset fields are simply omitted when converted via `as_dict`.
     """
 
-    python_runtime: str
-    wandb_version: str
-    python_version: str
+    python_runtime: str | None = None
+    wandb_version: str | None = None
+    python_version: str | None = None
 
-
-_ALLOWED_LOW_CARDINALITY_KEYS: frozenset[str] = frozenset(
-    LowCardinalityAttributes.__annotations__,
-)
+    def as_dict(self) -> dict[str, str]:
+        """Return the set (non-`None`) attributes as a string-keyed mapping."""
+        return {
+            field.name: value
+            for field in fields(self)
+            if (value := getattr(self, field.name)) is not None
+        }
 
 
 def _guard(
@@ -65,8 +73,9 @@ def _guard(
     """Gates `TelemetryRecorder` methods so they only run when it is safe to.
 
     A recorder is safe to use when:
+    - The recorder has a OTelProvider.
     - Telemetry is enabled.
-    - The recorder's root provider belongs to the current process.
+    - The recorder's OtelProvider belongs to the current process.
     """
 
     @functools.wraps(func)
@@ -76,7 +85,7 @@ def _guard(
         **kwargs: _P.kwargs,
     ) -> _R | None:
         root = self._root
-        if not root._enabled:
+        if not root:
             return None
 
         # If the root belongs to a different process (e.g. fork happened),
@@ -105,25 +114,37 @@ class TelemetryContext:
     left unchanged. Contexts are read back when records are emitted.
     """
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        low_cardinality_attributes: LowCardinalityAttributes | None = None,
+        high_cardinality_attributes: dict[str, str] | None = None,
+    ) -> None:
         from wandb import __version__
 
-        self.low_cardinality_attributes: dict[str, str] = {
-            "wandb_version": __version__,
-            "python_version": platform.python_version(),
-        }
-        self.high_cardinality_attributes: dict[str, str] = {}
+        low_cardinality_attributes = (
+            low_cardinality_attributes
+            or LowCardinalityAttributes(
+                python_runtime=platform.python_implementation(),
+                wandb_version=__version__,
+                python_version=platform.python_version(),
+            )
+        )
 
-    def copy(self) -> TelemetryContext:
-        """Return a shallow copy of this context with independent attributes.
-
-        The returned context has its own attribute dicts, so mutating them does
-        not affect this context.
-        """
-        clone = TelemetryContext()
-        clone.low_cardinality_attributes = dict(self.low_cardinality_attributes)
-        clone.high_cardinality_attributes = dict(self.high_cardinality_attributes)
-        return clone
+        # Fill in any attribute the caller did not provide with a value
+        # computed from the current process. Provided values take precedence.
+        self.low_cardinality_attributes = LowCardinalityAttributes(
+            python_runtime=(
+                low_cardinality_attributes.python_runtime
+                or platform.python_implementation()
+            ),
+            wandb_version=(low_cardinality_attributes.wandb_version or __version__),
+            python_version=(
+                low_cardinality_attributes.python_version or platform.python_version()
+            ),
+        )
+        self.high_cardinality_attributes: dict[str, str] = dict(
+            high_cardinality_attributes or {}
+        )
 
     def with_attributes(
         self,
@@ -138,20 +159,36 @@ class TelemetryContext:
         This context is not modified,
         so attributes added to the child never leak back onto the parent.
 
-        Only low-cardinality keys declared on `LowCardinalityAttributes` are
-        accepted; any other keys are silently dropped.
+        Only the fields declared on `LowCardinalityAttributes` can be supplied,
+        so the merged low-cardinality keys stay within the allowed set.
         """
-        child = self.copy()
+        new_low_cardinality_attributes = LowCardinalityAttributes(
+            python_runtime=(
+                low_cardinality_attributes.python_runtime
+                or self.low_cardinality_attributes.python_runtime
+            ),
+            wandb_version=(
+                low_cardinality_attributes.wandb_version
+                or self.low_cardinality_attributes.wandb_version
+            ),
+            python_version=(
+                low_cardinality_attributes.python_version
+                or self.low_cardinality_attributes.python_version
+            ),
+        )
 
-        for key, value in low_cardinality_attributes.items():
-            if key in _ALLOWED_LOW_CARDINALITY_KEYS and isinstance(value, str):
-                child.low_cardinality_attributes[key] = value
-        child.high_cardinality_attributes.update(high_cardinality_attributes)
+        new_high_cardinality_attributes = {
+            **self.high_cardinality_attributes,
+            **high_cardinality_attributes,
+        }
 
-        return child
+        return TelemetryContext(
+            low_cardinality_attributes=new_low_cardinality_attributes,
+            high_cardinality_attributes=new_high_cardinality_attributes,
+        )
 
 
-class TelemetryRecorder(ABC):
+class TelemetryRecorder:
     """Records OpenTelemetry events (metrics and logs).
 
     Recorders form a hierarchy: `with_context` derives a child recorder with
@@ -161,10 +198,13 @@ class TelemetryRecorder(ABC):
 
     _context: TelemetryContext
 
-    @property
-    @abstractmethod
-    def _root(self) -> OtelProvider:
-        """The root provider that owns the OpenTelemetry providers."""
+    def __init__(
+        self,
+        root: OtelProvider | None,
+        context: TelemetryContext | None = None,
+    ) -> None:
+        self._root = root
+        self._context = context or TelemetryContext()
 
     def with_context(
         self,
@@ -179,37 +219,32 @@ class TelemetryRecorder(ABC):
         added to the derived recorder never appear on records emitted through
         this recorder or its siblings.
         """
-        return _ChildRecorder(
+        return TelemetryRecorder(
             self._root,
             self._context.with_attributes(
-                low_cardinality_attributes or {},
+                low_cardinality_attributes or LowCardinalityAttributes(),
                 high_cardinality_attributes or {},
             ),
         )
 
     @_guard
-    def _increment_counter(
+    def increment_counter_and_log_event(
         self,
         name: str,
+        attributes: dict[str, str] | None = None,
     ) -> None:
-        """Increment a counter metric with the given name by 1.
+        """Increment a counter metric by 1 and log an event with the given name."""
+        if not self._root:
+            return
 
-        Only low-cardinality attributes from the current context are
-        included in the metric record.
-        """
-        root = self._root
-
-        low_cardinality_attributes = dict(self._context.low_cardinality_attributes)
-
-        counter = root._counters.get(name)
-        if counter is None:
-            with root._counters_lock:
-                counter = root._counters.get(name)
-                if counter is None:
-                    counter = root._meter.create_counter(name, unit="Count")
-                    root._counters[name] = counter
-
-        counter.add(1, attributes=low_cardinality_attributes)
+        self._root.increment_counter(
+            name,
+            self._context.low_cardinality_attributes,
+        )
+        self.log(
+            message=name,
+            attributes=attributes,
+        )
 
     @_guard
     def log(
@@ -223,31 +258,15 @@ class TelemetryRecorder(ABC):
         The log record contains the attributes from the current context,
         in addition to the attributes passed when this method is called.
         """
-        root = self._root
+        if not self._root:
+            return
 
         merged_attributes = {
-            **self._context.low_cardinality_attributes,
+            **self._context.low_cardinality_attributes.as_dict(),
             **self._context.high_cardinality_attributes,
             **(attributes or {}),
         }
-        root._logger.emit(
-            body=message,
-            severity_number=severity,
-            attributes=merged_attributes,
-        )
-
-    @_guard
-    def increment_counter_and_log_event(
-        self,
-        name: str,
-        attributes: dict[str, str] | None = None,
-    ) -> None:
-        """Increment a counter metric by 1 and log an event with the given name."""
-        self._increment_counter(name)
-        self.log(
-            message=name,
-            attributes=attributes,
-        )
+        self._root.log(message, merged_attributes, severity)
 
     @_guard
     def exception(
@@ -270,14 +289,18 @@ class TelemetryRecorder(ABC):
             message: The body for the log record.
             exc: The exception the occurred.
         """
-        self._increment_counter(
+        if not self._root:
+            return
+
+        self._root.increment_counter(
             name="exception",
+            low_cardinality_attributes=self._context.low_cardinality_attributes,
         )
 
         exception_attributes = {
             "exception.type": type(exc).__name__,
             "exception.stacktrace": _exception_stacktrace(exc),
-            **self._context.low_cardinality_attributes,
+            **self._context.low_cardinality_attributes.as_dict(),
             **self._context.high_cardinality_attributes,
         }
         self.log(
@@ -293,7 +316,7 @@ class TelemetryRecorder(ABC):
         raise exc
 
 
-class OtelProvider(TelemetryRecorder):
+class OtelProvider:
     """The root `TelemetryRecorder`, which owns the OpenTelemetry providers.
 
     The root is responsible for initializing and shutting down the underlying
@@ -311,7 +334,6 @@ class OtelProvider(TelemetryRecorder):
         self._enabled = bool(env.error_reporting_enabled())
         self._pid = pid or os.getpid()
         self._api_key = api_key
-        self._context = TelemetryContext()
         self._session: requests.Session = requests.Session()
 
         # Counters should be created only once per name,
@@ -325,10 +347,6 @@ class OtelProvider(TelemetryRecorder):
         self._logger_provider: LoggerProvider | None = None
         self._shutdown = False
         self._initialize_otel_resources(endpoint, api_key)
-
-    @property
-    def _root(self) -> OtelProvider:
-        return self
 
     def _initialize_otel_resources(
         self,
@@ -392,6 +410,42 @@ class OtelProvider(TelemetryRecorder):
 
         return True
 
+    def increment_counter(
+        self,
+        name: str,
+        low_cardinality_attributes: LowCardinalityAttributes,
+    ) -> None:
+        """Increment a counter metric with the given name by 1.
+
+        The provided low-cardinality attributes are included as attributes
+        on the metric record.
+        """
+        counter = self._counters.get(name)
+        if counter is None:
+            with self._counters_lock:
+                counter = self._counters.get(name)
+                if counter is None:
+                    counter = self._meter.create_counter(name, unit="Count")
+                    self._counters[name] = counter
+
+        counter.add(1, attributes=low_cardinality_attributes.as_dict())
+
+    def log(
+        self,
+        message: str,
+        attributes: dict[str, str],
+        severity: SeverityNumber = SeverityNumber.INFO,
+    ) -> None:
+        """Emit an OpenTelemetry log record with the specified severity level.
+
+        The provided attributes are included on the log record.
+        """
+        self._logger.emit(
+            body=message,
+            severity_number=severity,
+            attributes=attributes,
+        )
+
     def shutdown(self, timeout_millis: float = 30_000) -> None:
         """Flush pending records and shut down the OpenTelemetry providers.
 
@@ -415,37 +469,6 @@ class OtelProvider(TelemetryRecorder):
                 self._logger_provider.shutdown()
 
 
-class NoOpOtelProvider(OtelProvider):
-    """A no-op `OtelProvider` that does nothing."""
-
-    def __init__(self) -> None:
-        self._enabled = False
-        self._pid = os.getpid()
-        self._context = TelemetryContext()
-        self._meter = NoOpMeter("wandb.sdk")
-        self._logger = NoOpLogger("wandb.sdk")
-
-    def shutdown(self, timeout_millis: float = 0) -> None:
-        pass
-
-
-class _ChildRecorder(TelemetryRecorder):
-    """A derived recorder that shares its root provider's OpenTelemetry state.
-
-    Created via `TelemetryRecorder.with_context`. A child carries its own
-    derived telemetry context but does not own any OpenTelemetry providers, so
-    it cannot be shut down; only the root `OtelProvider` can.
-    """
-
-    def __init__(self, root: OtelProvider, context: TelemetryContext) -> None:
-        self._root_provider = root
-        self._context = context
-
-    @property
-    def _root(self) -> OtelProvider:
-        return self._root_provider
-
-
 _singleton: OtelProvider | None = None
 _singleton_lock = threading.Lock()
 
@@ -453,7 +476,7 @@ _singleton_lock = threading.Lock()
 def setup_otel(
     *,
     api_key: str,
-) -> OtelProvider:
+) -> OtelProvider | None:
     global _singleton
     pid = os.getpid()
     with _singleton_lock:
@@ -461,7 +484,7 @@ def setup_otel(
             return _singleton
 
         if not api_key:
-            return NoOpOtelProvider()
+            return None
 
         _singleton = OtelProvider(
             api_key=api_key,
@@ -470,7 +493,7 @@ def setup_otel(
         return _singleton
 
 
-def get_otel() -> OtelProvider:
+def get_otel() -> OtelProvider | None:
     """Returns the global singleton `OtelProvider` instance.
 
     This should be called after `setup_otel` has been called.
@@ -484,7 +507,7 @@ def get_otel() -> OtelProvider:
                 "OtelProvider not setup in this process,"
                 + " no telemetry will be recorded."
             )
-            return NoOpOtelProvider()
+            return None
         return _singleton
 
 
