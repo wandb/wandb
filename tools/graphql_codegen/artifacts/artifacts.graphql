@@ -79,6 +79,22 @@ fragment ArtifactMembershipFragment on ArtifactCollectionMembership {
   }
 }
 
+fragment ArtifactMembershipWithDigestAlgorithmFragment on ArtifactCollectionMembership {
+  __typename
+  id
+  versionIndex
+  aliases {
+    ...ArtifactAliasFragment
+  }
+  artifactCollection {
+    ...CollectionInfoFragment
+  }
+  artifact {
+    digestAlgorithm @include(if: true)
+    ...ArtifactFragment
+  }
+}
+
 query ProjectArtifacts(
   $entity: String!
   $project: String!
@@ -193,6 +209,7 @@ query FetchArtifactManifest($id: ID!) {
 
 query ArtifactByID($id: ID!, $includeAliases: Boolean = true) {
   artifact(id: $id) {
+    digestAlgorithm @include(if: true)
     ...ArtifactFragment
   }
 }
@@ -205,7 +222,7 @@ query ArtifactMembershipByName(
 ) {
   project(name: $project, entityName: $entity) {
     artifactCollectionMembership(name: $name) {
-      ...ArtifactMembershipFragment
+      ...ArtifactMembershipWithDigestAlgorithmFragment
     }
   }
 }

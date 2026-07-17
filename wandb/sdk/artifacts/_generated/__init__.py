@@ -120,6 +120,7 @@ __all__ = [
     "ArtifactCollectionFragment",
     "ArtifactFragment",
     "ArtifactMembershipFragment",
+    "ArtifactMembershipWithDigestAlgorithmFragment",
     "ArtifactPortfolioTypeFields",
     "ArtifactSequenceTypeFields",
     "ArtifactTypeFragment",
@@ -142,6 +143,7 @@ __all__ = [
     "UserRegistryMemberFragment",
     "ArtifactCollectionState",
     "ArtifactCollectionType",
+    "ArtifactDigestAlgorithm",
     "ArtifactState",
 ]
 from .add_aliases import AddAliases
@@ -162,7 +164,12 @@ from .delete_artifact_portfolio import DeleteArtifactPortfolio
 from .delete_artifact_sequence import DeleteArtifactSequence
 from .delete_registry import DeleteRegistry
 from .delete_registry_members import DeleteRegistryMembers
-from .enums import ArtifactCollectionState, ArtifactCollectionType, ArtifactState
+from .enums import (
+    ArtifactCollectionState,
+    ArtifactCollectionType,
+    ArtifactDigestAlgorithm,
+    ArtifactState,
+)
 from .fetch_artifact_manifest import FetchArtifactManifest
 from .fetch_linked_artifacts import FetchLinkedArtifacts
 from .fetch_org_info_from_entity import FetchOrgInfoFromEntity
@@ -174,6 +181,7 @@ from .fragments import (
     ArtifactCollectionFragment,
     ArtifactFragment,
     ArtifactMembershipFragment,
+    ArtifactMembershipWithDigestAlgorithmFragment,
     ArtifactPortfolioTypeFields,
     ArtifactSequenceTypeFields,
     ArtifactTypeFragment,

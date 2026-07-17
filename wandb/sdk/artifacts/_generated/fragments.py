@@ -9,7 +9,7 @@ from pydantic import Field
 
 from wandb._pydantic import GQLId, GQLResult, Typename
 
-from .enums import ArtifactState
+from .enums import ArtifactDigestAlgorithm, ArtifactState
 
 
 class ArtifactAliasFragment(GQLResult):
@@ -112,6 +112,25 @@ class ArtifactMembershipFragment(GQLResult):
         alias="artifactCollection"
     )
     artifact: ArtifactFragment | None
+
+
+class ArtifactMembershipWithDigestAlgorithmFragment(GQLResult):
+    typename__: Typename[Literal["ArtifactCollectionMembership"]] = (
+        "ArtifactCollectionMembership"
+    )
+    id: GQLId
+    version_index: int | None = Field(alias="versionIndex")
+    aliases: list[ArtifactAliasFragment]
+    artifact_collection: CollectionInfoFragment | None = Field(
+        alias="artifactCollection"
+    )
+    artifact: ArtifactMembershipWithDigestAlgorithmFragmentArtifact | None
+
+
+class ArtifactMembershipWithDigestAlgorithmFragmentArtifact(ArtifactFragment):
+    digest_algorithm: ArtifactDigestAlgorithm | None = Field(
+        alias="digestAlgorithm", default=None
+    )
 
 
 class ArtifactPortfolioTypeFields(GQLResult):
@@ -298,6 +317,7 @@ CollectionInfoFragment.model_rebuild()
 SourceCollectionInfoFragment.model_rebuild()
 ArtifactFragment.model_rebuild()
 ArtifactMembershipFragment.model_rebuild()
+ArtifactMembershipWithDigestAlgorithmFragment.model_rebuild()
 ArtifactPortfolioTypeFields.model_rebuild()
 ArtifactSequenceTypeFields.model_rebuild()
 ArtifactTypeFragment.model_rebuild()

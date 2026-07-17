@@ -15,6 +15,7 @@ from pytest import MonkeyPatch, mark, raises
 from pytest_mock import MockerFixture
 from wandb import Api, Artifact
 from wandb.errors import CommError
+from wandb.sdk.artifacts._generated.enums import ArtifactDigestAlgorithm
 from wandb.sdk.artifacts._internal_artifact import InternalArtifact
 from wandb.sdk.artifacts._validators import NAME_MAXLEN, RESERVED_ARTIFACT_TYPE_PREFIX
 from wandb.sdk.artifacts.artifact_file_cache import get_artifact_file_cache
@@ -720,6 +721,23 @@ def test_new_draft(api: Api):
     file_path = child.download()
     assert os.path.exists(os.path.join(file_path, "boom.txt"))
     assert os.path.exists(os.path.join(file_path, "bang.txt"))
+
+
+def test_draft_inherits_digest_algorithm(api: Api):
+    art = Artifact("test-artifact", "test-type")
+    # Simulate a committed artifact with MD5 entries
+    art._digest_algorithm = ArtifactDigestAlgorithm.MANIFEST_MD5
+    with art.new_file("file.txt", "w") as f:
+        f.write("hello")
+
+    project = "test"
+    with wandb.init(project=project) as run:
+        run.log_artifact(art, aliases=["a"])
+        run.link_artifact(art, f"{project}/my-sample-portfolio")
+
+    parent = api.artifact(f"{project}/my-sample-portfolio:latest")
+    draft = parent.new_draft()
+    assert draft.digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_MD5
 
 
 def test_get_artifact_collection(logged_artifact: Artifact):

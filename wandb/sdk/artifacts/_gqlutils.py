@@ -11,9 +11,20 @@ from wandb.sdk.internal._generated import SERVER_FEATURES_QUERY_GQL, ServerFeatu
 
 if TYPE_CHECKING:
     from wandb.apis.public.service_api import ServiceApi
+    from wandb.sdk.artifacts._generated.enums import ArtifactDigestAlgorithm
     from wandb.sdk.artifacts._generated.fetch_org_info_from_entity import (
         FetchOrgInfoFromEntityEntity,
     )
+    from wandb.sdk.artifacts._generated.fragments import ArtifactFragment
+
+
+def digest_algorithm_from_gql(src_art: ArtifactFragment) -> ArtifactDigestAlgorithm:
+    """Return digest algorithm when present on the GQL model, else default to MD5."""
+    from ._generated.enums import ArtifactDigestAlgorithm
+
+    if value := getattr(src_art, "digest_algorithm", None):
+        return ArtifactDigestAlgorithm(value)
+    return ArtifactDigestAlgorithm.MANIFEST_MD5
 
 
 @lru_cache(maxsize=16)
