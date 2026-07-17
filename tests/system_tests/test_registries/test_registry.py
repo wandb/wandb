@@ -598,7 +598,9 @@ def test_registries_collections_respects_registry_and_collection_order(
 ):
     with wandb.init(entity=team) as run:
         artifacts = [
-            run.log_artifact(Artifact(f"order-test-coll-artifact-{i}", type="test-type"))
+            run.log_artifact(
+                Artifact(f"order-test-coll-artifact-{i}", type="test-type")
+            )
             for i in range(4)
         ]
 
