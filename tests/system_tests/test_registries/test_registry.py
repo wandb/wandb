@@ -590,6 +590,65 @@ def test_registries_versions_respects_registry_and_collection_order(
     assert actual == expected
 
 
+def test_registries_collections_respects_registry_and_collection_order(
+    org: str,
+    team: str,
+    api: Api,
+    make_registry: Callable[..., Registry],
+):
+    with wandb.init(entity=team) as run:
+        artifacts = [
+            run.log_artifact(Artifact(f"order-test-coll-artifact-{i}", type="test-type"))
+            for i in range(4)
+        ]
+
+    for registry_idx in range(2):
+        registry = make_registry(
+            organization=org,
+            name=f"order-test-coll-dual-{registry_idx}",
+            visibility="organization",
+        )
+        for collection_idx in range(2):
+            artifact_idx = registry_idx * 2 + collection_idx
+            artifacts[artifact_idx].link(
+                f"{org}/{registry.full_name}/reg-collection-{collection_idx}"
+            )
+
+    registries_filter = {"name": {"$contains": "order-test-coll-dual-"}}
+
+    expected = [
+        (f"order-test-coll-dual-{registry_idx}", f"reg-collection-{collection_idx}")
+        for registry_idx, collection_idx in product(range(2), range(2))
+    ]
+
+    # With registry order: collections follow registry order, then collection order.
+    registries_ordered = api.registries(
+        organization=org,
+        filter=registries_filter,
+        order="name",
+    )
+    actual = [
+        (remove_registry_prefix(c.project), c.name)
+        for c in registries_ordered.collections(order="name")
+    ]
+    assert actual == expected
+
+    # Without registry order: a single collections query; only collection order applies.
+    registries_unordered = api.registries(organization=org, filter=registries_filter)
+
+    collections = [
+        (remove_registry_prefix(c.project), c.name)
+        for c in registries_unordered.collections(order="name")
+    ]
+    assert [name for _, name in collections] == [
+        "reg-collection-0",
+        "reg-collection-0",
+        "reg-collection-1",
+        "reg-collection-1",
+    ]
+    assert sorted(collections) == sorted(expected)
+
+
 def test_registries_ordered_pagination_across_pages(
     org: str,
     team: str,
