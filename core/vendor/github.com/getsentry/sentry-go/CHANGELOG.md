@@ -1,5 +1,64 @@
 # Changelog
 
+## 0.48.0
+
+### Breaking Changes 🛠
+
+- Remove issue creation from logging integrations by @giortzisg in [#1340](https://github.com/getsentry/sentry-go/pull/1340)
+
+### New Features ✨
+
+- Add `ClientOptions.DataCollection` for granular control over data collected by automatic instrumentation, replacing the broad `SendDefaultPII` switch. `DataCollection` can independently configure automatic `user.*` population, cookies, request/response headers, HTTP bodies, and query parameters. When configured, it is the source of truth and `SendDefaultPII` is ignored. by @giortzisg in [#1339](https://github.com/getsentry/sentry-go/pull/1339)
+  - For backwards compatibility, clients that do not configure `DataCollection` keep a best-effort mapping of the previous `SendDefaultPII` behavior. To opt in to the new defaults, pass an empty `DataCollection` and then restrict individual categories as needed.
+  ```go
+  sentry.Init(sentry.ClientOptions{
+      Dsn: "https://public@example.com/1",
+  
+      // Opt in to the new data collection defaults. Omitted fields use their
+      // defaults: user info, cookies, headers, query params, and supported HTTP
+      // bodies are collected, with sensitive values filtered.
+      DataCollection: &sentry.DataCollection{},
+  })
+  ```
+  - To opt in while disabling automatic user info and HTTP bodies, configure those fields explicitly:
+  ```go
+  sentry.Init(sentry.ClientOptions{
+      Dsn: "https://public@example.com/1",
+      DataCollection: &sentry.DataCollection{
+          UserInfo:   sentry.Set(false),
+          HTTPBodies: []sentry.BodyType{},
+      },
+  })
+  ```
+- PushScope shorthand now returns the new scope reference by @DoctorJohn in [#1335](https://github.com/getsentry/sentry-go/pull/1335)
+
+### Bug Fixes 🐛
+
+- Fix fiber route name when using middlewares by @giortzisg in [#1363](https://github.com/getsentry/sentry-go/pull/1363)
+- Omit empty event id for standalone client reports by @giortzisg in [#1362](https://github.com/getsentry/sentry-go/pull/1362)
+- Preserve '%' literal in log messages by @giortzisg in [#1358](https://github.com/getsentry/sentry-go/pull/1358)
+- Unaligned 64-bit atomic panic on 32-bit platforms in telemetry buffers by @Kirill-INQ in [#1355](https://github.com/getsentry/sentry-go/pull/1355)
+- Isolate event processor across clones by @giortzisg in [#1337](https://github.com/getsentry/sentry-go/pull/1337)
+
+### Internal Changes 🔧
+
+#### Deps
+
+- Bump fiber/v2 to 2.52.14 by @giortzisg in [#1359](https://github.com/getsentry/sentry-go/pull/1359)
+- Bump actions/checkout from 6.0.3 to 7.0.0 by @dependabot in [#1349](https://github.com/getsentry/sentry-go/pull/1349)
+- Bump golangci/golangci-lint-action from 9.2.1 to 9.3.0 by @dependabot in [#1346](https://github.com/getsentry/sentry-go/pull/1346)
+- Bump codecov/codecov-action from 6.0.0 to 7.0.0 by @dependabot in [#1347](https://github.com/getsentry/sentry-go/pull/1347)
+- Bump actions/setup-go from 6.4.0 to 6.5.0 by @dependabot in [#1343](https://github.com/getsentry/sentry-go/pull/1343)
+- Bump golang.org/x/crypto to 0.52.0 and golang/x/net to 0.55.0 by @giortzisg in [#1341](https://github.com/getsentry/sentry-go/pull/1341)
+- Bump getsentry/github-workflows/validate-pr from c802283cd9075b7a2b7a32655019c21c21676e34 to 4013fc6e1aeb1be1f9d3b4d232624f0ec1afa613 by @dependabot in [#1344](https://github.com/getsentry/sentry-go/pull/1344)
+
+#### Other
+
+- Remove changelog-preview and codecov actions by @giortzisg in [#1357](https://github.com/getsentry/sentry-go/pull/1357)
+- Add govulncheck audit action by @giortzisg in [#1342](https://github.com/getsentry/sentry-go/pull/1342)
+- Limit changelog-preview secret access by @giortzisg in [#1350](https://github.com/getsentry/sentry-go/pull/1350)
+- Move limited buffer under utils by @giortzisg in [#1338](https://github.com/getsentry/sentry-go/pull/1338)
+
 ## 0.47.0
 
 ### Breaking Changes 🛠

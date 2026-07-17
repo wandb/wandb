@@ -8,13 +8,13 @@ default_stages:
 default_install_hook_types: [pre-push, pre-commit]
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: "v0.15.12"
+    rev: "v0.15.22"
     hooks:
       - id: ruff-check
         args: [--fix]
       - id: ruff-format
   - repo: https://github.com/astral-sh/ty-pre-commit
-    rev: "v0.0.56"
+    rev: "v0.0.60"
     hooks:
       # Type-check with ty on every commit.
       # ty's coverage and rule config live in [tool.ty] in pyproject.toml.
@@ -22,7 +22,7 @@ repos:
         args: ["--isolated"] # --isolated stops `uv check` from writing a uv.lock.
         stages: [pre-commit]
   - repo: https://github.com/pre-commit/mirrors-clang-format
-    rev: v22.1.5
+    rev: v22.1.8
     hooks:
       - id: clang-format
         types_or: [proto]
@@ -50,7 +50,7 @@ repos:
         exclude: ^(wandb/|tests/|landfill/)
 
   - repo: https://github.com/golangci/golangci-lint
-    rev: v2.10.1
+    rev: v2.12.2
     hooks:
       - id: golangci-lint
         entry: bash -c 'cd core && golangci-lint run'
