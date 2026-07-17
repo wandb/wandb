@@ -7,15 +7,15 @@ import re
 import shutil
 import sys
 import traceback
+import urllib.parse
+import urllib.request
 from base64 import b64encode
 from typing import Any
 
 import IPython
 import IPython.display
-import requests
 from IPython.core.magic import Magics, line_cell_magic, magics_class
 from IPython.core.magic_arguments import argument, magic_arguments, parse_argstring
-from requests.compat import urljoin
 
 import wandb
 import wandb.util
@@ -194,9 +194,10 @@ def notebook_metadata_from_jupyter_servers_and_kernel_id():
     for s in servers:
         if s.get("password"):
             raise ValueError("Can't query password protected kernel")
-        res = requests.get(
-            urljoin(s["url"], "api/sessions"), params={"token": s.get("token", "")}
-        ).json()
+        query = urllib.parse.urlencode({"token": s.get("token", "")})
+        url = urllib.parse.urljoin(s["url"], "api/sessions") + "?" + query
+        with urllib.request.urlopen(url, timeout=5) as response:
+            res = json.load(response)
         for nn in res:
             if (
                 isinstance(nn, dict)

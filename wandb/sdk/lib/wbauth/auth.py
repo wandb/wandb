@@ -3,10 +3,22 @@ from __future__ import annotations
 import abc
 import dataclasses
 import pathlib
+from typing import TYPE_CHECKING
 
-import requests
-import requests.auth
 from typing_extensions import final, override
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    import requests
+    import requests.auth
+
+    # Everything the requests library accepts for `auth=`: an AuthBase
+    # subclass or any callable that mutates and returns the request.
+    RequestsAuth = (
+        requests.auth.AuthBase
+        | Callable[[requests.PreparedRequest], requests.PreparedRequest]
+    )
 
 from wandb.errors import AuthenticationError
 from wandb.sdk.lib import credentials
@@ -35,19 +47,17 @@ class Auth(abc.ABC):
         return self._host
 
     @abc.abstractmethod
-    def as_requests_auth(self) -> requests.auth.AuthBase:
+    def as_requests_auth(self) -> RequestsAuth:
         """Return a requests-compatible auth handler for this credential.
 
-        Returns a callable that implements the requests library's AuthBase
-        interface. This can be passed directly to requests.Session.auth for
-        automatic authentication on each request.
+        Returns a callable that can be passed directly to
+        requests.Session.auth for automatic authentication on each request.
 
         For token-based auth (e.g., identity tokens), the returned handler
         will automatically refresh expired tokens on each request.
 
         Returns:
-            A requests.auth.AuthBase instance that applies this credential
-            to HTTP requests.
+            An auth handler that applies this credential to HTTP requests.
         """
 
     @final
@@ -98,11 +108,18 @@ class AuthApiKey(Auth):
             Basic auth using "api" as the username and the API key
             as the password.
         """
+        import requests.auth
+
         return requests.auth.HTTPBasicAuth("api", self._api_key)
 
 
-class _IdentityTokenAuth(requests.auth.AuthBase):
-    """Requests auth handler for identity token (JWT) authentication."""
+class _IdentityTokenAuth:
+    """Requests auth handler for identity token (JWT) authentication.
+
+    A plain callable rather than a requests.auth.AuthBase subclass (requests
+    accepts any callable as auth) so that importing this module doesn't
+    import requests.
+    """
 
     def __init__(self, auth: AuthIdentityTokenFile) -> None:
         self._auth = auth
@@ -168,7 +185,7 @@ class AuthIdentityTokenFile(Auth):
         return credentials.access_token(base_url, self.path, self.credentials_path)
 
     @override
-    def as_requests_auth(self) -> requests.auth.AuthBase:
+    def as_requests_auth(self) -> RequestsAuth:
         """Return a requests auth handler using Bearer token authentication.
 
         The returned handler calls fetch_access_token() on each request,

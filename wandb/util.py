@@ -1222,7 +1222,8 @@ def image_id_from_k8s() -> str | None:
     if not token:
         return None
 
-    import requests
+    import ssl
+    import urllib.request
 
     k8s_server = "https://{}:{}/api/v1/namespaces/{}/pods/{}".format(
         os.getenv("KUBERNETES_SERVICE_HOST"),
@@ -1231,18 +1232,20 @@ def image_id_from_k8s() -> str | None:
         os.getenv("HOSTNAME"),
     )
     try:
-        res = requests.get(
-            k8s_server,
-            verify="/var/run/secrets/kubernetes.io/serviceaccount/ca.crt",
-            timeout=3,
-            headers={"Authorization": f"Bearer {token}"},
+        context = ssl.create_default_context(
+            cafile="/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
         )
-        res.raise_for_status()
-    except requests.RequestException:
+        request = urllib.request.Request(
+            k8s_server, headers={"Authorization": f"Bearer {token}"}
+        )
+        with urllib.request.urlopen(request, timeout=3, context=context) as response:
+            body = response.read()
+    except OSError:
+        # urllib.error.URLError/HTTPError, TLS and socket errors are all OSError.
         return None
     try:
         return str(  # noqa: B005
-            res.json()["status"]["containerStatuses"][0]["imageID"]
+            json.loads(body)["status"]["containerStatuses"][0]["imageID"]
         ).strip("docker-pullable://")
     except (ValueError, KeyError, IndexError):
         logger.exception("Error checking kubernetes for image id")

@@ -11,7 +11,6 @@ from dataclasses import dataclass, field
 from queue import Full, Queue
 from typing import IO, TYPE_CHECKING, Any, Final, TypeAlias
 
-import requests
 from typing_extensions import TypeIs, final
 
 from wandb import env
@@ -151,6 +150,8 @@ def _download_chunk_with_refresh(
         start: Start byte offset (inclusive).
         end: End byte offset (inclusive), or None for end of file.
     """
+    import requests
+
     if ctx.cancel.is_set():
         return
 

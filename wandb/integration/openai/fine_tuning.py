@@ -10,7 +10,7 @@ import tempfile
 import time
 from typing import Any
 
-from packaging.version import parse
+from wandb.sdk.lib._packaging_version import parse
 
 import wandb
 from wandb import util

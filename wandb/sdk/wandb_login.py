@@ -288,8 +288,6 @@ def _find_or_prompt_for_key(
 
 
 def _verify_login(key: str, base_url: str) -> None:
-    from requests.exceptions import ConnectionError
-
     api = InternalApi(
         api_key=key,
         default_settings={"base_url": base_url},
@@ -297,10 +295,6 @@ def _verify_login(key: str, base_url: str) -> None:
 
     try:
         is_api_key_valid = api.validate_api_key()
-    except ConnectionError as e:
-        raise AuthenticationError(
-            f"Unable to connect to {base_url} to verify API token."
-        ) from e
     except Exception as e:
         raise AuthenticationError(
             "An error occurred while verifying the API key."

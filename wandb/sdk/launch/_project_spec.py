@@ -9,6 +9,7 @@ import enum
 import json
 import logging
 import os
+import re
 import shlex
 import shutil
 import tempfile
@@ -532,7 +533,12 @@ class LaunchProject:
         return env_vars
 
     def parse_existing_requirements(self) -> str:
-        from packaging.requirements import InvalidRequirement, Requirement
+        # Leading PEP 508 project name followed by a valid continuation
+        # (end of line, extras, specifier, marker or URL) — mirrors what
+        # packaging.requirements.Requirement accepts, without the dependency.
+        requirement_name_re = re.compile(
+            r"([A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)\s*(?:$|[\[(=<>!~;@])"
+        )
 
         requirements_line = ""
         assert self.project_dir is not None
@@ -544,15 +550,13 @@ class LaunchProject:
                     if line.strip() == "":
                         continue
 
-                    try:
-                        req = Requirement(line)
-                        name = req.name.lower()
-                        include_only.add(shlex.quote(name))
-                    except InvalidRequirement:
+                    match = requirement_name_re.match(line.strip())
+                    if match:
+                        include_only.add(shlex.quote(match.group(1).lower()))
+                    else:
                         _logger.warning(
                             "Unable to parse line %s in requirements.txt",
                             line,
-                            exc_info=True,
                         )
                         continue
 

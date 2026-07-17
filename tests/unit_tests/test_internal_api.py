@@ -5,14 +5,13 @@ import hashlib
 import os
 import pathlib
 import tempfile
-from collections.abc import Callable, Mapping
+from collections.abc import Mapping
 from itertools import chain
 from pathlib import Path
 from typing import TypeVar
 from unittest.mock import Mock, patch
 
 import pytest
-import requests
 import wandb.errors
 import wandb.sdk.internal.internal_api
 import wandb.sdk.internal.progress
@@ -27,7 +26,6 @@ from wandb.sdk.internal.internal_api import (
     _OrgNames,
 )
 from wandb.sdk.launch.sweeps import SweepNotFoundError
-from wandb.sdk.lib import retry
 from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 
 from .test_retry import MockTime, mock_time  # noqa: F401
@@ -476,63 +474,27 @@ class TestUploadFile:
             with pytest.raises(WandbApiFailedError):
                 api.upload_file("http://example.com/upload-dst", file)
 
-    class TestAzure:
-        MAGIC_HEADERS = {"x-ms-blob-type": "SomeBlobType"}
+    def test_routes_azure_uploads_through_core(self, example_file: Path):
+        """Azure uploads are also sent to wandb-core as an UploadFileRequest.
 
-        def test_uses_azure_lib_if_available(self, example_file: Path):
-            api = internal.InternalApi()
-            api._azure_blob_module = Mock()
+        wandb-core dispatches uploads with an `x-ms-blob-type` header to its
+        Azure-specific uploader, so the header must be forwarded verbatim.
+        """
+        api = internal.InternalApi()
+        api._service_api.send_api_request = Mock()
 
-            api.upload_file(
+        with example_file.open("rb") as file:
+            result = api.upload_file(
                 "http://example.com/upload-dst",
-                example_file.open("rb"),
-                extra_headers=self.MAGIC_HEADERS,
+                file,
+                extra_headers={"x-ms-blob-type": "SomeBlobType"},
             )
 
-            api._azure_blob_module.BlobClient.from_blob_url().upload_blob.assert_called_once()
-
-        @pytest.mark.parametrize(
-            "response,expected_errtype,check_err",
-            [
-                (
-                    (400, {}, "my-reason"),
-                    requests.RequestException,
-                    lambda e: e.response.status_code == 400 and "my-reason" in str(e),
-                ),
-                (
-                    (500, {}, "my-reason"),
-                    retry.TransientError,
-                    lambda e: (
-                        e.exception.response.status_code == 500
-                        and "my-reason" in str(e.exception)
-                    ),
-                ),
-                (
-                    requests.exceptions.ConnectionError("my-reason"),
-                    retry.TransientError,
-                    lambda e: "my-reason" in str(e.exception),
-                ),
-            ],
-        )
-        def test_translates_azure_err_to_normal_err(
-            self,
-            mock_responses: RequestsMock,
-            example_file: Path,
-            response: MockResponseOrException,
-            expected_errtype: type[Exception],
-            check_err: Callable[[Exception], bool],
-        ):
-            mock_responses.add_callback(
-                "PUT", "https://example.com/foo/bar/baz", Mock(return_value=response)
-            )
-            with pytest.raises(expected_errtype) as e:
-                internal.InternalApi().upload_file(
-                    "https://example.com/foo/bar/baz",
-                    example_file.open("rb"),
-                    extra_headers=self.MAGIC_HEADERS,
-                )
-
-            assert check_err(e.value), e.value
+        assert result is None
+        api._service_api.send_api_request.assert_called_once()
+        request = api._service_api.send_api_request.call_args[0][0]
+        upload = request.upload_file_request
+        assert upload.headers["x-ms-blob-type"] == "SomeBlobType"
 
 
 ENABLED_FEATURE_RESPONSE = {

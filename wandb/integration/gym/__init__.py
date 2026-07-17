@@ -40,7 +40,7 @@ def monitor():
         else:
             import gymnasium as gym  # type: ignore
 
-        from packaging.version import parse
+        from wandb.sdk.lib._packaging_version import parse
 
         gym_lib_version = parse(gym.__version__)
         _gym_version_lt_0_26 = gym_lib_version < parse("0.26.0")

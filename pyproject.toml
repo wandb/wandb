@@ -16,10 +16,8 @@ dependencies = [
     "sentry-sdk>=2.0.0",
     "protobuf>=5,!=5.28.0,!=5.29.0,<8",
     "PyYAML",
-    "platformdirs",
     "typing_extensions>=4.8,<5",
     "pydantic>=2.6,<3",
-    "packaging",
 ]
 classifiers = [
     "Development Status :: 5 - Production/Stable",

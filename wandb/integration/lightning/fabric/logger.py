@@ -6,7 +6,7 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
-from packaging import version
+from wandb.sdk.lib import _packaging_version as version
 from typing_extensions import override
 
 import wandb

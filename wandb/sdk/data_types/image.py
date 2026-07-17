@@ -9,7 +9,7 @@ from io import BytesIO
 from typing import TYPE_CHECKING, Any, TypeAlias, cast
 from urllib import parse
 
-from packaging.version import parse as parse_version
+from wandb.sdk.lib._packaging_version import parse as parse_version
 
 import wandb
 from wandb import util

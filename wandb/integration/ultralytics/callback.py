@@ -4,7 +4,7 @@ import copy
 from collections.abc import Callable
 from datetime import datetime
 
-from packaging import version
+from wandb.sdk.lib import _packaging_version as version
 
 try:
     import dill as pickle

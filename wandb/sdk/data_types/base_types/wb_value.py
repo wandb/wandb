@@ -39,7 +39,7 @@ def _is_maybe_offline() -> bool:
 
 
 def _server_accepts_client_ids() -> bool:
-    from packaging.version import parse
+    from wandb.sdk.lib._packaging_version import parse
 
     # There are versions of W&B Server that cannot accept client IDs. Those versions of
     # the backend have a max_cli_version of less than "0.11.0." If the backend cannot

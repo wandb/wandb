@@ -39,12 +39,15 @@ def test_check_secure_requests(capsys):
 
 
 def test_check_cors_configuration(capsys, monkeypatch):
-    with unittest.mock.patch("requests.options") as mock_options:
+    with unittest.mock.patch(
+        "wandb.sdk.verify.verify.urllib.request.urlopen"
+    ) as mock_urlopen:
         options_result = unittest.mock.Mock()
         options_result.headers.get.return_value = None
-        mock_options.return_value = options_result
+        mock_urlopen.return_value.__enter__ = lambda self: options_result
+        mock_urlopen.return_value.__exit__ = lambda self, *args: None
 
-        wandb_verify.check_cors_configuration("", "")
+        wandb_verify.check_cors_configuration("http://localhost/test", "")
 
         captured = capsys.readouterr().out
         assert "does not have a valid CORs configuration" in captured

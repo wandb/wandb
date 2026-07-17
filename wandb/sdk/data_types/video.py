@@ -45,7 +45,7 @@ def _should_print_spinner() -> bool:
 #
 # Except, we close the writer!
 def write_gif_with_image_io(clip: Any, filename: str, fps: int | None = None) -> None:
-    from packaging.version import parse
+    from wandb.sdk.lib._packaging_version import parse
 
     imageio = util.get_module(
         "imageio",
