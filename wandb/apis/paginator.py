@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import json
 from abc import ABC, abstractmethod
-from collections.abc import Iterable, Iterator, Mapping, Sized
+from collections.abc import Callable, Iterable, Iterator, Mapping, Sized
 from typing import TYPE_CHECKING, Any, ClassVar, Generic, TypeVar, overload
 
 import wandb
@@ -10,6 +11,8 @@ from wandb._strutils import nameof
 if TYPE_CHECKING:
     from wandb._pydantic import Connection
     from wandb.apis.public.service_api import ServiceApi
+
+_T = TypeVar("_T")
 
 _WandbT = TypeVar("_WandbT")
 """Generic type variable for a W&B object."""
@@ -77,11 +80,12 @@ class Paginator(Iterator[_WandbT], ABC):
         """Update the query variables for the next page fetch."""
         self.variables.update({"perPage": self.per_page, "cursor": self.cursor})
 
-    def _execute_query(self) -> Any:
+    def _execute_query(self, parse: Callable[[str], _T] = json.loads) -> _T:
         """Run self.QUERY with the paginator's compat options."""
         return self._service_api.execute_graphql(
             self.QUERY,
             variables=self.variables,
+            parse=parse,
             omit_variables=self._omit_variables,
             omit_fragments=self._omit_fragments,
             omit_fields=self._omit_fields,

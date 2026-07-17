@@ -615,6 +615,7 @@ def init(ctx, project, entity, reset, mode):
 )
 @click.option(
     "--include-online/--no-include-online",
+    "--no-skip-online/--skip-online",
     is_flag=True,
     default=None,
     help="Include runs created in online mode.",
@@ -627,6 +628,7 @@ def init(ctx, project, entity, reset, mode):
 )
 @click.option(
     "--include-synced/--no-include-synced",
+    "--no-skip-synced/--skip-synced",
     is_flag=True,
     default=None,
     help="Include runs that are already synced.",
@@ -2192,7 +2194,11 @@ def agent(ctx, project, entity, count, forward_signals, sweep_id):
         )
     # TODO: handle other errors with correct exit codes
     except SweepNotFoundError:
-        wandb.termerror("Sweep was deleted or agent was not found. Stopping agent.")
+        # The agent loop has already printed the "Sweep was deleted or agent was
+        # not found" error to the terminal before re-raising, so here we only
+        # need to report that we're stopping and translate it into a non-zero
+        # exit code.
+        wandb.termerror("Stopping agent.")
         sys.exit(1)
 
     # you can send local commands like so:

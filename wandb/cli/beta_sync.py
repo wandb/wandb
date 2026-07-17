@@ -73,24 +73,23 @@ def sync(
         paths = [pathlib.Path(singleton.settings.wandb_dir)]
         ask_for_confirmation = not skip_confirmation
 
-    wandb_files, skipped = _find_wandb_files(
+    wandb_files = _find_wandb_files(
         paths,
         skip_synced=skip_synced,
         skip_online=skip_online,
         verbose=verbose,
     )
-    skipped_str = f"({skipped} skipped)"
 
     if not wandb_files:
-        term.termlog(f"No runs to sync {skipped_str}.")
+        term.termlog("No runs to sync.")
         return
 
     if dry_run:
-        term.termlog(f"Would sync {len(wandb_files)} run(s) {skipped_str}:")
+        term.termlog(f"Would sync {len(wandb_files)} run(s):")
         _print_sorted_paths(wandb_files, verbose=verbose, root=cwd)
         return
 
-    term.termlog(f"Syncing {len(wandb_files)} run(s) {skipped_str}:")
+    term.termlog(f"Syncing {len(wandb_files)} run(s):")
     _print_sorted_paths(wandb_files, verbose=verbose, root=cwd)
 
     if ask_for_confirmation and not term.confirm("Sync the listed runs?"):
@@ -246,11 +245,13 @@ def _find_wandb_files(
     skip_synced: bool,
     skip_online: bool,
     verbose: bool,
-) -> tuple[set[pathlib.Path], int]:
+) -> set[pathlib.Path]:
     """Finds all unique .wandb files selected by the paths.
 
+    Prints whether any files were skipped.
+
     Returns:
-        The .wandb files to sync and the number of files that were filtered out.
+        The .wandb files to sync.
     """
     unique_files = _to_unique_files(
         [file for path in paths for file in _expand_wandb_files(path)],
@@ -258,19 +259,31 @@ def _find_wandb_files(
     )
 
     filtered_files: set[pathlib.Path] = set()
-    skipped = 0
+    skipped_synced = 0
+    skipped_online = 0
 
     for file in unique_files:
         if skip_synced and _is_synced(file):
-            skipped += 1
+            skipped_synced += 1
             continue
         if skip_online and _is_online(file):
-            skipped += 1
+            skipped_online += 1
             continue
 
         filtered_files.add(file)
 
-    return filtered_files, skipped
+    if skipped_synced:
+        term.termlog(
+            f"Skipped {skipped_synced} synced run(s)."
+            + " Include with --no-skip-synced.",
+        )
+    if skipped_online:
+        term.termlog(
+            f"Skipped {skipped_online} online run(s)."
+            + " Include with --no-skip-online.",
+        )
+
+    return filtered_files
 
 
 def _to_unique_files(

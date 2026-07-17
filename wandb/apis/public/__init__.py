@@ -39,6 +39,7 @@ __all__ = (
     "Sweep",
     "Member",
     "Team",
+    "Organization",
     "User",
 )
 
@@ -66,6 +67,7 @@ from wandb.apis.public.jobs import (
     RunQueuePrioritizationMode,
     RunQueueResourceType,
 )
+from wandb.apis.public.organizations import Organization
 from wandb.apis.public.projects import Project, Projects, Sweeps
 from wandb.apis.public.query_generator import QueryGenerator
 from wandb.apis.public.registries import Registries, Registry
@@ -79,7 +81,7 @@ from wandb.apis.public.runhistory.downloads import (
     DownloadHistoryResult,
     IncompleteRunHistoryError,
 )
-from wandb.apis.public.runs import RUN_FRAGMENT, AgentRuns, Run, Runs
+from wandb.apis.public.runs import RUN_FRAGMENT, AgentRuns, Run, RunNotFoundError, Runs
 from wandb.apis.public.sweeps import Sweep
 from wandb.apis.public.teams import Member, Team
 from wandb.apis.public.users import User

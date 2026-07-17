@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from collections.abc import Callable
+from operator import itemgetter
 from typing import TYPE_CHECKING, Literal
 
 import wandb
@@ -13,6 +14,7 @@ from wandb.apis.public.registries.registry import Registry
 from wandb.apis.public.users import User
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.artifacts._gqlutils import server_supports
+from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 from wandb.util import random_string
 
 if TYPE_CHECKING:
@@ -66,6 +68,73 @@ def org_entity(org: str, api: Api) -> str:
         skip("Cannot fetch org entity on this server version.")
 
     return fetch_org_entity_from_organization(api._service_api, org)
+
+
+@fixture
+def restricted_viewer_role_enabled(api: Api, org: str) -> bool:
+    """Whether the server has the Restricted Viewer registry role enabled.
+
+    The role sits behind a backend ramp `gorilla.RegistryObserverRoleUse` with
+    IDType OrgName, not a ServerFeature flag, so we probe it with the generic
+    `organization.featureFlags` query. A backend change in PR #42174 removed the
+    ramp key in server v0.81.0 and forced the role on, so on newer servers the
+    key is absent and we treat that as enabled. In short, the role is enabled
+    unless the ramp is present and disabled. This lets the guard clear itself
+    once the min server version passes the point where the role is always on.
+    """
+    query = """
+    query RegistryObserverRoleRamp($org: String!) {
+      organization(name: $org) {
+        featureFlags(rampIDType: OrgName) {
+          rampKey
+          isEnabled
+        }
+      }
+    }
+    """
+    try:
+        data = api._service_api.execute_graphql(query, variables={"org": org})
+    except WandbApiFailedError:
+        # Some servers do not expose this query. If we cannot probe the ramp,
+        # assume the role is available and run the test rather than skip.
+        return True
+
+    try:
+        flags = data["organization"]["featureFlags"]
+    except LookupError:
+        return True
+    else:
+        # Absent ramp means the server predates it or removed it. Both mean on.
+        return next(
+            (
+                bool(enabled)
+                for enabled, key in map(itemgetter("isEnabled", "rampKey"), flags)
+                if key == "gorilla.RegistryObserverRoleUse"
+            ),
+            True,
+        )
+
+
+@fixture
+def models_viewer_registry_write_supported(api: Api) -> bool:
+    """Whether a Models-Viewer registry member can perform registry writes.
+
+    Server v0.75.0 stopped gating registry writes on a full Models seat. No
+    ServerFeature was added in that exact release, so we use
+    TOTAL_COUNT_IN_FILE_CONNECTION as a stand-in for "server v0.75.0 or newer".
+    It is unrelated to file counts and first appears in v0.76.0, so the check is
+    slightly conservative:
+
+    - Present means v0.76.0 or newer, so registry writes work and the test runs.
+    - Absent means older than v0.76.0, so the test skips.
+
+    The backend change is in PR #34565.
+
+    Remove this guard once the min-server test image is v0.75.0 or newer, where
+    registry writes always work. Between v0.75.0 and v0.76.0 the proxy skips even
+    though the behavior exists, so do not rely on it there.
+    """
+    return server_supports(api._service_api, pb.TOTAL_COUNT_IN_FILE_CONNECTION)
 
 
 @fixture
