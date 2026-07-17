@@ -5,12 +5,11 @@ These commands are experimental and may change or be removed in future versions.
 
 from __future__ import annotations
 
-import os
 import pathlib
 
 import click
 
-from wandb.analytics import OtelProvider, get_sentry
+from wandb.analytics import OtelProvider, TelemetryRecorder, get_sentry
 from wandb.errors import WandbCoreNotAvailableError
 from wandb.sdk import wandb_setup
 from wandb.sdk.lib.wbauth import read_netrc_auth
@@ -33,6 +32,7 @@ def beta(ctx: click.Context) -> None:
         or "",
         endpoint=singleton_settings.base_url,
     )
+    telemetry_recorder = TelemetryRecorder(root=otel_proxy)
     get_sentry().configure_scope(process_context="wandb_beta")
 
     try:
@@ -40,7 +40,7 @@ def beta(ctx: click.Context) -> None:
     except WandbCoreNotAvailableError as e:
         error_message = f"using `wandb beta`. failed with {e}"
         get_sentry().exception(error_message)
-        otel_proxy.exception(error_message, e)
+        telemetry_recorder.exception(error_message, e)
         click.secho(
             (e),
             fg="red",

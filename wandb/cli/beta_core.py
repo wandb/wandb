@@ -13,7 +13,7 @@ import logging
 import click
 
 from wandb import env as wandb_env
-from wandb.analytics import OtelProvider, get_sentry
+from wandb.analytics import OtelProvider, TelemetryRecorder, get_sentry
 from wandb.proto import wandb_server_pb2 as spb
 from wandb.sdk import wandb_setup
 from wandb.sdk.lib import asyncio_manager
@@ -71,6 +71,7 @@ def stop(*, exit_code: int = 0) -> None:
         or "",
         endpoint=singleton_settings.base_url,
     )
+    telemetry_recorder = TelemetryRecorder(root=otel_proxy)
 
     try:
         token = service_token.from_env()
@@ -105,8 +106,8 @@ def stop(*, exit_code: int = 0) -> None:
         ) from e
 
     except Exception as e:
-        # TODO: change to get_otel().reraise() once sentry is removed
-        otel_proxy.exception(str(e), e)
+        # TODO: change to telemetry_recorder.reraise() once sentry is removed
+        telemetry_recorder.exception(str(e), e)
         get_sentry().reraise(e)
 
     finally:

@@ -17,7 +17,7 @@ from typing import Any
 import click
 from typing_extensions import Never
 
-from wandb.analytics import OtelProvider, get_sentry
+from wandb.analytics import OtelProvider, TelemetryRecorder, get_sentry
 from wandb.env import error_reporting_enabled, is_debug
 from wandb.errors import WandbCoreNotAvailableError
 from wandb.sdk import wandb_setup
@@ -192,12 +192,12 @@ def _resolve_path(path: str | None) -> LaunchConfig:
     _fatal(f"Path does not exist: {resolved}")
 
 
-def _base_args(otel_proxy: OtelProvider) -> list[str]:
+def _base_args(telemetry_recorder: TelemetryRecorder) -> list[str]:
     """Build the common base arguments for wandb-core leet commands."""
     try:
         core_path = get_core_path()
     except WandbCoreNotAvailableError as e:
-        otel_proxy.exception(f"using `wandb leet`. failed with {e}", e)
+        telemetry_recorder.exception(f"using `wandb leet`. failed with {e}", e)
         get_sentry().exception(f"using `wandb leet`. failed with {e}")
         _fatal(str(e))
 
@@ -213,17 +213,16 @@ def _base_args(otel_proxy: OtelProvider) -> list[str]:
 
 
 def _run_core(
-    otel_proxy: OtelProvider,
+    telemetry_recorder: TelemetryRecorder,
     args: list[str],
     env: dict[str, str] | None = None,
 ) -> Never:
     """Run wandb-core with the given arguments and exit with its return code."""
     try:
         result = subprocess.run(args, env=env, close_fds=True)
-        otel_proxy.shutdown()
         sys.exit(result.returncode)
     except Exception as e:
-        otel_proxy.exception(f"using `wandb leet`. failed with {e}", e)
+        telemetry_recorder.exception(f"using `wandb leet`. failed with {e}", e)
         get_sentry().reraise(e)
 
 
@@ -237,13 +236,14 @@ def launch(path: str | None, pprof: str) -> Never:
         or "",
         endpoint=singleton_settings.base_url,
     )
+    telemetry_recorder = TelemetryRecorder(root=otel_proxy)
 
     if path is not None and (path.startswith("https://") or path.startswith("http://")):
         config = _create_remote_launch_config(path)
     else:
         config = _resolve_path(path)
 
-    args = _base_args(otel_proxy)
+    args = _base_args(telemetry_recorder)
     env = os.environ.copy()
 
     if pprof:
@@ -257,7 +257,10 @@ def launch(path: str | None, pprof: str) -> Never:
         # Set api key so it is not visible in the process tree
         env["WANDB_API_KEY"] = config.api_key
 
-    _run_core(otel_proxy, args, env)
+    try:
+        _run_core(telemetry_recorder, args, env)
+    finally:
+        otel_proxy.shutdown()
 
 
 def launch_config() -> Never:
@@ -270,11 +273,15 @@ def launch_config() -> Never:
         or "",
         endpoint=singleton_settings.base_url,
     )
+    telemetry_recorder = TelemetryRecorder(root=otel_proxy)
 
-    args = _base_args(otel_proxy)
+    args = _base_args(telemetry_recorder)
     args.append("--config")
 
-    _run_core(otel_proxy, args)
+    try:
+        _run_core(telemetry_recorder, args)
+    finally:
+        otel_proxy.shutdown()
 
 
 def launch_symon(pprof: str = "", interval: str = "") -> Never:
@@ -287,8 +294,9 @@ def launch_symon(pprof: str = "", interval: str = "") -> Never:
         or "",
         endpoint=singleton_settings.base_url,
     )
+    telemetry_recorder = TelemetryRecorder(root=otel_proxy)
 
-    args = _base_args(otel_proxy)
+    args = _base_args(telemetry_recorder)
     args.append("--symon")
 
     if pprof:
@@ -297,7 +305,10 @@ def launch_symon(pprof: str = "", interval: str = "") -> Never:
     if interval:
         args.extend(["--interval", interval])
 
-    _run_core(otel_proxy, args)
+    try:
+        _run_core(telemetry_recorder, args)
+    finally:
+        otel_proxy.shutdown()
 
 
 def _get_local_launch_args(config: LocalLaunchConfig) -> list[str]:

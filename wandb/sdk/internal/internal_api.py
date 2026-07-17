@@ -20,7 +20,7 @@ import click
 
 import wandb
 from wandb import env, util
-from wandb.analytics import NoOpOtelProvider, TelemetryRecorder, get_sentry
+from wandb.analytics import TelemetryRecorder, get_sentry
 from wandb.apis.normalize import normalize_exceptions
 from wandb.errors import AuthenticationError, CommError, UsageError
 from wandb.integration.sagemaker import parse_sm_secrets
@@ -213,7 +213,7 @@ class Api:
         import requests
 
         if telemetry_recorder is None:
-            telemetry_recorder = NoOpOtelProvider()
+            telemetry_recorder = TelemetryRecorder()
 
         self._environ = environ
 

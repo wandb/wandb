@@ -26,7 +26,7 @@ import wandb
 import wandb.errors
 import wandb.sdk.verify.verify as wandb_verify
 from wandb import Config, Error, env, util, wandb_agent
-from wandb.analytics import OtelProvider, get_sentry
+from wandb.analytics import OtelProvider, TelemetryRecorder, get_sentry
 from wandb.apis import InternalApi, PublicApi
 from wandb.cli import beta_sync
 from wandb.errors.links import url_registry
@@ -1862,6 +1862,7 @@ def launch(
         or "",
         endpoint=singleton_settings.base_url,
     )
+    telemetry_recorder = TelemetryRecorder(root=otel_proxy)
 
     if run_async and queue is not None:
         raise LaunchError(
@@ -1993,13 +1994,13 @@ def launch(
                 sys.exit(1)
         except LaunchError as e:
             logger.exception("An error occurred.")
-            otel_proxy.exception(str(e), e)
+            telemetry_recorder.exception(str(e), e)
             otel_proxy.shutdown()
             get_sentry().exception(e)
             sys.exit(e)
         except ExecutionError as e:
             logger.exception("An error occurred.")
-            otel_proxy.exception(str(e), e)
+            telemetry_recorder.exception(str(e), e)
             otel_proxy.shutdown()
             get_sentry().exception(e)
             sys.exit(e)
@@ -2029,7 +2030,7 @@ def launch(
             )
 
         except Exception as e:
-            otel_proxy.exception(str(e), e)
+            telemetry_recorder.exception(str(e), e)
             otel_proxy.shutdown()
             get_sentry().exception(e)
             raise
@@ -2112,6 +2113,7 @@ def launch_agent(
         api_key=api.api_key or read_netrc_auth(host=api.api_url) or "",
         endpoint=api.api_url,
     )
+    telemetry_recorder = TelemetryRecorder(root=otel_proxy)
     get_sentry().configure_scope(process_context="launch_agent")
     agent_config, api = _launch.resolve_agent_config(
         entity, max_jobs, queues, config, verbose
@@ -2128,7 +2130,7 @@ def launch_agent(
     try:
         _launch.create_and_run_agent(api, agent_config)
     except Exception as e:
-        otel_proxy.exception(str(e), e)
+        telemetry_recorder.exception(str(e), e)
         get_sentry().exception(e)
         raise
     finally:
@@ -2248,6 +2250,7 @@ def scheduler(
         api_key=api.api_key or read_netrc_auth(host=api.api_url) or "",
         endpoint=api.api_url,
     )
+    telemetry_recorder = TelemetryRecorder(root=otel_proxy)
     get_sentry().configure_scope(process_context="sweep_scheduler")
     wandb.termlog("Starting a Launch Scheduler 🚀")
     from wandb.sdk.launch.sweeps import load_scheduler
@@ -2272,7 +2275,7 @@ def scheduler(
         )
         _scheduler.start()
     except Exception as e:
-        otel_proxy.exception(str(e), e)
+        telemetry_recorder.exception(str(e), e)
         get_sentry().exception(e)
         raise
 

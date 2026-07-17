@@ -3,13 +3,13 @@ __all__ = (
     "get_otel",
     "setup_otel",
     "OtelProvider",
-    "NoOpOtelProvider",
+    "TelemetryContext",
     "TelemetryRecorder",
 )
 
 from .opentelemetry import (
-    NoOpOtelProvider,
     OtelProvider,
+    TelemetryContext,
     TelemetryRecorder,
     get_otel,
     setup_otel,
