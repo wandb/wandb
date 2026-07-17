@@ -341,10 +341,11 @@ class OtelProvider:
         self._counters_lock = threading.Lock()
         self._counters: dict[str, Counter] = {}
 
-        self._meter: Meter
-        self._logger: Logger
+        self._meter: Meter = NoOpMeter("wandb.sdk")
+        self._logger: Logger = NoOpLogger("wandb.sdk")
         self._meter_provider: MeterProvider | None = None
         self._logger_provider: LoggerProvider | None = None
+        self._booted = False
         self._shutdown = False
         self._initialize_otel_resources(endpoint, api_key)
 
