@@ -917,6 +917,7 @@ fragment DeferredManifestFragment on ArtifactManifest {
 ARTIFACT_BY_ID_GQL = """
 query ArtifactByID($id: ID!, $includeAliases: Boolean = true) {
   artifact(id: $id) {
+    digestAlgorithm @include(if: true)
     ...ArtifactFragment
   }
 }
@@ -994,7 +995,7 @@ ARTIFACT_MEMBERSHIP_BY_NAME_GQL = """
 query ArtifactMembershipByName($entity: String!, $project: String!, $name: String!, $includeAliases: Boolean = false) {
   project(name: $project, entityName: $entity) {
     artifactCollectionMembership(name: $name) {
-      ...ArtifactMembershipFragment
+      ...ArtifactMembershipWithDigestAlgorithmFragment
     }
   }
 }
@@ -1038,7 +1039,7 @@ fragment ArtifactFragment on Artifact {
   }
 }
 
-fragment ArtifactMembershipFragment on ArtifactCollectionMembership {
+fragment ArtifactMembershipWithDigestAlgorithmFragment on ArtifactCollectionMembership {
   __typename
   id
   versionIndex
@@ -1049,6 +1050,7 @@ fragment ArtifactMembershipFragment on ArtifactCollectionMembership {
     ...CollectionInfoFragment
   }
   artifact {
+    digestAlgorithm @include(if: true)
     ...ArtifactFragment
   }
 }
