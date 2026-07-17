@@ -80,9 +80,9 @@ class User(Attrs):
         data = api._service_api.execute_graphql(
             CREATE_USER_FROM_ADMIN_GQL,
             {"email": email, "admin": admin},
+            parse=CreateUserFromAdmin.model_validate_json,
         )
-        result = CreateUserFromAdmin.model_validate(data).result
-        if not (result and (user := result.user)):
+        if not ((result := data.result) and (user := result.user)):
             raise ValueError(f"Failed to create user {email!r}.")
         return cls(api._service_api, user.model_dump(), api_key=api.api_key)
 
@@ -152,12 +152,12 @@ class User(Attrs):
 
         try:
             # We must make this call using credentials from the original user
-            gql_op = GENERATE_API_KEY_GQL
             data = self._service_api.execute_graphql(
-                gql_op,
+                GENERATE_API_KEY_GQL,
                 {"description": description},
+                parse=GenerateApiKey.model_validate_json,
             )
-            key_fragment = GenerateApiKey.model_validate(data).result.api_key
+            key_fragment = data.result.api_key
             self._attrs["apiKeys"]["edges"].append({"node": key_fragment.model_dump()})
         except (WandbApiFailedError, AttributeError):
             return None
