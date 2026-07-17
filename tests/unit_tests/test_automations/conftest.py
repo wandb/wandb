@@ -10,7 +10,7 @@ from hypothesis import settings
 from pytest import FixtureRequest, fixture, skip
 from pytest_mock import MockerFixture
 from wandb._strutils import b64encode_ascii
-from wandb.apis.public import ArtifactCollection, Project
+from wandb.apis.public import ArtifactCollection, Organization, Project, Team
 from wandb.automations import (
     ActionType,
     ArtifactEvent,
@@ -47,7 +47,7 @@ settings.register_profile("default", max_examples=100)
 settings.load_profile("default")
 
 
-ScopableWandbType: TypeAlias = ArtifactCollection | Project
+ScopableWandbType: TypeAlias = ArtifactCollection | Project | Team | Organization
 
 
 # ---------------------------------------------------------------------------
@@ -147,6 +147,53 @@ def project(mock_client: Mock) -> Project:
     )
 
 
+@fixture(scope="session")
+def team(mock_client: Mock) -> Team:
+    """A simulated `Team` (team entity) that could be returned by `wandb.Api`.
+
+    Typically fetched via `Api.team()`.
+
+    For unit-testing purposes, this has been heavily mocked.
+    Tests relying on real `wandb.Api` calls should live in system tests.
+    """
+    name = "test-team-entity"
+    return Team(
+        service_api=mock_client,
+        name=name,
+        attrs={
+            "__typename": "Entity",
+            "id": make_graphql_id(prefix="Entity"),
+            "name": name,
+            "entityType": "team",
+        },
+    )
+
+
+@fixture(scope="session")
+def org(mock_client: Mock) -> Organization:
+    """A simulated `Organization` with a mock org entity.
+
+    Typically fetched via `Api.organization()`.
+
+    For unit-testing purposes, this has been heavily mocked.
+    Tests relying on real `wandb.Api` calls should live in system tests.
+    """
+    name = "test-org"
+    return Organization(
+        mock_client,
+        **{
+            "id": make_graphql_id(prefix="Organization"),
+            "name": name,
+            "orgEntity": {
+                "__typename": "Entity",
+                "id": make_graphql_id(prefix="Entity"),
+                "name": f"{name}-entity",
+                "entityType": "organization",
+            },
+        },
+    )
+
+
 # Exclude deprecated scope/event/action types from those expected to be exposed for valid behavior
 def valid_scopes() -> list[ScopeType]:
     # return sorted(set(ScopeType))  # TODO: restore once ENTITY scope is supported
@@ -205,6 +252,7 @@ def scope(request: FixtureRequest, scope_type: ScopeType) -> ScopableWandbType:
     scope2fixture: dict[ScopeType, str] = {
         ScopeType.ARTIFACT_COLLECTION: artifact_collection.__name__,
         ScopeType.PROJECT: project.__name__,
+        ScopeType.ENTITY: team.__name__,
     }
     return request.getfixturevalue(scope2fixture[scope_type])
 
