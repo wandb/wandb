@@ -20,7 +20,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 import wandb
 from wandb import util
-from wandb.analytics import get_sentry
+from wandb.analytics import OtelProvider, TelemetryRecorder, get_sentry
 from wandb.errors import CommError, UsageError
 from wandb.errors.util import ProtobufErrorHandler
 from wandb.filesync.dir_watcher import DirWatcher
@@ -42,6 +42,7 @@ from wandb.sdk.lib import (
     telemetry,
 )
 from wandb.sdk.lib.proto_util import message_to_dict
+from wandb.sdk.lib.wbauth import read_netrc_auth
 
 if TYPE_CHECKING:
     from wandb.proto.wandb_internal_pb2 import (
@@ -270,8 +271,15 @@ class SendManager:
         self._record_exit = None
         self._exit_result = None
 
+        self._otel_proxy = OtelProvider(
+            api_key=settings.api_key or read_netrc_auth(host=settings.base_url) or "",
+            endpoint=settings.base_url,
+        )
+        self._telemetry_recorder = TelemetryRecorder(root=self._otel_proxy)
         self._api = internal_api.Api(
-            default_settings=settings, retry_callback=self.retry_callback
+            default_settings=settings,
+            retry_callback=self.retry_callback,
+            telemetry_recorder=self._telemetry_recorder,
         )
         self._api_settings = dict()
 
@@ -1555,6 +1563,7 @@ class SendManager:
             self._fs.finish(self._exit_code)
             self._fs = None
         get_sentry().end_session()
+        self._otel_proxy.shutdown()
 
     def _max_cli_version(self) -> str | None:
         server_info = self.get_server_info()

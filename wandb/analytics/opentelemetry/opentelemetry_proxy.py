@@ -200,9 +200,16 @@ class TelemetryRecorder:
 
     def __init__(
         self,
-        root: OtelProvider | None,
+        root: OtelProvider | None = None,
         context: TelemetryContext | None = None,
-    ) -> None:
+    ):
+        """Initialize a TelemetryRecorder.
+
+        Args:
+            root: The root OtelProvider to use.
+                If not provided, all telemetry calls will be no-ops.
+            context: The TelemetryContext to use.
+        """
         self._root = root
         self._context = context or TelemetryContext()
 

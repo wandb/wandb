@@ -9,7 +9,7 @@ import subprocess
 import tempfile
 from typing import TYPE_CHECKING
 
-from wandb.analytics import get_sentry
+from wandb.analytics import OtelProvider, TelemetryRecorder, get_sentry
 from wandb.env import core_debug, dcgm_profiling_enabled, error_reporting_enabled
 from wandb.errors import WandbCoreNotAvailableError
 from wandb.sdk.lib.service import ipc_support
@@ -69,6 +69,11 @@ def _start(
     detached: bool,
     idle_timeout: str | None,
 ) -> ServiceProcess:
+    otel_proxy = OtelProvider(
+        api_key=settings.api_key or "",
+        endpoint=settings.base_url,
+    )
+    telemetry_recorder = TelemetryRecorder(root=otel_proxy)
     get_sentry().configure_scope(tags=dict(settings), process_context="service")
 
     try:
@@ -76,9 +81,13 @@ def _start(
             settings,
             detached=detached,
             idle_timeout=idle_timeout,
+            telemetry_recorder=telemetry_recorder,
         )
     except Exception as e:
+        telemetry_recorder.exception(str(e), e)
         get_sentry().reraise(e)
+    finally:
+        otel_proxy.shutdown()
 
 
 class ServiceProcess:
@@ -108,6 +117,7 @@ def _launch_server(
     *,
     detached: bool,
     idle_timeout: str | None,
+    telemetry_recorder: TelemetryRecorder,
 ) -> ServiceProcess:
     """Launch server and set ports."""
     if platform.system() == "Windows":
@@ -126,6 +136,7 @@ def _launch_server(
         try:
             core_path = get_core_path()
         except WandbCoreNotAvailableError as e:
+            telemetry_recorder.exception(str(e), e)
             get_sentry().reraise(e)
 
         service_args.append(core_path)
