@@ -29,8 +29,15 @@ Note:
 
 from __future__ import annotations
 
+import atexit
 import json
+import logging
+import queue
+import sys
+import threading
+import time
 import urllib
+import weakref
 from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any, ClassVar
 
@@ -50,10 +57,14 @@ from wandb.sdk.lib import ipython
 _SWEEP_FILTERS_MIN_SERVER_VERSION = "0.81.4"
 
 if TYPE_CHECKING:
+    import requests
+
     from wandb.apis._generated import GetSweeps
     from wandb.apis.public.api import Api
     from wandb.apis.public.runs import AgentRuns
     from wandb.apis.public.service_api import ServiceApi
+
+logger = logging.getLogger(__name__)
 
 
 class Sweeps(SizedPaginator["Sweep"]):
@@ -269,6 +280,214 @@ def _get_sweep(
     return sweep
 
 
+class _SweepLogStream:
+    """Background sender that streams `Sweep.log()` console lines.
+
+    Batches log lines and POSTs them to the sweep controller run's filestream
+    endpoint from a daemon thread, so callers never block on the network.
+
+    - never sends heartbeats or a completion/exit-code message, since it does
+      not own the run's lifecycle, and
+    - self-throttles: it paces posts to a minimum interval and backs that
+      interval off when the server returns HTTP 429, dropping lines rather than
+      blocking the caller indefinitely under sustained rate limiting.
+    """
+
+    _MAX_ITEMS_PER_POST = 10_000
+    _MAX_RETRIES = 2
+    _DEFAULT_INTERVAL = 2.0
+    _MAX_INTERVAL = 60.0
+    _IDLE_POLL = 0.2
+    _FINISH_TIMEOUT = 30.0
+
+    def __init__(self, session: requests.Session, endpoint: str) -> None:
+        self._session = session
+        self._endpoint = endpoint
+        self._queue: queue.Queue[str] = queue.Queue()
+        self._interval = self._DEFAULT_INTERVAL
+        # Local monotonic line offset. The backend reassigns real offsets for
+        # the co-owned controller run, so this is only meaningful for local
+        # debugging of the outgoing payloads.
+        self._offset = 0
+        self._dropped = 0
+        self._warned = False
+        self._stop = threading.Event()
+        self._lock = threading.Lock()
+        self._started = False
+        self._finished = False
+        self._thread = threading.Thread(
+            target=self._run, name="SweepLogStream", daemon=True
+        )
+
+    def start(self) -> None:
+        """Start the background sender thread (idempotent)."""
+        with self._lock:
+            if self._started:
+                return
+            self._started = True
+        self._thread.start()
+        atexit.register(self.finish)
+
+    def push(self, lines: list[str]) -> None:
+        """Enqueue formatted log lines for delivery. Never blocks on I/O."""
+        if self._stop.is_set():
+            # Sender is shutting down; don't accept new lines.
+            self._dropped += len(lines)
+            return
+        for line in lines:
+            self._queue.put(line)
+
+    def finish(self, timeout: float | None = None) -> None:
+        """Flush queued lines and stop the sender thread (idempotent).
+
+        Registered with `atexit` so trailing lines are delivered on process
+        exit, and used as the `weakref` finalizer so a `Sweep` that goes out of
+        scope tears down its thread.
+        """
+        with self._lock:
+            if not self._started or self._finished:
+                return
+            self._finished = True
+        self._stop.set()
+        self._thread.join(timeout if timeout is not None else self._FINISH_TIMEOUT)
+        try:
+            atexit.unregister(self.finish)
+        except Exception:
+            pass
+
+    # -- background thread ------------------------------------------------
+
+    def _run(self) -> None:
+        """Thread entry point: run the send loop under a crash safety net.
+
+        Mirrors `FileStreamApi._thread_except_body`: an unhandled exception is
+        logged and reported to Sentry rather than silently killing the sender.
+        """
+        try:
+            self._loop()
+        except Exception:
+            logger.exception("Sweep.log() background sender thread crashed")
+            try:
+                from wandb.analytics import get_sentry
+
+                get_sentry().exception(sys.exc_info())
+            except Exception:
+                pass
+
+    def _loop(self) -> None:
+        last_post = 0.0
+        while True:
+            first = self._wait_for_line()
+            if first is None:
+                break  # stop requested and queue drained
+            batch = [first]
+            batch.extend(self._drain_available(self._MAX_ITEMS_PER_POST - 1))
+            if not self._stop.is_set():
+                # Pace posts to at most one per `_interval` seconds, collecting
+                # any lines that arrive while we wait. Skipped while stopping so
+                # shutdown flushes promptly.
+                wait = self._interval - (time.monotonic() - last_post)
+                if wait > 0:
+                    self._stop.wait(wait)
+                    batch.extend(
+                        self._drain_available(self._MAX_ITEMS_PER_POST - len(batch))
+                    )
+            self._post_no_exception(batch)
+            last_post = time.monotonic()
+
+    def _wait_for_line(self) -> str | None:
+        """Return the next queued line, or None once stopped and drained."""
+        while True:
+            try:
+                return self._queue.get(timeout=self._IDLE_POLL)
+            except queue.Empty:
+                if self._stop.is_set():
+                    return None
+
+    def _drain_available(self, limit: int) -> list[str]:
+        items: list[str] = []
+        while len(items) < limit:
+            try:
+                items.append(self._queue.get_nowait())
+            except queue.Empty:
+                break
+        return items
+
+    def _on_retry(self, status_code: int, _err_str: str) -> None:
+        # Invoked by request_with_retry (on this thread) on each retry.
+        if status_code == 429:
+            self._interval = min(self._interval * 2, self._MAX_INTERVAL)
+
+    def _post_no_exception(self, lines: list[str]) -> None:
+        """Deliver a batch of lines to the sweep controller run."""
+        try:
+            self._post_batch(lines)
+        except Exception as e:
+            # An unexpected error delivering one batch causes it to drop.
+            self._record_drop(len(lines), e)
+
+    def _post_batch(self, lines: list[str]) -> None:
+        from wandb.sdk.internal.file_stream import request_with_retry
+        from wandb.sdk.lib.file_stream_utils import split_files
+        from wandb.sdk.lib.filenames import OUTPUT_FNAME
+
+        offset = self._offset
+        self._offset += len(lines)
+
+        # Split into sub-payloads under the backend's max size, exactly as
+        # FileStreamApi._send does, so a large batch isn't rejected wholesale.
+        files = {OUTPUT_FNAME: {"offset": offset, "content": lines}}
+        for volume in split_files(files, max_bytes=util.MAX_LINE_BYTES):
+            if not any(f.get("content") for f in volume.values()):
+                # split_files can emit a trailing empty volume; skip it.
+                continue
+            response = request_with_retry(
+                self._session.post,
+                self._endpoint,
+                json={"files": volume, "dropped": self._dropped},
+                max_retries=self._MAX_RETRIES,
+                retry_callback=self._on_retry,
+            )
+            if isinstance(response, Exception):
+                dropped = sum(len(f["content"]) for f in volume.values())
+                self._record_drop(dropped, response)
+                continue
+            self._apply_limits(response)
+
+    def _record_drop(self, count: int, err: object) -> None:
+        """Count undelivered lines and warn the user once."""
+        self._dropped += count
+        logger.warning("Sweep.log() dropped %d line(s): %s", count, err)
+        if not self._warned:
+            self._warned = True
+            wandb.termwarn(
+                "Some sweep log lines could not be delivered and were dropped "
+                "(see the wandb debug log for details).",
+                repeat=False,
+            )
+
+    def _apply_limits(self, response: requests.Response) -> None:
+        """Adjust the post interval from the server's rate-limit response."""
+        parsed: Any = None
+        try:
+            parsed = response.json()
+        except Exception:
+            pass
+        limits = parsed.get("limits") if isinstance(parsed, dict) else None
+        if isinstance(limits, dict):
+            # Best-effort: honor a server-provided minimum seconds-between-posts
+            # if present under a recognized key.
+            for key in ("rate_limit_seconds", "min_post_interval_seconds"):
+                value = limits.get(key)
+                if isinstance(value, (int, float)) and value > 0:
+                    self._interval = min(
+                        max(self._interval, float(value)), self._MAX_INTERVAL
+                    )
+                    return
+        # No explicit guidance: relax the interval back toward the default.
+        self._interval = max(self._DEFAULT_INTERVAL, self._interval * 0.9)
+
+
 class Sweep(Attrs):
     """The set of runs associated with the sweep.
 
@@ -297,6 +516,9 @@ class Sweep(Attrs):
         self.id = sweep_id
         self._service_api = service_api
         self.runs = []
+
+        # Lazily-built background log sender for `Sweep.log()`.
+        self._log_stream: _SweepLogStream | None = None
 
         self.load(force=not attrs)
 
@@ -375,6 +597,11 @@ class Sweep(Attrs):
     def expected_run_count(self) -> int | None:
         """Return the number of expected runs in the sweep or None for infinite runs."""
         return self._attrs.get("runCountExpected")
+
+    @property
+    def controller_run_name(self) -> str | None:
+        """Name of the sweep's controller run, or None if unavailable."""
+        return self._attrs.get("controllerRunName") or None
 
     @property
     def path(self):
@@ -499,6 +726,104 @@ class Sweep(Attrs):
             self._make_sweep_agent(edge.node.model_dump(by_alias=True))
             for edge in parsed.project.sweep.agents.edges
         ]
+
+    def log(
+        self,
+        data: str | list[str] | Mapping[str, Any],
+        *,
+        add_timestamps: bool = True,
+    ) -> None:
+        """Write to the sweep's controller run, dispatching on the input type.
+        The behavior depends on the type of `data`:
+
+        - A `str` or `list[str]` appends console log lines to the controller
+          run's `output.log` file.
+        - A `Mapping` (dict) logs metrics to the controller run's history,
+          using the same format as `wandb.Run.log()`. This branch is not yet
+          implemented.
+
+        Args:
+            data: The value to log to the sweep controller run.
+            add_timestamps: Whether to prefix each console log line with an
+                ISO-8601 UTC timestamp. Ignored when logging metrics history.
+
+        Raises:
+            NotImplementedError: If `data` is a mapping (history logging is not
+                yet implemented).
+            wandb.Error: If the sweep has no controller run available.
+        """
+        from datetime import datetime, timezone
+
+        if isinstance(data, Mapping):
+            # Dict input logs metrics to the controller run's history
+            # (wandb-history.jsonl), matching the format of wandb.Run.log().
+            raise NotImplementedError(
+                "Logging metrics to the sweep controller run history is not "
+                "yet implemented. Pass a string or list of strings to append "
+                "console log lines instead."
+            )
+
+        lines: str | list[str] = data
+        if isinstance(lines, str):
+            lines = [lines]
+
+        split_lines: list[str] = []
+        for line in lines:
+            segments = line.split("\n")
+            if segments and segments[-1] == "":
+                # Drop the empty segment produced by a terminal newline.
+                segments = segments[:-1]
+            split_lines.extend(segments)
+
+        if not split_lines:
+            return
+
+        formatted_lines = []
+        for line in split_lines:
+            if add_timestamps:
+                timestamp = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
+                line = f"{timestamp} {line}"
+            formatted_lines.append(f"{line}\n")
+
+        self._get_log_stream().push(formatted_lines)
+
+    def _get_log_stream(self) -> _SweepLogStream:
+        """Return the lazily-built background log sender for this sweep."""
+        if self._log_stream is not None:
+            return self._log_stream
+
+        if (run_name := self.controller_run_name) is None:
+            raise Error(
+                f"Sweep {self.entity}/{self.project}/{self.id} has no "
+                "controller run available; Sweep.log() requires a W&B server "
+                "that supports sweep controller runs."
+            )
+
+        import requests
+
+        from wandb.sdk.internal.internal_api import Api as InternalApi
+
+        api = InternalApi(
+            default_settings={"entity": self.entity, "project": self.project}
+        )
+        session = requests.Session()
+        session.auth = api.request_auth
+        session.headers.update(api.request_headers)
+        session.proxies.update(api.request_proxies)
+        endpoint = (
+            f"{api.settings('base_url')}/files"
+            f"/{self.entity}/{self.project}/{run_name}/file_stream"
+        )
+
+        stream = _SweepLogStream(session, endpoint)
+        stream.start()
+        # Tear down the sender thread (flushing any queued lines) when this
+        # Sweep is garbage-collected; referencing only the bound method keeps
+        # the finalizer from holding the Sweep alive. `atexit` (registered in
+        # start()) covers the process-exit case.
+        weakref.finalize(self, stream.finish, 5.0)
+        self._log_stream = stream
+        return stream
 
     def to_html(self, height: int = 420, hidden: bool = False) -> str:
         """Generate HTML containing an iframe displaying this sweep."""
