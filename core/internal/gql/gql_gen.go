@@ -5,6 +5,7 @@ package gql
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 
 	"github.com/Khan/genqlient/graphql"
 )
@@ -440,7 +441,7 @@ func (v *CreateArtifactCreateArtifactCreateArtifactPayload) __premarshalJSON() (
 type CreateArtifactFileSpecInput struct {
 	ArtifactID         string             `json:"artifactID"`
 	ArtifactManifestID *string            `json:"artifactManifestID"`
-	Digest             *string            `json:"digest"`
+	Digest             *string            `json:"digest,omitempty"`
 	Md5                string             `json:"md5"`
 	Mimetype           *string            `json:"mimetype"`
 	Name               string             `json:"name"`
@@ -575,6 +576,33 @@ func (v *CreateArtifactFilesCreateArtifactFilesCreateArtifactFilesPayloadFilesFi
 func (v *CreateArtifactFilesCreateArtifactFilesCreateArtifactFilesPayloadFilesFileConnectionEdgesFileEdgeNodeFileUploadMultipartUrlsUploadUrlPartsUploadUrlPart) GetUploadUrl() string {
 	return v.UploadUrl
 }
+
+type CreateArtifactFilesInput struct {
+	ArtifactFiles    []CreateArtifactFileSpecInput `json:"artifactFiles"`
+	ClientMutationId *string                       `json:"clientMutationId"`
+	CloudRegionID    *string                       `json:"cloudRegionID"`
+	DigestAlgorithm  *ArtifactDigestAlgorithm      `json:"digestAlgorithm,omitempty"`
+	StorageLayout    ArtifactStorageLayout         `json:"storageLayout"`
+}
+
+// GetArtifactFiles returns CreateArtifactFilesInput.ArtifactFiles, and is useful for accessing the field via an interface.
+func (v *CreateArtifactFilesInput) GetArtifactFiles() []CreateArtifactFileSpecInput {
+	return v.ArtifactFiles
+}
+
+// GetClientMutationId returns CreateArtifactFilesInput.ClientMutationId, and is useful for accessing the field via an interface.
+func (v *CreateArtifactFilesInput) GetClientMutationId() *string { return v.ClientMutationId }
+
+// GetCloudRegionID returns CreateArtifactFilesInput.CloudRegionID, and is useful for accessing the field via an interface.
+func (v *CreateArtifactFilesInput) GetCloudRegionID() *string { return v.CloudRegionID }
+
+// GetDigestAlgorithm returns CreateArtifactFilesInput.DigestAlgorithm, and is useful for accessing the field via an interface.
+func (v *CreateArtifactFilesInput) GetDigestAlgorithm() *ArtifactDigestAlgorithm {
+	return v.DigestAlgorithm
+}
+
+// GetStorageLayout returns CreateArtifactFilesInput.StorageLayout, and is useful for accessing the field via an interface.
+func (v *CreateArtifactFilesInput) GetStorageLayout() ArtifactStorageLayout { return v.StorageLayout }
 
 // CreateArtifactFilesResponse is returned by CreateArtifactFiles on success.
 type CreateArtifactFilesResponse struct {
@@ -828,6 +856,201 @@ type CreatedArtifactArtifactArtifactSequenceLatestArtifact struct {
 
 // GetId returns CreatedArtifactArtifactArtifactSequenceLatestArtifact.Id, and is useful for accessing the field via an interface.
 func (v *CreatedArtifactArtifactArtifactSequenceLatestArtifact) GetId() string { return v.Id }
+
+// FetchArtifactDigestAlgorithmProject includes the requested fields of the GraphQL type Project.
+type FetchArtifactDigestAlgorithmProject struct {
+	ArtifactType *FetchArtifactDigestAlgorithmProjectArtifactType `json:"artifactType"`
+}
+
+// GetArtifactType returns FetchArtifactDigestAlgorithmProject.ArtifactType, and is useful for accessing the field via an interface.
+func (v *FetchArtifactDigestAlgorithmProject) GetArtifactType() *FetchArtifactDigestAlgorithmProjectArtifactType {
+	return v.ArtifactType
+}
+
+// FetchArtifactDigestAlgorithmProjectArtifactType includes the requested fields of the GraphQL type ArtifactType.
+type FetchArtifactDigestAlgorithmProjectArtifactType struct {
+	ArtifactCollection *FetchArtifactDigestAlgorithmProjectArtifactTypeArtifactCollection `json:"-"`
+}
+
+// GetArtifactCollection returns FetchArtifactDigestAlgorithmProjectArtifactType.ArtifactCollection, and is useful for accessing the field via an interface.
+func (v *FetchArtifactDigestAlgorithmProjectArtifactType) GetArtifactCollection() *FetchArtifactDigestAlgorithmProjectArtifactTypeArtifactCollection {
+	return v.ArtifactCollection
+}
+
+func (v *FetchArtifactDigestAlgorithmProjectArtifactType) UnmarshalJSON(b []byte) error {
+
+	if string(b) == "null" {
+		return nil
+	}
+
+	var firstPass struct {
+		*FetchArtifactDigestAlgorithmProjectArtifactType
+		ArtifactCollection json.RawMessage `json:"artifactCollection"`
+		graphql.NoUnmarshalJSON
+	}
+	firstPass.FetchArtifactDigestAlgorithmProjectArtifactType = v
+
+	err := json.Unmarshal(b, &firstPass)
+	if err != nil {
+		return err
+	}
+
+	{
+		dst := &v.ArtifactCollection
+		src := firstPass.ArtifactCollection
+		if len(src) != 0 && string(src) != "null" {
+			*dst = new(FetchArtifactDigestAlgorithmProjectArtifactTypeArtifactCollection)
+			err = __unmarshalFetchArtifactDigestAlgorithmProjectArtifactTypeArtifactCollection(
+				src, *dst)
+			if err != nil {
+				return fmt.Errorf(
+					"unable to unmarshal FetchArtifactDigestAlgorithmProjectArtifactType.ArtifactCollection: %w", err)
+			}
+		}
+	}
+	return nil
+}
+
+type __premarshalFetchArtifactDigestAlgorithmProjectArtifactType struct {
+	ArtifactCollection json.RawMessage `json:"artifactCollection"`
+}
+
+func (v *FetchArtifactDigestAlgorithmProjectArtifactType) MarshalJSON() ([]byte, error) {
+	premarshaled, err := v.__premarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(premarshaled)
+}
+
+func (v *FetchArtifactDigestAlgorithmProjectArtifactType) __premarshalJSON() (*__premarshalFetchArtifactDigestAlgorithmProjectArtifactType, error) {
+	var retval __premarshalFetchArtifactDigestAlgorithmProjectArtifactType
+
+	{
+
+		dst := &retval.ArtifactCollection
+		src := v.ArtifactCollection
+		if src != nil {
+			var err error
+			*dst, err = __marshalFetchArtifactDigestAlgorithmProjectArtifactTypeArtifactCollection(
+				src)
+			if err != nil {
+				return nil, fmt.Errorf(
+					"unable to marshal FetchArtifactDigestAlgorithmProjectArtifactType.ArtifactCollection: %w", err)
+			}
+		}
+	}
+	return &retval, nil
+}
+
+// FetchArtifactDigestAlgorithmProjectArtifactTypeArtifactCollection includes the requested fields of the GraphQL interface ArtifactCollection.
+//
+// FetchArtifactDigestAlgorithmProjectArtifactTypeArtifactCollection is implemented by the following types:
+// FetchArtifactDigestAlgorithmProjectArtifactTypeArtifactCollectionArtifactPortfolio
+// FetchArtifactDigestAlgorithmProjectArtifactTypeArtifactCollectionArtifactSequence
+type FetchArtifactDigestAlgorithmProjectArtifactTypeArtifactCollection interface {
+	implementsGraphQLInterfaceFetchArtifactDigestAlgorithmProjectArtifactTypeArtifactCollection()
+	// GetTypename returns the receiver's concrete GraphQL type-name (see interface doc for possible values).
+	GetTypename() *string
+}
+
+func (v *FetchArtifactDigestAlgorithmProjectArtifactTypeArtifactCollectionArtifactPortfolio) implementsGraphQLInterfaceFetchArtifactDigestAlgorithmProjectArtifactTypeArtifactCollection() {
+}
+func (v *FetchArtifactDigestAlgorithmProjectArtifactTypeArtifactCollectionArtifactSequence) implementsGraphQLInterfaceFetchArtifactDigestAlgorithmProjectArtifactTypeArtifactCollection() {
+}
+
+func __unmarshalFetchArtifactDigestAlgorithmProjectArtifactTypeArtifactCollection(b []byte, v *FetchArtifactDigestAlgorithmProjectArtifactTypeArtifactCollection) error {
+	if string(b) == "null" {
+		return nil
+	}
+
+	var tn struct {
+		TypeName string `json:"__typename"`
+	}
+	err := json.Unmarshal(b, &tn)
+	if err != nil {
+		return err
+	}
+
+	switch tn.TypeName {
+	case "ArtifactPortfolio":
+		*v = new(FetchArtifactDigestAlgorithmProjectArtifactTypeArtifactCollectionArtifactPortfolio)
+		return json.Unmarshal(b, *v)
+	case "ArtifactSequence":
+		*v = new(FetchArtifactDigestAlgorithmProjectArtifactTypeArtifactCollectionArtifactSequence)
+		return json.Unmarshal(b, *v)
+	case "":
+		return fmt.Errorf(
+			"response was missing ArtifactCollection.__typename")
+	default:
+		return fmt.Errorf(
+			`unexpected concrete type for FetchArtifactDigestAlgorithmProjectArtifactTypeArtifactCollection: "%v"`, tn.TypeName)
+	}
+}
+
+func __marshalFetchArtifactDigestAlgorithmProjectArtifactTypeArtifactCollection(v *FetchArtifactDigestAlgorithmProjectArtifactTypeArtifactCollection) ([]byte, error) {
+
+	var typename string
+	switch v := (*v).(type) {
+	case *FetchArtifactDigestAlgorithmProjectArtifactTypeArtifactCollectionArtifactPortfolio:
+		typename = "ArtifactPortfolio"
+
+		result := struct {
+			TypeName string `json:"__typename"`
+			*FetchArtifactDigestAlgorithmProjectArtifactTypeArtifactCollectionArtifactPortfolio
+		}{typename, v}
+		return json.Marshal(result)
+	case *FetchArtifactDigestAlgorithmProjectArtifactTypeArtifactCollectionArtifactSequence:
+		typename = "ArtifactSequence"
+
+		result := struct {
+			TypeName string `json:"__typename"`
+			*FetchArtifactDigestAlgorithmProjectArtifactTypeArtifactCollectionArtifactSequence
+		}{typename, v}
+		return json.Marshal(result)
+	case nil:
+		return []byte("null"), nil
+	default:
+		return nil, fmt.Errorf(
+			`unexpected concrete type for FetchArtifactDigestAlgorithmProjectArtifactTypeArtifactCollection: "%T"`, v)
+	}
+}
+
+// FetchArtifactDigestAlgorithmProjectArtifactTypeArtifactCollectionArtifactPortfolio includes the requested fields of the GraphQL type ArtifactPortfolio.
+type FetchArtifactDigestAlgorithmProjectArtifactTypeArtifactCollectionArtifactPortfolio struct {
+	Typename *string `json:"__typename"`
+}
+
+// GetTypename returns FetchArtifactDigestAlgorithmProjectArtifactTypeArtifactCollectionArtifactPortfolio.Typename, and is useful for accessing the field via an interface.
+func (v *FetchArtifactDigestAlgorithmProjectArtifactTypeArtifactCollectionArtifactPortfolio) GetTypename() *string {
+	return v.Typename
+}
+
+// FetchArtifactDigestAlgorithmProjectArtifactTypeArtifactCollectionArtifactSequence includes the requested fields of the GraphQL type ArtifactSequence.
+type FetchArtifactDigestAlgorithmProjectArtifactTypeArtifactCollectionArtifactSequence struct {
+	Typename        *string                 `json:"__typename"`
+	DigestAlgorithm ArtifactDigestAlgorithm `json:"digestAlgorithm"`
+}
+
+// GetTypename returns FetchArtifactDigestAlgorithmProjectArtifactTypeArtifactCollectionArtifactSequence.Typename, and is useful for accessing the field via an interface.
+func (v *FetchArtifactDigestAlgorithmProjectArtifactTypeArtifactCollectionArtifactSequence) GetTypename() *string {
+	return v.Typename
+}
+
+// GetDigestAlgorithm returns FetchArtifactDigestAlgorithmProjectArtifactTypeArtifactCollectionArtifactSequence.DigestAlgorithm, and is useful for accessing the field via an interface.
+func (v *FetchArtifactDigestAlgorithmProjectArtifactTypeArtifactCollectionArtifactSequence) GetDigestAlgorithm() ArtifactDigestAlgorithm {
+	return v.DigestAlgorithm
+}
+
+// FetchArtifactDigestAlgorithmResponse is returned by FetchArtifactDigestAlgorithm on success.
+type FetchArtifactDigestAlgorithmResponse struct {
+	Project *FetchArtifactDigestAlgorithmProject `json:"project"`
+}
+
+// GetProject returns FetchArtifactDigestAlgorithmResponse.Project, and is useful for accessing the field via an interface.
+func (v *FetchArtifactDigestAlgorithmResponse) GetProject() *FetchArtifactDigestAlgorithmProject {
+	return v.Project
+}
 
 // FetchOrgEntityFromEntityEntity includes the requested fields of the GraphQL type Entity.
 type FetchOrgEntityFromEntityEntity struct {
@@ -1808,17 +2031,11 @@ func (v *__CompleteMultipartUploadArtifactInput) GetUploadID() string { return v
 
 // __CreateArtifactFilesInput is used internally by genqlient
 type __CreateArtifactFilesInput struct {
-	ArtifactFiles []CreateArtifactFileSpecInput `json:"artifactFiles"`
-	StorageLayout ArtifactStorageLayout         `json:"storageLayout"`
+	Input CreateArtifactFilesInput `json:"input"`
 }
 
-// GetArtifactFiles returns __CreateArtifactFilesInput.ArtifactFiles, and is useful for accessing the field via an interface.
-func (v *__CreateArtifactFilesInput) GetArtifactFiles() []CreateArtifactFileSpecInput {
-	return v.ArtifactFiles
-}
-
-// GetStorageLayout returns __CreateArtifactFilesInput.StorageLayout, and is useful for accessing the field via an interface.
-func (v *__CreateArtifactFilesInput) GetStorageLayout() ArtifactStorageLayout { return v.StorageLayout }
+// GetInput returns __CreateArtifactFilesInput.Input, and is useful for accessing the field via an interface.
+func (v *__CreateArtifactFilesInput) GetInput() CreateArtifactFilesInput { return v.Input }
 
 // __CreateArtifactInput is used internally by genqlient
 type __CreateArtifactInput struct {
@@ -1887,6 +2104,28 @@ func (v *__CreateRunFilesInput) GetRun() string { return v.Run }
 
 // GetFiles returns __CreateRunFilesInput.Files, and is useful for accessing the field via an interface.
 func (v *__CreateRunFilesInput) GetFiles() []string { return v.Files }
+
+// __FetchArtifactDigestAlgorithmInput is used internally by genqlient
+type __FetchArtifactDigestAlgorithmInput struct {
+	EntityName             string `json:"entityName"`
+	ProjectName            string `json:"projectName"`
+	ArtifactTypeName       string `json:"artifactTypeName"`
+	ArtifactCollectionName string `json:"artifactCollectionName"`
+}
+
+// GetEntityName returns __FetchArtifactDigestAlgorithmInput.EntityName, and is useful for accessing the field via an interface.
+func (v *__FetchArtifactDigestAlgorithmInput) GetEntityName() string { return v.EntityName }
+
+// GetProjectName returns __FetchArtifactDigestAlgorithmInput.ProjectName, and is useful for accessing the field via an interface.
+func (v *__FetchArtifactDigestAlgorithmInput) GetProjectName() string { return v.ProjectName }
+
+// GetArtifactTypeName returns __FetchArtifactDigestAlgorithmInput.ArtifactTypeName, and is useful for accessing the field via an interface.
+func (v *__FetchArtifactDigestAlgorithmInput) GetArtifactTypeName() string { return v.ArtifactTypeName }
+
+// GetArtifactCollectionName returns __FetchArtifactDigestAlgorithmInput.ArtifactCollectionName, and is useful for accessing the field via an interface.
+func (v *__FetchArtifactDigestAlgorithmInput) GetArtifactCollectionName() string {
+	return v.ArtifactCollectionName
+}
 
 // __FetchOrgEntityFromEntityInput is used internally by genqlient
 type __FetchOrgEntityFromEntityInput struct {
@@ -2555,8 +2794,8 @@ func CreateArtifact(
 
 // The mutation executed by CreateArtifactFiles.
 const CreateArtifactFiles_Operation = `
-mutation CreateArtifactFiles ($artifactFiles: [CreateArtifactFileSpecInput!]!, $storageLayout: ArtifactStorageLayout!) {
-	createArtifactFiles(input: {artifactFiles:$artifactFiles,storageLayout:$storageLayout}) {
+mutation CreateArtifactFiles ($input: CreateArtifactFilesInput!) {
+	createArtifactFiles(input: $input) {
 		files {
 			edges {
 				node {
@@ -2580,18 +2819,17 @@ mutation CreateArtifactFiles ($artifactFiles: [CreateArtifactFileSpecInput!]!, $
 }
 `
 
+// CreateArtifactFilesInput.digestAlgorithm and CreateArtifactFileSpecInput.digest added in server version: 0.58
 func CreateArtifactFiles(
 	ctx_ context.Context,
 	client_ graphql.Client,
-	artifactFiles []CreateArtifactFileSpecInput,
-	storageLayout ArtifactStorageLayout,
+	input CreateArtifactFilesInput,
 ) (data_ *CreateArtifactFilesResponse, err_ error) {
 	req_ := &graphql.Request{
 		OpName: "CreateArtifactFiles",
 		Query:  CreateArtifactFiles_Operation,
 		Variables: &__CreateArtifactFilesInput{
-			ArtifactFiles: artifactFiles,
-			StorageLayout: storageLayout,
+			Input: input,
 		},
 	}
 
@@ -2698,6 +2936,53 @@ func CreateRunFiles(
 	}
 
 	data_ = &CreateRunFilesResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
+// The query executed by FetchArtifactDigestAlgorithm.
+const FetchArtifactDigestAlgorithm_Operation = `
+query FetchArtifactDigestAlgorithm ($entityName: String!, $projectName: String!, $artifactTypeName: String!, $artifactCollectionName: String!) {
+	project(name: $projectName, entityName: $entityName) {
+		artifactType(name: $artifactTypeName) {
+			artifactCollection(name: $artifactCollectionName) {
+				__typename
+				... on ArtifactSequence {
+					digestAlgorithm
+				}
+			}
+		}
+	}
+}
+`
+
+func FetchArtifactDigestAlgorithm(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	entityName string,
+	projectName string,
+	artifactTypeName string,
+	artifactCollectionName string,
+) (data_ *FetchArtifactDigestAlgorithmResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "FetchArtifactDigestAlgorithm",
+		Query:  FetchArtifactDigestAlgorithm_Operation,
+		Variables: &__FetchArtifactDigestAlgorithmInput{
+			EntityName:             entityName,
+			ProjectName:            projectName,
+			ArtifactTypeName:       artifactTypeName,
+			ArtifactCollectionName: artifactCollectionName,
+		},
+	}
+
+	data_ = &FetchArtifactDigestAlgorithmResponse{}
 	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(

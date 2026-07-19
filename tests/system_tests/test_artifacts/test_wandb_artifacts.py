@@ -319,7 +319,7 @@ def test_add_reference_local_file(tmp_path, artifact):
     e = artifact.add_reference(uri)[0]
     assert e.ref_target() == uri
 
-    assert artifact.digest == "a00c2239f036fb656c1dcbf9a32d89b4"
+    assert artifact.digest == "db139340fb6c96baea7b5a9764d55b2c"
     manifest_contents = artifact.manifest.to_manifest_json()["contents"]
     assert manifest_contents == {
         "file1.txt": {
@@ -473,7 +473,7 @@ def test_add_reference_local_dir(artifact):
     here = Path.cwd()
     artifact.add_reference(f"file://{here}")
 
-    assert artifact.digest == "72414374bfd4b0f60a116e7267845f71"
+    assert artifact.digest == "1c5e32d843db9099cff8f3d5885a3aed"
     manifest_contents = artifact.manifest.to_manifest_json()["contents"]
     assert manifest_contents == {
         "file1.txt": {
@@ -563,7 +563,7 @@ def test_add_reference_local_dir_with_name(artifact):
     here = Path.cwd()
     artifact.add_reference(f"file://{here!s}", name="top")
 
-    assert artifact.digest == "f718baf2d4c910dc6ccd0d9c586fa00f"
+    assert artifact.digest == "4ed6e3db722bf0d8422ec3cfc5cf2ea1"
     manifest_contents = artifact.manifest.to_manifest_json()["contents"]
     assert manifest_contents == {
         "top/file1.txt": {
@@ -615,7 +615,7 @@ def test_add_http_reference_path(artifact):
 
     artifact.add_reference("http://example.com/file1.txt")
 
-    assert artifact.digest == "48237ccc050a88af9dcd869dd5a7e9f4"
+    assert artifact.digest == "e73d6d2294e0e6a526c56c5a24cfc890"
     manifest_contents = artifact.manifest.to_manifest_json()["contents"]
     assert manifest_contents == {
         "file1.txt": {
@@ -634,7 +634,7 @@ def test_add_reference_named_local_file(tmp_path, artifact):
 
     artifact.add_reference(uri, name="great-file.txt")
 
-    assert artifact.digest == "585b9ada17797e37c9cbab391e69b8c5"
+    assert artifact.digest == "5222f22abda0a6ff806ca38783edb453"
     manifest_contents = artifact.manifest.to_manifest_json()["contents"]
     assert manifest_contents == {
         "great-file.txt": {
@@ -648,7 +648,7 @@ def test_add_reference_named_local_file(tmp_path, artifact):
 def test_add_reference_unknown_handler(artifact):
     artifact.add_reference("ref://example.com/somefile.txt", name="ref")
 
-    assert artifact.digest == "410ade94865e89ebe1f593f4379ac228"
+    assert artifact.digest == "4f25da86e90d1b13f582fb81190cfa3c"
 
     manifest_contents = artifact.manifest.to_manifest_json()["contents"]
     assert manifest_contents == {
