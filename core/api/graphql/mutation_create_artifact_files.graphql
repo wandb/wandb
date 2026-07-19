@@ -1,29 +1,30 @@
+# CreateArtifactFilesInput.digestAlgorithm and CreateArtifactFileSpecInput.digest added in server version: 0.58
+# @genqlient(for: "CreateArtifactFilesInput.digestAlgorithm", omitempty: true)
+# @genqlient(for: "CreateArtifactFileSpecInput.digest", omitempty: true)
 mutation CreateArtifactFiles(
-    $artifactFiles: [CreateArtifactFileSpecInput!]!
-    $storageLayout: ArtifactStorageLayout!
+  $input: CreateArtifactFilesInput!
 ) {
-    createArtifactFiles(input: {
-        artifactFiles: $artifactFiles,
-        storageLayout: $storageLayout,
-    }) {
-        files {
-            edges {
-                node {
-                    storagePath
-                    uploadUrl
-                    uploadHeaders
-                    uploadMultipartUrls {
-                        uploadID
-                        uploadUrlParts {
-                            partNumber
-                            uploadUrl
-                        }
-                    }
-                    artifact {
-                        id
-                    }
-                }
+  createArtifactFiles(
+    input: $input
+  ) {
+    files {
+      edges {
+        node {
+          storagePath
+          uploadUrl
+          uploadHeaders
+          uploadMultipartUrls {
+            uploadID
+            uploadUrlParts {
+              partNumber
+              uploadUrl
             }
+          }
+          artifact {
+            id
+          }
         }
+      }
     }
+  }
 }
