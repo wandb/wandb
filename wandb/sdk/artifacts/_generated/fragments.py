@@ -269,6 +269,7 @@ class TeamFragment(GQLResult):
     read_only: bool | None = Field(alias="readOnly")
     read_only_admin: bool = Field(alias="readOnlyAdmin")
     is_team: bool = Field(alias="isTeam")
+    entity_type: str | None = Field(alias="entityType")
     private_only: bool = Field(alias="privateOnly")
     storage_bytes: int = Field(alias="storageBytes")
     code_saving_enabled: bool = Field(alias="codeSavingEnabled")

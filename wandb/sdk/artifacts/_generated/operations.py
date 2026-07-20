@@ -23,7 +23,7 @@ __all__ = [
     "FETCH_ARTIFACT_MANIFEST_GQL",
     "FETCH_LINKED_ARTIFACTS_GQL",
     "FETCH_ADVANCED_REGISTRY_FEATURES_GQL",
-    "FETCH_ORG_ENTITY_FROM_ORGANIZATION_GQL",
+    "FETCH_ORGANIZATION_GQL",
     "FETCH_ORG_INFO_FROM_ENTITY_GQL",
     "FETCH_REGISTRIES_GQL",
     "FETCH_REGISTRY_GQL",
@@ -1409,11 +1409,16 @@ query FetchAdvancedRegistryFeatures($organization: String!) {
 }
 """
 
-FETCH_ORG_ENTITY_FROM_ORGANIZATION_GQL = """
-query FetchOrgEntityFromOrganization($organization: String!) {
-  organization(name: $organization) {
+FETCH_ORGANIZATION_GQL = """
+query FetchOrganization($org: String!) {
+  organization(name: $org) {
+    id
+    name
     orgEntity {
+      __typename
+      id
       name
+      entityType
     }
   }
 }
@@ -1814,6 +1819,7 @@ fragment TeamFragment on Entity {
   readOnly
   readOnlyAdmin
   isTeam
+  entityType
   privateOnly
   storageBytes
   codeSavingEnabled

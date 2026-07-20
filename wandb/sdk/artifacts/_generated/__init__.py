@@ -22,7 +22,7 @@ __all__ = [
     "FETCH_ARTIFACT_MANIFEST_GQL",
     "FETCH_LINKED_ARTIFACTS_GQL",
     "FETCH_ADVANCED_REGISTRY_FEATURES_GQL",
-    "FETCH_ORG_ENTITY_FROM_ORGANIZATION_GQL",
+    "FETCH_ORGANIZATION_GQL",
     "FETCH_ORG_INFO_FROM_ENTITY_GQL",
     "FETCH_REGISTRIES_GQL",
     "FETCH_REGISTRY_GQL",
@@ -81,7 +81,7 @@ __all__ = [
     "UnlinkArtifact",
     "FetchOrgInfoFromEntity",
     "FetchAdvancedRegistryFeatures",
-    "FetchOrgEntityFromOrganization",
+    "FetchOrganization",
     "RegistryVersions",
     "RegistryCollections",
     "FetchRegistry",
@@ -168,8 +168,8 @@ from .enums import ArtifactCollectionState, ArtifactCollectionType, ArtifactStat
 from .fetch_advanced_registry_features import FetchAdvancedRegistryFeatures
 from .fetch_artifact_manifest import FetchArtifactManifest
 from .fetch_linked_artifacts import FetchLinkedArtifacts
-from .fetch_org_entity_from_organization import FetchOrgEntityFromOrganization
 from .fetch_org_info_from_entity import FetchOrgInfoFromEntity
+from .fetch_organization import FetchOrganization
 from .fetch_registries import FetchRegistries
 from .fetch_registry import FetchRegistry
 from .fragments import (
@@ -247,8 +247,8 @@ from .operations import (
     FETCH_ADVANCED_REGISTRY_FEATURES_GQL,
     FETCH_ARTIFACT_MANIFEST_GQL,
     FETCH_LINKED_ARTIFACTS_GQL,
-    FETCH_ORG_ENTITY_FROM_ORGANIZATION_GQL,
     FETCH_ORG_INFO_FROM_ENTITY_GQL,
+    FETCH_ORGANIZATION_GQL,
     FETCH_REGISTRIES_GQL,
     FETCH_REGISTRY_GQL,
     GET_ARTIFACT_MEMBERSHIP_FILE_URLS_GQL,

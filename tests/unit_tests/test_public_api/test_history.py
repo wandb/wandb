@@ -1,4 +1,5 @@
 import json
+from collections.abc import Callable
 from types import SimpleNamespace
 
 from wandb.apis.public.history import HistoryScan
@@ -34,6 +35,9 @@ class FakeServiceApi:
                 scan_run_history_cleanup=apb.ScanRunHistoryCleanupResponse()
             )
         )
+
+    def finalize(self, *args, **kwargs) -> Callable[[], None]:
+        return lambda: None
 
 
 def history_row(**items):

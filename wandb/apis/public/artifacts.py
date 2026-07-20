@@ -98,8 +98,9 @@ class _ArtifactCollectionAliases(RelayPaginator["ArtifactAliasFragment", str]):
             ArtifactCollectionAliases,
         )
 
-        data = self._service_api.execute_graphql(self.QUERY, variables=self.variables)
-        result = ArtifactCollectionAliases.model_validate(data)
+        result = self._execute_query(
+            parse=ArtifactCollectionAliases.model_validate_json
+        )
 
         # Extract the inner `*Connection` result for faster/easier access.
         if not ((coll := result.artifact_collection) and (conn := coll.aliases)):
@@ -147,8 +148,7 @@ class ArtifactTypes(RelayPaginator["ArtifactTypeFragment", "ArtifactType"]):
         from wandb.sdk.artifacts._generated import ProjectArtifactTypes
         from wandb.sdk.artifacts._models.pagination import ArtifactTypeConnection
 
-        data = self._service_api.execute_graphql(self.QUERY, variables=self.variables)
-        result = ProjectArtifactTypes.model_validate(data)
+        result = self._execute_query(parse=ProjectArtifactTypes.model_validate_json)
 
         # Extract the inner `*Connection` result for faster/easier access.
         if not ((proj := result.project) and (conn := proj.artifact_types)):
@@ -213,11 +213,13 @@ class ArtifactType:
             ProjectArtifactType,
         )
 
-        gql_op = PROJECT_ARTIFACT_TYPE_GQL
-        gql_vars = {"entity": self.entity, "project": self.project, "type": self.type}
-        data = self._service_api.execute_graphql(gql_op, variables=gql_vars)
-        result = ProjectArtifactType.model_validate(data)
-        if not ((proj := result.project) and (artifact_type := proj.artifact_type)):
+        data = self._service_api.execute_graphql(
+            PROJECT_ARTIFACT_TYPE_GQL,
+            {"entity": self.entity, "project": self.project, "type": self.type},
+            parse=ProjectArtifactType.model_validate_json,
+        )
+
+        if not ((proj := data.project) and (artifact_type := proj.artifact_type)):
             raise ValueError(f"Could not find artifact type {self.type!r}")
         return ArtifactTypeFragment.model_validate(artifact_type)
 
@@ -353,8 +355,9 @@ class ArtifactCollections(
         from wandb.sdk.artifacts._generated import ArtifactTypeArtifactCollections
         from wandb.sdk.artifacts._models.pagination import ArtifactCollectionConnection
 
-        data = self._service_api.execute_graphql(self.QUERY, variables=self.variables)
-        result = ArtifactTypeArtifactCollections.model_validate(data)
+        result = self._execute_query(
+            parse=ArtifactTypeArtifactCollections.model_validate_json
+        )
 
         # Extract the inner `*Connection` result for faster/easier access.
         if not (
@@ -453,13 +456,12 @@ class ProjectArtifactCollections(
             ProjectArtifactCollectionConnection,
         )
 
-        data = self._execute_query()
-        result = ProjectArtifactCollections.model_validate(data)
-
+        result = self._execute_query(
+            parse=ProjectArtifactCollections.model_validate_json
+        )
         # Extract the inner `*Connection` result for faster/easier access.
         if not ((proj := result.project) and (conn := proj.artifact_collections)):
             raise ValueError(f"Unable to parse {nameof(type(self))!r} response data")
-
         self.last_response = ProjectArtifactCollectionConnection.model_validate(conn)
 
     def _convert(self, node: ArtifactCollectionFragment) -> ArtifactCollection | None:
@@ -605,10 +607,11 @@ class ArtifactCollection:
             ProjectArtifactCollection,
         )
 
-        gql_op = PROJECT_ARTIFACT_COLLECTION_GQL
-        gql_vars = {"entity": entity, "project": project, "type": type_, "name": name}
-        data = self._service_api.execute_graphql(gql_op, variables=gql_vars)
-        result = ProjectArtifactCollection.model_validate(data)
+        result = self._service_api.execute_graphql(
+            PROJECT_ARTIFACT_COLLECTION_GQL,
+            {"entity": entity, "project": project, "type": type_, "name": name},
+            parse=ProjectArtifactCollection.model_validate_json,
+        )
         if not (
             result.project
             and (proj := result.project)
@@ -648,13 +651,13 @@ class ArtifactCollection:
 
         termlog(f"Changing artifact collection type of {old_type!r} to {new_type!r}")
 
-        gql_op = UPDATE_ARTIFACT_SEQUENCE_TYPE_GQL
         gql_input = MoveArtifactSequenceInput(
             artifact_sequence_id=self.id,
             destination_artifact_type_name=new_type,
         )
         self._service_api.execute_graphql(
-            gql_op, variables={"input": gql_input.model_dump()}
+            UPDATE_ARTIFACT_SEQUENCE_TYPE_GQL,
+            variables={"input": gql_input.model_dump()},
         )
         self._saved.type = new_type
         self._current.type = new_type
@@ -916,8 +919,7 @@ class Artifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
     def _update_response(self) -> None:
         from wandb.sdk.artifacts._generated import ArtifactFragment, ProjectArtifacts
 
-        data = self._service_api.execute_graphql(self.QUERY, variables=self.variables)
-        result = ProjectArtifacts.model_validate(data)
+        result = self._execute_query(parse=ProjectArtifacts.model_validate_json)
 
         # Extract the inner `*Connection` result for faster/easier access.
         if not (
@@ -1076,10 +1078,9 @@ class ArtifactFiles(SizedRelayPaginator["FileFragment", "File"]):
         from wandb.sdk.artifacts._generated import ArtifactMembershipFiles
         from wandb.sdk.artifacts._models.pagination import ArtifactFileConnection
 
-        data = self._execute_query()
+        result = self._execute_query(parse=ArtifactMembershipFiles.model_validate_json)
 
         # Extract the inner `*Connection` result for faster/easier access.
-        result = ArtifactMembershipFiles.model_validate(data)
         conn = result.project.artifact_collection.artifact_membership.files
 
         if conn is None:
