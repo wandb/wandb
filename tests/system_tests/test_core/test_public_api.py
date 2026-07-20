@@ -3,31 +3,23 @@
 from __future__ import annotations
 
 import json
+from typing import TYPE_CHECKING
 from unittest import mock
 
 import pytest
 import wandb
 import wandb.apis.public
 import wandb.util
-from polyfactory.factories.pydantic_factory import ModelFactory
-from polyfactory.pytest_plugin import register_fixture
 from wandb import Api
-from wandb.apis._generated import ProjectFragment, UserFragment
 from wandb.apis._generated.generate_api_key import GenerateApiKey
 from wandb.apis.public.summary import Summary
 from wandb.errors.errors import CommError
 from wandb.sdk.artifacts._gqlutils import server_supports
 from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 
-
-@register_fixture(name="project_fragment_factory")
-class ProjectFragmentFactory(ModelFactory[ProjectFragment]):
-    """Generates valid ProjectFragment instances for stubbed GQL responses."""
-
-
-@register_fixture(name="user_fragment_factory")
-class UserFragmentFactory(ModelFactory[UserFragment]):
-    """Generates valid UserFragment instances for stubbed GQL responses."""
+if TYPE_CHECKING:
+    from polyfactory.factories.pydantic_factory import ModelFactory
+    from wandb.apis._generated import ProjectFragment, UserFragment
 
 
 @pytest.mark.parametrize(
@@ -516,7 +508,11 @@ def test_runs_from_path(user, wandb_backend_spy):
     assert runs[0].job_type == job_type
 
 
-def test_projects(user, wandb_backend_spy, project_fragment_factory):
+def test_projects(
+    user,
+    wandb_backend_spy,
+    project_fragment_factory: type[ModelFactory[ProjectFragment]],
+):
     num_projects = 2
     # The test only counts the returned projects, so no fragment field needs
     # a specific value.
@@ -1088,7 +1084,10 @@ def test_create_team_exists(wandb_backend_spy):
 
 
 @pytest.fixture
-def stub_search_users(wandb_backend_spy, user_fragment_factory):
+def stub_search_users(
+    wandb_backend_spy,
+    user_fragment_factory: type[ModelFactory[UserFragment]],
+):
     """Fixture to stub a SearchUsers GraphQL query."""
     gql = wandb_backend_spy.gql
 

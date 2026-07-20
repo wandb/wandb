@@ -28,6 +28,9 @@ import pytest
 import wandb
 import wandb.util
 from click.testing import CliRunner
+from polyfactory.factories.pydantic_factory import ModelFactory
+from polyfactory.pytest_plugin import register_fixture
+from wandb.apis._generated import ProjectFragment, UserFragment
 from wandb.errors import term
 from wandb.sdk.interface.interface_queue import InterfaceQueue
 from wandb.sdk.lib import filesystem, module, runid, wbauth
@@ -72,11 +75,24 @@ def seed_model_factories(request: pytest.FixtureRequest) -> None:
     and its faker instance are seeded, not the stdlib random module, so
     hypothesis is unaffected.
     """
-    from polyfactory.factories.pydantic_factory import ModelFactory
-
     # Seeding accepts any hashable. Strings seed deterministically across
     # processes, since random.Random does not use the built-in hash() for them.
     ModelFactory.seed_random(request.node.nodeid)
+
+
+# --------------------------------
+# Shared model factories
+# --------------------------------
+
+
+@register_fixture(name="project_fragment_factory")
+class ProjectFragmentFactory(ModelFactory[ProjectFragment]):
+    """Generates valid ProjectFragment instances for stubbed GQL responses."""
+
+
+@register_fixture(name="user_fragment_factory")
+class UserFragmentFactory(ModelFactory[UserFragment]):
+    """Generates valid UserFragment instances for stubbed GQL responses."""
 
 
 # --------------------------------
