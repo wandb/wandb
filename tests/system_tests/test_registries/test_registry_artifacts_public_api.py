@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from urllib.parse import quote
 
 import wandb
@@ -10,17 +10,24 @@ from wandb._strutils import nameof
 from wandb.apis.public.registries.registry import Registry
 from wandb.sdk.artifacts._generated import ArtifactMembershipByName
 
+if TYPE_CHECKING:
+    from polyfactory.factories.pydantic_factory import ModelFactory
+    from wandb.sdk.artifacts._generated import (
+        ArtifactFragment,
+        ArtifactMembershipFragment,
+    )
+
 
 @fixture
-def mock_artifact_fragment_data(artifact_fragment_factory) -> dict[str, Any]:
-    # Pin the fields that carry meaning for these tests or must stay
-    # consistent with the membership fragment below. The rest (ids, digests,
-    # timestamps, etc.) are generated.
+def mock_artifact_fragment_data(
+    artifact_fragment_factory: type[ModelFactory[ArtifactFragment]],
+) -> dict[str, Any]:
+    # Set explicit, non-placeholder field values where needed.
     fragment = artifact_fragment_factory.build(
         version_index=0,
         artifact_type={"name": "model"},
         artifact_sequence={
-            "name": "test-collection",
+            "name": "test-source-collection",
             "project": {
                 "name": "orig-project",
                 "entity": {"name": "test-team"},
@@ -36,7 +43,9 @@ def mock_artifact_fragment_data(artifact_fragment_factory) -> dict[str, Any]:
 
 @fixture
 def mock_membership_fragment_data(
-    artifact_membership_fragment_factory,
+    artifact_membership_fragment_factory: type[
+        ModelFactory[ArtifactMembershipFragment]
+    ],
     mock_artifact_fragment_data: dict[str, Any],
 ) -> dict[str, Any]:
     fragment = artifact_membership_fragment_factory.build(

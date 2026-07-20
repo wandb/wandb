@@ -659,14 +659,12 @@ def test_fetch_registry_artifact(
     op_matcher = Matcher(operation=nameof(FetchOrgInfoFromEntity))
     wandb_backend_spy.stub_gql(match=op_matcher, respond=mock_org_entity_info_responder)
 
-    # Pin the fields that carry meaning for this test or must stay consistent
-    # with the membership fragment below. The rest (ids, digests, timestamps,
-    # etc.) are generated.
+    # Set explicit, non-placeholder field values where needed.
     mock_artifact_fragment_data = artifact_fragment_factory.build(
         version_index=0,
         artifact_type={"name": "model"},
         artifact_sequence={
-            "name": "test-collection",
+            "name": "test-source-collection",
             "project": {
                 "name": "orig-project",
                 "entity": {"name": "test-team"},

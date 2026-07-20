@@ -524,8 +524,8 @@ def test_projects(user, wandb_backend_spy, project_fragment_factory):
         "data": {
             "models": {
                 "edges": [
-                    {"node": project_fragment_factory.build().model_dump()}
-                    for _ in range(num_projects)
+                    {"node": project.model_dump()}
+                    for project in project_fragment_factory.batch(num_projects)
                 ],
                 "pageInfo": {
                     "hasNextPage": False,
@@ -1100,14 +1100,17 @@ def stub_search_users(wandb_backend_spy, user_fragment_factory):
     ):
         # The tests read the user's email, api key names, and team names.
         # Everything else is generated.
-        node = user_fragment_factory.build(
+        users = user_fragment_factory.batch(
+            count,
             email=email,
             api_keys={"edges": [{"node": key} for key in api_keys]},
             teams={"edges": [{"node": team} for team in teams]},
-        ).model_dump()
+        )
 
         search_users_spy = gql.Constant(
-            content={"data": {"users": {"edges": [{"node": node}] * count}}}
+            content={
+                "data": {"users": {"edges": [{"node": u.model_dump()} for u in users]}}
+            }
         )
 
         wandb_backend_spy.stub_gql(
