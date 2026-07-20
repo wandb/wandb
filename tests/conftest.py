@@ -63,24 +63,23 @@ def setup_wandb_env_variables() -> Generator[None]:
         yield
 
 
-@pytest.fixture
-def gql_factory(request: pytest.FixtureRequest):
-    """Returns a callable mapping a GQLBase model to a polyfactory factory.
+@pytest.fixture(autouse=True)
+def seed_model_factories(request: pytest.FixtureRequest) -> None:
+    """Makes output from tests.factories factories deterministic per test.
 
-    Example:
-        artifact = gql_factory(ArtifactFragment).build(version_index=0)
-
-    Generated values are seeded from the test's node id, so they stay
-    deterministic regardless of execution order or pytest-xdist worker
-    assignment, and a failing test reproduces the same values when rerun
-    alone. Only polyfactory's own RNG and its faker instance are seeded,
-    not the stdlib random module, so hypothesis is unaffected.
+    Seeding from the test's node id keeps generated values stable regardless
+    of execution order or pytest-xdist worker assignment, and a failing test
+    reproduces the same values when rerun alone. Only polyfactory's own RNG
+    and its faker instance are seeded, not the stdlib random module, so
+    hypothesis is unaffected.
     """
-    from tests.factories import GQLFactory, factory_for
+    try:
+        from tests.factories import GQLFactory
+    except ImportError:  # Not every test environment installs polyfactory.
+        return
 
     digest = hashlib.sha256(request.node.nodeid.encode()).digest()
     GQLFactory.seed_random(int.from_bytes(digest[:8], "big"))
-    return factory_for
 
 
 # --------------------------------
