@@ -29,7 +29,16 @@ func rampTransmitRateLimit(
 		case <-time.After(interval):
 		}
 
-		interval = min(2*interval, target)
+		interval = nextTransmitInterval(interval, target)
 		limiter.SetLimit(rate.Every(interval))
 	}
+}
+
+// nextTransmitInterval doubles interval without overflowing, capped at target.
+// It requires 0 < interval < target.
+func nextTransmitInterval(interval, target time.Duration) time.Duration {
+	if interval >= target-interval {
+		return target
+	}
+	return 2 * interval
 }

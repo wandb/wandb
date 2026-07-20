@@ -148,9 +148,9 @@ message Settings {
 
   // Initial interval in seconds between filestream transmissions.
   //
-  // Transmissions start at this interval and gradually slow to
-  // x_file_stream_transmit_interval, so that data logged at the start
-  // of a run is uploaded quickly.
+  // After an immediate first transmission, subsequent transmissions start
+  // at this interval and gradually slow to x_file_stream_transmit_interval,
+  // so that data logged at the start of a run is uploaded quickly.
   google.protobuf.DoubleValue x_file_stream_transmit_interval_initial = 208;
 
   // Additional headers to add to all outgoing HTTP requests.

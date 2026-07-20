@@ -426,9 +426,9 @@ type Settings struct {
 	XFileStreamTransmitInterval *wrapperspb.DoubleValue `protobuf:"bytes,175,opt,name=x_file_stream_transmit_interval,json=xFileStreamTransmitInterval,proto3" json:"x_file_stream_transmit_interval,omitempty"`
 	// Initial interval in seconds between filestream transmissions.
 	//
-	// Transmissions start at this interval and gradually slow to
-	// x_file_stream_transmit_interval, so that data logged at the start
-	// of a run is uploaded quickly.
+	// After an immediate first transmission, subsequent transmissions start
+	// at this interval and gradually slow to x_file_stream_transmit_interval,
+	// so that data logged at the start of a run is uploaded quickly.
 	XFileStreamTransmitIntervalInitial *wrapperspb.DoubleValue `protobuf:"bytes,208,opt,name=x_file_stream_transmit_interval_initial,json=xFileStreamTransmitIntervalInitial,proto3" json:"x_file_stream_transmit_interval_initial,omitempty"`
 	// Additional headers to add to all outgoing HTTP requests.
 	XExtraHttpHeaders *MapStringKeyStringValue `protobuf:"bytes,14,opt,name=x_extra_http_headers,json=xExtraHttpHeaders,proto3" json:"x_extra_http_headers,omitempty"`
