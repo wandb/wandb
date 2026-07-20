@@ -43,7 +43,27 @@ func TestFileCache_Write(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, hashencode.ComputeB64MD5(data), expectedMd5)
 
-	path, err := cache.md5Path(expectedMd5)
+	path, err := cache.digestPath(expectedMd5)
+	require.NoError(t, err)
+	require.NotNil(t, path)
+	assert.FileExists(t, path)
+	readData, err := os.ReadFile(path)
+	require.NoError(t, err)
+	assert.Equal(t, data, readData)
+}
+
+func TestFileCache_Write_XXH128(t *testing.T) {
+	cache, cleanup := setupTestEnvironment(t)
+	defer cleanup()
+	cache = cache.WithDigestAlgorithm("MANIFEST_XXH128").(*FileCache)
+
+	// Assuming Write works correctly for setup
+	data := []byte("test data")
+	expectedXXH128, err := cache.Write(bytes.NewReader(data))
+	require.NoError(t, err)
+	assert.Equal(t, hashencode.ComputeB64XXH128(data), expectedXXH128)
+
+	path, err := cache.digestPath(expectedXXH128)
 	require.NoError(t, err)
 	require.NotNil(t, path)
 	assert.FileExists(t, path)
@@ -58,6 +78,15 @@ func TestHashOnlyCache_Write(t *testing.T) {
 	expectedMd5, err := cache.Write(bytes.NewReader(data))
 	require.NoError(t, err)
 	assert.Equal(t, hashencode.ComputeB64MD5(data), expectedMd5)
+}
+
+func TestHashOnlyCache_Write_XXH128(t *testing.T) {
+	cache := NewHashOnlyCache()
+	cache = cache.WithDigestAlgorithm("MANIFEST_XXH128").(*HashOnlyCache)
+	data := []byte("test data")
+	expectedXXH128, err := cache.Write(bytes.NewReader(data))
+	require.NoError(t, err)
+	assert.Equal(t, hashencode.ComputeB64XXH128(data), expectedXXH128)
 }
 
 func TestFileCache_AddFile(t *testing.T) {
@@ -82,8 +111,38 @@ func TestFileCache_AddFile(t *testing.T) {
 	assert.Equal(t, md5Hash, calculatedHash)
 }
 
+func TestFileCache_AddFile_XXH128(t *testing.T) {
+	cache, cleanup := setupTestEnvironment(t)
+	defer cleanup()
+	cache = cache.WithDigestAlgorithm("MANIFEST_XXH128").(*FileCache)
+
+	srcFile, err := os.CreateTemp("", "source")
+	require.NoError(t, err)
+	defer func() {
+		_ = os.Remove(srcFile.Name())
+	}()
+
+	data := []byte("test data")
+	_, err = srcFile.Write(data)
+	require.NoError(t, err)
+	_ = srcFile.Close()
+
+	xxh128Hash, err := cache.AddFile(srcFile.Name())
+	require.NoError(t, err)
+	calculatedHash, err := hashencode.ComputeFileB64XXH128(srcFile.Name())
+	require.NoError(t, err)
+	assert.Equal(t, xxh128Hash, calculatedHash)
+}
+
 func TestHashOnlyCache_AddFile(t *testing.T) {
 	cache := NewHashOnlyCache()
+	_, err := cache.AddFile("test")
+	require.ErrorContains(t, err, "no such file")
+}
+
+func TestHashOnlyCache_AddFile_XXH128(t *testing.T) {
+	cache := NewHashOnlyCache()
+	cache = cache.WithDigestAlgorithm("MANIFEST_XXH128")
 	_, err := cache.AddFile("test")
 	require.ErrorContains(t, err, "no such file")
 }
@@ -100,6 +159,27 @@ func TestFileCache_AddFileAndCheckDigest(t *testing.T) {
 
 	data := []byte("some data")
 	calculatedHash := hashencode.ComputeB64MD5(data)
+	_, err = srcFile.Write(data)
+	require.NoError(t, err)
+	_ = srcFile.Close()
+
+	err = cache.AddFileAndCheckDigest(srcFile.Name(), calculatedHash)
+	require.NoError(t, err)
+}
+
+func TestFileCache_AddFileAndCheckDigest_XXH128(t *testing.T) {
+	cache, cleanup := setupTestEnvironment(t)
+	defer cleanup()
+	cache = cache.WithDigestAlgorithm("MANIFEST_XXH128").(*FileCache)
+
+	srcFile, err := os.CreateTemp("", "source")
+	require.NoError(t, err)
+	defer func() {
+		_ = os.Remove(srcFile.Name())
+	}()
+
+	data := []byte("some data")
+	calculatedHash := hashencode.ComputeB64XXH128(data)
 	_, err = srcFile.Write(data)
 	require.NoError(t, err)
 	_ = srcFile.Close()
@@ -131,6 +211,51 @@ func TestHashOnlyCache_AddFileAndCheckDigest(t *testing.T) {
 
 	err = cache.AddFileAndCheckDigest(srcFile.Name(), calculatedHash)
 	require.NoError(t, err)
+}
+
+func TestHashOnlyCache_AddFileAndCheckDigest_XXH128(t *testing.T) {
+	cache := NewHashOnlyCache()
+	cache = cache.WithDigestAlgorithm("MANIFEST_XXH128").(*HashOnlyCache)
+
+	err := cache.AddFileAndCheckDigest("test", "")
+	require.ErrorContains(t, err, "no such file")
+
+	srcFile, err := os.CreateTemp("", "source")
+	require.NoError(t, err)
+	defer func() {
+		_ = os.Remove(srcFile.Name())
+	}()
+
+	data := []byte("some data")
+	calculatedHash := hashencode.ComputeB64XXH128(data)
+	_, err = srcFile.Write(data)
+	require.NoError(t, err)
+	_ = srcFile.Close()
+
+	err = cache.AddFileAndCheckDigest(srcFile.Name(), "invalid")
+	require.ErrorContains(t, err, "file hash mismatch")
+
+	err = cache.AddFileAndCheckDigest(srcFile.Name(), calculatedHash)
+	require.NoError(t, err)
+}
+
+func TestFileCache_WithDigestAlgorithm(t *testing.T) {
+	cache, cleanup := setupTestEnvironment(t)
+	defer cleanup()
+
+	xxhCache := cache.WithDigestAlgorithm("MANIFEST_XXH128").(*FileCache)
+	assert.Equal(t, "MANIFEST_XXH128", xxhCache.digestAlgorithm)
+	assert.Equal(t, cache.root, xxhCache.root)
+	assert.Equal(t, cache.fileSemaphore, xxhCache.fileSemaphore)
+
+	md5Cache := cache.WithDigestAlgorithm("MANIFEST_MD5").(*FileCache)
+	assert.Equal(t, "MANIFEST_MD5", md5Cache.digestAlgorithm)
+}
+
+func TestHashOnlyCache_WithDigestAlgorithm(t *testing.T) {
+	cache := NewHashOnlyCache()
+	xxhCache := cache.WithDigestAlgorithm("MANIFEST_XXH128").(*HashOnlyCache)
+	assert.Equal(t, "MANIFEST_XXH128", xxhCache.digestAlgorithm)
 }
 
 func TestFileCache_Link(t *testing.T) {
@@ -180,7 +305,7 @@ func TestFileCache_RestoreTo(t *testing.T) {
 	assert.Equal(t, data, restoredData)
 
 	// Delete the file from the cache
-	internalPath, err := cache.md5Path(cacheKey)
+	internalPath, err := cache.digestPath(cacheKey)
 	require.NoError(t, err)
 	require.NoError(t, os.Remove(internalPath))
 
@@ -189,6 +314,56 @@ func TestFileCache_RestoreTo(t *testing.T) {
 
 	// Our HashOnlyCache should also return true, this is important.
 	noOpCache := NewHashOnlyCache()
+	assert.True(t, noOpCache.RestoreTo(manifestEntry, localPath))
+
+	// Delete the restored file
+	require.NoError(t, os.Remove(localPath))
+
+	// Now when we attempt to restore we should fail.
+	assert.False(t, cache.RestoreTo(manifestEntry, localPath))
+
+	// And if we give it an invalid manifest entry, it should fail.
+	assert.False(t, cache.RestoreTo(ManifestEntry{Digest: "invalid"}, localPath))
+}
+
+func TestFileCache_RestoreTo_XXH128(t *testing.T) {
+	cache, cleanup := setupTestEnvironment(t)
+	defer cleanup()
+	cache = cache.WithDigestAlgorithm("MANIFEST_XXH128").(*FileCache)
+	// Write some data to the cache
+	data := []byte("restore data")
+	cacheKey, err := cache.Write(bytes.NewReader(data))
+	require.NoError(t, err)
+
+	rootDir := filepath.Join(os.TempDir(), "restore_root")
+	defer func() {
+		_ = os.Remove(rootDir)
+	}()
+	localPath := filepath.Join(rootDir, "test", "dir", "restore_target.test")
+	manifestEntry := ManifestEntry{
+		Digest: cacheKey,
+		Size:   12,
+	}
+
+	// Restore the cache file to the target path
+	assert.True(t, cache.RestoreTo(manifestEntry, localPath))
+
+	// Verify the file exists at the target path and content matches
+	restoredData, err := os.ReadFile(localPath)
+	require.NoError(t, err)
+	assert.Equal(t, data, restoredData)
+
+	// Delete the file from the cache
+	internalPath, err := cache.digestPath(cacheKey)
+	require.NoError(t, err)
+	require.NoError(t, os.Remove(internalPath))
+
+	// Restore again, and verify that it's fine despite not being in the cache.
+	assert.True(t, cache.RestoreTo(manifestEntry, localPath))
+
+	// Our HashOnlyCache should also return true, this is important.
+	noOpCache := NewHashOnlyCache()
+	noOpCache = noOpCache.WithDigestAlgorithm("MANIFEST_XXH128").(*HashOnlyCache)
 	assert.True(t, noOpCache.RestoreTo(manifestEntry, localPath))
 
 	// Delete the restored file
