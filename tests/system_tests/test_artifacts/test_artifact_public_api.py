@@ -17,9 +17,7 @@ from wandb.errors import CommError, UnsupportedError
 from wandb.proto import wandb_api_pb2
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.artifacts._generated import (
-    ArtifactFragment,
     ArtifactMembershipByName,
-    ArtifactMembershipFragment,
     FetchOrgInfoFromEntity,
 )
 from wandb.sdk.artifacts._gqlutils import server_supports
@@ -633,6 +631,8 @@ def test_fetch_registry_artifact(
     wandb_backend_spy,
     api,
     mocker,
+    artifact_fragment_factory,
+    artifact_membership_fragment_factory,
     artifact_path,
     resolve_org_entity_name,
     is_registry_project,
@@ -659,49 +659,22 @@ def test_fetch_registry_artifact(
     op_matcher = Matcher(operation=nameof(FetchOrgInfoFromEntity))
     wandb_backend_spy.stub_gql(match=op_matcher, respond=mock_org_entity_info_responder)
 
-    mock_artifact_fragment_data = ArtifactFragment(
-        name="test-collection",  # NOTE: relevant
-        version_index=0,  # NOTE: relevant
-        # ------------------------------------------------------------------------------
-        # NOTE: Remaining artifact fields are placeholders and not as relevant to the test
-        artifact_type={"name": "model"},
-        artifact_sequence={
-            "name": "test-collection",
-            "project": {
-                "name": "orig-project",
-                "entity": {"name": "test-team"},
-            },
-        },
-        id="PLACEHOLDER",
-        description="PLACEHOLDER",
-        tags=[],
-        ttl_duration_seconds=-2,
-        ttl_is_inherited=False,
-        metadata="{}",
-        state="COMMITTED",
-        size=0,
-        digest="FAKE_DIGEST",
-        file_count=0,
-        commit_hash="PLACEHOLDER",
-        created_at="PLACEHOLDER",
-        updated_at=None,
-        history_step=None,
-        # ------------------------------------------------------------------------------
-    ).model_dump()
+    # Only the artifact's presence matters here: Artifact._from_attrs is
+    # mocked above, so the artifact's own fields are never read.
+    mock_artifact_fragment_data = artifact_fragment_factory.build().model_dump()
 
-    mock_membership_fragment_data = ArtifactMembershipFragment(
-        id="PLACEHOLDER",
+    # The fetch reads the collection name and its project/entity names, so pin
+    # those. Everything else is generated.
+    mock_membership_fragment_data = artifact_membership_fragment_factory.build(
         artifact=mock_artifact_fragment_data,
         artifact_collection={
             "__typename": "ArtifactPortfolio",
             "name": "test-collection",
             "project": {
-                "name": "wandb-registry-model",  # NOTE: relevant
-                "entity": {"name": "org-entity-name"},  # NOTE: relevant
+                "name": "wandb-registry-model",
+                "entity": {"name": "org-entity-name"},
             },
         },
-        version_index=1,
-        aliases=[{"id": "PLACEHOLDER", "alias": "my-alias"}],
     ).model_dump()
 
     mock_empty_rsp_data = {"data": {"project": {}}}

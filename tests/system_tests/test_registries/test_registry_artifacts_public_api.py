@@ -8,63 +8,33 @@ from pytest import fixture
 from wandb import Api, Artifact
 from wandb._strutils import nameof
 from wandb.apis.public.registries.registry import Registry
-from wandb.sdk.artifacts._generated import (
-    ArtifactFragment,
-    ArtifactMembershipByName,
-    ArtifactMembershipFragment,
-)
+from wandb.sdk.artifacts._generated import ArtifactMembershipByName
 
 
 @fixture
-def mock_artifact_fragment_data() -> dict[str, Any]:
-    fragment = ArtifactFragment(
-        name="test-collection",  # NOTE: relevant
-        version_index=0,  # NOTE: relevant
-        artifact_type={"name": "model"},
-        artifact_sequence={
-            "name": "test-collection",
-            "project": {
-                "name": "orig-project",
-                "entity": {"name": "test-team"},
-            },
-        },
-        id="PLACEHOLDER",
-        description="PLACEHOLDER",
-        tags=[],
-        ttl_duration_seconds=-2,
-        ttl_is_inherited=False,
-        metadata="{}",
-        state="COMMITTED",
-        size=0,
-        digest="FAKE_DIGEST",
-        file_count=0,
-        commit_hash="PLACEHOLDER",
-        created_at="PLACEHOLDER",
-        updated_at=None,
-        history_step=None,
-    )
-    return fragment.model_dump()
+def mock_artifact_fragment_data(artifact_fragment_factory) -> dict[str, Any]:
+    # Only the artifact's presence matters: Artifact._from_attrs is mocked in
+    # these tests, so the artifact's own fields are never read.
+    return artifact_fragment_factory.build().model_dump()
 
 
 @fixture
 def mock_membership_fragment_data(
+    artifact_membership_fragment_factory,
     mock_artifact_fragment_data: dict[str, Any],
 ) -> dict[str, Any]:
-    fragment = ArtifactMembershipFragment(
-        id="PLACEHOLDER",
+    # The fetch reads the collection name and its project/entity names, so pin
+    # those. Everything else is generated.
+    fragment = artifact_membership_fragment_factory.build(
         artifact=mock_artifact_fragment_data,
-        artifactCollection={
+        artifact_collection={
             "__typename": "ArtifactPortfolio",
-            "name": "test-collection",  # NOTE: relevant
+            "name": "test-collection",
             "project": {
-                "name": "wandb-registry-model",  # NOTE: relevant
-                "entity": {"name": "org-entity-name"},  # NOTE: relevant
+                "name": "wandb-registry-model",
+                "entity": {"name": "org-entity-name"},
             },
         },
-        versionIndex=1,
-        aliases=[
-            {"id": "PLACEHOLDER", "alias": "my-alias"},
-        ],
     )
     return fragment.model_dump()
 
