@@ -615,6 +615,7 @@ def init(ctx, project, entity, reset, mode):
 )
 @click.option(
     "--include-online/--no-include-online",
+    "--no-skip-online/--skip-online",
     is_flag=True,
     default=None,
     help="Include runs created in online mode.",
@@ -627,6 +628,7 @@ def init(ctx, project, entity, reset, mode):
 )
 @click.option(
     "--include-synced/--no-include-synced",
+    "--no-skip-synced/--skip-synced",
     is_flag=True,
     default=None,
     help="Include runs that are already synced.",
@@ -2192,7 +2194,11 @@ def agent(ctx, project, entity, count, forward_signals, sweep_id):
         )
     # TODO: handle other errors with correct exit codes
     except SweepNotFoundError:
-        wandb.termerror("Sweep was deleted or agent was not found. Stopping agent.")
+        # The agent loop has already printed the "Sweep was deleted or agent was
+        # not found" error to the terminal before re-raising, so here we only
+        # need to report that we're stopping and translate it into a non-zero
+        # exit code.
+        wandb.termerror("Stopping agent.")
         sys.exit(1)
 
     # you can send local commands like so:
@@ -3375,10 +3381,8 @@ Run `git clone {repo}` and restore from there or pass the --no-git flag."""
 
     if commit and git.enabled:
         wandb.termlog(f"Fetching origin and finding commit: {commit}")
-        subprocess.check_call(["git", "fetch", "--all"])
-        try:
-            git.repo.commit(commit)
-        except ValueError:
+        git.fetch_all()
+        if not git.has_commit(commit):
             wandb.termlog(f"Couldn't find original commit: {commit}")
             commit = None
             files = api.download_urls(project, run=run, entity=entity)
@@ -3387,12 +3391,9 @@ Run `git clone {repo}` and restore from there or pass the --no-git flag."""
                     ".patch"
                 ):
                     commit = filename[len("upstream_diff_") : -len(".patch")]
-                    try:
-                        git.repo.commit(commit)
-                    except ValueError:
-                        commit = None
-                    else:
+                    if git.has_commit(commit):
                         break
+                    commit = None
 
             if commit:
                 wandb.termlog(f"Falling back to upstream commit: {commit}")
@@ -3408,22 +3409,22 @@ Run `git clone {repo}` and restore from there or pass the --no-git flag."""
                 patch_path = None
 
         branch_name = f"wandb/{run}"
-        if branch and branch_name not in git.repo.branches:
-            git.repo.git.checkout(commit, b=branch_name)
+        if branch and not git.has_branch(branch_name):
+            git.checkout_new_branch(branch_name, commit)
             wandb.termlog(f"Created branch {click.style(branch_name, bold=True)}")
         elif branch:
             wandb.termlog(
                 f"Using existing branch, run `git branch -D {branch_name}` from master for a clean checkout"
             )
-            git.repo.git.checkout(branch_name)
+            git.checkout(branch_name)
         else:
             wandb.termlog(f"Checking out {commit} in detached mode")
-            git.repo.git.checkout(commit)
+            git.checkout(commit)
 
         if patch_path:
             # we apply the patch from the repository root so git doesn't exclude
             # things outside the current directory
-            root = git.root
+            root = git.root_dir
             patch_rel_path = os.path.relpath(patch_path, start=root)
             # --reject is necessary or else this fails any time a binary file
             # occurs in the diff

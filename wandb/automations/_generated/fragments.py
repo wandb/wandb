@@ -25,6 +25,13 @@ class ArtifactSequenceScopeFields(GQLResult):
     name: str
 
 
+class EntityScopeFields(GQLResult):
+    typename__: Typename[Literal["Entity"]] = "Entity"
+    id: GQLId
+    name: str
+    entity_type: str | None = Field(alias="entityType")
+
+
 class FilterEventFields(GQLResult):
     typename__: Typename[Literal["FilterEventTriggeringCondition"]] = (
         "FilterEventTriggeringCondition"
@@ -119,7 +126,10 @@ class TriggerFields(GQLResult):
     description: str | None
     enabled: bool
     scope: (
-        ArtifactPortfolioScopeFields | ArtifactSequenceScopeFields | ProjectScopeFields
+        ArtifactPortfolioScopeFields
+        | ArtifactSequenceScopeFields
+        | EntityScopeFields
+        | ProjectScopeFields
     ) = Field(discriminator="typename__")
     event: FilterEventFields
     action: (
@@ -142,6 +152,7 @@ class ProjectTriggersFields(GQLResult):
 
 ArtifactPortfolioScopeFields.model_rebuild()
 ArtifactSequenceScopeFields.model_rebuild()
+EntityScopeFields.model_rebuild()
 FilterEventFields.model_rebuild()
 WebhookIntegrationFields.model_rebuild()
 GenericWebhookActionFields.model_rebuild()

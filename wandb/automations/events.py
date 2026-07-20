@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Annotated, Any, Literal, get_args
 
-from pydantic import AfterValidator, Field
+from pydantic import AfterValidator, BeforeValidator, Discriminator, Field
 
 from wandb._pydantic import GQLBase, model_validator, pydantic_isinstance
 from wandb._strutils import nameof
@@ -23,11 +23,12 @@ from ._validators import (
     JsonEncoded,
     LenientStrEnum,
     ensure_json,
+    parse_scope,
     wrap_mutation_event_filter,
     wrap_run_filter,
 )
 from .actions import InputAction, InputActionTypes, SavedActionTypes
-from .scopes import ArtifactCollectionScope, AutomationScope, ProjectScope
+from .scopes import ArtifactCollectionScope, AutomationScope, EntityScope, ProjectScope
 
 if TYPE_CHECKING:
     from .automations import NewAutomation
@@ -360,8 +361,12 @@ class OnCreateArtifact(_BaseMutationEventInput):
 # ------------------------------------------------------------------------------
 # Events that trigger on run conditions
 class _BaseRunEventInput(_BaseEventInput):
-    scope: ProjectScope
-    """The scope of the event: must be a project."""
+    scope: Annotated[
+        ProjectScope | EntityScope,
+        BeforeValidator(parse_scope),
+        Discriminator("typename__"),
+    ]
+    """The scope of the event: must be a project or a team/org entity."""
 
 
 class OnRunMetric(_BaseRunEventInput):

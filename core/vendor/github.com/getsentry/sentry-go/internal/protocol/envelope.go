@@ -17,7 +17,7 @@ type Envelope struct {
 // EnvelopeHeader represents the header of a Sentry envelope.
 type EnvelopeHeader struct {
 	// EventID is the unique identifier for this event
-	EventID string `json:"event_id"`
+	EventID string `json:"event_id,omitempty"`
 
 	// SentAt is the timestamp when the event was sent from the SDK as string in RFC 3339 format.
 	// Used for clock drift correction of the event timestamp. The time zone must be UTC.

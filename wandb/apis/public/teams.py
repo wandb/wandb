@@ -47,12 +47,12 @@ class Member(Attrs):
             data = self._service_api.execute_graphql(
                 DELETE_INVITE_GQL,
                 {"id": self.id, "entity": self.team},
+                parse=DeleteInvite.model_validate_json,
             )
         except WandbApiFailedError:
             return False
         else:
-            result = DeleteInvite.model_validate(data).result
-            return (result is not None) and result.success
+            return ((result := data.result) is not None) and result.success
 
     def __repr__(self):
         return f"<Member {self.name} ({self.account_type})>"
@@ -71,7 +71,30 @@ class Team(Attrs):
         attrs (dict): Optional dictionary of team attributes
 
     Note:
-        Team management requires appropriate permissions.
+        Do not instantiate this class directly. Use `wandb.Api().team()` to
+        look up an existing team, or `wandb.Api().create_team()` to create a
+        new one. Team management requires appropriate permissions.
+
+    Examples:
+    Look up a team and invite a member.
+
+    ```python
+    import wandb
+
+    api = wandb.Api()
+    team = api.team("my-team")
+    team.invite("user@example.com")
+    ```
+
+    Create a team and add a service account.
+
+    ```python
+    import wandb
+
+    api = wandb.Api()
+    team = api.create_team("my-team")
+    team.create_service_account("CI service account")
+    ```
     """
 
     def __init__(
@@ -162,11 +185,11 @@ class Team(Attrs):
         from wandb.apis._generated import GET_TEAM_ENTITY_GQL, GetTeamEntity
 
         if force or not self._attrs:
-            data = self._service_api.execute_graphql(
+            result = self._service_api.execute_graphql(
                 GET_TEAM_ENTITY_GQL,
-                {"name": self.name},
+                variables={"name": self.name},
+                parse=GetTeamEntity.model_validate_json,
             )
-            result = GetTeamEntity.model_validate(data)
             self._attrs = entity.model_dump() if (entity := result.entity) else {}
             self._attrs["members"] = [
                 Member(self._service_api, self.name, member)

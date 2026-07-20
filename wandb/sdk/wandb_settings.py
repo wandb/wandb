@@ -2064,7 +2064,7 @@ class Settings(BaseModel, validate_assignment=True):
         from .lib.gitlib import GitRepo
 
         try:
-            git_root = GitRepo(root=self.root_dir).root
+            git_root = GitRepo(root=self.root_dir).root_dir
         except Exception:
             return
 
@@ -2254,7 +2254,9 @@ class Settings(BaseModel, validate_assignment=True):
 
         try:
             root = (
-                GitRepo().root or os.getcwd() if not self.disable_git else os.getcwd()
+                GitRepo().root_dir or os.getcwd()
+                if not self.disable_git
+                else os.getcwd()
             )
         except Exception:
             # if the git command fails, fall back to the current working directory

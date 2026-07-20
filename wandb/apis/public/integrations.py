@@ -57,8 +57,7 @@ class _IntegrationsPaginator(RelayPaginator["IntegrationFields", _IntegrationT])
         from wandb._pydantic import Connection
         from wandb.automations._generated import IntegrationsByEntity
 
-        data = self._service_api.execute_graphql(self.QUERY, variables=self.variables)
-        result = IntegrationsByEntity.model_validate(data)
+        result = self._execute_query(parse=IntegrationsByEntity.model_validate_json)
         if not ((entity := result.entity) and (conn := entity.integrations)):
             raise ValueError("Unexpected response data")
         self.last_response = Connection.model_validate(conn)

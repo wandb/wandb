@@ -10,7 +10,7 @@ For reference documentation, see https://docs.wandb.ai/models/ref/python.
 """
 from __future__ import annotations
 
-__version__ = "0.28.1.dev1"
+__version__ = "0.28.2.dev1"
 
 
 from wandb.errors import Error
@@ -194,6 +194,7 @@ __all__ = (
     "Video",
     "Audio",
     "Table",
+    "EvalTable",
     "Html",
     "box3d",
     "Object3D",

@@ -3,7 +3,7 @@ from unittest import mock
 
 import pytest
 import wandb
-from wandb.apis.public.runs import Run
+from wandb.apis.public.runs import Run, RunNotFoundError
 from wandb.apis.public.sweeps import Sweep
 from wandb.proto import wandb_api_pb2 as apb
 
@@ -51,6 +51,28 @@ def test_upload_file_skips_notification_when_unsupported(mocker, tmp_path):
     run.upload_file(str(f), root=str(tmp_path))
 
     service_api.send_api_request.assert_not_called()
+
+
+def test_stop_sends_stop_run_request(mocker):
+    """stop() sends a StopRunRequest with the run's storage ID."""
+    service_api = mocker.MagicMock()
+    service_api.send_api_request.return_value = apb.ApiResponse(
+        stop_run_response=apb.StopRunResponse()
+    )
+    run = Run(
+        service_api=service_api,
+        entity="entity",
+        project="project",
+        run_id="run-id",
+        attrs={"name": "run-id", "id": "run-node-id", "state": "running"},
+    )
+
+    run.stop()
+
+    service_api.send_api_request.assert_called_once()
+    request = service_api.send_api_request.call_args.args[0]
+    assert request.WhichOneof("request") == "stop_run_request"
+    assert request.stop_run_request.storage_id == "run-node-id"
 
 
 @pytest.mark.parametrize(
@@ -320,3 +342,22 @@ def test_sweep_property_loads_from_api():
     assert (
         service_api.execute_graphql.call_args.kwargs["variables"]["name"] == sweep_name
     )
+
+
+@pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
+def test_lazy_run_missing_raises():
+    service_api = mock.MagicMock()
+    service_api.execute_graphql.return_value = {"project": {"run": None}}
+
+    run = Run(
+        service_api=service_api,
+        entity="test-entity",
+        project="test-project",
+        run_id="run-abc123",
+        attrs=dict(_make_lightweight_attrs()),
+        lazy=True,
+    )
+
+    with pytest.raises(RunNotFoundError, match="Could not find run"):
+        # run.config triggers a full data load
+        _ = run.config
