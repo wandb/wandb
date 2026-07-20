@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import hashlib
 import logging
 import os
 import pathlib
@@ -75,8 +74,9 @@ def seed_model_factories(request: pytest.FixtureRequest) -> None:
     """
     from polyfactory.factories.pydantic_factory import ModelFactory
 
-    digest = hashlib.sha256(request.node.nodeid.encode()).digest()
-    ModelFactory.seed_random(int.from_bytes(digest[:8], "big"))
+    # Seeding accepts any hashable. Strings seed deterministically across
+    # processes, since random.Random does not use the built-in hash() for them.
+    ModelFactory.seed_random(request.node.nodeid)
 
 
 # --------------------------------
