@@ -13,9 +13,25 @@ from wandb.sdk.artifacts._generated import ArtifactMembershipByName
 
 @fixture
 def mock_artifact_fragment_data(artifact_fragment_factory) -> dict[str, Any]:
-    # Only the artifact's presence matters: Artifact._from_attrs is mocked in
-    # these tests, so the artifact's own fields are never read.
-    return artifact_fragment_factory.build().model_dump()
+    # Pin the fields that carry meaning for these tests or must stay
+    # consistent with the membership fragment below. The rest (ids, digests,
+    # timestamps, etc.) are generated.
+    fragment = artifact_fragment_factory.build(
+        version_index=0,
+        artifact_type={"name": "model"},
+        artifact_sequence={
+            "name": "test-collection",
+            "project": {
+                "name": "orig-project",
+                "entity": {"name": "test-team"},
+            },
+        },
+        ttl_duration_seconds=-2,
+        ttl_is_inherited=False,
+        metadata="{}",
+        state="COMMITTED",
+    )
+    return fragment.model_dump()
 
 
 @fixture
@@ -23,18 +39,18 @@ def mock_membership_fragment_data(
     artifact_membership_fragment_factory,
     mock_artifact_fragment_data: dict[str, Any],
 ) -> dict[str, Any]:
-    # The fetch reads the collection name and its project/entity names, so pin
-    # those. Everything else is generated.
     fragment = artifact_membership_fragment_factory.build(
         artifact=mock_artifact_fragment_data,
         artifact_collection={
             "__typename": "ArtifactPortfolio",
-            "name": "test-collection",
+            "name": "test-collection",  # NOTE: relevant
             "project": {
-                "name": "wandb-registry-model",
-                "entity": {"name": "org-entity-name"},
+                "name": "wandb-registry-model",  # NOTE: relevant
+                "entity": {"name": "org-entity-name"},  # NOTE: relevant
             },
         },
+        version_index=1,
+        aliases=[{"id": "PLACEHOLDER", "alias": "my-alias"}],
     )
     return fragment.model_dump()
 
