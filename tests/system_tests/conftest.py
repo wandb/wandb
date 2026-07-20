@@ -6,6 +6,9 @@ from dataclasses import dataclass
 
 import pytest
 import wandb
+from polyfactory.factories.pydantic_factory import ModelFactory
+from polyfactory.pytest_plugin import register_fixture
+from wandb.sdk.artifacts._generated import ArtifactFragment, ArtifactMembershipFragment
 
 from tests.fixtures.wandb_backend_spy import (
     WandbBackendProxy,
@@ -18,6 +21,16 @@ from .backend_fixtures import (
     LocalWandbBackendAddress,
     connect_to_local_wandb_backend,
 )
+
+
+@register_fixture(name="artifact_fragment_factory")
+class ArtifactFragmentFactory(ModelFactory[ArtifactFragment]):
+    """Generates valid ArtifactFragment instances for stubbed GQL responses."""
+
+
+@register_fixture(name="artifact_membership_fragment_factory")
+class ArtifactMembershipFragmentFactory(ModelFactory[ArtifactMembershipFragment]):
+    """Generates valid ArtifactMembershipFragment instances for stubbed GQL responses."""
 
 
 @pytest.fixture(scope="session")

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from typing import Any
+from typing import TYPE_CHECKING
 from unittest import mock
 
 import pytest
@@ -11,12 +11,15 @@ import wandb
 import wandb.apis.public
 import wandb.util
 from wandb import Api
-from wandb.apis._generated import ProjectFragment, UserFragment
 from wandb.apis._generated.generate_api_key import GenerateApiKey
 from wandb.apis.public.summary import Summary
 from wandb.errors.errors import CommError
 from wandb.sdk.artifacts._gqlutils import server_supports
 from wandb.sdk.lib.service.service_connection import WandbApiFailedError
+
+if TYPE_CHECKING:
+    from polyfactory.factories.pydantic_factory import ModelFactory
+    from wandb.apis._generated import ProjectFragment, UserFragment
 
 
 @pytest.mark.parametrize(
@@ -505,34 +508,20 @@ def test_runs_from_path(user, wandb_backend_spy):
     assert runs[0].job_type == job_type
 
 
-def test_projects(user, wandb_backend_spy):
+def test_projects(
+    user,
+    wandb_backend_spy,
+    project_fragment_factory: type[ModelFactory[ProjectFragment]],
+):
     num_projects = 2
+    # The test only counts the returned projects, so no fragment field needs
+    # a specific value.
     body = {
         "data": {
             "models": {
                 "edges": [
-                    {
-                        "node": ProjectFragment(
-                            id="fake-project-id",
-                            name=f"test_{i}",
-                            entity_name=user,
-                            created_at="2021-01-01T00:00:00Z",
-                            is_benchmark=False,
-                            user=UserFragment(
-                                id="123",
-                                name="test-user",
-                                username="test-user",
-                                email="test-user@example.com",
-                                admin=False,
-                                flags="",
-                                entity="test-entity",
-                                deleted_at=None,
-                                api_keys=None,
-                                teams=None,
-                            ),
-                        ).model_dump(),
-                    }
-                    for i in range(num_projects)
+                    {"node": project.model_dump()}
+                    for project in project_fragment_factory.batch(num_projects)
                 ],
                 "pageInfo": {
                     "hasNextPage": False,
@@ -1094,40 +1083,11 @@ def test_create_team_exists(wandb_backend_spy):
         Api().create_team("test")
 
 
-def fake_search_users_response(
-    email: str,
-    api_keys: dict[str, str],
-    teams: list[str],
-    count: int = 1,
-) -> dict[str, Any]:
-    """Returns a fake response to a SearchUsers GraphQL query."""
-    return {
-        "data": {
-            "users": {
-                "edges": [
-                    {
-                        "node": UserFragment(
-                            id="VXNlcjoxMjM=",
-                            name="fake-name",
-                            username="fake-username",
-                            admin=False,
-                            flags=None,
-                            entity="fake-entity",
-                            deleted_at=None,
-                            email=email,
-                            api_keys={"edges": [{"node": key} for key in api_keys]},
-                            teams={"edges": [{"node": team} for team in teams]},
-                        ).model_dump(),
-                    }
-                ]
-                * count,
-            },
-        },
-    }
-
-
 @pytest.fixture
-def stub_search_users(wandb_backend_spy):
+def stub_search_users(
+    wandb_backend_spy,
+    user_fragment_factory: type[ModelFactory[UserFragment]],
+):
     """Fixture to stub a SearchUsers GraphQL query."""
     gql = wandb_backend_spy.gql
 
@@ -1137,13 +1097,19 @@ def stub_search_users(wandb_backend_spy):
         teams: list[str],
         count: int = 1,
     ):
+        # The tests read the user's email, api key names, and team names.
+        # Everything else is generated.
+        users = user_fragment_factory.batch(
+            count,
+            email=email,
+            api_keys={"edges": [{"node": key} for key in api_keys]},
+            teams={"edges": [{"node": team} for team in teams]},
+        )
+
         search_users_spy = gql.Constant(
-            content=fake_search_users_response(
-                email,
-                api_keys,
-                teams,
-                count,
-            )
+            content={
+                "data": {"users": {"edges": [{"node": u.model_dump()} for u in users]}}
+            }
         )
 
         wandb_backend_spy.stub_gql(

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from urllib.parse import quote
 
 import wandb
@@ -8,52 +8,49 @@ from pytest import fixture
 from wandb import Api, Artifact
 from wandb._strutils import nameof
 from wandb.apis.public.registries.registry import Registry
-from wandb.sdk.artifacts._generated import (
-    ArtifactFragment,
-    ArtifactMembershipByName,
-    ArtifactMembershipFragment,
-)
+from wandb.sdk.artifacts._generated import ArtifactMembershipByName
+
+if TYPE_CHECKING:
+    from polyfactory.factories.pydantic_factory import ModelFactory
+    from wandb.sdk.artifacts._generated import (
+        ArtifactFragment,
+        ArtifactMembershipFragment,
+    )
 
 
 @fixture
-def mock_artifact_fragment_data() -> dict[str, Any]:
-    fragment = ArtifactFragment(
-        name="test-collection",  # NOTE: relevant
-        version_index=0,  # NOTE: relevant
+def mock_artifact_fragment_data(
+    artifact_fragment_factory: type[ModelFactory[ArtifactFragment]],
+) -> dict[str, Any]:
+    # Set explicit, non-placeholder field values where needed.
+    fragment = artifact_fragment_factory.build(
+        version_index=0,
         artifact_type={"name": "model"},
         artifact_sequence={
-            "name": "test-collection",
+            "name": "test-source-collection",
             "project": {
                 "name": "orig-project",
                 "entity": {"name": "test-team"},
             },
         },
-        id="PLACEHOLDER",
-        description="PLACEHOLDER",
-        tags=[],
         ttl_duration_seconds=-2,
         ttl_is_inherited=False,
         metadata="{}",
         state="COMMITTED",
-        size=0,
-        digest="FAKE_DIGEST",
-        file_count=0,
-        commit_hash="PLACEHOLDER",
-        created_at="PLACEHOLDER",
-        updated_at=None,
-        history_step=None,
     )
     return fragment.model_dump()
 
 
 @fixture
 def mock_membership_fragment_data(
+    artifact_membership_fragment_factory: type[
+        ModelFactory[ArtifactMembershipFragment]
+    ],
     mock_artifact_fragment_data: dict[str, Any],
 ) -> dict[str, Any]:
-    fragment = ArtifactMembershipFragment(
-        id="PLACEHOLDER",
+    fragment = artifact_membership_fragment_factory.build(
         artifact=mock_artifact_fragment_data,
-        artifactCollection={
+        artifact_collection={
             "__typename": "ArtifactPortfolio",
             "name": "test-collection",  # NOTE: relevant
             "project": {
@@ -61,10 +58,8 @@ def mock_membership_fragment_data(
                 "entity": {"name": "org-entity-name"},  # NOTE: relevant
             },
         },
-        versionIndex=1,
-        aliases=[
-            {"id": "PLACEHOLDER", "alias": "my-alias"},
-        ],
+        version_index=1,
+        aliases=[{"id": "PLACEHOLDER", "alias": "my-alias"}],
     )
     return fragment.model_dump()
 
