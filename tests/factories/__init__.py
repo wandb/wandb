@@ -39,5 +39,8 @@ class GQLFactory(ModelFactory[GQLBase]):
     this class's subclasses.
     """
 
-    __allow_none_optionals__ = False  # Always fill Optional fields.
-    __use_defaults__ = True  # Let model defaults win, e.g. typename__ literals.
+    # Always fill Optional fields. Generated values are seeded from the test's
+    # node id, so if optionals could be None, the structure of generated data
+    # would flip with incidental changes like renaming a test. Tests that care
+    # about a None value set it explicitly when building.
+    __allow_none_optionals__ = False

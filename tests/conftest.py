@@ -73,10 +73,7 @@ def seed_model_factories(request: pytest.FixtureRequest) -> None:
     and its faker instance are seeded, not the stdlib random module, so
     hypothesis is unaffected.
     """
-    try:
-        from tests.factories import GQLFactory
-    except ImportError:  # Not every test environment installs polyfactory.
-        return
+    from tests.factories import GQLFactory
 
     digest = hashlib.sha256(request.node.nodeid.encode()).digest()
     GQLFactory.seed_random(int.from_bytes(digest[:8], "big"))
