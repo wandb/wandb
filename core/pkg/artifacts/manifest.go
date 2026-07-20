@@ -11,11 +11,12 @@ import (
 	"sort"
 	"sync"
 
+	"golang.org/x/sync/errgroup"
+
 	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/hashencode"
 	"github.com/wandb/wandb/core/internal/nullify"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
-	"golang.org/x/sync/errgroup"
 )
 
 type Manifest struct {
@@ -206,14 +207,9 @@ func (m *Manifest) GetManifestEntryFromArtifactFilePath(path string) (ManifestEn
 
 // HashContentsWithMd5 hashes the contents of the manifest with MD5.
 func (m *Manifest) HashContentsWithMd5() error {
-	type pathDigest struct {
-		path   string
-		digest string
-	}
-
 	var mu sync.Mutex
 	toHash := make([]struct {
-		path  string
+		path      string
 		localPath string
 	}, 0, len(m.Contents))
 
@@ -222,7 +218,7 @@ func (m *Manifest) HashContentsWithMd5() error {
 			continue
 		}
 		toHash = append(toHash, struct {
-			path  string
+			path      string
 			localPath string
 		}{path: path, localPath: *entry.LocalPath})
 	}
@@ -267,7 +263,7 @@ func (m *Manifest) ArtifactDigest(digestAlgorithm gql.ArtifactDigestAlgorithm) (
 	data := []byte("wandb-artifact-manifest-v1\n")
 	for _, path := range sortedPaths {
 		entry := m.Contents[path]
-		data = append(data, []byte(path + ":" + entry.Digest + "\n")...)
+		data = append(data, []byte(path+":"+entry.Digest+"\n")...)
 	}
 	return hashencode.ComputeHexMD5(data), nil
 }
