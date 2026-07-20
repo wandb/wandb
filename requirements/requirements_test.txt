@@ -35,5 +35,5 @@ hypothesis>=6.131.7
 
 hypothesis-fspaths
 
-# Generates valid instances of pydantic models in tests (see tests/factories).
+# Generates valid instances of pydantic models in tests.
 polyfactory~=3.3
