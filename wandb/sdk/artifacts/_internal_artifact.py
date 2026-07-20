@@ -5,6 +5,7 @@ from base64 import urlsafe_b64encode
 from typing import Any, Final
 from zlib import crc32
 
+from wandb.sdk.artifacts._validators import NAME_MAXLEN
 from wandb.sdk.artifacts.artifact import Artifact
 
 PLACEHOLDER: Final[str] = "PLACEHOLDER"
@@ -13,7 +14,8 @@ PLACEHOLDER: Final[str] = "PLACEHOLDER"
 def sanitize_artifact_name(name: str) -> str:
     """Sanitize the string to satisfy constraints on artifact names."""
     # If the name is already sanitized, don't change it.
-    if (sanitized := re.sub(r"[^a-zA-Z0-9_\-.]+", "", name)) == name:
+    sanitized = re.sub(r"[^a-zA-Z0-9_\-.]+", "", name)
+    if sanitized == name and len(sanitized) <= NAME_MAXLEN:
         return name
 
     # Append a short alphanumeric suffix to maintain uniqueness.
@@ -27,7 +29,8 @@ def sanitize_artifact_name(name: str) -> str:
     crc_bytes = crc.to_bytes(4, byteorder="big")
     suffix = urlsafe_b64encode(crc_bytes).rstrip(b"=").decode("ascii")
 
-    return f"{sanitized}-{suffix}"
+    max_prefix_len = NAME_MAXLEN - len(suffix) - 1
+    return f"{sanitized[:max_prefix_len]}-{suffix}"
 
 
 class InternalArtifact(Artifact):
