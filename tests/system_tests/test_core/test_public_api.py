@@ -321,6 +321,46 @@ def test_run_create_with_sweep(user, wandb_backend_spy):
     assert config["batch_size"]["value"] == 32
 
 
+def test_run_class_create_with_sweep(user, wandb_backend_spy):
+    project = "test"
+    sweep_id = wandb.sweep(
+        {
+            "method": "grid",
+            "parameters": {
+                "lr": {"values": [0.01, 0.1]},
+                "batch_size": {"values": [32, 64]},
+            },
+        },
+        entity=user,
+        project=project,
+    )
+
+    gql = wandb_backend_spy.gql
+    upsert_bucket_spy = gql.Capture()
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="UpsertBucket"),
+        upsert_bucket_spy,
+    )
+
+    run = wandb.apis.public.Run.create(
+        api=Api(),
+        entity=user,
+        project=project,
+        sweep_id=sweep_id,
+        config={"lr": 0.01, "batch_size": 32},
+    )
+
+    assert upsert_bucket_spy.total_calls == 1
+    request = upsert_bucket_spy.requests[0]
+    assert request.variables["sweep"] == sweep_id
+    config = json.loads(request.variables["config"])
+    assert config["lr"]["value"] == 0.01
+    assert config["batch_size"]["value"] == 32
+    assert isinstance(run, wandb.apis.public.Run)
+    assert run.entity == user
+    assert run.project == project
+
+
 def test_run_update(wandb_backend_spy):
     gql = wandb_backend_spy.gql
     upsert_bucket_spy = gql.Capture()

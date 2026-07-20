@@ -50,6 +50,7 @@ from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT
 from wandb.sdk.lib import runid, wbauth
 from wandb.sdk.lib.deprecation import warn_and_record_deprecation
 from wandb.sdk.lib.service.service_connection import WandbApiFailedError
+from wandb.util import json_friendly_val
 
 if TYPE_CHECKING:
     from wandb.automations import (
@@ -112,7 +113,9 @@ def _validate_sweep_requires_config(
 
 
 def _config_dict_to_json(config: dict[str, Any]) -> str:
-    return json.dumps({k: {"value": v, "desc": None} for k, v in config.items()})
+    return json.dumps(
+        {k: {"value": json_friendly_val(v), "desc": None} for k, v in config.items()}
+    )
 
 
 class Api:

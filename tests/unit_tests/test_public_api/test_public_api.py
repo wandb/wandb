@@ -489,6 +489,14 @@ def test_create_run_with_sweep_requires_config():
         api.create_run(project="test", entity="test-entity", sweep_id="abc123")
 
 
+def test_config_dict_to_json_uses_json_friendly_val():
+    np = pytest.importorskip("numpy")
+    from wandb.apis.public.api import _config_dict_to_json
+
+    config_json = _config_dict_to_json({"lr": np.float64(0.01)})
+    assert json.loads(config_json) == {"lr": {"value": 0.01, "desc": None}}
+
+
 def test_init_sweep_requires_config():
     with pytest.raises(UsageError, match="Must specify `config`"):
         wandb.init(settings={"sweep_id": "abc123"}, mode="disabled")
