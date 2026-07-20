@@ -766,7 +766,7 @@ def test_digest_algorithm_with_reference_entries():
 
     assert artifact.digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128
 
-    # local file is hashed with XXH128
+    # regular file is hashed with XXH128
     entry = artifact.manifest.entries["file.txt"]
     assert entry.digest == xxh128_string("hello")
 

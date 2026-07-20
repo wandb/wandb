@@ -397,7 +397,7 @@ def test_image_refs(mock_reference_get_responses):
     }
     manifest_expected = {
         "image_ref.image-file.json": {
-            "digest": "SZvdv5ouAEq2DEOgVBwOog==",
+            "digest": "DRQxgg4q+7eL+jn/orhvTA==",
             "size": 173,
         },
         str(Path("media/images/75c13e5a637fb8052da9/puppy.jpg")): {

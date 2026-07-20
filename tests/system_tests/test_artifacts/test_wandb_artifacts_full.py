@@ -261,9 +261,7 @@ def test_remove_after_log():
     "skip_download_cache",
     [None, False, True],
 )
-def test_download_respects_skip_cache(
-    tmp_path: Path, skip_download_cache: bool, api: Api
-):
+def test_download_respects_skip_cache(tmp_path: Path, skip_download_cache: bool):
     cache = get_artifact_file_cache()
 
     artifact = Artifact(name="cache-test", type="dataset")
@@ -375,9 +373,7 @@ def test_large_manifests_passed_by_file(
 
 # Use a separate staging directory for the duration of this test.
 @mark.usefixtures("override_env_dirs")
-def test_mutable_uploads_with_cache_enabled(
-    tmp_path: Path, temp_staging_dir: Path, api: Api
-):
+def test_mutable_uploads_with_cache_enabled(tmp_path: Path, temp_staging_dir: Path):
     cache = get_artifact_file_cache()
 
     data_path = Path(tmp_path / "random.txt")
@@ -960,7 +956,7 @@ def test_artifact_multipart_download_refresh_presigned_url(
     )
 
 
-def test_artifact_upload_with_fallback(api: Api, tmp_path: Path):
+def test_artifact_upload_with_fallback(api: Api):
     # upload an artifact with MD5 digest algorithm
     project = "test"
     Path("test.txt").write_text("test")
