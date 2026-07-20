@@ -7,6 +7,7 @@ from typing import TypeAlias
 from unittest.mock import Mock
 
 from hypothesis import settings
+from polyfactory.factories.pydantic_factory import ModelFactory
 from pytest import FixtureRequest, fixture, skip
 from pytest_mock import MockerFixture
 from wandb._strutils import b64encode_ascii
@@ -68,6 +69,30 @@ def make_graphql_id(prefix: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Factories
+#
+# These generate valid model instances for fixtures below. Fields that carry
+# meaning for tests are set explicitly at the build sites.
+# ---------------------------------------------------------------------------
+class ArtifactCollectionFragmentFactory(ModelFactory[ArtifactCollectionFragment]): ...
+
+
+class SendNotificationFactory(ModelFactory[SendNotification]): ...
+
+
+class SendWebhookFactory(ModelFactory[SendWebhook]): ...
+
+
+class SavedNotificationActionFactory(ModelFactory[SavedNotificationAction]): ...
+
+
+class SavedWebhookActionFactory(ModelFactory[SavedWebhookAction]): ...
+
+
+class AutomationFactory(ModelFactory[Automation]): ...
+
+
+# ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
 @fixture
@@ -110,7 +135,8 @@ def artifact_collection(mock_client: Mock) -> ArtifactCollection:
         project=project,
         name=name,
         type=artifact_type,
-        attrs=ArtifactCollectionFragment(
+        # Set explicit, non-placeholder field values where needed.
+        attrs=ArtifactCollectionFragmentFactory.build(
             typename__="ArtifactPortfolio",
             id=make_graphql_id(prefix="ArtifactCollection"),
             name=name,
@@ -119,11 +145,6 @@ def artifact_collection(mock_client: Mock) -> ArtifactCollection:
                 "entity": {"name": entity},
             },
             type={"name": artifact_type},
-            description="This is a fake artifact collection.",
-            aliases={"edges": []},
-            createdAt="2021-01-01T00:00:00Z",
-            updatedAt="2021-01-01T00:00:00Z",
-            tags={"edges": []},
         ),
     )
 
@@ -417,18 +438,16 @@ def saved_event(mutation_event_type: EventType) -> SavedEvent:
 # Actions
 @fixture
 def send_notification(integration_id: str) -> SendNotification:
-    return SendNotification(
-        integration_id=integration_id,
-        title="Test title",
-        text="Test message content",
-        level="INFO",
-    )
+    return SendNotificationFactory.build(integration_id=integration_id)
 
 
 @fixture
 def send_webhook(integration_id: str) -> SendWebhook:
-    return SendWebhook(
-        integration_id=integration_id, request_payload={"my-key": "my-value"}
+    # The request payload is pinned because tests read it back when checking
+    # the prepared GraphQL input, and a None payload is dropped from it.
+    return SendWebhookFactory.build(
+        integration_id=integration_id,
+        request_payload={"my-key": "my-value"},
     )
 
 
@@ -454,16 +473,12 @@ def saved_action(request: FixtureRequest) -> SavedAction:
         case ActionType.NO_OP:
             return SavedNoOpAction()
         case ActionType.NOTIFICATION:
-            return SavedNotificationAction(
-                integration={"id": "PLACEHOLDER"},
-                title=None,
-                message=None,
-                severity=None,
+            return SavedNotificationActionFactory.build(
+                integration={"id": make_graphql_id(prefix="Integration")},
             )
         case ActionType.GENERIC_WEBHOOK:
-            return SavedWebhookAction(
-                integration={"id": "PLACEHOLDER"},
-                request_payload=None,
+            return SavedWebhookActionFactory.build(
+                integration={"id": make_graphql_id(prefix="Integration")},
             )
         case _:
             raise ValueError(f"Unsupported saved action type: {action_type!r}")
@@ -477,13 +492,8 @@ def saved_automation(
     artifact_collection: ArtifactCollection,
 ) -> Automation:
     """An Automation object mimicking what the server returns, for unit-testing prepare_to_update()."""
-    return Automation(
+    return AutomationFactory.build(
         id=automation_id,
-        created_at="2024-01-01T00:00:00Z",
-        updated_at=None,
-        name="test-automation",
-        description="test description",
-        enabled=True,
         scope=artifact_collection,
         event=saved_event,
         action=saved_action,
@@ -565,13 +575,8 @@ def saved_run_automation(
     project: Project,
 ) -> Automation:
     """A run-event Automation mimicking what the server returns."""
-    return Automation(
+    return AutomationFactory.build(
         id=automation_id,
-        created_at="2024-01-01T00:00:00Z",
-        updated_at=None,
-        name="test-run-automation",
-        description="test run event description",
-        enabled=True,
         scope=project,
         event=SavedEvent(event_type=run_event_type, filter=run_event_filter_json),
         action=saved_action,
