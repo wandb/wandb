@@ -7,7 +7,6 @@ from unittest.mock import MagicMock
 import pytest
 import wandb
 from polyfactory.factories.pydantic_factory import ModelFactory
-from polyfactory.pytest_plugin import register_fixture
 from pytest_mock import MockerFixture
 from wandb import Api
 from wandb.apis import internal
@@ -18,11 +17,6 @@ from wandb.sdk import wandb_login
 from wandb.sdk.artifacts.artifact_download_logger import ArtifactDownloadLogger
 from wandb.sdk.lib import wbauth
 from wandb.sdk.lib.service.service_connection import WandbApiFailedError
-
-
-@register_fixture(name="project_fragment_factory")
-class ProjectFragmentFactory(ModelFactory[ProjectFragment]):
-    """Generates valid ProjectFragment instances for stubbed GQL responses."""
 
 
 def test_api_auto_login_no_tty():
@@ -404,7 +398,10 @@ def test_artifact_from_id_uses_service_api(monkeypatch):
 
 
 @pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
-def test_project_id_lazy_load(monkeypatch, project_fragment_factory):
+def test_project_id_lazy_load(
+    monkeypatch: pytest.MonkeyPatch,
+    project_fragment_factory: type[ModelFactory[ProjectFragment]],
+):
     from wandb.apis._generated import GetProject
 
     api = wandb.Api()
@@ -420,6 +417,12 @@ def test_project_id_lazy_load(monkeypatch, project_fragment_factory):
                     entity_name="test-entity",
                     created_at="2021-01-01T00:00:00Z",
                     is_benchmark=False,
+                    user={
+                        "name": "test-user",
+                        "username": "test-user",
+                        "email": "test-user@example.com",
+                        "entity": "test-entity",
+                    },
                 ).model_dump(),
             }
         )

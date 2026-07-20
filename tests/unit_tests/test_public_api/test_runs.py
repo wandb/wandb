@@ -1,11 +1,14 @@
 import json
+from typing import Any
 from unittest import mock
 
 import pytest
 import wandb
 from polyfactory.factories.pydantic_factory import ModelFactory
+from pytest_mock import MockerFixture
 from wandb.apis._generated import LightweightRunFragment
 from wandb.apis.public.runs import Run, RunNotFoundError
+from wandb.apis.public.service_api import ServiceApi
 from wandb.apis.public.sweeps import Sweep
 from wandb.proto import wandb_api_pb2 as apb
 
@@ -14,8 +17,14 @@ class LightweightRunFragmentFactory(ModelFactory[LightweightRunFragment]):
     """Generates valid LightweightRunFragment instances for stubbed responses."""
 
 
-def _make_upload_run(mocker, *, feature_enabled: bool):
-    service_api = mocker.MagicMock()
+@pytest.fixture
+def mock_service_api(mocker: MockerFixture) -> mock.MagicMock:
+    """A mocked ServiceApi to prevent real API calls."""
+    return mocker.MagicMock(spec=ServiceApi)
+
+
+def _make_upload_run(mocker: MockerFixture, *, feature_enabled: bool):
+    service_api = mocker.MagicMock(spec=ServiceApi)
     service_api.feature_enabled.return_value = feature_enabled
     run = Run(
         service_api=service_api,
@@ -59,14 +68,13 @@ def test_upload_file_skips_notification_when_unsupported(mocker, tmp_path):
     service_api.send_api_request.assert_not_called()
 
 
-def test_stop_sends_stop_run_request(mocker):
+def test_stop_sends_stop_run_request(mock_service_api: mock.MagicMock):
     """stop() sends a StopRunRequest with the run's storage ID."""
-    service_api = mocker.MagicMock()
-    service_api.send_api_request.return_value = apb.ApiResponse(
+    mock_service_api.send_api_request.return_value = apb.ApiResponse(
         stop_run_response=apb.StopRunResponse()
     )
     run = Run(
-        service_api=service_api,
+        service_api=mock_service_api,
         entity="entity",
         project="project",
         run_id="run-id",
@@ -75,8 +83,8 @@ def test_stop_sends_stop_run_request(mocker):
 
     run.stop()
 
-    service_api.send_api_request.assert_called_once()
-    request = service_api.send_api_request.call_args.args[0]
+    mock_service_api.send_api_request.assert_called_once()
+    request = mock_service_api.send_api_request.call_args.args[0]
     assert request.WhichOneof("request") == "stop_run_request"
     assert request.stop_run_request.storage_id == "run-node-id"
 
@@ -126,10 +134,12 @@ def test_create_run_with_dictionary_attrs_already_parsed(field, value):
         assert getattr(run, field) == value
 
 
-def test_run_metadata_downloads_through_service_api(mocker):
-    service_api = mocker.MagicMock()
+def test_run_metadata_downloads_through_service_api(
+    mocker: MockerFixture,
+    mock_service_api: mock.MagicMock,
+):
     run = Run(
-        service_api=service_api,
+        service_api=mock_service_api,
         entity="entity",
         project="project",
         run_id="run-id",
@@ -143,10 +153,10 @@ def test_run_metadata_downloads_through_service_api(mocker):
             f.write(b'{"os":"Linux"}')
         return apb.ApiResponse(download_file_response=apb.DownloadFileResponse())
 
-    service_api.send_api_request.side_effect = send_api_request
+    mock_service_api.send_api_request.side_effect = send_api_request
 
     assert run.metadata == {"os": "Linux"}
-    request = service_api.send_api_request.call_args.args[0].download_file_request
+    request = mock_service_api.send_api_request.call_args.args[0].download_file_request
     assert request.url == "https://files.example/wandb-metadata.json"
     assert request.size == 17
 
@@ -200,7 +210,7 @@ def test_create_run_with_control_characters(field, value, expected):
 
 
 @pytest.fixture
-def lightweight_attrs() -> dict:
+def lightweight_attrs() -> dict[str, Any]:
     """Attrs matching LIGHTWEIGHT_RUN_FRAGMENT (no config/summary/system).
 
     Set explicit, non-placeholder field values where needed.
@@ -213,7 +223,8 @@ def lightweight_attrs() -> dict:
     ).model_dump()
 
 
-def _make_full_response(lightweight_attrs):
+@pytest.fixture
+def full_response(lightweight_attrs: dict[str, Any]) -> dict[str, Any]:
     """Server response for a single-run query with RUN_FRAGMENT."""
     return {
         "project": {
@@ -235,18 +246,20 @@ def _make_full_response(lightweight_attrs):
 
 
 @pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
-def test_lazy_run_config_triggers_full_load(lightweight_attrs):
+def test_lazy_run_config_triggers_full_load(
+    lightweight_attrs: dict[str, Any],
+    full_response: dict[str, Any],
+    mock_service_api: mock.MagicMock,
+):
     """run.config on a lazy run should trigger load_full_data and return config."""
-    service_api = mock.MagicMock()
-    lightweight = lightweight_attrs
-    service_api.execute_graphql.return_value = _make_full_response(lightweight)
+    mock_service_api.execute_graphql.return_value = full_response
 
     run = Run(
-        service_api=service_api,
+        service_api=mock_service_api,
         entity="test-entity",
         project="test-project",
         run_id="run-abc123",
-        attrs=dict(lightweight),
+        attrs=lightweight_attrs,
         lazy=True,
     )
 
@@ -259,21 +272,21 @@ def test_lazy_run_config_triggers_full_load(lightweight_attrs):
     assert run._full_data_loaded is True
     assert config == {"learning_rate": 0.001, "batch_size": 32}
     assert "_wandb" not in config
-    service_api.execute_graphql.assert_called_once()
+    mock_service_api.execute_graphql.assert_called_once()
 
 
 @pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
-def test_lazy_run_user_accessible_without_full_load(lightweight_attrs):
+def test_lazy_run_user_accessible_without_full_load(
+    lightweight_attrs: dict[str, Any],
+    mock_service_api: mock.MagicMock,
+):
     """run.user should work on lazy runs without triggering a full data load."""
-    service_api = mock.MagicMock()
-    lightweight = lightweight_attrs
-
     run = Run(
-        service_api=service_api,
+        service_api=mock_service_api,
         entity="test-entity",
         project="test-project",
         run_id="run-abc123",
-        attrs=dict(lightweight),
+        attrs=lightweight_attrs,
         lazy=True,
     )
 
@@ -283,12 +296,11 @@ def test_lazy_run_user_accessible_without_full_load(lightweight_attrs):
     assert run._full_data_loaded is False
 
 
-def test_run_url_encodes_spaces_in_project_name():
-    service_api = mock.MagicMock()
-    service_api.app_url = "https://wandb.ai/"
+def test_run_url_encodes_spaces_in_project_name(mock_service_api: mock.MagicMock):
+    mock_service_api.app_url = "https://wandb.ai/"
 
     run = Run(
-        service_api=service_api,
+        service_api=mock_service_api,
         entity="my-entity",
         project="My Project",
         run_id="12345",
@@ -311,24 +323,27 @@ def _make_sweep_graphql_response(sweep_name: str) -> dict:
 
 
 @pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
-def test_sweep_property_loads_from_api(lightweight_attrs):
+def test_sweep_property_loads_from_api(
+    lightweight_attrs: dict[str, Any],
+    mock_service_api: mock.MagicMock,
+):
     """Accessing run.sweep should fetch and return a Sweep from the API."""
-    service_api = mock.MagicMock()
-    lightweight = lightweight_attrs
     sweep_name = "test-sweep"
-    lightweight["sweepName"] = sweep_name
-    service_api.execute_graphql.return_value = _make_sweep_graphql_response(sweep_name)
+    lightweight_attrs["sweepName"] = sweep_name
+    mock_service_api.execute_graphql.return_value = _make_sweep_graphql_response(
+        sweep_name
+    )
 
     run = Run(
-        service_api=service_api,
+        service_api=mock_service_api,
         entity="test-entity",
         project="test-project",
         run_id="run-abc123",
-        attrs=dict(lightweight),
+        attrs=lightweight_attrs,
         lazy=True,
     )
 
-    service_api.execute_graphql.assert_not_called()
+    mock_service_api.execute_graphql.assert_not_called()
 
     sweep = run.sweep
 
@@ -336,23 +351,26 @@ def test_sweep_property_loads_from_api(lightweight_attrs):
     assert sweep.name == sweep_name
     assert sweep.entity == "test-entity"
     assert sweep.project == "test-project"
-    service_api.execute_graphql.assert_called_once()
+    mock_service_api.execute_graphql.assert_called_once()
     assert (
-        service_api.execute_graphql.call_args.kwargs["variables"]["name"] == sweep_name
+        mock_service_api.execute_graphql.call_args.kwargs["variables"]["name"]
+        == sweep_name
     )
 
 
 @pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
-def test_lazy_run_missing_raises(lightweight_attrs):
-    service_api = mock.MagicMock()
-    service_api.execute_graphql.return_value = {"project": {"run": None}}
+def test_lazy_run_missing_raises(
+    lightweight_attrs: dict[str, Any],
+    mock_service_api: mock.MagicMock,
+):
+    mock_service_api.execute_graphql.return_value = {"project": {"run": None}}
 
     run = Run(
-        service_api=service_api,
+        service_api=mock_service_api,
         entity="test-entity",
         project="test-project",
         run_id="run-abc123",
-        attrs=dict(lightweight_attrs),
+        attrs=lightweight_attrs,
         lazy=True,
     )
 
