@@ -65,7 +65,7 @@ def setup_wandb_env_variables() -> Generator[None]:
 
 @pytest.fixture(autouse=True)
 def seed_model_factories(request: pytest.FixtureRequest) -> None:
-    """Makes output from tests.factories factories deterministic per test.
+    """Makes output from polyfactory model factories deterministic per test.
 
     Seeding from the test's node id keeps generated values stable regardless
     of execution order or pytest-xdist worker assignment, and a failing test
@@ -73,10 +73,10 @@ def seed_model_factories(request: pytest.FixtureRequest) -> None:
     and its faker instance are seeded, not the stdlib random module, so
     hypothesis is unaffected.
     """
-    from tests.factories import GQLFactory
+    from polyfactory.factories.pydantic_factory import ModelFactory
 
     digest = hashlib.sha256(request.node.nodeid.encode()).digest()
-    GQLFactory.seed_random(int.from_bytes(digest[:8], "big"))
+    ModelFactory.seed_random(int.from_bytes(digest[:8], "big"))
 
 
 # --------------------------------
