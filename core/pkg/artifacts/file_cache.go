@@ -93,24 +93,6 @@ func UserCacheDir() string {
 	return dir
 }
 
-func (c *FileCache) newHasher() hash.Hash {
-	switch c.digestAlgorithm {
-	case "MANIFEST_XXH128":
-		return xxh3.New128()
-	default:
-		return md5.New()
-	}
-}
-
-func (c *HashOnlyCache) newHasher() hash.Hash {
-	switch c.digestAlgorithm {
-	case "MANIFEST_XXH128":
-		return xxh3.New128()
-	default:
-		return md5.New()
-	}
-}
-
 // AddFile copies a file into the cache and returns the B64MD5 cache key.
 func (c *FileCache) AddFile(path string) (string, error) {
 	c.fileSemaphore <- struct{}{}
@@ -305,10 +287,10 @@ func (c *HashOnlyCache) Write(src io.Reader) (string, error) {
 func copyWithHash(src io.Reader, dst io.Writer, digestAlgorithm string) (string, error) {
 	var hasher hash.Hash
 	switch digestAlgorithm {
-		case "MANIFEST_XXH128":
-			hasher = xxh3.New128()
-		default:
-			hasher = md5.New()
+	case "MANIFEST_XXH128":
+		hasher = xxh3.New128()
+	default:
+		hasher = md5.New()
 	}
 	w := io.MultiWriter(dst, hasher)
 	_, err := io.Copy(w, src)
