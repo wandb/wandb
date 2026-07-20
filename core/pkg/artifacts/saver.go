@@ -194,8 +194,11 @@ func (as *ArtifactSaver) getArtifactDigestAlgorithm() (gql.ArtifactDigestAlgorit
 		}
 		return "", err
 	}
-	collection := response.GetProject().GetArtifactType().GetArtifactCollection()
-	// If the collection doesn't exist, use the default algorithm
+	artifactType := response.GetProject().GetArtifactType()
+	if artifactType == nil {
+		return gql.ArtifactDigestAlgorithmManifestXxh128, nil
+	}
+	collection := artifactType.GetArtifactCollection()
 	if collection == nil || *collection == nil {
 		return gql.ArtifactDigestAlgorithmManifestXxh128, nil
 	}
@@ -851,6 +854,8 @@ func (as *ArtifactSaver) Save() (artifactID string, rerr error) {
 			return "", fmt.Errorf("ArtifactSaver.createArtifact: %w", err)
 		}
 	}
+
+	as.fileCache = as.fileCache.WithDigestAlgorithm(as.artifact.DigestAlgorithm)
 
 	artifactID = artifactAttrs.Id
 	var baseArtifactId *string
