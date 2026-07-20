@@ -65,12 +65,12 @@ func NewArtifactSaveManager(
 	workerPool.SetLimit(maxSimultaneousUploads)
 
 	return &ArtifactSaveManager{
-		logger:                       logger,
-		printer:                      printer,
-		graphqlClient:                graphqlClient,
-		fileTransferManager:          fileTransferManager,
-		fileCache:                    NewFileCache(UserCacheDir()),
-		useArtifactProjectEntityInfo: useArtifactProjectEntityInfo,
+		logger:                           logger,
+		printer:                          printer,
+		graphqlClient:                    graphqlClient,
+		fileTransferManager:              fileTransferManager,
+		fileCache:                        NewFileCache(UserCacheDir()),
+		useArtifactProjectEntityInfo:     useArtifactProjectEntityInfo,
 		artifactDigestAlgorithmSupported: artifactDigestAlgorithmSupported,
 		uploadsByName: namedgoroutines.New(
 			uploadBufferPerArtifactName,
@@ -108,18 +108,18 @@ func (as *ArtifactSaveManager) Save(
 	as.uploadsByName.Go(
 		artifact.Name,
 		&ArtifactSaver{
-			ctx:                          		ctx,
-			logger:                       		as.logger,
-			printer:                      		as.printer,
-			graphqlClient:                		as.graphqlClient,
-			fileTransferManager:          		as.fileTransferManager,
-			fileCache:                    		as.fileCache,
-			artifact:                     		artifact,
-			historyStep:                  		historyStep,
-			stagingDir:                   		stagingDir,
-			maxActiveBatches:             		5,
-			resultChan:                   		resultChan,
-			useArtifactProjectEntityInfo: 		as.useArtifactProjectEntityInfo(),
+			ctx:                              ctx,
+			logger:                           as.logger,
+			printer:                          as.printer,
+			graphqlClient:                    as.graphqlClient,
+			fileTransferManager:              as.fileTransferManager,
+			fileCache:                        as.fileCache,
+			artifact:                         artifact,
+			historyStep:                      historyStep,
+			stagingDir:                       stagingDir,
+			maxActiveBatches:                 5,
+			resultChan:                       resultChan,
+			useArtifactProjectEntityInfo:     as.useArtifactProjectEntityInfo(),
 			artifactDigestAlgorithmSupported: as.artifactDigestAlgorithmSupported(),
 		},
 	)
@@ -139,14 +139,14 @@ type ArtifactSaver struct {
 	resultChan          chan<- ArtifactSaveResult
 
 	// Input.
-	artifact                     *spb.ArtifactRecord
-	historyStep                  int64
-	stagingDir                   string
-	maxActiveBatches             int
-	numTotal                     int
-	numDone                      int
-	startTime                    time.Time
-	useArtifactProjectEntityInfo bool
+	artifact                         *spb.ArtifactRecord
+	historyStep                      int64
+	stagingDir                       string
+	maxActiveBatches                 int
+	numTotal                         int
+	numDone                          int
+	startTime                        time.Time
+	useArtifactProjectEntityInfo     bool
 	artifactDigestAlgorithmSupported bool
 }
 
@@ -174,6 +174,10 @@ type uploadResult struct {
 type artifactSequence = gql.FetchArtifactDigestAlgorithmProjectArtifactTypeArtifactCollectionArtifactSequence
 
 func (as *ArtifactSaver) getArtifactDigestAlgorithm() (gql.ArtifactDigestAlgorithm, error) {
+	// if we are already using md5, return it
+	if as.artifact.DigestAlgorithm != string(gql.ArtifactDigestAlgorithmManifestXxh128) {
+		return gql.ArtifactDigestAlgorithmManifestMd5, nil
+	}
 	// if the server doesn't support the different digest algorithms, default to md5
 	if !as.artifactDigestAlgorithmSupported {
 		return gql.ArtifactDigestAlgorithmManifestMd5, nil
@@ -206,7 +210,7 @@ func (as *ArtifactSaver) getArtifactDigestAlgorithm() (gql.ArtifactDigestAlgorit
 	case *artifactSequence:
 		return sequence.GetDigestAlgorithm(), nil
 	default:
-		return gql.ArtifactDigestAlgorithmManifestXxh128, fmt.Errorf("unexpected artifact collection type: %T", sequence)
+		return "", fmt.Errorf("unexpected artifact collection type: %T", sequence)
 	}
 }
 
@@ -229,6 +233,38 @@ func (as *ArtifactSaver) hashArtifactWithMd5(manifest *Manifest) error {
 	}
 	as.artifact.Digest = digest
 	return nil
+}
+
+func (as *ArtifactSaver) createArtifactWithCorrectDigestAlgorithm(
+	manifest *Manifest,
+) (*gql.CreatedArtifactArtifact, error) {
+	sequenceDigestAlgorithm, err := as.getArtifactDigestAlgorithm()
+	if err != nil {
+		return nil, fmt.Errorf("ArtifactSaver.getArtifactDigestAlgorithm: %w", err)
+	}
+	if sequenceDigestAlgorithm == gql.ArtifactDigestAlgorithmManifestMd5 {
+		err = as.hashArtifactWithMd5(manifest)
+		if err != nil {
+			return nil, fmt.Errorf("ArtifactSaver.hashArtifactWithMd5: %w", err)
+		}
+	}
+
+	artifactAttrs, err := as.createArtifact(manifest)
+	if err != nil {
+		if !errors.Is(err, errors.ErrUnsupported) {
+			return nil, fmt.Errorf("ArtifactSaver.createArtifact: %w", err)
+		}
+		// Sequence requires MD5 — re-hash and retry.
+		err = as.hashArtifactWithMd5(manifest)
+		if err != nil {
+			return nil, fmt.Errorf("ArtifactSaver.hashArtifactWithMd5: %w", err)
+		}
+		artifactAttrs, err = as.createArtifact(manifest)
+		if err != nil {
+			return nil, fmt.Errorf("ArtifactSaver.createArtifact: %w", err)
+		}
+	}
+	return &artifactAttrs, nil
 }
 
 func (as *ArtifactSaver) createArtifact(manifest *Manifest) (
@@ -393,7 +429,8 @@ func (as *ArtifactSaver) uploadFiles(
 
 		// if the artifact is using xxh64 and the file is not a multipart upload, hash it with md5 for the integrity check
 		md5Digest := entry.Digest
-		if as.artifact.DigestAlgorithm == string(gql.ArtifactDigestAlgorithmManifestXxh128) && parts == nil{
+		if as.artifact.DigestAlgorithm == string(gql.ArtifactDigestAlgorithmManifestXxh128) &&
+			parts == nil {
 			md5Digest, err = hashencode.ComputeFileB64MD5(*entry.LocalPath)
 			if err != nil {
 				return err
@@ -825,34 +862,9 @@ func (as *ArtifactSaver) Save() (artifactID string, rerr error) {
 
 	defer as.deleteStagingFiles(&manifest)
 
-	// check what digest algorithm the sequence is using, if it exists
-	if as.artifact.DigestAlgorithm == string(gql.ArtifactDigestAlgorithmManifestXxh128){
-		sequenceDigestAlgorithm, err := as.getArtifactDigestAlgorithm()
-		if err != nil {
-			return "", fmt.Errorf("ArtifactSaver.getArtifactDigestAlgorithm: %w", err)
-		}
-		if sequenceDigestAlgorithm == gql.ArtifactDigestAlgorithmManifestMd5{
-			err = as.hashArtifactWithMd5(&manifest)
-			if err != nil {
-				return "", fmt.Errorf("ArtifactSaver.hashArtifactWithMd5: %w", err)
-			}
-		}
-	}
-
-	artifactAttrs, err := as.createArtifact(&manifest)
+	artifactAttrs, err := as.createArtifactWithCorrectDigestAlgorithm(&manifest)
 	if err != nil {
-		if !errors.Is(err, errors.ErrUnsupported) {
-			return "", fmt.Errorf("ArtifactSaver.createArtifact: %w", err)
-		}
-		// Sequence requires MD5 — re-hash and retry.
-		err = as.hashArtifactWithMd5(&manifest)
-		if err != nil {
-			return "", fmt.Errorf("ArtifactSaver.hashArtifactWithMd5: %w", err)
-		}
-		artifactAttrs, err = as.createArtifact(&manifest)
-		if err != nil {
-			return "", fmt.Errorf("ArtifactSaver.createArtifact: %w", err)
-		}
+		return "", fmt.Errorf("ArtifactSaver.createArtifactWithCorrectDigestAlgorithm: %w", err)
 	}
 
 	as.fileCache = as.fileCache.WithDigestAlgorithm(as.artifact.DigestAlgorithm)
