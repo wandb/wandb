@@ -3,9 +3,15 @@ from unittest import mock
 
 import pytest
 import wandb
+from polyfactory.factories.pydantic_factory import ModelFactory
+from wandb.apis._generated import LightweightRunFragment
 from wandb.apis.public.runs import Run, RunNotFoundError
 from wandb.apis.public.sweeps import Sweep
 from wandb.proto import wandb_api_pb2 as apb
+
+
+class LightweightRunFragmentFactory(ModelFactory[LightweightRunFragment]):
+    """Generates valid LightweightRunFragment instances for stubbed responses."""
 
 
 def _make_upload_run(mocker, *, feature_enabled: bool):
@@ -193,26 +199,18 @@ def test_create_run_with_control_characters(field, value, expected):
         assert getattr(run, field) == expected
 
 
-def _make_lightweight_attrs():
-    """Attrs matching LIGHTWEIGHT_RUN_FRAGMENT (no config/summary/system)."""
-    return {
-        "id": "abc123storeid",
-        "tags": [],
-        "name": "run-abc123",
-        "displayName": "happy-fox-42",
-        "sweepName": None,
-        "state": "finished",
-        "group": None,
-        "jobType": None,
-        "commit": None,
-        "readOnly": False,
-        "createdAt": "2026-03-24T01:00:00Z",
-        "heartbeatAt": "2026-03-24T02:00:00Z",
-        "description": "",
-        "notes": "",
-        "historyLineCount": 100,
-        "user": {"name": "testuser", "username": "testuser"},
-    }
+@pytest.fixture
+def lightweight_attrs() -> dict:
+    """Attrs matching LIGHTWEIGHT_RUN_FRAGMENT (no config/summary/system).
+
+    Set explicit, non-placeholder field values where needed.
+    """
+    return LightweightRunFragmentFactory.build(
+        name="run-abc123",
+        state="finished",
+        sweep_name=None,
+        user={"name": "testuser", "username": "testuser"},
+    ).model_dump()
 
 
 def _make_full_response(lightweight_attrs):
@@ -237,10 +235,10 @@ def _make_full_response(lightweight_attrs):
 
 
 @pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
-def test_lazy_run_config_triggers_full_load():
+def test_lazy_run_config_triggers_full_load(lightweight_attrs):
     """run.config on a lazy run should trigger load_full_data and return config."""
     service_api = mock.MagicMock()
-    lightweight = _make_lightweight_attrs()
+    lightweight = lightweight_attrs
     service_api.execute_graphql.return_value = _make_full_response(lightweight)
 
     run = Run(
@@ -265,10 +263,10 @@ def test_lazy_run_config_triggers_full_load():
 
 
 @pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
-def test_lazy_run_user_accessible_without_full_load():
+def test_lazy_run_user_accessible_without_full_load(lightweight_attrs):
     """run.user should work on lazy runs without triggering a full data load."""
     service_api = mock.MagicMock()
-    lightweight = _make_lightweight_attrs()
+    lightweight = lightweight_attrs
 
     run = Run(
         service_api=service_api,
@@ -313,10 +311,10 @@ def _make_sweep_graphql_response(sweep_name: str) -> dict:
 
 
 @pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
-def test_sweep_property_loads_from_api():
+def test_sweep_property_loads_from_api(lightweight_attrs):
     """Accessing run.sweep should fetch and return a Sweep from the API."""
     service_api = mock.MagicMock()
-    lightweight = _make_lightweight_attrs()
+    lightweight = lightweight_attrs
     sweep_name = "test-sweep"
     lightweight["sweepName"] = sweep_name
     service_api.execute_graphql.return_value = _make_sweep_graphql_response(sweep_name)
@@ -345,7 +343,7 @@ def test_sweep_property_loads_from_api():
 
 
 @pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
-def test_lazy_run_missing_raises():
+def test_lazy_run_missing_raises(lightweight_attrs):
     service_api = mock.MagicMock()
     service_api.execute_graphql.return_value = {"project": {"run": None}}
 
@@ -354,7 +352,7 @@ def test_lazy_run_missing_raises():
         entity="test-entity",
         project="test-project",
         run_id="run-abc123",
-        attrs=dict(_make_lightweight_attrs()),
+        attrs=dict(lightweight_attrs),
         lazy=True,
     )
 

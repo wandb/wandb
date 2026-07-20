@@ -6,16 +6,23 @@ from unittest.mock import MagicMock
 
 import pytest
 import wandb
+from polyfactory.factories.pydantic_factory import ModelFactory
+from polyfactory.pytest_plugin import register_fixture
 from pytest_mock import MockerFixture
 from wandb import Api
 from wandb.apis import internal
-from wandb.apis._generated import ProjectFragment, UserFragment
+from wandb.apis._generated import ProjectFragment
 from wandb.errors import UsageError
 from wandb.proto import wandb_api_pb2 as apb
 from wandb.sdk import wandb_login
 from wandb.sdk.artifacts.artifact_download_logger import ArtifactDownloadLogger
 from wandb.sdk.lib import wbauth
 from wandb.sdk.lib.service.service_connection import WandbApiFailedError
+
+
+@register_fixture(name="project_fragment_factory")
+class ProjectFragmentFactory(ModelFactory[ProjectFragment]):
+    """Generates valid ProjectFragment instances for stubbed GQL responses."""
 
 
 def test_api_auto_login_no_tty():
@@ -397,33 +404,22 @@ def test_artifact_from_id_uses_service_api(monkeypatch):
 
 
 @pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
-def test_project_id_lazy_load(monkeypatch):
+def test_project_id_lazy_load(monkeypatch, project_fragment_factory):
     from wandb.apis._generated import GetProject
 
     api = wandb.Api()
     # execute_graphql now parses the response into the pydantic model itself
     # (via parse=), so its return value is the already-parsed result.
+    # Set explicit, non-placeholder field values where needed.
     mock_execute = MagicMock(
         return_value=GetProject.model_validate(
             {
-                "project": ProjectFragment(
+                "project": project_fragment_factory.build(
                     id="123",
                     name="test-project",
                     entity_name="test-entity",
                     created_at="2021-01-01T00:00:00Z",
                     is_benchmark=False,
-                    user=UserFragment(
-                        id="123",
-                        name="test-user",
-                        username="test-user",
-                        email="test-user@example.com",
-                        admin=False,
-                        flags="",
-                        entity="test-entity",
-                        deleted_at=None,
-                        api_keys=None,
-                        teams=None,
-                    ),
                 ).model_dump(),
             }
         )
