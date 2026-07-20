@@ -1,6 +1,7 @@
 package runsync
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
@@ -61,21 +62,35 @@ func FirstSyncError(logger *observability.CoreLogger, errs ...error) error {
 // LogSyncFailure logs and possibly captures an error that prevents sync
 // from succeeding.
 func LogSyncFailure(logger *observability.CoreLogger, err error) {
+	if errors.Is(err, context.Canceled) ||
+		errors.Is(err, context.DeadlineExceeded) {
+		logger.Error(err.Error())
+		return
+	}
+
 	if syncErr, ok := err.(*SyncError); ok && syncErr.UserText != "" {
 		logger.Error(syncErr.Error())
-	} else {
-		// Any other errors are captured as they are unexpected
-		// and don't have helpful user text.
-		//
-		// If you're here from Sentry, please figure out where
-		// the error happens and wrap it in a SyncError with
-		// proper UserText. Or fix it so it can't happen.
-		logger.CaptureError(err)
+		return
 	}
+
+	// Any other errors are captured as they are unexpected
+	// and don't have helpful user text.
+	//
+	// If you're here from Sentry, please figure out where
+	// the error happens and wrap it in a SyncError with
+	// proper UserText. Or fix it so it can't happen.
+	logger.CaptureError(err)
 }
 
 // ToUserText returns user-facing text for the error, which may be a SyncError.
 func ToUserText(err error) string {
+	switch {
+	case errors.Is(err, context.Canceled):
+		return "Cancelled." // we generally use "Cancelled", not "Canceled"
+	case errors.Is(err, context.DeadlineExceeded):
+		return "Timed out."
+	}
+
 	syncErr, ok := err.(*SyncError)
 	if !ok || syncErr.UserText == "" {
 		return fmt.Sprintf("Internal error: %v", err)

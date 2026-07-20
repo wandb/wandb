@@ -342,13 +342,25 @@ func (d *decoder) decode(dst image.Image, xmin, ymin, xmax, ymax int) error {
 		}
 	}
 
+	// calcRowBytes returns the number of bytes in a row with numSamples samples per pixel
+	// and bytesPerSample bytes per sample.
+	calcRowBytes := func(xmin, xmax, numSamples int, bitsPerSample uint) int {
+		return int((int64(xmax-xmin)*int64(numSamples)*int64(bitsPerSample) + 7) / 8)
+	}
+	// calcRowOff returns the offset of the next row.
+	calcRowOff := func(y, ymin, rowBytes int) int {
+		return (y - ymin) * rowBytes
+	}
+
 	rMaxX := minInt(xmax, dst.Bounds().Max.X)
 	rMaxY := minInt(ymax, dst.Bounds().Max.Y)
 	switch d.mode {
 	case mGray, mGrayInvert:
+		rowBytes := calcRowBytes(xmin, xmax, 1, d.bpp)
 		if d.bpp == 16 {
 			img := dst.(*image.Gray16)
 			for y := ymin; y < rMaxY; y++ {
+				d.off = calcRowOff(y, ymin, rowBytes)
 				for x := xmin; x < rMaxX; x++ {
 					if d.off+2 > len(d.buf) {
 						return errNoPixels
@@ -360,14 +372,13 @@ func (d *decoder) decode(dst image.Image, xmin, ymin, xmax, ymax int) error {
 					}
 					img.SetGray16(x, y, color.Gray16{v})
 				}
-				if rMaxX == img.Bounds().Max.X {
-					d.off += 2 * (xmax - img.Bounds().Max.X)
-				}
 			}
 		} else {
 			img := dst.(*image.Gray)
 			max := uint32((1 << d.bpp) - 1)
 			for y := ymin; y < rMaxY; y++ {
+				d.off = calcRowOff(y, ymin, rowBytes)
+				d.flushBits()
 				for x := xmin; x < rMaxX; x++ {
 					v, ok := d.readBits(d.bpp)
 					if !ok {
@@ -379,13 +390,15 @@ func (d *decoder) decode(dst image.Image, xmin, ymin, xmax, ymax int) error {
 					}
 					img.SetGray(x, y, color.Gray{uint8(v)})
 				}
-				d.flushBits()
 			}
 		}
 	case mPaletted:
 		img := dst.(*image.Paletted)
 		pLen := len(d.palette)
+		rowBytes := calcRowBytes(xmin, xmax, 1, d.bpp)
 		for y := ymin; y < rMaxY; y++ {
+			d.off = calcRowOff(y, ymin, rowBytes)
+			d.flushBits()
 			for x := xmin; x < rMaxX; x++ {
 				v, ok := d.readBits(d.bpp)
 				if !ok {
@@ -397,12 +410,13 @@ func (d *decoder) decode(dst image.Image, xmin, ymin, xmax, ymax int) error {
 				}
 				img.SetColorIndex(x, y, idx)
 			}
-			d.flushBits()
 		}
 	case mRGB:
+		rowBytes := calcRowBytes(xmin, xmax, 3, d.bpp)
 		if d.bpp == 16 {
 			img := dst.(*image.RGBA64)
 			for y := ymin; y < rMaxY; y++ {
+				d.off = calcRowOff(y, ymin, rowBytes)
 				for x := xmin; x < rMaxX; x++ {
 					if d.off+6 > len(d.buf) {
 						return errNoPixels
@@ -417,6 +431,7 @@ func (d *decoder) decode(dst image.Image, xmin, ymin, xmax, ymax int) error {
 		} else {
 			img := dst.(*image.RGBA)
 			for y := ymin; y < rMaxY; y++ {
+				d.off = calcRowOff(y, ymin, rowBytes)
 				min := img.PixOffset(xmin, y)
 				max := img.PixOffset(rMaxX, y)
 				off := (y - ymin) * (xmax - xmin) * 3
@@ -433,9 +448,11 @@ func (d *decoder) decode(dst image.Image, xmin, ymin, xmax, ymax int) error {
 			}
 		}
 	case mNRGBA:
+		rowBytes := calcRowBytes(xmin, xmax, 4, d.bpp)
 		if d.bpp == 16 {
 			img := dst.(*image.NRGBA64)
 			for y := ymin; y < rMaxY; y++ {
+				d.off = calcRowOff(y, ymin, rowBytes)
 				for x := xmin; x < rMaxX; x++ {
 					if d.off+8 > len(d.buf) {
 						return errNoPixels
@@ -461,9 +478,11 @@ func (d *decoder) decode(dst image.Image, xmin, ymin, xmax, ymax int) error {
 			}
 		}
 	case mRGBA:
+		rowBytes := calcRowBytes(xmin, xmax, 4, d.bpp)
 		if d.bpp == 16 {
 			img := dst.(*image.RGBA64)
 			for y := ymin; y < rMaxY; y++ {
+				d.off = calcRowOff(y, ymin, rowBytes)
 				for x := xmin; x < rMaxX; x++ {
 					if d.off+8 > len(d.buf) {
 						return errNoPixels

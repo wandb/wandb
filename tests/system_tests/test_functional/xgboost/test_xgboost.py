@@ -45,7 +45,12 @@ def test_regression(wandb_backend_spy, execute_script):
         summary = snapshot.summary(run_id=run_id)
         assert summary["Feature Importance_table"]["_type"] == "table-file"
         assert summary["Feature Importance_table"]["ncols"] == 2
-        assert summary["Feature Importance_table"]["nrows"] == 7
+
+        # Each row corresponds to a feature in the underlying data, so there
+        # can be up to 8. Which features show up can vary based on xgboost
+        # releases (ones with low importance can be excluded).
+        assert summary["Feature Importance_table"]["nrows"] >= 6
+
         assert summary["best_score"] > 0.5
         assert "best_iteration" in summary
         assert "epoch" in summary
