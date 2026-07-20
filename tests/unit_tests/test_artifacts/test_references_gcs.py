@@ -67,7 +67,7 @@ def test_add_gs_reference_object(artifact):
     mock_gcs(artifact)
     artifact.add_reference("gs://my-bucket/my_object.pb")
 
-    assert artifact.digest == "8aec0d6978da8c2b0bf5662b3fd043a4"
+    assert artifact.digest == "b16609518f60b258cdd4c93f7c6dba0a"
     manifest_contents = artifact.manifest.to_manifest_json()["contents"]
     assert manifest_contents == {
         "my_object.pb": {
@@ -97,7 +97,7 @@ def test_add_gs_reference_object_with_version(artifact):
     mock_gcs(artifact)
     artifact.add_reference("gs://my-bucket/my_object.pb#2")
 
-    assert artifact.digest == "8aec0d6978da8c2b0bf5662b3fd043a4"
+    assert artifact.digest == "b16609518f60b258cdd4c93f7c6dba0a"
     manifest_contents = artifact.manifest.to_manifest_json()["contents"]
     assert manifest_contents == {
         "my_object.pb": {
@@ -113,7 +113,7 @@ def test_add_gs_reference_object_with_name(artifact):
     mock_gcs(artifact)
     artifact.add_reference("gs://my-bucket/my_object.pb", name="renamed.pb")
 
-    assert artifact.digest == "bd85fe009dc9e408a5ed9b55c95f47b2"
+    assert artifact.digest == "2d4433ec4e23d6623808c271c687f015"
     manifest_contents = artifact.manifest.to_manifest_json()["contents"]
     assert manifest_contents == {
         "renamed.pb": {
@@ -129,7 +129,7 @@ def test_add_gs_reference_path(capsys, artifact):
     mock_gcs(artifact, path=True)
     artifact.add_reference("gs://my-bucket/")
 
-    assert artifact.digest == "17955d00a20e1074c3bc96c74b724bfe"
+    assert artifact.digest == "84610ac4c1a560ed3a66ee66a85bd5cc"
     manifest_contents = artifact.manifest.to_manifest_json()["contents"]
     assert manifest_contents == {
         "my_object.pb": {
@@ -153,7 +153,7 @@ def test_add_gs_reference_object_no_md5(artifact):
     mock_gcs(artifact, hash=False)
     artifact.add_reference("gs://my-bucket/my_object.pb")
 
-    assert artifact.digest == "8aec0d6978da8c2b0bf5662b3fd043a4"
+    assert artifact.digest == "b16609518f60b258cdd4c93f7c6dba0a"
     manifest_contents = artifact.manifest.to_manifest_json()["contents"]
     assert manifest_contents == {
         "my_object.pb": {

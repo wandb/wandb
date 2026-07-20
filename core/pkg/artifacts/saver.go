@@ -193,7 +193,8 @@ func (as *ArtifactSaver) getArtifactDigestAlgorithm() (gql.ArtifactDigestAlgorit
 	if err != nil {
 		// New sequences don't exist yet; some servers return 404 instead of
 		// null data for a missing artifactCollection.
-		if isArtifactCollectionNotFound(err) {
+		var httpError *graphql.HTTPError
+		if errors.As(err, &httpError) && httpError.StatusCode == http.StatusNotFound {
 			return gql.ArtifactDigestAlgorithmManifestXxh128, nil
 		}
 		return "", err
@@ -212,13 +213,6 @@ func (as *ArtifactSaver) getArtifactDigestAlgorithm() (gql.ArtifactDigestAlgorit
 	default:
 		return "", fmt.Errorf("unexpected artifact collection type: %T", sequence)
 	}
-}
-
-// isArtifactCollectionNotFound reports whether a digest-algorithm lookup failed
-// because the artifact collection does not exist yet (first upload to a sequence).
-func isArtifactCollectionNotFound(err error) bool {
-	var httpError *graphql.HTTPError
-	return errors.As(err, &httpError) && httpError.StatusCode == http.StatusNotFound
 }
 
 func (as *ArtifactSaver) hashArtifactWithMd5(manifest *Manifest) error {
@@ -440,7 +434,6 @@ func (as *ArtifactSaver) uploadFiles(
 			ArtifactID:         artifactID,
 			Name:               name,
 			Md5:                md5Digest,
-			Digest:             &entry.Digest,
 			ArtifactManifestID: &manifestID,
 			UploadPartsInput:   parts,
 		}
@@ -562,7 +555,6 @@ func (as *ArtifactSaver) batchFileDataRetriever(
 		ArtifactFiles: batch,
 		StorageLayout: gql.ArtifactStorageLayoutV2,
 	}
-	// Omit the digest algorithm if it's not supported by the server.
 	if as.artifactDigestAlgorithmSupported {
 		da := gql.ArtifactDigestAlgorithm(as.artifact.DigestAlgorithm)
 		if da == "" {
@@ -867,6 +859,7 @@ func (as *ArtifactSaver) Save() (artifactID string, rerr error) {
 		return "", fmt.Errorf("ArtifactSaver.createArtifactWithCorrectDigestAlgorithm: %w", err)
 	}
 
+	// set the digest algorithm for the file cache now that its finalized so that we upload to the correct path
 	as.fileCache = as.fileCache.WithDigestAlgorithm(as.artifact.DigestAlgorithm)
 
 	artifactID = artifactAttrs.Id
