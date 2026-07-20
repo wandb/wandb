@@ -254,22 +254,22 @@ func TestManifest_HashContentsWithMd5(t *testing.T) {
 		StoragePolicy: "policy",
 		Contents: []*spb.ArtifactManifestEntry{
 			{
-				Path:   "file1.txt",
-				Digest: "tenBrQcbPn/Hec+qXlI4GA==",
-				Size:   int64(5),
-				LocalPath:      localPath1.Name(),
+				Path:      "file1.txt",
+				Digest:    "tenBrQcbPn/Hec+qXlI4GA==",
+				Size:      int64(5),
+				LocalPath: localPath1.Name(),
 			},
 			{
-				Path:   "file2.txt",
-				Digest: "CY9rzUYh03PK3k6DJie09g==",
-				Size:   int64(4),
-				LocalPath:      localPath2.Name(),
+				Path:      "file2.txt",
+				Digest:    "CY9rzUYh03PK3k6DJie09g==",
+				Size:      int64(4),
+				LocalPath: localPath2.Name(),
 			},
 			{
-				Path:   "different-subdir/file.txt",
-				Digest: "fVls5fyrr2IqIwC71+pumg==",
-				Size:   int64(2),
-				LocalPath:      localPathInDir1.Name(),
+				Path:      "different-subdir/file.txt",
+				Digest:    "fVls5fyrr2IqIwC71+pumg==",
+				Size:      int64(2),
+				LocalPath: localPathInDir1.Name(),
 			},
 			{
 				Path:   "path4",
@@ -295,8 +295,16 @@ func TestManifest_HashContentsWithMd5(t *testing.T) {
 	assert.Equal(t, localPath2.Name(), *manifest.Contents["file2.txt"].LocalPath)
 
 	// different-subdir/file.txt should be rehashed with md5
-	assert.Equal(t, "SfaKXIST7CwL9ImCHCH8Ow==", manifest.Contents["different-subdir/file.txt"].Digest)
-	assert.Equal(t, localPathInDir1.Name(), *manifest.Contents["different-subdir/file.txt"].LocalPath)
+	assert.Equal(
+		t,
+		"SfaKXIST7CwL9ImCHCH8Ow==",
+		manifest.Contents["different-subdir/file.txt"].Digest,
+	)
+	assert.Equal(
+		t,
+		localPathInDir1.Name(),
+		*manifest.Contents["different-subdir/file.txt"].LocalPath,
+	)
 
 	// path4 should not be rehashed
 	assert.Equal(t, "digest4", manifest.Contents["path4"].Digest)
@@ -306,23 +314,23 @@ func TestManifest_HashContentsWithMd5(t *testing.T) {
 
 func TestManifest_ArtifactDigest(t *testing.T) {
 	proto := &spb.ArtifactManifest{
-		Version: 1,
+		Version:       1,
 		StoragePolicy: "policy",
 		Contents: []*spb.ArtifactManifestEntry{
 			{
-				Path: "path3",
+				Path:   "path3",
 				Digest: "digest3",
-				Size: 123,
+				Size:   123,
 			},
 			{
-				Path: "path1",
+				Path:   "path1",
 				Digest: "digest1",
-				Size: 123,
+				Size:   123,
 			},
 			{
-				Path: "path2",
+				Path:   "path2",
 				Digest: "digest2",
-				Size: 123,
+				Size:   123,
 			},
 		},
 	}
