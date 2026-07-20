@@ -193,6 +193,8 @@ execnet==2.1.2
     # via pytest-xdist
 executing==2.2.1
     # via stack-data
+faker==40.28.1
+    # via polyfactory
 farama-notifications==0.0.6
     # via gymnasium
 fastapi==0.115.14
@@ -764,6 +766,8 @@ polars-runtime-32==1.40.1
     # via
     #   -c requirements/constraints.txt
     #   polars
+polyfactory==3.3.0
+    # via -r requirements/requirements_test.txt
 proglog==0.1.12
     # via moviepy
 prometheus-client==0.25.0
@@ -1158,6 +1162,7 @@ typing-extensions==4.16.0
     #   lightning-utilities
     #   openai
     #   optree
+    #   polyfactory
     #   pydantic
     #   pydantic-core
     #   pytorch-lightning

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import logging
 import os
 import pathlib
@@ -60,6 +61,25 @@ def setup_wandb_env_variables() -> Generator[None]:
         monkeypatch.setenv("WANDB_BASE_URL", "https://invalid")
 
         yield
+
+
+@pytest.fixture(autouse=True)
+def _seed_model_factories(request: pytest.FixtureRequest) -> None:
+    """Make output from tests.factories deterministic within each test.
+
+    Seeding from the test's node id keeps generated values stable regardless
+    of execution order or pytest-xdist worker assignment, and a failing test
+    reproduces the same values when rerun alone. This seeds only polyfactory's
+    own RNG and its faker instance, not the stdlib random module, so it does
+    not interfere with hypothesis.
+    """
+    try:
+        from tests.factories import GQLFactory
+    except ImportError:  # Not every test environment installs polyfactory.
+        return
+
+    digest = hashlib.sha256(request.node.nodeid.encode()).digest()
+    GQLFactory.seed_random(int.from_bytes(digest[:8], "big"))
 
 
 # --------------------------------
