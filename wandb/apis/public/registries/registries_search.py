@@ -37,7 +37,6 @@ if TYPE_CHECKING:
     from wandb.sdk.artifacts.artifact import Artifact
 
 
-
 class VersionsIterator(Protocol):
     """Public surface of a lazy iterator over registry artifact versions.
 
@@ -63,7 +62,6 @@ class CollectionsIterator(Protocol):
         per_page: PositiveInt = ...,
         start: str | None = ...,
     ) -> VersionsIterator: ...
-
 
 
 class Registries(RelayPaginator["RegistryFragment", "Registry"]):
