@@ -7,6 +7,8 @@ import (
 	"encoding/hex"
 	"io"
 	"os"
+
+	"github.com/zeebo/xxh3"
 )
 
 // ComputeB64MD5 computes the MD5 hash of the given data and returns it as a
@@ -76,4 +78,33 @@ func ComputeSHA256(data []byte) []byte {
 	hasher := sha256.New()
 	hasher.Write(data)
 	return hasher.Sum(nil)
+}
+
+// ComputeFileB64XXH128 computes the XXH3-128 hash of the file at the given path
+// and returns the result as a base64 encoded string.
+//
+// Returns an error if the file cannot be opened or read.
+func ComputeFileB64XXH128(path string) (string, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer func() {
+		_ = f.Close()
+	}()
+
+	hasher := xxh3.New128()
+	if _, err = io.Copy(hasher, f); err != nil {
+		return "", err
+	}
+	return base64.StdEncoding.EncodeToString(hasher.Sum(nil)), nil
+}
+
+// ComputeB64XXH128 computes the XXH3-128 hash of the given data and returns it as a
+// base64 encoded string.
+func ComputeB64XXH128(data []byte) string {
+	hasher := xxh3.New128()
+	// hasher.Write can't fail; the returned values are just to implement io.Writer
+	_, _ = hasher.Write(data)
+	return base64.StdEncoding.EncodeToString(hasher.Sum(nil))
 }
