@@ -9,8 +9,7 @@ from pydantic import AfterValidator, BeforeValidator, Discriminator, Field
 from wandb._pydantic import GQLBase, model_validator, pydantic_isinstance
 from wandb._strutils import nameof
 
-from ._filters import And, MongoLikeFilter
-from ._filters.expressions import FilterableField
+from ._filters import And, FilterableField, MongoLikeFilter
 from ._filters.run_metrics import (
     MetricChangeFilter,
     MetricThresholdFilter,
