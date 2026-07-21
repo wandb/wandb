@@ -20,7 +20,7 @@ from wandb.automations import (
 )
 from wandb.automations._generated import EventTriggeringConditionType
 
-from ._strategies import (
+from ._automations_strategies import (
     metric_change_filters,
     metric_threshold_filters,
     metric_zscore_filters,
