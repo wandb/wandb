@@ -78,7 +78,7 @@ def test_counts_skipped_runs(wandb_dir: pathlib.Path, runner: CliRunner):
     assert result.output.splitlines()[:3] == [
         "wandb: Skipping 1 run(s) created fewer than 2 hours ago.",
         "wandb: Skipping 2 unsynced run(s).",
-        "wandb: Found 1 synced run(s).",
+        "wandb: Found 1 run(s) to clean.",
     ]
 
 
@@ -94,7 +94,7 @@ def test_finds_synced_runs(wandb_dir: pathlib.Path, runner: CliRunner):
 
     assert result.exit_code == 0
     assert lines[0] == "wandb: Skipping 2 unsynced run(s)."
-    assert lines[1] == "wandb: Found 2 synced run(s)."
+    assert lines[1] == "wandb: Found 2 run(s) to clean."
     assert set(lines[2:4]) == set(
         [
             "wandb:   wandb/offline-run-20260101_333000-3",
@@ -103,6 +103,42 @@ def test_finds_synced_runs(wandb_dir: pathlib.Path, runner: CliRunner):
     )
     assert lines[4] == "wandb: Are you sure you want to remove 2 run(s)? [y/n] y"
     assert lines[5] == "wandb: Success."
+
+
+def test_include_unsynced(wandb_dir: pathlib.Path, runner: CliRunner):
+    run = wandb_dir / "wandb" / "offline-run-20260101_010101-unsynced"
+    _mkrun(run)
+
+    result = runner.invoke(clean.clean, ["--include-unsynced"], input="y")
+
+    assert result.exit_code == 0
+    assert not run.exists()
+    assert result.output.splitlines() == [
+        "wandb: Found 1 run(s) to clean.",
+        "wandb:   [unsynced] wandb/offline-run-20260101_010101-unsynced",
+        "wandb: Are you sure you want to remove 1 run(s), 1 of which is unsynced? [y/n] y",
+        "wandb: Success.",
+    ]
+
+
+def test_include_unsynced_mixed(wandb_dir: pathlib.Path, runner: CliRunner):
+    _mkrun(wandb_dir / "wandb" / "offline-run-20260101_010101-unsynced1")
+    _mkrun(wandb_dir / "wandb" / "offline-run-20260101_202020-unsynced2")
+    _mkrun(wandb_dir / "wandb" / "run-20260101_333333-online")
+
+    result = runner.invoke(clean.clean, ["--include-unsynced"], input="y")
+
+    assert result.exit_code == 0
+    assert set(result.output.splitlines()) == set(
+        [
+            "wandb: Found 3 run(s) to clean.",
+            "wandb:   [unsynced] wandb/offline-run-20260101_010101-unsynced1",
+            "wandb:   [unsynced] wandb/offline-run-20260101_202020-unsynced2",
+            "wandb:   wandb/run-20260101_333333-online",
+            "wandb: Are you sure you want to remove 3 run(s), 2 of which are unsynced? [y/n] y",
+            "wandb: Success.",
+        ]
+    )
 
 
 def test_reports_rmtree_errors(
@@ -122,7 +158,7 @@ def test_reports_rmtree_errors(
 
     assert result.exit_code == 1
     assert result.output.splitlines() == [
-        "wandb: Found 1 synced run(s).",
+        "wandb: Found 1 run(s) to clean.",
         "wandb:   wandb/run-20260101-123456-abc",
         "wandb: Are you sure you want to remove 1 run(s)? [y/n] y",
         "wandb: ERROR Failed to remove 'wandb/run-20260101-123456-abc': something went wrong",
