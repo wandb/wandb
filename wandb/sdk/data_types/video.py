@@ -217,7 +217,7 @@ class Video(BatchableMedia):
     def get_media_subdir(cls: type[Video]) -> str:
         """Get media subdirectory for video files.
 
-        <!-- lazydoc-ignore-classmethod: internal -->
+        <!-- lazydoc-ignore -->
         """
         return os.path.join("media", "videos")
 
@@ -282,7 +282,7 @@ class Video(BatchableMedia):
     ) -> dict:
         """Convert a sequence of Video objects to a JSON representation.
 
-        <!-- lazydoc-ignore-classmethod: internal -->
+        <!-- lazydoc-ignore -->
         """
         base_path = os.path.join(run.dir, cls.get_media_subdir())
         filesystem.mkdir_exists_ok(base_path)
