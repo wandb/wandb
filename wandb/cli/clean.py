@@ -24,7 +24,13 @@ _DATETIME_NOW = datetime.now
     help="Minimum run age in hours for deletion (default 24).",
     default=24,
 )
-def clean(ctx: click.Context, min_hours: int) -> None:
+@click.option(
+    "--force",
+    help="Skip the confirmation prompt.",
+    is_flag=True,
+    default=False,
+)
+def clean(ctx: click.Context, min_hours: int, force: bool) -> None:
     """Remove synced run data.
 
     Cleans up the wandb folder, as determined by settings. Usually, this is
@@ -71,7 +77,8 @@ def clean(ctx: click.Context, min_hours: int) -> None:
     term.termlog(f"Found {len(result.runs_to_clean)} synced run(s).")
     for path in result.runs_to_clean:
         term.termlog(f"  {path}")
-    if not term.confirm(
+
+    if not force and not term.confirm(
         f"Are you sure you want to remove {len(result.runs_to_clean)} run(s)?",
     ):
         ctx.exit(1)
@@ -84,6 +91,11 @@ def clean(ctx: click.Context, min_hours: int) -> None:
             errstr = f": {e.strerror}" if e.strerror else ""
             term.termerror(f"Failed to remove {str(path)!r}{errstr}")
             exit_code = 1
+
+    if exit_code == 0:
+        term.termlog("Success.")
+    else:
+        term.termwarn("Some runs may not have been removed.")
 
     ctx.exit(exit_code)
 

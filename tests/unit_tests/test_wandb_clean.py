@@ -53,6 +53,18 @@ def test_bad_wandb_dir(wandb_dir: pathlib.Path, runner: CliRunner):
     ]
 
 
+def test_force_skips_confirmation(wandb_dir: pathlib.Path, runner: CliRunner):
+    wb = wandb_dir / "wandb"
+    run = wb / "run-20260101_123456-oldrun"
+    _mkrun(run)
+
+    # Would fail without input.
+    result = runner.invoke(clean.clean, ["--force"])
+
+    assert result.exit_code == 0
+    assert not run.exists()
+
+
 @pytest.mark.usefixtures("now_20260805_3pm")
 def test_counts_skipped_runs(wandb_dir: pathlib.Path, runner: CliRunner):
     wb = wandb_dir / "wandb"
@@ -90,6 +102,7 @@ def test_finds_synced_runs(wandb_dir: pathlib.Path, runner: CliRunner):
         ]
     )
     assert lines[4] == "wandb: Are you sure you want to remove 2 run(s)? [y/n] y"
+    assert lines[5] == "wandb: Success."
 
 
 def test_reports_rmtree_errors(
@@ -113,4 +126,5 @@ def test_reports_rmtree_errors(
         "wandb:   wandb/run-20260101-123456-abc",
         "wandb: Are you sure you want to remove 1 run(s)? [y/n] y",
         "wandb: ERROR Failed to remove 'wandb/run-20260101-123456-abc': something went wrong",
+        "wandb: WARNING Some runs may not have been removed.",
     ]
