@@ -19,6 +19,7 @@ from typing_extensions import Self
 
 from wandb._strutils import nameof
 from wandb.proto.wandb_telemetry_pb2 import Deprecated
+from wandb.sdk.artifacts._generated import ArtifactDigestAlgorithm
 from wandb.sdk.lib.deprecation import warn_and_record_deprecation
 from wandb.sdk.lib.filesystem import copy_or_overwrite_changed
 from wandb.sdk.lib.hashutil import (
@@ -27,6 +28,7 @@ from wandb.sdk.lib.hashutil import (
     b64_to_hex_id,
     hex_to_b64_id,
     md5_file_b64,
+    xxh128_file_b64,
 )
 from wandb.sdk.lib.paths import FilePathStr, LogicalPath, URIStr
 
@@ -182,12 +184,15 @@ class ArtifactManifestEntry(ArtifactsBase):
 
         # Fallback to computing/caching the checksum hash
         try:
-            md5_hash = md5_file_b64(dest_path)
+            if artifact.digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128:
+                existing_hash = xxh128_file_b64(dest_path)
+            else:
+                existing_hash = md5_file_b64(dest_path)
         except (FileNotFoundError, IsADirectoryError):
             logger.debug(f"unable to find {dest_path!r}, skip searching for file")
         else:
-            _write_cached_checksum(dest_path, md5_hash)
-            if self.digest == md5_hash:
+            _write_cached_checksum(dest_path, existing_hash)
+            if self.digest == existing_hash:
                 return FilePathStr(dest_path)
 
         # Override the target cache path IF we're skipping the cache.

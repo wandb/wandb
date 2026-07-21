@@ -17,6 +17,7 @@ from hypothesis import given
 from hypothesis.strategies import from_regex, text
 from pytest import CaptureFixture, MonkeyPatch, fail, fixture, mark, raises
 from wandb.filesync.step_prepare import ResponsePrepare, StepPrepare
+from wandb.sdk.artifacts._generated.enums import ArtifactDigestAlgorithm
 from wandb.sdk.artifacts._validators import NAME_MAXLEN
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.artifacts.artifact_file_cache import ArtifactFileCache
@@ -30,6 +31,7 @@ from wandb.sdk.artifacts.storage_policies._multipart import (
     should_multipart_download,
 )
 from wandb.sdk.artifacts.storage_policies.wandb_storage_policy import WandbStoragePolicy
+from wandb.sdk.lib.hashutil import _md5, _xxh128, md5_string, xxh128_string
 
 if TYPE_CHECKING:
     from typing import Protocol
@@ -51,7 +53,7 @@ if TYPE_CHECKING:
 
 
 def is_cache_hit(cache: ArtifactFileCache, digest: str, size: int) -> bool:
-    _, hit, _ = cache.check_md5_obj_path(digest, size)
+    _, hit, _ = cache.check_digest_obj_path(digest, size)
     return hit
 
 
@@ -738,3 +740,60 @@ def test_artifact_multipart_download_writer_not_on_shared_executor():
         future.result(timeout=5)
     except TimeoutError:
         fail("multipart_download deadlocked: writer likely sharing the chunk executor")
+
+
+# TODO: uncomment this once we have the fallback to md5 implemented in saver.go,
+# and we default to xxh128 for offline artifacts.
+# def test_offline_artifact_uses_xxh128():
+#     f = Path("file.txt")
+#     f.write_text("hello")
+#     artifact = Artifact("test", type="dataset")
+#     # _service_api is None by default (offline)
+
+#     artifact.add_file(str(f))
+#     entry = artifact.manifest.entries["file.txt"]
+#     assert artifact.digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128
+
+# def test_digest_algorithm_with_reference_entries():
+#     artifact = Artifact("test-artifact", "test-type")
+
+#     f = Path("file.txt")
+#     f.write_text("hello")
+#     artifact.add_file(str(f))
+
+#     f2 = Path("file2.txt")
+#     f2.write_text("also a test")
+#     artifact.add_reference(f2.resolve().as_uri(), "file2.txt")
+
+#     entry = artifact.manifest.entries["file.txt"]
+#     assert artifact.digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128
+
+
+def test_manifest_digest_uses_xxh128_for_xxh128_artifact():
+    f = Path("file.txt")
+    f.write_text("hello")
+    artifact = Artifact("test", type="dataset")
+    # Force xxh128 algorithm
+    artifact._digest_algorithm = ArtifactDigestAlgorithm.MANIFEST_XXH128
+    artifact.manifest.digest_algorithm = ArtifactDigestAlgorithm.MANIFEST_XXH128
+    artifact.add_file(str(f))
+
+    file_digest = xxh128_string("hello")
+    xxh128_hasher = _xxh128(b"wandb-artifact-manifest-v1\n")
+    xxh128_hasher.update(f"file.txt:{file_digest}\n".encode())
+    assert artifact.digest == xxh128_hasher.hexdigest()
+
+
+def test_manifest_digest_uses_md5_for_md5_artifact():
+    f = Path("file.txt")
+    f.write_text("hello")
+    artifact = Artifact("test", type="dataset")
+    # Force MD5 algorithm
+    artifact._digest_algorithm = ArtifactDigestAlgorithm.MANIFEST_MD5
+    artifact.manifest.digest_algorithm = ArtifactDigestAlgorithm.MANIFEST_MD5
+    artifact.add_file(str(f))
+
+    file_digest = md5_string("hello")
+    md5_hasher = _md5(b"wandb-artifact-manifest-v1\n")
+    md5_hasher.update(f"file.txt:{file_digest}\n".encode())
+    assert artifact.digest == md5_hasher.hexdigest()

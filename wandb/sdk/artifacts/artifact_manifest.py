@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Annotated, Any, Dict  # noqa: UP035
 
 from pydantic import Field
 
+from wandb.sdk.artifacts._generated import ArtifactDigestAlgorithm
 from wandb.sdk.lib.hashutil import HexDigest
 
 from ._models.base_model import ArtifactsBase
@@ -24,6 +25,9 @@ class ArtifactManifest(ArtifactsBase, ABC):
     entries: Dict[str, ArtifactManifestEntry] = Field(default_factory=dict)  # noqa: UP006
 
     storage_policy: Annotated[StoragePolicy, Field(exclude=True, repr=False)]
+    digest_algorithm: Annotated[
+        ArtifactDigestAlgorithm, Field(exclude=True, repr=False)
+    ]
 
     @classmethod
     def version(cls) -> int:
@@ -31,13 +35,17 @@ class ArtifactManifest(ArtifactsBase, ABC):
 
     @classmethod
     @abstractmethod
-    def from_manifest_json(cls, manifest_json: dict[str, Any]) -> ArtifactManifest:
+    def from_manifest_json(
+        cls,
+        manifest_json: dict[str, Any],
+        digest_algorithm: ArtifactDigestAlgorithm | None = None,
+    ) -> ArtifactManifest:
         if (version := manifest_json.get("version")) is None:
             raise ValueError("Invalid manifest format. Must contain version field.")
 
         for sub in cls.__subclasses__():
             if sub.version() == version:
-                return sub.from_manifest_json(manifest_json)
+                return sub.from_manifest_json(manifest_json, digest_algorithm)
         raise ValueError("Invalid manifest version.")
 
     def __len__(self) -> int:
