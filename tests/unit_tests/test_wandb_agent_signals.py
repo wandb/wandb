@@ -1,5 +1,6 @@
 import os
 import signal
+import subprocess
 from unittest import mock
 
 import pytest
@@ -285,6 +286,108 @@ def test_agent_run_third_shutdown_signal_escalates_to_kill(monkeypatch):
     agent._run_processes["run-1"] = run_process
 
     agent.run()
+
+    run_process.terminate.assert_called_once()
+    run_process.kill.assert_called_once()
+
+
+def test_agent_run_term_timeout_expiry_escalates_straight_to_kill(monkeypatch):
+    """Tests that when a child process runs past the term_timeout, Tier 1
+    raises a timeoutExpired and we escalate straight to Tier 3 SIGKILL."""
+
+    api = mock.Mock()
+    api.sweep.return_value = {"config": ""}
+    api.register_agent.return_value = {"id": "agent-1"}
+    api.agent_heartbeat.side_effect = wandb_agent.ShutdownSignal(signal.SIGTERM)
+
+    monkeypatch.setattr(wandb_agent.util, "read_many_from_queue", lambda *a, **kw: [])
+
+    agent = wandb_agent.Agent(
+        api=api,
+        queue=mock.Mock(),
+        sweep_id="sweep-1",
+        term_timeout=5,
+        forward_signals=True,
+    )
+
+    run_process = mock.Mock()
+    run_process.poll.return_value = None
+
+    run_process.wait.side_effect = subprocess.TimeoutExpired(cmd="child", timeout=5)
+    agent._run_processes["run-1"] = run_process
+
+    agent.run()
+
+    assert run_process.wait.call_count == 1
+    wait_timeout = run_process.wait.call_args.kwargs["timeout"]
+    assert wait_timeout is not None
+    assert 0 <= wait_timeout <= 5
+
+    assert agent._immediately_kill_children is True
+    run_process.terminate.assert_not_called()
+    run_process.kill.assert_called_once()
+
+
+def test_agent_run_term_timeout_ignored_without_forward_signals(monkeypatch):
+    """Test that term_timeout only applies when forward_signals is also set."""
+    api = mock.Mock()
+    api.sweep.return_value = {"config": ""}
+    api.register_agent.return_value = {"id": "agent-1"}
+    api.agent_heartbeat.side_effect = wandb_agent.ShutdownSignal(signal.SIGTERM)
+
+    monkeypatch.setattr(wandb_agent.util, "read_many_from_queue", lambda *a, **kw: [])
+
+    agent = wandb_agent.Agent(
+        api=api,
+        queue=mock.Mock(),
+        sweep_id="sweep-1",
+        term_timeout=5,
+        forward_signals=False,
+    )
+
+    run_process = mock.Mock()
+    run_process.poll.side_effect = [None, 0]
+    run_process.wait.return_value = 0
+    agent._run_processes["run-1"] = run_process
+
+    agent.run()
+
+    assert run_process.wait.call_args.kwargs["timeout"] is None
+    assert agent._immediately_kill_children is False
+    run_process.terminate.assert_not_called()
+    run_process.kill.assert_not_called()
+
+
+def test_agent_run_term_timeout_in_tier2_escalates_to_kill(monkeypatch):
+    """Checks that the tier 2 wait also obeys term_timeout."""
+    api = mock.Mock()
+    api.sweep.return_value = {"config": ""}
+    api.register_agent.return_value = {"id": "agent-1"}
+    api.agent_heartbeat.side_effect = wandb_agent.ShutdownSignal(signal.SIGTERM)
+
+    monkeypatch.setattr(wandb_agent.util, "read_many_from_queue", lambda *a, **kw: [])
+
+    agent = wandb_agent.Agent(
+        api=api,
+        queue=mock.Mock(),
+        sweep_id="sweep-1",
+        term_timeout=5,
+        forward_signals=True,
+    )
+
+    run_process = mock.Mock()
+    run_process.poll.return_value = None
+    run_process.wait.side_effect = [
+        wandb_agent.ShutdownSignal(signal.SIGTERM),
+        subprocess.TimeoutExpired(cmd="child", timeout=5),
+    ]
+    agent._run_processes["run-1"] = run_process
+
+    agent.run()
+
+    tier2_timeout = run_process.wait.call_args_list[1].kwargs["timeout"]
+    assert tier2_timeout is not None
+    assert 0 <= tier2_timeout <= 5
 
     run_process.terminate.assert_called_once()
     run_process.kill.assert_called_once()
