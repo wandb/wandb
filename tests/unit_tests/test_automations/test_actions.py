@@ -1,13 +1,54 @@
+from __future__ import annotations
+
 import json
+from string import ascii_letters
+from typing import Any
 
 from hypothesis import given
-from hypothesis.strategies import dictionaries, sampled_from, text
+from hypothesis.strategies import (
+    DrawFn,
+    SearchStrategy,
+    booleans,
+    composite,
+    dictionaries,
+    integers,
+    lists,
+    none,
+    recursive,
+    sampled_from,
+    text,
+)
+from wandb._strutils import b64encode_ascii
 from wandb.automations import ActionType, SendNotification, SendWebhook
 from wandb.automations._generated import AlertSeverity, TriggeredActionType
 from wandb.sdk.wandb_alerts import AlertLevel
 
-from ._automations_strategies import gql_ids, jsonables
-from ._strategies import printable_text
+from ._strategies import ints_or_floats, printable_text
+
+
+@composite
+def gql_ids(
+    draw: DrawFn,
+    prefix: str | SearchStrategy[str] | None = None,
+) -> SearchStrategy[str]:
+    """GraphQL IDs as base64-encoded strings."""
+    if prefix is None:
+        prefix = text(ascii_letters)
+
+    name = draw(prefix) if isinstance(prefix, SearchStrategy) else prefix
+
+    index = draw(integers(min_value=0, max_value=1_000_000))
+    return b64encode_ascii(f"{name}:{index:d}")
+
+
+def jsonables() -> SearchStrategy[Any]:
+    """JSON-serializable objects."""
+    jsonable_scalars = none() | booleans() | ints_or_floats | text()
+    return recursive(
+        jsonable_scalars,
+        extend=lambda xs: lists(xs) | dictionaries(text(), xs),
+    )
+
 
 VALID_ALERT_SEVERITY_ARG_VALUES = (
     # Where possible, accept both enum and (case-insensitive) string types for `severity`.
