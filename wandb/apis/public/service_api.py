@@ -4,7 +4,7 @@ import json
 import logging
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
-from typing import Any, cast
+from typing import Any, TypeVar, cast
 
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_server_pb2 as spb
@@ -22,6 +22,9 @@ from wandb.sdk.lib.service.service_connection import (
 from wandb.sdk.mailbox.mailbox_handle import MailboxHandle
 
 _logger = logging.getLogger(__name__)
+
+
+_T = TypeVar("_T")
 
 
 @dataclass(frozen=True)
@@ -108,11 +111,12 @@ class ServiceApi:
         variables: Mapping[str, Any] | None = None,
         timeout: float | None = None,
         *,
+        parse: Callable[[str], _T] = json.loads,
         omit_variables: Iterable[str] | None = None,
         omit_fragments: Iterable[str] | None = None,
         omit_fields: Iterable[str] | None = None,
         rename_fields: Mapping[str, str] | None = None,
-    ) -> Any:
+    ) -> _T:
         """Execute a GraphQL operation through the wandb-core sidecar.
 
         The query is sent to wandb-core, which performs the network round-trip
@@ -125,6 +129,9 @@ class ServiceApi:
                 on the wire.
             timeout: Optional timeout in seconds for waiting on wandb-core.
                 On timeout, the request is cancelled on a best-effort basis.
+            parse: Callable used to deserialize the JSON response data.
+                Its must accept a (JSON) string as input. Its output will be
+                returned from this method. Defaults to `json.loads`.
             omit_variables: Variable names ($var) to strip from the query
                 server-side before forwarding to the backend. Use this to
                 drop variables that the deployed server version does not
@@ -145,21 +152,21 @@ class ServiceApi:
                 non-successful HTTP status codes, and GraphQL `errors`
                 returned by the server.
         """
-        request = ApiRequest(
+        req = ApiRequest(
             graphql_request=GraphQLRequest(
                 query=query,
                 variables_json=json.dumps(variables or {}),
-                omit_variables=list(omit_variables) if omit_variables else None,
-                omit_fragments=list(omit_fragments) if omit_fragments else None,
-                omit_fields=list(omit_fields) if omit_fields else None,
-                rename_fields=dict(rename_fields) if rename_fields else None,
+                omit_variables=omit_variables,
+                omit_fragments=omit_fragments,
+                omit_fields=omit_fields,
+                rename_fields=rename_fields,
             )
         )
-        response = self.send_api_request(
-            request,
-            timeout=timeout if timeout is not None else self._timeout,
+        resp = self.send_api_request(
+            req,
+            timeout=self._timeout if timeout is None else timeout,
         )
-        return json.loads(response.graphql_response.data_json)
+        return parse(resp.graphql_response.data_json)
 
     async def send_api_request_async(
         self,

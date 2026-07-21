@@ -6,7 +6,7 @@ import (
 )
 
 // The version of the SDK.
-const SDKVersion = "0.47.0"
+const SDKVersion = "0.48.0"
 
 // apiVersion is the minimum version of the Sentry API compatible with the
 // sentry-go SDK.
@@ -101,9 +101,9 @@ func ConfigureScope(f func(scope *Scope)) {
 }
 
 // PushScope is a shorthand for CurrentHub().PushScope.
-func PushScope() {
+func PushScope() *Scope {
 	hub := CurrentHub()
-	hub.PushScope()
+	return hub.PushScope()
 }
 
 // PopScope is a shorthand for CurrentHub().PopScope.

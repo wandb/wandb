@@ -30,8 +30,10 @@ type RingBuffer[T any] struct {
 	timeout       time.Duration
 	lastFlushTime time.Time
 
-	offered   int64
-	dropped   int64
+	// atomic.Int64 instead of int64 + atomic ops: 64-bit atomics on plain
+	// mid-struct fields panic on 32-bit platforms (4-byte field alignment).
+	offered   atomic.Int64
+	dropped   atomic.Int64
 	onDropped func(item T, reason string)
 }
 
@@ -72,7 +74,7 @@ func (b *RingBuffer[T]) SetDroppedCallback(callback func(item T, reason string))
 }
 
 func (b *RingBuffer[T]) Offer(item T) bool {
-	atomic.AddInt64(&b.offered, 1)
+	b.offered.Add(1)
 
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -91,7 +93,7 @@ func (b *RingBuffer[T]) Offer(item T) bool {
 		b.head = (b.head + 1) % b.capacity
 		b.tail = (b.tail + 1) % b.capacity
 
-		atomic.AddInt64(&b.dropped, 1)
+		b.dropped.Add(1)
 		b.recordDroppedItem(oldItem)
 		if b.onDropped != nil {
 			b.onDropped(oldItem, "buffer_full_drop_oldest")
@@ -99,7 +101,7 @@ func (b *RingBuffer[T]) Offer(item T) bool {
 		return true
 
 	case OverflowPolicyDropNewest:
-		atomic.AddInt64(&b.dropped, 1)
+		b.dropped.Add(1)
 		b.recordDroppedItem(item)
 		if b.onDropped != nil {
 			b.onDropped(item, "buffer_full_drop_newest")
@@ -107,7 +109,7 @@ func (b *RingBuffer[T]) Offer(item T) bool {
 		return false
 
 	default:
-		atomic.AddInt64(&b.dropped, 1)
+		b.dropped.Add(1)
 		b.recordDroppedItem(item)
 		if b.onDropped != nil {
 			b.onDropped(item, "unknown_overflow_policy")
@@ -244,11 +246,11 @@ func (b *RingBuffer[T]) Utilization() float64 {
 }
 
 func (b *RingBuffer[T]) OfferedCount() int64 {
-	return atomic.LoadInt64(&b.offered)
+	return b.offered.Load()
 }
 
 func (b *RingBuffer[T]) DroppedCount() int64 {
-	return atomic.LoadInt64(&b.dropped)
+	return b.dropped.Load()
 }
 
 func (b *RingBuffer[T]) AcceptedCount() int64 {

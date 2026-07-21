@@ -39,7 +39,7 @@ func New(s3Client S3APIClient, optFns ...func(*Options)) *Client {
 
 	resolveConcurrency(&opts)
 	resolvePartSizeBytes(&opts)
-	resolveChecksumAlgorithm(&opts)
+	resolveRequestChecksumCalculation(&opts)
 	resolveMultipartUploadThreshold(&opts)
 	resolveGetObjectType(&opts)
 	resolvePartBodyMaxRetries(&opts)
