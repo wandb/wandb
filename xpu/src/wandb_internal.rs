@@ -1480,6 +1480,8 @@ pub struct ArtifactRecord {
     pub ttl_duration_seconds: i64,
     #[prost(string, repeated, tag = "19")]
     pub tags: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+    #[prost(string, tag = "20")]
+    pub digest_algorithm: ::prost::alloc::string::String,
     #[prost(bool, tag = "100")]
     pub incremental_beta1: bool,
     #[prost(message, optional, tag = "200")]

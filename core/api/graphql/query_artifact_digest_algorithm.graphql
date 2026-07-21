@@ -1,0 +1,16 @@
+query FetchArtifactDigestAlgorithm(
+  $entityName: String!
+  $projectName: String!
+  $artifactTypeName: String!
+  $artifactCollectionName: String!
+) {
+  project(name: $projectName, entityName: $entityName) {
+    artifactType(name: $artifactTypeName) {
+      artifactCollection(name: $artifactCollectionName) {
+        ... on ArtifactSequence {
+          digestAlgorithm
+        }
+      }
+    }
+  }
+}

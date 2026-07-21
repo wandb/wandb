@@ -621,7 +621,7 @@ class StatsItem(_message.Message):
     def __init__(self, key: _Optional[str] = ..., value_json: _Optional[str] = ...) -> None: ...
 
 class ArtifactRecord(_message.Message):
-    __slots__ = ("run_id", "project", "entity", "type", "name", "digest", "description", "metadata", "user_created", "use_after_commit", "aliases", "manifest", "distributed_id", "finalize", "client_id", "sequence_client_id", "base_id", "ttl_duration_seconds", "tags", "incremental_beta1", "_info")
+    __slots__ = ("run_id", "project", "entity", "type", "name", "digest", "description", "metadata", "user_created", "use_after_commit", "aliases", "manifest", "distributed_id", "finalize", "client_id", "sequence_client_id", "base_id", "ttl_duration_seconds", "tags", "digest_algorithm", "incremental_beta1", "_info")
     RUN_ID_FIELD_NUMBER: _ClassVar[int]
     PROJECT_FIELD_NUMBER: _ClassVar[int]
     ENTITY_FIELD_NUMBER: _ClassVar[int]
@@ -641,6 +641,7 @@ class ArtifactRecord(_message.Message):
     BASE_ID_FIELD_NUMBER: _ClassVar[int]
     TTL_DURATION_SECONDS_FIELD_NUMBER: _ClassVar[int]
     TAGS_FIELD_NUMBER: _ClassVar[int]
+    DIGEST_ALGORITHM_FIELD_NUMBER: _ClassVar[int]
     INCREMENTAL_BETA1_FIELD_NUMBER: _ClassVar[int]
     _INFO_FIELD_NUMBER: _ClassVar[int]
     run_id: str
@@ -662,9 +663,10 @@ class ArtifactRecord(_message.Message):
     base_id: str
     ttl_duration_seconds: int
     tags: _containers.RepeatedScalarFieldContainer[str]
+    digest_algorithm: str
     incremental_beta1: bool
     _info: _wandb_base_pb2._RecordInfo
-    def __init__(self, run_id: _Optional[str] = ..., project: _Optional[str] = ..., entity: _Optional[str] = ..., type: _Optional[str] = ..., name: _Optional[str] = ..., digest: _Optional[str] = ..., description: _Optional[str] = ..., metadata: _Optional[str] = ..., user_created: bool = ..., use_after_commit: bool = ..., aliases: _Optional[_Iterable[str]] = ..., manifest: _Optional[_Union[ArtifactManifest, _Mapping]] = ..., distributed_id: _Optional[str] = ..., finalize: bool = ..., client_id: _Optional[str] = ..., sequence_client_id: _Optional[str] = ..., base_id: _Optional[str] = ..., ttl_duration_seconds: _Optional[int] = ..., tags: _Optional[_Iterable[str]] = ..., incremental_beta1: bool = ..., _info: _Optional[_Union[_wandb_base_pb2._RecordInfo, _Mapping]] = ...) -> None: ...
+    def __init__(self, run_id: _Optional[str] = ..., project: _Optional[str] = ..., entity: _Optional[str] = ..., type: _Optional[str] = ..., name: _Optional[str] = ..., digest: _Optional[str] = ..., description: _Optional[str] = ..., metadata: _Optional[str] = ..., user_created: bool = ..., use_after_commit: bool = ..., aliases: _Optional[_Iterable[str]] = ..., manifest: _Optional[_Union[ArtifactManifest, _Mapping]] = ..., distributed_id: _Optional[str] = ..., finalize: bool = ..., client_id: _Optional[str] = ..., sequence_client_id: _Optional[str] = ..., base_id: _Optional[str] = ..., ttl_duration_seconds: _Optional[int] = ..., tags: _Optional[_Iterable[str]] = ..., digest_algorithm: _Optional[str] = ..., incremental_beta1: bool = ..., _info: _Optional[_Union[_wandb_base_pb2._RecordInfo, _Mapping]] = ...) -> None: ...
 
 class ArtifactManifest(_message.Message):
     __slots__ = ("version", "storage_policy", "storage_policy_config", "contents", "manifest_file_path")

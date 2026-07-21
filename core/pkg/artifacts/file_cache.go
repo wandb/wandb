@@ -5,10 +5,13 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
+	"hash"
 	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
+
+	"github.com/zeebo/xxh3"
 
 	"github.com/wandb/wandb/core/internal/fileutil"
 	"github.com/wandb/wandb/core/internal/hashencode"
@@ -26,16 +29,19 @@ type Cache interface {
 	AddFileAndCheckDigest(path string, digest string) error
 	RestoreTo(entry ManifestEntry, dst string) bool
 	Write(src io.Reader) (string, error)
+	WithDigestAlgorithm(algorithm string) Cache
 }
 
 type FileCache struct {
-	root          string
-	fileSemaphore chan struct{}
+	root            string
+	fileSemaphore   chan struct{}
+	digestAlgorithm string
 }
 
 // HashOnlyCache never writes data but still computes and compares hashes.
 type HashOnlyCache struct {
-	fileSemaphore chan struct{}
+	fileSemaphore   chan struct{}
+	digestAlgorithm string
 }
 
 func NewFileCache(cacheDir string) Cache {
@@ -48,6 +54,24 @@ func NewFileCache(cacheDir string) Cache {
 func NewHashOnlyCache() Cache {
 	return &HashOnlyCache{
 		fileSemaphore: make(chan struct{}, maxFileCacheIOTasks),
+	}
+}
+
+// WithDigestAlgorithm returns a new cache that uses the given algorithm for
+// hashing and cache-path lookups. The returned cache shares the same root
+// directory and concurrency semaphore as the original.
+func (c *FileCache) WithDigestAlgorithm(algorithm string) Cache {
+	return &FileCache{
+		root:            c.root,
+		fileSemaphore:   c.fileSemaphore,
+		digestAlgorithm: algorithm,
+	}
+}
+
+func (c *HashOnlyCache) WithDigestAlgorithm(algorithm string) Cache {
+	return &HashOnlyCache{
+		fileSemaphore:   c.fileSemaphore,
+		digestAlgorithm: algorithm,
 	}
 }
 
@@ -97,38 +121,40 @@ func addFile(c Cache, path string) (string, error) {
 }
 
 // Link creates a symlink that points a reference with an etag to a file in the cache.
-func (c *FileCache) Link(b64md5, ref, etag string) error {
-	md5Path, err := c.md5Path(b64md5)
+func (c *FileCache) Link(b64digest, ref, etag string) error {
+	cachePath, err := c.digestPath(b64digest)
 	if err != nil {
 		return err
 	}
-	if exists, _ := fileutil.FileExists(md5Path); !exists {
-		return fmt.Errorf("no cache file with digest %s", b64md5)
+	if exists, _ := fileutil.FileExists(cachePath); !exists {
+		return fmt.Errorf("no cache file with digest %s", b64digest)
 	}
 	etagPath := c.etagPath(ref, etag)
 	if err := os.MkdirAll(filepath.Dir(etagPath), defaultDirPermissions); err != nil {
 		return err
 	}
-	return os.Symlink(md5Path, etagPath)
+	return os.Symlink(cachePath, etagPath)
 }
 
 // AddFileAndCheckDigest copies a file into the cache. If a digest is provided, it also
-// verifies that the file's MD5 hash matches the digest.
+// verifies that the file's hash matches the digest.
 func (c *FileCache) AddFileAndCheckDigest(path, digest string) error {
 	return addFileAndCheckDigest(c, path, digest)
 }
 
+// AddFileAndCheckDigest hashes the file and verifies the digest. It does not
+// write any data to disk.
 func (c *HashOnlyCache) AddFileAndCheckDigest(path, digest string) error {
 	return addFileAndCheckDigest(c, path, digest)
 }
 
 func addFileAndCheckDigest(c Cache, path, digest string) error {
-	b64md5, err := c.AddFile(path)
+	b64digest, err := c.AddFile(path)
 	if err != nil {
 		return err
 	}
-	if digest != "" && digest != b64md5 {
-		return fmt.Errorf("file hash mismatch: expected %s, actual %s", digest, b64md5)
+	if digest != "" && digest != b64digest {
+		return fmt.Errorf("file hash mismatch: expected %s, actual %s", digest, b64digest)
 	}
 	return nil
 }
@@ -150,12 +176,19 @@ func (c *FileCache) RestoreTo(entry ManifestEntry, dst string) bool {
 	if entry.Ref != nil {
 		cachePath = c.etagPath(*entry.Ref, entry.Digest)
 	} else {
-		// If the digest is an MD5 hash, check to see if we already have the file.
-		b64md5, err := hashencode.ComputeFileB64MD5(dst)
-		if err == nil && b64md5 == entry.Digest {
-			return true
+		if c.digestAlgorithm == "MANIFEST_XXH128" {
+			b64xxh128, err := hashencode.ComputeFileB64XXH128(dst)
+			if err == nil && b64xxh128 == entry.Digest {
+				return true
+			}
+		} else {
+			b64md5, err := hashencode.ComputeFileB64MD5(dst)
+			if err == nil && b64md5 == entry.Digest {
+				return true
+			}
 		}
-		cachePath, err = c.md5Path(entry.Digest)
+		var err error
+		cachePath, err = c.digestPath(entry.Digest)
 		if err != nil {
 			return false
 		}
@@ -179,16 +212,24 @@ func (c *HashOnlyCache) RestoreTo(entry ManifestEntry, dst string) bool {
 	c.fileSemaphore <- struct{}{}
 	defer func() { <-c.fileSemaphore }()
 
+	if c.digestAlgorithm == "MANIFEST_XXH128" {
+		b64xxh128, err := hashencode.ComputeFileB64XXH128(dst)
+		return err == nil && b64xxh128 == entry.Digest
+	}
 	b64md5, err := hashencode.ComputeFileB64MD5(dst)
 	return err == nil && b64md5 == entry.Digest
 }
 
-func (c *FileCache) md5Path(b64md5 string) (string, error) {
-	hexHash, err := hashencode.B64ToHex(b64md5)
+func (c *FileCache) digestPath(b64digest string) (string, error) {
+	hexHash, err := hashencode.B64ToHex(b64digest)
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(c.root, "obj", "md5", hexHash[:2], hexHash[2:]), nil
+	subdir := "md5"
+	if c.digestAlgorithm == "MANIFEST_XXH128" {
+		subdir = "xxh128"
+	}
+	return filepath.Join(c.root, "obj", subdir, hexHash[:2], hexHash[2:]), nil
 }
 
 func (c *FileCache) etagPath(ref, etag string) string {
@@ -199,7 +240,7 @@ func (c *FileCache) etagPath(ref, etag string) string {
 	return filepath.Join(c.root, "obj", "etag", hexhash[:2], hexhash[2:])
 }
 
-// Write copies the contents of the reader to the cache and returns the B64MD5 cache key.
+// Write copies the contents of the reader to the cache and returns the base64 digest.
 func (c *FileCache) Write(src io.Reader) (string, error) {
 	tmpDir := filepath.Join(c.root, "tmp")
 	if err := os.MkdirAll(tmpDir, defaultDirPermissions); err != nil {
@@ -214,16 +255,16 @@ func (c *FileCache) Write(src io.Reader) (string, error) {
 		_ = os.Remove(tmpFile.Name())
 	}()
 
-	b64md5, err := copyWithHash(src, tmpFile)
+	b64digest, err := copyWithHash(src, tmpFile, c.digestAlgorithm)
 	if err != nil {
 		return "", err
 	}
-	dstPath, err := c.md5Path(b64md5)
+	dstPath, err := c.digestPath(b64digest)
 	if err != nil {
 		return "", err
 	}
 	if exists, _ := fileutil.FileExists(dstPath); exists {
-		return b64md5, nil
+		return b64digest, nil
 	}
 	if err := os.MkdirAll(filepath.Dir(dstPath), defaultDirPermissions); err != nil {
 		return "", err
@@ -235,16 +276,22 @@ func (c *FileCache) Write(src io.Reader) (string, error) {
 	if err := os.Chmod(dstPath, defaultFilePermissions); err != nil {
 		return "", err
 	}
-	return b64md5, nil
+	return b64digest, nil
 }
 
 // Write computes and returns the B64MD5 cache key. It doesn't write any data.
 func (c *HashOnlyCache) Write(src io.Reader) (string, error) {
-	return copyWithHash(src, io.Discard)
+	return copyWithHash(src, io.Discard, c.digestAlgorithm)
 }
 
-func copyWithHash(src io.Reader, dst io.Writer) (string, error) {
-	hasher := md5.New()
+func copyWithHash(src io.Reader, dst io.Writer, digestAlgorithm string) (string, error) {
+	var hasher hash.Hash
+	switch digestAlgorithm {
+	case "MANIFEST_XXH128":
+		hasher = xxh3.New128()
+	default:
+		hasher = md5.New()
+	}
 	w := io.MultiWriter(dst, hasher)
 	_, err := io.Copy(w, src)
 	if err != nil {

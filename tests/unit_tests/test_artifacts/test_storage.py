@@ -360,6 +360,8 @@ def test_wandb_storage_policy_load_file_uses_cache_md5(artifact_file_cache, tmp_
 
     # We need to pass an artifact, but this test doesn't actually use it
     empty_artifact = Artifact("test", type="dataset")
+    empty_artifact._digest_algorithm = ArtifactDigestAlgorithm.MANIFEST_MD5
+    empty_artifact.manifest.digest_algorithm = ArtifactDigestAlgorithm.MANIFEST_MD5
 
     local_path = policy.load_file(empty_artifact, entry)
 
@@ -386,9 +388,8 @@ def test_wandb_storage_policy_load_file_uses_cache_xxh128(
         size=5,
     )
 
+    # We need to pass an artifact, but this test doesn't actually use it
     empty_artifact = Artifact("test", type="dataset")
-    empty_artifact._digest_algorithm = ArtifactDigestAlgorithm.MANIFEST_XXH128
-    empty_artifact.manifest.digest_algorithm = ArtifactDigestAlgorithm.MANIFEST_XXH128
 
     local_path = policy.load_file(empty_artifact, entry)
 
