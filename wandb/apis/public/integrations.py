@@ -27,10 +27,7 @@ _IntegrationT = TypeVar("_IntegrationT")
 
 
 class _IntegrationsPaginator(RelayPaginator["IntegrationFields", _IntegrationT]):
-    """Shared pagination logic for lazy iterators of entity integrations.
-
-    <!-- lazydoc-ignore-class: internal -->
-    """
+    """Shared pagination logic for lazy iterators of entity integrations."""
 
     QUERY: ClassVar[str | None] = None
     last_response: Connection[IntegrationFields] | None
@@ -80,10 +77,7 @@ class Integrations(_IntegrationsPaginator["Integration"]):
 # does not change this. Restricting results to a single type requires
 # a client-side filter.
 class WebhookIntegrations(_IntegrationsPaginator["WebhookIntegration"]):
-    """A lazy iterator of `WebhookIntegration` objects.
-
-    <!-- lazydoc-ignore-class: internal -->
-    """
+    """A lazy iterator of `WebhookIntegration` objects."""
 
     def _convert(self, node: IntegrationFields) -> WebhookIntegration | None:
         from wandb.automations import WebhookIntegration
@@ -94,10 +88,7 @@ class WebhookIntegrations(_IntegrationsPaginator["WebhookIntegration"]):
 
 
 class SlackIntegrations(_IntegrationsPaginator["SlackIntegration"]):
-    """A lazy iterator of `SlackIntegration` objects.
-
-    <!-- lazydoc-ignore-class: internal -->
-    """
+    """A lazy iterator of `SlackIntegration` objects."""
 
     def _convert(self, node: IntegrationFields) -> SlackIntegration | None:
         from wandb.automations import SlackIntegration

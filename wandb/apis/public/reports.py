@@ -319,10 +319,7 @@ class BetaReport(Attrs):
 
 
 class PythonMongoishQueryGenerator:
-    """Converts Python-style query expressions to MongoDB-style queries for W&B reports.
-
-    <!-- lazydoc-ignore-class: internal -->
-    """
+    """Converts Python-style query expressions to MongoDB-style queries for W&B reports."""
 
     SPACER = "----------"
     DECIMAL_SPACER = ";;;"
@@ -535,10 +532,7 @@ class PythonMongoishQueryGenerator:
 
 
 class PanelMetricsHelper:
-    """Converts Python-style query expressions to MongoDB-style queries for W&B reports.
-
-    <!-- lazydoc-ignore-class: internal -->
-    """
+    """Converts Python-style query expressions to MongoDB-style queries for W&B reports."""
 
     FRONTEND_NAME_MAPPING = {
         "Step": "_step",

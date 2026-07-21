@@ -67,10 +67,7 @@ def _run_artifacts_mode_to_gql() -> dict[Literal["logged", "used"], str]:
 
 
 class _ArtifactCollectionAliases(RelayPaginator["ArtifactAliasFragment", str]):
-    """An internal iterator of collection alias names.
-
-    <!-- lazydoc-ignore-init: internal -->
-    """
+    """An internal iterator of collection alias names."""
 
     QUERY: ClassVar[str | None] = None
     last_response: Connection[ArtifactAliasFragment] | None
