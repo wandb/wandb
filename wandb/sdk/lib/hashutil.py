@@ -73,12 +73,11 @@ def md5_string(string: str) -> B64Digest:
 def md5_file_b64(*paths: StrPath) -> B64Digest:
     start_time = time.monotonic()
     digest = _b64_from_hasher(_md5_file_hasher(*paths))
-    hash_time_seconds = time.monotonic() - start_time
-    if hash_time_seconds > 1.0:
+    if (secs := (time.monotonic() - start_time)) > 1.0:
         logger.debug(
             "Computed MD5 hash for file. paths=%s, hashTimeMs=%d",
             paths,
-            int(hash_time_seconds * 1000),
+            int(secs * 1000),
         )
     return digest
 
@@ -101,12 +100,11 @@ def xxh128_string(string: str) -> B64Digest:
 def xxh128_file_b64(*paths: StrPath) -> B64Digest:
     start_time = time.monotonic()
     digest = _b64_from_hasher(_xxh128_file_hasher(*paths))
-    hash_time_seconds = time.monotonic() - start_time
-    if hash_time_seconds > 1.0:
+    if (secs := (time.monotonic() - start_time)) > 1.0:
         logger.debug(
             "Computed XXH128 hash for file. paths=%s, hashTimeMs=%d",
             paths,
-            int(hash_time_seconds * 1000),
+            int(secs * 1000),
         )
     return digest
 
