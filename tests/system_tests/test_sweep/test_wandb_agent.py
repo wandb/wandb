@@ -175,6 +175,105 @@ def _write_signal_parent_script(path: Path) -> Path:
     return script
 
 
+def _write_ignore_signals_child_script(path: Path) -> Path:
+    # A child that ignores SIGINT and SIGTERM, so it survives both the forwarded
+    # shutdown signal and a polite SIGTERM. Only SIGKILL can end it -- which is
+    # exactly the escalation we want to assert once the term_timeout budget
+    # expires.
+    script = path / "child_ignore_signals.py"
+    script.write_text(
+        textwrap.dedent(
+            """
+            import signal
+            import time
+
+            signal.signal(signal.SIGINT, signal.SIG_IGN)
+            signal.signal(signal.SIGTERM, signal.SIG_IGN)
+
+            while True:
+                time.sleep(0.1)
+            """
+        ).strip()
+    )
+    return script
+
+
+def _write_term_timeout_parent_script(path: Path) -> Path:
+    """Similar to _write_signal_parent_script, but drives a real Agent (which
+    manages the AgentProcess lifecycle) instead of using AgentProcess directly."""
+
+    script = path / "parent_term_timeout.py"
+    script.write_text(
+        textwrap.dedent(
+            """
+            import os
+            import queue
+            import signal
+            import sys
+            import threading
+            import time
+
+            from wandb.wandb_agent import Agent
+
+            child_script = sys.argv[1]
+            term_timeout = int(sys.argv[2])
+
+            class _StubApi:
+                def sweep(self, sweep_id, spec):
+                    return None
+
+                def register_agent(self, host, sweep_id=None):
+                    return {"id": "agent-1"}
+
+                def agent_heartbeat(self, agent_id, spec, run_status):
+                    return []
+
+            # Seed agent command queue to run the child script
+            command_queue = queue.Queue()
+            command_queue.put(
+                {
+                    "type": "run",
+                    "run_id": "run-1",
+                    "program": child_script,
+                    "args": {},
+                    "resp_queue": queue.Queue(),
+                }
+            )
+
+            agent = Agent(
+                _StubApi(),
+                command_queue,
+                sweep_id="sweep-1",
+                term_timeout=term_timeout,
+                forward_signals=True,
+            )
+
+            # Send a SIGINT after 1 second. This is eaten by then child process but
+            # puts the Agent into the tier 1 waiting state.
+            threading.Timer(1.0, lambda: os.kill(os.getpid(), signal.SIGINT)).start()
+
+            start = time.monotonic()
+            agent.run()
+            elapsed = time.monotonic() - start
+
+            procs = list(agent._run_processes.values())
+            child = procs[0]
+
+            returncode = child.wait(timeout=5)
+            if returncode != -signal.SIGKILL:
+                sys.exit(2)
+
+            # We expect that the child terminated roughly around the term_timeout time
+            if elapsed > term_timeout * 2:
+                sys.exit(3)
+            if elapsed < term_timeout * 0.5:
+                sys.exit(4)
+            """
+        ).strip()
+    )
+    return script
+
+
 @pytest.mark.skipif(
     platform.system() == "Windows", reason="POSIX signals required for this test"
 )
@@ -201,6 +300,42 @@ def test_agent_process_forwards_signals_end_to_end(tmp_path):
     assert result.returncode == 0, f"stderr:\n{result.stderr}"
     assert marker.exists()
     assert marker.read_text().strip() == str(int(signal.SIGTERM))
+
+
+@pytest.mark.skipif(
+    platform.system() == "Windows", reason="POSIX signals required for this test"
+)
+def test_agent_term_timeout_escalates_to_sigkill(tmp_path):
+    """Checks that a child that ignores signals past `term_timeout` is
+    escalated straight to SIGKILL rather than re-sent a polite SIGTERM."""
+
+    child_script = _write_ignore_signals_child_script(tmp_path)
+    parent_script = _write_term_timeout_parent_script(tmp_path)
+    term_timeout = 3
+
+    repo_root = Path(__file__).resolve().parents[3]
+    env = os.environ.copy()
+    env["PYTHONPATH"] = (
+        f"{repo_root}{os.pathsep}{env['PYTHONPATH']}"
+        if "PYTHONPATH" in env and env["PYTHONPATH"]
+        else str(repo_root)
+    )
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(parent_script),
+            str(child_script),
+            str(term_timeout),
+        ],
+        capture_output=True,
+        text=True,
+        env=env,
+        cwd=str(tmp_path),
+        timeout=60,
+    )
+
+    assert result.returncode == 0, f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
 
 
 def test_agent_cli_exit_code_on_sweep_not_found(runner, user):
