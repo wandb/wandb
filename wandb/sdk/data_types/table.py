@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Any, Literal, TypeVar, cast, get_args, overloa
 
 import wandb
 from wandb import util
-from wandb.sdk.lib import runid
+from wandb.sdk.lib import runid, telemetry
 
 from . import _dtypes
 from ._private import MEDIA_TMP
@@ -822,10 +822,15 @@ class Table(Media):
             )
 
         if isinstance(run_or_artifact, wandb.Run):
-            if self.log_mode == "INCREMENTAL":
-                wbvalue_type = "incremental-table-file"
-            else:
-                wbvalue_type = "table-file"
+            # Run-level adoption signal, split to mirror the wire type above:
+            # incremental tables vs. all other (regular) tables.
+            with telemetry.context(run=run_or_artifact) as tel:
+                if self.log_mode == "INCREMENTAL":
+                    wbvalue_type = "incremental-table-file"
+                    tel.feature.incremental_table = True
+                else:
+                    wbvalue_type = "table-file"
+                    tel.feature.table = True
 
             json_dict.update(
                 {

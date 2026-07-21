@@ -1010,7 +1010,7 @@ func (x *Imports) GetDspy() bool {
 	return false
 }
 
-// Next ID: 77
+// Next ID: 80
 type Feature struct {
 	state               protoimpl.MessageState `protogen:"open.v1"`
 	Watch               bool                   `protobuf:"varint,1,opt,name=watch,proto3" json:"watch,omitempty"`                                                           // wandb.watch() called
@@ -1086,6 +1086,9 @@ type Feature struct {
 	ForkMode                 bool `protobuf:"varint,71,opt,name=fork_mode,json=forkMode,proto3" json:"fork_mode,omitempty"`                                                     // User created a forked run
 	RewindMode               bool `protobuf:"varint,72,opt,name=rewind_mode,json=rewindMode,proto3" json:"rewind_mode,omitempty"`                                               // User created a rewound run
 	DspyCallback             bool `protobuf:"varint,73,opt,name=dspy_callback,json=dspyCallback,proto3" json:"dspy_callback,omitempty"`                                         // User using WandbDSPyCallback
+	EvalTable                bool `protobuf:"varint,77,opt,name=eval_table,json=evalTable,proto3" json:"eval_table,omitempty"`                                                  // User logged an EvalTable via run.log()
+	Table                    bool `protobuf:"varint,78,opt,name=table,proto3" json:"table,omitempty"`                                                                           // User logged a regular (non-incremental) wandb.Table via run.log()
+	IncrementalTable         bool `protobuf:"varint,79,opt,name=incremental_table,json=incrementalTable,proto3" json:"incremental_table,omitempty"`                             // User logged an incremental wandb.Table via run.log()
 	unknownFields            protoimpl.UnknownFields
 	sizeCache                protoimpl.SizeCache
 }
@@ -1624,6 +1627,27 @@ func (x *Feature) GetDspyCallback() bool {
 	return false
 }
 
+func (x *Feature) GetEvalTable() bool {
+	if x != nil {
+		return x.EvalTable
+	}
+	return false
+}
+
+func (x *Feature) GetTable() bool {
+	if x != nil {
+		return x.Table
+	}
+	return false
+}
+
+func (x *Feature) GetIncrementalTable() bool {
+	if x != nil {
+		return x.IncrementalTable
+	}
+	return false
+}
+
 type Env struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Jupyter       bool                   `protobuf:"varint,1,opt,name=jupyter,proto3" json:"jupyter,omitempty"`                       // jupyter env detected
@@ -2134,7 +2158,7 @@ const file_wandb_proto_wandb_telemetry_proto_rawDesc = "" +
 	"\x14curated_transformers\x18h \x01(\bR\x13curatedTransformers\x12\x16\n" +
 	"\x06orjson\x18i \x01(\bR\x06orjson\x12\x1c\n" +
 	"\tlightning\x18j \x01(\bR\tlightning\x12\x12\n" +
-	"\x04dspy\x18k \x01(\bR\x04dspyJ\x04\b\x11\x10\x12J\x04\b\x13\x10\x14J\x04\b\x14\x10\x15J\x04\b\x17\x10\x18J\x04\b\x18\x10\x19J\x04\b\x19\x10\x1aJ\x04\b\x1a\x10\x1bJ\x04\b\x1b\x10\x1cJ\x04\b7\x108\"\x83\x16\n" +
+	"\x04dspy\x18k \x01(\bR\x04dspyJ\x04\b\x11\x10\x12J\x04\b\x13\x10\x14J\x04\b\x14\x10\x15J\x04\b\x17\x10\x18J\x04\b\x18\x10\x19J\x04\b\x19\x10\x1aJ\x04\b\x1a\x10\x1bJ\x04\b\x1b\x10\x1cJ\x04\b7\x108\"\xe5\x16\n" +
 	"\aFeature\x12\x14\n" +
 	"\x05watch\x18\x01 \x01(\bR\x05watch\x12\x16\n" +
 	"\x06finish\x18\x02 \x01(\bR\x06finish\x12%\n" +
@@ -2215,7 +2239,11 @@ const file_wandb_proto_wandb_telemetry_proto_rawDesc = "" +
 	"\tfork_mode\x18G \x01(\bR\bforkMode\x12\x1f\n" +
 	"\vrewind_mode\x18H \x01(\bR\n" +
 	"rewindMode\x12#\n" +
-	"\rdspy_callback\x18I \x01(\bR\fdspyCallbackJ\x04\b\x17\x10\x18J\x04\b-\x10.J\x04\b0\x101J\x04\b7\x108\"\x9c\x02\n" +
+	"\rdspy_callback\x18I \x01(\bR\fdspyCallback\x12\x1d\n" +
+	"\n" +
+	"eval_table\x18M \x01(\bR\tevalTable\x12\x14\n" +
+	"\x05table\x18N \x01(\bR\x05table\x12+\n" +
+	"\x11incremental_table\x18O \x01(\bR\x10incrementalTableJ\x04\b\x17\x10\x18J\x04\b-\x10.J\x04\b0\x101J\x04\b7\x108\"\x9c\x02\n" +
 	"\x03Env\x12\x18\n" +
 	"\ajupyter\x18\x01 \x01(\bR\ajupyter\x12\x16\n" +
 	"\x06kaggle\x18\x02 \x01(\bR\x06kaggle\x12\x18\n" +

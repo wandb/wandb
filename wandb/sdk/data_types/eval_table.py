@@ -12,6 +12,7 @@ import wandb.integration.weave.media_adapters as media_adapters
 from wandb.errors import UsageError
 from wandb.sdk.data_types.base_types.media import _numpy_arrays_to_lists
 from wandb.sdk.data_types.table import ColumnKey, InputRow, LogMode, Table
+from wandb.sdk.lib import telemetry
 
 if TYPE_CHECKING:
     import numpy as np
@@ -309,6 +310,9 @@ class EvalTable(Table):
             return dict(self._immutable_logged_json)
 
         evaluate_call_id = self._log_to_weave(self._run_log_key)
+
+        with telemetry.context(run=run) as tel:
+            tel.feature.eval_table = True
 
         json_dict = {
             "_type": "eval-table",
