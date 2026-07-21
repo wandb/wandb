@@ -35,7 +35,7 @@ __all__ = (
     "Reports",
     "Run",
     "Runs",
-    "AgentRuns",
+    "AgentRuns", # doc:exclude
     "Sweep",
     "Member",
     "Team",
