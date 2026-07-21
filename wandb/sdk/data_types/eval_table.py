@@ -125,7 +125,6 @@ class EvalTable(Table):
 
     Note: EvalTable is a work-in-progress and is NOT yet officially released or
     supported.
-    <!-- lazydoc-ignore-class: internal -->
     """
 
     _log_type = "eval-table"
