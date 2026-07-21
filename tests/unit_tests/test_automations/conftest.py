@@ -341,7 +341,7 @@ def on_run_metric_change(scope: ScopableWandbType) -> OnRunMetric:
 
 @fixture
 def on_run_metric_zscore(scope: ScopableWandbType) -> OnRunMetric:
-    from wandb.automations._filters.run_metrics import ChangeDir, MetricZScoreFilter
+    from wandb.automations._run_metric_filters import ChangeDir, MetricZScoreFilter
 
     return OnRunMetric(
         scope=scope,

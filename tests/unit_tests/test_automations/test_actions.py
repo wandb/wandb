@@ -6,7 +6,8 @@ from wandb.automations import ActionType, SendNotification, SendWebhook
 from wandb.automations._generated import AlertSeverity, TriggeredActionType
 from wandb.sdk.wandb_alerts import AlertLevel
 
-from ._strategies import gql_ids, jsonables, printable_text
+from ._automation_strategies import gql_ids, jsonables
+from ._strategies import printable_text
 
 VALID_ALERT_SEVERITY_ARG_VALUES = (
     # Where possible, accept both enum and (case-insensitive) string types for `severity`.

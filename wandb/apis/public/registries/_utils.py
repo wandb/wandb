@@ -34,7 +34,7 @@ class Visibility(str, Enum):
         try:
             return cls(value)
         except ValueError:
-            expected = ",".join(repr(e.value) for e in cls)
+            expected = ", ".join(repr(e.value) for e in cls)
             raise ValueError(
                 f"Invalid visibility {value!r} from backend. Expected one of: {expected}"
             ) from None
@@ -62,7 +62,7 @@ class Visibility(str, Enum):
         try:
             return cls(name)
         except ValueError:
-            expected = ",".join(repr(e.name) for e in cls)
+            expected = ", ".join(repr(e.name) for e in cls)
             raise ValueError(
                 f"Invalid visibility {name!r}. Expected one of: {expected}"
             ) from None
