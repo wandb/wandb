@@ -17,7 +17,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.105.2
 	github.com/charmbracelet/ultraviolet v0.0.0-20260713092251-4bee1914c0cf
 	github.com/charmbracelet/x/exp/teatest/v2 v2.0.0-20260713092006-0d683c34c74b
-	github.com/ebitengine/purego v0.10.1
+	github.com/ebitengine/purego v0.10.2
 	github.com/getsentry/sentry-go v0.48.0
 	github.com/go-git/go-git/v5 v5.19.1
 	github.com/google/wire v0.7.0
