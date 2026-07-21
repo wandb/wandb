@@ -16,8 +16,8 @@ from wandb.automations import (
     MetricZScoreFilter,
     RunEvent,
 )
-from wandb.automations._filters.run_metrics import Agg, ChangeDir, MetricAgg, MetricVal
-from wandb.automations._filters.run_states import ReportedRunState
+from wandb.automations._run_metric_filters import Agg, ChangeDir, MetricAgg, MetricVal
+from wandb.automations._run_state_filters import ReportedRunState
 from wandb.automations.events import StateFilter
 
 from ._automation_strategies import (

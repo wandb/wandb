@@ -9,7 +9,7 @@ from wandb._iterutils import always_list
 from wandb._pydantic import GQLBase
 from wandb.automations._validators import LenientStrEnum
 
-from . import BaseOp, FilterExpr
+from ._filters import BaseOp, FilterExpr
 
 if TYPE_CHECKING:
     from wandb.automations.events import EventType, RunStateFilter

@@ -29,8 +29,8 @@ from wandb.automations import (
     MetricThresholdFilter,
     MetricZScoreFilter,
 )
-from wandb.automations._filters.run_metrics import Agg, ChangeDir, ChangeType
-from wandb.automations._filters.run_states import ReportedRunState
+from wandb.automations._run_metric_filters import Agg, ChangeDir, ChangeType
+from wandb.automations._run_state_filters import ReportedRunState
 
 from ._strategies import PRINTABLE_CHARS, ints_or_floats
 
