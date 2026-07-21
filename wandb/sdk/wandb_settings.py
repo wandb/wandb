@@ -15,7 +15,13 @@ from datetime import datetime
 from typing import Any, Literal
 from urllib.parse import quote, unquote
 
-from google.protobuf.wrappers_pb2 import BoolValue, DoubleValue, Int32Value, StringValue
+from google.protobuf.wrappers_pb2 import (
+    BoolValue,
+    DoubleValue,
+    Int32Value,
+    Int64Value,
+    StringValue,
+)
 from pydantic import BaseModel, ConfigDict, Field
 from typing_extensions import Self
 
@@ -711,6 +717,26 @@ class Settings(BaseModel, validate_assignment=True):
     <!-- lazydoc-ignore-class-attributes -->
     """
 
+    x_artifact_multipart_upload_threshold_bytes: int | None = None
+    """Minimum artifact file size, in bytes, that Go core should upload via multipart.
+
+    This is an internal test/debug setting. When unset or non-positive, Go core
+    uses its production default threshold.
+
+    <!-- lazydoc-ignore-class-attributes -->
+    """
+
+    x_artifact_multipart_upload_part_size_bytes: int | None = None
+    """Requested multipart artifact upload part size, in bytes.
+
+    This is an internal test/debug setting. When unset or non-positive, Go core
+    uses its production default part size. Positive values must be at least
+    5 MiB, because S3-compatible multipart uploads require every non-final part
+    to be at least 5 MiB.
+
+    <!-- lazydoc-ignore-class-attributes -->
+    """
+
     x_files_dir: str | None = None
     """Override setting for the computed files_dir.
 
@@ -1167,6 +1193,26 @@ class Settings(BaseModel, validate_assignment=True):
     def validate_x_extra_http_headers(cls, value):
         if isinstance(value, str):
             return json.loads(value)
+        return value
+
+    @field_validator("x_artifact_multipart_upload_threshold_bytes", mode="after")
+    @classmethod
+    def validate_x_artifact_multipart_upload_threshold_bytes(cls, value):
+        if value is not None and value < 0:
+            raise ValueError(
+                "x_artifact_multipart_upload_threshold_bytes must be non-negative"
+            )
+        return value
+
+    @field_validator("x_artifact_multipart_upload_part_size_bytes", mode="after")
+    @classmethod
+    def validate_x_artifact_multipart_upload_part_size_bytes(cls, value):
+        if value is None or value == 0:
+            return value
+        if value < 5 * 1024 * 1024:
+            raise ValueError(
+                "x_artifact_multipart_upload_part_size_bytes must be at least 5 MiB"
+            )
         return value
 
     @field_validator("x_file_stream_max_line_bytes", mode="after")
@@ -2122,6 +2168,13 @@ class Settings(BaseModel, validate_assignment=True):
                         metric=run_moment.metric,
                     )
                 )
+                continue
+
+            if k in (
+                "x_artifact_multipart_upload_threshold_bytes",
+                "x_artifact_multipart_upload_part_size_bytes",
+            ):
+                getattr(settings_proto, k).CopyFrom(Int64Value(value=v))
                 continue
 
             if isinstance(v, bool):

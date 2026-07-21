@@ -573,6 +573,40 @@ def test_rewind(setting):
     assert getattr(proto, setting).value == 10000
 
 
+def test_artifact_multipart_upload_settings_use_int64_proto():
+    threshold = 2 * 1024 * 1024 * 1024
+    part_size = 5 * 1024 * 1024
+    settings = Settings(
+        x_artifact_multipart_upload_threshold_bytes=threshold,
+        x_artifact_multipart_upload_part_size_bytes=part_size,
+    )
+
+    proto = settings.to_proto()
+
+    assert proto.x_artifact_multipart_upload_threshold_bytes.value == threshold
+    assert proto.x_artifact_multipart_upload_part_size_bytes.value == part_size
+
+
+def test_artifact_multipart_upload_settings_from_env_vars():
+    settings = Settings()
+    settings.update_from_env_vars(
+        {
+            "WANDB_X_ARTIFACT_MULTIPART_UPLOAD_THRESHOLD_BYTES": "5242880",
+            "WANDB_X_ARTIFACT_MULTIPART_UPLOAD_PART_SIZE_BYTES": "5242880",
+        }
+    )
+
+    assert settings.x_artifact_multipart_upload_threshold_bytes == 5 * 1024 * 1024
+    assert settings.x_artifact_multipart_upload_part_size_bytes == 5 * 1024 * 1024
+
+
+def test_artifact_multipart_upload_settings_validate_ranges():
+    with pytest.raises(ValueError, match="threshold_bytes must be non-negative"):
+        Settings(x_artifact_multipart_upload_threshold_bytes=-1)
+    with pytest.raises(ValueError, match="part_size_bytes must be at least 5 MiB"):
+        Settings(x_artifact_multipart_upload_part_size_bytes=1024)
+
+
 def test_computed_settings_included_in_model_dump():
     settings = Settings(mode="offline")
     assert settings.model_dump()["_offline"] is True
