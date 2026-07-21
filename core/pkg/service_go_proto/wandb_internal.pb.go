@@ -100,6 +100,8 @@ const (
 	ServerFeature_QUERY_AUTOMATIONS_ON_ENTITY ServerFeature = 32
 	// Indicates that the server supports Organization.triggers.
 	ServerFeature_AUTOMATIONS_ON_ORGANIZATION ServerFeature = 33
+	// Indicates that the server supports queries for an artifact's digest algorithm.
+	ServerFeature_ARTIFACT_DIGEST_ALGORITHM ServerFeature = 34
 )
 
 // Enum value maps for ServerFeature.
@@ -139,6 +141,7 @@ var (
 		31: "AUTOMATION_SCOPE_ENTITY",
 		32: "QUERY_AUTOMATIONS_ON_ENTITY",
 		33: "AUTOMATIONS_ON_ORGANIZATION",
+		34: "ARTIFACT_DIGEST_ALGORITHM",
 	}
 	ServerFeature_value = map[string]int32{
 		"SERVER_FEATURE_UNSPECIFIED":           0,
@@ -175,6 +178,7 @@ var (
 		"AUTOMATION_SCOPE_ENTITY":                              31,
 		"QUERY_AUTOMATIONS_ON_ENTITY":                          32,
 		"AUTOMATIONS_ON_ORGANIZATION":                          33,
+		"ARTIFACT_DIGEST_ALGORITHM":                            34,
 	}
 )
 
@@ -12631,7 +12635,8 @@ const file_wandb_proto_wandb_internal_proto_rawDesc = "" +
 	"\finput_source\x18\x01 \x01(\v2\x1e.wandb_internal.JobInputSourceR\vinputSource\x12A\n" +
 	"\rinclude_paths\x18\x02 \x03(\v2\x1c.wandb_internal.JobInputPathR\fincludePaths\x12A\n" +
 	"\rexclude_paths\x18\x03 \x03(\v2\x1c.wandb_internal.JobInputPathR\fexcludePaths\x12!\n" +
-	"\finput_schema\x18\x04 \x01(\tR\vinputSchema*\xe9\t\n" +
+	"\finput_schema\x18\x04 \x01(\tR\vinputSchema*\x88\n" +
+	"\n" +
 	"\rServerFeature\x12\x1e\n" +
 	"\x1aSERVER_FEATURE_UNSPECIFIED\x10\x00\x12\x13\n" +
 	"\x0fLARGE_FILENAMES\x10\x11\x12\x11\n" +
@@ -12668,7 +12673,8 @@ const file_wandb_proto_wandb_internal_proto_rawDesc = "" +
 	"\x16SWEEPS_QUERY_FILTERING\x10\x1e\x12\x1b\n" +
 	"\x17AUTOMATION_SCOPE_ENTITY\x10\x1f\x12\x1f\n" +
 	"\x1bQUERY_AUTOMATIONS_ON_ENTITY\x10 \x12\x1f\n" +
-	"\x1bAUTOMATIONS_ON_ORGANIZATION\x10!B\x1bZ\x19core/pkg/service_go_protob\x06proto3"
+	"\x1bAUTOMATIONS_ON_ORGANIZATION\x10!\x12\x1d\n" +
+	"\x19ARTIFACT_DIGEST_ALGORITHM\x10\"B\x1bZ\x19core/pkg/service_go_protob\x06proto3"
 
 var (
 	file_wandb_proto_wandb_internal_proto_rawDescOnce sync.Once
