@@ -16,6 +16,8 @@ from __future__ import annotations
 import json
 import logging
 import os
+import pathlib
+import tempfile
 import urllib
 from collections.abc import Iterator
 from http import HTTPStatus
@@ -259,6 +261,7 @@ class Api:
         run_id: str | None = None,
         project: str | None = None,
         entity: str | None = None,
+        command: str | None = None,
     ) -> public.Run:
         """Create a new run.
 
@@ -269,13 +272,20 @@ class Api:
                 log the run to a project called "Uncategorized".
             entity: The entity that owns the project. If no entity is
                 specified, log the run to the default entity.
+            command: The command used to run the script. This is displayed on
+                the run overview page.
 
         Returns:
             The newly created `Run`.
         """
         if entity is None:
             entity = self.default_entity
-        return self._create_run(run_id=run_id, project=project, entity=entity)
+        return self._create_run(
+            run_id=run_id,
+            project=project,
+            entity=entity,
+            command=command,
+        )
 
     def _create_run(
         self,
@@ -284,13 +294,31 @@ class Api:
         project: str | None = None,
         entity: str | None = None,
         state: Literal["running", "pending"] = "running",
+        command: str | None = None,
     ) -> public.Run:
         self._sentry.message("Invoking Run.create", level="info")
         run_id = run_id or runid.generate_id()
         project = project or self.settings.get("project") or "uncategorized"
+        config = (
+            {"_wandb": {"value": {"e": {"program": command}}}}
+            if command is not None
+            else {}
+        )
         mutation = """
-        mutation UpsertBucket($project: String, $entity: String, $name: String!, $state: String) {
-            upsertBucket(input: {modelName: $project, entityName: $entity, name: $name, state: $state}) {
+        mutation UpsertBucket(
+            $project: String
+            $entity: String
+            $name: String!
+            $state: String
+            $config: JSONString
+        ) {
+            upsertBucket(input: {
+                modelName: $project
+                entityName: $entity
+                name: $name
+                state: $state
+                config: $config
+            }) {
                 bucket {
                     project {
                         name
@@ -308,20 +336,21 @@ class Api:
             "project": project,
             "name": run_id,
             "state": state,
+            "config": json.dumps(config) if config else None,
         }
         res = self._service_api.execute_graphql(
             mutation,
             variables,
         )
         res = res["upsertBucket"]["bucket"]
-        return public.Run(
+        run = public.Run(
             self._service_api,
             res["project"]["entity"]["name"],
             res["project"]["name"],
             res["name"],
             {
                 "id": res["id"],
-                "config": "{}",
+                "config": json.dumps(config),
                 "systemMetrics": "{}",
                 "summaryMetrics": "{}",
                 "tags": [],
@@ -332,6 +361,15 @@ class Api:
             lazy=False,  # Created runs should have full data available immediately
             api_key=self.api_key,
         )
+        if command is not None:
+            with tempfile.TemporaryDirectory() as tmp_dir:
+                metadata_path = pathlib.Path(tmp_dir, "wandb-metadata.json")
+                metadata_path.write_text(
+                    json.dumps({"program": command}),
+                    encoding="utf-8",
+                )
+                run.upload_file(str(metadata_path), root=tmp_dir)
+        return run
 
     def create_run_queue(
         self,

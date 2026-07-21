@@ -206,6 +206,93 @@ func TestResume(t *testing.T) {
 	assert.True(t, mockClient.AllStubsUsed())
 }
 
+func TestResume_PreservesEnvironmentWhenUpdateDisabled(t *testing.T) {
+	mockClient := gqlmock.NewMockClient()
+	mockClient.StubMatchOnce(gqlmock.WithOpName("RunResumeStatus"), `{
+		"model": {"bucket": {
+			"id": "storage ID",
+			"name": "run ID",
+			"historyLineCount": 0,
+			"eventsLineCount": 0,
+			"logLineCount": 0,
+			"historyTail": "[]",
+			"eventsTail": "[]",
+			"summaryMetrics": "{}",
+			"config": "{}",
+			"wandbConfig": "{\"t\": 1}"
+		}}
+	}`)
+	runupsertertest.StubUpsertBucket(t, mockClient)
+
+	params := testParams(t)
+	params.GraphqlClientOrNil = mockClient
+	params.Settings = settings.From(&spb.Settings{
+		Resume:                  wrapperspb.String("must"),
+		Program:                 wrapperspb.String("new program"),
+		UpdateResumeEnvironment: wrapperspb.Bool(false),
+	})
+
+	upserter, err := runupserter.InitRun(
+		runRecord(&spb.RunRecord{
+			Host: "new host",
+			Git: &spb.GitRepoRecord{
+				Commit:    "new commit",
+				RemoteUrl: "new repo",
+			},
+		}),
+		params,
+	)
+	require.NoError(t, err)
+	defer upserter.Finish()
+
+	assert.False(t, upserter.ShouldUpdateEnvironment())
+	requests := mockClient.AllRequests()
+	require.Len(t, requests, 2)
+	gqlmock.AssertVariables(t,
+		requests[1],
+		gqlmock.GQLVar("commit", gomock.Nil()),
+		gqlmock.GQLVar("host", gomock.Nil()),
+		gqlmock.GQLVar("program", gomock.Nil()),
+		gqlmock.GQLVar("repo", gomock.Nil()))
+}
+
+func TestResume_NewRunStillUploadsEnvironment(t *testing.T) {
+	mockClient := gqlmock.NewMockClient()
+	mockClient.StubMatchOnce(gqlmock.WithOpName("RunResumeStatus"), `{}`)
+	runupsertertest.StubUpsertBucket(t, mockClient)
+
+	params := testParams(t)
+	params.GraphqlClientOrNil = mockClient
+	params.Settings = settings.From(&spb.Settings{
+		Resume:                  wrapperspb.String("allow"),
+		Program:                 wrapperspb.String("new program"),
+		UpdateResumeEnvironment: wrapperspb.Bool(false),
+	})
+
+	upserter, err := runupserter.InitRun(
+		runRecord(&spb.RunRecord{
+			Host: "new host",
+			Git: &spb.GitRepoRecord{
+				Commit:    "new commit",
+				RemoteUrl: "new repo",
+			},
+		}),
+		params,
+	)
+	require.NoError(t, err)
+	defer upserter.Finish()
+
+	assert.True(t, upserter.ShouldUpdateEnvironment())
+	requests := mockClient.AllRequests()
+	require.Len(t, requests, 2)
+	gqlmock.AssertVariables(t,
+		requests[1],
+		gqlmock.GQLVar("commit", gomock.Eq("new commit")),
+		gqlmock.GQLVar("host", gomock.Eq("new host")),
+		gqlmock.GQLVar("program", gomock.Eq("new program")),
+		gqlmock.GQLVar("repo", gomock.Eq("new repo")))
+}
+
 func TestResume_Offline_Succeeds(t *testing.T) {
 	params := testParams(t)
 	params.GraphqlClientOrNil = nil

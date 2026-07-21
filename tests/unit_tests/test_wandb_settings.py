@@ -357,6 +357,7 @@ def test_preprocess_base_url(url, processed_url):
         "quiet",
         "reinit",
         "relogin",
+        "update_resume_environment",
         "sagemaker_disable",
         "save_code",
         "show_colors",
@@ -405,6 +406,16 @@ def test_resume_fname():
     test_settings = Settings()
     assert test_settings.resume_fname == os.path.abspath(
         os.path.join(".", "wandb", "wandb-resume.json")
+    )
+
+
+def test_update_resume_environment_defaults_true_and_serializes_false():
+    assert Settings().update_resume_environment is True
+    assert (
+        Settings(update_resume_environment=False)
+        .to_proto()
+        .update_resume_environment.value
+        is False
     )
 
 

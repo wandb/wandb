@@ -449,6 +449,13 @@ class Settings(BaseModel, validate_assignment=True):
        machine.
     """
 
+    update_resume_environment: bool = True
+    """Whether to update the run's environment when resuming.
+
+    If disabled, environment fields such as the hostname, operating system, and
+    command remain unchanged from the original run.
+    """
+
     resume_from: RunMoment | None = None
     """Specifies a point in a previous execution of a run to resume from.
 

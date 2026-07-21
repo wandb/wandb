@@ -2,10 +2,13 @@ package stream_test
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
@@ -18,6 +21,7 @@ import (
 	"github.com/wandb/wandb/core/internal/observabilitytest"
 	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/runhandle"
+	"github.com/wandb/wandb/core/internal/runupserter"
 	"github.com/wandb/wandb/core/internal/runworktest"
 	wbsettings "github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/stream"
@@ -87,6 +91,43 @@ func makeSender(t *testing.T, client graphql.Client) testFixtures {
 		Settings:  settings,
 		Logger:    logger,
 	}
+}
+
+func TestSendEnvironment_PreservesResumedEnvironmentWhenUpdateDisabled(t *testing.T) {
+	t.Chdir(t.TempDir())
+
+	mockGQL := gqlmock.NewMockClient()
+	x := makeSender(t, mockGQL)
+	x.Settings.Proto.XPrimary = wrapperspb.Bool(true)
+	x.Settings.Proto.UpdateResumeEnvironment = wrapperspb.Bool(false)
+	require.NoError(t, os.MkdirAll(x.Settings.GetFilesDir(), 0o755))
+
+	upserter, err := runupserter.InitRun(
+		&spb.Record{RecordType: &spb.Record_Run{Run: &spb.RunRecord{
+			Entity:  "entity",
+			Project: "project",
+			RunId:   "run1",
+			Resumed: true,
+		}}},
+		runupserter.RunUpserterParams{
+			Settings:        x.Settings,
+			BeforeRunEndCtx: t.Context(),
+			FeatureProvider: featurechecker.NewPreloaded(nil),
+			Logger:          x.Logger,
+		},
+	)
+	require.NoError(t, err)
+	t.Cleanup(upserter.Finish)
+	require.NoError(t, x.RunHandle.Init(upserter))
+
+	x.Sender.SendRecord(&spb.Record{
+		RecordType: &spb.Record_Environment{
+			Environment: &spb.EnvironmentRecord{Host: "new host"},
+		},
+	}, nil)
+
+	_, err = os.Stat(filepath.Join(x.Settings.GetFilesDir(), stream.MetaFileName))
+	assert.ErrorIs(t, err, os.ErrNotExist)
 }
 
 // Verify that arguments are properly passed through to graphql

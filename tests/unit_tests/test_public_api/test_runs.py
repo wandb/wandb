@@ -1,4 +1,5 @@
 import json
+import pathlib
 from unittest import mock
 
 import pytest
@@ -6,6 +7,8 @@ import wandb
 from wandb.apis.public.runs import Run, RunNotFoundError
 from wandb.apis.public.sweeps import Sweep
 from wandb.proto import wandb_api_pb2 as apb
+
+COMMAND = "python train.py --epochs 10"
 
 
 def _make_upload_run(mocker, *, feature_enabled: bool):
@@ -51,6 +54,97 @@ def test_upload_file_skips_notification_when_unsupported(mocker, tmp_path):
     run.upload_file(str(f), root=str(tmp_path))
 
     service_api.send_api_request.assert_not_called()
+
+
+def test_run_create_forwards_command(mocker):
+    api = mocker.MagicMock()
+    api._create_run.return_value = mocker.sentinel.run
+
+    run = Run.create(
+        api,
+        run_id="run-id",
+        project="project",
+        entity="entity",
+        state="pending",
+        command=COMMAND,
+    )
+
+    assert run is mocker.sentinel.run
+    api._create_run.assert_called_once_with(
+        run_id="run-id",
+        project="project",
+        entity="entity",
+        state="pending",
+        command=COMMAND,
+    )
+
+
+def test_api_create_run_forwards_command(mocker):
+    api = mocker.MagicMock()
+    api._create_run.return_value = mocker.sentinel.run
+
+    run = wandb.Api.create_run(
+        api,
+        run_id="run-id",
+        project="project",
+        entity="entity",
+        command=COMMAND,
+    )
+
+    assert run is mocker.sentinel.run
+    api._create_run.assert_called_once_with(
+        run_id="run-id",
+        project="project",
+        entity="entity",
+        command=COMMAND,
+    )
+
+
+def test_create_run_uploads_command_metadata_and_config(mocker):
+    api = mocker.MagicMock(settings={}, api_key="api-key")
+    api._service_api.execute_graphql.return_value = {
+        "upsertBucket": {
+            "bucket": {
+                "project": {"name": "project", "entity": {"name": "entity"}},
+                "id": "storage-id",
+                "name": "run-id",
+            }
+        }
+    }
+    run = mocker.MagicMock()
+
+    def check_metadata(path, *, root):
+        assert pathlib.Path(path).name == "wandb-metadata.json"
+        assert pathlib.Path(path).parent == pathlib.Path(root)
+        assert json.loads(pathlib.Path(path).read_text(encoding="utf-8")) == {
+            "program": COMMAND
+        }
+
+    run.upload_file.side_effect = check_metadata
+    run_constructor = mocker.patch(
+        "wandb.apis.public.api.public.Run",
+        return_value=run,
+    )
+
+    created_run = wandb.Api._create_run(
+        api,
+        run_id="run-id",
+        project="project",
+        entity="entity",
+        state="pending",
+        command=COMMAND,
+    )
+
+    variables = api._service_api.execute_graphql.call_args.args[1]
+    assert json.loads(variables["config"]) == {
+        "_wandb": {"value": {"e": {"program": COMMAND}}}
+    }
+    attrs = run_constructor.call_args.args[4]
+    assert json.loads(attrs["config"]) == {
+        "_wandb": {"value": {"e": {"program": COMMAND}}}
+    }
+    assert created_run is run
+    run.upload_file.assert_called_once()
 
 
 def test_stop_sends_stop_run_request(mocker):

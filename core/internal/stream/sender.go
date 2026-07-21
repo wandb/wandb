@@ -675,6 +675,9 @@ func (s *Sender) sendEnvironment(environment *spb.EnvironmentRecord) {
 		s.logger.CaptureError(fmt.Errorf("sender: sendMetadata: %v", err))
 		return
 	}
+	if !upserter.ShouldUpdateEnvironment() {
+		return
+	}
 
 	upserter.UpdateEnvironment(environment)
 

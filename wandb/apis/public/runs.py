@@ -741,6 +741,7 @@ class Run(Attrs):
         project: str | None = None,
         entity: str | None = None,
         state: Literal["running", "pending"] = "running",
+        command: str | None = None,
     ) -> Run:
         """Create a run for the given project.
 
@@ -762,6 +763,8 @@ class Run(Attrs):
             entity: Optional entity (user or team) name.
             state: Initial state of the run. Use "pending" for runs that will be
                 resumed later, or "running" for immediate execution.
+            command: The command used to run the script. This is displayed on
+                the run overview page.
 
         Returns:
             A Run object representing the created run.
@@ -782,6 +785,7 @@ class Run(Attrs):
             entity="entity",
             state="pending",
             run_id=run_name,
+            command="python train.py --epochs 10",
         )
         ```
         """
@@ -790,6 +794,7 @@ class Run(Attrs):
             project=project,
             entity=entity,
             state=state,
+            command=command,
         )
 
     def _load_with_fragment(

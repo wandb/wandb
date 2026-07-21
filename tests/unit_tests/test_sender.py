@@ -22,3 +22,26 @@ def test_config_save_preserve_order(tmp_path, test_settings):
     saved_config.pop("wandb_version")
 
     assert saved_config == original_config
+
+
+def test_send_environment_skips_resumed_run_when_update_disabled(
+    tmp_path, test_settings
+):
+    settings = test_settings(
+        {
+            "update_resume_environment": False,
+            "x_files_dir": str(tmp_path),
+        }
+    )
+    sender = SendManager(
+        settings=SettingsStatic(dict(settings)),
+        record_q=MagicMock(),
+        result_q=MagicMock(),
+        interface=MagicMock(),
+    )
+    sender._resume_state.resumed = True
+    sender._update_environment_record = MagicMock()
+
+    sender.send_environment(MagicMock())
+
+    sender._update_environment_record.assert_not_called()

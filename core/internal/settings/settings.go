@@ -401,6 +401,13 @@ func (s *Settings) GetResume() string {
 	return s.Proto.Resume.GetValue()
 }
 
+// ShouldUpdateResumeEnvironment reports whether to update the run's
+// environment when resuming.
+func (s *Settings) ShouldUpdateResumeEnvironment() bool {
+	wrapper := s.Proto.UpdateResumeEnvironment
+	return wrapper == nil || wrapper.Value
+}
+
 // ResumeFrom (or Rewind) information for the run.
 func (s *Settings) GetResumeFrom() *spb.RunMoment {
 	return s.Proto.ResumeFrom

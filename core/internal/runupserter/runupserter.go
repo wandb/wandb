@@ -370,6 +370,20 @@ func (upserter *RunUpserter) EnvironmentJSON() ([]byte, error) {
 	return upserter.environment.ToJSON()
 }
 
+// ShouldUpdateEnvironment reports whether this writer should update the run's
+// environment metadata.
+func (upserter *RunUpserter) ShouldUpdateEnvironment() bool {
+	upserter.mu.Lock()
+	defer upserter.mu.Unlock()
+	return upserter.shouldUpdateEnvironment()
+}
+
+// shouldUpdateEnvironment must be called with mu held.
+func (upserter *RunUpserter) shouldUpdateEnvironment() bool {
+	return !upserter.params.Resumed ||
+		upserter.settings.ShouldUpdateResumeEnvironment()
+}
+
 func (upserter *RunUpserter) StartTime() time.Time {
 	upserter.mu.Lock()
 	defer upserter.mu.Unlock()
@@ -581,10 +595,12 @@ func (upserter *RunUpserter) lockedDoUpsert(
 		groupName = nullify.NilIfZero(upserter.params.GroupName)
 		displayName = nullify.NilIfZero(upserter.params.DisplayName)
 		notes = nullify.NilIfZero(upserter.params.Notes)
-		commit = nullify.NilIfZero(upserter.params.Commit)
-		host = nullify.NilIfZero(upserter.params.Host)
-		program = nullify.NilIfZero(upserter.params.Program)
-		repo = nullify.NilIfZero(upserter.params.RemoteURL)
+		if upserter.shouldUpdateEnvironment() {
+			commit = nullify.NilIfZero(upserter.params.Commit)
+			host = nullify.NilIfZero(upserter.params.Host)
+			program = nullify.NilIfZero(upserter.params.Program)
+			repo = nullify.NilIfZero(upserter.params.RemoteURL)
+		}
 		jobType = nullify.NilIfZero(upserter.params.JobType)
 		sweepID = nullify.NilIfZero(upserter.params.SweepID)
 		tags = slices.Clone(upserter.params.Tags)
