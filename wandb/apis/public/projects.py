@@ -122,7 +122,7 @@ class Projects(RelayPaginator["ProjectFragment", "Project"]):
 
         Note: This property is not available for projects.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         # For backwards compatibility, even though this isn't a SizedPaginator
         return None
@@ -214,7 +214,7 @@ class Project(Attrs):
     def to_html(self, height: int = 420, hidden: bool = False) -> str:
         """Generate HTML containing an iframe displaying this project.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         url = self.url + "?jupyter=true"
         style = f"border:none;width:100%;height:{height}px;"

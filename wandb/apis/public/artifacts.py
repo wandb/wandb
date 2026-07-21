@@ -202,7 +202,7 @@ class ArtifactType:
     def load(self) -> ArtifactTypeFragment:
         """Load the artifact type attributes from W&B.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         from wandb.sdk.artifacts._generated import (
             PROJECT_ARTIFACT_TYPE_GQL,
@@ -592,7 +592,7 @@ class ArtifactCollection:
     ) -> ArtifactCollectionFragment:
         """Fetch and return the validated artifact collection data from W&B.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         from wandb.sdk.artifacts._generated import (
             PROJECT_ARTIFACT_COLLECTION_GQL,
@@ -953,7 +953,7 @@ class Artifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
     def convert_objects(self) -> list[Artifact]:
         """Convert the raw response data into a list of wandb.Artifact objects.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         if (conn := self.last_response) is None:
             return []

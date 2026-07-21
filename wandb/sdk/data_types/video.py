@@ -188,7 +188,7 @@ class Video(BatchableMedia):
     def encode(self, fps: int = 4) -> None:
         """Encode the video data to a file.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         # import ImageSequenceClip from the appropriate MoviePy module
         mpy = util.get_module(
@@ -224,7 +224,7 @@ class Video(BatchableMedia):
     def to_json(self, run_or_artifact: LocalRun | Artifact) -> dict:
         """Returns the JSON representation expected by the backend.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         json_dict = super().to_json(run_or_artifact)
         json_dict["_type"] = self._log_type

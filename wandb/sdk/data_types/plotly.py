@@ -91,7 +91,7 @@ class Plotly(Media):
     def to_json(self, run_or_artifact: LocalRun | Artifact) -> dict:
         """Convert the Plotly object to a JSON representation.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         json_dict = super().to_json(run_or_artifact)
         json_dict["_type"] = self._log_type

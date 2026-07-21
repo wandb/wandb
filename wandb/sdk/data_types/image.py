@@ -508,7 +508,7 @@ class Image(BatchableMedia):
     ) -> None:
         """Bind this object to a run.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         # For Images, we are going to avoid copying the image file to the run.
         # We should make this common functionality for all media types, but that
@@ -550,7 +550,7 @@ class Image(BatchableMedia):
     def to_json(self, run_or_artifact: wandb.Run | Artifact) -> dict:
         """Returns the JSON representation expected by the backend.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         json_dict = super().to_json(run_or_artifact)
         json_dict["_type"] = Image._log_type
@@ -608,7 +608,7 @@ class Image(BatchableMedia):
     ) -> str:
         """Guess what type of image the np.array is representing.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         # TODO: do we want to support dimensions being at the beginning of the array?
         ndims = data.ndim
@@ -808,7 +808,7 @@ class Image(BatchableMedia):
     def to_data_array(self) -> list[Any]:
         """Convert to data array.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         res = []
         if self.image is not None:

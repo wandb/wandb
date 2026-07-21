@@ -972,7 +972,7 @@ class Artifact:
     def distributed_id(self) -> str | None:
         """The distributed ID of the artifact.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         return self._distributed_id
 
@@ -984,7 +984,7 @@ class Artifact:
     def incremental(self) -> bool:
         """Boolean flag indicating if the artifact is an incremental artifact.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         return self._incremental
 

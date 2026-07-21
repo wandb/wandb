@@ -93,7 +93,7 @@ class Reports(SizedPaginator["BetaReport"]):
     def _length(self) -> int | None:
         """The number of reports in the project.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         # TODO: Add the count the backend
         if not self.last_response:
@@ -105,7 +105,7 @@ class Reports(SizedPaginator["BetaReport"]):
     def more(self) -> bool:
         """Returns whether there are more files to fetch.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         if not self.last_response:
             return True
@@ -119,7 +119,7 @@ class Reports(SizedPaginator["BetaReport"]):
     def cursor(self) -> str | None:
         """Returns the cursor position for pagination of file results.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         if not self.last_response:
             return None
@@ -432,7 +432,7 @@ class PythonMongoishQueryGenerator:
     def python_to_mongo(self, filterstr):
         """Convert Python expresion to MongoDB filter.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         try:
             tree = ast.parse(self._convert(filterstr), mode="eval")
@@ -454,7 +454,7 @@ class PythonMongoishQueryGenerator:
     def front_to_back(self, name):
         """Convert frontend metric names to backend field names.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         name, *rest = name.split(".")
         rest = "." + ".".join(rest) if rest else ""
@@ -471,7 +471,7 @@ class PythonMongoishQueryGenerator:
     def back_to_front(self, name):
         """Convert backend field names to frontend metric names.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         if name in self.FRONTEND_NAME_MAPPING_REVERSED:
             return self.FRONTEND_NAME_MAPPING_REVERSED[name]
@@ -491,7 +491,7 @@ class PythonMongoishQueryGenerator:
     def pc_front_to_back(self, name):
         """Convert ParallelCoordinatesPlot to backend field names.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         name, *rest = name.split(".")
         rest = "." + ".".join(rest) if rest else ""
@@ -511,7 +511,7 @@ class PythonMongoishQueryGenerator:
     def pc_back_to_front(self, name):
         """Convert backend backend field names to ParallelCoordinatesPlot names.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         if name is None:
             return None
@@ -548,7 +548,7 @@ class PanelMetricsHelper:
     def front_to_back(self, name):
         """Convert frontend metric names to backend field names.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         if name in self.FRONTEND_NAME_MAPPING:
             return self.FRONTEND_NAME_MAPPING[name]
@@ -557,7 +557,7 @@ class PanelMetricsHelper:
     def back_to_front(self, name):
         """Convert backend field names to frontend metric names.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         if name in self.FRONTEND_NAME_MAPPING_REVERSED:
             return self.FRONTEND_NAME_MAPPING_REVERSED[name]
@@ -567,7 +567,7 @@ class PanelMetricsHelper:
     def special_front_to_back(self, name):
         """Convert frontend metric names to backend field names.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         if name is None:
             return name
@@ -597,7 +597,7 @@ class PanelMetricsHelper:
     def special_back_to_front(self, name):
         """Convert backend field names to frontend metric names.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         if name is not None:
             kind, rest = name.split(":", 1)

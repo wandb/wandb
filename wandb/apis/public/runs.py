@@ -254,7 +254,7 @@ class Runs(SizedPaginator["Run"]):
     def _length(self) -> int:
         """Returns the total number of runs.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         if not self.last_response:
             self._load_page()
@@ -269,7 +269,7 @@ class Runs(SizedPaginator["Run"]):
     def more(self) -> bool:
         """Returns whether there are more runs to fetch.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         if not self.last_response:
             return True
@@ -283,7 +283,7 @@ class Runs(SizedPaginator["Run"]):
     def cursor(self):
         """Returns the cursor position for pagination of runs results.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         if not self.last_response:
             return None
@@ -300,7 +300,7 @@ class Runs(SizedPaginator["Run"]):
     def convert_objects(self) -> list[Run]:
         """Converts GraphQL edges to Runs objects.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         objs = []
         if self.last_response is None or self.last_response.get("project") is None:
@@ -1077,7 +1077,7 @@ class Run(Attrs):
     def json_config(self) -> str:
         """Return the run config as a JSON string.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         config = {}
         if "_wandb" in self.rawconfig:
