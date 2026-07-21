@@ -5,6 +5,8 @@ This authenticates your machine to log data to your account.
 
 from __future__ import annotations
 
+from typing import Any
+
 import click
 
 import wandb
@@ -299,7 +301,9 @@ def _verify_login(key: str, base_url: str) -> None:
     )
 
     try:
-        result = service_api.execute_graphql("query { viewer { id } }")
+        result: dict[str, Any] = service_api.execute_graphql(
+            "query { viewer { id } }",
+        )
         is_api_key_valid = result is not None and result["viewer"] is not None
     except ConnectionError as e:
         raise AuthenticationError(
