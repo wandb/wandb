@@ -10,7 +10,7 @@ __all__ = (
     "ArtifactTypes",
     "DownloadHistoryResult",
     "RunArtifacts",
-    "Automations", # doc:exclude
+    "Automations",  # doc:exclude
     "File",
     "Files",
     "HistoryScan",  # doc:exclude
@@ -35,7 +35,7 @@ __all__ = (
     "Reports",
     "Run",
     "Runs",
-    "AgentRuns", # doc:exclude
+    "AgentRuns",  # doc:exclude
     "Sweep",
     "Member",
     "Team",
