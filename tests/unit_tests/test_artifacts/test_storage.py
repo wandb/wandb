@@ -342,7 +342,7 @@ def test_artifact_file_cache_cleanup_leaves_tmp_files_by_default(
     assert "Cache contains 1000.0B of temporary files" in stderr
 
 
-def test_wandb_storage_policy_load_file_uses_cache(artifact_file_cache, tmp_path):
+def test_wandb_storage_policy_load_file_uses_cache_md5(artifact_file_cache, tmp_path):
     file = tmp_path / "file.txt"
     file.write_text("hello")
     digest = "XUFAKrxLKna5cZ2REBfFkg=="
@@ -371,7 +371,7 @@ def test_wandb_storage_policy_load_file_uses_cache_xxh128(
 ):
     file = tmp_path / "file.txt"
     file.write_text("hello")
-    digest = "JseCfYifbaM="
+    digest = "tenBrQcbPn/Hec+qXlI4GA=="
 
     path, _, opener = artifact_file_cache.check_digest_obj_path(
         digest=digest, size=5, algorithm=ArtifactDigestAlgorithm.MANIFEST_XXH128
