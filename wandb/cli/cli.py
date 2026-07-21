@@ -2148,10 +2148,9 @@ def launch_agent(
     "-t",
     default=None,
     type=int,
-    help="""Time (in seconds) after receiving a terminating signal (e.g. SIGINT
-    /SIGTERM) to force-terminate child runs which have not finished since
-    receiving the initial forwarded signal. Does nothing if --forward-signals is
-    not set.""",
+    help="""Time (in seconds) after receiving a shutdown signal (e.g. SIGINT
+    /SIGTERM) to force-kill child runs which have not finished since receiving
+    the initial forwarded signal. Does nothing if --forward-signals is not set.""",
 )
 @click.argument("sweep_id")
 @display_error
