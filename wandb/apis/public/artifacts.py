@@ -12,6 +12,7 @@ from copy import copy
 from functools import lru_cache
 from typing import TYPE_CHECKING, Any, ClassVar, List, Literal, TypeVar  # noqa: UP035
 
+from pydantic import PositiveInt
 from typing_extensions import override
 
 from wandb._iterutils import always_list
@@ -98,8 +99,9 @@ class _ArtifactCollectionAliases(RelayPaginator["ArtifactAliasFragment", str]):
             ArtifactCollectionAliases,
         )
 
-        data = self._service_api.execute_graphql(self.QUERY, variables=self.variables)
-        result = ArtifactCollectionAliases.model_validate(data)
+        result = self._execute_query(
+            parse=ArtifactCollectionAliases.model_validate_json
+        )
 
         # Extract the inner `*Connection` result for faster/easier access.
         if not ((coll := result.artifact_collection) and (conn := coll.aliases)):
@@ -125,7 +127,7 @@ class ArtifactTypes(RelayPaginator["ArtifactTypeFragment", "ArtifactType"]):
         service_api: ServiceApi,
         entity: str,
         project: str,
-        per_page: int = 50,
+        per_page: PositiveInt = 50,
         start: str | None = None,
     ):
         if self.QUERY is None:
@@ -135,7 +137,6 @@ class ArtifactTypes(RelayPaginator["ArtifactTypeFragment", "ArtifactType"]):
 
         self.entity = entity
         self.project = project
-        self._service_api = service_api
         variables = {"entity": entity, "project": project}
         super().__init__(
             service_api, variables=variables, per_page=per_page, start=start
@@ -147,8 +148,7 @@ class ArtifactTypes(RelayPaginator["ArtifactTypeFragment", "ArtifactType"]):
         from wandb.sdk.artifacts._generated import ProjectArtifactTypes
         from wandb.sdk.artifacts._models.pagination import ArtifactTypeConnection
 
-        data = self._service_api.execute_graphql(self.QUERY, variables=self.variables)
-        result = ProjectArtifactTypes.model_validate(data)
+        result = self._execute_query(parse=ProjectArtifactTypes.model_validate_json)
 
         # Extract the inner `*Connection` result for faster/easier access.
         if not ((proj := result.project) and (conn := proj.artifact_types)):
@@ -213,11 +213,13 @@ class ArtifactType:
             ProjectArtifactType,
         )
 
-        gql_op = PROJECT_ARTIFACT_TYPE_GQL
-        gql_vars = {"entity": self.entity, "project": self.project, "type": self.type}
-        data = self._service_api.execute_graphql(gql_op, variables=gql_vars)
-        result = ProjectArtifactType.model_validate(data)
-        if not ((proj := result.project) and (artifact_type := proj.artifact_type)):
+        data = self._service_api.execute_graphql(
+            PROJECT_ARTIFACT_TYPE_GQL,
+            {"entity": self.entity, "project": self.project, "type": self.type},
+            parse=ProjectArtifactType.model_validate_json,
+        )
+
+        if not ((proj := data.project) and (artifact_type := proj.artifact_type)):
             raise ValueError(f"Could not find artifact type {self.type!r}")
         return ArtifactTypeFragment.model_validate(artifact_type)
 
@@ -312,7 +314,7 @@ class ArtifactCollections(
         type_name: str,
         filters: Mapping[str, Any] | None = None,
         order: str | None = None,
-        per_page: int = 50,
+        per_page: PositiveInt = 50,
         start: str | None = None,
     ):
         if self.QUERY is None:
@@ -335,7 +337,6 @@ class ArtifactCollections(
         self.type_name = type_name
         self.filters = filters
         self.order = order
-        self._service_api = service_api
         variables = {
             "entity": entity,
             "project": project,
@@ -353,8 +354,9 @@ class ArtifactCollections(
         from wandb.sdk.artifacts._generated import ArtifactTypeArtifactCollections
         from wandb.sdk.artifacts._models.pagination import ArtifactCollectionConnection
 
-        data = self._service_api.execute_graphql(self.QUERY, variables=self.variables)
-        result = ArtifactTypeArtifactCollections.model_validate(data)
+        result = self._execute_query(
+            parse=ArtifactTypeArtifactCollections.model_validate_json
+        )
 
         # Extract the inner `*Connection` result for faster/easier access.
         if not (
@@ -398,7 +400,7 @@ class ProjectArtifactCollections(
     <!-- lazydoc-ignore-init: internal -->
     """
 
-    QUERY: str | None
+    QUERY: ClassVar[str | None] = None
     last_response: ArtifactCollectionConnection | None
 
     def __init__(
@@ -408,10 +410,13 @@ class ProjectArtifactCollections(
         project: str,
         filters: Mapping[str, Any] | None = None,
         order: str | None = None,
-        per_page: int = 50,
+        per_page: PositiveInt = 50,
         start: str | None = None,
     ):
-        from wandb.sdk.artifacts._generated import PROJECT_ARTIFACT_COLLECTIONS_GQL
+        if self.QUERY is None:
+            from wandb.sdk.artifacts._generated import PROJECT_ARTIFACT_COLLECTIONS_GQL
+
+            type(self).QUERY = PROJECT_ARTIFACT_COLLECTIONS_GQL
 
         supports_filtering = server_supports(
             service_api, pb.ARTIFACT_COLLECTIONS_FILTERING_SORTING
@@ -422,13 +427,10 @@ class ProjectArtifactCollections(
                 "Please upgrade your server version or contact support at support@wandb.com."
             )
 
-        self.QUERY = PROJECT_ARTIFACT_COLLECTIONS_GQL
-
         self.entity = entity
         self.project = project
         self.filters = filters
         self.order = order
-        self._service_api = service_api
         variables = {
             "entity": entity,
             "project": project,
@@ -453,13 +455,12 @@ class ProjectArtifactCollections(
             ProjectArtifactCollectionConnection,
         )
 
-        data = self._execute_query()
-        result = ProjectArtifactCollections.model_validate(data)
-
+        result = self._execute_query(
+            parse=ProjectArtifactCollections.model_validate_json
+        )
         # Extract the inner `*Connection` result for faster/easier access.
         if not ((proj := result.project) and (conn := proj.artifact_collections)):
             raise ValueError(f"Unable to parse {nameof(type(self))!r} response data")
-
         self.last_response = ProjectArtifactCollectionConnection.model_validate(conn)
 
     def _convert(self, node: ArtifactCollectionFragment) -> ArtifactCollection | None:
@@ -600,10 +601,11 @@ class ArtifactCollection:
             ProjectArtifactCollection,
         )
 
-        gql_op = PROJECT_ARTIFACT_COLLECTION_GQL
-        gql_vars = {"entity": entity, "project": project, "type": type_, "name": name}
-        data = self._service_api.execute_graphql(gql_op, variables=gql_vars)
-        result = ProjectArtifactCollection.model_validate(data)
+        result = self._service_api.execute_graphql(
+            PROJECT_ARTIFACT_COLLECTION_GQL,
+            {"entity": entity, "project": project, "type": type_, "name": name},
+            parse=ProjectArtifactCollection.model_validate_json,
+        )
         if not (
             result.project
             and (proj := result.project)
@@ -643,13 +645,13 @@ class ArtifactCollection:
 
         termlog(f"Changing artifact collection type of {old_type!r} to {new_type!r}")
 
-        gql_op = UPDATE_ARTIFACT_SEQUENCE_TYPE_GQL
         gql_input = MoveArtifactSequenceInput(
             artifact_sequence_id=self.id,
             destination_artifact_type_name=new_type,
         )
         self._service_api.execute_graphql(
-            gql_op, variables={"input": gql_input.model_dump()}
+            UPDATE_ARTIFACT_SEQUENCE_TYPE_GQL,
+            variables={"input": gql_input.model_dump()},
         )
         self._saved.type = new_type
         self._current.type = new_type
@@ -865,7 +867,7 @@ class Artifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
     <!-- lazydoc-ignore-init: internal -->
     """
 
-    QUERY: str  # Must be set per-instance
+    QUERY: ClassVar[str | None] = None
 
     # Loosely-annotated to avoid importing heavy types at module import time.
     last_response: _ArtifactConnectionGeneric | None
@@ -883,9 +885,10 @@ class Artifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
         tags: str | list[str] | None = None,
         start: str | None = None,
     ):
-        from wandb.sdk.artifacts._generated import PROJECT_ARTIFACTS_GQL
+        if self.QUERY is None:
+            from wandb.sdk.artifacts._generated import PROJECT_ARTIFACTS_GQL
 
-        self.QUERY = PROJECT_ARTIFACTS_GQL
+            self.__class__.QUERY = PROJECT_ARTIFACTS_GQL
 
         self.entity = entity
         self.collection_name = collection_name
@@ -894,7 +897,6 @@ class Artifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
         self.filters = {"state": "COMMITTED"} if filters is None else filters
         self.tags = always_list(tags or [])
         self.order = order
-        self._service_api = service_api
         variables = {
             "entity": self.entity,
             "project": self.project,
@@ -911,8 +913,7 @@ class Artifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
     def _update_response(self) -> None:
         from wandb.sdk.artifacts._generated import ArtifactFragment, ProjectArtifacts
 
-        data = self._service_api.execute_graphql(self.QUERY, variables=self.variables)
-        result = ProjectArtifacts.model_validate(data)
+        result = self._execute_query(parse=ProjectArtifacts.model_validate_json)
 
         # Extract the inner `*Connection` result for faster/easier access.
         if not (
@@ -988,7 +989,6 @@ class RunArtifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
             self.QUERY = query_str
 
         self.run = run
-        self._service_api = service_api
         variables = {"entity": run.entity, "project": run.project, "run": run.id}
         super().__init__(
             service_api, variables=variables, per_page=per_page, start=start
@@ -1071,10 +1071,9 @@ class ArtifactFiles(SizedRelayPaginator["FileFragment", "File"]):
         from wandb.sdk.artifacts._generated import ArtifactMembershipFiles
         from wandb.sdk.artifacts._models.pagination import ArtifactFileConnection
 
-        data = self._execute_query()
+        result = self._execute_query(parse=ArtifactMembershipFiles.model_validate_json)
 
         # Extract the inner `*Connection` result for faster/easier access.
-        result = ArtifactMembershipFiles.model_validate(data)
         conn = result.project.artifact_collection.artifact_membership.files
 
         if conn is None:

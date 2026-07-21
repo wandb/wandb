@@ -3,6 +3,7 @@ package transfermanager
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -14,9 +15,11 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/aws/middleware"
 	"github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager/types"
+	internalcontext "github.com/aws/aws-sdk-go-v2/internal/context"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	smithymiddleware "github.com/aws/smithy-go/middleware"
+	smithyhttp "github.com/aws/smithy-go/transport/http"
 )
 
 // A MultipartUploadError wraps a failed S3 multipart upload. An error returned
@@ -838,9 +841,13 @@ func (u *uploader) upload(ctx context.Context) (*UploadObjectOutput, error) {
 
 	clientOptions := []func(o *s3.Options){
 		func(o *s3.Options) {
+			o.RequestChecksumCalculation = u.options.RequestChecksumCalculation
 			o.APIOptions = append(o.APIOptions,
 				middleware.AddSDKAgentKey(middleware.FeatureMetadata, userAgentKey),
 				addFeatureUserAgent,
+				func(s *smithymiddleware.Stack) error {
+					return s.Finalize.Insert(&setS3ExpressDefaultChecksum{}, "ResolveEndpointV2", smithymiddleware.After)
+				},
 			)
 		}}
 
@@ -904,7 +911,7 @@ func (u *uploader) initSize() error {
 func (u *uploader) singleUpload(ctx context.Context, r io.Reader, sz int, cleanUp func(), clientOptions ...func(*s3.Options)) (*UploadObjectOutput, error) {
 	defer cleanUp()
 
-	params := u.in.mapSingleUploadInput(r, u.options.ChecksumAlgorithm)
+	params := u.in.mapSingleUploadInput(r, u.options.checksumAlgorithm())
 	objectSize := int64(sz)
 
 	var loc recordLocationClient
@@ -1017,7 +1024,7 @@ func (cp completedParts) Swap(i, j int) {
 // upload will perform a multipart upload using the firstBuf buffer containing
 // the first chunk of data.
 func (u *multiUploader) upload(ctx context.Context, firstBuf io.Reader, firstBuflen int, cleanup func(), clientOptions ...func(*s3.Options)) (*UploadObjectOutput, error) {
-	params := u.uploader.in.mapCreateMultipartUploadInput(u.options.ChecksumAlgorithm)
+	params := u.uploader.in.mapCreateMultipartUploadInput(u.options.checksumAlgorithm())
 
 	// We are **ignoring** the output.Location here for backwards compat.
 	//
@@ -1143,7 +1150,7 @@ func (u *multiUploader) readChunk(ctx context.Context, ch chan ulChunk, clientOp
 // send performs an UploadPart request and keeps track of the completed
 // part information.
 func (u *multiUploader) send(ctx context.Context, c ulChunk, clientOptions ...func(*s3.Options)) error {
-	params := u.in.mapUploadPartInput(c.buf, c.partNum, u.uploadID, u.options.ChecksumAlgorithm)
+	params := u.in.mapUploadPartInput(c.buf, c.partNum, u.uploadID, u.options.checksumAlgorithm())
 	resp, err := u.options.S3.UploadPart(ctx, params, clientOptions...)
 	if err != nil {
 		// progress failed() is NOT emitted here, it's emitted once at the end
@@ -1174,7 +1181,18 @@ func (u *multiUploader) seterr(e error) {
 	u.m.Lock()
 	defer u.m.Unlock()
 
-	u.err = e
+	// A context cancellation is usually a downstream symptom of another
+	// failure (e.g. a failed UploadPart cancelling in-flight body reads).
+	// Keep the first non-cancellation error, and allow a real error to
+	// replace a previously stored cancellation error so the root cause is
+	// always the one reported.
+	if u.err == nil || (isCancellationError(u.err) && !isCancellationError(e)) {
+		u.err = e
+	}
+}
+
+func isCancellationError(err error) bool {
+	return errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
 }
 
 func (u *multiUploader) fail(ctx context.Context, clientOptions ...func(*s3.Options)) {
@@ -1210,6 +1228,43 @@ func (u *multiUploader) complete(ctx context.Context, clientOptions ...func(*s3.
 	}
 
 	return resp
+}
+
+type setS3ExpressDefaultChecksum struct{}
+
+func (*setS3ExpressDefaultChecksum) ID() string {
+	return "setS3ExpressDefaultChecksum"
+}
+
+func (*setS3ExpressDefaultChecksum) HandleFinalize(
+	ctx context.Context, in smithymiddleware.FinalizeInput, next smithymiddleware.FinalizeHandler,
+) (
+	out smithymiddleware.FinalizeOutput, metadata smithymiddleware.Metadata, err error,
+) {
+	const checksumHeader = "x-amz-checksum-algorithm"
+
+	if internalcontext.GetS3Backend(ctx) != internalcontext.S3BackendS3Express {
+		return next.HandleFinalize(ctx, in)
+	}
+
+	// If this is CreateMultipartUpload we need to ensure the checksum
+	// algorithm header is present. Otherwise everything is driven off the
+	// context setting and we can let it flow from there.
+	if middleware.GetOperationName(ctx) == "CreateMultipartUpload" {
+		r, ok := in.Request.(*smithyhttp.Request)
+		if !ok {
+			return out, metadata, fmt.Errorf("unknown transport type %T", in.Request)
+		}
+
+		if internalcontext.GetChecksumInputAlgorithm(ctx) == "" {
+			r.Header.Set(checksumHeader, "CRC32")
+		}
+		return next.HandleFinalize(ctx, in)
+	} else if internalcontext.GetChecksumInputAlgorithm(ctx) == "" {
+		ctx = internalcontext.SetChecksumInputAlgorithm(ctx, string(s3types.ChecksumAlgorithmCrc32))
+	}
+
+	return next.HandleFinalize(ctx, in)
 }
 
 func addFeatureUserAgent(stack *smithymiddleware.Stack) error {

@@ -44,6 +44,7 @@ from wandb.sdk.lib import filesystem, settings_file
 from wandb.sync import TFEVENT_SUBSTRING, SyncManager, get_run_from_path, get_runs
 
 from .beta import beta
+from .clean import clean
 from .leet import leet
 
 
@@ -3778,3 +3779,4 @@ def purge_cache(
 
 cli.add_command(beta)
 cli.add_command(leet)
+cli.add_command(clean)

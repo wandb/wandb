@@ -23,9 +23,12 @@ def org_info_from_entity(
     """Returns the organization info for a given entity."""
     from ._generated import FETCH_ORG_INFO_FROM_ENTITY_GQL, FetchOrgInfoFromEntity
 
-    gql_op = FETCH_ORG_INFO_FROM_ENTITY_GQL
-    data = service_api.execute_graphql(gql_op, variables={"entity": entity})
-    return FetchOrgInfoFromEntity.model_validate(data).entity
+    result = service_api.execute_graphql(
+        FETCH_ORG_INFO_FROM_ENTITY_GQL,
+        variables={"entity": entity},
+        parse=FetchOrgInfoFromEntity.model_validate_json,
+    )
+    return result.entity
 
 
 @lru_cache(maxsize=16)
@@ -35,7 +38,10 @@ def _server_features(service_api: ServiceApi) -> dict[str, bool]:
     Results are cached per service API instance.
     """
     try:
-        response = service_api.execute_graphql(SERVER_FEATURES_QUERY_GQL)
+        result = service_api.execute_graphql(
+            SERVER_FEATURES_QUERY_GQL,
+            parse=ServerFeaturesQuery.model_validate_json,
+        )
     except Exception as e:
         # Unfortunately we currently have to match on the text of the error message,
         # as the `gql` client raises `Exception` rather than a more specific error.
@@ -43,7 +49,6 @@ def _server_features(service_api: ServiceApi) -> dict[str, bool]:
             return {}
         raise
 
-    result = ServerFeaturesQuery.model_validate(response)
     if (server_info := result.server_info) and (features := server_info.features):
         return {feat.name: feat.is_enabled for feat in features if feat}
     return {}
@@ -177,11 +182,11 @@ def is_project_read_only(
     """Return whether *project* is read-only for the caller, or None if invisible."""
     from wandb.apis._generated import IS_PROJECT_READ_ONLY_GQL, IsProjectReadOnly
 
-    data = service_api.execute_graphql(
+    result = service_api.execute_graphql(
         IS_PROJECT_READ_ONLY_GQL,
         variables={"entity": entity, "project": project},
+        parse=IsProjectReadOnly.model_validate_json,
     )
-    result = IsProjectReadOnly.model_validate(data)
     if not (result and (proj := result.project)):
         return None
     return proj.read_only

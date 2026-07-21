@@ -1,3 +1,11 @@
+# v1.105.2 (2026-07-16)
+
+* **Documentation**: Documentation update for removing the 30 day minimum restriction for transition to Standard-IA or OneZone-IA storage classes
+
+# v1.105.1 (2026-07-13)
+
+* No change notes available for this release.
+
 # v1.105.0 (2026-07-06)
 
 * **Feature**: Add request serialization snapshot tests.

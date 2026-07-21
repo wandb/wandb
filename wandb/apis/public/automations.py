@@ -57,7 +57,7 @@ class Automations(RelayPaginator["ProjectTriggersFields", "Automation"]):
         from wandb._pydantic import Connection
         from wandb.automations._generated import ProjectTriggersFields
 
-        data = self._execute_query()
+        data: dict[str, Any] = self._execute_query()
         try:
             conn_data = data["scope"]["projects"]
             conn = Connection[ProjectTriggersFields].model_validate(conn_data)

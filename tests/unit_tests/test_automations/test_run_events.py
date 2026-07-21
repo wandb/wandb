@@ -16,14 +16,13 @@ from wandb.automations import (
     MetricZScoreFilter,
     RunEvent,
 )
-from wandb.automations._filters.run_metrics import Agg, ChangeDir, MetricAgg, MetricVal
-from wandb.automations._filters.run_states import ReportedRunState
+from wandb.automations._run_metric_filters import Agg, ChangeDir, MetricAgg, MetricVal
+from wandb.automations._run_state_filters import ReportedRunState
 from wandb.automations.events import StateFilter
 
-from ._strategies import (
+from ._automation_strategies import (
     aggs,
     cmp_keys,
-    ints_or_floats,
     metric_change_filters,
     metric_names,
     metric_zscore_filters,
@@ -33,6 +32,7 @@ from ._strategies import (
     run_states,
     window_sizes,
 )
+from ._strategies import ints_or_floats
 
 
 @composite
