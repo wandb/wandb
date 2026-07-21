@@ -37,6 +37,23 @@ class Visibility(str, Enum):
             ) from None
 
     @classmethod
+    def from_project_access(cls, value: str | None) -> Visibility:
+        """Convert a GraphQL project ``access`` value to a Visibility enum.
+
+        Registry search may return legacy or non-registry access levels (e.g.
+        ``USER_READ``) for organization projects. Treat those as organization
+        visibility so registry listing can proceed.
+        """
+        if not value:
+            return cls.organization
+        try:
+            return cls(value)
+        except ValueError:
+            if value == "RESTRICTED":
+                return cls.restricted
+            return cls.organization
+
+    @classmethod
     def from_python(cls, name: str) -> Visibility:
         """Convert a visibility string to a `Visibility` enum."""
         try:
