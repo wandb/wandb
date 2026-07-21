@@ -73,7 +73,9 @@ class ArtifactFileCache:
         else:
             skip_cache = False
             hex_digest = b64_to_hex_id(digest)
-            path_segment = self._ALGORITHM_PATH_SEGMENT.get(algorithm, "md5")
+            path_segment = self._ALGORITHM_PATH_SEGMENT.get(
+                algorithm or ArtifactDigestAlgorithm.MANIFEST_MD5, "md5"
+            )
             path = self._obj_dir / path_segment / hex_digest[:2] / hex_digest[2:]
         return self._check_or_create(path, size, skip_cache=skip_cache)
 

@@ -10,6 +10,8 @@ from typing import Any
 
 import wandb
 from wandb.apis.internal import Api
+from wandb.sdk.artifacts._generated.enums import ArtifactDigestAlgorithm
+from wandb.sdk.artifacts._internal_artifact import InternalArtifact
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.internal.job_builder import JobBuilder
 from wandb.sdk.launch.git_reference import GitReference
@@ -222,6 +224,7 @@ def _create_job(
         artifact_type_name="job",
         artifact_collection_name=name,
         digest=artifact.digest,
+        digest_algorithm=ArtifactDigestAlgorithm.MANIFEST_MD5,
         client_id=artifact._client_id,
         sequence_client_id=artifact._sequence_client_id,
         entity_name=entity,
@@ -454,10 +457,11 @@ def _make_code_artifact(
     # wandb job create.
     entrypoint_file = entrypoint_list[-1]
     artifact_name = _make_code_artifact_name(os.path.join(path, entrypoint_file), name)
-    code_artifact = wandb.Artifact(
+    code_artifact = InternalArtifact(
         name=artifact_name,
         type="code",
         description="Code artifact for job",
+        digest_algorithm=ArtifactDigestAlgorithm.MANIFEST_MD5,
     )
 
     try:
@@ -481,6 +485,7 @@ def _make_code_artifact(
         artifact_type_name="code",
         artifact_collection_name=artifact_name,
         digest=code_artifact.digest,
+        digest_algorithm=ArtifactDigestAlgorithm.MANIFEST_MD5,
         client_id=code_artifact._client_id,
         sequence_client_id=code_artifact._sequence_client_id,
         entity_name=entity,

@@ -274,7 +274,9 @@ def test_download_respects_skip_cache(tmp_path: Path, skip_download_cache: bool)
     artifact.wait()
 
     # Ensure the uploaded file is in the cache.
-    cache_pathstr, hit, _ = cache.check_digest_obj_path(entry.digest, entry.size)
+    cache_pathstr, hit, _ = cache.check_digest_obj_path(
+        entry.digest, entry.size, algorithm=artifact.digest_algorithm
+    )
     assert not hit
 
     # Manually write a file into the cache path to check that it's:
@@ -380,7 +382,7 @@ def test_mutable_uploads_with_cache_enabled(tmp_path: Path, temp_staging_dir: Pa
 
     # The file is cached
     _, found, _ = cache.check_digest_obj_path(
-        manifest_entry.digest, manifest_entry.size
+        manifest_entry.digest, manifest_entry.size, algorithm=artifact.digest_algorithm
     )
     assert found
 
@@ -409,7 +411,7 @@ def test_mutable_uploads_with_cache_disabled(tmp_path: Path, temp_staging_dir: P
 
     # The file is not cached
     _, found, _ = cache.check_digest_obj_path(
-        manifest_entry.digest, manifest_entry.size
+        manifest_entry.digest, manifest_entry.size, algorithm=artifact.digest_algorithm
     )
     assert not found
 
@@ -436,7 +438,7 @@ def test_immutable_uploads_with_cache_enabled(tmp_path: Path, temp_staging_dir: 
 
     # The file is cached
     _, found, _ = cache.check_digest_obj_path(
-        manifest_entry.digest, manifest_entry.size
+        manifest_entry.digest, manifest_entry.size, algorithm=artifact.digest_algorithm
     )
     assert found
 
@@ -459,7 +461,7 @@ def test_immutable_uploads_with_cache_disabled(tmp_path: Path, temp_staging_dir:
 
     # The file is cached
     _, found, _ = cache.check_digest_obj_path(
-        manifest_entry.digest, manifest_entry.size
+        manifest_entry.digest, manifest_entry.size, algorithm=artifact.digest_algorithm
     )
     assert not found
 
