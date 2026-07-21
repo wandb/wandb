@@ -103,7 +103,11 @@ if TYPE_CHECKING:
 
     from wandb.apis.public.service_api import ServiceApi
 
-    from ._generated import ArtifactFragment, ArtifactMembershipFragment
+    from ._generated import (
+        ArtifactFragment,
+        ArtifactMembershipFragment,
+        ArtifactMembershipWithDigestAlgorithmFragment,
+    )
     from ._models.pagination import FileWithUrlConnection
     from ._validators import FullArtifactPath, LinkArtifactFields
 
@@ -334,7 +338,9 @@ class Artifact:
     @classmethod
     def _from_membership(
         cls,
-        membership: ArtifactMembershipFragment,
+        membership: (
+            ArtifactMembershipFragment | ArtifactMembershipWithDigestAlgorithmFragment
+        ),
         target: FullArtifactPath,
         service_api: ServiceApi,
     ) -> Artifact:
@@ -379,7 +385,11 @@ class Artifact:
         service_api: ServiceApi,
         *,
         # aliases/version_index are taken from the membership, if given
-        membership: ArtifactMembershipFragment | None = None,
+        membership: (
+            ArtifactMembershipFragment
+            | ArtifactMembershipWithDigestAlgorithmFragment
+            | None
+        ) = None,
     ) -> Artifact:
         # Placeholder is required to skip validation.
         artifact = cls("placeholder", type="placeholder")
@@ -404,7 +414,11 @@ class Artifact:
         src_art: ArtifactFragment,
         *,
         # aliases/version_index are taken from the membership, if given
-        membership: ArtifactMembershipFragment | None = None,
+        membership: (
+            ArtifactMembershipFragment
+            | ArtifactMembershipWithDigestAlgorithmFragment
+            | None
+        ) = None,
         is_link: bool | None = None,
     ) -> None:
         """Update this Artifact's attributes using the server response."""
