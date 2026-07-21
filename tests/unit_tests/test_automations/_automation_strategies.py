@@ -1,22 +1,29 @@
-"""Example generation strategies for automation run filter tests that rely on `hypothesis`."""
+"""Example generation strategies for automations tests that rely on `hypothesis`."""
 
 from __future__ import annotations
 
 from enum import Enum
 from secrets import choice
+from string import ascii_letters
+from typing import Any
 
 from hypothesis.strategies import (
     DrawFn,
     SearchStrategy,
+    booleans,
     composite,
+    dictionaries,
     floats,
     integers,
     just,
+    lists,
     none,
     one_of,
+    recursive,
     sampled_from,
     text,
 )
+from wandb._strutils import b64encode_ascii
 from wandb.automations import (
     MetricChangeFilter,
     MetricThresholdFilter,
@@ -28,6 +35,31 @@ from wandb.automations._filters.run_states import ReportedRunState
 from ._strategies import PRINTABLE_CHARS, ints_or_floats
 
 
+@composite
+def gql_ids(
+    draw: DrawFn,
+    prefix: str | SearchStrategy[str] | None = None,
+) -> SearchStrategy[str]:
+    """GraphQL IDs as base64-encoded strings."""
+    if prefix is None:
+        prefix = text(ascii_letters)
+
+    name = draw(prefix) if isinstance(prefix, SearchStrategy) else prefix
+
+    index = draw(integers(min_value=0, max_value=1_000_000))
+    return b64encode_ascii(f"{name}:{index:d}")
+
+
+def jsonables() -> SearchStrategy[Any]:
+    """JSON-serializable objects."""
+    jsonable_scalars = none() | booleans() | ints_or_floats | text()
+    return recursive(
+        jsonable_scalars,
+        extend=lambda xs: lists(xs) | dictionaries(text(), xs),
+    )
+
+
+# ----------------------------------------------------------------------------
 def randomcase(s: str) -> str:
     """Randomize the case of each character in the given string."""
     return "".join(choice([str.lower, str.upper])(c) for c in s)

@@ -20,7 +20,7 @@ from wandb.automations._filters.run_metrics import Agg, ChangeDir, MetricAgg, Me
 from wandb.automations._filters.run_states import ReportedRunState
 from wandb.automations.events import StateFilter
 
-from ._runfilter_strategies import (
+from ._automation_strategies import (
     aggs,
     cmp_keys,
     metric_change_filters,
