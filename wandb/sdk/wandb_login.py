@@ -8,12 +8,12 @@ from __future__ import annotations
 import click
 
 import wandb
+from wandb import env
+from wandb.apis.public.service_api import ServiceApi
 from wandb.errors import AuthenticationError, term
 from wandb.sdk import wandb_setup
 from wandb.sdk.lib import settings_file, wbauth
 from wandb.sdk.lib.deprecation import UNSET, DoNotSet
-
-from ..apis import InternalApi
 
 
 def login(
@@ -290,13 +290,17 @@ def _find_or_prompt_for_key(
 def _verify_login(key: str, base_url: str) -> None:
     from requests.exceptions import ConnectionError
 
-    api = InternalApi(
-        api_key=key,
-        default_settings={"base_url": base_url},
+    settings = wandb_setup.singleton().settings.model_copy()
+    settings.base_url = base_url
+    settings.api_key = key
+    service_api = ServiceApi(
+        settings=settings,
+        timeout=env.get_http_timeout(10),
     )
 
     try:
-        is_api_key_valid = api.validate_api_key()
+        result = service_api.execute_graphql("query { viewer { id } }")
+        is_api_key_valid = result is not None and result["viewer"] is not None
     except ConnectionError as e:
         raise AuthenticationError(
             f"Unable to connect to {base_url} to verify API token."
