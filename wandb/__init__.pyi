@@ -33,7 +33,7 @@ __all__ = (
     "Video",
     "Audio",
     "Table",
-    "EvalTable",  # doc:exclude
+    "EvalTable",
     "Html",
     "box3d",
     "Object3D",
