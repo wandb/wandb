@@ -659,6 +659,18 @@ class Settings(BaseModel, validate_assignment=True):
     <!-- lazydoc-ignore-class-attributes -->
     """
 
+    x_file_stream_transmit_interval_initial: float | None = None
+    """Initial interval in seconds between filestream transmissions.
+
+    After an immediate first transmission, subsequent transmissions start
+    at this interval and gradually slow to `x_file_stream_transmit_interval`,
+    so that data logged at the start of a run is uploaded quickly. Set to a
+    value greater than or equal to `x_file_stream_transmit_interval` to disable
+    the ramp.
+
+    <!-- lazydoc-ignore-class-attributes -->
+    """
+
     # Filestream retry client configuration.
 
     x_file_stream_retry_max: int | None = None
