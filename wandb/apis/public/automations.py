@@ -18,10 +18,7 @@ if TYPE_CHECKING:
 
 
 class Automations(RelayPaginator["ProjectTriggersFields", "Automation"]):
-    """A lazy iterator of `Automation` objects.
-
-    <!-- lazydoc-ignore-class: internal -->
-    """
+    """A lazy iterator of `Automation` objects."""
 
     QUERY: str  # Must be set per-instance
     last_response: Connection[ProjectTriggersFields] | None
