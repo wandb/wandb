@@ -1022,7 +1022,7 @@ class Settings(BaseModel, validate_assignment=True):
 
         This is a compatibility layer to handle previous versions of the settings.
 
-        <!-- lazydoc-ignore-classmethod: internal -->
+        <!-- lazydoc-ignore-->
         """
         new_values = {}
         for key in values:
@@ -1078,7 +1078,7 @@ class Settings(BaseModel, validate_assignment=True):
     def validate_api_key(cls, value):
         """Validate the API key.
 
-        <!-- lazydoc-ignore-classmethod: internal -->
+        <!-- lazydoc-ignore-->
         """
         if value is not None and (len(value) > len(value.strip())):
             raise UsageError("API key cannot start or end with whitespace")
@@ -1089,7 +1089,7 @@ class Settings(BaseModel, validate_assignment=True):
     def validate_base_url(cls, value):
         """Validate the base URL.
 
-        <!-- lazydoc-ignore-classmethod: internal -->
+        <!-- lazydoc-ignore-->
         """
         urls.validate_url(value)
         # wandb.ai-specific checks
@@ -1107,7 +1107,7 @@ class Settings(BaseModel, validate_assignment=True):
     def validate_code_dir(cls, value):
         """Validate the code directory.
 
-        <!-- lazydoc-ignore-classmethod: internal -->
+        <!-- lazydoc-ignore-->
         """
         # TODO: add native support for pathlib.Path
         if isinstance(value, pathlib.Path):
@@ -1119,7 +1119,7 @@ class Settings(BaseModel, validate_assignment=True):
     def validate_console(cls, value, values):
         """Validate the console capture method.
 
-        <!-- lazydoc-ignore-classmethod: internal -->
+        <!-- lazydoc-ignore-->
         """
         if value != "auto":
             return value
@@ -1131,7 +1131,7 @@ class Settings(BaseModel, validate_assignment=True):
     def validate_console_chunk_max_bytes(cls, value):
         """Validate the console_chunk_max_bytes value.
 
-        <!-- lazydoc-ignore-classmethod: internal -->
+        <!-- lazydoc-ignore-->
         """
         if value < 0:
             raise ValueError("console_chunk_max_bytes must be non-negative")
@@ -1143,7 +1143,7 @@ class Settings(BaseModel, validate_assignment=True):
     def validate_console_chunk_max_seconds(cls, value):
         """Validate the console_chunk_max_seconds value.
 
-        <!-- lazydoc-ignore-classmethod: internal -->
+        <!-- lazydoc-ignore-->
         """
         if value < 0:
             raise ValueError("console_chunk_max_seconds must be non-negative")
@@ -1155,7 +1155,7 @@ class Settings(BaseModel, validate_assignment=True):
     def validate_x_executable(cls, value):
         """Validate the Python executable path.
 
-        <!-- lazydoc-ignore-classmethod: internal -->
+        <!-- lazydoc-ignore-->
         """
         # TODO: add native support for pathlib.Path
         if isinstance(value, pathlib.Path):
@@ -1174,7 +1174,7 @@ class Settings(BaseModel, validate_assignment=True):
     def validate_file_stream_max_line_bytes(cls, value):
         """Validate the maximum line length for filestream JSONL files.
 
-        <!-- lazydoc-ignore-classmethod: internal -->
+        <!-- lazydoc-ignore-->
         """
         if value is not None and value < 1:
             raise ValueError("File stream max line bytes must be greater than 0")
@@ -1185,7 +1185,7 @@ class Settings(BaseModel, validate_assignment=True):
     def validate_x_files_dir(cls, value):
         """Validate the files directory.
 
-        <!-- lazydoc-ignore-classmethod: internal -->
+        <!-- lazydoc-ignore-->
         """
         # TODO: add native support for pathlib.Path
         if isinstance(value, pathlib.Path):
@@ -1197,7 +1197,7 @@ class Settings(BaseModel, validate_assignment=True):
     def validate_fork_from(cls, value, values) -> RunMoment | None:
         """Validate the fork_from field.
 
-        <!-- lazydoc-ignore-classmethod: internal -->
+        <!-- lazydoc-ignore-->
         """
         run_moment = cls._runmoment_preprocessor(value)
 
@@ -1220,7 +1220,7 @@ class Settings(BaseModel, validate_assignment=True):
     def validate_http_proxy(cls, value):
         """Validate the HTTP proxy.
 
-        <!-- lazydoc-ignore-classmethod: internal -->
+        <!-- lazydoc-ignore-->
         """
         if value is None:
             return None
@@ -1232,7 +1232,7 @@ class Settings(BaseModel, validate_assignment=True):
     def validate_https_proxy(cls, value):
         """Validate the HTTPS proxy.
 
-        <!-- lazydoc-ignore-classmethod: internal -->
+        <!-- lazydoc-ignore-->
         """
         if value is None:
             return None
@@ -1244,7 +1244,7 @@ class Settings(BaseModel, validate_assignment=True):
     def validate_ignore_globs(cls, value):
         """Validate the ignore globs.
 
-        <!-- lazydoc-ignore-classmethod: internal -->
+        <!-- lazydoc-ignore-->
         """
         return tuple(value) if not isinstance(value, tuple) else value
 
@@ -1253,7 +1253,7 @@ class Settings(BaseModel, validate_assignment=True):
     def validate_program(cls, value):
         """Validate the program path.
 
-        <!-- lazydoc-ignore-classmethod: internal -->
+        <!-- lazydoc-ignore-->
         """
         # TODO: add native support for pathlib.Path
         if isinstance(value, pathlib.Path):
@@ -1265,7 +1265,7 @@ class Settings(BaseModel, validate_assignment=True):
     def validate_program_abspath(cls, value):
         """Validate the absolute program path.
 
-        <!-- lazydoc-ignore-classmethod: internal -->
+        <!-- lazydoc-ignore-->
         """
         # TODO: add native support for pathlib.Path
         if isinstance(value, pathlib.Path):
@@ -1277,7 +1277,7 @@ class Settings(BaseModel, validate_assignment=True):
     def validate_program_relpath(cls, value):
         """Validate the relative program path.
 
-        <!-- lazydoc-ignore-classmethod: internal -->
+        <!-- lazydoc-ignore-->
         """
         # TODO: add native support for pathlib.Path
         if isinstance(value, pathlib.Path):
@@ -1289,7 +1289,7 @@ class Settings(BaseModel, validate_assignment=True):
     def validate_project(cls, value, values):
         """Validate the project name.
 
-        <!-- lazydoc-ignore-classmethod: internal -->
+        <!-- lazydoc-ignore-->
         """
         if value is None:
             return None
@@ -1310,7 +1310,7 @@ class Settings(BaseModel, validate_assignment=True):
     def validate_resume(cls, value):
         """Validate the resume behavior.
 
-        <!-- lazydoc-ignore-classmethod: internal -->
+        <!-- lazydoc-ignore-->
         """
         if value is False:
             return None
@@ -1323,7 +1323,7 @@ class Settings(BaseModel, validate_assignment=True):
     def validate_resume_from(cls, value, values) -> RunMoment | None:
         """Validate the resume_from field.
 
-        <!-- lazydoc-ignore-classmethod: internal -->
+        <!-- lazydoc-ignore-->
         """
         run_moment = cls._runmoment_preprocessor(value)
 
@@ -1344,7 +1344,7 @@ class Settings(BaseModel, validate_assignment=True):
     def validate_root_dir(cls, value):
         """Validate the root directory.
 
-        <!-- lazydoc-ignore-classmethod: internal -->
+        <!-- lazydoc-ignore-->
         """
         # TODO: add native support for pathlib.Path
         if isinstance(value, pathlib.Path):
@@ -1356,7 +1356,7 @@ class Settings(BaseModel, validate_assignment=True):
     def validate_run_id(cls, value, values):
         """Validate the run ID.
 
-        <!-- lazydoc-ignore-classmethod: internal -->
+        <!-- lazydoc-ignore-->
         """
         if value is None:
             return None
@@ -1379,7 +1379,7 @@ class Settings(BaseModel, validate_assignment=True):
     def validate_settings_system(cls, value):
         """Validate the system settings file path.
 
-        <!-- lazydoc-ignore-classmethod: internal -->
+        <!-- lazydoc-ignore-->
         """
         if value is None:
             return None
@@ -1393,7 +1393,7 @@ class Settings(BaseModel, validate_assignment=True):
     def validate_service_wait(cls, value):
         """Validate the service wait time.
 
-        <!-- lazydoc-ignore-classmethod: internal -->
+        <!-- lazydoc-ignore-->
         """
         if value < 0:
             raise UsageError("Service wait time cannot be negative")
@@ -1404,7 +1404,7 @@ class Settings(BaseModel, validate_assignment=True):
     def validate_start_method(cls, value):
         """Validate the start method for subprocesses.
 
-        <!-- lazydoc-ignore-classmethod: internal -->
+        <!-- lazydoc-ignore-->
         """
         if value is None:
             return value
@@ -1426,7 +1426,7 @@ class Settings(BaseModel, validate_assignment=True):
     def validate_x_stats_gpu_device_ids(cls, value):
         """Validate the GPU device IDs.
 
-        <!-- lazydoc-ignore-classmethod: internal -->
+        <!-- lazydoc-ignore-->
         """
         if isinstance(value, str):
             return json.loads(value)
@@ -1437,7 +1437,7 @@ class Settings(BaseModel, validate_assignment=True):
     def validate_x_stats_neuron_monitor_config_path(cls, value):
         """Validate the path to the neuron-monitor config file.
 
-        <!-- lazydoc-ignore-classmethod: internal -->
+        <!-- lazydoc-ignore-->
         """
         # TODO: add native support for pathlib.Path
         if isinstance(value, pathlib.Path):
@@ -1449,7 +1449,7 @@ class Settings(BaseModel, validate_assignment=True):
     def validate_stats_open_metrics_endpoints(cls, value):
         """Validate the OpenMetrics endpoints.
 
-        <!-- lazydoc-ignore-classmethod: internal -->
+        <!-- lazydoc-ignore-->
         """
         if isinstance(value, str):
             return json.loads(value)
@@ -1460,7 +1460,7 @@ class Settings(BaseModel, validate_assignment=True):
     def validate_stats_open_metrics_filters(cls, value):
         """Validate the OpenMetrics filters.
 
-        <!-- lazydoc-ignore-classmethod: internal -->
+        <!-- lazydoc-ignore-->
         """
         if isinstance(value, str):
             return json.loads(value)
@@ -1471,7 +1471,7 @@ class Settings(BaseModel, validate_assignment=True):
     def validate_stats_open_metrics_http_headers(cls, value):
         """Validate the OpenMetrics HTTP headers.
 
-        <!-- lazydoc-ignore-classmethod: internal -->
+        <!-- lazydoc-ignore-->
         """
         if isinstance(value, str):
             return json.loads(value)
@@ -1482,7 +1482,7 @@ class Settings(BaseModel, validate_assignment=True):
     def validate_stats_sampling_interval(cls, value):
         """Validate the stats sampling interval.
 
-        <!-- lazydoc-ignore-classmethod: internal -->
+        <!-- lazydoc-ignore-->
         """
         if value < 0.1:
             raise UsageError("Stats sampling interval cannot be less than 0.1 seconds")
@@ -1493,7 +1493,7 @@ class Settings(BaseModel, validate_assignment=True):
     def validate_sweep_id(cls, value):
         """Validate the sweep ID.
 
-        <!-- lazydoc-ignore-classmethod: internal -->
+        <!-- lazydoc-ignore-->
         """
         if value is None:
             return None
@@ -1515,7 +1515,7 @@ class Settings(BaseModel, validate_assignment=True):
         - Converts single string values to tuple format
         - Preserves None values
 
-        <!-- lazydoc-ignore-classmethod: internal -->
+        <!-- lazydoc-ignore-->
 
         Args:
             value: A string, list, tuple, or None representing tags
@@ -1565,7 +1565,7 @@ class Settings(BaseModel, validate_assignment=True):
     def validate_sweep_param_path(cls, value):
         """Validate the sweep parameter path.
 
-        <!-- lazydoc-ignore-classmethod: internal -->
+        <!-- lazydoc-ignore-->
         """
         # TODO: add native support for pathlib.Path
         if isinstance(value, pathlib.Path):
