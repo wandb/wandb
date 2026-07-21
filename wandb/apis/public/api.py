@@ -1001,9 +1001,9 @@ class Api:
     def create_team(self, team: str, admin_username: str | None = None) -> Team:
         """Create a new team.
 
-        For SaaS, set the Default API organization in your user settings before
-        calling `create_team()`. This setting determines the organization the
-        new team will belong to.
+        For W&B Multi-tenant Cloud users, set the Default API organization in
+        your user settings before calling `create_team()`. This setting
+        determines the organization the new team will belong to.
 
         Args:
             team: The name of the team.
