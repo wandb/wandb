@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from abc import ABC
 from collections.abc import Iterable
-from typing import TYPE_CHECKING, Any, TypeAlias, TypeVar, get_args
+from typing import TYPE_CHECKING, Any, TypeAlias, TypeVar, final, get_args
 
 from pydantic import ConfigDict, Field, StrictBool, StrictFloat, StrictInt, StrictStr
 from typing_extensions import Self, override
@@ -98,10 +98,12 @@ class BaseVariadicLogicalOp(BaseOp, ABC):
 # https://www.mongodb.com/docs/manual/reference/operator/query/or/
 # https://www.mongodb.com/docs/manual/reference/operator/query/nor/
 # https://www.mongodb.com/docs/manual/reference/operator/query/not/
+@final
 class And(BaseVariadicLogicalOp):
     exprs: TupleOf[FilterExpr | Op] = Field(default=(), alias="$and")
 
 
+@final
 class Or(BaseVariadicLogicalOp):
     exprs: TupleOf[FilterExpr | Op] = Field(default=(), alias="$or")
 
@@ -111,6 +113,7 @@ class Or(BaseVariadicLogicalOp):
         return Nor(exprs=self.exprs)
 
 
+@final
 class Nor(BaseVariadicLogicalOp):
     exprs: TupleOf[FilterExpr | Op] = Field(default=(), alias="$nor")
 
@@ -120,6 +123,7 @@ class Nor(BaseVariadicLogicalOp):
         return Or(exprs=self.exprs)
 
 
+@final
 class Not(BaseOp):
     expr: FilterExpr | Op = Field(alias="$not")
 
@@ -138,6 +142,7 @@ class Not(BaseOp):
 # https://www.mongodb.com/docs/manual/reference/operator/query/ne/
 # https://www.mongodb.com/docs/manual/reference/operator/query/in/
 # https://www.mongodb.com/docs/manual/reference/operator/query/nin/
+@final
 class Lt(BaseOp):
     val: Scalar = Field(alias="$lt")
 
@@ -147,6 +152,7 @@ class Lt(BaseOp):
         return Gte(val=self.val)
 
 
+@final
 class Gt(BaseOp):
     val: Scalar = Field(alias="$gt")
 
@@ -156,6 +162,7 @@ class Gt(BaseOp):
         return Lte(val=self.val)
 
 
+@final
 class Lte(BaseOp):
     val: Scalar = Field(alias="$lte")
 
@@ -165,6 +172,7 @@ class Lte(BaseOp):
         return Gt(val=self.val)
 
 
+@final
 class Gte(BaseOp):
     val: Scalar = Field(alias="$gte")
 
@@ -174,6 +182,7 @@ class Gte(BaseOp):
         return Lt(val=self.val)
 
 
+@final
 class Eq(BaseOp):
     val: Scalar = Field(alias="$eq")
 
@@ -183,6 +192,7 @@ class Eq(BaseOp):
         return Ne(val=self.val)
 
 
+@final
 class Ne(BaseOp):
     val: Scalar = Field(alias="$ne")
 
@@ -192,6 +202,7 @@ class Ne(BaseOp):
         return Eq(val=self.val)
 
 
+@final
 class In(BaseOp):
     val: TupleOf[Scalar] = Field(default=(), alias="$in")
 
@@ -201,6 +212,7 @@ class In(BaseOp):
         return NotIn(val=self.val)
 
 
+@final
 class NotIn(BaseOp):
     val: TupleOf[Scalar] = Field(default=(), alias="$nin")
 
@@ -212,6 +224,7 @@ class NotIn(BaseOp):
 
 # Element operator(s)
 # https://www.mongodb.com/docs/manual/reference/operator/query/exists/
+@final
 class Exists(BaseOp):
     val: bool = Field(alias="$exists")
 
@@ -226,12 +239,27 @@ class Exists(BaseOp):
 #
 # Note: `$contains` is NOT a formal MongoDB operator, but the W&B backend
 # recognizes and executes it as a substring-match filter.
+@final
 class Regex(BaseOp):
     val: str = Field(alias="$regex")  #: The regex expression to match against.
 
 
+@final
 class Contains(BaseOp):
     val: str = Field(alias="$contains")  #: The substring to match against.
+
+
+# Array operator(s)
+# https://www.mongodb.com/docs/manual/reference/operator/query/all/
+# https://www.mongodb.com/docs/manual/reference/operator/query/size/
+@final
+class All(BaseOp):
+    val: TupleOf[Scalar] = Field(default=(), alias="$all")
+
+
+@final
+class Size(BaseOp):
+    val: StrictInt = Field(alias="$size")  #: The array length to match against.
 
 
 # ------------------------------------------------------------------------------
@@ -253,6 +281,8 @@ KEY_TO_OP: dict[str, type[BaseOp]] = {
     "$exists": Exists,
     "$regex": Regex,
     "$contains": Contains,
+    "$size": Size,
+    "$all": All,
 }
 
 
@@ -273,4 +303,6 @@ Op = (
     | Exists
     | Regex
     | Contains
+    | Size
+    | All
 )
