@@ -14,7 +14,7 @@ from wandb.errors.term import termlog
 from wandb.sdk.artifacts.artifact_file_cache import get_artifact_file_cache
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts.storage_handler import DEFAULT_MAX_OBJECTS, StorageHandler
-from wandb.sdk.lib.hashutil import B64MD5, md5_file_b64, md5_string
+from wandb.sdk.lib.hashutil import B64Digest, md5_file_b64, md5_string
 from wandb.sdk.lib.paths import FilePathStr, StrPath, URIStr
 from wandb.util import local_file_uri_to_path
 
@@ -25,11 +25,11 @@ if TYPE_CHECKING:
     from wandb.sdk.artifacts.artifact_file_cache import ArtifactFileCache
 
 
-def _md5_content(path: str) -> B64MD5:
+def _md5_content(path: str) -> B64Digest:
     return md5_file_b64(path)
 
 
-def _md5_path(path: str) -> B64MD5:
+def _md5_path(path: str) -> B64Digest:
     return md5_string(Path(path).resolve().as_uri())
 
 
@@ -98,7 +98,7 @@ class LocalFileHandler(StorageHandler):
         # depend on its absolute path/URI, not its contents
 
         # Closure func for calculating the file hash from its path
-        check_md5: Callable[[str], B64MD5] = _md5_content if checksum else _md5_path
+        check_md5: Callable[[str], B64Digest] = _md5_content if checksum else _md5_path
 
         # We have a single file or directory
         # Note, we follow symlinks for files contained within the directory

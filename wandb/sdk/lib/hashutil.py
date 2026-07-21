@@ -15,7 +15,7 @@ from wandb.sdk.lib.paths import StrPath
 class Hasher(Protocol):
     """Protocol for hashlib-compatible hash objects."""
 
-    def update(self, data: bytes | bytearray | memoryview, /) -> None: ...
+    def update(self, data: bytes | bytearray | mmap.mmap, /) -> None: ...
     def digest(self) -> bytes: ...
     def hexdigest(self) -> str: ...
 
@@ -28,13 +28,8 @@ logger = logging.getLogger(__name__)
 #
 ETag: TypeAlias = str
 
-HexMD5: TypeAlias = str
-HexXXH128: TypeAlias = str
-B64MD5: TypeAlias = str
-B64XXH128: TypeAlias = str
-
-HexDigest: TypeAlias = HexMD5 | HexXXH128
-B64Digest: TypeAlias = B64MD5 | B64XXH128
+HexDigest: TypeAlias = str
+B64Digest: TypeAlias = str
 
 
 # --- Hasher constructors ---
@@ -54,28 +49,28 @@ def _xxh128(data: bytes = b"") -> Hasher:
 
 
 def _b64_from_hasher(hasher: Hasher) -> B64Digest:
-    return B64Digest(base64.b64encode(hasher.digest()).decode("ascii"))
+    return base64.b64encode(hasher.digest()).decode("ascii")
 
 
 def b64_to_hex_id(string: B64Digest) -> HexDigest:
-    return HexDigest(base64.standard_b64decode(string).hex())
+    return base64.standard_b64decode(string).hex()
 
 
 def hex_to_b64_id(encoded_string: str | bytes) -> B64Digest:
     if isinstance(encoded_string, bytes):
         encoded_string = encoded_string.decode("utf-8")
     as_str = bytes.fromhex(encoded_string)
-    return B64Digest(base64.standard_b64encode(as_str).decode("utf-8"))
+    return base64.standard_b64encode(as_str).decode("utf-8")
 
 
 # --- MD5 public API ---
 
 
-def md5_string(string: str) -> B64MD5:
-    return B64MD5(_b64_from_hasher(_md5(string.encode("utf-8"))))
+def md5_string(string: str) -> B64Digest:
+    return _b64_from_hasher(_md5(string.encode("utf-8")))
 
 
-def md5_file_b64(*paths: StrPath) -> B64MD5:
+def md5_file_b64(*paths: StrPath) -> B64Digest:
     start_time = time.monotonic()
     digest = _b64_from_hasher(_md5_file_hasher(*paths))
     hash_time_seconds = time.monotonic() - start_time
@@ -85,11 +80,11 @@ def md5_file_b64(*paths: StrPath) -> B64MD5:
             paths,
             int(hash_time_seconds * 1000),
         )
-    return B64MD5(digest)
+    return digest
 
 
-def md5_file_hex(*paths: StrPath) -> HexMD5:
-    return HexMD5(_md5_file_hasher(*paths).hexdigest())
+def md5_file_hex(*paths: StrPath) -> HexDigest:
+    return _md5_file_hasher(*paths).hexdigest()
 
 
 def _md5_file_hasher(*paths: StrPath) -> Hasher:
@@ -99,11 +94,11 @@ def _md5_file_hasher(*paths: StrPath) -> Hasher:
 # --- xxHash128 public API ---
 
 
-def xxh128_string(string: str) -> B64XXH128:
-    return B64XXH128(_b64_from_hasher(_xxh128(string.encode("utf-8"))))
+def xxh128_string(string: str) -> B64Digest:
+    return _b64_from_hasher(_xxh128(string.encode("utf-8")))
 
 
-def xxh128_file_b64(*paths: StrPath) -> B64XXH128:
+def xxh128_file_b64(*paths: StrPath) -> B64Digest:
     start_time = time.monotonic()
     digest = _b64_from_hasher(_xxh128_file_hasher(*paths))
     hash_time_seconds = time.monotonic() - start_time
@@ -113,11 +108,11 @@ def xxh128_file_b64(*paths: StrPath) -> B64XXH128:
             paths,
             int(hash_time_seconds * 1000),
         )
-    return B64XXH128(digest)
+    return digest
 
 
-def xxh128_file_hex(*paths: StrPath) -> HexXXH128:
-    return HexXXH128(_xxh128_file_hasher(*paths).hexdigest())
+def xxh128_file_hex(*paths: StrPath) -> HexDigest:
+    return _xxh128_file_hasher(*paths).hexdigest()
 
 
 def _xxh128_file_hasher(*paths: StrPath) -> Hasher:
@@ -139,8 +134,7 @@ def _file_hasher(hasher: Hasher, *paths: StrPath) -> Hasher:
                 with mmap.mmap(f.fileno(), length=0, access=mmap.ACCESS_READ) as mview:
                     hasher.update(mview)
             except OSError:
-                chunk = f.read(_CHUNKSIZE)
-                while chunk:
+                while chunk := f.read(_CHUNKSIZE):
                     hasher.update(chunk)
                     chunk = f.read(_CHUNKSIZE)
             except ValueError:

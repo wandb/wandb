@@ -51,7 +51,7 @@ from wandb.sdk.data_types._dtypes import TypeRegistry
 from wandb.sdk.lib import retry, telemetry
 from wandb.sdk.lib.deprecation import warn_and_record_deprecation
 from wandb.sdk.lib.filesystem import check_exists, system_preferred_path
-from wandb.sdk.lib.hashutil import B64MD5, b64_to_hex_id, md5_file_b64
+from wandb.sdk.lib.hashutil import B64Digest, b64_to_hex_id, md5_file_b64
 from wandb.sdk.lib.paths import FilePathStr, LogicalPath, StrPath, URIStr
 from wandb.sdk.lib.runid import generate_fast_id, generate_id
 from wandb.sdk.mailbox import MailboxHandle
@@ -1764,7 +1764,7 @@ class Artifact:
         self,
         name: StrPath,
         path: StrPath,
-        digest: B64MD5 | None = None,
+        digest: B64Digest | None = None,
         skip_cache: bool | None = False,
         policy: Literal["mutable", "immutable"] | None = "mutable",
         overwrite: bool = False,

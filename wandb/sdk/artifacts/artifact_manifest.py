@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Annotated, Any, Dict  # noqa: UP035
 
 from pydantic import Field
 
-from wandb.sdk.lib.hashutil import HexMD5
+from wandb.sdk.lib.hashutil import HexDigest
 
 from ._models.base_model import ArtifactsBase
 from ._validators import validate_artifact_path
@@ -48,7 +48,7 @@ class ArtifactManifest(ArtifactsBase, ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def digest(self) -> HexMD5:
+    def digest(self) -> HexDigest:
         raise NotImplementedError
 
     @abstractmethod
