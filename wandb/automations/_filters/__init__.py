@@ -1,7 +1,9 @@
-from .expressions import FilterExpr, MongoLikeFilter
+from .expressions import FilterableField, FilterExpr, MongoLikeFilter
+from .filterutils import simplify_expr
 from .operators import (
     All,
     And,
+    BaseOp,
     Contains,
     Eq,
     Exists,
@@ -21,6 +23,7 @@ from .operators import (
 )
 
 __all__ = [
+    "BaseOp",
     "And",
     "Or",
     "Nor",
@@ -39,6 +42,8 @@ __all__ = [
     "Regex",
     "Size",
     "All",
+    "FilterableField",
     "FilterExpr",
     "MongoLikeFilter",
+    "simplify_expr",
 ]
