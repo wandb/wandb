@@ -205,17 +205,25 @@ class AgentProcess:
             pass
         return
 
-    def wait(self):
+    def wait(self, timeout: float | None = None):
+        start = time.monotonic()
+
         if self._popen:
             # if on windows, wait() will block and we won't be able to interrupt
             if platform.system() == "Windows":
                 while True:
-                    p = self._popen.poll()
+                    if timeout is not None and time.monotonic() - start > timeout:
+                        p = self._popen.wait(timeout=0)
+                    else:
+                        p = self._popen.poll()
+
                     if p is not None:
                         return p
+
                     time.sleep(1)
-            return self._popen.wait()
-        return self._proc.join()
+
+            return self._popen.wait(timeout=timeout)
+        return self._proc.join(timeout=timeout)
 
     def kill(self):
         if self._popen:
@@ -260,6 +268,7 @@ class Agent:
         in_jupyter=None,
         count=None,
         forward_signals=False,
+        term_timeout: int | None = None,
     ):
         self._api = api
         self._queue = queue
@@ -284,6 +293,10 @@ class Agent:
             self.MAX_INITIAL_FAILURES
         )
         self._forward_signals = forward_signals
+        self._term_timeout = term_timeout
+        # if children do not gracefully exit after _term_timeout, this flag is set to
+        # true, which skips Tier 2 signals and goes straight for a SIGKILL.
+        self._immediately_kill_children = False
         self._sweep_not_found = False
         if self._report_interval is None:
             raise AgentError("Invalid agent report interval")
@@ -309,6 +322,20 @@ class Agent:
             self._failed >= self._finished
             and self._max_initial_failures <= self._failed
         )
+
+    def _wait_for_processes_with_term_timeout(self):
+        start_time = time.monotonic()
+
+        for _, run_process in self._run_processes.items():
+            if self._forward_signals and self._term_timeout:
+                remaining_time = max(
+                    0,
+                    self._term_timeout - (time.monotonic() - start_time),
+                )
+            else:
+                remaining_time = None
+
+            run_process.wait(timeout=remaining_time)
 
     def run(self):  # noqa: C901
         # TODO: catch exceptions, handle errors, show validation warnings, and make more generic
@@ -442,8 +469,15 @@ class Agent:
                             f"{exc.label} received. Waiting for runs to end. "
                             f"Send {exc.label} again to terminate."
                         )
-                    for _, run_process in self._run_processes.items():
-                        run_process.wait()
+
+                    try:
+                        self._wait_for_processes_with_term_timeout()
+                    except subprocess.TimeoutExpired:
+                        self._immediately_kill_children = True
+                        wandb.termlog(
+                            f"Child runs took longer than {self._term_timeout} seconds to end. Attempting to kill them."
+                        )
+
                 except KeyboardInterrupt as kb:
                     raise ShutdownSignal(signal.SIGINT) from kb
             except ShutdownSignal:
@@ -451,6 +485,9 @@ class Agent:
         finally:
             try:
                 try:
+                    if self._immediately_kill_children:
+                        raise ShutdownSignal(signal.SIGINT)
+
                     # If Tier 1's wait() returned cleanly, the runs have
                     # already exited and there's nothing to terminate. Skip
                     # Tier 2 messaging and operations.
@@ -464,8 +501,14 @@ class Agent:
                                 run_process.terminate()
                             except OSError:
                                 pass  # if process is already dead
-                        for _, run_process in self._run_processes.items():
-                            run_process.wait()
+
+                        # For simplicity, this resets the term_timeout clock, so
+                        # possible to wait up to 2*term_timeout for a SIGKILL if the
+                        # user/orchestrator sends a second shutdown signal right before
+                        # the first term_timeout clock expires.
+                        self._wait_for_processes_with_term_timeout()
+                except subprocess.TimeoutExpired:
+                    raise ShutdownSignal(signal.SIGINT)
                 except KeyboardInterrupt as kb:
                     raise ShutdownSignal(signal.SIGINT) from kb
             except ShutdownSignal:
@@ -687,6 +730,7 @@ def run_agent(
     project=None,
     count=None,
     forward_signals=False,
+    term_timeout: int | None = None,
 ):
     from wandb.apis import InternalApi
     from wandb.sdk.launch.sweeps import utils as sweep_utils
@@ -730,6 +774,7 @@ def run_agent(
             in_jupyter=in_jupyter,
             count=count,
             forward_signals=forward_signals,
+            term_timeout=term_timeout,
         )
         agent.run()
     finally:
@@ -744,6 +789,7 @@ def agent(
     project: str | None = None,
     count: int | None = None,
     forward_signals: bool = False,
+    term_timeout: int | None = None,
 ) -> None:
     """Start one or more sweep agents.
 
@@ -786,6 +832,7 @@ def agent(
             project=project,
             count=count,
             forward_signals=forward_signals,
+            term_timeout=term_timeout,
         )
     finally:
         _INSTANCES -= 1

@@ -2143,9 +2143,19 @@ def launch_agent(
     help="""Forward signals (e.g. SIGINT/SIGTERM) to child runs so they can
     shut down cleanly.""",
 )
+@click.option(
+    "--term-timeout",
+    "-t",
+    default=None,
+    type=int,
+    help="""Time (in seconds) after receiving a terminating signal (e.g. SIGINT
+    /SIGTERM) to force-terminate child runs which have not finished since
+    receiving the initial forwarded signal. Does nothing if --forward-signals is
+    not set.""",
+)
 @click.argument("sweep_id")
 @display_error
-def agent(ctx, project, entity, count, forward_signals, sweep_id):
+def agent(ctx, project, entity, count, forward_signals, term_timeout, sweep_id):
     """Start a sweep agent.
 
     Poll the W&B server for hyperparameter configurations from
@@ -2191,6 +2201,7 @@ def agent(ctx, project, entity, count, forward_signals, sweep_id):
             project=project,
             count=count,
             forward_signals=forward_signals,
+            term_timeout=term_timeout,
         )
     # TODO: handle other errors with correct exit codes
     except SweepNotFoundError:
