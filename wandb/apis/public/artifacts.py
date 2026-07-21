@@ -12,6 +12,7 @@ from copy import copy
 from functools import lru_cache
 from typing import TYPE_CHECKING, Any, ClassVar, List, Literal, TypeVar  # noqa: UP035
 
+from pydantic import PositiveInt
 from typing_extensions import override
 
 from wandb._iterutils import always_list
@@ -123,7 +124,7 @@ class ArtifactTypes(RelayPaginator["ArtifactTypeFragment", "ArtifactType"]):
         service_api: ServiceApi,
         entity: str,
         project: str,
-        per_page: int = 50,
+        per_page: PositiveInt = 50,
         start: str | None = None,
     ):
         if self.QUERY is None:
@@ -133,7 +134,6 @@ class ArtifactTypes(RelayPaginator["ArtifactTypeFragment", "ArtifactType"]):
 
         self.entity = entity
         self.project = project
-        self._service_api = service_api
         variables = {"entity": entity, "project": project}
         super().__init__(
             service_api, variables=variables, per_page=per_page, start=start
@@ -311,7 +311,7 @@ class ArtifactCollections(
         type_name: str,
         filters: Mapping[str, Any] | None = None,
         order: str | None = None,
-        per_page: int = 50,
+        per_page: PositiveInt = 50,
         start: str | None = None,
     ):
         if self.QUERY is None:
@@ -334,7 +334,6 @@ class ArtifactCollections(
         self.type_name = type_name
         self.filters = filters
         self.order = order
-        self._service_api = service_api
         variables = {
             "entity": entity,
             "project": project,
@@ -398,7 +397,7 @@ class ProjectArtifactCollections(
     <!-- lazydoc-ignore-init: internal -->
     """
 
-    QUERY: str | None
+    QUERY: ClassVar[str | None] = None
     last_response: ArtifactCollectionConnection | None
 
     def __init__(
@@ -408,10 +407,13 @@ class ProjectArtifactCollections(
         project: str,
         filters: Mapping[str, Any] | None = None,
         order: str | None = None,
-        per_page: int = 50,
+        per_page: PositiveInt = 50,
         start: str | None = None,
     ):
-        from wandb.sdk.artifacts._generated import PROJECT_ARTIFACT_COLLECTIONS_GQL
+        if self.QUERY is None:
+            from wandb.sdk.artifacts._generated import PROJECT_ARTIFACT_COLLECTIONS_GQL
+
+            type(self).QUERY = PROJECT_ARTIFACT_COLLECTIONS_GQL
 
         supports_filtering = server_supports(
             service_api, pb.ARTIFACT_COLLECTIONS_FILTERING_SORTING
@@ -422,13 +424,10 @@ class ProjectArtifactCollections(
                 "Please upgrade your server version or contact support at support@wandb.com."
             )
 
-        self.QUERY = PROJECT_ARTIFACT_COLLECTIONS_GQL
-
         self.entity = entity
         self.project = project
         self.filters = filters
         self.order = order
-        self._service_api = service_api
         variables = {
             "entity": entity,
             "project": project,
@@ -865,7 +864,7 @@ class Artifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
     <!-- lazydoc-ignore-init: internal -->
     """
 
-    QUERY: str  # Must be set per-instance
+    QUERY: ClassVar[str | None] = None
 
     # Loosely-annotated to avoid importing heavy types at module import time.
     last_response: _ArtifactConnectionGeneric | None
@@ -883,9 +882,10 @@ class Artifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
         tags: str | list[str] | None = None,
         start: str | None = None,
     ):
-        from wandb.sdk.artifacts._generated import PROJECT_ARTIFACTS_GQL
+        if self.QUERY is None:
+            from wandb.sdk.artifacts._generated import PROJECT_ARTIFACTS_GQL
 
-        self.QUERY = PROJECT_ARTIFACTS_GQL
+            self.__class__.QUERY = PROJECT_ARTIFACTS_GQL
 
         self.entity = entity
         self.collection_name = collection_name
@@ -894,7 +894,6 @@ class Artifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
         self.filters = {"state": "COMMITTED"} if filters is None else filters
         self.tags = always_list(tags or [])
         self.order = order
-        self._service_api = service_api
         variables = {
             "entity": self.entity,
             "project": self.project,
@@ -987,7 +986,6 @@ class RunArtifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
             self.QUERY = query_str
 
         self.run = run
-        self._service_api = service_api
         variables = {"entity": run.entity, "project": run.project, "run": run.id}
         super().__init__(
             service_api, variables=variables, per_page=per_page, start=start
