@@ -441,7 +441,7 @@ func (upserter *RunUpserter) updateMetadataForResume(
 		return nil
 	}
 
-	err := runbranch.NewResumeBranch(
+	return runbranch.NewResumeBranch(
 		ctx,
 		upserter.graphqlClientOrNil,
 		resumeSetting,
@@ -449,11 +449,6 @@ func (upserter *RunUpserter) updateMetadataForResume(
 		upserter.params,
 		upserter.config,
 	)
-	if err != nil {
-		return err
-	}
-
-	return nil
 }
 
 // updateMetadataForRewind updates run metadata based on the existing run
