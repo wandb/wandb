@@ -209,8 +209,6 @@ def unit_tests(session: nox.Session) -> None:
         session,
         "-r",
         _requirements_file(session.python),
-        # For test_reports:
-        "polyfactory",
     )
 
     paths = session.posargs or ["tests/unit_tests"]

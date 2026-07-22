@@ -34,3 +34,6 @@ pyte~=0.8.1  # Terminal emulator for testing interactions with the terminal.
 hypothesis>=6.131.7
 
 hypothesis-fspaths
+
+# Generates valid instances of pydantic models in tests.
+polyfactory~=3.3

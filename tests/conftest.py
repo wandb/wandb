@@ -62,6 +62,23 @@ def setup_wandb_env_variables() -> Generator[None]:
         yield
 
 
+@pytest.fixture(autouse=True)
+def seed_model_factories(request: pytest.FixtureRequest) -> None:
+    """Makes output from polyfactory model factories deterministic per test.
+
+    Seeding from the test's node id keeps generated values stable regardless
+    of execution order or pytest-xdist worker assignment, and a failing test
+    reproduces the same values when rerun alone. Only polyfactory's own RNG
+    and its faker instance are seeded, not the stdlib random module, so
+    hypothesis is unaffected.
+    """
+    from polyfactory.factories.pydantic_factory import ModelFactory
+
+    # Seeding accepts any hashable. Strings seed deterministically across
+    # processes, since random.Random does not use the built-in hash() for them.
+    ModelFactory.seed_random(request.node.nodeid)
+
+
 # --------------------------------
 # Misc Fixtures utilities
 # --------------------------------
