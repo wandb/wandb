@@ -9,16 +9,15 @@ from pydantic import AfterValidator, BeforeValidator, Discriminator, Field
 from wandb._pydantic import GQLBase, model_validator, pydantic_isinstance
 from wandb._strutils import nameof
 
-from ._filters import And, MongoLikeFilter
-from ._filters.expressions import FilterableField
-from ._filters.run_metrics import (
+from ._filters import And, FilterableField, MongoLikeFilter
+from ._generated import FilterEventFields
+from ._run_metric_filters import (
     MetricChangeFilter,
     MetricThresholdFilter,
     MetricVal,
     MetricZScoreFilter,
 )
-from ._filters.run_states import StateFilter, StateOperand
-from ._generated import FilterEventFields
+from ._run_state_filters import StateFilter, StateOperand
 from ._validators import (
     JsonEncoded,
     LenientStrEnum,

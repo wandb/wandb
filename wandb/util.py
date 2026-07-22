@@ -6,7 +6,6 @@ import dataclasses
 import enum
 import importlib
 import importlib.util
-import itertools
 import json
 import logging
 import math
@@ -25,7 +24,6 @@ import sys
 import tarfile
 import tempfile
 import threading
-import time
 import types
 import urllib
 from collections.abc import Callable, Iterable, Mapping, Sequence
@@ -41,15 +39,9 @@ from typing_extensions import Any, Generator, TypeVar, deprecated
 
 import wandb
 import wandb.env
-from wandb.errors import (
-    AuthenticationError,
-    CommError,
-    UsageError,
-    WandbCoreNotAvailableError,
-)
+from wandb.errors import UsageError, WandbCoreNotAvailableError
 from wandb.errors.term import terminput
-from wandb.sdk.lib import runid
-from wandb.sdk.lib.json_util import dump, dumps
+from wandb.sdk.lib.json_util import dump, dumps, load, loads
 from wandb.sdk.lib.paths import FilePathStr, StrPath
 
 if TYPE_CHECKING:
@@ -745,40 +737,11 @@ def maybe_compress_summary(obj: Any, h5_typename: str) -> tuple[Any, bool]:
         return obj, False
 
 
-def launch_browser(attempt_launch_browser: bool = True) -> bool:
-    """Decide if we should launch a browser."""
-    _display_variables = ["DISPLAY", "WAYLAND_DISPLAY", "MIR_SOCKET"]
-    _webbrowser_names_blocklist = ["www-browser", "lynx", "links", "elinks", "w3m"]
-
-    import webbrowser
-
-    launch_browser = attempt_launch_browser
-    if launch_browser:
-        if "linux" in sys.platform and not any(
-            os.getenv(var) for var in _display_variables
-        ):
-            launch_browser = False
-        try:
-            browser = webbrowser.get()
-            if hasattr(browser, "name") and browser.name in _webbrowser_names_blocklist:
-                launch_browser = False
-        except webbrowser.Error:
-            launch_browser = False
-
-    return launch_browser
-
-
-def generate_id(length: int = 8) -> str:
-    # Do not use this; use wandb.sdk.lib.runid.generate_id instead.
-    # This is kept only for legacy code.
-    return runid.generate_id(length)
-
-
 def parse_tfjob_config() -> Any:
     """Attempt to parse TFJob config, returning False if it can't find it."""
     if os.getenv("TF_CONFIG"):
         try:
-            return json.loads(os.environ["TF_CONFIG"])
+            return loads(os.environ["TF_CONFIG"])
         except ValueError:
             return False
     else:
@@ -890,18 +853,6 @@ def make_safe_for_json(obj: Any) -> Any:
     return obj
 
 
-def no_retry_4xx(e: Exception) -> bool:
-    from requests import HTTPError
-
-    if not isinstance(e, HTTPError):
-        return True
-    assert e.response is not None
-    if not (400 <= e.response.status_code < 500) or e.response.status_code == 429:
-        return True
-    body = json.loads(e.response.content)
-    raise UsageError(body["errors"][0]["message"])
-
-
 def parse_backend_error_messages(response: Response) -> list[str]:
     """Returns error messages stored in a backend response.
 
@@ -951,125 +902,6 @@ def parse_backend_error_messages(response: Response) -> list[str]:
 
     else:
         return []
-
-
-def no_retry_auth(e: Any) -> bool:
-    from requests import HTTPError
-
-    if hasattr(e, "exception"):
-        e = e.exception
-    if not isinstance(e, HTTPError):
-        return True
-    if e.response is None:
-        return True
-    # Don't retry bad request errors; raise immediately
-    if e.response.status_code in (400, 409):
-        return False
-    # Retry all non-forbidden/unauthorized/not-found errors.
-    if e.response.status_code not in (401, 403, 404):
-        return True
-
-    # Crash with more informational message on forbidden/unauthorized errors.
-    # UnauthorizedError
-    if e.response.status_code == 401:
-        raise AuthenticationError(
-            "The API key you provided is either invalid or missing.  "
-            f"If the `{wandb.env.API_KEY}` environment variable is set, make sure it is correct. "
-            "Otherwise, to resolve this issue, you may try running the 'wandb login --relogin' command. "
-            "If you are using a local server, make sure that you're using the correct hostname. "
-            "If you're not sure, you can try logging in again using the 'wandb login --relogin --host [hostname]' command."
-            f"(Error {e.response.status_code}: {e.response.reason})"
-        )
-    # ForbiddenError
-    if e.response.status_code == 403:
-        if wandb.run:
-            raise CommError(f"Permission denied to access {wandb.run.path}")
-        else:
-            raise CommError(
-                "It appears that you do not have permission to access the requested resource. "
-                "Please reach out to the project owner to grant you access. "
-                "If you have the correct permissions, verify that there are no issues with your networking setup."
-                f"(Error {e.response.status_code}: {e.response.reason})"
-            )
-
-    # NotFoundError
-    if e.response.status_code == 404:
-        # If error message is empty, raise a more generic NotFoundError message.
-        if parse_backend_error_messages(e.response):
-            return False
-        else:
-            raise LookupError(
-                f"Failed to find resource. Please make sure you have the correct resource path. "
-                f"(Error {e.response.status_code}: {e.response.reason})"
-            )
-    return False
-
-
-def check_retry_conflict(e: Any) -> bool | None:
-    """Check if the exception is a conflict type so it can be retried.
-
-    Returns:
-        True - Should retry this operation
-        False - Should not retry this operation
-        None - No decision, let someone else decide
-    """
-    from requests import HTTPError
-
-    if hasattr(e, "exception"):
-        e = e.exception
-    if (
-        isinstance(e, HTTPError)
-        and e.response is not None
-        and e.response.status_code == 409
-    ):
-        return True
-    return None
-
-
-def check_retry_conflict_or_gone(e: Any) -> bool | None:
-    """Check if the exception is a conflict or gone type, so it can be retried or not.
-
-    Returns:
-        True - Should retry this operation
-        False - Should not retry this operation
-        None - No decision, let someone else decide
-    """
-    from requests import HTTPError
-
-    if hasattr(e, "exception"):
-        e = e.exception
-    if isinstance(e, HTTPError) and e.response is not None:
-        if e.response.status_code == 409:
-            return True
-        if e.response.status_code == 410:
-            return False
-    return None
-
-
-def make_check_retry_fn(
-    fallback_retry_fn: CheckRetryFnType,
-    check_fn: Callable[[Exception], bool | None],
-    check_timedelta: timedelta | None = None,
-) -> CheckRetryFnType:
-    """Return a check_retry_fn which can be used by lib.Retry().
-
-    Args:
-        fallback_fn: Use this function if check_fn didn't decide if a retry should happen.
-        check_fn: Function which returns bool if retry should happen or None if unsure.
-        check_timedelta: Optional retry timeout if we check_fn matches the exception
-    """
-
-    def check_retry_fn(e: Exception) -> bool | timedelta:
-        check = check_fn(e)
-        if check is None:
-            return fallback_retry_fn(e)
-        if check is False:
-            return False
-        if check_timedelta:
-            return check_timedelta
-        return True
-
-    return check_retry_fn
 
 
 def find_runner(program: str) -> None | list | list[str]:
@@ -1222,27 +1054,38 @@ def image_id_from_k8s() -> str | None:
     if not token:
         return None
 
-    import requests
+    import http.client
+    import ssl
+    import urllib.request
+
+    host = os.getenv("KUBERNETES_SERVICE_HOST")
+    port = os.getenv("KUBERNETES_PORT_443_TCP_PORT")
+    pod_name = os.getenv("HOSTNAME")
+    if not host or not port or not pod_name:
+        return None
 
     k8s_server = "https://{}:{}/api/v1/namespaces/{}/pods/{}".format(
-        os.getenv("KUBERNETES_SERVICE_HOST"),
-        os.getenv("KUBERNETES_PORT_443_TCP_PORT"),
+        host,
+        port,
         os.getenv("KUBERNETES_NAMESPACE", "default"),
-        os.getenv("HOSTNAME"),
+        pod_name,
     )
     try:
-        res = requests.get(
-            k8s_server,
-            verify="/var/run/secrets/kubernetes.io/serviceaccount/ca.crt",
-            timeout=3,
-            headers={"Authorization": f"Bearer {token}"},
+        context = ssl.create_default_context(
+            cafile="/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
         )
-        res.raise_for_status()
-    except requests.RequestException:
+        request = urllib.request.Request(
+            k8s_server, headers={"Authorization": f"Bearer {token}"}
+        )
+        with urllib.request.urlopen(request, timeout=3, context=context) as response:
+            body = response.read()
+    except (OSError, http.client.HTTPException):
+        # urllib.error.URLError/HTTPError, TLS and socket errors are OSError;
+        # malformed HTTP URLs raise http.client.InvalidURL instead.
         return None
     try:
         return str(  # noqa: B005
-            res.json()["status"]["containerStatuses"][0]["imageID"]
+            loads(body)["status"]["containerStatuses"][0]["imageID"]
         ).strip("docker-pullable://")
     except (ValueError, KeyError, IndexError):
         logger.exception("Error checking kubernetes for image id")
@@ -1302,14 +1145,6 @@ def read_many_from_queue(
             return items
         items.append(item)
     return items
-
-
-def stopwatch_now() -> float:
-    """Get a time value for interval comparisons.
-
-    When possible it is a monotonic clock to prevent backwards time issues.
-    """
-    return time.monotonic()
 
 
 def class_colors(
@@ -1638,41 +1473,15 @@ def load_json_yaml_dict(config: str) -> Any:
     ext = os.path.splitext(config)[-1]
     if ext == ".json":
         with open(config) as f:
-            return json.load(f)
+            return load(f)
     elif ext == ".yaml":
         with open(config) as f:
             return yaml.safe_load(f)
     else:
         try:
-            return json.loads(config)
+            return loads(config)
         except ValueError:
             return None
-
-
-def _parse_entity_project_item(path: str) -> tuple:
-    """Parse paths with the following formats: {item}, {project}/{item}, & {entity}/{project}/{item}.
-
-    Args:
-        path: `str`, input path; must be between 0 and 3 in length.
-
-    Returns:
-        tuple of length 3 - (item, project, entity)
-
-    Example:
-        alias, project, entity = _parse_entity_project_item("myproj/mymodel:best")
-
-        assert entity   == ""
-        assert project  == "myproj"
-        assert alias    == "mymodel:best"
-
-    """
-    words = path.split("/")
-    if len(words) > 3:
-        raise ValueError(
-            "Invalid path: must be str the form {item}, {project}/{item}, or {entity}/{project}/{item}"
-        )
-    padded_words = [""] * (3 - len(words)) + words
-    return tuple(reversed(padded_words))
 
 
 def _resolve_aliases(aliases: str | Iterable[str] | None) -> list[str]:
@@ -1760,18 +1569,6 @@ def _get_max_cli_version() -> str | None:
     return str(max_cli_version) if max_cli_version is not None else None
 
 
-def ensure_text(
-    string: str | bytes, encoding: str = "utf-8", errors: str = "strict"
-) -> str:
-    """Coerce s to str."""
-    if isinstance(string, bytes):
-        return string.decode(encoding, errors)
-    elif isinstance(string, str):
-        return string
-    else:
-        raise TypeError(f"not expecting type {type(string)!r}")
-
-
 def make_artifact_name_safe(name: str) -> str:
     """Make an artifact name safe for use in artifacts."""
     # artifact names may only contain alphanumeric characters, dashes, underscores, and dots.
@@ -1789,82 +1586,6 @@ def make_docker_image_name_safe(name: str) -> str:
     trimmed_start = RE_DOCKER_IMAGE_NAME_SEPARATOR_START.sub("", deduped)
     trimmed = RE_DOCKER_IMAGE_NAME_SEPARATOR_END.sub("", trimmed_start)
     return trimmed if trimmed else "image"
-
-
-def merge_dicts(
-    source: dict[str, Any],
-    destination: dict[str, Any],
-) -> dict[str, Any]:
-    """Recursively merge two dictionaries.
-
-    This mutates the destination and its nested dictionaries and lists.
-
-    Instances of `dict` are recursively merged and instances of `list`
-    are appended to the destination. If the destination type is not
-    `dict` or `list`, respectively, the key is overwritten with the
-    source value.
-
-    For all other types, the source value overwrites the destination value.
-    """
-    for key, value in source.items():
-        if isinstance(value, dict):
-            node = destination.get(key)
-            if isinstance(node, dict):
-                merge_dicts(value, node)
-            else:
-                destination[key] = value
-
-        elif isinstance(value, list):
-            dest_value = destination.get(key)
-            if isinstance(dest_value, list):
-                dest_value.extend(value)
-            else:
-                destination[key] = value
-
-        else:
-            destination[key] = value
-
-    return destination
-
-
-def coalesce(*arg: Any) -> Any:
-    """Return the first non-none value in the list of arguments.
-
-    Similar to ?? in C#.
-    """
-    return next((a for a in arg if a is not None), None)
-
-
-def recursive_cast_dictlike_to_dict(d: dict[str, Any]) -> dict[str, Any]:
-    for k, v in d.items():
-        if isinstance(v, dict):
-            recursive_cast_dictlike_to_dict(v)
-        elif hasattr(v, "keys"):
-            d[k] = dict(v)
-            recursive_cast_dictlike_to_dict(d[k])
-    return d
-
-
-def remove_keys_with_none_values(d: dict[str, Any] | Any) -> dict[str, Any] | Any:
-    # otherwise iterrows will create a bunch of ugly charts
-    if not isinstance(d, dict):
-        return d
-
-    if isinstance(d, dict):
-        new_dict = {}
-        for k, v in d.items():
-            new_v = remove_keys_with_none_values(v)
-            if new_v is not None and not (isinstance(new_v, dict) and len(new_v) == 0):
-                new_dict[k] = new_v
-        return new_dict if new_dict else None
-
-
-def batched(n: int, iterable: Iterable[T]) -> Generator[list[T], None, None]:
-    i = iter(iterable)
-    batch = list(itertools.islice(i, n))
-    while batch:
-        yield batch
-        batch = list(itertools.islice(i, n))
 
 
 def random_string(length: int = 12) -> str:

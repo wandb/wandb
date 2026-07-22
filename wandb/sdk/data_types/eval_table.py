@@ -12,6 +12,7 @@ import wandb.integration.weave.media_adapters as media_adapters
 from wandb.errors import UsageError
 from wandb.sdk.data_types.base_types.media import _numpy_arrays_to_lists
 from wandb.sdk.data_types.table import ColumnKey, InputRow, LogMode, Table
+from wandb.sdk.lib import telemetry
 
 if TYPE_CHECKING:
     import numpy as np
@@ -125,7 +126,6 @@ class EvalTable(Table):
 
     Note: EvalTable is a work-in-progress and is NOT yet officially released or
     supported.
-    <!-- lazydoc-ignore-class: internal -->
     """
 
     _log_type = "eval-table"
@@ -266,7 +266,7 @@ class EvalTable(Table):
     ) -> None:
         """Bind this object to a run.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         # TODO: Remove when weave adds support for offline mode
         if run.offline:
@@ -285,7 +285,7 @@ class EvalTable(Table):
     def to_json(self, run_or_artifact: Any) -> dict[str, Any]:
         """Returns the JSON representation expected by the backend.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         if isinstance(run_or_artifact, wandb.Artifact):
             raise TypeError("EvalTable cannot be logged to a wandb.Artifact.")
@@ -309,6 +309,9 @@ class EvalTable(Table):
             return dict(self._immutable_logged_json)
 
         evaluate_call_id = self._log_to_weave(self._run_log_key)
+
+        with telemetry.context(run=run) as tel:
+            tel.feature.eval_table = True
 
         json_dict = {
             "_type": "eval-table",

@@ -10,11 +10,12 @@ __all__ = (
     "ArtifactTypes",
     "DownloadHistoryResult",
     "RunArtifacts",
-    "Automations",
+    "Automations",  # doc:exclude
     "File",
     "Files",
     "HistoryScan",  # doc:exclude
     "IncompleteRunHistoryError",
+    "Integrations",  # doc:exclude
     "SlackIntegrations",  # doc:exclude
     "WebhookIntegrations",  # doc:exclude
     "Job",  # doc:exclude
@@ -35,7 +36,7 @@ __all__ = (
     "Reports",
     "Run",
     "Runs",
-    "AgentRuns",
+    "AgentRuns",  # doc:exclude
     "Sweep",
     "Member",
     "Team",
@@ -58,7 +59,11 @@ from wandb.apis.public.artifacts import (
 from wandb.apis.public.automations import Automations
 from wandb.apis.public.files import FILE_FRAGMENT, File, Files
 from wandb.apis.public.history import HistoryScan
-from wandb.apis.public.integrations import SlackIntegrations, WebhookIntegrations
+from wandb.apis.public.integrations import (
+    Integrations,
+    SlackIntegrations,
+    WebhookIntegrations,
+)
 from wandb.apis.public.jobs import (
     Job,
     QueuedRun,

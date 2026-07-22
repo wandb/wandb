@@ -29,8 +29,8 @@ from wandb.automations import (
     SendWebhook,
     WebhookIntegration,
 )
-from wandb.automations._filters.run_metrics import ChangeDir
-from wandb.automations._filters.run_states import ReportedRunState, StateFilter
+from wandb.automations._run_metric_filters import ChangeDir
+from wandb.automations._run_state_filters import ReportedRunState, StateFilter
 from wandb.automations.actions import InputAction, SavedNoOpAction, SavedWebhookAction
 from wandb.automations.events import InputEvent, RunMetricFilter, RunStateFilter
 from wandb.errors.errors import CommError

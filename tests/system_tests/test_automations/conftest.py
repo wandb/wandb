@@ -335,7 +335,7 @@ def on_run_metric_change(scope) -> OnRunMetric:
 @fixture
 def on_run_metric_zscore(scope) -> OnRunMetric:
     from wandb.automations import MetricZScoreFilter
-    from wandb.automations._filters.run_metrics import ChangeDir
+    from wandb.automations._run_metric_filters import ChangeDir
 
     run_filter = RunEvent.name.contains("my-run")
     metric_filter = MetricZScoreFilter(
