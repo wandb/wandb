@@ -50,7 +50,7 @@ message RunMoment {
 //
 // Some fields such as `run_id` only make sense at the run level.
 //
-// Next ID: 208
+// Next ID: 209
 message Settings {
   reserved 3, 6, 8, 9, 12, 19, 36, 43, 44, 45, 50, 51, 54, 70, 91, 94, 100, 136, 137, 173, 176, 180;
 
@@ -145,6 +145,9 @@ message Settings {
 
   // Interval in seconds between filestream transmissions.
   google.protobuf.DoubleValue x_file_stream_transmit_interval = 175;
+
+  // Whether to gzip filestream request bodies.
+  google.protobuf.BoolValue x_file_stream_use_gzip = 208;
 
   // Additional headers to add to all outgoing HTTP requests.
   MapStringKeyStringValue x_extra_http_headers = 14;

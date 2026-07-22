@@ -118,6 +118,7 @@ type fileStream struct {
 	// The client for making API requests.
 	apiClient api.RetryableClient
 	baseURL   *url.URL
+	useGzip   func() bool
 
 	// The rate limit for sending data to the backend.
 	transmitRateLimit *rate.Limiter
@@ -155,6 +156,7 @@ func (f *FileStreamFactory) New(
 	beforeRunEndCtx context.Context,
 	heartbeatPeriod time.Duration,
 	transmitRateLimit *rate.Limiter,
+	useGzip func() bool,
 ) FileStream {
 	// Panic early to avoid surprises. These fields are required.
 	switch {
@@ -172,6 +174,7 @@ func (f *FileStreamFactory) New(
 		printer:         f.Printer,
 		apiClient:       apiClient,
 		baseURL:         f.BaseURL,
+		useGzip:         useGzip,
 		processChan:     make(chan Update, BufferSize),
 		feedbackWait:    &sync.WaitGroup{},
 		deadChanOnce:    &sync.Once{},

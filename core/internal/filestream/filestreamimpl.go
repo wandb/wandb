@@ -2,6 +2,7 @@ package filestream
 
 import (
 	"bytes"
+	"compress/gzip"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -135,6 +136,20 @@ func (fs *fileStream) send(
 	}
 	fs.logger.Debug("filestream: post request", "request", string(jsonData))
 
+	useGzip := fs.useGzip != nil && fs.useGzip()
+	requestBody := jsonData
+	if useGzip {
+		var compressed bytes.Buffer
+		gzipWriter := gzip.NewWriter(&compressed)
+		if _, err := gzipWriter.Write(jsonData); err != nil {
+			return fmt.Errorf("filestream: gzip write error in send(): %v", err)
+		}
+		if err := gzipWriter.Close(); err != nil {
+			return fmt.Errorf("filestream: gzip close error in send(): %v", err)
+		}
+		requestBody = compressed.Bytes()
+	}
+
 	op := fs.trackUploadOperation(data)
 	defer op.Finish()
 
@@ -142,12 +157,15 @@ func (fs *fileStream) send(
 		op.Context(fs.beforeRunEndCtx),
 		http.MethodPost,
 		fs.baseURL.JoinPath(fs.path).String(),
-		bytes.NewReader(jsonData),
+		bytes.NewReader(requestBody),
 	)
 	if err != nil {
 		return fmt.Errorf("filestream: error constructing request: %v", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
+	if useGzip {
+		req.Header.Set("Content-Encoding", "gzip")
+	}
 
 	fs.logRequestSummary(data)
 	resp, err := fs.apiClient.Do(req)

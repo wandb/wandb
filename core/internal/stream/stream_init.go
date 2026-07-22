@@ -106,6 +106,7 @@ func NewFileStream(
 	logger *observability.CoreLogger,
 	peeker api.Peeker,
 	s *settings.Settings,
+	useGzip func() bool,
 ) filestream.FileStream {
 	if s.IsOffline() {
 		return nil
@@ -163,6 +164,7 @@ func NewFileStream(
 		extraWork.BeforeEndCtx(),
 		/*heartbeatPeriod=*/ 0, // use default
 		transmitRateLimit,
+		useGzip,
 	)
 }
 
