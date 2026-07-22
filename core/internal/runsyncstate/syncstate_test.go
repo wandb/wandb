@@ -11,27 +11,6 @@ import (
 	"github.com/wandb/wandb/core/internal/runsyncstate"
 )
 
-// func TestEnsureExists_CreatesEmptyFile(t *testing.T) {
-// 	transactionLog := filepath.Join(t.TempDir(), "run-xyz.wandb")
-
-// 	require.NoError(t, runsyncstate.EnsureExists(transactionLog))
-
-// 	data, err := os.ReadFile(transactionLog + ".syncstate")
-// 	require.NoError(t, err)
-// 	assert.Equal(t, "{}", string(data))
-// }
-
-// func TestEnsureExists_IsIdempotent(t *testing.T) {
-// 	transactionLog := filepath.Join(t.TempDir(), "run-xyz.wandb")
-
-// 	require.NoError(t, runsyncstate.EnsureExists(transactionLog))
-// 	require.NoError(t, runsyncstate.EnsureExists(transactionLog))
-
-// 	step, err := runsyncstate.File(transactionLog).GetOrInitStartingStep(3)
-// 	require.NoError(t, err)
-// 	assert.EqualValues(t, 3, step)
-// }
-
 func TestSyncStateStore_GetOrInitStartingStep_PersistsFirstValue(t *testing.T) {
 	wandbFile := filepath.Join(t.TempDir(), "run-xyz.wandb")
 	store := runsyncstate.File(wandbFile)
