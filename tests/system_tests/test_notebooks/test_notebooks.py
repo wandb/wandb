@@ -245,6 +245,8 @@ def test_code_saving(notebook):
         nb.execute_all()
         assert "Failed to detect the name of this notebook" in nb.all_output_text()
 
+
+def test_code_saving__warns_if_path_is_missing(notebook):
     # Let's make sure we warn the user if they lie to us.
     with notebook("code_saving.ipynb") as nb:
         os.remove("code_saving.ipynb")
