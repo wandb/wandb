@@ -154,8 +154,10 @@ def test_skip_transaction_log(user, skip_transaction_log):
     assert os.path.exists(run._settings.sync_file) == (not skip_transaction_log)
 
     syncstate_file = Path(f"{run._settings.sync_file}.syncstate")
-    assert syncstate_file.exists() == (not skip_transaction_log)
-    if not skip_transaction_log:
+    if skip_transaction_log:
+        assert not syncstate_file.exists()
+    else:
+        assert syncstate_file.exists()
         assert json.loads(syncstate_file.read_text())["starting_step"] == 0
 
 
