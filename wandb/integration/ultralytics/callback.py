@@ -48,8 +48,14 @@ try:
 
     try:
         from ultralytics.yolo.utils import RANK, __version__
-    except ModuleNotFoundError:
-        from ultralytics.utils import RANK, __version__
+    except (ModuleNotFoundError, ImportError):
+        try:
+            from ultralytics.utils import RANK, __version__
+        except ImportError:
+            import os
+
+            RANK = int(os.environ.get("LOCAL_RANK", os.environ.get("RANK", -1)))
+            __version__ = ultralytics.__version__
 
     from wandb.integration.ultralytics.bbox_utils import (
         plot_bbox_predictions,
