@@ -11,7 +11,6 @@ from typing import TYPE_CHECKING
 from unittest.mock import Mock, patch
 
 import pytest
-import wandb.filesync.dir_watcher
 from wandb.filesync.dir_watcher import DirWatcher, PolicyEnd, PolicyLive, PolicyNow
 from wandb.sdk.internal.file_pusher import FilePusher
 
@@ -37,12 +36,11 @@ def tempdir():
 
 @pytest.fixture
 def dir_watcher(settings, file_pusher, tempdir: Path) -> DirWatcher:
-    with patch.object(wandb.filesync.dir_watcher, "wd_polling", Mock()):
-        yield DirWatcher(
-            settings=settings,
-            file_pusher=file_pusher,
-            file_dir=str(tempdir),
-        )
+    yield DirWatcher(
+        settings=settings,
+        file_pusher=file_pusher,
+        file_dir=str(tempdir),
+    )
 
 
 def write_with_mtime(path: Path, content: bytes, mtime: int) -> None:
@@ -73,19 +71,18 @@ def test_dirwatcher_update_policy_live_calls_file_changed_iff_file_nonempty(
 
 
 @pytest.mark.parametrize(
-    ["policy", "expect_called"],
+    "policy",
     [
-        ("now", True),
-        ("live", True),
-        ("end", False),
+        "now",
+        "live",
+        "end",
     ],
 )
-def test_dirwatcher_update_policy_on_nonexistent_file_calls_file_changed_when_file_created_iff_policy_now_or_live(
+def test_dirwatcher_finish_applies_policy_to_file_created_after_update_policy(
     tempdir: Path,
     file_pusher: FilePusher,
     dir_watcher: DirWatcher,
     policy: PolicyName,
-    expect_called: bool,
 ):
     f = tempdir / "my-file.txt"
     dir_watcher.update_policy(str(f), policy)
@@ -93,8 +90,15 @@ def test_dirwatcher_update_policy_on_nonexistent_file_calls_file_changed_when_fi
     write_with_mtime(f, b"content", mtime=0)
 
     file_pusher.file_changed.assert_not_called()
-    dir_watcher._on_file_created(Mock(src_path=str(f)))
-    assert file_pusher.file_changed.called == expect_called
+    dir_watcher.finish()
+    if policy == "now":
+        file_pusher.file_changed.assert_not_called()
+    elif policy == "live":
+        file_pusher.file_changed.assert_called_once_with("my-file.txt", str(f))
+    else:
+        file_pusher.file_changed.assert_called_once_with(
+            "my-file.txt", str(f), copy=False
+        )
 
 
 def test_dirwatcher_finish_uploads_unheardof_files(

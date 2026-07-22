@@ -140,7 +140,6 @@ testpaths = "tests"
 norecursedirs = [
     # Custom directories to ignore:
     "vendor",
-    "wandb/vendor",
     "landfill",
     # Standard directories to ignore:
     ".*",
@@ -154,11 +153,11 @@ wandb = ["wandb/", "**/site-packages/wandb/"]
 
 [tool.coverage.run]
 concurrency = ["multiprocessing", "thread"]
-omit = ["**/wandb/vendor/**", "**/wandb/proto/**"]
+omit = ["**/wandb/proto/**"]
 
 [tool.coverage.report]
 exclude_also = ["if TYPE_CHECKING:", "@abstractmethod"]
-omit = ["**/wandb/vendor/**", "**/wandb/proto/**"]
+omit = ["**/wandb/proto/**"]
 ignore_errors = true
 
 
@@ -166,7 +165,6 @@ ignore_errors = true
 extend-exclude = [
     "landfill/**",
     "wandb/__init__.py",
-    "wandb/vendor/**",
     "wandb/proto/**",
 ]
 target-version = "py310"
@@ -299,7 +297,6 @@ ignore-decorators = [
 "noxfile.py" = ["W505"]
 "wandb/cli/cli.py" = ["C901", "W505"]
 "wandb/integration/metaflow/metaflow.py" = ["F811"]
-"wandb/old/**" = ["B006", "B020", "D", "F822", "W505"]
 "wandb/plot/**" = ["D", "B007", "F401", "N812", "F841", "UP031", "W505"]
 "wandb/sdk/internal/file_stream.py" = ["TRY300"]
 "wandb/sdk/internal/internal_api.py" = ["TRY300"]
@@ -387,11 +384,6 @@ redundant-cast = "ignore"
 [tool.mypy]
 plugins = ["pydantic.mypy"]
 warn_redundant_casts = true
-exclude = '''
-   (?x)(
-      wandb/vendor/.
-   )
-'''
 # wandb.*
 [[tool.mypy.overrides]]
 module = "wandb.*"
@@ -418,6 +410,7 @@ module = [
     "wandb.apis.public.registries.registry",
     "wandb.apis.public.reports",
     "wandb.apis.public.runs",
+    "wandb.apis.public.summary",
     "wandb.apis.public.sweeps",
     "wandb.apis.public.users",
     "wandb.apis.reports.v1",
@@ -434,7 +427,6 @@ module = [
     "wandb.sync.*",
     "wandb.sdk.integration_utils.*",
     "wandb.plot.*",
-    "wandb.old.*",
     "wandb.*._generated.*",
 ]
 ignore_errors = true
@@ -492,7 +484,6 @@ module = [
     "tensorboard.*",
     "grpc.*",
     "ultralytics.*",
-    "wandb.vendor.*",
 ]
 ignore_missing_imports = true
 

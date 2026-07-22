@@ -101,44 +101,6 @@ POW_2_BYTES = [
 ]
 
 
-def vendor_setup() -> Callable:
-    """Create a function that restores user paths after vendor imports.
-
-    This enables us to use the vendor directory for packages we don't depend on. Call
-    the returned function after imports are complete. If you don't you may modify the
-    user's path which is never good.
-
-    Usage:
-
-    ```python
-    reset_path = vendor_setup()
-    # do any vendor imports...
-    reset_path()
-    ```
-    """
-    original_path = [directory for directory in sys.path]
-
-    def reset_import_path() -> None:
-        sys.path = original_path
-
-    parent_dir = os.path.abspath(os.path.dirname(__file__))
-    vendor_dir = os.path.join(parent_dir, "vendor")
-    vendor_packages = ("watchdog_0_9_0",)
-    package_dirs = [os.path.join(vendor_dir, p) for p in vendor_packages]
-    for p in [vendor_dir] + package_dirs:
-        if p not in sys.path:
-            sys.path.insert(1, p)
-
-    return reset_import_path
-
-
-def vendor_import(name: str) -> Any:
-    reset_path = vendor_setup()
-    module = import_module(name)
-    reset_path()
-    return module
-
-
 class LazyModuleState:
     def __init__(self, module: types.ModuleType) -> None:
         self.module = module
