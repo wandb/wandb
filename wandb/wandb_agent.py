@@ -206,6 +206,12 @@ class AgentProcess:
         return
 
     def wait(self, timeout: float | None = None):
+        """Wait for process or function to finish running.
+
+        Compatible with both windows and unix, and raises subprocess.popen.TimeoutExpired
+        if the process doesn't finish before the timeout expires. If the AgentProcess
+        is running a function, wait() will simply return None if the timeout expires.
+        """
         start = time.monotonic()
 
         if self._popen:
@@ -326,14 +332,13 @@ class Agent:
     def _wait_for_processes_with_term_timeout(self):
         start_time = time.monotonic()
 
+        remaining_time = None
         for _, run_process in self._run_processes.items():
-            if self._forward_signals and self._term_timeout:
+            if self._forward_signals and self._term_timeout != 0:
                 remaining_time = max(
                     0,
                     self._term_timeout - (time.monotonic() - start_time),
                 )
-            else:
-                remaining_time = None
 
             run_process.wait(timeout=remaining_time)
 

@@ -306,7 +306,7 @@ def test_agent_run_term_timeout_expiry_escalates_straight_to_kill(monkeypatch):
         api=api,
         queue=mock.Mock(),
         sweep_id="sweep-1",
-        term_timeout=5,
+        term_timeout=1,
         forward_signals=True,
     )
 
@@ -321,7 +321,7 @@ def test_agent_run_term_timeout_expiry_escalates_straight_to_kill(monkeypatch):
     assert run_process.wait.call_count == 1
     wait_timeout = run_process.wait.call_args.kwargs["timeout"]
     assert wait_timeout is not None
-    assert 0 <= wait_timeout <= 5
+    assert 0 <= wait_timeout <= 1
 
     assert agent._immediately_kill_children is True
     run_process.terminate.assert_not_called()
@@ -341,7 +341,7 @@ def test_agent_run_term_timeout_ignored_without_forward_signals(monkeypatch):
         api=api,
         queue=mock.Mock(),
         sweep_id="sweep-1",
-        term_timeout=5,
+        term_timeout=1,
         forward_signals=False,
     )
 
