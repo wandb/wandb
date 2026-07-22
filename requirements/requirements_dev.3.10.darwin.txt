@@ -18,7 +18,7 @@ annotated-doc==0.0.4
     # via typer
 annotated-types==0.7.0
     # via pydantic
-anyio==4.14.1
+anyio==4.14.2
     # via
     #   asyncer
     #   dspy
@@ -36,7 +36,7 @@ ariadne-codegen==0.16.0
     # via -r requirements/requirements_dev.txt
 arrow==1.4.0
     # via isoduration
-asttokens==3.0.1
+asttokens==3.0.2
     # via stack-data
 async-lru==2.3.0
     # via jupyterlab
@@ -51,7 +51,7 @@ attrs==26.1.0
     #   referencing
 autoflake==2.3.3
     # via ariadne-codegen
-awscli==1.45.41
+awscli==1.45.46
     # via wandb
 azure-containerregistry==1.2.0
     # via wandb
@@ -78,12 +78,12 @@ blinker==1.9.0
     # via flask
 bokeh==3.9.1
     # via -r requirements/requirements_dev.txt
-boto3==1.43.41
+boto3==1.43.46
     # via
     #   metaflow
     #   moto
     #   wandb
-botocore==1.43.41
+botocore==1.43.46
     # via
     #   awscli
     #   boto3
@@ -143,7 +143,7 @@ contourpy==1.3.2
     # via
     #   bokeh
     #   matplotlib
-coverage==7.15.0
+coverage==7.15.1
     # via
     #   -r requirements/requirements_test.txt
     #   pytest-cov
@@ -171,7 +171,7 @@ diskcache==5.6.3
     # via dspy
 distro==1.9.0
     # via openai
-docker==7.1.0
+docker==7.2.0
     # via -r requirements/requirements_dev.txt
 docstring-parser==0.18.0
     # via
@@ -199,7 +199,7 @@ fastjsonschema==2.21.2
     # via nbformat
 fastuuid==0.14.0
     # via litellm
-filelock==3.29.6
+filelock==3.29.7
     # via
     #   -r requirements/requirements_dev.txt
     #   huggingface-hub
@@ -251,7 +251,7 @@ google-cloud-aiplatform==1.115.0
     # via wandb
 google-cloud-artifact-registry==1.22.0
     # via wandb
-google-cloud-bigquery==3.42.1
+google-cloud-bigquery==3.42.2
     # via google-cloud-aiplatform
 google-cloud-compute==1.49.0
     # via wandb
@@ -291,7 +291,7 @@ grpc-google-iam-v1==0.14.4
     # via
     #   google-cloud-artifact-registry
     #   google-cloud-resource-manager
-grpcio==1.81.1
+grpcio==1.82.1
     # via
     #   google-api-core
     #   google-cloud-artifact-registry
@@ -325,7 +325,7 @@ httpx==0.27.2
     #   openai
 huggingface-hub==1.16.1
     # via tokenizers
-hypothesis==6.156.1
+hypothesis==6.156.6
     # via
     #   -r requirements/requirements_test.txt
     #   hypothesis-fspaths
@@ -400,7 +400,7 @@ jmespath==1.1.0
     #   botocore
 joblib==1.5.3
     # via scikit-learn
-json-repair==0.61.2
+json-repair==0.61.4
     # via dspy
 json5==0.15.0
     # via jupyterlab-server
@@ -417,7 +417,7 @@ jsonschema-specifications==2025.9.1
     # via jsonschema
 jupyter==1.1.1
     # via -r requirements/requirements_dev.txt
-jupyter-builder==1.0.2
+jupyter-builder==1.1.0
     # via
     #   jupyterlab
     #   notebook
@@ -467,9 +467,9 @@ jupyterlab-widgets==3.0.16
     # via ipywidgets
 kfp==2.16.1
     # via -r requirements/requirements_dev.txt
-kfp-pipeline-spec==2.16.1
+kfp-pipeline-spec==2.17.0
     # via kfp
-kfp-server-api==2.16.1
+kfp-server-api==2.17.0
     # via kfp
 kiwisolver==1.5.0
     # via matplotlib
@@ -518,7 +518,7 @@ mdurl==0.1.2
     # via markdown-it-py
 metaflow==2.19.35
     # via -r requirements/requirements_dev.txt
-mistune==3.3.2
+mistune==3.3.3
     # via nbconvert
 ml-dtypes==0.5.4
     # via
@@ -542,7 +542,7 @@ multidict==6.7.1
     #   yarl
 mypy-extensions==1.1.0
     # via black
-narwhals==2.23.0
+narwhals==2.24.0
     # via
     #   bokeh
     #   plotly
@@ -604,7 +604,7 @@ oauthlib==3.3.1
     # via
     #   kubernetes
     #   requests-oauthlib
-openai==2.44.0
+openai==2.45.0
     # via
     #   -r requirements/requirements_dev.txt
     #   dspy
@@ -669,7 +669,7 @@ platformdirs==4.10.0
     #   black
     #   jupyter-core
     #   wandb
-plotly==6.8.0
+plotly==6.9.0
     # via
     #   -r requirements/requirements_dev.txt
     #   catboost
@@ -695,7 +695,7 @@ propcache==0.5.2
     # via
     #   aiohttp
     #   yarl
-proto-plus==1.28.0
+proto-plus==1.28.1
     # via
     #   google-api-core
     #   google-cloud-aiplatform
@@ -730,9 +730,9 @@ pure-eval==0.2.3
     # via stack-data
 py-partiql-parser==0.6.3
     # via moto
-pyarrow==24.0.0
+pyarrow==25.0.0
     # via -r requirements/requirements_dev.txt
-pyasn1==0.6.3
+pyasn1==0.6.4
     # via
     #   pyasn1-modules
     #   rsa
@@ -844,7 +844,7 @@ referencing==0.37.0
     #   jsonschema
     #   jsonschema-specifications
     #   jupyter-events
-regex==2026.6.28
+regex==2026.7.10
     # via
     #   dspy
     #   tiktoken
@@ -895,7 +895,7 @@ rpds-py==0.30.0
     #   referencing
 rsa==4.7.2
     # via awscli
-s3transfer==0.19.0
+s3transfer==0.19.1
     # via
     #   awscli
     #   boto3
@@ -911,7 +911,7 @@ scipy==1.15.3
     #   xgboost
 send2trash==2.1.0
     # via jupyter-server
-sentry-sdk==2.64.0
+sentry-sdk==2.65.0
     # via wandb
 setuptools==81.0.0
     # via
@@ -1086,7 +1086,7 @@ typing-extensions==4.16.0
     #   wandb
 typing-inspection==0.4.2
     # via pydantic
-tzdata==2026.2
+tzdata==2026.3
     # via arrow
 uri-template==1.3.0
     # via jsonschema

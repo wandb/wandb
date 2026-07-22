@@ -895,7 +895,7 @@ class Run:
     def starting_step(self) -> int:
         """The first step of the run.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         return self._starting_step
 
@@ -977,7 +977,7 @@ class Run:
 
         Name of the W&B project associated with the run.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         deprecation.warn_and_record_deprecation(
             feature=Deprecated(run__project_name=True),
@@ -1003,7 +1003,7 @@ class Run:
         URL of the W&B project associated with the run, if there is one.
         Offline runs do not have a project URL.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         deprecation.warn_and_record_deprecation(
             feature=Deprecated(run__get_project_url=True),
@@ -1139,7 +1139,7 @@ class Run:
         The URL of the sweep associated with the run, if there is one.
         Offline runs do not have a sweep URL.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         deprecation.warn_and_record_deprecation(
             feature=Deprecated(run__get_sweep_url=True),
@@ -1168,7 +1168,7 @@ class Run:
 
         URL of the W&B run, if there is one. Offline runs do not have a URL.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         deprecation.warn_and_record_deprecation(
             feature=Deprecated(run__get_url=True),
@@ -1315,7 +1315,7 @@ class Run:
         If the run is being displayed in a VSCode notebook,
         the string representation of the run is returned instead.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         if ipython.in_vscode_notebook():
             import html

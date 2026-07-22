@@ -54,9 +54,12 @@ def test_create_git_diff(user, wandb_backend_spy, setup_repo_with_remote):
     run_git(base_repo_path, "add", "file2.txt")
 
     with wandb.init(
-        settings=wandb.Settings(root_dir=str(base_repo_path)),
+        settings=wandb.Settings(
+            root_dir=str(base_repo_path),
+            save_code=True,
+        ),
     ) as run:
-        pass
+        assert run.settings.save_code is True
 
     with wandb_backend_spy.freeze() as snapshot:
         assert "diff.patch" in snapshot.uploaded_files(run_id=run.id)
@@ -83,9 +86,12 @@ def test_create_git_diff_from_upstream(
     remote_head = run_git(remote_repo_path, "rev-parse", "HEAD")
 
     with wandb.init(
-        settings=wandb.Settings(root_dir=str(base_repo_path)),
+        settings=wandb.Settings(
+            root_dir=str(base_repo_path),
+            save_code=True,
+        ),
     ) as run:
-        pass
+        assert run.settings.save_code is True
 
     with wandb_backend_spy.freeze() as snapshot:
         assert f"diff_{remote_head}.patch" in snapshot.uploaded_files(run_id=run.id)
@@ -122,9 +128,10 @@ def test_create_git_diff__finds_most_recent_ancestor(
         settings=wandb.Settings(
             root_dir=str(base_repo_path),
             disable_git_fork_point=False,
+            save_code=True,
         ),
     ) as run:
-        pass
+        assert run.settings.save_code is True
 
     with wandb_backend_spy.freeze() as snapshot:
         base_branch_head = run_git(base_repo_path, "rev-parse", "feature1")
@@ -172,9 +179,10 @@ def test_create_git_diff__upstream_with_fork_point_disabled(
         settings=wandb.Settings(
             root_dir=str(base_repo_path),
             disable_git_fork_point=True,
+            save_code=True,
         ),
     ) as run:
-        pass
+        assert run.settings.save_code is True
 
     with wandb_backend_spy.freeze() as snapshot:
         uploaded = snapshot.uploaded_files(run_id=run.id)
@@ -196,9 +204,10 @@ def test_create_git_diff__detached_head_no_upstream_diff(
         settings=wandb.Settings(
             root_dir=str(base_repo_path),
             disable_git_fork_point=False,
+            save_code=True,
         ),
     ) as run:
-        pass
+        assert run.settings.save_code is True
 
     with wandb_backend_spy.freeze() as snapshot:
         uploaded = snapshot.uploaded_files(run_id=run.id)
@@ -227,9 +236,10 @@ def test_create_git_diff__no_upstream_fork_point_disabled(
         settings=wandb.Settings(
             root_dir=str(base_repo_path),
             disable_git_fork_point=True,
+            save_code=True,
         ),
     ) as run:
-        pass
+        assert run.settings.save_code is True
 
     with wandb_backend_spy.freeze() as snapshot:
         uploaded = snapshot.uploaded_files(run_id=run.id)
@@ -262,9 +272,10 @@ def test_create_git_diff__no_tracking_branches_in_repo(
         settings=wandb.Settings(
             root_dir=str(repo_path),
             disable_git_fork_point=False,
+            save_code=True,
         ),
     ) as run:
-        pass
+        assert run.settings.save_code is True
 
     with wandb_backend_spy.freeze() as snapshot:
         uploaded = snapshot.uploaded_files(run_id=run.id)

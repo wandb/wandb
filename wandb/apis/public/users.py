@@ -70,7 +70,7 @@ class User(Attrs):
         Returns:
             A `User` object.
 
-        <!-- lazydoc-ignore-classmethod: internal -->
+        <!-- lazydoc-ignore -->
         """
         from wandb.apis._generated import (
             CREATE_USER_FROM_ADMIN_GQL,
