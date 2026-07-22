@@ -3,6 +3,7 @@ package runupserter_test
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -17,6 +18,7 @@ import (
 	"github.com/wandb/wandb/core/internal/featurechecker"
 	"github.com/wandb/wandb/core/internal/gqlmock"
 	"github.com/wandb/wandb/core/internal/observabilitytest"
+	"github.com/wandb/wandb/core/internal/runsyncstate"
 	"github.com/wandb/wandb/core/internal/runupserter"
 	"github.com/wandb/wandb/core/internal/runupsertertest"
 	"github.com/wandb/wandb/core/internal/settings"
@@ -36,6 +38,8 @@ func runRecord(run *spb.RunRecord) *spb.Record {
 // testParams returns upserter parameters with default values for testing.
 func testParams(t *testing.T) runupserter.RunUpserterParams {
 	t.Helper()
+	tempRunDir := t.TempDir()
+	syncStateStore := runsyncstate.File(filepath.Join(tempRunDir, "run.wandb"))
 	return runupserter.RunUpserterParams{
 		Settings:           settings.New(),
 		BeforeRunEndCtx:    context.Background(),
@@ -44,6 +48,7 @@ func testParams(t *testing.T) runupserter.RunUpserterParams {
 		GraphqlClientOrNil: nil,
 		Logger:             observabilitytest.NewTestLogger(t),
 		ClientID:           "test",
+		SyncStateStore:     syncStateStore,
 	}
 }
 
@@ -217,36 +222,14 @@ func TestResume_Offline_Succeeds(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-// fakeSyncStateStore is a test double for runupserter.StartingStepStore.
-//
-// If startingStep is set, it's always returned regardless of the value
-// passed in, mimicking a .wandb file that was already synced once.
-// Otherwise, it remembers the passed-in value, mimicking a first sync.
-type fakeSyncStateStore struct {
-	startingStep *int64
-}
-
-func (f *fakeSyncStateStore) GetOrInitStartingStep(
-	computedStep int64,
-) (int64, error) {
-	if f.startingStep != nil {
-		return *f.startingStep, nil
-	}
-
-	f.startingStep = &computedStep
-	return computedStep, nil
-}
-
 func TestResume_InitializesSyncStateStartingStep(t *testing.T) {
 	mockClient := gqlmock.NewMockClient()
 	runupsertertest.StubRunResumeStatusWithStep(t, mockClient, 5)
 	runupsertertest.StubUpsertBucket(t, mockClient)
 
-	store := &fakeSyncStateStore{}
 	params := testParams(t)
 	params.GraphqlClientOrNil = mockClient
 	params.Settings = settings.From(&spb.Settings{Resume: wrapperspb.String("allow")})
-	params.SyncStateStore = store
 
 	upserter, err := runupserter.InitRun(runRecord(&spb.RunRecord{RunId: "run"}), params)
 	require.NoError(t, err)
@@ -255,8 +238,9 @@ func TestResume_InitializesSyncStateStartingStep(t *testing.T) {
 	run := &spb.RunRecord{}
 	upserter.FillRunRecord(run)
 	assert.EqualValues(t, 5, run.StartingStep)
-	require.NotNil(t, store.startingStep)
-	assert.EqualValues(t, 5, *store.startingStep)
+	startingStep, err := params.SyncStateStore.GetOrInitStartingStep(0)
+	require.NoError(t, err)
+	assert.EqualValues(t, 5, startingStep)
 }
 
 func TestResume_ReusesSyncStateStartingStep(t *testing.T) {
@@ -265,11 +249,10 @@ func TestResume_ReusesSyncStateStartingStep(t *testing.T) {
 	runupsertertest.StubUpsertBucket(t, mockClient)
 
 	startingStep := int64(6)
-	store := &fakeSyncStateStore{startingStep: &startingStep}
 	params := testParams(t)
+	params.SyncStateStore.GetOrInitStartingStep(startingStep)
 	params.GraphqlClientOrNil = mockClient
 	params.Settings = settings.From(&spb.Settings{Resume: wrapperspb.String("allow")})
-	params.SyncStateStore = store
 
 	upserter, err := runupserter.InitRun(runRecord(&spb.RunRecord{RunId: "run"}), params)
 	require.NoError(t, err)
@@ -284,9 +267,7 @@ func TestResume_ReusesSyncStateStartingStep(t *testing.T) {
 }
 
 func TestNewRun_InitializesSyncStateStartingStep(t *testing.T) {
-	store := &fakeSyncStateStore{}
 	params := testParams(t)
-	params.SyncStateStore = store
 
 	upserter, err := runupserter.InitRun(runRecord(&spb.RunRecord{RunId: "run"}), params)
 	require.NoError(t, err)
@@ -295,8 +276,9 @@ func TestNewRun_InitializesSyncStateStartingStep(t *testing.T) {
 	run := &spb.RunRecord{}
 	upserter.FillRunRecord(run)
 	assert.EqualValues(t, 0, run.StartingStep)
-	require.NotNil(t, store.startingStep)
-	assert.EqualValues(t, 0, *store.startingStep)
+	startingStep, err := params.SyncStateStore.GetOrInitStartingStep(1)
+	require.NoError(t, err)
+	assert.EqualValues(t, 0, startingStep)
 }
 
 func TestRewind_InitializesSyncStateStartingStep(t *testing.T) {
@@ -311,9 +293,7 @@ func TestRewind_InitializesSyncStateStartingStep(t *testing.T) {
 			},
 		})
 
-	store := &fakeSyncStateStore{}
 	params := testParams(t)
-	params.SyncStateStore = store
 
 	upserter, err := runupserter.InitRun(runInitRecord, params)
 	defer upserter.Finish()
@@ -322,8 +302,9 @@ func TestRewind_InitializesSyncStateStartingStep(t *testing.T) {
 	run := &spb.RunRecord{}
 	upserter.FillRunRecord(run)
 	assert.EqualValues(t, run.StartingStep, 124)
-	require.NotNil(t, store.startingStep)
-	assert.EqualValues(t, 124, *store.startingStep)
+	startingStep, err := params.SyncStateStore.GetOrInitStartingStep(0)
+	require.NoError(t, err)
+	assert.EqualValues(t, 124, startingStep)
 }
 
 func TestFork_InitializesSyncStateStartingStep(t *testing.T) {
@@ -339,9 +320,7 @@ func TestFork_InitializesSyncStateStartingStep(t *testing.T) {
 		},
 	)
 
-	store := &fakeSyncStateStore{}
 	params := testParams(t)
-	params.SyncStateStore = store
 
 	upserter, err := runupserter.InitRun(runInitRecord, params)
 	defer upserter.Finish()
@@ -350,8 +329,9 @@ func TestFork_InitializesSyncStateStartingStep(t *testing.T) {
 	run := &spb.RunRecord{}
 	upserter.FillRunRecord(run)
 	assert.EqualValues(t, run.StartingStep, 11)
-	require.NotNil(t, store.startingStep)
-	assert.EqualValues(t, 11, *store.startingStep)
+	startingStep, err := params.SyncStateStore.GetOrInitStartingStep(0)
+	require.NoError(t, err)
+	assert.EqualValues(t, 11, startingStep)
 }
 
 type variablesForUpdateTest struct {

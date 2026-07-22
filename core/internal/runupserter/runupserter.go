@@ -87,6 +87,8 @@ func (params *RunUpserterParams) panicIfNotFilled() {
 		panic("runupserter: FeatureProvider is nil")
 	case params.Logger == nil:
 		panic("runupserter: Logger is nil")
+	case params.SyncStateStore == nil:
+		panic("runupserter: SyncStateStore is nil")
 	}
 }
 
@@ -100,11 +102,6 @@ func InitRun(
 	params RunUpserterParams,
 ) (*RunUpserter, error) {
 	params.panicIfNotFilled()
-
-	syncStateStore := params.SyncStateStore
-	if syncStateStore == nil {
-		syncStateStore = runsyncstate.Noop()
-	}
 
 	runRecord := record.GetRun()
 	if runRecord == nil {
@@ -157,7 +154,7 @@ func InitRun(
 		operations:         params.Operations,
 		graphqlClientOrNil: params.GraphqlClientOrNil,
 		logger:             params.Logger,
-		syncStateStore:     syncStateStore,
+		syncStateStore:     params.SyncStateStore,
 
 		done:  make(chan struct{}),
 		dirty: make(chan struct{}, 1),

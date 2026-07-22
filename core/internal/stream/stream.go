@@ -121,7 +121,11 @@ func NewStream(
 	if !s.IsSkipTransactionLog() {
 		syncStateStore = runsyncstate.File(s.GetTransactionLogPath())
 	}
-	recordParser := recordParserFactory.New(runWork.BeforeEndCtx(), tbHandler, syncStateStore)
+	recordParser := recordParserFactory.New(
+		runWork.BeforeEndCtx(),
+		tbHandler,
+		syncStateStore,
+	)
 
 	stream := &Stream{
 		runWork:            runWork,
@@ -185,10 +189,6 @@ func (s *Stream) maybeSavingToTransactionLog(
 		s.logger.Error(fmt.Sprintf(
 			"stream: error opening transaction log for writing: %v", err))
 		return work
-	}
-
-	if err := runsyncstate.EnsureExists(s.settings.GetTransactionLogPath()); err != nil {
-		s.logger.Error("stream: error creating sync state file", "error", err)
 	}
 
 	r, err := transactionlog.OpenReader(

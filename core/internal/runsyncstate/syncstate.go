@@ -25,6 +25,13 @@ type syncState struct {
 	StartingStep *int64 `json:"starting_step,omitempty"`
 }
 
+// GetOrInitStartingStep returns the starting step previously initialized, if any.
+//
+// Otherwise, it persists startingStep so that future calls (including from
+// other processes) return the same value.
+//
+// The read-check-write is performed under an exclusive file lock so that
+// concurrent syncs of the same file can't race.
 type Store interface {
 	GetOrInitStartingStep(startingStep int64) (int64, error)
 }
@@ -51,28 +58,7 @@ func File(transactionLogPath string) Store {
 	return &fileStore{path: transactionLogPath + syncStateSuffix}
 }
 
-// EnsureExists creates an empty sync state file if one does not exist.
-func EnsureExists(transactionLogPath string) error {
-	path := transactionLogPath + syncStateSuffix
-	err := lockedfile.Transform(path, func(data []byte) ([]byte, error) {
-		if len(data) > 0 {
-			return data, nil
-		}
-		return []byte("{}"), nil
-	})
-	if err != nil {
-		return fmt.Errorf("runsync: failed to create sync state file: %v", err)
-	}
-	return nil
-}
-
-// GetOrInitStartingStep returns the starting step previously initialized, if any.
-//
-// Otherwise, it persists startingStep so that future calls (including from
-// other processes) return the same value.
-//
-// The read-check-write is performed under an exclusive file lock so that
-// concurrent syncs of the same file can't race.
+// GetOrInitStartingStep implements Store.GetOrInitStartingStep.
 func (s *fileStore) GetOrInitStartingStep(
 	startingStep int64,
 ) (int64, error) {
