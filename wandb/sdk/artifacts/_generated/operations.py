@@ -7,6 +7,7 @@ __all__ = [
     "ARTIFACT_BY_ID_GQL",
     "ARTIFACT_COLLECTION_ALIASES_GQL",
     "ARTIFACT_CREATED_BY_GQL",
+    "ARTIFACT_MEMBERSHIP_BY_ID_GQL",
     "ARTIFACT_MEMBERSHIP_BY_NAME_GQL",
     "ARTIFACT_MEMBERSHIP_FILES_GQL",
     "ARTIFACT_TYPE_ARTIFACT_COLLECTIONS_GQL",
@@ -957,6 +958,99 @@ fragment ArtifactFragment on Artifact {
       ...CollectionInfoFragment
     }
     ...ArtifactAliasFragment
+  }
+}
+
+fragment CollectionInfoFragment on ArtifactCollection {
+  __typename
+  name
+  project {
+    ...ProjectInfoFragment
+  }
+}
+
+fragment ProjectInfoFragment on Project {
+  name
+  entity {
+    name
+  }
+}
+
+fragment SourceCollectionInfoFragment on ArtifactSequence {
+  __typename
+  name
+  project {
+    ...ProjectInfoFragment
+  }
+}
+
+fragment TagFragment on Tag {
+  __typename
+  id
+  name
+}
+"""
+
+ARTIFACT_MEMBERSHIP_BY_ID_GQL = """
+query ArtifactMembershipByID($id: ID!, $includeAliases: Boolean = false) {
+  artifact(id: $id) {
+    artifactMembership: artifactSequenceMembership {
+      ...ArtifactMembershipFragment
+    }
+  }
+}
+
+fragment ArtifactAliasFragment on ArtifactAlias {
+  __typename
+  id
+  alias
+}
+
+fragment ArtifactFragment on Artifact {
+  __typename
+  id
+  artifactSequence {
+    ...SourceCollectionInfoFragment
+  }
+  versionIndex
+  artifactType {
+    name
+  }
+  description
+  metadata
+  ttlDurationSeconds
+  ttlIsInherited
+  tags {
+    ...TagFragment
+  }
+  historyStep
+  state
+  size
+  digest
+  commitHash
+  fileCount
+  createdAt
+  updatedAt
+  aliases @include(if: $includeAliases) {
+    artifactCollection {
+      ...CollectionInfoFragment
+    }
+    ...ArtifactAliasFragment
+  }
+}
+
+fragment ArtifactMembershipFragment on ArtifactCollectionMembership {
+  __typename
+  id
+  versionIndex
+  aliases {
+    ...ArtifactAliasFragment
+  }
+  artifactCollection {
+    ...CollectionInfoFragment
+  }
+  artifact {
+    ...ArtifactFragment
   }
 }
 

@@ -360,14 +360,19 @@ def test_api_artifact_from_id_uses_service_api(monkeypatch):
 
 
 def test_artifact_from_id_uses_service_api(monkeypatch):
-    from wandb.sdk.artifacts._generated import ARTIFACT_BY_ID_GQL, ArtifactByID
+    from wandb.sdk.artifacts._generated import (
+        ARTIFACT_MEMBERSHIP_BY_ID_GQL,
+        ArtifactMembershipByID,
+    )
     from wandb.sdk.artifacts.artifact import Artifact
     from wandb.sdk.artifacts.artifact_instance_cache import artifact_instance_cache
 
     artifact_id = "test-artifact-id"
     artifact_instance_cache.pop(artifact_id, None)
-    artifact = SimpleNamespace(
-        artifact_sequence=SimpleNamespace(
+    # The query wraps the source artifact and collection/version in a membership.
+    src_art = SimpleNamespace()
+    membership = SimpleNamespace(
+        artifact_collection=SimpleNamespace(
             name="dataset",
             project=SimpleNamespace(
                 name="project",
@@ -375,25 +380,27 @@ def test_artifact_from_id_uses_service_api(monkeypatch):
             ),
         ),
         version_index=3,
+        artifact=src_art,
     )
-    # execute_graphql now parses the response into the pydantic model itself
-    # (via parse=), so its return value is the already-parsed result.
+    artifact_node = SimpleNamespace(artifact_membership=membership)
+    # The mock returns the parsed result because parsing happens inside the service API.
     service_api = MagicMock()
-    service_api.execute_graphql.return_value = SimpleNamespace(artifact=artifact)
+    service_api.execute_graphql.return_value = SimpleNamespace(artifact=artifact_node)
     from_attrs = MagicMock(return_value="artifact")
     monkeypatch.setattr(Artifact, "_from_attrs", from_attrs)
 
     assert Artifact._from_id(artifact_id, service_api) == "artifact"
 
     service_api.execute_graphql.assert_called_once_with(
-        ARTIFACT_BY_ID_GQL,
+        ARTIFACT_MEMBERSHIP_BY_ID_GQL,
         variables={"id": artifact_id},
-        parse=ArtifactByID.model_validate_json,
+        parse=ArtifactMembershipByID.model_validate_json,
     )
-    path, src_art, actual_service_api = from_attrs.call_args.args
+    path, actual_src_art, actual_service_api = from_attrs.call_args.args
     assert path.to_str() == "entity/project/dataset:v3"
-    assert src_art is artifact
+    assert actual_src_art is src_art
     assert actual_service_api is service_api
+    assert from_attrs.call_args.kwargs["membership"] is membership
 
 
 @pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
