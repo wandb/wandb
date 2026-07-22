@@ -61,10 +61,7 @@ class _IntegrationsPaginator(RelayPaginator["IntegrationFields", _IntegrationT])
 
 
 class Integrations(_IntegrationsPaginator["Integration"]):
-    """A lazy iterator of `Integration` objects.
-
-    <!-- lazydoc-ignore-class: internal -->
-    """
+    """A lazy iterator of `Integration` objects."""
 
     def _convert(self, node: IntegrationFields) -> Integration:
         from wandb.automations.integrations import IntegrationAdapter
