@@ -398,9 +398,7 @@ def test_table_records_telemetry(mocker, mock_run):
     assert run._telemetry_obj.feature.table is True
     assert run._telemetry_obj.feature.incremental_table is False
 
-    run.log(
-        {"inc": wandb.Table(columns=["a"], data=[[1]], log_mode="INCREMENTAL")}
-    )
+    run.log({"inc": wandb.Table(columns=["a"], data=[[1]], log_mode="INCREMENTAL")})
     assert run._telemetry_obj.feature.incremental_table is True
 
 
