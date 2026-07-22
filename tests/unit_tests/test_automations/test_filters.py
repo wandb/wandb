@@ -22,8 +22,8 @@ from wandb.automations._filters import (
     NotIn,
     Or,
     Regex,
+    simplify_expr,
 )
-from wandb.automations._filters.filterutils import simplify_expr
 
 from ._strategies import (
     and_dicts,

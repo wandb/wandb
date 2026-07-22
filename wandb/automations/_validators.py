@@ -8,8 +8,7 @@ from pydantic_core import PydanticUseDefault
 
 from wandb._pydantic import to_json
 
-from ._filters import And, MongoLikeFilter, Or
-from ._filters.filterutils import simplify_expr
+from ._filters import And, MongoLikeFilter, Or, simplify_expr
 
 T = TypeVar("T")
 

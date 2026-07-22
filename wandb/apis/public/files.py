@@ -171,7 +171,7 @@ class Files(SizedPaginator["File"]):
         """
         Returns total number of files.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         if not self.last_response:
             self._load_page()
@@ -187,7 +187,7 @@ class Files(SizedPaginator["File"]):
     def more(self) -> bool:
         """Returns whether there are more files to fetch.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         if not self.last_response:
             return True
@@ -202,7 +202,7 @@ class Files(SizedPaginator["File"]):
     def cursor(self) -> str | None:
         """Returns the cursor position for pagination of file results.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         if not self.last_response:
             return None
@@ -220,14 +220,14 @@ class Files(SizedPaginator["File"]):
     def update_variables(self) -> None:
         """Updates the GraphQL query variables for pagination.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         self.variables.update({"fileLimit": self.per_page, "fileCursor": self.cursor})
 
     def convert_objects(self) -> list[File]:
         """Converts GraphQL edges to File objects.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         if not self.last_response:
             return []
