@@ -1054,14 +1054,21 @@ def image_id_from_k8s() -> str | None:
     if not token:
         return None
 
+    import http.client
     import ssl
     import urllib.request
 
+    host = os.getenv("KUBERNETES_SERVICE_HOST")
+    port = os.getenv("KUBERNETES_PORT_443_TCP_PORT")
+    pod_name = os.getenv("HOSTNAME")
+    if not host or not port or not pod_name:
+        return None
+
     k8s_server = "https://{}:{}/api/v1/namespaces/{}/pods/{}".format(
-        os.getenv("KUBERNETES_SERVICE_HOST"),
-        os.getenv("KUBERNETES_PORT_443_TCP_PORT"),
+        host,
+        port,
         os.getenv("KUBERNETES_NAMESPACE", "default"),
-        os.getenv("HOSTNAME"),
+        pod_name,
     )
     try:
         context = ssl.create_default_context(
@@ -1072,8 +1079,9 @@ def image_id_from_k8s() -> str | None:
         )
         with urllib.request.urlopen(request, timeout=3, context=context) as response:
             body = response.read()
-    except OSError:
-        # urllib.error.URLError/HTTPError, TLS and socket errors are all OSError.
+    except (OSError, http.client.HTTPException):
+        # urllib.error.URLError/HTTPError, TLS and socket errors are OSError;
+        # malformed HTTP URLs raise http.client.InvalidURL instead.
         return None
     try:
         return str(  # noqa: B005
