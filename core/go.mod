@@ -17,7 +17,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.105.2
 	github.com/charmbracelet/ultraviolet v0.0.0-20260713092251-4bee1914c0cf
 	github.com/charmbracelet/x/exp/teatest/v2 v2.0.0-20260713092006-0d683c34c74b
-	github.com/ebitengine/purego v0.10.1
+	github.com/ebitengine/purego v0.10.2
 	github.com/getsentry/sentry-go v0.48.0
 	github.com/go-git/go-git/v5 v5.19.1
 	github.com/google/wire v0.7.0
@@ -26,8 +26,8 @@ require (
 	github.com/hashicorp/golang-lru v1.0.2
 	github.com/mattn/go-runewidth v0.0.24
 	github.com/muesli/termenv v0.16.0
-	github.com/prometheus/client_golang v1.23.2
-	github.com/prometheus/common v0.69.0
+	github.com/prometheus/client_golang v1.24.0
+	github.com/prometheus/common v0.70.1
 	github.com/prometheus/procfs v0.21.1
 	github.com/radovskyb/watcher v1.0.7
 	github.com/shirou/gopsutil/v4 v4.26.6

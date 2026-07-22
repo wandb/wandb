@@ -131,7 +131,7 @@ message Imports {
   bool dspy = 107;
 }
 
-// Next ID: 77
+// Next ID: 80
 message Feature {
   reserved 23, 45, 48, 55;
 
@@ -208,6 +208,9 @@ message Feature {
   bool fork_mode = 71;                    // User created a forked run
   bool rewind_mode = 72;                  // User created a rewound run
   bool dspy_callback = 73;                // User using WandbDSPyCallback
+  bool eval_table = 77;                   // User logged an EvalTable via run.log()
+  bool table = 78;                        // User logged a regular (non-incremental) wandb.Table via run.log()
+  bool incremental_table = 79;            // User logged an incremental wandb.Table via run.log()
 }
 
 message Env {

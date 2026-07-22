@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Any, Literal, TypeVar, cast, get_args, overloa
 
 import wandb
 from wandb import util
-from wandb.sdk.lib import runid
+from wandb.sdk.lib import runid, telemetry
 
 from . import _dtypes
 from ._private import MEDIA_TMP
@@ -337,7 +337,7 @@ class Table(Media):
         Should be overridden by subclasses if they implement different logic to
         determine whether a table has been logged.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         return self._run is not None or self._artifact_target is not None
 
@@ -687,7 +687,7 @@ class Table(Media):
     def bind_to_run(self, *args, **kwargs):
         """Bind this object to a run.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         # We set `warn=False` since Tables will now always be logged to both
         # files and artifacts. The file limit will never practically matter and
@@ -705,7 +705,7 @@ class Table(Media):
     def get_media_subdir(cls):
         """Get media subdirectory.
 
-        <!-- lazydoc-ignore-classmethod: internal -->
+        <!-- lazydoc-ignore -->
         """
         return os.path.join("media", "table")
 
@@ -717,7 +717,7 @@ class Table(Media):
     ) -> Table:
         """Deserialize JSON object into it's class representation.
 
-        <!-- lazydoc-ignore-classmethod: internal -->
+        <!-- lazydoc-ignore -->
         """
         data: list[InputRow] = []
         column_types = None
@@ -804,7 +804,7 @@ class Table(Media):
     def to_json(self, run_or_artifact: Any) -> dict[str, Any]:
         """Returns the JSON representation expected by the backend.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         json_dict = super().to_json(run_or_artifact)
 
@@ -822,10 +822,15 @@ class Table(Media):
             )
 
         if isinstance(run_or_artifact, wandb.Run):
-            if self.log_mode == "INCREMENTAL":
-                wbvalue_type = "incremental-table-file"
-            else:
-                wbvalue_type = "table-file"
+            # Run-level adoption signal, split to mirror the wire type above:
+            # incremental tables vs. all other (regular) tables.
+            with telemetry.context(run=run_or_artifact) as tel:
+                if self.log_mode == "INCREMENTAL":
+                    wbvalue_type = "incremental-table-file"
+                    tel.feature.incremental_table = True
+                else:
+                    wbvalue_type = "table-file"
+                    tel.feature.table = True
 
             json_dict.update(
                 {
@@ -920,7 +925,7 @@ class Table(Media):
             will automatically build a relationship between the tables
         row: The data of the row.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         for ndx in range(len(self.data)):
             index = _TableIndex(ndx)
@@ -931,7 +936,7 @@ class Table(Media):
     def set_pk(self, col_name: ColumnKey) -> None:
         """Set primary key type for Table object.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         # TODO: Docs
         assert col_name in self.columns
@@ -941,7 +946,7 @@ class Table(Media):
     def set_fk(self, col_name: ColumnKey, table: Table, table_col: str) -> None:
         """Set foreign key type for Table object.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         # TODO: Docs
         assert col_name in self.columns
@@ -1151,7 +1156,7 @@ class Table(Media):
     def index_ref(self, index: int) -> _TableIndex:
         """Gets a reference of the index of a row in the table.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         assert index < len(self.data)
         _index = _TableIndex(index)
@@ -1173,15 +1178,17 @@ class Table(Media):
             fn: A function which accepts an index and row dict, and returns a dict
                 representing new columns for that row, keyed by the new column names.
 
-        Example:
-            table = wandb.Table(columns=["x", "y"], data=[[3, 1], [4, 6]])
-            table.add_computed_columns(
-                lambda ndx, row: {"diff": row["x"] - row["y"]}
-            )
+        Examples:
+        In the callback:
+        - `ndx` is an integer representing the index of the row.
+        - `row` is a dictionary keyed by existing columns.
 
-            In the callback:
-            - `ndx` is an integer representing the index of the row.
-            - `row` is a dictionary keyed by existing columns.
+        ```python
+        import wandb
+
+        table = wandb.Table(columns=["x", "y"], data=[[3, 1], [4, 6]])
+        table.add_computed_columns(lambda ndx, row: {"diff": row["x"] - row["y"]})
+        ```
         """
         new_columns: dict[str, list[Any]] = {}
         for ndx, row in self.iterrows():

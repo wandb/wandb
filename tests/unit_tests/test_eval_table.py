@@ -283,6 +283,16 @@ def test_standard_immutable_log(mock_eval_logger, mock_wandb_log, run, monkeypat
     )
 
 
+def test_eval_table_records_telemetry(mock_eval_logger, run):
+    """Logging an EvalTable marks the run-level eval_table telemetry feature."""
+    assert not run._telemetry_obj.feature.eval_table
+
+    et = wandb.EvalTable(columns=["input", "output"], data=[["x", "y"]])
+    run.log({"eval": et})
+
+    assert run._telemetry_obj.feature.eval_table is True
+
+
 def test_immutable_mutation_after_log_warns_and_still_noops(
     mock_eval_logger, mock_wandb_log, run
 ):
