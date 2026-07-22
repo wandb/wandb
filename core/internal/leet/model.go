@@ -159,13 +159,15 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 	}
 
-	// Snapshot before sub-models consume the key — a filter's Enter
-	// exits filter mode, so checking after would miss it.
+	// Snapshot before sub-models consume the key — a filter's Enter exits
+	// filter mode and the run's Esc clears pane focus, so checking after
+	// would miss them.
 	awaitingInput := m.isAwaitingUserInput()
+	runHadPaneFocus := m.mode == viewModeRun && m.run != nil && m.run.HasPaneFocus()
 
 	cmds := m.updateSubComponents(msg)
 
-	if cmd := m.handleModeSwitch(msg, awaitingInput); cmd != nil {
+	if cmd := m.handleModeSwitch(msg, awaitingInput, runHadPaneFocus); cmd != nil {
 		return m, cmd
 	}
 
@@ -197,10 +199,11 @@ func (m *Model) updateSubComponents(msg tea.Msg) []tea.Cmd {
 
 // handleModeSwitch checks for Enter/Esc and transitions between views.
 //
-// awaitingInput must be snapshotted before sub-components process the
-// message, because an Enter in filter mode exits the filter and would
-// otherwise fall through to a view switch.
-func (m *Model) handleModeSwitch(msg tea.Msg, awaitingInput bool) tea.Cmd {
+// awaitingInput and runHadPaneFocus must be snapshotted before sub-components
+// process the message: an Enter in filter mode exits the filter, and an Esc
+// with a focused pane clears that focus. Either would otherwise fall through
+// to a view switch on the same key press.
+func (m *Model) handleModeSwitch(msg tea.Msg, awaitingInput, runHadPaneFocus bool) tea.Cmd {
 	keyMsg, ok := msg.(tea.KeyPressMsg)
 	if !ok {
 		return nil
@@ -214,7 +217,8 @@ func (m *Model) handleModeSwitch(msg tea.Msg, awaitingInput bool) tea.Cmd {
 			return m.enterRunView()
 		}
 	case viewModeRun:
-		runCapturesEsc := m.run != nil && m.run.MediaFullscreen()
+		runCapturesEsc := runHadPaneFocus ||
+			(m.run != nil && m.run.MediaFullscreen())
 		if keyMsg.Code == tea.KeyEsc &&
 			!awaitingInput && !runCapturesEsc {
 			return m.exitRunView()

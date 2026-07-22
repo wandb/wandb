@@ -83,6 +83,46 @@ func TestConfig_SetLeftSidebarVisible_AffectsModelOnStartup(t *testing.T) {
 	require.True(t, model.TestLeftSidebarVisible())
 }
 
+func TestConfig_SetRunLayout_PersistsAndReloads(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	path := filepath.Join(t.TempDir(), "config.json")
+	cfg := leet.NewConfigManager(path, logger)
+
+	want := leet.LayoutOverrides{LeftSidebar: 0.3, Media: 0.25}
+	require.NoError(t, cfg.SetRunLayout(want))
+	require.Equal(t, want, cfg.RunLayout())
+
+	// A fresh manager reads the same overrides back from disk.
+	reloaded := leet.NewConfigManager(path, logger)
+	require.Equal(t, want, reloaded.RunLayout())
+	require.Equal(t, leet.LayoutOverrides{}, reloaded.WorkspaceLayout())
+}
+
+func TestConfig_SetWorkspaceLayout_ClampsFractions(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+
+	require.NoError(t, cfg.SetWorkspaceLayout(leet.LayoutOverrides{
+		LeftSidebar: 0.001, // below the minimum
+		Logs:        1.5,   // above the maximum
+	}))
+
+	got := cfg.WorkspaceLayout()
+	require.Equal(t, leet.MinLayoutFrac, got.LeftSidebar)
+	require.Equal(t, leet.MaxLayoutFrac, got.Logs)
+	// Unset fractions stay zero ("use default") rather than being clamped.
+	require.Zero(t, got.Media)
+}
+
+func TestConfig_SetRunLayout_ZeroValueResets(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+
+	require.NoError(t, cfg.SetRunLayout(leet.LayoutOverrides{RightSidebar: 0.4}))
+	require.NoError(t, cfg.SetRunLayout(leet.LayoutOverrides{}))
+	require.Equal(t, leet.LayoutOverrides{}, cfg.RunLayout())
+}
+
 func TestConfig_SetTagColorScheme_Persists(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	path := filepath.Join(t.TempDir(), "config.json")

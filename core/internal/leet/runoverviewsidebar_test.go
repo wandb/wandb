@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/stretchr/testify/require"
 
@@ -102,7 +101,7 @@ func TestSidebar_ConfirmSummaryFilterSelectsSummary(t *testing.T) {
 
 func expandSidebar(t *testing.T, s *leet.RunOverviewSidebar, termWidth int, rightVisible bool) {
 	t.Helper()
-	s.UpdateDimensions(termWidth, rightVisible)
+	s.UpdateDimensions(termWidth, rightVisible, 0)
 	s.Toggle()
 	time.Sleep(leet.AnimationDuration + 20*time.Millisecond)
 	// Drive animation to completion.
@@ -183,26 +182,26 @@ func TestSidebar_Navigation_SectionPageUpDown(t *testing.T) {
 
 	s.Sync()
 
-	// Start in Environment; Tab to Config (navigateSection).
-	s.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	// Start in Environment; move to Config (navigateSection).
+	s.TestNavigateSection(1)
 	key, _ := s.SelectedItem()
 	require.True(t, strings.HasPrefix(key, "alpha.") || strings.HasPrefix(key, "beta."))
 
 	// Height=15 -> 1 item/page; Down moves to next page/next item (navigateDown + navigatePage).
 	_ = s.View(15)
-	s.Update(tea.KeyPressMsg{Code: tea.KeyDown})
+	s.TestNavigateDown()
 	key2, _ := s.SelectedItem()
 	require.NotEqual(t, key2, key)
 
 	// Page right, then left, then Up; remain in Config.
-	s.Update(tea.KeyPressMsg{Code: tea.KeyRight})
-	s.Update(tea.KeyPressMsg{Code: tea.KeyLeft})
-	s.Update(tea.KeyPressMsg{Code: tea.KeyUp})
+	s.TestNavigatePageDown()
+	s.TestNavigatePageUp()
+	s.TestNavigateUp()
 	key3, _ := s.SelectedItem()
 	require.True(t, strings.HasPrefix(key3, "alpha.") || strings.HasPrefix(key3, "beta."))
 
-	// Shift-Tab back to previous section (Environment).
-	s.Update(tea.KeyPressMsg{Code: tea.KeyTab, Mod: tea.ModShift})
+	// Step back to the previous section (Environment).
+	s.TestNavigateSection(-1)
 	key4, _ := s.SelectedItem()
 	require.False(t, strings.HasPrefix(key4, "alpha.") || strings.HasPrefix(key4, "beta."))
 }
@@ -405,7 +404,7 @@ func TestSidebar_Pagination_ResizeFromLaterPage(t *testing.T) {
 
 	// Navigate down a few items to force CurrentPage > 0.
 	for range 5 {
-		s.Update(tea.KeyPressMsg{Code: tea.KeyDown})
+		s.TestNavigateDown()
 	}
 
 	// Larger height -> ItemsPerPage increases. This used to panic.

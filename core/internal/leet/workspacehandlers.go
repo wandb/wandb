@@ -107,6 +107,11 @@ func (w *Workspace) handleMouse(msg tea.MouseMsg) tea.Cmd {
 	mouse := msg.Mouse()
 	layout := w.computeViewports()
 
+	// Pane resizing wins over pane-local mouse handling.
+	if w.handleLayoutDrag(msg, layout) {
+		return nil
+	}
+
 	// Clicks in the left sidebar clear all chart focus.
 	if w.runsAnimState.IsVisible() && mouse.X < layout.leftSidebarWidth {
 		w.clearChartFocus()
@@ -148,6 +153,79 @@ func (w *Workspace) handleMouse(msg tea.MouseMsg) tea.Cmd {
 
 	// Separator or status bar area — no chart interaction.
 	return nil
+}
+
+// handleLayoutDrag processes mouse events for pane-boundary resizing.
+// It returns true when the event was consumed by an active or new drag.
+func (w *Workspace) handleLayoutDrag(msg tea.MouseMsg, layout Layout) bool {
+	switch m := msg.(type) {
+	case tea.MouseClickMsg:
+		if m.Button != tea.MouseLeft {
+			return false
+		}
+		drag, ok := boundaryAt(m.X, m.Y, w.width, layout,
+			w.runsAnimState.IsExpanded(), w.runOverviewSidebar.IsExpanded())
+		if !ok || (drag.boundary == dragBoundarySeparator && w.mediaPane.IsFullscreen()) {
+			return false
+		}
+		drag.overrides = w.config.WorkspaceLayout()
+		w.drag = drag
+		return true
+
+	case tea.MouseMotionMsg:
+		if !w.drag.active() || m.Button != tea.MouseLeft {
+			return false
+		}
+		w.applyLayoutDrag(m.X, m.Y, layout)
+		return true
+
+	case tea.MouseReleaseMsg:
+		if !w.drag.active() {
+			return false
+		}
+		w.finishLayoutDrag()
+		return true
+	}
+	return false
+}
+
+// applyLayoutDrag updates the pending overrides from the mouse position and
+// re-lays the view out from them.
+func (w *Workspace) applyLayoutDrag(x, y int, layout Layout) {
+	o := &w.drag.overrides
+	switch w.drag.boundary {
+	case dragBoundaryLeftSidebar:
+		o.LeftSidebar = float64(x+1) / float64(w.width)
+	case dragBoundaryRightSidebar:
+		o.RightSidebar = float64(w.width-x) / float64(w.width)
+	case dragBoundarySeparator:
+		if !dragSeparator(o, layout, w.drag.section, y, w.height) {
+			return
+		}
+	}
+	w.drag.dirty = true
+	w.applyLayoutConfig()
+}
+
+// handleResetLayout resets the view's pane proportions to the defaults.
+func (w *Workspace) handleResetLayout(tea.KeyPressMsg) tea.Cmd {
+	if err := w.config.SetWorkspaceLayout(LayoutOverrides{}); err != nil {
+		w.logger.Error(fmt.Sprintf("workspace: failed to save layout: %v", err))
+	}
+	w.applyLayoutConfig()
+	return nil
+}
+
+// finishLayoutDrag persists the dragged proportions and ends the drag.
+func (w *Workspace) finishLayoutDrag() {
+	drag := w.drag
+	w.drag = layoutDrag{}
+	if !drag.dirty {
+		return // Click without motion: nothing changed.
+	}
+	if err := w.config.SetWorkspaceLayout(drag.overrides); err != nil {
+		w.logger.Error(fmt.Sprintf("workspace: failed to save layout: %v", err))
+	}
 }
 
 func (w *Workspace) handleMetricsMouse(msg tea.MouseMsg, layout Layout) tea.Cmd {
@@ -347,7 +425,7 @@ func (w *Workspace) handleToggleRunsSidebar(msg tea.KeyPressMsg) tea.Cmd {
 
 	w.updateSidebarDimensions(leftWillBeVisible, rightIsVisible)
 	w.runsAnimState.Toggle()
-	w.focusMgr.ResolveAfterVisibilityChange()
+	w.focusMgr.Resolve()
 	w.recalculateLayout()
 
 	return w.runsAnimationCmd()
@@ -363,7 +441,7 @@ func (w *Workspace) handleToggleOverviewSidebar(msg tea.KeyPressMsg) tea.Cmd {
 
 	w.updateSidebarDimensions(leftIsVisible, rightWillBeVisible)
 	w.runOverviewSidebar.Toggle()
-	w.focusMgr.ResolveAfterVisibilityChange()
+	w.focusMgr.Resolve()
 	w.recalculateLayout()
 
 	return w.runOverviewAnimationCmd()
@@ -392,9 +470,7 @@ func (w *Workspace) handleToggleMediaPane(msg tea.KeyPressMsg) tea.Cmd {
 	}
 
 	w.mediaPane.Toggle()
-	if !mediaWillBeVisible {
-		w.focusMgr.ResolveAfterVisibilityChange()
-	}
+	w.focusMgr.Resolve()
 	w.recalculateLayout()
 	return w.mediaPaneAnimationCmd()
 }
@@ -412,7 +488,7 @@ func (w *Workspace) handleToggleConsoleLogsPane(msg tea.KeyPressMsg) tea.Cmd {
 		bottomWillBeVisible,
 	)
 	w.consoleLogsPane.Toggle()
-	w.focusMgr.ResolveAfterVisibilityChange()
+	w.focusMgr.Resolve()
 	w.recalculateLayout()
 
 	return w.consoleLogsPaneAnimationCmd()
@@ -429,7 +505,7 @@ func (w *Workspace) handleToggleSystemMetricsPane(tea.KeyPressMsg) tea.Cmd {
 
 	w.updateBottomPaneHeights(sysWillBeVisible, mediaVisible, logsVisible)
 	w.systemMetricsPane.Toggle()
-	w.focusMgr.ResolveAfterVisibilityChange()
+	w.focusMgr.Resolve()
 	w.recalculateLayout()
 	return w.systemMetricsPaneAnimationCmd()
 }
@@ -938,7 +1014,7 @@ func (w *Workspace) handleToggleMetricsGrid(msg tea.KeyPressMsg) tea.Cmd {
 	}
 
 	w.metricsGridAnimState.Toggle()
-	w.focusMgr.ResolveAfterVisibilityChange()
+	w.focusMgr.Resolve()
 
 	w.updateBottomPaneHeights(
 		w.systemMetricsPane.animState.TargetVisible(),
@@ -1217,13 +1293,16 @@ func (w *Workspace) activeSystemMetricsGrid() *SystemMetricsGrid {
 	return w.systemMetrics[cur.Key]
 }
 
-// handleFocusRuns moves focus to the runs list if it's visible.
+// handleFocusRuns moves focus home to the runs list.
 //
-// This gives Esc a natural "return home" feel in workspace mode:
-// wherever focus currently is, Esc snaps it back to the run selector.
+// This gives Esc a natural "return home" feel in workspace mode: wherever
+// focus currently is, Esc snaps it back to the run selector. When the runs
+// list can't take focus (hidden or empty), Esc just clears focus.
 func (w *Workspace) handleFocusRuns(tea.KeyPressMsg) tea.Cmd {
-	if w.runsAnimState.TargetVisible() {
+	if w.runsFocusAvailable() {
 		w.focusMgr.SetTarget(FocusTargetRunsList, 1)
+	} else {
+		w.focusMgr.ClearAll()
 	}
 	return nil
 }
