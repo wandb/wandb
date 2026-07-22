@@ -44,7 +44,7 @@ class Plotly(Media):
     ) -> Image | Plotly:
         """Create a Plotly object from a Plotly figure or a matplotlib artist.
 
-        <!-- lazydoc-ignore-classmethod: internal -->
+        <!-- lazydoc-ignore -->
         """
         if util.is_matplotlib_typename(util.get_full_typename(val)):
             if util.matplotlib_contains_images(val):
@@ -84,14 +84,14 @@ class Plotly(Media):
     def get_media_subdir(cls: type[Plotly]) -> str:
         """Returns the media subdirectory for Plotly plots.
 
-        <!-- lazydoc-ignore-classmethod: internal -->
+        <!-- lazydoc-ignore -->
         """
         return os.path.join("media", "plotly")
 
     def to_json(self, run_or_artifact: LocalRun | Artifact) -> dict:
         """Convert the Plotly object to a JSON representation.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         json_dict = super().to_json(run_or_artifact)
         json_dict["_type"] = self._log_type
