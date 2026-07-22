@@ -67,10 +67,10 @@ def clean(
             term.termerror("No wandb directory found.")
             ctx.exit(1)
         if not wandb_dir.is_dir():
-            term.termerror(f"Not a directory: {str(wandb_dir)!r}")
+            term.termerror(f"Not a directory: {wandb_dir.as_posix()!r}")
             ctx.exit(1)
     except PermissionError:
-        term.termerror(f"Permission error accessing {str(wandb_dir)!r}")
+        term.termerror(f"Permission error accessing {wandb_dir.as_posix()!r}")
         ctx.exit(1)
 
     result = _select_runs_to_clean(
@@ -101,7 +101,7 @@ def clean(
             shutil.rmtree(path)
         except OSError as e:
             errstr = f": {e.strerror}" if e.strerror else ""
-            term.termerror(f"Failed to remove {str(path)!r}{errstr}")
+            term.termerror(f"Failed to remove {path.as_posix()!r}{errstr}")
             exit_code = 1
 
     if exit_code == 0:
@@ -134,9 +134,9 @@ class _WandbDirResult:
         for path in self.runs_to_clean:
             if path in self.unsynced:
                 unsynced_tag = click.style("[unsynced]", fg="red")
-                term.termlog(f"  {unsynced_tag} {path}")
+                term.termlog(f"  {unsynced_tag} {path.as_posix()}")
             else:
-                term.termlog(f"  {path}")
+                term.termlog(f"  {path.as_posix()}")
 
     def ask_for_confirmation(self) -> bool:
         """Prompt for confirmation before deleting runs.
