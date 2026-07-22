@@ -1174,7 +1174,6 @@ class Table(Media):
                 representing new columns for that row, keyed by the new column names.
 
         Examples:
-        
         In the callback:
         - `ndx` is an integer representing the index of the row.
         - `row` is a dictionary keyed by existing columns.
@@ -1183,9 +1182,7 @@ class Table(Media):
         import wandb
 
         table = wandb.Table(columns=["x", "y"], data=[[3, 1], [4, 6]])
-        table.add_computed_columns(
-            lambda ndx, row: {"diff": row["x"] - row["y"]}
-        )
+        table.add_computed_columns(lambda ndx, row: {"diff": row["x"] - row["y"]})
         ```
         """
         new_columns: dict[str, list[Any]] = {}
