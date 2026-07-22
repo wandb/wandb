@@ -92,7 +92,7 @@ class Html(BatchableMedia):
     def inject_head(self) -> None:
         """Inject a <head> tag into the HTML.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         join = ""
         if "<head>" in self.html:
@@ -114,14 +114,14 @@ class Html(BatchableMedia):
     def get_media_subdir(cls: type[Html]) -> str:
         """Get media subdirectory.
 
-        "<!-- lazydoc-ignore-classmethod: internal -->
+        "<!-- lazydoc-ignore -->
         """
         return os.path.join("media", "html")
 
     def to_json(self, run_or_artifact: LocalRun | Artifact) -> dict:
         """Returns the JSON representation expected by the backend.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         json_dict = super().to_json(run_or_artifact)
         json_dict["_type"] = self._log_type
@@ -131,7 +131,7 @@ class Html(BatchableMedia):
     def from_json(cls: type[Html], json_obj: dict, source_artifact: Artifact) -> Html:
         """Deserialize a JSON object into it's class representation.
 
-        "<!-- lazydoc-ignore-classmethod: internal -->
+        "<!-- lazydoc-ignore -->
         """
         return cls(source_artifact.get_entry(json_obj["path"]).download(), inject=False)
 
@@ -145,7 +145,7 @@ class Html(BatchableMedia):
     ) -> dict:
         """Convert a sequence of HTML objects to a JSON representation.
 
-        "<!-- lazydoc-ignore-classmethod: internal -->
+        "<!-- lazydoc-ignore -->
         """
         base_path = os.path.join(run.dir, cls.get_media_subdir())
         filesystem.mkdir_exists_ok(base_path)
