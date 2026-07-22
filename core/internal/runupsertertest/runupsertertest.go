@@ -12,6 +12,7 @@ import (
 	"github.com/wandb/wandb/core/internal/featurechecker"
 	"github.com/wandb/wandb/core/internal/gqlmock"
 	"github.com/wandb/wandb/core/internal/observabilitytest"
+	"github.com/wandb/wandb/core/internal/runsyncstate"
 	"github.com/wandb/wandb/core/internal/runupserter"
 	"github.com/wandb/wandb/core/internal/settings"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
@@ -50,6 +51,9 @@ func NewTestUpserter(
 	}
 	if params.FeatureProvider == nil {
 		params.FeatureProvider = featurechecker.NewPreloaded(nil)
+	}
+	if params.SyncStateStore == nil {
+		params.SyncStateStore = runsyncstate.Noop()
 	}
 
 	record := &spb.Record{RecordType: &spb.Record_Run{

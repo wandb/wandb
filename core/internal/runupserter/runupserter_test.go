@@ -250,7 +250,8 @@ func TestResume_ReusesSyncStateStartingStep(t *testing.T) {
 
 	startingStep := int64(6)
 	params := testParams(t)
-	params.SyncStateStore.GetOrInitStartingStep(startingStep)
+	_, err := params.SyncStateStore.GetOrInitStartingStep(startingStep)
+	require.NoError(t, err)
 	params.GraphqlClientOrNil = mockClient
 	params.Settings = settings.From(&spb.Settings{Resume: wrapperspb.String("allow")})
 
