@@ -16,8 +16,8 @@ from typing_extensions import override
 from wandb._pydantic import GQLBase
 from wandb.automations._validators import LenientStrEnum
 
-from .expressions import FilterExpr
-from .operators import BaseOp, RichReprResult
+from ._filters import BaseOp, FilterExpr
+from ._filters.operators import RichReprResult
 
 if TYPE_CHECKING:
     from wandb.automations.events import RunMetricFilter
