@@ -196,7 +196,7 @@ def notebook_metadata_from_jupyter_servers_and_kernel_id():
             raise ValueError("Can't query password protected kernel")
         query = urllib.parse.urlencode({"token": s.get("token", "")})
         url = urllib.parse.urljoin(s["url"], "api/sessions") + "?" + query
-        with urllib.request.urlopen(url, timeout=5) as response:
+        with urllib.request.urlopen(url, timeout=3) as response:
             res = json.load(response)
         for nn in res:
             if (

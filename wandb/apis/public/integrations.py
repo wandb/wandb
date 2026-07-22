@@ -27,10 +27,7 @@ _IntegrationT = TypeVar("_IntegrationT")
 
 
 class _IntegrationsPaginator(RelayPaginator["IntegrationFields", _IntegrationT]):
-    """Shared pagination logic for lazy iterators of entity integrations.
-
-    <!-- lazydoc-ignore-class: internal -->
-    """
+    """Shared pagination logic for lazy iterators of entity integrations."""
 
     QUERY: ClassVar[str | None] = None
     last_response: Connection[IntegrationFields] | None
@@ -57,8 +54,7 @@ class _IntegrationsPaginator(RelayPaginator["IntegrationFields", _IntegrationT])
         from wandb._pydantic import Connection
         from wandb.automations._generated import IntegrationsByEntity
 
-        data = self._service_api.execute_graphql(self.QUERY, variables=self.variables)
-        result = IntegrationsByEntity.model_validate(data)
+        result = self._execute_query(parse=IntegrationsByEntity.model_validate_json)
         if not ((entity := result.entity) and (conn := entity.integrations)):
             raise ValueError("Unexpected response data")
         self.last_response = Connection.model_validate(conn)
@@ -81,10 +77,7 @@ class Integrations(_IntegrationsPaginator["Integration"]):
 # does not change this. Restricting results to a single type requires
 # a client-side filter.
 class WebhookIntegrations(_IntegrationsPaginator["WebhookIntegration"]):
-    """A lazy iterator of `WebhookIntegration` objects.
-
-    <!-- lazydoc-ignore-class: internal -->
-    """
+    """A lazy iterator of `WebhookIntegration` objects."""
 
     def _convert(self, node: IntegrationFields) -> WebhookIntegration | None:
         from wandb.automations import WebhookIntegration
@@ -95,10 +88,7 @@ class WebhookIntegrations(_IntegrationsPaginator["WebhookIntegration"]):
 
 
 class SlackIntegrations(_IntegrationsPaginator["SlackIntegration"]):
-    """A lazy iterator of `SlackIntegration` objects.
-
-    <!-- lazydoc-ignore-class: internal -->
-    """
+    """A lazy iterator of `SlackIntegration` objects."""
 
     def _convert(self, node: IntegrationFields) -> SlackIntegration | None:
         from wandb.automations import SlackIntegration

@@ -4,7 +4,6 @@ __all__ = [
     "ADD_ALIASES_GQL",
     "ADD_ARTIFACT_COLLECTION_TAGS_GQL",
     "ARTIFACT_BY_ID_GQL",
-    "ARTIFACT_BY_NAME_GQL",
     "ARTIFACT_COLLECTION_ALIASES_GQL",
     "ARTIFACT_CREATED_BY_GQL",
     "ARTIFACT_MEMBERSHIP_BY_NAME_GQL",
@@ -22,7 +21,7 @@ __all__ = [
     "DELETE_REGISTRY_MEMBERS_GQL",
     "FETCH_ARTIFACT_MANIFEST_GQL",
     "FETCH_LINKED_ARTIFACTS_GQL",
-    "FETCH_ORG_ENTITY_FROM_ORGANIZATION_GQL",
+    "FETCH_ORGANIZATION_GQL",
     "FETCH_ORG_INFO_FROM_ENTITY_GQL",
     "FETCH_REGISTRIES_GQL",
     "FETCH_REGISTRY_GQL",
@@ -69,7 +68,6 @@ __all__ = [
     "FetchLinkedArtifacts",
     "FetchArtifactManifest",
     "ArtifactByID",
-    "ArtifactByName",
     "ArtifactMembershipByName",
     "ArtifactUsedBy",
     "ArtifactCreatedBy",
@@ -81,7 +79,7 @@ __all__ = [
     "LinkArtifact",
     "UnlinkArtifact",
     "FetchOrgInfoFromEntity",
-    "FetchOrgEntityFromOrganization",
+    "FetchOrganization",
     "RegistryVersions",
     "RegistryCollections",
     "FetchRegistry",
@@ -149,7 +147,6 @@ __all__ = [
 from .add_aliases import AddAliases
 from .add_artifact_collection_tags import AddArtifactCollectionTags
 from .artifact_by_id import ArtifactByID
-from .artifact_by_name import ArtifactByName
 from .artifact_collection_aliases import ArtifactCollectionAliases
 from .artifact_created_by import ArtifactCreatedBy
 from .artifact_membership_by_name import ArtifactMembershipByName
@@ -168,8 +165,8 @@ from .delete_registry_members import DeleteRegistryMembers
 from .enums import ArtifactCollectionState, ArtifactCollectionType, ArtifactState
 from .fetch_artifact_manifest import FetchArtifactManifest
 from .fetch_linked_artifacts import FetchLinkedArtifacts
-from .fetch_org_entity_from_organization import FetchOrgEntityFromOrganization
 from .fetch_org_info_from_entity import FetchOrgInfoFromEntity
+from .fetch_organization import FetchOrganization
 from .fetch_registries import FetchRegistries
 from .fetch_registry import FetchRegistry
 from .fragments import (
@@ -229,7 +226,6 @@ from .operations import (
     ADD_ALIASES_GQL,
     ADD_ARTIFACT_COLLECTION_TAGS_GQL,
     ARTIFACT_BY_ID_GQL,
-    ARTIFACT_BY_NAME_GQL,
     ARTIFACT_COLLECTION_ALIASES_GQL,
     ARTIFACT_CREATED_BY_GQL,
     ARTIFACT_MEMBERSHIP_BY_NAME_GQL,
@@ -247,8 +243,8 @@ from .operations import (
     DELETE_REGISTRY_MEMBERS_GQL,
     FETCH_ARTIFACT_MANIFEST_GQL,
     FETCH_LINKED_ARTIFACTS_GQL,
-    FETCH_ORG_ENTITY_FROM_ORGANIZATION_GQL,
     FETCH_ORG_INFO_FROM_ENTITY_GQL,
+    FETCH_ORGANIZATION_GQL,
     FETCH_REGISTRIES_GQL,
     FETCH_REGISTRY_GQL,
     GET_ARTIFACT_MEMBERSHIP_FILE_URLS_GQL,

@@ -10,7 +10,7 @@ from hypothesis import settings
 from pytest import FixtureRequest, fixture, skip
 from pytest_mock import MockerFixture
 from wandb._strutils import b64encode_ascii
-from wandb.apis.public import ArtifactCollection, Project
+from wandb.apis.public import ArtifactCollection, Organization, Project, Team
 from wandb.automations import (
     ActionType,
     ArtifactEvent,
@@ -47,7 +47,7 @@ settings.register_profile("default", max_examples=100)
 settings.load_profile("default")
 
 
-ScopableWandbType: TypeAlias = ArtifactCollection | Project
+ScopableWandbType: TypeAlias = ArtifactCollection | Project | Team | Organization
 
 
 # ---------------------------------------------------------------------------
@@ -100,27 +100,25 @@ def artifact_collection(mock_client: Mock) -> ArtifactCollection:
     For unit-testing purposes, this has been heavily mocked.
     Tests relying on real `wandb.Api` calls should live in system tests.
     """
-    collection_name = "test-collection"
-    project_name = "test-project"
-    entity_name = "test-entity"
-    collection_type = "dataset"
-    collection = ArtifactCollection(
+    name = "test-collection"
+    project = "test-project"
+    entity = "test-entity"
+    artifact_type = "dataset"
+    return ArtifactCollection(
         service_api=mock_client,
-        entity=entity_name,
-        project=project_name,
-        name=collection_name,
-        type=collection_type,
+        entity=entity,
+        project=project,
+        name=name,
+        type=artifact_type,
         attrs=ArtifactCollectionFragment(
             typename__="ArtifactPortfolio",
             id=make_graphql_id(prefix="ArtifactCollection"),
-            name=collection_name,
+            name=name,
             project={
-                "name": project_name,
-                "entity": {
-                    "name": entity_name,
-                },
+                "name": project,
+                "entity": {"name": entity},
             },
-            type={"name": collection_type},
+            type={"name": artifact_type},
             description="This is a fake artifact collection.",
             aliases={"edges": []},
             createdAt="2021-01-01T00:00:00Z",
@@ -128,8 +126,6 @@ def artifact_collection(mock_client: Mock) -> ArtifactCollection:
             tags={"edges": []},
         ),
     )
-
-    return collection
 
 
 @fixture(scope="session")
@@ -151,9 +147,57 @@ def project(mock_client: Mock) -> Project:
     )
 
 
+@fixture(scope="session")
+def team(mock_client: Mock) -> Team:
+    """A simulated `Team` (team entity) that could be returned by `wandb.Api`.
+
+    Typically fetched via `Api.team()`.
+
+    For unit-testing purposes, this has been heavily mocked.
+    Tests relying on real `wandb.Api` calls should live in system tests.
+    """
+    name = "test-team-entity"
+    return Team(
+        service_api=mock_client,
+        name=name,
+        attrs={
+            "__typename": "Entity",
+            "id": make_graphql_id(prefix="Entity"),
+            "name": name,
+            "entityType": "team",
+        },
+    )
+
+
+@fixture(scope="session")
+def org(mock_client: Mock) -> Organization:
+    """A simulated `Organization` with a mock org entity.
+
+    Typically fetched via `Api.organization()`.
+
+    For unit-testing purposes, this has been heavily mocked.
+    Tests relying on real `wandb.Api` calls should live in system tests.
+    """
+    name = "test-org"
+    return Organization(
+        mock_client,
+        **{
+            "id": make_graphql_id(prefix="Organization"),
+            "name": name,
+            "orgEntity": {
+                "__typename": "Entity",
+                "id": make_graphql_id(prefix="Entity"),
+                "name": f"{name}-entity",
+                "entityType": "organization",
+            },
+        },
+    )
+
+
 # Exclude deprecated scope/event/action types from those expected to be exposed for valid behavior
 def valid_scopes() -> list[ScopeType]:
-    return sorted(set(ScopeType))
+    # return sorted(set(ScopeType))  # TODO: restore once ENTITY scope is supported
+    return sorted(set(ScopeType) - {ScopeType.ENTITY})
 
 
 def valid_input_events() -> list[EventType]:
@@ -168,6 +212,7 @@ def valid_input_actions() -> list[ActionType]:
 @cache
 def invalid_events_and_scopes() -> set[tuple[EventType, ScopeType]]:
     return {
+        (EventType.CREATE_ARTIFACT, ScopeType.ENTITY),
         (EventType.CREATE_ARTIFACT, ScopeType.PROJECT),
         (EventType.RUN_METRIC_THRESHOLD, ScopeType.ARTIFACT_COLLECTION),
         (EventType.RUN_METRIC_CHANGE, ScopeType.ARTIFACT_COLLECTION),
@@ -207,6 +252,7 @@ def scope(request: FixtureRequest, scope_type: ScopeType) -> ScopableWandbType:
     scope2fixture: dict[ScopeType, str] = {
         ScopeType.ARTIFACT_COLLECTION: artifact_collection.__name__,
         ScopeType.PROJECT: project.__name__,
+        ScopeType.ENTITY: team.__name__,
     }
     return request.getfixturevalue(scope2fixture[scope_type])
 
@@ -294,7 +340,7 @@ def on_run_metric_change(scope: ScopableWandbType) -> OnRunMetric:
 
 @fixture
 def on_run_metric_zscore(scope: ScopableWandbType) -> OnRunMetric:
-    from wandb.automations._filters.run_metrics import ChangeDir, MetricZScoreFilter
+    from wandb.automations._run_metric_filters import ChangeDir, MetricZScoreFilter
 
     return OnRunMetric(
         scope=scope,

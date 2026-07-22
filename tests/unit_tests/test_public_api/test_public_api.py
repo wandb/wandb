@@ -366,8 +366,6 @@ def test_artifact_from_id_uses_service_api(monkeypatch):
 
     artifact_id = "test-artifact-id"
     artifact_instance_cache.pop(artifact_id, None)
-    service_api = MagicMock()
-    service_api.execute_graphql.return_value = {}
     artifact = SimpleNamespace(
         artifact_sequence=SimpleNamespace(
             name="dataset",
@@ -378,11 +376,10 @@ def test_artifact_from_id_uses_service_api(monkeypatch):
         ),
         version_index=3,
     )
-    monkeypatch.setattr(
-        ArtifactByID,
-        "model_validate",
-        MagicMock(return_value=SimpleNamespace(artifact=artifact)),
-    )
+    # execute_graphql now parses the response into the pydantic model itself
+    # (via parse=), so its return value is the already-parsed result.
+    service_api = MagicMock()
+    service_api.execute_graphql.return_value = SimpleNamespace(artifact=artifact)
     from_attrs = MagicMock(return_value="artifact")
     monkeypatch.setattr(Artifact, "_from_attrs", from_attrs)
 
@@ -391,6 +388,7 @@ def test_artifact_from_id_uses_service_api(monkeypatch):
     service_api.execute_graphql.assert_called_once_with(
         ARTIFACT_BY_ID_GQL,
         variables={"id": artifact_id},
+        parse=ArtifactByID.model_validate_json,
     )
     path, src_art, actual_service_api = from_attrs.call_args.args
     assert path.to_str() == "entity/project/dataset:v3"
@@ -400,29 +398,35 @@ def test_artifact_from_id_uses_service_api(monkeypatch):
 
 @pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
 def test_project_id_lazy_load(monkeypatch):
+    from wandb.apis._generated import GetProject
+
     api = wandb.Api()
+    # execute_graphql now parses the response into the pydantic model itself
+    # (via parse=), so its return value is the already-parsed result.
     mock_execute = MagicMock(
-        return_value={
-            "project": ProjectFragment(
-                id="123",
-                name="test-project",
-                entity_name="test-entity",
-                created_at="2021-01-01T00:00:00Z",
-                is_benchmark=False,
-                user=UserFragment(
+        return_value=GetProject.model_validate(
+            {
+                "project": ProjectFragment(
                     id="123",
-                    name="test-user",
-                    username="test-user",
-                    email="test-user@example.com",
-                    admin=False,
-                    flags="",
-                    entity="test-entity",
-                    deleted_at=None,
-                    api_keys=None,
-                    teams=None,
-                ),
-            ).model_dump(),
-        }
+                    name="test-project",
+                    entity_name="test-entity",
+                    created_at="2021-01-01T00:00:00Z",
+                    is_benchmark=False,
+                    user=UserFragment(
+                        id="123",
+                        name="test-user",
+                        username="test-user",
+                        email="test-user@example.com",
+                        admin=False,
+                        flags="",
+                        entity="test-entity",
+                        deleted_at=None,
+                        api_keys=None,
+                        teams=None,
+                    ),
+                ).model_dump(),
+            }
+        )
     )
     monkeypatch.setattr(
         wandb.apis.public.api.ServiceApi,

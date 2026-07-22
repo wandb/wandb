@@ -348,11 +348,6 @@ class Api:
             timeout=self.HTTP_TIMEOUT,
         )
 
-    def validate_api_key(self) -> bool:
-        """Returns whether the API key stored on initialization is valid."""
-        res = self.execute("query { viewer { id } }")
-        return res is not None and res["viewer"] is not None
-
     def set_current_run_id(self, run_id: str) -> None:
         self._current_run_id = run_id
 

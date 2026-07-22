@@ -172,9 +172,18 @@ type ClientOptions struct {
 	// List of regexp strings that will be used to match against a transaction's
 	// name.  If a match is found, then the transaction  will be dropped.
 	IgnoreTransactions []string
+	// Deprecated: Use DataCollection for granular control over what data the
+	// SDK collects. When DataCollection is configured, SendDefaultPII is
+	// ignored.
+	//
 	// If this flag is enabled, certain personally identifiable information (PII) is added by active integrations.
 	// By default, no such data is sent.
 	SendDefaultPII bool
+	// DataCollection configures what data the SDK collects automatically. All fields are optional. By default
+	// the SDK collects rich context for debugging while scrubbing sensitive values.
+	//
+	// See https://docs.sentry.io/platforms/go/configuration/options/#DataCollection
+	DataCollection *DataCollection
 	// BeforeSend is called before error events are sent to Sentry.
 	// You can use it to mutate the event or return nil to discard it.
 	BeforeSend func(event *Event, hint *EventHint) *Event
@@ -372,6 +381,9 @@ func NewClient(options ClientOptions) (*Client, error) {
 	if options.TraceIgnoreStatusCodes == nil {
 		options.TraceIgnoreStatusCodes = [][]int{{404}}
 	}
+
+	resolvedDataCollection := snapshotDataCollection(options.DataCollection, options.SendDefaultPII)
+	options.DataCollection = cloneDataCollection(&resolvedDataCollection)
 
 	// SENTRYGODEBUG is a comma-separated list of key=value pairs (similar
 	// to GODEBUG). It is not a supported feature: recognized debug options
@@ -585,7 +597,18 @@ func (client *Client) externalTraceContextFromContext(ctx context.Context) (Trac
 // Options return ClientOptions for the current Client.
 func (client *Client) Options() ClientOptions {
 	// Note: internally, consider using `client.options` instead of `client.Options()` to avoid copying the object each time.
-	return client.options
+	opts := client.options
+	opts.DataCollection = cloneDataCollection(client.options.DataCollection)
+	return opts
+}
+
+// GetDataCollection returns a copy of the resolved data collection
+// configuration used by the client.
+func (client *Client) GetDataCollection() DataCollection {
+	if client == nil || client.options.DataCollection == nil {
+		return DataCollection{}
+	}
+	return *cloneDataCollection(client.options.DataCollection)
 }
 
 // CaptureMessage captures an arbitrary message.
@@ -686,7 +709,7 @@ func (client *Client) captureMetric(metric *Metric, _ *Scope) bool {
 
 // Recover captures a panic.
 // Returns EventID if successfully, or nil if there's no error to recover from.
-func (client *Client) Recover(err interface{}, hint *EventHint, scope EventModifier) *EventID {
+func (client *Client) Recover(err any, hint *EventHint, scope EventModifier) *EventID {
 	if err == nil {
 		err = recover()
 	}
@@ -703,7 +726,7 @@ func (client *Client) Recover(err interface{}, hint *EventHint, scope EventModif
 // Returns EventID if successfully, or nil if there's no error to recover from.
 func (client *Client) RecoverWithContext(
 	ctx context.Context,
-	err interface{},
+	err any,
 	hint *EventHint,
 	scope EventModifier,
 ) *EventID {

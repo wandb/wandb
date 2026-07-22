@@ -54,6 +54,8 @@ type httpStorageClient struct {
 	settings                   *settings
 	config                     *storageConfig
 	dynamicReadReqStallTimeout *bucketDelayManager
+	metrics                    *clientMetrics
+	metricsCleanup             func()
 
 	// configFeatureAttributes tracks client-level features that are enabled for this
 	// client instance.
@@ -62,7 +64,7 @@ type httpStorageClient struct {
 
 // newHTTPStorageClient initializes a new storageClient that uses the HTTP-JSON
 // Storage API.
-func newHTTPStorageClient(ctx context.Context, opts ...storageOption) (storageClient, error) {
+func newHTTPStorageClient(ctx context.Context, opts ...storageOption) (client storageClient, err error) {
 	s := initSettings(opts...)
 	o := s.clientOption
 	config := newStorageConfig(o...)
@@ -122,18 +124,50 @@ func newHTTPStorageClient(ctx context.Context, opts ...storageOption) (storageCl
 		return nil, fmt.Errorf("dialing: %w", err)
 	}
 
+	var clientMetrics *clientMetrics
+	var metricsCleanup func()
+	if isOtelMetricsEnabled(&config) {
+		var project string
+		if creds != nil {
+			project, _ = creds.ProjectID(ctx)
+		}
+		if cm, cleanup, err := initMetrics(ctx, project, &config); err == nil {
+			clientMetrics = cm
+			metricsCleanup = cleanup
+		} else {
+			log.Printf("Failed to enable metrics: %v", err)
+		}
+	}
+
+	if metricsCleanup != nil {
+		defer func() {
+			if err != nil {
+				metricsCleanup()
+			}
+		}()
+	}
+
 	// Clone the http.Client to avoid modifying the original one if it was provided by the user.
 	hcClone := *hc
 	c := &httpStorageClient{
-		creds:    creds,
-		hc:       &hcClone,
-		settings: s,
-		config:   &config,
+		creds:          creds,
+		hc:             &hcClone,
+		settings:       s,
+		config:         &config,
+		metrics:        clientMetrics,
+		metricsCleanup: metricsCleanup,
 	}
 
-	// Wrap transport to inject tracking headers.
+	// Wrap transport to inject tracking headers and metrics.
+	transport := hc.Transport
+	if clientMetrics != nil {
+		transport = &metricsRoundTripper{
+			base:    transport,
+			metrics: clientMetrics,
+		}
+	}
 	hcClone.Transport = &trackingTransport{
-		base:     hc.Transport,
+		base:     transport,
 		features: c.configFeatureAttributes,
 	}
 
@@ -172,6 +206,9 @@ func newHTTPStorageClient(ctx context.Context, opts ...storageOption) (storageCl
 
 func (c *httpStorageClient) Close() error {
 	c.hc.CloseIdleConnections()
+	if c.metricsCleanup != nil {
+		c.metricsCleanup()
+	}
 	return nil
 }
 
@@ -1588,7 +1625,7 @@ func readerReopen(ctx context.Context, header http.Header, params *newRangeReade
 				params.gen = gen64
 			}
 			return nil
-		}, s.retry, s.idempotent)
+		}, s.retry, s.idempotent, withOperation("ReadObject"), withBucket(params.bucket), withObject(params.object))
 		if err != nil {
 			return nil, err
 		}
