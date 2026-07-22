@@ -337,7 +337,7 @@ class Agent:
                     for command in commands:
                         command["resp_queue"].put(self._process_command(command))
 
-                    now = util.stopwatch_now()
+                    now = time.monotonic()
                     if self._last_report_time is None or (
                         self._report_interval != 0
                         and now > self._last_report_time + self._report_interval
@@ -628,7 +628,7 @@ class Agent:
         run_id = command["run_id"]
         if run_id in self._run_processes:
             proc = self._run_processes[run_id]
-            now = util.stopwatch_now()
+            now = time.monotonic()
             if proc.last_sigterm_time is None:
                 proc.last_sigterm_time = now
                 logger.info("Stop: %s", run_id)

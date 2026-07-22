@@ -25,12 +25,23 @@ _DATETIME_NOW = datetime.now
     default=24,
 )
 @click.option(
+    "--include-unsynced",
+    help="Delete unsynced run directories as well.",
+    is_flag=True,
+    default=False,
+)
+@click.option(
     "--force",
     help="Skip the confirmation prompt.",
     is_flag=True,
     default=False,
 )
-def clean(ctx: click.Context, min_hours: int, force: bool) -> None:
+def clean(
+    ctx: click.Context,
+    min_hours: int,
+    include_unsynced: bool,
+    force: bool,
+) -> None:
     """Remove synced run data.
 
     Cleans up the wandb folder, as determined by settings. Usually, this is
@@ -38,8 +49,9 @@ def clean(ctx: click.Context, min_hours: int, force: bool) -> None:
     in the directory specified by the WANDB_DIR environment variable if that
     is set.
 
-    This removes all online runs and any offline runs that have been synced
-    with `wandb sync`.
+    By default, this removes all runs created more than 24 hours ago (based
+    on the timestamp in the run folder name) that are online runs or that
+    were synced with `wandb sync`.
     """
     settings = wandb_setup.singleton().settings
     wandb_dir = pathlib.Path(settings.wandb_dir)
@@ -55,32 +67,32 @@ def clean(ctx: click.Context, min_hours: int, force: bool) -> None:
             term.termerror("No wandb directory found.")
             ctx.exit(1)
         if not wandb_dir.is_dir():
-            term.termerror(f"Not a directory: {str(wandb_dir)!r}")
+            term.termerror(f"Not a directory: {wandb_dir.as_posix()!r}")
             ctx.exit(1)
     except PermissionError:
-        term.termerror(f"Permission error accessing {str(wandb_dir)!r}")
+        term.termerror(f"Permission error accessing {wandb_dir.as_posix()!r}")
         ctx.exit(1)
 
-    result = _examine_wandb_directory(wandb_dir, min_hours=min_hours)
+    result = _select_runs_to_clean(
+        wandb_dir,
+        include_unsynced=include_unsynced,
+        min_hours=min_hours,
+    )
 
-    if result.too_young:
+    if result.skipped_too_new:
         term.termlog(
-            f"Skipping {result.too_young} run(s) created fewer than"
+            f"Skipping {result.skipped_too_new} run(s) created fewer than"
             + f" {min_hours} hours ago.",
         )
-    if result.unsynced:
-        term.termlog(f"Skipping {result.unsynced} unsynced run(s).")
+    if result.skipped_unsynced:
+        term.termlog(f"Skipping {result.skipped_unsynced} unsynced run(s).")
+
     if not result.runs_to_clean:
         term.termlog("Found no runs to clean up.")
         ctx.exit(0)
 
-    term.termlog(f"Found {len(result.runs_to_clean)} synced run(s).")
-    for path in result.runs_to_clean:
-        term.termlog(f"  {path}")
-
-    if not force and not term.confirm(
-        f"Are you sure you want to remove {len(result.runs_to_clean)} run(s)?",
-    ):
+    result.print_selected_runs()
+    if not force and not result.ask_for_confirmation():
         ctx.exit(1)
 
     exit_code = 0
@@ -89,7 +101,7 @@ def clean(ctx: click.Context, min_hours: int, force: bool) -> None:
             shutil.rmtree(path)
         except OSError as e:
             errstr = f": {e.strerror}" if e.strerror else ""
-            term.termerror(f"Failed to remove {str(path)!r}{errstr}")
+            term.termerror(f"Failed to remove {path.as_posix()!r}{errstr}")
             exit_code = 1
 
     if exit_code == 0:
@@ -105,27 +117,61 @@ class _WandbDirResult:
     """A description of the contents of the wandb folder."""
 
     runs_to_clean: list[pathlib.Path]
-    """Folders of online or synced runs that are old enough for deletion."""
+    """Runs selected for deletion based on the command options."""
 
-    too_young: int = 0
-    """Count of synced runs that are filtered out due to age."""
+    unsynced: set[pathlib.Path]
+    """Selected runs that are unsynced."""
 
-    unsynced: int = 0
-    """Count of unsynced runs."""
+    skipped_too_new: int = 0
+    """Count of runs that are filtered out due to age."""
+
+    skipped_unsynced: int = 0
+    """Count of runs skipped due not having been synced."""
+
+    def print_selected_runs(self) -> None:
+        """Print runs selected for deletion, one per line."""
+        term.termlog(f"Found {len(self.runs_to_clean)} run(s) to clean.")
+        for path in self.runs_to_clean:
+            if path in self.unsynced:
+                unsynced_tag = click.style("[unsynced]", fg="red")
+                term.termlog(f"  {unsynced_tag} {path.as_posix()}")
+            else:
+                term.termlog(f"  {path.as_posix()}")
+
+    def ask_for_confirmation(self) -> bool:
+        """Prompt for confirmation before deleting runs.
+
+        Returns:
+            True if the user wants to proceed, False otherwise.
+        """
+        unsynced_count = len(self.unsynced)
+        if unsynced_count == 0:
+            unsynced_msg = ""
+        elif unsynced_count == 1:
+            unsynced_msg = ", 1 of which is unsynced"
+        else:
+            unsynced_msg = f", {unsynced_count} of which are unsynced"
+
+        return term.confirm(
+            "Are you sure you want to remove"
+            + f" {len(self.runs_to_clean)} run(s){unsynced_msg}?",
+        )
 
 
-def _examine_wandb_directory(
+def _select_runs_to_clean(
     wandb_dir: pathlib.Path,
     *,
+    include_unsynced: bool,
     min_hours: int,
 ) -> _WandbDirResult:
     """Check the wandb folder for runs to clean.
 
     Args:
         wandb_dir: The path to the wandb folder to examine.
+        include_unsynced: If false, skip unsynced runs; else don't.
         min_hours: Minimum age in hours.
     """
-    result = _WandbDirResult(runs_to_clean=[])
+    result = _WandbDirResult(runs_to_clean=[], unsynced=set())
     now = _DATETIME_NOW()
 
     for online_run in wandb_dir.glob("run-*"):
@@ -134,7 +180,7 @@ def _examine_wandb_directory(
             continue
 
         if (age := _run_age_hours(now, online_run.name)) and age < min_hours:
-            result.too_young += 1
+            result.skipped_too_new += 1
             continue
 
         result.runs_to_clean.append(online_run)
@@ -144,15 +190,17 @@ def _examine_wandb_directory(
             term.termwarn(f"Not a directory: {offline_run}")
             continue
 
-        synced_marker_count = len(list(offline_run.glob("*.wandb.synced")))
-        if synced_marker_count != 1:
-            result.unsynced += 1
-            continue  # Not synced yet, or invalid if >1 marker file.
-
-        if (age := _run_age_hours(now, offline_run.name)) and age < min_hours:
-            result.too_young += 1
+        is_synced = len(list(offline_run.glob("*.wandb.synced"))) == 1
+        if not is_synced and not include_unsynced:
+            result.skipped_unsynced += 1
             continue
 
+        if (age := _run_age_hours(now, offline_run.name)) and age < min_hours:
+            result.skipped_too_new += 1
+            continue
+
+        if not is_synced:
+            result.unsynced.add(offline_run)
         result.runs_to_clean.append(offline_run)
 
     return result

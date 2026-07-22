@@ -28,10 +28,7 @@ _RowDict: TypeAlias = dict[str, Any]
 
 
 class HistoryScan(Iterator[_RowDict]):
-    """Iterator for scanning complete run history.
-
-    <!-- lazydoc-ignore-class: internal -->
-    """
+    """Iterator for scanning complete run history."""
 
     def __init__(
         self,
