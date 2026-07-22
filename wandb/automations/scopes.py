@@ -26,18 +26,18 @@ class ScopeType(LenientStrEnum):
     ENTITY = "ENTITY"
 
 
-class _BaseScope(GQLBase):
+class _BaseScope(GQLBase, extra="ignore"):
     scope_type: Annotated[ScopeType, Field(frozen=True)]
 
 
 class _ArtifactSequenceScope(_BaseScope, ArtifactSequenceScopeFields):
-    """A scope defined by an `ArtifactSequence`."""
+    """A scope defined by an ArtifactSequence."""
 
     scope_type: Literal[ScopeType.ARTIFACT_COLLECTION] = ScopeType.ARTIFACT_COLLECTION
 
 
 class _ArtifactPortfolioScope(_BaseScope, ArtifactPortfolioScopeFields):
-    """A scope defined by an `ArtifactPortfolio`, usually a registry collection."""
+    """A scope defined by an ArtifactPortfolio, usually a registry collection."""
 
     scope_type: Literal[ScopeType.ARTIFACT_COLLECTION] = ScopeType.ARTIFACT_COLLECTION
 
@@ -48,27 +48,45 @@ ArtifactCollectionScope = Annotated[
     BeforeValidator(parse_scope),
     Discriminator("typename__"),
 ]
-"""Type hint for a scope defined by an `ArtifactCollection`."""
+"""Type hint for a scope defined by an ArtifactCollection."""
 
 # for runtime type checks
 ArtifactCollectionScopeTypes = ArtifactCollectionScope.__origin__  # type: ignore[attr-defined]
 
 
 class ProjectScope(_BaseScope, ProjectScopeFields):
-    """A scope defined by a `Project`."""
+    """A scope defined by a Project."""
 
     scope_type: Literal[ScopeType.PROJECT] = ScopeType.PROJECT
+    is_registry: Literal[False] = False
+
+
+class RegistryScope(_BaseScope, ProjectScopeFields):
+    """A scope defined by a Registry."""
+
+    # Registries are represented as projects server-side.
+    scope_type: Literal[ScopeType.PROJECT] = ScopeType.PROJECT
+    is_registry: Literal[True] = True
+    name: Annotated[str, Field(validation_alias="full_name")]
+
+
+_RegistryOrProjectScope = Annotated[
+    RegistryScope | ProjectScope,
+    BeforeValidator(parse_scope),
+    Discriminator("is_registry"),
+]
+"""Type hint for a scope defined by a registry or project."""
 
 
 class TeamScope(_BaseScope, EntityScopeFields):
-    """A scope defined by a team `Entity`."""
+    """A scope defined by a team Entity."""
 
     scope_type: Literal[ScopeType.ENTITY] = ScopeType.ENTITY
     entity_type: Literal["team"] = "team"
 
 
 class OrgScope(_BaseScope, EntityScopeFields):
-    """A scope defined by an org `Entity`."""
+    """A scope defined by an org Entity."""
 
     scope_type: Literal[ScopeType.ENTITY] = ScopeType.ENTITY
     entity_type: Literal["organization"] = "organization"
@@ -79,11 +97,11 @@ EntityScope = Annotated[
     BeforeValidator(parse_scope),
     Discriminator("entity_type"),
 ]
-"""Type hint for a scope defined by a team or org `Entity`."""
+"""Type hint for a scope defined by a team or org Entity."""
 
 
 AutomationScope = Annotated[
-    _ArtifactSequenceScope | _ArtifactPortfolioScope | ProjectScope | EntityScope,
+    ArtifactCollectionScope | _RegistryOrProjectScope | EntityScope,
     BeforeValidator(parse_scope),
     Discriminator("typename__"),
 ]
@@ -96,6 +114,7 @@ __all__ = [
     "ScopeType",
     "ArtifactCollectionScope",
     "ProjectScope",
+    "RegistryScope",
     "TeamScope",
     "OrgScope",
     "EntityScope",

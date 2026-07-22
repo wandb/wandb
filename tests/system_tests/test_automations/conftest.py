@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, TypeAlias
 import wandb
 from pytest import FixtureRequest, fixture, skip
 from wandb import Artifact
-from wandb.apis.public import ArtifactCollection, Organization, Project, Team
+from wandb.apis.public import ArtifactCollection, Organization, Project, Registry, Team
 from wandb.automations import (
     ActionType,
     ArtifactEvent,
@@ -41,7 +41,9 @@ from wandb.automations.events import InputEvent
 if TYPE_CHECKING:
     from tests.system_tests.backend_fixtures import BackendFixtureFactory
 
-ScopableWandbType: TypeAlias = ArtifactCollection | Project | Team | Organization
+ScopableWandbType: TypeAlias = (
+    ArtifactCollection | Project | Registry | Team | Organization
+)
 
 
 def random_string(chars: str = ascii_lowercase + digits, n: int = 12) -> str:
@@ -81,6 +83,21 @@ def project(
     return project
 
 
+@fixture
+def registry(
+    backend_fixture_factory: BackendFixtureFactory,
+    module_user: str,
+    module_api: wandb.Api,
+    make_name: Callable[[str], str],
+) -> Registry:
+    organization = backend_fixture_factory.make_org(username=module_user)
+    return module_api.create_registry(
+        name=make_name("test-registry"),
+        visibility="organization",
+        organization=organization,
+    )
+
+
 @fixture(scope="module")
 def artifact(module_user: str, project: Project, make_name) -> Artifact:
     name = make_name("test-artifact")
@@ -98,10 +115,7 @@ def artifact_collection(
     """A test ArtifactCollection for tests in this module."""
     return (
         make_module_api()
-        .artifact(
-            name=artifact.qualified_name,
-            type=artifact.type,
-        )
+        .artifact(name=artifact.qualified_name, type=artifact.type)
         .collection
     )
 
@@ -133,14 +147,16 @@ def make_webhook_integration(
         gql_input = CreateGenericWebhookIntegrationInput(
             name=name, entity_name=entity, url_endpoint=url
         )
-        gql_op = CREATE_GENERIC_WEBHOOK_INTEGRATION_GQL
-        gql_vars = {"input": gql_input.model_dump()}
-        api = make_module_api()
-        data = api._service_api.execute_graphql(gql_op, variables=gql_vars)
-
-        result = CreateGenericWebhookIntegration(**data)
-        integration = result.create_generic_webhook_integration.integration
-        return WebhookIntegration.model_validate(integration)
+        result = (
+            make_module_api()
+            ._service_api.execute_graphql(
+                CREATE_GENERIC_WEBHOOK_INTEGRATION_GQL,
+                variables={"input": gql_input.model_dump()},
+                parse=CreateGenericWebhookIntegration.model_validate_json,
+            )
+            .result
+        )
+        return WebhookIntegration.model_validate(result.integration)
 
     return _make_webhook
 

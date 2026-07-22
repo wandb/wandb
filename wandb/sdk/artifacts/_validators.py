@@ -305,7 +305,7 @@ def ensure_not_finalized(method: MethodT[ArtifactT, P, R]) -> MethodT[ArtifactT,
 
 
 def is_artifact_registry_project(project: str) -> bool:
-    return project.startswith(REGISTRY_PREFIX)
+    return project.startswith(REGISTRY_PREFIX) and project != REGISTRY_PREFIX
 
 
 def remove_registry_prefix(project: str) -> str:

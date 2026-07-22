@@ -10,7 +10,7 @@ from hypothesis import settings
 from pytest import FixtureRequest, fixture, skip
 from pytest_mock import MockerFixture
 from wandb._strutils import b64encode_ascii
-from wandb.apis.public import ArtifactCollection, Organization, Project, Team
+from wandb.apis.public import ArtifactCollection, Organization, Project, Registry, Team
 from wandb.automations import (
     ActionType,
     ArtifactEvent,
@@ -40,14 +40,16 @@ from wandb.automations.actions import (
 )
 from wandb.automations.automations import Automation
 from wandb.automations.events import InputEvent, OnRunState, SavedEvent
-from wandb.sdk.artifacts._generated import ArtifactCollectionFragment
+from wandb.sdk.artifacts._generated import ArtifactCollectionFragment, RegistryFragment
 
 # default Hypothesis settings
 settings.register_profile("default", max_examples=100)
 settings.load_profile("default")
 
 
-ScopableWandbType: TypeAlias = ArtifactCollection | Project | Team | Organization
+ScopableWandbType: TypeAlias = (
+    ArtifactCollection | Project | Registry | Team | Organization
+)
 
 
 # ---------------------------------------------------------------------------
@@ -144,6 +146,35 @@ def project(mock_client: Mock) -> Project:
         attrs={
             "id": make_graphql_id(prefix="Project"),
         },
+    )
+
+
+@fixture(scope="session")
+def registry(mock_client: Mock) -> Registry:
+    """A simulated `Registry` that could be returned by `wandb.Api`.
+
+    For unit-testing purposes, this has been heavily mocked.
+    Tests relying on real `wandb.Api` calls should live in system tests.
+    """
+    name = "test-registry"
+    organization = "test-organization"
+    entity = "test-entity"
+    return Registry(
+        service_api=mock_client,
+        name=name,
+        entity=entity,
+        organization=organization,
+        attrs=RegistryFragment(
+            id=make_graphql_id(prefix="Project"),
+            name=f"wandb-registry-{name}",
+            description="This is a fake registry.",
+            created_at="2021-01-01T00:00:00Z",
+            updated_at=None,
+            access="organization",
+            allow_all_artifact_types=True,
+            artifact_types={"edges": []},
+            entity={"name": entity, "organization": {"name": organization}},
+        ),
     )
 
 

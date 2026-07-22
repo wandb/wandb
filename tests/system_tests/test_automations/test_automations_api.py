@@ -8,7 +8,7 @@ from typing import Any
 
 import wandb
 from pytest import FixtureRequest, fixture, mark, raises, skip
-from wandb.apis.public import ArtifactCollection, Project
+from wandb.apis.public import ArtifactCollection, Project, Registry
 from wandb.automations import (
     ActionType,
     ArtifactEvent,
@@ -24,6 +24,7 @@ from wandb.automations import (
     OnRunMetric,
     OnRunState,
     ProjectScope,
+    RegistryScope,
     RunEvent,
     ScopeType,
     SendWebhook,
@@ -670,8 +671,26 @@ class TestUpdateAutomation:
         updated_scope = new_automation.scope
 
         assert isinstance(updated_scope, ProjectScope)
+        assert updated_scope.is_registry is False
         assert updated_scope.id == project.id
         assert updated_scope.name == project.name
+
+    def test_update_scope_to_registry(
+        self,
+        module_api: wandb.Api,
+        old_automation: Automation,
+        registry: Registry,
+    ):
+        old_automation.scope = registry
+
+        new_automation = module_api.update_automation(old_automation)
+        updated_scope = new_automation.scope
+
+        assert isinstance(updated_scope, RegistryScope)
+        assert updated_scope.is_registry is True
+        assert updated_scope.id == registry.id
+        assert updated_scope.name == registry.full_name
+        assert updated_scope.name.startswith("wandb-registry-")
 
     # Each mutation event, started on a scope it supports. CREATE_ARTIFACT only
     # supports collection scope, so it starts and stays there. The rest start on

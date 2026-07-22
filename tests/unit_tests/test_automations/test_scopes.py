@@ -9,15 +9,23 @@ from wandb.automations import (
     ArtifactCollectionScope,
     EntityScope,
     ProjectScope,
+    RegistryScope,
     ScopeType,
 )
-from wandb.automations._generated import TriggerScopeType
+from wandb.automations._generated import ProjectScopeFields, TriggerScopeType
 from wandb.automations.scopes import AutomationScope
+from wandb.sdk.artifacts._validators import REGISTRY_PREFIX
 
 if TYPE_CHECKING:
     from unittest.mock import Mock
 
-    from wandb.apis.public import ArtifactCollection, Organization, Project, Team
+    from wandb.apis.public import (
+        ArtifactCollection,
+        Organization,
+        Project,
+        Registry,
+        Team,
+    )
 
 
 class HasScope(BaseModel):
@@ -30,6 +38,10 @@ class HasCollectionScope(HasScope):
 
 class HasProjectScope(HasScope):
     scope: ProjectScope
+
+
+class HasRegistryScope(HasScope):
+    scope: RegistryScope
 
 
 class HasEntityScope(HasScope):
@@ -69,8 +81,44 @@ def test_scope_can_validate_from_wandb_project(
 
     validated = model_cls(scope=project)
     assert validated.scope.scope_type is ScopeType.PROJECT
+    assert validated.scope.is_registry is False
     assert validated.scope.id == project.id
     assert validated.scope.name == project.name
+
+
+@mark.parametrize("model_cls", (HasRegistryScope, HasScope), ids=nameof)
+def test_scope_can_validate_from_wandb_registry(
+    registry: Registry, model_cls: type[HasScope]
+):
+    """Check that we can parse an automation scope from a pre-existing `Registry` type."""
+
+    validated = model_cls(scope=registry)
+    assert validated.scope.scope_type is ScopeType.PROJECT
+    assert validated.scope.is_registry is True
+    assert validated.scope.id == registry.id
+    assert validated.scope.name == registry.full_name
+
+
+@mark.parametrize(
+    ("name", "expected_type", "expected_is_registry"),
+    (
+        ("test-project", ProjectScope, False),
+        (REGISTRY_PREFIX, ProjectScope, False),
+        (f"{REGISTRY_PREFIX}test", RegistryScope, True),
+    ),
+    ids=("project", "bare-prefix", "registry"),
+)
+def test_project_scope_fragment_sets_registry_discriminator(
+    project: Project,
+    name: str,
+    expected_type: type[ProjectScope],
+    expected_is_registry: bool,
+):
+    fragment = ProjectScopeFields(id=project.id, name=name)
+
+    validated = HasScope(scope=fragment)
+    assert type(validated.scope) is expected_type
+    assert validated.scope.is_registry is expected_is_registry
 
 
 @mark.parametrize("model_cls", (HasEntityScope, HasScope), ids=nameof)
