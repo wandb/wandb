@@ -331,7 +331,16 @@ def _print_logged_in_message(settings: wandb.Settings, *, host: str) -> None:
 
         login_state_str = f"Currently logged in as: {click.style(username, fg='yellow')}{entity_str}{host_str}"
     else:
-        login_state_str = "W&B API key is configured"
+        login_info_str = (
+            f"Use {click.style('`wandb login --relogin`', bold=True)}"
+            " to force relogin"
+        )
+        term.termwarn(
+            f"W&B API key is configured but could not be verified"
+            f" (unable to retrieve username). {login_info_str}",
+            repeat=False,
+        )
+        return
 
     login_info_str = (
         f"Use {click.style('`wandb login --relogin`', bold=True)} to force relogin"
