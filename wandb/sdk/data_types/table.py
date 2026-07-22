@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Any, Literal, TypeVar, cast, get_args, overloa
 
 import wandb
 from wandb import util
-from wandb.sdk.lib import runid
+from wandb.sdk.lib import runid, telemetry
 
 from . import _dtypes
 from ._private import MEDIA_TMP
@@ -822,10 +822,15 @@ class Table(Media):
             )
 
         if isinstance(run_or_artifact, wandb.Run):
-            if self.log_mode == "INCREMENTAL":
-                wbvalue_type = "incremental-table-file"
-            else:
-                wbvalue_type = "table-file"
+            # Run-level adoption signal, split to mirror the wire type above:
+            # incremental tables vs. all other (regular) tables.
+            with telemetry.context(run=run_or_artifact) as tel:
+                if self.log_mode == "INCREMENTAL":
+                    wbvalue_type = "incremental-table-file"
+                    tel.feature.incremental_table = True
+                else:
+                    wbvalue_type = "table-file"
+                    tel.feature.table = True
 
             json_dict.update(
                 {
@@ -1173,15 +1178,17 @@ class Table(Media):
             fn: A function which accepts an index and row dict, and returns a dict
                 representing new columns for that row, keyed by the new column names.
 
-        Example:
-            table = wandb.Table(columns=["x", "y"], data=[[3, 1], [4, 6]])
-            table.add_computed_columns(
-                lambda ndx, row: {"diff": row["x"] - row["y"]}
-            )
+        Examples:
+        In the callback:
+        - `ndx` is an integer representing the index of the row.
+        - `row` is a dictionary keyed by existing columns.
 
-            In the callback:
-            - `ndx` is an integer representing the index of the row.
-            - `row` is a dictionary keyed by existing columns.
+        ```python
+        import wandb
+
+        table = wandb.Table(columns=["x", "y"], data=[[3, 1], [4, 6]])
+        table.add_computed_columns(lambda ndx, row: {"diff": row["x"] - row["y"]})
+        ```
         """
         new_columns: dict[str, list[Any]] = {}
         for ndx, row in self.iterrows():
