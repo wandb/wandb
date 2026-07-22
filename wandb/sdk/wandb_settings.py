@@ -51,6 +51,7 @@ CLIENT_ONLY_SETTINGS = (
     "max_end_of_run_summary_metrics",
     "reinit",
     "stop_fn",
+    "use_dot_wandb",
     "x_files_dir",
     "x_sync_dir_suffix",
 )
