@@ -18,7 +18,7 @@ def test_cleans_expected_runs(runner: CliRunner):
         pass
     runner.invoke(cli.sync, synced_run.settings.sync_dir)
 
-    result = runner.invoke(clean, input="y")
+    result = runner.invoke(clean, ["--min-hours", "0"], input="y")
 
     assert os.path.exists(unsynced_run.settings.sync_dir)
     assert not os.path.exists(synced_run.settings.sync_dir)
