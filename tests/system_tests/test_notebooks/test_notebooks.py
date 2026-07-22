@@ -68,11 +68,9 @@ def test_notebook_metadata_jupyter(mocked_module, notebook):
         serverapp.list_running_servers.return_value = [
             {"url": base_url, "notebook_dir": "/test"}
         ]
-        with mock.patch.object(
-            wandb.jupyter.requests,
-            "get",
-            lambda *args, **kwargs: mock.MagicMock(
-                json=lambda: [
+        response = io.BytesIO(
+            json.dumps(
+                [
                     {
                         "kernel": {"id": "12345"},
                         "notebook": {
@@ -81,8 +79,9 @@ def test_notebook_metadata_jupyter(mocked_module, notebook):
                         },
                     }
                 ]
-            ),
-        ):
+            ).encode()
+        )
+        with mock.patch("urllib.request.urlopen", return_value=response):
             meta = wandb.jupyter.notebook_metadata(False)
             assert meta == {"path": "test.ipynb", "root": "/test", "name": "test.ipynb"}
 
