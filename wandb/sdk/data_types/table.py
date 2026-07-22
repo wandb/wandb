@@ -1173,15 +1173,20 @@ class Table(Media):
             fn: A function which accepts an index and row dict, and returns a dict
                 representing new columns for that row, keyed by the new column names.
 
-        Example:
-            table = wandb.Table(columns=["x", "y"], data=[[3, 1], [4, 6]])
-            table.add_computed_columns(
-                lambda ndx, row: {"diff": row["x"] - row["y"]}
-            )
+        Examples:
+        
+        In the callback:
+        - `ndx` is an integer representing the index of the row.
+        - `row` is a dictionary keyed by existing columns.
 
-            In the callback:
-            - `ndx` is an integer representing the index of the row.
-            - `row` is a dictionary keyed by existing columns.
+        ```python
+        import wandb
+
+        table = wandb.Table(columns=["x", "y"], data=[[3, 1], [4, 6]])
+        table.add_computed_columns(
+            lambda ndx, row: {"diff": row["x"] - row["y"]}
+        )
+        ```
         """
         new_columns: dict[str, list[Any]] = {}
         for ndx, row in self.iterrows():
