@@ -1002,8 +1002,8 @@ class Api:
         """Create a new team.
 
         For W&B Multi-tenant Cloud users, set the Default API organization in
-        your user settings before calling `create_team()`. This setting
-        determines the organization the new team will belong to.
+        your user settings in the W&B UI before calling `create_team()`.
+        This setting determines the organization the new team will belong to.
 
         Args:
             team: The name of the team.
