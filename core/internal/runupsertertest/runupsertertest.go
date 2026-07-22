@@ -50,6 +50,9 @@ func NewTestUpserter(
 	if params.FeatureProvider == nil {
 		params.FeatureProvider = featurechecker.NewPreloaded(nil)
 	}
+	if mockGQL, ok := params.GraphqlClientOrNil.(*gqlmock.MockClient); ok {
+		StubRunResumeStatus(t, mockGQL)
+	}
 
 	record := &spb.Record{RecordType: &spb.Record_Run{
 		Run: &spb.RunRecord{
@@ -63,6 +66,13 @@ func NewTestUpserter(
 	require.NoError(t, err)
 
 	return upserter
+}
+
+// StubRunResumeStatus stubs a single call to RunResumeStatus to return no
+// existing run.
+func StubRunResumeStatus(t *testing.T, mockGQL *gqlmock.MockClient) {
+	t.Helper()
+	mockGQL.StubMatchOnce(gqlmock.WithOpName("RunResumeStatus"), `{}`)
 }
 
 // StubUpsertBucket stubs a single call to UpsertBucket to return a basic

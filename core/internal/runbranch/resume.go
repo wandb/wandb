@@ -86,12 +86,13 @@ func (rb *ResumeBranch) UpdateForResume(
 
 	// if we have data and we are in a never resume mode we need to return an
 	// error because we are not allowed to resume
-	if data != nil && rb.mode == "never" {
+	if data != nil && (rb.mode == "never" || rb.mode == "") {
 		info := &spb.ErrorInfo{
 			Code: spb.ErrorInfo_USAGE,
 			Message: fmt.Sprintf("You provided an invalid value for the `resume` argument."+
-				"  The value 'never' is not a valid option for resuming a run (%s) that already exists."+
+				"  The value '%s' is not a valid option for resuming a run (%s) that already exists."+
 				"  Please check your inputs and try again with a valid value for the `resume` argument.",
+				rb.mode,
 				params.RunID),
 		}
 		err = errors.New("data but cannot resume")
