@@ -137,7 +137,9 @@ func (w *outputFileWriter) writeToFile(
 		if err := w.createNewChunk(); err != nil {
 			w.broken = true
 			w.logger.CaptureError(
-				fmt.Errorf("runconsolelogs: failed to create chunk: %v", err))
+				"runconsolelogs",
+				fmt.Errorf("runconsolelogs: failed to create chunk: %v", err),
+			)
 			return
 		}
 	}
@@ -160,7 +162,10 @@ func (w *outputFileWriter) writeToFile(
 
 	if err := w.currentChunk.UpdateLines(lines); err != nil {
 		w.broken = true
-		w.logger.CaptureError(fmt.Errorf("failed to write to chunk: %v", err))
+		w.logger.CaptureError(
+			"runconsolelogs",
+			fmt.Errorf("failed to write to chunk: %v", err),
+		)
 		return
 	}
 

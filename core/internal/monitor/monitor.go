@@ -179,7 +179,9 @@ func (sm *SystemMonitor) initializeResources(xpuResourceManager *XPUResourceMana
 		sm.resources = append(sm.resources, xpu)
 	} else if err != nil {
 		sm.logger.CaptureError(
-			fmt.Errorf("monitor: failed to initialize xpu resource: %v", err))
+			"SystemMonitor",
+			fmt.Errorf("monitor: failed to initialize xpu resource: %v", err),
+		)
 	}
 
 	if trainium := NewTrainium(
@@ -203,7 +205,12 @@ func (sm *SystemMonitor) initializeResources(xpuResourceManager *XPUResourceMana
 		sm.resources = append(sm.resources, cwm)
 	} else if err != nil {
 		sm.logger.CaptureError(
-			fmt.Errorf("monitor: failed to initialize CoreWeave metadata resource: %v", err))
+			"SystemMonitor",
+			fmt.Errorf(
+				"monitor: failed to initialize CoreWeave metadata resource: %v",
+				err,
+			),
+		)
 	}
 
 	// DCGM Exporter.
@@ -298,7 +305,10 @@ func (sm *SystemMonitor) probeResources() *spb.Record {
 		g.Go(func() error {
 			defer func() {
 				if err := recover(); err != nil {
-					sm.logger.CaptureError(fmt.Errorf("monitor: panic probing resource: %v", err))
+					sm.logger.CaptureError(
+						"SystemMonitor",
+						fmt.Errorf("monitor: panic probing resource: %v", err),
+					)
 				}
 			}()
 
@@ -419,7 +429,10 @@ func (sm *SystemMonitor) monitorResource(resource Resource) {
 	defer func() {
 		if err := recover(); err != nil {
 			if resource != nil {
-				sm.logger.CaptureError(fmt.Errorf("monitor: panic: %v", err))
+				sm.logger.CaptureError(
+					"SystemMonitor",
+					fmt.Errorf("monitor: panic: %v", err),
+				)
 			}
 		}
 	}()
@@ -440,7 +453,10 @@ func (sm *SystemMonitor) monitorResource(resource Resource) {
 			metrics, err := resource.Sample()
 			if err != nil {
 				if ShouldCaptureSamplingError(err) {
-					sm.logger.CaptureError(fmt.Errorf("monitor: error sampling metrics: %v", err))
+					sm.logger.CaptureError(
+						"SystemMonitor",
+						fmt.Errorf("monitor: error sampling metrics: %v", err),
+					)
 				} else {
 					sm.logger.Debug(fmt.Sprintf("monitor: benign sampling error: %v", err))
 				}

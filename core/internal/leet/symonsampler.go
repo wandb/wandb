@@ -100,7 +100,9 @@ func (s *SymonSampler) Sample() StatsMsg {
 			defer func() {
 				if r := recover(); r != nil {
 					s.logger.CaptureError(
-						fmt.Errorf("symon: panic sampling resource: %v", r))
+						"leet.SymonSampler",
+						fmt.Errorf("symon: panic sampling resource: %v", r),
+					)
 				}
 			}()
 
@@ -146,7 +148,10 @@ func (s *SymonSampler) Cleanup() {
 // depending on whether the monitor package considers them expected.
 func (s *SymonSampler) logSamplingError(err error) {
 	if monitor.ShouldCaptureSamplingError(err) {
-		s.logger.CaptureError(fmt.Errorf("symon: sampling error: %v", err))
+		s.logger.CaptureError(
+			"leet.SymonSampler",
+			fmt.Errorf("symon: sampling error: %v", err),
+		)
 		return
 	}
 	s.logger.Debug(fmt.Sprintf("symon: benign sampling error: %v", err))

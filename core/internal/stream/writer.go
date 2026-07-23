@@ -64,7 +64,7 @@ func (w *Writer) Chan() <-chan runwork.MaybeSavedWork {
 // Do saves all input Work and pushes it to the output channel,
 // closing it and the transaction log writer at the end.
 func (w *Writer) Do(allWork <-chan runwork.Work) {
-	defer w.logger.Reraise()
+	defer w.logger.Reraise("writer")
 	defer close(w.out)
 	w.logger.Info("writer: started", "stream_id", w.settings.GetRunID())
 
@@ -84,7 +84,9 @@ func (w *Writer) Do(allWork <-chan runwork.Work) {
 
 			if err != nil {
 				w.logger.CaptureError(
-					fmt.Errorf("writer: failed to save record: %v", err))
+					"writer",
+					fmt.Errorf("writer: failed to save record: %v", err),
+				)
 			} else {
 				savedWork.IsSaved = true
 				savedWork.SavedOffset = offset
@@ -105,7 +107,9 @@ func (w *Writer) Do(allWork <-chan runwork.Work) {
 
 	if err := w.writer.Close(); err != nil {
 		w.logger.CaptureError(
-			fmt.Errorf("writer: failed closing store: %v", err))
+			"writer",
+			fmt.Errorf("writer: failed closing store: %v", err),
+		)
 	}
 }
 

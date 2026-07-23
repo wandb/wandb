@@ -48,7 +48,10 @@ func (wm *WatcherManager) Start(runPath string) error {
 	})
 
 	if err != nil {
-		wm.logger.CaptureError(fmt.Errorf("watcher: error starting: %v", err))
+		wm.logger.CaptureError(
+			"leet.WatcherManager",
+			fmt.Errorf("watcher: error starting: %v", err),
+		)
 		return err
 	}
 

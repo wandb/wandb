@@ -142,7 +142,8 @@ func (s *TelemetryContext) with(
 	low := s.lowCardinalityAttributes
 	low.merge(lowCardinalityAttributes)
 
-	high := maps.Clone(s.highCardinalityAttributes)
+	high := make(map[string]string, len(s.highCardinalityAttributes))
+	maps.Copy(high, s.highCardinalityAttributes)
 	maps.Copy(high, highCardinalityAttributes)
 
 	return TelemetryContext{
@@ -336,9 +337,6 @@ type OpenTelemetryProxy struct {
 }
 
 // NewOpenTelemetryProxy returns an OpenTelemetryProxy for the given endpoint.
-//
-// When analytics is disabled or no API key is available, a no-op proxy is
-// returned so no providers are created and nothing is recorded.
 func NewOpenTelemetryProxy(
 	ctx context.Context,
 	wandbSettings *settings.Settings,

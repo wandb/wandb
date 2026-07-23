@@ -178,13 +178,13 @@ func (rs *RunSyncer) markSynced() {
 func (rs *RunSyncer) printRunURL() {
 	upserter, err := rs.runHandle.Upserter()
 	if err != nil {
-		rs.logger.CaptureError(fmt.Errorf("runsync: printRunURL: %v", err))
+		rs.logger.CaptureError("runsync", fmt.Errorf("runsync: printRunURL: %v", err))
 		return
 	}
 
 	url, err := upserter.RunPath().URL(rs.settings.GetAppURL())
 	if err != nil {
-		rs.logger.CaptureError(fmt.Errorf("runsync: printRunURL: %v", err))
+		rs.logger.CaptureError("runsync", fmt.Errorf("runsync: printRunURL: %v", err))
 		return
 	}
 

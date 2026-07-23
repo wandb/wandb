@@ -240,8 +240,10 @@ func (s *Sender) StreamLogs(record *spb.OutputRawRecord) {
 
 	default:
 		s.logger.CaptureError(
+			"runconsolelogs",
 			errors.New("runconsolelogs: invalid OutputRawRecord type"),
-			"type", record.OutputType,
+			"type",
+			record.OutputType,
 		)
 	}
 }

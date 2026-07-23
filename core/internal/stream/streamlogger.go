@@ -1,6 +1,7 @@
 package stream
 
 import (
+	"context"
 	"io"
 	"log/slog"
 	"os"
@@ -9,6 +10,7 @@ import (
 	"github.com/getsentry/sentry-go"
 	"github.com/google/wire"
 
+	"github.com/wandb/wandb/core/internal/analytics"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/version"
@@ -22,7 +24,16 @@ var streamLoggerProviders = wire.NewSet(
 	openStreamLoggerFile,
 	streamSentryContext,
 	streamLogger,
+	streamOTelProxy,
 )
+
+// streamOTelProxy returns the OpenTelemetry proxy for the stream.
+//
+// The stream owns the proxy's lifecycle: it is shut down in Stream.Close
+// after all of the stream's work is processed.
+func streamOTelProxy(s *settings.Settings) *analytics.OpenTelemetryProxy {
+	return analytics.NewOpenTelemetryProxy(context.Background(), s)
+}
 
 // symlinkDebugCore symlinks the debug-core.log file to the run's directory.
 func symlinkDebugCore(
@@ -66,6 +77,7 @@ func streamSentryContext(s *settings.Settings) *observability.SentryContext {
 func streamLogger(
 	loggerFile streamLoggerFile,
 	sentryCtx *observability.SentryContext,
+	telemetryProxy *analytics.OpenTelemetryProxy,
 	s *settings.Settings,
 	logLevel slog.Level,
 ) *observability.CoreLogger {
@@ -86,6 +98,11 @@ func streamLogger(
 		sentryOnlyTags["sweep_url"] = s.GetSweepURL()
 	}
 
+	telemetryRecorder := analytics.NewTelemetryRecorder(
+		telemetryProxy,
+		analytics.NewTelemetryContext(),
+	)
+
 	logger := observability.NewCoreLogger(
 		slog.New(slog.NewJSONHandler(
 			writer,
@@ -95,6 +112,7 @@ func streamLogger(
 			},
 		)),
 		sentryCtx,
+		telemetryRecorder,
 	).With(nil, sentryOnlyTags)
 
 	logger.CaptureInfo("wandb-core")

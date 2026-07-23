@@ -57,7 +57,7 @@ func (f *FlowControlFactory) New(
 // Closes the output channel and the transaction log reader after completing.
 func (fc *FlowControl) Do(savedWork <-chan runwork.MaybeSavedWork) {
 	go func() {
-		defer fc.logger.Reraise()
+		defer fc.logger.Reraise("flowcontrol")
 
 		for work := range savedWork {
 			fc.buffer.Add(work)
@@ -93,7 +93,7 @@ func (fc *FlowControl) loopFlushBuffer() {
 				err := fc.readSavedChunk(chunk)
 
 				if err != nil {
-					fc.logger.CaptureError(err, "chunk", chunk)
+					fc.logger.CaptureError("flowcontrol", err, "chunk", chunk)
 					fc.buffer.StopOffloading()
 				}
 			},

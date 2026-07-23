@@ -459,6 +459,7 @@ func newLeetLogger(logLevel int) (*observability.CoreLogger, func(), error) {
 			&slog.HandlerOptions{Level: slog.Level(logLevel)},
 		)),
 		observability.NewSentryContext(sentry.CurrentHub()),
+		analytics.NewTelemetryRecorder(nil, analytics.NewTelemetryContext()),
 	)
 	return logger, closeLogWriter, nil
 }
@@ -494,7 +495,10 @@ func runSymon(opts *leetOptions, logger *observability.CoreLogger) int {
 		finalModel, err := program.Run()
 		m.Cleanup()
 		if err != nil {
-			logger.CaptureError(fmt.Errorf("wandb-symon: %v", err))
+			logger.CaptureError(
+				"main",
+				fmt.Errorf("wandb-symon: %v", err),
+			)
 			return exitCodeErrorInternal
 		}
 
@@ -523,7 +527,10 @@ func runLeetWorkspace(opts *leetOptions, logger *observability.CoreLogger) int {
 
 		finalModel, err := program.Run()
 		if err != nil {
-			logger.CaptureError(fmt.Errorf("wandb-leet: %v", err))
+			logger.CaptureError(
+				"main",
+				fmt.Errorf("wandb-leet: %v", err),
+			)
 			return exitCodeErrorInternal
 		}
 
