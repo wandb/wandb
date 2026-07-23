@@ -43,6 +43,7 @@ from wandb.automations._utils import (
     scope_enabled,
 )
 from wandb.automations.events import InputEvent
+from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 
 if TYPE_CHECKING:
     from tests.system_tests.backend_fixtures import (
@@ -115,7 +116,12 @@ def entity_scope_enabled(
       check) says whether the feature is switched on for a specific *org*.
       If the flag is absent, it's off.
     """
-    flags = org_feature_flags(make_module_api(), team_and_org.org)
+    try:
+        flags = org_feature_flags(make_module_api(), team_and_org.org)
+    except WandbApiFailedError:
+        # Some servers do not expose this query. If we can't probe the flag,
+        # we can't assume the feature is on.
+        return False
     return flags.get("automation_entity_scope", False)
 
 
