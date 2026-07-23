@@ -13,6 +13,7 @@ import (
 	"github.com/hashicorp/go-retryablehttp"
 
 	"github.com/wandb/wandb/core/internal/wboperation"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 // startProcessingUpdates asynchronously ingests updates.
@@ -136,7 +137,12 @@ func (fs *fileStream) send(
 	}
 	fs.logger.Debug("filestream: post request", "request", string(jsonData))
 
-	useGzip := fs.useGzip != nil && fs.useGzip()
+	useGzip := fs.settings.IsFileStreamGzipEnabled() &&
+		fs.featureProvider.Enabled(
+			fs.beforeRunEndCtx,
+			spb.ServerFeature_FILESTREAM_GZIP,
+		)
+
 	requestBody := jsonData
 	if useGzip {
 		var compressed bytes.Buffer

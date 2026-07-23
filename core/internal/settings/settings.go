@@ -207,7 +207,7 @@ func (s *Settings) GetFileStreamMaxBytes() int32 {
 
 // Whether to gzip filestream request bodies.
 func (s *Settings) IsFileStreamGzipEnabled() bool {
-	return s.Proto.XFileStreamUseGzip.GetValue()
+	return !s.Proto.XFileStreamNoGzip.GetValue()
 }
 
 // Additional headers to add to all outgoing HTTP requests.

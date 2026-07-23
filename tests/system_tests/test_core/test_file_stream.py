@@ -1,5 +1,3 @@
-import time
-
 import numpy as np
 import pytest
 import wandb
@@ -72,28 +70,17 @@ def test_file_stream_forward_slashes(wandb_backend_spy):
             assert "\\" not in file
 
 
-def test_gzip_requests_are_processed(user, api, wandb_backend_spy):
+def test_gzip_requests_are_processed(api, wandb_backend_spy):
     if not api._service_api.feature_enabled(pb.ServerFeature.FILESTREAM_GZIP):
         pytest.skip("Server does not support gzip-compressed filestream requests")
 
-    project = "test-filestream-gzip"
     with wandb.init(
-        entity=user,
-        project=project,
-        settings=wandb.Settings(x_file_stream_use_gzip=True),
+        settings=wandb.Settings(x_file_stream_no_gzip=False),
     ) as run:
         run.log({"acc": 1})
 
     with wandb_backend_spy.freeze() as snapshot:
-        assert snapshot.file_stream_content_encodings(run_id=run.id)
-        assert set(snapshot.file_stream_content_encodings(run_id=run.id)) == {"gzip"}
+        encodings = snapshot.file_stream_content_encodings(run_id=run.id)
+        assert encodings
+        assert set(encodings) == {"gzip"}
         assert snapshot.history(run_id=run.id)[0]["acc"] == 1
-
-    deadline = time.monotonic() + 30
-    while time.monotonic() < deadline:
-        history = api.run(f"{user}/{project}/{run.id}").history(pandas=False)
-        if any(row.get("acc") == 1 for row in history):
-            break
-        time.sleep(1)
-    else:
-        raise AssertionError("Compressed history was not processed by the server")

@@ -146,8 +146,8 @@ message Settings {
   // Interval in seconds between filestream transmissions.
   google.protobuf.DoubleValue x_file_stream_transmit_interval = 175;
 
-  // Whether to gzip filestream request bodies.
-  google.protobuf.BoolValue x_file_stream_use_gzip = 208;
+  // Whether to disable gzip compression of filestream request bodies.
+  google.protobuf.BoolValue x_file_stream_no_gzip = 208;
 
   // Additional headers to add to all outgoing HTTP requests.
   MapStringKeyStringValue x_extra_http_headers = 14;

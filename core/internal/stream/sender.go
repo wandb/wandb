@@ -132,18 +132,6 @@ type Sender struct {
 
 // New returns a new Sender.
 func (f *SenderFactory) New(runWork runwork.RunWork) *Sender {
-	// Resolve server feature flags lazily, off the connection's request loop.
-	//
-	// SenderFactory.New runs synchronously in that loop (via handleInformInit),
-	// so querying features here would block the loop on a network round-trip.
-	featureCtx := runWork.BeforeEndCtx()
-	useFileStreamGzip := sync.OnceValue(func() bool {
-		return f.Settings.IsFileStreamGzipEnabled() && f.FeatureProvider.Enabled(
-			featureCtx,
-			spb.ServerFeature_FILESTREAM_GZIP,
-		)
-	})
-
 	var fileStream fs.FileStream
 	if !f.Settings.IsOffline() {
 		fileStream = NewFileStream(
@@ -155,7 +143,6 @@ func (f *SenderFactory) New(runWork runwork.RunWork) *Sender {
 			f.Logger,
 			f.Peeker,
 			f.Settings,
-			useFileStreamGzip,
 		)
 	}
 
@@ -168,6 +155,11 @@ func (f *SenderFactory) New(runWork runwork.RunWork) *Sender {
 		)
 	}
 
+	// Resolve server feature flags lazily, off the connection's request loop.
+	//
+	// SenderFactory.New runs synchronously in that loop (via handleInformInit),
+	// so querying features here would block the loop on a network round-trip.
+	featureCtx := runWork.BeforeEndCtx()
 	structuredConsoleLogs := sync.OnceValue(func() bool {
 		return f.FeatureProvider.Enabled(
 			featureCtx,

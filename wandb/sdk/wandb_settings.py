@@ -660,10 +660,10 @@ class Settings(BaseModel, validate_assignment=True):
     <!-- lazydoc-ignore -->
     """
 
-    x_file_stream_use_gzip: bool = False
-    """Whether to gzip filestream request bodies.
+    x_file_stream_no_gzip: bool = True
+    """Whether to disable gzip compression of filestream request bodies.
 
-    <!-- lazydoc-ignore-class-attributes -->
+    <!-- lazydoc-ignore -->
     """
 
     # Filestream retry client configuration.

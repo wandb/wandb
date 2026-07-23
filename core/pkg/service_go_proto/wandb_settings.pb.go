@@ -424,8 +424,8 @@ type Settings struct {
 	XFileStreamMaxBytes *wrapperspb.Int32Value `protobuf:"bytes,172,opt,name=x_file_stream_max_bytes,json=xFileStreamMaxBytes,proto3" json:"x_file_stream_max_bytes,omitempty"`
 	// Interval in seconds between filestream transmissions.
 	XFileStreamTransmitInterval *wrapperspb.DoubleValue `protobuf:"bytes,175,opt,name=x_file_stream_transmit_interval,json=xFileStreamTransmitInterval,proto3" json:"x_file_stream_transmit_interval,omitempty"`
-	// Whether to gzip filestream request bodies.
-	XFileStreamUseGzip *wrapperspb.BoolValue `protobuf:"bytes,208,opt,name=x_file_stream_use_gzip,json=xFileStreamUseGzip,proto3" json:"x_file_stream_use_gzip,omitempty"`
+	// Whether to disable gzip compression of filestream request bodies.
+	XFileStreamNoGzip *wrapperspb.BoolValue `protobuf:"bytes,208,opt,name=x_file_stream_no_gzip,json=xFileStreamNoGzip,proto3" json:"x_file_stream_no_gzip,omitempty"`
 	// Additional headers to add to all outgoing HTTP requests.
 	XExtraHttpHeaders *MapStringKeyStringValue `protobuf:"bytes,14,opt,name=x_extra_http_headers,json=xExtraHttpHeaders,proto3" json:"x_extra_http_headers,omitempty"`
 	// Maximum number of retries for filestream operations.
@@ -954,9 +954,9 @@ func (x *Settings) GetXFileStreamTransmitInterval() *wrapperspb.DoubleValue {
 	return nil
 }
 
-func (x *Settings) GetXFileStreamUseGzip() *wrapperspb.BoolValue {
+func (x *Settings) GetXFileStreamNoGzip() *wrapperspb.BoolValue {
 	if x != nil {
-		return x.XFileStreamUseGzip
+		return x.XFileStreamNoGzip
 	}
 	return nil
 }
@@ -2116,7 +2116,7 @@ const file_wandb_proto_wandb_settings_proto_rawDesc = "" +
 	"\tRunMoment\x12\x10\n" +
 	"\x03run\x18\x01 \x01(\tR\x03run\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\x01R\x05value\x12\x16\n" +
-	"\x06metric\x18\x03 \x01(\tR\x06metric\"\xafg\n" +
+	"\x06metric\x18\x03 \x01(\tR\x06metric\"\xadg\n" +
 	"\bSettings\x125\n" +
 	"\aapi_key\x187 \x01(\v2\x1c.google.protobuf.StringValueR\x06apiKey\x12M\n" +
 	"\x13identity_token_file\x18\xaa\x01 \x01(\v2\x1c.google.protobuf.StringValueR\x11identityTokenFile\x12H\n" +
@@ -2142,8 +2142,8 @@ const file_wandb_proto_wandb_settings_proto_rawDesc = "" +
 	"\aapp_url\x18\xca\x01 \x01(\v2\x1c.google.protobuf.StringValueR\x06appUrl\x127\n" +
 	"\bbase_url\x189 \x01(\v2\x1c.google.protobuf.StringValueR\abaseUrl\x12R\n" +
 	"\x17x_file_stream_max_bytes\x18\xac\x01 \x01(\v2\x1b.google.protobuf.Int32ValueR\x13xFileStreamMaxBytes\x12c\n" +
-	"\x1fx_file_stream_transmit_interval\x18\xaf\x01 \x01(\v2\x1c.google.protobuf.DoubleValueR\x1bxFileStreamTransmitInterval\x12O\n" +
-	"\x16x_file_stream_use_gzip\x18\xd0\x01 \x01(\v2\x1a.google.protobuf.BoolValueR\x12xFileStreamUseGzip\x12X\n" +
+	"\x1fx_file_stream_transmit_interval\x18\xaf\x01 \x01(\v2\x1c.google.protobuf.DoubleValueR\x1bxFileStreamTransmitInterval\x12M\n" +
+	"\x15x_file_stream_no_gzip\x18\xd0\x01 \x01(\v2\x1a.google.protobuf.BoolValueR\x11xFileStreamNoGzip\x12X\n" +
 	"\x14x_extra_http_headers\x18\x0e \x01(\v2'.wandb_internal.MapStringKeyStringValueR\x11xExtraHttpHeaders\x12R\n" +
 	"\x17x_file_stream_retry_max\x18\x93\x01 \x01(\v2\x1b.google.protobuf.Int32ValueR\x13xFileStreamRetryMax\x12k\n" +
 	"$x_file_stream_retry_wait_min_seconds\x18\x94\x01 \x01(\v2\x1c.google.protobuf.DoubleValueR\x1exFileStreamRetryWaitMinSeconds\x12k\n" +
@@ -2380,7 +2380,7 @@ var file_wandb_proto_wandb_settings_proto_depIdxs = []int32{
 	9,   // 25: wandb_internal.Settings.base_url:type_name -> google.protobuf.StringValue
 	12,  // 26: wandb_internal.Settings.x_file_stream_max_bytes:type_name -> google.protobuf.Int32Value
 	11,  // 27: wandb_internal.Settings.x_file_stream_transmit_interval:type_name -> google.protobuf.DoubleValue
-	10,  // 28: wandb_internal.Settings.x_file_stream_use_gzip:type_name -> google.protobuf.BoolValue
+	10,  // 28: wandb_internal.Settings.x_file_stream_no_gzip:type_name -> google.protobuf.BoolValue
 	2,   // 29: wandb_internal.Settings.x_extra_http_headers:type_name -> wandb_internal.MapStringKeyStringValue
 	12,  // 30: wandb_internal.Settings.x_file_stream_retry_max:type_name -> google.protobuf.Int32Value
 	11,  // 31: wandb_internal.Settings.x_file_stream_retry_wait_min_seconds:type_name -> google.protobuf.DoubleValue
