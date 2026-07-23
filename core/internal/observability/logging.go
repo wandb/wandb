@@ -49,7 +49,7 @@ type CoreLogger struct {
 	*slog.Logger
 	sentryCtx *SentryContext // nil if Sentry is disabled
 
-	telemetryRecorder analytics.TelemetryRecorder
+	telemetryRecorder *analytics.TelemetryRecorder
 
 	extraSentryTags Tags // extra Sentry tags for just this logger
 
@@ -63,7 +63,7 @@ type CoreLogger struct {
 func NewCoreLogger(
 	logger *slog.Logger,
 	sentryCtx *SentryContext,
-	telemetryRecorder analytics.TelemetryRecorder,
+	telemetryRecorder *analytics.TelemetryRecorder,
 ) *CoreLogger {
 	const captureRateLimiterCacheSize = 100
 	const captureMinDuration = 5 * time.Minute
