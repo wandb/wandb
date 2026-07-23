@@ -298,6 +298,7 @@ jobs:
           python -c "import wandb; run = wandb.init(); run.finish()"
 
   test-pypi-publish:
+    if: false  # TEST BRANCH ONLY: never publish from timing experiments.
     name: Publish to TestPyPI
     needs:
       - build-platform-wheels
