@@ -107,11 +107,11 @@ func Disable() {
 //     These are attached to log records where high cardinality is acceptable.
 type TelemetryContext struct {
 	// lowCardinalityAttributes is a bounded set of attributes.
-	// these attributes are added to all telemetry records.
+	// These attributes are added to all telemetry records.
 	lowCardinalityAttributes LowCardinalityAttributes
 
 	// highCardinalityAttributes is an unbounded set of attributes.
-	// these attributes are added to telemetry records
+	// These attributes are added to telemetry records
 	// where high cardinality is acceptable, such as log records.
 	highCardinalityAttributes map[string]string
 }
