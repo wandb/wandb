@@ -66,6 +66,8 @@ class ArtifactManifestV1(ArtifactManifest):
         # sort by key (path)
         for path, entry in sorted(self.entries.items(), key=itemgetter(0)):
             hasher.update(f"{path}:{entry.digest}\n".encode())
+            if sha256_digest := entry.extra.get("sha256"):
+                hasher.update(f"{path}:sha256:{sha256_digest}\n".encode())
         return hasher.hexdigest()
 
     def size(self) -> int:

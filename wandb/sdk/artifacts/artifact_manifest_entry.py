@@ -5,13 +5,15 @@
 
 from __future__ import annotations
 
+import base64
+import binascii
 import concurrent.futures
 import hashlib
 import logging
 import os
 from contextlib import suppress
 from os.path import getsize
-from typing import TYPE_CHECKING, Annotated, Any, Dict, Final, Optional, Union
+from typing import TYPE_CHECKING, Annotated, Any, Dict, Final, Literal, Optional, Union
 from urllib.parse import urlparse
 
 from pydantic import Field, NonNegativeInt, field_validator, model_validator
@@ -23,10 +25,12 @@ from wandb.sdk.lib.deprecation import warn_and_record_deprecation
 from wandb.sdk.lib.filesystem import copy_or_overwrite_changed
 from wandb.sdk.lib.hashutil import (
     B64MD5,
+    B64SHA256,
     ETag,
     b64_to_hex_id,
     hex_to_b64_id,
     md5_file_b64,
+    sha256_file_b64,
 )
 from wandb.sdk.lib.paths import FilePathStr, LogicalPath, URIStr
 
@@ -41,6 +45,42 @@ logger = logging.getLogger(__name__)
 
 
 _WB_ARTIFACT_SCHEME: Final[str] = "wandb-artifact"
+_SHA256_DIGEST_KEY: Final[str] = "sha256"
+_MD5_DIGEST_BYTES: Final[int] = 16
+_LocalDigestAlgorithm = Literal["md5", "sha256"]
+
+
+def _format_cached_checksum(algorithm: _LocalDigestAlgorithm, digest: str) -> str:
+    return f"{algorithm}:{digest}"
+
+
+def _cached_checksum_matches(
+    cached_checksum: str | None,
+    algorithm: _LocalDigestAlgorithm,
+    digest: str,
+) -> bool:
+    if cached_checksum is None:
+        return False
+
+    if cached_checksum == _format_cached_checksum(algorithm, digest):
+        return True
+
+    # Backward compatibility with checksum cache entries written before the
+    # algorithm was included in the cache value.
+    return algorithm == "md5" and cached_checksum == digest
+
+
+def _is_b64_md5_digest(digest: str) -> bool:
+    try:
+        return len(base64.b64decode(digest, validate=True)) == _MD5_DIGEST_BYTES
+    except (binascii.Error, ValueError):
+        return False
+
+
+def _file_digest_b64(file_path: str, algorithm: _LocalDigestAlgorithm) -> str:
+    if algorithm == "sha256":
+        return sha256_file_b64(file_path)
+    return md5_file_b64(file_path)
 
 
 def _checksum_cache_path(file_path: str) -> str:
@@ -153,6 +193,36 @@ class ArtifactManifestEntry(ArtifactsBase):
             raise NotImplementedError
         return self._parent_artifact
 
+    def _local_integrity_digest(self) -> tuple[_LocalDigestAlgorithm, str] | None:
+        """Return the strongest available content digest for local file checks."""
+        sha256_digest = self.extra.get(_SHA256_DIGEST_KEY)
+        if isinstance(sha256_digest, str):
+            return "sha256", B64SHA256(sha256_digest)
+
+        if isinstance(self.digest, str) and _is_b64_md5_digest(self.digest):
+            return "md5", B64MD5(self.digest)
+
+        return None
+
+    def _local_file_digest_matches(self, file_path: str) -> bool:
+        integrity_digest = self._local_integrity_digest()
+        if integrity_digest is None:
+            return False
+
+        algorithm, expected_digest = integrity_digest
+        return _file_digest_b64(file_path, algorithm) == expected_digest
+
+    def _cache_hit_integrity_matches(self, file_path: str) -> bool:
+        integrity_digest = self._local_integrity_digest()
+        if integrity_digest is None:
+            return True
+
+        algorithm, expected_digest = integrity_digest
+        if algorithm != "sha256":
+            return True
+
+        return _file_digest_b64(file_path, algorithm) == expected_digest
+
     def download(
         self,
         root: str | None = None,
@@ -174,21 +244,35 @@ class ArtifactManifestEntry(ArtifactsBase):
 
         # Skip checking the cache (and possibly downloading) if the file already exists
         # and has the digest we're expecting.
+        dest_path_integrity_mismatch = False
+        integrity_digest = self._local_integrity_digest()
+        if integrity_digest is not None:
+            algorithm, expected_digest = integrity_digest
 
-        # Fast integrity check using cached checksum from persistent cache
-        with suppress(OSError):
-            if self.digest == _read_cached_checksum(dest_path):
-                return FilePathStr(dest_path)
+            if algorithm == "md5":
+                # Fast integrity check using cached checksum from persistent cache
+                with suppress(OSError):
+                    if _cached_checksum_matches(
+                        _read_cached_checksum(dest_path),
+                        algorithm,
+                        expected_digest,
+                    ):
+                        return FilePathStr(dest_path)
 
-        # Fallback to computing/caching the checksum hash
-        try:
-            md5_hash = md5_file_b64(dest_path)
-        except (FileNotFoundError, IsADirectoryError):
-            logger.debug(f"unable to find {dest_path!r}, skip searching for file")
-        else:
-            _write_cached_checksum(dest_path, md5_hash)
-            if self.digest == md5_hash:
-                return FilePathStr(dest_path)
+            # Fallback to computing/caching the checksum hash
+            try:
+                file_digest = _file_digest_b64(dest_path, algorithm)
+            except (FileNotFoundError, IsADirectoryError):
+                logger.debug(f"unable to find {dest_path!r}, skip searching for file")
+            else:
+                if algorithm == "md5":
+                    _write_cached_checksum(
+                        dest_path,
+                        _format_cached_checksum(algorithm, file_digest),
+                    )
+                if expected_digest == file_digest:
+                    return FilePathStr(dest_path)
+                dest_path_integrity_mismatch = True
 
         # Override the target cache path IF we're skipping the cache.
         # Note that `override_cache_path is None` <=> `skip_cache is False`.
@@ -204,12 +288,26 @@ class ArtifactManifestEntry(ArtifactsBase):
             )
 
         # Determine the final path
-        final_path = FilePathStr(
-            override_cache_path or copy_or_overwrite_changed(cache_path, dest_path)
-        )
+        if override_cache_path:
+            final_path = FilePathStr(override_cache_path)
+        else:
+            if dest_path_integrity_mismatch:
+                with suppress(FileNotFoundError):
+                    os.remove(dest_path)
+            final_path = FilePathStr(copy_or_overwrite_changed(cache_path, dest_path))
 
-        # Cache the checksum for future downloads
-        _write_cached_checksum(final_path, self.digest)
+        if integrity_digest is not None:
+            algorithm, expected_digest = integrity_digest
+            actual_digest = _file_digest_b64(final_path, algorithm)
+            if actual_digest != expected_digest:
+                raise ValueError(f"Digest mismatch for file: {self.path}")
+
+            if algorithm == "md5":
+                # Cache the checksum for future downloads
+                _write_cached_checksum(
+                    final_path,
+                    _format_cached_checksum(algorithm, actual_digest),
+                )
 
         return final_path
 
