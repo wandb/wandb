@@ -448,6 +448,7 @@ class Settings(BaseModel, validate_assignment=True):
        it will result in failure.
     - "auto": Automatically resumes from the most recent failed run on the same
        machine.
+
     """
 
     resume_from: RunMoment | None = None

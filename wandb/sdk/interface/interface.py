@@ -163,6 +163,7 @@ class InterfaceBase(abc.ABC):
             proto_run.sweep_id = run._settings.sweep_id
         if run._settings.host:
             proto_run.host = run._settings.host
+        proto_run.resume_mode = run._settings.resume in ("allow", "must", "auto")
         if run._settings.resumed:
             proto_run.resumed = run._settings.resumed
         if run._settings.fork_from:

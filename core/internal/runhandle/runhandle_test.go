@@ -29,6 +29,8 @@ func fakeTelemetryEncoded() *runupsertertest.Telemetry {
 func TestUpdateTelemetry_BeforeInit(t *testing.T) {
 	runHandle := runhandle.New()
 	mockGQL := gqlmock.NewMockClient()
+	mockGQL.StubMatchOnce(gqlmock.WithOpName("RunResumeStatus"), `{}`)
+
 	runupsertertest.StubUpsertBucket(t, mockGQL)
 	runupsertertest.StubUpsertBucket(t, mockGQL)
 	upserter := runupsertertest.NewTestUpserter(t,
@@ -48,6 +50,7 @@ func TestUpdateTelemetry_BeforeInit(t *testing.T) {
 func TestUpdateTelemetry_AfterInit(t *testing.T) {
 	runHandle := runhandle.New()
 	mockGQL := gqlmock.NewMockClient()
+	mockGQL.StubMatchOnce(gqlmock.WithOpName("RunResumeStatus"), `{}`)
 	runupsertertest.StubUpsertBucket(t, mockGQL)
 	runupsertertest.StubUpsertBucket(t, mockGQL)
 	upserter := runupsertertest.NewTestUpserter(t,

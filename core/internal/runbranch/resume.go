@@ -13,19 +13,36 @@ import (
 	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/nullify"
+	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runconfig"
+	"github.com/wandb/wandb/core/internal/settings"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 type ResumeBranch struct {
-	ctx    context.Context
-	client graphql.Client
-	mode   string
+	ctx      context.Context
+	logger   *observability.CoreLogger
+	client   graphql.Client
+	resume   bool
+	settings *settings.Settings
 }
 
-// NewResumeBranch creates a new ResumeBranch
-func NewResumeBranch(ctx context.Context, client graphql.Client, mode string) *ResumeBranch {
-	return &ResumeBranch{ctx: ctx, client: client, mode: mode}
+// NewResumeBranch creates a ResumeBranch from persisted resume intent and the
+// current run settings.
+func NewResumeBranch(
+	ctx context.Context,
+	logger *observability.CoreLogger,
+	client graphql.Client,
+	resume bool,
+	resumeSettings *settings.Settings,
+) *ResumeBranch {
+	return &ResumeBranch{
+		ctx:      ctx,
+		logger:   logger,
+		client:   client,
+		resume:   resume,
+		settings: resumeSettings,
+	}
 }
 
 // UpdateForResume modifies run metadata for resuming.
@@ -63,22 +80,24 @@ func (rb *ResumeBranch) UpdateForResume(
 		data = response.GetModel().GetBucket()
 	}
 
-	// if we are not in the resume mode MUST and we didn't get data, we can just
-	// return without error
-	if data == nil && rb.mode != "must" {
+	// Starting a new run is valid when resuming is disabled, or when a
+	// lenient resume mode allows creating a missing run.
+	if data == nil && (!rb.resume || rb.allowMissingRun()) {
 		return nil
 	}
 
-	// if we are in the resume mode MUST and we don't have data (the run is not initialized),
-	// we need to return an error because we can't resume
-	if data == nil && rb.mode == "must" {
+	// A strict resume requires the run to exist.
+	if data == nil {
 		info := &spb.ErrorInfo{
 			Code: spb.ErrorInfo_USAGE,
-			Message: fmt.Sprintf("You provided an invalid value for the `resume` argument."+
-				" The value 'must' is not a valid option for resuming the run (%s) that has not been initialized."+
-				" Please check your inputs and try again with a valid run ID."+
-				" If you are trying to start a new run, please omit the `resume` argument or use `resume='allow'`.",
-				params.RunID),
+			Message: fmt.Sprintf(
+				"Run (%s) does not exist or has not been initialized, but your "+
+					"`resume` setting requires an existing run to resume. "+
+					"Verify the run ID is correct. "+
+					"If you are starting a new run, omit `resume` in wandb.init() "+
+					"or set `resume` or `WANDB_RESUME` to `allow` or `never`.",
+				params.RunID,
+			),
 		}
 		err = errors.New("no data but must resume")
 		return &BranchError{Err: err, Response: info}
@@ -86,23 +105,28 @@ func (rb *ResumeBranch) UpdateForResume(
 
 	// if we have data and we are in a never resume mode we need to return an
 	// error because we are not allowed to resume
-	if data != nil && rb.mode == "never" {
+	if data != nil && !rb.resume {
 		info := &spb.ErrorInfo{
 			Code: spb.ErrorInfo_USAGE,
-			Message: fmt.Sprintf("You provided an invalid value for the `resume` argument."+
-				"  The value 'never' is not a valid option for resuming a run (%s) that already exists."+
-				"  Please check your inputs and try again with a valid value for the `resume` argument.",
-				params.RunID),
+			Message: fmt.Sprintf(
+				"Run (%s) already exists, but your `resume` setting does not allow "+
+					"resuming an existing run. "+
+					"Verify the run ID is correct. "+
+					"To resume this run, set `resume` in wandb.init() or `WANDB_RESUME` "+
+					"to `allow` or `must`. "+
+					"To start a new run, use a different run ID.",
+				params.RunID,
+			),
 		}
 		err = errors.New("data but cannot resume")
 		return &BranchError{Err: err, Response: info}
 	}
 
-	// if we have data and we are in the MUST or ALLOW resume mode, we can resume the run
-	if data != nil && rb.mode != "never" {
-		err := processResponse(params, config, data)
+	// If the run exists and resuming is enabled, restore its metadata.
+	if data != nil {
+		err := processResponse(params, config, data, rb.logger)
 
-		if err != nil && rb.mode == "must" {
+		if err != nil && !rb.allowMissingRun() {
 			info := &spb.ErrorInfo{
 				Code: spb.ErrorInfo_USAGE,
 				Message: fmt.Sprintf(
@@ -118,6 +142,15 @@ func (rb *ResumeBranch) UpdateForResume(
 	}
 
 	return nil
+}
+
+func (rb *ResumeBranch) allowMissingRun() bool {
+	if rb.settings == nil {
+		return false
+	}
+
+	mode := rb.settings.GetResume()
+	return mode == "allow" || mode == "auto" || mode == "never"
 }
 
 // runExists checks if the run exists based on the response we get from the server
@@ -156,6 +189,7 @@ func processResponse(
 	params *RunParams,
 	config *runconfig.RunConfig,
 	data *gql.RunResumeStatusModelProjectBucketRun,
+	logger *observability.CoreLogger,
 ) error {
 	// Get Config information
 	if oldConfig, err := processConfigResume(data.GetConfig()); err != nil {
@@ -188,6 +222,10 @@ func processResponse(
 		}
 	}
 
+	// The highest explicit _step reported by the summary or the history
+	// tail, or -1 if neither reports one.
+	lastStep := int64(-1)
+
 	// Get Summary information
 	if summary, err := processSummary(data.GetSummaryMetrics()); err != nil {
 		return err
@@ -199,10 +237,8 @@ func processResponse(
 		}
 
 		if step, ok := summary["_step"]; ok {
-			// if we are resuming, we need to update the starting step
-			// to be the next step after the last step we ran
 			if x, ok := step.(int64); ok {
-				params.StartingStep = x
+				lastStep = max(lastStep, x)
 			}
 		}
 
@@ -234,10 +270,8 @@ func processResponse(
 		return err
 	} else if history != nil {
 		if step, ok := history["_step"]; ok {
-			// if we are resuming, we need to update the starting step
-			// to be the next step after the last step we ran
 			if x, ok := step.(int64); ok {
-				params.StartingStep = x
+				lastStep = max(lastStep, x)
 			}
 		}
 
@@ -250,10 +284,25 @@ func processResponse(
 		}
 	}
 
-	// if we are resuming, we need to update the starting step
-	if params.FileStreamOffset[filestream.HistoryChunk] > 0 {
-		params.StartingStep += 1
+	// The number of history rows in the file stream.
+	historyRowCount := int64(params.FileStreamOffset[filestream.HistoryChunk])
+
+	// If the history row count the summary and history tail step, then they
+	// must be stale, so use the history row count - 1 as a lower bound.
+	// Note that this may still not be accurate if the run was logged at
+	// sparse steps, so we warn the user.
+	if lastStep >= 0 && historyRowCount > lastStep+1 {
+		logger.Warn(
+			"runbranch: resume: history row count exceeds the last "+
+				"reported step + 1; the reported step is stale, using "+
+				"the row count as the starting step",
+			"historyRowCount", historyRowCount,
+			"lastStep", lastStep,
+		)
 	}
+
+	lastStep = max(lastStep, historyRowCount-1)
+	params.StartingStep = lastStep + 1 // next step after the last reported step
 
 	// If the user provided tags when initializing, use them. Otherwise,
 	// initialize to the previous run's tags.

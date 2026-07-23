@@ -179,9 +179,20 @@ func InitRun(
 	// must use the updated config returned by the backend on the first
 	// UpsertBucket request.
 	branchPoint := runRecord.BranchPoint
+
+	// A persisted resume=false intent behaves as "never" unless the caller
+	// explicitly requests allow or must through the current settings.
+	// This allows users to override during manual sync.
+	// Exclude forked and rewind cases so they continue to take priority.
+	resume := runParams.Resume
+	if !resume && branchPoint == nil {
+		resumeSetting := params.Settings.GetResume()
+		resume = resumeSetting == "allow" || resumeSetting == "must"
+	}
+	runParams.Resume = resume
 	switch {
-	case params.Settings.GetResume() != "":
-		err := upserter.updateMetadataForResume(ctx, params.Settings.GetResume())
+	case resume:
+		err := upserter.updateMetadataForResume(ctx, params.Settings)
 
 		if err != nil {
 			return nil, ToRunUpdateError(err)
@@ -198,6 +209,15 @@ func InitRun(
 	case branchPoint != nil && branchPoint.GetRun() != "":
 		// Creating a new run by branching is forking.
 		err := upserter.updateMetadataForFork(branchPoint)
+
+		if err != nil {
+			return nil, ToRunUpdateError(err)
+		}
+
+	default:
+		// A false resume field means this run must not already exist. This is
+		// also the default for records written before the field was added.
+		err := upserter.updateMetadataForResume(ctx, params.Settings)
 
 		if err != nil {
 			return nil, ToRunUpdateError(err)
@@ -430,21 +450,20 @@ func (upserter *RunUpserter) signalDirty() {
 // that's being resumed.
 func (upserter *RunUpserter) updateMetadataForResume(
 	ctx context.Context,
-	resumeSetting string,
+	resumeSettings *settings.Settings,
 ) error {
 	if upserter.graphqlClientOrNil == nil {
-		// Ignore the resume mode when offline.
-		//
-		// A warning is printed by the client during wandb.init().
-		//
-		// resume="auto" is always OK and is handled by the client.
+		// When offline, we cannot query the backend to reconcile resume state,
+		// so resume reconciliation is deferred to `wandb sync`.
 		return nil
 	}
 
 	return runbranch.NewResumeBranch(
 		ctx,
+		upserter.logger,
 		upserter.graphqlClientOrNil,
-		resumeSetting,
+		upserter.params.Resume,
+		resumeSettings,
 	).UpdateForResume(
 		upserter.params,
 		upserter.config,

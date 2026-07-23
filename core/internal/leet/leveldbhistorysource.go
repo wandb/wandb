@@ -31,6 +31,11 @@ type LevelDBHistorySource struct {
 	exitCode int32
 	// fileCompleteEmitted is true after the terminal FileCompleteMsg has been emitted.
 	fileCompleteEmitted bool
+
+	// nextAutoStep is the next auto step to assign for display when raw
+	// offline logs omit HistoryRecord.Step and _step.
+	nextAutoStep        int64
+	autoStepInitialized bool
 }
 
 func NewLevelDBHistorySource(
@@ -161,6 +166,7 @@ func (hs *LevelDBHistorySource) Read(
 func (hs *LevelDBHistorySource) recordToMsg(record *spb.Record) tea.Msg {
 	switch rec := record.RecordType.(type) {
 	case *spb.Record_Run:
+		hs.initializeAutoStep(rec.Run)
 		return RunMsg{
 			RunPath:     hs.runPath,
 			ID:          rec.Run.GetRunId(),
@@ -171,7 +177,8 @@ func (hs *LevelDBHistorySource) recordToMsg(record *spb.Record) tea.Msg {
 			Config:      rec.Run.GetConfig(),
 		}
 	case *spb.Record_History:
-		return ParseHistory(hs.runPath, rec.History)
+		step := hs.canonicalHistoryStep(rec.History)
+		return ParseHistory(hs.runPath, rec.History, step)
 	case *spb.Record_Stats:
 		return ParseStats(hs.runPath, rec.Stats)
 	case *spb.Record_Summary:
@@ -196,12 +203,12 @@ func (hs *LevelDBHistorySource) Close() {
 }
 
 // ParseHistory extracts metrics and media from a history record.
-func ParseHistory(runPath string, history *spb.HistoryRecord) tea.Msg {
+// The `step` is provided externally because it may be auto-generated.
+func ParseHistory(runPath string, history *spb.HistoryRecord, step int) tea.Msg {
 	if history == nil {
 		return nil
 	}
 
-	step := int(history.GetStep().GetNum())
 	values := make(map[string]float64, len(history.GetItem()))
 	mediaFieldsByKey := make(map[string]map[string]string)
 
@@ -230,9 +237,7 @@ func ParseHistory(runPath string, history *spb.HistoryRecord) tea.Msg {
 
 		v := trimJSONString(item.ValueJson)
 		if key == "_step" {
-			if s, err := strconv.Atoi(v); err == nil {
-				step = s
-			}
+			// _step is handled by the caller
 			continue
 		}
 		if strings.HasPrefix(key, "_") {
@@ -265,6 +270,67 @@ func ParseHistory(runPath string, history *spb.HistoryRecord) tea.Msg {
 		msg.Media = media
 	}
 	return msg
+}
+
+func (hs *LevelDBHistorySource) canonicalHistoryStep(history *spb.HistoryRecord) int {
+	if history == nil {
+		return 0
+	}
+	if step, ok := stepFromItems(history); ok {
+		hs.advanceAutoStepPast(int64(step))
+		return step
+	}
+
+	if history.GetStep() != nil {
+		step := int(history.GetStep().GetNum())
+		hs.advanceAutoStepPast(int64(step))
+		return step
+	}
+
+	hs.initializeAutoStep(nil)
+	step := int(hs.nextAutoStep)
+	hs.nextAutoStep++
+	return step
+}
+
+func (hs *LevelDBHistorySource) initializeAutoStep(runRecord *spb.RunRecord) {
+	if hs.autoStepInitialized {
+		return
+	}
+	if runRecord != nil {
+		hs.nextAutoStep = runRecord.GetStartingStep()
+	}
+	hs.autoStepInitialized = true
+}
+
+func (hs *LevelDBHistorySource) advanceAutoStepPast(step int64) {
+	hs.initializeAutoStep(nil)
+	if step >= hs.nextAutoStep {
+		hs.nextAutoStep = step + 1
+	}
+}
+
+// Returns the step from the first _step item in the history record, if any.
+func stepFromItems(history *spb.HistoryRecord) (int, bool) {
+	for _, item := range history.GetItem() {
+		if item == nil {
+			continue
+		}
+		key := strings.Join(item.GetNestedKey(), ".")
+		if key == "" {
+			key = item.GetKey()
+		}
+		if key != "_step" {
+			continue
+		}
+		step, err := strconv.Atoi(trimJSONString(item.ValueJson))
+		if err != nil {
+			// Treat an unparseable _step as absent
+			return 0, false
+		}
+		return step, true
+	}
+	return 0, false
 }
 
 func trimJSONString(v string) string {
