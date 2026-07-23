@@ -526,7 +526,10 @@ reportUnusedCallResult = false
 reportExplicitAny = "hint"
 
 [tool.cibuildwheel.linux]
-environment = { PATH = "$PATH:/usr/local/go/bin:/root/.cargo/bin" }
+# The release workflow relies on this table and the musllinux override below.
+# Do not replace it with CIBW_ENVIRONMENT_LINUX: environment variables take
+# precedence over pyproject.toml, including over the CGO override.
+environment = { PATH = "$PATH:/usr/local/go/bin:/root/.cargo/bin", WANDB_BUILD_PARALLEL_RUST = "true" }
 
 [[tool.cibuildwheel.overrides]]
 select = "*-musllinux*"

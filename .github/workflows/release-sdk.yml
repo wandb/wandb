@@ -22,6 +22,11 @@ on:
           - pre-release
           - release
 
+env:
+  # Pinned for reproducible release artifacts. Keep at or above the largest
+  # rust-version in the locked Cargo graphs (xpu/Cargo.lock requires 1.88).
+  RUST_TOOLCHAIN: "1.88.0"
+
 jobs:
   prepare-release:
     name: Prepare release (${{ inputs.version }})
@@ -114,13 +119,21 @@ jobs:
           output-dir: dist
         env:
           CIBW_ARCHS_LINUX: ${{ matrix.arch }}
-          CIBW_BUILD: "*-${{ matrix.libc }}_*"
+          # The build hook emits a Python-ABI-independent py3-none-* wheel, so
+          # one CPython selector is sufficient for each platform target. Keep
+          # it in sync with requires-python in pyproject.toml.
+          CIBW_BUILD: "cp310-${{ matrix.libc }}_${{ matrix.arch }}"
           CIBW_BEFORE_ALL_LINUX: >
             ${{ matrix.before_all_extra }} &&
             export DOWNLOAD_GOVERSION=$( grep '^go' core/go.mod | cut -d' ' -f2 ) &&
             curl -L https://golang.org/dl/go$DOWNLOAD_GOVERSION.${{ matrix.go_arch }}.tar.gz > go.tar.gz &&
             tar -C /usr/local/ -xzf go.tar.gz &&
-            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs |
+              sh -s -- -y --profile minimal --default-toolchain ${{ env.RUST_TOOLCHAIN }}
+          # NOTE: the Linux build environment lives in [tool.cibuildwheel.linux]
+          # in pyproject.toml. Do not set CIBW_ENVIRONMENT_LINUX here: it would
+          # replace that table, including the musllinux override that must
+          # enable CGO.
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
@@ -128,17 +141,32 @@ jobs:
           path: ./dist
 
   build-platform-wheels:
-    name: Build wheels on ${{ matrix.os }}
+    name: Build ${{ matrix.arch }} wheel on ${{ matrix.os }}
     needs: prepare-release
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
-        os:
-          - windows-2022
-          - windows-11-arm
-          - macos-14
+        # The cp310 build identifiers must stay in sync with requires-python
+        # in pyproject.toml; see the note on CIBW_BUILD in build-linux-wheels.
+        include:
+          - os: windows-2022
+            arch: AMD64
+            build: cp310-win_amd64
+            rust_target: x86_64-pc-windows-msvc
+          - os: windows-11-arm
+            arch: ARM64
+            build: cp310-win_arm64
+            rust_target: aarch64-pc-windows-msvc
+          - os: macos-14
+            arch: x86_64
+            build: cp310-macosx_x86_64
+            rust_target: x86_64-apple-darwin
+          - os: macos-14
+            arch: arm64
+            build: cp310-macosx_arm64
+            rust_target: aarch64-apple-darwin
 
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
@@ -154,6 +182,15 @@ jobs:
           go-version-file: core/go.mod
           cache-dependency-path: core/go.sum
 
+      - name: Set up Rust
+        shell: bash
+        run: |
+          # Keep release artifacts reproducible across runner image updates.
+          rustup toolchain install ${{ env.RUST_TOOLCHAIN }} \
+            --profile minimal \
+            --target ${{ matrix.rust_target }}
+          rustup default ${{ env.RUST_TOOLCHAIN }}
+
       ##################################################
       # All platforms: create wheels
       ##################################################
@@ -163,12 +200,12 @@ jobs:
           package-dir: .
           output-dir: dist
         env:
-          CIBW_ARCHS_MACOS: x86_64 arm64 # arm64 == aarch64
-          CIBW_BEFORE_ALL_MACOS: >
-            rustup target add x86_64-apple-darwin
+          CIBW_ARCHS: ${{ matrix.arch }}
+          CIBW_BUILD: ${{ matrix.build }}
           # cibuildwheel 4 defaults to delvewheel on Windows; keep the previous
           # no-op repair behavior for wandb-core's custom DLL lookup.
           CIBW_REPAIR_WHEEL_COMMAND_WINDOWS: ""
+          CIBW_ENVIRONMENT_WINDOWS: WANDB_BUILD_PARALLEL_RUST=true
 
           # Work around https://github.com/matthew-brett/delocate/issues/204
           # by adding `--ignore-missing-dependencies` to cibuildwheel's default
@@ -182,10 +219,11 @@ jobs:
               -v {wheel}
           CIBW_ENVIRONMENT_MACOS: >
             MACOSX_DEPLOYMENT_TARGET=12
+            WANDB_BUILD_PARALLEL_RUST=true
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: wandb-sdk-distribution-${{ matrix.os }}
+          name: wandb-sdk-distribution-${{ matrix.os }}-${{ matrix.arch }}
           path: ./dist
 
   build-sdist:
@@ -213,12 +251,62 @@ jobs:
           name: wandb-sdk-distribution-sdist
           path: ./dist
 
+  verify-sdist:
+    name: Build and smoke-test source distribution
+    needs: build-sdist
+    runs-on: ubuntu-latest
+    # Cold release-mode builds of both Rust workspaces plus wandb-core; give
+    # them headroom since a timeout here blocks publishing.
+    timeout-minutes: 20
+
+    steps:
+      # Only used by setup-go below; the sdist carries everything it needs.
+      - name: Checkout Go version and module checksums
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          ref: release-${{ github.event.inputs.version }}
+          sparse-checkout: |
+            core/go.mod
+            core/go.sum
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: core/go.mod
+          cache-dependency-path: core/go.sum
+
+      - name: Set up Rust
+        run: |
+          rustup toolchain install ${{ env.RUST_TOOLCHAIN }} --profile minimal
+          rustup default ${{ env.RUST_TOOLCHAIN }}
+
+      - name: Download source distribution
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: wandb-sdk-distribution-sdist
+          path: artifacts
+
+      - name: Build and install from source distribution
+        env:
+          WANDB_BUILD_PARALLEL_RUST: "true"
+        run: python -m pip install --no-binary wandb artifacts/wandb-*.tar.gz
+
+      - name: Smoke-test source distribution
+        run: |
+          WANDB_MODE=offline \
+          python -c "import wandb; run = wandb.init(); run.finish()"
+
   test-pypi-publish:
     name: Publish to TestPyPI
     needs:
       - build-platform-wheels
       - build-linux-wheels
-      - build-sdist
+      - verify-sdist
     continue-on-error: true
     runs-on: ubuntu-latest
     environment:
@@ -266,7 +354,7 @@ jobs:
 
   verify-test-pypi:
     needs: test-pypi-publish
-    name: Smoke-test on ${{ matrix.os }}
+    name: Smoke-test on ${{ matrix.os }} ${{ matrix.python-arch }}
 
     runs-on: ${{ matrix.os }}
     timeout-minutes: 5
@@ -274,16 +362,23 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os:
-          - ubuntu-22.04
-          - windows-2022
-          - macos-14
+        include:
+          - os: ubuntu-22.04
+            python-arch: x64
+          - os: windows-2022
+            python-arch: x64
+          - os: macos-14
+            python-arch: arm64
+          # x86_64 CPython under Rosetta, exercising the macosx x86_64 wheel.
+          - os: macos-14
+            python-arch: x64
 
     steps:
       - name: Setup Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: "3.10"
+          architecture: ${{ matrix.python-arch }}
 
       - name: Install wandb from TestPyPI
         shell: bash
@@ -300,9 +395,9 @@ jobs:
 
   verify-test-pypi-sdist:
     needs: test-pypi-publish
-    name: Smoke-test sdist
+    name: Verify sdist on TestPyPI
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 5
     continue-on-error: true
 
     steps:
@@ -311,32 +406,23 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Checkout only go files for dependency installation
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - name: Download built source distribution
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
-          sparse-checkout: |
-            core/go.mod
-            core/go.sum
+          name: wandb-sdk-distribution-sdist
+          path: built
 
-      - name: Set up latest Go
-        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
-        with:
-          go-version-file: core/go.mod
-          cache-dependency-path: core/go.sum
-
-      - name: Install wandb from TestPyPI with --no-binary
+      - name: Download source distribution from TestPyPI
         run: |
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-          python -m pip install \
-            --no-binary wandb \
-            --extra-index-url https://test.pypi.org/simple/ \
+          python -m pip download \
+            --no-deps \
+            --no-binary :all: \
+            --index-url https://test.pypi.org/simple/ \
+            --dest downloaded \
             wandb==${{ github.event.inputs.version }}
 
-      - name: Smoke-test wandb
-        shell: bash
-        run: |
-          WANDB_MODE=offline \
-          python -c "import wandb; run = wandb.init(); run.finish()"
+      - name: Verify uploaded source distribution
+        run: cmp built/wandb-*.tar.gz downloaded/wandb-*.tar.gz
 
   pypi-publish:
     if: ${{ inputs.mode != 'test-release' }}

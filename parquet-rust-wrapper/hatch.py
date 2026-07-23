@@ -6,6 +6,7 @@ import glob
 import json
 import os
 import pathlib
+import platform
 import subprocess
 
 
@@ -16,8 +17,7 @@ class ArrowRsWrapperBuildError(Exception):
 def build_arrow_rs_wrapper(
     cargo_binary: pathlib.Path,
     output_path: pathlib.Path,
-    target_system: str | None = None,
-    target_arch: str | None = None,
+    target_triple: str | None = None,
 ) -> None:
     """Build the arrow-rs-wrapper Rust library.
 
@@ -29,27 +29,29 @@ def build_arrow_rs_wrapper(
     Args:
         cargo_binary: Path to the cargo binary.
         output_path: Path where the built library should be placed.
-        target_system: Target OS (darwin, linux, windows).
-        target_arch: Target architecture (amd64, arm64).
+        target_triple: Rust target triple, or None to build for the host.
     """
     arrow_rs_wrapper_dir = pathlib.Path(__file__).parent
 
-    # Determine the library name based on target system
-    if target_system == "windows":
-        lib_name = "arrow_rs_wrapper.dll"
-    elif target_system == "darwin":
-        lib_name = "libarrow_rs_wrapper.dylib"
-    else:  # linux or None (default to .so)
-        lib_name = "libarrow_rs_wrapper.so"
+    match target_triple or platform.system().lower():
+        case target if "windows" in target:
+            lib_name = "arrow_rs_wrapper.dll"
+        case target if "darwin" in target:
+            lib_name = "libarrow_rs_wrapper.dylib"
+        case _:
+            lib_name = "libarrow_rs_wrapper.so"
 
     cmd = [
         str(cargo_binary),
         "build",
+        "--locked",
         "--release",
         "--message-format=json",
         "--manifest-path",
         str(arrow_rs_wrapper_dir / "Cargo.toml"),
     ]
+    if target_triple:
+        cmd.extend(("--target", target_triple))
 
     env = _cargo_env()
 

@@ -1,3 +1,4 @@
+import concurrent.futures
 import dataclasses
 import importlib.util
 import os
@@ -36,7 +37,11 @@ _WANDB_BUILD_GORACEDETECT = "WANDB_BUILD_GORACEDETECT"
 
 # Other build options.
 _WANDB_BUILD_SKIP_WANDB_XPU = "WANDB_BUILD_SKIP_WANDB_XPU"
+_WANDB_BUILD_PARALLEL_RUST = "WANDB_BUILD_PARALLEL_RUST"
 _WANDB_ENABLE_CGO = "WANDB_ENABLE_CGO"
+
+# Cargo's parallelism setting, bounded when running Cargo builds in parallel.
+_CARGO_BUILD_JOBS = "CARGO_BUILD_JOBS"
 
 
 class CustomBuildHook(BuildHookInterface):
@@ -50,9 +55,31 @@ class CustomBuildHook(BuildHookInterface):
 
         artifacts: list[str] = build_data["artifacts"]
         artifacts.extend(self._build_wandb_core())
-        artifacts.extend(self._build_arrow_rs_wrapper())
+
+        rust_builds = [self._build_arrow_rs_wrapper]
         if self._include_wandb_xpu():
-            artifacts.extend(self._build_wandb_xpu())
+            rust_builds.append(self._build_wandb_xpu)
+
+        if len(rust_builds) > 1 and _get_env_bool(
+            _WANDB_BUILD_PARALLEL_RUST,
+            default=False,
+        ):
+            # These are independent Cargo graphs with separate target
+            # directories; building them concurrently shortens the cold-build
+            # critical path. Split the cores between them to avoid
+            # oversubscription, unless Cargo's parallelism is already bounded.
+            cores = os.cpu_count() or 2
+            os.environ.setdefault(_CARGO_BUILD_JOBS, str(max(1, (cores + 1) // 2)))
+
+            with concurrent.futures.ThreadPoolExecutor(
+                max_workers=len(rust_builds),
+            ) as executor:
+                futures = [executor.submit(build) for build in rust_builds]
+                for future in futures:
+                    artifacts.extend(future.result())
+        else:
+            for build in rust_builds:
+                artifacts.extend(build())
 
     def _get_platform_tag(self) -> str:
         """Returns the platform tag for the current platform."""
@@ -116,6 +143,7 @@ class CustomBuildHook(BuildHookInterface):
         hatch_xpu.build_wandb_xpu(
             cargo_binary=self._get_and_require_cargo_binary(),
             output_path=output,
+            target_triple=self._target_platform().rust_target,
         )
 
         return [output.as_posix()]
@@ -137,8 +165,7 @@ class CustomBuildHook(BuildHookInterface):
         hatch_arrow_rs_wrapper.build_arrow_rs_wrapper(
             cargo_binary=self._get_and_require_cargo_binary(),
             output_path=output,
-            target_system=plat.goos,
-            target_arch=plat.goarch,
+            target_triple=plat.rust_target,
         )
 
         return [output.as_posix()]
@@ -202,41 +229,26 @@ class CustomBuildHook(BuildHookInterface):
         # _PYTHON_HOST_PLATFORM environment variable which is also a good way
         # of manually testing this function.
         plat = sysconfig.get_platform()
-        match = re.match(
-            r"(win|linux|macosx-.+)-(aarch64|arm64|x86_64|amd64)",
-            plat,
-        )
-        if match:
-            if match.group(1).startswith("macosx"):
-                goos = "darwin"
-            elif match.group(1) == "win":
-                goos = "windows"
-            else:
-                goos = match.group(1)
-
-            goarch = _to_goarch(match.group(2))
-
-            return TargetPlatform(
-                goos=goos,
-                goarch=goarch,
-            )
+        if target := _parse_target_platform(plat, is_musl=_is_musl_host()):
+            return target
 
         self.app.display_warning(
             f"Failed to parse sysconfig.get_platform() ({plat}); disabling"
             " cross-compilation.",
         )
 
-        os = platform.system().lower()
-        if os in ("windows", "darwin", "linux"):
-            goos = os
-        else:
-            goos = ""
+        match platform.system().lower():
+            case "windows" | "darwin" | "linux" as goos:
+                pass
+            case _:
+                goos = ""
 
         goarch = _to_goarch(platform.machine().lower())
 
         return TargetPlatform(
             goos=goos,
             goarch=goarch,
+            rust_target=_to_rust_target(goos, goarch, is_musl=_is_musl_host()),
         )
 
 
@@ -261,6 +273,75 @@ def _get_env_bool(name: str, default: bool) -> bool:
 class TargetPlatform:
     goos: str
     goarch: str
+    rust_target: str | None
+
+
+def _parse_target_platform(
+    platform_name: str,
+    *,
+    is_musl: bool,
+) -> TargetPlatform | None:
+    """Parse a Python platform name into Go and Rust compiler targets."""
+    platform_name = platform_name.lower()
+
+    match platform_name:
+        case name if name.startswith("macosx-"):
+            goos = "darwin"
+        case name if name.startswith("win-"):
+            goos = "windows"
+        case name if name.startswith(("linux-", "manylinux_", "musllinux_")):
+            goos = "linux"
+        case _:
+            return None
+
+    goarch = _platform_goarch(platform_name)
+    if not goarch:
+        return None
+
+    # The platform name is authoritative about libc when it mentions one.
+    if platform_name.startswith("musllinux_"):
+        is_musl = True
+    elif platform_name.startswith("manylinux_"):
+        is_musl = False
+
+    return TargetPlatform(
+        goos=goos,
+        goarch=goarch,
+        rust_target=_to_rust_target(goos, goarch, is_musl=is_musl),
+    )
+
+
+def _to_rust_target(goos: str, goarch: str, *, is_musl: bool) -> str | None:
+    """Returns the Rust target triple, or None to build for the host."""
+    rust_arch = {
+        "amd64": "x86_64",
+        "arm64": "aarch64",
+    }.get(goarch)
+    if not rust_arch:
+        return None
+
+    match goos:
+        case "darwin":
+            return f"{rust_arch}-apple-darwin"
+        case "windows":
+            return f"{rust_arch}-pc-windows-msvc"
+        case "linux":
+            libc = "musl" if is_musl else "gnu"
+            return f"{rust_arch}-unknown-linux-{libc}"
+        case _:
+            return None
+
+
+def _platform_goarch(platform_name: str) -> str:
+    arch_match = re.search(
+        r"(?:-|_)(aarch64|arm64|x86_64|amd64)$",
+        platform_name,
+    )
+    return _to_goarch(arch_match.group(1)) if arch_match else ""
+
+
+def _is_musl_host() -> bool:
+    return any(pathlib.Path("/lib").glob("ld-musl-*.so.1"))
 
 
 def _to_goarch(arch: str) -> str:
