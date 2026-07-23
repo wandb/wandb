@@ -306,23 +306,6 @@ def test_log_without_controller_run_raises_and_makes_no_http_call(posted_calls):
     assert posted_calls == []
 
 
-def test_log_stream_flushed_when_sweep_garbage_collected(posted_calls):
-    sweep = _make_sweep({"name": "s", "controllerRunName": "abc123"})
-    sweep.log("bye", add_timestamps=False)
-    stream = sweep._log_stream
-    assert stream is not None
-    assert stream._thread.is_alive()
-
-    # Dropping the Sweep must tear down and flush its background sender via the
-    # weakref finalizer (the Sweep is not referenced by the stream/thread).
-    del sweep
-    gc.collect()
-
-    assert stream._finished is True
-    assert not stream._thread.is_alive()
-    assert _all_content(posted_calls) == ["bye\n"]
-
-
 def test_log_stream_local_offset_advances_per_batch(posted_calls):
     # Exercise _post directly to avoid depending on background-thread batching
     # timing. The local offset advances by the number of lines each post, even

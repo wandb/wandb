@@ -330,7 +330,7 @@ class _SweepLogStream:
     _DEFAULT_INTERVAL = 2.0
     _MAX_INTERVAL = 60.0
     _IDLE_POLL = 0.2
-    _FINISH_TIMEOUT = 30.0
+    _FINISH_TIMEOUT = 10.0
 
     def __init__(self, session: requests.Session, endpoint: str) -> None:
         self._session = session
@@ -888,11 +888,7 @@ class Sweep(Attrs):
 
         stream = _SweepLogStream(session, endpoint)
         stream.start()
-        # Tear down the sender thread (flushing any queued lines) when this
-        # Sweep is garbage-collected; referencing only the bound method keeps
-        # the finalizer from holding the Sweep alive. `atexit` (registered in
-        # start()) covers the process-exit case.
-        weakref.finalize(self, stream.finish, 5.0)
+
         self._log_stream = stream
         return stream
 
@@ -913,6 +909,14 @@ class Sweep(Attrs):
         pathstr = "/".join(self.path)
         state = self._attrs.get("state", "Unknown State")
         return f"<Sweep {pathstr} ({state})>"
+
+    def __enter__(self) -> Sweep:
+        return self
+    
+    def __exit__(self, *exc) -> None:
+        """Cleanup log stream if using context manager."""
+        if self._log_stream is not None:
+            self._log_stream.finish()
 
 
 class Agent(Attrs):
