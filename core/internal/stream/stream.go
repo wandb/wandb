@@ -14,6 +14,7 @@ import (
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/pfxout"
 	"github.com/wandb/wandb/core/internal/runhandle"
+	"github.com/wandb/wandb/core/internal/runsyncstate"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/sharedmode"
@@ -116,7 +117,15 @@ func NewStream(
 		runWork,
 		/*fileReadDelay=*/ 5*time.Second,
 	)
-	recordParser := recordParserFactory.New(runWork.BeforeEndCtx(), tbHandler)
+	syncStateStore := runsyncstate.Noop()
+	if !s.IsSkipTransactionLog() {
+		syncStateStore = runsyncstate.File(s.GetTransactionLogPath())
+	}
+	recordParser := recordParserFactory.New(
+		runWork.BeforeEndCtx(),
+		tbHandler,
+		syncStateStore,
+	)
 
 	stream := &Stream{
 		runWork:            runWork,
