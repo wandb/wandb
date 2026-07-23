@@ -3,6 +3,7 @@ package runupserter_test
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -17,6 +18,7 @@ import (
 	"github.com/wandb/wandb/core/internal/featurechecker"
 	"github.com/wandb/wandb/core/internal/gqlmock"
 	"github.com/wandb/wandb/core/internal/observabilitytest"
+	"github.com/wandb/wandb/core/internal/runsyncstate"
 	"github.com/wandb/wandb/core/internal/runupserter"
 	"github.com/wandb/wandb/core/internal/runupsertertest"
 	"github.com/wandb/wandb/core/internal/settings"
@@ -36,6 +38,8 @@ func runRecord(run *spb.RunRecord) *spb.Record {
 // testParams returns upserter parameters with default values for testing.
 func testParams(t *testing.T) runupserter.RunUpserterParams {
 	t.Helper()
+	tempRunDir := t.TempDir()
+	syncStateStore := runsyncstate.File(filepath.Join(tempRunDir, "run.wandb"))
 	return runupserter.RunUpserterParams{
 		Settings:           settings.New(),
 		BeforeRunEndCtx:    context.Background(),
@@ -44,6 +48,7 @@ func testParams(t *testing.T) runupserter.RunUpserterParams {
 		GraphqlClientOrNil: nil,
 		Logger:             observabilitytest.NewTestLogger(t),
 		ClientID:           "test",
+		SyncStateStore:     syncStateStore,
 	}
 }
 
@@ -363,7 +368,67 @@ func TestResume_Offline_PreservesRunRecordIntent(t *testing.T) {
 	assert.True(t, run.ResumeMode)
 }
 
-func TestRewind(t *testing.T) {
+func TestResume_InitializesSyncStateStartingStep(t *testing.T) {
+	mockClient := gqlmock.NewMockClient()
+	runupsertertest.StubRunResumeStatusWithStep(t, mockClient, 5)
+	runupsertertest.StubUpsertBucket(t, mockClient)
+
+	params := testParams(t)
+	params.GraphqlClientOrNil = mockClient
+	params.Settings = settings.From(&spb.Settings{Resume: wrapperspb.String("allow")})
+
+	upserter, err := runupserter.InitRun(runRecord(&spb.RunRecord{RunId: "run"}), params)
+	require.NoError(t, err)
+	defer upserter.Finish()
+
+	run := &spb.RunRecord{}
+	upserter.FillRunRecord(run)
+	assert.EqualValues(t, 5, run.StartingStep)
+	startingStep, err := params.SyncStateStore.GetOrInitStartingStep(0)
+	require.NoError(t, err)
+	assert.EqualValues(t, 5, startingStep)
+}
+
+func TestResume_ReusesSyncStateStartingStep(t *testing.T) {
+	mockClient := gqlmock.NewMockClient()
+	runupsertertest.StubRunResumeStatusWithStep(t, mockClient, 99)
+	runupsertertest.StubUpsertBucket(t, mockClient)
+
+	startingStep := int64(6)
+	params := testParams(t)
+	_, err := params.SyncStateStore.GetOrInitStartingStep(startingStep)
+	require.NoError(t, err)
+	params.GraphqlClientOrNil = mockClient
+	params.Settings = settings.From(&spb.Settings{Resume: wrapperspb.String("allow")})
+
+	upserter, err := runupserter.InitRun(runRecord(&spb.RunRecord{RunId: "run"}), params)
+	require.NoError(t, err)
+	defer upserter.Finish()
+
+	run := &spb.RunRecord{}
+	upserter.FillRunRecord(run)
+	// Even though the live query resolves _step=99, as if a previous sync
+	// already uploaded more history, the pre-initialized value wins so that
+	// re-syncing doesn't shift steps forward.
+	assert.EqualValues(t, 6, run.StartingStep)
+}
+
+func TestNewRun_InitializesSyncStateStartingStep(t *testing.T) {
+	params := testParams(t)
+
+	upserter, err := runupserter.InitRun(runRecord(&spb.RunRecord{RunId: "run"}), params)
+	require.NoError(t, err)
+	defer upserter.Finish()
+
+	run := &spb.RunRecord{}
+	upserter.FillRunRecord(run)
+	assert.EqualValues(t, 0, run.StartingStep)
+	startingStep, err := params.SyncStateStore.GetOrInitStartingStep(1)
+	require.NoError(t, err)
+	assert.EqualValues(t, 0, startingStep)
+}
+
+func TestRewind_InitializesSyncStateStartingStep(t *testing.T) {
 	// NOTE: Rewinding works offline.
 	runInitRecord := runRecord(
 		&spb.RunRecord{
@@ -377,6 +442,7 @@ func TestRewind(t *testing.T) {
 
 	params := testParams(t)
 	params.Settings = settings.From(&spb.Settings{Resume: wrapperspb.String("must")})
+  
 	upserter, err := runupserter.InitRun(runInitRecord, params)
 	defer upserter.Finish()
 
@@ -384,9 +450,12 @@ func TestRewind(t *testing.T) {
 	run := &spb.RunRecord{}
 	upserter.FillRunRecord(run)
 	assert.EqualValues(t, run.StartingStep, 124)
+	startingStep, err := params.SyncStateStore.GetOrInitStartingStep(0)
+	require.NoError(t, err)
+	assert.EqualValues(t, 124, startingStep)
 }
 
-func TestFork(t *testing.T) {
+func TestFork_InitializesSyncStateStartingStep(t *testing.T) {
 	// NOTE: Forking works offline.
 	runInitRecord := runRecord(
 		&spb.RunRecord{
@@ -401,6 +470,7 @@ func TestFork(t *testing.T) {
 
 	params := testParams(t)
 	params.Settings = settings.From(&spb.Settings{Resume: wrapperspb.String("must")})
+
 	upserter, err := runupserter.InitRun(runInitRecord, params)
 	defer upserter.Finish()
 
@@ -408,6 +478,9 @@ func TestFork(t *testing.T) {
 	run := &spb.RunRecord{}
 	upserter.FillRunRecord(run)
 	assert.EqualValues(t, run.StartingStep, 11)
+	startingStep, err := params.SyncStateStore.GetOrInitStartingStep(0)
+	require.NoError(t, err)
+	assert.EqualValues(t, 11, startingStep)
 }
 
 type variablesForUpdateTest struct {

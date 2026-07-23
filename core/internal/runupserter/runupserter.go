@@ -23,6 +23,7 @@ import (
 	"github.com/wandb/wandb/core/internal/runconfig"
 	"github.com/wandb/wandb/core/internal/runenvironment"
 	"github.com/wandb/wandb/core/internal/runmetric"
+	"github.com/wandb/wandb/core/internal/runsyncstate"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/version"
 	"github.com/wandb/wandb/core/internal/wboperation"
@@ -45,6 +46,7 @@ type RunUpserter struct {
 	operations         *wboperation.WandbOperations
 	graphqlClientOrNil graphql.Client
 	logger             *observability.CoreLogger
+	syncStateStore     runsyncstate.Store
 
 	// done is closed when Finish is called.
 	done chan struct{}
@@ -72,6 +74,7 @@ type RunUpserterParams struct {
 	FeatureProvider    *featurechecker.FeatureProvider
 	GraphqlClientOrNil graphql.Client
 	Logger             *observability.CoreLogger
+	SyncStateStore     runsyncstate.Store
 }
 
 func (params *RunUpserterParams) panicIfNotFilled() {
@@ -84,6 +87,8 @@ func (params *RunUpserterParams) panicIfNotFilled() {
 		panic("runupserter: FeatureProvider is nil")
 	case params.Logger == nil:
 		panic("runupserter: Logger is nil")
+	case params.SyncStateStore == nil:
+		panic("runupserter: SyncStateStore is nil")
 	}
 }
 
@@ -149,6 +154,7 @@ func InitRun(
 		operations:         params.Operations,
 		graphqlClientOrNil: params.GraphqlClientOrNil,
 		logger:             params.Logger,
+		syncStateStore:     params.SyncStateStore,
 
 		done:  make(chan struct{}),
 		dirty: make(chan struct{}, 1),
@@ -217,6 +223,14 @@ func InitRun(
 			return nil, ToRunUpdateError(err)
 		}
 	}
+
+	startingStep, err := upserter.syncStateStore.GetOrInitStartingStep(
+		upserter.params.StartingStep,
+	)
+	if err != nil {
+		return nil, ToRunUpdateError(err)
+	}
+	upserter.params.StartingStep = startingStep
 
 	// If we're offline, skip upserting.
 	if upserter.graphqlClientOrNil == nil {

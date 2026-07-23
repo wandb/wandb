@@ -1,3 +1,6 @@
+import json
+from pathlib import Path
+
 import numpy as np
 import pytest
 import wandb
@@ -30,6 +33,11 @@ def test_resume__run_exists__success(wandb_backend_spy, resume):
         run.log({"acc": 15})
 
     assert run.resumed
+
+    syncstate_file = Path(f"{run.settings.sync_file}.syncstate")
+    assert syncstate_file.exists()
+    assert json.loads(syncstate_file.read_text())["starting_step"] == 16
+
     with wandb_backend_spy.freeze() as snapshot:
         history = snapshot.history(run_id=run.id)
         assert history[0]["_step"] == 15
