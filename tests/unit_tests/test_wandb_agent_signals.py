@@ -186,8 +186,8 @@ def test_agent_process_kills_function_process_on_sigkill(monkeypatch):
 
 
 def test_agent_run_exits_without_further_heartbeat_on_shutdown_signal(monkeypatch):
-    """ShutdownSignal raised inside the loop must stop the heartbeat and
-    run the wait/terminate cleanup cascade on active run processes."""
+    """A single ShutdownSignal raised inside the loop must stop the heartbeat
+    and wait for active run processes (Tier 1)."""
     api = mock.Mock()
     api.sweep.return_value = {"config": ""}
     api.register_agent.return_value = {"id": "agent-1"}
@@ -206,7 +206,7 @@ def test_agent_run_exits_without_further_heartbeat_on_shutdown_signal(monkeypatc
 
     assert api.agent_heartbeat.call_count == 1
     run_process.wait.assert_called()
-    run_process.terminate.assert_called()
+    run_process.terminate.assert_not_called()
 
 
 def test_agent_run_second_shutdown_signal_escalates_to_terminate(monkeypatch):
@@ -323,7 +323,6 @@ def test_agent_run_term_timeout_expiry_escalates_straight_to_kill(monkeypatch):
     assert wait_timeout is not None
     assert 0 <= wait_timeout <= 1
 
-    assert agent._immediately_kill_children is True
     run_process.terminate.assert_not_called()
     run_process.kill.assert_called_once()
 
@@ -353,7 +352,6 @@ def test_agent_run_term_timeout_ignored_without_forward_signals(monkeypatch):
     agent.run()
 
     assert run_process.wait.call_args.kwargs["timeout"] is None
-    assert agent._immediately_kill_children is False
     run_process.terminate.assert_not_called()
     run_process.kill.assert_not_called()
 
