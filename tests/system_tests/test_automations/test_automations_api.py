@@ -235,7 +235,6 @@ def test_create_automation_for_run_metric_threshold_event(
     )
 
     if not event_enabled(module_api._service_api, event.event_type):
-        # The client-side gate rejects unsupported events before calling the server.
         with raises(UnsupportedError):
             module_api.create_automation(
                 (event >> action),
@@ -298,7 +297,6 @@ def test_create_automation_for_run_metric_change_event(
     action = SendWebhook.from_integration(webhook)
 
     if not event_enabled(module_api._service_api, event.event_type):
-        # The client-side gate rejects unsupported events before calling the server.
         with raises(UnsupportedError):
             module_api.create_automation(
                 (event >> action),
@@ -346,7 +344,6 @@ def test_create_automation_for_run_state_event(
     action = SendWebhook.from_integration(webhook)
 
     if not event_enabled(module_api._service_api, event.event_type):
-        # The client-side gate rejects unsupported events before calling the server.
         with raises(UnsupportedError):
             module_api.create_automation(
                 (event >> action),
@@ -444,7 +441,6 @@ def test_create_automation_for_run_metric_zscore_event(
     action = SendWebhook.from_integration(webhook)
 
     if not event_enabled(module_api._service_api, event.event_type):
-        # The client-side gate rejects unsupported events before calling the server.
         with raises(UnsupportedError):
             module_api.create_automation(
                 (event >> action),
