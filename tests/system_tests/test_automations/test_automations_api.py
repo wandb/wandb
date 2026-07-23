@@ -371,26 +371,24 @@ def test_create_automation_with_team_scope(
     module_api: wandb.Api,
     team: Team,
     automation_name: str,
+    entity_scope_enabled: bool,
 ):
     """Create and round-trip an entity-scoped automation (team/org entity)."""
     if not module_api._service_api.feature_enabled(pb.AUTOMATION_SCOPE_ENTITY):
         skip("Server does not support entity-scoped automations")
+    if not entity_scope_enabled:
+        skip("Entity-scoped automations are not enabled for the test organization")
 
     event = OnRunMetric(
         scope=team,
         filter=RunEvent.metric("my-metric").avg(window=5).gt(123.45),
     )
 
-    try:
-        created = module_api.create_automation(
-            (event >> DoNothing()),
-            name=automation_name,
-            description="test entity-scoped automation",
-        )
-    except CommError as e:
-        # Entity-scoped automations are additionally gated per-organization on
-        # the backend; skip if the org isn't enabled for this feature.
-        skip(f"Entity-scoped automations not enabled for this org: {e}")
+    created = module_api.create_automation(
+        (event >> DoNothing()),
+        name=automation_name,
+        description="test entity-scoped automation",
+    )
 
     assert created.scope.scope_type is ScopeType.ENTITY
     assert created.scope.id == team.id

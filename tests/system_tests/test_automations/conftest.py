@@ -100,6 +100,26 @@ def team(
 
 
 @fixture(scope="module")
+def entity_scope_enabled(
+    team_and_org: TeamAndOrgNames,
+    make_module_api: Callable[[], wandb.Api],
+    org_feature_flags: Callable[[wandb.Api, str], dict[str, bool]],
+) -> bool:
+    """Whether entity-scoped automations are enabled for the test org.
+
+    Two independent checks gate this feature, and both must pass:
+
+    - The `AUTOMATION_SCOPE_ENTITY` ServerFeature says whether the *server*
+      version supports entity scopes at all.
+    - The `automation_entity_scope` flag in `organization.featureFlags` (this
+      check) says whether the feature is switched on for a specific *org*.
+      If the flag is absent, it's off.
+    """
+    flags = org_feature_flags(make_module_api(), team_and_org.org)
+    return flags.get("automation_entity_scope", False)
+
+
+@fixture(scope="module")
 def project(
     team: Team,
     make_module_api: Callable[[], wandb.Api],
@@ -245,6 +265,12 @@ def scope_type(request: FixtureRequest, module_api: wandb.Api) -> ScopeType:
     """A fixture that parametrizes over all valid scope types."""
     if not scope_enabled(module_api._service_api, scope_type := request.param):
         skip(f"Server does not support scope type: {scope_type!r}")
+
+    # ENTITY scope is additionally gated per-organization on the backend.
+    if scope_type is ScopeType.ENTITY and not request.getfixturevalue(
+        entity_scope_enabled.__name__
+    ):
+        skip("Entity-scoped automations are not enabled for the test organization")
 
     return scope_type
 

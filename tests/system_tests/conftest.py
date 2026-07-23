@@ -161,6 +161,32 @@ def make_module_api(module_user: str) -> Callable[[], wandb.Api]:
     return callback
 
 
+@pytest.fixture(scope="session")
+def org_feature_flags() -> Callable[[wandb.Api, str], dict[str, bool]]:
+    """A callable that probes `Organization.featureFlags` for an organization.
+
+    Returns the org's feature flags (feature gates and legacy backend ramps) as
+    a `{ramp_key: is_enabled}` mapping. Callers decide what an absent key means:
+    a flag may be absent because the server doesn't define it, or because a
+    newer server removed it.
+
+    This is a callable rather than a precomputed lookup so that callers at any
+    fixture scope can probe with their own `Api` and org.
+    """
+    from wandb.sdk.artifacts._generated import ORG_FEATURE_FLAGS_GQL, OrgFeatureFlags
+
+    def probe(api: wandb.Api, org_name: str) -> dict[str, bool]:
+        result = api._service_api.execute_graphql(
+            ORG_FEATURE_FLAGS_GQL,
+            variables={"orgName": org_name},
+            parse=OrgFeatureFlags.model_validate_json,
+        )
+        flags = result.organization.feature_flags if result.organization else []
+        return {f.ramp_key: f.is_enabled for f in flags if f}
+
+    return probe
+
+
 @dataclass
 class UserOrg:
     username: str

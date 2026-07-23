@@ -28,6 +28,7 @@ __all__ = [
     "FETCH_REGISTRY_GQL",
     "GET_ARTIFACT_MEMBERSHIP_FILE_URLS_GQL",
     "LINK_ARTIFACT_GQL",
+    "ORG_FEATURE_FLAGS_GQL",
     "PROJECT_ARTIFACTS_GQL",
     "PROJECT_ARTIFACT_COLLECTIONS_GQL",
     "PROJECT_ARTIFACT_COLLECTION_GQL",
@@ -1392,6 +1393,17 @@ query FetchOrganization($org: String!) {
       id
       name
       entityType
+    }
+  }
+}
+"""
+
+ORG_FEATURE_FLAGS_GQL = """
+query OrgFeatureFlags($orgName: String!) {
+  organization(name: $orgName) {
+    featureFlags(rampIDType: OrgName) {
+      rampKey
+      isEnabled
     }
   }
 }
