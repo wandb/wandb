@@ -179,21 +179,16 @@ func newGRPCStorageClient(ctx context.Context, opts ...storageOption) (client *g
 	var metricsCleanup func()
 	if isOtelMetricsEnabled(&config) {
 		var project string
-		c, err := transport.Creds(ctx, s.clientOption...)
-		if err == nil {
+		if c, err := transport.Creds(ctx, s.clientOption...); err == nil {
 			project = c.ProjectID
 		}
-		if cm, cleanup, err := initMetrics(ctx, project, &config); err == nil {
-			clientMetrics = cm
-			metricsCleanup = cleanup
-
-			unaryInt, streamInt := metricsInterceptors(cm)
+		clientMetrics, metricsCleanup = initClientMetrics(ctx, project, &config)
+		if clientMetrics != nil {
+			unaryInt, streamInt := metricsInterceptors(clientMetrics)
 			s.clientOption = append(s.clientOption,
 				option.WithGRPCDialOption(grpc.WithChainUnaryInterceptor(unaryInt)),
 				option.WithGRPCDialOption(grpc.WithChainStreamInterceptor(streamInt)),
 			)
-		} else {
-			log.Printf("Failed to enable metrics: %v", err)
 		}
 	}
 
@@ -369,10 +364,12 @@ func (c *grpcStorageClient) ListBuckets(ctx context.Context, project string, opt
 
 	var gitr *gapic.BucketIterator
 	fetch := func(pageSize int, pageToken string) (token string, err error) {
+		ctx, record := startMetricsOp(it.ctx, "ListBuckets", false)
+		defer func() { record(err) }()
 
 		var buckets []*storagepb.Bucket
 		var next string
-		err = run(it.ctx, func(ctx context.Context) error {
+		err = run(ctx, func(ctx context.Context) error {
 			// Initialize GAPIC-based iterator when pageToken is empty, which
 			// indicates that this fetch call is attempting to get the first page.
 			//
@@ -611,12 +608,14 @@ func (c *grpcStorageClient) ListObjects(ctx context.Context, bucket string, q *Q
 		Filter:                   it.query.Filter,
 	}
 	fetch := func(pageSize int, pageToken string) (token string, err error) {
+		ctx, record := startMetricsOp(it.ctx, "ListObjects", false)
+		defer func() { record(err) }()
 		// Add trace span around List API call within the fetch.
 		ctx, _ = startSpan(ctx, "grpcStorageClient.ObjectsListCall")
 		defer func() { endSpan(ctx, err) }()
 		var objects []*storagepb.Object
 		var gitr *gapic.ObjectIterator
-		err = run(it.ctx, func(ctx context.Context) error {
+		err = run(ctx, func(ctx context.Context) error {
 			gitr = c.raw.ListObjects(ctx, req, s.gax...)
 			objects, token, err = gitr.InternalFetch(pageSize, pageToken)
 			return err

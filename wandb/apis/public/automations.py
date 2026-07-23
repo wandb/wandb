@@ -23,8 +23,6 @@ class LegacyAutomations(RelayPaginator["ProjectTriggersFields", "Automation"]):
     For older servers that don't support direct queries for automations, this
     walks the viewer's projects for all automations that are visible to them.
     Obviously, this is suboptimal.
-
-    <!-- lazydoc-ignore-class: internal -->
     """
 
     QUERY: ClassVar[str | None] = None  # type: ignore[misc]
@@ -97,8 +95,6 @@ class LegacyEntityAutomations(RelayPaginator["ProjectTriggersFields", "Automatio
     For older servers that don't support direct queries for entity-scoped automations,
     this walks an entity's projects for all automations that are visible to the user.
     Obviously, this is suboptimal.
-
-    <!-- lazydoc-ignore-class: internal -->
     """
 
     QUERY: ClassVar[str | None] = None  # type: ignore[misc]
@@ -169,10 +165,7 @@ class LegacyEntityAutomations(RelayPaginator["ProjectTriggersFields", "Automatio
 
 
 class EntityAutomations(RelayPaginator["TriggerFields", "Automation"]):
-    """A lazy iterator of `Automation` objects from an entity.
-
-    <!-- lazydoc-ignore-class: internal -->
-    """
+    """A lazy iterator of `Automation` objects from an entity."""
 
     QUERY: ClassVar[str | None] = None  # type: ignore[misc]
     last_response: Connection[TriggerFields] | None

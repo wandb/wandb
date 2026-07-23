@@ -12,6 +12,7 @@ import (
 
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runhandle"
+	"github.com/wandb/wandb/core/internal/runsyncstate"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/stream"
@@ -72,7 +73,12 @@ func (f *RunSyncerFactory) New(
 		runWork,
 		/*fileReadDelay=*/ 5*time.Second,
 	)
-	recordParser := f.RecordParserFactory.New(runWork.BeforeEndCtx(), tbHandler)
+	syncStateStore := runsyncstate.File(path)
+	recordParser := f.RecordParserFactory.New(
+		runWork.BeforeEndCtx(),
+		tbHandler,
+		syncStateStore,
+	)
 	runReader := f.RunReaderFactory.New(
 		path,
 		displayPath,

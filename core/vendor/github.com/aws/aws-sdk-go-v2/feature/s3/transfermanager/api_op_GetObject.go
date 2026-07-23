@@ -640,7 +640,7 @@ func (g *getter) get(ctx context.Context) (out *GetObjectOutput, err error) {
 
 		output.mapFromHeadObjectOutput(out, g.in.ChecksumMode, !g.options.DisableChecksumValidation, r)
 		contentLength := getTotalBytes(out)
-		output.ContentRange = aws.String(fmt.Sprintf("bytes=0-%d/%d", contentLength-1, contentLength))
+		output.ContentRange = aws.String(fmt.Sprintf("bytes 0-%d/%d", contentLength-1, contentLength))
 
 		partsCount := max(aws.ToInt32(out.PartsCount), 1)
 		partSize := max(aws.ToInt64(out.ContentLength), 1)
@@ -675,7 +675,7 @@ func (g *getter) get(ctx context.Context) (out *GetObjectOutput, err error) {
 
 		output.mapFromHeadObjectOutput(out, g.in.ChecksumMode, !g.options.DisableChecksumValidation, r)
 		output.ContentLength = aws.Int64(contentLength)
-		output.ContentRange = aws.String(fmt.Sprintf("bytes=%d-%d/%d", r.pos, total-1, aws.ToInt64(out.ContentLength)))
+		output.ContentRange = aws.String(fmt.Sprintf("bytes %d-%d/%d", r.pos, total-1, aws.ToInt64(out.ContentLength)))
 
 		partsCount := int32((contentLength-1)/g.options.PartSizeBytes + 1)
 		sectionParts := int32(max(1, g.options.GetObjectBufferSize/g.options.PartSizeBytes))
