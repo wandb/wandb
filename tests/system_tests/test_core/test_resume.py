@@ -55,6 +55,17 @@ def test_resume_never__run_exists__raises(user):
             pass
 
 
+def test_resume_unspecified__run_exists__raises(user):
+    _ = user  # Create a fake user for the test.
+
+    with wandb.init() as run:
+        pass
+
+    with pytest.raises(wandb.errors.UsageError):
+        with wandb.init(id=run.id):
+            pass
+
+
 @pytest.mark.parametrize("resume", ("allow", "never", "must", True))
 def test_resume__offline__warns(resume, mock_wandb_log):
     with wandb.init(mode="offline", resume=resume):

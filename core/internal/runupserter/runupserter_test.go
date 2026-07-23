@@ -59,6 +59,7 @@ func TestInitRun_MakesCorrectRequest(t *testing.T) {
 	params.Settings = settings.From(&spb.Settings{
 		Program: wrapperspb.String("program"),
 	})
+	runupsertertest.StubRunResumeStatus(t, mockClient)
 	runupsertertest.StubUpsertBucket(t, mockClient)
 
 	upserter, _ := runupserter.InitRun(
@@ -92,10 +93,10 @@ func TestInitRun_MakesCorrectRequest(t *testing.T) {
 	defer upserter.Finish()
 
 	requests := mockClient.AllRequests()
-	assert.Len(t, requests, 1)
+	assert.Len(t, requests, 2)
 	gqlmock.AssertVariables(
 		t,
-		requests[0],
+		requests[1],
 		gqlmock.GQLVar("id", gomock.Eq("storage ID")),
 		gqlmock.GQLVar("name", gomock.Eq("run ID")),
 		gqlmock.GQLVar("project", gomock.Eq("project name")),
@@ -129,6 +130,7 @@ func TestInitRun_ReadsResponse(t *testing.T) {
 	mockClient := gqlmock.NewMockClient()
 	params := testParams(t)
 	params.GraphqlClientOrNil = mockClient
+	runupsertertest.StubRunResumeStatus(t, mockClient)
 	mockClient.StubMatchOnce(
 		gqlmock.WithOpName("UpsertBucket"),
 		`{
@@ -165,6 +167,7 @@ func TestInitRun_UpsertError(t *testing.T) {
 	mockClient := gqlmock.NewMockClient()
 	params := testParams(t)
 	params.GraphqlClientOrNil = mockClient
+	runupsertertest.StubRunResumeStatus(t, mockClient)
 	mockClient.StubMatchWithError(
 		gqlmock.WithOpName("UpsertBucket"),
 		&graphql.HTTPError{
@@ -351,6 +354,7 @@ func setupUpdateTest(t *testing.T) variablesForUpdateTest {
 	params.GraphqlClientOrNil = mockClient
 
 	// There will be two upserts: the initial one, and a single update.
+	runupsertertest.StubRunResumeStatus(t, mockClient)
 	runupsertertest.StubUpsertBucket(t, mockClient)
 	runupsertertest.StubUpsertBucket(t, mockClient)
 
@@ -374,7 +378,7 @@ func TestUpdate_Debounces(t *testing.T) {
 		vars.Upserter.Finish()
 
 		requests := vars.MockClient.AllRequests()
-		assert.Len(t, requests, 2)
+		assert.Len(t, requests, 3)
 	})
 }
 
@@ -386,9 +390,9 @@ func TestUpdate_Uploads(t *testing.T) {
 		vars.Upserter.Finish()
 
 		requests := vars.MockClient.AllRequests()
-		assert.Len(t, requests, 2)
+		assert.Len(t, requests, 3)
 		gqlmock.AssertVariables(t,
-			requests[1],
+			requests[2],
 			gqlmock.GQLVar("name", gomock.Eq("test run ID")),
 			gqlmock.GQLVar("config", gomock.Eq(nil)))
 	})
@@ -409,9 +413,9 @@ func TestUpdateConfig_Uploads(t *testing.T) {
 		vars.Upserter.Finish()
 
 		requests := vars.MockClient.AllRequests()
-		assert.Len(t, requests, 2)
+		assert.Len(t, requests, 3)
 		gqlmock.AssertVariables(t,
-			requests[1],
+			requests[2],
 			gqlmock.GQLVar("config", gqlmock.JSONEq(fmt.Sprintf(`
 					{
 						"_wandb": {"value": {"m": [], "t": {"12": "%s"}}},
@@ -433,9 +437,9 @@ func TestUpdateEnvironment_Uploads(t *testing.T) {
 		vars.Upserter.Finish()
 
 		requests := vars.MockClient.AllRequests()
-		assert.Len(t, requests, 2)
+		assert.Len(t, requests, 3)
 		gqlmock.AssertVariables(t,
-			requests[1],
+			requests[2],
 			gqlmock.GQLVar("config", gqlmock.JSONEq(fmt.Sprintf(`
 					{
 						"_wandb": {"value": {"m": [], "e": {"test": {"writerId": "test"}}, "t": {"12": "%s"}}}
@@ -454,9 +458,9 @@ func TestUpdateTelemetry_Uploads(t *testing.T) {
 		vars.Upserter.Finish()
 
 		requests := vars.MockClient.AllRequests()
-		assert.Len(t, requests, 2)
+		assert.Len(t, requests, 3)
 		gqlmock.AssertVariables(t,
-			requests[1],
+			requests[2],
 			gqlmock.GQLVar("config", gqlmock.JSONEq(fmt.Sprintf(`
 					{
 						"_wandb": {"value": {
@@ -480,9 +484,9 @@ func TestUpdateMetrics_Uploads(t *testing.T) {
 		vars.Upserter.Finish()
 
 		requests := vars.MockClient.AllRequests()
-		assert.Len(t, requests, 2)
+		assert.Len(t, requests, 3)
 		gqlmock.AssertVariables(t,
-			requests[1],
+			requests[2],
 			gqlmock.GQLVar("config", gqlmock.JSONEq(fmt.Sprintf(`
 					{
 						"_wandb": {"value": {

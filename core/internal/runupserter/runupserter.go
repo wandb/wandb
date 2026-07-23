@@ -202,6 +202,12 @@ func InitRun(
 		if err != nil {
 			return nil, ToRunUpdateError(err)
 		}
+	default:
+		err := upserter.updateMetadataForResume(ctx, params.Settings.GetResume())
+
+		if err != nil {
+			return nil, ToRunUpdateError(err)
+		}
 	}
 
 	startingStep, err := upserter.syncStateStore.GetOrInitStartingStep(
