@@ -265,12 +265,9 @@ func (r *TelemetryRecorder) Log(
 //
 // The log record contains the attributes from the current telemetry context,
 // plus "error.type", "error.message", "error.stacktrace", and
-// "code.function.name". The stack trace is captured at the point Error is
-// called.
+// "error.originator". The stack trace is captured at the point Error is called.
 //
-// errorOriginator is the fully-qualified package and function name
-// of the code the error is attributed to (following the OpenTelemetry
-// "code.function.name" convention)
+// errorOriginator is a caller-supplied hint about where the error originated.
 func (r *TelemetryRecorder) Error(
 	ctx context.Context,
 	message string,
